@@ -278,7 +278,7 @@ try {
   if (jsonOutput) {
     console.log(JSON.stringify(output, null, 2))
   } else {
-    console.log('Third Code ERP Project cutover plan (READ ONLY)')
+    console.log('ABI OPS project cutover plan (READ ONLY)')
     console.log(`Status: ${status}`)
     console.log(
       `Target refs: tenant=${report.target.tenantRef} Project=${report.target.projectRef} actor=${report.target.actorRef}`

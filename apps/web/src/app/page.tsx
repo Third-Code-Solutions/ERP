@@ -1,37 +1,38 @@
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
 
-import { landingFaqs } from '@/components/marketing/third-code-content'
-import { ThirdCodeLanding } from '@/components/marketing/third-code-landing'
+import { landingFaqs } from '@/components/marketing/abi-ops-content'
+import { AbiOpsLanding } from '@/components/marketing/abi-ops-landing'
 import { publicUrl } from '@/lib/public-origin'
 
 export const metadata: Metadata = {
-  title: 'Construction ERP with a permission-aware AI brain',
+  title: { absolute: 'ABI OPS | Construction operations, connected' },
+  applicationName: 'ABI OPS',
   description:
-    'Third Code ERP connects pipeline, projects, procurement, cost, billing, compliance, and evidence in one construction operating system.',
+    'ABI OPS connects pipeline, projects, procurement, cost, billing, compliance, and evidence in one construction operating system.',
   alternates: {
     canonical: '/',
   },
   openGraph: {
-    title: 'Third Code ERP | One operating system for every project',
+    title: 'ABI OPS | One operating system for every project',
     description:
-      'Run construction work from opportunity to turnover with connected records, controlled approvals, and a permission-aware AI brain.',
+      'Run construction work from opportunity to turnover with connected records, controlled approvals, and permission-aware intelligence.',
     url: '/',
     images: [
       {
-        url: '/images/third-code-erp-hero.png',
+        url: '/images/abi-ops-hero.png',
         width: 1536,
         height: 1024,
-        alt: 'Third Code ERP construction command center',
+        alt: 'ABI OPS construction operations workspace',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Third Code ERP | Construction operations, connected',
+    title: 'ABI OPS | Construction operations, connected',
     description:
       'Pipeline, projects, procurement, cost, billing, compliance, and evidence in one calm operating system.',
-    images: ['/images/third-code-erp-hero.png'],
+    images: ['/images/abi-ops-hero.png'],
   },
 }
 
@@ -41,18 +42,18 @@ const structuredData = {
     {
       '@type': 'Organization',
       '@id': publicUrl('/#organization'),
-      name: 'Third Code Solutions Inc.',
+      name: 'Actuate Builders Inc.',
       url: publicUrl('/'),
     },
     {
       '@type': 'SoftwareApplication',
       '@id': publicUrl('/#software'),
-      name: 'Third Code ERP',
+      name: 'ABI OPS',
       applicationCategory: 'BusinessApplication',
       applicationSubCategory: 'Construction management and enterprise resource planning',
       operatingSystem: 'Web',
       description:
-        'A connected construction ERP for pipeline, projects, procurement, cost, billing, compliance, and permission-aware operational intelligence.',
+        'A connected construction operating system for pipeline, projects, procurement, cost, billing, compliance, and permission-aware operational intelligence.',
       provider: {
         '@id': publicUrl('/#organization'),
       },
@@ -84,7 +85,7 @@ export default async function RootPage() {
 
   return (
     <>
-      <ThirdCodeLanding />
+      <AbiOpsLanding />
       <script
         dangerouslySetInnerHTML={{
           __html: JSON.stringify(structuredData).replace(/</g, '\\u003c'),

@@ -3,7 +3,7 @@
  * (REFACTOR.md US-Pre-003). Server component — no client interactivity.
  *
  * Renders: Draft → PM → Commercial → SCM → Issued. Completed steps show a
- * checkmark, the current step is highlighted in Third Code copper, future steps are
+ * checkmark, the current step is highlighted in ABI OPS copper, future steps are
  * muted. Per-step approver name + timestamp render below the label when
  * the column has been stamped.
  */

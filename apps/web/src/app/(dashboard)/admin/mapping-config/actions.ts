@@ -7,6 +7,7 @@ import { requireUserProfile, can } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { mappingConfig, materialItems } from '@third-code-erp/database/schema'
 import { writeAuditLog } from '@/lib/audit'
+import { safeActionError } from '@/lib/safe-action-error'
 
 const mappingSchema = z.object({
   id: z.string().uuid().optional(),
@@ -68,7 +69,12 @@ export async function upsertMappingConfig(
           material_item_id: input.material_item_id,
           notes: input.notes ?? null,
         })
-        .where(eq(mappingConfig.id, input.id))
+        .where(
+          and(
+            eq(mappingConfig.id, input.id),
+            eq(mappingConfig.tenant_id, profile.tenantId)
+          )
+        )
 
       await writeAuditLog({
         tenantId: profile.tenantId,
@@ -105,7 +111,8 @@ export async function upsertMappingConfig(
       })
     }
   } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Database error' }
+    console.error('[admin/mapping-config:upsertMappingConfig] failed', err)
+    return { error: safeActionError(err, 'Could not save the mapping configuration.') }
   }
 
   revalidatePath('/admin/mapping-config')

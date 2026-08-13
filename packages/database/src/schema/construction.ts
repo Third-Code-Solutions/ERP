@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, bigint, integer, timestamp, boolean, jsonb, index, pgEnum } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, varchar, text, bigint, integer, timestamp, boolean, jsonb, index, pgEnum, uniqueIndex } from 'drizzle-orm/pg-core'
 import { tenants } from './tenants'
 import { projects } from './projects'
 import { users } from './users'
@@ -89,6 +89,7 @@ export const masterSchedules = pgTable(
     imported_by: uuid('imported_by').references(() => users.id, { onDelete: 'set null' }),
   },
   (table) => ({
+    tenantIdUniqueIdx: uniqueIndex('ux_master_schedules_tenant_id_id').on(table.tenant_id, table.id),
     tenantIdx: index('idx_master_schedules_tenant_id').on(table.tenant_id),
     projectIdx: index('idx_master_schedules_project_id').on(table.project_id),
   })

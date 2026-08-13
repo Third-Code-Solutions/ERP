@@ -75,7 +75,12 @@ export default async function InspectionPrintPage({
         caption: siteInspectionPhotos.caption,
       })
       .from(siteInspectionPhotos)
-      .where(eq(siteInspectionPhotos.inspection_id, inspection.id))
+      .where(
+        and(
+          eq(siteInspectionPhotos.inspection_id, inspection.id),
+          eq(siteInspectionPhotos.tenant_id, profile.tenantId),
+        ),
+      )
       .orderBy(asc(siteInspectionPhotos.created_at)),
     db
       .select({
@@ -85,7 +90,12 @@ export default async function InspectionPrintPage({
         resolved_at: siteInspectionRfis.resolved_at,
       })
       .from(siteInspectionRfis)
-      .where(eq(siteInspectionRfis.inspection_id, inspection.id))
+      .where(
+        and(
+          eq(siteInspectionRfis.inspection_id, inspection.id),
+          eq(siteInspectionRfis.tenant_id, profile.tenantId),
+        ),
+      )
       .orderBy(asc(siteInspectionRfis.created_at)),
     db
       .select({
@@ -93,7 +103,12 @@ export default async function InspectionPrintPage({
         account_id: opportunities.account_id,
       })
       .from(opportunities)
-      .where(eq(opportunities.id, inspection.opportunity_id))
+      .where(
+        and(
+          eq(opportunities.id, inspection.opportunity_id),
+          eq(opportunities.tenant_id, profile.tenantId),
+        ),
+      )
       .limit(1),
     db
       .select({
@@ -108,7 +123,7 @@ export default async function InspectionPrintPage({
       ? db
           .select({ full_name: users.full_name, email: users.email })
           .from(users)
-          .where(eq(users.id, inspection.submitted_by))
+          .where(and(eq(users.id, inspection.submitted_by), eq(users.tenant_id, profile.tenantId)))
           .limit(1)
       : Promise.resolve([] as Array<{ full_name: string | null; email: string | null }>),
   ])
@@ -124,7 +139,7 @@ export default async function InspectionPrintPage({
           location: projects.location,
         })
         .from(projects)
-        .where(eq(projects.id, opp.project_id))
+        .where(and(eq(projects.id, opp.project_id), eq(projects.tenant_id, profile.tenantId)))
         .limit(1)
     : [null]
 
@@ -136,7 +151,7 @@ export default async function InspectionPrintPage({
           billing_address: accounts.billing_address,
         })
         .from(accounts)
-        .where(eq(accounts.id, opp.account_id))
+        .where(and(eq(accounts.id, opp.account_id), eq(accounts.tenant_id, profile.tenantId)))
         .limit(1)
     : [null]
 

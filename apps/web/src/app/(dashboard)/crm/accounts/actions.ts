@@ -137,7 +137,12 @@ export async function reviewKyc(formData: FormData): Promise<{ error?: string }>
       kyc_decided_by: profile.user.id,
       updated_at: new Date(),
     })
-    .where(eq(accounts.id, input.account_id))
+    .where(
+      and(
+        eq(accounts.id, input.account_id),
+        eq(accounts.tenant_id, profile.tenantId)
+      )
+    )
 
   await writeAuditLog({
     tenantId: profile.tenantId,

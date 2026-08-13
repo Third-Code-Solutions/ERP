@@ -1,5 +1,19 @@
 # Migration Plan
 
+## Latest M1 release status — 2026-08-13
+
+- The current local runtime, Railway API, Vercel web release, and linked
+  Supabase ledger have been rechecked. Supabase is current through
+  `20260813210000` with zero pending migrations; Railway and Vercel readiness
+  pass; public and authenticated production browser journeys pass.
+- The current production flag remains disabled:
+  `ERP_PROJECT_WRITES_VIA_API=false`, with no tenant allowlist. The dedicated
+  normal-signup canary, controlled provider enable/rollback drill, and exact
+  Git-source reconciliation remain incomplete and must not be inferred from
+  provider readiness.
+- Historical milestone text below is retained for traceability; use this note
+  and `docs/operations/NEXT_ACTIONS.md` for current release state.
+
 Strategy: strangler migration by complete vertical transaction slices. Keep
 the current application usable and keep each new route disabled until its
 evidence is green.

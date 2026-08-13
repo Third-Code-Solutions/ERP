@@ -9,7 +9,9 @@
     "./projects": "./src/projects.ts",
     "./opportunities": "./src/opportunities.ts",
     "./accounts": "./src/accounts.ts",
-    "./common": "./src/common.ts"
+    "./common": "./src/common.ts",
+    "./business-days": "./src/business-days/index.ts",
+    "./process-sla": "./src/process-sla/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

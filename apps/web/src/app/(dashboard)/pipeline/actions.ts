@@ -1,9 +1,9 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { getUser } from '@third-code-erp/auth'
+import { can, getUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
-import { accounts, opportunities, projects, users } from '@third-code-erp/database/schema'
+import { accounts, opportunities, opportunityKycTracks, projects } from '@third-code-erp/database/schema'
 import { and, eq } from 'drizzle-orm'
 import { writeAuditLog } from '@/lib/audit'
 import { startSlaClock, stopSlaClock } from '@/lib/operations/sla-clock'
@@ -15,6 +15,7 @@ import {
   type PipelineStage,
   type OpportunityStage,
 } from '@third-code-erp/shared-types'
+import { opportunityKycGateMessage } from '@/lib/operations/opportunity-kyc'
 
 // Stages beyond which KYC must be approved. `lead` + `site_survey` are
 // allowed pre-KYC so reps can initial-triage; everything past needs
@@ -33,11 +34,11 @@ const KYC_GATED_STAGES: ReadonlySet<OpportunityStage> = new Set<OpportunityStage
 // ── Create opportunity ────────────────────────────────────────────────────────
 
 export async function createOpportunity(formData: FormData): Promise<{ error?: string }> {
-  const user = await getUser()
-  if (!user) return { error: 'Unauthorized' }
-
-  const [userRow] = await db.select({ tenant_id: users.tenant_id }).from(users).where(eq(users.id, user.id))
-  if (!userRow?.tenant_id) return { error: 'No tenant' }
+  const profile = await getUserProfile()
+  if (!profile) return { error: 'Unauthorized' }
+  if (!can(profile.role, 'opportunity.create')) {
+    return { error: `Forbidden: role "${profile.role}" cannot create opportunities` }
+  }
 
   const projectId = formData.get('project_id')
   if (typeof projectId !== 'string' || !projectId) return { error: 'Project is required' }
@@ -45,7 +46,7 @@ export async function createOpportunity(formData: FormData): Promise<{ error?: s
   const [project] = await db
     .select({ id: projects.id })
     .from(projects)
-    .where(and(eq(projects.id, projectId), eq(projects.tenant_id, userRow.tenant_id)))
+    .where(and(eq(projects.id, projectId), eq(projects.tenant_id, profile.tenantId)))
 
   if (!project) return { error: 'Project not found' }
 
@@ -57,9 +58,9 @@ export async function createOpportunity(formData: FormData): Promise<{ error?: s
   const [opp] = await db
     .insert(opportunities)
     .values({
-      tenant_id: userRow.tenant_id,
+      tenant_id: profile.tenantId,
       project_id: projectId,
-      rep_id: user.id,
+      rep_id: profile.user.id,
       stage: 'opportunity_creation',
       tcv_cents: tcvCents,
       gp_cents: gpCents,
@@ -73,8 +74,8 @@ export async function createOpportunity(formData: FormData): Promise<{ error?: s
     .returning({ id: opportunities.id })
 
   await writeAuditLog({
-    tenantId: userRow.tenant_id,
-    actorId: user.id,
+    tenantId: profile.tenantId,
+    actorId: profile.user.id,
     entityType: 'opportunity',
     entityId: opp!.id,
     action: 'create',
@@ -87,7 +88,7 @@ export async function createOpportunity(formData: FormData): Promise<{ error?: s
   return {}
 }
 
-// ── Create opportunity for an account (Third Code ERP flow) ───────────────────
+// ── Create opportunity for an account (ABI OPS flow) ──────────────────────────
 
 /**
  * Create an Opportunity owned by an Account (REFACTOR.md M1 US-002).
@@ -99,11 +100,11 @@ export async function createOpportunity(formData: FormData): Promise<{ error?: s
  * `site_survey`.
  */
 export async function createOpportunityForAccount(formData: FormData): Promise<{ error?: string }> {
-  const user = await getUser()
-  if (!user) return { error: 'Unauthorized' }
-
-  const [userRow] = await db.select({ tenant_id: users.tenant_id }).from(users).where(eq(users.id, user.id))
-  if (!userRow?.tenant_id) return { error: 'No tenant' }
+  const profile = await getUserProfile()
+  if (!profile) return { error: 'Unauthorized' }
+  if (!can(profile.role, 'opportunity.create')) {
+    return { error: `Forbidden: role "${profile.role}" cannot create opportunities` }
+  }
 
   const accountId = formData.get('account_id')
   if (typeof accountId !== 'string' || !accountId) return { error: 'Account is required' }
@@ -111,7 +112,7 @@ export async function createOpportunityForAccount(formData: FormData): Promise<{
   const [account] = await db
     .select({ id: accounts.id, kyc_status: accounts.kyc_status, name: accounts.name })
     .from(accounts)
-    .where(and(eq(accounts.id, accountId), eq(accounts.tenant_id, userRow.tenant_id)))
+    .where(and(eq(accounts.id, accountId), eq(accounts.tenant_id, profile.tenantId)))
 
   if (!account) return { error: 'Account not found' }
 
@@ -133,7 +134,7 @@ export async function createOpportunityForAccount(formData: FormData): Promise<{
     const [project] = await db
       .select({ id: projects.id })
       .from(projects)
-      .where(and(eq(projects.id, projectIdRaw), eq(projects.tenant_id, userRow.tenant_id)))
+      .where(and(eq(projects.id, projectIdRaw), eq(projects.tenant_id, profile.tenantId)))
     if (!project) return { error: 'Project not found' }
     projectId = project.id
   }
@@ -146,10 +147,10 @@ export async function createOpportunityForAccount(formData: FormData): Promise<{
   const [opp] = await db
     .insert(opportunities)
     .values({
-      tenant_id: userRow.tenant_id,
+      tenant_id: profile.tenantId,
       account_id: accountId,
       project_id: projectId,
-      rep_id: user.id,
+      rep_id: profile.user.id,
       stage,
       tcv_cents: tcvCents,
       gp_cents: gpCents,
@@ -165,8 +166,8 @@ export async function createOpportunityForAccount(formData: FormData): Promise<{
   if (!opp) return { error: 'Failed to create opportunity' }
 
   await writeAuditLog({
-    tenantId: userRow.tenant_id,
-    actorId: user.id,
+    tenantId: profile.tenantId,
+    actorId: profile.user.id,
     entityType: 'opportunity',
     entityId: opp.id,
     action: 'create',
@@ -176,7 +177,7 @@ export async function createOpportunityForAccount(formData: FormData): Promise<{
   // Start SLA clock on the initial stage so leadership can see stalled leads.
   try {
     await startSlaClock({
-      tenantId: userRow.tenant_id,
+      tenantId: profile.tenantId,
       entityType: 'opportunity',
       entityId: opp.id,
       label: 'opp.stage_response',
@@ -213,11 +214,11 @@ export async function advanceOpportunityStage(
   nextStage: string,
   reason?: string
 ): Promise<{ error?: string }> {
-  const user = await getUser()
-  if (!user) return { error: 'Unauthorized' }
-
-  const [userRow] = await db.select({ tenant_id: users.tenant_id }).from(users).where(eq(users.id, user.id))
-  if (!userRow?.tenant_id) return { error: 'No tenant' }
+  const profile = await getUserProfile()
+  if (!profile) return { error: 'Unauthorized' }
+  if (!can(profile.role, 'opportunity.advance_stage')) {
+    return { error: `Forbidden: role "${profile.role}" cannot advance opportunities` }
+  }
 
   const [opp] = await db
     .select({
@@ -229,7 +230,7 @@ export async function advanceOpportunityStage(
       lost_reason: opportunities.lost_reason,
     })
     .from(opportunities)
-    .where(and(eq(opportunities.id, opportunityId), eq(opportunities.tenant_id, userRow.tenant_id)))
+    .where(and(eq(opportunities.id, opportunityId), eq(opportunities.tenant_id, profile.tenantId)))
 
   if (!opp) return { error: 'Opportunity not found' }
 
@@ -243,13 +244,36 @@ export async function advanceOpportunityStage(
   // approved (or not-required) KYC status.
   const nextStageTyped = nextStage as OpportunityStage
   if (KYC_GATED_STAGES.has(nextStageTyped) && opp.account_id) {
-    const [account] = await db
+    const [accountRows, trackRows] = await Promise.all([
+      db
       .select({ kyc_status: accounts.kyc_status })
       .from(accounts)
-      .where(and(eq(accounts.id, opp.account_id), eq(accounts.tenant_id, userRow.tenant_id)))
-    const kycOk = account?.kyc_status === 'approved' || account?.kyc_status === 'not_required'
-    if (!kycOk) {
-      return { error: 'Account KYC must be Approved before this stage' }
+      .where(and(eq(accounts.id, opp.account_id), eq(accounts.tenant_id, profile.tenantId)))
+      .limit(1),
+      db
+        .select({
+          track_type: opportunityKycTracks.track_type,
+          status: opportunityKycTracks.status,
+          decision_reason: opportunityKycTracks.decision_reason,
+        })
+        .from(opportunityKycTracks)
+        .where(
+          and(
+            eq(opportunityKycTracks.opportunity_id, opportunityId),
+            eq(opportunityKycTracks.tenant_id, profile.tenantId)
+          )
+      ),
+    ])
+    const account = accountRows[0]
+
+    // New PPRF opportunities use two explicit Finance tracks. Legacy
+    // opportunities without tracks retain account-level KYC compatibility.
+    const dualTrackGate = opportunityKycGateMessage(trackRows)
+    if (trackRows.length > 0) {
+      if (dualTrackGate) return { error: dualTrackGate }
+    } else {
+      const kycOk = account?.kyc_status === 'approved' || account?.kyc_status === 'not_required'
+      if (!kycOk) return { error: 'Account KYC must be Approved before this stage' }
     }
   }
 
@@ -298,7 +322,7 @@ export async function advanceOpportunityStage(
   await db
     .update(opportunities)
     .set(updateValues)
-    .where(and(eq(opportunities.id, opportunityId), eq(opportunities.tenant_id, userRow.tenant_id)))
+    .where(and(eq(opportunities.id, opportunityId), eq(opportunities.tenant_id, profile.tenantId)))
 
   const auditDiff: Record<string, unknown> = {
     from: opp.stage,
@@ -316,8 +340,8 @@ export async function advanceOpportunityStage(
   }
 
   await writeAuditLog({
-    tenantId: userRow.tenant_id,
-    actorId: user.id,
+    tenantId: profile.tenantId,
+    actorId: profile.user.id,
     entityType: 'opportunity',
     entityId: opportunityId,
     action: 'stage_change',
@@ -328,7 +352,7 @@ export async function advanceOpportunityStage(
   // new stage (terminal stages don't need a new clock).
   try {
     await stopSlaClock({
-      tenantId: userRow.tenant_id,
+      tenantId: profile.tenantId,
       entityType: 'opportunity',
       entityId: opportunityId,
       label: 'opp.stage_response',
@@ -337,7 +361,7 @@ export async function advanceOpportunityStage(
       nextStageTyped === 'closed_won' || nextStageTyped === 'closed_lost'
     if (!terminal) {
       await startSlaClock({
-        tenantId: userRow.tenant_id,
+        tenantId: profile.tenantId,
         entityType: 'opportunity',
         entityId: opportunityId,
         label: 'opp.stage_response',
@@ -355,7 +379,7 @@ export async function advanceOpportunityStage(
   if (nextStageTyped === 'won' || nextStageTyped === 'closed_won') {
     try {
       const { convertOpportunityToProject } = await import('@/lib/operations/won-conversion')
-      await convertOpportunityToProject(opportunityId, user.id)
+      await convertOpportunityToProject(opportunityId, profile.user.id)
     } catch (err) {
       // eslint-disable-next-line no-console
       console.warn('[won-conversion] failed:', err instanceof Error ? err.message : err)

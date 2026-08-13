@@ -1,6 +1,6 @@
 # Architecture
 
-Third Code ERP is a single Next.js 15 application backed by Supabase, with
+ABI OPS is a single Next.js 15 application backed by Supabase, with
 Inngest for background work and an optional Python DXF worker on
 Railway. The same Postgres instance carries operational rows, vector
 embeddings, the append-only audit log, and Supabase Auth — every table

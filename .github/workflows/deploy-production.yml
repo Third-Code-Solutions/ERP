@@ -1,0 +1,151 @@
+name: Production promotion
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: Release reason and change reference
+        required: true
+        type: string
+
+concurrency:
+  group: abi-ops-production-promotion
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    name: Promote ABI OPS production
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment:
+      name: production
+      url: https://thirdcode-erp.vercel.app
+    env:
+      SUPABASE_PROJECT_REF: aqqrtkmtcsfkbyyqxowv
+      RAILWAY_PROJECT_ID: a21fd382-80b2-4218-8025-11f420a062e3
+      RAILWAY_API_SERVICE_ID: c45b3d01-036a-4663-a524-0713d782fce3
+      RAILWAY_CAD_SERVICE_ID: 328c6650-306e-4a3c-80dc-7566e80ba86a
+      VERCEL_SCOPE: pavi-2e9809a4
+      VERCEL_PROJECT_NAME: thirdcode-erp
+      NEXT_PUBLIC_SUPABASE_URL: https://aqqrtkmtcsfkbyyqxowv.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+    steps:
+      - name: Check production branch
+        shell: bash
+        run: test "$GITHUB_REF" = "refs/heads/main"
+
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@a15d269cd4658e1107c09f1fabf4cbd7bd1f308a # v4.4.0
+        with:
+          version: 10.33.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
+        with:
+          version: 2.109.1
+
+      - name: Require production credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in VERCEL_TOKEN RAILWAY_TOKEN SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "$name is required for production promotion" >&2
+              exit 1
+            fi
+          done
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run release gates
+        run: |
+          pnpm verify:abi-ops-brand
+          pnpm verify:type-safety
+          pnpm verify:app-router-boundaries
+          pnpm verify:build-ops-invariants
+          pnpm ci:actionlint
+          pnpm verify:workflow-action-refs
+          pnpm turbo typecheck
+          pnpm turbo test
+          pnpm build
+
+      - name: Link exact Supabase production project
+        shell: bash
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD" --skip-pooler
+
+      - name: Preview Supabase migration push
+        shell: bash
+        run: supabase db push --linked --dry-run --password "$SUPABASE_DB_PASSWORD" --skip-vault
+
+      - name: Apply Supabase additive migrations
+        shell: bash
+        run: supabase db push --linked --yes --password "$SUPABASE_DB_PASSWORD" --skip-vault
+
+      - name: Deploy Nest API to exact Railway service
+        shell: bash
+        run: >-
+          pnpm dlx @railway/cli@5.28.0 up . --project "$RAILWAY_PROJECT_ID"
+          --environment production --service "$RAILWAY_API_SERVICE_ID"
+          --ci --yes --message "${{ inputs.reason }}"
+
+      - name: Deploy CAD evidence worker to exact Railway service
+        shell: bash
+        run: >-
+          pnpm dlx @railway/cli@5.28.0 up apps/workers/dxf-parser
+          --path-as-root --project "$RAILWAY_PROJECT_ID"
+          --environment production --service "$RAILWAY_CAD_SERVICE_ID"
+          --ci --yes --message "${{ inputs.reason }}"
+
+      - name: Deploy web to exact Vercel production project
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm dlx vercel@54.7.1 link --yes --project "$VERCEL_PROJECT_NAME" --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
+          pnpm dlx vercel@54.7.1 deploy . --prod --force --with-cache --yes --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
+
+      - name: Verify production health and release identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error https://thirdcode-erp.vercel.app/api/health
+          curl --fail --silent --show-error https://thirdcode-erp.vercel.app/api/ready
+          curl --fail --silent --show-error https://third-code-erp-api-production.up.railway.app/health
+          curl --fail --silent --show-error https://third-code-erp-api-production.up.railway.app/ready
+          curl --fail --silent --show-error https://abi-ops-cad-worker-production.up.railway.app/health
+          node scripts/verify-production-surface.mjs --url https://thirdcode-erp.vercel.app
+
+      - name: Install Playwright Chromium
+        working-directory: apps/web
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run authenticated production E2E
+        working-directory: apps/web
+        env:
+          E2E_MAGIC_LINK_AUTH: "1"
+          E2E_ROLE_MATRIX_AUTH: "1"
+          PLAYWRIGHT_BASE_URL: https://thirdcode-erp.vercel.app
+        run: >-
+          pnpm exec playwright test
+          e2e/branding-authenticated.spec.ts
+          e2e/smoke-console.spec.ts
+          e2e/role-access-production.spec.ts
+          e2e/cad-worker-production.spec.ts
+          --project=chromium --workers=1 --reporter=line

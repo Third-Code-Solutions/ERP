@@ -32,7 +32,7 @@ import { PortalEmpty } from '@/components/customer-portal/portal-empty'
 import { logView } from './actions'
 
 export const metadata: Metadata = {
-  title: 'Project overview · Third Code ERP',
+  title: 'Project overview · ABI OPS',
   robots: { index: false, follow: false },
 }
 
@@ -88,7 +88,7 @@ export default async function PortalProjectOverviewPage({ params }: PageProps) {
   if (!session) return null
 
   // Stamp the view counter. Best-effort; never blocks rendering.
-  void logView(session.id)
+  void logView(session.id, session.tenant_id)
 
   const [
     projectRows,

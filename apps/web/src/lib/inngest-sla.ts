@@ -3,11 +3,10 @@
  *
  * Runs every 30 minutes. For each open `sla_logs` row (completed_at IS NULL
  * AND breached_at IS NULL):
- *   - Compute elapsed seconds since started_at.
- *   - If elapsed >= breach_at_seconds → set breached_at = now, dispatch a
- *     breach notification (in-app + email) to admin/owner roles.
- *   - Else if elapsed >= breach_at_seconds * warning_at_pct and warned_at
- *     is null → set warned_at = now, dispatch an in-app-only warning.
+ *   - Compute business-day or calendar-hour progress from the stored config.
+ *   - At 100%, set breached_at = now and dispatch a breach notification.
+ *   - At the configured warning threshold, set warned_at = now and dispatch
+ *     an in-app-only warning.
  *
  * Mirrors the Deno function at supabase/functions/sla-checker but runs
  * via the Inngest connection already wired for the Next.js app — no extra
@@ -22,13 +21,10 @@ import { db } from '@third-code-erp/database'
 import { slaLogs } from '@third-code-erp/database/schema'
 import { notifyRoles } from '@/lib/operations/notifications'
 import { inngest } from '@/lib/inngest'
+import { getSlaProgress, parseSlaConfig } from '@/lib/operations/sla-clock-utils'
+import { resolveTenantBusinessDayService } from '@/lib/operations/business-calendar'
 
 const ADMIN_ROLES = ['admin', 'owner'] as const
-
-interface SlaConfig {
-  breach_at_seconds: number
-  warning_at_pct: number
-}
 
 interface Step {
   run: <T>(name: string, fn: () => Promise<T>) => Promise<T>
@@ -47,15 +43,6 @@ function siteBase(): string {
     process.env.SITE_URL ||
     'http://localhost:3000'
   )
-}
-
-function parseSlaConfig(raw: unknown): SlaConfig | null {
-  if (!raw || typeof raw !== 'object') return null
-  const obj = raw as Record<string, unknown>
-  const breach = obj.breach_at_seconds
-  const warn = obj.warning_at_pct
-  if (typeof breach !== 'number' || typeof warn !== 'number') return null
-  return { breach_at_seconds: breach, warning_at_pct: warn }
 }
 
 function entityLabel(entityType: string, entityId: string): string {
@@ -108,7 +95,6 @@ export const slaChecker = inngest.createFunction(
     }
 
     const now = new Date()
-    const nowMs = now.getTime()
 
     for (const row of openRows) {
       summary.processed += 1
@@ -117,21 +103,34 @@ export const slaChecker = inngest.createFunction(
           const cfg = parseSlaConfig(row.sla_seconds)
           if (!cfg) return { skipped: 'invalid-config' as const }
 
-          const elapsedSec = Math.floor((nowMs - new Date(row.started_at).getTime()) / 1000)
-          const warnAfter = cfg.breach_at_seconds * cfg.warning_at_pct
+          const businessDays =
+            cfg.clock_type === 'business_days'
+              ? await resolveTenantBusinessDayService(row.tenant_id)
+              : undefined
+          const progress = getSlaProgress(
+            cfg,
+            new Date(row.started_at),
+            now,
+            businessDays
+          )
           const linkUrl = `${siteBase()}/admin/sla?entity_type=${encodeURIComponent(row.entity_type)}&entity_id=${row.entity_id}`
 
-          if (elapsedSec >= cfg.breach_at_seconds) {
+          if (progress.elapsed >= progress.total) {
             await db
               .update(slaLogs)
               .set({ breached_at: now })
-              .where(eq(slaLogs.id, row.id))
+              .where(
+                and(
+                  eq(slaLogs.id, row.id),
+                  eq(slaLogs.tenant_id, row.tenant_id)
+                )
+              )
 
             await notifyRoles({
               tenantId: row.tenant_id,
               recipientRoles: [...ADMIN_ROLES],
               subject: `SLA breached: ${row.sla_label}`,
-              body: `${row.sla_label} breached on ${entityLabel(row.entity_type, row.entity_id)} after ${(elapsedSec / 3600).toFixed(1)}h.`,
+              body: `${row.sla_label} breached on ${entityLabel(row.entity_type, row.entity_id)} after ${progress.elapsed.toFixed(1)} ${progress.unit.replace('_', ' ')}.`,
               linkUrl,
               alsoEmail: true,
               templateId: 'sla-breach',
@@ -144,17 +143,22 @@ export const slaChecker = inngest.createFunction(
             return { breached: true as const }
           }
 
-          if (elapsedSec >= warnAfter && !row.warned_at) {
+          if (progress.elapsed >= progress.warning_at && !row.warned_at) {
             await db
               .update(slaLogs)
               .set({ warned_at: now })
-              .where(eq(slaLogs.id, row.id))
+              .where(
+                and(
+                  eq(slaLogs.id, row.id),
+                  eq(slaLogs.tenant_id, row.tenant_id)
+                )
+              )
 
             await notifyRoles({
               tenantId: row.tenant_id,
               recipientRoles: [...ADMIN_ROLES],
               subject: `SLA approaching breach: ${row.sla_label}`,
-              body: `${row.sla_label} on ${entityLabel(row.entity_type, row.entity_id)} is approaching breach (${(elapsedSec / 3600).toFixed(1)}h of ${(cfg.breach_at_seconds / 3600).toFixed(1)}h budget).`,
+              body: `${row.sla_label} on ${entityLabel(row.entity_type, row.entity_id)} is approaching breach (${progress.elapsed.toFixed(1)} of ${progress.total} ${progress.unit.replace('_', ' ')}).`,
               linkUrl,
               // In-app only — no email per spec.
             })

@@ -39,7 +39,7 @@ export function NewAccountForm() {
           required
           minLength={2}
           maxLength={255}
-          placeholder="Third Code Solutions Inc."
+          placeholder="e.g. Northstar MEP Inc."
           className="form-input"
         />
       </div>

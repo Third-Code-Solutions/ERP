@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { getUser } from '@third-code-erp/auth'
+import { requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   accounts,
@@ -18,16 +18,8 @@ export const metadata: Metadata = { title: 'Pipeline Board' }
 export const dynamic = 'force-dynamic'
 
 export default async function PipelineBoardPage() {
-  const user = await getUser()
-  if (!user) return null
-
-  const [userRow] = await db
-    .select({ tenant_id: users.tenant_id })
-    .from(users)
-    .where(eq(users.id, user.id))
-  if (!userRow?.tenant_id) return null
-
-  const tenantId = userRow.tenant_id
+  const profile = await requireUserProfile()
+  const tenantId = profile.tenantId
 
   // Fetch everything in parallel — kanban needs opps + accounts (for KYC
   // gating + display) + open SLA logs (for the dot) + reps + projects/accounts
@@ -52,9 +44,24 @@ export default async function PipelineBoardPage() {
         rep_email: users.email,
       })
       .from(opportunities)
-      .leftJoin(accounts, eq(opportunities.account_id, accounts.id))
-      .leftJoin(projects, eq(opportunities.project_id, projects.id))
-      .leftJoin(users, eq(opportunities.rep_id, users.id))
+      .leftJoin(
+        accounts,
+        and(
+          eq(opportunities.account_id, accounts.id),
+          eq(accounts.tenant_id, tenantId)
+        )
+      )
+      .leftJoin(
+        projects,
+        and(
+          eq(opportunities.project_id, projects.id),
+          eq(projects.tenant_id, tenantId)
+        )
+      )
+      .leftJoin(
+        users,
+        and(eq(opportunities.rep_id, users.id), eq(users.tenant_id, tenantId))
+      )
       .where(eq(opportunities.tenant_id, tenantId))
       .orderBy(desc(opportunities.updated_at)),
     db

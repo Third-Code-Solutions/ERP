@@ -10,11 +10,12 @@
 // useless within minutes.
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getUser } from '@third-code-erp/auth'
+import { getUserProfile } from '@third-code-erp/auth'
 import { createSupabaseAdminClient } from '@third-code-erp/auth/server'
 import { db } from '@third-code-erp/database'
-import { documents, users } from '@third-code-erp/database/schema'
+import { documents } from '@third-code-erp/database/schema'
 import { and, eq } from 'drizzle-orm'
+import { safeActionError } from '@/lib/safe-action-error'
 
 const SIGNED_URL_TTL_SECONDS = 60 * 5 // 5 minutes
 
@@ -29,14 +30,9 @@ export async function GET(
     return NextResponse.json({ error: 'Invalid document id' }, { status: 400 })
   }
 
-  const user = await getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const [userRow] = await db
-    .select({ tenant_id: users.tenant_id })
-    .from(users)
-    .where(eq(users.id, user.id))
-  if (!userRow?.tenant_id) {
+  const profile = await getUserProfile()
+  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!profile.tenantId) {
     return NextResponse.json({ error: 'No tenant associated with account' }, { status: 403 })
   }
 
@@ -50,7 +46,7 @@ export async function GET(
     .where(
       and(
         eq(documents.id, documentId),
-        eq(documents.tenant_id, userRow.tenant_id)
+        eq(documents.tenant_id, profile.tenantId)
       )
     )
 
@@ -73,8 +69,9 @@ export async function GET(
     )
 
   if (error || !data?.signedUrl) {
+    console.error('[documents] signed URL creation failed', error)
     return NextResponse.json(
-      { error: `Failed to mint signed URL: ${error?.message ?? 'unknown'}` },
+      { error: safeActionError(error, 'Failed to open document.') },
       { status: 500 }
     )
   }

@@ -78,6 +78,8 @@ playwright-report/
 playwright/.cache/
 test-results/
 *.lcov
+.playwright-cli/
+.playwright-mcp/
 
 # =====================================================================
 # Drizzle / Supabase / Docker local state
@@ -140,6 +142,7 @@ Desktop.ini
 .scratch/
 tmp/
 temp/
+output/playwright/
 
 # Downloaded CI helper (e.g. rhysd/actionlint install script)
 /actionlint

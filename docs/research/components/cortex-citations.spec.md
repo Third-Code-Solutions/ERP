@@ -7,7 +7,7 @@
   - `apps/web/src/components/cortex/cortex-agent.tsx`
   - `apps/web/src/components/cortex/cortex-entity-panel.tsx`
 - Interaction model: click-driven record navigation.
-- Visual reference: existing Third Code ERP Cortex chip system in
+- Visual reference: existing ABI OPS Cortex chip system in
   `apps/web/src/app/globals.css`. Production visual capture is deferred because
   the connected browser identity is authenticated but has no workspace
   membership; no authorization bypass is permitted.

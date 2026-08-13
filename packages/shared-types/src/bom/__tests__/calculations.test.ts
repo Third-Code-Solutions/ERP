@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   lineTotal,
+  manualLineTotal,
   bomTotalCost,
   computeTCV,
   computeGP,
@@ -36,6 +37,12 @@ describe('lineTotal', () => {
 
   it('returns zero for zero quantity', () => {
     expect(lineTotal(50000, 0, 2000)).toBe(0)
+  })
+})
+
+describe('manualLineTotal', () => {
+  it('never applies a line-level markup', () => {
+    expect(manualLineTotal(12500, 4)).toBe(50000)
   })
 })
 

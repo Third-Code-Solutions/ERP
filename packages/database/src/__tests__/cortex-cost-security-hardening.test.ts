@@ -565,7 +565,7 @@ runtimeSuite('Cortex/cost hardening runtime proof', () => {
     expect(rejected).toBe(true)
   })
 
-  it('allows a permitted role to append a valid manual cost', async () => {
+  it('allows the service role to append a valid manual cost', async () => {
     const inserted = await inRollback(sql, async (tx) => {
       const { tenantId, userA } = await seedSameTenantUsers(tx)
       const projectId = (
@@ -582,7 +582,10 @@ runtimeSuite('Cortex/cost hardening runtime proof', () => {
            returning id`
         )) as Rows
       )[0].id as string
-      await becomeAuthenticated(tx, userA)
+      // Cost writes are service-owned after the closed-by-default workflow
+      // migration. The browser role retains read-only access until the Core
+      // canary is explicitly approved.
+      await tx.unsafe(`set local role service_role`)
 
       const rows = (await tx.unsafe(
         `insert into cost_entries(

@@ -2,10 +2,10 @@
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import { can, getUser } from '@third-code-erp/auth'
+import { can, getUserProfile } from '@third-code-erp/auth'
 import { createSupabaseAdminClient } from '@third-code-erp/auth/server'
 import { db } from '@third-code-erp/database'
-import { documents, scopeItems, users } from '@third-code-erp/database/schema'
+import { documents, scopeItems } from '@third-code-erp/database/schema'
 import { and, eq, like } from 'drizzle-orm'
 import { writeAuditLogInTransaction } from '@/lib/audit'
 
@@ -31,15 +31,9 @@ export async function deleteDocument(formData: FormData): Promise<DeleteResult> 
   }
   const { documentId, projectId } = parsed.data
 
-  const user = await getUser()
-  if (!user) return { ok: false, error: 'Unauthorized' }
-
-  const [userRow] = await db
-    .select({ tenant_id: users.tenant_id, role: users.role })
-    .from(users)
-    .where(eq(users.id, user.id))
-  if (!userRow?.tenant_id) return { ok: false, error: 'No tenant' }
-  if (!can(userRow.role, 'document.manage')) {
+  const profile = await getUserProfile()
+  if (!profile) return { ok: false, error: 'Unauthorized' }
+  if (!can(profile.role, 'document.manage')) {
     return { ok: false, error: 'Forbidden' }
   }
 
@@ -62,14 +56,14 @@ export async function deleteDocument(formData: FormData): Promise<DeleteResult> 
         .where(
           and(
             eq(documents.id, documentId),
-            eq(documents.tenant_id, userRow.tenant_id),
+            eq(documents.tenant_id, profile.tenantId),
             eq(documents.project_id, projectId)
           )
         )
         .limit(1)
         .for('update')
 
-      if (!doc) throw new DocumentNotFoundError()
+      if (!doc || !doc.project_id) throw new DocumentNotFoundError()
 
       const removedScopeItems = await tx
         .delete(scopeItems)
@@ -97,7 +91,7 @@ export async function deleteDocument(formData: FormData): Promise<DeleteResult> 
 
       await writeAuditLogInTransaction(tx, {
         tenantId: doc.tenant_id,
-        actorId: user.id,
+        actorId: profile.user.id,
         entityType: 'document',
         entityId: doc.id,
         action: 'delete',
@@ -108,7 +102,12 @@ export async function deleteDocument(formData: FormData): Promise<DeleteResult> 
         },
       })
 
-      return doc
+      return {
+        id: doc.id,
+        storage_path: doc.storage_path,
+        tenant_id: doc.tenant_id,
+        project_id: doc.project_id,
+      }
     })
   } catch (error) {
     if (error instanceof DocumentNotFoundError) {

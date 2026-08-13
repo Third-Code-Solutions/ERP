@@ -12,6 +12,9 @@ export const auditLog = pgTable(
     actor_id: uuid('actor_id').references(() => users.id, { onDelete: 'set null' }),
     entity_type: varchar('entity_type', { length: 100 }).notNull(),
     entity_id: uuid('entity_id').notNull(),
+    // Exact source key for numeric/composite primary keys. UUID rows duplicate
+    // the UUID in this column so every audit event has a lossless row identity.
+    entity_key: text('entity_key'),
     action: varchar('action', { length: 50 }).notNull(),
     // JSON diff: { field: { before: x, after: y } }
     diff: jsonb('diff'),

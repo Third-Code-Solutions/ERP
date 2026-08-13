@@ -12,7 +12,12 @@ the account restriction is removed.
 
 ## Security boundary
 
-- Repository must remain private.
+- The current `Third-Code-Solutions/ERP` repository is public, so the
+  transient GitHub-runner path is not eligible: its script intentionally
+  refuses to attach a self-hosted runner to a public repository. Do not change
+  repository visibility or attach a runner without explicit owner approval.
+  If the repository later becomes private under an approved policy, retain all
+  controls below.
 - Only `kurtgav` can dispatch the workflow.
 - Workflow has `contents: read` permission.
 - No pull request, push, or fork event can start the local runner.
@@ -41,11 +46,25 @@ to this workflow.
 
 ## Run
 
-Push the target branch first. Then:
+For the current public repository, run the local lane directly without
+registering a GitHub runner:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File scripts/ci/run-wsl1-database-lane.ps1 `
+  -Distribution ThirdCodeERP-Test
+```
+
+The current-source lane passed on 2026-08-13. It uses only the disposable WSL
+PostgreSQL/Redis services and does not contact GitHub or production providers.
+
+If the repository is later made private with explicit approval, push the target
+branch first, then use the transient runner flow:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass `
   -File scripts/ci/run-transient-github-runner.ps1 `
+  -Repository '<github-owner>/<repo>' `
   -Ref agent-02/third-code-erp-landing
 ```
 

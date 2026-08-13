@@ -13,7 +13,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { and, asc, eq } from 'drizzle-orm'
-import { getUser } from '@third-code-erp/auth'
+import { getUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   accounts,
@@ -42,16 +42,11 @@ export async function GET(
     return NextResponse.json({ error: 'Invalid inspection id' }, { status: 400 })
   }
 
-  const user = await getUser()
-  if (!user) {
+  const profile = await getUserProfile()
+  if (!profile) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-
-  const [userRow] = await db
-    .select({ tenant_id: users.tenant_id })
-    .from(users)
-    .where(eq(users.id, user.id))
-  if (!userRow?.tenant_id) {
+  if (!profile.tenantId) {
     return NextResponse.json(
       { error: 'No tenant associated with account' },
       { status: 403 }
@@ -71,7 +66,7 @@ export async function GET(
     .where(
       and(
         eq(siteInspections.id, id),
-        eq(siteInspections.tenant_id, userRow.tenant_id)
+        eq(siteInspections.tenant_id, profile.tenantId)
       )
     )
     .limit(1)
@@ -88,7 +83,12 @@ export async function GET(
         caption: siteInspectionPhotos.caption,
       })
       .from(siteInspectionPhotos)
-      .where(eq(siteInspectionPhotos.inspection_id, inspection.id))
+      .where(
+        and(
+          eq(siteInspectionPhotos.inspection_id, inspection.id),
+          eq(siteInspectionPhotos.tenant_id, profile.tenantId),
+        ),
+      )
       .orderBy(asc(siteInspectionPhotos.created_at)),
     db
       .select({
@@ -98,7 +98,12 @@ export async function GET(
         resolved_at: siteInspectionRfis.resolved_at,
       })
       .from(siteInspectionRfis)
-      .where(eq(siteInspectionRfis.inspection_id, inspection.id))
+      .where(
+        and(
+          eq(siteInspectionRfis.inspection_id, inspection.id),
+          eq(siteInspectionRfis.tenant_id, profile.tenantId),
+        ),
+      )
       .orderBy(asc(siteInspectionRfis.created_at)),
     db
       .select({
@@ -106,7 +111,12 @@ export async function GET(
         account_id: opportunities.account_id,
       })
       .from(opportunities)
-      .where(eq(opportunities.id, inspection.opportunity_id))
+      .where(
+        and(
+          eq(opportunities.id, inspection.opportunity_id),
+          eq(opportunities.tenant_id, profile.tenantId),
+        ),
+      )
       .limit(1),
     db
       .select({
@@ -115,13 +125,13 @@ export async function GET(
         pcab_license: tenants.pcab_license,
       })
       .from(tenants)
-      .where(eq(tenants.id, userRow.tenant_id))
+      .where(eq(tenants.id, profile.tenantId))
       .limit(1),
     inspection.submitted_by
       ? db
           .select({ full_name: users.full_name, email: users.email })
           .from(users)
-          .where(eq(users.id, inspection.submitted_by))
+          .where(and(eq(users.id, inspection.submitted_by), eq(users.tenant_id, profile.tenantId)))
           .limit(1)
       : Promise.resolve([] as Array<{ full_name: string | null; email: string | null }>),
   ])
@@ -137,7 +147,7 @@ export async function GET(
           location: projects.location,
         })
         .from(projects)
-        .where(eq(projects.id, opp.project_id))
+        .where(and(eq(projects.id, opp.project_id), eq(projects.tenant_id, profile.tenantId)))
         .limit(1)
     : [null]
 
@@ -149,7 +159,7 @@ export async function GET(
           billing_address: accounts.billing_address,
         })
         .from(accounts)
-        .where(eq(accounts.id, opp.account_id))
+        .where(and(eq(accounts.id, opp.account_id), eq(accounts.tenant_id, profile.tenantId)))
         .limit(1)
     : [null]
 

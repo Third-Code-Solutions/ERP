@@ -1,13 +1,12 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { getUser } from '@third-code-erp/auth'
+import { requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   boms,
   costCodes,
   projects,
   purchaseOrders,
-  users,
   vendors,
 } from '@third-code-erp/database/schema'
 import { eq, desc, and, inArray } from 'drizzle-orm'
@@ -39,19 +38,11 @@ function formatPHP(cents: number): string {
 }
 
 export default async function PurchaseOrdersPage() {
-  const user = await getUser()
-  if (!user) return null
-
-  const [userRow] = await db
-    .select({ tenant_id: users.tenant_id })
-    .from(users)
-    .where(eq(users.id, user.id))
-
-  if (!userRow?.tenant_id) return null
+  const profile = await requireUserProfile()
 
   const [projectList, vendorList, eligibleBomRows, costCodeRows] = await Promise.all([
-    db.select({ id: projects.id, name: projects.name }).from(projects).where(eq(projects.tenant_id, userRow.tenant_id)).orderBy(projects.name),
-    db.select({ id: vendors.id, name: vendors.name }).from(vendors).where(eq(vendors.tenant_id, userRow.tenant_id)).orderBy(vendors.name),
+    db.select({ id: projects.id, name: projects.name }).from(projects).where(eq(projects.tenant_id, profile.tenantId)).orderBy(projects.name),
+    db.select({ id: vendors.id, name: vendors.name }).from(vendors).where(eq(vendors.tenant_id, profile.tenantId)).orderBy(vendors.name),
     db
       .select({
         id: boms.id,
@@ -62,7 +53,7 @@ export default async function PurchaseOrdersPage() {
       })
       .from(boms)
       .leftJoin(projects, eq(boms.project_id, projects.id))
-      .where(and(eq(boms.tenant_id, userRow.tenant_id), inArray(boms.status, ['approved', 'locked'])))
+      .where(and(eq(boms.tenant_id, profile.tenantId), inArray(boms.status, ['approved', 'locked'])))
       .orderBy(desc(boms.created_at)),
     db
       .select({
@@ -73,7 +64,7 @@ export default async function PurchaseOrdersPage() {
       .from(costCodes)
       .where(
         and(
-          eq(costCodes.tenant_id, userRow.tenant_id),
+          eq(costCodes.tenant_id, profile.tenantId),
           eq(costCodes.is_active, true)
         )
       )
@@ -106,7 +97,7 @@ export default async function PurchaseOrdersPage() {
     .from(purchaseOrders)
     .leftJoin(projects, eq(purchaseOrders.project_id, projects.id))
     .leftJoin(vendors, eq(purchaseOrders.vendor_id, vendors.id))
-    .where(eq(purchaseOrders.tenant_id, userRow.tenant_id))
+    .where(eq(purchaseOrders.tenant_id, profile.tenantId))
     .orderBy(desc(purchaseOrders.created_at))
 
   const totalCommitted = rows

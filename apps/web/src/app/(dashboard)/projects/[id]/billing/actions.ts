@@ -26,7 +26,7 @@ export async function createInvoice(
   try {
     requireCapability(profile, 'finance.issue_invoice')
   } catch (err: unknown) {
-    return { error: err instanceof Error ? err.message : 'Forbidden' }
+    return { error: 'You do not have permission to create invoices.' }
   }
 
   const [project] = await db

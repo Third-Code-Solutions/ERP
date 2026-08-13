@@ -1,6 +1,6 @@
-# Third Code ERP
+# ABI OPS
 
-Third Code ERP is a tenant-isolated operating system for construction and
+ABI OPS is a tenant-isolated operating system for construction and
 adjacent businesses. This glossary keeps operational, customer, and financial
 language precise across the product.
 

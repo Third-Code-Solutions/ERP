@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { getUser } from '@third-code-erp/auth'
+import { getUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { projectComments, users } from '@third-code-erp/database/schema'
 import { and, eq, inArray } from 'drizzle-orm'
@@ -37,14 +37,8 @@ export async function createComment(
   projectId: string,
   formData: FormData
 ): Promise<ActionResult> {
-  const user = await getUser()
-  if (!user) return { error: 'Unauthorized' }
-
-  const [userRow] = await db
-    .select({ tenant_id: users.tenant_id })
-    .from(users)
-    .where(eq(users.id, user.id))
-  if (!userRow?.tenant_id) return { error: 'No tenant' }
+  const profile = await getUserProfile()
+  if (!profile) return { error: 'Unauthorized' }
 
   const rawBody = formData.get('body')
   const body = typeof rawBody === 'string' ? rawBody.trim() : ''
@@ -52,14 +46,14 @@ export async function createComment(
   if (body.length > 10000) return { error: 'Comment is too long (max 10,000 characters)' }
 
   const mentionEmails = extractMentionEmails(body)
-  const mentionIds = await resolveMentionUserIds(userRow.tenant_id, mentionEmails)
+  const mentionIds = await resolveMentionUserIds(profile.tenantId, mentionEmails)
 
   const [inserted] = await db
     .insert(projectComments)
     .values({
-      tenant_id: userRow.tenant_id,
+      tenant_id: profile.tenantId,
       project_id: projectId,
-      author_id: user.id,
+      author_id: profile.user.id,
       body,
       mentions: mentionIds,
     })
@@ -68,8 +62,8 @@ export async function createComment(
   if (!inserted) return { error: 'Failed to insert comment' }
 
   await writeAuditLog({
-    tenantId: userRow.tenant_id,
-    actorId: user.id,
+    tenantId: profile.tenantId,
+    actorId: profile.user.id,
     entityType: 'project_comment',
     entityId: inserted.id,
     action: 'create',
@@ -88,14 +82,8 @@ export async function deleteComment(
   commentId: string,
   projectId: string
 ): Promise<ActionResult> {
-  const user = await getUser()
-  if (!user) return { error: 'Unauthorized' }
-
-  const [userRow] = await db
-    .select({ tenant_id: users.tenant_id })
-    .from(users)
-    .where(eq(users.id, user.id))
-  if (!userRow?.tenant_id) return { error: 'No tenant' }
+  const profile = await getUserProfile()
+  if (!profile) return { error: 'Unauthorized' }
 
   // Verify the comment belongs to this tenant before deleting.
   const [existing] = await db
@@ -105,23 +93,26 @@ export async function deleteComment(
       project_id: projectComments.project_id,
     })
     .from(projectComments)
-    .where(eq(projectComments.id, commentId))
+    .where(
+      and(
+        eq(projectComments.id, commentId),
+        eq(projectComments.tenant_id, profile.tenantId)
+      )
+    )
 
   if (!existing) return { error: 'Comment not found' }
-  if (existing.tenant_id !== userRow.tenant_id) return { error: 'Forbidden' }
-
   await db
     .delete(projectComments)
     .where(
       and(
         eq(projectComments.id, commentId),
-        eq(projectComments.tenant_id, userRow.tenant_id)
+        eq(projectComments.tenant_id, profile.tenantId)
       )
     )
 
   await writeAuditLog({
-    tenantId: userRow.tenant_id,
-    actorId: user.id,
+    tenantId: profile.tenantId,
+    actorId: profile.user.id,
     entityType: 'project_comment',
     entityId: commentId,
     action: 'delete',

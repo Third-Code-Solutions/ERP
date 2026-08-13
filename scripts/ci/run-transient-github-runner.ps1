@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
   [string]$Ref = '',
-  [string]$Repository = 'Third-Code-Solutions/ERP',
+  [string]$Repository = $env:GITHUB_REPOSITORY,
   [string]$RunnerBase = 'D:\thirdcode\.github-runners\Third-Code-ERP',
   [switch]$CleanupOnly
 )
@@ -14,6 +14,10 @@ $runnerSha256 =
   'd59123a43003e357b0805b5d0f611d0bd2f65ab67d51bd070dd4e7a0f685c162'
 $workflow = 'ci-self-hosted.yml'
 $repositoryUrl = "https://github.com/$Repository"
+
+if ([string]::IsNullOrWhiteSpace($Repository)) {
+  throw 'Repository is required. Pass -Repository <github-owner>/<repo> or set GITHUB_REPOSITORY.'
+}
 $runnerBasePath = [IO.Path]::GetFullPath($RunnerBase)
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 

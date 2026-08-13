@@ -21,11 +21,10 @@ export function DashboardRealtimeRefresher() {
   useEffect(() => {
     const supabase = createSupabaseBrowserClient()
 
-    let channel = supabase.channel('dashboard-realtime')
+    const channel = supabase.channel('dashboard-realtime')
 
     for (const table of WATCHED_TABLES) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      channel = (channel as any).on(
+      channel.on(
         'postgres_changes',
         { event: '*', schema: 'public', table },
         scheduleRefresh

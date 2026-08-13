@@ -225,7 +225,15 @@ export async function updatePunchlistStatus(
     patch.closed_at = new Date()
   }
 
-  await db.update(punchlistItems).set(patch).where(eq(punchlistItems.id, itemId))
+  await db
+    .update(punchlistItems)
+    .set(patch)
+    .where(
+      and(
+        eq(punchlistItems.id, itemId),
+        eq(punchlistItems.tenant_id, profile.tenantId)
+      )
+    )
 
   await writeAuditLog({
     tenantId: profile.tenantId,
@@ -283,7 +291,15 @@ export async function signOffPunchlistItem(
     patch.closed_at = now
   }
 
-  await db.update(punchlistItems).set(patch).where(eq(punchlistItems.id, itemId))
+  await db
+    .update(punchlistItems)
+    .set(patch)
+    .where(
+      and(
+        eq(punchlistItems.id, itemId),
+        eq(punchlistItems.tenant_id, profile.tenantId)
+      )
+    )
 
   await writeAuditLog({
     tenantId: profile.tenantId,

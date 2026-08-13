@@ -48,9 +48,14 @@ export default async function AccountsListPage() {
               Client companies with KYC review status and linked opportunities.
             </p>
           </div>
-          <Link href="/crm/accounts/new" className="user-chip" style={{ borderColor: 'var(--color-navy-700)' }}>
-            <span style={{ fontWeight: 600, color: 'var(--color-navy-700)' }}>+ New account</span>
-          </Link>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <Link href="/crm/opportunities/new/pprf" className="user-chip" style={{ borderColor: 'var(--color-navy-700)' }}>
+              <span style={{ fontWeight: 600, color: 'var(--color-navy-700)' }}>+ New PPRF intake</span>
+            </Link>
+            <Link href="/crm/accounts/new" className="user-chip" style={{ borderColor: 'var(--color-border)' }}>
+              <span style={{ fontWeight: 600, color: 'var(--color-neutral-700)' }}>+ New account</span>
+            </Link>
+          </div>
         </div>
       </div>
 

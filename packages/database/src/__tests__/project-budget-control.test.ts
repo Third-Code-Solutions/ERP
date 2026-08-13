@@ -25,6 +25,13 @@ const controlSql = readFileSync(
   ),
   'utf8'
 ).toLowerCase()
+const wo14Sql = readFileSync(
+  resolve(
+    __dirname,
+    '../../../../supabase/migrations/20260813180000_wo_14_allowable_budget_lock.sql'
+  ),
+  'utf8'
+).toLowerCase()
 
 describe('Project Budget migration contract', () => {
   it('creates versioned tenant-safe budget and Cost Code evidence', () => {
@@ -105,6 +112,22 @@ describe('Project Budget migration contract', () => {
       /create trigger guard_project_budget[\s\S]*?before insert or update or delete/
     )
   })
+
+  it('snapshots the approved BOM margin and guards every baseline field', () => {
+    expect(wo14Sql).toContain(
+      'add column if not exists original_gp_margin_bps integer not null default 0'
+    )
+    expect(wo14Sql).toContain('snapshot_project_budget_margin')
+    expect(wo14Sql).toContain(
+      'new.original_gp_margin_bps is distinct from old.original_gp_margin_bps'
+    )
+    expect(wo14Sql).toContain(
+      "old.status <> 'draft'\n      or new.status is distinct from old.status"
+    )
+    expect(wo14Sql).toContain(
+      'create trigger snapshot_project_budget_margin'
+    )
+  })
 })
 
 const runtimeSuite =
@@ -122,6 +145,7 @@ interface BudgetFixture {
   viewerId: string
   ownerId: string
   projectId: string
+  sourceBomId: string
   costCodeId: string
   budgetId: string
 }
@@ -184,11 +208,25 @@ async function seedBudgetFixture(
        returning id`
     )) as Rows
   )[0]!.id as string
+  const sourceBomId = (
+    (await tx.unsafe(
+      `insert into boms(
+         tenant_id, project_id, created_by, label, tcv_cents, gp_cents,
+         gp_margin_bps
+       )
+       values(
+         '${tenantId}', '${projectId}', '${creatorId}', 'Approved BOQ source',
+         1000000, 220000, 2200
+       )
+       returning id`
+    )) as Rows
+  )[0]!.id as string
   const budgetId = (
     (await tx.unsafe(
       `insert into project_budgets(
          tenant_id,
          project_id,
+         source_bom_id,
          revision,
          status,
          control_mode,
@@ -201,6 +239,7 @@ async function seedBudgetFixture(
        values(
          '${tenantId}',
          '${projectId}',
+         '${sourceBomId}',
          1,
          'draft',
          '${controlMode}',
@@ -240,6 +279,7 @@ async function seedBudgetFixture(
     viewerId,
     ownerId,
     projectId,
+    sourceBomId,
     costCodeId,
     budgetId,
   }
@@ -289,7 +329,8 @@ runtimeSuite('Project Budget runtime controls', () => {
       return (
         (await tx.unsafe(
           `select status, commercial_approved_by, finance_approved_by,
-             total_budget_cents
+             total_budget_cents,
+             original_gp_margin_bps
            from project_budgets
            where id = '${fixture.budgetId}'`
         )) as Rows
@@ -300,6 +341,26 @@ runtimeSuite('Project Budget runtime controls', () => {
     expect(state.commercial_approved_by).toBeTruthy()
     expect(state.finance_approved_by).toBeTruthy()
     expect(Number(state.total_budget_cents)).toBe(10_000)
+    expect(Number(state.original_gp_margin_bps)).toBe(2_200)
+  })
+
+  it('rejects direct edits to an approved baseline', async () => {
+    const rejected = await inRollback(sql, async (tx) => {
+      const fixture = await seedBudgetFixture(tx)
+      await approveBudget(tx, fixture)
+      try {
+        await tx.unsafe(
+          `update project_budgets
+              set currency = 'USD',
+                  revision_reason = 'unlogged direct edit'
+            where id = '${fixture.budgetId}'`
+        )
+        return false
+      } catch {
+        return true
+      }
+    })
+    expect(rejected).toBe(true)
   })
 
   it('rejects creator self-approval', async () => {

@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { loadPortalBom, recordSign } from './sign-actions'
 
 export const metadata: Metadata = {
-  title: 'Review your BOM',
+  title: 'Review your BOM | ABI OPS',
   robots: { index: false, follow: false },
 }
 
@@ -225,19 +225,21 @@ export default async function PortalBomPage({
         {bom.is_dev_stub ? (
           <div
             style={{
-              border: '1px dashed #d8dde6',
+              border: '1px solid #e5b567',
               borderRadius: 8,
               padding: '16px 18px',
-              color: '#6b7280',
+              color: '#6b4b16',
               fontSize: 13,
-              background: '#fafbfc',
+              background: '#fff8e8',
               marginBottom: 14,
+              lineHeight: 1.55,
             }}
+            role="alert"
           >
-            <strong style={{ color: '#0F2D4A' }}>DocuSeal preview (dev stub)</strong>
+            <strong style={{ color: '#6b4b16' }}>Signing link unavailable</strong>
             <p style={{ margin: '6px 0 0' }}>
-              In production this is an embedded DocuSeal signature panel. The stub here means
-              DOCUSEAL_API_URL is not configured; clicking the approve button below still locks the BOM.
+              This legacy development link cannot record an approval. Ask the
+              project team to issue a new secure signing link from the workspace.
             </p>
           </div>
         ) : bom.docuseal_slug ? (
@@ -248,25 +250,27 @@ export default async function PortalBomPage({
           />
         ) : null}
 
-        <form action={signAction}>
-          <button
-            type="submit"
-            style={{
-              background: '#E07B2A',
-              color: 'white',
-              border: 0,
-              padding: '12px 22px',
-              borderRadius: 8,
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: 'pointer',
-              letterSpacing: '0.01em',
-              boxShadow: '0 1px 3px rgba(224, 123, 42, 0.35)',
-            }}
-          >
-            I approve this BOM
-          </button>
-        </form>
+        {!bom.is_dev_stub && (
+          <form action={signAction}>
+            <button
+              type="submit"
+              style={{
+                background: '#E07B2A',
+                color: 'white',
+                border: 0,
+                padding: '12px 22px',
+                borderRadius: 8,
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: 'pointer',
+                letterSpacing: '0.01em',
+                boxShadow: '0 1px 3px rgba(224, 123, 42, 0.35)',
+              }}
+            >
+              I approve this BOM
+            </button>
+          </form>
+        )}
       </section>
     </div>
   )

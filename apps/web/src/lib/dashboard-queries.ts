@@ -1,9 +1,35 @@
 import { db } from '@third-code-erp/database'
-import { boms, costEntries, dailyTasks, invoices, opportunities, projects, purchaseOrders, users } from '@third-code-erp/database/schema'
-import { eq, and, inArray, lt, gt, gte, lte, sum, count, sql, desc } from 'drizzle-orm'
+import {
+  boms,
+  dailyTasks,
+  invoices,
+  opportunities,
+  permits,
+  processSteps,
+  projects,
+  slaClocks,
+  taskInstances,
+  users,
+  variationOrders,
+} from '@third-code-erp/database/schema'
+import {
+  eq,
+  and,
+  inArray,
+  notInArray,
+  lt,
+  gt,
+  gte,
+  lte,
+  or,
+  sum,
+  count,
+  sql,
+  desc,
+} from 'drizzle-orm'
 import { computeProjectCostSnapshot } from '@third-code-erp/shared-types/cost'
-import { COMMITTED_PO_STATUSES } from '@/lib/po-status'
 import { manilaBoundaries } from '@/lib/operations/cadence-engine'
+import { getProjectCostControl } from '@/lib/operations/project-cost-control'
 
 export interface KpiData {
   activeTcv: number
@@ -104,7 +130,7 @@ const ACTIVE_STAGES = [
   'negotiation',
 ] as const
 
-// Canonical Third Code ERP 8-stage flow (REFACTOR.md M1 US-002). Pairs of
+// Canonical ABI OPS 8-stage flow (REFACTOR.md M1 US-002). Pairs of
 // adjacent stages drive conversion-rate computation in the dashboard.
 export const PIPELINE_STAGES = [
   'lead',
@@ -130,6 +156,247 @@ export interface MonthlyForecastData {
   months: string[] // ISO YYYY-MM
   byRep: Record<string, number[]> // weighted_tcv_cents per month
   repLabels: Record<string, string>
+}
+
+export interface ManagementProjectMarginRow {
+  projectId: string
+  projectName: string
+  projectCode: string | null
+  projectStatus: string
+  tcvCents: number
+  baselineCostCents: number
+  forecastCostCents: number
+  baselineMarginBps: number
+  forecastMarginBps: number
+  marginVarianceBps: number
+  costVarianceCents: number
+  permitExposureCount: number
+  permitOverdueCount: number
+  unsignedVoExposureCents: number
+  hasApprovedBom: boolean
+  hasApprovedBudget: boolean
+}
+
+export interface ManagementSlaBreachRow {
+  businessUnit: string
+  breachCount: number
+}
+
+export interface ManagementDashboardData {
+  projectMargins: ManagementProjectMarginRow[]
+  slaBreachesByBu: ManagementSlaBreachRow[]
+  totals: {
+    permitExposureCount: number
+    permitOverdueCount: number
+    unsignedVoExposureCents: number
+    slaBreachCount: number
+  }
+}
+
+function marginBps(tcvCents: number, marginCents: number): number {
+  if (tcvCents <= 0) return 0
+  return Math.round((marginCents * 10000) / tcvCents)
+}
+
+/**
+ * Monday-meeting view for the executive dashboard. Cost figures come from
+ * the WO-17 cost-control source of truth; the remaining exposures are
+ * intentionally separate signals so unsigned scope or operational risk is
+ * not mistaken for posted margin.
+ */
+export async function getManagementDashboard(
+  tenantId: string
+): Promise<ManagementDashboardData> {
+  const [projectRows, bomRows, unsignedVoRows, permitRows, slaRows] =
+    await Promise.all([
+      db
+        .select({
+          id: projects.id,
+          name: projects.name,
+          projectCode: projects.project_code,
+          status: projects.status,
+        })
+        .from(projects)
+        .where(
+          and(
+            eq(projects.tenant_id, tenantId),
+            inArray(projects.status, ['active', 'on_hold'])
+          )
+        )
+        .orderBy(projects.name),
+      db
+        .select({
+          projectId: boms.project_id,
+          tcvCents: boms.tcv_cents,
+        })
+        .from(boms)
+        .where(
+          and(
+            eq(boms.tenant_id, tenantId),
+            inArray(boms.status, ['approved', 'locked'])
+          )
+        )
+        .orderBy(desc(boms.created_at)),
+      db
+        .select({
+          projectId: variationOrders.project_id,
+          exposureCents: sum(variationOrders.cost_impact_cents),
+        })
+        .from(variationOrders)
+        .where(
+          and(
+            eq(variationOrders.tenant_id, tenantId),
+            inArray(variationOrders.status, [
+              'draft',
+              'pending_commercial_pricing',
+              'pending_client_signature',
+            ])
+          )
+        )
+        .groupBy(variationOrders.project_id),
+      db
+        .select({
+          projectId: permits.project_id,
+          exposureCount: count(),
+          overdueCount: sql<number>`count(*) filter (
+            where ${permits.expected_return_at} is not null
+              and ${permits.expected_return_at} < now()
+          )`,
+        })
+        .from(permits)
+        .where(
+          and(
+            eq(permits.tenant_id, tenantId),
+            notInArray(permits.status, [
+              'approved',
+              'released',
+              'refunded',
+              'cancelled',
+              'rejected',
+            ])
+          )
+        )
+        .groupBy(permits.project_id),
+      db
+        .select({
+          businessUnit: processSteps.responsible_bu,
+          breachCount: count(),
+        })
+        .from(slaClocks)
+        .innerJoin(
+          taskInstances,
+          and(
+            eq(taskInstances.id, slaClocks.task_instance_id),
+            eq(taskInstances.tenant_id, slaClocks.tenant_id)
+          )
+        )
+        .innerJoin(
+          processSteps,
+          and(
+            eq(processSteps.id, taskInstances.process_step_id),
+            eq(processSteps.tenant_id, taskInstances.tenant_id)
+          )
+        )
+        .where(
+          and(
+            eq(slaClocks.tenant_id, tenantId),
+            eq(slaClocks.clock_scope, 'internal'),
+            or(
+              inArray(slaClocks.status, ['breached', 'escalated']),
+              and(
+                inArray(slaClocks.status, ['running', 'paused']),
+                lt(slaClocks.due_at, new Date())
+              )
+            )
+          )
+        )
+        .groupBy(processSteps.responsible_bu)
+        .orderBy(desc(count())),
+    ])
+
+  const latestBomByProject = new Map<string, (typeof bomRows)[number]>()
+  for (const bom of bomRows) {
+    if (bom.projectId && !latestBomByProject.has(bom.projectId)) {
+      latestBomByProject.set(bom.projectId, bom)
+    }
+  }
+  const voExposureByProject = new Map(
+    unsignedVoRows.map((row) => [row.projectId, Number(row.exposureCents ?? 0)])
+  )
+  const permitByProject = new Map(
+    permitRows.map((row) => [
+      row.projectId,
+      {
+        exposureCount: Number(row.exposureCount ?? 0),
+        overdueCount: Number(row.overdueCount ?? 0),
+      },
+    ])
+  )
+
+  const projectMargins = await Promise.all(
+    projectRows.map(async (project) => {
+      const bom = latestBomByProject.get(project.id)
+      const control = await getProjectCostControl({
+        tenantId,
+        projectId: project.id,
+      })
+      const tcvCents = bom?.tcvCents ?? 0
+      const baselineCostCents = control.totals.baselineCents
+      const forecastCostCents = control.totals.forecastCents
+      const hasApprovedBudget = baselineCostCents > 0
+      const baselineMarginBps =
+        hasApprovedBudget ? marginBps(tcvCents, tcvCents - baselineCostCents) : 0
+      const forecastMarginBps =
+        hasApprovedBudget ? marginBps(tcvCents, tcvCents - forecastCostCents) : 0
+      const permit = permitByProject.get(project.id)
+      return {
+        projectId: project.id,
+        projectName: project.name,
+        projectCode: project.projectCode,
+        projectStatus: project.status,
+        tcvCents,
+        baselineCostCents,
+        forecastCostCents,
+        baselineMarginBps,
+        forecastMarginBps,
+        marginVarianceBps: forecastMarginBps - baselineMarginBps,
+        costVarianceCents: forecastCostCents - baselineCostCents,
+        permitExposureCount: permit?.exposureCount ?? 0,
+        permitOverdueCount: permit?.overdueCount ?? 0,
+        unsignedVoExposureCents: voExposureByProject.get(project.id) ?? 0,
+        hasApprovedBom: Boolean(bom),
+        hasApprovedBudget,
+      }
+    })
+  )
+
+  const slaBreachesByBu = slaRows.map((row) => ({
+    businessUnit: row.businessUnit,
+    breachCount: Number(row.breachCount ?? 0),
+  }))
+
+  return {
+    projectMargins,
+    slaBreachesByBu,
+    totals: {
+      permitExposureCount: projectMargins.reduce(
+        (total, row) => total + row.permitExposureCount,
+        0
+      ),
+      permitOverdueCount: projectMargins.reduce(
+        (total, row) => total + row.permitOverdueCount,
+        0
+      ),
+      unsignedVoExposureCents: projectMargins.reduce(
+        (total, row) => total + row.unsignedVoExposureCents,
+        0
+      ),
+      slaBreachCount: slaBreachesByBu.reduce(
+        (total, row) => total + row.breachCount,
+        0
+      ),
+    },
+  }
 }
 
 export async function getDashboardKpis(tenantId: string): Promise<KpiData> {
@@ -392,23 +659,12 @@ export async function getAlerts(tenantId: string): Promise<Alert[]> {
   for (const [projectId, bom] of latestBomByProject) {
     if (bom.total_cost_cents === 0 && (bom.tcv_cents ?? 0) === 0) continue
 
-    const [poSum] = await db
-      .select({ total: sum(purchaseOrders.total_cents) })
-      .from(purchaseOrders)
-      .where(
-        and(
-          eq(purchaseOrders.tenant_id, tenantId),
-          eq(purchaseOrders.project_id, projectId),
-          inArray(purchaseOrders.status, [...COMMITTED_PO_STATUSES])
-        )
-      )
-    const committed = Number(poSum?.total ?? 0)
-
-    const [costSum] = await db
-      .select({ total: sum(costEntries.amount_cents) })
-      .from(costEntries)
-      .where(and(eq(costEntries.tenant_id, tenantId), eq(costEntries.project_id, projectId)))
-    const actual = Number(costSum?.total ?? 0)
+    const costControl = await getProjectCostControl({
+      tenantId,
+      projectId,
+    })
+    const committed = costControl.totals.committedCents
+    const actual = costControl.totals.actualCents
 
     // PO committed overrun vs BOM budget (commitment-side signal).
     if (bom.total_cost_cents > 0 && committed > 0) {
@@ -453,7 +709,7 @@ export async function getAlerts(tenantId: string): Promise<Alert[]> {
 }
 
 // -----------------------------------------------------------------------------
-// US-004 — Conversion rates between Third Code ERP stages.
+// US-004 — Conversion rates between ABI OPS stages.
 //
 // Rate for pair (A → B) = count(stage at or beyond B) / count(stage at or
 // beyond A) * 100. "At or beyond" uses canonical pipeline order so a

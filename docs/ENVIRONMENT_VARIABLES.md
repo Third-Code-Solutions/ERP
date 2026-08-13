@@ -1,6 +1,6 @@
 # Environment Variables
 
-Every variable consumed by Third Code ERP, grouped by service. Variables
+Every variable consumed by ABI OPS, grouped by service. Variables
 marked `public` are exposed to the browser bundle (Next.js
 `NEXT_PUBLIC_` prefix). Everything else is server-only.
 
@@ -25,8 +25,27 @@ production, set these in Vercel (web), Railway (workers), and Supabase
 
 | Variable | Required | Scope | Where to get | Controls |
 |---|---|---|---|---|
-| `NEXT_PUBLIC_SITE_URL` | yes | public | Your production domain (e.g. `https://thirdcode-erp.vercel.app`) | Used to build portal links in emails and signed share URLs |
+| `NEXT_PUBLIC_SITE_URL` | yes | public | Your configured production domain | Used to build portal links in emails and signed share URLs |
 | `AUTH_TRUSTED_HOSTS` | no | server | Comma-separated host list | Adds extra hostnames the redirect allowlist accepts |
+
+---
+
+## ERP Core API
+
+| Variable | Required | Scope | Where to get | Controls |
+|---|---|---|---|---|
+| `ERP_CORE_API_URL` | no | server | Railway/Nest ERP Core service URL | Server-to-server URL for typed process-health and migration-path commands; never exposed to the browser |
+| `ERP_PROJECT_WRITES_VIA_API` | no | server | `false` by default | Exact `true` plus `ERP_PROJECT_WRITES_VIA_API_TENANT_IDS` selects the Nest Project writer |
+| `ERP_RFQ_QUOTE_WRITES_VIA_API` | no | server | `false` by default | Exact `true` plus `ERP_RFQ_QUOTE_WRITES_VIA_API_TENANT_IDS` selects the Nest RFQ quote writer |
+| `ERP_RFQ_TRANSITION_WRITES_VIA_API` | no | server | `false` by default | Exact `true` plus `ERP_RFQ_TRANSITION_WRITES_VIA_API_TENANT_IDS` selects the Nest RFQ complete/cancel writer |
+| `ERP_RFQ_AWARD_WRITES_VIA_API` | no | server | `false` by default | Exact `true` plus `ERP_RFQ_AWARD_WRITES_VIA_API_TENANT_IDS` selects the Nest RFQ quote-award writer |
+
+When unset or unavailable, the web app renders an explicit unavailable state and
+does not substitute synthetic process metrics.
+
+All migration-path flags fail closed when the tenant allowlist is empty,
+malformed, or not an exact UUID match. Keep them disabled until the canary,
+monitoring, and rollback gates are approved.
 
 ---
 
@@ -48,6 +67,8 @@ production, set these in Vercel (web), Railway (workers), and Supabase
 | `INNGEST_EVENT_KEY` | yes | server | `app.inngest.com → Manage → Event Keys` | Sends events from server actions |
 | `INNGEST_SIGNING_KEY` | yes | server | `app.inngest.com → Manage → Signing Key` | Verifies webhooks at `/api/webhooks/inngest` |
 | `INNGEST_DEV` | no | server | `1` for local | Forces local dev server mode |
+| `PROCESS_SLA_ENGINE_ENABLED` | no | server | Set to `1` only after M-06 hosted migration and rollout approval | Enables 15-minute process/SLA clock evaluation |
+| `BUSINESS_CALENDAR_DB_ENABLED` | no | server | Set to `1` only after WO-02 calendar migration and verifier pass | Uses tenant-maintained holiday rows for business-day clocks |
 
 ---
 
@@ -55,11 +76,12 @@ production, set these in Vercel (web), Railway (workers), and Supabase
 
 | Variable | Required | Scope | Where to get | Controls |
 |---|---|---|---|---|
-| `PARSER_URL` | no | server | Railway service public URL | When set, BOM uploads route DXF + Togal jobs to the worker |
-| `PARSER_SHARED_SECRET` | no | server | Generate (32-byte hex) | HMAC secret between web and parser. Required when `PARSER_URL` is set |
+| `DXF_PARSER_URL` | no | server | Railway CAD worker public URL | When set, DWG uploads route through the evidence worker |
+| `PARSER_SHARED_SECRET` | no | server | Generate a random server-side secret | HMAC secret between web and parser. Required when `DXF_PARSER_URL` is set |
 
-If `PARSER_URL` is unset, the BOM editor falls back to manual line
-entry only — parsing is skipped.
+If `DXF_PARSER_URL` is unset, DWG uploads remain stored and report that
+server-side conversion is unavailable. DXF uploads use the in-process
+extractor.
 
 ---
 
@@ -86,8 +108,8 @@ audit trail and signature bundle layout are identical either way.
 | `RESEND_API_KEY` | no | server | `resend.com → API Keys` | Outbound transactional email |
 | `RESEND_FROM_EMAIL` | no | server | Verified sender on Resend | Default `From:` address |
 
-Optional — when unset, notifications log to stdout instead of sending.
-Useful in staging so we don't email real customers.
+In non-production, unset credentials use explicit development stubs. In
+production, missing credentials fail closed; no fake delivery is recorded.
 
 ---
 
@@ -98,7 +120,8 @@ Useful in staging so we don't email real customers.
 | `SEMAPHORE_API_KEY` | no | server | `semaphore.co → Account` | Outbound SMS for SLA breach + warranty alerts |
 | `SEMAPHORE_SENDER_NAME` | no | server | Sender name approved by Semaphore | Branded SMS sender |
 
-Optional — when unset, notifications log to stdout instead of sending.
+In non-production, unset credentials use explicit development stubs. In
+production, missing credentials fail closed; no fake delivery is recorded.
 
 ---
 

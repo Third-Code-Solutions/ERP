@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { getUser } from '@third-code-erp/auth'
+import { requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
-import { opportunities, projects, boms, invoices, users } from '@third-code-erp/database/schema'
+import { opportunities, projects, boms, invoices } from '@third-code-erp/database/schema'
 import { eq, and, inArray, notInArray, sum, count } from 'drizzle-orm'
 
 export const metadata: Metadata = { title: 'Reports' }
@@ -19,16 +19,8 @@ function formatMargin(numerator: number, denominator: number): string {
 const ACTIVE_STAGES = ['opportunity_creation', 'scoping', 'bom_submission', 'resubmission', 'negotiation'] as const
 
 export default async function ReportsPage() {
-  const user = await getUser()
-  if (!user) return null
-
-  const [userRow] = await db
-    .select({ tenant_id: users.tenant_id })
-    .from(users)
-    .where(eq(users.id, user.id))
-
-  if (!userRow?.tenant_id) return null
-  const tid = userRow.tenant_id
+  const profile = await requireUserProfile()
+  const tid = profile.tenantId
 
   const [allOpps, allProjects, allBoms, allInvoices] = await Promise.all([
     db.select({

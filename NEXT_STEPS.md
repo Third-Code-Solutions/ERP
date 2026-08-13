@@ -1,9 +1,9 @@
-# Third Code ERP — Next release steps
+# ABI OPS — Next release steps
 
 ## Current verified state
 
 - Public brand, landing page, metadata, search surfaces, and product UI use
-  Third Code ERP.
+  ABI OPS.
 - Construction spine covers CRM, projects, documents, BOM, procurement,
   delivery, site progress, cost, claims, billing, turnover, warranty, portals,
   and Cortex graph/chat foundations.

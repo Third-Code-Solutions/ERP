@@ -22,6 +22,13 @@ export function lineTotal(
   return subtotal + markup
 }
 
+// Manual BOM lines do not accept an ad-hoc line-level markup. Client pricing
+// is supplied by the attached rate source and approved through the pricing
+// workflow, so manual input is always a flat cost calculation.
+export function manualLineTotal(unitCostCents: number, quantity: number): number {
+  return lineTotal(unitCostCents, quantity, 0)
+}
+
 // Sum of all line totals
 export function bomTotalCost(lines: { line_total_cents: number }[]): number {
   return lines.reduce((sum, line) => sum + line.line_total_cents, 0)

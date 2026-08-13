@@ -2,9 +2,32 @@ import type { Page, Response } from '@playwright/test'
 
 const LOGIN_NAV_RETRIES = 4
 
+export function requireE2EUserEmail(): string {
+  const email = process.env.E2E_USER_EMAIL?.trim()
+  if (!email) {
+    throw new Error(
+      'Authenticated E2E requires E2E_USER_EMAIL; refusing an implicit test identity.'
+    )
+  }
+  return email
+}
+
+export function requireE2ECredentials(): {
+  email: string
+  password: string
+} {
+  const email = requireE2EUserEmail()
+  const password = process.env.E2E_USER_PASSWORD
+  if (!password) {
+    throw new Error(
+      'Authenticated E2E requires E2E_USER_PASSWORD; refusing an implicit test identity.'
+    )
+  }
+  return { email, password }
+}
+
 export async function login(page: Page): Promise<void> {
-  const email = process.env.E2E_USER_EMAIL ?? 'test@third-code-erp.local'
-  const password = process.env.E2E_USER_PASSWORD ?? 'testpassword123'
+  const { email, password } = requireE2ECredentials()
 
   let response: Response | null = null
   for (let attempt = 1; attempt <= LOGIN_NAV_RETRIES; attempt++) {

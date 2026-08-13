@@ -5,28 +5,44 @@ import { createPermit } from '@/app/(dashboard)/projects/[id]/permits/actions'
 
 interface CreatePermitFormProps {
   projectId: string
+  users: Array<{ id: string; fullName: string; role: string }>
 }
 
 const PERMIT_TYPES: Array<{ value: string; label: string }> = [
   { value: 'building_admin_vetting', label: 'Building Admin Vetting' },
   { value: 'lgu_building_permit', label: 'LGU Building Permit' },
   { value: 'dole_permit', label: 'DOLE Permit' },
+  { value: 'occupancy_permit', label: 'Occupancy Permit' },
+  { value: 'cari', label: 'CARI' },
+  { value: 'performance_bond', label: 'Performance Bond' },
+  { value: 'surety_bond', label: 'Surety Bond' },
+  { value: 'construction_bond', label: 'Construction Bond' },
 ]
 
-export function CreatePermitForm({ projectId }: CreatePermitFormProps) {
+export function CreatePermitForm({ projectId, users }: CreatePermitFormProps) {
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [permitType, setPermitType] = useState(PERMIT_TYPES[0]!.value)
+  const [lguName, setLguName] = useState('')
+  const [responsibleUserId, setResponsibleUserId] = useState('')
   const [submittedAt, setSubmittedAt] = useState('')
   const [expectedAt, setExpectedAt] = useState('')
+  const [minDuration, setMinDuration] = useState('')
+  const [expectedDuration, setExpectedDuration] = useState('')
+  const [maxDuration, setMaxDuration] = useState('')
   const [notes, setNotes] = useState('')
 
   const reset = () => {
     setError(null)
     setPermitType(PERMIT_TYPES[0]!.value)
+    setLguName('')
+    setResponsibleUserId('')
     setSubmittedAt('')
     setExpectedAt('')
+    setMinDuration('')
+    setExpectedDuration('')
+    setMaxDuration('')
     setNotes('')
   }
 
@@ -34,8 +50,13 @@ export function CreatePermitForm({ projectId }: CreatePermitFormProps) {
     const fd = new FormData()
     fd.set('project_id', projectId)
     fd.set('permit_type', permitType)
+    if (lguName.trim()) fd.set('lgu_name', lguName.trim())
+    if (responsibleUserId) fd.set('responsible_user_id', responsibleUserId)
     if (submittedAt) fd.set('submitted_at', submittedAt)
-    if (expectedAt) fd.set('expected_approval_at', expectedAt)
+    if (expectedAt) fd.set('expected_return_at', expectedAt)
+    if (minDuration) fd.set('min_duration_days', minDuration)
+    if (expectedDuration) fd.set('expected_duration_days', expectedDuration)
+    if (maxDuration) fd.set('max_duration_days', maxDuration)
     if (notes.trim()) fd.set('notes', notes.trim())
     startTransition(async () => {
       const result = await createPermit(fd)
@@ -69,7 +90,7 @@ export function CreatePermitForm({ projectId }: CreatePermitFormProps) {
       <h3 style={{ margin: '0 0 16px', fontSize: '1rem', fontWeight: 600, color: 'var(--color-neutral-900)' }}>
         New permit
       </h3>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginBottom: '12px' }}>
         <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <span style={{ fontSize: '0.75rem', color: 'var(--color-neutral-600)', fontWeight: 500 }}>
             Permit type
@@ -88,6 +109,31 @@ export function CreatePermitForm({ projectId }: CreatePermitFormProps) {
         </label>
         <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <span style={{ fontSize: '0.75rem', color: 'var(--color-neutral-600)', fontWeight: 500 }}>
+            Responsible person
+          </span>
+          <select value={responsibleUserId} onChange={(e) => setResponsibleUserId(e.target.value)} style={selectStyle}>
+            <option value="">Assign later</option>
+            {users.map((user) => (
+              <option key={user.id} value={user.id}>
+                {user.fullName} · {user.role.replace(/_/g, ' ')}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <span style={{ fontSize: '0.75rem', color: 'var(--color-neutral-600)', fontWeight: 500 }}>
+            Issuing authority / LGU
+          </span>
+          <input
+            type="text"
+            value={lguName}
+            onChange={(e) => setLguName(e.target.value)}
+            placeholder="e.g. Quezon City"
+            style={inputStyle}
+          />
+        </label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <span style={{ fontSize: '0.75rem', color: 'var(--color-neutral-600)', fontWeight: 500 }}>
             Submitted on (optional)
           </span>
           <input
@@ -99,7 +145,7 @@ export function CreatePermitForm({ projectId }: CreatePermitFormProps) {
         </label>
         <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <span style={{ fontSize: '0.75rem', color: 'var(--color-neutral-600)', fontWeight: 500 }}>
-            Expected approval (optional)
+            Expected return (optional)
           </span>
           <input
             type="date"
@@ -108,7 +154,25 @@ export function CreatePermitForm({ projectId }: CreatePermitFormProps) {
             style={inputStyle}
           />
         </label>
-        <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', gridColumn: 'span 2' }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <span style={{ fontSize: '0.75rem', color: 'var(--color-neutral-600)', fontWeight: 500 }}>
+            Minimum duration (days)
+          </span>
+          <input type="number" min="0" value={minDuration} onChange={(e) => setMinDuration(e.target.value)} style={inputStyle} />
+        </label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <span style={{ fontSize: '0.75rem', color: 'var(--color-neutral-600)', fontWeight: 500 }}>
+            Expected duration (days)
+          </span>
+          <input type="number" min="0" value={expectedDuration} onChange={(e) => setExpectedDuration(e.target.value)} style={inputStyle} />
+        </label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <span style={{ fontSize: '0.75rem', color: 'var(--color-neutral-600)', fontWeight: 500 }}>
+            Maximum duration (days)
+          </span>
+          <input type="number" min="0" value={maxDuration} onChange={(e) => setMaxDuration(e.target.value)} style={inputStyle} />
+        </label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', gridColumn: '1 / -1' }}>
           <span style={{ fontSize: '0.75rem', color: 'var(--color-neutral-600)', fontWeight: 500 }}>
             Notes
           </span>

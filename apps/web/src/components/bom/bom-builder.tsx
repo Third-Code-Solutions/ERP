@@ -1,6 +1,6 @@
 'use client'
 
-import { useTransition, useState, useEffect, useCallback } from 'react'
+import { Fragment, useTransition, useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   addBomLineItem,
@@ -8,12 +8,15 @@ import {
   approveBom,
   createBom,
   fetchProjectForecastTcv,
+  setBomLineLocation,
+  type ProjectLocationOption,
 } from '@/app/(dashboard)/projects/[id]/bom/actions'
 import { createPoFromBom, createInvoice } from '@/app/(dashboard)/procurement/actions'
 import { SupplierSwitcherPanel } from '@/components/bom/supplier-switcher-panel'
 import { VarianceBanner } from '@/components/bom/variance-banner'
 import { JustificationDialog } from '@/components/bom/justification-dialog'
-import { BomLineRow, isLineFlagged } from '@/components/bom/bom-line-row'
+import { BomLineRow, isLineFlagged, type BomDupaDetail } from '@/components/bom/bom-line-row'
+import { groupBomLinesByDivision } from '@/lib/operations/bom-hierarchy'
 
 interface BomLineItem {
   id: string
@@ -22,14 +25,33 @@ interface BomLineItem {
   unit: string | null
   quantity: number
   unit_cost_cents: number
-  markup_bps: number
+  unit_rate_source: 'dupa' | 'manual' | 'client_boq' | string
   line_total_cents: number
+  location_id: string | null
+  division_id: string | null
+  division_label: string | null
+  parent_line_item_id: string | null
+  kind: 'work_item' | 'material_line' | string
+  classification_status: 'classified' | 'review' | string
+  item_no: string | null
   notes?: string | null
+  dupa?: BomDupaDetail
 }
 
-type LineSource = 'rag' | 'catalog' | 'ai-estimate' | 'shown' | 'manual' | 'unpriced' | 'unknown'
+type LineSource =
+  | 'dupa'
+  | 'client-boq'
+  | 'rag'
+  | 'catalog'
+  | 'ai-estimate'
+  | 'shown'
+  | 'manual'
+  | 'unpriced'
+  | 'unknown'
 
 function classifyLineSource(item: BomLineItem): LineSource {
+  if (item.unit_rate_source === 'dupa') return 'dupa'
+  if (item.unit_rate_source === 'client_boq') return 'client-boq'
   const notes = (item.notes ?? '').trim()
   if (item.unit_cost_cents === 0 || notes.startsWith('No catalog')) return 'unpriced'
   if (notes.startsWith('Cost from RAG')) return 'rag'
@@ -52,6 +74,18 @@ function SourceBadge({ item }: { item: BomLineItem }) {
     LineSource,
     { label: string; bg: string; fg: string; border: string }
   > = {
+    dupa: {
+      label: 'DUPA',
+      bg: 'var(--color-success-soft)',
+      fg: 'var(--color-success)',
+      border: 'color-mix(in oklch, var(--color-success) 30%, transparent)',
+    },
+    'client-boq': {
+      label: 'BOQ',
+      bg: 'var(--color-info-soft)',
+      fg: 'var(--color-info)',
+      border: 'color-mix(in oklch, var(--color-info) 30%, transparent)',
+    },
     rag: {
       label: 'RAG',
       bg: 'var(--color-success-soft)',
@@ -149,6 +183,7 @@ interface BomBuilderProps {
   projectId: string
   bom: Bom | null
   vendors?: Vendor[]
+  locations?: ProjectLocationOption[]
 }
 
 function formatPHP(cents: number): string {
@@ -162,7 +197,7 @@ const STATUS_COLORS: Record<string, string> = {
   archived: '#6b7280',
 }
 
-export function BomBuilder({ projectId, bom, vendors = [] }: BomBuilderProps) {
+export function BomBuilder({ projectId, bom, vendors = [], locations = [] }: BomBuilderProps) {
   const [isPending, startTransition] = useTransition()
   const [showAddForm, setShowAddForm] = useState(false)
   const [form, setForm] = useState({
@@ -171,7 +206,7 @@ export function BomBuilder({ projectId, bom, vendors = [] }: BomBuilderProps) {
     unit: 'pc',
     quantity: '1',
     unit_cost: '',
-    markup: '30',
+    location_id: '',
   })
   const [formError, setFormError] = useState('')
   const router = useRouter()
@@ -180,7 +215,12 @@ export function BomBuilder({ projectId, bom, vendors = [] }: BomBuilderProps) {
   const [showInvoiceForm, setShowInvoiceForm] = useState(false)
   const [invoiceForm, setInvoiceForm] = useState({ billingPercent: '30', dueDate: '' })
   const [procurementError, setProcurementError] = useState('')
-  const [aiSuggestions, setAiSuggestions] = useState<{ description: string; unit_cost_cents: number; markup_bps: number; unit: string | null; score: number }[]>([])
+  const [aiSuggestions, setAiSuggestions] = useState<{
+    description: string
+    unit_cost_cents: number
+    unit: string | null
+    score: number
+  }[]>([])
   const [isFetchingSuggestions, setIsFetchingSuggestions] = useState(false)
   // US-011 — supplier switcher / variance / justification state.
   const [selectedLineId, setSelectedLineId] = useState<string | null>(null)
@@ -221,6 +261,7 @@ export function BomBuilder({ projectId, bom, vendors = [] }: BomBuilderProps) {
 
   const selectedLine = bom?.lineItems.find((l) => l.id === selectedLineId) ?? null
   const hasFlaggedLines = (bom?.lineItems ?? []).some(isLineFlagged)
+  const divisionGroups = bom ? groupBomLinesByDivision(bom.lineItems) : []
 
   const fetchSuggestions = useCallback(async (description: string) => {
     if (!description.trim() || description.length < 5) {
@@ -276,6 +317,18 @@ export function BomBuilder({ projectId, bom, vendors = [] }: BomBuilderProps) {
     })
   }
 
+  function handleLocationChange(lineItemId: string, locationId: string | null) {
+    if (!bom) return
+    startTransition(async () => {
+      const result = await setBomLineLocation({
+        lineItemId,
+        projectId,
+        locationId,
+      })
+      if (result.error) setFormError(result.error)
+    })
+  }
+
   async function handleGeneratePO(e: React.FormEvent) {
     e.preventDefault()
     if (!bom) return
@@ -317,8 +370,6 @@ export function BomBuilder({ projectId, bom, vendors = [] }: BomBuilderProps) {
 
     const unitCostCents = Math.round(parseFloat(form.unit_cost) * 100)
     const quantity = parseInt(form.quantity, 10)
-    const markupBps = Math.round(parseFloat(form.markup) * 100)
-
     if (!form.description.trim()) return setFormError('Description is required')
     if (isNaN(unitCostCents) || unitCostCents < 0) return setFormError('Invalid unit cost')
     if (isNaN(quantity) || quantity < 1) return setFormError('Quantity must be at least 1')
@@ -329,11 +380,18 @@ export function BomBuilder({ projectId, bom, vendors = [] }: BomBuilderProps) {
         unit: form.unit,
         quantity,
         unit_cost_cents: unitCostCents,
-        markup_bps: markupBps,
         code: form.code || undefined,
+        locationId: form.location_id || null,
       })
       if (!result.error) {
-        setForm({ code: '', description: '', unit: 'pc', quantity: '1', unit_cost: '', markup: '30' })
+        setForm({
+          code: '',
+          description: '',
+          unit: 'pc',
+          quantity: '1',
+          unit_cost: '',
+          location_id: '',
+        })
         setShowAddForm(false)
       } else {
         setFormError(result.error)
@@ -530,7 +588,7 @@ export function BomBuilder({ projectId, bom, vendors = [] }: BomBuilderProps) {
             padding: '16px',
             marginBottom: '16px',
             display: 'grid',
-            gridTemplateColumns: '80px 1fr 80px 80px 130px 90px',
+            gridTemplateColumns: '80px minmax(220px, 1fr) 80px 80px 150px 150px',
             gap: '8px',
             alignItems: 'end',
           }}
@@ -541,7 +599,6 @@ export function BomBuilder({ projectId, bom, vendors = [] }: BomBuilderProps) {
             { label: 'Unit', key: 'unit', placeholder: 'pc', type: 'text' },
             { label: 'Qty *', key: 'quantity', placeholder: '1', type: 'number' },
             { label: 'Unit Cost (₱) *', key: 'unit_cost', placeholder: '0.00', type: 'number' },
-            { label: 'Markup %', key: 'markup', placeholder: '30', type: 'number' },
           ].map(({ label, key, placeholder, type }) => (
             <div key={key}>
               <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: 'var(--color-neutral-500)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
@@ -567,6 +624,33 @@ export function BomBuilder({ projectId, bom, vendors = [] }: BomBuilderProps) {
             </div>
           ))}
 
+          <div>
+            <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: 'var(--color-neutral-500)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Location
+            </label>
+            <select
+              value={form.location_id}
+              onChange={(event) => setForm((current) => ({ ...current, location_id: event.target.value }))}
+              style={{
+                width: '100%',
+                minHeight: 31,
+                padding: '6px 8px',
+                border: '1px solid var(--color-border)',
+                borderRadius: '4px',
+                background: 'var(--color-surface)',
+                fontSize: '0.8125rem',
+                boxSizing: 'border-box',
+              }}
+            >
+              <option value="">Unassigned</option>
+              {locations.map((location) => (
+                <option key={location.id} value={location.id}>
+                  {location.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* AI Suggestions */}
           {(aiSuggestions.length > 0 || isFetchingSuggestions) && (
             <div style={{ gridColumn: '1 / -1', borderTop: '1px solid var(--color-border)', paddingTop: '10px', marginTop: '4px' }}>
@@ -591,7 +675,7 @@ export function BomBuilder({ projectId, bom, vendors = [] }: BomBuilderProps) {
                 >
                   <span style={{ flex: 1, color: 'var(--color-neutral-700)' }}>{s.description}</span>
                   <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-neutral-500)', fontSize: '0.75rem' }}>
-                    {s.unit ?? ''} · {formatPHP(s.unit_cost_cents)} · {(s.markup_bps / 100).toFixed(0)}%
+                    {s.unit ?? ''} · {formatPHP(s.unit_cost_cents)} · historical rate suggestion
                   </span>
                   <span style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 600 }}>{s.score}%</span>
                   <button
@@ -601,7 +685,6 @@ export function BomBuilder({ projectId, bom, vendors = [] }: BomBuilderProps) {
                       description: s.description,
                       unit: s.unit ?? f.unit,
                       unit_cost: (s.unit_cost_cents / 100).toFixed(2),
-                      markup: (s.markup_bps / 100).toFixed(0),
                     }))}
                     style={{
                       background: 'var(--color-navy-700)',
@@ -790,26 +873,66 @@ export function BomBuilder({ projectId, bom, vendors = [] }: BomBuilderProps) {
                 <th>Code</th>
                 <th>Description</th>
                 <th>Vendor</th>
+                <th>Location</th>
                 <th className="numeric">Unit</th>
                 <th className="numeric">Qty</th>
                 <th className="numeric">Unit Cost</th>
-                <th className="numeric">Markup</th>
                 <th className="numeric">Line Total</th>
                 {isEditable && <th style={{ width: '40px' }}></th>}
               </tr>
             </thead>
             <tbody>
-              {bom.lineItems.map((item) => (
-                <BomLineRow
-                  key={item.id}
-                  item={item}
-                  isSelected={selectedLineId === item.id}
-                  isEditable={isEditable}
-                  isPending={isPending}
-                  onSelect={() => setSelectedLineId(item.id)}
-                  onDelete={() => handleDelete(item.id)}
-                  sourceBadge={<SourceBadge item={item} />}
-                />
+              {divisionGroups.map((group) => (
+                <Fragment key={group.key}>
+                  <tr data-division-key={group.key} style={{ background: 'var(--color-navy-50)' }}>
+                    <td colSpan={isEditable ? 9 : 8} style={{ padding: '10px 12px', borderTop: '1px solid var(--color-border)' }}>
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          marginRight: 8,
+                          padding: '2px 6px',
+                          borderRadius: 4,
+                          background: 'var(--color-navy-100)',
+                          color: 'var(--color-navy-700)',
+                          fontFamily: 'var(--font-mono)',
+                          fontSize: 10,
+                          fontWeight: 700,
+                          letterSpacing: '0.04em',
+                        }}
+                      >
+                        DIVISION
+                      </span>
+                      <strong style={{ color: 'var(--color-neutral-900)', fontSize: 12 }}>{group.label}</strong>
+                      <span style={{ marginLeft: 8, color: 'var(--color-neutral-500)', fontSize: 11 }}>
+                        {group.lines.length} line{group.lines.length === 1 ? '' : 's'}
+                      </span>
+                    </td>
+                  </tr>
+                  {group.lines.map((item) => (
+                    <BomLineRow
+                      key={item.id}
+                      item={item}
+                      depth={item.parent_line_item_id ? 1 : 0}
+                      isSelected={selectedLineId === item.id}
+                      isEditable={isEditable}
+                      isPending={isPending}
+                      onSelect={() => setSelectedLineId(item.id)}
+                      onDelete={() => handleDelete(item.id)}
+                      onLocationChange={(locationId) => handleLocationChange(item.id, locationId)}
+                      locationOptions={locations}
+                      sourceBadge={<SourceBadge item={item} />}
+                    />
+                  ))}
+                  <tr data-division-subtotal={group.key} style={{ background: 'var(--color-neutral-50)' }}>
+                    <td colSpan={isEditable ? 7 : 6} style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--color-neutral-500)', fontSize: 11, fontWeight: 600 }}>
+                      {group.label} subtotal
+                    </td>
+                    <td className="numeric" style={{ padding: '8px 12px', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: 'var(--color-neutral-800)' }}>
+                      {formatPHP(group.subtotal_cents)}
+                    </td>
+                    {isEditable && <td />}
+                  </tr>
+                </Fragment>
               ))}
             </tbody>
             <tfoot>

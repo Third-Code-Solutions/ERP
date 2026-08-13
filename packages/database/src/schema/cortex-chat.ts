@@ -14,7 +14,7 @@ import { tenants } from './tenants'
 import { users } from './users'
 
 // -----------------------------------------------------------------------------
-// Third Code ERP Agent memory — persists every Cortex conversation in the user's DB
+// ABI OPS Agent memory — persists every Cortex conversation in the user's DB
 // (tenant-scoped), so the AI Brain has a durable, auditable memory surfaced in
 // the dashboard. One conversation per thread; messages are append-only turns.
 // -----------------------------------------------------------------------------

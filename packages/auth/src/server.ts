@@ -3,6 +3,18 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import type { User } from '@supabase/supabase-js'
 
+export type AuthErrorCode = 'UNAUTHENTICATED' | 'FORBIDDEN'
+
+export class AuthError extends Error {
+  readonly code: AuthErrorCode
+
+  constructor(code: AuthErrorCode, message: string) {
+    super(message)
+    this.name = 'AuthError'
+    this.code = code
+  }
+}
+
 export async function createSupabaseServerClient() {
   const cookieStore = await cookies()
 
@@ -41,19 +53,19 @@ export async function getUser() {
 
 export async function requireUser() {
   const user = await getUser()
-  if (!user) throw new Error('Unauthorized')
+  if (!user) throw new AuthError('UNAUTHENTICATED', 'Unauthorized')
   return user
 }
 
-// Third Code ERP role taxonomy per REFACTOR.md §2.
+// ABI OPS role taxonomy per REFACTOR.md §2.
 // Legacy values (owner/estimator/pm) retained for back-compat — they map
-// onto the current Third Code ERP roles via ROLE_RANK below.
+// onto the current ABI OPS roles via ROLE_RANK below.
 export type AppRole =
   // Legacy
   | 'owner'
   | 'estimator'
   | 'pm'
-  // Third Code ERP
+  // ABI OPS
   | 'admin'
   | 'sales'
   | 'commercial'
@@ -83,11 +95,18 @@ export interface UserProfile {
  * authorization decisions — never trust user_metadata for role.
  */
 export async function getUserProfile(): Promise<UserProfile | null> {
-  const user = await getUser()
-  if (!user) return null
+  // Keep profile hydration on the caller's authenticated client. This makes
+  // the users read obey Supabase RLS instead of turning every page request
+  // into a service-role lookup that bypasses tenant policy.
+  const supabase = await createSupabaseServerClient()
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser()
 
-  const admin = createSupabaseAdminClient()
-  const { data, error } = await admin
+  if (userError || !user) return null
+
+  const { data, error } = await supabase
     .from('users')
     .select('tenant_id, role, email, full_name')
     .eq('id', user.id)
@@ -106,12 +125,12 @@ export async function getUserProfile(): Promise<UserProfile | null> {
 
 export async function requireUserProfile(): Promise<UserProfile> {
   const profile = await getUserProfile()
-  if (!profile) throw new Error('Unauthorized')
+  if (!profile) throw new AuthError('UNAUTHENTICATED', 'Unauthorized')
   return profile
 }
 
 // Privilege ladder. Higher = more authority. Legacy roles map onto their
-// Third Code ERP equivalents so old data keeps working unchanged.
+// ABI OPS equivalents so old data keeps working unchanged.
 const ROLE_RANK: Record<AppRole, number> = {
   // Viewer — read-only
   viewer: 0,
@@ -139,7 +158,7 @@ export function hasRole(role: AppRole, minRole: AppRole): boolean {
 }
 
 /**
- * The set of Third Code ERP roles permitted to perform the given capability.
+ * The set of ABI OPS roles permitted to perform the given capability.
  * Mirrors the permission matrix in REFACTOR.md §2. Use in server actions
  * and route guards. Returns true if the role is in the allow-list.
  */
@@ -148,8 +167,11 @@ export type ErpCapability =
   | 'account.kyc_review'
   | 'opportunity.create'
   | 'opportunity.advance_stage'
+  | 'opportunity.kyc_track_manage'
+  | 'opportunity.kyc_track_approve'
   | 'pprf.submit'
   | 'site_inspection.submit'
+  | 'project.award'
   | 'design.upload'
   | 'document.manage'
   | 'bom.generate'
@@ -158,6 +180,8 @@ export type ErpCapability =
   | 'rfq.dispatch'
   | 'kyc.create_ar_code'
   | 'precon.manage_checklist'
+  | 'precon.manage_permits'
+  | 'precon.override_mobilization'
   | 'po.create'
   | 'po.approve'
   | 'po.issue'
@@ -182,6 +206,11 @@ export type ErpCapability =
   | 'budget.manage'
   | 'budget.approve_commercial'
   | 'budget.approve_finance'
+  | 'process.health.read'
+  | 'process.step.manage'
+  | 'process.task.manage'
+  | 'process.sla.manage'
+  | 'process.approval.manage'
 
 const CAPABILITY_ROLES: Record<ErpCapability, AppRole[]> = {
   // CRM
@@ -189,9 +218,12 @@ const CAPABILITY_ROLES: Record<ErpCapability, AppRole[]> = {
   'account.kyc_review': ['admin', 'owner', 'finance'],
   'opportunity.create': ['admin', 'owner', 'sales'],
   'opportunity.advance_stage': ['admin', 'owner', 'sales'],
+  'opportunity.kyc_track_manage': ['admin', 'owner', 'finance'],
+  'opportunity.kyc_track_approve': ['admin', 'owner'],
   // Proposal
   'pprf.submit': ['admin', 'owner', 'sales'],
   'site_inspection.submit': ['admin', 'owner', 'commercial'],
+  'project.award': ['admin', 'owner', 'commercial', 'finance', 'sd_pm_pe', 'pm'],
   'design.upload': ['admin', 'owner', 'design'],
   'document.manage': [
     'admin',
@@ -216,6 +248,8 @@ const CAPABILITY_ROLES: Record<ErpCapability, AppRole[]> = {
   'kyc.create_ar_code': ['admin', 'owner', 'finance'],
   // Pre-Con
   'precon.manage_checklist': ['admin', 'owner', 'commercial', 'sd_pm_pe', 'pm'],
+  'precon.manage_permits': ['admin', 'owner', 'commercial', 'sd_pm_pe', 'pm', 'safety'],
+  'precon.override_mobilization': ['admin', 'owner', 'sd_pm_pe', 'pm'],
   'po.create': ['admin', 'owner', 'commercial', 'sd_pm_pe', 'pm', 'procurement'],
   'po.approve': ['admin', 'owner', 'commercial'],
   'po.issue': ['admin', 'owner', 'procurement'],
@@ -267,6 +301,43 @@ const CAPABILITY_ROLES: Record<ErpCapability, AppRole[]> = {
   ],
   'budget.approve_commercial': ['admin', 'owner', 'commercial'],
   'budget.approve_finance': ['admin', 'owner', 'finance'],
+  'process.health.read': [
+    'admin',
+    'owner',
+    'commercial',
+    'sales',
+    'design',
+    'sd_pm_pe',
+    'pm',
+    'estimator',
+    'finance',
+    'procurement',
+    'safety',
+    'cx',
+    'viewer',
+  ],
+  'process.step.manage': ['admin', 'owner'],
+  'process.task.manage': [
+    'admin',
+    'owner',
+    'commercial',
+    'design',
+    'sd_pm_pe',
+    'pm',
+    'procurement',
+    'safety',
+    'cx',
+  ],
+  'process.sla.manage': ['admin', 'owner', 'sd_pm_pe', 'pm'],
+  'process.approval.manage': [
+    'admin',
+    'owner',
+    'commercial',
+    'finance',
+    'procurement',
+    'sd_pm_pe',
+    'pm',
+  ],
 }
 
 export function can(role: AppRole, capability: ErpCapability): boolean {
@@ -275,7 +346,10 @@ export function can(role: AppRole, capability: ErpCapability): boolean {
 
 export function requireCapability(profile: UserProfile, capability: ErpCapability): void {
   if (!can(profile.role, capability)) {
-    throw new Error(`Forbidden: role "${profile.role}" lacks capability "${capability}"`)
+    throw new AuthError(
+      'FORBIDDEN',
+      `Forbidden: role "${profile.role}" lacks capability "${capability}"`
+    )
   }
 }
 

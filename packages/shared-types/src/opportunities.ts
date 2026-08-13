@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-// Stage values include legacy + Third Code ERP canonical. Legacy values map to
+// Stage values include legacy + ABI OPS canonical. Legacy values map to
 // their current equivalents via STAGE_LEGACY_MAP below.
 export const opportunityStageValues = [
   // Legacy
@@ -9,7 +9,7 @@ export const opportunityStageValues = [
   'resubmission',
   'closed_won',
   'closed_lost',
-  // Third Code ERP 8-stage canonical
+  // ABI OPS 8-stage canonical
   'lead',
   'site_survey',
   'design',
@@ -22,7 +22,7 @@ export const opportunityStageValues = [
 
 export type OpportunityStage = typeof opportunityStageValues[number]
 
-// The 8 canonical Third Code ERP stages (UI-facing).
+// The 8 canonical ABI OPS stages (UI-facing).
 export const PIPELINE_STAGES = [
   'lead',
   'site_survey',
@@ -99,7 +99,7 @@ export const STAGE_TRANSITIONS: Record<OpportunityStage, OpportunityStage[]> = {
 
 export const createOpportunitySchema = z
   .object({
-    // Third Code ERP Phase 0: at least one of account_id or project_id must be
+    // ABI OPS Phase 0: at least one of account_id or project_id must be
     // present. New opps coming through the M1 flow will use account_id;
     // legacy code paths can still pass project_id only.
     account_id: z.string().uuid().optional(),

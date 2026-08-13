@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm'
 import { pgTable, uuid, varchar, text, integer, timestamp, index, uniqueIndex } from 'drizzle-orm/pg-core'
 import { projectStatusEnum, projectTypeEnum } from './enums'
 import { tenants } from './tenants'
@@ -16,6 +17,9 @@ export const projects = pgTable(
     // Free-text client name kept for display continuity; the canonical
     // Account record (when present) overrides this in the UI.
     client: varchar('client', { length: 255 }).notNull(),
+    // Assigned once a signed BOM is promoted into an execution project. This
+    // remains nullable for legacy project rows created before WO-13.
+    project_code: varchar('project_code', { length: 40 }),
     location: text('location'),
     project_type: projectTypeEnum('project_type'),
     status: projectStatusEnum('status').notNull().default('lead'),
@@ -29,6 +33,9 @@ export const projects = pgTable(
     tenantIdUniqueIdx: uniqueIndex('ux_projects_tenant_id_id').on(table.tenant_id, table.id),
     tenantIdx: index('idx_projects_tenant_id').on(table.tenant_id),
     accountIdx: index('idx_projects_account_id').on(table.account_id),
+    projectCodeIdx: uniqueIndex('ux_projects_tenant_project_code')
+      .on(table.tenant_id, table.project_code)
+      .where(sql`${table.project_code} is not null`),
     tenantStatusIdx: index('idx_projects_tenant_status').on(table.tenant_id, table.status),
     createdByIdx: index('idx_projects_created_by').on(table.created_by),
   })

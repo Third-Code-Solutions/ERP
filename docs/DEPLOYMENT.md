@@ -1,6 +1,6 @@
 # Deployment
 
-This guide walks through bringing Third Code ERP from an empty cloud account to
+This guide walks through bringing ABI OPS from an empty cloud account to
 a working production stack. The reviewed deployment topology is:
 
 | Service | What it runs | Why |
@@ -60,6 +60,14 @@ provisioned when their feature is enabled.
    - `OPENAI_API_KEY`
    - `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY`
    - `NEXT_PUBLIC_SITE_URL` (your production domain)
+   - `ERP_CORE_API_URL` (Railway/Nest Core API URL when Process Health is enabled)
+   - `BUSINESS_CALENDAR_DB_ENABLED=1` only after the WO-02 calendar migration
+     has passed staging replay, RLS/audit tests, rollback review, and the
+     read-only database verifier. Leave it unset during the pre-migration
+     code-only rollout; the checker then uses the approved national seed.
+   - `PROCESS_SLA_ENGINE_ENABLED=1` only after M-06 tables, audit triggers,
+     tenant isolation, and authenticated process E2E pass. Leave it `0` until
+     those gates pass; the registered Inngest function remains disabled.
 5. Add the production domain in `Settings → Domains` and update
    `NEXT_PUBLIC_SITE_URL` to match. Portal share links and email CTAs
    use this value.
@@ -107,7 +115,10 @@ Required operating controls:
 2. Build with the exact canonical `NEXT_PUBLIC_SITE_URL`. Add that hostname to
    Supabase Auth redirect allowlists before traffic cutover.
 3. Set `APP_REVISION` to the reviewed Git SHA. `/api/health` and `/api/ready`
-   expose its first 12 characters for release verification.
+   expose its first 12 characters for release verification. If a manual Vercel
+   deployment has no Git SHA, `VERCEL_DEPLOYMENT_ID` is used as a traceable
+   fallback. If system deployment identity is unavailable, `VERCEL_URL` is the
+   final Vercel traceability fallback.
 4. Check `/api/health` for process liveness and `/api/ready` for PostgreSQL
    readiness. Do not route traffic when readiness is 503.
 5. Run `scripts/ci/smoke-web-standalone.ps1` on the Windows self-hosted runner.
@@ -143,22 +154,52 @@ resources have no real cost.
 
 ---
 
-## 4. Railway (DXF Parser, Optional)
+## 4. Railway (CAD Evidence Worker)
 
-Skip this if you don't need DXF / Togal parsing on day one — BOM rows
-can still be created manually.
+The production worker is `ABI OPS CAD Worker` at
+`https://abi-ops-cad-worker-production.up.railway.app`.
 
-1. Create a Railway project, point it at `apps/workers/dxf-parser`.
-2. Use the bundled `Dockerfile`. Build command is inferred.
-3. Add env vars:
-   - `PARSER_SHARED_SECRET` (must match the value in Vercel)
-   - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
-4. Expose a public URL. Set Vercel's `PARSER_URL` to that value.
-5. Smoke test: `curl -X POST $PARSER_URL/health` returns `{"ok": true}`.
+1. Deploy `apps/workers/dxf-parser` with its bundled `Dockerfile` and
+   `railway.toml`.
+2. Set only `PARSER_SHARED_SECRET` on Railway. Do not add database or
+   Supabase service-role credentials: the worker is evidence-only.
+3. Set the same secret as the server-only Vercel variable
+   `PARSER_SHARED_SECRET`, and set Vercel `DXF_PARSER_URL` to the worker URL.
+4. Smoke test: `GET $DXF_PARSER_URL/health` returns `status=ok`,
+   `dwg_support=true`, and `evidence_only=true`; a valid `/parse` request
+   without the bearer secret returns 401.
 
 ---
 
-## 5. DocuSeal (Optional)
+## 5. Guarded production promotion
+
+`.github/workflows/deploy-production.yml` is the canonical repository-hosted
+promotion path. It is manual-only, restricted to `main`, protected by the
+GitHub `production` environment, and serialized so two releases cannot run at
+once. It runs static, type, unit, and build gates, previews and applies linked
+Supabase migrations, deploys the pinned Railway API and CAD worker services,
+deploys the Vercel project, then checks web/API/worker health and the public
+surface contract.
+
+Configure these secrets on the `production` environment before dispatching:
+
+- `VERCEL_TOKEN`
+- `RAILWAY_TOKEN` (Railway project token for production)
+- `SUPABASE_ACCESS_TOKEN`
+- `SUPABASE_DB_PASSWORD`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` (seeded production E2E harness)
+- `SUPABASE_SERVICE_ROLE_KEY` (seeded production E2E harness; GitHub secret only)
+
+Do not add production provider credentials to repository variables or `.env`
+files. The workflow runs the authenticated ABI OPS production E2E journeys
+after public health checks and fails closed when either E2E secret is missing.
+It intentionally does not enable cutover flags or create a tenant canary.
+Database rollback is an additive forward migration; Vercel and Railway
+rollback use prior provider deployment IDs.
+
+---
+
+## 6. DocuSeal (Optional)
 
 When `DOCUSEAL_API_URL` is set, the BOM client portal and turnover
 package replace the built-in canvas signature pad with a DocuSeal
@@ -182,10 +223,20 @@ or apply a second manual migration list. The PostgreSQL 17 reproducibility job
 rebuilds the database from zero, requires every database test to execute, and
 asserts an empty schema diff.
 
-The authorized Supabase target was reconciled on 2026-07-28 and now reports
-44/44 repository migrations, no unexpected versions, and a green protected
-catalog verifier. Future releases still require the read-only planner,
-reviewed SQL, backup/rollback evidence, and the procedure in
+The authorized Supabase target was read-only inspected on 2026-08-12. The
+hosted target has 55 applied migrations. The current local workspace has 56
+migration files, including the local-only M-06 foundation, and a passing
+protected-catalog reproducibility verifier, but the provider-linked Git
+`origin/main` source has 124 migrations with 69 pending on the hosted target.
+The provider's own branch-action logs show the first pending migration failing
+on duplicate tenant-scoped Purchase Order numbers. This does not mean the
+hosted project is release-ready: its migration status is currently
+`MIGRATIONS_FAILED`, security/performance advisors still have findings, and
+the WO-02 audit/calendar gate is not applied. The final migration source
+recovered from the target ledger is committed as
+`20260729233017_notification_outbox_foundation.sql`. Future releases must run
+both the local snapshot checks and the provider-source planner, then satisfy
+reviewed SQL, backup/rollback, source-identity, and staging evidence in
 [`database-release.md`](runbooks/database-release.md). Never use hosted
 `db reset` or ad hoc `migration repair`.
 
@@ -221,10 +272,11 @@ After every production deploy, hit these endpoints in order:
 | URL | Expected |
 |---|---|
 | `GET /` | 200; sign-in screen renders |
-| `GET /api/health` | Process liveness: `{"ok": true, "service": "third-code-erp-web"}` |
+| `GET /api/health` | Process liveness: `{"ok": true, "service": "abi-ops-web"}` |
 | `GET /api/ready` | Database readiness: `{"ok": true, "database": "up"}` |
 | `POST /api/webhooks/inngest` (from Inngest dashboard) | 200 with registered functions list |
 | `GET /(dashboard)/dashboard` | KPI cards load within 2s |
+| `GET /(dashboard)/process` | BU-level process health loads or shows an explicit unavailable state; no synthetic metrics |
 | `GET /(dashboard)/crm/accounts` | Accounts table renders |
 | `GET /portal/bom/<token>` (with a seeded token) | Client BOM portal loads, no auth required |
 

@@ -18,6 +18,7 @@ import { journalEntries, ledgerAccounts } from './accounting'
 import { supplierBillStatusEnum } from './enums'
 import { projects } from './projects'
 import { costCodes } from './budgets'
+import { bomLineItems } from './bom-line-items'
 import { stockReceiptLines } from './inventory'
 import { poLineItems } from './po-line-items'
 import { purchaseOrders } from './purchase-orders'
@@ -178,6 +179,9 @@ export const supplierBillLines = pgTable(
     ledger_account_id: uuid('ledger_account_id').notNull(),
     project_id: uuid('project_id').notNull(),
     po_line_item_id: uuid('po_line_item_id'),
+    // Denormalized from the PO line at draft allocation time so every cost
+    // control actual can be traced directly to the BOM line it consumes.
+    bom_line_item_id: uuid('bom_line_item_id'),
     cost_code_id: uuid('cost_code_id'),
     stock_receipt_line_id: uuid('stock_receipt_line_id'),
     quantity_micros: bigint('quantity_micros', { mode: 'number' }),
@@ -205,6 +209,10 @@ export const supplierBillLines = pgTable(
       table.tenant_id,
       table.po_line_item_id
     ),
+    bomLineIdx: index('idx_supplier_bill_lines_bom_line').on(
+      table.tenant_id,
+      table.bom_line_item_id
+    ),
     costCodeIdx: index('idx_supplier_bill_lines_cost_code').on(
       table.tenant_id,
       table.cost_code_id
@@ -231,6 +239,11 @@ export const supplierBillLines = pgTable(
       name: 'supplier_bill_lines_po_line_tenant_fk',
       columns: [table.tenant_id, table.po_line_item_id],
       foreignColumns: [poLineItems.tenant_id, poLineItems.id],
+    }).onDelete('restrict'),
+    bomLineTenantFk: foreignKey({
+      name: 'supplier_bill_lines_bom_line_tenant_fk',
+      columns: [table.tenant_id, table.bom_line_item_id],
+      foreignColumns: [bomLineItems.tenant_id, bomLineItems.id],
     }).onDelete('restrict'),
     costCodeTenantFk: foreignKey({
       name: 'supplier_bill_lines_cost_code_tenant_fk',

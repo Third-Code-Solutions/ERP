@@ -1,6 +1,6 @@
 # Target State
 
-Third Code ERP remains an incremental TypeScript system. The target is a
+ABI OPS remains an incremental TypeScript system. The target is a
 modular monolith, not a rewrite and not a microservice fleet.
 
 ## Authority boundaries
@@ -148,7 +148,7 @@ reach through each other's internals.
   with promotion preferred over redundant rebuilds.
 - Vercel Web Analytics: first-party product telemetry with a clean browser
   console and no transaction authority.
-- Railway `Third Code ERP API`: the single NestJS modular monolith.
+- Railway `ABI OPS API`: the single NestJS modular monolith.
 - Railway `Redis`: BullMQ, caching, retry coordination, and distributed locks.
 - Supabase project `aqqrtkmtcsfkbyyqxowv`: PostgreSQL, Auth, and Storage.
 - Python analysis workers remain separately deployable but cannot become

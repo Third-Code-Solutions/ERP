@@ -250,7 +250,7 @@ function actionLabel(status: ChecklistItemRowProps['item']['status']): string {
 }
 
 function formatRole(role: string): string {
-  // Match the Third Code ERP nomenclature.
+  // Match the ABI OPS nomenclature.
   if (role === 'sd_pm_pe') return 'SD / PM / PE'
   return role.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 }

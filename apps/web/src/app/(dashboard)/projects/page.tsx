@@ -1,9 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { getUser } from '@third-code-erp/auth'
-import { db } from '@third-code-erp/database'
-import { users } from '@third-code-erp/database/schema'
-import { eq } from 'drizzle-orm'
+import { requireUserProfile } from '@third-code-erp/auth'
 import {
   getProjectsFiltered,
   PROJECT_SORT_VALUES,
@@ -107,20 +104,8 @@ function buildPageHref(rawSearch: Record<string, SearchParamValue>, page: number
 }
 
 export default async function ProjectsPage({ searchParams }: ProjectsPageProps) {
-  const user = await getUser()
-  if (!user) return null
-
-  const [userRow] = await db.select({ tenant_id: users.tenant_id }).from(users).where(eq(users.id, user.id))
-  const tenantId = userRow?.tenant_id
-
-  if (!tenantId) {
-    return (
-      <div className="page-header">
-        <h1 className="page-title">Projects</h1>
-        <p className="page-subtitle">Tenant not configured.</p>
-      </div>
-    )
-  }
+  const profile = await requireUserProfile()
+  const tenantId = profile.tenantId
 
   const rawSearch: Record<string, SearchParamValue> = searchParams
     ? await searchParams

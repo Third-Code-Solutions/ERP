@@ -1,5 +1,5 @@
 /**
- * Third Code ERP Agent memory store (tenant-scoped). Persists every conversation in
+ * ABI OPS Agent memory store (tenant-scoped). Persists every conversation in
  * the user's DB so the AI Brain remembers. Drizzle runs as `postgres` (RLS
  * bypassed), so every query filters tenant_id explicitly, and reads also check
  * user ownership — a user only ever sees their own threads.
@@ -82,7 +82,12 @@ export async function appendCortexMessage(
     await tx
       .update(cortexConversations)
       .set({ updated_at: new Date() })
-      .where(eq(cortexConversations.id, owned.id))
+      .where(
+        and(
+          eq(cortexConversations.id, owned.id),
+          eq(cortexConversations.tenant_id, tenantId)
+        )
+      )
   })
 }
 

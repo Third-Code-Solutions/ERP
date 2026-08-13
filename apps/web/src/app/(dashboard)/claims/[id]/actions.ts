@@ -111,7 +111,12 @@ export async function submitClaim(claimId: string): Promise<{ error?: string }> 
       submitted_by: profile.user.id,
       updated_at: now,
     })
-    .where(eq(progressClaims.id, claimId))
+    .where(
+      and(
+        eq(progressClaims.id, claimId),
+        eq(progressClaims.tenant_id, profile.tenantId)
+      )
+    )
 
   await writeAuditLog({
     tenantId: profile.tenantId,
@@ -161,7 +166,12 @@ export async function markCertificatePending(
   await db
     .update(progressClaims)
     .set({ status: 'certificate_pending', updated_at: now })
-    .where(eq(progressClaims.id, claimId))
+    .where(
+      and(
+        eq(progressClaims.id, claimId),
+        eq(progressClaims.tenant_id, profile.tenantId)
+      )
+    )
 
   await writeAuditLog({
     tenantId: profile.tenantId,
@@ -226,7 +236,12 @@ export async function recordCertification(
       certificate_document_id: certificateDocumentId,
       updated_at: now,
     })
-    .where(eq(progressClaims.id, claimId))
+    .where(
+      and(
+        eq(progressClaims.id, claimId),
+        eq(progressClaims.tenant_id, profile.tenantId)
+      )
+    )
 
   await writeAuditLog({
     tenantId: profile.tenantId,
@@ -283,7 +298,12 @@ export async function handoverToFinance(
       handed_over_to_finance_by: profile.user.id,
       updated_at: now,
     })
-    .where(eq(progressClaims.id, claimId))
+    .where(
+      and(
+        eq(progressClaims.id, claimId),
+        eq(progressClaims.tenant_id, profile.tenantId)
+      )
+    )
 
   await writeAuditLog({
     tenantId: profile.tenantId,
@@ -355,7 +375,12 @@ export async function linkInvoice(
       invoice_id: invoiceId,
       updated_at: now,
     })
-    .where(eq(progressClaims.id, claimId))
+    .where(
+      and(
+        eq(progressClaims.id, claimId),
+        eq(progressClaims.tenant_id, profile.tenantId)
+      )
+    )
 
   await writeAuditLog({
     tenantId: profile.tenantId,
@@ -398,7 +423,12 @@ export async function recordPayment(
   await db
     .update(progressClaims)
     .set({ status: 'paid', paid_at: now, updated_at: now })
-    .where(eq(progressClaims.id, claimId))
+    .where(
+      and(
+        eq(progressClaims.id, claimId),
+        eq(progressClaims.tenant_id, profile.tenantId)
+      )
+    )
 
   await writeAuditLog({
     tenantId: profile.tenantId,
@@ -458,7 +488,12 @@ export async function rejectClaim(
       rejected_reason: reasonResult.data,
       updated_at: now,
     })
-    .where(eq(progressClaims.id, claimId))
+    .where(
+      and(
+        eq(progressClaims.id, claimId),
+        eq(progressClaims.tenant_id, profile.tenantId)
+      )
+    )
 
   await writeAuditLog({
     tenantId: profile.tenantId,
@@ -507,7 +542,12 @@ export async function cancelClaim(
       rejected_reason: reasonResult.data,
       updated_at: now,
     })
-    .where(eq(progressClaims.id, claimId))
+    .where(
+      and(
+        eq(progressClaims.id, claimId),
+        eq(progressClaims.tenant_id, profile.tenantId)
+      )
+    )
 
   await writeAuditLog({
     tenantId: profile.tenantId,

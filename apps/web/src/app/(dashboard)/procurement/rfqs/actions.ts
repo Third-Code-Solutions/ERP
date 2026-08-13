@@ -18,13 +18,18 @@ import {
   notifyRfqCreated,
 } from '@/lib/procurement/rfq-service'
 import {
+  awardRfqQuoteRecord,
   logRfqQuoteRecord,
   notifyRfqCompleted,
   transitionRfqRecord,
 } from '@/lib/procurement/rfq-workflow-service'
 import {
   logRfqQuoteThroughCoreApi,
+  rfqTransitionWritesUseCoreApi,
+  rfqAwardWritesUseCoreApi,
   rfqQuoteWritesUseCoreApi,
+  awardRfqQuoteThroughCoreApi,
+  transitionRfqThroughCoreApi,
 } from '@/lib/erp-core-client'
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
@@ -167,6 +172,45 @@ export async function logQuote(
   }
 }
 
+export async function awardRfqQuote(
+  rfqId: string,
+  quoteId: string,
+): Promise<{ error?: string }> {
+  const profile = await requireUserProfile()
+  if (!can(profile.role, 'rfq.dispatch')) {
+    return { error: `Forbidden: role "${profile.role}" lacks "rfq.dispatch"` }
+  }
+
+  if (!z.string().uuid().safeParse(rfqId).success || !z.string().uuid().safeParse(quoteId).success) {
+    return { error: 'RFQ and quote identifiers must be valid UUIDs' }
+  }
+
+  try {
+    if (rfqAwardWritesUseCoreApi(profile.tenantId)) {
+      const response = await awardRfqQuoteThroughCoreApi(rfqId, quoteId)
+      if (!response.ok || !response.data) {
+        return { error: response.error ?? 'RFQ award failed.' }
+      }
+    } else {
+      const result = await awardRfqQuoteRecord({
+        tenantId: profile.tenantId,
+        actorId: profile.user.id,
+        rfqId,
+        quoteId,
+      })
+      if ('error' in result) return result
+    }
+
+    revalidatePath(`/procurement/rfqs/${rfqId}`)
+    revalidatePath('/procurement/rfqs')
+    revalidatePath('/projects')
+    return {}
+  } catch {
+    console.error('[awardRfqQuote] transaction failed')
+    return { error: 'RFQ quote could not be awarded. Try again.' }
+  }
+}
+
 // ── completeRfq ──────────────────────────────────────────────────────────────
 
 export async function completeRfq(rfqId: string): Promise<{ error?: string }> {
@@ -176,12 +220,27 @@ export async function completeRfq(rfqId: string): Promise<{ error?: string }> {
   }
 
   try {
-    const result = await transitionRfqRecord({
-      tenantId: profile.tenantId,
-      actorId: profile.user.id,
-      rfqId,
-      command: 'complete',
-    })
+    let result
+    if (rfqTransitionWritesUseCoreApi(profile.tenantId)) {
+      const response = await transitionRfqThroughCoreApi(
+        rfqId,
+        { command: 'complete' },
+        'complete'
+      )
+      if (!response.ok || !response.data) {
+        return {
+          error: response.error ?? 'RFQ transition failed.',
+        }
+      }
+      result = response.data
+    } else {
+      result = await transitionRfqRecord({
+        tenantId: profile.tenantId,
+        actorId: profile.user.id,
+        rfqId,
+        command: 'complete',
+      })
+    }
     if ('error' in result) return result
 
     try {
@@ -224,13 +283,31 @@ export async function cancelRfq(
   }
 
   try {
-    const result = await transitionRfqRecord({
-      tenantId: profile.tenantId,
-      actorId: profile.user.id,
-      rfqId: parsed.data.rfqId,
-      command: 'cancel',
-      reason: parsed.data.reason,
-    })
+    let result
+    if (rfqTransitionWritesUseCoreApi(profile.tenantId)) {
+      const response = await transitionRfqThroughCoreApi(
+        parsed.data.rfqId,
+        {
+          command: 'cancel',
+          reason: parsed.data.reason,
+        },
+        'cancel'
+      )
+      if (!response.ok || !response.data) {
+        return {
+          error: response.error ?? 'RFQ transition failed.',
+        }
+      }
+      result = response.data
+    } else {
+      result = await transitionRfqRecord({
+        tenantId: profile.tenantId,
+        actorId: profile.user.id,
+        rfqId: parsed.data.rfqId,
+        command: 'cancel',
+        reason: parsed.data.reason,
+      })
+    }
     if ('error' in result) return result
 
     revalidatePath(`/procurement/rfqs/${rfqId}`)

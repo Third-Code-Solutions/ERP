@@ -22,6 +22,7 @@ import {
   projects,
   vendors,
   materialItems,
+  priceHistory,
 } from '@third-code-erp/database/schema'
 import { LogQuoteForm } from '@/components/rfq/log-quote-form'
 import { PriceComparisonTable } from '@/components/rfq/price-comparison-table'
@@ -121,11 +122,27 @@ export default async function RfqDetailPage({ params }: PageProps) {
       )
     )
 
-  const vendorList = await db
+  const [awards, vendorList] = await Promise.all([
+    db
+      .select({ quoteId: priceHistory.source_rfq_quote_id })
+      .from(priceHistory)
+      .where(
+        and(
+          eq(priceHistory.tenant_id, profile.tenantId),
+          eq(priceHistory.source_rfq_id, id),
+          eq(priceHistory.source_type, 'award'),
+        ),
+      ),
+    db
     .select({ id: vendors.id, name: vendors.name })
     .from(vendors)
     .where(eq(vendors.tenant_id, profile.tenantId))
     .orderBy(vendors.name)
+  ])
+
+  const awardedQuoteIds = new Set(
+    awards.flatMap((award) => award.quoteId ? [award.quoteId] : []),
+  )
 
   const lineItems = Array.isArray(rfq.line_items)
     ? (rfq.line_items as RfqLineItemJson[])
@@ -267,6 +284,8 @@ export default async function RfqDetailPage({ params }: PageProps) {
               </div>
             ) : (
               <PriceComparisonTable
+                rfqId={rfq.id}
+                canAward={canManage && rfq.status === 'completed'}
                 lineItems={lineItems.map((l) => ({
                   bom_line_item_id: l.bom_line_item_id,
                   material_item_id: l.material_item_id,
@@ -284,6 +303,7 @@ export default async function RfqDetailPage({ params }: PageProps) {
                   material_code: q.material_code,
                   unit_price_cents: q.unit_price_cents,
                   lead_time_days: q.lead_time_days,
+                  is_awarded: awardedQuoteIds.has(q.id),
                 }))}
               />
             )}

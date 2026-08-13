@@ -6,8 +6,8 @@
  * is a mechanical refactor — the call sites won't change.
  *
  * Live mode: RESEND_API_KEY + EMAIL_FROM env vars.
- * Dev mode: logs the email payload to stdout via console.warn (visible in
- *           server logs) so flows can be verified without sending mail.
+ * Development/test mode: logs the email payload to stdout via console.warn.
+ * Production: throws when credentials are absent.
  */
 
 export type EmailTemplateId =
@@ -31,13 +31,21 @@ interface EmailEnvelope {
   attachments?: { filename: string; url?: string; content?: string }[]
 }
 
-const isDev = () => !process.env.RESEND_API_KEY || !process.env.EMAIL_FROM
+const hasEmailConfig = () =>
+  Boolean(process.env.RESEND_API_KEY) && Boolean(process.env.EMAIL_FROM)
+
+const canUseDevelopmentStub = () => process.env.NODE_ENV !== 'production'
 
 const FROM = () =>
-  process.env.EMAIL_FROM || 'Third Code ERP <dev@third-code.invalid>'
+  process.env.EMAIL_FROM || 'ABI OPS <dev@abi-ops.invalid>'
 
 export async function sendEmail(envelope: EmailEnvelope): Promise<{ id: string; is_dev_stub: boolean }> {
-  if (isDev()) {
+  if (!hasEmailConfig()) {
+    if (!canUseDevelopmentStub()) {
+      throw new Error(
+        'Email integration is not configured for production. Set RESEND_API_KEY and EMAIL_FROM.'
+      )
+    }
     // eslint-disable-next-line no-console
     console.warn('[email:dev]', {
       from: FROM(),
@@ -75,9 +83,9 @@ export async function sendEmail(envelope: EmailEnvelope): Promise<{ id: string; 
 // -----------------------------------------------------------------------------
 
 const wrap = (subject: string, html: string, text: string) => ({
-  subject: `[Third Code ERP] ${subject}`,
-  html: `<div style="font-family:Inter,Arial,sans-serif;font-size:14px;color:#1a1a1a;line-height:1.5;max-width:600px"><h2 style="color:#0F2D4A">${subject}</h2>${html}<hr style="border:none;border-top:1px solid #e5e5e5;margin:20px 0"/><p style="color:#737373;font-size:12px">Third Code ERP — Third Code Solutions Inc.</p></div>`,
-  text: `${subject}\n\n${text}\n\n— Third Code ERP`,
+  subject: `[ABI OPS] ${subject}`,
+  html: `<div style="font-family:Inter,Arial,sans-serif;font-size:14px;color:#1a1a1a;line-height:1.5;max-width:600px"><h2 style="color:#0F2D4A">${subject}</h2>${html}<hr style="border:none;border-top:1px solid #e5e5e5;margin:20px 0"/><p style="color:#737373;font-size:12px">ABI OPS — Actuate Builders Inc.</p></div>`,
+  text: `${subject}\n\n${text}\n\n— ABI OPS`,
 })
 
 export const templates = {

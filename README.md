@@ -1,7 +1,7 @@
-# Third Code ERP
+# ABI OPS
 
 > A connected construction and project-business operating system built by
-> **Third Code Solutions Inc.** Third Code ERP unifies Account/CRM → Proposal →
+> **Actuate Builders Inc.** ABI OPS unifies Account/CRM → Proposal →
 > BOM → Pre-Construction → Construction → Billing → Post-Construction →
 > Warranty with tenant-scoped access, append-only audit, automation, and Cortex.
 
@@ -52,7 +52,7 @@ erp/
 │   ├── ui/                 # Shared shadcn-based components
 │   └── config/             # Shared eslint/tsconfig/tailwind
 ├── supabase/
-│   ├── migrations/         # SQL migrations (43 files; see DEPLOYMENT.md)
+│   ├── migrations/         # Ordered SQL migrations; see release checks
 │   └── functions/          # Edge functions (legacy crons)
 ├── infra/                  # Scripts, docker, GH actions support
 ├── scripts/                # Repo-wide one-shots
@@ -71,7 +71,7 @@ top-level route under `apps/web/src/app/(dashboard)`.
 | Proposal Workflow | `/crm/opportunities/[id]/proposal` | PPRF, site inspection, design upload, change log |
 | BOM Engine | `/bom`, `/projects/[id]/bom` | Togal import, line editor, client portal + e-sign |
 | Project Cost Control | `/projects/[id]/cost`, `/projects/[id]/cost/budget` | Versioned Cost Code budgets, dual approval, commitments, actuals, forecast, and variance |
-| Procurement | `/procurement`, `/purchase-orders` | RFQ dispatch, AR codes, two-step PO approval |
+| Procurement | `/procurement`, `/purchase-orders` | RFQ dispatch, AR codes, PM/Commercial/SCM PO approval |
 | Inventory | `/inventory`, `/inventory/receipts`, `/inventory/movements` | UOM/Item/Warehouse masters, controlled receipts, transfers, project consumption, count adjustments, and perpetual stock evidence |
 | Pre-Construction | `/permits`, `/projects/[id]/checklist` | Auto-checklist, permit tracker, PO generation |
 | Construction Cadence | `/tasks`, `/projects/[id]/progress` | Daily/weekly tasks, variation orders, S-curve |
@@ -104,6 +104,6 @@ pnpm test               # vitest unit + integration
 
 ## License & Contributing
 
-Internal project — proprietary to Third Code Solutions Inc. Contribution
+Internal project — proprietary to Actuate Builders Inc. Contribution
 guidelines live in [AGENTS.md](AGENTS.md);
 agent routing rules and scope boundaries are enforced per session.

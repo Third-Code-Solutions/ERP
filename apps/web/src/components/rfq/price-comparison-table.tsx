@@ -1,5 +1,9 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
+import { useState, useTransition } from 'react'
+import { awardRfqQuote } from '@/app/(dashboard)/procurement/rfqs/actions'
+
 /**
  * Price comparison matrix (REFACTOR.md M3 US-013).
  *
@@ -26,9 +30,12 @@ interface Quote {
   material_code: string | null
   unit_price_cents: number
   lead_time_days: number | null
+  is_awarded: boolean
 }
 
 interface Props {
+  rfqId: string
+  canAward: boolean
   lineItems: LineItem[]
   quotes: Quote[]
 }
@@ -52,7 +59,7 @@ function quoteMatchesLine(q: Quote, l: LineItem): boolean {
   return false
 }
 
-export function PriceComparisonTable({ lineItems, quotes }: Props) {
+export function PriceComparisonTable({ rfqId, canAward, lineItems, quotes }: Props) {
   // Distinct vendors in stable name order.
   const vendorMap = new Map<string, string>()
   for (const q of quotes) vendorMap.set(q.vendor_id, q.vendor_name)
@@ -138,6 +145,13 @@ export function PriceComparisonTable({ lineItems, quotes }: Props) {
                           {q.lead_time_days}d lead
                         </div>
                       )}
+                      {q.is_awarded ? (
+                        <div style={{ marginTop: 4, color: '#067647', fontSize: 11, fontWeight: 600 }}>
+                          Awarded
+                        </div>
+                      ) : canAward ? (
+                        <AwardQuoteButton rfqId={rfqId} quoteId={q.id} />
+                      ) : null}
                     </td>
                   )
                 })}
@@ -147,5 +161,50 @@ export function PriceComparisonTable({ lineItems, quotes }: Props) {
         </tbody>
       </table>
     </div>
+  )
+}
+
+function AwardQuoteButton({ rfqId, quoteId }: { rfqId: string; quoteId: string }) {
+  const router = useRouter()
+  const [pending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
+
+  function submit() {
+    if (pending) return
+    if (!window.confirm('Award this supplier quote for this line?')) return
+    setError(null)
+    startTransition(async () => {
+      const result = await awardRfqQuote(rfqId, quoteId)
+      if (result.error) {
+        setError(result.error)
+        return
+      }
+      router.refresh()
+    })
+  }
+
+  return (
+    <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+      <button
+        type="button"
+        onClick={submit}
+        disabled={pending}
+        style={{
+          marginTop: 4,
+          border: '1px solid #98a2b3',
+          borderRadius: 4,
+          background: 'white',
+          color: '#344054',
+          padding: '3px 7px',
+          fontSize: 10.5,
+          fontWeight: 600,
+          cursor: pending ? 'not-allowed' : 'pointer',
+          opacity: pending ? 0.6 : 1,
+        }}
+      >
+        {pending ? 'Saving…' : 'Award'}
+      </button>
+      {error ? <span role="alert" style={{ color: '#b42318', fontSize: 10 }}>{error}</span> : null}
+    </span>
   )
 }

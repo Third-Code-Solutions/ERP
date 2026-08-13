@@ -168,6 +168,10 @@ export const rfqQuotes = pgTable(
       table.tenant_id,
       table.rfq_id
     ),
+    tenantIdUniqueIdx: uniqueIndex('ux_rfq_quotes_tenant_id_id').on(
+      table.tenant_id,
+      table.id
+    ),
     tenantSubmissionUq: uniqueIndex(
       'ux_rfq_quotes_tenant_submission'
     ).on(table.tenant_id, table.submission_id),

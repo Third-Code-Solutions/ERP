@@ -1,9 +1,9 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getUser } from '@third-code-erp/auth'
+import { requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
-import { auditLog, boms, invoices, projects, scopeItems, users } from '@third-code-erp/database/schema'
+import { auditLog, boms, invoices, projects, scopeItems } from '@third-code-erp/database/schema'
 import { and, desc, eq, inArray, or } from 'drizzle-orm'
 
 export const metadata: Metadata = { title: 'Audit Trail' }
@@ -52,27 +52,23 @@ function relativeTime(date: Date): string {
 
 export default async function ProjectAuditPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const user = await getUser()
-  if (!user) return null
-
-  const [userRow] = await db.select({ tenant_id: users.tenant_id }).from(users).where(eq(users.id, user.id))
-  if (!userRow?.tenant_id) return notFound()
+  const profile = await requireUserProfile()
 
   const [project] = await db
     .select({ id: projects.id, name: projects.name })
     .from(projects)
-    .where(and(eq(projects.id, id), eq(projects.tenant_id, userRow.tenant_id)))
+    .where(and(eq(projects.id, id), eq(projects.tenant_id, profile.tenantId)))
 
   if (!project) return notFound()
 
   // Gather entity IDs for this project
   const [scopeIds, bomIds, invoiceIds] = await Promise.all([
     db.select({ id: scopeItems.id }).from(scopeItems)
-      .where(and(eq(scopeItems.project_id, id), eq(scopeItems.tenant_id, userRow.tenant_id))),
+      .where(and(eq(scopeItems.project_id, id), eq(scopeItems.tenant_id, profile.tenantId))),
     db.select({ id: boms.id }).from(boms)
-      .where(and(eq(boms.project_id, id), eq(boms.tenant_id, userRow.tenant_id))),
+      .where(and(eq(boms.project_id, id), eq(boms.tenant_id, profile.tenantId))),
     db.select({ id: invoices.id }).from(invoices)
-      .where(and(eq(invoices.project_id, id), eq(invoices.tenant_id, userRow.tenant_id))),
+      .where(and(eq(invoices.project_id, id), eq(invoices.tenant_id, profile.tenantId))),
   ])
 
   const relatedIds = [
@@ -83,9 +79,22 @@ export default async function ProjectAuditPage({ params }: { params: Promise<{ i
   ]
 
   const entries = await db
-    .select()
+    .select({
+      id: auditLog.id,
+      tenant_id: auditLog.tenant_id,
+      actor_id: auditLog.actor_id,
+      entity_type: auditLog.entity_type,
+      entity_id: auditLog.entity_id,
+      action: auditLog.action,
+      diff: auditLog.diff,
+      prev_hash: auditLog.prev_hash,
+      hash: auditLog.hash,
+      ip_address: auditLog.ip_address,
+      user_agent: auditLog.user_agent,
+      created_at: auditLog.created_at,
+    })
     .from(auditLog)
-    .where(and(eq(auditLog.tenant_id, userRow.tenant_id), inArray(auditLog.entity_id, relatedIds)))
+    .where(and(eq(auditLog.tenant_id, profile.tenantId), inArray(auditLog.entity_id, relatedIds)))
     .orderBy(desc(auditLog.created_at))
     .limit(200)
 

@@ -7,6 +7,9 @@ export * from './documents'
 export * from './scope-items'
 export * from './boms'
 export * from './bom-line-items'
+export * from './bom-line-item-grain-reviews'
+export * from './project-locations'
+export * from './bom-line-item-location-reviews'
 export * from './vendors'
 export * from './purchase-orders'
 export * from './po-line-items'
@@ -14,7 +17,7 @@ export * from './invoices'
 export * from './audit-log'
 export * from './embeddings'
 export * from './project-comments'
-// Third Code ERP refactor — Phase 0 (REFACTOR.md M1)
+// ABI OPS refactor — Phase 0 (REFACTOR.md M1)
 export * from './accounts'
 export * from './contacts'
 export * from './account-kyc'
@@ -59,3 +62,14 @@ export * from './inventory-masters'
 export * from './inventory'
 export * from './inventory-movements'
 export * from './budgets'
+export * from './business-calendar'
+// Phase 11 (M-06) â€” process, SLA, and approval foundations.
+export * from './process-sla'
+export * from './dupa-libraries'
+export * from './dupas'
+// WO-08 — generic takeoff imports, revisions, mapping profiles, and review queue.
+export * from './takeoff-imports'
+// WO-11 — independent PPRF KYC review tracks.
+export * from './opportunity-kyc-tracks'
+// WO-13 — signed BOM to execution handoff ledger.
+export * from './award-handoffs'

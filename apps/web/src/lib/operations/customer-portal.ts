@@ -20,7 +20,7 @@
 import crypto from 'node:crypto'
 import { db } from '@third-code-erp/database'
 import { customerPortalSessions } from '@third-code-erp/database/schema'
-import { eq, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 
 /** Return value of mintCustomerPortalToken — plaintext shown once. */
 interface MintCustomerPortalTokenResult {
@@ -91,8 +91,11 @@ export async function findActiveCustomerSession(
  * Record a portal view. Best-effort — never throws. The client-facing page
  * still renders even if the increment fails (e.g. transient DB blip).
  */
-export async function logCustomerView(sessionId: string): Promise<void> {
-  if (!sessionId) return
+export async function logCustomerView(
+  sessionId: string,
+  tenantId: string
+): Promise<void> {
+  if (!sessionId || !tenantId) return
   try {
     await db
       .update(customerPortalSessions)
@@ -100,7 +103,12 @@ export async function logCustomerView(sessionId: string): Promise<void> {
         last_viewed_at: new Date(),
         view_count: sql`${customerPortalSessions.view_count} + 1`,
       })
-      .where(eq(customerPortalSessions.id, sessionId))
+      .where(
+        and(
+          eq(customerPortalSessions.id, sessionId),
+          eq(customerPortalSessions.tenant_id, tenantId)
+        )
+      )
   } catch {
     // Swallow — view counters are diagnostic, not load-bearing.
   }

@@ -2,7 +2,11 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-import { requestRateLimitKey } from '@/lib/request-rate-limit'
+import {
+  requestRateLimitKey,
+  shouldRateLimitRequest,
+} from '@/lib/request-rate-limit'
+import { canViewPath, isAppRole } from '@/lib/operations/nav-config'
 
 // ---------------------------------------------------------------------------
 // Rate limiting — in-memory sliding window per IP (Edge-compatible)
@@ -69,6 +73,15 @@ function buildCSP(nonce: string): string {
   ].join('; ')
 }
 
+function applyBaseSecurityHeaders(response: NextResponse): NextResponse {
+  response.headers.set('X-Content-Type-Options', 'nosniff')
+  response.headers.set('X-Frame-Options', 'DENY')
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+  response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+  return response
+}
+
 // ---------------------------------------------------------------------------
 // Middleware
 // ---------------------------------------------------------------------------
@@ -78,7 +91,7 @@ export async function middleware(request: NextRequest) {
   // Monitoring probes must not depend on Supabase Auth session refresh or the
   // per-instance request limiter. /api/ready performs its own database check.
   if (pathname === '/api/health' || pathname === '/api/ready') {
-    return NextResponse.next()
+    return applyBaseSecurityHeaders(NextResponse.next())
   }
 
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
@@ -134,38 +147,59 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   // Rate limiting
-  if (isRateLimited(requestRateLimitKey(ip, user?.id), !!user)) {
-    return new NextResponse('Too Many Requests', {
+  if (
+    shouldRateLimitRequest(pathname, request.method) &&
+    isRateLimited(requestRateLimitKey(ip, user?.id), !!user)
+  ) {
+    return applyBaseSecurityHeaders(new NextResponse('Too Many Requests', {
       status: 429,
       headers: {
         'Retry-After': '60',
         'X-RateLimit-Limit': String(user ? RATE_LIMIT_AUTH : RATE_LIMIT_UNAUTH),
         'Content-Type': 'text/plain',
       },
-    })
+    }))
   }
 
   // Auth redirects
   if (user && pathname.startsWith('/auth')) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
+    return applyBaseSecurityHeaders(NextResponse.redirect(new URL('/dashboard', request.url)))
   }
 
   if (!user && pathname.startsWith('/dashboard')) {
-    return NextResponse.redirect(new URL('/auth/login', request.url))
+    return applyBaseSecurityHeaders(NextResponse.redirect(new URL('/auth/login', request.url)))
   }
 
   if (!user && isProtectedRoute(pathname)) {
-    return NextResponse.redirect(new URL('/auth/login', request.url))
+    return applyBaseSecurityHeaders(NextResponse.redirect(new URL('/auth/login', request.url)))
+  }
+
+  // Enforce role-scoped dashboard boundaries before Next renders a server
+  // component. Server-component redirects may stream as HTTP 200 plus a
+  // client navigation; middleware keeps direct API/browser requests on a
+  // deterministic 307 contract.
+  if (
+    user &&
+    isProtectedRoute(pathname) &&
+    !canViewPath('viewer', pathname)
+  ) {
+    const { data: profile } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (isAppRole(profile?.role) && !canViewPath(profile.role, pathname)) {
+      return applyBaseSecurityHeaders(
+        NextResponse.redirect(new URL('/dashboard?error=forbidden', request.url))
+      )
+    }
   }
 
   // Security headers on every rendered response
   supabaseResponse.headers.set('x-nonce', nonce)
   supabaseResponse.headers.set('Content-Security-Policy', csp)
-  supabaseResponse.headers.set('X-Content-Type-Options', 'nosniff')
-  supabaseResponse.headers.set('X-Frame-Options', 'DENY')
-  supabaseResponse.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
-  supabaseResponse.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
-  supabaseResponse.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+  applyBaseSecurityHeaders(supabaseResponse)
 
   return supabaseResponse
 }
@@ -176,13 +210,17 @@ function isProtectedRoute(pathname: string): boolean {
     '/projects',
     '/pipeline',
     '/bom',
+    '/cortex',
+    '/finance',
+    '/inventory',
     '/invoices',
     '/purchase-orders',
     '/documents',
     '/reports',
     '/settings',
     '/procurement',
-    // Third Code ERP modules added across the refactor
+    '/process',
+    // ABI OPS modules added across the refactor
     '/crm',
     '/admin',
     '/tasks',
@@ -190,6 +228,8 @@ function isProtectedRoute(pathname: string): boolean {
     '/punchlist',
     '/warranty',
     '/claims',
+    '/inspection',
+    '/weekly-report',
   ]
   return protectedPrefixes.some((prefix) => pathname.startsWith(prefix))
 }

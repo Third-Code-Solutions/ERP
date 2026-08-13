@@ -136,11 +136,26 @@ suite('RLS tenant isolation', () => {
       await seedProbes(tx)
       await tx.unsafe(`select set_config('request.jwt.claims', '', true)`)
       await tx.unsafe(`set local role anon`)
-      const rows = await tx.unsafe(
-        `select count(*)::int as n from projects where name in ('PROBE_PA','PROBE_PB')`
-      )
-      await tx.unsafe(`reset role`)
-      return rows[0]!.n as number
+      try {
+        const rows = await tx.unsafe(
+          `select count(*)::int as n from projects where name in ('PROBE_PA','PROBE_PB')`
+        )
+        await tx.unsafe(`reset role`)
+        return rows[0]!.n as number
+      } catch (error) {
+        const code =
+          typeof error === 'object'
+          && error !== null
+          && 'code' in error
+          && typeof error.code === 'string'
+            ? error.code
+            : undefined
+        // The hardened final grants revoke anon SELECT entirely. PostgreSQL
+        // therefore proves deny-by-default with SQLSTATE 42501 instead of an
+        // empty result set.
+        if (code !== '42501') throw error
+        return 0
+      }
     })
     expect(visible).toBe(0)
   })

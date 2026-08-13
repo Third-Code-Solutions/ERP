@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { and, desc, eq, gte } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import { requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
@@ -57,9 +57,18 @@ export default async function DeliveriesPage({
     .from(deliverySchedules)
     .leftJoin(
       purchaseOrders,
-      eq(purchaseOrders.id, deliverySchedules.purchase_order_id)
+      and(
+        eq(purchaseOrders.id, deliverySchedules.purchase_order_id),
+        eq(purchaseOrders.tenant_id, deliverySchedules.tenant_id)
+      )
     )
-    .leftJoin(vendors, eq(vendors.id, purchaseOrders.vendor_id))
+    .leftJoin(
+      vendors,
+      and(
+        eq(vendors.id, purchaseOrders.vendor_id),
+        eq(vendors.tenant_id, deliverySchedules.tenant_id)
+      )
+    )
     .where(baseWhere)
     .orderBy(desc(deliverySchedules.scheduled_date), desc(deliverySchedules.created_at))
     .limit(300)

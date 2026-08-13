@@ -219,7 +219,7 @@ for (const room of rooms) {
 // A few extra annotations for variety
 const annotations = [
   'Floor 12 — North Wing',
-  'Tenant: Th/rd Code Construction',
+  'Tenant: ABI OPS Construction',
   'Critical path: HVAC commissioning Apr 14',
   'Riser room 12-A',
 ]

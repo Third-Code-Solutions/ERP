@@ -62,7 +62,7 @@ export default async function VoDetailPage({ params }: PageProps) {
     const [creator] = await db
       .select({ full_name: users.full_name, email: users.email })
       .from(users)
-      .where(eq(users.id, vo.created_by))
+      .where(and(eq(users.id, vo.created_by), eq(users.tenant_id, profile.tenantId)))
       .limit(1)
     creatorName = creator?.full_name ?? creator?.email ?? null
   }

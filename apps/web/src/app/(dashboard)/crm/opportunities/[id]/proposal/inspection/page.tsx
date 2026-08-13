@@ -37,9 +37,15 @@ export default async function InspectionPage({ params }: PageProps) {
   if (!opp) notFound()
 
   const [latestPprfRow] = await db
-    .select({ id: pprfSubmissions.id })
+    .select({ id: pprfSubmissions.id, payload: pprfSubmissions.payload })
     .from(pprfSubmissions)
-    .where(eq(pprfSubmissions.opportunity_id, id))
+    .where(
+      and(
+        eq(pprfSubmissions.opportunity_id, id),
+        eq(pprfSubmissions.tenant_id, profile.tenantId),
+      ),
+    )
+    .orderBy(desc(pprfSubmissions.version))
     .limit(1)
   const pprfSubmitted = !!latestPprfRow
 
@@ -52,7 +58,12 @@ export default async function InspectionPage({ params }: PageProps) {
       submitted_at: siteInspections.submitted_at,
     })
     .from(siteInspections)
-    .where(eq(siteInspections.opportunity_id, id))
+    .where(
+      and(
+        eq(siteInspections.opportunity_id, id),
+        eq(siteInspections.tenant_id, profile.tenantId),
+      ),
+    )
     .orderBy(desc(siteInspections.created_at))
 
   const latest = inspections[0]
@@ -70,7 +81,12 @@ export default async function InspectionPage({ params }: PageProps) {
       })
       .from(siteInspectionPhotos)
       .leftJoin(documents, eq(documents.id, siteInspectionPhotos.document_id))
-      .where(eq(siteInspectionPhotos.inspection_id, latest.id))
+      .where(
+        and(
+          eq(siteInspectionPhotos.inspection_id, latest.id),
+          eq(siteInspectionPhotos.tenant_id, profile.tenantId),
+        ),
+      )
     photos = photoRows
 
     const rfiRows = await db
@@ -81,7 +97,12 @@ export default async function InspectionPage({ params }: PageProps) {
         resolved_at: siteInspectionRfis.resolved_at,
       })
       .from(siteInspectionRfis)
-      .where(eq(siteInspectionRfis.inspection_id, latest.id))
+      .where(
+        and(
+          eq(siteInspectionRfis.inspection_id, latest.id),
+          eq(siteInspectionRfis.tenant_id, profile.tenantId),
+        ),
+      )
       .orderBy(desc(siteInspectionRfis.created_at))
     rfis = rfiRows
 
@@ -89,16 +110,31 @@ export default async function InspectionPage({ params }: PageProps) {
       const [doc] = await db
         .select({ file_name: documents.file_name })
         .from(documents)
-        .where(eq(documents.id, latest.pdf_document_id))
+        .where(
+          and(
+            eq(documents.id, latest.pdf_document_id),
+            eq(documents.tenant_id, profile.tenantId),
+          ),
+        )
         .limit(1)
       pdfFile = doc ?? null
     }
   }
 
-  const latestPayloadSiteAddress =
-    latest && typeof latest.payload === 'object' && latest.payload !== null && 'site_address' in latest.payload
-      ? String((latest.payload as Record<string, unknown>).site_address ?? '')
-      : ''
+  const pprfPayload =
+    latestPprfRow &&
+    typeof latestPprfRow.payload === 'object' &&
+    latestPprfRow.payload !== null
+      ? (latestPprfRow.payload as Record<string, unknown>)
+      : {}
+  const pprfDefaults = {
+    site_address: String(pprfPayload.site_address ?? ''),
+    floor_area_sqm: String(pprfPayload.floor_area_sqm ?? ''),
+    landlord_contact: String(pprfPayload.landlord_contact ?? ''),
+    as_built_available: String(pprfPayload.as_built_available ?? 'no'),
+    expected_start_date: String(pprfPayload.expected_start_date ?? ''),
+    scope_notes: String(pprfPayload.scope_notes ?? ''),
+  }
 
   return (
     <div>
@@ -129,7 +165,7 @@ export default async function InspectionPage({ params }: PageProps) {
             <InspectionForm
               opportunityId={id}
               pprfSubmitted={pprfSubmitted}
-              defaults={{ site_address: latestPayloadSiteAddress }}
+              defaults={pprfDefaults}
             />
           </div>
         </div>

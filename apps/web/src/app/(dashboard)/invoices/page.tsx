@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
+import { redirect } from 'next/navigation'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { invoices, projects } from '@third-code-erp/database/schema'
 import { eq, desc } from 'drizzle-orm'
@@ -31,7 +32,9 @@ function formatPHP(cents: number): string {
 
 export default async function InvoicesPage() {
   const profile = await requireUserProfile()
-  requireCapability(profile, 'finance.manage')
+  if (!can(profile.role, 'finance.manage')) {
+    redirect('/dashboard?error=forbidden')
+  }
 
   const rows = await db
     .select({

@@ -7,7 +7,7 @@
  *      dashboard layout — so even if a user types a forbidden URL, the
  *      server-side check redirects them away.
  *
- * Role policy mirrors REFACTOR.md §2 — the canonical 9-role Third Code ERP
+ * Role policy mirrors REFACTOR.md §2 — the canonical 9-role ABI OPS
  * matrix. Legacy values (owner / estimator / pm) are folded into their
  * canonical equivalent via canonicalRole() so we never duplicate them
  * in the per-item allow-lists.
@@ -72,6 +72,26 @@ const CANONICAL: Record<AppRole, AppRole> = {
   safety: 'safety',
   cx: 'cx',
   viewer: 'viewer',
+}
+
+const APP_ROLE_VALUES = new Set<string>([
+  'owner',
+  'estimator',
+  'pm',
+  'admin',
+  'sales',
+  'commercial',
+  'design',
+  'sd_pm_pe',
+  'finance',
+  'procurement',
+  'safety',
+  'cx',
+  'viewer',
+])
+
+export function isAppRole(value: unknown): value is AppRole {
+  return typeof value === 'string' && APP_ROLE_VALUES.has(value)
 }
 
 export function canonicalRole(role: AppRole): AppRole {
@@ -188,6 +208,12 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     label: 'Operations',
     items: [
+      {
+        href: '/process',
+        label: 'Process Health',
+        iconKey: 'Activity',
+        description: 'BU-level SLA, breach, and escalation health',
+      },
       {
         href: '/permits',
         label: 'Permits',

@@ -7,6 +7,9 @@ const config: NextConfig = {
   transpilePackages: ['@third-code-erp/auth', '@third-code-erp/database', '@third-code-erp/shared-types'],
   outputFileTracingRoot: path.join(__dirname, '../../'),
   experimental: {
+    // Keep static generation deterministic across constrained CI runners and
+    // Windows workstations; page rendering remains request-parallel at runtime.
+    cpus: 1,
     // CSV is capped at 2 MB before decoding; base64 transport adds ~33%.
     serverActions: {
       bodySizeLimit: '3mb',

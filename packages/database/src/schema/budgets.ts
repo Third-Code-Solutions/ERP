@@ -106,6 +106,9 @@ export const projectBudgets = pgTable(
     })
       .notNull()
       .default(0),
+    original_gp_margin_bps: integer('original_gp_margin_bps')
+      .notNull()
+      .default(0),
     submitted_by: uuid('submitted_by'),
     submitted_at: timestamp('submitted_at', { withTimezone: true }),
     commercial_approved_by: uuid('commercial_approved_by'),
@@ -206,6 +209,10 @@ export const projectBudgets = pgTable(
     totalCheck: check(
       'project_budgets_total_nonnegative',
       sql`${table.total_budget_cents} >= 0`
+    ),
+    originalMarginCheck: check(
+      'project_budgets_original_margin_range',
+      sql`${table.original_gp_margin_bps} between 0 and 10000`
     ),
   })
 )

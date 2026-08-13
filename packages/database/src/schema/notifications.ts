@@ -42,7 +42,9 @@ export const slaLogs = pgTable(
     entity_id: uuid('entity_id').notNull(),
     sla_label: varchar('sla_label', { length: 120 }).notNull(),
     started_at: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
-    sla_seconds: jsonb('sla_seconds').notNull(), // {warning_at_pct: 0.8, breach_at_seconds: 86400}
+    // Legacy calendar-hour rows use breach_at_seconds; process rows use
+    // {clock_type: 'business_days', breach_business_days, warning_at_pct}.
+    sla_seconds: jsonb('sla_seconds').notNull(),
     warned_at: timestamp('warned_at', { withTimezone: true }),
     breached_at: timestamp('breached_at', { withTimezone: true }),
     completed_at: timestamp('completed_at', { withTimezone: true }),

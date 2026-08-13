@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  getUser: vi.fn(),
+  getUserProfile: vi.fn(),
   can: vi.fn(),
   select: vi.fn(),
   insert: vi.fn(),
@@ -19,7 +19,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
-  getUser: mocks.getUser,
+  getUserProfile: mocks.getUserProfile,
   can: mocks.can,
 }))
 
@@ -61,7 +61,13 @@ const OTHER_PROJECT_ID = '33333333-3333-4333-8333-333333333333'
 describe('completed document upload Project access', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.getUser.mockResolvedValue({ id: USER_ID })
+    mocks.getUserProfile.mockResolvedValue({
+      user: { id: USER_ID },
+      tenantId: TENANT_ID,
+      role: 'pm',
+      email: 'pm@example.com',
+      fullName: 'PM User',
+    })
     mocks.can.mockReturnValue(true)
     mocks.select.mockReturnValue({ from: mocks.from })
     mocks.from.mockReturnValue({ where: mocks.where })

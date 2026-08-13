@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { alias } from 'drizzle-orm/pg-core'
-import { can, getUser, getUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   costCodes,
@@ -68,14 +68,10 @@ interface PoBudgetControlRow extends Record<string, unknown> {
 
 export default async function PoDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const user = await getUser()
-  if (!user) return null
-
-  // Profile gives us the role for client-side button gating. We still rely on
-  // server actions to do the authoritative permission check.
-  const profile = await getUserProfile()
-  const [userRow] = await db.select({ tenant_id: users.tenant_id }).from(users).where(eq(users.id, user.id))
-  if (!userRow?.tenant_id) return notFound()
+  // The dashboard layout performs the path-level gate. The page still loads a
+  // tenant-bound profile so direct server rendering cannot fall back to an
+  // unscoped users lookup.
+  const profile = await requireUserProfile()
 
   // Self-joins on users for approver/issuer names. Each step gets its own alias.
   const pmUser = alias(users, 'pm_user')
@@ -111,12 +107,12 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
       scm_issuer_name: scmUser.full_name,
     })
     .from(purchaseOrders)
-    .leftJoin(projects, eq(purchaseOrders.project_id, projects.id))
-    .leftJoin(vendors, eq(purchaseOrders.vendor_id, vendors.id))
-    .leftJoin(pmUser, eq(purchaseOrders.pm_approved_by, pmUser.id))
-    .leftJoin(commercialUser, eq(purchaseOrders.commercial_approved_by, commercialUser.id))
-    .leftJoin(scmUser, eq(purchaseOrders.scm_issued_by, scmUser.id))
-    .where(and(eq(purchaseOrders.id, id), eq(purchaseOrders.tenant_id, userRow.tenant_id)))
+    .leftJoin(projects, and(eq(purchaseOrders.project_id, projects.id), eq(projects.tenant_id, profile.tenantId)))
+    .leftJoin(vendors, and(eq(purchaseOrders.vendor_id, vendors.id), eq(vendors.tenant_id, profile.tenantId)))
+    .leftJoin(pmUser, and(eq(purchaseOrders.pm_approved_by, pmUser.id), eq(pmUser.tenant_id, profile.tenantId)))
+    .leftJoin(commercialUser, and(eq(purchaseOrders.commercial_approved_by, commercialUser.id), eq(commercialUser.tenant_id, profile.tenantId)))
+    .leftJoin(scmUser, and(eq(purchaseOrders.scm_issued_by, scmUser.id), eq(scmUser.tenant_id, profile.tenantId)))
+    .where(and(eq(purchaseOrders.id, id), eq(purchaseOrders.tenant_id, profile.tenantId)))
 
   if (!po) return notFound()
 
@@ -124,7 +120,7 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
     db
     .select()
     .from(poLineItems)
-    .where(and(eq(poLineItems.po_id, id), eq(poLineItems.tenant_id, userRow.tenant_id)))
+    .where(and(eq(poLineItems.po_id, id), eq(poLineItems.tenant_id, profile.tenantId)))
     .orderBy(asc(poLineItems.sort_order)),
     db
       .select({
@@ -135,16 +131,14 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
       .from(costCodes)
       .where(
         and(
-          eq(costCodes.tenant_id, userRow.tenant_id),
+          eq(costCodes.tenant_id, profile.tenantId),
           eq(costCodes.is_active, true)
         )
       )
       .orderBy(costCodes.code),
   ])
 
-  const canManagePayables = profile
-    ? can(profile.role, 'finance.post_supplier_bill')
-    : false
+  const canManagePayables = can(profile.role, 'finance.post_supplier_bill')
   const payableRows = canManagePayables
     ? await db
         .select({
@@ -159,7 +153,7 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
         .where(
           and(
             eq(supplierBills.purchase_order_id, po.id),
-            eq(supplierBills.tenant_id, userRow.tenant_id)
+            eq(supplierBills.tenant_id, profile.tenantId)
           )
         )
         .orderBy(desc(supplierBills.bill_date))
@@ -176,7 +170,7 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
         .from(projectBudgets)
         .where(
           and(
-            eq(projectBudgets.tenant_id, userRow.tenant_id),
+            eq(projectBudgets.tenant_id, profile.tenantId),
             eq(projectBudgets.project_id, po.project_id),
             eq(projectBudgets.status, 'approved')
           )
@@ -191,7 +185,7 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
               line.cost_code_id,
               sum(line.line_total_cents)::bigint as amount_cents
             from public.po_line_items line
-            where line.tenant_id = ${userRow.tenant_id}::uuid
+              where line.tenant_id = ${profile.tenantId}::uuid
               and line.po_id = ${po.id}::uuid
             group by line.cost_code_id
           ),
@@ -203,7 +197,7 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
             join public.purchase_orders purchase_order
               on purchase_order.id = line.po_id
              and purchase_order.tenant_id = line.tenant_id
-            where line.tenant_id = ${userRow.tenant_id}::uuid
+              where line.tenant_id = ${profile.tenantId}::uuid
               and purchase_order.project_id = ${po.project_id}::uuid
               and purchase_order.id <> ${po.id}::uuid
               and purchase_order.status::text in (
@@ -232,7 +226,7 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
             on current_po.cost_code_id = budget_line.cost_code_id
           left join other_commitment
             on other_commitment.cost_code_id = budget_line.cost_code_id
-          where budget_line.tenant_id = ${userRow.tenant_id}::uuid
+          where budget_line.tenant_id = ${profile.tenantId}::uuid
             and budget_line.project_budget_id = ${approvedBudget.id}::uuid
             and (
               coalesce(current_po.amount_cents, 0) <> 0

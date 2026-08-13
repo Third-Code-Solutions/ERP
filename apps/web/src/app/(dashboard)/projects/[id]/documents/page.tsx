@@ -1,9 +1,9 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getUser } from '@third-code-erp/auth'
+import { requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
-import { documents, projects, users } from '@third-code-erp/database/schema'
+import { documents, projects } from '@third-code-erp/database/schema'
 import { and, eq, desc, sum } from 'drizzle-orm'
 import { UploadButton } from '@/components/documents/upload-button'
 import { DeleteDocumentButton } from '@/components/documents/delete-document-button'
@@ -66,16 +66,12 @@ const TABS = [
 
 export default async function ProjectDocumentsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const user = await getUser()
-  if (!user) return null
-
-  const [userRow] = await db.select({ tenant_id: users.tenant_id }).from(users).where(eq(users.id, user.id))
-  if (!userRow?.tenant_id) return notFound()
+  const profile = await requireUserProfile()
 
   const [project] = await db
     .select({ id: projects.id, name: projects.name })
     .from(projects)
-    .where(and(eq(projects.id, id), eq(projects.tenant_id, userRow.tenant_id)))
+    .where(and(eq(projects.id, id), eq(projects.tenant_id, profile.tenantId)))
 
   if (!project) return notFound()
 
@@ -90,7 +86,7 @@ export default async function ProjectDocumentsPage({ params }: { params: Promise
       created_at: documents.created_at,
     })
     .from(documents)
-    .where(and(eq(documents.project_id, id), eq(documents.tenant_id, userRow.tenant_id)))
+    .where(and(eq(documents.project_id, id), eq(documents.tenant_id, profile.tenantId)))
     .orderBy(desc(documents.created_at))
 
   // Server-side total of documents.size_bytes for this (tenant, project) so
@@ -98,7 +94,7 @@ export default async function ProjectDocumentsPage({ params }: { params: Promise
   const [quotaRow] = await db
     .select({ total: sum(documents.size_bytes) })
     .from(documents)
-    .where(and(eq(documents.project_id, id), eq(documents.tenant_id, userRow.tenant_id)))
+    .where(and(eq(documents.project_id, id), eq(documents.tenant_id, profile.tenantId)))
   const usedBytes = quotaRow?.total ? Number(quotaRow.total) : 0
 
   return (
@@ -287,7 +283,7 @@ export default async function ProjectDocumentsPage({ params }: { params: Promise
           color: 'var(--color-navy-700)',
         }}
       >
-        DWG is the primary CAD format. Upload a DWG or DXF and Third Code ERP automatically extracts scope items and drafts a BOM. DXF parses instantly in-browser. Binary DWG runs through the server-side libredwg converter when DXF_PARSER_URL is configured. In-browser preview and version history land in Phase 3.
+        DWG is the primary CAD format. Upload a DWG or DXF and ABI OPS automatically extracts scope items and drafts a BOM. DXF parses instantly in-browser. Binary DWG runs through the server-side libredwg converter when DXF_PARSER_URL is configured. In-browser preview and version history land in Phase 3.
       </div>
     </div>
   )

@@ -13,11 +13,19 @@ interface SmsEnvelope {
   body: string // max 160 chars or charged per segment
 }
 
-const isDev = () =>
-  !process.env.SEMAPHORE_API_KEY || !process.env.SEMAPHORE_SENDER_NAME
+const hasSmsConfig = () =>
+  Boolean(process.env.SEMAPHORE_API_KEY) &&
+  Boolean(process.env.SEMAPHORE_SENDER_NAME)
+
+const canUseDevelopmentStub = () => process.env.NODE_ENV !== 'production'
 
 export async function sendSms(env: SmsEnvelope): Promise<{ ok: boolean; is_dev_stub: boolean }> {
-  if (isDev()) {
+  if (!hasSmsConfig()) {
+    if (!canUseDevelopmentStub()) {
+      throw new Error(
+        'SMS integration is not configured for production. Set SEMAPHORE_API_KEY and SEMAPHORE_SENDER_NAME.'
+      )
+    }
     // eslint-disable-next-line no-console
     console.warn('[sms:dev]', { to: env.to, body: env.body.slice(0, 80) })
     return { ok: true, is_dev_stub: true }

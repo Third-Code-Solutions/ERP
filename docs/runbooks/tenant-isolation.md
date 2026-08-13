@@ -8,7 +8,7 @@
 
 ## TL;DR
 
-Third Code ERP isolates tenants at **two** independent layers. You must understand
+ABI OPS isolates tenants at **two** independent layers. You must understand
 which layer applies to which code path.
 
 | Path | DB role | RLS applies? | Isolation mechanism |

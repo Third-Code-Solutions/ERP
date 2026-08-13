@@ -54,6 +54,8 @@ const requiredMigrations = [
   '20260727194757_fix_cash_posting_alias_resolution.sql',
   '20260727194805_fix_finance_workflow_guards.sql',
   '20260728005112_fix_purchase_order_status_catalog.sql',
+  '20260812155000_wo_02_audit_business_calendar.sql',
+  '20260812160000_process_sla_engine_foundation.sql',
 ]
 
 const requiredTables = [
@@ -87,6 +89,12 @@ const requiredTables = [
   'project_budget_lines',
   'stock_movements',
   'stock_movement_lines',
+  'business_calendar_holidays',
+  'process_steps',
+  'task_instances',
+  'sla_clocks',
+  'approval_rules',
+  'approvals',
 ]
 
 const requiredPolicies = [
@@ -117,8 +125,6 @@ const requiredPolicies = [
   ['journal_lines', 'journal_lines_finance_update'],
   ['journal_lines', 'journal_lines_finance_delete'],
   ['invoices', 'invoices_finance_read'],
-  ['invoices', 'invoices_finance_insert'],
-  ['invoices', 'invoices_finance_update'],
   ['supplier_bills', 'supplier_bills_finance_read'],
   ['supplier_bills', 'supplier_bills_finance_insert'],
   ['supplier_bills', 'supplier_bills_finance_update'],
@@ -184,6 +190,23 @@ const requiredPolicies = [
   ['stock_movement_lines', 'stock_movement_lines_inventory_insert'],
   ['stock_movement_lines', 'stock_movement_lines_inventory_update'],
   ['stock_movement_lines', 'stock_movement_lines_inventory_delete'],
+  ['business_calendar_holidays', 'business_calendar_holidays_tenant_read'],
+  ['business_calendar_holidays', 'business_calendar_holidays_tenant_insert'],
+  ['business_calendar_holidays', 'business_calendar_holidays_tenant_update'],
+  ['business_calendar_holidays', 'business_calendar_holidays_tenant_delete'],
+  ['process_steps', 'process_steps_tenant_read'],
+  ['process_steps', 'process_steps_tenant_insert'],
+  ['process_steps', 'process_steps_tenant_update'],
+  ['task_instances', 'task_instances_tenant_read'],
+  ['task_instances', 'task_instances_tenant_insert'],
+  ['task_instances', 'task_instances_tenant_update'],
+  ['sla_clocks', 'sla_clocks_tenant_read'],
+  ['approval_rules', 'approval_rules_tenant_read'],
+  ['approval_rules', 'approval_rules_tenant_insert'],
+  ['approval_rules', 'approval_rules_tenant_update'],
+  ['approvals', 'approvals_tenant_read'],
+  ['approvals', 'approvals_tenant_insert'],
+  ['approvals', 'approvals_tenant_update'],
 ]
 
 const requiredIndexes = [
@@ -273,6 +296,28 @@ const requiredIndexes = [
   'ux_stock_ledger_entries_tenant_id_id',
   'ux_stock_ledger_movement_line_event_warehouse',
   'ux_stock_ledger_movement_reversal',
+  'business_calendar_holidays_tenant_date_unique',
+  'ux_business_calendar_holidays_tenant_id_id',
+  'idx_business_calendar_holidays_tenant_date',
+  'ux_process_steps_tenant_id_id',
+  'ux_process_steps_tenant_code',
+  'idx_process_steps_tenant_stage',
+  'idx_process_steps_tenant_predecessor',
+  'ux_task_instances_tenant_id_id',
+  'ux_task_instances_tenant_instance_key',
+  'idx_task_instances_tenant_subject',
+  'idx_task_instances_tenant_status',
+  'idx_task_instances_tenant_process_step',
+  'ux_sla_clocks_tenant_id_id',
+  'ux_sla_clocks_active_task',
+  'idx_sla_clocks_tenant_due_status',
+  'idx_sla_clocks_tenant_scope_status',
+  'ux_approval_rules_tenant_id_id',
+  'idx_approval_rules_tenant_lookup',
+  'idx_approval_rules_tenant_active',
+  'ux_approvals_tenant_id_id',
+  'ux_approvals_tenant_object_sequence',
+  'idx_approvals_tenant_status',
 ]
 
 const requiredExpandedNodeTypes = [
@@ -433,6 +478,19 @@ const requiredTriggers = [
   ['public.stock_movements', 'audit_stock_movements'],
   ['public.stock_movement_lines', 'audit_stock_movement_lines'],
   ['public.stock_movements', 'cortex_mirror_stock_movement'],
+  ['public.business_calendar_holidays', 'audit_business_calendar_holidays'],
+  ['public.business_calendar_holidays', 'business_calendar_holidays_set_actor'],
+  ['public.tenants', 'seed_business_calendar_holidays_for_tenant'],
+  ['public.process_steps', 'process_steps_set_updated_at'],
+  ['public.task_instances', 'task_instances_set_updated_at'],
+  ['public.sla_clocks', 'sla_clocks_set_updated_at'],
+  ['public.approval_rules', 'approval_rules_set_updated_at'],
+  ['public.approvals', 'approvals_set_updated_at'],
+  ['public.process_steps', 'audit_process_steps'],
+  ['public.task_instances', 'audit_task_instances'],
+  ['public.sla_clocks', 'audit_sla_clocks'],
+  ['public.approval_rules', 'audit_approval_rules'],
+  ['public.approvals', 'audit_approvals'],
 ]
 
 const requiredSecurityDefinerFunctions = [
@@ -1109,7 +1167,7 @@ try {
   )
 
   await query(
-    'client roles can execute the tenant identity helper used by RLS',
+    'client roles have the intended tenant identity helper privileges',
     `select
        has_function_privilege(
          'authenticated',
@@ -1123,7 +1181,7 @@ try {
        ) as anon_execute`,
     (rows) =>
       rows[0]?.authenticated_execute === true
-      && rows[0]?.anon_execute === true,
+      && rows[0]?.anon_execute === false,
     (rows) => JSON.stringify(rows[0] ?? {})
   )
 
@@ -1443,7 +1501,6 @@ try {
 
   const minimumAuthenticatedTableGrants = [
     ...authenticatedReadableTables.map((table) => [table, 'SELECT']),
-    ['cost_entries', 'DELETE'],
     ['fiscal_periods', 'DELETE'],
     ['ledger_accounts', 'DELETE'],
     ['journal_entries', 'DELETE'],
@@ -1480,19 +1537,6 @@ try {
   )
 
   const minimumAuthenticatedColumnGrants = [
-    ['cost_entries', 'tenant_id', 'INSERT'],
-    ['cost_entries', 'project_id', 'INSERT'],
-    ['cost_entries', 'cost_code_id', 'INSERT'],
-    ['cost_entries', 'created_by', 'INSERT'],
-    ['cost_entries', 'cost_category', 'INSERT'],
-    ['cost_entries', 'description', 'INSERT'],
-    ['cost_entries', 'amount_cents', 'INSERT'],
-    ['cost_entries', 'quantity', 'INSERT'],
-    ['cost_entries', 'cost_category', 'UPDATE'],
-    ['cost_entries', 'description', 'UPDATE'],
-    ['cost_entries', 'amount_cents', 'UPDATE'],
-    ['cost_entries', 'cost_code_id', 'UPDATE'],
-    ['cost_entries', 'quantity', 'UPDATE'],
     ['fiscal_periods', 'tenant_id', 'INSERT'],
     ['fiscal_periods', 'name', 'INSERT'],
     ['fiscal_periods', 'starts_on', 'INSERT'],
@@ -1526,18 +1570,6 @@ try {
     ['journal_lines', 'credit_cents', 'UPDATE'],
     ['journal_lines', 'business_account_id', 'UPDATE'],
     ['journal_lines', 'vendor_id', 'UPDATE'],
-    ['invoices', 'tenant_id', 'INSERT'],
-    ['invoices', 'project_id', 'INSERT'],
-    ['invoices', 'account_id', 'INSERT'],
-    ['invoices', 'created_by', 'INSERT'],
-    ['invoices', 'invoice_number', 'INSERT'],
-    ['invoices', 'status', 'INSERT'],
-    ['invoices', 'subtotal_cents', 'INSERT'],
-    ['invoices', 'net_amount_cents', 'INSERT'],
-    ['invoices', 'project_id', 'UPDATE'],
-    ['invoices', 'account_id', 'UPDATE'],
-    ['invoices', 'subtotal_cents', 'UPDATE'],
-    ['invoices', 'net_amount_cents', 'UPDATE'],
     ['supplier_bills', 'tenant_id', 'INSERT'],
     ['supplier_bills', 'purchase_order_id', 'INSERT'],
     ['supplier_bills', 'project_id', 'INSERT'],

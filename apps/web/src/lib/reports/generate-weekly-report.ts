@@ -429,7 +429,12 @@ export async function generateWeeklyReportForProject(
         await db
           .update(weeklyReports)
           .set({ report_document_id: documentId })
-          .where(eq(weeklyReports.id, reportId))
+          .where(
+            and(
+              eq(weeklyReports.id, reportId),
+              eq(weeklyReports.tenant_id, tenantId)
+            )
+          )
       }
     }
   } catch (err) {

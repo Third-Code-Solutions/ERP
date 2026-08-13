@@ -4,7 +4,7 @@ import { users } from './users'
 import { kycStatusEnum, accountIndustryEnum } from './enums'
 
 // REFACTOR.md M1 US-001 — Account is the top-level commercial entity in
-// Third Code ERP. An Account holds the client/company record; opportunities and
+// ABI OPS. An Account holds the client/company record; opportunities and
 // projects hang off it. KYC fields live on the account so Finance can
 // gate the pipeline.
 export const accounts = pgTable(

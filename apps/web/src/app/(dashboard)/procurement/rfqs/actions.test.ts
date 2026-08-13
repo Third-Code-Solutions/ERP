@@ -6,8 +6,13 @@ const mocks = vi.hoisted(() => ({
   createRfqFromBomRecord: vi.fn(),
   notifyRfqCreated: vi.fn(),
   logRfqQuoteRecord: vi.fn(),
+  awardRfqQuoteRecord: vi.fn(),
   rfqQuoteWritesUseCoreApi: vi.fn(),
   logRfqQuoteThroughCoreApi: vi.fn(),
+  rfqAwardWritesUseCoreApi: vi.fn(),
+  awardRfqQuoteThroughCoreApi: vi.fn(),
+  rfqTransitionWritesUseCoreApi: vi.fn(),
+  transitionRfqThroughCoreApi: vi.fn(),
   transitionRfqRecord: vi.fn(),
   notifyRfqCompleted: vi.fn(),
   revalidatePath: vi.fn(),
@@ -37,6 +42,7 @@ vi.mock('@/lib/procurement/rfq-service', () => ({
 
 vi.mock('@/lib/procurement/rfq-workflow-service', () => ({
   logRfqQuoteRecord: mocks.logRfqQuoteRecord,
+  awardRfqQuoteRecord: mocks.awardRfqQuoteRecord,
   transitionRfqRecord: mocks.transitionRfqRecord,
   notifyRfqCompleted: mocks.notifyRfqCompleted,
 }))
@@ -44,6 +50,12 @@ vi.mock('@/lib/procurement/rfq-workflow-service', () => ({
 vi.mock('@/lib/erp-core-client', () => ({
   rfqQuoteWritesUseCoreApi: mocks.rfqQuoteWritesUseCoreApi,
   logRfqQuoteThroughCoreApi: mocks.logRfqQuoteThroughCoreApi,
+  rfqAwardWritesUseCoreApi: mocks.rfqAwardWritesUseCoreApi,
+  awardRfqQuoteThroughCoreApi: mocks.awardRfqQuoteThroughCoreApi,
+  rfqTransitionWritesUseCoreApi:
+    mocks.rfqTransitionWritesUseCoreApi,
+  transitionRfqThroughCoreApi:
+    mocks.transitionRfqThroughCoreApi,
 }))
 
 vi.mock('next/cache', () => ({
@@ -51,6 +63,7 @@ vi.mock('next/cache', () => ({
 }))
 
 import {
+  awardRfqQuote,
   cancelRfq,
   completeRfq,
   createRfqFromBom,
@@ -89,12 +102,39 @@ describe('RFQ Server Action authority', () => {
       statusChanged: true,
     })
     mocks.rfqQuoteWritesUseCoreApi.mockReturnValue(false)
+    mocks.rfqAwardWritesUseCoreApi.mockReturnValue(false)
+    mocks.rfqTransitionWritesUseCoreApi.mockReturnValue(false)
     mocks.logRfqQuoteThroughCoreApi.mockResolvedValue({
       ok: true,
       data: {
         quoteId: '99999999-9999-4999-8999-999999999999',
         created: true,
         statusChanged: true,
+      },
+    })
+    mocks.awardRfqQuoteThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        rfqId: RFQ_ID,
+        quoteId: '99999999-9999-4999-8999-999999999999',
+        tenantId: TENANT_ID,
+        priceHistoryId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        awarded: true,
+      },
+    })
+    mocks.awardRfqQuoteRecord.mockResolvedValue({
+      rfqId: RFQ_ID,
+      quoteId: '99999999-9999-4999-8999-999999999999',
+      tenantId: TENANT_ID,
+      priceHistoryId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      awarded: true,
+    })
+    mocks.transitionRfqThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        rfqId: RFQ_ID,
+        tenantId: TENANT_ID,
+        transitioned: true,
       },
     })
     mocks.transitionRfqRecord.mockResolvedValue({
@@ -264,6 +304,45 @@ describe('RFQ Server Action authority', () => {
     expect(mocks.revalidatePath).not.toHaveBeenCalled()
   })
 
+  it('awards through the tenant-scoped legacy transaction service', async () => {
+    const quoteId = '99999999-9999-4999-8999-999999999999'
+
+    await expect(awardRfqQuote(RFQ_ID, quoteId)).resolves.toEqual({})
+
+    expect(mocks.awardRfqQuoteRecord).toHaveBeenCalledWith({
+      tenantId: TENANT_ID,
+      actorId: ACTOR_ID,
+      rfqId: RFQ_ID,
+      quoteId,
+    })
+    expect(mocks.awardRfqQuoteThroughCoreApi).not.toHaveBeenCalled()
+    expect(mocks.revalidatePath).toHaveBeenCalledWith(
+      `/procurement/rfqs/${RFQ_ID}`
+    )
+  })
+
+  it('uses the Nest award command only for an explicitly enabled tenant', async () => {
+    const quoteId = '99999999-9999-4999-8999-999999999999'
+    mocks.rfqAwardWritesUseCoreApi.mockReturnValue(true)
+
+    await expect(awardRfqQuote(RFQ_ID, quoteId)).resolves.toEqual({})
+
+    expect(mocks.awardRfqQuoteThroughCoreApi).toHaveBeenCalledWith(
+      RFQ_ID,
+      quoteId,
+    )
+    expect(mocks.awardRfqQuoteRecord).not.toHaveBeenCalled()
+  })
+
+  it('rejects malformed award identifiers before transaction authority', async () => {
+    await expect(
+      awardRfqQuote('not-a-uuid', 'also-not-a-uuid')
+    ).resolves.toEqual({
+      error: 'RFQ and quote identifiers must be valid UUIDs',
+    })
+    expect(mocks.awardRfqQuoteRecord).not.toHaveBeenCalled()
+  })
+
   it('completes through the transaction service then notifies', async () => {
     await expect(completeRfq(RFQ_ID)).resolves.toEqual({})
 
@@ -292,6 +371,23 @@ describe('RFQ Server Action authority', () => {
       '[completeRfq] notification dispatch failed'
     )
     warn.mockRestore()
+  })
+
+  it('uses the Nest transition command only for an explicitly enabled tenant', async () => {
+    mocks.rfqTransitionWritesUseCoreApi.mockReturnValue(true)
+
+    await expect(completeRfq(RFQ_ID)).resolves.toEqual({})
+
+    expect(mocks.transitionRfqThroughCoreApi).toHaveBeenCalledWith(
+      RFQ_ID,
+      { command: 'complete' },
+      'complete'
+    )
+    expect(mocks.transitionRfqRecord).not.toHaveBeenCalled()
+    expect(mocks.notifyRfqCompleted).toHaveBeenCalledWith({
+      tenantId: TENANT_ID,
+      rfqId: RFQ_ID,
+    })
   })
 
   it('trims cancellation reason before transaction authority', async () => {

@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { can, getUser } from '@third-code-erp/auth'
+import { can, getUserProfile } from '@third-code-erp/auth'
 import { createSupabaseAdminClient } from '@third-code-erp/auth/server'
 import { db } from '@third-code-erp/database'
-import { documents, users } from '@third-code-erp/database/schema'
+import { documents } from '@third-code-erp/database/schema'
 import { and, eq, sum } from 'drizzle-orm'
 import { getProject } from '@/lib/project-queries'
 import { writeAuditLog } from '@/lib/audit'
+import { safeActionError } from '@/lib/safe-action-error'
 
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024 // 100 MB per upload (PRD F2.1)
 const PROJECT_QUOTA_BYTES = 500 * 1024 * 1024 // 500 MB per project (PRD F2.1)
@@ -22,18 +23,13 @@ const SignSchema = z.object({
 })
 
 export async function POST(req: NextRequest) {
-  const user = await getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const profile = await getUserProfile()
+  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const [userRow] = await db
-    .select({ tenant_id: users.tenant_id, role: users.role })
-    .from(users)
-    .where(eq(users.id, user.id))
-
-  if (!userRow?.tenant_id) {
+  if (!profile.tenantId) {
     return NextResponse.json({ error: 'No tenant associated with account' }, { status: 403 })
   }
-  if (!can(userRow.role, 'document.manage')) {
+  if (!can(profile.role, 'document.manage')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -54,7 +50,7 @@ export async function POST(req: NextRequest) {
 
   const { projectId, fileName, sizeBytes } = parsed.data
 
-  const project = await getProject(userRow.tenant_id, projectId)
+  const project = await getProject(profile.tenantId, projectId)
   if (!project) {
     return NextResponse.json({ error: 'Project not found' }, { status: 404 })
   }
@@ -68,7 +64,7 @@ export async function POST(req: NextRequest) {
     .from(documents)
     .where(
       and(
-        eq(documents.tenant_id, userRow.tenant_id),
+        eq(documents.tenant_id, profile.tenantId),
         eq(documents.project_id, projectId)
       )
     )
@@ -89,7 +85,7 @@ export async function POST(req: NextRequest) {
 
   // Sanitize filename (storage path is server-controlled to prevent traversal)
   const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 200)
-  const storagePath = `${userRow.tenant_id}/${projectId}/${crypto.randomUUID()}-${safeName}`
+  const storagePath = `${profile.tenantId}/${projectId}/${crypto.randomUUID()}-${safeName}`
 
   const supabase = createSupabaseAdminClient()
   const { data, error } = await supabase.storage
@@ -97,16 +93,17 @@ export async function POST(req: NextRequest) {
     .createSignedUploadUrl(storagePath)
 
   if (error || !data) {
+    console.error('[upload/sign] signed URL creation failed', error)
     return NextResponse.json(
-      { error: `Failed to create signed upload URL: ${error?.message ?? 'unknown'}` },
+      { error: safeActionError(error, 'Failed to create signed upload URL.') },
       { status: 500 }
     )
   }
 
   try {
     await writeAuditLog({
-      tenantId: userRow.tenant_id,
-      actorId: user.id,
+      tenantId: profile.tenantId,
+      actorId: profile.user.id,
       entityType: 'document_upload',
       entityId: projectId,
       action: 'query',

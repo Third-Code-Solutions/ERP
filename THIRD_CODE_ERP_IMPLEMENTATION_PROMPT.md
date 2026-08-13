@@ -1,6 +1,6 @@
-# Third Code ERP + Cortex — Master Implementation Prompt (`/goal`)
+# ABI OPS + Cortex — Master Implementation Prompt (`/goal`)
 
-> **What this is.** A single, self-contained directive to build **Third Code ERP** (the Third Code Solutions Inc. Construction ERP from `CLAUDE.md`/PRD-CERP-001) **and** **Cortex** (its enterprise AI Brain). Written to be run by an autonomous coding agent *and* read by a human-led team. Paste the **§0 GOAL** block as your `/goal`; everything below it is the binding spec the goal points to.
+> **What this is.** A single, self-contained directive to build **ABI OPS** (the construction operations system described by `CLAUDE.md`/PRD-CERP-001) **and** **Cortex** (its enterprise AI Brain). Written to be run by an autonomous coding agent *and* read by a human-led team. Paste the **§0 GOAL** block as your `/goal`; everything below it is the binding spec the goal points to.
 >
 > **Source of truth.** `CLAUDE.md` (PRD-CERP-001) governs the ERP. This document governs *how* it gets built and adds the **Cortex AI Brain** layer. Where they conflict, raise it — do not silently diverge.
 >
@@ -11,7 +11,7 @@
 ## §0 GOAL (paste this as `/goal`)
 
 ```
-GOAL: Ship Third Code ERP — a multi-tenant construction ERP for Philippine MEP/fit-out
+GOAL: Ship ABI OPS — a multi-tenant construction ERP for Philippine MEP/fit-out
 firms (CAD→Cost pipeline, sales pipeline, execution, PH compliance) — WITH Cortex,
 an enterprise AI Brain that can see and reason over EVERYTHING in the ERP
 (employees, schedules, tasks/todos, announcements, pipelines, projects, BOMs, POs,
@@ -67,7 +67,7 @@ The bar is a senior Silicon-Valley product team's: it is typed, tested, observab
 
 ## §2 The Two Pillars
 
-**Pillar A — Third Code ERP.** Exactly the product in `CLAUDE.md`: Auth/multi-tenancy, Project Workspace, Sales Pipeline (Coverage + Conversion), Executive Dashboard, Document Management, DXF Parser, Auto-Scope, BOM Builder, Procurement, Cost Tracking, Progress Billing, RAG/AI estimating, and (later) Mobile/Field. Honor the data model (§8.4), audit hash-chain (§8.5), security layers (§10), and UI system (§12) of the PRD.
+**Pillar A — ABI OPS.** Exactly the product in `CLAUDE.md`: Auth/multi-tenancy, Project Workspace, Sales Pipeline (Coverage + Conversion), Executive Dashboard, Document Management, DXF Parser, Auto-Scope, BOM Builder, Procurement, Cost Tracking, Progress Billing, RAG/AI estimating, and (later) Mobile/Field. Honor the data model (§8.4), audit hash-chain (§8.5), security layers (§10), and UI system (§12) of the PRD.
 
 **Pillar B — Cortex AI Brain.** A cross-ERP intelligence layer. Not a chatbot bolted on the side — a *system of record for knowledge and operations* that mirrors every ERP entity into a typed, permissioned, fully-trackable graph, then exposes named domain agents (§6) over it. Cortex is what makes the ERP feel like it has a memory and a point of view, while never leaking across tenants or above a user's role.
 
@@ -306,4 +306,4 @@ Each node/edge carries: `tenant_id`, `valid_from/valid_to`, `recorded_at`, `prov
 ### How to use this document
 - **Agent:** load §0 as `/goal`; treat §4 as the plan, §8/§9 as gates, Appendix D as the first tasks. Stop and ask on any conflict with `CLAUDE.md`.
 - **Team:** assign §3 lenses per slice; Appendix C is the ticket template; Appendix A/B are living specs to extend as tables are added.
-- **Both:** dogfood Cortex from Phase 1 — track this build's own tasks, decisions, and announcements in the graph. If Third Code ERP can't run its own construction project, it isn't done.
+- **Both:** dogfood Cortex from Phase 1 — track this build's own tasks, decisions, and announcements in the graph. If ABI OPS can't run its own construction project, it isn't done.

@@ -6,11 +6,11 @@ describe('resolvePublicOrigin', () => {
   it('prefers the explicitly configured public site URL', () => {
     expect(
       resolvePublicOrigin({
-        NEXT_PUBLIC_SITE_URL: 'https://erp.thirdcode.solutions/',
+        NEXT_PUBLIC_SITE_URL: 'https://ops.example.com/',
         SITE_URL: 'https://ignored.example',
         VERCEL_PROJECT_PRODUCTION_URL: 'ignored.vercel.app',
       }).toString()
-    ).toBe('https://erp.thirdcode.solutions/')
+    ).toBe('https://ops.example.com/')
   })
 
   it('uses the server-only site URL when the public value is absent', () => {
@@ -24,14 +24,14 @@ describe('resolvePublicOrigin', () => {
   it('adds HTTPS to Vercel production hostnames', () => {
     expect(
       resolvePublicOrigin({
-        VERCEL_PROJECT_PRODUCTION_URL: 'thirdcode-erp.vercel.app',
+        VERCEL_PROJECT_PRODUCTION_URL: 'abi-ops.vercel.app',
       }).toString()
-    ).toBe('https://thirdcode-erp.vercel.app/')
+    ).toBe('https://abi-ops.vercel.app/')
   })
 
-  it('keeps the current production origin as the compatibility fallback', () => {
+  it('keeps a local origin as the development fallback', () => {
     expect(resolvePublicOrigin({}).toString()).toBe(
-      'https://thirdcode-erp.vercel.app/'
+      'http://localhost:3000/'
     )
   })
 

@@ -3,6 +3,7 @@ import {
   canViewPath,
   visibleNavSections,
   canonicalRole,
+  isAppRole,
   roleLabel,
 } from './nav-config'
 
@@ -17,6 +18,16 @@ describe('RBAC: canonicalRole', () => {
     for (const r of ['admin', 'sales', 'finance', 'procurement', 'viewer'] as const) {
       expect(canonicalRole(r)).toBe(r)
     }
+  })
+})
+
+describe('RBAC: runtime role boundary', () => {
+  it('accepts only known persisted application roles', () => {
+    expect(isAppRole('commercial')).toBe(true)
+    expect(isAppRole('owner')).toBe(true)
+    expect(isAppRole('not-a-role')).toBe(false)
+    expect(isAppRole(null)).toBe(false)
+    expect(isAppRole({ role: 'admin' })).toBe(false)
   })
 })
 

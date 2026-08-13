@@ -1,4 +1,15 @@
-import { pgTable, uuid, varchar, text, jsonb, timestamp, index, pgEnum } from 'drizzle-orm/pg-core'
+import {
+  foreignKey,
+  index,
+  jsonb,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+  varchar,
+} from 'drizzle-orm/pg-core'
 import { tenants } from './tenants'
 import { opportunities } from './opportunities'
 import { users } from './users'
@@ -28,8 +39,19 @@ export const siteInspections = pgTable(
     updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
+    tenantIdUniqueIdx: uniqueIndex('ux_site_inspections_tenant_id_id').on(table.tenant_id, table.id),
     tenantIdx: index('idx_site_inspections_tenant_id').on(table.tenant_id),
     oppIdx: index('idx_site_inspections_opportunity_id').on(table.opportunity_id),
+    opportunityTenantFk: foreignKey({
+      name: 'site_inspections_opportunity_tenant_fk',
+      columns: [table.tenant_id, table.opportunity_id],
+      foreignColumns: [opportunities.tenant_id, opportunities.id],
+    }).onDelete('cascade'),
+    pdfDocumentTenantFk: foreignKey({
+      name: 'site_inspections_pdf_document_tenant_fk',
+      columns: [table.tenant_id, table.pdf_document_id],
+      foreignColumns: [documents.tenant_id, documents.id],
+    }).onDelete('set null'),
   })
 )
 
@@ -45,6 +67,16 @@ export const siteInspectionPhotos = pgTable(
   },
   (table) => ({
     inspectionIdx: index('idx_site_inspection_photos_inspection').on(table.inspection_id),
+    inspectionTenantFk: foreignKey({
+      name: 'site_inspection_photos_inspection_tenant_fk',
+      columns: [table.tenant_id, table.inspection_id],
+      foreignColumns: [siteInspections.tenant_id, siteInspections.id],
+    }).onDelete('cascade'),
+    documentTenantFk: foreignKey({
+      name: 'site_inspection_photos_document_tenant_fk',
+      columns: [table.tenant_id, table.document_id],
+      foreignColumns: [documents.tenant_id, documents.id],
+    }).onDelete('cascade'),
   })
 )
 
@@ -62,6 +94,11 @@ export const siteInspectionRfis = pgTable(
   },
   (table) => ({
     inspectionIdx: index('idx_site_inspection_rfis_inspection').on(table.inspection_id),
+    inspectionTenantFk: foreignKey({
+      name: 'site_inspection_rfis_inspection_tenant_fk',
+      columns: [table.tenant_id, table.inspection_id],
+      foreignColumns: [siteInspections.tenant_id, siteInspections.id],
+    }).onDelete('cascade'),
   })
 )
 

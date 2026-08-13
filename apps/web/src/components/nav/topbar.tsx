@@ -93,7 +93,7 @@ export function Topbar({ user, role, fullName, tenantId }: TopbarProps) {
       <header className="app-topbar">
         <nav aria-label="Breadcrumb" className="breadcrumb">
           <Link href="/dashboard" className="breadcrumb-item">
-            Third Code ERP
+            ABI OPS
           </Link>
           {segments.map((seg, idx) => {
             const href = '/' + segments.slice(0, idx + 1).join('/')

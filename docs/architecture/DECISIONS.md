@@ -410,7 +410,7 @@ pnpm 9, or Inngest-as-target rules. Do not rewrite `AGENTS.md` without the
 owner sign-off that file requires.
 
 Reason: `AGENTS.md` references a missing
-`docs/Third Code ERP_PRD_v1.md` and predates the approved Next.js, NestJS,
+the legacy product PRD and predates the approved Next.js, NestJS,
 PostgreSQL 17, Redis/BullMQ, and Python-analysis-only architecture. Allowing it
 to redirect new work would reintroduce explicitly rejected architecture.
 
@@ -981,7 +981,7 @@ schema rollback exists because this milestone adds no migration.
 Decision: resolve canonical metadata, structured-data identities, robots
 sitemap location, and sitemap entries from `NEXT_PUBLIC_SITE_URL`, then
 server-only `SITE_URL`, then Vercel's production hostname, with the retained
-Third Code Vercel origin as compatibility fallback. Accept only absolute
+legacy Vercel origin as compatibility fallback. Accept only absolute
 HTTP(S) origins without credentials, paths, queries, or fragments. Omit
 sitemap `lastModified` when no verified content-change date exists.
 

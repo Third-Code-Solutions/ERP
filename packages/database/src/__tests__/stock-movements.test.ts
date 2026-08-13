@@ -548,7 +548,7 @@ runtimeSuite('Stock Movement runtime controls', () => {
     expect(rejected).toBe(true)
   })
 
-  it('can reverse posted evidence after a Warehouse is deactivated', async () => {
+  it('can reverse posted evidence, then close the emptied target Warehouse safely', async () => {
     const status = await inRollback(sqlClient, async (tx) => {
       const fixture = await seedMovementFixture(tx)
       const movementId = await createMovement(
@@ -563,14 +563,6 @@ runtimeSuite('Stock Movement runtime controls', () => {
          )`
       )
       await tx.unsafe(
-        `update warehouses
-         set is_active = false
-         where id in (
-           '${fixture.sourceWarehouseId}',
-           '${fixture.targetWarehouseId}'
-         )`
-      )
-      await tx.unsafe(
         `select * from reverse_stock_movement(
            '${movementId}',
            '${fixture.financeId}',
@@ -578,11 +570,27 @@ runtimeSuite('Stock Movement runtime controls', () => {
            '2026-07-28'
          )`
       )
+      await tx.unsafe(
+        `update warehouses
+         set is_active = false
+         where id = '${fixture.targetWarehouseId}'`
+      )
       return (await tx.unsafe(
-        `select status from stock_movements where id = '${movementId}'`
+        `select
+           movement.status,
+           source.is_active as source_active,
+           target.is_active as target_active
+         from stock_movements movement
+         join warehouses source
+           on source.id = movement.source_warehouse_id
+         join warehouses target
+           on target.id = movement.target_warehouse_id
+        where movement.id = '${movementId}'`
       )) as Rows
     })
     expect(status[0]?.status).toBe('reversed')
+    expect(status[0]?.source_active).toBe(true)
+    expect(status[0]?.target_active).toBe(false)
   })
 
   it('posts and reverses a positive count adjustment', async () => {

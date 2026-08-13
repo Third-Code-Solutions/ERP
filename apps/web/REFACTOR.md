@@ -1,17 +1,17 @@
-# Third Code ERP — Software Product Requirements Document
+# ABI OPS — Software Product Requirements Document
 
 **Engineering Reference — User Stories, API Specs, Sprint Plan**
 
-**Third Code Solutions Inc.**
+**Actuate Builders Inc.**
 **Product:** Multi-tenant / Client-agnostic
 **Version:** 1.1 | July 2026 | CONFIDENTIAL
 
 | Version | Date | Status | Author |
 |---|---|---|---|
-| 1.0 | May 2026 | Historical client-specific baseline | Third Code Solutions |
-| 1.1 | July 2026 | Active implementation — public foundation and clean-room ERP expansion | Third Code Solutions |
+| 1.0 | May 2026 | Historical client-specific baseline | Actuate Builders |
+| 1.1 | July 2026 | Active implementation — public foundation and clean-room ERP expansion | Actuate Builders |
 
-> *Third Code Solutions Inc. | Confidential | Not for Distribution*
+> *Actuate Builders Inc. | Confidential | Not for Distribution*
 
 ---
 
@@ -32,10 +32,10 @@
 
 ## 1. Purpose & Scope
 
-This document defines the software product requirements for **Third Code ERP** —
+This document defines the software product requirements for **ABI OPS** —
 a unified, multi-tenant operations platform for construction and adjacent
-project-driven businesses. It is written for the engineering team at Third Code
-Solutions and covers all specifications needed to design, build, test, and
+project-driven businesses. It is written for the engineering team at Actuate
+Builders and covers all specifications needed to design, build, test, and
 deploy the system.
 
 This PRD covers: user stories with acceptance criteria per module, system architecture, API contract, integration specs, non-functional requirements, security model, testing strategy, and a sprint-level delivery plan.
@@ -44,7 +44,7 @@ This PRD covers: user stories with acceptance criteria per module, system archit
 
 ### Companion Document
 
-This Software PRD should be read alongside the **Third Code ERP Business PRD
+This Software PRD should be read alongside the **ABI OPS Business PRD
 (v1.1)**, which defines the process context, business rules, SLA framework, and
 module-level feature descriptions. This document defines the **HOW**; the
 Business PRD defines the **WHAT** and **WHY**.
@@ -640,7 +640,7 @@ POST /api/v1/submissions
   Body: { template_id, submitters: [{ email, name, role }], send_email: false }
   Response: { submission_id, slug (portal URL) }
 
-# Third Code ERP embeds the DocuSeal slug in the client BOM portal
+# ABI OPS embeds the DocuSeal slug in the client BOM portal
 # On signing, DocuSeal POSTs to our webhook:
 
 POST /webhooks/docuseal (our endpoint)
@@ -699,7 +699,7 @@ cnps-survey-sender (every hour):
 | Unit Tests | Vitest (frontend), pytest (FastAPI) | 80% line coverage on business logic | Engineering (automated) |
 | Integration Tests | Playwright + Supabase test DB | All user stories: happy path + key error paths | Engineering (automated) |
 | API Tests | pytest + httpx | All API endpoints; auth checks; RLS enforcement | Engineering (automated) |
-| UAT | Manual + test scripts | All modules; all roles; SLA enforcement | Third Code ERP tenant team |
+| UAT | Manual + test scripts | All modules; all roles; SLA enforcement | ABI OPS tenant team |
 | Performance Tests | k6 | BOM generation, concurrent pipeline board load | Engineering (pre-launch) |
 | Security Scan | OWASP ZAP | OWASP Top 10 surface scan | Engineering (pre-launch) |
 
@@ -732,7 +732,7 @@ phase is required before production release.
 
 Sprints are 2-week cycles. Total Phase 1 estimate: **10 weeks (5 sprints)**.
 Full platform: **~32 weeks across 4 phases**. Estimates assume 1 full-stack
-lead (Kurt) plus support from the Third Code Solutions team.
+lead (Kurt) plus support from the Actuate Builders team.
 
 ### Phase 1 — CRM Foundation + BOM Engine (Weeks 1–10)
 
@@ -870,7 +870,7 @@ These items require decisions or external input before implementation can begin.
 | T03 | Supabase region selection: confirm SG (`ap-southeast-1`) is acceptable for data residency | Infra setup | Masshi | Before Sprint 1 |
 | T04 | Initial rate card data: Commercial team must populate Supplier Rate Card DB before Phase 1 UAT | Sprint 5 UAT | Commercial Lead | Before Week 9 |
 | T05 | Checklist item template: get final list of Pre-Con checklist items and SLA days from SD Lead | Sprint 6 | SD Lead | Before Sprint 6 |
-| T06 | Contract template: obtain Third Code ERP's standard contract Word template for digitization | Sprint 6 | Sales Head | Before Sprint 6 |
+| T06 | Contract template: obtain ABI OPS's standard contract Word template for digitization | Sprint 6 | Sales Head | Before Sprint 6 |
 | T07 | Resend domain verification: set up SPF/DKIM for the verified `EMAIL_FROM` sender | Sprint 5 | Kurt | Before Sprint 5 |
 | T08 | DocuSeal template design: BOM signing template and Contract template to be designed in DocuSeal admin before integration | Sprint 5 | Kurt | Before Sprint 5 |
 | T09 | Semaphore SMS: confirm API key availability and sender name registration for PH SMS | Sprint 12 | Kurt | Before Sprint 12 |
@@ -880,4 +880,4 @@ These items require decisions or external input before implementation can begin.
 
 **— END OF DOCUMENT —**
 
-*Third Code ERP Software PRD v1.1 | Third Code Solutions Inc. | Confidential*
+*ABI OPS Software PRD v1.1 | Actuate Builders Inc. | Confidential*

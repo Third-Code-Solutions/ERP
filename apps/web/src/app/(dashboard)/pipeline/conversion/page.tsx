@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { getUser } from '@third-code-erp/auth'
+import { requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
-import { opportunities, projects, users } from '@third-code-erp/database/schema'
+import { opportunities, projects } from '@third-code-erp/database/schema'
 import { and, eq, inArray, desc } from 'drizzle-orm'
 import { formatCentsCompact } from '@third-code-erp/shared-types'
 import { StageAdvanceButton } from '@/components/pipeline/stage-advance-button'
@@ -26,11 +26,7 @@ const STAGE_COLORS: Record<string, string> = {
 }
 
 export default async function ConversionPage() {
-  const user = await getUser()
-  if (!user) return null
-
-  const [userRow] = await db.select({ tenant_id: users.tenant_id }).from(users).where(eq(users.id, user.id))
-  if (!userRow?.tenant_id) return null
+  const profile = await requireUserProfile()
 
   const opps = await db
     .select({
@@ -47,10 +43,16 @@ export default async function ConversionPage() {
       project_id: projects.id,
     })
     .from(opportunities)
-    .leftJoin(projects, eq(opportunities.project_id, projects.id))
+    .leftJoin(
+      projects,
+      and(
+        eq(opportunities.project_id, projects.id),
+        eq(projects.tenant_id, profile.tenantId)
+      )
+    )
     .where(
       and(
-        eq(opportunities.tenant_id, userRow.tenant_id),
+        eq(opportunities.tenant_id, profile.tenantId),
         inArray(opportunities.stage, [...ACTIVE_STAGES])
       )
     )

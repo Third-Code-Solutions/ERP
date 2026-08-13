@@ -16,6 +16,7 @@ import {
 import { slaChecker } from '@/lib/inngest-sla'
 import { permitStalenessChecker } from '@/lib/inngest-permits'
 import { onBomInternalApproved } from '@/lib/inngest-rfq'
+import { processSlaChecker } from '@/lib/inngest-process-sla'
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
@@ -24,17 +25,18 @@ export const { GET, POST, PUT } = serve({
     parseCadDrawing,
     calcDraftBomFromScope,
     embedBomLineItems,
-    // Third Code ERP M5 — daily cadence task generator
+    // ABI OPS M5 — daily cadence task generator
     generateDailyCadenceTasks,
     generateOnDemand,
-    // Third Code ERP M7 — CNPS survey dispatch
+    // ABI OPS M7 — CNPS survey dispatch
     dispatchCnpsSurveys,
     onCnpsSurveyScheduled,
-    // Third Code ERP cross-cutting — SLA breach detector + permit staleness
+    // ABI OPS cross-cutting — SLA breach detector + permit staleness
     // (replaces the Deno edge functions; both paths kept for ops flexibility)
     slaChecker,
     permitStalenessChecker,
-    // Third Code ERP M3 — auto-create RFQ on BOM internal approval
+    // ABI OPS M3 — auto-create RFQ on BOM internal approval
     onBomInternalApproved,
+    processSlaChecker,
   ],
 })

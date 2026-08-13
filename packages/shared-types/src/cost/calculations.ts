@@ -36,6 +36,8 @@ export interface ProjectCostInput {
   bomTcvCents: number
   /** original gross profit from the BOM */
   bomGpCents: number
+  /** immutable margin captured when the Allowable Budget was approved */
+  originalGpMarginBps?: number
 }
 
 export interface ProjectCostSnapshot {
@@ -61,6 +63,36 @@ export interface ProjectCostSnapshot {
   severity: ErosionSeverity
 }
 
+export interface CostControlMathInput {
+  baselineCents: number
+  committedCents: number
+  actualCents: number
+}
+
+export interface CostControlMetrics {
+  /** Best current estimate without double-counting invoiced POs. */
+  forecastCents: number
+  /** Budget headroom after reserving the highest known exposure. */
+  remainingCents: number
+  /** Positive means posted actuals are over the approved baseline. */
+  varianceCents: number
+}
+
+/**
+ * Cost-control v1 math. A posted supplier bill is evidence against a PO, so
+ * committed and actual amounts are never added together.
+ */
+export function computeCostControlMetrics(
+  input: CostControlMathInput
+): CostControlMetrics {
+  const forecastCents = Math.max(input.committedCents, input.actualCents)
+  return {
+    forecastCents,
+    remainingCents: input.baselineCents - forecastCents,
+    varianceCents: input.actualCents - input.baselineCents,
+  }
+}
+
 function bpsOf(part: number, whole: number): number {
   if (whole <= 0) return 0
   return Math.round((part * 10000) / whole)
@@ -74,7 +106,14 @@ export function erosionSeverity(gpErosionBps: number): ErosionSeverity {
 
 /** Roll a project's budget/committed/actual into a cost + GP-erosion snapshot. */
 export function computeProjectCostSnapshot(input: ProjectCostInput): ProjectCostSnapshot {
-  const { budgetCents, committedCents, actualCents, bomTcvCents, bomGpCents } = input
+  const {
+    budgetCents,
+    committedCents,
+    actualCents,
+    bomTcvCents,
+    bomGpCents,
+    originalGpMarginBps,
+  } = input
 
   // Invariant: NEVER sum actual + committed (that double-counts when PO→cost
   // ingestion lands). Estimate-at-completion is the higher of the two.
@@ -82,7 +121,11 @@ export function computeProjectCostSnapshot(input: ProjectCostInput): ProjectCost
   const budgetVarianceCents = budgetCents - actualCents
   const committedVarianceCents = budgetCents - committedCents
   const projectedGpCents = bomTcvCents - forecastCostCents
-  const gpErosionCents = bomGpCents - projectedGpCents
+  const originalGpCents =
+    originalGpMarginBps === undefined
+      ? bomGpCents
+      : Math.round((bomTcvCents * originalGpMarginBps) / 10000)
+  const gpErosionCents = originalGpCents - projectedGpCents
   const gpErosionBps = bpsOf(gpErosionCents, bomTcvCents)
 
   return {
@@ -95,7 +138,8 @@ export function computeProjectCostSnapshot(input: ProjectCostInput): ProjectCost
     projectedGpCents,
     gpErosionCents,
     gpErosionBps,
-    originalGpMarginBps: bpsOf(bomGpCents, bomTcvCents),
+    originalGpMarginBps:
+      originalGpMarginBps ?? bpsOf(bomGpCents, bomTcvCents),
     projectedGpMarginBps: bpsOf(projectedGpCents, bomTcvCents),
     severity: erosionSeverity(gpErosionBps),
   }

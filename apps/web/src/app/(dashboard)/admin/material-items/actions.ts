@@ -10,6 +10,7 @@ import {
   unitsOfMeasure,
 } from '@third-code-erp/database/schema'
 import { writeAuditLog } from '@/lib/audit'
+import { safeActionError } from '@/lib/safe-action-error'
 
 const materialItemSchema = z.object({
   id: z.string().uuid().optional(),
@@ -104,7 +105,12 @@ export async function upsertMaterialItem(
           is_active: input.is_active ?? true,
           updated_at: new Date(),
         })
-        .where(eq(materialItems.id, input.id))
+        .where(
+          and(
+            eq(materialItems.id, input.id),
+            eq(materialItems.tenant_id, profile.tenantId)
+          )
+        )
 
       await writeAuditLog({
         tenantId: profile.tenantId,
@@ -150,7 +156,8 @@ export async function upsertMaterialItem(
       })
     }
   } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Database error' }
+    console.error('[admin/material-items:upsertMaterialItem] failed', err)
+    return { error: safeActionError(err, 'Could not save the material item.') }
   }
 
   revalidatePath('/admin/material-items')

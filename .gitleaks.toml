@@ -6,3 +6,19 @@ description = "Deterministic pg_dump schema delimiter; not a credential"
 paths = ['''^scripts/ci/run-wsl1-database-lane\.ps1$''']
 regexTarget = "match"
 regexes = ['''--restrict-key=0123456789abcdef0123456789abcdef''']
+
+[[allowlists]]
+description = "Protocol header wording in architecture documentation; not a credential"
+paths = ['''^docs/architecture/CURRENT_STATE\.md$''']
+regexTarget = "match"
+regexes = ['''(?i)Idempotency-Key''']
+
+[[allowlists]]
+description = "Deterministic idempotency fixtures in historical tests; not credentials"
+paths = [
+  '''^apps/api/src/procurement/delivery-workflow\.controller\.spec\.ts$''',
+  '''^apps/web/src/app/\(dashboard\)/procurement/deliveries/actions\.test\.ts$''',
+  '''^apps/web/src/lib/erp-core-client\.test\.ts$'''
+]
+regexTarget = "match"
+regexes = ['''delivery-(?:schedule|in-transit)-[12]''']

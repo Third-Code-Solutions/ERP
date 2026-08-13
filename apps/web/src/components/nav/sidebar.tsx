@@ -86,8 +86,8 @@ export function Sidebar({ user, role, fullName }: SidebarProps) {
           A
         </div>
         <div className="sidebar-brand-text">
-          <span className="sidebar-brand-name">Third Code ERP</span>
-          <span className="sidebar-brand-org">Third Code Solutions Inc.</span>
+          <span className="sidebar-brand-name">ABI OPS</span>
+          <span className="sidebar-brand-org">Actuate Builders Inc.</span>
         </div>
       </div>
 

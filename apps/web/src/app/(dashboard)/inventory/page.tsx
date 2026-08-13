@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { can, requireCapability, requireUserProfile } from '@third-code-erp/auth'
+import { redirect } from 'next/navigation'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   materialItems,
@@ -45,7 +46,9 @@ function formatMoney(cents: number): string {
 
 export default async function InventoryPage() {
   const profile = await requireUserProfile()
-  requireCapability(profile, 'inventory.read')
+  if (!can(profile.role, 'inventory.read')) {
+    redirect('/dashboard?error=forbidden')
+  }
   const canManage = can(profile.role, 'inventory.manage')
 
   const [uoms, warehouseRows, items, projectRows, balances, counts] =

@@ -22,6 +22,7 @@ vi.mock('@/lib/operations/notifications', () => ({
 }))
 
 import {
+  awardRfqQuoteRecord,
   logRfqQuoteRecord,
   notifyRfqCompleted,
   transitionRfqRecord,
@@ -36,6 +37,8 @@ const VENDOR_ID = '66666666-6666-4666-8666-666666666666'
 const MATERIAL_ID = '77777777-7777-4777-8777-777777777777'
 const SUBMISSION_ID = '88888888-8888-4888-8888-888888888888'
 const QUOTE_ID = '99999999-9999-4999-8999-999999999999'
+const PRICE_HISTORY_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+const CATALOG_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 
 const quoteParams = {
   tenantId: TENANT_ID,
@@ -87,6 +90,12 @@ function transactionHarness(
         return chain
       }
     )
+    chain.innerJoin = vi.fn(
+      (_table: unknown, condition: unknown) => {
+        joins.push(condition)
+        return chain
+      }
+    )
     chain.where = vi.fn((condition: unknown) => {
       conditions.push(condition)
       return chain
@@ -105,9 +114,11 @@ function transactionHarness(
     .mockResolvedValue(
       options.insertReturning ?? [{ id: QUOTE_ID }]
     )
-  const insertValues = vi.fn(() => ({
+  const insertBuilder: Record<string, unknown> = {
     returning: insertReturning,
-  }))
+  }
+  insertBuilder.onConflictDoNothing = vi.fn(() => insertBuilder)
+  const insertValues = vi.fn(() => insertBuilder)
   const insert = vi.fn(() => ({ values: insertValues }))
 
   const updateReturning = vi
@@ -164,6 +175,10 @@ describe('RFQ quote workflow service', () => {
       [],
       [{ id: VENDOR_ID }],
       [{ id: MATERIAL_ID }],
+      [{ id: MATERIAL_ID }],
+      [],
+      [{ id: MATERIAL_ID }],
+      [],
     ])
 
     await expect(
@@ -172,11 +187,12 @@ describe('RFQ quote workflow service', () => {
       quoteId: QUOTE_ID,
       created: true,
       statusChanged: true,
+      priceHistoryId: QUOTE_ID,
     })
 
     expect(harness.execute).toHaveBeenCalledOnce()
-    expect(harness.insert).toHaveBeenCalledOnce()
-    expect(harness.update).toHaveBeenCalledOnce()
+    expect(harness.insert).toHaveBeenCalledTimes(3)
+    expect(harness.update).toHaveBeenCalledTimes(2)
     expect(
       mocks.writeAuditLogInTransaction
     ).toHaveBeenNthCalledWith(
@@ -232,6 +248,7 @@ describe('RFQ quote workflow service', () => {
           notes: 'Includes delivery',
         },
       ],
+      [{ id: PRICE_HISTORY_ID }],
     ])
 
     await expect(
@@ -240,6 +257,7 @@ describe('RFQ quote workflow service', () => {
       quoteId: QUOTE_ID,
       created: false,
       statusChanged: false,
+      priceHistoryId: PRICE_HISTORY_ID,
     })
     expect(harness.insert).not.toHaveBeenCalled()
     expect(harness.update).not.toHaveBeenCalled()
@@ -312,11 +330,13 @@ describe('RFQ quote workflow service', () => {
         {
           id: RFQ_ID,
           status: 'pending',
-          line_items: [line(LINE_ID, null)],
+          line_items: [line()],
         },
       ],
       [],
       [{ id: VENDOR_ID }],
+      [{ id: MATERIAL_ID }],
+      [{ id: MATERIAL_ID }],
     ])
     mocks.writeAuditLogInTransaction.mockRejectedValue(
       new Error('audit unavailable')
@@ -329,6 +349,104 @@ describe('RFQ quote workflow service', () => {
         notes: undefined,
       })
     ).rejects.toThrow('audit unavailable')
+  })
+
+  it('awards a quote and updates price history and catalog in one transaction', async () => {
+    const harness = transactionHarness(
+      [
+        [
+          {
+            id: RFQ_ID,
+            status: 'completed',
+            line_items: [line()],
+          },
+        ],
+        [
+          {
+            id: QUOTE_ID,
+            rfq_id: RFQ_ID,
+            bom_line_item_id: LINE_ID,
+            vendor_id: VENDOR_ID,
+            material_item_id: MATERIAL_ID,
+            unit_price_cents: quoteParams.unitPriceCents,
+          },
+        ],
+        [{ id: PRICE_HISTORY_ID, awarded_rate_centavos: null }],
+        [],
+      ],
+      {
+        updateReturning: [
+          { id: PRICE_HISTORY_ID, catalog_item_id: CATALOG_ID },
+        ],
+      },
+    )
+
+    await expect(
+      awardRfqQuoteRecord({
+        tenantId: TENANT_ID,
+        actorId: ACTOR_ID,
+        rfqId: RFQ_ID,
+        quoteId: QUOTE_ID,
+      }),
+    ).resolves.toEqual({
+      rfqId: RFQ_ID,
+      quoteId: QUOTE_ID,
+      tenantId: TENANT_ID,
+      priceHistoryId: PRICE_HISTORY_ID,
+      awarded: true,
+    })
+    expect(harness.insert).not.toHaveBeenCalled()
+    expect(harness.update).toHaveBeenCalledTimes(2)
+    expect(mocks.writeAuditLogInTransaction).toHaveBeenCalledTimes(2)
+    expect(mocks.writeAuditLogInTransaction).toHaveBeenLastCalledWith(
+      harness.tx,
+      expect.objectContaining({
+        entityType: 'material_catalog',
+        entityId: CATALOG_ID,
+        action: 'update',
+      }),
+    )
+  })
+
+  it('replays an already awarded quote without another write', async () => {
+    const harness = transactionHarness([
+      [
+        {
+          id: RFQ_ID,
+          status: 'completed',
+          line_items: [line()],
+        },
+      ],
+      [
+        {
+          id: QUOTE_ID,
+          rfq_id: RFQ_ID,
+          bom_line_item_id: LINE_ID,
+          vendor_id: VENDOR_ID,
+          material_item_id: MATERIAL_ID,
+          unit_price_cents: quoteParams.unitPriceCents,
+        },
+      ],
+      [{ id: PRICE_HISTORY_ID, awarded_rate_centavos: 125050 }],
+    ])
+
+    await expect(
+      awardRfqQuoteRecord({
+        tenantId: TENANT_ID,
+        actorId: ACTOR_ID,
+        rfqId: RFQ_ID,
+        quoteId: QUOTE_ID,
+      }),
+    ).resolves.toEqual({
+      rfqId: RFQ_ID,
+      quoteId: QUOTE_ID,
+      tenantId: TENANT_ID,
+      priceHistoryId: PRICE_HISTORY_ID,
+      awarded: true,
+    })
+    expect(harness.insert).not.toHaveBeenCalled()
+    expect(harness.update).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
   })
 
   it('completes only after every stable RFQ line has quote coverage', async () => {

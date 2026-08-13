@@ -1,4 +1,4 @@
-# Third Code ERP Engineering Conventions
+# ABI OPS Engineering Conventions
 
 ## Monorepo Layout
 
