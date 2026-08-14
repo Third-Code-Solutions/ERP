@@ -43,8 +43,9 @@ production tenant/recovery identities and human sign-offs remain unavailable.
 
 ## Release boundary
 
-The current public Vercel deployment is `dpl_BVBYAoqPT4c5Dbe4ti84XGmp5QVZ`,
+The current source-alignment Vercel deployment is
+`dpl_3h5R66ZBfZwjKYxYbByVB3ptk7fx`,
 and the active Core deployment is
 `190d69df-8efd-41cf-b7a1-de86c9977aff`. A follow-up deployment of this
-documentation/verifier alignment is required so the live release and source
-commit remain directly correlated.
+documentation/verifier evidence refresh is being applied so the live release
+and source commit remain directly correlated.

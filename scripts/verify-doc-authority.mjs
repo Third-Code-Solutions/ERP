@@ -27,7 +27,7 @@ const assertions = [
   ['Working agreement is v1.1', contents.agreement.includes('# BUILD OPS Working Agreement v1.1')],
   ['Working agreement distinguishes machine and human evidence', contents.agreement.includes('Every machine-verifiable acceptance criterion ships automated coverage.')],
   ['Capability matrix has current release section', contents.matrix.includes('## M3.280 Current live release alignment (2026-08-14)')],
-  ['Capability matrix records current Vercel deployment', contents.matrix.includes('dpl_BVBYAoqPT4c5Dbe4ti84XGmp5QVZ')],
+  ['Capability matrix records current Vercel deployment', contents.matrix.includes('dpl_3h5R66ZBfZwjKYxYbByVB3ptk7fx')],
   ['Capability matrix records authenticated parity boundary', contents.matrix.includes('Authenticated hosted parity') && contents.matrix.includes('BLOCKED')],
 ]
 
