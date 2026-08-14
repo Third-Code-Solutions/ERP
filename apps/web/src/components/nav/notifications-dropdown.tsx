@@ -23,8 +23,14 @@ export function NotificationsDropdown({ tenantId, userId }: { tenantId: string; 
   const [unread, setUnread] = useState(0)
   const [loading, setLoading] = useState(false)
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const unmountedRef = useRef(false)
+  const fetchControllerRef = useRef<AbortController | null>(null)
 
   const fetchItems = useCallback(async () => {
+    if (unmountedRef.current) return
+    fetchControllerRef.current?.abort()
+    const controller = new AbortController()
+    fetchControllerRef.current = controller
     setLoading(true)
     try {
       // The dashboard can hydrate while the SSR auth cookie is still being
@@ -41,21 +47,34 @@ export function NotificationsDropdown({ tenantId, userId }: { tenantId: string; 
       const res = await fetch('/api/notifications', {
         headers: { Accept: 'application/json' },
         cache: 'no-store',
+        signal: controller.signal,
       })
       if (!res.ok) return
       const data = (await res.json()) as { items: NotificationItem[]; unread: number }
       setItems(data.items ?? [])
       setUnread(data.unread ?? 0)
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === 'AbortError')) {
+        throw error
+      }
     } finally {
-      setLoading(false)
+      if (fetchControllerRef.current === controller) {
+        fetchControllerRef.current = null
+        setLoading(false)
+      }
     }
   }, [])
 
   // Initial fetch + poll.
   useEffect(() => {
+    unmountedRef.current = false
     void fetchItems()
     const id = window.setInterval(fetchItems, POLL_MS)
-    return () => window.clearInterval(id)
+    return () => {
+      unmountedRef.current = true
+      window.clearInterval(id)
+      fetchControllerRef.current?.abort()
+    }
   }, [fetchItems])
 
   // Real-time push via Supabase Realtime on the notifications table for this user.
