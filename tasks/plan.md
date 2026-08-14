@@ -18,7 +18,7 @@ business decisions, tenant identity and human sign-off fail-closed.
 - [x] Historical blocker records distinguish resolved evidence from remaining
   external blockers; no stale release claim presents as current.
 - [x] An executable authority-document verifier passes.
-- [ ] Focused source contracts, typecheck, build, live health and browser smoke
+- [x] Focused source contracts, typecheck, build, live health and browser smoke
   pass after changes.
 - [ ] External gates remain explicitly `BLOCKED` until exact source or owner
   evidence exists; no fabricated ABI template, approval matrix or tenant ID.
