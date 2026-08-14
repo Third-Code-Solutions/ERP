@@ -136,6 +136,7 @@ test('CI runs the full PR suite and keeps all WO-00 gates blocking', async () =>
   )
   assert.match(workflow, /BUILD_OPS_DEMO_TENANT_SLUGS: abi-ops-local/)
   assert.match(workflow, /run: pnpm verify:build-ops-data/)
+  assert.match(workflow, /GITHUB_EVENT_BEFORE:-/)
   assert.match(
     workflow,
     /Rebuild database from zero[\s\S]*?Apply CI-only legacy Data API grants[\s\S]*?Verify migration ledger and catalog/
