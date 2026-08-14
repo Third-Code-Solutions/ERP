@@ -23,10 +23,15 @@ const WRITE_OPERATIONS = new Set(['insert', 'update', 'delete', 'transaction'])
 // permission to add more writes. New business writes must be added to Nest
 // first, then the corresponding Web route should be removed from this list.
 export const WEB_API_DATABASE_ALLOWLIST = Object.freeze({
-  'apps/web/src/app/api/bom/togal-commit/route.ts': Object.freeze({
-    operations: Object.freeze(['insert', 'update', 'transaction']),
-    migration: 'M3.198 → Nest BOM commit authority',
-    reason: 'Core canary exists; legacy transaction remains default path while the canary is closed.',
+  'apps/web/src/app/api/bom/takeoff-import/route.ts': Object.freeze({
+    operations: Object.freeze(['insert', 'transaction', 'update']),
+    migration: 'WO-08 -> Nest generic takeoff-import authority',
+    reason: 'Tenant-scoped BOM import commit with additive upsert, unresolved-row retention, and an audit entry.',
+  }),
+  'apps/web/src/app/api/crm/opportunities/[id]/inspection-photos/route.ts': Object.freeze({
+    operations: Object.freeze(['insert', 'transaction']),
+    migration: 'WO-12 -> Nest site-inspection intake authority',
+    reason: 'Capability-gated, tenant-scoped field photo metadata transaction with storage cleanup and audit entry.',
   }),
   'apps/web/src/app/api/notifications/route.ts': Object.freeze({
     operations: Object.freeze(['update']),

@@ -156,12 +156,17 @@ export function PipelineBoard({ cards, accounts, projects }: PipelineBoardProps)
     if (fromStage === toStage) return
 
     // ── Client-side KYC gate (mirrors server) ─────────────────────────────
-    if (KYC_GATED_STAGES.has(toStage)) {
-      const kycOk =
-        card.account_kyc_status === 'approved' ||
-        card.account_kyc_status === 'not_required'
-      if (!kycOk) {
-        showBanner('error', 'Account KYC must be Approved before this stage')
+  if (KYC_GATED_STAGES.has(toStage)) {
+      const kycBlocked = card.opportunity_kyc_initialized
+        ? Boolean(card.opportunity_kyc_gate)
+        : Boolean(card.account_id) &&
+          card.account_kyc_status !== 'approved' &&
+          card.account_kyc_status !== 'not_required'
+      if (kycBlocked) {
+        showBanner(
+          'error',
+          card.opportunity_kyc_gate ?? 'Account KYC must be Approved before this stage',
+        )
         return
       }
     }

@@ -44,6 +44,7 @@ interface Props {
   poId: string
   currentStatus: string
   viewerRole?: AppRole | null
+  budgetWarning?: string | null
 }
 
 // Legacy advance map — preserved so back-compat statuses still flow.
@@ -94,7 +95,12 @@ function buttonStyle(variant: 'primary' | 'danger' | 'secondary', pending: boole
   }
 }
 
-export function PoStatusActions({ poId, currentStatus, viewerRole }: Props) {
+export function PoStatusActions({
+  poId,
+  currentStatus,
+  viewerRole,
+  budgetWarning,
+}: Props) {
   const [pending, startTransition] = useTransition()
   const router = useRouter()
   const workflowKeysRef = useRef<Record<string, string>>({})
@@ -124,6 +130,19 @@ export function PoStatusActions({ poId, currentStatus, viewerRole }: Props) {
     run(() => rejectPoApproval(poId, reason, workflowKey('reject')), 'reject')
   }
 
+  function submitForPmApproval() {
+    if (
+      budgetWarning &&
+      !window.confirm(`${budgetWarning}\n\nSubmit this PO for PM approval anyway?`)
+    ) {
+      return
+    }
+    run(
+      () => submitPoForPmApproval(poId, workflowKey('submit_pm_approval')),
+      'submit_pm_approval'
+    )
+  }
+
   // Current flow first.
   if (currentStatus === 'draft') {
     if (!hasRole(viewerRole, PO_CREATE_ROLES)) return null
@@ -131,12 +150,7 @@ export function PoStatusActions({ poId, currentStatus, viewerRole }: Props) {
       <div style={{ display: 'flex', gap: 8 }}>
         <button
           disabled={pending}
-          onClick={() =>
-            run(
-              () => submitPoForPmApproval(poId, workflowKey('submit_pm_approval')),
-              'submit_pm_approval'
-            )
-          }
+          onClick={submitForPmApproval}
           style={buttonStyle('primary', pending)}
         >
           {pending ? '…' : 'Submit for PM approval'}

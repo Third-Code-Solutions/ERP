@@ -54,6 +54,7 @@ export function InspectionForm({ opportunityId, pprfSubmitted, defaults }: Inspe
   const [fields, setFields] = useState<SiteInspectionDraftFields>(() => initialFields(defaults))
   const [photos, setPhotos] = useState<SiteInspectionDraftPhoto[]>([])
   const [uploadedPhotoIds, setUploadedPhotoIds] = useState<string[]>([])
+  const [clientSubmissionId, setClientSubmissionId] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [draftMessage, setDraftMessage] = useState<string | null>(null)
@@ -64,13 +65,18 @@ export function InspectionForm({ opportunityId, pprfSubmitted, defaults }: Inspe
 
   useEffect(() => {
     let active = true
+    setDraftReady(false)
+    setClientSubmissionId('')
     void loadSiteInspectionDraft(opportunityId).then((draft) => {
       if (!active) return
       if (draft) {
         setFields(draft.fields)
         setPhotos(draft.photos)
         setUploadedPhotoIds(draft.uploadedPhotoIds)
+        setClientSubmissionId(draft.clientSubmissionId || crypto.randomUUID())
         setDraftMessage(describeDraftAge(draft.updatedAt))
+      } else {
+        setClientSubmissionId(crypto.randomUUID())
       }
       setDraftReady(true)
     })
@@ -98,13 +104,18 @@ export function InspectionForm({ opportunityId, pprfSubmitted, defaults }: Inspe
   }, [])
 
   useEffect(() => {
-    if (!draftReady) return
+    if (!draftReady || !clientSubmissionId) return
     const timer = window.setTimeout(() => {
-      void saveSiteInspectionDraft(opportunityId, { fields, photos, uploadedPhotoIds })
+      void saveSiteInspectionDraft(opportunityId, {
+        fields,
+        photos,
+        uploadedPhotoIds,
+        clientSubmissionId,
+      })
       setDraftMessage(online ? 'Draft saved on this device.' : 'Saved offline on this device.')
     }, 350)
     return () => window.clearTimeout(timer)
-  }, [draftReady, fields, online, opportunityId, photos, uploadedPhotoIds])
+  }, [clientSubmissionId, draftReady, fields, online, opportunityId, photos, uploadedPhotoIds])
 
   function setField<K extends keyof SiteInspectionDraftFields>(
     field: K,
@@ -151,7 +162,14 @@ export function InspectionForm({ opportunityId, pprfSubmitted, defaults }: Inspe
   }
 
   async function saveDraftNow() {
-    await saveSiteInspectionDraft(opportunityId, { fields, photos, uploadedPhotoIds })
+    const submissionId = clientSubmissionId || crypto.randomUUID()
+    if (!clientSubmissionId) setClientSubmissionId(submissionId)
+    await saveSiteInspectionDraft(opportunityId, {
+      fields,
+      photos,
+      uploadedPhotoIds,
+      clientSubmissionId: submissionId,
+    })
     setDraftMessage(online ? 'Draft saved on this device.' : 'Saved offline on this device.')
   }
 
@@ -191,6 +209,7 @@ export function InspectionForm({ opportunityId, pprfSubmitted, defaults }: Inspe
         fields,
         photos: draftPhotos,
         uploadedPhotoIds: documentIds,
+        clientSubmissionId,
       })
     }
     return documentIds
@@ -199,6 +218,9 @@ export function InspectionForm({ opportunityId, pprfSubmitted, defaults }: Inspe
   function onSubmit(formData: FormData) {
     setError(null)
     setSuccess(null)
+    const submissionId = clientSubmissionId || crypto.randomUUID()
+    setClientSubmissionId(submissionId)
+    formData.set('client_submission_id', submissionId)
     if (!online) {
       void saveDraftNow()
       setDraftMessage('Offline. Report saved; reconnect to sync it.')
@@ -219,6 +241,7 @@ export function InspectionForm({ opportunityId, pprfSubmitted, defaults }: Inspe
           setDraftMessage(null)
           setPhotos([])
           setUploadedPhotoIds([])
+          setClientSubmissionId(crypto.randomUUID())
           setFields(initialFields(defaults))
         }
       } catch (submitError) {
@@ -236,6 +259,7 @@ export function InspectionForm({ opportunityId, pprfSubmitted, defaults }: Inspe
   return (
     <form action={onSubmit} className="inspection-form">
       <input type="hidden" name="opportunity_id" value={opportunityId} />
+      <input type="hidden" name="client_submission_id" value={clientSubmissionId} />
 
       <div className="form-context" role="note">
         <strong>Mobile field report</strong>

@@ -80,7 +80,7 @@ export function KpiCards({ kpis }: KpiCardsProps) {
         fillPct={Math.min(100, weightedRatio)}
       />
       <KpiCard
-        label="Closed Won (YTD)"
+        label="Closed Won FYTD"
         value={formatCentsCompact(kpis.closedWonTcv)}
         sub={formatCents(kpis.closedWonTcv)}
         badge={

@@ -1,93 +1,50 @@
-# BUILD OPS ERP Refactor Plan
+# ABI OPS / BUILD OPS Reconciliation Plan
 
-## Overview
+## Objective
 
-Refactor ABI OPS into the BUILD OPS operating system defined by the
-three authority PDFs. Work proceeds as additive, tenant-safe vertical slices;
-each slice must prove schema, API, UI, CI, and browser behavior before hosted
-promotion.
+Refactor the three BUILD OPS Markdown authorities against current ERP source,
+then close safe feature gaps across frontend, backend, routing, API, storage,
+hosting and deployment. Preserve existing production-facing routes and tenant,
+audit, migration and release controls.
 
-## Current evidence
+## Acceptance criteria
 
-- Repository root: `D:\thirdcode\ERP`.
-- Target Supabase project: `aqqrtkmtcsfkbyyqxowv`, ACTIVE_HEALTHY, PostgreSQL
-  17.6.1.
-- Hosted migration head: `20260729233017`.
-- Provider-linked source head: `20260812150000`; 69 provider migrations are
-  pending.
-- Hosted release is blocked by twelve tenant-scoped `PO-0002` rows. No data
-  mutation is authorized by this plan.
-- Hosted WO-02 audit coverage is 71/86 tables. Missing `audit_log.entity_key`
-  and business-calendar objects also block the gate.
-- Local API verification passes: 51/51 API tests, API typecheck, and 3/3
-  rollback-backed Nest database integration journeys. Web verification passes:
-  347/347 tests, typecheck, a 79-route production build, and Chromium public
-  release/portal E2E 5/5. Static invariant, actionlint, and gitleaks checks
-  pass.
-- The disposable PostgreSQL 17 lane passes 245/245 database tests with zero
-  skips; WO-02 audit/calendar, WO-04, WO-05, WO-06 schema, WO-06 behavior, and
-  WO-08 schema/importer controls pass locally. The WO-08 route and CAD
-  integrations also pass against the disposable database. The 107/107
-  audit-trigger coverage gates pass locally.
-- Provider-linked `origin/main` source structurally replays 124/124 migrations
-  on a fresh local PostgreSQL 17 database; this does not authorize hosted
-  promotion or resolve hosted duplicate data.
+- `docs/PRD.md`, `docs/PROMPTS.md` and `docs/BUILD_OPS_AGENTS.md` contain no
+  interactive go-ahead/wait instructions for repository work and no stale claims
+  that contradict current source.
+- Current Web/Core/API/Storage/hosting surfaces and retained legacy compatibility
+  features are documented with clear source-backed versus provider-backed status.
+- Each missing in-scope feature found by the audit is implemented as a focused
+  vertical slice with automated regression coverage, or marked BLOCKED with exact
+  missing evidence.
+- Local static, unit, API/database, typecheck, lint, build and relevant browser
+  gates pass, or failures are reported with root cause.
+- Live Vercel/Railway health and exact release identity are checked. Deployment or
+  hosted mutation is claimed only when observed in this task.
+- Final audit reports PASS, FAIL, BLOCKED or NOT RUN for every relevant gate.
 
-## Dependency order
+## Ordered work
 
-1. WO-00 CI/invariant gates.
-2. WO-01 demo-data inventory and authorized cleanup mapping.
-3. WO-02 business-day service and complete audit coverage.
-4. WO-03 process/SLA foundation and source-backed seed data.
-5. WO-04 grain classification and human review queue.
-6. WO-05 locations, then WO-06 DUPA engine, then WO-07 BOM view.
-7. WO-08 takeoff import, WO-09 historical Excel import, WO-10 RFQ pricing.
-8. WO-11 through WO-18 operational workflows and management dashboard.
-9. Hosted database release, CI/CD promotion, production smoke, and rollback
-   verification only after source, data, and security gates pass.
+1. Baseline repository, dirty-worktree boundary, current source feature inventory,
+   migration head and live HTTP/browser evidence.
+2. Refactor three authority Markdown files. Add changeset and run documentation
+   contradiction/format checks.
+3. Map WO-00 through WO-18 to source, tests, migrations, routes and changesets.
+   Reuse existing implementation; implement only confirmed missing gaps.
+4. Run focused gates, then full local gates. Fix failures in scoped code while
+   preserving unrelated dirty work.
+5. Verify Vercel Web, Railway Core/CAD, Supabase migration/readiness, storage and
+   protected boundaries. Deploy only through exact configured targets when release
+   gates pass and task authorization covers it.
+6. Review diff and write final audit changeset/report.
 
-## Current implementation slice: WO-08
+## Known external boundaries
 
-- WO-04 grain classification and WO-05 location dimension are locally verified.
-- WO-06 DUPA engine and M-03/M-04 database foundation are locally verified
-  through the isolated PostgreSQL 17 lane.
-- WO-06 canonical sign-off is blocked by the PRD arithmetic contradiction;
-  do not build WO-07 UI/API on unresolved pricing semantics.
-- WO-08 generic structured takeoff intake is locally verified through parser,
-  API, migration, PostgreSQL integration, and public browser-route evidence.
-- WO-08a CAD auto-drafts now land as zero-priced AI work items with stable row
-  identity, provenance, unresolved queue entries, and DUPA/vendor preservation.
-- Authenticated browser verification is blocked by invalid credentials for the
-  configured default E2E account; this is not treated as UI success.
-- Standalone public runtime smoke verifier passes the current ABI OPS manifest
-  contract.
-
-## Current implementation slice: WO-10
-
-- RFQ quotes now persist tenant-scoped quote provenance in `price_history`,
-  update `material_catalog`, and return a durable `priceHistoryId`.
-- Completed RFQs expose an idempotent quote-award command that records the
-  awarded rate, updates the catalog rate, and writes semantic audit entries.
-- Quote comparison and BOM supplier-rate surfaces show award state and stale
-  rates older than 90 days.
-- Local unit, API, disposable-Postgres, build, static, and public Chromium
-  evidence passes. Core API and award flags remain disabled.
-- WO-09 remains blocked pending real ABI workbook templates; no fake fixtures
-  satisfy the historical Excel acceptance criteria.
-
-## Release gates
-
-- No production DDL or data mutation while source divergence, duplicate PO
-  mapping, or hosted WO-02 failures remain unresolved.
-- Every mutation has tenant authorization, input validation, and audit output.
-- Local and hosted migration histories must be reconciled before `db push`.
-- Full unit, integration, build, browser E2E, advisor, health, and rollback
-  evidence required before claiming completion.
-
-## Open decisions
-
-- Owner must approve the mapping or disposal policy for the twelve synthetic
-  `PO-0002` rows before production cleanup.
-- ABI must provide the SD Framework source and WO-09 workbook templates.
-- ABI must name the rate-maintenance owner and approve the DUPA VAT-base
-  default.
+- Real ABI Excel templates and real Togal export are not present in repository;
+  WO-09/Togal real-file acceptance cannot be claimed without them.
+- ABI Delegation-of-Approval matrix is not confirmed; keep routing configurable and
+  cutover closed until source evidence exists.
+- Commercial spreadsheet margin sign-off and President-level meeting acceptance are
+  human evidence, not unit-test substitutes.
+- Hosted provider state can diverge from source; health 200 alone is not release
+  parity.

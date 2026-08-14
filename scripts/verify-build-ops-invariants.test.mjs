@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { spawnSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -121,4 +121,31 @@ test('executable gate fails on a bad fixture and passes after removal', async ()
   } finally {
     await rm(directory, { recursive: true, force: true })
   }
+})
+
+test('CI runs the full PR suite and keeps all WO-00 gates blocking', async () => {
+  const workflow = await readFile(resolve('.github/workflows/ci.yml'), 'utf8')
+
+  assert.match(workflow, /pull_request:\s*\n\s+branches: \[main\]/)
+  assert.match(workflow, /- run: pnpm turbo test/)
+  assert.match(workflow, /build-ops-invariants:\s*\n\s+name: BUILD OPS Invariants/)
+  assert.match(workflow, /run: pnpm test:build-ops-invariants/)
+  assert.match(
+    workflow,
+    /node scripts\/verify-build-ops-invariants\.mjs --files-list tmp\/build-ops\/changed-migrations\.txt/
+  )
+  assert.match(workflow, /BUILD_OPS_DEMO_TENANT_SLUGS: abi-ops-local/)
+  assert.match(workflow, /run: pnpm verify:build-ops-data/)
+  assert.match(
+    workflow,
+    /Rebuild database from zero[\s\S]*?Apply CI-only legacy Data API grants[\s\S]*?Verify migration ledger and catalog/
+  )
+  assert.match(
+    workflow,
+    /database-reproducibility:\s*\n[\s\S]*?needs: \[actionlint, build-ops-invariants\]/
+  )
+  assert.match(
+    workflow,
+    /build:\s*\n[\s\S]*?needs: \[typecheck, lint, test, build-ops-invariants, database-reproducibility\]/
+  )
 })

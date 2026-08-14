@@ -10,6 +10,7 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
 import { tenants } from './tenants'
 import { opportunities } from './opportunities'
 import { users } from './users'
@@ -30,6 +31,9 @@ export const siteInspections = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     tenant_id: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
     opportunity_id: uuid('opportunity_id').notNull().references(() => opportunities.id, { onDelete: 'cascade' }),
+    // Stable client token makes offline reconnect and browser double-submit
+    // retries safe without weakening the tenant boundary.
+    client_submission_id: uuid('client_submission_id'),
     status: inspectionStatusEnum('status').notNull().default('draft'),
     payload: jsonb('payload').notNull(),
     pdf_document_id: uuid('pdf_document_id').references(() => documents.id, { onDelete: 'set null' }),
@@ -40,6 +44,9 @@ export const siteInspections = pgTable(
   },
   (table) => ({
     tenantIdUniqueIdx: uniqueIndex('ux_site_inspections_tenant_id_id').on(table.tenant_id, table.id),
+    clientSubmissionIdx: uniqueIndex('ux_site_inspections_tenant_submission')
+      .on(table.tenant_id, table.client_submission_id)
+      .where(sql`${table.client_submission_id} is not null`),
     tenantIdx: index('idx_site_inspections_tenant_id').on(table.tenant_id),
     oppIdx: index('idx_site_inspections_opportunity_id').on(table.opportunity_id),
     opportunityTenantFk: foreignKey({

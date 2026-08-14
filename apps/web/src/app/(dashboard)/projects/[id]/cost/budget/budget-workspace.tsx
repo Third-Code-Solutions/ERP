@@ -11,6 +11,7 @@ import {
   saveProjectBudget,
   submitProjectBudget,
 } from './actions'
+import { parsePesosToCents } from '@/lib/operations/scope-money'
 
 export interface BudgetCodeOption {
   id: string
@@ -86,6 +87,13 @@ function messageFrom(result: { error?: string }): string | null {
   return result.error ?? null
 }
 
+function formatCents(cents: number | bigint): string {
+  const value = typeof cents === 'bigint' ? cents : BigInt(cents)
+  const whole = value / 100n
+  const fraction = (value % 100n).toString().padStart(2, '0')
+  return `${whole.toLocaleString('en-PH')}.${fraction}`
+}
+
 export function BudgetWorkspace({
   projectId,
   canManage,
@@ -115,7 +123,7 @@ export function BudgetWorkspace({
         costCodeId: line.costCodeId,
         bomLineItemId: line.bomLineItemId ?? '',
         description: line.description,
-        amountPhp: (line.amountCents / 100).toFixed(2),
+        amountPhp: formatCents(line.amountCents),
       }))
     }
     return codes[0]
@@ -211,10 +219,10 @@ export function BudgetWorkspace({
   const visibleBomLines = bomLines.filter(
     (line) => !selectedSourceBomId || line.bomId === selectedSourceBomId
   )
-  const lineTotal = lines.reduce((total, line) => {
-    const value = Number(line.amountPhp)
-    return Number.isFinite(value) ? total + value : total
-  }, 0)
+  const lineTotalCents = lines.reduce((total, line) => {
+    const cents = parsePesosToCents(line.amountPhp)
+    return cents === undefined ? total : total + BigInt(cents)
+  }, 0n)
 
   return (
     <div className="budget-workspace">
@@ -388,10 +396,7 @@ export function BudgetWorkspace({
               <span>Draft total</span>
               <strong>
                 {draft.currency}{' '}
-                {lineTotal.toLocaleString('en-PH', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
+                {formatCents(lineTotalCents)}
               </strong>
             </div>
           </div>

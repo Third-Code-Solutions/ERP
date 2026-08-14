@@ -49,6 +49,18 @@ export interface BomDupaMaterialLine {
   rate_source: string
   rate_as_of: string | null
   catalog_item_id: string | null
+  price_suggestions: BomDupaPriceSuggestion[]
+}
+
+export interface BomDupaPriceSuggestion {
+  id: string
+  vendor_name: string | null
+  quoted_rate_centavos: string
+  awarded_rate_centavos: string | null
+  source_type: string
+  source_document: string | null
+  occurred_at: string
+  is_stale: boolean
 }
 
 export interface BomDupaLabourLine {
@@ -83,13 +95,54 @@ interface BomLineRowProps {
 }
 
 function formatPHP(cents: number | string): string {
-  const numericCents = typeof cents === 'string' ? Number(cents) : cents
+  try {
+    const value = typeof cents === 'number' ? BigInt(Math.trunc(cents)) : BigInt(cents)
+    const sign = value < 0n ? '-' : ''
+    const absolute = value < 0n ? -value : value
+    const pesos = absolute / 100n
+    const centavos = (absolute % 100n).toString().padStart(2, '0')
+    const grouped = pesos.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+    return `₱${sign}${grouped}.${centavos}`
+  } catch {
+    return '₱—'
+  }
+}
+
+function DupaMaterialSection({ rows }: { rows: BomDupaMaterialLine[] }) {
   return (
-    '₱' +
-    (numericCents / 100).toLocaleString('en-PH', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })
+    <div>
+      <div style={{ fontWeight: 700, color: 'var(--color-neutral-700)', marginBottom: 3 }}>Material</div>
+      <ul style={{ margin: 0, paddingLeft: 16, color: 'var(--color-neutral-600)' }}>
+        {rows.map((line) => (
+          <li key={line.id}>
+            <div>
+              {line.description} · {formatQuantity(line.quantity)} {line.uom} · {formatPHP(line.unit_rate_centavos)} · {line.rate_source}
+              {line.rate_as_of ? ` · as of ${line.rate_as_of}` : ''}
+            </div>
+            {line.price_suggestions.length > 0 ? (
+              <ul style={{ margin: '3px 0 0', paddingLeft: 16, color: 'var(--color-neutral-500)' }}>
+                {line.price_suggestions.map((suggestion) => {
+                  const effectiveRate = suggestion.awarded_rate_centavos ?? suggestion.quoted_rate_centavos
+                  return (
+                    <li key={suggestion.id}>
+                      {suggestion.vendor_name ?? 'Supplier'} · {formatPHP(effectiveRate)} · {suggestion.source_type} · {suggestion.occurred_at}
+                      {suggestion.source_document ? ` · ${suggestion.source_document}` : ''}
+                      {suggestion.is_stale ? (
+                        <span style={{ color: 'var(--color-warning)', fontWeight: 700 }}> · stale &gt;90d</span>
+                      ) : null}
+                    </li>
+                  )
+                })}
+              </ul>
+            ) : (
+              <div style={{ marginTop: 3, color: 'var(--color-neutral-400)' }}>
+                No sourced supplier price history
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
 
@@ -129,10 +182,7 @@ function DupaDetailDisclosure({ dupa }: { dupa: BomDupaDetail }) {
           <strong style={{ color: 'var(--color-navy-700)' }}>Unit rate {formatPHP(dupa.unit_rate_centavos)}</strong>
         </div>
         {dupa.materials.length > 0 && (
-          <DupaSection
-            title="Material"
-            rows={dupa.materials.map((line) => `${line.description} · ${formatQuantity(line.quantity)} ${line.uom} · ${formatPHP(line.unit_rate_centavos)} · ${line.rate_source}`)}
-          />
+          <DupaMaterialSection rows={dupa.materials} />
         )}
         {dupa.labour.length > 0 && (
           <DupaSection

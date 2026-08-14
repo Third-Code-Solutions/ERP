@@ -18,7 +18,7 @@ import {
   users,
   takeoffUnresolvedItems,
 } from '@third-code-erp/database/schema'
-import { eq, and, max, or, desc, asc, isNotNull, inArray } from 'drizzle-orm'
+import { eq, and, max, or, desc, asc, isNotNull, inArray, ne } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
 import { writeAuditLog } from '@/lib/audit'
 import { inngest } from '@/lib/inngest'
@@ -284,6 +284,24 @@ export async function approveBom(bomId: string, projectId: string): Promise<{ er
     .limit(1)
   if (pendingTakeoff) {
     return { error: `Resolve every unresolved takeoff row before approval: ${pendingTakeoff.reason}` }
+  }
+
+  const [unpricedAiLine] = await db
+    .select({ id: bomLineItems.id, description: bomLineItems.description })
+    .from(bomLineItems)
+    .where(
+      and(
+        eq(bomLineItems.bom_id, bomId),
+        eq(bomLineItems.tenant_id, profile.tenantId),
+        eq(bomLineItems.ai_drafted, true),
+        ne(bomLineItems.unit_rate_source, 'dupa'),
+      ),
+    )
+    .limit(1)
+  if (unpricedAiLine) {
+    return {
+      error: `Attach a DUPA to every AI-drafted line before approval: ${unpricedAiLine.description}`,
+    }
   }
 
   const [unresolvedLine] = await db

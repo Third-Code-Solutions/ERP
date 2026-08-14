@@ -8,9 +8,11 @@ import {
   projects,
   slaLogs,
   users,
+  opportunityKycTracks,
 } from '@third-code-erp/database/schema'
 import { and, asc, desc, eq, isNull } from 'drizzle-orm'
 import { PipelineBoard } from '@/components/pipeline/pipeline-board'
+import { opportunityKycGateMessage } from '@/lib/operations/opportunity-kyc'
 
 export const metadata: Metadata = { title: 'Pipeline Board' }
 
@@ -24,7 +26,7 @@ export default async function PipelineBoardPage() {
   // Fetch everything in parallel — kanban needs opps + accounts (for KYC
   // gating + display) + open SLA logs (for the dot) + reps + projects/accounts
   // for the quick-add modal.
-  const [oppsRaw, accountsList, projectsList, openSlas] = await Promise.all([
+  const [oppsRaw, accountsList, projectsList, openSlas, kycTracksRaw] = await Promise.all([
     db
       .select({
         id: opportunities.id,
@@ -95,6 +97,15 @@ export default async function PipelineBoardPage() {
           isNull(slaLogs.completed_at)
         )
       ),
+    db
+      .select({
+        opportunity_id: opportunityKycTracks.opportunity_id,
+        track_type: opportunityKycTracks.track_type,
+        status: opportunityKycTracks.status,
+        decision_reason: opportunityKycTracks.decision_reason,
+      })
+      .from(opportunityKycTracks)
+      .where(eq(opportunityKycTracks.tenant_id, tenantId)),
   ])
 
   // Build a quick lookup so the client component can render an SLA dot
@@ -105,6 +116,13 @@ export default async function PipelineBoardPage() {
     if (row.breached_at) level = 'red'
     else if (row.warned_at) level = 'amber'
     slaByOpp.set(row.entity_id, level)
+  }
+
+  const tracksByOpportunity = new Map<string, typeof kycTracksRaw>()
+  for (const row of kycTracksRaw) {
+    const tracks = tracksByOpportunity.get(row.opportunity_id) ?? []
+    tracks.push(row)
+    tracksByOpportunity.set(row.opportunity_id, tracks)
   }
 
   const cards = oppsRaw.map((o) => ({
@@ -125,6 +143,10 @@ export default async function PipelineBoardPage() {
     project_name: o.project_name,
     rep_id: o.rep_id,
     rep_email: o.rep_email,
+    opportunity_kyc_initialized: tracksByOpportunity.has(o.id),
+    opportunity_kyc_gate: tracksByOpportunity.has(o.id)
+      ? opportunityKycGateMessage(tracksByOpportunity.get(o.id) ?? [])
+      : null,
     sla: slaByOpp.get(o.id) ?? null,
   }))
 
