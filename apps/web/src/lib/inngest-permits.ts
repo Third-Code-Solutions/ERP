@@ -72,7 +72,13 @@ export const permitStalenessChecker = inngest.createFunction(
             project_name: projects.name,
           })
           .from(permits)
-          .leftJoin(projects, eq(projects.id, permits.project_id))
+          .leftJoin(
+            projects,
+            and(
+              eq(projects.id, permits.project_id),
+              eq(projects.tenant_id, permits.tenant_id)
+            )
+          )
           .where(
             and(
               notInArray(permits.status, [...TERMINAL_STATUSES]),

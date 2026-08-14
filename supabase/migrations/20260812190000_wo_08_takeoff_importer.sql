@@ -420,10 +420,21 @@ begin
 end;
 $$;
 
-drop trigger if exists takeoff_ai_draft_guard on public.bom_line_items;
-create trigger takeoff_ai_draft_guard
-before insert or update on public.bom_line_items
-for each row execute function public.takeoff_ai_draft_guard();
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_trigger
+    where tgrelid = 'public.bom_line_items'::regclass
+      and tgname = 'takeoff_ai_draft_guard'
+      and not tgisinternal
+  ) then
+    create trigger takeoff_ai_draft_guard
+    before insert or update on public.bom_line_items
+    for each row execute function public.takeoff_ai_draft_guard();
+  end if;
+end
+$$;
 
 do $$
 declare

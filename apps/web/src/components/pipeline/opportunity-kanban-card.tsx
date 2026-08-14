@@ -14,6 +14,8 @@ export interface KanbanCardData {
   account_id: string | null
   account_name: string | null
   account_kyc_status: string | null
+  opportunity_kyc_initialized: boolean
+  opportunity_kyc_gate: string | null
   project_id: string | null
   project_name: string | null
   rep_id: string | null
@@ -50,8 +52,12 @@ export function OpportunityKanbanCard({
   const sub = card.account_name && card.project_name ? card.project_name : null
   const days = daysSince(card.updated_at)
   const slaColor = card.sla ? SLA_COLORS[card.sla] : 'var(--color-neutral-300, #d1d5db)'
-  const kycBlocked =
-    card.account_kyc_status !== 'approved' && card.account_kyc_status !== 'not_required'
+  const kycBlocked = card.opportunity_kyc_initialized
+    ? Boolean(card.opportunity_kyc_gate)
+    : Boolean(card.account_id) &&
+      card.account_kyc_status !== 'approved' &&
+      card.account_kyc_status !== 'not_required'
+  const kycReason = card.opportunity_kyc_gate ?? 'Account KYC not approved'
 
   return (
     <div
@@ -173,7 +179,7 @@ export function OpportunityKanbanCard({
         </span>
         {kycBlocked && (
           <span
-            title="Account KYC not approved"
+            title={kycReason}
             style={{
               fontSize: '0.625rem',
               fontWeight: 600,

@@ -523,6 +523,11 @@ export async function getManagementDashboard(
 }
 
 export async function getDashboardKpis(tenantId: string): Promise<KpiData> {
+  const now = new Date()
+  const fiscalYearStart = manilaBoundaries.startOfDay(
+    new Date(Date.UTC(now.getUTCFullYear(), 0, 1))
+  )
+
   const [activeResult] = await db
     .select({
       tcv: sum(opportunities.tcv_cents),
@@ -544,7 +549,9 @@ export async function getDashboardKpis(tenantId: string): Promise<KpiData> {
     .where(
       and(
         eq(opportunities.tenant_id, tenantId),
-        eq(opportunities.stage, 'closed_won')
+        eq(opportunities.stage, 'closed_won'),
+        gte(opportunities.closing_date, fiscalYearStart),
+        lte(opportunities.closing_date, now)
       )
     )
 

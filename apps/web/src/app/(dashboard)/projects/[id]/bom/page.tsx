@@ -14,6 +14,7 @@ import {
   dupaLabourLines,
   dupaEquipmentLines,
   awardHandoffs,
+  priceHistory,
 } from '@third-code-erp/database/schema'
 import { and, eq, desc, asc, inArray } from 'drizzle-orm'
 import { BomBuilder } from '@/components/bom/bom-builder'
@@ -27,10 +28,9 @@ import {
   listBomLocationRollup,
   listProjectLocations,
 } from './actions'
-import { scopeItems } from '@third-code-erp/database/schema'
-import { sql } from 'drizzle-orm'
 import { summarizeBomPricing } from '@/lib/operations/bom-pricing-breakdown'
 import { AwardAutomationPanel } from '@/components/bom/award-automation-panel'
+import { isPriceHistoryStale } from '@/lib/operations/bom-supplier-matching'
 
 export const metadata: Metadata = { title: 'BOM' }
 
@@ -143,6 +143,49 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
     rows.push(row)
     equipmentByDupa.set(row.dupa_id, rows)
   }
+
+  const catalogItemIds = [
+    ...new Set(
+      dupaMaterialRows.flatMap((row) =>
+        row.catalog_item_id ? [row.catalog_item_id] : [],
+      ),
+    ),
+  ]
+  const priceHistoryRows = catalogItemIds.length > 0
+    ? await db
+        .select({
+          id: priceHistory.id,
+          catalog_item_id: priceHistory.catalog_item_id,
+          vendor_name: vendors.name,
+          quoted_rate_centavos: priceHistory.quoted_rate_centavos,
+          awarded_rate_centavos: priceHistory.awarded_rate_centavos,
+          source_type: priceHistory.source_type,
+          source_document: priceHistory.source_document,
+          occurred_at: priceHistory.occurred_at,
+        })
+        .from(priceHistory)
+        .leftJoin(
+          vendors,
+          and(
+            eq(priceHistory.vendor_id, vendors.id),
+            eq(vendors.tenant_id, profile.tenantId),
+          ),
+        )
+        .where(
+          and(
+            eq(priceHistory.tenant_id, profile.tenantId),
+            inArray(priceHistory.catalog_item_id, catalogItemIds),
+          ),
+        )
+        .orderBy(desc(priceHistory.occurred_at), desc(priceHistory.created_at))
+        .limit(100)
+    : []
+  const priceHistoryByCatalog = new Map<string, typeof priceHistoryRows>()
+  for (const row of priceHistoryRows) {
+    const rows = priceHistoryByCatalog.get(row.catalog_item_id) ?? []
+    if (rows.length < 5) rows.push(row)
+    priceHistoryByCatalog.set(row.catalog_item_id, rows)
+  }
   const dupaByLine = new Map<string, {
     id: string
     header_quantity: string
@@ -161,6 +204,16 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
       rate_source: string
       rate_as_of: string | null
       catalog_item_id: string | null
+      price_suggestions: Array<{
+        id: string
+        vendor_name: string | null
+        quoted_rate_centavos: string
+        awarded_rate_centavos: string | null
+        source_type: string
+        source_document: string | null
+        occurred_at: string
+        is_stale: boolean
+      }>
     }>
     labour: Array<{
       id: string
@@ -196,6 +249,21 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
         rate_source: row.rate_source,
         rate_as_of: row.rate_as_of,
         catalog_item_id: row.catalog_item_id,
+        price_suggestions: (row.catalog_item_id
+          ? priceHistoryByCatalog.get(row.catalog_item_id) ?? []
+          : []
+        ).map((suggestion) => ({
+          id: suggestion.id,
+          vendor_name: suggestion.vendor_name,
+          quoted_rate_centavos: String(suggestion.quoted_rate_centavos),
+          awarded_rate_centavos: suggestion.awarded_rate_centavos == null
+            ? null
+            : String(suggestion.awarded_rate_centavos),
+          source_type: suggestion.source_type,
+          source_document: suggestion.source_document,
+          occurred_at: suggestion.occurred_at,
+          is_stale: isPriceHistoryStale(suggestion.occurred_at),
+        })),
       })),
       labour: (labourByDupa.get(dupa.id) ?? []).map((row) => ({
         id: row.id,
@@ -257,12 +325,6 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
     .from(vendors)
     .where(eq(vendors.tenant_id, profile.tenantId))
 
-  // Status signals for the auto-extraction banner
-  const [scopeCountRow] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(scopeItems)
-    .where(and(eq(scopeItems.project_id, id), eq(scopeItems.tenant_id, profile.tenantId)))
-  const scopeCount = scopeCountRow?.count ?? 0
   const ragActive = Boolean(process.env.OPENAI_API_KEY)
   const dwgWorkerActive = Boolean(process.env.DXF_PARSER_URL)
 
@@ -393,7 +455,7 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
                   margin: '2px 0 0',
                 }}
               >
-                Drop a DWG or DXF here to extract scope and draft a BOM.
+                Drop a DWG or DXF here to extract candidate work items for review.
               </p>
             </div>
             <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -412,19 +474,6 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
                 status={ragActive ? 'active' : 'pending'}
                 detail={ragActive ? 'pgvector + OpenAI' : 'Set OPENAI_API_KEY'}
               />
-              {scopeCount > 0 ? (
-                <Link
-                  href={`/projects/${id}/scope`}
-                  style={{
-                    fontSize: 12,
-                    color: 'var(--color-navy-700)',
-                    textDecoration: 'none',
-                    fontWeight: 600,
-                  }}
-                >
-                  {scopeCount} scope item{scopeCount === 1 ? '' : 's'} →
-                </Link>
-              ) : null}
             </div>
           </div>
           <div style={{ padding: 18 }}>
@@ -434,12 +483,12 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
               title={
                 bomWithLines && bomWithLines.lineItems.length > 0
                   ? 'Drop another CAD drawing'
-                  : 'Drop a DWG or DXF to pre-populate this BOM'
+                  : 'Drop a DWG or DXF to create a draft BOM'
               }
               subtitle={
                 bomWithLines && bomWithLines.lineItems.length > 0
-                  ? 'Adds new scope items and a fresh draft BOM.'
-                  : 'Real-time scope extraction · auto-priced lines from past projects'
+                  ? 'Adds new candidate work items for review.'
+                  : 'Evidence extraction only · pricing requires an explicit DUPA or estimator input'
               }
             />
           </div>

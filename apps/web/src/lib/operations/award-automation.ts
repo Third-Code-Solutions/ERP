@@ -156,6 +156,21 @@ function assertDownPaymentBps(value: number): void {
   }
 }
 
+function safeCurrencyNumber(value: bigint, label: string): number {
+  const result = Number(value)
+  if (!Number.isSafeInteger(result) || result < 0) {
+    throw new Error(`${label} exceeds the safe centavo range`)
+  }
+  return result
+}
+
+function currencyBigInt(value: number, label: string): bigint {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new Error(`${label} exceeds the safe centavo range`)
+  }
+  return BigInt(value)
+}
+
 function taskResultFromRow(row: typeof awardHandoffs.$inferSelect): AwardAutomationResult {
   const taskIds = row.task_ids
   const requiredKeys: AwardTaskKey[] = [
@@ -340,47 +355,67 @@ async function ensureBudget(
   if (openBudget && openBudget.sourceBomId !== args.bomId) {
     throw new Error('Project has an open budget; reconcile it before signed-BOM award')
   }
-  if (openBudget) return openBudget.id
 
-  const [latestBudget] = await tx
-    .select({ revision: projectBudgets.revision })
-    .from(projectBudgets)
-    .where(
-      and(
-        eq(projectBudgets.tenant_id, args.tenantId),
-        eq(projectBudgets.project_id, args.projectId)
+  let budgetId = openBudget?.id
+  if (budgetId) {
+    const [existingOpenLine] = await tx
+      .select({ id: projectBudgetLines.id })
+      .from(projectBudgetLines)
+      .where(
+        and(
+          eq(projectBudgetLines.tenant_id, args.tenantId),
+          eq(projectBudgetLines.project_budget_id, budgetId),
+        ),
       )
-    )
-    .orderBy(desc(projectBudgets.revision))
-    .limit(1)
-  const revision = (latestBudget?.revision ?? 0) + 1
-  const totalBudgetCents = args.lines.reduce((total, line) => total + Number(line.lineTotalCents), 0)
-  if (!Number.isSafeInteger(totalBudgetCents) || totalBudgetCents <= 0) {
+      .limit(1)
+    if (existingOpenLine) return budgetId
+  }
+
+  const totalBudgetCentavos = args.lines.reduce(
+    (total, line) => total + currencyBigInt(line.lineTotalCents, 'BOQ line total'),
+    0n,
+  )
+  if (totalBudgetCentavos <= 0n) {
     throw new Error('Signed BOM budget total must be a positive integer number of centavos')
   }
 
-  const [budget] = await tx
-    .insert(projectBudgets)
-    .values({
-      tenant_id: args.tenantId,
-      project_id: args.projectId,
-      source_bom_id: args.bomId,
-      revision,
-      status: 'draft',
-      control_mode: 'warn',
-      commitment_tolerance_bps: 0,
-      currency: 'PHP',
-      effective_from: manilaDate(args.now),
-      revision_reason: 'WO-13 signed BOM award baseline',
-      // The database guard requires a new draft to be empty. The linked line
-      // insert trigger recomputes the authoritative total atomically below.
-      total_budget_cents: 0,
-      created_by: args.creatorId,
-      created_at: args.now,
-      updated_at: args.now,
-    })
-    .returning({ id: projectBudgets.id })
-  if (!budget?.id) throw new Error('Project budget baseline was not created')
+  if (!budgetId) {
+    const [latestBudget] = await tx
+      .select({ revision: projectBudgets.revision })
+      .from(projectBudgets)
+      .where(
+        and(
+          eq(projectBudgets.tenant_id, args.tenantId),
+          eq(projectBudgets.project_id, args.projectId)
+        )
+      )
+      .orderBy(desc(projectBudgets.revision))
+      .limit(1)
+    const revision = (latestBudget?.revision ?? 0) + 1
+    const [budget] = await tx
+      .insert(projectBudgets)
+      .values({
+        tenant_id: args.tenantId,
+        project_id: args.projectId,
+        source_bom_id: args.bomId,
+        revision,
+        status: 'draft',
+        control_mode: 'warn',
+        commitment_tolerance_bps: 0,
+        currency: 'PHP',
+        effective_from: manilaDate(args.now),
+        revision_reason: 'WO-13 signed BOM award baseline',
+        // The database guard requires a new draft to be empty. The linked line
+        // insert trigger recomputes the authoritative total atomically below.
+        total_budget_cents: 0,
+        created_by: args.creatorId,
+        created_at: args.now,
+        updated_at: args.now,
+      })
+      .returning({ id: projectBudgets.id })
+    budgetId = budget?.id
+  }
+  if (!budgetId) throw new Error('Project budget baseline was not created')
 
   const budgetLines: Array<typeof projectBudgetLines.$inferInsert> = []
   for (const [index, line] of args.lines.entries()) {
@@ -413,18 +448,18 @@ async function ensureBudget(
     if (!costCodeId) throw new Error('Cost code baseline was not created')
     budgetLines.push({
       tenant_id: args.tenantId,
-      project_budget_id: budget.id,
+      project_budget_id: budgetId,
       cost_code_id: costCodeId,
       bom_line_item_id: line.id,
       line_number: index + 1,
       description: line.description.trim() || `BOQ line ${index + 1}`,
-      amount_cents: Number(line.lineTotalCents),
+      amount_cents: safeCurrencyNumber(currencyBigInt(line.lineTotalCents, 'BOQ line total'), 'BOQ line total'),
       created_at: args.now,
       updated_at: args.now,
     })
   }
   await tx.insert(projectBudgetLines).values(budgetLines)
-  return budget.id
+  return budgetId
 }
 
 async function ensureDraftInvoice(
@@ -434,7 +469,7 @@ async function ensureDraftInvoice(
     projectId: string
     accountId: string | null
     projectCode: string
-    tcvCents: number
+  tcvCents: bigint
     downPaymentBps: number
     creatorId: string
     now: Date
@@ -451,7 +486,8 @@ async function ensureDraftInvoice(
     return existing.id
   }
 
-  const subtotalCents = Math.floor((args.tcvCents * args.downPaymentBps) / 10_000)
+  const subtotalCentavos = (args.tcvCents * BigInt(args.downPaymentBps)) / 10_000n
+  const subtotalCents = safeCurrencyNumber(subtotalCentavos, 'Down-payment subtotal')
   const [invoice] = await tx
     .insert(invoices)
     .values({
@@ -738,7 +774,7 @@ export async function runSignedBomAward(
     projectId: bom.projectId,
     accountId: project.accountId,
     projectCode,
-    tcvCents: Number(bom.tcvCents),
+    tcvCents: currencyBigInt(bom.tcvCents, 'BOM TCV'),
     downPaymentBps,
     creatorId,
     now,

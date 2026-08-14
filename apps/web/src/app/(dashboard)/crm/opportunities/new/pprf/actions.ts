@@ -27,6 +27,18 @@ const optionalText = (max: number) =>
     z.string().max(max).optional()
   )
 
+const pesoAmount = z.preprocess(
+  (value) => {
+    if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+    if (typeof value === 'string' && value.trim()) return value.trim()
+    return '0'
+  },
+  z
+    .string()
+    .regex(/^\d+(?:\.\d{1,2})?$/, 'must be a non-negative amount with at most two decimals')
+    .refine((value) => parseCentavos(value) <= 900_000_000_000, 'amount is too large')
+)
+
 const pprfIntakeSchema = z
   .object({
     client_name: z.string().trim().min(2).max(255),
@@ -37,8 +49,8 @@ const pprfIntakeSchema = z
       z.string().email().optional()
     ),
     primary_phone: optionalText(64),
-    tcv: z.coerce.number().finite().min(0).max(9_000_000_000),
-    gp: z.coerce.number().finite().min(0).max(9_000_000_000),
+    tcv: pesoAmount,
+    gp: pesoAmount,
     area_sqm: z.preprocess(
       (value) => (typeof value === 'string' && value.trim() ? value : undefined),
       z.coerce.number().int().positive().optional()
@@ -54,8 +66,23 @@ function firstValidationError(error: z.ZodError): string {
   return `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}`
 }
 
-function parseCents(pesos: number): number {
-  return Math.round(pesos * 100)
+function parseCentavos(pesos: string): number {
+  const parts = pesos.split('.')
+  const whole = parts[0]
+  if (whole === undefined) {
+    throw new Error('amount is missing its whole-number part')
+  }
+  const fraction = parts[1] ?? ''
+  const centavos = BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0'))
+  if (centavos > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new Error('amount exceeds safe integer range')
+  }
+  return Number(centavos)
+}
+
+function weightedCentavos(amountCentavos: number, probability: number): number {
+  const numerator = BigInt(amountCentavos) * BigInt(probability)
+  return Number((numerator + 50n) / 100n)
 }
 
 function parseClosingDate(value: string | undefined): Date | undefined {
@@ -133,8 +160,8 @@ export async function createPprfIntake(
       .returning({ id: accounts.id })
     if (!account) throw new Error('PPRF intake account insert returned no row')
 
-    const tcvCents = parseCents(input.tcv)
-    const gpCents = parseCents(input.gp)
+    const tcvCents = parseCentavos(input.tcv)
+    const gpCents = parseCentavos(input.gp)
     const probability = STAGE_PROBABILITY.lead
     const [opportunity] = await tx
       .insert(opportunities)
@@ -146,7 +173,7 @@ export async function createPprfIntake(
         tcv_cents: tcvCents,
         gp_cents: gpCents,
         probability,
-        weighted_tcv_cents: Math.round((tcvCents * probability) / 100),
+        weighted_tcv_cents: weightedCentavos(tcvCents, probability),
         closing_date: parseClosingDate(input.closing_date),
         area_sqm: input.area_sqm,
         opportunity_type: input.opportunity_type,

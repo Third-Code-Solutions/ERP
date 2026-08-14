@@ -1,5 +1,35 @@
 # Third Code ERP capability matrix
 
+## M3.279 BUILD OPS reconciliation (2026-08-14)
+
+This is the current source-backed release boundary. `PASS` below means the
+repository implementation and its local contract/static tests are green. It
+does not mean the corresponding hosted migration, real-template acceptance, or
+production deployment is verified.
+
+| Work order | Current source/test evidence | Boundary |
+|---|---|---|
+| WO-00 | CI/invariant verifier PASS | Local only |
+| WO-01 | Demo-tenant and data-isolation contracts PASS | Hosted data purge NOT RUN |
+| WO-02–03 | Business-day, audit and process/SLA contracts PASS | DB replay BLOCKED: no `DATABASE_URL` |
+| WO-04–06 | Grain, location, DUPA and migration contracts PASS | Hosted migration parity UNKNOWN |
+| WO-07 | BOM builder contract PASS | Local browser canary limited to public surface |
+| WO-08/08a | Takeoff and AI-draft pipeline contracts PASS | Real Togal file NOT PRESENT |
+| WO-09 | Template-governance contract PASS | Real ABI templates NOT PRESENT |
+| WO-10 | RFQ/price-history contract PASS | Provider/database replay NOT RUN |
+| WO-11 | PPRF/KYC contract PASS | Hosted/authenticated browser NOT RUN |
+| WO-12 | Mobile site-inspection/media contract PASS | Device and hosted sync retest OPEN |
+| WO-13–14 | Award and allowable-budget contracts PASS | Hosted transaction/rollback NOT VERIFIED |
+| WO-15 | Budget-commitment contract PASS | DoA matrix remains unresolved; selector closed |
+| WO-16–18 | Permits, cost-control and dashboard contracts PASS | Human sign-off and hosted parity OPEN |
+
+Repository gates for this reconciliation: `pnpm test`, `pnpm typecheck`,
+`pnpm lint`, `pnpm build`, focused work-order contracts, BUILD OPS invariants,
+and local public frontend Playwright smoke all PASS. Live Vercel health and
+Railway health/readiness PASS; live Vercel browser parity FAILS on missing
+`WebSite`/`WebPage` JSON-LD nodes because that deployment predates the local
+page wiring fix. No production deploy or migration was executed.
+
 ## M3.278 Protected bank-reconciliation Web/Core browser canary (2026-08-11)
 
 The local closed-canary evidence covers the user-facing reconciliation

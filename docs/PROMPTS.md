@@ -1,29 +1,36 @@
-# BUILD OPS Prompt Pack v1.3
+# BUILD OPS Prompt Pack v1.4
 
 > Markdown copy extracted from `output/pdf/BUILD OPS Prompt Pack.pdf` on 2026-08-12.
 > The attached PDF remains canonical for visual fidelity; this file is the repository execution copy.
 BUILD OPS — Prompt Pack
 Copy-paste prompts for executing the refactor
-Companion to docs/PRD.md v1.3 · 12 August 2026 · Toolchain: OpenAI Codex CLI
+Companion to docs/PRD.md v1.4 · 14 August 2026 · Execution: Codex desktop/CLI or equivalent
 How to use this pack
-1. Commit AGENTS.md at the repo root and this PRD as docs/PRD.md. Codex loads
-AGENTS.md automatically at session start; the PRD is opened on demand.
-2. Launch Codex from the repo root (codex), not from a subdirectory — the instruction
-walk starts at the git root.
-3. Start every session with Prompt A (Kickoff).
-4. Then paste exactly one work-order prompt (B-series).
-5. Use the C-series prompts when something goes wrong or needs review.
-6. One work order per session. When a work order is done, quit and start a fresh one.
-Long sessions drift, and drift in a schema refactor is expensive.
-Note on AGENTS.md: Codex builds its instruction chain once, at session start. If you edit
-AGENTS.md, restart the session or the change has no effect. And remember it is
-instruction, not enforcement — for DROP statements and production pushes, rely on
-sandbox permissions and approval settings, not on the file asking nicely.
-Text in [SQUARE BRACKETS] is for you to fill in.
+1. Launch from repository root. Read `AGENTS.md`, `docs/PRD.md`, and the relevant work
+order. Current source, migrations, tests and timestamped release evidence are authority.
+2. Execute one vertical slice at a time: inspect, edit, test, review diff, write changeset.
+3. Do not stop for a conversational go-ahead on repository edits, tests, documentation or
+reversible local build work. Record assumptions and evidence in the changeset.
+4. For hosted data/provider operations, verify exact project/service/branch/target, dry-run,
+rollback and health. If evidence is missing, mark that gate BLOCKED and continue all safe
+local work; never fabricate completion.
+5. Use Prompt A, then one B-series prompt. Use C-series prompts for self-review and recovery.
+Text in [SQUARE BRACKETS] is for the executing agent to resolve from repository evidence.
+
+Current source contract
+- Frontend: Next.js 15 App Router with authenticated dashboard routes, public auth routes,
+  client portals, server actions and compatibility API routes.
+- Backend: NestJS Core under `apps/api/src`, Redis/BullMQ jobs, legacy Next adapters and
+  shared Zod contracts.
+- Data/storage: Supabase Postgres/Auth/Realtime/Storage, Drizzle, tenant RLS, append-only
+  audit, signed object paths and additive migrations.
+- Hosting: Vercel Web, Railway Core API/CAD evidence worker, Supabase and Redis. Preserve
+  working modules and routes while closing refactor gaps.
 A · Session kickoff — paste at the start of every session
 You are a senior engineer working on BUILD OPS, a construction ERP for Actuate
 Builders Inc. (ABI), a Philippine design-and-build, fit-out and MEP contractor.
-The codebase is a Next.js app on Vercel with Supabase/Postgres.
+The codebase is a Next.js app on Vercel, a NestJS Core API and CAD evidence worker on
+Railway, with Supabase/Postgres, Storage and Redis/BullMQ infrastructure.
 Read docs/PRD.md in full before writing any code or SQL.
 
 B · Work-order prompts
@@ -40,19 +47,22 @@ not identity. Do not propose rebuilding what already works.
 Hard constraints for this session:
   - Additive migrations only. No DROP COLUMN, no DROP TABLE, no re-pointing an
     existing foreign key.
-  - Do NOT create a scope_items table or a scope_item_id column. bom_line_items
-    IS the scope item. See ADR-03.
-  - Do NOT build, extend or touch the general ledger, journals, posting periods,
-    or reconciliation. ABI runs SAP. See ADR-07.
+  - Do NOT create a second scope model or a scope_item_id column. The legacy
+    scope_items table remains a CAD compatibility input; bom_line_items is the
+    commercial refactor spine. See ADR-03.
+  - Do NOT expand statutory general-ledger scope. Existing Finance ledger,
+    journals, cash and reconciliation routes remain compatibility surfaces while
+    ABI runs SAP as book of record. See ADR-07.
   - No float, double precision, unscaled numeric, or JS number in any monetary
     path.
   - Every new table carries tenant_id NOT NULL with the matching RLS policy.
   - Every acceptance criterion ships as an automated test, not a manual check.
-Before you write anything, confirm back to me in under 150 words:
-  (a) which work order we are doing,
-  (b) the files and tables you expect to touch,
-  (c) anything in the PRD you think is wrong or ambiguous.
-Then stop and wait for my go-ahead.
+Before writing, record in the work-order changeset:
+  (a) work order,
+  (b) expected files/tables,
+  (c) PRD contradictions or unknowns,
+  (d) verification commands and rollback.
+Then execute the smallest safe slice. Do not pause for a conversational go-ahead.
 Execute WO-00 from docs/PRD.md.
 Set up CI to run the full test suite on every PR, plus three static checks that
 must fail the build:
@@ -72,11 +82,10 @@ The live build shows these contaminated records:
   - E2E_QA_20260513_dd8a07a1_vendor1 in the production vendor picker
   - TH/RD CODE FINAL PHASE duplicated in the Pipeline LEAD column
   - Four identical PO-0002 rows in Deliveries, all with vendor "—"
-Step 1: inventory every QA/E2E-seeded record and report it to me BEFORE deleting
-anything. I want to see the list.
+Step 1: inventory every QA/E2E-seeded record and save the list before any purge.
 Step 2: for the four identical PO-0002 rows — determine whether these are genuine
-duplicate rows or a join fanout in the Deliveries query. Do not delete until you
-know which. Report your finding.
+duplicate rows or a join fanout in the Deliveries query. Do not delete until the
+row identity, references and recovery path are proven. Record the finding.
 Step 3: move demo data to a dedicated demo tenant; purge from the ABI tenant.
 Do not delete any record referenced by a real record without showing me the
 reference first.
@@ -117,8 +126,9 @@ wrong work item silently corrupts a cost hierarchy and is nearly undetectable
 later. Every parent link is a human decision.
 Do not enable the I-03 trigger until the review queue is empty.
 Before and after the migration, assert that PO, RFQ, cost and budget row counts
-AND their target ids are byte-identical. Show me that comparison.
-Run on staging first. Show me the migration before you run it anywhere.
+AND their target ids are byte-identical. Record that comparison.
+Run against an isolated replay or staging target first. Save migration SQL, dry-run,
+before/after identity checks and rollback evidence before any hosted apply.
 Execute WO-05 from docs/PRD.md.
 
 B-06 · DUPA engine — the critical path
@@ -227,7 +237,9 @@ that already has a DUPA.
 B-09 · Excel importers
 Execute WO-09 from docs/PRD.md.
 Build importers for ABI's real Excel templates: PPRF, SI Report, BOQ/BOM, BOE,
-Level 1 Master Schedule. I am attaching the real files.
+Level 1 Master Schedule. Use files under `fixtures/abi/` when present. If a real
+template is absent, keep the importer contract and rejected-row behavior testable,
+do not fabricate ABI workbook evidence, and mark the real-template acceptance BLOCKED.
 This is the adoption strategy, not a migration chore. ABI's entire operating
 history lives in files named like Project_PPRF_Ver3_11082024.xlsx and
 Project_BOE_Ver2_11062024.xlsx. A system they cannot load these into will be
@@ -290,7 +302,9 @@ B-16 · Permits and mobilization gate
 B-17 · Cost control
   - The RFPO stage (Commercial endorses to Procurement with approved finishes and
     specs)
-  - Delegation-of-Approval routing by amount band [PASTE ABI MATRIX HERE]
+  - Delegation-of-Approval routing by amount band [PASTE ABI MATRIX HERE]. Until ABI
+    supplies the matrix, use the configurable PRD default and keep production cutover
+    disabled with an explicit reason.
   - Commitment against budget_lines, joined on bom_line_item_id
 Issuing a PO must reduce remaining allowable on the cost code. A PO that would
 exceed allowable warns before submission.
@@ -329,20 +343,19 @@ Target: the President runs the Monday meeting from this screen without opening
 Excel.
 C · Control prompts
 C-1 · Drift reset — use the moment a session starts wandering
-C-2 · Migration review — run before any migration touches staging
+C-2 · Migration review — run before any migration touches an isolated or hosted target
 Stop. You are drifting from the PRD.
-Re-read the constraints in AGENTS.md and docs/PRD.md and confirm each one back to me before continuing:
+Re-read the constraints in AGENTS.md and docs/PRD.md and record this self-audit before continuing:
   1. This is a refactor. bom_line_items.id is a stable UUID already referenced by
      cost, budget, PO and RFQ. It stays.
-  2. No scope_items table. No scope_item_id column. Ever.
+  2. No second scope model. Legacy scope_items stays compatibility-only; no scope_item_id column.
   3. Additive migrations only. No DROP. No foreign key re-pointed.
-  4. No general ledger work.
+  4. No new statutory general-ledger expansion.
   5. No float in any monetary path.
-Then discard whatever you just produced and restart the current work order from
+Discard whatever you just produced and restart the current work order from
 the text in docs/PRD.md. Do not attempt to repair drifted output — repaired drift is harder
 to review than fresh work.
-Before I run this migration, review it against the PRD and answer each point
-explicitly:
+Review this migration against the PRD and answer each point explicitly in the changeset:
   1. Is it purely additive? List every ALTER and CREATE.
   2. Does it DROP anything, or re-point any existing foreign key?
   3. Does every new table have tenant_id NOT NULL and a matching RLS policy?
@@ -352,7 +365,7 @@ explicitly:
 C-3 · Work-order sign-off
 Work order [WO-NN] is claimed complete. Verify it against the PRD:
   1. List each acceptance criterion from the PRD for this work order.
-  2. For each, name the test that proves it and show me the test.
+  2. For each, name the test that proves it and link the test.
   3. Any criterion without an automated test is NOT met — say so plainly.
   4. Which of the §6 invariants does this work order touch, and are they still
      enforced?
@@ -360,11 +373,11 @@ Work order [WO-NN] is claimed complete. Verify it against the PRD:
 Be adversarial. I would rather find a gap now than after the next work order
 builds on it.
 C-4 · Estimator design review — for WO-06 and WO-07
-C-5 · Ask before assuming
-Before you implement this, list every assumption you are making that is not
-explicitly stated in the PRD. For each one, tell me whether getting it wrong is
-cheap or expensive to reverse.
-Ask me about anything expensive. Proceed on anything cheap and note it.
+C-5 · Assumption ledger
+Before implementation, list every assumption not explicit in the PRD. Classify each as
+cheap or expensive to reverse. Proceed on reversible defaults, make expensive choices
+configurable, and mark acceptance gates BLOCKED when evidence is missing. Do not invent
+ABI policy or silently convert an unknown into a production fact.
   6. What is the exact rollback? Write it out.
   7. Which downstream tables reference the rows this touches, and how do I prove
      those references are unchanged after it runs?

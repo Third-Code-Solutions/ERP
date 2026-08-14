@@ -55,7 +55,13 @@ test.describe('production role access matrix', () => {
         const context = await browser.newContext()
         const page = await context.newPage()
         page.on('console', (message) => {
-          if (message.type() === 'error') errors.push(`${role}: ${message.text()}`)
+          const text = message.text()
+          const isTransientNotification401 =
+            message.type() === 'error' &&
+            /Failed to load resource: the server responded with a status of 401 \(\)$/.test(text)
+          if (message.type() === 'error' && !isTransientNotification401) {
+            errors.push(`${role}: ${text}`)
+          }
         })
         page.on('pageerror', (error) => errors.push(`${role}: ${error.message}`))
         page.on('requestfailed', (request) => {
@@ -65,7 +71,10 @@ test.describe('production role access matrix', () => {
           }
         })
         page.on('response', (response) => {
-          if (response.status() >= 400) {
+          const isTransientNotification401 =
+            response.status() === 401 &&
+            response.url().endsWith('/api/notifications')
+          if (response.status() >= 400 && !isTransientNotification401) {
             errors.push(`${role}: HTTP ${response.status()} ${response.url()}`)
           }
         })
@@ -78,6 +87,14 @@ test.describe('production role access matrix', () => {
           expect(dashboard?.status() ?? 0, role).toBe(200)
           expect(page.url(), role).not.toMatch(/\/auth\/login/)
           await expect(page.locator('body'), role).toBeVisible()
+          const notificationStatus = await page.evaluate(async () => {
+            const response = await fetch('/api/notifications', {
+              headers: { Accept: 'application/json' },
+              cache: 'no-store',
+            })
+            return response.status
+          })
+          expect(notificationStatus, `${role} notifications`).toBe(200)
 
           const visiblePaths = visibleNavSections(role).flatMap((section) =>
             section.items.map((item) => item.href)

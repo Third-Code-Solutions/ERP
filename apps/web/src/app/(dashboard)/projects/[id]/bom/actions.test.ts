@@ -41,9 +41,12 @@ vi.mock('@third-code-erp/database/schema', () => {
     bomLineItems: {
       bom_id: field,
       tenant_id: field,
+      description: field,
       line_total_cents: field,
       unit_cost_cents: field,
       quantity: field,
+      ai_drafted: field,
+      unit_rate_source: field,
       classification_status: field,
     },
     takeoffUnresolvedItems: {
@@ -85,6 +88,7 @@ vi.mock('drizzle-orm', () => ({
   desc: vi.fn(() => ({})),
   isNull: vi.fn(() => ({})),
   gt: vi.fn(() => ({})),
+  ne: vi.fn(() => ({})),
   sql: vi.fn(() => ({})),
 }))
 
@@ -145,6 +149,7 @@ describe('approveBom automatic RFQ producer selection', () => {
         selectResult([{ tenant_id: TENANT_ID }])
       )
       .mockReturnValueOnce(selectResult([{ id: BOM_ID }]))
+      .mockReturnValueOnce(selectResult([]))
       .mockReturnValueOnce(selectResult([]))
       .mockReturnValueOnce(selectResult([]))
       .mockReturnValueOnce(selectResult([]))

@@ -23,6 +23,7 @@ export interface SiteInspectionDraft {
   fields: SiteInspectionDraftFields
   photos: SiteInspectionDraftPhoto[]
   uploadedPhotoIds: string[]
+  clientSubmissionId: string
   updatedAt: string
 }
 
