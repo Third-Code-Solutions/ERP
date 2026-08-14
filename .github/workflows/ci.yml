@@ -109,6 +109,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm test:turbo-test-cache
+      - run: pnpm test:production-data-boundary
       - run: pnpm test:process-sla-sql
       - run: pnpm test:wo-04-migration
       - run: pnpm test:wo-05-migration

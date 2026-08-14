@@ -43,6 +43,16 @@ function loadEnvFile(p) {
 loadEnvFile(join(repoRoot, '.env.local'))
 loadEnvFile(join(repoRoot, '.env'))
 
+if (
+  !process.argv.includes('--apply') ||
+  process.env.DEMO_SEED_ALLOW_MUTATION !== '1'
+) {
+  console.error(
+    'Refusing to mutate demo accounts. Use --apply and DEMO_SEED_ALLOW_MUTATION=1 after confirming the dedicated demo tenant.',
+  )
+  process.exit(2)
+}
+
 // Resolve postgres-js from pnpm flat store.
 function resolvePostgres() {
   const dir = join(repoRoot, 'node_modules/.pnpm')

@@ -31,7 +31,8 @@
 - [x] Reproduce and fix the main CI Unit Tests failure.
 - [x] Reproduce and fix the main CI Postgres reproducibility failure.
 - [x] Add regression coverage without weakening RLS or release safety.
-- [ ] Add a fail-closed production contamination/promotion guard.
+- [x] Add a fail-closed production contamination/promotion guard; hosted scan
+  remains blocked by two rows in the foreign E2E tenant.
 - [ ] Trace and improve the BOM loading path; verify responsive/error/empty states.
 - [ ] Review changed diff and run focused then full gates.
 - [ ] Recheck exact deployment identity and production health; deploy only if green.
