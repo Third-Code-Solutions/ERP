@@ -32,4 +32,5 @@ Date: 2026-08-13
 - Hardened the notifications dropdown to read the browser Supabase session before issuing its API request, eliminating the observed SSR-hydration 401/403 race while preserving the API's unauthenticated 401 response contract.
 - Added abort-aware cleanup for notification polling and realtime-triggered fetches so page navigation cannot leave stale unauthenticated requests behind.
 - Added a document-cookie readiness check so a newly mounted route waits for SSR auth-cookie reconciliation before its first notification request.
+- Added `pagehide` cancellation so navigation aborts the previous document's notification request before the browser drops its session cookie.
 - Hardened the role harness with session-identity assertions, isolated browser contexts per seeded role, and settled browser-navigation checks for client-side forbidden redirects.

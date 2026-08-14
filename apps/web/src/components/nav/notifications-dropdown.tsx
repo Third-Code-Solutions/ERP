@@ -78,9 +78,15 @@ export function NotificationsDropdown({ tenantId, userId }: { tenantId: string; 
     unmountedRef.current = false
     void fetchItems()
     const id = window.setInterval(fetchItems, POLL_MS)
+    const abortOnPageHide = () => {
+      unmountedRef.current = true
+      fetchControllerRef.current?.abort()
+    }
+    window.addEventListener('pagehide', abortOnPageHide)
     return () => {
       unmountedRef.current = true
       window.clearInterval(id)
+      window.removeEventListener('pagehide', abortOnPageHide)
       fetchControllerRef.current?.abort()
     }
   }, [fetchItems])
