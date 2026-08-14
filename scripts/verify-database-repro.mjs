@@ -65,6 +65,7 @@ const requiredMigrations = [
   '20260807140000_revoke_anon_tenant_identity_rpc.sql',
   '20260807150000_user_role_assignment_authority.sql',
   '20260808100000_cortex_assistant_provider_budget.sql',
+  '20260815100000_wo_12_site_inspection_access.sql',
 ]
 
 const requiredTables = [
