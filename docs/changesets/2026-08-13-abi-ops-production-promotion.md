@@ -5,6 +5,7 @@ Date: 2026-08-13
 ## Summary
 
 - Consolidated the current ERP refactor with the upstream `main` history while preserving the ABI OPS clean-room branding and Core canary boundaries.
+- Closed the production-container dependency gap by including the `@third-code-erp/ai` workspace package in the API image build and runtime dependency graph.
 - Reconciled the web, API, database schema exports, tenant-safe auth profile lookup, procurement workflow adapters, CAD/document guards, and legacy Togal endpoint closure.
 - Updated disposable database integration contracts for tenant-wide audit-chain ordering and canonical semantic audit rows.
 
