@@ -141,8 +141,7 @@ claim that can be proven by one build or deployment.
 
 ### Continuation evidence — 2026-08-15
 
-- Branch is now at `c690f7de` plus the uncommitted documentation and test-harness
-  changes in this continuation.
+- Branch is now at clean pushed commit `73f44027`.
 - PASS — full `pnpm test`: all runnable tests passed; database-backed suites that
   require disposable credentials remain explicitly skipped.
 - PASS — focused RFQ controller contract: 8/8 after bounding cold Nest startup
