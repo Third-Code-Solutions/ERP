@@ -65,8 +65,8 @@ test.describe('production role access matrix', () => {
           }
         })
         page.on('response', (response) => {
-          if (response.status() === 401) {
-            errors.push(`${role}: HTTP 401 ${response.url()}`)
+          if (response.status() >= 400) {
+            errors.push(`${role}: HTTP ${response.status()} ${response.url()}`)
           }
         })
         let auth: Awaited<ReturnType<typeof authenticateRole>> | null = null
