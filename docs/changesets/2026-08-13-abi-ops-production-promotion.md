@@ -29,3 +29,5 @@ Date: 2026-08-13
 - Replaced the production smoke test's obsolete password fixture with the existing deterministic Supabase magic-link harness when `E2E_MAGIC_LINK_AUTH=1`; the legacy password path remains available for local seeded environments.
 - Aligned the route/navigation policy with the existing `admin.rate_card` capability: Commercial may enter the Admin surface for rate-card maintenance, while user and system configuration child routes remain capability-filtered to admin/owner.
 - Production Chromium route-walk after the test correction: PASS, 23/23 authenticated routes, no captured blocking page errors.
+- Hardened the notifications dropdown to verify the browser Supabase user before issuing its API request, eliminating the observed SSR-hydration 401 race while preserving the API's unauthenticated 401 response contract.
+- Hardened the role harness with session-identity assertions, isolated browser contexts per seeded role, and settled browser-navigation checks for client-side forbidden redirects.
