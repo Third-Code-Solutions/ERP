@@ -25,3 +25,14 @@
 - [x] Deploy current Web/Core changes to live production; schema/RLS gates are
   green, while audit-hash and BUILD OPS data gates remain explicitly reported.
 - [x] Write final audit report with exact completion state and remaining blockers.
+
+## Enterprise hardening run — 2026-08-14
+
+- [ ] Reproduce and fix the main CI Unit Tests failure.
+- [ ] Reproduce and fix the main CI Postgres reproducibility failure.
+- [ ] Add regression coverage without weakening RLS or release safety.
+- [ ] Add a fail-closed production contamination/promotion guard.
+- [ ] Trace and improve the BOM loading path; verify responsive/error/empty states.
+- [ ] Review changed diff and run focused then full gates.
+- [ ] Recheck exact deployment identity and production health; deploy only if green.
+- [ ] Write the enterprise hardening changeset and audit update.
