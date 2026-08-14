@@ -33,7 +33,21 @@
 - [x] Add regression coverage without weakening RLS or release safety.
 - [x] Add a fail-closed production contamination/promotion guard; hosted scan
   remains blocked by two rows in the foreign E2E tenant.
-- [ ] Trace and improve the BOM loading path; verify responsive/error/empty states.
-- [ ] Review changed diff and run focused then full gates.
+- [x] Trace and improve the BOM loading path; verify source-level empty/error
+  preservation and responsive auth surfaces; authenticated hosted BOM timing
+  remains NOT RUN until the release boundary is clear.
+- [x] Review changed diff and run focused then full gates.
 - [ ] Recheck exact deployment identity and production health; deploy only if green.
 - [ ] Write the enterprise hardening changeset and audit update.
+
+## Enterprise hardening continuation — 2026-08-15
+
+- [x] Add a fail-closed production boundary evaluator and promotion gate.
+- [x] Confirm the hosted read-only scan is review-required for two foreign-tenant
+  E2E rows; no production data was changed.
+- [x] Parallelize independent BOM page hydration without changing tenant,
+  provenance, or empty-state behavior.
+- [x] Fix the RFQ creation HTTP contract false timeout under full-suite load.
+- [x] Run the full monorepo test suite: all runnable tests passed.
+- [ ] Obtain the exact ABI tenant cleanup/retention/backup manifest before any
+  production data action or release promotion.

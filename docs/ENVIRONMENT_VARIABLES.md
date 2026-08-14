@@ -30,6 +30,18 @@ production, set these in Vercel (web), Railway (workers), and Supabase
 
 ---
 
+## Production release boundary
+
+These values belong only to the protected GitHub `production` environment. They
+are not Vercel client variables and must never be copied into `.env` files.
+
+| Variable | Required | Scope | Where to get | Controls |
+|---|---|---|---|---|
+| `PRODUCTION_DATABASE_URL` | yes | GitHub Actions secret | Approved read-only/session PostgreSQL connection | Read-only contamination gate; promotion fails closed when this is absent |
+| `BUILD_OPS_DEMO_TENANT_SLUGS` | yes | GitHub Actions variable | Exact dedicated demo tenant slug(s) | Allowlist used by the production data-boundary scan; never widen to hide customer contamination |
+
+---
+
 ## ERP Core API
 
 | Variable | Required | Scope | Where to get | Controls |
