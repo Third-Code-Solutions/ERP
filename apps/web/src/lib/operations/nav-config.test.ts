@@ -102,7 +102,9 @@ describe('RBAC: canViewPath (deny-by-default route guard)', () => {
   it('child routes inherit their parent permission', () => {
     // /projects is allowed for procurement → nested project pages too.
     expect(canViewPath('procurement', '/projects/abc-123/scope')).toBe(true)
-    // /admin is admin-only → nested admin pages denied to others.
+    // Commercial may enter the admin surface for rate-card maintenance, but
+    // finance remains denied from nested admin pages.
+    expect(canViewPath('commercial', '/admin')).toBe(true)
     expect(canViewPath('finance', '/admin/users/42')).toBe(false)
   })
 

@@ -141,7 +141,7 @@ export function roleLabel(role: AppRole): string {
 //   /warranty/cnps       → admin, cx
 //   /documents           → everyone (per-doc RLS scoping in DB)
 //   /reports             → admin, sales, finance
-//   /admin/*             → admin
+//   /admin/*             → admin, commercial (rate-card administration)
 //   /settings            → everyone (account-level settings)
 // -----------------------------------------------------------------------------
 
@@ -349,7 +349,9 @@ export const NAV_SECTIONS: NavSection[] = [
         href: '/admin',
         label: 'Admin',
         iconKey: 'Settings',
-        roles: ['admin'],
+        // Commercial owns rate-card maintenance. The page and child routes
+        // still capability-filter users/system configuration to admin/owner.
+        roles: ['admin', 'commercial'],
       },
     ],
   },
