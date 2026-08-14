@@ -7,6 +7,8 @@ const files = {
   prompts: join(root, 'docs', 'PROMPTS.md'),
   agreement: join(root, 'docs', 'BUILD_OPS_AGENTS.md'),
   matrix: join(root, 'docs', 'architecture', 'CAPABILITY_MATRIX.md'),
+  agents: join(root, 'AGENTS.md'),
+  claude: join(root, 'CLAUDE.md'),
 }
 
 const contents = Object.fromEntries(
@@ -26,6 +28,9 @@ const assertions = [
   ['Prompt pack distinguishes machine and external evidence', contents.prompts.includes('Every machine-verifiable acceptance criterion ships automated coverage.') && !contents.prompts.includes('Every acceptance criterion ships as an automated test, not a manual check.')],
   ['Working agreement is v1.1', contents.agreement.includes('# BUILD OPS Working Agreement v1.1')],
   ['Working agreement distinguishes machine and human evidence', contents.agreement.includes('Every machine-verifiable acceptance criterion ships automated coverage.')],
+  ['Root AGENTS points to current PRD', contents.agents.includes('STEP 1 → Read /docs/PRD.md in full') && !contents.agents.includes('Third Code ERP_PRD_v1.md')],
+  ['Root AGENTS removes conversational repository gate', contents.agents.includes('do not require a conversational go-ahead')],
+  ['Legacy CLAUDE identifies current authority', contents.claude.includes('Current execution authority is') && contents.claude.includes('docs/PRD.md')],
   ['Capability matrix has current release section', contents.matrix.includes('## M3.280 Current live release alignment (2026-08-14)')],
   ['Capability matrix records current Vercel deployment', contents.matrix.includes('dpl_3h5R66ZBfZwjKYxYbByVB3ptk7fx')],
   ['Capability matrix records authenticated parity boundary', contents.matrix.includes('Authenticated hosted parity') && contents.matrix.includes('BLOCKED')],
