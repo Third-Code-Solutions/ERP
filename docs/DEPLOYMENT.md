@@ -205,6 +205,13 @@ Configure these secrets on the `production` environment before dispatching:
 - `SUPABASE_DB_PASSWORD`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` (seeded production E2E harness)
 - `SUPABASE_SERVICE_ROLE_KEY` (seeded production E2E harness; GitHub secret only)
+- `PRODUCTION_DATABASE_URL` (read-only/session PostgreSQL URL used by the
+  production data-boundary gate; GitHub secret only)
+
+The workflow currently allows only the exact dedicated `buildops-e2e` tenant
+through `BUILD_OPS_DEMO_TENANT_SLUGS`. Do not add a customer or foreign test
+tenant to this allowlist to make a promotion pass. The gate is read-only and
+must report clear before migrations or provider deployment start.
 
 Do not add production provider credentials to repository variables or `.env`
 files. The workflow runs the authenticated ABI OPS production E2E journeys

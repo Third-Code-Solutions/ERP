@@ -138,3 +138,18 @@ claim that can be proven by one build or deployment.
   Unit Tests, BUILD OPS Invariants, Database Reproducibility (Postgres 17), and
   Build passed. E2E remained skipped by workflow policy because this was a
   manual branch run without a configured PR E2E base URL.
+
+### Continuation evidence — 2026-08-15
+
+- Branch is now at `c690f7de` plus the uncommitted documentation and test-harness
+  changes in this continuation.
+- PASS — full `pnpm test`: all runnable tests passed; database-backed suites that
+  require disposable credentials remain explicitly skipped.
+- PASS — focused RFQ controller contract: 8/8 after bounding cold Nest startup
+  at 30 seconds; no production controller behavior changed.
+- PASS — web TypeScript typecheck after BOM hydration parallelization.
+- PASS — read-only production boundary evaluator and workflow-contract tests.
+- REVIEW REQUIRED — hosted scan found two E2E-prefixed records in the foreign
+  tenant `e2e-qa-20260513-foreign`; production promotion remains closed.
+- NOT RUN — authenticated hosted BOM timing and post-deploy browser verification
+  for this branch because promotion is blocked by the unresolved data boundary.
