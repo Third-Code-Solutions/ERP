@@ -2,6 +2,9 @@
 
 > Markdown copy extracted from `output/pdf/BUILD OPS Prompt Pack.pdf` on 2026-08-12.
 > The attached PDF remains canonical for visual fidelity; this file is the repository execution copy.
+
+Execution authority is `docs/PRD.md` v1.4 plus current source and timestamped
+release evidence. The historical PDF does not override those sources.
 BUILD OPS — Prompt Pack
 Copy-paste prompts for executing the refactor
 Companion to docs/PRD.md v1.4 · 14 August 2026 · Execution: Codex desktop/CLI or equivalent
@@ -56,7 +59,8 @@ Hard constraints for this session:
   - No float, double precision, unscaled numeric, or JS number in any monetary
     path.
   - Every new table carries tenant_id NOT NULL with the matching RLS policy.
-  - Every acceptance criterion ships as an automated test, not a manual check.
+  - Every machine-verifiable acceptance criterion ships automated coverage. Human,
+    provider, real-template and owner sign-offs remain explicit release evidence.
 Before writing, record in the work-order changeset:
   (a) work order,
   (b) expected files/tables,
