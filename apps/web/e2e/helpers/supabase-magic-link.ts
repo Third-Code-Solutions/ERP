@@ -142,6 +142,11 @@ export async function authenticateRole(
     throw new Error(`Authenticated user lookup failed (${userResponse.status})`)
   }
   const user = assertObject(await userResponse.json(), 'Authenticated user')
+  if (user.email !== profile.email) {
+    throw new Error(
+      `Magic-link session identity mismatch: expected ${profile.email}, received ${String(user.email)}`
+    )
+  }
   const projectRef = new URL(supabaseUrl).host.split('.')[0]!
   const sessionValue = `base64-${Buffer.from(
     JSON.stringify({

@@ -23,13 +23,13 @@ test.describe('production role access matrix', () => {
   )
 
   test('all seeded roles receive the configured nav and protected boundaries', async ({
-    page,
+    browser,
   }, testInfo) => {
     testInfo.setTimeout(300_000)
     const baseUrl = testInfo.project.use.baseURL
     expect(baseUrl).toBeTruthy()
 
-    const roles: MagicLinkRole[] = [
+    const allRoles: MagicLinkRole[] = [
       'admin',
       'commercial',
       'cx',
@@ -42,23 +42,36 @@ test.describe('production role access matrix', () => {
       'sd_pm_pe',
       'viewer',
     ]
+    const requestedRole = process.env.E2E_ROLE_ONLY as MagicLinkRole | undefined
+    const roles = requestedRole
+      ? allRoles.filter((role) => role === requestedRole)
+      : allRoles
+    expect(roles.length, 'E2E_ROLE_ONLY must name a seeded role').toBeGreaterThan(0)
     const forbiddenCandidates = ['/admin', '/bom', '/finance']
     const errors: string[] = []
-    page.on('console', (message) => {
-      if (message.type() === 'error') errors.push(message.text())
-    })
-    page.on('pageerror', (error) => errors.push(error.message))
-    page.on('requestfailed', (request) => {
-      const errorText = request.failure()?.errorText ?? ''
-      if (errorText && errorText !== 'net::ERR_ABORTED') {
-        errors.push(`${request.method()} ${request.url()} ${errorText}`)
-      }
-    })
 
     for (const role of roles) {
       await test.step(role, async () => {
-        const auth = await authenticateRole(page.context(), baseUrl!, role)
+        const context = await browser.newContext()
+        const page = await context.newPage()
+        page.on('console', (message) => {
+          if (message.type() === 'error') errors.push(`${role}: ${message.text()}`)
+        })
+        page.on('pageerror', (error) => errors.push(`${role}: ${error.message}`))
+        page.on('requestfailed', (request) => {
+          const errorText = request.failure()?.errorText ?? ''
+          if (errorText && errorText !== 'net::ERR_ABORTED') {
+            errors.push(`${role}: ${request.method()} ${request.url()} ${errorText}`)
+          }
+        })
+        page.on('response', (response) => {
+          if (response.status() === 401) {
+            errors.push(`${role}: HTTP 401 ${response.url()}`)
+          }
+        })
+        let auth: Awaited<ReturnType<typeof authenticateRole>> | null = null
         try {
+          auth = await authenticateRole(context, baseUrl!, role)
           const dashboard = await page.goto(`${baseUrl}/dashboard`, {
             waitUntil: 'domcontentloaded',
           })
@@ -82,20 +95,29 @@ test.describe('production role access matrix', () => {
           )
 
           for (const path of forbiddenCandidates) {
-            const response = await page.request.get(`${baseUrl}${path}`, {
-              maxRedirects: 0,
+            const navigation = await page.goto(`${baseUrl}${path}`, {
+              waitUntil: 'domcontentloaded',
             })
-            expect(response.status(), `${role} ${path}`).toBeLessThan(500)
-            expect(response.status(), `${role} ${path}`).not.toBe(429)
-            const location = response.headers().location ?? ''
-            expect(location, `${role} ${path}`).not.toMatch(/\/auth\/login/)
+            expect(navigation?.status() ?? 0, `${role} ${path}`).toBeLessThan(500)
+            expect(navigation?.status() ?? 0, `${role} ${path}`).not.toBe(429)
             if (!canViewPath(role, path)) {
-              expect(location, `${role} ${path}`).toMatch(/\/dashboard/)
+              await expect
+                .poll(() => new URL(page.url()).pathname, {
+                  message: `${role} ${path} did not settle on the dashboard`,
+                  timeout: 10_000,
+                })
+                .toBe('/dashboard')
+              expect(new URL(page.url()).searchParams.get('error')).toBe('forbidden')
+            } else {
+              expect(page.url(), `${role} ${path}`).not.toMatch(/\/auth\/login/)
             }
           }
         } finally {
-          await auth.cleanup()
-          await page.context().clearCookies()
+          try {
+            if (auth) await auth.cleanup()
+          } finally {
+            await context.close()
+          }
         }
       })
     }

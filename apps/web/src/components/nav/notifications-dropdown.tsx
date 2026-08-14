@@ -27,6 +27,16 @@ export function NotificationsDropdown({ tenantId, userId }: { tenantId: string; 
   const fetchItems = useCallback(async () => {
     setLoading(true)
     try {
+      // The dashboard can hydrate while the SSR auth cookie is still being
+      // reconciled by the browser client. Verify the session first so an
+      // unauthenticated transition does not create a noisy 401 request.
+      const supabase = createSupabaseBrowserClient()
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser()
+      if (authError || !user) return
+
       const res = await fetch('/api/notifications', {
         headers: { Accept: 'application/json' },
         cache: 'no-store',
