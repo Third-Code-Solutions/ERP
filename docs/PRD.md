@@ -48,8 +48,8 @@ existing `bom_line_items` spine; no new `scope_items` table or `scope_item_id` c
 introduced.
 3. Work orders are numbered and ordered. WO-01 → WO-18. Do not skip forward; later
 orders assume earlier invariants hold.
-4. Every work order has explicit acceptance criteria. A work order is not done until its
-criteria pass as automated tests.
+4. Every work order has explicit acceptance criteria. Machine-verifiable criteria must
+pass as automated tests; human, provider and real-template gates remain explicit evidence.
 5. Where this PRD says [BLOCKED: O-n], the work order cannot be completed without an
 answer from ABI. Build to the labelled default, mark it configurable, and flag it.
 6. All money is BIGINT centavos. All percentages are integer basis points. Never
@@ -594,7 +594,8 @@ Additive migrations only. No DROP. No foreign key re-pointed.
 Every new table: tenant_id NOT NULL, matching RLS policy,
 created_at/updated_at/created_by, audit participation.
 No float in any monetary path.
-Every acceptance criterion ships as an automated test, not a manual check.
+Every machine-verifiable acceptance criterion ships automated coverage. Human,
+provider, real-template and owner sign-offs remain explicit release evidence.
 WO-00 · CI gate (prerequisite — half a day)
 Context. The invariants in §6 are only real if a build fails when they break. Do. Ensure CI
 runs the full test suite on every PR. Add three static checks: (a) no float/double
@@ -1132,12 +1133,12 @@ BUILD_OPS_Blueprint.md1.1
 Evidence and reasoning record — the why.
 Audit of the current build, AS-IS/TO-BE,
 contradictions, competitor analysis, AI map
-docs/PRD.md 1.3
+docs/PRD.md 1.4
 Implementation authority — the what and in
 what order. Where the two disagree, this
 document wins
 BUILD_OPS_Prompt_Pack.md
-→ docs/PROMPTS.md1.1
+→ docs/PROMPTS.md1.4
 Execution aid — copy-paste prompts, one per
 work order, plus drift-recovery and review
 prompts

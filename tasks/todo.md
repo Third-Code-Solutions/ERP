@@ -1,5 +1,16 @@
 # Reconciliation Checklist
 
+## Current alignment run — 2026-08-14
+
+- [x] Recheck current live `/dashboard`, auth redirect, console and requests.
+- [x] Re-read current PRD, prompt pack and working agreement.
+- [x] Reconcile authority wording/version and current capability matrix.
+- [x] Add executable authority-document drift checks.
+- [ ] Re-run focused contracts, typecheck, build and live smoke after edits.
+- [ ] Push and deploy verified alignment changes.
+- [x] Keep real ABI templates, DoA matrix, pricing decision, exact tenant
+  identity and human sign-off as explicit external blockers.
+
 - [x] Read `docs/PRD.md`, `docs/PROMPTS.md`, `docs/BUILD_OPS_AGENTS.md`, `AGENTS.md`
   and `CLAUDE.md`.
 - [x] Confirm repository root, remote, branch and dirty-worktree boundary.

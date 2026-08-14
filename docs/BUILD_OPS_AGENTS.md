@@ -47,7 +47,9 @@ No float, double precision, unscaled numeric, or JS number in any monetary path.
 Every new table: tenant_id NOT NULL, matching RLS policy, created_at / updated_at
 / created_by, audit participation.
 
-Every acceptance criterion ships as an automated test, not a manual check.
+Every machine-verifiable acceptance criterion ships automated coverage. Human,
+provider, real-template and owner sign-offs remain explicit release evidence;
+they are never replaced by a passing local test.
 Takeoff imports upsert, never delete-and-reinsert — that orphans downstream POs and
 vendor assignments.
 Pricing model

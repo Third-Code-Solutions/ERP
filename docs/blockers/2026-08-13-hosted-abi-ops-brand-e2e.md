@@ -1,5 +1,13 @@
 # Hosted ABI OPS release and E2E blocker
 
+## Current status — public release resolved 2026-08-14
+
+The public deployment blocker is resolved. Vercel deployment
+`dpl_BVBYAoqPT4c5Dbe4ti84XGmp5QVZ` is `READY`, the production alias serves
+ABI OPS, and live public/browser health checks pass. Authenticated hosted
+feature parity remains separately blocked because no authorized production
+test identity was supplied.
+
 ## Status
 
 BLOCKED for hosted completion. The local source and production artifact use

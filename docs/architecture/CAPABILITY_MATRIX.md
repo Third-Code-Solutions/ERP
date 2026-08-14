@@ -1,8 +1,32 @@
 # Third Code ERP capability matrix
 
+## M3.280 Current live release alignment (2026-08-14)
+
+This section supersedes older hosted-status snapshots below. `PASS` means the
+named evidence was observed; it does not convert blocked ABI source, owner or
+human gates into production completion.
+
+| Boundary | Current evidence | Status |
+|---|---|---:|
+| Web production | Vercel `dpl_BVBYAoqPT4c5Dbe4ti84XGmp5QVZ`, `READY`, alias `thirdcode-erp.vercel.app`, 85 routes built | PASS |
+| Web health/readiness | `/api/health` and `/api/ready` returned 200; readiness database `up` | PASS |
+| Dashboard route guard | Anonymous `/dashboard` redirected to `/auth/login`; isolated browser console/request checks clean | PASS |
+| Authenticated hosted parity | No authorized production test identity; protected feature browser canary not run | BLOCKED |
+| Core production | Railway current upload skipped because no watched-file delta; active successful deployment `190d69df-8efd-41cf-b7a1-de86c9977aff` remains healthy | PASS |
+| Audit coverage | Read-only verifier reports 170/170 tenant-scoped tables with one audit trigger | PASS |
+| Source contracts | WO-07, WO-08, WO-08a, WO-10 through WO-18 focused contracts pass | PASS |
+| WO-09 template acceptance | Real ABI workbook families absent from `fixtures/abi/` | BLOCKED |
+| WO-15 ABI approval route | Signed ABI Delegation-of-Approval matrix absent; selector remains closed | BLOCKED |
+| WO-06 canonical math sign-off | Listed source rates conflict with exact expected centavo outputs | BLOCKED |
+| Production data boundary | Exact demo tenant and approved recovery identity are not configured | BLOCKED |
+
+The release is therefore healthy and source-aligned where evidence exists, but
+not fully feature-complete or authenticated-hosted-verified against every PRD
+acceptance criterion.
+
 ## M3.279 BUILD OPS reconciliation (2026-08-14)
 
-This is the current source-backed release boundary. `PASS` below means the
+This is a historical source-backed release snapshot. `PASS` below means the
 repository implementation and its local contract/static tests are green. It
 does not mean the corresponding hosted migration, real-template acceptance, or
 production deployment is verified.

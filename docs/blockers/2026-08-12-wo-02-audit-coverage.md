@@ -1,5 +1,19 @@
 # WO-02 audit coverage blocker
 
+## Current status — superseded 2026-08-14
+
+The historical 71/86 coverage result below is no longer current. The
+read-only verifier now reports **170/170 tenant-scoped tables** with exactly
+one enabled audit trigger:
+
+```text
+node --env-file=apps/web/.env.local scripts/verify-audit-coverage.mjs
+```
+
+This resolves the audit-trigger coverage finding. It does not by itself clear
+audit-hash recovery, production demo-data boundaries, or the remaining
+provider/owner release gates.
+
 ## Status
 
 BLOCKED for the database half of WO-02. The read-only verifier found 71 of 86

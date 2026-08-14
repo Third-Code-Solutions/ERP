@@ -1,5 +1,37 @@
 # ABI OPS / BUILD OPS Reconciliation Plan
 
+## Current alignment run — 2026-08-14
+
+### Objective
+
+Align the three current BUILD OPS authority files, capability matrix, blocker
+records and deployed-release evidence with observed source and live production.
+Close every source-verifiable inconsistency. Keep missing ABI artifacts,
+business decisions, tenant identity and human sign-off fail-closed.
+
+### Acceptance criteria
+
+- [x] `docs/PRD.md`, `docs/PROMPTS.md` and `docs/BUILD_OPS_AGENTS.md` agree on
+  authority hierarchy, version and machine-versus-human verification.
+- [x] Current capability matrix records the deployed Web revision, Core status,
+  auth-protected dashboard behavior, current audit coverage and open gates.
+- [x] Historical blocker records distinguish resolved evidence from remaining
+  external blockers; no stale release claim presents as current.
+- [x] An executable authority-document verifier passes.
+- [ ] Focused source contracts, typecheck, build, live health and browser smoke
+  pass after changes.
+- [ ] External gates remain explicitly `BLOCKED` until exact source or owner
+  evidence exists; no fabricated ABI template, approval matrix or tenant ID.
+
+### Ordered slices
+
+1. Reconfirm current source, provider identity and unauthenticated live route.
+2. Reconcile authority wording, versions and current capability/release evidence.
+3. Add a small verifier preventing future authority drift.
+4. Run focused and broad local checks; review diff.
+5. Push and deploy only the verified change set; recheck live health/browser.
+6. Publish final audit with `PASS`, `FAIL`, `BLOCKED` and `NOT RUN` boundaries.
+
 ## Objective
 
 Refactor the three BUILD OPS Markdown authorities against current ERP source,
