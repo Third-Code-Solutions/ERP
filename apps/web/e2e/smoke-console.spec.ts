@@ -11,6 +11,7 @@
 //      E2E_USER_EMAIL=test@third-code-erp.local E2E_USER_PASSWORD=testpassword123 \
 //      npx playwright test --project=chromium --workers=1 e2e/smoke-console.spec.ts
 import { test, expect, type BrowserContext } from '@playwright/test'
+import { authenticateRole } from './helpers/supabase-magic-link'
 
 const SEEDED_PROJECT = '11111111-1111-4111-8111-111111111111' // Somnus
 
@@ -53,7 +54,15 @@ function readEnvFile(): Record<string, string> {
   return out
 }
 
-async function authenticate(context: BrowserContext): Promise<void> {
+async function authenticate(
+  context: BrowserContext,
+  baseUrl: string
+): Promise<() => Promise<void>> {
+  if (process.env.E2E_MAGIC_LINK_AUTH === '1') {
+    const auth = await authenticateRole(context, baseUrl, 'admin')
+    return auth.cleanup
+  }
+
   const env = readEnvFile()
   const url = env.NEXT_PUBLIC_SUPABASE_URL!
   const anonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -102,11 +111,13 @@ async function authenticate(context: BrowserContext): Promise<void> {
       sameSite: 'Lax',
     },
   ])
+
+  return async () => {}
 }
 
 test.describe.configure({ mode: 'serial', timeout: 120_000 })
 
-test('visits every major route without console errors', async ({ page, context }) => {
+test('visits every major route without console errors', async ({ page, context }, testInfo) => {
   const consoleErrors: { route: string; text: string }[] = []
   const pageErrors: { route: string; message: string }[] = []
   let currentRoute = 'pre-login'
@@ -120,45 +131,52 @@ test('visits every major route without console errors', async ({ page, context }
     pageErrors.push({ route: currentRoute, message: err.message })
   })
 
-  await authenticate(context)
+  const baseUrl = testInfo.project.use.baseURL
+  expect(baseUrl).toBeTruthy()
+  const cleanup = await authenticate(context, baseUrl!)
 
-  for (const route of ROUTES) {
-    currentRoute = route
-    const res = await page.goto(route, { waitUntil: 'domcontentloaded' })
-    const status = res?.status() ?? 0
-    expect(status, `${route} returned ${status}`).toBeGreaterThanOrEqual(200)
-    expect(status, `${route} returned ${status}`).toBeLessThan(400)
-    await page.waitForTimeout(800)
+  try {
+    for (const route of ROUTES) {
+      currentRoute = route
+      const res = await page.goto(route, { waitUntil: 'domcontentloaded' })
+      const status = res?.status() ?? 0
+      expect(status, `${route} returned ${status}`).toBeGreaterThanOrEqual(200)
+      expect(status, `${route} returned ${status}`).toBeLessThan(400)
+      await page.waitForTimeout(800)
 
-    // Did the Next.js dev error overlay appear? `nextjs-portal` is always
-    // present (it hosts the dev-tools button), so we look for actual error
-    // text inside it via the body. The "Cannot read properties of undefined
-    // (reading 'call')" family of stale-cache errors renders an overlay with
-    // "Runtime Error" / "Build Error" / "Unhandled Runtime Error" headings.
-    const bodyText = (await page.textContent('body').catch(() => null)) ?? ''
-    const errorOverlay = /Runtime Error|Build Error|Unhandled Runtime Error|Cannot read properties of undefined/.test(bodyText)
-    expect(errorOverlay, `${route} showed a Next.js error overlay:\n${bodyText.slice(0, 500)}`).toBe(false)
+      // Did the Next.js dev error overlay appear? `nextjs-portal` is always
+      // present (it hosts the dev-tools button), so we look for actual error
+      // text inside it via the body. The "Cannot read properties of undefined
+      // (reading 'call')" family of stale-cache errors renders an overlay with
+      // "Runtime Error" / "Build Error" / "Unhandled Runtime Error" headings.
+      const bodyText = (await page.textContent('body').catch(() => null)) ?? ''
+      const errorOverlay = /Runtime Error|Build Error|Unhandled Runtime Error|Cannot read properties of undefined/.test(bodyText)
+      expect(errorOverlay, `${route} showed a Next.js error overlay:\n${bodyText.slice(0, 500)}`).toBe(false)
 
-    // Sanity: page rendered substantive content (not a blank/error page).
-    // Empty content usually means the route component threw mid-render.
-    expect(bodyText.length, `${route} rendered <100 chars of body text`).toBeGreaterThan(100)
+      // Sanity: page rendered substantive content (not a blank/error page).
+      // Empty content usually means the route component threw mid-render.
+      expect(bodyText.length, `${route} rendered <100 chars of body text`).toBeGreaterThan(100)
+    }
+
+    if (consoleErrors.length > 0) {
+      console.log('\n[smoke] console errors:')
+      for (const e of consoleErrors) console.log(`  [${e.route}] ${e.text}`)
+    }
+    if (pageErrors.length > 0) {
+      console.log('\n[smoke] page errors:')
+      for (const e of pageErrors) console.log(`  [${e.route}] ${e.message}`)
+    }
+
+    // Filter realtime/websocket noise — those don't break the demo.
+    const blockingPageErrors = pageErrors.filter(
+      (e) => !/realtime|websocket/i.test(e.message)
+    )
+    expect(
+      blockingPageErrors,
+      `Page errors found:\n${blockingPageErrors.map((e) => `  [${e.route}] ${e.message}`).join('\n')}`
+    ).toHaveLength(0)
+  } finally {
+    await cleanup()
+    await context.clearCookies()
   }
-
-  if (consoleErrors.length > 0) {
-    console.log('\n[smoke] console errors:')
-    for (const e of consoleErrors) console.log(`  [${e.route}] ${e.text}`)
-  }
-  if (pageErrors.length > 0) {
-    console.log('\n[smoke] page errors:')
-    for (const e of pageErrors) console.log(`  [${e.route}] ${e.message}`)
-  }
-
-  // Filter realtime/websocket noise — those don't break the demo.
-  const blockingPageErrors = pageErrors.filter(
-    (e) => !/realtime|websocket/i.test(e.message)
-  )
-  expect(
-    blockingPageErrors,
-    `Page errors found:\n${blockingPageErrors.map((e) => `  [${e.route}] ${e.message}`).join('\n')}`
-  ).toHaveLength(0)
 })

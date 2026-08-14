@@ -23,3 +23,9 @@ Date: 2026-08-13
 - M1 production canary flags remain closed pending the explicit owner-controlled email and approval evidence required by the PRD.
 - Hosted production promotion still requires provider identity/credential verification and post-deployment health, readiness, browser, and log evidence.
 - WO-06, WO-09, WO-03, and human acceptance gates remain tracked as documented in the PRD and related changesets.
+
+## Post-promotion E2E correction (2026-08-14)
+
+- Replaced the production smoke test's obsolete password fixture with the existing deterministic Supabase magic-link harness when `E2E_MAGIC_LINK_AUTH=1`; the legacy password path remains available for local seeded environments.
+- Aligned the route/navigation policy with the existing `admin.rate_card` capability: Commercial may enter the Admin surface for rate-card maintenance, while user and system configuration child routes remain capability-filtered to admin/owner.
+- Production Chromium route-walk after the test correction: PASS, 23/23 authenticated routes, no captured blocking page errors.
