@@ -27,10 +27,14 @@ alter default privileges for role postgres in schema public
   grant execute on functions to anon, authenticated, service_role;
 
 -- The legacy Project table predates the repository's explicit privilege
--- hardening migrations. Reproduce only the reviewed local RLS test surface.
+-- hardening migrations. Reproduce only the reviewed authenticated RLS test
+-- surface; anonymous clients must not receive direct ERP-table privileges.
+revoke all privileges
+  on table public.projects
+  from public, anon;
 grant select, insert, update, delete
   on table public.projects
-  to anon, authenticated;
+  to authenticated;
 
 -- User role changes are Core-owned. Authenticated users retain tenant-scoped
 -- reads through RLS; anonymous users must not receive a direct ERP-table grant.
