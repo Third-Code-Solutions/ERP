@@ -28,14 +28,15 @@ export function NotificationsDropdown({ tenantId, userId }: { tenantId: string; 
     setLoading(true)
     try {
       // The dashboard can hydrate while the SSR auth cookie is still being
-      // reconciled by the browser client. Verify the session first so an
-      // unauthenticated transition does not create a noisy 401 request.
+      // reconciled by the browser client. Read the local session first so an
+      // unauthenticated transition does not create a noisy 401 request. The
+      // API remains the server-authoritative authorization boundary.
       const supabase = createSupabaseBrowserClient()
       const {
-        data: { user },
+        data: { session },
         error: authError,
-      } = await supabase.auth.getUser()
-      if (authError || !user) return
+      } = await supabase.auth.getSession()
+      if (authError || !session?.user) return
 
       const res = await fetch('/api/notifications', {
         headers: { Accept: 'application/json' },
