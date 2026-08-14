@@ -30,6 +30,11 @@ export interface BomDupaDetail {
   id: string
   header_quantity: string
   uom: string
+  assembly_id: string | null
+  ocm_bps: number
+  profit_bps: number
+  vat_bps: number
+  vat_base: 'direct_only' | 'direct_plus_indirect'
   direct_cost_centavos: string
   indirect_cost_centavos: string
   vat_centavos: string
@@ -87,6 +92,7 @@ interface BomLineRowProps {
   onSelect: () => void
   onDelete: () => void
   onLocationChange: (locationId: string | null) => void
+  onDupaEdit: () => void
   locationOptions: ProjectLocationOption[]
   depth?: number
   // Source badge is owned by the builder; passed in to avoid duplicating the
@@ -177,7 +183,10 @@ function DupaDetailDisclosure({ dupa }: { dupa: BomDupaDetail }) {
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', color: 'var(--color-neutral-600)' }}>
           <span>Direct {formatPHP(dupa.direct_cost_centavos)}</span>
           <span>Indirect {formatPHP(dupa.indirect_cost_centavos)}</span>
-          <span>VAT {formatPHP(dupa.vat_centavos)}</span>
+          <span>
+            VAT ({dupa.vat_base === 'direct_only' ? 'direct only' : 'direct + indirect'}){' '}
+            {formatPHP(dupa.vat_centavos)}
+          </span>
           <strong style={{ color: 'var(--color-neutral-900)' }}>Total {formatPHP(dupa.total_cost_centavos)}</strong>
           <strong style={{ color: 'var(--color-navy-700)' }}>Unit rate {formatPHP(dupa.unit_rate_centavos)}</strong>
         </div>
@@ -264,6 +273,7 @@ export function BomLineRow({
   onSelect,
   onDelete,
   onLocationChange,
+  onDupaEdit,
   locationOptions,
   sourceBadge,
   depth = 0,
@@ -314,6 +324,28 @@ export function BomLineRow({
           </span>
         )}
         {item.description}
+        {isEditable && item.kind === 'work_item' && item.classification_status === 'classified' && (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation()
+              onDupaEdit()
+            }}
+            style={{
+              marginLeft: 8,
+              padding: '2px 6px',
+              border: '1px solid var(--color-navy-200)',
+              borderRadius: 4,
+              background: 'var(--color-surface)',
+              color: 'var(--color-navy-700)',
+              fontSize: 10,
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            {item.dupa ? 'Edit DUPA' : 'Build DUPA'}
+          </button>
+        )}
         {item.dupa && <DupaDetailDisclosure dupa={item.dupa} />}
         {flagged && (
           <span

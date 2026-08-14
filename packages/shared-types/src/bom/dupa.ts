@@ -9,6 +9,80 @@ import { z } from 'zod'
 export const dupaVatBaseSchema = z.enum(['direct_only', 'direct_plus_indirect'])
 export type DupaVatBase = z.infer<typeof dupaVatBaseSchema>
 
+const dupaDecimalStringSchema = z
+  .string()
+  .trim()
+  .regex(/^(?:0|[1-9]\d*)(?:\.\d+)?$/u, 'must be a non-negative decimal string')
+
+const dupaPositiveDecimalStringSchema = dupaDecimalStringSchema.refine(
+  (value) => !/^0(?:\.0*)?$/u.test(value),
+  'must be greater than zero',
+)
+
+const dupaCentavosStringSchema = z
+  .string()
+  .trim()
+  .regex(/^(?:0|[1-9]\d*)$/u, 'must be a non-negative centavo string')
+
+const dupaDescriptionSchema = z.string().trim().min(1).max(255)
+const dupaUomSchema = z.string().trim().min(1).max(20)
+const dupaOptionalUuidSchema = z.string().uuid().nullable().optional()
+const dupaDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/u, 'must be an ISO date')
+  .nullable()
+  .optional()
+
+export const dupaMaterialLineInputSchema = z
+  .object({
+    catalogItemId: dupaOptionalUuidSchema,
+    description: dupaDescriptionSchema,
+    quantity: dupaPositiveDecimalStringSchema,
+    uom: dupaUomSchema,
+    unitRateCentavos: dupaCentavosStringSchema,
+    rateSource: z.enum(['catalog', 'rfq', 'history', 'manual']).default('manual'),
+    rateAsOf: dupaDateSchema,
+  })
+  .strict()
+
+export const dupaLabourLineInputSchema = z
+  .object({
+    crewRoleId: dupaOptionalUuidSchema,
+    description: dupaDescriptionSchema,
+    noOfPersons: dupaPositiveDecimalStringSchema,
+    hourlyRateCentavos: dupaCentavosStringSchema,
+    productivityPerHour: dupaPositiveDecimalStringSchema,
+  })
+  .strict()
+
+export const dupaEquipmentLineInputSchema = z
+  .object({
+    equipmentId: dupaOptionalUuidSchema,
+    description: dupaDescriptionSchema,
+    noOfUnits: dupaPositiveDecimalStringSchema,
+    hourlyRateCentavos: dupaCentavosStringSchema,
+    productivityPerHour: dupaPositiveDecimalStringSchema,
+  })
+  .strict()
+
+export const dupaUpsertInputSchema = z
+  .object({
+    lineItemId: z.string().uuid(),
+    headerQuantity: dupaPositiveDecimalStringSchema,
+    uom: dupaUomSchema,
+    assemblyId: dupaOptionalUuidSchema,
+    ocmBps: z.number().int().min(0).max(10_000).default(800),
+    profitBps: z.number().int().min(0).max(10_000).default(700),
+    vatBps: z.number().int().min(0).max(10_000).default(1_200),
+    vatBase: dupaVatBaseSchema.default('direct_only'),
+    materials: z.array(dupaMaterialLineInputSchema).max(500).default([]),
+    labour: z.array(dupaLabourLineInputSchema).max(100).default([]),
+    equipment: z.array(dupaEquipmentLineInputSchema).max(100).default([]),
+  })
+  .strict()
+
+export type DupaUpsertInput = z.infer<typeof dupaUpsertInputSchema>
+
 export interface DupaMaterialInput {
   quantity: string
   unitRateCentavos: bigint
