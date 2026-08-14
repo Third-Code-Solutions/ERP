@@ -8,7 +8,7 @@ human gates into production completion.
 
 | Boundary | Current evidence | Status |
 |---|---|---:|
-| Web production | Vercel `dpl_BVBYAoqPT4c5Dbe4ti84XGmp5QVZ`, `READY`, alias `thirdcode-erp.vercel.app`, 85 routes built | PASS |
+| Web production | Vercel `dpl_3h5R66ZBfZwjKYxYbByVB3ptk7fx`, `READY`, preview `thirdcode-ci2y6ihhu-pavi-2e9809a4.vercel.app`, alias `thirdcode-erp.vercel.app`, 85 routes built | PASS |
 | Web health/readiness | `/api/health` and `/api/ready` returned 200; readiness database `up` | PASS |
 | Dashboard route guard | Anonymous `/dashboard` redirected to `/auth/login`; isolated browser console/request checks clean | PASS |
 | Authenticated hosted parity | No authorized production test identity; protected feature browser canary not run | BLOCKED |
@@ -22,7 +22,8 @@ human gates into production completion.
 
 The release is therefore healthy and source-aligned where evidence exists, but
 not fully feature-complete or authenticated-hosted-verified against every PRD
-acceptance criterion.
+acceptance criterion. This table records the verified source-alignment release;
+later documentation-only refreshes may have a different provider revision.
 
 ## M3.279 BUILD OPS reconciliation (2026-08-14)
 
