@@ -15,6 +15,8 @@ production tenant/recovery identities and human sign-offs remain unavailable.
   hierarchy explicit.
 - Corrected `docs/BUILD_OPS_AGENTS.md` so machine-verifiable checks are
   automated while provider, template, owner and human evidence remain explicit.
+- Reconciled root `AGENTS.md` to the current `docs/PRD.md` v1.4 authority and
+  marked legacy `CLAUDE.md` as historical context instead of an alternate PRD.
 - Added current release section M3.280 to the capability matrix with exact
   Vercel/Core evidence, public route checks, audit coverage and open gates.
 - Marked historical audit and hosted-brand blockers as superseded where the
@@ -27,7 +29,7 @@ production tenant/recovery identities and human sign-offs remain unavailable.
 
 ## Verification
 
-- `pnpm verify:doc-authority` — PASS, 11/11.
+- `pnpm verify:doc-authority` — PASS, 16/16.
 - `pnpm test:doc-authority` — PASS, 1/1.
 - `pnpm exec vitest run src test --pool=forks --maxWorkers=1 --minWorkers=1`
   from `apps/api` — PASS, 180/180 files and 790/790 tests.
@@ -48,5 +50,6 @@ The current source-alignment Vercel deployment is
 and the active Core deployment is
 `190d69df-8efd-41cf-b7a1-de86c9977aff`. A follow-up deployment of this
 documentation/verifier evidence refresh was applied in production as
-`dpl_6Y87u953aAet8vxpWfmiw8Qbzm4P`; live health/readiness and public browser
-smoke were rerun after that deployment.
+`dpl_9wq71maAQo943uejBTsVptdxUfeS`; live health/readiness and public browser
+smoke were rerun after that deployment. The root instruction-chain
+reconciliation is included in the final documentation slice for this branch.
