@@ -16,6 +16,7 @@ import { SupplierSwitcherPanel } from '@/components/bom/supplier-switcher-panel'
 import { VarianceBanner } from '@/components/bom/variance-banner'
 import { JustificationDialog } from '@/components/bom/justification-dialog'
 import { BomLineRow, isLineFlagged, type BomDupaDetail } from '@/components/bom/bom-line-row'
+import { DupaEditor, type DupaAssemblyOption } from '@/components/bom/dupa-editor'
 import { groupBomLinesByDivision } from '@/lib/operations/bom-hierarchy'
 
 interface BomLineItem {
@@ -184,6 +185,7 @@ interface BomBuilderProps {
   bom: Bom | null
   vendors?: Vendor[]
   locations?: ProjectLocationOption[]
+  assemblyOptions?: DupaAssemblyOption[]
 }
 
 function formatPHP(cents: number): string {
@@ -197,7 +199,7 @@ const STATUS_COLORS: Record<string, string> = {
   archived: '#6b7280',
 }
 
-export function BomBuilder({ projectId, bom, vendors = [], locations = [] }: BomBuilderProps) {
+export function BomBuilder({ projectId, bom, vendors = [], locations = [], assemblyOptions = [] }: BomBuilderProps) {
   const [isPending, startTransition] = useTransition()
   const [showAddForm, setShowAddForm] = useState(false)
   const [form, setForm] = useState({
@@ -224,6 +226,7 @@ export function BomBuilder({ projectId, bom, vendors = [], locations = [] }: Bom
   const [isFetchingSuggestions, setIsFetchingSuggestions] = useState(false)
   // US-011 — supplier switcher / variance / justification state.
   const [selectedLineId, setSelectedLineId] = useState<string | null>(null)
+  const [editingDupaLineId, setEditingDupaLineId] = useState<string | null>(null)
   const [forecastTcvCents, setForecastTcvCents] = useState<number | null>(null)
   const [isMobile, setIsMobile] = useState(false)
   const [justification, setJustification] = useState<{
@@ -260,6 +263,7 @@ export function BomBuilder({ projectId, bom, vendors = [], locations = [] }: Bom
   }, [projectId])
 
   const selectedLine = bom?.lineItems.find((l) => l.id === selectedLineId) ?? null
+  const editingDupaLine = bom?.lineItems.find((l) => l.id === editingDupaLineId) ?? null
   const hasFlaggedLines = (bom?.lineItems ?? []).some(isLineFlagged)
   const divisionGroups = bom ? groupBomLinesByDivision(bom.lineItems) : []
 
@@ -919,6 +923,7 @@ export function BomBuilder({ projectId, bom, vendors = [], locations = [] }: Bom
                       onSelect={() => setSelectedLineId(item.id)}
                       onDelete={() => handleDelete(item.id)}
                       onLocationChange={(locationId) => handleLocationChange(item.id, locationId)}
+                      onDupaEdit={() => setEditingDupaLineId(item.id)}
                       locationOptions={locations}
                       sourceBadge={<SourceBadge item={item} />}
                     />
@@ -949,6 +954,15 @@ export function BomBuilder({ projectId, bom, vendors = [], locations = [] }: Bom
           </table>
         </div>
       )}
+
+      <DupaEditor
+        projectId={projectId}
+        bomId={bom.id}
+        line={editingDupaLine}
+        assemblyOptions={assemblyOptions}
+        isEditable={isEditable}
+        onClose={() => setEditingDupaLineId(null)}
+      />
       </div>
 
       {/* US-011 — right-side supplier switcher panel (drawer on mobile) */}

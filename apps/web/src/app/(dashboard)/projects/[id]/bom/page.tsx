@@ -13,6 +13,13 @@ import {
   dupaMaterialLines,
   dupaLabourLines,
   dupaEquipmentLines,
+  assemblies,
+  assemblyMaterialTemplates,
+  assemblyLabourTemplates,
+  assemblyEquipmentTemplates,
+  materialCatalog,
+  crewRoles,
+  equipmentCatalog,
   awardHandoffs,
   priceHistory,
 } from '@third-code-erp/database/schema'
@@ -31,6 +38,7 @@ import {
 import { summarizeBomPricing } from '@/lib/operations/bom-pricing-breakdown'
 import { AwardAutomationPanel } from '@/components/bom/award-automation-panel'
 import { isPriceHistoryStale } from '@/lib/operations/bom-supplier-matching'
+import type { DupaAssemblyOption } from '@/components/bom/dupa-editor'
 
 export const metadata: Metadata = { title: 'BOM' }
 
@@ -43,6 +51,13 @@ const TABS = [
   { label: 'Comments', href: '/comments' },
   { label: 'Audit', href: '/audit' },
 ]
+
+function formatDupaMoneyInput(centavos: bigint): string {
+  const absolute = centavos < 0n ? -centavos : centavos
+  return `${centavos < 0n ? '-' : ''}${absolute / 100n}.${(absolute % 100n)
+    .toString()
+    .padStart(2, '0')}`
+}
 
 export default async function ProjectBomPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -190,6 +205,11 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
     id: string
     header_quantity: string
     uom: string
+    assembly_id: string | null
+    ocm_bps: number
+    profit_bps: number
+    vat_bps: number
+    vat_base: 'direct_only' | 'direct_plus_indirect'
     direct_cost_centavos: string
     indirect_cost_centavos: string
     vat_centavos: string
@@ -235,6 +255,11 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
       id: dupa.id,
       header_quantity: String(dupa.header_quantity),
       uom: dupa.uom,
+      assembly_id: dupa.assembly_id,
+      ocm_bps: dupa.ocm_bps,
+      profit_bps: dupa.profit_bps,
+      vat_bps: dupa.vat_bps,
+      vat_base: dupa.vat_base as 'direct_only' | 'direct_plus_indirect',
       direct_cost_centavos: String(dupa.direct_cost_centavos),
       indirect_cost_centavos: String(dupa.indirect_cost_centavos),
       vat_centavos: String(dupa.vat_centavos),
@@ -325,6 +350,141 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
     .from(vendors)
     .where(eq(vendors.tenant_id, profile.tenantId))
 
+  const assemblyRows = await db
+    .select({ id: assemblies.id, code: assemblies.code, name: assemblies.name, uom: assemblies.uom })
+    .from(assemblies)
+    .where(and(eq(assemblies.tenant_id, profile.tenantId), eq(assemblies.is_active, true)))
+    .orderBy(asc(assemblies.name))
+    .limit(200)
+  const assemblyIds = assemblyRows.map((assembly) => assembly.id)
+  const assemblyMaterialRows = assemblyIds.length > 0
+    ? await db
+        .select()
+        .from(assemblyMaterialTemplates)
+        .where(
+          and(
+            eq(assemblyMaterialTemplates.tenant_id, profile.tenantId),
+            inArray(assemblyMaterialTemplates.assembly_id, assemblyIds),
+          ),
+        )
+        .orderBy(asc(assemblyMaterialTemplates.sort_order))
+    : []
+  const assemblyLabourRows = assemblyIds.length > 0
+    ? await db
+        .select()
+        .from(assemblyLabourTemplates)
+        .where(
+          and(
+            eq(assemblyLabourTemplates.tenant_id, profile.tenantId),
+            inArray(assemblyLabourTemplates.assembly_id, assemblyIds),
+          ),
+        )
+        .orderBy(asc(assemblyLabourTemplates.sort_order))
+    : []
+  const assemblyEquipmentRows = assemblyIds.length > 0
+    ? await db
+        .select()
+        .from(assemblyEquipmentTemplates)
+        .where(
+          and(
+            eq(assemblyEquipmentTemplates.tenant_id, profile.tenantId),
+            inArray(assemblyEquipmentTemplates.assembly_id, assemblyIds),
+          ),
+        )
+        .orderBy(asc(assemblyEquipmentTemplates.sort_order))
+    : []
+  const assemblyMaterialCatalogIds = [
+    ...new Set(
+      assemblyMaterialRows.flatMap((row) => row.catalog_item_id ? [row.catalog_item_id] : []),
+    ),
+  ]
+  const assemblyCrewRoleIds = [
+    ...new Set(
+      assemblyLabourRows.flatMap((row) => row.crew_role_id ? [row.crew_role_id] : []),
+    ),
+  ]
+  const assemblyEquipmentIds = [
+    ...new Set(
+      assemblyEquipmentRows.flatMap((row) => row.equipment_id ? [row.equipment_id] : []),
+    ),
+  ]
+  const materialCatalogRows = assemblyMaterialCatalogIds.length > 0
+    ? await db
+        .select()
+        .from(materialCatalog)
+        .where(
+          and(
+            eq(materialCatalog.tenant_id, profile.tenantId),
+            inArray(materialCatalog.id, assemblyMaterialCatalogIds),
+          ),
+        )
+    : []
+  const crewRoleRows = assemblyCrewRoleIds.length > 0
+    ? await db
+        .select()
+        .from(crewRoles)
+        .where(
+          and(eq(crewRoles.tenant_id, profile.tenantId), inArray(crewRoles.id, assemblyCrewRoleIds)),
+        )
+    : []
+  const equipmentCatalogRows = assemblyEquipmentIds.length > 0
+    ? await db
+        .select()
+        .from(equipmentCatalog)
+        .where(
+          and(
+            eq(equipmentCatalog.tenant_id, profile.tenantId),
+            inArray(equipmentCatalog.id, assemblyEquipmentIds),
+          ),
+        )
+    : []
+  const materialCatalogById = new Map(materialCatalogRows.map((row) => [row.id, row]))
+  const crewRoleById = new Map(crewRoleRows.map((row) => [row.id, row]))
+  const equipmentCatalogById = new Map(equipmentCatalogRows.map((row) => [row.id, row]))
+  const assemblyOptions: DupaAssemblyOption[] = assemblyRows.map((assembly) => ({
+    id: assembly.id,
+    label: `${assembly.code} · ${assembly.name}`,
+    uom: assembly.uom,
+    materials: assemblyMaterialRows
+      .filter((row) => row.assembly_id === assembly.id)
+      .map((row) => {
+        const catalog = row.catalog_item_id ? materialCatalogById.get(row.catalog_item_id) : undefined
+        return {
+          catalogItemId: row.catalog_item_id,
+          description: row.description,
+          quantity: String(row.quantity),
+          uom: row.uom,
+          unitRate: catalog ? formatDupaMoneyInput(catalog.current_rate_centavos) : '0.00',
+          rateSource: 'catalog' as const,
+          rateAsOf: catalog ? catalog.last_updated_at.toISOString().slice(0, 10) : '',
+        }
+      }),
+    labour: assemblyLabourRows
+      .filter((row) => row.assembly_id === assembly.id)
+      .map((row) => {
+        const crew = row.crew_role_id ? crewRoleById.get(row.crew_role_id) : undefined
+        return {
+          crewRoleId: row.crew_role_id,
+          description: row.description,
+          noOfPersons: String(row.no_of_persons),
+          hourlyRate: crew ? formatDupaMoneyInput(crew.hourly_rate_centavos) : '0.00',
+          productivityPerHour: String(row.productivity_per_hour),
+        }
+      }),
+    equipment: assemblyEquipmentRows
+      .filter((row) => row.assembly_id === assembly.id)
+      .map((row) => {
+        const equipment = row.equipment_id ? equipmentCatalogById.get(row.equipment_id) : undefined
+        return {
+          equipmentId: row.equipment_id,
+          description: row.description,
+          noOfUnits: String(row.no_of_units),
+          hourlyRate: equipment ? formatDupaMoneyInput(equipment.hourly_rate_centavos) : '0.00',
+          productivityPerHour: String(equipment?.default_productivity_per_hour ?? row.productivity_per_hour),
+        }
+      }),
+  }))
+
   const ragActive = Boolean(process.env.OPENAI_API_KEY)
   const dwgWorkerActive = Boolean(process.env.DXF_PARSER_URL)
 
@@ -392,7 +552,13 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
 
       <BomLocationRollup rows={locationRollup} />
 
-      <BomBuilder projectId={id} bom={bomWithLines} vendors={vendorList} locations={locations} />
+      <BomBuilder
+        projectId={id}
+        bom={bomWithLines}
+        vendors={vendorList}
+        locations={locations}
+        assemblyOptions={assemblyOptions}
+      />
 
       {latestBom?.status === 'locked' && (
         <AwardAutomationPanel
