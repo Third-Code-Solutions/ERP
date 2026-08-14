@@ -78,34 +78,39 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
     .orderBy(desc(boms.version))
     .limit(1)
 
-  const [awardHandoff] = latestBom
-    ? await db
-        .select({
-          id: awardHandoffs.id,
-          status: awardHandoffs.status,
-          projectCode: awardHandoffs.project_code,
-          budgetId: awardHandoffs.budget_id,
-          dpInvoiceId: awardHandoffs.dp_invoice_id,
-          projectTrackerId: awardHandoffs.project_tracker_id,
-          taskIds: awardHandoffs.task_ids,
-        })
-        .from(awardHandoffs)
-        .where(
-          and(
-            eq(awardHandoffs.tenant_id, profile.tenantId),
-            eq(awardHandoffs.source_bom_id, latestBom.id)
+  const [awardHandoffsRows, lineItems] = latestBom
+    ? await Promise.all([
+        db
+          .select({
+            id: awardHandoffs.id,
+            status: awardHandoffs.status,
+            projectCode: awardHandoffs.project_code,
+            budgetId: awardHandoffs.budget_id,
+            dpInvoiceId: awardHandoffs.dp_invoice_id,
+            projectTrackerId: awardHandoffs.project_tracker_id,
+            taskIds: awardHandoffs.task_ids,
+          })
+          .from(awardHandoffs)
+          .where(
+            and(
+              eq(awardHandoffs.tenant_id, profile.tenantId),
+              eq(awardHandoffs.source_bom_id, latestBom.id),
+            ),
           )
-        )
-        .limit(1)
-    : []
-
-  const lineItems = latestBom
-    ? await db
-        .select()
-        .from(bomLineItems)
-        .where(and(eq(bomLineItems.bom_id, latestBom.id), eq(bomLineItems.tenant_id, profile.tenantId)))
-        .orderBy(asc(bomLineItems.sort_order))
-    : []
+          .limit(1),
+        db
+          .select()
+          .from(bomLineItems)
+          .where(
+            and(
+              eq(bomLineItems.bom_id, latestBom.id),
+              eq(bomLineItems.tenant_id, profile.tenantId),
+            ),
+          )
+          .orderBy(asc(bomLineItems.sort_order)),
+      ])
+    : [[], []]
+  const [awardHandoff] = awardHandoffsRows
 
   // The persisted BOM spine stays flat for downstream compatibility. Build
   // the WO-07 view model from the additive division and DUPA tables here so
@@ -118,27 +123,40 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
         .where(and(eq(dupas.tenant_id, profile.tenantId), inArray(dupas.bom_line_item_id, lineIds)))
     : []
   const dupaIds = dupaRows.map((dupa) => dupa.id)
-  const dupaMaterialRows = dupaIds.length > 0
-    ? await db
-        .select()
-        .from(dupaMaterialLines)
-        .where(and(eq(dupaMaterialLines.tenant_id, profile.tenantId), inArray(dupaMaterialLines.dupa_id, dupaIds)))
-        .orderBy(asc(dupaMaterialLines.sort_order))
-    : []
-  const dupaLabourRows = dupaIds.length > 0
-    ? await db
-        .select()
-        .from(dupaLabourLines)
-        .where(and(eq(dupaLabourLines.tenant_id, profile.tenantId), inArray(dupaLabourLines.dupa_id, dupaIds)))
-        .orderBy(asc(dupaLabourLines.sort_order))
-    : []
-  const dupaEquipmentRows = dupaIds.length > 0
-    ? await db
-        .select()
-        .from(dupaEquipmentLines)
-        .where(and(eq(dupaEquipmentLines.tenant_id, profile.tenantId), inArray(dupaEquipmentLines.dupa_id, dupaIds)))
-        .orderBy(asc(dupaEquipmentLines.sort_order))
-    : []
+  const [dupaMaterialRows, dupaLabourRows, dupaEquipmentRows] = dupaIds.length > 0
+    ? await Promise.all([
+        db
+          .select()
+          .from(dupaMaterialLines)
+          .where(
+            and(
+              eq(dupaMaterialLines.tenant_id, profile.tenantId),
+              inArray(dupaMaterialLines.dupa_id, dupaIds),
+            ),
+          )
+          .orderBy(asc(dupaMaterialLines.sort_order)),
+        db
+          .select()
+          .from(dupaLabourLines)
+          .where(
+            and(
+              eq(dupaLabourLines.tenant_id, profile.tenantId),
+              inArray(dupaLabourLines.dupa_id, dupaIds),
+            ),
+          )
+          .orderBy(asc(dupaLabourLines.sort_order)),
+        db
+          .select()
+          .from(dupaEquipmentLines)
+          .where(
+            and(
+              eq(dupaEquipmentLines.tenant_id, profile.tenantId),
+              inArray(dupaEquipmentLines.dupa_id, dupaIds),
+            ),
+          )
+          .orderBy(asc(dupaEquipmentLines.sort_order)),
+      ])
+    : [[], [], []]
 
   const materialByDupa = new Map<string, typeof dupaMaterialRows>()
   for (const row of dupaMaterialRows) {
@@ -166,35 +184,51 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
       ),
     ),
   ]
-  const priceHistoryRows = catalogItemIds.length > 0
-    ? await db
-        .select({
-          id: priceHistory.id,
-          catalog_item_id: priceHistory.catalog_item_id,
-          vendor_name: vendors.name,
-          quoted_rate_centavos: priceHistory.quoted_rate_centavos,
-          awarded_rate_centavos: priceHistory.awarded_rate_centavos,
-          source_type: priceHistory.source_type,
-          source_document: priceHistory.source_document,
-          occurred_at: priceHistory.occurred_at,
-        })
-        .from(priceHistory)
-        .leftJoin(
-          vendors,
-          and(
-            eq(priceHistory.vendor_id, vendors.id),
-            eq(vendors.tenant_id, profile.tenantId),
-          ),
-        )
-        .where(
-          and(
-            eq(priceHistory.tenant_id, profile.tenantId),
-            inArray(priceHistory.catalog_item_id, catalogItemIds),
-          ),
-        )
-        .orderBy(desc(priceHistory.occurred_at), desc(priceHistory.created_at))
-        .limit(100)
-    : []
+  const divisionIds = [
+    ...new Set(lineItems.flatMap((line) => (line.division_id ? [line.division_id] : []))),
+  ]
+  const [priceHistoryRows, divisionRows] = await Promise.all([
+    catalogItemIds.length > 0
+      ? db
+          .select({
+            id: priceHistory.id,
+            catalog_item_id: priceHistory.catalog_item_id,
+            vendor_name: vendors.name,
+            quoted_rate_centavos: priceHistory.quoted_rate_centavos,
+            awarded_rate_centavos: priceHistory.awarded_rate_centavos,
+            source_type: priceHistory.source_type,
+            source_document: priceHistory.source_document,
+            occurred_at: priceHistory.occurred_at,
+          })
+          .from(priceHistory)
+          .leftJoin(
+            vendors,
+            and(
+              eq(priceHistory.vendor_id, vendors.id),
+              eq(vendors.tenant_id, profile.tenantId),
+            ),
+          )
+          .where(
+            and(
+              eq(priceHistory.tenant_id, profile.tenantId),
+              inArray(priceHistory.catalog_item_id, catalogItemIds),
+            ),
+          )
+          .orderBy(desc(priceHistory.occurred_at), desc(priceHistory.created_at))
+          .limit(100)
+      : Promise.resolve([]),
+    divisionIds.length > 0
+      ? db
+          .select({ id: boqDivisions.id, code: boqDivisions.code, name: boqDivisions.name })
+          .from(boqDivisions)
+          .where(
+            and(
+              eq(boqDivisions.tenant_id, profile.tenantId),
+              inArray(boqDivisions.id, divisionIds),
+            ),
+          )
+      : Promise.resolve([]),
+  ])
   const priceHistoryByCatalog = new Map<string, typeof priceHistoryRows>()
   for (const row of priceHistoryRows) {
     const rows = priceHistoryByCatalog.get(row.catalog_item_id) ?? []
@@ -307,13 +341,6 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
     })
   }
 
-  const divisionIds = [...new Set(lineItems.flatMap((line) => line.division_id ? [line.division_id] : []))]
-  const divisionRows = divisionIds.length > 0
-    ? await db
-        .select({ id: boqDivisions.id, code: boqDivisions.code, name: boqDivisions.name })
-        .from(boqDivisions)
-        .where(and(eq(boqDivisions.tenant_id, profile.tenantId), inArray(boqDivisions.id, divisionIds)))
-    : []
   const divisionLabelById = new Map(divisionRows.map((division) => [
     division.id,
     `${division.code} · ${division.name}`,
@@ -332,10 +359,31 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
       }
     : null
 
-  const pendingGrainReviews = await listPendingBomGrainReviews(id, latestBom?.id ?? null)
-  const locations = await listProjectLocations(id)
-  const pendingLocationReviews = await listPendingBomLocationReviews(id, latestBom?.id ?? null)
-  const locationRollup = await listBomLocationRollup(id, latestBom?.id ?? null)
+  const [
+    pendingGrainReviews,
+    locations,
+    pendingLocationReviews,
+    locationRollup,
+    vendorList,
+    assemblyRows,
+  ] = await Promise.all([
+    listPendingBomGrainReviews(id, latestBom?.id ?? null),
+    listProjectLocations(id),
+    listPendingBomLocationReviews(id, latestBom?.id ?? null),
+    listBomLocationRollup(id, latestBom?.id ?? null),
+    db
+      .select({ id: vendors.id, name: vendors.name })
+      .from(vendors)
+      .where(eq(vendors.tenant_id, profile.tenantId)),
+    latestBom
+      ? db
+          .select({ id: assemblies.id, code: assemblies.code, name: assemblies.name, uom: assemblies.uom })
+          .from(assemblies)
+          .where(and(eq(assemblies.tenant_id, profile.tenantId), eq(assemblies.is_active, true)))
+          .orderBy(asc(assemblies.name))
+          .limit(200)
+      : Promise.resolve([]),
+  ])
   const grainReviewParents = lineItems
     .filter((line) => line.kind === 'work_item' && line.classification_status === 'classified')
     .map((line) => ({
@@ -345,54 +393,41 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
 
   const pricingBreakdown = summarizeBomPricing(lineItems)
 
-  const vendorList = await db
-    .select({ id: vendors.id, name: vendors.name })
-    .from(vendors)
-    .where(eq(vendors.tenant_id, profile.tenantId))
-
-  const assemblyRows = await db
-    .select({ id: assemblies.id, code: assemblies.code, name: assemblies.name, uom: assemblies.uom })
-    .from(assemblies)
-    .where(and(eq(assemblies.tenant_id, profile.tenantId), eq(assemblies.is_active, true)))
-    .orderBy(asc(assemblies.name))
-    .limit(200)
   const assemblyIds = assemblyRows.map((assembly) => assembly.id)
-  const assemblyMaterialRows = assemblyIds.length > 0
-    ? await db
-        .select()
-        .from(assemblyMaterialTemplates)
-        .where(
-          and(
-            eq(assemblyMaterialTemplates.tenant_id, profile.tenantId),
-            inArray(assemblyMaterialTemplates.assembly_id, assemblyIds),
-          ),
-        )
-        .orderBy(asc(assemblyMaterialTemplates.sort_order))
-    : []
-  const assemblyLabourRows = assemblyIds.length > 0
-    ? await db
-        .select()
-        .from(assemblyLabourTemplates)
-        .where(
-          and(
-            eq(assemblyLabourTemplates.tenant_id, profile.tenantId),
-            inArray(assemblyLabourTemplates.assembly_id, assemblyIds),
-          ),
-        )
-        .orderBy(asc(assemblyLabourTemplates.sort_order))
-    : []
-  const assemblyEquipmentRows = assemblyIds.length > 0
-    ? await db
-        .select()
-        .from(assemblyEquipmentTemplates)
-        .where(
-          and(
-            eq(assemblyEquipmentTemplates.tenant_id, profile.tenantId),
-            inArray(assemblyEquipmentTemplates.assembly_id, assemblyIds),
-          ),
-        )
-        .orderBy(asc(assemblyEquipmentTemplates.sort_order))
-    : []
+  const [assemblyMaterialRows, assemblyLabourRows, assemblyEquipmentRows] = assemblyIds.length > 0
+    ? await Promise.all([
+        db
+          .select()
+          .from(assemblyMaterialTemplates)
+          .where(
+            and(
+              eq(assemblyMaterialTemplates.tenant_id, profile.tenantId),
+              inArray(assemblyMaterialTemplates.assembly_id, assemblyIds),
+            ),
+          )
+          .orderBy(asc(assemblyMaterialTemplates.sort_order)),
+        db
+          .select()
+          .from(assemblyLabourTemplates)
+          .where(
+            and(
+              eq(assemblyLabourTemplates.tenant_id, profile.tenantId),
+              inArray(assemblyLabourTemplates.assembly_id, assemblyIds),
+            ),
+          )
+          .orderBy(asc(assemblyLabourTemplates.sort_order)),
+        db
+          .select()
+          .from(assemblyEquipmentTemplates)
+          .where(
+            and(
+              eq(assemblyEquipmentTemplates.tenant_id, profile.tenantId),
+              inArray(assemblyEquipmentTemplates.assembly_id, assemblyIds),
+            ),
+          )
+          .orderBy(asc(assemblyEquipmentTemplates.sort_order)),
+      ])
+    : [[], [], []]
   const assemblyMaterialCatalogIds = [
     ...new Set(
       assemblyMaterialRows.flatMap((row) => row.catalog_item_id ? [row.catalog_item_id] : []),
@@ -408,36 +443,41 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
       assemblyEquipmentRows.flatMap((row) => row.equipment_id ? [row.equipment_id] : []),
     ),
   ]
-  const materialCatalogRows = assemblyMaterialCatalogIds.length > 0
-    ? await db
-        .select()
-        .from(materialCatalog)
-        .where(
-          and(
-            eq(materialCatalog.tenant_id, profile.tenantId),
-            inArray(materialCatalog.id, assemblyMaterialCatalogIds),
-          ),
-        )
-    : []
-  const crewRoleRows = assemblyCrewRoleIds.length > 0
-    ? await db
-        .select()
-        .from(crewRoles)
-        .where(
-          and(eq(crewRoles.tenant_id, profile.tenantId), inArray(crewRoles.id, assemblyCrewRoleIds)),
-        )
-    : []
-  const equipmentCatalogRows = assemblyEquipmentIds.length > 0
-    ? await db
-        .select()
-        .from(equipmentCatalog)
-        .where(
-          and(
-            eq(equipmentCatalog.tenant_id, profile.tenantId),
-            inArray(equipmentCatalog.id, assemblyEquipmentIds),
-          ),
-        )
-    : []
+  const [materialCatalogRows, crewRoleRows, equipmentCatalogRows] = await Promise.all([
+    assemblyMaterialCatalogIds.length > 0
+      ? db
+          .select()
+          .from(materialCatalog)
+          .where(
+            and(
+              eq(materialCatalog.tenant_id, profile.tenantId),
+              inArray(materialCatalog.id, assemblyMaterialCatalogIds),
+            ),
+          )
+      : Promise.resolve([]),
+    assemblyCrewRoleIds.length > 0
+      ? db
+          .select()
+          .from(crewRoles)
+          .where(
+            and(
+              eq(crewRoles.tenant_id, profile.tenantId),
+              inArray(crewRoles.id, assemblyCrewRoleIds),
+            ),
+          )
+      : Promise.resolve([]),
+    assemblyEquipmentIds.length > 0
+      ? db
+          .select()
+          .from(equipmentCatalog)
+          .where(
+            and(
+              eq(equipmentCatalog.tenant_id, profile.tenantId),
+              inArray(equipmentCatalog.id, assemblyEquipmentIds),
+            ),
+          )
+      : Promise.resolve([]),
+  ])
   const materialCatalogById = new Map(materialCatalogRows.map((row) => [row.id, row]))
   const crewRoleById = new Map(crewRoleRows.map((row) => [row.id, row]))
   const equipmentCatalogById = new Map(equipmentCatalogRows.map((row) => [row.id, row]))
