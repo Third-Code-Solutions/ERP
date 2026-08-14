@@ -80,3 +80,58 @@ audit, migration and release controls.
   human evidence, not unit-test substitutes.
 - Hosted provider state can diverge from source; health 200 alone is not release
   parity.
+
+## Enterprise hardening run — 2026-08-14
+
+### Bounded objective
+
+Move the current product toward a defensible multi-company release by fixing the
+observed release-gate failures first, then addressing the highest-risk production
+data, runtime, and UI defects. “11/10” is treated as a quality target, not as a
+claim that can be proven by one build or deployment.
+
+### Acceptance criteria
+
+- [ ] The two currently failing main-branch CI checks are reproduced, root-caused,
+  fixed without weakening tenant or security controls, and pass locally.
+- [ ] The release path fails closed when E2E/demo markers or unauthorized test
+  identities are present in a production tenant; it never deletes data implicitly.
+- [ ] Every production-data action has an exact target, dry-run/report, backup or
+  restore evidence, and a reversible manifest. Missing ABI tenant/retention policy
+  remains BLOCKED rather than guessed.
+- [ ] The slow BOM route has a measured, source-backed remediation or remains an
+  explicit performance defect with a regression budget and test.
+- [ ] Changed backend/API/UI behavior has focused regression coverage, typecheck,
+  lint, build, and relevant browser evidence.
+- [ ] Only a verified, authorized release target is deployed; post-deploy health,
+  protected routing, console, network, and rollback identity are recorded.
+
+### Ordered increments
+
+1. **Release-gate recovery:** reproduce `Unit Tests` and `Database Reproducibility`
+   failures from main CI; fix the contract and add regressions.
+2. **Production safety boundary:** add read-only contamination detection and
+   promotion guards; inventory seed/test-account paths; do not purge hosted data.
+3. **Runtime performance:** trace the BOM loading waterfall and remove avoidable
+   serial work while preserving auth, tenant, and empty/error states.
+4. **Enterprise UX/API hardening:** address only defects proven by source/runtime
+   evidence, with one vertical slice per commit.
+5. **Release verification:** run focused→full local gates, protected browser role
+   evidence when authorized, exact provider identity checks, then deploy only if
+   all applicable gates are green.
+
+### Stop conditions
+
+- A fix would weaken RLS, authorization, audit immutability, validation, or CI gates.
+- Production cleanup needs an unresolved tenant identity, retention policy, backup,
+  or delete/move manifest.
+- A requested feature contradicts PRD authority or requires an unapproved schema or
+  provider change.
+
+### Current baseline
+
+- Branch: `agent-13/ci-green-release-20260814` at `391f5dad`.
+- Worktree: clean before this run.
+- Live web/core/CAD health: previously observed healthy, but hosted protected parity
+  and production-data cleanliness remain unverified/failed boundaries.
+- Main CI: Unit Tests and Database Reproducibility failed; Build and E2E skipped.

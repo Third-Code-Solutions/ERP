@@ -742,6 +742,30 @@ if (existsSync(userRoleAuthorityMigration)) {
   )
 }
 
+const userReadAuthorityMigration = join(
+  migrationDirectory,
+  '20260814150000_preserve_users_read_authority.sql'
+)
+assert(
+  'user read authority migration exists',
+  existsSync(userReadAuthorityMigration)
+)
+if (existsSync(userReadAuthorityMigration)) {
+  const userReadAuthority = readFileSync(userReadAuthorityMigration, 'utf8')
+  assert(
+    'user read authority preserves authenticated SELECT',
+    /GRANT\s+SELECT\s+ON\s+TABLE\s+public\.users\s+TO\s+authenticated/i.test(
+      userReadAuthority
+    )
+  )
+  assert(
+    'user read authority keeps client DML revoked',
+    /REVOKE\s+INSERT,\s*UPDATE,\s*DELETE\s+ON\s+TABLE\s+public\.users\s+FROM\s+public,\s*anon,\s*authenticated/i.test(
+      userReadAuthority
+    )
+  )
+}
+
 assert('supabase/seed.sql exists', existsSync(seedPath))
 if (existsSync(seedPath)) {
   const seed = readFileSync(seedPath, 'utf8')
