@@ -28,9 +28,9 @@
 
 ## Enterprise hardening run — 2026-08-14
 
-- [ ] Reproduce and fix the main CI Unit Tests failure.
-- [ ] Reproduce and fix the main CI Postgres reproducibility failure.
-- [ ] Add regression coverage without weakening RLS or release safety.
+- [x] Reproduce and fix the main CI Unit Tests failure.
+- [x] Reproduce and fix the main CI Postgres reproducibility failure.
+- [x] Add regression coverage without weakening RLS or release safety.
 - [ ] Add a fail-closed production contamination/promotion guard.
 - [ ] Trace and improve the BOM loading path; verify responsive/error/empty states.
 - [ ] Review changed diff and run focused then full gates.

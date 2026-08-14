@@ -130,8 +130,11 @@ claim that can be proven by one build or deployment.
 
 ### Current baseline
 
-- Branch: `agent-13/ci-green-release-20260814` at `391f5dad`.
+- Branch: `agent-13/ci-green-release-20260814` at `5e950866`.
 - Worktree: clean before this run.
 - Live web/core/CAD health: previously observed healthy, but hosted protected parity
   and production-data cleanliness remain unverified/failed boundaries.
-- Main CI: Unit Tests and Database Reproducibility failed; Build and E2E skipped.
+- Release replay `31818071628`: Actionlint, Secret Scan, Lint, Type Check,
+  Unit Tests, BUILD OPS Invariants, Database Reproducibility (Postgres 17), and
+  Build passed. E2E remained skipped by workflow policy because this was a
+  manual branch run without a configured PR E2E base URL.
