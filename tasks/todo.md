@@ -6,8 +6,8 @@
 - [x] Re-read current PRD, prompt pack and working agreement.
 - [x] Reconcile authority wording/version and current capability matrix.
 - [x] Add executable authority-document drift checks.
-- [ ] Re-run focused contracts, typecheck, build and live smoke after edits.
-- [ ] Push and deploy verified alignment changes.
+- [x] Re-run focused contracts, typecheck, build and live smoke after edits.
+- [x] Push and deploy verified alignment changes.
 - [x] Keep real ABI templates, DoA matrix, pricing decision, exact tenant
   identity and human sign-off as explicit external blockers.
 

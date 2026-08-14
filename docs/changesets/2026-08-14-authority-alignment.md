@@ -47,5 +47,6 @@ The current source-alignment Vercel deployment is
 `dpl_3h5R66ZBfZwjKYxYbByVB3ptk7fx`,
 and the active Core deployment is
 `190d69df-8efd-41cf-b7a1-de86c9977aff`. A follow-up deployment of this
-documentation/verifier evidence refresh is being applied so the live release
-and source commit remain directly correlated.
+documentation/verifier evidence refresh was applied in production as
+`dpl_6Y87u953aAet8vxpWfmiw8Qbzm4P`; live health/readiness and public browser
+smoke were rerun after that deployment.
