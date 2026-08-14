@@ -31,4 +31,5 @@ Date: 2026-08-13
 - Production Chromium route-walk after the test correction: PASS, 23/23 authenticated routes, no captured blocking page errors.
 - Hardened the notifications dropdown to read the browser Supabase session before issuing its API request, eliminating the observed SSR-hydration 401/403 race while preserving the API's unauthenticated 401 response contract.
 - Added abort-aware cleanup for notification polling and realtime-triggered fetches so page navigation cannot leave stale unauthenticated requests behind.
+- Added a document-cookie readiness check so a newly mounted route waits for SSR auth-cookie reconciliation before its first notification request.
 - Hardened the role harness with session-identity assertions, isolated browser contexts per seeded role, and settled browser-navigation checks for client-side forbidden redirects.

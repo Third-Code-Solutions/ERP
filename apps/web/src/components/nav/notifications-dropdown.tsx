@@ -33,6 +33,14 @@ export function NotificationsDropdown({ tenantId, userId }: { tenantId: string; 
     fetchControllerRef.current = controller
     setLoading(true)
     try {
+      // A route transition can briefly mount the next document before the
+      // SSR session cookie reaches document.cookie. Let the poll retry after
+      // the browser has reconciled it instead of issuing an anonymous call.
+      const hasAuthCookie = document.cookie
+        .split(';')
+        .some((cookie) => cookie.trim().startsWith('sb-'))
+      if (!hasAuthCookie) return
+
       // The dashboard can hydrate while the SSR auth cookie is still being
       // reconciled by the browser client. Read the local session first so an
       // unauthenticated transition does not create a noisy 401 request. The
