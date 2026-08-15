@@ -8,11 +8,19 @@
 > CI publication, and the M1 canary; it is not a claim that the current hosted
 > runtime or database is still at the historical 55/124 state.
 
+> Superseding evidence — 2026-08-16: the read-only provider-source planner at
+> current `origin/main` commit `b742c5d5a3d4bd696eba57aa9f7ac48fcd52bb9a`
+> reports PostgreSQL 17, 144/144 migrations, zero pending migrations, and no
+> duplicate Purchase Order groups. The source-parity portion of this blocker
+> is closed. Production promotion remains separately blocked by the
+> production-data boundary and missing provider access tokens.
+
 ## Status
 
-BLOCKED for a source-authoritative database release. The local dirty workspace,
-the local `HEAD`, and the provider's Git `main` are not the same release
-source.
+HISTORICAL BLOCKER — source parity was subsequently rechecked and reconciled
+on 2026-08-16. The evidence below records the earlier source divergence; it is
+not the current migration-parity state. Remaining production blockers are
+tracked in the dated production-promotion evidence.
 
 ## Evidence
 
