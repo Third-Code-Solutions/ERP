@@ -1,11 +1,11 @@
 # Hosted Database Release
 
-> Current read-only evidence — 2026-08-16: provider source `origin/main` at
-> `a98d9450fdb93ef5864365c64030f3d5e7f38ca2` and the requested Supabase target
-> both report 144 migrations on PostgreSQL 17, with zero pending migrations
-> and zero duplicate Purchase Order groups. The historical snapshots below
-> are retained for audit history. Production promotion is still blocked by
-> the separate data-boundary and provider-credential gates.
+> Current read-only evidence — 2026-08-16: the current `main` migration tree
+> and the requested Supabase target both report 144 migrations on PostgreSQL
+> 17, with zero pending migrations and zero duplicate Purchase Order groups.
+> The historical snapshots below are retained for audit history. Production
+> promotion is still blocked by the separate data-boundary and
+> provider-credential gates.
 
 ## Current verified release state (2026-08-10 source refresh; hosted snapshot 2026-08-07)
 

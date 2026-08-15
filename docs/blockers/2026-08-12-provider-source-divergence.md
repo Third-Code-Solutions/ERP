@@ -9,11 +9,11 @@
 > runtime or database is still at the historical 55/124 state.
 
 > Superseding evidence — 2026-08-16: the read-only provider-source planner at
-> current `origin/main` commit `a98d9450fdb93ef5864365c64030f3d5e7f38ca2`
-> reports PostgreSQL 17, 144/144 migrations, zero pending migrations, and no
-> duplicate Purchase Order groups. The source-parity portion of this blocker
-> is closed. Production promotion remains separately blocked by the
-> production-data boundary and missing provider access tokens.
+> the current `main` migration tree reports PostgreSQL 17, 144/144
+> migrations, zero pending migrations, and no duplicate Purchase Order groups.
+> The source-parity portion of this blocker is closed. Production promotion
+> remains separately blocked by the production-data boundary and missing
+> provider access tokens.
 
 ## Status
 

@@ -247,8 +247,9 @@ rebuilds the database from zero, requires every database test to execute, and
 asserts an empty schema diff.
 
 The authorized Supabase target was rechecked read-only on 2026-08-16 with the
-provider-source planner against the session pooler. At source commit
-`a98d9450fdb93ef5864365c64030f3d5e7f38ca2`, the target is PostgreSQL 17 with
+provider-source planner against the session pooler. The current `main`
+migration tree (verified at the application-release checkpoint before the
+follow-up documentation-only commits) matches a PostgreSQL 17 target with
 144 provider-source migrations applied, zero pending migrations, and zero
 duplicate Purchase Order groups; the read-only parity plan reports `READY`.
 This parity result does not by itself authorize production promotion: the
