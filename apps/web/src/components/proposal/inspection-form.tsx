@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from 'react'
 
 import { submitInspection } from '@/app/(dashboard)/crm/opportunities/[id]/proposal/actions'
+import { ActionFeedback } from '@/components/ui/action-feedback'
 import {
   clearSiteInspectionDraft,
   fileToSiteInspectionDraftPhoto,
@@ -257,7 +258,12 @@ export function InspectionForm({ opportunityId, pprfSubmitted, defaults }: Inspe
   }
 
   return (
-    <form action={onSubmit} className="inspection-form">
+    <form
+      action={onSubmit}
+      className="inspection-form"
+      aria-busy={pending || photoBusy}
+      aria-describedby="inspection-form-status"
+    >
       <input type="hidden" name="opportunity_id" value={opportunityId} />
       <input type="hidden" name="client_submission_id" value={clientSubmissionId} />
 
@@ -416,8 +422,13 @@ export function InspectionForm({ opportunityId, pprfSubmitted, defaults }: Inspe
 
       {draftMessage && <p className="form-help" role="status" aria-live="polite">{draftMessage}</p>}
       {!online && <p className="form-warning" role="alert">No connection. Keep working; this report will remain on this device until you sync.</p>}
-      {error && <p className="form-error" role="alert">{error}</p>}
-      {success && <p className="form-success" role="status">{success}</p>}
+      <ActionFeedback
+        id="inspection-form-status"
+        error={error}
+        pending={pending || photoBusy}
+        pendingMessage={photoBusy ? 'Saving photos on this device…' : 'Syncing inspection…'}
+        success={success}
+      />
 
       <div className="form-actions">
         <button type="button" className="secondary-action" onClick={() => void saveDraftNow()}>
