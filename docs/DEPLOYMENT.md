@@ -192,21 +192,26 @@ allowlist.
 `.github/workflows/deploy-production.yml` is the canonical repository-hosted
 promotion path. It is manual-only, restricted to `main`, protected by the
 GitHub `production` environment, and serialized so two releases cannot run at
-once. It runs static, type, unit, and build gates, previews and applies linked
-Supabase migrations, deploys the pinned Railway API and CAD worker services,
-deploys the Vercel project, then checks web/API/worker health and the public
-surface contract.
+once. It runs static, type, unit, and build gates, previews and applies the
+ordered Supabase migrations through the exact production session pooler,
+deploys the pinned Railway API and CAD worker services, deploys the Vercel
+project, then checks web/API/worker health and the public surface contract.
 
 Configure these secrets on the `production` environment before dispatching:
 
 - `VERCEL_TOKEN`
 - `RAILWAY_TOKEN` (Railway project token for production)
-- `SUPABASE_ACCESS_TOKEN`
-- `SUPABASE_DB_PASSWORD`
+- `SUPABASE_MIGRATION_DATABASE_URL` (write-scoped exact-project session pooler
+  URL on port `5432`; GitHub secret only)
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` (seeded production E2E harness)
 - `SUPABASE_SERVICE_ROLE_KEY` (seeded production E2E harness; GitHub secret only)
 - `PRODUCTION_DATABASE_URL` (read-only/session PostgreSQL URL used by the
   production data-boundary gate; GitHub secret only)
+
+The migration URL is separate from `PRODUCTION_DATABASE_URL`: the latter must
+remain read-only for the contamination scan. The workflow validates the
+migration URL username, project reference, and session-pooler port before any
+SQL is applied. A Supabase management PAT is not required by this path.
 
 The workflow currently allows only the exact dedicated `buildops-e2e` tenant
 through `BUILD_OPS_DEMO_TENANT_SLUGS`. Do not add a customer or foreign test
@@ -252,15 +257,14 @@ migration tree (verified at the application-release checkpoint before the
 follow-up documentation-only commits) matches a PostgreSQL 17 target with
 144 provider-source migrations applied, zero pending migrations, and zero
 duplicate Purchase Order groups; the read-only parity plan reports `READY`.
-This parity result does not by itself authorize production promotion: the
-read-only production-data boundary still reports `review_required` because
-two E2E-prefixed rows remain under the non-demo tenant
-`e2e-qa-20260513-foreign`, and the guarded workflow still lacks its three
-provider access tokens. Historical 55/124 and migration-failure findings are
-retained in the dated blocker and runbook records for audit history. Future
-releases must run both the local snapshot checks and the provider-source
-planner, then satisfy reviewed SQL, backup/rollback, source-identity, data
-boundary, and authenticated E2E evidence in
+The production data-boundary scan was also cleared on 2026-08-16 after the two
+exact synthetic rows under `e2e-qa-20260513-foreign` were removed through a
+tenant- and value-guarded cleanup; both deletes are retained in the append-only
+audit log. Historical 55/124 and migration-failure findings remain in the
+dated blocker and runbook records for audit history. Future releases must run
+both the local snapshot checks and the provider-source planner, then satisfy
+reviewed SQL, backup/rollback, source-identity, data boundary, and
+authenticated E2E evidence in
 [`database-release.md`](runbooks/database-release.md). Never use hosted
 `db reset` or ad hoc `migration repair`.
 
