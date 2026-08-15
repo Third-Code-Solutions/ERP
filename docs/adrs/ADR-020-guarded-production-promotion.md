@@ -16,7 +16,9 @@ Provider project and service identifiers are fixed in the workflow. Provider
 credentials are GitHub environment secrets and are never read from the
 repository or printed. The read-only production-boundary URL is separate from
 the write-scoped migration URL; the workflow validates the migration target
-before applying SQL. Missing credentials fail before any provider mutation.
+before applying SQL. Railway uses an explicit workspace API token binding so
+the CLI does not mistake it for a project token. Missing credentials fail
+before any provider mutation.
 The promotion also requires `NEXT_PUBLIC_SUPABASE_ANON_KEY` and
 `SUPABASE_SERVICE_ROLE_KEY` for the seeded, authenticated production E2E
 harness. After public health checks, the workflow runs the branding, route

@@ -40,10 +40,13 @@ The historical blocker was remediated without widening the demo allowlist:
   history was deleted.
 - The production boundary verifier now reports `clear`, 70 E2E field matches,
   zero seeded identities outside the allowlist, and zero promotion violations.
-- `RAILWAY_TOKEN` is now present as a newly generated production project API
-  token. The workflow no longer depends on `SUPABASE_ACCESS_TOKEN`; it uses a
-  separate `SUPABASE_MIGRATION_DATABASE_URL` write-scoped session-pooler secret
-  and keeps `PRODUCTION_DATABASE_URL` read-only.
+- `RAILWAY_API_TOKEN` is now present as a newly generated production workspace
+  API token. The workflow binds it to the CLI's account/workspace token
+  variable; using this value as `RAILWAY_TOKEN` was rejected by Railway as the
+  wrong token type. The workflow no longer depends on
+  `SUPABASE_ACCESS_TOKEN`; it uses a separate `SUPABASE_MIGRATION_DATABASE_URL`
+  write-scoped session-pooler secret and keeps `PRODUCTION_DATABASE_URL`
+  read-only.
 - Vercel still requires a classic, non-expiring personal token for durable CI
   operation. The current local OAuth session is sufficient only for an
   immediate promotion window and must not be treated as a permanent release

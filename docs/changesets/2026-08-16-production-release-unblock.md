@@ -16,8 +16,9 @@
   identities outside the allowlist; zero promotion violations.
 - Supabase CLI 2.109.1 against the production session pooler: migration
   dry-run reported the remote database up to date.
-- Railway project API token created and stored in the protected GitHub
-  `production` environment as `RAILWAY_TOKEN`.
+- Railway workspace API token created and stored in the protected GitHub
+  `production` environment as `RAILWAY_API_TOKEN`; the workflow binds the
+  correct CLI token variable.
 
 ## Remaining release condition
 
