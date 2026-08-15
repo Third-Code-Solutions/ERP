@@ -7,13 +7,16 @@
 
 Production promotion uses a manually dispatched GitHub workflow on `main`,
 protected by the GitHub `production` environment. The workflow runs release
-gates, previews and applies linked Supabase migrations, deploys the exact
+gates, previews and applies the ordered Supabase migrations through a
+write-scoped session-pooler URL for the exact project, deploys the exact
 Railway API and CAD worker services, deploys the exact Vercel project, and
 checks all public health/readiness contracts afterward.
 
 Provider project and service identifiers are fixed in the workflow. Provider
 credentials are GitHub environment secrets and are never read from the
-repository or printed. Missing credentials fail before any provider mutation.
+repository or printed. The read-only production-boundary URL is separate from
+the write-scoped migration URL; the workflow validates the migration target
+before applying SQL. Missing credentials fail before any provider mutation.
 The promotion also requires `NEXT_PUBLIC_SUPABASE_ANON_KEY` and
 `SUPABASE_SERVICE_ROLE_KEY` for the seeded, authenticated production E2E
 harness. After public health checks, the workflow runs the branding, route

@@ -29,3 +29,22 @@ secret values.
 The existing non-demo E2E data-boundary finding must also be cleared through
 an authorized, reversible process before promotion. No production data was
 changed as part of this audit.
+
+## Resolution update — 2026-08-16
+
+The historical blocker was remediated without widening the demo allowlist:
+
+- The exact foreign synthetic `projects` row and its mirrored `cortex_nodes`
+  row were removed with tenant, ID, and value guards. The append-only audit log
+  contains two corresponding delete events; no tenant, user, calendar, or audit
+  history was deleted.
+- The production boundary verifier now reports `clear`, 70 E2E field matches,
+  zero seeded identities outside the allowlist, and zero promotion violations.
+- `RAILWAY_TOKEN` is now present as a newly generated production project API
+  token. The workflow no longer depends on `SUPABASE_ACCESS_TOKEN`; it uses a
+  separate `SUPABASE_MIGRATION_DATABASE_URL` write-scoped session-pooler secret
+  and keeps `PRODUCTION_DATABASE_URL` read-only.
+- Vercel still requires a classic, non-expiring personal token for durable CI
+  operation. The current local OAuth session is sufficient only for an
+  immediate promotion window and must not be treated as a permanent release
+  credential.
