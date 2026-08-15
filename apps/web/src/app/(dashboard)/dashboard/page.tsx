@@ -8,6 +8,7 @@ import {
   getConversionRates,
   getMonthlyForecast,
   getTodayCommandCenter,
+  getManagementDashboard,
 } from '@/lib/dashboard-queries'
 import { KpiCards } from '@/components/dashboard/kpi-cards'
 import { RepScorecardTable } from '@/components/dashboard/rep-scorecard'
@@ -19,6 +20,7 @@ import { ForecastChart } from '@/components/dashboard/forecast-chart'
 import { ExportCsvButton } from '@/components/dashboard/export-csv-button'
 import { CloseDateFilter } from '@/components/dashboard/close-date-filter'
 import { TodayCommandCenter } from '@/components/dashboard/today-command-center'
+import { ManagementHealth } from '@/components/dashboard/management-health'
 import { loadDashboardForRole } from '@/lib/dashboard-access'
 import { canViewPath, roleLabel } from '@/lib/operations/nav-config'
 
@@ -62,7 +64,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
   const dashboard = await loadDashboardForRole(profile.role, {
     executive: async () => {
-      const [kpis, stages, reps, alerts, conversionRates, forecast, today] =
+      const [kpis, stages, reps, alerts, conversionRates, forecast, today, management] =
         await Promise.all([
           getDashboardKpis(profile.tenantId),
           getStageDistribution(profile.tenantId),
@@ -76,9 +78,10 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             renderedAt,
             canViewPath(profile.role, '/projects')
           ),
+          getManagementDashboard(profile.tenantId),
         ])
 
-      return { kpis, stages, reps, alerts, conversionRates, forecast, today }
+      return { kpis, stages, reps, alerts, conversionRates, forecast, today, management }
     },
     myWork: () =>
       getTodayCommandCenter(
@@ -146,7 +149,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     )
   }
 
-  const { kpis, stages, reps, alerts, conversionRates, forecast, today } =
+  const { kpis, stages, reps, alerts, conversionRates, forecast, today, management } =
     dashboard.data
 
   return (
@@ -180,6 +183,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       <TodayCommandCenter role={profile.role} data={today} />
 
       <KpiCards kpis={kpis} />
+
+      <ManagementHealth data={management} />
 
       <div className="section-grid-2">
         <StageDistributionTable rows={stages} />

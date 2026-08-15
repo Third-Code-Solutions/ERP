@@ -47,7 +47,13 @@ export default async function PermitsPage() {
       last_status_change_at: permits.last_status_change_at,
     })
     .from(permits)
-    .innerJoin(projects, eq(projects.id, permits.project_id))
+    .innerJoin(
+      projects,
+      and(
+        eq(projects.id, permits.project_id),
+        eq(projects.tenant_id, permits.tenant_id)
+      )
+    )
     .leftJoin(users, and(eq(users.id, permits.responsible_user_id), eq(users.tenant_id, profile.tenantId)))
     .where(eq(permits.tenant_id, profile.tenantId))
     .orderBy(desc(permits.last_status_change_at))

@@ -146,6 +146,7 @@ interface BudgetFixture {
   ownerId: string
   projectId: string
   sourceBomId: string
+  bomLineItemId: string
   costCodeId: string
   budgetId: string
 }
@@ -221,6 +222,29 @@ async function seedBudgetFixture(
        returning id`
     )) as Rows
   )[0]!.id as string
+  const bomLineItemId = (
+    (await tx.unsafe(
+      `insert into bom_line_items(
+         tenant_id,
+         bom_id,
+         description,
+         unit,
+         quantity,
+         unit_cost_cents,
+         line_total_cents
+       )
+       values(
+         '${tenantId}',
+         '${sourceBomId}',
+         'Materials baseline',
+         'lot',
+         1,
+         ${amountCents},
+         ${amountCents}
+       )
+       returning id`
+    )) as Rows
+  )[0]!.id as string
   const budgetId = (
     (await tx.unsafe(
       `insert into project_budgets(
@@ -257,6 +281,7 @@ async function seedBudgetFixture(
        tenant_id,
        project_budget_id,
        cost_code_id,
+       bom_line_item_id,
        line_number,
        description,
        amount_cents
@@ -265,6 +290,7 @@ async function seedBudgetFixture(
        '${tenantId}',
        '${budgetId}',
        '${costCodeId}',
+       '${bomLineItemId}',
        1,
        'Materials baseline',
        ${amountCents}
@@ -280,6 +306,7 @@ async function seedBudgetFixture(
     ownerId,
     projectId,
     sourceBomId,
+    bomLineItemId,
     costCodeId,
     budgetId,
   }
@@ -471,6 +498,7 @@ runtimeSuite('Project Budget runtime controls', () => {
              po_id,
              description,
              cost_code_id,
+             bom_line_item_id,
              quantity,
              unit_cost_cents,
              line_total_cents
@@ -480,6 +508,7 @@ runtimeSuite('Project Budget runtime controls', () => {
              '${poId}',
              'Budgeted commitment',
              '${fixture.costCodeId}',
+             '${fixture.bomLineItemId}',
              1,
              ${amount},
              ${amount}

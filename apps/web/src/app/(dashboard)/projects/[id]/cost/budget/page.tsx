@@ -37,6 +37,7 @@ interface BudgetRegisterRow extends Record<string, unknown> {
   effective_from: string
   revision_reason: string
   total_budget_cents: number
+  original_gp_margin_bps: number
   source_bom_id: string | null
   submitted_by_name: string | null
   submitted_at: Date | null
@@ -132,6 +133,7 @@ export default async function ProjectBudgetPage({
         budget.effective_from,
         budget.revision_reason,
         budget.total_budget_cents,
+        budget.original_gp_margin_bps,
         budget.source_bom_id,
         submitter.full_name as submitted_by_name,
         budget.submitted_at,
@@ -573,6 +575,13 @@ export default async function ProjectBudgetPage({
                       </small>
                     </span>
                   )}
+                  <span>
+                    Original GP margin
+                    <strong>
+                      {(budget.original_gp_margin_bps / 100).toFixed(2)}%
+                    </strong>
+                    <small>Snapshot at final approval</small>
+                  </span>
                 </div>
               </article>
             ))

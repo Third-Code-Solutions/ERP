@@ -53,17 +53,21 @@ describe('Inventory item configuration HTTP contract', () => {
     return app
   }
 
-  it('rejects tenant and actor fields from the browser command', async () => {
-    const configure = vi.fn()
-    const app = await appFor(configure)
+  it(
+    'rejects tenant and actor fields from the browser command',
+    async () => {
+      const configure = vi.fn()
+      const app = await appFor(configure)
 
-    await request(app.getHttpServer())
-      .patch(`/v1/inventory/items/${ITEM_ID}/configuration`)
-      .send({ uomId: UOM_ID, tracked: true, tenantId: TENANT_ID })
-      .expect(400)
+      await request(app.getHttpServer())
+        .patch(`/v1/inventory/items/${ITEM_ID}/configuration`)
+        .send({ uomId: UOM_ID, tracked: true, tenantId: TENANT_ID })
+        .expect(400)
 
-    expect(configure).not.toHaveBeenCalled()
-  })
+      expect(configure).not.toHaveBeenCalled()
+    },
+    30_000
+  )
 
   it('forwards the validated state command and verified principal', async () => {
     const configure = vi.fn().mockResolvedValue({

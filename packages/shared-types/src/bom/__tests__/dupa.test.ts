@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   assertBoqUnitRate,
   computeDupa,
+  dupaUpsertInputSchema,
   deriveBoqLineAmount,
 } from '../dupa'
 
@@ -72,5 +73,35 @@ describe('DUPA engine', () => {
     expect(() => computeDupa({ headerQuantity: '0' })).toThrow(
       'header quantity must be greater than zero',
     )
+  })
+
+  it('validates persisted DUPA input and rejects unknown keys', () => {
+    const parsed = dupaUpsertInputSchema.safeParse({
+      lineItemId: '11111111-1111-4111-8111-111111111111',
+      headerQuantity: '0.10',
+      uom: 'cu.m',
+      materials: [
+        {
+          description: 'Concrete',
+          quantity: '1.00',
+          uom: 'cu.m',
+          unitRateCentavos: '595100',
+          rateSource: 'manual',
+          rateAsOf: null,
+        },
+      ],
+      labour: [],
+      equipment: [],
+    })
+    expect(parsed.success).toBe(true)
+
+    expect(
+      dupaUpsertInputSchema.safeParse({
+        lineItemId: '11111111-1111-4111-8111-111111111111',
+        headerQuantity: '0.10',
+        uom: 'cu.m',
+        unexpected: true,
+      }).success,
+    ).toBe(false)
   })
 })

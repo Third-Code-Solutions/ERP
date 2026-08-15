@@ -8,10 +8,11 @@
     "databaseVersion": "17.6.1.121",
     "postgresMajor": 17,
     "appliedCount": 55,
-    "sourceCount": 124,
-    "pendingCount": 69,
+    "sourceCount": 142,
+    "sourceLedgerUpdatedOn": "2026-08-14",
+    "pendingCount": 87,
     "appliedHead": "20260729233017",
-    "sourceHead": "20260812150000",
+    "sourceHead": "20260814130000",
     "ledgerStatus": "review_required",
     "purchaseOrderPreflight": {
       "purchaseOrderRows": 13,
@@ -50,6 +51,7 @@
       "id": "01-purchase-order-uniqueness-gate",
       "purpose": "Fail-closed duplicate remediation boundary before any suffix apply.",
       "migrations": [
+        "20260801080000_reconcile_duplicate_purchase_order_numbers.sql",
         "20260801090000_purchase_order_create_idempotency.sql"
       ]
     },
@@ -215,6 +217,35 @@
       "purpose": "Bounded tenant-scoped object-storage source reference for the fail-closed Core bank-statement import command.",
       "migrations": [
         "20260812150000_bank_statement_storage_source.sql"
+      ]
+    },
+    {
+      "id": "18-build-ops-source-reconciliation",
+      "purpose": "Current BUILD OPS business calendar, SLA, BOM grain/location/DUPA, and takeoff source migrations.",
+      "migrations": [
+        "20260812155000_wo_02_audit_business_calendar.sql",
+        "20260812160000_process_sla_engine_foundation.sql",
+        "20260812170000_wo_04_bom_grain_classification.sql",
+        "20260812173000_wo_05_location_dimension.sql",
+        "20260812180000_wo_06_dupa_engine.sql",
+        "20260812190000_wo_08_takeoff_importer.sql"
+      ]
+    },
+    {
+      "id": "19-build-ops-commercial-controls-and-sync",
+      "purpose": "Current BUILD OPS RFQ, KYC, inspection, award, budget, permits, cost-control, tenant-audit, change-log, sync, and commitment migrations.",
+      "migrations": [
+        "20260813110000_rfq_price_history_provenance.sql",
+        "20260813130000_wo_11_opportunity_kyc_tracks.sql",
+        "20260813150000_wo_12_mobile_site_inspection_media.sql",
+        "20260813170000_wo_13_award_handoff.sql",
+        "20260813180000_wo_14_allowable_budget_lock.sql",
+        "20260813190000_wo_16_permits_mobilization.sql",
+        "20260813200000_wo_17_cost_control_v1.sql",
+        "20260813210000_audit_missing_tenant_tables.sql",
+        "20260813220000_change_request_change_log.sql",
+        "20260814120000_wo_12_inspection_sync_idempotency.sql",
+        "20260814130000_wo_15_budget_commitment.sql"
       ]
     }
   ]

@@ -1,11 +1,12 @@
-# BUILD OPS PRD v1.3
+# BUILD OPS PRD v1.4
 
-> Markdown copy extracted from `output/pdf/BUILD OPS PRD.pdf` on 2026-08-12.
-> The attached PDF remains canonical for visual fidelity; this file is the repository execution copy.
+> Repository execution authority, reconciled with current source and provider evidence on 2026-08-14.
+> Historical PDF exports remain reference material; they do not override this file, the current code,
+> migration ledger, or timestamped release evidence.
 BUILD OPS — Refactor PRD (Execution Edition)
 Construction ERP for Actuate Builders Inc. (ABI) · product brand ABI OPS.
-Version 1.3 · 12 August 2026 · Supersedes v1.0–v1.2
-Reference toolchain: OpenAI Codex CLI. Tool-agnostic in substance.
+Version 1.4 · 14 August 2026 · Supersedes v1.0–v1.3
+Execution: Codex desktop/CLI or any equivalent engineering agent. Tool-agnostic in substance.
 Companion files:
 In the repo Purpose
 AGENTS.md (root) Auto-loaded by Codex every session. Lean guardrails only
@@ -15,6 +16,11 @@ fixtures/abi/ (gitignored)Real ABI Excel templates and Togal exports
 BUILD_OPS_Blueprint.md — the why: evidence, audit, contradictions, reasoning record.
 Keep this out of the repo; it contains competitor analysis, an audit of the current build, and
 a named error in a client-facing document.
+What changed in v1.4: current frontend, Core API, routing, storage, hosting and deployment
+surfaces are recorded so the refactor does not erase working product behavior. Local repository
+edits, tests, documentation and reversible build work are executable from the requesting task
+without an interactive go-ahead. Hosted data, provider configuration and irreversible actions
+still require exact targets, rollback evidence and a release gate.
 What changed in v1.1: every work order is now a self-contained implementation ticket
 (Context / Do / Do NOT / Files / Acceptance / Rollback), so a session can execute one ticket
 without reading the whole document. A pre-flight checklist (§0.3) and a drift-recovery
@@ -30,22 +36,30 @@ You are a senior engineer working on BUILD OPS, a construction ERP for Actuate B
 Inc. Read docs/PRD.md in full before writing any code. It contains confirmed schema
 facts, locked architectural decisions, and a numbered work-order sequence. Do not
 propose rebuilding anything marked LOCKED. Do not introduce entities the PRD explicitly
-forbids. Start with Work Order WO-01 and confirm your migration plan with me before
-running it.
+forbids. Start with Work Order WO-01, record the migration plan and rollback, then
+execute the smallest verified slice without waiting for a conversational approval.
 The full prompt set lives in docs/PROMPTS.md.
 Rules for any session working from this PRD:
 1. This is a refactor, not a rewrite. The existing codebase is sound where it matters (§2).
 Additive migrations only. No downstream foreign key is re-pointed at any stage.
-2. Do not create a scope_items table. See ADR-03. This is the most likely wrong instinct
-and it is expensive.
+2. Do not create a second scope model. The legacy `scope_items` table already exists in the
+initial schema and remains a compatibility input for CAD evidence. New refactor work uses the
+existing `bom_line_items` spine; no new `scope_items` table or `scope_item_id` column may be
+introduced.
 3. Work orders are numbered and ordered. WO-01 → WO-18. Do not skip forward; later
 orders assume earlier invariants hold.
-4. Every work order has explicit acceptance criteria. A work order is not done until its
-criteria pass as automated tests.
+4. Every work order has explicit acceptance criteria. Machine-verifiable criteria must
+pass as automated tests; human, provider and real-template gates remain explicit evidence.
 5. Where this PRD says [BLOCKED: O-n], the work order cannot be completed without an
 answer from ABI. Build to the labelled default, mark it configurable, and flag it.
 6. All money is BIGINT centavos. All percentages are integer basis points. Never
 introduce a float into a monetary path.
+7. Existing production-facing features stay available unless a replacement path has
+equivalent automated, browser and release evidence. Documentation drift is fixed by adding
+confirmed current behavior and removing stale claims, not by deleting working routes.
+8. A work order may proceed locally when its acceptance criteria are testable. Missing ABI
+templates, policy decisions or provider evidence become explicit BLOCKED boundaries; they do
+not trigger a silent substitute or an indefinite wait.
 0.1 Two ways to run this
 Codex CLI (recommended for WO-01 → WO-18). Commit this PRD as docs/PRD.md and
 commit AGENTS.md at the repo root. Codex reads AGENTS.md automatically at session start
@@ -58,25 +72,22 @@ A chat assistant (for design review, migration review, and the D-1/D-2 conversat
 with Commercial). Attach this PRD plus the relevant screenshots. Good for reasoning and
 for arguing a decision through; do not use it to generate large migrations you then paste in
 blind.
-Four Codex specifics that matter for this refactor:
+Execution details that matter for this refactor:
 
 1. Do not put this PRD into AGENTS.md. Codex stops adding project guidance once the
 concatenated instruction files reach project_doc_max_bytes (32 KiB by default), and
 files discovered later are silently dropped. This PRD alone would exceed that. Keep
 AGENTS.md lean and reference docs/PRD.md per work order.
-2. AGENTS.md is instruction, not enforcement. It reduces the probability of a destructive
-migration; it does not remove the possibility. For DROP statements and production
-pushes, use Codex’s sandbox permissions, approval settings or execpolicy rules. Given
-WO-04 and WO-05 are structural migrations against real data, configure those before
-the first migration runs.
+2. Markdown is guidance, not enforcement. Do not use it as a substitute for bounded target
+checks, migration dry-runs, backups, rollback plans or provider identity checks. Structural
+migrations and production releases must fail closed when their evidence is missing; local
+implementation and verification must not pause for a conversational approval.
 3. Editing AGENTS.md mid-session does nothing. The instruction chain is built once at
 session start. Restart the session after any edit.
-4. Launch from the repo root. Codex walks from the git root toward the working directory;
+4. Launch from the repo root. The agent walks from the git root toward the working directory;
 starting in a subdirectory can leave root-level instructions outside the walk path.
-Verify the instruction file is actually loading before the first work order. Start a session
-and ask: “Summarise the hard constraints you’re operating under, in five bullets.” If the
-answer does not mention no scope_items, additive migrations only, and no general ledger,
-the file is not in context — check the size cap and the launch directory.
+Verify the instruction file is loaded before the first work order. Check hard constraints
+directly from the repository; do not rely on a response ritual or wait state.
 0.2 The one-paragraph version, for anyone joining mid-refactor
 The database spine is already correct: money is integer centavos, tenancy is enforced, and
 bom_line_items.id is a stable UUID that cost, budget, PO and RFQ records already point
@@ -88,8 +99,9 @@ additive migrations, no foreign key ever moves.
 0.3 Pre-flight checklist — do these before WO-01
 Database backup taken, restore tested. Every work order below has a rollback, but a
 backup is the real one.
-A staging environment exists with a copy of production data. Backfills (WO-04, WO-
-05) run on staging first, always.
+For any hosted data mutation, an isolated staging or restore replay exists first. Local
+backfills use the disposable PostgreSQL lane when hosted staging is unavailable; no local
+result is presented as production evidence.
 CI runs the test suite on every PR. If it does not, this is WO-00 — the invariants in §6
 are worthless as prose and valuable only as failing builds.
 The five blocking open questions are sent to ABI (§11): O-01 VAT base, O-03
@@ -100,14 +112,14 @@ One estimator is identified as the design partner for WO-06/07. The DUPA engine
 cannot be validated without one.
 Decide the tenancy/branding question (O-01b). It is cheap now.
 0.4 Drift-recovery protocol
-Long refactors drift. If a session starts proposing a rewrite, inventing scope_items, or
+Long refactors drift. If a session starts proposing a rewrite, inventing a second scope model, or
 reaching for a general ledger, stop and paste the Drift Reset prompt from the Prompt Pack.
 If output already contains drifted code, discard it rather than repairing it — repaired drift is
 harder to review than fresh work.
 Three red flags that mean stop immediately:
 1. Any migration containing DROP COLUMN, DROP TABLE, or an ALTER that re-points an
 existing foreign key.
-2. Any new table named scope_items, or any new column named scope_item_id.
+2. Any new scope model or any new column named scope_item_id.
 3. Any monetary value typed as float, double precision, numeric without explicit
 scale, or a JS number used for currency.
 1. Context brief (for a cold session)
@@ -117,7 +129,37 @@ Procurement/SCM, Service Delivery (SD: Project Manager, Project Engineer, Site S
 Safety Officer, QA/QC), Finance (GA / AR / Treasury), CX, and Management/President.
 The product. BUILD OPS is ABI’s construction operating system — one connected system
 from lead to handover. It currently exists as a working build (“ABI OPS”, Next.js on
-Vercel, Supabase/Postgres) at roughly 25 modules.
+Vercel, Supabase/Postgres) with a NestJS Core API, Redis-backed jobs and a Railway CAD
+evidence worker. The following current-state inventory is source-backed as of 2026-08-14;
+provider claims require the release evidence in §14.
+
+Current runtime surfaces that this refactor must preserve:
+- Frontend: Next.js 15 App Router, React 19, Tailwind v4, authenticated `(dashboard)` routes,
+  public `(auth)` routes, client portals, server actions and compatibility API routes.
+- Backend: NestJS Core modules under `apps/api/src` for auth, CRM, projects, procurement,
+  documents, CAD evidence, process/SLA, inventory, finance, notifications, search, Today and
+  Cortex. Legacy Next handlers remain adapters until their Core authority gates close.
+- Routing/API: health/readiness, upload/document processing, CAD evidence, Togal/takeoff,
+  Cortex, search, notifications, inspection, finance and webhook route handlers, plus protected
+  `/v1/*` Core endpoints with tenant-derived capability checks and Zod/shared contracts.
+- Data: Supabase Postgres 17, Drizzle schema, additive `supabase/migrations`, tenant-scoped
+  RLS, append-only audit coverage, business calendar, BOM/DUPA/takeoff, KYC, inspection,
+  award, budget, commitment, permit, cost-control, inventory, finance and Cortex tables.
+- Storage: private Supabase Storage objects for documents, drawings, signatures, inspection
+  media and bank-statement sources; upload sessions and short-lived signed URLs; object paths
+  are tenant/project scoped and never trusted from caller-supplied tenant values.
+- Jobs/integrations: Redis/BullMQ for Core queues, Inngest/legacy Edge Function compatibility
+  for scheduled work, Railway CAD evidence parsing, optional DocuSeal/Resend/Semaphore and
+  provider-backed AI behind explicit feature flags and tenant allowlists.
+- Hosting: Vercel project `thirdcode-erp` for Web, Railway for Core API and CAD worker,
+  Supabase for database/Auth/Storage/Realtime, and Redis for readiness/queue coordination.
+
+Current product modules include CRM/accounts/opportunities/KYC/PPRF/proposal inspection,
+projects/documents/comments/access, BOM and Togal/takeoff intake, procurement/RFQ/PO/delivery,
+inventory, permits/process/SLA, cost/budget/commitments, tasks/progress/variation orders,
+claims/billing/invoices, punchlist/turnover, warranty/CX/portals, finance, Cortex, admin and
+reports. Existing modules are retained; this PRD defines additive refactor work and release
+gates, not a route deletion list.
 ABI’s four stages and the documents that gate them:
 1. Proposal (Sales-led) — PPRF → KYC/financial standing → SI Report + RFI → layout &
 perspective → RFQ → BOM + BOE → Level 1 Master Schedule → signed BOM →
@@ -143,8 +185,8 @@ unit rate is re-typed into a BOQ, whose total is re-typed into a proposal, then 
 Budget, then a Project Tracker, then an RFPO, then a PO, then a billing forecast, then an
 invoice — across separately versioned Excel files (_PPRF_Ver3, _SI_Ver1, _BOE_Ver2)
 owned by five business units. BUILD OPS’s job is to type it once.
-2. Confirmed schema facts (verified against the live database
-— do not re-litigate)
+2. Confirmed schema facts (verified against repository migrations and
+available database replay/hosted evidence; recheck exact target at release)
 #Fact Status Consequence
 1
 Money stored as BIGINT centavos;
@@ -157,8 +199,8 @@ exactly reproducible. No
 money-type migration
 needed.
 2
-tenant_id is NOT NULL on all application
-tables; tenants is the root; RLS scoping
+tenant_id is NOT NULL on tenant-scoped
+application tables; tenants is the root; RLS scoping
 already in place.
  VERIFIED
 Multi-tenancy is solved.
@@ -177,14 +219,14 @@ by id.
 VERIFIEDbuild and it is already
 built.
 4
-scope_item_id does not exist. The
-system uses bom_line_item_id
-throughout.
+The legacy initial schema contains
+scope_items for CAD evidence; the
+refactor spine uses bom_line_items and
+no scope_item_id column.
  VERIFIED
-See ADR-03.
-bom_line_items is the
-Scope Item. Do not
-rename, do not duplicate.
+Keep the legacy input for compatibility.
+Do not add another scope model or
+re-point downstream foreign keys.
 Therefore: refactor, not rebuild. The three conditions that would have forced a greenfield
 rewrite — float money, missing tenancy, unstable line identity — all came back clean.
 3. Architectural Decision Records (LOCKED)
@@ -196,10 +238,10 @@ or a rewiring of a view over new tables.
 ADR-02 — bom_line_items is promoted to the Scope Item spine. LOCKED. It already
 carries a stable UUID referenced by four downstream domains. It stays the anchor. Domain
 language in the UI may say “Scope Item”; the table does not change name in v1.
-ADR-03 — Do NOT create a scope_items table. LOCKED. Creating a parallel entity would
-require re-pointing cost, budget, PO and RFQ foreign keys — a four-domain migration
-purchased for a naming preference. Any proposal to introduce scope_item_id is rejected
-by default.
+ADR-03 — Do NOT create a second scope model. LOCKED. The legacy initial schema already
+contains scope_items and current CAD evidence routes still use it. New refactor work uses
+bom_line_items as the downstream commercial spine; do not add scope_item_id or re-point
+cost, budget, PO or RFQ foreign keys.
 ADR-04 — The real defect is grain, not naming. LOCKED. bom_line_items currently
 mixes two different levels of abstraction in one table:
 Entrance Hall — Suspended Ceiling, Mineral Fibre 600×600 · sqm · 1 · ₱850 → a
@@ -219,11 +261,12 @@ currently concatenated: Entrance Hall — Vinyl Plank Flooring. The same materia
 appears as three unrelated rows across three rooms, each independently priced and each
 unassigned. Location becomes a dimension; the item becomes a reference. Without this,
 “total vinyl plank across the project” is unanswerable and procurement cannot consolidate.
-ADR-07 — No general ledger. LOCKED. ABI runs SAP. BUILD OPS owns project financial
-truth (commitments, costs, billings, collections forecast, project P&L). SAP remains the
-statutory book of record. The existing Finance module (ledger accounts, journals, posting
-periods, cash accounts, reconciliation) is frozen — no further investment — pending O-02.
-Build the GR interface, not a second GL.
+ADR-07 — No new general-ledger expansion in this refactor. LOCKED. ABI runs SAP as
+statutory book of record while BUILD OPS owns project financial truth (commitments, costs,
+billings, collections forecast and project P&L). Existing Finance ledger, journals, cash and
+reconciliation routes are retained for compatibility and are not removed; new work must not
+expand or silently replace that accounting authority. Build the GR interface, not a second
+statutory book of record.
 ADR-08 — Togal is one input to a generic pipeline, never a dependency. LOCKED. The
 takeoff importer accepts CSV/XLSX with a saved per-source column-mapping profile. A
 Togal export is one such source. Manual entry is always available. The cost chain must
@@ -551,7 +594,8 @@ Additive migrations only. No DROP. No foreign key re-pointed.
 Every new table: tenant_id NOT NULL, matching RLS policy,
 created_at/updated_at/created_by, audit participation.
 No float in any monetary path.
-Every acceptance criterion ships as an automated test, not a manual check.
+Every machine-verifiable acceptance criterion ships automated coverage. Human,
+provider, real-template and owner sign-offs remain explicit release evidence.
 WO-00 · CI gate (prerequisite — half a day)
 Context. The invariants in §6 are only real if a build fails when they break. Do. Ensure CI
 runs the full test suite on every PR. Add three static checks: (a) no float/double
@@ -1089,12 +1133,12 @@ BUILD_OPS_Blueprint.md1.1
 Evidence and reasoning record — the why.
 Audit of the current build, AS-IS/TO-BE,
 contradictions, competitor analysis, AI map
-docs/PRD.md 1.3
+docs/PRD.md 1.4
 Implementation authority — the what and in
 what order. Where the two disagree, this
 document wins
 BUILD_OPS_Prompt_Pack.md
-→ docs/PROMPTS.md1.1
+→ docs/PROMPTS.md1.4
 Execution aid — copy-paste prompts, one per
 work order, plus drift-recovery and review
 prompts
@@ -1116,13 +1160,19 @@ auto-draft: retained and running, but routed through the same validation gate as
 other takeoff source, landing as unpriced draft scope with an Unresolved queue and a
 hard submit gate. Invariants I-13 and I-14 added. Post-MVP AI mapping item clarified.
 No architectural decision changed.
+v1.4 (14 Aug 2026) — reconciled the execution copy with the current Next.js/NestJS
+surface, legacy CAD scope input, Finance compatibility routes, Supabase Storage,
+Redis/BullMQ, Railway workers, Vercel deployment and current work-order evidence. Removed
+interactive approval/wait instructions for repository work. No tenant, audit, migration,
+pricing or release safety invariant was removed.
 13. Final direction
 Purge the test data. Load ABI’s own process deck as the workflow engine. Build the DUPA
 engine on top of the bom_line_items spine that already exists — fixing the grain, not the
 name. Ship the Excel importers alongside it, because those files are simultaneously the
 adoption barrier and the seed corpus. Then demonstrate the award transaction, where a
 signed BOM becomes a live project with a locked budget and nothing retyped.
-Do not build the general ledger. Do not build the knowledge graph. Do not build the AI layer
-yet. Each is defensible alone, and each competes for exactly the engineering time the DUPA
-engine needs.
+Do not expand statutory general-ledger scope, replace the legacy CAD scope input, or enable
+unverified AI/provider cutovers. Existing Finance, Cortex and CAD evidence surfaces remain
+compatibility features; new refactor work must close their documented authority and release
+gates before changing ownership.
 Type it once. Everything else follows.

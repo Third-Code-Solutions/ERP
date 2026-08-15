@@ -406,6 +406,9 @@ const PO_BUDGET_ERRORS = [
   'Blocked budget requires a Cost Code on every PO line',
   'Blocked budget does not contain PO Cost Code',
   'Purchase Order commitment exceeds blocked Cost Code budget',
+  'Blocked budget requires a PO line joined to an approved budget line by bom_line_item_id and Cost Code',
+  'Blocked budget does not contain PO BOM line budget evidence',
+  'Purchase Order commitment exceeds approved budget line allowable',
 ] as const
 
 function safePoBudgetError(error: unknown): string | null {

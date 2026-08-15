@@ -16,6 +16,7 @@ import {
   projects,
 } from '@third-code-erp/database/schema'
 import { writeAuditLog } from '@/lib/audit'
+import { parsePesosToCents } from '@/lib/operations/scope-money'
 
 type ActionResult =
   | { ok: true; id?: string; error?: never }
@@ -51,7 +52,13 @@ const lineSchema = z.object({
   costCodeId: z.string().uuid(),
   bomLineItemId: z.string().uuid().nullable().optional(),
   description: z.string().trim().min(1).max(500),
-  amountPhp: z.coerce.number().positive().max(1_000_000_000),
+  amountPhp: z.string()
+    .trim()
+    .regex(/^\d+(?:\.\d{1,2})?$/, 'Budget amount must use pesos with at most two decimals')
+    .refine((value) => {
+      const cents = parsePesosToCents(value)
+      return cents !== undefined && cents > 0 && cents <= 100_000_000_000
+    }, 'Budget amount must be a positive safe centavo value'),
 })
 
 const saveBudgetSchema = createBudgetSchema
@@ -334,15 +341,21 @@ export async function saveProjectBudget(
           )
         )
       await tx.insert(projectBudgetLines).values(
-        parsed.data.lines.map((line, index) => ({
-          tenant_id: profile.tenantId,
-          project_budget_id: parsed.data.budgetId,
-          cost_code_id: line.costCodeId,
-          bom_line_item_id: line.bomLineItemId ?? undefined,
-          line_number: index + 1,
-          description: line.description,
-          amount_cents: Math.round(line.amountPhp * 100),
-        }))
+        parsed.data.lines.map((line, index) => {
+          const amountCents = parsePesosToCents(line.amountPhp)
+          if (amountCents === undefined) {
+            throw new Error('Budget amount must be a positive safe centavo value')
+          }
+          return {
+            tenant_id: profile.tenantId,
+            project_budget_id: parsed.data.budgetId,
+            cost_code_id: line.costCodeId,
+            bom_line_item_id: line.bomLineItemId ?? undefined,
+            line_number: index + 1,
+            description: line.description,
+            amount_cents: amountCents,
+          }
+        })
       )
     })
 

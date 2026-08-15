@@ -1,5 +1,60 @@
 # Third Code ERP capability matrix
 
+## M3.280 Current live release alignment (2026-08-14)
+
+This section supersedes older hosted-status snapshots below. `PASS` means the
+named evidence was observed; it does not convert blocked ABI source, owner or
+human gates into production completion.
+
+| Boundary | Current evidence | Status |
+|---|---|---:|
+| Web production | Vercel `dpl_3h5R66ZBfZwjKYxYbByVB3ptk7fx`, `READY`, preview `thirdcode-ci2y6ihhu-pavi-2e9809a4.vercel.app`, alias `thirdcode-erp.vercel.app`, 85 routes built | PASS |
+| Web health/readiness | `/api/health` and `/api/ready` returned 200; readiness database `up` | PASS |
+| Dashboard route guard | Anonymous `/dashboard` redirected to `/auth/login`; isolated browser console/request checks clean | PASS |
+| Authenticated hosted parity | No authorized production test identity; protected feature browser canary not run | BLOCKED |
+| Core production | Railway current upload skipped because no watched-file delta; active successful deployment `190d69df-8efd-41cf-b7a1-de86c9977aff` remains healthy | PASS |
+| Audit coverage | Read-only verifier reports 170/170 tenant-scoped tables with one audit trigger | PASS |
+| Source contracts | WO-07, WO-08, WO-08a, WO-10 through WO-18 focused contracts pass | PASS |
+| WO-09 template acceptance | Real ABI workbook families absent from `fixtures/abi/` | BLOCKED |
+| WO-15 ABI approval route | Signed ABI Delegation-of-Approval matrix absent; selector remains closed | BLOCKED |
+| WO-06 canonical math sign-off | Listed source rates conflict with exact expected centavo outputs | BLOCKED |
+| Production data boundary | Exact demo tenant and approved recovery identity are not configured | BLOCKED |
+
+The release is therefore healthy and source-aligned where evidence exists, but
+not fully feature-complete or authenticated-hosted-verified against every PRD
+acceptance criterion. This table records the verified source-alignment release;
+later documentation-only refreshes may have a different provider revision.
+
+## M3.279 BUILD OPS reconciliation (2026-08-14)
+
+This is a historical source-backed release snapshot. `PASS` below means the
+repository implementation and its local contract/static tests are green. It
+does not mean the corresponding hosted migration, real-template acceptance, or
+production deployment is verified.
+
+| Work order | Current source/test evidence | Boundary |
+|---|---|---|
+| WO-00 | CI/invariant verifier PASS | Local only |
+| WO-01 | Demo-tenant and data-isolation contracts PASS | Hosted data purge NOT RUN |
+| WO-02–03 | Business-day, audit and process/SLA contracts PASS | DB replay BLOCKED: no `DATABASE_URL` |
+| WO-04–06 | Grain, location, DUPA and migration contracts PASS | Hosted migration parity UNKNOWN |
+| WO-07 | BOM builder contract PASS | Local browser canary limited to public surface |
+| WO-08/08a | Takeoff and AI-draft pipeline contracts PASS | Real Togal file NOT PRESENT |
+| WO-09 | Template-governance contract PASS | Real ABI templates NOT PRESENT |
+| WO-10 | RFQ/price-history contract PASS | Provider/database replay NOT RUN |
+| WO-11 | PPRF/KYC contract PASS | Hosted/authenticated browser NOT RUN |
+| WO-12 | Mobile site-inspection/media contract PASS | Device and hosted sync retest OPEN |
+| WO-13–14 | Award and allowable-budget contracts PASS | Hosted transaction/rollback NOT VERIFIED |
+| WO-15 | Budget-commitment contract PASS | DoA matrix remains unresolved; selector closed |
+| WO-16–18 | Permits, cost-control and dashboard contracts PASS | Human sign-off and hosted parity OPEN |
+
+Repository gates for this reconciliation: `pnpm test`, `pnpm typecheck`,
+`pnpm lint`, `pnpm build`, focused work-order contracts, BUILD OPS invariants,
+and local public frontend Playwright smoke all PASS. Live Vercel health and
+Railway health/readiness PASS; live Vercel browser parity FAILS on missing
+`WebSite`/`WebPage` JSON-LD nodes because that deployment predates the local
+page wiring fix. No production deploy or migration was executed.
+
 ## M3.278 Protected bank-reconciliation Web/Core browser canary (2026-08-11)
 
 The local closed-canary evidence covers the user-facing reconciliation

@@ -13,7 +13,15 @@ import {
   dupaMaterialLines,
   dupaLabourLines,
   dupaEquipmentLines,
+  assemblies,
+  assemblyMaterialTemplates,
+  assemblyLabourTemplates,
+  assemblyEquipmentTemplates,
+  materialCatalog,
+  crewRoles,
+  equipmentCatalog,
   awardHandoffs,
+  priceHistory,
 } from '@third-code-erp/database/schema'
 import { and, eq, desc, asc, inArray } from 'drizzle-orm'
 import { BomBuilder } from '@/components/bom/bom-builder'
@@ -27,10 +35,10 @@ import {
   listBomLocationRollup,
   listProjectLocations,
 } from './actions'
-import { scopeItems } from '@third-code-erp/database/schema'
-import { sql } from 'drizzle-orm'
 import { summarizeBomPricing } from '@/lib/operations/bom-pricing-breakdown'
 import { AwardAutomationPanel } from '@/components/bom/award-automation-panel'
+import { isPriceHistoryStale } from '@/lib/operations/bom-supplier-matching'
+import type { DupaAssemblyOption } from '@/components/bom/dupa-editor'
 
 export const metadata: Metadata = { title: 'BOM' }
 
@@ -43,6 +51,13 @@ const TABS = [
   { label: 'Comments', href: '/comments' },
   { label: 'Audit', href: '/audit' },
 ]
+
+function formatDupaMoneyInput(centavos: bigint): string {
+  const absolute = centavos < 0n ? -centavos : centavos
+  return `${centavos < 0n ? '-' : ''}${absolute / 100n}.${(absolute % 100n)
+    .toString()
+    .padStart(2, '0')}`
+}
 
 export default async function ProjectBomPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -63,34 +78,39 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
     .orderBy(desc(boms.version))
     .limit(1)
 
-  const [awardHandoff] = latestBom
-    ? await db
-        .select({
-          id: awardHandoffs.id,
-          status: awardHandoffs.status,
-          projectCode: awardHandoffs.project_code,
-          budgetId: awardHandoffs.budget_id,
-          dpInvoiceId: awardHandoffs.dp_invoice_id,
-          projectTrackerId: awardHandoffs.project_tracker_id,
-          taskIds: awardHandoffs.task_ids,
-        })
-        .from(awardHandoffs)
-        .where(
-          and(
-            eq(awardHandoffs.tenant_id, profile.tenantId),
-            eq(awardHandoffs.source_bom_id, latestBom.id)
+  const [awardHandoffsRows, lineItems] = latestBom
+    ? await Promise.all([
+        db
+          .select({
+            id: awardHandoffs.id,
+            status: awardHandoffs.status,
+            projectCode: awardHandoffs.project_code,
+            budgetId: awardHandoffs.budget_id,
+            dpInvoiceId: awardHandoffs.dp_invoice_id,
+            projectTrackerId: awardHandoffs.project_tracker_id,
+            taskIds: awardHandoffs.task_ids,
+          })
+          .from(awardHandoffs)
+          .where(
+            and(
+              eq(awardHandoffs.tenant_id, profile.tenantId),
+              eq(awardHandoffs.source_bom_id, latestBom.id),
+            ),
           )
-        )
-        .limit(1)
-    : []
-
-  const lineItems = latestBom
-    ? await db
-        .select()
-        .from(bomLineItems)
-        .where(and(eq(bomLineItems.bom_id, latestBom.id), eq(bomLineItems.tenant_id, profile.tenantId)))
-        .orderBy(asc(bomLineItems.sort_order))
-    : []
+          .limit(1),
+        db
+          .select()
+          .from(bomLineItems)
+          .where(
+            and(
+              eq(bomLineItems.bom_id, latestBom.id),
+              eq(bomLineItems.tenant_id, profile.tenantId),
+            ),
+          )
+          .orderBy(asc(bomLineItems.sort_order)),
+      ])
+    : [[], []]
+  const [awardHandoff] = awardHandoffsRows
 
   // The persisted BOM spine stays flat for downstream compatibility. Build
   // the WO-07 view model from the additive division and DUPA tables here so
@@ -103,27 +123,40 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
         .where(and(eq(dupas.tenant_id, profile.tenantId), inArray(dupas.bom_line_item_id, lineIds)))
     : []
   const dupaIds = dupaRows.map((dupa) => dupa.id)
-  const dupaMaterialRows = dupaIds.length > 0
-    ? await db
-        .select()
-        .from(dupaMaterialLines)
-        .where(and(eq(dupaMaterialLines.tenant_id, profile.tenantId), inArray(dupaMaterialLines.dupa_id, dupaIds)))
-        .orderBy(asc(dupaMaterialLines.sort_order))
-    : []
-  const dupaLabourRows = dupaIds.length > 0
-    ? await db
-        .select()
-        .from(dupaLabourLines)
-        .where(and(eq(dupaLabourLines.tenant_id, profile.tenantId), inArray(dupaLabourLines.dupa_id, dupaIds)))
-        .orderBy(asc(dupaLabourLines.sort_order))
-    : []
-  const dupaEquipmentRows = dupaIds.length > 0
-    ? await db
-        .select()
-        .from(dupaEquipmentLines)
-        .where(and(eq(dupaEquipmentLines.tenant_id, profile.tenantId), inArray(dupaEquipmentLines.dupa_id, dupaIds)))
-        .orderBy(asc(dupaEquipmentLines.sort_order))
-    : []
+  const [dupaMaterialRows, dupaLabourRows, dupaEquipmentRows] = dupaIds.length > 0
+    ? await Promise.all([
+        db
+          .select()
+          .from(dupaMaterialLines)
+          .where(
+            and(
+              eq(dupaMaterialLines.tenant_id, profile.tenantId),
+              inArray(dupaMaterialLines.dupa_id, dupaIds),
+            ),
+          )
+          .orderBy(asc(dupaMaterialLines.sort_order)),
+        db
+          .select()
+          .from(dupaLabourLines)
+          .where(
+            and(
+              eq(dupaLabourLines.tenant_id, profile.tenantId),
+              inArray(dupaLabourLines.dupa_id, dupaIds),
+            ),
+          )
+          .orderBy(asc(dupaLabourLines.sort_order)),
+        db
+          .select()
+          .from(dupaEquipmentLines)
+          .where(
+            and(
+              eq(dupaEquipmentLines.tenant_id, profile.tenantId),
+              inArray(dupaEquipmentLines.dupa_id, dupaIds),
+            ),
+          )
+          .orderBy(asc(dupaEquipmentLines.sort_order)),
+      ])
+    : [[], [], []]
 
   const materialByDupa = new Map<string, typeof dupaMaterialRows>()
   for (const row of dupaMaterialRows) {
@@ -143,10 +176,74 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
     rows.push(row)
     equipmentByDupa.set(row.dupa_id, rows)
   }
+
+  const catalogItemIds = [
+    ...new Set(
+      dupaMaterialRows.flatMap((row) =>
+        row.catalog_item_id ? [row.catalog_item_id] : [],
+      ),
+    ),
+  ]
+  const divisionIds = [
+    ...new Set(lineItems.flatMap((line) => (line.division_id ? [line.division_id] : []))),
+  ]
+  const [priceHistoryRows, divisionRows] = await Promise.all([
+    catalogItemIds.length > 0
+      ? db
+          .select({
+            id: priceHistory.id,
+            catalog_item_id: priceHistory.catalog_item_id,
+            vendor_name: vendors.name,
+            quoted_rate_centavos: priceHistory.quoted_rate_centavos,
+            awarded_rate_centavos: priceHistory.awarded_rate_centavos,
+            source_type: priceHistory.source_type,
+            source_document: priceHistory.source_document,
+            occurred_at: priceHistory.occurred_at,
+          })
+          .from(priceHistory)
+          .leftJoin(
+            vendors,
+            and(
+              eq(priceHistory.vendor_id, vendors.id),
+              eq(vendors.tenant_id, profile.tenantId),
+            ),
+          )
+          .where(
+            and(
+              eq(priceHistory.tenant_id, profile.tenantId),
+              inArray(priceHistory.catalog_item_id, catalogItemIds),
+            ),
+          )
+          .orderBy(desc(priceHistory.occurred_at), desc(priceHistory.created_at))
+          .limit(100)
+      : Promise.resolve([]),
+    divisionIds.length > 0
+      ? db
+          .select({ id: boqDivisions.id, code: boqDivisions.code, name: boqDivisions.name })
+          .from(boqDivisions)
+          .where(
+            and(
+              eq(boqDivisions.tenant_id, profile.tenantId),
+              inArray(boqDivisions.id, divisionIds),
+            ),
+          )
+      : Promise.resolve([]),
+  ])
+  const priceHistoryByCatalog = new Map<string, typeof priceHistoryRows>()
+  for (const row of priceHistoryRows) {
+    const rows = priceHistoryByCatalog.get(row.catalog_item_id) ?? []
+    if (rows.length < 5) rows.push(row)
+    priceHistoryByCatalog.set(row.catalog_item_id, rows)
+  }
   const dupaByLine = new Map<string, {
     id: string
     header_quantity: string
     uom: string
+    assembly_id: string | null
+    ocm_bps: number
+    profit_bps: number
+    vat_bps: number
+    vat_base: 'direct_only' | 'direct_plus_indirect'
     direct_cost_centavos: string
     indirect_cost_centavos: string
     vat_centavos: string
@@ -161,6 +258,16 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
       rate_source: string
       rate_as_of: string | null
       catalog_item_id: string | null
+      price_suggestions: Array<{
+        id: string
+        vendor_name: string | null
+        quoted_rate_centavos: string
+        awarded_rate_centavos: string | null
+        source_type: string
+        source_document: string | null
+        occurred_at: string
+        is_stale: boolean
+      }>
     }>
     labour: Array<{
       id: string
@@ -182,6 +289,11 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
       id: dupa.id,
       header_quantity: String(dupa.header_quantity),
       uom: dupa.uom,
+      assembly_id: dupa.assembly_id,
+      ocm_bps: dupa.ocm_bps,
+      profit_bps: dupa.profit_bps,
+      vat_bps: dupa.vat_bps,
+      vat_base: dupa.vat_base as 'direct_only' | 'direct_plus_indirect',
       direct_cost_centavos: String(dupa.direct_cost_centavos),
       indirect_cost_centavos: String(dupa.indirect_cost_centavos),
       vat_centavos: String(dupa.vat_centavos),
@@ -196,6 +308,21 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
         rate_source: row.rate_source,
         rate_as_of: row.rate_as_of,
         catalog_item_id: row.catalog_item_id,
+        price_suggestions: (row.catalog_item_id
+          ? priceHistoryByCatalog.get(row.catalog_item_id) ?? []
+          : []
+        ).map((suggestion) => ({
+          id: suggestion.id,
+          vendor_name: suggestion.vendor_name,
+          quoted_rate_centavos: String(suggestion.quoted_rate_centavos),
+          awarded_rate_centavos: suggestion.awarded_rate_centavos == null
+            ? null
+            : String(suggestion.awarded_rate_centavos),
+          source_type: suggestion.source_type,
+          source_document: suggestion.source_document,
+          occurred_at: suggestion.occurred_at,
+          is_stale: isPriceHistoryStale(suggestion.occurred_at),
+        })),
       })),
       labour: (labourByDupa.get(dupa.id) ?? []).map((row) => ({
         id: row.id,
@@ -214,13 +341,6 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
     })
   }
 
-  const divisionIds = [...new Set(lineItems.flatMap((line) => line.division_id ? [line.division_id] : []))]
-  const divisionRows = divisionIds.length > 0
-    ? await db
-        .select({ id: boqDivisions.id, code: boqDivisions.code, name: boqDivisions.name })
-        .from(boqDivisions)
-        .where(and(eq(boqDivisions.tenant_id, profile.tenantId), inArray(boqDivisions.id, divisionIds)))
-    : []
   const divisionLabelById = new Map(divisionRows.map((division) => [
     division.id,
     `${division.code} · ${division.name}`,
@@ -239,10 +359,31 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
       }
     : null
 
-  const pendingGrainReviews = await listPendingBomGrainReviews(id, latestBom?.id ?? null)
-  const locations = await listProjectLocations(id)
-  const pendingLocationReviews = await listPendingBomLocationReviews(id, latestBom?.id ?? null)
-  const locationRollup = await listBomLocationRollup(id, latestBom?.id ?? null)
+  const [
+    pendingGrainReviews,
+    locations,
+    pendingLocationReviews,
+    locationRollup,
+    vendorList,
+    assemblyRows,
+  ] = await Promise.all([
+    listPendingBomGrainReviews(id, latestBom?.id ?? null),
+    listProjectLocations(id),
+    listPendingBomLocationReviews(id, latestBom?.id ?? null),
+    listBomLocationRollup(id, latestBom?.id ?? null),
+    db
+      .select({ id: vendors.id, name: vendors.name })
+      .from(vendors)
+      .where(eq(vendors.tenant_id, profile.tenantId)),
+    latestBom
+      ? db
+          .select({ id: assemblies.id, code: assemblies.code, name: assemblies.name, uom: assemblies.uom })
+          .from(assemblies)
+          .where(and(eq(assemblies.tenant_id, profile.tenantId), eq(assemblies.is_active, true)))
+          .orderBy(asc(assemblies.name))
+          .limit(200)
+      : Promise.resolve([]),
+  ])
   const grainReviewParents = lineItems
     .filter((line) => line.kind === 'work_item' && line.classification_status === 'classified')
     .map((line) => ({
@@ -252,17 +393,138 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
 
   const pricingBreakdown = summarizeBomPricing(lineItems)
 
-  const vendorList = await db
-    .select({ id: vendors.id, name: vendors.name })
-    .from(vendors)
-    .where(eq(vendors.tenant_id, profile.tenantId))
+  const assemblyIds = assemblyRows.map((assembly) => assembly.id)
+  const [assemblyMaterialRows, assemblyLabourRows, assemblyEquipmentRows] = assemblyIds.length > 0
+    ? await Promise.all([
+        db
+          .select()
+          .from(assemblyMaterialTemplates)
+          .where(
+            and(
+              eq(assemblyMaterialTemplates.tenant_id, profile.tenantId),
+              inArray(assemblyMaterialTemplates.assembly_id, assemblyIds),
+            ),
+          )
+          .orderBy(asc(assemblyMaterialTemplates.sort_order)),
+        db
+          .select()
+          .from(assemblyLabourTemplates)
+          .where(
+            and(
+              eq(assemblyLabourTemplates.tenant_id, profile.tenantId),
+              inArray(assemblyLabourTemplates.assembly_id, assemblyIds),
+            ),
+          )
+          .orderBy(asc(assemblyLabourTemplates.sort_order)),
+        db
+          .select()
+          .from(assemblyEquipmentTemplates)
+          .where(
+            and(
+              eq(assemblyEquipmentTemplates.tenant_id, profile.tenantId),
+              inArray(assemblyEquipmentTemplates.assembly_id, assemblyIds),
+            ),
+          )
+          .orderBy(asc(assemblyEquipmentTemplates.sort_order)),
+      ])
+    : [[], [], []]
+  const assemblyMaterialCatalogIds = [
+    ...new Set(
+      assemblyMaterialRows.flatMap((row) => row.catalog_item_id ? [row.catalog_item_id] : []),
+    ),
+  ]
+  const assemblyCrewRoleIds = [
+    ...new Set(
+      assemblyLabourRows.flatMap((row) => row.crew_role_id ? [row.crew_role_id] : []),
+    ),
+  ]
+  const assemblyEquipmentIds = [
+    ...new Set(
+      assemblyEquipmentRows.flatMap((row) => row.equipment_id ? [row.equipment_id] : []),
+    ),
+  ]
+  const [materialCatalogRows, crewRoleRows, equipmentCatalogRows] = await Promise.all([
+    assemblyMaterialCatalogIds.length > 0
+      ? db
+          .select()
+          .from(materialCatalog)
+          .where(
+            and(
+              eq(materialCatalog.tenant_id, profile.tenantId),
+              inArray(materialCatalog.id, assemblyMaterialCatalogIds),
+            ),
+          )
+      : Promise.resolve([]),
+    assemblyCrewRoleIds.length > 0
+      ? db
+          .select()
+          .from(crewRoles)
+          .where(
+            and(
+              eq(crewRoles.tenant_id, profile.tenantId),
+              inArray(crewRoles.id, assemblyCrewRoleIds),
+            ),
+          )
+      : Promise.resolve([]),
+    assemblyEquipmentIds.length > 0
+      ? db
+          .select()
+          .from(equipmentCatalog)
+          .where(
+            and(
+              eq(equipmentCatalog.tenant_id, profile.tenantId),
+              inArray(equipmentCatalog.id, assemblyEquipmentIds),
+            ),
+          )
+      : Promise.resolve([]),
+  ])
+  const materialCatalogById = new Map(materialCatalogRows.map((row) => [row.id, row]))
+  const crewRoleById = new Map(crewRoleRows.map((row) => [row.id, row]))
+  const equipmentCatalogById = new Map(equipmentCatalogRows.map((row) => [row.id, row]))
+  const assemblyOptions: DupaAssemblyOption[] = assemblyRows.map((assembly) => ({
+    id: assembly.id,
+    label: `${assembly.code} · ${assembly.name}`,
+    uom: assembly.uom,
+    materials: assemblyMaterialRows
+      .filter((row) => row.assembly_id === assembly.id)
+      .map((row) => {
+        const catalog = row.catalog_item_id ? materialCatalogById.get(row.catalog_item_id) : undefined
+        return {
+          catalogItemId: row.catalog_item_id,
+          description: row.description,
+          quantity: String(row.quantity),
+          uom: row.uom,
+          unitRate: catalog ? formatDupaMoneyInput(catalog.current_rate_centavos) : '0.00',
+          rateSource: 'catalog' as const,
+          rateAsOf: catalog ? catalog.last_updated_at.toISOString().slice(0, 10) : '',
+        }
+      }),
+    labour: assemblyLabourRows
+      .filter((row) => row.assembly_id === assembly.id)
+      .map((row) => {
+        const crew = row.crew_role_id ? crewRoleById.get(row.crew_role_id) : undefined
+        return {
+          crewRoleId: row.crew_role_id,
+          description: row.description,
+          noOfPersons: String(row.no_of_persons),
+          hourlyRate: crew ? formatDupaMoneyInput(crew.hourly_rate_centavos) : '0.00',
+          productivityPerHour: String(row.productivity_per_hour),
+        }
+      }),
+    equipment: assemblyEquipmentRows
+      .filter((row) => row.assembly_id === assembly.id)
+      .map((row) => {
+        const equipment = row.equipment_id ? equipmentCatalogById.get(row.equipment_id) : undefined
+        return {
+          equipmentId: row.equipment_id,
+          description: row.description,
+          noOfUnits: String(row.no_of_units),
+          hourlyRate: equipment ? formatDupaMoneyInput(equipment.hourly_rate_centavos) : '0.00',
+          productivityPerHour: String(equipment?.default_productivity_per_hour ?? row.productivity_per_hour),
+        }
+      }),
+  }))
 
-  // Status signals for the auto-extraction banner
-  const [scopeCountRow] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(scopeItems)
-    .where(and(eq(scopeItems.project_id, id), eq(scopeItems.tenant_id, profile.tenantId)))
-  const scopeCount = scopeCountRow?.count ?? 0
   const ragActive = Boolean(process.env.OPENAI_API_KEY)
   const dwgWorkerActive = Boolean(process.env.DXF_PARSER_URL)
 
@@ -330,7 +592,13 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
 
       <BomLocationRollup rows={locationRollup} />
 
-      <BomBuilder projectId={id} bom={bomWithLines} vendors={vendorList} locations={locations} />
+      <BomBuilder
+        projectId={id}
+        bom={bomWithLines}
+        vendors={vendorList}
+        locations={locations}
+        assemblyOptions={assemblyOptions}
+      />
 
       {latestBom?.status === 'locked' && (
         <AwardAutomationPanel
@@ -393,7 +661,7 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
                   margin: '2px 0 0',
                 }}
               >
-                Drop a DWG or DXF here to extract scope and draft a BOM.
+                Drop a DWG or DXF here to extract candidate work items for review.
               </p>
             </div>
             <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -412,19 +680,6 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
                 status={ragActive ? 'active' : 'pending'}
                 detail={ragActive ? 'pgvector + OpenAI' : 'Set OPENAI_API_KEY'}
               />
-              {scopeCount > 0 ? (
-                <Link
-                  href={`/projects/${id}/scope`}
-                  style={{
-                    fontSize: 12,
-                    color: 'var(--color-navy-700)',
-                    textDecoration: 'none',
-                    fontWeight: 600,
-                  }}
-                >
-                  {scopeCount} scope item{scopeCount === 1 ? '' : 's'} →
-                </Link>
-              ) : null}
             </div>
           </div>
           <div style={{ padding: 18 }}>
@@ -434,12 +689,12 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
               title={
                 bomWithLines && bomWithLines.lineItems.length > 0
                   ? 'Drop another CAD drawing'
-                  : 'Drop a DWG or DXF to pre-populate this BOM'
+                  : 'Drop a DWG or DXF to create a draft BOM'
               }
               subtitle={
                 bomWithLines && bomWithLines.lineItems.length > 0
-                  ? 'Adds new scope items and a fresh draft BOM.'
-                  : 'Real-time scope extraction · auto-priced lines from past projects'
+                  ? 'Adds new candidate work items for review.'
+                  : 'Evidence extraction only · pricing requires an explicit DUPA or estimator input'
               }
             />
           </div>

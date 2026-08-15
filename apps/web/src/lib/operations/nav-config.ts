@@ -370,6 +370,28 @@ export function visibleNavSections(role: AppRole): NavSection[] {
 }
 
 /**
+ * Resolve the single most specific sidebar item for the current route.
+ *
+ * A simple `startsWith` check makes both `/finance` and
+ * `/finance/receivables` look active on a child route. Choosing the longest
+ * matching href keeps the parent route discoverable without presenting two
+ * competing active states.
+ */
+export function activeNavHref(
+  pathname: string,
+  sections: readonly NavSection[]
+): string | null {
+  return (
+    sections
+      .flatMap((section) => section.items)
+      .filter(
+        (item) => pathname === item.href || pathname.startsWith(`${item.href}/`)
+      )
+      .sort((a, b) => b.href.length - a.href.length)[0]?.href ?? null
+  )
+}
+
+/**
  * Defense-in-depth: returns false when the role isn't permitted to
  * load the given pathname under /(dashboard). Pages outside this nav
  * config (e.g. /portal/*, /api/*, /auth/*) return true so they're

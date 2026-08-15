@@ -463,9 +463,14 @@ suite('document processing job database integration', () => {
         item_count: 1,
       })
       expect(bomRows).toHaveLength(1)
-      expect(bomRows[0]?.total_cost_cents).toBe(250)
+      // Worker recommendations are evidence only. The draft BOM remains
+      // unpriced until a DUPA or estimator action supplies an authoritative
+      // rate, so CAD output cannot silently become a commercial commitment.
+      expect(bomRows[0]?.total_cost_cents).toBe(0)
       expect(bomLines).toHaveLength(1)
-      expect(bomLines[0]?.line_total_cents).toBe(250)
+      expect(bomLines[0]?.unit_rate_source).toBe('manual')
+      expect(bomLines[0]?.unit_cost_cents).toBe(0)
+      expect(bomLines[0]?.line_total_cents).toBe(0)
     })
 
     const leaked = await db
