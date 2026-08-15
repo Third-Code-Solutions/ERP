@@ -5,6 +5,9 @@
 - Replace the unavailable Supabase management-PAT link path in the canonical
   promotion workflow with an exact-project, port-5432 session-pooler migration
   URL, while keeping the read-only boundary URL separate.
+- Use the Railway CLI's current-directory deployment form for the repository
+  root API service; the explicit `.` path caused the provider's `prefix not
+  found` indexing failure.
 - Add target validation before migration preview/apply and document the new
   protected GitHub environment secret.
 - Record the guarded cleanup of the two foreign synthetic production rows and
