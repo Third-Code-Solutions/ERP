@@ -15,6 +15,7 @@ const PROJECT_ID =
 interface RouteCase {
   name: string
   path: string
+  expectedTitle?: string
 }
 
 const ROUTES: RouteCase[] = [
@@ -25,6 +26,21 @@ const ROUTES: RouteCase[] = [
   { name: 'project-bom', path: `/projects/${PROJECT_ID}/bom` },
   { name: 'project-takeoff-import', path: `/projects/${PROJECT_ID}/bom/togal` },
   { name: 'project-documents', path: `/projects/${PROJECT_ID}/documents` },
+  {
+    name: 'project-progress',
+    path: `/projects/${PROJECT_ID}/progress`,
+    expectedTitle: 'Progress | ABI OPS',
+  },
+  {
+    name: 'project-reports',
+    path: `/projects/${PROJECT_ID}/reports`,
+    expectedTitle: 'Weekly reports | ABI OPS',
+  },
+  {
+    name: 'project-variation-orders',
+    path: `/projects/${PROJECT_ID}/vos`,
+    expectedTitle: 'Variation Orders | ABI OPS',
+  },
   { name: 'project-billing', path: `/projects/${PROJECT_ID}/billing` },
   { name: 'project-audit', path: `/projects/${PROJECT_ID}/audit` },
 ]
@@ -51,6 +67,7 @@ interface RouteOutcome {
   pageErrors: string[]
   consoleErrors: string[]
   hadOverlay: boolean
+  expectedTitle?: string
 }
 
 async function probeRoute(page: Page, route: RouteCase): Promise<RouteOutcome> {
@@ -87,6 +104,7 @@ async function probeRoute(page: Page, route: RouteCase): Promise<RouteOutcome> {
       pageErrors,
       consoleErrors,
       hadOverlay,
+      expectedTitle: route.expectedTitle,
     }
   } finally {
     page.off('console', onConsole)
@@ -139,6 +157,9 @@ test.describe('Projects routes — full walk (single session)', () => {
       ).not.toMatch(/^404:/)
       if (o.visibleH1) {
         expect(o.visibleH1, `${o.name} has visible 404 heading`).not.toBe('404')
+      }
+      if (o.expectedTitle) {
+        expect(o.title, `${o.name} title drifted`).toBe(o.expectedTitle)
       }
       expect(o.pageErrors, `${o.name} threw JS errors`).toHaveLength(0)
       expect(o.hadOverlay, `${o.name} surfaced Next.js error overlay`).toBe(false)

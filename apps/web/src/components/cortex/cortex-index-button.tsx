@@ -16,6 +16,8 @@ type State =
 
 const POLL_INTERVAL_MS = 1_500
 const MAX_STATUS_POLLS = 120
+const PAUSED_REASON =
+  'The provider-spend canary is closed for this tenant; no external indexing request can be sent.'
 
 function waitForNextPoll(signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -156,14 +158,21 @@ export function CortexIndexButton({ enabled }: { enabled: boolean }) {
         onClick={openConfirmation}
         disabled={!enabled || busy}
         aria-disabled={!enabled || busy}
+        aria-describedby={!enabled ? 'cortex-index-paused-reason' : undefined}
         title={
           enabled
             ? 'Create one cost-bounded semantic indexing job'
-            : 'Semantic indexing rollout is paused'
+            : PAUSED_REASON
         }
       >
         {label}
       </button>
+
+      {!enabled && (
+        <span id="cortex-index-paused-reason" className="cortex-index-ctl__paused-reason">
+          {PAUSED_REASON}
+        </span>
+      )}
 
       <dialog
         ref={dialogRef}

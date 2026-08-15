@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { and, eq } from 'drizzle-orm'
@@ -6,6 +7,8 @@ import { db } from '@third-code-erp/database'
 import { projects } from '@third-code-erp/database/schema'
 import { VoCreateForm } from '@/components/vos/vo-create-form'
 import { listProjectVos } from './actions'
+
+export const metadata: Metadata = { title: 'Variation Orders' }
 
 interface PageProps {
   params: Promise<{ id: string }>

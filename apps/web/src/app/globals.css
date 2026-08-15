@@ -4396,6 +4396,7 @@ textarea.form-input {
 /* Cortex — build semantic index control */
 .cortex-index-ctl { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .cortex-index-ctl__status { font-size: 0.6875rem; color: var(--color-danger); }
+.cortex-index-ctl__paused-reason { max-width: 26rem; color: var(--color-neutral-500); font-size: 0.6875rem; line-height: 1.4; }
 .cortex-index-dialog {
   width: min(30rem, calc(100vw - 3rem));
   padding: 0;
