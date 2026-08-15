@@ -246,20 +246,20 @@ or apply a second manual migration list. The PostgreSQL 17 reproducibility job
 rebuilds the database from zero, requires every database test to execute, and
 asserts an empty schema diff.
 
-The authorized Supabase target was read-only inspected on 2026-08-12. The
-hosted target has 55 applied migrations. The current local workspace has 56
-migration files, including the local-only M-06 foundation, and a passing
-protected-catalog reproducibility verifier, but the provider-linked Git
-`origin/main` source has 124 migrations with 69 pending on the hosted target.
-The provider's own branch-action logs show the first pending migration failing
-on duplicate tenant-scoped Purchase Order numbers. This does not mean the
-hosted project is release-ready: its migration status is currently
-`MIGRATIONS_FAILED`, security/performance advisors still have findings, and
-the WO-02 audit/calendar gate is not applied. The final migration source
-recovered from the target ledger is committed as
-`20260729233017_notification_outbox_foundation.sql`. Future releases must run
-both the local snapshot checks and the provider-source planner, then satisfy
-reviewed SQL, backup/rollback, source-identity, and staging evidence in
+The authorized Supabase target was rechecked read-only on 2026-08-16 with the
+provider-source planner against the session pooler. At source commit
+`b742c5d5a3d4bd696eba57aa9f7ac48fcd52bb9a`, the target is PostgreSQL 17 with
+144 provider-source migrations applied, zero pending migrations, and zero
+duplicate Purchase Order groups; the read-only parity plan reports `READY`.
+This parity result does not by itself authorize production promotion: the
+read-only production-data boundary still reports `review_required` because
+two E2E-prefixed rows remain under the non-demo tenant
+`e2e-qa-20260513-foreign`, and the guarded workflow still lacks its three
+provider access tokens. Historical 55/124 and migration-failure findings are
+retained in the dated blocker and runbook records for audit history. Future
+releases must run both the local snapshot checks and the provider-source
+planner, then satisfy reviewed SQL, backup/rollback, source-identity, data
+boundary, and authenticated E2E evidence in
 [`database-release.md`](runbooks/database-release.md). Never use hosted
 `db reset` or ad hoc `migration repair`.
 
