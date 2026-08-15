@@ -23,12 +23,13 @@ export type AwardActionResult =
 const awardFormSchema = z.object({
   projectId: z.string().uuid(),
   bomId: z.string().uuid(),
-  downPaymentPercent: z.coerce
-    .number()
-    .finite()
-    .min(0)
-    .max(100)
-    .refine((value) => Number.isInteger(value * 100), 'Use at most two decimal places'),
+  downPaymentPercent: z.string()
+    .trim()
+    .regex(/^\d+(?:\.\d{1,2})?$/, 'Use a non-negative percentage with at most two decimals')
+    .refine((value) => {
+      const [whole = '0', fraction = ''] = value.split('.')
+      return BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0')) <= 10_000n
+    }, 'Down-payment percentage must be between 0% and 100%'),
 })
 
 const reverseFormSchema = z.object({
@@ -52,6 +53,13 @@ function safeError(error: unknown): string {
     if (error.message.includes('down-payment percentage')) return error.message
   }
   return 'Award automation failed. No partial handoff was committed.'
+}
+
+function parseDownPaymentBps(value: string): number {
+  const [whole = '0', fraction = ''] = value.split('.')
+  const bps = BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0'))
+  if (bps > 10_000n) throw new Error('Down-payment percentage must be between 0% and 100%')
+  return Number(bps)
 }
 
 export async function awardLockedBom(formData: FormData): Promise<AwardActionResult> {
@@ -86,7 +94,7 @@ export async function awardLockedBom(formData: FormData): Promise<AwardActionRes
         tenantId: profile.tenantId,
         bomId: parsed.data.bomId,
         actorId: profile.user.id,
-        downPaymentBps: Math.round(parsed.data.downPaymentPercent * 100),
+        downPaymentBps: parseDownPaymentBps(parsed.data.downPaymentPercent),
       })
     )
     revalidatePath(`/projects/${parsed.data.projectId}/bom`)

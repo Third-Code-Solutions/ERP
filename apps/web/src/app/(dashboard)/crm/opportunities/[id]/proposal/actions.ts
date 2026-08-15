@@ -228,6 +228,7 @@ const inspectionPayloadSchema = z.object({
 
 const submitInspectionSchema = z.object({
   opportunity_id: z.string().uuid(),
+  client_submission_id: z.string().uuid(),
   photo_document_ids: z.string().optional().default('[]'),
 }).merge(inspectionPayloadSchema)
 
@@ -389,6 +390,7 @@ export async function submitInspection(formData: FormData): Promise<{ error?: st
 
   const parsed = submitInspectionSchema.safeParse({
     opportunity_id: formData.get('opportunity_id'),
+    client_submission_id: formData.get('client_submission_id'),
     site_address: formData.get('site_address'),
     floor_area_sqm: formData.get('floor_area_sqm') || '',
     landlord_contact: formData.get('landlord_contact') || '',
@@ -403,7 +405,7 @@ export async function submitInspection(formData: FormData): Promise<{ error?: st
     const first = parsed.error.errors[0]
     return { error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}` }
   }
-  const { opportunity_id, photo_document_ids, ...payload } = parsed.data
+  const { opportunity_id, client_submission_id, photo_document_ids, ...payload } = parsed.data
 
   const opp = await assertOpportunity(profile.tenantId, opportunity_id)
   if (!opp) return { error: 'Opportunity not found' }
@@ -435,46 +437,96 @@ export async function submitInspection(formData: FormData): Promise<{ error?: st
     return { error: 'photo_document_ids must be a JSON array of UUIDs.' }
   }
 
-  const now = new Date()
-  const [inserted] = await db
-    .insert(siteInspections)
-    .values({
-      tenant_id: profile.tenantId,
-      opportunity_id,
-      status: 'submitted',
-      payload,
-      submitted_at: now,
-      submitted_by: profile.user.id,
-    })
-    .returning({ id: siteInspections.id })
+  const result = await db.transaction(async (tx) => {
+    // The browser keeps this token in IndexedDB. Serialize retries for one
+    // tenant/token pair so reconnects cannot create duplicate inspections or
+    // duplicate audit/SLA notifications.
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${'site-inspection:' + profile.tenantId + ':' + client_submission_id}, 0))`
+    )
 
-  if (photoIds.length > 0 && inserted) {
-    // Confirm each document belongs to the tenant before linking.
-    const docs = await db
-      .select({ id: documents.id })
-      .from(documents)
+    const [existing] = await tx
+      .select({ id: siteInspections.id, opportunity_id: siteInspections.opportunity_id })
+      .from(siteInspections)
       .where(
         and(
-          eq(documents.tenant_id, profile.tenantId),
-          opp.project_id
-            ? or(
-                eq(documents.opportunity_id, opportunity_id),
-                eq(documents.project_id, opp.project_id),
-              )
-            : eq(documents.opportunity_id, opportunity_id),
+          eq(siteInspections.tenant_id, profile.tenantId),
+          eq(siteInspections.client_submission_id, client_submission_id),
         ),
       )
-    const allowed = new Set(docs.map((d) => d.id))
-    const safePhotos = photoIds.filter((p) => allowed.has(p))
-    if (safePhotos.length > 0) {
-      await db.insert(siteInspectionPhotos).values(
-        safePhotos.map((document_id) => ({
-          tenant_id: profile.tenantId,
-          inspection_id: inserted.id,
-          document_id,
-        }))
-      )
+      .limit(1)
+
+    if (existing) {
+      if (existing.opportunity_id !== opportunity_id) {
+        return { id: null, replayed: false, conflict: true }
+      }
+      return { id: existing.id, replayed: true, conflict: false }
     }
+
+    const now = new Date()
+    const [inserted] = await tx
+      .insert(siteInspections)
+      .values({
+        tenant_id: profile.tenantId,
+        opportunity_id,
+        client_submission_id,
+        status: 'submitted',
+        payload,
+        submitted_at: now,
+        submitted_by: profile.user.id,
+      })
+      .returning({ id: siteInspections.id })
+
+    if (!inserted) throw new Error('Failed to persist site inspection')
+
+    if (photoIds.length > 0) {
+      // Confirm each document belongs to the tenant before linking.
+      const docs = await tx
+        .select({ id: documents.id })
+        .from(documents)
+        .where(
+          and(
+            eq(documents.tenant_id, profile.tenantId),
+            opp.project_id
+              ? or(
+                  eq(documents.opportunity_id, opportunity_id),
+                  eq(documents.project_id, opp.project_id),
+                )
+              : eq(documents.opportunity_id, opportunity_id),
+          ),
+        )
+      const allowed = new Set(docs.map((d) => d.id))
+      const safePhotos = photoIds.filter((p) => allowed.has(p))
+      if (safePhotos.length > 0) {
+        await tx.insert(siteInspectionPhotos).values(
+          safePhotos.map((document_id) => ({
+            tenant_id: profile.tenantId,
+            inspection_id: inserted.id,
+            document_id,
+          }))
+        )
+      }
+    }
+
+    await writeAuditLogInTransaction(tx, {
+      tenantId: profile.tenantId,
+      actorId: profile.user.id,
+      entityType: 'site_inspection',
+      entityId: inserted.id,
+      action: 'create',
+      diff: {
+        opportunity_id,
+        client_submission_id,
+        payload,
+        photo_count: photoIds.length,
+      },
+    })
+
+    return { id: inserted.id, replayed: false, conflict: false }
+  })
+
+  if (result.conflict || !result.id) {
+    return { error: 'This inspection token was already used for another opportunity.' }
   }
 
   // US-007 #5 — Auto-generate the report HTML and archive it as a document
@@ -482,11 +534,11 @@ export async function submitInspection(formData: FormData): Promise<{ error?: st
   // server-side (no Puppeteer); the saved HTML is print-clean via @page
   // CSS and converts via "Print → Save as PDF". Storage failures don't
   // roll back the inspection — we just log a warning and continue.
-  if (inserted) {
+  if (!result.replayed) {
     await persistInspectionReport({
       tenantId: profile.tenantId,
       actorId: profile.user.id,
-      inspectionId: inserted.id,
+      inspectionId: result.id,
       opportunityId: opportunity_id,
       payload,
       photoDocumentIds: photoIds,
@@ -494,38 +546,31 @@ export async function submitInspection(formData: FormData): Promise<{ error?: st
       const message = err instanceof Error ? err.message : 'unknown error'
       // eslint-disable-next-line no-console
       console.warn(
-        `[site-inspection] report archival failed for ${inserted.id}: ${message}`
+        `[site-inspection] report archival failed for ${result.id}: ${message}`
       )
     })
   }
 
-  await writeAuditLog({
-    tenantId: profile.tenantId,
-    actorId: profile.user.id,
-    entityType: 'site_inspection',
-    entityId: inserted!.id,
-    action: 'create',
-    diff: { opportunity_id, payload, photo_count: photoIds.length },
-  })
+  if (!result.replayed) {
+    await startSlaClock({
+      tenantId: profile.tenantId,
+      entityType: 'opportunity',
+      entityId: opportunity_id,
+      label: 'inspection.design_handoff',
+    })
 
-  await startSlaClock({
-    tenantId: profile.tenantId,
-    entityType: 'opportunity',
-    entityId: opportunity_id,
-    label: 'inspection.design_handoff',
-  })
-
-  await notifyRoles({
-    tenantId: profile.tenantId,
-    recipientRoles: ['design'],
-    subject: 'Site Inspection ready for design',
-    body: 'A new site inspection report has been submitted. Design can begin layouts.',
-    linkUrl: `/crm/opportunities/${opportunity_id}/proposal/inspection`,
-  })
+    await notifyRoles({
+      tenantId: profile.tenantId,
+      recipientRoles: ['design'],
+      subject: 'Site Inspection ready for design',
+      body: 'A new site inspection report has been submitted. Design can begin layouts.',
+      linkUrl: `/crm/opportunities/${opportunity_id}/proposal/inspection`,
+    })
+  }
 
   revalidatePath(`/crm/opportunities/${opportunity_id}/proposal/inspection`)
   revalidatePath(`/crm/opportunities/${opportunity_id}/proposal`)
-  return { id: inserted!.id }
+  return { id: result.id }
 }
 
 const rfiSchema = z.object({

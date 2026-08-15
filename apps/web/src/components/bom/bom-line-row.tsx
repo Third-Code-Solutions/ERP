@@ -30,6 +30,11 @@ export interface BomDupaDetail {
   id: string
   header_quantity: string
   uom: string
+  assembly_id: string | null
+  ocm_bps: number
+  profit_bps: number
+  vat_bps: number
+  vat_base: 'direct_only' | 'direct_plus_indirect'
   direct_cost_centavos: string
   indirect_cost_centavos: string
   vat_centavos: string
@@ -49,6 +54,18 @@ export interface BomDupaMaterialLine {
   rate_source: string
   rate_as_of: string | null
   catalog_item_id: string | null
+  price_suggestions: BomDupaPriceSuggestion[]
+}
+
+export interface BomDupaPriceSuggestion {
+  id: string
+  vendor_name: string | null
+  quoted_rate_centavos: string
+  awarded_rate_centavos: string | null
+  source_type: string
+  source_document: string | null
+  occurred_at: string
+  is_stale: boolean
 }
 
 export interface BomDupaLabourLine {
@@ -75,6 +92,7 @@ interface BomLineRowProps {
   onSelect: () => void
   onDelete: () => void
   onLocationChange: (locationId: string | null) => void
+  onDupaEdit: () => void
   locationOptions: ProjectLocationOption[]
   depth?: number
   // Source badge is owned by the builder; passed in to avoid duplicating the
@@ -83,13 +101,54 @@ interface BomLineRowProps {
 }
 
 function formatPHP(cents: number | string): string {
-  const numericCents = typeof cents === 'string' ? Number(cents) : cents
+  try {
+    const value = typeof cents === 'number' ? BigInt(Math.trunc(cents)) : BigInt(cents)
+    const sign = value < 0n ? '-' : ''
+    const absolute = value < 0n ? -value : value
+    const pesos = absolute / 100n
+    const centavos = (absolute % 100n).toString().padStart(2, '0')
+    const grouped = pesos.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+    return `₱${sign}${grouped}.${centavos}`
+  } catch {
+    return '₱—'
+  }
+}
+
+function DupaMaterialSection({ rows }: { rows: BomDupaMaterialLine[] }) {
   return (
-    '₱' +
-    (numericCents / 100).toLocaleString('en-PH', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })
+    <div>
+      <div style={{ fontWeight: 700, color: 'var(--color-neutral-700)', marginBottom: 3 }}>Material</div>
+      <ul style={{ margin: 0, paddingLeft: 16, color: 'var(--color-neutral-600)' }}>
+        {rows.map((line) => (
+          <li key={line.id}>
+            <div>
+              {line.description} · {formatQuantity(line.quantity)} {line.uom} · {formatPHP(line.unit_rate_centavos)} · {line.rate_source}
+              {line.rate_as_of ? ` · as of ${line.rate_as_of}` : ''}
+            </div>
+            {line.price_suggestions.length > 0 ? (
+              <ul style={{ margin: '3px 0 0', paddingLeft: 16, color: 'var(--color-neutral-500)' }}>
+                {line.price_suggestions.map((suggestion) => {
+                  const effectiveRate = suggestion.awarded_rate_centavos ?? suggestion.quoted_rate_centavos
+                  return (
+                    <li key={suggestion.id}>
+                      {suggestion.vendor_name ?? 'Supplier'} · {formatPHP(effectiveRate)} · {suggestion.source_type} · {suggestion.occurred_at}
+                      {suggestion.source_document ? ` · ${suggestion.source_document}` : ''}
+                      {suggestion.is_stale ? (
+                        <span style={{ color: 'var(--color-warning)', fontWeight: 700 }}> · stale &gt;90d</span>
+                      ) : null}
+                    </li>
+                  )
+                })}
+              </ul>
+            ) : (
+              <div style={{ marginTop: 3, color: 'var(--color-neutral-400)' }}>
+                No sourced supplier price history
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
 
@@ -124,15 +183,15 @@ function DupaDetailDisclosure({ dupa }: { dupa: BomDupaDetail }) {
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', color: 'var(--color-neutral-600)' }}>
           <span>Direct {formatPHP(dupa.direct_cost_centavos)}</span>
           <span>Indirect {formatPHP(dupa.indirect_cost_centavos)}</span>
-          <span>VAT {formatPHP(dupa.vat_centavos)}</span>
+          <span>
+            VAT ({dupa.vat_base === 'direct_only' ? 'direct only' : 'direct + indirect'}){' '}
+            {formatPHP(dupa.vat_centavos)}
+          </span>
           <strong style={{ color: 'var(--color-neutral-900)' }}>Total {formatPHP(dupa.total_cost_centavos)}</strong>
           <strong style={{ color: 'var(--color-navy-700)' }}>Unit rate {formatPHP(dupa.unit_rate_centavos)}</strong>
         </div>
         {dupa.materials.length > 0 && (
-          <DupaSection
-            title="Material"
-            rows={dupa.materials.map((line) => `${line.description} · ${formatQuantity(line.quantity)} ${line.uom} · ${formatPHP(line.unit_rate_centavos)} · ${line.rate_source}`)}
-          />
+          <DupaMaterialSection rows={dupa.materials} />
         )}
         {dupa.labour.length > 0 && (
           <DupaSection
@@ -214,6 +273,7 @@ export function BomLineRow({
   onSelect,
   onDelete,
   onLocationChange,
+  onDupaEdit,
   locationOptions,
   sourceBadge,
   depth = 0,
@@ -264,6 +324,28 @@ export function BomLineRow({
           </span>
         )}
         {item.description}
+        {isEditable && item.kind === 'work_item' && item.classification_status === 'classified' && (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation()
+              onDupaEdit()
+            }}
+            style={{
+              marginLeft: 8,
+              padding: '2px 6px',
+              border: '1px solid var(--color-navy-200)',
+              borderRadius: 4,
+              background: 'var(--color-surface)',
+              color: 'var(--color-navy-700)',
+              fontSize: 10,
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            {item.dupa ? 'Edit DUPA' : 'Build DUPA'}
+          </button>
+        )}
         {item.dupa && <DupaDetailDisclosure dupa={item.dupa} />}
         {flagged && (
           <span

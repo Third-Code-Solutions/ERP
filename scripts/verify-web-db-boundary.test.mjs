@@ -13,8 +13,12 @@ test('current Next API direct database surface is explicitly classified', () => 
     report.directWrites.map((entry) => [entry.path, entry.operations]),
     [
       [
-        'apps/web/src/app/api/bom/togal-commit/route.ts',
+        'apps/web/src/app/api/bom/takeoff-import/route.ts',
         ['insert', 'transaction', 'update'],
+      ],
+      [
+        'apps/web/src/app/api/crm/opportunities/[id]/inspection-photos/route.ts',
+        ['insert', 'transaction'],
       ],
       ['apps/web/src/app/api/notifications/route.ts', ['update']],
       [

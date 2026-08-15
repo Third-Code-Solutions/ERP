@@ -1,5 +1,10 @@
 # Third Code ERP — Product Requirements Document
 
+> Historical product context only. Current execution authority is
+> [`docs/PRD.md`](docs/PRD.md) v1.4, reconciled 2026-08-14, together with the
+> current source, migrations and timestamped release evidence. This document
+> does not override that authority.
+
 | Field | Value |
 |---|---|
 | **Document** | PRD-CERP-001 |

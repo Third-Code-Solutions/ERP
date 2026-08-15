@@ -28,6 +28,7 @@ import {
 import {
   visibleNavSections,
   roleLabel,
+  activeNavHref,
   type NavIconKey,
 } from '@/lib/operations/nav-config'
 
@@ -61,6 +62,7 @@ export function Sidebar({ user, role, fullName }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const sections = visibleNavSections(role)
+  const currentNavHref = activeNavHref(pathname, sections)
   const displayName = fullName?.trim() || user.email?.split('@')[0] || 'User'
 
   const initials =
@@ -100,14 +102,14 @@ export function Sidebar({ user, role, fullName }: SidebarProps) {
           <div className="sidebar-section-label">{section.label}</div>
           {section.items.map((item) => {
             const Icon = ICONS[item.iconKey] ?? IconActivity
-            const isActive =
-              pathname === item.href || pathname.startsWith(item.href + '/')
+            const isActive = currentNavHref === item.href
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 className={`sidebar-item ${isActive ? 'active' : ''}`}
                 aria-current={isActive ? 'page' : undefined}
+                title={item.description ? `${item.label}: ${item.description}` : item.label}
               >
                 <Icon size={16} className="sidebar-icon" />
                 <span>{item.label}</span>

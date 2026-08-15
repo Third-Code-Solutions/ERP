@@ -241,6 +241,26 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
     current_po_cents: Number(row.current_po_cents),
     other_committed_cents: Number(row.other_committed_cents),
   }))
+  const budgetOverrunCostCodes = approvedBudget
+    ? budgetControlRows
+        .filter((row) => {
+          const limit =
+            row.baseline_cents +
+            Math.round(
+              (row.baseline_cents * approvedBudget.toleranceBps) / 10_000
+            )
+          return limit - row.other_committed_cents - row.current_po_cents < 0
+        })
+        .map((row) => row.code)
+    : []
+  const budgetWarning =
+    budgetOverrunCostCodes.length > 0 && approvedBudget
+      ? `This PO exceeds the remaining allowable on ${budgetOverrunCostCodes.join(', ')}. ${
+          approvedBudget.controlMode === 'block'
+            ? 'Issuance will be blocked until the approved budget is resolved.'
+            : 'Review the variance before submitting it for approval.'
+        }`
+      : null
   const canStartSupplierBill =
     canManagePayables &&
     !!po.vendor_id &&
@@ -293,7 +313,12 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
           >
             {STATUS_LABELS[po.status] ?? po.status}
           </span>
-          <PoStatusActions poId={id} currentStatus={po.status} viewerRole={profile?.role ?? null} />
+          <PoStatusActions
+            poId={id}
+            currentStatus={po.status}
+            viewerRole={profile?.role ?? null}
+            budgetWarning={budgetWarning}
+          />
           <Link
             href={`/purchase-orders/${id}/print`}
             target="_blank"
@@ -534,6 +559,23 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
               </Link>
             </p>
           </div>
+          {budgetWarning && (
+            <div
+              role="alert"
+              className="budget-warning"
+              style={{
+                marginBottom: 16,
+                padding: '12px 14px',
+                border: '1px solid #f4c27a',
+                borderRadius: 6,
+                background: '#fff8eb',
+                color: '#7a4610',
+                fontSize: '0.8125rem',
+              }}
+            >
+              {budgetWarning}
+            </div>
+          )}
           {approvedBudget && (
             <div className="finance-table-shell">
               <table className="data-table">

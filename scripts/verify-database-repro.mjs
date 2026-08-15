@@ -65,6 +65,7 @@ const requiredMigrations = [
   '20260807140000_revoke_anon_tenant_identity_rpc.sql',
   '20260807150000_user_role_assignment_authority.sql',
   '20260808100000_cortex_assistant_provider_budget.sql',
+  '20260815100000_wo_12_site_inspection_access.sql',
 ]
 
 const requiredTables = [
@@ -738,6 +739,30 @@ if (existsSync(userRoleAuthorityMigration)) {
     'user role assignment ledger is service-only',
     /ALTER\s+TABLE\s+public\.user_role_assignment_requests\s+FORCE\s+ROW\s+LEVEL\s+SECURITY[\s\S]*REVOKE\s+ALL\s+PRIVILEGES\s+ON\s+TABLE\s+public\.user_role_assignment_requests\s+FROM\s+public,\s*anon,\s*authenticated[\s\S]*GRANT\s+ALL\s+PRIVILEGES\s+ON\s+TABLE\s+public\.user_role_assignment_requests\s+TO\s+service_role/i.test(
       userRoleAuthority
+    )
+  )
+}
+
+const userReadAuthorityMigration = join(
+  migrationDirectory,
+  '20260814150000_preserve_users_read_authority.sql'
+)
+assert(
+  'user read authority migration exists',
+  existsSync(userReadAuthorityMigration)
+)
+if (existsSync(userReadAuthorityMigration)) {
+  const userReadAuthority = readFileSync(userReadAuthorityMigration, 'utf8')
+  assert(
+    'user read authority preserves authenticated SELECT',
+    /GRANT\s+SELECT\s+ON\s+TABLE\s+public\.users\s+TO\s+authenticated/i.test(
+      userReadAuthority
+    )
+  )
+  assert(
+    'user read authority keeps client DML revoked',
+    /REVOKE\s+INSERT,\s*UPDATE,\s*DELETE\s+ON\s+TABLE\s+public\.users\s+FROM\s+public,\s*anon,\s*authenticated/i.test(
+      userReadAuthority
     )
   )
 }

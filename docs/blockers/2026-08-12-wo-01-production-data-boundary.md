@@ -69,3 +69,18 @@ parent/child reference relationship, is available from the read-only audit:
 4. Approve exact tenant-scoped delete/move manifest after reference checks.
 
 No production rows were inserted, updated, deleted, or moved.
+
+## Revalidation — 2026-08-15
+
+The new fail-closed promotion scanner completed a read-only hosted scan with
+`buildops-e2e` as the only configured demo allowlist. It found 72 E2E-prefixed
+field matches in total and two promotion violations in the foreign tenant
+`e2e-qa-20260513-foreign`:
+
+- one `cortex_nodes.title` row;
+- one `projects.name` row.
+
+No seeded test identity was outside the configured allowlist. The scanner did
+not print matching business values and did not change hosted data. Promotion
+therefore remains `review_required` until the foreign tenant's retention and
+cleanup decision is approved with the evidence listed above.

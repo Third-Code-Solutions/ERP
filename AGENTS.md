@@ -1,8 +1,10 @@
-# CLAUDE.md — Third Code ERP Master Orchestration
+# AGENTS.md — Third Code ERP Master Orchestration
 
 > **STOP. READ THIS FIRST.**
-> This file is the single entry point for every Claude Code session on the Third Code ERP repo.
+> This file is the single entry point for every coding-agent session on the Third Code ERP repo.
 > Bootstrap protocol must complete before any code is written, any file is touched, or any agent is activated.
+> Reconciled 2026-08-14: `docs/PRD.md` v1.4 is the current execution authority;
+> the older root `CLAUDE.md` is retained as historical product context only.
 
 ---
 
@@ -11,8 +13,8 @@
 Execute in order. Do not skip.
 
 ```
-STEP 1 → Read /docs/Third Code ERP_PRD_v1.md in full
-STEP 2 → Read this file (CLAUDE.md) in full
+STEP 1 → Read /docs/PRD.md in full
+STEP 2 → Read this file (AGENTS.md) in full
 STEP 3 → Read /docs/adrs/ if any ADR is relevant to the task
 STEP 4 → Check git status; verify clean working tree before mutations
 STEP 5 → Identify the task → route to the correct agent (see §3)
@@ -21,7 +23,10 @@ STEP 7 → Execute within that agent's scope; never cross boundaries
 STEP 8 → On completion: write changeset summary to /docs/changesets/YYYY-MM-DD-brief.md
 ```
 
-If any step fails or is ambiguous, **stop and ask**. Do not guess.
+If a material requirement, security boundary, external target or irreversible
+operation is ambiguous, stop and record the blocker. Repository inspection,
+documentation edits, implementation, tests and reversible local builds authorized
+by the requesting task do not require a conversational go-ahead.
 
 ---
 
@@ -99,7 +104,7 @@ Every agent obeys these without exception. They are the ground rules.
 When a task arrives, route by the first matching rule:
 
 ```
-Does it touch /docs/Third Code ERP_PRD_v1.md, /docs/adrs/, or /docs/roadmap/?
+Does it touch /docs/PRD.md, /docs/adrs/, or /docs/roadmap/?
   → Agent 01 — Product/PRD Guardian
 
 Does it create or modify shadcn components, design tokens, Tailwind config?
@@ -160,7 +165,7 @@ Multi-agent work is the norm, not the exception. The handoff is the discipline.
 4. Run agents sequentially, NEVER in parallel on the same files.
 5. Each agent writes its changeset, then explicitly hands off:
      "→ Handoff to Agent NN. Reason: ___. Inputs: ___. Expected output: ___."
-6. The receiving agent re-reads CLAUDE.md and its own section before resuming.
+6. The receiving agent re-reads AGENTS.md and its own section before resuming.
 ```
 
 **Example — adding a new BOM line item field:**
@@ -199,7 +204,7 @@ Format for every agent block:
 **Scope.** Owner of product truth. Translates features into tickets, writes ADRs, maintains the PRD and roadmap, syncs client feedback.
 
 **Touches.**
-- `/docs/Third Code ERP_PRD_v1.md`
+- `/docs/PRD.md`
 - `/docs/adrs/`
 - `/docs/roadmap/`
 - `/docs/personas/`

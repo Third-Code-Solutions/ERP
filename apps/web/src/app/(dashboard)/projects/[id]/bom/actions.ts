@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { z } from 'zod'
 import { getUser, getUserProfile, requireUserProfile, can } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
@@ -13,14 +14,21 @@ import {
   vendors,
   dupas,
   dupaMaterialLines,
+  dupaLabourLines,
+  dupaEquipmentLines,
+  assemblies,
+  materialCatalog,
+  crewRoles,
+  equipmentCatalog,
   priceHistory,
   opportunities,
   users,
   takeoffUnresolvedItems,
 } from '@third-code-erp/database/schema'
-import { eq, and, max, or, desc, asc, isNotNull, inArray } from 'drizzle-orm'
+import { eq, and, max, or, desc, asc, isNotNull, inArray, ne } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
 import { writeAuditLog } from '@/lib/audit'
+import { safeActionError } from '@/lib/safe-action-error'
 import { inngest } from '@/lib/inngest'
 import {
   dispatchApprovedBomRfqThroughCoreApi,
@@ -32,6 +40,8 @@ import {
   bomLocationReviewResolutionSchema,
   bomLineLocationUpdateSchema,
   classifyBomLineKind,
+  computeDupa,
+  dupaUpsertInputSchema,
   projectLocationCreateSchema,
   type BomLineItemKind,
 } from '@third-code-erp/shared-types/bom'
@@ -210,6 +220,360 @@ export async function addBomLineItem(
   return {}
 }
 
+export interface DupaSavedTotals {
+  directCostCentavos: string
+  indirectCostCentavos: string
+  vatCentavos: string
+  totalCostCentavos: string
+  unitRateCentavos: string
+}
+
+/**
+ * Persist one complete DUPA in a single tenant-scoped transaction.
+ *
+ * The database trigger remains the source of truth for persisted totals. The
+ * shared exact arithmetic engine is used as a reconciliation check so a
+ * browser/API payload cannot silently diverge from PostgreSQL's cascade.
+ */
+export async function upsertDupaForBomLine(
+  projectId: string,
+  bomId: string,
+  input: unknown,
+): Promise<{ id: string; totals: DupaSavedTotals } | { error: string }> {
+  const profile = await getUserProfile()
+  if (!profile) return { error: 'Unauthorized' }
+  if (!can(profile.role, 'bom.edit')) {
+    return { error: `Forbidden: role "${profile.role}" lacks "bom.edit"` }
+  }
+
+  const ids = [z.string().uuid().safeParse(projectId), z.string().uuid().safeParse(bomId)]
+  if (ids.some((result) => !result.success)) return { error: 'Invalid project or BOM id' }
+
+  const parsed = dupaUpsertInputSchema.safeParse(input)
+  if (!parsed.success) {
+    const first = parsed.error.errors[0]
+    return { error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}` }
+  }
+  const dupaInput = parsed.data
+
+  const [bom] = await db
+    .select({ id: boms.id, status: boms.status })
+    .from(boms)
+    .where(
+      and(
+        eq(boms.id, bomId),
+        eq(boms.project_id, projectId),
+        eq(boms.tenant_id, profile.tenantId),
+      ),
+    )
+    .limit(1)
+  if (!bom) return { error: 'BOM not found' }
+  if (bom.status !== 'draft') return { error: 'DUPA editing is only available on draft BOMs' }
+
+  const [line] = await db
+    .select({
+      id: bomLineItems.id,
+      unit: bomLineItems.unit,
+      kind: bomLineItems.kind,
+      classification_status: bomLineItems.classification_status,
+    })
+    .from(bomLineItems)
+    .where(
+      and(
+        eq(bomLineItems.id, dupaInput.lineItemId),
+        eq(bomLineItems.bom_id, bomId),
+        eq(bomLineItems.tenant_id, profile.tenantId),
+      ),
+    )
+    .limit(1)
+  if (!line) return { error: 'BOM line item not found' }
+  if (line.kind !== 'work_item' || line.classification_status !== 'classified') {
+    return { error: 'DUPA requires a classified work item' }
+  }
+  if ((line.unit ?? '').trim().toLowerCase() !== dupaInput.uom.trim().toLowerCase()) {
+    return { error: 'DUPA unit must match the classified BOM work-item unit' }
+  }
+
+  const materialCatalogIds = [
+    ...new Set(
+      dupaInput.materials.flatMap((item) =>
+        item.catalogItemId ? [item.catalogItemId] : [],
+      ),
+    ),
+  ]
+  const crewRoleIds = [
+    ...new Set(
+      dupaInput.labour.flatMap((item) => (item.crewRoleId ? [item.crewRoleId] : [])),
+    ),
+  ]
+  const equipmentIds = [
+    ...new Set(
+      dupaInput.equipment.flatMap((item) => (item.equipmentId ? [item.equipmentId] : [])),
+    ),
+  ]
+  if (dupaInput.materials.some((item) => item.rateSource !== 'manual' && !item.catalogItemId)) {
+    return { error: 'Sourced material rates require a catalog item' }
+  }
+
+  try {
+    if (dupaInput.assemblyId) {
+      const [assembly] = await db
+        .select({ id: assemblies.id })
+        .from(assemblies)
+        .where(
+          and(
+            eq(assemblies.id, dupaInput.assemblyId),
+            eq(assemblies.tenant_id, profile.tenantId),
+            eq(assemblies.is_active, true),
+          ),
+        )
+        .limit(1)
+      if (!assembly) return { error: 'Assembly not found or inactive' }
+    }
+
+    if (materialCatalogIds.length > 0) {
+      const rows = await db
+        .select({ id: materialCatalog.id })
+        .from(materialCatalog)
+        .where(
+          and(
+            eq(materialCatalog.tenant_id, profile.tenantId),
+            inArray(materialCatalog.id, materialCatalogIds),
+          ),
+        )
+      if (rows.length !== materialCatalogIds.length) {
+        return { error: 'One or more material catalog items are outside the tenant' }
+      }
+    }
+    if (crewRoleIds.length > 0) {
+      const rows = await db
+        .select({ id: crewRoles.id })
+        .from(crewRoles)
+        .where(
+          and(eq(crewRoles.tenant_id, profile.tenantId), inArray(crewRoles.id, crewRoleIds)),
+        )
+      if (rows.length !== crewRoleIds.length) {
+        return { error: 'One or more crew roles are outside the tenant' }
+      }
+    }
+    if (equipmentIds.length > 0) {
+      const rows = await db
+        .select({ id: equipmentCatalog.id })
+        .from(equipmentCatalog)
+        .where(
+          and(
+            eq(equipmentCatalog.tenant_id, profile.tenantId),
+            inArray(equipmentCatalog.id, equipmentIds),
+          ),
+        )
+      if (rows.length !== equipmentIds.length) {
+        return { error: 'One or more equipment items are outside the tenant' }
+      }
+    }
+
+    const expected = computeDupa({
+      headerQuantity: dupaInput.headerQuantity,
+      ocmBps: BigInt(dupaInput.ocmBps),
+      profitBps: BigInt(dupaInput.profitBps),
+      vatBps: BigInt(dupaInput.vatBps),
+      vatBase: dupaInput.vatBase,
+      materials: dupaInput.materials.map((item) => ({
+        quantity: item.quantity,
+        unitRateCentavos: BigInt(item.unitRateCentavos),
+      })),
+      labour: dupaInput.labour.map((item) => ({
+        noOfPersons: item.noOfPersons,
+        hourlyRateCentavos: BigInt(item.hourlyRateCentavos),
+        productivityPerHour: item.productivityPerHour,
+      })),
+      equipment: dupaInput.equipment.map((item) => ({
+        noOfUnits: item.noOfUnits,
+        hourlyRateCentavos: BigInt(item.hourlyRateCentavos),
+        productivityPerHour: item.productivityPerHour,
+      })),
+    })
+
+    const saved = await db.transaction(async (tx) => {
+      const [existing] = await tx
+        .select({ id: dupas.id })
+        .from(dupas)
+        .where(and(eq(dupas.tenant_id, profile.tenantId), eq(dupas.bom_line_item_id, line.id)))
+        .limit(1)
+
+      const inserted = existing
+        ? []
+        : await tx
+            .insert(dupas)
+            .values({
+              tenant_id: profile.tenantId,
+              bom_line_item_id: line.id,
+              assembly_id: dupaInput.assemblyId ?? null,
+              header_quantity: dupaInput.headerQuantity,
+              uom: dupaInput.uom,
+              ocm_bps: dupaInput.ocmBps,
+              profit_bps: dupaInput.profitBps,
+              vat_bps: dupaInput.vatBps,
+              vat_base: dupaInput.vatBase,
+              created_by: profile.user.id,
+              updated_by: profile.user.id,
+            })
+            .returning({ id: dupas.id })
+      const dupaId = existing?.id ?? inserted[0]?.id
+
+      if (!dupaId) throw new Error('DUPA was not created')
+
+      if (existing) {
+        await tx
+          .update(dupas)
+          .set({
+            assembly_id: dupaInput.assemblyId ?? null,
+            header_quantity: dupaInput.headerQuantity,
+            uom: dupaInput.uom,
+            ocm_bps: dupaInput.ocmBps,
+            profit_bps: dupaInput.profitBps,
+            vat_bps: dupaInput.vatBps,
+            vat_base: dupaInput.vatBase,
+            updated_by: profile.user.id,
+            updated_at: new Date(),
+          })
+          .where(and(eq(dupas.id, dupaId), eq(dupas.tenant_id, profile.tenantId)))
+      }
+
+      await tx
+        .delete(dupaMaterialLines)
+        .where(
+          and(
+            eq(dupaMaterialLines.dupa_id, dupaId),
+            eq(dupaMaterialLines.tenant_id, profile.tenantId),
+          ),
+        )
+      await tx
+        .delete(dupaLabourLines)
+        .where(
+          and(
+            eq(dupaLabourLines.dupa_id, dupaId),
+            eq(dupaLabourLines.tenant_id, profile.tenantId),
+          ),
+        )
+      await tx
+        .delete(dupaEquipmentLines)
+        .where(
+          and(
+            eq(dupaEquipmentLines.dupa_id, dupaId),
+            eq(dupaEquipmentLines.tenant_id, profile.tenantId),
+          ),
+        )
+
+      if (dupaInput.materials.length > 0) {
+        await tx.insert(dupaMaterialLines).values(
+          dupaInput.materials.map((item, sortOrder) => ({
+            tenant_id: profile.tenantId,
+            dupa_id: dupaId,
+            catalog_item_id: item.catalogItemId ?? null,
+            description: item.description,
+            quantity: item.quantity,
+            uom: item.uom,
+            unit_rate_centavos: BigInt(item.unitRateCentavos),
+            rate_source: item.rateSource,
+            rate_as_of: item.rateAsOf ?? null,
+            sort_order: sortOrder,
+            created_by: profile.user.id,
+            updated_by: profile.user.id,
+          })),
+        )
+      }
+      if (dupaInput.labour.length > 0) {
+        await tx.insert(dupaLabourLines).values(
+          dupaInput.labour.map((item, sortOrder) => ({
+            tenant_id: profile.tenantId,
+            dupa_id: dupaId,
+            crew_role_id: item.crewRoleId ?? null,
+            description: item.description,
+            no_of_persons: item.noOfPersons,
+            hourly_rate_centavos: BigInt(item.hourlyRateCentavos),
+            productivity_per_hour: item.productivityPerHour,
+            sort_order: sortOrder,
+            created_by: profile.user.id,
+            updated_by: profile.user.id,
+          })),
+        )
+      }
+      if (dupaInput.equipment.length > 0) {
+        await tx.insert(dupaEquipmentLines).values(
+          dupaInput.equipment.map((item, sortOrder) => ({
+            tenant_id: profile.tenantId,
+            dupa_id: dupaId,
+            equipment_id: item.equipmentId ?? null,
+            description: item.description,
+            no_of_units: item.noOfUnits,
+            hourly_rate_centavos: BigInt(item.hourlyRateCentavos),
+            productivity_per_hour: item.productivityPerHour,
+            sort_order: sortOrder,
+            created_by: profile.user.id,
+            updated_by: profile.user.id,
+          })),
+        )
+      }
+
+      const [result] = await tx
+        .select({
+          id: dupas.id,
+          direct_cost_centavos: dupas.direct_cost_centavos,
+          indirect_cost_centavos: dupas.indirect_cost_centavos,
+          vat_centavos: dupas.vat_centavos,
+          total_cost_centavos: dupas.total_cost_centavos,
+          unit_rate_centavos: dupas.unit_rate_centavos,
+        })
+        .from(dupas)
+        .where(and(eq(dupas.id, dupaId), eq(dupas.tenant_id, profile.tenantId)))
+        .limit(1)
+      if (!result) throw new Error('DUPA totals were not persisted')
+
+      const reconciles =
+        result.direct_cost_centavos === expected.directCostCentavos &&
+        result.indirect_cost_centavos === expected.indirectCostCentavos &&
+        result.vat_centavos === expected.vatCentavos &&
+        result.total_cost_centavos === expected.totalCostCentavos &&
+        result.unit_rate_centavos === expected.unitRateCentavos
+      if (!reconciles) throw new Error('DUPA totals failed exact arithmetic reconciliation')
+
+      return { ...result, created: !existing }
+    })
+
+    await writeAuditLog({
+      tenantId: profile.tenantId,
+      actorId: profile.user.id,
+      entityType: 'dupa',
+      entityId: saved.id,
+      action: saved.created ? 'create' : 'update',
+      diff: {
+        bom_id: bomId,
+        bom_line_item_id: line.id,
+        vat_base: dupaInput.vatBase,
+        material_lines: dupaInput.materials.length,
+        labour_lines: dupaInput.labour.length,
+        equipment_lines: dupaInput.equipment.length,
+        unit_rate_centavos: saved.unit_rate_centavos.toString(),
+      },
+    })
+
+    revalidatePath(`/projects/${projectId}/bom`)
+    return {
+      id: saved.id,
+      totals: {
+        directCostCentavos: saved.direct_cost_centavos.toString(),
+        indirectCostCentavos: saved.indirect_cost_centavos.toString(),
+        vatCentavos: saved.vat_centavos.toString(),
+        totalCostCentavos: saved.total_cost_centavos.toString(),
+        unitRateCentavos: saved.unit_rate_centavos.toString(),
+      },
+    }
+  } catch (error) {
+    console.error('[upsertDupaForBomLine]', error)
+    return { error: safeActionError(error, 'Unable to save DUPA') }
+  }
+}
+
 export async function deleteBomLineItem(
   itemId: string,
   bomId: string,
@@ -284,6 +648,24 @@ export async function approveBom(bomId: string, projectId: string): Promise<{ er
     .limit(1)
   if (pendingTakeoff) {
     return { error: `Resolve every unresolved takeoff row before approval: ${pendingTakeoff.reason}` }
+  }
+
+  const [unpricedAiLine] = await db
+    .select({ id: bomLineItems.id, description: bomLineItems.description })
+    .from(bomLineItems)
+    .where(
+      and(
+        eq(bomLineItems.bom_id, bomId),
+        eq(bomLineItems.tenant_id, profile.tenantId),
+        eq(bomLineItems.ai_drafted, true),
+        ne(bomLineItems.unit_rate_source, 'dupa'),
+      ),
+    )
+    .limit(1)
+  if (unpricedAiLine) {
+    return {
+      error: `Attach a DUPA to every AI-drafted line before approval: ${unpricedAiLine.description}`,
+    }
   }
 
   const [unresolvedLine] = await db

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { and, desc, eq, inArray, isNull, sum } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
 import { getUserProfile, can } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
@@ -10,7 +10,6 @@ import {
   costEntries,
   projectBudgets,
   projects,
-  purchaseOrders,
 } from '@third-code-erp/database/schema'
 import {
   computeProjectCostSnapshot,
@@ -21,7 +20,8 @@ import {
 import { GpErosionBadge } from '@/components/cost/gp-erosion-badge'
 import { CostEntryForm } from '@/components/cost/cost-entry-form'
 import { CostTable, type CostRow } from '@/components/cost/cost-table'
-import { COMMITTED_PO_STATUSES } from '@/lib/po-status'
+import { CostControlTable } from '@/components/cost/cost-control-table'
+import { getProjectCostControl } from '@/lib/operations/project-cost-control'
 
 export const metadata: Metadata = { title: 'Cost Tracking' }
 
@@ -49,6 +49,11 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ id
     .where(and(eq(projects.id, id), eq(projects.tenant_id, profile.tenantId)))
   if (!project) return notFound()
 
+  const costControl = await getProjectCostControl({
+    tenantId: profile.tenantId,
+    projectId: id,
+  })
+
   const [latestBom] = await db
     .select({
       total_cost_cents: boms.total_cost_cents,
@@ -65,6 +70,7 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ id
     .select({
       total_budget_cents: projectBudgets.total_budget_cents,
       revision: projectBudgets.revision,
+      original_gp_margin_bps: projectBudgets.original_gp_margin_bps,
     })
     .from(projectBudgets)
     .where(
@@ -75,17 +81,6 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ id
       )
     )
     .limit(1)
-
-  const [poSum] = await db
-    .select({ total: sum(purchaseOrders.total_cents) })
-    .from(purchaseOrders)
-    .where(
-      and(
-        eq(purchaseOrders.project_id, id),
-        eq(purchaseOrders.tenant_id, profile.tenantId),
-        inArray(purchaseOrders.status, [...COMMITTED_PO_STATUSES])
-      )
-    )
 
   const entries = await db
     .select({
@@ -123,18 +118,28 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ id
     )
     .orderBy(costCodes.code)
 
-  const actualCents = entries.reduce((acc, e) => acc + e.amount_cents, 0)
+  const actualCents = costControl.totals.actualCents
   const snapshot = computeProjectCostSnapshot({
     budgetCents:
       approvedBudget?.total_budget_cents ?? latestBom?.total_cost_cents ?? 0,
-    committedCents: Number(poSum?.total ?? 0),
+    committedCents: costControl.totals.committedCents,
     actualCents,
     bomTcvCents: latestBom?.tcv_cents ?? 0,
     bomGpCents: latestBom?.gp_cents ?? 0,
+    originalGpMarginBps: approvedBudget?.original_gp_margin_bps,
   })
 
   const byCategory = computeCategoryRollup(
-    entries.map((e) => ({ cost_category: e.cost_category as CostCategory, amount_cents: e.amount_cents }))
+    costControl.rows.flatMap((row) =>
+      COST_CATEGORIES.includes(row.category as CostCategory)
+        ? [
+            {
+              cost_category: row.category as CostCategory,
+              amount_cents: row.actualCents,
+            },
+          ]
+        : []
+    )
   )
   const canRecord = can(profile.role, 'cost.record')
 
@@ -220,6 +225,34 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ id
         </div>
       </div>
 
+      <section className="card" style={{ marginBottom: '16px' }}>
+        <div className="card-header">
+          <div>
+            <h3 className="card-title">Cost control by BOM line</h3>
+            <p className="cost-section-sub">
+              Approved budget → issued PO commitments → posted supplier-bill
+              actuals. Actuals never add a committed PO a second time.
+            </p>
+          </div>
+        </div>
+        <CostControlTable rows={costControl.rows} />
+        {costControl.totals.unreconciledCents > 0 && (
+          <p
+            role="note"
+            style={{
+              color: 'var(--color-warning, #a16207)',
+              fontSize: '0.8rem',
+              margin: '12px 16px 16px',
+            }}
+          >
+            Manual or legacy cost-log evidence of{' '}
+            {php(costControl.totals.unreconciledCents)} is shown below but is
+            excluded from posted-invoice actual margin until it is reconciled
+            to a BOM line.
+          </p>
+        )}
+      </section>
+
       <div className="cost-grid">
         <div className="card">
           <div className="card-header">
@@ -233,7 +266,7 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ id
 
         <div className="card" style={{ height: 'fit-content' }}>
           <div className="card-header">
-            <h3 className="card-title">By category</h3>
+            <h3 className="card-title">Posted actual by category</h3>
           </div>
           <table className="data-table">
             <thead>
