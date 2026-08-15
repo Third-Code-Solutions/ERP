@@ -168,7 +168,8 @@ export default async function DeliveriesPage({
       <div className="card">
         <div className="card-header">
           <h2 className="card-title">
-            {visibleRows.length} delivery{visibleRows.length === 1 ? '' : 'ies'}
+            {visibleRows.length}{' '}
+            {visibleRows.length === 1 ? 'delivery' : 'deliveries'}
           </h2>
         </div>
         {visibleRows.length === 0 ? (
