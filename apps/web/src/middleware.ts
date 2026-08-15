@@ -99,9 +99,35 @@ function buildSupabaseResponse(
   })
 }
 
+function applySecurityHeaders(
+  response: NextResponse,
+  nonce: string,
+  csp: string
+): NextResponse {
+  response.headers.set('x-nonce', nonce)
+  response.headers.set('Content-Security-Policy', csp)
+  response.headers.set('X-Content-Type-Options', 'nosniff')
+  response.headers.set('X-Frame-Options', 'DENY')
+  response.headers.set(
+    'Referrer-Policy',
+    'strict-origin-when-cross-origin'
+  )
+  response.headers.set(
+    'Permissions-Policy',
+    'camera=(), microphone=(), geolocation=()'
+  )
+  response.headers.set(
+    'Strict-Transport-Security',
+    'max-age=31536000; includeSubDomains'
+  )
+  return response
+}
+
 function redirectToLogin(
   request: NextRequest,
-  staleAuthCookieNames: readonly string[]
+  staleAuthCookieNames: readonly string[],
+  nonce: string,
+  csp: string
 ): NextResponse {
   const redirect = NextResponse.redirect(
     new URL('/auth/login', request.url)
@@ -109,7 +135,7 @@ function redirectToLogin(
   for (const name of staleAuthCookieNames) {
     redirect.cookies.delete(name)
   }
-  return redirect
+  return applySecurityHeaders(redirect, nonce, csp)
 }
 
 // ---------------------------------------------------------------------------
@@ -198,7 +224,7 @@ export async function middleware(request: NextRequest) {
   const rateLimitPolicy = requestRateLimitPolicy(pathname, !!user)
   const rateLimitKey = `${requestRateLimitKey(ip, user?.id)}:${rateLimitPolicy.bucket}`
   if (isRateLimited(rateLimitKey, rateLimitPolicy)) {
-    return new NextResponse('Too Many Requests', {
+    const response = new NextResponse('Too Many Requests', {
       status: 429,
       headers: {
         'Retry-After': '60',
@@ -207,31 +233,28 @@ export async function middleware(request: NextRequest) {
         'Content-Type': 'text/plain',
       },
     })
+    return applySecurityHeaders(response, nonce, csp)
   }
 
   // Auth redirects
   if (user && pathname.startsWith('/auth')) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
+    return applySecurityHeaders(
+      NextResponse.redirect(new URL('/dashboard', request.url)),
+      nonce,
+      csp
+    )
   }
 
   if (!user && pathname.startsWith('/dashboard')) {
-    return redirectToLogin(request, staleAuthCookieNames)
+    return redirectToLogin(request, staleAuthCookieNames, nonce, csp)
   }
 
   if (!user && isProtectedRoute(pathname)) {
-    return redirectToLogin(request, staleAuthCookieNames)
+    return redirectToLogin(request, staleAuthCookieNames, nonce, csp)
   }
 
   // Security headers on every rendered response
-  supabaseResponse.headers.set('x-nonce', nonce)
-  supabaseResponse.headers.set('Content-Security-Policy', csp)
-  supabaseResponse.headers.set('X-Content-Type-Options', 'nosniff')
-  supabaseResponse.headers.set('X-Frame-Options', 'DENY')
-  supabaseResponse.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
-  supabaseResponse.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
-  supabaseResponse.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
-
-  return supabaseResponse
+  return applySecurityHeaders(supabaseResponse, nonce, csp)
 }
 
 export const config = {

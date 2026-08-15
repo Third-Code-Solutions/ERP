@@ -102,7 +102,7 @@ export default async function ChangeRequestsPage({ params }: PageProps) {
       <div className="section-grid-2">
         <div className="card">
           <div className="card-header">
-            <h2 className="card-title">Log</h2>
+            <h2 className="card-title">Change log</h2>
           </div>
           {crs.length === 0 ? (
             <div className="card-empty">No change requests logged yet.</div>

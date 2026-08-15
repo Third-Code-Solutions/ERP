@@ -46,6 +46,11 @@ describe('middleware Supabase session recovery', () => {
     expect(response.headers.get('location')).toBe(
       'https://erp.example/auth/login'
     )
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff')
+    expect(response.headers.get('x-frame-options')).toBe('DENY')
+    expect(response.headers.get('referrer-policy')).toBe(
+      'strict-origin-when-cross-origin'
+    )
     const setCookies = response.headers.getSetCookie()
     const staleCookies = setCookies.filter((cookie) =>
       cookie.startsWith('sb-example-auth-token')
