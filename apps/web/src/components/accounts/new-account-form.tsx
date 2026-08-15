@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { createAccount } from '@/app/(dashboard)/crm/accounts/actions'
+import { ActionFeedback } from '@/components/ui/action-feedback'
 import { accountIndustryValues } from '@third-code-erp/shared-types'
 
 const INDUSTRY_LABELS: Record<string, string> = {
@@ -29,7 +30,12 @@ export function NewAccountForm() {
   }
 
   return (
-    <form action={onSubmit} className="account-form">
+    <form
+      action={onSubmit}
+      className="account-form"
+      aria-busy={pending}
+      aria-describedby="new-account-form-status"
+    >
       <div className="form-row">
         <label className="form-label" htmlFor="name">Company name *</label>
         <input
@@ -69,23 +75,20 @@ export function NewAccountForm() {
         <textarea id="billing_address" name="billing_address" rows={3} className="form-input" placeholder="Floor, Building, Street, City..." />
       </div>
 
-      {error && (
-        <p style={{ color: 'var(--color-danger)', fontSize: 13, marginTop: 8 }}>{error}</p>
-      )}
+      <ActionFeedback
+        id="new-account-form-status"
+        error={error}
+        pending={pending}
+        pendingMessage="Creating account…"
+      />
 
-      <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+      <div className="action-row">
         <button
           type="submit"
           disabled={pending}
-          className="user-chip"
-          style={{
-            borderColor: 'var(--color-navy-700)',
-            background: 'var(--color-navy-700)',
-            color: 'white',
-            cursor: pending ? 'wait' : 'pointer',
-          }}
+          className="button-primary"
         >
-          <span style={{ fontWeight: 600 }}>{pending ? 'Creating…' : 'Create account'}</span>
+          {pending ? 'Creating…' : 'Create account'}
         </button>
       </div>
 

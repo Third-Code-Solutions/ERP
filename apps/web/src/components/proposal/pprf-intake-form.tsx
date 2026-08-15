@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createPprfIntake } from '@/app/(dashboard)/crm/opportunities/new/pprf/actions'
+import { ActionFeedback } from '@/components/ui/action-feedback'
 
 const inputClass = 'form-input'
 
@@ -26,7 +27,12 @@ export function PprfIntakeForm() {
   }
 
   return (
-    <form action={submit} className="pprf-intake-form">
+    <form
+      action={submit}
+      className="pprf-intake-form"
+      aria-busy={pending}
+      aria-describedby="pprf-intake-form-status"
+    >
       <section className="intake-section">
         <div className="intake-section-heading">
           <div>
@@ -163,7 +169,12 @@ export function PprfIntakeForm() {
         </div>
       </section>
 
-      {error && <p className="form-error" role="alert">{error}</p>}
+      <ActionFeedback
+        id="pprf-intake-form-status"
+        error={error}
+        pending={pending}
+        pendingMessage="Creating client and review tracks…"
+      />
       <div className="intake-actions">
         <button type="button" className="button-secondary" onClick={() => router.back()} disabled={pending}>Cancel</button>
         <button type="submit" className="button-primary" disabled={pending}>
