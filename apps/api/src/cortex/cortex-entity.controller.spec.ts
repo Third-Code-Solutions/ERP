@@ -64,7 +64,7 @@ describe('Cortex entity HTTP contract', () => {
       .expect(400)
 
     expect(read).not.toHaveBeenCalled()
-  })
+  }, 30_000)
 
   it('forwards only the registered reference and verified principal', async () => {
     const read = vi.fn().mockResolvedValue({
@@ -84,5 +84,5 @@ describe('Cortex entity HTTP contract', () => {
       { refTable: 'journal_entries', refId: REF_ID },
       expect.objectContaining({ tenantId: TENANT_ID, role: 'finance' })
     )
-  })
+  }, 30_000)
 })

@@ -1,6 +1,22 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { evaluateProductionSurface } from './verify-production-surface.mjs'
+
+test('root package exposes the documented production-surface command', () => {
+  const packageJson = JSON.parse(
+    readFileSync(new URL('../package.json', import.meta.url), 'utf8')
+  )
+
+  assert.equal(
+    packageJson.scripts['verify:production-surface'],
+    'node scripts/verify-production-surface.mjs'
+  )
+  assert.equal(
+    packageJson.scripts['test:production-surface'],
+    'node --test scripts/verify-production-surface.test.mjs'
+  )
+})
 
 function response(status, json, text = '') {
   return { status, json, text }

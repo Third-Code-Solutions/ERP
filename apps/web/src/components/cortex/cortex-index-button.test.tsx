@@ -9,6 +9,8 @@ describe('CortexIndexButton', () => {
     expect(markup).toContain('Semantic indexing paused')
     expect(markup).toContain('disabled=""')
     expect(markup).toContain('aria-disabled="true"')
+    expect(markup).toContain('provider-spend canary is closed for this tenant')
+    expect(markup).toContain('aria-describedby="cortex-index-paused-reason"')
   })
 
   it('discloses the fixed batch and provider-call ceiling before approval', () => {

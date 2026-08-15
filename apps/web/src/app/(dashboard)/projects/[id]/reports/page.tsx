@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { and, desc, eq } from 'drizzle-orm'
@@ -9,6 +10,8 @@ import {
   weeklyReports,
 } from '@third-code-erp/database/schema'
 import { generateThisWeekReport } from './actions'
+
+export const metadata: Metadata = { title: 'Weekly reports' }
 
 interface PageProps {
   params: Promise<{ id: string }>

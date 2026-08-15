@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { and, eq } from 'drizzle-orm'
@@ -10,6 +11,8 @@ import { ProgressViewToggle } from '@/components/progress/progress-view-toggle'
 import { MasterScheduleImport } from '@/components/progress/master-schedule-import'
 import { WeeklyUpdateForm } from '@/components/progress/weekly-update-form'
 import { loadProgressContext } from './actions'
+
+export const metadata: Metadata = { title: 'Progress' }
 
 interface PageProps {
   params: Promise<{ id: string }>

@@ -23,6 +23,7 @@ test.describe('M-Deliveries', () => {
 
     const body = (await page.locator('body').innerText()).toLowerCase()
     expect(body).toContain('deliveries')
+    expect(body).not.toContain('deliveryies')
 
     const tableCount = await page.locator('table').count()
     const hasEmptyState =
