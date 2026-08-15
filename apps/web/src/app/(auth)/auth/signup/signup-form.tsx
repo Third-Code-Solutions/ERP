@@ -2,21 +2,21 @@
 
 import { useState, useTransition } from 'react'
 import { createSupabaseBrowserClient } from '@third-code-erp/auth/client'
-import { isOrganizationType } from '@third-code-erp/shared-types'
 import { useRouter } from 'next/navigation'
 import { ORGANIZATION_TYPE_OPTIONS } from './signup-options'
+import { validateSignupInput, type SignupField } from './signup-validation'
 
 export function SignupForm() {
   const supabase = createSupabaseBrowserClient()
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const [errorField, setErrorField] = useState<SignupField | null>(null)
   const [success, setSuccess] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    setError(null)
 
     const form = e.currentTarget
     const fullName = (form.elements.namedItem('fullName') as HTMLInputElement).value.trim()
@@ -26,21 +26,22 @@ export function SignupForm() {
     const password = (form.elements.namedItem('password') as HTMLInputElement).value
     const confirm = (form.elements.namedItem('confirm') as HTMLInputElement).value
 
-    if (
-      !fullName
-      || !companyName
-      || !isOrganizationType(organizationType)
-      || !email.includes('@')
-    ) {
-      setError('Complete every field before creating your account.')
-      return
-    }
-    if (password !== confirm) {
-      setError('Passwords do not match.')
-      return
-    }
-    if (password.length < 12) {
-      setError('Password must be at least 12 characters.')
+    setError(null)
+    setErrorField(null)
+
+    const validationError = validateSignupInput({
+      fullName,
+      companyName,
+      organizationType,
+      email,
+      password,
+      confirm,
+    })
+    if (validationError) {
+      setError(validationError.message)
+      setErrorField(validationError.field)
+      const invalidControl = form.elements.namedItem(validationError.field)
+      if (invalidControl instanceof HTMLElement) invalidControl.focus()
       return
     }
 
@@ -62,6 +63,7 @@ export function SignupForm() {
 
       if (signUpError) {
         setError(signUpError.message)
+        setErrorField(null)
       } else if (data.session) {
         router.replace('/dashboard')
         router.refresh()
@@ -92,7 +94,6 @@ export function SignupForm() {
     )
   }
 
-  const hasError = Boolean(error)
   const errorId = 'signup-error'
   const passwordHintId = 'signup-password-hint'
 
@@ -115,8 +116,8 @@ export function SignupForm() {
           autoComplete="name"
           required
           aria-required="true"
-          aria-invalid={hasError || undefined}
-          aria-describedby={hasError ? errorId : undefined}
+          aria-invalid={errorField === 'fullName' || undefined}
+          aria-describedby={errorField === 'fullName' ? errorId : undefined}
           maxLength={120}
           className="auth-input"
           placeholder="Juan dela Cruz"
@@ -135,8 +136,8 @@ export function SignupForm() {
           autoComplete="organization"
           required
           aria-required="true"
-          aria-invalid={hasError || undefined}
-          aria-describedby={hasError ? errorId : undefined}
+          aria-invalid={errorField === 'companyName' || undefined}
+          aria-describedby={errorField === 'companyName' ? errorId : undefined}
           maxLength={180}
           className="auth-input"
           placeholder="Your company name"
@@ -152,8 +153,8 @@ export function SignupForm() {
           name="organizationType"
           required
           aria-required="true"
-          aria-invalid={hasError || undefined}
-          aria-describedby={hasError ? errorId : undefined}
+          aria-invalid={errorField === 'organizationType' || undefined}
+          aria-describedby={errorField === 'organizationType' ? errorId : undefined}
           className="auth-input"
           defaultValue=""
         >
@@ -178,8 +179,8 @@ export function SignupForm() {
           inputMode="email"
           required
           aria-required="true"
-          aria-invalid={hasError || undefined}
-          aria-describedby={hasError ? errorId : undefined}
+          aria-invalid={errorField === 'email' || undefined}
+          aria-describedby={errorField === 'email' ? errorId : undefined}
           className="auth-input"
           placeholder="you@company.com"
         />
@@ -198,8 +199,12 @@ export function SignupForm() {
             required
             aria-required="true"
             minLength={12}
-            aria-invalid={hasError || undefined}
-            aria-describedby={hasError ? `${passwordHintId} ${errorId}` : passwordHintId}
+            aria-invalid={errorField === 'password' || undefined}
+            aria-describedby={
+              errorField === 'password'
+                ? `${passwordHintId} ${errorId}`
+                : passwordHintId
+            }
             className="auth-input"
             placeholder="At least 12 characters"
           />
@@ -239,8 +244,8 @@ export function SignupForm() {
           autoComplete="new-password"
           required
           aria-required="true"
-          aria-invalid={hasError || undefined}
-          aria-describedby={hasError ? errorId : undefined}
+          aria-invalid={errorField === 'confirm' || undefined}
+          aria-describedby={errorField === 'confirm' ? errorId : undefined}
           className="auth-input"
           placeholder="Repeat password"
         />

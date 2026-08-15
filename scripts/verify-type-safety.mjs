@@ -11,6 +11,10 @@ const EXCLUDED_SEGMENTS = new Set([
   '__tests__',
   'test',
   'tests',
+  '__pycache__',
+  '.pytest_cache',
+  '.mypy_cache',
+  '.ruff_cache',
 ])
 const ESCAPE_PATTERNS = [
   /\bas\s+any\b/g,

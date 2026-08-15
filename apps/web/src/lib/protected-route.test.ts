@@ -8,6 +8,10 @@ describe('browser protected-route boundary', () => {
     expect(isProtectedRoute('/projects/11111111-1111-4111-8111-111111111111')).toBe(true)
     expect(isProtectedRoute('/finance')).toBe(true)
     expect(isProtectedRoute('/inventory/receipts')).toBe(true)
+    expect(isProtectedRoute('/assets')).toBe(true)
+    expect(isProtectedRoute('/process')).toBe(true)
+    expect(isProtectedRoute('/inspection/11111111-1111-4111-8111-111111111111')).toBe(true)
+    expect(isProtectedRoute('/weekly-report/11111111-1111-4111-8111-111111111111')).toBe(true)
   })
 
   it('does not overmatch similarly named public paths or APIs', () => {
@@ -15,5 +19,6 @@ describe('browser protected-route boundary', () => {
     expect(isProtectedRoute('/api/cortex/search')).toBe(false)
     expect(isProtectedRoute('/auth/login')).toBe(false)
     expect(isProtectedRoute('/')).toBe(false)
+    expect(isProtectedRoute('/portal/project/demo-token')).toBe(false)
   })
 })
