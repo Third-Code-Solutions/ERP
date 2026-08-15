@@ -9,7 +9,7 @@
 > runtime or database is still at the historical 55/124 state.
 
 > Superseding evidence — 2026-08-16: the read-only provider-source planner at
-> current `origin/main` commit `b742c5d5a3d4bd696eba57aa9f7ac48fcd52bb9a`
+> current `origin/main` commit `a98d9450fdb93ef5864365c64030f3d5e7f38ca2`
 > reports PostgreSQL 17, 144/144 migrations, zero pending migrations, and no
 > duplicate Purchase Order groups. The source-parity portion of this blocker
 > is closed. Production promotion remains separately blocked by the
