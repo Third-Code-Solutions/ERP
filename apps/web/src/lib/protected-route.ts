@@ -7,6 +7,7 @@ export const PROTECTED_ROUTE_PREFIXES = [
   '/projects',
   '/pipeline',
   '/bom',
+  '/assets',
   '/invoices',
   '/purchase-orders',
   '/documents',
@@ -20,9 +21,14 @@ export const PROTECTED_ROUTE_PREFIXES = [
   '/admin',
   '/tasks',
   '/permits',
+  '/process',
   '/punchlist',
   '/warranty',
   '/claims',
+  // Print surfaces render tenant-scoped records and must never be reachable
+  // anonymously, even though they live outside the dashboard route group.
+  '/inspection',
+  '/weekly-report',
 ] as const
 
 export function isProtectedRoute(pathname: string): boolean {

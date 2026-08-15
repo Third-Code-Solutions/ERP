@@ -15,6 +15,7 @@ test.describe('Authentication', () => {
       '/projects',
       '/pipeline',
       '/bom',
+      '/assets',
       '/cortex',
       '/finance',
       '/inventory',
