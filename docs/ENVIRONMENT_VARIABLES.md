@@ -37,6 +37,7 @@ are not Vercel client variables and must never be copied into `.env` files.
 
 | Variable | Required | Scope | Where to get | Controls |
 |---|---|---|---|---|
+| `RAILWAY_API_TOKEN` | yes | GitHub Actions secret | Railway workspace API token with exact production project access | Authenticates the pinned API and CAD service deployments; never use a project token in this binding |
 | `PRODUCTION_DATABASE_URL` | yes | GitHub Actions secret | Approved read-only/session PostgreSQL connection | Read-only contamination gate; promotion fails closed when this is absent |
 | `SUPABASE_MIGRATION_DATABASE_URL` | yes | GitHub Actions secret | Approved write-scoped session pooler URL for the exact project | Ordered migration preview/apply; validated against the fixed project ref and port 5432 |
 | `BUILD_OPS_DEMO_TENANT_SLUGS` | yes | GitHub Actions variable | Exact dedicated demo tenant slug(s) | Allowlist used by the production data-boundary scan; never widen to hide customer contamination |

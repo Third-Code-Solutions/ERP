@@ -200,7 +200,8 @@ project, then checks web/API/worker health and the public surface contract.
 Configure these secrets on the `production` environment before dispatching:
 
 - `VERCEL_TOKEN`
-- `RAILWAY_TOKEN` (Railway project token for production)
+- `RAILWAY_API_TOKEN` (Railway workspace API token with access to the exact
+  production project and services)
 - `SUPABASE_MIGRATION_DATABASE_URL` (write-scoped exact-project session pooler
   URL on port `5432`; GitHub secret only)
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` (seeded production E2E harness)
