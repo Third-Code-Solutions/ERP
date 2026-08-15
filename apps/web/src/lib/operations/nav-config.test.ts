@@ -5,6 +5,7 @@ import {
   canonicalRole,
   isAppRole,
   roleLabel,
+  activeNavHref,
 } from './nav-config'
 
 describe('RBAC: canonicalRole', () => {
@@ -127,5 +128,28 @@ describe('RBAC: roleLabel', () => {
     expect(roleLabel('sd_pm_pe')).toBe('SD / PM / PE')
     expect(roleLabel('cx')).toBe('Customer Experience')
     expect(roleLabel('admin')).toBe('Admin')
+  })
+})
+
+describe('sidebar active state', () => {
+  it('marks only the most specific Finance destination active', () => {
+    const sections = visibleNavSections('finance')
+
+    expect(activeNavHref('/finance', sections)).toBe('/finance')
+    expect(activeNavHref('/finance/receivables', sections)).toBe(
+      '/finance/receivables'
+    )
+    expect(activeNavHref('/finance/payables/123', sections)).toBe(
+      '/finance/payables'
+    )
+    expect(activeNavHref('/finance/reconciliation/new', sections)).toBe(
+      '/finance/reconciliation'
+    )
+  })
+
+  it('returns no active item for an unrelated route', () => {
+    expect(activeNavHref('/settings/profile', visibleNavSections('finance'))).toBe(
+      null
+    )
   })
 })
