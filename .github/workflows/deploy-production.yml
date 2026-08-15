@@ -118,7 +118,7 @@ jobs:
       - name: Deploy Nest API to exact Railway service
         shell: bash
         run: >-
-          pnpm dlx @railway/cli@5.28.0 up . --project "$RAILWAY_PROJECT_ID"
+          pnpm dlx @railway/cli@5.28.0 up --project "$RAILWAY_PROJECT_ID"
           --environment production --service "$RAILWAY_API_SERVICE_ID"
           --ci --yes --message "${{ inputs.reason }}"
 

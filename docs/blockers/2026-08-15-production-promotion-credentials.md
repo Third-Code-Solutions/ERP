@@ -51,3 +51,11 @@ The historical blocker was remediated without widening the demo allowlist:
   operation. The current local OAuth session is sufficient only for an
   immediate promotion window and must not be treated as a permanent release
   credential.
+
+## Retry update — 2026-08-16
+
+The first retry reached Railway with valid workspace authentication but stopped
+at `Indexing... prefix not found` before a build started. The canonical workflow
+now uses `railway up` for the repository-root API service instead of passing an
+explicit `.` path; the CAD worker keeps its explicit `--path-as-root` subdirectory
+upload.
