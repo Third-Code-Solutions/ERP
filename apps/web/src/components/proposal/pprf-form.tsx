@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from 'react'
 import { submitPprf } from '@/app/(dashboard)/crm/opportunities/[id]/proposal/actions'
+import { ActionFeedback } from '@/components/ui/action-feedback'
 
 interface PprfFormProps {
   opportunityId: string
@@ -37,7 +38,13 @@ export function PprfForm({ opportunityId, defaults }: PprfFormProps) {
   }
 
   return (
-    <form action={onSubmit} ref={formRef} className="pprf-form">
+    <form
+      action={onSubmit}
+      ref={formRef}
+      className="pprf-form"
+      aria-busy={pending}
+      aria-describedby="pprf-form-status"
+    >
       <input type="hidden" name="opportunity_id" value={opportunityId} />
 
       <div className="form-row">
@@ -146,22 +153,21 @@ export function PprfForm({ opportunityId, defaults }: PprfFormProps) {
         />
       </div>
 
-      {error && <p className="form-error">{error}</p>}
-      {success && <p className="form-success">{success}</p>}
+      <ActionFeedback
+        id="pprf-form-status"
+        error={error}
+        pending={pending}
+        pendingMessage="Submitting PPRF version…"
+        success={success}
+      />
 
-      <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+      <div className="action-row">
         <button
           type="submit"
           disabled={pending}
-          className="user-chip"
-          style={{
-            borderColor: 'var(--color-navy-700)',
-            background: 'var(--color-navy-700)',
-            color: 'white',
-            cursor: pending ? 'wait' : 'pointer',
-          }}
+          className="button-primary"
         >
-          <span style={{ fontWeight: 600 }}>{pending ? 'Submitting…' : 'Submit new PPRF version'}</span>
+          {pending ? 'Submitting…' : 'Submit new PPRF version'}
         </button>
       </div>
 

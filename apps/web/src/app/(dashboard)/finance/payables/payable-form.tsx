@@ -6,6 +6,7 @@ import {
   quantityToMicros,
   receiptLineTotal,
 } from '../../inventory/quantity'
+import { ActionFeedback } from '@/components/ui/action-feedback'
 import { saveSupplierBillDraft } from './actions'
 
 export interface PayablePurchaseOrderOption {
@@ -327,6 +328,8 @@ export function PayableForm({
   return (
     <form
       className="payable-form"
+      aria-busy={pending}
+      aria-describedby="payable-form-status"
       onSubmit={(event) => {
         event.preventDefault()
         submit()
@@ -656,11 +659,12 @@ export function PayableForm({
             values cannot exceed their unmatched balance.
           </p>
         )}
-        {error && (
-          <p className="finance-form-error" role="alert">
-            {error}
-          </p>
-        )}
+        <ActionFeedback
+          id="payable-form-status"
+          error={error}
+          pending={pending}
+          pendingMessage="Saving supplier bill draft…"
+        />
         <div className="journal-submit-row">
           <p>
             Save as draft. No liability or journal exists until controlled
