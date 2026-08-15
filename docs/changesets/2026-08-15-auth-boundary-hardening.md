@@ -5,8 +5,9 @@
 PARTIALLY VERIFIED. A live unauthenticated route walk identified four
 tenant-scoped browser surfaces that were not included in the shared middleware
 protected-route prefix list. The source fix and regression coverage are in
-place, but the live production revision has not been replaced because the
-guarded promotion workflow is missing its required production credentials.
+place and the branch passed hosted CI, but the live production revision has not
+been replaced because the guarded promotion workflow is still missing provider
+credentials and is correctly blocked by the production data boundary.
 
 ## Changed
 
@@ -41,14 +42,22 @@ guarded promotion workflow is missing its required production credentials.
   web 904 passed, with documented integration skips).
 - PASS — `pnpm build` (web 85/85 static pages and API webpack build).
 - PASS — `pnpm ci:gitleaks` (no leaks found).
+- PASS — hosted CI run `31892289507` at the repair SHA (lint, secret scan,
+  BUILD OPS invariants, typecheck, unit tests, database reproducibility, and
+  build). The workflow's E2E job was explicitly skipped for this pull request.
+- PASS — read-only production boundary connectivity through the approved
+  session pooler; result was `review_required` with two non-demo E2E rows.
 - NOT RUN — authenticated live verification of the patch; the patch is not
   deployed.
 
 ## Production boundary
 
-- BLOCKED — guarded production promotion. Workflow run
-  `31888953823` stopped at the credential gate because the required production
-  secrets were not available. No migration, data mutation, Railway deploy, or
-  Vercel deploy occurred.
+- BLOCKED — guarded production promotion. Fresh workflow run
+  `31892885897` stopped at `Require production credentials`: `VERCEL_TOKEN`,
+  `RAILWAY_TOKEN`, and `SUPABASE_ACCESS_TOKEN` are unavailable. Four verified
+  secrets are present in the protected environment. No migration, data
+  mutation, Railway deploy, or Vercel deploy occurred.
 - BLOCKED — the existing production data-boundary finding remains unresolved;
-  no cleanup or production data mutation was performed.
+  the read-only scan found one E2E-prefixed `cortex_nodes.title` row and one
+  E2E-prefixed `projects.name` row under `e2e-qa-20260513-foreign`. No cleanup
+  or production data mutation was performed.
