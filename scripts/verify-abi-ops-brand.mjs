@@ -19,6 +19,15 @@ const TEXT_EXTENSIONS = new Set([
   '.yaml',
 ])
 
+const EXCLUDED_SEGMENTS = new Set([
+  'node_modules',
+  '.git',
+  '__pycache__',
+  '.pytest_cache',
+  '.mypy_cache',
+  '.ruff_cache',
+])
+
 const LEGACY_PATTERNS = [
   /Third Code Solutions(?: Inc\.)?/i,
   /Third-Code-Solutions/i,
@@ -57,7 +66,7 @@ function collectTextFiles(root, entry) {
 
   const files = []
   for (const child of readdirSync(absoluteEntry, { withFileTypes: true })) {
-    if (child.name === 'node_modules' || child.name === '.git') continue
+    if (child.isDirectory() && EXCLUDED_SEGMENTS.has(child.name)) continue
     const childEntry = join(absoluteEntry, child.name)
     if (child.isDirectory()) {
       files.push(...collectTextFiles(root, relative(root, childEntry)))
