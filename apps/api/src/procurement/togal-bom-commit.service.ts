@@ -217,7 +217,7 @@ export class TogalBomCommitService {
           'Togal BOM commit idempotency record has an unsupported state'
         )
       }
-      if (bom.status === 'locked' || bom.status === 'archived') {
+      if (bom.status !== 'draft') {
         throw new ConflictException(
           `BOM is ${bom.status}; cannot commit lines`
         )
@@ -266,7 +266,7 @@ export class TogalBomCommitService {
       let addedTcvCents = 0
       const linesToInsert = parsedCommand.proposedLines.map((line, index) => {
         const markupBps = line.markupBps ?? projectMarkupBps
-        const qtyInt = Math.round(line.qty)
+        const qtyInt = line.qty
         if (!Number.isSafeInteger(qtyInt) || qtyInt < 0 || qtyInt > MAX_BOM_QUANTITY) {
           throw new ConflictException(
             'Togal BOM quantity exceeds supported integer range'
@@ -294,9 +294,6 @@ export class TogalBomCommitService {
             ? `Cost from Togal (${line.sourceLabel})`
             : 'Cost from Togal import',
         ]
-        if (Math.abs(line.qty - qtyInt) > 1e-6) {
-          notesParts.push(`raw_qty=${line.qty}`)
-        }
         if (line.materialItemId) notesParts.push(`material:${line.materialItemId}`)
         if (line.vendorId) notesParts.push(`vendor:${line.vendorId}`)
         if (line.notes) notesParts.push(line.notes)

@@ -40,7 +40,7 @@ const suite = integrationEnabled ? describe : describe.skip
 const redisRestartEnabled =
   integrationEnabled &&
   process.env.ERP_REDIS_RESTART_EXPECTED === '1' &&
-  Boolean(process.env.ERP_REDIS_TEST_DISTRIBUTION)
+  Boolean(process.env.ERP_REDIS_RESTART_CONTAINER)
 function restartTest(
   name: string,
   fn: () => Promise<void>,
@@ -126,26 +126,20 @@ async function waitForRedis(queue: Queue): Promise<void> {
   throw new Error('BullMQ did not reconnect after Redis restart')
 }
 
-function restartDisposableRedis(): void {
+function restartDisposableRedis(options?: { discardData?: boolean }): void {
   if (process.env.ERP_REDIS_RESTART_EXPECTED !== '1') {
     throw new Error('Disposable Redis restart was not enabled')
   }
-  const distribution =
-    process.env.ERP_REDIS_TEST_DISTRIBUTION
-  if (!distribution) {
-    throw new Error('Disposable Redis distribution is missing')
+  const container = process.env.ERP_REDIS_RESTART_CONTAINER
+  if (!container) {
+    throw new Error('Disposable Redis container is missing')
   }
-  const script = [
-    'set -eu',
-    '/opt/third-code-erp-ci/redis-7.4.9/bin/redis-cli -h 127.0.0.1 -p 6379 shutdown nosave',
-    '/opt/third-code-erp-ci/redis-7.4.9/bin/redis-server --bind 127.0.0.1 --port 6379 --protected-mode yes --daemonize yes --save "" --appendonly no',
-    'test "$(/opt/third-code-erp-ci/redis-7.4.9/bin/redis-cli -h 127.0.0.1 -p 6379 ping)" = "PONG"',
-  ].join('\n')
-  execFileSync(
-    'wsl.exe',
-    ['-d', distribution, '--', 'sh', '-lc', script],
-    { stdio: 'pipe' }
-  )
+  execFileSync('docker', ['restart', container], { stdio: 'pipe' })
+  if (options?.discardData) {
+    execFileSync('docker', ['exec', container, 'redis-cli', 'flushall'], {
+      stdio: 'pipe',
+    })
+  }
 }
 
 afterEach(async () => {
@@ -405,7 +399,7 @@ suite('RFQ BullMQ disposable Redis integration', () => {
     )
     await waitForState(queue, beforeId, 'completed')
 
-    restartDisposableRedis()
+    restartDisposableRedis({ discardData: true })
     await waitForRedis(queue)
 
     await expect(producer.enqueuePending()).resolves.toBe(1)

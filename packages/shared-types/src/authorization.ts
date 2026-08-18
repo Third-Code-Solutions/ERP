@@ -1,0 +1,182 @@
+/**
+ * Canonical ERP authorization vocabulary and role policy.
+ *
+ * This module intentionally has no framework, database, or server dependency
+ * so the Next.js server helpers and Nest guards enforce the same policy.
+ * Distinct capability names remain distinct when their existing grants differ;
+ * consolidating the policy must not silently change a workflow's authority.
+ */
+export const ERP_ROLES = [
+  'owner',
+  'estimator',
+  'pm',
+  'admin',
+  'sales',
+  'commercial',
+  'design',
+  'sd_pm_pe',
+  'finance',
+  'procurement',
+  'safety',
+  'cx',
+  'viewer',
+] as const
+
+export type ErpRole = (typeof ERP_ROLES)[number]
+
+const ALL_ROLES: readonly ErpRole[] = ERP_ROLES
+const ALL_OPERATORS = [
+  'owner',
+  'estimator',
+  'pm',
+  'admin',
+  'sales',
+  'commercial',
+  'design',
+  'sd_pm_pe',
+  'finance',
+  'procurement',
+  'safety',
+  'cx',
+] as const satisfies readonly ErpRole[]
+
+const capabilityRoles = {
+  // CRM, proposal, and project authority
+  'project.create': ['owner', 'admin', 'sales', 'commercial', 'sd_pm_pe', 'pm', 'estimator'],
+  'project.update': ['owner', 'admin', 'sales', 'commercial', 'sd_pm_pe', 'pm'],
+  'project.read': ALL_ROLES,
+  'project.award': ['owner', 'admin', 'commercial', 'sd_pm_pe', 'pm'],
+  'account.create': ['owner', 'admin', 'sales'],
+  'account.read': ALL_ROLES,
+  'account.kyc_review': ['owner', 'admin', 'finance'],
+  'opportunity.create': ['owner', 'admin', 'sales'],
+  'opportunity.read': ALL_ROLES,
+  'opportunity.advance_stage': ['owner', 'admin', 'sales'],
+  'opportunity.stage_change': [
+    'owner',
+    'admin',
+    'sales',
+    'commercial',
+    'sd_pm_pe',
+    'pm',
+    'estimator',
+  ],
+  'opportunity.convert': [
+    'owner',
+    'admin',
+    'sales',
+    'commercial',
+    'sd_pm_pe',
+    'pm',
+    'estimator',
+  ],
+  'opportunity.kyc_track_manage': ['owner', 'admin', 'finance'],
+  'opportunity.kyc_track_approve': ['owner', 'admin', 'finance'],
+  'pprf.submit': ['owner', 'admin', 'sales'],
+  'change_request.create': ['owner', 'admin', 'sales'],
+  'site_inspection.submit': ['owner', 'admin', 'commercial'],
+  'design.upload': ['owner', 'admin', 'design'],
+
+  // Documents, BOM, and estimation
+  'document.manage': ALL_OPERATORS,
+  'document.process': [
+    'owner',
+    'admin',
+    'commercial',
+    'sd_pm_pe',
+    'pm',
+    'sales',
+    'design',
+    'estimator',
+  ],
+  'document.processing.read': ['owner', 'admin', 'commercial', 'sd_pm_pe', 'pm', 'sales'],
+  'bom.generate': ['owner', 'admin', 'commercial', 'estimator'],
+  'bom.edit': ['owner', 'admin', 'commercial', 'estimator'],
+  'bom.approve_internal': ['owner', 'admin', 'commercial'],
+
+  // Procurement and delivery
+  'rfq.dispatch': ['owner', 'admin', 'procurement'],
+  'po.create': ['owner', 'admin', 'commercial', 'sd_pm_pe', 'pm', 'procurement'],
+  'po.approve': ['owner', 'admin', 'commercial'],
+  'po.issue': ['owner', 'admin', 'procurement'],
+  'po.receive': ['owner', 'admin', 'procurement', 'finance'],
+  'delivery.receive': ['owner', 'admin', 'commercial', 'sd_pm_pe', 'pm', 'procurement'],
+
+  // Finance, cost, and budget
+  'kyc.create_ar_code': ['owner', 'admin', 'finance'],
+  'cost.record': ['owner', 'admin', 'sd_pm_pe', 'pm', 'commercial', 'finance'],
+  'finance.read': ['owner', 'admin', 'finance'],
+  'finance.manage': ['owner', 'admin', 'finance'],
+  'finance.post': ['owner', 'admin', 'finance'],
+  'finance.issue_invoice': ['owner', 'admin', 'finance'],
+  'finance.post_supplier_bill': ['owner', 'admin', 'finance'],
+  'finance.manage_cash': ['owner', 'admin', 'finance'],
+  'budget.read': [
+    'owner',
+    'admin',
+    'finance',
+    'commercial',
+    'procurement',
+    'sd_pm_pe',
+    'pm',
+    'estimator',
+  ],
+  'budget.manage': ['owner', 'admin', 'finance', 'commercial', 'sd_pm_pe', 'pm', 'estimator'],
+  'budget.approve_commercial': ['owner', 'admin', 'commercial'],
+  'budget.approve_finance': ['owner', 'admin', 'finance'],
+
+  // Delivery, construction, and service
+  'precon.manage_checklist': ['owner', 'admin', 'commercial', 'sd_pm_pe', 'pm'],
+  'precon.manage_permits': ['owner', 'admin', 'commercial', 'sd_pm_pe', 'pm'],
+  'precon.override_mobilization': ['owner', 'admin', 'commercial', 'pm'],
+  'sd.daily_tasks': ['owner', 'admin', 'sd_pm_pe', 'pm', 'safety'],
+  'punchlist.manage': ['owner', 'admin', 'sd_pm_pe', 'pm', 'cx'],
+  'warranty.manage': ['owner', 'admin', 'cx'],
+
+  // Asset and inventory authority
+  // Estimator is retained here because the legacy role maps to Commercial and
+  // the existing Nest asset-read policy already permits it. This fixes the
+  // Web-only denial without granting any asset mutation capability.
+  'asset.read': ALL_ROLES,
+  'asset.maintenance.manage': ['owner', 'admin', 'pm', 'sd_pm_pe', 'procurement'],
+  'inventory.read': ['owner', 'admin', 'finance', 'procurement', 'sd_pm_pe', 'pm', 'commercial'],
+  'inventory.manage': ['owner', 'admin', 'procurement'],
+  'inventory.post_receipt': ['owner', 'admin', 'finance'],
+  'inventory.post_movement': ['owner', 'admin', 'finance'],
+
+  // Administration and notifications
+  'admin.rate_card': ['owner', 'admin', 'commercial'],
+  'admin.users': ['owner', 'admin'],
+  'admin.system_config': ['owner', 'admin'],
+  'notification.read': ALL_ROLES,
+  'audit.read': ['owner', 'admin', 'pm', 'finance'],
+
+  // Core-only projections and process authority
+  'today.read': ALL_ROLES,
+  'provider.quota.consume': ALL_ROLES,
+  'cortex.search': ALL_ROLES,
+  'cortex.index.manage': ['owner', 'admin'],
+  'cortex.provider.health.read': ['owner', 'admin', 'finance'],
+  'process.health.read': ALL_ROLES,
+  'process.step.manage': ['owner', 'admin', 'commercial', 'sd_pm_pe', 'pm'],
+  'process.task.manage': ['owner', 'admin', 'commercial', 'sd_pm_pe', 'pm'],
+  'process.approval.manage': ['owner', 'admin', 'commercial', 'sd_pm_pe', 'pm'],
+  'process.sla.manage': ['owner', 'admin', 'commercial', 'sd_pm_pe', 'pm'],
+} as const satisfies Record<string, readonly ErpRole[]>
+
+export type ErpCapability = keyof typeof capabilityRoles
+
+export const ERP_CAPABILITY_ROLES: Readonly<
+  Record<ErpCapability, readonly ErpRole[]>
+> = capabilityRoles
+
+export const ERP_CAPABILITIES: readonly ErpCapability[] = Object.freeze(
+  Object.keys(ERP_CAPABILITY_ROLES) as ErpCapability[],
+)
+
+export function roleHasCapability(
+  role: ErpRole,
+  capability: ErpCapability,
+): boolean {
+  return ERP_CAPABILITY_ROLES[capability].includes(role)
+}

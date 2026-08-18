@@ -25,6 +25,7 @@ import { roleHasCapability } from '../auth/capability.guard'
 import type { ErpPrincipal, ErpRole } from '../auth/current-principal.decorator'
 import { AuditService } from '../audit/audit.service'
 import { DatabaseService } from '../database/database.service'
+import { databaseErrorMessage } from '../database/database-error'
 
 function commandHash(journalEntryId: string): string {
   return createHash('sha256')
@@ -43,7 +44,7 @@ function replayResult(value: unknown): JournalPostResult {
 }
 
 function mapDatabaseFailure(error: unknown): never {
-  const message = error instanceof Error ? error.message : ''
+  const message = databaseErrorMessage(error)
   if (message.includes('Journal entry not found')) {
     throw new NotFoundException('Journal entry not found')
   }

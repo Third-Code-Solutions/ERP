@@ -289,11 +289,6 @@ suite('CAD Web parser to protected Core HTTP integration', () => {
         const address = app.getHttpServer().address() as AddressInfo
         const coreUrl = `http://127.0.0.1:${address.port}`
         vi.stubEnv('ERP_CORE_API_URL', coreUrl)
-        vi.stubEnv('ERP_CAD_EVIDENCE_COMMIT_WRITES_VIA_API', 'true')
-        vi.stubEnv(
-          'ERP_CAD_EVIDENCE_COMMIT_WRITES_VIA_API_TENANT_IDS',
-          tenantA
-        )
 
         const unauthenticated = await fetch(
           `${coreUrl}/v1/documents/${documentA}/cad-evidence`,

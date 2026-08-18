@@ -1,8 +1,6 @@
 import { serve } from 'inngest/next'
 import {
   inngest,
-  parseCadDrawing,
-  calcDraftBomFromScope,
   embedBomLineItems,
 } from '@/lib/inngest'
 import {
@@ -21,9 +19,6 @@ import { processSlaChecker } from '@/lib/inngest-process-sla'
 export const { GET, POST, PUT } = serve({
   client: inngest,
   functions: [
-    // CAD parse pipeline
-    parseCadDrawing,
-    calcDraftBomFromScope,
     embedBomLineItems,
     // ABI OPS M5 — daily cadence task generator
     generateDailyCadenceTasks,

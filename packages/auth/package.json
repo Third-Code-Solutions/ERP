@@ -12,11 +12,12 @@
   },
   "dependencies": {
     "@supabase/ssr": "^0.6.1",
-    "@supabase/supabase-js": "^2.48.1"
+    "@supabase/supabase-js": "^2.48.1",
+    "@third-code-erp/shared-types": "workspace:*"
   },
   "devDependencies": {
     "@third-code-erp/config": "workspace:*",
-    "next": "^15.3.1",
+    "next": "^15.5.23",
     "typescript": "^5.7.2"
   }
 }

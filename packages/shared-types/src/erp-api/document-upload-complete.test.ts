@@ -43,10 +43,14 @@ describe('legacy document upload response contract', () => {
         bomGpMarginBps: -250,
         ragMatches: 0,
         aiEstimateMatches: 0,
+        unpricedCandidateBom: true,
         processingJobId: '99999999-9999-4999-8999-999999999999',
       },
     })
-    expect(result.cadResult?.bomGpMarginBps).toBe(-250)
+    expect(result.cadResult).toMatchObject({
+      bomGpMarginBps: -250,
+      unpricedCandidateBom: true,
+    })
   })
 
   it('rejects unknown fields and invalid identifiers', () => {

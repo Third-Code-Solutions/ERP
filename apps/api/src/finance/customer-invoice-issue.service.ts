@@ -29,6 +29,7 @@ import {
   DatabaseService,
   type DatabaseTransaction,
 } from '../database/database.service'
+import { databaseErrorMessage } from '../database/database-error'
 
 function canonicalJson(value: unknown): string {
   if (value === null || typeof value !== 'object') {
@@ -72,7 +73,7 @@ function replayResult(value: unknown): CustomerInvoiceIssueResult {
 }
 
 function mapDatabaseFailure(error: unknown): never {
-  const message = error instanceof Error ? error.message : ''
+  const message = databaseErrorMessage(error)
   if (message.includes('Customer invoice not found')) {
     throw new NotFoundException('Customer invoice not found')
   }

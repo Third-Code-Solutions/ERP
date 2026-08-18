@@ -10,6 +10,9 @@ import { DocumentIntakeService } from './document-intake.service'
 import { DocuSealWebhookController } from './docuseal-webhook.controller'
 import { DocuSealWebhookPipe } from './docuseal-webhook.pipe'
 import { DocuSealWebhookService } from './docuseal-webhook.service'
+import { InspectionPhotoController } from './inspection-photo.controller'
+import { InspectionPhotoPipe } from './inspection-photo.pipe'
+import { InspectionPhotoService } from './inspection-photo.service'
 import { PublicSigningController } from './public-signing.controller'
 import { PublicSigningPipe } from './public-signing.pipe'
 import { PublicSigningService } from './public-signing.service'
@@ -21,6 +24,7 @@ import { PublicSigningStorageService } from './public-signing.storage'
     DocumentDeleteController,
     DocumentIntakeController,
     DocuSealWebhookController,
+    InspectionPhotoController,
     PublicSigningController,
   ],
   providers: [
@@ -30,6 +34,8 @@ import { PublicSigningStorageService } from './public-signing.storage'
     DocumentIntakeService,
     DocuSealWebhookPipe,
     DocuSealWebhookService,
+    InspectionPhotoPipe,
+    InspectionPhotoService,
     PublicSigningPipe,
     PublicSigningService,
     PublicSigningStorageService,
@@ -42,6 +48,7 @@ export class DocumentsModule implements NestModule {
       .forRoutes(
         DocumentDeleteController,
         DocumentIntakeController,
+        InspectionPhotoController,
         PublicSigningController
       )
   }

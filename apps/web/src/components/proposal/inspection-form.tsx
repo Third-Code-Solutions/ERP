@@ -400,6 +400,8 @@ export function InspectionForm({ opportunityId, pprfSubmitted, defaults }: Inspe
             {photos.map((photo) => (
               <li key={photo.id}>
                 <div className="photo-summary">
+                  {/* Device-local data URLs cannot be sent through Next's image optimizer. */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={photo.dataUrl} alt="" className="photo-thumb" />
                   <span>
                     <strong>{photo.name}</strong>

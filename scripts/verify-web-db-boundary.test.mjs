@@ -2,35 +2,16 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   buildWebDatabaseBoundaryReport,
+  WEB_API_DATABASE_ALLOWLIST,
   verifyWebDatabaseBoundary,
 } from './verify-web-db-boundary.mjs'
 
-test('current Next API direct database surface is explicitly classified', () => {
+test('current Next API boundary has no direct database write allowance', () => {
   const report = verifyWebDatabaseBoundary()
   assert.equal(report.status, 'clear')
   assert.deepEqual(report.blockers, [])
-  assert.deepEqual(
-    report.directWrites.map((entry) => [entry.path, entry.operations]),
-    [
-      [
-        'apps/web/src/app/api/bom/takeoff-import/route.ts',
-        ['insert', 'transaction', 'update'],
-      ],
-      [
-        'apps/web/src/app/api/crm/opportunities/[id]/inspection-photos/route.ts',
-        ['insert', 'transaction'],
-      ],
-      ['apps/web/src/app/api/notifications/route.ts', ['update']],
-      [
-        'apps/web/src/app/api/upload/complete/route.ts',
-        ['insert', 'transaction'],
-      ],
-      [
-        'apps/web/src/app/api/webhooks/docuseal/route.ts',
-        ['insert', 'update'],
-      ],
-    ]
-  )
+  assert.deepEqual(WEB_API_DATABASE_ALLOWLIST, {})
+  assert.deepEqual(report.directWrites, [])
   assert.deepEqual(
     report.directReads.map((entry) => entry.path),
     [
@@ -81,4 +62,42 @@ test('read-only execute can be classified without allowing writes', () => {
   assert.equal(report.status, 'clear')
   assert.deepEqual(report.directWrites, [])
   assert.deepEqual(report.directReads[0]?.operations, ['execute'])
+})
+
+test('an allowlisted execute is blocked when its literal SQL is not SELECT-only', () => {
+  const report = buildWebDatabaseBoundaryReport({
+    files: [
+      {
+        path: 'apps/web/src/app/api/read/route.ts',
+        source: 'await db.execute(sql`DELETE FROM invoices`)',
+      },
+    ],
+    readOnlyAllowlist: {
+      'apps/web/src/app/api/read/route.ts': { operations: ['execute'] },
+    },
+  })
+  assert.equal(report.status, 'review_required')
+  assert.match(
+    report.blockers.join('\n'),
+    /db\.execute must use a literal SELECT statement/
+  )
+})
+
+test('an allowlisted multi-statement execute is blocked even when it begins with SELECT', () => {
+  const report = buildWebDatabaseBoundaryReport({
+    files: [
+      {
+        path: 'apps/web/src/app/api/read/route.ts',
+        source: 'await db.execute(sql`SELECT 1; DELETE FROM invoices`)',
+      },
+    ],
+    readOnlyAllowlist: {
+      'apps/web/src/app/api/read/route.ts': { operations: ['execute'] },
+    },
+  })
+  assert.equal(report.status, 'review_required')
+  assert.match(
+    report.blockers.join('\n'),
+    /db\.execute must use a literal SELECT statement/
+  )
 })

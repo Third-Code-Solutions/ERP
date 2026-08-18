@@ -43,6 +43,29 @@ describe('ProviderQuotaController', () => {
     expect(response.status).not.toHaveBeenCalled()
   })
 
+  it('accepts the dedicated visual-extraction bucket', async () => {
+    const quota = {
+      consume: vi.fn().mockResolvedValue({
+        allowed: true,
+        bucket: 'provider-vision',
+        count: 1,
+        limit: 4,
+        retryAfterSeconds: 0,
+        scope: 'tenant-user',
+      }),
+    } as unknown as ProviderQuotaService
+    const controller = new ProviderQuotaController(quota)
+
+    await expect(
+      controller.consume(
+        { bucket: 'provider-vision' },
+        PRINCIPAL,
+        responseHarness()
+      )
+    ).resolves.toMatchObject({ bucket: 'provider-vision', limit: 4 })
+    expect(quota.consume).toHaveBeenCalledWith('provider-vision', PRINCIPAL)
+  })
+
   it('marks blocked decisions with standard rate-limit headers', async () => {
     const quota = {
       consume: vi.fn().mockResolvedValue({

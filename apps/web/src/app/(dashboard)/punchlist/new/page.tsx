@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
-import { asc, eq, inArray } from 'drizzle-orm'
+import { asc, eq } from 'drizzle-orm'
 import { requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { projects, users as usersTable } from '@third-code-erp/database/schema'

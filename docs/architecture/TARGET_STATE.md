@@ -61,17 +61,16 @@ release identity, and spend gates pass.
 
 ## M3.295 Core DocuSeal webhook authority (2026-08-12)
 
-The target signature boundary verifies the provider secret in Next, then
-delegates the business transaction to Nest Core with an internal server token.
-Core locks the token and BOM rows in one transaction, stores the signed
-document, audits the lock, and returns a replay-safe duplicate result without
-repeating side effects. Required project joins are lock-safe and tenant
-scoped.
+The signature boundary verifies the provider secret in Next, then delegates the
+normalized callback to Nest Core with a server-only internal token. Core locks
+the portal token and BOM rows in one transaction, stores the signed document,
+locks the BOM, creates in-app notifications, audits the lock, and returns a
+replay-safe duplicate result without repeating durable side effects. Required
+project joins are lock-safe and tenant scoped. Web email is post-commit and
+best-effort; its failure cannot roll back a signed BOM.
 
-Keep `ERP_DOCUSEAL_WEBHOOK_VIA_API` and `ERP_DOCUSEAL_WEBHOOK_ENABLED` false
-with empty tenant lists outside the disposable proof. Notification delivery
-is compatibility behavior; Resend remains disabled in the canary. Python/AI
-cannot finalize signature or BOM state.
+Both `DOCUSEAL_WEBHOOK_SECRET` and `ERP_CORE_WEBHOOK_TOKEN` must be configured
+for an authorized target. Python/AI cannot finalize signature or BOM state.
 
 ## M3.294 Core Togal BOM commit canary (2026-08-12)
 
@@ -87,6 +86,19 @@ the disposable proof. Python/AI may propose or analyze lines but cannot
 approve or finalize a BOM. Managed parity, release identity, rollback,
 authenticated smoke, and spend controls are still required before opening a
 real tenant.
+
+## Core-only document-intake authority (2026-08-17)
+
+`/api/upload/complete` now sends every completed upload to Core before any
+processing begins. Core owns the tenant/project authorization, canonical
+`documents` row, idempotency ledger, and semantic audit in one transaction;
+there is no Web database fallback. A Core replay returns the canonical document
+without re-running CAD/OCR/AI side effects. The route fails terminally if Core
+is unavailable.
+
+This closes only the durable document-record seam. CAD evidence commit and
+background processing remain separate authority migrations, and no hosted
+deployment, customer data mutation, or protected production E2E proof occurred.
 
 ## M3.293 Purchase Order uniqueness release gate (2026-08-12)
 

@@ -87,7 +87,7 @@ export default async function UserDetailPage({ params, searchParams }: PageProps
       actor_id: r.actor_id,
     }))
   } catch (err) {
-    // eslint-disable-next-line no-console
+
     console.warn('[admin/users/[id]] audit fetch failed (non-fatal):', err)
   }
 

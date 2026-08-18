@@ -18,7 +18,6 @@ import { z } from 'zod'
 import {
   requireUserProfile,
   can,
-  type ErpCapability,
   type AppRole,
 } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
@@ -66,13 +65,6 @@ const TERMINAL: ReadonlySet<DeliveryStatus> = new Set([
   'rejected',
   'cancelled',
 ])
-
-function guard(role: AppRole, capability: ErpCapability): string | null {
-  if (!can(role, capability)) {
-    return `Forbidden: role "${role}" lacks "${capability}"`
-  }
-  return null
-}
 
 // Either po.issue OR precon.manage_checklist grants the right to schedule
 // a delivery, per spec. We check both and pass if either does.

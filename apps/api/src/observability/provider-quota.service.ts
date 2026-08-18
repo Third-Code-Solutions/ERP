@@ -7,6 +7,7 @@ import type { ErpPrincipal } from '../auth/current-principal.decorator'
 export const PROVIDER_QUOTA_BUCKETS = [
   'provider-chat',
   'provider-embedding',
+  'provider-vision',
 ] as const
 
 export type ProviderQuotaBucket = (typeof PROVIDER_QUOTA_BUCKETS)[number]
@@ -37,6 +38,11 @@ const POLICIES: Record<ProviderQuotaBucket, ProviderQuotaPolicy> = {
   'provider-embedding': {
     bucket: 'provider-embedding',
     limit: 6,
+    windowMs: WINDOW_MS,
+  },
+  'provider-vision': {
+    bucket: 'provider-vision',
+    limit: 4,
     windowMs: WINDOW_MS,
   },
 }

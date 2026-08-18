@@ -15,7 +15,7 @@ export async function createInvoice(
 
   try {
     requireCapability(profile, 'finance.issue_invoice')
-  } catch (err: unknown) {
+  } catch {
     return { error: 'You do not have permission to create invoices.' }
   }
 

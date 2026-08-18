@@ -3,7 +3,35 @@ packages:
   - 'packages/*'
 
 overrides:
-  drizzle-orm: 0.40.1
+  # Security remediation baseline. Exact versions address the recorded audit
+  # findings without adding a package or expanding the public API surface.
+  form-data: 4.0.6
+  "minimatch@3>brace-expansion": 1.1.18
+  "minimatch@5>brace-expansion": 2.1.4
+  "minimatch@10>brace-expansion": 5.0.9
+  nanoid: 3.3.18
+  postcss: 8.5.23
+  sharp: 0.35.3
+  shell-quote: 1.9.0
+  tmp: 0.2.7
+  fast-uri: 3.1.5
+  js-yaml: 4.3.1
+  "vite>esbuild": 0.28.2
+  "drizzle-kit>esbuild": 0.28.2
+  "@esbuild-kit/core-utils>esbuild": 0.28.2
+  drizzle-orm: 0.45.2
+  # Inngest accepts the 0.x OpenTelemetry range; keep the selected telemetry
+  # implementation on the patched line without widening any application API.
+  "inngest>@opentelemetry/auto-instrumentations-node": 0.79.0
+  "inngest>@opentelemetry/exporter-trace-otlp-http": 0.221.0
+  "@opentelemetry/otlp-grpc-exporter-base>@grpc/grpc-js": 1.14.4
+  "@grpc/proto-loader>protobufjs": 7.6.5
+  "exceljs>uuid": 11.1.1
+  "inngest>@opentelemetry/context-async-hooks": 2.10.0
+  "inngest>@opentelemetry/instrumentation": 0.221.0
+  "inngest>@opentelemetry/resources": 2.10.0
+  "inngest>@opentelemetry/sdk-trace-base": 2.10.0
+  "@traceloop/instrumentation-anthropic>@opentelemetry/core": 2.10.0
 
 peerDependencyRules:
   ignoreMissing:

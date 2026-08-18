@@ -236,7 +236,7 @@ async function seedDatabase() {
     values
       (
         ${randomUUID()}, ${TENANT_ID}, ${USER_ID}, 'in_app',
-        'Core notification canary', 'A tenant-scoped Core notification.',
+        'Core notification authority', 'A tenant-scoped Core notification.',
         '/dashboard', false, now() - interval '1 minute'
       ),
       (
@@ -504,8 +504,8 @@ const authServer = createServer(async (request, response) => {
       url.searchParams.get('select') === 'tenant_id,role,email,full_name' &&
       url.searchParams.get('id') === `eq.${USER_ID}`
     if (
-      request.headers.apikey !== SERVICE_ROLE_KEY ||
-      bearer(request) !== SERVICE_ROLE_KEY ||
+      request.headers.apikey !== ANON_KEY ||
+      bearer(request) !== ACCESS_TOKEN ||
       !exactProfileQuery
     ) {
       return json(response, 400, {
@@ -641,10 +641,6 @@ const apiEnvironment = {
   SUPABASE_ANON_KEY: ANON_KEY,
   SUPABASE_SERVICE_ROLE_KEY: SERVICE_ROLE_KEY,
   ERP_API_CORS_ORIGINS: WEB_ORIGIN,
-  ERP_NOTIFICATION_READ_STATE_ENABLED: 'true',
-  ERP_NOTIFICATION_READ_STATE_TENANT_IDS: TENANT_ID,
-  ERP_DOCUMENT_INTAKE_WRITES_ENABLED: 'true',
-  ERP_DOCUMENT_INTAKE_WRITES_TENANT_IDS: TENANT_ID,
   ERP_BOM_TOGAL_COMMIT_WRITES_ENABLED: 'true',
   ERP_BOM_TOGAL_COMMIT_WRITES_TENANT_IDS: TENANT_ID,
   ERP_PO_CREATE_WRITES_ENABLED: 'true',
@@ -659,8 +655,6 @@ const apiEnvironment = {
   ERP_PUBLIC_VENDOR_CONFIRMATION_SESSION_MINTING_TENANT_IDS: TENANT_ID,
   ERP_PUBLIC_VENDOR_CONFIRMATION_TOKEN_SECRET: 'local-vendor-confirmation-secret-2026-with-32-plus-bytes',
   ERP_PUBLIC_VENDOR_CONFIRMATION_SESSION_TTL_HOURS: '24',
-  ERP_DOCUSEAL_WEBHOOK_ENABLED: 'true',
-  ERP_DOCUSEAL_WEBHOOK_TENANT_IDS: TENANT_ID,
   ERP_CORE_WEBHOOK_TOKEN: 'local-docuseal-core-webhook-token-2026',
   OPENAI_API_KEY: '',
   AI_GATEWAY_API_KEY: '',
@@ -700,10 +694,6 @@ webChild = spawn(
       NEXT_PUBLIC_SITE_URL: WEB_ORIGIN,
       NEXT_PUBLIC_APP_URL: WEB_ORIGIN,
       ERP_CORE_API_URL: PROXY_ORIGIN,
-      ERP_NOTIFICATION_READ_STATE_VIA_API: 'true',
-      ERP_NOTIFICATION_READ_STATE_VIA_API_TENANT_IDS: TENANT_ID,
-      ERP_DOCUMENT_INTAKE_WRITES_VIA_API: 'true',
-      ERP_DOCUMENT_INTAKE_WRITES_VIA_API_TENANT_IDS: TENANT_ID,
       ERP_BOM_TOGAL_COMMIT_VIA_API: 'true',
       ERP_BOM_TOGAL_COMMIT_VIA_API_TENANT_IDS: TENANT_ID,
       ERP_PO_CREATE_WRITES_VIA_API: 'true',
@@ -712,8 +702,6 @@ webChild = spawn(
       ERP_PO_BOM_CREATE_WRITES_VIA_API_TENANT_IDS: TENANT_ID,
       ERP_PO_WORKFLOW_WRITES_VIA_API: 'true',
       ERP_PO_WORKFLOW_WRITES_VIA_API_TENANT_IDS: TENANT_ID,
-      ERP_DOCUSEAL_WEBHOOK_VIA_API: 'true',
-      ERP_DOCUSEAL_WEBHOOK_VIA_API_TENANT_IDS: TENANT_ID,
       ERP_CORE_WEBHOOK_TOKEN: 'local-docuseal-core-webhook-token-2026',
       DOCUSEAL_WEBHOOK_SECRET: 'local-docuseal-provider-secret',
       RESEND_API_KEY: '',

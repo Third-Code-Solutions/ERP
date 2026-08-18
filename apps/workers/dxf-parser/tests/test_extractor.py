@@ -107,6 +107,20 @@ class TestPolylineAreas:
         area_items = [i for i in items if i.unit == "sqm"]
         assert area_items == []
 
+    def test_fractional_area_is_preserved_without_rounding(self):
+        doc = ezdxf.new("R2010")
+        msp = doc.modelspace()
+        # 1.5m × 1m rectangle = 1.5 sqm. The current BOM schema cannot
+        # persist it yet, but the extractor must not falsify source evidence.
+        pts = [(0, 0), (1.5, 0), (1.5, 1), (0, 1)]
+        msp.add_lwpolyline(pts, close=True, dxfattribs={"layer": "ARCH-ROOM"})
+        extractor = Extractor()
+        items = extractor.extract(serialize_dxf(doc))
+
+        area_items = [i for i in items if i.unit == "sqm"]
+        assert len(area_items) == 1
+        assert area_items[0].quantity == 1.5
+
 
 class TestTextAnnotations:
     def test_room_label_extracted(self):

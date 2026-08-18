@@ -49,8 +49,16 @@
 .overviewGrid {
   display: grid;
   min-width: 0;
-  grid-template-columns: minmax(0, 1fr) 300px;
+  grid-template-columns: minmax(0, 1fr) minmax(288px, 320px);
+  align-items: start;
   gap: 24px;
+}
+
+.contextRail {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .quickLinks {
@@ -90,6 +98,8 @@
   }
 
   .projectHeaderMain h1 {
+    overflow-wrap: anywhere;
+    text-overflow: clip;
     white-space: normal;
   }
 

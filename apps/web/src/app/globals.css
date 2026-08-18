@@ -1894,6 +1894,7 @@ a { color: inherit; }
    Cortex entity panel (project detail right rail) — graph context + sources
    ------------------------------------------------------------------------- */
 .cortex-panel {
+  min-width: 0;
   background: white;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg, 8px);
@@ -1937,6 +1938,24 @@ a { color: inherit; }
   margin: 0 0 4px;
 }
 .cortex-panel__summary-line:first-child { font-weight: 600; color: var(--color-neutral-900); }
+.cortex-panel__summary-details {
+  margin: -6px 0 14px;
+  color: var(--color-neutral-600);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+.cortex-panel__summary-details summary {
+  min-height: 32px;
+  cursor: pointer;
+  color: var(--color-navy-700);
+  font-weight: 650;
+}
+.cortex-panel__summary-details summary:focus-visible {
+  outline: 2px solid var(--color-navy-700);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.cortex-panel__summary-details .cortex-panel__summary-line { margin-top: 8px; }
 .cortex-panel__graph-link {
   display: flex;
   align-items: center;
@@ -2026,6 +2045,24 @@ a { color: inherit; }
 .cortex-relationship__origin {
   font-size: 0.625rem;
   color: var(--color-neutral-400);
+}
+.cortex-panel__more-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 36px;
+  margin-top: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  color: var(--color-navy-700);
+  font-size: 0.75rem;
+  font-weight: 650;
+  text-decoration: none;
+}
+.cortex-panel__more-link:hover { background: var(--color-info-soft); }
+.cortex-panel__more-link:focus-visible {
+  outline: 2px solid var(--color-navy-700);
+  outline-offset: 2px;
 }
 .cortex-evidence {
   margin: 14px 0;
@@ -2178,6 +2215,38 @@ a { color: inherit; }
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 140px;
+}
+.cortex-panel--compact {
+  padding: 16px;
+}
+.cortex-panel--compact .cortex-relationships {
+  grid-template-columns: minmax(0, 1fr);
+}
+.cortex-panel--compact .cortex-relationship {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 8px;
+  min-height: 56px;
+}
+.cortex-panel--compact .cortex-relationship__kind {
+  grid-column: 1 / -1;
+}
+.cortex-panel--compact .cortex-relationship__record {
+  gap: 4px;
+}
+.cortex-panel--compact .cortex-relationship__origin {
+  align-self: end;
+  white-space: nowrap;
+}
+.cortex-panel--compact .cortex-panel__chips {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+.cortex-panel--compact .cortex-chip {
+  min-width: 0;
+}
+.cortex-panel--compact .cortex-chip__name {
+  min-width: 0;
+  max-width: none;
 }
 .cortex-panel__skeleton { display: flex; flex-direction: column; gap: 8px; }
 .cortex-skel-line {

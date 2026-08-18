@@ -3,25 +3,14 @@ import {
   UnauthorizedException,
   type ExecutionContext,
 } from '@nestjs/common'
+import {
+  ERP_ROLES,
+  type ErpRole,
+} from '@third-code-erp/shared-types/authorization'
 import type { Request } from 'express'
 
-export const ERP_ROLES = [
-  'owner',
-  'estimator',
-  'pm',
-  'admin',
-  'sales',
-  'commercial',
-  'design',
-  'sd_pm_pe',
-  'finance',
-  'procurement',
-  'safety',
-  'cx',
-  'viewer',
-] as const
-
-export type ErpRole = (typeof ERP_ROLES)[number]
+export { ERP_ROLES }
+export type { ErpRole }
 
 export interface ErpPrincipal {
   userId: string

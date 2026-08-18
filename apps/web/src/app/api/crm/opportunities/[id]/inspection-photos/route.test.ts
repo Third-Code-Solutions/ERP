@@ -3,24 +3,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   getUserProfile: vi.fn(),
   can: vi.fn(),
-  select: vi.fn(),
-  from: vi.fn(),
-  where: vi.fn(),
-  limit: vi.fn(),
-  transaction: vi.fn(),
-  insert: vi.fn(),
-  values: vi.fn(),
-  returning: vi.fn(),
   upload: vi.fn(),
   remove: vi.fn(),
-  writeAuditLogInTransaction: vi.fn(),
+  createInspectionPhotoThroughCoreApi: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
   getUserProfile: mocks.getUserProfile,
   can: mocks.can,
 }))
-
 vi.mock('@third-code-erp/auth/server', () => ({
   createSupabaseAdminClient: () => ({
     storage: {
@@ -28,16 +19,8 @@ vi.mock('@third-code-erp/auth/server', () => ({
     },
   }),
 }))
-
-vi.mock('@third-code-erp/database', () => ({
-  db: {
-    select: mocks.select,
-    transaction: mocks.transaction,
-  },
-}))
-
-vi.mock('@/lib/audit', () => ({
-  writeAuditLogInTransaction: mocks.writeAuditLogInTransaction,
+vi.mock('@/lib/erp-core-client', () => ({
+  createInspectionPhotoThroughCoreApi: mocks.createInspectionPhotoThroughCoreApi,
 }))
 
 import { POST } from './route'
@@ -51,13 +34,23 @@ function context(id: string) {
   return { params: Promise.resolve({ id }) }
 }
 
-function requestWithFile(file: Blob, fileName: string) {
+function jpeg(): Blob {
+  return new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0xd9])], {
+    type: 'image/jpeg',
+  })
+}
+
+function requestWithFile(file: Blob, fileName: string, caption?: string) {
   const body = new FormData()
   body.set('file', file, fileName)
-  return new Request(`http://localhost/api/crm/opportunities/${OPPORTUNITY_ID}/inspection-photos`, {
-    method: 'POST',
-    body,
-  })
+  if (caption !== undefined) body.set('caption', caption)
+  return new Request(
+    `http://localhost/api/crm/opportunities/${OPPORTUNITY_ID}/inspection-photos`,
+    {
+      method: 'POST',
+      body,
+    }
+  )
 }
 
 describe('inspection photo upload route', () => {
@@ -66,84 +59,133 @@ describe('inspection photo upload route', () => {
     mocks.getUserProfile.mockResolvedValue({
       user: { id: USER_ID },
       tenantId: TENANT_ID,
-      role: 'pm',
+      role: 'commercial',
     })
     mocks.can.mockReturnValue(true)
-    mocks.select.mockReturnValue({ from: mocks.from })
-    mocks.from.mockReturnValue({ where: mocks.where })
-    mocks.where.mockReturnValue({ limit: mocks.limit })
-    mocks.limit.mockResolvedValue([{ id: OPPORTUNITY_ID, project_id: null }])
     mocks.upload.mockResolvedValue({ error: null })
     mocks.remove.mockResolvedValue({ error: null })
-    mocks.insert.mockReturnValue({ values: mocks.values })
-    mocks.values.mockReturnValue({ returning: mocks.returning })
-    mocks.returning.mockResolvedValue([{ id: DOCUMENT_ID }])
-    mocks.transaction.mockImplementation(
-      async (callback: (tx: { insert: typeof mocks.insert }) => unknown) =>
-        callback({ insert: mocks.insert }),
-    )
-    mocks.writeAuditLogInTransaction.mockResolvedValue(undefined)
+    mocks.createInspectionPhotoThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        documentId: DOCUMENT_ID,
+        tenantId: TENANT_ID,
+        opportunityId: OPPORTUNITY_ID,
+        projectId: null,
+        storagePath: `${TENANT_ID}/opportunities/${OPPORTUNITY_ID}/inspection/photo.jpg`,
+        fileName: 'front_elevation.jpg',
+        status: 'created',
+      },
+      status: 201,
+    })
   })
 
-  it('fails before touching data for an unauthenticated caller', async () => {
+  it('fails before Storage work for an unauthenticated caller', async () => {
     mocks.getUserProfile.mockResolvedValue(null)
 
     const response = await POST(
-      requestWithFile(new Blob(['image']), 'site.jpg'),
-      context(OPPORTUNITY_ID),
+      requestWithFile(jpeg(), 'site.jpg'),
+      context(OPPORTUNITY_ID)
     )
 
     expect(response.status).toBe(401)
-    expect(mocks.select).not.toHaveBeenCalled()
     expect(mocks.upload).not.toHaveBeenCalled()
+    expect(mocks.createInspectionPhotoThroughCoreApi).not.toHaveBeenCalled()
   })
 
   it('rejects a role without site-inspection capability', async () => {
     mocks.can.mockReturnValue(false)
 
     const response = await POST(
-      requestWithFile(new Blob(['image'], { type: 'image/jpeg' }), 'site.jpg'),
-      context(OPPORTUNITY_ID),
+      requestWithFile(jpeg(), 'site.jpg'),
+      context(OPPORTUNITY_ID)
     )
 
     expect(response.status).toBe(403)
-    expect(mocks.can).toHaveBeenCalledWith('pm', 'site_inspection.submit')
-    expect(mocks.select).not.toHaveBeenCalled()
-  })
-
-  it('rejects non-image files before Storage upload', async () => {
-    const response = await POST(
-      requestWithFile(new Blob(['not an image'], { type: 'text/plain' }), 'notes.txt'),
-      context(OPPORTUNITY_ID),
-    )
-
-    expect(response.status).toBe(415)
-    await expect(response.json()).resolves.toEqual({ error: 'Only image files are accepted' })
+    expect(mocks.can).toHaveBeenCalledWith('commercial', 'site_inspection.submit')
     expect(mocks.upload).not.toHaveBeenCalled()
   })
 
-  it('records a same-tenant opportunity photo and its audit entry', async () => {
+  it('rejects a spoofed image MIME type before Storage upload', async () => {
     const response = await POST(
-      requestWithFile(new Blob(['image'], { type: 'image/jpeg' }), 'front elevation.jpg'),
-      context(OPPORTUNITY_ID),
+      requestWithFile(
+        new Blob(['<svg><script>alert(1)</script></svg>'], { type: 'image/jpeg' }),
+        'site.svg'
+      ),
+      context(OPPORTUNITY_ID)
+    )
+
+    expect(response.status).toBe(415)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Only supported raster image files are accepted',
+    })
+    expect(mocks.upload).not.toHaveBeenCalled()
+    expect(mocks.createInspectionPhotoThroughCoreApi).not.toHaveBeenCalled()
+  })
+
+  it('uploads raster evidence then delegates every durable write to Core', async () => {
+    const response = await POST(
+      requestWithFile(jpeg(), 'front elevation.jpg', ' Front elevation '),
+      context(OPPORTUNITY_ID)
     )
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toMatchObject({
       id: DOCUMENT_ID,
-      fileName: 'front elevation.jpg',
+      fileName: 'front_elevation.jpg',
     })
-    expect(mocks.upload).toHaveBeenCalledOnce()
-    expect(mocks.transaction).toHaveBeenCalledOnce()
-    expect(mocks.writeAuditLogInTransaction).toHaveBeenCalledWith(
-      expect.objectContaining({ insert: mocks.insert }),
-      expect.objectContaining({
-        tenantId: TENANT_ID,
-        actorId: USER_ID,
-        entityType: 'document',
-        entityId: DOCUMENT_ID,
-        action: 'create',
-      }),
+    expect(mocks.upload).toHaveBeenCalledWith(
+      expect.stringMatching(
+        new RegExp(`^${TENANT_ID}/opportunities/${OPPORTUNITY_ID}/inspection/`)
+      ),
+      expect.any(ArrayBuffer),
+      { contentType: 'image/jpeg', upsert: false }
     )
+    expect(mocks.createInspectionPhotoThroughCoreApi).toHaveBeenCalledWith(
+      expect.objectContaining({
+        opportunityId: OPPORTUNITY_ID,
+        fileName: 'front_elevation.jpg',
+        mimeType: 'image/jpeg',
+        sizeBytes: 4,
+        caption: 'Front elevation',
+      })
+    )
+  })
+
+  it('removes an orphaned object when Core rejects the metadata command', async () => {
+    mocks.createInspectionPhotoThroughCoreApi.mockResolvedValue({
+      ok: false,
+      error: 'Opportunity not found.',
+      status: 404,
+    })
+
+    const response = await POST(
+      requestWithFile(jpeg(), 'site.jpg'),
+      context(OPPORTUNITY_ID)
+    )
+
+    expect(response.status).toBe(404)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Opportunity not found.',
+    })
+    expect(mocks.remove).toHaveBeenCalledWith([
+      expect.stringMatching(
+        new RegExp(`^${TENANT_ID}/opportunities/${OPPORTUNITY_ID}/inspection/`)
+      ),
+    ])
+  })
+
+  it('reuses an existing Storage object for a retry and still delegates idempotency to Core', async () => {
+    mocks.upload.mockResolvedValue({
+      error: { statusCode: '409', message: 'The resource already exists' },
+    })
+
+    const response = await POST(
+      requestWithFile(jpeg(), 'site.jpg'),
+      context(OPPORTUNITY_ID)
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.createInspectionPhotoThroughCoreApi).toHaveBeenCalledTimes(1)
+    expect(mocks.remove).not.toHaveBeenCalled()
   })
 })

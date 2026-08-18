@@ -9,7 +9,7 @@ import {
 const suite = DATABASE_URL ? describe : describe.skip
 
 if (!DATABASE_URL) {
-  // eslint-disable-next-line no-console
+
   console.warn(
     '[project-create-idempotency] DATABASE_URL not set - skipping integration suite'
   )

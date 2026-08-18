@@ -6,7 +6,7 @@
     "build": "nest build",
     "dev": "nest start --watch",
     "start": "node dist/main.js",
-    "lint": "tsc --noEmit",
+    "lint": "pnpm --dir ../.. exec eslint --max-warnings=0 apps/api/src",
     "typecheck": "tsc --noEmit",
     "test": "vitest run src test",
     "test:e2e": "vitest run test",
@@ -25,7 +25,7 @@
     "bullmq": "^5.81.2",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
-    "drizzle-orm": "^0.40.1",
+    "drizzle-orm": "^0.45.2",
     "express": "^5.2.1",
     "helmet": "^8.3.0",
     "ioredis": "^5.11.1",
@@ -43,7 +43,7 @@
     "supertest": "^7.2.2",
     "ts-loader": "^9.5.4",
     "typescript": "^5.9.3",
-    "vitest": "^3.2.4",
+    "vitest": "^3.2.6",
     "webpack-node-externals": "^3.0.0"
   }
 }

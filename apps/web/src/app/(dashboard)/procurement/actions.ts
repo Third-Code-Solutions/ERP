@@ -678,7 +678,7 @@ export async function advancePoStatus(
     } else {
       requireCapability(profile, 'po.issue')
     }
-  } catch (error) {
+  } catch {
     return { error: 'You do not have permission to change Purchase Order status.' }
   }
 
@@ -730,7 +730,7 @@ export async function receivePoLineItem(
   if (!profile) return { error: 'Unauthorized' }
   try {
     requireCapability(profile, 'po.issue')
-  } catch (error) {
+  } catch {
     return { error: 'You do not have permission to receive Purchase Order items.' }
   }
 
@@ -856,7 +856,7 @@ export async function createInvoice(
   if (!profile) return { error: 'Unauthorized' }
   try {
     requireCapability(profile, 'finance.issue_invoice')
-  } catch (error) {
+  } catch {
     return { error: 'You do not have permission to create invoices.' }
   }
   if (
@@ -1005,7 +1005,7 @@ export async function submitPoForPmApproval(
 
   try {
     requireCapability(profile, 'po.create')
-  } catch (err: unknown) {
+  } catch {
     return { error: 'You do not have permission to submit Purchase Orders for PM approval.' }
   }
 
@@ -1130,7 +1130,7 @@ export async function commercialApprovePo(
 
   try {
     requireCapability(profile, 'po.approve')
-  } catch (err: unknown) {
+  } catch {
     return { error: 'You do not have permission to approve Purchase Orders commercially.' }
   }
 
@@ -1197,7 +1197,7 @@ export async function scmIssuePo(
 
   try {
     requireCapability(profile, 'po.issue')
-  } catch (err: unknown) {
+  } catch {
     return { error: 'You do not have permission to issue Purchase Orders.' }
   }
 
@@ -1289,14 +1289,14 @@ export async function scmIssuePo(
             )
         } catch (stampError: unknown) {
           // Message sent. Do not retry automatically and risk a duplicate email.
-          // eslint-disable-next-line no-console
+
           console.error('PO supplier email evidence stamp failed', stampError)
         }
       }
     } catch (err: unknown) {
       // Email dispatch failures should not block status advance — log
       // Issuance stays committed; operators can resolve delivery separately.
-      // eslint-disable-next-line no-console
+
       console.error('PO supplier email dispatch failed', err)
     }
   }
@@ -1424,7 +1424,7 @@ export async function createPosFromBomGrouped(
 
   try {
     requireCapability(profile, 'po.create')
-  } catch (err: unknown) {
+  } catch {
     return { error: 'You do not have permission to create grouped Purchase Orders.' }
   }
 

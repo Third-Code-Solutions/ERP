@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import { useEffect, useRef } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { createSupabaseBrowserClient } from '@third-code-erp/auth/client'
 import type { AppRole } from '@third-code-erp/auth'
@@ -31,6 +32,10 @@ import {
   activeNavHref,
   type NavIconKey,
 } from '@/lib/operations/nav-config'
+import {
+  cancelScheduledRoutePrefetch,
+  scheduleRoutePrefetchOnIntent,
+} from './sidebar-prefetch'
 
 interface SidebarProps {
   user: User
@@ -61,6 +66,8 @@ const ICONS: Record<NavIconKey, (props: { size?: number; className?: string }) =
 export function Sidebar({ user, role, fullName }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
+  const prefetchedHrefs = useRef(new Set<string>())
+  const scheduledPrefetches = useRef(new Map<string, ReturnType<typeof setTimeout>>())
   const sections = visibleNavSections(role)
   const currentNavHref = activeNavHref(pathname, sections)
   const displayName = fullName?.trim() || user.email?.split('@')[0] || 'User'
@@ -73,6 +80,29 @@ export function Sidebar({ user, role, fullName }: SidebarProps) {
       .join('')
       .slice(0, 2)
       .toUpperCase() || '?'
+
+  useEffect(() => {
+    const scheduled = scheduledPrefetches.current
+    return () => {
+      for (const timeout of scheduled.values()) clearTimeout(timeout)
+      scheduled.clear()
+    }
+  }, [])
+
+  function prefetchOnIntent(href: string): void {
+    scheduleRoutePrefetchOnIntent({
+      prefetchedHrefs: prefetchedHrefs.current,
+      scheduledHrefs: scheduledPrefetches.current,
+      href,
+      prefetch: (target) => {
+        router.prefetch(target)
+      },
+    })
+  }
+
+  function cancelPrefetchOnIntent(href: string): void {
+    cancelScheduledRoutePrefetch(scheduledPrefetches.current, href)
+  }
 
   async function handleSignOut() {
     const supabase = createSupabaseBrowserClient()
@@ -107,9 +137,14 @@ export function Sidebar({ user, role, fullName }: SidebarProps) {
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch={false}
                 className={`sidebar-item ${isActive ? 'active' : ''}`}
                 aria-current={isActive ? 'page' : undefined}
                 title={item.description ? `${item.label}: ${item.description}` : item.label}
+                onMouseEnter={() => prefetchOnIntent(item.href)}
+                onMouseLeave={() => cancelPrefetchOnIntent(item.href)}
+                onFocus={() => prefetchOnIntent(item.href)}
+                onBlur={() => cancelPrefetchOnIntent(item.href)}
               >
                 <Icon size={16} className="sidebar-icon" />
                 <span>{item.label}</span>
@@ -123,8 +158,13 @@ export function Sidebar({ user, role, fullName }: SidebarProps) {
         <div className="sidebar-section" style={{ padding: 0, marginBottom: 8 }}>
           <Link
             href="/settings"
+            prefetch={false}
             className={`sidebar-item ${pathname.startsWith('/settings') ? 'active' : ''}`}
             aria-current={pathname.startsWith('/settings') ? 'page' : undefined}
+            onMouseEnter={() => prefetchOnIntent('/settings')}
+            onMouseLeave={() => cancelPrefetchOnIntent('/settings')}
+            onFocus={() => prefetchOnIntent('/settings')}
+            onBlur={() => cancelPrefetchOnIntent('/settings')}
           >
             <IconSettings size={16} className="sidebar-icon" />
             <span>Settings</span>

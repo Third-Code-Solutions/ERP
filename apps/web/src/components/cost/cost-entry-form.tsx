@@ -4,20 +4,19 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createCostEntry } from '@/app/(dashboard)/projects/[id]/cost/actions'
 
-const CATEGORIES = [
-  { value: 'material', label: 'Material' },
-  { value: 'labour', label: 'Labour' },
-  { value: 'subcontractor', label: 'Subcontractor' },
-  { value: 'equipment', label: 'Equipment' },
-  { value: 'overhead', label: 'Overhead' },
-  { value: 'other', label: 'Other' },
-] as const
+type CostCategory =
+  | 'material'
+  | 'labour'
+  | 'subcontractor'
+  | 'equipment'
+  | 'overhead'
+  | 'other'
 
 interface CostCodeOption {
   id: string
   code: string
   name: string
-  category: (typeof CATEGORIES)[number]['value']
+  category: CostCategory
 }
 
 export function CostEntryForm({

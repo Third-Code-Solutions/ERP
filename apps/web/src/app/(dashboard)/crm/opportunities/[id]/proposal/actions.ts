@@ -90,7 +90,7 @@ const PRIORITY_VALUES = ['minor', 'major'] as const
 
 // Schemas live in ./schemas.ts so this 'use server' file only exports
 // async functions per Next.js constraint.
-import { pprfPayloadSchema, submitPprfSchema, type PprfPayload } from './schemas'
+import { submitPprfSchema, type PprfPayload } from './schemas'
 import {
   createChangeRequestRecord,
   resolveChangeRequestRecord,
@@ -544,7 +544,7 @@ export async function submitInspection(formData: FormData): Promise<{ error?: st
       photoDocumentIds: photoIds,
     }).catch((err: unknown) => {
       const message = err instanceof Error ? err.message : 'unknown error'
-      // eslint-disable-next-line no-console
+
       console.warn(
         `[site-inspection] report archival failed for ${result.id}: ${message}`
       )

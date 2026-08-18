@@ -8,6 +8,9 @@ import { RequestObservabilityMiddleware } from '../observability/request-observa
 import { CadEvidenceCommitController } from './cad-evidence-commit.controller'
 import { CadEvidenceCommitPipe } from './cad-evidence-commit.pipe'
 import { CadEvidenceCommitService } from './cad-evidence-commit.service'
+import { TakeoffImportController } from './takeoff-import.controller'
+import { TakeoffImportPipe } from './takeoff-import.pipe'
+import { TakeoffImportService } from './takeoff-import.service'
 import { DocumentProcessingDraftBomService } from './document-processing.bom'
 import { DocumentProcessingEvidenceService } from './document-processing.evidence'
 import { BullModule } from '@nestjs/bullmq'
@@ -26,10 +29,16 @@ import { DocumentProcessingWorkerClient } from './document-processing.worker'
     AuditModule,
     BullModule.registerQueue({ name: DOCUMENT_PROCESSING_QUEUE }),
   ],
-  controllers: [CadEvidenceCommitController, DocumentProcessingController],
+  controllers: [
+    CadEvidenceCommitController,
+    DocumentProcessingController,
+    TakeoffImportController,
+  ],
   providers: [
     CadEvidenceCommitPipe,
     CadEvidenceCommitService,
+    TakeoffImportPipe,
+    TakeoffImportService,
     DocumentProcessingDraftBomService,
     DocumentProcessingEvidenceService,
     DocumentProcessingPipe,
@@ -45,6 +54,10 @@ export class CadModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
     consumer
       .apply(RequestObservabilityMiddleware)
-      .forRoutes(CadEvidenceCommitController, DocumentProcessingController)
+      .forRoutes(
+        CadEvidenceCommitController,
+        DocumentProcessingController,
+        TakeoffImportController
+      )
   }
 }

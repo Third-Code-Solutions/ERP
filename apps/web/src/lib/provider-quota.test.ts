@@ -86,6 +86,39 @@ describe('shared provider quota client', () => {
     )
   })
 
+  it('accepts the bounded visual-extraction quota decision', async () => {
+    vi.stubEnv('ERP_PROVIDER_QUOTA_VIA_API', 'true')
+    vi.stubEnv('ERP_PROVIDER_QUOTA_VIA_API_TENANT_IDS', TENANT_ID)
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          allowed: true,
+          bucket: 'provider-vision',
+          count: 1,
+          limit: 4,
+          retryAfterSeconds: 0,
+          scope: 'tenant-user',
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      )
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      consumeProviderQuota('provider-vision', TENANT_ID)
+    ).resolves.toMatchObject({
+      ok: true,
+      skipped: false,
+      data: { bucket: 'provider-vision', limit: 4 },
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/provider-quotas/consume',
+      expect.objectContaining({
+        body: JSON.stringify({ bucket: 'provider-vision' }),
+      })
+    )
+  })
+
   it('fails closed and exposes bounded retry metadata on a blocked decision', async () => {
     vi.stubEnv('ERP_PROVIDER_QUOTA_VIA_API', 'true')
     vi.stubEnv('ERP_PROVIDER_QUOTA_VIA_API_TENANT_IDS', TENANT_ID)

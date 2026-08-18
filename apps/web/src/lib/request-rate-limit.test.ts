@@ -4,6 +4,7 @@ import {
   consumeRequestRateLimit,
   requestRateLimitKey,
   requestRateLimitPolicy,
+  storeLocalRequestRateLimitEntry,
 } from './request-rate-limit'
 
 describe('request rate-limit identity', () => {
@@ -27,11 +28,6 @@ describe('request rate-limit identity', () => {
 
   it('keeps provider-backed chat bursts below general authenticated traffic', () => {
     expect(requestRateLimitPolicy('/api/cortex/chat', true)).toEqual({
-      bucket: 'provider-chat',
-      limit: 20,
-      windowMs: 60_000,
-    })
-    expect(requestRateLimitPolicy('/api/ai/similar-items', true)).toEqual({
       bucket: 'provider-chat',
       limit: 20,
       windowMs: 60_000,
@@ -62,6 +58,23 @@ describe('request rate-limit identity', () => {
       bucket: 'provider-embedding',
       limit: 2,
     })
+    expect(requestRateLimitPolicy('/api/ai/similar-items', true)).toMatchObject({
+      bucket: 'provider-embedding',
+      limit: 6,
+    })
+  })
+
+  it('uses a separate lower burst for visual document extraction', () => {
+    expect(requestRateLimitPolicy('/api/upload/complete', true)).toEqual({
+      bucket: 'provider-vision',
+      limit: 4,
+      windowMs: 60_000,
+    })
+    expect(requestRateLimitPolicy('/api/upload/complete', false)).toEqual({
+      bucket: 'provider-vision',
+      limit: 2,
+      windowMs: 60_000,
+    })
   })
 
   it('rejects only after policy limit and resets after window expiry', () => {
@@ -86,5 +99,14 @@ describe('request rate-limit identity', () => {
       entry: { count: 1, windowStart: 10_000 + policy.windowMs + 1 },
       limited: false,
     })
+  })
+
+  it('bounds the compatibility limiter map when new identities keep arriving', () => {
+    const entries = new Map<string, { count: number; windowStart: number }>()
+    storeLocalRequestRateLimitEntry(entries, 'first', { count: 1, windowStart: 1 }, 2)
+    storeLocalRequestRateLimitEntry(entries, 'second', { count: 1, windowStart: 2 }, 2)
+    storeLocalRequestRateLimitEntry(entries, 'third', { count: 1, windowStart: 3 }, 2)
+
+    expect([...entries.keys()]).toEqual(['second', 'third'])
   })
 })

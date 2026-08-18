@@ -2,6 +2,12 @@ import type { NextConfig } from 'next'
 import path from 'node:path'
 
 const config: NextConfig = {
+  eslint: {
+    // The monorepo's root flat-config gate is run explicitly before every
+    // production build. Next's working-directory lint discovery cannot apply
+    // that root-scoped config reliably, so avoid a second, incomplete pass.
+    ignoreDuringBuilds: true,
+  },
   output:
     process.env.NEXT_OUTPUT_MODE === 'standalone' ? 'standalone' : undefined,
   transpilePackages: ['@third-code-erp/auth', '@third-code-erp/database', '@third-code-erp/shared-types'],

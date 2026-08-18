@@ -9,6 +9,14 @@ const SUPABASE_E2E_KEYS = [
 
 export type E2EEnv = Record<string, string>
 
+export function requireE2EBaseUrl(baseUrl: string | undefined): string {
+  const resolved = baseUrl?.trim()
+  if (!resolved) {
+    throw new Error('E2E requires PLAYWRIGHT_BASE_URL; refusing an implicit origin.')
+  }
+  return resolved
+}
+
 export function readE2EEnv(): E2EEnv {
   const values: E2EEnv = {}
   const envPath = resolve(__dirname, '..', '..', '.env.local')

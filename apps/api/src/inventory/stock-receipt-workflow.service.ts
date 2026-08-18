@@ -29,6 +29,7 @@ import {
   DatabaseService,
   type DatabaseTransaction,
 } from '../database/database.service'
+import { databaseErrorMessage } from '../database/database-error'
 import type {
   StockReceiptPostCommand,
   StockReceiptReverseCommand,
@@ -81,7 +82,7 @@ function validateKey(raw: string): string {
 }
 
 function mapPostFailure(error: unknown): never {
-  const message = error instanceof Error ? error.message : ''
+  const message = databaseErrorMessage(error)
   if (message.includes('Stock Receipt not found')) {
     throw new NotFoundException('Stock Receipt not found')
   }
@@ -102,7 +103,7 @@ function mapPostFailure(error: unknown): never {
 }
 
 function mapReverseFailure(error: unknown): never {
-  const message = error instanceof Error ? error.message : ''
+  const message = databaseErrorMessage(error)
   if (message.includes('Stock Receipt not found')) {
     throw new NotFoundException('Stock Receipt not found')
   }

@@ -2,7 +2,6 @@ import 'reflect-metadata'
 
 import { randomUUID } from 'node:crypto'
 import { ValidationPipe } from '@nestjs/common'
-import { ConfigService } from '@nestjs/config'
 import { APP_GUARD } from '@nestjs/core'
 import { Test } from '@nestjs/testing'
 import {
@@ -69,7 +68,7 @@ async function alwaysRollback(
   }
 }
 
-suite('Document intake protected HTTP canary', () => {
+suite('Document intake protected HTTP authority', () => {
   it('proves auth, tenant/storage scope, idempotency, audit, RLS, and rollback', async () => {
     const tenantA = randomUUID()
     const tenantB = randomUUID()
@@ -146,31 +145,11 @@ suite('Document intake protected HTTP canary', () => {
           return userId ? { userId } : null
         }),
       }
-      const featureState = {
-        enabled: true,
-        tenantIds: [tenantA, tenantB],
-      }
-      const config = {
-        get: vi.fn((key: string, fallback?: unknown) => {
-          if (key === 'ERP_DOCUMENT_INTAKE_WRITES_ENABLED') {
-            return featureState.enabled
-          }
-          if (key === 'ERP_DOCUMENT_INTAKE_WRITES_TENANT_IDS') {
-            return featureState.tenantIds
-          }
-          return fallback
-        }),
-      } as unknown as ConfigService
-
       const moduleRef = await Test.createTestingModule({
         controllers: [DocumentIntakeController],
         providers: [
           DocumentIntakeService,
           AuditService,
-          {
-            provide: ConfigService,
-            useValue: config,
-          },
           {
             provide: DatabaseService,
             useValue: transactionBoundDatabase(transaction),
@@ -242,15 +221,6 @@ suite('Document intake protected HTTP canary', () => {
           .set('Idempotency-Key', 'viewer-denied')
           .send(command)
           .expect(403)
-
-        featureState.enabled = false
-        await request(app.getHttpServer())
-          .post(route)
-          .set('Authorization', 'Bearer document-intake-http-admin-a-token')
-          .set('Idempotency-Key', 'disabled-write')
-          .send(command)
-          .expect(503)
-        featureState.enabled = true
 
         await request(app.getHttpServer())
           .post(route)
