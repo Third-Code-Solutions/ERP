@@ -358,6 +358,7 @@ jobs:
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
       E2E_USER_EMAIL: ${{ secrets.E2E_USER_EMAIL }}
       E2E_USER_PASSWORD: ${{ secrets.E2E_USER_PASSWORD }}
+      E2E_VERCEL_PROTECTION_BYPASS_SECRET: ${{ secrets.E2E_VERCEL_PROTECTION_BYPASS_SECRET }}
       E2E_PROJECT_ID: ${{ vars.E2E_PROJECT_ID }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -374,7 +375,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for name in PLAYWRIGHT_BASE_URL NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY E2E_USER_EMAIL E2E_USER_PASSWORD E2E_PROJECT_ID; do
+          for name in PLAYWRIGHT_BASE_URL NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY E2E_USER_EMAIL E2E_USER_PASSWORD E2E_VERCEL_PROTECTION_BYPASS_SECRET E2E_PROJECT_ID; do
             if [[ -z "${!name:-}" ]]; then
               echo "$name is required for trusted-PR authenticated E2E" >&2
               exit 1
