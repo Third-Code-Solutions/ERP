@@ -29,7 +29,9 @@ jobs:
       RAILWAY_PROJECT_ID: a21fd382-80b2-4218-8025-11f420a062e3
       RAILWAY_API_SERVICE_ID: c45b3d01-036a-4663-a524-0713d782fce3
       RAILWAY_CAD_SERVICE_ID: 328c6650-306e-4a3c-80dc-7566e80ba86a
-      VERCEL_SCOPE: pavi-2e9809a4
+      # The CLI's --scope parameter requires the team ID, not the dashboard
+      # slug. The linked project records this value as orgId.
+      VERCEL_SCOPE: team_n60dl3ccO8BFGFeUKQdqPhp3
       VERCEL_PROJECT_NAME: thirdcode-erp
       NEXT_PUBLIC_SUPABASE_URL: https://aqqrtkmtcsfkbyyqxowv.supabase.co
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
