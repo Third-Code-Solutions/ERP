@@ -15,6 +15,10 @@ interface NotificationItem {
   created_at: string
 }
 
+type NotificationReadStateCommand =
+  | { action: 'mark_read'; id: string }
+  | { action: 'mark_all_read' }
+
 const POLL_MS = 30_000
 
 export function NotificationsDropdown({ userId }: { userId: string }) {
@@ -22,15 +26,19 @@ export function NotificationsDropdown({ userId }: { userId: string }) {
   const [items, setItems] = useState<NotificationItem[]>([])
   const [unread, setUnread] = useState(0)
   const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const unmountedRef = useRef(false)
   const fetchControllerRef = useRef<AbortController | null>(null)
+  const savingRef = useRef(false)
 
   const fetchItems = useCallback(async () => {
     if (unmountedRef.current) return
     fetchControllerRef.current?.abort()
     const controller = new AbortController()
     fetchControllerRef.current = controller
+    setError(null)
     setLoading(true)
     try {
       // A route transition can briefly mount the next document before the
@@ -50,20 +58,28 @@ export function NotificationsDropdown({ userId }: { userId: string }) {
         data: { session },
         error: authError,
       } = await supabase.auth.getSession()
-      if (authError || !session?.user) return
+      if (unmountedRef.current || authError || !session?.user) return
 
       const res = await fetch('/api/notifications', {
         headers: { Accept: 'application/json' },
         cache: 'no-store',
         signal: controller.signal,
       })
-      if (!res.ok) return
+      if (unmountedRef.current) return
+      if (!res.ok) {
+        setError('Notifications are temporarily unavailable. Please try again.')
+        return
+      }
       const data = (await res.json()) as { items: NotificationItem[]; unread: number }
       setItems(data.items ?? [])
       setUnread(data.unread ?? 0)
+      setError(null)
     } catch (error) {
-      if (!(error instanceof DOMException && error.name === 'AbortError')) {
-        throw error
+      if (
+        !unmountedRef.current &&
+        !(error instanceof DOMException && error.name === 'AbortError')
+      ) {
+        setError('Notifications are temporarily unavailable. Please try again.')
       }
     } finally {
       if (fetchControllerRef.current === controller) {
@@ -73,23 +89,37 @@ export function NotificationsDropdown({ userId }: { userId: string }) {
     }
   }, [])
 
-  // Initial fetch + poll.
+  // Keep page transitions independent from the Core API. The dropdown loads on
+  // demand, then refreshes while it is visible rather than polling every route.
   useEffect(() => {
-    unmountedRef.current = false
+    if (!open) return
+
     void fetchItems()
     const id = window.setInterval(fetchItems, POLL_MS)
+    return () => {
+      window.clearInterval(id)
+      fetchControllerRef.current?.abort()
+    }
+  }, [fetchItems, open])
+
+  useEffect(() => {
+    unmountedRef.current = false
     const abortOnPageHide = () => {
       unmountedRef.current = true
       fetchControllerRef.current?.abort()
     }
+    const resumeAfterPageShow = () => {
+      unmountedRef.current = false
+    }
     window.addEventListener('pagehide', abortOnPageHide)
+    window.addEventListener('pageshow', resumeAfterPageShow)
     return () => {
       unmountedRef.current = true
-      window.clearInterval(id)
       window.removeEventListener('pagehide', abortOnPageHide)
+      window.removeEventListener('pageshow', resumeAfterPageShow)
       fetchControllerRef.current?.abort()
     }
-  }, [fetchItems])
+  }, [])
 
   // Real-time push via Supabase Realtime on the notifications table for this user.
   useEffect(() => {
@@ -131,27 +161,52 @@ export function NotificationsDropdown({ userId }: { userId: string }) {
     }
   }, [open])
 
+  async function updateReadState(
+    command: NotificationReadStateCommand,
+    rollback: { items: NotificationItem[]; unread: number }
+  ) {
+    savingRef.current = true
+    setSaving(true)
+    setError(null)
+    try {
+      const response = await fetch('/api/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(command),
+      })
+      if (!response.ok) {
+        throw new Error('Notification read state request failed')
+      }
+    } catch {
+      if (!unmountedRef.current) {
+        setItems(rollback.items)
+        setUnread(rollback.unread)
+        setError('Notification read state could not be saved. Please try again.')
+      }
+    } finally {
+      savingRef.current = false
+      if (!unmountedRef.current) {
+        setSaving(false)
+      }
+    }
+  }
+
   async function markRead(id: string) {
-    // Optimistic.
+    if (savingRef.current) return
+    const rollback = { items, unread }
     setItems((prev) =>
       prev.map((it) => (it.id === id ? { ...it, is_read: true } : it))
     )
     setUnread((u) => Math.max(0, u - 1))
-    await fetch('/api/notifications', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'mark_read', id }),
-    }).catch(() => {})
+    await updateReadState({ action: 'mark_read', id }, rollback)
   }
 
   async function markAllRead() {
+    if (savingRef.current) return
+    const rollback = { items, unread }
     setItems((prev) => prev.map((it) => ({ ...it, is_read: true })))
     setUnread(0)
-    await fetch('/api/notifications', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'mark_all_read' }),
-    }).catch(() => {})
+    await updateReadState({ action: 'mark_all_read' }, rollback)
   }
 
   return (
@@ -250,13 +305,15 @@ export function NotificationsDropdown({ userId }: { userId: string }) {
               <button
                 type="button"
                 onClick={markAllRead}
+                disabled={saving}
                 style={{
                   background: 'transparent',
                   border: 0,
                   color: 'var(--color-navy-700)',
                   fontSize: 12,
                   fontWeight: 500,
-                  cursor: 'pointer',
+                  cursor: saving ? 'wait' : 'pointer',
+                  opacity: saving ? 0.6 : 1,
                   padding: 4,
                 }}
               >
@@ -271,7 +328,41 @@ export function NotificationsDropdown({ userId }: { userId: string }) {
                 Loading…
               </div>
             )}
-            {!loading && items.length === 0 && (
+            {error && (
+              <div
+                role="status"
+                style={{
+                  margin: 16,
+                  padding: 12,
+                  border: '1px solid var(--color-danger)',
+                  borderRadius: 8,
+                  color: 'var(--color-danger)',
+                  fontSize: 12.5,
+                  lineHeight: 1.45,
+                }}
+              >
+                <div>{error}</div>
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => void fetchItems()}
+                  style={{
+                    marginTop: 8,
+                    border: 0,
+                    background: 'transparent',
+                    color: 'inherit',
+                    cursor: loading ? 'wait' : 'pointer',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    padding: 0,
+                    textDecoration: 'underline',
+                  }}
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+            {!loading && !error && items.length === 0 && (
               <div style={{ padding: 32, textAlign: 'center' }}>
                 <div
                   style={{
@@ -395,13 +486,15 @@ export function NotificationsDropdown({ userId }: { userId: string }) {
                       {!it.is_read && (
                         <button
                           type="button"
+                          disabled={saving}
                           onClick={() => markRead(it.id)}
                           style={{
                             background: 'transparent',
                             border: 0,
                             color: 'var(--color-neutral-500)',
                             fontSize: 12,
-                            cursor: 'pointer',
+                            cursor: saving ? 'wait' : 'pointer',
+                            opacity: saving ? 0.6 : 1,
                             padding: 0,
                           }}
                         >
