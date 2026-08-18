@@ -88,7 +88,7 @@ suite('protected Web upload-complete disposable integration', () => {
     vi.clearAllMocks()
   })
 
-  it('records a real DXF upload through Core and fails closed without the legacy writer', async () => {
+  it('records a real DXF upload through Core without an outstanding job and fails closed without the legacy writer', async () => {
     const fixture = await readFile(FIXTURE_PATH)
     const tenantId = randomUUID()
     const userId = randomUUID()
@@ -215,7 +215,7 @@ suite('protected Web upload-complete disposable integration', () => {
           detectedFormat: string
         }
       }
-      expect(successBody.cadParseQueued).toBe(true)
+      expect(successBody.cadParseQueued).toBe(false)
       expect(successBody.cadResult).toMatchObject({
         status: 'extracted',
         detectedFormat: 'dxf',

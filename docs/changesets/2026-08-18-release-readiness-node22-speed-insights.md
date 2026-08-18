@@ -45,6 +45,10 @@ completed successfully.
   one explicit `deny_direct_client_access` policy, rather than zero policies.
   The runtime assertion now checks the exact tables, roles, and false
   `USING`/`WITH CHECK` expressions.
+- Reconciled the disposable DXF upload integration proof with the Core-only
+  synchronous commit contract: when evidence and scope rows are committed
+  before the response, `cadParseQueued` is `false`; it is reserved for an
+  outstanding Core processing job.
 - Preserved the existing `apps/web/vercel.json` request for `icn1`; placement
   will be verified from a newly deployed immutable artifact, not inferred from
   source configuration.
@@ -74,6 +78,9 @@ completed successfully.
 - PASS — ADR-022 static schema contract (2 tests). Its runtime proof is
   intentionally skipped locally without a disposable `DATABASE_URL` and will
   be re-run without skips by the GitHub database-reproducibility job.
+- PASS — focused Web upload-complete contract (10 tests) and API typecheck.
+  The disposable DXF integration proof is intentionally skipped locally
+  without its disposable database and will be re-run without skips by CI.
 - PASS — the CI unit-test source-gate sequence through WO-18, including the
   corrected WO-08a, WO-12, and WO-18 authority/performance contracts.
 - PASS — production dependency audit reported no known high-or-higher

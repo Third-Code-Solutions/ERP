@@ -38,6 +38,10 @@ hosted migration, authenticated E2E, `icn1`, and real-user telemetry evidence.
   replay, then exposed a separate stale ADR-022 test expectation of zero
   policies. ADR-022 explicitly requires two deny-all policies; its runtime
   proof now asserts their exact role and expression shape before CI is rerun.
+- That same job then exposed a stale DXF integration expectation of
+  `cadParseQueued=true` after a completed Core evidence commit. The response
+  contract and focused Web test use `false` for completed synchronous work;
+  `true` remains reserved for an outstanding Core job.
 
 ## Sequential ownership
 
