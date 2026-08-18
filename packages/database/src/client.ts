@@ -1,5 +1,6 @@
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
+import { resolveDatabaseConnectionConfig } from './connection'
 import * as schema from './schema'
 
 // Lazy database client. We avoid throwing at module-load time so that
@@ -15,13 +16,8 @@ function init(): DrizzleDb {
     throw new Error('DATABASE_URL environment variable is required')
   }
 
-  // pgbouncer/transaction pooling does not support prepared statements.
-  // Detect either an explicit ?pgbouncer=true flag or the Supabase pooler hostname.
-  const isPooled =
-    /[?&]pgbouncer=true(?:&|$)/i.test(connectionString) ||
-    /\.pooler\.supabase\.com/i.test(connectionString)
-
-  const queryClient = postgres(connectionString, isPooled ? { prepare: false } : {})
+  const connection = resolveDatabaseConnectionConfig(connectionString)
+  const queryClient = postgres(connection.connectionString, connection.options)
   return drizzle(queryClient, { schema })
 }
 
