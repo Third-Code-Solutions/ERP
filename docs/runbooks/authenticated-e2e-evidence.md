@@ -19,6 +19,7 @@ separate disposable test environment and the following protected inputs:
 | `E2E_SUPABASE_ANON_KEY` | Secret | Anonymous key for that same project. |
 | `E2E_USER_EMAIL` | Secret | Dedicated non-human test user. |
 | `E2E_USER_PASSWORD` | Secret | Password for that dedicated test user only. |
+| `E2E_VERCEL_PROTECTION_BYPASS_SECRET` | Secret | Project-scoped Vercel automation-bypass secret for the protected preview target. |
 | `E2E_PROJECT_ID` | Variable | Project in the isolated tenant used by the smoke journey. |
 
 The workflow fails before Playwright starts when any value is absent. It runs
@@ -28,6 +29,8 @@ skipped, flaky, unexpected, or report-error tests.
 The test target must contain no customer data and must use a tenant explicitly
 approved for automated browser traffic. Do not reuse a production customer
 account, employee account, or a tenant with live finance/procurement records.
+The bypass secret is sent only as the Playwright request header documented by
+Vercel; it does not disable deployment protection for other requests.
 
 ## Production promotion gate
 
