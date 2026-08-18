@@ -125,6 +125,10 @@ test('executable gate fails on a bad fixture and passes after removal', async ()
 
 test('CI runs the full PR suite and keeps migration checks ahead of CI-only grants', async () => {
   const workflow = await readFile(resolve('.github/workflows/ci.yml'), 'utf8')
+  const productionWorkflow = await readFile(
+    resolve('.github/workflows/deploy-production.yml'),
+    'utf8'
+  )
   const rootPackage = await readFile(resolve('package.json'), 'utf8')
 
   assert.match(workflow, /pull_request:\s*\n\s+branches: \[main\]/)
@@ -139,6 +143,15 @@ test('CI runs the full PR suite and keeps migration checks ahead of CI-only gran
   )
   assert.match(workflow, /BUILD_OPS_DEMO_TENANT_SLUGS: abi-ops-local/)
   assert.match(workflow, /run: pnpm verify:build-ops-data/)
+  assert.match(
+    rootPackage,
+    /"test:database-repro-policy-contract": "node --test scripts\/verify-database-repro-policy-contract\.test\.mjs"/
+  )
+  assert.match(workflow, /run: pnpm test:database-repro-policy-contract/)
+  assert.match(
+    productionWorkflow,
+    /pnpm test:database-repro-policy-contract/
+  )
   assert.match(workflow, /GITHUB_EVENT_BEFORE:-/)
   assert.match(
     workflow,

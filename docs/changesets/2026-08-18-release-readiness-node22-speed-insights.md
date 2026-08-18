@@ -35,6 +35,11 @@ completed successfully.
   audit state, and WO-18 requires the batched cost-control totals query that
   avoids a dashboard N+1 regression. The gates also forbid restoring direct
   Web persistence or the former per-project dashboard query.
+- Corrected the clean-rebuild catalog verifier to distinguish the three
+  intentionally deny-all Core-only policies (`financial_sequences`,
+  `notification_outbox`, and `notification_deliveries`) from authenticated
+  tenant policies. A dedicated regression suite rejects weakened or extra
+  policies and is required by both CI and production promotion.
 - Preserved the existing `apps/web/vercel.json` request for `icn1`; placement
   will be verified from a newly deployed immutable artifact, not inferred from
   source configuration.
@@ -55,6 +60,12 @@ completed successfully.
 - PASS — ABI OPS brand, type-safety, App Router boundary, BUILD OPS invariant,
   actionlint, workflow-action-reference, provider-spend-guard, and Turbo cache
   contract checks.
+- PASS — RLS policy-catalog regression suite, actionlint, and file-only
+  migration-ledger verification after correcting the database verifier.
+- NOT RUN locally — full Supabase replay and catalog verification, because this
+  workstation currently has neither the Supabase CLI nor a running Docker
+  daemon. The isolated GitHub CI database-reproducibility job performs that
+  clean replay before merge.
 - PASS — the CI unit-test source-gate sequence through WO-18, including the
   corrected WO-08a, WO-12, and WO-18 authority/performance contracts.
 - PASS — production dependency audit reported no known high-or-higher

@@ -202,6 +202,8 @@ jobs:
           supabase db reset --local
       - name: Verify BUILD OPS data invariant
         run: pnpm verify:build-ops-data
+      - name: Verify RLS policy catalog classifier
+        run: pnpm test:database-repro-policy-contract
       - name: Verify migration ledger and catalog
         run: node scripts/verify-database-repro.mjs
       - name: Verify release planner sees a current linear ledger
