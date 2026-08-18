@@ -21,6 +21,9 @@ export default defineConfig({
           // trusted-PR test job to exercise its isolated preview deployment.
           extraHTTPHeaders: {
             'x-vercel-protection-bypass': vercelProtectionBypassSecret,
+            // Exclude Vercel's preview-only toolbar from console assertions.
+            // The toolbar is an external overlay and is not part of ABI OPS.
+            'x-vercel-skip-toolbar': '1',
           },
         }
       : {}),
