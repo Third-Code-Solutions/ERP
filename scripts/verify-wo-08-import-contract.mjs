@@ -12,14 +12,47 @@ import { join } from 'node:path'
 
 const root = process.cwd()
 const paths = {
-  parser: join(root, 'apps', 'web', 'src', 'lib', 'operations', 'integrations', 'takeoff.ts'),
+  parser: join(
+    root,
+    'apps',
+    'web',
+    'src',
+    'lib',
+    'operations',
+    'integrations',
+    'takeoff.ts'
+  ),
   validator: join(root, 'packages', 'shared-types', 'src', 'bom', 'takeoff.ts'),
-  route: join(root, 'apps', 'web', 'src', 'app', 'api', 'bom', 'takeoff-import', 'route.ts'),
-  wizard: join(root, 'apps', 'web', 'src', 'components', 'bom', 'takeoff-import-wizard.tsx'),
+  route: join(
+    root,
+    'apps',
+    'web',
+    'src',
+    'app',
+    'api',
+    'bom',
+    'takeoff-import',
+    'route.ts'
+  ),
+  coreService: join(root, 'apps', 'api', 'src', 'cad', 'takeoff-import.service.ts'),
+  wizard: join(
+    root,
+    'apps',
+    'web',
+    'src',
+    'components',
+    'bom',
+    'takeoff-import-wizard.tsx'
+  ),
 }
 
 const source = Object.fromEntries(
-  await Promise.all(Object.entries(paths).map(async ([key, path]) => [key, await readFile(path, 'utf8')])),
+  await Promise.all(
+    Object.entries(paths).map(async ([key, path]) => [
+      key,
+      await readFile(path, 'utf8'),
+    ])
+  )
 )
 
 function requireText(key, fragment, message = `WO-08 contract missing ${fragment}`) {
@@ -46,34 +79,63 @@ for (const fragment of [
 ]) {
   requireText('validator', fragment)
 }
-forbid('parser', /togal/i, 'WO-08 generic parser must not be coupled to the Togal producer')
+forbid(
+  'parser',
+  /togal/i,
+  'WO-08 generic parser must not be coupled to the Togal producer'
+)
 
+for (const fragment of [
+  "const mode = getFormString(form, 'mode') ?? 'preview'",
+  "target: 'existing_bom'",
+  'executeTakeoffImportThroughCoreApi',
+  'this route never falls back to a Web database transaction',
+]) {
+  requireText('route', fragment)
+}
 for (const fragment of [
   "mode: 'preview'",
   'takeoffMappingProfiles',
   'onConflictDoUpdate',
   'drawing_revision_id: revision.id',
   'takeoff_import_id: takeoffImport.id',
-  'target: [bomLineItems.tenant_id, bomLineItems.takeoff_import_id, bomLineItems.source_row_key]',
+  'bomLineItems.takeoff_import_id,',
+  'bomLineItems.source_row_key,',
   "unit_cost_cents: sql`case when ${bomLineItems.unit_rate_source} = 'dupa'",
   "line_total_cents: sql`case when ${bomLineItems.unit_rate_source} = 'dupa'",
   'takeoffUnresolvedItems',
 ]) {
-  requireText('route', fragment)
+  requireText('coreService', fragment)
 }
 
-const lineConflictStart = source.route.indexOf(
-  'target: [bomLineItems.tenant_id, bomLineItems.takeoff_import_id, bomLineItems.source_row_key]',
+const lineConflictTarget = source.coreService.indexOf(
+  'bomLineItems.takeoff_import_id,'
 )
-const lineConflictEnd = source.route.indexOf('returning({ id: bomLineItems.id })', lineConflictStart)
+const lineConflictStart = source.coreService.lastIndexOf(
+  '.onConflictDoUpdate({',
+  lineConflictTarget
+)
+const lineConflictEnd = source.coreService.indexOf(
+  'returning({ id: bomLineItems.id })',
+  lineConflictStart
+)
 if (lineConflictStart < 0 || lineConflictEnd < 0) {
   throw new Error('WO-08 importer line upsert region could not be located')
 }
-const lineConflict = source.route.slice(lineConflictStart, lineConflictEnd)
+const lineConflict = source.coreService.slice(lineConflictStart, lineConflictEnd)
 if (/\bnotes\s*:/.test(lineConflict)) {
   throw new Error('WO-08 re-import conflict set must not overwrite vendor evidence stored in notes')
 }
-forbid('route', /\.deleteFrom\(|\.delete\(bomLineItems/, 'WO-08 re-import must not delete BOM line items')
+forbid(
+  'route',
+  /from '@third-code-erp\/database\/schema'|\.transaction\(/,
+  'WO-08 Web adapter must not restore direct database authority'
+)
+forbid(
+  'coreService',
+  /\.deleteFrom\(|\.delete\(bomLineItems/,
+  'WO-08 re-import must not delete BOM line items'
+)
 
 for (const fragment of [
   "run = useCallback(async (mode: 'preview' | 'commit')",
