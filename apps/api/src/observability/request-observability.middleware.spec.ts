@@ -9,6 +9,8 @@ import {
 
 const REQUEST_ID = '11111111-1111-4111-8111-111111111111'
 const PROJECT_ID = '33333333-3333-2333-8333-333333333333'
+const TENANT_ID = '22222222-2222-4222-8222-222222222222'
+const ACTOR_ID = '44444444-4444-4444-8444-444444444444'
 
 class ResponseHarness extends EventEmitter {
   statusCode = 200
@@ -77,6 +79,48 @@ describe('RequestObservabilityMiddleware', () => {
     )
     expect(serialized).not.toContain('never-log-this-query')
     expect(serialized).not.toContain(PROJECT_ID)
+  })
+
+  it('captures authenticated tenant and actor correlation only after guards resolve the principal', () => {
+    const log = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined)
+    const response = new ResponseHarness()
+    const request = requestHarness() as Request & {
+      principal?: {
+        userId: string
+        tenantId: string
+        role: string
+        email: string
+      }
+    }
+    const middleware = new RequestObservabilityMiddleware()
+
+    middleware.use(
+      request,
+      response as unknown as Response,
+      vi.fn() as NextFunction,
+    )
+    request.principal = {
+      userId: ACTOR_ID,
+      tenantId: TENANT_ID,
+      role: 'finance',
+      email: 'finance@example.test',
+    }
+    response.emit('finish')
+
+    const serialized = String(log.mock.calls[0]?.[0])
+    expect(JSON.parse(serialized)).toMatchObject({
+      trace_id: REQUEST_ID,
+      tenant_id: TENANT_ID,
+      actor_id: ACTOR_ID,
+      actor_role: 'finance',
+      action: 'project.update',
+      outcome: 'succeeded',
+    })
+    expect(serialized).not.toContain('finance@example.test')
+    expect(serialized).not.toContain('never-log-this-token')
+    expect(serialized).not.toContain('never-log-this-command-payload')
   })
 
   it('labels user role assignments without logging user identifiers', () => {

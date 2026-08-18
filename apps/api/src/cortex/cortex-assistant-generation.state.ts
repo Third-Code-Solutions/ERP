@@ -371,7 +371,7 @@ export class CortexAssistantGenerationStateService {
   async claim(
     jobId: string
   ): Promise<ClaimedCortexAssistantGenerationJob | null> {
-    let alertEvents: CortexAssistantProviderCircuitAlertEvent[] = []
+    const alertEvents: CortexAssistantProviderCircuitAlertEvent[] = []
     const claimed = await this.database.client.transaction(async (transaction) => {
       const [row] = await transaction
         .select({
@@ -748,7 +748,7 @@ export class CortexAssistantGenerationStateService {
     if (tenantIds.length === 0) {
       throw new Error('Assistant generation recovery tenant scope is required')
     }
-    let alertEvents: CortexAssistantProviderCircuitAlertEvent[] = []
+    const alertEvents: CortexAssistantProviderCircuitAlertEvent[] = []
     const recoverable = await this.database.client.transaction(async (transaction) => {
       const rows = await transaction
         .select({

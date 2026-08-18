@@ -17,7 +17,7 @@ export default function UserDetailError({
   useEffect(() => {
     // Log to the browser console; Vercel runtime logs already have the
     // server-side stack trace keyed by digest.
-    // eslint-disable-next-line no-console
+
     console.error('[admin/users/[id]] render failed', error)
   }, [error])
 

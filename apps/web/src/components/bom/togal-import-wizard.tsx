@@ -78,7 +78,7 @@ export function TogalImportWizard({
   const [error, setError] = useState<string | null>(null)
   const [showConfirm, setShowConfirm] = useState(false)
 
-  const isLocked = bomStatus === 'locked' || bomStatus === 'archived'
+  const isEditable = bomStatus === 'draft'
 
   const mappedLines = useMemo(
     () =>
@@ -96,7 +96,7 @@ export function TogalImportWizard({
   }, [])
 
   const onRunPreview = useCallback(async () => {
-    if (!file) return
+    if (!file || !isEditable) return
     setIsLoading(true)
     setError(null)
     try {
@@ -122,10 +122,10 @@ export function TogalImportWizard({
     } finally {
       setIsLoading(false)
     }
-  }, [file, bomId])
+  }, [file, bomId, isEditable])
 
   const onCommit = useCallback(async () => {
-    if (!preview || mappedLines.length === 0) return
+    if (!preview || mappedLines.length === 0 || !isEditable) return
     setShowConfirm(false)
     setStep('committing')
     setIsLoading(true)
@@ -169,7 +169,7 @@ export function TogalImportWizard({
     } finally {
       setIsLoading(false)
     }
-  }, [preview, mappedLines, bomId, projectId, router])
+  }, [preview, mappedLines, bomId, projectId, router, isEditable])
 
   const onReset = useCallback(() => {
     setFile(null)
@@ -194,7 +194,7 @@ export function TogalImportWizard({
           </div>
         </div>
         <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {isLocked && (
+          {!isEditable && (
             <div
               role="alert"
               style={{
@@ -222,7 +222,7 @@ export function TogalImportWizard({
             type="file"
             accept=".csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
             onChange={onFileChange}
-            disabled={isLocked || isLoading}
+            disabled={!isEditable || isLoading}
             style={{ fontSize: 13 }}
           />
           {file && (
@@ -234,8 +234,8 @@ export function TogalImportWizard({
             <button
               type="button"
               onClick={onRunPreview}
-              disabled={!file || isLocked || isLoading}
-              style={primaryButtonStyle(!file || isLocked || isLoading)}
+              disabled={!file || !isEditable || isLoading}
+              style={primaryButtonStyle(!file || !isEditable || isLoading)}
             >
               {isLoading && step === 'select' ? 'Parsing…' : 'Preview import'}
             </button>
@@ -276,10 +276,10 @@ export function TogalImportWizard({
                 type="button"
                 onClick={() => setShowConfirm(true)}
                 disabled={
-                  mappedLines.length === 0 || isLocked || step === 'committing'
+                  mappedLines.length === 0 || !isEditable || step === 'committing'
                 }
                 style={primaryButtonStyle(
-                  mappedLines.length === 0 || isLocked || step === 'committing'
+                  mappedLines.length === 0 || !isEditable || step === 'committing'
                 )}
               >
                 Commit {mappedLines.length} line

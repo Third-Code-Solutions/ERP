@@ -61,14 +61,14 @@ export function TakeoffImportWizard({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const isLocked = bomStatus === 'locked' || bomStatus === 'archived'
+  const isEditable = bomStatus === 'draft'
   const issueRows = useMemo(
     () => new Set((preview?.validationIssues ?? []).map((issue) => issue.sourceRowKey)),
     [preview],
   )
 
   const run = useCallback(async (mode: 'preview' | 'commit') => {
-    if (!file || isLocked) return
+    if (!file || !isEditable) return
     setBusy(true)
     setError(null)
     try {
@@ -105,7 +105,7 @@ export function TakeoffImportWizard({
     } finally {
       setBusy(false)
     }
-  }, [bomId, file, isLocked, mapping, projectId, router, source])
+  }, [bomId, file, isEditable, mapping, projectId, router, source])
 
   const reset = useCallback(() => {
     setFile(null)
@@ -124,7 +124,7 @@ export function TakeoffImportWizard({
           </div>
         </div>
         <div style={{ display: 'grid', gap: 16, padding: 18 }}>
-          {isLocked && <div role="alert" className="card-empty">This BOM is {bomStatus} and cannot accept a takeoff.</div>}
+          {!isEditable && <div role="alert" className="card-empty">This BOM is {bomStatus} and cannot accept a takeoff.</div>}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
             <Field label="Source" value={source} onChange={setSource} />
             <Field label="Description column" value={mapping.description} onChange={(value) => setMapping((current) => ({ ...current, description: value }))} />
@@ -140,12 +140,12 @@ export function TakeoffImportWizard({
               type="file"
               accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               onChange={(event) => { setFile(event.target.files?.[0] ?? null); setPreview(null); setError(null) }}
-              disabled={busy || isLocked}
+              disabled={busy || !isEditable}
             />
           </label>
           {file && <p style={{ margin: 0, fontSize: 12, color: 'var(--color-neutral-600)' }}>{file.name} · {(file.size / 1024).toFixed(1)} KB</p>}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button type="button" className="button button-primary" onClick={() => void run('preview')} disabled={!file || busy || isLocked}>Preview intake</button>
+            <button type="button" className="button button-primary" onClick={() => void run('preview')} disabled={!file || busy || !isEditable}>Preview intake</button>
             <button type="button" className="button button-secondary" onClick={reset} disabled={busy}>Reset</button>
           </div>
           {error && <p role="alert" style={{ margin: 0, color: 'var(--color-danger)', fontSize: 13 }}>{error}</p>}
@@ -159,7 +159,7 @@ export function TakeoffImportWizard({
               <h2 id="takeoff-review-title" className="card-title">Review before import</h2>
               <p className="card-subtitle">{preview.rowCount} rows · {preview.validCount} ready · {preview.unresolvedCount} unresolved</p>
             </div>
-            <button type="button" className="button button-primary" onClick={() => void run('commit')} disabled={busy || isLocked || preview.rows.length === 0}>Import rows</button>
+            <button type="button" className="button button-primary" onClick={() => void run('commit')} disabled={busy || !isEditable || preview.rows.length === 0}>Import rows</button>
           </div>
           {preview.unresolvedCount > 0 && (
             <div role="status" style={{ margin: 18, padding: 12, border: '1px solid var(--color-warning)', color: 'var(--color-neutral-700)', background: 'var(--color-warning-soft)', borderRadius: 8, fontSize: 13 }}>

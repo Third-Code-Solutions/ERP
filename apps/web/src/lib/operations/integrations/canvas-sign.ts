@@ -18,7 +18,7 @@
 import crypto from 'node:crypto'
 import { db } from '@third-code-erp/database'
 import { signatureSessions } from '@third-code-erp/database/schema'
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 
 export type SignableEntityType = 'bom' | 'contract' | 'variation_order' | 'coc'
 

@@ -26,7 +26,7 @@ export async function sendSms(env: SmsEnvelope): Promise<{ ok: boolean; is_dev_s
         'SMS integration is not configured for production. Set SEMAPHORE_API_KEY and SEMAPHORE_SENDER_NAME.'
       )
     }
-    // eslint-disable-next-line no-console
+
     console.warn('[sms:dev]', { to: env.to, body: env.body.slice(0, 80) })
     return { ok: true, is_dev_stub: true }
   }

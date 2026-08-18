@@ -4,12 +4,6 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { addScopeItem, deleteScopeItem, updateScopeItemCost } from '@/app/(dashboard)/projects/[id]/scope/actions'
 
-interface ScopeItemControlsProps {
-  projectId: string
-  itemId?: string
-  mode: 'add' | 'delete'
-}
-
 const UNIT_OPTIONS = [
   { value: 'pc', label: 'pc' },
   { value: 'set', label: 'set' },

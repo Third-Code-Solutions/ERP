@@ -33,7 +33,7 @@ const DATABASE_URL = loadDatabaseUrl()
 const suite = DATABASE_URL ? describe : describe.skip
 
 if (!DATABASE_URL) {
-  // eslint-disable-next-line no-console
+
   console.warn('[rls-isolation] DATABASE_URL not set — skipping RLS isolation suite')
 }
 

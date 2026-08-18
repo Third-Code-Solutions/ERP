@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import { getUser, getUserProfile, requireUserProfile, can } from '@third-code-erp/auth'
+import { getUserProfile, requireUserProfile, can } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   boms,
@@ -22,12 +22,11 @@ import {
   equipmentCatalog,
   priceHistory,
   opportunities,
-  users,
   takeoffUnresolvedItems,
 } from '@third-code-erp/database/schema'
-import { eq, and, max, or, desc, asc, isNotNull, inArray, ne } from 'drizzle-orm'
+import { eq, and, max, desc, asc, isNotNull, inArray, ne } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
-import { writeAuditLog } from '@/lib/audit'
+import { writeAuditLogInTransaction } from '@/lib/audit'
 import { safeActionError } from '@/lib/safe-action-error'
 import { inngest } from '@/lib/inngest'
 import {
@@ -42,6 +41,7 @@ import {
   classifyBomLineKind,
   computeDupa,
   dupaUpsertInputSchema,
+  MAX_BOM_LINE_ITEM_QUANTITY,
   projectLocationCreateSchema,
   type BomLineItemKind,
 } from '@third-code-erp/shared-types/bom'
@@ -52,6 +52,89 @@ import {
   computeGPMargin,
 } from '@third-code-erp/shared-types/bom'
 
+const bomLineItemReferenceSchema = z
+  .object({
+    lineItemId: z.string().uuid(),
+    bomId: z.string().uuid(),
+    projectId: z.string().uuid(),
+  })
+  .strict()
+
+const bomVendorAssignmentSchema = z
+  .object({
+    lineItemId: z.string().uuid(),
+    projectId: z.string().uuid(),
+    vendorId: z.string().uuid().nullable(),
+  })
+  .strict()
+
+const addBomLineItemActionSchema = z
+  .object({
+    bomId: z.string().uuid(),
+    projectId: z.string().uuid(),
+    data: z
+      .object({
+        description: z.string().trim().min(1).max(1_000),
+        unit: z.string().trim().min(1).max(20),
+        quantity: z.number().int().min(0).max(MAX_BOM_LINE_ITEM_QUANTITY),
+        unit_cost_cents: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+        code: z.string().trim().max(50).optional(),
+        notes: z.string().max(2_000).optional(),
+        locationId: z.string().uuid().nullable().optional(),
+      })
+      .strict()
+      .superRefine((value, context) => {
+        if (!Number.isSafeInteger(value.unit_cost_cents * value.quantity)) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['unit_cost_cents'],
+            message: 'Line total exceeds the supported centavo range',
+          })
+        }
+      }),
+  })
+  .strict()
+
+type DatabaseTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
+
+/**
+ * Serialize every direct BOM mutation against the BOM row itself. The
+ * approval transition uses the same row, so `FOR UPDATE` prevents a stale
+ * pre-transaction draft check from slipping a write through after approval.
+ */
+async function lockBomForMutation(
+  tx: DatabaseTransaction,
+  scope: { bomId: string; projectId: string; tenantId: string },
+) {
+  const [bom] = await tx
+    .select({ id: boms.id, status: boms.status })
+    .from(boms)
+    .where(
+      and(
+        eq(boms.id, scope.bomId),
+        eq(boms.project_id, scope.projectId),
+        eq(boms.tenant_id, scope.tenantId),
+      ),
+    )
+    .for('update')
+
+  return bom ?? null
+}
+
+async function lockProjectForMutation(
+  tx: DatabaseTransaction,
+  projectId: string,
+  tenantId: string,
+) {
+  const [project] = await tx
+    .select({ id: projects.id })
+    .from(projects)
+    .where(and(eq(projects.id, projectId), eq(projects.tenant_id, tenantId)))
+    .for('update')
+
+  return project ?? null
+}
+
 export async function createBom(projectId: string): Promise<{ id: string } | { error: string }> {
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
@@ -59,40 +142,42 @@ export async function createBom(projectId: string): Promise<{ id: string } | { e
     return { error: `Forbidden: role "${profile.role}" lacks "bom.edit"` }
   }
 
-  const [project] = await db
-    .select({ id: projects.id })
-    .from(projects)
-    .where(and(eq(projects.id, projectId), eq(projects.tenant_id, profile.tenantId)))
-  if (!project) return { error: 'Project not found' }
+  const bomId = await db.transaction(async (tx) => {
+    const project = await lockProjectForMutation(tx, projectId, profile.tenantId)
+    if (!project) return null
 
-  const [existing] = await db
-    .select({ version: max(boms.version) })
-    .from(boms)
-    .where(and(eq(boms.project_id, projectId), eq(boms.tenant_id, profile.tenantId)))
+    // Project-row locking serializes version allocation for this direct write
+    // path until a database uniqueness constraint can enforce it globally.
+    const [existing] = await tx
+      .select({ version: max(boms.version) })
+      .from(boms)
+      .where(and(eq(boms.project_id, projectId), eq(boms.tenant_id, profile.tenantId)))
+    const nextVersion = (existing?.version ?? 0) + 1
 
-  const nextVersion = (existing?.version ?? 0) + 1
+    const [inserted] = await tx
+      .insert(boms)
+      .values({
+        tenant_id: profile.tenantId,
+        project_id: projectId,
+        created_by: profile.user.id,
+        version: nextVersion,
+        status: 'draft',
+      })
+      .returning({ id: boms.id })
+    if (!inserted) throw new Error('BOM insert did not return an id')
 
-  const inserted = await db
-    .insert(boms)
-    .values({
-      tenant_id: profile.tenantId,
-      project_id: projectId,
-      created_by: profile.user.id,
-      version: nextVersion,
-      status: 'draft',
+    await writeAuditLogInTransaction(tx, {
+      tenantId: profile.tenantId,
+      actorId: profile.user.id,
+      entityType: 'bom',
+      entityId: inserted.id,
+      action: 'create',
+      diff: { version: nextVersion, status: 'draft' },
     })
-    .returning({ id: boms.id })
 
-  const bomId = inserted[0]!.id
-
-  await writeAuditLog({
-    tenantId: profile.tenantId,
-    actorId: profile.user.id,
-    entityType: 'bom',
-    entityId: bomId,
-    action: 'create',
-    diff: { version: nextVersion, status: 'draft' },
+    return inserted.id
   })
+  if (!bomId) return { error: 'Project not found' }
 
   revalidatePath(`/projects/${projectId}/bom`)
   return { id: bomId }
@@ -101,16 +186,12 @@ export async function createBom(projectId: string): Promise<{ id: string } | { e
 export async function addBomLineItem(
   bomId: string,
   projectId: string,
-  data: {
-    description: string
-    unit: string
-    quantity: number
-    unit_cost_cents: number
-    code?: string
-    notes?: string
-    locationId?: string | null
-  }
+  data: unknown,
 ): Promise<{ error?: string }> {
+  const parsed = addBomLineItemActionSchema.safeParse({ bomId, projectId, data })
+  if (!parsed.success) return { error: 'Invalid BOM line item input' }
+
+  const lineInput = parsed.data.data
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
   if (!can(profile.role, 'bom.edit')) {
@@ -118,7 +199,7 @@ export async function addBomLineItem(
   }
 
   const [bom] = await db
-    .select({ id: boms.id })
+    .select({ id: boms.id, status: boms.status })
     .from(boms)
     .where(
       and(
@@ -128,14 +209,15 @@ export async function addBomLineItem(
       ),
     )
   if (!bom) return { error: 'BOM not found' }
+  if (bom.status !== 'draft') return { error: 'Only draft BOMs can be edited' }
 
-  if (data.locationId) {
+  if (lineInput.locationId) {
     const [location] = await db
       .select({ id: projectLocations.id })
       .from(projectLocations)
       .where(
         and(
-          eq(projectLocations.id, data.locationId),
+          eq(projectLocations.id, lineInput.locationId),
           eq(projectLocations.project_id, projectId),
           eq(projectLocations.tenant_id, profile.tenantId),
         ),
@@ -146,38 +228,45 @@ export async function addBomLineItem(
   // Use the canonical math module (tested in @third-code-erp/shared-types/bom)
   // Flat line-level markup is retired. Manual lines are explicit cost inputs;
   // client value comes from a DUPA once one is attached to the work item.
-  const line_total_cents = manualLineTotal(data.unit_cost_cents, data.quantity)
+  const line_total_cents = manualLineTotal(lineInput.unit_cost_cents, lineInput.quantity)
 
-  const [existing] = await db
-    .select({ max_sort: max(bomLineItems.sort_order) })
-    .from(bomLineItems)
-    .where(
-      and(
-        eq(bomLineItems.bom_id, bomId),
-        eq(bomLineItems.tenant_id, profile.tenantId),
-      ),
-    )
-
-  const sort_order = (existing?.max_sort ?? -1) + 1
-  const classification = classifyBomLineKind(data.unit)
+  const classification = classifyBomLineKind(lineInput.unit)
 
   const createdLineItemId = await db.transaction(async (tx) => {
+    const lockedBom = await lockBomForMutation(tx, {
+      bomId,
+      projectId,
+      tenantId: profile.tenantId,
+    })
+    if (!lockedBom || lockedBom.status !== 'draft') return null
+
+    const [existing] = await tx
+      .select({ max_sort: max(bomLineItems.sort_order) })
+      .from(bomLineItems)
+      .where(
+        and(
+          eq(bomLineItems.bom_id, bomId),
+          eq(bomLineItems.tenant_id, profile.tenantId),
+        ),
+      )
+    const sort_order = (existing?.max_sort ?? -1) + 1
+
     const inserted = await tx
       .insert(bomLineItems)
       .values({
         tenant_id: profile.tenantId,
         bom_id: bomId,
         sort_order,
-        description: data.description,
-        unit: data.unit,
-        quantity: data.quantity,
-        unit_cost_cents: data.unit_cost_cents,
+        description: lineInput.description,
+        unit: lineInput.unit,
+        quantity: lineInput.quantity,
+        unit_cost_cents: lineInput.unit_cost_cents,
         markup_bps: 0,
         line_total_cents,
-        code: data.code ?? null,
-        notes: data.notes ?? null,
-        location_id: data.locationId ?? null,
-        description_original: data.description,
+        code: lineInput.code ?? null,
+        notes: lineInput.notes ?? null,
+        location_id: lineInput.locationId ?? null,
+        description_original: lineInput.description,
         kind: classification.kind ?? 'work_item',
         unit_rate_source: 'manual',
         classification_status: classification.status,
@@ -185,8 +274,10 @@ export async function addBomLineItem(
       })
       .returning({ id: bomLineItems.id })
 
-    const lineItemId = inserted[0]?.id ?? null
-    if (classification.status === 'review' && lineItemId) {
+    const lineItemId = inserted[0]?.id
+    if (!lineItemId) throw new Error('BOM line item insert did not return an id')
+
+    if (classification.status === 'review') {
       await tx.insert(bomLineItemGrainReviews).values({
         tenant_id: profile.tenantId,
         bom_id: bomId,
@@ -197,24 +288,42 @@ export async function addBomLineItem(
         updated_by: profile.user.id,
       })
     }
-    if (!data.locationId && lineItemId) {
+    if (!lineInput.locationId) {
       await tx.insert(bomLineItemLocationReviews).values({
         tenant_id: profile.tenantId,
         project_id: projectId,
         bom_id: bomId,
         bom_line_item_id: lineItemId,
-        description_original: data.description,
+        description_original: lineInput.description,
         reason: 'No project location is assigned. Choose a project location before approval.',
         created_by: profile.user.id,
         updated_by: profile.user.id,
       })
     }
+
+    await writeAuditLogInTransaction(tx, {
+      tenantId: profile.tenantId,
+      actorId: profile.user.id,
+      entityType: 'bom_line_item',
+      entityId: lineItemId,
+      action: 'create',
+      diff: {
+        bom_id: bomId,
+        description: lineInput.description,
+        code: lineInput.code ?? null,
+        unit: lineInput.unit,
+        quantity: lineInput.quantity,
+        unit_cost_cents: lineInput.unit_cost_cents,
+        location_id: lineInput.locationId ?? null,
+        classification_status: classification.status,
+      },
+    })
+
+    await recalcBomTotalsInTransaction(tx, bomId, profile.tenantId)
     return lineItemId
   })
 
-  if (!createdLineItemId) return { error: 'Line item was created without an id' }
-
-  await recalcBomTotals(bomId, profile.tenantId)
+  if (!createdLineItemId) return { error: 'Only draft BOMs can be edited' }
 
   revalidatePath(`/projects/${projectId}/bom`)
   return {}
@@ -394,6 +503,13 @@ export async function upsertDupaForBomLine(
     })
 
     const saved = await db.transaction(async (tx) => {
+      const lockedBom = await lockBomForMutation(tx, {
+        bomId,
+        projectId,
+        tenantId: profile.tenantId,
+      })
+      if (!lockedBom || lockedBom.status !== 'draft') return null
+
       const [existing] = await tx
         .select({ id: dupas.id })
         .from(dupas)
@@ -537,25 +653,30 @@ export async function upsertDupaForBomLine(
         result.unit_rate_centavos === expected.unitRateCentavos
       if (!reconciles) throw new Error('DUPA totals failed exact arithmetic reconciliation')
 
+      // The semantic audit evidence is part of the same transaction as the
+      // DUPA header, its replace-all detail rows, and the trigger-derived
+      // totals. If audit insertion fails, the pricing mutation rolls back.
+      await writeAuditLogInTransaction(tx, {
+        tenantId: profile.tenantId,
+        actorId: profile.user.id,
+        entityType: 'dupa',
+        entityId: result.id,
+        action: existing ? 'update' : 'create',
+        diff: {
+          bom_id: bomId,
+          bom_line_item_id: line.id,
+          vat_base: dupaInput.vatBase,
+          material_lines: dupaInput.materials.length,
+          labour_lines: dupaInput.labour.length,
+          equipment_lines: dupaInput.equipment.length,
+          unit_rate_centavos: result.unit_rate_centavos.toString(),
+        },
+      })
+
       return { ...result, created: !existing }
     })
 
-    await writeAuditLog({
-      tenantId: profile.tenantId,
-      actorId: profile.user.id,
-      entityType: 'dupa',
-      entityId: saved.id,
-      action: saved.created ? 'create' : 'update',
-      diff: {
-        bom_id: bomId,
-        bom_line_item_id: line.id,
-        vat_base: dupaInput.vatBase,
-        material_lines: dupaInput.materials.length,
-        labour_lines: dupaInput.labour.length,
-        equipment_lines: dupaInput.equipment.length,
-        unit_rate_centavos: saved.unit_rate_centavos.toString(),
-      },
-    })
+    if (!saved) return { error: 'DUPA editing is only available on draft BOMs' }
 
     revalidatePath(`/projects/${projectId}/bom`)
     return {
@@ -579,14 +700,42 @@ export async function deleteBomLineItem(
   bomId: string,
   projectId: string
 ): Promise<{ error?: string }> {
+  const parsed = bomLineItemReferenceSchema.safeParse({
+    lineItemId: itemId,
+    bomId,
+    projectId,
+  })
+  if (!parsed.success) return { error: 'Invalid BOM line item reference' }
+
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
   if (!can(profile.role, 'bom.edit')) {
     return { error: `Forbidden: role "${profile.role}" lacks "bom.edit"` }
   }
 
+  const [bom] = await db
+    .select({ id: boms.id, status: boms.status })
+    .from(boms)
+    .where(
+      and(
+        eq(boms.id, bomId),
+        eq(boms.project_id, projectId),
+        eq(boms.tenant_id, profile.tenantId),
+      ),
+    )
+    .limit(1)
+  if (!bom) return { error: 'BOM not found' }
+  if (bom.status !== 'draft') return { error: 'Only draft BOMs can be edited' }
+
   const [line] = await db
-    .select({ id: bomLineItems.id })
+    .select({
+      id: bomLineItems.id,
+      code: bomLineItems.code,
+      description: bomLineItems.description,
+      unit: bomLineItems.unit,
+      quantity: bomLineItems.quantity,
+      unitCostCents: bomLineItems.unit_cost_cents,
+    })
     .from(bomLineItems)
     .where(
       and(
@@ -597,154 +746,206 @@ export async function deleteBomLineItem(
     )
   if (!line) return { error: 'Line item not found' }
 
-  await db
-    .delete(bomLineItems)
-    .where(
-      and(
-        eq(bomLineItems.id, itemId),
-        eq(bomLineItems.bom_id, bomId),
-        eq(bomLineItems.tenant_id, profile.tenantId),
-      ),
-    )
+  const deleted = await db.transaction(async (tx) => {
+    const lockedBom = await lockBomForMutation(tx, {
+      bomId,
+      projectId,
+      tenantId: profile.tenantId,
+    })
+    if (!lockedBom || lockedBom.status !== 'draft') return 'not_draft' as const
 
-  await recalcBomTotals(bomId, profile.tenantId)
+    const [removed] = await tx
+      .delete(bomLineItems)
+      .where(
+        and(
+          eq(bomLineItems.id, itemId),
+          eq(bomLineItems.bom_id, bomId),
+          eq(bomLineItems.tenant_id, profile.tenantId),
+        ),
+      )
+      .returning({ id: bomLineItems.id })
+    if (!removed) return 'missing' as const
+
+    await writeAuditLogInTransaction(tx, {
+      tenantId: profile.tenantId,
+      actorId: profile.user.id,
+      entityType: 'bom_line_item',
+      entityId: removed.id,
+      action: 'delete',
+      diff: {
+        bom_id: bomId,
+        code: line.code,
+        description: line.description,
+        unit: line.unit,
+        quantity: line.quantity,
+        unit_cost_cents: line.unitCostCents,
+      },
+    })
+    await recalcBomTotalsInTransaction(tx, bomId, profile.tenantId)
+    return 'deleted' as const
+  })
+  if (deleted === 'not_draft') return { error: 'Only draft BOMs can be edited' }
+  if (deleted === 'missing') return { error: 'Line item no longer exists' }
+
   revalidatePath(`/projects/${projectId}/bom`)
   return {}
 }
 
 export async function approveBom(bomId: string, projectId: string): Promise<{ error?: string }> {
-  const user = await getUser()
-  if (!user) return { error: 'Unauthorized' }
-
-  const [userRow] = await db
-    .select({ tenant_id: users.tenant_id })
-    .from(users)
-    .where(eq(users.id, user.id))
-  if (!userRow?.tenant_id) return { error: 'No tenant' }
-  const profile = { tenantId: userRow.tenant_id, user } as const
-
-  const [bom] = await db
-    .select({ id: boms.id })
-    .from(boms)
-    .where(
-      and(
-        eq(boms.id, bomId),
-        eq(boms.project_id, projectId),
-        eq(boms.tenant_id, profile.tenantId),
-      ),
-  )
-  if (!bom) return { error: 'BOM not found' }
-
-  const [pendingTakeoff] = await db
-    .select({ id: takeoffUnresolvedItems.id, reason: takeoffUnresolvedItems.reason })
-    .from(takeoffUnresolvedItems)
-    .where(
-      and(
-        eq(takeoffUnresolvedItems.tenant_id, profile.tenantId),
-        eq(takeoffUnresolvedItems.bom_id, bomId),
-        eq(takeoffUnresolvedItems.status, 'pending'),
-      ),
-    )
-    .limit(1)
-  if (pendingTakeoff) {
-    return { error: `Resolve every unresolved takeoff row before approval: ${pendingTakeoff.reason}` }
+  const profile = await getUserProfile()
+  if (!profile) return { error: 'Unauthorized' }
+  if (!can(profile.role, 'bom.approve_internal')) {
+    return { error: `Forbidden: role "${profile.role}" lacks "bom.approve_internal"` }
   }
 
-  const [unpricedAiLine] = await db
-    .select({ id: bomLineItems.id, description: bomLineItems.description })
-    .from(bomLineItems)
-    .where(
-      and(
-        eq(bomLineItems.bom_id, bomId),
-        eq(bomLineItems.tenant_id, profile.tenantId),
-        eq(bomLineItems.ai_drafted, true),
-        ne(bomLineItems.unit_rate_source, 'dupa'),
-      ),
-    )
-    .limit(1)
-  if (unpricedAiLine) {
-    return {
-      error: `Attach a DUPA to every AI-drafted line before approval: ${unpricedAiLine.description}`,
+  const approved = await db.transaction(async (tx) => {
+    const [bom] = await tx
+      .select({ id: boms.id, status: boms.status })
+      .from(boms)
+      .where(
+        and(
+          eq(boms.id, bomId),
+          eq(boms.project_id, projectId),
+          eq(boms.tenant_id, profile.tenantId),
+        ),
+      )
+      .for('update')
+    if (!bom) return { ok: false as const, error: 'BOM not found' }
+    if (bom.status !== 'draft') {
+      return { ok: false as const, error: 'Only draft BOMs can be approved' }
     }
-  }
 
-  const [unresolvedLine] = await db
-    .select({ id: bomLineItems.id })
-    .from(bomLineItems)
-    .where(
-      and(
-        eq(bomLineItems.bom_id, bomId),
-        eq(bomLineItems.tenant_id, profile.tenantId),
-        eq(bomLineItems.classification_status, 'review'),
-      ),
-    )
-    .limit(1)
-  if (unresolvedLine) {
-    return { error: 'Resolve every BOM grain review before approval' }
-  }
+    const [pendingTakeoff] = await tx
+      .select({ id: takeoffUnresolvedItems.id, reason: takeoffUnresolvedItems.reason })
+      .from(takeoffUnresolvedItems)
+      .where(
+        and(
+          eq(takeoffUnresolvedItems.tenant_id, profile.tenantId),
+          eq(takeoffUnresolvedItems.bom_id, bomId),
+          eq(takeoffUnresolvedItems.status, 'pending'),
+        ),
+      )
+      .limit(1)
+    if (pendingTakeoff) {
+      return {
+        ok: false as const,
+        error: `Resolve every unresolved takeoff row before approval: ${pendingTakeoff.reason}`,
+      }
+    }
 
-  const [pendingReview] = await db
-    .select({ id: bomLineItemGrainReviews.id })
-    .from(bomLineItemGrainReviews)
-    .innerJoin(
-      bomLineItems,
-      and(
-        eq(bomLineItemGrainReviews.bom_line_item_id, bomLineItems.id),
-        eq(bomLineItemGrainReviews.tenant_id, bomLineItems.tenant_id),
-      ),
-    )
-    .where(
-      and(
-        eq(bomLineItemGrainReviews.tenant_id, profile.tenantId),
-        eq(bomLineItemGrainReviews.status, 'pending'),
-        eq(bomLineItems.bom_id, bomId),
-        eq(bomLineItems.tenant_id, profile.tenantId),
-      ),
-    )
-    .limit(1)
-  if (pendingReview) {
-    return { error: 'Resolve every BOM grain review before approval' }
-  }
+    const [unpricedAiLine] = await tx
+      .select({ id: bomLineItems.id, description: bomLineItems.description })
+      .from(bomLineItems)
+      .where(
+        and(
+          eq(bomLineItems.bom_id, bomId),
+          eq(bomLineItems.tenant_id, profile.tenantId),
+          eq(bomLineItems.ai_drafted, true),
+          ne(bomLineItems.unit_rate_source, 'dupa'),
+        ),
+      )
+      .limit(1)
+    if (unpricedAiLine) {
+      return {
+        ok: false as const,
+        error: `Attach a DUPA to every AI-drafted line before approval: ${unpricedAiLine.description}`,
+      }
+    }
 
-  const [pendingLocationReview] = await db
-    .select({ id: bomLineItemLocationReviews.id })
-    .from(bomLineItemLocationReviews)
-    .innerJoin(
-      bomLineItems,
-      and(
-        eq(bomLineItemLocationReviews.bom_line_item_id, bomLineItems.id),
-        eq(bomLineItemLocationReviews.tenant_id, bomLineItems.tenant_id),
-      ),
-    )
-    .where(
-      and(
-        eq(bomLineItemLocationReviews.tenant_id, profile.tenantId),
-        eq(bomLineItemLocationReviews.status, 'pending'),
-        eq(bomLineItems.bom_id, bomId),
-        eq(bomLineItems.tenant_id, profile.tenantId),
-      ),
-    )
-    .limit(1)
-  if (pendingLocationReview) {
-    return { error: 'Resolve every BOM location review before approval' }
-  }
+    const [unresolvedLine] = await tx
+      .select({ id: bomLineItems.id })
+      .from(bomLineItems)
+      .where(
+        and(
+          eq(bomLineItems.bom_id, bomId),
+          eq(bomLineItems.tenant_id, profile.tenantId),
+          eq(bomLineItems.classification_status, 'review'),
+        ),
+      )
+      .limit(1)
+    if (unresolvedLine) {
+      return { ok: false as const, error: 'Resolve every BOM grain review before approval' }
+    }
 
-  // Recalc on approval to ensure totals are fresh and reconcile any drift
-  await recalcBomTotals(bomId, profile.tenantId)
+    const [pendingReview] = await tx
+      .select({ id: bomLineItemGrainReviews.id })
+      .from(bomLineItemGrainReviews)
+      .innerJoin(
+        bomLineItems,
+        and(
+          eq(bomLineItemGrainReviews.bom_line_item_id, bomLineItems.id),
+          eq(bomLineItemGrainReviews.tenant_id, bomLineItems.tenant_id),
+        ),
+      )
+      .where(
+        and(
+          eq(bomLineItemGrainReviews.tenant_id, profile.tenantId),
+          eq(bomLineItemGrainReviews.status, 'pending'),
+          eq(bomLineItems.bom_id, bomId),
+          eq(bomLineItems.tenant_id, profile.tenantId),
+        ),
+      )
+      .limit(1)
+    if (pendingReview) {
+      return { ok: false as const, error: 'Resolve every BOM grain review before approval' }
+    }
 
-  await db
-    .update(boms)
-    .set({ status: 'approved', approved_by: profile.user.id, approved_at: new Date() })
-    .where(and(eq(boms.id, bomId), eq(boms.tenant_id, profile.tenantId)))
+    const [pendingLocationReview] = await tx
+      .select({ id: bomLineItemLocationReviews.id })
+      .from(bomLineItemLocationReviews)
+      .innerJoin(
+        bomLineItems,
+        and(
+          eq(bomLineItemLocationReviews.bom_line_item_id, bomLineItems.id),
+          eq(bomLineItemLocationReviews.tenant_id, bomLineItems.tenant_id),
+        ),
+      )
+      .where(
+        and(
+          eq(bomLineItemLocationReviews.tenant_id, profile.tenantId),
+          eq(bomLineItemLocationReviews.status, 'pending'),
+          eq(bomLineItems.bom_id, bomId),
+          eq(bomLineItems.tenant_id, profile.tenantId),
+        ),
+      )
+      .limit(1)
+    if (pendingLocationReview) {
+      return { ok: false as const, error: 'Resolve every BOM location review before approval' }
+    }
 
-  await writeAuditLog({
-    tenantId: profile.tenantId,
-    actorId: profile.user.id,
-    entityType: 'bom',
-    entityId: bomId,
-    action: 'approve',
-    diff: { status: 'approved' },
+    // Recalculate while the BOM row is locked so no direct mutation can
+    // interleave between approval validation, totals, state transition, and audit.
+    await recalcBomTotalsInTransaction(tx, bomId, profile.tenantId)
+
+    const [updated] = await tx
+      .update(boms)
+      .set({ status: 'approved', approved_by: profile.user.id, approved_at: new Date() })
+      .where(
+        and(
+          eq(boms.id, bomId),
+          eq(boms.tenant_id, profile.tenantId),
+          eq(boms.status, 'draft'),
+        ),
+      )
+      .returning({ id: boms.id })
+    if (!updated) {
+      return {
+        ok: false as const,
+        error: 'BOM is no longer a draft and cannot be approved',
+      }
+    }
+
+    await writeAuditLogInTransaction(tx, {
+      tenantId: profile.tenantId,
+      actorId: profile.user.id,
+      entityType: 'bom',
+      entityId: bomId,
+      action: 'approve',
+      diff: { status: 'approved' },
+    })
+    return { ok: true as const }
   })
+  if (!approved.ok) return { error: approved.error }
 
   // Best-effort: trigger async embedding for RAG. Missing INNGEST keys must
   // not roll back the approval — the BOM is already saved.
@@ -854,6 +1055,9 @@ export async function resolveBomGrainReview(input: unknown): Promise<{ error?: s
       lineItemId: bomLineItems.id,
       bomId: bomLineItems.bom_id,
       projectId: boms.project_id,
+      bomStatus: boms.status,
+      previousKind: bomLineItems.kind,
+      previousParentLineItemId: bomLineItems.parent_line_item_id,
     })
     .from(bomLineItemGrainReviews)
     .innerJoin(
@@ -882,6 +1086,7 @@ export async function resolveBomGrainReview(input: unknown): Promise<{ error?: s
 
   if (!review) return { error: 'Pending grain review not found' }
   if (review.projectId !== parsed.data.projectId) return { error: 'Project scope mismatch' }
+  if (review.bomStatus !== 'draft') return { error: 'Only draft BOMs can be edited' }
 
   if (parsed.data.kind === 'work_item' && parsed.data.parentLineItemId !== null) {
     return { error: 'A work item cannot receive a material parent' }
@@ -913,7 +1118,14 @@ export async function resolveBomGrainReview(input: unknown): Promise<{ error?: s
   }
 
   const now = new Date()
-  await db.transaction(async (tx) => {
+  const resolved = await db.transaction(async (tx) => {
+    const lockedBom = await lockBomForMutation(tx, {
+      bomId: review.bomId,
+      projectId: parsed.data.projectId,
+      tenantId: profile.tenantId,
+    })
+    if (!lockedBom || lockedBom.status !== 'draft') return false
+
     await tx
       .update(bomLineItems)
       .set({
@@ -948,7 +1160,29 @@ export async function resolveBomGrainReview(input: unknown): Promise<{ error?: s
           eq(bomLineItemGrainReviews.status, 'pending'),
         ),
       )
+
+    await writeAuditLogInTransaction(tx, {
+      tenantId: profile.tenantId,
+      actorId: profile.user.id,
+      entityType: 'bom_line_item',
+      entityId: review.lineItemId,
+      action: 'update',
+      diff: {
+        field_changed: 'classification',
+        before: {
+          kind: review.previousKind,
+          parent_line_item_id: review.previousParentLineItemId,
+        },
+        after: {
+          kind: parsed.data.kind,
+          parent_line_item_id: parsed.data.parentLineItemId,
+        },
+        review_id: review.reviewId,
+      },
+    })
+    return true
   })
+  if (!resolved) return { error: 'Only draft BOMs can be edited' }
 
   revalidatePath(`/projects/${parsed.data.projectId}/bom`)
   return {}
@@ -1104,48 +1338,50 @@ export async function createProjectLocation(
     return { error: 'Forbidden: role "' + profile.role + '" lacks "bom.edit"' }
   }
 
-  const [project] = await db
-    .select({ id: projects.id })
-    .from(projects)
-    .where(and(eq(projects.id, projectId), eq(projects.tenant_id, profile.tenantId)))
-  if (!project) return { error: 'Project not found' }
+  const location = await db.transaction(async (tx) => {
+    const project = await lockProjectForMutation(tx, projectId, profile.tenantId)
+    if (!project) return null
 
-  const existing = await db
-    .select({ id: projectLocations.id })
-    .from(projectLocations)
-    .where(
-      and(
-        eq(projectLocations.tenant_id, profile.tenantId),
-        eq(projectLocations.project_id, projectId),
-        eq(projectLocations.name, parsed.data.name),
-      ),
-    )
-    .limit(1)
-  if (existing[0]) return { id: existing[0].id }
+    const [existing] = await tx
+      .select({ id: projectLocations.id })
+      .from(projectLocations)
+      .where(
+        and(
+          eq(projectLocations.tenant_id, profile.tenantId),
+          eq(projectLocations.project_id, projectId),
+          eq(projectLocations.name, parsed.data.name),
+        ),
+      )
+      .limit(1)
+    if (existing) return { id: existing.id, created: false }
 
-  const [location] = await db
-    .insert(projectLocations)
-    .values({
-      tenant_id: profile.tenantId,
-      project_id: projectId,
-      name: parsed.data.name,
-      level: 'room',
-      created_by: profile.user.id,
-      updated_by: profile.user.id,
+    const [inserted] = await tx
+      .insert(projectLocations)
+      .values({
+        tenant_id: profile.tenantId,
+        project_id: projectId,
+        name: parsed.data.name,
+        level: 'room',
+        created_by: profile.user.id,
+        updated_by: profile.user.id,
+      })
+      .returning({ id: projectLocations.id })
+    if (!inserted) throw new Error('Project location insert did not return an id')
+
+    await writeAuditLogInTransaction(tx, {
+      tenantId: profile.tenantId,
+      actorId: profile.user.id,
+      entityType: 'project_location',
+      entityId: inserted.id,
+      action: 'create',
+      diff: { projectId, name: parsed.data.name, level: 'room' },
     })
-    .returning({ id: projectLocations.id })
-  if (!location) return { error: 'Location was not created' }
 
-  await writeAuditLog({
-    tenantId: profile.tenantId,
-    actorId: profile.user.id,
-    entityType: 'project_location',
-    entityId: location.id,
-    action: 'create',
-    diff: { projectId, name: parsed.data.name, level: 'room' },
+    return { id: inserted.id, created: true }
   })
+  if (!location) return { error: 'Project not found' }
 
-  revalidatePath('/projects/' + projectId + '/bom')
+  if (location.created) revalidatePath('/projects/' + projectId + '/bom')
   return { id: location.id }
 }
 
@@ -1165,6 +1401,8 @@ export async function resolveBomLocationReview(input: unknown): Promise<{ error?
       lineItemId: bomLineItems.id,
       bomId: bomLineItems.bom_id,
       projectId: boms.project_id,
+      bomStatus: boms.status,
+      previousLocationId: bomLineItems.location_id,
       descriptionOriginal: bomLineItemLocationReviews.description_original,
     })
     .from(bomLineItemLocationReviews)
@@ -1192,6 +1430,7 @@ export async function resolveBomLocationReview(input: unknown): Promise<{ error?
       ),
     )
   if (!review) return { error: 'Pending location review not found' }
+  if (review.bomStatus !== 'draft') return { error: 'Only draft BOMs can be edited' }
 
   const [location] = await db
     .select({ id: projectLocations.id, name: projectLocations.name })
@@ -1206,7 +1445,14 @@ export async function resolveBomLocationReview(input: unknown): Promise<{ error?
   if (!location) return { error: 'Location not found in this project' }
 
   const now = new Date()
-  await db.transaction(async (tx) => {
+  const resolved = await db.transaction(async (tx) => {
+    const lockedBom = await lockBomForMutation(tx, {
+      bomId: review.bomId,
+      projectId: parsed.data.projectId,
+      tenantId: profile.tenantId,
+    })
+    if (!lockedBom || lockedBom.status !== 'draft') return false
+
     await tx
       .update(bomLineItems)
       .set({ location_id: location.id, updated_at: now })
@@ -1235,21 +1481,23 @@ export async function resolveBomLocationReview(input: unknown): Promise<{ error?
           eq(bomLineItemLocationReviews.status, 'pending'),
         ),
       )
-  })
 
-  await writeAuditLog({
-    tenantId: profile.tenantId,
-    actorId: profile.user.id,
-    entityType: 'bom_line_item',
-    entityId: review.lineItemId,
-    action: 'update',
-    diff: {
-      field_changed: 'location_id',
-      before: null,
-      after: { id: location.id, name: location.name },
-      description_original: review.descriptionOriginal,
-    },
+    await writeAuditLogInTransaction(tx, {
+      tenantId: profile.tenantId,
+      actorId: profile.user.id,
+      entityType: 'bom_line_item',
+      entityId: review.lineItemId,
+      action: 'update',
+      diff: {
+        field_changed: 'location_id',
+        before: review.previousLocationId,
+        after: { id: location.id, name: location.name },
+        description_original: review.descriptionOriginal,
+      },
+    })
+    return true
   })
+  if (!resolved) return { error: 'Only draft BOMs can be edited' }
 
   revalidatePath('/projects/' + parsed.data.projectId + '/bom')
   return {}
@@ -1271,6 +1519,7 @@ export async function setBomLineLocation(input: unknown): Promise<{ error?: stri
       currentLocationId: bomLineItems.location_id,
       bomId: bomLineItems.bom_id,
       projectId: boms.project_id,
+      bomStatus: boms.status,
       description: bomLineItems.description,
       descriptionOriginal: bomLineItems.description_original,
     })
@@ -1290,6 +1539,7 @@ export async function setBomLineLocation(input: unknown): Promise<{ error?: stri
       ),
     )
   if (!line) return { error: 'Line item not found' }
+  if (line.bomStatus !== 'draft') return { error: 'Only draft BOMs can be edited' }
 
   if (parsed.data.locationId) {
     const [location] = await db
@@ -1306,7 +1556,14 @@ export async function setBomLineLocation(input: unknown): Promise<{ error?: stri
   }
 
   const now = new Date()
-  await db.transaction(async (tx) => {
+  const updated = await db.transaction(async (tx) => {
+    const lockedBom = await lockBomForMutation(tx, {
+      bomId: line.bomId,
+      projectId: parsed.data.projectId,
+      tenantId: profile.tenantId,
+    })
+    if (!lockedBom || lockedBom.status !== 'draft') return false
+
     await tx
       .update(bomLineItems)
       .set({ location_id: parsed.data.locationId, updated_at: now })
@@ -1334,6 +1591,20 @@ export async function setBomLineLocation(input: unknown): Promise<{ error?: stri
       .orderBy(desc(bomLineItemLocationReviews.created_at))
       .limit(1)
 
+    const writeLocationAudit = () =>
+      writeAuditLogInTransaction(tx, {
+        tenantId: profile.tenantId,
+        actorId: profile.user.id,
+        entityType: 'bom_line_item',
+        entityId: parsed.data.lineItemId,
+        action: 'update',
+        diff: {
+          field_changed: 'location_id',
+          before: line.currentLocationId,
+          after: parsed.data.locationId,
+        },
+      })
+
     if (parsed.data.locationId) {
       if (review) {
         await tx
@@ -1353,7 +1624,8 @@ export async function setBomLineLocation(input: unknown): Promise<{ error?: stri
             ),
           )
       }
-      return
+      await writeLocationAudit()
+      return true
     }
 
     if (review) {
@@ -1373,7 +1645,8 @@ export async function setBomLineLocation(input: unknown): Promise<{ error?: stri
             eq(bomLineItemLocationReviews.tenant_id, profile.tenantId),
           ),
         )
-      return
+      await writeLocationAudit()
+      return true
     }
 
     await tx.insert(bomLineItemLocationReviews).values({
@@ -1386,20 +1659,11 @@ export async function setBomLineLocation(input: unknown): Promise<{ error?: stri
       created_by: profile.user.id,
       updated_by: profile.user.id,
     })
+    await writeLocationAudit()
+    return true
   })
 
-  await writeAuditLog({
-    tenantId: profile.tenantId,
-    actorId: profile.user.id,
-    entityType: 'bom_line_item',
-    entityId: parsed.data.lineItemId,
-    action: 'update',
-    diff: {
-      field_changed: 'location_id',
-      before: line.currentLocationId,
-      after: parsed.data.locationId,
-    },
-  })
+  if (!updated) return { error: 'Only draft BOMs can be edited' }
 
   revalidatePath('/projects/' + parsed.data.projectId + '/bom')
   return {}
@@ -1556,6 +1820,9 @@ export async function setLineItemVendor(
   projectId: string,
   vendorId: string | null,
 ): Promise<{ error?: string }> {
+  const parsed = bomVendorAssignmentSchema.safeParse({ lineItemId, projectId, vendorId })
+  if (!parsed.success) return { error: 'Invalid supplier assignment' }
+
   const profile = await requireUserProfile().catch(() => null)
   if (!profile) return { error: 'Unauthorized' }
   if (!can(profile.role, 'bom.edit')) {
@@ -1567,20 +1834,34 @@ export async function setLineItemVendor(
       id: bomLineItems.id,
       bom_id: bomLineItems.bom_id,
       notes: bomLineItems.notes,
+      bomStatus: boms.status,
     })
     .from(bomLineItems)
+    .innerJoin(
+      boms,
+      and(
+        eq(bomLineItems.bom_id, boms.id),
+        eq(bomLineItems.tenant_id, boms.tenant_id),
+      ),
+    )
     .where(
-      and(eq(bomLineItems.id, lineItemId), eq(bomLineItems.tenant_id, profile.tenantId)),
+      and(
+        eq(bomLineItems.id, parsed.data.lineItemId),
+        eq(bomLineItems.tenant_id, profile.tenantId),
+        eq(boms.project_id, parsed.data.projectId),
+        eq(boms.tenant_id, profile.tenantId),
+      ),
     )
 
   if (!line) return { error: 'Line item not found' }
+  if (line.bomStatus !== 'draft') return { error: 'Only draft BOMs can be edited' }
 
   let vendor: { id: string; name: string } | null = null
-  if (vendorId) {
+  if (parsed.data.vendorId) {
     const [v] = await db
       .select({ id: vendors.id, name: vendors.name })
       .from(vendors)
-      .where(and(eq(vendors.id, vendorId), eq(vendors.tenant_id, profile.tenantId)))
+      .where(and(eq(vendors.id, parsed.data.vendorId), eq(vendors.tenant_id, profile.tenantId)))
     if (!v) return { error: 'Vendor not found or outside tenant scope' }
     vendor = v
   }
@@ -1592,72 +1873,54 @@ export async function setLineItemVendor(
 
   const newNotes = attachVendorToken(line.notes, vendor)
 
-  await db
-    .update(bomLineItems)
-    .set({ notes: newNotes, updated_at: new Date() })
-    .where(and(eq(bomLineItems.id, lineItemId), eq(bomLineItems.tenant_id, profile.tenantId)))
+  const updated = await db.transaction(async (tx) => {
+    const lockedBom = await lockBomForMutation(tx, {
+      bomId: line.bom_id,
+      projectId: parsed.data.projectId,
+      tenantId: profile.tenantId,
+    })
+    if (!lockedBom || lockedBom.status !== 'draft') return 'not_draft' as const
 
-  await writeAuditLog({
-    tenantId: profile.tenantId,
-    actorId: profile.user.id,
-    entityType: 'bom_line_item',
-    entityId: lineItemId,
-    action: 'update',
-    diff: {
-      field_changed: 'vendor_id',
-      before,
-      after: vendor,
-    },
+    const [saved] = await tx
+      .update(bomLineItems)
+      .set({ notes: newNotes, updated_at: new Date() })
+      .where(
+        and(
+          eq(bomLineItems.id, parsed.data.lineItemId),
+          eq(bomLineItems.bom_id, line.bom_id),
+          eq(bomLineItems.tenant_id, profile.tenantId),
+        ),
+      )
+      .returning({ id: bomLineItems.id })
+    if (!saved) return 'missing' as const
+
+    await writeAuditLogInTransaction(tx, {
+      tenantId: profile.tenantId,
+      actorId: profile.user.id,
+      entityType: 'bom_line_item',
+      entityId: saved.id,
+      action: 'update',
+      diff: {
+        field_changed: 'vendor_id',
+        before,
+        after: vendor,
+      },
+    })
+    return 'updated' as const
   })
+  if (updated === 'not_draft') return { error: 'Only draft BOMs can be edited' }
+  if (updated === 'missing') return { error: 'Line item no longer exists' }
 
-  revalidatePath(`/projects/${projectId}/bom`)
+  revalidatePath(`/projects/${parsed.data.projectId}/bom`)
   return {}
 }
 
-export async function recordOverrideJustification(
-  lineItemId: string,
-  projectId: string,
-  fieldChanged: string,
-  reason: string,
-  before: unknown,
-  after: unknown,
-): Promise<{ error?: string }> {
-  const profile = await requireUserProfile().catch(() => null)
-  if (!profile) return { error: 'Unauthorized' }
-  if (!can(profile.role, 'bom.edit')) {
-    return { error: `Forbidden: role "${profile.role}" lacks "bom.edit"` }
-  }
-
-  const trimmed = reason.trim()
-  if (!trimmed) return { error: 'Reason is required' }
-  if (trimmed.length > 200) return { error: 'Reason must be 200 characters or fewer' }
-
-  const [line] = await db
-    .select({ id: bomLineItems.id })
-    .from(bomLineItems)
-    .where(and(eq(bomLineItems.id, lineItemId), eq(bomLineItems.tenant_id, profile.tenantId)))
-  if (!line) return { error: 'Line item not found' }
-
-  await writeAuditLog({
-    tenantId: profile.tenantId,
-    actorId: profile.user.id,
-    entityType: 'bom_line_item',
-    entityId: lineItemId,
-    action: 'update',
-    diff: {
-      field_changed: fieldChanged,
-      reason: trimmed,
-      before,
-      after,
-    },
-  })
-
-  revalidatePath(`/projects/${projectId}/bom`)
-  return {}
-}
-
-async function recalcBomTotals(bomId: string, tenantId: string) {
-  const lines = await db
+async function recalcBomTotalsInTransaction(
+  tx: DatabaseTransaction,
+  bomId: string,
+  tenantId: string,
+) {
+  const lines = await tx
     .select({
       line_total_cents: bomLineItems.line_total_cents,
       unit_cost_cents: bomLineItems.unit_cost_cents,
@@ -1675,7 +1938,7 @@ async function recalcBomTotals(bomId: string, tenantId: string) {
   const gp_cents = computeGP(tcv_cents, total_cost_cents)
   const gp_margin_bps = computeGPMargin(gp_cents, tcv_cents)
 
-  await db
+  await tx
     .update(boms)
     .set({ total_cost_cents, tcv_cents, gp_cents, gp_margin_bps })
     .where(and(eq(boms.id, bomId), eq(boms.tenant_id, tenantId)))

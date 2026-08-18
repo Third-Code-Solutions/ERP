@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict'
+import { readFileSync, readdirSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
+import { fileURLToPath } from 'node:url'
 import { validateManagedSupabaseParityPlan } from './lib/managed-supabase-parity-plan.mjs'
 
 const source = [
@@ -32,6 +35,26 @@ test('accepts one exact, ordered pending suffix', () => {
   assert.equal(result.ok, true)
   assert.equal(result.pendingCount, 2)
   assert.equal(result.batchCount, 2)
+})
+
+test('accepts a current source ledger with no pending review batches', () => {
+  const result = validateManagedSupabaseParityPlan(
+    plan({
+      snapshot: {
+        appliedCount: 3,
+        sourceCount: 3,
+        pendingCount: 0,
+        appliedHead: '20260103000000',
+        sourceHead: '20260103000000',
+      },
+      batches: [],
+    }),
+    source
+  )
+
+  assert.equal(result.ok, true)
+  assert.equal(result.pendingCount, 0)
+  assert.equal(result.batchCount, 0)
 })
 
 test('rejects missing, duplicate, and reordered migrations', () => {
@@ -107,4 +130,26 @@ test('rejects a boundary that is not a linear repository prefix', () => {
       'snapshot appliedHead is absent from repository migrations'
     )
   )
+})
+
+test('repository manifest remains synchronized with the migration tree', () => {
+  const scriptDirectory = dirname(fileURLToPath(import.meta.url))
+  const repositoryRoot = resolve(scriptDirectory, '..')
+  const manifest = JSON.parse(
+    readFileSync(
+      join(
+        repositoryRoot,
+        'docs',
+        'operations',
+        'managed-supabase-parity-plan.json'
+      ),
+      'utf8'
+    )
+  )
+  const migrations = readdirSync(join(repositoryRoot, 'supabase', 'migrations'))
+    .filter((file) => file.endsWith('.sql'))
+    .sort()
+
+  const result = validateManagedSupabaseParityPlan(manifest, migrations)
+  assert.equal(result.ok, true, result.errors.join('; '))
 })

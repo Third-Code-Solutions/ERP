@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createUser } from '@/app/(dashboard)/admin/users/actions'
-import { ASSIGNABLE_ROLES } from '@/app/(dashboard)/admin/users/roles'
 
 const ROLE_GROUPS: Array<{ heading: string; roles: readonly string[] }> = [
   {
@@ -76,7 +76,7 @@ export function NewUserForm() {
         router.refresh()
       } catch (err) {
         // Network failure or unexpected throw — surface to the user.
-        // eslint-disable-next-line no-console
+
         console.error('createUser failed', err)
         setError(
           err instanceof Error
@@ -251,7 +251,7 @@ export function NewUserForm() {
         >
           {pending ? 'Creating…' : 'Create user'}
         </button>
-        <a
+        <Link
           href="/admin/users"
           style={{
             padding: '10px 14px',
@@ -264,7 +264,7 @@ export function NewUserForm() {
           }}
         >
           Cancel
-        </a>
+        </Link>
       </div>
     </form>
   )

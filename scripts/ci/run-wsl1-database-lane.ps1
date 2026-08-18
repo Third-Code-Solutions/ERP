@@ -117,7 +117,8 @@ $serviceBootstrap = @'
 set -eu
 mkdir -p /run/postgresql
 chown postgres:postgres /run/postgresql
-if ! pg_isready -h 127.0.0.1 -p 54322 >/dev/null 2>&1; then
+if ! su postgres -s /bin/sh -c \
+  "pg_ctl -D /var/lib/postgresql/data status" >/dev/null 2>&1; then
   su postgres -s /bin/sh -c \
     "pg_ctl -D /var/lib/postgresql/data -l /var/lib/postgresql/postgres.log start"
 fi
@@ -148,10 +149,15 @@ for attempt in 1 2 3 4 5 6 7 8 9 10; do
 done
 test "$(/opt/third-code-erp-ci/redis-7.4.9/bin/redis-cli \
   -h 127.0.0.1 -p 6379 ping)" = "PONG"
-test "$(psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -Atc \
-  "show server_version_num")" -ge 170000
-test "$(psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -Atc \
-  "show server_version_num")" -lt 180000
+server_version="$(
+  timeout 15 psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -Atc \
+    "show server_version_num"
+)" || {
+  echo "PostgreSQL accepted readiness probes but could not execute a query." >&2
+  exit 1
+}
+test "$server_version" -ge 170000
+test "$server_version" -lt 180000
 '@
 Invoke-WslScript -Script $serviceBootstrap
 

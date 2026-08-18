@@ -29,6 +29,7 @@ import {
   CortexAssistantProviderCircuitAlertRouter,
 } from '../src/cortex/cortex-assistant-provider-circuit-alert-router'
 import { CortexAssistantProviderHealthService } from '../src/cortex/cortex-assistant-provider-health.service'
+import { databaseErrorCode } from '../src/database/database-error'
 import {
   DatabaseService,
   type DatabaseTransaction,
@@ -471,14 +472,15 @@ suite('Cortex assistant provider budget database integration', () => {
         })
       ).resolves.toMatchObject({ status: 'released' })
 
-      await expect(
-        transaction.transaction(async (nested) => {
+      const policyMutationError = await transaction
+        .transaction(async (nested) => {
           await nested
             .update(cortexAssistantProviderPolicies)
             .set({ model: 'changed-model', updated_at: new Date() })
             .where(eq(cortexAssistantProviderPolicies.tenant_id, tenant.tenantId))
         })
-      ).rejects.toMatchObject({ code: '23514' })
+        .catch((error: unknown) => error)
+      expect(databaseErrorCode(policyMutationError)).toBe('23514')
 
       const attemptAudit = await transaction
         .select({ action: auditLog.action, diff: auditLog.diff })
@@ -498,8 +500,8 @@ suite('Cortex assistant provider budget database integration', () => {
       ])
       expect(JSON.stringify(attemptAudit)).not.toContain('request_hash')
 
-      await expect(
-        transaction.transaction(async (nested) => {
+      const reopenAttemptError = await transaction
+        .transaction(async (nested) => {
           await nested
             .update(cortexAssistantProviderAttempts)
             .set({
@@ -510,7 +512,8 @@ suite('Cortex assistant provider budget database integration', () => {
             })
             .where(eq(cortexAssistantProviderAttempts.id, first.reservationId))
         })
-      ).rejects.toMatchObject({ code: '23514' })
+        .catch((error: unknown) => error)
+      expect(databaseErrorCode(reopenAttemptError)).toBe('23514')
     })
   })
 

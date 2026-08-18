@@ -17,7 +17,7 @@ interface NotificationItem {
 
 const POLL_MS = 30_000
 
-export function NotificationsDropdown({ tenantId, userId }: { tenantId: string; userId: string }) {
+export function NotificationsDropdown({ userId }: { userId: string }) {
   const [open, setOpen] = useState(false)
   const [items, setItems] = useState<NotificationItem[]>([])
   const [unread, setUnread] = useState(0)

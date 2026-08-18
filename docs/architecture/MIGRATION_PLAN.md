@@ -1812,9 +1812,11 @@ protected webhook/browser proof, and hosted release proof remain unavailable;
 Docker is not healthy. No migration, hosted row, provider, deployment, or paid
 action.
 
-Exact next action: push source only; keep
-`ERP_DOCUSEAL_WEBHOOK_VIA_API=false` and the Core flag false until disposable
-replay and protected release evidence exist.
+**Superseded on 2026-08-17:** the tenant selector and Core enable flags were
+removed after the durable DocuSeal transaction was made canonical. Configure
+the provider secret and shared internal token only for an authorized disposable
+target, then collect protected replay evidence before exposing the callback to
+any customer tenant.
 
 ## M3.214 Core-owned notification read state (completed, source-only)
 

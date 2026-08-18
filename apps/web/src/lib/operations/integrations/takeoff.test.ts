@@ -6,6 +6,33 @@ import {
 } from './takeoff'
 
 describe('structured takeoff importer', () => {
+  it('parses an XLSX workbook through the production ExcelJS dependency', async () => {
+    const ExcelJS = await import('exceljs')
+    const workbook = new ExcelJS.Workbook()
+    const worksheet = workbook.addWorksheet('Takeoff')
+    worksheet.addRow(['Description', 'Quantity', 'UOM'])
+    worksheet.addRow(['Concrete footing', 12, 'm3'])
+
+    const result = await parseStructuredTakeoff(
+      Buffer.from(await workbook.xlsx.writeBuffer()),
+      'takeoff.xlsx',
+      {
+        description: 'Description',
+        quantity: 'Quantity',
+        unit: 'UOM',
+      },
+    )
+
+    expect(result.missingColumns).toEqual([])
+    expect(result.rows).toEqual([
+      expect.objectContaining({
+        description: 'Concrete footing',
+        quantity: 12,
+        unit: 'm3',
+      }),
+    ])
+  })
+
   it('parses a mapped CSV without coupling to a producer name', async () => {
     const csv = [
       'Row,Description,Qty,UOM,Division,Location,Notes',

@@ -9,7 +9,6 @@ import {
   awardHandoffs,
   boms,
   invoices,
-  projects,
   slaClocks,
   taskInstances,
 } from '@third-code-erp/database/schema'

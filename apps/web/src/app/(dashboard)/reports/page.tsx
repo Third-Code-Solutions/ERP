@@ -1,9 +1,8 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
 import { requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { opportunities, projects, boms, invoices } from '@third-code-erp/database/schema'
-import { eq, and, inArray, notInArray, sum, count } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 
 export const metadata: Metadata = { title: 'Reports' }
 

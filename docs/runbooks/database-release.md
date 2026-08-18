@@ -1,13 +1,16 @@
 # Hosted Database Release
 
-> Current read-only evidence — 2026-08-16: the current `main` migration tree
-> and the requested Supabase target both report 144 migrations on PostgreSQL
-> 17, with zero pending migrations and zero duplicate Purchase Order groups.
-> The historical snapshots below are retained for audit history. Production
-> promotion is still blocked by the separate data-boundary and
-> provider-credential gates.
+> Dated read-only evidence — 2026-08-16: repository records show a 144/144
+> migration observation on PostgreSQL 17 with zero pending migrations and zero
+> duplicate Purchase Order groups. The local parity verifier does not contact
+> Supabase, so this is not a current provider assertion. Production promotion
+> remains blocked pending fresh target evidence, provider credentials, and
+> authenticated post-deployment verification.
 
-## Current verified release state (2026-08-10 source refresh; hosted snapshot 2026-08-07)
+## Historical 2026-08-10 / 2026-08-07 snapshot (superseded)
+
+The following 55-migration material is retained for audit traceability only.
+It must not be used as the current release boundary.
 
 - Last verified hosted snapshot: target `aqqrtkmtcsfkbyyqxowv` was
   `ACTIVE_HEALTHY` PostgreSQL 17.6 with 55 migrations applied through

@@ -1,6 +1,7 @@
 export * from './enums'
 export * from './tenants'
 export * from './users'
+export * from './tenant-memberships'
 export * from './projects'
 export * from './project-create-requests'
 export * from './opportunities'

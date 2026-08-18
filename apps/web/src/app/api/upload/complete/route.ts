@@ -2,25 +2,22 @@ import { createHash } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { can, getUserProfile } from '@third-code-erp/auth'
-import { db } from '@third-code-erp/database'
-import { documents } from '@third-code-erp/database/schema'
-import { inngest } from '@/lib/inngest'
-import { parseAndStoreCad, parseCadEvidence } from '@/lib/cad/parse-and-store'
+import { parseCadEvidence } from '@/lib/cad/parse-and-store'
 import {
-  cadEvidenceCommitWritesUseCoreApi,
   commitCadEvidenceThroughCoreApi,
-  completeDocumentUploadThroughCoreCanary,
-  documentIntakeCanarySelectedForUpload,
+  createDocumentThroughCoreApi,
   documentProcessingJobsUseCoreApi,
   enqueueDocumentProcessingThroughCoreApi,
 } from '@/lib/erp-core-client'
-import { getProject } from '@/lib/project-queries'
-import { writeAuditLogInTransaction } from '@/lib/audit'
 import { documentUploadCompleteResultSchema } from '@third-code-erp/shared-types'
 import {
   extractScopeFromVisual,
   type VisualExtractResult,
 } from '@/lib/vision/extract-from-visual'
+import {
+  consumeProviderQuota,
+  providerQuotaBlockedResponse,
+} from '@/lib/provider-quota'
 
 const CompleteSchema = z.object({
   storagePath: z.string().min(1),
@@ -123,13 +120,11 @@ export async function POST(req: NextRequest) {
 
   const { storagePath, projectId, fileName, mimeType, sizeBytes, description } = parsed.data
 
-  const project = await getProject(profile.tenantId, projectId)
-  if (!project) {
-    return NextResponse.json({ error: 'Project not found' }, { status: 404 })
-  }
-
   const expectedPrefix = `${profile.tenantId}/${projectId}/`
-  if (!storagePath.startsWith(expectedPrefix)) {
+  if (
+    !storagePath.startsWith(expectedPrefix) ||
+    storagePath.split('/').some((segment) => segment === '..')
+  ) {
     return NextResponse.json({ error: 'Storage path not in tenant scope' }, { status: 403 })
   }
 
@@ -137,100 +132,68 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'File exceeds 100 MB limit' }, { status: 413 })
   }
 
-  // Select Core before any legacy document insert. The exact tenant gate is
-  // closed by default; extractor formats keep their existing response and
-  // CAD/AI processing path until separate parity evidence exists.
-  if (
-    documentIntakeCanarySelectedForUpload(profile.tenantId, {
-      fileName,
-      mimeType,
-    })
-  ) {
-    const coreResult = await completeDocumentUploadThroughCoreCanary(
-      {
-        storagePath,
-        projectId,
-        fileName,
-        mimeType,
-        sizeBytes,
-        description: description ?? null,
-      },
-      profile.tenantId,
-      `upload-${createUploadIdempotencyKey({
-        storagePath,
-        projectId,
-        fileName,
-        mimeType,
-        sizeBytes,
-        description,
-      })}`
+  const { cadFormat, extractorKind } = classify(fileName, mimeType)
+  // A visual/text extraction invokes the external Responses API. When the
+  // shared Core quota is selected for this tenant, reject before recording a
+  // document so a retry after the window does not leave partial intake state.
+  if (extractorKind && process.env.OPENAI_API_KEY) {
+    const quota = await consumeProviderQuota(
+      'provider-vision',
+      profile.tenantId
     )
-    if (!coreResult.ok || !coreResult.data) {
-      return NextResponse.json(
-        { error: coreResult.error ?? 'Document was not recorded.' },
-        { status: coreResult.status ?? 503 }
-      )
-    }
-    // Preserve legacy upload HTTP success semantics while Core owns commit.
-    return NextResponse.json(coreResult.data)
+    if (!quota.ok) return providerQuotaBlockedResponse(quota)
   }
 
-  const { docType, cadFormat, extractorKind } = classify(fileName, mimeType)
-
-  let docId: string
-  try {
-    docId = await db.transaction(async (tx) => {
-      const [doc] = await tx
-        .insert(documents)
-        .values({
-          tenant_id: profile.tenantId,
-          project_id: projectId,
-          uploaded_by: profile.user.id,
-          document_type: docType,
-          file_name: fileName,
-          storage_path: storagePath,
-          mime_type: mimeType,
-          size_bytes: sizeBytes,
-          description: description ?? null,
-        })
-        .returning({ id: documents.id })
-
-      if (!doc) {
-        throw new Error('Document insert returned no row')
-      }
-
-      await writeAuditLogInTransaction(tx, {
-        tenantId: profile.tenantId,
-        actorId: profile.user.id,
-        entityType: 'document',
-        entityId: doc.id,
-        action: 'create',
-        diff: {
-          project_id: projectId,
-          document_type: docType,
-          size_bytes: sizeBytes,
-        },
-      })
-
-      return doc.id
-    })
-  } catch (err) {
-    console.error('[upload/complete] documents insert failed:', err)
+  const coreResult = await createDocumentThroughCoreApi(
+    {
+      storagePath,
+      projectId,
+      fileName,
+      mimeType,
+      sizeBytes,
+      description: description ?? null,
+    },
+    `upload-${createUploadIdempotencyKey({
+      storagePath,
+      projectId,
+      fileName,
+      mimeType,
+      sizeBytes,
+      description,
+    })}`
+  )
+  if (!coreResult.ok || !coreResult.data) {
     return NextResponse.json(
-      { error: 'Failed to record document' },
-      { status: 500 }
+      { error: coreResult.error ?? 'Document was not recorded.' },
+      { status: coreResult.status ?? 503 }
+    )
+  }
+  const intake = coreResult.data
+  const docId = intake.documentId
+
+  // The document/audit transaction is idempotent. Never rerun downstream
+  // parsing for a replay, because those workers can create derived evidence.
+  if (!intake.created) {
+    return NextResponse.json(
+      documentUploadCompleteResultSchema.parse({
+        id: docId,
+        storagePath: intake.storagePath,
+        documentType: intake.documentType,
+        cadFormat,
+        cadParseQueued: false,
+      })
     )
   }
 
   // Unified extraction pipeline.
   //
-  //   - DXF/DWG  → parseAndStoreCad (magic-byte routed, optional Python worker)
+  //   - DXF/DWG  → evidence-only parse, then an ERP Core evidence commit
   //   - PDF      → OpenAI Responses API with input_file
   //   - image/*  → OpenAI Responses API with input_image
   //
-  // All three branches produce the same `cadResult` payload shape so the upload
-  // hook (use-cad-upload.ts) renders the same success copy: "N scope items
-  // extracted · draft BOM ₱X TCV (M% GP)".
+  // All branches produce the same legacy `cadResult` payload shape. AI
+  // document candidates carry an explicit unpriced flag so the UI never
+  // presents a zero-value candidate as a commercial estimate.
   let cadParseQueued = false
   let cadParseWarning: string | undefined
   let cadResult:
@@ -258,19 +221,21 @@ export async function POST(req: NextRequest) {
         bomGpMarginBps: number
         ragMatches: number
         aiEstimateMatches: number
+        unpricedCandidateBom?: boolean
         processingJobId?: string | null
       }
     | undefined
 
   if (cadFormat) {
     try {
-      // CAD evidence canary: parse produces immutable evidence only, then the
-      // Nest adapter commits official scope rows. Selected-Core failures are
-      // terminal; this branch never calls the compatibility writer.
+      // CAD parsing produces immutable evidence only. ERP Core is the sole
+      // authority for official scope rows, idempotency, and audit. A failed
+      // Core command is terminal and never falls back to a Web database write.
       if (
-        cadEvidenceCommitWritesUseCoreApi(profile.tenantId) &&
-        !(cadFormat === 'dwg' &&
-          documentProcessingJobsUseCoreApi(profile.tenantId))
+        !(
+          cadFormat === 'dwg' &&
+          documentProcessingJobsUseCoreApi(profile.tenantId)
+        )
       ) {
         const evidence = await parseCadEvidence({
           tenantId: profile.tenantId,
@@ -310,7 +275,10 @@ export async function POST(req: NextRequest) {
               aiEstimateMatches: 0,
             }
           } else {
-            cadParseQueued = true
+            // Both the worker evidence and the Core commit have completed in
+            // this request. Preserve the legacy flag's actual meaning: only
+            // an outstanding Core processing job is queued.
+            cadParseQueued = false
             cadResult = {
               status: 'extracted',
               scopeItemsCreated: coreResult.data.scopeItemsCreated,
@@ -350,13 +318,8 @@ export async function POST(req: NextRequest) {
           }
         }
       } else {
-      // Binary DWG canary: once explicitly selected, Nest owns the worker
-      // bridge and the official scope-item commit. Never fall back to the
-      // legacy Next-side writer after this gate is selected.
-      if (
-        cadFormat === 'dwg' &&
-        documentProcessingJobsUseCoreApi(profile.tenantId)
-      ) {
+        // Binary DWG processing is an optional Core queue seam. Once selected,
+        // Core owns the worker bridge and its eventual evidence commit.
         const coreResult = await enqueueDocumentProcessingThroughCoreApi(
           docId,
           {
@@ -418,58 +381,6 @@ export async function POST(req: NextRequest) {
             processingJobId: data.jobId,
           }
         }
-      } else {
-      const result = await parseAndStoreCad({
-        tenantId: profile.tenantId,
-        projectId,
-        documentId: docId,
-        storagePath,
-        fileName,
-        actorId: profile.user.id,
-      })
-      cadParseQueued = result.status === 'extracted'
-      cadResult = {
-        status: result.status,
-        scopeItemsCreated: result.scopeItemsCreated,
-        warnings: result.warnings,
-        layerCount: result.layerCount,
-        entityCount: result.entityCount,
-        detectedFormat: result.detectedFormat,
-        dwgVersion: result.dwgVersion,
-        extensionMismatch: result.extensionMismatch,
-        message: result.message,
-        bomId: result.bom?.bomId ?? null,
-        bomTcvCents: result.bom?.totalTcvCents ?? 0,
-        bomCostCents: result.bom?.totalCostCents ?? 0,
-        bomGpMarginBps: result.bom?.gpMarginBps ?? 0,
-        ragMatches: result.bom?.ragMatches ?? 0,
-        aiEstimateMatches: result.bom?.aiEstimateMatches ?? 0,
-      }
-
-      // Real binary DWG with no inline worker reachable: best-effort fan-out
-      // to Inngest so a deployed worker picks it up later. We do NOT surface
-      // this as an error to the user — parse-and-store has already returned a
-      // clear, actionable cadResult.message.
-      if (result.status === 'binary-dwg-pending' && process.env.INNGEST_EVENT_KEY) {
-        try {
-          await inngest.send({
-            name: 'document/cad.uploaded',
-            data: {
-              documentId: docId,
-              projectId,
-              tenantId: profile.tenantId,
-              storagePath,
-              format: 'dwg',
-              fileName,
-            },
-          })
-          cadParseQueued = true
-        } catch (err) {
-          // Logged for ops; intentionally not propagated to UI.
-          console.warn('[upload/complete] background DWG queue failed:', err)
-        }
-      }
-      }
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
@@ -488,7 +399,10 @@ export async function POST(req: NextRequest) {
         kind: extractorKind,
       })
 
-      cadParseQueued = visual.status === 'extracted'
+      // Visual extraction calls ERP Core synchronously. Its unpriced candidate
+      // BOM is already committed when this response is returned, so it must
+      // not be reported as an asynchronous CAD parse job.
+      cadParseQueued = false
       cadResult = {
         status: visual.status,
         scopeItemsCreated: visual.scopeItemsCreated,
@@ -505,6 +419,7 @@ export async function POST(req: NextRequest) {
         bomGpMarginBps: visual.bom?.gpMarginBps ?? 0,
         ragMatches: visual.bom?.ragMatches ?? 0,
         aiEstimateMatches: visual.bom?.aiEstimateMatches ?? 0,
+        unpricedCandidateBom: visual.bom !== null,
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
@@ -516,7 +431,7 @@ export async function POST(req: NextRequest) {
   const response = documentUploadCompleteResultSchema.parse({
     id: docId,
     storagePath,
-    documentType: docType,
+    documentType: intake.documentType,
     cadFormat,
     cadParseQueued,
     ...(cadParseWarning ? { cadParseWarning } : {}),

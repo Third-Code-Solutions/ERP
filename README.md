@@ -98,8 +98,9 @@ top-level route under `apps/web/src/app/(dashboard)`.
 pnpm dev                # web + workers (turbo parallel)
 pnpm build              # production build
 pnpm typecheck          # strict tsc across all packages
-pnpm lint               # eslint + prettier check
+pnpm lint               # TypeScript checks; ESLint/Prettier are not configured yet
 pnpm test               # vitest unit + integration
+pnpm audit --prod --audit-level moderate  # production dependency gate
 ```
 
 ## License & Contributing

@@ -123,7 +123,7 @@ test('executable gate fails on a bad fixture and passes after removal', async ()
   }
 })
 
-test('CI runs the full PR suite and keeps all WO-00 gates blocking', async () => {
+test('CI runs the full PR suite and keeps migration checks ahead of CI-only grants', async () => {
   const workflow = await readFile(resolve('.github/workflows/ci.yml'), 'utf8')
 
   assert.match(workflow, /pull_request:\s*\n\s+branches: \[main\]/)
@@ -139,7 +139,7 @@ test('CI runs the full PR suite and keeps all WO-00 gates blocking', async () =>
   assert.match(workflow, /GITHUB_EVENT_BEFORE:-/)
   assert.match(
     workflow,
-    /Rebuild database from zero[\s\S]*?Apply CI-only legacy Data API grants[\s\S]*?Verify migration ledger and catalog/
+    /Rebuild database from zero[\s\S]*?Verify migration ledger and catalog[\s\S]*?Capture and assert empty schema diff[\s\S]*?Apply CI-only legacy Data API grants/
   )
   assert.match(
     workflow,

@@ -1,6 +1,7 @@
 'use client'
 
 import { useTransition, useState } from 'react'
+import Link from 'next/link'
 import { createProject } from './actions'
 
 const inputStyle: React.CSSProperties = {
@@ -126,7 +127,7 @@ export function NewProjectForm() {
         >
           {isPending ? 'Creating…' : 'Create Project'}
         </button>
-        <a
+        <Link
           href="/projects"
           style={{
             padding: '8px 16px',
@@ -138,7 +139,7 @@ export function NewProjectForm() {
           }}
         >
           Cancel
-        </a>
+        </Link>
       </div>
     </form>
   )

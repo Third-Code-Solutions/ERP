@@ -26,7 +26,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       <main className="portal-main">{children}</main>
       <footer className="portal-footer">
         <p>
-          This portal is for the named recipient only. If you weren't expecting
+          This portal is for the named recipient only. If you weren&apos;t expecting
           to receive a Bill of Materials from Actuate Builders Inc., please
           ignore this link.
         </p>

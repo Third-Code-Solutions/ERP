@@ -3,10 +3,15 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 import {
-  consumeRequestRateLimit,
+  consumeRequestRateLimit as consumeLocalRequestRateLimit,
   requestRateLimitKey,
   requestRateLimitPolicy,
+  storeLocalRequestRateLimitEntry,
 } from '@/lib/request-rate-limit'
+import {
+  consumeDistributedRateLimit,
+  distributedRateLimitConfiguration,
+} from '@/lib/distributed-request-rate-limit'
 import { isProtectedRoute } from '@/lib/protected-route'
 import {
   isInvalidRefreshTokenError,
@@ -14,22 +19,74 @@ import {
 } from '@/lib/supabase-session-recovery'
 
 // ---------------------------------------------------------------------------
-// Rate limiting — in-memory sliding window per IP (Edge-compatible)
-// For production, replace with Upstash Redis or Vercel KV.
+// Local limiter — compatibility only when distributed enforcement is disabled.
+// It resets per Edge isolate and must never be represented as global protection.
 // ---------------------------------------------------------------------------
-// Edge-compatible map (resets on cold start; acceptable for MVP rate limiting)
-const requestCounts = new Map<
+const localRequestCounts = new Map<
   string,
   { count: number; windowStart: number }
 >()
 
-function isRateLimited(
+type RateLimitDecision =
+  | {
+      outcome: 'allowed' | 'limited'
+      count: number
+      retryAfterSeconds: number
+    }
+  | { outcome: 'unavailable' }
+
+async function consumeRateLimit(
   key: string,
   policy: ReturnType<typeof requestRateLimitPolicy>
-): boolean {
-  const result = consumeRequestRateLimit(requestCounts.get(key), policy)
-  requestCounts.set(key, result.entry)
-  return result.limited
+): Promise<RateLimitDecision> {
+  const distributedConfiguration = distributedRateLimitConfiguration()
+  if (distributedConfiguration.mode === 'invalid') {
+    return { outcome: 'unavailable' }
+  }
+
+  if (distributedConfiguration.mode === 'configured') {
+    const result = await consumeDistributedRateLimit(
+      distributedConfiguration,
+      key,
+      policy
+    )
+    if (result.outcome === 'unavailable') return result
+    return result
+  }
+
+  const result = consumeLocalRequestRateLimit(
+    localRequestCounts.get(key),
+    policy
+  )
+  storeLocalRequestRateLimitEntry(localRequestCounts, key, result.entry)
+  return {
+    outcome: result.limited ? 'limited' : 'allowed',
+    count: result.entry.count,
+    retryAfterSeconds: result.limited
+      ? Math.max(1, Math.ceil(policy.windowMs / 1_000))
+      : 0,
+  }
+}
+
+function rateLimitHeaders(
+  policy: ReturnType<typeof requestRateLimitPolicy>,
+  retryAfterSeconds: number,
+  count?: number
+): HeadersInit {
+  const headers: Record<string, string> = {
+    'Retry-After': String(Math.max(1, Math.ceil(retryAfterSeconds))),
+    'RateLimit-Limit': String(policy.limit),
+    'RateLimit-Reset': String(Math.max(1, Math.ceil(retryAfterSeconds))),
+    'RateLimit-Scope': policy.bucket,
+    'Cache-Control': 'private, no-store, max-age=0',
+    'Content-Type': 'text/plain',
+  }
+  if (count !== undefined) {
+    headers['RateLimit-Remaining'] = String(
+      Math.max(0, policy.limit - count)
+    )
+  }
+  return headers
 }
 
 // ---------------------------------------------------------------------------
@@ -223,15 +280,26 @@ export async function middleware(request: NextRequest) {
   // Rate limiting
   const rateLimitPolicy = requestRateLimitPolicy(pathname, !!user)
   const rateLimitKey = `${requestRateLimitKey(ip, user?.id)}:${rateLimitPolicy.bucket}`
-  if (isRateLimited(rateLimitKey, rateLimitPolicy)) {
+  const rateLimitDecision = await consumeRateLimit(
+    rateLimitKey,
+    rateLimitPolicy
+  )
+  if (rateLimitDecision.outcome === 'unavailable') {
+    const response = new NextResponse('Rate limit service unavailable', {
+      status: 503,
+      headers: rateLimitHeaders(rateLimitPolicy, 1),
+    })
+    return applySecurityHeaders(response, nonce, csp)
+  }
+
+  if (rateLimitDecision.outcome === 'limited') {
     const response = new NextResponse('Too Many Requests', {
       status: 429,
-      headers: {
-        'Retry-After': '60',
-        'X-RateLimit-Limit': String(rateLimitPolicy.limit),
-        'X-RateLimit-Scope': rateLimitPolicy.bucket,
-        'Content-Type': 'text/plain',
-      },
+      headers: rateLimitHeaders(
+        rateLimitPolicy,
+        rateLimitDecision.retryAfterSeconds,
+        rateLimitDecision.count
+      ),
     })
     return applySecurityHeaders(response, nonce, csp)
   }

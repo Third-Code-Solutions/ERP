@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { requireE2EBaseUrl } from './helpers/env'
 import { authenticateRole } from './helpers/supabase-magic-link'
 
 const RUN_AUTH = process.env.E2E_MAGIC_LINK_AUTH === '1'
@@ -9,7 +10,8 @@ test.describe('ABI OPS client change requests', () => {
 
   test('renders the tenant-scoped change log and idempotent request form', async ({ page }, testInfo) => {
     testInfo.setTimeout(120_000)
-    const auth = await authenticateRole(page.context(), testInfo.project.use.baseURL, 'admin')
+    const baseUrl = requireE2EBaseUrl(testInfo.project.use.baseURL)
+    const auth = await authenticateRole(page.context(), baseUrl, 'admin')
     const errors: string[] = []
     page.on('console', (message) => {
       if (message.type() === 'error') errors.push(message.text())

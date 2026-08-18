@@ -40,12 +40,12 @@ jobs:
           pnpm ci:actionlint
           pnpm verify:workflow-action-refs
       - name: Lint
-        run: pnpm turbo lint
+        run: pnpm lint
       - name: Type check
         run: pnpm turbo typecheck
       - name: Unit tests
         run: |
-          pnpm turbo test
+          pnpm test
           pnpm test:database-release-plan
           pnpm test:project-cutover-plan
           pnpm test:purchase-order-duplicate-plan

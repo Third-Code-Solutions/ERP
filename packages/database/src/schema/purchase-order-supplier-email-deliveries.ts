@@ -12,7 +12,6 @@ import {
 } from 'drizzle-orm/pg-core'
 import { notificationDeliveryStatusEnum, notificationOutbox } from './notifications'
 import { purchaseOrders } from './purchase-orders'
-import { tenants } from './tenants'
 import { users } from './users'
 
 export const purchaseOrderSupplierEmailDeliveries = pgTable(

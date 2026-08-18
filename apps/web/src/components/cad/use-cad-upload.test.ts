@@ -61,4 +61,32 @@ describe('CAD upload progress formatting', () => {
       })
     ).toBe('DWG processing queued in ERP Core.')
   })
+
+  it('does not present an AI scope candidate as a priced draft BOM', () => {
+    expect(
+      formatCompletionProgress({
+        ...base,
+        cadResult: {
+          status: 'extracted',
+          scopeItemsCreated: 2,
+          warnings: [],
+          layerCount: 0,
+          entityCount: 0,
+          detectedFormat: 'pdf',
+          dwgVersion: null,
+          extensionMismatch: false,
+          message: 'Created an unpriced candidate BOM.',
+          bomId: '55555555-5555-4555-8555-555555555555',
+          bomTcvCents: 0,
+          bomCostCents: 0,
+          bomGpMarginBps: 0,
+          ragMatches: 0,
+          aiEstimateMatches: 0,
+          unpricedCandidateBom: true,
+        },
+      })
+    ).toBe(
+      'PDF: 2 scope items extracted · unpriced candidate BOM; resolve the review queue and attach a DUPA'
+    )
+  })
 })

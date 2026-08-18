@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { requireE2EBaseUrl } from './helpers/env'
 import { authenticateRole } from './helpers/supabase-magic-link'
 
 const RUN_CAD_WORKER_TEST = process.env.E2E_MAGIC_LINK_AUTH === '1'
@@ -14,7 +15,7 @@ test.describe('production CAD worker wiring', () => {
     page,
   }, testInfo) => {
     testInfo.setTimeout(120_000)
-    const baseUrl = testInfo.project.use.baseURL
+    const baseUrl = requireE2EBaseUrl(testInfo.project.use.baseURL)
     const auth = await authenticateRole(page.context(), baseUrl, 'admin')
     const errors: string[] = []
     page.on('console', (message) => {

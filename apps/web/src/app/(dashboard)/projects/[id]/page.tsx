@@ -304,7 +304,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
         </div>
 
         {/* Right metadata rail */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', height: 'fit-content' }}>
+        <aside className={styles.contextRail} aria-label="Project context">
         <div
           style={{
             background: 'white',
@@ -341,8 +341,8 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
             ))}
           </dl>
         </div>
-          <CortexEntityPanel refTable="projects" refId={id} />
-        </div>
+          <CortexEntityPanel refTable="projects" refId={id} density="compact" />
+        </aside>
       </div>
       <ProjectChat projectId={id} />
     </div>
