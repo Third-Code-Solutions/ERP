@@ -125,9 +125,12 @@ test('executable gate fails on a bad fixture and passes after removal', async ()
 
 test('CI runs the full PR suite and keeps migration checks ahead of CI-only grants', async () => {
   const workflow = await readFile(resolve('.github/workflows/ci.yml'), 'utf8')
+  const rootPackage = await readFile(resolve('package.json'), 'utf8')
 
   assert.match(workflow, /pull_request:\s*\n\s+branches: \[main\]/)
-  assert.match(workflow, /- run: pnpm turbo test/)
+  assert.match(workflow, /- run: pnpm test/)
+  assert.doesNotMatch(workflow, /- run: pnpm turbo test/)
+  assert.match(rootPackage, /"test": "turbo test --concurrency=1"/)
   assert.match(workflow, /build-ops-invariants:\s*\n\s+name: BUILD OPS Invariants/)
   assert.match(workflow, /run: pnpm test:build-ops-invariants/)
   assert.match(

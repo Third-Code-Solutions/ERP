@@ -25,6 +25,10 @@ completed successfully.
   `pnpm test` script, which serializes package test execution. This removes the
   observed cross-package timing failure while retaining each package's test
   command.
+- Updated the BUILD OPS workflow contract to require that serialized root test
+  command, and moved the WO-08 importer static contract's persistence
+  assertions to the ERP Core service. The Web multipart adapter is now
+  explicitly tested as a Core-only authority boundary.
 - Preserved the existing `apps/web/vercel.json` request for `icn1`; placement
   will be verified from a newly deployed immutable artifact, not inferred from
   source configuration.
