@@ -29,6 +29,12 @@ completed successfully.
   command, and moved the WO-08 importer static contract's persistence
   assertions to the ERP Core service. The Web multipart adapter is now
   explicitly tested as a Core-only authority boundary.
+- Reconciled three stale CI source contracts with the consolidated authority
+  design: WO-08a now verifies that Web AI extraction delegates to ERP Core,
+  WO-12 verifies that Core owns tenant-scoped inspection-photo metadata and
+  audit state, and WO-18 requires the batched cost-control totals query that
+  avoids a dashboard N+1 regression. The gates also forbid restoring direct
+  Web persistence or the former per-project dashboard query.
 - Preserved the existing `apps/web/vercel.json` request for `icn1`; placement
   will be verified from a newly deployed immutable artifact, not inferred from
   source configuration.
@@ -49,6 +55,8 @@ completed successfully.
 - PASS — ABI OPS brand, type-safety, App Router boundary, BUILD OPS invariant,
   actionlint, workflow-action-reference, provider-spend-guard, and Turbo cache
   contract checks.
+- PASS — the CI unit-test source-gate sequence through WO-18, including the
+  corrected WO-08a, WO-12, and WO-18 authority/performance contracts.
 - PASS — production dependency audit reported no known high-or-higher
   vulnerabilities; both repository-history and staged-diff Gitleaks scans
   reported no findings.
