@@ -10,6 +10,7 @@
     "./opportunities": "./src/opportunities.ts",
     "./accounts": "./src/accounts.ts",
     "./common": "./src/common.ts",
+    "./authorization": "./src/authorization.ts",
     "./business-days": "./src/business-days/index.ts",
     "./process-sla": "./src/process-sla/index.ts"
   },
@@ -24,6 +25,6 @@
   "devDependencies": {
     "@third-code-erp/config": "workspace:*",
     "typescript": "^5.7.2",
-    "vitest": "^3.1.2"
+    "vitest": "^3.2.6"
   }
 }

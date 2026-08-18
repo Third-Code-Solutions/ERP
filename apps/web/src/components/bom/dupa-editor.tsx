@@ -193,7 +193,7 @@ export function DupaEditor({ projectId, bomId, line, assemblyOptions, isEditable
     setDraft(draftFromLine(line))
     setError('')
     setSavedMessage('')
-  }, [line?.id])
+  }, [line])
 
   if (!line) return null
 

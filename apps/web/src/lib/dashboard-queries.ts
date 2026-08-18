@@ -30,7 +30,7 @@ import {
 } from 'drizzle-orm'
 import { computeProjectCostSnapshot } from '@third-code-erp/shared-types/cost'
 import { manilaBoundaries } from '@/lib/operations/cadence-engine'
-import { getProjectCostControl } from '@/lib/operations/project-cost-control'
+import { getProjectCostControlTotalsForProjects } from '@/lib/operations/project-cost-control'
 import {
   getTodayThroughCoreApi,
   todayReadsUseCoreApi,
@@ -456,42 +456,42 @@ export async function getManagementDashboard(
     ])
   )
 
-  const projectMargins = await Promise.all(
-    projectRows.map(async (project) => {
-      const bom = latestBomByProject.get(project.id)
-      const control = await getProjectCostControl({
-        tenantId,
-        projectId: project.id,
-      })
-      const tcvCents = bom?.tcvCents ?? 0
-      const baselineCostCents = control.totals.baselineCents
-      const forecastCostCents = control.totals.forecastCents
-      const hasApprovedBudget = baselineCostCents > 0
-      const baselineMarginBps =
-        hasApprovedBudget ? marginBps(tcvCents, tcvCents - baselineCostCents) : 0
-      const forecastMarginBps =
-        hasApprovedBudget ? marginBps(tcvCents, tcvCents - forecastCostCents) : 0
-      const permit = permitByProject.get(project.id)
-      return {
-        projectId: project.id,
-        projectName: project.name,
-        projectCode: project.projectCode,
-        projectStatus: project.status,
-        tcvCents,
-        baselineCostCents,
-        forecastCostCents,
-        baselineMarginBps,
-        forecastMarginBps,
-        marginVarianceBps: forecastMarginBps - baselineMarginBps,
-        costVarianceCents: forecastCostCents - baselineCostCents,
-        permitExposureCount: permit?.exposureCount ?? 0,
-        permitOverdueCount: permit?.overdueCount ?? 0,
-        unsignedVoExposureCents: voExposureByProject.get(project.id) ?? 0,
-        hasApprovedBom: Boolean(bom),
-        hasApprovedBudget,
-      }
-    })
-  )
+  const costControlTotalsByProject = await getProjectCostControlTotalsForProjects({
+    tenantId,
+    projectIds: projectRows.map((project) => project.id),
+  })
+
+  const projectMargins = projectRows.map((project) => {
+    const bom = latestBomByProject.get(project.id)
+    const controlTotals = costControlTotalsByProject.get(project.id)
+    const tcvCents = bom?.tcvCents ?? 0
+    const baselineCostCents = controlTotals?.baselineCents ?? 0
+    const forecastCostCents = controlTotals?.forecastCents ?? 0
+    const hasApprovedBudget = baselineCostCents > 0
+    const baselineMarginBps =
+      hasApprovedBudget ? marginBps(tcvCents, tcvCents - baselineCostCents) : 0
+    const forecastMarginBps =
+      hasApprovedBudget ? marginBps(tcvCents, tcvCents - forecastCostCents) : 0
+    const permit = permitByProject.get(project.id)
+    return {
+      projectId: project.id,
+      projectName: project.name,
+      projectCode: project.projectCode,
+      projectStatus: project.status,
+      tcvCents,
+      baselineCostCents,
+      forecastCostCents,
+      baselineMarginBps,
+      forecastMarginBps,
+      marginVarianceBps: forecastMarginBps - baselineMarginBps,
+      costVarianceCents: forecastCostCents - baselineCostCents,
+      permitExposureCount: permit?.exposureCount ?? 0,
+      permitOverdueCount: permit?.overdueCount ?? 0,
+      unsignedVoExposureCents: voExposureByProject.get(project.id) ?? 0,
+      hasApprovedBom: Boolean(bom),
+      hasApprovedBudget,
+    }
+  })
 
   const slaBreachesByBu = slaRows.map((row) => ({
     businessUnit: row.businessUnit,
@@ -528,42 +528,42 @@ export async function getDashboardKpis(tenantId: string): Promise<KpiData> {
     new Date(Date.UTC(now.getUTCFullYear(), 0, 1))
   )
 
-  const [activeResult] = await db
-    .select({
-      tcv: sum(opportunities.tcv_cents),
-      gp: sum(opportunities.gp_cents),
-      weighted: sum(opportunities.weighted_tcv_cents),
-      deals: count(),
-    })
-    .from(opportunities)
-    .where(
-      and(
-        eq(opportunities.tenant_id, tenantId),
-        inArray(opportunities.stage, [...ACTIVE_STAGES])
-      )
-    )
-
-  const [wonResult] = await db
-    .select({ tcv: sum(opportunities.tcv_cents) })
-    .from(opportunities)
-    .where(
-      and(
-        eq(opportunities.tenant_id, tenantId),
-        eq(opportunities.stage, 'closed_won'),
-        gte(opportunities.closing_date, fiscalYearStart),
-        lte(opportunities.closing_date, now)
-      )
-    )
-
-  const [leadResult] = await db
-    .select({ leads: count() })
-    .from(opportunities)
-    .where(
-      and(
-        eq(opportunities.tenant_id, tenantId),
-        eq(opportunities.stage, 'opportunity_creation')
-      )
-    )
+  const [[activeResult], [wonResult], [leadResult]] = await Promise.all([
+    db
+      .select({
+        tcv: sum(opportunities.tcv_cents),
+        gp: sum(opportunities.gp_cents),
+        weighted: sum(opportunities.weighted_tcv_cents),
+        deals: count(),
+      })
+      .from(opportunities)
+      .where(
+        and(
+          eq(opportunities.tenant_id, tenantId),
+          inArray(opportunities.stage, [...ACTIVE_STAGES])
+        )
+      ),
+    db
+      .select({ tcv: sum(opportunities.tcv_cents) })
+      .from(opportunities)
+      .where(
+        and(
+          eq(opportunities.tenant_id, tenantId),
+          eq(opportunities.stage, 'closed_won'),
+          gte(opportunities.closing_date, fiscalYearStart),
+          lte(opportunities.closing_date, now)
+        )
+      ),
+    db
+      .select({ leads: count() })
+      .from(opportunities)
+      .where(
+        and(
+          eq(opportunities.tenant_id, tenantId),
+          eq(opportunities.stage, 'opportunity_creation')
+        )
+      ),
+  ])
 
   return {
     activeTcv: Number(activeResult?.tcv ?? 0),
@@ -596,42 +596,42 @@ export async function getStageDistribution(tenantId: string): Promise<StageRow[]
 }
 
 export async function getRepScorecards(tenantId: string): Promise<RepScorecard[]> {
-  const activeRows = await db
-    .select({
-      repId: opportunities.rep_id,
-      tcv: sum(opportunities.tcv_cents),
-      gp: sum(opportunities.gp_cents),
-      weighted: sum(opportunities.weighted_tcv_cents),
-      activeCount: count(),
-    })
-    .from(opportunities)
-    .where(
-      and(
-        eq(opportunities.tenant_id, tenantId),
-        inArray(opportunities.stage, [...ACTIVE_STAGES])
+  const [activeRows, wonRows, lostRows] = await Promise.all([
+    db
+      .select({
+        repId: opportunities.rep_id,
+        tcv: sum(opportunities.tcv_cents),
+        gp: sum(opportunities.gp_cents),
+        weighted: sum(opportunities.weighted_tcv_cents),
+        activeCount: count(),
+      })
+      .from(opportunities)
+      .where(
+        and(
+          eq(opportunities.tenant_id, tenantId),
+          inArray(opportunities.stage, [...ACTIVE_STAGES])
+        )
       )
-    )
-    .groupBy(opportunities.rep_id)
-
-  const wonRows = await db
-    .select({
-      repId: opportunities.rep_id,
-      wonTcv: sum(opportunities.tcv_cents),
-      wonCount: count(),
-    })
-    .from(opportunities)
-    .where(
-      and(eq(opportunities.tenant_id, tenantId), eq(opportunities.stage, 'closed_won'))
-    )
-    .groupBy(opportunities.rep_id)
-
-  const lostRows = await db
-    .select({ repId: opportunities.rep_id, lostCount: count() })
-    .from(opportunities)
-    .where(
-      and(eq(opportunities.tenant_id, tenantId), eq(opportunities.stage, 'closed_lost'))
-    )
-    .groupBy(opportunities.rep_id)
+      .groupBy(opportunities.rep_id),
+    db
+      .select({
+        repId: opportunities.rep_id,
+        wonTcv: sum(opportunities.tcv_cents),
+        wonCount: count(),
+      })
+      .from(opportunities)
+      .where(
+        and(eq(opportunities.tenant_id, tenantId), eq(opportunities.stage, 'closed_won'))
+      )
+      .groupBy(opportunities.rep_id),
+    db
+      .select({ repId: opportunities.rep_id, lostCount: count() })
+      .from(opportunities)
+      .where(
+        and(eq(opportunities.tenant_id, tenantId), eq(opportunities.stage, 'closed_lost'))
+      )
+      .groupBy(opportunities.rep_id),
+  ])
 
   const repIds = [
     ...new Set([
@@ -677,25 +677,66 @@ const STALLED_DAYS = 30
 export async function getAlerts(tenantId: string): Promise<Alert[]> {
   const alerts: Alert[] = []
 
-  // Low-margin active opportunities (GP margin < 15%)
-  const activeOpps = await db
-    .select({
-      id: opportunities.id,
-      project_id: opportunities.project_id,
-      stage: opportunities.stage,
-      tcv_cents: opportunities.tcv_cents,
-      gp_cents: opportunities.gp_cents,
-      updated_at: opportunities.updated_at,
-      project_name: projects.name,
-    })
-    .from(opportunities)
-    .leftJoin(projects, eq(opportunities.project_id, projects.id))
-    .where(
-      and(
-        eq(opportunities.tenant_id, tenantId),
-        inArray(opportunities.stage, [...ACTIVE_STAGES])
+  const now = new Date()
+  const [activeOpps, overdueInvoices, lockedBoms] = await Promise.all([
+    // Low-margin active opportunities (GP margin < 15%).
+    db
+      .select({
+        id: opportunities.id,
+        project_id: opportunities.project_id,
+        stage: opportunities.stage,
+        tcv_cents: opportunities.tcv_cents,
+        gp_cents: opportunities.gp_cents,
+        updated_at: opportunities.updated_at,
+        project_name: projects.name,
+      })
+      .from(opportunities)
+      .leftJoin(projects, eq(opportunities.project_id, projects.id))
+      .where(
+        and(
+          eq(opportunities.tenant_id, tenantId),
+          inArray(opportunities.stage, [...ACTIVE_STAGES])
+        )
+      ),
+    // Overdue invoices.
+    db
+      .select({
+        id: invoices.id,
+        project_id: invoices.project_id,
+        invoice_number: invoices.invoice_number,
+        due_date: invoices.due_date,
+        net_amount_cents: invoices.net_amount_cents,
+        project_name: projects.name,
+      })
+      .from(invoices)
+      .leftJoin(projects, eq(invoices.project_id, projects.id))
+      .where(
+        and(
+          eq(invoices.tenant_id, tenantId),
+          eq(invoices.status, 'overdue'),
+          lt(invoices.due_date, now)
+        )
+      ),
+    // GP erosion: active projects where PO committed cost exceeds BOM budget by >10%.
+    db
+      .select({
+        id: boms.id,
+        project_id: boms.project_id,
+        total_cost_cents: boms.total_cost_cents,
+        tcv_cents: boms.tcv_cents,
+        gp_cents: boms.gp_cents,
+        project_name: projects.name,
+      })
+      .from(boms)
+      .leftJoin(projects, eq(boms.project_id, projects.id))
+      .where(
+        and(
+          eq(boms.tenant_id, tenantId),
+          inArray(boms.status, ['approved', 'locked'])
+        )
       )
-    )
+      .orderBy(desc(boms.created_at)),
+  ])
 
   for (const opp of activeOpps) {
     const tcv = opp.tcv_cents
@@ -715,7 +756,7 @@ export async function getAlerts(tenantId: string): Promise<Alert[]> {
 
     // Stalled deal
     const daysSinceUpdate = Math.floor(
-      (Date.now() - new Date(opp.updated_at).getTime()) / (1000 * 60 * 60 * 24)
+      (now.getTime() - new Date(opp.updated_at).getTime()) / (1000 * 60 * 60 * 24)
     )
     if (daysSinceUpdate >= STALLED_DAYS) {
       alerts.push({
@@ -728,26 +769,6 @@ export async function getAlerts(tenantId: string): Promise<Alert[]> {
     }
   }
 
-  // Overdue invoices
-  const overdueInvoices = await db
-    .select({
-      id: invoices.id,
-      project_id: invoices.project_id,
-      invoice_number: invoices.invoice_number,
-      due_date: invoices.due_date,
-      net_amount_cents: invoices.net_amount_cents,
-      project_name: projects.name,
-    })
-    .from(invoices)
-    .leftJoin(projects, eq(invoices.project_id, projects.id))
-    .where(
-      and(
-        eq(invoices.tenant_id, tenantId),
-        eq(invoices.status, 'overdue'),
-        lt(invoices.due_date, new Date())
-      )
-    )
-
   for (const inv of overdueInvoices) {
     alerts.push({
       type: 'overdue_invoice',
@@ -758,26 +779,6 @@ export async function getAlerts(tenantId: string): Promise<Alert[]> {
     })
   }
 
-  // GP erosion: active projects where PO committed cost exceeds BOM budget by >10%
-  const lockedBoms = await db
-    .select({
-      id: boms.id,
-      project_id: boms.project_id,
-      total_cost_cents: boms.total_cost_cents,
-      tcv_cents: boms.tcv_cents,
-      gp_cents: boms.gp_cents,
-      project_name: projects.name,
-    })
-    .from(boms)
-    .leftJoin(projects, eq(boms.project_id, projects.id))
-    .where(
-      and(
-        eq(boms.tenant_id, tenantId),
-        inArray(boms.status, ['approved', 'locked'])
-      )
-    )
-    .orderBy(desc(boms.created_at))
-
   // Deduplicate to latest BOM per project
   const latestBomByProject = new Map<string, typeof lockedBoms[number]>()
   for (const b of lockedBoms) {
@@ -786,15 +787,18 @@ export async function getAlerts(tenantId: string): Promise<Alert[]> {
     }
   }
 
-  for (const [projectId, bom] of latestBomByProject) {
-    if (bom.total_cost_cents === 0 && (bom.tcv_cents ?? 0) === 0) continue
+  const trackedBomProjects = [...latestBomByProject].filter(
+    ([, bom]) => bom.total_cost_cents !== 0 || (bom.tcv_cents ?? 0) !== 0
+  )
+  const costControlTotalsByProject = await getProjectCostControlTotalsForProjects({
+    tenantId,
+    projectIds: trackedBomProjects.map(([projectId]) => projectId),
+  })
 
-    const costControl = await getProjectCostControl({
-      tenantId,
-      projectId,
-    })
-    const committed = costControl.totals.committedCents
-    const actual = costControl.totals.actualCents
+  for (const [projectId, bom] of trackedBomProjects) {
+    const controlTotals = costControlTotalsByProject.get(projectId)
+    const committed = controlTotals?.committedCents ?? 0
+    const actual = controlTotals?.actualCents ?? 0
 
     // PO committed overrun vs BOM budget (commitment-side signal).
     if (bom.total_cost_cents > 0 && committed > 0) {

@@ -4,9 +4,10 @@ import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 const reportPath = resolve(process.argv[2] ?? '')
+const label = process.argv[3]?.trim() || 'Vitest tests'
 
 if (!process.argv[2] || !existsSync(reportPath)) {
-  console.error('Usage: node scripts/assert-vitest-no-skips.mjs <vitest-json-report>')
+  console.error('Usage: node scripts/assert-vitest-no-skips.mjs <vitest-json-report> [label]')
   process.exit(1)
 }
 
@@ -35,8 +36,8 @@ if (todo !== 0) problems.push(`${todo} todo`)
 if (passed !== total) problems.push(`passed ${passed} of ${total}`)
 
 if (problems.length > 0) {
-  console.error(`FAIL database test execution: ${problems.join(', ')}`)
+  console.error(`FAIL ${label}: ${problems.join(', ')}`)
   process.exit(1)
 }
 
-console.log(`PASS database tests executed without skips (${passed}/${total})`)
+console.log(`PASS ${label} executed without skips (${passed}/${total})`)

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import {
   requireUserProfile,
   can,
@@ -12,16 +12,13 @@ import {
 import { db } from '@third-code-erp/database'
 import {
   accounts,
-  contacts,
   accountKycArtifacts,
   documents,
-  users as usersTable,
 } from '@third-code-erp/database/schema'
 import {
   createAccountSchema,
   reviewKycSchema,
   addKycArtifactSchema,
-  type KycArtifactType,
 } from '@third-code-erp/shared-types'
 import { writeAuditLog } from '@/lib/audit'
 

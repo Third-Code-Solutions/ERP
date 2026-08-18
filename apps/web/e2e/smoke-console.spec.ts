@@ -7,51 +7,54 @@
 // Cookie injection is faster and tests what we actually care about: do the
 // authenticated routes render without runtime errors?
 //
-// Run: PLAYWRIGHT_BASE_URL=http://localhost:3000 \
-//      E2E_USER_EMAIL=test@third-code-erp.local E2E_USER_PASSWORD=testpassword123 \
-//      npx playwright test --project=chromium --workers=1 e2e/smoke-console.spec.ts
+// Run only against an isolated E2E tenant:
+// PLAYWRIGHT_BASE_URL=https://e2e.example.test \
+// NEXT_PUBLIC_SUPABASE_URL=https://example.supabase.co \
+// NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-key> \
+// E2E_USER_EMAIL=<dedicated-test-user> E2E_USER_PASSWORD=<dedicated-password> \
+// E2E_PROJECT_ID=<isolated-project-id> \
+// npx playwright test --project=chromium --workers=1 e2e/smoke-console.spec.ts
 import { test, expect, type BrowserContext } from '@playwright/test'
+import { requireE2ECredentials } from './helpers/auth'
+import { readE2EEnv, requireE2EBaseUrl } from './helpers/env'
 import { authenticateRole } from './helpers/supabase-magic-link'
 
-const SEEDED_PROJECT = '11111111-1111-4111-8111-111111111111' // Somnus
-
-const ROUTES = [
-  '/dashboard',
-  '/projects',
-  '/projects?q=somnus',
-  '/projects?status=active&sort=name&order=asc',
-  `/projects/${SEEDED_PROJECT}`,
-  `/projects/${SEEDED_PROJECT}/scope`,
-  `/projects/${SEEDED_PROJECT}/bom`,
-  `/projects/${SEEDED_PROJECT}/documents`,
-  `/projects/${SEEDED_PROJECT}/billing`,
-  `/projects/${SEEDED_PROJECT}/comments`,
-  `/projects/${SEEDED_PROJECT}/audit`,
-  '/pipeline/coverage',
-  '/pipeline/conversion',
-  '/procurement',
-  '/purchase-orders',
-  '/inventory',
-  '/inventory/receipts',
-  '/invoices',
-  '/finance',
-  '/finance/payables',
-  '/finance/reconciliation',
-  '/reports',
-  '/settings',
-] as const
-
-function readEnvFile(): Record<string, string> {
-  const fs = require('node:fs') as typeof import('node:fs')
-  const path = require('node:path') as typeof import('node:path')
-  const envPath = path.resolve(__dirname, '..', '.env.local')
-  const raw = fs.readFileSync(envPath, 'utf8')
-  const out: Record<string, string> = {}
-  for (const line of raw.split(/\r?\n/)) {
-    const m = line.match(/^([A-Z0-9_]+)=(.*)$/)
-    if (m) out[m[1]!] = m[2]!.replace(/^"(.*)"$/, '$1')
+function requireE2EProjectId(): string {
+  const projectId = process.env.E2E_PROJECT_ID?.trim()
+  if (!projectId) {
+    throw new Error(
+      'Authenticated E2E requires E2E_PROJECT_ID from the isolated test tenant.',
+    )
   }
-  return out
+  return projectId
+}
+
+function routesForProject(projectId: string) {
+  return [
+    '/dashboard',
+    '/projects',
+    '/projects?q=somnus',
+    '/projects?status=active&sort=name&order=asc',
+    `/projects/${projectId}`,
+    `/projects/${projectId}/scope`,
+    `/projects/${projectId}/bom`,
+    `/projects/${projectId}/documents`,
+    `/projects/${projectId}/billing`,
+    `/projects/${projectId}/comments`,
+    `/projects/${projectId}/audit`,
+    '/pipeline/coverage',
+    '/pipeline/conversion',
+    '/procurement',
+    '/purchase-orders',
+    '/inventory',
+    '/inventory/receipts',
+    '/invoices',
+    '/finance',
+    '/finance/payables',
+    '/finance/reconciliation',
+    '/reports',
+    '/settings',
+  ] as const
 }
 
 async function authenticate(
@@ -63,11 +66,13 @@ async function authenticate(
     return auth.cleanup
   }
 
-  const env = readEnvFile()
-  const url = env.NEXT_PUBLIC_SUPABASE_URL!
-  const anonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  const email = process.env.E2E_USER_EMAIL ?? 'test@third-code-erp.local'
-  const password = process.env.E2E_USER_PASSWORD ?? 'testpassword123'
+  const env = readE2EEnv()
+  const url = env.NEXT_PUBLIC_SUPABASE_URL
+  const anonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !anonKey) {
+    throw new Error('Authenticated E2E requires Supabase URL and anonymous key.')
+  }
+  const { email, password } = requireE2ECredentials()
 
   const res = await fetch(`${url}/auth/v1/token?grant_type=password`, {
     method: 'POST',
@@ -99,15 +104,16 @@ async function authenticate(
     user: session.user,
   }
   const value = `base64-${Buffer.from(JSON.stringify(sessionPayload)).toString('base64')}`
+  const baseOrigin = new URL(baseUrl)
 
   await context.addCookies([
     {
       name: cookieName,
       value,
-      domain: 'localhost',
+      domain: baseOrigin.hostname,
       path: '/',
       httpOnly: false,
-      secure: false,
+      secure: baseOrigin.protocol === 'https:',
       sameSite: 'Lax',
     },
   ])
@@ -131,12 +137,12 @@ test('visits every major route without console errors', async ({ page, context }
     pageErrors.push({ route: currentRoute, message: err.message })
   })
 
-  const baseUrl = testInfo.project.use.baseURL
-  expect(baseUrl).toBeTruthy()
-  const cleanup = await authenticate(context, baseUrl!)
+  const baseUrl = requireE2EBaseUrl(testInfo.project.use.baseURL)
+  const routes = routesForProject(requireE2EProjectId())
+  const cleanup = await authenticate(context, baseUrl)
 
   try {
-    for (const route of ROUTES) {
+    for (const route of routes) {
       currentRoute = route
       const res = await page.goto(route, { waitUntil: 'domcontentloaded' })
       const status = res?.status() ?? 0
@@ -171,6 +177,10 @@ test('visits every major route without console errors', async ({ page, context }
     const blockingPageErrors = pageErrors.filter(
       (e) => !/realtime|websocket/i.test(e.message)
     )
+    expect(
+      consoleErrors,
+      `Console errors found:\n${consoleErrors.map((e) => `  [${e.route}] ${e.text}`).join('\n')}`
+    ).toHaveLength(0)
     expect(
       blockingPageErrors,
       `Page errors found:\n${blockingPageErrors.map((e) => `  [${e.route}] ${e.message}`).join('\n')}`

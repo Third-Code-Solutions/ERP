@@ -7,7 +7,7 @@ import {
 const UUID = '11111111-1111-4111-8111-111111111111'
 
 describe('Togal BOM commit API contracts', () => {
-  it('accepts strict tenant-free reviewed line commands', () => {
+  it('accepts strict tenant-free reviewed line commands with integer quantities', () => {
     const command = {
       bomId: UUID,
       proposedLines: [
@@ -16,7 +16,7 @@ describe('Togal BOM commit API contracts', () => {
           code: 'WALL-01',
           description: 'Ready-mix concrete',
           unit: 'm3',
-          qty: 4.25,
+          qty: 4,
           unitCostCents: 12_500,
           markupBps: 3_000,
           vendorId: null,
@@ -48,6 +48,12 @@ describe('Togal BOM commit API contracts', () => {
       togalBomCommitCommandSchema.safeParse({
         ...base,
         proposedLines: [{ ...base.proposedLines[0], qty: Number.NaN }],
+      }).success
+    ).toBe(false)
+    expect(
+      togalBomCommitCommandSchema.safeParse({
+        ...base,
+        proposedLines: [{ ...base.proposedLines[0], qty: 1.5 }],
       }).success
     ).toBe(false)
     expect(

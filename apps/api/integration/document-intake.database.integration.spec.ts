@@ -12,7 +12,7 @@ import {
   type Database,
 } from '@third-code-erp/database'
 import { and, eq } from 'drizzle-orm'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import type { ErpPrincipal } from '../src/auth/current-principal.decorator'
 import { AuditService } from '../src/audit/audit.service'
 import {
@@ -130,17 +130,7 @@ suite('Document intake database integration', () => {
         role: 'pm',
         email: `document-intake-a-${suffix}@integration.test`,
       }
-      const config = {
-        get: vi.fn((key: string, fallback?: unknown) => {
-          if (key === 'ERP_DOCUMENT_INTAKE_WRITES_ENABLED') return true
-          if (key === 'ERP_DOCUMENT_INTAKE_WRITES_TENANT_IDS') {
-            return [tenantA]
-          }
-          return fallback
-        }),
-      }
       const service = new DocumentIntakeService(
-        config as never,
         transactionBoundDatabase(transaction),
         new AuditService()
       )

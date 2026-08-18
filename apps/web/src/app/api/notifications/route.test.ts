@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getUserProfile: vi.fn(),
-  notificationReadStateUseCoreApi: vi.fn(),
   getNotificationsThroughCoreApi: vi.fn(),
   markNotificationReadStateThroughCoreApi: vi.fn(),
   select: vi.fn(),
@@ -22,7 +21,6 @@ vi.mock('@third-code-erp/database', () => ({
 }))
 
 vi.mock('@/lib/erp-core-client', () => ({
-  notificationReadStateUseCoreApi: mocks.notificationReadStateUseCoreApi,
   getNotificationsThroughCoreApi: mocks.getNotificationsThroughCoreApi,
   markNotificationReadStateThroughCoreApi:
     mocks.markNotificationReadStateThroughCoreApi,
@@ -42,7 +40,6 @@ describe('notifications compatibility route', () => {
       tenantId: TENANT_ID,
       role: 'pm',
     })
-    mocks.notificationReadStateUseCoreApi.mockReturnValue(true)
   })
 
   it('maps a Core notification list to the frozen Web response shape', async () => {
@@ -85,6 +82,22 @@ describe('notifications compatibility route', () => {
     expect(mocks.select).not.toHaveBeenCalled()
   })
 
+  it('uses Core for reads without a tenant authority selector', async () => {
+    mocks.getNotificationsThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: { items: [], unread: 0 },
+    })
+
+    const response = await GET(
+      new NextRequest('http://localhost/api/notifications')
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({ items: [], unread: 0 })
+    expect(mocks.getNotificationsThroughCoreApi).toHaveBeenCalledOnce()
+    expect(mocks.select).not.toHaveBeenCalled()
+  })
+
   it('sends valid read-state updates to Core and does not fall back', async () => {
     mocks.markNotificationReadStateThroughCoreApi.mockResolvedValue({
       ok: true,
@@ -103,6 +116,28 @@ describe('notifications compatibility route', () => {
     expect(mocks.markNotificationReadStateThroughCoreApi).toHaveBeenCalledWith(
       { action: 'mark_read', id: NOTIFICATION_ID }
     )
+    expect(mocks.update).not.toHaveBeenCalled()
+  })
+
+  it('uses Core for writes without a tenant authority selector', async () => {
+    mocks.markNotificationReadStateThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: { ok: true },
+    })
+
+    const response = await POST(
+      new NextRequest('http://localhost/api/notifications', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'mark_all_read' }),
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({ ok: true })
+    expect(mocks.markNotificationReadStateThroughCoreApi).toHaveBeenCalledWith({
+      action: 'mark_all_read',
+    })
     expect(mocks.update).not.toHaveBeenCalled()
   })
 

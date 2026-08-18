@@ -1,246 +1,144 @@
+import { timingSafeEqual } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
-import { and, eq } from 'drizzle-orm'
-import { db } from '@third-code-erp/database'
-import {
-  bomPortalTokens,
-  boms,
-  documents,
-  projects,
-} from '@third-code-erp/database/schema'
 import { docuSealWebhookCommandSchema } from '@third-code-erp/shared-types'
-import type { DocuSealWebhookPayload } from '@/lib/operations/integrations/docuseal'
-import { notifyRoles } from '@/lib/operations/notifications'
-import { writeAuditLog } from '@/lib/audit'
-import {
-  docuSealWebhookUseCoreApi,
-  processDocuSealWebhookThroughCoreApi,
-} from '@/lib/erp-core-client'
+import { emailRoles } from '@/lib/operations/notifications'
+import { processDocuSealWebhookThroughCoreApi } from '@/lib/erp-core-client'
+
+interface IncomingDocuSealWebhook {
+  event?: unknown
+  submission_id?: unknown
+  documents?: unknown
+}
+
+function matchesSecret(
+  provided: string | null,
+  expected: string
+): boolean {
+  if (!provided) return false
+  const providedBytes = Buffer.from(provided)
+  const expectedBytes = Buffer.from(expected)
+  return (
+    providedBytes.length === expectedBytes.length &&
+    timingSafeEqual(providedBytes, expectedBytes)
+  )
+}
+
+function isWebhookPayload(value: unknown): value is IncomingDocuSealWebhook {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
 
 /**
- * DocuSeal webhook receiver (REFACTOR.md M3 / US-012).
- *
- * The compatibility path acknowledges downstream failures to avoid retry
- * storms. A selected Core authority returns a terminal failure status without
- * re-entering the legacy writes so the provider can retry safely.
+ * Authenticated DocuSeal ingress only. Core owns every durable business,
+ * notification, and audit write in its single transaction; this route only
+ * verifies the provider secret, normalizes the payload, and sends best-effort
+ * email after Core has committed.
  */
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  const expectedSecret = process.env.DOCUSEAL_WEBHOOK_SECRET
-  if (expectedSecret) {
-    const provided = req.headers.get('x-docuseal-secret')
-    if (provided !== expectedSecret) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+  const expectedSecret = process.env.DOCUSEAL_WEBHOOK_SECRET?.trim()
+  if (!expectedSecret) {
+    return NextResponse.json(
+      { received: false, error: 'DocuSeal webhook is not configured.' },
+      { status: 503 }
+    )
   }
 
-  let payload: DocuSealWebhookPayload
+  if (!matchesSecret(req.headers.get('x-docuseal-secret'), expectedSecret)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  let payload: IncomingDocuSealWebhook
   try {
-    payload = (await req.json()) as DocuSealWebhookPayload
+    const parsed = await req.json()
+    if (!isWebhookPayload(parsed)) {
+      return NextResponse.json(
+        { received: false, error: 'Invalid JSON' },
+        { status: 400 }
+      )
+    }
+    payload = parsed
   } catch {
-    return NextResponse.json({ received: false, error: 'Invalid JSON' }, { status: 200 })
+    return NextResponse.json(
+      { received: false, error: 'Invalid JSON' },
+      { status: 400 }
+    )
   }
 
   if (payload.event !== 'submission.completed') {
-    // Acknowledge non-completion events but take no action.
-    return NextResponse.json({ received: true, ignored: payload.event }, { status: 200 })
-  }
-
-  if (!payload.submission_id) {
-    return NextResponse.json({ received: false, error: 'submission_id missing' }, { status: 200 })
-  }
-
-  try {
-    const [tokenRow] = await db
-      .select({
-        id: bomPortalTokens.id,
-        tenant_id: bomPortalTokens.tenant_id,
-        bom_id: bomPortalTokens.bom_id,
-        used_at: bomPortalTokens.used_at,
-      })
-      .from(bomPortalTokens)
-      .where(eq(bomPortalTokens.docuseal_submission_id, payload.submission_id))
-      .limit(1)
-
-    if (!tokenRow) {
-      return NextResponse.json(
-        { received: true, note: 'no matching portal token' },
-        { status: 200 }
-      )
-    }
-
-    if (docuSealWebhookUseCoreApi(tokenRow.tenant_id)) {
-      const coreCommand = docuSealWebhookCommandSchema.safeParse({
-        event: payload.event,
-        submissionId: payload.submission_id,
-        documents: payload.documents ?? [],
-      })
-      if (!coreCommand.success) {
-        return NextResponse.json(
-          { received: false, error: 'Invalid DocuSeal webhook payload' },
-          { status: 400 }
-        )
-      }
-
-      const coreResult = await processDocuSealWebhookThroughCoreApi(
-        coreCommand.data
-      )
-      if (!coreResult.ok || !coreResult.data) {
-        return NextResponse.json(
-          {
-            received: false,
-            error: coreResult.error ?? 'DocuSeal webhook was not committed.',
-          },
-          { status: coreResult.status ?? 503 }
-        )
-      }
-
-      if (
-        coreResult.data.handled &&
-        !coreResult.data.duplicate &&
-        coreResult.data.projectId &&
-        coreResult.data.tcvCents !== null &&
-        coreResult.data.tenantId
-      ) {
-        const tcvPhp = (coreResult.data.tcvCents / 100).toLocaleString(
-          'en-PH',
-          {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          }
-        )
-        try {
-          await notifyRoles({
-            tenantId: coreResult.data.tenantId,
-            recipientRoles: ['sales', 'commercial', 'admin', 'owner'],
-            subject: `Client signed BOM — ${coreResult.data.projectName ?? 'project'}`,
-            body: `DocuSeal recorded signature for the BOM. TCV: ₱${tcvPhp}.`,
-            linkUrl: `/projects/${coreResult.data.projectId}/bom`,
-            alsoEmail: true,
-            templateId: 'bom-signed',
-            templateVars: {
-              project_name: coreResult.data.projectName ?? 'your project',
-              tcv_php: tcvPhp,
-              project_url: `/projects/${coreResult.data.projectId}`,
-            },
-          })
-        } catch (err) {
-          console.error(
-            '[webhook:docuseal] Core notification delivery failed:',
-            err
-          )
-        }
-      }
-
-      return NextResponse.json({
+    return NextResponse.json(
+      {
         received: true,
-        handled: coreResult.data.handled,
-        duplicate: coreResult.data.duplicate,
-      })
-    }
+        ignored: typeof payload.event === 'string' ? payload.event : null,
+      },
+      { status: 200 }
+    )
+  }
 
-    const now = new Date()
+  const coreCommand = docuSealWebhookCommandSchema.safeParse({
+    event: payload.event,
+    submissionId: payload.submission_id,
+    documents: payload.documents ?? [],
+  })
+  if (!coreCommand.success) {
+    return NextResponse.json(
+      { received: false, error: 'Invalid DocuSeal webhook payload' },
+      { status: 400 }
+    )
+  }
 
-    // Idempotency — only mark used if not already used.
-    if (!tokenRow.used_at) {
-      await db
-        .update(bomPortalTokens)
-        .set({ used_at: now })
-        .where(
-          and(
-            eq(bomPortalTokens.id, tokenRow.id),
-            eq(bomPortalTokens.tenant_id, tokenRow.tenant_id)
-          )
-        )
-    }
+  const coreResult = await processDocuSealWebhookThroughCoreApi(
+    coreCommand.data
+  )
+  if (!coreResult.ok || !coreResult.data) {
+    return NextResponse.json(
+      {
+        received: false,
+        error: coreResult.error ?? 'DocuSeal webhook was not committed.',
+      },
+      { status: coreResult.status ?? 503 }
+    )
+  }
 
-    // Find the parent project for document attachment.
-    const [bomRow] = await db
-      .select({
-        id: boms.id,
-        project_id: boms.project_id,
-        tcv_cents: boms.tcv_cents,
-        project_name: projects.name,
-      })
-      .from(boms)
-      .leftJoin(
-        projects,
-        and(
-          eq(boms.project_id, projects.id),
-          eq(projects.tenant_id, tokenRow.tenant_id)
-        )
-      )
-      .where(
-        and(
-          eq(boms.id, tokenRow.bom_id),
-          eq(boms.tenant_id, tokenRow.tenant_id)
-        )
-      )
-      .limit(1)
-
-    if (bomRow) {
-      // Save signed PDF if present.
-      const signedDoc = payload.documents?.[0]
-      if (signedDoc?.url) {
-        await db.insert(documents).values({
-          tenant_id: tokenRow.tenant_id,
-          project_id: bomRow.project_id,
-          document_type: 'contract',
-          file_name: signedDoc.name ?? `bom-${tokenRow.bom_id}-signed.pdf`,
-          storage_path: signedDoc.url,
-          mime_type: 'application/pdf',
-          size_bytes: 0,
-          description: `DocuSeal-signed BOM (submission ${payload.submission_id})`,
-        })
-      }
-
-      // Lock the BOM.
-      await db
-        .update(boms)
-        .set({ status: 'locked', locked_at: now, updated_at: now })
-        .where(
-          and(
-            eq(boms.id, tokenRow.bom_id),
-            eq(boms.tenant_id, tokenRow.tenant_id)
-          )
-        )
-
-      const tcvPhp = (bomRow.tcv_cents / 100).toLocaleString('en-PH', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })
-
-      await notifyRoles({
-        tenantId: tokenRow.tenant_id,
+  if (
+    coreResult.data.handled &&
+    !coreResult.data.duplicate &&
+    coreResult.data.projectId &&
+    coreResult.data.tcvCents !== null &&
+    coreResult.data.tenantId
+  ) {
+    const tcvPhp = (coreResult.data.tcvCents / 100).toLocaleString('en-PH', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
+    try {
+      await emailRoles({
+        tenantId: coreResult.data.tenantId,
         recipientRoles: ['sales', 'commercial', 'admin', 'owner'],
-        subject: `Client signed BOM — ${bomRow.project_name ?? 'project'}`,
+        subject: `Client signed BOM — ${coreResult.data.projectName ?? 'project'}`,
         body: `DocuSeal recorded signature for the BOM. TCV: ₱${tcvPhp}.`,
-        linkUrl: `/projects/${bomRow.project_id}/bom`,
+        linkUrl: `/projects/${coreResult.data.projectId}/bom`,
         alsoEmail: true,
         templateId: 'bom-signed',
         templateVars: {
-          project_name: bomRow.project_name ?? 'your project',
+          project_name: coreResult.data.projectName ?? 'your project',
           tcv_php: tcvPhp,
-          project_url: `/projects/${bomRow.project_id}`,
+          project_url: `/projects/${coreResult.data.projectId}`,
         },
       })
-
-      await writeAuditLog({
-        tenantId: tokenRow.tenant_id,
-        actorId: tokenRow.bom_id,
-        entityType: 'bom',
-        entityId: tokenRow.bom_id,
-        action: 'lock',
-        diff: {
-          source: 'docuseal_webhook',
-          submission_id: payload.submission_id,
-          signed_document_url: signedDoc?.url ?? null,
-        },
-      })
+    } catch (error) {
+      console.error(
+        JSON.stringify({
+          event: 'docuseal_webhook_email_delivery_failed',
+          tenant_id: coreResult.data.tenantId,
+          project_id: coreResult.data.projectId,
+          error: error instanceof Error ? error.message : 'unknown',
+        })
+      )
     }
-  } catch (err) {
-    // Best-effort logging; webhook still acks 200 to prevent retry storms.
-    // eslint-disable-next-line no-console
-    console.error('[webhook:docuseal] handler error:', err)
   }
 
-  return NextResponse.json({ received: true }, { status: 200 })
+  return NextResponse.json({
+    received: true,
+    handled: coreResult.data.handled,
+    duplicate: coreResult.data.duplicate,
+  })
 }

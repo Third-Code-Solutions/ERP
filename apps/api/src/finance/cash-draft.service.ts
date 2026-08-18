@@ -36,6 +36,7 @@ import {
   DatabaseService,
   type DatabaseTransaction,
 } from '../database/database.service'
+import { databaseErrorMessage } from '../database/database-error'
 
 type DraftRequest = {
   id: string
@@ -93,7 +94,7 @@ function replayDelete(value: unknown): CashTransactionDraftDeleteResult {
 }
 
 function mapDatabaseFailure(error: unknown): never {
-  const message = error instanceof Error ? error.message : ''
+  const message = databaseErrorMessage(error)
   if (message.includes('Active matching Cash Account is required')) {
     throw new ConflictException(message)
   }

@@ -59,6 +59,7 @@ import {
   DatabaseService,
   type DatabaseTransaction,
 } from '../database/database.service'
+import { databaseErrorMessage } from '../database/database-error'
 import {
   BankStatementImportStorageError,
   BankStatementImportStorageService,
@@ -253,7 +254,7 @@ function prepareImportBytes(
 }
 
 function mapDatabaseFailure(error: unknown): never {
-  const message = error instanceof Error ? error.message : ''
+  const message = databaseErrorMessage(error)
   if (message.includes('Bank statement not found')) {
     throw new NotFoundException('Bank statement not found')
   }

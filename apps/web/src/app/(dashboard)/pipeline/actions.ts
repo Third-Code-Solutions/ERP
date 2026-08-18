@@ -381,7 +381,7 @@ export async function advanceOpportunityStage(
       const { convertOpportunityToProject } = await import('@/lib/operations/won-conversion')
       await convertOpportunityToProject(opportunityId, profile.user.id)
     } catch (err) {
-      // eslint-disable-next-line no-console
+
       console.warn('[won-conversion] failed:', err instanceof Error ? err.message : err)
     }
   }

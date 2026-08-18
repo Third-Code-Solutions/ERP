@@ -22,6 +22,7 @@ export const documentUploadCadResultSchema = z
       'ai-not-configured',
       'too-large',
       'parse-failed',
+      'core-unavailable',
       'error',
     ]),
     scopeItemsCreated: z.number().int().nonnegative(),
@@ -48,6 +49,10 @@ export const documentUploadCadResultSchema = z
     bomGpMarginBps: z.number().int().min(-1_000_000).max(1_000_000),
     ragMatches: z.number().int().nonnegative(),
     aiEstimateMatches: z.number().int().nonnegative(),
+    // A document-derived AI candidate is intentionally not an estimate. This
+    // flag tells clients to avoid presenting its zero totals as commercial
+    // pricing and to direct the user to the review/DUPA workflow.
+    unpricedCandidateBom: z.boolean().optional(),
     processingJobId: z.string().uuid().nullable().optional(),
   })
   .strict()

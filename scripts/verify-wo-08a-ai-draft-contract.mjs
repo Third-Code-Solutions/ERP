@@ -11,7 +11,8 @@ import { join } from 'node:path'
 const root = process.cwd()
 const paths = {
   documentBom: join(root, 'apps', 'api', 'src', 'cad', 'document-processing.bom.ts'),
-  autoBom: join(root, 'apps', 'web', 'src', 'lib', 'cad', 'auto-bom.ts'),
+  coreTakeoffImport: join(root, 'apps', 'api', 'src', 'cad', 'takeoff-import.service.ts'),
+  visualExtraction: join(root, 'apps', 'web', 'src', 'lib', 'vision', 'extract-from-visual.ts'),
   actions: join(root, 'apps', 'web', 'src', 'app', '(dashboard)', 'projects', '[id]', 'bom', 'actions.ts'),
   builder: join(root, 'apps', 'web', 'src', 'components', 'bom', 'bom-builder.tsx'),
   migration: join(root, 'supabase', 'migrations', '20260812190000_wo_08_takeoff_importer.sql'),
@@ -29,25 +30,70 @@ function forbid(key, pattern, message) {
   if (pattern.test(source[key])) throw new Error(message)
 }
 
+// The Web AI extractor is evidence-only. It may read the uploaded document
+// and call the model, but all ERP mutations must be delegated to Core.
+for (const fragment of [
+  'executeTakeoffImportThroughCoreApi',
+  "target: 'ai_document'",
+  "source: 'ai-document'",
+  'sourceModel: VISION_MODEL',
+  'drawingRevisionKey: `document:${documentId}`',
+  'AI-derived scope candidates are unpriced',
+  'attach a DUPA before approval',
+]) {
+  requireText('visualExtraction', fragment)
+}
+forbid(
+  'visualExtraction',
+  /from '@third-code-erp\/database(?:\/schema)?'/,
+  'Web AI extraction must not import the ERP database directly',
+)
+forbid(
+  'visualExtraction',
+  /\bdb\.(?:insert|update|delete)\(/,
+  'Web AI extraction must not persist ERP records outside Core',
+)
+
+// ERP Core is the canonical owner of AI-document import, review, provenance,
+// upsert, and audit state. Do not restore the removed direct-Web auto-BOM path.
 for (const fragment of [
   'takeoffImports',
   'takeoffUnresolvedItems',
   'drawingRevisions',
   'validateTakeoffRows',
-  'ai_drafted: true',
+  "parsedCommand.target === 'ai_document'",
+  "roleHasCapability(role, 'document.manage')",
+  'ai_drafted: isAiDocumentCandidate',
+  'source_model: isAiDocumentCandidate',
+  'extraction_timestamp: now',
   "unit_rate_source: 'manual'",
   'unit_cost_cents: 0',
   'line_total_cents: 0',
-  'source_model: sourceModel',
-  'extraction_timestamp: extractedAt',
   'NO_CATALOG_MATCH',
   'MATERIAL_PARENT_REQUIRED',
+  "authority: 'erp_core'",
 ]) {
-  requireText('autoBom', fragment)
+  requireText('coreTakeoffImport', fragment)
 }
-requireText('autoBom', 'Notes intentionally stay untouched')
-forbid('autoBom', /unit_cost_cents:\s*scopeItem\.unit_cost_cents/, 'CAD auto-draft must not copy a source price into the BOM line')
-forbid('autoBom', /line_total_cents:\s*lineTotals/, 'CAD auto-draft must not persist a source-computed price')
+const coreLineStart = source.coreTakeoffImport.indexOf('.insert(bomLineItems)')
+const coreLineEnd = source.coreTakeoffImport.indexOf('.returning({ id: bomLineItems.id })', coreLineStart)
+if (coreLineStart < 0 || coreLineEnd < 0) {
+  throw new Error('ERP Core AI-document BOM line insert could not be located')
+}
+const coreLine = source.coreTakeoffImport.slice(coreLineStart, coreLineEnd)
+if (/recommended_unit_cost_cents/.test(coreLine)) {
+  throw new Error('ERP Core AI-document lines must not persist model rate recommendations')
+}
+forbid(
+  'coreTakeoffImport',
+  /unit_cost_cents:\s*row\.(?:recommended_)?unit_cost_cents/,
+  'ERP Core AI-document import must not copy a source price into the BOM line',
+)
+forbid(
+  'coreTakeoffImport',
+  /line_total_cents:\s*lineTotals/,
+  'ERP Core AI-document import must not persist a source-computed price',
+)
 
 for (const fragment of [
   'takeoffImports',
@@ -94,5 +140,5 @@ requireText('migration', 'new.unit_cost_cents <> 0 or new.line_total_cents <> 0'
 forbid('migration', /drop\s+trigger/i, 'WO-08A must not reintroduce destructive trigger replacement')
 
 console.log(
-  'PASS WO-08A AI/CAD contract: retained drafts use the generic takeoff identity, remain unpriced, enter unresolved review, preserve provenance, and are server-blocked from approval without DUPA',
+  'PASS WO-08A AI/CAD contract: Web extraction delegates to ERP Core; retained drafts remain unpriced, enter unresolved review, preserve provenance, and are server-blocked from approval without DUPA',
 )

@@ -1,8 +1,11 @@
 import 'reflect-metadata'
 
-import { ServiceUnavailableException } from '@nestjs/common'
-import type { ConfigService } from '@nestjs/config'
-import { bomPortalTokens, boms, documents } from '@third-code-erp/database/schema'
+import {
+  bomPortalTokens,
+  boms,
+  documents,
+  notifications,
+} from '@third-code-erp/database/schema'
 import { describe, expect, it, vi } from 'vitest'
 import type { AuditService } from '../audit/audit.service'
 import type { DatabaseService } from '../database/database.service'
@@ -31,22 +34,25 @@ function query(rows: unknown[]) {
 }
 
 function harness({
-  enabled = true,
-  tenantIds = [TENANT_ID],
-  usedAt = null,
-}: {
-  enabled?: boolean
-  tenantIds?: string[]
-  usedAt?: Date | null
-} = {}) {
-  const tokenQuery = query([
+  tokenRows = [
     {
       id: TOKEN_ID,
       tenantId: TENANT_ID,
       bomId: BOM_ID,
-      usedAt,
+      usedAt: null,
     },
-  ])
+  ],
+  usedAt = null,
+}: {
+  tokenRows?: Array<{
+    id: string
+    tenantId: string
+    bomId: string
+    usedAt: Date | null
+  }>
+  usedAt?: Date | null
+} = {}) {
+  const tokenQuery = query(tokenRows.map((token) => ({ ...token, usedAt })))
   const bomQuery = query([
     {
       id: BOM_ID,
@@ -57,9 +63,19 @@ function harness({
       projectName: 'Fit-out',
     },
   ])
+  const recipientQuery = {
+    from: vi.fn(),
+    where: vi.fn().mockResolvedValue([
+      {
+        id: '66666666-6666-4666-8666-666666666666',
+        email: 'sales@example.test',
+      },
+    ]),
+  }
+  recipientQuery.from.mockReturnValue(recipientQuery)
   let selectCount = 0
   const select = vi.fn(() => {
-    const result = selectCount++ === 0 ? tokenQuery : bomQuery
+    const result = [tokenQuery, bomQuery, recipientQuery][selectCount++] ?? recipientQuery
     return result
   })
   const updateWhere = vi.fn().mockResolvedValue([])
@@ -76,18 +92,11 @@ function harness({
         callback(transactionClient)
     )
   const database = { client: { transaction } } as unknown as DatabaseService
-  const config = {
-    get: vi.fn((key: string, fallback: unknown) => {
-      if (key === 'ERP_DOCUSEAL_WEBHOOK_ENABLED') return enabled
-      if (key === 'ERP_DOCUSEAL_WEBHOOK_TENANT_IDS') return tenantIds
-      return fallback
-    }),
-  } as unknown as ConfigService
   const audit = {
     writeSemantic: vi.fn().mockResolvedValue(undefined),
   } as unknown as AuditService
   return {
-    service: new DocuSealWebhookService(config, database, audit),
+    service: new DocuSealWebhookService(database, audit),
     transaction,
     select,
     update,
@@ -98,12 +107,16 @@ function harness({
 }
 
 describe('DocuSeal webhook authority', () => {
-  it('fails closed before touching the database', async () => {
-    const probe = harness({ enabled: false })
-    await expect(probe.service.handle(COMMAND)).rejects.toBeInstanceOf(
-      ServiceUnavailableException
-    )
-    expect(probe.transaction).not.toHaveBeenCalled()
+  it('ignores an unmatched submission without any mutation', async () => {
+    const probe = harness({ tokenRows: [] })
+    await expect(probe.service.handle(COMMAND)).resolves.toMatchObject({
+      received: true,
+      handled: false,
+      duplicate: false,
+    })
+    expect(probe.update).not.toHaveBeenCalled()
+    expect(probe.insert).not.toHaveBeenCalled()
+    expect(probe.audit.writeSemantic).not.toHaveBeenCalled()
   })
 
   it('locks the tenant BOM, stores the signed document, and audits the webhook', async () => {
@@ -118,6 +131,7 @@ describe('DocuSeal webhook authority', () => {
       tcvCents: 125_000,
     })
     expect(probe.insert).toHaveBeenCalledWith(documents)
+    expect(probe.insert).toHaveBeenCalledWith(notifications)
     expect(probe.update).toHaveBeenCalledWith(bomPortalTokens)
     expect(probe.update).toHaveBeenCalledWith(boms)
     expect(probe.audit.writeSemantic).toHaveBeenCalledWith(
@@ -144,12 +158,4 @@ describe('DocuSeal webhook authority', () => {
     expect(probe.audit.writeSemantic).not.toHaveBeenCalled()
   })
 
-  it('does not reveal or write for a tenant outside the exact allowlist', async () => {
-    const probe = harness({ tenantIds: [] })
-    await expect(probe.service.handle(COMMAND)).rejects.toBeInstanceOf(
-      ServiceUnavailableException
-    )
-    expect(probe.update).not.toHaveBeenCalled()
-    expect(probe.insert).not.toHaveBeenCalled()
-  })
 })

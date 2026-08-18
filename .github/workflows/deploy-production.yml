@@ -87,8 +87,10 @@ jobs:
           pnpm verify:build-ops-invariants
           pnpm ci:actionlint
           pnpm verify:workflow-action-refs
+          pnpm lint
           pnpm turbo typecheck
-          pnpm turbo test
+          pnpm test:database-repro-policy-contract
+          pnpm test
           pnpm build
 
       - name: Verify exact Supabase migration target
@@ -158,10 +160,23 @@ jobs:
           E2E_MAGIC_LINK_AUTH: "1"
           E2E_ROLE_MATRIX_AUTH: "1"
           PLAYWRIGHT_BASE_URL: https://thirdcode-erp.vercel.app
-        run: >-
-          pnpm exec playwright test
-          e2e/branding-authenticated.spec.ts
-          e2e/smoke-console.spec.ts
-          e2e/role-access-production.spec.ts
-          e2e/cad-worker-production.spec.ts
-          --project=chromium --workers=1 --reporter=line
+        shell: bash
+        run: |
+          set -euo pipefail
+          report_path="$GITHUB_WORKSPACE/tmp/production-e2e/playwright.json"
+          mkdir -p "$(dirname "$report_path")"
+          pnpm exec playwright test \
+            e2e/branding-authenticated.spec.ts \
+            e2e/smoke-console.spec.ts \
+            e2e/role-access-production.spec.ts \
+            e2e/cad-worker-production.spec.ts \
+            --project=chromium --workers=1 --reporter=json > "$report_path"
+          node "$GITHUB_WORKSPACE/scripts/assert-playwright-no-skips.mjs" \
+            "$report_path" "authenticated production E2E"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: production-playwright-report
+          path: tmp/production-e2e/
+          retention-days: 14

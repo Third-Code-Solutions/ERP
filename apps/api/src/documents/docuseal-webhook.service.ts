@@ -1,14 +1,11 @@
-import {
-  Inject,
-  Injectable,
-  ServiceUnavailableException,
-} from '@nestjs/common'
-import { ConfigService } from '@nestjs/config'
+import { Inject, Injectable } from '@nestjs/common'
 import {
   bomPortalTokens,
   boms,
   documents,
+  notifications,
   projects,
+  users,
 } from '@third-code-erp/database/schema'
 import {
   docuSealWebhookCommandSchema,
@@ -16,7 +13,7 @@ import {
   type DocuSealWebhookCommand,
   type DocuSealWebhookResult,
 } from '@third-code-erp/shared-types'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { AuditService } from '../audit/audit.service'
 import { DatabaseService } from '../database/database.service'
 
@@ -34,10 +31,16 @@ function emptyResult(): DocuSealWebhookResult {
   }
 }
 
+const DOCUSEAL_NOTIFICATION_ROLES = [
+  'sales',
+  'commercial',
+  'admin',
+  'owner',
+] as const
+
 @Injectable()
 export class DocuSealWebhookService {
   constructor(
-    @Inject(ConfigService) private readonly config: ConfigService,
     @Inject(DatabaseService) private readonly database: DatabaseService,
     @Inject(AuditService) private readonly audit: AuditService
   ) {}
@@ -49,7 +52,6 @@ export class DocuSealWebhookService {
     if (parsedCommand.event !== 'submission.completed') {
       return emptyResult()
     }
-    this.assertGloballyEnabled()
 
     return this.database.client.transaction(async (transaction) => {
       const [token] = await transaction
@@ -70,7 +72,6 @@ export class DocuSealWebhookService {
         .for('update')
 
       if (!token) return emptyResult()
-      this.assertTenantEnabled(token.tenantId)
 
       const [bom] = await transaction
         .select({
@@ -164,6 +165,35 @@ export class DocuSealWebhookService {
           )
         )
 
+      const recipients = await transaction
+        .select({ id: users.id, email: users.email })
+        .from(users)
+        .where(
+          and(
+            eq(users.tenant_id, token.tenantId),
+            inArray(users.role, DOCUSEAL_NOTIFICATION_ROLES)
+          )
+        )
+
+      if (recipients.length > 0) {
+        await transaction.insert(notifications).values(
+          recipients.map((recipient) => ({
+            tenant_id: token.tenantId,
+            recipient_user_id: recipient.id,
+            recipient_email: recipient.email,
+            channel: 'in_app' as const,
+            subject: `Client signed BOM — ${bom.projectName}`,
+            body: `DocuSeal recorded signature for the BOM. TCV: ₱${(
+              bom.tcvCents / 100
+            ).toLocaleString('en-PH', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}.`,
+            link_url: `/projects/${bom.projectId}/bom`,
+          }))
+        )
+      }
+
       await this.audit.writeSemantic(transaction, {
         tenantId: token.tenantId,
         actorId: null,
@@ -180,29 +210,5 @@ export class DocuSealWebhookService {
 
       return docuSealWebhookResultSchema.parse(baseResult)
     })
-  }
-
-  private assertGloballyEnabled(): void {
-    const enabled = this.config.get<boolean>(
-      'ERP_DOCUSEAL_WEBHOOK_ENABLED',
-      false
-    )
-    if (!enabled) {
-      throw new ServiceUnavailableException(
-        'DocuSeal webhook authority is not enabled.'
-      )
-    }
-  }
-
-  private assertTenantEnabled(tenantId: string): void {
-    const tenantIds = this.config.get<string[]>(
-      'ERP_DOCUSEAL_WEBHOOK_TENANT_IDS',
-      []
-    )
-    if (!tenantIds.includes(tenantId)) {
-      throw new ServiceUnavailableException(
-        'DocuSeal webhook authority is not enabled for this tenant.'
-      )
-    }
   }
 }

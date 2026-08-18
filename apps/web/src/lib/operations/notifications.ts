@@ -75,10 +75,7 @@ export async function notifyUser(d: DispatchToUser): Promise<void> {
 }
 
 export async function notifyRoles(d: DispatchToRole): Promise<void> {
-  const recipients = await db
-    .select({ id: users.id, email: users.email })
-    .from(users)
-    .where(and(eq(users.tenant_id, d.tenantId), inArray(users.role, d.recipientRoles)))
+  const recipients = await findRoleRecipients(d.tenantId, d.recipientRoles)
 
   if (recipients.length === 0) return
 
@@ -95,14 +92,17 @@ export async function notifyRoles(d: DispatchToRole): Promise<void> {
     }))
   )
 
-  if (d.alsoEmail && d.templateId && d.templateVars) {
-    for (const r of recipients) {
-      await attemptEmailDelivery(r.email, d.templateId, d.templateVars, {
-        tenant_id: d.tenantId,
-        recipient_user_id: r.id,
-      })
-    }
-  }
+  await sendRoleEmails(recipients, d)
+}
+
+/**
+ * Sends role-targeted email only. Use this after a Core transaction has
+ * already created its durable in-app notifications; this helper must never
+ * become a second Web mutation authority.
+ */
+export async function emailRoles(d: DispatchToRole): Promise<void> {
+  const recipients = await findRoleRecipients(d.tenantId, d.recipientRoles)
+  await sendRoleEmails(recipients, d)
 }
 
 export async function notifyExternalEmail(
@@ -173,6 +173,37 @@ async function attemptEmailDelivery(
       recipient_kind: 'user',
     })
     return false
+  }
+}
+
+async function findRoleRecipients(
+  tenantId: string,
+  recipientRoles: AppRole[]
+): Promise<Array<{ id: string; email: string }>> {
+  return db
+    .select({ id: users.id, email: users.email })
+    .from(users)
+    .where(and(eq(users.tenant_id, tenantId), inArray(users.role, recipientRoles)))
+}
+
+async function sendRoleEmails(
+  recipients: Array<{ id: string; email: string }>,
+  dispatch: DispatchToRole
+): Promise<void> {
+  if (!dispatch.alsoEmail || !dispatch.templateId || !dispatch.templateVars) {
+    return
+  }
+
+  for (const recipient of recipients) {
+    await attemptEmailDelivery(
+      recipient.email,
+      dispatch.templateId,
+      dispatch.templateVars,
+      {
+        tenant_id: dispatch.tenantId,
+        recipient_user_id: recipient.id,
+      }
+    )
   }
 }
 

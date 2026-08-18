@@ -1,9 +1,6 @@
 import { createSupabaseServerClient } from '@third-code-erp/auth'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  cadEvidenceCommitWritesUseCoreApi,
-  commitCadEvidenceThroughCoreApi,
-} from './erp-core-client'
+import { commitCadEvidenceThroughCoreApi } from './erp-core-client'
 
 vi.mock('@third-code-erp/auth', () => ({
   createSupabaseServerClient: vi.fn(),
@@ -60,18 +57,6 @@ describe('CAD evidence Core client', () => {
     vi.unstubAllEnvs()
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
-  })
-
-  it('selects only an exact allowlisted tenant', () => {
-    expect(cadEvidenceCommitWritesUseCoreApi(TENANT_ID)).toBe(false)
-
-    vi.stubEnv('ERP_CAD_EVIDENCE_COMMIT_WRITES_VIA_API', 'true')
-    vi.stubEnv('ERP_CAD_EVIDENCE_COMMIT_WRITES_VIA_API_TENANT_IDS', TENANT_ID)
-    expect(cadEvidenceCommitWritesUseCoreApi(TENANT_ID)).toBe(true)
-    expect(cadEvidenceCommitWritesUseCoreApi('not-a-uuid')).toBe(false)
-
-    vi.stubEnv('ERP_CAD_EVIDENCE_COMMIT_WRITES_VIA_API_TENANT_IDS', '*')
-    expect(cadEvidenceCommitWritesUseCoreApi(TENANT_ID)).toBe(false)
   })
 
   it('sends an authenticated idempotent command and validates Core result', async () => {

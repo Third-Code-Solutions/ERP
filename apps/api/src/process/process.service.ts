@@ -45,7 +45,7 @@ import {
   type DecideApprovalCommand,
   type BusinessDayService,
 } from '@third-code-erp/shared-types'
-import { and, asc, eq, lt, ne, notInArray } from 'drizzle-orm'
+import { and, asc, eq, lt, notInArray } from 'drizzle-orm'
 import { z } from 'zod'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import { AuditService } from '../audit/audit.service'

@@ -78,8 +78,6 @@ import {
   financePayablesReadsUseCoreApi,
   financeCashReadsUseCoreApi,
   financeReconciliationReadsUseCoreApi,
-  notificationReadStateUseCoreApi,
-  docuSealWebhookUseCoreApi,
   assetReadsUseCoreApi,
   assetMaintenanceReadsUseCoreApi,
   assetMaintenanceCreateWritesUseCoreApi,
@@ -136,12 +134,9 @@ import {
   reverseJournalEntryThroughCoreApi,
   documentProcessingJobsUseCoreApi,
   documentDeleteWritesUseCoreApi,
-  documentIntakeWritesUseCoreApi,
-  documentIntakeCanarySupportsUpload,
-  documentIntakeCanarySelectedForUpload,
   deleteDocumentThroughCoreApi,
   createDocumentThroughCoreApi,
-  completeDocumentUploadThroughCoreCanary,
+  createInspectionPhotoThroughCoreApi,
   publicSigningWritesUseCoreApi,
   signPublicSignatureThroughCoreApi,
   enqueueDocumentProcessingThroughCoreApi,
@@ -197,6 +192,16 @@ const DOCUMENT_INTAKE_RESULT = {
   documentType: 'pdf' as const,
   status: 'created' as const,
   created: true,
+}
+const INSPECTION_PHOTO_RESULT = {
+  documentId: DOCUMENT_ID,
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  opportunityId: '33333333-3333-4333-8333-333333333333',
+  projectId: null,
+  storagePath:
+    '22222222-2222-4222-8222-222222222222/opportunities/33333333-3333-4333-8333-333333333333/inspection/photo.jpg',
+  fileName: 'photo.jpg',
+  status: 'created' as const,
 }
 const RFQ_ID = '44444444-4444-4444-8444-444444444444'
 const RFQ_CREATE_RESULT = {
@@ -2527,23 +2532,6 @@ describe('ERP Core client', () => {
     )
   })
 
-  it('keeps notification authority closed unless the exact tenant gate matches', () => {
-    expect(notificationReadStateUseCoreApi(RESULT.tenantId)).toBe(false)
-    vi.stubEnv('ERP_NOTIFICATION_READ_STATE_VIA_API', 'true')
-    vi.stubEnv(
-      'ERP_NOTIFICATION_READ_STATE_VIA_API_TENANT_IDS',
-      RESULT.tenantId
-    )
-    expect(notificationReadStateUseCoreApi(RESULT.tenantId)).toBe(true)
-
-    vi.stubEnv('ERP_NOTIFICATION_READ_STATE_VIA_API', 'TRUE')
-    expect(notificationReadStateUseCoreApi(RESULT.tenantId)).toBe(false)
-    vi.stubEnv('ERP_NOTIFICATION_READ_STATE_VIA_API', 'true')
-    vi.stubEnv('ERP_NOTIFICATION_READ_STATE_VIA_API_TENANT_IDS', '*')
-    expect(notificationReadStateUseCoreApi(RESULT.tenantId)).toBe(false)
-    expect(notificationReadStateUseCoreApi('not-a-uuid')).toBe(false)
-  })
-
   it('reads and updates notifications through the authenticated Core boundary', async () => {
     const fetchMock = vi
       .fn()
@@ -2595,20 +2583,6 @@ describe('ERP Core client', () => {
         }),
       })
     )
-  })
-
-  it('keeps the DocuSeal webhook authority closed unless the exact tenant gate matches', () => {
-    expect(docuSealWebhookUseCoreApi(RESULT.tenantId)).toBe(false)
-    vi.stubEnv('ERP_DOCUSEAL_WEBHOOK_VIA_API', 'true')
-    vi.stubEnv('ERP_DOCUSEAL_WEBHOOK_VIA_API_TENANT_IDS', RESULT.tenantId)
-    expect(docuSealWebhookUseCoreApi(RESULT.tenantId)).toBe(true)
-
-    vi.stubEnv('ERP_DOCUSEAL_WEBHOOK_VIA_API', 'TRUE')
-    expect(docuSealWebhookUseCoreApi(RESULT.tenantId)).toBe(false)
-    vi.stubEnv('ERP_DOCUSEAL_WEBHOOK_VIA_API', 'true')
-    vi.stubEnv('ERP_DOCUSEAL_WEBHOOK_VIA_API_TENANT_IDS', '*')
-    expect(docuSealWebhookUseCoreApi(RESULT.tenantId)).toBe(false)
-    expect(docuSealWebhookUseCoreApi('not-a-uuid')).toBe(false)
   })
 
   it('uses the internal token for DocuSeal Core processing and validates replay metadata', async () => {
@@ -4475,23 +4449,6 @@ describe('ERP Core client', () => {
     expect(documentDeleteWritesUseCoreApi('not-a-uuid')).toBe(false)
   })
 
-  it('keeps document intake delegation fail-closed unless its exact gate matches', () => {
-    vi.stubEnv('ERP_DOCUMENT_INTAKE_WRITES_VIA_API', 'true')
-    vi.stubEnv(
-      'ERP_DOCUMENT_INTAKE_WRITES_VIA_API_TENANT_IDS',
-      RESULT.tenantId
-    )
-    expect(documentIntakeWritesUseCoreApi(RESULT.tenantId)).toBe(true)
-
-    vi.stubEnv('ERP_DOCUMENT_INTAKE_WRITES_VIA_API', 'TRUE')
-    expect(documentIntakeWritesUseCoreApi(RESULT.tenantId)).toBe(false)
-
-    vi.stubEnv('ERP_DOCUMENT_INTAKE_WRITES_VIA_API', 'true')
-    vi.stubEnv('ERP_DOCUMENT_INTAKE_WRITES_VIA_API_TENANT_IDS', '*')
-    expect(documentIntakeWritesUseCoreApi(RESULT.tenantId)).toBe(true)
-    expect(documentIntakeWritesUseCoreApi('not-a-uuid')).toBe(false)
-  })
-
   it('sends an idempotent document deletion and validates the result', async () => {
     const result = {
       documentId: DOCUMENT_ID,
@@ -4592,142 +4549,40 @@ describe('ERP Core client', () => {
       )
     ).resolves.toEqual({
       ok: false,
-      error: 'Document intake is not enabled for this tenant.',
+      error: 'ERP Core is unavailable. No document was recorded.',
       status: 503,
     })
   })
 
-  it('keeps the upload canary limited to non-extractor formats', () => {
-    expect(
-      documentIntakeCanarySupportsUpload({
-        fileName: 'notes.txt',
-        mimeType: 'text/plain',
-      })
-    ).toBe(true)
-    for (const upload of [
-      { fileName: 'drawing.pdf', mimeType: 'application/pdf' },
-      { fileName: 'drawing.dwg', mimeType: 'application/acad' },
-      { fileName: 'site.png', mimeType: 'image/png' },
-      { fileName: 'estimate.xlsx', mimeType: 'application/vnd.ms-excel' },
-    ]) {
-      expect(documentIntakeCanarySupportsUpload(upload)).toBe(false)
-    }
-    vi.stubEnv('ERP_DOCUMENT_INTAKE_WRITES_VIA_API', 'true')
-    vi.stubEnv(
-      'ERP_DOCUMENT_INTAKE_WRITES_VIA_API_TENANT_IDS',
-      RESULT.tenantId
-    )
-    expect(
-      documentIntakeCanarySelectedForUpload(RESULT.tenantId, {
-        fileName: 'notes.txt',
-        mimeType: 'text/plain',
-      })
-    ).toBe(true)
-    expect(
-      documentIntakeCanarySelectedForUpload(RESULT.tenantId, {
-        fileName: 'drawing.pdf',
-        mimeType: 'application/pdf',
-      })
-    ).toBe(false)
-  })
-
-  it('fails closed before fetch when the upload canary gate is off', async () => {
-    const fetchMock = vi.fn()
-    vi.stubGlobal('fetch', fetchMock)
-
-    await expect(
-      completeDocumentUploadThroughCoreCanary(
-        {
-          storagePath: `${RESULT.tenantId}/${PROJECT_ID}/notes.txt`,
-          projectId: PROJECT_ID,
-          fileName: 'notes.txt',
-          mimeType: 'text/plain',
-          sizeBytes: 1,
-        },
-        RESULT.tenantId,
-        'document-intake-canary-off'
-      )
-    ).resolves.toEqual({
-      ok: false,
-      error: 'Document intake canary is not enabled for this tenant.',
-      status: 503,
-    })
-    expect(fetchMock).not.toHaveBeenCalled()
-  })
-
-  it('maps a successful Core intake to the frozen legacy upload response', async () => {
-    vi.stubEnv('ERP_DOCUMENT_INTAKE_WRITES_VIA_API', 'true')
-    vi.stubEnv(
-      'ERP_DOCUMENT_INTAKE_WRITES_VIA_API_TENANT_IDS',
-      RESULT.tenantId
-    )
+  it('sends validated opportunity inspection-photo metadata to Core', async () => {
     const command = {
-      storagePath: `${RESULT.tenantId}/${PROJECT_ID}/notes.txt`,
-      projectId: PROJECT_ID,
-      fileName: 'notes.txt',
-      mimeType: 'text/plain',
+      opportunityId: INSPECTION_PHOTO_RESULT.opportunityId,
+      storagePath: INSPECTION_PHOTO_RESULT.storagePath,
+      fileName: INSPECTION_PHOTO_RESULT.fileName,
+      mimeType: 'image/jpeg' as const,
       sizeBytes: 1,
+      caption: 'Front elevation',
     }
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          ...DOCUMENT_INTAKE_RESULT,
-          storagePath: command.storagePath,
-          projectId: command.projectId,
-          documentType: 'other',
-        }),
-        { status: 201, headers: { 'content-type': 'application/json' } }
-      )
+      new Response(JSON.stringify(INSPECTION_PHOTO_RESULT), {
+        status: 201,
+        headers: { 'content-type': 'application/json' },
+      })
     )
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(
-      completeDocumentUploadThroughCoreCanary(
-        command,
-        RESULT.tenantId,
-        'document-intake-canary-1'
-      )
-    ).resolves.toEqual({
+    await expect(createInspectionPhotoThroughCoreApi(command)).resolves.toEqual({
       ok: true,
-      data: {
-        id: DOCUMENT_ID,
-        storagePath: command.storagePath,
-        documentType: 'other',
-        cadFormat: null,
-        cadParseQueued: false,
-      },
+      data: INSPECTION_PHOTO_RESULT,
       status: 201,
     })
-  })
-
-  it('returns Core outage without falling back through the upload canary', async () => {
-    vi.stubEnv('ERP_DOCUMENT_INTAKE_WRITES_VIA_API', 'true')
-    vi.stubEnv(
-      'ERP_DOCUMENT_INTAKE_WRITES_VIA_API_TENANT_IDS',
-      RESULT.tenantId
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/opportunities/${command.opportunityId}/inspection-photos`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify(command),
+      })
     )
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(new Response('unavailable', { status: 503 }))
-    )
-
-    await expect(
-      completeDocumentUploadThroughCoreCanary(
-        {
-          storagePath: `${RESULT.tenantId}/${PROJECT_ID}/notes.txt`,
-          projectId: PROJECT_ID,
-          fileName: 'notes.txt',
-          mimeType: 'text/plain',
-          sizeBytes: 1,
-        },
-        RESULT.tenantId,
-        'document-intake-canary-2'
-      )
-    ).resolves.toEqual({
-      ok: false,
-      error: 'Document intake is not enabled for this tenant.',
-      status: 503,
-    })
   })
 
   it('keeps public signing delegation fail-closed unless its exact gate matches', () => {

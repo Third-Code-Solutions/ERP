@@ -1,7 +1,5 @@
 import 'reflect-metadata'
 
-import { ServiceUnavailableException } from '@nestjs/common'
-import { ConfigService } from '@nestjs/config'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import { describe, expect, it, vi } from 'vitest'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
@@ -59,7 +57,7 @@ function updateChain(
   return query
 }
 
-function enabledHarness() {
+function notificationHarness() {
   const whereCalls = vi.fn()
   const select = vi.fn().mockReturnValue(selectChain([ROW], whereCalls))
   const update = vi
@@ -76,19 +74,12 @@ function enabledHarness() {
       ),
     },
   } as unknown as DatabaseService
-  const config = {
-    get: vi.fn((key: string, fallback: unknown) => {
-      if (key === 'ERP_NOTIFICATION_READ_STATE_ENABLED') return true
-      if (key === 'ERP_NOTIFICATION_READ_STATE_TENANT_IDS') return [TENANT_ID]
-      return fallback
-    }),
-  } as unknown as ConfigService
   const audit = {
     stampActor: vi.fn().mockResolvedValue(undefined),
     writeSemantic: vi.fn().mockResolvedValue(undefined),
   } as unknown as AuditService
   return {
-    service: new NotificationsService(config, database, audit),
+    service: new NotificationsService(database, audit),
     select,
     update,
     whereCalls,
@@ -97,36 +88,8 @@ function enabledHarness() {
 }
 
 describe('NotificationsService', () => {
-  it('fails closed before reading or updating the database', async () => {
-    const select = vi.fn()
-    const transaction = vi.fn()
-    const config = {
-      get: vi.fn((_key: string, fallback: unknown) => fallback),
-    } as unknown as ConfigService
-    const database = {
-      client: { select, transaction },
-    } as unknown as DatabaseService
-    const audit = {
-      stampActor: vi.fn(),
-      writeSemantic: vi.fn(),
-    } as unknown as AuditService
-    const service = new NotificationsService(config, database, audit)
-
-    await expect(service.list(PRINCIPAL)).rejects.toBeInstanceOf(
-      ServiceUnavailableException
-    )
-    await expect(
-      service.markReadState(
-        { action: 'mark_read', id: NOTIFICATION_ID },
-        PRINCIPAL
-      )
-    ).rejects.toBeInstanceOf(ServiceUnavailableException)
-    expect(select).not.toHaveBeenCalled()
-    expect(transaction).not.toHaveBeenCalled()
-  })
-
-  it('lists only tenant/user notifications with a bounded result', async () => {
-    const probe = enabledHarness()
+  it('lists only tenant/user notifications with a bounded result without a rollout gate', async () => {
+    const probe = notificationHarness()
     await expect(probe.service.list(PRINCIPAL)).resolves.toMatchObject({
       unread: 1,
       items: [expect.objectContaining({ id: NOTIFICATION_ID })],
@@ -139,7 +102,7 @@ describe('NotificationsService', () => {
   })
 
   it('audits a user-scoped read-state update without leaking cross-tenant rows', async () => {
-    const probe = enabledHarness()
+    const probe = notificationHarness()
     await expect(
       probe.service.markReadState(
         { action: 'mark_read', id: NOTIFICATION_ID },

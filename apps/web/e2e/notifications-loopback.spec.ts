@@ -29,7 +29,7 @@ interface HarnessState {
   auditEntries: Array<Record<string, unknown>>
 }
 
-test('proves Core notification read-state branch and tenant isolation', async ({
+test('proves Core notification authority and tenant isolation', async ({
   page,
 }, testInfo) => {
   testInfo.setTimeout(120_000)
@@ -136,17 +136,30 @@ test('proves Core notification read-state branch and tenant isolation', async ({
   await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible()
 
   const notificationButton = page.getByRole('button', {
-    name: /Notifications \(2 unread\)/,
+    name: /^Notifications(?: \(\d+ unread\))?$/,
   })
   await expect(notificationButton).toBeVisible({ timeout: 30_000 })
+
+  const beforeOpenStateResponse = await page.request.get(
+    `${AUTH_ORIGIN}/__harness__/state`
+  )
+  expect(beforeOpenStateResponse.ok()).toBe(true)
+  const beforeOpenState = (await beforeOpenStateResponse.json()) as HarnessState
+  expect(
+    beforeOpenState.coreRequests.filter(
+      (request) => request.path === '/v1/notifications'
+    )
+  ).toHaveLength(0)
+
   await notificationButton.click()
 
   const dialog = page.getByRole('dialog', { name: 'Notifications' })
   await expect(dialog).toBeVisible()
-  await expect(dialog.getByText('Core notification canary', { exact: true })).toBeVisible()
+  await expect(dialog.getByText('Core notification authority', { exact: true })).toBeVisible()
   await expect(dialog.getByText('Unread follow-up', { exact: true })).toBeVisible()
   await expect(dialog.getByText('Already seen', { exact: true })).toBeVisible()
   await expect(dialog.getByText('2 unread', { exact: true })).toBeVisible()
+  await expect(notificationButton).toHaveAccessibleName('Notifications (2 unread)')
 
   await dialog.getByRole('button', { name: 'Mark read' }).first().click()
   await expect(dialog.getByText('1 unread', { exact: true })).toBeVisible()
@@ -212,11 +225,7 @@ test('proves Core notification read-state branch and tenant isolation', async ({
     ])
   )
   expect(consoleErrors).toEqual([])
-  expect(blockedExternalRequests).toEqual(
-    expect.arrayContaining([
-      'https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,700&display=swap',
-    ])
-  )
+  expect(blockedExternalRequests).toEqual([])
 
   for (const viewport of [
     { name: 'desktop', width: 1440, height: 1000 },

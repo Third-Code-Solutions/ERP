@@ -1,10 +1,6 @@
 import 'reflect-metadata'
 
-import {
-  ForbiddenException,
-  ServiceUnavailableException,
-} from '@nestjs/common'
-import type { ConfigService } from '@nestjs/config'
+import { ForbiddenException } from '@nestjs/common'
 import {
   documentIntakeRequests,
   documents,
@@ -32,20 +28,6 @@ const COMMAND = {
   mimeType: 'application/octet-stream',
   sizeBytes: 1024,
   description: 'Approved drawing',
-}
-
-function disabledService(enabled = false, tenantIds: string[] = []) {
-  const config = {
-    get: vi.fn((key: string) =>
-      key === 'ERP_DOCUMENT_INTAKE_WRITES_ENABLED' ? enabled : tenantIds
-    ),
-  } as unknown as ConfigService
-  const transaction = vi.fn()
-  const database = { client: { transaction } } as unknown as DatabaseService
-  return {
-    service: new DocumentIntakeService(config, database, {} as AuditService),
-    transaction,
-  }
 }
 
 function enabledHarness() {
@@ -121,18 +103,8 @@ function enabledHarness() {
     stampActor: vi.fn().mockResolvedValue(undefined),
     writeSemantic: vi.fn().mockResolvedValue(undefined),
   } as unknown as AuditService
-  const config = {
-    get: vi.fn((key: string, fallback: unknown) =>
-      key === 'ERP_DOCUMENT_INTAKE_WRITES_ENABLED'
-        ? true
-        : key === 'ERP_DOCUMENT_INTAKE_WRITES_TENANT_IDS'
-          ? [PRINCIPAL.tenantId]
-          : fallback
-    ),
-  } as unknown as ConfigService
-
   return {
-    service: new DocumentIntakeService(config, database, audit),
+    service: new DocumentIntakeService(database, audit),
     transaction,
     select,
     insert,
@@ -142,24 +114,7 @@ function enabledHarness() {
   }
 }
 
-describe('DocumentIntakeService migration boundary', () => {
-  it('fails closed by default without touching the database', async () => {
-    const probe = disabledService()
-    await expect(
-      probe.service.create(COMMAND, PRINCIPAL, 'intake-1')
-    ).rejects.toBeInstanceOf(ServiceUnavailableException)
-    expect(probe.transaction).not.toHaveBeenCalled()
-  })
-
-  it('requires an exact tenant allowlist before opening a transaction', async () => {
-    const probe = disabledService(true)
-    await expect(
-      probe.service.create(COMMAND, PRINCIPAL, 'intake-1')
-    ).rejects.toThrow(
-      'Document intake workflow is not enabled for this tenant; no document was created.'
-    )
-    expect(probe.transaction).not.toHaveBeenCalled()
-  })
+describe('DocumentIntakeService Core authority', () => {
 
   it('creates one tenant-scoped document and records an audit event', async () => {
     const probe = enabledHarness()
@@ -205,6 +160,22 @@ describe('DocumentIntakeService migration boundary', () => {
         { ...COMMAND, storagePath: `other/${PROJECT_ID}/drawing.dwg` },
         PRINCIPAL,
         'intake-2'
+      )
+    ).rejects.toBeInstanceOf(ForbiddenException)
+    expect(probe.insert).not.toHaveBeenCalled()
+    expect(probe.audit.writeSemantic).not.toHaveBeenCalled()
+  })
+
+  it('rejects a traversal segment even when the raw prefix matches', async () => {
+    const probe = enabledHarness()
+    await expect(
+      probe.service.create(
+        {
+          ...COMMAND,
+          storagePath: `${PRINCIPAL.tenantId}/${PROJECT_ID}/../other/drawing.dwg`,
+        },
+        PRINCIPAL,
+        'intake-3'
       )
     ).rejects.toBeInstanceOf(ForbiddenException)
     expect(probe.insert).not.toHaveBeenCalled()

@@ -46,7 +46,7 @@ const ZERO_UUID = '00000000-0000-0000-0000-000000000000'
 const suite = DATABASE_URL ? describe : describe.skip
 
 if (!DATABASE_URL) {
-  // eslint-disable-next-line no-console
+
   console.warn('[cortex-substrate] DATABASE_URL not set — skipping Cortex substrate suite')
 }
 

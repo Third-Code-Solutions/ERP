@@ -371,7 +371,9 @@ export function CadDropZone({
               fontWeight: 500,
             }}
           >
-            View the new draft BOM →
+            {lastResult.cadResult.unpricedCandidateBom
+              ? 'View the unpriced candidate BOM →'
+              : 'View the new draft BOM →'}
           </p>
         ) : null}
       </div>

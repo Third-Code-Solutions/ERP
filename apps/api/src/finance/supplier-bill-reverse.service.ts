@@ -29,6 +29,7 @@ import {
   DatabaseService,
   type DatabaseTransaction,
 } from '../database/database.service'
+import { databaseErrorMessage } from '../database/database-error'
 
 function canonicalJson(value: unknown): string {
   if (value === null || typeof value !== 'object') {
@@ -72,7 +73,7 @@ function replayResult(value: unknown): SupplierBillReverseResult {
 }
 
 function mapDatabaseFailure(error: unknown): never {
-  const message = error instanceof Error ? error.message : ''
+  const message = databaseErrorMessage(error)
   if (message.includes('Supplier bill not found')) {
     throw new NotFoundException('Supplier bill not found')
   }

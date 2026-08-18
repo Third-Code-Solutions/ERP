@@ -1,5 +1,8 @@
 # Web Database Boundary Review
 
+> Historical sections below describe the incremental route migrations. The
+> current inventory supersedes those older notes.
+
 ## M3.217 CAD evidence producer boundary
 
 The selected CAD upload path parses evidence without Web scope/BOM writes, then
@@ -53,18 +56,14 @@ compatible while direct authorities are migrated incrementally into Nest.
 
 ## Current inventory
 
-Direct Web writes are explicit and temporary:
-
-| Route | Operations | Migration owner | Boundary note |
-| --- | --- | --- | --- |
-| `apps/web/src/app/api/bom/togal-commit/route.ts` | `insert`, `transaction`, `update` | Nest BOM commit authority | Core canary exists; legacy branch remains while the canary is closed. |
-| `apps/web/src/app/api/notifications/route.ts` | `update` | Nest notification read-state authority | User + tenant predicates; not an ERP posting. |
-| `apps/web/src/app/api/upload/complete/route.ts` | `insert`, `transaction` | Nest document intake authority | Tenant/project path and role checks precede the insert. |
-| `apps/web/src/app/api/webhooks/docuseal/route.ts` | `insert`, `update` | Nest signature webhook authority | Secret-gated callback; token use, document attach, and BOM lock are idempotent legacy work. |
+There are **zero** runtime direct database writes below
+`apps/web/src/app/api`. `WEB_API_DATABASE_ALLOWLIST` is intentionally empty;
+all browser-reachable API mutations delegate to ERP Core.
 
 Read-only `db.execute` is separately classified for the similarity query and
-`SELECT 1` readiness probe. Any new direct write or unclassified raw execute
-fails `pnpm verify:web-db-boundary`.
+`SELECT 1` readiness probe. The guard accepts only literal `SELECT` SQL at
+those allowlisted sites; any new direct write, unclassified raw execute, or
+non-`SELECT` execute fails `pnpm verify:web-db-boundary`.
 
 The guard intentionally does not claim that Server Actions and internal Web
 services are migrated. Those remain the broader M3.199+ authority inventory;
@@ -80,8 +79,7 @@ this milestone prevents the Next API surface from growing new direct writes.
 
 ## Exact next action
 
-Keep all Core canaries and hosted actions closed under the cost lock. M3.199
-should add a strict Nest document-intake contract, parity tests, idempotency,
-and a disabled-by-default Web adapter before removing
-`upload/complete` from the allowlist. Do not infer production authority from
-this static guard.
+Keep this API boundary at zero direct writes. Server Actions and internal
+workers remain a separate authority-migration inventory and cannot be claimed
+as remediated by this guard. Do not infer hosted production authority from
+this static source check.

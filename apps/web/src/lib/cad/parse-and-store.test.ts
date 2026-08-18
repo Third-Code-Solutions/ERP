@@ -6,26 +6,12 @@ const mocks = vi.hoisted(() => ({
   detectCadFormat: vi.fn(),
   fileExtensionOf: vi.fn(),
   extractFromDxfText: vi.fn(),
-  transaction: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/auth/server', () => ({
   createSupabaseAdminClient: vi.fn(() => ({
     storage: { from: mocks.from },
   })),
-}))
-
-vi.mock('@third-code-erp/database', () => ({
-  db: { transaction: mocks.transaction },
-}))
-
-vi.mock('@third-code-erp/database/schema', () => ({
-  documents: {},
-  scopeItems: {},
-}))
-
-vi.mock('@/lib/audit', () => ({
-  writeAuditLogInTransaction: vi.fn(),
 }))
 
 vi.mock('./dxf-extractor', () => ({
@@ -92,7 +78,6 @@ describe('CAD evidence parser boundary', () => {
       parsed_format: 'dxf',
       source_format: 'dxf',
     })
-    expect(mocks.transaction).not.toHaveBeenCalled()
   })
 
   it('fails evidence validation before any persistence boundary', async () => {
@@ -114,7 +99,27 @@ describe('CAD evidence parser boundary', () => {
     expect(result.status).toBe('parse-failed')
     expect(result.workerResponse).toBeNull()
     expect(result.warnings[0]).toContain('CAD evidence validation failed')
-    expect(mocks.transaction).not.toHaveBeenCalled()
+  })
+
+  it('rejects fractional evidence rather than rounding it before a persistence boundary', async () => {
+    mocks.extractFromDxfText.mockReturnValue({
+      items: [{ ...validItem, quantity: 1.5 }],
+      warnings: [],
+      layerCount: 1,
+      entityCount: 1,
+    })
+
+    const result = await parseCadEvidence({
+      tenantId: '22222222-2222-4222-8222-222222222222',
+      projectId: PROJECT_ID,
+      documentId: DOCUMENT_ID,
+      storagePath: 'tenant/project/drawing.dxf',
+      fileName: 'drawing.dxf',
+    })
+
+    expect(result.status).toBe('parse-failed')
+    expect(result.workerResponse).toBeNull()
+    expect(result.warnings[0]).toContain('CAD evidence validation failed')
   })
 
   it('accepts provider-neutral Storage without constructing a Supabase client', async () => {

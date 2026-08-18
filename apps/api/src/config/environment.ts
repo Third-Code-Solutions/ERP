@@ -756,38 +756,6 @@ const environmentSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((value) => value === 'true'),
-  // Notification reads/read-state updates remain closed until tenant/user
-  // parity, audit, and protected canary evidence are approved.
-  ERP_NOTIFICATION_READ_STATE_ENABLED: z
-    .enum(['true', 'false'])
-    .default('false')
-    .transform((value) => value === 'true'),
-  ERP_NOTIFICATION_READ_STATE_TENANT_IDS: z
-    .string()
-    .default('')
-    .transform((value) =>
-      value
-        .split(',')
-        .map((tenantId) => tenantId.trim())
-        .filter(Boolean)
-    )
-    .pipe(z.array(z.string().uuid())),
-  // DocuSeal callbacks remain closed until exact tenant replay and
-  // compatibility evidence are approved. The internal token is server-only.
-  ERP_DOCUSEAL_WEBHOOK_ENABLED: z
-    .enum(['true', 'false'])
-    .default('false')
-    .transform((value) => value === 'true'),
-  ERP_DOCUSEAL_WEBHOOK_TENANT_IDS: z
-    .string()
-    .default('')
-    .transform((value) =>
-      value
-        .split(',')
-        .map((tenantId) => tenantId.trim())
-        .filter(Boolean)
-    )
-    .pipe(z.array(z.string().uuid())),
   ERP_CORE_WEBHOOK_TOKEN: z.string().min(32).optional(),
   // PO command boundary stays fail-closed until idempotency and full
   // transaction parity are proven in a later migration slice.
@@ -1426,22 +1394,6 @@ const environmentSchema = z.object({
     .default('false')
     .transform((value) => value === 'true'),
   ERP_DOCUMENT_DELETE_WRITES_TENANT_IDS: z
-    .string()
-    .default('')
-    .transform((value) =>
-      value
-        .split(',')
-        .map((tenantId) => tenantId.trim())
-        .filter(Boolean)
-    )
-    .pipe(z.array(z.string().uuid())),
-  // Document intake is closed by default. Enable only for an explicit tenant
-  // after storage-prefix, idempotency, audit, and rollback evidence pass.
-  ERP_DOCUMENT_INTAKE_WRITES_ENABLED: z
-    .enum(['true', 'false'])
-    .default('false')
-    .transform((value) => value === 'true'),
-  ERP_DOCUMENT_INTAKE_WRITES_TENANT_IDS: z
     .string()
     .default('')
     .transform((value) =>

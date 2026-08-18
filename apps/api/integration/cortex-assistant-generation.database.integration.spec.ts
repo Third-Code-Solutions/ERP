@@ -32,6 +32,7 @@ import { CortexAssistantProviderCircuitAlertService } from '../src/cortex/cortex
 import { cortexAssistantProviderDispatchKey } from '../src/cortex/cortex-assistant-provider-protocol'
 import { CortexAssistantTurnsService } from '../src/cortex/cortex-assistant-turns.service'
 import type { CortexAssistantTurnSignatureHeaders } from '../src/cortex/cortex-assistant-turns.service'
+import { databaseErrorMessage } from '../src/database/database-error'
 import {
   DatabaseService,
   type DatabaseTransaction,
@@ -608,8 +609,8 @@ suite('Cortex assistant generation database integration', () => {
         providerRequestIdHash: 'e'.repeat(64),
         responseFingerprint: providerResponseFingerprint,
       })
-      await expect(
-        transaction.transaction(async (nested) => {
+      const forgedCompletionError = await transaction
+        .transaction(async (nested) => {
           const [forgedMessage] = await nested
             .insert(cortexMessages)
             .values({
@@ -639,7 +640,8 @@ suite('Cortex assistant generation database integration', () => {
             })
             .where(eq(cortexAssistantTurnRequests.id, providerClaim.requestId))
         })
-      ).rejects.toThrow(
+        .catch((error: unknown) => error)
+      expect(databaseErrorMessage(forgedCompletionError)).toContain(
         'provider completion attempt is not settled current authority'
       )
       await expect(
@@ -709,12 +711,14 @@ suite('Cortex assistant generation database integration', () => {
       await expect(
         generation.result(workerClaim.jobId, principal)
       ).rejects.toThrow('Conversation not found')
-      await expect(
-        transaction
+      const immutableAuthorityError = await transaction
           .update(cortexAssistantTurnRequests)
           .set({ provider_attempt_id: null })
           .where(eq(cortexAssistantTurnRequests.id, providerClaim.requestId))
-      ).rejects.toThrow('provider completion authority is immutable')
+        .catch((error: unknown) => error)
+      expect(databaseErrorMessage(immutableAuthorityError)).toContain(
+        'provider completion authority is immutable'
+      )
     })
   })
 })

@@ -123,11 +123,19 @@ test('executable gate fails on a bad fixture and passes after removal', async ()
   }
 })
 
-test('CI runs the full PR suite and keeps all WO-00 gates blocking', async () => {
+test('CI runs the full PR suite and keeps migration checks ahead of CI-only grants', async () => {
   const workflow = await readFile(resolve('.github/workflows/ci.yml'), 'utf8')
+  const productionWorkflow = await readFile(
+    resolve('.github/workflows/deploy-production.yml'),
+    'utf8'
+  )
+  const apiDockerfile = await readFile(resolve('apps/api/Dockerfile'), 'utf8')
+  const rootPackage = await readFile(resolve('package.json'), 'utf8')
 
   assert.match(workflow, /pull_request:\s*\n\s+branches: \[main\]/)
-  assert.match(workflow, /- run: pnpm turbo test/)
+  assert.match(workflow, /- run: pnpm test/)
+  assert.doesNotMatch(workflow, /- run: pnpm turbo test/)
+  assert.match(rootPackage, /"test": "turbo test --concurrency=1"/)
   assert.match(workflow, /build-ops-invariants:\s*\n\s+name: BUILD OPS Invariants/)
   assert.match(workflow, /run: pnpm test:build-ops-invariants/)
   assert.match(
@@ -136,10 +144,27 @@ test('CI runs the full PR suite and keeps all WO-00 gates blocking', async () =>
   )
   assert.match(workflow, /BUILD_OPS_DEMO_TENANT_SLUGS: abi-ops-local/)
   assert.match(workflow, /run: pnpm verify:build-ops-data/)
+  assert.match(
+    rootPackage,
+    /"test:database-repro-policy-contract": "node --test scripts\/verify-database-repro-policy-contract\.test\.mjs"/
+  )
+  assert.match(workflow, /run: pnpm test:database-repro-policy-contract/)
+  assert.match(
+    productionWorkflow,
+    /pnpm test:database-repro-policy-contract/
+  )
+  assert.match(
+    apiDockerfile,
+    /COPY package\.json pnpm-lock\.yaml pnpm-workspace\.yaml turbo\.json \.npmrc \.\//
+  )
+  assert.match(
+    apiDockerfile,
+    /COPY package\.json pnpm-lock\.yaml pnpm-workspace\.yaml \.npmrc \.\//
+  )
   assert.match(workflow, /GITHUB_EVENT_BEFORE:-/)
   assert.match(
     workflow,
-    /Rebuild database from zero[\s\S]*?Apply CI-only legacy Data API grants[\s\S]*?Verify migration ledger and catalog/
+    /Rebuild database from zero[\s\S]*?Verify migration ledger and catalog[\s\S]*?Capture and assert empty schema diff[\s\S]*?Apply CI-only legacy Data API grants/
   )
   assert.match(
     workflow,

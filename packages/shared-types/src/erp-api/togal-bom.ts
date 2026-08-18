@@ -6,7 +6,10 @@ const togalBomCommitLineSchema = z
     code: z.string().trim().max(50).nullable().optional(),
     description: z.string().trim().min(1).max(2_000),
     unit: z.string().trim().max(20).nullable().optional(),
-    qty: z.number().finite().nonnegative().max(2_147_483_647),
+    // `bom_line_items.quantity` is an integer. Decimal source evidence must
+    // remain unresolved until the dedicated precision migration is approved;
+    // it must never be silently rounded into a priced BOM line.
+    qty: z.number().int().nonnegative().max(2_147_483_647),
     unitCostCents: z.number().int().nonnegative().safe(),
     markupBps: z.number().int().nonnegative().max(2_147_483_647).optional(),
     vendorId: z.string().uuid().nullable().optional(),

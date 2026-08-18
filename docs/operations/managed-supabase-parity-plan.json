@@ -1,44 +1,26 @@
 {
   "version": 1,
   "snapshot": {
-    "capturedOn": "2026-08-12",
+    "capturedOn": "2026-08-17",
+    "evidenceCommit": "b742c5d5a3d4bd696eba57aa9f7ac48fcd52bb9a",
+    "sourceRevision": "uncommitted working tree; repository source identity is checked by verify:managed-supabase-parity-plan",
+    "evidenceKind": "read_only_provider_ledger_plus_source_plan",
+    "verificationScope": "The repository verifier checks this snapshot only against the source migration tree; it does not query Supabase or establish current provider state.",
     "projectRef": "aqqrtkmtcsfkbyyqxowv",
     "projectStatus": "ACTIVE_HEALTHY",
-    "region": "ap-northeast-2",
     "databaseVersion": "17.6.1.121",
     "postgresMajor": 17,
-    "appliedCount": 55,
-    "sourceCount": 142,
-    "sourceLedgerUpdatedOn": "2026-08-14",
-    "pendingCount": 87,
-    "appliedHead": "20260729233017",
-    "sourceHead": "20260814130000",
-    "ledgerStatus": "review_required",
+    "appliedCount": 144,
+    "sourceCount": 147,
+    "pendingCount": 3,
+    "appliedHead": "20260815100000",
+    "sourceHead": "20260817110000",
+    "ledgerStatus": "review_required_source_suffix_pending",
     "purchaseOrderPreflight": {
-      "purchaseOrderRows": 13,
-      "duplicateGroups": 1,
-      "blankPoNumbers": 0,
-      "status": "blocked"
+      "duplicateGroups": 0,
+      "status": "clear_as_of_captured_evidence"
     },
-    "publicTablesRlsObserved": true,
-    "securityAdvisor": {
-      "count": 14,
-      "warn": 11,
-      "info": 3,
-      "rlsEnabledNoPolicy": 3,
-      "securityDefinerRpcExposure": 9,
-      "leakedPasswordProtection": "disabled",
-      "extensionInPublic": ["vector"]
-    },
-    "performanceAdvisor": {
-      "count": 253,
-      "warn": 1,
-      "info": 252,
-      "unindexedForeignKeys": 148,
-      "unusedIndexes": 103,
-      "duplicateIndexes": 1,
-      "authDbConnectionsStrategy": "absolute"
-    }
+    "releaseStatus": "blocked_by_source_suffix_backup_restore_credentials_and_authenticated_e2e_evidence"
   },
   "policy": {
     "reviewBatchesOnly": true,
@@ -48,204 +30,12 @@
   },
   "batches": [
     {
-      "id": "01-purchase-order-uniqueness-gate",
-      "purpose": "Fail-closed duplicate remediation boundary before any suffix apply.",
+      "id": "01-tenant-membership-and-function-search-path-hardening",
+      "purpose": "Additive dormant membership/delegation foundation and an advisor-backed function search-path hardening migration. Both require isolated restore rehearsal and an explicit hosted change approval before apply.",
       "migrations": [
-        "20260801080000_reconcile_duplicate_purchase_order_numbers.sql",
-        "20260801090000_purchase_order_create_idempotency.sql"
-      ]
-    },
-    {
-      "id": "02-procurement-and-document-authority",
-      "purpose": "Purchase Order, stock receipt, CAD, document processing, and change-request command foundations.",
-      "migrations": [
-        "20260801100000_purchase_order_workflow_idempotency.sql",
-        "20260801110000_purchase_order_workflow_notifications.sql",
-        "20260801120000_stock_receipt_create_idempotency.sql",
-        "20260801130000_cad_evidence_commit_idempotency.sql",
-        "20260801140000_document_processing_jobs.sql",
-        "20260801150000_document_processing_evidence.sql",
-        "20260802090000_change_request_create_idempotency.sql",
-        "20260802100000_purchase_order_workflow_scm_rejection.sql",
-        "20260802110000_purchase_order_supplier_issuance.sql"
-      ]
-    },
-    {
-      "id": "03-finance-delivery-and-invoice-workflows",
-      "purpose": "Journal, receipt, delivery, supplier-bill, cash, and customer-invoice state machines.",
-      "migrations": [
-        "20260802120000_finance_journal_post_idempotency.sql",
-        "20260802130000_stock_receipt_workflow_idempotency.sql",
-        "20260802140000_delivery_receipt_workflow_idempotency.sql",
-        "20260802150000_finance_journal_reverse_idempotency.sql",
-        "20260802160000_delivery_inspection_start_workflow.sql",
-        "20260802170000_delivery_inspection_complete_workflow.sql",
-        "20260802180000_delivery_cancel_workflow.sql",
-        "20260802190000_delivery_site_preparation_start_workflow.sql",
-        "20260802200000_delivery_site_preparation_complete_workflow.sql",
-        "20260802210000_supplier_bill_post_workflow.sql",
-        "20260802220000_supplier_bill_reverse_workflow.sql",
-        "20260802230000_cash_transaction_workflow_idempotency.sql",
-        "20260803090000_customer_invoice_issue_workflow.sql",
-        "20260803100000_customer_invoice_reverse_workflow.sql",
-        "20260803110000_customer_invoice_cancel_workflow.sql"
-      ]
-    },
-    {
-      "id": "04-cash-document-and-external-session-workflows",
-      "purpose": "Cash drafts, document deletion, public signing, and vendor confirmation session boundaries.",
-      "migrations": [
-        "20260803120000_cash_transaction_draft_workflow.sql",
-        "20260803130000_document_delete_workflow.sql",
-        "20260803140000_public_signing_workflow.sql",
-        "20260803150000_vendor_confirmation_workflow.sql",
-        "20260803160000_vendor_confirmation_session_minting.sql",
-        "20260803170000_purchase_order_supplier_session_payload.sql"
-      ]
-    },
-    {
-      "id": "05-project-inventory-cost-asset-and-security-foundations",
-      "purpose": "Project, inventory, Cost Entry, asset, delivery, BOM, conversion, and browser-authority baselines.",
-      "migrations": [
-        "20260804090000_project_create_idempotency.sql",
-        "20260805100000_inventory_warehouse_deactivation_guard.sql",
-        "20260805110000_stock_movement_create_idempotency.sql",
-        "20260805120000_stock_movement_workflow_idempotency.sql",
-        "20260806100000_cost_entry_create_idempotency.sql",
-        "20260806110000_asset_register_foundation.sql",
-        "20260806120000_delivery_in_transit_workflow.sql",
-        "20260806130000_delivery_schedule_create_idempotency.sql",
-        "20260806140000_togal_bom_commit_idempotency.sql",
-        "20260806150000_opportunity_project_conversion_idempotency.sql",
-        "20260806160000_security_role_baseline.sql"
-      ]
-    },
-    {
-      "id": "06-latest-authority-and-security-hardening",
-      "purpose": "Maintenance history, Cost Entry recovery, invoice draft, tenant identity, user-role authority, and cost-bounded Cortex indexing.",
-      "migrations": [
-        "20260807100000_asset_maintenance_history.sql",
-        "20260807110000_cost_entry_delete_workflow.sql",
-        "20260807120000_cost_entry_restore_workflow.sql",
-        "20260807130000_customer_invoice_draft_create_workflow.sql",
-        "20260807140000_revoke_anon_tenant_identity_rpc.sql",
-        "20260807150000_user_role_assignment_authority.sql",
-        "20260807160000_cortex_semantic_index_jobs.sql"
-      ]
-    },
-    {
-      "id": "07-cortex-provider-authority",
-      "purpose": "Cortex conversation ownership, assistant generation, provider budgets, completion links, protocol, health, and circuit alerts.",
-      "migrations": [
-        "20260807170000_cortex_conversation_user_turn_authority.sql",
-        "20260807190000_cortex_assistant_turn_authority.sql",
-        "20260808090000_cortex_assistant_generation_jobs.sql",
-        "20260808100000_cortex_assistant_provider_budget.sql",
-        "20260808110000_cortex_assistant_provider_completion_link.sql",
-        "20260808120000_cortex_assistant_provider_protocol.sql",
-        "20260808130000_cortex_assistant_provider_health.sql",
-        "20260808140000_cortex_assistant_provider_circuit_alerts.sql"
-      ]
-    },
-    {
-      "id": "08-document-intake-authority",
-      "purpose": "Tenant-scoped document intake idempotency and audit ledger for the disabled Nest authority seam.",
-      "migrations": [
-        "20260810090000_document_intake_workflow.sql"
-      ]
-    },
-    {
-      "id": "09-project-discussion-authority",
-      "purpose": "Core-authoritative project comment creation and deletion ledgers with browser mutation closure.",
-      "migrations": [
-        "20260810100000_project_comment_create_workflow.sql",
-        "20260810110000_project_comment_delete_workflow.sql",
-        "20260810120000_project_comment_delete_fk_tenant_preservation.sql"
-      ]
-    },
-    {
-      "id": "10-opportunity-stage-authority",
-      "purpose": "Tenant-scoped idempotency ledger for the fail-closed Core opportunity stage-transition command.",
-      "migrations": [
-        "20260810130000_opportunity_stage_transition_authority.sql"
-      ]
-    },
-    {
-      "id": "11-cash-draft-delete-guard-fix",
-      "purpose": "Forward-only repair allowing Core-authorized draft cash deletion to pass database guards.",
-      "migrations": [
-        "20260811180000_cash_draft_delete_trigger_fix.sql"
-      ]
-    },
-    {
-      "id": "12-bank-statement-auto-match-authority",
-      "purpose": "Tenant-scoped idempotency ledger for the fail-closed Core bank-statement auto-match command.",
-      "migrations": [
-        "20260812100000_bank_statement_auto_match_workflow.sql"
-      ]
-    },
-    {
-      "id": "13-bank-statement-line-match-authority",
-      "purpose": "Tenant-scoped idempotency ledger for the fail-closed Core manual bank-statement line match and unmatch commands.",
-      "migrations": [
-        "20260812110000_bank_statement_line_match_workflow.sql"
-      ]
-    },
-    {
-      "id": "14-bank-statement-reconcile-authority",
-      "purpose": "Tenant-scoped idempotency ledger for the fail-closed Core bank-statement reconciliation command.",
-      "migrations": [
-        "20260812120000_bank_statement_reconcile_workflow.sql"
-      ]
-    },
-    {
-      "id": "15-bank-statement-void-authority",
-      "purpose": "Tenant-scoped idempotency ledger for the fail-closed Core bank-statement void command.",
-      "migrations": [
-        "20260812130000_bank_statement_void_workflow.sql"
-      ]
-    },
-    {
-      "id": "16-bank-statement-import-authority",
-      "purpose": "Tenant-scoped idempotency ledger for the fail-closed Core bank-statement import command.",
-      "migrations": [
-        "20260812140000_bank_statement_import_workflow.sql"
-      ]
-    },
-    {
-      "id": "17-bank-statement-storage-source",
-      "purpose": "Bounded tenant-scoped object-storage source reference for the fail-closed Core bank-statement import command.",
-      "migrations": [
-        "20260812150000_bank_statement_storage_source.sql"
-      ]
-    },
-    {
-      "id": "18-build-ops-source-reconciliation",
-      "purpose": "Current BUILD OPS business calendar, SLA, BOM grain/location/DUPA, and takeoff source migrations.",
-      "migrations": [
-        "20260812155000_wo_02_audit_business_calendar.sql",
-        "20260812160000_process_sla_engine_foundation.sql",
-        "20260812170000_wo_04_bom_grain_classification.sql",
-        "20260812173000_wo_05_location_dimension.sql",
-        "20260812180000_wo_06_dupa_engine.sql",
-        "20260812190000_wo_08_takeoff_importer.sql"
-      ]
-    },
-    {
-      "id": "19-build-ops-commercial-controls-and-sync",
-      "purpose": "Current BUILD OPS RFQ, KYC, inspection, award, budget, permits, cost-control, tenant-audit, change-log, sync, and commitment migrations.",
-      "migrations": [
-        "20260813110000_rfq_price_history_provenance.sql",
-        "20260813130000_wo_11_opportunity_kyc_tracks.sql",
-        "20260813150000_wo_12_mobile_site_inspection_media.sql",
-        "20260813170000_wo_13_award_handoff.sql",
-        "20260813180000_wo_14_allowable_budget_lock.sql",
-        "20260813190000_wo_16_permits_mobilization.sql",
-        "20260813200000_wo_17_cost_control_v1.sql",
-        "20260813210000_audit_missing_tenant_tables.sql",
-        "20260813220000_change_request_change_log.sql",
-        "20260814120000_wo_12_inspection_sync_idempotency.sql",
-        "20260814130000_wo_15_budget_commitment.sql"
+        "20260817090000_tenant_membership_delegation_foundation.sql",
+        "20260817100000_harden_function_search_paths.sql",
+        "20260817110000_explicit_server_only_rls_policies.sql"
       ]
     }
   ]

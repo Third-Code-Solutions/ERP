@@ -1,28 +1,17 @@
 import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getUserProfile: vi.fn(),
   can: vi.fn(),
-  select: vi.fn(),
-  insert: vi.fn(),
-  values: vi.fn(),
-  returning: vi.fn(),
-  from: vi.fn(),
-  where: vi.fn(),
-  getProject: vi.fn(),
-  parseAndStoreCad: vi.fn(),
+  createDocumentThroughCoreApi: vi.fn(),
   parseCadEvidence: vi.fn(),
-  cadEvidenceCommitWritesUseCoreApi: vi.fn(),
   commitCadEvidenceThroughCoreApi: vi.fn(),
   documentProcessingJobsUseCoreApi: vi.fn(),
   enqueueDocumentProcessingThroughCoreApi: vi.fn(),
   extractScopeFromVisual: vi.fn(),
-  documentIntakeCanarySelectedForUpload: vi.fn(),
-  completeDocumentUploadThroughCoreCanary: vi.fn(),
-  send: vi.fn(),
-  transaction: vi.fn(),
-  writeAuditLogInTransaction: vi.fn(),
+  consumeProviderQuota: vi.fn(),
+  providerQuotaBlockedResponse: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -30,29 +19,13 @@ vi.mock('@third-code-erp/auth', () => ({
   can: mocks.can,
 }))
 
-vi.mock('@third-code-erp/database', () => ({
-  db: {
-    select: mocks.select,
-    transaction: mocks.transaction,
-  },
-}))
-
-vi.mock('@/lib/project-queries', () => ({
-  getProject: mocks.getProject,
-}))
-
 vi.mock('@/lib/cad/parse-and-store', () => ({
-  parseAndStoreCad: mocks.parseAndStoreCad,
   parseCadEvidence: mocks.parseCadEvidence,
 }))
 
 vi.mock('@/lib/erp-core-client', () => ({
-  cadEvidenceCommitWritesUseCoreApi: mocks.cadEvidenceCommitWritesUseCoreApi,
   commitCadEvidenceThroughCoreApi: mocks.commitCadEvidenceThroughCoreApi,
-  documentIntakeCanarySelectedForUpload:
-    mocks.documentIntakeCanarySelectedForUpload,
-  completeDocumentUploadThroughCoreCanary:
-    mocks.completeDocumentUploadThroughCoreCanary,
+  createDocumentThroughCoreApi: mocks.createDocumentThroughCoreApi,
   documentProcessingJobsUseCoreApi: mocks.documentProcessingJobsUseCoreApi,
   enqueueDocumentProcessingThroughCoreApi:
     mocks.enqueueDocumentProcessingThroughCoreApi,
@@ -62,23 +35,83 @@ vi.mock('@/lib/vision/extract-from-visual', () => ({
   extractScopeFromVisual: mocks.extractScopeFromVisual,
 }))
 
-vi.mock('@/lib/inngest', () => ({
-  inngest: {
-    send: mocks.send,
-  },
-}))
-
-vi.mock('@/lib/audit', () => ({
-  writeAuditLogInTransaction: mocks.writeAuditLogInTransaction,
+vi.mock('@/lib/provider-quota', () => ({
+  consumeProviderQuota: mocks.consumeProviderQuota,
+  providerQuotaBlockedResponse: mocks.providerQuotaBlockedResponse,
 }))
 
 import { POST } from './route'
 
 const USER_ID = '11111111-1111-4111-8111-111111111111'
 const TENANT_ID = '22222222-2222-4222-8222-222222222222'
-const OTHER_PROJECT_ID = '33333333-3333-4333-8333-333333333333'
+const PROJECT_ID = '33333333-3333-4333-8333-333333333333'
+const DOCUMENT_ID = '44444444-4444-4444-8444-444444444444'
 
-describe('completed document upload Project access', () => {
+type IntakeCommand = {
+  storagePath: string
+  projectId: string
+  fileName: string
+  mimeType: string
+  sizeBytes: number
+  description: string | null
+}
+
+function documentTypeFor(
+  fileName: string,
+  mimeType: string
+): 'dxf' | 'pdf' | 'image' | 'other' {
+  const extension = fileName.split('.').pop()?.toLowerCase()
+  if (extension === 'dxf' || extension === 'dwg') return 'dxf'
+  if (extension === 'pdf' || mimeType === 'application/pdf') return 'pdf'
+  if (mimeType.startsWith('image/')) return 'image'
+  return 'other'
+}
+
+function successfulIntake(command: IntakeCommand, created = true) {
+  return {
+    ok: true as const,
+    status: created ? 201 : 200,
+    data: {
+      documentId: DOCUMENT_ID,
+      tenantId: TENANT_ID,
+      projectId: command.projectId,
+      storagePath: command.storagePath,
+      documentType: documentTypeFor(command.fileName, command.mimeType),
+      status: 'created' as const,
+      created,
+    },
+  }
+}
+
+function uploadRequest(
+  overrides: Partial<{
+    storagePath: string
+    projectId: string
+    fileName: string
+    mimeType: string
+    sizeBytes: number
+    description: string
+  }> = {}
+): NextRequest {
+  const projectId = overrides.projectId ?? PROJECT_ID
+  return new NextRequest('http://localhost/api/upload/complete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      storagePath:
+        overrides.storagePath ?? `${TENANT_ID}/${projectId}/uploaded-notes.txt`,
+      projectId,
+      fileName: overrides.fileName ?? 'notes.txt',
+      mimeType: overrides.mimeType ?? 'text/plain',
+      sizeBytes: overrides.sizeBytes ?? 1_024,
+      ...(overrides.description === undefined
+        ? {}
+        : { description: overrides.description }),
+    }),
+  })
+}
+
+describe('completed document upload Core authority', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.getUserProfile.mockResolvedValue({
@@ -89,172 +122,117 @@ describe('completed document upload Project access', () => {
       fullName: 'PM User',
     })
     mocks.can.mockReturnValue(true)
-    mocks.select.mockReturnValue({ from: mocks.from })
-    mocks.from.mockReturnValue({ where: mocks.where })
-    mocks.where.mockResolvedValue([{ tenant_id: TENANT_ID, role: 'pm' }])
-    mocks.getProject.mockResolvedValue(null)
-    mocks.insert.mockReturnValue({ values: mocks.values })
-    mocks.values.mockReturnValue({ returning: mocks.returning })
-    mocks.transaction.mockImplementation(
-      async (callback: (tx: { insert: typeof mocks.insert }) => unknown) =>
-        callback({ insert: mocks.insert })
+    mocks.createDocumentThroughCoreApi.mockImplementation(
+      async (command: IntakeCommand) => successfulIntake(command)
     )
-    mocks.writeAuditLogInTransaction.mockResolvedValue(undefined)
-    mocks.documentIntakeCanarySelectedForUpload.mockReturnValue(false)
-    mocks.cadEvidenceCommitWritesUseCoreApi.mockReturnValue(false)
     mocks.documentProcessingJobsUseCoreApi.mockReturnValue(false)
+    mocks.consumeProviderQuota.mockResolvedValue({ ok: true, skipped: true })
   })
 
-  it('rejects a role without document mutation capability before request work', async () => {
-    mocks.can.mockReturnValue(false)
-    const request = new NextRequest(
-      'http://localhost/api/upload/complete',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          storagePath:
-            `${TENANT_ID}/${OTHER_PROJECT_ID}/uploaded-drawing.dwg`,
-          projectId: OTHER_PROJECT_ID,
-          fileName: 'drawing.dwg',
-          mimeType: 'application/acad',
-          sizeBytes: 1_024,
-        }),
-      }
-    )
+  afterEach(() => vi.unstubAllEnvs())
 
-    const response = await POST(request)
+  it('rejects a role without document mutation capability before Core work', async () => {
+    mocks.can.mockReturnValue(false)
+
+    const response = await POST(uploadRequest())
 
     expect(response.status).toBe(403)
     await expect(response.json()).resolves.toEqual({ error: 'Forbidden' })
     expect(mocks.can).toHaveBeenCalledWith('pm', 'document.manage')
-    expect(mocks.getProject).not.toHaveBeenCalled()
-    expect(mocks.transaction).not.toHaveBeenCalled()
-    expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
+    expect(mocks.createDocumentThroughCoreApi).not.toHaveBeenCalled()
+    expect(mocks.parseCadEvidence).not.toHaveBeenCalled()
+    expect(mocks.extractScopeFromVisual).not.toHaveBeenCalled()
   })
 
-  it('rejects an absent or cross-tenant Project before recording or processing', async () => {
-    const request = new NextRequest(
-      'http://localhost/api/upload/complete',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          storagePath:
-            `${TENANT_ID}/${OTHER_PROJECT_ID}/uploaded-drawing.dwg`,
-          projectId: OTHER_PROJECT_ID,
-          fileName: 'drawing.dwg',
-          mimeType: 'application/acad',
-          sizeBytes: 1_024,
-        }),
-      }
-    )
+  it('delegates project ownership to Core and does not process a denied upload', async () => {
+    mocks.createDocumentThroughCoreApi.mockResolvedValue({
+      ok: false,
+      status: 404,
+      error: 'Project was not found.',
+    })
 
-    const response = await POST(request)
+    const response = await POST(
+      uploadRequest({ fileName: 'drawing.dwg', mimeType: 'application/acad' })
+    )
 
     expect(response.status).toBe(404)
     await expect(response.json()).resolves.toEqual({
-      error: 'Project not found',
+      error: 'Project was not found.',
     })
-    expect(mocks.getProject).toHaveBeenCalledWith(
-      TENANT_ID,
-      OTHER_PROJECT_ID
-    )
-    expect(mocks.insert).not.toHaveBeenCalled()
-    expect(mocks.parseAndStoreCad).not.toHaveBeenCalled()
-    expect(mocks.extractScopeFromVisual).not.toHaveBeenCalled()
-    expect(mocks.send).not.toHaveBeenCalled()
+    expect(mocks.createDocumentThroughCoreApi).toHaveBeenCalledTimes(1)
+    expect(mocks.parseCadEvidence).not.toHaveBeenCalled()
+    expect(mocks.enqueueDocumentProcessingThroughCoreApi).not.toHaveBeenCalled()
   })
 
-  it('preserves document recording for a same-tenant Project', async () => {
-    const documentId = '44444444-4444-4444-8444-444444444444'
-    mocks.getProject.mockResolvedValue({
-      id: OTHER_PROJECT_ID,
-      tenant_id: TENANT_ID,
-    })
-    mocks.returning.mockResolvedValue([{ id: documentId }])
-    const storagePath =
-      `${TENANT_ID}/${OTHER_PROJECT_ID}/uploaded-notes.txt`
-    const request = new NextRequest(
-      'http://localhost/api/upload/complete',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          storagePath,
-          projectId: OTHER_PROJECT_ID,
-          fileName: 'notes.txt',
-          mimeType: 'text/plain',
-          sizeBytes: 1_024,
-        }),
-      }
-    )
+  it('records every non-extractor upload through Core before returning the legacy response', async () => {
+    const storagePath = `${TENANT_ID}/${PROJECT_ID}/uploaded-notes.txt`
 
-    const response = await POST(request)
+    const response = await POST(uploadRequest({ storagePath }))
 
     expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toMatchObject({
-      id: documentId,
+    await expect(response.json()).resolves.toEqual({
+      id: DOCUMENT_ID,
       storagePath,
       documentType: 'other',
+      cadFormat: null,
       cadParseQueued: false,
     })
-    expect(mocks.insert).toHaveBeenCalledOnce()
-    expect(mocks.transaction).toHaveBeenCalledOnce()
-    expect(mocks.writeAuditLogInTransaction).toHaveBeenCalledWith(
-      expect.objectContaining({ insert: mocks.insert }),
+    expect(mocks.createDocumentThroughCoreApi).toHaveBeenCalledWith(
       {
-        tenantId: TENANT_ID,
-        actorId: USER_ID,
-        entityType: 'document',
-        entityId: documentId,
-        action: 'create',
-        diff: {
-          project_id: OTHER_PROJECT_ID,
-          document_type: 'other',
-          size_bytes: 1_024,
-        },
-      }
+        storagePath,
+        projectId: PROJECT_ID,
+        fileName: 'notes.txt',
+        mimeType: 'text/plain',
+        sizeBytes: 1_024,
+        description: null,
+      },
+      expect.stringMatching(/^upload-[a-f0-9]{64}$/)
     )
-    expect(mocks.parseAndStoreCad).not.toHaveBeenCalled()
+    expect(mocks.parseCadEvidence).not.toHaveBeenCalled()
     expect(mocks.extractScopeFromVisual).not.toHaveBeenCalled()
   })
 
-  it('delegates binary DWG processing to Nest when the tenant canary is enabled', async () => {
-    const documentId = '44444444-4444-4444-8444-444444444444'
-    mocks.getProject.mockResolvedValue({
-      id: OTHER_PROJECT_ID,
-      tenant_id: TENANT_ID,
+  it('does not rerun derived processing when Core replays an upload command', async () => {
+    mocks.createDocumentThroughCoreApi.mockImplementation(
+      async (command: IntakeCommand) => successfulIntake(command, false)
+    )
+
+    const response = await POST(
+      uploadRequest({ fileName: 'drawing.dxf', mimeType: 'application/dxf' })
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      id: DOCUMENT_ID,
+      storagePath: `${TENANT_ID}/${PROJECT_ID}/uploaded-notes.txt`,
+      documentType: 'dxf',
+      cadFormat: 'dxf',
+      cadParseQueued: false,
     })
-    mocks.returning.mockResolvedValue([{ id: documentId }])
+    expect(mocks.parseCadEvidence).not.toHaveBeenCalled()
+    expect(mocks.enqueueDocumentProcessingThroughCoreApi).not.toHaveBeenCalled()
+  })
+
+  it('delegates binary DWG processing to Core after Core records the document', async () => {
     mocks.documentProcessingJobsUseCoreApi.mockReturnValue(true)
     mocks.enqueueDocumentProcessingThroughCoreApi.mockResolvedValue({
       ok: true,
       data: {
         jobId: '55555555-5555-4555-8555-555555555555',
         status: 'queued',
-        documentId,
+        documentId: DOCUMENT_ID,
         createdAt: '2026-08-02T00:00:00.000Z',
       },
     })
 
     const response = await POST(
-      new NextRequest('http://localhost/api/upload/complete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          storagePath: `${TENANT_ID}/${OTHER_PROJECT_ID}/drawing.dwg`,
-          projectId: OTHER_PROJECT_ID,
-          fileName: 'drawing.dwg',
-          mimeType: 'application/acad',
-          sizeBytes: 1_024,
-        }),
-      })
+      uploadRequest({ fileName: 'drawing.dwg', mimeType: 'application/acad' })
     )
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toMatchObject({
-      id: documentId,
+      id: DOCUMENT_ID,
+      documentType: 'dxf',
       cadParseQueued: true,
       cadResult: {
         status: 'queued',
@@ -264,23 +242,21 @@ describe('completed document upload Project access', () => {
       },
     })
     expect(mocks.enqueueDocumentProcessingThroughCoreApi).toHaveBeenCalledWith(
-      documentId,
+      DOCUMENT_ID,
       {
         mode: 'cad',
         requestedFormat: 'dwg',
         createDraftBom: false,
       },
-      `cad-processing-${documentId}`
+      `cad-processing-${DOCUMENT_ID}`
     )
-    expect(mocks.parseAndStoreCad).not.toHaveBeenCalled()
-    expect(mocks.send).not.toHaveBeenCalled()
+    expect(mocks.parseCadEvidence).not.toHaveBeenCalled()
   })
 
-  it('commits parsed DXF evidence through Core without the compatibility writer', async () => {
-    const documentId = '44444444-4444-4444-8444-444444444444'
-    const storagePath = `${TENANT_ID}/${OTHER_PROJECT_ID}/drawing.dxf`
+  it('commits parsed DXF evidence through Core without a tenant selector', async () => {
+    const storagePath = `${TENANT_ID}/${PROJECT_ID}/drawing.dxf`
     const workerResponse = {
-      document_id: documentId,
+      document_id: DOCUMENT_ID,
       scope_items: [
         {
           code: null,
@@ -296,12 +272,6 @@ describe('completed document upload Project access', () => {
       parsed_format: 'dxf' as const,
       source_format: 'dxf' as const,
     }
-    mocks.getProject.mockResolvedValue({
-      id: OTHER_PROJECT_ID,
-      tenant_id: TENANT_ID,
-    })
-    mocks.returning.mockResolvedValue([{ id: documentId }])
-    mocks.cadEvidenceCommitWritesUseCoreApi.mockReturnValue(true)
     mocks.parseCadEvidence.mockResolvedValue({
       status: 'extracted',
       scopeItemsCreated: 0,
@@ -319,8 +289,8 @@ describe('completed document upload Project access', () => {
       ok: true,
       status: 200,
       data: {
-        documentId,
-        projectId: OTHER_PROJECT_ID,
+        documentId: DOCUMENT_ID,
+        projectId: PROJECT_ID,
         tenantId: TENANT_ID,
         scopeItemsCreated: 1,
         sourceFormat: 'dxf',
@@ -329,23 +299,17 @@ describe('completed document upload Project access', () => {
     })
 
     const response = await POST(
-      new NextRequest('http://localhost/api/upload/complete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          storagePath,
-          projectId: OTHER_PROJECT_ID,
-          fileName: 'drawing.dxf',
-          mimeType: 'application/dxf',
-          sizeBytes: 1_024,
-        }),
+      uploadRequest({
+        storagePath,
+        fileName: 'drawing.dxf',
+        mimeType: 'application/dxf',
       })
     )
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toMatchObject({
-      id: documentId,
-      cadParseQueued: true,
+      id: DOCUMENT_ID,
+      cadParseQueued: false,
       cadResult: {
         status: 'extracted',
         scopeItemsCreated: 1,
@@ -355,37 +319,29 @@ describe('completed document upload Project access', () => {
     })
     expect(mocks.parseCadEvidence).toHaveBeenCalledWith({
       tenantId: TENANT_ID,
-      projectId: OTHER_PROJECT_ID,
-      documentId,
+      projectId: PROJECT_ID,
+      documentId: DOCUMENT_ID,
       storagePath,
       fileName: 'drawing.dxf',
       actorId: USER_ID,
     })
     expect(mocks.commitCadEvidenceThroughCoreApi).toHaveBeenCalledWith(
-      documentId,
-      { projectId: OTHER_PROJECT_ID, workerResponse },
-      `cad-evidence-${documentId}`,
+      DOCUMENT_ID,
+      { projectId: PROJECT_ID, workerResponse },
+      `cad-evidence-${DOCUMENT_ID}`,
       TENANT_ID
     )
-    expect(mocks.parseAndStoreCad).not.toHaveBeenCalled()
   })
 
-  it('does not fall back to the compatibility writer after a selected Core failure', async () => {
-    const documentId = '44444444-4444-4444-8444-444444444444'
+  it('does not fall back after a Core CAD failure', async () => {
     const workerResponse = {
-      document_id: documentId,
+      document_id: DOCUMENT_ID,
       scope_items: [],
       count: 0,
       warnings: [],
       parsed_format: 'dxf' as const,
       source_format: 'dxf' as const,
     }
-    mocks.getProject.mockResolvedValue({
-      id: OTHER_PROJECT_ID,
-      tenant_id: TENANT_ID,
-    })
-    mocks.returning.mockResolvedValue([{ id: documentId }])
-    mocks.cadEvidenceCommitWritesUseCoreApi.mockReturnValue(true)
     mocks.parseCadEvidence.mockResolvedValue({
       status: 'extracted',
       scopeItemsCreated: 0,
@@ -406,17 +362,7 @@ describe('completed document upload Project access', () => {
     })
 
     const response = await POST(
-      new NextRequest('http://localhost/api/upload/complete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          storagePath: `${TENANT_ID}/${OTHER_PROJECT_ID}/drawing.dxf`,
-          projectId: OTHER_PROJECT_ID,
-          fileName: 'drawing.dxf',
-          mimeType: 'application/dxf',
-          sizeBytes: 1_024,
-        }),
-      })
+      uploadRequest({ fileName: 'drawing.dxf', mimeType: 'application/dxf' })
     )
 
     expect(response.status).toBe(200)
@@ -425,184 +371,97 @@ describe('completed document upload Project access', () => {
         'ERP Core API is unavailable. No CAD evidence was committed.',
       cadResult: { status: 'processing-unavailable', scopeItemsCreated: 0 },
     })
-    expect(mocks.parseAndStoreCad).not.toHaveBeenCalled()
   })
 
-  it('delegates a non-extractor upload to Core before any legacy write', async () => {
-    const documentId = '44444444-4444-4444-8444-444444444444'
-    const storagePath = `${TENANT_ID}/${OTHER_PROJECT_ID}/uploaded-notes.txt`
-    mocks.getProject.mockResolvedValue({
-      id: OTHER_PROJECT_ID,
-      tenant_id: TENANT_ID,
-    })
-    mocks.documentIntakeCanarySelectedForUpload.mockReturnValue(true)
-    mocks.completeDocumentUploadThroughCoreCanary.mockResolvedValue({
-      ok: true,
-      status: 201,
-      data: {
-        id: documentId,
-        storagePath,
-        documentType: 'other',
-        cadFormat: null,
-        cadParseQueued: false,
-      },
-    })
-
-    const response = await POST(
-      new NextRequest('http://localhost/api/upload/complete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          storagePath,
-          projectId: OTHER_PROJECT_ID,
-          fileName: 'notes.txt',
-          mimeType: 'text/plain',
-          sizeBytes: 1_024,
-        }),
-      })
-    )
-
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({
-      id: documentId,
-      storagePath,
-      documentType: 'other',
-      cadFormat: null,
-      cadParseQueued: false,
-    })
-    expect(mocks.completeDocumentUploadThroughCoreCanary).toHaveBeenCalledWith(
-      {
-        storagePath,
-        projectId: OTHER_PROJECT_ID,
-        fileName: 'notes.txt',
-        mimeType: 'text/plain',
-        sizeBytes: 1_024,
-        description: null,
-      },
-      TENANT_ID,
-      expect.stringMatching(/^upload-[a-f0-9]{64}$/)
-    )
-    expect(mocks.transaction).not.toHaveBeenCalled()
-    expect(mocks.insert).not.toHaveBeenCalled()
-    expect(mocks.parseAndStoreCad).not.toHaveBeenCalled()
-  })
-
-  it('returns Core canary failure without falling back to a legacy write', async () => {
-    mocks.getProject.mockResolvedValue({
-      id: OTHER_PROJECT_ID,
-      tenant_id: TENANT_ID,
-    })
-    mocks.documentIntakeCanarySelectedForUpload.mockReturnValue(true)
-    mocks.completeDocumentUploadThroughCoreCanary.mockResolvedValue({
+  it('does not run a Next-side worker when Core document recording fails', async () => {
+    mocks.createDocumentThroughCoreApi.mockResolvedValue({
       ok: false,
       status: 503,
       error: 'ERP Core API is unavailable. No document was recorded.',
     })
 
     const response = await POST(
-      new NextRequest('http://localhost/api/upload/complete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          storagePath: `${TENANT_ID}/${OTHER_PROJECT_ID}/uploaded-notes.txt`,
-          projectId: OTHER_PROJECT_ID,
-          fileName: 'notes.txt',
-          mimeType: 'text/plain',
-          sizeBytes: 1_024,
-        }),
-      })
+      uploadRequest({ fileName: 'drawing.dwg', mimeType: 'application/acad' })
     )
 
     expect(response.status).toBe(503)
     await expect(response.json()).resolves.toEqual({
       error: 'ERP Core API is unavailable. No document was recorded.',
     })
-    expect(mocks.transaction).not.toHaveBeenCalled()
-    expect(mocks.insert).not.toHaveBeenCalled()
-    expect(mocks.parseAndStoreCad).not.toHaveBeenCalled()
+    expect(mocks.parseCadEvidence).not.toHaveBeenCalled()
+    expect(mocks.enqueueDocumentProcessingThroughCoreApi).not.toHaveBeenCalled()
   })
 
-  it('fails closed without falling back to a Next-side scope write when core rejects the canary', async () => {
-    const documentId = '44444444-4444-4444-8444-444444444444'
-    mocks.getProject.mockResolvedValue({
-      id: OTHER_PROJECT_ID,
-      tenant_id: TENANT_ID,
-    })
-    mocks.returning.mockResolvedValue([{ id: documentId }])
-    mocks.documentProcessingJobsUseCoreApi.mockReturnValue(true)
-    mocks.enqueueDocumentProcessingThroughCoreApi.mockResolvedValue({
+  it('rejects selected shared vision quota before recording a source document', async () => {
+    vi.stubEnv('OPENAI_API_KEY', 'test-key')
+    mocks.consumeProviderQuota.mockResolvedValue({
       ok: false,
-      error: 'ERP Core API is unavailable. No document processing job was created.',
+      status: 429,
+      error: 'Provider quota exceeded',
+      retryAfterSeconds: 12,
+      limit: 4,
+      scope: 'tenant-user',
+    })
+    mocks.providerQuotaBlockedResponse.mockReturnValue(
+      new Response('Provider quota exceeded', { status: 429 })
+    )
+
+    const response = await POST(
+      uploadRequest({ fileName: 'scope.pdf', mimeType: 'application/pdf' })
+    )
+
+    expect(response.status).toBe(429)
+    expect(mocks.consumeProviderQuota).toHaveBeenCalledWith(
+      'provider-vision',
+      TENANT_ID
+    )
+    expect(mocks.createDocumentThroughCoreApi).not.toHaveBeenCalled()
+    expect(mocks.extractScopeFromVisual).not.toHaveBeenCalled()
+  })
+
+  it('returns a Core-created visual candidate as explicitly unpriced', async () => {
+    mocks.extractScopeFromVisual.mockResolvedValue({
+      status: 'extracted',
+      scopeItemsCreated: 2,
+      warnings: ['Attach a DUPA before approval.'],
+      detectedKind: 'pdf',
+      bom: {
+        bomId: '55555555-5555-4555-8555-555555555555',
+        totalCostCents: 0,
+        totalTcvCents: 0,
+        gpMarginBps: 0,
+        ragMatches: 0,
+        aiEstimateMatches: 0,
+        unpriced: 2,
+      },
+      message: 'Created an unpriced candidate BOM.',
     })
 
     const response = await POST(
-      new NextRequest('http://localhost/api/upload/complete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          storagePath: `${TENANT_ID}/${OTHER_PROJECT_ID}/drawing.dwg`,
-          projectId: OTHER_PROJECT_ID,
-          fileName: 'drawing.dwg',
-          mimeType: 'application/acad',
-          sizeBytes: 1_024,
-        }),
-      })
+      uploadRequest({ fileName: 'scope.pdf', mimeType: 'application/pdf' })
     )
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toMatchObject({
-      id: documentId,
+      id: DOCUMENT_ID,
       cadParseQueued: false,
-      cadParseWarning:
-        'ERP Core API is unavailable. No document processing job was created.',
       cadResult: {
-        status: 'processing-unavailable',
-        scopeItemsCreated: 0,
+        status: 'extracted',
+        detectedFormat: 'pdf',
+        scopeItemsCreated: 2,
+        bomId: '55555555-5555-4555-8555-555555555555',
+        bomTcvCents: 0,
+        unpricedCandidateBom: true,
       },
     })
-    expect(mocks.parseAndStoreCad).not.toHaveBeenCalled()
-    expect(mocks.send).not.toHaveBeenCalled()
-  })
-
-  it('fails closed before extraction when document audit cannot commit', async () => {
-    const errorSpy = vi
-      .spyOn(console, 'error')
-      .mockImplementation(() => undefined)
-    mocks.getProject.mockResolvedValue({
-      id: OTHER_PROJECT_ID,
-      tenant_id: TENANT_ID,
+    expect(mocks.extractScopeFromVisual).toHaveBeenCalledWith({
+      tenantId: TENANT_ID,
+      projectId: PROJECT_ID,
+      documentId: DOCUMENT_ID,
+      storagePath: `${TENANT_ID}/${PROJECT_ID}/uploaded-notes.txt`,
+      fileName: 'scope.pdf',
+      mimeType: 'application/pdf',
+      kind: 'pdf',
     })
-    mocks.returning.mockResolvedValue([
-      { id: '44444444-4444-4444-8444-444444444444' },
-    ])
-    mocks.writeAuditLogInTransaction.mockRejectedValue(
-      new Error('audit unavailable')
-    )
-
-    const response = await POST(
-      new NextRequest('http://localhost/api/upload/complete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          storagePath:
-            `${TENANT_ID}/${OTHER_PROJECT_ID}/uploaded-notes.txt`,
-          projectId: OTHER_PROJECT_ID,
-          fileName: 'notes.txt',
-          mimeType: 'text/plain',
-          sizeBytes: 1_024,
-        }),
-      })
-    )
-
-    expect(response.status).toBe(500)
-    await expect(response.json()).resolves.toEqual({
-      error: 'Failed to record document',
-    })
-    expect(mocks.transaction).toHaveBeenCalledOnce()
-    expect(mocks.parseAndStoreCad).not.toHaveBeenCalled()
-    expect(mocks.extractScopeFromVisual).not.toHaveBeenCalled()
-    expect(mocks.send).not.toHaveBeenCalled()
-    expect(errorSpy).toHaveBeenCalledOnce()
-    errorSpy.mockRestore()
   })
 })

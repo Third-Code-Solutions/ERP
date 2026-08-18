@@ -7,9 +7,7 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
-  ServiceUnavailableException,
 } from '@nestjs/common'
-import { ConfigService } from '@nestjs/config'
 import {
   documentIntakeRequests,
   documents,
@@ -97,7 +95,6 @@ function replayResult(value: unknown): DocumentIntakeResult {
 @Injectable()
 export class DocumentIntakeService {
   constructor(
-    @Inject(ConfigService) private readonly config: ConfigService,
     @Inject(DatabaseService) private readonly database: DatabaseService,
     @Inject(AuditService) private readonly audit: AuditService
   ) {}
@@ -109,7 +106,6 @@ export class DocumentIntakeService {
   ): Promise<DocumentIntakeResult> {
     const command = documentIntakeRequestSchema.parse(request)
     const idempotencyKey = validateIdempotencyKey(rawIdempotencyKey)
-    this.assertEnabled(principal)
     const requestHash = commandHash(command)
 
     return this.database.client.transaction(async (transaction) => {
@@ -129,7 +125,10 @@ export class DocumentIntakeService {
       if (!project) throw new NotFoundException('Project not found')
 
       const expectedPrefix = `${authorizedPrincipal.tenantId}/${project.id}/`
-      if (!command.storagePath.startsWith(expectedPrefix)) {
+      if (
+        !command.storagePath.startsWith(expectedPrefix) ||
+        command.storagePath.split('/').some((segment) => segment === '..')
+      ) {
         throw new ForbiddenException('Storage path is outside tenant project scope')
       }
 
@@ -191,22 +190,6 @@ export class DocumentIntakeService {
       await this.completeRequest(transaction, replay.id, result)
       return result
     })
-  }
-
-  private assertEnabled(principal: ErpPrincipal): void {
-    const enabled = this.config.get<boolean>(
-      'ERP_DOCUMENT_INTAKE_WRITES_ENABLED',
-      false
-    )
-    const tenantIds = this.config.get<string[]>(
-      'ERP_DOCUMENT_INTAKE_WRITES_TENANT_IDS',
-      []
-    )
-    if (!enabled || !tenantIds.includes(principal.tenantId)) {
-      throw new ServiceUnavailableException(
-        'Document intake workflow is not enabled for this tenant; no document was created.'
-      )
-    }
   }
 
   private async authorize(
