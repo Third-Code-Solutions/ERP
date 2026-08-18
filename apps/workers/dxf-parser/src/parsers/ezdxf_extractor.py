@@ -233,7 +233,7 @@ class Extractor:
                     code=None,
                     description=f"{system} — Floor Area ({layer})",
                     unit="sqm",
-                    quantity=round(area_m2),
+                    quantity=area_m2,
                     unit_cost_cents=0,
                     notes=f"Layer: {layer}",
                 ))
@@ -268,12 +268,13 @@ class Extractor:
 
             m = AREA_ANNOTATION.search(text)
             if m:
-                value = float(m.group(1).replace(",", ""))
+                raw_value = m.group(1).replace(",", "")
+                value = float(raw_value)
                 if value <= 0:
                     continue
                 label = last_label or "Declared area"
                 # Avoid duplicating identical label+value pairs
-                key = f"{label}|{round(value)}"
+                key = f"{label}|{raw_value}"
                 if key in seen_label_for:
                     continue
                 seen_label_for[key] = label
@@ -282,7 +283,7 @@ class Extractor:
                         code=None,
                         description=f"Declared area — {label}",
                         unit="sqm",
-                        quantity=round(value),
+                        quantity=value,
                         unit_cost_cents=0,
                         notes=f"From drawing annotation: {text[:60]}",
                     )

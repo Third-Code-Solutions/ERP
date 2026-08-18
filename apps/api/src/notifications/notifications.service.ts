@@ -1,9 +1,7 @@
 import {
   Inject,
   Injectable,
-  ServiceUnavailableException,
 } from '@nestjs/common'
-import { ConfigService } from '@nestjs/config'
 import { notifications } from '@third-code-erp/database/schema'
 import {
   notificationListResultSchema,
@@ -16,10 +14,7 @@ import {
 import { and, desc, eq } from 'drizzle-orm'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import { AuditService } from '../audit/audit.service'
-import {
-  DatabaseService,
-  type DatabaseTransaction,
-} from '../database/database.service'
+import { DatabaseService } from '../database/database.service'
 
 function isoDateTime(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : value
@@ -28,14 +23,11 @@ function isoDateTime(value: Date | string): string {
 @Injectable()
 export class NotificationsService {
   constructor(
-    @Inject(ConfigService) private readonly config: ConfigService,
     @Inject(DatabaseService) private readonly database: DatabaseService,
     @Inject(AuditService) private readonly audit: AuditService
   ) {}
 
   async list(principal: ErpPrincipal): Promise<NotificationListResult> {
-    this.assertEnabled(principal)
-
     const rows = await this.database.client
       .select({
         id: notifications.id,
@@ -74,7 +66,6 @@ export class NotificationsService {
     command: NotificationReadStateCommand,
     principal: ErpPrincipal
   ): Promise<NotificationReadStateResult> {
-    this.assertEnabled(principal)
     const parsedCommand = notificationReadStateCommandSchema.parse(command)
 
     return this.database.client.transaction(async (transaction) => {
@@ -131,19 +122,4 @@ export class NotificationsService {
     })
   }
 
-  private assertEnabled(principal: ErpPrincipal): void {
-    const enabled = this.config.get<boolean>(
-      'ERP_NOTIFICATION_READ_STATE_ENABLED',
-      false
-    )
-    const tenantIds = this.config.get<string[]>(
-      'ERP_NOTIFICATION_READ_STATE_TENANT_IDS',
-      []
-    )
-    if (!enabled || !tenantIds.includes(principal.tenantId)) {
-      throw new ServiceUnavailableException(
-        'Notification read state is not enabled for this tenant.'
-      )
-    }
-  }
 }

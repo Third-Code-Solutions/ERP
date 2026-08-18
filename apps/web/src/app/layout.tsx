@@ -1,5 +1,6 @@
 import '@/lib/env'
 import { Analytics } from '@vercel/analytics/next'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
 import { resolvePublicOrigin } from '@/lib/public-origin'
@@ -61,6 +62,7 @@ export default async function RootLayout({
       <body>
         {children}
         {process.env.VERCEL === '1' ? <Analytics /> : null}
+        {process.env.VERCEL === '1' ? <SpeedInsights /> : null}
       </body>
     </html>
   )

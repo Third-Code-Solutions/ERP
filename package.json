@@ -4,16 +4,17 @@
   "private": true,
   "packageManager": "pnpm@10.33.0",
   "engines": {
-    "node": ">=20.0.0",
+    "node": "22.x",
     "pnpm": ">=10.0.0"
   },
   "scripts": {
     "build": "turbo build --concurrency=1",
     "dev": "turbo dev --parallel",
-    "lint": "turbo lint",
+    "lint": "eslint --max-warnings=0 apps/api/src apps/web/src packages/ai/src packages/auth/src packages/database/src packages/shared-types/src",
     "typecheck": "turbo typecheck",
     "test": "turbo test --concurrency=1",
     "test:build-ops-invariants": "node --test scripts/verify-build-ops-invariants.test.mjs",
+    "test:database-repro-policy-contract": "node --test scripts/verify-database-repro-policy-contract.test.mjs",
     "test:production-data-boundary": "node --test scripts/verify-production-data-boundary.test.mjs",
     "test:production-surface": "node --test scripts/verify-production-surface.test.mjs",
     "test:demo-tenant": "node --test scripts/lib/demo-tenant.test.mjs",
@@ -53,6 +54,9 @@
     "test:provider-spend-guard": "node --test scripts/verify-vercel-spend-guard.test.mjs",
     "test:managed-supabase-parity-plan": "node --test scripts/verify-managed-supabase-parity-plan.test.mjs",
     "test:managed-supabase-parity-replay": "node --test scripts/verify-managed-supabase-parity-replay.test.mjs",
+    "test:vitest-no-skips": "node --test scripts/assert-vitest-no-skips.test.mjs",
+    "test:playwright-no-skips": "node --test scripts/assert-playwright-no-skips.test.mjs",
+    "test:empty-schema-diff": "node --test scripts/assert-empty-schema-diff.test.mjs",
     "test:turbo-test-cache": "node scripts/verify-turbo-test-cache.mjs",
     "ci:actionlint": "node scripts/run-actionlint.mjs",
     "ci:gitleaks": "node scripts/run-gitleaks.mjs",
@@ -99,7 +103,12 @@
     "clean": "turbo clean && find . -name 'node_modules' -type d -not -path './.git/*' -exec rm -rf {} + 2>/dev/null; find . -name '.next' -type d -exec rm -rf {} + 2>/dev/null; true"
   },
   "devDependencies": {
-    "turbo": "^2.3.3",
+    "@eslint/eslintrc": "^3.3.6",
+    "@eslint/js": "^9.39.5",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "15.5.23",
+    "turbo": "^2.9.14",
+    "typescript-eslint": "^8.67.0",
     "typescript": "^5.7.2"
   }
 }

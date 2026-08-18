@@ -54,6 +54,33 @@ describe('Cortex relationship list', () => {
     expect(markup).toContain('cortex-relationship--static')
   })
 
+  it('bounds a compact list and preserves a route to the full connection set', () => {
+    const markup = renderToStaticMarkup(
+      <CortexRelationshipList
+        relationships={[
+          relationship,
+          {
+            ...relationship,
+            edgeId: '44444444-4444-4444-8444-444444444444',
+            citation: {
+              ...relationship.citation,
+              refId: '55555555-5555-4555-8555-555555555555',
+              title: 'INV-200',
+            },
+          },
+        ]}
+        limit={1}
+        moreHref="/cortex?refTable=projects&refId=project-1"
+      />
+    )
+
+    expect(markup).toContain('INV-100')
+    expect(markup).not.toContain('INV-200')
+    expect(markup).toContain('View all 2 connections')
+    expect(markup).toContain('aria-label="View all 2 connections in Cortex"')
+    expect(markup).toContain('href="/cortex?refTable=projects&amp;refId=project-1"')
+  })
+
   it('renders nothing for an empty relationship list', () => {
     expect(
       renderToStaticMarkup(

@@ -16,6 +16,14 @@ type RawCostControlRow = {
   unreconciled_cents: number | string | null
 }
 
+type RawProjectCostControlTotalsRow = {
+  project_id: string
+  baseline_cents: number | string | null
+  committed_cents: number | string | null
+  actual_cents: number | string | null
+  unreconciled_cents: number | string | null
+}
+
 export interface ProjectCostControlRow {
   key: string
   costCodeId: string | null
@@ -52,6 +60,188 @@ export interface ProjectCostControl {
 
 function cents(value: number | string | null): number {
   return Number(value ?? 0)
+}
+
+function emptyProjectCostControlTotals(): ProjectCostControlTotals {
+  return {
+    baselineCents: 0,
+    committedCents: 0,
+    actualCents: 0,
+    unreconciledCents: 0,
+    forecastCents: 0,
+    remainingCents: 0,
+    varianceCents: 0,
+  }
+}
+
+/**
+ * Reads the same cost-control triangle as {@link getProjectCostControl}, but
+ * batches the requested projects into one query. Dashboard views only need
+ * totals, so returning the full line-level shape once per project creates an
+ * avoidable N+1 query pattern during a route transition.
+ */
+export async function getProjectCostControlTotalsForProjects(params: {
+  tenantId: string
+  projectIds: readonly string[]
+}): Promise<Map<string, ProjectCostControlTotals>> {
+  const projectIds = [...new Set(params.projectIds)]
+  const totalsByProject = new Map<string, ProjectCostControlTotals>(
+    projectIds.map((projectId) => [
+      projectId,
+      emptyProjectCostControlTotals(),
+    ])
+  )
+
+  if (projectIds.length === 0) return totalsByProject
+
+  const projectIdList = sql.join(
+    projectIds.map((projectId) => sql`${projectId}::uuid`),
+    sql`, `
+  )
+
+  const rawRows = await db.execute<RawProjectCostControlTotalsRow>(sql`
+    with budget as (
+      select
+        budget.project_id,
+        budget_line.cost_code_id,
+        budget_line.bom_line_item_id,
+        sum(budget_line.amount_cents)::bigint as baseline_cents
+      from public.project_budget_lines budget_line
+      join public.project_budgets budget
+        on budget.id = budget_line.project_budget_id
+       and budget.tenant_id = budget_line.tenant_id
+      where budget_line.tenant_id = ${params.tenantId}::uuid
+        and budget.project_id in (${projectIdList})
+        and budget.status = 'approved'
+      group by budget.project_id, budget_line.cost_code_id, budget_line.bom_line_item_id
+    ),
+    commitment as (
+      select
+        purchase_order.project_id,
+        po_line.cost_code_id,
+        po_line.bom_line_item_id,
+        sum(po_line.line_total_cents)::bigint as committed_cents
+      from public.po_line_items po_line
+      join public.purchase_orders purchase_order
+        on purchase_order.id = po_line.po_id
+       and purchase_order.tenant_id = po_line.tenant_id
+      where po_line.tenant_id = ${params.tenantId}::uuid
+        and purchase_order.project_id in (${projectIdList})
+        and purchase_order.status::text in (
+          'confirmed',
+          'partial_delivery',
+          'delivered',
+          'issued',
+          'partial_delivered',
+          'fully_delivered'
+        )
+      group by purchase_order.project_id, po_line.cost_code_id, po_line.bom_line_item_id
+    ),
+    actual as (
+      select
+        bill_line.project_id,
+        bill_line.cost_code_id,
+        bill_line.bom_line_item_id,
+        sum(bill_line.amount_cents)::bigint as actual_cents
+      from public.supplier_bill_lines bill_line
+      join public.supplier_bills bill
+        on bill.id = bill_line.supplier_bill_id
+       and bill.tenant_id = bill_line.tenant_id
+      join public.po_line_items po_line
+        on po_line.id = bill_line.po_line_item_id
+       and po_line.tenant_id = bill_line.tenant_id
+       and po_line.bom_line_item_id is not distinct from bill_line.bom_line_item_id
+      where bill_line.tenant_id = ${params.tenantId}::uuid
+        and bill_line.project_id in (${projectIdList})
+        and bill.project_id = bill_line.project_id
+        and bill.status = 'posted'
+      group by bill_line.project_id, bill_line.cost_code_id, bill_line.bom_line_item_id
+    ),
+    unreconciled as (
+      select
+        entry.project_id,
+        entry.cost_code_id,
+        entry.bom_line_item_id,
+        sum(entry.amount_cents)::bigint as unreconciled_cents
+      from public.cost_entries entry
+      where entry.tenant_id = ${params.tenantId}::uuid
+        and entry.project_id in (${projectIdList})
+      group by entry.project_id, entry.cost_code_id, entry.bom_line_item_id
+    ),
+    dimensions as (
+      select
+        project_id,
+        cost_code_id,
+        bom_line_item_id,
+        baseline_cents,
+        0::bigint as committed_cents,
+        0::bigint as actual_cents,
+        0::bigint as unreconciled_cents
+      from budget
+      union all
+      select
+        project_id,
+        cost_code_id,
+        bom_line_item_id,
+        0::bigint,
+        committed_cents,
+        0::bigint,
+        0::bigint
+      from commitment
+      union all
+      select
+        project_id,
+        cost_code_id,
+        bom_line_item_id,
+        0::bigint,
+        0::bigint,
+        actual_cents,
+        0::bigint
+      from actual
+      union all
+      select
+        project_id,
+        cost_code_id,
+        bom_line_item_id,
+        0::bigint,
+        0::bigint,
+        0::bigint,
+        unreconciled_cents
+      from unreconciled
+    )
+    select
+      project_id,
+      sum(baseline_cents)::bigint as baseline_cents,
+      sum(committed_cents)::bigint as committed_cents,
+      sum(actual_cents)::bigint as actual_cents,
+      sum(unreconciled_cents)::bigint as unreconciled_cents
+    from dimensions
+    group by project_id, cost_code_id, bom_line_item_id
+  `)
+
+  for (const raw of rawRows) {
+    const totals = totalsByProject.get(raw.project_id)
+    if (!totals) continue
+
+    const baselineCents = cents(raw.baseline_cents)
+    const committedCents = cents(raw.committed_cents)
+    const actualCents = cents(raw.actual_cents)
+    const metrics = computeCostControlMetrics({
+      baselineCents,
+      committedCents,
+      actualCents,
+    })
+
+    totals.baselineCents += baselineCents
+    totals.committedCents += committedCents
+    totals.actualCents += actualCents
+    totals.unreconciledCents += cents(raw.unreconciled_cents)
+    totals.forecastCents += metrics.forecastCents
+    totals.remainingCents += metrics.remainingCents
+    totals.varianceCents += metrics.varianceCents
+  }
+
+  return totalsByProject
 }
 
 /**

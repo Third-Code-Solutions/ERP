@@ -5,6 +5,7 @@ import {
   type NestMiddleware,
 } from '@nestjs/common'
 import type { NextFunction, Request, Response } from 'express'
+import type { AuthenticatedRequest } from '../auth/current-principal.decorator'
 
 export const REQUEST_ID_HEADER = 'x-request-id'
 
@@ -14,7 +15,7 @@ const COMMAND_METHODS = new Set(['DELETE', 'PATCH', 'POST', 'PUT'])
 
 type CommandOutcome = 'aborted' | 'failed' | 'rejected' | 'succeeded'
 
-interface CorrelatedRequest extends Request {
+interface CorrelatedRequest extends AuthenticatedRequest {
   requestId: string
 }
 
@@ -29,10 +30,11 @@ export class RequestObservabilityMiddleware implements NestMiddleware {
     response: Response,
     next: NextFunction
   ): void {
+    const correlatedRequest = request as CorrelatedRequest
     const requestId = this.requestId(
       request.headers[REQUEST_ID_HEADER]
     )
-    ;(request as CorrelatedRequest).requestId = requestId
+    correlatedRequest.requestId = requestId
     response.setHeader(REQUEST_ID_HEADER, requestId)
 
     if (!COMMAND_METHODS.has(request.method)) {
@@ -45,16 +47,30 @@ export class RequestObservabilityMiddleware implements NestMiddleware {
     const record = (aborted = false) => {
       if (recorded) return
       recorded = true
+      // Nest authentication guards complete after middleware registration but
+      // before the response finishes, so capture the trusted principal here.
+      // IDs correlate audit and command events without logging credentials,
+      // URLs, request payloads, entity IDs, or the actor's email.
+      const principal = correlatedRequest.principal
+      const action = this.operation(request)
+      const outcome = aborted
+        ? 'aborted'
+        : this.outcome(response.statusCode)
       this.logger.log(
         JSON.stringify({
           event: 'erp.command.outcome',
+          trace_id: requestId,
+          tenant_id: principal?.tenantId ?? null,
+          actor_id: principal?.userId ?? null,
+          actor_role: principal?.role ?? null,
+          action,
+          outcome,
+          // Retain camelCase fields for existing log queries during the
+          // schema transition. New consumers should use the fields above.
           requestId,
-          operation: this.operation(request),
+          operation: action,
           method: request.method,
           statusCode: aborted ? null : response.statusCode,
-          outcome: aborted
-            ? 'aborted'
-            : this.outcome(response.statusCode),
           durationMs: Date.now() - startedAt,
         })
       )

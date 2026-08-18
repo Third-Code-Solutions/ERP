@@ -46,7 +46,7 @@ export async function sendEmail(envelope: EmailEnvelope): Promise<{ id: string; 
         'Email integration is not configured for production. Set RESEND_API_KEY and EMAIL_FROM.'
       )
     }
-    // eslint-disable-next-line no-console
+
     console.warn('[email:dev]', {
       from: FROM(),
       to: envelope.to,

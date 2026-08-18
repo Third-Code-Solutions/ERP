@@ -26,6 +26,11 @@ describe('ProviderQuotaService', () => {
       limit: 6,
       windowMs: 60_000,
     })
+    expect(providerQuotaPolicy('provider-vision')).toEqual({
+      bucket: 'provider-vision',
+      limit: 4,
+      windowMs: 60_000,
+    })
   })
 
   it('hashes tenant/user identity into a non-reversible Redis key', () => {

@@ -19,6 +19,12 @@ export interface NavItemDef {
   label: string
   iconKey: NavIconKey
   /**
+   * Keep the route in the authorization map while omitting it from ordinary
+   * sidebar navigation. Used only for controlled-rollout routes that retain a
+   * protected deep-link/canary path.
+   */
+  visible?: boolean
+  /**
    * Roles that can VIEW this item in the sidebar AND access the
    * route via direct URL. If undefined, everyone (including viewers)
    * gets access. Always uses canonical role names.
@@ -249,6 +255,7 @@ export const NAV_SECTIONS: NavSection[] = [
         href: '/assets',
         label: 'Assets',
         iconKey: 'Layers',
+        visible: false,
         roles: [
           'admin',
           'sales',
@@ -363,6 +370,7 @@ export function visibleNavSections(role: AppRole): NavSection[] {
   return NAV_SECTIONS.map((section) => ({
     ...section,
     items: section.items.filter((item) => {
+      if (item.visible === false) return false
       if (!item.roles) return true
       return item.roles.includes(me)
     }),

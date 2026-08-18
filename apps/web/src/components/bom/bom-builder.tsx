@@ -14,10 +14,10 @@ import {
 import { createPoFromBom, createInvoice } from '@/app/(dashboard)/procurement/actions'
 import { SupplierSwitcherPanel } from '@/components/bom/supplier-switcher-panel'
 import { VarianceBanner } from '@/components/bom/variance-banner'
-import { JustificationDialog } from '@/components/bom/justification-dialog'
 import { BomLineRow, isLineFlagged, type BomDupaDetail } from '@/components/bom/bom-line-row'
 import { DupaEditor, type DupaAssemblyOption } from '@/components/bom/dupa-editor'
 import { groupBomLinesByDivision } from '@/lib/operations/bom-hierarchy'
+import { MAX_BOM_LINE_ITEM_QUANTITY } from '@third-code-erp/shared-types/bom'
 
 interface BomLineItem {
   id: string
@@ -224,18 +224,11 @@ export function BomBuilder({ projectId, bom, vendors = [], locations = [], assem
     score: number
   }[]>([])
   const [isFetchingSuggestions, setIsFetchingSuggestions] = useState(false)
-  // US-011 — supplier switcher / variance / justification state.
+  // US-011 — supplier switcher and variance state.
   const [selectedLineId, setSelectedLineId] = useState<string | null>(null)
   const [editingDupaLineId, setEditingDupaLineId] = useState<string | null>(null)
   const [forecastTcvCents, setForecastTcvCents] = useState<number | null>(null)
   const [isMobile, setIsMobile] = useState(false)
-  const [justification, setJustification] = useState<{
-    lineItemId: string
-    fieldChanged: string
-    before: unknown
-    after: unknown
-  } | null>(null)
-
   // Responsive: side panel becomes a bottom drawer below 900px.
   useEffect(() => {
     function update() {
@@ -373,10 +366,12 @@ export function BomBuilder({ projectId, bom, vendors = [], locations = [], assem
     setFormError('')
 
     const unitCostCents = Math.round(parseFloat(form.unit_cost) * 100)
-    const quantity = parseInt(form.quantity, 10)
+    const quantity = Number(form.quantity)
     if (!form.description.trim()) return setFormError('Description is required')
     if (isNaN(unitCostCents) || unitCostCents < 0) return setFormError('Invalid unit cost')
-    if (isNaN(quantity) || quantity < 1) return setFormError('Quantity must be at least 1')
+    if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > MAX_BOM_LINE_ITEM_QUANTITY) {
+      return setFormError(`Quantity must be a whole number from 1 to ${MAX_BOM_LINE_ITEM_QUANTITY.toLocaleString('en-PH')}`)
+    }
 
     startTransition(async () => {
       const result = await addBomLineItem(bom.id, projectId, {
@@ -968,6 +963,7 @@ export function BomBuilder({ projectId, bom, vendors = [], locations = [], assem
       {/* US-011 — right-side supplier switcher panel (drawer on mobile) */}
       <SupplierSwitcherPanel
         projectId={projectId}
+        isEditable={isEditable}
         selected={
           selectedLine
             ? {
@@ -984,17 +980,6 @@ export function BomBuilder({ projectId, bom, vendors = [], locations = [], assem
         onClose={() => setSelectedLineId(null)}
       />
 
-      {justification && (
-        <JustificationDialog
-          lineItemId={justification.lineItemId}
-          projectId={projectId}
-          fieldChanged={justification.fieldChanged}
-          before={justification.before}
-          after={justification.after}
-          open
-          onClose={() => setJustification(null)}
-        />
-      )}
     </div>
   )
 }

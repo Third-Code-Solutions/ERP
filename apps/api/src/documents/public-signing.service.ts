@@ -32,7 +32,6 @@ import {
 } from '../database/database.service'
 import { PublicSigningStorageService } from './public-signing.storage'
 
-const TOKEN_PATTERN = /^[0-9a-f]{64}$/i
 const SIGNATURE_DATA_URL_PREFIX = 'data:image/png;base64,'
 const MAX_SIGNATURE_BYTES = 512 * 1024
 const MAX_SIGNATURE_BASE64_LENGTH = Math.ceil(MAX_SIGNATURE_BYTES / 3) * 4

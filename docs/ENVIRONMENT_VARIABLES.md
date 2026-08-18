@@ -129,31 +129,28 @@ swap the built-in canvas signing pad for a DocuSeal envelope.
 |---|---|---|---|---|
 | `DOCUSEAL_API_URL` | no | server | Your DocuSeal install URL | Switches signing strategy to DocuSeal envelopes |
 | `DOCUSEAL_API_KEY` | no* | server | DocuSeal `Settings → API` | Auth header for envelope creation. Required when `DOCUSEAL_API_URL` is set |
-| `DOCUSEAL_WEBHOOK_SECRET` | no* | server | DocuSeal `Settings → Webhooks` | Validates inbound completion webhooks. Required when `DOCUSEAL_API_URL` is set |
+| `DOCUSEAL_WEBHOOK_SECRET` | no* | Web server | DocuSeal `Settings → Webhooks` | Required for every inbound completion callback; the route returns `503` when unset |
 
 Optional — when unset, the built-in canvas signing pad is used. The
 audit trail and signature bundle layout are identical either way.
 
 ---
 
-## DocuSeal Core webhook canary
+## DocuSeal Core webhook authority
 
-The Web callback remains authoritative by default. When a disposable exact
-tenant replay has passed, the Web route may forward the token/document/BOM-lock
-transaction to Nest Core. Both sides require the same server-only internal
-token; the selector and Core allowlist are independent fail-closed controls.
+Nest Core is the only durable authority for DocuSeal completion callbacks. The
+Web route verifies the provider secret, forwards one normalized command using a
+server-only token, and sends best-effort email only after the Core transaction
+commits. Core atomically consumes the portal token, stores the signed document,
+locks the BOM, creates in-app notifications, and writes audit evidence.
 
 | Variable | Required | Scope | Controls |
 |---|---|---|---|
-| `ERP_CORE_WEBHOOK_TOKEN` | when selected | Web + Core server | Authenticates Web-to-Core webhook calls; minimum 32 random characters |
-| `ERP_DOCUSEAL_WEBHOOK_VIA_API` | no | Web server | Enables the Web adapter only when `true` |
-| `ERP_DOCUSEAL_WEBHOOK_VIA_API_TENANT_IDS` | when selected | Web server | Exact UUID tenant selector; wildcards are rejected |
-| `ERP_DOCUSEAL_WEBHOOK_ENABLED` | no | Core server | Enables the Nest transaction only when `true` |
-| `ERP_DOCUSEAL_WEBHOOK_TENANT_IDS` | when selected | Core server | Exact UUID tenant allowlist |
+| `ERP_CORE_WEBHOOK_TOKEN` | yes, when DocuSeal is enabled | Web + Core server | Authenticates Web-to-Core calls; minimum 32 random characters |
 
-Selected-Core failures are terminal and never fall back to Web writes. Web
-notification delivery remains an ancillary compatibility side effect until
-the durable outbox parity is separately approved.
+Core failures are terminal and never fall back to Web writes. In-app
+notification writes share the Core transaction; outbound email is best-effort
+and must be observed separately until its durable outbox path is generalized.
 
 ---
 
@@ -197,6 +194,26 @@ When enabled, failed Nest/Redis quota calls fail closed before external AI
 work. Edge limiter remains separate per-instance burst guard. This is not a
 global budget until every provider instance uses shared accounting.
 
+## Distributed Edge request limiting (Upstash REST, disabled by default)
+
+This is a separate Web-middleware control, not the tenant/user provider-spend
+quota above. The exact enable flag requires every listed server-only value;
+missing, invalid, timed-out, or rejected distributed accounting returns a
+generic 503 rather than falling back to an instance-local map. See
+`docs/adrs/ADR-023-distributed-edge-rate-limiting.md` and
+`docs/runbooks/distributed-rate-limiting.md` before any target enablement.
+
+| Variable | Required | Scope | Controls |
+|---|---|---|---|
+| `ERP_DISTRIBUTED_RATE_LIMIT_ENABLED` | no | Vercel Web server runtime | Exact `true` selects the Upstash adapter; default `false` is local compatibility only |
+| `UPSTASH_REDIS_REST_URL` | when enabled | Vercel Web secret | TLS root `*.upstash.io` REST endpoint; custom hosts, paths, queries, and URL credentials are rejected |
+| `UPSTASH_REDIS_REST_TOKEN` | when enabled | Vercel Web secret | Write-capable server-only REST token used by atomic EVAL accounting |
+| `ERP_RATE_LIMIT_KEY_SALT` | when enabled | Vercel Web secret | At least 32 server-only characters used to hash IP/user subjects before Redis |
+
+Do not expose these variables to browser code, source control, URLs, logs, or
+build output. Provider approval, an isolated target, multi-instance proof,
+alerting, and rollback evidence are still required before activation.
+
 ## User role assignment (NestJS, disabled by default)
 
 The privileged role command derives actor and tenant scope from the verified
@@ -231,20 +248,14 @@ authority.
 | `ERP_ASSET_READS_ENABLED` | no | Railway API | Exact `true` enables the Nest read seam; default `false` |
 | `ERP_ASSET_READS_TENANT_IDS` | no | Railway API | Comma-separated strict UUID allowlist; default empty |
 
-## Notification list/read-state authority (NestJS, disabled by default)
+## Notification list/read-state authority (NestJS Core)
 
-The authenticated shell can select tenant-and-user-scoped Nest notification
-list and read-state updates. Core preserves the existing Web response shape;
-marking a notification read is audited. The compatibility route remains the
-default, and selected-Core errors are terminal rather than falling back to a
-direct database update.
-
-| Variable | Required | Scope | Controls |
-|---|---|---|---|
-| `ERP_NOTIFICATION_READ_STATE_ENABLED` | no | Railway API | Exact `true` enables `GET/POST /v1/notifications`; default `false` |
-| `ERP_NOTIFICATION_READ_STATE_TENANT_IDS` | no | Railway API | Strict UUID allowlist; default empty |
-| `ERP_NOTIFICATION_READ_STATE_VIA_API` | no | Next server | Selects the authenticated Nest adapter; exact `true` only |
-| `ERP_NOTIFICATION_READ_STATE_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist; default empty |
+The authenticated Web compatibility route always delegates notification list
+and read-state commands to `GET`/`POST /v1/notifications`. There is no
+tenant rollout selector for this boundary and no direct Web database fallback.
+Core capability authorization, tenant-and-recipient scoping, and audited
+mutations are the enforcement controls. An unavailable Core service returns a
+terminal error to the caller rather than silently using another authority.
 
 ## Cortex keyword search reads (NestJS, disabled by default)
 
@@ -516,14 +527,15 @@ false and tenant list empty until the controlled release gate is clear.
 | `ERP_PUBLIC_VENDOR_CONFIRMATION_LINK_DELIVERY_TENANT_IDS` | no | API server | Explicit link-delivery tenant allowlist; default empty |
 | `ERP_PUBLIC_VENDOR_CONFIRMATION_BASE_URL` | no | API server | HTTPS Nest API origin used for supplier confirmation links |
 
-The Next.js upload compatibility selector is separate from the API-side gates:
+The Web upload route always forwards CAD evidence to ERP Core and has no
+compatibility-write selector. The following Next.js selector only chooses the
+optional binary-DWG processing queue; all direct evidence commits remain Core
+authority and fail closed when Core rejects them.
 
 | Variable | Required | Scope | Controls |
 |---|---|---|---|
 | `ERP_DOCUMENT_PROCESSING_VIA_API` | no | Next server | Selects the binary-DWG Next-to-Nest handoff; default false |
 | `ERP_DOCUMENT_PROCESSING_TENANT_IDS` | no | Next server | Strict UUID allowlist for the handoff; default empty |
-| `ERP_CAD_EVIDENCE_COMMIT_WRITES_VIA_API` | no | Next server | Selects the Nest CAD evidence commit adapter; default false |
-| `ERP_CAD_EVIDENCE_COMMIT_WRITES_VIA_API_TENANT_IDS` | no | Next server | Strict exact UUID allowlist for CAD evidence commits; wildcard rejected |
 | `ERP_DOCUMENT_DELETE_WRITES_VIA_API` | no | Next server | Selects the Nest document deletion authority; default false |
 | `ERP_DOCUMENT_DELETE_WRITES_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist for document deletion; default empty |
 | `ERP_PUBLIC_SIGNING_VIA_API` | no | Next server | Selects the Nest public-signing authority; default false |

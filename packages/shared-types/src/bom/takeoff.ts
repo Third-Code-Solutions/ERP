@@ -25,6 +25,23 @@ export interface TakeoffValidationIssue {
   message: string
 }
 
+// `bom_line_items.quantity` is currently a PostgreSQL integer. Do not round
+// source evidence to make it fit: the unresolved queue must surface values
+// that require the PRD's future decimal-precision migration.
+export const MAX_BOM_LINE_ITEM_QUANTITY = 2_147_483_647
+
+export function takeoffCommitQuantity(quantity: number | null): number {
+  if (
+    quantity === null ||
+    !Number.isSafeInteger(quantity) ||
+    quantity <= 0 ||
+    quantity > MAX_BOM_LINE_ITEM_QUANTITY
+  ) {
+    return 0
+  }
+  return quantity
+}
+
 const RECOGNIZED_UOMS = new Set([
   'sqm',
   'm2',
@@ -77,6 +94,22 @@ export function validateTakeoffRows(
         sourceRowKey: row.sourceRowKey,
         code: 'INVALID_QUANTITY',
         message: 'Quantity must be greater than zero.',
+      })
+    } else if (!Number.isInteger(row.quantity)) {
+      issues.push({
+        sourceRowKey: row.sourceRowKey,
+        code: 'INVALID_QUANTITY',
+        message:
+          'Fractional quantity requires decimal BOM precision before it can be committed.',
+      })
+    } else if (
+      !Number.isSafeInteger(row.quantity) ||
+      row.quantity > MAX_BOM_LINE_ITEM_QUANTITY
+    ) {
+      issues.push({
+        sourceRowKey: row.sourceRowKey,
+        code: 'INVALID_QUANTITY',
+        message: 'Quantity exceeds the supported BOM integer range.',
       })
     }
 

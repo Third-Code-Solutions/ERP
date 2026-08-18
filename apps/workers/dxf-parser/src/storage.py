@@ -37,3 +37,17 @@ async def download_source(
                 chunks.append(chunk)
 
     return b"".join(chunks), digest.hexdigest()
+
+
+async def download_signed_url(source_url: str, max_bytes: int) -> bytes:
+    """Read a signed source URL without retaining the URL or its hash state.
+
+    The private evidence endpoint owns the source-hash contract. Keeping this
+    wrapper preserves a deliberately narrow, credential-free download surface
+    for that endpoint while sharing the bounded, redirect-free transport.
+    """
+
+    source_bytes, _source_sha256 = await download_source(
+        source_url, max_bytes=max_bytes
+    )
+    return source_bytes

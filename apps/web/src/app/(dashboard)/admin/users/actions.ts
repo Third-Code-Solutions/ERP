@@ -42,7 +42,7 @@ async function safe<T extends { error?: string }>(
   try {
     return await body()
   } catch (err) {
-    // eslint-disable-next-line no-console
+
     console.error(`[admin/users:${label}]`, err)
     const msg = err instanceof Error ? err.message : String(err)
     return { error: `${label} failed: ${msg}` } as T
@@ -148,7 +148,7 @@ export async function createUser(
         diff: { email: input.email, full_name: input.full_name, role: input.role },
       })
     } catch (err) {
-      // eslint-disable-next-line no-console
+
       console.warn('[admin/users:createUser] audit log insert failed (non-fatal):', err)
     }
 
@@ -253,7 +253,7 @@ export async function updateUserRole(
         diff: { role: { before: existing.role, after: role }, email: existing.email },
       })
     } catch (err) {
-      // eslint-disable-next-line no-console
+
       console.warn('[admin/users:updateUserRole] audit log failed:', err)
     }
 
@@ -315,7 +315,7 @@ export async function resetUserPassword(
         diff: { password_reset: true, email: target.email },
       })
     } catch (err) {
-      // eslint-disable-next-line no-console
+
       console.warn('[admin/users:resetUserPassword] audit log failed:', err)
     }
 
@@ -395,7 +395,7 @@ export async function deleteUser(
         diff: { email: target.email, role: target.role },
       })
     } catch (err) {
-      // eslint-disable-next-line no-console
+
       console.warn('[admin/users:deleteUser] audit log failed:', err)
     }
 

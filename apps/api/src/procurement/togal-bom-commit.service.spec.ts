@@ -167,6 +167,28 @@ describe('Togal BOM commit authority', () => {
     expect(audit.stampActor).not.toHaveBeenCalled()
   })
 
+  it('does not write lines to an approved BOM', async () => {
+    const { candidate, transactionClient, audit } = harness({
+      bom: [
+        {
+          id: COMMAND.bomId,
+          status: 'approved',
+          totalCostCents: 1_000,
+          tcvCents: 2_000,
+        },
+      ],
+    })
+
+    await expect(
+      candidate.commit(COMMAND, PRINCIPAL, 'togal-approved-bom')
+    ).rejects.toBeInstanceOf(ConflictException)
+
+    // The idempotency claim is inside the transaction, but no line or audit
+    // mutation may be reached for a non-draft BOM.
+    expect(transactionClient.insert).toHaveBeenCalledOnce()
+    expect(audit.writeSemantic).not.toHaveBeenCalled()
+  })
+
   it('commits exact totals, tenant-scoped rows, and in-transaction audit', async () => {
     const {
       candidate,

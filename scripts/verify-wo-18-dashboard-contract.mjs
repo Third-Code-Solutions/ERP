@@ -24,7 +24,21 @@ assertIncludes(queries, 'export interface ManagementDashboardData', 'management 
 assertIncludes(queries, 'projectMargins: ManagementProjectMarginRow[]', 'project margin rows')
 assertIncludes(queries, 'slaBreachesByBu: ManagementSlaBreachRow[]', 'business-unit SLA rows')
 assertIncludes(queries, 'unsignedVoExposureCents: number', 'unsigned VO exposure')
-assertIncludes(queries, 'getProjectCostControl({', 'WO-17 cost-control source of truth')
+assertIncludes(
+  queries,
+  'getProjectCostControlTotalsForProjects({',
+  'batched WO-17 cost-control source of truth'
+)
+assertIncludes(
+  queries,
+  'projectIds: projectRows.map((project) => project.id)',
+  'dashboard passes all project ids to the batched cost-control query'
+)
+assertNotMatches(
+  queries,
+  /getProjectCostControl\(\{\s*tenantId,\s*projectId:/,
+  'dashboard N+1 cost-control query'
+)
 assertIncludes(queries, 'costVarianceCents: forecastCostCents - baselineCostCents', 'cost variance against approved budget')
 assertIncludes(queries, 'marginVarianceBps: forecastMarginBps - baselineMarginBps', 'project margin variance')
 assertIncludes(queries, 'eq(projects.tenant_id, tenantId)', 'tenant-scoped projects')

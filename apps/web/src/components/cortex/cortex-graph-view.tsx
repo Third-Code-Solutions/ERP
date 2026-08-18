@@ -274,11 +274,13 @@ export function CortexGraphView({ focus }: Props) {
           <input
             ref={searchRef}
             type="search"
+            role="combobox"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onSearchKeyDown}
             placeholder="Search records…  (press /)"
             aria-label="Search the graph"
+            aria-autocomplete="list"
             aria-controls="cortex-search-results"
             aria-expanded={
               query.trim().length >= 2 &&

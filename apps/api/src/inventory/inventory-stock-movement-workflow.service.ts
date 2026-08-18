@@ -33,6 +33,7 @@ import {
   DatabaseService,
   type DatabaseTransaction,
 } from '../database/database.service'
+import { databaseErrorMessage } from '../database/database-error'
 import { sql } from 'drizzle-orm'
 
 type WorkflowRequest = {
@@ -95,7 +96,7 @@ function replayReversalResult(value: unknown): StockMovementReversalResult {
 }
 
 function mapDatabaseFailure(error: unknown): never {
-  const message = error instanceof Error ? error.message : ''
+  const message = databaseErrorMessage(error)
   if (message.includes('Stock Movement not found')) {
     throw new NotFoundException('Stock Movement not found')
   }

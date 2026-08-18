@@ -14,6 +14,7 @@ import {
   boms,
   cadEvidenceCommitRequests,
   db,
+  documentIntakeRequests,
   documents,
   projects,
   scopeItems,
@@ -31,6 +32,8 @@ import { CadEvidenceCommitController } from '../src/cad/cad-evidence-commit.cont
 import { CadEvidenceCommitService } from '../src/cad/cad-evidence-commit.service'
 import { DatabaseService } from '../src/database/database.service'
 import { POST } from '../../web/src/app/api/upload/complete/route'
+import { DocumentIntakeController } from '../src/documents/document-intake.controller'
+import { DocumentIntakeService } from '../src/documents/document-intake.service'
 
 const authMocks = vi.hoisted(() => ({
   can: vi.fn(),
@@ -85,7 +88,7 @@ suite('protected Web upload-complete disposable integration', () => {
     vi.clearAllMocks()
   })
 
-  it('records a real DXF upload through Core and fails closed without the legacy writer', async () => {
+  it('records a real DXF upload through Core without an outstanding job and fails closed without the legacy writer', async () => {
     const fixture = await readFile(FIXTURE_PATH)
     const tenantId = randomUUID()
     const userId = randomUUID()
@@ -157,13 +160,18 @@ suite('protected Web upload-complete disposable integration', () => {
         database,
         new AuditService()
       )
+      const documentIntakeService = new DocumentIntakeService(
+        database,
+        new AuditService()
+      )
       const identity = {
         verifyAccessToken: vi.fn().mockResolvedValue({ userId }),
       } as unknown as SupabaseIdentityService
       const moduleRef = await Test.createTestingModule({
-        controllers: [CadEvidenceCommitController],
+        controllers: [CadEvidenceCommitController, DocumentIntakeController],
         providers: [
           { provide: CadEvidenceCommitService, useValue: service },
+          { provide: DocumentIntakeService, useValue: documentIntakeService },
         ],
       }).compile()
       app = moduleRef.createNestApplication()
@@ -186,12 +194,8 @@ suite('protected Web upload-complete disposable integration', () => {
       vi.stubEnv('ERP_CORE_API_URL', coreUrl)
       vi.stubEnv('ERP_PROJECT_READS_VIA_API', 'false')
       vi.stubEnv('ERP_PROJECT_READS_VIA_API_TENANT_IDS', '')
-      vi.stubEnv('ERP_DOCUMENT_INTAKE_WRITES_VIA_API', 'false')
-      vi.stubEnv('ERP_DOCUMENT_INTAKE_WRITES_VIA_API_TENANT_IDS', '')
       vi.stubEnv('ERP_DOCUMENT_PROCESSING_VIA_API', 'false')
       vi.stubEnv('ERP_DOCUMENT_PROCESSING_TENANT_IDS', '')
-      vi.stubEnv('ERP_CAD_EVIDENCE_COMMIT_WRITES_VIA_API', 'true')
-      vi.stubEnv('ERP_CAD_EVIDENCE_COMMIT_WRITES_VIA_API_TENANT_IDS', tenantId)
 
       const successStoragePath = `${tenantId}/${projectId}/success-plan.dxf`
       const successResponse = await POST(
@@ -211,7 +215,7 @@ suite('protected Web upload-complete disposable integration', () => {
           detectedFormat: string
         }
       }
-      expect(successBody.cadParseQueued).toBe(true)
+      expect(successBody.cadParseQueued).toBe(false)
       expect(successBody.cadResult).toMatchObject({
         status: 'extracted',
         detectedFormat: 'dxf',
@@ -261,9 +265,8 @@ suite('protected Web upload-complete disposable integration', () => {
         )
       expect(successBoms).toHaveLength(0)
 
-      // Make Core unavailable after the document has been recorded. The
-      // selected CAD branch must return a terminal warning and leave no scope
-      // rows from the compatibility writer.
+      // Core owns the document transaction as well as the selected CAD commit.
+      // An outage must fail before either record reaches a legacy Web writer.
       vi.stubEnv('ERP_CORE_API_URL', 'http://127.0.0.1:9')
       const failedStoragePath = `${tenantId}/${projectId}/core-down-plan.dxf`
       const failedResponse = await POST(
@@ -273,38 +276,37 @@ suite('protected Web upload-complete disposable integration', () => {
           fileName: 'core-down-plan.dxf',
         })
       )
-      expect(failedResponse.status).toBe(200)
+      expect(failedResponse.status).toBe(503)
       const failedBody = (await failedResponse.json()) as {
-        id: string
-        cadParseQueued: boolean
-        cadParseWarning?: string
-        cadResult?: { status: string; scopeItemsCreated: number }
+        error: string
       }
-      expect(failedBody.cadParseQueued).toBe(false)
-      expect(failedBody.cadParseWarning).toContain('ERP Core API is unavailable')
-      expect(failedBody.cadResult).toMatchObject({
-        status: 'processing-unavailable',
-        scopeItemsCreated: 0,
-      })
-      const failedDocument = await db
+      expect(failedBody.error).toContain('ERP Core API is unavailable')
+      const failedDocuments = await db
         .select()
         .from(documents)
-        .where(eq(documents.id, failedBody.id))
-      const failedScope = await db
+        .where(
+          and(
+            eq(documents.tenant_id, tenantId),
+            eq(documents.storage_path, failedStoragePath)
+          )
+        )
+      const allScopeAfterFailure = await db
         .select()
         .from(scopeItems)
         .where(
           and(
             eq(scopeItems.tenant_id, tenantId),
-            eq(scopeItems.project_id, projectId),
-            like(scopeItems.notes, `%document:${failedBody.id}%`)
+            eq(scopeItems.project_id, projectId)
           )
         )
-      expect(failedDocument).toHaveLength(1)
-      expect(failedScope).toHaveLength(0)
+      expect(failedDocuments).toHaveLength(0)
+      expect(allScopeAfterFailure).toHaveLength(successScope.length)
     } finally {
       await app?.close?.()
       await db.transaction(async (transaction) => {
+        await transaction
+          .delete(documentIntakeRequests)
+          .where(eq(documentIntakeRequests.tenant_id, tenantId))
         await transaction
           .delete(cadEvidenceCommitRequests)
           .where(eq(cadEvidenceCommitRequests.tenant_id, tenantId))
@@ -316,9 +318,9 @@ suite('protected Web upload-complete disposable integration', () => {
         await transaction.delete(auditLog).where(eq(auditLog.tenant_id, tenantId))
         await transaction.delete(documents).where(eq(documents.tenant_id, tenantId))
         await transaction.delete(projects).where(eq(projects.tenant_id, tenantId))
-        // The disposable lane drops the database after the suite. Do not
-        // delete users or the tenant here: the append-only audit rule blocks
-        // the FK's ON DELETE SET NULL update and tenant-cascade deletion.
+        // The audit table's append-only rules make tenant/user removal unsafe
+        // in this shared local lane; only the mutable fixture evidence is
+        // cleaned here.
       })
     }
   }, 45_000)

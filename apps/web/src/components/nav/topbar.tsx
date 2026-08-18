@@ -14,7 +14,6 @@ interface TopbarProps {
   user: User
   role: AppRole
   fullName: string | null
-  tenantId: string
 }
 
 const ROUTE_LABELS: Record<string, string> = {
@@ -69,7 +68,7 @@ function humanize(segment: string): string {
   return ROUTE_LABELS[segment] ?? segment.charAt(0).toUpperCase() + segment.slice(1)
 }
 
-export function Topbar({ user, role, fullName, tenantId }: TopbarProps) {
+export function Topbar({ user, role, fullName }: TopbarProps) {
   const pathname = usePathname()
   const segments = pathname.split('/').filter(Boolean)
   const [paletteOpen, setPaletteOpen] = useState(false)
@@ -139,7 +138,7 @@ export function Topbar({ user, role, fullName, tenantId }: TopbarProps) {
         </button>
 
         <div className="topbar-actions">
-          <NotificationsDropdown tenantId={tenantId} userId={user.id} />
+          <NotificationsDropdown userId={user.id} />
 
           <span className="topbar-divider" aria-hidden />
 

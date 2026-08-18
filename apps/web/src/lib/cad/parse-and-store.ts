@@ -1,33 +1,25 @@
-// In-process CAD parsing pipeline.
+// In-process CAD evidence parser.
 //
 //   1. Download the uploaded file from Supabase Storage
 //   2. Detect actual format (DXF text vs binary DWG) from magic bytes
-//   3. For DXF: parse with the JS extractor (dxf-parser), extract scope items,
-//      run auto-BOM. Runs entirely in the Next.js Node runtime.
-//   4. For binary DWG: try the Python worker via Inngest if configured;
-//      otherwise return a structured "needs converter" result so the UI can
-//      explain the situation to the user.
+//   3. For DXF: parse with the JS extractor (dxf-parser) and return validated
+//      scope evidence.
+//   4. For binary DWG: call the Python parser if configured; otherwise return
+//      a structured "needs converter" result.
+//
+// This module deliberately has no database or BOM side effects. ERP Core owns
+// scope replacement, audit, idempotency, and any subsequent draft-BOM command.
 //
 // Important: extension is treated as a hint, not truth. Some CAD users save
 // DXF content under a .dwg extension and vice versa — magic-byte detection
 // catches that and routes correctly.
 
-import { db } from '@third-code-erp/database'
-import { documents, scopeItems } from '@third-code-erp/database/schema'
-import { and, eq, like } from 'drizzle-orm'
-import { z } from 'zod'
-
 import { extractFromDxfText } from './dxf-extractor'
-import { calcDraftBomFromScope, type AutoBomResult } from './auto-bom'
 import { detectCadFormat, fileExtensionOf } from './format-detect'
 import {
-  CAD_SCOPE_BATCH_SIZE,
-  cadScopeLineTotalCents,
   parseWorkerResponse,
   type WorkerParseResponse,
-  type WorkerScopeItem,
 } from './worker-contract'
-import { writeAuditLogInTransaction } from '@/lib/audit'
 import {
   createDocumentStorage,
   type DocumentStorage,
@@ -62,95 +54,6 @@ export interface CadEvidenceParseResult {
   bom: null
   message: string
   workerResponse: WorkerParseResponse | null
-}
-
-export interface ParseAndStoreResult {
-  status: ParseStatus
-  scopeItemsCreated: number
-  warnings: string[]
-  layerCount: number
-  entityCount: number
-  detectedFormat: 'dxf' | 'dwg' | 'unknown'
-  dwgVersion: string | null
-  extensionMismatch: boolean
-  bom: AutoBomResult | null
-  message: string
-}
-
-export async function persistExtractedScopeItems(input: {
-  tenantId: string
-  projectId: string
-  documentId: string
-  actorId?: string | null
-  sourceFormat: 'dxf' | 'dwg'
-  items: WorkerScopeItem[]
-}): Promise<number> {
-  const tenantId = z.string().uuid().parse(input.tenantId)
-  const projectId = z.string().uuid().parse(input.projectId)
-  const documentId = z.string().uuid().parse(input.documentId)
-  const actorId = input.actorId ? z.string().uuid().parse(input.actorId) : null
-
-  return db.transaction(async (tx) => {
-    const [document] = await tx
-      .select({ id: documents.id })
-      .from(documents)
-      .where(
-        and(
-          eq(documents.id, documentId),
-          eq(documents.tenant_id, tenantId),
-          eq(documents.project_id, projectId)
-        )
-      )
-      .limit(1)
-    if (!document) throw new Error('CAD document is outside tenant project scope')
-
-    await tx
-      .delete(scopeItems)
-      .where(
-        and(
-          eq(scopeItems.tenant_id, tenantId),
-          eq(scopeItems.project_id, projectId),
-          like(scopeItems.notes, `%document:${documentId}%`)
-        )
-      )
-
-    const rows = input.items.map((item, index) => ({
-      tenant_id: tenantId,
-      project_id: projectId,
-      created_by: actorId,
-      code: item.code,
-      description: item.description,
-      unit: item.unit,
-      quantity: item.quantity,
-      unit_cost_cents: item.unit_cost_cents,
-      line_total_cents: cadScopeLineTotalCents(item),
-      sort_order: index,
-      notes:
-        `auto-extracted; document:${documentId}` +
-        (item.notes ? `; ${item.notes}` : ''),
-    }))
-
-    for (let i = 0; i < rows.length; i += CAD_SCOPE_BATCH_SIZE) {
-      await tx
-        .insert(scopeItems)
-        .values(rows.slice(i, i + CAD_SCOPE_BATCH_SIZE))
-    }
-
-    await writeAuditLogInTransaction(tx, {
-      tenantId,
-      actorId,
-      entityType: 'document',
-      entityId: documentId,
-      action: 'update',
-      diff: {
-        scope_items_replaced: rows.length,
-        source: 'cad_parser_worker',
-        source_format: input.sourceFormat,
-      },
-    })
-
-    return rows.length
-  })
 }
 
 export async function parseCadEvidence(
@@ -322,47 +225,6 @@ export async function parseCadEvidence(
     workerResponse,
   }
 }
-
-/** Compatibility writer. Selected Core tenants never call this function. */
-export async function parseAndStoreCad(
-  input: ParseAndStoreInput,
-  storage: DocumentStorage = createDocumentStorage()
-): Promise<ParseAndStoreResult> {
-  const evidence = await parseCadEvidence(input, storage)
-  const { workerResponse, ...result } = evidence
-  if (!workerResponse) return result
-
-  const scopeItemsCreated = await persistExtractedScopeItems({
-    tenantId: input.tenantId,
-    projectId: input.projectId,
-    documentId: input.documentId,
-    actorId: input.actorId,
-    sourceFormat: workerResponse.source_format,
-    items: workerResponse.scope_items,
-  })
-
-  // Auto-BOM stays compatibility-only until Core draft-BOM parity is proven.
-  let bom: AutoBomResult | null = null
-  if (scopeItemsCreated > 0) {
-    try {
-      bom = await calcDraftBomFromScope({
-        tenantId: input.tenantId,
-        projectId: input.projectId,
-        documentId: input.documentId,
-      })
-    } catch (err) {
-      console.error('[parse-and-store] auto-BOM failed:', err)
-      result.warnings.push(
-        `Auto-BOM failed: ${err instanceof Error ? err.message : String(err)}`
-      )
-    }
-  }
-
-  return { ...result, scopeItemsCreated, bom }
-}
-
-// Backward-compat alias — old name was DXF-specific
-export const parseAndStoreDxf = parseAndStoreCad
 
 interface DwgWorkerCallArgs {
   parserUrl: string

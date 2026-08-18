@@ -50,18 +50,18 @@ authenticated browser canary before any tenant opening or provider build.
 
 Evidence: `docs/research/LIVE_LANDING_AUDIT_20260812.md`.
 
-## Exact next action after M3.295 Core DocuSeal webhook browser canary
+## Exact next action after DocuSeal Core-authority hardening
 
-Keep `ERP_DOCUSEAL_WEBHOOK_VIA_API=false` and
-`ERP_DOCUSEAL_WEBHOOK_VIA_API_TENANT_IDS` empty; keep
-`ERP_DOCUSEAL_WEBHOOK_ENABLED=false` and `ERP_DOCUSEAL_WEBHOOK_TENANT_IDS`
-empty outside disposable tests. The local proof covers provider-secret
-verification, internal-token forwarding, one-time token use, signed-document
-persistence, BOM locking, duplicate replay, foreign-BOM non-handling, audit,
-notification compatibility, and zero paid email/provider traffic. Do not open
-a real tenant, apply hosted SQL, or trigger Vercel/Railway builds until the
-managed parity ledger, PO duplicate owner review, readiness, rollback,
-authenticated smoke, exact release identity, and spend controls pass.
+Configure the same `ERP_CORE_WEBHOOK_TOKEN` in Web and Core plus
+`DOCUSEAL_WEBHOOK_SECRET` in Web only for an authorized disposable target.
+The callback fails closed when either Web secret or Core adapter configuration
+is absent and never falls back to Web database writes. Run an authenticated,
+isolated replay that proves token consumption, signed-document persistence,
+BOM lock, in-app notification, audit, duplicate behavior, and email failure
+observability before exposing the callback to a customer tenant. Do not apply
+hosted SQL, trigger provider builds, or use live customer signing traffic until
+managed parity, readiness, rollback, exact release identity, and spend gates
+pass.
 
 ## Exact next action after M3.294 Core Togal BOM browser canary
 
@@ -98,14 +98,13 @@ do not deploy or trigger Vercel/Railway builds.
 
 ## Exact next action after M3.291 Core notifications browser canary
 
-Keep `ERP_NOTIFICATION_READ_STATE_VIA_API=false` with an empty exact-tenant
-allowlist; keep `ERP_NOTIFICATION_READ_STATE_ENABLED=false` and its Core
-allowlist empty outside disposable proof. The browser proves list/read-state
-forwarding, audit, tenant isolation, and responsive Settings/topbar behavior.
-Before opening a tenant, obtain managed source parity, readiness, exact
-release identity, rollback, authenticated smoke, and spend evidence. Then
-review the next direct Web write boundary; do not deploy or trigger Vercel/
-Railway builds in this slice.
+Superseded by the enterprise authority consolidation: notification list and
+read-state requests now have one Core authority, with no Web/Core tenant
+selector and no direct Web database fallback. Before deployment, require
+managed source parity, Core readiness, exact release identity, rollback,
+authenticated smoke, and spend evidence. The local loopback proof remains
+useful but is not hosted production evidence. Review the next direct Web write
+boundary; do not deploy or trigger Vercel/Railway builds in this slice.
 
 ## Exact next action after M3.290 managed Supabase read-only audit
 

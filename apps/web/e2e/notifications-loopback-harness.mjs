@@ -15,8 +15,54 @@ const AUTH_ORIGIN = `http://${HOST}:${AUTH_PORT}`
 const WEB_ORIGIN = `http://${HOST}:${WEB_PORT}`
 const PROXY_ORIGIN = `http://${HOST}:${PROXY_PORT}`
 const API_ORIGIN = `http://${HOST}:${API_PORT}`
-const DATABASE_URL =
+const DEFAULT_DATABASE_URL =
   'postgresql://postgres:postgres@127.0.0.1:54322/erp_self_hosted_ci'
+const DATABASE_URL =
+  process.env.E2E_NOTIFICATIONS_DATABASE_URL ?? DEFAULT_DATABASE_URL
+const REDIS_URL =
+  process.env.E2E_NOTIFICATIONS_REDIS_URL ?? 'redis://127.0.0.1:6379'
+const databaseUrl = new URL(DATABASE_URL)
+const redisUrl = new URL(REDIS_URL)
+const usesLoopbackDatabase =
+  databaseUrl.hostname === '127.0.0.1' || databaseUrl.hostname === 'localhost'
+const usesLoopbackRedis =
+  redisUrl.hostname === '127.0.0.1' || redisUrl.hostname === 'localhost'
+const expectedHostedDatabaseHost =
+  process.env.E2E_NOTIFICATIONS_EXPECTED_DATABASE_HOST
+const expectedHostedDatabaseUser =
+  process.env.E2E_NOTIFICATIONS_EXPECTED_DATABASE_USER
+
+// The default lane is strictly local. A disposable hosted branch database can
+// be used only with a deliberate opt-in, never by silently inheriting a shell
+// DATABASE_URL that could point at a customer environment.
+if (!usesLoopbackDatabase) {
+  if (
+    process.env.E2E_NOTIFICATIONS_ALLOW_ISOLATED_HOSTED_DATABASE !== 'true'
+  ) {
+    throw new Error(
+      'Refusing a non-loopback notifications E2E database without E2E_NOTIFICATIONS_ALLOW_ISOLATED_HOSTED_DATABASE=true.'
+    )
+  }
+
+  if (!expectedHostedDatabaseHost || !expectedHostedDatabaseUser) {
+    throw new Error(
+      'Hosted notifications E2E requires an exact expected database host and user.'
+    )
+  }
+
+  if (
+    databaseUrl.hostname !== expectedHostedDatabaseHost ||
+    databaseUrl.username !== expectedHostedDatabaseUser
+  ) {
+    throw new Error(
+      'Hosted notifications E2E database does not match the explicitly approved target.'
+    )
+  }
+}
+
+if (!usesLoopbackRedis) {
+  throw new Error('Notifications E2E Redis must be bound to loopback.')
+}
 const USER_ID = randomUUID()
 const TENANT_ID = randomUUID()
 const PROJECT_ID = randomUUID()
@@ -236,7 +282,7 @@ async function seedDatabase() {
     values
       (
         ${randomUUID()}, ${TENANT_ID}, ${USER_ID}, 'in_app',
-        'Core notification canary', 'A tenant-scoped Core notification.',
+        'Core notification authority', 'A tenant-scoped Core notification.',
         '/dashboard', false, now() - interval '1 minute'
       ),
       (
@@ -504,8 +550,8 @@ const authServer = createServer(async (request, response) => {
       url.searchParams.get('select') === 'tenant_id,role,email,full_name' &&
       url.searchParams.get('id') === `eq.${USER_ID}`
     if (
-      request.headers.apikey !== SERVICE_ROLE_KEY ||
-      bearer(request) !== SERVICE_ROLE_KEY ||
+      request.headers.apikey !== ANON_KEY ||
+      bearer(request) !== ACCESS_TOKEN ||
       !exactProfileQuery
     ) {
       return json(response, 400, {
@@ -604,14 +650,11 @@ async function waitForHttp(url, timeoutMs = 30_000) {
 
 async function cleanup() {
   if (!sql) return
-  try {
-    await sql`delete from audit_log where tenant_id in (${TENANT_ID}, ${FOREIGN_TENANT_ID})`
-    await sql`delete from tenants where id in (${TENANT_ID}, ${FOREIGN_TENANT_ID})`
-  } catch (error) {
-    console.error('[notifications-loopback] cleanup failed', error)
-  } finally {
-    await sql.end({ timeout: 5 }).catch(() => undefined)
-  }
+  // Audit rows are intentionally immutable. Deleting a tenant cascades into
+  // audit_log and is correctly rejected, so this harness never bypasses the
+  // control. Run it against a resettable local database or a disposable branch
+  // database, then reclaim that whole environment after the test lane.
+  await sql.end({ timeout: 5 }).catch(() => undefined)
 }
 
 async function stop(exitCode = 0) {
@@ -636,15 +679,11 @@ const apiEnvironment = {
   NODE_ENV: 'test',
   PORT: String(API_PORT),
   DATABASE_URL,
-  REDIS_URL: 'redis://127.0.0.1:6379',
+  REDIS_URL,
   SUPABASE_URL: AUTH_ORIGIN,
   SUPABASE_ANON_KEY: ANON_KEY,
   SUPABASE_SERVICE_ROLE_KEY: SERVICE_ROLE_KEY,
   ERP_API_CORS_ORIGINS: WEB_ORIGIN,
-  ERP_NOTIFICATION_READ_STATE_ENABLED: 'true',
-  ERP_NOTIFICATION_READ_STATE_TENANT_IDS: TENANT_ID,
-  ERP_DOCUMENT_INTAKE_WRITES_ENABLED: 'true',
-  ERP_DOCUMENT_INTAKE_WRITES_TENANT_IDS: TENANT_ID,
   ERP_BOM_TOGAL_COMMIT_WRITES_ENABLED: 'true',
   ERP_BOM_TOGAL_COMMIT_WRITES_TENANT_IDS: TENANT_ID,
   ERP_PO_CREATE_WRITES_ENABLED: 'true',
@@ -659,8 +698,6 @@ const apiEnvironment = {
   ERP_PUBLIC_VENDOR_CONFIRMATION_SESSION_MINTING_TENANT_IDS: TENANT_ID,
   ERP_PUBLIC_VENDOR_CONFIRMATION_TOKEN_SECRET: 'local-vendor-confirmation-secret-2026-with-32-plus-bytes',
   ERP_PUBLIC_VENDOR_CONFIRMATION_SESSION_TTL_HOURS: '24',
-  ERP_DOCUSEAL_WEBHOOK_ENABLED: 'true',
-  ERP_DOCUSEAL_WEBHOOK_TENANT_IDS: TENANT_ID,
   ERP_CORE_WEBHOOK_TOKEN: 'local-docuseal-core-webhook-token-2026',
   OPENAI_API_KEY: '',
   AI_GATEWAY_API_KEY: '',
@@ -700,10 +737,6 @@ webChild = spawn(
       NEXT_PUBLIC_SITE_URL: WEB_ORIGIN,
       NEXT_PUBLIC_APP_URL: WEB_ORIGIN,
       ERP_CORE_API_URL: PROXY_ORIGIN,
-      ERP_NOTIFICATION_READ_STATE_VIA_API: 'true',
-      ERP_NOTIFICATION_READ_STATE_VIA_API_TENANT_IDS: TENANT_ID,
-      ERP_DOCUMENT_INTAKE_WRITES_VIA_API: 'true',
-      ERP_DOCUMENT_INTAKE_WRITES_VIA_API_TENANT_IDS: TENANT_ID,
       ERP_BOM_TOGAL_COMMIT_VIA_API: 'true',
       ERP_BOM_TOGAL_COMMIT_VIA_API_TENANT_IDS: TENANT_ID,
       ERP_PO_CREATE_WRITES_VIA_API: 'true',
@@ -712,8 +745,6 @@ webChild = spawn(
       ERP_PO_BOM_CREATE_WRITES_VIA_API_TENANT_IDS: TENANT_ID,
       ERP_PO_WORKFLOW_WRITES_VIA_API: 'true',
       ERP_PO_WORKFLOW_WRITES_VIA_API_TENANT_IDS: TENANT_ID,
-      ERP_DOCUSEAL_WEBHOOK_VIA_API: 'true',
-      ERP_DOCUSEAL_WEBHOOK_VIA_API_TENANT_IDS: TENANT_ID,
       ERP_CORE_WEBHOOK_TOKEN: 'local-docuseal-core-webhook-token-2026',
       DOCUSEAL_WEBHOOK_SECRET: 'local-docuseal-provider-secret',
       RESEND_API_KEY: '',

@@ -18,14 +18,6 @@ import { createSigningSession } from '@/lib/operations/integrations/docuseal'
 const PORTAL_TOKEN_BYTES = 32
 const PORTAL_VALIDITY_HOURS = 48
 
-function siteUrl(): string {
-  return (
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    process.env.NEXT_PUBLIC_APP_URL ||
-    'http://localhost:3000'
-  ).replace(/\/$/, '')
-}
-
 const mintSchema = z.object({
   bom_id: z.string().uuid(),
   client_email: z.string().email('valid client email required'),

@@ -50,7 +50,6 @@ export default async function DashboardLayout({
           user={profile.user}
           role={profile.role}
           fullName={profile.fullName}
-          tenantId={profile.tenantId}
         />
         <main id="main-content" className="app-content">
           {children}

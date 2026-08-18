@@ -33,6 +33,7 @@ interface SelectedLine {
 
 interface SupplierSwitcherPanelProps {
   projectId: string
+  isEditable: boolean
   selected: SelectedLine | null
   onClose: () => void
 }
@@ -54,6 +55,7 @@ function parseVendorFromNotes(notes: string | null): { id: string; name: string 
 
 export function SupplierSwitcherPanel({
   projectId,
+  isEditable,
   selected,
   onClose,
 }: SupplierSwitcherPanelProps) {
@@ -119,7 +121,7 @@ export function SupplierSwitcherPanel({
   }, [context?.vendors, search])
 
   function handleSwitch(vendorId: string | null) {
-    if (!selected) return
+    if (!selected || !isEditable) return
     setError(null)
     startTransition(async () => {
       const res = await setLineItemVendor(selected.id, projectId, vendorId)
@@ -200,11 +202,11 @@ export function SupplierSwitcherPanel({
               Unassigned
             </span>
           )}
-          {currentVendor && (
+          {currentVendor && isEditable && (
             <button
               type="button"
               onClick={() => handleSwitch(null)}
-              disabled={pending}
+              disabled={pending || !isEditable}
               style={{
                 background: 'none',
                 border: '1px solid var(--color-border)',
@@ -220,6 +222,15 @@ export function SupplierSwitcherPanel({
           )}
         </div>
       </section>
+
+      {!isEditable && (
+        <p
+          role="status"
+          style={{ margin: '8px 16px', color: 'var(--color-neutral-500)', fontSize: 12 }}
+        >
+          Supplier assignments are read-only after the BOM leaves draft.
+        </p>
+      )}
 
       {/* Error surface */}
       {error && (
@@ -287,7 +298,7 @@ export function SupplierSwitcherPanel({
                 rc={rc}
                 isCurrent={currentVendor?.id === rc.vendor_id}
                 onSwitch={() => rc.vendor_id && handleSwitch(rc.vendor_id)}
-                disabled={pending}
+                disabled={pending || !isEditable}
               />
             ))}
           </ul>
@@ -313,6 +324,7 @@ export function SupplierSwitcherPanel({
           placeholder="Search vendors…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
+          disabled={!isEditable}
           style={{
             width: '100%',
             padding: '6px 10px',
@@ -346,7 +358,7 @@ export function SupplierSwitcherPanel({
                 <button
                   type="button"
                   onClick={() => handleSwitch(v.id)}
-                  disabled={pending}
+                  disabled={pending || !isEditable}
                   style={{
                     width: '100%',
                     textAlign: 'left',

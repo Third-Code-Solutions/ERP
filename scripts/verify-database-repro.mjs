@@ -11,6 +11,11 @@ import { createRequire } from 'node:module'
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import {
+  evaluateRlsPolicyCatalog,
+  formatRlsPolicyCatalogFailure,
+  requiredDirectClientDenyTables,
+} from './lib/database-repro-policy-contract.mjs'
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(scriptDirectory, '..')
@@ -106,7 +111,9 @@ const requiredTables = [
 // Service-only command ledgers and the operational asset register are
 // intentionally excluded from the authenticated tenant policy set above.
 // They still require forced RLS and explicit service-role authority in every
-// clean replay and hosted clone.
+// clean replay and hosted clone. The financial sequence and notification
+// tables are separately asserted as explicit deny-all policies because they
+// are protected, but intentionally not part of this forced-RLS inventory.
 const requiredServerOnlyTables = [
   'stock_movement_create_requests',
   'stock_movement_workflow_requests',
@@ -917,49 +924,18 @@ try {
        from pg_policies
       where schemaname = 'public'
         and tablename in (${requiredTables.map((name) => `'${name}'`).join(', ')})`,
-    (rows) => {
-      const expected = new Set(
-        requiredPolicies.map(([table, policy]) => `${table}.${policy}`)
-      )
-      const actual = new Set(
-        rows.map((row) => `${row.tablename}.${row.policyname}`)
-      )
-      const exactSet =
-        expected.size === actual.size
-        && [...expected].every((name) => actual.has(name))
-      const secureExpressions = rows.every((row) => {
-        const expression = `${row.using_expression} ${row.check_expression}`
-        const ownershipPolicy =
-          row.tablename === 'cortex_conversations'
-          || row.tablename === 'cortex_messages'
-        return row.roles === 'authenticated'
-          && expression.includes('auth_tenant_id()')
-          && (!ownershipPolicy || expression.includes('auth.uid()'))
-      })
-      return exactSet && secureExpressions
-    },
-    (rows) => {
-      const expected = new Set(
-        requiredPolicies.map(([table, policy]) => `${table}.${policy}`)
-      )
-      const actual = new Set(
-        rows.map((row) => `${row.tablename}.${row.policyname}`)
-      )
-      const missing = [...expected].filter((name) => !actual.has(name))
-      const unexpected = [...actual].filter((name) => !expected.has(name))
-      const weak = rows
-        .filter((row) => {
-          const expression = `${row.using_expression} ${row.check_expression}`
-          const ownershipPolicy =
-            row.tablename === 'cortex_conversations'
-            || row.tablename === 'cortex_messages'
-          return row.roles !== 'authenticated'
-            || !expression.includes('auth_tenant_id()')
-            || (ownershipPolicy && !expression.includes('auth.uid()'))
+    (rows) =>
+      evaluateRlsPolicyCatalog(rows, {
+        tenantPolicies: requiredPolicies,
+        directClientDenyTables: requiredDirectClientDenyTables,
+      }).ok,
+    (rows) =>
+      formatRlsPolicyCatalogFailure(
+        evaluateRlsPolicyCatalog(rows, {
+          tenantPolicies: requiredPolicies,
+          directClientDenyTables: requiredDirectClientDenyTables,
         })
-        .map((row) => `${row.tablename}.${row.policyname}`)
-      return `missing=[${missing.join(',')}], unexpected=[${unexpected.join(',')}], weak=[${weak.join(',')}]`
-    }
+      )
   )
 
   await query(
@@ -1774,10 +1750,7 @@ try {
   )
 
   const authenticatedReadableTables = requiredTables.filter(
-    (table) =>
-      table !== 'financial_sequences' &&
-      table !== 'notification_outbox' &&
-      table !== 'notification_deliveries'
+    (table) => !requiredDirectClientDenyTables.includes(table)
   )
 
   const minimumAuthenticatedTableGrants = [

@@ -1,7 +1,6 @@
 import 'reflect-metadata'
 
 import { randomUUID } from 'node:crypto'
-import { ConfigService } from '@nestjs/config'
 import { ValidationPipe } from '@nestjs/common'
 import { APP_GUARD, Reflector } from '@nestjs/core'
 import { Test } from '@nestjs/testing'
@@ -71,8 +70,8 @@ async function alwaysRollback(
   }
 }
 
-suite('Notifications protected HTTP canary', () => {
-  it('proves recipient and tenant isolation, audited read-state updates, terminal disablement, and rollback', async () => {
+suite('Notifications protected HTTP authority boundary', () => {
+  it('proves recipient and tenant isolation, audited read-state updates, and rollback', async () => {
     const tenantA = randomUUID()
     const tenantB = randomUUID()
     const userA = randomUUID()
@@ -191,17 +190,7 @@ suite('Notifications protected HTTP canary', () => {
           return userId ? { userId } : null
         }),
       }
-      const config = {
-        get: vi.fn((key: string, fallback?: unknown) => {
-          if (key === 'ERP_NOTIFICATION_READ_STATE_ENABLED') return true
-          if (key === 'ERP_NOTIFICATION_READ_STATE_TENANT_IDS') {
-            return [tenantA, tenantB]
-          }
-          return fallback
-        }),
-      }
       const service = new NotificationsService(
-        config as unknown as ConfigService,
         database,
         new AuditService()
       )
@@ -352,32 +341,6 @@ suite('Notifications protected HTTP canary', () => {
         await app.close()
       }
 
-      const disabledConfig = {
-        get: vi.fn((key: string, fallback?: unknown) => {
-          if (key === 'ERP_NOTIFICATION_READ_STATE_ENABLED') return false
-          if (key === 'ERP_NOTIFICATION_READ_STATE_TENANT_IDS') return []
-          return fallback
-        }),
-      }
-      const disabledService = new NotificationsService(
-        disabledConfig as unknown as ConfigService,
-        database,
-        new AuditService()
-      )
-      const disabledApp = await createApp(disabledService)
-      try {
-        await request(disabledApp.getHttpServer())
-          .get('/v1/notifications')
-          .set('Authorization', 'Bearer viewer-a-token')
-          .expect(503)
-        await request(disabledApp.getHttpServer())
-          .post('/v1/notifications')
-          .set('Authorization', 'Bearer viewer-a-token')
-          .send({ action: 'mark_all_read' })
-          .expect(503)
-      } finally {
-        await disabledApp.close()
-      }
     })
 
     const rolledBackRows = await db

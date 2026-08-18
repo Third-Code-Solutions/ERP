@@ -55,7 +55,15 @@ describe('RBAC: visibleNavSections', () => {
     expect(hrefs).not.toContain('/finance')
     expect(hrefs).not.toContain('/finance/payables')
     expect(hrefs).not.toContain('/bom')
-    expect(hrefs).toContain('/assets')
+    expect(hrefs).not.toContain('/assets')
+  })
+
+  it('hides controlled-rollout routes without changing their direct-route guard', () => {
+    const hrefs = visibleNavSections('admin')
+      .flatMap((section) => section.items.map((item) => item.href))
+
+    expect(hrefs).not.toContain('/assets')
+    expect(canViewPath('viewer', '/assets')).toBe(true)
   })
 
   it('legacy estimator inherits commercial visibility (BOM Builder)', () => {

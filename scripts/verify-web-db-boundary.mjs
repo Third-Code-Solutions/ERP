@@ -17,38 +17,15 @@ const repoRoot = resolve(fileURLToPath(new URL('.', import.meta.url)), '..')
 const API_ROOT = 'apps/web/src/app/api'
 
 const DIRECT_ACCESS_PATTERN = /\b(?:db|tx)\s*\.\s*(insert|update|delete|transaction|execute)\b/g
+const DIRECT_EXECUTE_PATTERN = /\b(?:db|tx)\s*\.\s*execute(?:<[^>]*>)?\s*\(\s*sql\s*`([\s\S]*?)`/g
 const WRITE_OPERATIONS = new Set(['insert', 'update', 'delete', 'transaction'])
+const SQL_MUTATION_OR_DDL_PATTERN = /\b(?:insert|update|delete|merge|create|alter|drop|truncate|grant|revoke|call|do|copy|vacuum)\b/
 
-// Explicit legacy surface. Each entry is temporary migration debt, not a
-// permission to add more writes. New business writes must be added to Nest
-// first, then the corresponding Web route should be removed from this list.
-export const WEB_API_DATABASE_ALLOWLIST = Object.freeze({
-  'apps/web/src/app/api/bom/takeoff-import/route.ts': Object.freeze({
-    operations: Object.freeze(['insert', 'transaction', 'update']),
-    migration: 'WO-08 -> Nest generic takeoff-import authority',
-    reason: 'Tenant-scoped BOM import commit with additive upsert, unresolved-row retention, and an audit entry.',
-  }),
-  'apps/web/src/app/api/crm/opportunities/[id]/inspection-photos/route.ts': Object.freeze({
-    operations: Object.freeze(['insert', 'transaction']),
-    migration: 'WO-12 -> Nest site-inspection intake authority',
-    reason: 'Capability-gated, tenant-scoped field photo metadata transaction with storage cleanup and audit entry.',
-  }),
-  'apps/web/src/app/api/notifications/route.ts': Object.freeze({
-    operations: Object.freeze(['update']),
-    migration: 'M3.198 → Nest notification read-state authority',
-    reason: 'Self-user, tenant-scoped read-state update; no ERP posting authority.',
-  }),
-  'apps/web/src/app/api/upload/complete/route.ts': Object.freeze({
-    operations: Object.freeze(['insert', 'transaction']),
-    migration: 'M3.198 → Nest document intake authority',
-    reason: 'Records a tenant/project-scoped document before optional AI/CAD processing.',
-  }),
-  'apps/web/src/app/api/webhooks/docuseal/route.ts': Object.freeze({
-    operations: Object.freeze(['insert', 'update']),
-    migration: 'M3.198 → Nest signature webhook authority',
-    reason: 'Secret-gated external callback; idempotent token use, document attach, and BOM lock remain legacy.',
-  }),
-})
+// No Web API route may write directly to the database. The former temporary
+// allowlist is deliberately empty after each route was moved to ERP Core.
+// Server Actions and internal workers are inventoried separately; this guard
+// protects the browser-reachable API boundary from regressions.
+export const WEB_API_DATABASE_ALLOWLIST = Object.freeze({})
 
 // Health and read-only similarity retrieval use db.execute with SELECT-only
 // statements. Keep them visible in the report without treating them as writes.
@@ -97,6 +74,24 @@ function findAccesses(source) {
   return accesses
 }
 
+function findUnsafeExecuteLines(source) {
+  const safeLines = new Set()
+  for (const match of source.matchAll(DIRECT_EXECUTE_PATTERN)) {
+    const statement = match[1]
+      .replace(/^\s*(?:--[^\n]*\n|\/\*[\s\S]*?\*\/\s*)*/g, '')
+      .trim()
+      .toLowerCase()
+    if (
+      statement.startsWith('select') &&
+      !statement.includes(';') &&
+      !SQL_MUTATION_OR_DDL_PATTERN.test(statement)
+    ) {
+      safeLines.add(source.slice(0, match.index).split('\n').length)
+    }
+  }
+  return safeLines
+}
+
 function normalizeAllowlist(allowlist) {
   return Object.fromEntries(
     Object.entries(allowlist ?? {}).map(([path, entry]) => [
@@ -123,6 +118,7 @@ export function buildWebDatabaseBoundaryReport({
 
   for (const file of files ?? []) {
     const accesses = findAccesses(file.source)
+    const safeExecuteLines = findUnsafeExecuteLines(file.source)
     if (accesses.length === 0) continue
 
     const entry = {
@@ -159,6 +155,15 @@ export function buildWebDatabaseBoundaryReport({
           if (!allowed.has(operation)) {
             blockers.push(`${file.path}: operation ${operation} is not allowlisted as read-only`)
           }
+        }
+      }
+      for (const access of accesses.filter(
+        (access) => access.operation === 'execute'
+      )) {
+        if (!safeExecuteLines.has(access.line)) {
+          blockers.push(
+            `${file.path}: db.execute must use a literal SELECT statement`
+          )
         }
       }
     }

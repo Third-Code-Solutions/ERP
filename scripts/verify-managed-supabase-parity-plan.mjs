@@ -27,9 +27,11 @@ if (!result.ok) {
 }
 
 console.log(
-  `PASS managed Supabase parity manifest: ${result.appliedCount}/${result.sourceCount} applied, ${result.pendingCount} pending in ${result.batchCount} ordered review batches`
+  `PASS dated Supabase parity manifest matches source: ${result.appliedCount}/${result.sourceCount} applied, ${result.pendingCount} pending in ${result.batchCount} ordered review batches`
 )
 console.log(
-  `PASS linear boundary: ${result.appliedHead} -> ${result.sourceHead}`
+  `PASS recorded linear boundary: ${result.appliedHead} -> ${result.sourceHead}`
 )
-console.log('No database or provider state was queried or changed.')
+console.log(
+  `Evidence captured on ${plan.snapshot.capturedOn}; this command did not query or change provider state.`
+)

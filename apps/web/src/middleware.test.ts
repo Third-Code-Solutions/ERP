@@ -14,8 +14,11 @@ import { middleware } from './middleware'
 
 describe('middleware Supabase session recovery', () => {
   beforeEach(() => {
+    vi.unstubAllEnvs()
+    vi.unstubAllGlobals()
     vi.clearAllMocks()
     vi.stubEnv('NODE_ENV', 'production')
+    vi.stubEnv('ERP_DISTRIBUTED_RATE_LIMIT_ENABLED', 'false')
     vi.stubEnv(
       'NEXT_PUBLIC_SUPABASE_URL',
       'https://example.supabase.co'
@@ -96,5 +99,48 @@ describe('middleware Supabase session recovery', () => {
 
     expect(csp).not.toContain('http://127.0.0.1:4328')
     expect(csp).not.toContain('ws://127.0.0.1:4328')
+  })
+
+  it('fails closed when distributed rate limiting is selected without complete credentials', async () => {
+    vi.stubEnv('ERP_DISTRIBUTED_RATE_LIMIT_ENABLED', 'true')
+    mocks.getUser.mockResolvedValue({ data: { user: null }, error: null })
+    const request = new NextRequest('https://erp.example/auth/login', {
+      headers: { 'x-forwarded-for': '203.0.113.31' },
+    })
+
+    const response = await middleware(request)
+
+    expect(response.status).toBe(503)
+    expect(Object.fromEntries(response.headers.entries())).toMatchObject({
+      'ratelimit-scope': 'general',
+      'x-content-type-options': 'nosniff',
+    })
+  })
+
+  it('uses the configured distributed limiter instead of a process-local counter', async () => {
+    vi.stubEnv('ERP_DISTRIBUTED_RATE_LIMIT_ENABLED', 'true')
+    vi.stubEnv(
+      'UPSTASH_REDIS_REST_URL',
+      'https://example-rate-limit.upstash.io'
+    )
+    vi.stubEnv('UPSTASH_REDIS_REST_TOKEN', 'test-token')
+    vi.stubEnv('ERP_RATE_LIMIT_KEY_SALT', 'unit-test-salt-not-a-secret-00000000')
+    const fetchMock = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) =>
+        new Response(JSON.stringify({ result: [1, 60_000] }), { status: 200 })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    mocks.getUser.mockResolvedValue({ data: { user: null }, error: null })
+    const request = new NextRequest('https://erp.example/auth/login', {
+      headers: { 'x-forwarded-for': '203.0.113.32' },
+    })
+
+    const response = await middleware(request)
+
+    expect(response.status).toBe(200)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      'https://example-rate-limit.upstash.io'
+    )
   })
 })

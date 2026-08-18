@@ -34,6 +34,7 @@ export interface CadUploadResult {
   bomGpMarginBps: number
   ragMatches: number
   aiEstimateMatches: number
+  unpricedCandidateBom?: boolean
   processingJobId?: string | null
 }
 
@@ -379,14 +380,15 @@ export function formatCompletionProgress(completed: CompleteResponse): string {
         `${label}: ${r.scopeItemsCreated} scope item${r.scopeItemsCreated === 1 ? '' : 's'} extracted`,
       ]
       if (r.bomId) {
-        const margin = (r.bomGpMarginBps / 100).toFixed(1)
-        parts.push(`draft BOM ${formatCompactPhp(r.bomTcvCents)} TCV (${margin}% GP)`)
+        if (r.unpricedCandidateBom) {
+          parts.push('unpriced candidate BOM; resolve the review queue and attach a DUPA')
+        } else {
+          const margin = (r.bomGpMarginBps / 100).toFixed(1)
+          parts.push(`draft BOM ${formatCompactPhp(r.bomTcvCents)} TCV (${margin}% GP)`)
+        }
       }
       if (r.ragMatches > 0) {
         parts.push(`${r.ragMatches} RAG match${r.ragMatches === 1 ? '' : 'es'}`)
-      }
-      if (r.aiEstimateMatches > 0) {
-        parts.push(`${r.aiEstimateMatches} AI-estimated price${r.aiEstimateMatches === 1 ? '' : 's'}`)
       }
       if (r.extensionMismatch) {
         parts.push('(content was DXF despite extension)')

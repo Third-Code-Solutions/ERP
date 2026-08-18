@@ -169,7 +169,6 @@ export async function generateWeeklyReportForProject(
     voMilestoneRows,
     accountRows,
     tenantRows,
-    actorRows,
   ] = await Promise.all([
     db
       .select({
@@ -262,11 +261,6 @@ export async function generateWeeklyReportForProject(
       .select({ name: tenants.name })
       .from(tenants)
       .where(eq(tenants.id, tenantId))
-      .limit(1),
-    db
-      .select({ id: users.id, full_name: users.full_name, email: users.email })
-      .from(users)
-      .where(eq(users.id, actorId))
       .limit(1),
   ])
 

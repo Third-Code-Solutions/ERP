@@ -166,8 +166,11 @@ The production worker is `ABI OPS CAD Worker` at
 3. Set the same secret as the server-only Vercel variable
    `PARSER_SHARED_SECRET`, and set Vercel `DXF_PARSER_URL` to the worker URL.
 4. Smoke test: `GET $DXF_PARSER_URL/health` returns `status=ok`,
-   `dwg_support=true`, and `evidence_only=true`; a valid `/parse` request
-   without the bearer secret returns 401.
+   `dwg_support=true`, and `evidence_only=true`; the legacy `/parse` route
+   without the bearer secret returns 401. An authorized disposable acceptance
+   lane must also prove the Core-issued, exact-body HMAC `/parse-evidence`
+   request before enabling its feature flags. Do not use a customer document
+   for that proof.
 
 The incremental NestJS processing bridge is separate from this legacy caller.
 It uses `DXF_PARSER_URL` and `PARSER_SHARED_SECRET`, issues a short-lived

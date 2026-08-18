@@ -104,6 +104,47 @@ def test_parse_returns_bounded_evidence_without_database_write(
     assert "count" not in payload
 
 
+def test_parse_rejects_fractional_evidence_without_rounding(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = b"source"
+    source_hash = hashlib.sha256(source).hexdigest()
+    monkeypatch.setattr(settings, "parser_shared_secret", "worker-secret")
+    monkeypatch.setattr(settings, "allow_unauthenticated_local", False)
+
+    async def fake_download_source(source_url: str, *, max_bytes: int) -> tuple[bytes, str]:
+        assert source_url.startswith("https://storage.example/")
+        assert max_bytes == 100 * 1024 * 1024
+        return source, source_hash
+
+    class FakeExtractor:
+        warnings: list[str] = []
+
+        def extract(self, _source: bytes) -> list[ScopeItem]:
+            return [
+                ScopeItem(
+                    code=None,
+                    description="Fractional floor area",
+                    unit="sqm",
+                    quantity=1.5,
+                    unit_cost_cents=0,
+                    notes=None,
+                )
+            ]
+
+    monkeypatch.setattr("src.main.download_source", fake_download_source)
+    monkeypatch.setattr("src.main.Extractor", FakeExtractor)
+
+    response = client.post(
+        "/parse",
+        headers={"Authorization": "Bearer worker-secret"},
+        json=request_body(source_hash, source_format="dxf"),
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {"detail": "CAD extraction failed"}
+
+
 def test_parse_rejects_non_ascii_bearer_token_without_server_error(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:

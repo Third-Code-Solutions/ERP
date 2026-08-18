@@ -39,7 +39,7 @@ type CreateRequest = {
   result: unknown
 }
 
-const EMAIL_MENTION_RE = /@([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/g
+const EMAIL_MENTION_RE = /@([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g
 
 function commandHash(command: CreateProjectCommentCommand): string {
   return createHash('sha256')

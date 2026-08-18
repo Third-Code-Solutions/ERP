@@ -33,6 +33,7 @@ import {
   DatabaseService,
   type DatabaseTransaction,
 } from '../database/database.service'
+import { databaseErrorMessage } from '../database/database-error'
 
 type CashWorkflowRequest = {
   id: string
@@ -94,7 +95,7 @@ function replayReverse(value: unknown): CashTransactionReverseResult {
 }
 
 function mapDatabaseFailure(error: unknown): never {
-  const message = error instanceof Error ? error.message : ''
+  const message = databaseErrorMessage(error)
   if (message.includes('Cash transaction not found')) {
     throw new NotFoundException('Cash transaction not found')
   }

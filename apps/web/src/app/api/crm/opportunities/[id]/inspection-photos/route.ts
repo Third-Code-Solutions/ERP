@@ -1,12 +1,9 @@
-import { and, eq } from 'drizzle-orm'
+import { createHash } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-
 import { can, getUserProfile } from '@third-code-erp/auth'
 import { createSupabaseAdminClient } from '@third-code-erp/auth/server'
-import { db } from '@third-code-erp/database'
-import { documents, opportunities } from '@third-code-erp/database/schema'
-import { writeAuditLogInTransaction } from '@/lib/audit'
+import { createInspectionPhotoThroughCoreApi } from '@/lib/erp-core-client'
 
 const MAX_PHOTO_BYTES = 15 * 1024 * 1024
 const opportunityIdSchema = z.string().uuid()
@@ -20,11 +17,59 @@ function safeFileName(fileName: string): string {
   return normalized.slice(0, 160) || 'inspection-photo'
 }
 
+function bytesMatch(
+  bytes: Uint8Array,
+  expected: ReadonlyArray<number>,
+  offset = 0
+): boolean {
+  return expected.every((value, index) => bytes[offset + index] === value)
+}
+
+function ascii(bytes: Uint8Array, offset: number, length: number): string {
+  return String.fromCharCode(...bytes.slice(offset, offset + length))
+}
+
+function detectedImageMimeType(bytes: Uint8Array):
+  | 'image/jpeg'
+  | 'image/png'
+  | 'image/gif'
+  | 'image/webp'
+  | 'image/heic'
+  | null {
+  if (bytesMatch(bytes, [0xff, 0xd8, 0xff])) return 'image/jpeg'
+  if (bytesMatch(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) {
+    return 'image/png'
+  }
+  if (ascii(bytes, 0, 6) === 'GIF87a' || ascii(bytes, 0, 6) === 'GIF89a') {
+    return 'image/gif'
+  }
+  if (ascii(bytes, 0, 4) === 'RIFF' && ascii(bytes, 8, 4) === 'WEBP') {
+    return 'image/webp'
+  }
+  if (ascii(bytes, 4, 4) === 'ftyp') {
+    const brand = ascii(bytes, 8, 4)
+    if (['heic', 'heix', 'hevc', 'hevx', 'mif1'].includes(brand)) {
+      return 'image/heic'
+    }
+  }
+  return null
+}
+
+function isExistingStorageObject(error: {
+  statusCode?: string | number
+  message?: string
+  error?: string
+}): boolean {
+  if (String(error.statusCode ?? '') === '409') return true
+  return /already exists|duplicate/i.test(
+    `${error.message ?? ''} ${error.error ?? ''}`
+  )
+}
+
 /**
- * Captures one inspection image and records it as an opportunity document.
- * The bounded server-side multipart path is intentional: field crews can use
- * the camera before a project exists, so the generic project upload contract
- * cannot be reused here.
+ * Uploads bounded image bytes to Storage, then delegates the durable document
+ * metadata and audit transaction to Core. A Core failure removes the newly
+ * uploaded object rather than re-entering a Web database write path.
  */
 export async function POST(request: Request, context: RouteContext) {
   const profile = await getUserProfile()
@@ -38,18 +83,6 @@ export async function POST(request: Request, context: RouteContext) {
   if (!opportunityId.success) {
     return NextResponse.json({ error: 'Opportunity not found' }, { status: 404 })
   }
-
-  const [opportunity] = await db
-    .select({ id: opportunities.id, project_id: opportunities.project_id })
-    .from(opportunities)
-    .where(
-      and(
-        eq(opportunities.id, opportunityId.data),
-        eq(opportunities.tenant_id, profile.tenantId),
-      ),
-    )
-    .limit(1)
-  if (!opportunity) return NextResponse.json({ error: 'Opportunity not found' }, { status: 404 })
 
   let formData: FormData
   try {
@@ -65,66 +98,59 @@ export async function POST(request: Request, context: RouteContext) {
   if (file.size <= 0 || file.size > MAX_PHOTO_BYTES) {
     return NextResponse.json(
       { error: `Photo must be between 1 byte and ${MAX_PHOTO_BYTES / 1024 / 1024} MB` },
-      { status: 413 },
+      { status: 413 }
     )
   }
-  if (!file.type.startsWith('image/')) {
-    return NextResponse.json({ error: 'Only image files are accepted' }, { status: 415 })
+
+  const bytes = await file.arrayBuffer()
+  const mimeType = detectedImageMimeType(new Uint8Array(bytes))
+  if (!mimeType) {
+    return NextResponse.json(
+      { error: 'Only supported raster image files are accepted' },
+      { status: 415 }
+    )
   }
 
   const caption = String(formData.get('caption') ?? '').trim().slice(0, 255)
-  const storagePath = `${profile.tenantId}/opportunities/${opportunity.id}/inspection/${crypto.randomUUID()}-${safeFileName(file.name)}`
+  const fileName = safeFileName(file.name)
+  const contentHash = createHash('sha256')
+    .update(new Uint8Array(bytes))
+    .digest('hex')
+  const storagePath = `${profile.tenantId}/opportunities/${opportunityId.data}/inspection/${contentHash}-${fileName}`
   const storage = createSupabaseAdminClient().storage.from('documents')
-  const { error: uploadError } = await storage.upload(storagePath, await file.arrayBuffer(), {
-    contentType: file.type,
+  const { error: uploadError } = await storage.upload(storagePath, bytes, {
+    contentType: mimeType,
     upsert: false,
   })
-  if (uploadError) {
+  const storageCreated = uploadError === null
+  if (uploadError && !isExistingStorageObject(uploadError)) {
     return NextResponse.json({ error: 'Photo upload failed' }, { status: 502 })
   }
 
-  try {
-    const documentId = await db.transaction(async (tx) => {
-      const [document] = await tx
-        .insert(documents)
-        .values({
-          tenant_id: profile.tenantId,
-          project_id: opportunity.project_id,
-          opportunity_id: opportunity.id,
-          uploaded_by: profile.user.id,
-          document_type: 'image',
-          file_name: file.name.slice(0, 255),
-          storage_path: storagePath,
-          mime_type: file.type.slice(0, 127),
-          size_bytes: file.size,
-          description: caption || 'WO-12 site inspection photo',
-        })
-        .returning({ id: documents.id })
-      if (!document) throw new Error('Photo document insert returned no row')
-
-      await writeAuditLogInTransaction(tx, {
-        tenantId: profile.tenantId,
-        actorId: profile.user.id,
-        entityType: 'document',
-        entityId: document.id,
-        action: 'create',
-        diff: {
-          source: 'site_inspection_photo',
-          opportunity_id: opportunity.id,
-          project_id: opportunity.project_id,
-          size_bytes: file.size,
-        },
-      })
-      return document.id
-    })
-
-    return NextResponse.json({
-      id: documentId,
-      fileName: file.name,
-      storagePath,
-    })
-  } catch {
-    await storage.remove([storagePath]).catch(() => undefined)
-    return NextResponse.json({ error: 'Photo metadata could not be recorded' }, { status: 500 })
+  const coreResult = await createInspectionPhotoThroughCoreApi({
+    opportunityId: opportunityId.data,
+    storagePath,
+    fileName,
+    mimeType,
+    sizeBytes: file.size,
+    caption: caption || null,
+  })
+  if (!coreResult.ok || !coreResult.data) {
+    if (storageCreated) {
+      await storage.remove([storagePath]).catch(() => undefined)
+    }
+    return NextResponse.json(
+      {
+        error:
+          coreResult.error ?? 'Photo metadata could not be recorded',
+      },
+      { status: coreResult.status ?? 502 }
+    )
   }
+
+  return NextResponse.json({
+    id: coreResult.data.documentId,
+    fileName: coreResult.data.fileName,
+    storagePath: coreResult.data.storagePath,
+  })
 }

@@ -8,6 +8,8 @@ import type { CortexRelationship } from '@/lib/cortex/entity-response'
 
 interface Props {
   relationships: CortexRelationship[]
+  limit?: number
+  moreHref?: string
 }
 
 function originLabel(origin: string): string {
@@ -17,8 +19,15 @@ function originLabel(origin: string): string {
 }
 
 /** Human-readable, canonical backlinks for a role-filtered context pack. */
-export function CortexRelationshipList({ relationships }: Props) {
+export function CortexRelationshipList({
+  relationships,
+  limit = 12,
+  moreHref,
+}: Props) {
   if (relationships.length === 0) return null
+
+  const visibleRelationships = relationships.slice(0, limit)
+  const hiddenRelationshipCount = relationships.length - visibleRelationships.length
 
   return (
     <div className="cortex-panel__connections">
@@ -27,7 +36,7 @@ export function CortexRelationshipList({ relationships }: Props) {
         className="cortex-relationships"
         aria-label="Connections"
       >
-        {relationships.slice(0, 12).map((relationship) => {
+        {visibleRelationships.map((relationship) => {
           const { citation } = relationship
           const typeLabel =
             CORTEX_TYPE_LABEL[citation.nodeType] ?? citation.nodeType
@@ -81,6 +90,16 @@ export function CortexRelationshipList({ relationships }: Props) {
           )
         })}
       </ul>
+      {hiddenRelationshipCount > 0 && moreHref && (
+        <Link
+          href={moreHref}
+          className="cortex-panel__more-link"
+          aria-label={`View all ${relationships.length} connections in Cortex`}
+        >
+          View all {relationships.length} connections
+          <span aria-hidden>→</span>
+        </Link>
+      )}
     </div>
   )
 }

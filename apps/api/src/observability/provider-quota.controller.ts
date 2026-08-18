@@ -25,7 +25,7 @@ const requestSchema = z.object({
   bucket: z.enum(PROVIDER_QUOTA_BUCKETS),
 }).strict()
 
-export interface ProviderQuotaResponse extends ProviderQuotaDecision {}
+export type ProviderQuotaResponse = ProviderQuotaDecision
 
 @Controller('v1/provider-quotas')
 export class ProviderQuotaController {

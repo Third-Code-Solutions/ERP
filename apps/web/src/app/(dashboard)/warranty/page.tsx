@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { and, desc, eq } from 'drizzle-orm'
+import { desc, eq } from 'drizzle-orm'
 import { requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { warrantyTickets, projects, accounts } from '@third-code-erp/database/schema'

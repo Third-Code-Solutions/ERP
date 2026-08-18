@@ -36,10 +36,13 @@ import {
   customerInvoiceCancelResultSchema,
   documentDeleteResultSchema,
   documentIntakeResultSchema,
-  documentUploadCompleteResultSchema,
   cadEvidenceCommitCommandSchema,
   cadEvidenceCommitResultSchema,
   parseCadWorkerResponse,
+  takeoffImportCommandByteLength,
+  takeoffImportCommandSchema,
+  TAKEOFF_IMPORT_MAX_COMMAND_BYTES,
+  takeoffImportResultSchema,
   publicSigningResultSchema,
   documentProcessingAcceptedSchema,
   documentProcessingStatusSchema,
@@ -71,6 +74,8 @@ import {
   notificationReadStateResultSchema,
   docuSealWebhookCommandSchema,
   docuSealWebhookResultSchema,
+  inspectionPhotoCommandSchema,
+  inspectionPhotoResultSchema,
   assetListResultSchema,
   assetReadResultSchema,
   assetMaintenanceDueResultSchema,
@@ -159,9 +164,10 @@ import {
   type DocumentDeleteResult,
   type DocumentIntakeRequest,
   type DocumentIntakeResult,
-  type DocumentUploadCompleteResult,
   type CadEvidenceCommitCommand,
   type CadEvidenceCommitResult,
+  type TakeoffImportCommand,
+  type TakeoffImportResult,
   type PublicSigningBody,
   type PublicSigningResult,
   type DocumentProcessingAccepted,
@@ -197,6 +203,8 @@ import {
   type NotificationReadStateResult,
   type DocuSealWebhookCommand,
   type DocuSealWebhookResult,
+  type InspectionPhotoCommand,
+  type InspectionPhotoResult,
   type AssetListQuery,
   type AssetListResult,
   type AssetReadResult,
@@ -320,6 +328,7 @@ interface CoreResult<T> {
 export type ProviderQuotaBucket =
   | 'provider-chat'
   | 'provider-embedding'
+  | 'provider-vision'
 
 export interface ProviderQuotaDecision {
   allowed: boolean
@@ -332,7 +341,7 @@ export interface ProviderQuotaDecision {
 
 const providerQuotaDecisionSchema = z.object({
   allowed: z.boolean(),
-  bucket: z.enum(['provider-chat', 'provider-embedding']),
+  bucket: z.enum(['provider-chat', 'provider-embedding', 'provider-vision']),
   count: z.number().int().nonnegative(),
   limit: z.number().int().positive(),
   retryAfterSeconds: z.number().int().nonnegative(),
@@ -819,24 +828,6 @@ export function financeReconciliationStorageUploadsViaCoreApi(
   )
 }
 
-/** Notification list/read-state authority remains closed until user-scope parity is approved. */
-export function notificationReadStateUseCoreApi(tenantId: string): boolean {
-  return tenantEnabledForExactCoreApi(
-    tenantId,
-    process.env.ERP_NOTIFICATION_READ_STATE_VIA_API,
-    process.env.ERP_NOTIFICATION_READ_STATE_VIA_API_TENANT_IDS
-  )
-}
-
-/** DocuSeal business writes are delegated only for an exact tenant canary. */
-export function docuSealWebhookUseCoreApi(tenantId: string): boolean {
-  return tenantEnabledForExactCoreApi(
-    tenantId,
-    process.env.ERP_DOCUSEAL_WEBHOOK_VIA_API,
-    process.env.ERP_DOCUSEAL_WEBHOOK_VIA_API_TENANT_IDS
-  )
-}
-
 export function inventoryItemConfigurationWritesUseCoreApi(
   tenantId: string
 ): boolean {
@@ -1249,21 +1240,6 @@ export function documentProcessingJobsUseCoreApi(
 }
 
 /**
- * CAD evidence commits are delegated only for an explicit tenant canary. The
- * selector is separate from processing-job intake so evidence authority can
- * be proven before any queue or draft-BOM cutover.
- */
-export function cadEvidenceCommitWritesUseCoreApi(
-  tenantId: string
-): boolean {
-  return tenantEnabledForExactCoreApi(
-    tenantId,
-    process.env.ERP_CAD_EVIDENCE_COMMIT_WRITES_VIA_API,
-    process.env.ERP_CAD_EVIDENCE_COMMIT_WRITES_VIA_API_TENANT_IDS
-  )
-}
-
-/**
  * Document deletion is delegated only for an explicit tenant canary. The
  * Nest transaction is authoritative; a failed Core call never falls back to
  * the legacy Server Action mutation.
@@ -1273,70 +1249,6 @@ export function documentDeleteWritesUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_DOCUMENT_DELETE_WRITES_VIA_API,
     process.env.ERP_DOCUMENT_DELETE_WRITES_VIA_API_TENANT_IDS
-  )
-}
-
-/**
- * Document intake is delegated only for an explicit tenant canary. The upload
- * route remains legacy-authoritative for the default closed gate and for all
- * extractor formats.
- */
-export function documentIntakeWritesUseCoreApi(tenantId: string): boolean {
-  return tenantEnabledForCoreApi(
-    tenantId,
-    process.env.ERP_DOCUMENT_INTAKE_WRITES_VIA_API,
-    process.env.ERP_DOCUMENT_INTAKE_WRITES_VIA_API_TENANT_IDS
-  )
-}
-
-/**
- * The first Web canary only covers uploads that the legacy route records
- * without running an extractor. CAD, visual, spreadsheet, CSV, and document
- * formats remain on the legacy path until their response and processing
- * parity are independently proven.
- */
-export function documentIntakeCanarySupportsUpload(request: {
-  fileName: string
-  mimeType: string
-}): boolean {
-  const extension = request.fileName.split('.').pop()?.toLowerCase() ?? ''
-  const extractorExtensions = new Set([
-    'dxf',
-    'dwg',
-    'pdf',
-    'jpg',
-    'jpeg',
-    'png',
-    'webp',
-    'gif',
-    'heic',
-    'xlsx',
-    'xls',
-    'csv',
-    'docx',
-    'doc',
-  ])
-  if (extractorExtensions.has(extension)) return false
-
-  const mimeType = request.mimeType.toLowerCase()
-  return !(
-    mimeType === 'application/pdf' ||
-    mimeType.startsWith('image/') ||
-    mimeType === 'text/csv' ||
-    mimeType.includes('spreadsheet') ||
-    mimeType.includes('wordprocessingml') ||
-    mimeType === 'application/msword'
-  )
-}
-
-/** Exact authority selector used by the legacy upload route. */
-export function documentIntakeCanarySelectedForUpload(
-  tenantId: string,
-  request: { fileName: string; mimeType: string }
-): boolean {
-  return (
-    documentIntakeWritesUseCoreApi(tenantId) &&
-    documentIntakeCanarySupportsUpload(request)
   )
 }
 
@@ -2665,10 +2577,7 @@ export async function deleteDocumentThroughCoreApi(
   }
 }
 
-/**
- * Server-only, unconnected document-intake adapter. It never falls back to a
- * Web database write after the caller selects the Core authority.
- */
+/** Core is the durable document/audit authority for completed uploads. */
 export async function createDocumentThroughCoreApi(
   request: DocumentIntakeRequest,
   idempotencyKey: string
@@ -2701,7 +2610,7 @@ export async function createDocumentThroughCoreApi(
             : response.status === 404
               ? 'Project was not found.'
               : response.status === 503
-                ? 'Document intake is not enabled for this tenant.'
+                ? 'ERP Core is unavailable. No document was recorded.'
                 : 'Document was not recorded.'
       return { ok: false, error: message, status: response.status }
     }
@@ -2724,58 +2633,159 @@ export async function createDocumentThroughCoreApi(
 }
 
 /**
- * Disposable Web canary harness for legacy upload response parity. It is not
- * connected to /api/upload/complete; callers must explicitly select both the
- * tenant gate and the non-extractor format. A Core error is terminal and
- * never falls back to a Web database write.
+ * ERP Core is the only authority for parsed spreadsheet/CSV takeoff preview
+ * validation and commit. The Web route parses the file but never reads or
+ * writes the takeoff/BOM transaction directly.
  */
-export async function completeDocumentUploadThroughCoreCanary(
-  request: DocumentIntakeRequest,
-  tenantId: string,
-  idempotencyKey: string
-): Promise<CoreResult<DocumentUploadCompleteResult>> {
-  if (!documentIntakeWritesUseCoreApi(tenantId)) {
+export async function executeTakeoffImportThroughCoreApi(
+  command: TakeoffImportCommand,
+  expectedTenantId: string
+): Promise<CoreResult<TakeoffImportResult>> {
+  if (
+    takeoffImportCommandByteLength(command) >
+    TAKEOFF_IMPORT_MAX_COMMAND_BYTES
+  ) {
     return {
       ok: false,
-      error: 'Document intake canary is not enabled for this tenant.',
-      status: 503,
+      error: 'Takeoff import command is too large. Split the source file.',
+      status: 413,
     }
   }
-  if (!documentIntakeCanarySupportsUpload(request)) {
+  const parsedCommand = takeoffImportCommandSchema.safeParse(command)
+  if (!parsedCommand.success) {
     return {
       ok: false,
-      error: 'Document intake canary does not support this upload format.',
+      error: 'Invalid takeoff import command.',
       status: 400,
     }
   }
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
 
-  const coreResult = await createDocumentThroughCoreApi(
-    request,
-    idempotencyKey
-  )
-  if (!coreResult.ok || !coreResult.data) {
+  try {
+    const response = await fetch(`${access.baseUrl}/v1/boms/takeoff-import`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${access.accessToken}`,
+        'content-type': 'application/json',
+        'x-request-id': randomUUID(),
+      },
+      body: JSON.stringify(parsedCommand.data),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(30_000),
+    })
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 403
+            ? 'You cannot import takeoffs for this BOM.'
+            : response.status === 404
+              ? 'BOM not found.'
+              : response.status === 409
+                ? 'BOM cannot accept a takeoff in its current state.'
+                : response.status === 422
+                  ? 'The takeoff cannot be committed until required columns are mapped.'
+                  : 'Takeoff import was not completed.'
+      return { ok: false, error: message, status: response.status }
+    }
+
+    const parsed = takeoffImportResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid takeoff import result.',
+        status: 502,
+      }
+    }
+    if (
+      parsed.data.tenantId !== expectedTenantId ||
+      (parsedCommand.data.target === 'existing_bom' &&
+        parsed.data.bomId !== parsedCommand.data.bomId)
+    ) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned a mismatched takeoff import result.',
+        status: 502,
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
     return {
       ok: false,
-      error: coreResult.error ?? 'Document intake failed in ERP Core.',
-      status: coreResult.status,
+      error: 'ERP Core API is unavailable. No takeoff data was committed.',
+      status: 503,
     }
   }
+}
 
-  const parsed = documentUploadCompleteResultSchema.safeParse({
-    id: coreResult.data.documentId,
-    storagePath: coreResult.data.storagePath,
-    documentType: coreResult.data.documentType,
-    cadFormat: null,
-    cadParseQueued: false,
-  })
-  if (!parsed.success) {
+/**
+ * Core is the durable authority for pre-project opportunity inspection-photo
+ * metadata and audit evidence. Storage upload remains a bounded Web concern.
+ */
+export async function createInspectionPhotoThroughCoreApi(
+  command: InspectionPhotoCommand
+): Promise<CoreResult<InspectionPhotoResult>> {
+  const parsedCommand = inspectionPhotoCommandSchema.safeParse(command)
+  if (!parsedCommand.success) {
     return {
       ok: false,
-      error: 'ERP Core returned an invalid legacy upload response.',
-      status: 502,
+      error: 'Inspection photo metadata is invalid.',
+      status: 400,
     }
   }
-  return { ok: true, data: parsed.data, status: coreResult.status }
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/opportunities/${parsedCommand.data.opportunityId}/inspection-photos`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(parsedCommand.data),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 403
+            ? 'You cannot record an inspection photo for this opportunity.'
+            : response.status === 404
+              ? 'Opportunity not found.'
+              : 'Inspection photo metadata was not recorded.'
+      return { ok: false, error: message, status: response.status }
+    }
+
+    const parsed = inspectionPhotoResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid inspection photo result.',
+        status: 502,
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. Inspection photo metadata was not recorded.',
+      status: 503,
+    }
+  }
 }
 
 export async function signPublicSignatureThroughCoreApi(
@@ -6988,7 +6998,7 @@ export type DocumentProcessingCoreResult =
 /**
  * Server-only CAD evidence adapter. Core is authoritative for scope-item
  * replacement, idempotency, exact totals, and audit; this client never falls
- * back to a Web database write after its caller selects the canary.
+ * back to a Web database write.
  */
 export async function commitCadEvidenceThroughCoreApi(
   documentId: string,
