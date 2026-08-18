@@ -261,13 +261,56 @@ runtimeDescribe('ADR-022 migration runtime proof', () => {
       )
       expect(flags).toEqual([{ relrowsecurity: true, relforcerowsecurity: true }])
 
-      const policies = await tx.unsafe<{ count: number }[]>(
-        `select count(*)::int as count
+      const policies = await tx.unsafe<
+        Array<{
+          tablename: string
+          policyname: string
+          roles: string
+          using_expression: string
+          check_expression: string
+        }>
+      >(
+        `select tablename,
+                policyname,
+                array_to_string(roles, ',') as roles,
+                regexp_replace(
+                  coalesce(qual, ''),
+                  '[[:space:]()]',
+                  '',
+                  'g'
+                ) as using_expression,
+                regexp_replace(
+                  coalesce(with_check, ''),
+                  '[[:space:]()]',
+                  '',
+                  'g'
+                ) as check_expression
            from pg_policies
           where schemaname = 'public'
-            and tablename in ('tenant_memberships', 'approval_delegations')`
+            and tablename in ('tenant_memberships', 'approval_delegations')
+          order by tablename, policyname`
       )
-      expect(policies[0]?.count).toBe(0)
+      expect(
+        policies.map((policy) => ({
+          ...policy,
+          roles: policy.roles.split(',').sort().join(','),
+        }))
+      ).toEqual([
+        {
+          tablename: 'approval_delegations',
+          policyname: 'deny_direct_client_access',
+          roles: 'anon,authenticated',
+          using_expression: 'false',
+          check_expression: 'false',
+        },
+        {
+          tablename: 'tenant_memberships',
+          policyname: 'deny_direct_client_access',
+          roles: 'anon,authenticated',
+          using_expression: 'false',
+          check_expression: 'false',
+        },
+      ])
     })
   })
 

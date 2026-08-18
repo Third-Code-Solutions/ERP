@@ -40,6 +40,11 @@ completed successfully.
   `notification_outbox`, and `notification_deliveries`) from authenticated
   tenant policies. A dedicated regression suite rejects weakened or extra
   policies and is required by both CI and production promotion.
+- Reconciled the ADR-022 disposable-database proof with its accepted Phase 0
+  contract: `tenant_memberships` and `approval_delegations` must each retain
+  one explicit `deny_direct_client_access` policy, rather than zero policies.
+  The runtime assertion now checks the exact tables, roles, and false
+  `USING`/`WITH CHECK` expressions.
 - Preserved the existing `apps/web/vercel.json` request for `icn1`; placement
   will be verified from a newly deployed immutable artifact, not inferred from
   source configuration.
@@ -66,6 +71,9 @@ completed successfully.
   workstation currently has neither the Supabase CLI nor a running Docker
   daemon. The isolated GitHub CI database-reproducibility job performs that
   clean replay before merge.
+- PASS — ADR-022 static schema contract (2 tests). Its runtime proof is
+  intentionally skipped locally without a disposable `DATABASE_URL` and will
+  be re-run without skips by the GitHub database-reproducibility job.
 - PASS — the CI unit-test source-gate sequence through WO-18, including the
   corrected WO-08a, WO-12, and WO-18 authority/performance contracts.
 - PASS — production dependency audit reported no known high-or-higher
