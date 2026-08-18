@@ -5,7 +5,7 @@ export type DatabaseConnectionOptions = {
   connect_timeout?: number
 }
 
-type RuntimeEnvironment = Readonly<{ VERCEL?: string }>
+type RuntimeEnvironment = Readonly<Record<string, string | undefined>>
 
 export type DatabaseConnectionConfig = {
   connectionString: string
