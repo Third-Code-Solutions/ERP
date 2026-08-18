@@ -2,10 +2,11 @@
 
 ## Status
 
-Source remediation and local verification are complete. The candidate is
-awaiting the reviewed PR path and canonical production workflow; only that
-workflow may establish hosted migration, authenticated E2E, `icn1`, and
-real-user telemetry evidence.
+Source remediation is awaiting a fresh CI revalidation. The prior clean
+database rebuild passed, but its catalog verifier misclassified three explicit
+deny-all policies; the follow-up commits add a regression-tested classifier.
+Only a green reviewed PR and the canonical production workflow may establish
+hosted migration, authenticated E2E, `icn1`, and real-user telemetry evidence.
 
 ## Evidence at handoff
 
@@ -26,6 +27,13 @@ real-user telemetry evidence.
 - The branch contains the reviewed release candidate. The canonical promotion
   workflow runs only from a reviewed `main` SHA and is the sole authorized
   provider deployment path.
+- The prior GitHub database-reproducibility job reached a clean `supabase db
+  reset --local` and BUILD OPS data verification, then failed only because its
+  tenant-policy checker expected `authenticated` plus `auth_tenant_id()` for
+  `financial_sequences`, `notification_outbox`, and
+  `notification_deliveries`. Those tables correctly use
+  `deny_direct_client_access` for `anon` and `authenticated`; the replacement
+  contract requires that exact denial and rejects an allow policy.
 
 ## Sequential ownership
 

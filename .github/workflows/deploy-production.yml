@@ -89,6 +89,7 @@ jobs:
           pnpm verify:workflow-action-refs
           pnpm lint
           pnpm turbo typecheck
+          pnpm test:database-repro-policy-contract
           pnpm test
           pnpm build
 
