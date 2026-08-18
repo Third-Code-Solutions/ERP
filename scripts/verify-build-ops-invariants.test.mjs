@@ -129,6 +129,7 @@ test('CI runs the full PR suite and keeps migration checks ahead of CI-only gran
     resolve('.github/workflows/deploy-production.yml'),
     'utf8'
   )
+  const apiDockerfile = await readFile(resolve('apps/api/Dockerfile'), 'utf8')
   const rootPackage = await readFile(resolve('package.json'), 'utf8')
 
   assert.match(workflow, /pull_request:\s*\n\s+branches: \[main\]/)
@@ -151,6 +152,14 @@ test('CI runs the full PR suite and keeps migration checks ahead of CI-only gran
   assert.match(
     productionWorkflow,
     /pnpm test:database-repro-policy-contract/
+  )
+  assert.match(
+    apiDockerfile,
+    /COPY package\.json pnpm-lock\.yaml pnpm-workspace\.yaml turbo\.json \.npmrc \.\//
+  )
+  assert.match(
+    apiDockerfile,
+    /COPY package\.json pnpm-lock\.yaml pnpm-workspace\.yaml \.npmrc \.\//
   )
   assert.match(workflow, /GITHUB_EVENT_BEFORE:-/)
   assert.match(

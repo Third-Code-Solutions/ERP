@@ -42,6 +42,12 @@ hosted migration, authenticated E2E, `icn1`, and real-user telemetry evidence.
   `cadParseQueued=true` after a completed Core evidence commit. The response
   contract and focused Web test use `false` for completed synchronous work;
   `true` remains reserved for an outstanding Core job.
+- The subsequent container smoke step exposed a reproducibility gap: the API
+  Dockerfile ran frozen pnpm installs before copying root `.npmrc`, producing
+  an `autoInstallPeers` lockfile configuration mismatch. Both Docker stages
+  now copy that file first, and the BUILD OPS invariant test enforces the
+  ordering. A fresh CI Docker build remains required for proof because no
+  local Docker daemon is available.
 
 ## Sequential ownership
 

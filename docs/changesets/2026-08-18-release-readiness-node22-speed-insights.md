@@ -49,6 +49,10 @@ completed successfully.
   synchronous commit contract: when evidence and scope rows are committed
   before the response, `cadParseQueued` is `false`; it is reserved for an
   outstanding Core processing job.
+- Fixed the API production Dockerfile to copy the root `.npmrc` before each
+  `--frozen-lockfile` install. This preserves the lockfile's
+  `autoInstallPeers=false` contract inside both build and runtime stages;
+  the BUILD OPS invariant suite now rejects a future omission.
 - Preserved the existing `apps/web/vercel.json` request for `icn1`; placement
   will be verified from a newly deployed immutable artifact, not inferred from
   source configuration.
@@ -86,6 +90,13 @@ completed successfully.
 - PASS — production dependency audit reported no known high-or-higher
   vulnerabilities; both repository-history and staged-diff Gitleaks scans
   reported no findings.
+- PASS — API Dockerfile frozen-install regression contract (7 invariant
+  tests), Node 22 frozen install, workflow-action reference verification, and
+  repository-wide whitespace check after the container configuration repair.
+- NOT RUN locally — Dockerized Nest production-container smoke test, because
+  this workstation has no running Docker daemon. The fresh GitHub CI database
+  reproducibility job is required to run that exact container build and smoke
+  request before merge.
 
 ## Promotion boundary
 
