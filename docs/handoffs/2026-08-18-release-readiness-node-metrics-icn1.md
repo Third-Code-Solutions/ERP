@@ -34,6 +34,10 @@ hosted migration, authenticated E2E, `icn1`, and real-user telemetry evidence.
   `notification_deliveries`. Those tables correctly use
   `deny_direct_client_access` for `anon` and `authenticated`; the replacement
   contract requires that exact denial and rejects an allow policy.
+- The follow-up database job proved that corrected catalog assertion on a clean
+  replay, then exposed a separate stale ADR-022 test expectation of zero
+  policies. ADR-022 explicitly requires two deny-all policies; its runtime
+  proof now asserts their exact role and expression shape before CI is rerun.
 
 ## Sequential ownership
 

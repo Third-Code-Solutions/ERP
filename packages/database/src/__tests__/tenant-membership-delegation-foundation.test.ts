@@ -37,6 +37,9 @@ describe('ADR-022 tenant membership and delegation foundation', () => {
     expect(migration).toContain('revoke all privileges on table public.approval_delegations')
     expect(migration).toContain('create policy deny_direct_client_access on public.tenant_memberships')
     expect(migration).toContain('create policy deny_direct_client_access on public.approval_delegations')
+    expect(migration).toContain(
+      'for all to anon, authenticated using (false) with check (false)'
+    )
     expect(migration).toContain('sync_legacy_user_default_membership')
     expect(migration).toContain('audit_tenant_memberships')
     expect(migration).toContain('audit_approval_delegations')
