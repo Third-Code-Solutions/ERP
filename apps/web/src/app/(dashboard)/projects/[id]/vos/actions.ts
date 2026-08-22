@@ -15,7 +15,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { and, asc, count, eq } from 'drizzle-orm'
-import { getUserProfile } from '@third-code-erp/auth'
+import { can, getUserProfile, type AppRole } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   projects,
@@ -37,12 +37,13 @@ export type VoStatus =
 interface TenantCtx {
   tenantId: string
   userId: string
+  role: AppRole
 }
 
 async function getTenantContext(): Promise<TenantCtx | { error: string }> {
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
-  return { tenantId: profile.tenantId, userId: profile.user.id }
+  return { tenantId: profile.tenantId, userId: profile.user.id, role: profile.role }
 }
 
 async function loadVo(voId: string, tenantId: string) {
@@ -82,6 +83,9 @@ export async function createVo(
 ): Promise<{ error?: string; id?: string }> {
   const ctx = await getTenantContext()
   if ('error' in ctx) return { error: ctx.error }
+  if (!can(ctx.role, 'variation_order.create')) {
+    return { error: 'Forbidden: your role cannot create variation orders.' }
+  }
 
   const [project] = await db
     .select({ id: projects.id, name: projects.name })
@@ -146,6 +150,9 @@ export async function submitVoForCommercialPricing(
 ): Promise<{ error?: string }> {
   const ctx = await getTenantContext()
   if ('error' in ctx) return { error: ctx.error }
+  if (!can(ctx.role, 'variation_order.submit_for_commercial_pricing')) {
+    return { error: 'Forbidden: your role cannot submit variation orders for commercial pricing.' }
+  }
 
   const vo = await loadVo(voId, ctx.tenantId)
   if (!vo) return { error: 'VO not found' }
@@ -190,6 +197,9 @@ export async function submitVoForClientSignature(
 ): Promise<{ error?: string; url?: string }> {
   const ctx = await getTenantContext()
   if ('error' in ctx) return { error: ctx.error }
+  if (!can(ctx.role, 'variation_order.send_for_client_signature')) {
+    return { error: 'Forbidden: your role cannot send variation orders for client signature.' }
+  }
 
   const vo = await loadVo(voId, ctx.tenantId)
   if (!vo) return { error: 'VO not found' }
@@ -252,6 +262,9 @@ export async function recordVoSigned(
 ): Promise<{ error?: string }> {
   const ctx = await getTenantContext()
   if ('error' in ctx) return { error: ctx.error }
+  if (!can(ctx.role, 'variation_order.send_for_client_signature')) {
+    return { error: 'Forbidden: your role cannot record a variation-order signature.' }
+  }
 
   const vo = await loadVo(voId, ctx.tenantId)
   if (!vo) return { error: 'VO not found' }
@@ -290,6 +303,9 @@ export async function rejectVo(
 ): Promise<{ error?: string }> {
   const ctx = await getTenantContext()
   if ('error' in ctx) return { error: ctx.error }
+  if (!can(ctx.role, 'variation_order.reject')) {
+    return { error: 'Forbidden: your role cannot reject variation orders.' }
+  }
 
   const vo = await loadVo(voId, ctx.tenantId)
   if (!vo) return { error: 'VO not found' }

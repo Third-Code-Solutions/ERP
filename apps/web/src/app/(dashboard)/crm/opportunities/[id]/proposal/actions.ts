@@ -773,7 +773,7 @@ async function loadDesignFile(tenantId: string, designFileId: string) {
 // US-008 #3 — Mark a design "Ready for Presentation" and notify Sales.
 export async function markDesignReady(designFileId: string): Promise<{ error?: string }> {
   const profile = await requireUserProfile()
-  const forbid = guard(profile.role, 'design.upload')
+  const forbid = guard(profile.role, 'design.ready_for_presentation')
   if (forbid) return { error: forbid }
 
   const parsed = designIdSchema.safeParse({ design_file_id: designFileId })
@@ -824,7 +824,7 @@ export async function markDesignReady(designFileId: string): Promise<{ error?: s
 // US-008 #5 — Client signs off → lock the design version.
 export async function markDesignApproved(designFileId: string): Promise<{ error?: string }> {
   const profile = await requireUserProfile()
-  const forbid = guard(profile.role, 'design.upload')
+  const forbid = guard(profile.role, 'design.approve_client')
   if (forbid) return { error: forbid }
 
   const parsed = designIdSchema.safeParse({ design_file_id: designFileId })
@@ -1035,7 +1035,7 @@ export async function resolveChangeRequest(formData: FormData): Promise<{ error?
 // kicks off the BOM-generation Inngest pipeline.
 export async function approveWithoutChanges(designFileId: string): Promise<{ error?: string }> {
   const profile = await requireUserProfile()
-  const forbid = guard(profile.role, 'design.upload')
+  const forbid = guard(profile.role, 'design.approve_client')
   if (forbid) return { error: forbid }
 
   const parsed = designIdSchema.safeParse({ design_file_id: designFileId })

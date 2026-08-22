@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
-import { can, requireUserProfile } from '@third-code-erp/auth'
+import { can, requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   cashAccounts,
@@ -33,9 +32,8 @@ function formatDate(value: string): string {
 
 export default async function FinancePage() {
   const profile = await requireUserProfile()
-  if (!can(profile.role, 'finance.manage')) {
-    redirect('/dashboard?error=forbidden')
-  }
+  requireCapability(profile, 'finance.read')
+  const canManage = can(profile.role, 'finance.manage')
 
   const [periods, accounts, journals, cashAccountRows] = await Promise.all([
     db
@@ -106,9 +104,11 @@ export default async function FinancePage() {
           <Link href="/finance/ledger" className="finance-secondary-link">
             Open ledger
           </Link>
-          <Link href="/finance/journals/new" className="finance-primary-link">
-            New journal
-          </Link>
+          {canManage && (
+            <Link href="/finance/journals/new" className="finance-primary-link">
+              New journal
+            </Link>
+          )}
         </div>
       </div>
 
@@ -140,7 +140,7 @@ export default async function FinancePage() {
             Map each bank, till, or e-wallet to one active asset ledger account.
           </p>
         </div>
-        <CreateCashAccountForm
+        {canManage && <CreateCashAccountForm
           assetAccounts={activeAccounts
             .filter((account) => account.account_type === 'asset')
             .map((account) => ({
@@ -148,7 +148,7 @@ export default async function FinancePage() {
               code: account.code,
               name: account.name,
             }))}
-        />
+        />}
         <div className="finance-record-list">
           {cashAccountRows.map((cashAccount) => (
             <div className="finance-record" key={cashAccount.id}>
@@ -184,7 +184,7 @@ export default async function FinancePage() {
             transactionally.
           </p>
         </div>
-        <ReceivablesAccountMapping
+        {canManage && <ReceivablesAccountMapping
           accounts={activeAccounts.map((account) => ({
             id: account.id,
             code: account.code,
@@ -192,7 +192,7 @@ export default async function FinancePage() {
             accountType: account.account_type,
           }))}
           current={currentSystemMappings}
-        />
+        />}
       </section>
 
       <section className="finance-section">
@@ -206,7 +206,7 @@ export default async function FinancePage() {
             Purchase Order matching.
           </p>
         </div>
-        <PayablesAccountMapping
+        {canManage && <PayablesAccountMapping
           accounts={activeAccounts.map((account) => ({
             id: account.id,
             code: account.code,
@@ -214,7 +214,7 @@ export default async function FinancePage() {
             accountType: account.account_type,
           }))}
           current={currentSystemMappings}
-        />
+        />}
       </section>
 
       <section className="finance-section">
@@ -228,7 +228,7 @@ export default async function FinancePage() {
             Not Invoiced until Supplier Bill matching is completed.
           </p>
         </div>
-        <InventoryAccountMapping
+        {canManage && <InventoryAccountMapping
           accounts={activeAccounts.map((account) => ({
             id: account.id,
             code: account.code,
@@ -236,7 +236,7 @@ export default async function FinancePage() {
             accountType: account.account_type,
           }))}
           current={currentSystemMappings}
-        />
+        />}
       </section>
 
       <section className="finance-section">
@@ -251,7 +251,7 @@ export default async function FinancePage() {
           {journals.length === 0 ? (
             <div className="card-empty">
               <p>No journals yet.</p>
-              <Link href="/finance/journals/new">Create the opening entry</Link>
+              {canManage && <Link href="/finance/journals/new">Create the opening entry</Link>}
             </div>
           ) : (
             <table className="data-table">
@@ -301,7 +301,7 @@ export default async function FinancePage() {
               <h2>Fiscal periods</h2>
             </div>
           </div>
-          <CreateFiscalPeriodForm />
+          {canManage && <CreateFiscalPeriodForm />}
           <div className="finance-record-list">
             {periods.map((period) => (
               <div className="finance-record" key={period.id}>
@@ -315,7 +315,7 @@ export default async function FinancePage() {
                   <span className={`finance-status finance-status-${period.status}`}>
                     {period.status}
                   </span>
-                  {period.status === 'open' && (
+                  {canManage && period.status === 'open' && (
                     <ClosePeriodButton periodId={period.id} />
                   )}
                 </div>
@@ -331,7 +331,7 @@ export default async function FinancePage() {
               <h2>Chart of accounts</h2>
             </div>
           </div>
-          <CreateLedgerAccountForm />
+          {canManage && <CreateLedgerAccountForm />}
           <div className="finance-record-list">
             {accounts.map((account) => (
               <div className="finance-record" key={account.id}>

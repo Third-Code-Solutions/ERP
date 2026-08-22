@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { normalizeProjectType } from '@third-code-erp/shared-types'
 import { updateProject } from '@/app/(dashboard)/projects/[id]/actions'
 
 interface EditProjectFormProps {
@@ -30,7 +31,7 @@ const TYPE_OPTIONS = [
   { value: 'mep', label: 'MEP' },
   { value: 'fit_out', label: 'Fit-out' },
   { value: 'interior', label: 'Interior' },
-  { value: 'mixed', label: 'Mixed' },
+  { value: 'structural_civil', label: 'Structural and Civil' },
 ]
 
 export function EditProjectForm({ project }: EditProjectFormProps) {
@@ -124,7 +125,7 @@ export function EditProjectForm({ project }: EditProjectFormProps) {
             </div>
             <div>
               <label style={labelStyle}>Project Type</label>
-              <select name="project_type" defaultValue={project.project_type ?? ''} style={inputStyle}>
+              <select name="project_type" defaultValue={normalizeProjectType(project.project_type) ?? ''} style={inputStyle}>
                 {TYPE_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
                 ))}

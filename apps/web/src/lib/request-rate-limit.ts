@@ -9,7 +9,7 @@ export type RequestRateLimitBucket =
   | 'general'
   | 'provider-chat'
   | 'provider-embedding'
-  | 'provider-vision'
+  | 'document-intake'
 
 export interface RequestRateLimitPolicy {
   bucket: RequestRateLimitBucket
@@ -77,12 +77,12 @@ export function requestRateLimitPolicy(
     }
   }
 
-  // Upload completion can invoke the server-side visual document extractor.
-  // Keep its external-model burst below both general and text-chat traffic.
+  // Upload completion performs bounded local parsing/OCR work. It is not a
+  // provider route, but it needs a lower CPU-bound burst than general reads.
   if (pathname === '/api/upload/complete') {
     return {
-      bucket: 'provider-vision',
-      limit: authenticated ? 4 : 2,
+      bucket: 'document-intake',
+      limit: authenticated ? 10 : 2,
       windowMs: WINDOW_MS,
     }
   }

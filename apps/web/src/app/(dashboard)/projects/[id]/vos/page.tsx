@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { and, eq } from 'drizzle-orm'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { projects } from '@third-code-erp/database/schema'
 import { VoCreateForm } from '@/components/vos/vo-create-form'
@@ -45,6 +45,7 @@ function formatPhp(cents: number): string {
 export default async function ProjectVosPage({ params }: PageProps) {
   const { id } = await params
   const profile = await requireUserProfile()
+  const canCreate = can(profile.role, 'variation_order.create')
 
   const [project] = await db
     .select({ id: projects.id, name: projects.name })
@@ -160,6 +161,7 @@ export default async function ProjectVosPage({ params }: PageProps) {
           )}
         </div>
 
+        {canCreate && (
         <aside>
           <div className="card">
             <div className="card-header">
@@ -170,6 +172,7 @@ export default async function ProjectVosPage({ params }: PageProps) {
             </div>
           </div>
         </aside>
+        )}
       </div>
     </div>
   )

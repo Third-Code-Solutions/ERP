@@ -64,14 +64,14 @@ describe('request rate-limit identity', () => {
     })
   })
 
-  it('uses a separate lower burst for visual document extraction', () => {
+  it('uses a separate bounded burst for local document intake', () => {
     expect(requestRateLimitPolicy('/api/upload/complete', true)).toEqual({
-      bucket: 'provider-vision',
-      limit: 4,
+      bucket: 'document-intake',
+      limit: 10,
       windowMs: 60_000,
     })
     expect(requestRateLimitPolicy('/api/upload/complete', false)).toEqual({
-      bucket: 'provider-vision',
+      bucket: 'document-intake',
       limit: 2,
       windowMs: 60_000,
     })

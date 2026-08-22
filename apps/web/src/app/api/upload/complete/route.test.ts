@@ -9,9 +9,7 @@ const mocks = vi.hoisted(() => ({
   commitCadEvidenceThroughCoreApi: vi.fn(),
   documentProcessingJobsUseCoreApi: vi.fn(),
   enqueueDocumentProcessingThroughCoreApi: vi.fn(),
-  extractScopeFromVisual: vi.fn(),
-  consumeProviderQuota: vi.fn(),
-  providerQuotaBlockedResponse: vi.fn(),
+  extractDeterministicDocument: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -31,13 +29,8 @@ vi.mock('@/lib/erp-core-client', () => ({
     mocks.enqueueDocumentProcessingThroughCoreApi,
 }))
 
-vi.mock('@/lib/vision/extract-from-visual', () => ({
-  extractScopeFromVisual: mocks.extractScopeFromVisual,
-}))
-
-vi.mock('@/lib/provider-quota', () => ({
-  consumeProviderQuota: mocks.consumeProviderQuota,
-  providerQuotaBlockedResponse: mocks.providerQuotaBlockedResponse,
+vi.mock('@/lib/document-intake/deterministic-extractor', () => ({
+  extractDeterministicDocument: mocks.extractDeterministicDocument,
 }))
 
 import { POST } from './route'
@@ -126,7 +119,19 @@ describe('completed document upload Core authority', () => {
       async (command: IntakeCommand) => successfulIntake(command)
     )
     mocks.documentProcessingJobsUseCoreApi.mockReturnValue(false)
-    mocks.consumeProviderQuota.mockResolvedValue({ ok: true, skipped: true })
+    mocks.extractDeterministicDocument.mockResolvedValue({
+      status: 'extracted',
+      detectedKind: 'pdf',
+      sourceSha256: 'a'.repeat(64),
+      extractedText: 'Mechanical schedule',
+      extractedCharacters: 19,
+      pages: 1,
+      sheets: null,
+      ocrConfidence: null,
+      warnings: [],
+      message: 'PDF read locally.',
+      cacheHit: false,
+    })
   })
 
   afterEach(() => vi.unstubAllEnvs())
@@ -141,7 +146,7 @@ describe('completed document upload Core authority', () => {
     expect(mocks.can).toHaveBeenCalledWith('pm', 'document.manage')
     expect(mocks.createDocumentThroughCoreApi).not.toHaveBeenCalled()
     expect(mocks.parseCadEvidence).not.toHaveBeenCalled()
-    expect(mocks.extractScopeFromVisual).not.toHaveBeenCalled()
+    expect(mocks.extractDeterministicDocument).not.toHaveBeenCalled()
   })
 
   it('delegates project ownership to Core and does not process a denied upload', async () => {
@@ -189,7 +194,7 @@ describe('completed document upload Core authority', () => {
       expect.stringMatching(/^upload-[a-f0-9]{64}$/)
     )
     expect(mocks.parseCadEvidence).not.toHaveBeenCalled()
-    expect(mocks.extractScopeFromVisual).not.toHaveBeenCalled()
+    expect(mocks.extractDeterministicDocument).not.toHaveBeenCalled()
   })
 
   it('does not rerun derived processing when Core replays an upload command', async () => {
@@ -392,49 +397,19 @@ describe('completed document upload Core authority', () => {
     expect(mocks.enqueueDocumentProcessingThroughCoreApi).not.toHaveBeenCalled()
   })
 
-  it('rejects selected shared vision quota before recording a source document', async () => {
-    vi.stubEnv('OPENAI_API_KEY', 'test-key')
-    mocks.consumeProviderQuota.mockResolvedValue({
-      ok: false,
-      status: 429,
-      error: 'Provider quota exceeded',
-      retryAfterSeconds: 12,
-      limit: 4,
-      scope: 'tenant-user',
-    })
-    mocks.providerQuotaBlockedResponse.mockReturnValue(
-      new Response('Provider quota exceeded', { status: 429 })
-    )
-
-    const response = await POST(
-      uploadRequest({ fileName: 'scope.pdf', mimeType: 'application/pdf' })
-    )
-
-    expect(response.status).toBe(429)
-    expect(mocks.consumeProviderQuota).toHaveBeenCalledWith(
-      'provider-vision',
-      TENANT_ID
-    )
-    expect(mocks.createDocumentThroughCoreApi).not.toHaveBeenCalled()
-    expect(mocks.extractScopeFromVisual).not.toHaveBeenCalled()
-  })
-
-  it('returns a Core-created visual candidate as explicitly unpriced', async () => {
-    mocks.extractScopeFromVisual.mockResolvedValue({
+  it('reads a supported source document locally without provider quota or BOM writes', async () => {
+    mocks.extractDeterministicDocument.mockResolvedValue({
       status: 'extracted',
-      scopeItemsCreated: 2,
-      warnings: ['Attach a DUPA before approval.'],
+      sourceSha256: 'a'.repeat(64),
+      extractedText: 'Mechanical schedule',
+      extractedCharacters: 19,
+      pages: 1,
+      sheets: null,
+      ocrConfidence: null,
+      warnings: ['No model or BOM mutation was invoked.'],
       detectedKind: 'pdf',
-      bom: {
-        bomId: '55555555-5555-4555-8555-555555555555',
-        totalCostCents: 0,
-        totalTcvCents: 0,
-        gpMarginBps: 0,
-        ragMatches: 0,
-        aiEstimateMatches: 0,
-        unpriced: 2,
-      },
-      message: 'Created an unpriced candidate BOM.',
+      message: 'PDF read locally.',
+      cacheHit: true,
     })
 
     const response = await POST(
@@ -448,16 +423,16 @@ describe('completed document upload Core authority', () => {
       cadResult: {
         status: 'extracted',
         detectedFormat: 'pdf',
-        scopeItemsCreated: 2,
-        bomId: '55555555-5555-4555-8555-555555555555',
+        scopeItemsCreated: 0,
+        bomId: null,
         bomTcvCents: 0,
-        unpricedCandidateBom: true,
+        extractedCharacters: 19,
+        extractionPages: 1,
+        extractionCacheHit: true,
       },
     })
-    expect(mocks.extractScopeFromVisual).toHaveBeenCalledWith({
+    expect(mocks.extractDeterministicDocument).toHaveBeenCalledWith({
       tenantId: TENANT_ID,
-      projectId: PROJECT_ID,
-      documentId: DOCUMENT_ID,
       storagePath: `${TENANT_ID}/${PROJECT_ID}/uploaded-notes.txt`,
       fileName: 'scope.pdf',
       mimeType: 'application/pdf',

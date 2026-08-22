@@ -1,15 +1,16 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getUser } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
-import { boms, invoices, opportunities, purchaseOrders, users } from '@third-code-erp/database/schema'
+import { boms, invoices, opportunities, purchaseOrders } from '@third-code-erp/database/schema'
 import { and, desc, eq, inArray, sum } from 'drizzle-orm'
 import { OpportunityPanel } from '@/components/opportunities/opportunity-panel'
 import { ProjectChat } from '@/components/ai/project-chat'
 import { CortexEntityPanel } from '@/components/cortex/cortex-entity-panel'
 import { COMMITTED_PO_STATUSES } from '@/lib/po-status'
 import { EditProjectForm } from '@/components/projects/edit-project-form'
+import { DeleteProjectButton } from '@/components/projects/delete-project-button'
 import { ProjectCommandCenter } from '@/components/projects/project-command-center'
 import { getProject, getProjectCommandCenter } from '@/lib/project-queries'
 import styles from './project-page.module.css'
@@ -31,7 +32,8 @@ const TYPE_LABELS: Record<string, string> = {
   mep: 'MEP',
   fit_out: 'Fit-out',
   interior: 'Interior',
-  mixed: 'Mixed',
+  mixed: 'Structural and Civil',
+  structural_civil: 'Structural and Civil',
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -52,17 +54,16 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default async function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const user = await getUser()
-  if (!user) return null
+  const profile = await requireUserProfile()
+  const tenantId = profile.tenantId
+  const canUpdateProject = can(profile.role, 'project.update')
+  const canDeleteProject = can(profile.role, 'project.delete')
 
-  const [userRow] = await db.select({ tenant_id: users.tenant_id }).from(users).where(eq(users.id, user.id))
-  if (!userRow?.tenant_id) return notFound()
-
-  const project = await getProject(userRow.tenant_id, id)
+  const project = await getProject(tenantId, id)
 
   if (!project) return notFound()
 
-  const commandCenter = await getProjectCommandCenter(userRow.tenant_id, id)
+  const commandCenter = await getProjectCommandCenter(tenantId, id)
 
   const opps = await db
     .select({
@@ -77,12 +78,12 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
       opportunity_type: opportunities.opportunity_type,
     })
     .from(opportunities)
-    .where(and(eq(opportunities.project_id, id), eq(opportunities.tenant_id, userRow.tenant_id)))
+    .where(and(eq(opportunities.project_id, id), eq(opportunities.tenant_id, tenantId)))
 
   const [latestBom] = await db
     .select({ total_cost_cents: boms.total_cost_cents, tcv_cents: boms.tcv_cents, gp_cents: boms.gp_cents, status: boms.status })
     .from(boms)
-    .where(and(eq(boms.project_id, id), eq(boms.tenant_id, userRow.tenant_id), inArray(boms.status, ['approved', 'locked'])))
+    .where(and(eq(boms.project_id, id), eq(boms.tenant_id, tenantId), inArray(boms.status, ['approved', 'locked'])))
     .orderBy(desc(boms.version))
     .limit(1)
 
@@ -92,7 +93,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
     .where(
       and(
         eq(purchaseOrders.project_id, id),
-        eq(purchaseOrders.tenant_id, userRow.tenant_id),
+        eq(purchaseOrders.tenant_id, tenantId),
         inArray(purchaseOrders.status, [...COMMITTED_PO_STATUSES])
       )
     )
@@ -103,7 +104,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
     .where(
       and(
         eq(invoices.project_id, id),
-        eq(invoices.tenant_id, userRow.tenant_id),
+        eq(invoices.tenant_id, tenantId),
         inArray(invoices.status, ['issued', 'partial_payment', 'paid'])
       )
     )
@@ -150,7 +151,10 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
             >
               {STATUS_LABELS[project.status] ?? project.status}
             </span>
-            <EditProjectForm project={project} />
+            {canUpdateProject ? <EditProjectForm project={project} /> : null}
+            {canDeleteProject ? (
+              <DeleteProjectButton projectId={project.id} projectName={project.name} />
+            ) : null}
           </div>
         </div>
       </div>

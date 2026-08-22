@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
+import { can, requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   accounts,
@@ -68,7 +68,8 @@ export default async function LedgerPage({
   }>
 }) {
   const profile = await requireUserProfile()
-  requireCapability(profile, 'finance.manage')
+  requireCapability(profile, 'finance.read')
+  const canManage = can(profile.role, 'finance.manage')
   const filters = await searchParams
 
   const conditions: SQL[] = [
@@ -246,9 +247,11 @@ export default async function LedgerPage({
             Immutable posted lines with journal and project traceability.
           </p>
         </div>
-        <Link href="/finance/journals/new" className="finance-primary-link">
-          New journal
-        </Link>
+        {canManage && (
+          <Link href="/finance/journals/new" className="finance-primary-link">
+            New journal
+          </Link>
+        )}
       </div>
 
       <form className="ledger-filters">

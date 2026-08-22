@@ -22,7 +22,7 @@ const TYPE_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
   { value: 'mep', label: 'MEP' },
   { value: 'fit_out', label: 'Fit-out' },
   { value: 'interior', label: 'Interior' },
-  { value: 'mixed', label: 'Mixed' },
+  { value: 'structural_civil', label: 'Structural and Civil' },
 ]
 
 const SORT_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [

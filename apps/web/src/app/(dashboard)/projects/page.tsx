@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import {
   getProjectsFiltered,
   PROJECT_SORT_VALUES,
@@ -30,7 +30,8 @@ const TYPE_LABELS: Record<string, string> = {
   mep: 'MEP',
   fit_out: 'Fit-out',
   interior: 'Interior',
-  mixed: 'Mixed',
+  mixed: 'Structural and Civil',
+  structural_civil: 'Structural and Civil',
 }
 
 type SearchParamValue = string | string[] | undefined
@@ -112,6 +113,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
     : {}
   const filters = parseFilters(rawSearch)
   const hasActiveFilters = Boolean(filters.q || filters.status || filters.type)
+  const canCreate = can(profile.role, 'project.create')
 
   const { rows: projectList, total, page, totalPages } = await getProjectsFiltered(tenantId, filters)
 
@@ -128,23 +130,25 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
             {hasActiveFilters ? ' match your filters' : ''}
           </p>
         </div>
-        <Link
-          href="/projects/new"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '8px 16px',
-            background: 'var(--color-navy-700)',
-            color: 'white',
-            borderRadius: '6px',
-            textDecoration: 'none',
-            fontSize: '0.875rem',
-            fontWeight: 500,
-          }}
-        >
-          + New Project
-        </Link>
+        {canCreate ? (
+          <Link
+            href="/projects/new"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 16px',
+              background: 'var(--color-navy-700)',
+              color: 'white',
+              borderRadius: '6px',
+              textDecoration: 'none',
+              fontSize: '0.875rem',
+              fontWeight: 500,
+            }}
+          >
+            + New Project
+          </Link>
+        ) : null}
       </div>
 
       <ProjectListControls />
@@ -162,7 +166,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
         >
           {hasActiveFilters ? (
             <p style={{ fontSize: '1rem' }}>No projects match your filters</p>
-          ) : (
+          ) : canCreate ? (
             <>
               <p style={{ fontSize: '1rem', marginBottom: '8px' }}>No projects yet</p>
               <p style={{ fontSize: '0.875rem' }}>
@@ -172,6 +176,10 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
                 to get started.
               </p>
             </>
+          ) : (
+            <p style={{ fontSize: '1rem' }}>
+              No active projects are available in this workspace.
+            </p>
           )}
         </div>
       ) : (

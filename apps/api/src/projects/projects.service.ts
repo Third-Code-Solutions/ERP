@@ -30,8 +30,9 @@ import {
   type ProjectUpdateResult,
   type UpdateProjectCommand,
   isProjectStatusTransitionAllowed,
+  normalizeProjectType,
 } from '@third-code-erp/shared-types'
-import { and, asc, desc, eq, ilike, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm'
 import { roleHasCapability } from '../auth/capability.guard'
 import type {
   ErpPrincipal,
@@ -107,7 +108,8 @@ export class ProjectsService {
       .where(
         and(
           eq(projects.id, projectId),
-          eq(projects.tenant_id, principal.tenantId)
+          eq(projects.tenant_id, principal.tenantId),
+          isNull(projects.deleted_at)
         )
       )
       .limit(1)
@@ -120,7 +122,10 @@ export class ProjectsService {
     query: ProjectListQuery,
     principal: ErpPrincipal
   ): Promise<ProjectListResult> {
-    const conditions = [eq(projects.tenant_id, principal.tenantId)]
+    const conditions = [
+      eq(projects.tenant_id, principal.tenantId),
+      isNull(projects.deleted_at),
+    ]
 
     if (query.q) {
       const term = `%${query.q}%`
@@ -132,7 +137,13 @@ export class ProjectsService {
     }
     if (query.status) conditions.push(eq(projects.status, query.status))
     if (query.projectType) {
-      conditions.push(eq(projects.project_type, query.projectType))
+      // Old rows can remain during a rolling deployment. Treat them as the
+      // new user-facing Structural and Civil taxonomy until backfill completes.
+      conditions.push(
+        query.projectType === 'structural_civil'
+          ? inArray(projects.project_type, ['structural_civil', 'mixed'])
+          : eq(projects.project_type, query.projectType)
+      )
     }
 
     const whereClause =
@@ -389,7 +400,8 @@ export class ProjectsService {
         .where(
           and(
             eq(projects.id, projectId),
-            eq(projects.tenant_id, authorizedPrincipal.tenantId)
+            eq(projects.tenant_id, authorizedPrincipal.tenantId),
+            isNull(projects.deleted_at)
           )
         )
         .limit(1)
@@ -425,7 +437,8 @@ export class ProjectsService {
         .where(
           and(
             eq(projects.id, projectId),
-            eq(projects.tenant_id, authorizedPrincipal.tenantId)
+            eq(projects.tenant_id, authorizedPrincipal.tenantId),
+            isNull(projects.deleted_at)
           )
         )
         .returning()
@@ -469,7 +482,7 @@ export class ProjectsService {
       name: project.name,
       client: project.client,
       status: project.status,
-      projectType: project.project_type,
+      projectType: normalizeProjectType(project.project_type),
       totalSqm: project.total_sqm,
       location: project.location,
       notes: project.notes,
@@ -485,7 +498,7 @@ export class ProjectsService {
       name: project.name,
       client: project.client,
       status: project.status,
-      projectType: project.project_type,
+      projectType: normalizeProjectType(project.project_type),
       totalSqm: project.total_sqm,
       location: project.location,
       notes: project.notes,
@@ -504,7 +517,7 @@ export class ProjectsService {
       name: project.name,
       client: project.client,
       status: project.status,
-      projectType: project.project_type,
+      projectType: normalizeProjectType(project.project_type),
       totalSqm: project.total_sqm,
       location: project.location,
       notes: project.notes,

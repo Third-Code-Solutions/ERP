@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common'
 import type {
   CreateProjectCommand,
+  PersistedProjectType,
   ProjectListQuery,
   ProjectStatus,
   UpdateProjectCommand,
@@ -35,7 +36,7 @@ const EXISTING = {
   name: 'Old Project',
   client: 'Old Client',
   location: null,
-  project_type: 'mep' as const,
+  project_type: 'mep' as PersistedProjectType,
   status: 'active' as ProjectStatus,
   total_sqm: 100,
   notes: null,
@@ -235,6 +236,16 @@ describe('ProjectsService', () => {
       createdBy: READ_PROJECT.created_by,
     })
     expect(probe.limit).toHaveBeenCalledWith(1)
+  })
+
+  it('normalizes a legacy mixed row in the Core read contract', async () => {
+    const probe = readHarness([
+      { ...READ_PROJECT, project_type: 'mixed' },
+    ])
+
+    await expect(probe.service.read(EXISTING.id, PRINCIPAL)).resolves.toMatchObject({
+      projectType: 'structural_civil',
+    })
   })
 
   it('does not disclose a project outside the authenticated tenant', async () => {

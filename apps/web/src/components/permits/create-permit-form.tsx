@@ -6,6 +6,7 @@ import { createPermit } from '@/app/(dashboard)/projects/[id]/permits/actions'
 interface CreatePermitFormProps {
   projectId: string
   users: Array<{ id: string; fullName: string; role: string }>
+  permittedTypes: string[]
 }
 
 const PERMIT_TYPES: Array<{ value: string; label: string }> = [
@@ -19,11 +20,14 @@ const PERMIT_TYPES: Array<{ value: string; label: string }> = [
   { value: 'construction_bond', label: 'Construction Bond' },
 ]
 
-export function CreatePermitForm({ projectId, users }: CreatePermitFormProps) {
+export function CreatePermitForm({ projectId, users, permittedTypes }: CreatePermitFormProps) {
+  const visiblePermitTypes = PERMIT_TYPES.filter((permitType) =>
+    permittedTypes.includes(permitType.value),
+  )
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
-  const [permitType, setPermitType] = useState(PERMIT_TYPES[0]!.value)
+  const [permitType, setPermitType] = useState(visiblePermitTypes[0]?.value ?? '')
   const [lguName, setLguName] = useState('')
   const [responsibleUserId, setResponsibleUserId] = useState('')
   const [submittedAt, setSubmittedAt] = useState('')
@@ -35,7 +39,7 @@ export function CreatePermitForm({ projectId, users }: CreatePermitFormProps) {
 
   const reset = () => {
     setError(null)
-    setPermitType(PERMIT_TYPES[0]!.value)
+    setPermitType(visiblePermitTypes[0]?.value ?? '')
     setLguName('')
     setResponsibleUserId('')
     setSubmittedAt('')
@@ -100,7 +104,7 @@ export function CreatePermitForm({ projectId, users }: CreatePermitFormProps) {
             onChange={(e) => setPermitType(e.target.value)}
             style={selectStyle}
           >
-            {PERMIT_TYPES.map((pt) => (
+            {visiblePermitTypes.map((pt) => (
               <option key={pt.value} value={pt.value}>
                 {pt.label}
               </option>

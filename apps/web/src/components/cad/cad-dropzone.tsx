@@ -31,8 +31,8 @@ function extOf(name: string): string {
 export function CadDropZone({
   projectId,
   compact = false,
-  title = 'Drop a CAD drawing, PDF, image, spreadsheet, CSV, or Word doc to auto-extract scope',
-  subtitle = 'DWG/DXF parse from the drawing. PDF, image, XLSX, CSV, and DOCX are analyzed by AI and categorized. Up to 100 MB.',
+  title = 'Drop a CAD drawing, PDF, image, spreadsheet, CSV, or Word document to read source evidence',
+  subtitle = 'DWG/DXF parse from drawing entities. PDF, images, XLSX, CSV, and DOCX are read locally without a cloud AI dependency. Up to 100 MB.',
 }: CadDropZoneProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -113,12 +113,12 @@ export function CadDropZone({
     }
   }
 
-  // Some result statuses are "stored, but extraction did not produce items":
+  // Some result statuses are "stored, but source reading did not produce text":
   //   - binary-dwg-pending  → DWG awaiting the Python converter worker
-  //   - no-items            → vision saw nothing scope-like in the PDF/image
-  //   - ai-not-configured   → OPENAI_API_KEY not set on the server
-  //   - too-large           → file exceeded the inline AI extraction budget
-  //   - error               → vision call threw (rate limit, model outage, …)
+  //   - no-items            → no readable source text was found
+  //   - ocr-unavailable     → local image/scanned-PDF OCR is unavailable
+  //   - too-large           → file exceeded the local parser budget
+  //   - error               → local parsing failed
   // None of these are "green done" — they each ship a specific actionable
   // message in cadResult.message that the progress line already renders.
   const cadResultStatus = lastResult?.cadResult?.status
@@ -126,6 +126,7 @@ export function CadDropZone({
   const NEUTRAL_STATUSES = new Set([
     'binary-dwg-pending',
     'no-items',
+    'ocr-unavailable',
     'ai-not-configured',
     'too-large',
     'unknown-format',
@@ -153,11 +154,13 @@ export function CadDropZone({
               : cadResultFormat === 'docx'
                 ? 'Word doc'
                 : 'File'
-    if (cadResultStatus === 'no-items') return `${formatLabel} stored — no scope items detected`
+    if (cadResultStatus === 'no-items') return `${formatLabel} stored — no readable text found`
+    if (cadResultStatus === 'ocr-unavailable')
+      return `${formatLabel} stored — local OCR unavailable`
     if (cadResultStatus === 'ai-not-configured')
-      return `${formatLabel} stored — AI extraction not configured`
+      return `${formatLabel} stored — legacy AI extractor unavailable`
     if (cadResultStatus === 'too-large')
-      return `${formatLabel} stored — too large for inline AI extraction`
+      return `${formatLabel} stored — too large for local reading`
     if (cadResultStatus === 'unknown-format') return 'Uploaded — file stored'
     return 'Uploaded'
   })()

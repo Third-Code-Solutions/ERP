@@ -6,9 +6,15 @@ import { completeTask } from '@/app/(dashboard)/tasks/actions'
 
 interface CompleteTaskButtonProps {
   taskId: string
+  requiresNotes?: boolean
+  notePlaceholder?: string
 }
 
-export function CompleteTaskButton({ taskId }: CompleteTaskButtonProps) {
+export function CompleteTaskButton({
+  taskId,
+  requiresNotes = false,
+  notePlaceholder = 'Optional completion notes',
+}: CompleteTaskButtonProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [open, setOpen] = useState(false)
@@ -33,23 +39,25 @@ export function CompleteTaskButton({ taskId }: CompleteTaskButtonProps) {
   if (!open) {
     return (
       <div style={{ display: 'flex', gap: 6 }}>
-        <button
-          type="button"
-          onClick={() => submit(false)}
-          disabled={isPending}
-          aria-label="Mark task complete"
-          style={primaryStyle(isPending)}
-        >
-          {isPending ? '…' : 'Complete'}
-        </button>
+        {!requiresNotes && (
+          <button
+            type="button"
+            onClick={() => submit(false)}
+            disabled={isPending}
+            aria-label="Mark task complete"
+            style={primaryStyle(isPending)}
+          >
+            {isPending ? '…' : 'Complete'}
+          </button>
+        )}
         <button
           type="button"
           onClick={() => setOpen(true)}
           disabled={isPending}
           style={secondaryStyle(isPending)}
-          title="Complete with note"
+          title={requiresNotes ? 'Record required log notes' : 'Complete with note'}
         >
-          + Note
+          {requiresNotes ? 'Log meeting' : '+ Note'}
         </button>
       </div>
     )
@@ -60,7 +68,7 @@ export function CompleteTaskButton({ taskId }: CompleteTaskButtonProps) {
       <textarea
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
-        placeholder="Optional completion notes"
+        placeholder={notePlaceholder}
         rows={2}
         autoFocus
         style={{
@@ -85,7 +93,7 @@ export function CompleteTaskButton({ taskId }: CompleteTaskButtonProps) {
             setNotes('')
             setError(null)
           }}
-          disabled={isPending}
+          disabled={isPending || (requiresNotes && notes.trim().length === 0)}
           style={secondaryStyle(isPending)}
         >
           Cancel

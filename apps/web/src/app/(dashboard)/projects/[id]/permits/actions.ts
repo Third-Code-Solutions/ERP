@@ -68,10 +68,15 @@ const permitFormSchema = z.object({
   notes: z.string().trim().max(10_000).optional(),
 })
 
-function permitCapabilityError(profile: Awaited<ReturnType<typeof requireUserProfile>>): string | null {
-  return can(profile.role, 'precon.manage_permits')
-    ? null
-    : 'Your role cannot manage permits or mobilization readiness.'
+function permitCapabilityError(
+  profile: Awaited<ReturnType<typeof requireUserProfile>>,
+  permitType?: PermitType,
+): string | null {
+  if (can(profile.role, 'precon.manage_permits')) return null
+  if (permitType === 'dole_permit' && can(profile.role, 'safety.dole_permit.manage')) {
+    return null
+  }
+  return 'Your role cannot manage this permit or mobilization readiness.'
 }
 
 function parseDateInput(raw: string | undefined): Date | null {
@@ -210,12 +215,11 @@ export async function createPermit(
   formData: FormData
 ): Promise<{ error?: string; permitId?: string }> {
   const profile = await requireUserProfile()
-  const capabilityError = permitCapabilityError(profile)
-  if (capabilityError) return { error: capabilityError }
-
   const parsed = parsePermitForm(formData)
   if ('error' in parsed) return parsed
   const { data, submittedAt, expectedReturnAt, durations } = parsed
+  const capabilityError = permitCapabilityError(profile, data.permitType)
+  if (capabilityError) return { error: capabilityError }
 
   const [project] = await db
     .select({ id: projects.id })
@@ -321,12 +325,18 @@ export async function updatePermitStatus(
   newStatus: PermitStatus
 ): Promise<{ error?: string }> {
   const profile = await requireUserProfile()
-  const capabilityError = permitCapabilityError(profile)
-  if (capabilityError) return { error: capabilityError }
-
   const parsedPermitId = z.string().uuid().safeParse(permitId)
   const parsedStatus = permitStatusSchema.safeParse(newStatus)
   if (!parsedPermitId.success || !parsedStatus.success) return { error: 'Invalid permit update.' }
+
+  const [permissionRow] = await db
+    .select({ permit_type: permits.permit_type })
+    .from(permits)
+    .where(and(eq(permits.id, parsedPermitId.data), eq(permits.tenant_id, profile.tenantId)))
+    .limit(1)
+  if (!permissionRow) return { error: 'Permit not found.' }
+  const capabilityError = permitCapabilityError(profile, permissionRow.permit_type)
+  if (capabilityError) return { error: capabilityError }
 
   try {
     const result = await db.transaction(async (tx) => {
@@ -692,13 +702,20 @@ export async function escalatePermit(
   reasonRaw: string
 ): Promise<{ error?: string }> {
   const profile = await requireUserProfile()
-  const capabilityError = permitCapabilityError(profile)
-  if (capabilityError) return { error: capabilityError }
   const parsedPermitId = z.string().uuid().safeParse(permitId)
   const reason = reasonRaw.trim()
   if (!parsedPermitId.success || reason.length < 3 || reason.length > 500) {
     return { error: 'Provide a clear escalation reason.' }
   }
+
+  const [permissionRow] = await db
+    .select({ permit_type: permits.permit_type })
+    .from(permits)
+    .where(and(eq(permits.id, parsedPermitId.data), eq(permits.tenant_id, profile.tenantId)))
+    .limit(1)
+  if (!permissionRow) return { error: 'Permit not found.' }
+  const capabilityError = permitCapabilityError(profile, permissionRow.permit_type)
+  if (capabilityError) return { error: capabilityError }
 
   try {
     const result = await db.transaction(async (tx) => {

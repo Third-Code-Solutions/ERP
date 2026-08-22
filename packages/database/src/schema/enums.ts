@@ -135,11 +135,19 @@ export const projectTypeEnum = pgEnum('project_type', [
   'mep',
   'fit_out',
   'interior',
+  // `mixed` remains readable during the compatibility migration. New writes
+  // use `structural_civil`; the old enum value cannot be safely dropped.
   'mixed',
+  'structural_civil',
 ])
 
 export const projectCreateRequestStateEnum = pgEnum(
   'project_create_request_state',
+  ['processing', 'succeeded']
+)
+
+export const projectRetirementRequestStateEnum = pgEnum(
+  'project_retirement_request_state',
   ['processing', 'succeeded']
 )
 

@@ -26,6 +26,8 @@ interface PipelineBoardProps {
   cards: KanbanCardData[]
   accounts: AccountOption[]
   projects: ProjectOption[]
+  canCreateOpportunity: boolean
+  canAdvanceOpportunity: boolean
 }
 
 const STAGE_LABELS: Record<PipelineStage, string> = {
@@ -64,7 +66,13 @@ interface PendingRegression {
   toStage: PipelineStage
 }
 
-export function PipelineBoard({ cards, accounts, projects }: PipelineBoardProps) {
+export function PipelineBoard({
+  cards,
+  accounts,
+  projects,
+  canCreateOpportunity,
+  canAdvanceOpportunity,
+}: PipelineBoardProps) {
   const router = useRouter()
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dragOverStage, setDragOverStage] = useState<PipelineStage | null>(null)
@@ -144,6 +152,7 @@ export function PipelineBoard({ cards, accounts, projects }: PipelineBoardProps)
 
   function handleDrop(toStage: PipelineStage) {
     setDragOverStage(null)
+    if (!canAdvanceOpportunity) return
     const cardId = draggingId
     setDraggingId(null)
     if (!cardId) return
@@ -209,6 +218,24 @@ export function PipelineBoard({ cards, accounts, projects }: PipelineBoardProps)
         </div>
       )}
 
+      {!canCreateOpportunity && !canAdvanceOpportunity && (
+        <div
+          role="status"
+          style={{
+            marginBottom: '16px',
+            padding: '10px 14px',
+            borderRadius: '6px',
+            fontSize: '0.8125rem',
+            background: '#eff6ff',
+            color: '#1e3a8a',
+            border: '1px solid #bfdbfe',
+          }}
+        >
+          Read-only pipeline access. You can inspect opportunities and project
+          context, but cannot create or advance a stage.
+        </div>
+      )}
+
       <div
         style={{
           display: 'flex',
@@ -226,19 +253,31 @@ export function PipelineBoard({ cards, accounts, projects }: PipelineBoardProps)
           return (
             <div
               key={stage}
-              onDragOver={(e) => {
-                e.preventDefault()
-                e.dataTransfer.dropEffect = 'move'
-                if (dragOverStage !== stage) setDragOverStage(stage)
-              }}
-              onDragLeave={(e) => {
-                // Only clear if we actually left the column (not just a child).
-                if (e.currentTarget === e.target) setDragOverStage(null)
-              }}
-              onDrop={(e) => {
-                e.preventDefault()
-                handleDrop(stage)
-              }}
+              onDragOver={
+                canAdvanceOpportunity
+                  ? (e) => {
+                      e.preventDefault()
+                      e.dataTransfer.dropEffect = 'move'
+                      if (dragOverStage !== stage) setDragOverStage(stage)
+                    }
+                  : undefined
+              }
+              onDragLeave={
+                canAdvanceOpportunity
+                  ? (e) => {
+                      // Only clear if we actually left the column (not just a child).
+                      if (e.currentTarget === e.target) setDragOverStage(null)
+                    }
+                  : undefined
+              }
+              onDrop={
+                canAdvanceOpportunity
+                  ? (e) => {
+                      e.preventDefault()
+                      handleDrop(stage)
+                    }
+                  : undefined
+              }
               style={{
                 flex: '0 0 280px',
                 background: isOver ? 'var(--color-neutral-100)' : 'var(--color-neutral-50)',
@@ -291,27 +330,29 @@ export function PipelineBoard({ cards, accounts, projects }: PipelineBoardProps)
                     {items.length}
                   </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setQuickAddStage(stage)}
-                  aria-label={`Add opportunity to ${STAGE_LABELS[stage]}`}
-                  title={`Add opportunity to ${STAGE_LABELS[stage]}`}
-                  style={{
-                    background: 'white',
-                    border: '1px solid var(--color-border)',
-                    borderRadius: '4px',
-                    width: '22px',
-                    height: '22px',
-                    fontSize: '0.875rem',
-                    fontWeight: 600,
-                    lineHeight: 1,
-                    cursor: 'pointer',
-                    color: 'var(--color-neutral-600)',
-                    padding: 0,
-                  }}
-                >
-                  +
-                </button>
+                {canCreateOpportunity && (
+                  <button
+                    type="button"
+                    onClick={() => setQuickAddStage(stage)}
+                    aria-label={`Add opportunity to ${STAGE_LABELS[stage]}`}
+                    title={`Add opportunity to ${STAGE_LABELS[stage]}`}
+                    style={{
+                      background: 'white',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: '4px',
+                      width: '22px',
+                      height: '22px',
+                      fontSize: '0.875rem',
+                      fontWeight: 600,
+                      lineHeight: 1,
+                      cursor: 'pointer',
+                      color: 'var(--color-neutral-600)',
+                      padding: 0,
+                    }}
+                  >
+                    +
+                  </button>
+                )}
               </div>
 
               <div
@@ -336,7 +377,7 @@ export function PipelineBoard({ cards, accounts, projects }: PipelineBoardProps)
                       fontSize: '0.75rem',
                     }}
                   >
-                    Drop here
+                    {canAdvanceOpportunity ? 'Drop here' : 'No opportunities'}
                   </div>
                 ) : (
                   items.map((card) => (
@@ -344,6 +385,7 @@ export function PipelineBoard({ cards, accounts, projects }: PipelineBoardProps)
                       key={card.id}
                       card={card}
                       isDragging={draggingId === card.id}
+                      canAdvance={canAdvanceOpportunity}
                       onDragStart={(id) => setDraggingId(id)}
                       onDragEnd={() => {
                         setDraggingId(null)
@@ -367,13 +409,15 @@ export function PipelineBoard({ cards, accounts, projects }: PipelineBoardProps)
         onConfirm={handleRegressionConfirm}
       />
 
-      <AddOpportunityWithAccountForm
-        open={quickAddStage !== null}
-        defaultStage={quickAddStage ?? 'lead'}
-        accounts={accounts}
-        projects={projects}
-        onClose={() => setQuickAddStage(null)}
-      />
+      {canCreateOpportunity && (
+        <AddOpportunityWithAccountForm
+          open={quickAddStage !== null}
+          defaultStage={quickAddStage ?? 'lead'}
+          accounts={accounts}
+          projects={projects}
+          onClose={() => setQuickAddStage(null)}
+        />
+      )}
     </>
   )
 }

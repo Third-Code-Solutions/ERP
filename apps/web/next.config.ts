@@ -22,10 +22,19 @@ const config: NextConfig = {
     },
   },
 
-  // Large, server-only parsers used by the scope-extraction pipeline.
+  // Large, server-only parsers used by deterministic document intake.
   // Keeping them external lets Next.js skip bundling, and lets Vercel's
-  // dependency tracer pull them from node_modules at deploy time.
-  serverExternalPackages: ['exceljs', 'mammoth'],
+  // dependency tracer pull code plus OCR language assets from node_modules at
+  // deploy time. The default upload route never calls a cloud model.
+  serverExternalPackages: [
+    '@napi-rs/canvas',
+    'exceljs',
+    'mammoth',
+    'pdfjs-dist',
+    'tesseract.js',
+    '@tesseract.js-data/eng',
+    'xlsx',
+  ],
 
   // Security headers are set per-request in middleware.ts (CSP is nonce-based).
   // next.config.ts headers() applies to static assets only and don't support nonces,
