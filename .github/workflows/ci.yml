@@ -345,15 +345,66 @@ jobs:
           path: apps/web/.next/
           retention-days: 1
 
+  release-preview:
+    name: Release preview verification
+    runs-on: ubuntu-latest
+    needs: [build]
+    # This temporary verifier is intentionally constrained to the audited
+    # release branch. It is removed before that branch can be merged.
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && github.head_ref == 'codex/fix-vercel-production-scope'
+    timeout-minutes: 20
+    environment:
+      name: production
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      VERCEL_SCOPE: team_n60dl3ccO8BFGFeUKQdqPhp3
+      VERCEL_PROJECT_NAME: thirdcode-erp
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+    steps:
+      - name: Require protected release credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in VERCEL_TOKEN PRODUCTION_DATABASE_URL; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "$name is required for release preview verification" >&2
+              exit 1
+            fi
+          done
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: pnpm/action-setup@a15d269cd4658e1107c09f1fabf4cbd7bd1f308a # v4.4.0
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Deploy preview with protected runtime database credential
+        id: deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm dlx vercel@54.7.1 link --yes --project "$VERCEL_PROJECT_NAME" --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
+          deployment_url="$(pnpm dlx vercel@54.7.1 deploy . --force --with-cache --archive=tgz --yes --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN" --env DATABASE_URL="$PRODUCTION_DATABASE_URL")"
+          printf 'url=%s\n' "$deployment_url" >> "$GITHUB_OUTPUT"
+      - name: Require a database-ready preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error "${{ steps.deploy.outputs.url }}/api/health"
+          curl --fail --silent --show-error "${{ steps.deploy.outputs.url }}/api/ready"
+
   e2e:
     name: E2E Tests (trusted PR)
     runs-on: ubuntu-latest
-    needs: [build]
+    needs: [build, release-preview]
     # Forked PRs cannot safely receive test credentials. Trusted PRs must
     # supply an isolated E2E target; absence is a failure, never a green skip.
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && (needs.release-preview.result == 'success' || needs.release-preview.result == 'skipped')
     env:
-      PLAYWRIGHT_BASE_URL: ${{ vars.E2E_BASE_URL }}
+      PLAYWRIGHT_BASE_URL: ${{ needs.release-preview.outputs.url || vars.E2E_BASE_URL }}
       NEXT_PUBLIC_SUPABASE_URL: ${{ vars.E2E_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
       E2E_USER_EMAIL: ${{ secrets.E2E_USER_EMAIL }}
