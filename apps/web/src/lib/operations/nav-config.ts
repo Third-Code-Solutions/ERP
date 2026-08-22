@@ -142,13 +142,13 @@ export function roleLabel(role: AppRole): string {
 //   /procurement/rfqs    → admin, procurement, commercial, viewer (read only)
 //   /procurement/deliveries → admin, procurement, sd_pm_pe, viewer (read only)
 //   /purchase-orders     → admin, commercial, sd_pm_pe, procurement, viewer (read only)
-//   /invoices            → admin, finance, viewer (read only)
-//   /claims              → admin, finance, sd_pm_pe, commercial, viewer (read only)
+//   /invoices            → admin, finance
+//   /claims              → admin, finance, sd_pm_pe, commercial
 //   /punchlist           → admin, sd_pm_pe, cx, safety, viewer (read only)
 //   /warranty            → admin, cx, viewer (read only)
 //   /warranty/cnps       → admin, cx, viewer (read only)
 //   /documents           → everyone (per-doc RLS scoping in DB)
-//   /reports             → admin, sales, finance, viewer (read only)
+//   /reports             → admin, sales, finance
 //   /admin/*             → admin, commercial (rate-card administration)
 //   /settings            → everyone (account-level settings)
 // -----------------------------------------------------------------------------
@@ -257,13 +257,13 @@ export const NAV_SECTIONS: NavSection[] = [
         href: '/invoices',
         label: 'Invoices',
         iconKey: 'Invoice',
-        roles: ['admin', 'finance', 'viewer'],
+        roles: ['admin', 'finance'],
       },
       {
         href: '/claims',
         label: 'Claims',
         iconKey: 'Receipt',
-        roles: ['admin', 'finance', 'sd_pm_pe', 'commercial', 'viewer'],
+        roles: ['admin', 'finance', 'sd_pm_pe', 'commercial'],
       },
       {
         href: '/punchlist',
@@ -288,7 +288,7 @@ export const NAV_SECTIONS: NavSection[] = [
         href: '/reports',
         label: 'Reports',
         iconKey: 'Reports',
-        roles: ['admin', 'sales', 'finance', 'viewer'],
+        roles: ['admin', 'sales', 'finance'],
       },
     ],
   },
@@ -299,35 +299,35 @@ export const NAV_SECTIONS: NavSection[] = [
         href: '/finance',
         label: 'Finance',
         iconKey: 'Receipt',
-        roles: ['admin', 'finance', 'viewer'],
+        roles: ['admin', 'finance'],
         description: 'Chart, journals, periods, and general ledger',
       },
       {
         href: '/finance/receivables',
         label: 'Receivables',
         iconKey: 'Invoice',
-        roles: ['admin', 'finance', 'viewer'],
+        roles: ['admin', 'finance'],
         description: 'Posted customer balances and aging',
       },
       {
         href: '/finance/payables',
         label: 'Payables',
         iconKey: 'Receipt',
-        roles: ['admin', 'finance', 'viewer'],
+        roles: ['admin', 'finance'],
         description: 'Matched supplier bills and aging',
       },
       {
         href: '/finance/cash',
         label: 'Cash',
         iconKey: 'Receipt',
-        roles: ['admin', 'finance', 'viewer'],
+        roles: ['admin', 'finance'],
         description: 'Allocated receipts and disbursements',
       },
       {
         href: '/finance/reconciliation',
         label: 'Reconciliation',
         iconKey: 'Check',
-        roles: ['admin', 'finance', 'viewer'],
+        roles: ['admin', 'finance'],
         description: 'Bank statement matching and immutable close',
       },
     ],

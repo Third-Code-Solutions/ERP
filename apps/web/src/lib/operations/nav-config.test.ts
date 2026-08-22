@@ -42,7 +42,7 @@ describe('RBAC: visibleNavSections', () => {
     expect(labels).toContain('Admin')
   })
 
-  it('viewer sees every operational read workspace but never tenant administration', () => {
+  it('viewer sees permitted operational read workspaces without finance or tenant administration', () => {
     const sections = visibleNavSections('viewer')
     const hrefs = sections.flatMap((s) => s.items.map((i) => i.href))
     // Unrestricted items are visible to everyone.
@@ -59,18 +59,19 @@ describe('RBAC: visibleNavSections', () => {
     expect(hrefs).toContain('/procurement/rfqs')
     expect(hrefs).toContain('/purchase-orders')
     expect(hrefs).toContain('/inventory')
-    expect(hrefs).toContain('/invoices')
-    expect(hrefs).toContain('/claims')
     expect(hrefs).toContain('/punchlist')
     expect(hrefs).toContain('/warranty')
     expect(hrefs).toContain('/warranty/cnps')
-    expect(hrefs).toContain('/reports')
-    expect(hrefs).toContain('/finance')
-    expect(hrefs).toContain('/finance/payables')
-    expect(hrefs).toContain('/finance/cash')
-    expect(hrefs).toContain('/finance/reconciliation')
-    // Tenant administration and KYC remain deliberately restricted because
-    // they expose identity/configuration controls rather than ERP records.
+    // Finance, reports, tenant administration, and KYC remain deliberately
+    // restricted because they expose financial, identity, or configuration
+    // data rather than the Viewer operational projection.
+    expect(hrefs).not.toContain('/invoices')
+    expect(hrefs).not.toContain('/claims')
+    expect(hrefs).not.toContain('/reports')
+    expect(hrefs).not.toContain('/finance')
+    expect(hrefs).not.toContain('/finance/payables')
+    expect(hrefs).not.toContain('/finance/cash')
+    expect(hrefs).not.toContain('/finance/reconciliation')
     expect(hrefs).not.toContain('/admin')
     expect(hrefs).not.toContain('/assets')
   })
@@ -107,8 +108,8 @@ describe('RBAC: visibleNavSections', () => {
 
     expect(hrefs).not.toContain('/assets')
     expect(canViewPath('viewer', '/assets')).toBe(true)
-    expect(canViewPath('viewer', '/finance/cash')).toBe(true)
-    expect(canViewPath('viewer', '/finance/reconciliation')).toBe(true)
+    expect(canViewPath('viewer', '/finance/cash')).toBe(false)
+    expect(canViewPath('viewer', '/finance/reconciliation')).toBe(false)
     expect(canViewPath('viewer', '/warranty/cnps')).toBe(true)
   })
 

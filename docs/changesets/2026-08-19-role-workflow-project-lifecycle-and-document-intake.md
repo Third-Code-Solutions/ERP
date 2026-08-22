@@ -13,7 +13,8 @@ session has been used as a test fixture.
 
 - Make CRM accounts, the pipeline, and active projects readable to every ERP
   role; keep all write controls capability-gated. The read-only Viewer can
-  inspect operational data but cannot obtain any mutation capability.
+  inspect its permitted operational data but cannot obtain a mutation,
+  financial-read, or document-processing capability.
 - Implement the supplied role workflow matrix across design, SD/PM/PE,
   commercial, finance, procurement, safety, CX, and viewer-specific pages.
   Pipeline controls now disappear for roles that can only read it.
