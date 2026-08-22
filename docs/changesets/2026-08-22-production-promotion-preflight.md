@@ -16,6 +16,8 @@ pending the protected GitHub pull-request and production workflow.
   retirement.
 - Re-read the remote migration ledger and confirmed all three versions are
   recorded remotely.
+- Updated the dated managed-Supabase parity manifest to the confirmed 150/150
+  applied linear ledger, with no pending source migrations.
 - Passed the full API suite, full Web suite, lint, typecheck, production build,
   static release contracts, local migration/RLS proof, and the isolated
   document-intake Playwright scenario.
