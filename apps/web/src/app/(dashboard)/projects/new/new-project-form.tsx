@@ -73,7 +73,7 @@ export function NewProjectForm() {
             <option value="mep">MEP</option>
             <option value="fit_out">Fit-out</option>
             <option value="interior">Interior</option>
-            <option value="mixed">Mixed</option>
+            <option value="structural_civil">Structural and Civil</option>
           </select>
         </div>
 

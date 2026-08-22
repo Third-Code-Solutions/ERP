@@ -15,7 +15,7 @@ import {
   type ProjectCommandCenterQuery,
   type ProjectCommandCenterResult,
 } from '@third-code-erp/shared-types'
-import { and, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import { DatabaseService } from '../database/database.service'
 
@@ -46,7 +46,8 @@ export class ProjectCommandCenterService {
       .where(
         and(
           eq(projects.id, projectId),
-          eq(projects.tenant_id, principal.tenantId)
+          eq(projects.tenant_id, principal.tenantId),
+          isNull(projects.deleted_at)
         )
       )
       .limit(1)

@@ -100,3 +100,28 @@ export type UpdateProjectCommand = z.infer<
   typeof updateProjectCommandSchema
 >
 export type ProjectUpdateResult = z.infer<typeof projectUpdateResultSchema>
+
+/**
+ * A project is retired (logical deletion), never cascaded away. The route id
+ * carries the project identifier; the body requires both a human reason and
+ * stale-state protection.
+ */
+export const retireProjectCommandSchema = z
+  .object({
+    reason: z.string().trim().min(3).max(2_000),
+    expectedUpdatedAt: z.string().datetime({ offset: true }),
+  })
+  .strict()
+
+export type RetireProjectCommand = z.infer<typeof retireProjectCommandSchema>
+
+export const projectRetirementResultSchema = z.object({
+  projectId: z.string().uuid(),
+  tenantId: z.string().uuid(),
+  deleted: z.literal(true),
+  retiredAt: z.string().datetime({ offset: true }),
+})
+
+export type ProjectRetirementResult = z.infer<
+  typeof projectRetirementResultSchema
+>

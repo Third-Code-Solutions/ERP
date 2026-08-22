@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
+import { can, requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   accounts,
@@ -54,7 +54,8 @@ export default async function CashTransactionPage({
   params: Promise<{ id: string }>
 }) {
   const profile = await requireUserProfile()
-  requireCapability(profile, 'finance.manage')
+  requireCapability(profile, 'finance.read')
+  const canManageCash = can(profile.role, 'finance.manage_cash')
   const { id } = await params
 
   const [transaction] = await db
@@ -305,11 +306,13 @@ export default async function CashTransactionPage({
           </div>
           <p>Closed periods and over-allocation block the whole transaction.</p>
         </div>
-        <CashActions
-          transactionId={transaction.id}
-          status={transaction.status}
-          defaultDate={new Date().toISOString().slice(0, 10)}
-        />
+        {canManageCash && (
+          <CashActions
+            transactionId={transaction.id}
+            status={transaction.status}
+            defaultDate={new Date().toISOString().slice(0, 10)}
+          />
+        )}
         <div className="finance-record-list">
           {transaction.postingJournalId && (
             <div className="finance-record">

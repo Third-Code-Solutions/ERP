@@ -69,7 +69,7 @@ type ReceivableRow = {
 
 export default async function ReceivablesPage() {
   const profile = await requireUserProfile()
-  requireCapability(profile, 'finance.manage')
+  requireCapability(profile, 'finance.read')
 
   let openRows: ReceivableRow[]
   let totalDue: number

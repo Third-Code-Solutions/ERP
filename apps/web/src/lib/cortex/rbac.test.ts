@@ -48,12 +48,17 @@ describe('Cortex RBAC — node-type scope', () => {
     expect(cortexCanSeeType('finance', 'journal_entry')).toBe(true)
   })
 
-  it('viewer sees only the everyone surfaces (documents, tasks)', () => {
+  it('viewer sees operational read surfaces but not finance or administration', () => {
     const v = cortexNodeTypeScope('viewer')!
     expect(v).toContain('document')
     expect(v).toContain('task')
+    expect(v).toContain('opportunity')
+    expect(v).toContain('project')
+    expect(v).toContain('bom')
     expect(v).not.toContain('invoice')
-    expect(v).not.toContain('opportunity')
+    expect(v).not.toContain('claim')
+    expect(v).not.toContain('journal_entry')
+    expect(v).not.toContain('bank_statement')
     expect(v).not.toContain('employee')
   })
 

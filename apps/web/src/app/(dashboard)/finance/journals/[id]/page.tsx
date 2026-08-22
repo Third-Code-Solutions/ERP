@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
+import { can, requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   journalEntries,
@@ -35,7 +35,8 @@ export default async function JournalPage({
   params: Promise<{ id: string }>
 }) {
   const profile = await requireUserProfile()
-  requireCapability(profile, 'finance.manage')
+  requireCapability(profile, 'finance.read')
+  const canManage = can(profile.role, 'finance.manage')
   const { id } = await params
 
   const [entry] = await db
@@ -212,13 +213,15 @@ export default async function JournalPage({
         </table>
       </div>
 
-      <JournalActions
-        entryId={entry.id}
-        status={entry.status}
-        sourceType={entry.source_type}
-        hasReversal={Boolean(reversal[0])}
-        defaultDate={defaultDate}
-      />
+      {canManage && (
+        <JournalActions
+          entryId={entry.id}
+          status={entry.status}
+          sourceType={entry.source_type}
+          hasReversal={Boolean(reversal[0])}
+          defaultDate={defaultDate}
+        />
+      )}
     </div>
   )
 }

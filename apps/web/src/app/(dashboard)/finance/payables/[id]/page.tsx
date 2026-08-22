@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { alias } from 'drizzle-orm/pg-core'
-import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
+import { can, requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   journalEntries,
@@ -58,7 +58,8 @@ export default async function SupplierBillPage({
   params: Promise<{ id: string }>
 }) {
   const profile = await requireUserProfile()
-  requireCapability(profile, 'finance.manage')
+  requireCapability(profile, 'finance.read')
+  const canManagePayables = can(profile.role, 'finance.post_supplier_bill')
   const { id } = await params
   const postingJournal = alias(journalEntries, 'posting_journal')
   const reversalJournal = alias(journalEntries, 'reversal_journal')
@@ -339,11 +340,13 @@ export default async function SupplierBillPage({
               <h2>Posting control</h2>
             </div>
           </div>
-          <PayableActions
-            billId={bill.id}
-            status={bill.status}
-            defaultDate={new Date().toISOString().slice(0, 10)}
-          />
+          {canManagePayables && (
+            <PayableActions
+              billId={bill.id}
+              status={bill.status}
+              defaultDate={new Date().toISOString().slice(0, 10)}
+            />
+          )}
           {bill.postingJournalId && (
             <p className="finance-control-note">
               Posted by {bill.postedByName ?? 'Finance'}{' '}
@@ -471,7 +474,7 @@ export default async function SupplierBillPage({
           {disbursements.length === 0 ? (
             <div className="card-empty">
               <p>No disbursement has been allocated to this Supplier Bill.</p>
-              <Link href="/finance/cash/new">Record disbursement</Link>
+              {canManagePayables && <Link href="/finance/cash/new">Record disbursement</Link>}
             </div>
           ) : (
             <table className="data-table">

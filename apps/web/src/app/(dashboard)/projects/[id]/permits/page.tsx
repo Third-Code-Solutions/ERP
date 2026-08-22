@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { and, asc, desc, eq } from 'drizzle-orm'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { mobilizationReadiness, permits, projects, users } from '@third-code-erp/database/schema'
 import { CreatePermitForm } from '@/components/permits/create-permit-form'
@@ -64,6 +64,8 @@ export default async function ProjectPermitsPage({
 }) {
   const { id } = await params
   const profile = await requireUserProfile()
+  const canManageAllPermits = can(profile.role, 'precon.manage_permits')
+  const canManageDolePermit = canManageAllPermits || can(profile.role, 'safety.dole_permit.manage')
 
   const [project] = await db
     .select({ id: projects.id, name: projects.name })
@@ -184,7 +186,7 @@ export default async function ProjectPermitsPage({
         </div>
       </div>
 
-      <MobilizationReadinessPanel
+      {canManageAllPermits && <MobilizationReadinessPanel
         projectId={id}
         readiness={
           readiness
@@ -204,9 +206,28 @@ export default async function ProjectPermitsPage({
           cari_received_at: riskForPermit('cari'),
           ntp_received_at: riskForPermit('building_admin_vetting'),
         }}
-      />
+      />}
 
-      <CreatePermitForm projectId={id} users={workspaceUsers} />
+      {canManageDolePermit && (
+        <CreatePermitForm
+          projectId={id}
+          users={workspaceUsers}
+          permittedTypes={
+            canManageAllPermits
+              ? [
+                  'building_admin_vetting',
+                  'lgu_building_permit',
+                  'dole_permit',
+                  'occupancy_permit',
+                  'cari',
+                  'performance_bond',
+                  'surety_bond',
+                  'construction_bond',
+                ]
+              : ['dole_permit']
+          }
+        />
+      )}
 
       <div
         style={{
@@ -260,6 +281,10 @@ export default async function ProjectPermitsPage({
                         permitId={p.id}
                         currentStatus={p.status as PermitStatus}
                         isLate={daysAtRisk !== null && daysAtRisk > 0}
+                        canManage={
+                          canManageAllPermits ||
+                          (p.permit_type === 'dole_permit' && canManageDolePermit)
+                        }
                       />
                       <span className="sr-only">{STATUS_LABEL[p.status as PermitStatus] ?? p.status}</span>
                     </td>

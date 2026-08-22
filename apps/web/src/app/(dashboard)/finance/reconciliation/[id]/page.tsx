@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
+import { can, requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { sql } from 'drizzle-orm'
 import {
@@ -65,7 +65,8 @@ export default async function BankStatementDetailPage({
   params: Promise<{ id: string }>
 }) {
   const profile = await requireUserProfile()
-  requireCapability(profile, 'finance.manage')
+  requireCapability(profile, 'finance.read')
+  const canManageCash = can(profile.role, 'finance.manage_cash')
   const { id } = await params
 
   let statement: StatementDetailRow
@@ -334,13 +335,15 @@ export default async function BankStatementDetailPage({
             manual.
           </p>
         </div>
-        <BankStatementActions
-          statementId={statement.id}
-          status={statement.status}
-          currency={statement.currency}
-          lines={lines}
-          candidates={candidates}
-        />
+        {canManageCash && (
+          <BankStatementActions
+            statementId={statement.id}
+            status={statement.status}
+            currency={statement.currency}
+            lines={lines}
+            candidates={candidates}
+          />
+        )}
       </section>
 
       {statement.status === 'voided' && (

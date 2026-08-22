@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
+import { can, requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { sql } from 'drizzle-orm'
 import {
@@ -35,7 +35,8 @@ function formatMoney(cents: number, currency: string): string {
 
 export default async function BankReconciliationPage() {
   const profile = await requireUserProfile()
-  requireCapability(profile, 'finance.manage')
+  requireCapability(profile, 'finance.read')
+  const canManageCash = can(profile.role, 'finance.manage_cash')
 
   let statements: StatementRegisterRow[]
 
@@ -124,12 +125,14 @@ export default async function BankReconciliationPage() {
           <Link href="/finance/cash" className="finance-secondary-link">
             Cash register
           </Link>
-          <Link
-            href="/finance/reconciliation/new"
-            className="finance-primary-link"
-          >
-            Import statement
-          </Link>
+          {canManageCash && (
+            <Link
+              href="/finance/reconciliation/new"
+              className="finance-primary-link"
+            >
+              Import statement
+            </Link>
+          )}
         </div>
       </div>
 
@@ -168,9 +171,11 @@ export default async function BankReconciliationPage() {
           {statements.length === 0 ? (
             <div className="card-empty">
               <p>No bank statements imported yet.</p>
-              <Link href="/finance/reconciliation/new">
-                Import the first statement
-              </Link>
+              {canManageCash && (
+                <Link href="/finance/reconciliation/new">
+                  Import the first statement
+                </Link>
+              )}
             </div>
           ) : (
             <table className="data-table">

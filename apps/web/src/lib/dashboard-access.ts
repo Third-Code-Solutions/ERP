@@ -1,11 +1,21 @@
 import type { AppRole } from '@third-code-erp/auth'
 
-import { canViewPath } from '@/lib/operations/nav-config'
+import { canonicalRole } from '@/lib/operations/nav-config'
 
 export type DashboardMode = 'executive' | 'my_work'
 
 export function dashboardModeForRole(role: AppRole): DashboardMode {
-  return canViewPath(role, '/pipeline/board') ? 'executive' : 'my_work'
+  // A route being readable is deliberately not enough to load the executive
+  // portfolio dashboard. Safety, CX, and viewer users can inspect the shared
+  // pipeline and projects when their page-level read policy permits it, but
+  // their landing experience remains the assigned-work queue for their role.
+  // This keeps navigation and analytics authorization as separate decisions.
+  const normalizedRole = canonicalRole(role)
+  return normalizedRole === 'safety' ||
+    normalizedRole === 'cx' ||
+    normalizedRole === 'viewer'
+    ? 'my_work'
+    : 'executive'
 }
 
 type DashboardLoaders<ExecutiveData, MyWorkData> = {

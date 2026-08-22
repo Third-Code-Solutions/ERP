@@ -9,8 +9,12 @@ import {
   progressUpdates,
   variationOrders,
 } from '@third-code-erp/database/schema'
-import { eq, desc, asc, and, or, ilike, sql, type SQL, count, inArray } from 'drizzle-orm'
+import { eq, desc, asc, and, or, ilike, sql, type SQL, count, inArray, isNull } from 'drizzle-orm'
 import type { Project, ProgressUpdate } from '@third-code-erp/database/schema'
+import {
+  projectTypeValues,
+  type ProjectType,
+} from '@third-code-erp/shared-types'
 import {
   getProjectThroughCoreApi,
   getProjectCommandCenterThroughCoreApi,
@@ -48,8 +52,8 @@ function numeric(value: unknown): number {
 export const PROJECT_STATUS_VALUES = ['lead', 'active', 'on_hold', 'completed', 'cancelled'] as const
 export type ProjectStatus = (typeof PROJECT_STATUS_VALUES)[number]
 
-export const PROJECT_TYPE_VALUES = ['mep', 'fit_out', 'interior', 'mixed'] as const
-export type ProjectType = (typeof PROJECT_TYPE_VALUES)[number]
+export const PROJECT_TYPE_VALUES = projectTypeValues
+export type { ProjectType }
 
 export const PROJECT_SORT_VALUES = ['created_at', 'name', 'status'] as const
 export type ProjectSort = (typeof PROJECT_SORT_VALUES)[number]
@@ -81,7 +85,7 @@ export async function getProjects(tenantId: string) {
   return db
     .select()
     .from(projects)
-    .where(eq(projects.tenant_id, tenantId))
+    .where(and(eq(projects.tenant_id, tenantId), isNull(projects.deleted_at)))
     .orderBy(desc(projects.created_at))
 }
 
@@ -110,7 +114,8 @@ async function getProjectDirect(tenantId: string, projectId: string) {
     .where(
       and(
         eq(projects.tenant_id, tenantId),
-        eq(projects.id, projectId)
+        eq(projects.id, projectId),
+        isNull(projects.deleted_at)
       )
     )
     .limit(1)
@@ -134,6 +139,9 @@ export function projectReadResultToRow(
     total_sqm: result.totalSqm,
     notes: result.notes,
     created_by: result.createdBy,
+    deleted_at: null,
+    deleted_by: null,
+    deletion_reason: null,
     created_at: new Date(result.createdAt),
     updated_at: new Date(result.updatedAt),
   }
@@ -300,7 +308,10 @@ export async function getProjectsFiltered(
 
   const offset = (page - 1) * limit
 
-  const conditions: SQL[] = [eq(projects.tenant_id, tenantId)]
+  const conditions: SQL[] = [
+    eq(projects.tenant_id, tenantId),
+    isNull(projects.deleted_at),
+  ]
 
   if (filters.q && filters.q.trim().length > 0) {
     const term = `%${filters.q.trim()}%`
@@ -313,7 +324,13 @@ export async function getProjectsFiltered(
   }
 
   if (filters.type) {
-    conditions.push(eq(projects.project_type, filters.type))
+    // Keep a Structural and Civil filter correct before the data backfill has
+    // reached every tenant database.
+    conditions.push(
+      filters.type === 'structural_civil'
+        ? inArray(projects.project_type, ['structural_civil', 'mixed'])
+        : eq(projects.project_type, filters.type)
+    )
   }
 
   const whereClause = conditions.length === 1 ? conditions[0] : and(...conditions)

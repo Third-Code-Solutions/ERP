@@ -9,7 +9,7 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { desc, eq } from 'drizzle-orm'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   cnpsSurveys,
@@ -21,6 +21,7 @@ export const metadata: Metadata = { title: 'CNPS Dashboard' }
 
 export default async function CnpsDashboardPage() {
   const profile = await requireUserProfile()
+  requireCapability(profile, 'cx.cnps.read')
 
   const surveys = await db
     .select({

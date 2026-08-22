@@ -26,6 +26,7 @@ export interface KanbanCardData {
 interface OpportunityKanbanCardProps {
   card: KanbanCardData
   isDragging?: boolean
+  canAdvance: boolean
   onDragStart: (id: string) => void
   onDragEnd: () => void
 }
@@ -45,6 +46,7 @@ function daysSince(iso: string): number {
 export function OpportunityKanbanCard({
   card,
   isDragging,
+  canAdvance,
   onDragStart,
   onDragEnd,
 }: OpportunityKanbanCardProps) {
@@ -61,8 +63,9 @@ export function OpportunityKanbanCard({
 
   return (
     <div
-      draggable
+      draggable={canAdvance}
       onDragStart={(e) => {
+        if (!canAdvance) return
         e.dataTransfer.setData('text/plain', card.id)
         e.dataTransfer.effectAllowed = 'move'
         onDragStart(card.id)
@@ -73,7 +76,7 @@ export function OpportunityKanbanCard({
         border: '1px solid var(--color-border)',
         borderRadius: '6px',
         padding: '10px 12px',
-        cursor: 'grab',
+        cursor: canAdvance ? 'grab' : 'default',
         boxShadow: isDragging
           ? '0 8px 20px rgba(0,0,0,0.12)'
           : '0 1px 2px rgba(0,0,0,0.04)',
