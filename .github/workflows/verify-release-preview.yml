@@ -1,0 +1,66 @@
+name: Verify release preview
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: thirdcode-release-preview-verification
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy isolated release preview
+    # This temporary verifier is intentionally constrained to the audited
+    # release branch. It is removed before that branch can be merged.
+    if: github.ref == 'refs/heads/codex/fix-vercel-production-scope'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production
+    env:
+      VERCEL_SCOPE: team_n60dl3ccO8BFGFeUKQdqPhp3
+      VERCEL_PROJECT_NAME: thirdcode-erp
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+
+    steps:
+      - name: Require protected release credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in VERCEL_TOKEN PRODUCTION_DATABASE_URL; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "$name is required for release preview verification" >&2
+              exit 1
+            fi
+          done
+
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - uses: pnpm/action-setup@a15d269cd4658e1107c09f1fabf4cbd7bd1f308a # v4.4.0
+        with:
+          version: 10.33.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Deploy preview with protected runtime database credential
+        id: deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm dlx vercel@54.7.1 link --yes --project "$VERCEL_PROJECT_NAME" --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
+          deployment_url="$(pnpm dlx vercel@54.7.1 deploy . --force --with-cache --archive=tgz --yes --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN" --env DATABASE_URL="$PRODUCTION_DATABASE_URL")"
+          printf 'url=%s\n' "$deployment_url" >> "$GITHUB_OUTPUT"
+
+      - name: Require a database-ready preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error "${{ steps.deploy.outputs.url }}/api/health"
+          curl --fail --silent --show-error "${{ steps.deploy.outputs.url }}/api/ready"

@@ -139,6 +139,10 @@ jobs:
         run: |
           set -euo pipefail
           pnpm dlx vercel@54.7.1 link --yes --project "$VERCEL_PROJECT_NAME" --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
+          # Keep Vercel's runtime credential aligned with the protected release
+          # secret. Vercel snapshots variables per deployment, so this must run
+          # before creating the production deployment.
+          pnpm dlx vercel@54.7.1 env add DATABASE_URL production --force --value "$PRODUCTION_DATABASE_URL" --yes --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
           pnpm dlx vercel@54.7.1 deploy . --prod --force --with-cache --yes --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
 
       - name: Verify production health and release identity
