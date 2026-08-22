@@ -136,7 +136,7 @@ describe('canonical authorization policy', () => {
     expect(roleHasCapability('cx', 'warranty.manage')).toBe(true)
     expect(roleHasCapability('cx', 'cx.cnps.read')).toBe(true)
 
-    expect(roleHasCapability('viewer', 'finance.read')).toBe(true)
+    expect(roleHasCapability('viewer', 'finance.read')).toBe(false)
     expect(roleHasCapability('viewer', 'inventory.read')).toBe(true)
     expect(roleHasCapability('viewer', 'cx.cnps.read')).toBe(true)
     expect(roleHasCapability('viewer', 'project.update')).toBe(false)

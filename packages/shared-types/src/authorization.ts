@@ -104,7 +104,6 @@ const capabilityRoles = {
     'sd_pm_pe',
     'pm',
     'sales',
-    'viewer',
   ],
   'bom.generate': ['owner', 'admin', 'commercial', 'estimator'],
   'bom.edit': ['owner', 'admin', 'commercial', 'estimator'],
@@ -121,10 +120,11 @@ const capabilityRoles = {
   // Finance, cost, and budget
   'kyc.create_ar_code': ['owner', 'admin', 'finance'],
   'cost.record': ['owner', 'admin', 'sd_pm_pe', 'pm', 'commercial', 'finance'],
-  // Viewer is deliberately included in operational read projections only.
-  // It never receives a finance mutation, posting, cash, or configuration
-  // capability.
-  'finance.read': ['owner', 'admin', 'finance', 'viewer'],
+  // Financial balances, ledgers, payables, receivables, cash, and bank
+  // reconciliation remain Finance-only reads. Viewer stays read-only for the
+  // operational projections it is explicitly granted, without financial or
+  // document-processing authority.
+  'finance.read': ['owner', 'admin', 'finance'],
   'finance.manage': ['owner', 'admin', 'finance'],
   'finance.post': ['owner', 'admin', 'finance'],
   'finance.issue_invoice': ['owner', 'admin', 'finance'],
