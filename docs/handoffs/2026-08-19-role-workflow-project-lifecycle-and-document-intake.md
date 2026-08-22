@@ -1,6 +1,6 @@
 # Role workflow, project lifecycle, and deterministic document intake handoff
 
-- Status: In progress
+- Status: Implementation complete; promotion pending protected CI
 - Date: 2026-08-19
 - Request authority: ABI OPS workspace owner
 - Scope: role-based workflow repair, tenant project visibility, project type
@@ -37,8 +37,8 @@ generative AI provider.
    kind, and parser version. A parser failure is explicit; no hidden AI
    fallback is allowed. Extracted candidates remain reviewable and unpriced.
 6. Relevant unit, contract, tenant-negative, role-negative, build/type, and
-   browser checks provide evidence. Hosted database changes, demo-data writes,
-   or deployment are out of scope unless separately authorized.
+   browser checks provide evidence. Hosted database changes and deployment
+   require explicit authorization and protected release gates.
 
 ## Required sequence and ownership boundaries
 
@@ -86,16 +86,6 @@ generative AI provider.
 
 ## Handoff status
 
-→ Handoff to Agent 12. Reason: navigation currently makes `/projects` less
-visible than the canonical `project.read` capability allows. Inputs:
-`packages/shared-types/src/authorization.ts`, Web navigation/route guards, and
-the supplied ABI role responsibilities. Expected output: an explicit read vs
-write policy and regression coverage.
-
-→ Handoff to Agent 04/05. Reason: project retirement and project-type
-normalization cross API and schema boundaries. Inputs: ADR-025 and ADR-026.
-Expected output: additive migration plus audited Core command; no hosted apply.
-
-→ Handoff to Agent 03/06. Reason: role-specific UX and deterministic parser
-availability must use the contracts above without a client-side privilege or
-AI-provider fallback.
+Completed handoffs: authorization, schema/API, App Router, deterministic
+document parsing, and evidence capture. The next owner is CI/Ops for protected
+PR validation, production application promotion, and post-deploy smoke tests.

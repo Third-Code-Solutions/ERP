@@ -2,12 +2,12 @@
 
 ## Status
 
-**PARTIALLY VERIFIED.** The source changes type-check and lint cleanly. The
-web test suite passed before the managed sandbox began denying child-process
-creation. The final pipeline-role control and delete-gate follow-up changes
-received fresh typecheck/lint verification, but additional Vitest runs and the
-production build now stop with `spawn EPERM`. No migration, deployment,
-production write, or demo-account session was performed.
+**PARTIALLY VERIFIED.** All requested source changes have local build, test,
+and isolated browser evidence. The three additive Supabase migrations were
+applied to the linked ERP production database on 2026-08-22 after a dry-run
+showed no migration-history divergence. Application promotion remains pending
+the protected pull-request and production workflow; no production demo-account
+session has been used as a test fixture.
 
 ## Change
 
@@ -24,34 +24,45 @@ production write, or demo-account session was performed.
   explicit name confirmation and reason; the Core API uses tenant gates,
   locks, idempotency, audit evidence, and logical deletion rather than a
   cascade. Retired projects are excluded from project and pipeline workflows.
-- Add deterministic, tenant-scoped cached intake for CSV, XLSX, text PDFs,
-  DOCX, and images using local parsing/OCR. Normal file intake no longer
-  invokes an AI provider or creates a BOM. Existing DXF/DWG routing remains a
-  distinct construction-evidence workflow.
+- Add deterministic, tenant-scoped cached intake for CSV, XLS/XLSX/XLSB, text
+  and scanned PDFs, DOCX, and images using local parsing/OCR. Normal file
+  intake no longer invokes an AI provider or creates a BOM. Existing DXF/DWG
+  routing remains a distinct construction-evidence workflow.
 - Add ADR-025 and ADR-026 plus the cross-scope handoff and implementation
   plan/todo artifacts.
 
 ## Verification
 
-- PASS — `pnpm --config.engine-strict=false --filter @third-code-erp/web test`
-  before the final pipeline-role UI follow-up and before the managed sandbox
-  transition: 958 passed, 2 guarded database integration tests skipped.
-- PASS — focused API retirement, project, authorization, and CAD controller
-  tests before the sandbox transition.
-- PASS — full web and API TypeScript checks after the final source changes.
-- PASS — repository lint after the final source changes.
-- PASS — database TypeScript check.
-- BLOCKED — further Vitest and Next production-build runs by sandbox
-  `spawn EPERM`, not by a reported source compile error.
-- NOT RUN — Supabase migration replay/RLS proof, authenticated demo-account
-  browser journeys, CAD/DWG worker integration, scanned-PDF page rendering,
-  deployment, and production smoke verification.
+- PASS — focused deterministic extractor tests: 8 passed.
+- PASS — focused Web RBAC/project tests: 223 passed.
+- PASS — full shared-types suite: 396 passed across 66 files.
+- PASS — full API suite: 806 tests passed across 186 files.
+- PASS — full Web suite: 960 tests passed across 152 files; 2 documented,
+  environment-dependent integration suites skipped.
+- PASS — Python CAD worker suite: 21 tests passed.
+- PASS — repository lint, Turbo typecheck, and production build.
+- PASS — local disposable Supabase replay, including the three new migrations,
+  enum/backfill checks, and project-retirement RLS/grant checks.
+- PASS — isolated local Playwright document-intake flow: Core intake,
+  idempotent replay, and foreign-path rejection.
+- PASS — Supabase production migration dry-run and apply. Remote migration
+  history now includes `20260819100000`, `20260819100100`, and
+  `20260819110000`.
+- PASS — static brand, type-safety, App Router boundary, build invariant,
+  actionlint, and workflow action-reference contracts.
+- BLOCKED LOCALLY — production-data-boundary scan requires its protected
+  production database URL and an explicit demo-tenant allowlist. The protected
+  CI workflow supplies those inputs; no allowlist was guessed locally.
+- NOT RUN — protected PR CI, application promotion, and post-deploy production
+  role-matrix/smoke checks.
 
 ## Operational follow-up
 
-- Apply the three additive migrations in a disposable Supabase target first,
-  then enable `ERP_PROJECT_DELETE_WRITES_ENABLED` only with an exact approved
-  tenant UUID in `ERP_PROJECT_DELETE_WRITES_TENANT_IDS`.
-- Scanned PDFs currently return an explicit OCR-unavailable result because no
-  local page renderer is bundled. Legacy `.xls` and `.doc` are also not yet
-  deterministic-intake formats.
+- Keep `ERP_PROJECT_DELETE_WRITES_ENABLED` disabled until an exact approved
+  tenant UUID is configured in `ERP_PROJECT_DELETE_WRITES_TENANT_IDS`; do not
+  enable the deletion path tenant-wide or globally.
+- The live Supabase security adviser reports existing warnings for the public
+  `vector` extension, public callable `SECURITY DEFINER` helpers, and disabled
+  leaked-password protection. These migrations add none of those objects, but
+  the warnings require separate security remediation before declaring the
+  platform fully hardened.
