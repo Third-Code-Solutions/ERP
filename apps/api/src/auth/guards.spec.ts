@@ -366,7 +366,7 @@ describe('CapabilityGuard', () => {
     ).toThrow(ForbiddenException)
   })
 
-  it('allows ledger reads for finance and the read-only viewer', () => {
+  it('allows ledger reads for finance but denies the read-only viewer', () => {
     expect(
       guard.canActivate(
         contextFor('financeLedgerRead', {
@@ -380,7 +380,7 @@ describe('CapabilityGuard', () => {
       )
     ).toBe(true)
 
-    expect(
+    expect(() =>
       guard.canActivate(
         contextFor('financeLedgerRead', {
           principal: {
@@ -391,7 +391,7 @@ describe('CapabilityGuard', () => {
           },
         })
       )
-    ).toBe(true)
+    ).toThrow(ForbiddenException)
   })
 
   it('allows read-only Opportunity access for a viewer', () => {
