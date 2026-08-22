@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { and, eq, desc } from 'drizzle-orm'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   opportunities,
@@ -49,6 +49,9 @@ interface DesignFileWithVersions {
 export default async function DesignPage({ params }: PageProps) {
   const { id } = await params
   const profile = await requireUserProfile()
+  const canUpload = can(profile.role, 'design.upload')
+  const canMarkReady = can(profile.role, 'design.ready_for_presentation')
+  const canMarkApproved = can(profile.role, 'design.approve_client')
 
   const [opp] = await db
     .select({
@@ -202,6 +205,8 @@ export default async function DesignPage({ params }: PageProps) {
                           designFileId={f.id}
                           isReadyForPresentation={f.is_ready_for_presentation}
                           isClientApproved={f.is_client_approved}
+                          canMarkReady={canMarkReady}
+                          canMarkApproved={canMarkApproved}
                         />
                       </div>
 
@@ -236,7 +241,7 @@ export default async function DesignPage({ params }: PageProps) {
                         </table>
                       )}
 
-                      {!f.is_client_approved && (
+                      {canUpload && !f.is_client_approved && (
                         <details>
                           <summary style={{ fontSize: 12, color: 'var(--color-neutral-600)', cursor: 'pointer' }}>
                             Upload new version
@@ -260,6 +265,7 @@ export default async function DesignPage({ params }: PageProps) {
           })}
         </div>
 
+        {canUpload && (
         <aside>
           <div className="card">
             <div className="card-header">
@@ -270,6 +276,7 @@ export default async function DesignPage({ params }: PageProps) {
             </div>
           </div>
         </aside>
+        )}
       </div>
     </div>
   )

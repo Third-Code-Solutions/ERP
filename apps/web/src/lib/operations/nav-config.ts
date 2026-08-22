@@ -130,21 +130,23 @@ export function roleLabel(role: AppRole): string {
 // Visibility rules (canonical roles only — legacy mapped via canonicalRole):
 //
 //   /dashboard           → everyone
-//   /crm/accounts        → admin, sales, commercial, sd_pm_pe, finance, cx
+//   /crm/accounts        → everyone (read); only permitted roles receive
+//                          create/mutation controls
 //   /crm/kyc-queue       → admin, finance
-//   /pipeline/board      → admin, sales, commercial, design, sd_pm_pe, finance, procurement
-//   /projects            → admin, sales, commercial, design, sd_pm_pe, finance, procurement
-//   /bom                 → admin, commercial
+//   /pipeline/board      → everyone (read); stage commands remain capability-gated
+//   /projects            → everyone (project.read); creation/update/delete
+//                          commands remain capability-gated
+//   /bom                 → admin, commercial, viewer (read only)
 //   /tasks               → everyone (My-Tasks is assignee-scoped server-side)
-//   /permits             → admin, commercial, sd_pm_pe, safety
-//   /procurement/rfqs    → admin, procurement, commercial
-//   /procurement/deliveries → admin, procurement, sd_pm_pe
-//   /purchase-orders     → admin, commercial, sd_pm_pe, procurement
+//   /permits             → admin, commercial, sd_pm_pe, safety, viewer (read only)
+//   /procurement/rfqs    → admin, procurement, commercial, viewer (read only)
+//   /procurement/deliveries → admin, procurement, sd_pm_pe, viewer (read only)
+//   /purchase-orders     → admin, commercial, sd_pm_pe, procurement, viewer (read only)
 //   /invoices            → admin, finance
 //   /claims              → admin, finance, sd_pm_pe, commercial
-//   /punchlist           → admin, sd_pm_pe, cx, safety
-//   /warranty            → admin, cx
-//   /warranty/cnps       → admin, cx
+//   /punchlist           → admin, sd_pm_pe, cx, safety, viewer (read only)
+//   /warranty            → admin, cx, viewer (read only)
+//   /warranty/cnps       → admin, cx, viewer (read only)
 //   /documents           → everyone (per-doc RLS scoping in DB)
 //   /reports             → admin, sales, finance
 //   /admin/*             → admin, commercial (rate-card administration)
@@ -166,7 +168,6 @@ export const NAV_SECTIONS: NavSection[] = [
         href: '/crm/accounts',
         label: 'Accounts',
         iconKey: 'Building',
-        roles: ['admin', 'sales', 'commercial', 'sd_pm_pe', 'finance', 'cx'],
       },
       {
         href: '/crm/kyc-queue',
@@ -178,35 +179,17 @@ export const NAV_SECTIONS: NavSection[] = [
         href: '/pipeline/board',
         label: 'Pipeline',
         iconKey: 'Pipeline',
-        roles: [
-          'admin',
-          'sales',
-          'commercial',
-          'design',
-          'sd_pm_pe',
-          'finance',
-          'procurement',
-        ],
       },
       {
         href: '/projects',
         label: 'Projects',
         iconKey: 'Projects',
-        roles: [
-          'admin',
-          'sales',
-          'commercial',
-          'design',
-          'sd_pm_pe',
-          'finance',
-          'procurement',
-        ],
       },
       {
         href: '/bom',
         label: 'BOM Builder',
         iconKey: 'Bom',
-        roles: ['admin', 'commercial'],
+        roles: ['admin', 'commercial', 'viewer'],
       },
       { href: '/tasks', label: 'My Tasks', iconKey: 'Check' },
     ],
@@ -224,31 +207,31 @@ export const NAV_SECTIONS: NavSection[] = [
         href: '/permits',
         label: 'Permits',
         iconKey: 'Layers',
-        roles: ['admin', 'commercial', 'sd_pm_pe', 'safety'],
+        roles: ['admin', 'commercial', 'sd_pm_pe', 'safety', 'viewer'],
       },
       {
         href: '/procurement/rfqs',
         label: 'RFQs',
         iconKey: 'PurchaseOrder',
-        roles: ['admin', 'procurement', 'commercial'],
+        roles: ['admin', 'procurement', 'commercial', 'viewer'],
       },
       {
         href: '/procurement/deliveries',
         label: 'Deliveries',
         iconKey: 'Upload',
-        roles: ['admin', 'procurement', 'sd_pm_pe'],
+        roles: ['admin', 'procurement', 'sd_pm_pe', 'viewer'],
       },
       {
         href: '/purchase-orders',
         label: 'Purchase Orders',
         iconKey: 'PurchaseOrder',
-        roles: ['admin', 'commercial', 'sd_pm_pe', 'procurement'],
+        roles: ['admin', 'commercial', 'sd_pm_pe', 'procurement', 'viewer'],
       },
       {
         href: '/inventory',
         label: 'Inventory',
         iconKey: 'Layers',
-        roles: ['admin', 'finance', 'procurement', 'sd_pm_pe', 'commercial'],
+        roles: ['admin', 'finance', 'procurement', 'sd_pm_pe', 'commercial', 'viewer'],
         description: 'Warehouses, receipts, and perpetual stock',
       },
       {
@@ -286,19 +269,19 @@ export const NAV_SECTIONS: NavSection[] = [
         href: '/punchlist',
         label: 'Punchlist',
         iconKey: 'Check',
-        roles: ['admin', 'sd_pm_pe', 'cx', 'safety'],
+        roles: ['admin', 'sd_pm_pe', 'cx', 'safety', 'viewer'],
       },
       {
         href: '/warranty',
         label: 'Warranty',
         iconKey: 'Activity',
-        roles: ['admin', 'cx'],
+        roles: ['admin', 'cx', 'viewer'],
       },
       {
         href: '/warranty/cnps',
         label: 'CNPS',
         iconKey: 'Activity',
-        roles: ['admin', 'cx'],
+        roles: ['admin', 'cx', 'viewer'],
       },
       { href: '/documents', label: 'Documents', iconKey: 'Documents' },
       {

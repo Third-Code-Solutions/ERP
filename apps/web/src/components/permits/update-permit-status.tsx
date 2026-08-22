@@ -18,6 +18,7 @@ interface UpdatePermitStatusProps {
   permitId: string
   currentStatus: PermitStatus
   isLate?: boolean
+  canManage?: boolean
 }
 
 const STATUS_LABELS: Record<PermitStatus, string> = {
@@ -44,7 +45,12 @@ const STATUS_ORDER: PermitStatus[] = [
   'cancelled',
 ]
 
-export function UpdatePermitStatus({ permitId, currentStatus, isLate = false }: UpdatePermitStatusProps) {
+export function UpdatePermitStatus({
+  permitId,
+  currentStatus,
+  isLate = false,
+  canManage = false,
+}: UpdatePermitStatusProps) {
   const [pending, startTransition] = useTransition()
   const [value, setValue] = useState<PermitStatus>(currentStatus)
   const [error, setError] = useState<string | null>(null)
@@ -82,7 +88,7 @@ export function UpdatePermitStatus({ permitId, currentStatus, isLate = false }: 
     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '180px' }}>
       <select
         value={value}
-        disabled={pending}
+        disabled={pending || !canManage}
         onChange={(e) => handleChange(e.target.value as PermitStatus)}
         style={{
           padding: '6px 10px',
@@ -90,7 +96,7 @@ export function UpdatePermitStatus({ permitId, currentStatus, isLate = false }: 
           border: '1px solid var(--color-border)',
           borderRadius: '4px',
           background: 'white',
-          cursor: pending ? 'progress' : 'pointer',
+          cursor: pending || !canManage ? 'not-allowed' : 'pointer',
         }}
       >
         {STATUS_ORDER.map((s) => (
@@ -104,7 +110,7 @@ export function UpdatePermitStatus({ permitId, currentStatus, isLate = false }: 
           {error}
         </span>
       )}
-      {isLate && !showEscalation && !['approved', 'rejected', 'released', 'refunded', 'cancelled'].includes(value) && (
+      {canManage && isLate && !showEscalation && !['approved', 'rejected', 'released', 'refunded', 'cancelled'].includes(value) && (
         <button
           type="button"
           onClick={() => setShowEscalation(true)}

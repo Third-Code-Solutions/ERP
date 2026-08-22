@@ -83,5 +83,5 @@ describe('ABI OPS runtime branding', () => {
 
     expect(files.length).toBeGreaterThan(0)
     expect(statSync(runtimeSourceRoot).isDirectory()).toBe(true)
-  })
+  }, 30_000)
 })

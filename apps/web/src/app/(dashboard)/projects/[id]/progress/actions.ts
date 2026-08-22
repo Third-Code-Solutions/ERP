@@ -17,7 +17,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { and, asc, desc, eq } from 'drizzle-orm'
-import { getUserProfile } from '@third-code-erp/auth'
+import { can, getUserProfile, type AppRole } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   masterSchedules,
@@ -46,12 +46,12 @@ export interface PercentByCategory {
 const MILESTONES = [25, 50, 75, 100] as const
 
 async function getTenantContext(): Promise<
-  | { tenantId: string; userId: string }
+  | { tenantId: string; userId: string; role: AppRole }
   | { error: string }
 > {
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
-  return { tenantId: profile.tenantId, userId: profile.user.id }
+  return { tenantId: profile.tenantId, userId: profile.user.id, role: profile.role }
 }
 
 async function assertProjectInTenant(projectId: string, tenantId: string): Promise<boolean> {
@@ -137,6 +137,9 @@ export async function importMasterSchedule(
 ): Promise<{ error?: string; taskCount?: number }> {
   const ctx = await getTenantContext()
   if ('error' in ctx) return { error: ctx.error }
+  if (!can(ctx.role, 'project.schedule.manage')) {
+    return { error: 'Forbidden: your role cannot manage master schedules.' }
+  }
 
   if (!(await assertProjectInTenant(projectId, ctx.tenantId))) {
     return { error: 'Project not found' }
@@ -231,6 +234,9 @@ export async function submitWeeklyProgress(
 ): Promise<{ error?: string; id?: string }> {
   const ctx = await getTenantContext()
   if ('error' in ctx) return { error: ctx.error }
+  if (!can(ctx.role, 'project.weekly_progress.submit')) {
+    return { error: 'Forbidden: your role cannot submit weekly progress.' }
+  }
 
   if (!(await assertProjectInTenant(projectId, ctx.tenantId))) {
     return { error: 'Project not found' }

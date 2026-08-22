@@ -1,7 +1,8 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import { asc, eq } from 'drizzle-orm'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { projects } from '@third-code-erp/database/schema'
 import { ClaimForm } from '@/components/claims/claim-form'
@@ -18,6 +19,12 @@ export default async function NewClaimPage({
   searchParams: Promise<SearchParams>
 }) {
   const profile = await requireUserProfile()
+  if (
+    !can(profile.role, 'kyc.create_ar_code') &&
+    !can(profile.role, 'precon.manage_checklist')
+  ) {
+    redirect('/claims?error=forbidden')
+  }
   const { project: defaultProjectId } = await searchParams
 
   // Active projects are the natural source of progress claims. We do

@@ -1,10 +1,52 @@
 import { z } from 'zod'
 
 export const projectStatusValues = ['lead', 'active', 'on_hold', 'completed', 'cancelled'] as const
-export const projectTypeValues = ['mep', 'fit_out', 'interior', 'mixed'] as const
+/**
+ * Active project taxonomy. `mixed` remains a database compatibility value
+ * during the forward migration, but no new user input may create it.
+ */
+export const projectTypeValues = [
+  'mep',
+  'fit_out',
+  'interior',
+  'structural_civil',
+] as const
+
+/** Values that can still be read from a not-yet-backfilled database row. */
+export const persistedProjectTypeValues = [
+  ...projectTypeValues,
+  'mixed',
+] as const
 
 export type ProjectStatus = typeof projectStatusValues[number]
 export type ProjectType = typeof projectTypeValues[number]
+export type PersistedProjectType = typeof persistedProjectTypeValues[number]
+
+export const projectTypeLabels: Readonly<Record<ProjectType, string>> = {
+  mep: 'MEP',
+  fit_out: 'Fit-out',
+  interior: 'Interior',
+  structural_civil: 'Structural and Civil',
+}
+
+/**
+ * Make legacy reads stable while migrations roll through mixed-version
+ * deployments. Unknown values intentionally do not acquire a guessed label.
+ */
+export function normalizeProjectType(
+  value: string | null | undefined,
+): ProjectType | null {
+  if (value === null || value === undefined) return null
+  if (value === 'mixed') return 'structural_civil'
+  return (projectTypeValues as readonly string[]).includes(value)
+    ? (value as ProjectType)
+    : null
+}
+
+export function projectTypeLabel(value: string | null | undefined): string | null {
+  const normalized = normalizeProjectType(value)
+  return normalized ? projectTypeLabels[normalized] : null
+}
 
 // Project status is a workflow, not an unrestricted label. Terminal states
 // remain terminal; reopening requires an explicit future workflow command.

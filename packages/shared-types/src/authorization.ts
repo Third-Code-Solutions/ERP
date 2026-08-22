@@ -44,6 +44,9 @@ const capabilityRoles = {
   // CRM, proposal, and project authority
   'project.create': ['owner', 'admin', 'sales', 'commercial', 'sd_pm_pe', 'pm', 'estimator'],
   'project.update': ['owner', 'admin', 'sales', 'commercial', 'sd_pm_pe', 'pm'],
+  // Project deletion is controlled logical retirement; it never grants a
+  // browser a physical cascade/delete capability.
+  'project.delete': ['owner', 'admin'],
   'project.read': ALL_ROLES,
   'project.award': ['owner', 'admin', 'commercial', 'sd_pm_pe', 'pm'],
   'account.create': ['owner', 'admin', 'sales'],
@@ -76,6 +79,11 @@ const capabilityRoles = {
   'change_request.create': ['owner', 'admin', 'sales'],
   'site_inspection.submit': ['owner', 'admin', 'commercial'],
   'design.upload': ['owner', 'admin', 'design'],
+  // Keep the design lifecycle distinct from file upload. A UI control is not
+  // the authority boundary: each transition is checked again by its server
+  // action so a read-only caller cannot forge a form submission.
+  'design.ready_for_presentation': ['owner', 'admin', 'design'],
+  'design.approve_client': ['owner', 'admin', 'design'],
 
   // Documents, BOM, and estimation
   'document.manage': ALL_OPERATORS,
@@ -89,7 +97,14 @@ const capabilityRoles = {
     'design',
     'estimator',
   ],
-  'document.processing.read': ['owner', 'admin', 'commercial', 'sd_pm_pe', 'pm', 'sales'],
+  'document.processing.read': [
+    'owner',
+    'admin',
+    'commercial',
+    'sd_pm_pe',
+    'pm',
+    'sales',
+  ],
   'bom.generate': ['owner', 'admin', 'commercial', 'estimator'],
   'bom.edit': ['owner', 'admin', 'commercial', 'estimator'],
   'bom.approve_internal': ['owner', 'admin', 'commercial'],
@@ -105,6 +120,10 @@ const capabilityRoles = {
   // Finance, cost, and budget
   'kyc.create_ar_code': ['owner', 'admin', 'finance'],
   'cost.record': ['owner', 'admin', 'sd_pm_pe', 'pm', 'commercial', 'finance'],
+  // Financial balances, ledgers, payables, receivables, cash, and bank
+  // reconciliation remain Finance-only reads. Viewer stays read-only for the
+  // operational projections it is explicitly granted, without financial or
+  // document-processing authority.
   'finance.read': ['owner', 'admin', 'finance'],
   'finance.manage': ['owner', 'admin', 'finance'],
   'finance.post': ['owner', 'admin', 'finance'],
@@ -120,6 +139,7 @@ const capabilityRoles = {
     'sd_pm_pe',
     'pm',
     'estimator',
+    'viewer',
   ],
   'budget.manage': ['owner', 'admin', 'finance', 'commercial', 'sd_pm_pe', 'pm', 'estimator'],
   'budget.approve_commercial': ['owner', 'admin', 'commercial'],
@@ -130,8 +150,22 @@ const capabilityRoles = {
   'precon.manage_permits': ['owner', 'admin', 'commercial', 'sd_pm_pe', 'pm'],
   'precon.override_mobilization': ['owner', 'admin', 'commercial', 'pm'],
   'sd.daily_tasks': ['owner', 'admin', 'sd_pm_pe', 'pm', 'safety'],
+  'project.schedule.manage': ['owner', 'admin', 'sd_pm_pe', 'pm'],
+  'project.weekly_progress.submit': ['owner', 'admin', 'sd_pm_pe', 'pm'],
+  'variation_order.create': ['owner', 'admin', 'sd_pm_pe', 'pm'],
+  'variation_order.submit_for_commercial_pricing': [
+    'owner',
+    'admin',
+    'sd_pm_pe',
+    'pm',
+  ],
+  'variation_order.send_for_client_signature': ['owner', 'admin', 'commercial'],
+  'variation_order.reject': ['owner', 'admin', 'commercial'],
+  // Safety owns the DOLE lane, not the whole pre-con/mobilization surface.
+  'safety.dole_permit.manage': ['owner', 'admin', 'safety'],
   'punchlist.manage': ['owner', 'admin', 'sd_pm_pe', 'pm', 'cx'],
   'warranty.manage': ['owner', 'admin', 'cx'],
+  'cx.cnps.read': ['owner', 'admin', 'cx', 'viewer'],
 
   // Asset and inventory authority
   // Estimator is retained here because the legacy role maps to Commercial and
@@ -139,7 +173,16 @@ const capabilityRoles = {
   // Web-only denial without granting any asset mutation capability.
   'asset.read': ALL_ROLES,
   'asset.maintenance.manage': ['owner', 'admin', 'pm', 'sd_pm_pe', 'procurement'],
-  'inventory.read': ['owner', 'admin', 'finance', 'procurement', 'sd_pm_pe', 'pm', 'commercial'],
+  'inventory.read': [
+    'owner',
+    'admin',
+    'finance',
+    'procurement',
+    'sd_pm_pe',
+    'pm',
+    'commercial',
+    'viewer',
+  ],
   'inventory.manage': ['owner', 'admin', 'procurement'],
   'inventory.post_receipt': ['owner', 'admin', 'finance'],
   'inventory.post_movement': ['owner', 'admin', 'finance'],
@@ -149,7 +192,7 @@ const capabilityRoles = {
   'admin.users': ['owner', 'admin'],
   'admin.system_config': ['owner', 'admin'],
   'notification.read': ALL_ROLES,
-  'audit.read': ['owner', 'admin', 'pm', 'finance'],
+  'audit.read': ['owner', 'admin', 'pm', 'finance', 'viewer'],
 
   // Core-only projections and process authority
   'today.read': ALL_ROLES,

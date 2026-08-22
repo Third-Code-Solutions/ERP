@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   accounts,
@@ -10,7 +10,7 @@ import {
   users,
   opportunityKycTracks,
 } from '@third-code-erp/database/schema'
-import { and, asc, desc, eq, isNull } from 'drizzle-orm'
+import { and, asc, desc, eq, isNull, or } from 'drizzle-orm'
 import { PipelineBoard } from '@/components/pipeline/pipeline-board'
 import { opportunityKycGateMessage } from '@/lib/operations/opportunity-kyc'
 
@@ -64,7 +64,12 @@ export default async function PipelineBoardPage() {
         users,
         and(eq(opportunities.rep_id, users.id), eq(users.tenant_id, tenantId))
       )
-      .where(eq(opportunities.tenant_id, tenantId))
+      .where(
+        and(
+          eq(opportunities.tenant_id, tenantId),
+          or(isNull(opportunities.project_id), isNull(projects.deleted_at))
+        )
+      )
       .orderBy(desc(opportunities.updated_at)),
     db
       .select({
@@ -78,7 +83,9 @@ export default async function PipelineBoardPage() {
     db
       .select({ id: projects.id, name: projects.name, client: projects.client })
       .from(projects)
-      .where(eq(projects.tenant_id, tenantId))
+      .where(
+        and(eq(projects.tenant_id, tenantId), isNull(projects.deleted_at))
+      )
       .orderBy(asc(projects.name)),
     db
       .select({
@@ -191,6 +198,8 @@ export default async function PipelineBoardPage() {
         cards={cards}
         accounts={accountsList}
         projects={projectsList}
+        canCreateOpportunity={can(profile.role, 'opportunity.create')}
+        canAdvanceOpportunity={can(profile.role, 'opportunity.advance_stage')}
       />
     </div>
   )

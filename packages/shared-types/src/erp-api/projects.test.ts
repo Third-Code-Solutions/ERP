@@ -6,7 +6,11 @@ import {
   projectListResultSchema,
   projectReadResultSchema,
 } from './projects'
-import { isProjectStatusTransitionAllowed } from '../projects'
+import {
+  isProjectStatusTransitionAllowed,
+  normalizeProjectType,
+  projectTypeLabel,
+} from '../projects'
 
 describe('project core API contract', () => {
   it('normalizes bounded project list query defaults', () => {
@@ -125,5 +129,12 @@ describe('project core API contract', () => {
     expect(isProjectStatusTransitionAllowed('completed', 'completed')).toBe(true)
     expect(isProjectStatusTransitionAllowed('cancelled', 'active')).toBe(false)
     expect(isProjectStatusTransitionAllowed('completed', 'lead')).toBe(false)
+  })
+
+  it('maps legacy mixed rows to the active Structural and Civil taxonomy', () => {
+    expect(normalizeProjectType('mixed')).toBe('structural_civil')
+    expect(projectTypeLabel('mixed')).toBe('Structural and Civil')
+    expect(normalizeProjectType('structural_civil')).toBe('structural_civil')
+    expect(normalizeProjectType('unknown')).toBeNull()
   })
 })

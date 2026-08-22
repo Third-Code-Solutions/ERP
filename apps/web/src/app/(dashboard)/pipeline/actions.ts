@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { can, getUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { accounts, opportunities, opportunityKycTracks, projects } from '@third-code-erp/database/schema'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { writeAuditLog } from '@/lib/audit'
 import { startSlaClock, stopSlaClock } from '@/lib/operations/sla-clock'
 import {
@@ -46,7 +46,13 @@ export async function createOpportunity(formData: FormData): Promise<{ error?: s
   const [project] = await db
     .select({ id: projects.id })
     .from(projects)
-    .where(and(eq(projects.id, projectId), eq(projects.tenant_id, profile.tenantId)))
+    .where(
+      and(
+        eq(projects.id, projectId),
+        eq(projects.tenant_id, profile.tenantId),
+        isNull(projects.deleted_at)
+      )
+    )
 
   if (!project) return { error: 'Project not found' }
 
@@ -134,7 +140,13 @@ export async function createOpportunityForAccount(formData: FormData): Promise<{
     const [project] = await db
       .select({ id: projects.id })
       .from(projects)
-      .where(and(eq(projects.id, projectIdRaw), eq(projects.tenant_id, profile.tenantId)))
+      .where(
+        and(
+          eq(projects.id, projectIdRaw),
+          eq(projects.tenant_id, profile.tenantId),
+          isNull(projects.deleted_at)
+        )
+      )
     if (!project) return { error: 'Project not found' }
     projectId = project.id
   }

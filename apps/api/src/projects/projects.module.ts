@@ -21,6 +21,9 @@ import { ProjectCommentListService } from './project-comment-list.service'
 import { ProjectCommentCreationService } from './project-comment-creation.service'
 import { ProjectCommentDeletionService } from './project-comment-deletion.service'
 import { CreateProjectCommentPipe } from './project-comment.pipe'
+import { ProjectRetirementController } from './project-retirement.controller'
+import { ProjectRetirementService } from './project-retirement.service'
+import { RetireProjectPipe } from './retire-project.pipe'
 
 @Module({
   imports: [AuditModule],
@@ -29,6 +32,7 @@ import { CreateProjectCommentPipe } from './project-comment.pipe'
     CostEntryCreationController,
     CostEntryDeletionController,
     ProjectCommentsController,
+    ProjectRetirementController,
   ],
   providers: [
     ProjectsService,
@@ -41,6 +45,8 @@ import { CreateProjectCommentPipe } from './project-comment.pipe'
     ProjectCommentDeletionService,
     ProjectCommentListService,
     CreateProjectCommentPipe,
+    ProjectRetirementService,
+    RetireProjectPipe,
     ProjectCommentListPipe,
     ProjectCommandCenterPipe,
   ],
@@ -53,7 +59,8 @@ export class ProjectsModule implements NestModule {
         ProjectsController,
         CostEntryCreationController,
         CostEntryDeletionController,
-        ProjectCommentsController
+        ProjectCommentsController,
+        ProjectRetirementController
       )
   }
 }

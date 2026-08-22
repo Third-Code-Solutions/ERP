@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
+import { can, requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   projects,
@@ -62,7 +62,8 @@ type PayableRow = {
 
 export default async function PayablesPage() {
   const profile = await requireUserProfile()
-  requireCapability(profile, 'finance.manage')
+  requireCapability(profile, 'finance.read')
+  const canManagePayables = can(profile.role, 'finance.post_supplier_bill')
 
   let rows: PayableRow[]
   if (financePayablesReadsUseCoreApi(profile.tenantId)) {
@@ -220,9 +221,11 @@ export default async function PayablesPage() {
           <Link href="/finance" className="finance-secondary-link">
             Finance controls
           </Link>
-          <Link href="/finance/payables/new" className="finance-primary-link">
-            New supplier bill
-          </Link>
+          {canManagePayables && (
+            <Link href="/finance/payables/new" className="finance-primary-link">
+              New supplier bill
+            </Link>
+          )}
         </div>
       </div>
 
@@ -286,9 +289,11 @@ export default async function PayablesPage() {
           {rows.length === 0 ? (
             <div className="card-empty">
               <p>No supplier bills yet.</p>
-              <Link href="/finance/payables/new">
-                Match the first supplier bill
-              </Link>
+              {canManagePayables && (
+                <Link href="/finance/payables/new">
+                  Match the first supplier bill
+                </Link>
+              )}
             </div>
           ) : (
             <table className="data-table">

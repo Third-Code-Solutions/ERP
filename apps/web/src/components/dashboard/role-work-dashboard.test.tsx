@@ -18,7 +18,7 @@ describe('RoleWorkDashboard', () => {
     expect(markup).toContain('href="/tasks?tab=overdue"')
     expect(markup).toContain('href="/tasks?tab=week"')
     expect(markup).not.toMatch(/gross profit/i)
-    expect(markup).not.toMatch(/pipeline/i)
+    expect(markup).toContain('href="/pipeline/board"')
   })
 
   it('shows only workspaces authorized for the current role', () => {

@@ -1,42 +1,32 @@
 {
   "version": 1,
   "snapshot": {
-    "capturedOn": "2026-08-17",
-    "evidenceCommit": "b742c5d5a3d4bd696eba57aa9f7ac48fcd52bb9a",
-    "sourceRevision": "uncommitted working tree; repository source identity is checked by verify:managed-supabase-parity-plan",
+    "capturedOn": "2026-08-22",
+    "evidenceCommit": "ad1e1805",
+    "sourceRevision": "Remote migration ledger was compared with the repository source immediately after the reviewed hosted apply; source identity is checked by verify:managed-supabase-parity-plan.",
     "evidenceKind": "read_only_provider_ledger_plus_source_plan",
     "verificationScope": "The repository verifier checks this snapshot only against the source migration tree; it does not query Supabase or establish current provider state.",
     "projectRef": "aqqrtkmtcsfkbyyqxowv",
     "projectStatus": "ACTIVE_HEALTHY",
     "databaseVersion": "17.6.1.121",
     "postgresMajor": 17,
-    "appliedCount": 144,
-    "sourceCount": 147,
-    "pendingCount": 3,
-    "appliedHead": "20260815100000",
-    "sourceHead": "20260817110000",
-    "ledgerStatus": "review_required_source_suffix_pending",
+    "appliedCount": 150,
+    "sourceCount": 150,
+    "pendingCount": 0,
+    "appliedHead": "20260819110000",
+    "sourceHead": "20260819110000",
+    "ledgerStatus": "current_remote_ledger_matches_source",
     "purchaseOrderPreflight": {
       "duplicateGroups": 0,
       "status": "clear_as_of_captured_evidence"
     },
-    "releaseStatus": "blocked_by_source_suffix_backup_restore_credentials_and_authenticated_e2e_evidence"
+    "releaseStatus": "database_schema_current; application_promotion_pending_protected_ci"
   },
   "policy": {
     "reviewBatchesOnly": true,
     "preserveSourceOrder": true,
     "productionPartialApplyIsRollbackFailure": true,
-    "hostedApplyApproved": false
+    "hostedApplyApproved": true
   },
-  "batches": [
-    {
-      "id": "01-tenant-membership-and-function-search-path-hardening",
-      "purpose": "Additive dormant membership/delegation foundation and an advisor-backed function search-path hardening migration. Both require isolated restore rehearsal and an explicit hosted change approval before apply.",
-      "migrations": [
-        "20260817090000_tenant_membership_delegation_foundation.sql",
-        "20260817100000_harden_function_search_paths.sql",
-        "20260817110000_explicit_server_only_rls_policies.sql"
-      ]
-    }
-  ]
+  "batches": []
 }

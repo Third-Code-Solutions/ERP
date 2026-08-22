@@ -1,5 +1,16 @@
 import { sql } from 'drizzle-orm'
-import { pgTable, uuid, varchar, text, integer, timestamp, index, uniqueIndex } from 'drizzle-orm/pg-core'
+import {
+  check,
+  foreignKey,
+  index,
+  integer,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+  varchar,
+} from 'drizzle-orm/pg-core'
 import { projectStatusEnum, projectTypeEnum } from './enums'
 import { tenants } from './tenants'
 import { accounts } from './accounts'
@@ -26,6 +37,11 @@ export const projects = pgTable(
     total_sqm: integer('total_sqm'),
     notes: text('notes'),
     created_by: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    // A project is retired instead of physically deleted so construction,
+    // financial, procurement, drawing, and audit evidence remains intact.
+    deleted_at: timestamp('deleted_at', { withTimezone: true }),
+    deleted_by: uuid('deleted_by'),
+    deletion_reason: text('deletion_reason'),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -38,6 +54,28 @@ export const projects = pgTable(
       .where(sql`${table.project_code} is not null`),
     tenantStatusIdx: index('idx_projects_tenant_status').on(table.tenant_id, table.status),
     createdByIdx: index('idx_projects_created_by').on(table.created_by),
+    tenantActiveIdx: index('idx_projects_tenant_active').on(
+      table.tenant_id,
+      table.deleted_at,
+    ),
+    deletedByIdx: index('idx_projects_deleted_by').on(table.deleted_by),
+    deletedByTenantFk: foreignKey({
+      name: 'projects_deleted_by_tenant_fk',
+      columns: [table.tenant_id, table.deleted_by],
+      foreignColumns: [users.tenant_id, users.id],
+    }).onDelete('restrict'),
+    retirementMetadataCheck: check(
+      'projects_retirement_metadata_consistent',
+      sql`(
+        (${table.deleted_at} is null
+          and ${table.deleted_by} is null
+          and ${table.deletion_reason} is null)
+        or
+        (${table.deleted_at} is not null
+          and ${table.deleted_by} is not null
+          and length(btrim(${table.deletion_reason})) > 0)
+      )`,
+    ),
   })
 )
 
