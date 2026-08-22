@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { and, eq } from 'drizzle-orm'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { projects } from '@third-code-erp/database/schema'
 import { SCurveChart } from '@/components/progress/s-curve-chart'
@@ -74,6 +74,8 @@ export default async function ProjectProgressPage({
   const { view: viewParam } = await searchParams
   const view: ProgressView = viewParam === 'gantt' ? 'gantt' : 'curve'
   const profile = await requireUserProfile()
+  const canManageSchedule = can(profile.role, 'project.schedule.manage')
+  const canSubmitWeeklyProgress = can(profile.role, 'project.weekly_progress.submit')
 
   const [project] = await db
     .select({ id: projects.id, name: projects.name, status: projects.status })
@@ -205,9 +207,15 @@ export default async function ProjectProgressPage({
             <div className="card-header">
               <h2 className="card-title">Master schedule (L1)</h2>
             </div>
-            <div style={{ padding: 16 }}>
-              <MasterScheduleImport projectId={id} hasExisting={Boolean(schedule)} />
-            </div>
+            {canManageSchedule ? (
+              <div style={{ padding: 16 }}>
+                <MasterScheduleImport projectId={id} hasExisting={Boolean(schedule)} />
+              </div>
+            ) : (
+              <p className="muted" style={{ margin: 0, padding: 16 }}>
+                Your role can review the master schedule but cannot replace it.
+              </p>
+            )}
             {tasks.length > 0 && (
               <table className="data-table">
                 <thead>
@@ -234,6 +242,7 @@ export default async function ProjectProgressPage({
         </div>
 
         <aside style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {canSubmitWeeklyProgress && (
           <div className="card">
             <div className="card-header">
               <h2 className="card-title">Submit weekly update</h2>
@@ -242,6 +251,7 @@ export default async function ProjectProgressPage({
               <WeeklyUpdateForm projectId={id} />
             </div>
           </div>
+          )}
 
           {latestPct && (
             <div className="card">

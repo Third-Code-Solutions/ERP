@@ -1,3 +1,8 @@
+import { notFound } from 'next/navigation'
+import { requireUserProfile } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
+import { projects } from '@third-code-erp/database/schema'
+import { and, eq, isNull } from 'drizzle-orm'
 import { ProjectTabs } from '@/components/projects/project-tabs'
 
 /**
@@ -16,6 +21,19 @@ export default async function ProjectLayout({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
+  const profile = await requireUserProfile()
+  const [project] = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(
+      and(
+        eq(projects.id, id),
+        eq(projects.tenant_id, profile.tenantId),
+        isNull(projects.deleted_at),
+      ),
+    )
+    .limit(1)
+  if (!project) notFound()
 
   return (
     <div>

@@ -39,10 +39,12 @@
     "test:e2e:report": "playwright show-report"
   },
   "dependencies": {
+    "@napi-rs/canvas": "1.0.6",
     "@gsap/react": "^2.1.2",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.48.1",
     "@tailwindcss/postcss": "^4.3.0",
+    "@tesseract.js-data/eng": "1.0.0",
     "@third-code-erp/ai": "workspace:*",
     "@third-code-erp/auth": "workspace:*",
     "@third-code-erp/database": "workspace:*",
@@ -61,10 +63,13 @@
     "mammoth": "^1.12.0",
     "next": "^15.5.23",
     "openai": "^6.37.0",
+    "pdfjs-dist": "5.4.624",
     "postcss": "^8.5.23",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwindcss": "^4.3.0",
+    "tesseract.js": "7.0.0",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^3.24.1"
   },
   "devDependencies": {

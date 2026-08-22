@@ -51,6 +51,7 @@ function formatDue(value: Date | string): string {
 
 export function TaskRow({ task, overdue = false, readOnly = false }: TaskRowProps) {
   const roleLabel = task.role ? (ROLE_LABELS[task.role] ?? task.role) : null
+  const requiresToolboxLog = task.title.trim().toLowerCase() === 'toolbox meeting log'
 
   return (
     <tr>
@@ -110,7 +111,11 @@ export function TaskRow({ task, overdue = false, readOnly = false }: TaskRowProp
               : task.status}
           </span>
         ) : (
-          <CompleteTaskButton taskId={task.id} />
+          <CompleteTaskButton
+            taskId={task.id}
+            requiresNotes={requiresToolboxLog}
+            notePlaceholder="Attendees, safety topic, hazards, and action items"
+          />
         )}
       </td>
     </tr>

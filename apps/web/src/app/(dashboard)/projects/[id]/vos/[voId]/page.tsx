@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { and, eq } from 'drizzle-orm'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { projects, users } from '@third-code-erp/database/schema'
 import { VoApprovalActions } from '@/components/vos/vo-approval-actions'
@@ -112,6 +112,15 @@ export default async function VoDetailPage({ params }: PageProps) {
                 voId={vo.id}
                 status={status}
                 docusealSubmissionId={vo.docuseal_submission_id ?? null}
+                canSubmitForCommercialPricing={can(
+                  profile.role,
+                  'variation_order.submit_for_commercial_pricing',
+                )}
+                canSendForClientSignature={can(
+                  profile.role,
+                  'variation_order.send_for_client_signature',
+                )}
+                canReject={can(profile.role, 'variation_order.reject')}
               />
             </div>
           </div>

@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   requireUserProfile: vi.fn(),
   requireCapability: vi.fn(),
   getProjectThroughCoreApi: vi.fn(),
+  retireProjectThroughCoreApi: vi.fn(),
   updateProjectThroughCoreApi: vi.fn(),
   revalidatePath: vi.fn(),
 }))
@@ -15,6 +16,7 @@ vi.mock('@third-code-erp/auth', () => ({
 
 vi.mock('@/lib/erp-core-client', () => ({
   getProjectThroughCoreApi: mocks.getProjectThroughCoreApi,
+  retireProjectThroughCoreApi: mocks.retireProjectThroughCoreApi,
   updateProjectThroughCoreApi: mocks.updateProjectThroughCoreApi,
 }))
 
@@ -22,7 +24,7 @@ vi.mock('next/cache', () => ({
   revalidatePath: mocks.revalidatePath,
 }))
 
-import { updateProject } from './actions'
+import { retireProject, updateProject } from './actions'
 
 const USER_ID = '11111111-1111-4111-8111-111111111111'
 const TENANT_ID = '22222222-2222-4222-8222-222222222222'
@@ -177,5 +179,80 @@ describe('Project update Core authority', () => {
     )
     expect(mocks.getProjectThroughCoreApi).not.toHaveBeenCalled()
     expect(mocks.updateProjectThroughCoreApi).not.toHaveBeenCalled()
+  })
+})
+
+describe('Project retirement Core authority', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.requireUserProfile.mockResolvedValue(PROFILE)
+    mocks.requireCapability.mockReturnValue(undefined)
+    mocks.getProjectThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        id: PROJECT_ID,
+        tenantId: TENANT_ID,
+        name: EXISTING.name,
+        client: EXISTING.client,
+        status: EXISTING.status,
+        projectType: EXISTING.project_type,
+        totalSqm: EXISTING.total_sqm,
+        location: EXISTING.location,
+        notes: EXISTING.notes,
+        createdAt: '2026-07-27T00:00:00.000Z',
+        updatedAt: EXISTING.updatedAt,
+        accountId: null,
+        createdBy: USER_ID,
+      },
+    })
+    mocks.retireProjectThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        projectId: PROJECT_ID,
+        tenantId: TENANT_ID,
+        deleted: true,
+        retiredAt: '2026-08-19T00:00:00.000Z',
+      },
+    })
+  })
+
+  function retirementForm(confirmation = EXISTING.name): FormData {
+    const form = new FormData()
+    form.set('reason', 'Created in error')
+    form.set('confirmation', confirmation)
+    return form
+  }
+
+  it('uses the owner/admin-only project.delete command with stale-state protection', async () => {
+    await expect(retireProject(PROJECT_ID, retirementForm())).resolves.toEqual({})
+
+    expect(mocks.requireCapability).toHaveBeenCalledWith(PROFILE, 'project.delete')
+    expect(mocks.retireProjectThroughCoreApi).toHaveBeenCalledWith(
+      PROJECT_ID,
+      {
+        reason: 'Created in error',
+        expectedUpdatedAt: UPDATED_AT.toISOString(),
+      },
+      expect.any(String),
+    )
+  })
+
+  it('does not call Core when the project-name confirmation is incorrect', async () => {
+    await expect(retireProject(PROJECT_ID, retirementForm('wrong'))).resolves.toEqual({
+      error: 'Type the exact project name to confirm deletion.',
+    })
+    expect(mocks.retireProjectThroughCoreApi).not.toHaveBeenCalled()
+  })
+
+  it('requires project.delete before reading or retiring through Core', async () => {
+    mocks.requireCapability.mockImplementation(() => {
+      throw new Error('Forbidden')
+    })
+
+    await expect(retireProject(PROJECT_ID, retirementForm())).rejects.toThrow(
+      'Forbidden',
+    )
+    expect(mocks.getProjectThroughCoreApi).not.toHaveBeenCalled()
+    expect(mocks.retireProjectThroughCoreApi).not.toHaveBeenCalled()
   })
 })

@@ -3,6 +3,7 @@
 import { randomUUID } from 'node:crypto'
 import { redirect } from 'next/navigation'
 import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
+import { projectTypeValues } from '@third-code-erp/shared-types'
 import { z } from 'zod'
 import { createProjectThroughCoreApi } from '@/lib/erp-core-client'
 
@@ -10,7 +11,7 @@ const createProjectSchema = z.object({
   name: z.string().min(1).max(255),
   client: z.string().min(1).max(255),
   location: z.string().max(500).optional(),
-  project_type: z.enum(['mep', 'fit_out', 'interior', 'mixed']).optional(),
+  project_type: z.enum(projectTypeValues).optional(),
   total_sqm: z.coerce.number().int().positive().optional(),
   notes: z.string().max(2000).optional(),
   idempotency_key: z.string().min(1).max(256).optional(),

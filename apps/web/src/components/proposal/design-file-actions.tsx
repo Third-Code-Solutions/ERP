@@ -11,12 +11,16 @@ interface DesignFileActionsProps {
   designFileId: string
   isReadyForPresentation: boolean
   isClientApproved: boolean
+  canMarkReady: boolean
+  canMarkApproved: boolean
 }
 
 export function DesignFileActions({
   designFileId,
   isReadyForPresentation,
   isClientApproved,
+  canMarkReady,
+  canMarkApproved,
 }: DesignFileActionsProps) {
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
@@ -35,7 +39,7 @@ export function DesignFileActions({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        {!isReadyForPresentation && !isClientApproved && (
+        {canMarkReady && !isReadyForPresentation && !isClientApproved && (
           <button
             type="button"
             disabled={pending}
@@ -46,7 +50,7 @@ export function DesignFileActions({
             Mark ready
           </button>
         )}
-        {!isClientApproved && (
+        {canMarkApproved && !isClientApproved && (
           <button
             type="button"
             disabled={pending}
@@ -62,7 +66,7 @@ export function DesignFileActions({
             Mark approved
           </button>
         )}
-        {!isClientApproved && (
+        {canMarkApproved && !isClientApproved && (
           <button
             type="button"
             disabled={pending}

@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { desc, eq } from 'drizzle-orm'
 import type { Metadata } from 'next'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { progressClaims, projects } from '@third-code-erp/database/schema'
 import { ClaimListTable } from '@/components/claims/claim-list-table'
@@ -37,6 +37,9 @@ export default async function ClaimsPage({
   searchParams: Promise<SearchParams>
 }) {
   const profile = await requireUserProfile()
+  const canCreateClaim =
+    can(profile.role, 'kyc.create_ar_code') ||
+    can(profile.role, 'precon.manage_checklist')
   const { status: rawStatus } = await searchParams
   const activeStatus =
     rawStatus && KNOWN_STATUSES.has(rawStatus) && rawStatus !== 'all' ? rawStatus : null
@@ -101,22 +104,24 @@ export default async function ClaimsPage({
             Milestone-based billing claims tracked from draft to paid.
           </p>
         </div>
-        <Link
-          href="/claims/new"
-          style={{
-            background: 'var(--color-navy-700)',
-            color: 'white',
-            padding: '9px 16px',
-            borderRadius: 6,
-            fontSize: '0.875rem',
-            fontWeight: 600,
-            textDecoration: 'none',
-            whiteSpace: 'nowrap',
-            marginTop: 4,
-          }}
-        >
-          + New claim
-        </Link>
+        {canCreateClaim && (
+          <Link
+            href="/claims/new"
+            style={{
+              background: 'var(--color-navy-700)',
+              color: 'white',
+              padding: '9px 16px',
+              borderRadius: 6,
+              fontSize: '0.875rem',
+              fontWeight: 600,
+              textDecoration: 'none',
+              whiteSpace: 'nowrap',
+              marginTop: 4,
+            }}
+          >
+            + New claim
+          </Link>
+        )}
       </div>
 
       <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>

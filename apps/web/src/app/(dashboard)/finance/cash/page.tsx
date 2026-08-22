@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
+import { can, requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   accounts,
@@ -42,7 +42,8 @@ type CashRow = {
 
 export default async function CashPage() {
   const profile = await requireUserProfile()
-  requireCapability(profile, 'finance.manage')
+  requireCapability(profile, 'finance.read')
+  const canManageCash = can(profile.role, 'finance.manage_cash')
 
   let rows: CashRow[]
   if (financeCashReadsUseCoreApi(profile.tenantId)) {
@@ -153,9 +154,11 @@ export default async function CashPage() {
           <Link href="/finance" className="finance-secondary-link">
             Finance controls
           </Link>
-          <Link href="/finance/cash/new" className="finance-primary-link">
-            New cash transaction
-          </Link>
+          {canManageCash && (
+            <Link href="/finance/cash/new" className="finance-primary-link">
+              New cash transaction
+            </Link>
+          )}
         </div>
       </div>
 
@@ -193,7 +196,7 @@ export default async function CashPage() {
           {rows.length === 0 ? (
             <div className="card-empty">
               <p>No cash evidence yet.</p>
-              <Link href="/finance/cash/new">Record the first transaction</Link>
+              {canManageCash && <Link href="/finance/cash/new">Record the first transaction</Link>}
             </div>
           ) : (
             <table className="data-table">

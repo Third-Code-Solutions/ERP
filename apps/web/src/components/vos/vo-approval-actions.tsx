@@ -22,9 +22,19 @@ interface Props {
   voId: string
   status: VoStatus
   docusealSubmissionId: string | null
+  canSubmitForCommercialPricing: boolean
+  canSendForClientSignature: boolean
+  canReject: boolean
 }
 
-export function VoApprovalActions({ voId, status, docusealSubmissionId }: Props) {
+export function VoApprovalActions({
+  voId,
+  status,
+  docusealSubmissionId,
+  canSubmitForCommercialPricing,
+  canSendForClientSignature,
+  canReject,
+}: Props) {
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
@@ -70,12 +80,12 @@ export function VoApprovalActions({ voId, status, docusealSubmissionId }: Props)
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-        {status === 'draft' && (
+        {status === 'draft' && canSubmitForCommercialPricing && (
           <button onClick={runPrice} disabled={pending} style={primaryBtnStyle}>
             {pending ? 'Working…' : 'Submit for commercial pricing'}
           </button>
         )}
-        {status === 'pending_commercial_pricing' && (
+        {status === 'pending_commercial_pricing' && canSendForClientSignature && (
           <button onClick={runSign} disabled={pending} style={primaryBtnStyle}>
             {pending ? 'Working…' : 'Send for client signature'}
           </button>
@@ -85,7 +95,7 @@ export function VoApprovalActions({ voId, status, docusealSubmissionId }: Props)
             Awaiting DocuSeal signature{docusealSubmissionId ? ` · ${docusealSubmissionId.slice(0, 12)}…` : ''}
           </span>
         )}
-        {!finalised && (
+        {!finalised && canReject && (
           <button
             onClick={() => setShowReject((v) => !v)}
             disabled={pending}
@@ -96,7 +106,7 @@ export function VoApprovalActions({ voId, status, docusealSubmissionId }: Props)
         )}
       </div>
 
-      {showReject && !finalised && (
+      {showReject && !finalised && canReject && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <textarea
             rows={3}

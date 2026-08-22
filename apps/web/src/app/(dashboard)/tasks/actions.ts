@@ -11,7 +11,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { and, eq } from 'drizzle-orm'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { dailyTasks } from '@third-code-erp/database/schema'
 import { writeAuditLog } from '@/lib/audit'
@@ -32,6 +32,9 @@ export async function completeTask(taskId: string, notes?: string): Promise<Acti
 
   const profile = await requireUserProfile().catch(() => null)
   if (!profile) return { error: 'Unauthorized' }
+  if (!can(profile.role, 'sd.daily_tasks')) {
+    return { error: 'Forbidden' }
+  }
 
   const trimmedNotes =
     typeof notes === 'string' ? notes.trim().slice(0, MAX_NOTES_LENGTH) : undefined
@@ -41,9 +44,10 @@ export async function completeTask(taskId: string, notes?: string): Promise<Acti
   const [task] = await db
     .select({
       id: dailyTasks.id,
-      project_id: dailyTasks.project_id,
-      assignee_id: dailyTasks.assignee_id,
-      status: dailyTasks.status,
+    project_id: dailyTasks.project_id,
+    assignee_id: dailyTasks.assignee_id,
+    status: dailyTasks.status,
+    title: dailyTasks.title,
     })
     .from(dailyTasks)
     .where(and(eq(dailyTasks.id, taskId), eq(dailyTasks.tenant_id, profile.tenantId)))
@@ -60,6 +64,16 @@ export async function completeTask(taskId: string, notes?: string): Promise<Acti
   const isPrivileged = profile.role === 'admin' || profile.role === 'owner'
   if (!isAssignee && !isPrivileged) {
     return { error: 'Forbidden' }
+  }
+
+  // The daily toolbox task is the lightweight safety log in this release.
+  // Requiring a note makes the completed task auditable instead of a bare
+  // checkbox; the note records attendees, topic, and any action items.
+  if (
+    task.title.trim().toLowerCase() === 'toolbox meeting log' &&
+    !trimmedNotes
+  ) {
+    return { error: 'Toolbox meeting logs require attendees, topic, or action-item notes.' }
   }
 
   const now = new Date()

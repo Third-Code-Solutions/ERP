@@ -4,15 +4,49 @@ import type { AppRole } from '@third-code-erp/auth'
 
 import type { MyWorkSummary } from '@/lib/dashboard-queries'
 import {
+  canonicalRole,
   roleLabel,
   visibleNavSections,
 } from '@/lib/operations/nav-config'
+import type { NavItemDef } from '@/lib/operations/nav-config'
 
 import styles from './role-work-dashboard.module.css'
 
 interface RoleWorkDashboardProps {
   role: AppRole
   summary: MyWorkSummary
+}
+
+const QUICK_ACCESS_PRIORITY: Partial<Record<AppRole, readonly string[]>> = {
+  safety: ['/tasks', '/permits', '/punchlist', '/projects', '/documents'],
+  cx: [
+    '/tasks',
+    '/punchlist',
+    '/warranty',
+    '/warranty/cnps',
+    '/projects',
+    '/documents',
+  ],
+  viewer: [
+    '/projects',
+    '/pipeline/board',
+    '/crm/accounts',
+    '/documents',
+    '/bom',
+    '/finance',
+    '/reports',
+  ],
+}
+
+function prioritizeQuickLinks(role: AppRole, items: readonly NavItemDef[]) {
+  const priority = QUICK_ACCESS_PRIORITY[canonicalRole(role)] ?? []
+  const rank = new Map(priority.map((href, index) => [href, index]))
+
+  return [...items].sort((left, right) => {
+    const leftRank = rank.get(left.href) ?? Number.POSITIVE_INFINITY
+    const rightRank = rank.get(right.href) ?? Number.POSITIVE_INFINITY
+    return leftRank - rightRank
+  })
 }
 
 export function RoleWorkDashboard({
@@ -43,10 +77,10 @@ export function RoleWorkDashboard({
     },
   ]
 
-  const quickLinks = visibleNavSections(role)
+  const quickLinks = prioritizeQuickLinks(role, visibleNavSections(role)
     .flatMap((section) => section.items)
     .filter((item) => item.href !== '/dashboard')
-    .slice(0, 7)
+  ).slice(0, 7)
 
   return (
     <>

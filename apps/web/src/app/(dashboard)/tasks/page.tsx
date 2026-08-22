@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { and, asc, desc, eq, gt, gte, lt, lte } from 'drizzle-orm'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { dailyTasks, projects } from '@third-code-erp/database/schema'
 import { TaskRow, type TaskRowData } from '@/components/tasks/task-row'
@@ -73,6 +73,7 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
 
   const rawSearch = searchParams ? await searchParams : {}
   const tab = parseTab(rawSearch.tab)
+  const canCompleteTasks = can(profile.role, 'sd.daily_tasks')
 
   const now = new Date()
   const todayStart = manilaBoundaries.startOfDay(now)
@@ -271,7 +272,7 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
                     key={t.id}
                     task={t}
                     overdue={overdueInTab}
-                    readOnly={isReadOnly}
+                    readOnly={isReadOnly || !canCompleteTasks}
                   />
                 ))}
               </tbody>

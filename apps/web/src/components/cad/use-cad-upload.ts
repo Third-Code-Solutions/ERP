@@ -16,6 +16,7 @@ export interface CadUploadResult {
     | 'unknown-format'
     | 'download-failed'
     | 'no-items'
+    | 'ocr-unavailable'
     | 'ai-not-configured'
     | 'too-large'
     | 'parse-failed'
@@ -36,6 +37,11 @@ export interface CadUploadResult {
   aiEstimateMatches: number
   unpricedCandidateBom?: boolean
   processingJobId?: string | null
+  extractedCharacters?: number
+  extractionPages?: number | null
+  extractionSheets?: number | null
+  extractionOcrConfidence?: number | null
+  extractionCacheHit?: boolean
 }
 
 export interface CompleteResponse {
@@ -55,10 +61,10 @@ interface SignResponse {
 }
 
 export const MAX_CAD_SIZE_BYTES = 100 * 1024 * 1024
-// Every format the BOM intake supports. CAD goes through the DXF/DWG parser;
-// everything else goes through the AI-vision scope extractor.
+// Every format the construction-document intake supports. CAD goes through the
+// DXF/DWG parser; other source files are read deterministically on the server.
 export const CAD_ACCEPT =
-  '.dxf,.dwg,.pdf,.jpg,.jpeg,.png,.webp,.gif,.heic,.xlsx,.xls,.csv,.docx,.doc'
+  '.dxf,.dwg,.pdf,.jpg,.jpeg,.png,.webp,.gif,.heic,.xlsx,.xls,.xlsm,.xlsb,.csv,.docx,.doc'
 
 async function signUpload(
   projectId: string,
@@ -376,6 +382,28 @@ export function formatCompletionProgress(completed: CompleteResponse): string {
     const label = fmtLabel(r.detectedFormat)
 
     if (r.status === 'extracted' || r.status === 'succeeded') {
+      if (
+        r.extractedCharacters !== undefined &&
+        r.detectedFormat !== 'dxf' &&
+        r.detectedFormat !== 'dwg'
+      ) {
+        const spans: string[] = []
+        if (r.extractionPages !== undefined && r.extractionPages !== null) {
+          spans.push(
+            `${r.extractionPages} page${r.extractionPages === 1 ? '' : 's'}`
+          )
+        }
+        if (r.extractionSheets !== undefined && r.extractionSheets !== null) {
+          spans.push(
+            `${r.extractionSheets} sheet${r.extractionSheets === 1 ? '' : 's'}`
+          )
+        }
+        const sourceRange = spans.length > 0 ? ` · ${spans.join(', ')}` : ''
+        const cache = r.extractionCacheHit
+          ? 'reused private cached evidence'
+          : 'read locally and cached'
+        return `${label}: ${r.extractedCharacters.toLocaleString()} characters ${cache}${sourceRange} · review evidence before creating a BOM`
+      }
       const parts = [
         `${label}: ${r.scopeItemsCreated} scope item${r.scopeItemsCreated === 1 ? '' : 's'} extracted`,
       ]
@@ -404,9 +432,8 @@ export function formatCompletionProgress(completed: CompleteResponse): string {
     if (r.status === 'queued' || r.status === 'processing') {
       return r.message || 'DWG processing queued in ERP Core...'
     }
-    // Vision branches (no-items / ai-not-configured / too-large / error) ship
-    // a human-readable, actionable message in r.message — surface it directly
-    // so the user knows whether to re-upload, configure AI, or contact ops.
+    // Non-success branches ship a human-readable, actionable message in
+    // r.message. Surface it directly rather than inventing a fallback state.
     if (r.message) return r.message
     if (r.status === 'unknown-format') return 'File stored.'
     return ''

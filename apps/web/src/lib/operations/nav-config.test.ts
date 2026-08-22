@@ -42,20 +42,63 @@ describe('RBAC: visibleNavSections', () => {
     expect(labels).toContain('Admin')
   })
 
-  it('viewer sees only unrestricted items, never Admin', () => {
+  it('viewer sees every operational read workspace but never tenant administration', () => {
     const sections = visibleNavSections('viewer')
     const hrefs = sections.flatMap((s) => s.items.map((i) => i.href))
     // Unrestricted items are visible to everyone.
     expect(hrefs).toContain('/dashboard')
+    expect(hrefs).toContain('/crm/accounts')
+    expect(hrefs).toContain('/pipeline/board')
+    expect(hrefs).toContain('/projects')
     expect(hrefs).toContain('/tasks')
     expect(hrefs).toContain('/documents')
-    // Restricted items are hidden.
+    // Read-only operational items remain visible; all mutation controls are
+    // guarded independently by their server actions and capabilities.
+    expect(hrefs).toContain('/bom')
+    expect(hrefs).toContain('/permits')
+    expect(hrefs).toContain('/procurement/rfqs')
+    expect(hrefs).toContain('/purchase-orders')
+    expect(hrefs).toContain('/inventory')
+    expect(hrefs).toContain('/invoices')
+    expect(hrefs).toContain('/claims')
+    expect(hrefs).toContain('/punchlist')
+    expect(hrefs).toContain('/warranty')
+    expect(hrefs).toContain('/warranty/cnps')
+    expect(hrefs).toContain('/reports')
+    expect(hrefs).toContain('/finance')
+    expect(hrefs).toContain('/finance/payables')
+    expect(hrefs).toContain('/finance/cash')
+    expect(hrefs).toContain('/finance/reconciliation')
+    // Tenant administration and KYC remain deliberately restricted because
+    // they expose identity/configuration controls rather than ERP records.
     expect(hrefs).not.toContain('/admin')
-    expect(hrefs).not.toContain('/invoices')
-    expect(hrefs).not.toContain('/finance')
-    expect(hrefs).not.toContain('/finance/payables')
-    expect(hrefs).not.toContain('/bom')
     expect(hrefs).not.toContain('/assets')
+  })
+
+  it('makes pipeline and projects visible to every project/opportunity reader', () => {
+    const projectReaders = [
+      'owner',
+      'estimator',
+      'pm',
+      'admin',
+      'sales',
+      'commercial',
+      'design',
+      'sd_pm_pe',
+      'finance',
+      'procurement',
+      'safety',
+      'cx',
+      'viewer',
+    ] as const
+
+    for (const role of projectReaders) {
+      const hrefs = visibleNavSections(role)
+        .flatMap((section) => section.items.map((item) => item.href))
+      expect(hrefs, role).toContain('/pipeline/board')
+      expect(hrefs, role).toContain('/projects')
+      expect(canViewPath(role, '/projects/project-id'), role).toBe(true)
+    }
   })
 
   it('hides controlled-rollout routes without changing their direct-route guard', () => {
@@ -64,6 +107,9 @@ describe('RBAC: visibleNavSections', () => {
 
     expect(hrefs).not.toContain('/assets')
     expect(canViewPath('viewer', '/assets')).toBe(true)
+    expect(canViewPath('viewer', '/finance/cash')).toBe(true)
+    expect(canViewPath('viewer', '/finance/reconciliation')).toBe(true)
+    expect(canViewPath('viewer', '/warranty/cnps')).toBe(true)
   })
 
   it('legacy estimator inherits commercial visibility (BOM Builder)', () => {

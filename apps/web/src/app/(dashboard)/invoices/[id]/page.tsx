@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
+import { can, requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   accounts,
@@ -48,7 +48,9 @@ interface ReceiptAllocationRow extends Record<string, unknown> {
 export default async function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const profile = await requireUserProfile()
-  requireCapability(profile, 'finance.manage')
+  requireCapability(profile, 'finance.read')
+  const canIssueInvoice = can(profile.role, 'finance.issue_invoice')
+  const canManageCash = can(profile.role, 'finance.manage_cash')
 
   const [inv] = await db
     .select({
@@ -190,11 +192,13 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
           >
             {STATUS_LABELS[inv.status] ?? inv.status}
           </span>
-          <InvoiceStatusActions
-            invoiceId={id}
-            currentStatus={inv.status}
-            defaultPostingDate={new Date().toISOString().slice(0, 10)}
-          />
+          {canIssueInvoice && (
+            <InvoiceStatusActions
+              invoiceId={id}
+              currentStatus={inv.status}
+              defaultPostingDate={new Date().toISOString().slice(0, 10)}
+            />
+          )}
           <Link
             href={`/invoices/${id}/print`}
             target="_blank"
@@ -350,7 +354,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
           {receiptAllocations.length === 0 ? (
             <div className="card-empty">
               <p>No receipt has been allocated to this invoice.</p>
-              <Link href="/finance/cash/new">Record receipt</Link>
+              {canManageCash && <Link href="/finance/cash/new">Record receipt</Link>}
             </div>
           ) : (
             <table className="data-table">

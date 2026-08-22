@@ -16,6 +16,7 @@ import {
   rfqQuoteResultSchema,
   rfqTransitionResultSchema,
   projectCreationResultSchema,
+  projectRetirementResultSchema,
   purchaseOrderCreationResultSchema,
   purchaseOrderBomCreationResultSchema,
   purchaseOrdersGroupedFromBomResultSchema,
@@ -114,6 +115,8 @@ import {
   type OpportunityStageTransitionResult,
   type CreateProjectCommand,
   type ProjectCreationResult,
+  type RetireProjectCommand,
+  type ProjectRetirementResult,
   projectCommentCreationResultSchema,
   projectCommentDeletionResultSchema,
   projectCommentListResultSchema,
@@ -5508,6 +5511,65 @@ export async function createProjectThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. No Project was created.',
+    }
+  }
+}
+
+export async function retireProjectThroughCoreApi(
+  projectId: string,
+  command: RetireProjectCommand,
+  idempotencyKey: string,
+): Promise<CoreResult<ProjectRetirementResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/projects/${encodeURIComponent(projectId)}`,
+      {
+        method: 'DELETE',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      },
+    )
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 503
+            ? 'Project deletion is not enabled for this tenant.'
+            : response.status === 404
+              ? 'Project not found.'
+              : response.status === 409
+                ? 'Project changed or was already retired.'
+                : 'Project was not retired.'
+      return { ok: false, error: message, status: response.status }
+    }
+
+    const parsed = projectRetirementResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid project retirement result.',
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. No project was retired.',
+      status: 503,
     }
   }
 }

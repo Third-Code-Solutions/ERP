@@ -11,13 +11,10 @@ import {
 } from '@/lib/erp-core-client'
 import { documentUploadCompleteResultSchema } from '@third-code-erp/shared-types'
 import {
-  extractScopeFromVisual,
-  type VisualExtractResult,
-} from '@/lib/vision/extract-from-visual'
-import {
-  consumeProviderQuota,
-  providerQuotaBlockedResponse,
-} from '@/lib/provider-quota'
+  extractDeterministicDocument,
+} from '@/lib/document-intake/deterministic-extractor'
+
+export const runtime = 'nodejs'
 
 const CompleteSchema = z.object({
   storagePath: z.string().min(1),
@@ -78,7 +75,11 @@ function classify(
     return { docType: 'pdf', cadFormat: null, extractorKind: 'pdf' }
   if (mimeType.startsWith('image/') || ['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic'].includes(ext))
     return { docType: 'image', cadFormat: null, extractorKind: 'image' }
-  if (ext === 'xlsx' || ext === 'xls' || mimeType.includes('spreadsheet'))
+  if (
+    ['xlsx', 'xls', 'xlsm', 'xlsb'].includes(ext) ||
+    mimeType.includes('spreadsheet') ||
+    mimeType === 'application/vnd.ms-excel'
+  )
     return { docType: 'other', cadFormat: null, extractorKind: 'spreadsheet' }
   if (ext === 'csv' || mimeType === 'text/csv')
     return { docType: 'other', cadFormat: null, extractorKind: 'csv' }
@@ -133,17 +134,6 @@ export async function POST(req: NextRequest) {
   }
 
   const { cadFormat, extractorKind } = classify(fileName, mimeType)
-  // A visual/text extraction invokes the external Responses API. When the
-  // shared Core quota is selected for this tenant, reject before recording a
-  // document so a retry after the window does not leave partial intake state.
-  if (extractorKind && process.env.OPENAI_API_KEY) {
-    const quota = await consumeProviderQuota(
-      'provider-vision',
-      profile.tenantId
-    )
-    if (!quota.ok) return providerQuotaBlockedResponse(quota)
-  }
-
   const coreResult = await createDocumentThroughCoreApi(
     {
       storagePath,
@@ -185,15 +175,14 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // Unified extraction pipeline.
+  // Unified document intake pipeline.
   //
   //   - DXF/DWG  → evidence-only parse, then an ERP Core evidence commit
-  //   - PDF      → OpenAI Responses API with input_file
-  //   - image/*  → OpenAI Responses API with input_image
+  //   - PDF/image/spreadsheet/CSV/DOCX → deterministic local text/OCR read
   //
-  // All branches produce the same legacy `cadResult` payload shape. AI
-  // document candidates carry an explicit unpriced flag so the UI never
-  // presents a zero-value candidate as a commercial estimate.
+  // All branches retain the legacy `cadResult` response shape. Non-CAD
+  // parsing returns private source evidence only: it never calls a model,
+  // consumes provider quota, or creates a BOM candidate automatically.
   let cadParseQueued = false
   let cadParseWarning: string | undefined
   let cadResult:
@@ -223,6 +212,11 @@ export async function POST(req: NextRequest) {
         aiEstimateMatches: number
         unpricedCandidateBom?: boolean
         processingJobId?: string | null
+        extractedCharacters?: number
+        extractionPages?: number | null
+        extractionSheets?: number | null
+        extractionOcrConfidence?: number | null
+        extractionCacheHit?: boolean
       }
     | undefined
 
@@ -389,42 +383,44 @@ export async function POST(req: NextRequest) {
     }
   } else if (extractorKind) {
     try {
-      const visual: VisualExtractResult = await extractScopeFromVisual({
+      const extracted = await extractDeterministicDocument({
         tenantId: profile.tenantId,
-        projectId,
-        documentId: docId,
         storagePath,
         fileName,
         mimeType,
         kind: extractorKind,
       })
 
-      // Visual extraction calls ERP Core synchronously. Its unpriced candidate
-      // BOM is already committed when this response is returned, so it must
-      // not be reported as an asynchronous CAD parse job.
       cadParseQueued = false
       cadResult = {
-        status: visual.status,
-        scopeItemsCreated: visual.scopeItemsCreated,
-        warnings: visual.warnings,
+        status:
+          extracted.status === 'no-text'
+            ? 'no-items'
+            : extracted.status,
+        scopeItemsCreated: 0,
+        warnings: extracted.warnings,
         layerCount: 0,
         entityCount: 0,
-        detectedFormat: visual.detectedKind,
+        detectedFormat: extracted.detectedKind,
         dwgVersion: null,
         extensionMismatch: false,
-        message: visual.message,
-        bomId: visual.bom?.bomId ?? null,
-        bomTcvCents: visual.bom?.totalTcvCents ?? 0,
-        bomCostCents: visual.bom?.totalCostCents ?? 0,
-        bomGpMarginBps: visual.bom?.gpMarginBps ?? 0,
-        ragMatches: visual.bom?.ragMatches ?? 0,
-        aiEstimateMatches: visual.bom?.aiEstimateMatches ?? 0,
-        unpricedCandidateBom: visual.bom !== null,
+        message: extracted.message,
+        bomId: null,
+        bomTcvCents: 0,
+        bomCostCents: 0,
+        bomGpMarginBps: 0,
+        ragMatches: 0,
+        aiEstimateMatches: 0,
+        extractedCharacters: extracted.extractedCharacters,
+        extractionPages: extracted.pages,
+        extractionSheets: extracted.sheets,
+        extractionOcrConfidence: extracted.ocrConfidence,
+        extractionCacheHit: extracted.cacheHit,
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
-      console.error('[upload/complete] visual extraction failed:', err)
-      cadParseWarning = `Vision extraction failed: ${message}`
+      console.error('[upload/complete] deterministic extraction failed:', err)
+      cadParseWarning = `Local document extraction failed: ${message}`
     }
   }
 

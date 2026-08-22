@@ -1,14 +1,16 @@
 'use server'
 
+import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import {
   getProjectThroughCoreApi,
+  retireProjectThroughCoreApi,
   updateProjectThroughCoreApi,
 } from '@/lib/erp-core-client'
 
 type ProjectStatus = 'lead' | 'active' | 'on_hold' | 'completed' | 'cancelled'
-type ProjectType = 'mep' | 'fit_out' | 'interior' | 'mixed'
+type ProjectType = 'mep' | 'fit_out' | 'interior' | 'structural_civil'
 
 export async function updateProject(
   projectId: string,
@@ -50,6 +52,57 @@ export async function updateProject(
     expectedUpdatedAt: existing.data.updatedAt,
   })
   if (!result.ok) return { error: result.error ?? 'Project update failed' }
+
+  refreshProject(projectId)
+  return {}
+}
+
+export async function retireProject(
+  projectId: string,
+  formData: FormData,
+): Promise<{ error?: string }> {
+  const profile = await requireUserProfile()
+  requireCapability(profile, 'project.delete')
+
+  const reason = str(formData.get('reason'))
+  if (!reason || reason.length < 3) {
+    return { error: 'Provide a deletion reason of at least 3 characters.' }
+  }
+
+  const existing = await getProjectThroughCoreApi(projectId)
+  if (!existing.ok || !existing.data) {
+    return { error: existing.error ?? 'Project was not read.' }
+  }
+  if (
+    existing.data.id !== projectId ||
+    existing.data.tenantId !== profile.tenantId
+  ) {
+    return { error: 'Project read returned an invalid tenant scope.' }
+  }
+
+  const confirmation = str(formData.get('confirmation'))
+  if (confirmation !== existing.data.name) {
+    return { error: 'Type the exact project name to confirm deletion.' }
+  }
+
+  const result = await retireProjectThroughCoreApi(
+    projectId,
+    {
+      reason,
+      expectedUpdatedAt: existing.data.updatedAt,
+    },
+    randomUUID(),
+  )
+  if (!result.ok || !result.data) {
+    return { error: result.error ?? 'Project deletion failed.' }
+  }
+  if (
+    result.data.projectId !== projectId ||
+    result.data.tenantId !== profile.tenantId ||
+    result.data.deleted !== true
+  ) {
+    return { error: 'Project deletion returned an invalid tenant scope.' }
+  }
 
   refreshProject(projectId)
   return {}

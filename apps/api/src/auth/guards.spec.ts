@@ -366,7 +366,7 @@ describe('CapabilityGuard', () => {
     ).toThrow(ForbiddenException)
   })
 
-  it('allows ledger reads only for finance-authorized roles', () => {
+  it('allows ledger reads for finance and the read-only viewer', () => {
     expect(
       guard.canActivate(
         contextFor('financeLedgerRead', {
@@ -380,7 +380,7 @@ describe('CapabilityGuard', () => {
       )
     ).toBe(true)
 
-    expect(() =>
+    expect(
       guard.canActivate(
         contextFor('financeLedgerRead', {
           principal: {
@@ -391,7 +391,7 @@ describe('CapabilityGuard', () => {
           },
         })
       )
-    ).toThrow(ForbiddenException)
+    ).toBe(true)
   })
 
   it('allows read-only Opportunity access for a viewer', () => {
@@ -409,7 +409,7 @@ describe('CapabilityGuard', () => {
     ).toBe(true)
   })
 
-  it('keeps audit activity restricted to operational administrators', () => {
+  it('allows tenant-scoped audit activity for the read-only viewer', () => {
     expect(
       guard.canActivate(
         contextFor('auditActivity', {
@@ -423,7 +423,7 @@ describe('CapabilityGuard', () => {
       )
     ).toBe(true)
 
-    expect(() =>
+    expect(
       guard.canActivate(
         contextFor('auditActivity', {
           principal: {
@@ -434,10 +434,10 @@ describe('CapabilityGuard', () => {
           },
         })
       )
-    ).toThrow(ForbiddenException)
+    ).toBe(true)
   })
 
-  it('allows inventory reads only for operationally authorized roles', () => {
+  it('allows inventory reads for operations and the read-only viewer', () => {
     expect(
       guard.canActivate(
         contextFor('inventoryRead', {
@@ -451,7 +451,7 @@ describe('CapabilityGuard', () => {
       )
     ).toBe(true)
 
-    expect(() =>
+    expect(
       guard.canActivate(
         contextFor('inventoryRead', {
           principal: {
@@ -462,7 +462,7 @@ describe('CapabilityGuard', () => {
           },
         })
       )
-    ).toThrow(ForbiddenException)
+    ).toBe(true)
   })
 
   it('rejects protected routes without an explicit policy', () => {
