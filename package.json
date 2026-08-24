@@ -97,6 +97,7 @@
     "verify:web-db-boundary": "node scripts/verify-web-db-boundary.mjs",
     "verify:audit-hash-profiles": "node scripts/verify-audit-hash-profiles.mjs",
     "verify:workflow-action-refs": "node scripts/verify-workflow-action-refs.mjs",
+    "verify:python-worker-artifacts": "node scripts/verify-python-worker-artifacts.mjs",
     "verify:doc-authority": "node scripts/verify-doc-authority.mjs",
     "audit:build-ops-demo-data": "node scripts/audit-build-ops-demo-data.mjs",
     "verify:managed-supabase-parity-plan": "node scripts/verify-managed-supabase-parity-plan.mjs",

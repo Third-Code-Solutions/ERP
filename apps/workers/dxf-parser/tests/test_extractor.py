@@ -3,7 +3,9 @@
 Uses ezdxf to build minimal DXF documents in memory rather than disk files.
 """
 
+import hashlib
 import io
+import json
 import pytest
 import ezdxf
 
@@ -41,6 +43,29 @@ def add_text(msp, doc, text: str, layer: str = "ANNOT"):
 
 
 class TestBlockExtraction:
+    def test_extraction_fixture_has_stable_canonical_digest(self):
+        doc = ezdxf.new("R2010")
+        msp = doc.modelspace()
+        doc.blocks.new("FCU-A")
+        msp.add_blockref("FCU-A", insert=(0, 0), dxfattribs={"layer": "HVAC-EQ"})
+        msp.add_blockref("FCU-A", insert=(5, 0), dxfattribs={"layer": "HVAC-EQ"})
+        msp.add_lwpolyline(
+            [(0, 0), (10, 0), (10, 8), (0, 8)],
+            close=True,
+            dxfattribs={"layer": "ARCH-ROOM"},
+        )
+
+        items = Extractor().extract(serialize_dxf(doc))
+        canonical = json.dumps(
+            [item.model_dump(mode="json") for item in items],
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+
+        assert hashlib.sha256(canonical).hexdigest() == (
+            "9c7ef2bb610b87471bccd101d412b71bde8714cdb6268462765e8ad916a76644"
+        )
+
     def test_fcu_block_counted(self):
         doc = ezdxf.new("R2010")
         msp = doc.modelspace()

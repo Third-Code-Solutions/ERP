@@ -57,3 +57,5 @@ Do not expose this service directly to browsers.
 `Dockerfile` and `railway.toml` support a separately controlled Railway
 service. Do not deploy or enable it as part of a routine Vercel release. Set
 the provider key and worker secret only in the private service environment.
+The image uses the immutable Python 3.12 Alpine 3.23 base digest, installs only
+the hashed runtime export, and runs as unprivileged UID/GID 10001.
