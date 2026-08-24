@@ -19,6 +19,13 @@ const migrationSql = readFileSync(
   ),
   'utf8',
 ).toLowerCase()
+const reconciliationIndexMigrationSql = readFileSync(
+  resolve(
+    __dirname,
+    '../../../../supabase/migrations/20260824152813_document_upload_reconciliation_indexes.sql',
+  ),
+  'utf8',
+).toLowerCase()
 const drizzleSchemaSource = readFileSync(
   resolve(__dirname, '../schema/document-upload-reservations.ts'),
   'utf8',
@@ -126,6 +133,8 @@ describe('ADR-027 document upload reservation foundation', () => {
         'idx_document_upload_reservations_active_project',
         'idx_document_upload_reservations_due_active',
         'idx_document_upload_reservations_terminal_cleanup',
+        'idx_document_upload_reservations_reconcile_terminal',
+        'idx_document_upload_reservations_reconcile_completed',
       ]),
     )
     expect(migrationSql).toContain(
@@ -136,6 +145,21 @@ describe('ADR-027 document upload reservation foundation', () => {
     )
     expect(migrationSql).toContain(
       'idx_document_upload_reservations_terminal_cleanup',
+    )
+  })
+
+  it('bounds tenant reconciliation keyset scans with partial indexes', () => {
+    expect(reconciliationIndexMigrationSql).toMatch(
+      /create index idx_document_upload_reservations_reconcile_terminal[\s\S]*?\(tenant_id, id\)[\s\S]*?where state in \('released', 'expired'\)[\s\S]*?cleanup_completed_at is null/,
+    )
+    expect(reconciliationIndexMigrationSql).toMatch(
+      /create index idx_document_upload_reservations_reconcile_completed[\s\S]*?\(tenant_id, id\)[\s\S]*?where state = 'completed'/,
+    )
+    expect(reconciliationIndexMigrationSql).not.toMatch(
+      /\b(drop|truncate)\s+(table|column|index|constraint|trigger|function)\b/,
+    )
+    expect(reconciliationIndexMigrationSql.trimEnd().endsWith('commit;')).toBe(
+      true,
     )
   })
 

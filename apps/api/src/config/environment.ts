@@ -51,6 +51,18 @@ const optionalExactHostList = z
   )
   .optional()
 
+const exactTenantIdList = z
+  .string()
+  .default('')
+  .transform((value) => {
+    if (value.length === 0) return []
+    return value.split(',').map((tenantId) => tenantId.trim())
+  })
+  .pipe(z.array(z.string().uuid()).max(20))
+  .transform((tenantIds) => [
+    ...new Set(tenantIds.map((tenantId) => tenantId.toLowerCase())),
+  ])
+
 const environmentSchema = z.object({
   NODE_ENV: z
     .enum(['development', 'test', 'production'])
@@ -1487,6 +1499,15 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // Reconciliation is report-only and independently scoped. Its strict
+  // allowlist rejects wildcard and empty-list segments rather than broadening
+  // operator intent.
+  ERP_DOCUMENT_UPLOAD_RESERVATION_RECONCILIATION_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_DOCUMENT_UPLOAD_RESERVATION_RECONCILIATION_TENANT_IDS:
+    exactTenantIdList,
   // Document deletion is closed by default. Enable only for an explicit
   // tenant canary after the Nest transaction, replay, and Storage cleanup
   // gates pass together.

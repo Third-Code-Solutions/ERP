@@ -10,8 +10,10 @@ import {
   documentUploadContentTypeSchema,
   isDocumentUploadHttpUrl,
 } from '@third-code-erp/shared-types'
+import { z } from 'zod'
 
 import type { Environment } from '../config/environment'
+import { DOCUMENT_UPLOAD_RESERVATION_RECONCILIATION_MAX_PAGE_SIZE } from './document-upload-reservation-reconciliation.constants'
 
 const DOCUMENTS_BUCKET = 'documents'
 export const DOCUMENT_UPLOAD_STORAGE_REQUEST_TIMEOUT_MS = 30_000
@@ -41,6 +43,18 @@ export type DocumentUploadObjectInfo = Readonly<{
   sizeBytes: number
   contentType: string
 }>
+
+export type DocumentUploadReservationObjectPage = Readonly<{
+  objects: readonly Readonly<{ storagePath: string; createdAt: Date }>[]
+  hasNext: boolean
+  nextCursor?: string
+}>
+
+const documentUploadStorageCreatedAtSchema = z
+  .string()
+  .min(20)
+  .max(35)
+  .datetime({ offset: true })
 
 function isBoundedToken(value: unknown): value is string {
   return (
@@ -149,6 +163,81 @@ export class DocumentUploadReservationStorage {
     throw new ServiceUnavailableException(
       'Document upload object removal is unavailable'
     )
+  }
+
+  async listReservationObjects(input: {
+    tenantId: string
+    cursor?: string
+    limit: number
+  }): Promise<DocumentUploadReservationObjectPage> {
+    const prefix = `${input.tenantId}/`
+    if (
+      input.limit < 1 ||
+      input.limit >
+        DOCUMENT_UPLOAD_RESERVATION_RECONCILIATION_MAX_PAGE_SIZE
+    ) {
+      throw new BadGatewayException(
+        'Document upload object listing request is invalid'
+      )
+    }
+    try {
+      const { data, error } = await this.bucket().listV2({
+        prefix,
+        cursor: input.cursor,
+        limit: input.limit,
+        with_delimiter: false,
+        sortBy: { column: 'name', order: 'asc' },
+      })
+      if (
+        error ||
+        !data ||
+        typeof data.hasNext !== 'boolean' ||
+        !Array.isArray(data.objects) ||
+        data.objects.length > input.limit ||
+        (data.hasNext && !isBoundedToken(data.nextCursor))
+      ) {
+        throw new ServiceUnavailableException(
+          'Document upload object listing is unavailable'
+        )
+      }
+
+      const objects = data.objects.map((object) => {
+        const createdAtValue = documentUploadStorageCreatedAtSchema.safeParse(
+          object.created_at
+        )
+        const createdAt = createdAtValue.success
+          ? new Date(createdAtValue.data)
+          : null
+        if (
+          typeof object.key !== 'string' ||
+          !object.key.startsWith(prefix) ||
+          object.key.length > 2_000 ||
+          !createdAt ||
+          !Number.isFinite(createdAt.getTime())
+        ) {
+          throw new BadGatewayException(
+            'Document upload object listing is invalid'
+          )
+        }
+        return { storagePath: object.key, createdAt }
+      })
+
+      return {
+        objects,
+        hasNext: data.hasNext,
+        ...(data.hasNext ? { nextCursor: data.nextCursor } : {}),
+      }
+    } catch (error) {
+      if (
+        error instanceof ServiceUnavailableException ||
+        error instanceof BadGatewayException
+      ) {
+        throw error
+      }
+      throw new ServiceUnavailableException(
+        'Document upload object listing is unavailable'
+      )
+    }
   }
 
   private bucket(): ReturnType<SupabaseClient['storage']['from']> {

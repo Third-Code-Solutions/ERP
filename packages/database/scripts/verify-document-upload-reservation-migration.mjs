@@ -13,6 +13,10 @@ const migrationPath = resolve(
   scriptDirectory,
   '../../../supabase/migrations/20260824110438_document_upload_reservations.sql',
 )
+const reconciliationIndexMigrationPath = resolve(
+  scriptDirectory,
+  '../../../supabase/migrations/20260824152813_document_upload_reconciliation_indexes.sql',
+)
 
 const foundationSql = String.raw`
 create role anon nologin;
@@ -424,6 +428,134 @@ end
 $$;
 `
 
+const reconciliationIndexVerificationSql = String.raw`
+alter table public.document_upload_reservations disable trigger user;
+
+with fixture as (
+  select
+    gen_random_uuid() as id,
+    case when series <= 1200 then 'released' else 'completed' end::public.document_upload_reservation_state as state,
+    timestamp with time zone '2026-08-24 00:00:00+00' as created_at
+  from generate_series(1, 2400) as series
+)
+insert into public.document_upload_reservations (
+  id,
+  tenant_id,
+  project_id,
+  actor_id,
+  storage_path,
+  original_file_name,
+  declared_size_bytes,
+  declared_content_type,
+  idempotency_key,
+  request_hash,
+  state,
+  expires_at,
+  terminal_at,
+  created_at,
+  updated_at
+)
+select
+  fixture.id,
+  '11111111-1111-4111-8111-111111111111',
+  '22222222-2222-4222-8222-222222222222',
+  '44444444-4444-4444-8444-444444444444',
+  concat(
+    '11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222/',
+    fixture.id::text,
+    '-reconcile.pdf'
+  ),
+  'reconcile.pdf',
+  10,
+  'application/pdf',
+  concat('reconcile-', fixture.id::text),
+  repeat('a', 64),
+  fixture.state,
+  fixture.created_at + interval '2 hours',
+  fixture.created_at + interval '1 hour',
+  fixture.created_at,
+  fixture.created_at + interval '1 hour'
+from fixture;
+
+alter table public.document_upload_reservations enable trigger user;
+analyze public.document_upload_reservations;
+
+do $$
+declare
+  terminal_plan json;
+  completed_plan json;
+  terminal_definition text;
+  completed_definition text;
+begin
+  select pg_get_indexdef(index_class.oid)
+  into terminal_definition
+  from pg_catalog.pg_class as index_class
+  join pg_catalog.pg_index as index_catalog on index_catalog.indexrelid = index_class.oid
+  where index_class.oid = 'public.idx_document_upload_reservations_reconcile_terminal'::regclass
+    and index_catalog.indisvalid
+    and index_catalog.indisready;
+
+  if terminal_definition is null
+    or terminal_definition not like '%(tenant_id, id)%'
+    or terminal_definition not like '%cleanup_completed_at IS NULL%'
+  then
+    raise exception 'terminal reconciliation index catalog contract mismatch: %', terminal_definition;
+  end if;
+
+  select pg_get_indexdef(index_class.oid)
+  into completed_definition
+  from pg_catalog.pg_class as index_class
+  join pg_catalog.pg_index as index_catalog on index_catalog.indexrelid = index_class.oid
+  where index_class.oid = 'public.idx_document_upload_reservations_reconcile_completed'::regclass
+    and index_catalog.indisvalid
+    and index_catalog.indisready;
+
+  if completed_definition is null
+    or completed_definition not like '%(tenant_id, id)%'
+    or completed_definition not like '%state = %completed%'
+  then
+    raise exception 'completed reconciliation index catalog contract mismatch: %', completed_definition;
+  end if;
+
+  set local enable_seqscan = off;
+  execute $query$
+    explain (format json, costs off)
+    select id
+    from public.document_upload_reservations
+    where tenant_id = '11111111-1111-4111-8111-111111111111'
+      and state in ('released', 'expired')
+      and cleanup_completed_at is null
+      and id > '00000000-0000-0000-0000-000000000000'
+    order by id
+    limit 26
+  $query$ into terminal_plan;
+
+  if terminal_plan::text not like '%idx_document_upload_reservations_reconcile_terminal%' then
+    raise exception 'terminal reconciliation plan did not use bounded partial index: %', terminal_plan;
+  end if;
+
+  execute $query$
+    explain (format json, costs off)
+    select reservation.id
+    from public.document_upload_reservations as reservation
+    left join public.documents as document
+      on document.id = reservation.document_id
+      and document.tenant_id = reservation.tenant_id
+      and document.project_id = reservation.project_id
+    where reservation.tenant_id = '11111111-1111-4111-8111-111111111111'
+      and reservation.state = 'completed'
+      and reservation.id > '00000000-0000-0000-0000-000000000000'
+    order by reservation.id
+    limit 26
+  $query$ into completed_plan;
+
+  if completed_plan::text not like '%idx_document_upload_reservations_reconcile_completed%' then
+    raise exception 'completed reconciliation plan did not use bounded partial index: %', completed_plan;
+  end if;
+end
+$$;
+`
+
 const activeChildren = new Set()
 
 function run(
@@ -639,6 +771,10 @@ process.once('SIGTERM', () => {
 let primaryFailure
 try {
   const migrationSql = await readFile(migrationPath, 'utf8')
+  const reconciliationIndexMigrationSql = await readFile(
+    reconciliationIndexMigrationPath,
+    'utf8',
+  )
   await runDocker(
     [
       'run',
@@ -655,8 +791,10 @@ try {
   await waitForPostgres()
   await runPsql(foundationSql)
   await runPsql(migrationSql)
+  await runPsql(reconciliationIndexMigrationSql)
   await runPsql(behaviorSql)
   await verifyAccessControls()
+  await runPsql(reconciliationIndexVerificationSql)
   process.stdout.write('document upload reservation migration verification passed\n')
 } catch (error) {
   primaryFailure = error

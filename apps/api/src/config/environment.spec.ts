@@ -2055,8 +2055,15 @@ describe('ERP API environment', () => {
     expect(defaults.ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_TENANT_IDS).toEqual([])
     expect(defaults.ERP_DOCUMENT_UPLOAD_RESERVATION_CLEANUP_ENABLED).toBe(false)
     expect(defaults.ERP_DOCUMENT_UPLOAD_RESERVATION_CLEANUP_TENANT_IDS).toEqual([])
+    expect(
+      defaults.ERP_DOCUMENT_UPLOAD_RESERVATION_RECONCILIATION_ENABLED,
+    ).toBe(false)
+    expect(
+      defaults.ERP_DOCUMENT_UPLOAD_RESERVATION_RECONCILIATION_TENANT_IDS,
+    ).toEqual([])
 
     const tenantId = '33333333-3333-4333-8333-333333333333'
+    const caseVariantTenantId = 'abcdefab-cdef-4abc-8def-abcdefabcdef'
     expect(
       validateEnvironment({
         ...REQUIRED,
@@ -2066,6 +2073,9 @@ describe('ERP API environment', () => {
         ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_TENANT_IDS: tenantId,
         ERP_DOCUMENT_UPLOAD_RESERVATION_CLEANUP_ENABLED: 'true',
         ERP_DOCUMENT_UPLOAD_RESERVATION_CLEANUP_TENANT_IDS: tenantId,
+        ERP_DOCUMENT_UPLOAD_RESERVATION_RECONCILIATION_ENABLED: 'true',
+        ERP_DOCUMENT_UPLOAD_RESERVATION_RECONCILIATION_TENANT_IDS:
+          ` ${caseVariantTenantId.toUpperCase()},${caseVariantTenantId} `,
       }),
     ).toMatchObject({
       ERP_DOCUMENT_UPLOAD_RESERVATION_ISSUANCE_ENABLED: true,
@@ -2074,6 +2084,10 @@ describe('ERP API environment', () => {
       ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_TENANT_IDS: [tenantId],
       ERP_DOCUMENT_UPLOAD_RESERVATION_CLEANUP_ENABLED: true,
       ERP_DOCUMENT_UPLOAD_RESERVATION_CLEANUP_TENANT_IDS: [tenantId],
+      ERP_DOCUMENT_UPLOAD_RESERVATION_RECONCILIATION_ENABLED: true,
+      ERP_DOCUMENT_UPLOAD_RESERVATION_RECONCILIATION_TENANT_IDS: [
+        caseVariantTenantId,
+      ],
     })
 
     expect(() =>
@@ -2094,6 +2108,21 @@ describe('ERP API environment', () => {
         ERP_DOCUMENT_UPLOAD_RESERVATION_CLEANUP_TENANT_IDS: 'not-a-tenant',
       }),
     ).toThrow('ERP_DOCUMENT_UPLOAD_RESERVATION_CLEANUP_TENANT_IDS')
+    for (const tenantList of [
+      '*',
+      'not-a-tenant',
+      `${tenantId},,${tenantId}`,
+      `,${tenantId}`,
+      `${tenantId},`,
+    ]) {
+      expect(() =>
+        validateEnvironment({
+          ...REQUIRED,
+          ERP_DOCUMENT_UPLOAD_RESERVATION_RECONCILIATION_TENANT_IDS:
+            tenantList,
+        }),
+      ).toThrow('ERP_DOCUMENT_UPLOAD_RESERVATION_RECONCILIATION_TENANT_IDS')
+    }
   })
 
   it('requires complete, exact-host DocuSeal artifact configuration', () => {

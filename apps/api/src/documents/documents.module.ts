@@ -19,6 +19,10 @@ import {
 } from './document-upload-reservation.pipe'
 import { DocumentUploadReservationService } from './document-upload-reservation.service'
 import { DocumentUploadReservationStorage } from './document-upload-reservation.storage'
+import { DOCUMENT_UPLOAD_RESERVATION_RECONCILIATION_QUEUE } from './document-upload-reservation-reconciliation.constants'
+import { DocumentUploadReservationReconciliationProcessor } from './document-upload-reservation-reconciliation.processor'
+import { DocumentUploadReservationReconciliationQueue } from './document-upload-reservation-reconciliation.queue'
+import { DocumentUploadReservationReconciliationService } from './document-upload-reservation-reconciliation.service'
 import { DocuSealWebhookController } from './docuseal-webhook.controller'
 import { DocuSealWebhookPipe } from './docuseal-webhook.pipe'
 import { DocuSealWebhookService } from './docuseal-webhook.service'
@@ -37,6 +41,9 @@ import { PublicSigningStorageService } from './public-signing.storage'
     AuditModule,
     BullModule.registerQueue({
       name: DOCUMENT_UPLOAD_RESERVATION_CLEANUP_QUEUE,
+    }),
+    BullModule.registerQueue({
+      name: DOCUMENT_UPLOAD_RESERVATION_RECONCILIATION_QUEUE,
     }),
   ],
   controllers: [
@@ -59,6 +66,9 @@ import { PublicSigningStorageService } from './public-signing.storage'
     DocumentUploadReservationCleanupService,
     DocumentUploadReservationService,
     DocumentUploadReservationStorage,
+    DocumentUploadReservationReconciliationProcessor,
+    DocumentUploadReservationReconciliationQueue,
+    DocumentUploadReservationReconciliationService,
     DocuSealArtifactStorage,
     DocuSealProviderService,
     DocuSealWebhookPipe,

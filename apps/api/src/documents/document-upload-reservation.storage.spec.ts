@@ -23,7 +23,8 @@ function storageProbe(options?: { serviceRoleKey: string | undefined }) {
   const createSignedUploadUrl = vi.fn()
   const info = vi.fn()
   const remove = vi.fn()
-  const from = vi.fn(() => ({ createSignedUploadUrl, info, remove }))
+  const listV2 = vi.fn()
+  const from = vi.fn(() => ({ createSignedUploadUrl, info, listV2, remove }))
   vi.mocked(createClient).mockReturnValue({ storage: { from } } as never)
 
   const values: Partial<Environment> = {
@@ -40,6 +41,7 @@ function storageProbe(options?: { serviceRoleKey: string | undefined }) {
     createSignedUploadUrl,
     from,
     info,
+    listV2,
     remove,
     service: new DocumentUploadReservationStorage(config),
   }
@@ -248,6 +250,177 @@ describe('document upload reservation Storage boundary', () => {
 
     await expect(probe.service.remove(STORAGE_PATH)).resolves.toBeUndefined()
     expect(probe.remove).toHaveBeenCalledWith([STORAGE_PATH])
+  })
+
+  it('lists one bounded, flat, deterministic exact-tenant prefix page', async () => {
+    const probe = storageProbe()
+    probe.listV2.mockResolvedValue({
+      data: {
+        hasNext: true,
+        nextCursor: 'provider-cursor',
+        folders: [],
+        objects: [
+          {
+            id: 'object-id',
+            name: 'drawing.pdf',
+            key: STORAGE_PATH,
+            created_at: '2026-08-23T00:00:00.000Z',
+            updated_at: '2026-08-23T00:00:00.000Z',
+            last_accessed_at: '2026-08-23T00:00:00.000Z',
+            metadata: null,
+          },
+        ],
+      },
+      error: null,
+    })
+
+    await expect(
+      probe.service.listReservationObjects({
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        cursor: 'current-cursor',
+        limit: 25,
+      })
+    ).resolves.toEqual({
+      objects: [
+        {
+          storagePath: STORAGE_PATH,
+          createdAt: new Date('2026-08-23T00:00:00.000Z'),
+        },
+      ],
+      hasNext: true,
+      nextCursor: 'provider-cursor',
+    })
+    expect(probe.listV2).toHaveBeenCalledWith({
+      prefix: '22222222-2222-4222-8222-222222222222/',
+      cursor: 'current-cursor',
+      limit: 25,
+      with_delimiter: false,
+      sortBy: { column: 'name', order: 'asc' },
+    })
+    expect(probe.remove).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [
+      'a missing full key',
+      {
+        hasNext: false,
+        folders: [],
+        objects: [{ name: 'drawing.pdf', created_at: '2026-08-23T00:00:00Z' }],
+      },
+    ],
+    [
+      'a cross-tenant key',
+      {
+        hasNext: false,
+        folders: [],
+        objects: [
+          {
+            name: 'drawing.pdf',
+            key: `99999999-9999-4999-8999-999999999999/${STORAGE_PATH}`,
+            created_at: '2026-08-23T00:00:00Z',
+          },
+        ],
+      },
+    ],
+    [
+      'an invalid creation timestamp',
+      {
+        hasNext: false,
+        folders: [],
+        objects: [
+          { name: 'drawing.pdf', key: STORAGE_PATH, created_at: 'invalid' },
+        ],
+      },
+    ],
+    [
+      'a null creation timestamp',
+      {
+        hasNext: false,
+        folders: [],
+        objects: [
+          { name: 'drawing.pdf', key: STORAGE_PATH, created_at: null },
+        ],
+      },
+    ],
+    [
+      'a missing creation timestamp',
+      {
+        hasNext: false,
+        folders: [],
+        objects: [{ name: 'drawing.pdf', key: STORAGE_PATH }],
+      },
+    ],
+    [
+      'a numeric creation timestamp',
+      {
+        hasNext: false,
+        folders: [],
+        objects: [{ name: 'drawing.pdf', key: STORAGE_PATH, created_at: 0 }],
+      },
+    ],
+    [
+      'a noncanonical creation timestamp',
+      {
+        hasNext: false,
+        folders: [],
+        objects: [
+          {
+            name: 'drawing.pdf',
+            key: STORAGE_PATH,
+            created_at: '2026-08-23 00:00:00Z',
+          },
+        ],
+      },
+    ],
+    [
+      'an overlength creation timestamp',
+      {
+        hasNext: false,
+        folders: [],
+        objects: [
+          { name: 'drawing.pdf', key: STORAGE_PATH, created_at: 'x'.repeat(36) },
+        ],
+      },
+    ],
+    [
+      'a missing next cursor',
+      { hasNext: true, folders: [], objects: [] },
+    ],
+  ])('fails closed for %s in listing metadata', async (_case, data) => {
+    const probe = storageProbe()
+    probe.listV2.mockResolvedValue({ data, error: null })
+
+    await expect(
+      probe.service.listReservationObjects({
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        limit: 25,
+      })
+    ).rejects.toThrow(/Document upload object listing/)
+    expect(probe.remove).not.toHaveBeenCalled()
+  })
+
+  it('bounds listing pages and redacts provider diagnostics', async () => {
+    const probe = storageProbe()
+
+    await expect(
+      probe.service.listReservationObjects({
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        limit: 51,
+      })
+    ).rejects.toThrow('Document upload object listing request is invalid')
+    expect(probe.listV2).not.toHaveBeenCalled()
+
+    probe.listV2.mockRejectedValue(
+      new Error(`private-provider-diagnostic:${STORAGE_PATH}`)
+    )
+    await expect(
+      probe.service.listReservationObjects({
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        limit: 25,
+      })
+    ).rejects.not.toThrow('private-provider-diagnostic')
+    expect(probe.remove).not.toHaveBeenCalled()
   })
 
   it('does not expose raw removal failures', async () => {

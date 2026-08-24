@@ -91,6 +91,19 @@ export const documentUploadReservations = pgTable(
         sql`${table.state} in ('released', 'expired')
           and ${table.cleanup_completed_at} is null`,
       ),
+    terminalReconciliationIdx: index(
+      'idx_document_upload_reservations_reconcile_terminal',
+    )
+      .on(table.tenant_id, table.id)
+      .where(
+        sql`${table.state} in ('released', 'expired')
+          and ${table.cleanup_completed_at} is null`,
+      ),
+    completedReconciliationIdx: index(
+      'idx_document_upload_reservations_reconcile_completed',
+    )
+      .on(table.tenant_id, table.id)
+      .where(sql`${table.state} = 'completed'`),
     projectTenantFk: foreignKey({
       name: 'document_upload_reservations_project_tenant_fk',
       columns: [table.tenant_id, table.project_id],
