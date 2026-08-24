@@ -19,10 +19,10 @@ import { can, getUserProfile, type AppRole } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   projects,
-  users,
   variationOrders,
 } from '@third-code-erp/database/schema'
 import { writeAuditLog } from '@/lib/audit'
+import { resolvePrimaryClientSignatory } from '@/lib/operations/client-signatory'
 import { notifyRoles } from '@/lib/operations/notifications'
 import { createSigningSession } from '@/lib/operations/integrations/docuseal'
 
@@ -207,24 +207,23 @@ export async function submitVoForClientSignature(
     return { error: 'VO must be priced by commercial first' }
   }
 
-  // Resolve a client signer email. The schema doesn't store a per-project
-  // signer, so we fall back to the creating user — this keeps the dev-mode
-  // submission flow working end-to-end without coupling to client records.
-  let signerEmail = 'client@unknown.local'
-  if (vo.created_by) {
-    const [creator] = await db
-      .select({ email: users.email })
-      .from(users)
-      .where(and(eq(users.id, vo.created_by), eq(users.tenant_id, ctx.tenantId)))
-      .limit(1)
-    if (creator?.email) signerEmail = creator.email
+  const signatory = await resolvePrimaryClientSignatory(
+    ctx.tenantId,
+    vo.project_id
+  )
+  if (!signatory) {
+    return {
+      error:
+        'Add a primary client contact with a valid email to the project account before sending this VO for signature.',
+    }
   }
 
   const session = await createSigningSession({
     tenantId: ctx.tenantId,
     entityType: 'variation_order',
     entityId: voId,
-    signerEmail,
+    signerEmail: signatory.email,
+    signerName: signatory.name,
   })
 
   await db
@@ -232,7 +231,7 @@ export async function submitVoForClientSignature(
     .set({
       status: 'pending_client_signature',
       docuseal_submission_id:
-        session.mechanism === 'docuseal' ? session.token : null,
+        session.mechanism === 'docuseal' ? session.submissionId : null,
     })
     .where(and(eq(variationOrders.id, voId), eq(variationOrders.tenant_id, ctx.tenantId)))
 

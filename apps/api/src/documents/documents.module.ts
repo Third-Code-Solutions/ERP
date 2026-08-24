@@ -10,6 +10,8 @@ import { DocumentIntakeService } from './document-intake.service'
 import { DocuSealWebhookController } from './docuseal-webhook.controller'
 import { DocuSealWebhookPipe } from './docuseal-webhook.pipe'
 import { DocuSealWebhookService } from './docuseal-webhook.service'
+import { DocuSealArtifactStorage } from './docuseal-artifact.storage'
+import { DocuSealProviderService } from './docuseal-provider.service'
 import { InspectionPhotoController } from './inspection-photo.controller'
 import { InspectionPhotoPipe } from './inspection-photo.pipe'
 import { InspectionPhotoService } from './inspection-photo.service'
@@ -32,6 +34,8 @@ import { PublicSigningStorageService } from './public-signing.storage'
     DocumentDeleteService,
     DocumentIntakePipe,
     DocumentIntakeService,
+    DocuSealArtifactStorage,
+    DocuSealProviderService,
     DocuSealWebhookPipe,
     DocuSealWebhookService,
     InspectionPhotoPipe,

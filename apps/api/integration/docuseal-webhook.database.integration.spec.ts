@@ -14,13 +14,18 @@ import {
   type Database,
 } from '@third-code-erp/database'
 import { and, eq } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { AuditService } from '../src/audit/audit.service'
 import {
   DatabaseService,
   type DatabaseTransaction,
 } from '../src/database/database.service'
 import { DocuSealWebhookService } from '../src/documents/docuseal-webhook.service'
+import {
+  docuSealArtifactObjectKey,
+  type DocuSealArtifactStorage,
+} from '../src/documents/docuseal-artifact.storage'
+import type { DocuSealProviderService } from '../src/documents/docuseal-provider.service'
 
 const integrationEnabled =
   Boolean(process.env.DATABASE_URL) &&
@@ -169,9 +174,20 @@ suite('DocuSeal webhook database authority', () => {
         },
       ])
 
+      const provider = {
+        downloadCompletedPdf: vi.fn().mockResolvedValue({
+          name: 'signed.pdf',
+          bytes: Buffer.from('%PDF-1.7\nsigned', 'ascii'),
+        }),
+      } as unknown as DocuSealProviderService
+      const artifactStorage = {
+        upload: vi.fn().mockResolvedValue(undefined),
+      } as unknown as DocuSealArtifactStorage
       const service = new DocuSealWebhookService(
         transactionBoundDatabase(transaction),
-        new AuditService()
+        new AuditService(),
+        provider,
+        artifactStorage
       )
       const command = {
         event: 'submission.completed' as const,
@@ -221,7 +237,11 @@ suite('DocuSeal webhook database authority', () => {
         .from(boms)
         .where(and(eq(boms.id, bomB), eq(boms.tenant_id, tenantB)))
       const signedDocuments = await transaction
-        .select({ id: documents.id })
+        .select({
+          id: documents.id,
+          storagePath: documents.storage_path,
+          sizeBytes: documents.size_bytes,
+        })
         .from(documents)
         .where(
           and(
@@ -248,7 +268,18 @@ suite('DocuSeal webhook database authority', () => {
       expect(lockedBomA).toMatchObject({ status: 'locked' })
       expect(lockedBomA?.lockedAt).toBeInstanceOf(Date)
       expect(untouchedBomB).toMatchObject({ status: 'draft', lockedAt: null })
-      expect(signedDocuments).toHaveLength(1)
+      expect(signedDocuments).toEqual([
+        expect.objectContaining({
+          storagePath: docuSealArtifactObjectKey({
+            tenantId: tenantA,
+            projectId: projectA,
+            submissionId: `submission-${suffix}`,
+          }),
+          sizeBytes: Buffer.byteLength('%PDF-1.7\nsigned', 'ascii'),
+        }),
+      ])
+      expect(provider.downloadCompletedPdf).toHaveBeenCalledOnce()
+      expect(artifactStorage.upload).toHaveBeenCalledOnce()
       expect(inAppNotifications).toEqual(
         expect.arrayContaining([
           { recipientId: userA },

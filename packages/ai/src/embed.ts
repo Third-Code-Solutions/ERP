@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { getOpenAI, EMBEDDING_MODEL } from './openai'
 import {
   embedBatchWithPythonWorker,
@@ -6,6 +7,14 @@ import {
 } from './python-worker'
 
 const EMBEDDING_CACHE_MAX_ENTRIES = 200
+const EMBEDDING_INPUT_MAX_CHARS = 8_000
+
+interface EmbeddingProviderIdentity {
+  provider: 'openai' | 'python-worker'
+  model: typeof EMBEDDING_MODEL
+  version: 'v1'
+  endpoint?: string
+}
 
 // Map preserves insertion order, so the oldest key is the first one returned
 // by keys().next(). That gives FIFO eviction without a real LRU implementation.
@@ -13,8 +22,34 @@ const embeddingCache = new Map<string, number[]>()
 let embeddingCacheHits = 0
 let embeddingCacheMisses = 0
 
-function buildCacheKey(text: string): string {
-  return text.trim().slice(0, 1000)
+function normalizedEmbeddingInput(text: string): string {
+  return text.trim().slice(0, EMBEDDING_INPUT_MAX_CHARS)
+}
+
+function embeddingProviderIdentity(): EmbeddingProviderIdentity {
+  const workerUrl = process.env.AI_WORKER_URL?.trim()
+  if (workerUrl) {
+    return {
+      provider: 'python-worker',
+      model: EMBEDDING_MODEL,
+      version: 'v1',
+      endpoint: workerUrl.replace(/\/+$/, ''),
+    }
+  }
+  return {
+    provider: 'openai',
+    model: EMBEDDING_MODEL,
+    version: 'v1',
+  }
+}
+
+function buildCacheKey(
+  identity: EmbeddingProviderIdentity,
+  input: string
+): string {
+  return createHash('sha256')
+    .update(JSON.stringify({ ...identity, input }))
+    .digest('hex')
 }
 
 function readCache(key: string): number[] | undefined {
@@ -32,7 +67,9 @@ function writeCache(key: string, value: number[]): void {
 }
 
 export async function embedText(text: string): Promise<number[]> {
-  const cacheKey = buildCacheKey(text)
+  const input = normalizedEmbeddingInput(text)
+  const provider = embeddingProviderIdentity()
+  const cacheKey = buildCacheKey(provider, input)
   const cached = readCache(cacheKey)
   if (cached) {
     embeddingCacheHits += 1
@@ -40,20 +77,20 @@ export async function embedText(text: string): Promise<number[]> {
   }
 
   embeddingCacheMisses += 1
-  if (process.env.AI_WORKER_URL?.trim()) {
+  if (provider.provider === 'python-worker') {
     if (!isPythonWorkerConfigured()) {
       throw new Error(
         'AI_WORKER_SHARED_SECRET is required when AI_WORKER_URL is set'
       )
     }
-    const embedding = await embedTextWithPythonWorker(text)
+    const embedding = await embedTextWithPythonWorker(input)
     writeCache(cacheKey, embedding)
     return embedding
   }
   const openai = getOpenAI()
   const response = await openai.embeddings.create({
     model: EMBEDDING_MODEL,
-    input: text.trim().slice(0, 8000),
+    input,
   })
   const embedding = response.data[0]!.embedding
   writeCache(cacheKey, embedding)

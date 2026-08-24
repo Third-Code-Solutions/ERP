@@ -15,6 +15,7 @@ const mockedCreateCanvasSignSession = vi.mocked(createCanvasSignSession)
 describe('signing integration routing', () => {
   beforeEach(() => {
     vi.unstubAllEnvs()
+    vi.unstubAllGlobals()
     mockedCreateCanvasSignSession.mockReset()
   })
 
@@ -40,6 +41,8 @@ describe('signing integration routing', () => {
     ).resolves.toEqual({
       url: 'http://localhost:3000/portal/sign/canvas-token',
       token: 'canvas-token',
+      submissionId: null,
+      slug: null,
       is_dev_stub: false,
       mechanism: 'canvas',
     })
@@ -66,5 +69,86 @@ describe('signing integration routing', () => {
         submitters: [{ email: 'client@example.test' }],
       })
     ).rejects.toThrow('DocuSeal integration is not configured for production')
+  })
+
+  it('fails closed for partial DocuSeal URL/token configuration', async () => {
+    vi.stubEnv('DOCUSEAL_API_URL', 'https://api.docuseal.example.test/v1')
+
+    await expect(
+      createSigningSession({
+        tenantId: 'tenant-id',
+        entityType: 'bom',
+        entityId: 'bom-id',
+      })
+    ).rejects.toThrow('DOCUSEAL_API_URL and DOCUSEAL_API_TOKEN')
+    expect(mockedCreateCanvasSignSession).not.toHaveBeenCalled()
+  })
+
+  it('requires the exact entity template and a real signer email', async () => {
+    vi.stubEnv('DOCUSEAL_API_URL', 'https://api.docuseal.example.test/v1')
+    vi.stubEnv('DOCUSEAL_API_TOKEN', 'x'.repeat(32))
+
+    await expect(
+      createSigningSession({
+        tenantId: 'tenant-id',
+        entityType: 'bom',
+        entityId: 'bom-id',
+        signerEmail: 'client@example.test',
+      })
+    ).rejects.toThrow('DOCUSEAL_BOM_TEMPLATE_ID is required')
+
+    vi.stubEnv('DOCUSEAL_BOM_TEMPLATE_ID', 'bom-template-123')
+    await expect(
+      createSigningSession({
+        tenantId: 'tenant-id',
+        entityType: 'bom',
+        entityId: 'bom-id',
+      })
+    ).rejects.toThrow('A valid client signer email is required')
+  })
+
+  it('creates a DocuSeal submission with configured template and normalized signer', async () => {
+    vi.stubEnv('DOCUSEAL_API_URL', 'https://api.docuseal.example.test/v1')
+    vi.stubEnv('DOCUSEAL_API_TOKEN', 'x'.repeat(32))
+    vi.stubEnv('DOCUSEAL_BOM_TEMPLATE_ID', 'bom-template-123')
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: 'submission-123',
+          slug: 'signing-slug',
+          url: 'https://sign.docuseal.example.test/signing-slug',
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      )
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      createSigningSession({
+        tenantId: 'tenant-id',
+        entityType: 'bom',
+        entityId: 'bom-id',
+        signerEmail: ' Client@Example.Test ',
+        signerName: 'Client Contact',
+      })
+    ).resolves.toEqual({
+      url: 'https://sign.docuseal.example.test/signing-slug',
+      mechanism: 'docuseal',
+      token: 'signing-slug',
+      submissionId: 'submission-123',
+      slug: 'signing-slug',
+      is_dev_stub: false,
+    })
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
+      'https://api.docuseal.example.test/v1/submissions'
+    )
+    expect(fetchMock.mock.calls[0]?.[1]).toEqual(
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'X-Auth-Token': 'x'.repeat(32),
+        }),
+        body: expect.stringContaining('client@example.test'),
+      })
+    )
   })
 })

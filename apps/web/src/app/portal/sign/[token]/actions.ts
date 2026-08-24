@@ -213,7 +213,7 @@ export async function recordCanvasSign(input: SignInput): Promise<SignResult> {
     typeof input.signerName === 'string' ? input.signerName.trim() : ''
   const signerEmail =
     typeof input.signerEmail === 'string'
-      ? input.signerEmail.trim() || null
+      ? input.signerEmail.trim().toLowerCase() || null
       : null
   if (!signerName) {
     return { ok: false, error: 'Signer name required.' }
@@ -248,6 +248,14 @@ export async function recordCanvasSign(input: SignInput): Promise<SignResult> {
   if (!session) return { ok: false, error: 'Invalid signing link.' }
   const initialStateError = signingSessionError(session, new Date())
   if (initialStateError) return { ok: false, error: initialStateError }
+
+  const expectedSignerEmail = session.signer_email?.trim().toLowerCase()
+  if (expectedSignerEmail && signerEmail !== expectedSignerEmail) {
+    return {
+      ok: false,
+      error: 'Signer email does not match this signing invitation.',
+    }
+  }
 
   if (publicSigningWritesUseCoreApi(session.tenant_id)) {
     const idempotencyKey =

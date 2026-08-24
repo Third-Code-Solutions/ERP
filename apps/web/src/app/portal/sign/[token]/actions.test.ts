@@ -285,6 +285,21 @@ describe('public canvas signing integrity', () => {
     expect(mocks.transaction).not.toHaveBeenCalled()
   })
 
+  it('rejects a minted signer email mismatch before Core or Storage mutation', async () => {
+    mocks.limit.mockReset()
+    mocks.limit.mockResolvedValueOnce([
+      { ...session, signer_email: 'expected@example.com' },
+    ])
+
+    await expect(recordCanvasSign(signInput())).resolves.toEqual({
+      ok: false,
+      error: 'Signer email does not match this signing invitation.',
+    })
+    expect(mocks.signPublicSignatureThroughCoreApi).not.toHaveBeenCalled()
+    expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
+    expect(mocks.transaction).not.toHaveBeenCalled()
+  })
+
   it('routes an approved tenant through Core without a legacy Storage write', async () => {
     mocks.publicSigningWritesUseCoreApi.mockReturnValue(true)
     mocks.signPublicSignatureThroughCoreApi.mockResolvedValue({

@@ -2045,6 +2045,55 @@ describe('ERP API environment', () => {
     ).toThrow('ERP_CORE_WEBHOOK_TOKEN')
   })
 
+  it('requires complete, exact-host DocuSeal artifact configuration', () => {
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        NODE_ENV: 'production',
+        DOCUSEAL_API_URL: 'https://api.docuseal.example.test/v1',
+        DOCUSEAL_API_TOKEN: 'x'.repeat(32),
+        DOCUSEAL_DOCUMENT_HOSTS:
+          'documents.docuseal.example.test,cdn.docuseal.example.test:443',
+      })
+    ).toMatchObject({
+      DOCUSEAL_DOCUMENT_HOSTS: [
+        'documents.docuseal.example.test',
+        'cdn.docuseal.example.test:443',
+      ],
+    })
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        DOCUSEAL_API_URL: 'https://api.docuseal.example.test/v1',
+      })
+    ).toThrow('DOCUSEAL_API_TOKEN')
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        DOCUSEAL_API_URL: 'https://api.docuseal.example.test/v1',
+        DOCUSEAL_API_TOKEN: 'x'.repeat(32),
+        DOCUSEAL_DOCUMENT_HOSTS: '*.docuseal.example.test',
+      })
+    ).toThrow('DOCUSEAL_DOCUMENT_HOSTS')
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        DOCUSEAL_API_URL: 'https://api.docuseal.example.test/v1',
+        DOCUSEAL_API_TOKEN: 'x'.repeat(32),
+        DOCUSEAL_DOCUMENT_HOSTS: 'documents.docuseal.example.test:99999',
+      })
+    ).toThrow('DOCUSEAL_DOCUMENT_HOSTS')
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        NODE_ENV: 'production',
+        DOCUSEAL_API_URL: 'http://api.docuseal.example.test/v1',
+        DOCUSEAL_API_TOKEN: 'x'.repeat(32),
+        DOCUSEAL_DOCUMENT_HOSTS: 'documents.docuseal.example.test',
+      })
+    ).toThrow('must use https in production')
+  })
+
   it('keeps public signing fail-closed and tenant-scoped', () => {
     expect(validateEnvironment(REQUIRED).ERP_PUBLIC_SIGNING_WRITES_ENABLED).toBe(false)
     expect(validateEnvironment(REQUIRED).ERP_PUBLIC_SIGNING_WRITES_TENANT_IDS).toEqual([])

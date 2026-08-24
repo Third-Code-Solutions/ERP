@@ -127,8 +127,13 @@ swap the built-in canvas signing pad for a DocuSeal envelope.
 
 | Variable | Required | Scope | Where to get | Controls |
 |---|---|---|---|---|
-| `DOCUSEAL_API_URL` | no | server | Your DocuSeal install URL | Switches signing strategy to DocuSeal envelopes |
-| `DOCUSEAL_API_KEY` | no* | server | DocuSeal `Settings → API` | Auth header for envelope creation. Required when `DOCUSEAL_API_URL` is set |
+| `DOCUSEAL_API_URL` | no | Web + Core server | DocuSeal API base URL | Switches signing strategy to DocuSeal envelopes; must be paired with `DOCUSEAL_API_TOKEN` |
+| `DOCUSEAL_API_TOKEN` | no* | Web + Core server | DocuSeal `Settings → API` | `X-Auth-Token` for submission creation and fresh completed-document lookup |
+| `DOCUSEAL_DOCUMENT_HOSTS` | no* | Core server | Exact hosts used by your DocuSeal document download URLs | Comma-separated `host[:port]` allowlist; required with API URL/token; no schemes, paths, credentials, or wildcards |
+| `DOCUSEAL_BOM_TEMPLATE_ID` | no* | Web server | DocuSeal template ID | Required when DocuSeal sends a BOM |
+| `DOCUSEAL_CONTRACT_TEMPLATE_ID` | no* | Web server | DocuSeal template ID | Required when DocuSeal sends a contract |
+| `DOCUSEAL_VO_TEMPLATE_ID` | no* | Web server | DocuSeal template ID | Required when DocuSeal sends a variation order |
+| `DOCUSEAL_COC_TEMPLATE_ID` | no* | Web server | DocuSeal template ID | Required when DocuSeal sends a COC |
 | `DOCUSEAL_WEBHOOK_SECRET` | no* | Web server | DocuSeal `Settings → Webhooks` | Required for every inbound completion callback; the route returns `503` when unset |
 
 Optional — when unset, the built-in canvas signing pad is used. The
@@ -141,8 +146,12 @@ audit trail and signature bundle layout are identical either way.
 Nest Core is the only durable authority for DocuSeal completion callbacks. The
 Web route verifies the provider secret, forwards one normalized command using a
 server-only token, and sends best-effort email only after the Core transaction
-commits. Core atomically consumes the portal token, stores the signed document,
-locks the BOM, creates in-app notifications, and writes audit evidence.
+commits. Core uses DocuSeal's fresh-document endpoint, validates and uploads the
+PDF to the private Supabase `documents` bucket, then atomically consumes the
+portal token, records only the object path, locks the BOM, creates in-app
+notifications, and writes audit evidence. Provider document URLs expire and
+must never be stored; retrieve one immediately before use as described in the
+[DocuSeal download guide](https://www.docuseal.com/guides/download-signed-documents).
 
 | Variable | Required | Scope | Controls |
 |---|---|---|---|

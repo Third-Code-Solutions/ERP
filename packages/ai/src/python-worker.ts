@@ -1,3 +1,5 @@
+import { EMBEDDING_DIMENSIONS, EMBEDDING_MODEL } from './openai'
+
 const DEFAULT_TIMEOUT_MS = 15_000
 const MAX_TEXTS = 64
 const MAX_TEXT_CHARS = 8_000
@@ -97,9 +99,8 @@ function parseResponse(value: unknown, expectedCount: number): number[][] {
   const response = value as PythonWorkerResponse
   if (
     response.schema_version !== EXPECTED_SCHEMA_VERSION ||
-    typeof response.model !== 'string' ||
-    typeof response.dimensions !== 'number' ||
-    !Number.isInteger(response.dimensions) ||
+    response.model !== EMBEDDING_MODEL ||
+    response.dimensions !== EMBEDDING_DIMENSIONS ||
     !Array.isArray(response.embeddings) ||
     response.embeddings.length !== expectedCount
   ) {

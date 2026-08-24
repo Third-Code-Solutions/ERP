@@ -152,3 +152,46 @@ claim that can be proven by one build or deployment.
   tenant `e2e-qa-20260513-foreign`; production promotion remains closed.
 - NOT RUN — authenticated hosted BOM timing and post-deploy browser verification
   for this branch because promotion is blocked by the unresolved data boundary.
+
+## Full repository audit and production repair — 2026-08-24
+
+### Objective
+
+Audit every first-party file and connected runtime surface on the current
+`origin/main` tip, challenge every finding, remediate verified defects in
+severity/dependency order, independently verify the result, and promote only
+through the guarded production workflow in ADR-020.
+
+### Acceptance criteria
+
+- [x] Every tracked first-party file is inspected or explicitly excluded with a
+  reason in `docs/audit/REPOSITORY_COVERAGE.md`.
+- [x] Every finding in `docs/audit/FULL_REPOSITORY_AUDIT.md` has reproducible
+  evidence, severity, status, owner, verification method, and release state.
+- [x] All Critical and High findings are fixed or marked `BLOCKED` by an exact
+  external dependency; no security, RLS, audit, or quality gate is weakened.
+- [x] Applicable install, lint, typecheck, unit, integration, database,
+  migration, build, browser, security, CI, and provider checks have current
+  `PASSED`, `FAILED`, `BLOCKED`, or `NOT RUN` evidence.
+- [x] Production promotion, if all gates pass, uses the protected manual
+  workflow on `main`; live Web, Core API, CAD worker, database, and authenticated
+  browser journeys are verified after deployment.
+
+### Ordered phases
+
+1. Capture immutable source/provider baseline and generate the coverage ledger.
+2. Run independent inventory and connectivity audits; reconstruct architecture.
+3. Challenge, de-duplicate, and order findings into reviewable remediation slices.
+4. Implement root-cause fixes with regression coverage and independent review.
+5. Run complete local/hosted verification and security/dependency checks.
+6. Promote via ADR-020 only after release gates pass; verify live behavior/logs.
+
+### Risks and stop conditions
+
+- `AGENTS.md` pins pnpm 9.x while current source/CI/deployment pin 10.33.0;
+  changing repository policy requires owner sign-off.
+- PRD O-01, O-03, O-04, O-05, and O-14 remain external product evidence gates.
+- Destructive data changes, irreversible migrations, billing/domain changes, and
+  provider credential rotation are outside this authorization.
+- A production release is blocked by any failed release gate, unknown target,
+  missing credential, unsafe migration, or unresolved Critical/High defect.

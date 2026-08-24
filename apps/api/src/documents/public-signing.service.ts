@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   InternalServerErrorException,
@@ -172,6 +173,16 @@ export class PublicSigningService {
     if (!tenantIds.includes(session.tenant_id)) {
       throw new ServiceUnavailableException(
         'Public signing is not enabled for this tenant; no signature was recorded.'
+      )
+    }
+
+    const expectedSignerEmail = session.signer_email?.trim().toLowerCase()
+    if (
+      expectedSignerEmail &&
+      command.signerEmail !== expectedSignerEmail
+    ) {
+      throw new ForbiddenException(
+        'Signer email does not match this signing invitation.'
       )
     }
 

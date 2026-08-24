@@ -46,8 +46,8 @@ with their route under `actions.ts` unless noted.
 
 | Story | UI Page | Server Actions | Tables | Status |
 |---|---|---|---|---|
-| US-010 — Togal.ai Import & Auto-Generation | `/(dashboard)/bom`, `/(dashboard)/projects/[id]/bom` | `projects/[id]/bom/actions.ts`, `apps/workers/dxf-parser` | `boms`, `bom_lines`, `documents` | Live |
-| US-011 — BOM Review & Edit | `/(dashboard)/bom/[bomId]` | `projects/[id]/bom/actions.ts` | `boms`, `bom_lines`, `rate_cards` | Live |
+| US-010 — Togal.ai Import & Auto-Generation | `/(dashboard)/bom`, `/(dashboard)/projects/[id]/bom` | `projects/[id]/bom/actions.ts`, Nest takeoff/Togal routes | `boms`, `bom_line_items`, `documents`, takeoff review queue | Source-gated (PRD O-05 sample/export evidence remains open) |
+| US-011 — BOM Review & Edit | `/(dashboard)/projects/[id]/bom` | `projects/[id]/bom/actions.ts` | `boms`, `bom_line_items`, DUPA resources | Live |
 | US-012 — Client BOM Portal & E-Sign | `/portal/bom/[token]`, `/portal/sign/[token]` | `portal/sign/[token]/actions.ts` | `boms`, `signature_sessions`, `documents` | Live |
 
 ---
@@ -69,7 +69,7 @@ with their route under `actions.ts` unless noted.
 | Story | UI Page | Server Actions | Tables | Status |
 |---|---|---|---|---|
 | US-Con-001 — Daily Task View | `/(dashboard)/tasks`, `/(dashboard)/projects/[id]/progress` | `tasks/actions.ts` | `tasks`, `task_assignments` | Live |
-| US-Con-002 — Variation Orders | `/(dashboard)/projects/[id]/vos` | `projects/[id]/vos/actions.ts` | `variation_orders`, `bom_lines` | Live |
+| US-Con-002 — Variation Orders | `/(dashboard)/projects/[id]/vos` | `projects/[id]/vos/actions.ts` | `variation_orders`, `bom_line_items` | Live |
 | US-Con-003 — Weekly Progress & S-Curve | `/(dashboard)/projects/[id]/progress` | `projects/[id]/progress/actions.ts` | `progress_snapshots`, `tasks` | Live |
 
 ---
@@ -89,7 +89,7 @@ with their route under `actions.ts` unless noted.
 |---|---|---|---|---|
 | US-WA-001 — Client Warranty Portal | `/portal/warranty/[token]` | `portal/warranty/[token]/actions.ts` | `warranty_tickets`, `documents` | Live |
 | US-WA-002 — CX Ticket Management | `/(dashboard)/warranty` | `warranty/actions.ts` | `warranty_tickets`, `sla_logs` | Live |
-| US-WA-003 — Auto CNPS Survey | `/portal/cnps/[token]` | `portal/cnps/[token]/actions.ts`, Inngest `warranty.cnps` | `cnps_surveys`, `warranty_tickets` | Live |
+| US-WA-003 — Auto CNPS Survey | `/portal/cnps/[token]` | `portal/cnps/[token]/actions.ts`, Inngest `dispatch-cnps-surveys` / `cnps-survey-scheduled` | `cnps_surveys`, `warranty_tickets` | Live |
 
 ---
 
@@ -103,10 +103,10 @@ moving parts.
 |---|---|---|---|---|
 | Hash-chained audit log | n/a (read-only UI in admin) | `supabase/migrations/20260509164538_audit_triggers.sql` | `audit_log` | Live |
 | RAG retrieval (BOM suggestions) | BOM editor right rail | `apps/web/src/app/api/ai/similar-items/route.ts`, `apps/web/src/lib/inngest.ts`, `apps/workers/ai` | `embeddings` | Live (Python worker optional; compatibility fallback) |
-| Signing (canvas + DocuSeal) | `/portal/sign/[token]`, turnover flow | `portal/sign/[token]/actions.ts`, `/api/webhooks/docuseal` | `signature_sessions` | Live |
-| Resend email notifications | none (background) | Inngest `sla.tick`, `permits.staleness`, `warranty.cnps` | `notifications` | Live (no-ops without `RESEND_API_KEY`) |
-| Semaphore SMS | none (background) | Inngest `sla.tick`, `warranty.cnps` | `notifications` | Dev-stub |
-| Realtime dashboard | `/(dashboard)/dashboard` | Supabase Realtime channels | `opportunities`, `projects`, `boms`, `invoices` | Live |
+| Signing (canvas + DocuSeal) | `/portal/sign/[token]`, turnover flow | `portal/sign/[token]/actions.ts`, Nest DocuSeal webhook | `signature_sessions`, `documents` | Partial — see audit AUD-005/AUD-014 |
+| Resend email notifications | none (background) | Inngest `sla-checker`, `permit-staleness-checker`, CNPS functions | `notifications` | Live (no-ops without `RESEND_API_KEY`) |
+| Semaphore SMS | none (background) | Inngest `sla-checker`, CNPS functions | `notifications` | Dev-stub |
+| Realtime dashboard/pipeline/notifications | dashboard, pipeline, top navigation | Supabase Realtime channels | `opportunities`, `purchase_orders`, `invoices`, `boms`, `notifications` | Live |
 
 ---
 

@@ -7,6 +7,7 @@ import { documents, projects, scopeItems } from '@third-code-erp/database/schema
 import { and, asc, eq } from 'drizzle-orm'
 import { AddScopeItemForm, DeleteScopeItemButton, EditableUnitCost } from '@/components/scope/scope-item-controls'
 import { CadDropZone } from '@/components/cad/cad-dropzone'
+import { scopePageAccess } from './scope-access'
 
 export const metadata: Metadata = { title: 'Scope' }
 
@@ -35,6 +36,7 @@ function formatPHP(cents: number): string {
 export default async function ProjectScopePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const profile = await requireUserProfile()
+  const access = scopePageAccess(profile.role)
 
   const [project] = await db
     .select({ id: projects.id, name: projects.name })
@@ -197,7 +199,7 @@ export default async function ProjectScopePage({ params }: { params: Promise<{ i
           </div>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <AddScopeItemForm projectId={id} />
+          {access.canEditScope ? <AddScopeItemForm projectId={id} /> : null}
           <Link
             href={`/projects/${id}/bom`}
             style={{
@@ -219,7 +221,7 @@ export default async function ProjectScopePage({ params }: { params: Promise<{ i
 
       {items.length === 0 ? (
         <div>
-          <CadDropZone projectId={id} />
+          {access.canUploadDocuments ? <CadDropZone projectId={id} /> : null}
           <p
             style={{
               fontSize: '0.75rem',
@@ -228,7 +230,9 @@ export default async function ProjectScopePage({ params }: { params: Promise<{ i
               margin: '12px 0 0',
             }}
           >
-            Or manage all uploads in the{' '}
+            {access.canUploadDocuments
+              ? 'Or manage all uploads in the '
+              : 'No scope items have been recorded. View project files in the '}
             <Link href={`/projects/${id}/documents`} style={{ color: 'var(--color-navy-700)' }}>
               Documents tab
             </Link>
@@ -237,12 +241,14 @@ export default async function ProjectScopePage({ params }: { params: Promise<{ i
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <CadDropZone
-            projectId={id}
-            compact
-            title="Drop another CAD drawing"
-            subtitle="Each upload becomes its own section below — existing files stay untouched."
-          />
+          {access.canUploadDocuments ? (
+            <CadDropZone
+              projectId={id}
+              compact
+              title="Drop another CAD drawing"
+              subtitle="Each upload becomes its own section below — existing files stay untouched."
+            />
+          ) : null}
           {orderedBuckets.map((bucket) => {
             const rows = bucket.rows
             const dateStr = bucket.docCreatedAt
@@ -337,7 +343,9 @@ export default async function ProjectScopePage({ params }: { params: Promise<{ i
                         <th style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 600, color: 'var(--color-neutral-600)', fontSize: '0.8125rem' }}>
                           Line Total
                         </th>
-                        <th style={{ padding: '10px 8px', width: '36px' }} />
+                        {access.canEditScope ? (
+                          <th style={{ padding: '10px 8px', width: '36px' }} />
+                        ) : null}
                       </tr>
                     </thead>
                     <tbody>
@@ -361,18 +369,26 @@ export default async function ProjectScopePage({ params }: { params: Promise<{ i
                             {UNIT_LABELS[item.unit] ?? item.unit}
                           </td>
                           <td style={{ padding: '10px 16px', textAlign: 'right' }}>
-                            <EditableUnitCost
-                              projectId={id}
-                              itemId={item.id}
-                              unitCostCents={item.unit_cost_cents}
-                            />
+                            {access.canEditScope ? (
+                              <EditableUnitCost
+                                projectId={id}
+                                itemId={item.id}
+                                unitCostCents={item.unit_cost_cents}
+                              />
+                            ) : item.unit_cost_cents > 0 ? (
+                              formatPHP(item.unit_cost_cents)
+                            ) : (
+                              '—'
+                            )}
                           </td>
                           <td style={{ padding: '10px 16px', textAlign: 'right', color: 'var(--color-neutral-900)', fontWeight: 600, fontFamily: 'JetBrains Mono, monospace' }}>
                             {item.line_total_cents > 0 ? formatPHP(item.line_total_cents) : '—'}
                           </td>
-                          <td style={{ padding: '10px 8px', textAlign: 'center' }}>
-                            <DeleteScopeItemButton projectId={id} itemId={item.id} />
-                          </td>
+                          {access.canEditScope ? (
+                            <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                              <DeleteScopeItemButton projectId={id} itemId={item.id} />
+                            </td>
+                          ) : null}
                         </tr>
                       ))}
                     </tbody>
