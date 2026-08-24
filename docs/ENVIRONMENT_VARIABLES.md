@@ -518,6 +518,10 @@ false and tenant list empty until the controlled release gate is clear.
 | `ERP_DOCUMENT_PROCESSING_WORKER_BRIDGE_ENABLED` | no | API server | Signed Nest-to-Python bridge gate; default false |
 | `ERP_DOCUMENT_PROCESSING_DRAFT_BOM_ENABLED` | no | API server | Idempotent CAD draft-BOM gate; default false |
 | `ERP_DOCUMENT_PROCESSING_DRAFT_BOM_TENANT_IDS` | no | API server | Explicit draft-BOM tenant allowlist; default empty |
+| `ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_ENABLED` | no | API server | Durable project-document upload reservation issuance gate; default false |
+| `ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_TENANT_IDS` | no | API server | Explicit upload-reservation issuance tenant allowlist; default empty |
+| `ERP_DOCUMENT_UPLOAD_RESERVATION_CLEANUP_ENABLED` | no | API server | Independent terminal upload-reservation cleanup gate; default false |
+| `ERP_DOCUMENT_UPLOAD_RESERVATION_CLEANUP_TENANT_IDS` | no | API server | Explicit upload-reservation cleanup tenant allowlist; default empty |
 | `ERP_CAD_EVIDENCE_COMMIT_WRITES_ENABLED` | no | API server | Nest scope commit gate; default false |
 | `ERP_CAD_EVIDENCE_COMMIT_WRITES_TENANT_IDS` | no | API server | Explicit commit tenant allowlist; default empty |
 | `ERP_DOCUMENT_DELETE_WRITES_ENABLED` | no | API server | Nest document deletion gate; default false |

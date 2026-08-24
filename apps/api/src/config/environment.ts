@@ -1439,6 +1439,38 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // Durable upload reservations remain closed until the additive ledger,
+  // exact-path Storage contract, transaction replay, and tenant canary pass.
+  ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
+  // Cleanup can drain terminal reservations after issuance is closed. It has
+  // a separate exact-tenant gate so rollback never requires reopening writes.
+  ERP_DOCUMENT_UPLOAD_RESERVATION_CLEANUP_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_DOCUMENT_UPLOAD_RESERVATION_CLEANUP_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
   // Document deletion is closed by default. Enable only for an explicit
   // tenant canary after the Nest transaction, replay, and Storage cleanup
   // gates pass together.

@@ -2045,6 +2045,43 @@ describe('ERP API environment', () => {
     ).toThrow('ERP_CORE_WEBHOOK_TOKEN')
   })
 
+  it('keeps upload reservation writes and cleanup independently fail-closed', () => {
+    const defaults = validateEnvironment(REQUIRED)
+    expect(defaults.ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_ENABLED).toBe(false)
+    expect(defaults.ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_TENANT_IDS).toEqual([])
+    expect(defaults.ERP_DOCUMENT_UPLOAD_RESERVATION_CLEANUP_ENABLED).toBe(false)
+    expect(defaults.ERP_DOCUMENT_UPLOAD_RESERVATION_CLEANUP_TENANT_IDS).toEqual([])
+
+    const tenantId = '33333333-3333-4333-8333-333333333333'
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_ENABLED: 'true',
+        ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_TENANT_IDS: tenantId,
+        ERP_DOCUMENT_UPLOAD_RESERVATION_CLEANUP_ENABLED: 'true',
+        ERP_DOCUMENT_UPLOAD_RESERVATION_CLEANUP_TENANT_IDS: tenantId,
+      }),
+    ).toMatchObject({
+      ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_ENABLED: true,
+      ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_TENANT_IDS: [tenantId],
+      ERP_DOCUMENT_UPLOAD_RESERVATION_CLEANUP_ENABLED: true,
+      ERP_DOCUMENT_UPLOAD_RESERVATION_CLEANUP_TENANT_IDS: [tenantId],
+    })
+
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_TENANT_IDS: 'not-a-tenant',
+      }),
+    ).toThrow('ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_TENANT_IDS')
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_DOCUMENT_UPLOAD_RESERVATION_CLEANUP_TENANT_IDS: 'not-a-tenant',
+      }),
+    ).toThrow('ERP_DOCUMENT_UPLOAD_RESERVATION_CLEANUP_TENANT_IDS')
+  })
+
   it('requires complete, exact-host DocuSeal artifact configuration', () => {
     expect(
       validateEnvironment({
