@@ -60,6 +60,10 @@ function commandHash(command: DocumentIntakeRequest): string {
     .digest('hex')
 }
 
+function idempotencyKeyHash(idempotencyKey: string): string {
+  return createHash('sha256').update(idempotencyKey).digest('hex')
+}
+
 function validateIdempotencyKey(raw: string): string {
   const key = raw.trim()
   if (key.length === 0 || key.length > 256) {
@@ -93,6 +97,7 @@ export class DocumentIntakeService {
     const command = documentIntakeRequestSchema.parse(request)
     const idempotencyKey = validateIdempotencyKey(rawIdempotencyKey)
     const requestHash = commandHash(command)
+    const normalizedIdempotencyKeyHash = idempotencyKeyHash(idempotencyKey)
 
     return this.database.client.transaction(async (transaction) => {
       const authorizedPrincipal = await this.authorize(transaction, principal)
@@ -131,6 +136,7 @@ export class DocumentIntakeService {
             )
           )
           .limit(1)
+          .for('update')
         if (!opportunity) throw new NotFoundException('Opportunity not found')
         opportunityId = opportunity.id
       }
@@ -198,7 +204,8 @@ export class DocumentIntakeService {
           opportunity_id: opportunityId,
           document_type: documentType,
           size_bytes: command.sizeBytes,
-          idempotency_key_hash: requestHash,
+          request_hash: requestHash,
+          idempotency_key_hash: normalizedIdempotencyKeyHash,
         },
       })
       await this.completeRequest(transaction, replay.id, result)

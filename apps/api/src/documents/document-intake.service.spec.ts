@@ -1,5 +1,6 @@
 import 'reflect-metadata'
 
+import { createHash } from 'node:crypto'
 import { ForbiddenException, NotFoundException } from '@nestjs/common'
 import {
   documentIntakeRequests,
@@ -65,10 +66,15 @@ function enabledHarness(options?: { opportunityRows?: Array<{ id: string }> }) {
       }),
     }),
   }
+  const opportunityForUpdate = vi
+    .fn()
+    .mockResolvedValue(options?.opportunityRows ?? [])
   const opportunityQuery = {
     from: vi.fn().mockReturnValue({
       where: vi.fn().mockReturnValue({
-        limit: vi.fn().mockResolvedValue(options?.opportunityRows ?? []),
+        limit: vi.fn().mockReturnValue({
+          for: opportunityForUpdate,
+        }),
       }),
     }),
   }
@@ -136,6 +142,7 @@ function enabledHarness(options?: { opportunityRows?: Array<{ id: string }> }) {
     audit,
     requestRecord,
     documentValues,
+    opportunityForUpdate,
   }
 }
 
@@ -176,6 +183,12 @@ describe('DocumentIntakeService Core authority', () => {
         entityType: 'document',
         entityId: DOCUMENT_ID,
         action: 'create',
+        diff: expect.objectContaining({
+          request_hash: expect.stringMatching(/^[a-f0-9]{64}$/),
+          idempotency_key_hash: createHash('sha256')
+            .update('intake-1')
+            .digest('hex'),
+        }),
       })
     )
   })
@@ -240,10 +253,17 @@ describe('DocumentIntakeService Core authority', () => {
     expect(probe.documentValues).toHaveBeenCalledWith(
       expect.objectContaining({ opportunity_id: OPPORTUNITY_ID })
     )
+    expect(probe.opportunityForUpdate).toHaveBeenCalledWith('update')
     expect(probe.audit.writeSemantic).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
-        diff: expect.objectContaining({ opportunity_id: OPPORTUNITY_ID }),
+        diff: expect.objectContaining({
+          opportunity_id: OPPORTUNITY_ID,
+          request_hash: expect.stringMatching(/^[a-f0-9]{64}$/),
+          idempotency_key_hash: createHash('sha256')
+            .update('intake-opportunity-1')
+            .digest('hex'),
+        }),
       })
     )
   })
