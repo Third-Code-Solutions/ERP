@@ -184,6 +184,35 @@ writer map, and exact no-fallback canary rules. Expected output: browser release
 on failure, reservation-ID-only completion, replay-safe parsing, and route/action
 regressions while legacy draining remains explicit.
 
+### 2026-08-24 Web reservation cutover checkpoint
+
+Agent 03 completed the default-off Web adapter. Selected tenants now reserve,
+complete, and release through Core with stable issuance idempotency, exact
+reservation-bound canonical paths, strict bodies, no legacy fallback, sanitized
+errors, correlated `trace_id`, and a 40-second Web deadline above the 30-second
+provider boundary. Replayed Core completion continues deterministic downstream
+processing so a Web crash after the Core commit can recover.
+
+The browser retains finalization or cleanup state, retries completion without a
+second Storage PUT, supports explicit release, blocks replacement uploads during
+recovery, and clears the old signing identity after deferred cleanup. Controlled
+Playwright verification passed all five reservation journeys. Focused tests
+passed 228/228; the clean full Web rerun passed 1,022 tests across 159 files with
+only the two credential-gated disposable-database integrations skipped. Web and
+all configured E2E typechecks, scoped production-source lint, and diff checks
+passed. Independent boundary verification returned PASS.
+
+The exact enablement/rollback/drain order and read-only operational query are in
+`docs/runbooks/document-upload-reservation-cutover.md`. All selectors remain off;
+no hosted environment, provider, or data was changed.
+
+→ Handoff to Agent 12/13. Reason: execute approved exact-tenant canary readback,
+monitor correlated reserve/complete/release outcomes, and retain zero-active and
+zero-terminal-cleanup evidence before disabling lifecycle selectors. Inputs:
+the Web/Core selectors, controlled browser proof, and cutover runbook. Expected
+output: provider-backed release evidence only after AUD-007 and release-control
+authority are resolved.
+
 **Handoff:** Agent 12 -> Agent 01. Expected output: a local AUD-004 verdict and
 an exact list of provider-only evidence still required before AUD-021 starts.
 

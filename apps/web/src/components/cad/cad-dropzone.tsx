@@ -38,12 +38,23 @@ export function CadDropZone({
   const [isDragging, setIsDragging] = useState(false)
   const dragDepth = useRef(0)
 
-  const { isPending, phase, progress, error, lastResult, upload, reset } = useCadUpload({
-    projectId,
-  })
+  const {
+    isPending,
+    phase,
+    progress,
+    error,
+    lastResult,
+    upload,
+    reset,
+    canRetryFinalization,
+    canCancelPendingUpload,
+    retryFinalization,
+    cancelPendingUpload,
+  } = useCadUpload({ projectId })
 
   const handleFiles = useCallback(
     (fileList: FileList | null) => {
+      if (canCancelPendingUpload) return
       const file = fileList?.[0]
       if (!file) return
       const ext = extOf(file.name)
@@ -54,7 +65,7 @@ export function CadDropZone({
       reset()
       upload(file)
     },
-    [upload, reset]
+    [canCancelPendingUpload, upload, reset]
   )
 
   const trySample = useCallback(async () => {
@@ -102,11 +113,11 @@ export function CadDropZone({
     handleFiles(e.dataTransfer?.files ?? null)
   }
   const onClick = () => {
-    if (isPending) return
+    if (isPending || canCancelPendingUpload) return
     inputRef.current?.click()
   }
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (isPending) return
+    if (isPending || canCancelPendingUpload) return
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
       inputRef.current?.click()
@@ -194,9 +205,13 @@ export function CadDropZone({
 
   return (
     <div
-      role="button"
-      tabIndex={isPending ? -1 : 0}
-      aria-label="Drop CAD file to auto-extract scope"
+      role={canCancelPendingUpload ? undefined : 'button'}
+      tabIndex={isPending || canCancelPendingUpload ? -1 : 0}
+      aria-label={
+        canCancelPendingUpload
+          ? undefined
+          : 'Drop CAD file to auto-extract scope'
+      }
       aria-busy={isPending}
       onClick={onClick}
       onKeyDown={onKeyDown}
@@ -210,7 +225,11 @@ export function CadDropZone({
         borderRadius: 12,
         padding: `${padY} ${padX}`,
         background,
-        cursor: isPending ? 'wait' : 'pointer',
+        cursor: isPending
+          ? 'wait'
+          : canCancelPendingUpload
+            ? 'default'
+            : 'pointer',
         transition: 'border-color var(--duration-fast), background var(--duration-fast)',
         textAlign: 'center',
         display: 'flex',
@@ -310,6 +329,9 @@ export function CadDropZone({
                   : title}
         </p>
         <p
+          role={showError ? 'alert' : 'status'}
+          aria-live={showError ? 'assertive' : 'polite'}
+          aria-atomic="true"
           style={{
             margin: 0,
             fontSize: 12.5,
@@ -361,6 +383,40 @@ export function CadDropZone({
               }}
             >
               Try a sample MEP drawing
+            </button>
+          </div>
+        ) : null}
+        {showError && canCancelPendingUpload ? (
+          <div
+            style={{
+              display: 'flex',
+              gap: 8,
+              marginTop: 8,
+              flexWrap: 'wrap',
+              justifyContent: compact ? 'flex-start' : 'center',
+            }}
+          >
+            {canRetryFinalization ? (
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  retryFinalization()
+                }}
+              >
+                Retry finalization
+              </button>
+            ) : null}
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={(event) => {
+                event.stopPropagation()
+                cancelPendingUpload()
+              }}
+            >
+              Cancel upload
             </button>
           </div>
         ) : null}

@@ -4,7 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   getUserProfile: vi.fn(),
   can: vi.fn(),
+  completeDocumentUploadReservationThroughCoreApi: vi.fn(),
   createDocumentThroughCoreApi: vi.fn(),
+  documentUploadReservationIssuanceUsesCoreApi: vi.fn(),
+  documentUploadReservationWritesUseCoreApi: vi.fn(),
   parseCadEvidence: vi.fn(),
   commitCadEvidenceThroughCoreApi: vi.fn(),
   documentProcessingJobsUseCoreApi: vi.fn(),
@@ -23,8 +26,14 @@ vi.mock('@/lib/cad/parse-and-store', () => ({
 
 vi.mock('@/lib/erp-core-client', () => ({
   commitCadEvidenceThroughCoreApi: mocks.commitCadEvidenceThroughCoreApi,
+  completeDocumentUploadReservationThroughCoreApi:
+    mocks.completeDocumentUploadReservationThroughCoreApi,
   createDocumentThroughCoreApi: mocks.createDocumentThroughCoreApi,
   documentProcessingJobsUseCoreApi: mocks.documentProcessingJobsUseCoreApi,
+  documentUploadReservationIssuanceUsesCoreApi:
+    mocks.documentUploadReservationIssuanceUsesCoreApi,
+  documentUploadReservationWritesUseCoreApi:
+    mocks.documentUploadReservationWritesUseCoreApi,
   enqueueDocumentProcessingThroughCoreApi:
     mocks.enqueueDocumentProcessingThroughCoreApi,
 }))
@@ -39,6 +48,8 @@ const USER_ID = '11111111-1111-4111-8111-111111111111'
 const TENANT_ID = '22222222-2222-4222-8222-222222222222'
 const PROJECT_ID = '33333333-3333-4333-8333-333333333333'
 const DOCUMENT_ID = '44444444-4444-4444-8444-444444444444'
+const RESERVATION_ID = '55555555-5555-4555-8555-555555555555'
+const TRACE_ID = '77777777-7777-4777-8777-777777777777'
 
 type IntakeCommand = {
   storagePath: string
@@ -104,6 +115,17 @@ function uploadRequest(
   })
 }
 
+function reservationRequest(): NextRequest {
+  return new NextRequest('http://localhost/api/upload/complete', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-request-id': TRACE_ID,
+    },
+    body: JSON.stringify({ reservationId: RESERVATION_ID }),
+  })
+}
+
 describe('completed document upload Core authority', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -115,6 +137,8 @@ describe('completed document upload Core authority', () => {
       fullName: 'PM User',
     })
     mocks.can.mockReturnValue(true)
+    mocks.documentUploadReservationIssuanceUsesCoreApi.mockReturnValue(false)
+    mocks.documentUploadReservationWritesUseCoreApi.mockReturnValue(false)
     mocks.createDocumentThroughCoreApi.mockImplementation(
       async (command: IntakeCommand) => successfulIntake(command)
     )
@@ -135,6 +159,25 @@ describe('completed document upload Core authority', () => {
   })
 
   afterEach(() => vi.unstubAllEnvs())
+
+  it('rejects unauthenticated and tenantless callers before Core or derived work', async () => {
+    mocks.getUserProfile.mockResolvedValueOnce(null)
+    expect((await POST(reservationRequest())).status).toBe(401)
+
+    mocks.getUserProfile.mockResolvedValueOnce({
+      user: { id: USER_ID },
+      tenantId: null,
+      role: 'pm',
+    })
+    expect((await POST(reservationRequest())).status).toBe(403)
+
+    expect(
+      mocks.completeDocumentUploadReservationThroughCoreApi
+    ).not.toHaveBeenCalled()
+    expect(mocks.createDocumentThroughCoreApi).not.toHaveBeenCalled()
+    expect(mocks.parseCadEvidence).not.toHaveBeenCalled()
+    expect(mocks.extractDeterministicDocument).not.toHaveBeenCalled()
+  })
 
   it('rejects a role without document mutation capability before Core work', async () => {
     mocks.can.mockReturnValue(false)
@@ -197,25 +240,225 @@ describe('completed document upload Core authority', () => {
     expect(mocks.extractDeterministicDocument).not.toHaveBeenCalled()
   })
 
-  it('does not rerun derived processing when Core replays an upload command', async () => {
+  it('completes a reservation from canonical Core metadata without legacy intake', async () => {
+    const canonicalPath = `${TENANT_ID}/${PROJECT_ID}/${RESERVATION_ID}-scope.pdf`
+    mocks.documentUploadReservationWritesUseCoreApi.mockReturnValue(true)
+    mocks.completeDocumentUploadReservationThroughCoreApi.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        reservationId: RESERVATION_ID,
+        documentId: DOCUMENT_ID,
+        tenantId: TENANT_ID,
+        projectId: PROJECT_ID,
+        storagePath: canonicalPath,
+        fileName: 'scope.pdf',
+        mimeType: 'application/pdf',
+        sizeBytes: 1_024,
+        description: null,
+        documentType: 'pdf',
+        state: 'completed',
+        created: true,
+        replayed: false,
+      },
+    })
+
+    const response = await POST(reservationRequest())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      id: DOCUMENT_ID,
+      storagePath: canonicalPath,
+      documentType: 'pdf',
+      cadFormat: null,
+    })
+    expect(
+      mocks.completeDocumentUploadReservationThroughCoreApi
+    ).toHaveBeenCalledWith(
+      RESERVATION_ID,
+      TRACE_ID
+    )
+    expect(mocks.createDocumentThroughCoreApi).not.toHaveBeenCalled()
+    expect(mocks.extractDeterministicDocument).toHaveBeenCalledWith({
+      tenantId: TENANT_ID,
+      storagePath: canonicalPath,
+      fileName: 'scope.pdf',
+      mimeType: 'application/pdf',
+      kind: 'pdf',
+    })
+  })
+
+  it('recovers downstream processing after a replayed reservation completion', async () => {
+    mocks.documentUploadReservationWritesUseCoreApi.mockReturnValue(true)
+    mocks.completeDocumentUploadReservationThroughCoreApi.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        reservationId: RESERVATION_ID,
+        documentId: DOCUMENT_ID,
+        tenantId: TENANT_ID,
+        projectId: PROJECT_ID,
+        storagePath: `${TENANT_ID}/${PROJECT_ID}/${RESERVATION_ID}-scope.pdf`,
+        fileName: 'scope.pdf',
+        mimeType: 'application/pdf',
+        sizeBytes: 1_024,
+        description: null,
+        documentType: 'pdf',
+        state: 'completed',
+        created: false,
+        replayed: true,
+      },
+    })
+
+    const response = await POST(reservationRequest())
+
+    expect(response.status).toBe(200)
+    expect(mocks.createDocumentThroughCoreApi).not.toHaveBeenCalled()
+    expect(mocks.parseCadEvidence).not.toHaveBeenCalled()
+    expect(mocks.extractDeterministicDocument).toHaveBeenCalledWith({
+      tenantId: TENANT_ID,
+      storagePath: `${TENANT_ID}/${PROJECT_ID}/${RESERVATION_ID}-scope.pdf`,
+      fileName: 'scope.pdf',
+      mimeType: 'application/pdf',
+      kind: 'pdf',
+    })
+  })
+
+  it('rejects legacy completion for a tenant selected for reservation issuance', async () => {
+    mocks.documentUploadReservationIssuanceUsesCoreApi.mockReturnValue(true)
+
+    const response = await POST(uploadRequest())
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      error: 'reservationId is required for this tenant.',
+    })
+    expect(mocks.createDocumentThroughCoreApi).not.toHaveBeenCalled()
+    expect(
+      mocks.completeDocumentUploadReservationThroughCoreApi
+    ).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when reservation lifecycle writes are not selected', async () => {
+    const response = await POST(reservationRequest())
+
+    expect(response.status).toBe(503)
+    expect(
+      mocks.completeDocumentUploadReservationThroughCoreApi
+    ).not.toHaveBeenCalled()
+    expect(mocks.createDocumentThroughCoreApi).not.toHaveBeenCalled()
+  })
+
+  it('does not fall back or process downstream after selected Core completion fails', async () => {
+    mocks.documentUploadReservationWritesUseCoreApi.mockReturnValue(true)
+    mocks.completeDocumentUploadReservationThroughCoreApi.mockResolvedValue({
+      ok: false,
+      status: 503,
+      error: 'ERP Core API is unavailable. The upload remains pending.',
+    })
+
+    const response = await POST(reservationRequest())
+
+    expect(response.status).toBe(503)
+    expect(mocks.createDocumentThroughCoreApi).not.toHaveBeenCalled()
+    expect(mocks.parseCadEvidence).not.toHaveBeenCalled()
+    expect(mocks.extractDeterministicDocument).not.toHaveBeenCalled()
+    expect(mocks.enqueueDocumentProcessingThroughCoreApi).not.toHaveBeenCalled()
+  })
+
+  it('keeps legacy completion available while issuance is off and lifecycle drains', async () => {
+    mocks.documentUploadReservationIssuanceUsesCoreApi.mockReturnValue(false)
+    mocks.documentUploadReservationWritesUseCoreApi.mockReturnValue(true)
+
+    const response = await POST(uploadRequest())
+
+    expect(response.status).toBe(200)
+    expect(mocks.createDocumentThroughCoreApi).toHaveBeenCalledOnce()
+    expect(
+      mocks.completeDocumentUploadReservationThroughCoreApi
+    ).not.toHaveBeenCalled()
+  })
+
+  it('rejects a cross-tenant Core completion result before derived processing', async () => {
+    mocks.documentUploadReservationWritesUseCoreApi.mockReturnValue(true)
+    mocks.completeDocumentUploadReservationThroughCoreApi.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        reservationId: RESERVATION_ID,
+        documentId: DOCUMENT_ID,
+        tenantId: '66666666-6666-4666-8666-666666666666',
+        projectId: PROJECT_ID,
+        storagePath: `${TENANT_ID}/${PROJECT_ID}/${RESERVATION_ID}-scope.pdf`,
+        fileName: 'scope.pdf',
+        mimeType: 'application/pdf',
+        sizeBytes: 1_024,
+        description: null,
+        documentType: 'pdf',
+        state: 'completed',
+        created: true,
+        replayed: false,
+      },
+    })
+
+    const response = await POST(reservationRequest())
+
+    expect(response.status).toBe(503)
+    expect(mocks.parseCadEvidence).not.toHaveBeenCalled()
+    expect(mocks.extractDeterministicDocument).not.toHaveBeenCalled()
+  })
+
+  it('rejects a same-project Core path substituted from another reservation', async () => {
+    mocks.documentUploadReservationWritesUseCoreApi.mockReturnValue(true)
+    mocks.completeDocumentUploadReservationThroughCoreApi.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        reservationId: RESERVATION_ID,
+        documentId: DOCUMENT_ID,
+        tenantId: TENANT_ID,
+        projectId: PROJECT_ID,
+        storagePath:
+          `${TENANT_ID}/${PROJECT_ID}/66666666-6666-4666-8666-666666666666-scope.pdf`,
+        fileName: 'scope.pdf',
+        mimeType: 'application/pdf',
+        sizeBytes: 1_024,
+        description: null,
+        documentType: 'pdf',
+        state: 'completed',
+        created: true,
+        replayed: false,
+      },
+    })
+
+    const response = await POST(reservationRequest())
+
+    expect(response.status).toBe(503)
+    expect(mocks.parseCadEvidence).not.toHaveBeenCalled()
+    expect(mocks.extractDeterministicDocument).not.toHaveBeenCalled()
+  })
+
+  it('recovers deterministic processing when legacy Core intake replays', async () => {
     mocks.createDocumentThroughCoreApi.mockImplementation(
       async (command: IntakeCommand) => successfulIntake(command, false)
     )
 
     const response = await POST(
-      uploadRequest({ fileName: 'drawing.dxf', mimeType: 'application/dxf' })
+      uploadRequest({ fileName: 'scope.pdf', mimeType: 'application/pdf' })
     )
 
     expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({
+    await expect(response.json()).resolves.toMatchObject({
       id: DOCUMENT_ID,
       storagePath: `${TENANT_ID}/${PROJECT_ID}/uploaded-notes.txt`,
-      documentType: 'dxf',
-      cadFormat: 'dxf',
+      documentType: 'pdf',
+      cadFormat: null,
       cadParseQueued: false,
+      cadResult: { status: 'extracted', detectedFormat: 'pdf' },
     })
     expect(mocks.parseCadEvidence).not.toHaveBeenCalled()
     expect(mocks.enqueueDocumentProcessingThroughCoreApi).not.toHaveBeenCalled()
+    expect(mocks.extractDeterministicDocument).toHaveBeenCalledOnce()
   })
 
   it('delegates binary DWG processing to Core after Core records the document', async () => {

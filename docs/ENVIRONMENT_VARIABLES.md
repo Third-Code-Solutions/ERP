@@ -545,7 +545,9 @@ false and tenant list empty until the controlled release gate is clear.
 The Web upload route always forwards CAD evidence to ERP Core and has no
 compatibility-write selector. The following Next.js selector only chooses the
 optional binary-DWG processing queue; all direct evidence commits remain Core
-authority and fail closed when Core rejects them.
+authority and fail closed when Core rejects them. Reservation selectors must be
+enabled and rolled back in the order defined by
+[`document-upload-reservation-cutover.md`](runbooks/document-upload-reservation-cutover.md).
 
 | Variable | Required | Scope | Controls |
 |---|---|---|---|
@@ -553,6 +555,10 @@ authority and fail closed when Core rejects them.
 | `ERP_DOCUMENT_PROCESSING_TENANT_IDS` | no | Next server | Strict UUID allowlist for the handoff; default empty |
 | `ERP_DOCUMENT_DELETE_WRITES_VIA_API` | no | Next server | Selects the Nest document deletion authority; default false |
 | `ERP_DOCUMENT_DELETE_WRITES_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist for document deletion; default empty |
+| `ERP_DOCUMENT_UPLOAD_RESERVATION_ISSUANCE_VIA_API` | no | Next server | Selects new signed-upload issuance through the Core reservation ledger; default false and requires lifecycle writes selection |
+| `ERP_DOCUMENT_UPLOAD_RESERVATION_ISSUANCE_VIA_API_TENANT_IDS` | no | Next server | Exact UUID allowlist for reservation issuance; wildcard is rejected |
+| `ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_VIA_API` | no | Next server | Selects reservation completion and release through Core; keep enabled while active reservations drain |
+| `ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_VIA_API_TENANT_IDS` | no | Next server | Exact UUID allowlist for reservation completion/release; wildcard is rejected |
 | `ERP_PUBLIC_SIGNING_VIA_API` | no | Next server | Selects the Nest public-signing authority; default false |
 | `ERP_PUBLIC_SIGNING_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist for public signing; default empty |
 | `ERP_INVENTORY_RECEIPT_CREATE_VIA_API` | no | Next server | Selects the Stock Receipt Next-to-Nest handoff; default false |

@@ -5,26 +5,40 @@ import { can, getUserProfile } from '@third-code-erp/auth'
 import { parseCadEvidence } from '@/lib/cad/parse-and-store'
 import {
   commitCadEvidenceThroughCoreApi,
+  completeDocumentUploadReservationThroughCoreApi,
   createDocumentThroughCoreApi,
   documentProcessingJobsUseCoreApi,
+  documentUploadReservationIssuanceUsesCoreApi,
+  documentUploadReservationWritesUseCoreApi,
   enqueueDocumentProcessingThroughCoreApi,
 } from '@/lib/erp-core-client'
 import { documentUploadCompleteResultSchema } from '@third-code-erp/shared-types'
 import {
   extractDeterministicDocument,
 } from '@/lib/document-intake/deterministic-extractor'
+import { isExactDocumentUploadReservationPath } from '@/lib/document-upload-reservation-path'
+import {
+  logUploadReservationOutcome,
+  resolveUploadReservationTraceId,
+} from '@/lib/upload-reservation-observability'
 
 export const runtime = 'nodejs'
 
-const CompleteSchema = z.object({
-  storagePath: z.string().min(1),
-  projectId: z.string().uuid(),
-  fileName: z.string().min(1).max(255),
-  // documents.mime_type column is varchar(127); cap at the column limit
-  mimeType: z.string().max(127).default('application/octet-stream'),
-  sizeBytes: z.number().int().nonnegative(),
-  description: z.string().max(2000).optional(),
-})
+const ReservationCompleteSchema = z
+  .object({ reservationId: z.string().uuid() })
+  .strict()
+
+const LegacyCompleteSchema = z
+  .object({
+    storagePath: z.string().min(1),
+    projectId: z.string().uuid(),
+    fileName: z.string().min(1).max(255),
+    // documents.mime_type column is varchar(127); cap at the column limit
+    mimeType: z.string().max(127).default('application/octet-stream'),
+    sizeBytes: z.number().int().nonnegative(),
+    description: z.string().max(2000).optional(),
+  })
+  .strict()
 
 const MAX_SIZE_BYTES = 100 * 1024 * 1024
 
@@ -94,6 +108,7 @@ function classify(
 }
 
 export async function POST(req: NextRequest) {
+  const traceId = resolveUploadReservationTraceId(req.headers)
   const profile = await getUserProfile()
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -111,69 +126,167 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const parsed = CompleteSchema.safeParse(body)
-  if (!parsed.success) {
+  const reservationRequest = ReservationCompleteSchema.safeParse(body)
+  const legacyRequest = LegacyCompleteSchema.safeParse(body)
+  if (!reservationRequest.success && !legacyRequest.success) {
     return NextResponse.json(
-      { error: 'Invalid request', details: parsed.error.flatten() },
+      { error: 'Invalid request' },
       { status: 400 }
     )
   }
 
-  const { storagePath, projectId, fileName, mimeType, sizeBytes, description } = parsed.data
-
-  const expectedPrefix = `${profile.tenantId}/${projectId}/`
-  if (
-    !storagePath.startsWith(expectedPrefix) ||
-    storagePath.split('/').some((segment) => segment === '..')
-  ) {
-    return NextResponse.json({ error: 'Storage path not in tenant scope' }, { status: 403 })
+  let storagePath: string
+  let projectId: string
+  let fileName: string
+  let mimeType: string
+  let intake: {
+    documentId: string
+    storagePath: string
+    documentType: DocumentType
+    created: boolean
   }
 
-  if (sizeBytes > MAX_SIZE_BYTES) {
-    return NextResponse.json({ error: 'File exceeds 100 MB limit' }, { status: 413 })
+  if (reservationRequest.success) {
+    if (!documentUploadReservationWritesUseCoreApi(profile.tenantId)) {
+      logUploadReservationOutcome({
+        traceId,
+        tenantId: profile.tenantId,
+        actorId: profile.user.id,
+        action: 'complete',
+        outcome: 'gate_mismatch',
+        status: 503,
+      })
+      return NextResponse.json(
+        { error: 'Upload reservation lifecycle is not enabled.' },
+        { status: 503 }
+      )
+    }
+    const coreResult = await completeDocumentUploadReservationThroughCoreApi(
+      reservationRequest.data.reservationId,
+      traceId
+    )
+    if (!coreResult.ok || !coreResult.data) {
+      logUploadReservationOutcome({
+        traceId,
+        tenantId: profile.tenantId,
+        actorId: profile.user.id,
+        action: 'complete',
+        outcome: 'core_failed',
+        status: coreResult.status ?? 503,
+      })
+      return NextResponse.json(
+        { error: coreResult.error ?? 'Upload reservation was not completed.' },
+        { status: coreResult.status ?? 503 }
+      )
+    }
+    if (
+      coreResult.data.reservationId !== reservationRequest.data.reservationId ||
+      coreResult.data.tenantId !== profile.tenantId ||
+      !isExactDocumentUploadReservationPath({
+        tenantId: profile.tenantId,
+        projectId: coreResult.data.projectId,
+        reservationId: reservationRequest.data.reservationId,
+        storagePath: coreResult.data.storagePath,
+      })
+    ) {
+      logUploadReservationOutcome({
+        traceId,
+        tenantId: profile.tenantId,
+        actorId: profile.user.id,
+        action: 'complete',
+        outcome: 'invalid_core_result',
+        status: 503,
+      })
+      return NextResponse.json(
+        { error: 'ERP Core returned an invalid upload completion result.' },
+        { status: 503 }
+      )
+    }
+    storagePath = coreResult.data.storagePath
+    projectId = coreResult.data.projectId
+    fileName = coreResult.data.fileName
+    mimeType = coreResult.data.mimeType
+    intake = {
+      documentId: coreResult.data.documentId,
+      storagePath: coreResult.data.storagePath,
+      documentType: coreResult.data.documentType,
+      created: coreResult.data.created,
+    }
+    logUploadReservationOutcome({
+      traceId,
+      tenantId: profile.tenantId,
+      actorId: profile.user.id,
+      action: 'complete',
+      outcome: 'succeeded',
+      status: 200,
+    })
+  } else {
+    if (!legacyRequest.success) {
+      return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
+    }
+    if (documentUploadReservationIssuanceUsesCoreApi(profile.tenantId)) {
+      return NextResponse.json(
+        { error: 'reservationId is required for this tenant.' },
+        { status: 400 }
+      )
+    }
+    const { description, sizeBytes } = legacyRequest.data
+    storagePath = legacyRequest.data.storagePath
+    projectId = legacyRequest.data.projectId
+    fileName = legacyRequest.data.fileName
+    mimeType = legacyRequest.data.mimeType
+
+    const expectedPrefix = `${profile.tenantId}/${projectId}/`
+    if (
+      !storagePath.startsWith(expectedPrefix) ||
+      storagePath.split('/').some((segment) => segment === '..')
+    ) {
+      return NextResponse.json(
+        { error: 'Storage path not in tenant scope' },
+        { status: 403 }
+      )
+    }
+    if (sizeBytes > MAX_SIZE_BYTES) {
+      return NextResponse.json(
+        { error: 'File exceeds 100 MB limit' },
+        { status: 413 }
+      )
+    }
+
+    const coreResult = await createDocumentThroughCoreApi(
+      {
+        storagePath,
+        projectId,
+        fileName,
+        mimeType,
+        sizeBytes,
+        description: description ?? null,
+      },
+      `upload-${createUploadIdempotencyKey({
+        storagePath,
+        projectId,
+        fileName,
+        mimeType,
+        sizeBytes,
+        description,
+      })}`
+    )
+    if (!coreResult.ok || !coreResult.data) {
+      return NextResponse.json(
+        { error: coreResult.error ?? 'Document was not recorded.' },
+        { status: coreResult.status ?? 503 }
+      )
+    }
+    intake = coreResult.data
   }
 
   const { cadFormat, extractorKind } = classify(fileName, mimeType)
-  const coreResult = await createDocumentThroughCoreApi(
-    {
-      storagePath,
-      projectId,
-      fileName,
-      mimeType,
-      sizeBytes,
-      description: description ?? null,
-    },
-    `upload-${createUploadIdempotencyKey({
-      storagePath,
-      projectId,
-      fileName,
-      mimeType,
-      sizeBytes,
-      description,
-    })}`
-  )
-  if (!coreResult.ok || !coreResult.data) {
-    return NextResponse.json(
-      { error: coreResult.error ?? 'Document was not recorded.' },
-      { status: coreResult.status ?? 503 }
-    )
-  }
-  const intake = coreResult.data
   const docId = intake.documentId
 
-  // The document/audit transaction is idempotent. Never rerun downstream
-  // parsing for a replay, because those workers can create derived evidence.
-  if (!intake.created) {
-    return NextResponse.json(
-      documentUploadCompleteResultSchema.parse({
-        id: docId,
-        storagePath: intake.storagePath,
-        documentType: intake.documentType,
-        cadFormat,
-        cadParseQueued: false,
-      })
-    )
-  }
+  // A retry may observe a Core replay after Web crashed immediately after the
+  // document commit. Continue the downstream recovery path: CAD commits and
+  // queue requests use document-derived idempotency keys, while local
+  // extraction is deterministic and privately cached.
 
   // Unified document intake pipeline.
   //

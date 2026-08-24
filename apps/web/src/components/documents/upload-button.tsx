@@ -10,7 +10,17 @@ interface UploadButtonProps {
 
 export function UploadButton({ projectId }: UploadButtonProps) {
   const fileRef = useRef<HTMLInputElement>(null)
-  const { isPending, progress, error, upload, reset } = useCadUpload({ projectId })
+  const {
+    isPending,
+    progress,
+    error,
+    upload,
+    reset,
+    canRetryFinalization,
+    canCancelPendingUpload,
+    retryFinalization,
+    cancelPendingUpload,
+  } = useCadUpload({ projectId })
 
   function handleClick() {
     reset()
@@ -38,7 +48,7 @@ export function UploadButton({ projectId }: UploadButtonProps) {
         type="button"
         onClick={handleClick}
         data-testid="documents-upload-trigger"
-        disabled={isPending}
+        disabled={isPending || canCancelPendingUpload}
         style={{
           display: 'inline-flex',
           alignItems: 'center',
@@ -51,20 +61,55 @@ export function UploadButton({ projectId }: UploadButtonProps) {
           fontSize: 13,
           fontWeight: 500,
           letterSpacing: '-0.005em',
-          cursor: isPending ? 'not-allowed' : 'pointer',
-          opacity: isPending ? 0.7 : 1,
+          cursor:
+            isPending || canCancelPendingUpload ? 'not-allowed' : 'pointer',
+          opacity: isPending || canCancelPendingUpload ? 0.7 : 1,
           transition: 'background var(--duration-fast)',
           boxShadow: '0 1px 2px rgba(15, 23, 42, 0.08)',
         }}
       >
         <IconUpload size={14} />
-        <span>{isPending ? 'Uploading…' : 'Upload file'}</span>
+        <span>
+          {isPending
+            ? 'Uploading…'
+            : canCancelPendingUpload
+              ? 'Finalization pending'
+              : 'Upload file'}
+        </span>
       </button>
       {progress ? (
-        <span style={{ fontSize: 12.5, color: 'var(--color-navy-700)' }}>{progress}</span>
+        <span
+          role="status"
+          aria-live="polite"
+          style={{ fontSize: 12.5, color: 'var(--color-navy-700)' }}
+        >
+          {progress}
+        </span>
       ) : null}
       {error ? (
-        <span style={{ fontSize: 12.5, color: 'var(--color-danger)' }}>{error}</span>
+        <span
+          role="alert"
+          aria-live="assertive"
+          style={{ fontSize: 12.5, color: 'var(--color-danger)' }}
+        >
+          {error}
+        </span>
+      ) : null}
+      {canCancelPendingUpload ? (
+        <>
+          {canRetryFinalization ? (
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={retryFinalization}
+            >
+              Retry finalization
+            </button>
+          ) : null}
+          <button type="button" disabled={isPending} onClick={cancelPendingUpload}>
+            Cancel upload
+          </button>
+        </>
       ) : null}
     </div>
   )
