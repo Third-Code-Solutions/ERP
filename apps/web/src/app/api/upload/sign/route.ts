@@ -13,8 +13,10 @@ import { getProject } from '@/lib/project-queries'
 import { writeAuditLog } from '@/lib/audit'
 import { safeActionError } from '@/lib/safe-action-error'
 import {
+  documentDeleteWritesUseCoreApi,
   documentUploadReservationIssuanceUsesCoreApi,
   documentUploadReservationWritesUseCoreApi,
+  publicSigningWritesUseCoreApi,
   reserveDocumentUploadThroughCoreApi,
 } from '@/lib/erp-core-client'
 import { isExactDocumentUploadReservationPath } from '@/lib/document-upload-reservation-path'
@@ -73,7 +75,18 @@ export async function POST(req: NextRequest) {
   )
 
   if (issuanceSelected) {
-    if (!documentUploadReservationWritesUseCoreApi(profile.tenantId)) {
+    const lifecycleSelected = documentUploadReservationWritesUseCoreApi(
+      profile.tenantId
+    )
+    const publicSigningSelected = publicSigningWritesUseCoreApi(profile.tenantId)
+    const documentDeletionSelected = documentDeleteWritesUseCoreApi(
+      profile.tenantId
+    )
+    if (
+      !lifecycleSelected ||
+      !publicSigningSelected ||
+      !documentDeletionSelected
+    ) {
       logUploadReservationOutcome({
         traceId,
         tenantId: profile.tenantId,
@@ -83,7 +96,7 @@ export async function POST(req: NextRequest) {
         status: 503,
       })
       return NextResponse.json(
-        { error: 'Upload reservation lifecycle is not enabled.' },
+        { error: 'Upload reservation issuance is not fully configured.' },
         { status: 503 }
       )
     }

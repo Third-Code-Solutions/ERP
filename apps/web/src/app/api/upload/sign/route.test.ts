@@ -12,8 +12,10 @@ const mocks = vi.hoisted(() => ({
   storageFrom: vi.fn(),
   createSignedUploadUrl: vi.fn(),
   writeAuditLog: vi.fn(),
+  documentDeleteWritesUseCoreApi: vi.fn(),
   documentUploadReservationIssuanceUsesCoreApi: vi.fn(),
   documentUploadReservationWritesUseCoreApi: vi.fn(),
+  publicSigningWritesUseCoreApi: vi.fn(),
   reserveDocumentUploadThroughCoreApi: vi.fn(),
 }))
 
@@ -42,10 +44,12 @@ vi.mock('@/lib/audit', () => ({
 }))
 
 vi.mock('@/lib/erp-core-client', () => ({
+  documentDeleteWritesUseCoreApi: mocks.documentDeleteWritesUseCoreApi,
   documentUploadReservationIssuanceUsesCoreApi:
     mocks.documentUploadReservationIssuanceUsesCoreApi,
   documentUploadReservationWritesUseCoreApi:
     mocks.documentUploadReservationWritesUseCoreApi,
+  publicSigningWritesUseCoreApi: mocks.publicSigningWritesUseCoreApi,
   reserveDocumentUploadThroughCoreApi:
     mocks.reserveDocumentUploadThroughCoreApi,
 }))
@@ -79,8 +83,10 @@ describe('signed document upload Project access', () => {
       storage: { from: mocks.storageFrom },
     })
     mocks.writeAuditLog.mockResolvedValue(undefined)
+    mocks.documentDeleteWritesUseCoreApi.mockReturnValue(true)
     mocks.documentUploadReservationIssuanceUsesCoreApi.mockReturnValue(false)
     mocks.documentUploadReservationWritesUseCoreApi.mockReturnValue(false)
+    mocks.publicSigningWritesUseCoreApi.mockReturnValue(true)
   })
 
   it('rejects unauthenticated and tenantless callers before authority work', async () => {
@@ -295,6 +301,8 @@ describe('signed document upload Project access', () => {
       'stable-file-attempt-1',
       TRACE_ID
     )
+    expect(mocks.publicSigningWritesUseCoreApi).toHaveBeenCalledWith(TENANT_ID)
+    expect(mocks.documentDeleteWritesUseCoreApi).toHaveBeenCalledWith(TENANT_ID)
     expect(mocks.getProject).not.toHaveBeenCalled()
     expect(mocks.select).not.toHaveBeenCalled()
     expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
@@ -374,6 +382,52 @@ describe('signed document upload Project access', () => {
     expect(mocks.reserveDocumentUploadThroughCoreApi).not.toHaveBeenCalled()
     expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
   })
+
+  it.each([
+    {
+      missingAuthority: 'public signing',
+      configure: () => mocks.publicSigningWritesUseCoreApi.mockReturnValue(false),
+    },
+    {
+      missingAuthority: 'document deletion',
+      configure: () => mocks.documentDeleteWritesUseCoreApi.mockReturnValue(false),
+    },
+  ])(
+    'fails closed before signing when selected issuance lacks $missingAuthority Core authority',
+    async ({ configure }) => {
+      mocks.documentUploadReservationIssuanceUsesCoreApi.mockReturnValue(true)
+      mocks.documentUploadReservationWritesUseCoreApi.mockReturnValue(true)
+      configure()
+
+      const response = await POST(
+        new NextRequest('http://localhost/api/upload/sign', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Idempotency-Key': 'stable-file-attempt-readiness',
+          },
+          body: JSON.stringify({
+            projectId: OTHER_PROJECT_ID,
+            fileName: 'drawing.dwg',
+            mimeType: 'application/acad',
+            sizeBytes: 1_024,
+          }),
+        })
+      )
+
+      expect(response.status).toBe(503)
+      await expect(response.json()).resolves.toEqual({
+        error: 'Upload reservation issuance is not fully configured.',
+      })
+      expect(mocks.publicSigningWritesUseCoreApi).toHaveBeenCalledWith(TENANT_ID)
+      expect(mocks.documentDeleteWritesUseCoreApi).toHaveBeenCalledWith(TENANT_ID)
+      expect(mocks.reserveDocumentUploadThroughCoreApi).not.toHaveBeenCalled()
+      expect(mocks.getProject).not.toHaveBeenCalled()
+      expect(mocks.select).not.toHaveBeenCalled()
+      expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
+      expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+    }
+  )
 
   it('does not fall back to legacy signing after a selected Core failure', async () => {
     mocks.documentUploadReservationIssuanceUsesCoreApi.mockReturnValue(true)
