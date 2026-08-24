@@ -1,23 +1,19 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { getUser } from '@third-code-erp/auth'
+import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
-import { opportunities, projects, users } from '@third-code-erp/database/schema'
-import { and, eq, desc } from 'drizzle-orm'
+import { accounts, opportunities, projects } from '@third-code-erp/database/schema'
+import { and, eq, desc, inArray } from 'drizzle-orm'
 import { formatCentsCompact } from '@third-code-erp/shared-types'
-import { AddOpportunityForm } from '@/components/pipeline/add-opportunity-form'
+import { LEAD_OPPORTUNITY_STAGES } from '@/lib/sales-dashboard-pipeline'
 
 export const metadata: Metadata = { title: 'Coverage Pipeline' }
 
 export default async function CoveragePage() {
-  const user = await getUser()
-  if (!user) return null
+  const profile = await requireUserProfile()
+  requireCapability(profile, 'opportunity.read')
 
-  const [userRow] = await db.select({ tenant_id: users.tenant_id }).from(users).where(eq(users.id, user.id))
-  if (!userRow?.tenant_id) return null
-
-  const [leads, projectList] = await Promise.all([
-    db
+  const leads = await db
       .select({
         id: opportunities.id,
         stage: opportunities.stage,
@@ -30,22 +26,31 @@ export default async function CoveragePage() {
         project_name: projects.name,
         project_client: projects.client,
         project_id: projects.id,
+        account_id: opportunities.account_id,
+        account_name: accounts.name,
       })
       .from(opportunities)
-      .leftJoin(projects, eq(opportunities.project_id, projects.id))
-      .where(
+      .leftJoin(
+        projects,
         and(
-          eq(opportunities.tenant_id, userRow.tenant_id),
-          eq(opportunities.stage, 'opportunity_creation')
+          eq(opportunities.project_id, projects.id),
+          eq(projects.tenant_id, profile.tenantId)
         )
       )
-      .orderBy(desc(opportunities.created_at)),
-    db
-      .select({ id: projects.id, name: projects.name, client: projects.client })
-      .from(projects)
-      .where(eq(projects.tenant_id, userRow.tenant_id))
-      .orderBy(projects.name),
-  ])
+      .leftJoin(
+        accounts,
+        and(
+          eq(opportunities.account_id, accounts.id),
+          eq(accounts.tenant_id, profile.tenantId)
+        )
+      )
+      .where(
+        and(
+          eq(opportunities.tenant_id, profile.tenantId),
+          inArray(opportunities.stage, LEAD_OPPORTUNITY_STAGES)
+        )
+      )
+      .orderBy(desc(opportunities.created_at))
 
   return (
     <div>
@@ -54,7 +59,20 @@ export default async function CoveragePage() {
           <h1 className="page-title">Coverage</h1>
           <p className="page-subtitle">{leads.length} lead{leads.length !== 1 ? 's' : ''} in pipeline</p>
         </div>
-        <AddOpportunityForm projects={projectList} />
+        <Link
+          href="/crm/opportunities/new/pprf"
+          style={{
+            padding: '7px 14px',
+            fontSize: '0.8125rem',
+            fontWeight: 600,
+            color: 'white',
+            textDecoration: 'none',
+            borderRadius: '6px',
+            background: 'var(--color-navy-700)',
+          }}
+        >
+          + Start PPRF intake
+        </Link>
       </div>
 
       {/* Stage tab navigation */}
@@ -113,13 +131,13 @@ export default async function CoveragePage() {
                 <tr key={opp.id}>
                   <td>
                     <Link
-                      href={`/projects/${opp.project_id}`}
+                      href={`/crm/opportunities/${opp.id}`}
                       style={{ color: 'var(--color-navy-700)', fontWeight: 500, textDecoration: 'none' }}
                     >
-                      {opp.project_name ?? '—'}
+                      {opp.account_name ?? opp.project_name ?? 'Opportunity'}
                     </Link>
                     <span style={{ color: 'var(--color-neutral-400)', fontSize: '0.75rem', marginLeft: '8px' }}>
-                      {opp.project_client}
+                      {opp.project_name ?? opp.project_client ?? '—'}
                     </span>
                   </td>
                   <td style={{ color: 'var(--color-neutral-500)', fontSize: '0.8125rem' }}>

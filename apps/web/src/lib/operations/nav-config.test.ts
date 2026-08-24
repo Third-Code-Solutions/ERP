@@ -11,8 +11,11 @@ import {
 describe('RBAC: canonicalRole', () => {
   it('folds legacy roles into canonical equivalents', () => {
     expect(canonicalRole('owner')).toBe('admin')
-    expect(canonicalRole('estimator')).toBe('commercial')
     expect(canonicalRole('pm')).toBe('sd_pm_pe')
+  })
+
+  it('keeps estimator distinct from commercial so navigation cannot grant commercial-only routes', () => {
+    expect(canonicalRole('estimator')).toBe('estimator')
   })
 
   it('leaves canonical roles unchanged', () => {
@@ -113,10 +116,13 @@ describe('RBAC: visibleNavSections', () => {
     expect(canViewPath('viewer', '/warranty/cnps')).toBe(true)
   })
 
-  it('legacy estimator inherits commercial visibility (BOM Builder)', () => {
+  it('shows estimator only its explicitly granted BOM route, not commercial-only routes', () => {
     const hrefs = visibleNavSections('estimator')
       .flatMap((s) => s.items.map((i) => i.href))
     expect(hrefs).toContain('/bom')
+    expect(hrefs).not.toContain('/admin')
+    expect(hrefs).not.toContain('/inventory')
+    expect(hrefs).not.toContain('/permits')
   })
 
   it('drops empty sections entirely', () => {
@@ -142,6 +148,15 @@ describe('RBAC: canViewPath (deny-by-default route guard)', () => {
     expect(canViewPath('procurement', '/invoices')).toBe(false)
     expect(canViewPath('sales', '/finance')).toBe(false)
     expect(canViewPath('sales', '/finance/payables')).toBe(false)
+    expect(canViewPath('sales', '/projects/project-id/billing')).toBe(false)
+    expect(canViewPath('sales', '/projects/project-id/cost')).toBe(false)
+    expect(canViewPath('sales', '/projects/project-id/audit')).toBe(false)
+    expect(canViewPath('sales', '/projects/project-id/bom')).toBe(false)
+    expect(canViewPath('viewer', '/projects/project-id/billing')).toBe(false)
+    expect(canViewPath('viewer', '/procurement/deliveries/new')).toBe(false)
+    expect(canViewPath('viewer', '/procurement')).toBe(false)
+    expect(canViewPath('viewer', '/not-a-dashboard-route')).toBe(false)
+    expect(canViewPath('viewer', '/projects/project-id/not-registered')).toBe(false)
   })
 
   it('allows restricted routes to permitted roles', () => {
@@ -153,6 +168,12 @@ describe('RBAC: canViewPath (deny-by-default route guard)', () => {
     expect(canViewPath('procurement', '/procurement/rfqs')).toBe(true)
     expect(canViewPath('commercial', '/bom')).toBe(true)
     expect(canViewPath('viewer', '/assets')).toBe(true)
+    expect(canViewPath('finance', '/projects/project-id/billing')).toBe(true)
+    expect(canViewPath('viewer', '/projects/project-id/cost')).toBe(true)
+    expect(canViewPath('viewer', '/projects/project-id/audit')).toBe(true)
+    expect(canViewPath('viewer', '/projects/project-id/bom')).toBe(true)
+    expect(canViewPath('procurement', '/procurement/deliveries/new')).toBe(true)
+    expect(canViewPath('procurement', '/procurement')).toBe(true)
   })
 
   it('child routes inherit their parent permission', () => {
@@ -173,7 +194,8 @@ describe('RBAC: canViewPath (deny-by-default route guard)', () => {
 
   it('honors legacy role mapping in the guard', () => {
     expect(canViewPath('owner', '/admin')).toBe(true) // owner → admin
-    expect(canViewPath('estimator', '/bom')).toBe(true) // estimator → commercial
+    expect(canViewPath('estimator', '/bom')).toBe(true) // explicit BOM grant
+    expect(canViewPath('estimator', '/admin')).toBe(false)
     expect(canViewPath('pm', '/admin')).toBe(false) // pm → sd_pm_pe, not admin
   })
 })

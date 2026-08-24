@@ -8,11 +8,17 @@
  *      server-side check redirects them away.
  *
  * Role policy mirrors REFACTOR.md §2 — the canonical 9-role ABI OPS
- * matrix. Legacy values (owner / estimator / pm) are folded into their
+ * matrix. Legacy values (owner / pm) are folded into their
  * canonical equivalent via canonicalRole() so we never duplicate them
  * in the per-item allow-lists.
  */
 import type { AppRole } from '@third-code-erp/auth'
+import {
+  roleHasCapability,
+  type ErpCapability,
+} from '@third-code-erp/shared-types/authorization'
+
+import { projectRouteCapability } from './project-access'
 
 export interface NavItemDef {
   href: string
@@ -65,7 +71,7 @@ export interface NavSection {
 const CANONICAL: Record<AppRole, AppRole> = {
   // Legacy → canonical
   owner: 'admin',
-  estimator: 'commercial',
+  estimator: 'estimator',
   pm: 'sd_pm_pe',
   // Canonical identity
   admin: 'admin',
@@ -189,7 +195,7 @@ export const NAV_SECTIONS: NavSection[] = [
         href: '/bom',
         label: 'BOM Builder',
         iconKey: 'Bom',
-        roles: ['admin', 'commercial', 'viewer'],
+        roles: ['admin', 'commercial', 'estimator', 'viewer'],
       },
       { href: '/tasks', label: 'My Tasks', iconKey: 'Check' },
     ],
@@ -388,11 +394,69 @@ export function activeNavHref(
  * config (e.g. /portal/*, /api/*, /auth/*) return true so they're
  * unaffected.
  */
+interface CapabilityPathRule {
+  capability: ErpCapability
+  matches(pathname: string): boolean
+}
+
+/**
+ * Routes without a visible navigation entry still require an explicit
+ * capability. This prevents new dashboard deep-links from becoming visible to
+ * every authenticated tenant member through a permissive fallback.
+ */
+const CAPABILITY_PATH_RULES: readonly CapabilityPathRule[] = [
+  {
+    capability: 'delivery.schedule',
+    matches: (pathname) => pathname === '/procurement/deliveries/new',
+  },
+  {
+    capability: 'po.create',
+    matches: (pathname) => pathname === '/procurement',
+  },
+  {
+    capability: 'account.kyc_review',
+    matches: (pathname) => pathname.startsWith('/crm/kyc-queue'),
+  },
+  {
+    capability: 'opportunity.read',
+    matches: (pathname) =>
+      pathname === '/pipeline' || pathname.startsWith('/pipeline/'),
+  },
+  {
+    capability: 'opportunity.read',
+    matches: (pathname) => pathname.startsWith('/crm/opportunities'),
+  },
+  {
+    capability: 'account.read',
+    matches: (pathname) => pathname === '/crm' || pathname.startsWith('/crm/'),
+  },
+]
+
+export function capabilityForPath(pathname: string): ErpCapability | null {
+  const projectCapability = projectRouteCapability(pathname)
+  if (projectCapability) return projectCapability
+
+  return (
+    CAPABILITY_PATH_RULES.find((rule) => rule.matches(pathname))?.capability ??
+    null
+  )
+}
+
 export function canViewPath(role: AppRole, pathname: string): boolean {
   // Always allow account/settings/help/etc.
   if (pathname === '/' || pathname.startsWith('/settings')) return true
   if (pathname.startsWith('/api/') || pathname.startsWith('/portal/')) return true
   if (pathname.startsWith('/auth/')) return true
+
+  const projectCapability = projectRouteCapability(pathname)
+  if (pathname === '/projects' || pathname.startsWith('/projects/')) {
+    return projectCapability
+      ? roleHasCapability(role, projectCapability)
+      : false
+  }
+
+  const capability = capabilityForPath(pathname)
+  if (capability) return roleHasCapability(role, capability)
 
   const me = canonicalRole(role)
 
@@ -408,9 +472,7 @@ export function canViewPath(role: AppRole, pathname: string): boolean {
     }
   }
 
-  // Catch-all: top-level dashboard ancillaries (e.g., /projects/[id]/...
-  // child routes inherit from /projects); we already matched above via
-  // startsWith. Anything truly unknown defaults to allow + the page's
-  // own gate handles it.
-  return true
+  // Dashboard routes must be registered above or in NAV_SECTIONS. A missing
+  // entry is a deployment-time authorization defect, not permission to view.
+  return false
 }

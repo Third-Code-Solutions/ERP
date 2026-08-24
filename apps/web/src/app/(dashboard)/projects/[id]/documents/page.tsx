@@ -9,6 +9,7 @@ import { UploadButton } from '@/components/documents/upload-button'
 import { DeleteDocumentButton } from '@/components/documents/delete-document-button'
 import { QuotaBar } from '@/components/documents/quota-bar'
 import { IconDownload, IconExternalLink } from '@/components/ui/icons'
+import { visibleProjectTabs } from '@/lib/operations/project-access'
 
 export const metadata: Metadata = { title: 'Documents' }
 
@@ -53,16 +54,6 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
-
-const TABS = [
-  { label: 'Overview', href: '' },
-  { label: 'Scope', href: '/scope' },
-  { label: 'BOM', href: '/bom' },
-  { label: 'Documents', href: '/documents' },
-  { label: 'Billing', href: '/billing' },
-  { label: 'Comments', href: '/comments' },
-  { label: 'Audit', href: '/audit' },
-]
 
 export default async function ProjectDocumentsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -121,8 +112,9 @@ export default async function ProjectDocumentsPage({ params }: { params: Promise
             borderBottom: '1px solid var(--color-border)',
           }}
         >
-          {TABS.map(({ label, href }) => {
-            const isActive = href === '/documents'
+          {visibleProjectTabs(profile.role).map(({ label, slug }) => {
+            const href = slug ? `/${slug}` : ''
+            const isActive = slug === 'documents'
             return (
               <Link
                 key={href}

@@ -1,3 +1,4 @@
+import React from 'react'
 import type { ConversionRateRow } from '@/lib/dashboard-queries'
 
 interface ConversionRateTableProps {

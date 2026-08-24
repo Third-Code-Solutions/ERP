@@ -7,6 +7,7 @@ import {
   getAlerts,
   getConversionRates,
   getMonthlyForecast,
+  getSalesRepOptions,
   getTodayCommandCenter,
   getManagementDashboard,
 } from '@/lib/dashboard-queries'
@@ -21,8 +22,10 @@ import { ExportCsvButton } from '@/components/dashboard/export-csv-button'
 import { CloseDateFilter } from '@/components/dashboard/close-date-filter'
 import { TodayCommandCenter } from '@/components/dashboard/today-command-center'
 import { ManagementHealth } from '@/components/dashboard/management-health'
+import { SalesPipelineDashboard } from '@/components/dashboard/sales-pipeline-dashboard'
 import { loadDashboardForRole } from '@/lib/dashboard-access'
 import { canViewPath, roleLabel } from '@/lib/operations/nav-config'
+import { parseDashboardFilters } from '@/lib/dashboard-filters'
 
 export const metadata: Metadata = { title: 'Dashboard' }
 
@@ -42,13 +45,19 @@ function firstName(email: string | undefined): string {
 
 interface DashboardPageProps {
   // Next 15 App Router: searchParams arrives as a Promise.
-  searchParams?: Promise<{ since?: string; until?: string; stage?: string }>
+  searchParams?: Promise<{
+    since?: string
+    until?: string
+    stage?: string
+    rep?: string
+  }>
 }
 
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   const profile = await requireUserProfile().catch(() => null)
   const renderedAt = new Date()
   const resolvedSearch = (await searchParams) ?? {}
+  const parsedFilters = parseDashboardFilters(resolvedSearch)
 
   if (!profile) {
     return (
@@ -64,14 +73,24 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
   const dashboard = await loadDashboardForRole(profile.role, {
     executive: async () => {
-      const [kpis, stages, reps, alerts, conversionRates, forecast, today, management] =
+      const [
+        kpis,
+        stages,
+        reps,
+        alerts,
+        conversionRates,
+        forecast,
+        today,
+        management,
+        salesReps,
+      ] =
         await Promise.all([
-          getDashboardKpis(profile.tenantId),
-          getStageDistribution(profile.tenantId),
-          getRepScorecards(profile.tenantId),
+          getDashboardKpis(profile.tenantId, parsedFilters.filters),
+          getStageDistribution(profile.tenantId, parsedFilters.filters),
+          getRepScorecards(profile.tenantId, parsedFilters.filters),
           getAlerts(profile.tenantId),
-          getConversionRates(profile.tenantId),
-          getMonthlyForecast(profile.tenantId, 6),
+          getConversionRates(profile.tenantId, parsedFilters.filters),
+          getMonthlyForecast(profile.tenantId, 6, parsedFilters.filters),
           getTodayCommandCenter(
             profile.tenantId,
             profile.user.id,
@@ -79,9 +98,39 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             canViewPath(profile.role, '/projects')
           ),
           getManagementDashboard(profile.tenantId),
+          getSalesRepOptions(profile.tenantId),
         ])
 
-      return { kpis, stages, reps, alerts, conversionRates, forecast, today, management }
+      return {
+        kpis,
+        stages,
+        reps,
+        alerts,
+        conversionRates,
+        forecast,
+        today,
+        management,
+        salesReps,
+      }
+    },
+    sales: async () => {
+      const [kpis, stages, reps, conversionRates, forecast, today, salesReps] =
+        await Promise.all([
+          getDashboardKpis(profile.tenantId, parsedFilters.filters),
+          getStageDistribution(profile.tenantId, parsedFilters.filters),
+          getRepScorecards(profile.tenantId, parsedFilters.filters),
+          getConversionRates(profile.tenantId, parsedFilters.filters),
+          getMonthlyForecast(profile.tenantId, 6, parsedFilters.filters),
+          getTodayCommandCenter(
+            profile.tenantId,
+            profile.user.id,
+            renderedAt,
+            canViewPath(profile.role, '/projects')
+          ),
+          getSalesRepOptions(profile.tenantId),
+        ])
+
+      return { kpis, stages, reps, conversionRates, forecast, today, salesReps }
     },
     myWork: () =>
       getTodayCommandCenter(
@@ -112,10 +161,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     minute: '2-digit',
     timeZone: 'Asia/Manila',
   })
-
-  // Reference search params so a future stage-filter widget can drive the
-  // dashboard; for now they only flow into ExportCsvButton via the URL.
-  void resolvedSearch
 
   if (dashboard.mode === 'my_work' || dashboard.mode === 'degraded') {
     return (
@@ -149,7 +194,44 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     )
   }
 
-  const { kpis, stages, reps, alerts, conversionRates, forecast, today, management } =
+  if (dashboard.mode === 'sales') {
+    return (
+      <>
+        <DashboardRealtimeRefresher />
+
+        <div className="page-header">
+          <div className="page-toolbar">
+            <div>
+              <p className="page-eyebrow">Sales workspace</p>
+              <h1 className="page-title">
+                {greetingFor(renderedAt)}, {firstName(profile.email)}
+              </h1>
+              <p className="page-subtitle">
+                Pipeline coverage, conversion, and forecast for {fmt.format(renderedAt)}.
+              </p>
+            </div>
+            <div className="page-meta">
+              <span className="page-meta-item">
+                <span className="live-dot" aria-hidden /> Live
+              </span>
+              <span className="page-meta-item">
+                Updated {time.format(renderedAt)} PHT
+              </span>
+              <span className="page-meta-item">{dashboard.data.kpis.activeDeals} active deals</span>
+            </div>
+          </div>
+        </div>
+
+        <SalesPipelineDashboard
+          role={profile.role}
+          data={dashboard.data}
+          filterErrors={parsedFilters.errors}
+        />
+      </>
+    )
+  }
+
+  const { kpis, stages, reps, alerts, conversionRates, forecast, today, management, salesReps } =
     dashboard.data
 
   return (
@@ -221,7 +303,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
               alignItems: 'center',
             }}
           >
-            <CloseDateFilter />
+            <CloseDateFilter reps={salesReps} />
             <ExportCsvButton />
           </div>
         </div>

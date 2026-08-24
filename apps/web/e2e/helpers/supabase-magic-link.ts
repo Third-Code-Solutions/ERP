@@ -6,8 +6,10 @@ export type MagicLinkRole =
   | 'commercial'
   | 'cx'
   | 'design'
+  | 'estimator'
   | 'finance'
   | 'owner'
+  | 'pm'
   | 'procurement'
   | 'safety'
   | 'sales'
@@ -19,8 +21,10 @@ const ROLE_TEST_EMAILS: Record<MagicLinkRole, string> = {
   commercial: 'commercial@abi.demo.ph',
   cx: 'cx@abi.demo.ph',
   design: 'design@abi.demo.ph',
+  estimator: 'estimator@abi.demo.ph',
   finance: 'finance@abi.demo.ph',
   owner: 'owner@abi.demo.ph',
+  pm: 'pm@abi.demo.ph',
   procurement: 'procurement@abi.demo.ph',
   safety: 'safety@abi.demo.ph',
   sales: 'sales@abi.demo.ph',

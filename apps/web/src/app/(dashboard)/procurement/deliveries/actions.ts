@@ -66,10 +66,8 @@ const TERMINAL: ReadonlySet<DeliveryStatus> = new Set([
   'cancelled',
 ])
 
-// Either po.issue OR precon.manage_checklist grants the right to schedule
-// a delivery, per spec. We check both and pass if either does.
 function guardScheduling(role: AppRole): string | null {
-  if (can(role, 'po.issue') || can(role, 'precon.manage_checklist')) {
+  if (can(role, 'delivery.schedule')) {
     return null
   }
   return `Forbidden: role "${role}" lacks delivery scheduling capability`

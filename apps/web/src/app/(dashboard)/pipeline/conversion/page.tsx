@@ -1,32 +1,45 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
-import { opportunities, projects } from '@third-code-erp/database/schema'
+import { accounts, opportunities, projects } from '@third-code-erp/database/schema'
 import { and, eq, inArray, desc } from 'drizzle-orm'
-import { formatCentsCompact } from '@third-code-erp/shared-types'
+import {
+  formatCentsCompact,
+  STAGE_LEGACY_MAP,
+  type OpportunityStage,
+  type PipelineStage,
+} from '@third-code-erp/shared-types'
 import { StageAdvanceButton } from '@/components/pipeline/stage-advance-button'
+import { CONVERSION_OPPORTUNITY_STAGES } from '@/lib/sales-dashboard-pipeline'
 
 export const metadata: Metadata = { title: 'Conversion Pipeline' }
 
-const ACTIVE_STAGES = ['scoping', 'bom_submission', 'resubmission', 'negotiation'] as const
-
-const STAGE_LABELS: Record<string, string> = {
-  scoping: 'Scoping',
+const STAGE_LABELS: Record<PipelineStage, string> = {
+  lead: 'Lead',
+  site_survey: 'Site Survey',
+  design: 'Design',
   bom_submission: 'BOM Submission',
-  resubmission: 'Resubmission',
   negotiation: 'Negotiation',
+  contract: 'Contract',
+  won: 'Won',
+  lost: 'Lost',
 }
 
-const STAGE_COLORS: Record<string, string> = {
-  scoping: '#6366f1',
+const STAGE_COLORS: Record<PipelineStage, string> = {
+  lead: '#6b7280',
+  site_survey: '#6366f1',
+  design: '#8b5cf6',
   bom_submission: '#f59e0b',
-  resubmission: '#f97316',
   negotiation: '#10b981',
+  contract: '#0ea5e9',
+  won: '#16a34a',
+  lost: '#ef4444',
 }
 
 export default async function ConversionPage() {
   const profile = await requireUserProfile()
+  requireCapability(profile, 'opportunity.read')
 
   const opps = await db
     .select({
@@ -41,6 +54,8 @@ export default async function ConversionPage() {
       project_name: projects.name,
       project_client: projects.client,
       project_id: projects.id,
+      account_id: opportunities.account_id,
+      account_name: accounts.name,
     })
     .from(opportunities)
     .leftJoin(
@@ -50,10 +65,17 @@ export default async function ConversionPage() {
         eq(projects.tenant_id, profile.tenantId)
       )
     )
+    .leftJoin(
+      accounts,
+      and(
+        eq(opportunities.account_id, accounts.id),
+        eq(accounts.tenant_id, profile.tenantId)
+      )
+    )
     .where(
       and(
         eq(opportunities.tenant_id, profile.tenantId),
-        inArray(opportunities.stage, [...ACTIVE_STAGES])
+        inArray(opportunities.stage, CONVERSION_OPPORTUNITY_STAGES)
       )
     )
     .orderBy(desc(opportunities.tcv_cents))
@@ -127,28 +149,30 @@ export default async function ConversionPage() {
             <tbody>
               {opps.map((opp) => {
                 const gpPct = opp.tcv_cents > 0 ? (opp.gp_cents / opp.tcv_cents) * 100 : 0
+                const canonicalStage = STAGE_LEGACY_MAP[opp.stage as OpportunityStage]
+                const recordHref = `/crm/opportunities/${opp.id}`
                 return (
                   <tr key={opp.id}>
                     <td>
                       <Link
-                        href={`/projects/${opp.project_id}`}
+                        href={recordHref}
                         style={{ color: 'var(--color-navy-700)', fontWeight: 500, textDecoration: 'none' }}
                       >
-                        {opp.project_name ?? '—'}
+                        {opp.account_name ?? opp.project_name ?? 'Opportunity'}
                       </Link>
                       <span style={{ color: 'var(--color-neutral-400)', fontSize: '0.75rem', marginLeft: '8px' }}>
-                        {opp.project_client}
+                        {opp.project_name ?? opp.project_client ?? '—'}
                       </span>
                     </td>
                     <td>
                       <span
                         className="stage-badge"
                         style={{
-                          color: STAGE_COLORS[opp.stage] ?? 'inherit',
-                          background: (STAGE_COLORS[opp.stage] ?? '#6b7280') + '18',
+                          color: STAGE_COLORS[canonicalStage] ?? 'inherit',
+                          background: (STAGE_COLORS[canonicalStage] ?? '#6b7280') + '18',
                         }}
                       >
-                        {STAGE_LABELS[opp.stage] ?? opp.stage}
+                        {STAGE_LABELS[canonicalStage] ?? opp.stage}
                       </span>
                     </td>
                     <td className="numeric">{opp.probability}%</td>

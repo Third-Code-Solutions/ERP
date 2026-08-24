@@ -1,23 +1,14 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { boms, invoices, projects } from '@third-code-erp/database/schema'
 import { and, desc, eq } from 'drizzle-orm'
 import { CreateInvoiceForm } from '@/components/billing/create-invoice-form'
+import { visibleProjectTabs } from '@/lib/operations/project-access'
 
 export const metadata: Metadata = { title: 'Billing' }
-
-const TABS = [
-  { label: 'Overview', href: '' },
-  { label: 'Scope', href: '/scope' },
-  { label: 'BOM', href: '/bom' },
-  { label: 'Documents', href: '/documents' },
-  { label: 'Billing', href: '/billing' },
-  { label: 'Comments', href: '/comments' },
-  { label: 'Audit', href: '/audit' },
-]
 
 const STATUS_LABELS: Record<string, string> = {
   draft: 'Draft',
@@ -46,6 +37,7 @@ function formatBps(bps: number): string {
 export default async function ProjectBillingPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const profile = await requireUserProfile()
+  requireCapability(profile, 'finance.read')
 
   const [project] = await db
     .select({ id: projects.id, name: projects.name })
@@ -93,9 +85,10 @@ export default async function ProjectBillingPage({ params }: { params: Promise<{
 
       {/* Tab nav */}
       <div style={{ display: 'flex', gap: '2px', marginBottom: '24px', borderBottom: '1px solid var(--color-border)', marginTop: '16px' }}>
-        {TABS.map(({ label, href }) => {
+        {visibleProjectTabs(profile.role).map(({ label, slug }) => {
+          const href = slug ? `/${slug}` : ''
           const fullHref = baseHref + href
-          const isActive = href === '/billing'
+          const isActive = slug === 'billing'
           return (
             <Link
               key={label}

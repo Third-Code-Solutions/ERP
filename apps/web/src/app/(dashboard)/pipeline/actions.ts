@@ -10,12 +10,12 @@ import { startSlaClock, stopSlaClock } from '@/lib/operations/sla-clock'
 import {
   PIPELINE_STAGES,
   STAGE_PROBABILITY,
-  STAGE_TRANSITIONS,
   STAGE_LEGACY_MAP,
   type PipelineStage,
   type OpportunityStage,
 } from '@third-code-erp/shared-types'
 import { opportunityKycGateMessage } from '@/lib/operations/opportunity-kyc'
+import { isCompatibleOpportunityTransition } from '@/lib/sales-dashboard-pipeline'
 
 // Stages beyond which KYC must be approved. `lead` + `site_survey` are
 // allowed pre-KYC so reps can initial-triage; everything past needs
@@ -246,15 +246,15 @@ export async function advanceOpportunityStage(
 
   if (!opp) return { error: 'Opportunity not found' }
 
-  const allowed = STAGE_TRANSITIONS[opp.stage as OpportunityStage] ?? []
-  if (!allowed.includes(nextStage as OpportunityStage)) {
+  const currentStageTyped = opp.stage as OpportunityStage
+  const nextStageTyped = nextStage as OpportunityStage
+  if (!isCompatibleOpportunityTransition(currentStageTyped, nextStageTyped)) {
     return { error: `Cannot move from ${opp.stage} to ${nextStage}` }
   }
 
   // ── KYC gate (defense in depth — mirrors UI check). ─────────────────────────
   // Advancing past Site Survey requires the linked Account to have an
   // approved (or not-required) KYC status.
-  const nextStageTyped = nextStage as OpportunityStage
   if (KYC_GATED_STAGES.has(nextStageTyped) && opp.account_id) {
     const [accountRows, trackRows] = await Promise.all([
       db

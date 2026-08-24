@@ -1,4 +1,5 @@
 import type { KpiData } from '@/lib/dashboard-queries'
+import React from 'react'
 import { formatCents, formatCentsCompact } from '@third-code-erp/shared-types'
 import { IconArrowUpRight, IconActivity, IconUser } from '@/components/ui/icons'
 
@@ -80,7 +81,7 @@ export function KpiCards({ kpis }: KpiCardsProps) {
         fillPct={Math.min(100, weightedRatio)}
       />
       <KpiCard
-        label="Closed Won FYTD"
+        label="Closed Won"
         value={formatCentsCompact(kpis.closedWonTcv)}
         sub={formatCents(kpis.closedWonTcv)}
         badge={

@@ -1,43 +1,36 @@
+import React from 'react'
 import type { StageRow } from '@/lib/dashboard-queries'
-import { formatCentsCompact } from '@third-code-erp/shared-types'
+import {
+  formatCentsCompact,
+  PIPELINE_STAGES,
+  type PipelineStage,
+} from '@third-code-erp/shared-types'
 
-const STAGE_LABELS: Record<string, string> = {
-  opportunity_creation: 'Opportunity Creation',
-  scoping: 'Scoping',
+const STAGE_LABELS: Record<PipelineStage, string> = {
+  lead: 'Lead',
+  site_survey: 'Site Survey',
+  design: 'Design',
   bom_submission: 'BOM Submission',
-  resubmission: 'Resubmission',
   negotiation: 'Negotiation',
-  closed_won: 'Closed Won',
-  closed_lost: 'Closed Lost',
+  contract: 'Contract',
+  won: 'Won',
+  lost: 'Lost',
 }
 
-const STAGE_ORDER = [
-  'opportunity_creation',
-  'scoping',
-  'bom_submission',
-  'resubmission',
-  'negotiation',
-  'closed_won',
-  'closed_lost',
-]
-
-const STAGE_HUES: Record<string, string> = {
-  opportunity_creation: '#6b7280',
-  scoping: '#4f46e5',
+const STAGE_HUES: Record<PipelineStage, string> = {
+  lead: '#6b7280',
+  site_survey: '#4f46e5',
+  design: '#8b5cf6',
   bom_submission: '#0891b2',
-  resubmission: '#ca8a04',
   negotiation: '#ea580c',
-  closed_won: '#16a34a',
-  closed_lost: '#dc2626',
+  contract: '#0ea5e9',
+  won: '#16a34a',
+  lost: '#dc2626',
 }
 
-const ACTIVE_STAGES = new Set([
-  'opportunity_creation',
-  'scoping',
-  'bom_submission',
-  'resubmission',
-  'negotiation',
-])
+const ACTIVE_STAGES: ReadonlySet<PipelineStage> = new Set(
+  PIPELINE_STAGES.filter((stage) => stage !== 'won' && stage !== 'lost')
+)
 
 interface StageDistributionTableProps {
   rows: StageRow[]
@@ -45,10 +38,12 @@ interface StageDistributionTableProps {
 
 export function StageDistributionTable({ rows }: StageDistributionTableProps) {
   const sortedRows = [...rows].sort(
-    (a, b) => STAGE_ORDER.indexOf(a.stage) - STAGE_ORDER.indexOf(b.stage)
+    (a, b) =>
+      PIPELINE_STAGES.indexOf(a.stage as PipelineStage) -
+      PIPELINE_STAGES.indexOf(b.stage as PipelineStage)
   )
 
-  const activeRows = sortedRows.filter((r) => ACTIVE_STAGES.has(r.stage))
+  const activeRows = sortedRows.filter((row) => ACTIVE_STAGES.has(row.stage as PipelineStage))
   const activeTotal = activeRows.reduce((acc, r) => acc + r.tcvCents, 0)
 
   const totalDeals = sortedRows.reduce((acc, r) => acc + r.count, 0)
@@ -90,13 +85,15 @@ export function StageDistributionTable({ rows }: StageDistributionTableProps) {
                       className="funnel-segment"
                       style={{
                         width: `${widthPct}%`,
-                        background: STAGE_HUES[r.stage] ?? '#525252',
+                        background: STAGE_HUES[r.stage as PipelineStage] ?? '#525252',
                       }}
-                      title={`${STAGE_LABELS[r.stage]} — ${formatCentsCompact(r.tcvCents)}`}
+                      title={`${STAGE_LABELS[r.stage as PipelineStage] ?? r.stage} — ${formatCentsCompact(r.tcvCents)}`}
                     >
                       {widthPct >= 14 ? (
                         <>
-                          <span className="funnel-segment-label">{STAGE_LABELS[r.stage]}</span>
+                          <span className="funnel-segment-label">
+                            {STAGE_LABELS[r.stage as PipelineStage] ?? r.stage}
+                          </span>
                           <span className="funnel-segment-value">
                             {formatCentsCompact(r.tcvCents)}
                           </span>
@@ -111,10 +108,10 @@ export function StageDistributionTable({ rows }: StageDistributionTableProps) {
                   <span key={r.stage} className="funnel-legend-item">
                     <span
                       className="funnel-legend-dot"
-                      style={{ background: STAGE_HUES[r.stage] ?? '#525252' }}
+                      style={{ background: STAGE_HUES[r.stage as PipelineStage] ?? '#525252' }}
                       aria-hidden
                     />
-                    {STAGE_LABELS[r.stage]}
+                    {STAGE_LABELS[r.stage as PipelineStage] ?? r.stage}
                     <span style={{ color: 'var(--color-neutral-400)' }}>· {r.count}</span>
                   </span>
                 ))}
@@ -148,7 +145,7 @@ export function StageDistributionTable({ rows }: StageDistributionTableProps) {
               <tbody>
                 {sortedRows.map((row) => {
                   const gpPct = row.tcvCents > 0 ? (row.gpCents / row.tcvCents) * 100 : 0
-                  const stageLabel = STAGE_LABELS[row.stage] ?? row.stage
+                  const stageLabel = STAGE_LABELS[row.stage as PipelineStage] ?? row.stage
                   return (
                     <tr key={row.stage}>
                       <th scope="row" style={{ fontWeight: 'normal', textAlign: 'left' }}>

@@ -11,38 +11,24 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import type { AppRole } from '@third-code-erp/auth'
+
+import { visibleProjectTabs } from '@/lib/operations/project-access'
 
 interface ProjectTabsProps {
   projectId: string
+  role: AppRole
 }
 
-const ITEMS = [
-  { slug: '', label: 'Overview' },
-  { slug: 'scope', label: 'Scope' },
-  { slug: 'bom', label: 'BOM' },
-  { slug: 'cost', label: 'Cost' },
-  { slug: 'checklist', label: 'Checklist' },
-  { slug: 'permits', label: 'Permits' },
-  { slug: 'progress', label: 'Progress' },
-  { slug: 'reports', label: 'Reports' },
-  { slug: 'vos', label: 'VOs' },
-  { slug: 'documents', label: 'Documents' },
-  { slug: 'billing', label: 'Billing' },
-  { slug: 'turnover', label: 'Turnover' },
-  { slug: 'coc', label: 'COC' },
-  { slug: 'comments', label: 'Comments' },
-  { slug: 'access', label: 'Access' },
-  { slug: 'audit', label: 'Audit' },
-] as const
-
-export function ProjectTabs({ projectId }: ProjectTabsProps) {
+export function ProjectTabs({ projectId, role }: ProjectTabsProps) {
   const pathname = usePathname()
   const base = `/projects/${projectId}`
+  const items = visibleProjectTabs(role)
 
   return (
     <div className="project-tabs-frame">
       <nav className="project-tabs" aria-label="Project sections">
-      {ITEMS.map((item) => {
+      {items.map((item) => {
         const href = item.slug ? `${base}/${item.slug}` : base
         const active = item.slug
           ? pathname?.startsWith(href) ?? false

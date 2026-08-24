@@ -27,6 +27,7 @@ import {
   sql,
   asc,
   desc,
+  type SQL,
 } from 'drizzle-orm'
 import { computeProjectCostSnapshot } from '@third-code-erp/shared-types/cost'
 import { manilaBoundaries } from '@/lib/operations/cadence-engine'
@@ -35,6 +36,16 @@ import {
   getTodayThroughCoreApi,
   todayReadsUseCoreApi,
 } from '@/lib/erp-core-client'
+import type { DashboardOpportunityFilters } from '@/lib/dashboard-filters'
+import {
+  ACTIVE_SALES_OPPORTUNITY_STAGES,
+  conversionRatesFromStageCounts,
+  LEAD_OPPORTUNITY_STAGES,
+  LOST_OPPORTUNITY_STAGES,
+  normalizeStageAggregates,
+  WON_OPPORTUNITY_STAGES,
+  type SalesConversionRate,
+} from '@/lib/sales-dashboard-pipeline'
 
 export interface KpiData {
   activeTcv: number
@@ -230,6 +241,11 @@ export interface RepScorecard {
   weightedTcv: number
 }
 
+export interface SalesRepOption {
+  id: string
+  email: string
+}
+
 export interface StageRow {
   stage: string
   count: number
@@ -245,35 +261,7 @@ export interface Alert {
   href: string
 }
 
-const ACTIVE_STAGES = [
-  'opportunity_creation',
-  'scoping',
-  'bom_submission',
-  'resubmission',
-  'negotiation',
-] as const
-
-// Canonical ABI OPS 8-stage flow (REFACTOR.md M1 US-002). Pairs of
-// adjacent stages drive conversion-rate computation in the dashboard.
-export const PIPELINE_STAGES = [
-  'lead',
-  'site_survey',
-  'design',
-  'bom_submission',
-  'negotiation',
-  'contract',
-  'won',
-] as const
-
-export type PipelineStage = (typeof PIPELINE_STAGES)[number]
-
-export interface ConversionRateRow {
-  fromStage: PipelineStage
-  toStage: PipelineStage
-  fromCount: number
-  toCount: number
-  ratePct: number
-}
+export type ConversionRateRow = SalesConversionRate
 
 export interface MonthlyForecastData {
   months: string[] // ISO YYYY-MM
@@ -522,11 +510,30 @@ export async function getManagementDashboard(
   }
 }
 
-export async function getDashboardKpis(tenantId: string): Promise<KpiData> {
+function opportunityFilterConditions(
+  tenantId: string,
+  filters: DashboardOpportunityFilters = {}
+): SQL[] {
+  const conditions: SQL[] = [eq(opportunities.tenant_id, tenantId)]
+  if (filters.since) conditions.push(gte(opportunities.closing_date, filters.since))
+  if (filters.until) conditions.push(lte(opportunities.closing_date, filters.until))
+  if (filters.repId) conditions.push(eq(opportunities.rep_id, filters.repId))
+  return conditions
+}
+
+export async function getDashboardKpis(
+  tenantId: string,
+  filters: DashboardOpportunityFilters = {}
+): Promise<KpiData> {
   const now = new Date()
   const fiscalYearStart = manilaBoundaries.startOfDay(
     new Date(Date.UTC(now.getUTCFullYear(), 0, 1))
   )
+  const baseConditions = opportunityFilterConditions(tenantId, filters)
+  const closedWonWindow =
+    filters.since || filters.until
+      ? []
+      : [gte(opportunities.closing_date, fiscalYearStart), lte(opportunities.closing_date, now)]
 
   const [[activeResult], [wonResult], [leadResult]] = await Promise.all([
     db
@@ -539,8 +546,8 @@ export async function getDashboardKpis(tenantId: string): Promise<KpiData> {
       .from(opportunities)
       .where(
         and(
-          eq(opportunities.tenant_id, tenantId),
-          inArray(opportunities.stage, [...ACTIVE_STAGES])
+          ...baseConditions,
+          inArray(opportunities.stage, ACTIVE_SALES_OPPORTUNITY_STAGES)
         )
       ),
     db
@@ -548,10 +555,9 @@ export async function getDashboardKpis(tenantId: string): Promise<KpiData> {
       .from(opportunities)
       .where(
         and(
-          eq(opportunities.tenant_id, tenantId),
-          eq(opportunities.stage, 'closed_won'),
-          gte(opportunities.closing_date, fiscalYearStart),
-          lte(opportunities.closing_date, now)
+          ...baseConditions,
+          inArray(opportunities.stage, WON_OPPORTUNITY_STAGES),
+          ...closedWonWindow
         )
       ),
     db
@@ -559,8 +565,8 @@ export async function getDashboardKpis(tenantId: string): Promise<KpiData> {
       .from(opportunities)
       .where(
         and(
-          eq(opportunities.tenant_id, tenantId),
-          eq(opportunities.stage, 'opportunity_creation')
+          ...baseConditions,
+          inArray(opportunities.stage, LEAD_OPPORTUNITY_STAGES)
         )
       ),
   ])
@@ -575,7 +581,10 @@ export async function getDashboardKpis(tenantId: string): Promise<KpiData> {
   }
 }
 
-export async function getStageDistribution(tenantId: string): Promise<StageRow[]> {
+export async function getStageDistribution(
+  tenantId: string,
+  filters: DashboardOpportunityFilters = {}
+): Promise<StageRow[]> {
   const rows = await db
     .select({
       stage: opportunities.stage,
@@ -584,18 +593,24 @@ export async function getStageDistribution(tenantId: string): Promise<StageRow[]
       gpCents: sum(opportunities.gp_cents),
     })
     .from(opportunities)
-    .where(eq(opportunities.tenant_id, tenantId))
+    .where(and(...opportunityFilterConditions(tenantId, filters)))
     .groupBy(opportunities.stage)
 
-  return rows.map((r) => ({
-    stage: r.stage,
-    count: Number(r.count),
-    tcvCents: Number(r.tcvCents ?? 0),
-    gpCents: Number(r.gpCents ?? 0),
-  }))
+  return normalizeStageAggregates(
+    rows.map((row) => ({
+      stage: row.stage,
+      count: Number(row.count),
+      tcvCents: Number(row.tcvCents ?? 0),
+      gpCents: Number(row.gpCents ?? 0),
+    }))
+  )
 }
 
-export async function getRepScorecards(tenantId: string): Promise<RepScorecard[]> {
+export async function getRepScorecards(
+  tenantId: string,
+  filters: DashboardOpportunityFilters = {}
+): Promise<RepScorecard[]> {
+  const baseConditions = opportunityFilterConditions(tenantId, filters)
   const [activeRows, wonRows, lostRows] = await Promise.all([
     db
       .select({
@@ -608,8 +623,8 @@ export async function getRepScorecards(tenantId: string): Promise<RepScorecard[]
       .from(opportunities)
       .where(
         and(
-          eq(opportunities.tenant_id, tenantId),
-          inArray(opportunities.stage, [...ACTIVE_STAGES])
+          ...baseConditions,
+          inArray(opportunities.stage, ACTIVE_SALES_OPPORTUNITY_STAGES)
         )
       )
       .groupBy(opportunities.rep_id),
@@ -621,14 +636,20 @@ export async function getRepScorecards(tenantId: string): Promise<RepScorecard[]
       })
       .from(opportunities)
       .where(
-        and(eq(opportunities.tenant_id, tenantId), eq(opportunities.stage, 'closed_won'))
+        and(
+          ...baseConditions,
+          inArray(opportunities.stage, WON_OPPORTUNITY_STAGES)
+        )
       )
       .groupBy(opportunities.rep_id),
     db
       .select({ repId: opportunities.rep_id, lostCount: count() })
       .from(opportunities)
       .where(
-        and(eq(opportunities.tenant_id, tenantId), eq(opportunities.stage, 'closed_lost'))
+        and(
+          ...baseConditions,
+          inArray(opportunities.stage, LOST_OPPORTUNITY_STAGES)
+        )
       )
       .groupBy(opportunities.rep_id),
   ])
@@ -671,6 +692,26 @@ export async function getRepScorecards(tenantId: string): Promise<RepScorecard[]
   })
 }
 
+export async function getSalesRepOptions(tenantId: string): Promise<SalesRepOption[]> {
+  const rows = await db
+    .select({ repId: opportunities.rep_id, repEmail: users.email })
+    .from(opportunities)
+    .leftJoin(
+      users,
+      and(eq(opportunities.rep_id, users.id), eq(users.tenant_id, tenantId))
+    )
+    .where(eq(opportunities.tenant_id, tenantId))
+
+  const options = new Map<string, string>()
+  for (const row of rows) {
+    if (row.repId && row.repEmail) options.set(row.repId, row.repEmail)
+  }
+
+  return [...options]
+    .map(([id, email]) => ({ id, email }))
+    .sort((left, right) => left.email.localeCompare(right.email))
+}
+
 const LOW_MARGIN_THRESHOLD_BPS = 1500 // 15%
 const STALLED_DAYS = 30
 
@@ -695,7 +736,7 @@ export async function getAlerts(tenantId: string): Promise<Alert[]> {
       .where(
         and(
           eq(opportunities.tenant_id, tenantId),
-          inArray(opportunities.stage, [...ACTIVE_STAGES])
+          inArray(opportunities.stage, ACTIVE_SALES_OPPORTUNITY_STAGES)
         )
       ),
     // Overdue invoices.
@@ -747,9 +788,11 @@ export async function getAlerts(tenantId: string): Promise<Alert[]> {
         alerts.push({
           type: 'low_margin',
           severity: marginBps < 1000 ? 'danger' : 'warning',
-          label: opp.project_name ?? 'Unknown project',
+          label: opp.project_name ?? 'Opportunity',
           detail: `GP margin ${(marginBps / 100).toFixed(1)}% — below 15% threshold`,
-          href: `/projects/${opp.project_id}`,
+          href: opp.project_id
+            ? `/projects/${opp.project_id}`
+            : `/crm/opportunities/${opp.id}`,
         })
       }
     }
@@ -762,9 +805,11 @@ export async function getAlerts(tenantId: string): Promise<Alert[]> {
       alerts.push({
         type: 'stalled_deal',
         severity: 'warning',
-        label: opp.project_name ?? 'Unknown project',
+        label: opp.project_name ?? 'Opportunity',
         detail: `No activity for ${daysSinceUpdate} days in ${opp.stage.replace(/_/g, ' ')}`,
-        href: `/projects/${opp.project_id}`,
+        href: opp.project_id
+          ? `/projects/${opp.project_id}`
+          : `/crm/opportunities/${opp.id}`,
       })
     }
   }
@@ -851,38 +896,19 @@ export async function getAlerts(tenantId: string): Promise<Alert[]> {
 // are excluded — the analysis is about progression, not loss attribution.
 // -----------------------------------------------------------------------------
 
-export async function getConversionRates(tenantId: string): Promise<ConversionRateRow[]> {
+export async function getConversionRates(
+  tenantId: string,
+  filters: DashboardOpportunityFilters = {}
+): Promise<ConversionRateRow[]> {
   const rows = await db
     .select({ stage: opportunities.stage, count: count() })
     .from(opportunities)
-    .where(eq(opportunities.tenant_id, tenantId))
+    .where(and(...opportunityFilterConditions(tenantId, filters)))
     .groupBy(opportunities.stage)
 
-  // Map of how many opps are currently sitting AT each stage.
-  const atStage = new Map<string, number>()
-  for (const r of rows) atStage.set(r.stage, Number(r.count))
-
-  // "At or beyond" count for stage X = sum of counts at X and later.
-  const atOrBeyond = new Map<PipelineStage, number>()
-  for (let i = 0; i < PIPELINE_STAGES.length; i += 1) {
-    const fromStage = PIPELINE_STAGES[i] as PipelineStage
-    let acc = 0
-    for (let j = i; j < PIPELINE_STAGES.length; j += 1) {
-      acc += atStage.get(PIPELINE_STAGES[j] as string) ?? 0
-    }
-    atOrBeyond.set(fromStage, acc)
-  }
-
-  const result: ConversionRateRow[] = []
-  for (let i = 0; i < PIPELINE_STAGES.length - 1; i += 1) {
-    const fromStage = PIPELINE_STAGES[i] as PipelineStage
-    const toStage = PIPELINE_STAGES[i + 1] as PipelineStage
-    const fromCount = atOrBeyond.get(fromStage) ?? 0
-    const toCount = atOrBeyond.get(toStage) ?? 0
-    const ratePct = fromCount > 0 ? Math.round((toCount / fromCount) * 1000) / 10 : 0
-    result.push({ fromStage, toStage, fromCount, toCount, ratePct })
-  }
-  return result
+  return conversionRatesFromStageCounts(
+    rows.map((row) => ({ stage: row.stage, count: Number(row.count) }))
+  )
 }
 
 // -----------------------------------------------------------------------------
@@ -894,7 +920,8 @@ export async function getConversionRates(tenantId: string): Promise<ConversionRa
 
 export async function getMonthlyForecast(
   tenantId: string,
-  monthsAhead = 6
+  monthsAhead = 6,
+  filters: DashboardOpportunityFilters = {}
 ): Promise<MonthlyForecastData> {
   const now = new Date()
   const startMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
@@ -919,7 +946,7 @@ export async function getMonthlyForecast(
     .from(opportunities)
     .where(
       and(
-        eq(opportunities.tenant_id, tenantId),
+        ...opportunityFilterConditions(tenantId, filters),
         gte(opportunities.closing_date, startMonth),
         lt(opportunities.closing_date, endMonth)
       )
@@ -977,6 +1004,7 @@ export async function getOpportunitiesForExport(args: {
   since?: Date
   until?: Date
   stage?: string
+  repId?: string
 }): Promise<OpportunityExportRow[]> {
   const conditions = [eq(opportunities.tenant_id, args.tenantId)]
   if (args.since) conditions.push(gte(opportunities.closing_date, args.since))
@@ -990,6 +1018,7 @@ export async function getOpportunitiesForExport(args: {
       )
     )
   }
+  if (args.repId) conditions.push(eq(opportunities.rep_id, args.repId))
 
   const rows = await db
     .select({
@@ -1005,8 +1034,17 @@ export async function getOpportunitiesForExport(args: {
       projectClient: projects.client,
     })
     .from(opportunities)
-    .leftJoin(projects, eq(opportunities.project_id, projects.id))
-    .leftJoin(users, eq(opportunities.rep_id, users.id))
+    .leftJoin(
+      projects,
+      and(
+        eq(opportunities.project_id, projects.id),
+        eq(projects.tenant_id, args.tenantId)
+      )
+    )
+    .leftJoin(
+      users,
+      and(eq(opportunities.rep_id, users.id), eq(users.tenant_id, args.tenantId))
+    )
     .where(and(...conditions))
 
   return rows.map((r) => ({

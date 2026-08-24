@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import { useSearchParams } from 'next/navigation'
 
 interface ExportCsvButtonProps {
@@ -12,11 +13,13 @@ export function ExportCsvButton({ stage }: ExportCsvButtonProps) {
   const params = new URLSearchParams()
   const since = search?.get('since')
   const until = search?.get('until')
+  const rep = search?.get('rep')
   const stageParam = stage ?? search?.get('stage') ?? undefined
 
   if (since) params.set('since', since)
   if (until) params.set('until', until)
   if (stageParam) params.set('stage', stageParam)
+  if (rep) params.set('rep', rep)
 
   const href = `/api/exports/opportunities-csv${
     params.toString() ? `?${params.toString()}` : ''

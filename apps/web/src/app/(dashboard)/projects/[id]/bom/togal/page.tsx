@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { and, desc, eq } from 'drizzle-orm'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { boms, projects } from '@third-code-erp/database/schema'
 import { TakeoffImportWizard } from '@/components/bom/takeoff-import-wizard'
@@ -16,6 +16,7 @@ interface PageProps {
 export default async function ProjectBomTogalPage({ params }: PageProps) {
   const { id } = await params
   const profile = await requireUserProfile()
+  requireCapability(profile, 'bom.read')
   const tenantId = profile.tenantId
 
   const [project] = await db

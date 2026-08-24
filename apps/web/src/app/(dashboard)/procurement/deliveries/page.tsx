@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { and, desc, eq } from 'drizzle-orm'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   deliverySchedules,
@@ -35,6 +35,7 @@ export default async function DeliveriesPage({
   searchParams: Promise<SearchParams>
 }) {
   const profile = await requireUserProfile()
+  const canSchedule = can(profile.role, 'delivery.schedule')
   const { status: rawStatus } = await searchParams
   const activeStatus = (
     STATUS_FILTERS.some((f) => f.value === rawStatus) ? rawStatus : 'all'
@@ -104,20 +105,22 @@ export default async function DeliveriesPage({
             Schedule, receive, and inspect supplier deliveries.
           </p>
         </div>
-        <Link
-          href="/procurement/deliveries/new"
-          style={{
-            background: 'var(--color-navy-700)',
-            color: 'white',
-            padding: '10px 18px',
-            borderRadius: 6,
-            fontSize: '0.875rem',
-            fontWeight: 600,
-            textDecoration: 'none',
-          }}
-        >
-          + Schedule delivery
-        </Link>
+        {canSchedule ? (
+          <Link
+            href="/procurement/deliveries/new"
+            style={{
+              background: 'var(--color-navy-700)',
+              color: 'white',
+              padding: '10px 18px',
+              borderRadius: 6,
+              fontSize: '0.875rem',
+              fontWeight: 600,
+              textDecoration: 'none',
+            }}
+          >
+            + Schedule delivery
+          </Link>
+        ) : null}
       </div>
 
       <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginTop: 20 }}>

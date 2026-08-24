@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { projects } from '@third-code-erp/database/schema'
 import { and, eq, isNull } from 'drizzle-orm'
@@ -22,6 +22,7 @@ export default async function ProjectLayout({
 }) {
   const { id } = await params
   const profile = await requireUserProfile()
+  requireCapability(profile, 'project.read')
   const [project] = await db
     .select({ id: projects.id })
     .from(projects)
@@ -37,7 +38,7 @@ export default async function ProjectLayout({
 
   return (
     <div>
-      <ProjectTabs projectId={id} />
+      <ProjectTabs projectId={id} role={profile.role} />
       {children}
     </div>
   )

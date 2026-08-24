@@ -9,7 +9,6 @@ describe('permission-aware dashboard loading', () => {
   it.each([
     'admin',
     'owner',
-    'sales',
     'commercial',
     'estimator',
     'design',
@@ -21,6 +20,10 @@ describe('permission-aware dashboard loading', () => {
     expect(dashboardModeForRole(role)).toBe('executive')
   })
 
+  it('gives Sales a pipeline-focused dashboard instead of the executive view', () => {
+    expect(dashboardModeForRole('sales')).toBe('sales')
+  })
+
   it.each(['safety', 'cx', 'viewer'] as const)(
     'uses assignee-scoped work for %s',
     (role) => {
@@ -30,10 +33,12 @@ describe('permission-aware dashboard loading', () => {
 
   it('never calls the executive loader for a restricted role', async () => {
     const executive = vi.fn(async () => ({ pipeline: 'restricted' }))
+    const sales = vi.fn(async () => ({ pipeline: 'sales' }))
     const myWork = vi.fn(async () => ({ dueToday: 2 }))
 
     const result = await loadDashboardForRole('viewer', {
       executive,
+      sales,
       myWork,
     })
 
@@ -42,15 +47,35 @@ describe('permission-aware dashboard loading', () => {
       data: { dueToday: 2 },
     })
     expect(executive).not.toHaveBeenCalled()
+    expect(sales).not.toHaveBeenCalled()
     expect(myWork).toHaveBeenCalledOnce()
+  })
+
+  it('uses the dedicated Sales loader instead of executive analytics', async () => {
+    const executive = vi.fn(async () => ({ portfolio: 'all-business-units' }))
+    const sales = vi.fn(async () => ({ pipeline: 'team-sales' }))
+    const myWork = vi.fn(async () => ({ dueToday: 2 }))
+
+    const result = await loadDashboardForRole('sales', {
+      executive,
+      sales,
+      myWork,
+    })
+
+    expect(result).toEqual({ mode: 'sales', data: { pipeline: 'team-sales' } })
+    expect(executive).not.toHaveBeenCalled()
+    expect(sales).toHaveBeenCalledOnce()
+    expect(myWork).not.toHaveBeenCalled()
   })
 
   it('does not call the work loader for an executive role', async () => {
     const executive = vi.fn(async () => ({ activeDeals: 4 }))
+    const sales = vi.fn(async () => ({ activeDeals: 2 }))
     const myWork = vi.fn(async () => ({ dueToday: 2 }))
 
     const result = await loadDashboardForRole('finance', {
       executive,
+      sales,
       myWork,
     })
 
@@ -59,6 +84,7 @@ describe('permission-aware dashboard loading', () => {
       data: { activeDeals: 4 },
     })
     expect(executive).toHaveBeenCalledOnce()
+    expect(sales).not.toHaveBeenCalled()
     expect(myWork).not.toHaveBeenCalled()
   })
 
@@ -67,11 +93,13 @@ describe('permission-aware dashboard loading', () => {
       throw new Error('optional analytics table is unavailable')
     })
     const myWork = vi.fn(async () => ({ dueToday: 3 }))
+    const sales = vi.fn(async () => ({ activeDeals: 2 }))
 
     const result = await loadDashboardForRole(
       'finance',
       {
         executive,
+        sales,
         myWork,
       },
       { onExecutiveFailure: myWork }
@@ -94,6 +122,7 @@ describe('permission-aware dashboard loading', () => {
     await expect(
       loadDashboardForRole('admin', {
         executive,
+        sales: vi.fn(async () => ({ activeDeals: 2 })),
         myWork: vi.fn(async () => ({ dueToday: 0 })),
       })
     ).rejects.toBe(failure)

@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
-import { getUserProfile, can } from '@third-code-erp/auth'
+import { getUserProfile, can, requireCapability } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   boms,
@@ -42,6 +42,7 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ id
   const { id } = await params
   const profile = await getUserProfile()
   if (!profile) return null
+  requireCapability(profile, 'budget.read')
 
   const [project] = await db
     .select({ id: projects.id })

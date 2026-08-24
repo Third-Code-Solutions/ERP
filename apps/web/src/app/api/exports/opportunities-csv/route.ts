@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getUserProfile } from '@third-code-erp/auth'
+import { opportunityStageValues } from '@third-code-erp/shared-types'
 import { getOpportunitiesForExport } from '@/lib/dashboard-queries'
+import { parseDashboardFilters } from '@/lib/dashboard-filters'
 
 // CSV-safe escaping per RFC-4180. Wrap in quotes when the value contains
 // a comma, double-quote, CR or LF, and double up any embedded quotes.
@@ -31,26 +33,28 @@ export async function GET(req: NextRequest) {
   }
 
   const url = new URL(req.url)
-  const sinceParam = url.searchParams.get('since')
-  const untilParam = url.searchParams.get('until')
+  const sinceParam = url.searchParams.get('since') ?? undefined
+  const untilParam = url.searchParams.get('until') ?? undefined
+  const repParam = url.searchParams.get('rep') ?? undefined
   const stageParam = url.searchParams.get('stage') ?? undefined
-
-  const since = sinceParam ? new Date(sinceParam) : undefined
-  const until = untilParam ? new Date(untilParam) : undefined
-
-  // Validate parsed dates; bail with 400 on garbage input rather than
-  // silently dropping the filter.
-  if (since && Number.isNaN(since.getTime())) {
-    return NextResponse.json({ error: 'Invalid `since` date' }, { status: 400 })
+  const parsedFilters = parseDashboardFilters({
+    since: sinceParam,
+    until: untilParam,
+    rep: repParam,
+  })
+  if (parsedFilters.errors.length > 0) {
+    return NextResponse.json(
+      { error: parsedFilters.errors.join(' ') },
+      { status: 400 }
+    )
   }
-  if (until && Number.isNaN(until.getTime())) {
-    return NextResponse.json({ error: 'Invalid `until` date' }, { status: 400 })
+  if (stageParam && !opportunityStageValues.includes(stageParam as never)) {
+    return NextResponse.json({ error: 'Invalid `stage` filter' }, { status: 400 })
   }
 
   const rows = await getOpportunitiesForExport({
     tenantId: profile.tenantId,
-    since,
-    until,
+    ...parsedFilters.filters,
     stage: stageParam,
   })
 

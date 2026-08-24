@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile, type AppRole } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   customerPortalSessions,
@@ -35,8 +35,8 @@ const mintSchema = z.object({
     .max(3650, 'Cannot exceed 3650 days (10 years)'),
 })
 
-function ensureCanManageAccess(role: string): string | null {
-  if (role !== 'admin' && role !== 'owner') {
+function ensureCanManageAccess(role: AppRole): string | null {
+  if (!can(role, 'admin.users')) {
     return `Forbidden: role "${role}" cannot manage customer portal access`
   }
   return null

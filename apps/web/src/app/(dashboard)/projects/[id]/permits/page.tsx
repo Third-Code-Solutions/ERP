@@ -8,20 +8,9 @@ import { mobilizationReadiness, permits, projects, users } from '@third-code-erp
 import { CreatePermitForm } from '@/components/permits/create-permit-form'
 import { UpdatePermitStatus } from '@/components/permits/update-permit-status'
 import { MobilizationReadinessPanel } from './mobilization-readiness-panel'
+import { visibleProjectTabs } from '@/lib/operations/project-access'
 
 export const metadata: Metadata = { title: 'Permits' }
-
-const TABS = [
-  { label: 'Overview', href: '' },
-  { label: 'Scope', href: '/scope' },
-  { label: 'BOM', href: '/bom' },
-  { label: 'Documents', href: '/documents' },
-  { label: 'Billing', href: '/billing' },
-  { label: 'Checklist', href: '/checklist' },
-  { label: 'Permits', href: '/permits' },
-  { label: 'Comments', href: '/comments' },
-  { label: 'Audit', href: '/audit' },
-]
 
 const TYPE_LABEL: Record<string, string> = {
   building_admin_vetting: 'Building Admin Vetting',
@@ -150,9 +139,10 @@ export default async function ProjectPermitsPage({
           overflowX: 'auto',
         }}
       >
-        {TABS.map(({ label, href }) => {
+        {visibleProjectTabs(profile.role).map(({ label, slug }) => {
+          const href = slug ? `/${slug}` : ''
           const fullHref = baseHref + href
-          const isActive = href === '/permits'
+          const isActive = slug === 'permits'
           return (
             <Link
               key={label}

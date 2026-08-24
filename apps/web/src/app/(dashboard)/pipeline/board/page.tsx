@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { can, requireUserProfile } from '@third-code-erp/auth'
+import { can, requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   accounts,
@@ -21,6 +21,7 @@ export const dynamic = 'force-dynamic'
 
 export default async function PipelineBoardPage() {
   const profile = await requireUserProfile()
+  requireCapability(profile, 'opportunity.read')
   const tenantId = profile.tenantId
 
   // Fetch everything in parallel — kanban needs opps + accounts (for KYC

@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
+import { redirect } from 'next/navigation'
 import { and, desc, eq, inArray } from 'drizzle-orm'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   purchaseOrders,
@@ -22,6 +23,9 @@ export default async function NewDeliveryPage({
   searchParams: Promise<SearchParams>
 }) {
   const profile = await requireUserProfile()
+  if (!can(profile.role, 'delivery.schedule')) {
+    redirect('/procurement/deliveries?error=forbidden')
+  }
   const { po: defaultPoId } = await searchParams
 
   // Restrict to POs that are realistically scheduleable — issued or queued

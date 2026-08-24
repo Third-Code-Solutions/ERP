@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   boms,
@@ -39,18 +39,9 @@ import { summarizeBomPricing } from '@/lib/operations/bom-pricing-breakdown'
 import { AwardAutomationPanel } from '@/components/bom/award-automation-panel'
 import { isPriceHistoryStale } from '@/lib/operations/bom-supplier-matching'
 import type { DupaAssemblyOption } from '@/components/bom/dupa-editor'
+import { visibleProjectTabs } from '@/lib/operations/project-access'
 
 export const metadata: Metadata = { title: 'BOM' }
-
-const TABS = [
-  { label: 'Overview', href: '' },
-  { label: 'Scope', href: '/scope' },
-  { label: 'BOM', href: '/bom' },
-  { label: 'Documents', href: '/documents' },
-  { label: 'Billing', href: '/billing' },
-  { label: 'Comments', href: '/comments' },
-  { label: 'Audit', href: '/audit' },
-]
 
 function formatDupaMoneyInput(centavos: bigint): string {
   const absolute = centavos < 0n ? -centavos : centavos
@@ -62,6 +53,7 @@ function formatDupaMoneyInput(centavos: bigint): string {
 export default async function ProjectBomPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const profile = await requireUserProfile()
+  requireCapability(profile, 'bom.read')
 
   const [project] = await db
     .select({ id: projects.id, name: projects.name, projectCode: projects.project_code })
@@ -543,8 +535,9 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
           {project.name}
         </h1>
         <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid var(--color-border)' }}>
-          {TABS.map(({ label, href }) => {
-            const isActive = href === '/bom'
+          {visibleProjectTabs(profile.role).map(({ label, slug }) => {
+            const href = slug ? `/${slug}` : ''
+            const isActive = slug === 'bom'
             return (
               <Link
                 key={href}

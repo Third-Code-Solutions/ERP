@@ -9,6 +9,7 @@ import {
   type PipelineStage,
   type OpportunityStage,
 } from '@third-code-erp/shared-types'
+import { isCompatibleOpportunityTransition } from '@/lib/sales-dashboard-pipeline'
 import { createSupabaseBrowserClient } from '@third-code-erp/auth/client'
 import { advanceOpportunityStage } from '@/app/(dashboard)/pipeline/actions'
 import {
@@ -163,6 +164,11 @@ export function PipelineBoard({
     const fromStage: PipelineStage =
       STAGE_LEGACY_MAP[card.stage as OpportunityStage] ?? 'lead'
     if (fromStage === toStage) return
+
+    if (!isCompatibleOpportunityTransition(card.stage as OpportunityStage, toStage)) {
+      showBanner('error', 'Move opportunities only to a permitted next pipeline stage.')
+      return
+    }
 
     // ── Client-side KYC gate (mirrors server) ─────────────────────────────
   if (KYC_GATED_STAGES.has(toStage)) {

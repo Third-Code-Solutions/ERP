@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { and, desc, eq } from 'drizzle-orm'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   customerPortalSessions,
@@ -24,31 +24,7 @@ export default async function ProjectAccessPage({
 }) {
   const { id } = await params
   const profile = await requireUserProfile()
-
-  // Capability: only admin/owner may manage client access.
-  if (profile.role !== 'admin' && profile.role !== 'owner') {
-    return (
-      <div style={{ padding: '32px 0' }}>
-        <section
-          style={{
-            background: 'white',
-            border: '1px solid var(--color-border)',
-            borderRadius: 10,
-            padding: '32px 28px',
-            textAlign: 'center',
-          }}
-        >
-          <h2 style={{ margin: 0, fontSize: 18, color: 'var(--color-navy-700)' }}>
-            Forbidden
-          </h2>
-          <p style={{ margin: '8px 0 0', fontSize: 13.5, color: 'var(--color-neutral-600)' }}>
-            Your role ({profile.role}) cannot manage customer portal access. Contact an
-            admin or owner.
-          </p>
-        </section>
-      </div>
-    )
-  }
+  requireCapability(profile, 'admin.users')
 
   // Verify the project exists in this tenant.
   const [project] = await db

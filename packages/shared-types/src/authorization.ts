@@ -105,6 +105,9 @@ const capabilityRoles = {
     'pm',
     'sales',
   ],
+  // Read access is explicit because BOMs expose supplier pricing, cost build-up,
+  // and margin data. It must not be inferred from project.read.
+  'bom.read': ['owner', 'admin', 'commercial', 'estimator', 'viewer'],
   'bom.generate': ['owner', 'admin', 'commercial', 'estimator'],
   'bom.edit': ['owner', 'admin', 'commercial', 'estimator'],
   'bom.approve_internal': ['owner', 'admin', 'commercial'],
@@ -115,6 +118,16 @@ const capabilityRoles = {
   'po.approve': ['owner', 'admin', 'commercial'],
   'po.issue': ['owner', 'admin', 'procurement'],
   'po.receive': ['owner', 'admin', 'procurement', 'finance'],
+  // Scheduling was previously defined as po.issue OR precon.manage_checklist.
+  // Preserve that exact union as one reusable capability for every boundary.
+  'delivery.schedule': [
+    'owner',
+    'admin',
+    'commercial',
+    'sd_pm_pe',
+    'pm',
+    'procurement',
+  ],
   'delivery.receive': ['owner', 'admin', 'commercial', 'sd_pm_pe', 'pm', 'procurement'],
 
   // Finance, cost, and budget
@@ -195,6 +208,20 @@ const capabilityRoles = {
   'audit.read': ['owner', 'admin', 'pm', 'finance', 'viewer'],
 
   // Core-only projections and process authority
+  // Keep the current executive-dashboard audience explicit in the policy so
+  // page loaders do not silently become an alternate authorization system.
+  'dashboard.analytics.read': [
+    'owner',
+    'estimator',
+    'pm',
+    'admin',
+    'sales',
+    'commercial',
+    'design',
+    'sd_pm_pe',
+    'finance',
+    'procurement',
+  ],
   'today.read': ALL_ROLES,
   'provider.quota.consume': ALL_ROLES,
   'cortex.search': ALL_ROLES,

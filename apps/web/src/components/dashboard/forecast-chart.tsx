@@ -1,3 +1,4 @@
+import React from 'react'
 import type { MonthlyForecastData } from '@/lib/dashboard-queries'
 
 interface ForecastChartProps {

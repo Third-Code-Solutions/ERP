@@ -247,6 +247,8 @@ describe('Delivery receipt compatibility seam', () => {
 
     await expect(scheduleDelivery(form)).rejects.toThrow('NEXT_REDIRECT')
 
+    expect(mocks.can).toHaveBeenCalledWith('procurement', 'delivery.schedule')
+
     expect(mocks.createDeliveryScheduleThroughCoreApi).toHaveBeenCalledWith(
       {
         purchaseOrderId: '44444444-4444-4444-8444-444444444444',

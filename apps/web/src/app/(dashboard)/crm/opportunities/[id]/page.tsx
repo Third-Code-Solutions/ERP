@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { formatCentsCompact } from '@third-code-erp/shared-types'
 import { getOpportunityDetail } from '@/lib/opportunity-queries'
 
@@ -34,7 +34,8 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
     openCrCount,
   } = detail
 
-  const isWon = opp.stage === 'closed_won'
+  const isWon = opp.stage === 'closed_won' || opp.stage === 'won'
+  const canViewBom = Boolean(opp.project_id) && can(profile.role, 'bom.read')
 
   return (
     <div>
@@ -68,9 +69,9 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
           Proposal
         </Link>
         <Link
-          href={opp.project_id ? `/projects/${opp.project_id}/bom` : '#'}
-          className={`opp-tab${opp.project_id ? '' : ' is-disabled'}`}
-          aria-disabled={!opp.project_id}
+          href={canViewBom ? `/projects/${opp.project_id}/bom` : '#'}
+          className={`opp-tab${canViewBom ? '' : ' is-disabled'}`}
+          aria-disabled={!canViewBom}
         >
           BOM
         </Link>

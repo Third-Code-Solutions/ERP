@@ -34,8 +34,10 @@ test.describe('production role access matrix', () => {
       'commercial',
       'cx',
       'design',
+      'estimator',
       'finance',
       'owner',
+      'pm',
       'procurement',
       'safety',
       'sales',
@@ -47,7 +49,12 @@ test.describe('production role access matrix', () => {
       ? allRoles.filter((role) => role === requestedRole)
       : allRoles
     expect(roles.length, 'E2E_ROLE_ONLY must name a seeded role').toBeGreaterThan(0)
-    const forbiddenCandidates = ['/admin', '/bom', '/finance']
+    const forbiddenCandidates = [
+      '/admin',
+      '/bom',
+      '/finance',
+      '/procurement/deliveries/new',
+    ]
     const errors: string[] = []
 
     for (const role of roles) {

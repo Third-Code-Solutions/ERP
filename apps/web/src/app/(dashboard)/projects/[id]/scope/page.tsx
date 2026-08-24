@@ -7,18 +7,9 @@ import { documents, projects, scopeItems } from '@third-code-erp/database/schema
 import { and, asc, eq } from 'drizzle-orm'
 import { AddScopeItemForm, DeleteScopeItemButton, EditableUnitCost } from '@/components/scope/scope-item-controls'
 import { CadDropZone } from '@/components/cad/cad-dropzone'
+import { visibleProjectTabs } from '@/lib/operations/project-access'
 
 export const metadata: Metadata = { title: 'Scope' }
-
-const TABS = [
-  { label: 'Overview', href: '' },
-  { label: 'Scope', href: '/scope' },
-  { label: 'BOM', href: '/bom' },
-  { label: 'Documents', href: '/documents' },
-  { label: 'Billing', href: '/billing' },
-  { label: 'Comments', href: '/comments' },
-  { label: 'Audit', href: '/audit' },
-]
 
 const UNIT_LABELS: Record<string, string> = {
   unit: 'unit',
@@ -125,9 +116,10 @@ export default async function ProjectScopePage({ params }: { params: Promise<{ i
 
       {/* Tab nav */}
       <div style={{ display: 'flex', gap: '2px', marginBottom: '24px', borderBottom: '1px solid var(--color-border)', marginTop: '16px' }}>
-        {TABS.map(({ label, href }) => {
+        {visibleProjectTabs(profile.role).map(({ label, slug }) => {
+          const href = slug ? `/${slug}` : ''
           const fullHref = baseHref + href
-          const isActive = href === '/scope'
+          const isActive = slug === 'scope'
           return (
             <Link
               key={label}

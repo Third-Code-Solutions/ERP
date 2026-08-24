@@ -1,3 +1,4 @@
+import React from 'react'
 import type { RepScorecard } from '@/lib/dashboard-queries'
 import { formatCentsCompact } from '@third-code-erp/shared-types'
 

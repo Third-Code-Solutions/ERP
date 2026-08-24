@@ -10,20 +10,9 @@ import {
   projects,
 } from '@third-code-erp/database/schema'
 import { ChecklistItemRow } from '@/components/checklist/checklist-item-row'
+import { visibleProjectTabs } from '@/lib/operations/project-access'
 
 export const metadata: Metadata = { title: 'Pre-Con Checklist' }
-
-const TABS = [
-  { label: 'Overview', href: '' },
-  { label: 'Scope', href: '/scope' },
-  { label: 'BOM', href: '/bom' },
-  { label: 'Documents', href: '/documents' },
-  { label: 'Billing', href: '/billing' },
-  { label: 'Checklist', href: '/checklist' },
-  { label: 'Permits', href: '/permits' },
-  { label: 'Comments', href: '/comments' },
-  { label: 'Audit', href: '/audit' },
-]
 
 type ChecklistItemStatus = 'not_started' | 'in_progress' | 'blocked' | 'done'
 
@@ -126,9 +115,10 @@ export default async function ProjectChecklistPage({
           overflowX: 'auto',
         }}
       >
-        {TABS.map(({ label, href }) => {
+        {visibleProjectTabs(profile.role).map(({ label, slug }) => {
+          const href = slug ? `/${slug}` : ''
           const fullHref = baseHref + href
-          const isActive = href === '/checklist'
+          const isActive = slug === 'checklist'
           return (
             <Link
               key={label}

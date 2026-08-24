@@ -1,17 +1,23 @@
 'use client'
 
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useTransition } from 'react'
+import React, { useTransition } from 'react'
+import type { SalesRepOption } from '@/lib/dashboard-queries'
 
-export function CloseDateFilter() {
+interface CloseDateFilterProps {
+  reps: readonly SalesRepOption[]
+}
+
+export function CloseDateFilter({ reps }: CloseDateFilterProps) {
   const router = useRouter()
   const search = useSearchParams()
   const [isPending, startTransition] = useTransition()
 
   const since = search?.get('since') ?? ''
   const until = search?.get('until') ?? ''
+  const rep = search?.get('rep') ?? ''
 
-  function commit(next: { since?: string; until?: string }) {
+  function commit(next: { since?: string; until?: string; rep?: string }) {
     const params = new URLSearchParams(search?.toString() ?? '')
     if (next.since !== undefined) {
       if (next.since) params.set('since', next.since)
@@ -20,6 +26,10 @@ export function CloseDateFilter() {
     if (next.until !== undefined) {
       if (next.until) params.set('until', next.until)
       else params.delete('until')
+    }
+    if (next.rep !== undefined) {
+      if (next.rep) params.set('rep', next.rep)
+      else params.delete('rep')
     }
     const qs = params.toString()
     startTransition(() => {
@@ -74,7 +84,25 @@ export function CloseDateFilter() {
           aria-label="Closing date — to"
         />
       </label>
-      {(since || until) && (
+      {reps.length > 0 && (
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          <span>Rep</span>
+          <select
+            value={rep}
+            onChange={(e) => commit({ rep: e.target.value })}
+            style={inputStyle}
+            aria-label="Sales representative"
+          >
+            <option value="">All reps</option>
+            {reps.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.email}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {(since || until || rep) && (
         <button
           type="button"
           onClick={reset}

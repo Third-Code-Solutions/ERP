@@ -51,7 +51,7 @@ function sorted(roles: readonly ErpRole[]): ErpRole[] {
 describe('canonical authorization policy', () => {
   it('contains each current Web/Core capability once and gives each a non-empty role policy', () => {
     expect(new Set(ERP_CAPABILITIES).size).toBe(ERP_CAPABILITIES.length)
-    expect(ERP_CAPABILITIES).toHaveLength(80)
+    expect(ERP_CAPABILITIES).toHaveLength(83)
 
     for (const capability of ERP_CAPABILITIES) {
       const roles = ERP_CAPABILITY_ROLES[capability]
@@ -87,6 +87,9 @@ describe('canonical authorization policy', () => {
   it('retains distinct domain permissions instead of collapsing different workflows by name', () => {
     expect(ERP_CAPABILITIES).toEqual(
       expect.arrayContaining([
+        'bom.read',
+        'dashboard.analytics.read',
+        'delivery.schedule',
         'opportunity.advance_stage',
         'opportunity.stage_change',
         'project.award',
@@ -95,6 +98,15 @@ describe('canonical authorization policy', () => {
         'delivery.receive',
       ]),
     )
+  })
+
+  it('keeps newly explicit read and scheduling capabilities least-privileged', () => {
+    expect(roleHasCapability('viewer', 'bom.read')).toBe(true)
+    expect(roleHasCapability('sales', 'bom.read')).toBe(false)
+    expect(roleHasCapability('viewer', 'delivery.schedule')).toBe(false)
+    expect(roleHasCapability('procurement', 'delivery.schedule')).toBe(true)
+    expect(roleHasCapability('safety', 'dashboard.analytics.read')).toBe(false)
+    expect(roleHasCapability('finance', 'dashboard.analytics.read')).toBe(true)
   })
 
   it('matches the requested ABI OPS operating lanes without granting viewers a mutation', () => {

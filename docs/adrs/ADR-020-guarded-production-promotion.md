@@ -22,7 +22,7 @@ before any provider mutation.
 The promotion also requires `NEXT_PUBLIC_SUPABASE_ANON_KEY` and
 `SUPABASE_SERVICE_ROLE_KEY` for the seeded, authenticated production E2E
 harness. After public health checks, the workflow runs the branding, route
-smoke, 11-role access matrix, and CAD worker journeys in real Chromium.
+smoke, 13-role access matrix, and CAD worker journeys in real Chromium.
 
 ## Consequences
 

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getUser } from '@third-code-erp/auth'
+import { requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { projectComments, projects, users } from '@third-code-erp/database/schema'
 import { and, desc, eq } from 'drizzle-orm'
@@ -11,18 +11,9 @@ import {
   getProjectCommentsThroughCoreApi,
   projectCommentReadsUseCoreApi,
 } from '@/lib/erp-core-client'
+import { visibleProjectTabs } from '@/lib/operations/project-access'
 
 export const metadata: Metadata = { title: 'Comments' }
-
-const TABS = [
-  { label: 'Overview', href: '' },
-  { label: 'Scope', href: '/scope' },
-  { label: 'BOM', href: '/bom' },
-  { label: 'Documents', href: '/documents' },
-  { label: 'Billing', href: '/billing' },
-  { label: 'Comments', href: '/comments' },
-  { label: 'Audit', href: '/audit' },
-]
 
 const MAX_COMMENTS = 100
 
@@ -32,24 +23,17 @@ export default async function ProjectCommentsPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const user = await getUser()
-  if (!user) return null
-
-  const [userRow] = await db
-    .select({ tenant_id: users.tenant_id })
-    .from(users)
-    .where(eq(users.id, user.id))
-  if (!userRow?.tenant_id) return notFound()
+  const profile = await requireUserProfile()
 
   const [project] = await db
     .select({ id: projects.id, name: projects.name })
     .from(projects)
-    .where(and(eq(projects.id, id), eq(projects.tenant_id, userRow.tenant_id)))
+    .where(and(eq(projects.id, id), eq(projects.tenant_id, profile.tenantId)))
 
   if (!project) return notFound()
 
   const comments: CommentThreadItem[] = projectCommentReadsUseCoreApi(
-    userRow.tenant_id
+    profile.tenantId
   )
     ? await (async () => {
         const result = await getProjectCommentsThroughCoreApi(id, MAX_COMMENTS)
@@ -57,12 +41,12 @@ export default async function ProjectCommentsPage({
           throw new Error(result.error ?? 'Project comments were not read')
         }
         if (
-          result.data.tenantId !== userRow.tenant_id ||
+          result.data.tenantId !== profile.tenantId ||
           result.data.projectId !== id ||
           result.data.items.length > MAX_COMMENTS ||
           result.data.items.some(
             (comment) =>
-              comment.tenantId !== userRow.tenant_id ||
+              comment.tenantId !== profile.tenantId ||
               comment.projectId !== id
           )
         ) {
@@ -93,7 +77,7 @@ export default async function ProjectCommentsPage({
           .where(
             and(
               eq(projectComments.project_id, id),
-              eq(projectComments.tenant_id, userRow.tenant_id)
+              eq(projectComments.tenant_id, profile.tenantId)
             )
           )
           .orderBy(desc(projectComments.created_at))
@@ -136,9 +120,10 @@ export default async function ProjectCommentsPage({
           marginTop: '16px',
         }}
       >
-        {TABS.map(({ label, href }) => {
+        {visibleProjectTabs(profile.role).map(({ label, slug }) => {
+          const href = slug ? `/${slug}` : ''
           const fullHref = baseHref + href
-          const isActive = href === '/comments'
+          const isActive = slug === 'comments'
           return (
             <Link
               key={label}
@@ -185,7 +170,7 @@ export default async function ProjectCommentsPage({
       </div>
 
       {/* Thread */}
-      <CommentThread projectId={id} currentUserId={user.id} comments={comments} />
+      <CommentThread projectId={id} currentUserId={profile.user.id} comments={comments} />
     </div>
   )
 }
