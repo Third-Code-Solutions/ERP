@@ -1,6 +1,6 @@
 import 'reflect-metadata'
 
-import { ForbiddenException } from '@nestjs/common'
+import { ForbiddenException, NotFoundException } from '@nestjs/common'
 import {
   documentIntakeRequests,
   documents,
@@ -25,6 +25,7 @@ const PRINCIPAL: ErpPrincipal = {
 const PROJECT_ID = '33333333-3333-4333-8333-333333333333'
 const DOCUMENT_ID = '44444444-4444-4444-8444-444444444444'
 const REQUEST_ID = '55555555-5555-4555-8555-555555555555'
+const OPPORTUNITY_ID = '66666666-6666-4666-8666-666666666666'
 
 const COMMAND = {
   storagePath: `${PRINCIPAL.tenantId}/${PROJECT_ID}/drawing.dwg`,
@@ -35,7 +36,7 @@ const COMMAND = {
   description: 'Approved drawing',
 }
 
-function enabledHarness() {
+function enabledHarness(options?: { opportunityRows?: Array<{ id: string }> }) {
   const membershipRows = [
     {
       tenantId: PRINCIPAL.tenantId,
@@ -64,10 +65,20 @@ function enabledHarness() {
       }),
     }),
   }
+  const opportunityQuery = {
+    from: vi.fn().mockReturnValue({
+      where: vi.fn().mockReturnValue({
+        limit: vi.fn().mockResolvedValue(options?.opportunityRows ?? []),
+      }),
+    }),
+  }
   const requestQuery = query([requestRecord])
   let selectCalls = 0
   const select = vi.fn(() => {
-    const query = [membershipQuery, projectQuery, requestQuery][selectCalls % 3]
+    const queries = options
+      ? [membershipQuery, projectQuery, opportunityQuery, requestQuery]
+      : [membershipQuery, projectQuery, requestQuery]
+    const query = queries[selectCalls % queries.length]
     selectCalls += 1
     return query
   })
@@ -88,6 +99,9 @@ function enabledHarness() {
     }),
   })
   const requestConflict = vi.fn().mockResolvedValue(undefined)
+  const documentValues = vi
+    .fn()
+    .mockReturnValue({ returning: documentReturning })
   const insert = vi.fn((table: unknown) => {
     if (table === documentIntakeRequests) {
       return {
@@ -98,7 +112,7 @@ function enabledHarness() {
       }
     }
     return {
-      values: vi.fn().mockReturnValue({ returning: documentReturning }),
+      values: documentValues,
     }
   })
   const transactionClient = { select, insert, update }
@@ -121,17 +135,20 @@ function enabledHarness() {
     update,
     audit,
     requestRecord,
+    documentValues,
   }
 }
 
 describe('DocumentIntakeService Core authority', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(lockProjectDocumentStorageForCreate).mockResolvedValue({
-      committedBytes: 0n,
-      activeReservationBytes: 0n,
-      totalBytes: 0n,
-    })
+    vi.mocked(lockProjectDocumentStorageForCreate)
+      .mockReset()
+      .mockResolvedValue({
+        committedBytes: 0n,
+        activeReservationBytes: 0n,
+        totalBytes: 0n,
+      })
   })
 
   it('creates one tenant-scoped document and records an audit event', async () => {
@@ -207,5 +224,41 @@ describe('DocumentIntakeService Core authority', () => {
     ).rejects.toBeInstanceOf(ForbiddenException)
     expect(probe.insert).not.toHaveBeenCalled()
     expect(probe.audit.writeSemantic).not.toHaveBeenCalled()
+  })
+
+  it('persists an opportunity association verified within the tenant project', async () => {
+    const probe = enabledHarness({
+      opportunityRows: [{ id: OPPORTUNITY_ID }],
+    })
+    await expect(
+      probe.service.create(
+        { ...COMMAND, opportunityId: OPPORTUNITY_ID },
+        PRINCIPAL,
+        'intake-opportunity-1'
+      )
+    ).resolves.toMatchObject({ documentId: DOCUMENT_ID, created: true })
+    expect(probe.documentValues).toHaveBeenCalledWith(
+      expect.objectContaining({ opportunity_id: OPPORTUNITY_ID })
+    )
+    expect(probe.audit.writeSemantic).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        diff: expect.objectContaining({ opportunity_id: OPPORTUNITY_ID }),
+      })
+    )
+  })
+
+  it('conceals an opportunity outside the verified tenant project', async () => {
+    const probe = enabledHarness({ opportunityRows: [] })
+    await expect(
+      probe.service.create(
+        { ...COMMAND, opportunityId: OPPORTUNITY_ID },
+        PRINCIPAL,
+        'intake-opportunity-2'
+      )
+    ).rejects.toBeInstanceOf(NotFoundException)
+    expect(probe.insert).not.toHaveBeenCalled()
+    expect(probe.audit.writeSemantic).not.toHaveBeenCalled()
+    expect(lockProjectDocumentStorageForCreate).not.toHaveBeenCalled()
   })
 })

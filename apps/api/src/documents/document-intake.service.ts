@@ -11,6 +11,7 @@ import {
 import {
   documentIntakeRequests,
   documents,
+  opportunities,
   projects,
   users,
 } from '@third-code-erp/database/schema'
@@ -117,9 +118,26 @@ export class DocumentIntakeService {
         throw new ForbiddenException('Storage path is outside tenant project scope')
       }
 
+      let opportunityId: string | null = null
+      if (command.opportunityId) {
+        const [opportunity] = await transaction
+          .select({ id: opportunities.id })
+          .from(opportunities)
+          .where(
+            and(
+              eq(opportunities.id, command.opportunityId),
+              eq(opportunities.tenant_id, authorizedPrincipal.tenantId),
+              eq(opportunities.project_id, project.id)
+            )
+          )
+          .limit(1)
+        if (!opportunity) throw new NotFoundException('Opportunity not found')
+        opportunityId = opportunity.id
+      }
+
       // Validate tenant/project scope before claiming idempotency. A foreign
-      // project must return a concealed 404/403, never a raw composite-FK
-      // failure from the request ledger.
+      // project or opportunity must return a concealed 404/403, never a raw
+      // composite-FK failure from the request ledger.
       const replay = await this.claimRequest(
         transaction,
         authorizedPrincipal,
@@ -147,6 +165,7 @@ export class DocumentIntakeService {
         .values({
           tenant_id: authorizedPrincipal.tenantId,
           project_id: project.id,
+          opportunity_id: opportunityId,
           uploaded_by: authorizedPrincipal.userId,
           document_type: documentType,
           file_name: command.fileName,
@@ -176,6 +195,7 @@ export class DocumentIntakeService {
         action: 'create',
         diff: {
           project_id: command.projectId,
+          opportunity_id: opportunityId,
           document_type: documentType,
           size_bytes: command.sizeBytes,
           idempotency_key_hash: requestHash,
