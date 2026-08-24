@@ -59,9 +59,13 @@ the same project-row lock before this feature is enabled. That shared lock,
 not an unlocked preflight sum, is the serialization boundary.
 
 After commit, Core creates a non-upsert signed upload for the exact reserved
-path. Provider failure conditionally releases the still-active reservation in
-a new transaction. A crash leaves an active, expiring record for deterministic
-retry or cleanup; it cannot lose quota evidence.
+path and records a sanitized signing outcome in a new transaction. Provider
+failure leaves the reservation active for an exact retry or deterministic
+expiry. It must not release automatically: concurrent exact-key callers can
+legitimately request credentials for the same immutable reservation, and one
+provider failure cannot prove that another caller did not receive a valid
+credential. A crash has the same safe, bounded behavior and cannot lose quota
+evidence.
 
 ### Completion and object truth
 
@@ -96,7 +100,7 @@ Only these transitions are valid:
 | From | To | Cause |
 | --- | --- | --- |
 | `active` | `completed` | verified object and atomic document commit |
-| `active` | `released` | explicit cancel, sign failure, or rejected metadata |
+| `active` | `released` | explicit cancel or rejected metadata |
 | `active` | `expired` | `expires_at` reached before completion |
 
 Terminal states never reopen. `expires_at` is Core issuance time plus two
@@ -185,8 +189,9 @@ fix after rollback review.
 - Same-tenant success plus cross-tenant, foreign-project, foreign-actor,
   revoked-membership, and direct-browser denial tests.
 - Parallel reservations at the 500 MiB boundary, completion/release/expiry
-  races, same-key replay, different-payload conflict, and all other document
-  writers using the project lock.
+  races, same-key replay including mixed concurrent signing outcomes,
+  different-payload conflict, and all other document writers using the project
+  lock.
 - Missing object, size mismatch, content-type mismatch, over-limit object,
   Storage timeout, post-upload transaction failure, and idempotent completion.
 - Cleanup retry, orphan grace, terminal-state immutability, reconciliation
@@ -198,8 +203,9 @@ fix after rollback review.
 
 - Pending uploads consume quota durably, concurrent requests serialize, and
   committed document metadata comes from the provider rather than the caller.
-- One extra Core round trip and ledger write are accepted to gain quota and
-  evidence integrity.
+- Extra Core round trips and ledger/audit writes are accepted to gain quota and
+  evidence integrity. A failed signing attempt can retain reserved quota until
+  exact retry, explicit release, or the two-hour expiry.
 - Database and Storage cannot be atomically committed together; immutable
   paths, no-upsert uploads, terminal transitions, and reconciliation make the
   failure window explicit and recoverable.

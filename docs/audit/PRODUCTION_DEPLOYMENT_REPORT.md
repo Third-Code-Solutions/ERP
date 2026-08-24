@@ -7,7 +7,9 @@
 - Public Core target: `https://third-code-erp-api-production.up.railway.app`
 - Public CAD target: `https://abi-ops-cad-worker-production.up.railway.app`
 
-No production mutation or deployment has occurred in this audit.
+No production mutation or deployment has occurred in this audit. The local
+AUD-004 ledger/Core implementation also remains default-off and was not pushed,
+deployed, migrated on a provider, or enabled for any tenant.
 
 Local candidate verification is complete: lint, typecheck, production build,
 2,468 runnable tests, dependency audits, Gitleaks, actionlint, documentation,

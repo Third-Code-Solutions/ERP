@@ -3,9 +3,9 @@
 - Updated: 2026-08-24 Asia/Singapore
 - Objective: repository audit, repair, independent verification, guarded
   production promotion, and live validation.
-- Branch/baseline: `agent-01/full-repository-audit` at
+- Branch/baseline: `agent-04/upload-reservations`; audit baseline
   `175eb35a5e40301e2dc82bd0414992633664c6fc`.
-- Phase: local audit/remediation complete; production decision is `NO-GO`.
+- Phase: local remediation resumed; production decision remains `NO-GO`.
 
 ## Completed
 
@@ -34,6 +34,13 @@
 - Inspected the tracked workbooks read-only without reproducing sensitive rows.
   The public-repository confidentiality response is awaiting exact owner/DPO
   authorization and the branch must not be pushed.
+- Implemented the local AUD-004 foundation through the Core authority: additive
+  ledger/migration, exact bigint project quota lock, strict contracts, private
+  Storage boundary, separately gated issuance/lifecycle/cleanup flags, and
+  authenticated reserve/complete/release endpoints. Signing concurrency was
+  independently challenged and changed to retain failed reservations safely.
+- Final focused Core evidence is 186/186 tests plus API typecheck, scoped lint,
+  diff checks, and independent Agent 4/5 PASS verdicts. All flags remain off.
 
 ## Principal completion
 
@@ -51,8 +58,9 @@
 - AUD-007 P0: public repository contains apparent account-level business
   workbooks. Making private, current-file quarantine/removal, and history rewrite
   are three separately authorized owner/DPO actions; none was inferred.
-- AUD-004 P1: quota reservation/object verification requires ADR-027, additive
-  migration, RLS/concurrency tests, current bucket enforcement and disposable DB.
+- AUD-004 P1 is partial: cleanup/reconciliation, Web cutover, all quota writers,
+  direct-browser denial, disposable-DB concurrency/RLS, provider bucket
+  enforcement/readback and canary remain.
 - AUD-006 P1: fractional construction quantity requires the existing exact
   representation product/schema decision.
 - AUD-015 P1: `main` and GitHub `production` environment are unprotected.
@@ -89,8 +97,9 @@
 
 ## Next exact action
 
-The project owner/DPO must separately authorize (1) making the repository
-private, (2) quarantining/replacing the current workbook blobs, and (3) any
-history rewrite. The owner must also approve exact `main` and `production`
-environment protection rules. Do not push, open a PR, or deploy this branch until
-the AUD-007 containment action is complete and release controls are proven.
+Continue safe local AUD-004 work in order: deterministic cleanup/reconciliation,
+then Web adapter cutover and shared-lock adoption across all document writers.
+Do not enable any reservation flag or mutate provider state without disposable
+DB/provider evidence. The owner/DPO still must authorize repository visibility,
+workbook quarantine/history action, and production protection rules before any
+push, PR, or deployment.

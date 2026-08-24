@@ -53,7 +53,7 @@ tenant predicates; Nest REST is selectively authoritative.
 | AUD-001 | P1 / High | Governance/toolchain authority | BLOCKED | Owner sign-off required |
 | AUD-002 | P1 / High | Process API connectivity | VERIFIED LOCALLY | Deploy verification blocked |
 | AUD-003 | P1 / High | Scope broken access control | VERIFIED LOCALLY | Browser/deploy verification blocked |
-| AUD-004 | P1 / High | Upload quota/object integrity | OPEN | Blocks release |
+| AUD-004 | P1 / High | Upload quota/object integrity | PARTIALLY REMEDIATED / VERIFIED LOCALLY | Blocks release |
 | AUD-005 | P1 / High | DocuSeal durable signed evidence | VERIFIED LOCALLY | Provider/deploy verification blocked |
 | AUD-006 | P1 / High | Fractional BOM quantities | BLOCKED | Product/schema ADR required |
 | AUD-007 | P0 / Critical | Publicly exposed business-data workbooks | BLOCKED | Immediate owner/DPO action required |
@@ -140,10 +140,23 @@ confirmed the GitHub repository is public. No row-level data is reproduced here.
   enforcement, permitting storage exhaustion and corrupt evidence.
 - Remediation: additive expiring reservations, atomic accounting, object metadata
   verification, bucket policy, orphan cleanup, idempotency, isolation tests.
-- Decision status: ADR-027 accepts the design and rollout/rollback constraints;
-  the additive schema/Core/client/provider implementation remains open.
-- Dependency/verification/owner: cross-domain schema/API/provider design,
-  disposable database and current Storage settings; Agents 04 -> 05 -> 03 -> 12.
+- Remediation implemented locally: ADR-027, the additive reservation ledger and
+  shared exact bigint quota lock, strict shared contracts, private-bucket
+  Storage adapter, and authenticated Core reserve/complete/release authority.
+  The service verifies active membership/project/capability, serializes quota,
+  derives immutable paths and completion metadata, calls Storage outside final
+  transactions, handles exact replay/terminal races, and records sanitized
+  reserve/sign/complete/release outcomes. Signing failure remains active for
+  retry/expiry so one concurrent provider failure cannot invalidate another
+  caller's valid credential.
+- Local verification: reservation schema/migration/contracts and 186 focused
+  Core tests pass with API typecheck, scoped lint, diff checks, inactive-role/
+  project negatives, mixed signing outcomes, over-limit object rejection, and
+  independent Agent 4 review PASS.
+- Remaining dependency/verification: deterministic cleanup/reconciliation, Web
+  adapter cutover, every quota-affecting document writer adopting the shared
+  project lock, browser/direct-Storage denial, disposable database concurrency/
+  RLS replay, and provider bucket setting readback/canary; Agents 03 -> 12/13.
 
 ## AUD-005 — DocuSeal completion can lock without durable signed evidence
 

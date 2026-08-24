@@ -152,7 +152,6 @@ describe('document upload reservation Storage boundary', () => {
     ['missing top-level fields', { metadata: { size: 1, mimetype: 'image/png' } }],
     ['zero bytes', { size: 0, contentType: 'image/png' }],
     ['fractional bytes', { size: 1.5, contentType: 'image/png' }],
-    ['oversized bytes', { size: 104_857_601, contentType: 'image/png' }],
     ['invalid content type', { size: 1, contentType: 'image/*' }],
   ] as const)('rejects %s from object info', async (_case, data) => {
     const probe = storageProbe()
@@ -161,6 +160,19 @@ describe('document upload reservation Storage boundary', () => {
     await expect(probe.service.info(STORAGE_PATH)).rejects.toThrow(
       'Document upload object metadata is invalid'
     )
+  })
+
+  it('returns oversized object metadata for the service to reject and release', async () => {
+    const probe = storageProbe()
+    probe.info.mockResolvedValue({
+      data: { size: 104_857_601, contentType: 'image/png' },
+      error: null,
+    })
+
+    await expect(probe.service.info(STORAGE_PATH)).resolves.toEqual({
+      sizeBytes: 104_857_601,
+      contentType: 'image/png',
+    })
   })
 
   it('does not expose raw object-info failures', async () => {

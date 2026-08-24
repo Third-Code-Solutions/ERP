@@ -31,6 +31,10 @@
 | DocuSeal/e-sign Core targeted | PARTIAL | focused API Vitest | 100 passed; 1 database integration case skipped |
 | Scope/e-sign/AI Web targeted | PASSED | focused Web Vitest | 36/36 passed |
 | Shared signing contracts targeted | PASSED | focused shared-types Vitest | 8/8 passed |
+| Upload reservation migration/contracts | PASSED | database/shared focused Vitest + migration verifier | Additive ledger, RLS/grants, constraints, exact bigint quota helper and 9 shared contract cases |
+| Upload reservation Core authority | PASSED | API focused Vitest from `apps/api` | 8 files / 186 tests: reserve/sign races, complete/release, Storage, auth, observability, environment and intake regression |
+| Upload reservation API typecheck/lint | PASSED | API `tsc --noEmit`; scoped ESLint | Exit 0 after final lifecycle fixes; no manifest/lock drift |
+| Upload reservation independent review | PASSED | Principal 4 final re-review | Two defect cycles repaired; final bodyless, replay-race and oversized-object review PASS |
 | Core post-fix full suite | PASSED | final `pnpm test` Core task | 188 files / 821 tests |
 | Web post-fix full suite | PARTIAL | final affected-workspace rerun | 157 files / 982 passed; 2 database-backed files skipped |
 | DocuSeal provider-ID correlation | PASSED | focused Web Vitest + full Web suite | Distinct ID/slug persisted for BOM/VO/COC; 12/12 focused |

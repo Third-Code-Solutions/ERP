@@ -61,6 +61,20 @@ completion remains separately gated wherever named below.
 
 ## 1. AUD-004 — durable signed-upload reservations
 
+### 2026-08-24 concurrency amendment
+
+Agent 12 independent review identified that automatically releasing a shared
+reservation after one signing failure races with a concurrent exact-key signing
+success. Agent 01 amended ADR-027 before API cutover: sanitized signing outcomes
+are recorded after the provider call, but failure leaves the active reservation
+for exact retry, explicit release, or bounded expiry. Agent 05 must retain a
+mixed-outcome concurrency regression and enforce `projects.status = 'active'`.
+
+→ Handoff to Agent 05. Reason: resume the Core reserve/complete/release slice
+under the amended safe signing rule. Inputs: ADR-027 concurrency amendment and
+independent P1/P2 review. Expected output: passing lifecycle, capability,
+observability, and concurrency tests while all gates remain default-off.
+
 **Authority:** accepted
 `docs/adrs/ADR-027-durable-signed-upload-reservations.md`.
 

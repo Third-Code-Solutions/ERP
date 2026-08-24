@@ -2047,6 +2047,10 @@ describe('ERP API environment', () => {
 
   it('keeps upload reservation writes and cleanup independently fail-closed', () => {
     const defaults = validateEnvironment(REQUIRED)
+    expect(defaults.ERP_DOCUMENT_UPLOAD_RESERVATION_ISSUANCE_ENABLED).toBe(false)
+    expect(defaults.ERP_DOCUMENT_UPLOAD_RESERVATION_ISSUANCE_TENANT_IDS).toEqual(
+      [],
+    )
     expect(defaults.ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_ENABLED).toBe(false)
     expect(defaults.ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_TENANT_IDS).toEqual([])
     expect(defaults.ERP_DOCUMENT_UPLOAD_RESERVATION_CLEANUP_ENABLED).toBe(false)
@@ -2056,18 +2060,28 @@ describe('ERP API environment', () => {
     expect(
       validateEnvironment({
         ...REQUIRED,
+        ERP_DOCUMENT_UPLOAD_RESERVATION_ISSUANCE_ENABLED: 'true',
+        ERP_DOCUMENT_UPLOAD_RESERVATION_ISSUANCE_TENANT_IDS: tenantId,
         ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_ENABLED: 'true',
         ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_TENANT_IDS: tenantId,
         ERP_DOCUMENT_UPLOAD_RESERVATION_CLEANUP_ENABLED: 'true',
         ERP_DOCUMENT_UPLOAD_RESERVATION_CLEANUP_TENANT_IDS: tenantId,
       }),
     ).toMatchObject({
+      ERP_DOCUMENT_UPLOAD_RESERVATION_ISSUANCE_ENABLED: true,
+      ERP_DOCUMENT_UPLOAD_RESERVATION_ISSUANCE_TENANT_IDS: [tenantId],
       ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_ENABLED: true,
       ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_TENANT_IDS: [tenantId],
       ERP_DOCUMENT_UPLOAD_RESERVATION_CLEANUP_ENABLED: true,
       ERP_DOCUMENT_UPLOAD_RESERVATION_CLEANUP_TENANT_IDS: [tenantId],
     })
 
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_DOCUMENT_UPLOAD_RESERVATION_ISSUANCE_TENANT_IDS: 'not-a-tenant',
+      }),
+    ).toThrow('ERP_DOCUMENT_UPLOAD_RESERVATION_ISSUANCE_TENANT_IDS')
     expect(() =>
       validateEnvironment({
         ...REQUIRED,

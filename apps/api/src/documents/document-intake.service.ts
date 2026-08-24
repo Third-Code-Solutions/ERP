@@ -17,7 +17,6 @@ import {
 import {
   documentIntakeRequestSchema,
   documentIntakeResultSchema,
-  type DocumentIntakeDocumentType,
   type DocumentIntakeRequest,
   type DocumentIntakeResult,
 } from '@third-code-erp/shared-types'
@@ -32,6 +31,7 @@ import {
   DatabaseService,
   type DatabaseTransaction,
 } from '../database/database.service'
+import { classifyDocumentType } from './document-type'
 
 type IntakeRequest = {
   id: string
@@ -64,22 +64,6 @@ function validateIdempotencyKey(raw: string): string {
     throw new BadRequestException('Invalid Idempotency-Key header')
   }
   return key
-}
-
-function classifyDocumentType(
-  fileName: string,
-  mimeType: string
-): DocumentIntakeDocumentType {
-  const ext = fileName.split('.').pop()?.toLowerCase() ?? ''
-  if (ext === 'dxf' || ext === 'dwg') return 'dxf'
-  if (ext === 'pdf' || mimeType === 'application/pdf') return 'pdf'
-  if (
-    mimeType.startsWith('image/') ||
-    ['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic'].includes(ext)
-  ) {
-    return 'image'
-  }
-  return 'other'
 }
 
 function replayResult(value: unknown): DocumentIntakeResult {

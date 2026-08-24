@@ -244,6 +244,46 @@ describe('RequestObservabilityMiddleware', () => {
     expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
   })
 
+  it.each([
+    {
+      method: 'POST',
+      path: '/v1/document-upload-reservations',
+      operation: 'document.upload_reserve',
+    },
+    {
+      method: 'POST',
+      path: '/v1/document-upload-reservations/:reservationId/complete',
+      operation: 'document.upload_complete',
+    },
+    {
+      method: 'DELETE',
+      path: '/v1/document-upload-reservations/:reservationId',
+      operation: 'document.upload_release',
+    },
+  ])('labels upload reservation command $operation without identifiers', ({
+    method,
+    path,
+    operation,
+  }) => {
+    const log = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined)
+    const response = new ResponseHarness()
+    const middleware = new RequestObservabilityMiddleware()
+
+    middleware.use(
+      requestHarness({ method, route: { path } }),
+      response as unknown as Response,
+      vi.fn() as NextFunction
+    )
+    response.emit('finish')
+
+    const serialized = String(log.mock.calls[0]?.[0])
+    expect(JSON.parse(serialized)).toMatchObject({ operation, method })
+    expect(serialized).not.toContain(PROJECT_ID)
+    expect(serialized).not.toContain('never-log-this-token')
+  })
+
   it('labels document deletions without logging document identifiers', () => {
     const log = vi
       .spyOn(Logger.prototype, 'log')

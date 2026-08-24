@@ -6,7 +6,6 @@ import {
 import { ConfigService } from '@nestjs/config'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import {
-  DOCUMENT_UPLOAD_MAX_BYTES,
   DOCUMENT_UPLOAD_SIGNED_CREDENTIAL_MAX_LENGTH,
   documentUploadContentTypeSchema,
   isDocumentUploadHttpUrl,
@@ -103,7 +102,6 @@ export class DocumentUploadReservationStorage {
         typeof size !== 'number' ||
         !Number.isSafeInteger(size) ||
         size <= 0 ||
-        size > DOCUMENT_UPLOAD_MAX_BYTES ||
         !contentType.success
       ) {
         throw new BadGatewayException(

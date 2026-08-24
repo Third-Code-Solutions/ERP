@@ -1439,8 +1439,24 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
-  // Durable upload reservations remain closed until the additive ledger,
-  // exact-path Storage contract, transaction replay, and tenant canary pass.
+  // Issuance can close independently while existing reservations continue to
+  // complete or release through the lifecycle-write gate during rollback.
+  ERP_DOCUMENT_UPLOAD_RESERVATION_ISSUANCE_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_DOCUMENT_UPLOAD_RESERVATION_ISSUANCE_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
+  // Lifecycle writes remain closed until the additive ledger, exact-path
+  // Storage contract, transaction replay, and tenant canary pass.
   ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_ENABLED: z
     .enum(['true', 'false'])
     .default('false')
