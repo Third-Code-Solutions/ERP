@@ -8,8 +8,9 @@
 - Public CAD target: `https://abi-ops-cad-worker-production.up.railway.app`
 
 No production mutation or deployment has occurred in this audit. The local
-AUD-004 ledger/Core implementation also remains default-off and was not pushed,
-deployed, migrated on a provider, or enabled for any tenant.
+AUD-004 ledger/Core/cleanup implementation also remains default-off and was not
+pushed, deployed, migrated on a provider, or enabled for any tenant. The cleanup
+scheduler is absent while its exact tenant allowlist is empty.
 
 Local candidate verification is complete: lint, typecheck, production build,
 2,468 runnable tests, dependency audits, Gitleaks, actionlint, documentation,

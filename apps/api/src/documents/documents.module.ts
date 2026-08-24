@@ -1,3 +1,4 @@
+import { BullModule } from '@nestjs/bullmq'
 import { Module, type MiddlewareConsumer, type NestModule } from '@nestjs/common'
 import { AuditModule } from '../audit/audit.module'
 import { RequestObservabilityMiddleware } from '../observability/request-observability.middleware'
@@ -8,6 +9,10 @@ import { DocumentIntakeController } from './document-intake.controller'
 import { DocumentIntakePipe } from './document-intake.pipe'
 import { DocumentIntakeService } from './document-intake.service'
 import { DocumentUploadReservationController } from './document-upload-reservation.controller'
+import { DOCUMENT_UPLOAD_RESERVATION_CLEANUP_QUEUE } from './document-upload-reservation-cleanup.constants'
+import { DocumentUploadReservationCleanupProcessor } from './document-upload-reservation-cleanup.processor'
+import { DocumentUploadReservationCleanupQueue } from './document-upload-reservation-cleanup.queue'
+import { DocumentUploadReservationCleanupService } from './document-upload-reservation-cleanup.service'
 import {
   DocumentUploadReservationMutationPipe,
   DocumentUploadReservationPipe,
@@ -28,7 +33,12 @@ import { PublicSigningService } from './public-signing.service'
 import { PublicSigningStorageService } from './public-signing.storage'
 
 @Module({
-  imports: [AuditModule],
+  imports: [
+    AuditModule,
+    BullModule.registerQueue({
+      name: DOCUMENT_UPLOAD_RESERVATION_CLEANUP_QUEUE,
+    }),
+  ],
   controllers: [
     DocumentDeleteController,
     DocumentIntakeController,
@@ -44,6 +54,9 @@ import { PublicSigningStorageService } from './public-signing.storage'
     DocumentIntakeService,
     DocumentUploadReservationPipe,
     DocumentUploadReservationMutationPipe,
+    DocumentUploadReservationCleanupProcessor,
+    DocumentUploadReservationCleanupQueue,
+    DocumentUploadReservationCleanupService,
     DocumentUploadReservationService,
     DocumentUploadReservationStorage,
     DocuSealArtifactStorage,

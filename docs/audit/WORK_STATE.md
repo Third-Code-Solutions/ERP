@@ -41,6 +41,12 @@
   independently challenged and changed to retain failed reservations safely.
 - Final focused Core evidence is 186/186 tests plus API typecheck, scoped lint,
   diff checks, and independent Agent 4/5 PASS verdicts. All flags remain off.
+- Implemented the separately gated cleanup lane with global oldest-first expiry,
+  deterministic project locks, just-in-time terminal claims, exact-path removal,
+  bounded provider retries/exhaustion, recovery after indeterminate finalization,
+  scheduler rollback convergence, a 30-second Storage deadline, and structured
+  trace-correlated evidence. The document-domain suite passes 125/125 and final
+  Principals 3/4/5 read-only reviews report PASS.
 
 ## Principal completion
 
@@ -58,7 +64,7 @@
 - AUD-007 P0: public repository contains apparent account-level business
   workbooks. Making private, current-file quarantine/removal, and history rewrite
   are three separately authorized owner/DPO actions; none was inferred.
-- AUD-004 P1 is partial: cleanup/reconciliation, Web cutover, all quota writers,
+- AUD-004 P1 is partial: reconciliation, Web cutover, all quota writers,
   direct-browser denial, disposable-DB concurrency/RLS, provider bucket
   enforcement/readback and canary remain.
 - AUD-006 P1: fractional construction quantity requires the existing exact
@@ -97,8 +103,8 @@
 
 ## Next exact action
 
-Continue safe local AUD-004 work in order: deterministic cleanup/reconciliation,
-then Web adapter cutover and shared-lock adoption across all document writers.
+Continue safe local AUD-004 work in order: deterministic reconciliation, then
+Web adapter cutover and shared-lock adoption across all document writers.
 Do not enable any reservation flag or mutate provider state without disposable
 DB/provider evidence. The owner/DPO still must authorize repository visibility,
 workbook quarantine/history action, and production protection rules before any

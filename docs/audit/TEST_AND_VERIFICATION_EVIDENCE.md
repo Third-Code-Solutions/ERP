@@ -35,6 +35,8 @@
 | Upload reservation Core authority | PASSED | API focused Vitest from `apps/api` | 8 files / 186 tests: reserve/sign races, complete/release, Storage, auth, observability, environment and intake regression |
 | Upload reservation API typecheck/lint | PASSED | API `tsc --noEmit`; scoped ESLint | Exit 0 after final lifecycle fixes; no manifest/lock drift |
 | Upload reservation independent review | PASSED | Principal 4 final re-review | Two defect cycles repaired; final bodyless, replay-race and oversized-object review PASS |
+| Upload reservation cleanup lane | PASSED | API document-domain Vitest from `apps/api` | 20 files / 125 tests; global bounds, terminal-only predicate, exact-path removal, retry/exhaustion, indeterminate max-attempt recovery, scheduler rollback, deadline, trace/redaction |
+| Upload cleanup independent review | PASSED | Principals 3/4/5 final read-only re-reviews | Fairness, provider/finalization classification, stale ownership, max-attempt recovery, scheduler convergence and observability findings repaired |
 | Core post-fix full suite | PASSED | final `pnpm test` Core task | 188 files / 821 tests |
 | Web post-fix full suite | PARTIAL | final affected-workspace rerun | 157 files / 982 passed; 2 database-backed files skipped |
 | DocuSeal provider-ID correlation | PASSED | focused Web Vitest + full Web suite | Distinct ID/slug persisted for BOM/VO/COC; 12/12 focused |

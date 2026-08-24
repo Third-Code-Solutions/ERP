@@ -110,9 +110,9 @@ observability, and concurrency tests while all gates remain default-off.
 - [ ] Missing object, actual-size mismatch, normalized-content-type mismatch,
   Storage timeout, expired reservation, revoked membership, foreign actor,
   foreign project, and foreign tenant all fail before document mutation.
-- [ ] Provider metadata inspection occurs outside the database transaction;
+- [x] Provider metadata inspection occurs outside the database transaction;
   document, reservation, and audit changes commit or roll back together.
-- [ ] Deterministic cleanup retries only reservation-owned paths and never
+- [x] Deterministic cleanup retries only reservation-owned paths and never
   infers deletion of legacy/unmapped objects.
 - [ ] Zero-to-current migration replay, RLS/grant catalog checks, affected
   workspaces, and relevant browser/route tests pass without new skips.
@@ -122,6 +122,31 @@ observability, and concurrency tests while all gates remain default-off.
 Hosted bucket mutation/readback, managed migration parity, one controlled real
 upload, and protected browser evidence remain blocked until the exact provider
 change is separately approved. Local completion does not close those gates.
+
+### 2026-08-24 cleanup implementation checkpoint
+
+Agent 05 implemented the Core cleanup authority and Agent 13/12 boundaries were
+verified read-only: the separately gated scheduler removes itself on rollback,
+the service selects a global oldest-first batch, locks affected projects before
+expiry, claims one terminal ledger row at a time, deletes only its exact path,
+and persists attempt-owned sanitized outcomes. Recorded provider failures use
+bounded exponential retry and stop after six attempts; stale claims without a
+durable provider outcome remain recoverable beyond that cap. Storage requests
+abort after 30 seconds, and structured trace-correlated job metrics cover
+expiry age, retry, exhaustion, failure, and duration.
+
+Verification: 20 document-domain files / 125 tests, API typecheck, scoped
+source ESLint, diff checks, and final independent Principals 3/4/5 reviews all
+PASS. Cleanup remains default-off with an empty tenant allowlist. No provider
+object, hosted database, Redis scheduler, GitHub setting, or deployment was
+mutated.
+
+→ Handoff to Agent 05. Reason: implement the remaining deterministic
+reconciliation report/repair cases without broadening deletion authority.
+Inputs: ADR-027, immutable reservation ledger, cleanup trace/evidence contract,
+and this checkpoint. Expected output: bounded reports for provable terminal,
+completed-link, and 24-hour reservation-prefix orphan cases, with no inferred
+legacy deletion.
 
 **Handoff:** Agent 12 -> Agent 01. Expected output: a local AUD-004 verdict and
 an exact list of provider-only evidence still required before AUD-021 starts.

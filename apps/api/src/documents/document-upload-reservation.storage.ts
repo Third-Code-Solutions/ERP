@@ -14,6 +14,22 @@ import {
 import type { Environment } from '../config/environment'
 
 const DOCUMENTS_BUCKET = 'documents'
+export const DOCUMENT_UPLOAD_STORAGE_REQUEST_TIMEOUT_MS = 30_000
+
+async function boundedDocumentUploadFetch(
+  input: string | URL | Request,
+  init?: RequestInit
+): Promise<Response> {
+  const requestSignal = input instanceof Request ? input.signal : undefined
+  const callerSignal = init?.signal ?? requestSignal
+  const timeoutSignal = AbortSignal.timeout(
+    DOCUMENT_UPLOAD_STORAGE_REQUEST_TIMEOUT_MS
+  )
+  const signal = callerSignal
+    ? AbortSignal.any([callerSignal, timeoutSignal])
+    : timeoutSignal
+  return fetch(input, { ...init, signal })
+}
 
 export type DocumentUploadSignedCredential = Readonly<{
   signedUrl: string
@@ -151,6 +167,7 @@ export class DocumentUploadReservationStorage {
         serviceRoleKey,
         {
           auth: { autoRefreshToken: false, persistSession: false },
+          global: { fetch: boundedDocumentUploadFetch },
         }
       )
     }

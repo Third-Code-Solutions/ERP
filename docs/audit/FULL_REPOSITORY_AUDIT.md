@@ -148,13 +148,20 @@ confirmed the GitHub repository is public. No row-level data is reproduced here.
   transactions, handles exact replay/terminal races, and records sanitized
   reserve/sign/complete/release outcomes. Signing failure remains active for
   retry/expiry so one concurrent provider failure cannot invalidate another
-  caller's valid credential.
-- Local verification: reservation schema/migration/contracts and 186 focused
-  Core tests pass with API typecheck, scoped lint, diff checks, inactive-role/
-  project negatives, mixed signing outcomes, over-limit object rejection, and
-  independent Agent 4 review PASS.
-- Remaining dependency/verification: deterministic cleanup/reconciliation, Web
-  adapter cutover, every quota-affecting document writer adopting the shared
+  caller's valid credential. The separately gated cleanup lane now expires a
+  global oldest-first batch under deterministic project locks, claims one
+  terminal row at a time, deletes only the immutable ledger path outside the
+  transaction, applies bounded retry/exhaustion, recovers indeterminate stale
+  claims, and emits redacted trace-correlated evidence. Storage requests have a
+  30-second abort deadline and disabling the lane removes its scheduler on a
+  bounded best-effort path.
+- Local verification: reservation schema/migration/contracts, 186 focused Core
+  tests, and the 20-file/125-test document-domain suite pass with API typecheck,
+  scoped lint, diff checks, inactive-role/project negatives, mixed signing
+  outcomes, cleanup fairness/retry/deadline cases, and final independent
+  implementation/verification/operations review PASS.
+- Remaining dependency/verification: deterministic reconciliation, Web adapter
+  cutover, every quota-affecting document writer adopting the shared
   project lock, browser/direct-Storage denial, disposable database concurrency/
   RLS replay, and provider bucket setting readback/canary; Agents 03 -> 12/13.
 

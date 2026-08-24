@@ -2,10 +2,13 @@ import 'reflect-metadata'
 
 import type { ConfigService } from '@nestjs/config'
 import { createClient } from '@supabase/supabase-js'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Environment } from '../config/environment'
-import { DocumentUploadReservationStorage } from './document-upload-reservation.storage'
+import {
+  DOCUMENT_UPLOAD_STORAGE_REQUEST_TIMEOUT_MS,
+  DocumentUploadReservationStorage,
+} from './document-upload-reservation.storage'
 
 vi.mock('@supabase/supabase-js', () => ({ createClient: vi.fn() }))
 
@@ -47,6 +50,11 @@ describe('document upload reservation Storage boundary', () => {
     vi.clearAllMocks()
   })
 
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
+
   it('lazily creates a server client and signs the exact non-upsert path', async () => {
     const probe = storageProbe()
     probe.createSignedUploadUrl.mockResolvedValue({
@@ -68,6 +76,7 @@ describe('document upload reservation Storage boundary', () => {
 
     expect(createClient).toHaveBeenCalledWith(STORAGE_URL, SERVICE_ROLE_KEY, {
       auth: { autoRefreshToken: false, persistSession: false },
+      global: { fetch: expect.any(Function) },
     })
     expect(probe.from).toHaveBeenCalledWith('documents')
     expect(probe.createSignedUploadUrl).toHaveBeenCalledWith(STORAGE_PATH, {
@@ -89,6 +98,43 @@ describe('document upload reservation Storage boundary', () => {
     await expect(
       probe.service.createSignedUpload(STORAGE_PATH)
     ).rejects.toThrow('Document upload authorization is unavailable')
+  })
+
+  it('bounds every provider request with the server Storage deadline', async () => {
+    const probe = storageProbe()
+    probe.createSignedUploadUrl.mockResolvedValue({
+      data: {
+        signedUrl: 'https://storage.example.test/upload/signed',
+        token: 'ephemeral-token',
+        path: STORAGE_PATH,
+      },
+      error: null,
+    })
+    await probe.service.createSignedUpload(STORAGE_PATH)
+
+    const configuredFetch = (
+      vi.mocked(createClient).mock.calls[0]?.[2] as
+        | { global?: { fetch?: typeof fetch } }
+        | undefined
+    )?.global?.fetch
+    const timeoutSignal = new AbortController().signal
+    const timeout = vi
+      .spyOn(AbortSignal, 'timeout')
+      .mockReturnValue(timeoutSignal)
+    const fetchProbe = vi.fn().mockResolvedValue(new Response())
+    vi.stubGlobal('fetch', fetchProbe)
+
+    await expect(
+      configuredFetch?.('https://storage.example.test/object')
+    ).resolves.toBeInstanceOf(Response)
+
+    expect(timeout).toHaveBeenCalledWith(
+      DOCUMENT_UPLOAD_STORAGE_REQUEST_TIMEOUT_MS
+    )
+    expect(fetchProbe).toHaveBeenCalledWith(
+      'https://storage.example.test/object',
+      expect.objectContaining({ signal: timeoutSignal })
+    )
   })
 
   it.each([

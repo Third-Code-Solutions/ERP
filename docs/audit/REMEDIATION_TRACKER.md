@@ -7,7 +7,7 @@
 | --- | --- | --- | --- | --- | --- | --- |
 | P1 | AUD-002 Process routes unregistered | VERIFIED LOCALLY | Principal 3 / Agent 05 | Promotion for live proof | AppModule test and full Core gates pass; live remains 404 | BLOCKED |
 | P1 | AUD-003 Viewer Scope mutation | VERIFIED LOCALLY | Principal 3 / Agent 03 | Browser target | Negative action/UI tests pass; browser unavailable | BLOCKED |
-| P1 | AUD-004 upload quota/object integrity | PARTIAL — LEDGER/CORE VERIFIED LOCALLY | Agents 04/05/03/12 | Cleanup, Web cutover, all-writer lock adoption, provider/disposable DB | 186 focused Core tests + schema/contracts/type/lint; independent review PASS | BLOCKED |
+| P1 | AUD-004 upload quota/object integrity | PARTIAL — LEDGER/CORE/CLEANUP VERIFIED LOCALLY | Agents 04/05/03/12/13 | Reconciliation, Web cutover, all-writer lock adoption, provider/disposable DB | 186 Core + 125 document-domain tests; cleanup fairness/retry/timeout/observability reviews PASS | BLOCKED |
 | P1 | AUD-005 DocuSeal durable evidence | VERIFIED LOCALLY | Agents 05/12 | Provider/database E2E | 100 Core + 36 Web + 8 shared targeted tests; full gates | BLOCKED |
 | P1 | AUD-006 fractional BOM quantity | BLOCKED | Agents 01/04/05/03 | Exact representation ADR | Migration/RLS/commercial E2E | BLOCKED |
 | P0 | AUD-007 public business workbooks | BLOCKED | Owner/DPO/Agent 12 | Visibility/quarantine/history authority | Sanitized fixture/history/access review | BLOCKED |
