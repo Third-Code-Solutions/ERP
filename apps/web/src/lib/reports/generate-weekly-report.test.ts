@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   storageFrom: vi.fn(),
   upload: vi.fn(),
   remove: vi.fn(),
+  insert: vi.fn(),
   update: vi.fn(),
   set: vi.fn(),
   where: vi.fn(),
@@ -27,6 +28,7 @@ vi.mock('@third-code-erp/auth/server', () => ({
 
 vi.mock('@third-code-erp/database', () => ({
   db: {
+    insert: mocks.insert,
     update: mocks.update,
   },
 }))
@@ -126,6 +128,7 @@ describe('persistWeeklyReportArtifact', () => {
   })
 
   it('removes only the uploaded object when Core rejects metadata', async () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     mocks.createDocumentThroughCoreApi.mockResolvedValue({
       ok: false,
       status: 503,
@@ -136,10 +139,56 @@ describe('persistWeeklyReportArtifact', () => {
 
     expect(mocks.remove).toHaveBeenCalledOnce()
     expect(mocks.remove).toHaveBeenCalledWith([STORAGE_PATH])
+    expect(mocks.insert).not.toHaveBeenCalled()
     expect(mocks.update).not.toHaveBeenCalled()
+    expect(warning).toHaveBeenCalledWith(
+      '[weekly-report] document metadata commit failed'
+    )
+    expect(JSON.stringify(warning.mock.calls)).not.toContain('private')
+    warning.mockRestore()
+  })
+
+  it('removes only the uploaded object when the Core helper throws', async () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    mocks.createDocumentThroughCoreApi.mockRejectedValue(
+      new Error('private thrown Core diagnostics')
+    )
+
+    await expect(persistWeeklyReportArtifact(artifactInput())).resolves.toBeNull()
+
+    expect(mocks.remove).toHaveBeenCalledOnce()
+    expect(mocks.remove).toHaveBeenCalledWith([STORAGE_PATH])
+    expect(mocks.insert).not.toHaveBeenCalled()
+    expect(mocks.update).not.toHaveBeenCalled()
+    expect(warning).toHaveBeenCalledWith(
+      '[weekly-report] document metadata commit failed'
+    )
+    expect(JSON.stringify(warning.mock.calls)).not.toContain('private')
+    warning.mockRestore()
+  })
+
+  it('removes only the uploaded object when Core returns malformed success data', async () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    mocks.createDocumentThroughCoreApi.mockResolvedValue({
+      ok: true,
+      status: 201,
+    })
+
+    await expect(persistWeeklyReportArtifact(artifactInput())).resolves.toBeNull()
+
+    expect(mocks.remove).toHaveBeenCalledOnce()
+    expect(mocks.remove).toHaveBeenCalledWith([STORAGE_PATH])
+    expect(mocks.insert).not.toHaveBeenCalled()
+    expect(mocks.update).not.toHaveBeenCalled()
+    expect(warning).toHaveBeenCalledWith(
+      '[weekly-report] document metadata commit failed'
+    )
+    expect(JSON.stringify(warning.mock.calls)).not.toContain('private')
+    warning.mockRestore()
   })
 
   it('treats a mismatched Core result as invalid and removes the exact object', async () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     mocks.createDocumentThroughCoreApi.mockResolvedValue({
       ok: true,
       status: 201,
@@ -156,8 +205,15 @@ describe('persistWeeklyReportArtifact', () => {
 
     await expect(persistWeeklyReportArtifact(artifactInput())).resolves.toBeNull()
 
+    expect(mocks.remove).toHaveBeenCalledOnce()
     expect(mocks.remove).toHaveBeenCalledWith([STORAGE_PATH])
+    expect(mocks.insert).not.toHaveBeenCalled()
     expect(mocks.update).not.toHaveBeenCalled()
+    expect(warning).toHaveBeenCalledWith(
+      '[weekly-report] document metadata commit failed'
+    )
+    expect(JSON.stringify(warning.mock.calls)).not.toContain('private')
+    warning.mockRestore()
   })
 
   it('does not expose cleanup diagnostics or remove another path when cleanup fails', async () => {
@@ -175,6 +231,8 @@ describe('persistWeeklyReportArtifact', () => {
 
     expect(mocks.remove).toHaveBeenCalledOnce()
     expect(mocks.remove).toHaveBeenCalledWith([STORAGE_PATH])
+    expect(mocks.insert).not.toHaveBeenCalled()
+    expect(mocks.update).not.toHaveBeenCalled()
     expect(JSON.stringify(warning.mock.calls)).not.toContain('private')
     warning.mockRestore()
   })
@@ -188,6 +246,7 @@ describe('persistWeeklyReportArtifact', () => {
     )
 
     expect(mocks.remove).not.toHaveBeenCalled()
+    expect(mocks.insert).not.toHaveBeenCalled()
     expect(warning).toHaveBeenCalledWith(
       '[weekly-report] document link update failed'
     )

@@ -8,6 +8,8 @@ const SUBMISSION_ID = '55555555-5555-4555-8555-555555555555'
 const INSPECTION_ID = '66666666-6666-4666-8666-666666666666'
 const DOCUMENT_ID = '77777777-7777-4777-8777-777777777777'
 const REPORT_ATTEMPT_ID = '88888888-8888-4888-8888-888888888888'
+const OTHER_TENANT_ID = '99999999-9999-4999-8999-999999999999'
+const OTHER_PROJECT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 
 const tables = vi.hoisted(() => ({
   opportunities: {
@@ -323,10 +325,97 @@ describe('site inspection report document authority', () => {
 
     expect(mocks.remove).toHaveBeenCalledOnce()
     expect(mocks.remove).toHaveBeenCalledWith([expectedStoragePath(PROJECT_ID)])
+    expect(mocks.insert).not.toHaveBeenCalled()
     expect(mocks.rootUpdateSet).not.toHaveBeenCalled()
     expect(JSON.stringify(warning.mock.calls)).not.toContain('private')
     warning.mockRestore()
   })
+
+  it('removes the exact project object when the Core helper throws', async () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    mocks.createDocumentThroughCoreApi.mockRejectedValue(
+      new Error('private thrown Core diagnostics')
+    )
+
+    await expect(submitInspection(inspectionForm())).resolves.toEqual({
+      id: INSPECTION_ID,
+    })
+
+    expect(mocks.remove).toHaveBeenCalledOnce()
+    expect(mocks.remove).toHaveBeenCalledWith([expectedStoragePath(PROJECT_ID)])
+    expect(mocks.insert).not.toHaveBeenCalled()
+    expect(mocks.rootUpdateSet).not.toHaveBeenCalled()
+    expect(JSON.stringify(warning.mock.calls)).not.toContain('private')
+    warning.mockRestore()
+  })
+
+  it('removes the exact project object when Core returns malformed success data', async () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    mocks.createDocumentThroughCoreApi.mockResolvedValue({
+      ok: true,
+      status: 201,
+    })
+
+    await expect(submitInspection(inspectionForm())).resolves.toEqual({
+      id: INSPECTION_ID,
+    })
+
+    expect(mocks.remove).toHaveBeenCalledOnce()
+    expect(mocks.remove).toHaveBeenCalledWith([expectedStoragePath(PROJECT_ID)])
+    expect(mocks.insert).not.toHaveBeenCalled()
+    expect(mocks.rootUpdateSet).not.toHaveBeenCalled()
+    expect(JSON.stringify(warning.mock.calls)).not.toContain('private')
+    warning.mockRestore()
+  })
+
+  it.each([
+    {
+      mismatch: 'tenant',
+      data: { tenantId: OTHER_TENANT_ID },
+    },
+    {
+      mismatch: 'project',
+      data: { projectId: OTHER_PROJECT_ID },
+    },
+    {
+      mismatch: 'storage path',
+      data: {
+        storagePath: `${TENANT_ID}/${PROJECT_ID}/another-object.html`,
+      },
+    },
+  ])(
+    'removes the exact project object for a Core $mismatch correlation mismatch',
+    async ({ data }) => {
+      const warning = vi
+        .spyOn(console, 'warn')
+        .mockImplementation(() => undefined)
+      mocks.createDocumentThroughCoreApi.mockResolvedValue({
+        ok: true,
+        status: 201,
+        data: {
+          documentId: DOCUMENT_ID,
+          tenantId: TENANT_ID,
+          projectId: PROJECT_ID,
+          storagePath: expectedStoragePath(PROJECT_ID),
+          documentType: 'other',
+          status: 'created',
+          created: true,
+          ...data,
+        },
+      })
+
+      await expect(submitInspection(inspectionForm())).resolves.toEqual({
+        id: INSPECTION_ID,
+      })
+
+      expect(mocks.remove).toHaveBeenCalledOnce()
+      expect(mocks.remove).toHaveBeenCalledWith([expectedStoragePath(PROJECT_ID)])
+      expect(mocks.insert).not.toHaveBeenCalled()
+      expect(mocks.rootUpdateSet).not.toHaveBeenCalled()
+      expect(JSON.stringify(warning.mock.calls)).not.toContain('private')
+      warning.mockRestore()
+    }
+  )
 
   it('does not expose cleanup diagnostics or remove another path when cleanup fails', async () => {
     const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
@@ -345,6 +434,8 @@ describe('site inspection report document authority', () => {
 
     expect(mocks.remove).toHaveBeenCalledOnce()
     expect(mocks.remove).toHaveBeenCalledWith([expectedStoragePath(PROJECT_ID)])
+    expect(mocks.insert).not.toHaveBeenCalled()
+    expect(mocks.rootUpdateSet).not.toHaveBeenCalled()
     expect(JSON.stringify(warning.mock.calls)).not.toContain('private')
     warning.mockRestore()
   })
@@ -358,6 +449,7 @@ describe('site inspection report document authority', () => {
     })
 
     expect(mocks.createDocumentThroughCoreApi).toHaveBeenCalledOnce()
+    expect(mocks.insert).not.toHaveBeenCalled()
     expect(mocks.remove).not.toHaveBeenCalled()
     expect(warning).toHaveBeenCalledWith(
       `[site-inspection] report archival failed for ${INSPECTION_ID}`
