@@ -27,10 +27,24 @@ rechecks permissions and commits the official assistant message.
 
 ## Run locally
 
-```bash
-python -m venv .venv
-.venv/Scripts/pip install -e ".[dev]"
-uvicorn src.main:app --reload --port 8001
+Python 3.12 is the supported runtime. Use the committed `uv.lock`; do not
+resolve from the open lower bounds during a build or test run.
+
+```powershell
+uv sync --frozen --extra dev
+uv run --frozen --extra dev pytest -q
+uv run --frozen uvicorn src.main:app --reload --port 8001
+```
+
+`requirements.lock` and `requirements-dev.lock` are hashed exports for build
+systems that cannot consume `uv.lock`. Regenerate all three artifacts only from
+Python 3.12, then verify them before committing:
+
+```powershell
+uv lock --python 3.12
+uv export --frozen --no-dev --no-emit-project --format requirements-txt --output-file requirements.lock
+uv export --frozen --extra dev --no-emit-project --format requirements-txt --output-file requirements-dev.lock
+uv lock --check
 ```
 
 Configure `AI_WORKER_URL` and `AI_WORKER_SHARED_SECRET` in the trusted Next or
