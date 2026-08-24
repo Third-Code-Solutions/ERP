@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { getUserProfile } from '@third-code-erp/auth'
+import { can, getUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { projects, scopeItems } from '@third-code-erp/database/schema'
 import { and, eq, max } from 'drizzle-orm'
@@ -14,6 +14,7 @@ export async function addScopeItem(
 ): Promise<{ error?: string }> {
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
+  if (!can(profile.role, 'bom.edit')) return { error: 'Forbidden' }
 
   const [project] = await db
     .select({ id: projects.id })
@@ -80,6 +81,7 @@ export async function updateScopeItemCost(
 ): Promise<{ error?: string }> {
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
+  if (!can(profile.role, 'bom.edit')) return { error: 'Forbidden' }
   if (!Number.isSafeInteger(unitCostCents) || unitCostCents < 0) {
     return { error: 'Unit cost must be a non-negative centavo integer' }
   }
@@ -130,6 +132,7 @@ export async function deleteScopeItem(
 ): Promise<{ error?: string }> {
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
+  if (!can(profile.role, 'bom.edit')) return { error: 'Forbidden' }
 
   const [existing] = await db
     .select({ id: scopeItems.id })

@@ -11,7 +11,14 @@ const signableEntityTypeSchema = z.enum([
 export const publicSigningBodySchema = z
   .object({
     signerName: z.string().trim().min(1).max(255),
-    signerEmail: z.string().trim().max(255).nullable().optional(),
+    signerEmail: z
+      .string()
+      .trim()
+      .email()
+      .max(255)
+      .transform((value) => value.toLowerCase())
+      .nullable()
+      .optional(),
     signatureDataUrl: z.string().trim().min(1).max(700_000),
   })
   .strict()
@@ -20,7 +27,14 @@ export const publicSigningCommandSchema = z
   .object({
     token: z.string().regex(/^[0-9a-f]{64}$/i),
     signerName: z.string().trim().min(1).max(255),
-    signerEmail: z.string().trim().max(255).nullable().optional(),
+    signerEmail: z
+      .string()
+      .trim()
+      .email()
+      .max(255)
+      .transform((value) => value.toLowerCase())
+      .nullable()
+      .optional(),
     signatureDataUrl: z.string().trim().min(1).max(700_000),
   })
   .strict()

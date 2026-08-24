@@ -1,197 +1,178 @@
 # Architecture
 
-ABI OPS is a single Next.js 15 application backed by Supabase, with
-Inngest for background work and an optional Python DXF worker on
-Railway. The same Postgres instance carries operational rows, vector
-embeddings, the append-only audit log, and Supabase Auth — every table
-is `tenant_id`-scoped and protected by row-level security.
+ABI OPS is a transitional ERP architecture: a Next.js 15 Web application and a
+NestJS 11 Core API share a Supabase Postgres 17 data plane while authority moves
+incrementally from compatibility Server Actions into typed Core REST modules.
+Redis/BullMQ runs Core queues, Inngest runs Web-compatible scheduled/event jobs,
+and Railway hosts the Core and CAD worker. An AI FastAPI worker is implemented
+but is not part of the canonical production promotion workflow.
 
----
+The current product authority is [`docs/PRD.md`](PRD.md). This document describes
+executable topology; it does not override PRD data-model or rollout constraints.
 
-## System Map
-
-```text
-                  ┌────────────────────────────────────────┐
-                  │  Browser (React 19 · App Router · RSC) │
-                  └───────────────┬────────────────────────┘
-                                  │ HTTPS / WSS
-                  ┌───────────────┴────────────────────────┐
-                  │  Vercel Edge + Next.js Server Actions  │
-                  └─┬───────────┬─────────────┬────────────┘
-                    │           │             │
-       ┌────────────┴──┐ ┌──────┴───────┐ ┌──┴──────────────────┐
-       │ Supabase      │ │ Inngest      │ │ Railway (optional)  │
-       │ - Postgres 17 │ │ - sla.tick   │ │ - dxf-parser        │
-       │ - Auth        │ │ - cadence    │ │ - rag-indexer       │
-       │ - Storage     │ │ - warranty   │ └─────────────────────┘
-       │ - Realtime    │ │ - permits    │
-       │ - pgvector    │ └──────────────┘
-       └───────────────┘
-                    │
-                    ▼
-       ┌─────────────────────────────────────────────────────────┐
-       │ External (all optional)                                  │
-       │ OpenAI · Anthropic · DocuSeal · Resend · Semaphore SMS  │
-       └─────────────────────────────────────────────────────────┘
-```
-
-Client requests hit Vercel's edge, then either render server
-components against Supabase (RLS-scoped) or invoke server actions that
-mutate via Drizzle. Mutations emit Inngest events for any work that
-should not block the request (notifications, cadence rollups, parser
-calls). The DXF parser is the only non-TypeScript service.
-
----
-
-## Data Model Summary
-
-Entities are scoped per tenant. RLS enforces isolation; no application
-code joins across tenants.
+## System map
 
 ```text
-tenants
-  └── users (membership + role)
+Browser (React 19 / Next App Router)
+  |
+  +-> Vercel: apps/web
+  |     +-> RSC and compatibility Server Actions -> Drizzle/Postgres
+  |     +-> 34 Next route handlers
+  |     +-> selective REST calls -> Railway Core
+  |     +-> Supabase Auth, signed Storage uploads and Realtime
+  |     +-> Inngest event/cron functions
+  |
+  +-> Supabase Auth / Realtime / private Storage
 
-accounts ─┬── opportunities ──┬── proposals
-          │                   ├── bom_drafts ── bom_lines
-          │                   └── projects
-          │
-projects ─┼── scope_items ──── boms ──── bom_line_items
-          ├── change_orders / variation_orders
-          ├── permits
-          ├── purchase_orders ── po_lines ── vendors
-          ├── tasks (daily / weekly cadence)
-          ├── punchlist_items
-          ├── documents (DXF, PDF, photos, signatures)
-          ├── billing_milestones ── invoices
-          ├── coc / turnover_packages
-          └── warranty_tickets ── cnps_surveys
+Railway Core: apps/api (NestJS 11)
+  +-> Supabase JWT verification + fail-closed capability guard
+  +-> Drizzle/Postgres 17
+  +-> Redis/BullMQ queues and processors
+  +-> CAD worker and optional AI worker boundaries
 
-audit_log     (append-only, hash-chained)
-embeddings    (pgvector — scope + BOM history + docs)
-sla_logs      (cross-entity SLA timers)
-signature_sessions  (canvas + DocuSeal envelopes)
+Supabase data plane
+  +-> tenant-scoped operational tables and RLS
+  +-> append-only audit evidence
+  +-> pgvector embeddings
+  +-> Auth, Storage and Realtime
+
+External integrations
+  +-> OpenAI / optional Anthropic
+  +-> DocuSeal or Canvas signing
+  +-> Resend and Semaphore
 ```
 
-Every business table has `tenant_id`, `created_at`, `created_by`, and
-an `updated_at` trigger. Soft-delete is via `deleted_at`; rows are
-never hard-deleted from operational tables.
+## Runtime components and authority
 
----
+| Component | Source | Production | Current authority |
+| --- | --- | --- | --- |
+| Web | `apps/web` | Vercel `thirdcode-erp` | UI, RSC reads, compatibility actions/routes, portals, Inngest |
+| Core API | `apps/api` | Railway `Third Code ERP API` | Nest REST modules, capability guard, queues, selected system-of-record writes |
+| CAD worker | `apps/workers/dxf-parser` | Railway `ABI OPS CAD Worker` | Evidence-only DXF/DWG extraction; no database authority |
+| AI worker | `apps/workers/ai` | No canonical target | Optional private embedding/grounded-answer boundary |
+| Database/Auth/Storage | `packages/database`, `supabase` | Supabase | Postgres 17, RLS, Auth, private objects, Realtime, pgvector |
+| Shared contracts | `packages/shared-types` | Bundled with Web/Core | Zod domain/API contracts and authorization matrix |
 
-## Module Map
+The Web/Core migration is deliberately incremental. Do not infer that every Web
+write already routes through Core. The source of truth for each route is its
+actual Server Action/handler and `apps/web/src/lib/erp-core-client.ts` adapter.
 
-| Module | Owning Tables | Routes |
-|---|---|---|
-| CRM — Accounts & Pipeline | `accounts`, `contacts`, `opportunities` | `/crm/accounts`, `/crm/opportunities`, `/pipeline` |
-| Projects | `projects`, `documents`, `scope_items` | `/projects`, `/projects/[id]` |
-| Proposal Workflow | `proposals`, `site_inspections`, `design_uploads`, `client_changes` | `/crm/opportunities/[id]/proposal` |
-| BOM Engine | `boms`, `bom_lines`, `signature_sessions` | `/bom`, `/projects/[id]/bom`, `/portal/bom/[token]` |
-| Project Cost Control | `cost_codes`, `project_budgets`, `project_budget_lines`, `cost_entries` | `/projects/[id]/cost`, `/projects/[id]/cost/budget` |
-| Procurement | `vendors`, `rfqs`, `purchase_orders`, `po_lines` | `/procurement`, `/purchase-orders` |
-| Inventory | `units_of_measure`, `material_items`, `warehouses`, `stock_receipts`, `stock_receipt_lines`, `stock_movements`, `stock_movement_lines`, `stock_ledger_entries` | `/inventory`, `/inventory/receipts`, `/inventory/receipts/[id]`, `/inventory/movements`, `/inventory/movements/[id]` |
-| Pre-Construction | `permits`, `checklists` | `/permits`, `/projects/[id]/checklist` |
-| Construction Cadence | `tasks`, `variation_orders`, `progress_snapshots` | `/tasks`, `/projects/[id]/progress`, `/projects/[id]/vos` |
-| Post-Construction | `punchlist_items`, `coc`, `turnover_packages` | `/punchlist`, `/projects/[id]/turnover` |
-| Warranty & CX | `warranty_tickets`, `cnps_surveys` | `/warranty`, `/portal/warranty/[token]`, `/portal/cnps/[token]` |
-| Finance | `fiscal_periods`, `ledger_accounts`, `journal_entries`, `journal_lines`, `invoices`, `supplier_bills`, `supplier_bill_lines`, `cash_accounts`, `cash_transactions`, `cash_allocations`, `bank_statements`, `bank_statement_lines` | `/finance`, `/finance/receivables`, `/finance/payables`, `/finance/cash`, `/finance/reconciliation`, `/finance/ledger` |
-| Admin & Reports | `rate_cards`, `material_items`, `mapping_config` | `/admin`, `/reports`, `/dashboard` |
+## Request and data boundaries
 
----
+### Web
 
-## Auth Flow + RLS Pattern
+- Supabase validates the browser session.
+- `getUserProfile()` reads the canonical `tenant_id` and role from `public.users`;
+  user metadata is not trusted for authorization.
+- Server Components and Server Actions use a mix of authenticated Supabase reads,
+  direct Drizzle compatibility queries, and Core REST calls.
+- Every direct Drizzle query must repeat the tenant predicate. RLS does not excuse
+  missing application authorization for a mutation.
+- Client modules cannot import server/database packages; the App Router and
+  client-boundary verification scripts enforce that structural boundary.
 
-1. Browser hits Supabase Auth (`/(auth)/login`). On success Supabase
-   returns a JWT containing `sub` (auth user id) and a custom claim
-   `tenant_id` resolved from the `users` membership table.
-2. Server components and server actions construct a Supabase client
-   with `cookies()` so RLS receives the JWT.
-3. Every business table has an RLS policy of the form:
+### Core
 
-   ```sql
-   tenant_id = (select tenant_id from users where id = auth.uid())
-   ```
+- `SupabaseJwtGuard` validates the bearer token and hydrates the principal from
+  `public.users`.
+- `CapabilityGuard` is global and fail-closed: a non-public route without an
+  explicit capability policy is rejected.
+- Controllers accept Zod-backed shared contracts and services repeat tenant scope
+  in database operations.
+- Redis/BullMQ handles bounded, retryable CAD, procurement and Cortex work.
 
-4. Service-role keys are used only inside Inngest jobs and webhook
-   handlers that must operate cross-tenant (e.g. the SLA cron). These
-   call sites scope manually by `tenant_id` parameter.
+ADR-022 keeps `tenant_memberships` dormant in Phase 0. Active tenant and role are
+still derived from `public.users`; do not implement tenant switching by assuming
+membership activation.
 
-Roles are enforced application-side in server actions: `Owner`,
-`Admin`, `Estimator`, `PM`, `Sales`, `Procurement`, `Compliance`,
-`Viewer`. Role checks happen before any mutation; viewers reach
-read-only queries through RLS naturally.
+## Commercial data spine
 
----
+The PRD locks `bom_line_items` as the stable commercial identity used by DUPA,
+takeoff/import, approval, budget, procurement and cost control. Legacy
+`scope_items` remains a CAD/manual compatibility input; it must not become a
+second commercial scope model or trigger foreign-key repointing.
 
-## Hash-Chained Audit Log
+```text
+tenant
+  +-> users (active tenant + role)
+  +-> accounts -> opportunities -> proposals
+  |                              +-> award/project conversion
+  +-> projects
+       +-> documents / scope_items compatibility input
+       +-> boms -> bom_line_items -> DUPA resources
+       |                         +-> budgets / RFQs / PO lines
+       +-> permits / cadence / process instances
+       +-> cost control / billing / claims / finance
+       +-> turnover / warranty / portal evidence
 
-`audit_log` is append-only. Triggers in
-`supabase/migrations/20260509164538_audit_triggers.sql` write a row on
-every `INSERT / UPDATE / DELETE` on tables tagged for audit. Each row
-stores:
+audit_log  append-only evidence
+embeddings pgvector tenant-scoped retrieval data
+```
 
-- `actor_id`, `entity_type`, `entity_id`, `action`, `diff` (JSONB)
-- `prev_hash` (last row's hash for the same tenant)
-- `hash = sha256(prev_hash || canonical(row))`
+Money remains integer centavos and rates basis points. Fractional BOM quantity is
+currently blocked by the exact-representation decision recorded in
+`docs/blockers/2026-08-17-bom-fractional-quantity-schema.md`.
 
-A scheduled Inngest verifier walks the chain nightly and reports any
-break. No application role has `UPDATE` or `DELETE` privilege on this
-table; the only DDL that can touch it is migration-level.
+## Background execution
 
----
+The Inngest endpoint is `apps/web/src/app/api/webhooks/inngest/route.ts`. It
+registers exactly these nine functions:
 
-## Signing Strategy
+| Function id | Trigger | Purpose |
+| --- | --- | --- |
+| `embed-bom-line-items` | `bom/approved` | Embed approved BOM line items |
+| `generate-daily-cadence-tasks` | `0 23 * * *` UTC | Generate next-day Manila cadence tasks |
+| `generate-cadence-on-demand` | `cadence/generate.requested` | Generate bounded tenant/project cadence on demand |
+| `dispatch-cnps-surveys` | hourly | Find warranty tickets due for CNPS survey |
+| `cnps-survey-scheduled` | `cnps/survey.scheduled` | Dispatch a scheduled survey event |
+| `sla-checker` | every 30 minutes | Warn/breach legacy open SLA logs |
+| `permit-staleness-checker` | daily UTC | Surface stale permit records |
+| `on-bom-internal-approved-create-rfq` | BOM approval events | Auto-create the RFQ workflow |
+| `process-sla-checker` | every 15 minutes | Evaluate Process/SLA instances |
 
-Two modes, selected by env at boot:
+Core also registers seven BullMQ queues and six processors across CAD,
+procurement and Cortex. The legacy Supabase Edge functions remain separately
+deployed compatibility schedulers; the canonical GitHub production workflow does
+not deploy them.
 
-- **Canvas (default).** The portal renders a HTML5 canvas signing
-  pad. On submit, the PNG + a JSON envelope (signer email, hashed
-  document, timestamp, IP) are written to Supabase Storage and a
-  `signature_sessions` row records the bundle path.
-- **DocuSeal (when `DOCUSEAL_API_URL` is set).** The portal redirects
-  the signer to a DocuSeal envelope. On completion, DocuSeal POSTs to
-  `/api/webhooks/docuseal`; the handler verifies the HMAC against
-  `DOCUSEAL_WEBHOOK_SECRET`, downloads the signed PDF, and writes the
-  same `signature_sessions` envelope so downstream code does not
-  branch on signing mode.
+## Realtime subscriptions
 
-Either way, the BOM lock or turnover acceptance triggers the same
-state transition on the parent entity.
+The browser has three concrete subscriptions:
 
----
+- `dashboard-realtime`: changes to `opportunities`, `purchase_orders`, `invoices`
+  and `boms`, debounced into a route refresh.
+- `pipeline-board-realtime`: changes to `opportunities`.
+- `notif:{userId}`: `notifications` filtered by `recipient_user_id`.
 
-## Background Jobs
+Channel names are not tenant authorization. Supabase RLS and the filter/predicate
+remain the security boundary.
 
-All functions live under `apps/web/src/lib/inngest-*.ts` and are
-registered through `/api/webhooks/inngest`.
+## Signing
 
-| Function | Trigger | What it does |
-|---|---|---|
-| `sla.tick` | cron `*/30 * * * *` | Walks open `sla_logs`, emits warn / breach notifications via Resend + Semaphore |
-| `cadence.daily` | cron `0 23 * * *` UTC (07:00 PHT) | Rolls daily tasks forward, snapshots progress for the S-curve |
-| `warranty.cnps` | cron `0 * * * *` | Sends CNPS surveys for tickets closed > 48h without a survey row |
-| `permits.staleness` | cron `0 0 * * *` UTC (08:00 PHT) | Surfaces permits stuck > 7 days to PM + GM |
-| `bom.parse` | event `bom.upload.received` | Calls the Railway DXF parser, writes draft BOM lines |
-| `bom.embed` | event `bom.lines.saved` | Embeds line text into `embeddings` for RAG suggestions |
-| `audit.verify` | cron `0 17 * * *` UTC | Walks the audit log hash chain; alerts on break |
+Canvas and DocuSeal are selected server-side. Current operator configuration must
+use the exact runtime variable names. Audit findings AUD-005 and AUD-014 document
+two unresolved production blockers: DocuSeal completion does not yet guarantee a
+durable private-bucket artifact, and signer/configuration assurance can diverge.
+Do not represent those paths as production-verified until their regressions pass.
 
-The legacy Supabase Edge Functions (`sla-checker`,
-`permit-staleness-checker`, `cnps-survey-sender`) cover the same
-ground for deploys that cannot reach Inngest.
+## Deployment topology
 
----
+- Web: Vercel project `thirdcode-erp`, canonical URL
+  `https://thirdcode-erp.vercel.app`, Node 22.x.
+- Core: Railway service `Third Code ERP API`, readiness `/ready`.
+- CAD: Railway service `ABI OPS CAD Worker`, health `/health`.
+- Data plane: fixed Supabase project in the production workflow.
+- Promotion: `.github/workflows/deploy-production.yml` on `main` only, applying
+  additive migrations before Core/CAD/Web deploy and authenticated E2E.
 
-## Realtime Channels
+ADR-020 calls this a protected workflow. Provider verification on 2026-08-24
+found that `main` and environment `production` currently have no GitHub protection
+rules. See `docs/audit/FULL_REPOSITORY_AUDIT.md` AUD-015 before any promotion.
 
-Supabase Realtime is subscribed from the browser for two surfaces:
+## Observability and current gaps
 
-- **Executive Dashboard.** Channel `dashboard:{tenant_id}` re-renders
-  KPI cards when any of `opportunities`, `projects`, `boms`, or
-  `invoices` mutate.
-- **Project Workspace.** Channel `project:{project_id}` updates the
-  activity feed and progress widgets as cadence jobs and PM mutations
-  land.
-
-Subscriptions are scoped by RLS — browsers cannot subscribe to a
-tenant they do not belong to. Reconnects are backed off via
-exponential jitter (max 30s).
+Core emits health/readiness and structured application logs. Repository evidence
+does not currently prove Sentry, Axiom or Better Stack projects, alert ownership,
+or synthetic alert delivery. The full current gap and other release blockers are
+tracked in `docs/audit/FULL_REPOSITORY_AUDIT.md`; provider dashboards must be
+verified rather than inferred from a stack table.

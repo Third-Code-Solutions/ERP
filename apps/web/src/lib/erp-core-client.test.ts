@@ -776,7 +776,14 @@ const DOCUSEAL_WEBHOOK_RESULT = {
   projectId: '44444444-4444-4444-8444-444444444444',
   projectName: 'Fit-out',
   tcvCents: 125_000,
-  signedDocument: { url: 'https://sign.example.test/signed.pdf' },
+  signedDocument: {
+    name: 'signed.pdf',
+    storagePath:
+      '22222222-2222-4222-8222-222222222222/' +
+      '44444444-4444-4444-8444-444444444444/esign/docuseal/' +
+      'c38c010f98910ae5710b340cdc221a044ebb58aac3d8f4a3f8ae2deb8725a133.pdf',
+    sizeBytes: 2_048,
+  },
 }
 const ACCOUNT_LIST_RESULT = {
   rows: [

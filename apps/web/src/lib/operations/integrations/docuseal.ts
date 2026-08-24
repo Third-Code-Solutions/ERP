@@ -15,10 +15,9 @@
  * to DocuSeal when DOCUSEAL_API_URL + DOCUSEAL_API_TOKEN are both set.
  */
 
-import {
-  createCanvasSignSession,
-  type SignableEntityType,
-} from './canvas-sign'
+import { z } from 'zod'
+
+import { createCanvasSignSession, type SignableEntityType } from './canvas-sign'
 
 interface CreateSubmissionInput {
   templateId: string
@@ -38,21 +37,50 @@ interface SubmissionResult {
 
 /** Legacy marker used by pre-canvas development portal links. */
 export function isDevelopmentStubSubmissionId(
-  submissionId: string | null | undefined,
+  submissionId: string | null | undefined
 ): boolean {
   return submissionId?.startsWith('dev-sub-') ?? false
 }
 
-const hasDocuSealConfig = () =>
-  Boolean(process.env.DOCUSEAL_API_URL) &&
-  Boolean(process.env.DOCUSEAL_API_TOKEN)
+type DocuSealConfig = { apiUrl: URL; apiToken: string } | null
+
+function docuSealConfig(): DocuSealConfig {
+  const apiUrlValue = process.env.DOCUSEAL_API_URL?.trim()
+  const apiToken = process.env.DOCUSEAL_API_TOKEN?.trim()
+  if (Boolean(apiUrlValue) !== Boolean(apiToken)) {
+    throw new Error(
+      'DocuSeal configuration is incomplete: DOCUSEAL_API_URL and DOCUSEAL_API_TOKEN must be configured together.'
+    )
+  }
+  if (!apiUrlValue || !apiToken) return null
+  if (apiToken.length < 20) {
+    throw new Error('DOCUSEAL_API_TOKEN must contain at least 20 characters.')
+  }
+
+  const apiUrl = new URL(apiUrlValue)
+  if (
+    !['http:', 'https:'].includes(apiUrl.protocol) ||
+    (process.env.NODE_ENV === 'production' && apiUrl.protocol !== 'https:') ||
+    apiUrl.username !== '' ||
+    apiUrl.password !== '' ||
+    apiUrl.search !== '' ||
+    apiUrl.hash !== ''
+  ) {
+    throw new Error(
+      'DOCUSEAL_API_URL must be a credential-free API base and use HTTPS in production.'
+    )
+  }
+  if (!apiUrl.pathname.endsWith('/')) apiUrl.pathname += '/'
+  return { apiUrl, apiToken }
+}
 
 const canUseDevelopmentStub = () => process.env.NODE_ENV !== 'production'
 
 export async function createDocuSealSubmission(
   input: CreateSubmissionInput
 ): Promise<SubmissionResult> {
-  if (!hasDocuSealConfig()) {
+  const config = docuSealConfig()
+  if (!config) {
     if (!canUseDevelopmentStub()) {
       throw new Error(
         'DocuSeal integration is not configured for production. Use in-app canvas signing or configure DOCUSEAL_API_URL and DOCUSEAL_API_TOKEN.'
@@ -68,11 +96,11 @@ export async function createDocuSealSubmission(
     }
   }
 
-  const res = await fetch(`${process.env.DOCUSEAL_API_URL}/api/v1/submissions`, {
+  const res = await fetch(new URL('submissions', config.apiUrl), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-Auth-Token': process.env.DOCUSEAL_API_TOKEN!,
+      'X-Auth-Token': config.apiToken,
     },
     body: JSON.stringify({
       template_id: input.templateId,
@@ -82,7 +110,7 @@ export async function createDocuSealSubmission(
     }),
   })
   if (!res.ok) {
-    throw new Error(`DocuSeal createSubmission failed (${res.status}): ${await res.text()}`)
+    throw new Error(`DocuSeal createSubmission failed (${res.status})`)
   }
   const body = (await res.json()) as { id: string; slug: string; url: string }
   return {
@@ -110,13 +138,25 @@ interface CreateSigningSessionInput {
   signerName?: string
 }
 
-interface SigningSessionResult {
-  url: string
-  /** One-shot token — display once. Audit log holds traceability afterwards. */
-  token: string
-  is_dev_stub: boolean
-  mechanism: 'canvas' | 'docuseal'
-}
+type SigningSessionResult =
+  | {
+      url: string
+      /** One-shot canvas token; absent from provider correlation columns. */
+      token: string
+      submissionId: null
+      slug: null
+      is_dev_stub: false
+      mechanism: 'canvas'
+    }
+  | {
+      url: string
+      /** DocuSeal slug retained for link/display compatibility. */
+      token: string
+      submissionId: string
+      slug: string
+      is_dev_stub: boolean
+      mechanism: 'docuseal'
+    }
 
 /**
  * Unified signing-session factory. Use this from any place that needs to
@@ -132,16 +172,25 @@ interface SigningSessionResult {
  * DocuSeal it is the submission slug.
  */
 export async function createSigningSession(
-  input: CreateSigningSessionInput,
+  input: CreateSigningSessionInput
 ): Promise<SigningSessionResult> {
-  const docusealConfigured =
-    Boolean(process.env.DOCUSEAL_API_URL) &&
-    Boolean(process.env.DOCUSEAL_API_TOKEN)
+  const config = docuSealConfig()
 
-  if (docusealConfigured) {
+  if (config) {
     const templateId = templateIdFor(input.entityType)
+    const signerEmail = z
+      .string()
+      .trim()
+      .email()
+      .transform((value) => value.toLowerCase())
+      .safeParse(input.signerEmail)
+    if (!signerEmail.success) {
+      throw new Error(
+        'A valid client signer email is required for DocuSeal submissions.'
+      )
+    }
     const submitter: { email: string; name?: string; role: string } = {
-      email: input.signerEmail ?? 'client@unknown.local',
+      email: signerEmail.data,
       role: 'client',
     }
     if (input.signerName) submitter.name = input.signerName
@@ -159,6 +208,8 @@ export async function createSigningSession(
     return {
       url: submission.url,
       token: submission.slug,
+      submissionId: submission.submission_id,
+      slug: submission.slug,
       is_dev_stub: submission.is_dev_stub,
       mechanism: 'docuseal',
     }
@@ -174,6 +225,8 @@ export async function createSigningSession(
   return {
     url: session.url,
     token: session.token,
+    submissionId: null,
+    slug: null,
     // Canvas signing persists a real one-shot signature session and is not a
     // DocuSeal fallback stub.
     is_dev_stub: false,
@@ -182,14 +235,23 @@ export async function createSigningSession(
 }
 
 function templateIdFor(entityType: SignableEntityType): string {
-  switch (entityType) {
-    case 'bom':
-      return process.env.DOCUSEAL_BOM_TEMPLATE_ID ?? 'bom-default'
-    case 'contract':
-      return process.env.DOCUSEAL_CONTRACT_TEMPLATE_ID ?? 'contract-default'
-    case 'variation_order':
-      return process.env.DOCUSEAL_VO_TEMPLATE_ID ?? 'vo-default'
-    case 'coc':
-      return process.env.DOCUSEAL_COC_TEMPLATE_ID ?? 'coc-default'
+  const environmentKey = (() => {
+    switch (entityType) {
+      case 'bom':
+        return 'DOCUSEAL_BOM_TEMPLATE_ID'
+      case 'contract':
+        return 'DOCUSEAL_CONTRACT_TEMPLATE_ID'
+      case 'variation_order':
+        return 'DOCUSEAL_VO_TEMPLATE_ID'
+      case 'coc':
+        return 'DOCUSEAL_COC_TEMPLATE_ID'
+    }
+  })()
+  const templateId = process.env[environmentKey]?.trim()
+  if (!templateId) {
+    throw new Error(
+      `${environmentKey} is required when DocuSeal is selected for ${entityType}.`
+    )
   }
+  return templateId
 }

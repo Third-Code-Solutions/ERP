@@ -166,9 +166,16 @@ test('proves Core DocuSeal webhook locking, replay, and tenant isolation', async
   expect(state.documents).toEqual([
     expect.objectContaining({
       file_name: 'signed-bom.pdf',
-      storage_path: 'https://sign.example.test/signed-bom.pdf',
+      storage_path: expect.stringMatching(
+        new RegExp(
+          `^${state.tenantId}/[0-9a-f-]{36}/esign/docuseal/[0-9a-f]{64}\\.pdf$`
+        )
+      ),
       document_type: 'contract',
-      size_bytes: 0,
+      size_bytes: Buffer.byteLength(
+        '%PDF-1.7\nloopback-signed-bom',
+        'ascii'
+      ),
     }),
   ])
   expect(state.portalTokens).toHaveLength(2)

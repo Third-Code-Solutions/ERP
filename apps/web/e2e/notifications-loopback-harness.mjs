@@ -562,6 +562,44 @@ const authServer = createServer(async (request, response) => {
     return json(response, 200, profile)
   }
 
+  if (
+    request.method === 'GET' &&
+    url.pathname.startsWith('/docuseal/submissions/') &&
+    url.pathname.endsWith('/documents') &&
+    request.headers['x-auth-token'] === 'local-docuseal-api-token-2026'
+  ) {
+    const submissionId = url.pathname.split('/')[3]
+    return json(response, 200, {
+      documents: [
+        {
+          name: 'signed-bom.pdf',
+          url: `${AUTH_ORIGIN}/docuseal-download/${submissionId}.pdf`,
+        },
+      ],
+    })
+  }
+
+  if (
+    request.method === 'GET' &&
+    url.pathname.startsWith('/docuseal-download/')
+  ) {
+    const pdf = Buffer.from('%PDF-1.7\nloopback-signed-bom', 'ascii')
+    response.writeHead(200, {
+      'content-length': String(pdf.length),
+      'content-type': 'application/pdf',
+    })
+    return response.end(pdf)
+  }
+
+  if (
+    request.method === 'POST' &&
+    url.pathname.startsWith('/storage/v1/object/documents/') &&
+    request.headers.apikey === SERVICE_ROLE_KEY
+  ) {
+    await requestBody(request)
+    return json(response, 200, { Id: randomUUID(), Key: url.pathname })
+  }
+
   return json(response, 404, {
     code: 'unsupported_contract',
     message: `${request.method ?? 'GET'} ${url.pathname} is not supported`,
@@ -699,6 +737,9 @@ const apiEnvironment = {
   ERP_PUBLIC_VENDOR_CONFIRMATION_TOKEN_SECRET: 'local-vendor-confirmation-secret-2026-with-32-plus-bytes',
   ERP_PUBLIC_VENDOR_CONFIRMATION_SESSION_TTL_HOURS: '24',
   ERP_CORE_WEBHOOK_TOKEN: 'local-docuseal-core-webhook-token-2026',
+  DOCUSEAL_API_URL: `${AUTH_ORIGIN}/docuseal/`,
+  DOCUSEAL_API_TOKEN: 'local-docuseal-api-token-2026',
+  DOCUSEAL_DOCUMENT_HOSTS: '127.0.0.1:4418',
   OPENAI_API_KEY: '',
   AI_GATEWAY_API_KEY: '',
   AI_PROVIDER_API_KEY: '',

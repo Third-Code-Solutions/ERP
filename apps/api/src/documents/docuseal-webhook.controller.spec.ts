@@ -10,7 +10,7 @@ import { DocuSealWebhookService } from './docuseal-webhook.service'
 const COMMAND = new DocuSealWebhookPipe().transform({
   event: 'submission.completed',
   submissionId: 'submission-123',
-  documents: [],
+  documents: [{ url: 'https://sign.example.test/signed.pdf' }],
 })
 
 describe('DocuSeal webhook HTTP contract', () => {

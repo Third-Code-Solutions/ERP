@@ -102,9 +102,9 @@ export async function mintBomPortalToken(
       token_hash: legacyTokenHash,
       expires_at: expiresAt,
       docuseal_submission_id:
-        session.mechanism === 'docuseal' ? session.token : null,
+        session.mechanism === 'docuseal' ? session.submissionId : null,
       docuseal_slug:
-        session.mechanism === 'docuseal' ? session.token : null,
+        session.mechanism === 'docuseal' ? session.slug : null,
     })
     .returning({ id: bomPortalTokens.id })
 

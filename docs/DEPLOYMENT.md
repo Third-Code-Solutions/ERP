@@ -239,11 +239,20 @@ envelope flow.
 
 1. Create a Railway service from the `docuseal/docuseal` Docker image.
 2. Mount a persistent volume for `/data/docuseal`.
-3. Set `DOCUSEAL_API_URL` (e.g. `https://docuseal.actuate.ph`) and
-   `DOCUSEAL_API_KEY` in Vercel.
-4. Generate `DOCUSEAL_WEBHOOK_SECRET` (any 32-byte hex string) and set
+3. Set the API base `DOCUSEAL_API_URL` and server-only
+   `DOCUSEAL_API_TOKEN` in both Web and Core. Partial configuration is rejected.
+4. Set Core `DOCUSEAL_DOCUMENT_HOSTS` to the comma-separated exact
+   `host[:port]` values returned for signed-document downloads. Do not use
+   schemes, paths, credentials, or wildcards.
+5. Set the exact Web template IDs used by enabled flows:
+   `DOCUSEAL_BOM_TEMPLATE_ID`, `DOCUSEAL_CONTRACT_TEMPLATE_ID`,
+   `DOCUSEAL_VO_TEMPLATE_ID`, and `DOCUSEAL_COC_TEMPLATE_ID`.
+6. Generate `DOCUSEAL_WEBHOOK_SECRET` (any 32-byte hex string) and set
    it in both Vercel and DocuSeal `Settings → Webhooks`.
-5. Point the DocuSeal webhook URL at
+7. Set `ERP_CORE_WEBHOOK_TOKEN` to the same server-only random value in Web
+   and Core, and ensure Core has `SUPABASE_SERVICE_ROLE_KEY` for the private
+   `documents` bucket.
+8. Point the DocuSeal webhook URL at
    `https://<your-domain>/api/webhooks/docuseal`.
 
 ---
