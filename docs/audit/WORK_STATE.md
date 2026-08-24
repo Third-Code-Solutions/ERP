@@ -47,6 +47,15 @@
   scheduler rollback convergence, a 30-second Storage deadline, and structured
   trace-correlated evidence. The document-domain suite passes 125/125 and final
   Principals 3/4/5 read-only reviews report PASS.
+- Routed every current Core project-document create/delete writer through the
+  exact tenant/project quota lock: intake, public signing, DocuSeal completion,
+  project-linked inspection photos, reservation lifecycle, and deletion.
+  Replays bypass quota mutation, pre-project photos remain excluded, and intake
+  avoids lock upgrades. Public signing now replays before session state errors
+  and derives quota identity from its transaction-locked source. The
+  document-domain suite passes 138/138 with API typecheck, scoped source lint,
+  and final independent PASS. A disposable-DB cross-session test matrix is
+  designed but not yet implemented.
 
 ## Principal completion
 
@@ -64,7 +73,7 @@
 - AUD-007 P0: public repository contains apparent account-level business
   workbooks. Making private, current-file quarantine/removal, and history rewrite
   are three separately authorized owner/DPO actions; none was inferred.
-- AUD-004 P1 is partial: reconciliation, Web cutover, all quota writers,
+- AUD-004 P1 is partial: versioned reconciliation, direct Web writer cutover,
   direct-browser denial, disposable-DB concurrency/RLS, provider bucket
   enforcement/readback and canary remain.
 - AUD-006 P1: fractional construction quantity requires the existing exact
@@ -103,8 +112,8 @@
 
 ## Next exact action
 
-Continue safe local AUD-004 work in order: deterministic reconciliation, then
-Web adapter cutover and shared-lock adoption across all document writers.
+Continue safe local AUD-004 work in order: default-off Web adapter/direct-writer
+cutover, committed-fixture concurrency proof, then versioned reconciliation.
 Do not enable any reservation flag or mutate provider state without disposable
 DB/provider evidence. The owner/DPO still must authorize repository visibility,
 workbook quarantine/history action, and production protection rules before any

@@ -5,11 +5,16 @@ import {
   documentIntakeRequests,
   documents,
 } from '@third-code-erp/database/schema'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import type { AuditService } from '../audit/audit.service'
 import type { DatabaseService } from '../database/database.service'
 import { DocumentIntakeService } from './document-intake.service'
+import { lockProjectDocumentStorageForCreate } from './document-storage-quota'
+
+vi.mock('./document-storage-quota', () => ({
+  lockProjectDocumentStorageForCreate: vi.fn(),
+}))
 
 const PRINCIPAL: ErpPrincipal = {
   userId: '11111111-1111-4111-8111-111111111111',
@@ -52,11 +57,16 @@ function enabledHarness() {
     return { from, lock }
   }
   const membershipQuery = query(membershipRows)
+  const projectQuery = {
+    from: vi.fn().mockReturnValue({
+      where: vi.fn().mockReturnValue({
+        limit: vi.fn().mockResolvedValue([{ id: PROJECT_ID }]),
+      }),
+    }),
+  }
   const requestQuery = query([requestRecord])
-  const projectQuery = query([{ id: PROJECT_ID }])
   let selectCalls = 0
   const select = vi.fn(() => {
-    // Scope must be validated before the idempotency ledger is claimed.
     const query = [membershipQuery, projectQuery, requestQuery][selectCalls % 3]
     selectCalls += 1
     return query
@@ -115,6 +125,14 @@ function enabledHarness() {
 }
 
 describe('DocumentIntakeService Core authority', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(lockProjectDocumentStorageForCreate).mockResolvedValue({
+      committedBytes: 0n,
+      activeReservationBytes: 0n,
+      totalBytes: 0n,
+    })
+  })
 
   it('creates one tenant-scoped document and records an audit event', async () => {
     const probe = enabledHarness()
@@ -129,6 +147,11 @@ describe('DocumentIntakeService Core authority', () => {
     })
     expect(probe.insert).toHaveBeenCalledWith(documentIntakeRequests)
     expect(probe.insert).toHaveBeenCalledWith(documents)
+    expect(lockProjectDocumentStorageForCreate).toHaveBeenCalledWith(
+      expect.anything(),
+      { tenantId: PRINCIPAL.tenantId, projectId: PROJECT_ID },
+      COMMAND.sizeBytes
+    )
     expect(probe.audit.writeSemantic).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
@@ -143,6 +166,9 @@ describe('DocumentIntakeService Core authority', () => {
   it('replays the committed result without inserting a second document', async () => {
     const probe = enabledHarness()
     const first = await probe.service.create(COMMAND, PRINCIPAL, 'intake-1')
+    vi.mocked(lockProjectDocumentStorageForCreate).mockRejectedValueOnce(
+      new Error('quota should not be consulted for a committed replay')
+    )
     const second = await probe.service.create(COMMAND, PRINCIPAL, 'intake-1')
     expect(first.created).toBe(true)
     expect(second).toMatchObject({ documentId: DOCUMENT_ID, created: false })
@@ -151,6 +177,7 @@ describe('DocumentIntakeService Core authority', () => {
       probe.insert.mock.calls.filter(([table]) => table === documents)
     ).toHaveLength(1)
     expect(probe.audit.writeSemantic).toHaveBeenCalledTimes(1)
+    expect(lockProjectDocumentStorageForCreate).toHaveBeenCalledTimes(1)
   })
 
   it('rejects a storage path outside the verified tenant/project scope', async () => {

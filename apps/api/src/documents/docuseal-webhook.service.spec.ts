@@ -15,6 +15,11 @@ import {
 } from './docuseal-artifact.storage'
 import type { DocuSealProviderService } from './docuseal-provider.service'
 import { DocuSealWebhookService } from './docuseal-webhook.service'
+import { lockProjectDocumentStorageForCreate } from './document-storage-quota'
+
+vi.mock('./document-storage-quota', () => ({
+  lockProjectDocumentStorageForCreate: vi.fn(),
+}))
 
 const TENANT_ID = '22222222-2222-4222-8222-222222222222'
 const BOM_ID = '33333333-3333-4333-8333-333333333333'
@@ -67,6 +72,12 @@ function harness({
   transactionUsedAt?: Date | null
   transactionFailure?: Error
 } = {}) {
+  vi.mocked(lockProjectDocumentStorageForCreate).mockClear()
+  vi.mocked(lockProjectDocumentStorageForCreate).mockResolvedValue({
+    committedBytes: 0n,
+    activeReservationBytes: 0n,
+    totalBytes: 0n,
+  })
   const preflightTokenQuery = query(
     tokenRows.map((token) => ({ ...token, usedAt: preflightUsedAt }))
   )
@@ -203,6 +214,11 @@ describe('DocuSeal webhook authority', () => {
       probe.transaction
     )
     expect(probe.insert).toHaveBeenCalledWith(documents)
+    expect(lockProjectDocumentStorageForCreate).toHaveBeenCalledWith(
+      expect.anything(),
+      { tenantId: TENANT_ID, projectId: PROJECT_ID },
+      PDF_BYTES.length
+    )
     expect(probe.insert).toHaveBeenCalledWith(notifications)
     expect(probe.insertValues).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -250,6 +266,7 @@ describe('DocuSeal webhook authority', () => {
     expect(probe.insert).not.toHaveBeenCalled()
     expect(probe.update).not.toHaveBeenCalled()
     expect(probe.remove).not.toHaveBeenCalled()
+    expect(lockProjectDocumentStorageForCreate).not.toHaveBeenCalled()
   })
 
   it('does not mutate token or BOM when provider retrieval fails', async () => {

@@ -148,6 +148,42 @@ and this checkpoint. Expected output: bounded reports for provable terminal,
 completed-link, and 24-hour reservation-prefix orphan cases, with no inferred
 legacy deletion.
 
+### 2026-08-24 all-Core-writer serialization checkpoint
+
+Agent 05 routed legacy intake, public signing, DocuSeal completion,
+project-linked inspection photos, and project document deletion through the
+same exact tenant/project quota lock as reservation issuance and completion.
+Committed replays return before quota enforcement; deletion remains available
+to reduce over-quota usage. Intake avoids a shared-project-lock upgrade and
+therefore has one exclusive serialization point. Pre-project inspection photos
+remain outside project quota by design.
+
+Verification: 21 document-domain files / 138 tests, API typecheck, scoped source
+ESLint, and diff checks PASS. A committed-fixture, cross-session database
+contention matrix has been designed for the local disposable Supabase CI lane
+but is not yet implemented. Direct Web report/sign/delete fallbacks still need
+Core cutover before any tenant may enable reservation issuance.
+
+Reconciliation review established that current paths share the legacy project
+folder, so unmatched current-format objects are report-only. Automatic orphan
+deletion requires a new reservation-owned versioned namespace, persisted
+activation evidence, durable scan cursors/leases, and two completed observation
+epochs. No inferred legacy deletion is authorized.
+
+Independent review initially found public-signing replay/state ordering, a
+stale outer project snapshot, and inverted BOM/project lock order. Agent 05
+repaired all three: exact outer and transaction replays precede state errors,
+the transaction locks the current source before the shared project row, and the
+locked source supplies the quota project. Replay and successful lock-order
+regressions now pass; the final Agent 03 review is PASS.
+
+→ Handoff to Agent 03. Reason: implement the default-off Web reservation adapter
+and eliminate direct Web project-document writes for the canary selector.
+Inputs: shared Core quota boundary, reserve/complete/release contracts, current
+writer map, and exact no-fallback canary rules. Expected output: browser release
+on failure, reservation-ID-only completion, replay-safe parsing, and route/action
+regressions while legacy draining remains explicit.
+
 **Handoff:** Agent 12 -> Agent 01. Expected output: a local AUD-004 verdict and
 an exact list of provider-only evidence still required before AUD-021 starts.
 

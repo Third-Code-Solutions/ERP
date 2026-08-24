@@ -21,6 +21,7 @@ import {
   docuSealArtifactObjectKey,
 } from './docuseal-artifact.storage'
 import { DocuSealProviderService } from './docuseal-provider.service'
+import { lockProjectDocumentStorageForCreate } from './document-storage-quota'
 
 function emptyResult(): DocuSealWebhookResult {
   return {
@@ -219,6 +220,12 @@ export class DocuSealWebhookService {
         tcvCents: bom.tcvCents,
         signedDocument,
       }
+
+      await lockProjectDocumentStorageForCreate(
+        transaction,
+        { tenantId: token.tenantId, projectId: bom.projectId },
+        signedDocument.sizeBytes
+      )
 
       const now = new Date()
       await transaction

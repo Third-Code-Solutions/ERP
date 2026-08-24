@@ -20,7 +20,7 @@ import {
   type DocumentIntakeRequest,
   type DocumentIntakeResult,
 } from '@third-code-erp/shared-types'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { roleHasCapability } from '../auth/capability.guard'
 import type {
   ErpPrincipal,
@@ -32,6 +32,7 @@ import {
   type DatabaseTransaction,
 } from '../database/database.service'
 import { classifyDocumentType } from './document-type'
+import { lockProjectDocumentStorageForCreate } from './document-storage-quota'
 
 type IntakeRequest = {
   id: string
@@ -101,11 +102,11 @@ export class DocumentIntakeService {
         .where(
           and(
             eq(projects.id, command.projectId),
-            eq(projects.tenant_id, authorizedPrincipal.tenantId)
+            eq(projects.tenant_id, authorizedPrincipal.tenantId),
+            isNull(projects.deleted_at)
           )
         )
         .limit(1)
-        .for('share')
       if (!project) throw new NotFoundException('Project not found')
 
       const expectedPrefix = `${authorizedPrincipal.tenantId}/${project.id}/`
@@ -127,6 +128,15 @@ export class DocumentIntakeService {
         requestHash
       )
       if (replay.state === 'succeeded') return replayResult(replay.result)
+
+      await lockProjectDocumentStorageForCreate(
+        transaction,
+        {
+          tenantId: authorizedPrincipal.tenantId,
+          projectId: project.id,
+        },
+        command.sizeBytes
+      )
 
       const documentType = classifyDocumentType(
         command.fileName,
@@ -165,7 +175,7 @@ export class DocumentIntakeService {
         entityId: document.id,
         action: 'create',
         diff: {
-          project_id: project.id,
+          project_id: command.projectId,
           document_type: documentType,
           size_bytes: command.sizeBytes,
           idempotency_key_hash: requestHash,

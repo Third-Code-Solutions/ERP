@@ -27,6 +27,7 @@ import {
   DatabaseService,
   type DatabaseTransaction,
 } from '../database/database.service'
+import { lockProjectDocumentStorageForCreate } from './document-storage-quota'
 
 function expectedStoragePrefix(tenantId: string, opportunityId: string): string {
   return `${tenantId}/opportunities/${opportunityId}/inspection/`
@@ -101,6 +102,17 @@ export class InspectionPhotoService {
           fileName: existing.fileName,
           status: 'created',
         })
+      }
+
+      if (opportunity.projectId) {
+        await lockProjectDocumentStorageForCreate(
+          transaction,
+          {
+            tenantId: authorizedPrincipal.tenantId,
+            projectId: opportunity.projectId,
+          },
+          command.sizeBytes
+        )
       }
 
       const [document] = await transaction

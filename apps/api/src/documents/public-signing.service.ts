@@ -31,6 +31,7 @@ import {
   DatabaseService,
   type DatabaseTransaction,
 } from '../database/database.service'
+import { lockProjectDocumentStorageForCreate } from './document-storage-quota'
 import { PublicSigningStorageService } from './public-signing.storage'
 
 const SIGNATURE_DATA_URL_PREFIX = 'data:image/png;base64,'
@@ -167,9 +168,6 @@ export class PublicSigningService {
       .limit(1)
     if (!session) throw new NotFoundException('Invalid signing link.')
 
-    const initialError = stateError(session, new Date())
-    if (initialError) throw new ConflictException(initialError)
-
     if (!tenantIds.includes(session.tenant_id)) {
       throw new ServiceUnavailableException(
         'Public signing is not enabled for this tenant; no signature was recorded.'
@@ -214,13 +212,16 @@ export class PublicSigningService {
       if (existing.state === 'succeeded') return replayResult(existing.result)
     }
 
-    const projectId = await this.resolveProjectId(
+    const initialError = stateError(session, new Date())
+    if (initialError) throw new ConflictException(initialError)
+
+    const sourceProjectId = await this.resolveProjectId(
       this.database.client,
       session.tenant_id,
       session.entity_type,
       session.entity_id
     )
-    if (!projectId) throw new NotFoundException('Source entity not found.')
+    if (!sourceProjectId) throw new NotFoundException('Source entity not found.')
 
     const bytes = decodeSignaturePng(command.signatureDataUrl)
     const objectKey =
@@ -235,7 +236,6 @@ export class PublicSigningService {
           session.id,
           session.tenant_id,
           tokenHash,
-          projectId,
           objectKey,
           bytes.length,
           command,
@@ -285,7 +285,6 @@ export class PublicSigningService {
     sessionId: string,
     tenantId: string,
     tokenHash: string,
-    projectId: string,
     objectKey: string,
     sizeBytes: number,
     command: { signerName: string; signerEmail?: string | null },
@@ -305,8 +304,6 @@ export class PublicSigningService {
       .limit(1)
       .for('update')
     if (!lockedSession) throw new NotFoundException('Invalid signing link.')
-    const lockedStateError = stateError(lockedSession, new Date())
-    if (lockedStateError) throw new ConflictException(lockedStateError)
 
     await transaction
       .insert(publicSigningRequests)
@@ -350,6 +347,18 @@ export class PublicSigningService {
       )
     }
     if (request.state === 'succeeded') return replayResult(request.result)
+
+    const lockedStateError = stateError(lockedSession, new Date())
+    if (lockedStateError) throw new ConflictException(lockedStateError)
+
+    const projectId = await this.lockSourceProject(transaction, lockedSession)
+    if (!projectId) throw new NotFoundException('Source entity not found.')
+
+    await lockProjectDocumentStorageForCreate(
+      transaction,
+      { tenantId, projectId },
+      sizeBytes
+    )
 
     const signedAt = new Date()
     const documentId = await this.createSignedDocument(
@@ -527,6 +536,67 @@ export class PublicSigningService {
       .from(certificatesOfCompletion)
       .where(and(eq(certificatesOfCompletion.id, entityId), eq(certificatesOfCompletion.tenant_id, tenantId)))
       .limit(1)
+    return row?.projectId ?? null
+  }
+
+  /** Locks the exact signable source before the shared project quota lock. */
+  private async lockSourceProject(
+    transaction: DatabaseTransaction,
+    session: typeof signatureSessions.$inferSelect
+  ): Promise<string | null> {
+    if (session.entity_type === 'bom') {
+      const [row] = await transaction
+        .select({ projectId: boms.project_id })
+        .from(boms)
+        .where(
+          and(
+            eq(boms.id, session.entity_id),
+            eq(boms.tenant_id, session.tenant_id)
+          )
+        )
+        .limit(1)
+        .for('update')
+      return row?.projectId ?? null
+    }
+    if (session.entity_type === 'contract') {
+      const [row] = await transaction
+        .select({ projectId: contracts.project_id })
+        .from(contracts)
+        .where(
+          and(
+            eq(contracts.id, session.entity_id),
+            eq(contracts.tenant_id, session.tenant_id)
+          )
+        )
+        .limit(1)
+        .for('update')
+      return row?.projectId ?? null
+    }
+    if (session.entity_type === 'variation_order') {
+      const [row] = await transaction
+        .select({ projectId: variationOrders.project_id })
+        .from(variationOrders)
+        .where(
+          and(
+            eq(variationOrders.id, session.entity_id),
+            eq(variationOrders.tenant_id, session.tenant_id)
+          )
+        )
+        .limit(1)
+        .for('update')
+      return row?.projectId ?? null
+    }
+    const [row] = await transaction
+      .select({ projectId: certificatesOfCompletion.project_id })
+      .from(certificatesOfCompletion)
+      .where(
+        and(
+          eq(certificatesOfCompletion.id, session.entity_id),
+          eq(certificatesOfCompletion.tenant_id, session.tenant_id)
+        )
+      )
+      .limit(1)
+      .for('update')
     return row?.projectId ?? null
   }
 }
