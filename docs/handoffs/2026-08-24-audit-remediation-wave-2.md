@@ -216,6 +216,27 @@ authority are resolved.
 **Handoff:** Agent 12 -> Agent 01. Expected output: a local AUD-004 verdict and
 an exact list of provider-only evidence still required before AUD-021 starts.
 
+### 2026-08-24 bounded reconciliation checkpoint
+
+Agent 05 completed the report-only reconciliation lane. Bounded scans persist a
+durable BullMQ rollover checkpoint, classify only provable terminal/completed
+ledger states, emit sanitized trace-correlated evidence, and never infer or
+delete a legacy object. Additive partial indexes support terminal cleanup and
+completed-link queries without broadening cleanup authority.
+
+Verification: the focused API matrix passes 133 tests across 5 files; API
+typecheck passes; the database suite passes 8/8 with database typecheck; and the
+pinned PostgreSQL 16 verifier proves both indexes valid/ready and selected by the
+target query plans. Independent implementation and verification reviews return
+PASS. No hosted database, provider object, Redis scheduler, selector, GitHub
+setting, or deployment was mutated.
+
+→ Handoff to Agent 12/13. Reason: retain provider-only evidence boundaries.
+Inputs: the locally verified reservation/reconciliation contract and cutover
+runbook. Expected output: approved bucket/direct-browser readback and one
+exact-tenant hosted canary only after AUD-007 and release-control authority are
+resolved.
+
 ## 2. AUD-021 — entity-neutral DocuSeal completion authority
 
 **Authority boundary:** connect only behavior already present in the repository.
@@ -343,20 +364,42 @@ complete compatibility evidence and does not ride inside dependency locking.
 
 ### Local acceptance criteria
 
-- [ ] No worker Dockerfile uses a floating base tag and no Python requirement
+- [x] No worker Dockerfile uses a floating base tag and no Python requirement
   uses an open range or unhashed transitive resolution.
-- [ ] Two clean builds from the same source resolve the same base and dependency
+- [x] Two clean builds from the same source resolve the same base and dependency
   identities; worker tests/import smokes and CAD deterministic fixtures pass.
-- [ ] SBOMs identify OS and Python packages without secrets or local paths, and
+- [x] SBOMs identify OS and Python packages without secrets or local paths, and
   the vulnerability scan is fail-closed with documented triage for any finding.
-- [ ] Updating a base/dependency requires an explicit lock refresh, diff, tests,
+- [x] Updating a base/dependency requires an explicit lock refresh, diff, tests,
   SBOM, and rollback artifact; no application dependency is added implicitly.
-- [ ] The unresolved runtime-policy discrepancy remains attached to AUD-001 and
+- [x] The unresolved runtime-policy discrepancy remains attached to AUD-001 and
   is not falsely reported as reconciled.
 
 **Handoff:** Agent 12 -> Agent 04. Expected output: reproducible local worker
 artifacts and evidence, with runtime-policy reconciliation still correctly
 separated.
+
+### 2026-08-25 reproducible worker checkpoint
+
+Agents 06/08/13 completed ADR-028 locally. Both workers use Python 3.12 on the
+same immutable Alpine 3.23 index digest, uv 0.12.0 by immutable image digest,
+frozen uv locks, hashed runtime/development exports, exact Alpine runtime pins,
+and UID/GID 10001. The CAD image verifies the LibreDWG 0.13.4 archive checksum
+before extraction and retains a fixed extraction-output digest.
+
+AI tests pass 8/8 and CAD tests pass 22/22. Two independent clean builds and
+runtime smokes pass for each worker. SPDX comparisons, excluding only the
+top-level image tag, show zero differences across 75 AI and 81 CAD dependency
+records. Both fail-closed high/critical Docker Scout scans exit zero with no
+vulnerable package detected. Artifact contract, actionlint, immutable action
+reference, diff, secret/local-path, and independent Agent 12/13 review gates
+pass. GitHub CI has not run; no image was published and no provider or
+deployment state changed.
+
+→ Handoff to Agent 04. Reason: proceed to AUD-019 without coupling worker
+publication or provider mutation. Inputs: locally verified AUD-012 artifacts and
+unchanged production `NO-GO`. Expected output: evidence-ranked foreign-key index
+inventory and bounded additive migration/query-plan verification.
 
 ## 5. AUD-019 — foreign-key index coverage
 

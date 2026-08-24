@@ -1,6 +1,6 @@
 # Audit Work State
 
-- Updated: 2026-08-24 Asia/Singapore
+- Updated: 2026-08-25 Asia/Singapore
 - Objective: repository audit, repair, independent verification, guarded
   production promotion, and live validation.
 - Branch/baseline: `agent-04/upload-reservations`; audit baseline
@@ -21,7 +21,8 @@
   dependency audits, Gitleaks, worker tests and worker container/import smokes.
 - Independently verified local AUD-002 Process registration, AUD-003 Scope
   authorization, and AUD-009 embedding-cache isolation. Production still serves
-  the pre-fix Process 404; authenticated browser proof remains unavailable.
+  the pre-fix Process 404; authenticated deployed Scope browser proof remains
+  unavailable.
 - Independently reviewed and verified AUD-005 durable DocuSeal evidence, the
   remediated portions of AUD-014 e-sign configuration/signatory integrity, and
   AUD-017's exact embedding dimension contract. Provider/browser/DB integration
@@ -47,35 +48,69 @@
   scheduler rollback convergence, a 30-second Storage deadline, and structured
   trace-correlated evidence. The document-domain suite passes 125/125 and final
   Principals 3/4/5 read-only reviews report PASS.
-- Routed every current Core project-document create/delete writer through the
-  exact tenant/project quota lock: intake, public signing, DocuSeal completion,
-  project-linked inspection photos, reservation lifecycle, and deletion.
-  Replays bypass quota mutation, pre-project photos remain excluded, and intake
-  avoids lock upgrades. Public signing now replays before session state errors
-  and derives quota identity from its transaction-locked source. The
-  document-domain suite passes 138/138 with API typecheck, scoped source lint,
-  and final independent PASS. A disposable-DB cross-session test matrix is
-  designed but not yet implemented.
+- Routed every current Core project-scoped document create/delete writer through
+  the exact tenant/project quota lock: intake, public signing, DocuSeal
+  completion, project-linked inspection photos, reservation lifecycle, and
+  deletion. Pre-project inspection evidence remains outside project quota.
+- Completed the default-off Web reservation sign/complete/release cutover.
+  Selected issuance fails before Core, database, Storage, or audit side effects
+  unless lifecycle, public-signing, and deletion authorities are all selected
+  for the same exact tenant. Wildcards cannot satisfy those selectors.
+- Moved weekly-report and project-linked inspection-report document metadata to
+  Core intake. The 19-case report matrix verifies malformed, thrown, rejected,
+  and tenant/project/path-mismatched Core results, exact-object cleanup, redacted
+  diagnostics, and no direct document mutation. Pre-project inspection reports
+  remain opportunity-scoped and quota-exempt.
+- Added the no-skip PostgreSQL 16 cross-session matrix. It observes real database
+  lock waits and proves no oversubscription at 500 MiB for
+  reservation-versus-reservation and reservation-versus-intake in both winner
+  orders, plus terminal release/replay behavior and tenant isolation.
+- Added the durable document opportunity/project invariant: the retained
+  tenant/opportunity FK preserves pre-project documents, while the new nullable
+  composite FK rejects cross-project association and later opportunity
+  reparenting. Its fail-closed migration, exact catalogs, collision cases, and
+  two-session lock schedule pass the pinned PostgreSQL 16 verifier.
+- Added bounded report-only upload reconciliation with a durable BullMQ rollover
+  checkpoint and partial terminal/completed indexes. The API matrix passes 133
+  tests across 5 files; the database suite passes 8/8; API/database typechecks
+  and the pinned PostgreSQL 16 query-plan verifier pass. No legacy deletion was
+  inferred and no cleanup authority was broadened.
+- Completed the local AUD-012 worker artifact slice under ADR-028: both workers
+  now use Python 3.12 on one immutable Alpine base, exact uv/LibreDWG/system
+  package provenance, uv locks, hashed exports, non-root runtime images, a
+  controlled update/rollback runbook, and immutable-action-pinned CI SBOM/CVE
+  gates.
+- AI tests pass 8/8 and CAD tests pass 22/22. Two clean builds and smokes per
+  worker pass; independent SPDX comparisons have zero dependency differences
+  across 75 AI and 81 CAD packages; fail-closed high/critical scans report no
+  vulnerable package. Static workflow gates and independent release review pass.
 
 ## Principal completion
 
-- `/root`: integrated the audit, reviewed all implementation diffs, and ran final
-  focused and repository-wide gates.
+- `/root`: integrated the audit, reviewed all implementation diffs, and ran the
+  recorded scoped gates; repository-wide suite results remain timestamped
+  snapshots.
 - Principal 1: completed inventory/planning, ADR-027 and exact blocker briefs.
 - Principal 2: completed architecture/connectivity audit, read-only.
-- Principal 3: completed both repair slices and final stale-fixture correction;
-  no commit/push/deploy.
-- Principal 4: completed independent first-slice verification, read-only.
-- Principal 5: completed provider/release review with a `NO-GO`, read-only.
+- Principal 3: completed the reservation, Web/report, selector,
+  contention-fixture, reconciliation, and schema implementation/repair slices;
+  no push/deploy.
+- Principal 4: independently verified reservation lifecycle/cleanup,
+  writer/quota behavior, Web/report boundaries, cross-session contention, and
+  the opportunity/project migration plus reconciliation, read-only.
+- Principal 5: completed provider/release review with a `NO-GO` and independently
+  verified the final worker SBOM/SARIF artifacts with no P0-P2 finding, read-only.
 
 ## Current failures and blockers
 
 - AUD-007 P0: public repository contains apparent account-level business
   workbooks. Making private, current-file quarantine/removal, and history rewrite
   are three separately authorized owner/DPO actions; none was inferred.
-- AUD-004 P1 is partial: versioned reconciliation, direct Web writer cutover,
-  direct-browser denial, disposable-DB concurrency/RLS, provider bucket
-  enforcement/readback and canary remain.
+- AUD-004 P1 remains partial only for hosted documents-bucket size/MIME
+  enforcement and readback, authenticated direct-browser Storage
+  INSERT/UPDATE/DELETE denial and readback, and an exact-tenant hosted canary
+  with release/drain evidence. No provider setting was changed and no AUD-004
+  selector was enabled.
 - AUD-006 P1: fractional construction quantity requires the existing exact
   representation product/schema decision.
 - AUD-015 P1: `main` and GitHub `production` environment are unprotected.
@@ -85,7 +120,8 @@
   completion authority is BOM-specific; exact transition/warranty/API/schema
   ownership is recorded in a blocker brief.
 - AUD-001 governance reconciliation and remaining external PRD sources need owner
-  decisions. Authenticated browser/E2E credentials remain unavailable locally.
+  decisions. A controlled authenticated local reservation browser passed 5/5;
+  authenticated hosted/provider verification credentials remain unavailable.
 - Current Supabase advisors report 10 security WARN and 466 performance items,
   including 342 unindexed foreign keys; leaked-password protection needs owner
   approval and index changes require workload/additive-migration evidence.
@@ -99,6 +135,9 @@
 - `scripts/audit/generate-{repository-coverage,environment-matrix,system-inventory}.mjs`
 - Architecture/README/user-story documentation corrections
 - Principal 3 source/test changes for AUD-002/003/005/009/014/017
+- Upload reconciliation API/database source, tests, migration, and runbook/config
+- AI/CAD worker manifests, locks, hashed exports, Dockerfiles, tests and docs
+- CI worker artifact matrix and static artifact/action verification scripts
 
 ## Provider state and rollback
 
@@ -112,9 +151,8 @@
 
 ## Next exact action
 
-Continue safe local AUD-004 work in order: default-off Web adapter/direct-writer
-cutover, committed-fixture concurrency proof, then versioned reconciliation.
-Do not enable any reservation flag or mutate provider state without disposable
-DB/provider evidence. The owner/DPO still must authorize repository visibility,
-workbook quarantine/history action, and production protection rules before any
-push, PR, or deployment.
+Begin AUD-019 with an evidence-ranked foreign-key index inventory and the first
+bounded additive migration/query-plan slice. Keep provider bucket/direct-browser
+changes and any exact-tenant hosted canary held until AUD-007 and release-control
+authority are resolved; do not enable reservation selectors before those
+provider readback and drain gates pass.

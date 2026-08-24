@@ -61,7 +61,7 @@ tenant predicates; Nest REST is selectively authoritative.
 | AUD-009 | P2 / Medium | AI embedding cache collision | VERIFIED LOCALLY | None |
 | AUD-010 | P2 / Medium | Environment contract drift | PARTIALLY REMEDIATED | Provider parity gate |
 | AUD-011 | P2 / Medium-High | Required security CI absent | BLOCKED | Blocks policy-compliant release |
-| AUD-012 | P2 / Medium | Python build reproducibility | OPEN | Supply-chain risk |
+| AUD-012 | P2 / Medium | Python build reproducibility | VERIFIED LOCALLY | GitHub CI execution/publication not run |
 | AUD-013 | P2 / Medium | Monitoring evidence absent | BLOCKED | Provider ownership required |
 | AUD-014 | P1 / High | E-sign config/signatory integrity | PARTIALLY REMEDIATED / BLOCKED | O-04/provider/assurance proof required |
 | AUD-015 | P1 / High | Production change-control protections | BLOCKED | Blocks release/deployment |
@@ -80,8 +80,8 @@ confirmed the GitHub repository is public. No row-level data is reproduced here.
 - Severity/status: `P1 / High governance risk — BLOCKED`.
 - Affected: `AGENTS.md`, manifests, runtime pins, workflows, actual source paths.
 - Evidence/reproduction: policy specifies pnpm 9, PostgreSQL 16, Python 3.12,
-  tRPC/TanStack/Zustand, and paths such as `apps/web/app`; executable source uses
-  pnpm 10.33, PostgreSQL 17, Python 3.11 worker images, Nest REST, and
+  tRPC/TanStack/Zustand, and paths such as `apps/web/app`; executable source now
+  aligns on Python 3.12 but still uses pnpm 10.33, PostgreSQL 17, Nest REST, and
   `apps/web/src/app`. The named client-state/API packages are absent.
 - Expected/actual: one authoritative stack and ownership map; policy currently
   directs agents to nonexistent paths and technologies.
@@ -127,43 +127,41 @@ confirmed the GitHub repository is public. No row-level data is reproduced here.
 
 ## AUD-004 — Upload quota and object metadata are bypassable
 
-- Severity/status: `P1 / High — source VERIFIED; provider settings PARTIAL`.
-- Affected: sign/complete routes, CAD upload hook, Core intake service, Storage.
-- Evidence/reproduction: signing trusts caller size, quota counts only completed
-  documents, no reservation exists, completion trusts path/size/MIME, client
-  leaves an object after completion failure, and the migration encodes no bucket
-  limit. Repeated sign/upload-without-complete never advances quota; completion
-  can register a nonexistent or mis-sized object.
-- Expected/actual: pending and completed bytes count atomically and completion
-  verifies actual tenant-scoped object metadata.
-- Root cause/impact: multi-step intake lacks reservation/reconciliation/provider
-  enforcement, permitting storage exhaustion and corrupt evidence.
-- Remediation: additive expiring reservations, atomic accounting, object metadata
-  verification, bucket policy, orphan cleanup, idempotency, isolation tests.
-- Remediation implemented locally: ADR-027, the additive reservation ledger and
-  shared exact bigint quota lock, strict shared contracts, private-bucket
-  Storage adapter, and authenticated Core reserve/complete/release authority.
-  The service verifies active membership/project/capability, serializes quota,
-  derives immutable paths and completion metadata, calls Storage outside final
-  transactions, handles exact replay/terminal races, and records sanitized
-  reserve/sign/complete/release outcomes. Signing failure remains active for
-  retry/expiry so one concurrent provider failure cannot invalidate another
-  caller's valid credential. The separately gated cleanup lane now expires a
-  global oldest-first batch under deterministic project locks, claims one
-  terminal row at a time, deletes only the immutable ledger path outside the
-  transaction, applies bounded retry/exhaustion, recovers indeterminate stale
-  claims, and emits redacted trace-correlated evidence. Storage requests have a
-  30-second abort deadline and disabling the lane removes its scheduler on a
-  bounded best-effort path.
-- Local verification: reservation schema/migration/contracts, 186 focused Core
-  tests, and the 20-file/125-test document-domain suite pass with API typecheck,
-  scoped lint, diff checks, inactive-role/project negatives, mixed signing
-  outcomes, cleanup fairness/retry/deadline cases, and final independent
-  implementation/verification/operations review PASS.
-- Remaining dependency/verification: deterministic reconciliation, Web adapter
-  cutover, every quota-affecting document writer adopting the shared
-  project lock, browser/direct-Storage denial, disposable database concurrency/
-  RLS replay, and provider bucket setting readback/canary; Agents 03 -> 12/13.
+- Severity/status: `P1 / High — local reservation/write/database/reconciliation invariants VERIFIED; provider/hosted activation PARTIAL`.
+- Affected: sign/complete/release routes, report writers, Core document writers,
+  reservation cleanup, Storage policy, and opportunity/project correlation.
+- Baseline evidence/reproduction: signing trusted caller size, quota counted only
+  completed documents, no reservation existed, completion trusted caller
+  path/size/MIME, and authenticated Storage policies allowed direct object DML.
+- Remediation implemented locally: ADR-027, the additive reservation ledger,
+  exact-bigint shared project lock, strict contracts, private Storage adapter,
+  authenticated reserve/complete/release authority, terminal cleanup, and
+  default-off exact-tenant Web reservation cutover.
+- Every current Core project-scoped document writer now uses the shared lock.
+  Selected Web issuance additionally requires exact-tenant lifecycle,
+  public-signing, and deletion authorities and never falls back after selection.
+  Weekly and project-linked inspection reports commit metadata through Core;
+  their failure matrix verifies exact cleanup and correlation handling.
+- The no-skip PostgreSQL 16 contention matrix proves real cross-session
+  serialization at the 500 MiB boundary for reservation/reservation and
+  reservation/intake in both winner orders. The additive opportunity/project
+  composite FK preserves pre-project documents while rejecting mismatched
+  linkage and later reparenting.
+- The bounded reconciliation lane is report-only: it persists a durable BullMQ
+  rollover checkpoint, classifies only provable terminal/completed cases, and
+  cannot infer or delete legacy objects. Additive partial indexes support the
+  terminal and completed scans without broadening cleanup authority.
+- Local verification: Core writer suite 21 files / 138 tests plus subsequent
+  intake repairs; Web reservation 228 focused tests, 1,022-test full-suite
+  snapshot, and controlled Playwright 5/5; report failure matrix 19/19;
+  cross-session PostgreSQL matrix 3/3; opportunity/project static suite 10/10
+  and pinned migration verifier; reconciliation API matrix 5 files / 133 tests,
+  database index suite 8/8, and PostgreSQL 16 query-plan verifier; relevant
+  typecheck/lint/diff gates and independent reviews passed.
+- Remaining dependency/verification: hosted documents-bucket size/MIME
+  enforcement and provider readback; authenticated direct-browser Storage DML
+  denial/readback; exact-tenant hosted canary, drain/readback, and release
+  identity. No provider setting was changed and nothing was deployed.
 
 ## AUD-005 — DocuSeal completion can lock without durable signed evidence
 
@@ -277,13 +275,26 @@ confirmed the GitHub repository is public. No row-level data is reproduced here.
 
 ## AUD-012 — Python workers are not reproducibly built
 
-- Severity/status: `P2 / Medium supply chain — VERIFIED`.
-- Evidence: Dockerfiles use floating Python 3.11 slim tags; dependencies have open
-  lower bounds and no lock; root policy says Python 3.12. Current images build and
-  import, proving current compatibility but not reproducibility.
-- Remediation: runtime reconciliation, digest-pinned base, dependency lock/update
-  workflow, SBOM/container scan.
-- Verification/owner: clean builds, worker tests/imports, CVE/SBOM; Agents 06/08/13.
+- Severity/status: `P2 / Medium supply chain — VERIFIED LOCALLY; GITHUB CI NOT RUN`.
+- Baseline evidence: Dockerfiles used floating Python 3.11 slim tags,
+  dependencies had open lower bounds and no lock, and the root policy required
+  Python 3.12.
+- Remediation implemented: ADR-028 aligns both workers to Python 3.12 on the same
+  immutable Alpine 3.23 base; pins uv and LibreDWG source/checksum; commits uv
+  locks plus hashed runtime/development exports; excludes test tooling from
+  runtime images; runs as UID/GID 10001; and adds an immutable-action-pinned CI
+  matrix for frozen tests, clean builds, smokes, SPDX SBOMs, and fail-closed
+  high/critical Docker Scout scans. The controlled update/rollback procedure is
+  recorded in the worker artifact runbook.
+- Local verification: AI 8/8 and CAD 22/22 tests passed; two independent clean
+  builds and runtime smokes passed per worker; the CAD deterministic digest and
+  LibreDWG 0.13.4 checks passed. Independent SBOM comparisons found zero
+  dependency differences (AI 75 packages; CAD 81), and both high/critical SARIF
+  scans exited zero with no finding. Artifact/action/static gates and independent
+  DevOps review passed.
+- Remaining boundary: the new CI job is source-verified but has not run on
+  GitHub; no image was published and no provider or deployment state changed.
+  AUD-001 retains the broader owner-controlled governance reconciliation.
 
 ## AUD-013 — Monitoring stack has no repository/provider proof
 
