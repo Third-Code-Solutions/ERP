@@ -38,6 +38,11 @@ export const documents = pgTable(
   },
   (table) => ({
     tenantIdUniqueIdx: uniqueIndex('ux_documents_tenant_id_id').on(table.tenant_id, table.id),
+    tenantProjectIdUniqueIdx: uniqueIndex('ux_documents_tenant_project_id').on(
+      table.tenant_id,
+      table.project_id,
+      table.id,
+    ),
     tenantIdx: index('idx_documents_tenant_id').on(table.tenant_id),
     projectIdx: index('idx_documents_project_id').on(table.project_id),
     uploadedByIdx: index('idx_documents_uploaded_by').on(table.uploaded_by),

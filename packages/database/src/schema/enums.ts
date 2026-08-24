@@ -179,6 +179,11 @@ export const documentIntakeRequestStateEnum = pgEnum(
   ['processing', 'succeeded']
 )
 
+export const documentUploadReservationStateEnum = pgEnum(
+  'document_upload_reservation_state',
+  ['active', 'completed', 'released', 'expired']
+)
+
 export const documentProcessingModeEnum = pgEnum(
   'document_processing_mode',
   ['cad']
