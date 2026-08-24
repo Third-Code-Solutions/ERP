@@ -30,6 +30,7 @@ import { writeAuditLog, writeAuditLogInTransaction } from '@/lib/audit'
 import {
   changeRequestWritesUseCoreApi,
   createChangeRequestThroughCoreApi,
+  createDocumentThroughCoreApi,
 } from '@/lib/erp-core-client'
 import { startSlaClock } from '@/lib/operations/sla-clock'
 import { notifyRoles } from '@/lib/operations/notifications'
@@ -233,9 +234,9 @@ const submitInspectionSchema = z.object({
 }).merge(inspectionPayloadSchema)
 
 // US-007 #5 — Render the inspection report to HTML, upload to Storage, and
-// insert a tenant-scoped documents row + link pdf_document_id on the
-// inspection. Pre-Won opportunities have no project yet, so opportunity_id
-// is the durable parent for the report until a project is created.
+// link pdf_document_id on the inspection. Core owns project-linked document
+// metadata; Pre-Won opportunities retain their direct opportunity association
+// because they do not have a project or consume project quota yet.
 //
 // Why this lives next to the action: it's tightly coupled to the
 // submitInspection flow and only ever called from there. Extracting to a
@@ -341,9 +342,9 @@ async function persistInspectionReport(args: {
   // to opportunity_id so the file still lands in a deterministic location
   // for pre-Won inspections.
   const folderId = oppRow.project_id ?? args.opportunityId
-  const ts = Date.now()
-  const storagePath = `${args.tenantId}/${folderId}/inspection-report-${ts}.html`
-  const fileName = `inspection-report-${args.inspectionId.slice(0, 8)}-${ts}.html`
+  const reportAttemptId = randomUUID()
+  const storagePath = `${args.tenantId}/${folderId}/inspection-report-${args.inspectionId}-${reportAttemptId}.html`
+  const fileName = `inspection-report-${args.inspectionId.slice(0, 8)}.html`
   const bytes = Buffer.from(html, 'utf-8')
 
   const admin = createSupabaseAdminClient()
@@ -351,30 +352,74 @@ async function persistInspectionReport(args: {
     .from('documents')
     .upload(storagePath, bytes, { contentType: 'text/html; charset=utf-8', upsert: false })
   if (uploadErr) {
-    throw new Error(`storage upload: ${uploadErr.message}`)
+    throw new Error('Inspection report artifact upload failed')
   }
 
-  const [doc] = await db
-    .insert(documents)
-    .values({
-      tenant_id: args.tenantId,
-      project_id: oppRow.project_id,
-      opportunity_id: args.opportunityId,
-      uploaded_by: args.actorId,
-      document_type: 'other',
-      file_name: fileName,
-      storage_path: storagePath,
-      mime_type: 'text/html; charset=utf-8',
-      size_bytes: bytes.length,
-      description: `Site Inspection Report (auto-generated) for inspection ${args.inspectionId}`,
-    })
-    .returning({ id: documents.id })
+  let documentId: string | null = null
+  if (oppRow.project_id) {
+    let coreResult: Awaited<ReturnType<typeof createDocumentThroughCoreApi>> | null = null
+    try {
+      coreResult = await createDocumentThroughCoreApi(
+        {
+          projectId: oppRow.project_id,
+          opportunityId: args.opportunityId,
+          storagePath,
+          fileName,
+          mimeType: 'text/html; charset=utf-8',
+          sizeBytes: bytes.length,
+          description: `Site Inspection Report (auto-generated) for inspection ${args.inspectionId}`,
+        },
+        `site-inspection-report:${args.inspectionId}:${reportAttemptId}`
+      )
+    } catch {
+      coreResult = null
+    }
 
-  if (!doc) return
+    if (
+      !coreResult?.ok ||
+      !coreResult.data ||
+      coreResult.data.tenantId !== args.tenantId ||
+      coreResult.data.projectId !== oppRow.project_id ||
+      coreResult.data.storagePath !== storagePath
+    ) {
+      try {
+        const { error } = await admin.storage
+          .from('documents')
+          .remove([storagePath])
+        if (error) {
+          console.warn('[site-inspection] report artifact cleanup failed')
+        }
+      } catch {
+        console.warn('[site-inspection] report artifact cleanup failed')
+      }
+      throw new Error('Inspection report metadata commit failed')
+    }
+
+    documentId = coreResult.data.documentId
+  } else {
+    const [doc] = await db
+      .insert(documents)
+      .values({
+        tenant_id: args.tenantId,
+        project_id: null,
+        opportunity_id: args.opportunityId,
+        uploaded_by: args.actorId,
+        document_type: 'other',
+        file_name: fileName,
+        storage_path: storagePath,
+        mime_type: 'text/html; charset=utf-8',
+        size_bytes: bytes.length,
+        description: `Site Inspection Report (auto-generated) for inspection ${args.inspectionId}`,
+      })
+      .returning({ id: documents.id })
+    documentId = doc?.id ?? null
+  }
+
+  if (!documentId) return
 
   await db
     .update(siteInspections)
-    .set({ pdf_document_id: doc.id, updated_at: new Date() })
+    .set({ pdf_document_id: documentId, updated_at: new Date() })
     .where(
       and(
         eq(siteInspections.id, args.inspectionId),
@@ -542,12 +587,8 @@ export async function submitInspection(formData: FormData): Promise<{ error?: st
       opportunityId: opportunity_id,
       payload,
       photoDocumentIds: photoIds,
-    }).catch((err: unknown) => {
-      const message = err instanceof Error ? err.message : 'unknown error'
-
-      console.warn(
-        `[site-inspection] report archival failed for ${result.id}: ${message}`
-      )
+    }).catch(() => {
+      console.warn(`[site-inspection] report archival failed for ${result.id}`)
     })
   }
 
