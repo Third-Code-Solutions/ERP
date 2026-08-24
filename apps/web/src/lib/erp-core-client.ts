@@ -394,10 +394,14 @@ function tenantEnabledForCoreApiInternal(
   const normalizedTenantId = tenantId.trim().toLowerCase()
   if (!UUID_PATTERN.test(normalizedTenantId)) return false
 
-  const allowlist = (tenantIds ?? '')
-    .split(',')
-    .map((entry) => entry.trim().toLowerCase())
-    .filter(Boolean)
+  const allowlist = [
+    ...new Set(
+      (tenantIds ?? '')
+        .split(',')
+        .map((entry) => entry.trim().toLowerCase())
+        .filter(Boolean)
+    ),
+  ]
 
   if (allowlist.length === 0) return false
   if (
@@ -1257,7 +1261,7 @@ export function documentProcessingJobsUseCoreApi(
  * the legacy Server Action mutation.
  */
 export function documentDeleteWritesUseCoreApi(tenantId: string): boolean {
-  return tenantEnabledForCoreApi(
+  return tenantEnabledForExactCoreApi(
     tenantId,
     process.env.ERP_DOCUMENT_DELETE_WRITES_VIA_API,
     process.env.ERP_DOCUMENT_DELETE_WRITES_VIA_API_TENANT_IDS
@@ -1288,7 +1292,7 @@ export function documentUploadReservationWritesUseCoreApi(
 
 /** Public token signing is delegated only for an explicit tenant canary. */
 export function publicSigningWritesUseCoreApi(tenantId: string): boolean {
-  return tenantEnabledForCoreApi(
+  return tenantEnabledForExactCoreApi(
     tenantId,
     process.env.ERP_PUBLIC_SIGNING_VIA_API,
     process.env.ERP_PUBLIC_SIGNING_VIA_API_TENANT_IDS

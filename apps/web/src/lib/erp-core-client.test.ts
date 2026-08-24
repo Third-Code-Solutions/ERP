@@ -4462,10 +4462,12 @@ describe('ERP Core client', () => {
   })
 
   it('keeps document deletion delegation fail-closed unless its exact gate matches', () => {
+    expect(documentDeleteWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
     vi.stubEnv('ERP_DOCUMENT_DELETE_WRITES_VIA_API', 'true')
     vi.stubEnv(
       'ERP_DOCUMENT_DELETE_WRITES_VIA_API_TENANT_IDS',
-      RESULT.tenantId
+      ` ${RESULT.tenantId},${RESULT.tenantId} `
     )
     expect(documentDeleteWritesUseCoreApi(RESULT.tenantId)).toBe(true)
 
@@ -4474,7 +4476,7 @@ describe('ERP Core client', () => {
 
     vi.stubEnv('ERP_DOCUMENT_DELETE_WRITES_VIA_API', 'true')
     vi.stubEnv('ERP_DOCUMENT_DELETE_WRITES_VIA_API_TENANT_IDS', '*')
-    expect(documentDeleteWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+    expect(documentDeleteWritesUseCoreApi(RESULT.tenantId)).toBe(false)
     expect(documentDeleteWritesUseCoreApi('not-a-uuid')).toBe(false)
   })
 
@@ -4921,14 +4923,20 @@ describe('ERP Core client', () => {
   })
 
   it('keeps public signing delegation fail-closed unless its exact gate matches', () => {
+    expect(publicSigningWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
     vi.stubEnv('ERP_PUBLIC_SIGNING_VIA_API', 'true')
     vi.stubEnv(
       'ERP_PUBLIC_SIGNING_VIA_API_TENANT_IDS',
-      RESULT.tenantId
+      ` ${RESULT.tenantId},${RESULT.tenantId} `
     )
     expect(publicSigningWritesUseCoreApi(RESULT.tenantId)).toBe(true)
 
     vi.stubEnv('ERP_PUBLIC_SIGNING_VIA_API', 'TRUE')
+    expect(publicSigningWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_PUBLIC_SIGNING_VIA_API', 'true')
+    vi.stubEnv('ERP_PUBLIC_SIGNING_VIA_API_TENANT_IDS', '*')
     expect(publicSigningWritesUseCoreApi(RESULT.tenantId)).toBe(false)
   })
 
