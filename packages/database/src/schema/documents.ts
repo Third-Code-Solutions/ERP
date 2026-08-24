@@ -25,7 +25,7 @@ export const documents = pgTable(
     // A document belongs to an existing project or a pre-Won opportunity.
     // Site-inspection photos are captured before project conversion.
     project_id: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }),
-    opportunity_id: uuid('opportunity_id').references(() => opportunities.id, { onDelete: 'cascade' }),
+    opportunity_id: uuid('opportunity_id'),
     uploaded_by: uuid('uploaded_by').references(() => users.id, { onDelete: 'set null' }),
     document_type: documentTypeEnum('document_type').notNull(),
     file_name: varchar('file_name', { length: 255 }).notNull(),
@@ -48,11 +48,27 @@ export const documents = pgTable(
     uploadedByIdx: index('idx_documents_uploaded_by').on(table.uploaded_by),
     tenantTypeIdx: index('idx_documents_tenant_type').on(table.tenant_id, table.document_type),
     opportunityIdx: index('idx_documents_opportunity_id').on(table.opportunity_id),
+    tenantOpportunityProjectIdx: index(
+      'idx_documents_tenant_opportunity_project',
+    ).on(table.tenant_id, table.opportunity_id, table.project_id),
     opportunityTenantFk: foreignKey({
       name: 'documents_opportunity_tenant_fk',
       columns: [table.tenant_id, table.opportunity_id],
       foreignColumns: [opportunities.tenant_id, opportunities.id],
     }).onDelete('cascade'),
+    // MATCH SIMPLE is PostgreSQL's default: pre-project rows keep project_id
+    // null and remain protected by the two-column tenant/opportunity FK above.
+    opportunityProjectTenantFk: foreignKey({
+      name: 'documents_opportunity_project_tenant_fk',
+      columns: [table.tenant_id, table.opportunity_id, table.project_id],
+      foreignColumns: [
+        opportunities.tenant_id,
+        opportunities.id,
+        opportunities.project_id,
+      ],
+    })
+      .onDelete('cascade')
+      .onUpdate('no action'),
     parentCheck: check(
       'documents_project_or_opportunity',
       sql`${table.project_id} is not null or ${table.opportunity_id} is not null`

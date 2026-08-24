@@ -42,6 +42,9 @@ export const opportunities = pgTable(
       table.tenant_id,
       table.id
     ),
+    tenantIdProjectUniqueIdx: uniqueIndex(
+      'ux_opportunities_tenant_id_id_project_id'
+    ).on(table.tenant_id, table.id, table.project_id),
     tenantIdx: index('idx_opportunities_tenant_id').on(table.tenant_id),
     accountIdx: index('idx_opportunities_account_id').on(table.account_id),
     projectIdx: index('idx_opportunities_project_id').on(table.project_id),
