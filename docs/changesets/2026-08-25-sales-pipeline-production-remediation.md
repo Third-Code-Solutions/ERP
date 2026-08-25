@@ -70,3 +70,19 @@ garbage collection. Hosted Actions cannot currently start because the GitHub
 organization reports failed payments or exhausted Actions spend. Therefore the
 guarded cleanup, scanner execution, Storage readback, monitor, canary, and
 production deployment have not run.
+
+## Production execution update
+
+- The exact historic E2E catalog was independently revalidated before cleanup:
+  two tenants, 13 users, and 38 `documents` objects. A recovery dump was
+  captured before removal; the approved test tenants, users, objects, and
+  tenant-scoped audit rows are now absent from production, with the audit
+  append-only rule, RLS, and foreign keys restored and read back afterwards.
+- The six additive migrations in this release were applied through the linked
+  ERP Supabase project. An immediate provider dry run reports the migration
+  ledger current.
+- Provider readback exposed that the project-wide Storage limit is below the
+  ADR-027-required 100 MiB. The bucket API correctly refuses a 100 MiB bucket
+  cap until that global setting is raised; the candidate does not silently
+  lower the product limit. The verifier now recognizes both supported
+  Supabase-client denial shapes (returned error and thrown error).

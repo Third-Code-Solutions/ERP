@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   DOCUMENTS_BUCKET_ALLOWED_MIME_TYPES,
   DOCUMENTS_BUCKET_MAX_BYTES,
+  browserSignedUploadIsDenied,
   browserStoragePoliciesAreDenied,
   verifyDocumentsBucket,
 } from './verify-hosted-documents-storage.mjs'
@@ -59,4 +60,26 @@ test('rejects public, over-limit, or broad MIME documents buckets', () => {
     }),
     { private: false, exactLimit: false, exactMimeTypes: false }
   )
+})
+
+test('recognizes returned and thrown anonymous signed-upload denials', async () => {
+  const returnedDenial = {
+    storage: {
+      from: () => ({ createSignedUploadUrl: async () => ({ data: null, error: new Error('denied') }) }),
+    },
+  }
+  const thrownDenial = {
+    storage: {
+      from: () => ({ createSignedUploadUrl: async () => { throw new Error('denied') } }),
+    },
+  }
+  const grantedCredential = {
+    storage: {
+      from: () => ({ createSignedUploadUrl: async () => ({ data: { token: 'unexpected' }, error: null }) }),
+    },
+  }
+
+  assert.equal(await browserSignedUploadIsDenied(returnedDenial, 'proof.txt'), true)
+  assert.equal(await browserSignedUploadIsDenied(thrownDenial, 'proof.txt'), true)
+  assert.equal(await browserSignedUploadIsDenied(grantedCredential, 'proof.txt'), false)
 })

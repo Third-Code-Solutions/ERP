@@ -78,6 +78,22 @@ export function browserStoragePoliciesAreDenied(policies) {
   })
 }
 
+export async function browserSignedUploadIsDenied(browser, path) {
+  let directData
+  let directError
+  try {
+    const result = await browser.storage.from(DOCUMENTS_BUCKET).createSignedUploadUrl(path)
+    directData = result.data
+    directError = result.error
+  } catch (error) {
+    // Supabase Storage client versions differ: some return an error result and
+    // others reject the request. Both prove the anonymous direct-write path is
+    // denied, while a signed-upload credential remains a release failure.
+    directError = error
+  }
+  return Boolean(directError) && !directData
+}
+
 async function main() {
   const apply = process.argv.includes('--apply')
   const url = requiredEnvironment(process.env, 'NEXT_PUBLIC_SUPABASE_URL')
@@ -138,10 +154,12 @@ async function main() {
   const browser = createClient(url, anonKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   })
-  const { data: directData, error: directError } = await browser.storage
-    .from(DOCUMENTS_BUCKET)
-    .createSignedUploadUrl(`direct-browser-denial/${crypto.randomUUID()}.txt`)
-  if (!directError || directData) {
+  if (
+    !(await browserSignedUploadIsDenied(
+      browser,
+      `direct-browser-denial/${crypto.randomUUID()}.txt`,
+    ))
+  ) {
     throw new Error('Direct browser Storage write was unexpectedly authorized')
   }
 
