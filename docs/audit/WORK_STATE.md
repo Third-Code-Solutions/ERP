@@ -151,8 +151,36 @@
 
 ## Next exact action
 
-Begin AUD-019 with an evidence-ranked foreign-key index inventory and the first
-bounded additive migration/query-plan slice. Keep provider bucket/direct-browser
-changes and any exact-tenant hosted canary held until AUD-007 and release-control
-authority are resolved; do not enable reservation selectors before those
-provider readback and drain gates pass.
+## 2026-08-25 release-candidate checkpoint (supersedes conflicting status above)
+
+- The release candidate was committed locally, history-scrubbed in an isolated
+  mirror, and published as GitHub PR #13. The repository is now private.
+- Fresh GitHub mirror verification proves `executive-dashboard.xlsx` and
+  `source_data.xlsx` are absent from every published branch and tag. Twelve
+  historic merged pull-request refs still retain prior objects; GitHub Support's
+  sensitive-data purge is required before server-side object reclamation can be
+  evidenced.
+- Sales can create a tenant-account-backed Lead opportunity with a required
+  prospective project name. A delivery project is created only through the Core
+  atomic Won handoff, which prefers that Sales-authored name. The legacy
+  best-effort conversion path is no longer used by the board action.
+- DocuSeal completion now fails closed on multi-source IDs. The PostgreSQL 17
+  migration applies partial unique indexes and an advisory-locking cross-table
+  trigger for BOM, VO, and COC provider submission IDs.
+- Local evidence: lint, typecheck, full `pnpm test` (2,718 passing / 162
+  environment-skipped), build, actionlint, storage/boundary/purge helper tests,
+  and the isolated PostgreSQL 17 migration proof passed.
+- Hosted GitHub CI did not execute: PR #13 runs `32825026450` and `32825026609`
+  were denied before runner allocation because the organization has a failed
+  payment or insufficient Actions spending limit. This also prevents the manual
+  purge and promotion workflows. The private Free plan also rejects branch
+  protections/rulesets; the production environment has no protection policy.
+- No production E2E tenant, Storage bucket, provider template, canary selector,
+  migration, deployment, or rollback drill was changed in this checkpoint.
+
+## Next exact action
+
+Restore GitHub Actions billing/spend capacity; then obtain a real green PR run,
+complete the GitHub Support sensitive-data purge, apply governed production
+protections, merge, execute the exact-scope E2E cleanup, and dispatch the
+promotion workflow with its provider readbacks and release-identity checks.

@@ -4,56 +4,53 @@
 -- Run via: psql / supabase db execute / Supabase SQL editor.
 -- =============================================================================
 
--- documents bucket (private, RLS-on, signed URLs)
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('documents', 'documents', false)
-ON CONFLICT (id) DO NOTHING;
+-- Documents are server-mediated only. Browser sessions receive a signed upload
+-- or download URL from the application; they must never receive Storage RLS
+-- permissions directly. Keep this bootstrap in lock-step with
+-- scripts/verify-hosted-documents-storage.mjs.
+INSERT INTO storage.buckets (
+  id,
+  name,
+  public,
+  file_size_limit,
+  allowed_mime_types
+)
+VALUES (
+  'documents',
+  'documents',
+  false,
+  104857600,
+  ARRAY[
+    'application/acad',
+    'application/dxf',
+    'application/json',
+    'application/msword',
+    'application/pdf',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'image/bmp',
+    'image/gif',
+    'image/heic',
+    'image/jpeg',
+    'image/png',
+    'image/tiff',
+    'image/webp',
+    'text/csv',
+    'text/html',
+    'text/plain'
+  ]::text[]
+)
+ON CONFLICT (id) DO UPDATE
+SET
+  public = EXCLUDED.public,
+  file_size_limit = EXCLUDED.file_size_limit,
+  allowed_mime_types = EXCLUDED.allowed_mime_types;
 
--- RLS: tenant_id is encoded as the first path segment in the storage key.
--- See apps/web/src/app/api/upload/route.ts where we write
---   `${tenant_id}/${project_id}/${uuid}-${file_name}`.
--- These policies enforce that authenticated users only access their tenant's path.
+-- Remove every legacy direct-browser policy for the documents bucket. A
+-- separate reviewed migration is required to introduce any replacement.
 
 DROP POLICY IF EXISTS "documents_tenant_select" ON storage.objects;
-CREATE POLICY "documents_tenant_select"
-  ON storage.objects FOR SELECT
-  TO authenticated
-  USING (
-    bucket_id = 'documents'
-    AND (storage.foldername(name))[1] = (
-      SELECT tenant_id::text FROM public.users WHERE id = auth.uid()
-    )
-  );
-
 DROP POLICY IF EXISTS "documents_tenant_insert" ON storage.objects;
-CREATE POLICY "documents_tenant_insert"
-  ON storage.objects FOR INSERT
-  TO authenticated
-  WITH CHECK (
-    bucket_id = 'documents'
-    AND (storage.foldername(name))[1] = (
-      SELECT tenant_id::text FROM public.users WHERE id = auth.uid()
-    )
-  );
-
 DROP POLICY IF EXISTS "documents_tenant_update" ON storage.objects;
-CREATE POLICY "documents_tenant_update"
-  ON storage.objects FOR UPDATE
-  TO authenticated
-  USING (
-    bucket_id = 'documents'
-    AND (storage.foldername(name))[1] = (
-      SELECT tenant_id::text FROM public.users WHERE id = auth.uid()
-    )
-  );
-
 DROP POLICY IF EXISTS "documents_tenant_delete" ON storage.objects;
-CREATE POLICY "documents_tenant_delete"
-  ON storage.objects FOR DELETE
-  TO authenticated
-  USING (
-    bucket_id = 'documents'
-    AND (storage.foldername(name))[1] = (
-      SELECT tenant_id::text FROM public.users WHERE id = auth.uid()
-    )
-  );

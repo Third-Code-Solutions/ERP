@@ -105,7 +105,14 @@ function harness({
     projectName: 'Fit-out',
     signedAt: nonBomSignedAt,
   }
-  const clientSelect = vi.fn().mockReturnValueOnce(preflightTokenQuery)
+  const preflightVariationRows =
+    nonBomTarget === 'variation_order' ? [{ id: NON_BOM_ID }] : []
+  const preflightCertificateRows =
+    nonBomTarget === 'certificate_of_completion' ? [{ id: NON_BOM_ID }] : []
+  const clientSelect = vi.fn()
+    .mockReturnValueOnce(preflightTokenQuery)
+    .mockReturnValueOnce(query(preflightVariationRows))
+    .mockReturnValueOnce(query(preflightCertificateRows))
   if (tokenRows.length > 0) {
     clientSelect.mockReturnValueOnce(preflightBomQuery).mockReturnValue(query([]))
   } else {
@@ -203,6 +210,42 @@ describe('DocuSeal webhook authority', () => {
 
   it('ignores an unmatched submission without external work or mutation', async () => {
     const probe = harness({ tokenRows: [] })
+    await expect(probe.service.handle(COMMAND)).resolves.toMatchObject({
+      received: true,
+      handled: false,
+      duplicate: false,
+    })
+    expect(probe.provider.downloadCompletedPdf).not.toHaveBeenCalled()
+    expect(probe.artifactStorage.upload).not.toHaveBeenCalled()
+    expect(probe.transaction).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when a provider submission matches more than one signing source', async () => {
+    const probe = harness({ nonBomTarget: 'variation_order' })
+
+    await expect(probe.service.handle(COMMAND)).resolves.toMatchObject({
+      received: true,
+      handled: false,
+      duplicate: false,
+    })
+    expect(probe.provider.downloadCompletedPdf).not.toHaveBeenCalled()
+    expect(probe.artifactStorage.upload).not.toHaveBeenCalled()
+    expect(probe.transaction).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when duplicate BOM portal tokens share a provider submission', async () => {
+    const probe = harness({
+      tokenRows: [
+        { id: TOKEN_ID, tenantId: TENANT_ID, bomId: BOM_ID, usedAt: null },
+        {
+          id: '99999999-9999-4999-8999-999999999999',
+          tenantId: TENANT_ID,
+          bomId: BOM_ID,
+          usedAt: null,
+        },
+      ],
+    })
+
     await expect(probe.service.handle(COMMAND)).resolves.toMatchObject({
       received: true,
       handled: false,

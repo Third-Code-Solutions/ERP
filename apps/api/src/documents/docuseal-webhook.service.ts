@@ -77,20 +77,54 @@ export class DocuSealWebhookService {
       return emptyResult()
     }
 
-    // Resolve tenant/project context and reject known replays before any
-    // external call. The transaction below re-locks both rows authoritatively.
-    const [preflightToken] = await this.database.client
-      .select({
-        id: bomPortalTokens.id,
-        tenantId: bomPortalTokens.tenant_id,
-        bomId: bomPortalTokens.bom_id,
-        usedAt: bomPortalTokens.used_at,
-      })
-      .from(bomPortalTokens)
-      .where(
-        eq(bomPortalTokens.docuseal_submission_id, parsedCommand.submissionId)
-      )
-      .limit(1)
+    // Resolve all possible signing sources before any external call. Provider
+    // submission IDs are global, so a corrupt duplicate must be unhandled;
+    // selecting the first match could irreversibly sign the wrong document.
+    const [preflightTokens, preflightVariations, preflightCertificates] =
+      await Promise.all([
+        this.database.client
+          .select({
+            id: bomPortalTokens.id,
+            tenantId: bomPortalTokens.tenant_id,
+            bomId: bomPortalTokens.bom_id,
+            usedAt: bomPortalTokens.used_at,
+          })
+          .from(bomPortalTokens)
+          .where(
+            eq(
+              bomPortalTokens.docuseal_submission_id,
+              parsedCommand.submissionId
+            )
+          )
+          .limit(2),
+        this.database.client
+          .select({ id: variationOrders.id })
+          .from(variationOrders)
+          .where(
+            eq(
+              variationOrders.docuseal_submission_id,
+              parsedCommand.submissionId
+            )
+          )
+          .limit(2),
+        this.database.client
+          .select({ id: certificatesOfCompletion.id })
+          .from(certificatesOfCompletion)
+          .where(
+            eq(
+              certificatesOfCompletion.docuseal_submission_id,
+              parsedCommand.submissionId
+            )
+          )
+          .limit(2),
+      ])
+    const sourceCount =
+      preflightTokens.length +
+      preflightVariations.length +
+      preflightCertificates.length
+    if (sourceCount !== 1) return emptyResult()
+
+    const [preflightToken] = preflightTokens
 
     if (!preflightToken) return this.handleNonBomCompletion(parsedCommand)
 
@@ -326,7 +360,7 @@ export class DocuSealWebhookService {
   private async handleNonBomCompletion(
     command: DocuSealWebhookCommand
   ): Promise<DocuSealWebhookResult> {
-    const [variationOrder, certificate] = await Promise.all([
+    const [variationOrderRows, certificateRows] = await Promise.all([
       this.database.client
         .select({
           id: variationOrders.id,
@@ -344,7 +378,7 @@ export class DocuSealWebhookService {
           )
         )
         .where(eq(variationOrders.docuseal_submission_id, command.submissionId))
-        .limit(1),
+        .limit(2),
       this.database.client
         .select({
           id: certificatesOfCompletion.id,
@@ -364,12 +398,12 @@ export class DocuSealWebhookService {
         .where(
           eq(certificatesOfCompletion.docuseal_submission_id, command.submissionId)
         )
-        .limit(1),
+        .limit(2),
     ])
 
-    const variation = variationOrder[0]
-    const coc = certificate[0]
-    if (variation && coc) {
+    const variation = variationOrderRows[0]
+    const coc = certificateRows[0]
+    if (variationOrderRows.length + certificateRows.length !== 1) {
       // Submission IDs are globally assigned by the provider. Treat a corrupt
       // cross-entity duplicate as unhandled rather than selecting a tenant by
       // query order or applying an irreversible signing transition.

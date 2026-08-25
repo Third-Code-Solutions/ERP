@@ -41,6 +41,29 @@ export interface ConvertOpportunityResult {
   createdProject: boolean
 }
 
+/**
+ * Resolves the delivery Project name from the Sales opportunity without
+ * conflating the canonical and legacy won values. The prospective project name
+ * is authored by Sales and remains the preferred project name at award.
+ */
+export function resolveWonOpportunityProjectName(args: {
+  stage: string
+  prospectiveProjectName: string | null
+  opportunityType: string | null
+  accountName: string | null
+}): string {
+  if (args.stage !== 'won' && args.stage !== 'closed_won') {
+    throw new Error(`Opportunity must be in a won stage; got '${args.stage}'`)
+  }
+
+  return (
+    args.prospectiveProjectName?.trim() ||
+    args.opportunityType?.trim() ||
+    args.accountName ||
+    'Unknown client'
+  )
+}
+
 export async function convertOpportunityToProject(
   opportunityId: string,
   actorId: string
@@ -55,6 +78,7 @@ export async function convertOpportunityToProject(
       stage: opportunities.stage,
       account_id: opportunities.account_id,
       project_id: opportunities.project_id,
+      prospective_project_name: opportunities.prospective_project_name,
       opportunity_type: opportunities.opportunity_type,
       account_name: accounts.name,
     })
@@ -64,9 +88,12 @@ export async function convertOpportunityToProject(
     .limit(1)
 
   if (!row) throw new Error(`Opportunity ${opportunityId} not found`)
-  if (row.stage !== 'won') {
-    throw new Error(`Opportunity must be in 'won' stage; got '${row.stage}'`)
-  }
+  const projectName = resolveWonOpportunityProjectName({
+    stage: row.stage,
+    prospectiveProjectName: row.prospective_project_name,
+    opportunityType: row.opportunity_type,
+    accountName: row.account_name,
+  })
 
   const tenantId = row.tenant_id
 
@@ -85,7 +112,6 @@ export async function convertOpportunityToProject(
   let createdProject = false
   if (!projectId) {
     const clientName = row.account_name ?? 'Unknown client'
-    const projectName = row.opportunity_type?.trim() || clientName
     const [created] = await db
       .insert(projects)
       .values({

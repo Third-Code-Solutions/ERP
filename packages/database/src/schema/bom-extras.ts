@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm'
 import { pgTable, uuid, varchar, text, bigint, integer, timestamp, boolean, index, uniqueIndex, jsonb, pgEnum, foreignKey } from 'drizzle-orm/pg-core'
 import { tenants } from './tenants'
 import { boms } from './boms'
@@ -103,6 +104,11 @@ export const bomPortalTokens = pgTable(
     tenantIdx: index('idx_bom_portal_tokens_tenant_id').on(table.tenant_id),
     bomIdx: index('idx_bom_portal_tokens_bom_id').on(table.bom_id),
     tokenHashUq: uniqueIndex('idx_bom_portal_tokens_hash').on(table.token_hash),
+    docuSealSubmissionUq: uniqueIndex(
+      'ux_bom_portal_tokens_docuseal_submission_id'
+    )
+      .on(table.docuseal_submission_id)
+      .where(sql`${table.docuseal_submission_id} is not null`),
   })
 )
 

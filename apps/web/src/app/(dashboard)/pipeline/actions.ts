@@ -1,17 +1,20 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { z } from 'zod'
 import { can, getUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { accounts, opportunities, opportunityKycTracks } from '@third-code-erp/database/schema'
 import { and, eq } from 'drizzle-orm'
 import { writeAuditLog } from '@/lib/audit'
+import { transitionOpportunityStageThroughCoreApi } from '@/lib/erp-core-client'
 import { startSlaClock, stopSlaClock } from '@/lib/operations/sla-clock'
 import {
   PIPELINE_STAGES,
   STAGE_PROBABILITY,
   STAGE_TRANSITIONS,
   STAGE_LEGACY_MAP,
+  opportunityStageTransitionCommandSchema,
   type PipelineStage,
   type OpportunityStage,
 } from '@third-code-erp/shared-types'
@@ -30,6 +33,8 @@ const KYC_GATED_STAGES: ReadonlySet<OpportunityStage> = new Set<OpportunityStage
   'resubmission',
   'closed_won',
 ])
+
+const prospectiveProjectNameSchema = z.string().trim().min(1).max(200)
 
 // ── Create opportunity ────────────────────────────────────────────────────────
 
@@ -61,8 +66,13 @@ export async function createOpportunityForAccount(formData: FormData): Promise<{
   const accountId = formData.get('account_id')
   if (typeof accountId !== 'string' || !accountId) return { error: 'Account is required' }
 
-  const prospectiveProjectName = parseStr(formData.get('prospective_project_name'))
-  if (!prospectiveProjectName) return { error: 'Prospective project name is required' }
+  const prospectiveProjectNameResult = prospectiveProjectNameSchema.safeParse(
+    formData.get('prospective_project_name')
+  )
+  if (!prospectiveProjectNameResult.success) {
+    return { error: 'Prospective project name must be between 1 and 200 characters' }
+  }
+  const prospectiveProjectName = prospectiveProjectNameResult.data
 
   const [account] = await db
     .select({ id: accounts.id, kyc_status: accounts.kyc_status, name: accounts.name })
@@ -157,6 +167,44 @@ export async function advanceOpportunityStage(
   if (!profile) return { error: 'Unauthorized' }
   if (!can(profile.role, 'opportunity.advance_stage')) {
     return { error: `Forbidden: role "${profile.role}" cannot advance opportunities` }
+  }
+
+  // Award handoff is one atomic Core transaction: stage, delivery project,
+  // checklist, notifications, and audit records either commit together or not
+  // at all. Do not fall back to the legacy post-stage conversion path.
+  if (nextStage === 'won' || nextStage === 'closed_won') {
+    const parsedCommand = opportunityStageTransitionCommandSchema.safeParse({
+      newStage: nextStage,
+      ...(typeof reason === 'string' && reason.trim()
+        ? { reason: reason.trim() }
+        : {}),
+    })
+    if (!parsedCommand.success) {
+      return { error: 'Invalid opportunity stage transition' }
+    }
+
+    const coreResult = await transitionOpportunityStageThroughCoreApi(
+      opportunityId,
+      parsedCommand.data,
+      `web-opportunity-stage-${opportunityId}-${parsedCommand.data.newStage}`
+    )
+    if (!coreResult.ok || !coreResult.data) {
+      return {
+        error: coreResult.ok
+          ? 'ERP Core API returned an invalid Opportunity stage transition result.'
+          : coreResult.error,
+      }
+    }
+
+    const handoff = coreResult.data
+    revalidatePath('/pipeline/board')
+    revalidatePath('/pipeline/coverage')
+    revalidatePath('/pipeline/conversion')
+    revalidatePath('/')
+    if (handoff.projectId) {
+      revalidatePath(`/projects/${handoff.projectId}`)
+    }
+    return {}
   }
 
   const [opp] = await db
@@ -308,21 +356,6 @@ export async function advanceOpportunityStage(
     }
   } catch {
     // Non-fatal — stage update has already been persisted.
-  }
-
-  // Won-trigger auto-conversion (REFACTOR.md M1 US-005).
-  // Creates a project if one isn't already linked, seeds the 12-item Pre-Con
-  // checklist, and notifies SD-PM-PE. Best-effort: failures here don't roll
-  // back the stage change — they surface as audit-log gaps the operator
-  // can re-trigger from the project detail page.
-  if (nextStageTyped === 'won' || nextStageTyped === 'closed_won') {
-    try {
-      const { convertOpportunityToProject } = await import('@/lib/operations/won-conversion')
-      await convertOpportunityToProject(opportunityId, profile.user.id)
-    } catch (err) {
-
-      console.warn('[won-conversion] failed:', err instanceof Error ? err.message : err)
-    }
   }
 
   revalidatePath('/pipeline/board')

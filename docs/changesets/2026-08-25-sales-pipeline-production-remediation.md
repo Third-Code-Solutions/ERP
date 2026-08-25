@@ -26,6 +26,17 @@ Date: 2026-08-25
 - Accepted ADR-030 and implemented tenant-safe, replay-safe DocuSeal completion
   for variation orders and certificates of completion, including signed evidence,
   audit, notifications, and COC warranty initialization.
+- Made the actual Web award transition call the Core atomic handoff rather than
+  attempting a best-effort post-transition conversion. The Core result now
+  governs the delivery-project link, checklist, and revalidation.
+- Added server-side 1–200-character validation for the Sales prospective project
+  name and retained it as the preferred delivery-project name at award.
+- Hardened DocuSeal source identity across BOM, VO, and COC with same-table
+  unique indexes, an advisory-locking cross-table trigger, and fail-closed
+  webhook collision detection.
+- Reconciled the SQL Storage bootstrap with the server-only bucket policy, so a
+  manual bootstrap cannot restore direct browser policies or omit MIME/size
+  enforcement.
 - Added independent Snyk, Semgrep, Trivy, and scheduled public synthetic-monitor
   workflows. Production deployment now sets and verifies a matching release
   revision across Web and Core, applies/reads back Storage hardening, and no
@@ -40,13 +51,22 @@ Date: 2026-08-25
 - `pnpm build` — passed (Nest API and Next.js production bundles).
 - `pnpm test:production-e2e-purge`, `pnpm test:production-data-boundary`,
   `pnpm test:hosted-documents-storage`, `pnpm ci:actionlint` — passed.
+- Disposable PostgreSQL 17 migration proof — passed: the DocuSeal submission-ID
+  migration applies and rejects same-source and cross-source duplicates.
+- Final candidate rerun: `pnpm lint`, `pnpm typecheck`, `pnpm test` (2,718
+  passing / 162 environment-skipped tests), and `pnpm build` — passed.
 - Browser access check: unauthenticated `/pipeline/board` redirects to the
   accessible sign-in form with no console warnings. No production or browser
   test identity was created.
 
 ## Provider execution status at recording time
 
-Source changes are local in this changeset. The guarded cleanup, scanner,
-Storage readback, monitor, history rewrite, protection configuration, canary,
-and deployment procedures execute only from the committed release and record
-their own provider evidence.
+The release branch was published as GitHub PR #13 after the repository was
+made private and branch history was scrubbed. A fresh mirror confirms the
+workbook paths are absent from all published branch and tag histories. GitHub's
+immutable refs for twelve historic merged pull requests still retain the old
+objects; GitHub Support's sensitive-data purge is required for server-side
+garbage collection. Hosted Actions cannot currently start because the GitHub
+organization reports failed payments or exhausted Actions spend. Therefore the
+guarded cleanup, scanner execution, Storage readback, monitor, canary, and
+production deployment have not run.
