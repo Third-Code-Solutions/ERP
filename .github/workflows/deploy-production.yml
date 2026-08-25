@@ -40,8 +40,6 @@ jobs:
       RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
       SUPABASE_MIGRATION_DATABASE_URL: ${{ secrets.SUPABASE_MIGRATION_DATABASE_URL }}
       PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
-      BUILD_OPS_DEMO_TENANT_SLUGS: buildops-e2e
-      E2E_PROJECT_ID: ${{ vars.E2E_PROJECT_ID }}
 
     steps:
       - name: Check production branch
@@ -69,7 +67,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for name in VERCEL_TOKEN RAILWAY_API_TOKEN SUPABASE_MIGRATION_DATABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY PRODUCTION_DATABASE_URL E2E_PROJECT_ID; do
+          for name in VERCEL_TOKEN RAILWAY_API_TOKEN SUPABASE_MIGRATION_DATABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY PRODUCTION_DATABASE_URL; do
             if [[ -z "${!name:-}" ]]; then
               echo "$name is required for production promotion" >&2
               exit 1
@@ -80,7 +78,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Block contaminated production promotion
-        run: node scripts/verify-production-data-boundary.mjs --require-clear
+        run: node scripts/verify-production-data-boundary.mjs --require-clear --no-demo-allowlist
 
       - name: Run release gates
         run: |
@@ -120,9 +118,16 @@ jobs:
         shell: bash
         run: supabase db push --db-url "$SUPABASE_MIGRATION_DATABASE_URL" --yes
 
+      - name: Apply and read back documents bucket policy
+        shell: bash
+        run: node scripts/verify-hosted-documents-storage.mjs --apply
+
       - name: Deploy Nest API to exact Railway service
         shell: bash
         run: >-
+          pnpm dlx @railway/cli@5.28.0 variable set APP_REVISION="$GITHUB_SHA"
+          --project "$RAILWAY_PROJECT_ID" --environment production
+          --service "$RAILWAY_API_SERVICE_ID" --skip-deploys &&
           pnpm dlx @railway/cli@5.28.0 up --project "$RAILWAY_PROJECT_ID"
           --environment production --service "$RAILWAY_API_SERVICE_ID"
           --ci --yes --message "${{ inputs.reason }}"
@@ -130,6 +135,9 @@ jobs:
       - name: Deploy CAD evidence worker to exact Railway service
         shell: bash
         run: >-
+          pnpm dlx @railway/cli@5.28.0 variable set APP_REVISION="$GITHUB_SHA"
+          --project "$RAILWAY_PROJECT_ID" --environment production
+          --service "$RAILWAY_CAD_SERVICE_ID" --skip-deploys &&
           pnpm dlx @railway/cli@5.28.0 up apps/workers/dxf-parser
           --path-as-root --project "$RAILWAY_PROJECT_ID"
           --environment production --service "$RAILWAY_CAD_SERVICE_ID"
@@ -144,6 +152,7 @@ jobs:
           # secret. Vercel snapshots variables per deployment, so this must run
           # before creating the production deployment.
           pnpm dlx vercel@54.7.1 env add DATABASE_URL production --force --value "$PRODUCTION_DATABASE_URL" --yes --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
+          pnpm dlx vercel@54.7.1 env add APP_REVISION production --force --value "$GITHUB_SHA" --yes --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
           pnpm dlx vercel@54.7.1 deploy . --prod --force --with-cache --yes --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
 
       - name: Verify production health and release identity
@@ -156,34 +165,23 @@ jobs:
           curl --fail --silent --show-error https://third-code-erp-api-production.up.railway.app/ready
           curl --fail --silent --show-error https://abi-ops-cad-worker-production.up.railway.app/health
           node scripts/verify-production-surface.mjs --url https://thirdcode-erp.vercel.app
+          node - <<'NODE'
+          const expected = process.env.GITHUB_SHA.slice(0, 12)
+          const urls = [
+            'https://thirdcode-erp.vercel.app/api/health',
+            'https://third-code-erp-api-production.up.railway.app/health',
+            'https://third-code-erp-api-production.up.railway.app/ready',
+          ]
+          for (const url of urls) {
+            const response = await fetch(url, { signal: AbortSignal.timeout(20_000) })
+            const payload = await response.json()
+            if (!response.ok || payload.revision !== expected) {
+              throw new Error(`release identity mismatch at ${url}`)
+            }
+          }
+          NODE
 
-      - name: Install Playwright Chromium
-        working-directory: apps/web
-        run: pnpm exec playwright install --with-deps chromium
-
-      - name: Run authenticated production E2E
-        working-directory: apps/web
-        env:
-          E2E_MAGIC_LINK_AUTH: "1"
-          E2E_ROLE_MATRIX_AUTH: "1"
-          PLAYWRIGHT_BASE_URL: https://thirdcode-erp.vercel.app
-        shell: bash
-        run: |
-          set -euo pipefail
-          report_path="$GITHUB_WORKSPACE/tmp/production-e2e/playwright.json"
-          mkdir -p "$(dirname "$report_path")"
-          pnpm exec playwright test \
-            e2e/branding-authenticated.spec.ts \
-            e2e/smoke-console.spec.ts \
-            e2e/role-access-production.spec.ts \
-            e2e/cad-worker-production.spec.ts \
-            --project=chromium --workers=1 --reporter=json > "$report_path"
-          node "$GITHUB_WORKSPACE/scripts/assert-playwright-no-skips.mjs" \
-            "$report_path" "authenticated production E2E"
-
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: always()
-        with:
-          name: production-playwright-report
-          path: tmp/production-e2e/
-          retention-days: 14
+      # Authenticated role tests remain in the CI isolated-E2E environment.
+      # Production deliberately has no seeded E2E tenant or identity after the
+      # operator purge; release verification here is limited to the read-only
+      # health, readiness, and public-surface contract above.

@@ -104,6 +104,7 @@ export const createOpportunitySchema = z
     // legacy code paths can still pass project_id only.
     account_id: z.string().uuid().optional(),
     project_id: z.string().uuid().optional(),
+    prospective_project_name: z.string().trim().min(1).max(200).optional(),
     rep_id: z.string().uuid().optional(),
     stage: z.enum(opportunityStageValues).default('opportunity_creation'),
     tcv_cents: z.number().int().min(0).default(0),
@@ -122,6 +123,7 @@ export const createOpportunitySchema = z
 export const updateOpportunitySchema = z
   .object({
     rep_id: z.string().uuid().optional(),
+    prospective_project_name: z.string().trim().min(1).max(200).optional(),
     stage: z.enum(opportunityStageValues).optional(),
     tcv_cents: z.number().int().min(0).optional(),
     gp_cents: z.number().int().min(0).optional(),

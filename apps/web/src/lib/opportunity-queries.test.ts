@@ -31,6 +31,7 @@ const CORE_RESULT = {
     closingDate: '2026-08-10T00:00:00.000Z',
     accountId: '33333333-3333-4333-8333-333333333333',
     projectId: null,
+    prospectiveProjectName: 'Acme office fit-out',
     accountName: 'Acme Office',
     projectName: null,
   },

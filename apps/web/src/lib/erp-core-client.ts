@@ -37,6 +37,11 @@ import {
   customerInvoiceCancelResultSchema,
   documentDeleteResultSchema,
   documentIntakeResultSchema,
+  documentUploadReservationCompletionResultSchema,
+  documentUploadIdempotencyKeySchema,
+  documentUploadReservationReleaseResultSchema,
+  documentUploadReservationRequestSchema,
+  documentUploadReservationResultSchema,
   cadEvidenceCommitCommandSchema,
   cadEvidenceCommitResultSchema,
   parseCadWorkerResponse,
@@ -167,6 +172,10 @@ import {
   type DocumentDeleteResult,
   type DocumentIntakeRequest,
   type DocumentIntakeResult,
+  type DocumentUploadReservationCompletionResult,
+  type DocumentUploadReservationReleaseResult,
+  type DocumentUploadReservationRequest,
+  type DocumentUploadReservationResult,
   type CadEvidenceCommitCommand,
   type CadEvidenceCommitResult,
   type TakeoffImportCommand,
@@ -385,10 +394,14 @@ function tenantEnabledForCoreApiInternal(
   const normalizedTenantId = tenantId.trim().toLowerCase()
   if (!UUID_PATTERN.test(normalizedTenantId)) return false
 
-  const allowlist = (tenantIds ?? '')
-    .split(',')
-    .map((entry) => entry.trim().toLowerCase())
-    .filter(Boolean)
+  const allowlist = [
+    ...new Set(
+      (tenantIds ?? '')
+        .split(',')
+        .map((entry) => entry.trim().toLowerCase())
+        .filter(Boolean)
+    ),
+  ]
 
   if (allowlist.length === 0) return false
   if (
@@ -1248,16 +1261,38 @@ export function documentProcessingJobsUseCoreApi(
  * the legacy Server Action mutation.
  */
 export function documentDeleteWritesUseCoreApi(tenantId: string): boolean {
-  return tenantEnabledForCoreApi(
+  return tenantEnabledForExactCoreApi(
     tenantId,
     process.env.ERP_DOCUMENT_DELETE_WRITES_VIA_API,
     process.env.ERP_DOCUMENT_DELETE_WRITES_VIA_API_TENANT_IDS
   )
 }
 
+/** New signed-upload issuance is selected only for an exact tenant canary. */
+export function documentUploadReservationIssuanceUsesCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForExactCoreApi(
+    tenantId,
+    process.env.ERP_DOCUMENT_UPLOAD_RESERVATION_ISSUANCE_VIA_API,
+    process.env.ERP_DOCUMENT_UPLOAD_RESERVATION_ISSUANCE_VIA_API_TENANT_IDS
+  )
+}
+
+/** Reservation completion/release stays independently enabled for drain-down. */
+export function documentUploadReservationWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForExactCoreApi(
+    tenantId,
+    process.env.ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_VIA_API,
+    process.env.ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
 /** Public token signing is delegated only for an explicit tenant canary. */
 export function publicSigningWritesUseCoreApi(tenantId: string): boolean {
-  return tenantEnabledForCoreApi(
+  return tenantEnabledForExactCoreApi(
     tenantId,
     process.env.ERP_PUBLIC_SIGNING_VIA_API,
     process.env.ERP_PUBLIC_SIGNING_VIA_API_TENANT_IDS
@@ -2631,6 +2666,251 @@ export async function createDocumentThroughCoreApi(
       ok: false,
       error: 'ERP Core API is unavailable. No document was recorded.',
       status: 503,
+    }
+  }
+}
+
+/** Core issues the only authoritative signed path for a selected tenant. */
+function documentUploadReservationCreateError(status: number): string {
+  switch (status) {
+    case 400:
+      return 'Invalid document upload reservation.'
+    case 401:
+    case 403:
+      return 'Upload reservation is not authorized.'
+    case 404:
+      return 'Project was not found.'
+    case 409:
+      return 'Upload reservation conflicts with an existing request.'
+    case 413:
+      return 'Project storage quota exceeded.'
+    case 429:
+      return 'Upload reservation service is busy. Try again.'
+    case 503:
+      return 'ERP Core API is unavailable. No upload reservation was created.'
+    default:
+      return 'Upload reservation was not created.'
+  }
+}
+
+function documentUploadReservationCompletionError(status: number): string {
+  switch (status) {
+    case 400:
+      return 'Invalid upload reservation completion request.'
+    case 401:
+    case 403:
+      return 'Upload reservation completion is not authorized.'
+    case 404:
+      return 'Upload reservation or uploaded object was not found.'
+    case 409:
+      return 'Upload reservation cannot be completed in its current state.'
+    case 410:
+      return 'Upload reservation is no longer available.'
+    case 413:
+      return 'Uploaded object does not satisfy the reservation limits.'
+    case 429:
+      return 'Upload completion service is busy. Try again.'
+    case 503:
+      return 'ERP Core API is unavailable. The upload remains pending.'
+    default:
+      return 'Upload reservation was not completed.'
+  }
+}
+
+function documentUploadReservationReleaseError(status: number): string {
+  switch (status) {
+    case 400:
+      return 'Invalid upload reservation release request.'
+    case 401:
+    case 403:
+      return 'Upload reservation release is not authorized.'
+    case 404:
+      return 'Upload reservation was not found.'
+    case 409:
+      return 'Upload reservation cannot be released in its current state.'
+    case 410:
+      return 'Upload reservation is no longer available.'
+    case 429:
+      return 'Upload cleanup service is busy. Try again.'
+    case 503:
+      return 'ERP Core API is unavailable. Reservation cleanup is pending.'
+    default:
+      return 'Upload reservation was not released.'
+  }
+}
+
+const DOCUMENT_UPLOAD_RESERVATION_API_TIMEOUT_MS = 40_000
+
+function documentUploadReservationRequestId(requestId?: string): string {
+  const parsed = z.string().uuid().safeParse(requestId)
+  return parsed.success ? parsed.data : randomUUID()
+}
+
+export async function reserveDocumentUploadThroughCoreApi(
+  request: DocumentUploadReservationRequest,
+  idempotencyKey: string,
+  requestId?: string
+): Promise<CoreResult<DocumentUploadReservationResult>> {
+  const parsedRequest = documentUploadReservationRequestSchema.safeParse(request)
+  const parsedIdempotencyKey = documentUploadIdempotencyKeySchema.safeParse(
+    idempotencyKey
+  )
+  if (!parsedRequest.success || !parsedIdempotencyKey.success) {
+    return { ok: false, error: 'Invalid document upload reservation.', status: 400 }
+  }
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/document-upload-reservations`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': parsedIdempotencyKey.data,
+          'x-request-id': documentUploadReservationRequestId(requestId),
+        },
+        body: JSON.stringify(parsedRequest.data),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(DOCUMENT_UPLOAD_RESERVATION_API_TIMEOUT_MS),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      return {
+        ok: false,
+        status: response.status,
+        error: documentUploadReservationCreateError(response.status),
+      }
+    }
+    const parsed = documentUploadReservationResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        status: 503,
+        error: 'ERP Core API returned an invalid upload reservation.',
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      error: 'ERP Core API is unavailable. No upload reservation was created.',
+    }
+  }
+}
+
+/** Completes from ledger/provider metadata; browser metadata is never accepted. */
+export async function completeDocumentUploadReservationThroughCoreApi(
+  reservationId: string,
+  requestId?: string
+): Promise<CoreResult<DocumentUploadReservationCompletionResult>> {
+  const parsedReservationId = z.string().uuid().safeParse(reservationId)
+  if (!parsedReservationId.success) {
+    return { ok: false, error: 'Invalid upload reservation ID.', status: 400 }
+  }
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/document-upload-reservations/${encodeURIComponent(parsedReservationId.data)}/complete`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'x-request-id': documentUploadReservationRequestId(requestId),
+        },
+        body: JSON.stringify({}),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(DOCUMENT_UPLOAD_RESERVATION_API_TIMEOUT_MS),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      return {
+        ok: false,
+        status: response.status,
+        error: documentUploadReservationCompletionError(response.status),
+      }
+    }
+    const parsed = documentUploadReservationCompletionResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        status: 503,
+        error: 'ERP Core API returned an invalid upload completion result.',
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      error: 'ERP Core API is unavailable. The upload remains pending.',
+    }
+  }
+}
+
+/** Releases an exact actor-owned reservation and its deterministic object. */
+export async function releaseDocumentUploadReservationThroughCoreApi(
+  reservationId: string,
+  requestId?: string
+): Promise<CoreResult<DocumentUploadReservationReleaseResult>> {
+  const parsedReservationId = z.string().uuid().safeParse(reservationId)
+  if (!parsedReservationId.success) {
+    return { ok: false, error: 'Invalid upload reservation ID.', status: 400 }
+  }
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/document-upload-reservations/${encodeURIComponent(parsedReservationId.data)}`,
+      {
+        method: 'DELETE',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'x-request-id': documentUploadReservationRequestId(requestId),
+        },
+        body: JSON.stringify({}),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(DOCUMENT_UPLOAD_RESERVATION_API_TIMEOUT_MS),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      return {
+        ok: false,
+        status: response.status,
+        error: documentUploadReservationReleaseError(response.status),
+      }
+    }
+    const parsed = documentUploadReservationReleaseResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        status: 503,
+        error: 'ERP Core API returned an invalid upload release result.',
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      error: 'ERP Core API is unavailable. Reservation cleanup is pending.',
     }
   }
 }

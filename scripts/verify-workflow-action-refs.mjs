@@ -11,6 +11,8 @@ const REFS = [
   ["pnpm/action-setup", "refs/tags/v4.4.0"],
   ["actions/setup-node", "refs/tags/v4.4.0"],
   ["actions/upload-artifact", "refs/tags/v4.6.2"],
+  ["astral-sh/setup-uv", "refs/tags/v9.0.0"],
+  ["docker/scout-action", "refs/tags/v1.24.0"],
 ];
 
 function getStatus(repo, refPath) {

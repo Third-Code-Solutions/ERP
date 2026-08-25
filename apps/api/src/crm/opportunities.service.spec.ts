@@ -31,6 +31,7 @@ function harness() {
       closingDate: new Date('2026-08-10T00:00:00.000Z'),
       accountId: ACCOUNT_ID,
       projectId: PROJECT_ID,
+      prospectiveProjectName: 'Makati Fit-out',
       accountName: 'Acme Office',
       projectName: 'Makati Fit-out',
     },
@@ -95,6 +96,7 @@ describe('OpportunitiesService', () => {
         tenantId: TENANT_ID,
         accountId: ACCOUNT_ID,
         projectId: PROJECT_ID,
+        prospectiveProjectName: 'Makati Fit-out',
         accountName: 'Acme Office',
       }),
       progress: {

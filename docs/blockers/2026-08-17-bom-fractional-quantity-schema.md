@@ -2,7 +2,11 @@
 
 ## State
 
-**BLOCKED product/schema decision; source safety mitigation implemented.** The
+**Decision resolved; implementation remains deliberately gated.**
+[ADR-029](../adrs/ADR-029-exact-fractional-bom-quantities.md) selects a
+six-decimal `quantity_micros` bigint as the canonical representation. The
+source safety mitigation remains in force until the approved vertical rollout
+is complete. The
 PRD's canonical DUPA example uses a header quantity of `0.10`, while the
 active `bom_line_items.quantity` column is a PostgreSQL `integer`. A decimal
 cannot be represented faithfully by the active BOM, total, approval, and
@@ -33,11 +37,11 @@ downstream procurement contracts.
 - Manual BOM creation requires a safe integer within the PostgreSQL integer
   range, both client-side and at its server-action boundary.
 
-## Required decision to unblock exact fractional BOM support
+## Approved rollout required before exact fractional BOM support
 
-1. Agent 01 and the commercial owner must approve an ADR selecting the
-   canonical representation (for example scaled integer micro-units versus
-   bounded `numeric`) and its display/rounding rules.
+1. ADR-029 defines the scaled-integer micro-unit representation, decimal-string
+   boundary contract, and half-up centavo rules. No alternate representation
+   remains open.
 2. Agent 04 must provide an additive migration and backfill/rollback plan for
    BOM, DUPA, totals, imports, approvals, procurement, reports, indexes, and
    RLS-dependent queries. Historical quantities must not be silently changed.
@@ -49,4 +53,6 @@ downstream procurement contracts.
    exact-money, approval/immutability, Core API, browser E2E, and authorized
    hosted verification.
 
-No hosted schema or data was changed for this mitigation.
+No hosted schema or data was changed for this mitigation. The decision is
+complete; decimal BOM entry remains unavailable until the rollout above is
+implemented and verified end to end.

@@ -13,6 +13,8 @@
     "db:seed": "tsx src/seed.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:document-opportunity-migration": "node scripts/verify-document-opportunity-project-migration.mjs",
+    "test:reservation-migration": "node scripts/verify-document-upload-reservation-migration.mjs",
     "test:watch": "vitest"
   },
   "dependencies": {

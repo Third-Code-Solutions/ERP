@@ -2045,6 +2045,135 @@ describe('ERP API environment', () => {
     ).toThrow('ERP_CORE_WEBHOOK_TOKEN')
   })
 
+  it('keeps upload reservation writes and cleanup independently fail-closed', () => {
+    const defaults = validateEnvironment(REQUIRED)
+    expect(defaults.ERP_DOCUMENT_UPLOAD_RESERVATION_ISSUANCE_ENABLED).toBe(false)
+    expect(defaults.ERP_DOCUMENT_UPLOAD_RESERVATION_ISSUANCE_TENANT_IDS).toEqual(
+      [],
+    )
+    expect(defaults.ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_ENABLED).toBe(false)
+    expect(defaults.ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_TENANT_IDS).toEqual([])
+    expect(defaults.ERP_DOCUMENT_UPLOAD_RESERVATION_CLEANUP_ENABLED).toBe(false)
+    expect(defaults.ERP_DOCUMENT_UPLOAD_RESERVATION_CLEANUP_TENANT_IDS).toEqual([])
+    expect(
+      defaults.ERP_DOCUMENT_UPLOAD_RESERVATION_RECONCILIATION_ENABLED,
+    ).toBe(false)
+    expect(
+      defaults.ERP_DOCUMENT_UPLOAD_RESERVATION_RECONCILIATION_TENANT_IDS,
+    ).toEqual([])
+
+    const tenantId = '33333333-3333-4333-8333-333333333333'
+    const caseVariantTenantId = 'abcdefab-cdef-4abc-8def-abcdefabcdef'
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_DOCUMENT_UPLOAD_RESERVATION_ISSUANCE_ENABLED: 'true',
+        ERP_DOCUMENT_UPLOAD_RESERVATION_ISSUANCE_TENANT_IDS: tenantId,
+        ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_ENABLED: 'true',
+        ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_TENANT_IDS: tenantId,
+        ERP_DOCUMENT_UPLOAD_RESERVATION_CLEANUP_ENABLED: 'true',
+        ERP_DOCUMENT_UPLOAD_RESERVATION_CLEANUP_TENANT_IDS: tenantId,
+        ERP_DOCUMENT_UPLOAD_RESERVATION_RECONCILIATION_ENABLED: 'true',
+        ERP_DOCUMENT_UPLOAD_RESERVATION_RECONCILIATION_TENANT_IDS:
+          ` ${caseVariantTenantId.toUpperCase()},${caseVariantTenantId} `,
+      }),
+    ).toMatchObject({
+      ERP_DOCUMENT_UPLOAD_RESERVATION_ISSUANCE_ENABLED: true,
+      ERP_DOCUMENT_UPLOAD_RESERVATION_ISSUANCE_TENANT_IDS: [tenantId],
+      ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_ENABLED: true,
+      ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_TENANT_IDS: [tenantId],
+      ERP_DOCUMENT_UPLOAD_RESERVATION_CLEANUP_ENABLED: true,
+      ERP_DOCUMENT_UPLOAD_RESERVATION_CLEANUP_TENANT_IDS: [tenantId],
+      ERP_DOCUMENT_UPLOAD_RESERVATION_RECONCILIATION_ENABLED: true,
+      ERP_DOCUMENT_UPLOAD_RESERVATION_RECONCILIATION_TENANT_IDS: [
+        caseVariantTenantId,
+      ],
+    })
+
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_DOCUMENT_UPLOAD_RESERVATION_ISSUANCE_TENANT_IDS: 'not-a-tenant',
+      }),
+    ).toThrow('ERP_DOCUMENT_UPLOAD_RESERVATION_ISSUANCE_TENANT_IDS')
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_TENANT_IDS: 'not-a-tenant',
+      }),
+    ).toThrow('ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_TENANT_IDS')
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_DOCUMENT_UPLOAD_RESERVATION_CLEANUP_TENANT_IDS: 'not-a-tenant',
+      }),
+    ).toThrow('ERP_DOCUMENT_UPLOAD_RESERVATION_CLEANUP_TENANT_IDS')
+    for (const tenantList of [
+      '*',
+      'not-a-tenant',
+      `${tenantId},,${tenantId}`,
+      `,${tenantId}`,
+      `${tenantId},`,
+    ]) {
+      expect(() =>
+        validateEnvironment({
+          ...REQUIRED,
+          ERP_DOCUMENT_UPLOAD_RESERVATION_RECONCILIATION_TENANT_IDS:
+            tenantList,
+        }),
+      ).toThrow('ERP_DOCUMENT_UPLOAD_RESERVATION_RECONCILIATION_TENANT_IDS')
+    }
+  })
+
+  it('requires complete, exact-host DocuSeal artifact configuration', () => {
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        NODE_ENV: 'production',
+        DOCUSEAL_API_URL: 'https://api.docuseal.example.test/v1',
+        DOCUSEAL_API_TOKEN: 'x'.repeat(32),
+        DOCUSEAL_DOCUMENT_HOSTS:
+          'documents.docuseal.example.test,cdn.docuseal.example.test:443',
+      })
+    ).toMatchObject({
+      DOCUSEAL_DOCUMENT_HOSTS: [
+        'documents.docuseal.example.test',
+        'cdn.docuseal.example.test:443',
+      ],
+    })
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        DOCUSEAL_API_URL: 'https://api.docuseal.example.test/v1',
+      })
+    ).toThrow('DOCUSEAL_API_TOKEN')
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        DOCUSEAL_API_URL: 'https://api.docuseal.example.test/v1',
+        DOCUSEAL_API_TOKEN: 'x'.repeat(32),
+        DOCUSEAL_DOCUMENT_HOSTS: '*.docuseal.example.test',
+      })
+    ).toThrow('DOCUSEAL_DOCUMENT_HOSTS')
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        DOCUSEAL_API_URL: 'https://api.docuseal.example.test/v1',
+        DOCUSEAL_API_TOKEN: 'x'.repeat(32),
+        DOCUSEAL_DOCUMENT_HOSTS: 'documents.docuseal.example.test:99999',
+      })
+    ).toThrow('DOCUSEAL_DOCUMENT_HOSTS')
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        NODE_ENV: 'production',
+        DOCUSEAL_API_URL: 'http://api.docuseal.example.test/v1',
+        DOCUSEAL_API_TOKEN: 'x'.repeat(32),
+        DOCUSEAL_DOCUMENT_HOSTS: 'documents.docuseal.example.test',
+      })
+    ).toThrow('must use https in production')
+  })
+
   it('keeps public signing fail-closed and tenant-scoped', () => {
     expect(validateEnvironment(REQUIRED).ERP_PUBLIC_SIGNING_WRITES_ENABLED).toBe(false)
     expect(validateEnvironment(REQUIRED).ERP_PUBLIC_SIGNING_WRITES_TENANT_IDS).toEqual([])

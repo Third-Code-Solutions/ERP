@@ -40,6 +40,7 @@ export class OpportunitiesService {
         closingDate: opportunities.closing_date,
         accountId: opportunities.account_id,
         projectId: opportunities.project_id,
+        prospectiveProjectName: opportunities.prospective_project_name,
         accountName: accounts.name,
         projectName: projects.name,
       })
@@ -131,6 +132,7 @@ export class OpportunitiesService {
         closingDate: opportunity.closingDate?.toISOString() ?? null,
         accountId: opportunity.accountId,
         projectId: opportunity.projectId,
+        prospectiveProjectName: opportunity.prospectiveProjectName,
         accountName: opportunity.accountName,
         projectName: opportunity.projectName,
       },

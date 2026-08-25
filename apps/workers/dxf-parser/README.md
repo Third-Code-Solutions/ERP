@@ -6,11 +6,18 @@ official `scope_items` write exists in this worker.
 
 ## Run locally
 
-From `/apps/web/`:
+Python 3.12 is the supported worker runtime. From this directory:
 
-```bash
-pnpm dev:worker
+```powershell
+uv sync --frozen --extra dev
+uv run --frozen --extra dev pytest -q
+uv run --frozen uvicorn src.main:app --reload --port 8000
 ```
+
+`uv.lock` is authoritative. `requirements.lock` and `requirements-dev.lock`
+are hashed exports for image and compatibility tooling; their controlled
+refresh procedure is documented in
+`docs/runbooks/python-worker-artifact-update.md`.
 
 For local-only unauthenticated calls, set
 `PARSER_ALLOW_UNAUTHENTICATED_LOCAL=true`. Production requires
@@ -65,9 +72,11 @@ Vercel variable. The official Core caller uses `/parse-evidence`; it supplies
 signed object URLs and the worker never receives tenant or database authority.
 The legacy `/parse` route remains bearer-protected for compatibility.
 
-The Docker image builds the pinned LibreDWG `0.13.4` release because Debian
-does not provide a `libredwg-tools` package, then installs Python and ezdxf.
-No Postgres client or database credential is required.
+The Docker image builds the pinned LibreDWG `0.13.4` release with exact Alpine
+3.23 build-package versions. The build verifies the upstream tarball SHA-256
+before extraction, installs the frozen Python 3.12 dependency export on an
+immutable base digest, and runs as unprivileged UID/GID 10001. No Postgres
+client or database credential is required.
 
 ## Without the worker
 

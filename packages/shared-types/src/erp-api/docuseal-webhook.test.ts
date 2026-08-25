@@ -24,13 +24,16 @@ describe('DocuSeal webhook contract', () => {
     })
   })
 
-  it('defaults missing documents and rejects unknown fields or unsafe URLs', () => {
+  it('defaults missing documents for non-completion events', () => {
     expect(
       docuSealWebhookCommandSchema.parse({
         event: 'submission.opened',
         submissionId: SUBMISSION_ID,
       }).documents
     ).toEqual([])
+  })
+
+  it('rejects empty completions, unknown fields, and unsafe URLs', () => {
     expect(() =>
       docuSealWebhookCommandSchema.parse({
         event: 'submission.completed',
@@ -59,10 +62,29 @@ describe('DocuSeal webhook contract', () => {
         projectName: 'Fit-out',
         tcvCents: 125_000,
         signedDocument: {
-          url: 'https://sign.example.test/signed.pdf',
           name: 'signed.pdf',
+          storagePath: `${TENANT_ID}/${PROJECT_ID}/signed.pdf`,
+          sizeBytes: 1_024,
         },
       })
     ).toMatchObject({ handled: true, tcvCents: 125_000 })
+
+    expect(() =>
+      docuSealWebhookResultSchema.parse({
+        received: true,
+        handled: true,
+        duplicate: false,
+        tenantId: TENANT_ID,
+        bomId: BOM_ID,
+        projectId: PROJECT_ID,
+        projectName: 'Fit-out',
+        tcvCents: 125_000,
+        signedDocument: {
+          name: 'signed.pdf',
+          storagePath: 'https://provider.example.test/signed.pdf',
+          sizeBytes: 1_024,
+        },
+      })
+    ).toThrow()
   })
 })

@@ -94,6 +94,7 @@ export * from './cash'
 export * from './cash-draft-requests'
 export * from './document-delete-requests'
 export * from './document-intake-requests'
+export * from './document-upload-reservations'
 // Bank statement matching and reconciliation
 export * from './bank-reconciliation'
 export * from './bank-statement-auto-match-requests'

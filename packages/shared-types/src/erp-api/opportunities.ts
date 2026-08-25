@@ -21,6 +21,7 @@ export const opportunityDetailOpportunitySchema = z
     closingDate: z.string().datetime({ offset: true }).nullable(),
     accountId: z.string().uuid().nullable(),
     projectId: z.string().uuid().nullable(),
+    prospectiveProjectName: z.string().trim().min(1).max(200).nullable(),
     accountName: z.string().nullable(),
     projectName: z.string().nullable(),
   })

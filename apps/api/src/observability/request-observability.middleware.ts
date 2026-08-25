@@ -95,6 +95,26 @@ export class RequestObservabilityMiddleware implements NestMiddleware {
         ? request.route.path
         : ''
     if (
+      request.method === 'POST' &&
+      routePath.endsWith('/v1/document-upload-reservations')
+    ) {
+      return 'document.upload_reserve'
+    }
+    if (
+      request.method === 'POST' &&
+      routePath.endsWith(
+        '/v1/document-upload-reservations/:reservationId/complete'
+      )
+    ) {
+      return 'document.upload_complete'
+    }
+    if (
+      request.method === 'DELETE' &&
+      routePath.endsWith('/v1/document-upload-reservations/:reservationId')
+    ) {
+      return 'document.upload_release'
+    }
+    if (
       request.method === 'PATCH' &&
       routePath.endsWith('/v1/admin/users/:userId/role')
     ) {

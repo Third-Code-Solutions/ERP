@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState, useTransition } from 'react'
+import { useCallback, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@third-code-erp/auth/client'
 
@@ -58,7 +58,18 @@ interface SignResponse {
   signedUrl: string
   token: string
   storagePath: string
+  reservationId?: string
 }
+
+export type CompleteRequest =
+  | { reservationId: string }
+  | {
+      storagePath: string
+      projectId: string
+      fileName: string
+      mimeType: string
+      sizeBytes: number
+    }
 
 export const MAX_CAD_SIZE_BYTES = 100 * 1024 * 1024
 // Every format the construction-document intake supports. CAD goes through the
@@ -66,15 +77,26 @@ export const MAX_CAD_SIZE_BYTES = 100 * 1024 * 1024
 export const CAD_ACCEPT =
   '.dxf,.dwg,.pdf,.jpg,.jpeg,.png,.webp,.gif,.heic,.xlsx,.xls,.xlsm,.xlsb,.csv,.docx,.doc'
 
-async function signUpload(
+export function uploadSigningFingerprint(
+  projectId: string,
+  file: Pick<File, 'name' | 'size' | 'type' | 'lastModified'>
+): string {
+  return [projectId, file.name, file.size, file.type, file.lastModified].join(':')
+}
+
+export async function signUpload(
   projectId: string,
   fileName: string,
   mimeType: string,
-  sizeBytes: number
+  sizeBytes: number,
+  idempotencyKey: string
 ): Promise<SignResponse> {
   const res = await fetch('/api/upload/sign', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Idempotency-Key': idempotencyKey,
+    },
     body: JSON.stringify({ projectId, fileName, mimeType, sizeBytes }),
   })
   if (!res.ok) {
@@ -84,13 +106,9 @@ async function signUpload(
   return res.json()
 }
 
-async function notifyComplete(args: {
-  storagePath: string
-  projectId: string
-  fileName: string
-  mimeType: string
-  sizeBytes: number
-}): Promise<CompleteResponse> {
+export async function notifyComplete(
+  args: CompleteRequest
+): Promise<CompleteResponse> {
   const res = await fetch('/api/upload/complete', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -101,6 +119,19 @@ async function notifyComplete(args: {
     throw new Error(data.error ?? `Failed to record upload (${res.status})`)
   }
   return res.json()
+}
+
+export async function releaseReservation(reservationId: string): Promise<void> {
+  const response = await fetch(
+    `/api/upload/reservations/${encodeURIComponent(reservationId)}`,
+    { method: 'DELETE' }
+  )
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}))
+    throw new Error(
+      body.error ?? `Failed to release upload reservation (${response.status})`
+    )
+  }
 }
 
 interface DocumentProcessingStatusResponse {
@@ -222,6 +253,14 @@ export interface UseCadUploadResult {
   upload: (file: File) => void
   /** Reset error/progress without clearing the last result. */
   reset: () => void
+  /** A stored object is waiting for an idempotent Core completion retry. */
+  canRetryFinalization: boolean
+  /** An exact reservation/object can still be explicitly released. */
+  canCancelPendingUpload: boolean
+  /** Retry completion without signing or uploading the object again. */
+  retryFinalization: () => void
+  /** Explicitly release the retained reservation and deterministic object. */
+  cancelPendingUpload: () => void
 }
 
 export function useCadUpload({
@@ -236,6 +275,13 @@ export function useCadUpload({
   const [progress, setProgress] = useState('')
   const [error, setError] = useState('')
   const [lastResult, setLastResult] = useState<CompleteResponse | null>(null)
+  const [pendingReservation, setPendingReservation] = useState<
+    { reservationId: string; mode: 'finalization' | 'cleanup' } | null
+  >(null)
+  const signingAttempt = useRef<{
+    fingerprint: string
+    idempotencyKey: string
+  } | null>(null)
 
   const reset = useCallback(() => {
     setPhase('idle')
@@ -243,9 +289,95 @@ export function useCadUpload({
     setError('')
   }, [])
 
+  const finishCompletion = useCallback(
+    async (completed: CompleteResponse) => {
+      setPendingReservation(null)
+      setLastResult(completed)
+      let finalResult = completed
+      if (completed.cadParseQueued && completed.cadResult?.processingJobId) {
+        const status = await waitForDocumentProcessing(
+          completed.cadResult.processingJobId,
+          setProgress
+        )
+        finalResult = applyDocumentProcessingStatus(completed, status)
+        setLastResult(finalResult)
+      }
+      setPhase('done')
+      setProgress(formatCompletionProgress(finalResult))
+      if (
+        finalResult.cadParseWarning &&
+        finalResult.cadResult?.status !== 'binary-dwg-pending'
+      ) {
+        setError(finalResult.cadParseWarning)
+      }
+
+      onComplete?.(finalResult)
+      setIsUploading(false)
+      if (refreshOnComplete) {
+        startTransition(() => router.refresh())
+      }
+    },
+    [onComplete, refreshOnComplete, router]
+  )
+
+  const retryFinalization = useCallback(() => {
+    if (
+      !pendingReservation ||
+      pendingReservation.mode !== 'finalization' ||
+      isUploading
+    ) {
+      return
+    }
+    setError('')
+    setIsUploading(true)
+    setPhase('finalizing')
+    setProgress('Retrying finalization…')
+    void (async () => {
+      try {
+        const completed = await notifyComplete({
+          reservationId: pendingReservation.reservationId,
+        })
+        await finishCompletion(completed)
+      } catch (retryError) {
+        setError(
+          retryError instanceof Error ? retryError.message : 'Finalization failed'
+        )
+        setPhase('error')
+        setProgress('')
+        setIsUploading(false)
+      }
+    })()
+  }, [finishCompletion, isUploading, pendingReservation])
+
+  const cancelPendingUpload = useCallback(() => {
+    if (!pendingReservation || isUploading) return
+    setError('')
+    setIsUploading(true)
+    setProgress('Cancelling pending upload…')
+    void (async () => {
+      try {
+        await releaseReservation(pendingReservation.reservationId)
+        signingAttempt.current = null
+        setPendingReservation(null)
+        setPhase('idle')
+        setProgress('')
+      } catch (releaseError) {
+        setError(
+          releaseError instanceof Error
+            ? releaseError.message
+            : 'Reservation cleanup is pending'
+        )
+        setPhase('error')
+        setProgress('')
+      } finally {
+        setIsUploading(false)
+      }
+    })()
+  }, [isUploading, pendingReservation])
+
   const upload = useCallback(
     (file: File) => {
-      if (isUploading) return
+      if (isUploading || pendingReservation) return
 
       if (file.size > MAX_CAD_SIZE_BYTES) {
         setPhase('error')
@@ -264,67 +396,84 @@ export function useCadUpload({
 
       void (async () => {
         try {
+          const fingerprint = uploadSigningFingerprint(projectId, file)
+          if (signingAttempt.current?.fingerprint !== fingerprint) {
+            signingAttempt.current = {
+              fingerprint,
+              idempotencyKey: crypto.randomUUID(),
+            }
+          }
+          const idempotencyKey = signingAttempt.current.idempotencyKey
           const signed = await signUpload(
             projectId,
             file.name,
             file.type || 'application/octet-stream',
-            file.size
+            file.size,
+            idempotencyKey
           )
 
           setPhase('uploading')
           setProgress(`Uploading ${(file.size / (1024 * 1024)).toFixed(1)} MB to storage…`)
-          const supabase = createSupabaseBrowserClient()
-          const { error: storageError } = await supabase.storage
-            .from('documents')
-            .uploadToSignedUrl(signed.storagePath, signed.token, file, {
-              contentType: file.type || 'application/octet-stream',
-              upsert: false,
-            })
-          if (storageError) {
-            throw new Error(`Storage upload failed: ${storageError.message}`)
+          try {
+            const supabase = createSupabaseBrowserClient()
+            const { error: storageError } = await supabase.storage
+              .from('documents')
+              .uploadToSignedUrl(signed.storagePath, signed.token, file, {
+                contentType: file.type || 'application/octet-stream',
+                upsert: false,
+              })
+            if (storageError) throw storageError
+          } catch {
+            let cleanupStatus = ''
+            let cleanupPending = false
+            if (signed.reservationId) {
+              try {
+                await releaseReservation(signed.reservationId)
+                signingAttempt.current = null
+              } catch {
+                cleanupPending = true
+                cleanupStatus = ' Reservation cleanup is pending.'
+                setPendingReservation({
+                  reservationId: signed.reservationId,
+                  mode: 'cleanup',
+                })
+              }
+            } else {
+              signingAttempt.current = null
+            }
+            console.warn(
+              '[cad-upload]',
+              JSON.stringify({
+                project_id: projectId,
+                reservation_id: signed.reservationId ?? null,
+                action: 'storage_upload',
+                outcome: 'failed',
+                cleanup_pending: cleanupPending,
+              })
+            )
+            throw new Error(`Storage upload failed. Try again.${cleanupStatus}`)
           }
 
           setPhase('finalizing')
           setProgress('Finalizing…')
-          const completed = await notifyComplete({
-            storagePath: signed.storagePath,
-            projectId,
-            fileName: file.name,
-            mimeType: file.type || 'application/octet-stream',
-            sizeBytes: file.size,
-          })
-
-          setLastResult(completed)
-          let finalResult = completed
-          if (
-            completed.cadParseQueued &&
-            completed.cadResult?.processingJobId
-          ) {
-            const status = await waitForDocumentProcessing(
-              completed.cadResult.processingJobId,
-              setProgress
-            )
-            finalResult = applyDocumentProcessingStatus(completed, status)
-            setLastResult(finalResult)
+          const completionRequest: CompleteRequest = signed.reservationId
+            ? { reservationId: signed.reservationId }
+            : {
+                storagePath: signed.storagePath,
+                projectId,
+                fileName: file.name,
+                mimeType: file.type || 'application/octet-stream',
+                sizeBytes: file.size,
+              }
+          if ('reservationId' in completionRequest) {
+            setPendingReservation({
+              reservationId: completionRequest.reservationId,
+              mode: 'finalization',
+            })
           }
-          setPhase('done')
-          setProgress(formatCompletionProgress(finalResult))
-          // cadParseWarning indicates a hard infrastructure failure (DB write
-          // succeeded but a side effect crashed). The friendly "worker pending"
-          // state is not an error — it's an expected status and the message is
-          // already in cadResult.message via formatCompletionProgress.
-          if (
-            finalResult.cadParseWarning &&
-            finalResult.cadResult?.status !== 'binary-dwg-pending'
-          ) {
-            setError(finalResult.cadParseWarning)
-          }
-
-          onComplete?.(finalResult)
-          setIsUploading(false)
-          if (refreshOnComplete) {
-            startTransition(() => router.refresh())
-          }
+          signingAttempt.current = null
+          const completed = await notifyComplete(completionRequest)
+          await finishCompletion(completed)
         } catch (err) {
           const message = err instanceof Error ? err.message : 'Upload failed'
           setError(message)
@@ -334,7 +483,7 @@ export function useCadUpload({
         }
       })()
     },
-    [isUploading, projectId, onComplete, refreshOnComplete, router]
+    [finishCompletion, isUploading, pendingReservation, projectId]
   )
 
   return {
@@ -345,6 +494,10 @@ export function useCadUpload({
     lastResult,
     upload,
     reset,
+    canRetryFinalization: pendingReservation?.mode === 'finalization',
+    canCancelPendingUpload: pendingReservation !== null,
+    retryFinalization,
+    cancelPendingUpload,
   }
 }
 

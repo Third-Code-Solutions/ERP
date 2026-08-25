@@ -18,6 +18,7 @@ export interface KanbanCardData {
   opportunity_kyc_gate: string | null
   project_id: string | null
   project_name: string | null
+  prospective_project_name: string | null
   rep_id: string | null
   rep_email: string | null
   sla: 'green' | 'amber' | 'red' | null
@@ -50,8 +51,10 @@ export function OpportunityKanbanCard({
   onDragStart,
   onDragEnd,
 }: OpportunityKanbanCardProps) {
-  const title = card.account_name ?? card.project_name ?? 'Untitled'
-  const sub = card.account_name && card.project_name ? card.project_name : null
+  const title =
+    card.prospective_project_name ?? card.project_name ?? card.account_name ?? 'Untitled'
+  const sub =
+    card.account_name && title !== card.account_name ? card.account_name : null
   const days = daysSince(card.updated_at)
   const slaColor = card.sla ? SLA_COLORS[card.sla] : 'var(--color-neutral-300, #d1d5db)'
   const kycBlocked = card.opportunity_kyc_initialized

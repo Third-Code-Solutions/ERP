@@ -51,3 +51,23 @@
 - [x] Run the full monorepo test suite: all runnable tests passed.
 - [ ] Obtain the exact ABI tenant cleanup/retention/backup manifest before any
   production data action or release promotion.
+
+## Full repository audit and production repair — 2026-08-24
+
+- [x] Read the attached request, `docs/PRD.md`, `AGENTS.md`, and applicable ADRs.
+- [x] Fast-forward clean local `main` to `origin/main` and create
+  `agent-01/full-repository-audit`.
+- [x] Instantiate exactly five requested principal subagents, sequentially where
+  ownership overlaps.
+- [x] Record dependency-install and baseline quality-gate results before fixes.
+- [x] Complete per-file coverage and architecture/connectivity matrices.
+- [x] Challenge and consolidate all audit findings.
+- [x] Remediate Critical/High findings or document exact blockers.
+- [x] Independently verify fixes and negative/security cases; browser/DB cases
+  remain explicitly blocked by unavailable isolated targets.
+- [x] Make the release decision; do not dispatch production while gates fail.
+- [x] Verify current live URLs, deployment identities, logs, and rollback targets
+  read-only; do not claim the local diff is deployed.
+- [x] Write the required changeset and create a local conventional commit.
+- [ ] Push/open a PR only after the owner/DPO contains AUD-007 and production
+  protections are approved and proven.

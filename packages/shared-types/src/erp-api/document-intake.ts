@@ -19,6 +19,7 @@ export const documentIntakeRequestSchema = z
   .object({
     storagePath: z.string().trim().min(1).max(2_000),
     projectId: z.string().uuid(),
+    opportunityId: z.string().uuid().optional(),
     fileName: z.string().trim().min(1).max(255),
     mimeType: z
       .string()

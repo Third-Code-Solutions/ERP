@@ -1,11 +1,21 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
 import {
   embedBatch,
   embedBatchWithPythonWorker,
+  embedText,
   clearEmbeddingCache,
+  EMBEDDING_DIMENSIONS,
   isEmbeddingProviderConfigured,
   generateGroundedAnswerWithPythonWorker,
 } from '@third-code-erp/ai'
+
+const VECTOR_A = Array.from({ length: EMBEDDING_DIMENSIONS }, (_, index) =>
+  index === 0 ? 0.1 : index === 1 ? 0.2 : 0
+)
+const VECTOR_B = Array.from({ length: EMBEDDING_DIMENSIONS }, (_, index) =>
+  index === 0 ? 0.3 : index === 1 ? 0.4 : 0
+)
 
 const ENV_KEYS = [
   'AI_WORKER_URL',
@@ -45,11 +55,8 @@ describe('Python AI worker boundary', () => {
         JSON.stringify({
           schema_version: 1,
           model: 'text-embedding-3-small',
-          dimensions: 2,
-          embeddings: [
-            [0.1, 0.2],
-            [0.3, 0.4],
-          ],
+          dimensions: EMBEDDING_DIMENSIONS,
+          embeddings: [VECTOR_A, VECTOR_B],
         }),
         { status: 200, headers: { 'content-type': 'application/json' } }
       )
@@ -58,10 +65,7 @@ describe('Python AI worker boundary', () => {
 
     await expect(
       embedBatchWithPythonWorker([' Copper pipe ', 'Valve'])
-    ).resolves.toEqual([
-      [0.1, 0.2],
-      [0.3, 0.4],
-    ])
+    ).resolves.toEqual([VECTOR_A, VECTOR_B])
     expect(fetchMock).toHaveBeenCalledWith(
       'https://ai-worker.example.test/v1/embeddings',
       expect.objectContaining({
@@ -84,6 +88,52 @@ describe('Python AI worker boundary', () => {
     expect(isEmbeddingProviderConfigured()).toBe(false)
   })
 
+  it('rejects a worker response from a different embedding model', async () => {
+    process.env.AI_WORKER_URL = 'https://ai-worker.example.test'
+    process.env.AI_WORKER_SHARED_SECRET = 's'.repeat(32)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            schema_version: 1,
+            model: 'different-embedding-model',
+            dimensions: EMBEDDING_DIMENSIONS,
+            embeddings: [VECTOR_A],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+      )
+    )
+
+    await expect(embedText('Copper pipe')).rejects.toThrow(
+      'AI worker returned an invalid response'
+    )
+  })
+
+  it('rejects a worker response with dimensions outside the repository contract', async () => {
+    process.env.AI_WORKER_URL = 'https://ai-worker.example.test'
+    process.env.AI_WORKER_SHARED_SECRET = 's'.repeat(32)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            schema_version: 1,
+            model: 'text-embedding-3-small',
+            dimensions: 2,
+            embeddings: [[0.1, 0.2]],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+      )
+    )
+
+    await expect(embedText('Copper pipe')).rejects.toThrow(
+      'AI worker returned an invalid response'
+    )
+  })
+
   it('routes shared embedding helper through Python when worker is configured', async () => {
     process.env.AI_WORKER_URL = 'https://ai-worker.example.test'
     process.env.AI_WORKER_SHARED_SECRET = 's'.repeat(32)
@@ -92,16 +142,86 @@ describe('Python AI worker boundary', () => {
         JSON.stringify({
           schema_version: 1,
           model: 'text-embedding-3-small',
-          dimensions: 2,
-          embeddings: [[0.1, 0.2]],
+          dimensions: EMBEDDING_DIMENSIONS,
+          embeddings: [VECTOR_A],
         }),
         { status: 200, headers: { 'content-type': 'application/json' } }
       )
     )
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(embedBatch(['Copper pipe'])).resolves.toEqual([[0.1, 0.2]])
+    await expect(embedBatch(['Copper pipe'])).resolves.toEqual([VECTOR_A])
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('keys cached embeddings by the complete normalized provider input', async () => {
+    process.env.AI_WORKER_URL = 'https://ai-worker.example.test'
+    process.env.AI_WORKER_SHARED_SECRET = 's'.repeat(32)
+    const sharedPrefix = 'a'.repeat(1_000)
+    const firstText = `${sharedPrefix}-first-tail`
+    const secondText = `${sharedPrefix}-second-tail`
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            schema_version: 1,
+            model: 'text-embedding-3-small',
+            dimensions: EMBEDDING_DIMENSIONS,
+            embeddings: [VECTOR_A],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            schema_version: 1,
+            model: 'text-embedding-3-small',
+            dimensions: EMBEDDING_DIMENSIONS,
+            embeddings: [VECTOR_B],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+      )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(embedText(firstText)).resolves.toEqual(VECTOR_A)
+    await expect(embedText(secondText)).resolves.toEqual(VECTOR_B)
+    await expect(embedText(`  ${firstText}  `)).resolves.toEqual(VECTOR_A)
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not share cache entries between Python worker and OpenAI providers', async () => {
+    process.env.AI_WORKER_URL = 'https://ai-worker.example.test'
+    process.env.AI_WORKER_SHARED_SECRET = 's'.repeat(32)
+    const input = 'Provider-isolated embedding input'
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            schema_version: 1,
+            model: 'text-embedding-3-small',
+            dimensions: EMBEDDING_DIMENSIONS,
+            embeddings: [VECTOR_A],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+      )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(embedText(input)).resolves.toEqual(VECTOR_A)
+
+    delete process.env.AI_WORKER_URL
+    delete process.env.AI_WORKER_SHARED_SECRET
+    delete process.env.OPENAI_API_KEY
+    await expect(embedText(input)).rejects.toThrow(
+      'OPENAI_API_KEY not configured'
+    )
+
+    expect(fetchMock).toHaveBeenCalledOnce()
   })
 
   it('accepts only grounded citations supplied by Nest', async () => {

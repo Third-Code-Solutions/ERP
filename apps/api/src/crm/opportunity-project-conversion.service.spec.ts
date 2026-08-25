@@ -68,6 +68,7 @@ function harness({
       stage: 'won',
       accountId: null,
       projectId: null,
+      prospectiveProjectName: 'Prospective warehouse fit-out',
       opportunityType: 'Warehouse fit-out',
     },
   ],
@@ -117,6 +118,7 @@ function harness({
   const insertProject = {
     returning: vi.fn().mockResolvedValue([{ id: PROJECT_ID }]),
   }
+  const insertProjectValues = vi.fn().mockReturnValue(insertProject)
   const insertChecklist = {
     returning: vi.fn().mockResolvedValue([{ id: CHECKLIST_ID }]),
   }
@@ -132,7 +134,7 @@ function harness({
     insert: vi
       .fn()
       .mockReturnValueOnce({ values: insertLedger })
-      .mockReturnValueOnce({ values: vi.fn().mockReturnValue(insertProject) })
+      .mockReturnValueOnce({ values: insertProjectValues })
       .mockReturnValueOnce({ values: vi.fn().mockReturnValue(insertChecklist) })
       .mockReturnValueOnce({ values: vi.fn().mockReturnValue(insertItems) }),
     update: vi.fn().mockImplementation(() => {
@@ -157,7 +159,14 @@ function harness({
     { client: { transaction } } as unknown as DatabaseService,
     auditMock as unknown as AuditService
   )
-  return { candidate, transaction, transactionClient, audit: auditMock, request }
+  return {
+    candidate,
+    transaction,
+    transactionClient,
+    insertProjectValues,
+    audit: auditMock,
+    request,
+  }
 }
 
 describe('Opportunity project conversion authority', () => {
@@ -187,7 +196,7 @@ describe('Opportunity project conversion authority', () => {
   })
 
   it('creates the project, checklist, backlink, notifications boundary, and audits atomically', async () => {
-    const { candidate, transactionClient, audit } = harness()
+    const { candidate, transactionClient, insertProjectValues, audit } = harness()
     await expect(
       candidate.convert(OPPORTUNITY_ID, {}, PRINCIPAL, 'conversion-exact')
     ).resolves.toEqual({
@@ -199,6 +208,10 @@ describe('Opportunity project conversion authority', () => {
       createdProject: true,
     })
     expect(transactionClient.insert).toHaveBeenCalledTimes(4)
+    expect(insertProjectValues).toHaveBeenCalledWith(expect.objectContaining({
+      tenant_id: PRINCIPAL.tenantId,
+      name: 'Prospective warehouse fit-out',
+    }))
     expect(transactionClient.update).toHaveBeenCalledTimes(2)
     expect(audit.writeSemantic).toHaveBeenCalledTimes(3)
     expect(audit.writeSemantic.mock.calls[0]?.[1]).toMatchObject({

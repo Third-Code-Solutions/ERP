@@ -26,7 +26,7 @@ export default async function PipelineBoardPage() {
   // Fetch everything in parallel — kanban needs opps + accounts (for KYC
   // gating + display) + open SLA logs (for the dot) + reps + projects/accounts
   // for the quick-add modal.
-  const [oppsRaw, accountsList, projectsList, openSlas, kycTracksRaw] = await Promise.all([
+  const [oppsRaw, accountsList, openSlas, kycTracksRaw] = await Promise.all([
     db
       .select({
         id: opportunities.id,
@@ -42,6 +42,7 @@ export default async function PipelineBoardPage() {
         account_kyc_status: accounts.kyc_status,
         project_id: projects.id,
         project_name: projects.name,
+        prospective_project_name: opportunities.prospective_project_name,
         rep_id: opportunities.rep_id,
         rep_email: users.email,
       })
@@ -80,13 +81,6 @@ export default async function PipelineBoardPage() {
       .from(accounts)
       .where(eq(accounts.tenant_id, tenantId))
       .orderBy(asc(accounts.name)),
-    db
-      .select({ id: projects.id, name: projects.name, client: projects.client })
-      .from(projects)
-      .where(
-        and(eq(projects.tenant_id, tenantId), isNull(projects.deleted_at))
-      )
-      .orderBy(asc(projects.name)),
     db
       .select({
         entity_id: slaLogs.entity_id,
@@ -148,6 +142,7 @@ export default async function PipelineBoardPage() {
     account_kyc_status: o.account_kyc_status,
     project_id: o.project_id,
     project_name: o.project_name,
+    prospective_project_name: o.prospective_project_name,
     rep_id: o.rep_id,
     rep_email: o.rep_email,
     opportunity_kyc_initialized: tracksByOpportunity.has(o.id),
@@ -197,7 +192,6 @@ export default async function PipelineBoardPage() {
       <PipelineBoard
         cards={cards}
         accounts={accountsList}
-        projects={projectsList}
         canCreateOpportunity={can(profile.role, 'opportunity.create')}
         canAdvanceOpportunity={can(profile.role, 'opportunity.advance_stage')}
       />

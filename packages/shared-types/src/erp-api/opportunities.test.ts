@@ -22,6 +22,7 @@ describe('opportunity ERP API contracts', () => {
         closingDate: TIMESTAMP,
         accountId: ACCOUNT_ID,
         projectId: null,
+        prospectiveProjectName: 'Makati office fit-out',
         accountName: 'Acme Office',
         projectName: null,
       },

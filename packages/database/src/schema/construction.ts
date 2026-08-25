@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm'
 import { pgTable, uuid, varchar, text, bigint, integer, timestamp, jsonb, index, pgEnum, uniqueIndex } from 'drizzle-orm/pg-core'
 import { tenants } from './tenants'
 import { projects } from './projects'
@@ -72,6 +73,11 @@ export const variationOrders = pgTable(
   (table) => ({
     tenantIdx: index('idx_vos_tenant_id').on(table.tenant_id),
     projectIdx: index('idx_vos_project_id').on(table.project_id),
+    docuSealSubmissionUq: uniqueIndex(
+      'ux_variation_orders_docuseal_submission_id'
+    )
+      .on(table.docuseal_submission_id)
+      .where(sql`${table.docuseal_submission_id} is not null`),
   })
 )
 

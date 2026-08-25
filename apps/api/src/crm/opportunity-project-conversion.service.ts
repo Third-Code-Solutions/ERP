@@ -277,6 +277,7 @@ export class OpportunityProjectConversionService {
           stage: opportunities.stage,
           accountId: opportunities.account_id,
           projectId: opportunities.project_id,
+          prospectiveProjectName: opportunities.prospective_project_name,
           opportunityType: opportunities.opportunity_type,
         })
         .from(opportunities)
@@ -330,7 +331,10 @@ export class OpportunityProjectConversionService {
       let createdProject = false
       if (!projectId) {
         const clientName = accountName ?? 'Unknown client'
-        const projectName = opportunity.opportunityType?.trim() || clientName
+        const projectName =
+          opportunity.prospectiveProjectName?.trim() ||
+          opportunity.opportunityType?.trim() ||
+          clientName
         const [created] = await transaction
           .insert(projects)
           .values({

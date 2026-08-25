@@ -19,10 +19,11 @@ function quoteIdentifier(identifier) {
 }
 
 function parseArguments(argv) {
-  const args = { json: false, requireClear: false }
+  const args = { json: false, requireClear: false, noDemoAllowlist: false }
   for (const argument of argv) {
     if (argument === '--json') args.json = true
     else if (argument === '--require-clear') args.requireClear = true
+    else if (argument === '--no-demo-allowlist') args.noDemoAllowlist = true
     else throw new Error(`Unknown argument: ${argument}`)
   }
   return args
@@ -178,7 +179,11 @@ export async function main(
   const args = parseArguments(argv)
   const demoTenantIds = parseList(environment.BUILD_OPS_DEMO_TENANT_IDS)
   const demoTenantSlugs = parseList(environment.BUILD_OPS_DEMO_TENANT_SLUGS)
-  if (demoTenantIds.length === 0 && demoTenantSlugs.length === 0) {
+  if (
+    !args.noDemoAllowlist &&
+    demoTenantIds.length === 0 &&
+    demoTenantSlugs.length === 0
+  ) {
     throw new Error(
       'Set BUILD_OPS_DEMO_TENANT_IDS or BUILD_OPS_DEMO_TENANT_SLUGS before the production boundary scan',
     )

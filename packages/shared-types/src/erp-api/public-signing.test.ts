@@ -27,6 +27,21 @@ describe('public signing contracts', () => {
     expect(publicSigningCommandSchema.safeParse({ token: 'short', ...BODY }).success).toBe(false)
   })
 
+  it('normalizes valid signer email and rejects malformed email', () => {
+    expect(
+      publicSigningBodySchema.parse({
+        ...BODY,
+        signerEmail: ' ANA@EXAMPLE.COM ',
+      }).signerEmail
+    ).toBe('ana@example.com')
+    expect(
+      publicSigningBodySchema.safeParse({
+        ...BODY,
+        signerEmail: 'not-an-email',
+      }).success
+    ).toBe(false)
+  })
+
   it('requires a typed tenant-scoped signature result', () => {
     const result = publicSigningResultSchema.parse({
       sessionId: '11111111-1111-4111-8111-111111111111',

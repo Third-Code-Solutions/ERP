@@ -1,0 +1,83 @@
+name: Independent security gates
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  snyk:
+    name: Snyk dependency scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - uses: pnpm/action-setup@a15d269cd4658e1107c09f1fabf4cbd7bd1f308a # v4.4.0
+        with:
+          version: 10.33.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install locked dependency graph without lifecycle scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Require Snyk scan credential
+        shell: bash
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$SNYK_TOKEN"
+
+      - name: Scan every Node workspace with Snyk
+        uses: snyk/actions/node@12140f4059e244892ae643824a95459a102120dd # current upstream commit, pinned 2026-08-25
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --all-projects --strict-out-of-sync=true --severity-threshold=high
+
+  semgrep:
+    name: Semgrep OSS SAST
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep:1.172.0
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+
+      - name: Scan TypeScript and JavaScript security rules
+        run: >-
+          semgrep scan --error
+          --config p/owasp-top-ten
+          --config p/typescript
+          --config p/nodejs
+          --exclude node_modules
+          --exclude .next
+
+  trivy:
+    name: Trivy filesystem scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+
+      - name: Scan dependency manifests, source, and infrastructure
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          format: table

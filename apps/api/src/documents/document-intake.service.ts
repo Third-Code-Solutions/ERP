@@ -11,17 +11,17 @@ import {
 import {
   documentIntakeRequests,
   documents,
+  opportunities,
   projects,
   users,
 } from '@third-code-erp/database/schema'
 import {
   documentIntakeRequestSchema,
   documentIntakeResultSchema,
-  type DocumentIntakeDocumentType,
   type DocumentIntakeRequest,
   type DocumentIntakeResult,
 } from '@third-code-erp/shared-types'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { roleHasCapability } from '../auth/capability.guard'
 import type {
   ErpPrincipal,
@@ -32,6 +32,8 @@ import {
   DatabaseService,
   type DatabaseTransaction,
 } from '../database/database.service'
+import { classifyDocumentType } from './document-type'
+import { lockProjectDocumentStorageForCreate } from './document-storage-quota'
 
 type IntakeRequest = {
   id: string
@@ -58,28 +60,16 @@ function commandHash(command: DocumentIntakeRequest): string {
     .digest('hex')
 }
 
+function idempotencyKeyHash(idempotencyKey: string): string {
+  return createHash('sha256').update(idempotencyKey).digest('hex')
+}
+
 function validateIdempotencyKey(raw: string): string {
   const key = raw.trim()
   if (key.length === 0 || key.length > 256) {
     throw new BadRequestException('Invalid Idempotency-Key header')
   }
   return key
-}
-
-function classifyDocumentType(
-  fileName: string,
-  mimeType: string
-): DocumentIntakeDocumentType {
-  const ext = fileName.split('.').pop()?.toLowerCase() ?? ''
-  if (ext === 'dxf' || ext === 'dwg') return 'dxf'
-  if (ext === 'pdf' || mimeType === 'application/pdf') return 'pdf'
-  if (
-    mimeType.startsWith('image/') ||
-    ['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic'].includes(ext)
-  ) {
-    return 'image'
-  }
-  return 'other'
 }
 
 function replayResult(value: unknown): DocumentIntakeResult {
@@ -107,6 +97,7 @@ export class DocumentIntakeService {
     const command = documentIntakeRequestSchema.parse(request)
     const idempotencyKey = validateIdempotencyKey(rawIdempotencyKey)
     const requestHash = commandHash(command)
+    const normalizedIdempotencyKeyHash = idempotencyKeyHash(idempotencyKey)
 
     return this.database.client.transaction(async (transaction) => {
       const authorizedPrincipal = await this.authorize(transaction, principal)
@@ -117,11 +108,11 @@ export class DocumentIntakeService {
         .where(
           and(
             eq(projects.id, command.projectId),
-            eq(projects.tenant_id, authorizedPrincipal.tenantId)
+            eq(projects.tenant_id, authorizedPrincipal.tenantId),
+            isNull(projects.deleted_at)
           )
         )
         .limit(1)
-        .for('share')
       if (!project) throw new NotFoundException('Project not found')
 
       const expectedPrefix = `${authorizedPrincipal.tenantId}/${project.id}/`
@@ -132,9 +123,27 @@ export class DocumentIntakeService {
         throw new ForbiddenException('Storage path is outside tenant project scope')
       }
 
+      let opportunityId: string | null = null
+      if (command.opportunityId) {
+        const [opportunity] = await transaction
+          .select({ id: opportunities.id })
+          .from(opportunities)
+          .where(
+            and(
+              eq(opportunities.id, command.opportunityId),
+              eq(opportunities.tenant_id, authorizedPrincipal.tenantId),
+              eq(opportunities.project_id, project.id)
+            )
+          )
+          .limit(1)
+          .for('update')
+        if (!opportunity) throw new NotFoundException('Opportunity not found')
+        opportunityId = opportunity.id
+      }
+
       // Validate tenant/project scope before claiming idempotency. A foreign
-      // project must return a concealed 404/403, never a raw composite-FK
-      // failure from the request ledger.
+      // project or opportunity must return a concealed 404/403, never a raw
+      // composite-FK failure from the request ledger.
       const replay = await this.claimRequest(
         transaction,
         authorizedPrincipal,
@@ -143,6 +152,15 @@ export class DocumentIntakeService {
         requestHash
       )
       if (replay.state === 'succeeded') return replayResult(replay.result)
+
+      await lockProjectDocumentStorageForCreate(
+        transaction,
+        {
+          tenantId: authorizedPrincipal.tenantId,
+          projectId: project.id,
+        },
+        command.sizeBytes
+      )
 
       const documentType = classifyDocumentType(
         command.fileName,
@@ -153,6 +171,7 @@ export class DocumentIntakeService {
         .values({
           tenant_id: authorizedPrincipal.tenantId,
           project_id: project.id,
+          opportunity_id: opportunityId,
           uploaded_by: authorizedPrincipal.userId,
           document_type: documentType,
           file_name: command.fileName,
@@ -181,10 +200,12 @@ export class DocumentIntakeService {
         entityId: document.id,
         action: 'create',
         diff: {
-          project_id: project.id,
+          project_id: command.projectId,
+          opportunity_id: opportunityId,
           document_type: documentType,
           size_bytes: command.sizeBytes,
-          idempotency_key_hash: requestHash,
+          request_hash: requestHash,
+          idempotency_key_hash: normalizedIdempotencyKeyHash,
         },
       })
       await this.completeRequest(transaction, replay.id, result)

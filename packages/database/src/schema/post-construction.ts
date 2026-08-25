@@ -1,4 +1,5 @@
-import { pgTable, uuid, varchar, text, timestamp, boolean, index, pgEnum } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
+import { pgTable, uuid, varchar, text, timestamp, boolean, index, pgEnum, uniqueIndex } from 'drizzle-orm/pg-core'
 import { tenants } from './tenants'
 import { projects } from './projects'
 import { users } from './users'
@@ -104,6 +105,11 @@ export const certificatesOfCompletion = pgTable(
   },
   (table) => ({
     projectIdx: index('idx_coc_project_id').on(table.project_id),
+    docuSealSubmissionUq: uniqueIndex(
+      'ux_certificates_of_completion_docuseal_submission_id'
+    )
+      .on(table.docuseal_submission_id)
+      .where(sql`${table.docuseal_submission_id} is not null`),
   })
 )
 

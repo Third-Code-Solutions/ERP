@@ -20,6 +20,49 @@ const optionalHttpsUrl = z
   )
   .optional()
 
+const optionalExactHostList = z
+  .string()
+  .transform((value) =>
+    value
+      .split(',')
+      .map((host) => host.trim().toLowerCase())
+      .filter(Boolean)
+  )
+  .pipe(
+    z
+      .array(
+        z
+          .string()
+          .max(253)
+          .regex(
+            /^(?:\[[0-9a-f:]+\]|[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?)(?::\d{1,5})?$/,
+            'must contain exact hosts without schemes, paths, credentials, or wildcards'
+          )
+          .refine((host) => {
+            try {
+              return new URL(`https://${host}`).host.length > 0
+            } catch {
+              return false
+            }
+          }, 'must contain a valid exact host and optional port')
+      )
+      .min(1)
+      .max(20)
+  )
+  .optional()
+
+const exactTenantIdList = z
+  .string()
+  .default('')
+  .transform((value) => {
+    if (value.length === 0) return []
+    return value.split(',').map((tenantId) => tenantId.trim())
+  })
+  .pipe(z.array(z.string().uuid()).max(20))
+  .transform((tenantIds) => [
+    ...new Set(tenantIds.map((tenantId) => tenantId.toLowerCase())),
+  ])
+
 const environmentSchema = z.object({
   NODE_ENV: z
     .enum(['development', 'test', 'production'])
@@ -773,6 +816,12 @@ const environmentSchema = z.object({
     .default('false')
     .transform((value) => value === 'true'),
   ERP_CORE_WEBHOOK_TOKEN: z.string().min(32).optional(),
+  // Core retrieves fresh, expiring DocuSeal document URLs and persists the
+  // validated PDF. Partial provider configuration must never degrade to a
+  // webhook flow that consumes a signing token without an artifact.
+  DOCUSEAL_API_URL: optionalHttpUrl,
+  DOCUSEAL_API_TOKEN: z.string().trim().min(20).optional(),
+  DOCUSEAL_DOCUMENT_HOSTS: optionalExactHostList,
   // PO command boundary stays fail-closed until idempotency and full
   // transaction parity are proven in a later migration slice.
   ERP_PO_CREATE_WRITES_ENABLED: z
@@ -1402,6 +1451,63 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // Issuance can close independently while existing reservations continue to
+  // complete or release through the lifecycle-write gate during rollback.
+  ERP_DOCUMENT_UPLOAD_RESERVATION_ISSUANCE_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_DOCUMENT_UPLOAD_RESERVATION_ISSUANCE_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
+  // Lifecycle writes remain closed until the additive ledger, exact-path
+  // Storage contract, transaction replay, and tenant canary pass.
+  ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
+  // Cleanup can drain terminal reservations after issuance is closed. It has
+  // a separate exact-tenant gate so rollback never requires reopening writes.
+  ERP_DOCUMENT_UPLOAD_RESERVATION_CLEANUP_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_DOCUMENT_UPLOAD_RESERVATION_CLEANUP_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
+  // Reconciliation is report-only and independently scoped. Its strict
+  // allowlist rejects wildcard and empty-list segments rather than broadening
+  // operator intent.
+  ERP_DOCUMENT_UPLOAD_RESERVATION_RECONCILIATION_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_DOCUMENT_UPLOAD_RESERVATION_RECONCILIATION_TENANT_IDS:
+    exactTenantIdList,
   // Document deletion is closed by default. Enable only for an explicit
   // tenant canary after the Nest transaction, replay, and Storage cleanup
   // gates pass together.
@@ -1522,6 +1628,51 @@ const environmentSchema = z.object({
   DXF_PARSER_URL: optionalHttpUrl,
   PARSER_SHARED_SECRET: z.string().min(20).optional(),
 })
+  .superRefine((environment, context) => {
+    const hasDocuSealSetting =
+      environment.DOCUSEAL_API_URL !== undefined ||
+      environment.DOCUSEAL_API_TOKEN !== undefined ||
+      environment.DOCUSEAL_DOCUMENT_HOSTS !== undefined
+
+    if (!hasDocuSealSetting) return
+
+    for (const key of [
+      'DOCUSEAL_API_URL',
+      'DOCUSEAL_API_TOKEN',
+      'DOCUSEAL_DOCUMENT_HOSTS',
+    ] as const) {
+      if (environment[key] === undefined) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [key],
+          message: 'is required when any DocuSeal provider setting is configured',
+        })
+      }
+    }
+
+    if (
+      environment.NODE_ENV === 'production' &&
+      environment.DOCUSEAL_API_URL &&
+      new URL(environment.DOCUSEAL_API_URL).protocol !== 'https:'
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['DOCUSEAL_API_URL'],
+        message: 'must use https in production',
+      })
+    }
+
+    if (environment.DOCUSEAL_API_URL) {
+      const apiUrl = new URL(environment.DOCUSEAL_API_URL)
+      if (apiUrl.username || apiUrl.password || apiUrl.search || apiUrl.hash) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['DOCUSEAL_API_URL'],
+          message: 'must not contain credentials, query parameters, or fragments',
+        })
+      }
+    }
+  })
 
 export type Environment = z.infer<typeof environmentSchema>
 

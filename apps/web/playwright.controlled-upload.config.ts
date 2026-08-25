@@ -1,7 +1,6 @@
 import { defineConfig, devices } from '@playwright/test'
 
 const webUrl = 'http://127.0.0.1:4327'
-const authUrl = 'http://127.0.0.1:4328'
 const browserExecutablePath = process.env.E2E_CHROME_PATH
 
 export default defineConfig({
@@ -25,7 +24,9 @@ export default defineConfig({
   },
   webServer: {
     command: 'node e2e/cortex-route-loopback-harness.mjs',
-    url: `${authUrl}/__harness__/ready`,
+    // The harness opens its auth fixture before Next is ready. Wait for the
+    // actual Web origin so the first controlled navigation cannot race startup.
+    url: webUrl,
     reuseExistingServer: false,
     timeout: 120_000,
   },

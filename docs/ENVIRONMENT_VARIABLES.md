@@ -127,8 +127,13 @@ swap the built-in canvas signing pad for a DocuSeal envelope.
 
 | Variable | Required | Scope | Where to get | Controls |
 |---|---|---|---|---|
-| `DOCUSEAL_API_URL` | no | server | Your DocuSeal install URL | Switches signing strategy to DocuSeal envelopes |
-| `DOCUSEAL_API_KEY` | no* | server | DocuSeal `Settings → API` | Auth header for envelope creation. Required when `DOCUSEAL_API_URL` is set |
+| `DOCUSEAL_API_URL` | no | Web + Core server | DocuSeal API base URL | Switches signing strategy to DocuSeal envelopes; must be paired with `DOCUSEAL_API_TOKEN` |
+| `DOCUSEAL_API_TOKEN` | no* | Web + Core server | DocuSeal `Settings → API` | `X-Auth-Token` for submission creation and fresh completed-document lookup |
+| `DOCUSEAL_DOCUMENT_HOSTS` | no* | Core server | Exact hosts used by your DocuSeal document download URLs | Comma-separated `host[:port]` allowlist; required with API URL/token; no schemes, paths, credentials, or wildcards |
+| `DOCUSEAL_BOM_TEMPLATE_ID` | no* | Web server | DocuSeal template ID | Required when DocuSeal sends a BOM |
+| `DOCUSEAL_CONTRACT_TEMPLATE_ID` | no* | Web server | DocuSeal template ID | Required when DocuSeal sends a contract |
+| `DOCUSEAL_VO_TEMPLATE_ID` | no* | Web server | DocuSeal template ID | Required when DocuSeal sends a variation order |
+| `DOCUSEAL_COC_TEMPLATE_ID` | no* | Web server | DocuSeal template ID | Required when DocuSeal sends a COC |
 | `DOCUSEAL_WEBHOOK_SECRET` | no* | Web server | DocuSeal `Settings → Webhooks` | Required for every inbound completion callback; the route returns `503` when unset |
 
 Optional — when unset, the built-in canvas signing pad is used. The
@@ -141,8 +146,12 @@ audit trail and signature bundle layout are identical either way.
 Nest Core is the only durable authority for DocuSeal completion callbacks. The
 Web route verifies the provider secret, forwards one normalized command using a
 server-only token, and sends best-effort email only after the Core transaction
-commits. Core atomically consumes the portal token, stores the signed document,
-locks the BOM, creates in-app notifications, and writes audit evidence.
+commits. Core uses DocuSeal's fresh-document endpoint, validates and uploads the
+PDF to the private Supabase `documents` bucket, then atomically consumes the
+portal token, records only the object path, locks the BOM, creates in-app
+notifications, and writes audit evidence. Provider document URLs expire and
+must never be stored; retrieve one immediately before use as described in the
+[DocuSeal download guide](https://www.docuseal.com/guides/download-signed-documents).
 
 | Variable | Required | Scope | Controls |
 |---|---|---|---|
@@ -509,6 +518,12 @@ false and tenant list empty until the controlled release gate is clear.
 | `ERP_DOCUMENT_PROCESSING_WORKER_BRIDGE_ENABLED` | no | API server | Signed Nest-to-Python bridge gate; default false |
 | `ERP_DOCUMENT_PROCESSING_DRAFT_BOM_ENABLED` | no | API server | Idempotent CAD draft-BOM gate; default false |
 | `ERP_DOCUMENT_PROCESSING_DRAFT_BOM_TENANT_IDS` | no | API server | Explicit draft-BOM tenant allowlist; default empty |
+| `ERP_DOCUMENT_UPLOAD_RESERVATION_ISSUANCE_ENABLED` | no | API server | New signed-upload reservation issuance gate; default false and independently closable for rollback |
+| `ERP_DOCUMENT_UPLOAD_RESERVATION_ISSUANCE_TENANT_IDS` | no | API server | Explicit upload-reservation issuance tenant allowlist; default empty |
+| `ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_ENABLED` | no | API server | Reservation lifecycle-write gate for reserve, complete, and release; default false |
+| `ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_TENANT_IDS` | no | API server | Explicit upload-reservation lifecycle-write tenant allowlist; default empty |
+| `ERP_DOCUMENT_UPLOAD_RESERVATION_CLEANUP_ENABLED` | no | API server | Independent terminal upload-reservation cleanup gate; default false |
+| `ERP_DOCUMENT_UPLOAD_RESERVATION_CLEANUP_TENANT_IDS` | no | API server | Explicit upload-reservation cleanup tenant allowlist; default empty |
 | `ERP_CAD_EVIDENCE_COMMIT_WRITES_ENABLED` | no | API server | Nest scope commit gate; default false |
 | `ERP_CAD_EVIDENCE_COMMIT_WRITES_TENANT_IDS` | no | API server | Explicit commit tenant allowlist; default empty |
 | `ERP_DOCUMENT_DELETE_WRITES_ENABLED` | no | API server | Nest document deletion gate; default false |
@@ -530,7 +545,9 @@ false and tenant list empty until the controlled release gate is clear.
 The Web upload route always forwards CAD evidence to ERP Core and has no
 compatibility-write selector. The following Next.js selector only chooses the
 optional binary-DWG processing queue; all direct evidence commits remain Core
-authority and fail closed when Core rejects them.
+authority and fail closed when Core rejects them. Reservation selectors must be
+enabled and rolled back in the order defined by
+[`document-upload-reservation-cutover.md`](runbooks/document-upload-reservation-cutover.md).
 
 | Variable | Required | Scope | Controls |
 |---|---|---|---|
@@ -538,6 +555,10 @@ authority and fail closed when Core rejects them.
 | `ERP_DOCUMENT_PROCESSING_TENANT_IDS` | no | Next server | Strict UUID allowlist for the handoff; default empty |
 | `ERP_DOCUMENT_DELETE_WRITES_VIA_API` | no | Next server | Selects the Nest document deletion authority; default false |
 | `ERP_DOCUMENT_DELETE_WRITES_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist for document deletion; default empty |
+| `ERP_DOCUMENT_UPLOAD_RESERVATION_ISSUANCE_VIA_API` | no | Next server | Selects new signed-upload issuance through the Core reservation ledger; default false and requires lifecycle writes selection |
+| `ERP_DOCUMENT_UPLOAD_RESERVATION_ISSUANCE_VIA_API_TENANT_IDS` | no | Next server | Exact UUID allowlist for reservation issuance; wildcard is rejected |
+| `ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_VIA_API` | no | Next server | Selects reservation completion and release through Core; keep enabled while active reservations drain |
+| `ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_VIA_API_TENANT_IDS` | no | Next server | Exact UUID allowlist for reservation completion/release; wildcard is rejected |
 | `ERP_PUBLIC_SIGNING_VIA_API` | no | Next server | Selects the Nest public-signing authority; default false |
 | `ERP_PUBLIC_SIGNING_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist for public signing; default empty |
 | `ERP_INVENTORY_RECEIPT_CREATE_VIA_API` | no | Next server | Selects the Stock Receipt Next-to-Nest handoff; default false |

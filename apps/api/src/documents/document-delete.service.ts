@@ -30,6 +30,7 @@ import {
   DatabaseService,
   type DatabaseTransaction,
 } from '../database/database.service'
+import { lockProjectDocumentStorageForDelete } from './document-storage-quota'
 
 type DeleteRequest = {
   id: string
@@ -110,6 +111,13 @@ export class DocumentDeleteService {
         .limit(1)
         .for('update')
       if (!document) throw new NotFoundException('Document not found')
+
+      if (document.projectId) {
+        await lockProjectDocumentStorageForDelete(transaction, {
+          tenantId: document.tenantId,
+          projectId: document.projectId,
+        })
+      }
 
       const processingHistory = await transaction
         .select({ id: documentProcessingJobs.id })

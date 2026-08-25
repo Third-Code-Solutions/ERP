@@ -136,6 +136,11 @@ import {
   documentDeleteWritesUseCoreApi,
   deleteDocumentThroughCoreApi,
   createDocumentThroughCoreApi,
+  completeDocumentUploadReservationThroughCoreApi,
+  documentUploadReservationIssuanceUsesCoreApi,
+  documentUploadReservationWritesUseCoreApi,
+  releaseDocumentUploadReservationThroughCoreApi,
+  reserveDocumentUploadThroughCoreApi,
   createInspectionPhotoThroughCoreApi,
   publicSigningWritesUseCoreApi,
   signPublicSignatureThroughCoreApi,
@@ -776,7 +781,31 @@ const DOCUSEAL_WEBHOOK_RESULT = {
   projectId: '44444444-4444-4444-8444-444444444444',
   projectName: 'Fit-out',
   tcvCents: 125_000,
-  signedDocument: { url: 'https://sign.example.test/signed.pdf' },
+  signedDocument: {
+    name: 'signed.pdf',
+    storagePath:
+      '22222222-2222-4222-8222-222222222222/' +
+      '44444444-4444-4444-8444-444444444444/esign/docuseal/' +
+      'c38c010f98910ae5710b340cdc221a044ebb58aac3d8f4a3f8ae2deb8725a133.pdf',
+    sizeBytes: 2_048,
+  },
+}
+const DOCUMENT_UPLOAD_RESERVATION_ID =
+  '77777777-7777-4777-8777-777777777777'
+const DOCUMENT_UPLOAD_RESERVATION_RESULT = {
+  reservationId: DOCUMENT_UPLOAD_RESERVATION_ID,
+  projectId: PROJECT_ID,
+  storagePath:
+    `22222222-2222-4222-8222-222222222222/${PROJECT_ID}/` +
+    `${DOCUMENT_UPLOAD_RESERVATION_ID}-drawing.pdf`,
+  originalFileName: 'drawing.pdf',
+  declaredSizeBytes: 1024,
+  declaredContentType: 'application/pdf',
+  expiresAt: '2026-08-24T02:00:00.000Z',
+  signedUrl: 'https://storage.example.test/upload',
+  token: 'signed-token',
+  state: 'active' as const,
+  replayed: false,
 }
 const ACCOUNT_LIST_RESULT = {
   rows: [
@@ -842,6 +871,7 @@ const OPPORTUNITY_DETAIL_RESULT = {
     closingDate: '2026-08-10T00:00:00.000Z',
     accountId: '33333333-3333-4333-8333-333333333333',
     projectId: null,
+    prospectiveProjectName: 'Acme office fit-out',
     accountName: 'Acme Office',
     projectName: null,
   },
@@ -4433,10 +4463,12 @@ describe('ERP Core client', () => {
   })
 
   it('keeps document deletion delegation fail-closed unless its exact gate matches', () => {
+    expect(documentDeleteWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
     vi.stubEnv('ERP_DOCUMENT_DELETE_WRITES_VIA_API', 'true')
     vi.stubEnv(
       'ERP_DOCUMENT_DELETE_WRITES_VIA_API_TENANT_IDS',
-      RESULT.tenantId
+      ` ${RESULT.tenantId},${RESULT.tenantId} `
     )
     expect(documentDeleteWritesUseCoreApi(RESULT.tenantId)).toBe(true)
 
@@ -4445,8 +4477,314 @@ describe('ERP Core client', () => {
 
     vi.stubEnv('ERP_DOCUMENT_DELETE_WRITES_VIA_API', 'true')
     vi.stubEnv('ERP_DOCUMENT_DELETE_WRITES_VIA_API_TENANT_IDS', '*')
-    expect(documentDeleteWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+    expect(documentDeleteWritesUseCoreApi(RESULT.tenantId)).toBe(false)
     expect(documentDeleteWritesUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('keeps upload reservation issuance and lifecycle on exact default-off gates', () => {
+    expect(documentUploadReservationIssuanceUsesCoreApi(RESULT.tenantId)).toBe(
+      false
+    )
+    expect(documentUploadReservationWritesUseCoreApi(RESULT.tenantId)).toBe(
+      false
+    )
+
+    vi.stubEnv('ERP_DOCUMENT_UPLOAD_RESERVATION_ISSUANCE_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_DOCUMENT_UPLOAD_RESERVATION_ISSUANCE_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    vi.stubEnv('ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(documentUploadReservationIssuanceUsesCoreApi(RESULT.tenantId)).toBe(
+      true
+    )
+    expect(documentUploadReservationWritesUseCoreApi(RESULT.tenantId)).toBe(
+      true
+    )
+
+    vi.stubEnv('ERP_DOCUMENT_UPLOAD_RESERVATION_ISSUANCE_VIA_API', 'TRUE')
+    vi.stubEnv('ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_VIA_API', 'TRUE')
+    expect(documentUploadReservationIssuanceUsesCoreApi(RESULT.tenantId)).toBe(
+      false
+    )
+    expect(documentUploadReservationWritesUseCoreApi(RESULT.tenantId)).toBe(
+      false
+    )
+
+    vi.stubEnv('ERP_DOCUMENT_UPLOAD_RESERVATION_ISSUANCE_VIA_API', 'true')
+    vi.stubEnv('ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_DOCUMENT_UPLOAD_RESERVATION_ISSUANCE_VIA_API_TENANT_IDS',
+      '*'
+    )
+    vi.stubEnv(
+      'ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_VIA_API_TENANT_IDS',
+      '*'
+    )
+    expect(documentUploadReservationIssuanceUsesCoreApi(RESULT.tenantId)).toBe(
+      false
+    )
+    expect(documentUploadReservationWritesUseCoreApi('not-a-uuid')).toBe(false)
+
+    vi.stubEnv(
+      'ERP_DOCUMENT_UPLOAD_RESERVATION_ISSUANCE_VIA_API_TENANT_IDS',
+      `${RESULT.tenantId},malformed`
+    )
+    vi.stubEnv(
+      'ERP_DOCUMENT_UPLOAD_RESERVATION_WRITES_VIA_API_TENANT_IDS',
+      `${RESULT.tenantId},malformed`
+    )
+    expect(documentUploadReservationIssuanceUsesCoreApi(RESULT.tenantId)).toBe(
+      false
+    )
+    expect(documentUploadReservationWritesUseCoreApi(RESULT.tenantId)).toBe(
+      false
+    )
+  })
+
+  it('reserves, completes, and releases an upload through strict Core contracts', async () => {
+    const completion = {
+      reservationId: DOCUMENT_UPLOAD_RESERVATION_ID,
+      documentId: DOCUMENT_ID,
+      tenantId: RESULT.tenantId,
+      projectId: PROJECT_ID,
+      storagePath: DOCUMENT_UPLOAD_RESERVATION_RESULT.storagePath,
+      fileName: 'drawing.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: 1024,
+      description: null,
+      documentType: 'pdf' as const,
+      state: 'completed' as const,
+      created: true,
+      replayed: false,
+    }
+    const release = {
+      reservationId: DOCUMENT_UPLOAD_RESERVATION_ID,
+      projectId: PROJECT_ID,
+      storagePath: DOCUMENT_UPLOAD_RESERVATION_RESULT.storagePath,
+      state: 'released' as const,
+      replayed: false,
+    }
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(DOCUMENT_UPLOAD_RESERVATION_RESULT), {
+          status: 201,
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(completion), { status: 200 })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(release), { status: 200 })
+      )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      reserveDocumentUploadThroughCoreApi(
+        {
+          projectId: PROJECT_ID,
+          fileName: 'drawing.pdf',
+          mimeType: 'application/pdf',
+          sizeBytes: 1024,
+        },
+        'stable-file-attempt-1'
+      )
+    ).resolves.toEqual({
+      ok: true,
+      data: DOCUMENT_UPLOAD_RESERVATION_RESULT,
+      status: 201,
+    })
+    await expect(
+      completeDocumentUploadReservationThroughCoreApi(
+        DOCUMENT_UPLOAD_RESERVATION_ID
+      )
+    ).resolves.toEqual({ ok: true, data: completion, status: 200 })
+    await expect(
+      releaseDocumentUploadReservationThroughCoreApi(
+        DOCUMENT_UPLOAD_RESERVATION_ID
+      )
+    ).resolves.toEqual({ ok: true, data: release, status: 200 })
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      'https://erp-api.example.test/v1/document-upload-reservations',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'stable-file-attempt-1',
+        }),
+      })
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      `https://erp-api.example.test/v1/document-upload-reservations/${DOCUMENT_UPLOAD_RESERVATION_ID}/complete`,
+      expect.objectContaining({ method: 'POST', body: '{}' })
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      `https://erp-api.example.test/v1/document-upload-reservations/${DOCUMENT_UPLOAD_RESERVATION_ID}`,
+      expect.objectContaining({ method: 'DELETE', body: '{}' })
+    )
+  })
+
+  it('redacts upstream diagnostics from upload reservation failures', async () => {
+    const upstreamDiagnostic = {
+      message: 'database password=never-return-this-value trace=internal-stack',
+    }
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(upstreamDiagnostic), { status: 409 })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(upstreamDiagnostic), { status: 503 })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(upstreamDiagnostic), { status: 409 })
+      )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      reserveDocumentUploadThroughCoreApi(
+        {
+          projectId: PROJECT_ID,
+          fileName: 'drawing.pdf',
+          mimeType: 'application/pdf',
+          sizeBytes: 1024,
+        },
+        'stable-file-attempt-redaction'
+      )
+    ).resolves.toEqual({
+      ok: false,
+      status: 409,
+      error: 'Upload reservation conflicts with an existing request.',
+    })
+    await expect(
+      completeDocumentUploadReservationThroughCoreApi(
+        DOCUMENT_UPLOAD_RESERVATION_ID
+      )
+    ).resolves.toEqual({
+      ok: false,
+      status: 503,
+      error: 'ERP Core API is unavailable. The upload remains pending.',
+    })
+    await expect(
+      releaseDocumentUploadReservationThroughCoreApi(
+        DOCUMENT_UPLOAD_RESERVATION_ID
+      )
+    ).resolves.toEqual({
+      ok: false,
+      status: 409,
+      error: 'Upload reservation cannot be released in its current state.',
+    })
+  })
+
+  it('uses the outer reservation deadline and preserves correlation on timeout replay', async () => {
+    const timeoutSignal = new AbortController().signal
+    const timeoutSpy = vi
+      .spyOn(AbortSignal, 'timeout')
+      .mockReturnValue(timeoutSignal)
+    const traceId = '77777777-7777-4777-8777-777777777777'
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new DOMException('timed out', 'TimeoutError'))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(DOCUMENT_UPLOAD_RESERVATION_RESULT), {
+          status: 200,
+        })
+      )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const command = {
+      projectId: PROJECT_ID,
+      fileName: 'drawing.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: 1024,
+    }
+    await expect(
+      reserveDocumentUploadThroughCoreApi(
+        command,
+        'stable-timeout-replay',
+        traceId
+      )
+    ).resolves.toEqual({
+      ok: false,
+      status: 503,
+      error: 'ERP Core API is unavailable. No upload reservation was created.',
+    })
+    await expect(
+      reserveDocumentUploadThroughCoreApi(
+        command,
+        'stable-timeout-replay',
+        traceId
+      )
+    ).resolves.toEqual({
+      ok: true,
+      data: DOCUMENT_UPLOAD_RESERVATION_RESULT,
+      status: 200,
+    })
+
+    expect(timeoutSpy).toHaveBeenCalledTimes(2)
+    expect(timeoutSpy).toHaveBeenNthCalledWith(1, 40_000)
+    expect(timeoutSpy).toHaveBeenNthCalledWith(2, 40_000)
+    for (const call of fetchMock.mock.calls) {
+      const init = call[1] as RequestInit
+      expect(init.headers).toMatchObject({
+        'Idempotency-Key': 'stable-timeout-replay',
+        'x-request-id': traceId,
+      })
+      expect(init.signal).toBe(timeoutSignal)
+    }
+  })
+
+  it('rejects invalid Core success payloads for every reservation operation', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(new Response('{}', { status: 200 }))
+        .mockResolvedValueOnce(new Response('{}', { status: 200 }))
+        .mockResolvedValueOnce(new Response('{}', { status: 200 }))
+    )
+
+    await expect(
+      reserveDocumentUploadThroughCoreApi(
+        {
+          projectId: PROJECT_ID,
+          fileName: 'drawing.pdf',
+          mimeType: 'application/pdf',
+          sizeBytes: 1024,
+        },
+        'invalid-success-reserve'
+      )
+    ).resolves.toEqual({
+      ok: false,
+      status: 503,
+      error: 'ERP Core API returned an invalid upload reservation.',
+    })
+    await expect(
+      completeDocumentUploadReservationThroughCoreApi(
+        DOCUMENT_UPLOAD_RESERVATION_ID
+      )
+    ).resolves.toEqual({
+      ok: false,
+      status: 503,
+      error: 'ERP Core API returned an invalid upload completion result.',
+    })
+    await expect(
+      releaseDocumentUploadReservationThroughCoreApi(
+        DOCUMENT_UPLOAD_RESERVATION_ID
+      )
+    ).resolves.toEqual({
+      ok: false,
+      status: 503,
+      error: 'ERP Core API returned an invalid upload release result.',
+    })
   })
 
   it('sends an idempotent document deletion and validates the result', async () => {
@@ -4586,14 +4924,20 @@ describe('ERP Core client', () => {
   })
 
   it('keeps public signing delegation fail-closed unless its exact gate matches', () => {
+    expect(publicSigningWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
     vi.stubEnv('ERP_PUBLIC_SIGNING_VIA_API', 'true')
     vi.stubEnv(
       'ERP_PUBLIC_SIGNING_VIA_API_TENANT_IDS',
-      RESULT.tenantId
+      ` ${RESULT.tenantId},${RESULT.tenantId} `
     )
     expect(publicSigningWritesUseCoreApi(RESULT.tenantId)).toBe(true)
 
     vi.stubEnv('ERP_PUBLIC_SIGNING_VIA_API', 'TRUE')
+    expect(publicSigningWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_PUBLIC_SIGNING_VIA_API', 'true')
+    vi.stubEnv('ERP_PUBLIC_SIGNING_VIA_API_TENANT_IDS', '*')
     expect(publicSigningWritesUseCoreApi(RESULT.tenantId)).toBe(false)
   })
 

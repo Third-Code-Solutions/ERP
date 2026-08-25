@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   revalidatePath: vi.fn(),
   startSlaClock: vi.fn(),
   stopSlaClock: vi.fn(),
+  transitionOpportunityStageThroughCoreApi: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -36,6 +37,11 @@ vi.mock('@/lib/operations/notifications', () => ({
 vi.mock('@/lib/operations/sla-clock', () => ({
   startSlaClock: mocks.startSlaClock,
   stopSlaClock: mocks.stopSlaClock,
+}))
+
+vi.mock('@/lib/erp-core-client', () => ({
+  transitionOpportunityStageThroughCoreApi:
+    mocks.transitionOpportunityStageThroughCoreApi,
 }))
 
 vi.mock('next/cache', () => ({
@@ -85,6 +91,33 @@ describe('pipeline action authorization', () => {
     expect(mocks.insert).not.toHaveBeenCalled()
   })
 
+  it('rejects a non-lead manual opportunity before database access', async () => {
+    mocks.can.mockReturnValue(true)
+    const form = new FormData()
+    form.set('stage', 'negotiation')
+    form.set('account_id', '33333333-3333-4333-8333-333333333333')
+    form.set('prospective_project_name', 'Prospect name')
+
+    await expect(createOpportunityForAccount(form)).resolves.toEqual({
+      error: 'New opportunities must start in the Sales Lead stage',
+    })
+    expect(mocks.select).not.toHaveBeenCalled()
+    expect(mocks.insert).not.toHaveBeenCalled()
+  })
+
+  it('rejects a prospective project name over 200 characters before database access', async () => {
+    mocks.can.mockReturnValue(true)
+    const form = new FormData()
+    form.set('account_id', '33333333-3333-4333-8333-333333333333')
+    form.set('prospective_project_name', 'p'.repeat(201))
+
+    await expect(createOpportunityForAccount(form)).resolves.toEqual({
+      error: 'Prospective project name must be between 1 and 200 characters',
+    })
+    expect(mocks.select).not.toHaveBeenCalled()
+    expect(mocks.insert).not.toHaveBeenCalled()
+  })
+
   it('blocks stage advancement before database access', async () => {
     const result = await advanceOpportunityStage(
       '33333333-3333-4333-8333-333333333333',
@@ -95,6 +128,57 @@ describe('pipeline action authorization', () => {
       error: 'Forbidden: role "viewer" cannot advance opportunities',
     })
     expect(mocks.can).toHaveBeenCalledWith(PROFILE.role, 'opportunity.advance_stage')
+    expect(mocks.select).not.toHaveBeenCalled()
+    expect(mocks.update).not.toHaveBeenCalled()
+  })
+
+  it('routes a won transition through the atomic Core authority', async () => {
+    mocks.can.mockReturnValue(true)
+    mocks.transitionOpportunityStageThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        ok: true,
+        opportunityId: '33333333-3333-4333-8333-333333333333',
+        tenantId: PROFILE.tenantId,
+        fromStage: 'contract',
+        toStage: 'won',
+        projectId: '44444444-4444-4444-8444-444444444444',
+        checklistId: '55555555-5555-4555-8555-555555555555',
+        convertedToProject: true,
+      },
+      status: 200,
+    })
+
+    await expect(
+      advanceOpportunityStage(
+        '33333333-3333-4333-8333-333333333333',
+        'won',
+        'Signed award package',
+      ),
+    ).resolves.toEqual({})
+
+    expect(mocks.transitionOpportunityStageThroughCoreApi).toHaveBeenCalledWith(
+      '33333333-3333-4333-8333-333333333333',
+      { newStage: 'won', reason: 'Signed award package' },
+      'web-opportunity-stage-33333333-3333-4333-8333-333333333333-won',
+    )
+    expect(mocks.select).not.toHaveBeenCalled()
+    expect(mocks.update).not.toHaveBeenCalled()
+  })
+
+  it('does not perform a legacy won transition when Core rejects the handoff', async () => {
+    mocks.can.mockReturnValue(true)
+    mocks.transitionOpportunityStageThroughCoreApi.mockResolvedValue({
+      ok: false,
+      error: 'Won-to-Project handoff is not enabled for this tenant.',
+      status: 503,
+    })
+
+    await expect(
+      advanceOpportunityStage('33333333-3333-4333-8333-333333333333', 'won'),
+    ).resolves.toEqual({
+      error: 'Won-to-Project handoff is not enabled for this tenant.',
+    })
     expect(mocks.select).not.toHaveBeenCalled()
     expect(mocks.update).not.toHaveBeenCalled()
   })

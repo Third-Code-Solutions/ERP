@@ -153,8 +153,6 @@ output/playwright/
 *.xlsx
 *.xls
 *.xlsm
-!source_data.xlsx
-!executive-dashboard.xlsx
 
 # Sentry / observability auth tokens
 .sentryclirc

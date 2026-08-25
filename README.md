@@ -43,18 +43,16 @@ erp/
 ├── apps/
 │   ├── api/                # NestJS core ERP modular monolith
 │   ├── web/                # Next.js 15 frontend + server actions
-│   └── workers/            # Railway Python services (dxf-parser)
+│   └── workers/            # FastAPI services (dxf-parser and optional AI worker)
 ├── packages/
 │   ├── database/           # Drizzle schema, migrations, seed
-│   ├── shared-types/       # Zod schemas shared across web + workers
+│   ├── shared-types/       # Zod contracts shared across Web + Core
 │   ├── ai/                 # OpenAI clients, RAG retrieve/synthesize
 │   ├── auth/               # Supabase helpers (server/browser/admin)
-│   ├── ui/                 # Shared shadcn-based components
-│   └── config/             # Shared eslint/tsconfig/tailwind
+│   └── config/             # Shared TypeScript configuration
 ├── supabase/
 │   ├── migrations/         # Ordered SQL migrations; see release checks
 │   └── functions/          # Edge functions (legacy crons)
-├── infra/                  # Scripts, docker, GH actions support
 ├── scripts/                # Repo-wide one-shots
 └── docs/                   # Architecture, deployment, user story index
 ```
@@ -89,7 +87,8 @@ top-level route under `apps/web/src/app/(dashboard)`.
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — Vercel + Supabase + Inngest + Railway setup
 - [docs/ENVIRONMENT_VARIABLES.md](docs/ENVIRONMENT_VARIABLES.md) — every env var, scope, where to get it
 - [docs/USER_STORY_INDEX.md](docs/USER_STORY_INDEX.md) — REFACTOR.md user stories mapped to code paths
-- [apps/web/REFACTOR.md](apps/web/REFACTOR.md) — full software PRD (user stories, API spec, sprint plan)
+- [docs/PRD.md](docs/PRD.md) — current product and delivery authority
+- [apps/web/REFACTOR.md](apps/web/REFACTOR.md) — historical user-story/API source retained for traceability
 - [supabase/functions/README.md](supabase/functions/README.md) — edge function deploy + cron wiring
 
 ## Scripts
@@ -98,7 +97,7 @@ top-level route under `apps/web/src/app/(dashboard)`.
 pnpm dev                # web + workers (turbo parallel)
 pnpm build              # production build
 pnpm typecheck          # strict tsc across all packages
-pnpm lint               # TypeScript checks; ESLint/Prettier are not configured yet
+pnpm lint               # ESLint 9 repository gate (type checking is separate)
 pnpm test               # vitest unit + integration
 pnpm audit --prod --audit-level moderate  # production dependency gate
 ```

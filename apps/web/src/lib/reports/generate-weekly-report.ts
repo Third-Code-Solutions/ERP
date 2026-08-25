@@ -3,22 +3,22 @@
 // Builds a `weekly_reports` row + HTML artifact for a single project/week.
 // Designed to be invoked from a server action ("Generate this week") or
 // future scheduler / cron worker. Idempotent per (project_id, week_ending)
-// — re-running overwrites the snapshot and re-uploads the HTML.
+// — re-running overwrites the snapshot and creates a new immutable HTML object.
 //
 // Storage layout for the rendered artifact (private bucket):
-//   {tenant_id}/{project_id}/weekly-report-{ts}.html
+//   {tenant_id}/{project_id}/weekly-report-{report_id}-{generation_id}.html
 //
-// Best-effort posture: if storage upload fails, we still persist the JSONB
-// row so the report is queryable and re-runnable. We only return after
-// audit-logging.
+// Best-effort posture: if artifact upload or Core metadata commit fails, we
+// still persist the JSONB row so the report is queryable and re-runnable.
+// We only return after audit-logging.
 
+import { randomUUID } from 'node:crypto'
 import { and, desc, eq, gte, lte, ne } from 'drizzle-orm'
 import { createSupabaseAdminClient } from '@third-code-erp/auth/server'
 import { db } from '@third-code-erp/database'
 import {
   accounts,
   dailyTasks,
-  documents,
   masterSchedules,
   progressUpdates,
   projects,
@@ -29,12 +29,112 @@ import {
   weeklyReports,
 } from '@third-code-erp/database/schema'
 import { writeAuditLog } from '@/lib/audit'
+import { createDocumentThroughCoreApi } from '@/lib/erp-core-client'
 import {
   buildWeeklyReportHtml,
   type WeeklyReportSnapshot,
 } from './weekly-report-template'
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
+
+type WeeklyReportArtifactInput = {
+  tenantId: string
+  projectId: string
+  reportId: string
+  weekEnding: Date
+  html: string
+}
+
+export async function persistWeeklyReportArtifact(
+  input: WeeklyReportArtifactInput
+): Promise<string | null> {
+  const generationId = randomUUID()
+  const storagePath = `${input.tenantId}/${input.projectId}/weekly-report-${input.reportId}-${generationId}.html`
+  const fileName = `weekly-report-${input.weekEnding.toISOString().slice(0, 10)}.html`
+  const storage = (() => {
+    try {
+      return createSupabaseAdminClient().storage.from('documents')
+    } catch {
+      return null
+    }
+  })()
+  if (!storage) {
+    console.warn('[weekly-report] artifact upload failed')
+    return null
+  }
+
+  const removeUploadedObject = async (): Promise<void> => {
+    try {
+      const { error } = await storage.remove([storagePath])
+      if (error) {
+        console.warn('[weekly-report] artifact cleanup failed')
+      }
+    } catch {
+      console.warn('[weekly-report] artifact cleanup failed')
+    }
+  }
+
+  try {
+    const { error } = await storage.upload(storagePath, input.html, {
+      contentType: 'text/html; charset=utf-8',
+      upsert: false,
+    })
+    if (error) {
+      console.warn('[weekly-report] artifact upload failed')
+      return null
+    }
+  } catch {
+    console.warn('[weekly-report] artifact upload failed')
+    return null
+  }
+
+  let coreResult: Awaited<ReturnType<typeof createDocumentThroughCoreApi>>
+  try {
+    coreResult = await createDocumentThroughCoreApi(
+      {
+        storagePath,
+        projectId: input.projectId,
+        fileName,
+        mimeType: 'text/html; charset=utf-8',
+        sizeBytes: Buffer.byteLength(input.html, 'utf8'),
+        description: `Weekly report — week ending ${input.weekEnding.toISOString().slice(0, 10)}`,
+      },
+      `weekly-report:${input.reportId}:${generationId}`
+    )
+  } catch {
+    await removeUploadedObject()
+    console.warn('[weekly-report] document metadata commit failed')
+    return null
+  }
+
+  if (
+    !coreResult.ok ||
+    !coreResult.data ||
+    coreResult.data.tenantId !== input.tenantId ||
+    coreResult.data.projectId !== input.projectId ||
+    coreResult.data.storagePath !== storagePath
+  ) {
+    await removeUploadedObject()
+    console.warn('[weekly-report] document metadata commit failed')
+    return null
+  }
+
+  try {
+    await db
+      .update(weeklyReports)
+      .set({ report_document_id: coreResult.data.documentId })
+      .where(
+        and(
+          eq(weeklyReports.id, input.reportId),
+          eq(weeklyReports.tenant_id, input.tenantId)
+        )
+      )
+  } catch {
+    console.warn('[weekly-report] document link update failed')
+  }
+
+  return coreResult.data.documentId
+}
 
 type ProgressByCategory = {
   civil_pct?: number
@@ -384,56 +484,15 @@ export async function generateWeeklyReportForProject(
     }
   )
 
-  // Upload to private `documents` bucket. Failures are non-fatal: we keep
-  // the JSONB row and let callers retry via regenerate.
-  const ts = generatedAt.getTime()
-  const storagePath = `${tenantId}/${projectId}/weekly-report-${ts}.html`
-  let documentId: string | null = null
-  try {
-    const supabase = createSupabaseAdminClient()
-    const { error: uploadErr } = await supabase.storage
-      .from('documents')
-      .upload(storagePath, html, {
-        contentType: 'text/html; charset=utf-8',
-        upsert: true,
-      })
-
-    if (uploadErr) {
-      console.warn('[weekly-report] storage upload failed:', uploadErr.message)
-    } else {
-      const fileName = `weekly-report-${weekEnding.toISOString().slice(0, 10)}.html`
-      const [doc] = await db
-        .insert(documents)
-        .values({
-          tenant_id: tenantId,
-          project_id: projectId,
-          uploaded_by: actorId,
-          document_type: 'other',
-          file_name: fileName,
-          storage_path: storagePath,
-          mime_type: 'text/html; charset=utf-8',
-          size_bytes: Buffer.byteLength(html, 'utf8'),
-          description: `Weekly report — week ending ${weekEnding.toISOString().slice(0, 10)}`,
-        })
-        .returning({ id: documents.id })
-
-      documentId = doc?.id ?? null
-
-      if (documentId) {
-        await db
-          .update(weeklyReports)
-          .set({ report_document_id: documentId })
-          .where(
-            and(
-              eq(weeklyReports.id, reportId),
-              eq(weeklyReports.tenant_id, tenantId)
-            )
-          )
-      }
-    }
-  } catch (err) {
-    console.warn('[weekly-report] artifact persistence failed:', err)
-  }
+  // Artifact failures are non-fatal: the JSONB report remains queryable and
+  // regenerate creates a new immutable object with a new Core command key.
+  const documentId = await persistWeeklyReportArtifact({
+    tenantId,
+    projectId,
+    reportId,
+    weekEnding,
+    html,
+  })
 
   await writeAuditLog({
     tenantId,

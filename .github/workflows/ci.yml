@@ -113,6 +113,9 @@ jobs:
       - run: pnpm test:playwright-no-skips
       - run: pnpm test:empty-schema-diff
       - run: pnpm test:production-data-boundary
+      - name: Verify durable document upload reservation migration
+        timeout-minutes: 5
+        run: pnpm test:document-upload-reservation-migration
       - name: Test dated Supabase parity manifest
         run: pnpm test:managed-supabase-parity-plan
       - name: Verify dated Supabase parity manifest against source
@@ -144,6 +147,86 @@ jobs:
         with:
           name: coverage
           path: packages/*/coverage/
+
+  python-workers:
+    name: Python Worker (${{ matrix.worker }})
+    runs-on: ubuntu-latest
+    needs: [actionlint]
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - worker: ai
+            context: apps/workers/ai
+            image: third-code-ai-worker:ci
+          - worker: dxf-parser
+            context: apps/workers/dxf-parser
+            image: third-code-dxf-worker:ci
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: 0.12.0
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: |
+            ${{ matrix.context }}/pyproject.toml
+            ${{ matrix.context }}/uv.lock
+            ${{ matrix.context }}/requirements*.lock
+      - name: Verify frozen worker dependencies and tests
+        working-directory: ${{ matrix.context }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uv --version | awk '{print $2}')" = "0.12.0"
+          cp requirements.lock "$RUNNER_TEMP/requirements.lock"
+          uv lock --check
+          uv export --frozen --no-dev --no-emit-project \
+            --format requirements-txt --output-file requirements.lock
+          cmp "$RUNNER_TEMP/requirements.lock" requirements.lock
+          uv run --frozen --extra dev pytest -q
+      - name: Build clean worker image
+        shell: bash
+        run: docker build --pull --no-cache --tag "${{ matrix.image }}" "${{ matrix.context }}"
+      - name: Verify worker runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ matrix.worker }}" = "dxf-parser" ]; then
+            docker run --rm --entrypoint sh "${{ matrix.image }}" -c \
+              "python -c 'import os,sys; from src.main import app; assert sys.version_info[:2] == (3, 12); assert os.getuid() == 10001; print(app.title)' && dwg2dxf --version"
+          else
+            docker run --rm --entrypoint python "${{ matrix.image }}" -c \
+              "import os,sys; from src.main import app; assert sys.version_info[:2] == (3, 12); assert os.getuid() == 10001; print(app.title)"
+          fi
+      - name: Prepare worker evidence directory
+        run: mkdir -p "tmp/python-workers/${{ matrix.worker }}"
+      - name: Generate SPDX SBOM
+        uses: docker/scout-action@7c6b6c3f7844478ace1ffd4e7aef649053d1f87d # v1.24.0
+        with:
+          command: sbom
+          image: local://${{ matrix.image }}
+          format: spdx
+          output: tmp/python-workers/${{ matrix.worker }}/sbom.spdx.json
+          write-comment: false
+          summary: false
+      - name: Fail on high or critical worker CVEs
+        uses: docker/scout-action@7c6b6c3f7844478ace1ffd4e7aef649053d1f87d # v1.24.0
+        with:
+          command: cves
+          image: local://${{ matrix.image }}
+          only-severities: critical,high
+          exit-code: true
+          sarif-file: tmp/python-workers/${{ matrix.worker }}/cves.sarif
+          write-comment: false
+          summary: true
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: python-worker-${{ matrix.worker }}-supply-chain
+          path: tmp/python-workers/${{ matrix.worker }}/
+          retention-days: 7
 
   database-reproducibility:
     name: Database Reproducibility (Postgres 17)
@@ -319,7 +402,7 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [typecheck, lint, test, build-ops-invariants, database-reproducibility]
+    needs: [typecheck, lint, test, python-workers, build-ops-invariants, database-reproducibility]
     env:
       # Build-time envs. If a repo secret is set, it wins; otherwise placeholders
       # keep CI green. The artifact is just a buildability gate — Vercel runs its

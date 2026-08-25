@@ -160,8 +160,8 @@ const authServer = createServer(async (request, response) => {
       url.searchParams.get('select') === 'tenant_id,role,email,full_name' &&
       url.searchParams.get('id') === `eq.${USER_ID}`
     if (
-      request.headers.apikey !== SERVICE_ROLE_KEY ||
-      bearer(request) !== SERVICE_ROLE_KEY ||
+      request.headers.apikey !== ANON_KEY ||
+      bearer(request) !== ACCESS_TOKEN ||
       !exactProfileQuery
     ) {
       return json(response, 400, {
@@ -191,7 +191,7 @@ const child = spawn(
     env: {
       ...process.env,
       DATABASE_URL:
-        'postgresql://postgres:postgres@127.0.0.1:54322/erp_self_hosted_ci',
+        'postgresql://postgres:postgres@127.0.0.1:54322/postgres',
       NEXT_PUBLIC_SUPABASE_URL: AUTH_ORIGIN,
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ANON_KEY,
       SUPABASE_SERVICE_ROLE_KEY: SERVICE_ROLE_KEY,

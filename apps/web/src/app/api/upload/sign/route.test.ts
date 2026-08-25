@@ -12,6 +12,11 @@ const mocks = vi.hoisted(() => ({
   storageFrom: vi.fn(),
   createSignedUploadUrl: vi.fn(),
   writeAuditLog: vi.fn(),
+  documentDeleteWritesUseCoreApi: vi.fn(),
+  documentUploadReservationIssuanceUsesCoreApi: vi.fn(),
+  documentUploadReservationWritesUseCoreApi: vi.fn(),
+  publicSigningWritesUseCoreApi: vi.fn(),
+  reserveDocumentUploadThroughCoreApi: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -38,11 +43,23 @@ vi.mock('@/lib/audit', () => ({
   writeAuditLog: mocks.writeAuditLog,
 }))
 
+vi.mock('@/lib/erp-core-client', () => ({
+  documentDeleteWritesUseCoreApi: mocks.documentDeleteWritesUseCoreApi,
+  documentUploadReservationIssuanceUsesCoreApi:
+    mocks.documentUploadReservationIssuanceUsesCoreApi,
+  documentUploadReservationWritesUseCoreApi:
+    mocks.documentUploadReservationWritesUseCoreApi,
+  publicSigningWritesUseCoreApi: mocks.publicSigningWritesUseCoreApi,
+  reserveDocumentUploadThroughCoreApi:
+    mocks.reserveDocumentUploadThroughCoreApi,
+}))
+
 import { POST } from './route'
 
 const USER_ID = '11111111-1111-4111-8111-111111111111'
 const TENANT_ID = '22222222-2222-4222-8222-222222222222'
 const OTHER_PROJECT_ID = '33333333-3333-4333-8333-333333333333'
+const TRACE_ID = '77777777-7777-4777-8777-777777777777'
 
 describe('signed document upload Project access', () => {
   beforeEach(() => {
@@ -66,6 +83,46 @@ describe('signed document upload Project access', () => {
       storage: { from: mocks.storageFrom },
     })
     mocks.writeAuditLog.mockResolvedValue(undefined)
+    mocks.documentDeleteWritesUseCoreApi.mockReturnValue(true)
+    mocks.documentUploadReservationIssuanceUsesCoreApi.mockReturnValue(false)
+    mocks.documentUploadReservationWritesUseCoreApi.mockReturnValue(false)
+    mocks.publicSigningWritesUseCoreApi.mockReturnValue(true)
+  })
+
+  it('rejects unauthenticated and tenantless callers before authority work', async () => {
+    const requestBody = JSON.stringify({
+      projectId: OTHER_PROJECT_ID,
+      fileName: 'drawing.dwg',
+      mimeType: 'application/acad',
+      sizeBytes: 1_024,
+    })
+    mocks.getUserProfile.mockResolvedValueOnce(null)
+    const unauthenticated = await POST(
+      new NextRequest('http://localhost/api/upload/sign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: requestBody,
+      })
+    )
+    expect(unauthenticated.status).toBe(401)
+
+    mocks.getUserProfile.mockResolvedValueOnce({
+      user: { id: USER_ID },
+      tenantId: null,
+      role: 'pm',
+    })
+    const tenantless = await POST(
+      new NextRequest('http://localhost/api/upload/sign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: requestBody,
+      })
+    )
+    expect(tenantless.status).toBe(403)
+
+    expect(mocks.reserveDocumentUploadThroughCoreApi).not.toHaveBeenCalled()
+    expect(mocks.getProject).not.toHaveBeenCalled()
+    expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
   })
 
   it('rejects a role without document mutation capability before request work', async () => {
@@ -89,6 +146,27 @@ describe('signed document upload Project access', () => {
     expect(mocks.getProject).not.toHaveBeenCalled()
     expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
     expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+  })
+
+  it('rejects unknown authority-shaped request fields at the Web boundary', async () => {
+    const response = await POST(
+      new NextRequest('http://localhost/api/upload/sign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: OTHER_PROJECT_ID,
+          fileName: 'drawing.dwg',
+          mimeType: 'application/acad',
+          sizeBytes: 1_024,
+          tenantId: TENANT_ID,
+        }),
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.getProject).not.toHaveBeenCalled()
+    expect(mocks.reserveDocumentUploadThroughCoreApi).not.toHaveBeenCalled()
+    expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
   })
 
   it('rejects an absent or cross-tenant Project before quota and Storage work', async () => {
@@ -165,6 +243,222 @@ describe('signed document upload Project access', () => {
       action: 'query',
       diff: { operation: 'signed_upload_url_created' },
     })
+  })
+
+  it('uses Core issuance for an exact selected tenant without legacy authority', async () => {
+    const reservationId = '44444444-4444-4444-8444-444444444444'
+    mocks.documentUploadReservationIssuanceUsesCoreApi.mockReturnValue(true)
+    mocks.documentUploadReservationWritesUseCoreApi.mockReturnValue(true)
+    mocks.reserveDocumentUploadThroughCoreApi.mockResolvedValue({
+      ok: true,
+      status: 201,
+      data: {
+        reservationId,
+        projectId: OTHER_PROJECT_ID,
+        storagePath: `${TENANT_ID}/${OTHER_PROJECT_ID}/${reservationId}-drawing.dwg`,
+        originalFileName: 'drawing.dwg',
+        declaredSizeBytes: 1_024,
+        declaredContentType: 'application/acad',
+        expiresAt: '2026-08-24T02:00:00.000Z',
+        signedUrl: 'https://storage.example.test/upload',
+        token: 'signed-token',
+        state: 'active',
+        replayed: false,
+      },
+    })
+    const response = await POST(
+      new NextRequest('http://localhost/api/upload/sign', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': 'stable-file-attempt-1',
+          'x-request-id': TRACE_ID,
+        },
+        body: JSON.stringify({
+          projectId: OTHER_PROJECT_ID,
+          fileName: 'drawing.dwg',
+          mimeType: 'application/acad',
+          sizeBytes: 1_024,
+        }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      signedUrl: 'https://storage.example.test/upload',
+      token: 'signed-token',
+      storagePath: `${TENANT_ID}/${OTHER_PROJECT_ID}/${reservationId}-drawing.dwg`,
+      originalFileName: 'drawing.dwg',
+      reservationId,
+    })
+    expect(mocks.reserveDocumentUploadThroughCoreApi).toHaveBeenCalledWith(
+      {
+        projectId: OTHER_PROJECT_ID,
+        fileName: 'drawing.dwg',
+        mimeType: 'application/acad',
+        sizeBytes: 1_024,
+      },
+      'stable-file-attempt-1',
+      TRACE_ID
+    )
+    expect(mocks.publicSigningWritesUseCoreApi).toHaveBeenCalledWith(TENANT_ID)
+    expect(mocks.documentDeleteWritesUseCoreApi).toHaveBeenCalledWith(TENANT_ID)
+    expect(mocks.getProject).not.toHaveBeenCalled()
+    expect(mocks.select).not.toHaveBeenCalled()
+    expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+  })
+
+  it('rejects a same-project Core path substituted from another reservation', async () => {
+    const reservationId = '44444444-4444-4444-8444-444444444444'
+    const substitutedId = '55555555-5555-4555-8555-555555555555'
+    mocks.documentUploadReservationIssuanceUsesCoreApi.mockReturnValue(true)
+    mocks.documentUploadReservationWritesUseCoreApi.mockReturnValue(true)
+    mocks.reserveDocumentUploadThroughCoreApi.mockResolvedValue({
+      ok: true,
+      status: 201,
+      data: {
+        reservationId,
+        projectId: OTHER_PROJECT_ID,
+        storagePath: `${TENANT_ID}/${OTHER_PROJECT_ID}/${substitutedId}-drawing.dwg`,
+        originalFileName: 'drawing.dwg',
+        declaredSizeBytes: 1_024,
+        declaredContentType: 'application/acad',
+        expiresAt: '2026-08-24T02:00:00.000Z',
+        signedUrl: 'https://storage.example.test/upload',
+        token: 'signed-token',
+        state: 'active',
+        replayed: false,
+      },
+    })
+
+    const response = await POST(
+      new NextRequest('http://localhost/api/upload/sign', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': 'stable-file-attempt-substituted',
+        },
+        body: JSON.stringify({
+          projectId: OTHER_PROJECT_ID,
+          fileName: 'drawing.dwg',
+          mimeType: 'application/acad',
+          sizeBytes: 1_024,
+        }),
+      })
+    )
+
+    expect(response.status).toBe(503)
+  })
+
+  it('fails closed when selected issuance lacks lifecycle or idempotency authority', async () => {
+    mocks.documentUploadReservationIssuanceUsesCoreApi.mockReturnValue(true)
+    mocks.documentUploadReservationWritesUseCoreApi.mockReturnValue(false)
+    const requestBody = JSON.stringify({
+      projectId: OTHER_PROJECT_ID,
+      fileName: 'drawing.dwg',
+      mimeType: 'application/acad',
+      sizeBytes: 1_024,
+    })
+
+    const partial = await POST(
+      new NextRequest('http://localhost/api/upload/sign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: requestBody,
+      })
+    )
+    expect(partial.status).toBe(503)
+
+    mocks.documentUploadReservationWritesUseCoreApi.mockReturnValue(true)
+    const missingKey = await POST(
+      new NextRequest('http://localhost/api/upload/sign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: requestBody,
+      })
+    )
+    expect(missingKey.status).toBe(400)
+    expect(mocks.reserveDocumentUploadThroughCoreApi).not.toHaveBeenCalled()
+    expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    {
+      missingAuthority: 'public signing',
+      configure: () => mocks.publicSigningWritesUseCoreApi.mockReturnValue(false),
+    },
+    {
+      missingAuthority: 'document deletion',
+      configure: () => mocks.documentDeleteWritesUseCoreApi.mockReturnValue(false),
+    },
+  ])(
+    'fails closed before signing when selected issuance lacks $missingAuthority Core authority',
+    async ({ configure }) => {
+      mocks.documentUploadReservationIssuanceUsesCoreApi.mockReturnValue(true)
+      mocks.documentUploadReservationWritesUseCoreApi.mockReturnValue(true)
+      configure()
+
+      const response = await POST(
+        new NextRequest('http://localhost/api/upload/sign', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Idempotency-Key': 'stable-file-attempt-readiness',
+          },
+          body: JSON.stringify({
+            projectId: OTHER_PROJECT_ID,
+            fileName: 'drawing.dwg',
+            mimeType: 'application/acad',
+            sizeBytes: 1_024,
+          }),
+        })
+      )
+
+      expect(response.status).toBe(503)
+      await expect(response.json()).resolves.toEqual({
+        error: 'Upload reservation issuance is not fully configured.',
+      })
+      expect(mocks.publicSigningWritesUseCoreApi).toHaveBeenCalledWith(TENANT_ID)
+      expect(mocks.documentDeleteWritesUseCoreApi).toHaveBeenCalledWith(TENANT_ID)
+      expect(mocks.reserveDocumentUploadThroughCoreApi).not.toHaveBeenCalled()
+      expect(mocks.getProject).not.toHaveBeenCalled()
+      expect(mocks.select).not.toHaveBeenCalled()
+      expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
+      expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+    }
+  )
+
+  it('does not fall back to legacy signing after a selected Core failure', async () => {
+    mocks.documentUploadReservationIssuanceUsesCoreApi.mockReturnValue(true)
+    mocks.documentUploadReservationWritesUseCoreApi.mockReturnValue(true)
+    mocks.reserveDocumentUploadThroughCoreApi.mockResolvedValue({
+      ok: false,
+      status: 503,
+      error: 'ERP Core API is unavailable.',
+    })
+
+    const response = await POST(
+      new NextRequest('http://localhost/api/upload/sign', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': 'stable-file-attempt-2',
+        },
+        body: JSON.stringify({
+          projectId: OTHER_PROJECT_ID,
+          fileName: 'drawing.dwg',
+          mimeType: 'application/acad',
+          sizeBytes: 1_024,
+        }),
+      })
+    )
+
+    expect(response.status).toBe(503)
+    expect(mocks.getProject).not.toHaveBeenCalled()
+    expect(mocks.select).not.toHaveBeenCalled()
+    expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
   })
 
   it('does not return a signed URL when its audit entry cannot be appended', async () => {

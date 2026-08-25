@@ -6,7 +6,12 @@ import { describe, expect, it, vi } from 'vitest'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import type { AuditService } from '../audit/audit.service'
 import type { DatabaseService } from '../database/database.service'
+import { lockProjectDocumentStorageForCreate } from './document-storage-quota'
 import { InspectionPhotoService } from './inspection-photo.service'
+
+vi.mock('./document-storage-quota', () => ({
+  lockProjectDocumentStorageForCreate: vi.fn(),
+}))
 
 const PRINCIPAL: ErpPrincipal = {
   userId: '11111111-1111-4111-8111-111111111111',
@@ -16,6 +21,7 @@ const PRINCIPAL: ErpPrincipal = {
 }
 const OPPORTUNITY_ID = '33333333-3333-4333-8333-333333333333'
 const DOCUMENT_ID = '44444444-4444-4444-8444-444444444444'
+const PROJECT_ID = '55555555-5555-4555-8555-555555555555'
 
 const COMMAND = {
   opportunityId: OPPORTUNITY_ID,
@@ -49,6 +55,12 @@ function harness({
     storagePath: string
   } | null
 } = {}) {
+  vi.mocked(lockProjectDocumentStorageForCreate).mockClear()
+  vi.mocked(lockProjectDocumentStorageForCreate).mockResolvedValue({
+    committedBytes: 0n,
+    activeReservationBytes: 0n,
+    totalBytes: 0n,
+  })
   const membershipQuery = lockedQuery([
     {
       tenantId: PRINCIPAL.tenantId,
@@ -131,11 +143,26 @@ describe('InspectionPhotoService', () => {
     expect(probe.insert).not.toHaveBeenCalled()
   })
 
+  it('serializes quota when the opportunity is linked to a project', async () => {
+    const probe = harness({
+      opportunity: { id: OPPORTUNITY_ID, projectId: PROJECT_ID },
+    })
+
+    await expect(probe.service.create(COMMAND, PRINCIPAL)).resolves.toMatchObject({
+      projectId: PROJECT_ID,
+    })
+    expect(lockProjectDocumentStorageForCreate).toHaveBeenCalledWith(
+      expect.anything(),
+      { tenantId: PRINCIPAL.tenantId, projectId: PROJECT_ID },
+      COMMAND.sizeBytes
+    )
+  })
+
   it('returns an existing storage object without a second document or audit write', async () => {
     const probe = harness({
       existing: {
         id: DOCUMENT_ID,
-        projectId: null,
+        projectId: PROJECT_ID,
         fileName: COMMAND.fileName,
         storagePath: COMMAND.storagePath,
       },
@@ -148,6 +175,7 @@ describe('InspectionPhotoService', () => {
     })
     expect(probe.insert).not.toHaveBeenCalled()
     expect(probe.audit.writeSemantic).not.toHaveBeenCalled()
+    expect(lockProjectDocumentStorageForCreate).not.toHaveBeenCalled()
   })
 
   it('re-authorizes the persisted role instead of trusting the Web caller', async () => {

@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import {
+  documentUploadContentTypeSchema,
+  documentUploadIdempotencyKeySchema,
+} from '@third-code-erp/shared-types'
 import { can, getUserProfile } from '@third-code-erp/auth'
 import { createSupabaseAdminClient } from '@third-code-erp/auth/server'
 import { db } from '@third-code-erp/database'
@@ -8,21 +12,38 @@ import { and, eq, sum } from 'drizzle-orm'
 import { getProject } from '@/lib/project-queries'
 import { writeAuditLog } from '@/lib/audit'
 import { safeActionError } from '@/lib/safe-action-error'
+import {
+  documentDeleteWritesUseCoreApi,
+  documentUploadReservationIssuanceUsesCoreApi,
+  documentUploadReservationWritesUseCoreApi,
+  publicSigningWritesUseCoreApi,
+  reserveDocumentUploadThroughCoreApi,
+} from '@/lib/erp-core-client'
+import { isExactDocumentUploadReservationPath } from '@/lib/document-upload-reservation-path'
+import {
+  logUploadReservationOutcome,
+  resolveUploadReservationTraceId,
+} from '@/lib/upload-reservation-observability'
 
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024 // 100 MB per upload (PRD F2.1)
 const PROJECT_QUOTA_BYTES = 500 * 1024 * 1024 // 500 MB per project (PRD F2.1)
 
-const SignSchema = z.object({
-  projectId: z.string().uuid(),
-  fileName: z.string().min(1).max(255),
-  mimeType: z.string().max(255).optional(),
-  // Required so the server can reject oversized uploads BEFORE issuing
-  // a signed URL (the complete endpoint also checks, but a malicious caller
-  // could skip /complete and stash a 1GB blob in the bucket otherwise).
-  sizeBytes: z.number().int().positive().max(MAX_UPLOAD_BYTES),
-})
+const SignSchema = z
+  .object({
+    projectId: z.string().uuid(),
+    fileName: z.string().trim().min(1).max(255),
+    mimeType: documentUploadContentTypeSchema.default(
+      'application/octet-stream'
+    ),
+    // Required so the server can reject oversized uploads BEFORE issuing
+    // a signed URL (the complete endpoint also checks, but a malicious caller
+    // could skip /complete and stash a 1GB blob in the bucket otherwise).
+    sizeBytes: z.number().int().positive().max(MAX_UPLOAD_BYTES),
+  })
+  .strict()
 
 export async function POST(req: NextRequest) {
+  const traceId = resolveUploadReservationTraceId(req.headers)
   const profile = await getUserProfile()
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -49,6 +70,107 @@ export async function POST(req: NextRequest) {
   }
 
   const { projectId, fileName, sizeBytes } = parsed.data
+  const issuanceSelected = documentUploadReservationIssuanceUsesCoreApi(
+    profile.tenantId
+  )
+
+  if (issuanceSelected) {
+    const lifecycleSelected = documentUploadReservationWritesUseCoreApi(
+      profile.tenantId
+    )
+    const publicSigningSelected = publicSigningWritesUseCoreApi(profile.tenantId)
+    const documentDeletionSelected = documentDeleteWritesUseCoreApi(
+      profile.tenantId
+    )
+    if (
+      !lifecycleSelected ||
+      !publicSigningSelected ||
+      !documentDeletionSelected
+    ) {
+      logUploadReservationOutcome({
+        traceId,
+        tenantId: profile.tenantId,
+        actorId: profile.user.id,
+        action: 'reserve',
+        outcome: 'gate_mismatch',
+        status: 503,
+      })
+      return NextResponse.json(
+        { error: 'Upload reservation issuance is not fully configured.' },
+        { status: 503 }
+      )
+    }
+    const idempotencyKey = documentUploadIdempotencyKeySchema.safeParse(
+      req.headers.get('idempotency-key')
+    )
+    if (!idempotencyKey.success) {
+      return NextResponse.json(
+        { error: 'Invalid Idempotency-Key header' },
+        { status: 400 }
+      )
+    }
+    const coreResult = await reserveDocumentUploadThroughCoreApi(
+      {
+        projectId,
+        fileName,
+        mimeType: parsed.data.mimeType,
+        sizeBytes,
+      },
+      idempotencyKey.data,
+      traceId
+    )
+    if (!coreResult.ok || !coreResult.data) {
+      logUploadReservationOutcome({
+        traceId,
+        tenantId: profile.tenantId,
+        actorId: profile.user.id,
+        action: 'reserve',
+        outcome: 'core_failed',
+        status: coreResult.status ?? 503,
+      })
+      return NextResponse.json(
+        { error: coreResult.error ?? 'Upload reservation was not created.' },
+        { status: coreResult.status ?? 503 }
+      )
+    }
+    if (
+      coreResult.data.projectId !== projectId ||
+      !isExactDocumentUploadReservationPath({
+        tenantId: profile.tenantId,
+        projectId,
+        reservationId: coreResult.data.reservationId,
+        storagePath: coreResult.data.storagePath,
+      })
+    ) {
+      logUploadReservationOutcome({
+        traceId,
+        tenantId: profile.tenantId,
+        actorId: profile.user.id,
+        action: 'reserve',
+        outcome: 'invalid_core_result',
+        status: 503,
+      })
+      return NextResponse.json(
+        { error: 'ERP Core returned an invalid upload reservation.' },
+        { status: 503 }
+      )
+    }
+    logUploadReservationOutcome({
+      traceId,
+      tenantId: profile.tenantId,
+      actorId: profile.user.id,
+      action: 'reserve',
+      outcome: 'succeeded',
+      status: 200,
+    })
+    return NextResponse.json({
+      signedUrl: coreResult.data.signedUrl,
+      token: coreResult.data.token,
+      storagePath: coreResult.data.storagePath,
+      originalFileName: coreResult.data.originalFileName,
+      reservationId: coreResult.data.reservationId,
+    })
+  }
 
   const project = await getProject(profile.tenantId, projectId)
   if (!project) {
