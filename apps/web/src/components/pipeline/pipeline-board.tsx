@@ -19,13 +19,11 @@ import { RegressionReasonDialog } from './regression-reason-dialog'
 import {
   AddOpportunityWithAccountForm,
   type AccountOption,
-  type ProjectOption,
 } from './add-opportunity-with-account-form'
 
 interface PipelineBoardProps {
   cards: KanbanCardData[]
   accounts: AccountOption[]
-  projects: ProjectOption[]
   canCreateOpportunity: boolean
   canAdvanceOpportunity: boolean
 }
@@ -69,7 +67,6 @@ interface PendingRegression {
 export function PipelineBoard({
   cards,
   accounts,
-  projects,
   canCreateOpportunity,
   canAdvanceOpportunity,
 }: PipelineBoardProps) {
@@ -330,7 +327,7 @@ export function PipelineBoard({
                     {items.length}
                   </span>
                 </div>
-                {canCreateOpportunity && (
+                {canCreateOpportunity && stage === 'lead' && (
                   <button
                     type="button"
                     onClick={() => setQuickAddStage(stage)}
@@ -412,9 +409,7 @@ export function PipelineBoard({
       {canCreateOpportunity && (
         <AddOpportunityWithAccountForm
           open={quickAddStage !== null}
-          defaultStage={quickAddStage ?? 'lead'}
           accounts={accounts}
-          projects={projects}
           onClose={() => setQuickAddStage(null)}
         />
       )}

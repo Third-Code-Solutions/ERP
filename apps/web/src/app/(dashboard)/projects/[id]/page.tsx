@@ -304,7 +304,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           )}
 
           {/* Pipeline opportunities */}
-          <OpportunityPanel projectId={id} opportunities={opps} />
+          <OpportunityPanel opportunities={opps} />
         </div>
 
         {/* Right metadata rail */}

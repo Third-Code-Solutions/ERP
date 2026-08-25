@@ -3,8 +3,10 @@ import 'reflect-metadata'
 import {
   bomPortalTokens,
   boms,
+  certificatesOfCompletion,
   documents,
   notifications,
+  variationOrders,
 } from '@third-code-erp/database/schema'
 import { describe, expect, it, vi } from 'vitest'
 import type { AuditService } from '../audit/audit.service'
@@ -25,6 +27,8 @@ const TENANT_ID = '22222222-2222-4222-8222-222222222222'
 const BOM_ID = '33333333-3333-4333-8333-333333333333'
 const PROJECT_ID = '44444444-4444-4444-8444-444444444444'
 const TOKEN_ID = '55555555-5555-4555-8555-555555555555'
+const NON_BOM_ID = '77777777-7777-4777-8777-777777777777'
+const SIGNED_DOCUMENT_ID = '88888888-8888-4888-8888-888888888888'
 const SUBMISSION_ID = 'submission-123'
 const PDF_BYTES = Buffer.from('%PDF-1.7\nsigned', 'ascii')
 
@@ -61,6 +65,8 @@ function harness({
   preflightUsedAt = null,
   transactionUsedAt = preflightUsedAt,
   transactionFailure,
+  nonBomTarget,
+  nonBomSignedAt = null,
 }: {
   tokenRows?: Array<{
     id: string
@@ -71,6 +77,8 @@ function harness({
   preflightUsedAt?: Date | null
   transactionUsedAt?: Date | null
   transactionFailure?: Error
+  nonBomTarget?: 'variation_order' | 'certificate_of_completion'
+  nonBomSignedAt?: Date | null
 } = {}) {
   vi.mocked(lockProjectDocumentStorageForCreate).mockClear()
   vi.mocked(lockProjectDocumentStorageForCreate).mockResolvedValue({
@@ -90,10 +98,25 @@ function harness({
     projectName: 'Fit-out',
   }
   const preflightBomQuery = query([bomRow])
-  const clientSelect = vi
-    .fn()
-    .mockReturnValueOnce(preflightTokenQuery)
-    .mockReturnValueOnce(preflightBomQuery)
+  const nonBomRow = {
+    id: NON_BOM_ID,
+    tenantId: TENANT_ID,
+    projectId: PROJECT_ID,
+    projectName: 'Fit-out',
+    signedAt: nonBomSignedAt,
+  }
+  const clientSelect = vi.fn().mockReturnValueOnce(preflightTokenQuery)
+  if (tokenRows.length > 0) {
+    clientSelect.mockReturnValueOnce(preflightBomQuery).mockReturnValue(query([]))
+  } else {
+    clientSelect
+      .mockReturnValueOnce(
+        query(nonBomTarget === 'variation_order' ? [nonBomRow] : [])
+      )
+      .mockReturnValueOnce(
+        query(nonBomTarget === 'certificate_of_completion' ? [nonBomRow] : [])
+      )
+  }
 
   const tokenQuery = query(
     tokenRows.map((token) => ({ ...token, usedAt: transactionUsedAt }))
@@ -105,16 +128,22 @@ function harness({
       email: 'sales@example.test',
     },
   ])
-  const select = vi
-    .fn()
-    .mockReturnValueOnce(tokenQuery)
-    .mockReturnValueOnce(bomQuery)
-    .mockReturnValueOnce(recipientQuery)
+  const select = vi.fn()
+  if (tokenRows.length > 0) {
+    select
+      .mockReturnValueOnce(tokenQuery)
+      .mockReturnValueOnce(bomQuery)
+      .mockReturnValueOnce(recipientQuery)
+  } else {
+    select
+      .mockReturnValueOnce(query(nonBomTarget ? [nonBomRow] : []))
+      .mockReturnValueOnce(recipientQuery)
+  }
   const updateWhere = vi.fn().mockResolvedValue([])
-  const update = vi.fn().mockReturnValue({
-    set: vi.fn().mockReturnValue({ where: updateWhere }),
-  })
-  const insertValues = vi.fn().mockResolvedValue([])
+  const updateSet = vi.fn().mockReturnValue({ where: updateWhere })
+  const update = vi.fn().mockReturnValue({ set: updateSet })
+  const insertReturning = vi.fn().mockResolvedValue([{ id: SIGNED_DOCUMENT_ID }])
+  const insertValues = vi.fn().mockReturnValue({ returning: insertReturning })
   const insert = vi.fn().mockReturnValue({ values: insertValues })
   const transactionClient = { select, update, insert }
   const transaction = vi.fn(
@@ -151,8 +180,10 @@ function harness({
     clientSelect,
     transaction,
     update,
+    updateSet,
     insert,
     insertValues,
+    insertReturning,
     audit,
     provider,
     artifactStorage,
@@ -306,5 +337,82 @@ describe('DocuSeal webhook authority', () => {
       PDF_BYTES
     )
     expect(probe.remove).not.toHaveBeenCalled()
+  })
+
+  it('persists and audits a signed variation order without a BOM portal token', async () => {
+    const probe = harness({
+      tokenRows: [],
+      nonBomTarget: 'variation_order',
+    })
+
+    await expect(probe.service.handle(COMMAND)).resolves.toMatchObject({
+      handled: true,
+      duplicate: false,
+      tenantId: TENANT_ID,
+      bomId: null,
+      projectId: PROJECT_ID,
+    })
+
+    expect(probe.provider.downloadCompletedPdf).toHaveBeenCalledWith(
+      SUBMISSION_ID
+    )
+    expect(probe.insert).toHaveBeenCalledWith(documents)
+    expect(probe.insertReturning).toHaveBeenCalledWith({ id: documents.id })
+    expect(probe.update).toHaveBeenCalledWith(variationOrders)
+    expect(probe.updateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'signed',
+        signed_document_id: SIGNED_DOCUMENT_ID,
+      })
+    )
+    expect(probe.audit.writeSemantic).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        entityType: 'variation_order',
+        entityId: NON_BOM_ID,
+        action: 'status_change',
+      })
+    )
+  })
+
+  it('starts the approved one-year warranty when a certificate of completion is signed', async () => {
+    const probe = harness({
+      tokenRows: [],
+      nonBomTarget: 'certificate_of_completion',
+    })
+
+    await expect(probe.service.handle(COMMAND)).resolves.toMatchObject({
+      handled: true,
+      duplicate: false,
+      tenantId: TENANT_ID,
+      bomId: null,
+      projectId: PROJECT_ID,
+    })
+
+    expect(probe.update).toHaveBeenCalledWith(certificatesOfCompletion)
+    expect(probe.updateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'signed',
+        signed_document_id: SIGNED_DOCUMENT_ID,
+        warranty_period_starts_at: expect.any(Date),
+        warranty_period_ends_at: expect.any(Date),
+      })
+    )
+    const updatePayload = vi.mocked(probe.updateSet).mock.calls[0]?.[0] as {
+      warranty_period_starts_at: Date
+      warranty_period_ends_at: Date
+    }
+    expect(
+      updatePayload.warranty_period_ends_at.getTime() -
+        updatePayload.warranty_period_starts_at.getTime()
+    ).toBe(365 * 86_400_000)
+    expect(probe.audit.writeSemantic).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        entityType: 'certificate_of_completion',
+        entityId: NON_BOM_ID,
+        action: 'status_change',
+      })
+    )
   })
 })

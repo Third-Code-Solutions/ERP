@@ -17,6 +17,8 @@
     "test:database-repro-policy-contract": "node --test scripts/verify-database-repro-policy-contract.test.mjs",
     "test:document-upload-reservation-migration": "pnpm --filter @third-code-erp/database test:reservation-migration",
     "test:production-data-boundary": "node --test scripts/verify-production-data-boundary.test.mjs",
+    "test:production-e2e-purge": "node --test scripts/purge-production-e2e-data.test.mjs",
+    "test:hosted-documents-storage": "node --test scripts/verify-hosted-documents-storage.test.mjs",
     "test:production-surface": "node --test scripts/verify-production-surface.test.mjs",
     "test:demo-tenant": "node --test scripts/lib/demo-tenant.test.mjs",
     "test:process-sla-sql": "node --test scripts/verify-process-sla-migration.test.mjs",

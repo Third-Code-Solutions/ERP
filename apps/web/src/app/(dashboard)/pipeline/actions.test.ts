@@ -85,6 +85,20 @@ describe('pipeline action authorization', () => {
     expect(mocks.insert).not.toHaveBeenCalled()
   })
 
+  it('rejects a non-lead manual opportunity before database access', async () => {
+    mocks.can.mockReturnValue(true)
+    const form = new FormData()
+    form.set('stage', 'negotiation')
+    form.set('account_id', '33333333-3333-4333-8333-333333333333')
+    form.set('prospective_project_name', 'Prospect name')
+
+    await expect(createOpportunityForAccount(form)).resolves.toEqual({
+      error: 'New opportunities must start in the Sales Lead stage',
+    })
+    expect(mocks.select).not.toHaveBeenCalled()
+    expect(mocks.insert).not.toHaveBeenCalled()
+  })
+
   it('blocks stage advancement before database access', async () => {
     const result = await advanceOpportunityStage(
       '33333333-3333-4333-8333-333333333333',

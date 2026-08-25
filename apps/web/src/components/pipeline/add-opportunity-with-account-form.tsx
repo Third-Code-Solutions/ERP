@@ -3,7 +3,6 @@
 import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createOpportunityForAccount } from '@/app/(dashboard)/pipeline/actions'
-import type { PipelineStage } from '@third-code-erp/shared-types'
 
 export interface AccountOption {
   id: string
@@ -11,36 +10,15 @@ export interface AccountOption {
   kyc_status: string
 }
 
-export interface ProjectOption {
-  id: string
-  name: string
-  client: string
-}
-
 interface AddOpportunityWithAccountFormProps {
   open: boolean
-  defaultStage: PipelineStage
   accounts: AccountOption[]
-  projects: ProjectOption[]
   onClose: () => void
-}
-
-const STAGE_LABELS: Record<PipelineStage, string> = {
-  lead: 'Lead',
-  site_survey: 'Site Survey',
-  design: 'Design',
-  bom_submission: 'BOM Submission',
-  negotiation: 'Negotiation',
-  contract: 'Contract',
-  won: 'Won',
-  lost: 'Lost',
 }
 
 export function AddOpportunityWithAccountForm({
   open,
-  defaultStage,
   accounts,
-  projects,
   onClose,
 }: AddOpportunityWithAccountFormProps) {
   const [error, setError] = useState('')
@@ -57,22 +35,11 @@ export function AddOpportunityWithAccountForm({
 
   if (!open) return null
 
-  const selectedAccount = accounts.find((a) => a.id === accountId)
-  const kycOk =
-    !selectedAccount ||
-    selectedAccount.kyc_status === 'approved' ||
-    selectedAccount.kyc_status === 'not_required'
-  const stageGated = defaultStage !== 'lead' && !kycOk
-
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setError('')
-    if (stageGated) {
-      setError('Account KYC must be Approved before this stage')
-      return
-    }
     const data = new FormData(e.currentTarget)
-    data.set('stage', defaultStage)
+    data.set('stage', 'lead')
     startTransition(async () => {
       const result = await createOpportunityForAccount(data)
       if (result.error) {
@@ -120,7 +87,7 @@ export function AddOpportunityWithAccountForm({
             color: 'var(--color-neutral-900)',
           }}
         >
-          New Opportunity — {STAGE_LABELS[defaultStage]}
+          New Sales Opportunity
         </h2>
         <p
           style={{
@@ -129,7 +96,8 @@ export function AddOpportunityWithAccountForm({
             color: 'var(--color-neutral-500)',
           }}
         >
-          Select the Account this opportunity belongs to.
+          Sales creates every opportunity in Lead. A delivery project is created
+          only after the opportunity is won.
         </p>
 
         <div style={{ display: 'grid', gap: '14px' }}>
@@ -152,24 +120,17 @@ export function AddOpportunityWithAccountForm({
                 </option>
               ))}
             </select>
-            {stageGated && selectedAccount && (
-              <p style={{ fontSize: '0.75rem', color: '#b45309', margin: '6px 0 0' }}>
-                This account&apos;s KYC is <strong>{selectedAccount.kyc_status}</strong> — it
-                must be Approved before {STAGE_LABELS[defaultStage]}.
-              </p>
-            )}
           </div>
 
           <div>
-            <label style={labelStyle}>Project (optional)</label>
-            <select name="project_id" style={inputStyle}>
-              <option value="">—</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} — {p.client}
-                </option>
-              ))}
-            </select>
+            <label style={labelStyle}>Prospective Project *</label>
+            <input
+              name="prospective_project_name"
+              required
+              maxLength={200}
+              placeholder="e.g. Makati office fit-out"
+              style={inputStyle}
+            />
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
@@ -260,7 +221,7 @@ export function AddOpportunityWithAccountForm({
           </button>
           <button
             type="submit"
-            disabled={isPending || stageGated}
+            disabled={isPending}
             style={{
               background: 'var(--color-navy-700)',
               color: 'white',
@@ -269,8 +230,8 @@ export function AddOpportunityWithAccountForm({
               padding: '7px 16px',
               fontSize: '0.8125rem',
               fontWeight: 600,
-              cursor: isPending || stageGated ? 'not-allowed' : 'pointer',
-              opacity: isPending || stageGated ? 0.7 : 1,
+              cursor: isPending ? 'not-allowed' : 'pointer',
+              opacity: isPending ? 0.7 : 1,
             }}
           >
             {isPending ? 'Creating…' : 'Create Opportunity'}

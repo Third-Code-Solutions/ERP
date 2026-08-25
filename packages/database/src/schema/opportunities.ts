@@ -17,6 +17,9 @@ export const opportunities = pgTable(
     // in business logic + a CHECK constraint in SQL migration).
     account_id: uuid('account_id').references(() => accounts.id, { onDelete: 'cascade' }),
     project_id: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+    // Captures the Sales-owned prospective work before an awarded opportunity
+    // is converted into an operational delivery project.
+    prospective_project_name: text('prospective_project_name'),
     rep_id: uuid('rep_id').references(() => users.id, { onDelete: 'set null' }),
     stage: opportunityStageEnum('stage').notNull().default('opportunity_creation'),
     // All monetary values in integer cents (PHP centavos)

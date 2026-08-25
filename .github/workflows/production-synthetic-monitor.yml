@@ -1,0 +1,50 @@
+name: Production synthetic monitor
+
+on:
+  schedule:
+    - cron: '11,26,41,56 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: production-synthetic-monitor
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe public web, API, and CAD readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error https://thirdcode-erp.vercel.app/api/health > web-health.json
+          curl --fail --silent --show-error https://thirdcode-erp.vercel.app/api/ready > web-ready.json
+          curl --fail --silent --show-error https://third-code-erp-api-production.up.railway.app/health > api-health.json
+          curl --fail --silent --show-error https://third-code-erp-api-production.up.railway.app/ready > api-ready.json
+          curl --fail --silent --show-error https://abi-ops-cad-worker-production.up.railway.app/health > cad-health.json
+          node - <<'NODE'
+          const checks = [
+            ['web-health.json', (value) => value.ok === true && value.service === 'abi-ops-web'],
+            ['web-ready.json', (value) => value.ok === true && value.database === 'up'],
+            ['api-health.json', (value) => value.status === 'ok' && value.service === 'abi-ops-api'],
+            ['api-ready.json', (value) => value.status === 'ready' && value.database === 'ok'],
+            ['cad-health.json', (value) => value.status === 'ok'],
+          ]
+          for (const [file, valid] of checks) {
+            const payload = JSON.parse(await (await import('node:fs/promises')).readFile(file, 'utf8'))
+            if (!valid(payload)) throw new Error(`Synthetic probe contract mismatch: ${file}`)
+          }
+          NODE
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: production-synthetic-monitor-evidence
+          path: |
+            *-health.json
+            *-ready.json
+          retention-days: 14

@@ -1,0 +1,96 @@
+name: Purge verified production E2E data
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type PURGE_E2E_PRODUCTION_DATA to delete only the fixed historic E2E tenants
+        required: true
+        type: string
+      reason:
+        description: Authorized cleanup reference
+        required: true
+        type: string
+
+concurrency:
+  group: production-e2e-data-purge
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  purge:
+    if: github.ref == 'refs/heads/main' && inputs.confirmation == 'PURGE_E2E_PRODUCTION_DATA'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://aqqrtkmtcsfkbyyqxowv.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+      SUPABASE_MIGRATION_DATABASE_URL: ${{ secrets.SUPABASE_MIGRATION_DATABASE_URL }}
+      PURGE_PRODUCTION_E2E_CONFIRMATION: ${{ inputs.confirmation }}
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@a15d269cd4658e1107c09f1fabf4cbd7bd1f308a # v4.4.0
+        with:
+          version: 10.33.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Require exact production credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in SUPABASE_SERVICE_ROLE_KEY PRODUCTION_DATABASE_URL SUPABASE_MIGRATION_DATABASE_URL; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "$name is required for the production E2E purge" >&2
+              exit 1
+            fi
+          done
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Capture redacted fixed-tenant purge manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p tmp/production-e2e-purge
+          node scripts/purge-production-e2e-data.mjs --json > tmp/production-e2e-purge/manifest.json
+          test "$(jq -r '.only_expected_e2e_tenants' tmp/production-e2e-purge/manifest.json)" = true
+
+      - name: Create short-retention public-schema recovery artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          pg_dump --format=custom --schema=public --no-owner --no-privileges \
+            --file=tmp/production-e2e-purge/public-before-purge.dump \
+            "$SUPABASE_MIGRATION_DATABASE_URL"
+          sha256sum tmp/production-e2e-purge/public-before-purge.dump \
+            > tmp/production-e2e-purge/public-before-purge.dump.sha256
+
+      - name: Purge exact historic E2E tenants
+        run: node scripts/purge-production-e2e-data.mjs --apply --json > tmp/production-e2e-purge/completion.json
+
+      - name: Prove production data boundary is clear without a demo allowlist
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify-production-data-boundary.mjs --require-clear --no-demo-allowlist
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: production-e2e-purge-evidence
+          path: tmp/production-e2e-purge/
+          retention-days: 7
