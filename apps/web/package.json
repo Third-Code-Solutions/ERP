@@ -16,6 +16,7 @@
     "lint": "pnpm --dir ../.. exec eslint --max-warnings=0 apps/web/src",
     "typecheck": "tsc --noEmit && tsc --noEmit -p e2e/tsconfig.json && tsc --noEmit -p e2e/cortex-index.tsconfig.json && tsc --noEmit -p e2e/finance-ledger.tsconfig.json && tsc --noEmit -p e2e/finance-receivables.tsconfig.json && tsc --noEmit -p e2e/finance-payables.tsconfig.json && tsc --noEmit -p e2e/finance-cash.tsconfig.json && tsc --noEmit -p e2e/finance-reconciliation.tsconfig.json",
     "test": "vitest run",
+    "test:release-coverage": "vitest run --config vitest.release.config.ts",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:cortex-index-local": "playwright test --config=playwright.cortex-index.config.ts",

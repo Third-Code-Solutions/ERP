@@ -78,12 +78,16 @@ if (!SHARED_PASSWORD || SHARED_PASSWORD.length < 14) {
   process.exit(1)
 }
 
-// 11 demo accounts — the 10 ABI OPS canonical roles + legacy owner.
+// One demo account for every canonical ERP role, including the three retained
+// legacy role values. Each new account is provisioned through the same trusted
+// Auth trigger path as the admin console.
 // Each email is unique so they don't collide; password is shared
 // so demo handoff is easy. (For prod, every user gets their own pw via /admin/users.)
 const ACCOUNTS = [
   { email: 'admin@abi-ops.test',       full_name: 'Demo Admin',       role: 'admin' },
   { email: 'owner@abi-ops.test',       full_name: 'Demo Owner',       role: 'owner' },
+  { email: 'estimator@abi-ops.test',   full_name: 'Demo Estimator',   role: 'estimator' },
+  { email: 'pm@abi-ops.test',          full_name: 'Demo PM',          role: 'pm' },
   { email: 'sales@abi-ops.test',       full_name: 'Demo Sales',       role: 'sales' },
   { email: 'commercial@abi-ops.test',  full_name: 'Demo Commercial',  role: 'commercial' },
   { email: 'design@abi-ops.test',      full_name: 'Demo Designer',    role: 'design' },
@@ -114,7 +118,7 @@ async function adminFetch(path, init = {}) {
 async function findAuthUserByEmail(email) {
   // Supabase admin: list users with filter via the /admin/users endpoint.
   // The native API doesn't expose ?email=, so we iterate the first page (50)
-  // since 11 demo accounts will live early.
+  // since the role-matrix accounts will live early.
   let page = 1
   while (page < 20) {
     const { ok, body } = await adminFetch(`/auth/v1/admin/users?page=${page}&per_page=200`)
@@ -128,7 +132,7 @@ async function findAuthUserByEmail(email) {
   return null
 }
 
-async function createOrUpdateAuthUser(email, password, fullName) {
+async function createOrUpdateAuthUser(email, password, fullName, invite) {
   const existing = await findAuthUserByEmail(email)
   if (existing) {
     // Reset password for known-good demo state.
@@ -150,6 +154,7 @@ async function createOrUpdateAuthUser(email, password, fullName) {
       password,
       email_confirm: true,
       user_metadata: { full_name: fullName },
+      app_metadata: { tenant_invite_v1: invite },
     }),
   })
   if (!ok) throw new Error(`create auth user failed for ${email}: ${JSON.stringify(body)}`)
@@ -167,32 +172,63 @@ async function findOrPickTenant() {
   return selectDemoTenant(rows, demoTenantSlug)
 }
 
-async function upsertPublicUser(authUserId, tenantId, email, fullName, role) {
-  // Drizzle schema requires id to match the auth user id (FK from auth.users).
-  // We do an INSERT … ON CONFLICT (id) DO UPDATE so re-runs land cleanly.
-  await sql`
-    INSERT INTO users (id, tenant_id, email, full_name, role, created_at, updated_at)
-    VALUES (${authUserId}, ${tenantId}, ${email}, ${fullName}, ${role}::role, NOW(), NOW())
-    ON CONFLICT (id) DO UPDATE
-      SET tenant_id = EXCLUDED.tenant_id,
-          email = EXCLUDED.email,
-          full_name = EXCLUDED.full_name,
-          role = EXCLUDED.role,
-          updated_at = NOW()
+async function findSeedInviter(tenantId) {
+  const rows = await sql`
+    SELECT id
+      FROM users
+     WHERE tenant_id = ${tenantId}
+       AND role IN ('owner', 'admin')
+     ORDER BY CASE role WHEN 'owner' THEN 0 ELSE 1 END, created_at
+     LIMIT 1
   `
+  const inviter = rows[0]
+  if (!inviter) {
+    throw new Error(
+      'The selected demo tenant must already contain an owner or admin inviter.',
+    )
+  }
+  return inviter.id
+}
+
+async function verifyProvisionedProfile(authUserId, tenantId, role) {
+  const rows = await sql`
+    SELECT tenant_id, role::text AS role
+      FROM users
+     WHERE id = ${authUserId}
+     LIMIT 1
+  `
+  const profile = rows[0]
+  if (!profile) {
+    throw new Error('Auth account has no application profile; refusing direct repair.')
+  }
+  if (profile.tenant_id !== tenantId || profile.role !== role) {
+    throw new Error(
+      `Existing profile does not match the selected tenant/role; refusing cross-tenant or unaudited role mutation.`,
+    )
+  }
 }
 
 const results = []
 
 try {
   const tenant = await findOrPickTenant()
+  const invitedBy = await findSeedInviter(tenant.id)
   console.log(`[seed] Using tenant: ${tenant.name} (${tenant.slug}) [${tenant.id}]`)
   console.log()
 
   for (const acct of ACCOUNTS) {
     try {
-      const auth = await createOrUpdateAuthUser(acct.email, SHARED_PASSWORD, acct.full_name)
-      await upsertPublicUser(auth.id, tenant.id, acct.email, acct.full_name, acct.role)
+      const auth = await createOrUpdateAuthUser(
+        acct.email,
+        SHARED_PASSWORD,
+        acct.full_name,
+        {
+          tenant_id: tenant.id,
+          role: acct.role,
+          invited_by: invitedBy,
+        },
+      )
+      await verifyProvisionedProfile(auth.id, tenant.id, acct.role)
       results.push({ ...acct, status: auth.created ? 'created' : 'reset', user_id: auth.id })
       console.log(
         `  ${auth.created ? '✓ created' : '↻ reset  '}  ${acct.email.padEnd(28)}  ${acct.role}`

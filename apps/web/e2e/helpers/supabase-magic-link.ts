@@ -1,26 +1,20 @@
 import type { BrowserContext } from '@playwright/test'
+import { ERP_ROLES, type ErpRole } from '@third-code-erp/shared-types'
 import { readE2EEnv, type E2EEnv } from './env'
 
-export type MagicLinkRole =
-  | 'admin'
-  | 'commercial'
-  | 'cx'
-  | 'design'
-  | 'finance'
-  | 'owner'
-  | 'procurement'
-  | 'safety'
-  | 'sales'
-  | 'sd_pm_pe'
-  | 'viewer'
+export type MagicLinkRole = ErpRole
 
-const ROLE_TEST_EMAILS: Record<MagicLinkRole, string> = {
+export const ROLE_TEST_ROLES = ERP_ROLES
+
+export const ROLE_TEST_EMAILS: Record<MagicLinkRole, string> = {
   admin: 'admin@abi.demo.ph',
   commercial: 'commercial@abi.demo.ph',
   cx: 'cx@abi.demo.ph',
   design: 'design@abi.demo.ph',
+  estimator: 'estimator@abi.demo.ph',
   finance: 'finance@abi.demo.ph',
   owner: 'owner@abi.demo.ph',
+  pm: 'pm@abi.demo.ph',
   procurement: 'procurement@abi.demo.ph',
   safety: 'safety@abi.demo.ph',
   sales: 'sales@abi.demo.ph',

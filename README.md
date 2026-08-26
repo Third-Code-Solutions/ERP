@@ -5,7 +5,7 @@
 > BOM → Pre-Construction → Construction → Billing → Post-Construction →
 > Warranty with tenant-scoped access, append-only audit, automation, and Cortex.
 
-![status](https://img.shields.io/badge/status-internal_alpha-orange) ![stack](https://img.shields.io/badge/stack-Next.js%2015%20%C2%B7%20NestJS%2011%20%C2%B7%20PostgreSQL-blue)
+![status](https://img.shields.io/badge/status-controlled_trial_candidate-blue) ![stack](https://img.shields.io/badge/stack-Next.js%2015%20%C2%B7%20NestJS%2011%20%C2%B7%20PostgreSQL-blue)
 
 ## Tech Stack
 
@@ -98,7 +98,7 @@ top-level route under `apps/web/src/app/(dashboard)`.
 pnpm dev                # web + workers (turbo parallel)
 pnpm build              # production build
 pnpm typecheck          # strict tsc across all packages
-pnpm lint               # TypeScript checks; ESLint/Prettier are not configured yet
+pnpm lint               # ESLint source-quality gate (Prettier is not configured)
 pnpm test               # vitest unit + integration
 pnpm audit --prod --audit-level moderate  # production dependency gate
 ```

@@ -12,7 +12,7 @@ import {
 } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { users as usersTable } from '@third-code-erp/database/schema'
-import { writeAuditLog } from '@/lib/audit'
+import { writeAuditLog, writeAuditLogInTransaction } from '@/lib/audit'
 import {
   adminUserRoleAssignmentWritesUseCoreApi,
   assignUserRoleThroughCoreApi,
@@ -54,14 +54,11 @@ async function safe<T extends { error?: string }>(
  *
  * Steps:
  *   1. Supabase Auth admin API creates the auth.users row with the
- *      provided email + password. `email_confirm: true` skips the
- *      verification email so the admin can hand off credentials.
- *   2. INSERT into public.users with the returned auth user id, the
- *      caller's tenant_id, and the assigned role.
- *   3. Audit log entry (best-effort — failure does not roll back).
- *
- * Rolls back the auth user if the public.users insert fails so we
- * never leave dangling auth-only accounts.
+ *      provided email + password and the server-owned invitation marker.
+ *      The auth trigger validates the inviter and writes the profile,
+ *      default membership, and mandatory audit evidence atomically.
+ *      `email_confirm: true` skips the verification email so the admin can
+ *      hand off credentials.
  */
 export async function createUser(
   formData: FormData
@@ -108,52 +105,22 @@ export async function createUser(
       email: input.email,
       password: input.password,
       email_confirm: true,
-      user_metadata: { full_name: input.full_name, tenant_id: profile.tenantId },
+      user_metadata: { full_name: input.full_name },
+      app_metadata: {
+        tenant_invite_v1: {
+          tenant_id: profile.tenantId,
+          role: input.role,
+          invited_by: profile.user.id,
+        },
+      },
     })
     if (authErr || !created?.user) {
       return {
         error: authErr?.message ?? 'Could not create the Supabase Auth user.',
       }
     }
-    const authUserId = created.user.id
-
-    // 2) Mirror into public.users. If this fails we delete the auth user.
-    try {
-      await db.insert(usersTable).values({
-        id: authUserId,
-        tenant_id: profile.tenantId,
-        email: input.email,
-        full_name: input.full_name,
-        role: input.role,
-      })
-    } catch (err) {
-      await admin.auth.admin.deleteUser(authUserId).catch(() => {})
-      return {
-        error:
-          err instanceof Error
-            ? `User row insert failed: ${err.message}`
-            : 'User row insert failed.',
-      }
-    }
-
-    // 3) Audit — best-effort. A broken audit chain must not break
-    // user creation, so we log and continue.
-    try {
-      await writeAuditLog({
-        tenantId: profile.tenantId,
-        actorId: profile.user.id,
-        entityType: 'user',
-        entityId: authUserId,
-        action: 'create',
-        diff: { email: input.email, full_name: input.full_name, role: input.role },
-      })
-    } catch (err) {
-
-      console.warn('[admin/users:createUser] audit log insert failed (non-fatal):', err)
-    }
-
     revalidatePath('/admin/users')
-    return { userId: authUserId }
+    return { userId: created.user.id }
   })
 }
 
@@ -233,18 +200,18 @@ export async function updateUserRole(
       return {}
     }
 
-    await db
-      .update(usersTable)
-      .set({ role, updated_at: new Date() })
-      .where(
-        and(
-          eq(usersTable.id, user_id),
-          eq(usersTable.tenant_id, profile.tenantId)
+    await db.transaction(async (tx) => {
+      await tx
+        .update(usersTable)
+        .set({ role, updated_at: new Date() })
+        .where(
+          and(
+            eq(usersTable.id, user_id),
+            eq(usersTable.tenant_id, profile.tenantId)
+          )
         )
-      )
 
-    try {
-      await writeAuditLog({
+      await writeAuditLogInTransaction(tx, {
         tenantId: profile.tenantId,
         actorId: profile.user.id,
         entityType: 'user',
@@ -252,10 +219,7 @@ export async function updateUserRole(
         action: 'update',
         diff: { role: { before: existing.role, after: role }, email: existing.email },
       })
-    } catch (err) {
-
-      console.warn('[admin/users:updateUserRole] audit log failed:', err)
-    }
+    })
 
     revalidatePath('/admin/users')
     revalidatePath(`/admin/users/${user_id}`)

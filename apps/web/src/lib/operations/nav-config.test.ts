@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { ERP_ROLES } from '@third-code-erp/shared-types'
 import {
   canViewPath,
   visibleNavSections,
@@ -24,8 +25,9 @@ describe('RBAC: canonicalRole', () => {
 
 describe('RBAC: runtime role boundary', () => {
   it('accepts only known persisted application roles', () => {
-    expect(isAppRole('commercial')).toBe(true)
-    expect(isAppRole('owner')).toBe(true)
+    for (const role of ERP_ROLES) {
+      expect(isAppRole(role), role).toBe(true)
+    }
     expect(isAppRole('not-a-role')).toBe(false)
     expect(isAppRole(null)).toBe(false)
     expect(isAppRole({ role: 'admin' })).toBe(false)
@@ -77,21 +79,7 @@ describe('RBAC: visibleNavSections', () => {
   })
 
   it('makes pipeline and projects visible to every project/opportunity reader', () => {
-    const projectReaders = [
-      'owner',
-      'estimator',
-      'pm',
-      'admin',
-      'sales',
-      'commercial',
-      'design',
-      'sd_pm_pe',
-      'finance',
-      'procurement',
-      'safety',
-      'cx',
-      'viewer',
-    ] as const
+    const projectReaders = ERP_ROLES
 
     for (const role of projectReaders) {
       const hrefs = visibleNavSections(role)
@@ -180,9 +168,11 @@ describe('RBAC: canViewPath (deny-by-default route guard)', () => {
 
 describe('RBAC: roleLabel', () => {
   it('returns a human label for every role', () => {
+    for (const role of ERP_ROLES) {
+      expect(roleLabel(role), role).not.toBe('')
+    }
     expect(roleLabel('sd_pm_pe')).toBe('SD / PM / PE')
     expect(roleLabel('cx')).toBe('Customer Experience')
-    expect(roleLabel('admin')).toBe('Admin')
   })
 })
 

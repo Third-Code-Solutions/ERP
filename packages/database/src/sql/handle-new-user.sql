@@ -1,5 +1,5 @@
 -- ---------------------------------------------------------------------------
--- Auto-provision a workspace + profile row for every new auth user.
+-- Auto-provision a self-signup workspace or a server-authorized tenant invite.
 --
 -- Signup inserts into auth.users. This trigger atomically creates one tenant
 -- and same-ID Admin profile. SECURITY DEFINER is required because
@@ -14,6 +14,10 @@ set search_path = ''
 as $$
 declare
   new_tenant_id uuid;
+  invited_tenant_id uuid;
+  invited_by uuid;
+  invited_role public.role;
+  invitation jsonb;
   base_slug text;
   final_slug text;
   normalized_email text;
@@ -27,6 +31,83 @@ begin
       from public.users
      where id = new.id
   ) then
+    return new;
+  end if;
+
+  invitation := new.raw_app_meta_data -> 'tenant_invite_v1';
+  if invitation is not null then
+    if jsonb_typeof(invitation) <> 'object'
+      or jsonb_typeof(invitation -> 'tenant_id') <> 'string'
+      or jsonb_typeof(invitation -> 'role') <> 'string'
+      or jsonb_typeof(invitation -> 'invited_by') <> 'string' then
+      raise exception 'invalid tenant invite metadata'
+        using errcode = '22023';
+    end if;
+
+    begin
+      invited_tenant_id := (invitation ->> 'tenant_id')::uuid;
+      invited_role := (invitation ->> 'role')::public.role;
+      invited_by := (invitation ->> 'invited_by')::uuid;
+    exception
+      when invalid_text_representation then
+        raise exception 'invalid tenant invite metadata'
+          using errcode = '22023';
+    end;
+
+    if not exists (
+      select 1
+        from public.users inviter
+       where inviter.id = invited_by
+         and inviter.tenant_id = invited_tenant_id
+         and inviter.role in ('admin', 'owner')
+    ) then
+      raise exception 'tenant invite inviter must be an owner or admin in the invited tenant'
+        using errcode = '42501';
+    end if;
+
+    normalized_email := coalesce(
+      nullif(pg_catalog.btrim(new.email), ''),
+      new.id::text || '@auth.local'
+    );
+    display_name := pg_catalog.left(
+      coalesce(
+        nullif(
+          pg_catalog.btrim(new.raw_user_meta_data ->> 'full_name'),
+          ''
+        ),
+        nullif(
+          pg_catalog.split_part(normalized_email, '@', 1),
+          ''
+        ),
+        'New User'
+      ),
+      255
+    );
+
+    -- The migration also updates audit_log_trigger to consume this trusted,
+    -- transaction-local actor id for profile and membership audit records.
+    perform pg_catalog.set_config(
+      'app.tenant_invite_v1_actor_id',
+      invited_by::text,
+      true
+    );
+
+    insert into public.users (
+      id,
+      tenant_id,
+      email,
+      full_name,
+      role
+    )
+    values (
+      new.id,
+      invited_tenant_id,
+      normalized_email,
+      display_name,
+      invited_role
+    );
+
+    perform pg_catalog.set_config('app.tenant_invite_v1_actor_id', '', true);
     return new;
   end if;
 
