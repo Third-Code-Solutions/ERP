@@ -18,6 +18,16 @@ import {
   isSupabaseAuthCookieName,
 } from '@/lib/supabase-session-recovery'
 
+const LOCAL_E2E_CSP_GATE_ENV = 'ERP_E2E_LOCAL_CSP'
+const LOCAL_E2E_SUPABASE_ORIGIN_ENV = 'ERP_E2E_SUPABASE_ORIGIN'
+const LOCAL_E2E_LOOPBACK_ORIGIN = /^http:\/\/127\.0\.0\.1:([0-9]{1,5})$/
+const HOSTED_DEPLOYMENT_ENVIRONMENTS = [
+  'VERCEL',
+  'VERCEL_ENV',
+  'VERCEL_URL',
+  'VERCEL_DEPLOYMENT_ID',
+] as const
+
 // ---------------------------------------------------------------------------
 // Local limiter — compatibility only when distributed enforcement is disabled.
 // It resets per Edge isolate and must never be represented as global protection.
@@ -98,6 +108,55 @@ function generateNonce(): string {
   return btoa(String.fromCharCode(...array))
 }
 
+function isHostedDeployment(): boolean {
+  return HOSTED_DEPLOYMENT_ENVIRONMENTS.some((name) =>
+    Boolean(process.env[name]?.trim())
+  )
+}
+
+/**
+ * Returns the sole local-only Supabase Realtime pair permitted for the
+ * disposable role matrix. This relies exclusively on server-side deployment
+ * configuration: public Supabase variables and request host headers are never
+ * CSP authority.
+ */
+function localE2ESupabaseConnectSrc(): string {
+  if (
+    process.env[LOCAL_E2E_CSP_GATE_ENV] !== '1' ||
+    isHostedDeployment()
+  ) {
+    return ''
+  }
+
+  const configuredOrigin = process.env[LOCAL_E2E_SUPABASE_ORIGIN_ENV]
+  if (!configuredOrigin) return ''
+
+  const match = LOCAL_E2E_LOOPBACK_ORIGIN.exec(configuredOrigin)
+  if (!match) return ''
+
+  const port = Number(match[1])
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) return ''
+
+  try {
+    const origin = new URL(configuredOrigin)
+    if (
+      origin.protocol !== 'http:' ||
+      origin.hostname !== '127.0.0.1' ||
+      origin.username ||
+      origin.password ||
+      origin.pathname !== '/' ||
+      origin.search ||
+      origin.hash
+    ) {
+      return ''
+    }
+  } catch {
+    return ''
+  }
+
+  return ` ${configuredOrigin} ws://127.0.0.1:${port}`
+}
+
 function buildCSP(nonce: string): string {
   // In dev we must allow eval + inline scripts for HMR/Fast Refresh.
   // In prod the nonce path is strict and uses 'strict-dynamic' so the
@@ -108,26 +167,7 @@ function buildCSP(nonce: string): string {
   const scriptSrc = isDev
     ? `script-src 'self' 'unsafe-eval' 'unsafe-inline' 'nonce-${nonce}'`
     : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https: 'unsafe-inline'`
-  let localSupabaseConnectSrc = ''
-  if (isDev) {
-    try {
-      const supabaseUrl = new URL(
-        process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
-      )
-      if (
-        supabaseUrl.hostname === '127.0.0.1' ||
-        supabaseUrl.hostname === 'localhost' ||
-        supabaseUrl.hostname === '[::1]'
-      ) {
-        const websocketProtocol =
-          supabaseUrl.protocol === 'https:' ? 'wss:' : 'ws:'
-        localSupabaseConnectSrc =
-          ` ${supabaseUrl.origin} ${websocketProtocol}//${supabaseUrl.host}`
-      }
-    } catch {
-      // Invalid/missing local URL: retain the closed production-oriented CSP.
-    }
-  }
+  const localSupabaseConnectSrc = localE2ESupabaseConnectSrc()
 
   return [
     "default-src 'self'",
