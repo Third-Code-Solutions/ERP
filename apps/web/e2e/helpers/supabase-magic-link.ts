@@ -31,29 +31,12 @@ export const ROLE_TEST_EMAILS: Record<MagicLinkRole, string> = {
   viewer: roleTestEmail('viewer'),
 }
 
-type UserProfile = {
-  email: string
-  tenant_id: string
-}
-
 type AuthenticatedRole = {
   role: MagicLinkRole
-  tenantId: string
   accessToken: string
   supabaseUrl: string
   anonKey: string
   cleanup: () => Promise<void>
-}
-
-function isUserProfile(value: unknown): value is UserProfile {
-  if (!value || typeof value !== 'object') return false
-  // The REST payload is untrusted JSON; this post-guard view is limited to
-  // checking the two primitive fields required by the role harness.
-  const candidate = value as Record<string, unknown>
-  return (
-    typeof candidate.email === 'string' &&
-    typeof candidate.tenant_id === 'string'
-  )
 }
 
 function assertObject(value: unknown, label: string): Record<string, unknown> {
@@ -77,39 +60,18 @@ export async function authenticateRole(
     throw new Error('Supabase E2E environment is incomplete')
   }
 
-  const serviceHeaders = {
-    apikey: serviceRoleKey,
-    Authorization: `Bearer ${serviceRoleKey}`,
-  }
   const roleEmail = ROLE_TEST_EMAILS[role]
-  const profileResponse = await fetch(
-    `${supabaseUrl}/rest/v1/users?select=email,tenant_id&role=eq.${encodeURIComponent(role)}&email=eq.${encodeURIComponent(roleEmail)}&limit=2`,
-    { headers: serviceHeaders }
-  )
-  if (!profileResponse.ok) {
-    throw new Error(`Role profile lookup failed (${profileResponse.status})`)
-  }
-  const profilePayload: unknown = await profileResponse.json()
-  if (!Array.isArray(profilePayload)) {
-    throw new Error('Role profile lookup did not return an array')
-  }
-  const profiles = profilePayload.filter(isUserProfile)
-  if (profiles.length !== 1 || profiles[0]?.email !== roleEmail) {
-    throw new Error(
-      `Expected deterministic ${role} profile ${roleEmail}, found ${profiles.length}`
-    )
-  }
-  const profile = profiles[0]!
 
   const linkResponse = await fetch(`${supabaseUrl}/auth/v1/admin/generate_link`, {
     method: 'POST',
     headers: {
-      ...serviceHeaders,
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${serviceRoleKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
       type: 'magiclink',
-      email: profile.email,
+      email: roleEmail,
       options: { redirectTo: `${baseUrl}/dashboard` },
     }),
   })
@@ -145,9 +107,9 @@ export async function authenticateRole(
     throw new Error(`Authenticated user lookup failed (${userResponse.status})`)
   }
   const user = assertObject(await userResponse.json(), 'Authenticated user')
-  if (user.email !== profile.email) {
+  if (user.email !== roleEmail) {
     throw new Error(
-      `Magic-link session identity mismatch: expected ${profile.email}, received ${String(user.email)}`
+      `Magic-link session identity mismatch: expected ${roleEmail}, received ${String(user.email)}`
     )
   }
   const projectRef = new URL(supabaseUrl).host.split('.')[0]!
@@ -177,7 +139,6 @@ export async function authenticateRole(
 
   return {
     role,
-    tenantId: profile.tenant_id,
     accessToken,
     supabaseUrl,
     anonKey,

@@ -1,9 +1,9 @@
 'use server'
 
-import { randomUUID } from 'node:crypto'
+import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import { and, eq, ne, sql } from 'drizzle-orm'
+import { and, eq, isNull, ne, sql } from 'drizzle-orm'
 import {
   requireUserProfile,
   can,
@@ -11,7 +11,10 @@ import {
   type AppRole,
 } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
-import { users as usersTable } from '@third-code-erp/database/schema'
+import {
+  tenantInvitationIntents,
+  users as usersTable,
+} from '@third-code-erp/database/schema'
 import { writeAuditLog, writeAuditLogInTransaction } from '@/lib/audit'
 import {
   adminUserRoleAssignmentWritesUseCoreApi,
@@ -28,6 +31,102 @@ const createUserSchema = z.object({
   full_name: z.string().min(2).max(255),
   role: z.enum(ASSIGNABLE_ROLES),
 })
+
+const invitationLifetimeMs = 24 * 60 * 60 * 1000
+
+type InvitationAuthority = {
+  tenantId: string
+  invitedBy: string
+  email: string
+  role: z.infer<typeof createUserSchema>['role']
+}
+
+function createOpaqueInvitationToken(): { token: string; tokenHash: string } {
+  const token = randomBytes(32).toString('base64url')
+  return {
+    token,
+    tokenHash: createHash('sha256').update(token).digest('hex'),
+  }
+}
+
+function hasErrorCode(
+  error: unknown,
+  code: string
+): error is { code: string } {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    typeof error.code === 'string' &&
+    error.code === code
+  )
+}
+
+function isDefiniteAuthClientRejection(error: { status?: number } | null): boolean {
+  return Boolean(error && error.status && error.status >= 400 && error.status < 500)
+}
+
+async function hasPendingInvitation(email: string): Promise<boolean> {
+  const [pending] = await db
+    .select({ id: tenantInvitationIntents.id })
+    .from(tenantInvitationIntents)
+    .where(
+      and(
+        eq(tenantInvitationIntents.invited_email, email),
+        isNull(tenantInvitationIntents.consumed_at),
+        isNull(tenantInvitationIntents.revoked_at)
+      )
+    )
+    .limit(1)
+
+  return Boolean(pending)
+}
+
+async function createInvitationIntent(authority: InvitationAuthority): Promise<{
+  id: string
+  token: string
+}> {
+  const { token, tokenHash } = createOpaqueInvitationToken()
+  const [intent] = await db
+    .insert(tenantInvitationIntents)
+    .values({
+      tenant_id: authority.tenantId,
+      invited_email: authority.email,
+      invited_role: authority.role,
+      invited_by: authority.invitedBy,
+      created_by: authority.invitedBy,
+      token_hash: tokenHash,
+      expires_at: new Date(Date.now() + invitationLifetimeMs),
+    })
+    .returning({ id: tenantInvitationIntents.id })
+
+  if (!intent) {
+    throw new Error('Invitation authority was not persisted.')
+  }
+
+  return { id: intent.id, token }
+}
+
+async function revokeUnusedInvitationIntent(
+  intentId: string,
+  authority: Pick<InvitationAuthority, 'tenantId' | 'invitedBy'>
+): Promise<void> {
+  await db
+    .update(tenantInvitationIntents)
+    .set({
+      revoked_at: new Date(),
+      revoked_by: authority.invitedBy,
+      revocation_reason: 'auth_create_rejected',
+    })
+    .where(
+      and(
+        eq(tenantInvitationIntents.id, intentId),
+        eq(tenantInvitationIntents.tenant_id, authority.tenantId),
+        isNull(tenantInvitationIntents.consumed_at),
+        isNull(tenantInvitationIntents.revoked_at)
+      )
+    )
+}
 
 function guardAdmin(role: AppRole): string | null {
   return can(role, 'admin.users') ? null : `Forbidden: role "${role}" lacks admin.users`
@@ -52,13 +151,10 @@ async function safe<T extends { error?: string }>(
 /**
  * Create a workspace user.
  *
- * Steps:
- *   1. Supabase Auth admin API creates the auth.users row with the
- *      provided email + password and the server-owned invitation marker.
- *      The auth trigger validates the inviter and writes the profile,
- *      default membership, and mandatory audit evidence atomically.
- *      `email_confirm: true` skips the verification email so the admin can
- *      hand off credentials.
+ * The server first persists a hash-only invitation authority. The Auth trigger
+ * then consumes that one-use authority and writes the profile, default
+ * membership, and mandatory audit evidence atomically. `email_confirm: true`
+ * skips the verification email so the admin can hand off credentials.
  */
 export async function createUser(
   formData: FormData
@@ -98,25 +194,72 @@ export async function createUser(
       return { error: 'A user with this email already exists in this workspace.' }
     }
 
-    const admin = createSupabaseAdminClient()
-
-    // 1) Create the Supabase Auth user.
-    const { data: created, error: authErr } = await admin.auth.admin.createUser({
+    const authority: InvitationAuthority = {
+      tenantId: profile.tenantId,
+      invitedBy: profile.user.id,
       email: input.email,
-      password: input.password,
-      email_confirm: true,
-      user_metadata: { full_name: input.full_name },
-      app_metadata: {
-        tenant_invite_v1: {
-          tenant_id: profile.tenantId,
-          role: input.role,
-          invited_by: profile.user.id,
-        },
-      },
-    })
-    if (authErr || !created?.user) {
+      role: input.role,
+    }
+    if (await hasPendingInvitation(authority.email)) {
       return {
-        error: authErr?.message ?? 'Could not create the Supabase Auth user.',
+        error:
+          'An invitation for this email is already pending. Do not retry until it is reviewed.',
+      }
+    }
+
+    let invitation: { id: string; token: string }
+    try {
+      invitation = await createInvitationIntent(authority)
+    } catch (error) {
+      if (hasErrorCode(error, '23505')) {
+        return {
+          error:
+            'An invitation for this email is already pending. Do not retry until it is reviewed.',
+        }
+      }
+      throw error
+    }
+
+    const admin = createSupabaseAdminClient()
+    let created: { user: { id: string } | null } | null = null
+    let authErr: { message: string; status?: number } | null = null
+    try {
+      const result = await admin.auth.admin.createUser({
+        email: input.email,
+        password: input.password,
+        email_confirm: true,
+        user_metadata: {
+          provisioning_mode: 'tenant_invitation_v1',
+          tenant_invitation_token_v1: invitation.token,
+          full_name: input.full_name,
+        },
+      })
+      created = result.data
+      authErr = result.error
+    } catch {
+      // A transport failure has an unknown remote outcome. Keep the only
+      // usable intent intact rather than issuing another capability.
+      return {
+        error:
+          'Invitation creation outcome is unknown. Do not retry until the pending invitation is reviewed.',
+      }
+    }
+
+    if (authErr || !created?.user) {
+      if (isDefiniteAuthClientRejection(authErr)) {
+        try {
+          await revokeUnusedInvitationIntent(invitation.id, authority)
+        } catch {
+          return {
+            error:
+              'The Auth account was rejected, but the pending invitation could not be revoked. Review it before retrying.',
+          }
+        }
+      }
+      return {
+        error:
+          authErr?.message ??
+          'Invitation creation outcome is unknown. Do not retry until the pending invitation is reviewed.',
       }
     }
     revalidatePath('/admin/users')

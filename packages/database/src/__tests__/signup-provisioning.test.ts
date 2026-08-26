@@ -4,42 +4,20 @@ import { fileURLToPath } from 'node:url'
 import { ORGANIZATION_TYPES } from '@third-code-erp/shared-types'
 import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import {
-  DATABASE_URL,
-  inRollback,
-  makeSql,
-  seedTwoTenants,
-} from './_db-harness'
+
+import { DATABASE_URL, inRollback, makeSql } from './_db-harness'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const migrationPath = resolve(
+const signupMigrationPath = resolve(
   __dirname,
   '../../../../supabase/migrations/20260729054456_persist_signup_organization_type.sql'
 )
-const migrationSql = readFileSync(migrationPath, 'utf8').toLowerCase()
+const signupMigrationSql = readFileSync(signupMigrationPath, 'utf8').toLowerCase()
 const invitationMigrationPath = resolve(
   __dirname,
-  '../../../../supabase/migrations/20260827120000_secure_tenant_invitation_provisioning.sql'
+  '../../../../supabase/migrations/20260827130000_server_created_tenant_invitation_intents.sql'
 )
 const invitationMigrationSql = readFileSync(invitationMigrationPath, 'utf8').toLowerCase()
-
-const INVITABLE_ROLES = [
-  'owner',
-  'estimator',
-  'pm',
-  'admin',
-  'sales',
-  'commercial',
-  'design',
-  'sd_pm_pe',
-  'finance',
-  'procurement',
-  'safety',
-  'cx',
-  'viewer',
-] as const
-
-type InvitableRole = (typeof INVITABLE_ROLES)[number]
 
 function first<T>(rows: T[]): T {
   const row = rows[0]
@@ -49,77 +27,114 @@ function first<T>(rows: T[]): T {
 
 describe('signup provisioning migration contract', () => {
   it('uses an empty search path and fully qualified privileged objects', () => {
-    expect(migrationSql).toContain("set search_path = ''")
-    expect(migrationSql).toContain('from public.users')
-    expect(migrationSql).toContain('insert into public.tenants')
-    expect(migrationSql).toContain('insert into public.users')
-    expect(migrationSql).toContain('pg_catalog.regexp_replace')
-    expect(migrationSql).toContain('pg_catalog.md5')
+    expect(signupMigrationSql).toContain("set search_path = ''")
+    expect(signupMigrationSql).toContain('from public.users')
+    expect(signupMigrationSql).toContain('insert into public.tenants')
+    expect(signupMigrationSql).toContain('insert into public.users')
+    expect(signupMigrationSql).toContain('pg_catalog.regexp_replace')
+    expect(signupMigrationSql).toContain('pg_catalog.md5')
   })
 
   it('uses company metadata only as bounded display data', () => {
-    expect(migrationSql).toContain(
+    expect(signupMigrationSql).toContain(
       "new.raw_user_meta_data ->> 'company_name'"
     )
-    expect(migrationSql).toContain(
+    expect(signupMigrationSql).toContain(
       "new.raw_user_meta_data ->> 'full_name'"
     )
-    expect(migrationSql).toContain('pg_catalog.left(')
-    expect(migrationSql).not.toContain('raw_app_meta_data')
+    expect(signupMigrationSql).toContain('pg_catalog.left(')
+    expect(signupMigrationSql).not.toContain('raw_app_meta_data')
   })
 
   it('persists only canonical organization types as non-authoritative profile data', () => {
-    expect(migrationSql).toContain(
+    expect(signupMigrationSql).toContain(
       "new.raw_user_meta_data ->> 'organization_type'"
     )
-    expect(migrationSql).toContain(
+    expect(signupMigrationSql).toContain(
       'add constraint tenants_organization_type_check'
     )
     for (const organizationType of ORGANIZATION_TYPES) {
-      expect(migrationSql).toContain(`'${organizationType}'`)
+      expect(signupMigrationSql).toContain(`'${organizationType}'`)
     }
-    expect(migrationSql).not.toMatch(
+    expect(signupMigrationSql).not.toMatch(
       /organization_type[\s\S]{0,120}(role|capabilit|permission)/
-    )
-  })
-
-  it('keeps the trigger function unavailable as a public RPC', () => {
-    expect(migrationSql).toMatch(
-      /revoke execute on function public\.handle_new_user\(\)[\s\S]*?from public, anon, authenticated/
-    )
-    expect(migrationSql).toMatch(
-      /grant execute on function public\.handle_new_user\(\)[\s\S]*?to service_role/
     )
   })
 })
 
-describe('tenant invitation provisioning migration contract', () => {
-  it('treats only server-owned app metadata as a tenant invitation authority', () => {
-    expect(invitationMigrationSql).toContain("'tenant_invite_v1'")
-    expect(invitationMigrationSql).toContain('new.raw_app_meta_data')
-    expect(invitationMigrationSql).toContain('jsonb_typeof')
-    expect(invitationMigrationSql).toContain('invalid tenant invite metadata')
+describe('ADR-030 tenant invitation migration contract', () => {
+  it('requires an exact raw-user-metadata provisioning mode and opaque invitation token', () => {
+    expect(invitationMigrationSql).toContain("'tenant_invitation_token_v1'")
+    expect(invitationMigrationSql).toContain("'tenant_invitation_v1'")
+    expect(invitationMigrationSql).toContain("'self_signup_v1'")
+    expect(invitationMigrationSql).toContain('new.raw_user_meta_data')
+    expect(invitationMigrationSql).toContain(
+      'explicit valid provisioning mode is required'
+    )
+    expect(invitationMigrationSql).toContain(
+      'self-signup provisioning mode cannot include an invitation token'
+    )
+    expect(invitationMigrationSql).not.toContain('raw_app_meta_data')
     expect(invitationMigrationSql).not.toMatch(
       /raw_user_meta_data[\s\S]{0,160}(tenant_id|invited_by|invited_role)/
     )
   })
 
-  it('validates the inviter home tenant and every role against public.role', () => {
-    expect(invitationMigrationSql).toContain('from public.users inviter')
-    expect(invitationMigrationSql).toContain("inviter.role in ('admin', 'owner')")
-    expect(invitationMigrationSql).toContain('::public.role')
+  it('persists only a SHA-256 hash in a forced-RLS tenant-scoped intent table', () => {
+    expect(invitationMigrationSql).toContain(
+      'create table public.tenant_invitation_intents'
+    )
+    expect(invitationMigrationSql).toContain('tenant_id uuid not null')
+    expect(invitationMigrationSql).toContain('token_hash char(64) not null')
+    expect(invitationMigrationSql).toContain("extensions.digest(invitation_token, 'sha256')")
+    expect(invitationMigrationSql).toContain(
+      'alter table public.tenant_invitation_intents force row level security'
+    )
+    expect(invitationMigrationSql).toContain(
+      'create policy deny_direct_client_access'
+    )
+    expect(invitationMigrationSql).toContain(
+      'ux_tenant_invitation_intents_active_email'
+    )
   })
 
-  it('binds audit actor evidence to the validated inviter and fails atomically', () => {
-    expect(invitationMigrationSql).toContain('tenant_invite_v1_actor_id')
-    expect(invitationMigrationSql).toContain('current_setting')
-    expect(invitationMigrationSql).toContain('coalesce')
+  it('locks and atomically claims an intent before profile creation', () => {
+    expect(invitationMigrationSql).toContain('for update')
+    expect(invitationMigrationSql).toContain('consumed_by_user_id = new.id')
+    expect(invitationMigrationSql).toContain('insert into public.users')
+    expect(invitationMigrationSql).toContain(
+      "- 'tenant_invitation_token_v1'"
+    )
+    expect(invitationMigrationSql).toContain(
+      'app.tenant_invitation_v1_actor_id'
+    )
+  })
+
+  it('emits token-free immutable intent transition evidence', () => {
+    expect(invitationMigrationSql).toContain(
+      'create function public.audit_tenant_invitation_intent()'
+    )
+    expect(invitationMigrationSql).toContain("v_action := 'intent_created'")
+    expect(invitationMigrationSql).toContain("v_action := 'intent_consumed'")
+    expect(invitationMigrationSql).toContain("v_action := 'intent_revoked'")
+    expect(invitationMigrationSql).toContain(
+      'tenant invitation intents are append-only'
+    )
+  })
+
+  it('keeps its trigger functions unavailable as public RPCs', () => {
+    expect(invitationMigrationSql).toMatch(
+      /revoke execute on function public\.handle_new_user\(\)[\s\S]*?from public, anon, authenticated/
+    )
+    expect(invitationMigrationSql).toMatch(
+      /revoke all on function public\.scrub_consumed_tenant_invitation_token\(\)[\s\S]*?from public, anon, authenticated/
+    )
   })
 })
 
 const runtimeSuite = DATABASE_URL ? describe : describe.skip
 
-runtimeSuite('signup provisioning runtime proof', () => {
+runtimeSuite('signup provisioning structural runtime proof', () => {
   let sql: postgres.Sql
 
   beforeAll(() => {
@@ -130,27 +145,18 @@ runtimeSuite('signup provisioning runtime proof', () => {
     await sql?.end({ timeout: 5 })
   })
 
-  it('creates exactly one isolated Admin workspace from Auth signup', async () => {
+  it('creates exactly one isolated Admin workspace from a direct Auth insert', async () => {
     const result = await inRollback(sql, async (transaction) => {
-      const identity = first(await transaction<{
-        id: string
-        email: string
-      }[]>`
-        insert into auth.users (
-          id,
-          email,
-          raw_user_meta_data
-        )
+      const identity = first(await transaction<{ id: string; email: string }[]>`
+        insert into auth.users (id, email, raw_user_meta_data)
         values (
           gen_random_uuid(),
           'canary.signup@probe.test',
           jsonb_build_object(
-            'full_name',
-            'Canary Operator',
-            'company_name',
-            'Canary Builders Works',
-            'organization_type',
-            'construction'
+            'full_name', 'Canary Operator',
+            'company_name', 'Canary Builders Works',
+            'organization_type', 'construction',
+            'provisioning_mode', 'self_signup_v1'
           )
         )
         returning id, email
@@ -176,27 +182,11 @@ runtimeSuite('signup provisioning runtime proof', () => {
       `)
       const { expected_slug: expectedSlug } = first(
         await transaction<{ expected_slug: string }[]>`
-          select
-            'canary-builders-works-'
-            || substr(md5(${identity.id}::text), 1, 12)
-              as expected_slug
+          select 'canary-builders-works-' || substr(md5(${identity.id}::text), 1, 12)
+            as expected_slug
         `
       )
-      const { tenant_count: tenantCount } = first(
-        await transaction<{ tenant_count: number }[]>`
-          select count(*)::int as tenant_count
-            from public.tenants
-           where id = ${profile.tenant_id}::uuid
-        `
-      )
-
-      return {
-        identity,
-        profile,
-        tenant,
-        expectedSlug,
-        tenantCount,
-      }
+      return { identity, profile, tenant, expectedSlug }
     })
 
     expect(result.profile).toEqual({
@@ -210,21 +200,19 @@ runtimeSuite('signup provisioning runtime proof', () => {
       slug: result.expectedSlug,
       organization_type: 'construction',
     })
-    expect(result.tenantCount).toBe(1)
   })
 
   it('uses safe fallbacks when email is absent and organization metadata is invalid', async () => {
     const result = await inRollback(sql, async (transaction) => {
       const identity = first(await transaction<{ id: string }[]>`
-        insert into auth.users (
-          id,
-          email,
-          raw_user_meta_data
-        )
+        insert into auth.users (id, email, raw_user_meta_data)
         values (
           gen_random_uuid(),
           null,
-          jsonb_build_object('organization_type', 'admin')
+          jsonb_build_object(
+            'organization_type', 'admin',
+            'provisioning_mode', 'self_signup_v1'
+          )
         )
         returning id
       `)
@@ -238,14 +226,11 @@ runtimeSuite('signup provisioning runtime proof', () => {
           from public.users
          where id = ${identity.id}::uuid
       `)
-      const tenant = first(await transaction<{
-        organization_type: string
-      }[]>`
+      const tenant = first(await transaction<{ organization_type: string }[]>`
         select organization_type
           from public.tenants
          where id = ${profile.tenant_id}::uuid
       `)
-
       return { identity, profile, tenant }
     })
 
@@ -269,10 +254,7 @@ runtimeSuite('signup provisioning runtime proof', () => {
         column_info.column_default,
         column_info.is_nullable,
         constraint_info.convalidated,
-        pg_catalog.pg_get_constraintdef(
-          constraint_info.oid,
-          true
-        ) as definition
+        pg_catalog.pg_get_constraintdef(constraint_info.oid, true) as definition
       from information_schema.columns column_info
       join pg_catalog.pg_constraint constraint_info
         on constraint_info.conrelid = 'public.tenants'::regclass
@@ -290,7 +272,7 @@ runtimeSuite('signup provisioning runtime proof', () => {
     }
   })
 
-  it('retains hardened execution privileges', async () => {
+  it('retains hardened trigger execution privileges', async () => {
     const privileges = first(await sql<{
       empty_search_path: boolean
       anon_execute: boolean
@@ -299,27 +281,13 @@ runtimeSuite('signup provisioning runtime proof', () => {
     }[]>`
       select
         coalesce(array_to_string(procedure.proconfig, ','), '') in (
-          'search_path=',
-          'search_path=""'
+          'search_path=', 'search_path=""'
         ) as empty_search_path,
-        has_function_privilege(
-          'anon',
-          procedure.oid,
-          'EXECUTE'
-        ) as anon_execute,
-        has_function_privilege(
-          'authenticated',
-          procedure.oid,
-          'EXECUTE'
-        ) as authenticated_execute,
-        has_function_privilege(
-          'service_role',
-          procedure.oid,
-          'EXECUTE'
-        ) as service_role_execute
+        has_function_privilege('anon', procedure.oid, 'EXECUTE') as anon_execute,
+        has_function_privilege('authenticated', procedure.oid, 'EXECUTE') as authenticated_execute,
+        has_function_privilege('service_role', procedure.oid, 'EXECUTE') as service_role_execute
       from pg_catalog.pg_proc procedure
-      join pg_catalog.pg_namespace namespace
-        on namespace.oid = procedure.pronamespace
+      join pg_catalog.pg_namespace namespace on namespace.oid = procedure.pronamespace
       where namespace.nspname = 'public'
         and procedure.proname = 'handle_new_user'
     `)
@@ -330,372 +298,5 @@ runtimeSuite('signup provisioning runtime proof', () => {
       authenticated_execute: false,
       service_role_execute: true,
     })
-  })
-})
-
-async function installAuthInviteProbe(
-  transaction: postgres.TransactionSql
-): Promise<void> {
-  await transaction.unsafe(`
-    create or replace function pg_temp.try_tenant_invite(
-      p_id uuid,
-      p_email text,
-      p_metadata jsonb
-    )
-    returns boolean
-    language plpgsql
-    as $$
-    begin
-      insert into auth.users (
-        id,
-        email,
-        raw_user_meta_data,
-        raw_app_meta_data
-      )
-      values (
-        p_id,
-        p_email,
-        jsonb_build_object('full_name', 'Invitation Probe'),
-        p_metadata
-      );
-      return true;
-    exception
-      when others then
-        return false;
-    end;
-    $$;
-  `)
-}
-
-function inviteMetadata(
-  tenantId: string,
-  role: InvitableRole | 'not-a-role',
-  invitedBy: string
-): {
-  tenant_invite_v1: {
-    tenant_id: string
-    role: InvitableRole | 'not-a-role'
-    invited_by: string
-  }
-} {
-  return {
-    tenant_invite_v1: {
-      tenant_id: tenantId,
-      role,
-      invited_by: invitedBy,
-    },
-  }
-}
-
-const invitationRuntimeSuite = DATABASE_URL ? describe : describe.skip
-
-invitationRuntimeSuite('tenant invitation provisioning runtime proof', () => {
-  let sql: postgres.Sql
-
-  beforeAll(() => {
-    sql = makeSql()
-  })
-
-  afterAll(async () => {
-    await sql?.end({ timeout: 5 })
-  })
-
-  it('adds every supported role to the inviter tenant without creating an orphan tenant', async () => {
-    const result = await inRollback(sql, async (transaction) => {
-      const { tenantA, userA } = await seedTwoTenants(transaction)
-      const { tenant_count: beforeTenantCount } = first(
-        await transaction<{ tenant_count: number }[]>`
-          select count(*)::int as tenant_count from public.tenants
-        `
-      )
-      const profiles: Array<{
-        membership_count: number
-        role: string
-        tenant_id: string
-      }> = []
-
-      for (const role of INVITABLE_ROLES) {
-        const { id } = first(await transaction<{ id: string }[]>`
-          select gen_random_uuid() as id
-        `)
-        await transaction`
-          insert into auth.users (
-            id,
-            email,
-            raw_user_meta_data,
-            raw_app_meta_data
-          )
-          values (
-            ${id}::uuid,
-            ${`invite-${role}@probe.test`},
-            jsonb_build_object('full_name', ${`Invite ${role}`}::text),
-            ${transaction.json(inviteMetadata(tenantA, role, userA))}
-          )
-        `
-        profiles.push(
-          first(await transaction<{
-            membership_count: number
-            role: string
-            tenant_id: string
-          }[]>`
-            select
-              profile.tenant_id,
-              profile.role::text as role,
-              (
-                select count(*)::int
-                  from public.tenant_memberships membership
-                 where membership.user_id = profile.id
-              ) as membership_count
-              from public.users profile
-             where profile.id = ${id}::uuid
-          `)
-        )
-      }
-
-      const { tenant_count: afterTenantCount } = first(
-        await transaction<{ tenant_count: number }[]>`
-          select count(*)::int as tenant_count from public.tenants
-        `
-      )
-
-      return { beforeTenantCount, afterTenantCount, profiles, tenantA }
-    })
-
-    expect(result.afterTenantCount).toBe(result.beforeTenantCount)
-    expect(result.profiles).toEqual(
-      INVITABLE_ROLES.map((role) => ({
-        membership_count: 1,
-        role,
-        tenant_id: result.tenantA,
-      }))
-    )
-  })
-
-  it('records immutable invite audit evidence with the validated inviter as actor', async () => {
-    const result = await inRollback(sql, async (transaction) => {
-      const { tenantA, userA } = await seedTwoTenants(transaction)
-      const { id } = first(await transaction<{ id: string }[]>`
-        select gen_random_uuid() as id
-      `)
-
-      await transaction`
-        insert into auth.users (
-          id,
-          email,
-          raw_user_meta_data,
-          raw_app_meta_data
-        )
-        values (
-          ${id}::uuid,
-          'audited-invite@probe.test',
-          jsonb_build_object('full_name', 'Audited Invite'),
-          ${transaction.json(inviteMetadata(tenantA, 'sales', userA))}
-        )
-      `
-
-      const audit = first(await transaction<{
-        id: number
-        actor_id: string | null
-        tenant_id: string
-        action: string
-      }[]>`
-        select id, actor_id, tenant_id, action
-          from public.audit_log
-         where entity_type = 'users'
-           and entity_id = ${id}::uuid
-         order by id desc
-         limit 1
-      `)
-      await transaction.unsafe(`
-        create or replace function pg_temp.try_audit_update(p_id bigint)
-        returns boolean
-        language plpgsql
-        as $$
-        declare
-          changed_count integer;
-        begin
-          update public.audit_log
-             set actor_id = null
-           where id = p_id;
-          get diagnostics changed_count = row_count;
-          return changed_count > 0;
-        end;
-        $$;
-
-        create or replace function pg_temp.try_audit_delete(p_id bigint)
-        returns boolean
-        language plpgsql
-        as $$
-        declare
-          changed_count integer;
-        begin
-          delete from public.audit_log where id = p_id;
-          get diagnostics changed_count = row_count;
-          return changed_count > 0;
-        end;
-        $$;
-      `)
-      const { accepted: updated } = first(await transaction<{ accepted: boolean }[]>`
-        select pg_temp.try_audit_update(${audit.id}) as accepted
-      `)
-      const { accepted: deleted } = first(await transaction<{ accepted: boolean }[]>`
-        select pg_temp.try_audit_delete(${audit.id}) as accepted
-      `)
-      const retained = first(await transaction<{
-        actor_id: string | null
-      }[]>`
-        select actor_id
-          from public.audit_log
-         where id = ${audit.id}
-      `)
-
-      return { audit, updated, deleted, retained, tenantA, userA }
-    })
-
-    expect(result.audit).toMatchObject({
-      actor_id: result.userA,
-      tenant_id: result.tenantA,
-      action: 'create',
-    })
-    expect(result.updated).toBe(false)
-    expect(result.deleted).toBe(false)
-    expect(result.retained.actor_id).toBe(result.userA)
-  })
-
-  it('fails closed for cross-tenant, invalid-role, and malformed invitation metadata', async () => {
-    const result = await inRollback(sql, async (transaction) => {
-      const { tenantA, tenantB, userA } = await seedTwoTenants(transaction)
-      await installAuthInviteProbe(transaction)
-      const identities = await transaction<{ id: string }[]>`
-        select gen_random_uuid() as id from generate_series(1, 3)
-      `
-      const { tenant_count: beforeTenantCount } = first(
-        await transaction<{ tenant_count: number }[]>`
-          select count(*)::int as tenant_count from public.tenants
-        `
-      )
-      const crossTenant = first(await transaction<{ accepted: boolean }[]>`
-        select pg_temp.try_tenant_invite(
-          ${identities[0]!.id}::uuid,
-          'cross-tenant@probe.test',
-          ${transaction.json(inviteMetadata(tenantB, 'viewer', userA))}
-        ) as accepted
-      `)
-      const invalidRole = first(await transaction<{ accepted: boolean }[]>`
-        select pg_temp.try_tenant_invite(
-          ${identities[1]!.id}::uuid,
-          'invalid-role@probe.test',
-          ${transaction.json(inviteMetadata(tenantA, 'not-a-role', userA))}
-        ) as accepted
-      `)
-      const malformed = first(await transaction<{ accepted: boolean }[]>`
-        select pg_temp.try_tenant_invite(
-          ${identities[2]!.id}::uuid,
-          'malformed@probe.test',
-          jsonb_build_object('tenant_invite_v1', 'not-an-object')
-        ) as accepted
-      `)
-      const { tenant_count: afterTenantCount } = first(
-        await transaction<{ tenant_count: number }[]>`
-          select count(*)::int as tenant_count from public.tenants
-        `
-      )
-      const { profile_count: profileCount } = first(
-        await transaction<{ profile_count: number }[]>`
-          select count(*)::int as profile_count
-            from public.users
-           where id = any(${identities.map((identity) => identity.id)}::uuid[])
-        `
-      )
-
-      return {
-        afterTenantCount,
-        beforeTenantCount,
-        crossTenant,
-        invalidRole,
-        malformed,
-        profileCount,
-      }
-    })
-
-    expect(result.crossTenant.accepted).toBe(false)
-    expect(result.invalidRole.accepted).toBe(false)
-    expect(result.malformed.accepted).toBe(false)
-    expect(result.afterTenantCount).toBe(result.beforeTenantCount)
-    expect(result.profileCount).toBe(0)
-  })
-
-  it('rolls back the auth user and profile when mandatory audit evidence cannot be written', async () => {
-    const result = await inRollback(sql, async (transaction) => {
-      const { tenantA, userA } = await seedTwoTenants(transaction)
-      await installAuthInviteProbe(transaction)
-      const { id } = first(await transaction<{ id: string }[]>`
-        select gen_random_uuid() as id
-      `)
-      const { tenant_count: beforeTenantCount } = first(
-        await transaction<{ tenant_count: number }[]>`
-          select count(*)::int as tenant_count from public.tenants
-        `
-      )
-
-      await transaction.unsafe(`
-        create or replace function public.reject_tenant_invite_audit_probe()
-        returns trigger
-        language plpgsql
-        set search_path = ''
-        as $$
-        begin
-          raise exception 'tenant invite audit probe failure';
-        end;
-        $$;
-      `)
-
-      await transaction.unsafe(`
-        create trigger tenant_invite_audit_probe
-          before insert on public.audit_log
-          for each row
-          execute function public.reject_tenant_invite_audit_probe();
-      `)
-
-      const attempted = first(await transaction<{ accepted: boolean }[]>`
-        select pg_temp.try_tenant_invite(
-          ${id}::uuid,
-          'audit-failure@probe.test',
-          ${transaction.json(inviteMetadata(tenantA, 'viewer', userA))}
-        ) as accepted
-      `)
-      const { tenant_count: afterTenantCount } = first(
-        await transaction<{ tenant_count: number }[]>`
-          select count(*)::int as tenant_count from public.tenants
-        `
-      )
-      const { auth_count: authCount } = first(
-        await transaction<{ auth_count: number }[]>`
-          select count(*)::int as auth_count
-            from auth.users
-           where id = ${id}::uuid
-        `
-      )
-      const { profile_count: profileCount } = first(
-        await transaction<{ profile_count: number }[]>`
-          select count(*)::int as profile_count
-            from public.users
-           where id = ${id}::uuid
-        `
-      )
-
-      return {
-        afterTenantCount,
-        attempted,
-        authCount,
-        beforeTenantCount,
-        profileCount,
-      }
-    })
-
-    expect(result.attempted.accepted).toBe(false)
-    expect(result.afterTenantCount).toBe(result.beforeTenantCount)
-    expect(result.authCount).toBe(0)
-    expect(result.profileCount).toBe(0)
   })
 })

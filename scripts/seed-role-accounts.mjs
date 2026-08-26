@@ -14,6 +14,7 @@
  * Output: a markdown-style table at the end with email + password + role.
  */
 import { readFileSync, existsSync, readdirSync } from 'node:fs'
+import { createHash, randomBytes } from 'node:crypto'
 import { resolve, dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
@@ -123,7 +124,74 @@ async function findAuthUserByEmail(email) {
   return null
 }
 
-async function createOrUpdateAuthUser(email, password, fullName, invite) {
+function createOpaqueInvitationToken() {
+  const token = randomBytes(32).toString('base64url')
+  return {
+    token,
+    tokenHash: createHash('sha256').update(token).digest('hex'),
+  }
+}
+
+function hasErrorCode(error, code) {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    error.code === code
+  )
+}
+
+async function createInvitationIntent({ tenantId, email, role, invitedBy }) {
+  const { token, tokenHash } = createOpaqueInvitationToken()
+  try {
+    const rows = await sql`
+      INSERT INTO public.tenant_invitation_intents (
+        tenant_id,
+        invited_email,
+        invited_role,
+        invited_by,
+        created_by,
+        token_hash,
+        expires_at
+      )
+      VALUES (
+        ${tenantId},
+        ${email.trim().toLowerCase()},
+        ${role},
+        ${invitedBy},
+        ${invitedBy},
+        ${tokenHash},
+        clock_timestamp() + interval '23 hours'
+      )
+      RETURNING id
+    `
+    const intent = rows[0]
+    if (!intent) throw new Error('Invitation authority was not persisted.')
+    return { id: intent.id, token }
+  } catch (error) {
+    if (hasErrorCode(error, '23505')) {
+      throw new Error(
+        'A pending invitation already exists for this email. Do not retry until it is reviewed.'
+      )
+    }
+    throw error
+  }
+}
+
+async function revokeUnusedInvitationIntent(intentId, tenantId, invitedBy) {
+  await sql`
+    UPDATE public.tenant_invitation_intents
+       SET revoked_at = clock_timestamp(),
+           revoked_by = ${invitedBy},
+           revocation_reason = 'auth_create_rejected'
+     WHERE id = ${intentId}
+       AND tenant_id = ${tenantId}
+       AND consumed_at IS NULL
+       AND revoked_at IS NULL
+  `
+}
+
+async function createOrUpdateAuthUser(email, password, fullName, authority) {
   const existing = await findAuthUserByEmail(email)
   if (existing) {
     // Reset password for known-good demo state.
@@ -138,17 +206,33 @@ async function createOrUpdateAuthUser(email, password, fullName, invite) {
     if (!ok) throw new Error(`reset password failed for ${email}: ${JSON.stringify(body)}`)
     return { id: existing.id, created: false }
   }
-  const { ok, body } = await adminFetch('/auth/v1/admin/users', {
-    method: 'POST',
-    body: JSON.stringify({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: { full_name: fullName },
-      app_metadata: { tenant_invite_v1: invite },
-    }),
-  })
-  if (!ok) throw new Error(`create auth user failed for ${email}: ${JSON.stringify(body)}`)
+  const invitation = await createInvitationIntent({ ...authority, email })
+  const { ok, status, body } = await adminFetch('/auth/v1/admin/users', {
+      method: 'POST',
+      body: JSON.stringify({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: {
+          provisioning_mode: 'tenant_invitation_v1',
+          tenant_invitation_token_v1: invitation.token,
+          full_name: fullName,
+        },
+      }),
+    })
+  if (!ok) {
+    if (status >= 400 && status < 500) {
+      await revokeUnusedInvitationIntent(invitation.id, authority.tenantId, authority.invitedBy)
+    }
+    throw new Error(
+      status >= 400 && status < 500
+        ? `create auth user rejected for ${email} (HTTP ${status})`
+        : `create auth user outcome is unknown for ${email} (HTTP ${status})`
+    )
+  }
+  if (!body?.id) {
+    throw new Error(`create auth user outcome is unknown for ${email}`)
+  }
   return { id: body.id, created: true }
 }
 
@@ -214,9 +298,9 @@ try {
         SHARED_PASSWORD,
         acct.full_name,
         {
-          tenant_id: tenant.id,
+          tenantId: tenant.id,
           role: acct.role,
-          invited_by: invitedBy,
+          invitedBy,
         },
       )
       await verifyProvisionedProfile(auth.id, tenant.id, acct.role)
