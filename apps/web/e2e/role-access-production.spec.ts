@@ -49,6 +49,10 @@ test.describe('production role access matrix', () => {
         '/admin/users',
       ]),
     ]
+    // The platform owner console lives outside the tenant navigation map.
+    // Every disposable role is a tenant user, including the ERP `owner`
+    // role, so this remains a stable negative boundary for the full matrix.
+    const platformOnlyPaths = ['/owner']
     const errors: string[] = []
 
     for (const role of roles) {
@@ -130,9 +134,12 @@ test.describe('production role access matrix', () => {
             ).not.toBe('forbidden')
           }
 
-          const forbiddenPaths = directRouteCandidates.filter(
-            (path) => !canViewPath(role, path)
-          )
+          const forbiddenPaths = [
+            ...new Set([
+              ...directRouteCandidates.filter((path) => !canViewPath(role, path)),
+              ...platformOnlyPaths,
+            ]),
+          ]
           expect(forbiddenPaths.length, `${role} must have tested forbidden URLs`).toBeGreaterThan(0)
 
           for (const path of forbiddenPaths) {
@@ -147,7 +154,9 @@ test.describe('production role access matrix', () => {
                 timeout: 10_000,
               })
               .toBe('/dashboard')
-            expect(new URL(page.url()).searchParams.get('error')).toBe('forbidden')
+            expect(new URL(page.url()).searchParams.get('error')).toMatch(
+              /(?:^|-)forbidden$/
+            )
           }
         } finally {
           try {

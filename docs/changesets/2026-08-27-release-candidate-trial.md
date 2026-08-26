@@ -2,8 +2,9 @@
 
 ## Scope
 
-- Replace application-side invitation provisioning with the trusted,
-  server-owned `tenant_invite_v1` Auth-trigger contract.
+- Replace the invalid `app_metadata.tenant_invite_v1` trigger contract with a
+  server-created, hash-only, expiring one-use invitation intent validated from
+  an opaque token in raw user metadata.
 - Make the two ADR-028 platform-global tables explicitly server-only,
   forced-RLS, and append-only where applicable.
 - Cover all 13 canonical roles in navigation, API role assignment, seeded
@@ -14,6 +15,9 @@
   including real-browser anonymous-route verification.
 - Add no-skip reporting and V8 coverage gates for the affected Web, API,
   database, and shared-authorization release paths.
+- Preserve the production CSP while documenting the separately tested,
+  loopback-only local Supabase Realtime prerequisite for authenticated browser
+  verification.
 
 ## Evidence
 
@@ -38,9 +42,17 @@
 
 ## Release status
 
-Local implementation and disposable-database evidence are complete. The
-authenticated 13-role browser matrix is intentionally not claimed complete:
-this workspace lacks an explicitly identified isolated E2E base URL, test
-user credentials, project ID, and role-matrix authorization. CI now fails
-closed if those trusted-PR inputs are absent. No deployment was requested or
-performed.
+**Local YES-GO for the controlled trial candidate.** The direct-SQL invitation
+evidence was superseded by a real local Supabase Auth Admin API suite, which
+passed all 16 invitation/self-signup cases with zero skips. This proves the
+ADR-030 server-created, one-use invitation-intent path rather than the invalid
+legacy `app_metadata` marker path.
+
+The normal production build, lint, typecheck, no-skip, and invariant gates
+passed. The production-mode authenticated Playwright matrix also passed for all
+13 canonical roles after the tested, validated local loopback CSP path enabled
+disposable Supabase Realtime without changing the production CSP source set.
+
+This is local/disposable release evidence only. No deployment, production user
+creation, production tenant write, provider configuration change, or
+production-provider verification occurred.
