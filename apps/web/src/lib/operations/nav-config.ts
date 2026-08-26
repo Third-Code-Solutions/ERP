@@ -13,6 +13,7 @@
  * in the per-item allow-lists.
  */
 import type { AppRole } from '@third-code-erp/auth'
+import { ERP_ROLES } from '@third-code-erp/shared-types'
 
 export interface NavItemDef {
   href: string
@@ -80,21 +81,7 @@ const CANONICAL: Record<AppRole, AppRole> = {
   viewer: 'viewer',
 }
 
-const APP_ROLE_VALUES = new Set<string>([
-  'owner',
-  'estimator',
-  'pm',
-  'admin',
-  'sales',
-  'commercial',
-  'design',
-  'sd_pm_pe',
-  'finance',
-  'procurement',
-  'safety',
-  'cx',
-  'viewer',
-])
+const APP_ROLE_VALUES = new Set<string>(ERP_ROLES)
 
 export function isAppRole(value: unknown): value is AppRole {
   return typeof value === 'string' && APP_ROLE_VALUES.has(value)

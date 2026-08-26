@@ -8,6 +8,7 @@ import {
   DATABASE_URL,
   inRollback,
   makeSql,
+  seedTwoTenants,
 } from './_db-harness'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -16,6 +17,29 @@ const migrationPath = resolve(
   '../../../../supabase/migrations/20260729054456_persist_signup_organization_type.sql'
 )
 const migrationSql = readFileSync(migrationPath, 'utf8').toLowerCase()
+const invitationMigrationPath = resolve(
+  __dirname,
+  '../../../../supabase/migrations/20260827120000_secure_tenant_invitation_provisioning.sql'
+)
+const invitationMigrationSql = readFileSync(invitationMigrationPath, 'utf8').toLowerCase()
+
+const INVITABLE_ROLES = [
+  'owner',
+  'estimator',
+  'pm',
+  'admin',
+  'sales',
+  'commercial',
+  'design',
+  'sd_pm_pe',
+  'finance',
+  'procurement',
+  'safety',
+  'cx',
+  'viewer',
+] as const
+
+type InvitableRole = (typeof INVITABLE_ROLES)[number]
 
 function first<T>(rows: T[]): T {
   const row = rows[0]
@@ -66,6 +90,30 @@ describe('signup provisioning migration contract', () => {
     expect(migrationSql).toMatch(
       /grant execute on function public\.handle_new_user\(\)[\s\S]*?to service_role/
     )
+  })
+})
+
+describe('tenant invitation provisioning migration contract', () => {
+  it('treats only server-owned app metadata as a tenant invitation authority', () => {
+    expect(invitationMigrationSql).toContain("'tenant_invite_v1'")
+    expect(invitationMigrationSql).toContain('new.raw_app_meta_data')
+    expect(invitationMigrationSql).toContain('jsonb_typeof')
+    expect(invitationMigrationSql).toContain('invalid tenant invite metadata')
+    expect(invitationMigrationSql).not.toMatch(
+      /raw_user_meta_data[\s\S]{0,160}(tenant_id|invited_by|invited_role)/
+    )
+  })
+
+  it('validates the inviter home tenant and every role against public.role', () => {
+    expect(invitationMigrationSql).toContain('from public.users inviter')
+    expect(invitationMigrationSql).toContain("inviter.role in ('admin', 'owner')")
+    expect(invitationMigrationSql).toContain('::public.role')
+  })
+
+  it('binds audit actor evidence to the validated inviter and fails atomically', () => {
+    expect(invitationMigrationSql).toContain('tenant_invite_v1_actor_id')
+    expect(invitationMigrationSql).toContain('current_setting')
+    expect(invitationMigrationSql).toContain('coalesce')
   })
 })
 
@@ -282,5 +330,372 @@ runtimeSuite('signup provisioning runtime proof', () => {
       authenticated_execute: false,
       service_role_execute: true,
     })
+  })
+})
+
+async function installAuthInviteProbe(
+  transaction: postgres.TransactionSql
+): Promise<void> {
+  await transaction.unsafe(`
+    create or replace function pg_temp.try_tenant_invite(
+      p_id uuid,
+      p_email text,
+      p_metadata jsonb
+    )
+    returns boolean
+    language plpgsql
+    as $$
+    begin
+      insert into auth.users (
+        id,
+        email,
+        raw_user_meta_data,
+        raw_app_meta_data
+      )
+      values (
+        p_id,
+        p_email,
+        jsonb_build_object('full_name', 'Invitation Probe'),
+        p_metadata
+      );
+      return true;
+    exception
+      when others then
+        return false;
+    end;
+    $$;
+  `)
+}
+
+function inviteMetadata(
+  tenantId: string,
+  role: InvitableRole | 'not-a-role',
+  invitedBy: string
+): {
+  tenant_invite_v1: {
+    tenant_id: string
+    role: InvitableRole | 'not-a-role'
+    invited_by: string
+  }
+} {
+  return {
+    tenant_invite_v1: {
+      tenant_id: tenantId,
+      role,
+      invited_by: invitedBy,
+    },
+  }
+}
+
+const invitationRuntimeSuite = DATABASE_URL ? describe : describe.skip
+
+invitationRuntimeSuite('tenant invitation provisioning runtime proof', () => {
+  let sql: postgres.Sql
+
+  beforeAll(() => {
+    sql = makeSql()
+  })
+
+  afterAll(async () => {
+    await sql?.end({ timeout: 5 })
+  })
+
+  it('adds every supported role to the inviter tenant without creating an orphan tenant', async () => {
+    const result = await inRollback(sql, async (transaction) => {
+      const { tenantA, userA } = await seedTwoTenants(transaction)
+      const { tenant_count: beforeTenantCount } = first(
+        await transaction<{ tenant_count: number }[]>`
+          select count(*)::int as tenant_count from public.tenants
+        `
+      )
+      const profiles: Array<{
+        membership_count: number
+        role: string
+        tenant_id: string
+      }> = []
+
+      for (const role of INVITABLE_ROLES) {
+        const { id } = first(await transaction<{ id: string }[]>`
+          select gen_random_uuid() as id
+        `)
+        await transaction`
+          insert into auth.users (
+            id,
+            email,
+            raw_user_meta_data,
+            raw_app_meta_data
+          )
+          values (
+            ${id}::uuid,
+            ${`invite-${role}@probe.test`},
+            jsonb_build_object('full_name', ${`Invite ${role}`}::text),
+            ${transaction.json(inviteMetadata(tenantA, role, userA))}
+          )
+        `
+        profiles.push(
+          first(await transaction<{
+            membership_count: number
+            role: string
+            tenant_id: string
+          }[]>`
+            select
+              profile.tenant_id,
+              profile.role::text as role,
+              (
+                select count(*)::int
+                  from public.tenant_memberships membership
+                 where membership.user_id = profile.id
+              ) as membership_count
+              from public.users profile
+             where profile.id = ${id}::uuid
+          `)
+        )
+      }
+
+      const { tenant_count: afterTenantCount } = first(
+        await transaction<{ tenant_count: number }[]>`
+          select count(*)::int as tenant_count from public.tenants
+        `
+      )
+
+      return { beforeTenantCount, afterTenantCount, profiles, tenantA }
+    })
+
+    expect(result.afterTenantCount).toBe(result.beforeTenantCount)
+    expect(result.profiles).toEqual(
+      INVITABLE_ROLES.map((role) => ({
+        membership_count: 1,
+        role,
+        tenant_id: result.tenantA,
+      }))
+    )
+  })
+
+  it('records immutable invite audit evidence with the validated inviter as actor', async () => {
+    const result = await inRollback(sql, async (transaction) => {
+      const { tenantA, userA } = await seedTwoTenants(transaction)
+      const { id } = first(await transaction<{ id: string }[]>`
+        select gen_random_uuid() as id
+      `)
+
+      await transaction`
+        insert into auth.users (
+          id,
+          email,
+          raw_user_meta_data,
+          raw_app_meta_data
+        )
+        values (
+          ${id}::uuid,
+          'audited-invite@probe.test',
+          jsonb_build_object('full_name', 'Audited Invite'),
+          ${transaction.json(inviteMetadata(tenantA, 'sales', userA))}
+        )
+      `
+
+      const audit = first(await transaction<{
+        id: number
+        actor_id: string | null
+        tenant_id: string
+        action: string
+      }[]>`
+        select id, actor_id, tenant_id, action
+          from public.audit_log
+         where entity_type = 'users'
+           and entity_id = ${id}::uuid
+         order by id desc
+         limit 1
+      `)
+      await transaction.unsafe(`
+        create or replace function pg_temp.try_audit_update(p_id bigint)
+        returns boolean
+        language plpgsql
+        as $$
+        declare
+          changed_count integer;
+        begin
+          update public.audit_log
+             set actor_id = null
+           where id = p_id;
+          get diagnostics changed_count = row_count;
+          return changed_count > 0;
+        end;
+        $$;
+
+        create or replace function pg_temp.try_audit_delete(p_id bigint)
+        returns boolean
+        language plpgsql
+        as $$
+        declare
+          changed_count integer;
+        begin
+          delete from public.audit_log where id = p_id;
+          get diagnostics changed_count = row_count;
+          return changed_count > 0;
+        end;
+        $$;
+      `)
+      const { accepted: updated } = first(await transaction<{ accepted: boolean }[]>`
+        select pg_temp.try_audit_update(${audit.id}) as accepted
+      `)
+      const { accepted: deleted } = first(await transaction<{ accepted: boolean }[]>`
+        select pg_temp.try_audit_delete(${audit.id}) as accepted
+      `)
+      const retained = first(await transaction<{
+        actor_id: string | null
+      }[]>`
+        select actor_id
+          from public.audit_log
+         where id = ${audit.id}
+      `)
+
+      return { audit, updated, deleted, retained, tenantA, userA }
+    })
+
+    expect(result.audit).toMatchObject({
+      actor_id: result.userA,
+      tenant_id: result.tenantA,
+      action: 'create',
+    })
+    expect(result.updated).toBe(false)
+    expect(result.deleted).toBe(false)
+    expect(result.retained.actor_id).toBe(result.userA)
+  })
+
+  it('fails closed for cross-tenant, invalid-role, and malformed invitation metadata', async () => {
+    const result = await inRollback(sql, async (transaction) => {
+      const { tenantA, tenantB, userA } = await seedTwoTenants(transaction)
+      await installAuthInviteProbe(transaction)
+      const identities = await transaction<{ id: string }[]>`
+        select gen_random_uuid() as id from generate_series(1, 3)
+      `
+      const { tenant_count: beforeTenantCount } = first(
+        await transaction<{ tenant_count: number }[]>`
+          select count(*)::int as tenant_count from public.tenants
+        `
+      )
+      const crossTenant = first(await transaction<{ accepted: boolean }[]>`
+        select pg_temp.try_tenant_invite(
+          ${identities[0]!.id}::uuid,
+          'cross-tenant@probe.test',
+          ${transaction.json(inviteMetadata(tenantB, 'viewer', userA))}
+        ) as accepted
+      `)
+      const invalidRole = first(await transaction<{ accepted: boolean }[]>`
+        select pg_temp.try_tenant_invite(
+          ${identities[1]!.id}::uuid,
+          'invalid-role@probe.test',
+          ${transaction.json(inviteMetadata(tenantA, 'not-a-role', userA))}
+        ) as accepted
+      `)
+      const malformed = first(await transaction<{ accepted: boolean }[]>`
+        select pg_temp.try_tenant_invite(
+          ${identities[2]!.id}::uuid,
+          'malformed@probe.test',
+          jsonb_build_object('tenant_invite_v1', 'not-an-object')
+        ) as accepted
+      `)
+      const { tenant_count: afterTenantCount } = first(
+        await transaction<{ tenant_count: number }[]>`
+          select count(*)::int as tenant_count from public.tenants
+        `
+      )
+      const { profile_count: profileCount } = first(
+        await transaction<{ profile_count: number }[]>`
+          select count(*)::int as profile_count
+            from public.users
+           where id = any(${identities.map((identity) => identity.id)}::uuid[])
+        `
+      )
+
+      return {
+        afterTenantCount,
+        beforeTenantCount,
+        crossTenant,
+        invalidRole,
+        malformed,
+        profileCount,
+      }
+    })
+
+    expect(result.crossTenant.accepted).toBe(false)
+    expect(result.invalidRole.accepted).toBe(false)
+    expect(result.malformed.accepted).toBe(false)
+    expect(result.afterTenantCount).toBe(result.beforeTenantCount)
+    expect(result.profileCount).toBe(0)
+  })
+
+  it('rolls back the auth user and profile when mandatory audit evidence cannot be written', async () => {
+    const result = await inRollback(sql, async (transaction) => {
+      const { tenantA, userA } = await seedTwoTenants(transaction)
+      await installAuthInviteProbe(transaction)
+      const { id } = first(await transaction<{ id: string }[]>`
+        select gen_random_uuid() as id
+      `)
+      const { tenant_count: beforeTenantCount } = first(
+        await transaction<{ tenant_count: number }[]>`
+          select count(*)::int as tenant_count from public.tenants
+        `
+      )
+
+      await transaction.unsafe(`
+        create or replace function public.reject_tenant_invite_audit_probe()
+        returns trigger
+        language plpgsql
+        set search_path = ''
+        as $$
+        begin
+          raise exception 'tenant invite audit probe failure';
+        end;
+        $$;
+      `)
+
+      await transaction.unsafe(`
+        create trigger tenant_invite_audit_probe
+          before insert on public.audit_log
+          for each row
+          execute function public.reject_tenant_invite_audit_probe();
+      `)
+
+      const attempted = first(await transaction<{ accepted: boolean }[]>`
+        select pg_temp.try_tenant_invite(
+          ${id}::uuid,
+          'audit-failure@probe.test',
+          ${transaction.json(inviteMetadata(tenantA, 'viewer', userA))}
+        ) as accepted
+      `)
+      const { tenant_count: afterTenantCount } = first(
+        await transaction<{ tenant_count: number }[]>`
+          select count(*)::int as tenant_count from public.tenants
+        `
+      )
+      const { auth_count: authCount } = first(
+        await transaction<{ auth_count: number }[]>`
+          select count(*)::int as auth_count
+            from auth.users
+           where id = ${id}::uuid
+        `
+      )
+      const { profile_count: profileCount } = first(
+        await transaction<{ profile_count: number }[]>`
+          select count(*)::int as profile_count
+            from public.users
+           where id = ${id}::uuid
+        `
+      )
+
+      return {
+        afterTenantCount,
+        attempted,
+        authCount,
+        beforeTenantCount,
+        profileCount,
+      }
+    })
+
+    expect(result.attempted.accepted).toBe(false)
+    expect(result.afterTenantCount).toBe(result.beforeTenantCount)
+    expect(result.authCount).toBe(0)
+    expect(result.profileCount).toBe(0)
   })
 })

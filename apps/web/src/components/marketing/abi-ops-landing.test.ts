@@ -22,7 +22,7 @@ describe('ABI OPS public landing contract', () => {
     expect(landingSource).toContain('ABI OPS home')
     expect(landingSource).toContain('ABI OPS connects pipeline')
     expect(landingSource).toContain('src="/images/abi-ops-hero.png"')
-    expect(landingSource).toContain('Start guided setup')
+    expect(landingSource).toContain('Book a demo')
     expect(landingSource).toContain('Open workspace')
   })
 

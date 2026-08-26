@@ -8,6 +8,45 @@ test.use({
 
 test.describe.configure({ timeout: 90_000 })
 
+test('renders the public demo form and redirects anonymous owner access', async ({
+  page,
+}, testInfo) => {
+  const consoleErrors: string[] = []
+  const pageErrors: string[] = []
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text())
+  })
+  page.on('pageerror', (error) => pageErrors.push(error.message))
+
+  const demoResponse = await page.goto('/book-demo', {
+    waitUntil: 'domcontentloaded',
+  })
+  expect(demoResponse?.status()).toBe(200)
+  await expect(
+    page.getByRole('heading', {
+      level: 1,
+      name: 'See your operation in one connected record.',
+    })
+  ).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Book your demo' })).toBeVisible()
+  await expect(page.getByLabel('Work email')).toHaveAttribute('type', 'email')
+  await expect(page.getByLabel('What would you like to improve?')).toBeVisible()
+  await page.screenshot({
+    path: testInfo.outputPath('book-demo-public.png'),
+    fullPage: true,
+  })
+
+  const ownerResponse = await page.goto('/owner', {
+    waitUntil: 'domcontentloaded',
+  })
+  expect(ownerResponse?.status()).toBeLessThan(400)
+  await expect(page).toHaveURL(/\/auth\/login/)
+  await expect(page.getByRole('heading', { name: /sign in/i })).toBeVisible()
+
+  expect(consoleErrors).toEqual([])
+  expect(pageErrors).toEqual([])
+})
+
 test('validates the consolidated public frontend candidate', async ({
   page,
 }, testInfo) => {
@@ -119,11 +158,13 @@ test('validates the consolidated public frontend candidate', async ({
     )
   ).toBeVisible()
 
-  const heroSetup = page.locator('[data-analytics="hero-guided-setup"]')
-  await expect(heroSetup).toHaveAttribute('href', '/auth/signup')
-  const workspaceLink = page
-    .locator('[data-hero]')
-    .getByRole('link', { name: 'Open workspace' })
+  const heroDemo = page.locator('[data-hero]').getByRole('link', {
+    name: 'Book a demo',
+  })
+  await expect(heroDemo).toHaveAttribute('href', '/book-demo')
+  const workspaceLink = page.locator('[data-hero]').getByRole('link', {
+    name: 'Open workspace',
+  })
 
   for (const viewport of [
     { name: 'desktop', width: 1440, height: 1000 },
@@ -142,7 +183,7 @@ test('validates the consolidated public frontend candidate', async ({
 
     if (viewport.name === 'mobile') {
       const targetHeights = await Promise.all(
-        [heroSetup, workspaceLink, nextPriority].map((target) =>
+        [heroDemo, workspaceLink, nextPriority].map((target) =>
           target.evaluate((element) =>
             Math.round(element.getBoundingClientRect().height)
           )

@@ -105,6 +105,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.6",
     "@eslint/js": "^9.39.5",
+    "@vitest/coverage-v8": "^3.2.6",
     "eslint": "^9.39.5",
     "eslint-config-next": "15.5.23",
     "turbo": "^2.9.14",

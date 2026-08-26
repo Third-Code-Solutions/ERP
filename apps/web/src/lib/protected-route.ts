@@ -19,6 +19,7 @@ export const PROTECTED_ROUTE_PREFIXES = [
   '/inventory',
   '/crm',
   '/admin',
+  '/owner',
   '/tasks',
   '/permits',
   '/process',

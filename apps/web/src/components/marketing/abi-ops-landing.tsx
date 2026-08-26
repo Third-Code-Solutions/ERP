@@ -270,11 +270,11 @@ export function AbiOpsLanding() {
           </Link>
           <Link
             className={styles.navCta}
-            data-analytics="nav-guided-setup"
-            href="/auth/signup"
-            onClick={() => track('Guided Setup CTA', { placement: 'navigation' })}
+            data-analytics="nav-book-demo"
+            href="/book-demo"
+            onClick={() => track('Book Demo CTA', { placement: 'navigation' })}
           >
-            Start guided setup
+            Book a demo
           </Link>
         </div>
       </nav>
@@ -313,11 +313,11 @@ export function AbiOpsLanding() {
               <div className={styles.heroActions}>
                 <Link
                   className={styles.primaryButton}
-                  data-analytics="hero-guided-setup"
-                  href="/auth/signup"
-                  onClick={() => track('Guided Setup CTA', { placement: 'hero' })}
+                  data-analytics="hero-book-demo"
+                  href="/book-demo"
+                  onClick={() => track('Book Demo CTA', { placement: 'hero' })}
                 >
-                  Start guided setup
+                  Book a demo
                   <ProductGlyph name="arrow" />
                 </Link>
                 <Link
@@ -590,11 +590,11 @@ export function AbiOpsLanding() {
           <div className={styles.ctaActions}>
             <Link
               className={styles.ctaPrimary}
-              data-analytics="footer-guided-setup"
-              href="/auth/signup"
-              onClick={() => track('Guided Setup CTA', { placement: 'closing' })}
+              data-analytics="footer-book-demo"
+              href="/book-demo"
+              onClick={() => track('Book Demo CTA', { placement: 'closing' })}
             >
-              Start guided setup
+              Book a demo
               <ProductGlyph name="arrow" />
             </Link>
             <Link
@@ -632,7 +632,7 @@ export function AbiOpsLanding() {
             <div>
               <strong>Access</strong>
               <Link href="/auth/login">Open workspace</Link>
-              <Link href="/auth/signup">Start guided setup</Link>
+              <Link href="/book-demo">Book a demo</Link>
             </div>
             <div>
               <strong>Trust</strong>

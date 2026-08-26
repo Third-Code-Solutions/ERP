@@ -12,6 +12,8 @@ describe('browser protected-route boundary', () => {
     expect(isProtectedRoute('/process')).toBe(true)
     expect(isProtectedRoute('/inspection/11111111-1111-4111-8111-111111111111')).toBe(true)
     expect(isProtectedRoute('/weekly-report/11111111-1111-4111-8111-111111111111')).toBe(true)
+    expect(isProtectedRoute('/owner')).toBe(true)
+    expect(isProtectedRoute('/owner/organizations')).toBe(true)
   })
 
   it('does not overmatch similarly named public paths or APIs', () => {

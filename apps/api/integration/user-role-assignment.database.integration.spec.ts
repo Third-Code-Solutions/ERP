@@ -12,6 +12,7 @@ import {
   userRoleAssignmentRequests,
   users,
 } from '@third-code-erp/database'
+import { ERP_ROLES } from '@third-code-erp/shared-types'
 import { and, eq } from 'drizzle-orm'
 import request from 'supertest'
 import { describe, expect, it, vi } from 'vitest'
@@ -268,6 +269,55 @@ suite('User role assignment database integration', () => {
         expect(JSON.stringify(auditRows[0]?.diff)).not.toContain(
           '@integration.test'
         )
+
+        let expectedRole = 'pm'
+        for (const role of ERP_ROLES) {
+          const assignment = await request(app.getHttpServer())
+            .patch(`/v1/admin/users/${targetA}/role`)
+            .set('Authorization', 'Bearer owner-a-token')
+            .set('Idempotency-Key', `role-integration-target-${role}`)
+            .send({ expectedRole, role })
+            .expect(200)
+
+          expect(assignment.body).toMatchObject({
+            userId: targetA,
+            tenantId: tenantA,
+            previousRole: expectedRole,
+            role,
+            status: 'updated',
+          })
+          expectedRole = role
+        }
+
+        const [persistedTarget] = await db
+          .select({ role: users.role })
+          .from(users)
+          .where(
+            and(eq(users.tenant_id, tenantA), eq(users.id, targetA))
+          )
+          .limit(1)
+        const roleAuditRows = await db
+          .select({ diff: auditLog.diff })
+          .from(auditLog)
+          .where(
+            and(
+              eq(auditLog.tenant_id, tenantA),
+              eq(auditLog.entity_type, 'user'),
+              eq(auditLog.entity_id, targetA),
+              eq(auditLog.action, 'update')
+            )
+          )
+
+        expect(persistedTarget?.role).toBe(ERP_ROLES.at(-1))
+        expect(roleAuditRows).toHaveLength(1 + ERP_ROLES.length)
+        for (const role of ERP_ROLES) {
+          expect(
+            roleAuditRows.some((row) =>
+              JSON.stringify(row.diff).includes(`"after":"${role}"`)
+            ),
+            `audit persistence for ${role}`
+          ).toBe(true)
+        }
     } finally {
       await app?.close()
     }

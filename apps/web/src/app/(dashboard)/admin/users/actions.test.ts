@@ -5,8 +5,11 @@ const mocks = vi.hoisted(() => ({
   can: vi.fn(),
   createSupabaseAdminClient: vi.fn(),
   select: vi.fn(),
+  insert: vi.fn(),
+  transaction: vi.fn(),
   update: vi.fn(),
   writeAuditLog: vi.fn(),
+  writeAuditLogInTransaction: vi.fn(),
   revalidatePath: vi.fn(),
   adminUserRoleAssignmentWritesUseCoreApi: vi.fn(),
   assignUserRoleThroughCoreApi: vi.fn(),
@@ -21,12 +24,15 @@ vi.mock('@third-code-erp/auth', () => ({
 vi.mock('@third-code-erp/database', () => ({
   db: {
     select: mocks.select,
+    insert: mocks.insert,
+    transaction: mocks.transaction,
     update: mocks.update,
   },
 }))
 
 vi.mock('@/lib/audit', () => ({
   writeAuditLog: mocks.writeAuditLog,
+  writeAuditLogInTransaction: mocks.writeAuditLogInTransaction,
 }))
 
 vi.mock('@/lib/erp-core-client', () => ({
@@ -95,6 +101,9 @@ describe('admin user role authority', () => {
     mocks.update.mockReturnValue({
       set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) }),
     })
+    mocks.transaction.mockImplementation(async (callback) =>
+      callback({ update: mocks.update })
+    )
   })
 
   it('uses Core for the selected tenant and performs no fallback write', async () => {
@@ -142,7 +151,9 @@ describe('admin user role authority', () => {
     await expect(updateUserRole(roleForm('pm'))).resolves.toEqual({})
 
     expect(mocks.update).toHaveBeenCalledOnce()
-    expect(mocks.writeAuditLog).toHaveBeenCalledWith(
+    expect(mocks.transaction).toHaveBeenCalledOnce()
+    expect(mocks.writeAuditLogInTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({ update: mocks.update }),
       expect.objectContaining({
         tenantId: TENANT_ID,
         actorId: USER_ID,
@@ -167,6 +178,38 @@ describe('admin user role authority', () => {
     })
     expect(mocks.select).not.toHaveBeenCalled()
     expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
+  })
+
+  it('creates an invite with only server-authorized app metadata', async () => {
+    const noExistingUser = userQuery([])
+    mocks.select.mockReturnValue({ from: noExistingUser.from })
+    const adminCreateUser = vi.fn().mockResolvedValue({
+      data: { user: { id: TARGET_ID } },
+      error: null,
+    })
+    mocks.createSupabaseAdminClient.mockReturnValue({
+      auth: { admin: { createUser: adminCreateUser } },
+    })
+
+    await expect(createUser(createUserForm('finance'))).resolves.toEqual({
+      userId: TARGET_ID,
+    })
+
+    expect(adminCreateUser).toHaveBeenCalledWith({
+      email: 'new-owner@example.test',
+      password: 'long-enough-password',
+      email_confirm: true,
+      user_metadata: { full_name: 'New Owner' },
+      app_metadata: {
+        tenant_invite_v1: {
+          tenant_id: TENANT_ID,
+          role: 'finance',
+          invited_by: USER_ID,
+        },
+      },
+    })
+    expect(mocks.insert).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
   })
 
   it('prevents an admin from resetting an owner password', async () => {

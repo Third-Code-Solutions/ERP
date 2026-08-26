@@ -9,6 +9,7 @@
     "lint": "pnpm --dir ../.. exec eslint --max-warnings=0 apps/api/src",
     "typecheck": "tsc --noEmit",
     "test": "vitest run src test",
+    "test:release-coverage": "vitest run --config vitest.release.config.ts",
     "test:e2e": "vitest run test",
     "test:integration": "vitest run integration"
   },

@@ -37,10 +37,12 @@ const integrationEnabled =
   Boolean(process.env.REDIS_URL) &&
   process.env.ERP_API_INTEGRATION_EXPECTED === '1'
 const suite = integrationEnabled ? describe : describe.skip
+const redisRestartContainer = process.env.ERP_REDIS_RESTART_CONTAINER
+const redisRestartWslDistribution = process.env.ERP_REDIS_RESTART_WSL_DISTRIBUTION
 const redisRestartEnabled =
   integrationEnabled &&
   process.env.ERP_REDIS_RESTART_EXPECTED === '1' &&
-  Boolean(process.env.ERP_REDIS_RESTART_CONTAINER)
+  Boolean(redisRestartContainer || redisRestartWslDistribution)
 function restartTest(
   name: string,
   fn: () => Promise<void>,
@@ -130,16 +132,55 @@ function restartDisposableRedis(options?: { discardData?: boolean }): void {
   if (process.env.ERP_REDIS_RESTART_EXPECTED !== '1') {
     throw new Error('Disposable Redis restart was not enabled')
   }
-  const container = process.env.ERP_REDIS_RESTART_CONTAINER
-  if (!container) {
-    throw new Error('Disposable Redis container is missing')
-  }
-  execFileSync('docker', ['restart', container], { stdio: 'pipe' })
-  if (options?.discardData) {
-    execFileSync('docker', ['exec', container, 'redis-cli', 'flushall'], {
+  if (redisRestartContainer) {
+    execFileSync('docker', ['restart', redisRestartContainer], {
       stdio: 'pipe',
     })
+    if (options?.discardData) {
+      execFileSync(
+        'docker',
+        ['exec', redisRestartContainer, 'redis-cli', 'flushall'],
+        { stdio: 'pipe' }
+      )
+    }
+    return
   }
+
+  if (!redisRestartWslDistribution) {
+    throw new Error('Disposable Redis restart target is missing')
+  }
+
+  const flushCommand = options?.discardData
+    ? '"$redis_cli" -h 127.0.0.1 -p 6379 flushall'
+    : ':'
+  const restartCommand = [
+    'set -eu',
+    'redis_root=/opt/third-code-erp-ci/redis-7.4.9/bin',
+    'redis_cli="$redis_root/redis-cli"',
+    'redis_server="$redis_root/redis-server"',
+    '"$redis_cli" -h 127.0.0.1 -p 6379 shutdown nosave || true',
+    '"$redis_server" --bind 127.0.0.1 --port 6379 --protected-mode yes --daemonize yes --save "" --appendonly no',
+    'for attempt in 1 2 3 4 5 6 7 8 9 10; do',
+    '  if test "$("$redis_cli" -h 127.0.0.1 -p 6379 ping 2>/dev/null || true)" = "PONG"; then break; fi',
+    '  test "$attempt" -lt 10',
+    '  sleep 1',
+    'done',
+    'test "$("$redis_cli" -h 127.0.0.1 -p 6379 ping)" = "PONG"',
+    flushCommand,
+  ].join('\n')
+  const encodedCommand = Buffer.from(restartCommand, 'utf8').toString('base64')
+  execFileSync(
+    'wsl.exe',
+    [
+      '-d',
+      redisRestartWslDistribution,
+      '--',
+      'sh',
+      '-lc',
+      `printf '%s' '${encodedCommand}' | base64 -d | sh`,
+    ],
+    { stdio: 'pipe' }
+  )
 }
 
 afterEach(async () => {

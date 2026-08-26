@@ -17,6 +17,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:release-coverage": "vitest run --config vitest.release.config.ts",
     "test:watch": "vitest"
   },
   "dependencies": {
