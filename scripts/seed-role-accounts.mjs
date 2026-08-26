@@ -83,21 +83,12 @@ if (!SHARED_PASSWORD || SHARED_PASSWORD.length < 14) {
 // Auth trigger path as the admin console.
 // Each email is unique so they don't collide; password is shared
 // so demo handoff is easy. (For prod, every user gets their own pw via /admin/users.)
-const ACCOUNTS = [
-  { email: 'admin@abi-ops.test',       full_name: 'Demo Admin',       role: 'admin' },
-  { email: 'owner@abi-ops.test',       full_name: 'Demo Owner',       role: 'owner' },
-  { email: 'estimator@abi-ops.test',   full_name: 'Demo Estimator',   role: 'estimator' },
-  { email: 'pm@abi-ops.test',          full_name: 'Demo PM',          role: 'pm' },
-  { email: 'sales@abi-ops.test',       full_name: 'Demo Sales',       role: 'sales' },
-  { email: 'commercial@abi-ops.test',  full_name: 'Demo Commercial',  role: 'commercial' },
-  { email: 'design@abi-ops.test',      full_name: 'Demo Designer',    role: 'design' },
-  { email: 'sd@abi-ops.test',          full_name: 'Demo SD / PM / PE', role: 'sd_pm_pe' },
-  { email: 'finance@abi-ops.test',     full_name: 'Demo Finance',     role: 'finance' },
-  { email: 'procurement@abi-ops.test', full_name: 'Demo Procurement', role: 'procurement' },
-  { email: 'safety@abi-ops.test',      full_name: 'Demo Safety',      role: 'safety' },
-  { email: 'cx@abi-ops.test',          full_name: 'Demo CX',          role: 'cx' },
-  { email: 'viewer@abi-ops.test',      full_name: 'Demo Viewer',      role: 'viewer' },
-]
+const ACCOUNTS = JSON.parse(
+  readFileSync(
+    join(repoRoot, 'scripts', 'fixtures', 'role-matrix-accounts.json'),
+    'utf8'
+  )
+)
 
 async function adminFetch(path, init = {}) {
   const res = await fetch(`${supaUrl}${path}`, {

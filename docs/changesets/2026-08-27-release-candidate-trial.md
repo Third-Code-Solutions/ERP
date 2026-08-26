@@ -8,6 +8,8 @@
   forced-RLS, and append-only where applicable.
 - Cover all 13 canonical roles in navigation, API role assignment, seeded
   test-account metadata, and the authenticated role-matrix test.
+- Keep the role-account seeder and authenticated Playwright matrix on one
+  canonical, deterministic identity manifest.
 - Add `/book-demo` public intake and `/owner` platform-owner test coverage,
   including real-browser anonymous-route verification.
 - Add no-skip reporting and V8 coverage gates for the affected Web, API,

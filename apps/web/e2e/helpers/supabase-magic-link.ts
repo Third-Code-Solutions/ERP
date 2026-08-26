@@ -1,25 +1,34 @@
 import type { BrowserContext } from '@playwright/test'
 import { ERP_ROLES, type ErpRole } from '@third-code-erp/shared-types'
+import roleTestAccounts from '../../../../scripts/fixtures/role-matrix-accounts.json'
 import { readE2EEnv, type E2EEnv } from './env'
 
 export type MagicLinkRole = ErpRole
 
 export const ROLE_TEST_ROLES = ERP_ROLES
 
+function roleTestEmail(role: MagicLinkRole): string {
+  const account = roleTestAccounts.find((candidate) => candidate.role === role)
+  if (!account) {
+    throw new Error(`Role-matrix account is missing the ${role} identity.`)
+  }
+  return account.email
+}
+
 export const ROLE_TEST_EMAILS: Record<MagicLinkRole, string> = {
-  admin: 'admin@abi.demo.ph',
-  commercial: 'commercial@abi.demo.ph',
-  cx: 'cx@abi.demo.ph',
-  design: 'design@abi.demo.ph',
-  estimator: 'estimator@abi.demo.ph',
-  finance: 'finance@abi.demo.ph',
-  owner: 'owner@abi.demo.ph',
-  pm: 'pm@abi.demo.ph',
-  procurement: 'procurement@abi.demo.ph',
-  safety: 'safety@abi.demo.ph',
-  sales: 'sales@abi.demo.ph',
-  sd_pm_pe: 'sd@abi.demo.ph',
-  viewer: 'viewer@abi.demo.ph',
+  admin: roleTestEmail('admin'),
+  commercial: roleTestEmail('commercial'),
+  cx: roleTestEmail('cx'),
+  design: roleTestEmail('design'),
+  estimator: roleTestEmail('estimator'),
+  finance: roleTestEmail('finance'),
+  owner: roleTestEmail('owner'),
+  pm: roleTestEmail('pm'),
+  procurement: roleTestEmail('procurement'),
+  safety: roleTestEmail('safety'),
+  sales: roleTestEmail('sales'),
+  sd_pm_pe: roleTestEmail('sd_pm_pe'),
+  viewer: roleTestEmail('viewer'),
 }
 
 type UserProfile = {
