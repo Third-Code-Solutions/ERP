@@ -13,6 +13,8 @@
     "db:seed": "tsx src/seed.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:raw-postgres": "vitest run --config vitest.raw-postgres.config.ts",
+    "test:auth-api": "vitest run --config vitest.auth-api.config.ts",
     "test:release-coverage": "vitest run --config vitest.release.config.ts",
     "test:watch": "vitest"
   },

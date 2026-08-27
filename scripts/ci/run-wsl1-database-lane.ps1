@@ -314,9 +314,8 @@ try {
   Invoke-Checked -Command 'pnpm' -ArgumentList @(
     '--filter',
     '@third-code-erp/database',
-    'exec',
-    'vitest',
     'run',
+    'test:raw-postgres',
     '--reporter=json',
     "--outputFile=$testReport"
   )

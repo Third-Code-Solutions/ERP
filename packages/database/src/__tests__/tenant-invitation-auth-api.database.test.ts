@@ -1,7 +1,4 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
-import { execFileSync } from 'node:child_process'
-import { dirname, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
@@ -13,9 +10,7 @@ import {
   seedTwoTenants,
   type TwoTenants,
 } from './_db-harness'
-
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const repositoryRoot = resolve(__dirname, '../../../..')
+import { resolveAuthRuntime, type AuthRuntime } from './auth-api-runtime'
 
 const INVITABLE_ROLES = [
   'owner',
@@ -35,11 +30,6 @@ const INVITABLE_ROLES = [
 
 type InvitableRole = (typeof INVITABLE_ROLES)[number]
 
-type AuthRuntime = {
-  apiUrl: string
-  serviceRoleKey: string
-}
-
 type AuthCreateResult = {
   id: string | null
   ok: boolean
@@ -56,48 +46,6 @@ function first<T>(rows: T[]): T {
   const row = rows[0]
   if (!row) throw new Error('Expected one database row')
   return row
-}
-
-function parseEnvValue(output: string, key: string): string | undefined {
-  const prefix = `${key}=`
-  const line = output.split(/\r?\n/).find((candidate) => candidate.startsWith(prefix))
-  if (!line) return undefined
-  return line.slice(prefix.length).replace(/^"|"$/g, '') || undefined
-}
-
-function isLoopbackUrl(value: string): boolean {
-  try {
-    const host = new URL(value).hostname
-    return host === '127.0.0.1' || host === 'localhost' || host === '::1'
-  } catch {
-    return false
-  }
-}
-
-function resolveAuthRuntime(): AuthRuntime {
-  const apiUrl =
-    process.env.SUPABASE_AUTH_API_URL?.trim() || 'http://127.0.0.1:54321'
-  if (!isLoopbackUrl(apiUrl)) {
-    throw new Error('ADR-030 Auth API proof accepts only a disposable loopback target')
-  }
-
-  const configuredKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
-  if (configuredKey) return { apiUrl, serviceRoleKey: configuredKey }
-
-  const supabaseEnv = execFileSync(
-    process.env.SUPABASE_CLI_PATH?.trim() || 'supabase',
-    ['status', '--output', 'env'],
-    {
-      cwd: repositoryRoot,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-    }
-  )
-  const serviceRoleKey = parseEnvValue(supabaseEnv, 'SERVICE_ROLE_KEY')
-  if (!serviceRoleKey) {
-    throw new Error('Disposable Supabase service-role key is unavailable')
-  }
-  return { apiUrl, serviceRoleKey }
 }
 
 function createOpaqueToken(): string {
@@ -197,15 +145,15 @@ async function identityCounts(
   return { auth, profiles, tenants }
 }
 
-const runtimeSuite = DATABASE_URL ? describe : describe.skip
-
-runtimeSuite('ADR-030 real Supabase Auth Admin API proof', () => {
+describe('ADR-030 real Supabase Auth Admin API proof', () => {
   let sql: postgres.Sql
   let authRuntime: AuthRuntime
 
   beforeAll(() => {
-    sql = makeSql()
+    // Deliberately fail rather than skip when Agent 13 has not supplied the
+    // isolated local-Supabase runtime emitted by `supabase status --output env`.
     authRuntime = resolveAuthRuntime()
+    sql = makeSql()
   })
 
   afterAll(async () => {
