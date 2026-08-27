@@ -13,16 +13,21 @@ permissions:
 jobs:
   verify:
     name: Full verification
-    if: github.actor == 'kurtgav'
-    runs-on: [self-hosted, Windows, X64, third-code-erp-ci]
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.repository == 'Third-Code-Solutions/ERP' &&
+      github.repository_owner == 'Third-Code-Solutions' &&
+      github.ref == 'refs/heads/codex/release-candidate-trial-port' &&
+      github.actor == 'kurtgav' &&
+      github.triggering_actor == 'kurtgav'
+    runs-on:
+      group: erp-ci-isolated
+      labels: [self-hosted, Windows, X64, third-code-erp-ci]
     timeout-minutes: 60
     env:
-      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/erp_self_hosted_ci
       REDIS_URL: redis://127.0.0.1:6379
-      NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
-      SUPABASE_SERVICE_ROLE_KEY: placeholder-service-role-key
       ERP_API_CORS_ORIGINS: http://127.0.0.1:3000
+      LOCAL_SUPABASE_NETWORK: third-code-erp-ci-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
@@ -33,8 +38,25 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
+      - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
+        with:
+          version: 2.109.1
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
+      - name: Verify local Supabase prerequisite
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ((supabase --version).Trim() -ne '2.109.1') {
+            throw 'Expected the repository-pinned Supabase CLI 2.109.1'
+          }
+          if (-not (Select-String -LiteralPath supabase/config.toml -Pattern '^major_version = 17$' -Quiet)) {
+            throw 'Local Supabase configuration must use PostgreSQL 17'
+          }
+          docker version
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Docker is required for the disposable local Supabase Auth lane'
+          }
       - name: Validate workflows
         run: |
           pnpm ci:actionlint
@@ -55,7 +77,152 @@ jobs:
       - name: Rebuild and verify PostgreSQL 17 database
         shell: powershell
         run: scripts/ci/run-wsl1-database-lane.ps1
+      - name: Stop raw PostgreSQL before local Supabase Auth
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & scripts/ci/stop-wsl1-database-lane.ps1
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Raw PostgreSQL lane teardown failed'
+          }
+          $listeners = @(Get-NetTCPConnection -State Listen -LocalPort 54321, 54322 -ErrorAction SilentlyContinue)
+          if ($listeners.Count -ne 0) {
+            throw 'Raw PostgreSQL lane still owns a local Supabase port'
+          }
+      - name: Start disposable local Supabase Auth runtime
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $containers = @(& docker ps -a --format '{{.Names}}' | Where-Object { $_ -match '^supabase_.+_erp$' })
+          $volumes = @(& docker volume ls --format '{{.Name}}' | Where-Object { $_ -match '^supabase_.+_erp$' })
+          if ($containers.Count -ne 0 -or $volumes.Count -ne 0) {
+            throw 'Disposable local Supabase project state already exists; refusing to reuse it'
+          }
+          $networkName = $env:LOCAL_SUPABASE_NETWORK
+          if ($networkName -notmatch '^third-code-erp-ci-[0-9]+-[0-9]+$') {
+            throw 'Disposable local Supabase network name is invalid'
+          }
+          $existingNetwork = @(& docker network ls --format '{{.Name}}' | Where-Object { $_ -eq $networkName })
+          if ($existingNetwork.Count -ne 0) {
+            throw 'Disposable local Supabase network already exists; refusing to reuse it'
+          }
+          & docker network create `
+            --driver bridge `
+            --opt 'com.docker.network.bridge.host_binding_ipv4=127.0.0.1' `
+            $networkName *> $null
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Could not create the loopback-only disposable Supabase network'
+          }
+          # The CLI normally prints the disposable URL and service credential;
+          # retain neither in the GitHub log nor an artifact.
+          & supabase start --network-id $networkName *> $null
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Disposable local Supabase startup failed'
+          }
+          & supabase db reset --local --network-id $networkName *> $null
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Disposable local Supabase reset failed'
+          }
+          $containerNames = @(& docker ps --format '{{.Names}}' | Where-Object { $_ -match '^supabase_.+_erp$' })
+          if ($containerNames.Count -eq 0) {
+            throw 'Disposable local Supabase startup did not produce the expected containers'
+          }
+          # Inspect only published-port metadata: full container inspection
+          # would also place disposable service credentials in process memory.
+          $inspectJson = @(& docker inspect --format '{{json .NetworkSettings.Ports}}' $containerNames)
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Could not inspect disposable local Supabase bindings'
+          }
+          $containerPortMaps = @($inspectJson | ConvertFrom-Json)
+          foreach ($containerPortMap in $containerPortMaps) {
+            foreach ($port in $containerPortMap.PSObject.Properties) {
+              foreach ($binding in @($port.Value)) {
+                if ($null -eq $binding) {
+                  continue
+                }
+                if ($binding.HostIp -ne '127.0.0.1' -and $binding.HostIp -ne '::1') {
+                  throw 'Disposable local Supabase published a non-loopback binding'
+                }
+              }
+            }
+          }
+      - name: Run required local Supabase Auth API proof
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $statusLines = @(& supabase status --output env 2>$null)
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Disposable local Supabase status failed'
+          }
+
+          $runtime = @{}
+          foreach ($line in $statusLines) {
+            if ($line -match '^([A-Z0-9_]+)=(.*)$') {
+              $value = $Matches[2].Trim()
+              if ($value.Length -ge 2 -and $value.StartsWith('"') -and $value.EndsWith('"')) {
+                $value = $value.Substring(1, $value.Length - 2)
+              }
+              $runtime[$Matches[1]] = $value
+            }
+          }
+
+          $required = @{
+            API_URL = 'SUPABASE_AUTH_API_URL'
+            DB_URL = 'DATABASE_URL'
+            SERVICE_ROLE_KEY = 'SUPABASE_SERVICE_ROLE_KEY'
+          }
+          foreach ($sourceName in $required.Keys) {
+            if ([string]::IsNullOrWhiteSpace($runtime[$sourceName])) {
+              throw "Disposable local Supabase status omitted $sourceName"
+            }
+          }
+          # Local Supabase emits test-only values, not GitHub Secrets. Register
+          # every value before a child process can report it on a failure path.
+          foreach ($sourceName in $required.Keys) {
+            Write-Output "::add-mask::$($runtime[$sourceName])"
+          }
+
+          $reportPath = Join-Path $PWD 'tmp/self-hosted-ci/auth-api-vitest.json'
+          New-Item -ItemType Directory -Path (Split-Path -Parent $reportPath) -Force | Out-Null
+          try {
+            $env:SUPABASE_AUTH_API_URL = $runtime['API_URL']
+            $env:DATABASE_URL = $runtime['DB_URL']
+            $env:SUPABASE_SERVICE_ROLE_KEY = $runtime['SERVICE_ROLE_KEY']
+            pnpm --filter @third-code-erp/database run test:auth-api -- --reporter=json "--outputFile=$reportPath"
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Local Supabase Auth API proof failed'
+            }
+            node scripts/assert-vitest-no-skips.mjs $reportPath 'local Supabase Auth API proof'
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Local Supabase Auth API report did not satisfy the no-skips gate'
+            }
+          } finally {
+            Remove-Item Env:SUPABASE_AUTH_API_URL -ErrorAction SilentlyContinue
+            Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue
+            Remove-Item Env:SUPABASE_SERVICE_ROLE_KEY -ErrorAction SilentlyContinue
+          }
+      - name: Assert both database lanes produced zero-skip reports
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $reports = @(
+            @{ Path = 'tmp/self-hosted-ci/vitest.json'; Label = 'raw PostgreSQL database lane' },
+            @{ Path = 'tmp/self-hosted-ci/auth-api-vitest.json'; Label = 'local Supabase Auth API lane' }
+          )
+          foreach ($report in $reports) {
+            if (-not (Test-Path -LiteralPath $report.Path -PathType Leaf)) {
+              throw "Required $($report.Label) report is missing"
+            }
+            node scripts/assert-vitest-no-skips.mjs $report.Path $report.Label
+            if ($LASTEXITCODE -ne 0) {
+              throw "Required $($report.Label) report did not satisfy the no-skips gate"
+            }
+          }
       - name: Production build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+          SUPABASE_SERVICE_ROLE_KEY: placeholder-service-role-key
         run: pnpm turbo build
       - name: Smoke Web standalone production runtime
         shell: powershell
@@ -65,7 +232,92 @@ jobs:
         run: scripts/ci/smoke-api.ps1
       - name: Scan repository history for secrets
         run: pnpm ci:gitleaks
-      - name: Clean isolated database runtime
+      - name: Clean isolated database and local Supabase runtimes
         if: always()
         shell: powershell
-        run: scripts/ci/stop-wsl1-database-lane.ps1
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $cleanupFailed = $false
+
+          $dockerReady = $false
+          if (Get-Command docker -ErrorAction SilentlyContinue) {
+            & docker version *> $null
+            if ($LASTEXITCODE -eq 0) {
+              $dockerReady = $true
+            } else {
+              Write-Error 'Docker was unavailable during disposable runtime cleanup'
+              $cleanupFailed = $true
+            }
+          } else {
+            Write-Error 'Docker was unavailable during disposable runtime cleanup'
+            $cleanupFailed = $true
+          }
+
+          if (Get-Command supabase -ErrorAction SilentlyContinue) {
+            & supabase stop --no-backup --network-id $env:LOCAL_SUPABASE_NETWORK *> $null
+            if ($LASTEXITCODE -ne 0) {
+              Write-Error 'Disposable local Supabase teardown failed'
+              $cleanupFailed = $true
+            }
+          }
+
+          & scripts/ci/stop-wsl1-database-lane.ps1
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error 'Raw PostgreSQL lane teardown failed'
+            $cleanupFailed = $true
+          }
+
+          $networkName = $env:LOCAL_SUPABASE_NETWORK
+          if ($networkName -notmatch '^third-code-erp-ci-[0-9]+-[0-9]+$') {
+            Write-Error 'Disposable local Supabase network name is invalid during cleanup'
+            $cleanupFailed = $true
+          } elseif ($dockerReady) {
+            $existingNetwork = @(& docker network ls --format '{{.Name}}' | Where-Object { $_ -eq $networkName })
+            if ($existingNetwork.Count -ne 0) {
+              & docker network rm $networkName *> $null
+              if ($LASTEXITCODE -ne 0) {
+                Write-Error 'Disposable local Supabase network removal failed'
+                $cleanupFailed = $true
+              }
+            }
+            $remainingNetwork = @(& docker network ls --format '{{.Name}}' | Where-Object { $_ -eq $networkName })
+            if ($remainingNetwork.Count -ne 0) {
+              Write-Error 'Disposable local Supabase network remains after cleanup'
+              $cleanupFailed = $true
+            }
+          }
+
+          $ephemeralPaths = @(
+            (Join-Path $PWD 'tmp/self-hosted-ci'),
+            (Join-Path $PWD 'packages/database/tmp/release-coverage'),
+            (Join-Path $PWD 'supabase/.temp')
+          )
+          foreach ($ephemeralPath in $ephemeralPaths) {
+            if (Test-Path -LiteralPath $ephemeralPath) {
+              try {
+                Remove-Item -LiteralPath $ephemeralPath -Recurse -Force -ErrorAction Stop
+              } catch {
+                Write-Error 'Failed to remove disposable CI artifact path'
+                $cleanupFailed = $true
+              }
+            }
+            if (Test-Path -LiteralPath $ephemeralPath) {
+              Write-Error 'Disposable CI artifact path remains after cleanup'
+              $cleanupFailed = $true
+            }
+          }
+
+          if ($dockerReady) {
+            $containers = @(& docker ps -a --format '{{.Names}}' | Where-Object { $_ -match '^supabase_.+_erp$' })
+            $volumes = @(& docker volume ls --format '{{.Name}}' | Where-Object { $_ -match '^supabase_.+_erp$' })
+            $listeners = @(Get-NetTCPConnection -State Listen -LocalPort 54321, 54322, 54323, 54324, 54327 -ErrorAction SilentlyContinue)
+            if ($containers.Count -ne 0 -or $volumes.Count -ne 0 -or $listeners.Count -ne 0) {
+              Write-Error 'Disposable local database runtime cleanup verification failed'
+              $cleanupFailed = $true
+            }
+          }
+
+          if ($cleanupFailed) {
+            exit 1
+          }
+          Write-Host 'PASS disposable local database and Supabase runtime cleanup verified.'
