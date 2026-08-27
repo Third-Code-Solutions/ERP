@@ -175,3 +175,33 @@ risk for Agent 12 to accept or reject.
 This changeset is the required handoff input for Agent 12's independent
 accept/reject review. A local CI pass is CI evidence only; it does not close
 hosted-security, production-parity, ABI-commercial, or deployment gates.
+
+## Follow-up — workflow-only provider containment
+
+**Date:** 2026-08-27
+**Required workflow revision:**
+`Third-Code-Solutions/ERP/.github/workflows/ci-self-hosted.yml@82615eb72d64b4d32bacfb9a218525d8834fdaa7`
+
+At Agent 12's request, group `3` is now restricted to exactly the workflow
+revision above. A final authenticated API read-back verified all of the
+following together:
+
+| Property | Verified value |
+| --- | --- |
+| Group | `erp-ci-isolated` (ID `3`) |
+| Default group | `false` |
+| Repository access | exactly `Third-Code-Solutions/ERP` |
+| Public repositories | `false` |
+| Workflow restriction | `true` |
+| Selected workflows | exactly the revision above |
+| Group runners | `0` |
+
+The GitHub runner-group update endpoint does not accept repository IDs. Its
+first rejected request made no change. The subsequent supported update replaced
+the selected-repository set with an empty set while setting the workflow
+restriction; this was fail-closed. The dedicated repository-access endpoint
+then restored only repository ID `1234811736`, and the final read-back above
+proves that no additional repository or runner was introduced.
+
+No runner registration, Windows service, Docker, firewall, ACL, billing,
+production, or deployment action occurred during this follow-up.
