@@ -46,12 +46,18 @@ applicable. The current host edition fields are internally ambiguous
 (`ProductName=Windows 10 Pro` alongside 24H2 build `26100.3194`), so the
 Windows 10-only KB3101106 workaround cannot be applied by inference.
 
-Phase A did not identify a current Microsoft-supported exact repair target.
-The **current Windows/Hyper-V runner path is closed**: a repair "just in case"
-or a fifth switch attempt remains prohibited. See
+Phase A did not identify a component-specific repair target. A subsequent
+review of Microsoft's current Windows 11 guidance identifies **Network Reset**
+as a vendor-supported last-resort network reinitialization; it removes network
+adapters/settings, restarts Windows, and can require VPN/Hyper-V virtual-switch
+reconfiguration. It is not evidence that it will fix this collision. The
+**current Windows/Hyper-V runner path remains closed**: a repair "just in case"
+or a fifth switch attempt remains prohibited unless the owner separately
+approves the exact Network Reset contract. See
 [`2026-08-28-agent-13-hyper-v-maintenance-phase-a.md`](../changesets/2026-08-28-agent-13-hyper-v-maintenance-phase-a.md)
 and Agent 12's
 [`Phase A review`](../changesets/2026-08-28-agent-12-hyper-v-maintenance-phase-a-review.md)
+and [`Network Reset proposal`](../changesets/2026-08-28-agent-12-network-reset-phase-b-proposal.md)
 for sanitized command, event, driver, release-boundary, and decision evidence.
 
 ## Impact
@@ -66,17 +72,22 @@ unidentified network component would weaken the accepted boundary.
 
 Phase A of the approval-gated support-maintenance contract in
 [`2026-08-28-agent-12-hyper-v-support-maintenance-contract.md`](../changesets/2026-08-28-agent-12-hyper-v-support-maintenance-contract.md)
-has completed and stopped because it could not identify a Microsoft-supported,
-build-applicable repair target. Existing broad virtualization/network approval
-is not approval for either of the following user choices:
+has completed. Existing broad virtualization/network approval is not approval
+for either of the following user choices:
 
-1. **Disruptive vendor-supported or in-place Windows repair maintenance.** The
+1. **Microsoft Windows 11 Network Reset.** This is a supportable *last-resort*
+   option, not a guaranteed fix. It needs specific approval for the local
+   Settings confirmation, backup/recovery, BitLocker/local-console readiness,
+   outage/reboot, manual Wi-Fi/VPN recovery, and post-reset reconciliation.
+   The detailed Phase B/C contract is mandatory; an agent cannot perform the
+   interactive confirmation or manual credential recovery.
+2. **Disruptive vendor-supported or in-place Windows repair maintenance.** The
    owner must first obtain a current-build-specific Microsoft/OEM support
    target, then separately approve the exact repair method, Windows repair
    source/licensing, backup and recovery plan, connectivity/Docker/WSL impact,
    maintenance window, reboot, and local-access recovery. An agent must not
    select or improvise that remediation.
-2. **A separately booted/dedicated physical Linux host.** The owner may
+3. **A separately booted/dedicated physical Linux host.** The owner may
    nominate an existing x64 Linux machine at no subscription cost. If it reuses
    this desktop, Windows must be powered off and its data disks physically
    unavailable; merely using WSL or unmounting a profile is insufficient. A
@@ -84,8 +95,9 @@ is not approval for either of the following user choices:
    runner registration.
 
 No Windows repair, driver/binding change, service restart, reset, reboot, or
-runner retry may begin from this blocker. WSL, Docker Desktop, the Windows
-runner, Default/WSL switches, and paid hosted capacity remain ineligible.
+runner retry may begin from this blocker without the specified fresh approval.
+WSL, Docker Desktop, the Windows runner, Default/WSL switches, and paid hosted
+capacity remain ineligible as substitutes.
 
 ## Zero-cost alternative
 

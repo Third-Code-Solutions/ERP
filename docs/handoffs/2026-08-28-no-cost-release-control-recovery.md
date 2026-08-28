@@ -434,8 +434,8 @@ do not justify `RestoreHealth`. The Realtek inventory does not identify a
 faulty driver, and the Server-only `vms_pp` remedy does not apply because that
 binding is already disabled.
 
-**Decision: Phase B is rejected.** No current-build Microsoft-supported exact
-repair target was identified. The present Windows/Hyper-V runner route is
+**Decision at Phase A: Phase B is rejected.** No current-build
+component-specific exact repair target was identified. The present Windows/Hyper-V runner route is
 closed and remains **NO-GO** until the owner either authorizes a separate,
 disruptive, vendor-supported/in-place maintenance plan with its own exact
 repair target and recovery/reboot/connectivity approval, or nominates a
@@ -450,6 +450,33 @@ as repository/static analysis, GitHub configuration readback, and explicitly
 authorized production metadata observation—but it cannot satisfy a skipped
 runner/security gate, expose credentials, mutate a provider, or change the
 release **NO-GO**.
+
+### 2026-08-28 conditional Windows 11 Network Reset proposal
+
+After the Phase A decision, Agent 12 refreshed the current Microsoft Windows
+10/11 support guidance. It describes **Network Reset** as the last
+troubleshooting step: it removes installed adapters/settings, reboots, restores
+adapter defaults, and may require VPN and Hyper-V virtual-switch setup again.
+This makes Network Reset a supportable, **conditional** Phase B option for the
+host networking layer; it remains an inference—not a promised repair for the
+observed `0x800700B7` miniport collision.
+
+No reset is authorized by this handoff. It requires an owner-local interactive
+Settings confirmation, AC/local-console and BitLocker-recovery readiness,
+backup/recovery confirmation, a sanitized pre-reset Wi-Fi/VPN/adapter/IP/DNS/
+route/firewall/Hyper-V/WSL/Docker/HNS ledger, explicit acceptance of the
+Docker/WSL/Default Switch outage and reboot, and manual post-reboot credential
+recovery outside repository/chat evidence. The owner must explicitly approve
+the Phase B/C contract in
+[`2026-08-28-agent-12-hyper-v-support-maintenance-contract.md`](../changesets/2026-08-28-agent-12-hyper-v-support-maintenance-contract.md).
+
+After reset, a fresh read-only reconciliation must first accept host
+connectivity, security profiles, no unexpected listener/proxy/firewall
+broadening, owner-accepted WSL/Docker/Hyper-V baseline, zero target resources,
+unchanged cache, and Group 3 zero-runner restriction. Only a new Agent 12
+acceptance plus separate owner mutation authority can propose one re-reviewed,
+non-secret runner Provision attempt. This does not advance Snyk, Auth, the
+13-role matrix, production parity, or release gates.
 
 ## Final stop conditions
 
