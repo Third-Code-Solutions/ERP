@@ -3,7 +3,7 @@
 **Date:** 2026-08-28
 **Candidate:** `b55f15a72afdb8387065a5d53a6672997b61627c` on
 `codex/release-candidate-trial-port`
-**Outcome:** **NO-GO — elevated Hyper-V capability is unverified.**
+**Outcome:** **Pre-provision PASS — runner and release remain NO-GO pending Agent 12 review.**
 
 This Stage 2 record follows the accepted Agent 12 containment contract and
 the no-cost recovery handoff. It is not production, Auth, Snyk, security-scan,
@@ -74,18 +74,19 @@ NAT instead of disturbing Docker Desktop or another host workload.
 | PowerShell parser for `invoke-isolated-linux-runner-host.ps1` | **PASS** |
 | `pnpm ci:actionlint .github/workflows/ci-linux-runner-smoke.yml` | **PASS** — actionlint 1.7.12 checksum verified |
 | `pnpm verify:workflow-action-refs` | **PASS** — four existing action refs resolve |
-| Image download / VHDX hash / VM boot | **NOT RUN** — elevation blocker |
+| Image download / VHDX hash / VM boot | **NOT RUN** — preflight-only scope |
 | Guest Docker/listener/host-NAT proof | **NOT RUN** — no VM was created |
-| JIT registration / runner group workflow update | **NOT RUN** — no host capability proof |
+| JIT registration / runner group workflow update | **NOT RUN** — Agent 12 review required |
 
-## Exact blocker and rollback state
+## Initial ledger-writer blocker and rollback state (superseded)
 
 The reviewed helper was launched twice with a visible UAC request in
 `Preflight` mode only. The elevated child processes (PIDs `22908` and `4372`)
 exited before the required non-secret ledger was written. Because neither a
 success nor a recorded failure ledger exists, elevation and exact Hyper-V/WinNAT
-inventory remain **unverified**. This is treated as a failed capability gate,
-not as user approval and not as a pass.
+inventory remained **unverified**. This was treated as a failed capability gate,
+not as user approval and not as a pass; the later compatible writer and ledgered
+retry supersede that conclusion.
 
 No host change was made: no VM, VHD/VHDX, mounted image, switch, NAT, static
 mapping, port proxy, firewall rule, host probe, guest, Docker resource, runner,
@@ -108,3 +109,30 @@ writer compatibility failure rather than a UAC rejection. The harness now uses
 the .NET `UTF8Encoding(false)` writer and has a no-host-mutation regression mode
 that must pass under Windows PowerShell 5.1 and pwsh before one exact elevated
 Preflight retry. This record is updated again only with that ledgered result.
+
+## Current elevated preflight — PASS, no host mutation
+
+After the compatibility repair, exactly one visible UAC launch used Windows
+PowerShell 5.1 `Preflight` mode with the same identity and ledger target. The
+resulting ledger is valid BOM-less UTF-8 JSON (SHA-256
+`e274bfa5bd4e5a9500ef51c5b5409fe17d6791e5bb2c3b8346b970bf05564f7d`) with
+`Outcome=PASS`, `Mode=Preflight`, and timestamp
+`2026-08-28T12:27:00.8520756Z`.
+
+It records no VM, WinNAT, static mapping, run-owned Firewall rule, target
+switch, target port proxy, target Docker resource, or target D: root. The only
+existing switches are `Default Switch` and `WSL (Hyper-V firewall)`; the only
+recorded Docker containers are `thirdcode-erp-e2e-redis`,
+`simula-local-redis-1`, and `nginx-test`; and the only recorded networks are
+`bridge`, `host`, `none`, and `simula-local_simula-private`. All were preserved.
+D: free capacity was `538014273536` bytes.
+
+The preflight helper has no Provision action and writes only the non-secret
+ledger. It downloaded no image and did not create or modify a VM, VHD/VHDX,
+switch, NAT, mapping, port proxy, firewall rule, Docker resource, runner,
+GitHub runner-group selection, provider, database, credential, or production
+target.
+
+→ **Handoff to Agent 12.** Review this ledgered target/capability evidence and
+the static Linux smoke workflow before any Provision design or execution. The
+runner group remains unchanged and no runner has been registered.
