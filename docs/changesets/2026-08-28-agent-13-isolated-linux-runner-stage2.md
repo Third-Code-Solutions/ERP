@@ -361,3 +361,57 @@ elevated execution.
 authorize archive download, UAC, Provision, JIT/runner registration, Group `3`
 selection, Auth/Snyk/full CI, provider/database, or production action from this
 changeset. The release remains **NO-GO**.
+
+## Static correction after Agent 12 review `f51870d5` — pending re-review
+
+This supersedes only the rejected Provision details. It is static repository
+work: no UAC, image download, VM/VHD(X), switch, NAT, ACL/firewall, port-proxy,
+runner, group, credential, Auth, provider, database, deployment, or production
+operation occurred.
+
+- The immutable dated Ubuntu archive now has one exact cache location:
+  `D:\third-code-erp-isolated-runner-cache\noble-server-cloudimg-amd64-azure.vhd.tar.gz`.
+  It is explicitly outside the marker-owned per-run root. The ledger records
+  the cache inventory, immutable archive name/SHA, and cache ownership scope;
+  vacancy remains limited to the per-run target.
+- The OS VHDX is explicitly mutable. Its initial SHA is provenance only;
+  cleanup relies on the exact marker-owned canonical `D:` path plus the live
+  VM hard-drive attachment tuple. CIDATA remains the hash-recorded immutable
+  seed. Mutable evidence/OS VHDs cannot carry cleanup-authorizing content
+  hashes.
+- NIC evidence is read directly from the actual VM, switch, and exactly one
+  adapter. The ledger records VM/adapter/switch IDs, MAC, and exact ACL binding.
+  The adapter has an exact inbound deny-all ACL plus outbound denies for the
+  host/NAT/private/LAN/reserved ranges; global Windows firewall rules remain
+  forbidden.
+- Cloud-init runs the Docker smoke as the locked non-login `erpci` user and
+  records command-derived identity, no-sudo/root-lock/no-SSH/no-authorized-key,
+  no-`gh`-config, no-host-mount, guest-local Docker socket/context/ext4,
+  IPv6, probe, and actual Docker binding/listener evidence. The root wrapper
+  only performs prerequisite checks, writes sanitized evidence to the detached
+  FAT VHD, and powers off.
+- A PASS ledger now requires the exact guest dynamic-port union, no static NAT
+  map or port proxy, and a host listener before/after reconciliation. Any host
+  listener—even loopback—at a guest-reported port makes the result fail closed;
+  there is no inbound-management self-attestation.
+- Regression fixtures reject cache/run-root confusion, mutable-VHD content-hash
+  authority, spoofed NIC/switch linkage, root-executed smoke claims, and a
+  nonzero post-state listener for a guest dynamic port, under both PowerShell
+  engines.
+
+**Current status: NO-GO pending Agent 12 static re-review.**
+
+| Static gate | Result |
+| --- | --- |
+| PowerShell parser — Windows PowerShell 5.1 | **PASS** |
+| PowerShell parser — pwsh | **PASS** |
+| Node 22 `pnpm test:isolated-linux-runner-contract` | **PASS** — 7/7; includes PS5/pwsh fixtures and new negative containment cases |
+| `pnpm ci:actionlint` | **PASS** — actionlint 1.7.12 checksum verified |
+| `pnpm verify:workflow-action-refs` | **PASS** — four existing pinned refs resolve |
+| `pnpm ci:gitleaks` | **PASS** — 1,608 commits / 38.68 MB; no leaks |
+| `git diff --check` | **PASS** |
+
+→ **Handoff to Agent 12.** Review the next normal commit for static acceptance
+only. The Group `3` restriction is unchanged. Do not authorize archive download,
+UAC, Provision, runner/JIT, secrets, Auth/Snyk/full CI, provider/database, or
+production work until this exact source is accepted. Release remains **NO-GO**.
