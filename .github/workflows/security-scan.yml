@@ -1,0 +1,98 @@
+name: Required security gates
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: required-security-gates-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+# Each scanner is a separate required job so an unavailable provider or a
+# finding cannot suppress evidence from the other independent controls.
+# Third-party action and container references are immutable digests/SHAs.
+jobs:
+  gitleaks:
+    name: Gitleaks secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Scan repository history for secrets
+        run: node scripts/run-gitleaks.mjs
+
+  snyk:
+    name: Snyk dependency scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+      - name: Require Snyk authentication
+        shell: bash
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SNYK_TOKEN:-}" ]; then
+            echo 'SNYK_TOKEN is required for the Snyk dependency gate.' >&2
+            exit 1
+          fi
+      - name: Scan every locked dependency project
+        shell: bash
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: >-
+          docker run --rm --security-opt no-new-privileges
+          --mount "type=bind,src=$GITHUB_WORKSPACE,dst=/src,readonly"
+          --workdir /src --env SNYK_TOKEN
+          snyk/snyk@sha256:a17329ad19ea00293db0b66ff92fca3fa1a774fa5d698c9b8288ebe29391606d
+          snyk test --all-projects --severity-threshold=low
+
+  semgrep:
+    name: Semgrep SAST scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+      - name: Scan source with the Semgrep community ruleset
+        shell: bash
+        run: >-
+          docker run --rm --security-opt no-new-privileges
+          --mount "type=bind,src=$GITHUB_WORKSPACE,dst=/src,readonly"
+          --workdir /src
+          semgrep/semgrep@sha256:1623685c0f6388b0bc8d577a712bf92b88252aaa09d6d7e38943dafa10ed978c
+          semgrep scan --config auto --error --metrics=off
+
+  trivy:
+    name: Trivy filesystem scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+      - name: Scan dependencies, secrets, and configuration
+        shell: bash
+        run: >-
+          docker run --rm --security-opt no-new-privileges
+          --mount "type=bind,src=$GITHUB_WORKSPACE,dst=/src,readonly"
+          --workdir /src
+          aquasec/trivy@sha256:ee940acbf1f58ebadb42d01434ce4609530bf1b52536afbd1eee66cd7123c5c9
+          fs --scanners vuln,secret,misconfig
+          --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+          --ignore-unfixed=false --exit-code 1 --no-progress /src

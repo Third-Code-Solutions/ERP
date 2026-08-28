@@ -12,6 +12,17 @@ vi.mock('@supabase/ssr', () => ({
 
 import { middleware } from './middleware'
 
+const HOSTED_CONNECT_SRC =
+  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.inngest.com https://api.openai.com https://vitals.vercel-insights.com"
+
+function connectSrc(csp: string): string {
+  const directive = csp
+    .split('; ')
+    .find((candidate) => candidate.startsWith('connect-src '))
+  if (!directive) throw new Error('CSP is missing connect-src')
+  return directive
+}
+
 describe('middleware Supabase session recovery', () => {
   beforeEach(() => {
     vi.unstubAllEnvs()
@@ -19,6 +30,12 @@ describe('middleware Supabase session recovery', () => {
     vi.clearAllMocks()
     vi.stubEnv('NODE_ENV', 'production')
     vi.stubEnv('ERP_DISTRIBUTED_RATE_LIMIT_ENABLED', 'false')
+    vi.stubEnv('ERP_E2E_LOCAL_CSP', '')
+    vi.stubEnv('ERP_E2E_SUPABASE_ORIGIN', '')
+    vi.stubEnv('VERCEL', '')
+    vi.stubEnv('VERCEL_ENV', '')
+    vi.stubEnv('VERCEL_URL', '')
+    vi.stubEnv('VERCEL_DEPLOYMENT_ID', '')
     vi.stubEnv(
       'NEXT_PUBLIC_SUPABASE_URL',
       'https://example.supabase.co'
@@ -76,29 +93,80 @@ describe('middleware Supabase session recovery', () => {
     await expect(middleware(request)).rejects.toThrow('supabase unavailable')
   })
 
-  it('allows only loopback Supabase HTTP and WebSocket origins in development', async () => {
-    vi.stubEnv('NODE_ENV', 'development')
-    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'http://127.0.0.1:4328')
+  it.each([80, 55321, 65535])(
+    'adds only the exact configured disposable loopback HTTP and WebSocket sources for port %i',
+    async (port) => {
+      vi.stubEnv('ERP_E2E_LOCAL_CSP', '1')
+      vi.stubEnv('ERP_E2E_SUPABASE_ORIGIN', `http://127.0.0.1:${port}`)
+      mocks.getUser.mockResolvedValue({ data: { user: null }, error: null })
+
+      const response = await middleware(
+        new NextRequest('http://127.0.0.1:3000/auth/login')
+      )
+      const csp = response.headers.get('content-security-policy') ?? ''
+
+      expect(connectSrc(csp)).toBe(
+        `${HOSTED_CONNECT_SRC} http://127.0.0.1:${port} ws://127.0.0.1:${port}`
+      )
+    }
+  )
+
+  it.each([
+    ['missing gate', '', 'http://127.0.0.1:55321'],
+    ['missing origin', '1', ''],
+    ['https scheme', '1', 'https://127.0.0.1:55321'],
+    ['localhost DNS', '1', 'http://localhost:55321'],
+    ['IPv6 loopback', '1', 'http://[::1]:55321'],
+    ['remote host', '1', 'http://192.0.2.10:55321'],
+    ['credentialed authority', '1', 'http://user@127.0.0.1:55321'],
+    ['path', '1', 'http://127.0.0.1:55321/realtime'],
+    ['query', '1', 'http://127.0.0.1:55321?channel=role-matrix'],
+    ['fragment', '1', 'http://127.0.0.1:55321#realtime'],
+    ['wildcard', '1', 'http://*.localhost:55321'],
+    ['missing port', '1', 'http://127.0.0.1'],
+    ['port zero', '1', 'http://127.0.0.1:0'],
+    ['port out of range', '1', 'http://127.0.0.1:65536'],
+  ])('fails closed for a %s local E2E CSP configuration', async (_label, gate, origin) => {
+    vi.stubEnv('ERP_E2E_LOCAL_CSP', gate)
+    vi.stubEnv('ERP_E2E_SUPABASE_ORIGIN', origin)
     mocks.getUser.mockResolvedValue({ data: { user: null }, error: null })
-    const request = new NextRequest('http://127.0.0.1:4327/auth/login')
 
-    const response = await middleware(request)
-    const csp = response.headers.get('content-security-policy') ?? ''
+    const response = await middleware(
+      new NextRequest('http://127.0.0.1:3000/auth/login')
+    )
 
-    expect(csp).toContain('http://127.0.0.1:4328')
-    expect(csp).toContain('ws://127.0.0.1:4328')
+    expect(connectSrc(response.headers.get('content-security-policy') ?? '')).toBe(HOSTED_CONNECT_SRC)
   })
 
-  it('does not add loopback sources to the production CSP', async () => {
-    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'http://127.0.0.1:4328')
+  it.each([
+    ['VERCEL', '1'],
+    ['VERCEL_ENV', 'production'],
+    ['VERCEL_ENV', 'preview'],
+    ['VERCEL_URL', 'erp.example.vercel.app'],
+    ['VERCEL_DEPLOYMENT_ID', 'dpl_example'],
+  ])('does not augment hosted CSP when %s is configured', async (name, value) => {
+    vi.stubEnv('ERP_E2E_LOCAL_CSP', '1')
+    vi.stubEnv('ERP_E2E_SUPABASE_ORIGIN', 'http://127.0.0.1:55321')
+    vi.stubEnv(name, value)
     mocks.getUser.mockResolvedValue({ data: { user: null }, error: null })
-    const request = new NextRequest('https://erp.example/auth/login')
 
-    const response = await middleware(request)
-    const csp = response.headers.get('content-security-policy') ?? ''
+    const response = await middleware(
+      new NextRequest('https://erp.example/auth/login')
+    )
 
-    expect(csp).not.toContain('http://127.0.0.1:4328')
-    expect(csp).not.toContain('ws://127.0.0.1:4328')
+    expect(connectSrc(response.headers.get('content-security-policy') ?? '')).toBe(HOSTED_CONNECT_SRC)
+  })
+
+  it('does not treat NEXT_PUBLIC_SUPABASE_URL as CSP authority', async () => {
+    vi.stubEnv('ERP_E2E_LOCAL_CSP', '1')
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'http://127.0.0.1:55321')
+    mocks.getUser.mockResolvedValue({ data: { user: null }, error: null })
+
+    const response = await middleware(
+      new NextRequest('http://127.0.0.1:3000/auth/login')
+    )
+
+    expect(connectSrc(response.headers.get('content-security-policy') ?? '')).toBe(HOSTED_CONNECT_SRC)
   })
 
   it('fails closed when distributed rate limiting is selected without complete credentials', async () => {

@@ -1,0 +1,15 @@
+[
+  { "role": "admin", "email": "admin@abi.demo.ph", "full_name": "Demo Admin" },
+  { "role": "owner", "email": "owner@abi.demo.ph", "full_name": "Demo Owner" },
+  { "role": "estimator", "email": "estimator@abi.demo.ph", "full_name": "Demo Estimator" },
+  { "role": "pm", "email": "pm@abi.demo.ph", "full_name": "Demo PM" },
+  { "role": "sales", "email": "sales@abi.demo.ph", "full_name": "Demo Sales" },
+  { "role": "commercial", "email": "commercial@abi.demo.ph", "full_name": "Demo Commercial" },
+  { "role": "design", "email": "design@abi.demo.ph", "full_name": "Demo Designer" },
+  { "role": "sd_pm_pe", "email": "sd@abi.demo.ph", "full_name": "Demo SD / PM / PE" },
+  { "role": "finance", "email": "finance@abi.demo.ph", "full_name": "Demo Finance" },
+  { "role": "procurement", "email": "procurement@abi.demo.ph", "full_name": "Demo Procurement" },
+  { "role": "safety", "email": "safety@abi.demo.ph", "full_name": "Demo Safety" },
+  { "role": "cx", "email": "cx@abi.demo.ph", "full_name": "Demo CX" },
+  { "role": "viewer", "email": "viewer@abi.demo.ph", "full_name": "Demo Viewer" }
+]

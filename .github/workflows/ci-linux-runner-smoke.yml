@@ -1,0 +1,177 @@
+name: Isolated Linux Runner Smoke
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: isolated-linux-runner-smoke-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  smoke:
+    name: Non-secret containment smoke
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.repository == 'Third-Code-Solutions/ERP' &&
+      github.repository_owner == 'Third-Code-Solutions' &&
+      github.ref == 'refs/heads/codex/release-candidate-trial-port' &&
+      github.actor == 'kurtgav' &&
+      github.triggering_actor == 'kurtgav'
+    runs-on:
+      group: erp-ci-isolated
+      labels: [self-hosted, Linux, X64, third-code-erp-ci-linux]
+    timeout-minutes: 15
+    steps:
+      - name: Verify isolated guest Docker loopback publication
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          run_identity="third-code-erp-ci-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          network_name="${run_identity}-network"
+          container_name="${run_identity}-nginx"
+          volume_name="${run_identity}-volume"
+          work_root="${RUNNER_TEMP:-/tmp}"
+          work_directory="${work_root}/${run_identity}"
+          image='nginx@sha256:62223d644fa234c3a1cc785ee14242ec47a77364226f1c811d2f669f96dc2ac8'
+
+          # BEGIN cleanup-contract
+          cleanup() {
+            local cleanup_failed=0
+            local resource_ids=''
+
+            if ! resource_ids="$(docker ps --all --filter "name=^/${container_name}$" --format '{{.ID}}')"; then
+              echo 'Unable to query current-run Docker container during cleanup.' >&2
+              cleanup_failed=1
+            elif [ -n "$resource_ids" ] && ! docker rm --force "$container_name" >/dev/null; then
+              echo 'Unable to remove current-run Docker container.' >&2
+              cleanup_failed=1
+            fi
+            if ! resource_ids="$(docker network ls --filter "name=^${network_name}$" --format '{{.ID}}')"; then
+              echo 'Unable to query current-run Docker network during cleanup.' >&2
+              cleanup_failed=1
+            elif [ -n "$resource_ids" ] && ! docker network rm "$network_name" >/dev/null; then
+              echo 'Unable to remove current-run Docker network.' >&2
+              cleanup_failed=1
+            fi
+            if ! resource_ids="$(docker volume ls --filter "name=^${volume_name}$" --format '{{.Name}}')"; then
+              echo 'Unable to query current-run Docker volume during cleanup.' >&2
+              cleanup_failed=1
+            elif [ -n "$resource_ids" ] && ! docker volume rm "$volume_name" >/dev/null; then
+              echo 'Unable to remove current-run Docker volume.' >&2
+              cleanup_failed=1
+            fi
+
+            case "$work_directory" in
+              "${work_root}/${run_identity}") ;;
+              *)
+                echo 'Refusing unsafe current-run work-directory cleanup.' >&2
+                cleanup_failed=1
+                ;;
+            esac
+            if [ "$cleanup_failed" -eq 0 ]; then
+              rm -rf -- "$work_directory" || cleanup_failed=1
+            fi
+
+            if ! resource_ids="$(docker ps --all --filter "name=^/${container_name}$" --format '{{.ID}}')"; then
+              echo 'Unable to verify current-run Docker container cleanup.' >&2
+              cleanup_failed=1
+            elif [ -n "$resource_ids" ]; then
+              echo 'Current-run Docker container remains after cleanup.' >&2
+              cleanup_failed=1
+            fi
+            if ! resource_ids="$(docker network ls --filter "name=^${network_name}$" --format '{{.ID}}')"; then
+              echo 'Unable to verify current-run Docker network cleanup.' >&2
+              cleanup_failed=1
+            elif [ -n "$resource_ids" ]; then
+              echo 'Current-run Docker network remains after cleanup.' >&2
+              cleanup_failed=1
+            fi
+            if ! resource_ids="$(docker volume ls --filter "name=^${volume_name}$" --format '{{.Name}}')"; then
+              echo 'Unable to verify current-run Docker volume cleanup.' >&2
+              cleanup_failed=1
+            elif [ -n "$resource_ids" ]; then
+              echo 'Current-run Docker volume remains after cleanup.' >&2
+              cleanup_failed=1
+            fi
+            if [ -e "$work_directory" ]; then
+              echo 'Current-run work directory remains after cleanup.' >&2
+              cleanup_failed=1
+            fi
+            return "$cleanup_failed"
+          }
+
+          on_exit() {
+            local main_status="$1"
+            local cleanup_status=0
+            set +e
+            cleanup
+            cleanup_status=$?
+            trap - EXIT
+            if [ "$cleanup_status" -ne 0 ]; then
+              echo 'Current-run cleanup failed; failing the smoke job.' >&2
+              exit "$cleanup_status"
+            fi
+            exit "$main_status"
+          }
+          # END cleanup-contract
+          trap 'on_exit "$?"' EXIT
+
+          test "$(id -u)" -ne 0
+          test -z "${DOCKER_HOST:-}"
+          test -z "${DOCKER_CONTEXT:-}"
+          test "$(docker context show)" = 'default'
+          test "$(docker context inspect default --format '{{.Endpoints.docker.Host}}')" = 'unix:///var/run/docker.sock'
+          test -S /var/run/docker.sock
+          id -nG | tr ' ' '\n' | grep -qx 'docker'
+          test ! -e /mnt/wsl
+          test ! -d /mnt/c
+          ! findmnt --noheadings --types 9p,cifs,smb3,fuse.drvfs >/dev/null
+          docker version
+          systemctl is-active --quiet docker
+          test "$(findmnt --noheadings --output FSTYPE --target "$(docker info --format '{{.DockerRootDir}}')" | xargs)" = 'ext4'
+
+          install --directory --mode 700 "$work_directory"
+
+          docker network create \
+            --label "com.thirdcode.erp.run=${run_identity}" \
+            "$network_name" >/dev/null
+          docker volume create \
+            --label "com.thirdcode.erp.run=${run_identity}" \
+            "$volume_name" >/dev/null
+          docker run --detach \
+            --name "$container_name" \
+            --network "$network_name" \
+            --label "com.thirdcode.erp.run=${run_identity}" \
+            --mount "type=volume,source=${volume_name},target=/var/cache/nginx" \
+            --publish 127.0.0.1::80 \
+            "$image" >/dev/null
+
+          bindings="$(docker inspect --format '{{range $containerPort, $bindings := .NetworkSettings.Ports}}{{range $bindings}}{{printf "%s %s %s\\n" $containerPort .HostIp .HostPort}}{{end}}{{end}}' "$container_name")"
+          test -n "$bindings"
+
+          while read -r container_port host_ip host_port; do
+            test -n "$container_port"
+            test -n "$host_port"
+            case "$host_ip" in
+              127.0.0.1|::1) ;;
+              *)
+                echo "Refusing non-loopback Docker publication for ${container_port}." >&2
+                exit 1
+                ;;
+            esac
+            ss --listening --tcp --numeric --no-header "( sport = :${host_port} )" |
+              grep -Eq "(^|[[:space:]])(${host_ip//./\\.}):${host_port}([[:space:]]|$)"
+            for attempt in $(seq 1 10); do
+              if curl --fail --silent --show-error "http://${host_ip}:${host_port}/" >/dev/null; then
+                break
+              fi
+              test "$attempt" -lt 10
+              sleep 1
+            done
+          done <<< "$bindings"
+
+          docker info --format '{{.DockerRootDir}}' | grep -Eq '^/var/lib/docker$'
+          echo "PASS non-secret loopback Docker smoke for ${run_identity}."

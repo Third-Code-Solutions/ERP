@@ -6,6 +6,41 @@ import { useRouter } from 'next/navigation'
 import { ORGANIZATION_TYPE_OPTIONS } from './signup-options'
 import { validateSignupInput, type SignupField } from './signup-validation'
 
+type SelfSignupProfileFields = {
+  fullName: string
+  companyName: string
+  organizationType: string
+}
+
+type SignupResponseOutcome =
+  | { type: 'error'; message: string }
+  | { type: 'session' }
+  | { type: 'confirmation' }
+
+export function buildSelfSignupMetadata({
+  fullName,
+  companyName,
+  organizationType,
+}: SelfSignupProfileFields) {
+  return {
+    provisioning_mode: 'self_signup_v1' as const,
+    full_name: fullName,
+    company_name: companyName,
+    organization_type: organizationType,
+  }
+}
+
+export function getSignupResponseOutcome({
+  data,
+  error,
+}: {
+  data: { session: unknown | null }
+  error: { message: string } | null
+}): SignupResponseOutcome {
+  if (error) return { type: 'error', message: error.message }
+  return data.session ? { type: 'session' } : { type: 'confirmation' }
+}
+
 export function SignupForm() {
   const supabase = createSupabaseBrowserClient()
   const router = useRouter()
@@ -51,20 +86,21 @@ export function SignupForm() {
         password,
         options: {
           emailRedirectTo: `${window.location.origin}/api/auth/callback`,
-          // Onboarding context only. Authorization must use server-managed
-          // app_metadata and tenant membership records, never user_metadata.
-          data: {
-            full_name: fullName,
-            company_name: companyName,
-            organization_type: organizationType,
-          },
+          // The trigger permits only this benign, caller-owned signup mode.
+          // Tenant, role, inviter, and invitation authority are server-side.
+          data: buildSelfSignupMetadata({ fullName, companyName, organizationType }),
         },
       })
 
-      if (signUpError) {
-        setError(signUpError.message)
+      const outcome = getSignupResponseOutcome({
+        data,
+        error: signUpError,
+      })
+
+      if (outcome.type === 'error') {
+        setError(outcome.message)
         setErrorField(null)
-      } else if (data.session) {
+      } else if (outcome.type === 'session') {
         router.replace('/dashboard')
         router.refresh()
       } else {

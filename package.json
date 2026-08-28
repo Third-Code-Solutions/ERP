@@ -55,6 +55,8 @@
     "test:managed-supabase-parity-plan": "node --test scripts/verify-managed-supabase-parity-plan.test.mjs",
     "test:managed-supabase-parity-replay": "node --test scripts/verify-managed-supabase-parity-replay.test.mjs",
     "test:vitest-no-skips": "node --test scripts/assert-vitest-no-skips.test.mjs",
+    "test:supabase-containment": "node --test scripts/ci/verify-supabase-containment.test.mjs scripts/ci/verify-supabase-containment-harness.test.mjs",
+    "test:isolated-linux-runner-contract": "node --test scripts/ci/verify-isolated-linux-runner-contract.test.mjs",
     "test:playwright-no-skips": "node --test scripts/assert-playwright-no-skips.test.mjs",
     "test:empty-schema-diff": "node --test scripts/assert-empty-schema-diff.test.mjs",
     "test:turbo-test-cache": "node scripts/verify-turbo-test-cache.mjs",
@@ -105,6 +107,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.6",
     "@eslint/js": "^9.39.5",
+    "@vitest/coverage-v8": "^3.2.6",
     "eslint": "^9.39.5",
     "eslint-config-next": "15.5.23",
     "turbo": "^2.9.14",

@@ -17,7 +17,12 @@ const numericTypePattern = /\b(?:numeric|decimal)\b/i
 const scaledNumericPattern = /\b(?:numeric|decimal)\s*\(\s*\d+\s*,\s*\d+\s*\)/i
 const tableConstraintPattern =
   /^(?:constraint\b|primary\s+key\b|foreign\s+key\b|unique\b|check\b|exclude\b|like\b)/i
-const globalTableNames = new Set(['tenants'])
+const rootGlobalTableNames = new Set(['tenants'])
+const approvedPlatformGlobalTableNames = new Set([
+  'platform_demo_requests',
+  'platform_audit_log',
+])
+const clientDatabaseRoles = new Set(['public', 'anon', 'authenticated'])
 
 function maskSql(source) {
   let output = ''
@@ -258,6 +263,169 @@ function parseAddedColumns(source) {
   return columns
 }
 
+function escapeRegularExpression(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function tableExpression(tableName) {
+  const escapedTableName = escapeRegularExpression(tableName)
+  return `(?:public\\s*\\.\\s*)?${escapedTableName}`
+}
+
+function statementMentionsClientRole(statement, roleKeyword) {
+  const roleMatch = statement.match(
+    new RegExp(`\\b${roleKeyword}\\s+([^;]+?)(?:\\s*;)?\\s*$`, 'i')
+  )
+  if (!roleMatch) return roleKeyword === 'to'
+
+  return roleMatch[1]
+    .split(',')
+    .map((role) => role.trim().replace(/^"|"$/g, '').toLowerCase())
+    .some((role) => clientDatabaseRoles.has(role))
+}
+
+function hasRequiredClientRevoke(maskedSource, tableName) {
+  const expression = new RegExp(
+    `\\brevoke\\s+all(?:\\s+privileges)?\\s+on\\s+table\\s+${tableExpression(tableName)}\\s+from\\s+([^;]+);`,
+    'gi'
+  )
+
+  for (const match of maskedSource.matchAll(expression)) {
+    const roles = new Set(
+      match[1]
+        .split(',')
+        .map((role) => role.trim().replace(/^"|"$/g, '').toLowerCase())
+    )
+    if ([...clientDatabaseRoles].every((role) => roles.has(role))) return true
+  }
+  return false
+}
+
+function hasClientGrant(maskedSource, tableName) {
+  return findClientGrant(maskedSource, tableName) !== null
+}
+
+function findClientGrant(maskedSource, tableName) {
+  const expression = new RegExp(
+    `\\bgrant\\b[\\s\\S]*?\\bon\\s+table\\s+${tableExpression(tableName)}\\s+to\\s+([^;]+);`,
+    'gi'
+  )
+  return [...maskedSource.matchAll(expression)].find((match) =>
+    match[1]
+      .split(',')
+      .map((role) => role.trim().replace(/^"|"$/g, '').toLowerCase())
+      .some((role) => clientDatabaseRoles.has(role))
+  ) ?? null
+}
+
+function hasClientPolicy(maskedSource, tableName) {
+  return findClientPolicy(maskedSource, tableName) !== null
+}
+
+function findClientPolicy(maskedSource, tableName) {
+  const expression = new RegExp(
+    `\\bcreate\\s+policy\\b[\\s\\S]*?\\bon\\s+${tableExpression(tableName)}\\b[\\s\\S]*?;`,
+    'gi'
+  )
+  return [...maskedSource.matchAll(expression)].find((match) => {
+    const statement = match[0]
+    return statementMentionsClientRole(statement, 'to')
+  }) ?? null
+}
+
+function clientAccessOffset(maskedSource, tableName) {
+  const matches = [
+    findClientGrant(maskedSource, tableName),
+    findClientPolicy(maskedSource, tableName),
+  ].filter((match) => match !== null)
+  return matches.reduce(
+    (first, match) => Math.min(first, match.index ?? Number.MAX_SAFE_INTEGER),
+    Number.MAX_SAFE_INTEGER
+  )
+}
+
+function rlsWeakeningOffset(maskedSource, tableName) {
+  const expression = new RegExp(
+    `\\balter\\s+table\\s+(?:if\\s+exists\\s+)?(?:only\\s+)?${tableExpression(tableName)}\\s+(?:disable\\s+row\\s+level\\s+security|no\\s+force\\s+row\\s+level\\s+security)\\s*;`,
+    'gi'
+  )
+  return expression.exec(maskedSource)?.index ?? Number.MAX_SAFE_INTEGER
+}
+
+function hasEnabledAndForcedRls(maskedSource, tableName) {
+  const table = tableExpression(tableName)
+  const enable = new RegExp(
+    `\\balter\\s+table\\s+${table}\\s+enable\\s+row\\s+level\\s+security\\s*;`,
+    'i'
+  )
+  const force = new RegExp(
+    `\\balter\\s+table\\s+${table}\\s+force\\s+row\\s+level\\s+security\\s*;`,
+    'i'
+  )
+  return enable.test(maskedSource) && force.test(maskedSource)
+}
+
+function hasRejectingPlatformAuditTrigger(maskedSource, source) {
+  const trigger = /\bcreate\s+trigger\s+(?:"[^"]+"|[a-z_][a-z0-9_$]*)\s+before\s+update\s+or\s+delete\s+on\s+(?:public\s*\.\s*)?platform_audit_log\b[\s\S]*?\bexecute\s+function\s+public\s*\.\s*reject_platform_audit_mutation\s*\(\s*\)\s*;/i
+  if (!trigger.test(maskedSource)) return false
+
+  const functionBody = /\bcreate\s+(?:or\s+replace\s+)?function\s+public\s*\.\s*reject_platform_audit_mutation\s*\(\s*\)[\s\S]*?returns\s+trigger[\s\S]*?\$\$([\s\S]*?)\$\$/i.exec(source)?.[1]
+  return /\braise\s+exception\b/i.test(functionBody ?? '')
+}
+
+function validateApprovedPlatformGlobalTable({ table, source, file, maskedSource }) {
+  const violations = []
+  const tableName = table.name.toLowerCase()
+
+  if (!hasEnabledAndForcedRls(maskedSource, tableName)) {
+    violations.push(
+      violation({
+        file,
+        source,
+        offset: table.offset,
+        rule: 'platform-global-force-rls',
+        message: `Approved platform-global table ${table.name} must enable and force RLS`,
+        details: { table: table.name },
+      })
+    )
+  }
+
+  if (
+    !hasRequiredClientRevoke(maskedSource, tableName) ||
+    hasClientGrant(maskedSource, tableName) ||
+    hasClientPolicy(maskedSource, tableName)
+  ) {
+    violations.push(
+      violation({
+        file,
+        source,
+        offset: table.offset,
+        rule: 'platform-global-client-access',
+        message: `Approved platform-global table ${table.name} must deny direct client access`,
+        details: { table: table.name },
+      })
+    )
+  }
+
+  if (
+    tableName === 'platform_audit_log' &&
+    !hasRejectingPlatformAuditTrigger(maskedSource, source)
+  ) {
+    violations.push(
+      violation({
+        file,
+        source,
+        offset: table.offset,
+        rule: 'platform-global-audit-append-only',
+        message: 'platform_audit_log must reject UPDATE and DELETE with a BEFORE trigger',
+        details: { table: table.name },
+      })
+    )
+  }
+
+  return violations
+}
+
 function violation({ file, source, offset, rule, message, details = {} }) {
   return {
     file,
@@ -270,26 +438,40 @@ function violation({ file, source, offset, rule, message, details = {} }) {
 
 export function scanMigrationSource(source, file = '<inline>') {
   const violations = []
+  const maskedSource = maskSql(source)
+  const createdApprovedPlatformGlobalTables = new Set()
 
   for (const table of parseCreateTables(source)) {
     const tenantColumn = table.columns.find(
       (column) => column.name.toLowerCase() === 'tenant_id'
     )
 
-    if (
-      !globalTableNames.has(table.name.toLowerCase()) &&
-      (!tenantColumn || !tenantColumn.notNull)
-    ) {
-      violations.push(
-        violation({
-          file,
-          source,
-          offset: table.offset,
-          rule: 'tenant-id-not-null',
-          message: `CREATE TABLE ${table.name} must declare tenant_id NOT NULL`,
-          details: { table: table.name },
-        })
-      )
+    const tableName = table.name.toLowerCase()
+    if (approvedPlatformGlobalTableNames.has(tableName)) {
+      createdApprovedPlatformGlobalTables.add(tableName)
+    }
+    if (!tenantColumn || !tenantColumn.notNull) {
+      if (approvedPlatformGlobalTableNames.has(tableName)) {
+        violations.push(
+          ...validateApprovedPlatformGlobalTable({
+            table,
+            source,
+            file,
+            maskedSource,
+          })
+        )
+      } else if (!rootGlobalTableNames.has(tableName)) {
+        violations.push(
+          violation({
+            file,
+            source,
+            offset: table.offset,
+            rule: 'tenant-id-not-null',
+            message: `CREATE TABLE ${table.name} must declare tenant_id NOT NULL`,
+            details: { table: table.name },
+          })
+        )
+      }
     }
 
     for (const column of table.columns) {
@@ -310,6 +492,40 @@ export function scanMigrationSource(source, file = '<inline>') {
           })
         )
       }
+    }
+  }
+
+  // A platform-global table is normally defined by an older migration. Scan
+  // standalone follow-up migrations too, so a later client grant or policy
+  // cannot evade ADR-028 by omitting CREATE TABLE from its source file.
+  for (const tableName of approvedPlatformGlobalTableNames) {
+    if (createdApprovedPlatformGlobalTables.has(tableName)) continue
+    const clientAccess = clientAccessOffset(maskedSource, tableName)
+    if (clientAccess !== Number.MAX_SAFE_INTEGER) {
+      violations.push(
+        violation({
+          file,
+          source,
+          offset: clientAccess,
+          rule: 'platform-global-client-access',
+          message: `Approved platform-global table ${tableName} must deny direct client access`,
+          details: { table: tableName },
+        })
+      )
+    }
+
+    const rlsWeakening = rlsWeakeningOffset(maskedSource, tableName)
+    if (rlsWeakening !== Number.MAX_SAFE_INTEGER) {
+      violations.push(
+        violation({
+          file,
+          source,
+          offset: rlsWeakening,
+          rule: 'platform-global-force-rls',
+          message: `Approved platform-global table ${tableName} must enable and force RLS`,
+          details: { table: tableName },
+        })
+      )
     }
   }
 

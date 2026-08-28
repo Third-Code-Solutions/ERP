@@ -123,6 +123,209 @@ test('executable gate fails on a bad fixture and passes after removal', async ()
   }
 })
 
+const approvedPlatformGlobalMigration = `
+  create table public.platform_demo_requests (
+    id uuid primary key
+  );
+  alter table public.platform_demo_requests enable row level security;
+  alter table public.platform_demo_requests force row level security;
+  revoke all privileges on table public.platform_demo_requests
+    from public, anon, authenticated;
+
+  create table public.platform_audit_log (
+    id uuid primary key
+  );
+  create function public.reject_platform_audit_mutation()
+  returns trigger
+  language plpgsql
+  as $$
+  begin
+    raise exception 'platform audit evidence is append-only';
+  end;
+  $$;
+  create trigger platform_audit_log_no_mutation
+    before update or delete on public.platform_audit_log
+    for each row execute function public.reject_platform_audit_mutation();
+  alter table public.platform_audit_log enable row level security;
+  alter table public.platform_audit_log force row level security;
+  revoke all privileges on table public.platform_audit_log
+    from public, anon, authenticated;
+`
+
+function assertContainsViolation(violations, expected) {
+  assert.equal(
+    violations.some((violation) =>
+      Object.entries(expected).every(
+        ([key, value]) => violation[key] === value
+      )
+    ),
+    true,
+    `Expected violation ${JSON.stringify(expected)}, received ${JSON.stringify(violations)}`
+  )
+}
+
+test('accepts only ADR-028 platform-global tables with every required safeguard', async () => {
+  assert.deepEqual(
+    scanMigrationSource(approvedPlatformGlobalMigration, 'approved-platform-global.sql'),
+    []
+  )
+
+  const ownerMigration = await readFile(
+    resolve('supabase/migrations/20260825190000_owner_console_and_demo_intake.sql'),
+    'utf8'
+  )
+  assert.deepEqual(
+    scanMigrationSource(ownerMigration, 'owner-console-and-demo-intake.sql'),
+    []
+  )
+})
+
+test('rejects an unapproved tenantless table even when it copies global safeguards', () => {
+  const source = approvedPlatformGlobalMigration.replaceAll(
+    'platform_demo_requests',
+    'unapproved_platform_records'
+  )
+  const violations = scanMigrationSource(source, 'unapproved-global.sql')
+
+  assertContainsViolation(violations, {
+    rule: 'tenant-id-not-null',
+    table: 'unapproved_platform_records',
+  })
+})
+
+test('rejects approved global tables when FORCE RLS is absent', () => {
+  const source = approvedPlatformGlobalMigration.replace(
+    'alter table public.platform_demo_requests force row level security;\n',
+    ''
+  )
+
+  assertContainsViolation(
+    scanMigrationSource(source, 'global-missing-force-rls.sql'),
+    {
+      rule: 'platform-global-force-rls',
+      table: 'platform_demo_requests',
+    }
+  )
+})
+
+test('rejects approved global tables when a client role receives a direct grant or policy', () => {
+  const withGrant = `${approvedPlatformGlobalMigration}
+    grant select on table public.platform_demo_requests to authenticated;
+  `
+  const withPolicy = `${approvedPlatformGlobalMigration}
+    create policy exposed_platform_audit
+      on public.platform_audit_log
+      for select
+      using (true);
+  `
+
+  assertContainsViolation(
+    scanMigrationSource(withGrant, 'global-client-grant.sql'),
+    {
+      rule: 'platform-global-client-access',
+      table: 'platform_demo_requests',
+    }
+  )
+  assertContainsViolation(
+    scanMigrationSource(withPolicy, 'global-client-policy.sql'),
+    {
+      rule: 'platform-global-client-access',
+      table: 'platform_audit_log',
+    }
+  )
+})
+
+test('rejects later standalone client grants and policies on approved global tables', () => {
+  const laterGrant = `
+    grant select on table public.platform_demo_requests to authenticated;
+  `
+  const laterPolicy = `
+    create policy exposed_platform_audit
+      on public.platform_audit_log
+      for select
+      using (true);
+  `
+
+  assertContainsViolation(
+    scanMigrationSource(laterGrant, 'later-global-client-grant.sql'),
+    {
+      rule: 'platform-global-client-access',
+      table: 'platform_demo_requests',
+    }
+  )
+  assertContainsViolation(
+    scanMigrationSource(laterPolicy, 'later-global-client-policy.sql'),
+    {
+      rule: 'platform-global-client-access',
+      table: 'platform_audit_log',
+    }
+  )
+})
+
+test('rejects later standalone RLS weakening on approved global tables', () => {
+  const noForce = `
+    alter table public.platform_demo_requests no force row level security;
+  `
+  const disableRls = `
+    alter table if exists public.platform_audit_log disable row level security;
+  `
+  const onlyNoForce = `
+    alter table only public.platform_demo_requests no force row level security;
+  `
+
+  assertContainsViolation(
+    scanMigrationSource(noForce, 'later-global-no-force.sql'),
+    {
+      rule: 'platform-global-force-rls',
+      table: 'platform_demo_requests',
+    }
+  )
+  assertContainsViolation(
+    scanMigrationSource(disableRls, 'later-global-disable-rls.sql'),
+    {
+      rule: 'platform-global-force-rls',
+      table: 'platform_audit_log',
+    }
+  )
+  assertContainsViolation(
+    scanMigrationSource(onlyNoForce, 'later-global-only-no-force.sql'),
+    {
+      rule: 'platform-global-force-rls',
+      table: 'platform_demo_requests',
+    }
+  )
+})
+
+test('allows a platform-global service-role-only policy', () => {
+  const source = `${approvedPlatformGlobalMigration}
+    create policy service_role_platform_audit
+      on public.platform_audit_log
+      for select
+      to service_role
+      using (true);
+  `
+
+  assert.deepEqual(
+    scanMigrationSource(source, 'global-service-role-policy.sql'),
+    []
+  )
+})
+
+test('rejects platform audit tables without a rejecting update-delete trigger', () => {
+  const source = approvedPlatformGlobalMigration.replace(
+    /create trigger platform_audit_log_no_mutation[\s\S]*?execute function public\.reject_platform_audit_mutation\(\);/,
+    ''
+  )
+
+  assertContainsViolation(
+    scanMigrationSource(source, 'global-mutable-audit.sql'),
+    {
+      rule: 'platform-global-audit-append-only',
+      table: 'platform_audit_log',
+    }
+  )
+})
+
 test('CI runs the full PR suite and keeps migration checks ahead of CI-only grants', async () => {
   const workflow = await readFile(resolve('.github/workflows/ci.yml'), 'utf8')
   const productionWorkflow = await readFile(

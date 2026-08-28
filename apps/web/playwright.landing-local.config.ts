@@ -14,7 +14,8 @@ export default defineConfig({
   use: {
     ...devices['Desktop Chrome'],
     baseURL: webUrl,
-    channel: browserExecutablePath ? undefined : 'chrome',
+    // Playwright's bundled Chromium creates an isolated temporary profile.
+    // Do not attach local release verification to a developer's Chrome data.
     launchOptions: browserExecutablePath
       ? { executablePath: browserExecutablePath }
       : {},

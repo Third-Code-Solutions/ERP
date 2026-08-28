@@ -4,18 +4,20 @@ import { fileURLToPath } from 'node:url'
 import { ORGANIZATION_TYPES } from '@third-code-erp/shared-types'
 import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import {
-  DATABASE_URL,
-  inRollback,
-  makeSql,
-} from './_db-harness'
+
+import { DATABASE_URL, inRollback, makeSql } from './_db-harness'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const migrationPath = resolve(
+const signupMigrationPath = resolve(
   __dirname,
   '../../../../supabase/migrations/20260729054456_persist_signup_organization_type.sql'
 )
-const migrationSql = readFileSync(migrationPath, 'utf8').toLowerCase()
+const signupMigrationSql = readFileSync(signupMigrationPath, 'utf8').toLowerCase()
+const invitationMigrationPath = resolve(
+  __dirname,
+  '../../../../supabase/migrations/20260827130000_server_created_tenant_invitation_intents.sql'
+)
+const invitationMigrationSql = readFileSync(invitationMigrationPath, 'utf8').toLowerCase()
 
 function first<T>(rows: T[]): T {
   const row = rows[0]
@@ -25,53 +27,114 @@ function first<T>(rows: T[]): T {
 
 describe('signup provisioning migration contract', () => {
   it('uses an empty search path and fully qualified privileged objects', () => {
-    expect(migrationSql).toContain("set search_path = ''")
-    expect(migrationSql).toContain('from public.users')
-    expect(migrationSql).toContain('insert into public.tenants')
-    expect(migrationSql).toContain('insert into public.users')
-    expect(migrationSql).toContain('pg_catalog.regexp_replace')
-    expect(migrationSql).toContain('pg_catalog.md5')
+    expect(signupMigrationSql).toContain("set search_path = ''")
+    expect(signupMigrationSql).toContain('from public.users')
+    expect(signupMigrationSql).toContain('insert into public.tenants')
+    expect(signupMigrationSql).toContain('insert into public.users')
+    expect(signupMigrationSql).toContain('pg_catalog.regexp_replace')
+    expect(signupMigrationSql).toContain('pg_catalog.md5')
   })
 
   it('uses company metadata only as bounded display data', () => {
-    expect(migrationSql).toContain(
+    expect(signupMigrationSql).toContain(
       "new.raw_user_meta_data ->> 'company_name'"
     )
-    expect(migrationSql).toContain(
+    expect(signupMigrationSql).toContain(
       "new.raw_user_meta_data ->> 'full_name'"
     )
-    expect(migrationSql).toContain('pg_catalog.left(')
-    expect(migrationSql).not.toContain('raw_app_meta_data')
+    expect(signupMigrationSql).toContain('pg_catalog.left(')
+    expect(signupMigrationSql).not.toContain('raw_app_meta_data')
   })
 
   it('persists only canonical organization types as non-authoritative profile data', () => {
-    expect(migrationSql).toContain(
+    expect(signupMigrationSql).toContain(
       "new.raw_user_meta_data ->> 'organization_type'"
     )
-    expect(migrationSql).toContain(
+    expect(signupMigrationSql).toContain(
       'add constraint tenants_organization_type_check'
     )
     for (const organizationType of ORGANIZATION_TYPES) {
-      expect(migrationSql).toContain(`'${organizationType}'`)
+      expect(signupMigrationSql).toContain(`'${organizationType}'`)
     }
-    expect(migrationSql).not.toMatch(
+    expect(signupMigrationSql).not.toMatch(
       /organization_type[\s\S]{0,120}(role|capabilit|permission)/
     )
   })
+})
 
-  it('keeps the trigger function unavailable as a public RPC', () => {
-    expect(migrationSql).toMatch(
+describe('ADR-030 tenant invitation migration contract', () => {
+  it('requires an exact raw-user-metadata provisioning mode and opaque invitation token', () => {
+    expect(invitationMigrationSql).toContain("'tenant_invitation_token_v1'")
+    expect(invitationMigrationSql).toContain("'tenant_invitation_v1'")
+    expect(invitationMigrationSql).toContain("'self_signup_v1'")
+    expect(invitationMigrationSql).toContain('new.raw_user_meta_data')
+    expect(invitationMigrationSql).toContain(
+      'explicit valid provisioning mode is required'
+    )
+    expect(invitationMigrationSql).toContain(
+      'self-signup provisioning mode cannot include an invitation token'
+    )
+    expect(invitationMigrationSql).not.toContain('raw_app_meta_data')
+    expect(invitationMigrationSql).not.toMatch(
+      /raw_user_meta_data[\s\S]{0,160}(tenant_id|invited_by|invited_role)/
+    )
+  })
+
+  it('persists only a SHA-256 hash in a forced-RLS tenant-scoped intent table', () => {
+    expect(invitationMigrationSql).toContain(
+      'create table public.tenant_invitation_intents'
+    )
+    expect(invitationMigrationSql).toContain('tenant_id uuid not null')
+    expect(invitationMigrationSql).toContain('token_hash char(64) not null')
+    expect(invitationMigrationSql).toContain("extensions.digest(invitation_token, 'sha256')")
+    expect(invitationMigrationSql).toContain(
+      'alter table public.tenant_invitation_intents force row level security'
+    )
+    expect(invitationMigrationSql).toContain(
+      'create policy deny_direct_client_access'
+    )
+    expect(invitationMigrationSql).toContain(
+      'ux_tenant_invitation_intents_active_email'
+    )
+  })
+
+  it('locks and atomically claims an intent before profile creation', () => {
+    expect(invitationMigrationSql).toContain('for update')
+    expect(invitationMigrationSql).toContain('consumed_by_user_id = new.id')
+    expect(invitationMigrationSql).toContain('insert into public.users')
+    expect(invitationMigrationSql).toContain(
+      "- 'tenant_invitation_token_v1'"
+    )
+    expect(invitationMigrationSql).toContain(
+      'app.tenant_invitation_v1_actor_id'
+    )
+  })
+
+  it('emits token-free immutable intent transition evidence', () => {
+    expect(invitationMigrationSql).toContain(
+      'create function public.audit_tenant_invitation_intent()'
+    )
+    expect(invitationMigrationSql).toContain("v_action := 'intent_created'")
+    expect(invitationMigrationSql).toContain("v_action := 'intent_consumed'")
+    expect(invitationMigrationSql).toContain("v_action := 'intent_revoked'")
+    expect(invitationMigrationSql).toContain(
+      'tenant invitation intents are append-only'
+    )
+  })
+
+  it('keeps its trigger functions unavailable as public RPCs', () => {
+    expect(invitationMigrationSql).toMatch(
       /revoke execute on function public\.handle_new_user\(\)[\s\S]*?from public, anon, authenticated/
     )
-    expect(migrationSql).toMatch(
-      /grant execute on function public\.handle_new_user\(\)[\s\S]*?to service_role/
+    expect(invitationMigrationSql).toMatch(
+      /revoke all on function public\.scrub_consumed_tenant_invitation_token\(\)[\s\S]*?from public, anon, authenticated/
     )
   })
 })
 
 const runtimeSuite = DATABASE_URL ? describe : describe.skip
 
-runtimeSuite('signup provisioning runtime proof', () => {
+runtimeSuite('signup provisioning structural runtime proof', () => {
   let sql: postgres.Sql
 
   beforeAll(() => {
@@ -82,27 +145,18 @@ runtimeSuite('signup provisioning runtime proof', () => {
     await sql?.end({ timeout: 5 })
   })
 
-  it('creates exactly one isolated Admin workspace from Auth signup', async () => {
+  it('creates exactly one isolated Admin workspace from a direct Auth insert', async () => {
     const result = await inRollback(sql, async (transaction) => {
-      const identity = first(await transaction<{
-        id: string
-        email: string
-      }[]>`
-        insert into auth.users (
-          id,
-          email,
-          raw_user_meta_data
-        )
+      const identity = first(await transaction<{ id: string; email: string }[]>`
+        insert into auth.users (id, email, raw_user_meta_data)
         values (
           gen_random_uuid(),
           'canary.signup@probe.test',
           jsonb_build_object(
-            'full_name',
-            'Canary Operator',
-            'company_name',
-            'Canary Builders Works',
-            'organization_type',
-            'construction'
+            'full_name', 'Canary Operator',
+            'company_name', 'Canary Builders Works',
+            'organization_type', 'construction',
+            'provisioning_mode', 'self_signup_v1'
           )
         )
         returning id, email
@@ -128,27 +182,11 @@ runtimeSuite('signup provisioning runtime proof', () => {
       `)
       const { expected_slug: expectedSlug } = first(
         await transaction<{ expected_slug: string }[]>`
-          select
-            'canary-builders-works-'
-            || substr(md5(${identity.id}::text), 1, 12)
-              as expected_slug
+          select 'canary-builders-works-' || substr(md5(${identity.id}::text), 1, 12)
+            as expected_slug
         `
       )
-      const { tenant_count: tenantCount } = first(
-        await transaction<{ tenant_count: number }[]>`
-          select count(*)::int as tenant_count
-            from public.tenants
-           where id = ${profile.tenant_id}::uuid
-        `
-      )
-
-      return {
-        identity,
-        profile,
-        tenant,
-        expectedSlug,
-        tenantCount,
-      }
+      return { identity, profile, tenant, expectedSlug }
     })
 
     expect(result.profile).toEqual({
@@ -162,21 +200,19 @@ runtimeSuite('signup provisioning runtime proof', () => {
       slug: result.expectedSlug,
       organization_type: 'construction',
     })
-    expect(result.tenantCount).toBe(1)
   })
 
   it('uses safe fallbacks when email is absent and organization metadata is invalid', async () => {
     const result = await inRollback(sql, async (transaction) => {
       const identity = first(await transaction<{ id: string }[]>`
-        insert into auth.users (
-          id,
-          email,
-          raw_user_meta_data
-        )
+        insert into auth.users (id, email, raw_user_meta_data)
         values (
           gen_random_uuid(),
           null,
-          jsonb_build_object('organization_type', 'admin')
+          jsonb_build_object(
+            'organization_type', 'admin',
+            'provisioning_mode', 'self_signup_v1'
+          )
         )
         returning id
       `)
@@ -190,14 +226,11 @@ runtimeSuite('signup provisioning runtime proof', () => {
           from public.users
          where id = ${identity.id}::uuid
       `)
-      const tenant = first(await transaction<{
-        organization_type: string
-      }[]>`
+      const tenant = first(await transaction<{ organization_type: string }[]>`
         select organization_type
           from public.tenants
          where id = ${profile.tenant_id}::uuid
       `)
-
       return { identity, profile, tenant }
     })
 
@@ -221,10 +254,7 @@ runtimeSuite('signup provisioning runtime proof', () => {
         column_info.column_default,
         column_info.is_nullable,
         constraint_info.convalidated,
-        pg_catalog.pg_get_constraintdef(
-          constraint_info.oid,
-          true
-        ) as definition
+        pg_catalog.pg_get_constraintdef(constraint_info.oid, true) as definition
       from information_schema.columns column_info
       join pg_catalog.pg_constraint constraint_info
         on constraint_info.conrelid = 'public.tenants'::regclass
@@ -242,7 +272,7 @@ runtimeSuite('signup provisioning runtime proof', () => {
     }
   })
 
-  it('retains hardened execution privileges', async () => {
+  it('retains hardened trigger execution privileges', async () => {
     const privileges = first(await sql<{
       empty_search_path: boolean
       anon_execute: boolean
@@ -251,27 +281,13 @@ runtimeSuite('signup provisioning runtime proof', () => {
     }[]>`
       select
         coalesce(array_to_string(procedure.proconfig, ','), '') in (
-          'search_path=',
-          'search_path=""'
+          'search_path=', 'search_path=""'
         ) as empty_search_path,
-        has_function_privilege(
-          'anon',
-          procedure.oid,
-          'EXECUTE'
-        ) as anon_execute,
-        has_function_privilege(
-          'authenticated',
-          procedure.oid,
-          'EXECUTE'
-        ) as authenticated_execute,
-        has_function_privilege(
-          'service_role',
-          procedure.oid,
-          'EXECUTE'
-        ) as service_role_execute
+        has_function_privilege('anon', procedure.oid, 'EXECUTE') as anon_execute,
+        has_function_privilege('authenticated', procedure.oid, 'EXECUTE') as authenticated_execute,
+        has_function_privilege('service_role', procedure.oid, 'EXECUTE') as service_role_execute
       from pg_catalog.pg_proc procedure
-      join pg_catalog.pg_namespace namespace
-        on namespace.oid = procedure.pronamespace
+      join pg_catalog.pg_namespace namespace on namespace.oid = procedure.pronamespace
       where namespace.nspname = 'public'
         and procedure.proname = 'handle_new_user'
     `)

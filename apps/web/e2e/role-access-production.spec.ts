@@ -1,10 +1,14 @@
 import { expect, test } from '@playwright/test'
+import { ERP_ROLES } from '@third-code-erp/shared-types'
 import {
   canViewPath,
+  NAV_SECTIONS,
   visibleNavSections,
 } from '../src/lib/operations/nav-config'
 import {
   authenticateRole,
+  ROLE_TEST_EMAILS,
+  ROLE_TEST_ROLES,
   type MagicLinkRole,
 } from './helpers/supabase-magic-link'
 
@@ -29,25 +33,26 @@ test.describe('production role access matrix', () => {
     const baseUrl = testInfo.project.use.baseURL
     expect(baseUrl).toBeTruthy()
 
-    const allRoles: MagicLinkRole[] = [
-      'admin',
-      'commercial',
-      'cx',
-      'design',
-      'finance',
-      'owner',
-      'procurement',
-      'safety',
-      'sales',
-      'sd_pm_pe',
-      'viewer',
-    ]
+    const allRoles: MagicLinkRole[] = [...ROLE_TEST_ROLES]
+    expect(Object.keys(ROLE_TEST_EMAILS).sort()).toEqual([...ERP_ROLES].sort())
+    expect([...allRoles].sort()).toEqual([...ERP_ROLES].sort())
     const requestedRole = process.env.E2E_ROLE_ONLY as MagicLinkRole | undefined
     const roles = requestedRole
       ? allRoles.filter((role) => role === requestedRole)
       : allRoles
     expect(roles.length, 'E2E_ROLE_ONLY must name a seeded role').toBeGreaterThan(0)
-    const forbiddenCandidates = ['/admin', '/bom', '/finance']
+    const directRouteCandidates = [
+      ...new Set([
+        ...NAV_SECTIONS.flatMap((section) =>
+          section.items.map((item) => item.href)
+        ),
+        '/admin/users',
+      ]),
+    ]
+    // The platform owner console lives outside the tenant navigation map.
+    // Every disposable role is a tenant user, including the ERP `owner`
+    // role, so this remains a stable negative boundary for the full matrix.
+    const platformOnlyPaths = ['/owner']
     const errors: string[] = []
 
     for (const role of roles) {
@@ -111,23 +116,47 @@ test.describe('production role access matrix', () => {
             expect.arrayContaining(visiblePaths)
           )
 
-          for (const path of forbiddenCandidates) {
+          for (const path of visiblePaths) {
+            const navigation = await page.goto(`${baseUrl}${path}`, {
+              waitUntil: 'domcontentloaded',
+            })
+            expect(navigation?.status() ?? 0, `${role} ${path}`).toBeLessThan(400)
+            expect(page.url(), `${role} ${path}`).not.toMatch(/\/auth\/login/)
+            await expect
+              .poll(() => new URL(page.url()).pathname, {
+                message: `${role} was redirected away from visible route ${path}`,
+                timeout: 10_000,
+              })
+              .toBe(path)
+            expect(
+              new URL(page.url()).searchParams.get('error'),
+              `${role} ${path}`
+            ).not.toBe('forbidden')
+          }
+
+          const forbiddenPaths = [
+            ...new Set([
+              ...directRouteCandidates.filter((path) => !canViewPath(role, path)),
+              ...platformOnlyPaths,
+            ]),
+          ]
+          expect(forbiddenPaths.length, `${role} must have tested forbidden URLs`).toBeGreaterThan(0)
+
+          for (const path of forbiddenPaths) {
             const navigation = await page.goto(`${baseUrl}${path}`, {
               waitUntil: 'domcontentloaded',
             })
             expect(navigation?.status() ?? 0, `${role} ${path}`).toBeLessThan(500)
             expect(navigation?.status() ?? 0, `${role} ${path}`).not.toBe(429)
-            if (!canViewPath(role, path)) {
-              await expect
-                .poll(() => new URL(page.url()).pathname, {
-                  message: `${role} ${path} did not settle on the dashboard`,
-                  timeout: 10_000,
-                })
-                .toBe('/dashboard')
-              expect(new URL(page.url()).searchParams.get('error')).toBe('forbidden')
-            } else {
-              expect(page.url(), `${role} ${path}`).not.toMatch(/\/auth\/login/)
-            }
+            await expect
+              .poll(() => new URL(page.url()).pathname, {
+                message: `${role} ${path} did not settle on the dashboard`,
+                timeout: 10_000,
+              })
+              .toBe('/dashboard')
+            expect(new URL(page.url()).searchParams.get('error')).toMatch(
+              /(?:^|-)forbidden$/
+            )
           }
         } finally {
           try {

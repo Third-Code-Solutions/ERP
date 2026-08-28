@@ -276,6 +276,7 @@ $env:DATABASE_URL =
 $env:REDIS_URL = 'redis://127.0.0.1:6379'
 $env:ERP_REDIS_RESTART_EXPECTED = '1'
 $env:ERP_REDIS_TEST_DISTRIBUTION = $Distribution
+$env:ERP_REDIS_RESTART_WSL_DISTRIBUTION = $Distribution
 $env:DATABASE_HARDENING_EXPECTED = '1'
 $env:DATABASE_ACCOUNTING_EXPECTED = '1'
 $env:DATABASE_RECEIVABLES_EXPECTED = '1'
@@ -313,9 +314,8 @@ try {
   Invoke-Checked -Command 'pnpm' -ArgumentList @(
     '--filter',
     '@third-code-erp/database',
-    'exec',
-    'vitest',
     'run',
+    'test:raw-postgres',
     '--reporter=json',
     "--outputFile=$testReport"
   )
@@ -323,10 +323,28 @@ try {
     'scripts/assert-vitest-no-skips.mjs',
     $testReport
   )
+  $coverageReport = Join-Path $artifactRoot 'release-coverage-vitest.json'
+  Invoke-Checked -Command 'pnpm' -ArgumentList @(
+    '--filter',
+    '@third-code-erp/database',
+    'exec',
+    'vitest',
+    'run',
+    '--config',
+    'vitest.release.config.ts',
+    '--reporter=json',
+    "--outputFile=$coverageReport"
+  )
+  Invoke-Checked -Command 'node' -ArgumentList @(
+    'scripts/assert-vitest-no-skips.mjs',
+    $coverageReport,
+    'database release coverage'
+  )
   # Database verification is intentionally long. Recreate the disposable
   # Redis process immediately before queue integration so WSL lifecycle or a
   # prior reconnect drill cannot leave stale runtime state.
   Invoke-WslScript -Script $serviceBootstrap
+  $apiIntegrationReport = Join-Path $artifactRoot 'api-integration-vitest.json'
   Invoke-Checked -Command 'pnpm' -ArgumentList @(
     '--filter',
     '@third-code-erp/api',
@@ -334,16 +352,32 @@ try {
     'vitest',
     'run',
     'integration',
-    '--maxWorkers=1'
+    '--maxWorkers=1',
+    '--reporter=json',
+    "--outputFile=$apiIntegrationReport"
   )
+  Invoke-Checked -Command 'node' -ArgumentList @(
+    'scripts/assert-vitest-no-skips.mjs',
+    $apiIntegrationReport,
+    'API integration tests'
+  )
+  $webIntegrationReport = Join-Path $artifactRoot 'web-database-integration-vitest.json'
   Invoke-Checked -Command 'pnpm' -ArgumentList @(
     '--filter',
     '@third-code-erp/web',
     'exec',
     'vitest',
     'run',
+    'src/lib/management-dashboard.integration.test.ts',
     'src/app/(dashboard)/crm/opportunities/[id]/proposal/change-request-workflow.integration.test.ts',
-    '--reporter=dot'
+    'src/app/owner/owner-console-actions.integration.test.ts',
+    '--reporter=json',
+    "--outputFile=$webIntegrationReport"
+  )
+  Invoke-Checked -Command 'node' -ArgumentList @(
+    'scripts/assert-vitest-no-skips.mjs',
+    $webIntegrationReport,
+    'Web database integration tests'
   )
 } finally {
   Pop-Location
