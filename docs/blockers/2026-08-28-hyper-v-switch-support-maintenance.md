@@ -23,6 +23,32 @@ Windows 11 build. Microsoft documents separate driver/binding failures on
 supported Windows Server versions, but the observed Realtek NIC and `vms_pp`
 snapshot do not prove either is causal here.
 
+### Phase A read-only maintenance ledger — 2026-08-28
+
+Authorized Phase A checks completed without a system or network change. Both
+`DISM /Online /Cleanup-Image /CheckHealth` and `/ScanHealth` exit `0` and
+report no component-store corruption. `sfc /verifyonly` reports an integrity
+violation, but the contemporary CBS log narrows it to
+`C:\Windows\Web\Screen\img100.jpg`; it is not a Hyper-V, HNS, NDIS,
+Realtek-driver, or vSwitch component. No `RestoreHealth` or `sfc /scannow`
+was run.
+
+The exact failing VMSwitch event records a temporary non-lightweight miniport
+with both `Object Name already exists` and `{Conflicting Address Range}`. Its
+rollback leaves no matching adapter, PnP device, network-class identity, HNS
+network, NAT mapping, or recorded corresponding address range. The signed Realtek
+`PCI\VEN_10EC&DEV_8168` driver is inventoried, and its `vms_pp` binding is
+already disabled; the Microsoft Server-only enabled-binding workaround is not
+applicable. The current host edition fields are internally ambiguous
+(`ProductName=Windows 10 Pro` alongside 24H2 build `26100.3194`), so the
+Windows 10-only KB3101106 workaround cannot be applied by inference.
+
+Phase A did not identify a current Microsoft-supported exact repair target.
+The support-maintenance path stops here; a repair "just in case" remains
+prohibited. See
+[`2026-08-28-agent-13-hyper-v-maintenance-phase-a.md`](../changesets/2026-08-28-agent-13-hyper-v-maintenance-phase-a.md)
+for sanitized command, event, driver, and release-boundary evidence.
+
 ## Impact
 
 No accepted Hyper-V isolation boundary can be created on the present host.
@@ -33,12 +59,11 @@ unidentified network component would weaken the accepted boundary.
 
 ## Required resolution path
 
-Use the approval-gated support-maintenance contract in
+Phase A of the approval-gated support-maintenance contract in
 [`2026-08-28-agent-12-hyper-v-support-maintenance-contract.md`](../changesets/2026-08-28-agent-12-hyper-v-support-maintenance-contract.md).
-The next action is read-only system/image/driver/feature diagnosis only. Stop
-if it cannot identify a Microsoft-supported, build-applicable repair target.
-No Windows repair, driver/binding change, service restart, reset, reboot, or
-runner retry may begin from this blocker.
+has completed and stopped because it could not identify a Microsoft-supported,
+build-applicable repair target. No Windows repair, driver/binding change,
+service restart, reset, reboot, or runner retry may begin from this blocker.
 
 ## Zero-cost alternative
 

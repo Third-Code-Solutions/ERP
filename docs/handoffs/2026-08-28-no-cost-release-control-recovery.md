@@ -395,6 +395,24 @@ booted/dedicated physical Linux boundary under a new Agent 12 contract. It is
 not a WSL, shared Docker, Windows-runner, retained-switch, or paid-hosted
 substitute.
 
+### 2026-08-28 Phase A host-maintenance diagnostic stop
+
+The separately authorized Phase A read-only Windows/Hyper-V ledger is complete.
+DISM reports a healthy component store; SFC identifies only a Windows visual
+asset hash mismatch, not a Hyper-V component. The signed Realtek NIC driver is
+inventoried and its `vms_pp` binding is already disabled. Expanded VMMS and
+VMSwitch evidence confirms the failed ephemeral miniport also emitted a
+conflicting-address-range event, but it did not reveal a persistent HNS, NAT,
+adapter, PnP, or registry object that a supported repair could target.
+
+No Phase B repair is proposed: the observed Windows edition/build fields do not
+establish KB3101106 applicability, the Server-only binding remedy's prerequisite
+is absent, and a healthy component store does not justify `RestoreHealth`.
+No Windows update, repair, driver/binding change, reboot, or runner retry is
+authorized. The complete Agent13 evidence is in
+`docs/changesets/2026-08-28-agent-13-hyper-v-maintenance-phase-a.md`; the
+isolated runner and entire release remain **NO-GO**.
+
 ## Final stop conditions
 
 Stop and record **NO-GO** immediately if any of these occurs: the local runner
