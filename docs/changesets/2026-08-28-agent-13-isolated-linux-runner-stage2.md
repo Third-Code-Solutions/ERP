@@ -196,3 +196,38 @@ runner registration, or selected-workflow update may occur.
 against `2026-08-28-agent-12-isolated-linux-runner-stage3-review.md`. If it is
 accepted, return the approved full SHA before any Group `3` update; otherwise
 the release remains NO-GO with no host mutation.
+
+## Static remediation after Agent 12 re-review — pending re-review
+
+The static re-review rejected the prior rollback schema. This superseding record
+changes no host or GitHub state and makes the containment contract stricter:
+
+- `netsh` port proxies are prohibited, not modeled as rollback resources. The
+  elevated preflight rejects every existing port proxy, the future Provisioned
+  ledger requires `Resources.PortProxies=[]`, and rollback re-inventory fails
+  on any port proxy. Parsing remains only as structured negative evidence.
+- A `Provisioned` ledger now records the identities needed to remove in-flight
+  resources and is rollback-eligible without claiming they are already gone.
+  Only the subsequent `RolledBack` ledger writes `FinalZeroResidue=true` after
+  exact removal, re-inventory, no-proxy assertion, and dynamic-port listener
+  checks. This keeps interrupted provision cleanup executable.
+- Each ledgered firewall rule now must include exact `Name` and `InstanceID`,
+  direction, action, enabled state, profile, port/protocol, local/remote
+  address, interface alias/type, and explicit VM/switch/interface binding
+  evidence. The scope rejects global addresses, global profiles/ports, generic
+  interfaces, and bindings outside the dedicated virtual switch. Removal first
+  compares the live rule and every captured filter to this ledger evidence,
+  then removes only that exact `Name`.
+- The Node regression fixture is a truthful Provisioned state: it has no port
+  proxy and no pre-cleanup zero-residue claim. Negative cases prove rejection
+  of a preflight lifecycle, any port proxy, and a globally scoped firewall
+  address filter under both Windows PowerShell 5.1 and pwsh.
+
+**Current status: NO-GO.** This is static contract work only. No UAC launch,
+VM/switch/NAT/firewall/port-proxy operation, runner registration, JIT input,
+Group `3` update, provider, database, production, Auth, Snyk, or full CI action
+has occurred.
+
+→ **Handoff to Agent 12.** Review the new exact commit before any Group `3`
+selection or Provision activity. The legacy group selection and zero-runner
+state remain preserved.

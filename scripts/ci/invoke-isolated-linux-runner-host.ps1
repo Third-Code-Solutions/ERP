@@ -109,10 +109,36 @@ function Get-TargetFirewallRules {
   foreach ($ruleName in $targets.FirewallRuleNames) {
     $rules += @(
       Get-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue |
-        Select-Object Name, InstanceID, DisplayName, Direction, Action, Enabled, Profile, PolicyStoreSource
+        ForEach-Object { Get-FirewallRuleEvidence -Rule $_ }
     )
   }
   return @($rules)
+}
+
+function Get-FirewallRuleEvidence {
+  param([Parameter(Mandatory)] [object]$Rule)
+  [pscustomobject]@{
+    Name = $Rule.Name
+    InstanceID = $Rule.InstanceID
+    DisplayName = $Rule.DisplayName
+    Direction = $Rule.Direction.ToString()
+    Action = $Rule.Action.ToString()
+    Enabled = $Rule.Enabled.ToString()
+    Profile = @($Rule.Profile | ForEach-Object { $_.ToString() })
+    PolicyStoreSource = $Rule.PolicyStoreSource
+    PortFilters = @(
+      Get-NetFirewallPortFilter -AssociatedNetFirewallRule $Rule -ErrorAction Stop |
+        Select-Object Protocol, LocalPort, RemotePort
+    )
+    AddressFilters = @(
+      Get-NetFirewallAddressFilter -AssociatedNetFirewallRule $Rule -ErrorAction Stop |
+        Select-Object LocalAddress, RemoteAddress
+    )
+    InterfaceFilters = @(
+      Get-NetFirewallInterfaceFilter -AssociatedNetFirewallRule $Rule -ErrorAction Stop |
+        Select-Object InterfaceAlias, InterfaceType
+    )
+  }
 }
 
 function Get-HostListeners {
@@ -253,10 +279,8 @@ function Assert-TargetVacant {
   if (@($Inventory.FirewallRules).Count -ne 0) {
     throw 'Target firewall rules already exist by exact display-name identity.'
   }
-  if (@($Inventory.PortProxy | Where-Object {
-        $_.ConnectAddress -eq $targets.GuestAddress -or $_.ListenAddress -eq $targets.Gateway
-      }).Count -ne 0) {
-    throw 'Target port-proxy mapping already exists by exact guest/gateway identity.'
+  if (@($Inventory.PortProxy).Count -ne 0) {
+    throw 'This isolated runner design prohibits every netsh port proxy, including non-target mappings.'
   }
   if (@($Inventory.Docker.TargetContainers).Count -ne 0 -or @($Inventory.Docker.TargetNetworks).Count -ne 0 -or @($Inventory.Docker.TargetVolumes).Count -ne 0) {
     throw 'Target-labeled Docker resource already exists.'
@@ -274,6 +298,106 @@ function Assert-Property {
   if ($null -eq $Value -or ($Value -is [string] -and [string]::IsNullOrWhiteSpace($Value))) {
     throw "Rollback ledger is missing $Name."
   }
+}
+
+function Get-NormalizedValues {
+  param([object]$Value)
+  return @(
+    @($Value) |
+      ForEach-Object { ([string]$_).Trim() } |
+      Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+      Sort-Object -Unique
+  )
+}
+
+function Assert-ExactValueSet {
+  param(
+    [Parameter(Mandatory)] [object]$Expected,
+    [Parameter(Mandatory)] [object]$Actual,
+    [Parameter(Mandatory)] [string]$Name
+  )
+  $expectedValues = @(Get-NormalizedValues -Value $Expected)
+  $actualValues = @(Get-NormalizedValues -Value $Actual)
+  if ($expectedValues.Count -eq 0 -or $expectedValues.Count -ne $actualValues.Count -or (Compare-Object -ReferenceObject $expectedValues -DifferenceObject $actualValues)) {
+    throw "Firewall filter mismatch for $Name."
+  }
+}
+
+function Assert-ExactFirewallFilter {
+  param(
+    [Parameter(Mandatory)] [object]$Expected,
+    [Parameter(Mandatory)] [object[]]$Actual,
+    [Parameter(Mandatory)] [string[]]$Properties,
+    [Parameter(Mandatory)] [string]$Name
+  )
+  if (@($Actual).Count -ne 1) {
+    throw "Firewall filter count mismatch for $Name."
+  }
+  foreach ($property in $Properties) {
+    Assert-ExactValueSet -Expected $Expected.$property -Actual $Actual[0].$property -Name "$Name.$property"
+  }
+}
+
+function Assert-NarrowFirewallScope {
+  param(
+    [Parameter(Mandatory)] [object]$FirewallRule,
+    [Parameter(Mandatory)] [object]$Vm,
+    [Parameter(Mandatory)] [object]$Switch
+  )
+  Assert-Property -Value $FirewallRule.Enabled -Name 'FirewallRule.Enabled'
+  Assert-Property -Value $FirewallRule.Profile -Name 'FirewallRule.Profile'
+  Assert-Property -Value $FirewallRule.Scope -Name 'FirewallRule.Scope'
+  Assert-Property -Value $FirewallRule.Scope.PortFilter -Name 'FirewallRule.Scope.PortFilter'
+  Assert-Property -Value $FirewallRule.Scope.AddressFilter -Name 'FirewallRule.Scope.AddressFilter'
+  Assert-Property -Value $FirewallRule.Scope.InterfaceFilter -Name 'FirewallRule.Scope.InterfaceFilter'
+  Assert-Property -Value $FirewallRule.Scope.Binding -Name 'FirewallRule.Scope.Binding'
+
+  if ([string]$FirewallRule.Enabled -notmatch '^(?i:true|enabled)$') {
+    throw 'Rollback ledger firewall rule is not explicitly enabled.'
+  }
+  $profiles = @(Get-NormalizedValues -Value $FirewallRule.Profile)
+  if ($profiles.Count -eq 0 -or $profiles -contains 'Any') {
+    throw 'Rollback ledger firewall profile scope is global or empty.'
+  }
+  $portFilter = $FirewallRule.Scope.PortFilter
+  $addressFilter = $FirewallRule.Scope.AddressFilter
+  $interfaceFilter = $FirewallRule.Scope.InterfaceFilter
+  if ([string]$portFilter.Protocol -notin @('TCP', 'UDP') -or [string]$portFilter.LocalPort -in @('', 'Any', '*') -or [string]$portFilter.RemotePort -in @('', 'Any', '*')) {
+    throw 'Rollback ledger firewall port/protocol scope is global or invalid.'
+  }
+  foreach ($address in @($addressFilter.LocalAddress, $addressFilter.RemoteAddress)) {
+    if ([string]$address -in @('', 'Any', '*', '0.0.0.0/0', '::/0')) {
+      throw 'Rollback ledger firewall address scope is global or invalid.'
+    }
+  }
+  $expectedInterfaceAlias = "vEthernet ($($Switch.Name))"
+  if ([string]$interfaceFilter.InterfaceAlias -ne $expectedInterfaceAlias -or [string]$interfaceFilter.InterfaceType -in @('', 'Any', '*')) {
+    throw 'Rollback ledger firewall interface scope is not the dedicated virtual switch.'
+  }
+  $binding = $FirewallRule.Scope.Binding
+  if ($binding.Kind -ne 'HostFirewallInterfaceFilter' -or $binding.SupportedFilter -ne 'Get-NetFirewallInterfaceFilter' -or $binding.VmId -ne $Vm.Id -or $binding.SwitchId -ne $Switch.Id -or $binding.InterfaceAlias -ne $expectedInterfaceAlias) {
+    throw 'Rollback ledger firewall Hyper-V binding evidence is invalid.'
+  }
+}
+
+function Assert-FirewallRuleMatchesLedger {
+  param([Parameter(Mandatory)] [object]$FirewallRule)
+  $liveRules = @(Get-NetFirewallRule -Name $FirewallRule.Name -ErrorAction SilentlyContinue)
+  if ($liveRules.Count -gt 1) {
+    throw 'Rollback found duplicate exact firewall rule identities.'
+  }
+  if ($liveRules.Count -eq 0) {
+    return $null
+  }
+  $live = Get-FirewallRuleEvidence -Rule $liveRules[0]
+  foreach ($property in @('InstanceID', 'DisplayName', 'Direction', 'Action', 'Enabled')) {
+    Assert-ExactValueSet -Expected $FirewallRule.$property -Actual $live.$property -Name "FirewallRule.$property"
+  }
+  Assert-ExactValueSet -Expected $FirewallRule.Profile -Actual $live.Profile -Name 'FirewallRule.Profile'
+  Assert-ExactFirewallFilter -Expected $FirewallRule.Scope.PortFilter -Actual @($live.PortFilters) -Properties @('Protocol', 'LocalPort', 'RemotePort') -Name 'PortFilter'
+  Assert-ExactFirewallFilter -Expected $FirewallRule.Scope.AddressFilter -Actual @($live.AddressFilters) -Properties @('LocalAddress', 'RemoteAddress') -Name 'AddressFilter'
+  Assert-ExactFirewallFilter -Expected $FirewallRule.Scope.InterfaceFilter -Actual @($live.InterfaceFilters) -Properties @('InterfaceAlias', 'InterfaceType') -Name 'InterfaceFilter'
+  return $liveRules[0]
 }
 
 function Read-RollbackLedger {
@@ -296,8 +420,8 @@ function Read-RollbackLedger {
   Assert-Property -Value $ledger.Resources.FirewallRules -Name 'Resources.FirewallRules'
   Assert-Property -Value $ledger.Resources.PortProxies -Name 'Resources.PortProxies'
   Assert-Property -Value $ledger.Resources.DynamicPorts -Name 'Resources.DynamicPorts'
-  if ($ledger.Resources.FinalZeroResidue -ne $true) {
-    throw 'Rollback ledger must attest to final zero residue from its Provision operation.'
+  if (@($ledger.Resources.PortProxies).Count -ne 0) {
+    throw 'Provisioned ledger must attest that no netsh port proxy exists.'
   }
 
   if ($ledger.Resources.Vm.Name -ne $targets.VmName -or -not [guid]::TryParse([string]$ledger.Resources.Vm.Id, [ref]([guid]::Empty)) -or [int]$ledger.Resources.Vm.Generation -ne 2) {
@@ -316,9 +440,10 @@ function Read-RollbackLedger {
     throw 'Rollback ledger must name every exact firewall rule.'
   }
   foreach ($firewallRule in @($ledger.Resources.FirewallRules)) {
-    if ($firewallRule.DisplayName -notin $targets.FirewallRuleNames -or -not [guid]::TryParse([string]$firewallRule.InstanceID, [ref]([guid]::Empty)) -or [string]::IsNullOrWhiteSpace([string]$firewallRule.Name)) {
+    if ($firewallRule.DisplayName -notin $targets.FirewallRuleNames -or -not [guid]::TryParse([string]$firewallRule.InstanceID, [ref]([guid]::Empty)) -or [string]::IsNullOrWhiteSpace([string]$firewallRule.Name) -or $firewallRule.Direction -notin @('Inbound', 'Outbound') -or $firewallRule.Action -notin @('Allow', 'Block')) {
       throw 'Rollback ledger firewall identity is invalid.'
     }
+    Assert-NarrowFirewallScope -FirewallRule $firewallRule -Vm $ledger.Resources.Vm -Switch $ledger.Resources.Switch
   }
   if (@($ledger.Resources.FirewallRules | Select-Object -ExpandProperty DisplayName | Sort-Object -Unique).Count -ne $targets.FirewallRuleNames.Count) {
     throw 'Rollback ledger firewall identities are not a complete exact set.'
@@ -326,14 +451,6 @@ function Read-RollbackLedger {
   $dynamicPorts = @($ledger.Resources.DynamicPorts | ForEach-Object { [int]$_ })
   if ($dynamicPorts.Count -eq 0 -or @($dynamicPorts | Where-Object { $_ -lt 1 -or $_ -gt 65535 }).Count -ne 0 -or @($dynamicPorts | Sort-Object -Unique).Count -ne $dynamicPorts.Count) {
     throw 'Rollback ledger dynamic port set is invalid.'
-  }
-  foreach ($portProxy in @($ledger.Resources.PortProxies)) {
-    if ($portProxy.Protocol -notin @('v4tov4', 'v4tov6', 'v6tov4', 'v6tov6') -or [int]$portProxy.ListenPort -lt 1 -or [int]$portProxy.ConnectPort -lt 1) {
-      throw 'Rollback ledger port-proxy identity is invalid.'
-    }
-    if ($portProxy.ConnectAddress -ne $targets.GuestAddress -or [int]$portProxy.ListenPort -notin $dynamicPorts) {
-      throw 'Rollback ledger port-proxy is outside the exact guest and dynamic-port target.'
-    }
   }
   return $ledger
 }
@@ -354,37 +471,11 @@ function Assert-RunDirectoryOwned {
   }
 }
 
-function Remove-ExactPortProxy {
-  param([Parameter(Mandatory)] [object]$PortProxy)
-  $live = @(
-    Get-PortProxyEntries | Where-Object {
-      $_.Protocol -eq $PortProxy.Protocol -and
-      $_.ListenAddress -eq $PortProxy.ListenAddress -and
-      $_.ListenPort -eq [int]$PortProxy.ListenPort -and
-      $_.ConnectAddress -eq $PortProxy.ConnectAddress -and
-      $_.ConnectPort -eq [int]$PortProxy.ConnectPort
-    }
-  )
-  if ($live.Count -gt 1) {
-    throw 'Rollback found duplicate exact port-proxy identities.'
-  }
-  if ($live.Count -eq 1) {
-    & netsh interface portproxy delete $PortProxy.Protocol "listenaddress=$($PortProxy.ListenAddress)" "listenport=$($PortProxy.ListenPort)" | Out-Null
-  }
-}
-
 function Remove-ExactFirewallRule {
   param([Parameter(Mandatory)] [object]$FirewallRule)
-  $live = @(Get-NetFirewallRule -Name $FirewallRule.Name -ErrorAction SilentlyContinue)
-  if ($live.Count -gt 1) {
-    throw 'Rollback found duplicate exact firewall rule identities.'
-  }
-  if ($live.Count -eq 1) {
-    $rule = $live[0]
-    if ($rule.InstanceID -ne $FirewallRule.InstanceID -or $rule.DisplayName -ne $FirewallRule.DisplayName -or $rule.Direction.ToString() -ne $FirewallRule.Direction -or $rule.Action.ToString() -ne $FirewallRule.Action) {
-      throw 'Rollback refuses to remove a firewall rule that differs from the ledger identity.'
-    }
-    Remove-NetFirewallRule -Name $FirewallRule.Name
+  $live = Assert-FirewallRuleMatchesLedger -FirewallRule $FirewallRule
+  if ($null -ne $live) {
+    Remove-NetFirewallRule -Name $FirewallRule.Name -ErrorAction Stop
   }
 }
 
@@ -400,8 +491,6 @@ function Invoke-Rollback {
     Remove-VM -Id $Ledger.Resources.Vm.Id -Force
   }
 
-  foreach ($portProxy in @($Ledger.Resources.PortProxies)) { Remove-ExactPortProxy -PortProxy $portProxy }
-
   $nat = @($inventory.Nats | Where-Object { $_.Name -eq $Ledger.Resources.Nat.Name -and $_.InternalIPInterfaceAddressPrefix -eq $Ledger.Resources.Nat.Prefix })
   if ($nat.Count -gt 1) { throw 'Rollback found duplicate exact NAT identities.' }
   if ($nat.Count -eq 1) { Remove-NetNat -Name $Ledger.Resources.Nat.Name -Confirm:$false }
@@ -415,6 +504,9 @@ function Invoke-Rollback {
 
   $remaining = Get-ExactHostInventory
   Assert-TargetVacant -Inventory $remaining
+  if (@($remaining.PortProxy).Count -ne 0) {
+    throw 'Exact rollback refuses a host with any netsh port proxy; no proxy is part of this design.'
+  }
   Assert-NoHostExposureForPorts -Ports @($Ledger.Resources.DynamicPorts | ForEach-Object { [int]$_ }) -PortProxies @($remaining.PortProxy) -Listeners @($remaining.Listeners)
   return $remaining
 }
@@ -482,7 +574,9 @@ try {
       Outcome = 'PASS'
       RunIdentity = $RunIdentity
       Targets = $targets
+      PortProxies = @()
       InventoryAfter = $remaining
+      FinalZeroResidue = $true
       Notes = @('Exact ledger-bound rollback verified zero current-run residue and no protected host-port exposure.')
     })
   Write-Host "PASS exact Hyper-V rollback; non-secret ledger: $LedgerPath"

@@ -52,14 +52,33 @@ function runHostScript(engine, mode, ledgerPath) {
 }
 
 function provisionedLedger() {
+  const vmId = '11111111-1111-1111-1111-111111111111'
+  const switchId = '22222222-2222-2222-2222-222222222222'
+  const switchName = `${runIdentity}-switch`
+  const interfaceAlias = `vEthernet (${switchName})`
+  const firewallRule = (name, instanceId, suffix) => ({
+    Name: name,
+    InstanceID: instanceId,
+    DisplayName: `Third Code ERP ${runIdentity} - ${suffix}`,
+    Direction: 'Inbound',
+    Action: 'Block',
+    Enabled: 'True',
+    Profile: ['Private'],
+    Scope: {
+      PortFilter: { Protocol: 'TCP', LocalPort: '443', RemotePort: '443' },
+      AddressFilter: { LocalAddress: '172.31.202.1', RemoteAddress: '172.31.202.10' },
+      InterfaceFilter: { InterfaceAlias: interfaceAlias, InterfaceType: 'Wired' },
+      Binding: { Kind: 'HostFirewallInterfaceFilter', SupportedFilter: 'Get-NetFirewallInterfaceFilter', VmId: vmId, SwitchId: switchId, InterfaceAlias: interfaceAlias },
+    },
+  })
   return {
     SchemaVersion: 2,
     Lifecycle: 'Provisioned',
     Outcome: 'PASS',
     RunIdentity: runIdentity,
     Resources: {
-      Vm: { Name: runIdentity, Id: '11111111-1111-1111-1111-111111111111', Generation: 2 },
-      Switch: { Name: `${runIdentity}-switch`, Id: '22222222-2222-2222-2222-222222222222', Type: 'Internal' },
+      Vm: { Name: runIdentity, Id: vmId, Generation: 2 },
+      Switch: { Name: switchName, Id: switchId, Type: 'Internal' },
       Nat: { Name: `${runIdentity}-nat`, Prefix: '172.31.202.0/24' },
       RunDirectory: {
         Path: `D:\\third-code-erp-isolated-runner\\${runIdentity}`,
@@ -67,13 +86,12 @@ function provisionedLedger() {
         MarkerSha256: 'a'.repeat(64),
       },
       FirewallRules: [
-        { Name: 'rule-inbound', InstanceID: '33333333-3333-3333-3333-333333333333', DisplayName: `Third Code ERP ${runIdentity} - host-inbound-deny`, Direction: 'Inbound', Action: 'Block' },
-        { Name: 'rule-private', InstanceID: '44444444-4444-4444-4444-444444444444', DisplayName: `Third Code ERP ${runIdentity} - host-private-deny`, Direction: 'Inbound', Action: 'Block' },
-        { Name: 'rule-probe', InstanceID: '55555555-5555-5555-5555-555555555555', DisplayName: `Third Code ERP ${runIdentity} - guest-probe-deny`, Direction: 'Inbound', Action: 'Block' },
+        firewallRule('rule-inbound', '33333333-3333-3333-3333-333333333333', 'host-inbound-deny'),
+        firewallRule('rule-private', '44444444-4444-4444-4444-444444444444', 'host-private-deny'),
+        firewallRule('rule-probe', '55555555-5555-5555-5555-555555555555', 'guest-probe-deny'),
       ],
-      PortProxies: [{ Protocol: 'v4tov4', ListenAddress: '127.0.0.1', ListenPort: 60123, ConnectAddress: '172.31.202.10', ConnectPort: 54321 }],
+      PortProxies: [],
       DynamicPorts: [60123],
-      FinalZeroResidue: true,
     },
   }
 }
@@ -180,12 +198,18 @@ test('the host helper records structured containment evidence and has no wildcar
   assert.match(hostScript, /TargetVolumes/)
   assert.match(hostScript, /Assert-NoHostExposureForPorts/)
   assert.match(hostScript, /Assert-RunDirectoryOwned/)
+  assert.match(hostScript, /Get-FirewallRuleEvidence/)
+  assert.match(hostScript, /Get-NetFirewallPortFilter/)
+  assert.match(hostScript, /Get-NetFirewallAddressFilter/)
+  assert.match(hostScript, /Get-NetFirewallInterfaceFilter/)
+  assert.match(hostScript, /Assert-NarrowFirewallScope/)
+  assert.match(hostScript, /Assert-FirewallRuleMatchesLedger/)
   assert.match(hostScript, /Remove-ExactFirewallRule/)
-  assert.match(hostScript, /Remove-ExactPortProxy/)
+  assert.match(hostScript, /Provisioned ledger must attest that no netsh port proxy exists/)
   assert.match(hostScript, /Rollback accepts only a successful SchemaVersion 2 Provisioned ledger/)
   assert.match(hostScript, /Remove-NetFirewallRule -Name \$FirewallRule\.Name/)
   assert.doesNotMatch(hostScript, /FirewallPrefix|Get-NetFirewallRule\s+-DisplayName\s+"[^"\n]*\*"|Remove-NetFirewallRule\s*$/m)
-  assert.doesNotMatch(hostScript, /Get-NetNat\s*\|\s*Remove-NetNat|docker (system )?prune|wsl --unregister/i)
+  assert.doesNotMatch(hostScript, /Remove-ExactPortProxy|netsh interface portproxy delete|Get-NetNat\s*\|\s*Remove-NetNat|docker (system )?prune|wsl --unregister/i)
 })
 
 test('the ledger writer round-trips BOM-less UTF-8 under every installed PowerShell engine', async (t) => {
@@ -236,19 +260,19 @@ test('rollback planning accepts only exact Provisioned ledger identities and rej
       const rejected = runHostScript(engine, 'RollbackPlanRegression', rejectedPath)
       assert.notEqual(rejected.status, 0, `${engine.name} accepted a non-Provisioned rollback ledger`)
 
-      const residueLedger = provisionedLedger()
-      residueLedger.Resources.FinalZeroResidue = false
-      const residuePath = join(artifactDirectory, `${engine.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-residue.json`)
-      await writeFile(residuePath, JSON.stringify(residueLedger), 'utf8')
-      const residue = runHostScript(engine, 'RollbackPlanRegression', residuePath)
-      assert.notEqual(residue.status, 0, `${engine.name} accepted a ledger without final zero-residue attestation`)
+      const portProxyLedger = provisionedLedger()
+      portProxyLedger.Resources.PortProxies = [{ Protocol: 'v4tov4', ListenAddress: '127.0.0.1', ListenPort: 60123, ConnectAddress: '172.31.202.10', ConnectPort: 54321 }]
+      const portProxyPath = join(artifactDirectory, `${engine.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-portproxy.json`)
+      await writeFile(portProxyPath, JSON.stringify(portProxyLedger), 'utf8')
+      const portProxy = runHostScript(engine, 'RollbackPlanRegression', portProxyPath)
+      assert.notEqual(portProxy.status, 0, `${engine.name} accepted a forbidden netsh port proxy`)
 
-      const foreignPortProxyLedger = provisionedLedger()
-      foreignPortProxyLedger.Resources.PortProxies[0].ConnectAddress = '192.0.2.17'
-      const foreignPortProxyPath = join(artifactDirectory, `${engine.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-foreign-portproxy.json`)
-      await writeFile(foreignPortProxyPath, JSON.stringify(foreignPortProxyLedger), 'utf8')
-      const foreignPortProxy = runHostScript(engine, 'RollbackPlanRegression', foreignPortProxyPath)
-      assert.notEqual(foreignPortProxy.status, 0, `${engine.name} accepted a rollback port-proxy outside the guest target`)
+      const globalFirewallLedger = provisionedLedger()
+      globalFirewallLedger.Resources.FirewallRules[0].Scope.AddressFilter.LocalAddress = 'Any'
+      const globalFirewallPath = join(artifactDirectory, `${engine.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-global-firewall.json`)
+      await writeFile(globalFirewallPath, JSON.stringify(globalFirewallLedger), 'utf8')
+      const globalFirewall = runHostScript(engine, 'RollbackPlanRegression', globalFirewallPath)
+      assert.notEqual(globalFirewall.status, 0, `${engine.name} accepted a globally scoped firewall rule`)
     }
   } finally {
     await rm(artifactDirectory, { recursive: true, force: true })
