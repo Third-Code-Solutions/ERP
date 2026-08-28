@@ -100,7 +100,7 @@ export function DemoRequestForm() {
 
       <label className={styles.consent}>
         <input name="privacyConsent" required type="checkbox" />
-        <span>I agree that Third Code Solutions may contact me about this request.</span>
+        <span>I agree that Actuate Builders Inc. may contact me about this request.</span>
       </label>
 
       {state.status !== 'idle' ? (

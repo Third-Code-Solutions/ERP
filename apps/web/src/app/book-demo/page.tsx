@@ -17,7 +17,7 @@ export default function BookDemoPage() {
           <span className={styles.brandMark}>A</span>
           <span>
             <strong>ABI OPS</strong>
-            <small>Third Code Solutions</small>
+            <small>Actuate Builders</small>
           </span>
         </Link>
         <Link className={styles.workspaceLink} href="/auth/login">
