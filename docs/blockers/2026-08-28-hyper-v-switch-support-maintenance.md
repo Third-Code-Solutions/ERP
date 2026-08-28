@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-28
 **Severity:** P1 operational / release blocker
-**Status:** OPEN — no repair authorized
+**Status:** **BLOCKED / NO-GO — present Windows/Hyper-V runner path closed**
 
 ## Evidence
 
@@ -27,11 +27,14 @@ snapshot do not prove either is causal here.
 
 Authorized Phase A checks completed without a system or network change. Both
 `DISM /Online /Cleanup-Image /CheckHealth` and `/ScanHealth` exit `0` and
-report no component-store corruption. `sfc /verifyonly` reports an integrity
-violation, but the contemporary CBS log narrows it to
-`C:\Windows\Web\Screen\img100.jpg`; it is not a Hyper-V, HNS, NDIS,
-Realtek-driver, or vSwitch component. No `RestoreHealth` or `sfc /scannow`
-was run.
+report no component-store corruption. `sfc /verifyonly` exit `0` but reports
+integrity violations. Its captured output is UTF-16/NUL-padded and therefore
+does not provide a durable per-file finding in the sanitized ledger. A
+contemporary CBS inspection contains `img100.jpg` and `smartscreen.exe`
+entries; neither identifies a Hyper-V, HNS, NDIS, Realtek-driver, or vSwitch
+component. Microsoft documents `/verifyonly` as verification without repair,
+so this is not evidence that a repair ran. No `RestoreHealth` or `sfc
+/scannow` was run.
 
 The exact failing VMSwitch event records a temporary non-lightweight miniport
 with both `Object Name already exists` and `{Conflicting Address Range}`. Its
@@ -44,10 +47,12 @@ applicable. The current host edition fields are internally ambiguous
 Windows 10-only KB3101106 workaround cannot be applied by inference.
 
 Phase A did not identify a current Microsoft-supported exact repair target.
-The support-maintenance path stops here; a repair "just in case" remains
-prohibited. See
+The **current Windows/Hyper-V runner path is closed**: a repair "just in case"
+or a fifth switch attempt remains prohibited. See
 [`2026-08-28-agent-13-hyper-v-maintenance-phase-a.md`](../changesets/2026-08-28-agent-13-hyper-v-maintenance-phase-a.md)
-for sanitized command, event, driver, and release-boundary evidence.
+and Agent 12's
+[`Phase A review`](../changesets/2026-08-28-agent-12-hyper-v-maintenance-phase-a-review.md)
+for sanitized command, event, driver, release-boundary, and decision evidence.
 
 ## Impact
 
@@ -57,13 +62,30 @@ proof, release, or production deployment can rely on this path. Retrying
 `New-VMSwitch`, reusing Default Switch/WSL/Docker Desktop, or changing an
 unidentified network component would weaken the accepted boundary.
 
-## Required resolution path
+## Required user-controlled resolution choices
 
 Phase A of the approval-gated support-maintenance contract in
-[`2026-08-28-agent-12-hyper-v-support-maintenance-contract.md`](../changesets/2026-08-28-agent-12-hyper-v-support-maintenance-contract.md).
+[`2026-08-28-agent-12-hyper-v-support-maintenance-contract.md`](../changesets/2026-08-28-agent-12-hyper-v-support-maintenance-contract.md)
 has completed and stopped because it could not identify a Microsoft-supported,
-build-applicable repair target. No Windows repair, driver/binding change,
-service restart, reset, reboot, or runner retry may begin from this blocker.
+build-applicable repair target. Existing broad virtualization/network approval
+is not approval for either of the following user choices:
+
+1. **Disruptive vendor-supported or in-place Windows repair maintenance.** The
+   owner must first obtain a current-build-specific Microsoft/OEM support
+   target, then separately approve the exact repair method, Windows repair
+   source/licensing, backup and recovery plan, connectivity/Docker/WSL impact,
+   maintenance window, reboot, and local-access recovery. An agent must not
+   select or improvise that remediation.
+2. **A separately booted/dedicated physical Linux host.** The owner may
+   nominate an existing x64 Linux machine at no subscription cost. If it reuses
+   this desktop, Windows must be powered off and its data disks physically
+   unavailable; merely using WSL or unmounting a profile is insufficient. A
+   new Agent 12 isolation contract and fresh preflight are required before any
+   runner registration.
+
+No Windows repair, driver/binding change, service restart, reset, reboot, or
+runner retry may begin from this blocker. WSL, Docker Desktop, the Windows
+runner, Default/WSL switches, and paid hosted capacity remain ineligible.
 
 ## Zero-cost alternative
 

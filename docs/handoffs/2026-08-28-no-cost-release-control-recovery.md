@@ -413,6 +413,44 @@ authorized. The complete Agent13 evidence is in
 `docs/changesets/2026-08-28-agent-13-hyper-v-maintenance-phase-a.md`; the
 isolated runner and entire release remain **NO-GO**.
 
+### 2026-08-28 Agent 12 Phase A acceptance and strict sequencing decision
+
+Agent 12 independently accepted the **read-only failure attestation**, not a
+repair path. The local Phase A bundle has SHA-256
+`e766a3beaceaf4cbb0747842658ee5a211b1a3257fa793511dac55f044d19395` and
+confirms healthy DISM checks, enabled Hyper-V features, running
+`vmms`/`vmcompute`/`hns`, the recorded temporary-miniport collision, no
+persistent target identity, unchanged cache, and Group 3's exact ERP-only,
+restricted-workflow, zero-runner state. Current independent readback also
+finds no target run root, NAT/static mapping, or port-proxy mapping.
+
+The Phase A bundle records `sfc /verifyonly`, not an SFC repair. Its
+NUL-padded captured output does not safely preserve a complete filename list;
+contemporary CBS entries include non-Hyper-V files (`img100.jpg` and
+`smartscreen.exe`). This is an evidence-normalization limitation, not a
+component-store, Hyper-V, or runner remediation target. Microsoft documents
+`/verifyonly` as a verification-only operation; the two successful DISM checks
+do not justify `RestoreHealth`. The Realtek inventory does not identify a
+faulty driver, and the Server-only `vms_pp` remedy does not apply because that
+binding is already disabled.
+
+**Decision: Phase B is rejected.** No current-build Microsoft-supported exact
+repair target was identified. The present Windows/Hyper-V runner route is
+closed and remains **NO-GO** until the owner either authorizes a separate,
+disruptive, vendor-supported/in-place maintenance plan with its own exact
+repair target and recovery/reboot/connectivity approval, or nominates a
+separately booted/dedicated physical Linux host for a new isolation contract.
+
+Under this handoff's strict sequence, work stops before Snyk authentication,
+contained Auth, the 13-role matrix, or any release gate is run on a runner;
+no Snyk token/account action is authorized. The later Agent 04 lineage and
+Agent 01 commercial stages are likewise not advanced as this recovery chain.
+Separately authorized **read-only** work may proceed outside that chain—such
+as repository/static analysis, GitHub configuration readback, and explicitly
+authorized production metadata observation—but it cannot satisfy a skipped
+runner/security gate, expose credentials, mutate a provider, or change the
+release **NO-GO**.
+
 ## Final stop conditions
 
 Stop and record **NO-GO** immediately if any of these occurs: the local runner
