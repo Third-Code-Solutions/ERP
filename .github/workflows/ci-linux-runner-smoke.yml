@@ -40,9 +40,29 @@ jobs:
           # BEGIN cleanup-contract
           cleanup() {
             local cleanup_failed=0
-            docker rm --force "$container_name" >/dev/null 2>&1 || cleanup_failed=1
-            docker network rm "$network_name" >/dev/null 2>&1 || cleanup_failed=1
-            docker volume rm "$volume_name" >/dev/null 2>&1 || cleanup_failed=1
+            local resource_ids=''
+
+            if ! resource_ids="$(docker ps --all --filter "name=^/${container_name}$" --format '{{.ID}}')"; then
+              echo 'Unable to query current-run Docker container during cleanup.' >&2
+              cleanup_failed=1
+            elif [ -n "$resource_ids" ] && ! docker rm --force "$container_name" >/dev/null; then
+              echo 'Unable to remove current-run Docker container.' >&2
+              cleanup_failed=1
+            fi
+            if ! resource_ids="$(docker network ls --filter "name=^${network_name}$" --format '{{.ID}}')"; then
+              echo 'Unable to query current-run Docker network during cleanup.' >&2
+              cleanup_failed=1
+            elif [ -n "$resource_ids" ] && ! docker network rm "$network_name" >/dev/null; then
+              echo 'Unable to remove current-run Docker network.' >&2
+              cleanup_failed=1
+            fi
+            if ! resource_ids="$(docker volume ls --filter "name=^${volume_name}$" --format '{{.Name}}')"; then
+              echo 'Unable to query current-run Docker volume during cleanup.' >&2
+              cleanup_failed=1
+            elif [ -n "$resource_ids" ] && ! docker volume rm "$volume_name" >/dev/null; then
+              echo 'Unable to remove current-run Docker volume.' >&2
+              cleanup_failed=1
+            fi
 
             case "$work_directory" in
               "${work_root}/${run_identity}") ;;
@@ -55,15 +75,24 @@ jobs:
               rm -rf -- "$work_directory" || cleanup_failed=1
             fi
 
-            if docker ps --all --filter "name=^/${container_name}$" --format '{{.ID}}' | grep -q .; then
+            if ! resource_ids="$(docker ps --all --filter "name=^/${container_name}$" --format '{{.ID}}')"; then
+              echo 'Unable to verify current-run Docker container cleanup.' >&2
+              cleanup_failed=1
+            elif [ -n "$resource_ids" ]; then
               echo 'Current-run Docker container remains after cleanup.' >&2
               cleanup_failed=1
             fi
-            if docker network ls --filter "name=^${network_name}$" --format '{{.ID}}' | grep -q .; then
+            if ! resource_ids="$(docker network ls --filter "name=^${network_name}$" --format '{{.ID}}')"; then
+              echo 'Unable to verify current-run Docker network cleanup.' >&2
+              cleanup_failed=1
+            elif [ -n "$resource_ids" ]; then
               echo 'Current-run Docker network remains after cleanup.' >&2
               cleanup_failed=1
             fi
-            if docker volume ls --filter "name=^${volume_name}$" --format '{{.Name}}' | grep -q .; then
+            if ! resource_ids="$(docker volume ls --filter "name=^${volume_name}$" --format '{{.Name}}')"; then
+              echo 'Unable to verify current-run Docker volume cleanup.' >&2
+              cleanup_failed=1
+            elif [ -n "$resource_ids" ]; then
               echo 'Current-run Docker volume remains after cleanup.' >&2
               cleanup_failed=1
             fi

@@ -137,10 +137,21 @@ volume_name="\${run_identity}-volume"
 work_root="$(mktemp -d)"
 work_directory="\${work_root}/\${run_identity}"
 mkdir -p "\${work_directory}"
+container_present=1
+network_present=1
+volume_present=1
 docker() {
-  if [ "\${1:-}" = 'volume' ] && [ "\${2:-}" = 'rm' ] && [ "\${FORCE_CLEANUP_FAILURE:-0}" = '1' ]; then
-    return 42
-  fi
+  case "\${1:-}:\${2:-}" in
+    ps:*) [ "\${container_present}" -eq 1 ] && printf 'container-id\\n' ;;
+    network:ls) [ "\${network_present}" -eq 1 ] && printf 'network-id\\n' ;;
+    volume:ls) [ "\${volume_present}" -eq 1 ] && printf 'volume-name\\n' ;;
+    rm:--force) container_present=0 ;;
+    network:rm) network_present=0 ;;
+    volume:rm)
+      if [ "\${FORCE_CLEANUP_FAILURE:-0}" = '1' ]; then return 42; fi
+      volume_present=0
+      ;;
+  esac
   return 0
 }
 ${cleanupContract[1]}
@@ -148,6 +159,9 @@ ${cleanupContract[1]}
 
   const mainFailure = runProcess('bash.exe', ['-s'], `${setup}\non_exit 7`)
   assert.equal(mainFailure.status, 7, mainFailure.stderr || mainFailure.stdout)
+
+  const absentResourceFailure = runProcess('bash.exe', ['-s'], `${setup}\ncontainer_present=0; network_present=0; volume_present=0\non_exit 7`)
+  assert.equal(absentResourceFailure.status, 7, absentResourceFailure.stderr || absentResourceFailure.stdout)
 
   const cleanupFailure = runProcess('bash.exe', ['-s'], `${setup}\nFORCE_CLEANUP_FAILURE=1\non_exit 0`)
   assert.equal(cleanupFailure.status, 1, cleanupFailure.stderr || cleanupFailure.stdout)

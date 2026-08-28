@@ -155,9 +155,11 @@ a VM/switch/NAT/mapping/firewall rule, register a runner, or alter GitHub group
 - The workflow tracks a run-labelled volume and work directory in addition to
   its container and network. Its EXIT handler preserves a nonzero main status
   when cleanup succeeds and fails the job when exact cleanup fails. It checks
-  all four current-run resources for residue. The behavioral regression uses a
-  fake Docker command and temporary shell directory only; it deliberately
-  forces volume cleanup failure and proves the nonzero result is observable.
+  all four current-run resources for residue. Cleanup first queries each exact
+  name, so an early failure before creation is idempotent while Docker query,
+  removal, or residue-check failure still fails closed. The behavioral
+  regression uses a fake Docker command and temporary shell directory only; it
+  proves both the absent-resource case and a forced volume-cleanup failure.
 - The host helper now parses each `netsh interface portproxy` address family
   into structured entries, records host TCP listeners, standard and Hyper-V
   firewall profile state, target-labelled Docker containers/networks/volumes,
