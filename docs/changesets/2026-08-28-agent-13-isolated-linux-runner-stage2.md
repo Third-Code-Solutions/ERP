@@ -231,3 +231,29 @@ has occurred.
 → **Handoff to Agent 12.** Review the new exact commit before any Group `3`
 selection or Provision activity. The legacy group selection and zero-runner
 state remain preserved.
+
+## Agent 12 accepted workflow selection — external readback
+
+After Agent 12 static acceptance, Group `3` was updated with the GitHub
+organization runner-group PATCH endpoint to **replace**, not append, its
+selected workflow. The initial request was rejected with HTTP 422 before any
+change because a CLI string field represented the Boolean as text; the guarded
+typed-field retry succeeded.
+
+The immediate readback proves the following non-secret state:
+
+| Field | Verified value |
+| --- | --- |
+| Group | `3` / `erp-ci-isolated` |
+| Default / visibility | `false` / `selected` |
+| Selected repository | exactly `Third-Code-Solutions/ERP` (ID `1234811736`) |
+| Workflow restriction | `restricted_to_workflows=true` |
+| Selected workflow | exactly `Third-Code-Solutions/ERP/.github/workflows/ci-linux-runner-smoke.yml@827719975eb44808da85cbd64cc28074f6ee4ae1` |
+| Runner count | `0` |
+
+No group membership was widened and no runner was registered. No UAC, host,
+VM, VHD(X), switch, NAT, mapping, port proxy, firewall, guest, provider,
+database, credential, Auth, Snyk, CI dispatch, deployment, or production action
+followed. This scoped group configuration does not itself prove a guest
+boundary; all subsequent Provision/evidence work remains independently
+review-gated and release **NO-GO**.
