@@ -1,8 +1,8 @@
 # Agent 13 — Node 22 pre-production local release matrix
 
-**Date:** 2026-08-28T18:06:53+08:00  
-**Owner:** Agent 13 — CI/CD & Ops  
-**Candidate exercised:** `3781d037a2bef4faf1fe1aba50859e19a6d62a95`  
+**Date:** 2026-08-28T18:06:53+08:00
+**Owner:** Agent 13 — CI/CD & Ops
+**Candidate exercised:** `3781d037a2bef4faf1fe1aba50859e19a6d62a95`
 **Decision:** **LOCAL PARTIAL PASS; RELEASE NO-GO.** The source, raw PostgreSQL,
 and local security/workflow controls passed. The required real local Supabase
 Auth Admin API proof was blocked before execution by verified non-loopback
