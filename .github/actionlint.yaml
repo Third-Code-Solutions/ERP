@@ -1,3 +1,4 @@
 self-hosted-runner:
   labels:
     - third-code-erp-ci
+    - third-code-erp-ci-linux

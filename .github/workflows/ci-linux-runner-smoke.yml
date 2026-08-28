@@ -1,0 +1,97 @@
+name: Isolated Linux Runner Smoke
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: isolated-linux-runner-smoke-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Non-secret containment smoke
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.repository == 'Third-Code-Solutions/ERP' &&
+      github.repository_owner == 'Third-Code-Solutions' &&
+      github.ref == 'refs/heads/codex/release-candidate-trial-port' &&
+      github.actor == 'kurtgav' &&
+      github.triggering_actor == 'kurtgav'
+    runs-on:
+      group: erp-ci-isolated
+      labels: [self-hosted, Linux, X64, third-code-erp-ci-linux]
+    timeout-minutes: 15
+    steps:
+      - name: Verify isolated guest Docker loopback publication
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          run_identity="third-code-erp-ci-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          network_name="${run_identity}-network"
+          container_name="${run_identity}-nginx"
+          image='nginx@sha256:62223d644fa234c3a1cc785ee14242ec47a77364226f1c811d2f669f96dc2ac8'
+
+          cleanup() {
+            local cleanup_failed=0
+            docker rm --force "$container_name" >/dev/null 2>&1 || true
+            docker network rm "$network_name" >/dev/null 2>&1 || true
+
+            if docker ps --all --filter "name=^/${container_name}$" --format '{{.ID}}' | grep -q .; then
+              echo 'Current-run Docker container remains after cleanup.' >&2
+              cleanup_failed=1
+            fi
+            if docker network ls --filter "name=^${network_name}$" --format '{{.ID}}' | grep -q .; then
+              echo 'Current-run Docker network remains after cleanup.' >&2
+              cleanup_failed=1
+            fi
+            return "$cleanup_failed"
+          }
+          trap cleanup EXIT
+
+          test "$(id -u)" -ne 0
+          test -z "${DOCKER_HOST:-}"
+          test ! -e /mnt/wsl
+          test ! -d /mnt/c
+          ! findmnt --noheadings --types 9p,cifs,smb3,fuse.drvfs >/dev/null
+          docker version
+
+          docker network create \
+            --label "com.thirdcode.erp.run=${run_identity}" \
+            "$network_name" >/dev/null
+          docker run --detach \
+            --name "$container_name" \
+            --network "$network_name" \
+            --label "com.thirdcode.erp.run=${run_identity}" \
+            --publish 127.0.0.1::80 \
+            "$image" >/dev/null
+
+          bindings="$(docker inspect --format '{{range $containerPort, $bindings := .NetworkSettings.Ports}}{{range $bindings}}{{printf "%s %s %s\\n" $containerPort .HostIp .HostPort}}{{end}}{{end}}' "$container_name")"
+          test -n "$bindings"
+
+          while read -r container_port host_ip host_port; do
+            test -n "$container_port"
+            test -n "$host_port"
+            case "$host_ip" in
+              127.0.0.1|::1) ;;
+              *)
+                echo "Refusing non-loopback Docker publication for ${container_port}." >&2
+                exit 1
+                ;;
+            esac
+            ss --listening --tcp --numeric --no-header "( sport = :${host_port} )" |
+              grep -Eq "(^|[[:space:]])(${host_ip//./\\.}):${host_port}([[:space:]]|$)"
+            for attempt in $(seq 1 10); do
+              if curl --fail --silent --show-error "http://${host_ip}:${host_port}/" >/dev/null; then
+                break
+              fi
+              test "$attempt" -lt 10
+              sleep 1
+            done
+          done <<< "$bindings"
+
+          docker info --format '{{.DockerRootDir}}' | grep -Eq '^/var/lib/docker$'
+          echo "PASS non-secret loopback Docker smoke for ${run_identity}."
