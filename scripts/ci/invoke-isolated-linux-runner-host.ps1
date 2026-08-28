@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-  [ValidateSet('Preflight', 'Provision', 'Rollback', 'LedgerRegression', 'RollbackPlanRegression', 'ProvisionPlanRegression', 'PortProxyRegression')]
+  [ValidateSet('Preflight', 'Provision', 'Rollback', 'LedgerRegression', 'LedgerReplacementRegression', 'RollbackPlanRegression', 'ProvisionPlanRegression', 'PortProxyRegression')]
   [string]$Mode = 'Preflight',
 
   [ValidatePattern('^third-code-erp-ci-[a-z0-9-]+$')]
@@ -84,22 +84,46 @@ function Assert-Administrator {
 function Write-Ledger {
   param(
     [Parameter(Mandatory)]
-    [object]$Ledger
+    [object]$Ledger,
+    [scriptblock]$ReplaceOperation
   )
 
   $ledgerDirectory = Split-Path -Parent $LedgerPath
   New-Item -ItemType Directory -Path $ledgerDirectory -Force | Out-Null
   $utf8WithoutBom = New-Object System.Text.UTF8Encoding($false)
-  $temporaryLedgerPath = "$LedgerPath.$PID.tmp"
-  [IO.File]::WriteAllText(
-    $temporaryLedgerPath,
-    ($Ledger | ConvertTo-Json -Depth 12),
-    $utf8WithoutBom
-  )
-  if (Test-Path -LiteralPath $LedgerPath) {
-    [IO.File]::Replace($temporaryLedgerPath, $LedgerPath, $null)
-  } else {
-    Move-Item -LiteralPath $temporaryLedgerPath -Destination $LedgerPath
+  $ledgerFileName = [IO.Path]::GetFileName($LedgerPath)
+  $replacementToken = [Guid]::NewGuid().ToString('N')
+  $temporaryLedgerPath = Join-Path $ledgerDirectory ".${ledgerFileName}.${PID}.${replacementToken}.tmp"
+  $backupLedgerPath = Join-Path $ledgerDirectory ".${ledgerFileName}.${PID}.${replacementToken}.bak"
+  $destinationExisted = Test-Path -LiteralPath $LedgerPath
+
+  try {
+    [IO.File]::WriteAllText(
+      $temporaryLedgerPath,
+      ($Ledger | ConvertTo-Json -Depth 12),
+      $utf8WithoutBom
+    )
+    if ($destinationExisted) {
+      if ($null -ne $ReplaceOperation) {
+        & $ReplaceOperation $temporaryLedgerPath $LedgerPath $backupLedgerPath
+      } else {
+        [IO.File]::Replace($temporaryLedgerPath, $LedgerPath, $backupLedgerPath)
+      }
+    } else {
+      [IO.File]::Move($temporaryLedgerPath, $LedgerPath)
+    }
+  } catch {
+    if ($destinationExisted -and -not (Test-Path -LiteralPath $LedgerPath) -and (Test-Path -LiteralPath $backupLedgerPath)) {
+      [IO.File]::Move($backupLedgerPath, $LedgerPath)
+    }
+    throw
+  } finally {
+    if (Test-Path -LiteralPath $temporaryLedgerPath) {
+      Remove-Item -LiteralPath $temporaryLedgerPath -Force
+    }
+    if ((Test-Path -LiteralPath $backupLedgerPath) -and (Test-Path -LiteralPath $LedgerPath)) {
+      Remove-Item -LiteralPath $backupLedgerPath -Force
+    }
   }
 }
 
@@ -1349,6 +1373,85 @@ if ($Mode -eq 'LedgerRegression') {
     throw 'Ledger regression JSON did not round-trip.'
   }
   Write-Host "PASS ledger encoding regression: $LedgerPath"
+  exit 0
+}
+
+if ($Mode -eq 'LedgerReplacementRegression') {
+  $ledgerDirectory = Split-Path -Parent $LedgerPath
+  $ledgerFileName = [IO.Path]::GetFileName($LedgerPath)
+  $temporaryArtifactPrefix = ".${ledgerFileName}."
+  $writeLedger = {
+    param([string]$Lifecycle, [int]$Sequence)
+    Write-Ledger -Ledger ([ordered]@{
+        Mode = $Mode
+        Outcome = 'PASS'
+        Lifecycle = $Lifecycle
+        Sequence = $Sequence
+        Encoding = 'utf-8-no-bom'
+      })
+  }
+
+  & $writeLedger 'Initial' 1
+  & $writeLedger 'Provisioning' 2
+  & $writeLedger 'Provisioning' 3
+  & $writeLedger 'RolledBack' 4
+
+  $bytesBeforeInjectedFailure = [IO.File]::ReadAllBytes($LedgerPath)
+  $injectedReplaceFailureRejected = $false
+  try {
+    Write-Ledger -Ledger ([ordered]@{
+        Mode = $Mode
+        Outcome = 'UNEXPECTED'
+        Lifecycle = 'CorruptReplacement'
+        Sequence = 5
+        Encoding = 'utf-8-no-bom'
+      }) -ReplaceOperation {
+        param($SourcePath, $DestinationPath, $BackupPath)
+        throw 'Injected ledger replacement failure.'
+      }
+  } catch {
+    $injectedReplaceFailureRejected = $true
+  }
+  if (-not $injectedReplaceFailureRejected) {
+    throw 'Injected ledger replacement failure must fail closed.'
+  }
+
+  $bytesAfterInjectedFailure = [IO.File]::ReadAllBytes($LedgerPath)
+  if ($bytesBeforeInjectedFailure.Length -ne $bytesAfterInjectedFailure.Length) {
+    throw 'Injected ledger replacement failure changed the prior valid ledger.'
+  }
+  for ($index = 0; $index -lt $bytesBeforeInjectedFailure.Length; $index++) {
+    if ($bytesBeforeInjectedFailure[$index] -ne $bytesAfterInjectedFailure[$index]) {
+      throw 'Injected ledger replacement failure changed the prior valid ledger.'
+    }
+  }
+  if ($bytesAfterInjectedFailure.Length -ge 3 -and $bytesAfterInjectedFailure[0] -eq 0xEF -and $bytesAfterInjectedFailure[1] -eq 0xBB -and $bytesAfterInjectedFailure[2] -eq 0xBF) {
+    throw 'Ledger replacement regression wrote a UTF-8 BOM.'
+  }
+  $finalLedger = Get-Content -LiteralPath $LedgerPath -Raw | ConvertFrom-Json
+  if ($finalLedger.Mode -ne $Mode -or $finalLedger.Outcome -ne 'PASS' -or $finalLedger.Lifecycle -ne 'RolledBack' -or $finalLedger.Sequence -ne 4 -or $finalLedger.Encoding -ne 'utf-8-no-bom') {
+    throw 'Ledger replacement regression did not preserve the final valid RolledBack ledger.'
+  }
+  $residualArtifacts = @(
+    Get-ChildItem -LiteralPath $ledgerDirectory -Force -File |
+      Where-Object { $_.Name.StartsWith($temporaryArtifactPrefix, [StringComparison]::Ordinal) -and ($_.Name.EndsWith('.tmp', [StringComparison]::Ordinal) -or $_.Name.EndsWith('.bak', [StringComparison]::Ordinal)) }
+  )
+  if ($residualArtifacts.Count -ne 0) {
+    throw 'Ledger replacement regression left temporary or backup artifacts.'
+  }
+
+  [pscustomobject]@{
+    Mode = $Mode
+    Outcome = 'PASS'
+    InitialWrite = 'PASS'
+    ReplacementCount = 3
+    FinalLifecycle = $finalLedger.Lifecycle
+    FinalSequence = $finalLedger.Sequence
+    BomlessUtf8 = $true
+    InjectedReplaceFailureRejected = $injectedReplaceFailureRejected
+    PriorLedgerPreserved = $true
+    TemporaryOrBackupResidueCount = $residualArtifacts.Count
+  } | ConvertTo-Json
   exit 0
 }
 

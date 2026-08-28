@@ -229,7 +229,10 @@ ${cleanupContract[1]}
 test('the host helper uses exact VM-NIC ACL/evidence-disk containment without global host firewall rules', async () => {
   const hostScript = await readFile(hostScriptPath, 'utf8')
 
-  assert.match(hostScript, /ValidateSet\('Preflight', 'Provision', 'Rollback', 'LedgerRegression', 'RollbackPlanRegression', 'ProvisionPlanRegression', 'PortProxyRegression'\)/)
+  assert.match(hostScript, /ValidateSet\('Preflight', 'Provision', 'Rollback', 'LedgerRegression', 'LedgerReplacementRegression', 'RollbackPlanRegression', 'ProvisionPlanRegression', 'PortProxyRegression'\)/)
+  assert.match(hostScript, /\[IO\.File\]::Replace\(\$temporaryLedgerPath, \$LedgerPath, \$backupLedgerPath\)/)
+  assert.match(hostScript, /Injected ledger replacement failure must fail closed/)
+  assert.match(hostScript, /Ledger replacement regression left temporary or backup artifacts/)
   assert.match(hostScript, /\$RunRoot = 'D:\\third-code-erp-isolated-runner'/)
   assert.match(hostScript, /\$ImageCacheRoot = 'D:\\third-code-erp-isolated-runner-cache'/)
   assert.match(hostScript, /immutable-cache-not-run-root/)
@@ -317,6 +320,42 @@ test('the ledger writer round-trips BOM-less UTF-8 under every installed PowerSh
       assert.equal(ledger.Mode, 'LedgerRegression')
       assert.equal(ledger.Outcome, 'PASS')
       assert.equal(ledger.Encoding, 'utf-8-no-bom')
+    }
+  } finally {
+    await rm(artifactDirectory, { recursive: true, force: true })
+  }
+})
+
+test('the ledger writer atomically replaces entries under every installed PowerShell engine', async (t) => {
+  const engines = getPowerShellEngines()
+  if (engines.length === 0) {
+    t.skip('Windows PowerShell host regression runs only on Windows')
+    return
+  }
+
+  const artifactDirectory = await mkdtemp(join(tmpdir(), 'third-code-erp-ledger-replacement-'))
+  try {
+    for (const engine of engines) {
+      const ledgerPath = join(artifactDirectory, `${engine.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.json`)
+      const result = runHostScript(engine, 'LedgerReplacementRegression', ledgerPath)
+
+      assert.equal(result.status, 0, `${engine.name} replacement regression failed: ${result.stderr || result.stdout}`)
+      const regression = JSON.parse(result.stdout)
+      assert.equal(regression.Outcome, 'PASS')
+      assert.equal(regression.InitialWrite, 'PASS')
+      assert.equal(regression.ReplacementCount, 3)
+      assert.equal(regression.FinalLifecycle, 'RolledBack')
+      assert.equal(regression.FinalSequence, 4)
+      assert.equal(regression.BomlessUtf8, true)
+      assert.equal(regression.InjectedReplaceFailureRejected, true)
+      assert.equal(regression.PriorLedgerPreserved, true)
+      assert.equal(regression.TemporaryOrBackupResidueCount, 0)
+
+      const bytes = await readFile(ledgerPath)
+      assert.notDeepEqual([...bytes.subarray(0, 3)], [0xef, 0xbb, 0xbf], `${engine.name} replacement wrote a UTF-8 BOM`)
+      const ledger = JSON.parse(bytes.toString('utf8'))
+      assert.equal(ledger.Lifecycle, 'RolledBack')
+      assert.equal(ledger.Sequence, 4)
     }
   } finally {
     await rm(artifactDirectory, { recursive: true, force: true })

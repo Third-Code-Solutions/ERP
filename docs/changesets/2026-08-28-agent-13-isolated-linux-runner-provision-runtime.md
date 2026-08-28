@@ -191,3 +191,37 @@ future Provision/JIT/runner/credential stages pending a reviewed writer repair.
 → **Handoff to Agent 12.** Review the PS5-compatible ledger replacement and
 the missing final rollback-attestation behavior before authorizing any further
 UAC execution. The isolated runner and release remain **NO-GO**.
+
+## PS5-safe ledger replacement repair — pending Agent 12 review
+
+This static repair addresses only the observed Windows PowerShell 5.1 ledger
+writer failure. It does not alter Provision, rollback, network, guest, runner,
+or credential behavior, and it does not invoke UAC or retry the failed target.
+
+- An initial ledger still uses an exact same-directory file move when the
+  destination is absent.
+- A replacement ledger now uses a unique same-directory temporary file and
+  unique exact backup path with `File.Replace`; it never passes a null backup
+  path to the PS5 runtime.
+- The writer removes only its exact temporary/backup artifacts. On a failed
+  replacement it preserves the prior destination; if a native replacement ever
+  leaves the destination absent but the exact backup exists, it restores that
+  backup before propagating the failure.
+- A new non-elevated `LedgerReplacementRegression` writes an initial ledger,
+  performs multiple atomic replacements ending in `RolledBack`, verifies
+  BOM-less valid JSON, injects a replace failure and proves byte-for-byte prior
+  ledger preservation, then proves zero writer temp/backup residue.
+
+| Check | Result |
+| --- | --- |
+| PowerShell parser — Windows PowerShell 5.1 | **PASS** |
+| PowerShell parser — pwsh | **PASS** |
+| Direct `LedgerReplacementRegression` — Windows PowerShell 5.1 | **PASS** |
+| Direct `LedgerReplacementRegression` — pwsh | **PASS** |
+| Node 22 `pnpm test:isolated-linux-runner-contract` | **PASS** — 9/9 |
+| `pnpm ci:actionlint` | **PASS** — actionlint 1.7.12 checksum verified |
+| `pnpm verify:workflow-action-refs` | **PASS** — four existing pinned refs resolve |
+| `pnpm ci:gitleaks` | **PASS** — 1,617 commits / 38.75 MB; no leaks |
+
+→ **Handoff to Agent 12.** Review this writer-only repair before authorizing
+any third UAC attempt. The runner and release remain **NO-GO**.
