@@ -136,3 +136,61 @@ target.
 → **Handoff to Agent 12.** Review this ledgered target/capability evidence and
 the static Linux smoke workflow before any Provision design or execution. The
 runner group remains unchanged and no runner has been registered.
+
+## Static remediation after Agent 12 Stage 3 rejection — pending re-review
+
+Agent 12 rejected the first static design. This follow-up changes only the
+repository harness and workflow; it does not rerun UAC, alter the host, create
+a VM/switch/NAT/mapping/firewall rule, register a runner, or alter GitHub group
+`3`.
+
+- The smoke workflow now sets `permissions: {}` and still permits only its
+  manually dispatched, exact ERP/recovery-branch/owner/actor guard. It requires
+  an unset `DOCKER_CONTEXT`, the default context resolving exactly to
+  `unix:///var/run/docker.sock`, a real Unix socket, a non-root user in the
+  `docker` group, an active guest `docker` service, and an `ext4` Docker root.
+  These are fail-closed checks for guest-local Docker; membership in the Docker
+  group remains a documented root-equivalent residual privilege, contained by
+  the dedicated disposable guest rather than treated as harmless.
+- The workflow tracks a run-labelled volume and work directory in addition to
+  its container and network. Its EXIT handler preserves a nonzero main status
+  when cleanup succeeds and fails the job when exact cleanup fails. It checks
+  all four current-run resources for residue. The behavioral regression uses a
+  fake Docker command and temporary shell directory only; it deliberately
+  forces volume cleanup failure and proves the nonzero result is observable.
+- The host helper now parses each `netsh interface portproxy` address family
+  into structured entries, records host TCP listeners, standard and Hyper-V
+  firewall profile state, target-labelled Docker containers/networks/volumes,
+  and asserts every configured protected Supabase port has neither a port proxy
+  nor a non-loopback listener. It does not use a historical five-port list as
+  proof of future mappings: a future Provision ledger must record its actual,
+  unique dynamic ports, and rollback rechecks exactly that set.
+- Rollback now accepts only a successful schema-v2 `Provisioned` ledger with
+  the exact VM/switch/NAT IDs and properties, marker-hash-owned D: directory,
+  full exact firewall rule names plus GUID identities, exact port-proxy
+  identities, dynamic port set, and a zero-residue attestation. It rejects a
+  preflight ledger, altered residue attestation, and a port proxy outside the
+  designated guest. Firewall removal uses only the ledgered rule `Name` after
+  matching its GUID, display name, direction, and action; wildcard firewall
+  enumeration/removal is absent. Rollback re-inventories and fails unless the
+  exact target, port proxies, and non-loopback protected listeners are gone.
+
+| Static gate | Result |
+| --- | --- |
+| Node 22 `pnpm test:isolated-linux-runner-contract` | **PASS** — 6/6, including PS5/pwsh BOM-less ledger, negative ledger, and cleanup behavior checks |
+| PowerShell parser — Windows PowerShell 5.1 | **PASS** |
+| PowerShell parser — pwsh 7.6.4 | **PASS** |
+| `pnpm ci:actionlint` | **PASS** — actionlint 1.7.12 checksum verified |
+| `pnpm verify:workflow-action-refs` | **PASS** — four existing action refs resolve |
+| `pnpm ci:gitleaks` | **PASS** — 1,598 commits / 38.54 MB, no leak found |
+| `git diff --check` | **PASS** |
+
+**Current status: NO-GO.** The exact workflow SHA has not been submitted for
+Group `3` selection and group `3` has not changed. This static remediation must
+be accepted by Agent 12 before a provision design, any UAC command, JIT token,
+runner registration, or selected-workflow update may occur.
+
+→ **Handoff to Agent 12.** Review the exact pending commit and static evidence
+against `2026-08-28-agent-12-isolated-linux-runner-stage3-review.md`. If it is
+accepted, return the approved full SHA before any Group `3` update; otherwise
+the release remains NO-GO with no host mutation.

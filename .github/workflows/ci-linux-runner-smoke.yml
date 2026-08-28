@@ -7,8 +7,7 @@ concurrency:
   group: isolated-linux-runner-smoke-${{ github.ref }}
   cancel-in-progress: false
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   smoke:
@@ -33,12 +32,28 @@ jobs:
           run_identity="third-code-erp-ci-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           network_name="${run_identity}-network"
           container_name="${run_identity}-nginx"
+          volume_name="${run_identity}-volume"
+          work_root="${RUNNER_TEMP:-/tmp}"
+          work_directory="${work_root}/${run_identity}"
           image='nginx@sha256:62223d644fa234c3a1cc785ee14242ec47a77364226f1c811d2f669f96dc2ac8'
 
+          # BEGIN cleanup-contract
           cleanup() {
             local cleanup_failed=0
-            docker rm --force "$container_name" >/dev/null 2>&1 || true
-            docker network rm "$network_name" >/dev/null 2>&1 || true
+            docker rm --force "$container_name" >/dev/null 2>&1 || cleanup_failed=1
+            docker network rm "$network_name" >/dev/null 2>&1 || cleanup_failed=1
+            docker volume rm "$volume_name" >/dev/null 2>&1 || cleanup_failed=1
+
+            case "$work_directory" in
+              "${work_root}/${run_identity}") ;;
+              *)
+                echo 'Refusing unsafe current-run work-directory cleanup.' >&2
+                cleanup_failed=1
+                ;;
+            esac
+            if [ "$cleanup_failed" -eq 0 ]; then
+              rm -rf -- "$work_directory" || cleanup_failed=1
+            fi
 
             if docker ps --all --filter "name=^/${container_name}$" --format '{{.ID}}' | grep -q .; then
               echo 'Current-run Docker container remains after cleanup.' >&2
@@ -48,24 +63,60 @@ jobs:
               echo 'Current-run Docker network remains after cleanup.' >&2
               cleanup_failed=1
             fi
+            if docker volume ls --filter "name=^${volume_name}$" --format '{{.Name}}' | grep -q .; then
+              echo 'Current-run Docker volume remains after cleanup.' >&2
+              cleanup_failed=1
+            fi
+            if [ -e "$work_directory" ]; then
+              echo 'Current-run work directory remains after cleanup.' >&2
+              cleanup_failed=1
+            fi
             return "$cleanup_failed"
           }
-          trap cleanup EXIT
+
+          on_exit() {
+            local main_status="$1"
+            local cleanup_status=0
+            set +e
+            cleanup
+            cleanup_status=$?
+            trap - EXIT
+            if [ "$cleanup_status" -ne 0 ]; then
+              echo 'Current-run cleanup failed; failing the smoke job.' >&2
+              exit "$cleanup_status"
+            fi
+            exit "$main_status"
+          }
+          # END cleanup-contract
+          trap 'on_exit "$?"' EXIT
 
           test "$(id -u)" -ne 0
           test -z "${DOCKER_HOST:-}"
+          test -z "${DOCKER_CONTEXT:-}"
+          test "$(docker context show)" = 'default'
+          test "$(docker context inspect default --format '{{.Endpoints.docker.Host}}')" = 'unix:///var/run/docker.sock'
+          test -S /var/run/docker.sock
+          id -nG | tr ' ' '\n' | grep -qx 'docker'
           test ! -e /mnt/wsl
           test ! -d /mnt/c
           ! findmnt --noheadings --types 9p,cifs,smb3,fuse.drvfs >/dev/null
           docker version
+          systemctl is-active --quiet docker
+          test "$(findmnt --noheadings --output FSTYPE --target "$(docker info --format '{{.DockerRootDir}}')" | xargs)" = 'ext4'
+
+          install --directory --mode 700 "$work_directory"
 
           docker network create \
             --label "com.thirdcode.erp.run=${run_identity}" \
             "$network_name" >/dev/null
+          docker volume create \
+            --label "com.thirdcode.erp.run=${run_identity}" \
+            "$volume_name" >/dev/null
           docker run --detach \
             --name "$container_name" \
             --network "$network_name" \
             --label "com.thirdcode.erp.run=${run_identity}" \
+            --mount "type=volume,source=${volume_name},target=/var/cache/nginx" \
             --publish 127.0.0.1::80 \
             "$image" >/dev/null
 
