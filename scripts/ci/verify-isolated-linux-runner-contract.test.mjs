@@ -92,6 +92,10 @@ function provisionedLedger() {
       ],
       PortProxies: [],
       DynamicPorts: [60123],
+      Disks: [
+        { Path: `D:\\third-code-erp-isolated-runner\\${runIdentity}\\vhd\\ubuntu-os.vhdx`, Sha256: 'b'.repeat(64) },
+        { Path: `D:\\third-code-erp-isolated-runner\\${runIdentity}\\vhd\\cidata.vhdx`, Sha256: 'c'.repeat(64) },
+      ],
     },
   }
 }
@@ -188,7 +192,7 @@ ${cleanupContract[1]}
 test('the host helper records structured containment evidence and has no wildcard rollback', async () => {
   const hostScript = await readFile(hostScriptPath, 'utf8')
 
-  assert.match(hostScript, /ValidateSet\('Preflight', 'Rollback', 'LedgerRegression', 'RollbackPlanRegression'\)/)
+  assert.match(hostScript, /ValidateSet\('Preflight', 'Provision', 'Rollback', 'LedgerRegression', 'RollbackPlanRegression', 'ProvisionPlanRegression'\)/)
   assert.match(hostScript, /\$RunRoot = 'D:\\third-code-erp-isolated-runner'/)
   assert.match(hostScript, /Get-PortProxyEntries/)
   assert.match(hostScript, /ConvertTo-PortProxyEntries/)
@@ -206,10 +210,21 @@ test('the host helper records structured containment evidence and has no wildcar
   assert.match(hostScript, /Assert-FirewallRuleMatchesLedger/)
   assert.match(hostScript, /Remove-ExactFirewallRule/)
   assert.match(hostScript, /Provisioned ledger must attest that no netsh port proxy exists/)
+  assert.match(hostScript, /Assert-ProvisionAuthorization/)
+  assert.match(hostScript, /I_ACKNOWLEDGE_ISOLATED_RUNNER_PROVISION/)
+  assert.match(hostScript, /Ubuntu 24\.04 LTS Noble 20260826/)
+  assert.match(hostScript, /MicrosoftUEFICertificateAuthority/)
+  assert.match(hostScript, /New-CidataSeed/)
+  assert.match(hostScript, /New-VMSwitch -Name \$targets\.SwitchName -SwitchType Internal/)
+  assert.match(hostScript, /New-NetNat -Name \$targets\.NatName/)
+  assert.match(hostScript, /New-VM -Name \$targets\.VmName -Generation 2/)
+  assert.match(hostScript, /Set-VMFirmware -VMName \$targets\.VmName -EnableSecureBoot On/)
+  assert.match(hostScript, /no JIT configuration, runner registration, Auth, secret, or production action is present/i)
   assert.match(hostScript, /Rollback accepts only a successful SchemaVersion 2 Provisioned ledger/)
   assert.match(hostScript, /Remove-NetFirewallRule -Name \$FirewallRule\.Name/)
   assert.doesNotMatch(hostScript, /FirewallPrefix|Get-NetFirewallRule\s+-DisplayName\s+"[^"\n]*\*"|Remove-NetFirewallRule\s*$/m)
   assert.doesNotMatch(hostScript, /Remove-ExactPortProxy|netsh interface portproxy delete|Get-NetNat\s*\|\s*Remove-NetNat|docker (system )?prune|wsl --unregister/i)
+  assert.doesNotMatch(hostScript, /gh api|config\.sh|run\.sh|JIT.*token/i)
 })
 
 test('the ledger writer round-trips BOM-less UTF-8 under every installed PowerShell engine', async (t) => {
@@ -276,5 +291,22 @@ test('rollback planning accepts only exact Provisioned ledger identities and rej
     }
   } finally {
     await rm(artifactDirectory, { recursive: true, force: true })
+  }
+})
+
+test('the Provision plan regression exposes only a non-secret, review-gated design', async (t) => {
+  const engines = getPowerShellEngines()
+  if (engines.length === 0) {
+    t.skip('Windows PowerShell host regression runs only on Windows')
+    return
+  }
+
+  for (const engine of engines) {
+    const result = runHostScript(engine, 'ProvisionPlanRegression', join(tmpdir(), `third-code-erp-provision-plan-${engine.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.json`))
+    assert.equal(result.status, 0, `${engine.name} provision plan failed: ${result.stderr || result.stdout}`)
+    const plan = JSON.parse(result.stdout)
+    assert.equal(plan.Outcome, 'PASS')
+    assert.equal(plan.Image.Release, 'Ubuntu 24.04 LTS Noble 20260826')
+    assert.deepEqual(plan.Prohibited, ['JIT', 'runner-registration', 'secret', 'Auth', 'portproxy', 'static-NAT-mapping'])
   }
 })

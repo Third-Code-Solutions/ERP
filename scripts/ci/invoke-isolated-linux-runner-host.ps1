@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-  [ValidateSet('Preflight', 'Rollback', 'LedgerRegression', 'RollbackPlanRegression')]
+  [ValidateSet('Preflight', 'Provision', 'Rollback', 'LedgerRegression', 'RollbackPlanRegression', 'ProvisionPlanRegression')]
   [string]$Mode = 'Preflight',
 
   [ValidatePattern('^third-code-erp-ci-[a-z0-9-]+$')]
@@ -9,7 +9,11 @@ param(
   [ValidatePattern('^[A-Za-z]:\\')]
   [string]$RunRoot = 'D:\third-code-erp-isolated-runner',
 
-  [string]$LedgerPath = ''
+  [string]$LedgerPath = '',
+
+  [string]$ImageArchivePath = '',
+
+  [string]$ProvisionAuthorization = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -45,6 +49,20 @@ $targets = [ordered]@{
   FirewallRuleNames = @($firewallRuleNames.Values)
   KnownSupabasePorts = @(54321, 54322, 54323, 54324, 54327)
   DockerOwnershipLabel = "com.thirdcode.erp.run=$RunIdentity"
+  VhdDirectory = Join-Path $runRootPath 'vhd'
+  EvidenceDirectory = Join-Path $runRootPath 'evidence'
+  OsVhdxPath = Join-Path $runRootPath 'vhd\ubuntu-os.vhdx'
+  CidataVhdxPath = Join-Path $runRootPath 'vhd\cidata.vhdx'
+  GuestEvidencePath = '/var/lib/third-code-erp/evidence/precredential-containment.json'
+}
+
+$ubuntuImage = [ordered]@{
+  Release = 'Ubuntu 24.04 LTS Noble 20260826'
+  ArchiveName = 'noble-server-cloudimg-amd64-azure.vhd.tar.gz'
+  SourceUrl = 'https://cloud-images.ubuntu.com/noble/20260826/noble-server-cloudimg-amd64-azure.vhd.tar.gz'
+  ChecksumUrl = 'https://cloud-images.ubuntu.com/noble/20260826/SHA256SUMS'
+  ExpectedSha256 = '843d243792abb05b50e1a7f5e614e1184d8fc7195c119747cbb3038520258a22'
+  SecureBootTemplate = 'MicrosoftUEFICertificateAuthority'
 }
 
 function Assert-Administrator {
@@ -362,7 +380,7 @@ function Assert-NarrowFirewallScope {
   $portFilter = $FirewallRule.Scope.PortFilter
   $addressFilter = $FirewallRule.Scope.AddressFilter
   $interfaceFilter = $FirewallRule.Scope.InterfaceFilter
-  if ([string]$portFilter.Protocol -notin @('TCP', 'UDP') -or [string]$portFilter.LocalPort -in @('', 'Any', '*') -or [string]$portFilter.RemotePort -in @('', 'Any', '*')) {
+  if ([string]$portFilter.Protocol -notin @('TCP', 'UDP', 'Any') -or [string]$portFilter.LocalPort -in @('', '*') -or [string]$portFilter.RemotePort -in @('', '*')) {
     throw 'Rollback ledger firewall port/protocol scope is global or invalid.'
   }
   foreach ($address in @($addressFilter.LocalAddress, $addressFilter.RemoteAddress)) {
@@ -420,6 +438,7 @@ function Read-RollbackLedger {
   Assert-Property -Value $ledger.Resources.FirewallRules -Name 'Resources.FirewallRules'
   Assert-Property -Value $ledger.Resources.PortProxies -Name 'Resources.PortProxies'
   Assert-Property -Value $ledger.Resources.DynamicPorts -Name 'Resources.DynamicPorts'
+  Assert-Property -Value $ledger.Resources.Disks -Name 'Resources.Disks'
   if (@($ledger.Resources.PortProxies).Count -ne 0) {
     throw 'Provisioned ledger must attest that no netsh port proxy exists.'
   }
@@ -435,6 +454,15 @@ function Read-RollbackLedger {
   }
   if ($ledger.Resources.RunDirectory.Path -ne $targets.RunRoot -or $ledger.Resources.RunDirectory.MarkerName -ne $targets.MarkerName -or [string]$ledger.Resources.RunDirectory.MarkerSha256 -notmatch '^[a-fA-F0-9]{64}$') {
     throw 'Rollback ledger run-directory ownership identity is invalid.'
+  }
+  $expectedDiskPaths = @($targets.OsVhdxPath, $targets.CidataVhdxPath)
+  $expectedDiskPaths = @($expectedDiskPaths | Sort-Object)
+  $ledgerDiskPaths = @($ledger.Resources.Disks | ForEach-Object { [IO.Path]::GetFullPath([string]$_.Path) } | Sort-Object)
+  if ($ledgerDiskPaths.Count -ne 2 -or (Compare-Object -ReferenceObject $expectedDiskPaths -DifferenceObject $ledgerDiskPaths)) {
+    throw 'Rollback ledger virtual-disk identities are invalid.'
+  }
+  foreach ($disk in @($ledger.Resources.Disks)) {
+    if ([string]$disk.Sha256 -notmatch '^[a-fA-F0-9]{64}$') { throw 'Rollback ledger virtual-disk hash evidence is invalid.' }
   }
   if (@($ledger.Resources.FirewallRules).Count -ne $targets.FirewallRuleNames.Count) {
     throw 'Rollback ledger must name every exact firewall rule.'
@@ -483,6 +511,11 @@ function Invoke-Rollback {
   param([Parameter(Mandatory)] [object]$Ledger)
 
   Assert-RunDirectoryOwned -RunDirectory $Ledger.Resources.RunDirectory
+  foreach ($disk in @($Ledger.Resources.Disks)) {
+    if (-not (Test-Path -LiteralPath $disk.Path -PathType Leaf)) {
+      throw 'Rollback refuses a ledger whose exact recorded virtual disk is absent.'
+    }
+  }
   $inventory = Get-ExactHostInventory
   $vm = @($inventory.Vms | Where-Object { $_.Name -eq $Ledger.Resources.Vm.Name -and $_.Id -eq $Ledger.Resources.Vm.Id })
   if ($vm.Count -gt 1) { throw 'Rollback found duplicate exact VM identities.' }
@@ -511,6 +544,223 @@ function Invoke-Rollback {
   return $remaining
 }
 
+function Assert-ProvisionAuthorization {
+  if ($ProvisionAuthorization -cne 'I_ACKNOWLEDGE_ISOLATED_RUNNER_PROVISION') {
+    throw 'Provision is review-gated. Supply only the exact non-secret acknowledgement after Agent 12 accepts this provision code.'
+  }
+}
+
+function Get-ExpectedImageArchivePath {
+  if (-not [string]::IsNullOrWhiteSpace($ImageArchivePath)) {
+    return [IO.Path]::GetFullPath($ImageArchivePath)
+  }
+  return (Join-Path $RunRoot $ubuntuImage.ArchiveName)
+}
+
+function Assert-VerifiedUbuntuArchive {
+  $archivePath = Get-ExpectedImageArchivePath
+  if (-not (Test-Path -LiteralPath $archivePath -PathType Leaf)) {
+    throw "Verified Ubuntu archive is absent: $archivePath"
+  }
+  $actualHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+  if ($actualHash -ne $ubuntuImage.ExpectedSha256) {
+    throw 'Ubuntu archive SHA-256 does not match the dated official publisher checksum.'
+  }
+  return [pscustomobject]@{
+    ArchivePath = $archivePath
+    Sha256 = $actualHash
+    SourceUrl = $ubuntuImage.SourceUrl
+    ChecksumUrl = $ubuntuImage.ChecksumUrl
+    Release = $ubuntuImage.Release
+  }
+}
+
+function Write-Utf8NoBomFile {
+  param([Parameter(Mandatory)] [string]$Path, [Parameter(Mandatory)] [string]$Content)
+  $encoding = New-Object System.Text.UTF8Encoding($false)
+  [IO.File]::WriteAllText($Path, $Content, $encoding)
+}
+
+function New-RunOwnershipMarker {
+  New-Item -ItemType Directory -Path $targets.RunRoot -Force | Out-Null
+  $markerPath = Join-Path $targets.RunRoot $targets.MarkerName
+  Write-Utf8NoBomFile -Path $markerPath -Content (([ordered]@{
+      RunIdentity = $RunIdentity
+      CreatedUtc = [DateTime]::UtcNow.ToString('o')
+      Purpose = 'isolated-linux-runner'
+    }) | ConvertTo-Json)
+  return [pscustomobject]@{
+    Path = $targets.RunRoot
+    MarkerName = $targets.MarkerName
+    MarkerSha256 = (Get-FileHash -LiteralPath $markerPath -Algorithm SHA256).Hash.ToLowerInvariant()
+  }
+}
+
+function New-CidataSeed {
+  param([Parameter(Mandatory)] [string]$SeedPath)
+  New-Item -ItemType Directory -Path $targets.VhdDirectory -Force | Out-Null
+  New-VHD -Path $SeedPath -Dynamic -SizeBytes 64MB | Out-Null
+  $mounted = $false
+  try {
+    Mount-VHD -Path $SeedPath -NoDriveLetter
+    $mounted = $true
+    $disk = Get-DiskImage -ImagePath $SeedPath | Get-Disk
+    Initialize-Disk -Number $disk.Number -PartitionStyle MBR -PassThru |
+      New-Partition -UseMaximumSize -AssignDriveLetter |
+      Format-Volume -FileSystem FAT32 -NewFileSystemLabel 'CIDATA' -Confirm:$false | Out-Null
+    $volume = Get-DiskImage -ImagePath $SeedPath | Get-Disk | Get-Partition | Get-Volume | Where-Object { $_.DriveLetter } | Select-Object -First 1
+    if ($null -eq $volume) { throw 'CIDATA seed did not receive an exact temporary drive letter.' }
+    $seedRoot = "$($volume.DriveLetter):\"
+    $userData = @'
+#cloud-config
+ssh_pwauth: false
+disable_root: true
+users:
+  - name: erpci
+    shell: /usr/sbin/nologin
+    lock_passwd: true
+    sudo: false
+    groups: [docker]
+package_update: true
+packages: [docker.io, curl, iproute2, ufw]
+write_files:
+  - path: /usr/local/sbin/third-code-erp-precredential-evidence
+    permissions: '0700'
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      test -z "${DOCKER_HOST:-}"
+      test -z "${DOCKER_CONTEXT:-}"
+      test ! -e /mnt/wsl
+      test ! -d /mnt/c
+      ! findmnt --noheadings --types 9p,cifs,smb3,fuse.drvfs >/dev/null
+      systemctl is-active --quiet docker
+      test "$(docker context show)" = default
+      test "$(docker context inspect default --format '{{.Endpoints.docker.Host}}')" = unix:///var/run/docker.sock
+      test -S /var/run/docker.sock
+      test "$(findmnt --noheadings --output FSTYPE --target "$(docker info --format '{{.DockerRootDir}}')" | xargs)" = ext4
+      test ! -e /home/erpci/.config/gh/hosts.yml
+      install --directory --mode 0700 /var/lib/third-code-erp/evidence
+      printf '{"outcome":"PASS","credential_stage":"not-entered","docker_socket_residual":"guest-root"}\n' > /var/lib/third-code-erp/evidence/precredential-containment.json
+runcmd:
+  - [systemctl, disable, --now, ssh.service]
+  - [systemctl, enable, --now, docker]
+  - [ufw, default, deny, incoming]
+  - [ufw, default, allow, outgoing]
+  - [ufw, --force, enable]
+  - [/usr/local/sbin/third-code-erp-precredential-evidence]
+'@
+    $networkConfig = @"
+version: 2
+ethernets:
+  erpnic:
+    match:
+      name: "en*"
+    set-name: eth0
+    addresses: [$($targets.GuestAddress)/24]
+    routes:
+      - to: default
+        via: $($targets.Gateway)
+    nameservers:
+      addresses: [$($targets.Gateway), 1.1.1.1]
+"@
+    Write-Utf8NoBomFile -Path (Join-Path $seedRoot 'meta-data') -Content "instance-id: $RunIdentity`nlocal-hostname: $RunIdentity`n"
+    Write-Utf8NoBomFile -Path (Join-Path $seedRoot 'user-data') -Content $userData
+    Write-Utf8NoBomFile -Path (Join-Path $seedRoot 'network-config') -Content $networkConfig
+  } finally {
+    if ($mounted) { Dismount-VHD -Path $SeedPath }
+  }
+}
+
+function New-ScopedFirewallRules {
+  $interfaceAlias = "vEthernet ($($targets.SwitchName))"
+  $specifications = @(
+    @{ Name = $firewallRuleNames.HostInboundDeny; Protocol = 'Any'; LocalPort = 'Any'; RemotePort = 'Any' },
+    @{ Name = $firewallRuleNames.HostPrivateDeny; Protocol = 'TCP'; LocalPort = 'Any'; RemotePort = 'Any' },
+    @{ Name = $firewallRuleNames.GuestProbeDeny; Protocol = 'TCP'; LocalPort = '29876'; RemotePort = 'Any' }
+  )
+  $evidence = @()
+  foreach ($specification in $specifications) {
+    $firewallParameters = @{
+      DisplayName = $specification.Name; Direction = 'Inbound'; Action = 'Block'; Enabled = 'True'; Profile = 'Private'
+      Protocol = $specification.Protocol; LocalAddress = $targets.Gateway; RemoteAddress = $targets.GuestAddress; InterfaceAlias = $interfaceAlias
+    }
+    if ($specification.Protocol -ne 'Any') {
+      $firewallParameters.LocalPort = $specification.LocalPort
+      $firewallParameters.RemotePort = $specification.RemotePort
+    }
+    New-NetFirewallRule @firewallParameters | Out-Null
+    $rule = @(Get-NetFirewallRule -DisplayName $specification.Name -ErrorAction Stop)
+    if ($rule.Count -ne 1) { throw 'Provision could not read back one exact firewall rule.' }
+    $record = Get-FirewallRuleEvidence -Rule $rule[0]
+    $record | Add-Member -NotePropertyName Scope -NotePropertyValue ([pscustomobject]@{
+        PortFilter = $record.PortFilters[0]
+        AddressFilter = $record.AddressFilters[0]
+        InterfaceFilter = $record.InterfaceFilters[0]
+        Binding = [pscustomobject]@{
+          Kind = 'HostFirewallInterfaceFilter'
+          SupportedFilter = 'Get-NetFirewallInterfaceFilter'
+          VmId = $null
+          SwitchId = $null
+          InterfaceAlias = $interfaceAlias
+        }
+      })
+    $evidence += $record
+  }
+  return @($evidence)
+}
+
+function Invoke-Provision {
+  Assert-ProvisionAuthorization
+  Assert-TargetVacant -Inventory (Get-ExactHostInventory)
+  $image = Assert-VerifiedUbuntuArchive
+  if (@(Get-NetNat).Count -ne 0) { throw 'Provision refuses to share or replace an existing WinNAT.' }
+  $runDirectory = New-RunOwnershipMarker
+  try {
+    New-Item -ItemType Directory -Path $targets.VhdDirectory -Force | Out-Null
+    $stagingDirectory = Join-Path $targets.RunRoot 'image-staging'
+    New-Item -ItemType Directory -Path $stagingDirectory -Force | Out-Null
+    & tar.exe -xzf $image.ArchivePath -C $stagingDirectory
+    $sourceVhds = @(Get-ChildItem -LiteralPath $stagingDirectory -Recurse -File -Filter '*.vhd')
+    if ($sourceVhds.Count -ne 1) { throw 'Verified archive must contain exactly one source VHD.' }
+    Convert-VHD -Path $sourceVhds[0].FullName -DestinationPath $targets.OsVhdxPath -VHDType Dynamic
+    New-CidataSeed -SeedPath $targets.CidataVhdxPath
+    New-VMSwitch -Name $targets.SwitchName -SwitchType Internal | Out-Null
+    New-NetIPAddress -InterfaceAlias "vEthernet ($($targets.SwitchName))" -IPAddress $targets.Gateway -PrefixLength 24 | Out-Null
+    New-NetNat -Name $targets.NatName -InternalIPInterfaceAddressPrefix $targets.NatPrefix | Out-Null
+    New-VM -Name $targets.VmName -Generation 2 -MemoryStartupBytes 4GB -VHDPath $targets.OsVhdxPath -SwitchName $targets.SwitchName | Out-Null
+    Set-VMProcessor -VMName $targets.VmName -Count 2
+    Set-VMFirmware -VMName $targets.VmName -EnableSecureBoot On -SecureBootTemplate $ubuntuImage.SecureBootTemplate
+    Add-VMHardDiskDrive -VMName $targets.VmName -Path $targets.CidataVhdxPath
+    $firewallRules = New-ScopedFirewallRules
+    $vm = Get-VM -Name $targets.VmName
+    $switch = Get-VMSwitch -Name $targets.SwitchName
+    foreach ($firewallRule in $firewallRules) {
+      $firewallRule.Scope.Binding.VmId = $vm.Id
+      $firewallRule.Scope.Binding.SwitchId = $switch.Id
+      Assert-NarrowFirewallScope -FirewallRule $firewallRule -Vm $vm -Switch $switch
+    }
+    Start-VM -Name $targets.VmName
+    $inventory = Get-ExactHostInventory
+    Assert-NoHostExposureForPorts -Ports $targets.KnownSupabasePorts -PortProxies @($inventory.PortProxy) -Listeners @($inventory.Listeners)
+    Write-Ledger -Ledger ([ordered]@{
+        SchemaVersion = 2; Lifecycle = 'Provisioned'; Mode = 'Provision'; Outcome = 'PASS'; RunIdentity = $RunIdentity
+        Image = $image; SecureBoot = @{ Enabled = $true; Template = $ubuntuImage.SecureBootTemplate }
+        Resources = [ordered]@{
+          Vm = Get-VM -Name $targets.VmName | Select-Object Name, Id, Generation, State
+          Switch = Get-VMSwitch -Name $targets.SwitchName | ForEach-Object { [ordered]@{ Name = $_.Name; Id = $_.Id; Type = $_.SwitchType } }
+          Nat = @{ Name = $targets.NatName; Prefix = $targets.NatPrefix }
+          RunDirectory = $runDirectory; FirewallRules = $firewallRules; PortProxies = @(); DynamicPorts = @()
+          Disks = @(@{ Path = $targets.OsVhdxPath; Sha256 = (Get-FileHash -LiteralPath $targets.OsVhdxPath -Algorithm SHA256).Hash.ToLowerInvariant() }, @{ Path = $targets.CidataVhdxPath; Sha256 = (Get-FileHash -LiteralPath $targets.CidataVhdxPath -Algorithm SHA256).Hash.ToLowerInvariant() })
+          GuestEvidencePath = $targets.GuestEvidencePath
+        }
+        Notes = @('No JIT configuration, runner registration, Auth, secret, or production action is present in Provision mode.', 'Guest cloud-init executes only non-secret containment checks; its evidence must be independently read and reviewed before any credential stage.')
+      })
+  } catch {
+    throw
+  }
+}
+
 if ($Mode -eq 'LedgerRegression') {
   Write-Ledger -Ledger ([ordered]@{
       Mode = $Mode
@@ -533,6 +783,18 @@ if ($Mode -eq 'LedgerRegression') {
 if ($Mode -eq 'RollbackPlanRegression') {
   $ledger = Read-RollbackLedger
   Write-Host "PASS rollback ledger validation only: $($ledger.RunIdentity)"
+  exit 0
+}
+
+if ($Mode -eq 'ProvisionPlanRegression') {
+  [pscustomobject]@{
+    Mode = $Mode
+    Outcome = 'PASS'
+    RunIdentity = $RunIdentity
+    Image = $ubuntuImage
+    Targets = $targets
+    Prohibited = @('JIT', 'runner-registration', 'secret', 'Auth', 'portproxy', 'static-NAT-mapping')
+  } | ConvertTo-Json -Depth 8
   exit 0
 }
 
@@ -562,6 +824,12 @@ try {
         )
       })
     Write-Host "PASS elevated Hyper-V preflight; non-secret ledger: $LedgerPath"
+    exit 0
+  }
+
+  if ($Mode -eq 'Provision') {
+    Invoke-Provision
+    Write-Host "PASS non-secret isolated Linux provision; ledger: $LedgerPath"
     exit 0
   }
 

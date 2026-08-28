@@ -257,3 +257,46 @@ database, credential, Auth, Snyk, CI dispatch, deployment, or production action
 followed. This scoped group configuration does not itself prove a guest
 boundary; all subsequent Provision/evidence work remains independently
 review-gated and release **NO-GO**.
+
+## Static non-secret Provision design — pending Agent 12 review
+
+`invoke-isolated-linux-runner-host.ps1` now contains, but has **not executed**,
+a `Provision` path protected by the exact non-secret acknowledgement
+`I_ACKNOWLEDGE_ISOLATED_RUNNER_PROVISION`. The path is intentionally inert
+until Agent 12 accepts this specific commit and a separately authorized elevated
+invocation is made.
+
+- It accepts only the dated official Ubuntu 24.04 LTS Noble `20260826` Azure
+  VHD archive at the pinned source/checksum URLs and SHA-256 recorded above.
+  It verifies the local archive hash before extracting one VHD, converting it
+  to a D:-scoped dynamic VHDX, and recording the initial disk hashes.
+- It defines a Gen2 VM with Secure Boot template
+  `MicrosoftUEFICertificateAuthority`, an exact run-owned marker, internal
+  switch, dedicated named NAT, and no static NAT mapping or netsh port proxy.
+  It refuses an existing WinNAT rather than sharing or replacing Docker Desktop
+  resources.
+- It creates a temporary, exact CIDATA FAT32 VHDX with cloud-init user/network
+  configuration. The guest design has only `erpci`, a locked non-login account
+  with no sudo or SSH service; its Docker socket membership is explicit
+  guest-root residual privilege. Cloud-init checks guest-local Docker context,
+  socket, ext4 storage, lack of WSL/host mounts and `gh` configuration, applies
+  inbound-deny/outbound-allow guest firewall defaults, and writes only a
+  non-secret precredential evidence record on the guest VHDX.
+- The intended host rules are named per-run and ledgered with exact firewall
+  filter/binding evidence. A successful schema-v2 `Provisioned` ledger will
+  record exact VM/switch/NAT/rule/D: marker/VHDX identities, empty port-proxy
+  result, disk hashes, and the guest evidence path. It deliberately contains no
+  JIT configuration, runner registration, Auth, secret, Snyk, full CI, or
+  provider/production code.
+- Rollback validation now also requires the two exact owned VHDX paths and
+  initial hash evidence before it will remove the marker-owned run root. Its
+  resource removal still cannot begin without a valid Provisioned ledger.
+
+Static tests pass under Node 22 (`pnpm test:isolated-linux-runner-contract`,
+**7/7**), including a no-host-mutation `ProvisionPlanRegression` under Windows
+PowerShell 5.1 and pwsh. This is a design/parser result, not image, VM, CIDATA,
+NAT, firewall, guest, listener, egress, or rollback runtime evidence.
+
+→ **Handoff to Agent 12.** Review this exact Provision code before any archive
+download, UAC invocation, VM/switch/NAT/firewall/CIDATA action, JIT generation,
+runner registration, or credential stage. The release remains **NO-GO**.
