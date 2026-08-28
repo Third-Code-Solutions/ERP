@@ -97,3 +97,14 @@ failure and repeat the exact read-only preflight. Do not provision, register a
 runner, change group `3`, run Auth/Snyk/full CI, or use this static workflow as
 release evidence until that preflight produces a ledger and Agent 12 reviews the
 result.
+
+## Follow-up — ledger compatibility repair pending verification
+
+Read-only Windows PowerShell event evidence subsequently confirmed that the
+visible UAC process did start, but it used Windows PowerShell 5.1. Its
+`Set-Content -Encoding utf8NoBOM` rejected the PowerShell-7-only encoding name
+in both the primary and catch ledger paths, so the earlier missing ledger was a
+writer compatibility failure rather than a UAC rejection. The harness now uses
+the .NET `UTF8Encoding(false)` writer and has a no-host-mutation regression mode
+that must pass under Windows PowerShell 5.1 and pwsh before one exact elevated
+Preflight retry. This record is updated again only with that ledgered result.

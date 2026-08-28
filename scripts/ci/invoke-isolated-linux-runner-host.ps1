@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-  [ValidateSet('Preflight', 'Rollback')]
+  [ValidateSet('Preflight', 'Rollback', 'LedgerRegression')]
   [string]$Mode = 'Preflight',
 
   [ValidatePattern('^third-code-erp-ci-[a-z0-9-]+$')]
@@ -93,7 +93,12 @@ function Write-Ledger {
 
   $ledgerDirectory = Split-Path -Parent $LedgerPath
   New-Item -ItemType Directory -Path $ledgerDirectory -Force | Out-Null
-  $Ledger | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $LedgerPath -Encoding utf8NoBOM
+  $utf8WithoutBom = New-Object System.Text.UTF8Encoding($false)
+  [IO.File]::WriteAllText(
+    $LedgerPath,
+    ($Ledger | ConvertTo-Json -Depth 8),
+    $utf8WithoutBom
+  )
 }
 
 function Assert-TargetVacant {
@@ -158,6 +163,30 @@ function Invoke-Rollback {
   if (Test-Path -LiteralPath $targets.RunRoot) {
     Remove-Item -LiteralPath $targets.RunRoot -Recurse -Force
   }
+}
+
+if ($Mode -eq 'LedgerRegression') {
+  Write-Ledger -Ledger ([ordered]@{
+      Mode = $Mode
+      Outcome = 'PASS'
+      RunIdentity = $RunIdentity
+      Encoding = 'utf-8-no-bom'
+    })
+  $bytes = [IO.File]::ReadAllBytes($LedgerPath)
+  if (
+    $bytes.Length -ge 3 -and
+    $bytes[0] -eq 0xEF -and
+    $bytes[1] -eq 0xBB -and
+    $bytes[2] -eq 0xBF
+  ) {
+    throw 'Ledger regression wrote a UTF-8 BOM.'
+  }
+  $result = Get-Content -LiteralPath $LedgerPath -Raw | ConvertFrom-Json
+  if ($result.Encoding -ne 'utf-8-no-bom' -or $result.RunIdentity -ne $RunIdentity) {
+    throw 'Ledger regression JSON did not round-trip.'
+  }
+  Write-Host "PASS ledger encoding regression: $LedgerPath"
+  exit 0
 }
 
 try {
