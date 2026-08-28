@@ -146,9 +146,9 @@ and the release remains **NO-GO**.
 
 ## Second guarded elevated Provision attempt — failed closed
 
-**Reviewed candidate:** `08b639511d7f1de220f39b5ec6c5dd2ec6b0c91f`  
-**Agent 12 authorization:** `651885354c1c308017fa92dea21fdffb7eb0ee00`  
-**Run identity:** `third-code-erp-ci-20260828-provision2`  
+**Reviewed candidate:** `08b639511d7f1de220f39b5ec6c5dd2ec6b0c91f`
+**Agent 12 authorization:** `651885354c1c308017fa92dea21fdffb7eb0ee00`
+**Run identity:** `third-code-erp-ci-20260828-provision2`
 **Result:** **NO-GO — no retry authorized.**
 
 Before the one visible elevated attempt, read-only checks confirmed that Group
