@@ -26,6 +26,11 @@
   current hosted CI evidence is failed/skipped rather than a complete green run
   for an immutable `main` SHA. The Actions budget remains configured to stop
   usage. The isolated runner group has no accepted runner.
+- **Hosted scanner execution: FAILED.** The workflow run for candidate commit
+  `39d05056035f878024a38ebb48419c7bb6e8aab7` failed all four jobs before any
+  scanner step ran, consistent with the organization-level stop-usage budget.
+  GitHub did not retain a failed-job log for those jobs. This is fail-closed
+  evidence only; the candidate is not an immutable `main` release commit.
 - **Snyk: BLOCKED.** Accessible repository, production-environment, and
   organization Actions secret inventories have no `SNYK_TOKEN`.
   The new job intentionally fails if it remains absent; no Snyk account,
@@ -60,7 +65,8 @@
 | Snyk dependency scan | BLOCKED — `SNYK_TOKEN` absent |
 | Semgrep SAST scan | BLOCKED — local Docker Linux engine unavailable |
 | Trivy filesystem scan | BLOCKED — local Docker Linux engine unavailable |
-| Hosted security workflow for exact release SHA | NOT RUN / BLOCKED |
+| Hosted security workflow for candidate `39d05056035f878024a38ebb48419c7bb6e8aab7` | FAILED — all four jobs failed before steps |
+| Hosted security workflow for exact immutable `main` release SHA | NOT RUN / BLOCKED |
 
 ## Handoff to Agent 04 — blocked
 
