@@ -331,3 +331,60 @@ regression does not write to the cache or an external output path.
 → **Handoff to Agent 12.** Static review is required before any fourth
 elevated Provision attempt. This repair is not runtime containment proof; the
 runner and release remain **NO-GO**.
+
+## Fourth guarded elevated Provision attempt — failed closed with durable rollback
+
+**Reviewed candidate:** `307d184c165772546df793b72f6a9b2e40a62333`
+**Agent 12 authorization:** `96463fd6`
+**Run identity:** `third-code-erp-ci-20260828-provision4`
+**Result:** **NO-GO — stopped after the one authorized attempt; no retry is authorized.**
+
+Before UAC, the accepted helper files were byte-identical to `307d184c`; the
+new run root and ledger were vacant; and the immutable archive at its approved
+cache path still had SHA-256
+`843d243792abb05b50e1a7f5e614e1184d8fc7195c119747cbb3038520258a22`
+(603,960,567 bytes). Group `3` was and remains non-default, ERP-only,
+`restricted_to_workflows=true`, selected only for
+`Third-Code-Solutions/ERP/.github/workflows/ci-linux-runner-smoke.yml@827719975eb44808da85cbd64cc28074f6ee4ae1`,
+and has zero runners.
+
+One visible elevated Windows PowerShell 5.1 Provision process ran the exact
+accepted helper with the exact non-secret acknowledgement. It completed the
+approved dense materialization: the archive yielded the expected
+32,213,303,808-byte sparse source; the marker-owned
+`vhd\materialized-source.vhd` reached the same logical length with only the
+normal `Archive` attribute; and the ledger advanced to
+`dense-source-materialized`. `Convert-VHD` then produced the mutable OS VHDX,
+and CIDATA/evidence-disk ownership stages completed. No credential, Auth,
+JIT, runner registration, Group/workflow mutation, Actions dispatch, provider,
+database, deployment, or production action occurred.
+
+PowerShell Operational event `4100` at `2026-08-28T23:06:56.4903657+08:00`
+records the first runtime error as:
+
+```text
+Failed while adding virtual Ethernet switch connections.
+```
+
+The error occurred while creating the run-owned internal virtual switch, before
+NAT, VM, VM-NIC ACL, guest boot, guest evidence, host/guest listener probes, or
+runner work. The helper's reviewed exact staged rollback completed and the
+durable ledger at
+`tmp\isolated-linux-runner-third-code-erp-ci-20260828-provision4-runtime-ledger.json`
+records `Lifecycle=RolledBack`, `Outcome=PASS`, and
+`FinalZeroResidue=true`; its SHA-256 is
+`81fc80169fd75709679cbca5478e9e70a8fe7c831e19bfc9526b4f4a0d0c5a25`
+(36,884 bytes).
+
+Post-run target inventory is zero VMs, target NATs, NAT static mappings, netsh
+port proxies, and target VM-NIC ACLs; the exact run root is absent. The only
+remaining host switches are the pre-existing `Default Switch` and
+`WSL (Hyper-V firewall)`, which were preserved. The immutable archive hash and
+the Group 3 ERP-only, restricted-workflow, zero-runner boundary were re-read
+unchanged after rollback.
+
+→ **Handoff to Agent 12.** The fourth attempt is a host virtual-switch
+capability/configuration blocker, not a containment pass. Review the durable
+rollback evidence and determine any next static remediation; do not authorize a
+retry, runner/JIT, Auth/Snyk, provider/database, deployment, or production
+work from this result. The runner and release remain **NO-GO**.
