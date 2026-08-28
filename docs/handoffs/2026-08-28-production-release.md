@@ -1,9 +1,10 @@
 # Production release handoff — fail-closed
 
-> **Status: NO-GO.** This is a release-control handoff, not authorization to
-> deploy. Production promotion may begin only at Stage 4 after every exit
-> criterion in Stages 1–3 has current, target-specific evidence. A green local
-> test or a prior production observation is not a substitute.
+> **Status: NO-GO — no item is deployed or production-ready.** This is a
+> release-control handoff, not authorization to deploy. Production promotion
+> may begin only at Stage 4 after every exit criterion in Stages 1–3 has
+> current, target-specific evidence. A green local test or a prior production
+> observation is not a substitute.
 
 ## Authority and scope
 
@@ -35,16 +36,48 @@ release.
 
 | Gate | Current evidence | Status |
 | --- | --- | --- |
-| Candidate lineage | Recovery commits are on an `origin/main`-based port; PR #14 remains open and is not a `main` release artifact. | NOT PROMOTABLE |
-| Hosted CI | PR run [`33083718479`](https://github.com/Third-Code-Solutions/ERP/actions/runs/33083718479) failed in `Actionlint`; all downstream CI/security jobs were skipped. The job produced no usable failed-step log. Earlier run evidence in `docs/blockers/2026-08-25-github-actions-billing.md` records the provider billing/spending-limit annotation. | BLOCKED |
-| Self-hosted CI fallback | Selected group `erp-ci-isolated` is restricted to this ERP repository, but has zero runners. The local service/firewall plan is pending Agent 12 acceptance and one bounded UAC approval; no active runner can supply CI evidence. | BLOCKED |
-| Security tools | Current source evidence has Actionlint and Gitleaks, but no current successful required Snyk, Semgrep, or Trivy gate evidence. `AGENTS.md` makes all four tools gating requirements for Agent 12. | BLOCKED |
-| Production DB parity | There is no current, target-identified, explicitly read-only parity report for the final release commit. Historical reports and local 153-migration replay are not current production evidence. | BLOCKED |
+| Candidate lineage | `origin/main` is an ancestor of the recovery branch, but PR #14 remains open. The latest non-documentation repair commit is `a28e163b`; it is not a normally merged immutable `main` release SHA and has no exact-`main` gate evidence. | NOT PROMOTABLE |
+| Hosted CI and Actions capacity | Documented PR runs [`33083718479`](https://github.com/Third-Code-Solutions/ERP/actions/runs/33083718479) and [`33157202840`](https://github.com/Third-Code-Solutions/ERP/actions/runs/33157202840) failed in `Actionlint` and skipped downstream CI/security jobs. The organization budget remains `amount: 0` with `prevent_further_usage: true`; earlier evidence records the billing/spending-limit annotation. No current exact-`main` hosted run exists. | BLOCKED |
+| Self-hosted CI fallback | Selected group `erp-ci-isolated` is repository-restricted but has zero runners. Its separate local service/firewall design still requires Agent 12 acceptance and one explicit bounded UAC approval; no active runner can provide CI evidence. | BLOCKED |
+| Local non-Auth evidence | The Node 22 matrix recorded generic test, lint, typecheck, build, Actionlint, action-reference, Gitleaks, no-skip helper, and raw PostgreSQL lane passes for `3781d037`; Agent 13 later recorded containment-harness tests **7/7**, Actionlint, and action-reference passes. Those are local/prior-candidate evidence only and cannot satisfy a future merged `main` release gate. | PARTIAL LOCAL PASS |
+| Disposable Supabase containment and Auth proof | The repaired harness failed closed before reset/status/credentials/Auth when run-owned DB port 54322 showed `::1` **and wildcard `::`**; prior matching Docker metadata also showed wildcard IPv4/IPv6 publication. Targeted cleanup then proved zero run-owned containers, volumes, network, workdir/state/evidence files, and listeners. There is no Agent 04 Auth handoff and no real zero-skip Auth Admin API report. | BLOCKED |
+| Security tools and production environment | Local Actionlint/Gitleaks evidence does not replace the required successful Snyk, Semgrep, and Trivy gates. The documented GitHub `production` environment has no protection rules or deployment-branch policy. | BLOCKED |
+| Production DB parity and migration lineage | The raw lane replayed 153 repository migrations with a matching local ledger/hash, but no current, target-identified, explicitly read-only production schema/migration parity report exists for an immutable `main` candidate. Production artifacts remain on earlier revisions, and tested recovery/PITR authority is not proven. | BLOCKED |
 | Commercial readiness | PRD O-01 (ABI VAT base) and O-14 (standing rate owner) remain unresolved. They block WO-06 sign-off and any claim that the DUPA/commercial workflow is ready. The fractional-quantity policy/ADR remains separately unresolved. | BLOCKED |
 
 The correct current release status is therefore **NO-GO**. These blockers are
 conjunctive: clearing one does not authorize the next stage when any other
 required condition remains red, skipped, absent, stale, or target-ambiguous.
+
+## Latest local checkpoint — 2026-08-28
+
+The containment contract (`761abf7e`) and its repository-only harness repair
+(`a28e163b`) improved the local fail-closed boundary without creating release
+evidence. The repair dynamically inventories run-owned containers and ports,
+requires reconciled Docker metadata plus Windows listener evidence before
+reset/status/credentials, and performs targeted unconditional cleanup. Its
+local source/harness checks passed, including the dedicated containment suite
+(**7/7**).
+
+The single bounded runtime attempt remained ineligible: before any database
+reset, status value, runtime credential, or Auth test, the run-owned database
+port showed literal loopback `::1` *and* wildcard IPv6 `::`. That observation
+corroborates the earlier wildcard IPv4/IPv6 publication and is a containment
+failure. Targeted teardown successfully left zero run-owned containers,
+volumes, network, temporary workdir/state/evidence files, and listeners. Zero
+residue is necessary cleanup evidence; it does not make the binding safe.
+
+Accordingly, Agent 13 did **not** hand off to Agent 04. No real disposable
+Supabase Auth Admin API run, zero-skip report, or fresh 13-role Auth proof
+exists for the current branch, much less for a future immutable `main` SHA.
+The next permitted action in the release sequence remains Stage 1 preflight
+for an eventual normal `main` merge. A future local Auth path first requires a
+separately authorized containment-capable host or reviewed host-security
+decision; it may not bypass the two-source binding check.
+
+No provider, production database, billing, runner, migration, or deployment
+operation was performed by the local containment work. No item is deployed,
+production-verified, production-ready, or authorized for promotion.
 
 ## Required sequence
 

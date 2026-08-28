@@ -154,3 +154,26 @@ workflow's provider-credential/target controls. Inputs: this record, run
 `33157202840`, the protected-environment readback, and the fail-closed findings
 above. Expected output: an evidence-backed Agent 12 acceptance or a documented
 NO-GO with remediation; no deployment.
+
+## Latest release-control checkpoint — 2026-08-28
+
+The top-level decision remains **NO-GO; no item is deployed, production-ready,
+or approved for promotion.** This checkpoint incorporates the later local
+containment contract (`761abf7e`) and repository-only harness repair
+(`a28e163b`), without treating either as an exact-`main` release artifact.
+
+| Evidence | Current status | Release effect |
+| --- | --- | --- |
+| Prior Node 22 local matrix (`3781d037`) | **PARTIAL LOCAL PASS** — generic test/lint/type/build, local Actionlint/action-reference/Gitleaks/no-skip helpers, and raw PostgreSQL `444/444` zero-skip lane passed. | Prior branch-local evidence only; it does not include the required real Auth proof and cannot carry forward to a later commit or `main`. |
+| Latest containment-harness repair | **LOCAL PASS** — `pnpm test:supabase-containment` **7/7**, local Actionlint/action-reference, PowerShell parsing, and diff check passed. | Confirms the repository now fails closed and cleans run-owned resources; it is not a successful local Supabase/Auth execution. |
+| One bounded containment runtime attempt | **BLOCKED** — before reset/status/credentials/Auth, run-owned port 54322 had `::1` and wildcard IPv6 `::`; earlier evidence has matching wildcard IPv4/IPv6 Docker publication. | Agent 13 correctly performed targeted teardown with zero residue and did **not** hand off to Agent 04. No `test:auth-api` zero-skip report exists. |
+| Candidate/migration lineage | **BLOCKED** — `origin/main` is an ancestor, but PR #14 is open and `a28e163b` is not a normally merged immutable `main` candidate. No current read-only production migration/schema parity report exists for a final release SHA. | Stage 1 cannot exit. Local 153-migration replay/hash is not production parity. |
+| Hosted CI/security and production environment | **BLOCKED** — documented PR Actionlint failures skipped downstream work; Actions spend stop remains configured; Snyk/Semgrep/Trivy lack current required evidence; zero-runner fallback and unprotected `production` environment remain unresolved. | No green CI/security gate, runner authorization, or protected production promotion path exists. |
+| Recovery and commercial authority | **BLOCKED** — tested target-specific recovery/PITR authority is absent; PRD O-01/O-14 and the fractional-quantity/DUPA decision are unresolved. | Do not claim commercial readiness or proceed to deployment. |
+
+The handoff remains at its earliest unsatisfied prerequisite: an eventual
+immutable normal `main` candidate must first complete Stage 1 with actual CI,
+exact target/rollback, and all containment/security prerequisites. A separate
+authorized host-security decision or containment-capable host is required
+before the local Auth lane may be retried. No provider, database, billing,
+runner, migration, or deployment mutation occurred in this checkpoint.
