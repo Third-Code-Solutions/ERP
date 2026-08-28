@@ -377,6 +377,24 @@ matrix, and release remain **NO-GO**. A later host repair requires a separate
 accepted contract that names the precise component and has explicit human
 authorization; it must not be folded into a runner retry.
 
+### 2026-08-28 Windows/Hyper-V maintenance path — proposed only
+
+Agent 12's [support-maintenance contract](../changesets/2026-08-28-agent-12-hyper-v-support-maintenance-contract.md)
+and [open blocker](../blockers/2026-08-28-hyper-v-switch-support-maintenance.md)
+define a phased recovery route. Broad virtualization/network permission is not
+approval for connectivity loss, reboot, manual Wi-Fi reconnection, Windows
+image repair, driver/binding change, or a host network reset. Phase A is
+read-only evidence only and must stop without a Microsoft-supported,
+current-build-applicable repair target. KB3101106's Windows 10 legacy Easy Fix
+is not an approved Windows 11 remedy. Any repair needs its own explicit owner
+approval, backup/recovery and local-access plan, maintenance window, impact
+assessment for WSL/Docker/Default Switch, and post-reboot containment ledger.
+
+The only conditional no-subscription-cost alternative is a separately
+booted/dedicated physical Linux boundary under a new Agent 12 contract. It is
+not a WSL, shared Docker, Windows-runner, retained-switch, or paid-hosted
+substitute.
+
 ## Final stop conditions
 
 Stop and record **NO-GO** immediately if any of these occurs: the local runner
