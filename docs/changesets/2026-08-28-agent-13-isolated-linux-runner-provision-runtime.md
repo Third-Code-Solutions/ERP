@@ -71,3 +71,38 @@ action occurred.
 → **Handoff to Agent 12.** Runtime defect in the reviewed helper requires a
 minimal code repair and new static review before another Provision attempt. The
 release remains **NO-GO**.
+
+## Minimal runtime repair — pending Agent 12 re-review
+
+This repair changes only the reproduced `netsh portproxy` empty-output parser
+defect. It does not invoke UAC or Provision, retry the prior target, download
+another archive, or change a host, group, runner, credential, Auth, provider,
+database, or production resource.
+
+- `ConvertTo-PortProxyEntries` now accepts a null collection, empty collection,
+  and the Windows `netsh` no-proxy output of one empty string as the valid zero
+  proxy state. This is the exact state observed on this host.
+- Any nonempty mapping still parses into an entry and is rejected by the
+  unchanged global `Assert-NoMappingsOrPortProxies` gate. Any malformed
+  nonempty `netsh` line or out-of-range port fails the helper closed before
+  Provision.
+- Added a non-elevated `PortProxyRegression` mode and Node contract coverage.
+  Both Windows PowerShell 5.1 and pwsh prove empty collection/string/null
+  input yields zero entries, a valid mapping is rejected by the global
+  zero-proxy assertion, and malformed output is rejected.
+
+| Check | Result |
+| --- | --- |
+| PowerShell parser — Windows PowerShell 5.1 | **PASS** |
+| PowerShell parser — pwsh | **PASS** |
+| Direct `PortProxyRegression` — Windows PowerShell 5.1 | **PASS** |
+| Direct `PortProxyRegression` — pwsh | **PASS** |
+| Node 22 `pnpm test:isolated-linux-runner-contract` | **PASS** — 8/8 |
+| `pnpm ci:actionlint` | **PASS** — actionlint 1.7.12 checksum verified |
+| `pnpm verify:workflow-action-refs` | **PASS** — four existing pinned refs resolve |
+| `pnpm ci:gitleaks` | **PASS** — 1,611 commits / 38.73 MB; no leaks |
+| `git diff --check` | **PASS** |
+
+→ **Handoff to Agent 12.** Review the next code commit before authorizing any
+second elevated Provision attempt. The previous target was never provisioned;
+the archive cache remains the only persistent artifact. Release is **NO-GO**.

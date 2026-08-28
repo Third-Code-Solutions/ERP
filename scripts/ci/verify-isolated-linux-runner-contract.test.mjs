@@ -229,12 +229,16 @@ ${cleanupContract[1]}
 test('the host helper uses exact VM-NIC ACL/evidence-disk containment without global host firewall rules', async () => {
   const hostScript = await readFile(hostScriptPath, 'utf8')
 
-  assert.match(hostScript, /ValidateSet\('Preflight', 'Provision', 'Rollback', 'LedgerRegression', 'RollbackPlanRegression', 'ProvisionPlanRegression'\)/)
+  assert.match(hostScript, /ValidateSet\('Preflight', 'Provision', 'Rollback', 'LedgerRegression', 'RollbackPlanRegression', 'ProvisionPlanRegression', 'PortProxyRegression'\)/)
   assert.match(hostScript, /\$RunRoot = 'D:\\third-code-erp-isolated-runner'/)
   assert.match(hostScript, /\$ImageCacheRoot = 'D:\\third-code-erp-isolated-runner-cache'/)
   assert.match(hostScript, /immutable-cache-not-run-root/)
   assert.match(hostScript, /Get-PortProxyEntries/)
   assert.match(hostScript, /ConvertTo-PortProxyEntries/)
+  assert.match(hostScript, /AllowEmptyCollection\(\)/)
+  assert.match(hostScript, /AllowEmptyString\(\)/)
+  assert.match(hostScript, /netsh portproxy returned a malformed nonempty line; preflight fails closed/)
+  assert.match(hostScript, /Global zero-proxy assertion accepted a nonempty parsed portproxy mapping/)
   assert.match(hostScript, /Get-HostListeners/)
   assert.match(hostScript, /Get-NetFirewallProfile/)
   assert.match(hostScript, /Get-NetFirewallHyperVProfile/)
@@ -312,6 +316,27 @@ test('the ledger writer round-trips BOM-less UTF-8 under every installed PowerSh
     }
   } finally {
     await rm(artifactDirectory, { recursive: true, force: true })
+  }
+})
+
+test('the host helper treats empty netsh portproxy output as zero state and fails closed for nonempty output', async (t) => {
+  const engines = getPowerShellEngines()
+  if (engines.length === 0) {
+    t.skip('Windows PowerShell host regression runs only on Windows')
+    return
+  }
+
+  for (const engine of engines) {
+    const result = runHostScript(engine, 'PortProxyRegression', join(tmpdir(), `third-code-erp-portproxy-${engine.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.json`))
+    assert.equal(result.status, 0, `${engine.name} portproxy regression failed: ${result.stderr || result.stdout}`)
+    const regression = JSON.parse(result.stdout)
+    assert.equal(regression.Outcome, 'PASS')
+    assert.equal(regression.EmptyCollectionCount, 0)
+    assert.equal(regression.EmptyStringCount, 0)
+    assert.equal(regression.NullInputCount, 0)
+    assert.equal(regression.ValidMappingCount, 1)
+    assert.equal(regression.GlobalZeroProxyRejected, true)
+    assert.equal(regression.MalformedRejected, true)
   }
 })
 

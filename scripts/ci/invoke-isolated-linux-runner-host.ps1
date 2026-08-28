@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-  [ValidateSet('Preflight', 'Provision', 'Rollback', 'LedgerRegression', 'RollbackPlanRegression', 'ProvisionPlanRegression')]
+  [ValidateSet('Preflight', 'Provision', 'Rollback', 'LedgerRegression', 'RollbackPlanRegression', 'ProvisionPlanRegression', 'PortProxyRegression')]
   [string]$Mode = 'Preflight',
 
   [ValidatePattern('^third-code-erp-ci-[a-z0-9-]+$')]
@@ -105,23 +105,35 @@ function Write-Ledger {
 
 function ConvertTo-PortProxyEntries {
   param(
-    [Parameter(Mandatory)]
-    [string[]]$Lines,
+    [AllowNull()]
+    [AllowEmptyCollection()]
+    [AllowEmptyString()]
+    [string[]]$Lines = @(),
     [Parameter(Mandatory)]
     [string]$Protocol
   )
 
   $entries = @()
   foreach ($line in $Lines) {
-    if ($line -match '^\s*(\S+)\s+(\d+)\s+(\S+)\s+(\d+)\s*$') {
+    $normalizedLine = ([string]$line).Trim()
+    if ([string]::IsNullOrWhiteSpace($normalizedLine)) { continue }
+    if ($normalizedLine -match '^(Listen on ipv[46]:\s+Connect to ipv[46]:|Address\s+Port\s+Address\s+Port|-+\s+-+\s+-+\s+-+)$') { continue }
+    if ($normalizedLine -match '^(\S+)\s+(\d+)\s+(\S+)\s+(\d+)$') {
+      $listenPort = [int]$matches[2]
+      $connectPort = [int]$matches[4]
+      if ($listenPort -lt 1 -or $listenPort -gt 65535 -or $connectPort -lt 1 -or $connectPort -gt 65535) {
+        throw 'netsh portproxy returned an out-of-range nonempty mapping.'
+      }
       $entries += [pscustomobject]@{
         Protocol = $Protocol
         ListenAddress = $matches[1]
-        ListenPort = [int]$matches[2]
+        ListenPort = $listenPort
         ConnectAddress = $matches[3]
-        ConnectPort = [int]$matches[4]
+        ConnectPort = $connectPort
       }
+      continue
     }
+    throw 'netsh portproxy returned a malformed nonempty line; preflight fails closed.'
   }
   return @($entries)
 }
@@ -1311,6 +1323,45 @@ if ($Mode -eq 'LedgerRegression') {
 if ($Mode -eq 'RollbackPlanRegression') {
   $ledger = Read-RollbackLedger
   Write-Host "PASS rollback ledger validation only: $($ledger.RunIdentity)"
+  exit 0
+}
+
+if ($Mode -eq 'PortProxyRegression') {
+  $emptyCollection = @(ConvertTo-PortProxyEntries -Lines @() -Protocol 'v4tov4')
+  $emptyString = @(ConvertTo-PortProxyEntries -Lines @('') -Protocol 'v4tov4')
+  $nullInput = @(ConvertTo-PortProxyEntries -Lines $null -Protocol 'v4tov4')
+  if ($emptyCollection.Count -ne 0 -or $emptyString.Count -ne 0 -or $nullInput.Count -ne 0) {
+    throw 'An empty netsh portproxy result must be the valid zero-proxy state.'
+  }
+
+  $validMapping = @(ConvertTo-PortProxyEntries -Lines @('127.0.0.1 54321 172.31.202.10 54321') -Protocol 'v4tov4')
+  if ($validMapping.Count -ne 1) { throw 'Regression did not parse a nonempty netsh portproxy mapping.' }
+  $globalZeroProxyRejected = $false
+  try {
+    Assert-NoMappingsOrPortProxies -Inventory ([pscustomobject]@{ NatMappings = @(); PortProxy = $validMapping })
+  } catch {
+    $globalZeroProxyRejected = $true
+  }
+  if (-not $globalZeroProxyRejected) { throw 'Global zero-proxy assertion accepted a nonempty parsed portproxy mapping.' }
+
+  $malformedRejected = $false
+  try {
+    ConvertTo-PortProxyEntries -Lines @('127.0.0.1 not-a-port 172.31.202.10 54321') -Protocol 'v4tov4' | Out-Null
+  } catch {
+    $malformedRejected = $true
+  }
+  if (-not $malformedRejected) { throw 'Malformed nonempty netsh portproxy output must fail closed.' }
+
+  [pscustomobject]@{
+    Mode = $Mode
+    Outcome = 'PASS'
+    EmptyCollectionCount = $emptyCollection.Count
+    EmptyStringCount = $emptyString.Count
+    NullInputCount = $nullInput.Count
+    ValidMappingCount = $validMapping.Count
+    GlobalZeroProxyRejected = $globalZeroProxyRejected
+    MalformedRejected = $malformedRejected
+  } | ConvertTo-Json
   exit 0
 }
 
