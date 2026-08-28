@@ -43,7 +43,7 @@ export default async function OwnerConsolePage() {
     <main className={styles.page}>
       <header className={styles.header}>
         <div>
-          <p className={styles.eyebrow}>Third Code ERP · platform control</p>
+          <p className={styles.eyebrow}>ABI OPS · platform control</p>
           <h1>Owner console</h1>
           <p>Cross-organization visibility and controlled workspace provisioning.</p>
         </div>
