@@ -359,6 +359,24 @@ a **deployment handoff only**. It does not dispatch production, apply a
 migration, or mark the ERP production-ready. Production writes require a later
 separate exact migration plan and authorization.
 
+### 2026-08-28 isolated-runner containment status update
+
+The fourth approved non-secret Provision attempt materialized the pinned image
+successfully but failed while creating the required internal Hyper-V switch.
+Its exact rollback is durable and the target is clean. Agent 12 review
+`d50aff1f` permits no retry. Agent 13's single bounded elevated read-only
+diagnostic reconfirmed `New-VMSwitch` miniport error `0x800700B7` and the
+`NetEventBindFailed`/deletion sequence, but found no matching current
+miniport/adapter/PnP/network-class registry identity. Only the pre-existing
+Default Switch and WSL switch remain; the archive, zero-target inventory, and
+Group 3 ERP-only restricted-workflow/zero-runner boundary are unchanged.
+
+No component-specific vendor-supported repair can be proposed from that
+evidence. The disposable isolated Linux runner, Auth matrix, full security
+matrix, and release remain **NO-GO**. A later host repair requires a separate
+accepted contract that names the precise component and has explicit human
+authorization; it must not be folded into a runner retry.
+
 ## Final stop conditions
 
 Stop and record **NO-GO** immediately if any of these occurs: the local runner

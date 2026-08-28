@@ -388,3 +388,65 @@ capability/configuration blocker, not a containment pass. Review the durable
 rollback evidence and determine any next static remediation; do not authorize a
 retry, runner/JIT, Auth/Snyk, provider/database, deployment, or production
 work from this result. The runner and release remain **NO-GO**.
+
+## One elevated read-only miniport-collision diagnostic — no specific repair candidate
+
+**Authorization:** Agent 12 post-runtime review `d50aff1f`.
+**Execution:** exactly one visible elevated, read-only diagnostic collector. It
+did not invoke the Provision helper or issue any create, delete, enable,
+disable, restart, rebind, firewall, Docker, WSL, NAT, or port-proxy command.
+The ignored local evidence bundle is
+`tmp\isolated-linux-runner-switch-diagnostic-20260828-provision4.json`
+(schema `1`, 95,680 bytes, SHA-256
+`7b1f0a04b4f3608059be2447f24f6adf5dc9dea6701af591d958150c4e220415`).
+
+The bounded `23:05:00`–`23:08:30 +08:00` event window reconfirms the original
+failure. PowerShell Operational event `4100` at `23:06:56.490` identifies
+`New-VMSwitch` and the failed internal miniport GUID
+`24DEA9FE-354E-4CB1-BBC2-153E57C33AB1`, with `0x800700B7`. The VMSwitch
+Operational log shows `NetEventBindFailed` at `23:06:55.448`, then `Delete
+complete` for the target switch at `23:06:56.486`. This is evidence of the
+same failed miniport creation and rollback, not an additional attempt.
+
+The elevated snapshot found Hyper-V enabled and `vmms`, `vmcompute`, and `hns`
+running. There are zero VMs, zero NATs/static mappings, and all four read-only
+`netsh interface portproxy show` variants exit `0` with blank output. The only
+remaining switches/HNS networks are the pre-existing `Default Switch` and
+`WSL (Hyper-V firewall)`; both were preserved. No target-labelled HNS network,
+endpoint, policy, VM, switch, or run root exists.
+
+The failed miniport GUID has no match in the current hidden-or-present adapter
+inventory, PnP Net devices, or the network-class registry identities. The only
+live Hyper-V switch-extension PnP devices are the retained `ROOT\\VMS_VSMP`
+instances for Default Switch and WSL. The observed `vms_pp` bindings on the
+physical and retained host vEthernet adapters are disabled; this snapshot does
+not establish that state as the cause of the failed ephemeral miniport.
+
+The collection exposed a tooling limitation without widening the evidence
+action: the requested slash-style VMMS/Compute event-log names do not exist on
+this host, while the read-only available-log inventory lists the installed
+hyphenated VMMS/Compute channels. Per the one-collection constraint, no second
+collection was run. The direct PowerShell and VMSwitch records above contain
+the relevant failure and deletion sequence.
+
+Fresh post-collection controls remain intact: the immutable archive is still
+603,960,567 bytes with SHA-256
+`843d243792abb05b50e1a7f5e614e1184d8fc7195c119747cbb3038520258a22`; the
+exact run root is absent; and GitHub group `3` remains non-default
+`erp-ci-isolated`, selected only for `Third-Code-Solutions/ERP`,
+`restricted_to_workflows=true`, with only
+`Third-Code-Solutions/ERP/.github/workflows/ci-linux-runner-smoke.yml@827719975eb44808da85cbd64cc28074f6ee4ae1`
+and zero runners.
+
+**Static remediation decision:** none is proposed. The collection did not
+identify a specific live or ghost component that a vendor-supported narrow
+repair could target. Testing another name would still create an internal
+miniport, so it is neither harmless nor read-only and was not attempted.
+Changing Default Switch, WSL, a physical adapter, driver, service, firewall,
+NAT, Docker, or binding would exceed the accepted contract. The isolated
+runner and release remain **NO-GO**.
+
+→ **Handoff to Agent 12.** Review this bounded diagnostic evidence. Any future
+remediation requires a newly accepted, component-specific contract and separate
+human authorization; no retry or runner registration is authorized from this
+record.
