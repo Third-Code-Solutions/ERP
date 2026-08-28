@@ -106,3 +106,40 @@ database, or production resource.
 → **Handoff to Agent 12.** Review the next code commit before authorizing any
 second elevated Provision attempt. The previous target was never provisioned;
 the archive cache remains the only persistent artifact. Release is **NO-GO**.
+
+## Native `netsh` exit-status repair after Agent 12 review `87a9c0cd` — pending static review
+
+Agent 12 rejected the initial empty-output parser repair because the real
+`netsh` invocation redirected stderr and did not evaluate `$LASTEXITCODE`.
+Accordingly, a command failure with blank stdout could have been misclassified
+as the valid zero-proxy state. This follow-up changes only that fail-open path.
+
+- `Invoke-PortProxyShow` now invokes each exact `netsh interface portproxy show
+  <protocol>` command, captures `$LASTEXITCODE` immediately, and throws on any
+  nonzero exit before parsing. An ErrorRecord on stderr also throws.
+- `Get-PortProxyEntries` consumes an explicit `{ ExitCode, Stdout, Stderr }`
+  result and independently rejects incomplete, nonzero, or stderr-bearing
+  results before it permits the existing empty-output zero state.
+- The non-elevated regression injects exit-zero blank, valid, malformed, and
+  out-of-range outputs plus exit-nonzero blank/nonblank and stderr cases. A
+  valid mapping still reaches the unchanged global zero-proxy guard and is
+  rejected there.
+- This was static verification only. There was no UAC prompt, Provision retry,
+  download, host mutation, Group 3/workflow change, runner/JIT action,
+  credential/Auth/Snyk, database/provider, deployment, or production action.
+
+| Check | Result |
+| --- | --- |
+| PowerShell parser — Windows PowerShell 5.1 | **PASS** |
+| PowerShell parser — pwsh | **PASS** |
+| Direct `PortProxyRegression` — Windows PowerShell 5.1 | **PASS** — zero/proxy/error cases |
+| Direct `PortProxyRegression` — pwsh | **PASS** — zero/proxy/error cases |
+| Node 22 `pnpm test:isolated-linux-runner-contract` | **PASS** — 8/8 |
+| `pnpm ci:actionlint` | **PASS** — actionlint 1.7.12 checksum verified |
+| `pnpm verify:workflow-action-refs` | **PASS** — four existing pinned refs resolve |
+| `pnpm ci:gitleaks` | **PASS** — 1,613 commits / 38.74 MB; no leaks |
+| `git diff --check` | **PASS** |
+
+→ **Handoff to Agent 12.** Review the native-command exit/status guard before
+authorizing any new elevated Provision attempt. The first target remains clean,
+and the release remains **NO-GO**.

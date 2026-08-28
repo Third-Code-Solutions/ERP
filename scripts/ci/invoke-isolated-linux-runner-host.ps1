@@ -138,11 +138,43 @@ function ConvertTo-PortProxyEntries {
   return @($entries)
 }
 
+function Invoke-PortProxyShow {
+  param([Parameter(Mandatory)] [string]$Protocol)
+  # Keep stderr observable and capture the native exit code immediately. A
+  # blank stdout result is trusted only after this exact command succeeds.
+  $commandOutput = @(& netsh interface portproxy "show" $Protocol 2>&1)
+  $netshExitCode = $LASTEXITCODE
+  if ($netshExitCode -ne 0) {
+    throw "netsh interface portproxy show $Protocol exited $netshExitCode; preflight fails closed."
+  }
+  $stderr = @($commandOutput | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] })
+  if ($stderr.Count -ne 0) {
+    throw "netsh interface portproxy show $Protocol emitted stderr; preflight fails closed."
+  }
+  return [pscustomobject]@{
+    ExitCode = $netshExitCode
+    Stdout = @($commandOutput | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] } | ForEach-Object { [string]$_ })
+    Stderr = $stderr
+  }
+}
+
 function Get-PortProxyEntries {
+  param([scriptblock]$PortProxyShow)
   $entries = @()
   foreach ($protocol in @('v4tov4', 'v4tov6', 'v6tov4', 'v6tov6')) {
-    $lines = @(& netsh interface portproxy "show" $protocol 2>$null)
-    $entries += ConvertTo-PortProxyEntries -Lines $lines -Protocol $protocol
+    $result = @(
+      if ($null -eq $PortProxyShow) { Invoke-PortProxyShow -Protocol $protocol } else { & $PortProxyShow $protocol }
+    )
+    if ($result.Count -ne 1 -or $null -eq $result[0] -or -not ($result[0].PSObject.Properties.Name -contains 'ExitCode') -or -not ($result[0].PSObject.Properties.Name -contains 'Stdout') -or -not ($result[0].PSObject.Properties.Name -contains 'Stderr')) {
+      throw 'netsh portproxy command result is incomplete; preflight fails closed.'
+    }
+    if ([int]$result[0].ExitCode -ne 0) {
+      throw "netsh interface portproxy show $protocol reported nonzero exit $($result[0].ExitCode); preflight fails closed."
+    }
+    if (@($result[0].Stderr).Count -ne 0) {
+      throw "netsh interface portproxy show $protocol reported stderr; preflight fails closed."
+    }
+    $entries += ConvertTo-PortProxyEntries -Lines @($result[0].Stdout) -Protocol $protocol
   }
   return @($entries)
 }
@@ -1327,14 +1359,17 @@ if ($Mode -eq 'RollbackPlanRegression') {
 }
 
 if ($Mode -eq 'PortProxyRegression') {
-  $emptyCollection = @(ConvertTo-PortProxyEntries -Lines @() -Protocol 'v4tov4')
-  $emptyString = @(ConvertTo-PortProxyEntries -Lines @('') -Protocol 'v4tov4')
-  $nullInput = @(ConvertTo-PortProxyEntries -Lines $null -Protocol 'v4tov4')
+  $emptyCollection = @(Get-PortProxyEntries -PortProxyShow { param($Protocol) [pscustomobject]@{ ExitCode = 0; Stdout = @(); Stderr = @() } })
+  $emptyString = @(Get-PortProxyEntries -PortProxyShow { param($Protocol) [pscustomobject]@{ ExitCode = 0; Stdout = @(''); Stderr = @() } })
+  $nullInput = @(Get-PortProxyEntries -PortProxyShow { param($Protocol) [pscustomobject]@{ ExitCode = 0; Stdout = $null; Stderr = @() } })
   if ($emptyCollection.Count -ne 0 -or $emptyString.Count -ne 0 -or $nullInput.Count -ne 0) {
-    throw 'An empty netsh portproxy result must be the valid zero-proxy state.'
+    throw 'An exit-0 empty netsh portproxy result must be the valid zero-proxy state.'
   }
 
-  $validMapping = @(ConvertTo-PortProxyEntries -Lines @('127.0.0.1 54321 172.31.202.10 54321') -Protocol 'v4tov4')
+  $validMapping = @(Get-PortProxyEntries -PortProxyShow {
+      param($Protocol)
+      [pscustomobject]@{ ExitCode = 0; Stdout = if ($Protocol -eq 'v4tov4') { @('127.0.0.1 54321 172.31.202.10 54321') } else { @('') }; Stderr = @() }
+    })
   if ($validMapping.Count -ne 1) { throw 'Regression did not parse a nonempty netsh portproxy mapping.' }
   $globalZeroProxyRejected = $false
   try {
@@ -1346,11 +1381,43 @@ if ($Mode -eq 'PortProxyRegression') {
 
   $malformedRejected = $false
   try {
-    ConvertTo-PortProxyEntries -Lines @('127.0.0.1 not-a-port 172.31.202.10 54321') -Protocol 'v4tov4' | Out-Null
+    Get-PortProxyEntries -PortProxyShow { param($Protocol) [pscustomobject]@{ ExitCode = 0; Stdout = @('127.0.0.1 not-a-port 172.31.202.10 54321'); Stderr = @() } } | Out-Null
   } catch {
     $malformedRejected = $true
   }
   if (-not $malformedRejected) { throw 'Malformed nonempty netsh portproxy output must fail closed.' }
+
+  $outOfRangeRejected = $false
+  try {
+    Get-PortProxyEntries -PortProxyShow { param($Protocol) [pscustomobject]@{ ExitCode = 0; Stdout = @('127.0.0.1 70000 172.31.202.10 54321'); Stderr = @() } } | Out-Null
+  } catch {
+    $outOfRangeRejected = $true
+  }
+  if (-not $outOfRangeRejected) { throw 'Out-of-range nonempty netsh portproxy output must fail closed.' }
+
+  $nonzeroBlankRejected = $false
+  try {
+    Get-PortProxyEntries -PortProxyShow { param($Protocol) [pscustomobject]@{ ExitCode = 1; Stdout = @(''); Stderr = @() } } | Out-Null
+  } catch {
+    $nonzeroBlankRejected = $true
+  }
+  if (-not $nonzeroBlankRejected) { throw 'A nonzero netsh exit with blank stdout must fail closed.' }
+
+  $nonzeroOutputRejected = $false
+  try {
+    Get-PortProxyEntries -PortProxyShow { param($Protocol) [pscustomobject]@{ ExitCode = 1; Stdout = @('127.0.0.1 54321 172.31.202.10 54321'); Stderr = @() } } | Out-Null
+  } catch {
+    $nonzeroOutputRejected = $true
+  }
+  if (-not $nonzeroOutputRejected) { throw 'A nonzero netsh exit with nonempty stdout must fail closed.' }
+
+  $stderrRejected = $false
+  try {
+    Get-PortProxyEntries -PortProxyShow { param($Protocol) [pscustomobject]@{ ExitCode = 0; Stdout = @(''); Stderr = @('native stderr') } } | Out-Null
+  } catch {
+    $stderrRejected = $true
+  }
+  if (-not $stderrRejected) { throw 'A netsh stderr result must fail closed.' }
 
   [pscustomobject]@{
     Mode = $Mode
@@ -1361,6 +1428,10 @@ if ($Mode -eq 'PortProxyRegression') {
     ValidMappingCount = $validMapping.Count
     GlobalZeroProxyRejected = $globalZeroProxyRejected
     MalformedRejected = $malformedRejected
+    OutOfRangeRejected = $outOfRangeRejected
+    NonzeroBlankRejected = $nonzeroBlankRejected
+    NonzeroOutputRejected = $nonzeroOutputRejected
+    StderrRejected = $stderrRejected
   } | ConvertTo-Json
   exit 0
 }

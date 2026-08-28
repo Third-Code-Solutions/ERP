@@ -235,6 +235,10 @@ test('the host helper uses exact VM-NIC ACL/evidence-disk containment without gl
   assert.match(hostScript, /immutable-cache-not-run-root/)
   assert.match(hostScript, /Get-PortProxyEntries/)
   assert.match(hostScript, /ConvertTo-PortProxyEntries/)
+  assert.match(hostScript, /Invoke-PortProxyShow/)
+  assert.match(hostScript, /\$netshExitCode = \$LASTEXITCODE/)
+  assert.match(hostScript, /netsh interface portproxy show \$Protocol exited \$netshExitCode; preflight fails closed/)
+  assert.match(hostScript, /netsh interface portproxy show \$protocol reported nonzero exit/)
   assert.match(hostScript, /AllowEmptyCollection\(\)/)
   assert.match(hostScript, /AllowEmptyString\(\)/)
   assert.match(hostScript, /netsh portproxy returned a malformed nonempty line; preflight fails closed/)
@@ -337,6 +341,10 @@ test('the host helper treats empty netsh portproxy output as zero state and fail
     assert.equal(regression.ValidMappingCount, 1)
     assert.equal(regression.GlobalZeroProxyRejected, true)
     assert.equal(regression.MalformedRejected, true)
+    assert.equal(regression.OutOfRangeRejected, true)
+    assert.equal(regression.NonzeroBlankRejected, true)
+    assert.equal(regression.NonzeroOutputRejected, true)
+    assert.equal(regression.StderrRejected, true)
   }
 })
 
