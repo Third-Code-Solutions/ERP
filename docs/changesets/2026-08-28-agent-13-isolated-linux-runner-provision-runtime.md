@@ -272,3 +272,62 @@ remains present with its accepted SHA-256.
 `Convert-VHD` on this host because of the sparse/compressed/encrypted source
 file limitation. Review a bounded, source-integrity-preserving materialization
 repair before any future UAC attempt. The runner and release remain **NO-GO**.
+
+## Dense Azure VHD materialization repair — static implementation, pending Agent 12 review
+
+**Agent 12 contract:** `e9ed8d7a`
+**Execution:** static only; no UAC, image download, cache mutation, VM,
+switch, NAT, firewall, runner, Group 3/workflow, workflow-dispatch,
+credential/Auth/Snyk, database/provider, deployment, or production action.
+
+The approved archive remains the immutable input at
+`D:\third-code-erp-isolated-runner-cache\noble-server-cloudimg-amd64-azure.vhd.tar.gz`.
+The repaired Provision plan now extracts it only beneath the exact per-run
+staging directory, verifies one expected regular Azure VHD there, and
+sequentially streams that file into the exact transient destination
+`vhd\materialized-source.vhd` before `Convert-VHD` is considered.
+
+- The staging source and dense destination are canonicalized under the exact
+  run root, reject path escapes/reparse points, and reject unexpected source
+  names, multiple VHDs, non-regular files, or forbidden source attributes.
+- Before any destination creation, the plan measures D: free space for the
+  source logical length, worst-case converted VHDX size, and a nonzero reserve.
+  It refuses insufficient, unmeasurable, or overflowing capacity.
+- The dense file uses `FileMode.CreateNew` sequential reads/writes only; it
+  cannot overwrite or reuse an existing file. Short read/write or interrupted copy,
+  length/content mismatch, and sparse/compressed/encrypted/reparse/offline
+  destination attributes all fail closed before conversion.
+- Ownership of `transient-dense-source-vhd` is staged durably before output
+  creation. Its cleanup authority is the exact marker-owned run-root path, not
+  a content hash or VM attachment. Source/destination SHA-256 values are
+  provenance only; exact rollback removes only the marker-owned run root and
+  does not grant deletion authority over the immutable cache archive.
+- `Get-Sha256Hex` now uses .NET SHA-256 streams instead of the optional
+  PowerShell `Get-FileHash` module, preserving deterministic PS5/pwsh behavior
+  when the host process supplies a restrictive `PSModulePath`.
+
+The non-elevated materialization regression creates a synthetic sparse source
+and proves a dense success under Windows PowerShell 5.1 and pwsh. It also
+proves fail-closed rejection and exact cleanup for source-name mismatch, path
+escape, existing output, insufficient capacity, interrupted and short read/write copies,
+output-length/content mismatch, and a forbidden destination attribute. Both
+engines reported `TemporaryRootRemoved=true` and `LedgerResidueCount=0`; the
+regression does not write to the cache or an external output path.
+
+| Check | Result |
+| --- | --- |
+| PowerShell parser — Windows PowerShell 5.1 | **PASS** |
+| PowerShell parser — pwsh | **PASS** |
+| Direct `MaterializationRegression` — Windows PowerShell 5.1 | **PASS** |
+| Direct `MaterializationRegression` — pwsh | **PASS** |
+| Node 22 isolated-runner contract — workflow/ledger/materialization/portproxy subtests | **PASS** — 8/8 in one bounded invocation |
+| Node 22 isolated-runner contract — rollback-plan subtest | **PASS** |
+| Node 22 isolated-runner contract — Provision-plan subtest | **PASS** |
+| `pnpm ci:actionlint` | **PASS** — actionlint 1.7.12 checksum verified |
+| `pnpm verify:workflow-action-refs` | **PASS** — four existing pinned refs resolve |
+| `pnpm ci:gitleaks` | **PASS** — 1,621 commits / 38.77 MB; no leaks |
+| `git diff --check` | **PASS** |
+
+→ **Handoff to Agent 12.** Static review is required before any fourth
+elevated Provision attempt. This repair is not runtime containment proof; the
+runner and release remain **NO-GO**.

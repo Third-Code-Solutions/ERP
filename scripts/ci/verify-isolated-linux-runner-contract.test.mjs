@@ -106,6 +106,10 @@ function provisionedLedger() {
       DynamicPortEvidenceState: 'host-reconciled',
       HostPortReconciliation: { Outcome: 'PASS', GuestDynamicPorts: [60123], ListenerBaseline: [], ListenerAfter: [], NatMappings: [], PortProxies: [] },
       Disks: [
+        {
+          Role: 'transient-dense-source-vhd', Path: `${runRoot}\\vhd\\materialized-source.vhd`, SourcePath: `${runRoot}\\image-staging\\livecd.ubuntu-cpc.azure.vhd`,
+          CleanupAuthority: 'marker-owned-run-root-path', Provenance: { SourceSha256: 'd'.repeat(64), DestinationSha256: 'd'.repeat(64), CleanupAuthority: 'marker-owned-run-root-path' },
+        },
         { Role: 'mutable-guest-os-vhdx', Path: `${runRoot}\\vhd\\ubuntu-os.vhdx`, InitialSha256: 'b'.repeat(64) },
         { Role: 'immutable-cidata-seed', Path: `${runRoot}\\vhd\\cidata.vhdx`, Sha256: 'c'.repeat(64) },
         { Role: 'mutable-guest-evidence-vhdx', Path: `${runRoot}\\vhd\\evidence.vhdx` },
@@ -229,7 +233,7 @@ ${cleanupContract[1]}
 test('the host helper uses exact VM-NIC ACL/evidence-disk containment without global host firewall rules', async () => {
   const hostScript = await readFile(hostScriptPath, 'utf8')
 
-  assert.match(hostScript, /ValidateSet\('Preflight', 'Provision', 'Rollback', 'LedgerRegression', 'LedgerReplacementRegression', 'RollbackPlanRegression', 'ProvisionPlanRegression', 'PortProxyRegression'\)/)
+  assert.match(hostScript, /ValidateSet\('Preflight', 'Provision', 'Rollback', 'LedgerRegression', 'LedgerReplacementRegression', 'MaterializationRegression', 'RollbackPlanRegression', 'ProvisionPlanRegression', 'PortProxyRegression'\)/)
   assert.match(hostScript, /\[IO\.File\]::Replace\(\$temporaryLedgerPath, \$LedgerPath, \$backupLedgerPath\)/)
   assert.match(hostScript, /Injected ledger replacement failure must fail closed/)
   assert.match(hostScript, /Ledger replacement regression left temporary or backup artifacts/)
@@ -259,6 +263,15 @@ test('the host helper uses exact VM-NIC ACL/evidence-disk containment without gl
   assert.match(hostScript, /Get-RecordedVmHardDriveAttachments/)
   assert.match(hostScript, /Assert-ExactVmHardDriveAttachments/)
   assert.match(hostScript, /mutable-guest-os-vhdx/)
+  assert.match(hostScript, /transient-dense-source-vhd/)
+  assert.match(hostScript, /materialized-source\.vhd/)
+  assert.match(hostScript, /Invoke-DenseSourceMaterialization/)
+  assert.match(hostScript, /Invoke-SequentialDenseVhdCopy/)
+  assert.match(hostScript, /Dense materialization read fewer bytes than the source stream supplied/)
+  assert.match(hostScript, /Dense materialization refuses to create output without capacity/)
+  assert.match(hostScript, /Dense materialization destination has a forbidden sparse, compressed, encrypted, reparse, offline, or non-file attribute/)
+  assert.match(hostScript, /Dense materialization provenance hash does not match the extracted source/)
+  assert.match(hostScript, /Convert-VHD -Path \$materializedSource\.DestinationPath/)
   assert.match(hostScript, /Mutable OS VHD must not be cleanup-authorized by content hash/)
   assert.match(hostScript, /Assert-HostReconcilesGuestDynamicPorts/)
   assert.match(hostScript, /Assert-LedgerVmNicAclShape/)
@@ -356,6 +369,42 @@ test('the ledger writer atomically replaces entries under every installed PowerS
       const ledger = JSON.parse(bytes.toString('utf8'))
       assert.equal(ledger.Lifecycle, 'RolledBack')
       assert.equal(ledger.Sequence, 4)
+    }
+  } finally {
+    await rm(artifactDirectory, { recursive: true, force: true })
+  }
+})
+
+test('the dense image materialization contract fails closed under every installed PowerShell engine', async (t) => {
+  const engines = getPowerShellEngines()
+  if (engines.length === 0) {
+    t.skip('Windows PowerShell host regression runs only on Windows')
+    return
+  }
+
+  const artifactDirectory = await mkdtemp(join(tmpdir(), 'third-code-erp-materialization-regression-'))
+  try {
+    for (const engine of engines) {
+      const ledgerPath = join(artifactDirectory, `${engine.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.json`)
+      const result = runHostScript(engine, 'MaterializationRegression', ledgerPath)
+
+      assert.equal(result.status, 0, `${engine.name} materialization regression failed: ${result.stderr || result.stdout}`)
+      const regression = JSON.parse(result.stdout)
+      assert.equal(regression.Outcome, 'PASS')
+      assert.equal(regression.SyntheticSparseSource, true)
+      assert.equal(regression.DenseSuccess, true)
+      assert.equal(regression.SourceArchiveMismatchRejected, true)
+      assert.equal(regression.PathEscapeRejected, true)
+      assert.equal(regression.ExistingOutputRejected, true)
+      assert.equal(regression.CapacityRejected, true)
+      assert.equal(regression.InterruptedCopyRejected, true)
+      assert.equal(regression.ShortReadRejected, true)
+      assert.equal(regression.ShortCopyRejected, true)
+      assert.equal(regression.OutputLengthMismatchRejected, true)
+      assert.equal(regression.ContentMismatchRejected, true)
+      assert.equal(regression.ForbiddenAttributeRejected, true)
+      assert.equal(regression.TemporaryRootRemoved, true)
+      assert.equal(regression.LedgerResidueCount, 0)
     }
   } finally {
     await rm(artifactDirectory, { recursive: true, force: true })
@@ -464,6 +513,13 @@ test('rollback planning accepts only exact Provisioned ledger identities and rej
       await writeFile(mutableVhdHashPath, JSON.stringify(mutableVhdHashLedger), 'utf8')
       const mutableVhdHash = runHostScript(engine, 'RollbackPlanRegression', mutableVhdHashPath)
       assert.notEqual(mutableVhdHash.status, 0, `${engine.name} accepted mutable OS VHD content hash as cleanup authority`)
+
+      const transientDenseAttachedLedger = provisionedLedger()
+      transientDenseAttachedLedger.Resources.VmDisks.push({ VmId: transientDenseAttachedLedger.Resources.Vm.Id, VmName: runIdentity, Path: transientDenseAttachedLedger.Resources.Disks.find((disk) => disk.Role === 'transient-dense-source-vhd').Path, ControllerType: 'SCSI', ControllerNumber: 0, ControllerLocation: 2 })
+      const transientDenseAttachedPath = join(artifactDirectory, `${engine.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-transient-dense-attached.json`)
+      await writeFile(transientDenseAttachedPath, JSON.stringify(transientDenseAttachedLedger), 'utf8')
+      const transientDenseAttached = runHostScript(engine, 'RollbackPlanRegression', transientDenseAttachedPath)
+      assert.notEqual(transientDenseAttached.status, 0, `${engine.name} accepted a transient dense source VHD as a live VM attachment`)
 
       const spoofedNicLedger = provisionedLedger()
       spoofedNicLedger.Resources.NetworkAdapter.SwitchId = '44444444-4444-4444-4444-444444444444'

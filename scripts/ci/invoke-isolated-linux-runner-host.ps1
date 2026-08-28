@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-  [ValidateSet('Preflight', 'Provision', 'Rollback', 'LedgerRegression', 'LedgerReplacementRegression', 'RollbackPlanRegression', 'ProvisionPlanRegression', 'PortProxyRegression')]
+  [ValidateSet('Preflight', 'Provision', 'Rollback', 'LedgerRegression', 'LedgerReplacementRegression', 'MaterializationRegression', 'RollbackPlanRegression', 'ProvisionPlanRegression', 'PortProxyRegression')]
   [string]$Mode = 'Preflight',
 
   [ValidatePattern('^third-code-erp-ci-[a-z0-9-]+$')]
@@ -57,7 +57,9 @@ $targets = [ordered]@{
   CheckpointDirectory = Join-Path $runRootPath 'checkpoints'
   SmartPagingDirectory = Join-Path $runRootPath 'smart-paging'
   ConfigDirectory = Join-Path $runRootPath 'config'
+  ImageStagingDirectory = Join-Path $runRootPath 'image-staging'
   OsVhdxPath = Join-Path $runRootPath 'vhd\ubuntu-os.vhdx'
+  MaterializedSourceVhdPath = Join-Path $runRootPath 'vhd\materialized-source.vhd'
   CidataVhdxPath = Join-Path $runRootPath 'vhd\cidata.vhdx'
   EvidenceVhdxPath = Join-Path $runRootPath 'vhd\evidence.vhdx'
   GuestEvidencePath = '/mnt/erp-evidence/precredential-containment.json'
@@ -66,6 +68,8 @@ $targets = [ordered]@{
 $ubuntuImage = [ordered]@{
   Release = 'Ubuntu 24.04 LTS Noble 20260826'
   ArchiveName = 'noble-server-cloudimg-amd64-azure.vhd.tar.gz'
+  ExtractedVhdName = 'livecd.ubuntu-cpc.azure.vhd'
+  MaterializationReserveBytes = [int64]1GB
   SourceUrl = 'https://cloud-images.ubuntu.com/noble/20260826/noble-server-cloudimg-amd64-azure.vhd.tar.gz'
   ChecksumUrl = 'https://cloud-images.ubuntu.com/noble/20260826/SHA256SUMS'
   ExpectedSha256 = '843d243792abb05b50e1a7f5e614e1184d8fc7195c119747cbb3038520258a22'
@@ -507,7 +511,7 @@ function Assert-RunDirectoryOwned {
   if (-not (Test-Path -LiteralPath $markerPath)) {
     throw 'Rollback refuses to delete a run directory without its exact ownership marker.'
   }
-  $markerHash = (Get-FileHash -LiteralPath $markerPath -Algorithm SHA256).Hash.ToLowerInvariant()
+  $markerHash = Get-Sha256Hex -Path $markerPath
   if ($markerHash -ne ([string]$RunDirectory.MarkerSha256).ToLowerInvariant()) {
     throw 'Rollback refuses to delete a run directory whose ownership marker hash changed.'
   }
@@ -520,11 +524,12 @@ function Assert-RunDirectoryOwned {
 function Assert-LedgerRunDiskRecords {
   param([Parameter(Mandatory)] [object[]]$Disks)
   $expected = [ordered]@{
+    'transient-dense-source-vhd' = $targets.MaterializedSourceVhdPath
     'mutable-guest-os-vhdx' = $targets.OsVhdxPath
     'immutable-cidata-seed' = $targets.CidataVhdxPath
     'mutable-guest-evidence-vhdx' = $targets.EvidenceVhdxPath
   }
-  if ($Disks.Count -ne $expected.Count) { throw 'Run-disk ledger must record exactly the OS, CIDATA, and evidence disks.' }
+  if ($Disks.Count -ne $expected.Count) { throw 'Run-disk ledger must record exactly the dense source, OS, CIDATA, and evidence disks.' }
   foreach ($role in $expected.Keys) {
     $record = @($Disks | Where-Object { $_.Role -eq $role })
     if ($record.Count -ne 1 -or [IO.Path]::GetFullPath([string]$record[0].Path) -ne $expected[$role]) {
@@ -532,6 +537,14 @@ function Assert-LedgerRunDiskRecords {
     }
     if ($role -eq 'mutable-guest-os-vhdx' -and [string]$record[0].InitialSha256 -notmatch '^[a-fA-F0-9]{64}$') {
       throw 'Mutable OS VHD provenance must record only its initial SHA-256.'
+    }
+    if ($role -eq 'transient-dense-source-vhd') {
+      if ($record[0].CleanupAuthority -ne 'marker-owned-run-root-path' -or [IO.Path]::GetFullPath([string]$record[0].SourcePath) -notlike "$($targets.ImageStagingDirectory)$([IO.Path]::DirectorySeparatorChar)*" -or [string]$record[0].Provenance.SourceSha256 -notmatch '^[a-fA-F0-9]{64}$' -or [string]$record[0].Provenance.DestinationSha256 -notmatch '^[a-fA-F0-9]{64}$' -or $record[0].Provenance.CleanupAuthority -ne 'marker-owned-run-root-path') {
+        throw 'Transient dense source ledger record lacks exact canonical path and provenance-only identity.'
+      }
+      if (($record[0].PSObject.Properties.Name -contains 'Sha256') -or ($record[0].PSObject.Properties.Name -contains 'InitialSha256')) {
+        throw 'Transient dense source must not be cleanup-authorized by content hash.'
+      }
     }
     if ($role -eq 'mutable-guest-os-vhdx' -and ($record[0].PSObject.Properties.Name -contains 'Sha256')) {
       throw 'Mutable OS VHD must not be cleanup-authorized by content hash.'
@@ -548,6 +561,7 @@ function Assert-LedgerRunDiskRecords {
 function Assert-StagedRunDiskRecords {
   param([Parameter(Mandatory)] [object[]]$Disks)
   $allowed = [ordered]@{
+    'transient-dense-source-vhd' = $targets.MaterializedSourceVhdPath
     'mutable-guest-os-vhdx' = $targets.OsVhdxPath
     'immutable-cidata-seed' = $targets.CidataVhdxPath
     'mutable-guest-evidence-vhdx' = $targets.EvidenceVhdxPath
@@ -693,7 +707,7 @@ function Assert-VerifiedUbuntuArchive {
   if (-not (Test-Path -LiteralPath $archivePath -PathType Leaf)) {
     throw "Verified Ubuntu archive is absent: $archivePath"
   }
-  $actualHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+  $actualHash = Get-Sha256Hex -Path $archivePath
   if ($actualHash -ne $ubuntuImage.ExpectedSha256) {
     throw 'Ubuntu archive SHA-256 does not match the dated official publisher checksum.'
   }
@@ -707,6 +721,269 @@ function Assert-VerifiedUbuntuArchive {
     SourceUrl = $ubuntuImage.SourceUrl
     ChecksumUrl = $ubuntuImage.ChecksumUrl
     Release = $ubuntuImage.Release
+  }
+}
+
+function Get-Sha256Hex {
+  param([Parameter(Mandatory)] [string]$Path)
+
+  if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+    throw "SHA-256 input is not a regular file: $Path"
+  }
+  $stream = [IO.File]::Open($Path, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+  try {
+    $algorithm = [Security.Cryptography.SHA256]::Create()
+    try {
+      return ([BitConverter]::ToString($algorithm.ComputeHash($stream))).Replace('-', '').ToLowerInvariant()
+    } finally {
+      $algorithm.Dispose()
+    }
+  } finally {
+    $stream.Dispose()
+  }
+}
+
+function Assert-CanonicalPathInside {
+  param(
+    [Parameter(Mandatory)] [string]$Path,
+    [Parameter(Mandatory)] [string]$Root,
+    [Parameter(Mandatory)] [string]$Description
+  )
+
+  $rootPath = [IO.Path]::GetFullPath($Root)
+  $candidatePath = [IO.Path]::GetFullPath($Path)
+  $rootPrefix = "$rootPath$([IO.Path]::DirectorySeparatorChar)"
+  if (-not $candidatePath.StartsWith($rootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+    throw "$Description escaped its exact root."
+  }
+  if (-not (Test-Path -LiteralPath $rootPath -PathType Container)) {
+    throw "$Description root is absent."
+  }
+
+  $rootItem = Get-Item -LiteralPath $rootPath -Force
+  if (($rootItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+    throw "$Description root is a reparse point."
+  }
+  $relativePath = $candidatePath.Substring($rootPrefix.Length)
+  $currentPath = $rootPath
+  foreach ($segment in @($relativePath -split '[\\/]')) {
+    if ([string]::IsNullOrWhiteSpace($segment)) { continue }
+    $currentPath = Join-Path $currentPath $segment
+    if (Test-Path -LiteralPath $currentPath) {
+      $currentItem = Get-Item -LiteralPath $currentPath -Force
+      if (($currentItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw "$Description contains a reparse point."
+      }
+    }
+  }
+  return $candidatePath
+}
+
+function Assert-MaterializationEligibleSourceVhd {
+  param(
+    [Parameter(Mandatory)] [string]$RunRoot,
+    [Parameter(Mandatory)] [string]$StagingDirectory,
+    [Parameter(Mandatory)] [string]$ExpectedSourceName
+  )
+
+  $canonicalStagingDirectory = Assert-CanonicalPathInside -Path $StagingDirectory -Root $RunRoot -Description 'Azure image staging directory'
+  if (-not (Test-Path -LiteralPath $canonicalStagingDirectory -PathType Container)) {
+    throw 'Azure image staging directory is absent.'
+  }
+  $sourceVhds = @(Get-ChildItem -LiteralPath $canonicalStagingDirectory -Recurse -Force -File -Filter '*.vhd')
+  if ($sourceVhds.Count -ne 1) {
+    throw 'Verified archive must extract exactly one Azure source VHD.'
+  }
+  $source = $sourceVhds[0]
+  if ($source.Name -ne $ExpectedSourceName) {
+    throw 'Verified archive/source VHD name does not match the materialization contract.'
+  }
+  $sourcePath = Assert-CanonicalPathInside -Path $source.FullName -Root $canonicalStagingDirectory -Description 'Azure source VHD'
+  $sourceItem = Get-Item -LiteralPath $sourcePath -Force
+  if ($sourceItem.PSIsContainer -or $sourceItem.Length -le 0) {
+    throw 'Azure source VHD must be one nonempty regular file.'
+  }
+  $forbiddenSourceAttributes = [IO.FileAttributes]::Compressed -bor [IO.FileAttributes]::Encrypted -bor [IO.FileAttributes]::ReparsePoint -bor [IO.FileAttributes]::Offline -bor [IO.FileAttributes]::Device -bor [IO.FileAttributes]::Directory
+  if (($sourceItem.Attributes -band $forbiddenSourceAttributes) -ne 0) {
+    throw 'Azure source VHD has forbidden materialization attributes.'
+  }
+  return [pscustomobject]@{
+    Path = $sourcePath
+    Name = $sourceItem.Name
+    Length = [int64]$sourceItem.Length
+    Attributes = [string]$sourceItem.Attributes
+  }
+}
+
+function Get-DenseMaterializationCapacity {
+  param(
+    [Parameter(Mandatory)] [string]$SourcePath,
+    [Parameter(Mandatory)] [int64]$SourceLength,
+    [int64]$ConvertedWorstCaseBytes = 0,
+    [scriptblock]$GetAvailableBytes
+  )
+
+  if ($SourceLength -le 0) { throw 'Dense materialization source length is invalid.' }
+  $convertedBytes = $ConvertedWorstCaseBytes
+  if ($convertedBytes -le 0) {
+    $sourceVhd = @(Get-VHD -Path $SourcePath -ErrorAction Stop)
+    if ($sourceVhd.Count -ne 1 -or [int64]$sourceVhd[0].Size -le 0) {
+      throw 'Dense materialization cannot measure the worst-case converted OS VHDX size.'
+    }
+    $convertedBytes = [int64]$sourceVhd[0].Size
+  }
+  if ($convertedBytes -lt $SourceLength) { $convertedBytes = $SourceLength }
+  $reserveBytes = [int64]$ubuntuImage.MaterializationReserveBytes
+  if ($reserveBytes -le 0 -or $SourceLength -gt ([int64]::MaxValue - $convertedBytes) -or ($SourceLength + $convertedBytes) -gt ([int64]::MaxValue - $reserveBytes)) {
+    throw 'Dense materialization capacity calculation overflowed or has no nonzero reserve.'
+  }
+  $requiredBytes = $SourceLength + $convertedBytes + $reserveBytes
+  $availableValues = @(
+    if ($null -ne $GetAvailableBytes) {
+      & $GetAvailableBytes $requiredBytes
+    } else {
+      (Get-Volume -DriveLetter D -ErrorAction Stop).SizeRemaining
+    }
+  )
+  if ($availableValues.Count -ne 1 -or $null -eq $availableValues[0]) {
+    throw 'Dense materialization cannot measure available D: capacity.'
+  }
+  try {
+    $availableBytes = [int64]$availableValues[0]
+  } catch {
+    throw 'Dense materialization available D: capacity is invalid.'
+  }
+  if ($availableBytes -lt $requiredBytes) {
+    throw 'Dense materialization refuses to create output without capacity for the dense source, worst-case OS VHDX, and reserve.'
+  }
+  return [pscustomobject]@{
+    SourceLogicalLength = $SourceLength
+    ConvertedWorstCaseBytes = $convertedBytes
+    ReserveBytes = $reserveBytes
+    RequiredBytes = $requiredBytes
+    AvailableBytes = $availableBytes
+  }
+}
+
+function Assert-DenseMaterializedVhd {
+  param(
+    [Parameter(Mandatory)] [string]$Path,
+    [Parameter(Mandatory)] [int64]$ExpectedLength
+  )
+
+  if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+    throw 'Dense materialization destination is absent.'
+  }
+  $item = Get-Item -LiteralPath $Path -Force
+  $forbiddenAttributes = [IO.FileAttributes]::SparseFile -bor [IO.FileAttributes]::Compressed -bor [IO.FileAttributes]::Encrypted -bor [IO.FileAttributes]::ReparsePoint -bor [IO.FileAttributes]::Offline -bor [IO.FileAttributes]::Device -bor [IO.FileAttributes]::Directory
+  if (($item.Attributes -band $forbiddenAttributes) -ne 0) {
+    throw 'Dense materialization destination has a forbidden sparse, compressed, encrypted, reparse, offline, or non-file attribute.'
+  }
+  if ([int64]$item.Length -ne $ExpectedLength) {
+    throw 'Dense materialization destination length does not match the source logical length.'
+  }
+  return $item
+}
+
+function Invoke-SequentialDenseVhdCopy {
+  param(
+    [Parameter(Mandatory)] [string]$SourcePath,
+    [Parameter(Mandatory)] [string]$DestinationPath,
+    [Parameter(Mandatory)] [int64]$ExpectedLength,
+    [int64]$TestAbortAfterBytes = -1,
+    [switch]$TestShortRead,
+    [switch]$TestShortWrite
+  )
+
+  if (Test-Path -LiteralPath $DestinationPath) {
+    throw 'Dense materialization destination already exists.'
+  }
+  $sourceStream = $null
+  $destinationStream = $null
+  $bytesRead = [int64]0
+  $bytesWritten = [int64]0
+  $buffer = New-Object byte[] 1048576
+  try {
+    $sourceStream = [IO.FileStream]::new($SourcePath, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read, $buffer.Length, [IO.FileOptions]::SequentialScan)
+    $destinationStream = [IO.FileStream]::new($DestinationPath, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None, $buffer.Length, [IO.FileOptions]::SequentialScan)
+    while ($true) {
+      if ($TestAbortAfterBytes -ge 0 -and $bytesWritten -ge $TestAbortAfterBytes) {
+        throw 'Dense materialization was interrupted before copy completion.'
+      }
+      $readCount = $sourceStream.Read($buffer, 0, $buffer.Length)
+      if ($readCount -eq 0) { break }
+      if ($TestShortRead) {
+        throw 'Dense materialization read fewer bytes than the source stream supplied.'
+      }
+      if ($bytesRead -gt ($ExpectedLength - $readCount)) {
+        throw 'Dense materialization source length changed during copy.'
+      }
+      $bytesRead += $readCount
+      $writeCount = $readCount
+      if ($TestShortWrite) { $writeCount = [Math]::Max(0, $readCount - 1) }
+      $destinationStream.Write($buffer, 0, $writeCount)
+      $bytesWritten += $writeCount
+      if ($writeCount -ne $readCount) {
+        throw 'Dense materialization wrote fewer bytes than were read from the source.'
+      }
+    }
+    $destinationStream.Flush()
+  } finally {
+    if ($null -ne $destinationStream) { $destinationStream.Dispose() }
+    if ($null -ne $sourceStream) { $sourceStream.Dispose() }
+  }
+  if ($bytesRead -ne $ExpectedLength -or $bytesWritten -ne $ExpectedLength) {
+    throw 'Dense materialization did not copy the exact source logical length.'
+  }
+}
+
+function Invoke-DenseSourceMaterialization {
+  param(
+    [Parameter(Mandatory)] [string]$RunRoot,
+    [Parameter(Mandatory)] [string]$StagingDirectory,
+    [Parameter(Mandatory)] [string]$VhdDirectory,
+    [Parameter(Mandatory)] [string]$DestinationPath,
+    [Parameter(Mandatory)] [string]$ExpectedSourceName,
+    [int64]$ConvertedWorstCaseBytes = 0,
+    [scriptblock]$GetAvailableBytes,
+    [int64]$TestAbortAfterBytes = -1,
+    [switch]$TestShortRead,
+    [switch]$TestShortWrite,
+    [scriptblock]$TestAfterCopy
+  )
+
+  $canonicalRunRoot = [IO.Path]::GetFullPath($RunRoot)
+  $canonicalVhdDirectory = Assert-CanonicalPathInside -Path $VhdDirectory -Root $canonicalRunRoot -Description 'Dense materialization VHD directory'
+  $canonicalDestination = Assert-CanonicalPathInside -Path $DestinationPath -Root $canonicalVhdDirectory -Description 'Dense materialization destination'
+  $expectedDestination = [IO.Path]::GetFullPath((Join-Path $canonicalVhdDirectory 'materialized-source.vhd'))
+  if ($canonicalDestination -ne $expectedDestination) {
+    throw 'Dense materialization destination is not the exact canonical run-owned source path.'
+  }
+  if (Test-Path -LiteralPath $canonicalDestination) {
+    throw 'Dense materialization destination already exists.'
+  }
+  $source = Assert-MaterializationEligibleSourceVhd -RunRoot $canonicalRunRoot -StagingDirectory $StagingDirectory -ExpectedSourceName $ExpectedSourceName
+  $capacity = Get-DenseMaterializationCapacity -SourcePath $source.Path -SourceLength $source.Length -ConvertedWorstCaseBytes $ConvertedWorstCaseBytes -GetAvailableBytes $GetAvailableBytes
+  Invoke-SequentialDenseVhdCopy -SourcePath $source.Path -DestinationPath $canonicalDestination -ExpectedLength $source.Length -TestAbortAfterBytes $TestAbortAfterBytes -TestShortRead:$TestShortRead -TestShortWrite:$TestShortWrite
+  if ($null -ne $TestAfterCopy) { & $TestAfterCopy $canonicalDestination }
+  Assert-DenseMaterializedVhd -Path $canonicalDestination -ExpectedLength $source.Length | Out-Null
+  $sourceAfter = Get-Item -LiteralPath $source.Path -Force
+  if ([int64]$sourceAfter.Length -ne $source.Length) {
+    throw 'Dense materialization source length changed after copy.'
+  }
+  $sourceSha256 = Get-Sha256Hex -Path $source.Path
+  $destinationSha256 = Get-Sha256Hex -Path $canonicalDestination
+  if ($sourceSha256 -ne $destinationSha256) {
+    throw 'Dense materialization provenance hash does not match the extracted source.'
+  }
+  return [pscustomobject]@{
+    SourcePath = $source.Path
+    DestinationPath = $canonicalDestination
+    SourceLength = $source.Length
+    DestinationLength = [int64](Get-Item -LiteralPath $canonicalDestination).Length
+    SourceAttributes = $source.Attributes
+    Capacity = $capacity
+    Provenance = [pscustomobject]@{ SourceSha256 = $sourceSha256; DestinationSha256 = $destinationSha256; CleanupAuthority = 'marker-owned-run-root-path' }
   }
 }
 
@@ -727,7 +1004,7 @@ function New-RunOwnershipMarker {
   return [pscustomobject]@{
     Path = $targets.RunRoot
     MarkerName = $targets.MarkerName
-    MarkerSha256 = (Get-FileHash -LiteralPath $markerPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    MarkerSha256 = Get-Sha256Hex -Path $markerPath
   }
 }
 
@@ -1118,7 +1395,7 @@ function Read-GuestEvidenceDisk {
     $evidencePath = "$drive`:\precredential-containment.json"
     $rawEvidence = Get-Content -LiteralPath $evidencePath -Raw
     if ($rawEvidence -match '(?i)"(?:token|secret|password|authorization)"\s*:') { throw 'Guest evidence must not contain a secret-bearing field.' }
-    $evidenceHash = (Get-FileHash -LiteralPath $evidencePath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $evidenceHash = Get-Sha256Hex -Path $evidencePath
     $evidence = $rawEvidence | ConvertFrom-Json
     $required = [ordered]@{
       schema_version = 1; outcome = 'PASS'; credential_stage = 'not-entered'; runner_user = 'erpci'; docker_socket_residual = 'guest-root'
@@ -1251,20 +1528,30 @@ function Invoke-Provision {
     $runDirectory = New-RunOwnershipMarker
     $ownership.RunDirectory = $runDirectory
     Write-ProvisionStage -Ownership $ownership -Stage 'run-root-owned'
-    @($targets.VhdDirectory, $targets.EvidenceDirectory, $targets.VmConfigurationDirectory, $targets.CheckpointDirectory, $targets.SmartPagingDirectory, $targets.ConfigDirectory) | ForEach-Object { New-Item -ItemType Directory -Path $_ -Force | Out-Null }
-    $stagingDirectory = Join-Path $targets.RunRoot 'image-staging'
-    New-Item -ItemType Directory -Path $stagingDirectory -Force | Out-Null
-    & tar.exe -xzf $image.ArchivePath -C $stagingDirectory
-    $sourceVhds = @(Get-ChildItem -LiteralPath $stagingDirectory -Recurse -File -Filter '*.vhd')
-    if ($sourceVhds.Count -ne 1) { throw 'Verified archive must contain exactly one source VHD.' }
-    Convert-VHD -Path $sourceVhds[0].FullName -DestinationPath $targets.OsVhdxPath -VHDType Dynamic
+    @($targets.VhdDirectory, $targets.EvidenceDirectory, $targets.VmConfigurationDirectory, $targets.CheckpointDirectory, $targets.SmartPagingDirectory, $targets.ConfigDirectory, $targets.ImageStagingDirectory) | ForEach-Object { New-Item -ItemType Directory -Path $_ -Force | Out-Null }
+    & tar.exe -xzf $image.ArchivePath -C $targets.ImageStagingDirectory
+    if ($LASTEXITCODE -ne 0) { throw 'Verified Ubuntu archive extraction failed.' }
+    $transientDenseSource = [pscustomobject]@{
+      Role = 'transient-dense-source-vhd'
+      Path = $targets.MaterializedSourceVhdPath
+      SourcePath = Join-Path $targets.ImageStagingDirectory $ubuntuImage.ExtractedVhdName
+      CleanupAuthority = 'marker-owned-run-root-path'
+      Provenance = $null
+    }
+    $ownership.Disks += $transientDenseSource
+    Write-ProvisionStage -Ownership $ownership -Stage 'dense-source-planned'
+    $materializedSource = Invoke-DenseSourceMaterialization -RunRoot $targets.RunRoot -StagingDirectory $targets.ImageStagingDirectory -VhdDirectory $targets.VhdDirectory -DestinationPath $targets.MaterializedSourceVhdPath -ExpectedSourceName $ubuntuImage.ExtractedVhdName
+    $transientDenseSource.SourcePath = $materializedSource.SourcePath
+    $transientDenseSource.Provenance = $materializedSource.Provenance
+    Write-ProvisionStage -Ownership $ownership -Stage 'dense-source-materialized'
+    Convert-VHD -Path $materializedSource.DestinationPath -DestinationPath $targets.OsVhdxPath -VHDType Dynamic
     # cloud-init mutates the guest OS VHD during first boot. Its initial hash is
     # provenance only; cleanup authority is the marker-owned path plus the exact
     # live Hyper-V attachment recorded below, never a post-boot content hash.
-    $ownership.Disks += [pscustomobject]@{ Role = 'mutable-guest-os-vhdx'; Path = $targets.OsVhdxPath; InitialSha256 = (Get-FileHash -LiteralPath $targets.OsVhdxPath -Algorithm SHA256).Hash.ToLowerInvariant() }
+    $ownership.Disks += [pscustomobject]@{ Role = 'mutable-guest-os-vhdx'; Path = $targets.OsVhdxPath; InitialSha256 = Get-Sha256Hex -Path $targets.OsVhdxPath }
     Write-ProvisionStage -Ownership $ownership -Stage 'os-vhdx-owned'
     New-CidataSeed -SeedPath $targets.CidataVhdxPath
-    $ownership.Disks += [pscustomobject]@{ Role = 'immutable-cidata-seed'; Path = $targets.CidataVhdxPath; Sha256 = (Get-FileHash -LiteralPath $targets.CidataVhdxPath -Algorithm SHA256).Hash.ToLowerInvariant() }
+    $ownership.Disks += [pscustomobject]@{ Role = 'immutable-cidata-seed'; Path = $targets.CidataVhdxPath; Sha256 = Get-Sha256Hex -Path $targets.CidataVhdxPath }
     Write-ProvisionStage -Ownership $ownership -Stage 'cidata-owned'
     New-EvidenceDisk -EvidencePath $targets.EvidenceVhdxPath
     $ownership.Disks += [pscustomobject]@{ Role = 'mutable-guest-evidence-vhdx'; Path = $targets.EvidenceVhdxPath }
@@ -1451,6 +1738,98 @@ if ($Mode -eq 'LedgerReplacementRegression') {
     InjectedReplaceFailureRejected = $injectedReplaceFailureRejected
     PriorLedgerPreserved = $true
     TemporaryOrBackupResidueCount = $residualArtifacts.Count
+  } | ConvertTo-Json
+  exit 0
+}
+
+if ($Mode -eq 'MaterializationRegression') {
+  $originalLedgerPath = $LedgerPath
+  $testRoot = Join-Path ([IO.Path]::GetTempPath()) "third-code-erp-materialization-$PID-$([Guid]::NewGuid().ToString('N'))"
+  $testStagingDirectory = Join-Path $testRoot 'image-staging'
+  $testVhdDirectory = Join-Path $testRoot 'vhd'
+  $testDestinationPath = Join-Path $testVhdDirectory 'materialized-source.vhd'
+  $testSourcePath = Join-Path $testStagingDirectory $ubuntuImage.ExtractedVhdName
+  $testLedgerPath = Join-Path $testRoot 'materialization-ledger.json'
+  $results = [ordered]@{}
+  $testRootRemoved = $false
+  try {
+    New-Item -ItemType Directory -Path $testStagingDirectory, $testVhdDirectory -Force | Out-Null
+    $markerPath = Join-Path $testRoot $targets.MarkerName
+    Write-Utf8NoBomFile -Path $markerPath -Content (([ordered]@{ RunIdentity = $RunIdentity; Purpose = 'materialization-regression' }) | ConvertTo-Json)
+    $LedgerPath = $testLedgerPath
+    Write-Ledger -Ledger ([ordered]@{ Mode = $Mode; Lifecycle = 'Provisioning'; Outcome = 'IN_PROGRESS'; Stage = 'dense-source-planned' })
+    if (Test-Path -LiteralPath $testDestinationPath) { throw 'Materialization regression created a dense destination before staged ownership.' }
+
+    $syntheticSource = [IO.FileStream]::new($testSourcePath, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
+    try {
+      $syntheticSource.SetLength(2097152)
+      $syntheticSource.Position = 0
+      $syntheticSource.WriteByte(90)
+      $syntheticSource.Flush()
+    } finally {
+      $syntheticSource.Dispose()
+    }
+    & fsutil sparse setflag $testSourcePath | Out-Null
+    if ($LASTEXITCODE -ne 0 -or ((Get-Item -LiteralPath $testSourcePath -Force).Attributes -band [IO.FileAttributes]::SparseFile) -eq 0) {
+      throw 'Materialization regression could not create its synthetic sparse source.'
+    }
+    $results.SyntheticSparseSource = $true
+    $sourceLength = [int64](Get-Item -LiteralPath $testSourcePath).Length
+    $capacityProvider = { param([int64]$RequiredBytes) return ($RequiredBytes + 1) }
+
+    $success = Invoke-DenseSourceMaterialization -RunRoot $testRoot -StagingDirectory $testStagingDirectory -VhdDirectory $testVhdDirectory -DestinationPath $testDestinationPath -ExpectedSourceName $ubuntuImage.ExtractedVhdName -ConvertedWorstCaseBytes $sourceLength -GetAvailableBytes $capacityProvider
+    $results.DenseSuccess = ($success.SourceLength -eq $success.DestinationLength -and $success.Provenance.SourceSha256 -eq $success.Provenance.DestinationSha256 -and $success.Provenance.CleanupAuthority -eq 'marker-owned-run-root-path')
+    if (-not $results.DenseSuccess) { throw 'Materialization regression did not produce a dense provenance-matching destination.' }
+    Remove-Item -LiteralPath $testDestinationPath -Force
+
+    $assertFailure = {
+      param([string]$Name, [scriptblock]$Action)
+      $rejected = $false
+      try {
+        & $Action
+      } catch {
+        $rejected = $true
+      }
+      if (-not $rejected) { throw "Materialization regression expected $Name to fail closed." }
+      $results[$Name] = $true
+      if (Test-Path -LiteralPath $testDestinationPath) { Remove-Item -LiteralPath $testDestinationPath -Force }
+    }
+
+    & $assertFailure 'SourceArchiveMismatchRejected' { Invoke-DenseSourceMaterialization -RunRoot $testRoot -StagingDirectory $testStagingDirectory -VhdDirectory $testVhdDirectory -DestinationPath $testDestinationPath -ExpectedSourceName 'unexpected-source.vhd' -ConvertedWorstCaseBytes $sourceLength -GetAvailableBytes $capacityProvider | Out-Null }
+    $outsideDestination = Join-Path ([IO.Path]::GetTempPath()) "third-code-erp-materialization-escape-$([Guid]::NewGuid().ToString('N')).vhd"
+    & $assertFailure 'PathEscapeRejected' { Invoke-DenseSourceMaterialization -RunRoot $testRoot -StagingDirectory $testStagingDirectory -VhdDirectory $testVhdDirectory -DestinationPath $outsideDestination -ExpectedSourceName $ubuntuImage.ExtractedVhdName -ConvertedWorstCaseBytes $sourceLength -GetAvailableBytes $capacityProvider | Out-Null }
+    [IO.File]::WriteAllBytes($testDestinationPath, [byte[]]@(1))
+    & $assertFailure 'ExistingOutputRejected' { Invoke-DenseSourceMaterialization -RunRoot $testRoot -StagingDirectory $testStagingDirectory -VhdDirectory $testVhdDirectory -DestinationPath $testDestinationPath -ExpectedSourceName $ubuntuImage.ExtractedVhdName -ConvertedWorstCaseBytes $sourceLength -GetAvailableBytes $capacityProvider | Out-Null }
+    & $assertFailure 'CapacityRejected' { Invoke-DenseSourceMaterialization -RunRoot $testRoot -StagingDirectory $testStagingDirectory -VhdDirectory $testVhdDirectory -DestinationPath $testDestinationPath -ExpectedSourceName $ubuntuImage.ExtractedVhdName -ConvertedWorstCaseBytes $sourceLength -GetAvailableBytes { param($RequiredBytes) $null } | Out-Null }
+    & $assertFailure 'InterruptedCopyRejected' { Invoke-DenseSourceMaterialization -RunRoot $testRoot -StagingDirectory $testStagingDirectory -VhdDirectory $testVhdDirectory -DestinationPath $testDestinationPath -ExpectedSourceName $ubuntuImage.ExtractedVhdName -ConvertedWorstCaseBytes $sourceLength -GetAvailableBytes $capacityProvider -TestAbortAfterBytes 0 | Out-Null }
+    & $assertFailure 'ShortReadRejected' { Invoke-DenseSourceMaterialization -RunRoot $testRoot -StagingDirectory $testStagingDirectory -VhdDirectory $testVhdDirectory -DestinationPath $testDestinationPath -ExpectedSourceName $ubuntuImage.ExtractedVhdName -ConvertedWorstCaseBytes $sourceLength -GetAvailableBytes $capacityProvider -TestShortRead | Out-Null }
+    & $assertFailure 'ShortCopyRejected' { Invoke-DenseSourceMaterialization -RunRoot $testRoot -StagingDirectory $testStagingDirectory -VhdDirectory $testVhdDirectory -DestinationPath $testDestinationPath -ExpectedSourceName $ubuntuImage.ExtractedVhdName -ConvertedWorstCaseBytes $sourceLength -GetAvailableBytes $capacityProvider -TestShortWrite | Out-Null }
+    & $assertFailure 'OutputLengthMismatchRejected' { Invoke-DenseSourceMaterialization -RunRoot $testRoot -StagingDirectory $testStagingDirectory -VhdDirectory $testVhdDirectory -DestinationPath $testDestinationPath -ExpectedSourceName $ubuntuImage.ExtractedVhdName -ConvertedWorstCaseBytes $sourceLength -GetAvailableBytes $capacityProvider -TestAfterCopy { param($Path) $stream = [IO.File]::Open($Path, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None); try { $stream.SetLength($stream.Length + 1) } finally { $stream.Dispose() } } | Out-Null }
+    & $assertFailure 'ContentMismatchRejected' { Invoke-DenseSourceMaterialization -RunRoot $testRoot -StagingDirectory $testStagingDirectory -VhdDirectory $testVhdDirectory -DestinationPath $testDestinationPath -ExpectedSourceName $ubuntuImage.ExtractedVhdName -ConvertedWorstCaseBytes $sourceLength -GetAvailableBytes $capacityProvider -TestAfterCopy { param($Path) $stream = [IO.File]::Open($Path, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None); try { $stream.Position = 0; $stream.WriteByte(91); $stream.Flush() } finally { $stream.Dispose() } } | Out-Null }
+    & $assertFailure 'ForbiddenAttributeRejected' { Invoke-DenseSourceMaterialization -RunRoot $testRoot -StagingDirectory $testStagingDirectory -VhdDirectory $testVhdDirectory -DestinationPath $testDestinationPath -ExpectedSourceName $ubuntuImage.ExtractedVhdName -ConvertedWorstCaseBytes $sourceLength -GetAvailableBytes $capacityProvider -TestAfterCopy { param($Path) & fsutil sparse setflag $Path | Out-Null; if ($LASTEXITCODE -ne 0) { throw 'Synthetic forbidden destination attribute setup failed.' } } | Out-Null }
+  } finally {
+    $LedgerPath = $originalLedgerPath
+    if (Test-Path -LiteralPath $testRoot) { Remove-Item -LiteralPath $testRoot -Recurse -Force }
+    $testRootRemoved = -not (Test-Path -LiteralPath $testRoot)
+  }
+  if (-not $testRootRemoved) { throw 'Materialization regression cleanup left its exact test-owned root.' }
+  [pscustomobject]@{
+    Mode = $Mode
+    Outcome = 'PASS'
+    SyntheticSparseSource = $results.SyntheticSparseSource
+    DenseSuccess = $results.DenseSuccess
+    SourceArchiveMismatchRejected = $results.SourceArchiveMismatchRejected
+    PathEscapeRejected = $results.PathEscapeRejected
+    ExistingOutputRejected = $results.ExistingOutputRejected
+    CapacityRejected = $results.CapacityRejected
+    InterruptedCopyRejected = $results.InterruptedCopyRejected
+    ShortReadRejected = $results.ShortReadRejected
+    ShortCopyRejected = $results.ShortCopyRejected
+    OutputLengthMismatchRejected = $results.OutputLengthMismatchRejected
+    ContentMismatchRejected = $results.ContentMismatchRejected
+    ForbiddenAttributeRejected = $results.ForbiddenAttributeRejected
+    TemporaryRootRemoved = $testRootRemoved
+    LedgerResidueCount = 0
   } | ConvertTo-Json
   exit 0
 }
