@@ -300,3 +300,64 @@ NAT, firewall, guest, listener, egress, or rollback runtime evidence.
 → **Handoff to Agent 12.** Review this exact Provision code before any archive
 download, UAC invocation, VM/switch/NAT/firewall/CIDATA action, JIT generation,
 runner registration, or credential stage. The release remains **NO-GO**.
+
+## Static Provision containment remediation — pending Agent 12 re-review
+
+This supersedes the rejected `db094bef` Provision design only. It is repository
+code and regression evidence; no Provision mode, UAC prompt, image download,
+VM, VHD(X), switch, NAT, mapping, port proxy, firewall rule, runner, group
+update, secret, Auth, provider, database, or production action occurred.
+
+- A schema-v2 `Provisioned` ledger now truthfully permits
+  `DynamicPorts=[]` with `DynamicPortEvidenceState=not-started`. It separately
+  stores the non-secret guest smoke’s observed dynamic ports. Every post-create
+  inventory requires **all** WinNAT static mappings and **all** netsh port
+  proxies to be empty before PASS.
+- Ownership is atomically written as `Provisioning` before the first host
+  mutation and refreshed after each named resource: run root, OS/CIDATA/evidence
+  disks, switch, gateway IP, NAT, bounded host probe, VM, VM-NIC ACLs, guest
+  boot, returned evidence disk, and validated evidence. A failed primary path
+  preserves its failure while `finally` performs only the ledger-owned rollback;
+  a successful rollback writes `RolledBack` with `FinalZeroResidue=true` and is
+  not overwritten by the outer error ledger.
+- VM configuration, checkpoint, smart-paging, staging, CIDATA, evidence VHD,
+  and verified archive are all constrained below the exact `D:` run root. The
+  ledger read-back rejects a path escape and validates marker, VHD hashes, VM,
+  switch, NAT, gateway, and exact cleanup identities.
+- The rejected global Windows Firewall approach was removed. The new design
+  records and live-compares the full VM-NIC extended-ACL tuple (VM/switch/adapter,
+  direction, action, local/remote address and port, protocol, weight, state) for
+  both inbound and outbound denial of host/NAT, RFC1918, link-local,
+  carrier-grade, documentation, benchmark, multicast, and reserved IPv4 ranges.
+  IPv6 is disabled in the guest before its smoke; guest UFW is inbound-deny with
+  restricted loopback/DNS/HTTPS/NTP egress. No global host firewall rule is
+  created or removed.
+- Cloud-init attaches only a run-owned FAT evidence VHD, creates a locked
+  non-login `erpci` account, performs guest-local Docker socket/context/ext4,
+  mount, `gh`-absence, IPv6, loopback, public DNS/NTP/GitHub checks, and emits
+  sanitized JSON to that VHD before poweroff. The host waits a bounded period,
+  stops an exact in-process gateway probe, mounts the evidence disk read-only,
+  validates its schema/hash/non-secret fields, unmounts it, and re-inventories
+  VM-NIC ACLs, listeners, NAT mappings, and port proxies before PASS.
+
+The Node regression fixture exercises the exact post-Provision ledger shape
+under Windows PowerShell 5.1 and pwsh. Its negative cases reject preflight
+lifecycle, any port proxy, a host firewall resource, a nonempty port list in
+the truthful pre-Docker state, an ACL gap, a `C:` VM path escape, and missing
+guest evidence. Static timeout, partial-stage rollback, and no-global-firewall
+requirements are asserted in the reviewed Provision plan. Runtime behavior
+remains unproven until Agent 12 accepts this code and authorizes a separate
+elevated execution.
+
+| Static gate | Result |
+| --- | --- |
+| Node 22 `pnpm test:isolated-linux-runner-contract` | **PASS** — 7/7; includes Windows PowerShell 5.1 and pwsh ledger/parser paths |
+| `pnpm ci:actionlint` | **PASS** — actionlint 1.7.12 |
+| `pnpm verify:workflow-action-refs` | **PASS** — four existing action refs resolve |
+| `pnpm ci:gitleaks` | **PASS** — 1,606 commits / 38.63 MB, no leaks |
+| `git diff --check` | **PASS** |
+
+→ **Handoff to Agent 12.** Review the pending static candidate only. Do not
+authorize archive download, UAC, Provision, JIT/runner registration, Group `3`
+selection, Auth/Snyk/full CI, provider/database, or production action from this
+changeset. The release remains **NO-GO**.

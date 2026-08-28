@@ -55,47 +55,57 @@ function provisionedLedger() {
   const vmId = '11111111-1111-1111-1111-111111111111'
   const switchId = '22222222-2222-2222-2222-222222222222'
   const switchName = `${runIdentity}-switch`
-  const interfaceAlias = `vEthernet (${switchName})`
-  const firewallRule = (name, instanceId, suffix) => ({
-    Name: name,
-    InstanceID: instanceId,
-    DisplayName: `Third Code ERP ${runIdentity} - ${suffix}`,
-    Direction: 'Inbound',
-    Action: 'Block',
-    Enabled: 'True',
-    Profile: ['Private'],
-    Scope: {
-      PortFilter: { Protocol: 'TCP', LocalPort: '443', RemotePort: '443' },
-      AddressFilter: { LocalAddress: '172.31.202.1', RemoteAddress: '172.31.202.10' },
-      InterfaceFilter: { InterfaceAlias: interfaceAlias, InterfaceType: 'Wired' },
-      Binding: { Kind: 'HostFirewallInterfaceFilter', SupportedFilter: 'Get-NetFirewallInterfaceFilter', VmId: vmId, SwitchId: switchId, InterfaceAlias: interfaceAlias },
-    },
-  })
+  const runRoot = `D:\\third-code-erp-isolated-runner\\${runIdentity}`
+  const aclDestinations = [
+    '0.0.0.0/8', '10.0.0.0/8', '100.64.0.0/10', '127.0.0.0/8',
+    '169.254.0.0/16', '172.16.0.0/12', '172.31.202.0/24',
+    '192.0.0.0/24', '192.0.2.0/24', '192.168.0.0/16',
+    '198.18.0.0/15', '198.51.100.0/24', '203.0.113.0/24',
+    '224.0.0.0/4', '240.0.0.0/4',
+  ]
   return {
     SchemaVersion: 2,
     Lifecycle: 'Provisioned',
     Outcome: 'PASS',
     RunIdentity: runIdentity,
     Resources: {
-      Vm: { Name: runIdentity, Id: vmId, Generation: 2 },
+      Vm: {
+        Name: runIdentity, Id: vmId, Generation: 2,
+        Path: `${runRoot}\\vm-config`, SnapshotFileLocation: `${runRoot}\\checkpoints`, SmartPagingFilePath: `${runRoot}\\smart-paging`,
+      },
       Switch: { Name: switchName, Id: switchId, Type: 'Internal' },
       Nat: { Name: `${runIdentity}-nat`, Prefix: '172.31.202.0/24' },
+      GatewayIp: { InterfaceAlias: `vEthernet (${switchName})`, IPAddress: '172.31.202.1', PrefixLength: 24 },
       RunDirectory: {
-        Path: `D:\\third-code-erp-isolated-runner\\${runIdentity}`,
+        Path: runRoot,
         MarkerName: '.third-code-erp-isolated-runner-owner.json',
         MarkerSha256: 'a'.repeat(64),
       },
-      FirewallRules: [
-        firewallRule('rule-inbound', '33333333-3333-3333-3333-333333333333', 'host-inbound-deny'),
-        firewallRule('rule-private', '44444444-4444-4444-4444-444444444444', 'host-private-deny'),
-        firewallRule('rule-probe', '55555555-5555-5555-5555-555555555555', 'guest-probe-deny'),
-      ],
+      FirewallRules: [],
+      FirewallEvidenceState: 'not-created',
       PortProxies: [],
-      DynamicPorts: [60123],
+      DynamicPorts: [],
+      DynamicPortEvidenceState: 'not-started',
       Disks: [
-        { Path: `D:\\third-code-erp-isolated-runner\\${runIdentity}\\vhd\\ubuntu-os.vhdx`, Sha256: 'b'.repeat(64) },
-        { Path: `D:\\third-code-erp-isolated-runner\\${runIdentity}\\vhd\\cidata.vhdx`, Sha256: 'c'.repeat(64) },
+        { Path: `${runRoot}\\vhd\\ubuntu-os.vhdx`, Sha256: 'b'.repeat(64) },
+        { Path: `${runRoot}\\vhd\\cidata.vhdx`, Sha256: 'c'.repeat(64) },
+        { Path: `${runRoot}\\vhd\\evidence.vhdx`, Sha256: 'd'.repeat(64) },
       ],
+      GuestEvidencePath: '/mnt/erp-evidence/precredential-containment.json',
+      GuestEvidence: {
+        Path: `${runRoot}\\vhd\\evidence.vhdx`, Sha256: 'e'.repeat(64), DynamicPorts: [60123],
+        Evidence: {
+          schema_version: 1, outcome: 'PASS', credential_stage: 'not-entered', runner_user: 'erpci', docker_socket_residual: 'guest-root',
+          docker_context: 'default', docker_socket: 'unix:///var/run/docker.sock', docker_data_filesystem: 'ext4', host_mounts: 'absent',
+          gh_config: 'absent', ipv6: 'disabled', guest_firewall: 'deny-inbound-and-restricted-outbound', guest_loopback: 'PASS',
+          host_probe: 'DENY', private_probe: 'DENY', public_dns: 'PASS', public_ntp: 'PASS', github_https: 'PASS',
+        },
+      },
+      NetworkAcls: ['Inbound', 'Outbound'].flatMap((Direction, directionIndex) => aclDestinations.map((RemoteIPAddress, index) => ({
+        VmId: vmId, VmName: runIdentity, SwitchId: switchId, AdapterName: 'Network Adapter',
+        Direction, Action: 'Deny', LocalIPAddress: 'Any', RemoteIPAddress, Protocol: 'Any', LocalPort: 'Any', RemotePort: 'Any',
+        Weight: 100 + (directionIndex * aclDestinations.length + index) * 10, Stateful: 'False',
+      }))),
     },
   }
 }
@@ -189,7 +199,7 @@ ${cleanupContract[1]}
   assert.equal(cleanupFailure.status, 1, cleanupFailure.stderr || cleanupFailure.stdout)
 })
 
-test('the host helper records structured containment evidence and has no wildcard rollback', async () => {
+test('the host helper uses exact VM-NIC ACL/evidence-disk containment without global host firewall rules', async () => {
   const hostScript = await readFile(hostScriptPath, 'utf8')
 
   assert.match(hostScript, /ValidateSet\('Preflight', 'Provision', 'Rollback', 'LedgerRegression', 'RollbackPlanRegression', 'ProvisionPlanRegression'\)/)
@@ -199,16 +209,25 @@ test('the host helper records structured containment evidence and has no wildcar
   assert.match(hostScript, /Get-HostListeners/)
   assert.match(hostScript, /Get-NetFirewallProfile/)
   assert.match(hostScript, /Get-NetFirewallHyperVProfile/)
-  assert.match(hostScript, /TargetVolumes/)
   assert.match(hostScript, /Assert-NoHostExposureForPorts/)
   assert.match(hostScript, /Assert-RunDirectoryOwned/)
-  assert.match(hostScript, /Get-FirewallRuleEvidence/)
-  assert.match(hostScript, /Get-NetFirewallPortFilter/)
-  assert.match(hostScript, /Get-NetFirewallAddressFilter/)
-  assert.match(hostScript, /Get-NetFirewallInterfaceFilter/)
-  assert.match(hostScript, /Assert-NarrowFirewallScope/)
-  assert.match(hostScript, /Assert-FirewallRuleMatchesLedger/)
-  assert.match(hostScript, /Remove-ExactFirewallRule/)
+  assert.match(hostScript, /Get-RequiredVmNicAclDestinations/)
+  assert.match(hostScript, /Get-RecordedVmNetworkAcls/)
+  assert.match(hostScript, /Assert-LedgerVmNicAclShape/)
+  assert.match(hostScript, /Assert-ExactVmNetworkAcls/)
+  assert.match(hostScript, /Add-VMNetworkAdapterExtendedAcl/)
+  assert.match(hostScript, /Get-VMNetworkAdapterExtendedAcl/)
+  assert.match(hostScript, /New-EvidenceDisk/)
+  assert.match(hostScript, /Read-GuestEvidenceDisk/)
+  assert.match(hostScript, /Start-HostContainmentProbe/)
+  assert.match(hostScript, /Stop-HostContainmentProbe/)
+  assert.match(hostScript, /TcpListener/)
+  assert.match(hostScript, /172\.31\.202\.1 29876/)
+  assert.match(hostScript, /Guest did not power off within the bounded non-secret readiness window/)
+  assert.match(hostScript, /FinalZeroResidue = \$true/)
+  assert.match(hostScript, /Write-ProvisionStage/)
+  assert.match(hostScript, /Invoke-StagedProvisionRollback/)
+  assert.match(hostScript, /GatewayIp/)
   assert.match(hostScript, /Provisioned ledger must attest that no netsh port proxy exists/)
   assert.match(hostScript, /Assert-ProvisionAuthorization/)
   assert.match(hostScript, /I_ACKNOWLEDGE_ISOLATED_RUNNER_PROVISION/)
@@ -218,12 +237,14 @@ test('the host helper records structured containment evidence and has no wildcar
   assert.match(hostScript, /New-VMSwitch -Name \$targets\.SwitchName -SwitchType Internal/)
   assert.match(hostScript, /New-NetNat -Name \$targets\.NatName/)
   assert.match(hostScript, /New-VM -Name \$targets\.VmName -Generation 2/)
+  assert.match(hostScript, /-Path \$targets\.VmConfigurationDirectory -SnapshotFileLocation \$targets\.CheckpointDirectory -SmartPagingFilePath \$targets\.SmartPagingDirectory/)
+  assert.match(hostScript, /Add-VMHardDiskDrive -VMName \$targets\.VmName -Path \$targets\.EvidenceVhdxPath/)
   assert.match(hostScript, /Set-VMFirmware -VMName \$targets\.VmName -EnableSecureBoot On/)
   assert.match(hostScript, /no JIT configuration, runner registration, Auth, secret, or production action is present/i)
   assert.match(hostScript, /Rollback accepts only a successful SchemaVersion 2 Provisioned ledger/)
-  assert.match(hostScript, /Remove-NetFirewallRule -Name \$FirewallRule\.Name/)
-  assert.doesNotMatch(hostScript, /FirewallPrefix|Get-NetFirewallRule\s+-DisplayName\s+"[^"\n]*\*"|Remove-NetFirewallRule\s*$/m)
-  assert.doesNotMatch(hostScript, /Remove-ExactPortProxy|netsh interface portproxy delete|Get-NetNat\s*\|\s*Remove-NetNat|docker (system )?prune|wsl --unregister/i)
+  assert.doesNotMatch(hostScript, /New-NetFirewallRule|Remove-NetFirewallRule|Get-NetFirewallRule/)
+  assert.doesNotMatch(hostScript, /RemoteIPAddress\s+['"](?:Any|\*|0\.0\.0\.0\/0|::\/0)['"]/)
+  assert.doesNotMatch(hostScript, /Remove-ExactPortProxy|netsh interface portproxy delete|Get-NetNat\s*\|\s*Remove-NetNat|New-NetNatStaticMapping|docker (system )?prune|wsl --unregister/i)
   assert.doesNotMatch(hostScript, /gh api|config\.sh|run\.sh|JIT.*token/i)
 })
 
@@ -282,12 +303,40 @@ test('rollback planning accepts only exact Provisioned ledger identities and rej
       const portProxy = runHostScript(engine, 'RollbackPlanRegression', portProxyPath)
       assert.notEqual(portProxy.status, 0, `${engine.name} accepted a forbidden netsh port proxy`)
 
-      const globalFirewallLedger = provisionedLedger()
-      globalFirewallLedger.Resources.FirewallRules[0].Scope.AddressFilter.LocalAddress = 'Any'
-      const globalFirewallPath = join(artifactDirectory, `${engine.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-global-firewall.json`)
-      await writeFile(globalFirewallPath, JSON.stringify(globalFirewallLedger), 'utf8')
-      const globalFirewall = runHostScript(engine, 'RollbackPlanRegression', globalFirewallPath)
-      assert.notEqual(globalFirewall.status, 0, `${engine.name} accepted a globally scoped firewall rule`)
+      const hostFirewallLedger = provisionedLedger()
+      hostFirewallLedger.Resources.FirewallRules = [{ Name: 'forbidden-host-rule' }]
+      const hostFirewallPath = join(artifactDirectory, `${engine.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-host-firewall.json`)
+      await writeFile(hostFirewallPath, JSON.stringify(hostFirewallLedger), 'utf8')
+      const hostFirewall = runHostScript(engine, 'RollbackPlanRegression', hostFirewallPath)
+      assert.notEqual(hostFirewall.status, 0, `${engine.name} accepted a host firewall rule in the VM-NIC ACL design`)
+
+      const invalidEmptyDynamicLedger = provisionedLedger()
+      invalidEmptyDynamicLedger.Resources.DynamicPorts = [60123]
+      const invalidEmptyDynamicPath = join(artifactDirectory, `${engine.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-invalid-dynamic.json`)
+      await writeFile(invalidEmptyDynamicPath, JSON.stringify(invalidEmptyDynamicLedger), 'utf8')
+      const invalidEmptyDynamic = runHostScript(engine, 'RollbackPlanRegression', invalidEmptyDynamicPath)
+      assert.notEqual(invalidEmptyDynamic.status, 0, `${engine.name} accepted ports while the truthful provision state is not-started`)
+
+      const aclGapLedger = provisionedLedger()
+      aclGapLedger.Resources.NetworkAcls.pop()
+      const aclGapPath = join(artifactDirectory, `${engine.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-acl-gap.json`)
+      await writeFile(aclGapPath, JSON.stringify(aclGapLedger), 'utf8')
+      const aclGap = runHostScript(engine, 'RollbackPlanRegression', aclGapPath)
+      assert.notEqual(aclGap.status, 0, `${engine.name} accepted an incomplete VM-NIC ACL set`)
+
+      const pathEscapeLedger = provisionedLedger()
+      pathEscapeLedger.Resources.Vm.Path = 'C:\\outside-run-root'
+      const pathEscapePath = join(artifactDirectory, `${engine.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-path-escape.json`)
+      await writeFile(pathEscapePath, JSON.stringify(pathEscapeLedger), 'utf8')
+      const pathEscape = runHostScript(engine, 'RollbackPlanRegression', pathEscapePath)
+      assert.notEqual(pathEscape.status, 0, `${engine.name} accepted a VM path outside the D: run root`)
+
+      const missingEvidenceLedger = provisionedLedger()
+      delete missingEvidenceLedger.Resources.GuestEvidence
+      const missingEvidencePath = join(artifactDirectory, `${engine.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-missing-evidence.json`)
+      await writeFile(missingEvidencePath, JSON.stringify(missingEvidenceLedger), 'utf8')
+      const missingEvidence = runHostScript(engine, 'RollbackPlanRegression', missingEvidencePath)
+      assert.notEqual(missingEvidence.status, 0, `${engine.name} accepted a Provisioned ledger without guest evidence`)
     }
   } finally {
     await rm(artifactDirectory, { recursive: true, force: true })
@@ -308,5 +357,7 @@ test('the Provision plan regression exposes only a non-secret, review-gated desi
     assert.equal(plan.Outcome, 'PASS')
     assert.equal(plan.Image.Release, 'Ubuntu 24.04 LTS Noble 20260826')
     assert.deepEqual(plan.Prohibited, ['JIT', 'runner-registration', 'secret', 'Auth', 'portproxy', 'static-NAT-mapping'])
+    assert.deepEqual(plan.ProvisionStages, ['run-root-owned', 'os-vhdx-owned', 'cidata-owned', 'evidence-disk-owned', 'switch-owned', 'gateway-ip-owned', 'nat-owned', 'host-probe-owned', 'vm-owned', 'vm-nic-acls-owned', 'guest-booted', 'guest-evidence-disk-returned', 'guest-evidence-read'])
+    assert.deepEqual(plan.FailureAssertions, ['empty-dynamic-ports-allowed-before-auth', 'all-static-mappings-and-portproxies-empty-after-provision', 'missing-or-invalid-evidence-fails', 'guest-timeout-fails', 'partial-stage-exact-rollback', 'no-global-host-firewall'])
   }
 })
