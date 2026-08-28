@@ -1,8 +1,8 @@
 # Agent 12 — Phase A Hyper-V maintenance evidence review
 
-**Date:** 2026-08-28  
-**Candidate reviewed:** `fc8af6957cba342c67e7ef25362b9264969df4a6`  
-**Prior contract:** `8ae6f791`  
+**Date:** 2026-08-28
+**Candidate reviewed:** `fc8af6957cba342c67e7ef25362b9264969df4a6`
+**Prior contract:** `8ae6f791`
 **Result:** **READ-ONLY FAILURE ATTESTATION ACCEPTED; PHASE B REJECTED; WINDOWS/HYPER-V RUNNER PATH BLOCKED / NO-GO**
 
 ## Scope and boundary
