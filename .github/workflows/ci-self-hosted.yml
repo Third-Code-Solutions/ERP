@@ -74,6 +74,7 @@ jobs:
           pnpm test:controlled-release-plan
           pnpm test:release-identity-plan
           pnpm test:web-db-boundary
+          pnpm test:supabase-containment
       - name: Rebuild and verify PostgreSQL 17 database
         shell: powershell
         run: scripts/ci/run-wsl1-database-lane.ps1
@@ -93,64 +94,26 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $containers = @(& docker ps -a --format '{{.Names}}' | Where-Object { $_ -match '^supabase_.+_erp$' })
-          $volumes = @(& docker volume ls --format '{{.Name}}' | Where-Object { $_ -match '^supabase_.+_erp$' })
-          if ($containers.Count -ne 0 -or $volumes.Count -ne 0) {
-            throw 'Disposable local Supabase project state already exists; refusing to reuse it'
-          }
-          $networkName = $env:LOCAL_SUPABASE_NETWORK
-          if ($networkName -notmatch '^third-code-erp-ci-[0-9]+-[0-9]+$') {
-            throw 'Disposable local Supabase network name is invalid'
-          }
-          $existingNetwork = @(& docker network ls --format '{{.Name}}' | Where-Object { $_ -eq $networkName })
-          if ($existingNetwork.Count -ne 0) {
-            throw 'Disposable local Supabase network already exists; refusing to reuse it'
-          }
-          & docker network create `
-            --driver bridge `
-            --opt 'com.docker.network.bridge.host_binding_ipv4=127.0.0.1' `
-            $networkName *> $null
-          if ($LASTEXITCODE -ne 0) {
-            throw 'Could not create the loopback-only disposable Supabase network'
-          }
-          # The CLI normally prints the disposable URL and service credential;
-          # retain neither in the GitHub log nor an artifact.
-          & supabase start --network-id $networkName *> $null
-          if ($LASTEXITCODE -ne 0) {
-            throw 'Disposable local Supabase startup failed'
-          }
-          & supabase db reset --local --network-id $networkName *> $null
-          if ($LASTEXITCODE -ne 0) {
-            throw 'Disposable local Supabase reset failed'
-          }
-          $containerNames = @(& docker ps --format '{{.Names}}' | Where-Object { $_ -match '^supabase_.+_erp$' })
-          if ($containerNames.Count -eq 0) {
-            throw 'Disposable local Supabase startup did not produce the expected containers'
-          }
-          # Inspect only published-port metadata: full container inspection
-          # would also place disposable service credentials in process memory.
-          $inspectJson = @(& docker inspect --format '{{json .NetworkSettings.Ports}}' $containerNames)
-          if ($LASTEXITCODE -ne 0) {
-            throw 'Could not inspect disposable local Supabase bindings'
-          }
-          $containerPortMaps = @($inspectJson | ConvertFrom-Json)
-          foreach ($containerPortMap in $containerPortMaps) {
-            foreach ($port in $containerPortMap.PSObject.Properties) {
-              foreach ($binding in @($port.Value)) {
-                if ($null -eq $binding) {
-                  continue
-                }
-                if ($binding.HostIp -ne '127.0.0.1' -and $binding.HostIp -ne '::1') {
-                  throw 'Disposable local Supabase published a non-loopback binding'
-                }
-              }
-            }
-          }
+          & scripts/ci/start-contained-local-supabase.ps1 `
+            -NetworkName $env:LOCAL_SUPABASE_NETWORK
       - name: Run required local Supabase Auth API proof
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $statusLines = @(& supabase status --output env 2>$null)
+          $statePath = Join-Path $PWD 'tmp/self-hosted-ci/supabase-containment-state.json'
+          if (-not (Test-Path -LiteralPath $statePath -PathType Leaf)) {
+            throw 'Contained local Supabase state is missing before runtime-value access'
+          }
+          $state = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
+          if ([string]::IsNullOrWhiteSpace($state.Network.Id) -or [string]::IsNullOrWhiteSpace($state.WorkdirRelative)) {
+            throw 'Contained local Supabase state is incomplete before runtime-value access'
+          }
+          $workdir = [IO.Path]::GetFullPath((Join-Path $PWD $state.WorkdirRelative))
+          $repositoryPrefix = "$([IO.Path]::GetFullPath($PWD))$([IO.Path]::DirectorySeparatorChar)"
+          if (-not $workdir.StartsWith($repositoryPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+            throw 'Contained local Supabase workdir escaped repository scope'
+          }
+          $statusLines = @(& supabase status --output env --workdir $workdir --network-id $state.Network.Id 2>$null)
           if ($LASTEXITCODE -ne 0) {
             throw 'Disposable local Supabase status failed'
           }
@@ -253,9 +216,11 @@ jobs:
             $cleanupFailed = $true
           }
 
-          if (Get-Command supabase -ErrorAction SilentlyContinue) {
-            & supabase stop --no-backup --network-id $env:LOCAL_SUPABASE_NETWORK *> $null
-            if ($LASTEXITCODE -ne 0) {
+          if ($dockerReady) {
+            try {
+              & scripts/ci/stop-contained-local-supabase.ps1 `
+                -NetworkName $env:LOCAL_SUPABASE_NETWORK
+            } catch {
               Write-Error 'Disposable local Supabase teardown failed'
               $cleanupFailed = $true
             }
@@ -267,30 +232,9 @@ jobs:
             $cleanupFailed = $true
           }
 
-          $networkName = $env:LOCAL_SUPABASE_NETWORK
-          if ($networkName -notmatch '^third-code-erp-ci-[0-9]+-[0-9]+$') {
-            Write-Error 'Disposable local Supabase network name is invalid during cleanup'
-            $cleanupFailed = $true
-          } elseif ($dockerReady) {
-            $existingNetwork = @(& docker network ls --format '{{.Name}}' | Where-Object { $_ -eq $networkName })
-            if ($existingNetwork.Count -ne 0) {
-              & docker network rm $networkName *> $null
-              if ($LASTEXITCODE -ne 0) {
-                Write-Error 'Disposable local Supabase network removal failed'
-                $cleanupFailed = $true
-              }
-            }
-            $remainingNetwork = @(& docker network ls --format '{{.Name}}' | Where-Object { $_ -eq $networkName })
-            if ($remainingNetwork.Count -ne 0) {
-              Write-Error 'Disposable local Supabase network remains after cleanup'
-              $cleanupFailed = $true
-            }
-          }
-
           $ephemeralPaths = @(
             (Join-Path $PWD 'tmp/self-hosted-ci'),
-            (Join-Path $PWD 'packages/database/tmp/release-coverage'),
-            (Join-Path $PWD 'supabase/.temp')
+            (Join-Path $PWD 'packages/database/tmp/release-coverage')
           )
           foreach ($ephemeralPath in $ephemeralPaths) {
             if (Test-Path -LiteralPath $ephemeralPath) {
@@ -303,16 +247,6 @@ jobs:
             }
             if (Test-Path -LiteralPath $ephemeralPath) {
               Write-Error 'Disposable CI artifact path remains after cleanup'
-              $cleanupFailed = $true
-            }
-          }
-
-          if ($dockerReady) {
-            $containers = @(& docker ps -a --format '{{.Names}}' | Where-Object { $_ -match '^supabase_.+_erp$' })
-            $volumes = @(& docker volume ls --format '{{.Name}}' | Where-Object { $_ -match '^supabase_.+_erp$' })
-            $listeners = @(Get-NetTCPConnection -State Listen -LocalPort 54321, 54322, 54323, 54324, 54327 -ErrorAction SilentlyContinue)
-            if ($containers.Count -ne 0 -or $volumes.Count -ne 0 -or $listeners.Count -ne 0) {
-              Write-Error 'Disposable local database runtime cleanup verification failed'
               $cleanupFailed = $true
             }
           }
