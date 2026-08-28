@@ -225,3 +225,50 @@ or credential behavior, and it does not invoke UAC or retry the failed target.
 
 → **Handoff to Agent 12.** Review this writer-only repair before authorizing
 any third UAC attempt. The runner and release remain **NO-GO**.
+
+## Third guarded elevated Provision attempt — durable rollback, image-conversion blocker
+
+**Reviewed candidate:** `4550d94031194c178da77a3c8f6a6fd34b442526`
+**Agent 12 authorization:** `275812c9`
+**Run identity:** `third-code-erp-ci-20260828-provision3`
+**Result:** **NO-GO — stopped after one attempt; no retry authorized.**
+
+The preflight group readback and post-run readback both show Group `3` is
+non-default, selected only for `Third-Code-Solutions/ERP`, has
+`restricted_to_workflows=true`, selects only
+`Third-Code-Solutions/ERP/.github/workflows/ci-linux-runner-smoke.yml@827719975eb44808da85cbd64cc28074f6ee4ae1`,
+and has zero runners. The new run root and ledger were vacant before UAC; the
+accepted helper code was unchanged; the exact cache archive SHA-256 remained
+`843d243792abb05b50e1a7f5e614e1184d8fc7195c119747cbb3038520258a22`.
+
+The one visible elevated Windows PowerShell 5.1 Provision process ran within
+its bound and exited `1`. PowerShell Operational event `4100` records the
+first failure as `Convert-VHD` rejecting the extracted official source VHD:
+
+```text
+The requested operation could not be completed due to a virtual disk system
+limitation. Virtual hard disk files must be uncompressed and unencrypted and
+must not be sparse. (0xC03A001A)
+```
+
+It failed while converting
+`image-staging\livecd.ubuntu-cpc.azure.vhd`, before a converted OS VHDX,
+CIDATA/evidence disk, switch, gateway, NAT, host probe, VM, VM-NIC ACL, guest,
+or runner stage. No JIT/runner registration, Group/workflow change, dispatch,
+credential/Auth/Snyk action, provider/database access, deployment, or
+production action occurred.
+
+Unlike the second attempt, the writer repair produced a durable exact-cleanup
+record at
+`tmp\isolated-linux-runner-third-code-erp-ci-20260828-provision3-runtime-ledger.json`:
+`Lifecycle=RolledBack`, `Outcome=PASS`, and `FinalZeroResidue=true`. Its
+SHA-256 is `620e6c3634bd63c80eeab7514b68ffee9333d24db0997f44a6b463f62325e585`.
+The post-rollback inventory records zero VMs, target switches/NATs, NAT static
+mappings, netsh port proxies, target VM-NIC ACLs, and target Docker
+containers/networks/volumes; the per-run root is absent. The immutable archive
+remains present with its accepted SHA-256.
+
+→ **Handoff to Agent 12.** The image source cannot be passed directly to
+`Convert-VHD` on this host because of the sparse/compressed/encrypted source
+file limitation. Review a bounded, source-integrity-preserving materialization
+repair before any future UAC attempt. The runner and release remain **NO-GO**.
