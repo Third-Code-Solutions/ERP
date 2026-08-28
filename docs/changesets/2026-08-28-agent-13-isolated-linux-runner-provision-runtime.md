@@ -143,3 +143,51 @@ as the valid zero-proxy state. This follow-up changes only that fail-open path.
 → **Handoff to Agent 12.** Review the native-command exit/status guard before
 authorizing any new elevated Provision attempt. The first target remains clean,
 and the release remains **NO-GO**.
+
+## Second guarded elevated Provision attempt — failed closed
+
+**Reviewed candidate:** `08b639511d7f1de220f39b5ec6c5dd2ec6b0c91f`  
+**Agent 12 authorization:** `651885354c1c308017fa92dea21fdffb7eb0ee00`  
+**Run identity:** `third-code-erp-ci-20260828-provision2`  
+**Result:** **NO-GO — no retry authorized.**
+
+Before the one visible elevated attempt, read-only checks confirmed that Group
+`3` remained non-default, selected only for `Third-Code-Solutions/ERP`,
+`restricted_to_workflows=true`, selected only
+`Third-Code-Solutions/ERP/.github/workflows/ci-linux-runner-smoke.yml@827719975eb44808da85cbd64cc28074f6ee4ae1`,
+and had zero runners. The new per-run root and ledger did not exist, the helper
+code matched the accepted candidate, and the immutable archive's SHA-256 still
+matched `843d243792abb05b50e1a7f5e614e1184d8fc7195c119747cbb3038520258a22`.
+
+The exact Windows PowerShell 5.1 Provision invocation ran elevated once and
+exited `1` after about 27 seconds. No JIT/runner registration, Group/workflow
+change, dispatch, credential/Auth/Snyk action, provider/database access, or
+deployment occurred.
+
+### Runtime root cause and containment state
+
+Windows PowerShell Operational event `4100` at
+`2026-08-28T14:08:25.1321920Z` records the failure:
+`.NET File.Replace` rejected the null backup path in `Write-Ledger` with
+`The path is not of a legal form.` The initial `planned` ledger writes via
+move; after the marker-only run root was created, the next staged ledger write
+uses `File.Replace(..., $null)` and fails under Windows PowerShell 5.1.
+
+The code path had therefore not reached VHD extraction/creation, CIDATA or
+evidence disks, switch, gateway, NAT, host probe, VM, VM-NIC ACL, guest boot,
+or runner work. Its staged rollback removed the marker-owned run root and ran
+the exact inventory assertions, but its final `RolledBack` ledger write hit the
+same `File.Replace` defect. The durable ledger consequently remains
+`Provisioning` / `IN_PROGRESS` at `planned`; it is **not** a cleanup
+attestation.
+
+Post-failure non-elevated evidence shows the per-run root absent, all four
+`netsh interface portproxy show` variants exit `0` with no nonblank mapping,
+and the cache hash unchanged. Hyper-V inventory remains elevation-protected, so
+the missing final elevated rollback ledger means zero residue cannot be treated
+as independently durable proof. This failure is fail-closed and blocks all
+future Provision/JIT/runner/credential stages pending a reviewed writer repair.
+
+→ **Handoff to Agent 12.** Review the PS5-compatible ledger replacement and
+the missing final rollback-attestation behavior before authorizing any further
+UAC execution. The isolated runner and release remain **NO-GO**.
