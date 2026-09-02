@@ -13,6 +13,7 @@ import { ConfigService } from '@nestjs/config'
 import {
   accounts,
   opportunities,
+  opportunityKycTracks,
   opportunityStageTransitionRequests,
   slaLogs,
   users,
@@ -20,6 +21,7 @@ import {
 import {
   opportunityStageTransitionCommandSchema,
   opportunityStageTransitionResultSchema,
+  OPPORTUNITY_KYC_TRACK_TYPES,
   PIPELINE_STAGES,
   STAGE_LEGACY_MAP,
   STAGE_PROBABILITY,
@@ -234,23 +236,58 @@ export class OpportunityStageTransitionService {
     }
 
     if (KYC_GATED_STAGES.has(command.newStage) && opportunity.accountId) {
-      const [account] = await transaction
-        .select({ kycStatus: accounts.kyc_status })
-        .from(accounts)
+      const kycTracks = await transaction
+        .select({
+          trackType: opportunityKycTracks.track_type,
+          status: opportunityKycTracks.status,
+        })
+        .from(opportunityKycTracks)
         .where(
           and(
-            eq(accounts.id, opportunity.accountId),
-            eq(accounts.tenant_id, authorizedPrincipal.tenantId)
+            eq(opportunityKycTracks.opportunity_id, opportunityId),
+            eq(opportunityKycTracks.tenant_id, authorizedPrincipal.tenantId)
           )
         )
-        .limit(1)
         .for('share')
-      const kycOk =
-        account?.kycStatus === 'approved' || account?.kycStatus === 'not_required'
-      if (!kycOk) {
-        throw new ConflictException(
-          'Account KYC must be Approved before this stage'
+
+      // PPRF opportunities have two independent Finance tracks. Once either
+      // track exists, fail closed unless both canonical tracks are present and
+      // approved. Account status remains the compatibility gate only for
+      // legacy opportunities that pre-date the dual-track workflow.
+      if (kycTracks.length > 0) {
+        const approvedTrackTypes = new Set(
+          kycTracks
+            .filter((track) => track.status === 'approved')
+            .map((track) => track.trackType)
         )
+        const dualTrackApproved = OPPORTUNITY_KYC_TRACK_TYPES.every((trackType) =>
+          approvedTrackTypes.has(trackType)
+        )
+        if (!dualTrackApproved) {
+          throw new ConflictException(
+            'Pipeline locked until both Finance tracks are approved'
+          )
+        }
+      } else {
+        const [account] = await transaction
+          .select({ kycStatus: accounts.kyc_status })
+          .from(accounts)
+          .where(
+            and(
+              eq(accounts.id, opportunity.accountId),
+              eq(accounts.tenant_id, authorizedPrincipal.tenantId)
+            )
+          )
+          .limit(1)
+          .for('share')
+        const kycOk =
+          account?.kycStatus === 'approved' ||
+          account?.kycStatus === 'not_required'
+        if (!kycOk) {
+          throw new ConflictException(
+            'Account KYC must be Approved before this stage'
+          )
+        }
       }
     }
 

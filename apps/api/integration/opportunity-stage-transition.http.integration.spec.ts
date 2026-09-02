@@ -9,6 +9,7 @@ import {
   accounts,
   auditLog,
   db,
+  opportunityKycTracks,
   opportunityStageTransitionRequests,
   opportunities,
   projects,
@@ -139,7 +140,9 @@ suite('Opportunity stage transition protected HTTP canary', () => {
           tenant_id: tenantA,
           name: 'Stage Client A',
           industry: 'office',
-          kyc_status: 'approved',
+          // New PPRF opportunities remain account-pending while their two
+          // opportunity-level Finance tracks are approved independently.
+          kyc_status: 'pending',
           created_by: salesA,
           created_at: observedAt,
           updated_at: observedAt,
@@ -216,6 +219,25 @@ suite('Opportunity stage transition protected HTTP canary', () => {
           updated_at: observedAt,
         },
       ])
+      await transaction.insert(opportunityKycTracks).values(
+        [contractOpportunityA, rollbackOpportunityA].flatMap((opportunityId) =>
+          (['financial_evaluation', 'credit_investigation'] as const).map(
+            (trackType) => ({
+              tenant_id: tenantA,
+              opportunity_id: opportunityId,
+              track_type: trackType,
+              status: 'approved' as const,
+              due_at: observedAt,
+              fc_recommended_by: adminA,
+              fc_recommended_at: observedAt,
+              president_decided_by: adminA,
+              president_decided_at: observedAt,
+              created_at: observedAt,
+              updated_at: observedAt,
+            })
+          )
+        )
+      )
       const [initialLeadClock] = await transaction
         .insert(slaLogs)
         .values({
@@ -360,6 +382,73 @@ suite('Opportunity stage transition protected HTTP canary', () => {
           .send({ newStage: 'won' })
           .expect(503)
         featureState.conversionEnabled = true
+
+        await transaction
+          .update(opportunityKycTracks)
+          .set({ status: 'pending', updated_at: new Date() })
+          .where(
+            and(
+              eq(opportunityKycTracks.tenant_id, tenantA),
+              eq(
+                opportunityKycTracks.opportunity_id,
+                contractOpportunityA
+              ),
+              eq(
+                opportunityKycTracks.track_type,
+                'credit_investigation'
+              )
+            )
+          )
+        const incompleteKyc = await request(app.getHttpServer())
+          .post(route(contractOpportunityA))
+          .set('Authorization', 'Bearer stage-sales-a-token')
+          .set('Idempotency-Key', 'dual-track-incomplete')
+          .send({ newStage: 'won' })
+          .expect(409)
+        expect(incompleteKyc.body).toMatchObject({
+          message: 'Pipeline locked until both Finance tracks are approved',
+          statusCode: 409,
+        })
+        const [kycBlocked] = await transaction
+          .select({ stage: opportunities.stage })
+          .from(opportunities)
+          .where(
+            and(
+              eq(opportunities.tenant_id, tenantA),
+              eq(opportunities.id, contractOpportunityA)
+            )
+          )
+          .limit(1)
+        expect(kycBlocked?.stage).toBe('contract')
+        const blockedRequests = await transaction
+          .select({ id: opportunityStageTransitionRequests.id })
+          .from(opportunityStageTransitionRequests)
+          .where(
+            and(
+              eq(opportunityStageTransitionRequests.tenant_id, tenantA),
+              eq(
+                opportunityStageTransitionRequests.idempotency_key,
+                'dual-track-incomplete'
+              )
+            )
+          )
+        expect(blockedRequests).toHaveLength(0)
+        await transaction
+          .update(opportunityKycTracks)
+          .set({ status: 'approved', updated_at: new Date() })
+          .where(
+            and(
+              eq(opportunityKycTracks.tenant_id, tenantA),
+              eq(
+                opportunityKycTracks.opportunity_id,
+                contractOpportunityA
+              ),
+              eq(
+                opportunityKycTracks.track_type,
+                'credit_investigation'
+              )
+            )
+          )
 
         const nonTerminal = await request(app.getHttpServer())
           .post(route(leadOpportunityA))

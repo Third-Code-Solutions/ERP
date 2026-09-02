@@ -24,6 +24,18 @@ const PROJECT_ID = '44444444-4444-4444-8444-444444444444'
 const CHECKLIST_ID = '55555555-5555-4555-8555-555555555555'
 const REQUEST_ID = '66666666-6666-4666-8666-666666666666'
 
+type WriteBoundary =
+  | 'conversion-request-claim'
+  | 'project-create'
+  | 'opportunity-backlink'
+  | 'checklist-create'
+  | 'checklist-items-create'
+  | 'notifications-create'
+  | 'opportunity-audit'
+  | 'project-audit'
+  | 'checklist-audit'
+  | 'conversion-request-complete'
+
 function conversionHash(): string {
   return createHash('sha256')
     .update(`{"command":{},"opportunityId":"${OPPORTUNITY_ID}"}`)
@@ -42,15 +54,6 @@ function selectQuery(rows: unknown[]) {
   const where = vi.fn().mockReturnValue(whereResult)
   const from = vi.fn().mockReturnValue({ where })
   return { from }
-}
-
-function updateChain(result: unknown[] = []) {
-  const chain = {
-    returning: vi.fn().mockResolvedValue(result),
-    then: (resolve: (value: undefined) => unknown) =>
-      Promise.resolve(undefined).then(resolve),
-  }
-  return chain
 }
 
 function harness({
@@ -79,12 +82,16 @@ function harness({
   },
   enabled = true,
   tenantIds = [PRINCIPAL.tenantId],
+  recipients = [],
+  failureAfter,
 }: {
   membership?: unknown[]
   opportunity?: unknown[]
   request?: { id: string; requestHash: string; state: string; result: unknown }
   enabled?: boolean
   tenantIds?: string[]
+  recipients?: unknown[]
+  failureAfter?: WriteBoundary
 } = {}) {
   const config = {
     get: vi.fn((key: string) => {
@@ -93,71 +100,190 @@ function harness({
       return undefined
     }),
   } as unknown as ConfigService
-  const selects = [
-    selectQuery(membership),
-    selectQuery(opportunity),
-    selectQuery([request]),
-    // Existing checklist lookup, active template lookup, recipients.
-    selectQuery([]),
-    selectQuery([
-      {
-        id: '77777777-7777-4777-8777-777777777777',
-        items: JSON.stringify([
-          { title: 'Kickoff', owner_role: 'pm', sla_days: 1 },
-        ]),
-      },
-    ]),
-    selectQuery([]),
-  ]
+  const buildSelects = () => [
+      selectQuery(membership),
+      selectQuery(opportunity),
+      selectQuery([request]),
+      // Existing checklist lookup, active template lookup, recipients.
+      selectQuery([]),
+      selectQuery([
+        {
+          id: '77777777-7777-4777-8777-777777777777',
+          items: JSON.stringify([
+            { title: 'Kickoff', owner_role: 'pm', sla_days: 1 },
+          ]),
+        },
+      ]),
+      selectQuery(recipients),
+    ]
+  let selects = buildSelects()
+  let activeFailure = failureAfter
+  let transactionWrites: WriteBoundary[] = []
+  const committedWrites: WriteBoundary[] = []
+  const rolledBackAttempts: WriteBoundary[][] = []
+  const recordWrite = (boundary: WriteBoundary) => {
+    transactionWrites.push(boundary)
+    if (activeFailure === boundary) {
+      throw new Error(`Injected failure after ${boundary}`)
+    }
+  }
 
   const insertLedger = vi.fn().mockImplementation((values) => {
     if (request.requestHash === '') request.requestHash = values.request_hash
-    return { onConflictDoNothing: vi.fn().mockResolvedValue(undefined) }
+    return {
+      onConflictDoNothing: vi.fn().mockImplementation(async () => {
+        recordWrite('conversion-request-claim')
+      }),
+    }
   })
   const insertProject = {
-    returning: vi.fn().mockResolvedValue([{ id: PROJECT_ID }]),
+    returning: vi.fn().mockImplementation(async () => {
+      recordWrite('project-create')
+      return [{ id: PROJECT_ID }]
+    }),
   }
   const insertChecklist = {
-    returning: vi.fn().mockResolvedValue([{ id: CHECKLIST_ID }]),
+    returning: vi.fn().mockImplementation(async () => {
+      recordWrite('checklist-create')
+      return [{ id: CHECKLIST_ID }]
+    }),
   }
   const insertItems = {
-    returning: vi
-      .fn()
-      .mockResolvedValue([{ id: '88888888-8888-4888-8888-888888888888', sortOrder: 0 }]),
+    returning: vi.fn().mockImplementation(async () => {
+      recordWrite('checklist-items-create')
+      return [
+        {
+          id: '88888888-8888-4888-8888-888888888888',
+          sortOrder: 0,
+        },
+      ]
+    }),
+  }
+  const insertNotifications = {
+    then: (
+      resolve: (value: undefined) => unknown,
+      reject: (reason: unknown) => unknown
+    ) =>
+      Promise.resolve()
+        .then(() => {
+          recordWrite('notifications-create')
+          return undefined
+        })
+        .then(resolve, reject),
   }
 
   let updateCount = 0
   const transactionClient = {
     select: vi.fn().mockImplementation(() => selects.shift()),
-    insert: vi
-      .fn()
-      .mockReturnValueOnce({ values: insertLedger })
-      .mockReturnValueOnce({ values: vi.fn().mockReturnValue(insertProject) })
-      .mockReturnValueOnce({ values: vi.fn().mockReturnValue(insertChecklist) })
-      .mockReturnValueOnce({ values: vi.fn().mockReturnValue(insertItems) }),
+    insert: vi.fn(),
     update: vi.fn().mockImplementation(() => {
       updateCount += 1
       const isCompletion = updateCount === 2
-      const chain = updateChain(isCompletion ? [{ id: REQUEST_ID }] : [])
+      const boundary: WriteBoundary = isCompletion
+        ? 'conversion-request-complete'
+        : 'opportunity-backlink'
+      let completionPayload: Record<string, unknown> | undefined
+      const chain = isCompletion
+        ? {
+            returning: vi.fn().mockImplementation(async () => {
+              recordWrite(boundary)
+              request.state = 'succeeded'
+              request.result = completionPayload?.result ?? null
+              return [{ id: REQUEST_ID }]
+            }),
+          }
+        : {
+            then: (
+              resolve: (value: undefined) => unknown,
+              reject: (reason: unknown) => unknown
+            ) =>
+              Promise.resolve()
+                .then(() => {
+                  recordWrite(boundary)
+                  return undefined
+                })
+                .then(resolve, reject),
+          }
       const where = vi.fn().mockReturnValue(chain)
       return {
-        set: vi.fn().mockReturnValue({ where }),
+        set: vi.fn().mockImplementation((payload) => {
+          completionPayload = payload
+          return { where }
+        }),
       }
     }),
   }
-  const transaction = vi.fn(async (callback: (tx: unknown) => unknown) =>
-    callback(transactionClient)
-  )
+  let transactionTail = Promise.resolve()
+  // Model the two database guarantees this service relies on: row-lock waiters
+  // run after the owner transaction, and no recorded write becomes committed
+  // when the transaction callback rejects.
+  const runTransaction = async (callback: (tx: unknown) => unknown) => {
+    const originalRequestHash = request.requestHash
+    const originalRequestState = request.state
+    const originalRequestResult = request.result
+    selects = buildSelects()
+    updateCount = 0
+    transactionWrites = []
+    transactionClient.insert.mockReset()
+    transactionClient.insert
+      .mockReturnValueOnce({ values: insertLedger })
+      .mockReturnValueOnce({ values: vi.fn().mockReturnValue(insertProject) })
+      .mockReturnValueOnce({ values: vi.fn().mockReturnValue(insertChecklist) })
+      .mockReturnValueOnce({ values: vi.fn().mockReturnValue(insertItems) })
+      .mockReturnValueOnce({
+        values: vi.fn().mockReturnValue(insertNotifications),
+      })
+    try {
+      const result = await callback(transactionClient)
+      committedWrites.push(...transactionWrites)
+      return result
+    } catch (error) {
+      request.requestHash = originalRequestHash
+      request.state = originalRequestState
+      request.result = originalRequestResult
+      rolledBackAttempts.push([...transactionWrites])
+      throw error
+    } finally {
+      transactionWrites = []
+    }
+  }
+  const transaction = vi.fn((callback: (tx: unknown) => unknown) => {
+    const result = transactionTail.then(() => runTransaction(callback))
+    transactionTail = result.then(
+      () => undefined,
+      () => undefined
+    )
+    return result
+  })
   const auditMock = {
     stampActor: vi.fn(),
-    writeSemantic: vi.fn(),
+    writeSemantic: vi.fn().mockImplementation(async (_transaction, params) => {
+      const boundary: WriteBoundary =
+        params.entityType === 'opportunity'
+          ? 'opportunity-audit'
+          : params.entityType === 'project'
+            ? 'project-audit'
+            : 'checklist-audit'
+      recordWrite(boundary)
+    }),
   }
   const candidate = new OpportunityProjectConversionService(
     config,
     { client: { transaction } } as unknown as DatabaseService,
     auditMock as unknown as AuditService
   )
-  return { candidate, transaction, transactionClient, audit: auditMock, request }
+  return {
+    candidate,
+    transaction,
+    transactionClient,
+    audit: auditMock,
+    request,
+    committedWrites,
+    rolledBackAttempts,
+    clearFailure: () => {
+      activeFailure = undefined
+    },
+  }
 }
 
 describe('Opportunity project conversion authority', () => {
@@ -231,6 +357,50 @@ describe('Opportunity project conversion authority', () => {
     expect(audit.writeSemantic).not.toHaveBeenCalled()
   })
 
+  it('serializes concurrent retries and creates each handoff effect once', async () => {
+    const probe = harness({
+      recipients: [
+        {
+          id: '99999999-9999-4999-8999-999999999999',
+          email: 'recipient@example.test',
+        },
+      ],
+    })
+
+    const [first, concurrentRetry] = await Promise.all([
+      probe.candidate.convert(
+        OPPORTUNITY_ID,
+        {},
+        PRINCIPAL,
+        'conversion-concurrent'
+      ),
+      probe.candidate.convert(
+        OPPORTUNITY_ID,
+        {},
+        PRINCIPAL,
+        'conversion-concurrent'
+      ),
+    ])
+
+    expect(concurrentRetry).toEqual(first)
+    expect(probe.transaction).toHaveBeenCalledTimes(2)
+    for (const onceOnly of [
+      'project-create',
+      'opportunity-backlink',
+      'checklist-create',
+      'checklist-items-create',
+      'notifications-create',
+      'opportunity-audit',
+      'project-audit',
+      'checklist-audit',
+      'conversion-request-complete',
+    ] satisfies WriteBoundary[]) {
+      expect(
+        probe.committedWrites.filter((boundary) => boundary === onceOnly)
+      ).toHaveLength(1)
+    }
+  })
+
   it('rejects reuse of an idempotency key with a different command hash', async () => {
     const { candidate } = harness({
       request: {
@@ -244,4 +414,70 @@ describe('Opportunity project conversion authority', () => {
       candidate.convert(OPPORTUNITY_ID, {}, PRINCIPAL, 'conversion-conflict')
     ).rejects.toBeInstanceOf(ConflictException)
   })
+
+  it.each<WriteBoundary>([
+    'conversion-request-claim',
+    'project-create',
+    'opportunity-backlink',
+    'checklist-create',
+    'checklist-items-create',
+    'notifications-create',
+    'opportunity-audit',
+    'project-audit',
+    'checklist-audit',
+    'conversion-request-complete',
+  ])(
+    'rolls back an injected failure after %s and permits a clean retry',
+    async (failureAfter) => {
+      const probe = harness({
+        failureAfter,
+        recipients: [
+          {
+            id: '99999999-9999-4999-8999-999999999999',
+            email: 'recipient@example.test',
+          },
+        ],
+      })
+
+      await expect(
+        probe.candidate.convert(
+          OPPORTUNITY_ID,
+          {},
+          PRINCIPAL,
+          `failure-${failureAfter}`
+        )
+      ).rejects.toThrow(`Injected failure after ${failureAfter}`)
+      expect(probe.committedWrites).toEqual([])
+      expect(probe.rolledBackAttempts).toHaveLength(1)
+      expect(probe.rolledBackAttempts[0]).toContain(failureAfter)
+      expect(probe.request.requestHash).toBe('')
+
+      probe.clearFailure()
+      await expect(
+        probe.candidate.convert(
+          OPPORTUNITY_ID,
+          {},
+          PRINCIPAL,
+          `failure-${failureAfter}`
+        )
+      ).resolves.toMatchObject({
+        ok: true,
+        opportunityId: OPPORTUNITY_ID,
+        projectId: PROJECT_ID,
+        checklistId: CHECKLIST_ID,
+      })
+      expect(probe.committedWrites).toEqual([
+        'conversion-request-claim',
+        'project-create',
+        'opportunity-backlink',
+        'checklist-create',
+        'checklist-items-create',
+        'notifications-create',
+        'opportunity-audit',
+        'project-audit',
+        'checklist-audit',
+        'conversion-request-complete',
+      ])
+    }
+  )
 })
