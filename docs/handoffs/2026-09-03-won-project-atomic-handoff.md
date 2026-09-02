@@ -231,3 +231,47 @@ controllers/services, stage/conversion unit tests, and PostgreSQL HTTP
 integrations. Expected output: exact all-role denial, tenant-qualified Account
 failure, cross-actor/tenant replay safety, real rollback evidence, and a new
 Core-only source commit before QA round 2.
+
+## Agent 05 QA remediation closeout
+
+Status: complete at source commit `1ac2334a`; Web and documentation files were
+unchanged in this source phase.
+
+Implementation:
+
+- `opportunity.stage_change` and `opportunity.convert` now grant exactly Owner,
+  Admin, and Sales in the central capability map consumed by both controller
+  guards and transaction services;
+- both services revalidate current locked membership and require each non-null
+  linked Account to resolve by ID plus authenticated tenant before claiming an
+  idempotency record, evaluating KYC, or writing Project/handoff state;
+- all thirteen roles are covered at the central, controller-guard, stage, and
+  direct-conversion boundaries with zero-effect denial assertions;
+- same-key replay coverage now includes authorized cross-actor replay,
+  denied/revoked current membership, and separate-tenant isolation;
+- the PostgreSQL integrations construct a tenant-A opportunity with valid
+  tenant-A tracks but a tenant-B Account reference and prove complete rejection
+  without retained stage, ledger, Project, checklist, item, notification,
+  audit, SLA, or backlink effects.
+
+Verification:
+
+- shared authorization: PASSED, 32/32;
+- focused Core guard/controller/conversion/stage: PASSED, 87/87;
+- neighboring CRM: PASSED, 68/68;
+- real PostgreSQL 17 conversion/stage rollback integrations: PASSED, 2/2;
+- shared/API TypeScript, API source ESLint, Nest production build, WO-13
+  contract, gitleaks over 1,761 commits, and diff checks: PASSED.
+
+Optional integration-only raw TypeScript and `eslint --no-ignore` probes are
+not authoritative repository gates: integrations are excluded from the API
+tsconfig/ESLint config and exposed pre-existing harness/CLI typing outside that
+configuration. The integration specs themselves execute successfully through
+Vitest against PostgreSQL 17. Prettier was not available in this worktree.
+
+→ Handoff to independent QA round 2. Reason: the two round-1 blockers are
+remediated in a distinct Core/shared commit. Inputs: `1ac2334a`, both previous
+source commits, round-1 findings, the all-role matrices, and real PostgreSQL
+adversarial cases. Expected output: `GO` or `BLOCK` after independently proving
+role exactness, tenant safety, replay authorization/isolation, rollback,
+Web/Core fail-closed integration, and regression gates.
