@@ -600,6 +600,30 @@ suite('Opportunity stage transition protected HTTP canary', () => {
             )
           )
 
+        const missingLostReason = await request(app.getHttpServer())
+          .post(route(leadOpportunityA))
+          .set('Authorization', 'Bearer stage-sales-a-token')
+          .set('Idempotency-Key', 'lead-lost-without-reason')
+          .send({ newStage: 'lost' })
+          .expect(409)
+        expect(missingLostReason.body).toMatchObject({
+          message: 'reason_required',
+          statusCode: 409,
+        })
+        const missingReasonRequests = await transaction
+          .select({ id: opportunityStageTransitionRequests.id })
+          .from(opportunityStageTransitionRequests)
+          .where(
+            and(
+              eq(opportunityStageTransitionRequests.tenant_id, tenantA),
+              eq(
+                opportunityStageTransitionRequests.idempotency_key,
+                'lead-lost-without-reason'
+              )
+            )
+          )
+        expect(missingReasonRequests).toHaveLength(0)
+
         const nonTerminal = await request(app.getHttpServer())
           .post(route(leadOpportunityA))
           .set('Authorization', 'Bearer stage-sales-a-token')
