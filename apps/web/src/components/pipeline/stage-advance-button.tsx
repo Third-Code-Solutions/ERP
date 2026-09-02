@@ -7,6 +7,7 @@ import {
   type OpportunityStage,
 } from '@third-code-erp/shared-types'
 import { advanceOpportunityStage } from '@/app/(dashboard)/pipeline/actions'
+import { runStageTransitionAction } from './stage-transition-action'
 
 interface StageAdvanceButtonProps {
   opportunityId: string
@@ -59,18 +60,23 @@ export function StageAdvanceButton({ opportunityId, currentStage }: StageAdvance
   const forwardNexts = transitions.filter((s) => s !== 'closed_lost' && s !== 'lost')
 
   function advance(stage: OpportunityStage, reason?: string) {
-    setError(null)
-    setOpen(false)
-    setLostPromptOpen(false)
-    startTransition(async () => {
-      const result = await advanceOpportunityStage(opportunityId, stage, reason)
-      if (result.error) {
-        setError(result.error)
-        return
-      }
-      setLostReason('')
-      router.refresh()
-    })
+    startTransition(() =>
+      runStageTransitionAction(
+        () => advanceOpportunityStage(opportunityId, stage, reason),
+        {
+          onStart: () => {
+            setError(null)
+            setOpen(false)
+            setLostPromptOpen(false)
+          },
+          onError: setError,
+          onSuccess: () => {
+            setLostReason('')
+            router.refresh()
+          },
+        }
+      )
+    )
   }
 
   function confirmLost() {

@@ -16,6 +16,7 @@ import {
   type KanbanCardData,
 } from './opportunity-kanban-card'
 import { RegressionReasonDialog } from './regression-reason-dialog'
+import { runStageTransitionAction } from './stage-transition-action'
 import {
   AddOpportunityWithAccountForm,
   type AccountOption,
@@ -129,25 +130,35 @@ export function PipelineBoard({
     bannerTimerRef.current = setTimeout(() => setBanner(null), 4200)
   }
 
+  function clearBanner() {
+    setBanner(null)
+    if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current)
+    bannerTimerRef.current = null
+  }
+
   function performAdvance(cardId: string, toStage: PipelineStage, reason?: string) {
-    startTransition(async () => {
-      const res = await advanceOpportunityStage(cardId, toStage, reason)
-      if (res.error) {
-        if (res.error === 'reason_required') {
-          // Server insisted on a reason — open the dialog as a fallback.
-          const card = cards.find((c) => c.id === cardId)
-          if (card) {
-            const fromStage =
-              STAGE_LEGACY_MAP[card.stage as OpportunityStage] ?? 'lead'
-            setPendingRegression({ cardId, fromStage, toStage })
-          }
-          return
+    startTransition(() =>
+      runStageTransitionAction(
+        () => advanceOpportunityStage(cardId, toStage, reason),
+        {
+          onStart: clearBanner,
+          onError: (message) => {
+            if (message === 'reason_required') {
+              // Server insisted on a reason — open the dialog as a fallback.
+              const card = cards.find((candidate) => candidate.id === cardId)
+              if (card) {
+                const fromStage =
+                  STAGE_LEGACY_MAP[card.stage as OpportunityStage] ?? 'lead'
+                setPendingRegression({ cardId, fromStage, toStage })
+              }
+              return
+            }
+            showBanner('error', message)
+          },
+          onSuccess: () => router.refresh(),
         }
-        showBanner('error', res.error)
-        return
-      }
-      router.refresh()
-    })
+      )
+    )
   }
 
   function handleDrop(toStage: PipelineStage) {
