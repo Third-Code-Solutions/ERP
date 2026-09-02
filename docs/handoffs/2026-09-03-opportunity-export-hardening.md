@@ -87,3 +87,46 @@ all-role `opportunity.read` capability.
 
 This branch is stacked on PR #21. No production deployment or data/account
 mutation is authorized.
+
+## Closeout
+
+Status: source implementation complete; independent QA `GO`; isolated
+production-build browser/API matrix `PASSED`.
+
+Implementation:
+
+- added `opportunity.export` for the exact ten-role executive projection and
+  denied Safety, CX, and Viewer before query work;
+- split the export query/serialization boundary from the route and removed the
+  obsolete unsafe dashboard helper;
+- added strict filters, Manila half-open dates, tenant-qualified joins,
+  canonical Account naming, deterministic 10,001-row sentinel querying,
+  formula-safe text serialization, generic failures, and hardened headers on
+  every response.
+
+Verification:
+
+- shared authorization Vitest: PASSED, 19/19;
+- export route/query/CSV Vitest: PASSED, 44/44; independent focused rerun
+  PASSED, 61/61;
+- exact authorization: PASSED, all thirteen roles, with denied roles proving
+  zero query calls;
+- compiled SQL: PASSED for base tenant predicate, ID-plus-tenant Account,
+  Project, and User joins, Manila bounds, typed stage, deterministic order, and
+  `LIMIT 10001`;
+- exact 10,000-row success and 10,001-row fail-visible behavior: PASSED;
+- Shared/Web/E2E TypeScript, source ESLint, 89/89-page production build,
+  gitleaks over 1,753 commits, and diff checks: PASSED;
+- built-app matrix: Sales and Commercial each returned a five-row CSV with the
+  expected shape and headers; Viewer and Safety had no button and direct calls
+  returned 403; duplicate, unknown, impossible-date, reversed-range, and
+  unknown-stage inputs returned 400; same-day filter returned 200.
+
+No export data was persisted. No account, opportunity, stage, assignment,
+schema, dependency, Reports policy, dashboard mode, or deployment changed.
+The verifier stopped the isolated server and removed temporary artifacts.
+
+→ Handoff to Agent 4 complete. Result: `GO`, no in-scope P1/P2 finding.
+
+→ Handoff to Agent 5 browser verifier complete. Result: `PASSED` at source
+commit `9951c922`.

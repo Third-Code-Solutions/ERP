@@ -43,7 +43,8 @@ explicit `admin` super-admin projection.
 - 174 explicit HTTP operations: 133 NestJS and 41 Next.js operations.
 - 158 HTTP operations are session/capability/recovery protected; 16 are public,
   token/signature controlled, callback/health, webhook, or deprecated.
-- 80 central capabilities; 42 are referenced by Nest controller guards.
+- 81 central capabilities after adding the dedicated opportunity-export
+  boundary; 42 are referenced by Nest controller guards.
 - 1,378 role/protected-resource matrix records: 0 `FAILED`, 32
   `NEEDS DECISION`, 1,071 `NOT TESTED`, 265 `PARTIAL`, and 10 `BLOCKED`.
 
@@ -124,8 +125,17 @@ database-backed budget-trigger execution remain blocked.
 
 ### CSV opportunity export
 
-The export endpoint accepts every authenticated tenant user while Reports
-navigation is restricted. Status: FAILED; route/API authorization mismatch.
+The export endpoint now uses a dedicated capability matching the ten roles
+whose executive dashboard renders the control. Safety, CX, and Viewer receive
+403 before query work. Filters are strict and Manila-day aware; Account,
+Project, and User joins are tenant-qualified; results are deterministically
+bounded; spreadsheet-formula prefixes are neutralized in untrusted text; all
+statuses use hardened private headers.
+
+Status: PARTIAL pending an authorized deployed-environment check. Automated
+policy and export coverage passed, independent QA returned `GO`, Sales and
+Commercial received valid five-row CSVs in the isolated production build, and
+Viewer/Safety control visibility plus direct 403 behavior passed.
 
 ### Viewer semantics
 

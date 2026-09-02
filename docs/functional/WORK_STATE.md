@@ -8,7 +8,8 @@ Goal: verify and repair existing ABI OPS functionality for the repository's
 thirteen-role authorization vocabulary, one end-to-end workflow at a time.
 Password management, legacy project-chat authorization, project-detail
 authorization, legacy route-policy alignment, fail-closed dashboard routing,
-and Material search/destination alignment are the six completed local
+Material search/destination alignment, and opportunity CSV export hardening are
+the seven completed local
 implementation slices; all remain `PARTIAL` under the strict live-data
 definition of done.
 
@@ -35,13 +36,13 @@ repository's release gates pass.
 | Session/recovery-protected page routes | 104 | VERIFIED by route inventory + middleware policy |
 | Explicit HTTP operations | 174 | VERIFIED by source inventory (133 Nest, 41 Next) |
 | Protected role/resource matrix records | 1,378 | VERIFIED as syntactically readable CSV records |
-| Tested role/resource combinations in this work order | 98 | 33 auth browser observations plus 13 automated cases for each of AI-domain, project-detail, legacy route-policy, fail-closed route-registry, and Material-search policy |
+| Tested role/resource combinations in this work order | 111 | 33 auth browser observations plus 13 automated cases for each of AI-domain, project-detail, legacy route-policy, fail-closed route-registry, Material-search, and opportunity-export policy |
 | Verified role/resource combinations | 0 | Strict full-route definition not yet met; tested rows remain PARTIAL or BLOCKED |
 | Failed role/resource combinations | 0 | No FAILED matrix rows remain after route-alias and project-audit reconciliation |
 | Blocked role/resource combinations | 10 | Prior blocked auth/chat coverage plus one project-detail record for each missing `estimator` and `pm` identity |
-| Prioritized functional workflows | 6 | Password management, project-chat boundaries, project-detail boundaries, legacy route-policy alignment, fail-closed dashboard routing, and Material-search alignment |
+| Prioritized functional workflows | 7 | Password management, project-chat boundaries, project-detail boundaries, legacy route-policy alignment, fail-closed dashboard routing, Material-search alignment, and opportunity CSV export hardening |
 | Verified workflows | 0 | Strict live-data definition not yet met |
-| Partial workflows | 6 | All implemented and locally tested with explicit live-evidence limits |
+| Partial workflows | 7 | All implemented and locally tested with explicit live-evidence limits |
 | Failed workflows | 0 | No known implementation failure after focused QA |
 | Completed modules | 0 | NOT TESTED |
 | Modules remaining | 13 user-facing modules | NOT TESTED |
@@ -202,23 +203,56 @@ Implemented behavior:
   could open Material Items, but the page reported zero records, so a live
   positive Material hit could not be produced without prohibited fixture data.
 
+### Opportunity CSV export hardening
+
+Implemented, independently reviewed, and verified in an isolated production
+build. The slice remains `PARTIAL` until the stacked branch reaches an
+authorized deployed environment.
+
+Implemented behavior:
+
+- a central `opportunity.export` capability matches the ten roles whose
+  executive dashboard renders the export; Safety, CX, and Viewer receive 403
+  before filter parsing or database work;
+- strict Zod parsing rejects unknown/duplicate keys, impossible dates,
+  undeclared stages, and reversed ranges; date-only inputs use inclusive-start
+  and exclusive-next-day Asia/Manila boundaries;
+- Account, Project, and User joins require both ID and tenant equality;
+  canonical Account name takes precedence with a legacy Project-client
+  fallback;
+- the query is deterministically ordered and limited to 10,001 rows, allowing
+  exactly 10,000 while returning an explicit error instead of truncating a
+  larger export;
+- user-controlled text cells neutralize spreadsheet-formula prefixes while
+  negative numeric values remain numeric; every response is private/no-store,
+  cookie-varying, and `nosniff`;
+- shared and focused export tests passed 63/63, full type/lint/build and secret
+  checks passed, and independent QA returned `GO` with no P1/P2 finding;
+- Sales and Commercial each received a valid five-row CSV in the built app;
+  Viewer and Safety saw no export control and direct requests returned hardened
+  403 responses; five adversarial filter cases returned hardened 400 responses.
+
 Acceptance criteria and ordered agent handoffs are recorded in
 `docs/handoffs/2026-09-02-functional-completeness.md`,
 `docs/handoffs/2026-09-02-ai-chat-data-boundaries.md`,
 `docs/handoffs/2026-09-02-project-detail-authorization.md`, and
 `docs/handoffs/2026-09-03-legacy-route-policy-alignment.md`, and
 `docs/handoffs/2026-09-03-unknown-dashboard-route-denial.md`, and
-`docs/handoffs/2026-09-03-material-search-route-alignment.md`.
+`docs/handoffs/2026-09-03-material-search-route-alignment.md`, and
+`docs/handoffs/2026-09-03-opportunity-export-hardening.md`.
 
 ## Agent state
 
 - Principal Agent 1: read-only route/RBAC cartography complete; no files changed.
-- Principal Agent 2: auth functional audit complete; no files changed.
+- Principal Agent 2: continuous read-only workflow audit complete; latest
+  finding is the P1 Won-to-Project handoff, where a failed non-transactional
+  conversion is swallowed after the opportunity stage is persisted.
 - Principal Agent 3: sole application-source editor; auth, AI chat, project
   detail, legacy route-policy, and fail-closed route-registry implementations
-  complete; Material-search Web/Core alignment complete.
+  complete; Material-search Web/Core alignment and opportunity-export
+  hardening complete.
 - Principal Agent 4: independent code/test/security review complete; `GO` for
-  all six implemented source slices.
+  all seven implemented source slices.
 - Principal Agent 5: auth verification complete for all eleven supplied
   identities; AI chat safe browser/API smoke complete for viewer, finance, and
   commercial; project-detail browser matrix complete for all eleven supplied
@@ -227,13 +261,15 @@ Acceptance criteria and ordered agent handoffs are recorded in
   checks passed for Viewer, Commercial, Finance, and Sales in an isolated
   production build; Material-search negative live checks passed for Procurement
   and Service Delivery, while the Commercial positive hit is fixture-blocked.
+  Opportunity-export browser/API checks passed for Sales, Commercial, Viewer,
+  and Safety without persisting CSV data.
 
 ## Git state
 
 - Primary repository: `D:/thirdcode/ERP`; current stacked worktree:
-  `D:/thirdcode/ERP-material-search-20260903`.
-- Current stacked branch: `agent-05/material-search-route-alignment`, based on
-  the fail-closed route-registry branch from PR #20.
+  `D:/thirdcode/ERP-opportunity-export-20260903`.
+- Current stacked branch: `agent-05/opportunity-export-hardening`, based on the
+  Material-search branch from PR #21.
 - Finance/security release-gate branch: PR #18 at commit `4369a01a`; all
   protected checks pass.
 - Auth PR branch: `agent-03/auth-password-workflows-20260902`; PR #15 at
@@ -284,11 +320,18 @@ Acceptance criteria and ordered agent handoffs are recorded in
 | Material-search type/lint/build/security | PASSED | Shared/API/Web/E2E TypeScript, affected source ESLint, API build, Web 89/89-page build, gitleaks over 1,750 commits, and whitespace checks |
 | Material-search live negative matrix | PASSED | Procurement and Service Delivery: no Material API/palette result or Admin dead-end; allowed vendor result remained usable; no unexpected browser/API error |
 | Material-search live Commercial positive hit | BLOCKED | Commercial can open `/admin/material-items`, but the configured tenant contains zero Material records; no fixture mutation was permitted |
+| Opportunity-export focused tests | PASSED | Shared authorization 19/19; route/query/CSV 44/44; independent focused rerun 61/61 |
+| Opportunity-export independent QA | PASSED | `GO`; exact 10-role policy, compiled tenant joins, Manila bounds, 10,001-row sentinel, formula protection, headers, and generic errors verified |
+| Opportunity-export type/lint/build/security | PASSED | Shared/Web/E2E TypeScript, affected source ESLint, 89/89-page Web build, gitleaks over 1,753 commits, and diff checks |
+| Opportunity-export built-app matrix | PASSED | Sales/Commercial 200 CSV with five data rows; Viewer/Safety hidden control + 403; five invalid filter cases 400; same-day filter 200; no export request/server errors |
 | Deployment/live smoke | NOT RUN | ADR-020 requires the reviewed stack on `main` and green checks on that exact SHA |
 
 ## Confirmed high-priority RBAC findings outside the completed slices
 
-1. Opportunity CSV export authorization is broader than its visible UI policy.
+1. Won-to-Project conversion is non-transactional in the active Web pipeline:
+   it persists `won`, can partially create the Project/checklist handoff,
+   suppresses the conversion error, and returns success. The existing atomic
+   Core authority is not used by this browser path.
 2. Viewer read breadth still conflicts with the narrower checked-in policy and
    requires a product decision for sensitive modules.
 
@@ -297,7 +340,9 @@ reproduced before repair.
 
 ## Exact next action
 
-Reconcile opportunity CSV export authorization with the existing visible UI
-and product policy, then resolve Viewer read semantics for sensitive modules.
-Production deployment remains blocked by ADR-020 until the reviewed stack
-reaches `main` and every required release check is green on that exact SHA.
+Repair the P1 Won-to-Project handoff sequentially: Agent 05 first validates and
+covers the existing Core transaction, then Agent 03 wires the pipeline action
+to fail closed and refresh from committed state. Leave Viewer-sensitive
+permissions as `NEEDS DECISION`. Production deployment remains blocked by
+ADR-020 until the reviewed stack reaches `main` and every required release
+check is green on that exact SHA.
