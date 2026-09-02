@@ -352,3 +352,63 @@ Expected output: update only the authoritative WO-11 contract gate to inspect
 Core KYC enforcement and separately prove Web delegation/no local writer, run
 its neighboring release gates, append this handoff, and return to independent
 QA.
+
+## WO-11 contract owner — authoritative Core/Web oracle
+
+Verdict: `GO` for independent QA. Contract-gate commit: `50339af8`.
+
+QA P2 #2 is remediated without changing product source. The former oracle read
+the retired Web-local KYC implementation and failed on its absent downstream
+stage constant. The gate now uses the repository's installed TypeScript
+compiler AST to inspect the two actual authorities:
+
+- Core `transitionInTransaction` must resolve a linked Account by Account ID and
+  authorized tenant, fail closed when the link is invalid, read KYC tracks by
+  Opportunity and tenant, require every canonical approved track when any track
+  exists, and use approved/not-required Account KYC only for the no-track legacy
+  branch;
+- Core must retain the shared transition table, regression/Lost reason rule,
+  Opportunity persistence, semantic audit, and SLA stop/start inside its
+  transaction method;
+- Web `advanceOpportunityStage` must select Core for the profile tenant, invoke
+  exactly one Core stage delegate before any Won/non-Won result branch, return
+  selected-Core failures, validate returned identity and non-Won edge, and have
+  no local Opportunity update, audit, SLA, or legacy conversion fallback.
+
+The AST helpers are intentionally self-contained in the existing verifier: no
+shared parser utility exists in `scripts/`, no dependency was added, and the
+two exported domain validators are directly exercised with mutation fixtures.
+Those fixtures prove the gate turns red if Core KYC enforcement or linked-
+Account tenant scoping is removed, if Web delegation is removed, or if a Web-
+local Opportunity writer is introduced.
+
+Pinned Node 22.23.2 / pnpm 10.33.0 verification:
+
+- baseline `pnpm test:wo-11-contract`: FAILED as expected, 0/1 —
+  `WO-11 invariant missing: downstream stage set`;
+- final `pnpm test:wo-11-contract`: PASSED, 5/5;
+- focused Core stage-transition suite: PASSED, 63/63;
+- Web action lane: PASSED, 21 files / 226 tests, including 27/27 Pipeline
+  action cases;
+- API and Web typechecks: PASSED;
+- root application-source lint and explicit no-ignore lint for both changed
+  scripts: PASSED;
+- API production build: PASSED;
+- Web production build: PASSED, 89 static pages generated;
+- syntax checks for both changed scripts: PASSED;
+- Prettier: NOT RUN because no Prettier binary is installed in this repository.
+
+No Core/API/Web product source, route/UI, shared auth, schema, dependency, demo
+data, environment, credential, or deployment state changed. The PostgreSQL HTTP
+integration remains BLOCKED exactly as before because `DATABASE_URL` and
+`ERP_API_INTEGRATION_EXPECTED=1` are absent; this gate supplies deterministic
+source-contract and existing mocked behavior evidence, not fabricated live DB
+proof.
+
+→ Handoff to independent QA. Reason: both round-1 P2 findings now have scoped
+remediations and the authoritative WO-11 gate is green and mutation-sensitive.
+Inputs: Core `9496d282`, Web `0ed1bdbc`, Pipeline `7e8e0a60`, Lost UX
+`60c73bac`, this contract-gate commit, and the exact checks above. Expected
+output: independently rerun the combined branch, return `GO` or `BLOCK` with
+direct evidence, then release the designated browser identity/failure matrix
+only on `GO`.

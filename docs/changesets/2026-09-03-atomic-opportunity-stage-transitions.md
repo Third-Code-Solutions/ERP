@@ -134,8 +134,37 @@ remediation.
 
 ## Remaining work
 
-The WO-11 contract owner must repair the stale cross-surface source oracle and
-return the branch to independent QA. After QA, the designated browser verifier
-must exercise the supplied identity matrix and the returned/rejected failure
-states in a real browser. Safe positive persistence proof remains limited to a
-disposable or rollback-contained fixture.
+The stale cross-surface WO-11 oracle is repaired. It now parses the authoritative
+Core service and Web action with the repository's installed TypeScript compiler
+and structurally verifies tenant-scoped Account/track reads, dual-track and
+legacy KYC behavior, shared state/reason rules, Core persistence/audit/SLA
+ownership, unconditional Web Core delegation, strict returned-result checks,
+and the absence of Web-local fallback writers. Mutation-sensitivity tests prove
+the gate fails when Core KYC or Account tenant scoping is removed, when Web Core
+delegation is removed, or when a local Opportunity writer is added.
+
+Contract-gate commit: `50339af8`.
+
+### WO-11 contract-owner verification
+
+- Pinned Node 22.23.2 and pnpm 10.33.0: VERIFIED.
+- Stale-oracle baseline: FAILED as expected, 0/1 (`downstream stage set`).
+- Final WO-11 contract gate: PASSED, 5/5.
+- Focused Core stage-transition suite: PASSED, 63/63.
+- Web action lane: PASSED, 21 files / 226 tests, including 27/27 Pipeline
+  action cases.
+- API and Web typechecks: PASSED.
+- Root application-source lint plus explicit script lint: PASSED.
+- API and Web production builds: PASSED; Web generated 89 static pages.
+- `node --check` for both contract scripts: PASSED.
+- Prettier: NOT RUN because the repository does not install a Prettier binary.
+
+No Core/API/Web product source, shared auth, schema, dependency, demo data,
+environment, credential, or deployment state changed. The protected PostgreSQL
+HTTP canary remains BLOCKED by the same absent `DATABASE_URL` and
+`ERP_API_INTEGRATION_EXPECTED=1` bindings; no live database proof is claimed.
+
+Independent QA must rerun the combined branch. After QA, the designated browser
+verifier must exercise the supplied identity matrix and returned/rejected
+failure states. Safe positive persistence proof remains limited to a disposable
+or rollback-contained fixture.
