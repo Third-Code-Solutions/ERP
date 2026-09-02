@@ -144,3 +144,46 @@ gates, and the active pipeline action. Expected output: route Won/Closed Won
 through Core without a local stage-first fallback, return the committed
 `projectId`, surface failures through the existing error UI, and refresh only
 committed Project/pipeline state.
+
+## Agent 03 closeout
+
+Status: complete at source commit `dd856efa`; Core files remained unchanged in
+this phase and Agent 11 was a no-op.
+
+Implementation:
+
+- Won and Closed Won exit the Web action through the exact stage-write Core
+  selector and atomic transition adapter before any local database work;
+- selector denial, typed Core failure, adapter unavailability, thrown errors,
+  and semantically invalid success all return a user-visible error with zero
+  local stage, audit, SLA, or legacy-conversion fallback effect;
+- a successful response must match the tenant, opportunity, and requested
+  stage and include committed Project/checklist identifiers plus the conversion
+  marker;
+- exact normalized retries use a tenant-scoped Core ledger key derived from a
+  SHA-256 command fingerprint; distinct terminal commands use distinct keys;
+- success returns `projectId` and revalidates the pipeline and committed Project
+  paths; non-Won transitions keep the existing local path;
+- the existing pipeline list and board already consume `{ error }`, so no
+  component or Agent 11 source change was required.
+
+Verification:
+
+- pipeline action baseline: PASSED, 3/3; final focused suite: PASSED, 14/14;
+- Core selector, transition adapter, and WO-13 contract: PASSED, 3/3;
+- App Router boundary tests: PASSED, 2/2;
+- complete Web/E2E and shared-types TypeScript: PASSED;
+- full Web source ESLint: PASSED;
+- Web production build: PASSED, 89/89 pages;
+- gitleaks and diff checks: PASSED.
+
+Rollout remains fail closed and requires the Web selector plus both Core write
+gates and all matching tenant allowlists. No environment setting or deployment
+was changed. Browser mutation was not attempted before independent QA and a
+safe disposable-fixture decision.
+
+→ Handoff to independent QA. Reason: both source phases are committed and the
+active Web path now consumes the Core authority. Inputs: Core commit
+`b9aa2d93`, Web commit `dd856efa`, this acceptance contract, and all focused
+evidence. Expected output: an independent `GO` or `BLOCK` after security,
+tenant, KYC, transaction/idempotency, fail-closed, test, and regression review.
