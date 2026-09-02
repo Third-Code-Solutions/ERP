@@ -256,3 +256,34 @@ red/green evidence above, and the unchanged reason/double-submit UX. Expected
 output: review the combined clean branch and return `GO` or `BLOCK` with direct
 evidence before the eleven-identity browser matrix and safe disposable-fixture
 transition proof.
+
+## Independent QA round 1
+
+Verdict: `BLOCK`; no P1, two P2 findings at clean HEAD `b0043186`.
+
+1. Core correctly requires a meaningful Lost/Closed Lost reason, but the
+   conversion control still describes the reason as optional and permits blank
+   submission. Board drag-to-Lost sends an avoidable blank command and then
+   reuses regression-only dialog copy, incorrectly describing Lost as a
+   backward regression. Caller-level tests do not prove blank prevention,
+   trimmed single submission, or pending duplicate protection.
+2. The authoritative `test:wo-11-contract` gate is red because its source
+   oracle still expects the retired Web-local KYC implementation. The gate must
+   inspect authoritative Core KYC enforcement and separately prove Web
+   delegation with no local writer.
+
+Independent green evidence: Core 128/128, Web 215/215, shared 56/56; API,
+Web/E2E, and shared TypeScript; API/Web/shared source lint; API and 89-page Web
+production builds; gitleaks over 1,776 commits; diff checks; and Playwright
+discovery. The PostgreSQL HTTP integration remained one explicit skip because
+the required isolated database bindings were absent. Browser verification was
+withheld while blocked.
+
+→ Handoff to Agent 11 remediation. Reason: align both Pipeline callers with the
+required Lost-reason contract before changing the cross-surface WO-11 oracle.
+Inputs: QA round-1 findings, existing Lost/regression dialogs, typed action
+runner, and Core's 1,000-character boundary. Expected output: Lost-specific
+accessible required-reason UX on both callers; zero request for blank input;
+trimmed single submission; preserved regression wording; returned/rejected
+failure visibility; pending duplicate protection; focused tests and gates;
+then explicit handoff to the WO-11 contract owner.
