@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import type { AppRole } from '@third-code-erp/auth'
 import {
   canViewPath,
   visibleNavSections,
@@ -8,16 +9,192 @@ import {
   activeNavHref,
 } from './nav-config'
 
-describe('RBAC: canonicalRole', () => {
-  it('folds legacy roles into canonical equivalents', () => {
-    expect(canonicalRole('owner')).toBe('admin')
-    expect(canonicalRole('estimator')).toBe('commercial')
-    expect(canonicalRole('pm')).toBe('sd_pm_pe')
-  })
+const PERSISTED_ROLES = [
+  'owner',
+  'estimator',
+  'pm',
+  'admin',
+  'sales',
+  'commercial',
+  'design',
+  'sd_pm_pe',
+  'finance',
+  'procurement',
+  'safety',
+  'cx',
+  'viewer',
+] as const satisfies readonly AppRole[]
 
-  it('leaves canonical roles unchanged', () => {
-    for (const r of ['admin', 'sales', 'finance', 'procurement', 'viewer'] as const) {
-      expect(canonicalRole(r)).toBe(r)
+const UNRESTRICTED_NAV_HREFS = [
+  '/dashboard',
+  '/cortex',
+  '/crm/accounts',
+  '/pipeline/board',
+  '/projects',
+  '/tasks',
+  '/process',
+  '/documents',
+] as const
+
+const RESTRICTED_NAV_HREFS_BY_ROLE = {
+  owner: [
+    '/crm/kyc-queue',
+    '/bom',
+    '/permits',
+    '/procurement/rfqs',
+    '/procurement/deliveries',
+    '/purchase-orders',
+    '/inventory',
+    '/invoices',
+    '/claims',
+    '/punchlist',
+    '/warranty',
+    '/warranty/cnps',
+    '/reports',
+    '/finance',
+    '/finance/receivables',
+    '/finance/payables',
+    '/finance/cash',
+    '/finance/reconciliation',
+    '/admin',
+  ],
+  estimator: [
+    '/bom',
+    '/permits',
+    '/procurement/rfqs',
+    '/purchase-orders',
+    '/claims',
+  ],
+  pm: [
+    '/permits',
+    '/procurement/deliveries',
+    '/purchase-orders',
+    '/inventory',
+    '/claims',
+    '/punchlist',
+  ],
+  admin: [
+    '/crm/kyc-queue',
+    '/bom',
+    '/permits',
+    '/procurement/rfqs',
+    '/procurement/deliveries',
+    '/purchase-orders',
+    '/inventory',
+    '/invoices',
+    '/claims',
+    '/punchlist',
+    '/warranty',
+    '/warranty/cnps',
+    '/reports',
+    '/finance',
+    '/finance/receivables',
+    '/finance/payables',
+    '/finance/cash',
+    '/finance/reconciliation',
+    '/admin',
+  ],
+  sales: ['/reports'],
+  commercial: [
+    '/bom',
+    '/permits',
+    '/procurement/rfqs',
+    '/purchase-orders',
+    '/inventory',
+    '/claims',
+    '/admin',
+  ],
+  design: [],
+  sd_pm_pe: [
+    '/permits',
+    '/procurement/deliveries',
+    '/purchase-orders',
+    '/inventory',
+    '/claims',
+    '/punchlist',
+  ],
+  finance: [
+    '/crm/kyc-queue',
+    '/inventory',
+    '/invoices',
+    '/claims',
+    '/reports',
+    '/finance',
+    '/finance/receivables',
+    '/finance/payables',
+    '/finance/cash',
+    '/finance/reconciliation',
+  ],
+  procurement: [
+    '/procurement/rfqs',
+    '/procurement/deliveries',
+    '/purchase-orders',
+    '/inventory',
+  ],
+  safety: ['/permits', '/punchlist'],
+  cx: ['/punchlist', '/warranty', '/warranty/cnps'],
+  viewer: [
+    '/bom',
+    '/permits',
+    '/procurement/rfqs',
+    '/procurement/deliveries',
+    '/purchase-orders',
+    '/inventory',
+    '/punchlist',
+    '/warranty',
+    '/warranty/cnps',
+  ],
+} as const satisfies Record<AppRole, readonly string[]>
+
+const VISIBLE_NAV_ORDER = [
+  '/dashboard',
+  '/cortex',
+  '/crm/accounts',
+  '/crm/kyc-queue',
+  '/pipeline/board',
+  '/projects',
+  '/bom',
+  '/tasks',
+  '/process',
+  '/permits',
+  '/procurement/rfqs',
+  '/procurement/deliveries',
+  '/purchase-orders',
+  '/inventory',
+  '/invoices',
+  '/claims',
+  '/punchlist',
+  '/warranty',
+  '/warranty/cnps',
+  '/documents',
+  '/reports',
+  '/finance',
+  '/finance/receivables',
+  '/finance/payables',
+  '/finance/cash',
+  '/finance/reconciliation',
+  '/admin',
+] as const
+
+function visibleHrefs(role: AppRole): string[] {
+  return visibleNavSections(role).flatMap((section) =>
+    section.items.map((item) => item.href)
+  )
+}
+
+function expectedVisibleHrefs(role: AppRole): string[] {
+  const allowed = new Set<string>([
+    ...UNRESTRICTED_NAV_HREFS,
+    ...RESTRICTED_NAV_HREFS_BY_ROLE[role],
+  ])
+  return VISIBLE_NAV_ORDER.filter((href) => allowed.has(href))
+}
+
+describe('RBAC: canonicalRole', () => {
+  it('preserves only the explicit owner-as-admin inheritance contract', () => {
+    expect(canonicalRole('owner')).toBe('admin')
+    for (const role of PERSISTED_ROLES.filter((value) => value !== 'owner')) {
+      expect(canonicalRole(role), role).toBe(role)
     }
   })
 })
@@ -33,6 +210,13 @@ describe('RBAC: runtime role boundary', () => {
 })
 
 describe('RBAC: visibleNavSections', () => {
+  it.each(PERSISTED_ROLES)(
+    'exposes the exact explicit route projection for %s',
+    (role) => {
+      expect(visibleHrefs(role)).toEqual(expectedVisibleHrefs(role))
+    }
+  )
+
   it('admin sees every section', () => {
     const sections = visibleNavSections('admin')
     const labels = sections.map((s) => s.label)
@@ -103,20 +287,22 @@ describe('RBAC: visibleNavSections', () => {
   })
 
   it('hides controlled-rollout routes without changing their direct-route guard', () => {
-    const hrefs = visibleNavSections('admin')
-      .flatMap((section) => section.items.map((item) => item.href))
-
-    expect(hrefs).not.toContain('/assets')
-    expect(canViewPath('viewer', '/assets')).toBe(true)
+    for (const role of PERSISTED_ROLES) {
+      expect(visibleHrefs(role), role).not.toContain('/assets')
+      expect(canViewPath(role, '/assets'), role).toBe(true)
+      expect(canViewPath(role, '/assets/item-id'), role).toBe(true)
+    }
     expect(canViewPath('viewer', '/finance/cash')).toBe(false)
     expect(canViewPath('viewer', '/finance/reconciliation')).toBe(false)
     expect(canViewPath('viewer', '/warranty/cnps')).toBe(true)
   })
 
-  it('legacy estimator inherits commercial visibility (BOM Builder)', () => {
-    const hrefs = visibleNavSections('estimator')
-      .flatMap((s) => s.items.map((i) => i.href))
+  it('retains estimator read projections without commercial-only modules', () => {
+    const hrefs = visibleHrefs('estimator')
     expect(hrefs).toContain('/bom')
+    expect(hrefs).toContain('/procurement/rfqs')
+    expect(hrefs).not.toContain('/inventory')
+    expect(hrefs).not.toContain('/admin')
   })
 
   it('drops empty sections entirely', () => {
@@ -127,6 +313,23 @@ describe('RBAC: visibleNavSections', () => {
 })
 
 describe('RBAC: canViewPath (deny-by-default route guard)', () => {
+  it.each(PERSISTED_ROLES)(
+    'matches the visible navigation policy for %s, including nested routes',
+    (role) => {
+      const visible = new Set(expectedVisibleHrefs(role))
+
+      for (const href of VISIBLE_NAV_ORDER) {
+        expect(canViewPath(role, href), `${role}: ${href}`).toBe(
+          visible.has(href)
+        )
+        expect(
+          canViewPath(role, `${href}/nested`),
+          `${role}: ${href}/nested`
+        ).toBe(visible.has(href))
+      }
+    }
+  )
+
   it('allows everyone on unrestricted + account routes', () => {
     expect(canViewPath('viewer', '/dashboard')).toBe(true)
     expect(canViewPath('viewer', '/tasks')).toBe(true)
@@ -194,10 +397,24 @@ describe('RBAC: canViewPath (deny-by-default route guard)', () => {
     expect(canViewPath('finance', '/crm/kyc-queue')).toBe(true)
   })
 
-  it('honors legacy role mapping in the guard', () => {
+  it('denies the reproduced estimator alias false positives', () => {
+    expect(canViewPath('estimator', '/admin')).toBe(false)
+    expect(canViewPath('estimator', '/admin/rate-cards')).toBe(false)
+    expect(canViewPath('estimator', '/inventory')).toBe(false)
+    expect(canViewPath('estimator', '/inventory/receipts')).toBe(false)
+    expect(canViewPath('commercial', '/admin')).toBe(true)
+    expect(canViewPath('commercial', '/inventory')).toBe(true)
+  })
+
+  it('keeps owner inheritance and explicit pm route outcomes', () => {
     expect(canViewPath('owner', '/admin')).toBe(true) // owner → admin
-    expect(canViewPath('estimator', '/bom')).toBe(true) // estimator → commercial
-    expect(canViewPath('pm', '/admin')).toBe(false) // pm → sd_pm_pe, not admin
+    expect(canViewPath('pm', '/admin')).toBe(false)
+    expect(canViewPath('pm', '/inventory')).toBe(true)
+    expect(canViewPath('pm', '/procurement/deliveries')).toBe(true)
+  })
+
+  it('preserves the existing unknown-path fallback', () => {
+    expect(canViewPath('viewer', '/future-workspace')).toBe(true)
   })
 })
 

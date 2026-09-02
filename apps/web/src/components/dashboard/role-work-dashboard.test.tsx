@@ -4,6 +4,14 @@ import { describe, expect, it } from 'vitest'
 
 import { RoleWorkDashboard } from './role-work-dashboard'
 
+function quickAccessHrefs(markup: string): string[] {
+  const start = markup.indexOf('id="quick-access-heading"')
+  expect(start).toBeGreaterThanOrEqual(0)
+  return Array.from(markup.slice(start).matchAll(/href="([^"]+)"/g), (match) =>
+    match[1]
+  ).filter((href): href is string => href !== undefined)
+}
+
 describe('RoleWorkDashboard', () => {
   it('renders assignee-scoped work without executive financial content', () => {
     const markup = renderToStaticMarkup(
@@ -33,5 +41,33 @@ describe('RoleWorkDashboard', () => {
     expect(markup).toContain('href="/punchlist"')
     expect(markup).not.toContain('href="/finance"')
     expect(markup).not.toContain('href="/pipeline/board"')
+    expect(quickAccessHrefs(markup)).toEqual([
+      '/tasks',
+      '/permits',
+      '/punchlist',
+      '/projects',
+      '/documents',
+      '/cortex',
+      '/crm/accounts',
+    ])
+  })
+
+  it('preserves the viewer quick-link priority after role-policy projection', () => {
+    const markup = renderToStaticMarkup(
+      <RoleWorkDashboard
+        role="viewer"
+        summary={{ dueToday: 0, overdue: 0, upcoming: 0 }}
+      />
+    )
+
+    expect(quickAccessHrefs(markup)).toEqual([
+      '/projects',
+      '/pipeline/board',
+      '/crm/accounts',
+      '/documents',
+      '/bom',
+      '/cortex',
+      '/tasks',
+    ])
   })
 })
