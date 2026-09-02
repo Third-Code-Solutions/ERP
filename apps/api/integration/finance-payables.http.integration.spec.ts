@@ -12,7 +12,7 @@ import {
 } from '@third-code-erp/database'
 import { eq, sql } from 'drizzle-orm'
 import request from 'supertest'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CapabilityGuard } from '../src/auth/capability.guard'
 import { SupabaseIdentityService } from '../src/auth/supabase-identity.service'
 import { SupabaseJwtGuard } from '../src/auth/supabase-jwt.guard'
@@ -28,6 +28,7 @@ const integrationEnabled =
   process.env.ERP_API_INTEGRATION_EXPECTED === '1'
 const suite = integrationEnabled ? describe : describe.skip
 const ROLLBACK = Symbol('rollback')
+const FIXTURE_AS_OF = new Date('2026-08-06T12:00:00.000Z')
 
 function transactionBoundDatabase(
   transaction: DatabaseTransaction
@@ -313,6 +314,15 @@ async function seedPayables(
 }
 
 suite('Finance payables protected HTTP canary', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(FIXTURE_AS_OF)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('proves authorization, tenant isolation, exact aging, filters, pagination, and rollback', async () => {
     let observedTenantId = ''
     await alwaysRollback(async (transaction) => {
@@ -424,6 +434,7 @@ suite('Finance payables protected HTTP canary', () => {
           .expect(200)
         expect(first.body).toMatchObject({
           tenantId: fixtureA.tenantId,
+          asOfDate: '2026-08-06',
           total: 3,
           totalPayableCents: 198000,
           totalPaidCents: 0,
