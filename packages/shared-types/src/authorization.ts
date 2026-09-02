@@ -54,6 +54,18 @@ const capabilityRoles = {
   'account.kyc_review': ['owner', 'admin', 'finance'],
   'opportunity.create': ['owner', 'admin', 'sales'],
   'opportunity.read': ALL_ROLES,
+  'opportunity.export': [
+    'owner',
+    'estimator',
+    'pm',
+    'admin',
+    'sales',
+    'commercial',
+    'design',
+    'sd_pm_pe',
+    'finance',
+    'procurement',
+  ],
   'opportunity.advance_stage': ['owner', 'admin', 'sales'],
   'opportunity.stage_change': [
     'owner',

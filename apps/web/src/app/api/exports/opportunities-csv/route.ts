@@ -1,68 +1,67 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { getUserProfile } from '@third-code-erp/auth'
-import { getOpportunitiesForExport } from '@/lib/dashboard-queries'
+import { can, getUserProfile } from '@third-code-erp/auth'
 
-// CSV-safe escaping per RFC-4180. Wrap in quotes when the value contains
-// a comma, double-quote, CR or LF, and double up any embedded quotes.
-function csvEscape(value: string): string {
-  if (/[",\r\n]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`
-  }
-  return value
+import {
+  getOpportunityExportRows,
+  OPPORTUNITY_EXPORT_HEADERS,
+  OPPORTUNITY_EXPORT_MAX_ROWS,
+  opportunityExportCsvLine,
+  parseOpportunityExportFilters,
+} from './opportunity-export'
+
+const RESPONSE_HEADERS = {
+  'Cache-Control': 'private, no-store, max-age=0',
+  Vary: 'Cookie',
+  'X-Content-Type-Options': 'nosniff',
+} as const
+
+function jsonError(error: string, status: number): NextResponse {
+  return NextResponse.json(
+    { error },
+    { status, headers: RESPONSE_HEADERS },
+  )
 }
 
-const HEADERS = [
-  'id',
-  'account_name',
-  'project_name',
-  'stage',
-  'tcv_php',
-  'gp_php',
-  'probability',
-  'weighted_tcv_php',
-  'closing_date',
-  'rep_email',
-] as const
-
-export async function GET(req: NextRequest) {
-  const profile = await getUserProfile()
-  if (!profile) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export async function GET(req: NextRequest): Promise<Response> {
+  let profile: Awaited<ReturnType<typeof getUserProfile>>
+  try {
+    profile = await getUserProfile()
+  } catch {
+    return jsonError('Export unavailable', 500)
   }
 
-  const url = new URL(req.url)
-  const sinceParam = url.searchParams.get('since')
-  const untilParam = url.searchParams.get('until')
-  const stageParam = url.searchParams.get('stage') ?? undefined
-
-  const since = sinceParam ? new Date(sinceParam) : undefined
-  const until = untilParam ? new Date(untilParam) : undefined
-
-  // Validate parsed dates; bail with 400 on garbage input rather than
-  // silently dropping the filter.
-  if (since && Number.isNaN(since.getTime())) {
-    return NextResponse.json({ error: 'Invalid `since` date' }, { status: 400 })
-  }
-  if (until && Number.isNaN(until.getTime())) {
-    return NextResponse.json({ error: 'Invalid `until` date' }, { status: 400 })
+  if (!profile) return jsonError('Unauthorized', 401)
+  if (!can(profile.role, 'opportunity.export')) {
+    return jsonError('Forbidden', 403)
   }
 
-  const rows = await getOpportunitiesForExport({
-    tenantId: profile.tenantId,
-    since,
-    until,
-    stage: stageParam,
-  })
+  const parsed = parseOpportunityExportFilters(req.nextUrl.searchParams)
+  if (!parsed.success) return jsonError('Invalid export filters', 400)
 
-  // Stream the CSV as a ReadableStream so very large exports don't buffer
-  // the entire body in memory.
+  let rows: Awaited<ReturnType<typeof getOpportunityExportRows>>
+  try {
+    rows = await getOpportunityExportRows(profile.tenantId, parsed.data)
+  } catch {
+    return jsonError('Export unavailable', 500)
+  }
+
+  if (rows.length > OPPORTUNITY_EXPORT_MAX_ROWS) {
+    return jsonError(
+      'Export exceeds the 10,000-row limit. Narrow the filters and try again.',
+      413,
+    )
+  }
+
   const encoder = new TextEncoder()
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
-      controller.enqueue(encoder.encode(HEADERS.join(',') + '\r\n'))
-      for (const r of rows) {
-        const line = HEADERS.map((h) => csvEscape(String(r[h] ?? ''))).join(',')
-        controller.enqueue(encoder.encode(line + '\r\n'))
+      controller.enqueue(
+        encoder.encode(`${OPPORTUNITY_EXPORT_HEADERS.join(',')}\r\n`),
+      )
+      for (const row of rows) {
+        controller.enqueue(
+          encoder.encode(`${opportunityExportCsvLine(row)}\r\n`),
+        )
       }
       controller.close()
     },
@@ -72,9 +71,9 @@ export async function GET(req: NextRequest) {
   return new Response(stream, {
     status: 200,
     headers: {
+      ...RESPONSE_HEADERS,
       'Content-Type': 'text/csv; charset=utf-8',
       'Content-Disposition': `attachment; filename="abi-ops-pipeline-export-${today}.csv"`,
-      'Cache-Control': 'no-store',
     },
   })
 }

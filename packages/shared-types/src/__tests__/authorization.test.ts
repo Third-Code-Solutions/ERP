@@ -22,6 +22,18 @@ const SHARED_CAPABILITY_GRANT_BASELINE = {
   'project.update': ['owner', 'admin', 'sales', 'commercial', 'sd_pm_pe', 'pm'],
   'project.delete': ['owner', 'admin'],
   'opportunity.read': ALL_ROLES,
+  'opportunity.export': [
+    'owner',
+    'estimator',
+    'pm',
+    'admin',
+    'sales',
+    'commercial',
+    'design',
+    'sd_pm_pe',
+    'finance',
+    'procurement',
+  ],
   'account.kyc_review': ['owner', 'admin', 'finance'],
   'change_request.create': ['owner', 'admin', 'sales'],
   'document.manage': ALL_OPERATORS,
@@ -51,7 +63,7 @@ function sorted(roles: readonly ErpRole[]): ErpRole[] {
 describe('canonical authorization policy', () => {
   it('contains each current Web/Core capability once and gives each a non-empty role policy', () => {
     expect(new Set(ERP_CAPABILITIES).size).toBe(ERP_CAPABILITIES.length)
-    expect(ERP_CAPABILITIES).toHaveLength(80)
+    expect(ERP_CAPABILITIES).toHaveLength(81)
 
     for (const capability of ERP_CAPABILITIES) {
       const roles = ERP_CAPABILITY_ROLES[capability]
@@ -82,6 +94,12 @@ describe('canonical authorization policy', () => {
     expect(roleHasCapability('admin', 'project.delete')).toBe(true)
     expect(roleHasCapability('viewer', 'project.delete')).toBe(false)
     expect(roleHasCapability('sales', 'project.delete')).toBe(false)
+  })
+
+  it.each(ERP_ROLES)('matches opportunity export visibility for %s', (role) => {
+    expect(roleHasCapability(role, 'opportunity.export')).toBe(
+      !['safety', 'cx', 'viewer'].includes(role),
+    )
   })
 
   it('retains distinct domain permissions instead of collapsing different workflows by name', () => {
