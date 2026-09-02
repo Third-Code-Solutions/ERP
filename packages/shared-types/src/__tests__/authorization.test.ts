@@ -102,6 +102,15 @@ describe('canonical authorization policy', () => {
     )
   })
 
+  it.each(ERP_ROLES)(
+    'limits Opportunity stage changes and conversion to the requested roles for %s',
+    (role) => {
+      const expected = ['owner', 'admin', 'sales'].includes(role)
+      expect(roleHasCapability(role, 'opportunity.stage_change')).toBe(expected)
+      expect(roleHasCapability(role, 'opportunity.convert')).toBe(expected)
+    }
+  )
+
   it('retains distinct domain permissions instead of collapsing different workflows by name', () => {
     expect(ERP_CAPABILITIES).toEqual(
       expect.arrayContaining([

@@ -8,7 +8,10 @@ import {
 } from '@nestjs/common'
 import type { ConfigService } from '@nestjs/config'
 import { describe, expect, it, vi } from 'vitest'
-import type { ErpPrincipal } from '../auth/current-principal.decorator'
+import type {
+  ErpPrincipal,
+  ErpRole,
+} from '../auth/current-principal.decorator'
 import type { AuditService } from '../audit/audit.service'
 import type { DatabaseService } from '../database/database.service'
 import { OpportunityProjectConversionService } from './opportunity-project-conversion.service'
@@ -19,10 +22,35 @@ const PRINCIPAL: ErpPrincipal = {
   role: 'sales',
   email: 'sales@example.test',
 }
+const ADMIN_PRINCIPAL: ErpPrincipal = {
+  userId: '88888888-8888-4888-8888-888888888888',
+  tenantId: PRINCIPAL.tenantId,
+  role: 'admin',
+  email: 'admin@example.test',
+}
+const VIEWER_PRINCIPAL: ErpPrincipal = {
+  userId: '99999999-9999-4999-8999-999999999999',
+  tenantId: PRINCIPAL.tenantId,
+  role: 'viewer',
+  email: 'viewer@example.test',
+}
 const OPPORTUNITY_ID = '33333333-3333-4333-8333-333333333333'
 const PROJECT_ID = '44444444-4444-4444-8444-444444444444'
 const CHECKLIST_ID = '55555555-5555-4555-8555-555555555555'
 const REQUEST_ID = '66666666-6666-4666-8666-666666666666'
+const ACCOUNT_ID = '77777777-7777-4777-8777-777777777777'
+const DENIED_CONVERSION_ROLES = [
+  'estimator',
+  'pm',
+  'commercial',
+  'design',
+  'sd_pm_pe',
+  'finance',
+  'procurement',
+  'safety',
+  'cx',
+  'viewer',
+] as const satisfies readonly ErpRole[]
 
 type WriteBoundary =
   | 'conversion-request-claim'
@@ -64,16 +92,18 @@ function harness({
       email: PRINCIPAL.email,
     },
   ],
+  membershipSequence,
   opportunity = [
     {
       id: OPPORTUNITY_ID,
       tenantId: PRINCIPAL.tenantId,
       stage: 'won',
-      accountId: null,
+      accountId: ACCOUNT_ID,
       projectId: null,
       opportunityType: 'Warehouse fit-out',
     },
   ],
+  account = [{ id: ACCOUNT_ID, name: 'Conversion Client' }],
   request = {
     id: REQUEST_ID,
     requestHash: '',
@@ -86,7 +116,9 @@ function harness({
   failureAfter,
 }: {
   membership?: unknown[]
+  membershipSequence?: unknown[][]
   opportunity?: unknown[]
+  account?: unknown[]
   request?: { id: string; requestHash: string; state: string; result: unknown }
   enabled?: boolean
   tenantIds?: string[]
@@ -100,9 +132,15 @@ function harness({
       return undefined
     }),
   } as unknown as ConfigService
-  const buildSelects = () => [
-      selectQuery(membership),
+  let transactionIndex = 0
+  const buildSelects = () => {
+    const currentMembership =
+      membershipSequence?.[transactionIndex] ?? membership
+    transactionIndex += 1
+    return [
+      selectQuery(currentMembership),
       selectQuery(opportunity),
+      selectQuery(account),
       selectQuery([request]),
       // Existing checklist lookup, active template lookup, recipients.
       selectQuery([]),
@@ -116,7 +154,8 @@ function harness({
       ]),
       selectQuery(recipients),
     ]
-  let selects = buildSelects()
+  }
+  let selects: ReturnType<typeof selectQuery>[] = []
   let activeFailure = failureAfter
   let transactionWrites: WriteBoundary[] = []
   const committedWrites: WriteBoundary[] = []
@@ -129,10 +168,11 @@ function harness({
   }
 
   const insertLedger = vi.fn().mockImplementation((values) => {
-    if (request.requestHash === '') request.requestHash = values.request_hash
+    const created = request.requestHash === ''
+    if (created) request.requestHash = values.request_hash
     return {
       onConflictDoNothing: vi.fn().mockImplementation(async () => {
-        recordWrite('conversion-request-claim')
+        if (created) recordWrite('conversion-request-claim')
       }),
     }
   })
@@ -295,43 +335,88 @@ describe('Opportunity project conversion authority', () => {
     expect(transaction).not.toHaveBeenCalled()
   })
 
-  it('denies a role without opportunity.convert before claiming idempotency', async () => {
-    const { candidate, transactionClient, audit } = harness({
-      membership: [
-        {
-          tenantId: PRINCIPAL.tenantId,
-          role: 'viewer',
-          email: 'viewer@example.test',
-        },
-      ],
-    })
+  it.each(DENIED_CONVERSION_ROLES)(
+    'denies %s before claiming idempotency or writing an effect',
+    async (role) => {
+      const probe = harness({
+        membership: [
+          {
+            tenantId: PRINCIPAL.tenantId,
+            role,
+            email: `${role}@example.test`,
+          },
+        ],
+      })
+      await expect(
+        probe.candidate.convert(
+          OPPORTUNITY_ID,
+          {},
+          PRINCIPAL,
+          `conversion-${role}-denied`
+        )
+      ).rejects.toBeInstanceOf(ForbiddenException)
+      expect(probe.transactionClient.select).toHaveBeenCalledOnce()
+      expect(probe.transactionClient.insert).not.toHaveBeenCalled()
+      expect(probe.transactionClient.update).not.toHaveBeenCalled()
+      expect(probe.audit.stampActor).not.toHaveBeenCalled()
+      expect(probe.audit.writeSemantic).not.toHaveBeenCalled()
+      expect(probe.committedWrites).toEqual([])
+    }
+  )
+
+  it('rejects a linked Account outside the tenant before claiming or copying it', async () => {
+    const probe = harness({ account: [] })
     await expect(
-      candidate.convert(OPPORTUNITY_ID, {}, PRINCIPAL, 'conversion-role-denied')
-    ).rejects.toBeInstanceOf(ForbiddenException)
-    expect(transactionClient.insert).not.toHaveBeenCalled()
-    expect(audit.stampActor).not.toHaveBeenCalled()
+      probe.candidate.convert(
+        OPPORTUNITY_ID,
+        {},
+        PRINCIPAL,
+        'conversion-invalid-linked-account'
+      )
+    ).rejects.toThrow('Opportunity Account is not available in this tenant')
+    expect(probe.transactionClient.select).toHaveBeenCalledTimes(3)
+    expect(probe.transactionClient.insert).not.toHaveBeenCalled()
+    expect(probe.transactionClient.update).not.toHaveBeenCalled()
+    expect(probe.audit.writeSemantic).not.toHaveBeenCalled()
+    expect(probe.committedWrites).toEqual([])
   })
 
-  it('creates the project, checklist, backlink, notifications boundary, and audits atomically', async () => {
-    const { candidate, transactionClient, audit } = harness()
-    await expect(
-      candidate.convert(OPPORTUNITY_ID, {}, PRINCIPAL, 'conversion-exact')
-    ).resolves.toEqual({
-      ok: true,
-      opportunityId: OPPORTUNITY_ID,
-      projectId: PROJECT_ID,
-      checklistId: CHECKLIST_ID,
-      tenantId: PRINCIPAL.tenantId,
-      createdProject: true,
-    })
-    expect(transactionClient.insert).toHaveBeenCalledTimes(4)
-    expect(transactionClient.update).toHaveBeenCalledTimes(2)
-    expect(audit.writeSemantic).toHaveBeenCalledTimes(3)
-    expect(audit.writeSemantic.mock.calls[0]?.[1]).toMatchObject({
-      entityType: 'opportunity',
-      action: 'status_change',
-    })
-  })
+  it.each<ErpRole>(['owner', 'admin', 'sales'])(
+    'creates the atomic Project handoff for authorized %s membership',
+    async (role) => {
+      const { candidate, transactionClient, audit } = harness({
+        membership: [
+          {
+            tenantId: PRINCIPAL.tenantId,
+            role,
+            email: `${role}@example.test`,
+          },
+        ],
+      })
+      await expect(
+        candidate.convert(
+          OPPORTUNITY_ID,
+          {},
+          PRINCIPAL,
+          `conversion-exact-${role}`
+        )
+      ).resolves.toEqual({
+        ok: true,
+        opportunityId: OPPORTUNITY_ID,
+        projectId: PROJECT_ID,
+        checklistId: CHECKLIST_ID,
+        tenantId: PRINCIPAL.tenantId,
+        createdProject: true,
+      })
+      expect(transactionClient.insert).toHaveBeenCalledTimes(4)
+      expect(transactionClient.update).toHaveBeenCalledTimes(2)
+      expect(audit.writeSemantic).toHaveBeenCalledTimes(3)
+      expect(audit.writeSemantic.mock.calls[0]?.[1]).toMatchObject({
+        entityType: 'opportunity',
+        action: 'status_change',
+      })
+    }
+  )
 
   it('replays a succeeded request without repeating side effects', async () => {
     const replay = {
@@ -355,6 +440,121 @@ describe('Opportunity project conversion authority', () => {
     ).resolves.toEqual(replay)
     expect(transactionClient.insert).toHaveBeenCalledOnce()
     expect(audit.writeSemantic).not.toHaveBeenCalled()
+  })
+
+  it('revalidates an authorized cross-actor replay and commits every effect once', async () => {
+    const salesMembership = [
+      {
+        tenantId: PRINCIPAL.tenantId,
+        role: 'sales',
+        email: PRINCIPAL.email,
+      },
+    ]
+    const adminMembership = [
+      {
+        tenantId: ADMIN_PRINCIPAL.tenantId,
+        role: 'admin',
+        email: ADMIN_PRINCIPAL.email,
+      },
+    ]
+    const probe = harness({
+      membershipSequence: [salesMembership, adminMembership],
+      recipients: [
+        {
+          id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          email: 'recipient@example.test',
+        },
+      ],
+    })
+
+    const first = await probe.candidate.convert(
+      OPPORTUNITY_ID,
+      {},
+      PRINCIPAL,
+      'conversion-cross-actor'
+    )
+    const replay = await probe.candidate.convert(
+      OPPORTUNITY_ID,
+      {},
+      ADMIN_PRINCIPAL,
+      'conversion-cross-actor'
+    )
+
+    expect(replay).toEqual(first)
+    expect(probe.transaction).toHaveBeenCalledTimes(2)
+    expect(probe.audit.stampActor.mock.calls.map((call) => call[1])).toEqual([
+      expect.objectContaining({ userId: PRINCIPAL.userId, role: 'sales' }),
+      expect.objectContaining({ userId: ADMIN_PRINCIPAL.userId, role: 'admin' }),
+    ])
+    for (const onceOnly of [
+      'conversion-request-claim',
+      'project-create',
+      'opportunity-backlink',
+      'checklist-create',
+      'checklist-items-create',
+      'notifications-create',
+      'opportunity-audit',
+      'project-audit',
+      'checklist-audit',
+      'conversion-request-complete',
+    ] satisfies WriteBoundary[]) {
+      expect(
+        probe.committedWrites.filter((boundary) => boundary === onceOnly)
+      ).toHaveLength(1)
+    }
+  })
+
+  it('does not disclose a replay to a denied or revoked current membership', async () => {
+    const probe = harness({
+      membershipSequence: [
+        [
+          {
+            tenantId: PRINCIPAL.tenantId,
+            role: 'sales',
+            email: PRINCIPAL.email,
+          },
+        ],
+        [
+          {
+            tenantId: VIEWER_PRINCIPAL.tenantId,
+            role: 'viewer',
+            email: VIEWER_PRINCIPAL.email,
+          },
+        ],
+        [],
+      ],
+    })
+
+    await probe.candidate.convert(
+      OPPORTUNITY_ID,
+      {},
+      PRINCIPAL,
+      'conversion-replay-denied'
+    )
+    await expect(
+      probe.candidate.convert(
+        OPPORTUNITY_ID,
+        {},
+        VIEWER_PRINCIPAL,
+        'conversion-replay-denied'
+      )
+    ).rejects.toBeInstanceOf(ForbiddenException)
+    await expect(
+      probe.candidate.convert(
+        OPPORTUNITY_ID,
+        {},
+        VIEWER_PRINCIPAL,
+        'conversion-replay-denied'
+      )
+    ).rejects.toBeInstanceOf(ForbiddenException)
+
+    expect(probe.audit.stampActor).toHaveBeenCalledOnce()
+    expect(probe.rolledBackAttempts).toEqual([[], []])
+    expect(
+      probe.committedWrites.filter(
+        (boundary) => boundary === 'conversion-request-complete'
+      )
+    ).toHaveLength(1)
   })
 
   it('serializes concurrent retries and creates each handoff effect once', async () => {

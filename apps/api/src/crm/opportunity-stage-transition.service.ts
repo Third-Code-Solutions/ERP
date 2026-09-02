@@ -62,6 +62,8 @@ const OPP_STAGE_SLA = {
   breach_at_seconds: 5 * 86_400,
   warning_at_pct: 0.8,
 } as const
+const INVALID_LINKED_ACCOUNT_MESSAGE =
+  'Opportunity Account is not available in this tenant'
 
 type StageRequestRecord = {
   id: string
@@ -212,6 +214,28 @@ export class OpportunityStageTransitionService {
       .for('update')
     if (!opportunity) throw new NotFoundException('Opportunity not found')
 
+    let linkedAccount: { kycStatus: string } | null = null
+    if (opportunity.accountId) {
+      const [account] = await transaction
+        .select({
+          id: accounts.id,
+          kycStatus: accounts.kyc_status,
+        })
+        .from(accounts)
+        .where(
+          and(
+            eq(accounts.id, opportunity.accountId),
+            eq(accounts.tenant_id, authorizedPrincipal.tenantId)
+          )
+        )
+        .limit(1)
+        .for('share')
+      if (!account) {
+        throw new ConflictException(INVALID_LINKED_ACCOUNT_MESSAGE)
+      }
+      linkedAccount = account
+    }
+
     const request = await this.claimRequest(
       transaction,
       authorizedPrincipal,
@@ -269,20 +293,9 @@ export class OpportunityStageTransitionService {
           )
         }
       } else {
-        const [account] = await transaction
-          .select({ kycStatus: accounts.kyc_status })
-          .from(accounts)
-          .where(
-            and(
-              eq(accounts.id, opportunity.accountId),
-              eq(accounts.tenant_id, authorizedPrincipal.tenantId)
-            )
-          )
-          .limit(1)
-          .for('share')
         const kycOk =
-          account?.kycStatus === 'approved' ||
-          account?.kycStatus === 'not_required'
+          linkedAccount?.kycStatus === 'approved' ||
+          linkedAccount?.kycStatus === 'not_required'
         if (!kycOk) {
           throw new ConflictException(
             'Account KYC must be Approved before this stage'

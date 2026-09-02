@@ -28,6 +28,18 @@ const OPPORTUNITY_ID = '44444444-4444-4444-8444-444444444444'
 const PROJECT_ID = '55555555-5555-4555-8555-555555555555'
 const CHECKLIST_ID = '66666666-6666-4666-8666-666666666666'
 const REQUEST_ID = '77777777-7777-4777-8777-777777777777'
+const DENIED_STAGE_ROLES = [
+  'estimator',
+  'pm',
+  'commercial',
+  'design',
+  'sd_pm_pe',
+  'finance',
+  'procurement',
+  'safety',
+  'cx',
+  'viewer',
+] as const satisfies readonly ErpRole[]
 
 function stageHash(): string {
   return createHash('sha256')
@@ -77,6 +89,7 @@ function harness({
   conversionError,
   stageEnabled = true,
   conversionEnabled = true,
+  accountExists = true,
 }: {
   role?: ErpRole
   tracks?: KycTrack[]
@@ -85,6 +98,7 @@ function harness({
   conversionError?: Error
   stageEnabled?: boolean
   conversionEnabled?: boolean
+  accountExists?: boolean
 } = {}) {
   const replay = {
     ok: true as const,
@@ -123,9 +137,13 @@ function harness({
         lostReason: null,
       },
     ]),
+    selectQuery(
+      accountExists
+        ? [{ id: ACCOUNT_ID, kycStatus: accountStatus }]
+        : []
+    ),
     selectQuery([request]),
     selectQuery(tracks),
-    selectQuery([{ kycStatus: accountStatus }]),
   ]
   const writes: string[] = []
   const insertLedger = vi.fn().mockImplementation((values) => {
@@ -265,20 +283,45 @@ describe('Opportunity stage transition atomic authority', () => {
     expect(conversionDisabled.transaction).not.toHaveBeenCalled()
   })
 
-  it('denies an unauthorized membership before claiming or changing state', async () => {
-    const probe = harness({ role: 'viewer' })
+  it.each(DENIED_STAGE_ROLES)(
+    'denies %s membership before claiming or changing state',
+    async (role) => {
+      const probe = harness({ role })
+      await expect(
+        probe.candidate.transition(
+          OPPORTUNITY_ID,
+          { newStage: 'won' },
+          PRINCIPAL,
+          `${role}-denied`
+        )
+      ).rejects.toBeInstanceOf(ForbiddenException)
+      expect(probe.transactionClient.select).toHaveBeenCalledOnce()
+      expect(probe.transactionClient.insert).not.toHaveBeenCalled()
+      expect(probe.transactionClient.update).not.toHaveBeenCalled()
+      expect(probe.audit.stampActor).not.toHaveBeenCalled()
+      expect(probe.audit.writeSemantic).not.toHaveBeenCalled()
+      expect(probe.conversion.convertWithinTransaction).not.toHaveBeenCalled()
+      expect(probe.writes).toEqual([])
+    }
+  )
+
+  it('rejects a linked Account outside the tenant before claiming or KYC work', async () => {
+    const probe = harness({ accountExists: false })
     await expect(
       probe.candidate.transition(
         OPPORTUNITY_ID,
         { newStage: 'won' },
         PRINCIPAL,
-        'viewer-denied'
+        'invalid-linked-account'
       )
-    ).rejects.toBeInstanceOf(ForbiddenException)
-    expect(probe.transactionClient.select).toHaveBeenCalledOnce()
+    ).rejects.toThrow('Opportunity Account is not available in this tenant')
+    expect(probe.transactionClient.select).toHaveBeenCalledTimes(3)
     expect(probe.transactionClient.insert).not.toHaveBeenCalled()
     expect(probe.transactionClient.update).not.toHaveBeenCalled()
-    expect(probe.audit.stampActor).not.toHaveBeenCalled()
+    expect(probe.audit.writeSemantic).not.toHaveBeenCalled()
+    expect(probe.conversion.convertWithinTransaction).not.toHaveBeenCalled()
+    expect(probe.state.rolledBack).toBe(true)
+    expect(probe.writes).toEqual([])
   })
 
   it.each([
@@ -308,7 +351,7 @@ describe('Opportunity stage transition atomic authority', () => {
     ).rejects.toBeInstanceOf(ConflictException)
     expect(probe.transactionClient.update).not.toHaveBeenCalled()
     expect(probe.conversion.convertWithinTransaction).not.toHaveBeenCalled()
-    expect(probe.transactionClient.select).toHaveBeenCalledTimes(4)
+    expect(probe.transactionClient.select).toHaveBeenCalledTimes(5)
     expect(probe.state.rolledBack).toBe(true)
     expect(probe.writes).toEqual([])
   })
@@ -398,7 +441,7 @@ describe('Opportunity stage transition atomic authority', () => {
         'won-replay'
       )
     ).resolves.toEqual(probe.replay)
-    expect(probe.transactionClient.select).toHaveBeenCalledTimes(3)
+    expect(probe.transactionClient.select).toHaveBeenCalledTimes(4)
     expect(probe.transactionClient.update).not.toHaveBeenCalled()
     expect(probe.conversion.convertWithinTransaction).not.toHaveBeenCalled()
   })
