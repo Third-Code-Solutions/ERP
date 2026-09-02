@@ -43,5 +43,5 @@ than an accounting, migration, tenant-isolation, or allocation defect.
 | Schema diff after CI ordering | PASSED | Clean diff |
 | Independent QA | PASSED | `GO`; zero P1/P2 findings |
 | Integration-spec direct ESLint | NOT CONFIGURED | Repository ESLint has no matching integration-file configuration; TypeScript and Vitest cover the files |
-| Hosted protected workflow | PARTIAL | Run 33656418115: Actionlint, type check, lint, BUILD OPS invariants, unit tests, database reproducibility, build, and trusted E2E passed; Security Scan failed on newly published transitive advisories remediated in the separate security changeset on this branch |
+| Hosted protected workflow | PASSED | Run 33659709980: Actionlint, type check, lint, Security Scan, BUILD OPS invariants, unit tests, PostgreSQL 17 database reproducibility, build, and trusted E2E all passed |
 | Production deployment | NOT RUN | No runtime behavior changed; ADR-020 still applies |

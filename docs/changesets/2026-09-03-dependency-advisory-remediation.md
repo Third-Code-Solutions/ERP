@@ -42,5 +42,5 @@ manifest changed.
 | Secret scan | PASSED | gitleaks 8.30.1; no leaks |
 | Independent QA | PASSED | `GO`; zero P1/P2 findings |
 | Browser verification | NOT RUN | Lockfile-only behavior; focused runtime tests found no observable UI change |
-| Hosted protected workflow | NOT RUN | Required after push |
+| Hosted protected workflow | PASSED | Run 33659709980: Security Scan and every required dependent gate passed |
 | Production deployment | NOT RUN | Not authorized; ADR-020 still applies |

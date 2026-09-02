@@ -84,5 +84,9 @@ gate, production build, and trusted E2E. The unrelated Security Scan failed on
 newly published transitive dependency advisories and is handled by the
 sequential dependency-remediation handoff on this branch.
 
-Production was not changed. The branch must pass the hosted protected workflow
-at its final commit before the combined release blockers are fully cleared.
+Hosted run `33659709980` then passed every required gate after the dependency
+remediation, including Security Scan and PostgreSQL 17 reproducibility. The
+combined database and security release blockers are cleared on that reviewed
+implementation commit.
+
+Production was not changed. Merge and deployment remain governed by ADR-020.

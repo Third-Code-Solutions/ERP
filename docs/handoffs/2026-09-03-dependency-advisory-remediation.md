@@ -114,5 +114,7 @@ production deployment is authorized.
   dependency resolution only and the focused runtime tests found no observable
   behavior change.
 
-Hosted protected CI remains required on the pushed commit. Production was not
-changed or deployed.
+Hosted run `33659709980` passed Security Scan, Actionlint, type checking, lint,
+BUILD OPS invariants, unit tests, PostgreSQL 17 database reproducibility,
+production build, and trusted E2E on the dependency-remediation commit.
+Production was not changed or deployed.
