@@ -311,3 +311,54 @@ clearly disposable or explicitly demo-safe candidate exists, record any
 persisted demo effect exactly, and otherwise mark the positive browser mutation
 `BLOCKED` while still verifying fail-closed and navigation behavior. Never
 delete append-only audit data or weaken a gate for the test.
+
+## Browser verification round 1
+
+Verdict: `NO-GO / PARTIAL`; Agent 11 is no longer a no-op.
+
+Passed evidence at combined HEAD `f6d68fbc`:
+
+- Core and Web production builds started on isolated ports with tenant-only
+  ephemeral rollout gates;
+- all eleven supplied identities passed login, identity, dashboard, Pipeline
+  navigation, board render, refresh, history navigation, and sign-out;
+- Owner, Admin, and Sales reached expected 409 business validation on unique-key
+  direct stage/conversion calls against the Negotiation fixture;
+- Commercial, Design, Service Delivery, Finance, Procurement, Safety, CX, and
+  Viewer received 403 from both direct Core mutation endpoints;
+- the board showed mutation controls only to Owner/Admin/Sales and a read-only
+  marker to the other eight roles;
+- final database counts and the Negotiation opportunity remained unchanged;
+  no ledger, stage, Project, checklist, notification, audit, SLA, or backlink
+  effect was created by this round.
+
+Failed evidence:
+
+- `/pipeline/conversion` rendered six visible/enabled stage-mutation controls
+  to each of the eight supplied denied roles, despite the safe server/API
+  boundary. Commercial, Procurement, Safety, CX, and Viewer were explicitly
+  confirmed enabled; Design, Service Delivery, and Finance had the same visible
+  control count.
+
+Positive Won mutation remains `BLOCKED`: the demo tenant has no Contract-stage
+opportunity. Its Negotiation candidate is tied to an active Project but has no
+Account/KYC tracks, signed contract, legacy contract document, or checklist.
+Advancing it would alter a business-significant fixture and Core conversion
+would reject the missing contract prerequisite.
+
+Diagnostics contained no page exception, navigation HTTP failure, or Core
+exception. Local HTTP produced known CSP HTTPS-upgrade/RSC fallback noise and
+aborted prefetches. Rejected Core requests were structured but labeled
+`unknown.command`; this observability issue is recorded for later remediation
+and does not weaken the authorization boundary.
+
+Estimator and PM browser coverage remains blocked because no identities were
+supplied.
+
+→ Handoff to Agent 11. Reason: the conversion table fails authorization-aware
+control visibility while its mutation authority is already safe. Inputs:
+round-1 browser matrix, `opportunity.advance_stage`, the conversion server page,
+and the existing board's read-only pattern. Expected output: hide or replace all
+stage mutation controls for denied roles, preserve read-only data access and
+Owner/Admin/Sales controls, add all-role render coverage, and commit the
+smallest pipeline UI change before QA round 3.
