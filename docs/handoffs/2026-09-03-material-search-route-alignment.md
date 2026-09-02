@@ -61,3 +61,46 @@ destination; it does not create a new material UI or broaden Admin access.
 
 This branch is stacked on PR #20. No production deployment or data/account
 mutation is authorized.
+
+## Closeout
+
+Status: source implementation complete; independent QA `GO`; live browser/API
+evidence `PARTIAL` because the configured tenant has zero Material records.
+
+Implementation:
+
+- Material uses exact persisted-role authorization for owner, admin, and
+  commercial; legacy estimator/PM aliases remain unchanged for all 17 other
+  search types;
+- the Web route never constructs a Material table query for estimator, PM,
+  Service Delivery, or Procurement;
+- Core removes Material from those four roles' universal-search graph scope
+  before database retrieval without changing the global Cortex policy;
+- Commercial retains the existing `/admin/material-items` result destination.
+
+Verification:
+
+- Shared Vitest: PASSED, 17/17;
+- Web route Vitest: PASSED, 19/19, including compiled tenant SQL and bound
+  tenant parameter for the positive Commercial Material query;
+- Core service Vitest: PASSED, 8/8;
+- independent downstream QA: PASSED, Web 73/73 and Core 12/12;
+- independent role/type oracle: PASSED, 234/234 outcomes with zero destination
+  dead ends;
+- Shared/API/Web/E2E TypeScript, affected source ESLint, API build, Web build
+  (89/89 pages), gitleaks over 1,750 commits, and whitespace checks: PASSED;
+- isolated live lane: Procurement and Service Delivery returned no Material
+  API/palette result or dead-end link; their allowed vendor result remained
+  usable; all observed search responses were private/no-store and no unexpected
+  browser/API error occurred;
+- Commercial live positive hit: BLOCKED by fixture state. Material Items opened
+  successfully but reported zero records, and no test data was created.
+
+No global Cortex scope, non-Material grant, route, navigation, page capability,
+schema, dependency, account, provider, or ERP record changed.
+
+→ Handoff to Agent 4 complete. Result: `GO`, no in-scope P1/P2 finding.
+
+→ Handoff to Agent 5 browser verifier complete. Result: negative matrix
+`PASSED`; Commercial positive hit `BLOCKED` by an empty live catalog. The
+isolated server and browser artifacts were removed and the test port was closed.
