@@ -7,7 +7,8 @@ Last updated: 2026-09-03 (Asia/Singapore)
 Goal: verify and repair existing ABI OPS functionality for the repository's
 thirteen-role authorization vocabulary, one end-to-end workflow at a time.
 Password management, legacy project-chat authorization, project-detail
-authorization, legacy route-policy alignment, and fail-closed dashboard routing are the five completed local
+authorization, legacy route-policy alignment, fail-closed dashboard routing,
+and Material search/destination alignment are the six completed local
 implementation slices; all remain `PARTIAL` under the strict live-data
 definition of done.
 
@@ -34,13 +35,13 @@ repository's release gates pass.
 | Session/recovery-protected page routes | 104 | VERIFIED by route inventory + middleware policy |
 | Explicit HTTP operations | 174 | VERIFIED by source inventory (133 Nest, 41 Next) |
 | Protected role/resource matrix records | 1,378 | VERIFIED as syntactically readable CSV records |
-| Tested role/resource combinations in this work order | 85 | 33 auth browser observations plus 13 automated AI-domain, 13 project-detail, 13 legacy route-policy, and 13 fail-closed route-registry cases |
+| Tested role/resource combinations in this work order | 98 | 33 auth browser observations plus 13 automated cases for each of AI-domain, project-detail, legacy route-policy, fail-closed route-registry, and Material-search policy |
 | Verified role/resource combinations | 0 | Strict full-route definition not yet met; tested rows remain PARTIAL or BLOCKED |
 | Failed role/resource combinations | 0 | No FAILED matrix rows remain after route-alias and project-audit reconciliation |
 | Blocked role/resource combinations | 10 | Prior blocked auth/chat coverage plus one project-detail record for each missing `estimator` and `pm` identity |
-| Prioritized functional workflows | 5 | Password management, project-chat boundaries, project-detail boundaries, legacy route-policy alignment, and fail-closed dashboard routing |
+| Prioritized functional workflows | 6 | Password management, project-chat boundaries, project-detail boundaries, legacy route-policy alignment, fail-closed dashboard routing, and Material-search alignment |
 | Verified workflows | 0 | Strict live-data definition not yet met |
-| Partial workflows | 5 | All implemented and locally tested with explicit live-evidence limits |
+| Partial workflows | 6 | All implemented and locally tested with explicit live-evidence limits |
 | Failed workflows | 0 | No known implementation failure after focused QA |
 | Completed modules | 0 | NOT TESTED |
 | Modules remaining | 13 user-facing modules | NOT TESTED |
@@ -176,12 +177,38 @@ Implemented behavior:
   without protected UI, and unknown/misspelled descendants returned a 404
   without dashboard navigation or forms.
 
+### Material search/destination alignment
+
+Implemented and independently reviewed. The slice remains `PARTIAL` because
+the configured browser tenant has an empty Material catalog and the unavailable
+Estimator/PM identities prevent a complete live positive/negative matrix.
+
+Implemented behavior:
+
+- Material search now admits only owner, admin, and commercial—the roles that
+  can open the fixed `/admin/material-items` result destination;
+- estimator, PM, Service Delivery, and Procurement retain every non-Material
+  legacy search alias but no longer query or receive Material results;
+- the Web compatibility route skips `material_items` before query construction
+  for denied roles, while Core removes `material` from their graph node-type
+  scope before database retrieval;
+- shared tests cover the exact thirteen-role Material policy; independent QA
+  checked all 13 roles across all 18 search types (234 outcomes) with no
+  remaining dead-end destination;
+- the positive Web regression proves Commercial receives the existing route
+  and verifies the compiled Material tenant predicate and bound tenant value;
+- live Procurement and Service Delivery searches returned no Material result
+  or dead-end link, while an allowed vendor result remained usable. Commercial
+  could open Material Items, but the page reported zero records, so a live
+  positive Material hit could not be produced without prohibited fixture data.
+
 Acceptance criteria and ordered agent handoffs are recorded in
 `docs/handoffs/2026-09-02-functional-completeness.md`,
 `docs/handoffs/2026-09-02-ai-chat-data-boundaries.md`,
 `docs/handoffs/2026-09-02-project-detail-authorization.md`, and
 `docs/handoffs/2026-09-03-legacy-route-policy-alignment.md`, and
-`docs/handoffs/2026-09-03-unknown-dashboard-route-denial.md`.
+`docs/handoffs/2026-09-03-unknown-dashboard-route-denial.md`, and
+`docs/handoffs/2026-09-03-material-search-route-alignment.md`.
 
 ## Agent state
 
@@ -189,23 +216,24 @@ Acceptance criteria and ordered agent handoffs are recorded in
 - Principal Agent 2: auth functional audit complete; no files changed.
 - Principal Agent 3: sole application-source editor; auth, AI chat, project
   detail, legacy route-policy, and fail-closed route-registry implementations
-  complete.
+  complete; Material-search Web/Core alignment complete.
 - Principal Agent 4: independent code/test/security review complete; `GO` for
-  all five implemented source slices.
+  all six implemented source slices.
 - Principal Agent 5: auth verification complete for all eleven supplied
   identities; AI chat safe browser/API smoke complete for viewer, finance, and
   commercial; project-detail browser matrix complete for all eleven supplied
   identities; legacy Admin/Inventory route matrix complete for all eleven
   supplied identities with no mutation or provider call; fail-closed route
   checks passed for Viewer, Commercial, Finance, and Sales in an isolated
-  production build.
+  production build; Material-search negative live checks passed for Procurement
+  and Service Delivery, while the Commercial positive hit is fixture-blocked.
 
 ## Git state
 
 - Primary repository: `D:/thirdcode/ERP`; current stacked worktree:
-  `D:/thirdcode/ERP-unknown-route-policy-20260903`.
-- Current stacked branch: `agent-03/deny-unknown-dashboard-routes`, based on
-  the stacked legacy route-policy branch from PR #19.
+  `D:/thirdcode/ERP-material-search-20260903`.
+- Current stacked branch: `agent-05/material-search-route-alignment`, based on
+  the fail-closed route-registry branch from PR #20.
 - Finance/security release-gate branch: PR #18 at commit `4369a01a`; all
   protected checks pass.
 - Auth PR branch: `agent-03/auth-password-workflows-20260902`; PR #15 at
@@ -251,14 +279,17 @@ Acceptance criteria and ordered agent handoffs are recorded in
 | Fail-closed route-registry independent QA | PASSED | `GO`; all 99 role sets match an independently derived page-gate matrix, with adversarial unknown/over-grant probes denied |
 | Fail-closed route-registry type/lint/build/security | PASSED | Complete Web/E2E TypeScript, Web source ESLint, 89/89-page production build, gitleaks over 1,747 commits, and whitespace checks |
 | Fail-closed route-registry browser lane | PASSED | Viewer, Commercial, Finance, and Sales: allowed pages rendered; registered denials redirected without protected UI; three unknown descendants returned expected 404 states without dashboard chrome or forms |
+| Material-search focused tests | PASSED | Shared 17/17, Web route 19/19, Core service 8/8; independent downstream totals Web 73/73 and Core 12/12 |
+| Material-search independent QA | PASSED | `GO`; 234/234 role/type outcomes match and no universal-search dead-end destination remains |
+| Material-search type/lint/build/security | PASSED | Shared/API/Web/E2E TypeScript, affected source ESLint, API build, Web 89/89-page build, gitleaks over 1,750 commits, and whitespace checks |
+| Material-search live negative matrix | PASSED | Procurement and Service Delivery: no Material API/palette result or Admin dead-end; allowed vendor result remained usable; no unexpected browser/API error |
+| Material-search live Commercial positive hit | BLOCKED | Commercial can open `/admin/material-items`, but the configured tenant contains zero Material records; no fixture mutation was permitted |
 | Deployment/live smoke | NOT RUN | ADR-020 requires the reviewed stack on `main` and green checks on that exact SHA |
 
 ## Confirmed high-priority RBAC findings outside the completed slices
 
-1. Estimator universal search can emit material links into the correctly denied
-   `/admin/material-items` route.
-2. Opportunity CSV export authorization is broader than Reports navigation.
-3. Viewer read breadth still conflicts with the narrower checked-in policy and
+1. Opportunity CSV export authorization is broader than its visible UI policy.
+2. Viewer read breadth still conflicts with the narrower checked-in policy and
    requires a product decision for sensitive modules.
 
 These are queued sequentially after the completed local slices and must be
@@ -266,7 +297,7 @@ reproduced before repair.
 
 ## Exact next action
 
-Address the estimator material-search dead end, then opportunity CSV export
-authorization. Production deployment remains blocked by ADR-020 until the
-reviewed stack reaches `main` and every required release check is green on that
-exact SHA.
+Reconcile opportunity CSV export authorization with the existing visible UI
+and product policy, then resolve Viewer read semantics for sensitive modules.
+Production deployment remains blocked by ADR-020 until the reviewed stack
+reaches `main` and every required release check is green on that exact SHA.

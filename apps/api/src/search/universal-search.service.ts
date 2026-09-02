@@ -164,6 +164,22 @@ function toHit(node: CortexNode, principal: ErpPrincipal): UniversalSearchHit | 
   return parsed.success ? parsed.data : null
 }
 
+function universalSearchNodeTypeScope(
+  principal: ErpPrincipal
+): string[] | null {
+  const scope = cortexSearchNodeTypeScope(principal.role)
+  if (
+    scope === null ||
+    canUniversalSearchEntity(principal.role, 'material')
+  ) {
+    return scope
+  }
+
+  // Material is the only universal-search grant intentionally narrower than
+  // the legacy Cortex aliases. Remove just that source before graph retrieval.
+  return scope.filter((nodeType) => nodeType !== 'material')
+}
+
 @Injectable()
 export class UniversalSearchService {
   constructor(
@@ -192,7 +208,7 @@ export class UniversalSearchService {
       principal.tenantId,
       terms,
       Math.min(query.limit * 4, 80),
-      cortexSearchNodeTypeScope(principal.role)
+      universalSearchNodeTypeScope(principal)
     )
     const hits = nodes
       .map((node) => toHit(node, principal))

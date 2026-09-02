@@ -31,9 +31,9 @@ const PRINCIPAL: ErpPrincipal = {
   email: 'finance@example.test',
 }
 
-const PROCUREMENT_PRINCIPAL: ErpPrincipal = {
+const COMMERCIAL_PRINCIPAL: ErpPrincipal = {
   ...PRINCIPAL,
-  role: 'procurement',
+  role: 'commercial',
 }
 
 function config(
@@ -139,18 +139,56 @@ describe('UniversalSearchService', () => {
     expect(mocks.searchCortexNodesByTerms).not.toHaveBeenCalled()
   })
 
-  it('returns tenant-scoped vendor and material records for procurement users', async () => {
+  it.each(['estimator', 'pm', 'sd_pm_pe', 'procurement'] as const)(
+    'omits material retrieval and results for %s users',
+    async (role) => {
+      mocks.searchCortexNodesByTerms.mockResolvedValue([
+        {
+          id: NODE_ID,
+          node_type: 'vendor',
+          ref_table: 'vendors',
+          ref_id: VENDOR_ID,
+          title: 'Harbor Supply',
+          summary: 'Steel and concrete supplier',
+          attributes: {},
+          freshness: 'fresh',
+        },
+        {
+          id: NODE_ID,
+          node_type: 'material',
+          ref_table: 'material_items',
+          ref_id: MATERIAL_ID,
+          title: 'CONC-40',
+          summary: '40 MPa concrete',
+          attributes: {},
+          freshness: 'fresh',
+        },
+      ])
+      const service = new UniversalSearchService(config())
+
+      await expect(
+        service.search(
+          { q: 'steel concrete', limit: 10 },
+          { ...PRINCIPAL, role }
+        )
+      ).resolves.toMatchObject({
+        hits: [
+          {
+            type: 'vendor',
+            id: VENDOR_ID,
+            title: 'Harbor Supply',
+            subtitle: 'Steel and concrete supplier',
+            href: '/purchase-orders',
+          },
+        ],
+      })
+      const nodeTypeScope = mocks.searchCortexNodesByTerms.mock.calls[0]?.[3]
+      expect(nodeTypeScope).not.toContain('material')
+    }
+  )
+
+  it('returns a tenant-scoped material result for commercial users', async () => {
     mocks.searchCortexNodesByTerms.mockResolvedValue([
-      {
-        id: NODE_ID,
-        node_type: 'vendor',
-        ref_table: 'vendors',
-        ref_id: VENDOR_ID,
-        title: 'Harbor Supply',
-        summary: 'Steel and concrete supplier',
-        attributes: {},
-        freshness: 'fresh',
-      },
       {
         id: NODE_ID,
         node_type: 'material',
@@ -165,16 +203,9 @@ describe('UniversalSearchService', () => {
     const service = new UniversalSearchService(config())
 
     await expect(
-      service.search({ q: 'steel concrete', limit: 10 }, PROCUREMENT_PRINCIPAL)
+      service.search({ q: 'concrete', limit: 10 }, COMMERCIAL_PRINCIPAL)
     ).resolves.toMatchObject({
       hits: [
-        {
-          type: 'vendor',
-          id: VENDOR_ID,
-          title: 'Harbor Supply',
-          subtitle: 'Steel and concrete supplier',
-          href: '/purchase-orders',
-        },
         {
           type: 'material',
           id: MATERIAL_ID,
@@ -184,5 +215,7 @@ describe('UniversalSearchService', () => {
         },
       ],
     })
+    const nodeTypeScope = mocks.searchCortexNodesByTerms.mock.calls[0]?.[3]
+    expect(nodeTypeScope).toContain('material')
   })
 })

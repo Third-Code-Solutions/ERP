@@ -61,9 +61,24 @@ Admin/Inventory production-build browser matrix.
 Status: PARTIAL. The access mismatch is repaired, but estimator/PM browser
 checks remain blocked because no identities were supplied.
 
-The separate universal-search policy still permits estimator material results
-whose destination is `/admin/material-items`. The route and page correctly deny
-that access; the resulting dead-end search link is queued independently.
+The separate universal-search policy is now aligned to the Material result
+destination. Owner, Admin, and Commercial retain Material search; Estimator,
+PM, Service Delivery, and Procurement keep all non-Material legacy aliases but
+no longer query or receive Material results.
+
+### Material universal search
+
+The shared Web/Core contract now evaluates Material against the exact persisted
+role instead of the legacy role aliases. Web skips the Material table before
+query construction for denied roles; Core removes Material from the graph scope
+before database retrieval. Independent QA verified 234/234 role/type outcomes
+with no remaining search destination dead end.
+
+Status: PARTIAL. Automated Commercial-positive and tenant-isolation checks pass,
+and live Procurement/Service Delivery negative checks pass. The configured
+tenant's Material catalog is empty, so a live Commercial Material hit could not
+be verified without mutating fixture data; Estimator and PM identities remain
+unavailable.
 
 ### Route catch-all
 
