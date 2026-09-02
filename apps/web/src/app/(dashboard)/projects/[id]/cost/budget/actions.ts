@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { and, asc, eq, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import {
   requireCapability,
@@ -11,15 +11,27 @@ import {
 import { db } from '@third-code-erp/database'
 import {
   costCodes,
+  bomLineItems,
+  boms,
   projectBudgetLines,
   projectBudgets,
   projects,
 } from '@third-code-erp/database/schema'
+import { canUniversalSearchEntity } from '@third-code-erp/shared-types'
 import { writeAuditLog } from '@/lib/audit'
 import { parsePesosToCents } from '@/lib/operations/scope-money'
 
 type ActionResult =
   | { ok: true; id?: string; error?: never }
+  | { ok?: false; error: string }
+
+type SaveBudgetResult =
+  | {
+      ok: true
+      id: string
+      lines: Array<{ id: string; costCodeId: string; clientKey?: string }>
+      error?: never
+    }
   | { ok?: false; error: string }
 
 const categorySchema = z.enum([
@@ -40,7 +52,7 @@ const createCodeSchema = z.object({
 
 const createBudgetSchema = z.object({
   projectId: z.string().uuid(),
-  sourceBomId: z.string().uuid().optional(),
+  sourceBomId: z.string().uuid().nullable().optional(),
   controlMode: z.enum(['monitor', 'warn', 'block']),
   toleranceBps: z.coerce.number().int().min(0).max(10_000),
   currency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/),
@@ -49,6 +61,8 @@ const createBudgetSchema = z.object({
 })
 
 const lineSchema = z.object({
+  clientKey: z.string().uuid().optional(),
+  id: z.string().uuid().optional(),
   costCodeId: z.string().uuid(),
   bomLineItemId: z.string().uuid().nullable().optional(),
   description: z.string().trim().min(1).max(500),
@@ -87,6 +101,8 @@ const KNOWN_ERRORS = [
   'Remove linked budget lines before changing source BOM',
   'Project Budget line requires an active Cost Code',
   'Budget BOM line must belong to its source BOM',
+  'Project Budget line does not belong to this draft',
+  'Project Budget changed during save. Please retry.',
 ] as const
 
 function safeMessage(error: unknown): string {
@@ -117,6 +133,27 @@ async function requireTenantProject(tenantId: string, projectId: string) {
     )
     .limit(1)
   if (!project) throw new Error('Project Budget not found')
+}
+
+async function requireTenantProjectBom(
+  tenantId: string,
+  projectId: string,
+  bomId: string
+) {
+  const [bom] = await db
+    .select({ id: boms.id })
+    .from(boms)
+    .where(
+      and(
+        eq(boms.id, bomId),
+        eq(boms.project_id, projectId),
+        eq(boms.tenant_id, tenantId)
+      )
+    )
+    .limit(1)
+  if (!bom) {
+    throw new Error('Project Budget source BOM must belong to its project')
+  }
 }
 
 function refreshProjectBudget(projectId: string) {
@@ -195,7 +232,20 @@ export async function createProjectBudget(
         error: parsed.error.issues[0]?.message ?? 'Invalid Project Budget.',
       }
     }
+    if (
+      parsed.data.sourceBomId &&
+      !canUniversalSearchEntity(profile.role, 'bom')
+    ) {
+      throw new Error('Forbidden: BOM associations require BOM read access')
+    }
     await requireTenantProject(profile.tenantId, parsed.data.projectId)
+    if (parsed.data.sourceBomId) {
+      await requireTenantProjectBom(
+        profile.tenantId,
+        parsed.data.projectId,
+        parsed.data.sourceBomId
+      )
+    }
 
     const createdId = await db.transaction(async (tx) => {
       await tx.execute(sql`
@@ -261,7 +311,7 @@ export async function createProjectBudget(
 
 export async function saveProjectBudget(
   formData: FormData
-): Promise<ActionResult> {
+): Promise<SaveBudgetResult> {
   try {
     const profile = await requireUserProfile()
     requireCapability(profile, 'budget.manage')
@@ -271,10 +321,16 @@ export async function saveProjectBudget(
     } catch {
       return { error: 'Budget lines are invalid.' }
     }
+    const rawSourceBomId = formData.get('source_bom_id')
     const parsed = saveBudgetSchema.safeParse({
       projectId: formData.get('project_id'),
       budgetId: formData.get('budget_id'),
-      sourceBomId: formData.get('source_bom_id') || undefined,
+      sourceBomId:
+        rawSourceBomId === null
+          ? undefined
+          : rawSourceBomId === ''
+            ? null
+            : rawSourceBomId,
       controlMode: formData.get('control_mode'),
       toleranceBps: formData.get('tolerance_bps') ?? 0,
       currency: formData.get('currency') ?? 'PHP',
@@ -288,23 +344,37 @@ export async function saveProjectBudget(
       }
     }
 
-    await db.transaction(async (tx) => {
+    const canReadBom = canUniversalSearchEntity(profile.role, 'bom')
+    if (
+      !canReadBom &&
+      (parsed.data.sourceBomId !== undefined ||
+        parsed.data.lines.some((line) => line.bomLineItemId !== undefined))
+    ) {
+      throw new Error('Forbidden: BOM associations require BOM read access')
+    }
+
+    const savedLines = await db.transaction(async (tx) => {
+      // This row is the serialization point for every save of this draft. It
+      // must be locked before the line snapshot so concurrent requests cannot
+      // both reconcile against stale identities or line numbers.
       const [budget] = await tx
         .select({
           id: projectBudgets.id,
           status: projectBudgets.status,
           projectId: projectBudgets.project_id,
+          sourceBomId: projectBudgets.source_bom_id,
         })
         .from(projectBudgets)
         .where(
           and(
             eq(projectBudgets.id, parsed.data.budgetId),
             eq(projectBudgets.tenant_id, profile.tenantId),
-            eq(projectBudgets.project_id, parsed.data.projectId)
+            eq(projectBudgets.project_id, parsed.data.projectId),
+            eq(projectBudgets.status, 'draft')
           )
         )
-        .limit(1)
-      if (!budget || budget.status !== 'draft') {
+        .for('update')
+      if (!budget) {
         throw new Error('Only a draft Project Budget can be submitted')
       }
 
@@ -315,18 +385,189 @@ export async function saveProjectBudget(
         throw new Error('Each Cost Code can appear only once per revision.')
       }
 
-      await tx
-        .delete(projectBudgetLines)
+      const submittedLineIds = parsed.data.lines.flatMap((line) =>
+        line.id ? [line.id] : []
+      )
+      if (new Set(submittedLineIds).size !== submittedLineIds.length) {
+        throw new Error('Project Budget line does not belong to this draft')
+      }
+
+      const existingLines = await tx
+        .select({
+          id: projectBudgetLines.id,
+          costCodeId: projectBudgetLines.cost_code_id,
+          bomLineItemId: projectBudgetLines.bom_line_item_id,
+          lineNumber: projectBudgetLines.line_number,
+          createdAt: projectBudgetLines.created_at,
+        })
+        .from(projectBudgetLines)
         .where(
           and(
             eq(projectBudgetLines.project_budget_id, parsed.data.budgetId),
             eq(projectBudgetLines.tenant_id, profile.tenantId)
           )
         )
-      await tx
+      const existingById = new Map(
+        existingLines.map((line) => [line.id, line])
+      )
+
+      for (const lineId of submittedLineIds) {
+        if (!existingById.has(lineId)) {
+          throw new Error('Project Budget line does not belong to this draft')
+        }
+      }
+
+      const sourceBomId =
+        parsed.data.sourceBomId === undefined
+          ? budget.sourceBomId
+          : parsed.data.sourceBomId
+      const resolvedLines = parsed.data.lines.map((line) => {
+        const existing = line.id ? existingById.get(line.id) : undefined
+        return {
+          ...line,
+          bomLineItemId:
+            line.bomLineItemId === undefined
+              ? existing?.bomLineItemId ?? null
+              : line.bomLineItemId,
+        }
+      })
+      const submittedLineIdSet = new Set(submittedLineIds)
+      const omittedLineIds = existingLines
+        .filter((line) => !submittedLineIdSet.has(line.id))
+        .map((line) => line.id)
+
+      if (canReadBom && sourceBomId) {
+        const [sourceBom] = await tx
+          .select({ id: boms.id })
+          .from(boms)
+          .where(
+            and(
+              eq(boms.id, sourceBomId),
+              eq(boms.project_id, parsed.data.projectId),
+              eq(boms.tenant_id, profile.tenantId)
+            )
+          )
+          .limit(1)
+        if (!sourceBom) {
+          throw new Error('Project Budget source BOM must belong to its project')
+        }
+      }
+
+      if (canReadBom) {
+        const requestedBomLineIds = [
+          ...new Set(
+            resolvedLines.flatMap((line) =>
+              line.bomLineItemId ? [line.bomLineItemId] : []
+            )
+          ),
+        ]
+        if (requestedBomLineIds.length > 0 && !sourceBomId) {
+          throw new Error('Budget BOM line must belong to its source BOM')
+        }
+        if (requestedBomLineIds.length > 0) {
+          const ownedBomLines = await tx
+            .select({
+              id: bomLineItems.id,
+              bomId: bomLineItems.bom_id,
+            })
+            .from(bomLineItems)
+            .where(
+              and(
+                eq(bomLineItems.tenant_id, profile.tenantId),
+                inArray(bomLineItems.id, requestedBomLineIds)
+              )
+            )
+          const ownedBomLineById = new Map(
+            ownedBomLines.map((line) => [line.id, line])
+          )
+          if (
+            requestedBomLineIds.some(
+              (lineId) =>
+                ownedBomLineById.get(lineId)?.bomId !== sourceBomId
+            )
+          ) {
+            throw new Error('Budget BOM line must belong to its source BOM')
+          }
+        }
+      }
+
+      // The budget guard treats these metadata fields as workflow-controlled.
+      // Establish the exact locked budget as transaction-local context even
+      // when this is the first save and no line trigger has run yet.
+      await tx.execute(sql`
+        select pg_catalog.set_config(
+          'app.project_budget_write',
+          ${budget.id}::text,
+          true
+        )
+      `)
+
+      const sourceBomChanged = sourceBomId !== budget.sourceBomId
+      const temporaryLineNumberStart =
+        existingLines.reduce(
+          (maximum, line) => Math.max(maximum, line.lineNumber),
+          0
+        ) + parsed.data.lines.length + 1
+      const persistedLines = resolvedLines.filter(
+        (line): line is typeof line & { id: string } => Boolean(line.id)
+      )
+      const costCodeChangingIdSet = new Set(
+        persistedLines.flatMap((line) =>
+          existingById.get(line.id)?.costCodeId !== line.costCodeId
+            ? [line.id]
+            : []
+        )
+      )
+      const deletedLineIds = [
+        ...new Set([...omittedLineIds, ...costCodeChangingIdSet]),
+      ]
+
+      if (deletedLineIds.length > 0) {
+        const deletedLines = await tx
+          .delete(projectBudgetLines)
+          .where(
+            and(
+              eq(projectBudgetLines.project_budget_id, parsed.data.budgetId),
+              eq(projectBudgetLines.tenant_id, profile.tenantId),
+              inArray(projectBudgetLines.id, deletedLineIds)
+            )
+          )
+          .returning({ id: projectBudgetLines.id })
+        if (deletedLines.length !== deletedLineIds.length) {
+          throw new Error('Project Budget changed during save. Please retry.')
+        }
+      }
+
+      // Stage retained identities outside the final line-number range. When
+      // the source BOM changes, detach them first so the database can enforce
+      // the source/line invariant throughout the transaction.
+      const stablePersistedLines = persistedLines.filter(
+        (line) => !costCodeChangingIdSet.has(line.id)
+      )
+      for (const [index, line] of stablePersistedLines.entries()) {
+        const staged = await tx
+          .update(projectBudgetLines)
+          .set({
+            line_number: temporaryLineNumberStart + index,
+            ...(sourceBomChanged ? { bom_line_item_id: null } : {}),
+          })
+          .where(
+            and(
+              eq(projectBudgetLines.id, line.id),
+              eq(projectBudgetLines.project_budget_id, parsed.data.budgetId),
+              eq(projectBudgetLines.tenant_id, profile.tenantId)
+            )
+          )
+          .returning({ id: projectBudgetLines.id })
+        if (staged.length !== 1) {
+          throw new Error('Project Budget changed during save. Please retry.')
+        }
+      }
+
+      const updatedBudgets = await tx
         .update(projectBudgets)
         .set({
-          source_bom_id: parsed.data.sourceBomId,
+          source_bom_id: sourceBomId,
           control_mode: parsed.data.controlMode,
           commitment_tolerance_bps: parsed.data.toleranceBps,
           currency: parsed.data.currency,
@@ -337,26 +578,102 @@ export async function saveProjectBudget(
         .where(
           and(
             eq(projectBudgets.id, parsed.data.budgetId),
-            eq(projectBudgets.tenant_id, profile.tenantId)
+            eq(projectBudgets.tenant_id, profile.tenantId),
+            eq(projectBudgets.project_id, parsed.data.projectId),
+            eq(projectBudgets.status, 'draft')
           )
         )
-      await tx.insert(projectBudgetLines).values(
-        parsed.data.lines.map((line, index) => {
-          const amountCents = parsePesosToCents(line.amountPhp)
-          if (amountCents === undefined) {
-            throw new Error('Budget amount must be a positive safe centavo value')
-          }
+        .returning({ id: projectBudgets.id })
+      if (updatedBudgets.length !== 1) {
+        throw new Error('Project Budget changed during save. Please retry.')
+      }
+
+      const lineWrites = resolvedLines.map((line, index) => {
+        const amountCents = parsePesosToCents(line.amountPhp)
+        if (amountCents === undefined) {
+          throw new Error('Budget amount must be a positive safe centavo value')
+        }
+        return {
+          ...line,
+          lineNumber: index + 1,
+          amountCents,
+        }
+      })
+
+      for (const line of lineWrites) {
+        if (!line.id || costCodeChangingIdSet.has(line.id)) continue
+        const updatedLines = await tx
+          .update(projectBudgetLines)
+          .set({
+            cost_code_id: line.costCodeId,
+            bom_line_item_id: line.bomLineItemId,
+            line_number: line.lineNumber,
+            description: line.description,
+            amount_cents: line.amountCents,
+          })
+          .where(
+            and(
+              eq(projectBudgetLines.id, line.id),
+              eq(projectBudgetLines.project_budget_id, parsed.data.budgetId),
+              eq(projectBudgetLines.tenant_id, profile.tenantId)
+            )
+          )
+          .returning({ id: projectBudgetLines.id })
+        if (updatedLines.length !== 1) {
+          throw new Error('Project Budget changed during save. Please retry.')
+        }
+      }
+
+      // The cost-code unique index is immediate, so an A<->B swap cannot be
+      // expressed as two in-place updates. Recreate only cost-code-changing
+      // rows with their exact id/created_at after deleting the full collision
+      // set. Database total and audit triggers intentionally observe both
+      // legs; the enclosing transaction keeps the intermediate state private.
+      const insertedLineValues = lineWrites
+        .filter((line) => !line.id || costCodeChangingIdSet.has(line.id))
+        .map((line) => {
+          const existing = line.id ? existingById.get(line.id) : undefined
           return {
+            ...(line.id && existing
+              ? { id: line.id, created_at: existing.createdAt }
+              : {}),
             tenant_id: profile.tenantId,
             project_budget_id: parsed.data.budgetId,
             cost_code_id: line.costCodeId,
-            bom_line_item_id: line.bomLineItemId ?? undefined,
-            line_number: index + 1,
+            bom_line_item_id: line.bomLineItemId,
+            line_number: line.lineNumber,
             description: line.description,
-            amount_cents: amountCents,
+            amount_cents: line.amountCents,
           }
         })
+      const insertedLines =
+        insertedLineValues.length > 0
+          ? await tx
+              .insert(projectBudgetLines)
+              .values(insertedLineValues)
+              .returning({
+                id: projectBudgetLines.id,
+                costCodeId: projectBudgetLines.cost_code_id,
+              })
+          : []
+      if (insertedLines.length !== insertedLineValues.length) {
+        throw new Error('Project Budget changed during save. Please retry.')
+      }
+
+      const insertedByCostCode = new Map(
+        insertedLines.map((line) => [line.costCodeId, line.id])
       )
+      return lineWrites.map((line) => {
+        const id = line.id ?? insertedByCostCode.get(line.costCodeId)
+        if (!id) {
+          throw new Error('Project Budget changed during save. Please retry.')
+        }
+        return {
+          id,
+          costCodeId: line.costCodeId,
+          ...(line.clientKey ? { clientKey: line.clientKey } : {}),
+        }
+      })
     })
 
     await writeAuditLog({
@@ -368,7 +685,7 @@ export async function saveProjectBudget(
       diff: { line_count: parsed.data.lines.length },
     })
     refreshProjectBudget(parsed.data.projectId)
-    return { ok: true, id: parsed.data.budgetId }
+    return { ok: true, id: parsed.data.budgetId, lines: savedLines }
   } catch (error) {
     return { error: safeMessage(error) }
   }

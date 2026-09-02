@@ -1,18 +1,18 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { can, requireUserProfile } from '@third-code-erp/auth'
-import { db } from '@third-code-erp/database'
-import { boms, invoices, opportunities, purchaseOrders } from '@third-code-erp/database/schema'
-import { and, desc, eq, inArray, sum } from 'drizzle-orm'
+import { can, requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { OpportunityPanel } from '@/components/opportunities/opportunity-panel'
 import { ProjectChat } from '@/components/ai/project-chat'
 import { CortexEntityPanel } from '@/components/cortex/cortex-entity-panel'
-import { COMMITTED_PO_STATUSES } from '@/lib/po-status'
 import { EditProjectForm } from '@/components/projects/edit-project-form'
 import { DeleteProjectButton } from '@/components/projects/delete-project-button'
 import { ProjectCommandCenter } from '@/components/projects/project-command-center'
-import { getProject, getProjectCommandCenter } from '@/lib/project-queries'
+import {
+  getProject,
+  getProjectCommandCenter,
+  getProjectOverviewData,
+} from '@/lib/project-queries'
 import styles from './project-page.module.css'
 import {
   IconLayers,
@@ -21,6 +21,7 @@ import {
   IconReceipt,
   IconChevronRight,
 } from '@/components/ui/icons'
+import { getProjectDetailAccess } from './project-detail-access'
 
 export const metadata: Metadata = { title: 'Project' }
 
@@ -55,7 +56,9 @@ const STATUS_COLORS: Record<string, string> = {
 export default async function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const profile = await requireUserProfile()
+  requireCapability(profile, 'project.read')
   const tenantId = profile.tenantId
+  const access = getProjectDetailAccess(profile.role)
   const canUpdateProject = can(profile.role, 'project.update')
   const canDeleteProject = can(profile.role, 'project.delete')
 
@@ -63,56 +66,81 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
 
   if (!project) return notFound()
 
-  const commandCenter = await getProjectCommandCenter(tenantId, id)
+  const [commandCenter, overview] = await Promise.all([
+    getProjectCommandCenter(tenantId, id, new Date(), {
+      includeDelivery: access.delivery,
+    }),
+    getProjectOverviewData(tenantId, id, access),
+  ])
 
-  const opps = await db
-    .select({
-      id: opportunities.id,
-      stage: opportunities.stage,
-      tcv_cents: opportunities.tcv_cents,
-      gp_cents: opportunities.gp_cents,
-      probability: opportunities.probability,
-      weighted_tcv_cents: opportunities.weighted_tcv_cents,
-      closing_date: opportunities.closing_date,
-      area_sqm: opportunities.area_sqm,
-      opportunity_type: opportunities.opportunity_type,
-    })
-    .from(opportunities)
-    .where(and(eq(opportunities.project_id, id), eq(opportunities.tenant_id, tenantId)))
-
-  const [latestBom] = await db
-    .select({ total_cost_cents: boms.total_cost_cents, tcv_cents: boms.tcv_cents, gp_cents: boms.gp_cents, status: boms.status })
-    .from(boms)
-    .where(and(eq(boms.project_id, id), eq(boms.tenant_id, tenantId), inArray(boms.status, ['approved', 'locked'])))
-    .orderBy(desc(boms.version))
-    .limit(1)
-
-  const [poCommitted] = await db
-    .select({ total: sum(purchaseOrders.total_cents) })
-    .from(purchaseOrders)
-    .where(
-      and(
-        eq(purchaseOrders.project_id, id),
-        eq(purchaseOrders.tenant_id, tenantId),
-        inArray(purchaseOrders.status, [...COMMITTED_PO_STATUSES])
-      )
-    )
-
-  const [invoiceBilled] = await db
-    .select({ total: sum(invoices.net_amount_cents) })
-    .from(invoices)
-    .where(
-      and(
-        eq(invoices.project_id, id),
-        eq(invoices.tenant_id, tenantId),
-        inArray(invoices.status, ['issued', 'partial_payment', 'paid'])
-      )
-    )
+  const {
+    opportunities: opps,
+    latestBom,
+    poCommittedCents,
+    invoiceBilledCents,
+  } = overview
 
   const bomBudget = latestBom?.total_cost_cents ?? 0
-  const poSpend = Number(poCommitted?.total ?? 0)
-  const billed = Number(invoiceBilled?.total ?? 0)
-  const budgetVariance = bomBudget > 0 ? bomBudget - poSpend : null
+  const poSpend = poCommittedCents ?? 0
+  const billed = invoiceBilledCents ?? 0
+  const budgetVariance =
+    access.bom && access.purchaseOrders && bomBudget > 0
+      ? bomBudget - poSpend
+      : null
+
+  const financialCards: Array<{
+    label: string
+    value: string
+    note: string
+    color: string
+  }> = []
+  if (access.bom) {
+    financialCards.push({
+      label: 'BOM Budget',
+      value: bomBudget > 0 ? formatPHP(bomBudget) : '—',
+      note: latestBom ? `BOM ${latestBom.status}` : 'No approved BOM',
+      color: 'var(--color-neutral-900)',
+    })
+  }
+  if (access.purchaseOrders) {
+    financialCards.push({
+      label: 'PO Committed',
+      value: poSpend > 0 ? formatPHP(poSpend) : '—',
+      note: 'Submitted + confirmed POs',
+      color: 'var(--color-neutral-900)',
+    })
+  }
+  if (access.bom && access.purchaseOrders) {
+    financialCards.push({
+      label: 'Budget Variance',
+      value: budgetVariance !== null ? formatPHP(Math.abs(budgetVariance)) : '—',
+      note:
+        budgetVariance === null
+          ? 'No BOM yet'
+          : budgetVariance >= 0
+            ? 'Under budget'
+            : 'Over budget',
+      color:
+        budgetVariance === null
+          ? 'var(--color-neutral-400)'
+          : budgetVariance >= 0
+            ? '#10b981'
+            : '#ef4444',
+    })
+  }
+  if (access.billing) {
+    financialCards.push({
+      label: 'Billed to Client',
+      value: billed > 0 ? formatPHP(billed) : '—',
+      note: 'Issued + paid invoices',
+      color: 'var(--color-neutral-900)',
+    })
+  }
+
+  const hasFinancialData =
+    (access.bom && Boolean(latestBom)) ||
+    (access.purchaseOrders && poSpend > 0) ||
+    (access.billing && billed > 0)
 
   return (
     <div className={styles.page}>
@@ -159,7 +187,11 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
         </div>
       </div>
 
-      <ProjectCommandCenter projectId={id} data={commandCenter} />
+      <ProjectCommandCenter
+        projectId={id}
+        data={commandCenter}
+        canViewAudit={access.audit}
+      />
 
       {/* Tab navigation is provided by /projects/[id]/layout.tsx */}
 
@@ -194,26 +226,32 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                 hint: 'Rooms, areas, takeoff',
                 href: `/projects/${id}/scope`,
                 Icon: IconLayers,
+                visible: true,
               },
               {
                 label: 'Bill of Materials',
                 hint: 'Line items & costs',
                 href: `/projects/${id}/bom`,
                 Icon: IconBom,
+                visible: access.bom,
               },
               {
                 label: 'Documents',
                 hint: 'DWG, DXF, PDFs, images',
                 href: `/projects/${id}/documents`,
                 Icon: IconDocuments,
+                visible: true,
               },
               {
                 label: 'Billing',
                 hint: 'Invoices & retention',
                 href: `/projects/${id}/billing`,
                 Icon: IconReceipt,
+                visible: access.billing,
               },
-            ].map(({ label, hint, href: tabHref, Icon }) => (
+            ]
+              .filter(({ visible }) => visible)
+              .map(({ label, hint, href: tabHref, Icon }) => (
               <Link
                 key={label}
                 href={tabHref}
@@ -230,11 +268,11 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                   <IconChevronRight size={14} />
                 </span>
               </Link>
-            ))}
+              ))}
           </div>
 
           {/* Financial health */}
-          {(latestBom || poSpend > 0 || billed > 0) && (
+          {hasFinancialData && (
             <div
               style={{
                 background: 'white',
@@ -248,32 +286,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                 Financial Health
               </h3>
               <div className={styles.financialGrid}>
-                {[
-                  {
-                    label: 'BOM Budget',
-                    value: bomBudget > 0 ? formatPHP(bomBudget) : '—',
-                    note: latestBom ? `BOM ${latestBom.status}` : 'No approved BOM',
-                    color: 'var(--color-neutral-900)',
-                  },
-                  {
-                    label: 'PO Committed',
-                    value: poSpend > 0 ? formatPHP(poSpend) : '—',
-                    note: 'Submitted + confirmed POs',
-                    color: 'var(--color-neutral-900)',
-                  },
-                  {
-                    label: 'Budget Variance',
-                    value: budgetVariance !== null ? formatPHP(Math.abs(budgetVariance)) : '—',
-                    note: budgetVariance === null ? 'No BOM yet' : budgetVariance >= 0 ? 'Under budget' : 'Over budget',
-                    color: budgetVariance === null ? 'var(--color-neutral-400)' : budgetVariance >= 0 ? '#10b981' : '#ef4444',
-                  },
-                  {
-                    label: 'Billed to Client',
-                    value: billed > 0 ? formatPHP(billed) : '—',
-                    note: 'Issued + paid invoices',
-                    color: 'var(--color-neutral-900)',
-                  },
-                ].map(({ label, value, note, color }) => (
+                {financialCards.map(({ label, value, note, color }) => (
                   <div key={label}>
                     <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-neutral-400)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
                       {label}
@@ -304,7 +317,9 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           )}
 
           {/* Pipeline opportunities */}
-          <OpportunityPanel projectId={id} opportunities={opps} />
+          {access.opportunity ? (
+            <OpportunityPanel projectId={id} opportunities={opps} />
+          ) : null}
         </div>
 
         {/* Right metadata rail */}

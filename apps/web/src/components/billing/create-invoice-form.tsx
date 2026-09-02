@@ -6,7 +6,7 @@ import { createInvoice } from '@/app/(dashboard)/projects/[id]/billing/actions'
 
 interface CreateInvoiceFormProps {
   projectId: string
-  tcvCents: number
+  tcvCents: number | null
 }
 
 function formatPHP(cents: number) {
@@ -24,7 +24,9 @@ export function CreateInvoiceForm({ projectId, tcvCents }: CreateInvoiceFormProp
   const validPct = !isNaN(pctNum) && pctNum > 0 && pctNum <= 100
 
   // Live preview calculations (mirrors server logic)
-  const subtotal = validPct ? Math.round((tcvCents * pctNum * 100) / 10000) : 0
+  const subtotal = validPct
+    ? Math.round(((tcvCents ?? 0) * pctNum * 100) / 10000)
+    : 0
   const retention = Math.round(subtotal * 0.1)
   const base = subtotal - retention
   const vat = Math.round(base * 0.12)
@@ -109,7 +111,7 @@ export function CreateInvoiceForm({ projectId, tcvCents }: CreateInvoiceFormProp
         </div>
 
         {/* Live preview */}
-        {validPct && tcvCents > 0 && (
+        {validPct && tcvCents !== null && tcvCents > 0 && (
           <div style={{ marginTop: '16px', background: 'var(--color-neutral-50)', border: '1px solid var(--color-border)', borderRadius: '6px', padding: '12px 14px' }}>
             <div style={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-neutral-400)', marginBottom: '8px' }}>
               Billing Preview

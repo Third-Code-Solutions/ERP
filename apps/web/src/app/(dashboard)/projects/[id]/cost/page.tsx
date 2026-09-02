@@ -1,8 +1,9 @@
 import type { Metadata } from 'next'
+import React from 'react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
-import { getUserProfile, can } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   boms,
@@ -22,6 +23,7 @@ import { CostEntryForm } from '@/components/cost/cost-entry-form'
 import { CostTable, type CostRow } from '@/components/cost/cost-table'
 import { CostControlTable } from '@/components/cost/cost-control-table'
 import { getProjectCostControl } from '@/lib/operations/project-cost-control'
+import { getProjectDetailAccess } from '../project-detail-access'
 
 export const metadata: Metadata = { title: 'Cost Tracking' }
 
@@ -40,8 +42,9 @@ function php(cents: number): string {
 
 export default async function ProjectCostPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const profile = await getUserProfile()
-  if (!profile) return null
+  const profile = await requireUserProfile()
+  const access = getProjectDetailAccess(profile.role)
+  if (!access.cost) return notFound()
 
   const [project] = await db
     .select({ id: projects.id })
@@ -52,19 +55,29 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ id
   const costControl = await getProjectCostControl({
     tenantId: profile.tenantId,
     projectId: id,
+    includeBomDetails: access.bom,
+    includePurchaseOrders: access.purchaseOrders,
   })
 
-  const [latestBom] = await db
-    .select({
-      total_cost_cents: boms.total_cost_cents,
-      tcv_cents: boms.tcv_cents,
-      gp_cents: boms.gp_cents,
-      gp_margin_bps: boms.gp_margin_bps,
-    })
-    .from(boms)
-    .where(and(eq(boms.project_id, id), eq(boms.tenant_id, profile.tenantId), inArray(boms.status, ['approved', 'locked'])))
-    .orderBy(desc(boms.version))
-    .limit(1)
+  const [latestBom] = access.bom
+    ? await db
+        .select({
+          total_cost_cents: boms.total_cost_cents,
+          tcv_cents: boms.tcv_cents,
+          gp_cents: boms.gp_cents,
+          gp_margin_bps: boms.gp_margin_bps,
+        })
+        .from(boms)
+        .where(
+          and(
+            eq(boms.project_id, id),
+            eq(boms.tenant_id, profile.tenantId),
+            inArray(boms.status, ['approved', 'locked'])
+          )
+        )
+        .orderBy(desc(boms.version))
+        .limit(1)
+    : []
 
   const [approvedBudget] = await db
     .select({
@@ -157,21 +170,40 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ id
 
   const kpis = [
     {
-      label: approvedBudget ? 'Approved Budget' : 'BOM Estimate',
+      label:
+        approvedBudget || !access.bom ? 'Approved Budget' : 'BOM Estimate',
       value: php(snapshot.budgetCents),
       tone: 'plain' as const,
       note: approvedBudget
         ? `Controlled revision ${approvedBudget.revision}`
-        : 'No approved Project Budget',
+        : access.bom && latestBom
+          ? 'No approved Project Budget'
+          : 'No approved budget',
     },
-    { label: 'PO Committed', value: php(snapshot.committedCents), tone: 'plain' as const },
+    ...(access.purchaseOrders
+      ? [
+          {
+            label: 'PO Committed',
+            value: php(snapshot.committedCents),
+            tone: 'plain' as const,
+          },
+        ]
+      : []),
     { label: 'Actual Cost', value: php(snapshot.actualCents), tone: 'plain' as const },
-    {
-      label: 'Budget Variance',
-      value: php(Math.abs(snapshot.budgetVarianceCents)),
-      tone: variancePositive ? ('good' as const) : ('bad' as const),
-      note: latestBom ? (variancePositive ? 'Under budget' : 'Over budget') : 'No approved BOM',
-    },
+    ...(access.bom && access.purchaseOrders
+      ? [
+          {
+            label: 'Budget Variance',
+            value: php(Math.abs(snapshot.budgetVarianceCents)),
+            tone: variancePositive ? ('good' as const) : ('bad' as const),
+            note: latestBom
+              ? variancePositive
+                ? 'Under budget'
+                : 'Over budget'
+              : 'No approved BOM',
+          },
+        ]
+      : []),
   ]
 
   return (
@@ -180,10 +212,14 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ id
         <div>
           <h2 className="cost-section-title">Cost vs Budget</h2>
           <p className="cost-section-sub">
-            Actual spend against the approved BOM, with live GP-erosion signal.
+            {access.bom
+              ? 'Actual spend against the approved BOM, with live GP-erosion signal.'
+              : 'Approved budget and posted actuals by Cost Code.'}
           </p>
         </div>
-        <GpErosionBadge bps={snapshot.gpErosionBps} />
+        {access.bom && access.purchaseOrders && (
+          <GpErosionBadge bps={snapshot.gpErosionBps} />
+        )}
       </div>
 
       <div className="finance-header-actions">
@@ -215,27 +251,38 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ id
             {k.note && <span className="cost-kpi__note">{k.note}</span>}
           </div>
         ))}
-        <div className="cost-kpi">
-          <span className="cost-kpi__label">Projected GP</span>
-          <span className="cost-kpi__value mono">{php(snapshot.projectedGpCents)}</span>
-          <span className="cost-kpi__note">
-            {(snapshot.projectedGpMarginBps / 100).toFixed(1)}% margin · was{' '}
-            {(snapshot.originalGpMarginBps / 100).toFixed(1)}%
-          </span>
-        </div>
+        {access.bom && access.purchaseOrders && (
+          <div className="cost-kpi">
+            <span className="cost-kpi__label">Projected GP</span>
+            <span className="cost-kpi__value mono">
+              {php(snapshot.projectedGpCents)}
+            </span>
+            <span className="cost-kpi__note">
+              {(snapshot.projectedGpMarginBps / 100).toFixed(1)}% margin · was{' '}
+              {(snapshot.originalGpMarginBps / 100).toFixed(1)}%
+            </span>
+          </div>
+        )}
       </div>
 
       <section className="card" style={{ marginBottom: '16px' }}>
         <div className="card-header">
           <div>
-            <h3 className="card-title">Cost control by BOM line</h3>
+            <h3 className="card-title">
+              Cost control by {access.bom ? 'BOM line' : 'Cost Code'}
+            </h3>
             <p className="cost-section-sub">
-              Approved budget → issued PO commitments → posted supplier-bill
-              actuals. Actuals never add a committed PO a second time.
+              {access.purchaseOrders
+                ? 'Approved budget → issued PO commitments → posted supplier-bill actuals. Actuals never add a committed PO a second time.'
+                : 'Approved budget and posted supplier-bill actuals.'}
             </p>
           </div>
         </div>
-        <CostControlTable rows={costControl.rows} />
+        <CostControlTable
+          rows={costControl.rows}
+          showBomDetails={access.bom}
+          showCommitments={access.purchaseOrders}
+        />
         {costControl.totals.unreconciledCents > 0 && (
           <p
             role="note"
@@ -248,7 +295,7 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ id
             Manual or legacy cost-log evidence of{' '}
             {php(costControl.totals.unreconciledCents)} is shown below but is
             excluded from posted-invoice actual margin until it is reconciled
-            to a BOM line.
+            {access.bom ? ' to a BOM line' : ''}.
           </p>
         )}
       </section>

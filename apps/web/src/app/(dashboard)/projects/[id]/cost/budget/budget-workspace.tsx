@@ -46,6 +46,7 @@ export interface BudgetDraft {
 
 interface Props {
   projectId: string
+  canViewBom: boolean
   canManage: boolean
   canCommercialApprove: boolean
   canFinanceApprove: boolean
@@ -64,10 +65,26 @@ interface Props {
 
 type EditorLine = {
   key: string
+  persistedId: string | null
   costCodeId: string
   bomLineItemId: string
   description: string
   amountPhp: string
+}
+
+export function reconcileSavedLineIdentities(
+  current: EditorLine[],
+  saved: Array<{ id: string; clientKey?: string }>
+): EditorLine[] {
+  const persistedByClientKey = new Map(
+    saved.flatMap((line) =>
+      line.clientKey ? [[line.clientKey, line.id] as const] : []
+    )
+  )
+  return current.map((line) => ({
+    ...line,
+    persistedId: persistedByClientKey.get(line.key) ?? line.persistedId,
+  }))
 }
 
 const CATEGORIES = [
@@ -96,6 +113,7 @@ function formatCents(cents: number | bigint): string {
 
 export function BudgetWorkspace({
   projectId,
+  canViewBom,
   canManage,
   canCommercialApprove,
   canFinanceApprove,
@@ -120,6 +138,7 @@ export function BudgetWorkspace({
     if (draft?.lines.length) {
       return draft.lines.map((line) => ({
         key: line.id,
+        persistedId: line.id,
         costCodeId: line.costCodeId,
         bomLineItemId: line.bomLineItemId ?? '',
         description: line.description,
@@ -130,6 +149,7 @@ export function BudgetWorkspace({
       ? [
           {
             key: crypto.randomUUID(),
+            persistedId: null,
             costCodeId: codes[0].id,
             bomLineItemId: '',
             description: codes[0].name,
@@ -186,14 +206,26 @@ export function BudgetWorkspace({
       'lines',
       JSON.stringify(
         lines.map((line) => ({
+          clientKey: line.key,
+          ...(line.persistedId ? { id: line.persistedId } : {}),
           costCodeId: line.costCodeId,
-          bomLineItemId: line.bomLineItemId || null,
+          ...(canViewBom
+            ? { bomLineItemId: line.bomLineItemId || null }
+            : {}),
           description: line.description,
           amountPhp: line.amountPhp,
         }))
       )
     )
-    run(() => saveProjectBudget(data), 'Draft baseline saved.')
+    run(async () => {
+      const result = await saveProjectBudget(data)
+      if (result.ok) {
+        setLines((current) =>
+          reconcileSavedLineIdentities(current, result.lines)
+        )
+      }
+      return result
+    }, 'Draft baseline saved.')
   }
 
   function addLine() {
@@ -208,6 +240,7 @@ export function BudgetWorkspace({
       ...current,
       {
         key: crypto.randomUUID(),
+        persistedId: null,
         costCodeId: unused.id,
         bomLineItemId: '',
         description: unused.name,
@@ -316,17 +349,19 @@ export function BudgetWorkspace({
               createBudgetAction(event.currentTarget)
             }}
           >
-            <label>
-              <span>Source BOM</span>
-              <select name="source_bom_id" defaultValue="">
-                <option value="">No source BOM</option>
-                {sourceBoms.map((bom) => (
-                  <option key={bom.id} value={bom.id}>
-                    {bom.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {canViewBom && (
+              <label>
+                <span>Source BOM</span>
+                <select name="source_bom_id" defaultValue="">
+                  <option value="">No source BOM</option>
+                  {sourceBoms.map((bom) => (
+                    <option key={bom.id} value={bom.id}>
+                      {bom.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <label>
               <span>Control</span>
               <select name="control_mode" defaultValue="warn">
@@ -407,29 +442,31 @@ export function BudgetWorkspace({
             }}
           >
             <div className="budget-create-grid budget-draft-settings">
-              <label>
-                <span>Source BOM</span>
-                <select
-                  name="source_bom_id"
-                  value={selectedSourceBomId}
-                  onChange={(event) => {
-                    setSelectedSourceBomId(event.target.value)
-                    setLines((current) =>
-                      current.map((line) => ({
-                        ...line,
-                        bomLineItemId: '',
-                      }))
-                    )
-                  }}
-                >
-                  <option value="">No source BOM</option>
-                  {sourceBoms.map((bom) => (
-                    <option key={bom.id} value={bom.id}>
-                      {bom.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              {canViewBom && (
+                <label>
+                  <span>Source BOM</span>
+                  <select
+                    name="source_bom_id"
+                    value={selectedSourceBomId}
+                    onChange={(event) => {
+                      setSelectedSourceBomId(event.target.value)
+                      setLines((current) =>
+                        current.map((line) => ({
+                          ...line,
+                          bomLineItemId: '',
+                        }))
+                      )
+                    }}
+                  >
+                    <option value="">No source BOM</option>
+                    {sourceBoms.map((bom) => (
+                      <option key={bom.id} value={bom.id}>
+                        {bom.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <label>
                 <span>Control</span>
                 <select name="control_mode" defaultValue={draft.controlMode}>
@@ -480,7 +517,7 @@ export function BudgetWorkspace({
             <div className="budget-line-shell">
               <div className="budget-line-head">
                 <span>Cost Code</span>
-                <span>Source evidence</span>
+                {canViewBom ? <span>Source evidence</span> : <span />}
                 <span>Description</span>
                 <span>Baseline amount</span>
                 <span />
@@ -515,26 +552,30 @@ export function BudgetWorkspace({
                       </option>
                     ))}
                   </select>
-                  <select
-                    aria-label={`Source BOM line ${index + 1}`}
-                    value={line.bomLineItemId}
-                    onChange={(event) =>
-                      setLines((current) =>
-                        current.map((item) =>
-                          item.key === line.key
-                            ? { ...item, bomLineItemId: event.target.value }
-                            : item
+                  {canViewBom ? (
+                    <select
+                      aria-label={`Source BOM line ${index + 1}`}
+                      value={line.bomLineItemId}
+                      onChange={(event) =>
+                        setLines((current) =>
+                          current.map((item) =>
+                            item.key === line.key
+                              ? { ...item, bomLineItemId: event.target.value }
+                              : item
+                          )
                         )
-                      )
-                    }
-                  >
-                    <option value="">No linked BOM line</option>
-                    {visibleBomLines.map((bomLine) => (
-                      <option value={bomLine.id} key={bomLine.id}>
-                        {bomLine.label}
-                      </option>
-                    ))}
-                  </select>
+                      }
+                    >
+                      <option value="">No linked BOM line</option>
+                      {visibleBomLines.map((bomLine) => (
+                        <option value={bomLine.id} key={bomLine.id}>
+                          {bomLine.label}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span />
+                  )}
                   <input
                     aria-label={`Description ${index + 1}`}
                     value={line.description}
