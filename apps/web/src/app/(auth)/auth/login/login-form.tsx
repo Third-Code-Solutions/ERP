@@ -66,9 +66,14 @@ export function LoginForm() {
       </div>
 
       <div className="auth-field">
-        <label htmlFor="password" className="auth-label">
-          Password
-        </label>
+        <div className="auth-label-row">
+          <label htmlFor="password" className="auth-label">
+            Password
+          </label>
+          <a href="/auth/forgot-password" className="auth-link">
+            Forgot password?
+          </a>
+        </div>
         <div className="auth-input-with-action">
           <input
             id="password"

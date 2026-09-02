@@ -96,6 +96,24 @@ test.describe('production role access matrix', () => {
           })
           expect(notificationStatus, `${role} notifications`).toBe(200)
 
+          const profileSettings = await page.goto(`${baseUrl}/settings/profile`, {
+            waitUntil: 'domcontentloaded',
+          })
+          expect(profileSettings?.status() ?? 0, `${role} profile settings`).toBe(200)
+          expect(page.url(), `${role} profile settings`).not.toMatch(/\/auth\/login/)
+          await expect(
+            page.getByRole('heading', { name: 'Profile', exact: true }),
+            `${role} profile settings`
+          ).toBeVisible()
+          await expect(
+            page.getByRole('form', { name: 'Change password' }),
+            `${role} password form`
+          ).toBeVisible()
+
+          await page.goto(`${baseUrl}/dashboard`, {
+            waitUntil: 'domcontentloaded',
+          })
+
           const visiblePaths = visibleNavSections(role).flatMap((section) =>
             section.items.map((item) => item.href)
           )

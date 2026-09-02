@@ -4,7 +4,13 @@ import { LoginForm } from './login-form'
 
 export const metadata: Metadata = { title: 'Sign in' }
 
-export default function LoginPage() {
+type LoginPageProps = {
+  searchParams: Promise<{ password_updated?: string }>
+}
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const { password_updated: passwordUpdated } = await searchParams
+
   return (
     <>
       <header className="auth-form-header">
@@ -13,6 +19,16 @@ export default function LoginPage() {
           Welcome back. Enter your details to continue.
         </p>
       </header>
+
+      {passwordUpdated === '1' ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="auth-success"
+        >
+          Password updated. Sign in with your new password.
+        </div>
+      ) : null}
 
       <LoginForm />
 

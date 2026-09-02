@@ -11,7 +11,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     <div className="auth-shell">
       {/* Skip link for keyboard users — appears on focus only */}
       <a href="#auth-main" className="skip-link">
-        Skip to sign-in form
+        Skip to authentication form
       </a>
 
       {/* Left — brand panel. Collapses to a slim header on mobile. */}
@@ -76,7 +76,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       </aside>
 
       {/* Right — form panel. */}
-      <main id="auth-main" className="auth-panel-form" aria-label="Sign-in panel">
+      <main id="auth-main" className="auth-panel-form" aria-label="Authentication panel">
         {/* Compact brand for mobile (brand panel is hidden) */}
         <div className="auth-form-mobile-brand">
           <div className="auth-brand-mark">

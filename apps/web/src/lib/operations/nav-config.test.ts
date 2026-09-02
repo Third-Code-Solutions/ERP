@@ -131,7 +131,30 @@ describe('RBAC: canViewPath (deny-by-default route guard)', () => {
     expect(canViewPath('viewer', '/dashboard')).toBe(true)
     expect(canViewPath('viewer', '/tasks')).toBe(true)
     expect(canViewPath('viewer', '/settings')).toBe(true)
+    expect(canViewPath('viewer', '/settings/profile')).toBe(true)
     expect(canViewPath('viewer', '/documents')).toBe(true)
+  })
+
+  it('allows the exact profile settings route for every persisted role', () => {
+    const roles = [
+      'owner',
+      'estimator',
+      'pm',
+      'admin',
+      'sales',
+      'commercial',
+      'design',
+      'sd_pm_pe',
+      'finance',
+      'procurement',
+      'safety',
+      'cx',
+      'viewer',
+    ] as const
+
+    for (const role of roles) {
+      expect(canViewPath(role, '/settings/profile'), role).toBe(true)
+    }
   })
 
   it('denies restricted routes to unprivileged roles', () => {
