@@ -77,3 +77,31 @@ database rows, RLS, API contracts, or the PRD.
 
 This branch is stacked on PR #17. No production deployment, role mutation, or
 account provisioning is authorized.
+
+## Closeout
+
+- Principal Agent 3 reproduced the alias expansion and found two unsupported
+  estimator route families: `/inventory/**` and `/admin/**`. PM's global route
+  set was identical to SD/PM/PE; its distinct audit and mobilization grants
+  remain independently capability-gated.
+- Only owner continues to inherit another role's route projection. Estimator
+  and PM are now explicit in the shared navigation/direct-route policy;
+  evidenced read routes remain visible while unsupported Admin and Inventory
+  routes fail closed for estimator.
+- Focused authorization and downstream-consumer coverage passed 90/90 tests.
+  Complete Web/E2E TypeScript, Web lint, frozen install, a 89/89-page
+  production build, gitleaks, and diff hygiene also passed.
+- Principal Agent 4 returned `GO` with zero P1/P2 findings after independent
+  least-privilege, all-role parity, downstream-consumer, test, type, lint,
+  build, secret-scan, and diff review.
+- Principal Agent 5 passed the read-only production-build matrix for all eleven
+  supplied identities. Login, sidebar, reload/history, direct Admin/Inventory
+  allow or deny behavior, and sign-out matched policy with zero page errors,
+  zero observed HTTP responses at or above 400, and no protected UI leak.
+- Estimator and PM browser checks remain blocked because no identities were
+  supplied. The existing estimator universal-search material link to denied
+  `/admin/material-items` remains a separate queued mismatch; access was not
+  widened.
+
+No role, account, capability, data, password, provider, or production
+environment was changed.

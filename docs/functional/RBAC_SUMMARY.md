@@ -7,8 +7,8 @@ The repository has exactly thirteen persisted roles:
 | Role | Current route alias | Notes |
 | --- | --- | --- |
 | `owner` | `admin` | Legacy super-admin; capability rank is above admin. |
-| `estimator` | `commercial` | Legacy route alias; capability grants are not equivalent. |
-| `pm` | `sd_pm_pe` | Legacy route alias; capability grants are not equivalent. |
+| `estimator` | `estimator` | Distinct route identity aligned to its retained capability/read projections. |
+| `pm` | `pm` | Distinct route identity; project audit and mobilization grants remain independently checked. |
 | `admin` | `admin` | Workspace administrator. |
 | `sales` | `sales` | Sales/BD workflows. |
 | `commercial` | `commercial` | Estimation and commercial workflows. |
@@ -31,9 +31,9 @@ Evidence:
 
 `public.users.role` is the active runtime identity authority. Authorization
 capabilities are centralized in `packages/shared-types/src/authorization.ts`
-and consumed by the Web helpers and Nest capability guard. The navigation and
-route layer separately folds three legacy roles through
-`apps/web/src/lib/operations/nav-config.ts`.
+and consumed by the Web helpers and Nest capability guard.
+Navigation/direct-route policy preserves all roles; only `owner` inherits the
+explicit `admin` super-admin projection.
 
 ## Source inventory counts
 
@@ -44,22 +44,26 @@ route layer separately folds three legacy roles through
 - 158 HTTP operations are session/capability/recovery protected; 16 are public,
   token/signature controlled, callback/health, webhook, or deprecated.
 - 80 central capabilities; 42 are referenced by Nest controller guards.
-- 1,378 role/protected-resource matrix records: 28 `FAILED`, 32
-  `NEEDS DECISION`, 1,071 `NOT TESTED`, 237 `PARTIAL`, and 10 `BLOCKED`.
+- 1,378 role/protected-resource matrix records: 0 `FAILED`, 32
+  `NEEDS DECISION`, 1,071 `NOT TESTED`, 265 `PARTIAL`, and 10 `BLOCKED`.
 
 ## Confirmed policy conflicts
 
-### Legacy alias mismatch
+### Legacy route-policy alignment
 
-`estimator` is routed as `commercial`, but differs from `commercial` on 21
-shared capabilities. This creates links that render in navigation and then
-fail in the page or API. Concrete examples include `/admin` and `/inventory`.
+`estimator` and `pm` are now evaluated as distinct roles. Estimator retains its
+evidenced estimating/procurement reads but no longer sees or directly enters
+`/inventory/**` or `/admin/**`; PM retains the prior operational route list.
+Only `owner → admin` inheritance remains. All thirteen roles have automated
+route-table coverage and all eleven supplied identities passed the read-only
+Admin/Inventory production-build browser matrix.
 
-`pm` is routed as `sd_pm_pe`, but its shared grants differ for `audit.read` and
-`precon.override_mobilization`.
+Status: PARTIAL. The access mismatch is repaired, but estimator/PM browser
+checks remain blocked because no identities were supplied.
 
-Status: FAILED. A product decision is not required to remove accidental
-route/action divergence; exact grants still require regression coverage.
+The separate universal-search policy still permits estimator material results
+whose destination is `/admin/material-items`. The route and page correctly deny
+that access; the resulting dead-end search link is queued independently.
 
 ### Route catch-all
 
