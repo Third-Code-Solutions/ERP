@@ -93,3 +93,26 @@ lowering the audit threshold or disabling the security job.
 This sequential handoff continues on PR #18 because that PR cannot reach a
 green protected database gate while the newly published audit gate fails. No
 production deployment is authorized.
+
+## Closeout
+
+- Principal Agent 3 selected only the reviewed patched transitive releases:
+  `qs@6.16.0`, `@xmldom/xmldom@0.8.15`, and `fast-uri@3.1.6`.
+- The generated lockfile contains one version of each target and changes only
+  the root overrides, package integrity records, snapshot keys, and existing
+  consumer edges. No importer, lifecycle policy, manifest, workflow, or
+  application source changed.
+- Frozen installation with scripts disabled, production and complete low-level
+  audits, dependency-path proof, document extraction, real-Postgres Finance
+  HTTP integration, repository TypeScript, lint, production build, complete
+  unit suite, gitleaks, and diff hygiene all pass locally.
+- Principal Agent 4 independently returned `GO` with zero P1/P2 findings after
+  repeating the install, audits, path proof, direct DOCX smoke, extraction and
+  database-backed API tests, TypeScript, lint, uncached production build,
+  gitleaks, and diff inspection.
+- Principal Agent 5 browser verification was not run because this patch changes
+  dependency resolution only and the focused runtime tests found no observable
+  behavior change.
+
+Hosted protected CI remains required on the pushed commit. Production was not
+changed or deployed.

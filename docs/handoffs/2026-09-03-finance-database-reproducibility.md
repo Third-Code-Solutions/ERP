@@ -78,5 +78,11 @@ No production deployment is authorized. ADR-020 still requires reviewed
 - Principal Agent 5 browser/API verification was not run because this is a
   test-only correction with no observable application behavior change.
 
+Hosted run `33656418115` subsequently passed Actionlint, type checking, lint,
+BUILD OPS invariants, unit tests, the PostgreSQL 17 database-reproducibility
+gate, production build, and trusted E2E. The unrelated Security Scan failed on
+newly published transitive dependency advisories and is handled by the
+sequential dependency-remediation handoff on this branch.
+
 Production was not changed. The branch must pass the hosted protected workflow
-before this release blocker is considered fully cleared.
+at its final commit before the combined release blockers are fully cleared.
