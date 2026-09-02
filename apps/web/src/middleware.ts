@@ -17,6 +17,10 @@ import {
   isInvalidRefreshTokenError,
   isSupabaseAuthCookieName,
 } from '@/lib/supabase-session-recovery'
+import {
+  recoveryMarkerMatches,
+  RECOVERY_MARKER_COOKIE,
+} from '@/lib/auth-recovery-binding'
 
 // ---------------------------------------------------------------------------
 // Local limiter — compatibility only when distributed enforcement is disabled.
@@ -304,8 +308,53 @@ export async function middleware(request: NextRequest) {
     return applySecurityHeaders(response, nonce, csp)
   }
 
+  // Password recovery is the one authenticated route inside the public auth
+  // group. The callback establishes a short-lived recovery session before the
+  // user can call updateUser(), so redirecting that session to the dashboard
+  // would make password recovery impossible.
+  const isPasswordRecoveryRoute = pathname === '/auth/update-password'
+  let hasPasswordRecoveryMarker = false
+  if (isPasswordRecoveryRoute && user?.recovery_sent_at) {
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const accessToken = sessionResult.data.session?.access_token
+      const claimsResult = accessToken
+        ? await supabase.auth.getClaims(accessToken)
+        : null
+      const claims = claimsResult?.data?.claims
+      if (
+        accessToken &&
+        claims?.sub === user.id &&
+        typeof claims.session_id === 'string'
+      ) {
+        hasPasswordRecoveryMarker = await recoveryMarkerMatches(
+          request.cookies.get(RECOVERY_MARKER_COOKIE)?.value,
+          {
+            userId: user.id,
+            sessionId: claims.session_id,
+            accessToken,
+            recoverySentAt: user.recovery_sent_at,
+          }
+        )
+      }
+    } catch {
+      hasPasswordRecoveryMarker = false
+    }
+  }
+
+  if (isPasswordRecoveryRoute && (!user || !hasPasswordRecoveryMarker)) {
+    if (!user) {
+      return redirectToLogin(request, staleAuthCookieNames, nonce, csp)
+    }
+    return applySecurityHeaders(
+      NextResponse.redirect(new URL('/settings/profile', request.url)),
+      nonce,
+      csp
+    )
+  }
+
   // Auth redirects
-  if (user && pathname.startsWith('/auth')) {
+  if (user && pathname.startsWith('/auth') && !isPasswordRecoveryRoute) {
     return applySecurityHeaders(
       NextResponse.redirect(new URL('/dashboard', request.url)),
       nonce,

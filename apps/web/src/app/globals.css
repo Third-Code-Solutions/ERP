@@ -1741,6 +1741,17 @@ a { color: inherit; }
   border: 1px solid color-mix(in oklch, var(--color-danger) 16%, transparent);
 }
 
+.auth-success {
+  margin-bottom: 18px;
+  padding: 10px 12px;
+  background: var(--color-success-soft);
+  color: var(--color-success);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  line-height: 1.4;
+  border: 1px solid color-mix(in oklch, var(--color-success) 22%, transparent);
+}
+
 .auth-submit {
   height: 44px;
   background: var(--color-navy-700);

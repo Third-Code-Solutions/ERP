@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { tenants } from '@third-code-erp/database/schema'
@@ -158,6 +159,19 @@ export default async function SettingsPage() {
               </div>
             ))}
           </dl>
+          <Link
+            href="/settings/profile"
+            style={{
+              display: 'inline-flex',
+              marginTop: '4px',
+              color: 'var(--color-navy-700)',
+              fontSize: '0.875rem',
+              fontWeight: 600,
+              textDecoration: 'none',
+            }}
+          >
+            Open profile and password settings
+          </Link>
         </div>
       </div>
 

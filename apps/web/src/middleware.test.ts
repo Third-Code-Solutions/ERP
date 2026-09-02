@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
+  getSession: vi.fn(),
+  getClaims: vi.fn(),
   createServerClient: vi.fn(),
 }))
 
@@ -11,6 +13,7 @@ vi.mock('@supabase/ssr', () => ({
 }))
 
 import { middleware } from './middleware'
+import { createRecoveryMarker } from './lib/auth-recovery-binding'
 
 describe('middleware Supabase session recovery', () => {
   beforeEach(() => {
@@ -25,7 +28,11 @@ describe('middleware Supabase session recovery', () => {
     )
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', 'anon-key')
     mocks.createServerClient.mockReturnValue({
-      auth: { getUser: mocks.getUser },
+      auth: {
+        getUser: mocks.getUser,
+        getSession: mocks.getSession,
+        getClaims: mocks.getClaims,
+      },
     })
   })
 
@@ -67,6 +74,86 @@ describe('middleware Supabase session recovery', () => {
     expect(setCookies.some((cookie) => cookie.startsWith('analytics'))).toBe(
       false
     )
+  })
+
+  it('protects profile settings and the password recovery form from anonymous requests', async () => {
+    mocks.getUser.mockResolvedValue({ data: { user: null }, error: null })
+
+    for (const path of ['/settings/profile', '/auth/update-password']) {
+      const response = await middleware(
+        new NextRequest(`https://erp.example${path}`)
+      )
+
+      expect(response.status, path).toBe(307)
+      expect(response.headers.get('location'), path).toBe(
+        'https://erp.example/auth/login'
+      )
+    }
+  })
+
+  it('allows only callback-marked authenticated recovery sessions on the update page', async () => {
+    const userId = '11111111-1111-4111-8111-111111111111'
+    const sessionId = '22222222-2222-4222-8222-222222222222'
+    const accessToken = 'test-recovery-access-token'
+    const recoverySentAt = new Date().toISOString()
+    mocks.getUser.mockResolvedValue({
+      data: { user: { id: userId, recovery_sent_at: recoverySentAt } },
+      error: null,
+    })
+    mocks.getSession.mockResolvedValue({
+      data: { session: { access_token: accessToken } },
+      error: null,
+    })
+    mocks.getClaims.mockResolvedValue({
+      data: { claims: { sub: userId, session_id: sessionId } },
+      error: null,
+    })
+    const marker = await createRecoveryMarker({
+      userId,
+      sessionId,
+      accessToken,
+      recoverySentAt,
+    })
+    expect(marker).not.toBeNull()
+
+    const markedResponse = await middleware(
+      new NextRequest('https://erp.example/auth/update-password', {
+        headers: { cookie: `abi-ops-password-recovery=${marker}` },
+      })
+    )
+    expect(markedResponse.status).toBe(200)
+
+    const fabricatedMarkerResponse = await middleware(
+      new NextRequest('https://erp.example/auth/update-password', {
+        headers: { cookie: `abi-ops-password-recovery=${'a'.repeat(64)}` },
+      })
+    )
+    expect(fabricatedMarkerResponse.status).toBe(307)
+    expect(fabricatedMarkerResponse.headers.get('location')).toBe(
+      'https://erp.example/settings/profile'
+    )
+  })
+
+  it('denies an ordinary authenticated session even with a fabricated marker', async () => {
+    mocks.getUser.mockResolvedValue({
+      data: {
+        user: { id: '11111111-1111-4111-8111-111111111111' },
+      },
+      error: null,
+    })
+
+    const response = await middleware(
+      new NextRequest('https://erp.example/auth/update-password', {
+        headers: { cookie: `abi-ops-password-recovery=${'b'.repeat(64)}` },
+      })
+    )
+
+    expect(response.status).toBe(307)
+    expect(response.headers.get('location')).toBe(
+      'https://erp.example/settings/profile'
+    )
+    expect(mocks.getSession).not.toHaveBeenCalled()
+    expect(mocks.getClaims).not.toHaveBeenCalled()
   })
 
   it('still surfaces unrelated provider failures', async () => {
