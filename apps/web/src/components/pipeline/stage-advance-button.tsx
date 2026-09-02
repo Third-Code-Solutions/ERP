@@ -3,16 +3,27 @@
 import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
+  STAGE_LEGACY_MAP,
   STAGE_TRANSITIONS,
   type OpportunityStage,
 } from '@third-code-erp/shared-types'
 import { advanceOpportunityStage } from '@/app/(dashboard)/pipeline/actions'
 import { LostReasonDialog } from './lost-reason-dialog'
-import { createStageTransitionSubmitter } from './stage-transition-action'
+import { RegressionReasonDialog } from './regression-reason-dialog'
+import {
+  createStageTransitionSubmitter,
+  getStageTransitionReasonKind,
+} from './stage-transition-action'
 
 interface StageAdvanceButtonProps {
   opportunityId: string
   currentStage: string
+}
+
+interface StageAdvanceDestinationHandlers {
+  advance: (stage: OpportunityStage) => void
+  openLostReason: (stage: OpportunityStage) => void
+  openRegressionReason: (stage: OpportunityStage) => void
 }
 
 const STAGE_LABELS: Record<OpportunityStage, string> = {
@@ -37,11 +48,33 @@ function isStage(value: string): value is OpportunityStage {
   return value in STAGE_TRANSITIONS
 }
 
+export function routeStageAdvanceDestination(
+  currentStage: OpportunityStage,
+  destination: OpportunityStage,
+  handlers: StageAdvanceDestinationHandlers
+): void {
+  const reasonKind = getStageTransitionReasonKind(
+    STAGE_LEGACY_MAP[currentStage],
+    destination
+  )
+  if (reasonKind === 'lost') {
+    handlers.openLostReason(destination)
+    return
+  }
+  if (reasonKind === 'regression') {
+    handlers.openRegressionReason(destination)
+    return
+  }
+  handlers.advance(destination)
+}
+
 export function StageAdvanceButton({ opportunityId, currentStage }: StageAdvanceButtonProps) {
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const [lostPromptOpen, setLostPromptOpen] = useState(false)
+  const [pendingRegressionStage, setPendingRegressionStage] =
+    useState<OpportunityStage | null>(null)
   const transitionSubmitterRef = useRef<ReturnType<
     typeof createStageTransitionSubmitter
   > | null>(null)
@@ -50,7 +83,8 @@ export function StageAdvanceButton({ opportunityId, currentStage }: StageAdvance
 
   if (!isStage(currentStage)) return null
 
-  const transitions = STAGE_TRANSITIONS[currentStage]
+  const sourceStage = currentStage
+  const transitions = STAGE_TRANSITIONS[sourceStage]
   if (transitions.length === 0) return null
 
   // Split into "forward" (won/contract/etc.) and "lost" so we can render the
@@ -81,6 +115,7 @@ export function StageAdvanceButton({ opportunityId, currentStage }: StageAdvance
             setError(null)
             setOpen(false)
             setLostPromptOpen(false)
+            setPendingRegressionStage(null)
           },
           onError: setError,
           onSuccess: () => router.refresh(),
@@ -94,6 +129,27 @@ export function StageAdvanceButton({ opportunityId, currentStage }: StageAdvance
     advance(lostNext, reason, true)
   }
 
+  function confirmRegression(reason: string) {
+    if (!pendingRegressionStage) return
+    advance(pendingRegressionStage, reason, true)
+  }
+
+  function requestDestination(stage: OpportunityStage) {
+    routeStageAdvanceDestination(sourceStage, stage, {
+      advance,
+      openLostReason: () => {
+        setOpen(false)
+        setPendingRegressionStage(null)
+        setLostPromptOpen(true)
+      },
+      openRegressionReason: (destination) => {
+        setOpen(false)
+        setLostPromptOpen(false)
+        setPendingRegressionStage(destination)
+      },
+    })
+  }
+
   // If only one forward path exists, render a single button (no menu).
   const singleForward = forwardNexts.length === 1 ? forwardNexts[0]! : null
 
@@ -101,7 +157,7 @@ export function StageAdvanceButton({ opportunityId, currentStage }: StageAdvance
     <div style={{ display: 'flex', gap: '4px', position: 'relative', flexWrap: 'wrap' }}>
       {singleForward && (
         <button
-          onClick={() => advance(singleForward)}
+          onClick={() => requestDestination(singleForward)}
           disabled={isPending}
           title={`Move to ${STAGE_LABELS[singleForward]}`}
           style={primaryStyle(isPending)}
@@ -123,7 +179,7 @@ export function StageAdvanceButton({ opportunityId, currentStage }: StageAdvance
               {forwardNexts.map((stage) => (
                 <button
                   key={stage}
-                  onClick={() => advance(stage)}
+                  onClick={() => requestDestination(stage)}
                   style={menuItemStyle}
                 >
                   {STAGE_LABELS[stage]}
@@ -135,7 +191,7 @@ export function StageAdvanceButton({ opportunityId, currentStage }: StageAdvance
       )}
       {lostNext && (
         <button
-          onClick={() => setLostPromptOpen(true)}
+          onClick={() => requestDestination(lostNext)}
           disabled={isPending}
           title="Close Lost"
           style={lostStyle(isPending)}
@@ -148,6 +204,14 @@ export function StageAdvanceButton({ opportunityId, currentStage }: StageAdvance
         isSubmitting={isPending}
         onCancel={() => setLostPromptOpen(false)}
         onConfirm={confirmLost}
+      />
+      <RegressionReasonDialog
+        open={pendingRegressionStage !== null}
+        fromLabel={STAGE_LABELS[STAGE_LEGACY_MAP[sourceStage]]}
+        toLabel={pendingRegressionStage ? STAGE_LABELS[pendingRegressionStage] : ''}
+        isSubmitting={isPending}
+        onCancel={() => setPendingRegressionStage(null)}
+        onConfirm={confirmRegression}
       />
       {error && (
         <p
