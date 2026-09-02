@@ -67,9 +67,16 @@ that access; the resulting dead-end search link is queued independently.
 
 ### Route catch-all
 
-`canViewPath` returns allowed for paths absent from navigation configuration.
-Several dynamic or secondary dashboard routes therefore depend entirely on
-page-local checks. Status: PARTIAL.
+The dashboard layout now fails closed for any path absent from an explicit
+99-template route registry. Dynamic parameters match one segment, ancestors do
+not authorize descendants, and every registered page has a thirteen-role
+outcome derived from its page gate or established read projection. Filesystem,
+registry, and independent expected-policy keys must remain exactly equal.
+Focused tests passed 63/63; full type, lint, build, secret-scan, and independent
+authorization review passed. Viewer, Commercial, Finance, and Sales also passed
+an isolated production-build browser matrix covering allowed pages, registered
+forbidden redirects, and unknown-path 404 states without protected UI. Status:
+PARTIAL until the stacked branch reaches an authorized reviewed environment.
 
 ### Project tabs and audit
 
