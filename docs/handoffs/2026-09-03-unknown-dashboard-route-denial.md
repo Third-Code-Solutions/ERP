@@ -72,3 +72,45 @@ callbacks, APIs, schemas, migrations, or deployment.
 
 This branch is stacked on PR #19. No production deployment or data mutation is
 authorized.
+
+## Closeout
+
+Status: source implementation complete; independent QA `GO`; isolated
+production-build browser verification `PASSED`.
+
+Implementation:
+
+- replaced the permissive fallback with an explicit registry containing the
+  exact 99 dashboard page templates found on disk;
+- matched dynamic segments one-for-one and denied arbitrary descendants,
+  misspellings, and future pages until they receive an explicit policy;
+- assigned per-template role sets from direct page gates or established read
+  projections, including narrower create, Admin, project, Inventory, and
+  Punchlist pages;
+- kept redirect/secondary policies out of sidebar navigation and preserved the
+  non-dashboard API, portal, and auth exemptions.
+
+Verification completed:
+
+- focused/downstream Vitest: PASSED, 4 files and 63 tests;
+- exact inventory: PASSED, 99 filesystem pages = 99 unique production entries
+  = 99 independent expected-policy entries;
+- complete Web and E2E TypeScript: PASSED;
+- Web source ESLint: PASSED;
+- production build: PASSED, 89/89 static pages generated;
+- gitleaks: PASSED, 1,747 commits scanned with no leaks;
+- independent security/authorization review: `GO`, no in-scope P1/P2 finding.
+- isolated production-build browser matrix: PASSED for Viewer, Commercial,
+  Finance, and Sales. Allowed pages rendered; registered forbidden pages ended
+  at `/dashboard?error=forbidden` without protected UI; three unknown or
+  misspelled descendants returned the expected 404 state without dashboard
+  navigation or forms. No unexpected HTTP error, page exception, protected
+  data render, provider call, form submission, account change, or ERP-data
+  mutation occurred.
+
+Agent 5 handoff complete. The browser verifier stopped the isolated server,
+removed its temporary artifacts and environment link, and confirmed the test
+port was closed. Unknown URLs are handled by Next.js not-found before the
+dashboard layout, while registered role denials exercise the layout policy.
+
+→ Handoff to Agent 5 complete. Result: `PASSED` at source commit `866deec5`.

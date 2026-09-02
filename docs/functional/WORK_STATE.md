@@ -7,7 +7,7 @@ Last updated: 2026-09-03 (Asia/Singapore)
 Goal: verify and repair existing ABI OPS functionality for the repository's
 thirteen-role authorization vocabulary, one end-to-end workflow at a time.
 Password management, legacy project-chat authorization, project-detail
-authorization, and legacy route-policy alignment are the four completed local
+authorization, legacy route-policy alignment, and fail-closed dashboard routing are the five completed local
 implementation slices; all remain `PARTIAL` under the strict live-data
 definition of done.
 
@@ -34,13 +34,13 @@ repository's release gates pass.
 | Session/recovery-protected page routes | 104 | VERIFIED by route inventory + middleware policy |
 | Explicit HTTP operations | 174 | VERIFIED by source inventory (133 Nest, 41 Next) |
 | Protected role/resource matrix records | 1,378 | VERIFIED as syntactically readable CSV records |
-| Tested role/resource combinations in this work order | 72 | 33 auth browser observations plus 13 automated AI-domain, 13 project-detail, and 13 route-policy cases |
+| Tested role/resource combinations in this work order | 85 | 33 auth browser observations plus 13 automated AI-domain, 13 project-detail, 13 legacy route-policy, and 13 fail-closed route-registry cases |
 | Verified role/resource combinations | 0 | Strict full-route definition not yet met; tested rows remain PARTIAL or BLOCKED |
 | Failed role/resource combinations | 0 | No FAILED matrix rows remain after route-alias and project-audit reconciliation |
 | Blocked role/resource combinations | 10 | Prior blocked auth/chat coverage plus one project-detail record for each missing `estimator` and `pm` identity |
-| Prioritized functional workflows | 4 | Password management, project-chat boundaries, project-detail boundaries, and legacy route-policy alignment |
+| Prioritized functional workflows | 5 | Password management, project-chat boundaries, project-detail boundaries, legacy route-policy alignment, and fail-closed dashboard routing |
 | Verified workflows | 0 | Strict live-data definition not yet met |
-| Partial workflows | 4 | All implemented and locally tested with explicit live-evidence limits |
+| Partial workflows | 5 | All implemented and locally tested with explicit live-evidence limits |
 | Failed workflows | 0 | No known implementation failure after focused QA |
 | Completed modules | 0 | NOT TESTED |
 | Modules remaining | 13 user-facing modules | NOT TESTED |
@@ -147,32 +147,65 @@ Implemented behavior:
   representative Admin/Inventory direct routes, and sign-out in the production
   build with no page error, HTTP error response, or protected UI leak.
 
+### Fail-closed dashboard route registry
+
+Implemented and independently reviewed. The slice remains `PARTIAL` until the
+stacked branch reaches an authorized reviewed environment.
+
+Implemented behavior:
+
+- the dashboard layout authorizes only the 99 page templates that actually
+  exist under its route group; filesystem, production-registry, and independent
+  expected-policy keys must remain exactly equal;
+- dynamic `[param]` segments match exactly one non-empty path segment, static
+  templates win at the same depth, and registered ancestors never authorize an
+  unknown descendant;
+- every template has an explicit thirteen-role outcome derived from its page
+  gate or established read projection, including narrower Admin, project,
+  create, Inventory, and Punchlist pages;
+- unknown and misspelled dashboard paths fail closed, while `/api/**`,
+  `/portal/**`, and `/auth/**` remain outside this dashboard registry;
+- hidden redirect and secondary routes stay out of the sidebar, and owner
+  inheritance, estimator/PM distinctions, Assets rollout, and existing
+  page-local tenant/entity checks remain unchanged;
+- focused/downstream tests passed 63/63, the full Web/E2E type checks, source
+  lint, 89/89-page production build, secret scan, and independent 99-template
+  authorization review passed;
+- Viewer, Commercial, Finance, and Sales passed an isolated production-build
+  browser matrix: allowed pages rendered, registered forbidden pages redirected
+  without protected UI, and unknown/misspelled descendants returned a 404
+  without dashboard navigation or forms.
+
 Acceptance criteria and ordered agent handoffs are recorded in
 `docs/handoffs/2026-09-02-functional-completeness.md`,
 `docs/handoffs/2026-09-02-ai-chat-data-boundaries.md`,
 `docs/handoffs/2026-09-02-project-detail-authorization.md`, and
-`docs/handoffs/2026-09-03-legacy-route-policy-alignment.md`.
+`docs/handoffs/2026-09-03-legacy-route-policy-alignment.md`, and
+`docs/handoffs/2026-09-03-unknown-dashboard-route-denial.md`.
 
 ## Agent state
 
 - Principal Agent 1: read-only route/RBAC cartography complete; no files changed.
 - Principal Agent 2: auth functional audit complete; no files changed.
 - Principal Agent 3: sole application-source editor; auth, AI chat, project
-  detail, and legacy route-policy implementations complete.
+  detail, legacy route-policy, and fail-closed route-registry implementations
+  complete.
 - Principal Agent 4: independent code/test/security review complete; `GO` for
-  all four implemented source slices.
+  all five implemented source slices.
 - Principal Agent 5: auth verification complete for all eleven supplied
   identities; AI chat safe browser/API smoke complete for viewer, finance, and
   commercial; project-detail browser matrix complete for all eleven supplied
   identities; legacy Admin/Inventory route matrix complete for all eleven
-  supplied identities with no mutation or provider call.
+  supplied identities with no mutation or provider call; fail-closed route
+  checks passed for Viewer, Commercial, Finance, and Sales in an isolated
+  production build.
 
 ## Git state
 
 - Primary repository: `D:/thirdcode/ERP`; current stacked worktree:
-  `D:/thirdcode/ERP-legacy-route-policy-20260903`.
-- Current stacked branch: `agent-03/legacy-route-policy-alignment`, based on
-  PR #17 pending its own PR.
+  `D:/thirdcode/ERP-unknown-route-policy-20260903`.
+- Current stacked branch: `agent-03/deny-unknown-dashboard-routes`, based on
+  the stacked legacy route-policy branch from PR #19.
 - Finance/security release-gate branch: PR #18 at commit `4369a01a`; all
   protected checks pass.
 - Auth PR branch: `agent-03/auth-password-workflows-20260902`; PR #15 at
@@ -214,15 +247,18 @@ Acceptance criteria and ordered agent handoffs are recorded in
 | Legacy route-policy independent QA | PASSED | `GO`; no P1/P2 least-privilege or parity finding |
 | Legacy route-policy browser matrix | PASSED | 11/11 supplied identities; login, sidebar, direct Admin/Inventory policy, reload/history, and sign-out |
 | Legacy route-policy affected identities | BLOCKED | No `estimator` or `pm` account supplied or seeded |
+| Fail-closed route-registry focused tests | PASSED | 4 files, 63 tests; exact 99-template registry and 13-role policy oracle |
+| Fail-closed route-registry independent QA | PASSED | `GO`; all 99 role sets match an independently derived page-gate matrix, with adversarial unknown/over-grant probes denied |
+| Fail-closed route-registry type/lint/build/security | PASSED | Complete Web/E2E TypeScript, Web source ESLint, 89/89-page production build, gitleaks over 1,747 commits, and whitespace checks |
+| Fail-closed route-registry browser lane | PASSED | Viewer, Commercial, Finance, and Sales: allowed pages rendered; registered denials redirected without protected UI; three unknown descendants returned expected 404 states without dashboard chrome or forms |
 | Deployment/live smoke | NOT RUN | ADR-020 requires the reviewed stack on `main` and green checks on that exact SHA |
 
 ## Confirmed high-priority RBAC findings outside the completed slices
 
-1. Unknown dashboard paths currently default to allowed in `canViewPath`.
-2. Estimator universal search can emit material links into the correctly denied
+1. Estimator universal search can emit material links into the correctly denied
    `/admin/material-items` route.
-3. Opportunity CSV export authorization is broader than Reports navigation.
-4. Viewer read breadth still conflicts with the narrower checked-in policy and
+2. Opportunity CSV export authorization is broader than Reports navigation.
+3. Viewer read breadth still conflicts with the narrower checked-in policy and
    requires a product decision for sensitive modules.
 
 These are queued sequentially after the completed local slices and must be
@@ -230,8 +266,7 @@ reproduced before repair.
 
 ## Exact next action
 
-Repair the unknown-dashboard-path allow fallback without affecting explicit
-public/auth/portal routes. Then address the estimator material-search dead end
-and opportunity CSV export authorization sequentially. Production deployment
-remains blocked by ADR-020 until the reviewed stack reaches `main` and every
-required release check is green on that exact SHA.
+Address the estimator material-search dead end, then opportunity CSV export
+authorization. Production deployment remains blocked by ADR-020 until the
+reviewed stack reaches `main` and every required release check is green on that
+exact SHA.
