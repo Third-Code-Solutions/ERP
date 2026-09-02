@@ -66,8 +66,40 @@ Web source commit: `0ed1bdbc`.
 No Core/API source, Pipeline UI component, shared auth, schema, dependency,
 demo-data, environment, credential, or deployment change was made by Agent 03.
 
+## Agent 11 scope
+
+- Added one shared Pipeline action-result runner so returned errors and rejected
+  action Promises follow the same handled UI path.
+- Wired `StageAdvanceButton` and `PipelineBoard` to clear stale errors on each
+  attempt, show failures through their existing accessible alerts, and run
+  refresh/success work only after an error-free result.
+- Preserved exact regression `reason_required` handling, Lost reason forwarding,
+  keyboard semantics, pending/disabled double-submit guards, and the absence of
+  optimistic stage persistence.
+- Added deterministic regression coverage for thrown failure, returned failure,
+  stale-error clearing, retry, and success-only refresh behavior.
+
+Pipeline source commit: `7e8e0a60`.
+
+### Agent 11 verification
+
+- Node 22.23.2 and pnpm 10.33.0: VERIFIED.
+- Red rejected-action reproduction: FAILED as expected, 1/1.
+- Final focused action-result suite: PASSED, 3/3.
+- Focused plus neighboring Pipeline suites: PASSED, 3 files / 44 tests.
+- Web plus configured E2E TypeScript projects: PASSED.
+- Full Web source lint: PASSED.
+- Web production build: PASSED, including 89 generated static pages.
+- Diff check: PASSED.
+- Pinned Gitleaks 8.30.1 full-history scan: PASSED, 1,775 commits / no leaks.
+
+No route, server action, Core/API, shared auth, component-library, schema,
+dependency, demo-data, environment, credential, or deployment change was made
+by Agent 11.
+
 ## Remaining work
 
-Agent 11 must verify visible, accessible handling of both returned and rejected
-action failures in the Pipeline board and conversion callers. Independent QA
-and safe browser proof follow on the combined branch.
+Independent QA must review the combined branch and return `GO` or `BLOCK`.
+After QA, the designated browser verifier must exercise the supplied identity
+matrix and the returned/rejected failure states in a real browser. Safe positive
+persistence proof remains limited to a disposable or rollback-contained fixture.

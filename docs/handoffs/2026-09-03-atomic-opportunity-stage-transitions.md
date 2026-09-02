@@ -204,3 +204,55 @@ and green Web action/adapter evidence above. Expected output: inspect board and
 conversion callers, make only the minimum Agent 11 component/test changes,
 run focused UI and browser-adjacent gates, update this handoff/changeset, and
 hand off the combined branch to independent QA or record a blocker.
+
+## Agent 11 — Pipeline failure UX
+
+Verdict: `GO` for independent QA. Pipeline source commit: `7e8e0a60`.
+
+Both Pipeline transition callers previously rendered returned `{ error }`
+results but awaited the server action inside an async transition callback
+without handling a rejected Promise. A transport/runtime rejection could
+therefore escape as an unhandled rejection, show no failure state, and leave
+the user without a retry path.
+
+The two callers now share one small action-result runner. It clears stale
+failure state before every attempt, maps a rejected action to a safe visible
+message, preserves exact returned errors, and invokes success work only after
+an error-free result. `StageAdvanceButton` continues to expose its inline
+`role="alert"`; `PipelineBoard` routes failures to its existing `role="alert"`
+banner. Neither surface refreshes or performs an optimistic stage write on a
+returned or thrown failure. The board's exact `reason_required` fallback still
+opens the regression-reason dialog, and Lost reason forwarding is unchanged.
+
+The existing semantic buttons, keyboard behavior, `useTransition` pending
+state, disabled controls, and reason-dialog `isSubmitting` guard remain the
+double-submit protections. A retry clears the prior error, while a successful
+retry refreshes exactly once. No component-library, route, server-action,
+dependency, or cross-agent source changed.
+
+Node 22.23.2 / pnpm 10.33.0 verification:
+
+- deterministic red reproduction: FAILED as expected, 1/1 — a rejected action
+  Promise escaped instead of resolving to handled failure state;
+- final focused action-result suite: PASSED, 3/3;
+- focused plus neighboring Pipeline suites: PASSED, 3 files / 44 tests;
+- Web plus all configured E2E TypeScript projects: PASSED;
+- full Web source lint: PASSED;
+- Web production build: PASSED, 89 static pages generated;
+- `git diff --check`: PASSED;
+- Gitleaks 8.30.1 through the pinned repository wrapper: PASSED, 1,775 commits /
+  no leaks.
+
+The repository has no established DOM component-test dependency, and the
+temporary custom browser harness proved only a harness-load timeout, so it was
+discarded without source or dependency residue. Deterministic unit coverage and
+the existing rendered `role="alert"` paths gate this scoped change; a real
+browser exercise remains with the designated browser verifier.
+
+→ Handoff to independent QA. Reason: the combined Core, Web action, and
+Pipeline caller changes are source-complete and release-gated within their
+owners' scopes. Inputs: commits `9496d282`, `0ed1bdbc`, and `7e8e0a60`, exact
+red/green evidence above, and the unchanged reason/double-submit UX. Expected
+output: review the combined clean branch and return `GO` or `BLOCK` with direct
+evidence before the eleven-identity browser matrix and safe disposable-fixture
+transition proof.
