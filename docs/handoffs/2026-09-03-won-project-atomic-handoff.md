@@ -423,3 +423,31 @@ show read-only status with zero mutation controls, inspect network/console/logs,
 confirm direct Core policy remains unchanged with representative requests, and
 leave the positive Won mutation explicitly blocked unless a new safe fixture
 exists.
+
+## Browser verification round 2 and closeout
+
+Verdict: UI correction `PASS`; overall workflow remains `PARTIAL` under the
+strict positive-persistence definition.
+
+At clean HEAD `da6c8c3f`, Node 22.23.2, pnpm 10.33.0, and Next.js 15.5.23:
+
+- the production Web build passed type validation and generated 89/89 pages;
+- all eleven supplied identities passed login/identity, conversion render,
+  refresh, board consistency, browser history, and sign-out;
+- Owner/Admin/Sales each saw three conversion rows/links, one Actions header,
+  six enabled stage controls, no read-only notice, and eight board controls;
+- Commercial, Design, Service Delivery, Finance, Procurement, Safety, CX, and
+  Viewer saw the same three rows/links, no Actions header, zero stage controls,
+  one accessible read-only status, and zero board controls;
+- no form or mutation action was submitted; demo data remained unchanged;
+- page exceptions, unexpected HTTP responses, non-CSP request failures, and Web
+  server errors were all zero;
+- local HTTP retained the documented CSP HTTPS-upgrade/RSC prefetch noise and
+  aborted speculative prefetches without a broken rendered journey;
+- the disposable browser/server/artifacts were cleaned up and Git remained
+  clean.
+
+Positive Won conversion is still blocked by the documented demo-fixture
+preconditions, and Estimator/PM remain blocked without identities. No
+deployment occurred; ADR-020 still requires reviewed `main` with green gates
+on the exact release SHA.
