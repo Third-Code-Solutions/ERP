@@ -100,3 +100,47 @@ Inputs: PRD WO-13, this note, the current Core transition/conversion services,
 the Web Core client, and the reproduced swallowed-error path. Expected output:
 an atomic, typed, idempotent Core contract with failure-injection regression
 coverage, committed separately from Web wiring.
+
+## Agent 05 closeout
+
+Status: complete at source commit `b9aa2d93`; Web files remain unchanged.
+
+Findings and implementation:
+
+- the existing stage and Project conversion authorities already share one
+  database transaction, including ledgers, stage/SLA changes, Project/backlink,
+  checklist/items, notification intents, audits, and request completion;
+- the Core KYC gate was not behaviorally equivalent to the live Web pipeline:
+  it checked only Account KYC, so a valid PPRF with two approved tracks could
+  fail while incomplete tracks could pass under an approved Account;
+- Core now requires both tenant-scoped canonical Finance tracks when any track
+  exists and uses Account KYC only for trackless legacy opportunities;
+- no schema, dependency, environment value, account, fixture, or deployment
+  configuration changed.
+
+Verification:
+
+- baseline conversion/controller tests: PASSED, 8/8;
+- final neighboring CRM tests: PASSED, 44/44;
+- real local PostgreSQL 17 stage/conversion HTTP integrations: PASSED, 2/2,
+  with all fixture writes contained by an outer rollback;
+- ten injected conversion write-boundary failures: PASSED, each leaving no
+  committed effect and permitting a clean retry;
+- serialized concurrent replay: PASSED, with Project, backlink, checklist,
+  items, notification, audits, and completion occurring once;
+- stage-owned rollback, owner/admin/sales authorization, Viewer denial,
+  dual-track/legacy KYC, rollout gates, typed errors, and replay: PASSED;
+- API TypeScript, full API source ESLint, Nest production build, WO-13 contract,
+  gitleaks, and diff checks: PASSED.
+
+The package lint wrapper itself selected host pnpm 11 instead of the pinned
+pnpm 10.33 runtime and failed before ESLint; the identical full API source
+ESLint target passed directly through pinned Corepack pnpm.
+
+→ Handoff to Agent 03. Reason: the Core atomic contract and failure behavior
+are now verified. Inputs: source commit `b9aa2d93`, the
+`transitionOpportunityStageThroughCoreApi` adapter, its exact Web/Core rollout
+gates, and the active pipeline action. Expected output: route Won/Closed Won
+through Core without a local stage-first fallback, return the committed
+`projectId`, surface failures through the existing error UI, and refresh only
+committed Project/pipeline state.
