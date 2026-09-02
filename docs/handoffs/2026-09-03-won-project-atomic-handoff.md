@@ -275,3 +275,39 @@ source commits, round-1 findings, the all-role matrices, and real PostgreSQL
 adversarial cases. Expected output: `GO` or `BLOCK` after independently proving
 role exactness, tenant safety, replay authorization/isolation, rollback,
 Web/Core fail-closed integration, and regression gates.
+
+## Independent QA round 2
+
+Verdict: `GO`; no remaining in-scope P1/P2 finding at combined clean HEAD
+`bd4d9c83`.
+
+Independently verified:
+
+- exact Owner/Admin/Sales allow and ten-role deny behavior at the central map,
+  real controller metadata/guard, and both transaction services;
+- denial occurs before persistent effects;
+- linked Accounts resolve by ID plus authenticated tenant before ledgers, KYC,
+  Project, or backlink work;
+- the real PostgreSQL tenant-A tracks plus tenant-B Account case returns 409 and
+  leaves every enumerated stage/handoff effect absent;
+- authorized cross-actor replay, denied/revoked membership, and same-key
+  cross-tenant isolation;
+- one Won transaction, dual-track and legacy KYC, Web/Core rollout gates,
+  semantic response binding, no local Won fallback, and unchanged non-Won
+  behavior;
+- shared authorization 32/32, focused Core 87/87, complete CRM 68/68, Web
+  action/client 185/185, PostgreSQL integrations 2/2, all authoritative
+  TypeScript/source ESLint/build/WO-13/gitleaks/diff gates, and 89/89 Web pages.
+
+Agent 11 remains a no-op. Browser and deployment verification were not part of
+the read-only QA phase.
+
+→ Handoff to browser verifier. Reason: independent QA is `GO`. Inputs: combined
+HEAD, supplied demo roles, existing demo data, Web/Core rollout gates, and the
+requirement to inspect console/network/server behavior. Expected output: run
+the built Web and Core services, confirm authorized/denied visibility and
+direct API boundaries, exercise a real successful Won conversion only when a
+clearly disposable or explicitly demo-safe candidate exists, record any
+persisted demo effect exactly, and otherwise mark the positive browser mutation
+`BLOCKED` while still verifying fail-closed and navigation behavior. Never
+delete append-only audit data or weaken a gate for the test.
