@@ -393,3 +393,33 @@ is repaired in an isolated UI commit. Inputs: browser round-1 matrix,
 output: `GO` or `BLOCK` after independently proving 3-allow/10-deny render
 behavior, read-only data preservation, action wiring, server-boundary defense,
 accessibility, and relevant regression gates.
+
+## Independent QA round 3
+
+Verdict: `GO`; no in-scope P1/P2 finding at combined clean HEAD `04e71b9f`.
+
+Independently verified:
+
+- Owner/Admin/Sales retain the Actions column and correctly wired stage control;
+- the other ten roles retain opportunity data and Project navigation, render no
+  mutation header/control, and receive the accessible read-only status;
+- the all-role test imports the real central `can()` implementation;
+- `/pipeline/conversion` remains an all-role readable route and conditional
+  table headers/cells remain paired;
+- server action/Core defense-in-depth denial remains intact;
+- focused Web checks passed 255/255, shared authorization 32/32, Core guard and
+  services 84/84, complete Web/E2E TypeScript, direct pinned source ESLint,
+  89/89-page production build, gitleaks over 1,767 commits, diff, and clean
+  status.
+
+The package lint wrapper again selected host pnpm 11 instead of the pinned
+10.33 runtime; the identical direct full source ESLint target passed.
+
+→ Handoff to browser verifier round 2. Reason: QA round 3 is `GO`. Inputs: UI
+commit `bb1c3772`, round-1 browser evidence, and all eleven supplied identities.
+Expected output: revisit `/pipeline/conversion` for all supplied roles, prove
+Owner/Admin/Sales retain enabled controls, prove all eight supplied denied roles
+show read-only status with zero mutation controls, inspect network/console/logs,
+confirm direct Core policy remains unchanged with representative requests, and
+leave the positive Won mutation explicitly blocked unless a new safe fixture
+exists.
