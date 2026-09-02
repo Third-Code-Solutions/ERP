@@ -362,3 +362,34 @@ and the existing board's read-only pattern. Expected output: hide or replace all
 stage mutation controls for denied roles, preserve read-only data access and
 Owner/Admin/Sales controls, add all-role render coverage, and commit the
 smallest pipeline UI change before QA round 3.
+
+## Agent 11 closeout
+
+Status: complete at source commit `bb1c3772`; only the conversion server page
+and its new colocated test changed.
+
+Implementation:
+
+- the page consumes the real central `opportunity.advance_stage` capability;
+- Owner, Admin, and Sales retain the Actions column and wired
+  `StageAdvanceButton` controls;
+- the other ten roles retain table/data access but receive the existing
+  accessible read-only status pattern and no mutation column or button;
+- Core/API authorization, server actions, shared policy, demo data, and other
+  UI files were unchanged.
+
+Verification:
+
+- all-role render and allowed-control wiring: PASSED, 14/14;
+- route/navigation/inventory/page checks: PASSED, 70/70;
+- shared authorization: PASSED, 32/32;
+- Pipeline action-pattern checks: PASSED, 213/213;
+- complete Web/E2E TypeScript, full Web source ESLint, 89/89-page production
+  build, gitleaks over 1,765 commits, and diff checks: PASSED.
+
+→ Handoff to independent QA round 3. Reason: the browser-only visibility defect
+is repaired in an isolated UI commit. Inputs: browser round-1 matrix,
+`bb1c3772`, the real central capability, and the conversion page test. Expected
+output: `GO` or `BLOCK` after independently proving 3-allow/10-deny render
+behavior, read-only data preservation, action wiring, server-boundary defense,
+accessibility, and relevant regression gates.
