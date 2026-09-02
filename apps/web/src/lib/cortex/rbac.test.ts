@@ -33,6 +33,8 @@ describe('Cortex RBAC — node-type scope', () => {
 
   it('covers nested estimating and procurement records', () => {
     expect(cortexCanSeeType('estimator', 'bom_line')).toBe(true)
+    expect(cortexCanSeeType('estimator', 'warehouse')).toBe(false)
+    expect(cortexCanSeeType('estimator', 'employee')).toBe(false)
     expect(cortexCanSeeType('procurement', 'po_line')).toBe(true)
     expect(cortexCanSeeType('sales', 'bom_line')).toBe(false)
     expect(cortexCanSeeType('sales', 'po_line')).toBe(false)

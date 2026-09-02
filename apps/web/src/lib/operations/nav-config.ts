@@ -7,10 +7,10 @@
  *      dashboard layout — so even if a user types a forbidden URL, the
  *      server-side check redirects them away.
  *
- * Role policy mirrors REFACTOR.md §2 — the canonical 9-role ABI OPS
- * matrix. Legacy values (owner / estimator / pm) are folded into their
- * canonical equivalent via canonicalRole() so we never duplicate them
- * in the per-item allow-lists.
+ * Route policy is explicit for every persisted ABI OPS role. Owner inherits
+ * the admin projection by contract; estimator and pm remain distinct because
+ * the central capability registry grants them different authority from
+ * commercial and sd_pm_pe respectively.
  */
 import type { AppRole } from '@third-code-erp/auth'
 
@@ -27,7 +27,8 @@ export interface NavItemDef {
   /**
    * Roles that can VIEW this item in the sidebar AND access the
    * route via direct URL. If undefined, everyone (including viewers)
-   * gets access. Always uses canonical role names.
+   * gets access. Estimator and pm must be listed explicitly; owner inherits
+   * admin through canonicalRole().
    */
   roles?: AppRole[]
   /** Optional short hint shown under hover/title for accessibility. */
@@ -59,15 +60,15 @@ export interface NavSection {
 }
 
 /**
- * Map legacy roles → their canonical equivalents. Lets us keep allow-
- * lists short and aligned to REFACTOR.md §2.
+ * Preserve the explicit owner-as-super-admin contract without erasing the
+ * distinct authorization policy for any other persisted role.
  */
 const CANONICAL: Record<AppRole, AppRole> = {
-  // Legacy → canonical
+  // Contractually inherited super-admin projection.
   owner: 'admin',
-  estimator: 'commercial',
-  pm: 'sd_pm_pe',
-  // Canonical identity
+  // Every other persisted role is an authorization identity in its own right.
+  estimator: 'estimator',
+  pm: 'pm',
   admin: 'admin',
   sales: 'sales',
   commercial: 'commercial',
@@ -127,7 +128,7 @@ export function roleLabel(role: AppRole): string {
 // -----------------------------------------------------------------------------
 // Role-aware nav config — REFACTOR.md §2 permissions matrix.
 //
-// Visibility rules (canonical roles only — legacy mapped via canonicalRole):
+// Visibility rules (all persisted roles are explicit except owner → admin):
 //
 //   /dashboard           → everyone
 //   /crm/accounts        → everyone (read); only permitted roles receive
@@ -136,15 +137,18 @@ export function roleLabel(role: AppRole): string {
 //   /pipeline/board      → everyone (read); stage commands remain capability-gated
 //   /projects            → everyone (project.read); creation/update/delete
 //                          commands remain capability-gated
-//   /bom                 → admin, commercial, viewer (read only)
+//   /bom                 → admin, estimator, commercial, viewer (read only)
 //   /tasks               → everyone (My-Tasks is assignee-scoped server-side)
-//   /permits             → admin, commercial, sd_pm_pe, safety, viewer (read only)
-//   /procurement/rfqs    → admin, procurement, commercial, viewer (read only)
-//   /procurement/deliveries → admin, procurement, sd_pm_pe, viewer (read only)
-//   /purchase-orders     → admin, commercial, sd_pm_pe, procurement, viewer (read only)
+//   /permits             → admin, estimator, pm, commercial, sd_pm_pe, safety, viewer
+//   /procurement/rfqs    → admin, estimator, procurement, commercial, viewer
+//   /procurement/deliveries → admin, pm, procurement, sd_pm_pe, viewer
+//   /purchase-orders     → admin, estimator, pm, commercial, sd_pm_pe,
+//                          procurement, viewer
+//   /inventory           → admin, pm, commercial, sd_pm_pe, finance,
+//                          procurement, viewer
 //   /invoices            → admin, finance
-//   /claims              → admin, finance, sd_pm_pe, commercial
-//   /punchlist           → admin, sd_pm_pe, cx, safety, viewer (read only)
+//   /claims              → admin, estimator, pm, commercial, sd_pm_pe, finance
+//   /punchlist           → admin, pm, sd_pm_pe, cx, safety, viewer (read only)
 //   /warranty            → admin, cx, viewer (read only)
 //   /warranty/cnps       → admin, cx, viewer (read only)
 //   /documents           → everyone (per-doc RLS scoping in DB)
@@ -189,7 +193,7 @@ export const NAV_SECTIONS: NavSection[] = [
         href: '/bom',
         label: 'BOM Builder',
         iconKey: 'Bom',
-        roles: ['admin', 'commercial', 'viewer'],
+        roles: ['admin', 'estimator', 'commercial', 'viewer'],
       },
       { href: '/tasks', label: 'My Tasks', iconKey: 'Check' },
     ],
@@ -207,31 +211,57 @@ export const NAV_SECTIONS: NavSection[] = [
         href: '/permits',
         label: 'Permits',
         iconKey: 'Layers',
-        roles: ['admin', 'commercial', 'sd_pm_pe', 'safety', 'viewer'],
+        // Estimator/pm retain the existing entity read projection; narrower
+        // permit mutations remain capability-gated by their server actions.
+        roles: [
+          'admin',
+          'estimator',
+          'pm',
+          'commercial',
+          'sd_pm_pe',
+          'safety',
+          'viewer',
+        ],
       },
       {
         href: '/procurement/rfqs',
         label: 'RFQs',
         iconKey: 'PurchaseOrder',
-        roles: ['admin', 'procurement', 'commercial', 'viewer'],
+        roles: ['admin', 'estimator', 'procurement', 'commercial', 'viewer'],
       },
       {
         href: '/procurement/deliveries',
         label: 'Deliveries',
         iconKey: 'Upload',
-        roles: ['admin', 'procurement', 'sd_pm_pe', 'viewer'],
+        roles: ['admin', 'pm', 'procurement', 'sd_pm_pe', 'viewer'],
       },
       {
         href: '/purchase-orders',
         label: 'Purchase Orders',
         iconKey: 'PurchaseOrder',
-        roles: ['admin', 'commercial', 'sd_pm_pe', 'procurement', 'viewer'],
+        roles: [
+          'admin',
+          'estimator',
+          'pm',
+          'commercial',
+          'sd_pm_pe',
+          'procurement',
+          'viewer',
+        ],
       },
       {
         href: '/inventory',
         label: 'Inventory',
         iconKey: 'Layers',
-        roles: ['admin', 'finance', 'procurement', 'sd_pm_pe', 'commercial', 'viewer'],
+        roles: [
+          'admin',
+          'finance',
+          'procurement',
+          'pm',
+          'sd_pm_pe',
+          'commercial',
+          'viewer',
+        ],
         description: 'Warehouses, receipts, and perpetual stock',
       },
       {
@@ -241,6 +271,8 @@ export const NAV_SECTIONS: NavSection[] = [
         visible: false,
         roles: [
           'admin',
+          'estimator',
+          'pm',
           'sales',
           'commercial',
           'design',
@@ -263,13 +295,20 @@ export const NAV_SECTIONS: NavSection[] = [
         href: '/claims',
         label: 'Claims',
         iconKey: 'Receipt',
-        roles: ['admin', 'finance', 'sd_pm_pe', 'commercial'],
+        roles: [
+          'admin',
+          'finance',
+          'estimator',
+          'pm',
+          'sd_pm_pe',
+          'commercial',
+        ],
       },
       {
         href: '/punchlist',
         label: 'Punchlist',
         iconKey: 'Check',
-        roles: ['admin', 'sd_pm_pe', 'cx', 'safety', 'viewer'],
+        roles: ['admin', 'pm', 'sd_pm_pe', 'cx', 'safety', 'viewer'],
       },
       {
         href: '/warranty',
@@ -349,13 +388,13 @@ export const NAV_SECTIONS: NavSection[] = [
 
 /** Filter the nav config down to what the given role may see. */
 export function visibleNavSections(role: AppRole): NavSection[] {
-  const me = canonicalRole(role)
+  const routeRole = canonicalRole(role)
   return NAV_SECTIONS.map((section) => ({
     ...section,
     items: section.items.filter((item) => {
       if (item.visible === false) return false
       if (!item.roles) return true
-      return item.roles.includes(me)
+      return item.roles.includes(routeRole)
     }),
   })).filter((section) => section.items.length > 0)
 }
@@ -394,7 +433,7 @@ export function canViewPath(role: AppRole, pathname: string): boolean {
   if (pathname.startsWith('/api/') || pathname.startsWith('/portal/')) return true
   if (pathname.startsWith('/auth/')) return true
 
-  const me = canonicalRole(role)
+  const routeRole = canonicalRole(role)
 
   // Walk the nav config from most specific to least so /admin/users
   // matches /admin before /tasks.
@@ -404,7 +443,7 @@ export function canViewPath(role: AppRole, pathname: string): boolean {
   for (const item of allItems) {
     if (pathname === item.href || pathname.startsWith(item.href + '/')) {
       if (!item.roles) return true
-      return item.roles.includes(me)
+      return item.roles.includes(routeRole)
     }
   }
 
