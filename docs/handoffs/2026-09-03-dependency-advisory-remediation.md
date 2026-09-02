@@ -19,6 +19,31 @@ Primary advisory evidence:
 - https://github.com/advisories/GHSA-4mjr-xmp4-gh2g
 - https://github.com/advisories/GHSA-6gmq-8vp8-gcm6
 
+### Expanded advisory discovery
+
+After the production dependency audit was corrected locally, the complete
+audit exposed four high-severity advisories in the existing development-only
+path `apps/api > @nestjs/cli > @angular-devkit/core > ajv > fast-uri`:
+
+- GHSA-5jgf-p345-68v8
+- GHSA-f65p-4m7j-42xc
+- GHSA-fph4-wmhf-6fwf
+- GHSA-jqff-g426-hqxp
+
+The repository already overrides `fast-uri` to `3.1.5`; all four advisories are
+patched in `3.1.6`. This handoff therefore also authorizes updating that
+existing exact override to `fast-uri@3.1.6` and regenerating only the associated
+lockfile entries. This is a build-tool supply-chain correction: it does not
+change application behavior, API contracts, lifecycle-script policy, or add a
+new dependency.
+
+Primary advisory evidence:
+
+- https://github.com/advisories/GHSA-5jgf-p345-68v8
+- https://github.com/advisories/GHSA-f65p-4m7j-42xc
+- https://github.com/advisories/GHSA-fph4-wmhf-6fwf
+- https://github.com/advisories/GHSA-jqff-g426-hqxp
+
 No dependency or lockfile was changed by the Finance clock correction. This is
 a newly surfaced supply-chain release blocker and must not be bypassed by
 lowering the audit threshold or disabling the security job.
@@ -37,12 +62,14 @@ lowering the audit threshold or disabling the security job.
 ## Acceptance criteria
 
 1. Add exact pnpm workspace overrides for `qs@6.16.0` and
-   `@xmldom/xmldom@0.8.15`, following the existing security-remediation
-   override convention. Regenerate the single authoritative lockfile with Node
-   22 and pnpm 10.33.0.
-2. The lockfile resolves the API Express path only to patched `qs` and the Web
-   Mammoth path only to patched `@xmldom/xmldom`; no unrelated dependency or
-   lifecycle-script policy change is allowed.
+   `@xmldom/xmldom@0.8.15`, and update the existing `fast-uri` override from
+   `3.1.5` to `3.1.6`, following the existing security-remediation override
+   convention. Regenerate the single authoritative lockfile with Node 22 and
+   pnpm 10.33.0.
+2. The lockfile resolves the API Express path only to patched `qs`, the Web
+   Mammoth path only to patched `@xmldom/xmldom`, and the Nest CLI/Ajv path only
+   to patched `fast-uri`; no unrelated dependency or lifecycle-script policy
+   change is allowed.
 3. `pnpm install --frozen-lockfile --ignore-scripts`, `pnpm audit --prod
    --audit-level low`, and the complete `pnpm audit --audit-level low` pass.
 4. API request/integration coverage and the two Mammoth-backed extraction
