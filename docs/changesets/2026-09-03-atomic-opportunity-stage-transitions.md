@@ -164,6 +164,38 @@ environment, credential, or deployment state changed. The protected PostgreSQL
 HTTP canary remains BLOCKED by the same absent `DATABASE_URL` and
 `ERP_API_INTEGRATION_EXPECTED=1` bindings; no live database proof is claimed.
 
+## Agent 11 remediation round 2
+
+- Routed every `StageAdvanceButton` destination through the shared reason-kind
+  classifier after canonicalizing the current stage.
+- Added the existing required regression dialog before both
+  `negotiation -> bom_submission` and legacy
+  `resubmission -> bom_submission`; neither edge can request before a valid
+  reason is confirmed.
+- Preserved Lost-specific routing, forward/Won behavior, menu options,
+  accessible controls, synchronous duplicate protection, returned/rejected
+  error display, retry clearing, and success-only refresh.
+- Added caller-module tests for both regression edges, Lost classification,
+  ordinary forward routing, blank/over-limit zero-call behavior, and one
+  trimmed valid submission.
+
+Pipeline round-2 source commit: `aefde4fc`.
+
+### Agent 11 round-2 verification
+
+- Pinned Node 22.23.2 and pnpm 10.33.0: VERIFIED.
+- Caller-routing red: FAILED as expected, 4/4.
+- Final focused plus neighboring Pipeline suites: PASSED, 5 files / 59 tests.
+- Web plus configured E2E TypeScript projects: PASSED.
+- Full Web source lint: PASSED.
+- Web production build: PASSED, including 89 generated static pages.
+- WO-11 contract: PASSED, 5/5.
+- Diff check: PASSED.
+- Pinned Gitleaks 8.30.1 full-history scan: PASSED, 1,783 commits / no leaks.
+
+No actions, Core/API, scripts, shared packages, auth, routes/pages, schema,
+dependency, demo data, environment, credential, or deployment state changed.
+
 Independent QA must rerun the combined branch. After QA, the designated browser
 verifier must exercise the supplied identity matrix and returned/rejected
 failure states. Safe positive persistence proof remains limited to a disposable

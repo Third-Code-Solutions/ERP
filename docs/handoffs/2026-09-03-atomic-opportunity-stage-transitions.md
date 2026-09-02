@@ -463,3 +463,61 @@ Inputs: Core `9496d282`, Web `0ed1bdbc`, Pipeline `7e8e0a60`, Lost UX
 output: independently rerun the combined branch, return `GO` or `BLOCK` with
 direct evidence, then release the designated browser identity/failure matrix
 only on `GO`.
+
+## Agent 11 remediation round 2 — conversion regressions
+
+Verdict: `GO` for independent QA. Pipeline source commit: `aefde4fc`.
+
+`StageAdvanceButton` now routes every single-button, menu, and Lost destination
+through a caller-owned destination router. The router canonicalizes the current
+stage with `STAGE_LEGACY_MAP`, then calls `getStageTransitionReasonKind` before
+any action can run. Canonical `negotiation -> bom_submission` and legacy
+`resubmission -> bom_submission` therefore open the existing
+`RegressionReasonDialog` and return with zero request. Lost/Closed Lost still
+open `LostReasonDialog`, while forward and Won destinations retain the existing
+direct guarded submission path and allowed menu options.
+
+Regression confirmation uses the existing synchronous guarded submitter with
+`reasonRequired: true`. The shared dialog and submitter continue to reject blank,
+whitespace-only, and over-1,000-character input with zero action call; a valid
+reason is trimmed and forwarded exactly once. Returned and rejected action
+failures still reach the existing inline alert, stale failure clears on retry,
+and refresh remains success-only. Pending/double-submit protection, semantic
+buttons, keyboard behavior, role visibility, and corrected Lost behavior are
+unchanged.
+
+The new caller-module tests are intentionally above the generic classifier:
+they prove both affected source stages route to the regression prompt without
+calling advance, Lost routes only to its Lost-specific prompt, and ordinary
+forward work remains direct. The same caller suite proves invalid required
+reasons make zero calls and a valid reason is forwarded once after trimming.
+
+Pinned Node 22.23.2 / pnpm 10.33.0 verification:
+
+- caller-routing red: FAILED as expected, 4/4 — the conversion caller had no
+  destination router and could not expose either regression prompt;
+- final focused plus neighboring Pipeline suites: PASSED, 5 files / 59 tests;
+- Web plus all configured E2E TypeScript projects: PASSED;
+- full Web source lint: PASSED;
+- Web production build: PASSED, 89 static pages generated;
+- authoritative WO-11 contract: PASSED, 5/5;
+- `git diff --check`: PASSED;
+- Gitleaks 8.30.1 through the pinned repository wrapper: PASSED, 1,783 commits /
+  no leaks.
+
+The repository still has no DOM interaction-test dependency. This round uses a
+public destination router in the caller module plus the same guarded submission
+boundary invoked by the component, so the missing caller classification is
+deterministically covered without adding test infrastructure. Real browser
+interaction remains the designated verifier's gate.
+
+No action, Core/API, script, shared package, auth, route/page, schema,
+dependency, demo data, environment, credential, or deployment state changed.
+
+→ Handoff to independent QA. Reason: the final known P2 conversion-regression
+gap is closed at the caller boundary and all requested release gates are green.
+Inputs: source commit `aefde4fc`, prior Core/Web/Pipeline/contract commits, the
+4-case red and 59-case green evidence above, and the unchanged environment-
+blocked PostgreSQL integration boundary. Expected output: rerun the combined
+branch and return `GO` or `BLOCK` with direct evidence, then release browser
+verification only on `GO`.
