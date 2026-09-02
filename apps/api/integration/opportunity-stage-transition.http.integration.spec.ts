@@ -9,8 +9,13 @@ import {
   accounts,
   auditLog,
   db,
+  notifications,
+  opportunityKycTracks,
+  opportunityProjectConversionRequests,
   opportunityStageTransitionRequests,
   opportunities,
+  preConChecklistItems,
+  preConChecklists,
   projects,
   slaLogs,
   tenants,
@@ -83,7 +88,9 @@ suite('Opportunity stage transition protected HTTP canary', () => {
     const accountA = randomUUID()
     const accountB = randomUUID()
     const leadOpportunityA = randomUUID()
+    const leadOpportunityB = randomUUID()
     const contractOpportunityA = randomUUID()
+    const invalidAccountOpportunityA = randomUUID()
     const rollbackOpportunityA = randomUUID()
     const rollbackProjectA = randomUUID()
     const contractOpportunityB = randomUUID()
@@ -139,7 +146,9 @@ suite('Opportunity stage transition protected HTTP canary', () => {
           tenant_id: tenantA,
           name: 'Stage Client A',
           industry: 'office',
-          kyc_status: 'approved',
+          // New PPRF opportunities remain account-pending while their two
+          // opportunity-level Finance tracks are approved independently.
+          kyc_status: 'pending',
           created_by: salesA,
           created_at: observedAt,
           updated_at: observedAt,
@@ -191,6 +200,18 @@ suite('Opportunity stage transition protected HTTP canary', () => {
           updated_at: observedAt,
         },
         {
+          id: invalidAccountOpportunityA,
+          tenant_id: tenantA,
+          account_id: accountB,
+          stage: 'contract',
+          opportunity_type: 'A malformed cross-tenant Account reference',
+          tcv_cents: 600_000,
+          probability: 90,
+          weighted_tcv_cents: 540_000,
+          created_at: observedAt,
+          updated_at: observedAt,
+        },
+        {
           id: rollbackOpportunityA,
           tenant_id: tenantA,
           account_id: accountA,
@@ -215,7 +236,42 @@ suite('Opportunity stage transition protected HTTP canary', () => {
           created_at: observedAt,
           updated_at: observedAt,
         },
+        {
+          id: leadOpportunityB,
+          tenant_id: tenantB,
+          account_id: accountB,
+          stage: 'lead',
+          opportunity_type: 'B lead',
+          tcv_cents: 300_000,
+          probability: 10,
+          weighted_tcv_cents: 30_000,
+          created_at: observedAt,
+          updated_at: observedAt,
+        },
       ])
+      await transaction.insert(opportunityKycTracks).values(
+        [
+          contractOpportunityA,
+          invalidAccountOpportunityA,
+          rollbackOpportunityA,
+        ].flatMap((opportunityId) =>
+          (['financial_evaluation', 'credit_investigation'] as const).map(
+            (trackType) => ({
+              tenant_id: tenantA,
+              opportunity_id: opportunityId,
+              track_type: trackType,
+              status: 'approved' as const,
+              due_at: observedAt,
+              fc_recommended_by: adminA,
+              fc_recommended_at: observedAt,
+              president_decided_by: adminA,
+              president_decided_at: observedAt,
+              created_at: observedAt,
+              updated_at: observedAt,
+            })
+          )
+        )
+      )
       const [initialLeadClock] = await transaction
         .insert(slaLogs)
         .values({
@@ -361,6 +417,189 @@ suite('Opportunity stage transition protected HTTP canary', () => {
           .expect(503)
         featureState.conversionEnabled = true
 
+        const invalidAccountAuditBefore = await transaction
+          .select({ id: auditLog.id })
+          .from(auditLog)
+          .where(
+            and(
+              eq(auditLog.tenant_id, tenantA),
+              eq(auditLog.entity_id, invalidAccountOpportunityA)
+            )
+          )
+        const invalidAccount = await request(app.getHttpServer())
+          .post(route(invalidAccountOpportunityA))
+          .set('Authorization', 'Bearer stage-sales-a-token')
+          .set('Idempotency-Key', 'invalid-cross-tenant-account')
+          .send({ newStage: 'won' })
+          .expect(409)
+        expect(invalidAccount.body).toMatchObject({
+          message: 'Opportunity Account is not available in this tenant',
+          statusCode: 409,
+        })
+
+        const [invalidOpportunity] = await transaction
+          .select({
+            stage: opportunities.stage,
+            projectId: opportunities.project_id,
+          })
+          .from(opportunities)
+          .where(
+            and(
+              eq(opportunities.tenant_id, tenantA),
+              eq(opportunities.id, invalidAccountOpportunityA)
+            )
+          )
+          .limit(1)
+        expect(invalidOpportunity).toEqual({
+          stage: 'contract',
+          projectId: null,
+        })
+        expect(
+          await transaction
+            .select({ id: opportunityStageTransitionRequests.id })
+            .from(opportunityStageTransitionRequests)
+            .where(
+              and(
+                eq(opportunityStageTransitionRequests.tenant_id, tenantA),
+                eq(
+                  opportunityStageTransitionRequests.opportunity_id,
+                  invalidAccountOpportunityA
+                )
+              )
+            )
+        ).toHaveLength(0)
+        expect(
+          await transaction
+            .select({ id: opportunityProjectConversionRequests.id })
+            .from(opportunityProjectConversionRequests)
+            .where(
+              and(
+                eq(opportunityProjectConversionRequests.tenant_id, tenantA),
+                eq(
+                  opportunityProjectConversionRequests.opportunity_id,
+                  invalidAccountOpportunityA
+                )
+              )
+            )
+        ).toHaveLength(0)
+        expect(
+          await transaction
+            .select({ id: projects.id })
+            .from(projects)
+            .where(
+              and(
+                eq(projects.tenant_id, tenantA),
+                eq(projects.account_id, accountB)
+              )
+            )
+        ).toHaveLength(0)
+        expect(
+          await transaction
+            .select({ id: preConChecklists.id })
+            .from(preConChecklists)
+            .where(eq(preConChecklists.tenant_id, tenantA))
+        ).toHaveLength(0)
+        expect(
+          await transaction
+            .select({ id: preConChecklistItems.id })
+            .from(preConChecklistItems)
+            .where(eq(preConChecklistItems.tenant_id, tenantA))
+        ).toHaveLength(0)
+        expect(
+          await transaction
+            .select({ id: notifications.id })
+            .from(notifications)
+            .where(eq(notifications.tenant_id, tenantA))
+        ).toHaveLength(0)
+        const invalidAccountAuditAfter = await transaction
+          .select({ id: auditLog.id })
+          .from(auditLog)
+          .where(
+            and(
+              eq(auditLog.tenant_id, tenantA),
+              eq(auditLog.entity_id, invalidAccountOpportunityA)
+            )
+          )
+        expect(invalidAccountAuditAfter).toEqual(invalidAccountAuditBefore)
+        expect(
+          await transaction
+            .select({ id: slaLogs.id })
+            .from(slaLogs)
+            .where(
+              and(
+                eq(slaLogs.tenant_id, tenantA),
+                eq(slaLogs.entity_id, invalidAccountOpportunityA)
+              )
+            )
+        ).toHaveLength(0)
+
+        await transaction
+          .update(opportunityKycTracks)
+          .set({ status: 'pending', updated_at: new Date() })
+          .where(
+            and(
+              eq(opportunityKycTracks.tenant_id, tenantA),
+              eq(
+                opportunityKycTracks.opportunity_id,
+                contractOpportunityA
+              ),
+              eq(
+                opportunityKycTracks.track_type,
+                'credit_investigation'
+              )
+            )
+          )
+        const incompleteKyc = await request(app.getHttpServer())
+          .post(route(contractOpportunityA))
+          .set('Authorization', 'Bearer stage-sales-a-token')
+          .set('Idempotency-Key', 'dual-track-incomplete')
+          .send({ newStage: 'won' })
+          .expect(409)
+        expect(incompleteKyc.body).toMatchObject({
+          message: 'Pipeline locked until both Finance tracks are approved',
+          statusCode: 409,
+        })
+        const [kycBlocked] = await transaction
+          .select({ stage: opportunities.stage })
+          .from(opportunities)
+          .where(
+            and(
+              eq(opportunities.tenant_id, tenantA),
+              eq(opportunities.id, contractOpportunityA)
+            )
+          )
+          .limit(1)
+        expect(kycBlocked?.stage).toBe('contract')
+        const blockedRequests = await transaction
+          .select({ id: opportunityStageTransitionRequests.id })
+          .from(opportunityStageTransitionRequests)
+          .where(
+            and(
+              eq(opportunityStageTransitionRequests.tenant_id, tenantA),
+              eq(
+                opportunityStageTransitionRequests.idempotency_key,
+                'dual-track-incomplete'
+              )
+            )
+          )
+        expect(blockedRequests).toHaveLength(0)
+        await transaction
+          .update(opportunityKycTracks)
+          .set({ status: 'approved', updated_at: new Date() })
+          .where(
+            and(
+              eq(opportunityKycTracks.tenant_id, tenantA),
+              eq(
+                opportunityKycTracks.opportunity_id,
+                contractOpportunityA
+              ),
+              eq(
+                opportunityKycTracks.track_type,
+                'credit_investigation'
+              )
+            )
+          )
+
         const nonTerminal = await request(app.getHttpServer())
           .post(route(leadOpportunityA))
           .set('Authorization', 'Bearer stage-sales-a-token')
@@ -380,11 +619,75 @@ suite('Opportunity stage transition protected HTTP canary', () => {
 
         const replay = await request(app.getHttpServer())
           .post(route(leadOpportunityA))
-          .set('Authorization', 'Bearer stage-sales-a-token')
+          .set('Authorization', 'Bearer stage-admin-a-token')
           .set('Idempotency-Key', 'lead-site-survey')
           .send({ newStage: 'site_survey' })
           .expect(200)
         expect(replay.body).toEqual(nonTerminal.body)
+
+        await request(app.getHttpServer())
+          .post(route(leadOpportunityA))
+          .set('Authorization', 'Bearer stage-viewer-a-token')
+          .set('Idempotency-Key', 'lead-site-survey')
+          .send({ newStage: 'site_survey' })
+          .expect(403)
+
+        await transaction
+          .update(users)
+          .set({ role: 'viewer', updated_at: new Date() })
+          .where(
+            and(eq(users.id, salesA), eq(users.tenant_id, tenantA))
+          )
+        await request(app.getHttpServer())
+          .post(route(leadOpportunityA))
+          .set('Authorization', 'Bearer stage-sales-a-token')
+          .set('Idempotency-Key', 'lead-site-survey')
+          .send({ newStage: 'site_survey' })
+          .expect(403)
+        await transaction
+          .update(users)
+          .set({ role: 'sales', updated_at: new Date() })
+          .where(
+            and(eq(users.id, salesA), eq(users.tenant_id, tenantA))
+          )
+
+        const isolatedTenantReplayKey = await request(app.getHttpServer())
+          .post(route(leadOpportunityB))
+          .set('Authorization', 'Bearer stage-sales-b-token')
+          .set('Idempotency-Key', 'lead-site-survey')
+          .send({ newStage: 'site_survey' })
+          .expect(200)
+        expect(isolatedTenantReplayKey.body).toMatchObject({
+          opportunityId: leadOpportunityB,
+          tenantId: tenantB,
+          fromStage: 'lead',
+          toStage: 'site_survey',
+        })
+
+        const tenantALeadRequests = await transaction
+          .select({ id: opportunityStageTransitionRequests.id })
+          .from(opportunityStageTransitionRequests)
+          .where(
+            and(
+              eq(opportunityStageTransitionRequests.tenant_id, tenantA),
+              eq(
+                opportunityStageTransitionRequests.idempotency_key,
+                'lead-site-survey'
+              )
+            )
+          )
+        expect(tenantALeadRequests).toHaveLength(1)
+        const tenantALeadAudits = await transaction
+          .select({ id: auditLog.id })
+          .from(auditLog)
+          .where(
+            and(
+              eq(auditLog.tenant_id, tenantA),
+              eq(auditLog.entity_id, leadOpportunityA),
+              eq(auditLog.action, 'stage_change')
+            )
+          )
+        expect(tenantALeadAudits).toHaveLength(1)
 
         await request(app.getHttpServer())
           .post(route(leadOpportunityA))
@@ -524,7 +827,12 @@ suite('Opportunity stage transition protected HTTP canary', () => {
           .select()
           .from(opportunityStageTransitionRequests)
           .where(eq(opportunityStageTransitionRequests.tenant_id, tenantB))
-        expect(otherTenantRows).toHaveLength(0)
+        expect(otherTenantRows).toHaveLength(1)
+        expect(otherTenantRows[0]).toMatchObject({
+          opportunity_id: leadOpportunityB,
+          idempotency_key: 'lead-site-survey',
+          state: 'succeeded',
+        })
         const [untouchedB] = await transaction
           .select({ stage: opportunities.stage })
           .from(opportunities)
@@ -536,6 +844,17 @@ suite('Opportunity stage transition protected HTTP canary', () => {
           )
           .limit(1)
         expect(untouchedB?.stage).toBe('contract')
+        const [transitionedLeadB] = await transaction
+          .select({ stage: opportunities.stage })
+          .from(opportunities)
+          .where(
+            and(
+              eq(opportunities.id, leadOpportunityB),
+              eq(opportunities.tenant_id, tenantB)
+            )
+          )
+          .limit(1)
+        expect(transitionedLeadB?.stage).toBe('site_survey')
       } finally {
         await app.close()
       }

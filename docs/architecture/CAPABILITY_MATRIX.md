@@ -647,18 +647,24 @@ action.
 
 ## M3.241 Opportunity stage-transition authority (2026-08-10)
 
-The pipeline now has a source-complete, closed-by-default Core authority for
-tenant-safe opportunity stage transitions and atomic won-to-Project handoff.
-The protected HTTP canary covers strict body and header validation, RBAC,
-disabled gates, cross-tenant concealment, KYC, state transitions, replay/key
-conflict, SLA clock evidence, semantic audit, atomic conversion, and rollback.
-The Web adapter is present but not selected for any tenant.
+The pipeline routes Won/Closed Won through the closed-by-default Core authority
+whenever the exact Web selector and both Core tenant gates align. It never
+falls back to the legacy local stage-first conversion. The transaction contains
+locked membership/opportunity checks, tenant-qualified Account and KYC
+validation, stage/SLA/audit writes, Project/backlink, checklist/items,
+notifications, and ledger completion. Core and Web mutation authority is exact
+Owner/Admin/Sales; all other roles are denied before effects. Dual-track PPRF
+KYC and legacy Account KYC behavior are aligned, and current membership is
+revalidated before idempotent replay.
 
-Validation: focused canary 1/1; root 173/173 files and 751/751 tests; typecheck
-5/5, lint 2/2, build PASS; disposable PostgreSQL 17/Redis 7.4.9 lane 117
-migrations, database 149/149 suites and 370/370 tests, API integration 37/37
-files and 53/53 tests, zero skips; policy guards PASS. No hosted or paid
-action.
+Validation: shared authorization 32/32; focused Core up to 87/87 and neighboring
+CRM 68/68; PostgreSQL 17 stage/conversion canaries 2/2 including rollback,
+cross-tenant Account rejection, and replay isolation; focused Web suites up to
+255/255; full type/lint/build, WO-13 contract, gitleaks, and 89/89 Web pages;
+independent QA `GO`. All eleven supplied identities passed final Pipeline
+visibility/navigation browser checks. A positive Won browser mutation remains
+blocked because the demo tenant has no safe Contract-stage fixture; no hosted
+or paid action occurred.
 
 ## M3.240 Won-opportunity project conversion protected local HTTP canary (2026-08-10)
 
@@ -1702,7 +1708,7 @@ provider, and canary gates are complete.
 | Outcome | Current source surface | Status | Authority boundary |
 |---|---|---:|---|
 | Qualify accounts, contacts, KYC, and opportunities | CRM routes, pipeline, account/KYC tables | Live | Next reads; server actions remain legacy authority |
-| Turn a won opportunity into a project | Pipeline conversion and project tables | Live | Transactional server action with audit |
+| Turn a won opportunity into a project | Pipeline conversion and project tables | Partial | Gated Core transaction with audit; positive demo-browser mutation remains fixture-blocked |
 | Capture drawings, takeoffs, scope, BOM, and rate cards | BOM routes, CAD worker, evidence tables | Live | Python extracts evidence; official BOM remains server-owned |
 | Compare suppliers and dispatch RFQs | RFQ routes, quote workflow, BullMQ/outbox | Live | Nest adapter plus durable outbox |
 | Approve and issue Purchase Orders | PO creation and three-step workflow | Adapter | Nest route is closed by tenant flag; legacy path remains for unselected tenants |

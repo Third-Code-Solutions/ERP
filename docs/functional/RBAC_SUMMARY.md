@@ -45,8 +45,8 @@ explicit `admin` super-admin projection.
   token/signature controlled, callback/health, webhook, or deprecated.
 - 81 central capabilities after adding the dedicated opportunity-export
   boundary; 42 are referenced by Nest controller guards.
-- 1,378 role/protected-resource matrix records: 0 `FAILED`, 32
-  `NEEDS DECISION`, 1,071 `NOT TESTED`, 265 `PARTIAL`, and 10 `BLOCKED`.
+- 1,391 role/protected-resource matrix records: 0 `FAILED`, 32
+  `NEEDS DECISION`, 1,071 `NOT TESTED`, 276 `PARTIAL`, and 12 `BLOCKED`.
 
 ## Confirmed policy conflicts
 
@@ -136,6 +136,34 @@ Status: PARTIAL pending an authorized deployed-environment check. Automated
 policy and export coverage passed, independent QA returned `GO`, Sales and
 Commercial received valid five-row CSVs in the isolated production build, and
 Viewer/Safety control visibility plus direct 403 behavior passed.
+
+### Won-to-Project atomic handoff
+
+The browser Pipeline now routes Won/Closed Won exclusively through the gated
+Core authority. Stage, SLA, audit, Project/backlink, pre-con checklist/items,
+notifications, and idempotency completion share one database transaction;
+failures return visibly without a local write or legacy conversion fallback.
+The Web action validates the committed result and returns its Project ID.
+
+Both Core mutations now grant exactly Owner, Admin, and Sales. The other ten
+roles are denied by the central map, controller guard, and locked-membership
+service check before effects. Every linked Account must resolve under the
+authenticated tenant before ledger, KYC, or Project work. Dual-track PPRF KYC
+requires both canonical approvals; trackless legacy records retain Account KYC
+compatibility. Same-key authorized replay, revoked/denied membership, and
+tenant-isolated ledgers are covered.
+
+`/pipeline/conversion` remains readable to all roles but renders mutation
+controls only for Owner/Admin/Sales. All eleven supplied identities passed the
+final built-browser visibility/navigation matrix; the other eight saw the same
+opportunity data with an accessible read-only notice and no controls. Direct
+Core calls reached business validation for the three allowed roles and returned
+403 for the other eight.
+
+Status: PARTIAL. Automated, PostgreSQL rollback, independent QA, and browser
+authorization checks pass, but the demo tenant has no safe Contract-stage
+fixture for a real positive Won conversion and Estimator/PM identities remain
+unavailable. No demo data was changed.
 
 ### Viewer semantics
 

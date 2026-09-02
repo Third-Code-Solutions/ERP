@@ -13,6 +13,7 @@ import { ConfigService } from '@nestjs/config'
 import {
   accounts,
   opportunities,
+  opportunityKycTracks,
   opportunityStageTransitionRequests,
   slaLogs,
   users,
@@ -20,6 +21,7 @@ import {
 import {
   opportunityStageTransitionCommandSchema,
   opportunityStageTransitionResultSchema,
+  OPPORTUNITY_KYC_TRACK_TYPES,
   PIPELINE_STAGES,
   STAGE_LEGACY_MAP,
   STAGE_PROBABILITY,
@@ -60,6 +62,8 @@ const OPP_STAGE_SLA = {
   breach_at_seconds: 5 * 86_400,
   warning_at_pct: 0.8,
 } as const
+const INVALID_LINKED_ACCOUNT_MESSAGE =
+  'Opportunity Account is not available in this tenant'
 
 type StageRequestRecord = {
   id: string
@@ -210,6 +214,28 @@ export class OpportunityStageTransitionService {
       .for('update')
     if (!opportunity) throw new NotFoundException('Opportunity not found')
 
+    let linkedAccount: { kycStatus: string } | null = null
+    if (opportunity.accountId) {
+      const [account] = await transaction
+        .select({
+          id: accounts.id,
+          kycStatus: accounts.kyc_status,
+        })
+        .from(accounts)
+        .where(
+          and(
+            eq(accounts.id, opportunity.accountId),
+            eq(accounts.tenant_id, authorizedPrincipal.tenantId)
+          )
+        )
+        .limit(1)
+        .for('share')
+      if (!account) {
+        throw new ConflictException(INVALID_LINKED_ACCOUNT_MESSAGE)
+      }
+      linkedAccount = account
+    }
+
     const request = await this.claimRequest(
       transaction,
       authorizedPrincipal,
@@ -234,23 +260,47 @@ export class OpportunityStageTransitionService {
     }
 
     if (KYC_GATED_STAGES.has(command.newStage) && opportunity.accountId) {
-      const [account] = await transaction
-        .select({ kycStatus: accounts.kyc_status })
-        .from(accounts)
+      const kycTracks = await transaction
+        .select({
+          trackType: opportunityKycTracks.track_type,
+          status: opportunityKycTracks.status,
+        })
+        .from(opportunityKycTracks)
         .where(
           and(
-            eq(accounts.id, opportunity.accountId),
-            eq(accounts.tenant_id, authorizedPrincipal.tenantId)
+            eq(opportunityKycTracks.opportunity_id, opportunityId),
+            eq(opportunityKycTracks.tenant_id, authorizedPrincipal.tenantId)
           )
         )
-        .limit(1)
         .for('share')
-      const kycOk =
-        account?.kycStatus === 'approved' || account?.kycStatus === 'not_required'
-      if (!kycOk) {
-        throw new ConflictException(
-          'Account KYC must be Approved before this stage'
+
+      // PPRF opportunities have two independent Finance tracks. Once either
+      // track exists, fail closed unless both canonical tracks are present and
+      // approved. Account status remains the compatibility gate only for
+      // legacy opportunities that pre-date the dual-track workflow.
+      if (kycTracks.length > 0) {
+        const approvedTrackTypes = new Set(
+          kycTracks
+            .filter((track) => track.status === 'approved')
+            .map((track) => track.trackType)
         )
+        const dualTrackApproved = OPPORTUNITY_KYC_TRACK_TYPES.every((trackType) =>
+          approvedTrackTypes.has(trackType)
+        )
+        if (!dualTrackApproved) {
+          throw new ConflictException(
+            'Pipeline locked until both Finance tracks are approved'
+          )
+        }
+      } else {
+        const kycOk =
+          linkedAccount?.kycStatus === 'approved' ||
+          linkedAccount?.kycStatus === 'not_required'
+        if (!kycOk) {
+          throw new ConflictException(
+            'Account KYC must be Approved before this stage'
+          )
+        }
       }
     }
 

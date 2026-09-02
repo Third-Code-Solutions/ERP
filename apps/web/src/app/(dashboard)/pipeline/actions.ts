@@ -1,11 +1,16 @@
 'use server'
 
+import { createHash } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { can, getUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { accounts, opportunities, opportunityKycTracks, projects } from '@third-code-erp/database/schema'
 import { and, eq, isNull } from 'drizzle-orm'
 import { writeAuditLog } from '@/lib/audit'
+import {
+  opportunityStageWritesUseCoreApi,
+  transitionOpportunityStageThroughCoreApi,
+} from '@/lib/erp-core-client'
 import { startSlaClock, stopSlaClock } from '@/lib/operations/sla-clock'
 import {
   PIPELINE_STAGES,
@@ -28,6 +33,11 @@ const KYC_GATED_STAGES: ReadonlySet<OpportunityStage> = new Set<OpportunityStage
   'won',
   // Legacy equivalents
   'resubmission',
+  'closed_won',
+])
+
+const CORE_WON_STAGES: ReadonlySet<OpportunityStage> = new Set<OpportunityStage>([
+  'won',
   'closed_won',
 ])
 
@@ -225,11 +235,69 @@ export async function advanceOpportunityStage(
   opportunityId: string,
   nextStage: string,
   reason?: string
-): Promise<{ error?: string }> {
+): Promise<{ error?: string; projectId?: string }> {
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
   if (!can(profile.role, 'opportunity.advance_stage')) {
     return { error: `Forbidden: role "${profile.role}" cannot advance opportunities` }
+  }
+
+  const nextStageTyped = nextStage as OpportunityStage
+  const trimmedReason =
+    typeof reason === 'string' && reason.trim().length > 0 ? reason.trim() : undefined
+
+  if (CORE_WON_STAGES.has(nextStageTyped)) {
+    if (!opportunityStageWritesUseCoreApi(profile.tenantId)) {
+      return {
+        error: 'Opportunity stage transition is not enabled for this tenant.',
+      }
+    }
+
+    let transition: Awaited<
+      ReturnType<typeof transitionOpportunityStageThroughCoreApi>
+    >
+    try {
+      transition = await transitionOpportunityStageThroughCoreApi(
+        opportunityId,
+        {
+          newStage: nextStageTyped,
+          ...(trimmedReason ? { reason: trimmedReason } : {}),
+        },
+        wonStageTransitionIdempotencyKey(
+          opportunityId,
+          nextStageTyped,
+          trimmedReason
+        )
+      )
+    } catch {
+      return {
+        error:
+          'ERP Core API is unavailable. No Opportunity stage transition was committed.',
+      }
+    }
+    if (!transition.ok) return { error: transition.error }
+
+    const { data } = transition
+    if (
+      !data ||
+      data.opportunityId !== opportunityId ||
+      data.tenantId !== profile.tenantId ||
+      data.toStage !== nextStageTyped ||
+      !data.convertedToProject ||
+      !data.projectId ||
+      !data.checklistId
+    ) {
+      return {
+        error: 'ERP Core API returned an invalid Won-to-Project transition result.',
+      }
+    }
+
+    revalidatePath('/pipeline/board')
+    revalidatePath('/pipeline/coverage')
+    revalidatePath('/pipeline/conversion')
+    revalidatePath('/')
+    revalidatePath(`/projects/${data.projectId}`)
+    return { projectId: data.projectId }
   }
 
   const [opp] = await db
@@ -254,7 +322,6 @@ export async function advanceOpportunityStage(
   // ── KYC gate (defense in depth — mirrors UI check). ─────────────────────────
   // Advancing past Site Survey requires the linked Account to have an
   // approved (or not-required) KYC status.
-  const nextStageTyped = nextStage as OpportunityStage
   if (KYC_GATED_STAGES.has(nextStageTyped) && opp.account_id) {
     const [accountRows, trackRows] = await Promise.all([
       db
@@ -292,8 +359,6 @@ export async function advanceOpportunityStage(
   // ── Regression detection (US-002 AC5). ─────────────────────────────────────
   // If the new stage sits earlier in the canonical flow than the current stage,
   // require a reason.
-  const trimmedReason =
-    typeof reason === 'string' && reason.trim().length > 0 ? reason.trim() : undefined
   const currentPipelineStage: PipelineStage =
     STAGE_LEGACY_MAP[opp.stage as OpportunityStage] ?? 'lead'
   const nextPipelineStage: PipelineStage | undefined = STAGE_LEGACY_MAP[nextStageTyped]
@@ -383,21 +448,6 @@ export async function advanceOpportunityStage(
     // Non-fatal — stage update has already been persisted.
   }
 
-  // Won-trigger auto-conversion (REFACTOR.md M1 US-005).
-  // Creates a project if one isn't already linked, seeds the 12-item Pre-Con
-  // checklist, and notifies SD-PM-PE. Best-effort: failures here don't roll
-  // back the stage change — they surface as audit-log gaps the operator
-  // can re-trigger from the project detail page.
-  if (nextStageTyped === 'won' || nextStageTyped === 'closed_won') {
-    try {
-      const { convertOpportunityToProject } = await import('@/lib/operations/won-conversion')
-      await convertOpportunityToProject(opportunityId, profile.user.id)
-    } catch (err) {
-
-      console.warn('[won-conversion] failed:', err instanceof Error ? err.message : err)
-    }
-  }
-
   revalidatePath('/pipeline/board')
   revalidatePath('/pipeline/coverage')
   revalidatePath('/pipeline/conversion')
@@ -407,6 +457,27 @@ export async function advanceOpportunityStage(
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+function wonStageTransitionIdempotencyKey(
+  opportunityId: string,
+  nextStage: OpportunityStage,
+  reason?: string
+): string {
+  const commandDigest = createHash('sha256')
+    .update(
+      JSON.stringify({
+        opportunityId,
+        nextStage,
+        reason: reason ?? null,
+      }),
+      'utf8'
+    )
+    .digest('hex')
+
+  // Exact retries share a key, while a different lifecycle command cannot
+  // collide with a completed Won handoff in Core's tenant-scoped ledger.
+  return `pipeline-won-${commandDigest}`
+}
 
 function parseCents(val: FormDataEntryValue | null): number {
   const n = parseFloat(String(val ?? '0'))
