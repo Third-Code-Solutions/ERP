@@ -99,3 +99,63 @@ non-Won transaction contract before Web selects it. Inputs: reproduced P1,
 existing controller/service/client, PRD WO-11 gate, and acceptance criteria
 above. Expected output: scoped source/tests, Node 22 verification, changeset
 commit, and an explicit Agent 03 handoff or a documented blocker.
+
+## Agent 05 — Core transaction authority
+
+Verdict: `GO` for Agent 03. Core commit: `9496d282`.
+
+The existing Core transaction already enclosed membership and opportunity row
+locks, idempotency claim/completion, KYC and transition validation, opportunity
+update, semantic audit, and SLA stop/start. One API contract gap was reproduced
+before remediation: an authorized `contract -> lost` request without a reason
+returned a successful committed result. Core now rejects both `lost` and
+`closed_lost` without a meaningful reason as `409 reason_required`, matching
+the existing regression rule and Pipeline requirement.
+
+The service test harness now models serialized row-lock waiters and transaction
+rollback. Coverage proves:
+
+- all 24 allowed non-Won edges from the shared transition table commit with a
+  strict non-conversion result;
+- Owner, Admin, and Sales are allowed while all ten other roles are denied
+  before any command or workflow write;
+- current tenant membership, linked-Account tenant scope, dual-track KYC,
+  regression reason, Lost reason, and semantic Lost-reason audit content;
+- semantic-audit, SLA-stop, SLA-start, and idempotency-completion failures leave
+  zero committed effect;
+- completed-command replay, invalid stored-result rejection, different-command
+  key reuse conflict, and same-key concurrent replay with every effect committed
+  exactly once.
+
+The rollback-contained protected HTTP canary now also asserts that a missing
+Lost reason returns 409 and leaves no idempotency row. It compiled successfully
+but was not executed because this worktree has neither `DATABASE_URL` nor
+`ERP_API_INTEGRATION_EXPECTED=1`; the test remained one explicitly reported
+skip. No database, demo data, environment, dependency, shared contract, or
+deployment state changed.
+
+Node 22.23.2 / pnpm 10.33.0 verification:
+
+- initial focused baseline: PASSED, 3 files / 84 tests;
+- red reproduction: FAILED as expected, 1/1 — Lost without reason resolved
+  successfully;
+- final stage-transition service suite: PASSED, 63/63;
+- focused plus neighboring CRM/auth suites: PASSED, 4 files / 128 tests;
+- full API unit/contract suite: PASSED, 187 files / 912 tests;
+- API typecheck: PASSED;
+- full API source lint: PASSED;
+- API production build: PASSED, webpack compilation successful;
+- `git diff --check`: PASSED;
+- Gitleaks 8.30.1: PASSED, 1,770 commits / no leaks;
+- PostgreSQL HTTP integration: BLOCKED, 1 skipped for absent integration
+  bindings.
+
+→ Handoff to Agent 03. Reason: the Core non-Won transaction and result contract
+are source-complete and release-gated; the active Web action still owns the
+non-transactional local writer. Inputs: Core commit `9496d282`, the exact
+`reason_required` error, `transitionOpportunityStageThroughCoreApi`, the
+tenant selector, and the acceptance criteria above. Expected output: route all
+non-Won Pipeline transitions through Core with a stable per-command idempotency
+key, validate the returned opportunity/tenant/from/to/non-conversion shape,
+never fall back after selected-Core failure, preserve handled errors, run Web
+gates, append this handoff, and commit only Agent 03 paths plus documentation.
