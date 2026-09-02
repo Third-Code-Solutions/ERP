@@ -44,8 +44,8 @@ route layer separately folds three legacy roles through
 - 158 HTTP operations are session/capability/recovery protected; 16 are public,
   token/signature controlled, callback/health, webhook, or deprecated.
 - 80 central capabilities; 42 are referenced by Nest controller guards.
-- 1,352 role/protected-page matrix records: 28 `FAILED`, 32
-  `NEEDS DECISION`, 1,071 `NOT TESTED`, 215 `PARTIAL`, and 6 `BLOCKED`.
+- 1,365 role/protected-resource matrix records: 28 `FAILED`, 32
+  `NEEDS DECISION`, 1,071 `NOT TESTED`, 226 `PARTIAL`, and 8 `BLOCKED`.
 
 ## Confirmed policy conflicts
 
@@ -75,9 +75,19 @@ legacy Audit fallback can expose diffs to roles outside the central
 
 ### Legacy project chat
 
-`/api/ai/chat` and its project-chat UI can assemble BOM margin, invoice, and PO
-totals with authentication and tenant scope but no capability-specific data
-scope. Status: FAILED; high-priority data-authorization repair.
+The stacked `agent-05/ai-chat-data-boundaries` branch repairs `/api/ai/chat` by
+gating project, BOM, invoice, and PO reads independently with the checked-in
+central policy. Denied-domain branches issue no query, context is bounded and
+tenant/project scoped, responses are private/no-store, and all thirteen roles
+have automated policy coverage. Status: PARTIAL because the provider was
+deliberately disabled during browser verification and no data-bearing live
+model response was requested.
+
+### Project-detail summaries
+
+The project-detail page itself still queries and renders BOM, margin, invoice,
+and purchase-order summaries without independent domain-read gates. Status:
+FAILED; this is the next sequential authorization workflow.
 
 ### CSV opportunity export
 
@@ -109,3 +119,13 @@ but mailbox delivery/recovery-link completion was unavailable; the guarded
 Linux password-rotation lane could not complete its initial browser login. Its
 external cleanup process independently verified the original credential after
 each attempt, so no demo account remained modified.
+
+## Project-chat result
+
+The legacy project-chat route now validates bounded input before quota, database,
+audit, or provider work and applies the existing project/BOM/finance/PO policy
+to each database branch. Focused tests passed 21/21, including all thirteen
+roles; Web type-check, source lint, production build, and an independent secret
+scan passed. Viewer, Finance, and Commercial passed isolated browser/API smoke
+checks with the provider disabled. Strict status remains `PARTIAL` until a
+reviewed environment can verify a data-bearing live provider response.

@@ -100,3 +100,21 @@ authorization defect. Inputs: the RBAC summary and route matrix. Expected
 output: capability-scoped domain contract without cross-capability financial
 or commercial disclosure, followed sequentially by Agent 08 retrieval/prompt
 review and Agent 12 security verification.
+
+## Project-chat slice closeout
+
+- The route now validates bounded input before side effects and independently
+  gates project, BOM, invoice, and PO reads with the existing central policy.
+- Principal Agent 4 independently approved 21/21 focused tests, all thirteen
+  role-policy cases, Web type-check, source lint, production build, and secret
+  scan.
+- Principal Agent 5 verified private 401/400/503 API behavior and the project
+  assistant UI for Viewer, Finance, and Commercial without calling a provider.
+- Strict status remains `PARTIAL`: a data-bearing live provider response was
+  intentionally not requested before review/release.
+
+→ Handoff to the project-detail authorization workflow. Reason: the page still
+queries and renders BOM/margin, invoice, and PO summaries without independent
+domain-read gates. Inputs: the project-chat policy mapping and central
+authorization registry. Expected output: query and rendering gates for all
+thirteen roles, followed by independent tests and browser/API verification.
