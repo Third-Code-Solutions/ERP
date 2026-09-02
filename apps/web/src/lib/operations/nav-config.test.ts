@@ -314,7 +314,7 @@ describe('RBAC: visibleNavSections', () => {
 
 describe('RBAC: canViewPath (deny-by-default route guard)', () => {
   it.each(PERSISTED_ROLES)(
-    'matches the visible navigation policy for %s, including nested routes',
+    'matches the visible navigation policy for %s at each registered root',
     (role) => {
       const visible = new Set(expectedVisibleHrefs(role))
 
@@ -322,10 +322,6 @@ describe('RBAC: canViewPath (deny-by-default route guard)', () => {
         expect(canViewPath(role, href), `${role}: ${href}`).toBe(
           visible.has(href)
         )
-        expect(
-          canViewPath(role, `${href}/nested`),
-          `${role}: ${href}/nested`
-        ).toBe(visible.has(href))
       }
     }
   )
@@ -381,13 +377,13 @@ describe('RBAC: canViewPath (deny-by-default route guard)', () => {
     expect(canViewPath('viewer', '/assets')).toBe(true)
   })
 
-  it('child routes inherit their parent permission', () => {
-    // /projects is allowed for procurement → nested project pages too.
+  it('matches registered dynamic page templates without authorizing descendants', () => {
     expect(canViewPath('procurement', '/projects/abc-123/scope')).toBe(true)
-    // Commercial may enter the admin surface for rate-card maintenance, but
-    // finance remains denied from nested admin pages.
     expect(canViewPath('commercial', '/admin')).toBe(true)
     expect(canViewPath('finance', '/admin/users/42')).toBe(false)
+    expect(canViewPath('procurement', '/projects/abc-123/scope/nested')).toBe(
+      false
+    )
   })
 
   it('matches the most specific nav item (KYC vs Accounts)', () => {
@@ -413,8 +409,137 @@ describe('RBAC: canViewPath (deny-by-default route guard)', () => {
     expect(canViewPath('pm', '/procurement/deliveries')).toBe(true)
   })
 
-  it('preserves the existing unknown-path fallback', () => {
-    expect(canViewPath('viewer', '/future-workspace')).toBe(true)
+  it('honors stricter direct page gates instead of a parent read policy', () => {
+    expect(canViewPath('viewer', '/projects/new')).toBe(false)
+    expect(canViewPath('estimator', '/projects/new')).toBe(true)
+
+    expect(canViewPath('viewer', '/projects/project-id/access')).toBe(false)
+    expect(canViewPath('admin', '/projects/project-id/access')).toBe(true)
+
+    expect(canViewPath('sales', '/projects/project-id/billing')).toBe(false)
+    expect(canViewPath('finance', '/projects/project-id/billing')).toBe(true)
+
+    expect(canViewPath('commercial', '/admin/users')).toBe(false)
+    expect(canViewPath('commercial', '/admin/rate-cards')).toBe(true)
+
+    expect(canViewPath('viewer', '/inventory/receipts/new')).toBe(false)
+    expect(canViewPath('procurement', '/inventory/receipts/new')).toBe(true)
+
+    expect(canViewPath('safety', '/punchlist/new')).toBe(false)
+    expect(canViewPath('cx', '/punchlist/new')).toBe(true)
+
+    expect(canViewPath('viewer', '/crm/accounts/new')).toBe(false)
+    expect(canViewPath('sales', '/crm/accounts/new')).toBe(true)
+  })
+
+  it('preserves page-specific project and claim read projections', () => {
+    expect(canViewPath('viewer', '/bom')).toBe(true)
+    expect(canViewPath('viewer', '/projects/project-id/bom')).toBe(false)
+    expect(canViewPath('viewer', '/projects/project-id/cost')).toBe(true)
+    expect(canViewPath('sales', '/projects/project-id/cost')).toBe(false)
+    expect(canViewPath('viewer', '/projects/project-id/audit')).toBe(true)
+    expect(canViewPath('sd_pm_pe', '/projects/project-id/audit')).toBe(false)
+
+    expect(canViewPath('estimator', '/claims')).toBe(true)
+    expect(canViewPath('estimator', '/claims/new')).toBe(false)
+    expect(canViewPath('finance', '/claims/new')).toBe(true)
+    expect(canViewPath('commercial', '/claims/new')).toBe(true)
+  })
+
+  it('registers redirect and secondary routes without advertising them', () => {
+    const routeOnlyHrefs = [
+      '/crm',
+      '/crm/opportunities',
+      '/pipeline',
+      '/pipeline/coverage',
+      '/pipeline/conversion',
+      '/procurement',
+    ]
+
+    for (const role of PERSISTED_ROLES) {
+      const hrefs = visibleHrefs(role)
+      for (const href of routeOnlyHrefs) {
+        expect(hrefs, `${role}: ${href}`).not.toContain(href)
+      }
+
+      expect(canViewPath(role, '/crm'), role).toBe(true)
+      expect(canViewPath(role, '/crm/opportunities'), role).toBe(true)
+      expect(canViewPath(role, '/crm/opportunities/opportunity-id'), role).toBe(
+        true
+      )
+      expect(canViewPath(role, '/pipeline'), role).toBe(true)
+      expect(canViewPath(role, '/pipeline/coverage'), role).toBe(true)
+      expect(canViewPath(role, '/pipeline/conversion'), role).toBe(true)
+    }
+  })
+
+  it('applies the most-specific role policy to the PPRF creation route', () => {
+    const permitted = new Set<AppRole>(['owner', 'admin', 'sales'])
+
+    for (const role of PERSISTED_ROLES) {
+      expect(canViewPath(role, '/crm/opportunities/new/pprf'), role).toBe(
+        permitted.has(role)
+      )
+    }
+
+    expect(
+      canViewPath('viewer', '/crm/opportunities/new/pprf/unregistered')
+    ).toBe(false)
+    expect(
+      canViewPath('sales', '/crm/opportunities/new/pprf/unregistered')
+    ).toBe(false)
+    expect(
+      canViewPath('admin', '/crm/opportunities/new/pprf/unregistered')
+    ).toBe(false)
+  })
+
+  it('applies the page po.create policy to the procurement root only', () => {
+    const permitted = new Set<AppRole>([
+      'owner',
+      'admin',
+      'commercial',
+      'sd_pm_pe',
+      'pm',
+      'procurement',
+    ])
+
+    for (const role of PERSISTED_ROLES) {
+      expect(canViewPath(role, '/procurement'), role).toBe(permitted.has(role))
+    }
+
+    expect(canViewPath('procurement', '/procurement/unregistered')).toBe(false)
+  })
+
+  it('denies unregistered dashboard paths for every persisted role', () => {
+    const unknownPaths = [
+      '/future-workspace',
+      '/finnace/payables',
+      '/pipeline/converison',
+      '/settings-typo',
+      '/settings/future-page',
+      '/projects/project-id/future-tab',
+      '/inventory/receipts/receipt-id/future-action',
+    ]
+
+    for (const role of PERSISTED_ROLES) {
+      for (const pathname of unknownPaths) {
+        expect(canViewPath(role, pathname), `${role}: ${pathname}`).toBe(false)
+      }
+    }
+
+    expect(canViewPath('finance', '/finance/payabless')).toBe(false)
+    expect(canViewPath('commercial', '/admin/future-sensitive-page')).toBe(
+      false
+    )
+    expect(canViewPath('admin', '/admin/rate-cards/future-page')).toBe(false)
+  })
+
+  it('does not apply the dashboard registry to external route classes', () => {
+    for (const role of PERSISTED_ROLES) {
+      expect(canViewPath(role, '/api/health'), role).toBe(true)
+      expect(canViewPath(role, '/portal/customer'), role).toBe(true)
+      expect(canViewPath(role, '/auth/login'), role).toBe(true)
+    }
   })
 })
 
@@ -444,6 +569,9 @@ describe('sidebar active state', () => {
 
   it('returns no active item for an unrelated route', () => {
     expect(activeNavHref('/settings/profile', visibleNavSections('finance'))).toBe(
+      null
+    )
+    expect(activeNavHref('/pipeline/conversion', visibleNavSections('finance'))).toBe(
       null
     )
   })

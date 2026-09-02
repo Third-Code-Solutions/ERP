@@ -1,11 +1,10 @@
 /**
- * Single source of truth for sidebar navigation + RBAC route-guards.
+ * Co-located sidebar navigation and explicit dashboard route authorization.
  *
- * One config drives:
- *   1. The sidebar items the user sees (visibleNavSections).
- *   2. The defense-in-depth path-level guard (canViewPath) used by the
- *      dashboard layout — so even if a user types a forbidden URL, the
- *      server-side check redirects them away.
+ * NAV_SECTIONS drives only the sidebar items the user sees. The complete
+ * DASHBOARD_ROUTE_POLICIES registry separately drives the defense-in-depth
+ * path guard, so hidden pages stay hidden and unregistered descendants fail
+ * closed.
  *
  * Route policy is explicit for every persisted ABI OPS role. Owner inherits
  * the admin projection by contract; estimator and pm remain distinct because
@@ -57,6 +56,12 @@ export type NavIconKey =
 export interface NavSection {
   label: string
   items: NavItemDef[]
+}
+
+export interface DashboardRoutePolicy {
+  template: string
+  /** Undefined means every authenticated application role. */
+  roles?: readonly AppRole[]
 }
 
 /**
@@ -153,7 +158,8 @@ export function roleLabel(role: AppRole): string {
 //   /warranty/cnps       → admin, cx, viewer (read only)
 //   /documents           → everyone (per-doc RLS scoping in DB)
 //   /reports             → admin, sales, finance
-//   /admin/*             → admin, commercial (rate-card administration)
+//   /admin               → admin, commercial (rate-card administration)
+//   /admin/users|config  → admin only (page-local capability gates)
 //   /settings            → everyone (account-level settings)
 // -----------------------------------------------------------------------------
 
@@ -386,6 +392,274 @@ export const NAV_SECTIONS: NavSection[] = [
   },
 ]
 
+const ADMIN_ROUTE_ROLES = ['admin', 'commercial'] as const
+const ADMIN_ONLY_ROUTE_ROLES = ['admin'] as const
+const BOM_ROUTE_ROLES = ['admin', 'estimator', 'commercial', 'viewer'] as const
+const CLAIM_ROUTE_ROLES = [
+  'admin',
+  'finance',
+  'estimator',
+  'pm',
+  'sd_pm_pe',
+  'commercial',
+] as const
+const FINANCE_ROUTE_ROLES = ['admin', 'finance'] as const
+const INVENTORY_MANAGE_ROUTE_ROLES = ['admin', 'procurement'] as const
+const INVENTORY_ROUTE_ROLES = [
+  'admin',
+  'finance',
+  'procurement',
+  'pm',
+  'sd_pm_pe',
+  'commercial',
+  'viewer',
+] as const
+const PERMIT_ROUTE_ROLES = [
+  'admin',
+  'estimator',
+  'pm',
+  'commercial',
+  'sd_pm_pe',
+  'safety',
+  'viewer',
+] as const
+const PURCHASE_ORDER_ROUTE_ROLES = [
+  'admin',
+  'estimator',
+  'pm',
+  'commercial',
+  'sd_pm_pe',
+  'procurement',
+  'viewer',
+] as const
+const PROJECT_BOM_ROUTE_ROLES = ['admin', 'estimator', 'commercial'] as const
+const PROJECT_COST_ROUTE_ROLES = [
+  'admin',
+  'finance',
+  'commercial',
+  'procurement',
+  'sd_pm_pe',
+  'pm',
+  'estimator',
+  'viewer',
+] as const
+const PROJECT_CREATE_ROUTE_ROLES = [
+  'admin',
+  'sales',
+  'commercial',
+  'sd_pm_pe',
+  'pm',
+  'estimator',
+] as const
+
+function registerDashboardRoutes(
+  templates: readonly string[],
+  roles?: readonly AppRole[]
+): DashboardRoutePolicy[] {
+  return templates.map((template) => ({ template, roles }))
+}
+
+/**
+ * Complete dashboard page registry. Each template corresponds to a real
+ * page under the `/(dashboard)` route group; matching an ancestor never
+ * authorizes a child.
+ * Route-only aliases and secondary views live here without becoming sidebar
+ * items. Dynamic segments match exactly one non-empty pathname segment.
+ */
+export const DASHBOARD_ROUTE_POLICIES: readonly DashboardRoutePolicy[] = [
+  ...registerDashboardRoutes([
+    '/assets',
+    '/assets/[assetId]',
+    '/cortex',
+    '/crm',
+    '/crm/accounts',
+    '/crm/accounts/[id]',
+    '/crm/opportunities',
+    '/crm/opportunities/[id]',
+    '/crm/opportunities/[id]/proposal',
+    '/crm/opportunities/[id]/proposal/change-requests',
+    '/crm/opportunities/[id]/proposal/design',
+    '/crm/opportunities/[id]/proposal/inspection',
+    '/crm/opportunities/[id]/proposal/pprf',
+    '/dashboard',
+    '/documents',
+    '/pipeline',
+    '/pipeline/board',
+    '/pipeline/conversion',
+    '/pipeline/coverage',
+    '/process',
+    '/projects',
+    '/projects/[id]',
+    '/projects/[id]/checklist',
+    '/projects/[id]/coc',
+    '/projects/[id]/comments',
+    '/projects/[id]/documents',
+    '/projects/[id]/permits',
+    '/projects/[id]/progress',
+    '/projects/[id]/reports',
+    '/projects/[id]/scope',
+    '/projects/[id]/turnover',
+    '/projects/[id]/vos',
+    '/projects/[id]/vos/[voId]',
+    '/settings',
+    '/settings/profile',
+    '/tasks',
+  ]),
+  ...registerDashboardRoutes(
+    ['/admin', '/admin/material-items', '/admin/rate-cards'],
+    ADMIN_ROUTE_ROLES
+  ),
+  ...registerDashboardRoutes(
+    [
+      '/admin/data-quality',
+      '/admin/mapping-config',
+      '/admin/users',
+      '/admin/users/[id]',
+      '/admin/users/new',
+    ],
+    ADMIN_ONLY_ROUTE_ROLES
+  ),
+  ...registerDashboardRoutes(['/bom'], BOM_ROUTE_ROLES),
+  ...registerDashboardRoutes(['/claims', '/claims/[id]'], CLAIM_ROUTE_ROLES),
+  ...registerDashboardRoutes(['/claims/new'], [
+    'admin',
+    'finance',
+    'commercial',
+    'sd_pm_pe',
+    'pm',
+  ]),
+  ...registerDashboardRoutes(['/crm/accounts/new'], ['admin', 'sales']),
+  ...registerDashboardRoutes(['/crm/kyc-queue'], ['admin', 'finance']),
+  ...registerDashboardRoutes(['/crm/opportunities/new/pprf'], [
+    'admin',
+    'sales',
+  ]),
+  ...registerDashboardRoutes(
+    [
+      '/finance',
+      '/finance/cash',
+      '/finance/cash/[id]',
+      '/finance/cash/new',
+      '/finance/journals/[id]',
+      '/finance/journals/new',
+      '/finance/ledger',
+      '/finance/payables',
+      '/finance/payables/[id]',
+      '/finance/payables/[id]/edit',
+      '/finance/payables/new',
+      '/finance/receivables',
+      '/finance/reconciliation',
+      '/finance/reconciliation/[id]',
+      '/finance/reconciliation/new',
+    ],
+    FINANCE_ROUTE_ROLES
+  ),
+  ...registerDashboardRoutes(
+    [
+      '/inventory',
+      '/inventory/movements',
+      '/inventory/movements/[id]',
+      '/inventory/receipts',
+      '/inventory/receipts/[id]',
+    ],
+    INVENTORY_ROUTE_ROLES
+  ),
+  ...registerDashboardRoutes(
+    ['/inventory/movements/new', '/inventory/receipts/new'],
+    INVENTORY_MANAGE_ROUTE_ROLES
+  ),
+  ...registerDashboardRoutes(
+    ['/invoices', '/invoices/[id]'],
+    FINANCE_ROUTE_ROLES
+  ),
+  ...registerDashboardRoutes(['/permits'], PERMIT_ROUTE_ROLES),
+  ...registerDashboardRoutes(['/projects/new'], PROJECT_CREATE_ROUTE_ROLES),
+  ...registerDashboardRoutes(['/projects/[id]/access'], ADMIN_ONLY_ROUTE_ROLES),
+  ...registerDashboardRoutes(['/projects/[id]/audit'], [
+    'admin',
+    'pm',
+    'finance',
+    'viewer',
+  ]),
+  ...registerDashboardRoutes(
+    ['/projects/[id]/billing'],
+    FINANCE_ROUTE_ROLES
+  ),
+  ...registerDashboardRoutes(
+    ['/projects/[id]/bom', '/projects/[id]/bom/togal'],
+    PROJECT_BOM_ROUTE_ROLES
+  ),
+  ...registerDashboardRoutes(
+    ['/projects/[id]/cost', '/projects/[id]/cost/budget'],
+    PROJECT_COST_ROUTE_ROLES
+  ),
+  ...registerDashboardRoutes(['/procurement'], [
+    'admin',
+    'commercial',
+    'sd_pm_pe',
+    'pm',
+    'procurement',
+  ]),
+  ...registerDashboardRoutes(
+    [
+      '/procurement/deliveries',
+      '/procurement/deliveries/[id]',
+      '/procurement/deliveries/new',
+    ],
+    ['admin', 'pm', 'procurement', 'sd_pm_pe', 'viewer']
+  ),
+  ...registerDashboardRoutes(
+    ['/procurement/rfqs', '/procurement/rfqs/[id]'],
+    ['admin', 'estimator', 'procurement', 'commercial', 'viewer']
+  ),
+  ...registerDashboardRoutes(
+    ['/purchase-orders', '/purchase-orders/[id]'],
+    PURCHASE_ORDER_ROUTE_ROLES
+  ),
+  ...registerDashboardRoutes(['/reports'], ['admin', 'sales', 'finance']),
+  ...registerDashboardRoutes(
+    ['/punchlist', '/punchlist/[id]'],
+    ['admin', 'pm', 'sd_pm_pe', 'cx', 'safety', 'viewer']
+  ),
+  ...registerDashboardRoutes(['/punchlist/new'], [
+    'admin',
+    'pm',
+    'sd_pm_pe',
+    'cx',
+  ]),
+  ...registerDashboardRoutes(
+    ['/warranty', '/warranty/[id]', '/warranty/cnps'],
+    ['admin', 'cx', 'viewer']
+  ),
+]
+
+function matchesRouteTemplate(template: string, pathname: string): boolean {
+  const templateSegments = template.split('/').filter(Boolean)
+  const pathnameSegments = pathname.split('/').filter(Boolean)
+  if (templateSegments.length !== pathnameSegments.length) return false
+
+  return templateSegments.every((segment, index) => {
+    const pathnameSegment = pathnameSegments[index]
+    if (!pathnameSegment) return false
+    if (segment.startsWith('[') && segment.endsWith(']')) return true
+    return segment === pathnameSegment
+  })
+}
+
+function routeTemplateSpecificity(template: string): number {
+  return template
+    .split('/')
+    .filter(Boolean)
+    .filter((segment) => !segment.startsWith('['))
+    .length
+}
+
+const RESOLVED_ROUTE_POLICIES = [...DASHBOARD_ROUTE_POLICIES].sort(
+  (a, b) =>
+    routeTemplateSpecificity(b.template) -
+    routeTemplateSpecificity(a.template)
+)
+
 /** Filter the nav config down to what the given role may see. */
 export function visibleNavSections(role: AppRole): NavSection[] {
   const routeRole = canonicalRole(role)
@@ -423,33 +697,25 @@ export function activeNavHref(
 
 /**
  * Defense-in-depth: returns false when the role isn't permitted to
- * load the given pathname under /(dashboard). Pages outside this nav
- * config (e.g. /portal/*, /api/*, /auth/*) return true so they're
- * unaffected.
+ * load the given pathname under /(dashboard). External route classes
+ * (e.g. /portal/*, /api/*, /auth/*) return true so they're unaffected.
  */
 export function canViewPath(role: AppRole, pathname: string): boolean {
-  // Always allow account/settings/help/etc.
-  if (pathname === '/' || pathname.startsWith('/settings')) return true
+  if (pathname === '/') return true
   if (pathname.startsWith('/api/') || pathname.startsWith('/portal/')) return true
   if (pathname.startsWith('/auth/')) return true
 
   const routeRole = canonicalRole(role)
 
-  // Walk the nav config from most specific to least so /admin/users
-  // matches /admin before /tasks.
-  const allItems = NAV_SECTIONS.flatMap((s) => s.items).sort(
-    (a, b) => b.href.length - a.href.length
-  )
-  for (const item of allItems) {
-    if (pathname === item.href || pathname.startsWith(item.href + '/')) {
-      if (!item.roles) return true
-      return item.roles.includes(routeRole)
+  // Static templates win over dynamic templates at the same depth. No policy
+  // authorizes descendants: every real page template is registered explicitly.
+  for (const policy of RESOLVED_ROUTE_POLICIES) {
+    if (matchesRouteTemplate(policy.template, pathname)) {
+      if (!policy.roles) return true
+      return policy.roles.includes(routeRole)
     }
   }
 
-  // Catch-all: top-level dashboard ancillaries (e.g., /projects/[id]/...
-  // child routes inherit from /projects); we already matched above via
-  // startsWith. Anything truly unknown defaults to allow + the page's
-  // own gate handles it.
-  return true
+  // A dashboard page must be registered above before any role can load it.
+  return false
 }
