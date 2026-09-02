@@ -187,3 +187,47 @@ active Web path now consumes the Core authority. Inputs: Core commit
 `b9aa2d93`, Web commit `dd856efa`, this acceptance contract, and all focused
 evidence. Expected output: an independent `GO` or `BLOCK` after security,
 tenant, KYC, transaction/idempotency, fail-closed, test, and regression review.
+
+## Independent QA round 1
+
+Verdict: `BLOCK`; browser verification must not start.
+
+Confirmed findings:
+
+- P1: Core `opportunity.stage_change` and `opportunity.convert` grant
+  Commercial, Service Delivery, PM, and Estimator in addition to Owner, Admin,
+  and Sales. Direct Core callers can therefore execute the Won handoff even
+  though the Web boundary correctly denies them.
+- P2: conversion tenant-qualifies the Account lookup but accepts a missing row,
+  then copies the original `opportunity.account_id` into the new Project. With
+  the schema's single-column foreign key, a malformed tenant-A opportunity can
+  therefore retain a tenant-B Account reference under valid tenant-A KYC
+  tracks.
+- tests deny only Viewer and use valid same-tenant Account links, so neither
+  defect was covered.
+
+Required remediation:
+
+1. Make both Core Won mutation capabilities exactly Owner/Admin/Sales and prove
+   all thirteen role outcomes at the central map, controller/service boundary,
+   and no-effect transaction boundary.
+2. Require a linked Account to resolve in the authenticated tenant before KYC
+   evaluation and before copying the ID into a Project.
+3. Add a real PostgreSQL cross-tenant Account-reference rollback case.
+4. Add same-key cross-actor replay tests proving current membership is always
+   revalidated, denied/revoked actors receive no replay, authorized replay
+   creates one effect, and tenant ledger keys remain isolated.
+
+Round-1 evidence passed Core 30 tests, Web client/action 185 tests, shared
+authorization/stage 38 tests, WO-13 contract, two real PostgreSQL integrations,
+API/Web/E2E type checks, API/Web builds, gitleaks, and diff checks. Independent
+ESLint was blocked by a missing workspace `eslint-plugin-react-hooks` link;
+source-phase direct API/Web lint had already passed through the pinned virtual
+store.
+
+→ Handoff back to Agent 05. Reason: both blockers are Core authorization and
+tenant-integrity defects. Inputs: this QA report, central capability map, Core
+controllers/services, stage/conversion unit tests, and PostgreSQL HTTP
+integrations. Expected output: exact all-role denial, tenant-qualified Account
+failure, cross-actor/tenant replay safety, real rollback evidence, and a new
+Core-only source commit before QA round 2.
