@@ -1,9 +1,10 @@
 import type { Metadata } from 'next'
+import React from 'react'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getUser } from '@third-code-erp/auth'
+import { requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
-import { auditLog, boms, invoices, projects, scopeItems, users } from '@third-code-erp/database/schema'
+import { auditLog, boms, invoices, projects, scopeItems } from '@third-code-erp/database/schema'
 import { and, count, desc, eq, inArray } from 'drizzle-orm'
 import {
   auditActivityReadsUseCoreApi,
@@ -15,18 +16,19 @@ import {
   auditActivityHref,
   parseAuditActivityViewParams,
 } from '@/lib/audit-activity-view'
+import { getProjectDetailAccess } from '../project-detail-access'
 
 export const metadata: Metadata = { title: 'Audit Trail' }
 
 const TABS = [
   { label: 'Overview', href: '' },
   { label: 'Scope', href: '/scope' },
-  { label: 'BOM', href: '/bom' },
+  { label: 'BOM', href: '/bom', requiredAccess: 'bom' },
   { label: 'Documents', href: '/documents' },
-  { label: 'Billing', href: '/billing' },
+  { label: 'Billing', href: '/billing', requiredAccess: 'billing' },
   { label: 'Comments', href: '/comments' },
   { label: 'Audit', href: '/audit' },
-]
+] as const
 
 const ACTION_LABELS: Record<string, string> = {
   create: 'Created',
@@ -71,7 +73,6 @@ type AuditEntryView = {
   redacted: boolean
 }
 
-const AUDIT_CORE_ROLES = new Set(['owner', 'admin', 'pm', 'finance'])
 const AUDIT_PAGE_SIZE = 25
 
 export default async function ProjectAuditPage({
@@ -83,36 +84,29 @@ export default async function ProjectAuditPage({
 }) {
   const { id } = await params
   const filters = parseAuditActivityViewParams(await searchParams)
-  const user = await getUser()
-  if (!user) return null
-
-  const [userRow] = await db
-    .select({ tenant_id: users.tenant_id, role: users.role })
-    .from(users)
-    .where(eq(users.id, user.id))
-  if (!userRow?.tenant_id) return notFound()
-  if (
-    auditActivityReadsUseCoreApi(userRow.tenant_id) &&
-    !AUDIT_CORE_ROLES.has(userRow.role)
-  ) {
-    return notFound()
-  }
+  const profile = await requireUserProfile()
+  const access = getProjectDetailAccess(profile.role)
+  if (!access.audit) return notFound()
 
   const [project] = await db
     .select({ id: projects.id, name: projects.name })
     .from(projects)
-    .where(and(eq(projects.id, id), eq(projects.tenant_id, userRow.tenant_id)))
+    .where(and(eq(projects.id, id), eq(projects.tenant_id, profile.tenantId)))
 
   if (!project) return notFound()
 
   // Gather entity IDs for this project
   const [scopeIds, bomIds, invoiceIds] = await Promise.all([
     db.select({ id: scopeItems.id }).from(scopeItems)
-      .where(and(eq(scopeItems.project_id, id), eq(scopeItems.tenant_id, userRow.tenant_id))),
-    db.select({ id: boms.id }).from(boms)
-      .where(and(eq(boms.project_id, id), eq(boms.tenant_id, userRow.tenant_id))),
-    db.select({ id: invoices.id }).from(invoices)
-      .where(and(eq(invoices.project_id, id), eq(invoices.tenant_id, userRow.tenant_id))),
+      .where(and(eq(scopeItems.project_id, id), eq(scopeItems.tenant_id, profile.tenantId))),
+    access.bom
+      ? db.select({ id: boms.id }).from(boms)
+          .where(and(eq(boms.project_id, id), eq(boms.tenant_id, profile.tenantId)))
+      : Promise.resolve([]),
+    access.billing
+      ? db.select({ id: invoices.id }).from(invoices)
+          .where(and(eq(invoices.project_id, id), eq(invoices.tenant_id, profile.tenantId)))
+      : Promise.resolve([]),
   ])
 
   const relatedIds = [
@@ -125,7 +119,7 @@ export default async function ProjectAuditPage({
   let entries: AuditEntryView[]
   let total = 0
   let totalPages = 1
-  if (auditActivityReadsUseCoreApi(userRow.tenant_id)) {
+  if (auditActivityReadsUseCoreApi(profile.tenantId)) {
     if (relatedIds.length > 500) {
       throw new Error('Project audit scope is too broad for the Core activity boundary.')
     }
@@ -153,7 +147,7 @@ export default async function ProjectAuditPage({
     }))
   } else {
     const conditions = [
-      eq(auditLog.tenant_id, userRow.tenant_id),
+      eq(auditLog.tenant_id, profile.tenantId),
       inArray(auditLog.entity_id, relatedIds),
     ]
     if (filters.action) conditions.push(eq(auditLog.action, filters.action))
@@ -204,7 +198,9 @@ export default async function ProjectAuditPage({
 
       {/* Tab nav */}
       <div style={{ display: 'flex', gap: '2px', marginBottom: '24px', borderBottom: '1px solid var(--color-border)', marginTop: '16px' }}>
-        {TABS.map(({ label, href }) => {
+        {TABS.filter(
+          (tab) => !('requiredAccess' in tab) || access[tab.requiredAccess],
+        ).map(({ label, href }) => {
           const fullHref = baseHref + href
           const isActive = href === '/audit'
           return (

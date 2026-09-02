@@ -6,6 +6,7 @@ import { requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { boms, projects } from '@third-code-erp/database/schema'
 import { TakeoffImportWizard } from '@/components/bom/takeoff-import-wizard'
+import { getProjectDetailAccess } from '../../project-detail-access'
 
 export const metadata: Metadata = { title: 'Takeoff import' }
 
@@ -16,6 +17,8 @@ interface PageProps {
 export default async function ProjectBomTogalPage({ params }: PageProps) {
   const { id } = await params
   const profile = await requireUserProfile()
+  const access = getProjectDetailAccess(profile.role)
+  if (!access.bom) return notFound()
   const tenantId = profile.tenantId
 
   const [project] = await db

@@ -12,35 +12,42 @@ function money(currency: string, cents: number): string {
 export function CostControlTable({
   rows,
   currency = 'PHP',
+  showBomDetails = true,
+  showCommitments = true,
 }: {
   rows: ProjectCostControlRow[]
   currency?: string
+  showBomDetails?: boolean
+  showCommitments?: boolean
 }) {
   if (rows.length === 0) {
     return (
       <div className="card-empty">
-        No approved budget, PO commitment, or posted supplier-bill evidence is
-        linked to a BOM line yet.
+        No approved budget or posted actual evidence is available yet.
       </div>
     )
   }
+
+  const showVariance = showBomDetails && showCommitments
 
   return (
     <div className="finance-table-shell cost-control-table-shell">
       <table className="data-table cost-control-table">
         <caption className="sr-only">
-          Cost control by Cost Code and BOM line. Committed and actual values
-          are not added together.
+          Cost control by Cost Code{showBomDetails ? ' and BOM line' : ''}.
+          {showCommitments
+            ? ' Committed and actual values are not added together.'
+            : ''}
         </caption>
         <thead>
           <tr>
             <th>Cost Code</th>
-            <th>BOM line</th>
+            {showBomDetails && <th>BOM line</th>}
             <th className="num">Budget</th>
-            <th className="num">Committed</th>
+            {showCommitments && <th className="num">Committed</th>}
             <th className="num">Actual</th>
-            <th className="num">Remaining</th>
-            <th className="num">Variance</th>
+            {showVariance && <th className="num">Remaining</th>}
+            {showVariance && <th className="num">Variance</th>}
           </tr>
         </thead>
         <tbody>
@@ -50,41 +57,49 @@ export function CostControlTable({
                 <strong>{row.code}</strong>
                 <span className="finance-cell-detail">{row.name}</span>
               </td>
-              <td>
-                {row.bomLineCode || row.bomLineDescription ? (
-                  <>
-                    <strong>{row.bomLineCode || 'BOM line'}</strong>
-                    <span className="finance-cell-detail">
-                      {row.bomLineDescription || 'Description unavailable'}
-                    </span>
-                  </>
-                ) : (
-                  <span className="cost-control-unassigned">Unassigned</span>
-                )}
-              </td>
+              {showBomDetails && (
+                <td>
+                  {row.bomLineCode || row.bomLineDescription ? (
+                    <>
+                      <strong>{row.bomLineCode || 'BOM line'}</strong>
+                      <span className="finance-cell-detail">
+                        {row.bomLineDescription || 'Description unavailable'}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="cost-control-unassigned">Unassigned</span>
+                  )}
+                </td>
+              )}
               <td className="num finance-money">
                 {money(currency, row.baselineCents)}
               </td>
-              <td className="num finance-money">
-                {money(currency, row.committedCents)}
-              </td>
+              {showCommitments && (
+                <td className="num finance-money">
+                  {money(currency, row.committedCents)}
+                </td>
+              )}
               <td className="num finance-money">
                 {money(currency, row.actualCents)}
               </td>
-              <td
-                className={`num finance-money ${
-                  row.remainingCents < 0 ? 'budget-negative-text' : ''
-                }`}
-              >
-                {money(currency, row.remainingCents)}
-              </td>
-              <td
-                className={`num finance-money ${
-                  row.varianceCents > 0 ? 'budget-negative-text' : ''
-                }`}
-              >
-                {money(currency, row.varianceCents)}
-              </td>
+              {showVariance && (
+                <td
+                  className={`num finance-money ${
+                    row.remainingCents < 0 ? 'budget-negative-text' : ''
+                  }`}
+                >
+                  {money(currency, row.remainingCents)}
+                </td>
+              )}
+              {showVariance && (
+                <td
+                  className={`num finance-money ${
+                    row.varianceCents > 0 ? 'budget-negative-text' : ''
+                  }`}
+                >
+                  {money(currency, row.varianceCents)}
+                </td>
+              )}
             </tr>
           ))}
         </tbody>

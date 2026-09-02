@@ -58,6 +58,11 @@ export interface ProjectCostControl {
   totals: ProjectCostControlTotals
 }
 
+interface ProjectCostControlAccess {
+  includeBomDetails?: boolean
+  includePurchaseOrders?: boolean
+}
+
 function cents(value: number | string | null): number {
   return Number(value ?? 0)
 }
@@ -72,6 +77,118 @@ function emptyProjectCostControlTotals(): ProjectCostControlTotals {
     remainingCents: 0,
     varianceCents: 0,
   }
+}
+
+async function getCostCodeGrainControlRows(params: {
+  tenantId: string
+  projectId: string
+  includePurchaseOrders: boolean
+}): Promise<RawCostControlRow[]> {
+  const commitmentCte = params.includePurchaseOrders
+    ? sql`
+        commitment as (
+          select
+            po_line.cost_code_id,
+            sum(po_line.line_total_cents)::bigint as committed_cents
+          from public.po_line_items po_line
+          join public.purchase_orders purchase_order
+            on purchase_order.id = po_line.po_id
+           and purchase_order.tenant_id = po_line.tenant_id
+          where po_line.tenant_id = ${params.tenantId}::uuid
+            and purchase_order.project_id = ${params.projectId}::uuid
+            and purchase_order.status::text in (
+              'confirmed',
+              'partial_delivery',
+              'delivered',
+              'issued',
+              'partial_delivered',
+              'fully_delivered'
+            )
+          group by po_line.cost_code_id
+        )
+      `
+    : sql`
+        commitment as (
+          select
+            null::uuid as cost_code_id,
+            0::bigint as committed_cents
+          where false
+        )
+      `
+
+  return db.execute<RawCostControlRow>(sql`
+    with budget as (
+      select
+        budget_line.cost_code_id,
+        sum(budget_line.amount_cents)::bigint as baseline_cents
+      from public.project_budget_lines budget_line
+      join public.project_budgets budget
+        on budget.id = budget_line.project_budget_id
+       and budget.tenant_id = budget_line.tenant_id
+      where budget_line.tenant_id = ${params.tenantId}::uuid
+        and budget.project_id = ${params.projectId}::uuid
+        and budget.status = 'approved'
+      group by budget_line.cost_code_id
+    ),
+    ${commitmentCte},
+    actual as (
+      select
+        bill_line.cost_code_id,
+        sum(bill_line.amount_cents)::bigint as actual_cents
+      from public.supplier_bill_lines bill_line
+      join public.supplier_bills bill
+        on bill.id = bill_line.supplier_bill_id
+       and bill.tenant_id = bill_line.tenant_id
+      where bill_line.tenant_id = ${params.tenantId}::uuid
+        and bill_line.project_id = ${params.projectId}::uuid
+        and bill.project_id = ${params.projectId}::uuid
+        and bill.status = 'posted'
+      group by bill_line.cost_code_id
+    ),
+    unreconciled as (
+      select
+        entry.cost_code_id,
+        sum(entry.amount_cents)::bigint as unreconciled_cents
+      from public.cost_entries entry
+      where entry.tenant_id = ${params.tenantId}::uuid
+        and entry.project_id = ${params.projectId}::uuid
+      group by entry.cost_code_id
+    ),
+    dimensions as (
+      select cost_code_id from budget
+      union
+      select cost_code_id from commitment
+      union
+      select cost_code_id from actual
+      union
+      select cost_code_id from unreconciled
+    )
+    select
+      dimension.cost_code_id,
+      cost_code.code,
+      cost_code.name,
+      cost_code.category::text as category,
+      null::uuid as bom_line_item_id,
+      null::text as bom_line_code,
+      null::text as bom_line_description,
+      coalesce(budget.baseline_cents, 0)::bigint as baseline_cents,
+      coalesce(commitment.committed_cents, 0)::bigint as committed_cents,
+      coalesce(actual.actual_cents, 0)::bigint as actual_cents,
+      coalesce(unreconciled.unreconciled_cents, 0)::bigint as unreconciled_cents
+    from dimensions dimension
+    left join budget
+      on budget.cost_code_id is not distinct from dimension.cost_code_id
+    left join commitment
+      on commitment.cost_code_id is not distinct from dimension.cost_code_id
+    left join actual
+      on actual.cost_code_id is not distinct from dimension.cost_code_id
+    left join unreconciled
+      on unreconciled.cost_code_id is not distinct from dimension.cost_code_id
+    left join public.cost_codes cost_code
+      on cost_code.id = dimension.cost_code_id
+     and cost_code.tenant_id = ${params.tenantId}::uuid
+    order by cost_code.code nulls last
+  `)
 }
 
 /**
@@ -245,7 +362,9 @@ export async function getProjectCostControlTotalsForProjects(params: {
 }
 
 /**
- * Reads the WO-17 cost-control triangle at BOM-line grain.
+ * Reads the WO-17 cost-control triangle at the finest grain authorized for
+ * the caller. BOM joins and PO commitment reads are independent because
+ * `budget.read` does not imply access to either domain.
  *
  * Budget lines, PO lines, and posted supplier-bill lines each contribute a
  * `(cost_code_id, bom_line_item_id)` dimension. Supplier-bill actuals use the
@@ -256,8 +375,12 @@ export async function getProjectCostControlTotalsForProjects(params: {
 export async function getProjectCostControl(params: {
   tenantId: string
   projectId: string
-}): Promise<ProjectCostControl> {
-  const rawRows = await db.execute<RawCostControlRow>(sql`
+} & ProjectCostControlAccess): Promise<ProjectCostControl> {
+  const includeBomDetails = params.includeBomDetails ?? true
+  const includePurchaseOrders = params.includePurchaseOrders ?? true
+
+  const rawRows = includeBomDetails && includePurchaseOrders
+    ? await db.execute<RawCostControlRow>(sql`
     with budget as (
       select
         budget_line.cost_code_id,
@@ -363,7 +486,12 @@ export async function getProjectCostControl(params: {
       on bom_line.id = dimension.bom_line_item_id
      and bom_line.tenant_id = ${params.tenantId}::uuid
     order by cost_code.code nulls last, bom_line.code nulls last, bom_line.description nulls last
-  `)
+      `)
+    : await getCostCodeGrainControlRows({
+        tenantId: params.tenantId,
+        projectId: params.projectId,
+        includePurchaseOrders,
+      })
 
   const rows = rawRows.map((raw) => {
     const baselineCents = cents(raw.baseline_cents)
