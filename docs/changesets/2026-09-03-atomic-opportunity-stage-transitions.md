@@ -97,9 +97,45 @@ No route, server action, Core/API, shared auth, component-library, schema,
 dependency, demo-data, environment, credential, or deployment change was made
 by Agent 11.
 
+## Agent 11 remediation
+
+- Replaced optional conversion Lost copy with a dedicated required-reason
+  dialog shared by the conversion control and Board Lost path.
+- Classified Board Lost before submission so it never sends an avoidable blank
+  request or reuses regression-only wording; true regressions retain their
+  existing dialog behavior.
+- Added programmatic textarea labels, required state, and a shared 1,000-character
+  boundary.
+- Added a stable per-caller submission guard that rejects blank/oversized
+  required reasons, forwards a trimmed reason exactly once, and suppresses a
+  duplicate while the first action is pending.
+- Preserved the typed returned/rejected error runner, visible alerts, retry
+  clearing, success-only refresh, keyboard semantics, Won behavior, role
+  controls, and no-optimistic-write behavior.
+
+Pipeline remediation commit: `60c73bac`.
+
+### Agent 11 remediation verification
+
+- Node 22.23.2 and pnpm 10.33.0: VERIFIED through direct pinned targets.
+- Four behavior-first red cycles: VERIFIED for missing textarea contract,
+  missing Lost UI, missing blank/trim/pending guard, and missing reason-kind
+  classification.
+- Final focused plus neighboring Pipeline suites: PASSED, 4 files / 52 tests.
+- Web plus configured E2E TypeScript projects: PASSED.
+- Full Web source lint: PASSED.
+- Web production build: PASSED, including 89 generated static pages.
+- Diff check: PASSED.
+- Pinned Gitleaks 8.30.1 full-history scan: PASSED, 1,778 commits / no leaks.
+
+No scripts, route, server action, Core/API, shared auth, schema, dependency,
+demo-data, environment, credential, or deployment change was made by this
+remediation.
+
 ## Remaining work
 
-Independent QA must review the combined branch and return `GO` or `BLOCK`.
-After QA, the designated browser verifier must exercise the supplied identity
-matrix and the returned/rejected failure states in a real browser. Safe positive
-persistence proof remains limited to a disposable or rollback-contained fixture.
+The WO-11 contract owner must repair the stale cross-surface source oracle and
+return the branch to independent QA. After QA, the designated browser verifier
+must exercise the supplied identity matrix and the returned/rejected failure
+states in a real browser. Safe positive persistence proof remains limited to a
+disposable or rollback-contained fixture.

@@ -287,3 +287,68 @@ accessible required-reason UX on both callers; zero request for blank input;
 trimmed single submission; preserved regression wording; returned/rejected
 failure visibility; pending duplicate protection; focused tests and gates;
 then explicit handoff to the WO-11 contract owner.
+
+## Agent 11 remediation — required Lost reason
+
+Verdict: `GO` for the WO-11 contract owner. Pipeline remediation commit:
+`60c73bac`.
+
+QA P2 #1 is remediated in both Pipeline callers. The conversion control's former
+optional inline prompt was replaced by a dedicated `LostReasonDialog` whose copy
+states that a reason is required. Board drops to Lost now resolve to that same
+Lost-specific dialog before any request; actual backward moves continue to use
+the regression-specific heading, copy, and confirmation behavior.
+
+Both reason textareas have programmatic labels, the HTML `required` state, and a
+shared 1,000-character maximum matching Core. Blank or whitespace-only Lost
+reasons cannot enable the dialog confirmation and are independently rejected by
+the caller submission boundary with zero action call. Accepted reasons are
+trimmed and forwarded exactly once.
+
+The existing typed action-result runner remains the returned/rejected failure
+authority. Each caller now owns a stable submission guard around it, so a second
+attempt while the first Promise is unresolved performs no request. The guard is
+released after returned error, rejected action, or success; the runner still
+clears stale visible failure state at start, renders failures through the
+existing accessible alerts, and runs refresh only after success. Won behavior,
+semantic buttons, role controls, KYC UI policy, and absence of optimistic stage
+persistence are unchanged.
+
+Node 22.23.2 / pnpm 10.33.0 verification:
+
+- red regression-markup proof: FAILED as expected, 1/1 — no programmatic label
+  or 1,000-character boundary;
+- red Lost-dialog proof: FAILED as expected because no Lost-specific component
+  existed;
+- red caller-submitter proof: FAILED as expected, 3/6 — blank, trimmed-single,
+  and pending-duplicate behavior did not exist;
+- red stage-intent proof: FAILED as expected, 2/8 — Lost versus regression was
+  not classified by a shared caller boundary;
+- final focused plus neighboring Pipeline suites: PASSED, 4 files / 52 tests;
+- Web plus all configured E2E TypeScript projects: PASSED;
+- full Web source lint through direct pinned Node/pnpm targets: PASSED;
+- Web production build: PASSED, 89 static pages generated;
+- `git diff --check`: PASSED;
+- Gitleaks 8.30.1 through the pinned repository wrapper: PASSED, 1,778 commits /
+  no leaks.
+
+The repository has no DOM interaction test dependency. Component accessibility
+and copy are covered through React's server renderer; blank, trimming,
+returned/rejected error, retry clearing, and pending-duplicate behavior are
+covered through the same typed submission boundary invoked by both callers.
+This is deterministic release evidence, not a substitute for the deferred real
+browser exercise. An initial package-manager wrapper invocation selected host
+Node 24 and was rejected by the engine guard; every reported release gate above
+was rerun with direct pinned Node 22.23.2 and pnpm 10.33.0 paths.
+
+No scripts, server actions, routes/pages, Core/API, shared auth, schema,
+dependency, demo data, environment, credential, or deployment state changed.
+
+→ Handoff to the WO-11 contract owner. Reason: QA P2 #1 is closed and the
+remaining QA block is the stale cross-surface `test:wo-11-contract` source
+oracle. Inputs: remediation commit `60c73bac`, Core commit `9496d282`, Web action
+commit `0ed1bdbc`, QA round-1 finding #2, and 52/52 Pipeline evidence above.
+Expected output: update only the authoritative WO-11 contract gate to inspect
+Core KYC enforcement and separately prove Web delegation/no local writer, run
+its neighboring release gates, append this handoff, and return to independent
+QA.
