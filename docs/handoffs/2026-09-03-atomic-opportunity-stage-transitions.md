@@ -353,6 +353,57 @@ Core KYC enforcement and separately prove Web delegation/no local writer, run
 its neighboring release gates, append this handoff, and return to independent
 QA.
 
+## WO-11 contract-oracle remediation
+
+Verdict: QA P2 #2 closed; returned to independent QA. Contract commit:
+`50339af8`.
+
+The stale Web-local KYC string oracle was replaced by structural TypeScript AST
+checks. The gate now verifies Core tenant-scoped linked-Account and KYC-track
+resolution, dual-track and legacy KYC behavior, shared transition and reason
+rules, and Core ownership of persistence, semantic audit, and SLA rollover. A
+separate Web validator proves one Core delegate covers every stage, selected-
+Core failures remain closed, returned identity/edge fields are checked, and no
+local stage writer or fallback remains.
+
+Four mutation-sensitivity fixtures prove the gate turns red when Core KYC
+enforcement, Account tenant scoping, Web Core delegation, or no-fallback
+behavior is removed. The verifier uses the already-installed TypeScript
+compiler API and adds no dependency.
+
+Node 22.23.2 / pnpm 10.33.0 verification: initial gate RED 0/1 as reproduced;
+final gate PASSED 5/5; Core 63/63; Web action and neighbors 226/226; API/Web
+TypeScript, root and explicit script lint, API/Web builds, gitleaks over 1,781
+commits, and diff checks passed. PostgreSQL integration remains blocked by
+absent isolated bindings.
+
+## Independent QA round 2
+
+Verdict: `BLOCK`; the first two P2s are resolved, but one additional P2 was
+found by the all-edge review at clean HEAD `3e1f3eba`.
+
+The conversion view's `StageAdvanceButton` still treats valid
+`negotiation -> bom_submission` and legacy
+`resubmission -> bom_submission` regressions as ordinary actions and sends no
+reason. Core correctly returns `reason_required`, but this surface exposes no
+regression dialog or recovery path. Existing conversion-page tests mock the
+button, while helper tests did not cover its caller wiring.
+
+QA round-2 green evidence: Pipeline 52/52, Web/Core-client 223/223, Core
+128/128, shared 56/56, WO-11 contract 5/5, API/Web/E2E/shared TypeScript,
+source and verifier lint, 89-page Web build, gitleaks over 1,781 commits, and
+diff checks. The database integration stayed blocked and browser verification
+was withheld.
+
+→ Handoff to Agent 11 remediation round 2. Reason: make the conversion caller
+classify every destination before a request and provide the existing required
+regression-reason flow for both affected BOM edges. Inputs: QA round-2 finding,
+shared reason classifier/submitter, `RegressionReasonDialog`, and corrected
+Lost behavior. Expected output: zero request before a valid regression reason;
+blank/over-limit zero calls; trimmed single submission with
+`reasonRequired: true`; no Lost regression; caller-wiring tests and focused
+gates; explicit return to independent QA.
+
 ## WO-11 contract owner — authoritative Core/Web oracle
 
 Verdict: `GO` for independent QA. Contract-gate commit: `50339af8`.
