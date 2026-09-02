@@ -1,14 +1,14 @@
 # ABI OPS functional-completeness work state
 
-Last updated: 2026-09-02 (Asia/Singapore)
+Last updated: 2026-09-03 (Asia/Singapore)
 
 ## Delivery contract
 
 Goal: verify and repair existing ABI OPS functionality for the repository's
 thirteen-role authorization vocabulary, one end-to-end workflow at a time.
-Password management and legacy project-chat authorization are the two completed
-local implementation slices; both remain `PARTIAL` under the strict live-data
-definition of done.
+Password management, legacy project-chat authorization, and project-detail
+authorization are the three completed local implementation slices; all remain
+`PARTIAL` under the strict live-data definition of done.
 
 Current work-order scope:
 
@@ -32,14 +32,14 @@ repository's release gates pass.
 | Next.js page routes | 118 | VERIFIED by source inventory and production build |
 | Session/recovery-protected page routes | 104 | VERIFIED by route inventory + middleware policy |
 | Explicit HTTP operations | 174 | VERIFIED by source inventory (133 Nest, 41 Next) |
-| Protected role/resource matrix records | 1,365 | VERIFIED as syntactically readable CSV records |
-| Tested role/resource combinations in this work order | 46 | 33 auth browser observations plus 13 automated AI-domain policy cases |
+| Protected role/resource matrix records | 1,378 | VERIFIED as syntactically readable CSV records |
+| Tested role/resource combinations in this work order | 59 | 33 auth browser observations plus 13 automated AI-domain and 13 project-detail policy cases |
 | Verified role/resource combinations | 0 | Strict full-route definition not yet met; tested rows remain PARTIAL or BLOCKED |
-| Failed role/resource combinations | 0 | No failed combination in the two repaired slices |
-| Blocked role/resource combinations | 8 | Four tested resources for each missing `estimator` and `pm` identity |
-| Prioritized functional workflows | 2 | Password management and project-chat data boundaries |
+| Failed role/resource combinations | 0 | No failed combination in the three repaired slices |
+| Blocked role/resource combinations | 10 | Prior blocked auth/chat coverage plus one project-detail record for each missing `estimator` and `pm` identity |
+| Prioritized functional workflows | 3 | Password management, project-chat boundaries, and project-detail boundaries |
 | Verified workflows | 0 | Strict live-data definition not yet met |
-| Partial workflows | 2 | Both implemented and locally tested with explicit live-evidence limits |
+| Partial workflows | 3 | All implemented and locally tested with explicit live-evidence limits |
 | Failed workflows | 0 | No known implementation failure after focused QA |
 | Completed modules | 0 | NOT TESTED |
 | Modules remaining | 13 user-facing modules | NOT TESTED |
@@ -100,27 +100,55 @@ Implemented behavior:
   checks with the provider disabled; the assistant UI advertises only generic
   project questions.
 
+### Project-detail data boundaries
+
+Implemented in stacked PR #17 and independently reviewed. The slice remains
+`PARTIAL` because browser identities for `estimator` and `pm` are unavailable
+and the database-backed budget write trigger could not run in the local QA
+lane.
+
+Implemented behavior:
+
+- one typed projection derives project, BOM, PO, cost, billing, delivery,
+  audit, and access visibility from the existing policy registries for all
+  thirteen roles;
+- overview cards, tabs, links, and queries omit denied domains independently;
+- Cost, Budget, Billing, and Audit do not load or derive hidden BOM/PO values;
+- BOM/Togal, Cost/Budget, Billing, Audit, and Access deep links call the
+  not-found boundary before protected database reads;
+- every allowed query remains tenant/project scoped and mutation capabilities
+  are unchanged;
+- budget saves now validate tenant/draft/BOM ownership, lock the draft, preserve
+  stable line identity, fail closed on affected-row mismatches, and audit only
+  after successful commit;
+- all eleven supplied identities passed the 66-route browser matrix; the final
+  denial UX rerun passed 32/32 without protected markers or console, page,
+  request, or dashboard-render errors.
+
 Acceptance criteria and ordered agent handoffs are recorded in
-`docs/handoffs/2026-09-02-functional-completeness.md` and
-`docs/handoffs/2026-09-02-ai-chat-data-boundaries.md`.
+`docs/handoffs/2026-09-02-functional-completeness.md`,
+`docs/handoffs/2026-09-02-ai-chat-data-boundaries.md`, and
+`docs/handoffs/2026-09-02-project-detail-authorization.md`.
 
 ## Agent state
 
 - Principal Agent 1: read-only route/RBAC cartography complete; no files changed.
 - Principal Agent 2: auth functional audit complete; no files changed.
-- Principal Agent 3: sole application-source editor for both slices; auth and
-  AI chat implementations complete.
+- Principal Agent 3: sole application-source editor; auth, AI chat, and project
+  detail implementations complete.
 - Principal Agent 4: independent code/test/security review complete; `GO` for
-  both implemented source slices.
+  all three implemented source slices.
 - Principal Agent 5: auth verification complete for all eleven supplied
   identities; AI chat safe browser/API smoke complete for viewer, finance, and
-  commercial with no provider call.
+  commercial; project-detail browser matrix complete for all eleven supplied
+  identities with no mutation or provider call.
 
 ## Git state
 
-- Primary repository: `D:/thirdcode/ERP`; stacked PR worktree:
-  `D:/thirdcode/ERP-ai-chat-pr-20260902`.
-- Current stacked branch: `agent-05/ai-chat-data-boundaries`.
+- Primary repository: `D:/thirdcode/ERP`; current stacked PR worktree:
+  `D:/thirdcode/ERP-project-detail-pr-20260902`.
+- Current stacked branch: `agent-03/project-detail-authorization`; PR #17,
+  stacked on PR #16.
 - Auth PR branch: `agent-03/auth-password-workflows-20260902`; PR #15 at
   commit `dfa190ba`.
 - Pre-existing untracked files: five user-owned changeset/handoff documents
@@ -149,6 +177,12 @@ Acceptance criteria and ordered agent handoffs are recorded in
 | AI chat production build | PASSED | Next.js 15.5.23; 85/85 static pages |
 | AI chat safe browser/API smoke | PASSED | Viewer/Finance/Commercial project UI; private 401/400/503; no external provider request |
 | AI chat live provider response | NOT RUN | Provider deliberately disabled to avoid sending data/cost before release |
+| Project-detail focused tests | PASSED | 16 files, 108 tests; all 13 role-policy cases |
+| Project-detail direct-route denial | PASSED | 6/6 automated cases; denial before DB access |
+| Project-detail independent QA | PASSED | `GO`; no in-scope P1/P2 confidentiality or integrity finding |
+| Project-detail browser matrix | PASSED | 11/11 supplied identities; 66/66 direct-route assertions |
+| Project-detail denial UX rerun | PASSED | 32/32 denied routes; not-found boundary and zero console/page/request errors |
+| Project-budget database trigger execution | BLOCKED | Database integration binding unavailable in local QA; compiled ordering and failure-path tests pass |
 | Auth PR CI | FAILED (pre-existing release gate) | Unit/type/lint/security/invariants pass; database reproducibility repeatedly fails existing Finance payables/receivables assertions and skips CI build/E2E |
 | Deployment/live smoke | NOT RUN | ADR-020 requires reviewed `main` SHA and all protected release gates; current CI is not green |
 
@@ -157,22 +191,19 @@ Acceptance criteria and ordered agent handoffs are recorded in
 1. Legacy route aliases (`estimator` to `commercial`, `pm` to `sd_pm_pe`) do not
    match the shared capability grants, producing visible links that backend or
    page checks later deny.
-2. Project Audit fallback can expose tenant-wide audit diffs to roles outside
-   the central `audit.read` policy.
-3. Project detail itself queries and renders BOM, margin, invoice, and PO
-   summaries without applying independent domain-read gates. The legacy chat
-   endpoint is repaired on the current stacked branch.
-4. Opportunity CSV export authorization is broader than Reports navigation.
-5. Unknown dashboard paths currently default to allowed in `canViewPath`.
+2. Opportunity CSV export authorization is broader than Reports navigation.
+3. Unknown dashboard paths currently default to allowed in `canViewPath`.
+4. Viewer read breadth still conflicts with the narrower checked-in policy and
+   requires a product decision for sensitive modules.
 
 These are queued sequentially after the completed local slices and must be
 reproduced before repair.
 
 ## Exact next action
 
-Complete the next sequential project-detail authorization workflow: gate its
-BOM/margin, invoice, PO, tabs, and queries by existing central policy and prove
-all thirteen role outcomes. In parallel, treat the repeatable Finance
-payables/receivables database-reproducibility failures as a separate release-
-gate workflow. Production deployment remains blocked by ADR-020 until every
+Reproduce and repair the repeatable Finance payables/receivables database-
+reproducibility failures from PR #15 without weakening accounting boundaries.
+Then rerun the protected database lane and continue sequentially with the
+legacy alias mismatch, unknown-path allow, and CSV export authorization
+workflows. Production deployment remains blocked by ADR-020 until every
 required check is green on a reviewed `main` SHA.

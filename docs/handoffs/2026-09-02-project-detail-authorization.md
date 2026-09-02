@@ -61,3 +61,38 @@ registry and does not broaden a sensitive grant.
 
 Production deployment remains blocked by ADR-020 until reviewed `main` and all
 protected release checks are green.
+
+## Closeout
+
+- Principal Agent 3 implemented the central project-detail access projection,
+  server-filtered tabs and quick actions, independently gated overview reads,
+  fail-closed sensitive routes, and regression coverage for every role. The
+  budget save path was also hardened after review exposed integrity edge cases:
+  tenant/draft/BOM validation, a locked draft snapshot, guarded writes, stable
+  inserted-line reconciliation, and exact affected-row checks now run inside
+  the transaction.
+- Principal Agent 4 returned `GO` with no in-scope P1/P2 confidentiality or
+  integrity finding. Direct-route denial, all-role policy projection, tenant
+  predicates, mutation capabilities, and budget transaction safeguards passed
+  independent review.
+- Principal Agent 5 verified all eleven supplied identities. The full browser
+  matrix passed 66/66 sensitive direct-route assertions. A final denial-only
+  rerun passed 32/32 routes: each rendered the workspace-record not-found state
+  with no protected marker, recovery boundary, dashboard-render diagnostic,
+  console error, page error, or request failure.
+- Focused tests passed 108/108 across sixteen files. Complete Web and E2E
+  TypeScript, full Web source lint, production build (89/89 static pages), and
+  diff checks passed.
+- Strict status remains `PARTIAL`: `estimator` and `pm` browser identities are
+  unavailable, and the database-backed budget trigger could not be exercised in
+  the local QA lane. No production deployment was performed.
+
+Pull request: [#17](https://github.com/Third-Code-Solutions/ERP/pull/17),
+stacked on project-chat PR #16.
+
+→ Handoff to the Finance database-reproducibility workflow. Reason: the
+repeatable payables and receivables integration assertions currently fail the
+protected database gate and skip CI build/E2E. Inputs: PR #15 run
+`33634034468`, failing expectations at payables line 425 and receivables line
+325. Expected output: reproduced root cause, smallest policy-consistent fix,
+green database-reproducibility gate, and no accounting-boundary weakening.

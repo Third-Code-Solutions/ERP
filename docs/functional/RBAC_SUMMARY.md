@@ -44,8 +44,8 @@ route layer separately folds three legacy roles through
 - 158 HTTP operations are session/capability/recovery protected; 16 are public,
   token/signature controlled, callback/health, webhook, or deprecated.
 - 80 central capabilities; 42 are referenced by Nest controller guards.
-- 1,365 role/protected-resource matrix records: 28 `FAILED`, 32
-  `NEEDS DECISION`, 1,071 `NOT TESTED`, 226 `PARTIAL`, and 8 `BLOCKED`.
+- 1,378 role/protected-resource matrix records: 28 `FAILED`, 32
+  `NEEDS DECISION`, 1,071 `NOT TESTED`, 237 `PARTIAL`, and 10 `BLOCKED`.
 
 ## Confirmed policy conflicts
 
@@ -69,9 +69,11 @@ page-local checks. Status: PARTIAL.
 
 ### Project tabs and audit
 
-All project readers see every project tab, including Access and Audit. The
-legacy Audit fallback can expose diffs to roles outside the central
-`audit.read` capability. Status: FAILED; high-priority authorization repair.
+Stacked PR #17 filters project tabs and guards direct Audit and Access routes
+from the existing central policies. Audit BOM and invoice entity discovery is
+also skipped when those domains are denied. Status: PARTIAL; automated and all
+supplied-role browser checks pass, while two browser identities and the
+database-backed budget trigger check remain blocked.
 
 ### Legacy project chat
 
@@ -85,9 +87,14 @@ model response was requested.
 
 ### Project-detail summaries
 
-The project-detail page itself still queries and renders BOM, margin, invoice,
-and purchase-order summaries without independent domain-read gates. Status:
-FAILED; this is the next sequential authorization workflow.
+Stacked PR #17 gates project overview, Cost/Budget, Billing, Audit, Access,
+BOM/Togal, tabs, and quick links by the existing domain policies. Denied BOM,
+PO, invoice, delivery, and audit-discovery branches issue no sensitive query;
+denied derived metrics and placeholders are omitted. Sensitive deep links fail
+closed before database access. Status: PARTIAL under the strict definition of
+done; automated tests cover all thirteen roles and all eleven supplied
+identities passed browser verification, but `estimator` and `pm` identities and
+database-backed budget-trigger execution remain blocked.
 
 ### CSV opportunity export
 
@@ -129,3 +136,17 @@ roles; Web type-check, source lint, production build, and an independent secret
 scan passed. Viewer, Finance, and Commercial passed isolated browser/API smoke
 checks with the provider disabled. Strict status remains `PARTIAL` until a
 reviewed environment can verify a data-bearing live provider response.
+
+## Project-detail result
+
+Project-detail access now projects directly from the central capability and
+universal-search registries without changing their grants. Focused tests passed
+108/108 across sixteen files, including every role and direct-route query
+short-circuiting. Complete Web/E2E TypeScript, full source lint, independent QA,
+and the 89/89-page production build passed.
+
+All eleven supplied identities passed login, project list/detail, refresh,
+browser history, sign-out, and 66/66 sensitive direct-route assertions. The
+final denial-only rerun passed 32/32: the not-found boundary rendered without
+protected UI, the prior recovery boundary, or any console/page/request error.
+No form, ERP data, AI provider, or production environment was mutated.
