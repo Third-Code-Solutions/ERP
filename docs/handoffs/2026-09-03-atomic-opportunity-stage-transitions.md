@@ -404,6 +404,49 @@ blank/over-limit zero calls; trimmed single submission with
 `reasonRequired: true`; no Lost regression; caller-wiring tests and focused
 gates; explicit return to independent QA.
 
+## Agent 11 remediation round 2 — conversion regressions
+
+Verdict: runtime behavior corrected; returned to independent QA. Pipeline
+commit: `aefde4fc`.
+
+`StageAdvanceButton` now canonicalizes its current stage and classifies every
+single, menu, and Lost destination before an action. Both canonical and legacy
+BOM regression edges open `RegressionReasonDialog` with zero pre-reason call;
+Lost retains its dedicated dialog, and ordinary forward/Won moves remain
+direct. Valid regression confirmation uses the required synchronous guarded
+submitter, while blank and over-limit reasons are rejected before the action.
+
+Node 22.23.2 / pnpm 10.33.0 verification: four intended caller-routing reds;
+final Pipeline 59/59; Web/E2E TypeScript, full source lint, 89-page build,
+WO-11 contract 5/5, gitleaks over 1,784 commits, and diff checks passed.
+
+## Independent QA round 3
+
+Verdict: `BLOCK`; runtime behavior is correct, but the explicit mutation-
+sensitive caller-wiring evidence is not satisfied.
+
+The new `stage-advance-button` tests invoke the exported destination router and
+submitter but do not inspect or render `StageAdvanceButton`. Removing the
+component's `requestDestination -> routeStageAdvanceDestination` connection,
+changing its three destination-control paths back to direct calls, or removing
+the rendered `RegressionReasonDialog` confirmation wiring leaves all new tests
+green. The pre-fix red proved the helper did not exist, not that the actual
+caller stayed wired to it.
+
+QA round-3 green evidence: Pipeline 59/59, Web/Core-client 230/230, Core
+128/128, shared 56/56, WO-11 5/5, sequential Web/E2E TypeScript, and the
+89-page Web build. Source lint, gitleaks, and diff evidence remain green. The
+PostgreSQL lane stayed blocked and browser verification was withheld.
+
+→ Handoff to Agent 11 remediation round 3. Reason: bind the existing behavior
+tests to the actual component without adding a dependency. Inputs:
+`StageAdvanceButton`, the installed TypeScript compiler API, QA's exact four
+mutation targets, and the existing helper tests. Expected output: a structural
+caller validator plus in-memory mutation cases proving every destination path
+uses `requestDestination`, that it invokes the shared router, and that the
+regression dialog renders with `onConfirm={confirmRegression}`; focused gates
+and return to independent QA.
+
 ## WO-11 contract owner — authoritative Core/Web oracle
 
 Verdict: `GO` for independent QA. Contract-gate commit: `50339af8`.
