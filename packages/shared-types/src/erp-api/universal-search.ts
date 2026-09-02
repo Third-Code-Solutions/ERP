@@ -62,7 +62,7 @@ const UNIVERSAL_SEARCH_ROLE_BY_TYPE: Record<
 > = {
   account: ['admin', 'sales', 'commercial', 'sd_pm_pe', 'finance', 'cx'],
   vendor: ['admin', 'commercial', 'sd_pm_pe', 'procurement'],
-  material: ['admin', 'commercial', 'sd_pm_pe', 'procurement'],
+  material: ['owner', 'admin', 'commercial'],
   project: [
     'admin',
     'sales',
@@ -120,8 +120,13 @@ export function canUniversalSearchEntity(
   role: UniversalSearchRole,
   type: UniversalSearchHitType
 ): boolean {
+  // Material results link to /admin/material-items. Legacy estimator/pm
+  // aliases must not inherit a result whose only destination rejects them.
+  const policyRole = type === 'material'
+    ? role
+    : UNIVERSAL_SEARCH_CANONICAL_ROLE[role]
   return UNIVERSAL_SEARCH_ROLE_BY_TYPE[type].includes(
-    UNIVERSAL_SEARCH_CANONICAL_ROLE[role]
+    policyRole
   )
 }
 
