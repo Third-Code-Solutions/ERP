@@ -1,13 +1,14 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   STAGE_TRANSITIONS,
   type OpportunityStage,
 } from '@third-code-erp/shared-types'
 import { advanceOpportunityStage } from '@/app/(dashboard)/pipeline/actions'
-import { runStageTransitionAction } from './stage-transition-action'
+import { LostReasonDialog } from './lost-reason-dialog'
+import { createStageTransitionSubmitter } from './stage-transition-action'
 
 interface StageAdvanceButtonProps {
   opportunityId: string
@@ -41,7 +42,10 @@ export function StageAdvanceButton({ opportunityId, currentStage }: StageAdvance
   const [error, setError] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const [lostPromptOpen, setLostPromptOpen] = useState(false)
-  const [lostReason, setLostReason] = useState('')
+  const transitionSubmitterRef = useRef<ReturnType<
+    typeof createStageTransitionSubmitter
+  > | null>(null)
+  transitionSubmitterRef.current ??= createStageTransitionSubmitter()
   const router = useRouter()
 
   if (!isStage(currentStage)) return null
@@ -59,10 +63,19 @@ export function StageAdvanceButton({ opportunityId, currentStage }: StageAdvance
       : null
   const forwardNexts = transitions.filter((s) => s !== 'closed_lost' && s !== 'lost')
 
-  function advance(stage: OpportunityStage, reason?: string) {
+  function advance(
+    stage: OpportunityStage,
+    reason?: string,
+    reasonRequired = false
+  ) {
     startTransition(() =>
-      runStageTransitionAction(
-        () => advanceOpportunityStage(opportunityId, stage, reason),
+      transitionSubmitterRef.current!.submit(
+        {
+          execute: (normalizedReason) =>
+            advanceOpportunityStage(opportunityId, stage, normalizedReason),
+          reason,
+          reasonRequired,
+        },
         {
           onStart: () => {
             setError(null)
@@ -70,18 +83,15 @@ export function StageAdvanceButton({ opportunityId, currentStage }: StageAdvance
             setLostPromptOpen(false)
           },
           onError: setError,
-          onSuccess: () => {
-            setLostReason('')
-            router.refresh()
-          },
+          onSuccess: () => router.refresh(),
         }
-      )
+      ).then(() => undefined)
     )
   }
 
-  function confirmLost() {
+  function confirmLost(reason: string) {
     if (!lostNext) return
-    advance(lostNext, lostReason.trim() || undefined)
+    advance(lostNext, reason, true)
   }
 
   // If only one forward path exists, render a single button (no menu).
@@ -133,71 +143,12 @@ export function StageAdvanceButton({ opportunityId, currentStage }: StageAdvance
           Lost
         </button>
       )}
-      {lostPromptOpen && (
-        <div role="dialog" aria-modal="true" style={lostDialogBackdrop} onClick={() => setLostPromptOpen(false)}>
-          <div style={lostDialog} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ margin: '0 0 4px', fontSize: '1rem', fontWeight: 600 }}>
-              Close as Lost
-            </h3>
-            <p style={{ margin: '0 0 12px', fontSize: '0.8125rem', color: 'var(--color-neutral-500)' }}>
-              Optional: capture why the deal was lost so we can analyze patterns later.
-            </p>
-            <textarea
-              autoFocus
-              value={lostReason}
-              onChange={(e) => setLostReason(e.target.value)}
-              placeholder="e.g. Lost on price; client picked competitor X"
-              rows={3}
-              style={{
-                width: '100%',
-                padding: '8px 10px',
-                fontSize: '0.875rem',
-                border: '1px solid var(--color-border)',
-                borderRadius: '6px',
-                resize: 'vertical',
-                fontFamily: 'inherit',
-                boxSizing: 'border-box',
-              }}
-            />
-            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '12px' }}>
-              <button
-                type="button"
-                onClick={() => setLostPromptOpen(false)}
-                disabled={isPending}
-                style={{
-                  background: 'white',
-                  border: '1px solid var(--color-border)',
-                  padding: '6px 12px',
-                  borderRadius: '4px',
-                  fontSize: '0.8125rem',
-                  cursor: 'pointer',
-                  color: 'var(--color-neutral-700)',
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={confirmLost}
-                disabled={isPending}
-                style={{
-                  background: '#ef4444',
-                  color: 'white',
-                  border: 'none',
-                  padding: '6px 12px',
-                  borderRadius: '4px',
-                  fontSize: '0.8125rem',
-                  fontWeight: 600,
-                  cursor: isPending ? 'not-allowed' : 'pointer',
-                  opacity: isPending ? 0.6 : 1,
-                }}
-              >
-                {isPending ? 'Saving…' : 'Mark as Lost'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <LostReasonDialog
+        open={lostPromptOpen}
+        isSubmitting={isPending}
+        onCancel={() => setLostPromptOpen(false)}
+        onConfirm={confirmLost}
+      />
       {error && (
         <p
           role="alert"
@@ -208,25 +159,6 @@ export function StageAdvanceButton({ opportunityId, currentStage }: StageAdvance
       )}
     </div>
   )
-}
-
-const lostDialogBackdrop: React.CSSProperties = {
-  position: 'fixed',
-  inset: 0,
-  background: 'rgba(0, 0, 0, 0.4)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  zIndex: 100,
-}
-
-const lostDialog: React.CSSProperties = {
-  background: 'white',
-  borderRadius: '8px',
-  padding: '20px',
-  width: '420px',
-  maxWidth: 'calc(100vw - 32px)',
-  boxShadow: '0 20px 40px rgba(0,0,0,0.18)',
 }
 
 function primaryStyle(isPending: boolean): React.CSSProperties {

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { STAGE_REASON_MAX_LENGTH } from './stage-transition-action'
 
 interface RegressionReasonDialogProps {
   open: boolean
@@ -72,6 +73,9 @@ export function RegressionReasonDialog({
         </p>
         <textarea
           ref={textareaRef}
+          aria-label="Regression reason"
+          required
+          maxLength={STAGE_REASON_MAX_LENGTH}
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           placeholder="e.g. Client requested additional scope changes after BOM submission"

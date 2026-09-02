@@ -15,8 +15,13 @@ import {
   OpportunityKanbanCard,
   type KanbanCardData,
 } from './opportunity-kanban-card'
+import { LostReasonDialog } from './lost-reason-dialog'
 import { RegressionReasonDialog } from './regression-reason-dialog'
-import { runStageTransitionAction } from './stage-transition-action'
+import {
+  createStageTransitionSubmitter,
+  getStageTransitionReasonKind,
+  type StageTransitionReasonKind,
+} from './stage-transition-action'
 import {
   AddOpportunityWithAccountForm,
   type AccountOption,
@@ -61,10 +66,11 @@ const KYC_GATED_STAGES: ReadonlySet<PipelineStage> = new Set<PipelineStage>([
   'won',
 ])
 
-interface PendingRegression {
+interface PendingStageReason {
   cardId: string
   fromStage: PipelineStage
   toStage: PipelineStage
+  kind: StageTransitionReasonKind
 }
 
 export function PipelineBoard({
@@ -78,10 +84,15 @@ export function PipelineBoard({
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dragOverStage, setDragOverStage] = useState<PipelineStage | null>(null)
   const [banner, setBanner] = useState<{ kind: 'error' | 'info'; text: string } | null>(null)
-  const [pendingRegression, setPendingRegression] = useState<PendingRegression | null>(null)
+  const [pendingStageReason, setPendingStageReason] =
+    useState<PendingStageReason | null>(null)
   const [quickAddStage, setQuickAddStage] = useState<PipelineStage | null>(null)
   const [isPending, startTransition] = useTransition()
   const bannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const transitionSubmitterRef = useRef<ReturnType<
+    typeof createStageTransitionSubmitter
+  > | null>(null)
+  transitionSubmitterRef.current ??= createStageTransitionSubmitter()
 
   // ── Group cards into canonical columns. Legacy stages route via STAGE_LEGACY_MAP. ─
   const columns = useMemo(() => {
@@ -136,10 +147,20 @@ export function PipelineBoard({
     bannerTimerRef.current = null
   }
 
-  function performAdvance(cardId: string, toStage: PipelineStage, reason?: string) {
+  function performAdvance(
+    cardId: string,
+    toStage: PipelineStage,
+    reason?: string,
+    reasonRequired = false
+  ) {
     startTransition(() =>
-      runStageTransitionAction(
-        () => advanceOpportunityStage(cardId, toStage, reason),
+      transitionSubmitterRef.current!.submit(
+        {
+          execute: (normalizedReason) =>
+            advanceOpportunityStage(cardId, toStage, normalizedReason),
+          reason,
+          reasonRequired,
+        },
         {
           onStart: clearBanner,
           onError: (message) => {
@@ -149,15 +170,18 @@ export function PipelineBoard({
               if (card) {
                 const fromStage =
                   STAGE_LEGACY_MAP[card.stage as OpportunityStage] ?? 'lead'
-                setPendingRegression({ cardId, fromStage, toStage })
+                const kind = getStageTransitionReasonKind(fromStage, toStage)
+                if (kind) {
+                  setPendingStageReason({ cardId, fromStage, toStage, kind })
+                  return
+                }
               }
-              return
             }
             showBanner('error', message)
           },
           onSuccess: () => router.refresh(),
         }
-      )
+      ).then(() => undefined)
     )
   }
 
@@ -191,23 +215,20 @@ export function PipelineBoard({
       }
     }
 
-    // ── Regression detection ──────────────────────────────────────────────
-    const isRegression =
-      PIPELINE_STAGES.indexOf(toStage) < PIPELINE_STAGES.indexOf(fromStage) &&
-      toStage !== 'lost'
-    if (isRegression) {
-      setPendingRegression({ cardId, fromStage, toStage })
+    const reasonKind = getStageTransitionReasonKind(fromStage, toStage)
+    if (reasonKind) {
+      setPendingStageReason({ cardId, fromStage, toStage, kind: reasonKind })
       return
     }
 
     performAdvance(cardId, toStage)
   }
 
-  function handleRegressionConfirm(reason: string) {
-    const pr = pendingRegression
-    if (!pr) return
-    setPendingRegression(null)
-    performAdvance(pr.cardId, pr.toStage, reason)
+  function handleReasonConfirm(reason: string) {
+    const pending = pendingStageReason
+    if (!pending) return
+    setPendingStageReason(null)
+    performAdvance(pending.cardId, pending.toStage, reason, true)
   }
 
   return (
@@ -412,12 +433,19 @@ export function PipelineBoard({
       </div>
 
       <RegressionReasonDialog
-        open={pendingRegression !== null}
-        fromLabel={pendingRegression ? STAGE_LABELS[pendingRegression.fromStage] : ''}
-        toLabel={pendingRegression ? STAGE_LABELS[pendingRegression.toStage] : ''}
+        open={pendingStageReason?.kind === 'regression'}
+        fromLabel={pendingStageReason ? STAGE_LABELS[pendingStageReason.fromStage] : ''}
+        toLabel={pendingStageReason ? STAGE_LABELS[pendingStageReason.toStage] : ''}
         isSubmitting={isPending}
-        onCancel={() => setPendingRegression(null)}
-        onConfirm={handleRegressionConfirm}
+        onCancel={() => setPendingStageReason(null)}
+        onConfirm={handleReasonConfirm}
+      />
+
+      <LostReasonDialog
+        open={pendingStageReason?.kind === 'lost'}
+        isSubmitting={isPending}
+        onCancel={() => setPendingStageReason(null)}
+        onConfirm={handleReasonConfirm}
       />
 
       {canCreateOpportunity && (
