@@ -59,3 +59,24 @@ Evidence: PR #15 Actions run `33634034468`, database job `100263429961`.
 
 No production deployment is authorized. ADR-020 still requires reviewed
 `main` and all protected checks to pass before release.
+
+## Closeout
+
+- The untouched CI-parity reproduction used Supabase CLI 2.109.1, a full local
+  reset, all committed migrations and seed data, and PostgreSQL 17.6. Both
+  integration specs failed exactly as the protected job did.
+- Root cause was fixture wall-clock drift. The services correctly calculate
+  aging from the current UTC date, while the fixtures and expected buckets were
+  an implicit 2026-08-06 snapshot. By 2026-09-02, the September 1 balances had
+  become overdue and the July 1 payable moved from 31–60 to 61–90 days.
+- Principal Agent 3 changed only the two integration specs. They freeze only
+  `Date` at `2026-08-06T12:00:00Z`, restore real timers in `afterEach`, and
+  assert the returned `asOfDate`. Production services and contracts are
+  unchanged.
+- Principal Agent 4 returned `GO` with zero findings. The real Postgres lane,
+  neighboring Finance tests, API TypeScript, source lint, and diff checks pass.
+- Principal Agent 5 browser/API verification was not run because this is a
+  test-only correction with no observable application behavior change.
+
+Production was not changed. The branch must pass the hosted protected workflow
+before this release blocker is considered fully cleared.
