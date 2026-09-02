@@ -34,8 +34,40 @@ or deployment change was made.
 - Protected PostgreSQL HTTP canary: BLOCKED, one environment-gated skip because
   `DATABASE_URL` and `ERP_API_INTEGRATION_EXPECTED=1` were unavailable.
 
+## Agent 03 scope
+
+- Removed the active non-Won local opportunity-stage writer, separate semantic
+  audit, and best-effort SLA rollover from the Pipeline server action.
+- Routed every stage command through the existing tenant Core selector and
+  atomic stage-transition client without fallback.
+- Added deterministic non-Won command keys without changing the established
+  Won retry-key namespace.
+- Added strict committed-result checks for opportunity, tenant, from/to edge,
+  destination, and non-conversion fields before any revalidation.
+- Added handled selector, transport, typed rejection, and invalid-result tests
+  proving no local stage effects or cache refresh occur on failure.
+
+Web source commit: `0ed1bdbc`.
+
+### Agent 03 verification
+
+- Node 22.23.2 and pnpm 10.33.0: VERIFIED.
+- Red action suite: FAILED as expected, 14 new non-Won cases / 13 existing
+  passes.
+- Final focused action suite: PASSED, 27/27.
+- Focused and neighboring Web suites: PASSED, 3 files / 212 tests.
+- Web plus configured E2E TypeScript projects: PASSED.
+- Full Web source lint: PASSED.
+- Web production build: PASSED, including 89 generated static pages; non-fatal
+  webpack cache serialization warnings were emitted.
+- Diff check: PASSED.
+- Gitleaks 8.30.1: PASSED, no leaks found.
+
+No Core/API source, Pipeline UI component, shared auth, schema, dependency,
+demo-data, environment, credential, or deployment change was made by Agent 03.
+
 ## Remaining work
 
-Agent 03 must remove the active non-Won local Web writer and select this Core
-transaction without fallback. Agent 11 then verifies visible handling of both
-returned and rejected failures before independent QA and safe browser proof.
+Agent 11 must verify visible, accessible handling of both returned and rejected
+action failures in the Pipeline board and conversion callers. Independent QA
+and safe browser proof follow on the combined branch.

@@ -159,3 +159,48 @@ non-Won Pipeline transitions through Core with a stable per-command idempotency
 key, validate the returned opportunity/tenant/from/to/non-conversion shape,
 never fall back after selected-Core failure, preserve handled errors, run Web
 gates, append this handoff, and commit only Agent 03 paths plus documentation.
+
+## Agent 03 — Web Core selection
+
+Verdict: `GO` for Agent 11. Web source commit: `0ed1bdbc`.
+
+The Pipeline server action now selects the existing tenant-scoped Core stage
+writer for every transition before any stage work. The former non-Won local
+select/update, semantic-audit write, and best-effort SLA rollover were removed.
+Exact normalized reasons are forwarded to Core, and deterministic SHA-256
+idempotency keys cover non-Won commands while preserving the established Won
+key namespace for retry compatibility.
+
+Successful non-Won results are accepted only when opportunity identity, tenant
+identity, requested destination, a valid shared from/to transition edge,
+`convertedToProject: false`, and null Project/checklist conversion fields all
+agree. Won result validation and Project-path revalidation remain intact. A
+disabled or throwing selector, typed Core rejection, adapter failure/throw, or
+invalid result returns a handled error with zero local stage work and zero
+cache revalidation.
+
+Node 22.23.2 / pnpm 10.33.0 verification:
+
+- red action suite: FAILED as expected, 14 new non-Won cases entered the legacy
+  local writer while 13 existing tests passed;
+- final focused action suite: PASSED, 27/27;
+- focused plus neighboring Pipeline/Core-client suites: PASSED, 3 files / 212
+  tests;
+- Web plus all configured E2E TypeScript projects: PASSED;
+- full Web source lint: PASSED;
+- Web production build: PASSED, 89 static pages generated; webpack emitted
+  non-fatal cache-string serialization warnings;
+- `git diff --check`: PASSED;
+- Gitleaks 8.30.1: PASSED, no leaks found.
+
+No Core/API source, Pipeline UI component, shared auth, schema, dependency,
+demo data, credential, environment, or deployment state changed.
+
+→ Handoff to Agent 11. Reason: the Web action now fails closed through the
+atomic Core authority for Won and non-Won transitions; both Pipeline callers
+must visibly and accessibly handle returned and rejected action failures.
+Inputs: Core commit `9496d282`, Web commit `0ed1bdbc`, the handled error strings,
+and green Web action/adapter evidence above. Expected output: inspect board and
+conversion callers, make only the minimum Agent 11 component/test changes,
+run focused UI and browser-adjacent gates, update this handoff/changeset, and
+hand off the combined branch to independent QA or record a blocker.
