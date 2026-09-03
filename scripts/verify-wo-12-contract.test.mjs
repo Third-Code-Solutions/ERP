@@ -20,13 +20,65 @@ const FILES = {
 }
 
 function read(file) {
-  return fs.readFileSync(path.join(ROOT, file), 'utf8')
+  return fs.readFileSync(path.join(ROOT, file), 'utf8').replace(/\r\n?/g, '\n')
 }
 
 function replaceOnce(source, before, after, label) {
   const next = source.replace(before, after)
   assert.notEqual(next, source, `mutation fixture did not match: ${label}`)
   return next
+}
+
+function isWithinNamedFunction(node, functionName) {
+  let current = node.parent
+  while (current) {
+    if (
+      ts.isFunctionDeclaration(current) &&
+      current.name?.text === functionName
+    ) {
+      return true
+    }
+    if (
+      (ts.isArrowFunction(current) || ts.isFunctionExpression(current)) &&
+      ts.isVariableDeclaration(current.parent) &&
+      ts.isIdentifier(current.parent.name) &&
+      current.parent.name.text === functionName
+    ) {
+      return true
+    }
+    current = current.parent
+  }
+  return false
+}
+
+function mutateFirst(source, fileName, predicate, replacement, label) {
+  const kind = fileName.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS
+  const sourceFile = ts.createSourceFile(
+    fileName,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    kind,
+  )
+  let mutationCount = 0
+  const result = ts.transform(sourceFile, [
+    (context) => {
+      const visit = (node) => {
+        if (mutationCount === 0 && predicate(node, sourceFile)) {
+          mutationCount += 1
+          return replacement(node, ts.factory)
+        }
+        return ts.visitEachChild(node, visit, context)
+      }
+      return (root) => ts.visitNode(root, visit)
+    },
+  ])
+  assert.equal(mutationCount, 1, `mutation fixture did not match: ${label}`)
+  const changed = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed }).printFile(
+    result.transformed[0],
+  )
+  result.dispose()
+  return changed
 }
 
 function mutation(name, file, mutate, expected) {
@@ -209,7 +261,36 @@ mutation('runs archival on replay', FILES.action,
   /classify post-commit archive/)
 
 mutation('turns refresh failure into action failure', FILES.action,
-  (s) => replaceOnce(s, 'refreshFailed = true\n    }', "return { ok: false as const, error: 'refresh failed' }\n    }", 'refresh failure'),
+  (s) => mutateFirst(
+    s,
+    FILES.action,
+    (node, sourceFile) =>
+      ts.isCatchClause(node) &&
+      isWithinNamedFunction(node, 'submitInspection') &&
+      node.block.getText(sourceFile).includes('refreshFailed = true'),
+    (node, factory) =>
+      factory.updateCatchClause(
+        node,
+        node.variableDeclaration,
+        factory.createBlock(
+          [
+            factory.createReturnStatement(
+              factory.createObjectLiteralExpression(
+                [
+                  factory.createPropertyAssignment(
+                    'error',
+                    factory.createStringLiteral('refresh failed'),
+                  ),
+                ],
+                false,
+              ),
+            ),
+          ],
+          true,
+        ),
+      ),
+    'refresh failure',
+  ),
   /committed success|refresh failure/)
 
 mutation('removes inspection synchronous guard', FILES.inspectionForm,
