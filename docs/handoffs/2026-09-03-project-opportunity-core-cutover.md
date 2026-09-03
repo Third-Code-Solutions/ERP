@@ -186,3 +186,73 @@ explicit-offset RFC 3339 `closingDate`; forward `tcvCents`, signed `gpCents`, an
 command and no fallback; preserve omitted fields; validate the committed result
 before success-only revalidation; retain exact Owner/Admin/Sales direct-action
 authorization. Do not add a pre-Core financial write.
+
+## Agent 03 result — Project route Core cutover
+
+Source commit: `9f83cbd8` (`fix(projects): route opportunity transitions
+through core`).
+
+The mounted Project-detail stage action no longer reads or updates the
+Opportunity locally and no longer writes a separate Web audit or SLA effect.
+After exact `opportunity.advance_stage` authorization, it validates the full
+form command, requires the tenant selector, and delegates exactly once to
+`transitionOpportunityStageThroughCoreApi`. Selector disablement/throw,
+transport rejection, typed Core failure, and invalid returned identity,
+tenant, edge, destination, or conversion shape all return handled errors with
+no local write or revalidation fallback.
+
+The action forwards the canonical stage plus supplied TCV, signed GP, trimmed
+reason, and closing date. Blank fields remain omitted. The Project panel's
+Philippine date-only value is calendar-validated and normalized to
+`YYYY-MM-DDT00:00:00+08:00`; focused coverage formats the resulting instant in
+`Asia/Manila` and proves the selected calendar day does not drift. A SHA-256
+key over Opportunity identity and the normalized complete command provides
+stable exact-retry idempotency while distinguishing commercial-field changes.
+
+Only a fully validated success revalidates the source Project, Dashboard, and
+Pipeline board/coverage/conversion paths. A validated Won conversion also
+revalidates and returns the committed Core Project. The Project route now
+derives `canCreate` and `canMutate` with the central `can()` policy and passes
+both to `OpportunityPanel`; tests enumerate all thirteen roles and prove the
+exact Owner/Admin/Sales allow set and ten-role deny set.
+
+### Agent 03 evidence
+
+- TDD red: 18 failed / 10 passed. The mounted action wrote the local database,
+  accepted an invalid edge, ignored Core failures, and rejected the panel's
+  date-only input; all ten unauthorized-role direct calls were already denied.
+- Focused and neighboring Web tests: PASSED, 5 files / 94 tests (Project
+  Opportunity action 31, route contract 15, Project access 13, Pipeline action
+  27, neighboring Project action 8).
+- Web TypeScript, including configured E2E projects: PASSED.
+- Full Web source ESLint: PASSED with zero warnings.
+- Web production build: PASSED, 89/89 static pages generated.
+- Diff/whitespace checks: PASSED.
+- Pinned Gitleaks 8.30.1 after the source commit: PASSED, 1,797 commits / no
+  leaks. Final scan after documentation: PASSED, 1,798 commits / no leaks.
+- WO-11 contract: PARTIAL, 4/5 passed. The main invariant and three other
+  mutation challenges passed. The remaining out-of-scope test-infrastructure
+  case failed before exercising the verifier because
+  `scripts/verify-wo-11-kyc-gate.test.mjs` could not apply its stale exact-text
+  Pipeline-action mutation (`mutation fixture must add a Web-local writer`).
+  The script is outside Agent 03 scope and was not changed. This was reproduced
+  under pinned Node 22.23.2 / pnpm 10.33.0, so it is not wrapper runtime drift.
+
+No Core/API, shared, Pipeline, Opportunity component, schema, dependency,
+script, demo-data, credential, environment, or deployment file was changed by
+Agent 03.
+
+→ Handoff to Agent 11. Reason: the Project route and action now expose the
+canonical permissions and atomic Core-backed mutation contract, while the
+mounted panel still owns the form wiring and user experience. Inputs: source
+commit `9f83cbd8`; `canCreate`/`canMutate` props; required hidden `project_id`;
+stage action fields `opportunity_id`, `project_id`, `new_stage`, optional
+`reason`, `tcv_cents`, signed `gp_cents`, and `closing_date` (`YYYY-MM-DD`);
+handled `{ error }` and optional Won `{ projectId }` results. Expected output:
+update `OpportunityPanel` within Agent 11 scope to consume both permissions,
+submit the full command including `project_id`, preserve exact allowed
+transition/reason behavior, show returned and rejected failures recoverably,
+prevent duplicate submission, and retain user input on failure. Do not add a
+local write or pre-Core commercial-field mutation. Then return to independent
+contract QA; the stale WO-11 mutation fixture remains a separately owned test
+infrastructure follow-up.
