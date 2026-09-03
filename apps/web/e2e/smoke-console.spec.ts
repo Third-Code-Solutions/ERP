@@ -138,7 +138,17 @@ test('visits every major route without console errors', async ({ page, context }
   })
 
   const baseUrl = requireE2EBaseUrl(testInfo.project.use.baseURL)
-  const routes = routesForProject(requireE2EProjectId())
+  const routes: readonly string[] = [
+    ...routesForProject(requireE2EProjectId()),
+    // The trusted-PR target is a separately managed stable preview. Exercise
+    // newly released entry routes against the exact live revision after promotion.
+    ...(baseUrl === 'https://thirdcode-erp.vercel.app' ? [
+      '/pipeline', '/pipeline/list', '/scope', '/cost', '/cost/budget',
+      '/checklist', '/progress', '/billing', '/turnover', '/coc',
+      '/comments', '/access', '/audit',
+    ] : []),
+  ]
+  test.setTimeout(120_000 + Math.max(0, routes.length - 24) * 5_000)
   const cleanup = await authenticate(context, baseUrl)
 
   try {
@@ -156,7 +166,7 @@ test('visits every major route without console errors', async ({ page, context }
       // (reading 'call')" family of stale-cache errors renders an overlay with
       // "Runtime Error" / "Build Error" / "Unhandled Runtime Error" headings.
       const bodyText = (await page.textContent('body').catch(() => null)) ?? ''
-      const errorOverlay = /Runtime Error|Build Error|Unhandled Runtime Error|Cannot read properties of undefined/.test(bodyText)
+      const errorOverlay = /Runtime Error|Build Error|Unhandled Runtime Error|Cannot read properties of undefined|Workspace paused before anything changed\./.test(bodyText)
       expect(errorOverlay, `${route} showed a Next.js error overlay:\n${bodyText.slice(0, 500)}`).toBe(false)
 
       // Sanity: page rendered substantive content (not a blank/error page).
