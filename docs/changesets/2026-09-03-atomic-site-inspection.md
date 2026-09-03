@@ -90,3 +90,34 @@ this contract, the existing site-inspection schema/index, central
 schema, and current proposal action/form/page source. Expected output: a
 committed service-only changeset with strict schemas and focused RED/GREEN
 evidence, followed by an explicit handoff to Agent 03.
+
+## Agent 05 service implementation
+
+Status: **completed locally; Agent 03 integration pending**.
+
+Changed:
+
+- added `apps/web/src/server/crm/site-inspection-workflow-service.ts` with one
+  bounded Drizzle transaction adapter and strict command/result/receipt
+  contracts for inspection submission and same-screen RFI creation;
+- added its direct 60-test transaction-double suite covering the exact
+  three-role authority, ten denied roles, tenant/entity/photo isolation,
+  failure rollback at every required effect, full-command hashing,
+  replay/conflict/concurrency, complete durable-result validation, and receipt
+  privacy;
+- retained report archival outside the service and made no schema, dependency,
+  provider, environment, data, or deployment change.
+
+Verification: focused service 60/60 passed; neighboring proposal actions 21/21
+passed; Web typecheck passed; focused service ESLint passed with zero errors
+(the configured ignore rule skips the direct test and emits one warning).
+Gitleaks was blocked because its executable is unavailable; manual changed-file
+inspection found no secret material. Live PostgreSQL, browser, Storage, hosted,
+provider, deployment, and the full Web build were not run in this bounded
+service slice. Agent 03 must run the build and mounted UI/action gates after
+integration.
+
+→ Handoff to Agent 03. Inputs: committed service, exported strict schemas, and
+the Agent 05 evidence above. Expected output: one mounted delegate per command,
+no reachable local durable writers, exact role projection, stable retry keys,
+single-flight/error recovery, and honest report/refresh outcomes.

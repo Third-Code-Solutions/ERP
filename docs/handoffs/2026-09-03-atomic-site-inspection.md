@@ -435,3 +435,67 @@ mutation is authorized by this handoff.
   contract and formally hands off before changing it.
 - Required focused and neighboring checks pass, or every unavailable runtime
   lane is reported as `BLOCKED`/`NOT RUN` without overstating evidence.
+
+## Agent 05 implementation evidence — 2026-09-03
+
+Status: **service boundary complete; ready for Agent 03 integration**.
+
+Agent 05 added only the owned service and direct transaction-double suite. The
+service exports strict, versioned Zod commands, results, and redacted receipt
+schemas for both `inspection_submission` and `rfi_creation`. It re-locks the
+current authoritative `users` membership row and applies central
+`site_inspection.submit`, which remains exactly Owner/Admin/Commercial.
+
+Inspection submission now has one transaction authority for the locked
+same-tenant Opportunity/PPRF, exact safe photo set, submitted inspection,
+append-only semantic audit/receipt, the single open one-business-day
+`inspection.design_handoff` clock, and every resolved Design in-app
+notification. Notification rows carry only a service/inspection durable
+correlation payload so replay can prove the exact notification set instead of
+mistaking an older Opportunity notification for this inspection.
+
+RFI creation uses the handoff-approved schema-free receipt: the append-only
+`site_inspection_rfi` audit diff contains the tenant-scoped full-key and full
+command hashes plus strict durable result metadata. The advisory transaction
+lock serializes same-key retries; exact replay loads and validates the RFI,
+while changed command reuse conflicts. No report archival behavior moved into
+the service.
+
+Verification evidence:
+
+- initial RED: the direct suite failed before collection because the service
+  module did not exist;
+- focused service: 60/60 passed, 0 failed, 0 skipped;
+- neighboring proposal actions: 21/21 passed, 0 failed, 0 skipped;
+- Web typecheck, including the listed E2E TypeScript projects: passed;
+- focused ESLint: service passed with zero errors; the repository ignore rule
+  reports the direct test as ignored (one warning, no error), while TypeScript
+  and Vitest compile and execute it;
+- gitleaks: **BLOCKED / NOT RUN** because the executable is not installed in
+  this environment; manual changed-file inspection found no credential,
+  token, key, or environment material;
+- full build: not run in this service-only slice; defer to Agent 03 mounted
+  integration so the unchanged application is not built twice.
+
+The suite injects failure at inspection insert, photo-link insert,
+audit/receipt, SLA read/insert, Design-recipient query, each notification
+insert, strict result construction, RFI insert, and RFI audit/result
+construction. It also covers all 13 roles for both commands, strict input/date
+bounds, tenant/Opportunity/Project photo isolation, replay/conflict,
+same-tenant-key concurrency, tenant independence, malformed receipts,
+incomplete durable replay, existing SLA reuse, zero/duplicate Design
+recipients, and receipt privacy.
+
+Bounded limitation: atomicity and concurrency are proven with deterministic
+transaction doubles. No explicitly isolated PostgreSQL lane was authorized or
+available, so live PostgreSQL advisory-lock/rollback evidence is **BLOCKED / NOT
+RUN** in this slice. Browser, Storage, hosted data, providers, deployment, and
+report archival are also **NOT RUN** by scope.
+
+→ Handoff to Agent 03. Reason: both atomic transaction authorities and their
+strict contracts are now available. Inputs:
+`siteInspectionWorkflowService`, the two exported command schemas, the shared
+strict result schema, and this 60-test evidence. Expected output: replace the
+two mounted writers with exactly one service call each, bind route identities,
+project exact controls/read-only state, and preserve report archival as honest
+best-effort post-commit work.
