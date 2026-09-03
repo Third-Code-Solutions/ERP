@@ -165,3 +165,62 @@ after source commit passed over **1,804 commits** with no leaks.
 Next: Agent 03 delegates Project-detail creation to Core, sends string centavos
 for create/transition, removes the local insert/audit path, and reruns root/Web
 gates before independent QA.
+
+## Agent 03 QA remediation — Project Opportunity Web boundary
+
+Source commit: `cb180ca0`.
+
+- Replaced the Project-detail creation action's direct Drizzle insert and
+  separate Web audit with one authenticated `POST /v1/crm/opportunities`
+  Core-client call selected by the existing tenant Opportunity-write gate. No
+  local writer or fallback remains.
+- Built only the strict shared create command. The action accepts only
+  `opportunity_creation`, materializes canonical decimal-centavo string
+  defaults, normalizes equal timestamps to an explicit Manila `+08:00`
+  instant, and ignores submitted Account, tenant, and actor identities so Core
+  derives them from the authenticated Project relationship.
+- Added a stable SHA-256 idempotency key over the complete normalized command
+  and rejects malformed or mismatched tenant, Project, rep, stage, commercial,
+  date, or weighted-TCV results before any cache refresh.
+- Changed Project stage transitions to reuse the shared signed/non-negative
+  centavo-string schemas and send the strict shared transition command without
+  a numeric currency boundary.
+- Wrapped both server actions in typed result handling and emitted one
+  redacted structured outcome event per path with trace, resolved tenant,
+  resolved actor, action, and outcome. Cache-refresh failure after a valid Core
+  commit is logged distinctly and does not falsely report that the mutation
+  failed.
+- Added action and Core-client tests for all thirteen roles, missing auth,
+  tenant/result identity, unsafe/non-canonical money, date normalization,
+  selector rejection/throw, Core error/throw/timeout/malformed response,
+  complete-key stability/sensitivity, one call, absence of local work, strict
+  result validation, success-only refresh, and structured redacted logging.
+
+Verification under Node 22.23.2 / pnpm 10.33.0: TDD action red **38 failed / 31
+passed** and Core-client red **3 failed / 171 passed**; final Project action
+**78/78**; focused Web lane **7 files / 325 tests**; shared
+create/transition contracts **20/20**; Core
+create/controller/transition authority **93/93**; Web and root typechecks
+**PASSED** (root **5/5**); full configured source ESLint **PASSED, zero
+warnings**; Web production build **PASSED, 89/89 pages**; diff/whitespace
+**PASSED**; pinned Gitleaks 8.30.1 **PASSED, 1,807 commits / no leaks**.
+
+WO-11 is **PARTIAL, 12/13** after the required removal of the Web schema
+import. Its Project-writer mutation fixture injects an unimported
+`db.update(opportunities)`, while the verifier recognizes table identifiers
+only from schema imports; the mutant therefore reports `Missing expected
+exception`. The authoritative contract and every other mutation pass. This is
+assigned to the contract owner because Agent 03 may not edit scripts.
+
+→ Handoff to Agent 11. Reason: the Web command boundary now rejects every
+initial stage except `opportunity_creation`, while the panel still offers five
+creation stages. Inputs: source commit `cb180ca0`, strict shared command, and
+the current Project panel/model. Expected output: expose only the safe initial
+stage and verify create error/pending/date/cent-string wiring without adding a
+local write or fallback.
+
+→ Handoff to the contract owner. Reason: the import-free action exposed the
+bounded writer mutation fixture described above. Inputs: source commit
+`cb180ca0` and the 12/13 failure. Expected output: make the in-memory mutation
+self-contained or make writer recognition fail closed without requiring the
+production action to retain an unused schema import, then restore 13/13.

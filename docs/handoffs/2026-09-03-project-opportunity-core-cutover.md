@@ -522,3 +522,62 @@ one selected Core create call and no fallback, send canonical centavo strings
 for both create and transition, offer only the safe initial stage, retain
 success-only revalidation, update focused Web/contract tests, and return the
 root typecheck plus browser path to green.
+
+## Agent 03 QA remediation — Project Opportunity Web boundary
+
+Source commit: `cb180ca0` (`fix(web): delegate project opportunity creation`).
+
+Decision: **GO to Agent 11 and the contract owner; not yet GO to independent
+QA.** Project-detail creation now crosses only the authenticated Core client at
+`POST /v1/crm/opportunities`, behind the existing tenant selector. The action
+has no Drizzle, Opportunity schema, Web audit, weighted-number, or fallback
+path. It builds the shared strict command with only the safe initial stage,
+canonical TCV/signed-GP strings, explicit-offset Manila time, and Project
+identity; Account, tenant, and actor form fields are ignored. Core remains the
+authority that derives the Project Account and revalidates current membership,
+tenant, role, Project, and Account.
+
+The complete normalized command produces a stable SHA-256 idempotency key.
+The action accepts success only when the strict result matches the resolved
+tenant and actor plus the requested Project, stage, commercial values, exact
+weighted TCV, and closing instant. Both create and transition actions return
+typed results from a full try/catch boundary and emit one redacted JSON outcome
+event containing `trace_id`, `tenant_id`, `actor_id`, `action`, and `outcome`.
+Only validated Core success triggers revalidation; a refresh exception after a
+commit is reported as `success_refresh_failed`, not as an uncommitted write.
+
+### Agent 03 evidence
+
+- TDD red: Project action **38 failed / 31 passed**; Core adapter **3 failed /
+  171 passed**.
+- Final Project action: **PASSED, 78/78**.
+- Focused Web route/panel/Pipeline/Core-client lane: **PASSED, 7 files / 325
+  tests**.
+- Shared create/transition contracts: **PASSED, 20/20**.
+- Core create/controller/transition authority: **PASSED, 93/93**.
+- Web typecheck: **PASSED**; root typecheck: **PASSED, 5/5 tasks**.
+- Full configured application-source ESLint: **PASSED, zero warnings**.
+- Web production build: **PASSED, 89/89 pages generated**.
+- Diff/whitespace: **PASSED**.
+- Pinned Gitleaks 8.30.1: **PASSED, 1,807 commits / no leaks**.
+- Protected PostgreSQL HTTP canary: **unchanged SKIPPED/BLOCKED** because
+  `DATABASE_URL` and `ERP_API_INTEGRATION_EXPECTED=1` remain unavailable; no
+  live persistence claim is made.
+- WO-11: **PARTIAL, 12/13**. The authoritative run and all other mutations
+  pass, but the Project local-writer mutation now injects unimported
+  `db.update(opportunities)` after the production schema import was correctly
+  removed. The verifier resolves Opportunity table names only from imports and
+  misses its own mutant (`Missing expected exception`). Agent 03 did not edit
+  the out-of-scope script.
+
+→ Handoff to Agent 11. Reason: align the mounted panel with Core's safe initial
+stage policy. Inputs: `cb180ca0`, the shared create schema, and the existing
+panel/model. Expected output: remove the four non-initial choices so creation
+offers only `opportunity_creation`; retain the guarded single-flight,
+recoverable errors, Manila date, and cent-string command without local writes.
+
+→ Handoff to the contract owner. Reason: restore mutation sensitivity for an
+import-free Project action. Inputs: `cb180ca0` and the exact WO-11 12/13
+failure. Expected output: make the AST mutation self-contained or recognize
+the injected writer without relying on a production schema import, preserve
+benign formatting acceptance, and restore 13/13 before independent QA.
