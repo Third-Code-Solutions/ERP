@@ -7,6 +7,7 @@ import {
   verifyCoreStageAuthority,
   verifyOpportunityCreationContract,
   verifyOpportunityMutationEntryInventory,
+  verifyPprfSubmissionContract,
   verifyProjectOpportunityPanelContract,
   verifyProjectOpportunityPermissions,
   verifyProjectOpportunityCreationDelegation,
@@ -28,9 +29,42 @@ const opportunityContractPath =
   'packages/shared-types/src/erp-api/opportunities.ts'
 const delegatedProjectActionPath =
   'apps/web/src/app/(dashboard)/projects/[id]/opportunities/delegated-actions.ts'
+const pprfServicePath = 'apps/web/src/server/crm/pprf-submission-service.ts'
+const pprfServiceTestPath =
+  'apps/web/src/server/crm/pprf-submission-service.test.ts'
+const pprfIntakeActionPath =
+  'apps/web/src/app/(dashboard)/crm/opportunities/new/pprf/actions.ts'
+const pprfIntakePagePath =
+  'apps/web/src/app/(dashboard)/crm/opportunities/new/pprf/page.tsx'
+const pprfIntakeFormPath =
+  'apps/web/src/components/proposal/pprf-intake-form.tsx'
+const pprfResubmissionActionPath =
+  'apps/web/src/app/(dashboard)/crm/opportunities/[id]/proposal/actions.ts'
+const pprfDetailPagePath =
+  'apps/web/src/app/(dashboard)/crm/opportunities/[id]/proposal/pprf/page.tsx'
+const pprfResubmissionFormPath =
+  'apps/web/src/components/proposal/pprf-form.tsx'
+const pprfRouteRegistryPath = 'apps/web/src/lib/operations/nav-config.ts'
 
 function read(relativePath) {
   return fs.readFileSync(relativePath, 'utf8')
+}
+
+function replaceTextOnce(source, search, replacement, label) {
+  assert.equal(source.split(search).length - 1, 1, label)
+  return source.replace(search, replacement)
+}
+
+function replaceTextFirst(source, search, replacement, label) {
+  assert.ok(source.includes(search), label)
+  return source.replace(search, replacement)
+}
+
+function verifyPprfOverride(relativePath, source, extraOverrides = new Map()) {
+  return verifyPprfSubmissionContract(
+    process.cwd(),
+    new Map([[relativePath, source], ...extraOverrides])
+  )
 }
 
 function parse(source, fileName) {
@@ -1030,4 +1064,448 @@ test('fails if Project panel mutation handling loses its permission guard', () =
       ),
     /Project panel mutation callers are permission guarded/
   )
+})
+
+test('verifies both mounted PPRF submissions through one atomic service boundary', () => {
+  assert.doesNotThrow(() => verifyPprfSubmissionContract(process.cwd()))
+})
+
+test('accepts benign formatting and a local alias for the PPRF service', () => {
+  const formattedService = reprint(read(pprfServicePath), pprfServicePath)
+  const aliasedAction = replaceTextOnce(
+    read(pprfIntakeActionPath),
+    '    const rawResult = await pprfSubmissionService.submitIntake(',
+    '    const submissionService = pprfSubmissionService\n    const rawResult = await submissionService.submitIntake(',
+    'alias fixture must replace the intake service receiver'
+  )
+  assert.doesNotThrow(() =>
+    verifyPprfSubmissionContract(
+      process.cwd(),
+      new Map([
+        [pprfServicePath, formattedService],
+        [pprfIntakeActionPath, reprint(aliasedAction, pprfIntakeActionPath)],
+      ])
+    )
+  )
+})
+
+test('fails if either mounted PPRF service delegate is removed', () => {
+  for (const [fileName, method] of [
+    [pprfIntakeActionPath, 'submitIntake'],
+    [pprfResubmissionActionPath, 'submitResubmission'],
+  ]) {
+    const mutated = replaceTextOnce(
+      read(fileName),
+      `pprfSubmissionService.${method}`,
+      `removedPprfService.${method}`,
+      `delegate fixture must replace ${method}`
+    )
+    assert.throws(
+      () => verifyPprfOverride(fileName, mutated),
+      /has one exact atomic service delegate/
+    )
+  }
+})
+
+test('fails if a mounted action calls its atomic service twice', () => {
+  const mutated = replaceTextOnce(
+    read(pprfIntakeActionPath),
+    '    const rawResult = await pprfSubmissionService.submitIntake(',
+    '    await pprfSubmissionService.submitIntake({ tenantId, userId: actorId }, parsed.data)\n    const rawResult = await pprfSubmissionService.submitIntake(',
+    'duplicate delegate fixture must add a second intake call'
+  )
+  assert.throws(
+    () => verifyPprfOverride(pprfIntakeActionPath, mutated),
+    /has one exact atomic service delegate/
+  )
+})
+
+test('fails if an action reintroduces a post-commit SLA helper', () => {
+  const mutated = replaceTextOnce(
+    read(pprfIntakeActionPath),
+    '    const checked = pprfSubmissionResultSchema.safeParse(rawResult)',
+    '    await startSlaClock({})\n    const checked = pprfSubmissionResultSchema.safeParse(rawResult)',
+    'post-commit fixture must add the SLA helper'
+  )
+  assert.throws(
+    () => verifyPprfOverride(pprfIntakeActionPath, mutated),
+    /has no reachable startSlaClock writer/
+  )
+})
+
+test('fails if a mounted action adds a direct or aliased database writer', () => {
+  const direct = replaceTextOnce(
+    read(pprfResubmissionActionPath),
+    'export async function submitPprf(opportunityId: string, formData: FormData) {',
+    'export async function submitPprf(opportunityId: string, formData: FormData) {\n  await db.insert(pprfSubmissions).values({})',
+    'direct writer fixture must modify submitPprf'
+  )
+  assert.throws(
+    () => verifyPprfOverride(pprfResubmissionActionPath, direct),
+    /has no reachable local database writer/
+  )
+
+  const aliased = replaceTextOnce(
+    read(pprfResubmissionActionPath),
+    'export async function submitPprf(opportunityId: string, formData: FormData) {',
+    'export async function submitPprf(opportunityId: string, formData: FormData) {\n  const submissionTable = pprfSubmissions\n  await db.insert(submissionTable).values({})',
+    'aliased writer fixture must modify submitPprf'
+  )
+  assert.throws(
+    () => verifyPprfOverride(pprfResubmissionActionPath, aliased),
+    /has no reachable local database writer/
+  )
+})
+
+test('follows imported and re-exported helpers and rejects their PPRF writer', () => {
+  const helperPath =
+    'apps/web/src/app/(dashboard)/crm/opportunities/new/pprf/pprf-delegate.ts'
+  const implementationPath =
+    'apps/web/src/app/(dashboard)/crm/opportunities/new/pprf/pprf-delegate-impl.ts'
+  const action = replaceTextOnce(
+    read(pprfIntakeActionPath),
+    "import { randomUUID } from 'node:crypto'",
+    "import { randomUUID } from 'node:crypto'\nimport { submitPprfThroughHelper } from './pprf-delegate'",
+    'helper fixture must add a named import'
+  ).replace(
+    'pprfSubmissionService.submitIntake(',
+    'submitPprfThroughHelper('
+  )
+  const reexport =
+    "export { submitPprfThroughHelper } from './pprf-delegate-impl'\n"
+  const implementation = `
+import { db } from '@third-code-erp/database'
+import { pprfSubmissions } from '@third-code-erp/database/schema'
+import { pprfSubmissionService } from '@/server/crm/pprf-submission-service'
+
+export async function submitPprfThroughHelper(principal, command) {
+  const result = await pprfSubmissionService.submitIntake(principal, command)
+  await db.insert(pprfSubmissions).values({})
+  return result
+}
+`
+  assert.throws(
+    () =>
+      verifyPprfSubmissionContract(
+        process.cwd(),
+        new Map([
+          [pprfIntakeActionPath, action],
+          [helperPath, reexport],
+          [implementationPath, implementation],
+        ])
+      ),
+    /has no reachable local database writer/
+  )
+})
+
+test('fails if the service drops membership, role, command, or Opportunity locking', () => {
+  const cases = [
+    ['const membership = await transaction.lockMembership(principal.data)', 'const membership = null', /current membership lock/],
+    ["!roleHasCapability(membership.role, 'pprf.submit')", 'false', /exact submission capability/],
+    ['await transaction.lockCommand(membership.tenantId, keyHash)', 'await Promise.resolve()', /tenant and full-key command lock/],
+    ['const opportunity = await transaction.lockOpportunity(', 'const opportunity = await transaction.loadOpportunity(', /locked same-tenant Opportunity/],
+  ]
+  for (const [search, replacement, message] of cases) {
+    const mutated = replaceTextFirst(
+      read(pprfServicePath),
+      search,
+      replacement,
+      `service lock fixture must replace ${search}`
+    )
+    assert.throws(
+      () => verifyPprfOverride(pprfServicePath, mutated),
+      message
+    )
+  }
+})
+
+test('fails if either PPRF command leaves the single transaction boundary', () => {
+  const mutated = replaceTextFirst(
+    read(pprfServicePath),
+    'return await this.store.transaction(async (transaction) => {',
+    'return await this.store.transaction(async (transaction) => {\n        await this.store.transaction(async () => failure(\'INTERNAL_ERROR\', \'nested\'))',
+    'nested transaction fixture must modify intake'
+  )
+  assert.throws(
+    () => verifyPprfOverride(pprfServicePath, mutated),
+    /intake uses exactly one transaction/
+  )
+})
+
+test('fails if required intake or resubmission atomic effects are dropped', () => {
+  const cases = [
+    ['const account = await transaction.createAccount({', 'const account = await removedTransaction.createAccount({', /intake creates one Account/],
+    ['const opportunity = await transaction.createOpportunity({', 'const opportunity = await removedTransaction.createOpportunity({', /intake creates one Opportunity/],
+    ['const pprf = await transaction.createPprf({', 'const pprf = await removedTransaction.createPprf({', /intake creates one PPRF/],
+    ['await transaction.resetKycTracks({', 'await removedTransaction.resetKycTracks({', /intake resets both KYC tracks/],
+    ['await transaction.writeAudit({', 'await removedTransaction.writeAudit({', /intake writes three semantic audits/],
+    ['await transaction.ensurePprfReviewSla(', 'await removedTransaction.ensurePprfReviewSla(', /intake ensures one PPRF SLA/],
+    ["['finance', 'owner', 'admin']", "['finance', 'owner']", /intake notification recipients are exact/],
+    ["['commercial', 'finance']", "['finance']", /resubmission notification recipients are exact/],
+  ]
+  for (const [search, replacement, message] of cases) {
+    const mutated = replaceTextFirst(
+      read(pprfServicePath),
+      search,
+      replacement,
+      `atomic effect fixture must replace ${search}`
+    )
+    assert.throws(
+      () => verifyPprfOverride(pprfServicePath, mutated),
+      message
+    )
+  }
+})
+
+test('fails if either command drops its redacted receipt marker', () => {
+  const mutated = replaceTextFirst(
+    read(pprfServicePath),
+    "source: 'pprf_submission_service',",
+    "source: 'removed_receipt',",
+    'receipt marker fixture must modify one command'
+  )
+  assert.throws(
+    () => verifyPprfOverride(pprfServicePath, mutated),
+    /both PPRF commands write one receipt/
+  )
+})
+
+test('fails if receipt or action logging exposes raw workflow payload', () => {
+  const receipt = replaceTextFirst(
+    read(pprfServicePath),
+    '            command_hash: commandHash,',
+    '            command_hash: commandHash,\n            scopeNotes: command.data.pprf.scopeNotes,',
+    'receipt privacy fixture must add scope notes'
+  )
+  assert.throws(
+    () => verifyPprfOverride(pprfServicePath, receipt),
+    /receipt excludes raw key and payload fields/
+  )
+
+  const actionLog = replaceTextOnce(
+    read(pprfIntakeActionPath),
+    "    event: 'pprf_action',",
+    "    event: 'pprf_action',\n    payload: input,",
+    'log privacy fixture must add raw input'
+  )
+  assert.throws(
+    () => verifyPprfOverride(pprfIntakeActionPath, actionLog),
+    /log is redacted \(payload\)/
+  )
+})
+
+test('fails if central PPRF authority grants a fourth role', () => {
+  const mutated = replaceTextOnce(
+    read(authorizationPath),
+    "  'pprf.submit': ['owner', 'admin', 'sales'],",
+    "  'pprf.submit': ['owner', 'admin', 'sales', 'commercial'],",
+    'central role fixture must add Commercial'
+  )
+  assert.throws(
+    () => verifyPprfOverride(authorizationPath, mutated),
+    /pprf.submit has exact Owner\/Admin\/Sales authority/
+  )
+})
+
+test('fails if either mounted PPRF route registry policy drifts', () => {
+  const missingDetail = replaceTextOnce(
+    read(pprfRouteRegistryPath),
+    "    '/crm/opportunities/[id]/proposal/pprf',",
+    "    '/crm/opportunities/[id]/proposal/pprf-removed',",
+    'route fixture must remove PPRF detail'
+  )
+  assert.throws(
+    () => verifyPprfOverride(pprfRouteRegistryPath, missingDetail),
+    /detail route is registered for every authenticated role/
+  )
+
+  const widenedIntake = mutateFirst(
+    read(pprfRouteRegistryPath),
+    pprfRouteRegistryPath,
+    (node) =>
+      ts.isCallExpression(node) &&
+      callName(node) === 'registerDashboardRoutes' &&
+      node.arguments.some((argument) =>
+        argument.getText().includes('/crm/opportunities/new/pprf')
+      ),
+    (node, factory) =>
+      factory.updateCallExpression(node, node.expression, node.typeArguments, [
+        node.arguments[0],
+        factory.createArrayLiteralExpression([
+          factory.createStringLiteral('admin'),
+          factory.createStringLiteral('sales'),
+          factory.createStringLiteral('commercial'),
+        ]),
+      ]),
+    'route fixture must widen PPRF intake'
+  )
+  assert.throws(
+    () => verifyPprfOverride(pprfRouteRegistryPath, widenedIntake),
+    /intake route has exact Admin\/Sales registry roles/
+  )
+})
+
+test('fails if PPRF receipt full hashes, tenant scope, or privacy are weakened', () => {
+  const cases = [
+    ['idempotency_key_hash: keyHash,', 'idempotency_key_hash: command.data.submissionId,', /receipt stores only the full key hash/],
+    ['command_hash: commandHash,', 'command_hash: command.data.pprf.scopeNotes,', /receipt stores only the full command hash/],
+    ['eq(auditLog.tenant_id, tenantId),', 'eq(auditLog.tenant_id, principalTenant),', /receipt lookup is tenant scoped/],
+  ]
+  for (const [search, replacement, message] of cases) {
+    const mutated = replaceTextFirst(
+      read(pprfServicePath),
+      search,
+      replacement,
+      `receipt fixture must replace ${search}`
+    )
+    assert.throws(
+      () => verifyPprfOverride(pprfServicePath, mutated),
+      message
+    )
+  }
+})
+
+test('fails if exact string and BigInt money handling becomes numeric', () => {
+  const mutated = replaceTextOnce(
+    read(pprfServicePath),
+    'const exact = BigInt(value)',
+    'const exact = Number(value)',
+    'money fixture must replace the bounded adapter input'
+  )
+  assert.throws(
+    () => verifyPprfOverride(pprfServicePath, mutated),
+    /money stays exact until the bounded adapter/
+  )
+})
+
+test('fails if a mounted form trusts browser Opportunity or tenant identity', () => {
+  for (const [fileName, marker, hostileName] of [
+    [pprfResubmissionFormPath, '<input type="hidden" name="submission_id" value={submissionId} />', 'opportunity_id'],
+    [pprfIntakeFormPath, '<input type="hidden" name="submission_id" value={submissionId} />', 'tenant_id'],
+  ]) {
+    const mutated = replaceTextOnce(
+      read(fileName),
+      marker,
+      `${marker}\n      <input type="hidden" name="${hostileName}" value="forged" />`,
+      `hidden identity fixture must add ${hostileName}`
+    )
+    assert.throws(
+      () => verifyPprfOverride(fileName, mutated),
+      /mounts only the stable submission UUID as hidden identity/
+    )
+  }
+})
+
+test('fails if detail exposes the PPRF form without the central submit capability', () => {
+  const mutated = replaceTextOnce(
+    read(pprfDetailPagePath),
+    "const canSubmit = can(profile.role, 'pprf.submit')",
+    'const canSubmit = true',
+    'denied UI fixture must remove the capability projection'
+  )
+  assert.throws(
+    () => verifyPprfOverride(pprfDetailPagePath, mutated),
+    /detail projects exact-three submit controls/
+  )
+})
+
+test('fails if intake route drops either exact-three capability guard', () => {
+  const mutated = replaceTextOnce(
+    read(pprfIntakePagePath),
+    " || !can(profile.role, 'account.create')",
+    '',
+    'intake route fixture must drop Account-create authority'
+  )
+  assert.throws(
+    () => verifyPprfOverride(pprfIntakePagePath, mutated),
+    /intake route requires both central capabilities/
+  )
+})
+
+test('fails if an action stops rejecting duplicate or hostile FormData', () => {
+  const duplicateMutation = replaceTextOnce(
+    read(pprfIntakeActionPath),
+    'const entries = formData.getAll(name)',
+    'const entries = [formData.get(name)]',
+    'duplicate-field fixture must bypass getAll'
+  )
+  assert.throws(
+    () => verifyPprfOverride(pprfIntakeActionPath, duplicateMutation),
+    /rejects duplicate text fields/
+  )
+
+  const hostileMutation = replaceTextOnce(
+    read(pprfResubmissionActionPath),
+    'if (!PPRF_FIELD_NAME_SET.has(name)) {',
+    'if (false) {',
+    'unknown-field fixture must bypass the allowlist'
+  )
+  assert.throws(
+    () => verifyPprfOverride(pprfResubmissionActionPath, hostileMutation),
+    /rejects unknown FormData fields/
+  )
+})
+
+test('fails if strict service result scope validation is dropped', () => {
+  const mutated = replaceTextOnce(
+    read(pprfResubmissionActionPath),
+    '      checked.data.opportunityId !== opportunityId',
+    '      false',
+    'result-scope fixture must remove Opportunity identity validation'
+  )
+  assert.throws(
+    () => verifyPprfOverride(pprfResubmissionActionPath, mutated),
+    /validates committed result scope/
+  )
+})
+
+test('fails if refresh failure is reclassified as command failure', () => {
+  const mutated = replaceTextOnce(
+    read(pprfIntakeActionPath),
+    '    } catch {\n      refreshFailed = true\n    }',
+    "    } catch {\n      return { ok: false as const, error: 'Refresh failed' }\n    }",
+    'refresh fixture must return a command failure'
+  )
+  assert.throws(
+    () => verifyPprfOverride(pprfIntakeActionPath, mutated),
+    /refresh failure remains committed success/
+  )
+})
+
+test('fails if either form loses its synchronous duplicate-submit guard', () => {
+  for (const [fileName, guard] of [
+    [pprfIntakeFormPath, 'if (inFlightRef.current) return'],
+    [pprfResubmissionFormPath, 'if (inFlightRef.current) return'],
+  ]) {
+    const mutated = replaceTextOnce(
+      read(fileName),
+      guard,
+      'if (false) return',
+      `single-flight fixture must remove ${fileName} guard`
+    )
+    assert.throws(
+      () => verifyPprfOverride(fileName, mutated),
+      /has a synchronous single-flight guard/
+    )
+  }
+})
+
+test('fails if the service regression suite drops replay or concurrency proof', () => {
+  for (const title of [
+    'replays the same intake key exactly and rejects key reuse with changed payload',
+    'replays the same resubmission result and rejects changed payload reuse',
+    'serializes concurrent same-key intake into one complete effect',
+    'serializes concurrent resubmissions into distinct versions',
+  ]) {
+    const mutated = replaceTextOnce(
+      read(pprfServiceTestPath),
+      title,
+      'deleted regression coverage',
+      `test coverage fixture must rename ${title}`
+    )
+    assert.throws(
+      () => verifyPprfOverride(pprfServiceTestPath, mutated),
+      /service tests cover replay, conflict, and concurrency/
+    )
+  }
 })
