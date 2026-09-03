@@ -1,26 +1,26 @@
 {
   "version": 1,
   "snapshot": {
-    "capturedOn": "2026-08-22",
-    "evidenceCommit": "ad1e1805",
-    "sourceRevision": "Remote migration ledger was compared with the repository source immediately after the reviewed hosted apply; source identity is checked by verify:managed-supabase-parity-plan.",
+    "capturedOn": "2026-09-03",
+    "evidenceCommit": "4f2d1a247ac03e6f95f516815ba3156523e9a466",
+    "sourceRevision": "Protected production run 33768641038 and the authenticated Supabase migration-history view established the 157-version live ledger; source identity is checked by verify:managed-supabase-parity-plan.",
     "evidenceKind": "read_only_provider_ledger_plus_source_plan",
     "verificationScope": "The repository verifier checks this snapshot only against the source migration tree; it does not query Supabase or establish current provider state.",
     "projectRef": "aqqrtkmtcsfkbyyqxowv",
     "projectStatus": "ACTIVE_HEALTHY",
     "databaseVersion": "17.6.1.121",
     "postgresMajor": 17,
-    "appliedCount": 150,
-    "sourceCount": 150,
+    "appliedCount": 157,
+    "sourceCount": 157,
     "pendingCount": 0,
-    "appliedHead": "20260819110000",
-    "sourceHead": "20260819110000",
+    "appliedHead": "20260901141949",
+    "sourceHead": "20260901141949",
     "ledgerStatus": "current_remote_ledger_matches_source",
     "purchaseOrderPreflight": {
       "duplicateGroups": 0,
       "status": "clear_as_of_captured_evidence"
     },
-    "releaseStatus": "database_schema_current; application_promotion_pending_protected_ci"
+    "releaseStatus": "database_schema_current_after_source_reconciliation; application_promotion_pending_protected_ci"
   },
   "policy": {
     "reviewBatchesOnly": true,

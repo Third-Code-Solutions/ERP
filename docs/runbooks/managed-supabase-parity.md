@@ -7,16 +7,16 @@ fresh provider observation. The two are not interchangeable.
 
 ## Current repository record
 
-The machine-checked record is the dated 2026-08-17 observation in
+The machine-checked record is the dated 2026-09-03 observation in
 [`../operations/managed-supabase-parity-plan.json`](../operations/managed-supabase-parity-plan.json):
 
 - target `aqqrtkmtcsfkbyyqxowv` (`ERP`);
 - PostgreSQL 17;
-- 144 recorded hosted migrations through `20260815100000`;
-- 147 source migrations through `20260817110000`, with an ordered three-file
-  source-only suffix pending review;
+- 157 recorded hosted migrations through `20260901141949`;
+- 157 source migrations through `20260901141949`, with no pending source-only
+  suffix;
 - zero recorded duplicate Purchase Order groups;
-- no approval for a hosted apply.
+- production promotion remains gated by the protected workflow.
 
 Run the local source-consistency check before changing any migration or parity
 documentation:
