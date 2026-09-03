@@ -176,7 +176,7 @@ suite('Cortex conversation user-turn database integration', () => {
           principalA,
           'cortex-turn-revoked'
         )
-      ).rejects.toThrow('Conversation not found')
+      ).rejects.toThrow('Forbidden')
 
       const [foreignConversation] = await transaction
         .insert(cortexConversations)

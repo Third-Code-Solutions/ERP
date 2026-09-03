@@ -319,10 +319,10 @@ suite('Finance receivables protected HTTP canary', () => {
           .get(route)
           .set('Authorization', 'Bearer unknown-token')
           .expect(401)
-        await request(app.getHttpServer())
-          .get(route)
+        const viewerRead = await request(app.getHttpServer())
+          .get(`${route}?limit=1`)
           .set('Authorization', 'Bearer receivables-viewer-a-token')
-          .expect(403)
+          .expect(200)
         await request(app.getHttpServer())
           .get(`${route}?dueFrom=2026-09-01&dueTo=2026-08-01`)
           .set('Authorization', 'Bearer receivables-finance-a-token')
@@ -332,6 +332,7 @@ suite('Finance receivables protected HTTP canary', () => {
           .get(`${route}?limit=1`)
           .set('Authorization', 'Bearer receivables-finance-a-token')
           .expect(200)
+        expect(viewerRead.body).toEqual(first.body)
         expect(first.body).toMatchObject({
           tenantId: fixtureA.tenantId,
           asOfDate: '2026-08-06',

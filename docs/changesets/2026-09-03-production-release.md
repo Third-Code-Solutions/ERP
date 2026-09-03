@@ -34,6 +34,7 @@ them. Never paste secret values, database URLs, auth tokens, or customer data.
 | Live password-recovery request proof | `f200a0a738d40bd72ea359c927e8893dbc07a385` + `e65f3a3f07affdf38951676fcbd5c088e24656eb` | VERIFIED locally — opt-in test requires the exact production URL and Supabase host, sends one un-intercepted recovery request, persists no trace/screenshot/video, and is enabled in the protected no-skip workflow; provider execution awaits promotion |
 | Independent security review | code HEAD `2c7d47590853edf14f6d683f05a3c82e5336f4d0` | GO — no P0/P1; complete mounted provider-backed POST inventory reviewed; 137/137 focused tests across 18 files, Web typecheck, dependency audits, gitleaks, actionlint, pinned-action references, and diff check passed |
 | WO-11 test-fixture repair | `50bc167cc682c01115ff7a2fcd42fbbb139527a9` | VERIFIED — CI exposed an ambiguous text replacement after new legitimate scope checks; the test now targets exact AST scopes and is line-ending independent; 59/59 contract tests and 95/95 focused PPRF tests passed under Node 22.23.2 |
+| Database-backed Viewer policy alignment | candidate after `b3d5844b4f5e1a4cfb84315e896d43c9e249f10a` | PENDING CI — run `33763743472` proved the disposable PostgreSQL 17 rebuild, migration ledger, RLS, schema-diff, and non-database gates, then exposed 13 stale assertions. Read assertions now require same-tenant Viewer parity; notification and Cortex mutation assertions require denial; opportunity creation requires its semantic audit without assuming it is the only append-only audit row. |
 | Reviewed PR | `https://github.com/Third-Code-Solutions/ERP/pull/29` | IN PROGRESS — first run passed type/lint/security/invariants and exposed the repaired WO-11 test-fixture defect |
 | Exact merged `main` release SHA | `[40-character sha]` | NOT RUN |
 | Candidate clean status | `git status --short --branch` before push | VERIFIED after this record was committed; no uncommitted candidate changes |
@@ -60,7 +61,7 @@ Record exact command, run URL/artifact, pass/fail/skip counts, and candidate SHA
 | Type safety | Web and shared-types TypeScript checks across repair slices | exit 0 | 0 |  | PASSED locally; full CI pending |
 | BUILD OPS/static invariants | `[commands/run]` |  |  |  | NOT RUN |
 | Unit/contract/integration tests | `[commands/run]` |  |  |  | NOT RUN |
-| PostgreSQL 17 reproducibility | `[run/artifact]` |  |  |  | NOT RUN |
+| PostgreSQL 17 reproducibility | CI run `33763743472`; disposable rebuild, 150-migration ledger, RLS, and empty schema diff passed; API integration suite reported 13 stale policy/audit expectations | database lifecycle gates | 13 assertions | 80 environment-gated tests in ordinary local suite | FAILED — repaired candidate awaiting rerun |
 | Security: gitleaks/SAST/dependency/container | Agent 12: dependency audits clean; gitleaks scanned 1,861 commits/46.60 MB; actionlint/action refs passed | exit 0 | 0 |  | PASSED for supported local gates; protected CI pending |
 | Production build/routes | `[run; route count]` |  |  |  | NOT RUN |
 | 11-role browser/API matrix | `[run; role and row counts]` |  |  |  | NOT RUN |
@@ -110,6 +111,7 @@ Append one row per material event; do not overwrite failed attempts.
 | UTC | Workflow/job | Target | Result | Immutable ID or artifact | Notes |
 |---|---|---|---|---|---|
 | `[time]` | Pre-mutation gates | Candidate SHA | NOT RUN | `[artifact]` |  |
+| `2026-09-03T13:54:16Z` | Candidate CI | `b3d5844b4f5e1a4cfb84315e896d43c9e249f10a` | FAILED before build/E2E | GitHub Actions run `33763743472`; `api-integration-vitest.json`, migration list, schema diff | Actionlint, invariants, security, lint, typecheck, and unit suites passed. PostgreSQL rebuild/parity passed; 13 integration assertions exposed stale Viewer/Cortex/audit expectations and were corrected before promotion. |
 | `[time]` | Migration dry-run | Supabase `aqqrtkmtcsfkbyyqxowv` | NOT RUN | `[artifact]` |  |
 | `[time]` | Additive migration apply | Supabase `aqqrtkmtcsfkbyyqxowv` | NOT RUN | `[artifact]` |  |
 | `[time]` | Core deploy | Railway API service | NOT RUN | `[deployment id]` |  |

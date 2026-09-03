@@ -867,7 +867,7 @@ suite('Opportunity stage transition protected HTTP canary', () => {
           project_id: rollbackProjectA,
         })
         const createAudits = await transaction
-          .select({ id: auditLog.id })
+          .select({ diff: auditLog.diff })
           .from(auditLog)
           .where(
             and(
@@ -876,7 +876,13 @@ suite('Opportunity stage transition protected HTTP canary', () => {
               eq(auditLog.action, 'create')
             )
           )
-        expect(createAudits).toHaveLength(1)
+        expect(createAudits).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              diff: expect.objectContaining({ source: 'opportunity_create_core' }),
+            }),
+          ])
+        )
 
         const [accountlessAfterGate] = await transaction
           .select({ stage: opportunities.stage })

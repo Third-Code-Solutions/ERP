@@ -420,7 +420,11 @@ suite('Cortex semantic index disposable database integration', () => {
         expect(worker.calls).toHaveLength(0)
         await expect(
           runtime.service.status(queued.status.jobId, admin.principal)
-        ).rejects.toThrow('not permitted')
+        ).resolves.toMatchObject({
+          status: 'failed',
+          failureCode: 'permission_revoked',
+          providerCalls: 0,
+        })
 
         const audits = await transaction
           .select({

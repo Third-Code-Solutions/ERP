@@ -385,10 +385,10 @@ suite('Finance cash protected HTTP canary', () => {
           .get(route)
           .set('Authorization', 'Bearer unknown-token')
           .expect(401)
-        await request(app.getHttpServer())
-          .get(route)
+        const viewerRead = await request(app.getHttpServer())
+          .get(`${route}?limit=1`)
           .set('Authorization', 'Bearer cash-read-viewer-a-token')
-          .expect(403)
+          .expect(200)
         await request(app.getHttpServer())
           .get(`${route}?fromDate=2026-09-01&toDate=2026-08-01`)
           .set('Authorization', 'Bearer cash-read-finance-a-token')
@@ -398,6 +398,7 @@ suite('Finance cash protected HTTP canary', () => {
           .get(`${route}?limit=1`)
           .set('Authorization', 'Bearer cash-read-finance-a-token')
           .expect(200)
+        expect(viewerRead.body).toEqual(first.body)
         expect(first.body).toMatchObject({
           tenantId: fixtureA.tenantId,
           total: 4,
