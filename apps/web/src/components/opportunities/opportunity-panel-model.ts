@@ -1,4 +1,6 @@
 import {
+  safeNonNegativeCentavosStringSchema,
+  safeSignedCentavosStringSchema,
   STAGE_LEGACY_MAP,
   STAGE_TRANSITIONS,
   type OpportunityStage,
@@ -35,18 +37,9 @@ interface OpportunityPanelActionSubmitter {
   ) => Promise<boolean>
 }
 
-const TRANSITION_OPTIONAL_FIELDS = [
-  'tcv_cents',
-  'gp_cents',
-  'closing_date',
-] as const
-
 const CREATE_FIELDS = [
-  'stage',
   'opportunity_type',
   'area_sqm',
-  'tcv_cents',
-  'gp_cents',
   'closing_date',
 ] as const
 
@@ -63,6 +56,38 @@ function copyNonBlankString(
   if (typeof value === 'string' && value.trim().length > 0) {
     destination.set(name, value.trim())
   }
+}
+
+function copyCanonicalCentavosString(
+  source: FormData,
+  destination: FormData,
+  name: 'tcv_cents' | 'gp_cents'
+): void {
+  const value = source.get(name)
+  if (value === null || (typeof value === 'string' && value.trim() === '')) {
+    return
+  }
+  if (typeof value !== 'string') {
+    throw new Error(`${name === 'tcv_cents' ? 'TCV' : 'GP'} must be text.`)
+  }
+
+  const hasCanonicalSyntax =
+    name === 'tcv_cents'
+      ? /^(0|[1-9]\d*)$/.test(value)
+      : /^(0|-?[1-9]\d*)$/.test(value)
+  const result = hasCanonicalSyntax
+    ? name === 'tcv_cents'
+      ? safeNonNegativeCentavosStringSchema.safeParse(value)
+      : safeSignedCentavosStringSchema.safeParse(value)
+    : { success: false as const }
+  if (!result.success) {
+    throw new Error(
+      name === 'tcv_cents'
+        ? 'TCV must be a canonical non-negative centavo amount.'
+        : 'GP must be a canonical signed centavo amount.'
+    )
+  }
+  destination.set(name, value)
 }
 
 export function getOpportunityPanelDestinations(
@@ -107,9 +132,9 @@ export function buildOpportunityTransitionFormData(
   command.set('opportunity_id', options.opportunityId)
   command.set('new_stage', options.destination)
 
-  for (const field of TRANSITION_OPTIONAL_FIELDS) {
-    copyNonBlankString(controls, command, field)
-  }
+  copyCanonicalCentavosString(controls, command, 'tcv_cents')
+  copyCanonicalCentavosString(controls, command, 'gp_cents')
+  copyNonBlankString(controls, command, 'closing_date')
 
   const reason = options.reason?.trim()
   if (reason) command.set('reason', reason)
@@ -122,7 +147,10 @@ export function buildOpportunityCreateFormData(
 ): FormData {
   const command = new FormData()
   command.set('project_id', projectId)
+  command.set('stage', 'opportunity_creation')
   for (const field of CREATE_FIELDS) copyNonBlankString(controls, command, field)
+  copyCanonicalCentavosString(controls, command, 'tcv_cents')
+  copyCanonicalCentavosString(controls, command, 'gp_cents')
 
   const closingDate = command.get('closing_date')
   if (

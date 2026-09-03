@@ -151,6 +151,23 @@ describe('OpportunityPanel mounted caller source contract', () => {
     expect(namedCall(nestedFunction('handleCreate')!, 'buildOpportunityCreateFormData')).toBe(true)
   })
 
+  it('offers only read-only Opportunity Creation and canonical centavo inputs', () => {
+    expect(sourceText).not.toContain('CREATE_STAGES')
+    expect(sourceText).not.toContain('name="stage"')
+    expect(sourceText).toContain('Opportunity Creation')
+    expect(sourceText).toContain(
+      'name="tcv_cents" type="text" inputMode="numeric" pattern="0|[1-9][0-9]*"'
+    )
+    expect(sourceText).toContain(
+      'name="gp_cents" type="text" inputMode="numeric" pattern="0|-?[1-9][0-9]*"'
+    )
+  })
+
+  it('keeps client validation failures recoverable without invoking an action', () => {
+    expect(descendants(nestedFunction('handleCreate')!, ts.isTryStatement)).toHaveLength(1)
+    expect(descendants(nestedFunction('submitTransition')!, ts.isTryStatement)).toHaveLength(1)
+  })
+
   it('keeps mutation surfaces open unless their action reaches onSuccess', () => {
     const createClosers = descendants(sourceFile, ts.isCallExpression).filter(
       (call) =>

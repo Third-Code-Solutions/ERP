@@ -18,12 +18,20 @@ export function LostReasonDialog({
 }: LostReasonDialogProps) {
   const [reason, setReason] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const previousFocusRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
     if (open) {
+      previousFocusRef.current =
+        document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null
       setReason('')
       const timer = setTimeout(() => textareaRef.current?.focus(), 0)
-      return () => clearTimeout(timer)
+      return () => {
+        clearTimeout(timer)
+        previousFocusRef.current?.focus()
+      }
     }
   }, [open])
 
@@ -31,19 +39,29 @@ export function LostReasonDialog({
 
   const trimmed = reason.trim()
   const confirmDisabled = Boolean(isSubmitting) || trimmed.length === 0
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Escape' && !isSubmitting) {
+      event.stopPropagation()
+      onCancel()
+    }
+  }
 
   return (
     <div
       role="dialog"
       aria-modal="true"
+      aria-labelledby="lost-reason-dialog-title"
+      aria-describedby="lost-reason-dialog-description"
       onClick={onCancel}
+      onKeyDown={handleKeyDown}
       style={backdropStyle}
     >
       <div onClick={(event) => event.stopPropagation()} style={dialogStyle}>
-        <h3 style={{ margin: '0 0 4px', fontSize: '1rem', fontWeight: 600 }}>
+        <h3 id="lost-reason-dialog-title" style={{ margin: '0 0 4px', fontSize: '1rem', fontWeight: 600 }}>
           Lost reason required
         </h3>
         <p
+          id="lost-reason-dialog-description"
           style={{
             margin: '0 0 12px',
             fontSize: '0.8125rem',

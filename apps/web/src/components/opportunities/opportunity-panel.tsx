@@ -26,14 +26,6 @@ import {
   type OpportunityPanelDestinationKind,
 } from './opportunity-panel-model'
 
-const CREATE_STAGES = [
-  'opportunity_creation',
-  'scoping',
-  'bom_submission',
-  'resubmission',
-  'negotiation',
-] as const satisfies readonly OpportunityStage[]
-
 const STAGE_LABELS: Record<OpportunityStage, string> = {
   opportunity_creation: 'Opportunity Creation',
   scoping: 'Scoping',
@@ -161,10 +153,18 @@ export function OpportunityPanel({
     event.preventDefault()
     if (!canCreate || submissionInFlightRef.current) return
 
-    const command = buildOpportunityCreateFormData(
-      new FormData(event.currentTarget),
-      projectId
-    )
+    let command: FormData
+    try {
+      command = buildOpportunityCreateFormData(
+        new FormData(event.currentTarget),
+        projectId
+      )
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : unexpectedCreateError
+      )
+      return
+    }
     submissionInFlightRef.current = true
     setError(null)
     startTransition(() =>
@@ -188,12 +188,22 @@ export function OpportunityPanel({
   ) {
     if (!canMutate || submissionInFlightRef.current) return
 
-    const command = buildOpportunityTransitionFormData(draft.controls, {
-      projectId,
-      opportunityId: draft.opportunity.id,
-      destination: draft.destination,
-      reason,
-    })
+    let command: FormData
+    try {
+      command = buildOpportunityTransitionFormData(draft.controls, {
+        projectId,
+        opportunityId: draft.opportunity.id,
+        destination: draft.destination,
+        reason,
+      })
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : 'Opportunity stage transition could not be completed. Please try again.'
+      )
+      return
+    }
     submissionInFlightRef.current = true
     setError(null)
     startTransition(() =>
@@ -314,12 +324,10 @@ export function OpportunityPanel({
         >
           <div style={formGridStyle}>
             <div>
-              <label htmlFor="new-opportunity-stage" style={labelStyle}>Stage</label>
-              <select id="new-opportunity-stage" name="stage" style={{ ...inputStyle, background: 'white' }}>
-                {CREATE_STAGES.map((stage) => (
-                  <option key={stage} value={stage}>{STAGE_LABELS[stage]}</option>
-                ))}
-              </select>
+              <span id="new-opportunity-stage-label" style={labelStyle}>Stage</span>
+              <p aria-labelledby="new-opportunity-stage-label" style={readOnlyFieldStyle}>
+                Opportunity Creation
+              </p>
             </div>
             <div>
               <label htmlFor="new-opportunity-type" style={labelStyle}>Type</label>
@@ -333,11 +341,11 @@ export function OpportunityPanel({
           <div style={formGridStyle}>
             <div>
               <label htmlFor="new-opportunity-tcv" style={labelStyle}>TCV (₱ centavos)</label>
-              <input id="new-opportunity-tcv" name="tcv_cents" type="number" min="0" step="100" style={inputStyle} placeholder="0" />
+              <input id="new-opportunity-tcv" name="tcv_cents" type="text" inputMode="numeric" pattern="0|[1-9][0-9]*" style={inputStyle} placeholder="0" />
             </div>
             <div>
               <label htmlFor="new-opportunity-gp" style={labelStyle}>GP (₱ centavos)</label>
-              <input id="new-opportunity-gp" name="gp_cents" type="number" step="100" style={inputStyle} placeholder="0" />
+              <input id="new-opportunity-gp" name="gp_cents" type="text" inputMode="numeric" pattern="0|-?[1-9][0-9]*" style={inputStyle} placeholder="0" />
             </div>
             <div>
               <label htmlFor="new-opportunity-close" style={labelStyle}>Est. Close</label>
@@ -410,11 +418,11 @@ export function OpportunityPanel({
                               </div>
                               <div>
                                 <label htmlFor={`tcv-${opportunity.id}`} style={labelStyle}>Updated TCV (¢)</label>
-                                <input id={`tcv-${opportunity.id}`} name="tcv_cents" type="number" min="0" defaultValue={opportunity.tcv_cents} style={{ ...inputStyle, width: '140px' }} />
+                                <input id={`tcv-${opportunity.id}`} name="tcv_cents" type="text" inputMode="numeric" pattern="0|[1-9][0-9]*" defaultValue={String(opportunity.tcv_cents)} style={{ ...inputStyle, width: '140px' }} />
                               </div>
                               <div>
                                 <label htmlFor={`gp-${opportunity.id}`} style={labelStyle}>Updated GP (¢)</label>
-                                <input id={`gp-${opportunity.id}`} name="gp_cents" type="number" defaultValue={opportunity.gp_cents} style={{ ...inputStyle, width: '140px' }} />
+                                <input id={`gp-${opportunity.id}`} name="gp_cents" type="text" inputMode="numeric" pattern="0|-?[1-9][0-9]*" defaultValue={String(opportunity.gp_cents)} style={{ ...inputStyle, width: '140px' }} />
                               </div>
                               <div>
                                 <label htmlFor={`close-${opportunity.id}`} style={labelStyle}>Est. Close</label>
@@ -452,6 +460,7 @@ export function OpportunityPanel({
 const panelStyle: React.CSSProperties = { background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }
 const headerStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid var(--color-border)' }
 const readOnlyStyle: React.CSSProperties = { margin: 0, color: 'var(--color-neutral-500)', fontSize: '0.75rem' }
+const readOnlyFieldStyle: React.CSSProperties = { ...inputStyle, margin: 0, background: 'var(--color-neutral-100)', color: 'var(--color-neutral-600)' }
 const createFormStyle: React.CSSProperties = { padding: '16px 20px', borderBottom: '1px solid var(--color-border)', background: 'var(--color-neutral-50)' }
 const formGridStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '12px', marginBottom: '12px' }
 const transitionFormStyle: React.CSSProperties = { display: 'flex', gap: '12px', alignItems: 'flex-end', flexWrap: 'wrap' }
@@ -460,13 +469,13 @@ const dateCellStyle: React.CSSProperties = { fontSize: '0.8125rem', color: 'var(
 const emptyStyle: React.CSSProperties = { padding: '32px 20px', textAlign: 'center', color: 'var(--color-neutral-400)', fontSize: '0.875rem' }
 
 function alertStyle(overDialog: boolean): React.CSSProperties {
-  return { position: overDialog ? 'fixed' : undefined, top: overDialog ? '16px' : undefined, left: overDialog ? '50%' : undefined, transform: overDialog ? 'translateX(-50%)' : undefined, zIndex: overDialog ? 201 : undefined, margin: overDialog ? 0 : '12px 20px 0', padding: '8px 12px', borderRadius: '6px', background: '#fef2f2', color: 'var(--color-danger, #b91c1c)', fontSize: '0.8125rem' }
+  return { position: overDialog ? 'fixed' : undefined, top: overDialog ? '16px' : undefined, left: overDialog ? '50%' : undefined, transform: overDialog ? 'translateX(-50%)' : undefined, zIndex: overDialog ? 201 : undefined, margin: overDialog ? 0 : '12px 20px 0', padding: '8px 12px', borderRadius: 'var(--radius-md)', background: 'var(--color-danger-soft)', color: 'var(--color-danger)', fontSize: '0.8125rem' }
 }
 
 function submitButtonStyle(isPending: boolean): React.CSSProperties {
-  return { padding: '6px 14px', background: isPending ? '#94a3b8' : 'var(--color-navy-700)', color: 'white', border: 'none', borderRadius: '4px', fontSize: '0.8125rem', cursor: isPending ? 'not-allowed' : 'pointer' }
+  return { padding: '6px 14px', background: isPending ? 'var(--color-neutral-300)' : 'var(--color-navy-700)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '0.8125rem', cursor: isPending ? 'not-allowed' : 'pointer' }
 }
 
 function advanceButtonStyle(isPending: boolean): React.CSSProperties {
-  return { fontSize: '0.75rem', padding: '2px 8px', border: '1px solid var(--color-border)', borderRadius: '4px', background: 'none', cursor: isPending ? 'not-allowed' : 'pointer', color: 'var(--color-navy-700)', opacity: isPending ? 0.6 : 1 }
+  return { fontSize: '0.75rem', padding: '2px 8px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', background: 'none', cursor: isPending ? 'not-allowed' : 'pointer', color: 'var(--color-navy-700)', opacity: isPending ? 0.6 : 1 }
 }

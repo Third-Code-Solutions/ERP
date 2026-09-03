@@ -101,17 +101,63 @@ describe('OpportunityPanel form contracts', () => {
     })
   })
 
-  it('normalizes the create date control to Philippine midnight', () => {
+  it('forces creation stage and preserves exact bounded centavo strings', () => {
     const controls = new FormData()
-    controls.set('stage', 'opportunity_creation')
+    controls.set('stage', 'negotiation')
     controls.set('closing_date', '2026-10-15')
-    controls.set('gp_cents', '-25000')
+    controls.set('tcv_cents', '9007199254740991')
+    controls.set('gp_cents', '-9007199254740991')
 
     const command = buildOpportunityCreateFormData(controls, 'project-id')
 
     expect(command.get('project_id')).toBe('project-id')
+    expect(command.get('stage')).toBe('opportunity_creation')
     expect(command.get('closing_date')).toBe('2026-10-15T00:00:00+08:00')
-    expect(command.get('gp_cents')).toBe('-25000')
+    expect(command.get('tcv_cents')).toBe('9007199254740991')
+    expect(command.get('gp_cents')).toBe('-9007199254740991')
+  })
+
+  it.each(['1.00', '1e3', '01', '-1', '9007199254740992'])(
+    'rejects non-canonical TCV %s before create submission',
+    (value) => {
+      const controls = new FormData()
+      controls.set('tcv_cents', value)
+
+      expect(() =>
+        buildOpportunityCreateFormData(controls, 'project-id')
+      ).toThrow('TCV must be a canonical non-negative centavo amount.')
+    }
+  )
+
+  it.each(['1.00', '1e3', '01', '-0', '9007199254740992', '-9007199254740992'])(
+    'rejects non-canonical GP %s before transition submission',
+    (value) => {
+      const controls = new FormData()
+      controls.set('gp_cents', value)
+
+      expect(() =>
+        buildOpportunityTransitionFormData(controls, {
+          projectId: 'project-id',
+          opportunityId: 'opportunity-id',
+          destination: 'contract',
+        })
+      ).toThrow('GP must be a canonical signed centavo amount.')
+    }
+  )
+
+  it('preserves exact bounded transition cents without number coercion', () => {
+    const controls = new FormData()
+    controls.set('tcv_cents', '9007199254740991')
+    controls.set('gp_cents', '-9007199254740991')
+
+    const command = buildOpportunityTransitionFormData(controls, {
+      projectId: 'project-id',
+      opportunityId: 'opportunity-id',
+      destination: 'contract',
+    })
+
+    expect(command.get('tcv_cents')).toBe('9007199254740991')
+    expect(command.get('gp_cents')).toBe('-9007199254740991')
   })
 })
 

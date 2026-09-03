@@ -22,27 +22,44 @@ export function RegressionReasonDialog({
 }: RegressionReasonDialogProps) {
   const [reason, setReason] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const previousFocusRef = useRef<HTMLElement | null>(null)
 
   // Reset state every time the dialog reopens so the previous reason is not
   // accidentally carried over to a different opportunity.
   useEffect(() => {
     if (open) {
+      previousFocusRef.current =
+        document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null
       setReason('')
       // Defer focus so the modal has time to mount.
       const t = setTimeout(() => textareaRef.current?.focus(), 0)
-      return () => clearTimeout(t)
+      return () => {
+        clearTimeout(t)
+        previousFocusRef.current?.focus()
+      }
     }
   }, [open])
 
   if (!open) return null
 
   const trimmed = reason.trim()
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Escape' && !isSubmitting) {
+      event.stopPropagation()
+      onCancel()
+    }
+  }
 
   return (
     <div
       role="dialog"
       aria-modal="true"
+      aria-labelledby="regression-reason-dialog-title"
+      aria-describedby="regression-reason-dialog-description"
       onClick={onCancel}
+      onKeyDown={handleKeyDown}
       style={{
         position: 'fixed',
         inset: 0,
@@ -64,10 +81,10 @@ export function RegressionReasonDialog({
           boxShadow: '0 20px 40px rgba(0,0,0,0.18)',
         }}
       >
-        <h3 style={{ margin: '0 0 4px', fontSize: '1rem', fontWeight: 600 }}>
+        <h3 id="regression-reason-dialog-title" style={{ margin: '0 0 4px', fontSize: '1rem', fontWeight: 600 }}>
           Reason required
         </h3>
-        <p style={{ margin: '0 0 12px', fontSize: '0.8125rem', color: 'var(--color-neutral-500)' }}>
+        <p id="regression-reason-dialog-description" style={{ margin: '0 0 12px', fontSize: '0.8125rem', color: 'var(--color-neutral-500)' }}>
           Moving from <strong>{fromLabel}</strong> back to <strong>{toLabel}</strong>{' '}
           is a regression. Please explain why so leadership can review.
         </p>
