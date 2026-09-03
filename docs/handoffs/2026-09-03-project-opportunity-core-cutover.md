@@ -256,3 +256,66 @@ prevent duplicate submission, and retain user input on failure. Do not add a
 local write or pre-Core commercial-field mutation. Then return to independent
 contract QA; the stale WO-11 mutation fixture remains a separately owned test
 infrastructure follow-up.
+
+## Agent 11 result — Project Opportunity panel UX
+
+Source commit: `ebaa5dd3` (`fix(opportunities): harden project panel
+transitions`).
+
+`OpportunityPanel` now consumes the route-owned `canCreate` and `canMutate`
+decisions. Owner, Admin, and Sales receive the create and transition controls;
+the other ten roles retain complete Opportunity rows with no mutation controls
+and an accessible read-only status.
+
+The panel removed its duplicate transition table and projects destinations
+from shared `STAGE_TRANSITIONS` through `STAGE_LEGACY_MAP`. It submits the
+Agent 03 action contract with Project/Opportunity identity, destination, and
+the optional TCV, signed GP, and Philippine date-only controls. Lost and actual
+regression edges open the existing distinct Pipeline dialogs, require a
+trimmed reason within the 1,000-character Core boundary, and use the existing
+guarded stage submitter. Invalid or duplicate requests do not call the action.
+
+Creation and transition callers clear stale alerts before `startTransition`,
+surface returned and rejected errors through `role="alert"`, retain the open
+form/row/dialog after failure, and close only from `onSuccess`. A synchronous
+shared in-flight guard plus disabled controls prevents cross-surface duplicate
+submission. Inputs remain labelled and keyboard-operable; signed GP is no
+longer clamped or hidden, and creation dates are normalized to explicit
+Philippine midnight for the existing action boundary.
+
+### Agent 11 evidence
+
+- Role SSR red: 13/13 failed because props were ignored and read-only status
+  was absent; final role projection passed 13/13 with the literal three-allow /
+  ten-deny policy.
+- Mounted caller source red: 4/4 failed on the duplicate transition table,
+  missing shared model/submitter wiring, absent reason dialogs/alert, and raw
+  creation FormData; final AST/source contract passed 5/5.
+- Focused UI/model/source plus neighboring Pipeline tests: PASSED, 5 files /
+  43 tests.
+- Wider Project action/route/role and Pipeline neighbor lane: PASSED, 10 files /
+  119 tests.
+- Web and configured E2E TypeScript: PASSED.
+- Full Web source ESLint: PASSED with zero warnings.
+- Web production build: PASSED, 89/89 static pages generated.
+- Diff/whitespace checks before source commit: PASSED.
+- WO-11 contract: PARTIAL, 4/5 passed. The inherited out-of-scope stale
+  Pipeline exact-text mutation fixture still fails setup with
+  `mutation fixture must add a Web-local writer`; the main invariant and three
+  other mutation challenges pass. No script was changed.
+- Gitleaks was not rerun after the Agent 11 source commit because the resumed
+  closeout explicitly prohibited rerunning broad gates; independent QA should
+  include the final branch scan.
+
+No route, page, action, Pipeline primitive, Core/API/shared, script, schema,
+dependency, data, environment, credential, or deployment file was changed by
+Agent 11.
+
+→ Handoff to the contract owner and independent QA. Reason: Core, Project
+action, permission projection, and mounted panel wiring are now connected.
+Inputs: Agent 05 commit `cb3d7b3d`, Agent 03 commit `9f83cbd8`, Agent 11 commit
+`ebaa5dd3`, the 119-test wider lane, and the documented WO-11 fixture drift.
+Expected output: independently enumerate mounted Opportunity stage writers,
+challenge permission/reason/error/pending mutations, run final diff and
+Gitleaks, and perform the approved safe browser identity/failure-retry matrix
+without mutating shared demo or production data.

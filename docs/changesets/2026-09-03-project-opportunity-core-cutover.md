@@ -81,3 +81,27 @@ pnpm 10.33.0.
 Next: Agent 11 consumes the route permission props, includes `project_id` in
 the stage form, and provides recoverable reason/error/pending UX without any
 local or pre-Core write.
+
+## Agent 11 — Project Opportunity panel UX
+
+Source commit: `ebaa5dd3`.
+
+- Consumed route-owned create/mutate permissions with exact Owner/Admin/Sales
+  controls and accessible read-only rendering for the other ten roles.
+- Replaced the local transition table with shared canonical edge projection.
+- Wired the complete atomic action `FormData`, including Project identity,
+  optional TCV/signed GP/date, and distinct required Lost/regression reasons.
+- Reused the Pipeline reason dialogs and guarded transition submitter; added a
+  matching single-flight creation runner.
+- Made returned and rejected failures accessible and recoverable, cleared stale
+  alerts before React transitions, prevented duplicate requests, and closed
+  forms/dialogs only on successful actions.
+- Added SSR, pure model/submission, and TypeScript-AST mounted-caller evidence.
+
+Verification: focused 43/43 and wider 119/119 tests PASSED; Web/configured E2E
+TypeScript PASSED; full Web source ESLint PASSED; production build PASSED with
+89/89 pages; diff checks PASSED. WO-11 remains PARTIAL at 4/5 solely because
+its out-of-scope stale exact-text Pipeline mutation fixture cannot construct
+the mutation; its main invariant passes. Final post-source Gitleaks was not
+rerun under the explicit docs-only closeout instruction and is assigned to the
+independent QA handoff.
