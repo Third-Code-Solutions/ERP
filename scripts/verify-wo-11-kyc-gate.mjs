@@ -86,10 +86,38 @@ function callName(call) {
   return undefined
 }
 
+function callableName(node) {
+  if (ts.isFunctionDeclaration(node) && node.name) return node.name.text
+  if (
+    ts.isVariableDeclaration(node) &&
+    ts.isIdentifier(node.name) &&
+    node.initializer &&
+    (ts.isArrowFunction(unwrapExpression(node.initializer)) ||
+      ts.isFunctionExpression(unwrapExpression(node.initializer)))
+  ) {
+    return node.name.text
+  }
+  return undefined
+}
+
+function isCallableDeclaration(node) {
+  return callableName(node) !== undefined
+}
+
 function isExportedFunction(node) {
+  if (ts.isFunctionDeclaration(node)) {
+    return (
+      node.modifiers?.some(
+        (modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword
+      ) === true
+    )
+  }
+  if (!ts.isVariableDeclaration(node)) return false
+  const statement = node.parent?.parent
   return (
-    ts.isFunctionDeclaration(node) &&
-    node.modifiers?.some(
+    statement !== undefined &&
+    ts.isVariableStatement(statement) &&
+    statement.modifiers?.some(
       (modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword
     ) === true
   )
@@ -153,11 +181,45 @@ function importedLocalNames(sourceFile, moduleName, importedName) {
   )
 }
 
+function localIdentifierAliases(sourceFile, initialNames) {
+  const names = new Set(initialNames)
+  let added = true
+  while (added) {
+    added = false
+    for (const declaration of descendants(sourceFile, ts.isVariableDeclaration)) {
+      if (
+        !ts.isIdentifier(declaration.name) ||
+        !declaration.initializer ||
+        !ts.isIdentifier(unwrapExpression(declaration.initializer)) ||
+        !names.has(unwrapExpression(declaration.initializer).text) ||
+        names.has(declaration.name.text)
+      ) {
+        continue
+      }
+      names.add(declaration.name.text)
+      added = true
+    }
+  }
+  return names
+}
+
+function opportunityTableNames(sourceFile) {
+  return localIdentifierAliases(
+    sourceFile,
+    importedLocalNames(
+      sourceFile,
+      '@third-code-erp/database/schema',
+      'opportunities'
+    )
+  )
+}
+
 function functionMap(sourceFile) {
   return new Map(
-    descendants(sourceFile, ts.isFunctionDeclaration).flatMap((declaration) =>
-      declaration.name ? [[declaration.name.text, declaration]] : []
-    )
+    descendants(sourceFile, isCallableDeclaration).flatMap((declaration) => {
+      const name = callableName(declaration)
+      return name ? [[name, declaration]] : []
+    })
   )
 }
 
@@ -193,16 +255,47 @@ function callsReachableByNames(sourceFile, entryPoint, names) {
   )
 }
 
-function hasOpportunityUpdate(root, opportunityNames = new Set(['opportunities'])) {
+function hasOpportunityWrite(root, opportunityNames = new Set(['opportunities'])) {
   return descendants(root, ts.isCallExpression).some((call) => {
     const expression = unwrapExpression(call.expression)
     return (
       ts.isPropertyAccessExpression(expression) &&
-      expression.name.text === 'update' &&
+      (expression.name.text === 'update' || expression.name.text === 'insert') &&
       call.arguments.some(
         (argument) =>
           ts.isIdentifier(unwrapExpression(argument)) &&
           opportunityNames.has(unwrapExpression(argument).text)
+      )
+    )
+  })
+}
+
+function databaseTableNames(sourceFile) {
+  const importedNames = new Set()
+  for (const declaration of descendants(sourceFile, ts.isImportDeclaration)) {
+    if (
+      !ts.isStringLiteralLike(declaration.moduleSpecifier) ||
+      declaration.moduleSpecifier.text !== '@third-code-erp/database/schema'
+    ) {
+      continue
+    }
+    const bindings = declaration.importClause?.namedBindings
+    if (!bindings || !ts.isNamedImports(bindings)) continue
+    for (const element of bindings.elements) importedNames.add(element.name.text)
+  }
+  return localIdentifierAliases(sourceFile, importedNames)
+}
+
+function hasLocalDatabaseWrite(root, tableNames) {
+  return descendants(root, ts.isCallExpression).some((call) => {
+    const expression = unwrapExpression(call.expression)
+    return (
+      ts.isPropertyAccessExpression(expression) &&
+      (expression.name.text === 'update' || expression.name.text === 'insert') &&
+      call.arguments.some(
+        (argument) =>
+          ts.isIdentifier(unwrapExpression(argument)) &&
+          tableNames.has(unwrapExpression(argument).text)
       )
     )
   })
@@ -311,9 +404,7 @@ function variable(root, name, label) {
 function namedFunction(sourceFile, name, label) {
   return oneDescendant(
     sourceFile,
-    (node) =>
-      ts.isFunctionDeclaration(node) &&
-      node.name?.text === name,
+    (node) => callableName(node) === name,
     label
   )
 }
@@ -515,18 +606,46 @@ export function verifyCoreStageAuthority(source) {
   )
 }
 
-export const OPPORTUNITY_STAGE_MUTATION_ENTRY_POINTS = Object.freeze([
+export const OPPORTUNITY_MUTATION_ENTRY_POINTS = Object.freeze([
   Object.freeze({
     surface: 'Pipeline',
     actionPath: 'apps/web/src/app/(dashboard)/pipeline/actions.ts',
     actionName: 'advanceOpportunityStage',
+    delegateName: 'transitionOpportunityStageThroughCoreApi',
   }),
   Object.freeze({
     surface: 'Project detail',
     actionPath:
       'apps/web/src/app/(dashboard)/projects/[id]/opportunities/actions.ts',
     actionName: 'transitionStage',
+    delegateName: 'transitionOpportunityStageThroughCoreApi',
     panelPath: 'apps/web/src/components/opportunities/opportunity-panel.tsx',
+  }),
+  Object.freeze({
+    surface: 'Project detail creation',
+    actionPath:
+      'apps/web/src/app/(dashboard)/projects/[id]/opportunities/actions.ts',
+    actionName: 'createOpportunity',
+    delegateName: 'createOpportunityThroughCoreApi',
+    panelPath: 'apps/web/src/components/opportunities/opportunity-panel.tsx',
+  }),
+])
+
+export const OPPORTUNITY_STAGE_MUTATION_ENTRY_POINTS = Object.freeze(
+  OPPORTUNITY_MUTATION_ENTRY_POINTS.slice(0, 2)
+)
+
+// These pre-existing Pipeline creation authorities are explicitly outside the
+// Project-detail Core cutover, but remain in the mounted-file inventory so a
+// newly exported local writer cannot pass unnoticed.
+const LEGACY_PIPELINE_CREATION_ENTRY_POINTS = Object.freeze([
+  Object.freeze({
+    actionPath: 'apps/web/src/app/(dashboard)/pipeline/actions.ts',
+    actionName: 'createOpportunity',
+  }),
+  Object.freeze({
+    actionPath: 'apps/web/src/app/(dashboard)/pipeline/actions.ts',
+    actionName: 'createOpportunityForAccount',
   }),
 ])
 
@@ -606,14 +725,10 @@ function verifyStageActionDelegation(source, config) {
     `${config.surface} Core rejection returns without a fallback writer`
   )
 
-  const opportunityNames = importedLocalNames(
-    sourceFile,
-    '@third-code-erp/database/schema',
-    'opportunities'
-  )
+  const opportunityNames = opportunityTableNames(sourceFile)
   for (const declaration of reachable) {
     invariant(
-      !hasOpportunityUpdate(declaration, opportunityNames),
+      !hasOpportunityWrite(declaration, opportunityNames),
       `${config.surface} has no Web-local Opportunity stage writer`
     )
   }
@@ -724,6 +839,208 @@ export function verifyProjectStageDelegation(source) {
   })
 }
 
+export function verifyProjectOpportunityCreationDelegation(source) {
+  const actionPath =
+    'apps/web/src/app/(dashboard)/projects/[id]/opportunities/actions.ts'
+  const sourceFile = parseTypescript(source, actionPath)
+  const actionName = 'createOpportunity'
+  const action = namedFunction(
+    sourceFile,
+    actionName,
+    'Project detail create action'
+  )
+  invariant(isExportedFunction(action), 'Project detail create action is exported')
+  const reachable = reachableFunctionDeclarations(sourceFile, actionName)
+
+  const selectorNames = importedLocalNames(
+    sourceFile,
+    '@/lib/erp-core-client',
+    'opportunityStageWritesUseCoreApi'
+  )
+  const selectorCalls = callsReachableByNames(
+    sourceFile,
+    actionName,
+    selectorNames
+  )
+  invariant(
+    selectorNames.size === 1 && selectorCalls.length === 1,
+    'Project detail create action has one Core selector'
+  )
+  invariant(
+    selectorCalls[0].arguments.length === 1 &&
+      isPath(selectorCalls[0].arguments[0], 'profile.tenantId') &&
+      ifStatements(action).some((statement) =>
+        hasNegatedPath(statement.expression, 'createCoreSelected')
+      ),
+    'Project detail create selector is tenant scoped and fails closed'
+  )
+
+  const delegateNames = importedLocalNames(
+    sourceFile,
+    '@/lib/erp-core-client',
+    'createOpportunityThroughCoreApi'
+  )
+  const delegateCalls = callsReachableByNames(
+    sourceFile,
+    actionName,
+    delegateNames
+  )
+  invariant(
+    delegateNames.size === 1 && delegateCalls.length === 1,
+    'Project detail create action has one Core create delegate'
+  )
+  const delegate = delegateCalls[0]
+  invariant(
+    delegate.arguments.length === 2 &&
+      isPath(delegate.arguments[0], 'command') &&
+      callName(unwrapExpression(delegate.arguments[1])) ===
+        'projectOpportunityCreationIdempotencyKey',
+    'Project detail create delegate receives the strict command and idempotency key'
+  )
+
+  invariant(
+    hasNamedImport(
+      sourceFile,
+      '@third-code-erp/shared-types',
+      'opportunityCreationCommandSchema'
+    ) &&
+      hasMethodCall(
+        action,
+        'opportunityCreationCommandSchema',
+        'safeParse'
+      ) &&
+      hasNamedImport(
+        sourceFile,
+        '@third-code-erp/shared-types',
+        'opportunityCreationResultSchema'
+      ) &&
+      hasMethodCall(
+        action,
+        'opportunityCreationResultSchema',
+        'safeParse'
+      ),
+    'Project detail create action uses the shared strict create contract'
+  )
+
+  const opportunityNames = opportunityTableNames(sourceFile)
+  for (const declaration of reachable) {
+    invariant(
+      !hasOpportunityWrite(declaration, opportunityNames),
+      'Project detail create action has no Web-local Opportunity writer'
+    )
+  }
+  for (const name of [
+    'writeAuditLog',
+    'writeAuditLogInTransaction',
+    'startSlaClock',
+    'stopSlaClock',
+    'legacyConvertOpportunityToProject',
+  ]) {
+    const localNames = importedLocalNames(sourceFile, undefined, name)
+    localNames.add(name)
+    invariant(
+      callsReachableByNames(sourceFile, actionName, localNames).length === 0,
+      `Project detail create action has no Web-local ${name} fallback`
+    )
+  }
+
+  invariant(
+    reachable.some(
+      (declaration) =>
+        hasBinary(
+          declaration,
+          'result.tenantId',
+          ts.SyntaxKind.EqualsEqualsEqualsToken,
+          'profile.tenantId'
+        ) &&
+        hasBinary(
+          declaration,
+          'result.projectId',
+          ts.SyntaxKind.EqualsEqualsEqualsToken,
+          'command.projectId'
+        ) &&
+        hasBinary(
+          declaration,
+          'result.stage',
+          ts.SyntaxKind.EqualsEqualsEqualsToken,
+          'command.stage'
+        )
+    ),
+    'Project detail create action validates Core tenant, Project, and initial stage'
+  )
+}
+
+export function verifyOpportunityCreationContract(source) {
+  const sourceFile = parseTypescript(
+    source,
+    'packages/shared-types/src/erp-api/opportunities.ts'
+  )
+  const commandSchema = variable(
+    sourceFile,
+    'opportunityCreationCommandSchema',
+    'shared Opportunity creation command schema'
+  )
+  const commandObject = oneDescendant(
+    commandSchema,
+    (node) =>
+      ts.isObjectLiteralExpression(node) &&
+      objectProperty(node, 'projectId') !== undefined &&
+      objectProperty(node, 'stage') !== undefined &&
+      objectProperty(node, 'tcvCents') !== undefined &&
+      objectProperty(node, 'gpCents') !== undefined,
+    'shared Opportunity creation command object'
+  )
+  const stage = objectProperty(commandObject, 'stage')
+  const tcv = objectProperty(commandObject, 'tcvCents')
+  const gp = objectProperty(commandObject, 'gpCents')
+  const stageLiteralCalls = stage ? calls(stage.initializer, 'literal') : []
+  const stageDefaultCalls = stage ? calls(stage.initializer, 'default') : []
+  invariant(
+    stage &&
+      stageLiteralCalls.length === 1 &&
+      stageLiteralCalls[0].arguments.length === 1 &&
+      ts.isStringLiteralLike(
+        unwrapExpression(stageLiteralCalls[0].arguments[0])
+      ) &&
+      unwrapExpression(stageLiteralCalls[0].arguments[0]).text ===
+        'opportunity_creation' &&
+      stageDefaultCalls.length === 1 &&
+      stageDefaultCalls[0].arguments.length === 1 &&
+      ts.isStringLiteralLike(
+        unwrapExpression(stageDefaultCalls[0].arguments[0])
+      ) &&
+      unwrapExpression(stageDefaultCalls[0].arguments[0]).text ===
+        'opportunity_creation',
+    'shared create contract fixes the product-safe initial stage'
+  )
+  invariant(
+    tcv &&
+      hasIdentifier(tcv.initializer, 'safeNonNegativeCentavosStringSchema') &&
+      hasStringLiteral(tcv.initializer, '0') &&
+      gp &&
+      hasIdentifier(gp.initializer, 'safeSignedCentavosStringSchema') &&
+      hasStringLiteral(gp.initializer, '0'),
+    'shared create contract uses canonical exact centavo strings'
+  )
+  invariant(
+    hasCall(commandSchema, 'strict'),
+    'shared Opportunity creation command rejects unknown identity fields'
+  )
+
+  const resultSchema = variable(
+    sourceFile,
+    'opportunityCreationResultSchema',
+    'shared Opportunity creation result schema'
+  )
+  invariant(
+    hasIdentifier(resultSchema, 'safeNonNegativeCentavosStringSchema') &&
+      hasIdentifier(resultSchema, 'safeSignedCentavosStringSchema') &&
+      hasStringLiteral(resultSchema, 'opportunity_creation') &&
+      hasCall(resultSchema, 'strict'),
+    'shared create result preserves exact money and initial stage identity'
+  )
+}
+
 const OPPORTUNITY_STAGE_VALUES = new Set([
   'opportunity_creation',
   'scoping',
@@ -782,8 +1099,13 @@ export function verifyProjectOpportunityPanelContract(panelSource, modelSource) 
       panelFile,
       '@/app/(dashboard)/projects/[id]/opportunities/actions',
       'transitionStage'
-    ),
-    'Project panel mounts the enumerated Project detail stage action'
+    ) &&
+      hasNamedImport(
+        panelFile,
+        '@/app/(dashboard)/projects/[id]/opportunities/actions',
+        'createOpportunity'
+      ),
+    'Project panel mounts the enumerated Project detail actions'
   )
   invariant(
     !hasNamedImport(panelFile, '@third-code-erp/shared-types', 'STAGE_TRANSITIONS') &&
@@ -823,6 +1145,16 @@ export function verifyProjectOpportunityPanelContract(panelSource, modelSource) 
   )
 
   const panel = namedFunction(panelFile, 'OpportunityPanel', 'OpportunityPanel')
+  const buildCreate = namedFunction(
+    modelFile,
+    'buildOpportunityCreateFormData',
+    'Project create command builder'
+  )
+  const copyMoney = namedFunction(
+    modelFile,
+    'copyCanonicalCentavosString',
+    'Project exact-money command copier'
+  )
   const handleCreate = namedFunction(panelFile, 'handleCreate', 'Project create handler')
   const handleTransition = namedFunction(
     panelFile,
@@ -856,6 +1188,22 @@ export function verifyProjectOpportunityPanelContract(panelSource, modelSource) 
     calls(submitTransition, 'buildOpportunityTransitionFormData').length === 1 &&
       calls(panel, 'transitionStage').length === 1,
     'Project panel submits one normalized Project detail stage command'
+  )
+  invariant(
+    calls(handleCreate, 'buildOpportunityCreateFormData').length === 1 &&
+      calls(panel, 'createOpportunity').length === 1 &&
+      hasStringLiteral(buildCreate, 'opportunity_creation') &&
+      hasMethodCall(
+        copyMoney,
+        'safeNonNegativeCentavosStringSchema',
+        'safeParse'
+      ) &&
+      hasMethodCall(
+        copyMoney,
+        'safeSignedCentavosStringSchema',
+        'safeParse'
+      ),
+    'Project panel submits one product-safe exact-money create command'
   )
   invariant(
     confirmFunctionRequiresReason(panelFile, 'confirmLost') &&
@@ -978,61 +1326,448 @@ export function verifyProjectOpportunityPermissions(pageSource, authorizationSou
   )
 }
 
-function listSourceFiles(directory) {
-  return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    const fullPath = path.join(directory, entry.name)
-    if (entry.isDirectory()) return listSourceFiles(fullPath)
-    return /actions\.tsx?$/.test(entry.name) && !entry.name.includes('.test.')
-      ? [fullPath]
-      : []
-  })
-}
-
-function enumerateStageMutationActions(root) {
-  const appRoot = path.join(root, 'apps/web/src/app')
-  return listSourceFiles(appRoot).flatMap((fullPath) => {
-    const relativePath = path.relative(root, fullPath).replaceAll('\\', '/')
-    const sourceFile = parseTypescript(read(root, relativePath), relativePath)
-    const coreDelegateNames = importedLocalNames(
-      sourceFile,
-      '@/lib/erp-core-client',
-      'transitionOpportunityStageThroughCoreApi'
-    )
-    const opportunityNames = importedLocalNames(
-      sourceFile,
-      '@third-code-erp/database/schema',
-      'opportunities'
-    )
-    return descendants(sourceFile, isExportedFunction).flatMap((declaration) => {
-      if (!declaration.name) return []
-      const reachable = reachableFunctionDeclarations(sourceFile, declaration.name.text)
-      const hasCoreDelegate =
-        callsReachableByNames(
-          sourceFile,
-          declaration.name.text,
-          coreDelegateNames
-        ).length > 0
-      const hasLocalWriter = reachable.some((candidate) =>
-        hasOpportunityUpdate(candidate, opportunityNames)
-      )
-      return hasCoreDelegate || hasLocalWriter
-        ? [`${relativePath}#${declaration.name.text}`]
-        : []
-    })
-  })
-}
-
-export function verifyOpportunityStageMutationEntryInventory(root) {
-  const actual = enumerateStageMutationActions(root).sort()
-  const expected = OPPORTUNITY_STAGE_MUTATION_ENTRY_POINTS.map(
-    ({ actionPath, actionName }) => `${actionPath}#${actionName}`
-  ).sort()
-  assertExactValues(
-    actual,
-    expected,
-    'all mounted Opportunity stage-mutation actions are enumerated'
+function normalizedSourceOverrides(sourceOverrides) {
+  return new Map(
+    [...sourceOverrides].map(([relativePath, source]) => [
+      relativePath.replaceAll('\\', '/'),
+      source,
+    ])
   )
 }
+
+function sourceExists(root, relativePath, sourceOverrides) {
+  return (
+    sourceOverrides.has(relativePath) ||
+    fs.existsSync(path.join(root, relativePath))
+  )
+}
+
+function readGraphSource(root, relativePath, sourceOverrides) {
+  return sourceOverrides.get(relativePath) ?? read(root, relativePath)
+}
+
+function resolveLocalModule(root, fromPath, moduleName, sourceOverrides) {
+  let unresolved
+  if (moduleName.startsWith('@/')) {
+    unresolved = path.posix.join('apps/web/src', moduleName.slice(2))
+  } else if (moduleName.startsWith('.')) {
+    unresolved = path.posix.join(path.posix.dirname(fromPath), moduleName)
+  } else {
+    return undefined
+  }
+  const normalized = path.posix.normalize(unresolved)
+  const candidates = /\.[cm]?[jt]sx?$/.test(normalized)
+    ? [normalized]
+    : [
+        `${normalized}.ts`,
+        `${normalized}.tsx`,
+        path.posix.join(normalized, 'index.ts'),
+        path.posix.join(normalized, 'index.tsx'),
+      ]
+  return candidates.find((candidate) =>
+    sourceExists(root, candidate, sourceOverrides)
+  )
+}
+
+function moduleRecord(root, relativePath, sourceOverrides, cache) {
+  const normalizedPath = relativePath.replaceAll('\\', '/')
+  const cached = cache.get(normalizedPath)
+  if (cached) return cached
+  const source = readGraphSource(root, normalizedPath, sourceOverrides)
+  const sourceFile = parseTypescript(source, normalizedPath)
+  const namedImports = new Map()
+  const opaqueLocalImports = new Map()
+  for (const declaration of descendants(sourceFile, ts.isImportDeclaration)) {
+    if (!ts.isStringLiteralLike(declaration.moduleSpecifier)) continue
+    const moduleName = declaration.moduleSpecifier.text
+    const clause = declaration.importClause
+    if (!clause) continue
+    if (clause.name) opaqueLocalImports.set(clause.name.text, moduleName)
+    if (clause.namedBindings && ts.isNamespaceImport(clause.namedBindings)) {
+      opaqueLocalImports.set(clause.namedBindings.name.text, moduleName)
+    }
+    if (clause.namedBindings && ts.isNamedImports(clause.namedBindings)) {
+      for (const element of clause.namedBindings.elements) {
+        namedImports.set(element.name.text, {
+          importedName: (element.propertyName ?? element.name).text,
+          moduleName,
+        })
+      }
+    }
+  }
+  const callAliases = new Map()
+  for (const declaration of descendants(sourceFile, ts.isVariableDeclaration)) {
+    if (
+      ts.isIdentifier(declaration.name) &&
+      declaration.initializer &&
+      ts.isIdentifier(unwrapExpression(declaration.initializer))
+    ) {
+      callAliases.set(
+        declaration.name.text,
+        unwrapExpression(declaration.initializer).text
+      )
+    }
+  }
+  const record = {
+    path: normalizedPath,
+    source,
+    sourceFile,
+    functions: functionMap(sourceFile),
+    namedImports,
+    opaqueLocalImports,
+    callAliases,
+  }
+  cache.set(normalizedPath, record)
+  return record
+}
+
+function canonicalCallName(record, name) {
+  const visited = new Set()
+  let current = name
+  while (record.callAliases.has(current) && !visited.has(current)) {
+    visited.add(current)
+    current = record.callAliases.get(current)
+  }
+  return current
+}
+
+function exportedCallableNames(record) {
+  const names = new Set(
+    descendants(record.sourceFile, isExportedFunction).flatMap((declaration) => {
+      const name = callableName(declaration)
+      return name ? [name] : []
+    })
+  )
+  for (const declaration of descendants(
+    record.sourceFile,
+    ts.isExportDeclaration
+  )) {
+    if (!declaration.exportClause || !ts.isNamedExports(declaration.exportClause)) {
+      continue
+    }
+    for (const element of declaration.exportClause.elements) {
+      names.add(element.name.text)
+    }
+  }
+  return [...names]
+}
+
+function resolveExportedCallable(graph, relativePath, exportName, resolving = new Set()) {
+  const key = `${relativePath}#${exportName}`
+  invariant(!resolving.has(key), `acyclic local re-export for ${key}`)
+  const nextResolving = new Set(resolving).add(key)
+  const record = moduleRecord(
+    graph.root,
+    relativePath,
+    graph.sourceOverrides,
+    graph.cache
+  )
+  const direct = record.functions.get(exportName)
+  if (direct && isExportedFunction(direct)) {
+    return { record, name: exportName, declaration: direct }
+  }
+
+  for (const declaration of descendants(
+    record.sourceFile,
+    ts.isExportDeclaration
+  )) {
+    if (!declaration.exportClause || !ts.isNamedExports(declaration.exportClause)) {
+      continue
+    }
+    for (const element of declaration.exportClause.elements) {
+      if (element.name.text !== exportName) continue
+      const importedName = (element.propertyName ?? element.name).text
+      if (declaration.moduleSpecifier) {
+        invariant(
+          ts.isStringLiteralLike(declaration.moduleSpecifier),
+          `static local re-export for ${key}`
+        )
+        const target = resolveLocalModule(
+          graph.root,
+          relativePath,
+          declaration.moduleSpecifier.text,
+          graph.sourceOverrides
+        )
+        invariant(target, `resolvable local re-export for ${key}`)
+        return resolveExportedCallable(
+          graph,
+          target,
+          importedName,
+          nextResolving
+        )
+      }
+      const local = record.functions.get(importedName)
+      if (local) return { record, name: importedName, declaration: local }
+      const imported = record.namedImports.get(importedName)
+      invariant(imported, `resolvable local export for ${key}`)
+      const target = resolveLocalModule(
+        graph.root,
+        relativePath,
+        imported.moduleName,
+        graph.sourceOverrides
+      )
+      invariant(target, `resolvable local export for ${key}`)
+      return resolveExportedCallable(
+        graph,
+        target,
+        imported.importedName,
+        nextResolving
+      )
+    }
+  }
+  invariant(false, `mounted exported action ${key}`)
+}
+
+function reachableCallGraph(graph, entry) {
+  const pending = [entry]
+  const visited = new Set()
+  const declarations = []
+  const importedCalls = []
+  while (pending.length > 0) {
+    const current = pending.pop()
+    if (!current) continue
+    const key = `${current.record.path}#${current.name}`
+    if (visited.has(key)) continue
+    visited.add(key)
+    declarations.push(current)
+
+    for (const call of descendants(current.declaration, ts.isCallExpression)) {
+      const expression = unwrapExpression(call.expression)
+      if (
+        expression.kind === ts.SyntaxKind.ImportKeyword &&
+        call.arguments.length === 1 &&
+        ts.isStringLiteralLike(unwrapExpression(call.arguments[0]))
+      ) {
+        const target = resolveLocalModule(
+          graph.root,
+          current.record.path,
+          unwrapExpression(call.arguments[0]).text,
+          graph.sourceOverrides
+        )
+        invariant(
+          !target,
+          `mounted action graph uses static named imports instead of dynamic local imports (${current.record.path})`
+        )
+      }
+      if (ts.isIdentifier(expression)) {
+        const calledName = canonicalCallName(current.record, expression.text)
+        const local = current.record.functions.get(calledName)
+        if (local) {
+          pending.push({
+            record: current.record,
+            name: calledName,
+            declaration: local,
+          })
+          continue
+        }
+        const imported = current.record.namedImports.get(calledName)
+        if (!imported) {
+          const opaqueModule = current.record.opaqueLocalImports.get(calledName)
+          if (opaqueModule) {
+            const target = resolveLocalModule(
+              graph.root,
+              current.record.path,
+              opaqueModule,
+              graph.sourceOverrides
+            )
+            invariant(
+              !target,
+              `mounted action graph uses named imports for analyzable local calls (${current.record.path})`
+            )
+          }
+          continue
+        }
+        importedCalls.push({ ...imported, call, record: current.record })
+        if (imported.moduleName === '@/lib/erp-core-client') continue
+        const target = resolveLocalModule(
+          graph.root,
+          current.record.path,
+          imported.moduleName,
+          graph.sourceOverrides
+        )
+        if (target) {
+          pending.push(
+            resolveExportedCallable(graph, target, imported.importedName)
+          )
+        }
+        continue
+      }
+
+      const receiver =
+        ts.isPropertyAccessExpression(expression) ||
+        ts.isElementAccessExpression(expression)
+          ? unwrapExpression(expression.expression)
+          : undefined
+      if (
+        receiver &&
+        ts.isIdentifier(receiver) &&
+        current.record.opaqueLocalImports.has(receiver.text)
+      ) {
+        const moduleName = current.record.opaqueLocalImports.get(receiver.text)
+        const target = resolveLocalModule(
+          graph.root,
+          current.record.path,
+          moduleName,
+          graph.sourceOverrides
+        )
+        invariant(
+          !target,
+          `mounted action graph uses named imports for analyzable local calls (${current.record.path})`
+        )
+      }
+    }
+
+    // A named helper can be passed as a callback instead of being called at the
+    // action site. Following every referenced local named import keeps that
+    // indirection inside the same fail-closed graph.
+    for (const identifier of descendants(current.declaration, ts.isIdentifier)) {
+      const referencedName = canonicalCallName(current.record, identifier.text)
+      const opaqueModule = current.record.opaqueLocalImports.get(referencedName)
+      if (opaqueModule) {
+        const opaqueTarget = resolveLocalModule(
+          graph.root,
+          current.record.path,
+          opaqueModule,
+          graph.sourceOverrides
+        )
+        invariant(
+          !opaqueTarget,
+          `mounted action graph uses named imports for analyzable local references (${current.record.path})`
+        )
+      }
+      const imported = current.record.namedImports.get(referencedName)
+      if (!imported || imported.moduleName === '@/lib/erp-core-client') continue
+      const target = resolveLocalModule(
+        graph.root,
+        current.record.path,
+        imported.moduleName,
+        graph.sourceOverrides
+      )
+      if (target) {
+        pending.push(resolveExportedCallable(graph, target, imported.importedName))
+      }
+    }
+  }
+  return { declarations, importedCalls }
+}
+
+function analyzeMountedOpportunityEntry(graph, config) {
+  const entry = resolveExportedCallable(graph, config.actionPath, config.actionName)
+  const reachable = reachableCallGraph(graph, entry)
+  const delegates = reachable.importedCalls.filter(
+    (candidate) =>
+      candidate.moduleName === '@/lib/erp-core-client' &&
+      candidate.importedName === config.delegateName
+  )
+  invariant(
+    delegates.length === 1,
+    `${config.surface} ${config.actionName} has one exact Core delegate`
+  )
+  const selectors = reachable.importedCalls.filter(
+    (candidate) =>
+      candidate.moduleName === '@/lib/erp-core-client' &&
+      candidate.importedName === 'opportunityStageWritesUseCoreApi'
+  )
+  invariant(
+    selectors.length === 1,
+    `${config.surface} ${config.actionName} has one exact Core selector`
+  )
+
+  for (const current of reachable.declarations) {
+    invariant(
+      !hasLocalDatabaseWrite(
+        current.declaration,
+        databaseTableNames(current.record.sourceFile)
+      ),
+      `${config.surface} ${config.actionName} has no reachable local database writer (${current.record.path}#${current.name})`
+    )
+  }
+  for (const forbiddenName of [
+    'writeAuditLog',
+    'writeAuditLogInTransaction',
+    'startSlaClock',
+    'stopSlaClock',
+    'legacyConvertOpportunityToProject',
+  ]) {
+    invariant(
+      !reachable.importedCalls.some(
+        (candidate) => candidate.importedName === forbiddenName
+      ) &&
+        !reachable.declarations.some((current) =>
+          descendants(current.declaration, ts.isCallExpression).some(
+            (call) => {
+              const name = callName(call)
+              return (
+                name !== undefined &&
+                canonicalCallName(current.record, name) === forbiddenName
+              )
+            }
+          )
+        ),
+      `${config.surface} ${config.actionName} has no reachable ${forbiddenName} fallback`
+    )
+  }
+  return reachable
+}
+
+export function verifyOpportunityMutationEntryInventory(
+  root,
+  sourceOverrides = new Map()
+) {
+  const graph = {
+    root,
+    sourceOverrides: normalizedSourceOverrides(sourceOverrides),
+    cache: new Map(),
+  }
+  const actual = []
+  const mountedActionPaths = new Set(
+    OPPORTUNITY_MUTATION_ENTRY_POINTS.map(({ actionPath }) => actionPath)
+  )
+  for (const actionPath of mountedActionPaths) {
+    const record = moduleRecord(
+      graph.root,
+      actionPath,
+      graph.sourceOverrides,
+      graph.cache
+    )
+    for (const actionName of exportedCallableNames(record)) {
+      const entry = resolveExportedCallable(graph, actionPath, actionName)
+      const reachable = reachableCallGraph(graph, entry)
+      const isOpportunityMutation =
+        reachable.importedCalls.some(
+          (candidate) =>
+            candidate.moduleName === '@/lib/erp-core-client' &&
+            (candidate.importedName ===
+              'transitionOpportunityStageThroughCoreApi' ||
+              candidate.importedName === 'createOpportunityThroughCoreApi')
+        ) ||
+        reachable.declarations.some((current) =>
+          hasOpportunityWrite(
+            current.declaration,
+            opportunityTableNames(current.record.sourceFile)
+          )
+        )
+      if (isOpportunityMutation) actual.push(`${actionPath}#${actionName}`)
+    }
+  }
+  const expected = [
+    ...OPPORTUNITY_MUTATION_ENTRY_POINTS,
+    ...LEGACY_PIPELINE_CREATION_ENTRY_POINTS,
+  ]
+    .map(({ actionPath, actionName }) => `${actionPath}#${actionName}`)
+    .sort()
+  assertExactValues(
+    actual.sort(),
+    expected,
+    `all mounted Opportunity mutation actions are exactly enumerated (expected ${expected.join(', ')}; found ${actual.sort().join(', ')})`
+  )
+  for (const config of OPPORTUNITY_MUTATION_ENTRY_POINTS) {
+    analyzeMountedOpportunityEntry(graph, config)
+  }
+}
+
+export const verifyOpportunityStageMutationEntryInventory =
+  verifyOpportunityMutationEntryInventory
 
 export function verifyWo11Contract(root = process.cwd()) {
   const migration = read(
@@ -1103,6 +1838,15 @@ export function verifyWo11Contract(root = process.cwd()) {
       'apps/web/src/app/(dashboard)/projects/[id]/opportunities/actions.ts'
     )
   )
+  verifyProjectOpportunityCreationDelegation(
+    read(
+      root,
+      'apps/web/src/app/(dashboard)/projects/[id]/opportunities/actions.ts'
+    )
+  )
+  verifyOpportunityCreationContract(
+    read(root, 'packages/shared-types/src/erp-api/opportunities.ts')
+  )
   verifyProjectOpportunityPanelContract(
     read(root, 'apps/web/src/components/opportunities/opportunity-panel.tsx'),
     read(
@@ -1114,7 +1858,7 @@ export function verifyWo11Contract(root = process.cwd()) {
     read(root, 'apps/web/src/app/(dashboard)/projects/[id]/page.tsx'),
     read(root, 'packages/shared-types/src/authorization.ts')
   )
-  verifyOpportunityStageMutationEntryInventory(root)
+  verifyOpportunityMutationEntryInventory(root)
 
   const board = read(root, 'apps/web/src/app/(dashboard)/pipeline/board/page.tsx')
   assertIncludes(board, 'opportunityKycTracks', 'board track projection')
