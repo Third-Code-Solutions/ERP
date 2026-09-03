@@ -449,3 +449,86 @@ no-Core boundary above. Expected output: a TDD-built atomic PPRF submission
 service and only required transaction-aware helper changes, focused gates,
 conventional source/docs commits, and an explicit Agent 03 handoff or material
 schema-free-idempotency blocker.
+
+## Agent 05 implementation — 2026-09-03
+
+Status: **GO to Agent 03**, subject to the unchanged PostgreSQL evidence block.
+
+Source commit `c59fcc70` adds the bounded service and focused tests only:
+
+- `apps/web/src/server/crm/pprf-submission-service.ts`
+- `apps/web/src/server/crm/pprf-submission-service.test.ts`
+
+The service exposes strict intake/resubmission command schemas, a strict
+discriminated result schema, an injectable transaction boundary, and the
+production `pprfSubmissionService`. Both commands repeat current membership,
+tenant, and central `pprf.submit` authority inside their transaction. Intake
+also repeats `account.create`; the resulting exact policy is Owner/Admin/Sales.
+
+Each command acquires a tenant/full-key-hash advisory lock before receipt
+lookup. The semantic PPRF audit receipt stores only the receipt version,
+submission kind, full SHA-256 key and command hashes, and strict persisted
+IDs/version. It never stores the raw UUID or raw contact/PPRF/notes values.
+The 64-bit PostgreSQL advisory result is serialization only: a collision can
+cause extra serialization, but identity still depends on the full hashes in the
+tenant-scoped receipt. Missing, duplicate, malformed, command-mismatched, or
+persisted-result-mismatched receipts fail closed.
+
+Intake atomically creates Account, `lead` Opportunity, PPRF v1, both KYC
+tracks, three semantic audit rows including the receipt, the missing open
+`pprf.review` legacy SLA, and in-app rows for exactly
+`finance`/`owner`/`admin`. Existing-Opportunity submission locks the tenant
+Opportunity row, allocates the next version, inserts the PPRF, resets both KYC
+tracks, writes the receipt audit, preserves the same open-SLA no-duplicate
+rule, and inserts in-app rows for exactly `commercial`/`finance`. No provider
+or other post-commit durable call exists. No matching recipient user and an
+already-open matching SLA are successful no-new-row cases; database failure is
+not treated as absence and rolls back.
+
+TCV/GP cross the service boundary as canonical non-negative centavo strings,
+remain `BigInt` through exact half-up weighted calculation, and convert to the
+existing number-backed BIGINT adapter only after the established
+`900000000000`-centavo bound. Dates are real calendar dates; Opportunity
+closing date uses an explicit `+08:00` Philippine instant and PPRF expected
+start remains normalized date-only JSON.
+
+### Agent 05 verification
+
+- PASS — focused service suite: 42/42, including all thirteen roles; missing/
+  cross-tenant membership; strict money/date/overflow; exact recipients;
+  zero-recipient success; tenant-isolated keys; same-key replay/conflict/
+  concurrency; different-key ordered versions; strict receipt/result replay;
+  nine intake and five resubmission rollback failpoints.
+- PASS — focused plus neighboring Opportunity KYC, SLA utility, and
+  notification suites: 54/54.
+- PASS — full Web typecheck.
+- PASS — full Web lint with zero warnings.
+- PASS — Next.js 15.5.23 production Web build; 89 static pages generated.
+- PASS — staged/source diff checks.
+- PASS — repository gitleaks 8.30.1; 1,823 commits and approximately 46.08 MB
+  scanned with no leaks.
+- NOT RUN / BLOCKED — real PostgreSQL rollback, advisory-lock concurrency,
+  and generic-trigger evidence. No explicitly isolated opt-in database URL was
+  available, so the service did not contact a database.
+- NOT RUN — browser, provider, hosted/demo mutation, schema, migration, data,
+  environment, or deployment work; none belongs to Agent 05.
+
+### → Handoff to Agent 03
+
+Import `pprfSubmissionService`, `pprfIntakeCommandSchema`,
+`pprfResubmissionCommandSchema`, and `pprfSubmissionResultSchema` from the new
+service. The intake action must normalize its strict FormData to canonical
+`tcvCentavos`/`gpCentavos` strings and a client-stable `submissionId`, then call
+`submitIntake({ tenantId, userId }, command)` exactly once. The resubmission
+action must server-bind its route Opportunity ID and call
+`submitResubmission({ tenantId, userId }, command)` exactly once. Neither action
+may accept tenant/actor/role/result identities or notification/audit/SLA fields
+from FormData.
+
+Validate the returned union again and require tenant plus route/result identity
+and expected kind/version shape before reporting committed success. Map typed
+errors without exposing receipt internals. Perform no database, KYC, audit,
+SLA, notification, or provider mutation after the service returns. Structured
+redacted outcome logging and success-only refresh/navigation remain Agent 03
+work; a refresh failure after committed success must stay
+`success_refresh_failed`, not become a command failure.

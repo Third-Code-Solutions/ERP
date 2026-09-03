@@ -87,3 +87,46 @@ independent QA/browser/PostgreSQL verification runs only in isolated lanes.
 → Handoff to Agent 05. Expected output: green atomic service/transaction
 tests and either a conventional source commit plus Agent 03 contract, or a
 precise blocker if schema-free durable replay cannot be proved safely.
+
+## Agent 05 implementation
+
+Status: **GO to Agent 03** with real PostgreSQL proof still blocked.
+
+- Added `apps/web/src/server/crm/pprf-submission-service.ts` and focused tests
+  in source commit `c59fcc70`.
+- Added strict canonical-centavo/date intake and resubmission commands and a
+  strict discriminated result/replay contract.
+- Added one-transaction authorities that repeat current membership, tenant,
+  and exact Owner/Admin/Sales capability checks before effects.
+- Made intake Account/lead Opportunity/PPRF v1/two-track KYC/three audits/
+  `pprf.review` SLA/exact `finance`-`owner`-`admin` notification rows atomic.
+- Made existing-Opportunity locked version allocation/PPRF/KYC reset/receipt
+  audit/SLA/exact `commercial`-`finance` notification rows atomic.
+- Added schema-free tenant/full-hash advisory serialization plus a redacted
+  semantic audit receipt, strict replayed ID/version validation, changed-command
+  conflict, and fail-closed malformed/ambiguous receipt handling. Raw keys and
+  raw contact/PPRF/notes values are absent from the receipt and service logs.
+- Preserved repository SLA semantics: an existing matching open clock creates
+  no row, absence creates one inside the transaction, and query/insert failure
+  rolls back. A recipient role with no matching user is likewise a successful
+  zero-row outcome; notification query/insert failure rolls back.
+- Kept money as canonical strings/`BigInt` until the established bounded DB
+  adapter, with exact weighted math and deterministic Philippine date handling.
+
+Verification under pinned Node 22.23.2 and pnpm 10.33.0:
+
+- PASS — focused service tests 42/42.
+- PASS — service plus neighboring KYC/SLA/notification tests 54/54.
+- PASS — full Web typecheck and lint.
+- PASS — Web production build (Next.js 15.5.23; 89 static pages).
+- PASS — diff checks.
+- PASS — gitleaks 8.30.1 over 1,823 commits; no leaks.
+- BLOCKED / NOT RUN — real PostgreSQL rollback/concurrency/trigger canary;
+  no isolated opt-in URL was available and no database contact occurred.
+
+→ Handoff to Agent 03. Use the exported singleton and strict schemas for one
+service call per action. Bind tenant/user from the authenticated profile,
+Opportunity from the route for resubmission, preserve a client-stable UUID,
+validate returned tenant/kind/IDs/version, add redacted structured outcome logs,
+and keep refresh/navigation success-only. Do not retain any local or
+post-commit database/audit/KYC/SLA/notification fallback.
