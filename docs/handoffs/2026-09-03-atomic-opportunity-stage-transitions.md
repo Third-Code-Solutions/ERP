@@ -491,6 +491,47 @@ returned/transport failure and retry checks; console/network/server-log review;
 and positive persistence only against an explicitly disposable or rollback-
 contained fixture. Estimator/PM remain blocked without identities.
 
+## Browser verification round 1
+
+Verdict: `BLOCK / NO-GO` at clean HEAD `efa1c491`; one UI acceptance failure.
+
+All eleven supplied identities passed login, identity, readable conversion and
+board data, exact 3-allow/8-supplied-deny control visibility, accessible read-
+only status, refresh/history, and sign-out. Canonical Negotiation-to-BOM and
+Lost opened their distinct required dialogs before any request. Blank,
+whitespace, and forced 1,001-character inputs made zero calls. Valid reasons
+were trimmed; rapid pointer/keyboard attempts produced one request. Forward
+and Won stayed direct. Typed and transport failures showed accessible alerts,
+made no optimistic stage move, and caused no success refresh.
+
+The failed retry probe delayed Core for five seconds. At 1.6 seconds after the
+retry began, the prior typed alert and reason dialog were still visibly
+present. The alert changed only when the new rejection completed. The helper's
+`onStart` seam is therefore not equivalent to visible React behavior when its
+state update is batched inside the async transition.
+
+Eight browser POSTs targeted only an unused/disposable local Core endpoint:
+seven reached in-memory fake Core processes and one exercised transport
+failure. No hosted Core request or demo mutation occurred. Final stages,
+ledgers, and Project count matched baseline. Page exceptions, unexpected HTTP
+responses, non-CSP console errors, and Web server errors were zero; 52 console
+entries were the known local HTTP CSP/RSC fallback noise. Browser, servers,
+ports, artifacts, and temporary environment links were cleaned; Git stayed
+clean.
+
+Blocked evidence remains: no legacy `resubmission` fixture, no isolated
+PostgreSQL binding for positive persistence/concurrency/rollback, and no
+Estimator/PM identities.
+
+→ Handoff to Agent 11 remediation round 4. Reason: stale visible error must
+clear before the async transition boundary so retry state changes immediately,
+without losing the dialog input or failure recovery. Inputs: browser timing
+evidence, both callers, typed runner/submitter, and existing accessible alerts.
+Expected output: synchronous pre-transition stale-error clearing proven at the
+actual caller wiring; no request/success behavior regression; focused tests,
+mutation-sensitive evidence, and return to independent QA plus a targeted
+browser rerun.
+
 ## WO-11 contract owner — authoritative Core/Web oracle
 
 Verdict: `GO` for independent QA. Contract-gate commit: `50339af8`.
