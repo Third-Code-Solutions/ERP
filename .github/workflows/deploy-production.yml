@@ -142,6 +142,22 @@ jobs:
       # Any pending migration fails the ledger gate above and must use the
       # separately reviewed database release runbook with recovery evidence.
 
+      - name: Verify and bootstrap the sole platform owner
+        run: pnpm bootstrap:platform-owner
+
+      - name: Configure Core platform identity environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          # ADR-027: privileged Auth operations run only in the guarded Core API.
+          # Pass the protected secret over stdin, never as a command-line value.
+          # Staging variables must not deploy ahead of the reviewed code below.
+          printf '%s' "$SUPABASE_SERVICE_ROLE_KEY" | pnpm dlx @railway/cli@5.28.0 variable set SUPABASE_SERVICE_ROLE_KEY --stdin \
+            --project "$RAILWAY_PROJECT_ID" --environment production --service "$RAILWAY_API_SERVICE_ID" --skip-deploys > /dev/null
+          pnpm dlx @railway/cli@5.28.0 variable set "ERP_WEB_BASE_URL=https://thirdcode-erp.vercel.app" \
+            --project "$RAILWAY_PROJECT_ID" --environment production --service "$RAILWAY_API_SERVICE_ID" --skip-deploys > /dev/null
+
       - name: Deploy Nest API to exact Railway service
         shell: bash
         run: >-

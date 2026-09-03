@@ -13,10 +13,13 @@ The machine-checked record is the dated 2026-09-03 observation in
 - target `aqqrtkmtcsfkbyyqxowv` (`ERP`);
 - PostgreSQL 17;
 - 157 recorded hosted migrations through `20260901141949`;
-- 157 source migrations through `20260901141949`, with no pending source-only
-  suffix;
+- 158 source migrations through `20260904020000`, with the single reviewed
+  ADR-027 platform-owner migration pending the guarded provider preflight;
 - zero recorded duplicate Purchase Order groups;
 - production promotion remains gated by the protected workflow.
+
+The 2026-09-03 provider observation remains the last current hosted evidence;
+it must not be rewritten as if the new migration were already applied.
 
 Run the local source-consistency check before changing any migration or parity
 documentation:

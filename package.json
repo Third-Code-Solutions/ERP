@@ -71,6 +71,7 @@
     "plan:purchase-order-mapping-template": "node scripts/plan-purchase-order-mapping-template.mjs",
     "plan:controlled-release": "node scripts/plan-controlled-release.mjs",
     "plan:release-identity": "node scripts/release-identity-plan.mjs",
+    "bootstrap:platform-owner": "node scripts/bootstrap-platform-owner.mjs",
     "verify:build-ops-invariants": "node scripts/verify-build-ops-invariants.mjs",
     "verify:abi-ops-brand": "node scripts/verify-abi-ops-brand.mjs",
     "verify:type-safety": "node scripts/verify-type-safety.mjs",

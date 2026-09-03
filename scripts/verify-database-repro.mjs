@@ -1325,7 +1325,7 @@ try {
       return requiredSecurityDefinerFunctions.every((name) => {
         const fn = byName.get(name)
         const hasExpectedSearchPath =
-          name === 'handle_new_user'
+          name === 'handle_new_user' || name === 'auth_tenant_id'
             ? fn?.config === 'search_path=""' ||
               fn?.config === 'search_path='
             : /(?:^|,)search_path=public(?:,|$)/.test(
@@ -1340,7 +1340,7 @@ try {
         .filter((name) => {
           const fn = byName.get(name)
           const hasExpectedSearchPath =
-            name === 'handle_new_user'
+            name === 'handle_new_user' || name === 'auth_tenant_id'
               ? fn?.config === 'search_path=""' ||
                 fn?.config === 'search_path='
               : /(?:^|,)search_path=public(?:,|$)/.test(

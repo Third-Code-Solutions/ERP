@@ -1,11 +1,11 @@
-# BUILD OPS PRD v1.4
+# BUILD OPS PRD v1.5
 
-> Repository execution authority, reconciled with current source and provider evidence on 2026-08-14.
+> Repository execution authority, reconciled with current source and provider evidence on 2026-09-04.
 > Historical PDF exports remain reference material; they do not override this file, the current code,
 > migration ledger, or timestamped release evidence.
 BUILD OPS — Refactor PRD (Execution Edition)
 Construction ERP for Actuate Builders Inc. (ABI) · product brand ABI OPS.
-Version 1.4 · 14 August 2026 · Supersedes v1.0–v1.3
+Version 1.5 · 4 September 2026 · Supersedes v1.0–v1.4
 Execution: Codex desktop/CLI or any equivalent engineering agent. Tool-agnostic in substance.
 Companion files:
 In the repo Purpose
@@ -21,6 +21,11 @@ surfaces are recorded so the refactor does not erase working product behavior. L
 edits, tests, documentation and reversible build work are executable from the requesting task
 without an interactive go-ahead. Hosted data, provider configuration and irreversible actions
 still require exact targets, rollback evidence and a release gate.
+What changed in v1.5: ADR-027 establishes a platform-owner security boundary that is separate
+from tenant roles, fixes the sole initial verified owner identity, requires explicit audited
+tenant support context, and adds evidence-based platform administration. The canonical sales
+pipeline routes are `/pipeline` (Kanban) and `/pipeline/list` (table); `/pipeline/board` and
+`/pipeline/conversion` remain permanent redirects for existing bookmarks.
 What changed in v1.1: every work order is now a self-contained implementation ticket
 (Context / Do / Do NOT / Files / Acceptance / Rollback), so a session can execute one ticket
 without reading the whole document. A pre-flight checklist (§0.3) and a drift-recovery
@@ -160,6 +165,12 @@ inventory, permits/process/SLA, cost/budget/commitments, tasks/progress/variatio
 claims/billing/invoices, punchlist/turnover, warranty/CX/portals, finance, Cortex, admin and
 reports. Existing modules are retained; this PRD defines additive refactor work and release
 gates, not a route deletion list.
+
+Platform administration is a separate product and authorization surface under
+`/platform-admin`. It is available only to the exact verified immutable identity defined by
+ADR-027 and never by a tenant role. Tenant/user lifecycle changes, cross-tenant reads, explicit
+support context, analytics, health, integration status and privileged audit must use the
+fail-closed and append-only controls in ADR-027. Tenant `/admin` remains tenant-scoped.
 ABI’s four stages and the documents that gate them:
 1. Proposal (Sales-led) — PPRF → KYC/financial standing → SI Report + RFI → layout &
 perspective → RFQ → BOM + BOE → Level 1 Master Schedule → signed BOM →
@@ -1133,12 +1144,12 @@ BUILD_OPS_Blueprint.md1.1
 Evidence and reasoning record — the why.
 Audit of the current build, AS-IS/TO-BE,
 contradictions, competitor analysis, AI map
-docs/PRD.md 1.4
+docs/PRD.md 1.5
 Implementation authority — the what and in
 what order. Where the two disagree, this
 document wins
 BUILD_OPS_Prompt_Pack.md
-→ docs/PROMPTS.md1.4
+→ docs/PROMPTS.md1.5
 Execution aid — copy-paste prompts, one per
 work order, plus drift-recovery and review
 prompts
