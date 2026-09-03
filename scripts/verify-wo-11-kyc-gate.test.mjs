@@ -1567,10 +1567,16 @@ test('fails if an action stops rejecting duplicate or hostile FormData', () => {
 })
 
 test('fails if strict service result scope validation is dropped', () => {
-  const mutated = replaceTextOnce(
+  const mutated = mutateFirst(
     read(pprfResubmissionActionPath),
-    '      checked.data.opportunityId !== opportunityId',
-    '      false',
+    pprfResubmissionActionPath,
+    (node) =>
+      ts.isBinaryExpression(node) &&
+      isWithinFunction(node, 'submitPprf') &&
+      expressionPath(node.left) === 'checked.data.opportunityId' &&
+      node.operatorToken.kind === ts.SyntaxKind.ExclamationEqualsEqualsToken &&
+      expressionPath(node.right) === 'opportunityId',
+    (_node, factory) => factory.createFalse(),
     'result-scope fixture must remove Opportunity identity validation'
   )
   assert.throws(
@@ -1580,10 +1586,34 @@ test('fails if strict service result scope validation is dropped', () => {
 })
 
 test('fails if refresh failure is reclassified as command failure', () => {
-  const mutated = replaceTextOnce(
+  const mutated = mutateFirst(
     read(pprfIntakeActionPath),
-    '    } catch {\n      refreshFailed = true\n    }',
-    "    } catch {\n      return { ok: false as const, error: 'Refresh failed' }\n    }",
+    pprfIntakeActionPath,
+    (node, sourceFile) =>
+      ts.isCatchClause(node) &&
+      isWithinFunction(node, 'createPprfIntake') &&
+      node.block.getText(sourceFile).includes('refreshFailed = true'),
+    (node, factory) =>
+      factory.updateCatchClause(
+        node,
+        node.variableDeclaration,
+        factory.createBlock(
+          [
+            factory.createReturnStatement(
+              factory.createObjectLiteralExpression(
+                [
+                  factory.createPropertyAssignment(
+                    'error',
+                    factory.createStringLiteral('Refresh failed')
+                  ),
+                ],
+                false
+              )
+            ),
+          ],
+          true
+        )
+      ),
     'refresh fixture must return a command failure'
   )
   assert.throws(
