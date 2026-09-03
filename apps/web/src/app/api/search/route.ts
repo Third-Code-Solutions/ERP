@@ -257,7 +257,7 @@ export async function GET(req: NextRequest) {
             id: r.id,
             title: r.opportunity_type || 'Opportunity',
             subtitle: `${r.account_name ?? '—'} · ${r.stage} · ₱${(r.tcv / 100).toLocaleString('en-PH')}`,
-            href: `/pipeline/board`,
+            href: `/pipeline`,
           }))
         )
     )

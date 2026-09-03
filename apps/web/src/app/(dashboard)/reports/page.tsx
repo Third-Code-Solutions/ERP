@@ -1,19 +1,13 @@
 import type { Metadata } from 'next'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { opportunities, projects, boms, invoices } from '@third-code-erp/database/schema'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
+import Link from 'next/link'
+import { canViewPath } from '@/lib/operations/nav-config'
+import { formatReportMoney as formatPHP, formatReportMargin as formatMargin } from './report-format'
 
 export const metadata: Metadata = { title: 'Reports' }
-
-function formatPHP(cents: number): string {
-  return '₱' + (cents / 100).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
-
-function formatMargin(numerator: number, denominator: number): string {
-  if (denominator === 0) return '—'
-  return ((numerator / denominator) * 100).toFixed(1) + '%'
-}
 
 const ACTIVE_STAGES = ['opportunity_creation', 'scoping', 'bom_submission', 'resubmission', 'negotiation'] as const
 
@@ -24,9 +18,9 @@ export default async function ReportsPage() {
   const [allOpps, allProjects, allBoms, allInvoices] = await Promise.all([
     db.select({
       stage: opportunities.stage,
-      tcv_cents: opportunities.tcv_cents,
-      gp_cents: opportunities.gp_cents,
-      weighted_tcv_cents: opportunities.weighted_tcv_cents,
+      tcv_cents: sql<string>`cast(${opportunities.tcv_cents} as text)`,
+      gp_cents: sql<string>`cast(${opportunities.gp_cents} as text)`,
+      weighted_tcv_cents: sql<string>`cast(${opportunities.weighted_tcv_cents} as text)`,
       probability: opportunities.probability,
     })
       .from(opportunities)
@@ -36,11 +30,11 @@ export default async function ReportsPage() {
       .from(projects)
       .where(eq(projects.tenant_id, tid)),
 
-    db.select({ status: boms.status, tcv_cents: boms.tcv_cents, gp_cents: boms.gp_cents })
+    db.select({ status: boms.status, tcv_cents: sql<string>`cast(${boms.tcv_cents} as text)`, gp_cents: sql<string>`cast(${boms.gp_cents} as text)` })
       .from(boms)
       .where(eq(boms.tenant_id, tid)),
 
-    db.select({ status: invoices.status, net_amount_cents: invoices.net_amount_cents })
+    db.select({ status: invoices.status, net_amount_cents: sql<string>`cast(${invoices.net_amount_cents} as text)` })
       .from(invoices)
       .where(eq(invoices.tenant_id, tid)),
   ])
@@ -50,17 +44,17 @@ export default async function ReportsPage() {
   const wonOpps = allOpps.filter((o) => o.stage === 'closed_won')
   const lostOpps = allOpps.filter((o) => o.stage === 'closed_lost')
 
-  const pipelineTCV = activeOpps.reduce((s, o) => s + o.tcv_cents, 0)
-  const pipelineGP = activeOpps.reduce((s, o) => s + o.gp_cents, 0)
-  const weightedPipeline = activeOpps.reduce((s, o) => s + o.weighted_tcv_cents, 0)
-  const wonTCV = wonOpps.reduce((s, o) => s + o.tcv_cents, 0)
-  const wonGP = wonOpps.reduce((s, o) => s + o.gp_cents, 0)
+  const pipelineTCV = activeOpps.reduce((s, o) => s + BigInt(o.tcv_cents), 0n)
+  const pipelineGP = activeOpps.reduce((s, o) => s + BigInt(o.gp_cents), 0n)
+  const weightedPipeline = activeOpps.reduce((s, o) => s + BigInt(o.weighted_tcv_cents), 0n)
+  const wonTCV = wonOpps.reduce((s, o) => s + BigInt(o.tcv_cents), 0n)
+  const wonGP = wonOpps.reduce((s, o) => s + BigInt(o.gp_cents), 0n)
 
   // Billing metrics
   const billedTotal = allInvoices.filter((i) => i.status !== 'draft' && i.status !== 'cancelled')
-    .reduce((s, i) => s + i.net_amount_cents, 0)
+    .reduce((s, i) => s + BigInt(i.net_amount_cents), 0n)
   const collectedTotal = allInvoices.filter((i) => i.status === 'paid')
-    .reduce((s, i) => s + i.net_amount_cents, 0)
+    .reduce((s, i) => s + BigInt(i.net_amount_cents), 0n)
 
   // Project stats
   const activeProjects = allProjects.filter((p) => p.status === 'active').length
@@ -68,7 +62,7 @@ export default async function ReportsPage() {
 
   // BOM stats
   const approvedBoms = allBoms.filter((b) => b.status === 'approved' || b.status === 'locked').length
-  const totalBomTCV = allBoms.filter((b) => b.status !== 'archived').reduce((s, b) => s + b.tcv_cents, 0)
+  const totalBomTCV = allBoms.filter((b) => b.status !== 'archived').reduce((s, b) => s + BigInt(b.tcv_cents), 0n)
 
   // Stage distribution
   const stageOrder = ['opportunity_creation', 'scoping', 'bom_submission', 'resubmission', 'negotiation']
@@ -84,8 +78,8 @@ export default async function ReportsPage() {
         negotiation: 'Negotiation',
       }[stage] ?? stage,
       count: opps.length,
-      tcv: opps.reduce((s, o) => s + o.tcv_cents, 0),
-      gp: opps.reduce((s, o) => s + o.gp_cents, 0),
+      tcv: opps.reduce((s, o) => s + BigInt(o.tcv_cents), 0n),
+      gp: opps.reduce((s, o) => s + BigInt(o.gp_cents), 0n),
     }
   })
 
@@ -94,7 +88,9 @@ export default async function ReportsPage() {
       <div className="page-header">
         <h1 className="page-title">Reports</h1>
         <p className="page-subtitle">Pipeline, GP, and compliance summary</p>
+        {can(profile.role, 'opportunity.export') ? <a href="/api/exports/opportunities-csv" download className="button button-secondary">Export pipeline CSV</a> : null}
       </div>
+      {allOpps.length === 0 && allProjects.length === 0 && allBoms.length === 0 && allInvoices.length === 0 ? <p role="status">No reporting records exist in this workspace yet. Add an account, opportunity, or project to begin.</p> : null}
 
       {/* Section: Pipeline */}
       <h2 style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-neutral-400)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 12px' }}>
@@ -164,7 +160,7 @@ export default async function ReportsPage() {
       <h2 style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-neutral-400)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 12px' }}>
         Stage Breakdown
       </h2>
-      <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden', marginBottom: '32px', maxWidth: '860px' }}>
+      <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px', overflowX: 'auto', marginBottom: '32px', maxWidth: '860px' }}>
         <table className="data-table">
           <thead>
             <tr>
@@ -200,7 +196,7 @@ export default async function ReportsPage() {
           { label: 'Approved BOMs', value: String(approvedBoms) },
           { label: 'BOM Pipeline TCV', value: formatPHP(totalBomTCV) },
           { label: 'Total Billed', value: formatPHP(billedTotal) },
-          { label: 'Collected', value: formatPHP(collectedTotal) },
+          { label: 'Paid invoice total', value: formatPHP(collectedTotal) },
         ].map(({ label, value }) => (
           <div
             key={label}
@@ -233,7 +229,9 @@ export default async function ReportsPage() {
           maxWidth: '860px',
         }}
       >
-        BIR 2307 exports, GP erosion trend charts, and per-rep detailed reports are coming in Phase 3.
+        <p>These tenant-scoped summaries refresh when this page loads. <Link href="/dashboard">Open Dashboard</Link> for role-specific operational detail.</p>
+        <p>Paid invoice total sums invoices marked paid; it is not a cash-allocation or partial-collection balance.</p>
+        {canViewPath(profile.role, '/invoices') ? <p><Link href="/invoices">Open Invoices</Link> to review billing and access an invoice’s BIR2307 export.</p> : null}
       </div>
     </div>
   )

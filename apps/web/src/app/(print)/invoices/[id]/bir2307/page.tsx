@@ -1,3 +1,4 @@
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -33,7 +34,7 @@ function periodCovered(d: Date | string | null): string {
 }
 
 export default async function Bir2307PrintPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
+  const { id } = await requireUuidRouteParams(params)
   const profile = await getUserProfile()
   if (!profile) return notFound()
 

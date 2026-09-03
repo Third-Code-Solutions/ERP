@@ -1,3 +1,4 @@
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import { notFound } from 'next/navigation'
 import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
@@ -21,7 +22,7 @@ export default async function ProjectLayout({
   children: React.ReactNode
   params: Promise<{ id: string }>
 }) {
-  const { id } = await params
+  const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
   requireCapability(profile, 'project.read')
   const access = getProjectDetailAccess(profile.role)

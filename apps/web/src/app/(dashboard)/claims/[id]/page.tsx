@@ -14,6 +14,7 @@
  * client components in the right rail.
  */
 
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { and, desc, eq, inArray } from 'drizzle-orm'
@@ -89,7 +90,7 @@ interface PageProps {
 }
 
 export default async function ClaimDetailPage({ params }: PageProps) {
-  const { id } = await params
+  const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
   const canManageClaim =
     can(profile.role, 'po.create') ||

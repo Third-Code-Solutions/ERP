@@ -339,9 +339,9 @@ function tryRevalidateProjectOpportunityPaths(
 ): boolean {
   try {
     revalidatePath(`/projects/${projectId}`)
-    revalidatePath('/pipeline/board')
+    revalidatePath('/pipeline')
     revalidatePath('/pipeline/coverage')
-    revalidatePath('/pipeline/conversion')
+    revalidatePath('/pipeline/list')
     revalidatePath('/dashboard')
     if (convertedProjectId) revalidatePath(`/projects/${convertedProjectId}`)
     return true

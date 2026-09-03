@@ -1,3 +1,4 @@
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
@@ -50,7 +51,7 @@ function formatWeekEnding(d: Date | string): string {
 }
 
 export default async function ProjectReportsPage({ params }: PageProps) {
-  const { id } = await params
+  const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
 
   const [project] = await db
@@ -114,7 +115,6 @@ export default async function ProjectReportsPage({ params }: PageProps) {
                   redirect(`/weekly-report/${result.id}`)
                 }
               }}
-              target="_blank"
             >
               <button
                 type="submit"

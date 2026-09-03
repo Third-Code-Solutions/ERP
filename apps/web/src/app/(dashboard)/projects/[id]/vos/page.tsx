@@ -1,3 +1,4 @@
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -43,7 +44,7 @@ function formatPhp(cents: number): string {
 }
 
 export default async function ProjectVosPage({ params }: PageProps) {
-  const { id } = await params
+  const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
   const canCreate = can(profile.role, 'variation_order.create')
 

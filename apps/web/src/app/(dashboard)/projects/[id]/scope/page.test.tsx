@@ -26,6 +26,7 @@ vi.mock('@/components/scope/scope-item-controls', () => ({
 vi.mock('@/components/cad/cad-dropzone', () => ({ CadDropZone: () => <span>UPLOAD_CAD_CONTROL</span> }))
 
 import ProjectScopePage from './page'
+const projectId = '33333333-3333-4333-8333-333333333333'
 
 function selectResult(value: unknown[]) {
   const result = Promise.resolve(value) as Promise<unknown[]> & { orderBy: ReturnType<typeof vi.fn> }
@@ -46,14 +47,14 @@ describe('project scope read-only rendering', () => {
     vi.clearAllMocks()
     mocks.requireUserProfile.mockResolvedValue({ tenantId: 'tenant-1', role: 'viewer', user: { id: 'user-1' } })
     mocks.select
-      .mockReturnValueOnce(selectResult([{ id: 'project-1', name: 'Demo project' }]))
+      .mockReturnValueOnce(selectResult([{ id: projectId, name: 'Demo project' }]))
       .mockReturnValueOnce(selectResult([ITEM]))
       .mockReturnValueOnce(selectResult([]))
   })
 
   it('renders tenant-safe scope data for Viewer without mutation controls', async () => {
     mocks.can.mockReturnValue(false)
-    const html = renderToStaticMarkup(await ProjectScopePage({ params: Promise.resolve({ id: 'project-1' }) }))
+    const html = renderToStaticMarkup(await ProjectScopePage({ params: Promise.resolve({ id: projectId }) }))
 
     expect(html).toContain('Concrete')
     expect(html).toContain('₱10.00')
@@ -64,7 +65,7 @@ describe('project scope read-only rendering', () => {
   it('keeps scope controls visible for a role with project.update', async () => {
     mocks.requireUserProfile.mockResolvedValue({ tenantId: 'tenant-1', role: 'commercial', user: { id: 'user-1' } })
     mocks.can.mockReturnValue(true)
-    const html = renderToStaticMarkup(await ProjectScopePage({ params: Promise.resolve({ id: 'project-1' }) }))
+    const html = renderToStaticMarkup(await ProjectScopePage({ params: Promise.resolve({ id: projectId }) }))
 
     expect(html).toMatch(/ADD_SCOPE_CONTROL/)
     expect(html).toMatch(/DELETE_SCOPE_CONTROL/)

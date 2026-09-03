@@ -139,7 +139,7 @@ export function roleLabel(role: AppRole): string {
 //   /crm/accounts        → everyone (read); only permitted roles receive
 //                          create/mutation controls
 //   /crm/kyc-queue       → admin, finance, viewer (read only)
-//   /pipeline/board      → everyone (read); stage commands remain capability-gated
+//   /pipeline      → everyone (read); stage commands remain capability-gated
 //   /projects            → everyone (project.read); creation/update/delete
 //                          commands remain capability-gated
 //   /bom                 → admin, estimator, commercial, viewer (read only)
@@ -187,7 +187,7 @@ export const NAV_SECTIONS: NavSection[] = [
         roles: ['admin', 'finance', 'viewer'],
       },
       {
-        href: '/pipeline/board',
+        href: '/pipeline',
         label: 'Pipeline',
         iconKey: 'Pipeline',
       },
@@ -479,6 +479,12 @@ function registerDashboardRoutes(
 export const DASHBOARD_ROUTE_POLICIES: readonly DashboardRoutePolicy[] = [
   ...registerDashboardRoutes([
     '/assets',
+    '/scope',
+    '/checklist',
+    '/progress',
+    '/turnover',
+    '/coc',
+    '/comments',
     '/assets/[assetId]',
     '/cortex',
     '/crm',
@@ -494,6 +500,7 @@ export const DASHBOARD_ROUTE_POLICIES: readonly DashboardRoutePolicy[] = [
     '/dashboard',
     '/documents',
     '/pipeline',
+    '/pipeline/list',
     '/pipeline/board',
     '/pipeline/conversion',
     '/pipeline/coverage',
@@ -593,15 +600,15 @@ export const DASHBOARD_ROUTE_POLICIES: readonly DashboardRoutePolicy[] = [
   ),
   ...registerDashboardRoutes(['/permits'], PERMIT_ROUTE_ROLES),
   ...registerDashboardRoutes(['/projects/new'], PROJECT_CREATE_ROUTE_ROLES),
-  ...registerDashboardRoutes(['/projects/[id]/access'], ADMIN_READ_ROUTE_ROLES),
-  ...registerDashboardRoutes(['/projects/[id]/audit'], [
+  ...registerDashboardRoutes(['/access', '/projects/[id]/access'], ADMIN_READ_ROUTE_ROLES),
+  ...registerDashboardRoutes(['/audit', '/projects/[id]/audit'], [
     'admin',
     'pm',
     'finance',
     'viewer',
   ]),
   ...registerDashboardRoutes(
-    ['/projects/[id]/billing'],
+    ['/billing', '/projects/[id]/billing'],
     FINANCE_ROUTE_ROLES
   ),
   ...registerDashboardRoutes(
@@ -613,7 +620,7 @@ export const DASHBOARD_ROUTE_POLICIES: readonly DashboardRoutePolicy[] = [
     ['admin', 'estimator', 'commercial']
   ),
   ...registerDashboardRoutes(
-    ['/projects/[id]/cost', '/projects/[id]/cost/budget'],
+    ['/cost', '/cost/budget', '/projects/[id]/cost', '/projects/[id]/cost/budget'],
     PROJECT_COST_ROUTE_ROLES
   ),
   ...registerDashboardRoutes(['/procurement'], [

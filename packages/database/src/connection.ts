@@ -27,6 +27,7 @@ export function resolveDatabaseConnectionConfig(
 ): DatabaseConnectionConfig {
   const usesSupabasePooler = SUPABASE_POOLER_HOST.test(connectionString)
   const isVercelRuntime = environment.VERCEL === '1'
+  const isReloadableRuntime = environment.NODE_ENV === 'development' || environment.NODE_ENV === 'test'
   let runtimeConnectionString = connectionString
 
   if (isVercelRuntime && usesSupabasePooler) {
@@ -53,7 +54,15 @@ export function resolveDatabaseConnectionConfig(
             idle_timeout: 20,
             connect_timeout: 10,
           }
-        : {}),
+        : isReloadableRuntime
+          ? {
+              // Reloaded development modules must not retain the driver's
+              // default ten sockets indefinitely after navigating away.
+              max: 5,
+              idle_timeout: 20,
+              connect_timeout: 10,
+            }
+          : {}),
     },
   }
 }

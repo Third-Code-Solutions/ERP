@@ -1,3 +1,4 @@
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -46,7 +47,7 @@ interface ReceiptAllocationRow extends Record<string, unknown> {
 }
 
 export default async function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
+  const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
   requireCapability(profile, 'finance.read')
   const canIssueInvoice = can(profile.role, 'finance.issue_invoice')

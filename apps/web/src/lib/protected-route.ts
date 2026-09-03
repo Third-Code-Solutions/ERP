@@ -25,6 +25,17 @@ export const PROTECTED_ROUTE_PREFIXES = [
   '/punchlist',
   '/warranty',
   '/claims',
+  '/platform-admin',
+  '/scope',
+  '/cost',
+  '/checklist',
+  '/progress',
+  '/billing',
+  '/turnover',
+  '/coc',
+  '/comments',
+  '/access',
+  '/audit',
   // Print surfaces render tenant-scoped records and must never be reachable
   // anonymously, even though they live outside the dashboard route group.
   '/inspection',

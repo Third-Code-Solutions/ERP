@@ -88,11 +88,24 @@ export async function getUserProfile(): Promise<UserProfile | null> {
 
   if (authError || !user) return null
 
-  const { data, error } = await supabase
+  const readProfile = () => supabase
     .from('users')
     .select('tenant_id, role, email, full_name')
     .eq('id', user.id)
     .single()
+
+  let { data, error } = await readProfile()
+  // Invited identities are hidden by lifecycle-aware RLS. Only the narrow
+  // server-owned invitation function may activate a verified identity;
+  // caller metadata never supplies its tenant or role.
+  if ((!data || error) && user.email_confirmed_at) {
+    const activation = await supabase.rpc('activate_current_invited_user')
+    if (!activation.error && activation.data === true) {
+      const refreshed = await readProfile()
+      data = refreshed.data
+      error = refreshed.error
+    }
+  }
 
   if (error || !data) return null
 

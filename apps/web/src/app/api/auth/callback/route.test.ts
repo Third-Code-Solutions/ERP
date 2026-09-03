@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   createServerClient: vi.fn(),
   exchangeCodeForSession: vi.fn(),
+  verifyOtp: vi.fn(),
   getClaims: vi.fn(),
   cookieStore: {
     getAll: vi.fn(() => []),
@@ -31,6 +32,7 @@ describe('auth callback redirect safety', () => {
     mocks.createServerClient.mockReturnValue({
       auth: {
         exchangeCodeForSession: mocks.exchangeCodeForSession,
+        verifyOtp: mocks.verifyOtp,
         getClaims: mocks.getClaims,
       },
     })
@@ -51,6 +53,33 @@ describe('auth callback redirect safety', () => {
     ]) {
       expect(resolveAuthCallbackPath(unsafe), unsafe).toBe('/dashboard')
     }
+  })
+
+  it('binds a provider-verified recovery token without a PKCE browser verifier', async () => {
+    const userId = '11111111-1111-4111-8111-111111111111'
+    const sessionId = '22222222-2222-4222-8222-222222222222'
+    const tokenHash = 'a'.repeat(64)
+    mocks.verifyOtp.mockResolvedValue({ data: { user: { id: userId, recovery_sent_at: new Date().toISOString() }, session: { access_token: 'fixture-recovery-token' } }, error: null })
+    mocks.getClaims.mockResolvedValue({ data: { claims: { sub: userId, session_id: sessionId } }, error: null })
+    const response = await GET(new NextRequest(`https://erp.example/api/auth/callback?token_hash=${tokenHash}&type=recovery&next=%2Fauth%2Fupdate-password`))
+    expect(mocks.verifyOtp).toHaveBeenCalledWith({ token_hash: tokenHash, type: 'recovery' })
+    expect(mocks.exchangeCodeForSession).not.toHaveBeenCalled()
+    expect(response.headers.get('location')).toBe('https://erp.example/auth/update-password')
+    expect(response.cookies.get('abi-ops-password-recovery')?.value).toMatch(/^[a-f0-9]{64}$/)
+  })
+
+  it.each(['signup', 'invite', 'email', 'magiclink'])('does not treat %s hashes as recovery proof', async (type) => {
+    const response = await GET(new NextRequest(`https://erp.example/api/auth/callback?token_hash=${'a'.repeat(64)}&type=${type}&next=%2Fauth%2Fupdate-password`))
+    expect(mocks.verifyOtp).not.toHaveBeenCalled()
+    expect(response.cookies.get('abi-ops-password-recovery')).toBeUndefined()
+    expect(response.headers.get('location')).toContain('error=auth_callback_failed')
+  })
+
+  it('denies expired recovery hashes without setting a recovery marker', async () => {
+    mocks.verifyOtp.mockResolvedValue({ data: { user: null, session: null }, error: { message: 'expired' } })
+    const response = await GET(new NextRequest(`https://erp.example/api/auth/callback?token_hash=${'a'.repeat(64)}&type=recovery&next=%2Fauth%2Fupdate-password`))
+    expect(response.cookies.get('abi-ops-password-recovery')).toBeUndefined()
+    expect(mocks.getClaims).not.toHaveBeenCalled()
   })
 
   it('exchanges a valid recovery code and redirects on the same origin', async () => {

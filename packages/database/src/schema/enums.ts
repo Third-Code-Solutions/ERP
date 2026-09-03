@@ -21,6 +21,28 @@ export const roleEnum = pgEnum('role', [
   'viewer',
 ])
 
+// Platform authority is intentionally separate from the tenant role enum.
+// It is never assignable through tenant user-management workflows (ADR-027).
+export const platformRoleEnum = pgEnum('platform_role', ['platform_owner'])
+
+export const tenantLifecycleStatusEnum = pgEnum('tenant_lifecycle_status', [
+  'active',
+  'suspended',
+  'disabled',
+])
+
+export const userAccountStatusEnum = pgEnum('user_account_status', [
+  'invited',
+  'active',
+  'suspended',
+  'disabled',
+])
+
+export const platformInvitationStatusEnum = pgEnum(
+  'platform_invitation_status',
+  ['pending', 'sent', 'accepted', 'revoked', 'failed']
+)
+
 export const cadEvidenceCommitRequestStateEnum = pgEnum(
   'cad_evidence_commit_request_state',
   ['processing', 'succeeded']

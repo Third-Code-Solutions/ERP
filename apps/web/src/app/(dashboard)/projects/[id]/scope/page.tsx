@@ -1,3 +1,4 @@
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import type { Metadata } from 'next'
 import React from 'react'
 import { notFound } from 'next/navigation'
@@ -34,7 +35,7 @@ function formatPHP(cents: number): string {
 }
 
 export default async function ProjectScopePage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
+  const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
   const canManageScope = can(profile.role, 'project.update')
 
@@ -112,6 +113,7 @@ export default async function ProjectScopePage({ params }: { params: Promise<{ i
 
   return (
     <div>
+      <h1 className="page-title">Scope</h1>
       {/* Breadcrumb */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
         <Link href="/projects" style={{ color: 'var(--color-neutral-400)', fontSize: '0.875rem', textDecoration: 'none' }}>

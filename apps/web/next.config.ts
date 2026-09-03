@@ -2,6 +2,14 @@ import type { NextConfig } from 'next'
 import path from 'node:path'
 
 const config: NextConfig = {
+  // Resolve canonical bookmarks before streaming can commit an HTTP 200.
+  // Next preserves the incoming query string for these static destinations.
+  async redirects() {
+    return [
+      { source: '/pipeline/board', destination: '/pipeline', permanent: true },
+      { source: '/pipeline/conversion', destination: '/pipeline/list', permanent: true },
+    ]
+  },
   eslint: {
     // The monorepo's root flat-config gate is run explicitly before every
     // production build. Next's working-directory lint discovery cannot apply

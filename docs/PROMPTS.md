@@ -1,13 +1,13 @@
-# BUILD OPS Prompt Pack v1.4
+# BUILD OPS Prompt Pack v1.5
 
 > Markdown copy extracted from `output/pdf/BUILD OPS Prompt Pack.pdf` on 2026-08-12.
 > The attached PDF remains canonical for visual fidelity; this file is the repository execution copy.
 
-Execution authority is `docs/PRD.md` v1.4 plus current source and timestamped
+Execution authority is `docs/PRD.md` v1.5 plus current source and timestamped
 release evidence. The historical PDF does not override those sources.
 BUILD OPS — Prompt Pack
 Copy-paste prompts for executing the refactor
-Companion to docs/PRD.md v1.4 · 14 August 2026 · Execution: Codex desktop/CLI or equivalent
+Companion to docs/PRD.md v1.5 · 4 September 2026 · Execution: Codex desktop/CLI or equivalent
 How to use this pack
 1. Launch from repository root. Read `AGENTS.md`, `docs/PRD.md`, and the relevant work
 order. Current source, migrations, tests and timestamped release evidence are authority.

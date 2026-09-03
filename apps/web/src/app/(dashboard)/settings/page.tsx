@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { createSupabaseServerClient, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { tenants } from '@third-code-erp/database/schema'
 import { eq } from 'drizzle-orm'
@@ -10,6 +10,18 @@ export const metadata: Metadata = { title: 'Settings' }
 
 export default async function SettingsPage() {
   const profile = await requireUserProfile()
+  const canManageWorkspace = profile.role === 'owner' || profile.role === 'admin'
+  let platformOwner = false
+  if (profile.user.email?.toLowerCase() === 'kurt@thirdcodesolutions.com') {
+    try {
+      const client = await createSupabaseServerClient()
+      const decision = await client.rpc('is_platform_owner')
+      platformOwner = !decision.error && decision.data === true
+    } catch {
+      // Navigation fails closed; Core and middleware authorize independently.
+      platformOwner = false
+    }
+  }
   const tenant = await db
     .select()
     .from(tenants)
@@ -53,7 +65,7 @@ export default async function SettingsPage() {
             >
               Workspace
             </h2>
-            {tenant && <EditTenantForm tenant={tenant} />}
+            {tenant && canManageWorkspace && <EditTenantForm tenant={tenant} />}
           </div>
           {tenant ? (
             <dl style={{ margin: 0 }}>
@@ -175,7 +187,7 @@ export default async function SettingsPage() {
         </div>
       </div>
 
-      {/* Phase 3+ roadmap notice */}
+      {/* Existing destinations, not roadmap promises. */}
       <div
         style={{
           marginTop: '24px',
@@ -188,7 +200,8 @@ export default async function SettingsPage() {
           maxWidth: '860px',
         }}
       >
-        Team management, billing, integrations, and notification preferences are coming in Phase 3.
+        {canManageWorkspace ? <p><Link href="/admin/users">Manage workspace users and tenant roles</Link>.</p> : <p>Contact your workspace owner or administrator for company settings and user access changes.</p>}
+        {platformOwner ? <p><Link href="/platform-admin">Open platform administration</Link> — separate, verified platform-owner access.</p> : null}
       </div>
     </div>
   )

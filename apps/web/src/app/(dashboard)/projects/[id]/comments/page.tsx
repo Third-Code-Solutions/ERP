@@ -1,3 +1,4 @@
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -31,7 +32,7 @@ export default async function ProjectCommentsPage({
 }: {
   params: Promise<{ id: string }>
 }) {
-  const { id } = await params
+  const { id } = await requireUuidRouteParams(params)
   const user = await getUser()
   if (!user) return null
 
@@ -161,7 +162,7 @@ export default async function ProjectCommentsPage({
 
       {/* Header */}
       <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-        <h2
+        <h1
           style={{
             margin: 0,
             fontSize: '1rem',
@@ -171,7 +172,7 @@ export default async function ProjectCommentsPage({
           }}
         >
           Comments
-        </h2>
+        </h1>
         <span style={{ fontSize: '0.75rem', color: 'var(--color-neutral-500)' }}>
           {comments.length === 0
             ? 'No comments yet'

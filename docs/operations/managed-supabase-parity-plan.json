@@ -3,7 +3,7 @@
   "snapshot": {
     "capturedOn": "2026-09-03",
     "evidenceCommit": "4f2d1a247ac03e6f95f516815ba3156523e9a466",
-    "sourceRevision": "Protected production run 33768641038 and the authenticated Supabase migration-history view established the 157-version live ledger; source identity is checked by verify:managed-supabase-parity-plan.",
+    "sourceRevision": "Protected production run 33768641038 and the authenticated Supabase migration-history view established the 157-version live ledger. ADR-027 adds one reviewed source migration; source identity is checked by verify:managed-supabase-parity-plan.",
     "evidenceKind": "read_only_provider_ledger_plus_source_plan",
     "verificationScope": "The repository verifier checks this snapshot only against the source migration tree; it does not query Supabase or establish current provider state.",
     "projectRef": "aqqrtkmtcsfkbyyqxowv",
@@ -11,16 +11,16 @@
     "databaseVersion": "17.6.1.121",
     "postgresMajor": 17,
     "appliedCount": 157,
-    "sourceCount": 157,
-    "pendingCount": 0,
+    "sourceCount": 158,
+    "pendingCount": 1,
     "appliedHead": "20260901141949",
-    "sourceHead": "20260901141949",
-    "ledgerStatus": "current_remote_ledger_matches_source",
+    "sourceHead": "20260904020000",
+    "ledgerStatus": "one_reviewed_source_migration_pending_provider_preflight",
     "purchaseOrderPreflight": {
       "duplicateGroups": 0,
       "status": "clear_as_of_captured_evidence"
     },
-    "releaseStatus": "database_schema_current_after_source_reconciliation; application_promotion_pending_protected_ci"
+    "releaseStatus": "blocked_until_current_provider_parity_and_recoverability_allow_the_reviewed_adr_027_migration"
   },
   "policy": {
     "reviewBatchesOnly": true,
@@ -28,5 +28,17 @@
     "productionPartialApplyIsRollbackFailure": true,
     "hostedApplyApproved": true
   },
-  "batches": []
+  "batches": [
+    {
+      "id": "adr-027-platform-owner-boundary",
+      "migrations": [
+        "20260904020000_platform_owner_administration_boundary.sql"
+      ],
+      "sha256": [
+        "07843a9e554fc11d87d67252cca1f49a935ef59bfc16ff0b643e858c02fa05fd"
+      ],
+      "safety": "Additive enum, lifecycle columns, global security tables, invitation provisioning, RLS, indexes, triggers, and functions. No production apply until the guarded workflow proves exact target, current 157-version prefix, backup/recovery evidence, and disposable replay.",
+      "recovery": "Stop before apply on any preflight mismatch. After apply, preserve append-only evidence and use an additive forward fix; application code remains fail closed until sole-owner bootstrap succeeds."
+    }
+  ]
 }

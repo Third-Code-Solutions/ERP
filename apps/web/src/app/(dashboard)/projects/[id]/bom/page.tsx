@@ -1,3 +1,4 @@
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -64,7 +65,7 @@ function formatDupaMoneyInput(centavos: bigint): string {
 }
 
 export default async function ProjectBomPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
+  const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
   const access = getProjectDetailAccess(profile.role)
   if (!access.bom) return notFound()

@@ -1,3 +1,4 @@
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireUserProfile } from '@third-code-erp/auth'
@@ -19,7 +20,7 @@ const STAGE_BADGE: Record<string, string> = {
 }
 
 export default async function OpportunityDetailPage({ params }: PageProps) {
-  const { id } = await params
+  const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
 
   const detail = await getOpportunityDetail(profile.tenantId, id)
