@@ -98,7 +98,7 @@ jobs:
           pnpm test
           pnpm build
 
-      - name: Verify exact Supabase migration target
+      - name: Verify exact Supabase database targets
         shell: bash
         run: |
           set -euo pipefail
@@ -106,11 +106,30 @@ jobs:
           import os
           from urllib.parse import urlsplit
 
-          target = urlsplit(os.environ["SUPABASE_MIGRATION_DATABASE_URL"])
+          project_ref = os.environ["SUPABASE_PROJECT_REF"]
           expected_user = f"postgres.{os.environ['SUPABASE_PROJECT_REF']}"
-          if target.username != expected_user or target.port != 5432:
-              raise SystemExit("SUPABASE_MIGRATION_DATABASE_URL must target the exact project session pooler on port 5432")
+
+          def verify(name, allowed_ports):
+              target = urlsplit(os.environ[name])
+              hostname = (target.hostname or "").lower()
+              database = target.path.removeprefix("/")
+              if target.scheme not in {"postgres", "postgresql"}:
+                  raise SystemExit(f"{name} must use PostgreSQL")
+              if not hostname.endswith(".pooler.supabase.com"):
+                  raise SystemExit(f"{name} must target a Supabase pooler")
+              if target.username != expected_user:
+                  raise SystemExit(f"{name} must target the exact Supabase project")
+              if target.port not in allowed_ports or database != "postgres":
+                  raise SystemExit(f"{name} has an unexpected port or database")
+
+          verify("SUPABASE_MIGRATION_DATABASE_URL", {5432})
+          verify("PRODUCTION_DATABASE_URL", {5432, 6543})
           PY
+
+      - name: Require current production migration ledger
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: node scripts/plan-database-release.mjs --require-current
 
       - name: Preview Supabase migration push
         shell: bash
@@ -118,9 +137,9 @@ jobs:
           set -euo pipefail
           supabase db push --db-url "$SUPABASE_MIGRATION_DATABASE_URL" --dry-run --yes
 
-      - name: Apply Supabase additive migrations
-        shell: bash
-        run: supabase db push --db-url "$SUPABASE_MIGRATION_DATABASE_URL" --yes
+      # This promotion is deliberately code-only while PITR is unavailable.
+      # Any pending migration fails the ledger gate above and must use the
+      # separately reviewed database release runbook with recovery evidence.
 
       - name: Deploy Nest API to exact Railway service
         shell: bash
