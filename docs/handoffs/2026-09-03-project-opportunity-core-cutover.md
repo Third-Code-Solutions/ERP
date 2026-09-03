@@ -320,6 +320,57 @@ challenge permission/reason/error/pending mutations, run final diff and
 Gitleaks, and perform the approved safe browser identity/failure-retry matrix
 without mutating shared demo or production data.
 
+## Contract-owner result
+
+The stale WO-11 exact-text fixture was replaced and the mounted-entry contract
+expanded in commit `6a18d07a`. The gate passed 13/13: authoritative and benign
+TypeScript-printer runs plus eleven mutation challenges. It enumerates the
+Pipeline and Project-detail stage actions, checks Core selection/no local
+writer, and inspects Project panel/model plus central role projection. Focused
+shared 9/9, Core 67/67, Web 121/121, root typecheck/lint, API and 89-page Web
+builds, diff, and gitleaks over 1,802 commits passed. PostgreSQL remained
+environment-blocked.
+
+## Independent QA round 1
+
+Verdict: `BLOCK`; two P1 and three P2 findings at clean HEAD `8f4bc28e`.
+
+P1 findings:
+
+1. Project-detail creation still offers gated initial stages and inserts them
+   without an Account or KYC tracks. Core also skips its downstream KYC gate
+   when `accountId` is absent, so an accountless Opportunity can bypass WO-11.
+2. Creation inserts the Opportunity and writes audit separately. Audit failure
+   reports an error after the row commits; retry can create a duplicate because
+   there is no transaction or idempotency authority.
+
+P2 findings:
+
+1. The mounted-entry scanner misses exported arrow actions and an aliased
+   Opportunity-table writer. It also ignores stage-bearing inserts; independent
+   temp-only mutations passed incorrectly.
+2. Lost and regression dialogs have `role="dialog"` but no accessible name.
+3. Creation accepts unbounded coerced monetary numbers and uses floating-point
+   weighted TCV. The Project transition action also lacks the required
+   structured per-outcome server-action log.
+
+QA otherwise confirmed the transition cutover: strict safe commercial fields,
+Manila date normalization, 24 non-Won edges/Won handoff, tenant/current-
+membership/KYC logic, Core-only action, exact roles, reason/error/pending UX,
+and success-only revalidation. Shared 442/442, Core 100/100, Web 168/168,
+WO-11 13/13, root typecheck/lint/builds, diff, and gitleaks passed. PostgreSQL
+remained blocked; browser verification was withheld.
+
+→ Handoff to Agent 05 remediation. Reason: determine and implement the atomic
+creation authority and fail-closed accountless KYC rule from the real
+Project/Account model before Web/UI/contract corrections. Inputs: QA P1s,
+existing Project create form/action, PPRF/WO-11 rules, current request ledger,
+and safe-cent patterns. Expected output: no direct downstream creation; atomic
+idempotent create plus semantic audit; safe TCV/GP/weighted math; tenant/current
+membership/role/Project/Account validation; accountless downstream rejection;
+focused rollback/replay/concurrency proof; explicit Agent 03 handoff or a
+documented material product-model blocker.
+
 ## Contract owner result — mounted Opportunity entry inventory
 
 Contract commit: `6a18d07a` (`test(crm): enumerate opportunity stage entry
