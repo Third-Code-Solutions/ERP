@@ -447,6 +447,50 @@ uses `requestDestination`, that it invokes the shared router, and that the
 regression dialog renders with `onConfirm={confirmRegression}`; focused gates
 and return to independent QA.
 
+## Agent 11 remediation round 3 — caller evidence
+
+Verdict: test-evidence defect closed; returned to independent QA. Test commit:
+`9e728084`.
+
+A Pipeline-owned TypeScript AST validator now parses the actual
+`StageAdvanceButton` TSX. Its tests sever, in memory, each of the three
+destination-control calls, the request-to-classifier link, and both regression
+and Lost dialog confirmation bindings; each mutant fails with its specific
+invariant. The validator also accepts benign multiline/comment/whitespace
+formatting. No runtime component changed.
+
+Node 22.23.2 / pnpm 10.33.0 verification: validator 7/7, Pipeline 66/66,
+Web/E2E TypeScript, focused and full Web source lint, 89-page build, WO-11
+5/5, gitleaks over 1,787 commits, and diff checks passed. Prettier remains not
+installed; no dependency was added.
+
+## Independent QA round 4
+
+Verdict: `GO` for browser verification at clean HEAD `1980475b`; no in-scope
+P1/P2 remains.
+
+QA independently severed all six caller links and observed the expected
+validator failures, then applied a benign formatting mutation with zero
+issues. Review confirmed mutations stay in memory and the validator/test use
+no write, rename, or delete API. The actual component keeps all three click
+paths and both dialog confirmation bindings.
+
+Independent green evidence: Pipeline 66/66, Core transition/guard 96/96, Web
+Core client 171/171, shared contracts 56/56, WO-11 5/5, Web/E2E TypeScript,
+full Web source lint, 89-page build, gitleaks over 1,787 commits, diff checks,
+and clean status. PostgreSQL HTTP integration remains blocked without explicit
+isolated bindings.
+
+→ Handoff to browser verifier. Reason: the combined Core, Web, Pipeline UX,
+contract, and mutation-sensitive caller evidence have independent QA approval.
+Inputs: clean HEAD `1980475b`, all eleven supplied identities, the exact
+3-allow/8-supplied-deny policy, Lost/regression/forward behaviors, and QA's
+browser plan. Expected output: built-browser identity/visibility/navigation
+matrix; regression/Lost pre-request validation, trimmed single-submit,
+returned/transport failure and retry checks; console/network/server-log review;
+and positive persistence only against an explicitly disposable or rollback-
+contained fixture. Estimator/PM remain blocked without identities.
+
 ## WO-11 contract owner — authoritative Core/Web oracle
 
 Verdict: `GO` for independent QA. Contract-gate commit: `50339af8`.
