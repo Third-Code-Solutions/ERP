@@ -83,3 +83,62 @@ The complete acceptance contract and handoff order are in
 → Handoff to Agent 05. Implement the strict shared/Core authority first and
 stop before Web work if durable replay, key conflict, and concurrency cannot be
 proven without a schema change.
+
+## Agent 05 — Core completion authority
+
+Commit: `be26d477 feat(tasks): add atomic Core completion`.
+
+### Delivered
+
+- Added strict shared daily-task completion command/result schemas. Notes are
+  trim-normalized, blank becomes absent, length is capped at 2,000, unknown
+  identity/workflow fields are rejected, and only a canonical persisted `done`
+  result validates.
+- Mounted protected `POST /v1/daily-tasks/:taskId/completion` with the central
+  `sd.daily_tasks` capability and existing request observability middleware.
+- Revalidated locked current membership, tenant, role capability, task state,
+  and assignee-or-Owner/Admin override inside the transaction.
+- Implemented schema-free durable idempotency using a tenant/key-hash advisory
+  lock and the required semantic audit row as a successful receipt. Only
+  SHA-256 key/command hashes are persisted; raw keys and notes are excluded.
+  Full-hash receipt comparison means a 64-bit advisory-hash collision causes
+  extra serialization only, never command aliasing.
+- Atomically committed task completion metadata, all matching open legacy
+  daily-task SLA closures, and exactly one semantic `status_change` audit.
+  Missing open SLA rows are a valid no-op; SLA or audit statement failures roll
+  the transaction back.
+- Preserved authorized `done` as a strict no-write result and rejected
+  `skipped` or malformed persisted completion state.
+- Added a protected, opt-in, outer-transaction rollback HTTP canary without
+  enabling or contacting a database in this environment.
+
+### Verification
+
+Node `v22.23.2`, pnpm `10.33.0`:
+
+- shared contract: **3/3 passed**;
+- Core controller/service: **33/33 passed**;
+- neighboring completion/Today/audit selection: **37/37 passed**;
+- central authorization: **32/32 passed**;
+- shared typecheck: **passed**;
+- API typecheck: **passed**;
+- API lint: **passed**;
+- API production build: **passed**;
+- repository gitleaks `8.30.1`: **passed**, 1,816 commits scanned with no leaks;
+- commit-range/diff checks: **passed**;
+- protected PostgreSQL canary: **SKIPPED 1/1**, correctly gated by absent
+  isolated `DATABASE_URL` plus `ERP_API_INTEGRATION_EXPECTED=1`;
+- database persistence/concurrency result: **BLOCKED / NOT RUN**; no database
+  was contacted and no unit double is claimed as persistence evidence.
+
+### Scope
+
+No Web/UI, script, schema/migration, dependency/lockfile, data, environment,
+provider, deployment, or functional-ledger file changed.
+
+→ Handoff to Agent 03 with the shared schemas and
+`POST /v1/daily-tasks/:taskId/completion`. Agent 03 must remove the mounted local
+daily-task writer/audit/SLA fallback, use one authenticated Core call with a
+stable complete-command key, validate the full returned identity/state, log
+every outcome without raw notes or secrets, refresh only on validated success,
+and provide the exact five-role accessible control/recovery behavior.

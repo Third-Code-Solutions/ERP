@@ -275,3 +275,111 @@ policy, current-state semantics, transaction contract, no-schema boundary, and
 acceptance criteria above. Expected output: strict shared/Core command and
 tests, exact durable-idempotency decision, module registration, focused gates,
 source commit, and explicit Agent 03 handoff or material blocker.
+
+## Agent 05 implementation — Core authority complete
+
+Source commit: `be26d477 feat(tasks): add atomic Core completion`.
+
+Agent 05 mounted `POST /v1/daily-tasks/:taskId/completion` through
+`DailyTasksModule`. The route requires the central `sd.daily_tasks` capability,
+a valid task UUID, a trimmed bounded `Idempotency-Key`, and the exported strict
+body schema. The body accepts only optional notes: blank notes normalize to
+absence, meaningful notes are trimmed, the 2,000-character boundary is strict,
+and identity, assignment, role, tenant, project, actor, timestamp, or requested
+status fields are rejected as unknown.
+
+The Core service repeats authorization against locked current state rather than
+trusting guard-time claims. It locks the current tenant membership, derives the
+current role, checks the central capability, takes a transaction-scoped command
+advisory lock, and locks the tenant-scoped daily task. Service Delivery PM/PE,
+PM, and Safety are restricted to their assigned task; Owner/Admin receive only
+the documented same-tenant override. Missing and cross-tenant tasks share the
+same not-found result. Authorization precedes any durable effect and also
+precedes the already-`done` no-op result.
+
+### Durable schema-free idempotency decision
+
+No generic request ledger or daily-task idempotency column exists, so no
+unrelated domain request table was reused. The required append-only semantic
+`audit_log` row is also the successful command receipt:
+
+- the raw key is normalized, SHA-256 hashed, and never persisted or logged;
+- a transaction advisory lock is derived from tenant plus the full key hash;
+- the receipt lookup is scoped by tenant, `daily_task`, `status_change`, source,
+  and the full 256-bit key hash;
+- the receipt stores a second SHA-256 hash of canonical task ID plus normalized
+  command, never raw notes; and
+- exact replay reads the locked canonical task, while a different task or
+  normalized command under the same key returns conflict.
+
+PostgreSQL reduces the advisory lock name to 64 bits. A collision can therefore
+cause only extra serialization: receipt identity is still decided by the full
+tenant-scoped 256-bit hash, so collision cannot alias two commands. The task row
+lock independently serializes different keys targeting the same pending task.
+The audit receipt is inserted in the same transaction as the domain mutation;
+a crash or rollback cannot leave a succeeded receipt without its completion.
+
+### Atomic task, SLA, and audit behavior
+
+For a locked pending task, Core writes `done`, normalized notes, one server
+timestamp, and the current authenticated actor. It then closes every open
+legacy `sla_logs` row matching the same tenant, `entity_type = 'daily_task'`,
+and task ID with that exact timestamp, and appends one semantic
+`status_change` audit with source `daily_task_completion_core`. The audit holds
+only status/notes-presence and receipt hashes; it does not copy notes or the raw
+idempotency key.
+
+This deliberately does not use `process.sla_clocks`: current `daily_tasks` rows
+have no process task-instance relationship. It preserves the established
+`stopSlaClock` matching semantics: absence of an open matching legacy SLA is a
+successful zero-row no-op, while a database failure executing the matching SLA
+update aborts the transaction. Injected SLA and audit failures both proved the
+task, SLA, and receipt roll back together. A locked `skipped` task conflicts.
+An authorized well-formed `done` task returns its strict persisted completion
+without a new task update, SLA update, audit, or receipt. A malformed legacy
+`done` row fails closed rather than returning an invented completion.
+
+### Agent 05 verification
+
+All commands below used process-local Node `v22.23.2` from the pinned runtime
+and pnpm `10.33.0`. The fresh worktree was hydrated with
+`pnpm install --frozen-lockfile --offline`; the lockfile and manifests did not
+change.
+
+- TDD red: the shared, controller, and service suites each failed collection on
+  their intentionally missing production module before implementation.
+- Shared completion contract: **3/3 passed**.
+- Core completion controller/service: **33/33 passed** across **2/2 files**,
+  including all thirteen current roles, stale membership, tenant/assignee
+  isolation, Owner/Admin override, toolbox normalization, done/skipped states,
+  no-open-SLA behavior, rollback, exact replay, key conflict, and concurrency.
+- Neighboring Today/audit plus completion suites: **37/37 passed** across
+  **5/5 files**.
+- Central authorization suite: **32/32 passed**.
+- Shared typecheck: **passed**.
+- API typecheck: **passed**.
+- API source lint (`--max-warnings=0`): **passed**.
+- API production build: **passed**; webpack compiled successfully.
+- Repository gitleaks `8.30.1`: **passed**, 1,816 commits / approximately
+  45.87 MB scanned with no leaks found.
+- Commit-range and documentation diff checks: **passed**.
+- Protected rollback HTTP canary: **1 skipped / 0 run** because this worktree
+  has neither an explicit isolated `DATABASE_URL` binding nor
+  `ERP_API_INTEGRATION_EXPECTED=1`. No database was contacted. The canary is
+  opt-in and transaction-rollback-contained when that lane is available.
+
+PostgreSQL persistence/concurrency evidence therefore remains **BLOCKED / NOT
+RUN**; unit transaction doubles are not represented as database proof. The
+source contract has no known in-scope Agent 05 blocker.
+
+→ Handoff to Agent 03. Reason: the strict shared/Core completion authority is
+mounted and green. Inputs: `dailyTaskCompletionCommandSchema`,
+`dailyTaskCompletionResultSchema`, `POST /v1/daily-tasks/:taskId/completion`,
+the required `Idempotency-Key`, exact five-role policy, Owner/Admin override,
+canonical done no-op, typed 400/403/404/409 failures, and source commit
+`be26d477`. Expected output: replace the Web-local task update/audit/SLA sequence
+with one authenticated Core call; derive a stable key from task ID plus the
+complete normalized shared command; strictly validate returned task/tenant/
+project/assignee/status/completion identity; emit redacted structured outcomes;
+refresh only after success; preserve retry notes; and render accessible controls
+only for the five capable roles before handing off to the contract owner.
