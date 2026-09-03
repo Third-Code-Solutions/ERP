@@ -564,3 +564,47 @@ Inputs: source commit `aefde4fc`, prior Core/Web/Pipeline/contract commits, the
 blocked PostgreSQL integration boundary. Expected output: rerun the combined
 branch and return `GO` or `BLOCK` with direct evidence, then release browser
 verification only on `GO`.
+
+## Agent 11 remediation round 3 — caller-wiring release evidence
+
+Verdict: `GO` for independent QA. Pipeline test commit: `9e728084`.
+
+The runtime component was already correct and was not changed. A focused
+validator now parses the actual `StageAdvanceButton` TSX with the repository's
+installed TypeScript compiler. It structurally requires the single-forward,
+menu-stage, and Lost destination calls to use `requestDestination`; requires
+that function to invoke `routeStageAdvanceDestination`; and requires the
+rendered Regression and Lost dialogs to retain their respective
+`confirmRegression` and `confirmLost` bindings.
+
+The test reads the real component once and performs all six mutations on
+in-memory source strings only. Replacing any destination call, the shared-router
+call, or either dialog confirmation binding makes the validator report the
+specific severed connection. The existing behavioral router and guarded-
+submitter tests remain unchanged.
+
+Pinned Node 22.23.2 / pnpm 10.33.0 verification:
+
+- initial validator import: FAILED as expected because the validator did not
+  exist;
+- final validator suite: PASSED, 7/7, including six mutation cases;
+- focused plus neighboring Pipeline suites: PASSED, 6 files / 66 tests;
+- Web plus all configured E2E TypeScript projects: PASSED;
+- focused validator lint and full Web source lint: PASSED;
+- Web production build: PASSED, 89 static pages generated;
+- authoritative WO-11 contract: PASSED, 5/5;
+- `git diff --check`: PASSED;
+- Gitleaks 8.30.1 through the pinned repository wrapper: PASSED, 1,787 commits /
+  no leaks;
+- Prettier: NOT RUN because this repository does not install a Prettier binary.
+
+No production runtime, action, Core/API, script, shared package, auth,
+route/page, schema, dependency, demo data, environment, credential, or
+deployment state changed.
+
+→ Handoff to independent QA. Reason: the round-3 P2 was release-evidence only,
+and the real caller is now protected by semantic, mutation-sensitive source
+validation. Inputs: test commit `9e728084`, the 7/7 validator result, the 66/66
+behavioral result, and the unchanged runtime commits. Expected output:
+independently sever the six validated connections or rerun the supplied
+mutants, then return `GO` or `BLOCK` with direct evidence.

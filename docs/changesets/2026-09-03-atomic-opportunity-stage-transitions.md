@@ -200,3 +200,34 @@ Independent QA must rerun the combined branch. After QA, the designated browser
 verifier must exercise the supplied identity matrix and returned/rejected
 failure states. Safe positive persistence proof remains limited to a disposable
 or rollback-contained fixture.
+
+## Agent 11 remediation round 3
+
+- Added a TypeScript-AST validator for the actual `StageAdvanceButton` caller
+  wiring; no production component code changed.
+- Required all three destination-control calls to use `requestDestination`,
+  required that function to invoke the shared destination router, and retained
+  the Regression/Lost dialog confirmation bindings.
+- Added six in-memory mutation cases that sever each connection independently;
+  every mutant is rejected without writing a fixture or changing repository
+  source.
+
+Pipeline round-3 test commit: `9e728084`.
+
+### Agent 11 round-3 verification
+
+- Pinned Node 22.23.2 and pnpm 10.33.0: VERIFIED.
+- Initial missing-validator red: FAILED as expected.
+- Final source-validator suite: PASSED, 7/7.
+- Focused plus neighboring Pipeline suites: PASSED, 6 files / 66 tests.
+- Web plus configured E2E TypeScript projects: PASSED.
+- Focused validator lint and full Web source lint: PASSED.
+- Web production build: PASSED, including 89 generated static pages.
+- WO-11 contract: PASSED, 5/5.
+- Diff check: PASSED.
+- Pinned Gitleaks 8.30.1 full-history scan: PASSED, 1,787 commits / no leaks.
+- Prettier: NOT RUN because the repository does not install a Prettier binary.
+
+No production runtime, action, Core/API, script, shared package, auth,
+route/page, schema, dependency, demo data, environment, credential, or
+deployment state changed. Independent QA owns the next release decision.
