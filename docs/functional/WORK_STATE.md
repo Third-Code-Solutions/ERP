@@ -9,9 +9,10 @@ thirteen-role authorization vocabulary, one end-to-end workflow at a time.
 Password management, legacy project-chat authorization, project-detail
 authorization, legacy route-policy alignment, fail-closed dashboard routing,
 Material search/destination alignment, opportunity CSV export hardening, and
-the atomic Won-to-Project handoff plus all-stage atomic Pipeline transitions are
-the nine completed local implementation slices; all remain `PARTIAL` under the
-strict live-data definition of done.
+the atomic Won-to-Project handoff, all-stage atomic Pipeline transitions, and
+Project-detail Opportunity create/transition are the ten completed local
+implementation slices; all remain `PARTIAL` under the strict live-data
+definition of done.
 
 Current work-order scope:
 
@@ -35,14 +36,14 @@ repository's release gates pass.
 | Next.js page routes | 118 | VERIFIED by source inventory and production build |
 | Session/recovery-protected page routes | 104 | VERIFIED by route inventory + middleware policy |
 | Explicit HTTP operations | 174 | VERIFIED by source inventory (133 Nest, 41 Next) |
-| Protected role/resource matrix records | 1,404 | VERIFIED as syntactically readable CSV records |
-| Tested role/resource combinations in this work order | 137 | 33 auth browser observations plus 13 automated cases for each of AI-domain, project-detail, legacy route-policy, fail-closed route-registry, Material-search, opportunity-export, atomic handoff, and all-stage transition policy |
+| Protected role/resource matrix records | 1,417 | VERIFIED as syntactically readable CSV records |
+| Automated-tested role/resource matrix records | 119 | VERIFIED from parsed CSV rows whose `Automated test` result is not `NOT TESTED` |
 | Verified role/resource combinations | 0 | Strict full-route definition not yet met; tested rows remain PARTIAL or BLOCKED |
 | Failed role/resource combinations | 0 | No FAILED matrix rows remain after route-alias and project-audit reconciliation |
-| Blocked role/resource combinations | 14 | Prior blocked coverage plus all-stage transition rows for the missing `estimator` and `pm` identities |
-| Prioritized functional workflows | 9 | Password management, project-chat boundaries, project-detail boundaries, legacy route-policy alignment, fail-closed dashboard routing, Material-search alignment, opportunity CSV export hardening, atomic Won-to-Project handoff, and atomic all-stage transitions |
+| Blocked role/resource combinations | 16 | Prior blocked coverage plus Project-detail Opportunity rows for the missing `estimator` and `pm` identities |
+| Prioritized functional workflows | 10 | Password management, project-chat boundaries, project-detail boundaries, legacy route-policy alignment, fail-closed dashboard routing, Material-search alignment, opportunity CSV export hardening, atomic Won-to-Project handoff, atomic all-stage transitions, and Project-detail Opportunity create/transition |
 | Verified workflows | 0 | Strict live-data definition not yet met |
-| Partial workflows | 9 | All implemented and locally tested with explicit live-evidence limits |
+| Partial workflows | 10 | All implemented and locally tested with explicit live-evidence limits |
 | Failed workflows | 0 | No known implementation failure after focused QA |
 | Completed modules | 0 | NOT TESTED |
 | Modules remaining | 13 user-facing modules | NOT TESTED |
@@ -307,6 +308,53 @@ Implemented behavior:
   clearing, zero failure refresh, and one strictly shaped simulated-success
   refresh. No request reached hosted Core and demo counts stayed unchanged.
 
+### Project-detail Opportunity create and stage transition
+
+Implemented across PR #25, corrected through independent contract review, and
+verified by focused tests and production builds. Independent browser QA began
+from clean HEAD `b7a72d82bb317d22dddc380222e3ca0ff84d4943`. This tenth local workflow
+remains `PARTIAL` under the strict browser/live/persistence definition: all
+thirteen role rows lack authenticated browser evidence, and PostgreSQL
+persistence was not run.
+
+Implemented behavior:
+
+- Project-detail creation and stage changes delegate only to Core through
+  `POST /v1/crm/opportunities` and
+  `POST /v1/crm/opportunities/[id]/stage-transition`; no local Opportunity
+  writer, separate Web audit, SLA, conversion, or fallback remains on either
+  mounted action path;
+- Core rechecks current tenant membership and the exact role capability,
+  validates the active Project and its Project-derived Account, applies the
+  Account/KYC prerequisite, and commits Opportunity state, semantic audit,
+  stage/SLA effects, and idempotency completion atomically as applicable;
+- creation permits only `opportunity_creation`; TCV, signed GP, and weighted
+  TCV use canonical decimal-centavo strings at API boundaries, with exact
+  integer weighted math and explicit-offset Philippine closing dates;
+- Owner, Admin, and Sales alone receive create/transition controls and pass the
+  Web/Core capability boundary. The other ten roles retain readable Project
+  Opportunity data with no mutation controls and are denied before effects;
+- the fail-closed mounted contract inventories the two stage-transition
+  actions and Project creation, follows supported local aliases/imports and
+  re-exports, rejects local update/insert/audit/SLA/conversion fallbacks, and
+  passed twice at 29/29 mutation-sensitive cases;
+- shared create/transition tests passed 20/20, focused Project Web tests passed
+  312/312, Core creation/stage tests passed 93/93, root typecheck/lint and both
+  API/Web builds passed, and Web generated 89/89 pages;
+- independent Chromium 147.0.7727.15 verified the accessible unauthenticated
+  login on loopback Web `127.0.0.1:3317` with fake Core `127.0.0.1:3318`:
+  1440×900 loaded in 1,586 ms and 390×844 in 1,321 ms, with zero
+  console/page/request failures, zero non-GET calls, and zero fake-Core
+  create/transition calls. Both loopback servers were stopped afterward.
+
+Browser status is `BLOCKED` for every role because no secure reusable isolated
+authenticated session was available and QA correctly refused the daily
+browser. The eleven supplied roles therefore remain `PARTIAL`; Estimator and
+PM remain `BLOCKED` because their identities are also missing. Live status is
+`NOT RUN`. The protected PostgreSQL canary remains blocked because its database
+binding and explicit opt-in are unavailable; no live persistence or hosted
+mutation is claimed.
+
 Acceptance criteria and ordered agent handoffs are recorded in
 `docs/handoffs/2026-09-02-functional-completeness.md`,
 `docs/handoffs/2026-09-02-ai-chat-data-boundaries.md`,
@@ -316,23 +364,27 @@ Acceptance criteria and ordered agent handoffs are recorded in
 `docs/handoffs/2026-09-03-material-search-route-alignment.md`, and
 `docs/handoffs/2026-09-03-opportunity-export-hardening.md`, and
 `docs/handoffs/2026-09-03-won-project-atomic-handoff.md`, and
-`docs/handoffs/2026-09-03-atomic-opportunity-stage-transitions.md`.
+`docs/handoffs/2026-09-03-atomic-opportunity-stage-transitions.md`, and
+`docs/handoffs/2026-09-03-project-opportunity-core-cutover.md`.
 
 ## Agent state
 
 - Principal Agent 1: read-only route/RBAC cartography complete; no files changed.
 - Principal Agent 2: continuous read-only workflow audit complete; latest
   P1 findings—the non-transactional Won-to-Project handoff and non-Won stage
-  writer—are repaired; the next unambiguous vertical workflow audit resumes
-  after this slice is published.
+  writer plus the Project-detail Opportunity writer—are repaired; selection of
+  the next vertical workflow awaits a fresh Agent 1/2 audit.
 - Principal Agent 3: sole application-source editor; auth, AI chat, project
   detail, legacy route-policy, and fail-closed route-registry implementations
   complete; Material-search Web/Core alignment and opportunity-export
   hardening complete; atomic Core/Web handoff and conversion visibility fixes
-  complete; all-stage Web/Core cutover and retry-alert UX complete.
+  complete; all-stage Web/Core cutover and retry-alert UX complete;
+  Project-detail Opportunity create/transition Core cutover complete.
 - Principal Agent 4: independent code/test/security review complete; `GO` for
-  all nine implemented source slices after three atomic-handoff and five
-  all-stage transition QA rounds.
+  all ten implemented source slices. Three atomic-handoff rounds, five
+  all-stage transition rounds, and the Project-detail Opportunity contract
+  remediation are complete. Authenticated browser acceptance for the tenth
+  workflow remains blocked.
 - Principal Agent 5: auth verification complete for all eleven supplied
   identities; AI chat safe browser/API smoke complete for viewer, finance, and
   commercial; project-detail browser matrix complete for all eleven supplied
@@ -347,13 +399,16 @@ Acceptance criteria and ordered agent handoffs are recorded in
   a real positive Won mutation is fixture-blocked. All-stage transition role
   and dialog/error/retry checks passed for all supplied identities plus safe
   local-Core probes; positive persistence remains isolated-fixture blocked.
+  Project-detail Opportunity anonymous desktop/narrow smoke passed with no
+  request or console failure, but the authenticated eleven-identity panel and
+  mutation matrix did not run because no isolated session was available.
 
 ## Git state
 
 - Primary repository: `D:/thirdcode/ERP`; current stacked worktree:
-  `D:/thirdcode/ERP-stage-transition-20260903`.
-- Current stacked branch: `agent-05/atomic-stage-transitions`, based on the
-  Won-to-Project branch from PR #23.
+  `D:/thirdcode/ERP-project-opportunity-20260903`.
+- Current stacked branch: `agent-03/project-opportunity-core-cutover`, PR #25,
+  based on the completed Pipeline transition stack.
 - Finance/security release-gate branch: PR #18 at commit `4369a01a`; all
   protected checks pass.
 - Auth PR branch: `agent-03/auth-password-workflows-20260902`; PR #15 at
@@ -424,6 +479,12 @@ Acceptance criteria and ordered agent handoffs are recorded in
 | All-stage supplied-account browser matrix | PASSED | 11/11 identities; exact Owner/Admin/Sales controls and eight supplied denied-role read-only projections; login/identity/navigation/refresh/history/sign-out |
 | All-stage safe local-Core browser probes | PASSED | Distinct reason dialogs, invalid zero-call, trimmed single-submit, typed/transport failure, 32–34 ms retry clears, zero failure refresh, one simulated-success refresh; hosted counts unchanged |
 | All-stage PostgreSQL persistence browser proof | BLOCKED | No explicitly isolated database binding or disposable legacy resubmission fixture; no hosted mutation attempted |
+| Project-detail Opportunity contract | PASSED | WO-11 baseline and mutations 29/29 twice; exact three Core authorities, 3-allow/10-deny policy, create stage/money/panel wiring, and local writer/fallback challenges |
+| Project-detail Opportunity focused tests | PASSED | Shared 20/20; Project Web/action/panel/Core-client 312/312; Core creation/controller/stage 93/93 |
+| Project-detail Opportunity type/lint/build | PASSED | Root typecheck 5/5 tasks; configured source ESLint; API/Web builds 2/2; Web 89/89 pages; Gitleaks and diff checks |
+| Project-detail Opportunity anonymous browser smoke | PASSED | Chromium 147.0.7727.15; accessible login at 1440×900 and 390×844; zero console warnings/errors, page errors, failed requests, non-GET calls, or fake-Core mutations; loopback servers stopped |
+| Project-detail Opportunity authenticated role/mutation browser matrix | BLOCKED | No secure reusable isolated authenticated session; daily browser correctly refused; Estimator/PM identities additionally unavailable |
+| Project-detail Opportunity PostgreSQL canary | BLOCKED | `DATABASE_URL` and `ERP_API_INTEGRATION_EXPECTED=1` unavailable; live result NOT RUN |
 | Deployment/live smoke | NOT RUN | ADR-020 requires the reviewed stack on `main` and green checks on that exact SHA |
 
 ## Confirmed high-priority RBAC findings outside the completed slices
@@ -436,9 +497,8 @@ reproduced before repair.
 
 ## Exact next action
 
-Select the next highest-impact unambiguous vertical workflow from the resumed
-read-only audit. Queue the rejected-Core `unknown.command` logging defect and
-deterministic demo-fixture gaps unless they outrank a broken functional flow;
-leave Viewer-sensitive permissions as `NEEDS DECISION`. Production deployment
-remains blocked by ADR-020 until the reviewed stack reaches `main` and every
-required release check is green on that exact SHA.
+Selection of the next workflow is pending a fresh Agent 1/2 functional and
+source audit; the current ledger does not identify one unambiguous next slice,
+so none is guessed here. Keep Viewer-sensitive permissions as `NEEDS DECISION`.
+Production deployment remains blocked by ADR-020 until the reviewed stack
+reaches `main` and every required release check is green on that exact SHA.

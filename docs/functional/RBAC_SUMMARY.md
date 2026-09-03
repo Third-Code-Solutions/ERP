@@ -45,8 +45,10 @@ explicit `admin` super-admin projection.
   token/signature controlled, callback/health, webhook, or deprecated.
 - 81 central capabilities after adding the dedicated opportunity-export
   boundary; 42 are referenced by Nest controller guards.
-- 1,404 role/protected-resource matrix records: 0 `FAILED`, 32
-  `NEEDS DECISION`, 1,071 `NOT TESTED`, 287 `PARTIAL`, and 14 `BLOCKED`.
+- 1,417 role/protected-resource matrix records: 0 `FAILED`, 32
+  `NEEDS DECISION`, 1,071 `NOT TESTED`, 298 `PARTIAL`, and 16 `BLOCKED`.
+- 119 matrix records have an automated-test result other than `NOT TESTED`;
+  229 have browser result `BLOCKED`; 93 have live result `NOT RUN`.
 
 ## Confirmed policy conflicts
 
@@ -193,6 +195,39 @@ zero failure refresh, and one simulated-success refresh. Live persistence and
 rollback remain blocked without an isolated database fixture; legacy
 `resubmission` lacks browser data, and Estimator/PM identities are unavailable.
 No hosted Core request, demo mutation, or deployment occurred.
+
+### Project-detail Opportunity create and stage transition
+
+PR #25 routes both Project-detail Opportunity mutations exclusively through
+Core. Independent browser QA began from clean HEAD
+`b7a72d82bb317d22dddc380222e3ca0ff84d4943`. Creation uses
+`POST /v1/crm/opportunities`; transitions use
+`POST /v1/crm/opportunities/[id]/stage-transition`. The Web actions have no
+local Opportunity writer, separate audit, SLA/conversion effect, or fallback.
+Core rechecks current tenant membership and the exact capability, validates the
+Project and its Project-derived Account, applies Account/KYC rules, and owns
+atomic Opportunity state, semantic audit, SLA where applicable, and
+idempotency completion.
+
+Creation is restricted to `opportunity_creation`. TCV, signed GP, and weighted
+TCV cross the API as canonical decimal-centavo strings, with exact integer
+weighting and explicit-offset Philippine dates. Owner, Admin, and Sales alone
+receive create/transition controls and Core mutation authority; the other ten
+roles retain readable Project Opportunity data but are denied before effects.
+
+Status: PARTIAL. The authoritative mutation contract passed twice at 29/29;
+shared contracts passed 20/20, Project Web passed 312/312, Core creation/stage
+passed 93/93, and root type/lint plus API/Web builds passed with 89/89 Web
+pages. Chromium 147.0.7727.15 rendered the accessible unauthenticated login on
+loopback Web `127.0.0.1:3317` with fake Core `127.0.0.1:3318`: 1440×900 loaded
+in 1,586 ms and 390×844 in 1,321 ms, with zero console/page/request failures,
+non-GET calls, or fake-Core mutations. Both servers were stopped and their
+ports confirmed free. Authenticated browser coverage is `BLOCKED` for
+all thirteen roles because no secure reusable isolated session was available;
+QA correctly refused the daily browser. The eleven supplied roles remain
+`PARTIAL`, while Estimator and PM remain `BLOCKED` because their identities are
+also missing. Live result is `NOT RUN`; the PostgreSQL canary remains blocked
+without its database binding and explicit opt-in.
 
 ### Viewer semantics
 

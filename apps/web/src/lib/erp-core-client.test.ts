@@ -64,6 +64,7 @@ import {
   getAssetMaintenanceThroughCoreApi,
   createAssetMaintenanceThroughCoreApi,
   getOpportunityThroughCoreApi,
+  createOpportunityThroughCoreApi,
   convertOpportunityToProjectThroughCoreApi,
   transitionOpportunityStageThroughCoreApi,
   projectReadsUseCoreApi,
@@ -5134,6 +5135,84 @@ describe('ERP Core client', () => {
         body: '{}',
       })
     )
+  })
+
+  it('creates an Opportunity through the authenticated Nest command boundary', async () => {
+    const command = {
+      projectId: PROJECT_ID,
+      stage: 'opportunity_creation' as const,
+      tcvCents: '1500000',
+      gpCents: '-25000',
+      closingDate: '2026-10-15T00:00:00+08:00',
+      areaSqm: 875,
+      opportunityType: 'Fit-out',
+      remarks: 'Qualified referral',
+    }
+    const result = {
+      ok: true as const,
+      opportunityId: '77777777-7777-4777-8777-777777777777',
+      tenantId: RESULT.tenantId,
+      projectId: PROJECT_ID,
+      accountId: '88888888-8888-4888-8888-888888888888',
+      repId: '99999999-9999-4999-8999-999999999999',
+      stage: 'opportunity_creation' as const,
+      probability: 10 as const,
+      tcvCents: '1500000',
+      gpCents: '-25000',
+      weightedTcvCents: '150000',
+      closingDate: '2026-10-14T16:00:00.000Z',
+      areaSqm: 875,
+      opportunityType: 'Fit-out',
+      remarks: 'Qualified referral',
+      createdAt: '2026-09-03T01:02:03.000Z',
+    }
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(result), {
+        status: 201,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      createOpportunityThroughCoreApi(command, 'opportunity-create-1')
+    ).resolves.toEqual({ ok: true, data: result, status: 201 })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/crm/opportunities',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          authorization: 'Bearer never-log-or-return-this-token',
+          'Idempotency-Key': 'opportunity-create-1',
+          'x-request-id': expect.stringMatching(
+            /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+          ),
+        }),
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: expect.any(AbortSignal),
+      })
+    )
+  })
+
+  it.each([
+    ['typed failure', new Response(JSON.stringify({ message: 'Project not found.' }), { status: 404 }), 'Project not found.'],
+    ['malformed success', new Response(JSON.stringify({ ok: true }), { status: 201 }), 'ERP Core API returned an invalid Opportunity creation result.'],
+  ])('fails closed for Opportunity creation %s', async (_label, response, error) => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response))
+
+    await expect(
+      createOpportunityThroughCoreApi(
+        {
+          projectId: PROJECT_ID,
+          stage: 'opportunity_creation',
+          tcvCents: '0',
+          gpCents: '0',
+        },
+        'opportunity-create-failure-1'
+      )
+    ).resolves.toMatchObject({ ok: false, error })
   })
 
   it('transitions an Opportunity stage through the Nest command boundary', async () => {

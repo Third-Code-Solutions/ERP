@@ -10,6 +10,7 @@ import {
   accountListResultSchema,
   accountKycQueueResultSchema,
   accountDetailResultSchema,
+  opportunityCreationResultSchema,
   opportunityDetailResultSchema,
   opportunityProjectConversionResultSchema,
   opportunityStageTransitionResultSchema,
@@ -109,6 +110,8 @@ import {
   type AccountListResult,
   type AccountKycQueueResult,
   type AccountDetailResult,
+  type OpportunityCreationCommand,
+  type OpportunityCreationResult,
   type OpportunityDetailResult,
   type OpportunityProjectConversionResult,
   type OpportunityStageTransitionCommand,
@@ -5404,6 +5407,56 @@ export async function convertOpportunityToProjectThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. No Project handoff was completed.',
+    }
+  }
+}
+
+export async function createOpportunityThroughCoreApi(
+  command: OpportunityCreationCommand,
+  idempotencyKey: string
+): Promise<CoreResult<OpportunityCreationResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(`${access.baseUrl}/v1/crm/opportunities`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${access.accessToken}`,
+        'content-type': 'application/json',
+        'Idempotency-Key': idempotencyKey,
+        'x-request-id': randomUUID(),
+      },
+      body: JSON.stringify(command),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(10_000),
+    })
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 404
+            ? 'Project not found.'
+            : response.status === 503
+              ? 'Opportunity creation is not enabled for this tenant.'
+              : 'Opportunity creation was not completed.'
+      return { ok: false, error: message, status: response.status }
+    }
+    const parsed = opportunityCreationResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid Opportunity creation result.',
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. No Opportunity was created.',
     }
   }
 }

@@ -113,6 +113,37 @@ type KycTrack = {
   status: 'pending' | 'approved'
 }
 
+function isOpportunityStage(value: unknown): value is OpportunityStage {
+  return (
+    typeof value === 'string' &&
+    Object.prototype.hasOwnProperty.call(STAGE_TRANSITIONS, value)
+  )
+}
+
+function stageUpdateValues(payload: Record<string, unknown>): {
+  stage: OpportunityStage
+  tcvCents: number
+  gpCents: number
+  closingDate: Date | null
+  weightedTcvCents: number
+} {
+  const stage = payload.stage
+  const tcvCents = payload.tcv_cents
+  const gpCents = payload.gp_cents
+  const closingDate = payload.closing_date
+  const weightedTcvCents = payload.weighted_tcv_cents
+  if (
+    !isOpportunityStage(stage) ||
+    typeof tcvCents !== 'number' ||
+    typeof gpCents !== 'number' ||
+    (closingDate !== null && !(closingDate instanceof Date)) ||
+    typeof weightedTcvCents !== 'number'
+  ) {
+    throw new TypeError('Unexpected Opportunity stage update payload')
+  }
+  return { stage, tcvCents, gpCents, closingDate, weightedTcvCents }
+}
+
 function harness({
   role = 'sales',
   tracks = [
@@ -132,6 +163,9 @@ function harness({
   accountId = ACCOUNT_ID,
   fromStage = 'contract',
   toStage = 'won',
+  tcvCents = 1_000_000,
+  gpCents = 250_000,
+  closingDate = new Date('2026-09-30T00:00:00.000Z'),
   storedCommand = { newStage: toStage },
   storedResult,
 }: {
@@ -150,6 +184,9 @@ function harness({
   accountId?: string | null
   fromStage?: OpportunityStage
   toStage?: OpportunityStage
+  tcvCents?: number
+  gpCents?: number
+  closingDate?: Date | null
   storedCommand?: OpportunityStageTransitionCommand
   storedResult?: unknown
 } = {}) {
@@ -164,7 +201,14 @@ function harness({
     checklistId: convertsToProject ? CHECKLIST_ID : null,
     convertedToProject: convertsToProject,
   }
-  const request = {
+  const request: {
+    id: string
+    requestHash: string
+    state: 'processing' | 'succeeded'
+    fromStage: OpportunityStage
+    toStage: OpportunityStage
+    result: unknown
+  } = {
     id: REQUEST_ID,
     requestHash: requestState === 'succeeded' ? stageHash(storedCommand) : '',
     state: requestState,
@@ -185,6 +229,10 @@ function harness({
     toStage
   )
   let currentStage = requestState === 'succeeded' ? toStage : fromStage
+  let currentTcvCents = tcvCents
+  let currentGpCents = gpCents
+  let currentClosingDate = closingDate
+  let currentWeightedTcvCents: number | undefined
   const buildSelects = () => {
     const nextSelects = [
       selectQuery([
@@ -199,7 +247,9 @@ function harness({
           id: OPPORTUNITY_ID,
           tenantId: PRINCIPAL.tenantId,
           stage: currentStage,
-          tcvCents: 1_000_000,
+          tcvCents: currentTcvCents,
+          gpCents: currentGpCents,
+          closingDate: currentClosingDate,
           accountId,
           projectId: null,
           lostReason: null,
@@ -259,7 +309,7 @@ function harness({
       if (completeRequestError) throw completeRequestError
       recordWrite(label)
       request.state = 'succeeded'
-      request.result = updatePayload.result as typeof request.result
+      request.result = updatePayload.result
       return [{ id: REQUEST_ID }]
     })
     const where = vi.fn().mockReturnValue(
@@ -271,7 +321,12 @@ function harness({
             }
             recordWrite(label)
             if (label === 'opportunity-stage') {
-              currentStage = updatePayload.stage as OpportunityStage
+              const values = stageUpdateValues(updatePayload)
+              currentStage = values.stage
+              currentTcvCents = values.tcvCents
+              currentGpCents = values.gpCents
+              currentClosingDate = values.closingDate
+              currentWeightedTcvCents = values.weightedTcvCents
             }
           })
     )
@@ -297,6 +352,10 @@ function harness({
     callback: (tx: typeof transactionClient) => unknown
   ) => {
     const originalStage = currentStage
+    const originalTcvCents = currentTcvCents
+    const originalGpCents = currentGpCents
+    const originalClosingDate = currentClosingDate
+    const originalWeightedTcvCents = currentWeightedTcvCents
     const originalRequestHash = request.requestHash
     const originalRequestState = request.state
     const originalRequestResult = request.result
@@ -311,6 +370,10 @@ function harness({
       return result
     } catch (error) {
       currentStage = originalStage
+      currentTcvCents = originalTcvCents
+      currentGpCents = originalGpCents
+      currentClosingDate = originalClosingDate
+      currentWeightedTcvCents = originalWeightedTcvCents
       request.requestHash = originalRequestHash
       request.state = originalRequestState
       request.result = originalRequestResult
@@ -388,6 +451,21 @@ function harness({
       get rolledBack() {
         return rolledBack
       },
+      get stage() {
+        return currentStage
+      },
+      get tcvCents() {
+        return currentTcvCents
+      },
+      get gpCents() {
+        return currentGpCents
+      },
+      get closingDate() {
+        return currentClosingDate
+      },
+      get weightedTcvCents() {
+        return currentWeightedTcvCents
+      },
     },
   }
 }
@@ -419,7 +497,6 @@ describe('Opportunity stage transition atomic authority', () => {
     const probe = harness({
       fromStage: 'negotiation',
       toStage: 'bom_submission',
-      accountId: null,
     })
 
     await expect(
@@ -436,7 +513,7 @@ describe('Opportunity stage transition atomic authority', () => {
   it.each(NON_WON_TRANSITIONS)(
     'commits allowed non-Won transition %s -> %s with a strict non-conversion result',
     async (fromStage, toStage) => {
-      const probe = harness({ fromStage, toStage, accountId: null })
+      const probe = harness({ fromStage, toStage })
 
       await expect(
         probe.candidate.transition(
@@ -546,6 +623,26 @@ describe('Opportunity stage transition atomic authority', () => {
     expect(probe.writes).toEqual([])
   })
 
+  it('fails closed when a KYC-gated transition has no tenant-resolved Account', async () => {
+    const probe = harness({
+      fromStage: 'site_survey',
+      toStage: 'design',
+      accountId: null,
+    })
+
+    await expect(
+      probe.candidate.transition(
+        OPPORTUNITY_ID,
+        { newStage: 'design' },
+        PRINCIPAL,
+        'accountless-design'
+      )
+    ).rejects.toThrow('Opportunity Account is required before this stage')
+    expect(probe.transactionClient.insert).not.toHaveBeenCalled()
+    expect(probe.transactionClient.update).not.toHaveBeenCalled()
+    expect(probe.writes).toEqual([])
+  })
+
   it('records the required Lost reason in the semantic audit', async () => {
     const probe = harness({
       fromStage: 'contract',
@@ -578,6 +675,94 @@ describe('Opportunity stage transition atomic authority', () => {
         }),
       })
     )
+  })
+
+  it('commits commercial edits with the stage and audits their before/after values', async () => {
+    const probe = harness({
+      fromStage: 'lead',
+      toStage: 'site_survey',
+      accountId: null,
+    })
+
+    await probe.candidate.transition(
+      OPPORTUNITY_ID,
+      {
+        newStage: 'site_survey',
+        tcvCents: '1000002',
+        gpCents: '-25000',
+        closingDate: '2026-10-31T00:00:00.000Z',
+      },
+      PRINCIPAL,
+      'commercial-edit'
+    )
+
+    expect(probe.state).toMatchObject({
+      stage: 'site_survey',
+      tcvCents: 1_000_002,
+      gpCents: -25_000,
+      weightedTcvCents: 250_001,
+    })
+    expect(probe.state.closingDate).toEqual(
+      new Date('2026-10-31T00:00:00.000Z')
+    )
+    expect(probe.audit.writeSemantic).toHaveBeenCalledWith(
+      probe.transactionClient,
+      expect.objectContaining({
+        diff: expect.objectContaining({
+          tcv_cents: { from: '1000000', to: '1000002' },
+          gp_cents: { from: '250000', to: '-25000' },
+          closing_date: {
+            from: '2026-09-30T00:00:00.000Z',
+            to: '2026-10-31T00:00:00.000Z',
+          },
+        }),
+      })
+    )
+    expect(probe.writes).toContain('opportunity-stage')
+  })
+
+  it('preserves omitted commercial values while recalculating weighted TCV', async () => {
+    const probe = harness({
+      fromStage: 'lead',
+      toStage: 'site_survey',
+      accountId: null,
+    })
+
+    await probe.candidate.transition(
+      OPPORTUNITY_ID,
+      { newStage: 'site_survey' },
+      PRINCIPAL,
+      'preserve-commercial-edit'
+    )
+
+    expect(probe.state).toMatchObject({
+      tcvCents: 1_000_000,
+      gpCents: 250_000,
+    })
+    expect(probe.state.closingDate).toEqual(
+      new Date('2026-09-30T00:00:00.000Z')
+    )
+  })
+
+  it('rejects unsafe commercial integers before opening a transaction', async () => {
+    const probe = harness({
+      fromStage: 'lead',
+      toStage: 'site_survey',
+      accountId: null,
+    })
+
+    await expect(
+      probe.candidate.transition(
+        OPPORTUNITY_ID,
+        {
+          newStage: 'site_survey',
+          tcvCents: '9007199254740992',
+        },
+        PRINCIPAL,
+        'unsafe-commercial-edit'
+      )
+    ).rejects.toThrow()
+    expect(probe.transaction).not.toHaveBeenCalled()
   })
 
   it('replays a completed non-Won command without repeating stage, audit, or SLA effects', async () => {
@@ -646,6 +831,29 @@ describe('Opportunity stage transition atomic authority', () => {
     expect(probe.audit.writeSemantic).not.toHaveBeenCalled()
   })
 
+  it('includes commercial edits in the idempotency command hash', async () => {
+    const probe = harness({
+      fromStage: 'site_survey',
+      toStage: 'site_survey',
+      accountId: null,
+      requestState: 'succeeded',
+      storedCommand: { newStage: 'site_survey', tcvCents: '1000000' },
+    })
+
+    await expect(
+      probe.candidate.transition(
+        OPPORTUNITY_ID,
+        { newStage: 'site_survey', tcvCents: '2000000' },
+        PRINCIPAL,
+        'reused-commercial-key'
+      )
+    ).rejects.toThrow(
+      'Idempotency key was already used with a different Opportunity command'
+    )
+    expect(probe.transactionClient.update).not.toHaveBeenCalled()
+    expect(probe.audit.writeSemantic).not.toHaveBeenCalled()
+  })
+
   it('serializes same-key concurrent non-Won retries and commits each effect once', async () => {
     const probe = harness({
       fromStage: 'lead',
@@ -655,7 +863,12 @@ describe('Opportunity stage transition atomic authority', () => {
     const execute = () =>
       probe.candidate.transition(
         OPPORTUNITY_ID,
-        { newStage: 'site_survey' },
+        {
+          newStage: 'site_survey',
+          tcvCents: '1000002',
+          gpCents: '-25000',
+          closingDate: '2026-10-31T00:00:00.000Z',
+        },
         PRINCIPAL,
         'lead-site-survey-concurrent'
       )
@@ -664,6 +877,14 @@ describe('Opportunity stage transition atomic authority', () => {
 
     expect(concurrentRetry).toEqual(first)
     expect(probe.transaction).toHaveBeenCalledTimes(2)
+    expect(probe.state).toMatchObject({
+      tcvCents: 1_000_002,
+      gpCents: -25_000,
+      weightedTcvCents: 250_001,
+    })
+    expect(probe.state.closingDate).toEqual(
+      new Date('2026-10-31T00:00:00.000Z')
+    )
     for (const onceOnly of [
       'stage-request-claim',
       'opportunity-stage',
@@ -727,13 +948,27 @@ describe('Opportunity stage transition atomic authority', () => {
       await expect(
         probe.candidate.transition(
           OPPORTUNITY_ID,
-          { newStage: 'site_survey' },
+          {
+            newStage: 'site_survey',
+            tcvCents: '1000002',
+            gpCents: '-25000',
+            closingDate: '2026-10-31T00:00:00.000Z',
+          },
           PRINCIPAL,
           `rollback-${_boundary}`
         )
       ).rejects.toThrow('injected')
       expect(probe.state.committed).toBe(false)
       expect(probe.state.rolledBack).toBe(true)
+      expect(probe.state).toMatchObject({
+        stage: 'lead',
+        tcvCents: 1_000_000,
+        gpCents: 250_000,
+        weightedTcvCents: undefined,
+      })
+      expect(probe.state.closingDate).toEqual(
+        new Date('2026-09-30T00:00:00.000Z')
+      )
       expect(probe.writes).toEqual([])
     }
   )

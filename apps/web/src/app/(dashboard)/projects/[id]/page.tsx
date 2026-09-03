@@ -61,6 +61,10 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   const access = getProjectDetailAccess(profile.role)
   const canUpdateProject = can(profile.role, 'project.update')
   const canDeleteProject = can(profile.role, 'project.delete')
+  const opportunityPermissions = {
+    canCreate: can(profile.role, 'opportunity.create'),
+    canMutate: can(profile.role, 'opportunity.advance_stage'),
+  }
 
   const project = await getProject(tenantId, id)
 
@@ -318,7 +322,11 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
 
           {/* Pipeline opportunities */}
           {access.opportunity ? (
-            <OpportunityPanel projectId={id} opportunities={opps} />
+            <OpportunityPanel
+              projectId={id}
+              opportunities={opps}
+              {...opportunityPermissions}
+            />
           ) : null}
         </div>
 

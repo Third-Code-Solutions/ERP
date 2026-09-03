@@ -34,6 +34,9 @@ import {
   type DatabaseTransaction,
 } from '../src/database/database.service'
 import { OpportunityProjectConversionService } from '../src/crm/opportunity-project-conversion.service'
+import { OpportunityCreationController } from '../src/crm/opportunity-creation.controller'
+import { OpportunityCreationPipe } from '../src/crm/opportunity-creation.pipe'
+import { OpportunityCreationService } from '../src/crm/opportunity-creation.service'
 import { OpportunityStageTransitionController } from '../src/crm/opportunity-stage-transition.controller'
 import { OpportunityStageTransitionPipe } from '../src/crm/opportunity-stage-transition.pipe'
 import { OpportunityStageTransitionService } from '../src/crm/opportunity-stage-transition.service'
@@ -93,6 +96,8 @@ suite('Opportunity stage transition protected HTTP canary', () => {
     const invalidAccountOpportunityA = randomUUID()
     const rollbackOpportunityA = randomUUID()
     const rollbackProjectA = randomUUID()
+    const accountlessProjectA = randomUUID()
+    const accountlessOpportunityA = randomUUID()
     const contractOpportunityB = randomUUID()
     const suffix = randomUUID().slice(0, 12)
     const observedAt = new Date('2026-08-10T04:00:00.000Z')
@@ -164,17 +169,29 @@ suite('Opportunity stage transition protected HTTP canary', () => {
           updated_at: observedAt,
         },
       ])
-      await transaction.insert(projects).values({
-        id: rollbackProjectA,
-        tenant_id: tenantA,
-        account_id: accountA,
-        name: 'Stage rollback project',
-        client: 'Stage Client A',
-        status: 'lead',
-        created_by: salesA,
-        created_at: observedAt,
-        updated_at: observedAt,
-      })
+      await transaction.insert(projects).values([
+        {
+          id: rollbackProjectA,
+          tenant_id: tenantA,
+          account_id: accountA,
+          name: 'Stage rollback project',
+          client: 'Stage Client A',
+          status: 'lead',
+          created_by: salesA,
+          created_at: observedAt,
+          updated_at: observedAt,
+        },
+        {
+          id: accountlessProjectA,
+          tenant_id: tenantA,
+          name: 'Legacy accountless project',
+          client: 'Legacy Client',
+          status: 'lead',
+          created_by: salesA,
+          created_at: observedAt,
+          updated_at: observedAt,
+        },
+      ])
       await transaction.insert(opportunities).values([
         {
           id: leadOpportunityA,
@@ -221,6 +238,17 @@ suite('Opportunity stage transition protected HTTP canary', () => {
           tcv_cents: 800_000,
           probability: 90,
           weighted_tcv_cents: 720_000,
+          created_at: observedAt,
+          updated_at: observedAt,
+        },
+        {
+          id: accountlessOpportunityA,
+          tenant_id: tenantA,
+          project_id: accountlessProjectA,
+          stage: 'site_survey',
+          tcv_cents: 200_000,
+          probability: 25,
+          weighted_tcv_cents: 50_000,
           created_at: observedAt,
           updated_at: observedAt,
         },
@@ -322,9 +350,14 @@ suite('Opportunity stage transition protected HTTP canary', () => {
       }
       const database = transactionBoundDatabase(transaction)
       const moduleRef = await Test.createTestingModule({
-        controllers: [OpportunityStageTransitionController],
+        controllers: [
+          OpportunityCreationController,
+          OpportunityStageTransitionController,
+        ],
         providers: [
           Reflector,
+          OpportunityCreationPipe,
+          OpportunityCreationService,
           OpportunityStageTransitionPipe,
           OpportunityStageTransitionService,
           OpportunityProjectConversionService,
@@ -367,6 +400,17 @@ suite('Opportunity stage transition protected HTTP canary', () => {
         const route = (opportunityId: string) =>
           `/v1/crm/opportunities/${opportunityId}/stage-transition`
 
+        const accountlessGate = await request(app.getHttpServer())
+          .post(route(accountlessOpportunityA))
+          .set('Authorization', 'Bearer stage-sales-a-token')
+          .set('Idempotency-Key', 'accountless-design')
+          .send({ newStage: 'design' })
+          .expect(409)
+        expect(accountlessGate.body).toMatchObject({
+          message: 'Opportunity Account is required before this stage',
+          statusCode: 409,
+        })
+
         await request(app.getHttpServer())
           .post(route(leadOpportunityA))
           .send({ newStage: 'site_survey' })
@@ -400,6 +444,56 @@ suite('Opportunity stage transition protected HTTP canary', () => {
           .send({ newStage: 'site_survey' })
           .expect(503)
         featureState.stageEnabled = true
+
+        const created = await request(app.getHttpServer())
+          .post('/v1/crm/opportunities')
+          .set('Authorization', 'Bearer stage-sales-a-token')
+          .set('Idempotency-Key', 'project-opportunity-create')
+          .send({
+            projectId: rollbackProjectA,
+            tcvCents: '10005',
+            gpCents: '-2000',
+            closingDate: '2026-09-03T00:00:00+08:00',
+          })
+          .expect(201)
+        expect(created.body).toMatchObject({
+          ok: true,
+          tenantId: tenantA,
+          projectId: rollbackProjectA,
+          accountId: accountA,
+          repId: salesA,
+          stage: 'opportunity_creation',
+          probability: 10,
+          tcvCents: '10005',
+          gpCents: '-2000',
+          weightedTcvCents: '1001',
+        })
+        const createReplay = await request(app.getHttpServer())
+          .post('/v1/crm/opportunities')
+          .set('Authorization', 'Bearer stage-admin-a-token')
+          .set('Idempotency-Key', 'project-opportunity-create')
+          .send({
+            projectId: rollbackProjectA,
+            tcvCents: '10005',
+            gpCents: '-2000',
+            closingDate: '2026-09-03T00:00:00+08:00',
+          })
+          .expect(201)
+        expect(createReplay.body).toEqual(created.body)
+
+        await request(app.getHttpServer())
+          .post('/v1/crm/opportunities')
+          .set('Authorization', 'Bearer stage-viewer-a-token')
+          .set('Idempotency-Key', 'viewer-create')
+          .send({ projectId: rollbackProjectA })
+          .expect(403)
+
+        await request(app.getHttpServer())
+          .post('/v1/crm/opportunities')
+          .set('Authorization', 'Bearer stage-sales-b-token')
+          .set('Idempotency-Key', 'foreign-project-create')
+          .send({ projectId: rollbackProjectA })
+          .expect(404)
 
         await request(app.getHttpServer())
           .post(route(contractOpportunityA))
@@ -628,7 +722,12 @@ suite('Opportunity stage transition protected HTTP canary', () => {
           .post(route(leadOpportunityA))
           .set('Authorization', 'Bearer stage-sales-a-token')
           .set('Idempotency-Key', 'lead-site-survey')
-          .send({ newStage: 'site_survey' })
+          .send({
+            newStage: 'site_survey',
+            tcvCents: '100002',
+            gpCents: '-2500',
+            closingDate: '2026-10-31T00:00:00.000Z',
+          })
           .expect(200)
         expect(nonTerminal.body).toMatchObject({
           ok: true,
@@ -645,7 +744,12 @@ suite('Opportunity stage transition protected HTTP canary', () => {
           .post(route(leadOpportunityA))
           .set('Authorization', 'Bearer stage-admin-a-token')
           .set('Idempotency-Key', 'lead-site-survey')
-          .send({ newStage: 'site_survey' })
+          .send({
+            newStage: 'site_survey',
+            tcvCents: '100002',
+            gpCents: '-2500',
+            closingDate: '2026-10-31T00:00:00.000Z',
+          })
           .expect(200)
         expect(replay.body).toEqual(nonTerminal.body)
 
@@ -713,6 +817,79 @@ suite('Opportunity stage transition protected HTTP canary', () => {
           )
         expect(tenantALeadAudits).toHaveLength(1)
 
+        const [persistedCreate] = await transaction
+          .select({
+            projectId: opportunities.project_id,
+            accountId: opportunities.account_id,
+            repId: opportunities.rep_id,
+            stage: opportunities.stage,
+            tcvCents: opportunities.tcv_cents,
+            gpCents: opportunities.gp_cents,
+            weightedTcvCents: opportunities.weighted_tcv_cents,
+            closingDate: opportunities.closing_date,
+          })
+          .from(opportunities)
+          .where(
+            and(
+              eq(opportunities.tenant_id, tenantA),
+              eq(opportunities.id, created.body.opportunityId)
+            )
+          )
+          .limit(1)
+        expect(persistedCreate).toEqual({
+          projectId: rollbackProjectA,
+          accountId: accountA,
+          repId: salesA,
+          stage: 'opportunity_creation',
+          tcvCents: 10_005,
+          gpCents: -2_000,
+          weightedTcvCents: 1_001,
+          closingDate: new Date('2026-09-02T16:00:00.000Z'),
+        })
+        const createRequests = await transaction
+          .select()
+          .from(opportunityStageTransitionRequests)
+          .where(
+            and(
+              eq(opportunityStageTransitionRequests.tenant_id, tenantA),
+              eq(
+                opportunityStageTransitionRequests.idempotency_key,
+                'opportunity-create:project-opportunity-create'
+              )
+            )
+          )
+        expect(createRequests).toHaveLength(1)
+        expect(createRequests[0]).toMatchObject({
+          opportunity_id: created.body.opportunityId,
+          state: 'succeeded',
+          from_stage: 'opportunity_creation',
+          to_stage: 'opportunity_creation',
+          project_id: rollbackProjectA,
+        })
+        const createAudits = await transaction
+          .select({ id: auditLog.id })
+          .from(auditLog)
+          .where(
+            and(
+              eq(auditLog.tenant_id, tenantA),
+              eq(auditLog.entity_id, created.body.opportunityId),
+              eq(auditLog.action, 'create')
+            )
+          )
+        expect(createAudits).toHaveLength(1)
+
+        const [accountlessAfterGate] = await transaction
+          .select({ stage: opportunities.stage })
+          .from(opportunities)
+          .where(
+            and(
+              eq(opportunities.tenant_id, tenantA),
+              eq(opportunities.id, accountlessOpportunityA)
+            )
+          )
+          .limit(1)
+        expect(accountlessAfterGate?.stage).toBe('site_survey')
+
         await request(app.getHttpServer())
           .post(route(leadOpportunityA))
           .set('Authorization', 'Bearer stage-sales-a-token')
@@ -745,7 +922,13 @@ suite('Opportunity stage transition protected HTTP canary', () => {
           .expect(409)
 
         const [lead] = await transaction
-          .select({ stage: opportunities.stage })
+          .select({
+            stage: opportunities.stage,
+            tcvCents: opportunities.tcv_cents,
+            gpCents: opportunities.gp_cents,
+            weightedTcvCents: opportunities.weighted_tcv_cents,
+            closingDate: opportunities.closing_date,
+          })
           .from(opportunities)
           .where(
             and(
@@ -754,7 +937,13 @@ suite('Opportunity stage transition protected HTTP canary', () => {
             )
           )
           .limit(1)
-        expect(lead?.stage).toBe('site_survey')
+        expect(lead).toMatchObject({
+          stage: 'site_survey',
+          tcvCents: 100_002,
+          gpCents: -2_500,
+          weightedTcvCents: 25_001,
+          closingDate: new Date('2026-10-31T00:00:00.000Z'),
+        })
 
         const [converted] = await transaction
           .select()
