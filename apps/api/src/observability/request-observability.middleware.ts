@@ -12,6 +12,19 @@ export const REQUEST_ID_HEADER = 'x-request-id'
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const COMMAND_METHODS = new Set(['DELETE', 'PATCH', 'POST', 'PUT'])
+const PLATFORM_COMMANDS: Readonly<Record<string, string>> = {
+  'POST /v1/platform-admin/tenants': 'platform.tenant.create',
+  'PATCH /v1/platform-admin/tenants/:tenantId': 'platform.tenant.configure',
+  'PATCH /v1/platform-admin/tenants/:tenantId/status': 'platform.tenant.status',
+  'POST /v1/platform-admin/invitations': 'platform.user.invite',
+  'POST /v1/platform-admin/invitations/:invitationId/resend': 'platform.user.invitation_resend',
+  'DELETE /v1/platform-admin/invitations/:invitationId': 'platform.user.invitation_revoke',
+  'PATCH /v1/platform-admin/users/:userId/role': 'platform.user.role',
+  'PATCH /v1/platform-admin/users/:userId/status': 'platform.user.status',
+  'POST /v1/platform-admin/users/:userId/password-reset': 'platform.user.password_reset',
+  'POST /v1/platform-admin/support-context': 'platform.support_context.start',
+  'DELETE /v1/platform-admin/support-context/:sessionId': 'platform.support_context.end',
+}
 
 type CommandOutcome = 'aborted' | 'failed' | 'rejected' | 'succeeded'
 
@@ -94,6 +107,8 @@ export class RequestObservabilityMiddleware implements NestMiddleware {
       typeof request.route?.path === 'string'
         ? request.route.path
         : ''
+    const platformAction = PLATFORM_COMMANDS[`${request.method} ${routePath}`]
+    if (platformAction) return platformAction
     if (
       request.method === 'PATCH' &&
       routePath.endsWith('/v1/admin/users/:userId/role')

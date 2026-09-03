@@ -15,6 +15,7 @@ import {
 } from '@third-code-erp/shared-types/authorization'
 import type { AuthenticatedRequest } from './current-principal.decorator'
 import { PUBLIC_ROUTE } from './supabase-jwt.guard'
+import { PLATFORM_ROUTE } from './platform-owner.guard'
 
 export { ERP_CAPABILITIES, roleHasCapability }
 export type { ErpCapability }
@@ -41,6 +42,15 @@ export class CapabilityGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     if (
       this.reflector.getAllAndOverride<boolean>(PUBLIC_ROUTE, [
+        context.getHandler(),
+        context.getClass(),
+      ])
+    ) {
+      return true
+    }
+
+    if (
+      this.reflector.getAllAndOverride<boolean>(PLATFORM_ROUTE, [
         context.getHandler(),
         context.getClass(),
       ])

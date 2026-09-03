@@ -64,7 +64,6 @@ export * from './erp-api/project-comments'
 export * from './erp-api/project-command-center'
 export * from './erp-api/today'
 export * from './erp-api/daily-task-completion'
-<<<<<<< HEAD
 export * from './erp-api/inspection-rfi'
 export * from './erp-api/project-rfi'
 export * from './erp-api/site-diary'
