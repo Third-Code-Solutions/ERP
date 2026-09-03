@@ -1,9 +1,10 @@
 import { notFound } from 'next/navigation'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { projects } from '@third-code-erp/database/schema'
 import { and, eq, isNull } from 'drizzle-orm'
 import { ProjectTabs } from '@/components/projects/project-tabs'
+import { getProjectDetailAccess } from './project-detail-access'
 
 /**
  * Layout wrapper for every /projects/[id]/* sub-route. Renders the
@@ -22,6 +23,8 @@ export default async function ProjectLayout({
 }) {
   const { id } = await params
   const profile = await requireUserProfile()
+  requireCapability(profile, 'project.read')
+  const access = getProjectDetailAccess(profile.role)
   const [project] = await db
     .select({ id: projects.id })
     .from(projects)
@@ -37,7 +40,7 @@ export default async function ProjectLayout({
 
   return (
     <div>
-      <ProjectTabs projectId={id} />
+      <ProjectTabs projectId={id} access={access} />
       {children}
     </div>
   )

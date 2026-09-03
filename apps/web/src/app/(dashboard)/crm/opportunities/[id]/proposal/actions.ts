@@ -2,7 +2,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
-import { and, eq, desc, or, sql } from 'drizzle-orm'
+import { and, eq, desc, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import {
   requireUserProfile,
@@ -15,8 +15,6 @@ import { db } from '@third-code-erp/database'
 import {
   pprfSubmissions,
   siteInspections,
-  siteInspectionPhotos,
-  siteInspectionRfis,
   designFiles,
   designFileVersions,
   opportunities,
@@ -26,17 +24,13 @@ import {
   tenants,
   users,
 } from '@third-code-erp/database/schema'
-import { writeAuditLog, writeAuditLogInTransaction } from '@/lib/audit'
+import { writeAuditLog } from '@/lib/audit'
 import {
   changeRequestWritesUseCoreApi,
   createChangeRequestThroughCoreApi,
 } from '@/lib/erp-core-client'
 import { startSlaClock } from '@/lib/operations/sla-clock'
 import { notifyRoles } from '@/lib/operations/notifications'
-import {
-  initializeOpportunityKycTracks,
-  opportunityKycDueAt,
-} from '@/lib/operations/opportunity-kyc'
 import { inngest } from '@/lib/inngest'
 import {
   buildInspectionReportHtml,
@@ -90,7 +84,18 @@ const PRIORITY_VALUES = ['minor', 'major'] as const
 
 // Schemas live in ./schemas.ts so this 'use server' file only exports
 // async functions per Next.js constraint.
-import { submitPprfSchema, type PprfPayload } from './schemas'
+import type { PprfPayload } from './schemas'
+import {
+  pprfResubmissionCommandSchema,
+  pprfSubmissionResultSchema,
+  pprfSubmissionService,
+} from '@/server/crm/pprf-submission-service'
+import {
+  siteInspectionRfiCommandSchema,
+  siteInspectionSubmissionCommandSchema,
+  siteInspectionWorkflowResultSchema,
+  siteInspectionWorkflowService,
+} from '@/server/crm/site-inspection-workflow-service'
 import {
   createChangeRequestRecord,
   resolveChangeRequestRecord,
@@ -108,129 +113,209 @@ async function assertOpportunity(tenantId: string, opportunityId: string) {
   return opp ?? null
 }
 
-// US-006 — Submit a new versioned PPRF for an opportunity.
-export async function submitPprf(formData: FormData): Promise<{ error?: string; version?: number }> {
-  const profile = await requireUserProfile()
-  const forbid = guard(profile.role, 'pprf.submit')
-  if (forbid) return { error: forbid }
+const PPRF_FIELD_NAMES = [
+  'submission_id',
+  'site_address',
+  'floor_area_sqm',
+  'landlord_contact',
+  'as_built_available',
+  'scope_notes',
+  'project_type',
+  'expected_start_date',
+  'budget_range',
+] as const
+const PPRF_FIELD_NAME_SET = new Set<string>(PPRF_FIELD_NAMES)
 
-  const parsed = submitPprfSchema.safeParse({
-    opportunity_id: formData.get('opportunity_id'),
-    site_address: formData.get('site_address'),
-    floor_area_sqm: formData.get('floor_area_sqm'),
-    landlord_contact: formData.get('landlord_contact'),
-    as_built_available: formData.get('as_built_available'),
-    scope_notes: formData.get('scope_notes') || '',
-    project_type: formData.get('project_type') || '',
-    expected_start_date: formData.get('expected_start_date') || '',
-    budget_range: formData.get('budget_range') || '',
-  })
-  if (!parsed.success) {
-    const first = parsed.error.errors[0]
-    return { error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}` }
+function logPprfOutcome(input: {
+  traceId: string
+  tenantId: string | null
+  actorId: string | null
+  outcome: string
+  errorCode?: string
+}): void {
+  console.info(JSON.stringify({
+    event: 'pprf_action',
+    trace_id: input.traceId,
+    tenant_id: input.tenantId,
+    actor_id: input.actorId,
+    action: 'pprf.resubmission.submit',
+    outcome: input.outcome,
+    ...(input.errorCode ? { error_code: input.errorCode } : {}),
+  }))
+}
+
+function readPprfFields(formData: FormData):
+  | { ok: true; values: Record<(typeof PPRF_FIELD_NAMES)[number], string> }
+  | { ok: false; error: string } {
+  for (const [name] of formData.entries()) {
+    if (!PPRF_FIELD_NAME_SET.has(name)) {
+      return { ok: false, error: `form: unexpected field "${name}"` }
+    }
   }
-  const { opportunity_id, ...payload } = parsed.data
+  const values = {} as Record<(typeof PPRF_FIELD_NAMES)[number], string>
+  for (const name of PPRF_FIELD_NAMES) {
+    const entries = formData.getAll(name)
+    if (entries.length !== 1 || typeof entries[0] !== 'string') {
+      return { ok: false, error: `${name}: exactly one text value is required` }
+    }
+    values[name] = entries[0]
+  }
+  return { ok: true, values }
+}
 
-  const opp = await assertOpportunity(profile.tenantId, opportunity_id)
-  if (!opp) return { error: 'Opportunity not found' }
+// US-006 — Submit a new versioned PPRF for a server-bound opportunity.
+export async function submitPprf(opportunityId: string, formData: FormData) {
+  const traceId = randomUUID()
+  let tenantId: string | null = null
+  let actorId: string | null = null
+  try {
+    const profile = await requireUserProfile()
+    tenantId = profile.tenantId
+    actorId = profile.user.id
+    if (!can(profile.role, 'pprf.submit')) {
+      logPprfOutcome({ traceId, tenantId, actorId, outcome: 'forbidden' })
+      return { ok: false as const, error: 'You do not have permission to submit a PPRF.' }
+    }
 
-  const dueAt = await opportunityKycDueAt(profile.tenantId)
-  const result = await db.transaction(async (tx) => {
-    // Serialize versioning and track reset for concurrent submissions of one
-    // opportunity. A later PPRF is a new review baseline, never a partial edit
-    // of an already-decided track.
-    await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtextextended(${'pprf:' + profile.tenantId + ':' + opportunity_id}, 0))`
-    )
-
-    const [maxRow] = await tx
-      .select({ max: sql<number>`COALESCE(MAX(${pprfSubmissions.version}), 0)` })
-      .from(pprfSubmissions)
-      .where(
-        and(
-          eq(pprfSubmissions.opportunity_id, opportunity_id),
-          eq(pprfSubmissions.tenant_id, profile.tenantId),
-        ),
-      )
-    const nextVersion = (maxRow?.max ?? 0) + 1
-    const now = new Date()
-    const [inserted] = await tx
-      .insert(pprfSubmissions)
-      .values({
-        tenant_id: profile.tenantId,
-        opportunity_id,
-        version: nextVersion,
-        payload,
-        submitted_at: now,
-        submitted_by: profile.user.id,
-      })
-      .returning({ id: pprfSubmissions.id })
-
-    if (!inserted) throw new Error('Failed to persist PPRF submission')
-
-    await initializeOpportunityKycTracks(tx, {
-      tenantId: profile.tenantId,
-      opportunityId: opportunity_id,
-      dueAt,
-    })
-
-    await writeAuditLogInTransaction(tx, {
-      tenantId: profile.tenantId,
-      actorId: profile.user.id,
-      entityType: 'pprf_submission',
-      entityId: inserted.id,
-      action: 'create',
-      diff: {
-        version: nextVersion,
-        opportunity_id,
-        payload,
-        kyc_tracks_reset: true,
-        kyc_due_at: dueAt.toISOString(),
+    const fields = readPprfFields(formData)
+    if (!fields.ok) {
+      logPprfOutcome({ traceId, tenantId, actorId, outcome: 'validation_error' })
+      return { ok: false as const, error: fields.error }
+    }
+    if (!/^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(fields.values.floor_area_sqm)) {
+      logPprfOutcome({ traceId, tenantId, actorId, outcome: 'validation_error' })
+      return { ok: false as const, error: 'floor_area_sqm: invalid number' }
+    }
+    const floorAreaSqm = Number(fields.values.floor_area_sqm)
+    const parsed = pprfResubmissionCommandSchema.safeParse({
+      submissionId: fields.values.submission_id,
+      opportunityId,
+      pprf: {
+        siteAddress: fields.values.site_address,
+        floorAreaSqm,
+        landlordContact: fields.values.landlord_contact,
+        asBuiltAvailable: fields.values.as_built_available,
+        scopeNotes: fields.values.scope_notes,
+        projectType: fields.values.project_type,
+        expectedStartDate: fields.values.expected_start_date || undefined,
+        budgetRange: fields.values.budget_range,
       },
     })
+    if (!parsed.success) {
+      const first = parsed.error.errors[0]
+      logPprfOutcome({ traceId, tenantId, actorId, outcome: 'validation_error' })
+      return { ok: false as const, error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}` }
+    }
 
-    return { nextVersion }
-  })
-  const nextVersion = result.nextVersion
+    const rawResult = await pprfSubmissionService.submitResubmission(
+      { tenantId, userId: actorId }, parsed.data
+    )
+    const checked = pprfSubmissionResultSchema.safeParse(rawResult)
+    if (!checked.success) {
+      logPprfOutcome({ traceId, tenantId, actorId, outcome: 'service_contract_failure' })
+      return { ok: false as const, error: 'The PPRF service returned an invalid response. Please retry.' }
+    }
+    if (!checked.data.ok) {
+      logPprfOutcome({
+        traceId, tenantId, actorId,
+        outcome: checked.data.error.code === 'CONFLICT' ? 'conflict' : 'service_rejected',
+        errorCode: checked.data.error.code,
+      })
+      return { ok: false as const, error: checked.data.error.message }
+    }
+    if (
+      checked.data.kind !== 'resubmission' ||
+      checked.data.tenantId !== tenantId ||
+      checked.data.opportunityId !== opportunityId
+    ) {
+      logPprfOutcome({ traceId, tenantId, actorId, outcome: 'service_contract_failure' })
+      return { ok: false as const, error: 'The PPRF service response did not match this submission. Please retry.' }
+    }
 
-  await startSlaClock({
-    tenantId: profile.tenantId,
-    entityType: 'opportunity',
-    entityId: opportunity_id,
-    label: 'pprf.review',
-  })
-
-  await notifyRoles({
-    tenantId: profile.tenantId,
-    recipientRoles: ['commercial', 'finance'],
-    subject: `PPRF v${nextVersion} submitted`,
-    body: `A new Project Pre-Requirements Form (v${nextVersion}) is ready for review.`,
-    linkUrl: `/crm/opportunities/${opportunity_id}/proposal/pprf`,
-  })
-
-  revalidatePath(`/crm/opportunities/${opportunity_id}/proposal/pprf`)
-  revalidatePath(`/crm/opportunities/${opportunity_id}/proposal`)
-  revalidatePath(`/crm/opportunities/${opportunity_id}`)
-  return { version: nextVersion }
+    let refreshFailed = false
+    try {
+      revalidatePath(`/crm/opportunities/${opportunityId}/proposal/pprf`)
+      revalidatePath(`/crm/opportunities/${opportunityId}/proposal`)
+      revalidatePath(`/crm/opportunities/${opportunityId}`)
+    } catch {
+      refreshFailed = true
+    }
+    logPprfOutcome({
+      traceId, tenantId, actorId,
+      outcome: refreshFailed ? 'success_refresh_failed' : 'success',
+    })
+    return {
+      ok: true as const,
+      kind: checked.data.kind,
+      opportunityId: checked.data.opportunityId,
+      pprfSubmissionId: checked.data.pprfSubmissionId,
+      version: checked.data.version,
+      replayed: checked.data.replayed,
+      refreshFailed,
+    }
+  } catch {
+    logPprfOutcome({ traceId, tenantId, actorId, outcome: 'unexpected_error' })
+    return { ok: false as const, error: 'Unable to submit the PPRF. Please retry.' }
+  }
 }
 
 // US-007 — Submit a site inspection. Requires a PPRF to already exist.
-const inspectionPayloadSchema = z.object({
-  site_address: z.string().min(2).max(500),
-  floor_area_sqm: z.string().max(64).optional().default(''),
-  landlord_contact: z.string().max(255).optional().default(''),
-  as_built_available: z.enum(['yes', 'partial', 'no']).optional().default('no'),
-  expected_start_date: z.string().max(64).optional().default(''),
-  weather: z.string().max(255).optional().default(''),
-  accessibility_notes: z.string().max(5000).optional().default(''),
-  observations: z.string().max(20_000).optional().default(''),
-})
+const INSPECTION_FIELD_NAMES = [
+  'client_submission_id',
+  'site_address',
+  'floor_area_sqm',
+  'landlord_contact',
+  'as_built_available',
+  'expected_start_date',
+  'weather',
+  'accessibility_notes',
+  'observations',
+  'photo_document_ids',
+] as const
+const INSPECTION_FIELD_NAME_SET = new Set<string>(INSPECTION_FIELD_NAMES)
 
-const submitInspectionSchema = z.object({
-  opportunity_id: z.string().uuid(),
-  client_submission_id: z.string().uuid(),
-  photo_document_ids: z.string().optional().default('[]'),
-}).merge(inspectionPayloadSchema)
+const RFI_FIELD_NAMES = ['submission_id', 'description', 'priority'] as const
+const RFI_FIELD_NAME_SET = new Set<string>(RFI_FIELD_NAMES)
+
+function readExactTextFields<const T extends readonly string[]>(
+  formData: FormData,
+  names: T,
+  allowedNames: ReadonlySet<string>,
+): { ok: true; values: Record<T[number], string> } | { ok: false; error: string } {
+  for (const [name] of formData.entries()) {
+    if (!allowedNames.has(name)) {
+      return { ok: false, error: `form: unexpected field "${name}"` }
+    }
+  }
+  const values = {} as Record<T[number], string>
+  for (const name of names) {
+    const entries = formData.getAll(name)
+    if (entries.length !== 1 || typeof entries[0] !== 'string') {
+      return { ok: false, error: `${name}: exactly one text value is required` }
+    }
+    values[name as T[number]] = entries[0]
+  }
+  return { ok: true, values }
+}
+
+function logSiteInspectionOutcome(input: {
+  traceId: string
+  tenantId: string | null
+  actorId: string | null
+  action: 'site_inspection.submit' | 'site_inspection_rfi.create'
+  outcome: string
+  errorCode?: string
+}): void {
+  console.info(JSON.stringify({
+    event: 'site_inspection_action',
+    trace_id: input.traceId,
+    tenant_id: input.tenantId,
+    actor_id: input.actorId,
+    action: input.action,
+    outcome: input.outcome,
+    ...(input.errorCode ? { error_code: input.errorCode } : {}),
+  }))
+}
 
 // US-007 #5 — Render the inspection report to HTML, upload to Storage, and
 // insert a tenant-scoped documents row + link pdf_document_id on the
@@ -383,255 +468,220 @@ async function persistInspectionReport(args: {
     )
 }
 
-export async function submitInspection(formData: FormData): Promise<{ error?: string; id?: string }> {
-  const profile = await requireUserProfile()
-  const forbid = guard(profile.role, 'site_inspection.submit')
-  if (forbid) return { error: forbid }
-
-  const parsed = submitInspectionSchema.safeParse({
-    opportunity_id: formData.get('opportunity_id'),
-    client_submission_id: formData.get('client_submission_id'),
-    site_address: formData.get('site_address'),
-    floor_area_sqm: formData.get('floor_area_sqm') || '',
-    landlord_contact: formData.get('landlord_contact') || '',
-    as_built_available: formData.get('as_built_available') || 'no',
-    expected_start_date: formData.get('expected_start_date') || '',
-    weather: formData.get('weather') || '',
-    accessibility_notes: formData.get('accessibility_notes') || '',
-    observations: formData.get('observations') || '',
-    photo_document_ids: formData.get('photo_document_ids') || '[]',
-  })
-  if (!parsed.success) {
-    const first = parsed.error.errors[0]
-    return { error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}` }
-  }
-  const { opportunity_id, client_submission_id, photo_document_ids, ...payload } = parsed.data
-
-  const opp = await assertOpportunity(profile.tenantId, opportunity_id)
-  if (!opp) return { error: 'Opportunity not found' }
-
-  // US-007 #1 — PPRF must be submitted first.
-  const [existingPprf] = await db
-    .select({ id: pprfSubmissions.id })
-    .from(pprfSubmissions)
-    .where(
-      and(
-        eq(pprfSubmissions.opportunity_id, opportunity_id),
-        eq(pprfSubmissions.tenant_id, profile.tenantId)
-      )
-    )
-    .limit(1)
-  if (!existingPprf) {
-    return { error: 'PPRF must be submitted before logging a site inspection.' }
-  }
-
-  let photoIds: string[] = []
+export async function submitInspection(opportunityId: string, formData: FormData) {
+  const traceId = randomUUID()
+  let tenantId: string | null = null
+  let actorId: string | null = null
+  const action = 'site_inspection.submit' as const
   try {
-    const raw = JSON.parse(photo_document_ids)
-    if (Array.isArray(raw)) {
-      photoIds = raw
-        .filter((v): v is string => typeof v === 'string' && v.length > 0)
-        .slice(0, 30)
+    const profile = await requireUserProfile()
+    tenantId = profile.tenantId
+    actorId = profile.user.id
+    if (!can(profile.role, 'site_inspection.submit')) {
+      logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'forbidden' })
+      return { ok: false as const, error: 'You do not have permission to submit a site inspection.' }
+    }
+
+    const fields = readExactTextFields(
+      formData, INSPECTION_FIELD_NAMES, INSPECTION_FIELD_NAME_SET,
+    )
+    if (!fields.ok) {
+      logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'validation_error' })
+      return { ok: false as const, error: fields.error }
+    }
+
+    let photoDocumentIds: unknown
+    try {
+      photoDocumentIds = JSON.parse(fields.values.photo_document_ids)
+    } catch {
+      logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'validation_error' })
+      return { ok: false as const, error: 'photo_document_ids: must be a JSON array of UUIDs' }
+    }
+    const command = siteInspectionSubmissionCommandSchema.safeParse({
+      kind: 'inspection_submission',
+      submissionId: fields.values.client_submission_id,
+      opportunityId,
+      payload: {
+        siteAddress: fields.values.site_address,
+        floorAreaSqm: fields.values.floor_area_sqm,
+        landlordContact: fields.values.landlord_contact,
+        asBuiltAvailable: fields.values.as_built_available,
+        expectedStartDate: fields.values.expected_start_date,
+        weather: fields.values.weather,
+        accessibilityNotes: fields.values.accessibility_notes,
+        observations: fields.values.observations,
+      },
+      photoDocumentIds,
+    })
+    if (!command.success) {
+      const first = command.error.errors[0]
+      logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'validation_error' })
+      return { ok: false as const, error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}` }
+    }
+
+    const rawResult = await siteInspectionWorkflowService.submitInspection(
+      { tenantId, userId: actorId }, command.data,
+    )
+    const checked = siteInspectionWorkflowResultSchema.safeParse(rawResult)
+    if (!checked.success) {
+      logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'service_contract_failure' })
+      return { ok: false as const, error: 'The inspection service returned an invalid response. Please retry.' }
+    }
+    if (!checked.data.ok) {
+      logSiteInspectionOutcome({
+        traceId, tenantId, actorId, action, outcome: 'service_rejected',
+        errorCode: checked.data.error.code,
+      })
+      return { ok: false as const, error: checked.data.error.message }
+    }
+    if (
+      checked.data.kind !== 'inspection_submission' ||
+      checked.data.tenantId !== tenantId ||
+      checked.data.actorId !== actorId ||
+      checked.data.opportunityId !== opportunityId ||
+      checked.data.status !== 'submitted' ||
+      checked.data.linkedPhotoCount !== command.data.photoDocumentIds.length
+    ) {
+      logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'service_contract_failure' })
+      return { ok: false as const, error: 'The inspection service response did not match this submission. Please retry.' }
+    }
+
+    let archiveWarning: string | undefined
+    if (!checked.data.replayed) {
+      try {
+        await persistInspectionReport({
+          tenantId,
+          actorId,
+          inspectionId: checked.data.inspectionId,
+          opportunityId,
+          payload: {
+            site_address: command.data.payload.siteAddress,
+            floor_area_sqm: command.data.payload.floorAreaSqm,
+            landlord_contact: command.data.payload.landlordContact,
+            as_built_available: command.data.payload.asBuiltAvailable,
+            expected_start_date: command.data.payload.expectedStartDate,
+            weather: command.data.payload.weather,
+            accessibility_notes: command.data.payload.accessibilityNotes,
+            observations: command.data.payload.observations,
+          },
+          photoDocumentIds: command.data.photoDocumentIds,
+        })
+      } catch {
+        archiveWarning = 'The inspection was submitted, but its report could not be archived. Retry the report repair later.'
+      }
+    }
+
+    let refreshFailed = false
+    try {
+      revalidatePath(`/crm/opportunities/${opportunityId}/proposal/inspection`)
+      revalidatePath(`/crm/opportunities/${opportunityId}/proposal`)
+    } catch {
+      refreshFailed = true
+    }
+    const outcome = archiveWarning && refreshFailed
+      ? 'success_archive_and_refresh_failed'
+      : archiveWarning
+        ? 'success_archive_failed'
+        : refreshFailed
+          ? 'success_refresh_failed'
+          : checked.data.replayed ? 'success_replayed' : 'success'
+    logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome })
+    return {
+      ok: true as const,
+      inspectionId: checked.data.inspectionId,
+      replayed: checked.data.replayed,
+      refreshFailed,
+      archiveWarning,
     }
   } catch {
-    return { error: 'photo_document_ids must be a JSON array of UUIDs.' }
+    logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'unexpected_error' })
+    return { ok: false as const, error: 'Unable to submit the inspection. Please retry.' }
   }
-
-  const result = await db.transaction(async (tx) => {
-    // The browser keeps this token in IndexedDB. Serialize retries for one
-    // tenant/token pair so reconnects cannot create duplicate inspections or
-    // duplicate audit/SLA notifications.
-    await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtextextended(${'site-inspection:' + profile.tenantId + ':' + client_submission_id}, 0))`
-    )
-
-    const [existing] = await tx
-      .select({ id: siteInspections.id, opportunity_id: siteInspections.opportunity_id })
-      .from(siteInspections)
-      .where(
-        and(
-          eq(siteInspections.tenant_id, profile.tenantId),
-          eq(siteInspections.client_submission_id, client_submission_id),
-        ),
-      )
-      .limit(1)
-
-    if (existing) {
-      if (existing.opportunity_id !== opportunity_id) {
-        return { id: null, replayed: false, conflict: true }
-      }
-      return { id: existing.id, replayed: true, conflict: false }
-    }
-
-    const now = new Date()
-    const [inserted] = await tx
-      .insert(siteInspections)
-      .values({
-        tenant_id: profile.tenantId,
-        opportunity_id,
-        client_submission_id,
-        status: 'submitted',
-        payload,
-        submitted_at: now,
-        submitted_by: profile.user.id,
-      })
-      .returning({ id: siteInspections.id })
-
-    if (!inserted) throw new Error('Failed to persist site inspection')
-
-    if (photoIds.length > 0) {
-      // Confirm each document belongs to the tenant before linking.
-      const docs = await tx
-        .select({ id: documents.id })
-        .from(documents)
-        .where(
-          and(
-            eq(documents.tenant_id, profile.tenantId),
-            opp.project_id
-              ? or(
-                  eq(documents.opportunity_id, opportunity_id),
-                  eq(documents.project_id, opp.project_id),
-                )
-              : eq(documents.opportunity_id, opportunity_id),
-          ),
-        )
-      const allowed = new Set(docs.map((d) => d.id))
-      const safePhotos = photoIds.filter((p) => allowed.has(p))
-      if (safePhotos.length > 0) {
-        await tx.insert(siteInspectionPhotos).values(
-          safePhotos.map((document_id) => ({
-            tenant_id: profile.tenantId,
-            inspection_id: inserted.id,
-            document_id,
-          }))
-        )
-      }
-    }
-
-    await writeAuditLogInTransaction(tx, {
-      tenantId: profile.tenantId,
-      actorId: profile.user.id,
-      entityType: 'site_inspection',
-      entityId: inserted.id,
-      action: 'create',
-      diff: {
-        opportunity_id,
-        client_submission_id,
-        payload,
-        photo_count: photoIds.length,
-      },
-    })
-
-    return { id: inserted.id, replayed: false, conflict: false }
-  })
-
-  if (result.conflict || !result.id) {
-    return { error: 'This inspection token was already used for another opportunity.' }
-  }
-
-  // US-007 #5 — Auto-generate the report HTML and archive it as a document
-  // so it lands in the Document Vault. We deliberately don't render PDF
-  // server-side (no Puppeteer); the saved HTML is print-clean via @page
-  // CSS and converts via "Print → Save as PDF". Storage failures don't
-  // roll back the inspection — we just log a warning and continue.
-  if (!result.replayed) {
-    await persistInspectionReport({
-      tenantId: profile.tenantId,
-      actorId: profile.user.id,
-      inspectionId: result.id,
-      opportunityId: opportunity_id,
-      payload,
-      photoDocumentIds: photoIds,
-    }).catch((err: unknown) => {
-      const message = err instanceof Error ? err.message : 'unknown error'
-
-      console.warn(
-        `[site-inspection] report archival failed for ${result.id}: ${message}`
-      )
-    })
-  }
-
-  if (!result.replayed) {
-    await startSlaClock({
-      tenantId: profile.tenantId,
-      entityType: 'opportunity',
-      entityId: opportunity_id,
-      label: 'inspection.design_handoff',
-    })
-
-    await notifyRoles({
-      tenantId: profile.tenantId,
-      recipientRoles: ['design'],
-      subject: 'Site Inspection ready for design',
-      body: 'A new site inspection report has been submitted. Design can begin layouts.',
-      linkUrl: `/crm/opportunities/${opportunity_id}/proposal/inspection`,
-    })
-  }
-
-  revalidatePath(`/crm/opportunities/${opportunity_id}/proposal/inspection`)
-  revalidatePath(`/crm/opportunities/${opportunity_id}/proposal`)
-  return { id: result.id }
 }
 
-const rfiSchema = z.object({
-  inspection_id: z.string().uuid(),
-  opportunity_id: z.string().uuid(),
-  description: z.string().min(2).max(2000),
-  priority: z.enum(PRIORITY_VALUES).default('minor'),
-})
-
-export async function addInspectionRfi(formData: FormData): Promise<{ error?: string }> {
-  const profile = await requireUserProfile()
-  const forbid = guard(profile.role, 'site_inspection.submit')
-  if (forbid) return { error: forbid }
-
-  const parsed = rfiSchema.safeParse({
-    inspection_id: formData.get('inspection_id'),
-    opportunity_id: formData.get('opportunity_id'),
-    description: formData.get('description'),
-    priority: formData.get('priority') || 'minor',
-  })
-  if (!parsed.success) {
-    const first = parsed.error.errors[0]
-    return { error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}` }
-  }
-  const input = parsed.data
-
-  // Verify inspection belongs to the caller's tenant.
-  const [inspection] = await db
-    .select({ id: siteInspections.id })
-    .from(siteInspections)
-    .where(
-      and(
-        eq(siteInspections.id, input.inspection_id),
-        eq(siteInspections.tenant_id, profile.tenantId),
-        eq(siteInspections.opportunity_id, input.opportunity_id),
-      )
-    )
-    .limit(1)
-  if (!inspection) return { error: 'Inspection not found' }
-
-  const [created] = await db
-    .insert(siteInspectionRfis)
-    .values({
-      tenant_id: profile.tenantId,
-      inspection_id: input.inspection_id,
-      description: input.description,
-      priority: input.priority,
+export async function addInspectionRfi(
+  opportunityId: string,
+  inspectionId: string,
+  formData: FormData,
+) {
+  const traceId = randomUUID()
+  let tenantId: string | null = null
+  let actorId: string | null = null
+  const action = 'site_inspection_rfi.create' as const
+  try {
+    const profile = await requireUserProfile()
+    tenantId = profile.tenantId
+    actorId = profile.user.id
+    if (!can(profile.role, 'site_inspection.submit')) {
+      logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'forbidden' })
+      return { ok: false as const, error: 'You do not have permission to add an inspection RFI.' }
+    }
+    const fields = readExactTextFields(formData, RFI_FIELD_NAMES, RFI_FIELD_NAME_SET)
+    if (!fields.ok) {
+      logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'validation_error' })
+      return { ok: false as const, error: fields.error }
+    }
+    const command = siteInspectionRfiCommandSchema.safeParse({
+      kind: 'rfi_creation',
+      submissionId: fields.values.submission_id,
+      opportunityId,
+      inspectionId,
+      description: fields.values.description,
+      priority: fields.values.priority,
     })
-    .returning({ id: siteInspectionRfis.id })
+    if (!command.success) {
+      const first = command.error.errors[0]
+      logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'validation_error' })
+      return { ok: false as const, error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}` }
+    }
 
-  await writeAuditLog({
-    tenantId: profile.tenantId,
-    actorId: profile.user.id,
-    entityType: 'site_inspection_rfi',
-    entityId: created!.id,
-    action: 'create',
-    diff: { description: input.description, priority: input.priority },
-  })
+    const rawResult = await siteInspectionWorkflowService.createRfi(
+      { tenantId, userId: actorId }, command.data,
+    )
+    const checked = siteInspectionWorkflowResultSchema.safeParse(rawResult)
+    if (!checked.success) {
+      logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'service_contract_failure' })
+      return { ok: false as const, error: 'The RFI service returned an invalid response. Please retry.' }
+    }
+    if (!checked.data.ok) {
+      logSiteInspectionOutcome({
+        traceId, tenantId, actorId, action, outcome: 'service_rejected',
+        errorCode: checked.data.error.code,
+      })
+      return { ok: false as const, error: checked.data.error.message }
+    }
+    if (
+      checked.data.kind !== 'rfi_creation' ||
+      checked.data.tenantId !== tenantId ||
+      checked.data.actorId !== actorId ||
+      checked.data.opportunityId !== opportunityId ||
+      checked.data.inspectionId !== inspectionId ||
+      checked.data.priority !== command.data.priority
+    ) {
+      logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'service_contract_failure' })
+      return { ok: false as const, error: 'The RFI service response did not match this request. Please retry.' }
+    }
 
-  revalidatePath(`/crm/opportunities/${input.opportunity_id}/proposal/inspection`)
-  return {}
+    let refreshFailed = false
+    try {
+      revalidatePath(`/crm/opportunities/${opportunityId}/proposal/inspection`)
+    } catch {
+      refreshFailed = true
+    }
+    logSiteInspectionOutcome({
+      traceId, tenantId, actorId, action,
+      outcome: refreshFailed ? 'success_refresh_failed' : checked.data.replayed ? 'success_replayed' : 'success',
+    })
+    return {
+      ok: true as const,
+      rfiId: checked.data.rfiId,
+      replayed: checked.data.replayed,
+      refreshFailed,
+    }
+  } catch {
+    logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'unexpected_error' })
+    return { ok: false as const, error: 'Unable to add the RFI. Please retry.' }
+  }
 }
 
 // US-008 — Upload a design file version. Creates the design_files row if

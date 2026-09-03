@@ -22,6 +22,36 @@ describe('opportunity stage transition contract', () => {
     ).toBe(false)
   })
 
+  it('accepts commercial edits that must commit atomically with the stage', () => {
+    expect(
+      opportunityStageTransitionCommandSchema.parse({
+        newStage: 'contract',
+        tcvCents: '12345678',
+        gpCents: '-250000',
+        closingDate: '2026-10-31T00:00:00.000Z',
+      })
+    ).toEqual({
+      newStage: 'contract',
+      tcvCents: '12345678',
+      gpCents: '-250000',
+      closingDate: '2026-10-31T00:00:00.000Z',
+    })
+  })
+
+  it.each([
+    { newStage: 'contract', tcvCents: '-1' },
+    { newStage: 'contract', tcvCents: '9007199254740992' },
+    { newStage: 'contract', gpCents: '9007199254740992' },
+    { newStage: 'contract', gpCents: '-9007199254740992' },
+    { newStage: 'contract', tcvCents: 1 },
+    { newStage: 'contract', closingDate: '2026-10-31' },
+    { newStage: 'contract', closingDate: 'not-a-date' },
+  ])('rejects an invalid commercial edit: %j', (command) => {
+    expect(opportunityStageTransitionCommandSchema.safeParse(command).success).toBe(
+      false
+    )
+  })
+
   it('serializes a nullable conversion result for non-terminal stages', () => {
     expect(
       opportunityStageTransitionResultSchema.parse({

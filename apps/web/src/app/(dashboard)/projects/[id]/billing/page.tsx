@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import React from 'react'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { requireUserProfile } from '@third-code-erp/auth'
@@ -6,18 +7,19 @@ import { db } from '@third-code-erp/database'
 import { boms, invoices, projects } from '@third-code-erp/database/schema'
 import { and, desc, eq } from 'drizzle-orm'
 import { CreateInvoiceForm } from '@/components/billing/create-invoice-form'
+import { getProjectDetailAccess } from '../project-detail-access'
 
 export const metadata: Metadata = { title: 'Billing' }
 
 const TABS = [
   { label: 'Overview', href: '' },
   { label: 'Scope', href: '/scope' },
-  { label: 'BOM', href: '/bom' },
+  { label: 'BOM', href: '/bom', requiredAccess: 'bom' },
   { label: 'Documents', href: '/documents' },
   { label: 'Billing', href: '/billing' },
   { label: 'Comments', href: '/comments' },
-  { label: 'Audit', href: '/audit' },
-]
+  { label: 'Audit', href: '/audit', requiredAccess: 'audit' },
+] as const
 
 const STATUS_LABELS: Record<string, string> = {
   draft: 'Draft',
@@ -46,6 +48,8 @@ function formatBps(bps: number): string {
 export default async function ProjectBillingPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const profile = await requireUserProfile()
+  const access = getProjectDetailAccess(profile.role)
+  if (!access.billing) return notFound()
 
   const [project] = await db
     .select({ id: projects.id, name: projects.name })
@@ -54,12 +58,14 @@ export default async function ProjectBillingPage({ params }: { params: Promise<{
 
   if (!project) return notFound()
 
-  const [latestBom] = await db
-    .select({ tcv_cents: boms.tcv_cents, status: boms.status })
-    .from(boms)
-    .where(and(eq(boms.project_id, id), eq(boms.tenant_id, profile.tenantId)))
-    .orderBy(desc(boms.version))
-    .limit(1)
+  const [latestBom] = access.bom
+    ? await db
+        .select({ tcv_cents: boms.tcv_cents, status: boms.status })
+        .from(boms)
+        .where(and(eq(boms.project_id, id), eq(boms.tenant_id, profile.tenantId)))
+        .orderBy(desc(boms.version))
+        .limit(1)
+    : []
 
   const projectInvoices = await db
     .select()
@@ -93,7 +99,9 @@ export default async function ProjectBillingPage({ params }: { params: Promise<{
 
       {/* Tab nav */}
       <div style={{ display: 'flex', gap: '2px', marginBottom: '24px', borderBottom: '1px solid var(--color-border)', marginTop: '16px' }}>
-        {TABS.map(({ label, href }) => {
+        {TABS.filter(
+          (tab) => !('requiredAccess' in tab) || access[tab.requiredAccess],
+        ).map(({ label, href }) => {
           const fullHref = baseHref + href
           const isActive = href === '/billing'
           return (
@@ -126,7 +134,9 @@ export default async function ProjectBillingPage({ params }: { params: Promise<{
         }}
       >
         {[
-          { label: 'Contract Value (BOM)', value: contractValue > 0 ? formatPHP(contractValue) : '—', note: latestBom ? `BOM ${latestBom.status}` : 'No BOM yet' },
+          ...(access.bom
+            ? [{ label: 'Contract Value (BOM)', value: contractValue > 0 ? formatPHP(contractValue) : '—', note: latestBom ? `BOM ${latestBom.status}` : 'No BOM yet' }]
+            : []),
           { label: 'Total Billed', value: formatPHP(totalBilled), note: `${projectInvoices.length} invoice${projectInvoices.length !== 1 ? 's' : ''}` },
           { label: 'Collected', value: formatPHP(totalCollected), note: 'Paid invoices net' },
           { label: 'Retention Held', value: formatPHP(totalRetention), note: 'Standard 10%' },
@@ -172,14 +182,17 @@ export default async function ProjectBillingPage({ params }: { params: Promise<{
           <h2 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-neutral-800)', margin: 0 }}>
             Invoices
           </h2>
-          <CreateInvoiceForm projectId={id} tcvCents={contractValue} />
+          <CreateInvoiceForm
+            projectId={id}
+            tcvCents={access.bom ? contractValue : null}
+          />
         </div>
 
         {projectInvoices.length === 0 ? (
           <div style={{ padding: '40px 24px', textAlign: 'center' }}>
             <p style={{ fontSize: '0.875rem', color: 'var(--color-neutral-500)', margin: 0 }}>
               No invoices yet.{' '}
-              {!latestBom ? (
+              {access.bom && !latestBom ? (
                 <>Build and approve a{' '}
                   <Link href={`/projects/${id}/bom`} style={{ color: 'var(--color-navy-700)' }}>BOM</Link>
                   {' '}first.</>

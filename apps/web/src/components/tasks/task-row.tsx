@@ -1,4 +1,6 @@
+import React from 'react'
 import Link from 'next/link'
+import { completeTask } from '@/app/(dashboard)/tasks/actions'
 import { CompleteTaskButton } from './complete-task-button'
 
 export interface TaskRowData {
@@ -10,6 +12,7 @@ export interface TaskRowData {
   status: 'pending' | 'done' | 'skipped'
   project_id: string
   project_name: string
+  assignee_id: string | null
   completion_notes?: string | null
   completed_at?: Date | string | null
 }
@@ -52,6 +55,12 @@ function formatDue(value: Date | string): string {
 export function TaskRow({ task, overdue = false, readOnly = false }: TaskRowProps) {
   const roleLabel = task.role ? (ROLE_LABELS[task.role] ?? task.role) : null
   const requiresToolboxLog = task.title.trim().toLowerCase() === 'toolbox meeting log'
+  const completeMountedTask = completeTask.bind(null, {
+    taskId: task.id,
+    projectId: task.project_id,
+    assigneeId: task.assignee_id,
+    requiresNotes: requiresToolboxLog,
+  })
 
   return (
     <tr>
@@ -108,10 +117,13 @@ export function TaskRow({ task, overdue = false, readOnly = false }: TaskRowProp
                   month: 'short',
                   day: 'numeric',
                 })}`
-              : task.status}
+              : readOnly
+                ? 'Read-only: completion unavailable for your role.'
+                : task.status}
           </span>
         ) : (
           <CompleteTaskButton
+            action={completeMountedTask}
             taskId={task.id}
             requiresNotes={requiresToolboxLog}
             notePlaceholder="Attendees, safety topic, hazards, and action items"

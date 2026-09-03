@@ -1,7 +1,9 @@
+import { randomUUID } from 'node:crypto'
+
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { and, eq, desc } from 'drizzle-orm'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   opportunities,
@@ -23,6 +25,7 @@ interface PageProps {
 export default async function InspectionPage({ params }: PageProps) {
   const { id } = await params
   const profile = await requireUserProfile()
+  const canSubmit = can(profile.role, 'site_inspection.submit')
 
   const [opp] = await db
     .select({
@@ -67,6 +70,7 @@ export default async function InspectionPage({ params }: PageProps) {
     .orderBy(desc(siteInspections.created_at))
 
   const latest = inspections[0]
+  const rfiSubmissionId = canSubmit && latest ? randomUUID() : null
 
   // For the latest inspection, pull photos + RFIs.
   let photos: { id: string; document_id: string; file_name: string | null }[] = []
@@ -162,11 +166,17 @@ export default async function InspectionPage({ params }: PageProps) {
             <h2 className="card-title">Log inspection</h2>
           </div>
           <div style={{ padding: 16 }}>
-            <InspectionForm
-              opportunityId={id}
-              pprfSubmitted={pprfSubmitted}
-              defaults={pprfDefaults}
-            />
+            {canSubmit ? (
+              <InspectionForm
+                opportunityId={id}
+                pprfSubmitted={pprfSubmitted}
+                defaults={pprfDefaults}
+              />
+            ) : (
+              <div className="card-empty" role="note">
+                You can review inspection history, but your role cannot submit inspections.
+              </div>
+            )}
           </div>
         </div>
 
@@ -253,7 +263,17 @@ export default async function InspectionPage({ params }: PageProps) {
                   </table>
                 )}
                 <div style={{ padding: 12, borderTop: '1px solid var(--color-border)' }}>
-                  <RfiForm opportunityId={id} inspectionId={latest.id} />
+                  {canSubmit && rfiSubmissionId ? (
+                    <RfiForm
+                      opportunityId={id}
+                      inspectionId={latest.id}
+                      submissionId={rfiSubmissionId}
+                    />
+                  ) : (
+                    <p className="card-empty" role="note">
+                      You can review inspection history and RFIs, but your role cannot add RFIs.
+                    </p>
+                  )}
                 </div>
               </div>
             </>

@@ -3,116 +3,182 @@
 /**
  * Server actions for "My Tasks" surface (REFACTOR.md M5 US-Con-001).
  *
- * - completeTask: single-tap completion with optional notes. Audit-logged.
- *                 If a corresponding SLA clock is open it is stopped.
+ * - completeTask: delegates one tenant-selected authenticated command to Core,
+ *                 which owns the task, audit, SLA, and replay transaction.
  * - triggerDailyGeneration: emits a `cadence/generate.requested` event for
  *                 the caller's tenant. Restricted to admin/owner.
  */
 
+import { createHash, randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
-import { and, eq } from 'drizzle-orm'
 import { can, requireUserProfile } from '@third-code-erp/auth'
-import { db } from '@third-code-erp/database'
-import { dailyTasks } from '@third-code-erp/database/schema'
+import {
+  dailyTaskCompletionCommandSchema,
+  dailyTaskCompletionResultSchema,
+  type DailyTaskCompletionCommand,
+} from '@third-code-erp/shared-types'
+import { z } from 'zod'
 import { writeAuditLog } from '@/lib/audit'
-import { stopSlaClock } from '@/lib/operations/sla-clock'
+import {
+  completeDailyTaskThroughCoreApi,
+  dailyTaskCompletionWritesUseCoreApi,
+} from '@/lib/erp-core-client'
 import { inngest } from '@/lib/inngest'
 
-const MAX_NOTES_LENGTH = 2_000
-
-interface ActionResult {
+export interface ActionResult {
   error?: string
   ok?: true
+  message?: string
 }
 
-export async function completeTask(taskId: string, notes?: string): Promise<ActionResult> {
-  if (typeof taskId !== 'string' || taskId.length === 0) {
-    return { error: 'taskId required' }
-  }
+export interface CompleteTaskContext {
+  taskId: string
+  projectId: string
+  assigneeId: string | null
+  requiresNotes: boolean
+}
 
-  const profile = await requireUserProfile().catch(() => null)
-  if (!profile) return { error: 'Unauthorized' }
-  if (!can(profile.role, 'sd.daily_tasks')) {
-    return { error: 'Forbidden' }
-  }
-
-  const trimmedNotes =
-    typeof notes === 'string' ? notes.trim().slice(0, MAX_NOTES_LENGTH) : undefined
-
-  // Look up the task under the caller's tenant. Tenant-scoping is the security
-  // boundary — we don't allow completing someone else's task across tenants.
-  const [task] = await db
-    .select({
-      id: dailyTasks.id,
-    project_id: dailyTasks.project_id,
-    assignee_id: dailyTasks.assignee_id,
-    status: dailyTasks.status,
-    title: dailyTasks.title,
-    })
-    .from(dailyTasks)
-    .where(and(eq(dailyTasks.id, taskId), eq(dailyTasks.tenant_id, profile.tenantId)))
-    .limit(1)
-
-  if (!task) return { error: 'Task not found' }
-  if (task.status === 'done') {
-    // Idempotent: tell the caller everything is fine without writing.
-    return { ok: true }
-  }
-
-  // Allow assignees to self-complete; admin/owner can complete any task in tenant.
-  const isAssignee = task.assignee_id === profile.user.id
-  const isPrivileged = profile.role === 'admin' || profile.role === 'owner'
-  if (!isAssignee && !isPrivileged) {
-    return { error: 'Forbidden' }
-  }
-
-  // The daily toolbox task is the lightweight safety log in this release.
-  // Requiring a note makes the completed task auditable instead of a bare
-  // checkbox; the note records attendees, topic, and any action items.
-  if (
-    task.title.trim().toLowerCase() === 'toolbox meeting log' &&
-    !trimmedNotes
-  ) {
-    return { error: 'Toolbox meeting logs require attendees, topic, or action-item notes.' }
-  }
-
-  const now = new Date()
-  await db
-    .update(dailyTasks)
-    .set({
-      status: 'done',
-      completed_at: now,
-      completed_by: profile.user.id,
-      completion_notes: trimmedNotes && trimmedNotes.length > 0 ? trimmedNotes : null,
-    })
-    .where(and(eq(dailyTasks.id, taskId), eq(dailyTasks.tenant_id, profile.tenantId)))
-
-  await writeAuditLog({
-    tenantId: profile.tenantId,
-    actorId: profile.user.id,
-    entityType: 'daily_task',
-    entityId: taskId,
-    action: 'update',
-    diff: {
-      status: { before: task.status, after: 'done' },
-      notes_provided: Boolean(trimmedNotes && trimmedNotes.length > 0),
-    },
+const completeTaskContextSchema = z
+  .object({
+    taskId: z.string().uuid(),
+    projectId: z.string().uuid(),
+    assigneeId: z.string().uuid().nullable(),
+    requiresNotes: z.boolean(),
   })
+  .strict()
 
-  // Best-effort: stop any open SLA clock for this task entity.
-  try {
-    await stopSlaClock({
-      tenantId: profile.tenantId,
-      entityType: 'daily_task',
-      entityId: taskId,
+type CompletionOutcome =
+  | 'invalid_request'
+  | 'unauthorized'
+  | 'forbidden'
+  | 'selector_denied'
+  | 'core_error'
+  | 'invalid_result'
+  | 'success'
+  | 'exception'
+
+function dailyTaskCompletionKey(
+  taskId: string,
+  command: DailyTaskCompletionCommand
+): string {
+  return createHash('sha256')
+    .update(JSON.stringify({ command, taskId }))
+    .digest('hex')
+}
+
+export async function completeTask(
+  mountedContext: CompleteTaskContext,
+  formData: FormData
+): Promise<ActionResult> {
+  const traceId = randomUUID()
+  let tenantId: string | null = null
+  let actorId: string | null = null
+
+  function finish(result: ActionResult, outcome: CompletionOutcome): ActionResult {
+    console.info('[daily-task-completion]', {
+      trace_id: traceId,
+      tenant_id: tenantId,
+      actor_id: actorId,
+      action: 'daily_task.complete',
+      outcome,
     })
-  } catch (err) {
-    // Don't block completion on SLA bookkeeping.
-    console.warn('[completeTask] stopSlaClock failed:', err)
+    return result
   }
 
-  revalidatePath('/tasks')
-  return { ok: true }
+  try {
+    const parsedContext = completeTaskContextSchema.safeParse(mountedContext)
+    const fieldNames = Array.from(formData.keys())
+    const hasOnlyOneNotesField =
+      fieldNames.every((field) => field === 'notes') &&
+      formData.getAll('notes').length <= 1
+    if (!parsedContext.success || !hasOnlyOneNotesField) {
+      return finish(
+        { error: 'Invalid daily task completion request.' },
+        'invalid_request'
+      )
+    }
+
+    const rawNotes = formData.get('notes') ?? undefined
+    const parsedCommand = dailyTaskCompletionCommandSchema.safeParse({
+      notes: rawNotes,
+    })
+    if (!parsedCommand.success) {
+      return finish(
+        { error: 'Invalid daily task completion request.' },
+        'invalid_request'
+      )
+    }
+    const context = parsedContext.data
+    const command = parsedCommand.data
+    if (context.requiresNotes && !command.notes) {
+      return finish(
+        { error: 'Toolbox meeting log requires notes.' },
+        'invalid_request'
+      )
+    }
+
+    const profile = await requireUserProfile().catch(() => null)
+    if (!profile) return finish({ error: 'Unauthorized' }, 'unauthorized')
+    tenantId = profile.tenantId
+    actorId = profile.user.id
+    if (!can(profile.role, 'sd.daily_tasks')) {
+      return finish({ error: 'Forbidden' }, 'forbidden')
+    }
+
+    if (!dailyTaskCompletionWritesUseCoreApi(profile.tenantId)) {
+      return finish(
+        { error: 'Daily task completion is not enabled for this tenant.' },
+        'selector_denied'
+      )
+    }
+
+    const coreResult = await completeDailyTaskThroughCoreApi(
+      context.taskId,
+      command,
+      dailyTaskCompletionKey(context.taskId, command)
+    )
+    if (!coreResult.ok || !coreResult.data) {
+      return finish(
+        {
+          error:
+            coreResult.error ??
+            'Daily task was not completed. No compatibility fallback was used.',
+        },
+        'core_error'
+      )
+    }
+
+    const parsedResult = dailyTaskCompletionResultSchema.safeParse(
+      coreResult.data
+    )
+    if (
+      !parsedResult.success ||
+      parsedResult.data.taskId !== context.taskId ||
+      parsedResult.data.tenantId !== profile.tenantId ||
+      parsedResult.data.projectId !== context.projectId ||
+      parsedResult.data.assigneeId !== context.assigneeId ||
+      parsedResult.data.status !== 'done'
+    ) {
+      return finish(
+        {
+          error:
+            'ERP Core API returned an invalid daily task completion result.',
+        },
+        'invalid_result'
+      )
+    }
+
+    revalidatePath('/tasks')
+    return finish(
+      { ok: true, message: 'Task is complete.' },
+      'success'
+    )
+  } catch {
+    return finish(
+      { error: 'Daily task completion is unavailable. Please try again.' },
+      'exception'
+    )
+  }
 }
 
 export async function triggerDailyGeneration(): Promise<ActionResult> {

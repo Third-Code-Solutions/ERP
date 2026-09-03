@@ -1,27 +1,53 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import React, { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createPprfIntake } from '@/app/(dashboard)/crm/opportunities/new/pprf/actions'
 import { ActionFeedback } from '@/components/ui/action-feedback'
 
 const inputClass = 'form-input'
 
-export function PprfIntakeForm() {
+interface PprfIntakeFormProps {
+  submissionId: string
+}
+
+export function PprfIntakeForm({ submissionId }: PprfIntakeFormProps) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [committed, setCommitted] = useState(false)
   const [pending, startTransition] = useTransition()
+  const inFlightRef = useRef(false)
 
   function submit(formData: FormData) {
+    if (inFlightRef.current) return
+    inFlightRef.current = true
     setError(null)
+    setSuccess(null)
     startTransition(async () => {
-      const result = await createPprfIntake(formData)
-      if (result.error) {
-        setError(result.error)
-        return
-      }
-      if (result.opportunityId) {
-        router.push(`/crm/opportunities/${result.opportunityId}/proposal/pprf`)
+      try {
+        const result = await createPprfIntake(formData)
+        if (!result.ok) {
+          setError(result.error)
+          inFlightRef.current = false
+          return
+        }
+
+        setCommitted(true)
+        const committedMessage = result.replayed
+          ? 'This PPRF intake was already created.'
+          : 'PPRF intake created.'
+        if (result.refreshFailed) {
+          setSuccess(`${committedMessage} The destination may need a manual refresh.`)
+        }
+        try {
+          router.push(`/crm/opportunities/${result.opportunityId}/proposal/pprf`)
+        } catch {
+          setSuccess(`${committedMessage} Open the opportunity from CRM to continue.`)
+        }
+      } catch {
+        setError('Unable to submit the PPRF intake. Please retry.')
+        inFlightRef.current = false
       }
     })
   }
@@ -33,6 +59,7 @@ export function PprfIntakeForm() {
       aria-busy={pending}
       aria-describedby="pprf-intake-form-status"
     >
+      <input type="hidden" name="submission_id" value={submissionId} />
       <section className="intake-section">
         <div className="intake-section-heading">
           <div>
@@ -112,6 +139,22 @@ export function PprfIntakeForm() {
           </div>
         </div>
         <div className="form-row">
+          <label className="form-label" htmlFor="area_sqm">Opportunity area (sqm)</label>
+          <input
+            id="area_sqm"
+            name="area_sqm"
+            type="number"
+            min="1"
+            step="1"
+            inputMode="numeric"
+            aria-describedby="area_sqm_help"
+            className={inputClass}
+          />
+          <p id="area_sqm_help" className="form-help">
+            Optional whole-number commercial estimate. This is separate from the required PPRF floor area below.
+          </p>
+        </div>
+        <div className="form-row">
           <label className="form-label" htmlFor="remarks">Commercial notes</label>
           <textarea id="remarks" name="remarks" rows={3} className={inputClass} />
         </div>
@@ -174,10 +217,11 @@ export function PprfIntakeForm() {
         error={error}
         pending={pending}
         pendingMessage="Creating client and review tracks…"
+        success={success}
       />
       <div className="intake-actions">
-        <button type="button" className="button-secondary" onClick={() => router.back()} disabled={pending}>Cancel</button>
-        <button type="submit" className="button-primary" disabled={pending}>
+        <button type="button" className="button-secondary" onClick={() => router.back()} disabled={pending || committed}>Cancel</button>
+        <button type="submit" className="button-primary" disabled={pending || committed}>
           {pending ? 'Creating review tracks…' : 'Create client + submit PPRF'}
         </button>
       </div>
@@ -191,6 +235,7 @@ export function PprfIntakeForm() {
         .form-row { display: flex; flex-direction: column; gap: 6px; }
         .form-row-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         .form-label { font-size: 12px; font-weight: 600; color: var(--color-neutral-700); }
+        .form-help { margin: 0; color: var(--color-neutral-500); font-size: 12px; line-height: 1.45; }
         .form-input { width: 100%; box-sizing: border-box; font: inherit; font-size: 14px; padding: 9px 10px; background: white; border: 1px solid var(--color-border); border-radius: 5px; color: var(--color-neutral-900); }
         .form-input:focus { outline: 0; border-color: var(--color-navy-500); box-shadow: 0 0 0 3px color-mix(in oklch, var(--color-navy-500) 18%, transparent); }
         .form-error { color: var(--color-danger); font-size: 13px; margin: 0; }

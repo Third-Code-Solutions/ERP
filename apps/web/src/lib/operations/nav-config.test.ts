@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import type { AppRole } from '@third-code-erp/auth'
 import {
   canViewPath,
   visibleNavSections,
@@ -8,16 +9,192 @@ import {
   activeNavHref,
 } from './nav-config'
 
-describe('RBAC: canonicalRole', () => {
-  it('folds legacy roles into canonical equivalents', () => {
-    expect(canonicalRole('owner')).toBe('admin')
-    expect(canonicalRole('estimator')).toBe('commercial')
-    expect(canonicalRole('pm')).toBe('sd_pm_pe')
-  })
+const PERSISTED_ROLES = [
+  'owner',
+  'estimator',
+  'pm',
+  'admin',
+  'sales',
+  'commercial',
+  'design',
+  'sd_pm_pe',
+  'finance',
+  'procurement',
+  'safety',
+  'cx',
+  'viewer',
+] as const satisfies readonly AppRole[]
 
-  it('leaves canonical roles unchanged', () => {
-    for (const r of ['admin', 'sales', 'finance', 'procurement', 'viewer'] as const) {
-      expect(canonicalRole(r)).toBe(r)
+const UNRESTRICTED_NAV_HREFS = [
+  '/dashboard',
+  '/cortex',
+  '/crm/accounts',
+  '/pipeline/board',
+  '/projects',
+  '/tasks',
+  '/process',
+  '/documents',
+] as const
+
+const RESTRICTED_NAV_HREFS_BY_ROLE = {
+  owner: [
+    '/crm/kyc-queue',
+    '/bom',
+    '/permits',
+    '/procurement/rfqs',
+    '/procurement/deliveries',
+    '/purchase-orders',
+    '/inventory',
+    '/invoices',
+    '/claims',
+    '/punchlist',
+    '/warranty',
+    '/warranty/cnps',
+    '/reports',
+    '/finance',
+    '/finance/receivables',
+    '/finance/payables',
+    '/finance/cash',
+    '/finance/reconciliation',
+    '/admin',
+  ],
+  estimator: [
+    '/bom',
+    '/permits',
+    '/procurement/rfqs',
+    '/purchase-orders',
+    '/claims',
+  ],
+  pm: [
+    '/permits',
+    '/procurement/deliveries',
+    '/purchase-orders',
+    '/inventory',
+    '/claims',
+    '/punchlist',
+  ],
+  admin: [
+    '/crm/kyc-queue',
+    '/bom',
+    '/permits',
+    '/procurement/rfqs',
+    '/procurement/deliveries',
+    '/purchase-orders',
+    '/inventory',
+    '/invoices',
+    '/claims',
+    '/punchlist',
+    '/warranty',
+    '/warranty/cnps',
+    '/reports',
+    '/finance',
+    '/finance/receivables',
+    '/finance/payables',
+    '/finance/cash',
+    '/finance/reconciliation',
+    '/admin',
+  ],
+  sales: ['/reports'],
+  commercial: [
+    '/bom',
+    '/permits',
+    '/procurement/rfqs',
+    '/purchase-orders',
+    '/inventory',
+    '/claims',
+    '/admin',
+  ],
+  design: [],
+  sd_pm_pe: [
+    '/permits',
+    '/procurement/deliveries',
+    '/purchase-orders',
+    '/inventory',
+    '/claims',
+    '/punchlist',
+  ],
+  finance: [
+    '/crm/kyc-queue',
+    '/inventory',
+    '/invoices',
+    '/claims',
+    '/reports',
+    '/finance',
+    '/finance/receivables',
+    '/finance/payables',
+    '/finance/cash',
+    '/finance/reconciliation',
+  ],
+  procurement: [
+    '/procurement/rfqs',
+    '/procurement/deliveries',
+    '/purchase-orders',
+    '/inventory',
+  ],
+  safety: ['/permits', '/punchlist'],
+  cx: ['/punchlist', '/warranty', '/warranty/cnps'],
+  viewer: [
+    '/bom',
+    '/permits',
+    '/procurement/rfqs',
+    '/procurement/deliveries',
+    '/purchase-orders',
+    '/inventory',
+    '/punchlist',
+    '/warranty',
+    '/warranty/cnps',
+  ],
+} as const satisfies Record<AppRole, readonly string[]>
+
+const VISIBLE_NAV_ORDER = [
+  '/dashboard',
+  '/cortex',
+  '/crm/accounts',
+  '/crm/kyc-queue',
+  '/pipeline/board',
+  '/projects',
+  '/bom',
+  '/tasks',
+  '/process',
+  '/permits',
+  '/procurement/rfqs',
+  '/procurement/deliveries',
+  '/purchase-orders',
+  '/inventory',
+  '/invoices',
+  '/claims',
+  '/punchlist',
+  '/warranty',
+  '/warranty/cnps',
+  '/documents',
+  '/reports',
+  '/finance',
+  '/finance/receivables',
+  '/finance/payables',
+  '/finance/cash',
+  '/finance/reconciliation',
+  '/admin',
+] as const
+
+function visibleHrefs(role: AppRole): string[] {
+  return visibleNavSections(role).flatMap((section) =>
+    section.items.map((item) => item.href)
+  )
+}
+
+function expectedVisibleHrefs(role: AppRole): string[] {
+  const allowed = new Set<string>([
+    ...UNRESTRICTED_NAV_HREFS,
+    ...RESTRICTED_NAV_HREFS_BY_ROLE[role],
+  ])
+  return VISIBLE_NAV_ORDER.filter((href) => allowed.has(href))
+}
+
+describe('RBAC: canonicalRole', () => {
+  it('preserves only the explicit owner-as-admin inheritance contract', () => {
+    expect(canonicalRole('owner')).toBe('admin')
+    for (const role of PERSISTED_ROLES.filter((value) => value !== 'owner')) {
+      expect(canonicalRole(role), role).toBe(role)
     }
   })
 })
@@ -33,6 +210,13 @@ describe('RBAC: runtime role boundary', () => {
 })
 
 describe('RBAC: visibleNavSections', () => {
+  it.each(PERSISTED_ROLES)(
+    'exposes the exact explicit route projection for %s',
+    (role) => {
+      expect(visibleHrefs(role)).toEqual(expectedVisibleHrefs(role))
+    }
+  )
+
   it('admin sees every section', () => {
     const sections = visibleNavSections('admin')
     const labels = sections.map((s) => s.label)
@@ -103,20 +287,22 @@ describe('RBAC: visibleNavSections', () => {
   })
 
   it('hides controlled-rollout routes without changing their direct-route guard', () => {
-    const hrefs = visibleNavSections('admin')
-      .flatMap((section) => section.items.map((item) => item.href))
-
-    expect(hrefs).not.toContain('/assets')
-    expect(canViewPath('viewer', '/assets')).toBe(true)
+    for (const role of PERSISTED_ROLES) {
+      expect(visibleHrefs(role), role).not.toContain('/assets')
+      expect(canViewPath(role, '/assets'), role).toBe(true)
+      expect(canViewPath(role, '/assets/item-id'), role).toBe(true)
+    }
     expect(canViewPath('viewer', '/finance/cash')).toBe(false)
     expect(canViewPath('viewer', '/finance/reconciliation')).toBe(false)
     expect(canViewPath('viewer', '/warranty/cnps')).toBe(true)
   })
 
-  it('legacy estimator inherits commercial visibility (BOM Builder)', () => {
-    const hrefs = visibleNavSections('estimator')
-      .flatMap((s) => s.items.map((i) => i.href))
+  it('retains estimator read projections without commercial-only modules', () => {
+    const hrefs = visibleHrefs('estimator')
     expect(hrefs).toContain('/bom')
+    expect(hrefs).toContain('/procurement/rfqs')
+    expect(hrefs).not.toContain('/inventory')
+    expect(hrefs).not.toContain('/admin')
   })
 
   it('drops empty sections entirely', () => {
@@ -127,11 +313,47 @@ describe('RBAC: visibleNavSections', () => {
 })
 
 describe('RBAC: canViewPath (deny-by-default route guard)', () => {
+  it.each(PERSISTED_ROLES)(
+    'matches the visible navigation policy for %s at each registered root',
+    (role) => {
+      const visible = new Set(expectedVisibleHrefs(role))
+
+      for (const href of VISIBLE_NAV_ORDER) {
+        expect(canViewPath(role, href), `${role}: ${href}`).toBe(
+          visible.has(href)
+        )
+      }
+    }
+  )
+
   it('allows everyone on unrestricted + account routes', () => {
     expect(canViewPath('viewer', '/dashboard')).toBe(true)
     expect(canViewPath('viewer', '/tasks')).toBe(true)
     expect(canViewPath('viewer', '/settings')).toBe(true)
+    expect(canViewPath('viewer', '/settings/profile')).toBe(true)
     expect(canViewPath('viewer', '/documents')).toBe(true)
+  })
+
+  it('allows the exact profile settings route for every persisted role', () => {
+    const roles = [
+      'owner',
+      'estimator',
+      'pm',
+      'admin',
+      'sales',
+      'commercial',
+      'design',
+      'sd_pm_pe',
+      'finance',
+      'procurement',
+      'safety',
+      'cx',
+      'viewer',
+    ] as const
+
+    for (const role of roles) {
+      expect(canViewPath(role, '/settings/profile'), role).toBe(true)
+    }
   })
 
   it('denies restricted routes to unprivileged roles', () => {
@@ -155,13 +377,13 @@ describe('RBAC: canViewPath (deny-by-default route guard)', () => {
     expect(canViewPath('viewer', '/assets')).toBe(true)
   })
 
-  it('child routes inherit their parent permission', () => {
-    // /projects is allowed for procurement → nested project pages too.
+  it('matches registered dynamic page templates without authorizing descendants', () => {
     expect(canViewPath('procurement', '/projects/abc-123/scope')).toBe(true)
-    // Commercial may enter the admin surface for rate-card maintenance, but
-    // finance remains denied from nested admin pages.
     expect(canViewPath('commercial', '/admin')).toBe(true)
     expect(canViewPath('finance', '/admin/users/42')).toBe(false)
+    expect(canViewPath('procurement', '/projects/abc-123/scope/nested')).toBe(
+      false
+    )
   })
 
   it('matches the most specific nav item (KYC vs Accounts)', () => {
@@ -171,10 +393,153 @@ describe('RBAC: canViewPath (deny-by-default route guard)', () => {
     expect(canViewPath('finance', '/crm/kyc-queue')).toBe(true)
   })
 
-  it('honors legacy role mapping in the guard', () => {
+  it('denies the reproduced estimator alias false positives', () => {
+    expect(canViewPath('estimator', '/admin')).toBe(false)
+    expect(canViewPath('estimator', '/admin/rate-cards')).toBe(false)
+    expect(canViewPath('estimator', '/inventory')).toBe(false)
+    expect(canViewPath('estimator', '/inventory/receipts')).toBe(false)
+    expect(canViewPath('commercial', '/admin')).toBe(true)
+    expect(canViewPath('commercial', '/inventory')).toBe(true)
+  })
+
+  it('keeps owner inheritance and explicit pm route outcomes', () => {
     expect(canViewPath('owner', '/admin')).toBe(true) // owner → admin
-    expect(canViewPath('estimator', '/bom')).toBe(true) // estimator → commercial
-    expect(canViewPath('pm', '/admin')).toBe(false) // pm → sd_pm_pe, not admin
+    expect(canViewPath('pm', '/admin')).toBe(false)
+    expect(canViewPath('pm', '/inventory')).toBe(true)
+    expect(canViewPath('pm', '/procurement/deliveries')).toBe(true)
+  })
+
+  it('honors stricter direct page gates instead of a parent read policy', () => {
+    expect(canViewPath('viewer', '/projects/new')).toBe(false)
+    expect(canViewPath('estimator', '/projects/new')).toBe(true)
+
+    expect(canViewPath('viewer', '/projects/project-id/access')).toBe(false)
+    expect(canViewPath('admin', '/projects/project-id/access')).toBe(true)
+
+    expect(canViewPath('sales', '/projects/project-id/billing')).toBe(false)
+    expect(canViewPath('finance', '/projects/project-id/billing')).toBe(true)
+
+    expect(canViewPath('commercial', '/admin/users')).toBe(false)
+    expect(canViewPath('commercial', '/admin/rate-cards')).toBe(true)
+
+    expect(canViewPath('viewer', '/inventory/receipts/new')).toBe(false)
+    expect(canViewPath('procurement', '/inventory/receipts/new')).toBe(true)
+
+    expect(canViewPath('safety', '/punchlist/new')).toBe(false)
+    expect(canViewPath('cx', '/punchlist/new')).toBe(true)
+
+    expect(canViewPath('viewer', '/crm/accounts/new')).toBe(false)
+    expect(canViewPath('sales', '/crm/accounts/new')).toBe(true)
+  })
+
+  it('preserves page-specific project and claim read projections', () => {
+    expect(canViewPath('viewer', '/bom')).toBe(true)
+    expect(canViewPath('viewer', '/projects/project-id/bom')).toBe(false)
+    expect(canViewPath('viewer', '/projects/project-id/cost')).toBe(true)
+    expect(canViewPath('sales', '/projects/project-id/cost')).toBe(false)
+    expect(canViewPath('viewer', '/projects/project-id/audit')).toBe(true)
+    expect(canViewPath('sd_pm_pe', '/projects/project-id/audit')).toBe(false)
+
+    expect(canViewPath('estimator', '/claims')).toBe(true)
+    expect(canViewPath('estimator', '/claims/new')).toBe(false)
+    expect(canViewPath('finance', '/claims/new')).toBe(true)
+    expect(canViewPath('commercial', '/claims/new')).toBe(true)
+  })
+
+  it('registers redirect and secondary routes without advertising them', () => {
+    const routeOnlyHrefs = [
+      '/crm',
+      '/crm/opportunities',
+      '/pipeline',
+      '/pipeline/coverage',
+      '/pipeline/conversion',
+      '/procurement',
+    ]
+
+    for (const role of PERSISTED_ROLES) {
+      const hrefs = visibleHrefs(role)
+      for (const href of routeOnlyHrefs) {
+        expect(hrefs, `${role}: ${href}`).not.toContain(href)
+      }
+
+      expect(canViewPath(role, '/crm'), role).toBe(true)
+      expect(canViewPath(role, '/crm/opportunities'), role).toBe(true)
+      expect(canViewPath(role, '/crm/opportunities/opportunity-id'), role).toBe(
+        true
+      )
+      expect(canViewPath(role, '/pipeline'), role).toBe(true)
+      expect(canViewPath(role, '/pipeline/coverage'), role).toBe(true)
+      expect(canViewPath(role, '/pipeline/conversion'), role).toBe(true)
+    }
+  })
+
+  it('applies the most-specific role policy to the PPRF creation route', () => {
+    const permitted = new Set<AppRole>(['owner', 'admin', 'sales'])
+
+    for (const role of PERSISTED_ROLES) {
+      expect(canViewPath(role, '/crm/opportunities/new/pprf'), role).toBe(
+        permitted.has(role)
+      )
+    }
+
+    expect(
+      canViewPath('viewer', '/crm/opportunities/new/pprf/unregistered')
+    ).toBe(false)
+    expect(
+      canViewPath('sales', '/crm/opportunities/new/pprf/unregistered')
+    ).toBe(false)
+    expect(
+      canViewPath('admin', '/crm/opportunities/new/pprf/unregistered')
+    ).toBe(false)
+  })
+
+  it('applies the page po.create policy to the procurement root only', () => {
+    const permitted = new Set<AppRole>([
+      'owner',
+      'admin',
+      'commercial',
+      'sd_pm_pe',
+      'pm',
+      'procurement',
+    ])
+
+    for (const role of PERSISTED_ROLES) {
+      expect(canViewPath(role, '/procurement'), role).toBe(permitted.has(role))
+    }
+
+    expect(canViewPath('procurement', '/procurement/unregistered')).toBe(false)
+  })
+
+  it('denies unregistered dashboard paths for every persisted role', () => {
+    const unknownPaths = [
+      '/future-workspace',
+      '/finnace/payables',
+      '/pipeline/converison',
+      '/settings-typo',
+      '/settings/future-page',
+      '/projects/project-id/future-tab',
+      '/inventory/receipts/receipt-id/future-action',
+    ]
+
+    for (const role of PERSISTED_ROLES) {
+      for (const pathname of unknownPaths) {
+        expect(canViewPath(role, pathname), `${role}: ${pathname}`).toBe(false)
+      }
+    }
+
+    expect(canViewPath('finance', '/finance/payabless')).toBe(false)
+    expect(canViewPath('commercial', '/admin/future-sensitive-page')).toBe(
+      false
+    )
+    expect(canViewPath('admin', '/admin/rate-cards/future-page')).toBe(false)
+  })
+
+  it('does not apply the dashboard registry to external route classes', () => {
+    for (const role of PERSISTED_ROLES) {
+      expect(canViewPath(role, '/api/health'), role).toBe(true)
+      expect(canViewPath(role, '/portal/customer'), role).toBe(true)
+      expect(canViewPath(role, '/auth/login'), role).toBe(true)
+    }
   })
 })
 
@@ -204,6 +569,9 @@ describe('sidebar active state', () => {
 
   it('returns no active item for an unrelated route', () => {
     expect(activeNavHref('/settings/profile', visibleNavSections('finance'))).toBe(
+      null
+    )
+    expect(activeNavHref('/pipeline/conversion', visibleNavSections('finance'))).toBe(
       null
     )
   })

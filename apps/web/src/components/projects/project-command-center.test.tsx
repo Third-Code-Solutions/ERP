@@ -11,6 +11,7 @@ describe('ProjectCommandCenter', () => {
     const markup = renderToStaticMarkup(
       <ProjectCommandCenter
         projectId={PROJECT_ID}
+        canViewAudit
         data={{
           pendingTasks: 4,
           overdueTasks: 1,
@@ -39,6 +40,7 @@ describe('ProjectCommandCenter', () => {
     const markup = renderToStaticMarkup(
       <ProjectCommandCenter
         projectId={PROJECT_ID}
+        canViewAudit
         data={{
           pendingTasks: 0,
           overdueTasks: 0,
@@ -56,5 +58,29 @@ describe('ProjectCommandCenter', () => {
     expect(markup).toContain('Keep project momentum.')
     expect(markup).toContain('No blockers surfaced in the current project read.')
     expect(markup).not.toContain('% complete')
+  })
+
+  it('omits delivery and audit affordances when their reads are denied', () => {
+    const markup = renderToStaticMarkup(
+      <ProjectCommandCenter
+        projectId={PROJECT_ID}
+        canViewAudit={false}
+        data={{
+          pendingTasks: 0,
+          overdueTasks: 0,
+          documents: 0,
+          pendingDecisions: 0,
+          openPunchlist: 0,
+          activeDeliveries: null,
+          progressPercent: null,
+          progressWeekEnding: null,
+        }}
+      />,
+    )
+
+    expect(markup).not.toContain('Delivery watch')
+    expect(markup).not.toContain('/procurement/deliveries')
+    expect(markup).not.toContain('View audit')
+    expect(markup).not.toContain(`/projects/${PROJECT_ID}/audit`)
   })
 })

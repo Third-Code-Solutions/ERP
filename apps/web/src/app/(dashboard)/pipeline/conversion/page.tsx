@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
+import React from 'react'
 import Link from 'next/link'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { opportunities, projects } from '@third-code-erp/database/schema'
 import { and, eq, inArray, desc } from 'drizzle-orm'
@@ -27,6 +28,10 @@ const STAGE_COLORS: Record<string, string> = {
 
 export default async function ConversionPage() {
   const profile = await requireUserProfile()
+  const canAdvanceOpportunity = can(
+    profile.role,
+    'opportunity.advance_stage'
+  )
 
   const opps = await db
     .select({
@@ -95,6 +100,24 @@ export default async function ConversionPage() {
         ))}
       </div>
 
+      {!canAdvanceOpportunity && (
+        <div
+          role="status"
+          style={{
+            marginBottom: '16px',
+            padding: '10px 14px',
+            borderRadius: '6px',
+            fontSize: '0.8125rem',
+            background: '#eff6ff',
+            color: '#1e3a8a',
+            border: '1px solid #bfdbfe',
+          }}
+        >
+          Read-only conversion pipeline access. You can inspect opportunities
+          and project context, but cannot advance a stage.
+        </div>
+      )}
+
       {opps.length === 0 ? (
         <div
           style={{
@@ -121,7 +144,7 @@ export default async function ConversionPage() {
                 <th className="numeric">GP %</th>
                 <th className="numeric">Weighted TCV</th>
                 <th>Est. Close</th>
-                <th></th>
+                {canAdvanceOpportunity && <th>Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -166,9 +189,14 @@ export default async function ConversionPage() {
                         ? new Date(opp.closing_date).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
                         : '—'}
                     </td>
-                    <td>
-                      <StageAdvanceButton opportunityId={opp.id} currentStage={opp.stage} />
-                    </td>
+                    {canAdvanceOpportunity && (
+                      <td>
+                        <StageAdvanceButton
+                          opportunityId={opp.id}
+                          currentStage={opp.stage}
+                        />
+                      </td>
+                    )}
                   </tr>
                 )
               })}

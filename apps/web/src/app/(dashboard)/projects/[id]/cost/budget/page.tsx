@@ -1,10 +1,10 @@
 import type { Metadata } from 'next'
+import React from 'react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
 import {
   can,
-  requireCapability,
   requireUserProfile,
 } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
@@ -19,6 +19,7 @@ import {
   BudgetWorkspace,
   type BudgetDraft,
 } from './budget-workspace'
+import { getProjectDetailAccess } from '../../project-detail-access'
 
 export const metadata: Metadata = {
   title: 'Project Budget Control',
@@ -91,7 +92,8 @@ export default async function ProjectBudgetPage({
 }) {
   const { id: projectId } = await params
   const profile = await requireUserProfile()
-  requireCapability(profile, 'budget.read')
+  const access = getProjectDetailAccess(profile.role)
+  if (!access.cost) return notFound()
 
   const [project] = await db
     .select({ id: projects.id, name: projects.name })
@@ -133,7 +135,7 @@ export default async function ProjectBudgetPage({
         budget.revision_reason,
         budget.total_budget_cents,
         budget.original_gp_margin_bps,
-        budget.source_bom_id,
+        ${access.bom ? sql`budget.source_bom_id` : sql`null::uuid`} as source_bom_id,
         submitter.full_name as submitted_by_name,
         budget.submitted_at,
         budget.commercial_approved_by,
@@ -163,21 +165,23 @@ export default async function ProjectBudgetPage({
         and budget.project_id = ${projectId}::uuid
       order by budget.revision desc
     `),
-    db
-      .select({
-        id: boms.id,
-        version: boms.version,
-        total: boms.total_cost_cents,
-      })
-      .from(boms)
-      .where(
-        and(
-          eq(boms.tenant_id, profile.tenantId),
-          eq(boms.project_id, projectId),
-          inArray(boms.status, ['approved', 'locked'])
-        )
-      )
-      .orderBy(desc(boms.version)),
+    access.bom
+      ? db
+          .select({
+            id: boms.id,
+            version: boms.version,
+            total: boms.total_cost_cents,
+          })
+          .from(boms)
+          .where(
+            and(
+              eq(boms.tenant_id, profile.tenantId),
+              eq(boms.project_id, projectId),
+              inArray(boms.status, ['approved', 'locked'])
+            )
+          )
+          .orderBy(desc(boms.version))
+      : Promise.resolve([]),
   ])
 
   const sourceBomIds = bomRows.map((bom) => bom.id)
@@ -212,7 +216,9 @@ export default async function ProjectBudgetPage({
       .select({
         id: projectBudgetLines.id,
         costCodeId: projectBudgetLines.cost_code_id,
-        bomLineItemId: projectBudgetLines.bom_line_item_id,
+        bomLineItemId: access.bom
+          ? projectBudgetLines.bom_line_item_id
+          : sql<string | null>`null::uuid`,
         description: projectBudgetLines.description,
         amountCents: projectBudgetLines.amount_cents,
       })
@@ -237,9 +243,9 @@ export default async function ProjectBudgetPage({
     }
   }
 
-  const rawControlRows = approvedRow
-    ? await db.execute<ControlRow>(sql`
-        with commitment as (
+  const commitmentCte = access.purchaseOrders
+    ? sql`
+        commitment as (
           select
             line.cost_code_id,
             sum(line.line_total_cents)::bigint as committed_cents
@@ -258,7 +264,20 @@ export default async function ProjectBudgetPage({
               'fully_delivered'
             )
           group by line.cost_code_id
-        ),
+        )
+      `
+    : sql`
+        commitment as (
+          select
+            null::uuid as cost_code_id,
+            0::bigint as committed_cents
+          where false
+        )
+      `
+
+  const rawControlRows = approvedRow
+    ? await db.execute<ControlRow>(sql`
+        with ${commitmentCte},
         manual_actual as (
           select
             entry.cost_code_id,
@@ -368,36 +387,44 @@ export default async function ProjectBudgetPage({
               : 'No approved revision'}
           </small>
         </div>
-        <div>
-          <span>Committed</span>
-          <strong>{money(currency, totals.committed)}</strong>
-          <small>Issued and confirmed Purchase Orders</small>
-        </div>
+        {access.purchaseOrders && (
+          <div>
+            <span>Committed</span>
+            <strong>{money(currency, totals.committed)}</strong>
+            <small>Issued and confirmed Purchase Orders</small>
+          </div>
+        )}
         <div>
           <span>Actual</span>
           <strong>{money(currency, totals.actual)}</strong>
           <small>Posted supplier bills and manual costs</small>
         </div>
-        <div>
-          <span>Forecast</span>
-          <strong>{money(currency, totals.forecast)}</strong>
-          <small>Higher of commitment or actual per Cost Code</small>
-        </div>
-        <div
-          className={
-            totals.baseline - totals.forecast >= 0
-              ? 'budget-positive'
-              : 'budget-negative'
-          }
-        >
-          <span>Forecast variance</span>
-          <strong>{money(currency, totals.baseline - totals.forecast)}</strong>
-          <small>
-            {totals.baseline - totals.forecast >= 0
-              ? 'Available'
-              : 'Exposure over baseline'}
-          </small>
-        </div>
+        {access.bom && access.purchaseOrders && (
+          <>
+            <div>
+              <span>Forecast</span>
+              <strong>{money(currency, totals.forecast)}</strong>
+              <small>Higher of commitment or actual per Cost Code</small>
+            </div>
+            <div
+              className={
+                totals.baseline - totals.forecast >= 0
+                  ? 'budget-positive'
+                  : 'budget-negative'
+              }
+            >
+              <span>Forecast variance</span>
+              <strong>
+                {money(currency, totals.baseline - totals.forecast)}
+              </strong>
+              <small>
+                {totals.baseline - totals.forecast >= 0
+                  ? 'Available'
+                  : 'Exposure over baseline'}
+              </small>
+            </div>
+          </>
+        )}
       </section>
 
       {approvedRow && (
@@ -405,11 +432,16 @@ export default async function ProjectBudgetPage({
           <div className="budget-panel-heading">
             <div>
               <p className="finance-eyebrow">Live control view</p>
-              <h2>Baseline to forecast</h2>
+              <h2>
+                {access.bom && access.purchaseOrders
+                  ? 'Baseline to forecast'
+                  : 'Baseline and actuals'}
+              </h2>
             </div>
             <p>
-              Forecast uses the higher of commitment or actual inside each Cost
-              Code. No project-level double count.
+              {access.bom && access.purchaseOrders
+                ? 'Forecast uses the higher of commitment or actual inside each Cost Code. No project-level double count.'
+                : 'Approved baseline and posted actuals by Cost Code.'}
             </p>
           </div>
           <div className="finance-table-shell">
@@ -419,10 +451,16 @@ export default async function ProjectBudgetPage({
                   <th>Cost Code</th>
                   <th>Category</th>
                   <th className="num">Baseline</th>
-                  <th className="num">Committed</th>
+                  {access.purchaseOrders && (
+                    <th className="num">Committed</th>
+                  )}
                   <th className="num">Actual</th>
-                  <th className="num">Forecast</th>
-                  <th className="num">Variance</th>
+                  {access.bom && access.purchaseOrders && (
+                    <th className="num">Forecast</th>
+                  )}
+                  {access.bom && access.purchaseOrders && (
+                    <th className="num">Variance</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -442,22 +480,28 @@ export default async function ProjectBudgetPage({
                       <td className="num finance-money">
                         {money(currency, row.baseline_cents)}
                       </td>
-                      <td className="num finance-money">
-                        {money(currency, row.committed_cents)}
-                      </td>
+                      {access.purchaseOrders && (
+                        <td className="num finance-money">
+                          {money(currency, row.committed_cents)}
+                        </td>
+                      )}
                       <td className="num finance-money">
                         {money(currency, row.actual_cents)}
                       </td>
-                      <td className="num finance-money">
-                        {money(currency, forecast)}
-                      </td>
-                      <td
-                        className={`num finance-money ${
-                          variance < 0 ? 'budget-negative-text' : ''
-                        }`}
-                      >
-                        {money(currency, variance)}
-                      </td>
+                      {access.bom && access.purchaseOrders && (
+                        <td className="num finance-money">
+                          {money(currency, forecast)}
+                        </td>
+                      )}
+                      {access.bom && access.purchaseOrders && (
+                        <td
+                          className={`num finance-money ${
+                            variance < 0 ? 'budget-negative-text' : ''
+                          }`}
+                        >
+                          {money(currency, variance)}
+                        </td>
+                      )}
                     </tr>
                   )
                 })}
@@ -469,6 +513,7 @@ export default async function ProjectBudgetPage({
 
       <BudgetWorkspace
         projectId={projectId}
+        canViewBom={access.bom}
         canManage={can(profile.role, 'budget.manage')}
         canCommercialApprove={can(
           profile.role,

@@ -326,11 +326,53 @@ suite('Opportunity conversion protected HTTP canary', () => {
 
         const replay = await request(app.getHttpServer())
           .post(route(wonOpportunityA))
-          .set('Authorization', 'Bearer sales-a-token')
+          .set('Authorization', 'Bearer admin-a-token')
           .set('Idempotency-Key', 'conversion-a')
           .send({})
           .expect(200)
         expect(replay.body).toEqual(conversion.body)
+
+        await request(app.getHttpServer())
+          .post(route(wonOpportunityA))
+          .set('Authorization', 'Bearer viewer-a-token')
+          .set('Idempotency-Key', 'conversion-a')
+          .send({})
+          .expect(403)
+
+        await transaction
+          .update(users)
+          .set({ role: 'viewer', updated_at: new Date() })
+          .where(
+            and(eq(users.id, salesA), eq(users.tenant_id, tenantA))
+          )
+        await request(app.getHttpServer())
+          .post(route(wonOpportunityA))
+          .set('Authorization', 'Bearer sales-a-token')
+          .set('Idempotency-Key', 'conversion-a')
+          .send({})
+          .expect(403)
+        await transaction
+          .update(users)
+          .set({ role: 'sales', updated_at: new Date() })
+          .where(
+            and(eq(users.id, salesA), eq(users.tenant_id, tenantA))
+          )
+
+        const isolatedTenantConversion = await request(app.getHttpServer())
+          .post(route(wonOpportunityB))
+          .set('Authorization', 'Bearer sales-b-token')
+          .set('Idempotency-Key', 'conversion-a')
+          .send({})
+          .expect(200)
+        expect(isolatedTenantConversion.body).toMatchObject({
+          ok: true,
+          opportunityId: wonOpportunityB,
+          tenantId: tenantB,
+          createdProject: true,
+        })
+        expect(isolatedTenantConversion.body.projectId).not.toBe(
+          conversion.body.projectId
+        )
 
         await request(app.getHttpServer())
           .post(route(secondWonOpportunityA))
@@ -469,7 +511,13 @@ suite('Opportunity conversion protected HTTP canary', () => {
           .select()
           .from(opportunityProjectConversionRequests)
           .where(eq(opportunityProjectConversionRequests.tenant_id, tenantB))
-        expect(otherTenantRows).toHaveLength(0)
+        expect(otherTenantRows).toHaveLength(1)
+        expect(otherTenantRows[0]).toMatchObject({
+          opportunity_id: wonOpportunityB,
+          idempotency_key: 'conversion-a',
+          state: 'succeeded',
+          project_id: isolatedTenantConversion.body.projectId,
+        })
       } finally {
         await app.close()
       }

@@ -1,15 +1,31 @@
 import { db } from '@third-code-erp/database'
 import {
+  boms,
   dailyTasks,
   deliverySchedules,
   documents,
+  invoices,
+  opportunities,
   projects,
   purchaseOrders,
   punchlistItems,
   progressUpdates,
   variationOrders,
 } from '@third-code-erp/database/schema'
-import { eq, desc, asc, and, or, ilike, sql, type SQL, count, inArray, isNull } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNull,
+  or,
+  sql,
+  sum,
+  type SQL,
+} from 'drizzle-orm'
 import type { Project, ProgressUpdate } from '@third-code-erp/database/schema'
 import {
   projectTypeValues,
@@ -23,6 +39,7 @@ import {
   projectReadsUseCoreApi,
   projectListsUseCoreApi,
 } from './erp-core-client'
+import { COMMITTED_PO_STATUSES } from './po-status'
 
 export type { Project }
 
@@ -32,9 +49,96 @@ export interface ProjectCommandCenterData {
   documents: number
   pendingDecisions: number
   openPunchlist: number
-  activeDeliveries: number
+  activeDeliveries: number | null
   progressPercent: number | null
   progressWeekEnding: string | null
+}
+
+export interface ProjectOverviewAccess {
+  opportunity: boolean
+  bom: boolean
+  purchaseOrders: boolean
+  billing: boolean
+}
+
+export async function getProjectOverviewData(
+  tenantId: string,
+  projectId: string,
+  access: ProjectOverviewAccess,
+) {
+  const [opportunityRows, bomRows, poRows, invoiceRows] = await Promise.all([
+    access.opportunity
+      ? db
+          .select({
+            id: opportunities.id,
+            stage: opportunities.stage,
+            tcv_cents: opportunities.tcv_cents,
+            gp_cents: opportunities.gp_cents,
+            probability: opportunities.probability,
+            weighted_tcv_cents: opportunities.weighted_tcv_cents,
+            closing_date: opportunities.closing_date,
+            area_sqm: opportunities.area_sqm,
+            opportunity_type: opportunities.opportunity_type,
+          })
+          .from(opportunities)
+          .where(
+            and(
+              eq(opportunities.project_id, projectId),
+              eq(opportunities.tenant_id, tenantId),
+            ),
+          )
+      : Promise.resolve([]),
+    access.bom
+      ? db
+          .select({
+            total_cost_cents: boms.total_cost_cents,
+            tcv_cents: boms.tcv_cents,
+            gp_cents: boms.gp_cents,
+            status: boms.status,
+          })
+          .from(boms)
+          .where(
+            and(
+              eq(boms.project_id, projectId),
+              eq(boms.tenant_id, tenantId),
+              inArray(boms.status, ['approved', 'locked']),
+            ),
+          )
+          .orderBy(desc(boms.version))
+          .limit(1)
+      : Promise.resolve([]),
+    access.purchaseOrders
+      ? db
+          .select({ total: sum(purchaseOrders.total_cents) })
+          .from(purchaseOrders)
+          .where(
+            and(
+              eq(purchaseOrders.project_id, projectId),
+              eq(purchaseOrders.tenant_id, tenantId),
+              inArray(purchaseOrders.status, [...COMMITTED_PO_STATUSES]),
+            ),
+          )
+      : Promise.resolve([]),
+    access.billing
+      ? db
+          .select({ total: sum(invoices.net_amount_cents) })
+          .from(invoices)
+          .where(
+            and(
+              eq(invoices.project_id, projectId),
+              eq(invoices.tenant_id, tenantId),
+              inArray(invoices.status, ['issued', 'partial_payment', 'paid']),
+            ),
+          )
+      : Promise.resolve([]),
+  ])
+
+  return {
+    opportunities: opportunityRows,
+    latestBom: bomRows[0] ?? null,
+    poCommittedCents: access.purchaseOrders ? numeric(poRows[0]?.total) : null,
+    invoiceBilledCents: access.billing ? numeric(invoiceRows[0]?.total) : null,
+  }
 }
 
 function readOverallProgress(value: ProgressUpdate['percent_by_category']): number | null {
@@ -156,8 +260,11 @@ export async function getProjectCommandCenter(
   tenantId: string,
   projectId: string,
   now = new Date(),
+  options: { includeDelivery?: boolean } = {},
 ): Promise<ProjectCommandCenterData> {
-  if (projectCommandCenterReadsUseCoreApi(tenantId)) {
+  const includeDelivery = options.includeDelivery ?? true
+
+  if (includeDelivery && projectCommandCenterReadsUseCoreApi(tenantId)) {
     const result = await getProjectCommandCenterThroughCoreApi(projectId)
     if (!result.ok || !result.data) {
       throw new Error(result.error ?? 'Project signals were not read')
@@ -223,30 +330,32 @@ export async function getProjectCommandCenter(
             inArray(punchlistItems.status, ['open', 'in_progress', 'for_inspection']),
           ),
         ),
-      db
-        .select({ total: count() })
-        .from(deliverySchedules)
-        .innerJoin(
-          purchaseOrders,
-          and(
-            eq(purchaseOrders.id, deliverySchedules.purchase_order_id),
-            eq(purchaseOrders.tenant_id, tenantId),
-            eq(purchaseOrders.project_id, projectId),
-          ),
-        )
-        .where(
-          and(
-            eq(deliverySchedules.tenant_id, tenantId),
-            inArray(deliverySchedules.status, [
-              'scheduled',
-              'site_preparing',
-              'site_ready',
-              'in_transit',
-              'received',
-              'inspecting',
-            ]),
-          ),
-        ),
+      includeDelivery
+        ? db
+            .select({ total: count() })
+            .from(deliverySchedules)
+            .innerJoin(
+              purchaseOrders,
+              and(
+                eq(purchaseOrders.id, deliverySchedules.purchase_order_id),
+                eq(purchaseOrders.tenant_id, tenantId),
+                eq(purchaseOrders.project_id, projectId),
+              ),
+            )
+            .where(
+              and(
+                eq(deliverySchedules.tenant_id, tenantId),
+                inArray(deliverySchedules.status, [
+                  'scheduled',
+                  'site_preparing',
+                  'site_ready',
+                  'in_transit',
+                  'received',
+                  'inspecting',
+                ]),
+              ),
+            )
+        : Promise.resolve([]),
       db
         .select({ percentByCategory: progressUpdates.percent_by_category, weekEnding: progressUpdates.week_ending })
         .from(progressUpdates)
@@ -262,7 +371,7 @@ export async function getProjectCommandCenter(
     documents: numeric(documentRow[0]?.total),
     pendingDecisions: numeric(decisionRow[0]?.total),
     openPunchlist: numeric(punchlistRow[0]?.total),
-    activeDeliveries: numeric(deliveryRow[0]?.total),
+    activeDeliveries: includeDelivery ? numeric(deliveryRow[0]?.total) : null,
     progressPercent: latestProgress ? readOverallProgress(latestProgress.percentByCategory) : null,
     progressWeekEnding: latestProgress?.weekEnding?.toISOString() ?? null,
   }

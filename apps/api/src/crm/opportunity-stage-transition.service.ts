@@ -13,6 +13,7 @@ import { ConfigService } from '@nestjs/config'
 import {
   accounts,
   opportunities,
+  opportunityKycTracks,
   opportunityStageTransitionRequests,
   slaLogs,
   users,
@@ -20,6 +21,7 @@ import {
 import {
   opportunityStageTransitionCommandSchema,
   opportunityStageTransitionResultSchema,
+  OPPORTUNITY_KYC_TRACK_TYPES,
   PIPELINE_STAGES,
   STAGE_LEGACY_MAP,
   STAGE_PROBABILITY,
@@ -60,6 +62,8 @@ const OPP_STAGE_SLA = {
   breach_at_seconds: 5 * 86_400,
   warning_at_pct: 0.8,
 } as const
+const INVALID_LINKED_ACCOUNT_MESSAGE =
+  'Opportunity Account is not available in this tenant'
 
 type StageRequestRecord = {
   id: string
@@ -107,6 +111,33 @@ function replayResult(value: unknown): OpportunityStageTransitionResult {
     )
   }
   return parsed.data
+}
+
+function exactWeightedTcvCents(
+  tcvCents: number,
+  probabilityPercent: number
+): number {
+  if (!Number.isSafeInteger(tcvCents) || tcvCents < 0) {
+    throw new InternalServerErrorException(
+      'Opportunity TCV is outside the supported integer range'
+    )
+  }
+  return Number(
+    (BigInt(tcvCents) * BigInt(probabilityPercent) + 50n) / 100n
+  )
+}
+
+function exactPersistedCentavos(value: string): number {
+  const amount = BigInt(value)
+  if (
+    amount < BigInt(Number.MIN_SAFE_INTEGER) ||
+    amount > BigInt(Number.MAX_SAFE_INTEGER)
+  ) {
+    throw new InternalServerErrorException(
+      'Opportunity amount is outside the exact persistence range'
+    )
+  }
+  return Number(amount)
 }
 
 @Injectable()
@@ -195,6 +226,8 @@ export class OpportunityStageTransitionService {
         tenantId: opportunities.tenant_id,
         stage: opportunities.stage,
         tcvCents: opportunities.tcv_cents,
+        gpCents: opportunities.gp_cents,
+        closingDate: opportunities.closing_date,
         accountId: opportunities.account_id,
         projectId: opportunities.project_id,
         lostReason: opportunities.lost_reason,
@@ -209,6 +242,37 @@ export class OpportunityStageTransitionService {
       .limit(1)
       .for('update')
     if (!opportunity) throw new NotFoundException('Opportunity not found')
+
+    let linkedAccount: { kycStatus: string } | null = null
+    if (opportunity.accountId) {
+      const [account] = await transaction
+        .select({
+          id: accounts.id,
+          kycStatus: accounts.kyc_status,
+        })
+        .from(accounts)
+        .where(
+          and(
+            eq(accounts.id, opportunity.accountId),
+            eq(accounts.tenant_id, authorizedPrincipal.tenantId)
+          )
+        )
+        .limit(1)
+        .for('share')
+      if (!account) {
+        throw new ConflictException(INVALID_LINKED_ACCOUNT_MESSAGE)
+      }
+      linkedAccount = account
+    }
+
+    if (
+      !linkedAccount &&
+      [...KYC_GATED_STAGES].includes(command.newStage)
+    ) {
+      throw new ConflictException(
+        'Opportunity Account is required before this stage'
+      )
+    }
 
     const request = await this.claimRequest(
       transaction,
@@ -234,23 +298,47 @@ export class OpportunityStageTransitionService {
     }
 
     if (KYC_GATED_STAGES.has(command.newStage) && opportunity.accountId) {
-      const [account] = await transaction
-        .select({ kycStatus: accounts.kyc_status })
-        .from(accounts)
+      const kycTracks = await transaction
+        .select({
+          trackType: opportunityKycTracks.track_type,
+          status: opportunityKycTracks.status,
+        })
+        .from(opportunityKycTracks)
         .where(
           and(
-            eq(accounts.id, opportunity.accountId),
-            eq(accounts.tenant_id, authorizedPrincipal.tenantId)
+            eq(opportunityKycTracks.opportunity_id, opportunityId),
+            eq(opportunityKycTracks.tenant_id, authorizedPrincipal.tenantId)
           )
         )
-        .limit(1)
         .for('share')
-      const kycOk =
-        account?.kycStatus === 'approved' || account?.kycStatus === 'not_required'
-      if (!kycOk) {
-        throw new ConflictException(
-          'Account KYC must be Approved before this stage'
+
+      // PPRF opportunities have two independent Finance tracks. Once either
+      // track exists, fail closed unless both canonical tracks are present and
+      // approved. Account status remains the compatibility gate only for
+      // legacy opportunities that pre-date the dual-track workflow.
+      if (kycTracks.length > 0) {
+        const approvedTrackTypes = new Set(
+          kycTracks
+            .filter((track) => track.status === 'approved')
+            .map((track) => track.trackType)
         )
+        const dualTrackApproved = OPPORTUNITY_KYC_TRACK_TYPES.every((trackType) =>
+          approvedTrackTypes.has(trackType)
+        )
+        if (!dualTrackApproved) {
+          throw new ConflictException(
+            'Pipeline locked until both Finance tracks are approved'
+          )
+        }
+      } else {
+        const kycOk =
+          linkedAccount?.kycStatus === 'approved' ||
+          linkedAccount?.kycStatus === 'not_required'
+        if (!kycOk) {
+          throw new ConflictException(
+            'Account KYC must be Approved before this stage'
+          )
+        }
       }
     }
 
@@ -263,25 +351,43 @@ export class OpportunityStageTransitionService {
         PIPELINE_STAGES.indexOf(currentPipelineStage) &&
       nextPipelineStage !== 'lost'
     const reason = command.reason?.trim() || undefined
-    if (isRegression && !reason) {
+    const isClosingLost =
+      command.newStage === 'closed_lost' || command.newStage === 'lost'
+    if ((isRegression || isClosingLost) && !reason) {
       throw new ConflictException('reason_required')
     }
 
-    const isClosingLost =
-      command.newStage === 'closed_lost' || command.newStage === 'lost'
     const newProbability = STAGE_PROBABILITY[command.newStage]
+    const newTcvCents =
+      command.tcvCents === undefined
+        ? opportunity.tcvCents
+        : exactPersistedCentavos(command.tcvCents)
+    const newGpCents =
+      command.gpCents === undefined
+        ? opportunity.gpCents
+        : exactPersistedCentavos(command.gpCents)
+    const newClosingDate = command.closingDate
+      ? new Date(command.closingDate)
+      : opportunity.closingDate
     const updateValues: {
       stage: OpportunityStage
       probability: number
+      tcv_cents: number
+      gp_cents: number
       weighted_tcv_cents: number
+      closing_date: Date | null
       updated_at: Date
       lost_reason?: string | null
     } = {
       stage: command.newStage,
       probability: newProbability,
-      weighted_tcv_cents: Math.round(
-        opportunity.tcvCents * newProbability / 100
+      tcv_cents: newTcvCents,
+      gp_cents: newGpCents,
+      weighted_tcv_cents: exactWeightedTcvCents(
+        newTcvCents,
+        newProbability
       ),
+      closing_date: newClosingDate,
       updated_at: new Date(),
     }
     if (isClosingLost) updateValues.lost_reason = reason ?? null
@@ -302,6 +408,24 @@ export class OpportunityStageTransitionService {
       probability: newProbability,
       source: 'opportunity_stage_core',
       idempotency_key_hash: requestHash,
+    }
+    if (command.tcvCents !== undefined) {
+      auditDiff.tcv_cents = {
+        from: String(opportunity.tcvCents),
+        to: String(newTcvCents),
+      }
+    }
+    if (command.gpCents !== undefined) {
+      auditDiff.gp_cents = {
+        from: String(opportunity.gpCents),
+        to: String(newGpCents),
+      }
+    }
+    if (command.closingDate !== undefined) {
+      auditDiff.closing_date = {
+        from: opportunity.closingDate?.toISOString() ?? null,
+        to: newClosingDate?.toISOString() ?? null,
+      }
     }
     if (isClosingLost) {
       auditDiff.lost_reason = {

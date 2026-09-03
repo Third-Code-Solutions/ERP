@@ -9,8 +9,13 @@ import {
   accounts,
   auditLog,
   db,
+  notifications,
+  opportunityKycTracks,
+  opportunityProjectConversionRequests,
   opportunityStageTransitionRequests,
   opportunities,
+  preConChecklistItems,
+  preConChecklists,
   projects,
   slaLogs,
   tenants,
@@ -29,6 +34,9 @@ import {
   type DatabaseTransaction,
 } from '../src/database/database.service'
 import { OpportunityProjectConversionService } from '../src/crm/opportunity-project-conversion.service'
+import { OpportunityCreationController } from '../src/crm/opportunity-creation.controller'
+import { OpportunityCreationPipe } from '../src/crm/opportunity-creation.pipe'
+import { OpportunityCreationService } from '../src/crm/opportunity-creation.service'
 import { OpportunityStageTransitionController } from '../src/crm/opportunity-stage-transition.controller'
 import { OpportunityStageTransitionPipe } from '../src/crm/opportunity-stage-transition.pipe'
 import { OpportunityStageTransitionService } from '../src/crm/opportunity-stage-transition.service'
@@ -83,9 +91,13 @@ suite('Opportunity stage transition protected HTTP canary', () => {
     const accountA = randomUUID()
     const accountB = randomUUID()
     const leadOpportunityA = randomUUID()
+    const leadOpportunityB = randomUUID()
     const contractOpportunityA = randomUUID()
+    const invalidAccountOpportunityA = randomUUID()
     const rollbackOpportunityA = randomUUID()
     const rollbackProjectA = randomUUID()
+    const accountlessProjectA = randomUUID()
+    const accountlessOpportunityA = randomUUID()
     const contractOpportunityB = randomUUID()
     const suffix = randomUUID().slice(0, 12)
     const observedAt = new Date('2026-08-10T04:00:00.000Z')
@@ -139,7 +151,9 @@ suite('Opportunity stage transition protected HTTP canary', () => {
           tenant_id: tenantA,
           name: 'Stage Client A',
           industry: 'office',
-          kyc_status: 'approved',
+          // New PPRF opportunities remain account-pending while their two
+          // opportunity-level Finance tracks are approved independently.
+          kyc_status: 'pending',
           created_by: salesA,
           created_at: observedAt,
           updated_at: observedAt,
@@ -155,17 +169,29 @@ suite('Opportunity stage transition protected HTTP canary', () => {
           updated_at: observedAt,
         },
       ])
-      await transaction.insert(projects).values({
-        id: rollbackProjectA,
-        tenant_id: tenantA,
-        account_id: accountA,
-        name: 'Stage rollback project',
-        client: 'Stage Client A',
-        status: 'lead',
-        created_by: salesA,
-        created_at: observedAt,
-        updated_at: observedAt,
-      })
+      await transaction.insert(projects).values([
+        {
+          id: rollbackProjectA,
+          tenant_id: tenantA,
+          account_id: accountA,
+          name: 'Stage rollback project',
+          client: 'Stage Client A',
+          status: 'lead',
+          created_by: salesA,
+          created_at: observedAt,
+          updated_at: observedAt,
+        },
+        {
+          id: accountlessProjectA,
+          tenant_id: tenantA,
+          name: 'Legacy accountless project',
+          client: 'Legacy Client',
+          status: 'lead',
+          created_by: salesA,
+          created_at: observedAt,
+          updated_at: observedAt,
+        },
+      ])
       await transaction.insert(opportunities).values([
         {
           id: leadOpportunityA,
@@ -191,6 +217,18 @@ suite('Opportunity stage transition protected HTTP canary', () => {
           updated_at: observedAt,
         },
         {
+          id: invalidAccountOpportunityA,
+          tenant_id: tenantA,
+          account_id: accountB,
+          stage: 'contract',
+          opportunity_type: 'A malformed cross-tenant Account reference',
+          tcv_cents: 600_000,
+          probability: 90,
+          weighted_tcv_cents: 540_000,
+          created_at: observedAt,
+          updated_at: observedAt,
+        },
+        {
           id: rollbackOpportunityA,
           tenant_id: tenantA,
           account_id: accountA,
@@ -200,6 +238,17 @@ suite('Opportunity stage transition protected HTTP canary', () => {
           tcv_cents: 800_000,
           probability: 90,
           weighted_tcv_cents: 720_000,
+          created_at: observedAt,
+          updated_at: observedAt,
+        },
+        {
+          id: accountlessOpportunityA,
+          tenant_id: tenantA,
+          project_id: accountlessProjectA,
+          stage: 'site_survey',
+          tcv_cents: 200_000,
+          probability: 25,
+          weighted_tcv_cents: 50_000,
           created_at: observedAt,
           updated_at: observedAt,
         },
@@ -215,7 +264,42 @@ suite('Opportunity stage transition protected HTTP canary', () => {
           created_at: observedAt,
           updated_at: observedAt,
         },
+        {
+          id: leadOpportunityB,
+          tenant_id: tenantB,
+          account_id: accountB,
+          stage: 'lead',
+          opportunity_type: 'B lead',
+          tcv_cents: 300_000,
+          probability: 10,
+          weighted_tcv_cents: 30_000,
+          created_at: observedAt,
+          updated_at: observedAt,
+        },
       ])
+      await transaction.insert(opportunityKycTracks).values(
+        [
+          contractOpportunityA,
+          invalidAccountOpportunityA,
+          rollbackOpportunityA,
+        ].flatMap((opportunityId) =>
+          (['financial_evaluation', 'credit_investigation'] as const).map(
+            (trackType) => ({
+              tenant_id: tenantA,
+              opportunity_id: opportunityId,
+              track_type: trackType,
+              status: 'approved' as const,
+              due_at: observedAt,
+              fc_recommended_by: adminA,
+              fc_recommended_at: observedAt,
+              president_decided_by: adminA,
+              president_decided_at: observedAt,
+              created_at: observedAt,
+              updated_at: observedAt,
+            })
+          )
+        )
+      )
       const [initialLeadClock] = await transaction
         .insert(slaLogs)
         .values({
@@ -266,9 +350,14 @@ suite('Opportunity stage transition protected HTTP canary', () => {
       }
       const database = transactionBoundDatabase(transaction)
       const moduleRef = await Test.createTestingModule({
-        controllers: [OpportunityStageTransitionController],
+        controllers: [
+          OpportunityCreationController,
+          OpportunityStageTransitionController,
+        ],
         providers: [
           Reflector,
+          OpportunityCreationPipe,
+          OpportunityCreationService,
           OpportunityStageTransitionPipe,
           OpportunityStageTransitionService,
           OpportunityProjectConversionService,
@@ -311,6 +400,17 @@ suite('Opportunity stage transition protected HTTP canary', () => {
         const route = (opportunityId: string) =>
           `/v1/crm/opportunities/${opportunityId}/stage-transition`
 
+        const accountlessGate = await request(app.getHttpServer())
+          .post(route(accountlessOpportunityA))
+          .set('Authorization', 'Bearer stage-sales-a-token')
+          .set('Idempotency-Key', 'accountless-design')
+          .send({ newStage: 'design' })
+          .expect(409)
+        expect(accountlessGate.body).toMatchObject({
+          message: 'Opportunity Account is required before this stage',
+          statusCode: 409,
+        })
+
         await request(app.getHttpServer())
           .post(route(leadOpportunityA))
           .send({ newStage: 'site_survey' })
@@ -345,6 +445,56 @@ suite('Opportunity stage transition protected HTTP canary', () => {
           .expect(503)
         featureState.stageEnabled = true
 
+        const created = await request(app.getHttpServer())
+          .post('/v1/crm/opportunities')
+          .set('Authorization', 'Bearer stage-sales-a-token')
+          .set('Idempotency-Key', 'project-opportunity-create')
+          .send({
+            projectId: rollbackProjectA,
+            tcvCents: '10005',
+            gpCents: '-2000',
+            closingDate: '2026-09-03T00:00:00+08:00',
+          })
+          .expect(201)
+        expect(created.body).toMatchObject({
+          ok: true,
+          tenantId: tenantA,
+          projectId: rollbackProjectA,
+          accountId: accountA,
+          repId: salesA,
+          stage: 'opportunity_creation',
+          probability: 10,
+          tcvCents: '10005',
+          gpCents: '-2000',
+          weightedTcvCents: '1001',
+        })
+        const createReplay = await request(app.getHttpServer())
+          .post('/v1/crm/opportunities')
+          .set('Authorization', 'Bearer stage-admin-a-token')
+          .set('Idempotency-Key', 'project-opportunity-create')
+          .send({
+            projectId: rollbackProjectA,
+            tcvCents: '10005',
+            gpCents: '-2000',
+            closingDate: '2026-09-03T00:00:00+08:00',
+          })
+          .expect(201)
+        expect(createReplay.body).toEqual(created.body)
+
+        await request(app.getHttpServer())
+          .post('/v1/crm/opportunities')
+          .set('Authorization', 'Bearer stage-viewer-a-token')
+          .set('Idempotency-Key', 'viewer-create')
+          .send({ projectId: rollbackProjectA })
+          .expect(403)
+
+        await request(app.getHttpServer())
+          .post('/v1/crm/opportunities')
+          .set('Authorization', 'Bearer stage-sales-b-token')
+          .set('Idempotency-Key', 'foreign-project-create')
+          .send({ projectId: rollbackProjectA })
+          .expect(404)
+
         await request(app.getHttpServer())
           .post(route(contractOpportunityA))
           .set('Authorization', 'Bearer stage-sales-b-token')
@@ -361,11 +511,223 @@ suite('Opportunity stage transition protected HTTP canary', () => {
           .expect(503)
         featureState.conversionEnabled = true
 
+        const invalidAccountAuditBefore = await transaction
+          .select({ id: auditLog.id })
+          .from(auditLog)
+          .where(
+            and(
+              eq(auditLog.tenant_id, tenantA),
+              eq(auditLog.entity_id, invalidAccountOpportunityA)
+            )
+          )
+        const invalidAccount = await request(app.getHttpServer())
+          .post(route(invalidAccountOpportunityA))
+          .set('Authorization', 'Bearer stage-sales-a-token')
+          .set('Idempotency-Key', 'invalid-cross-tenant-account')
+          .send({ newStage: 'won' })
+          .expect(409)
+        expect(invalidAccount.body).toMatchObject({
+          message: 'Opportunity Account is not available in this tenant',
+          statusCode: 409,
+        })
+
+        const [invalidOpportunity] = await transaction
+          .select({
+            stage: opportunities.stage,
+            projectId: opportunities.project_id,
+          })
+          .from(opportunities)
+          .where(
+            and(
+              eq(opportunities.tenant_id, tenantA),
+              eq(opportunities.id, invalidAccountOpportunityA)
+            )
+          )
+          .limit(1)
+        expect(invalidOpportunity).toEqual({
+          stage: 'contract',
+          projectId: null,
+        })
+        expect(
+          await transaction
+            .select({ id: opportunityStageTransitionRequests.id })
+            .from(opportunityStageTransitionRequests)
+            .where(
+              and(
+                eq(opportunityStageTransitionRequests.tenant_id, tenantA),
+                eq(
+                  opportunityStageTransitionRequests.opportunity_id,
+                  invalidAccountOpportunityA
+                )
+              )
+            )
+        ).toHaveLength(0)
+        expect(
+          await transaction
+            .select({ id: opportunityProjectConversionRequests.id })
+            .from(opportunityProjectConversionRequests)
+            .where(
+              and(
+                eq(opportunityProjectConversionRequests.tenant_id, tenantA),
+                eq(
+                  opportunityProjectConversionRequests.opportunity_id,
+                  invalidAccountOpportunityA
+                )
+              )
+            )
+        ).toHaveLength(0)
+        expect(
+          await transaction
+            .select({ id: projects.id })
+            .from(projects)
+            .where(
+              and(
+                eq(projects.tenant_id, tenantA),
+                eq(projects.account_id, accountB)
+              )
+            )
+        ).toHaveLength(0)
+        expect(
+          await transaction
+            .select({ id: preConChecklists.id })
+            .from(preConChecklists)
+            .where(eq(preConChecklists.tenant_id, tenantA))
+        ).toHaveLength(0)
+        expect(
+          await transaction
+            .select({ id: preConChecklistItems.id })
+            .from(preConChecklistItems)
+            .where(eq(preConChecklistItems.tenant_id, tenantA))
+        ).toHaveLength(0)
+        expect(
+          await transaction
+            .select({ id: notifications.id })
+            .from(notifications)
+            .where(eq(notifications.tenant_id, tenantA))
+        ).toHaveLength(0)
+        const invalidAccountAuditAfter = await transaction
+          .select({ id: auditLog.id })
+          .from(auditLog)
+          .where(
+            and(
+              eq(auditLog.tenant_id, tenantA),
+              eq(auditLog.entity_id, invalidAccountOpportunityA)
+            )
+          )
+        expect(invalidAccountAuditAfter).toEqual(invalidAccountAuditBefore)
+        expect(
+          await transaction
+            .select({ id: slaLogs.id })
+            .from(slaLogs)
+            .where(
+              and(
+                eq(slaLogs.tenant_id, tenantA),
+                eq(slaLogs.entity_id, invalidAccountOpportunityA)
+              )
+            )
+        ).toHaveLength(0)
+
+        await transaction
+          .update(opportunityKycTracks)
+          .set({ status: 'pending', updated_at: new Date() })
+          .where(
+            and(
+              eq(opportunityKycTracks.tenant_id, tenantA),
+              eq(
+                opportunityKycTracks.opportunity_id,
+                contractOpportunityA
+              ),
+              eq(
+                opportunityKycTracks.track_type,
+                'credit_investigation'
+              )
+            )
+          )
+        const incompleteKyc = await request(app.getHttpServer())
+          .post(route(contractOpportunityA))
+          .set('Authorization', 'Bearer stage-sales-a-token')
+          .set('Idempotency-Key', 'dual-track-incomplete')
+          .send({ newStage: 'won' })
+          .expect(409)
+        expect(incompleteKyc.body).toMatchObject({
+          message: 'Pipeline locked until both Finance tracks are approved',
+          statusCode: 409,
+        })
+        const [kycBlocked] = await transaction
+          .select({ stage: opportunities.stage })
+          .from(opportunities)
+          .where(
+            and(
+              eq(opportunities.tenant_id, tenantA),
+              eq(opportunities.id, contractOpportunityA)
+            )
+          )
+          .limit(1)
+        expect(kycBlocked?.stage).toBe('contract')
+        const blockedRequests = await transaction
+          .select({ id: opportunityStageTransitionRequests.id })
+          .from(opportunityStageTransitionRequests)
+          .where(
+            and(
+              eq(opportunityStageTransitionRequests.tenant_id, tenantA),
+              eq(
+                opportunityStageTransitionRequests.idempotency_key,
+                'dual-track-incomplete'
+              )
+            )
+          )
+        expect(blockedRequests).toHaveLength(0)
+        await transaction
+          .update(opportunityKycTracks)
+          .set({ status: 'approved', updated_at: new Date() })
+          .where(
+            and(
+              eq(opportunityKycTracks.tenant_id, tenantA),
+              eq(
+                opportunityKycTracks.opportunity_id,
+                contractOpportunityA
+              ),
+              eq(
+                opportunityKycTracks.track_type,
+                'credit_investigation'
+              )
+            )
+          )
+
+        const missingLostReason = await request(app.getHttpServer())
+          .post(route(leadOpportunityA))
+          .set('Authorization', 'Bearer stage-sales-a-token')
+          .set('Idempotency-Key', 'lead-lost-without-reason')
+          .send({ newStage: 'lost' })
+          .expect(409)
+        expect(missingLostReason.body).toMatchObject({
+          message: 'reason_required',
+          statusCode: 409,
+        })
+        const missingReasonRequests = await transaction
+          .select({ id: opportunityStageTransitionRequests.id })
+          .from(opportunityStageTransitionRequests)
+          .where(
+            and(
+              eq(opportunityStageTransitionRequests.tenant_id, tenantA),
+              eq(
+                opportunityStageTransitionRequests.idempotency_key,
+                'lead-lost-without-reason'
+              )
+            )
+          )
+        expect(missingReasonRequests).toHaveLength(0)
+
         const nonTerminal = await request(app.getHttpServer())
           .post(route(leadOpportunityA))
           .set('Authorization', 'Bearer stage-sales-a-token')
           .set('Idempotency-Key', 'lead-site-survey')
-          .send({ newStage: 'site_survey' })
+          .send({
+            newStage: 'site_survey',
+            tcvCents: '100002',
+            gpCents: '-2500',
+            closingDate: '2026-10-31T00:00:00.000Z',
+          })
           .expect(200)
         expect(nonTerminal.body).toMatchObject({
           ok: true,
@@ -380,11 +742,153 @@ suite('Opportunity stage transition protected HTTP canary', () => {
 
         const replay = await request(app.getHttpServer())
           .post(route(leadOpportunityA))
+          .set('Authorization', 'Bearer stage-admin-a-token')
+          .set('Idempotency-Key', 'lead-site-survey')
+          .send({
+            newStage: 'site_survey',
+            tcvCents: '100002',
+            gpCents: '-2500',
+            closingDate: '2026-10-31T00:00:00.000Z',
+          })
+          .expect(200)
+        expect(replay.body).toEqual(nonTerminal.body)
+
+        await request(app.getHttpServer())
+          .post(route(leadOpportunityA))
+          .set('Authorization', 'Bearer stage-viewer-a-token')
+          .set('Idempotency-Key', 'lead-site-survey')
+          .send({ newStage: 'site_survey' })
+          .expect(403)
+
+        await transaction
+          .update(users)
+          .set({ role: 'viewer', updated_at: new Date() })
+          .where(
+            and(eq(users.id, salesA), eq(users.tenant_id, tenantA))
+          )
+        await request(app.getHttpServer())
+          .post(route(leadOpportunityA))
           .set('Authorization', 'Bearer stage-sales-a-token')
           .set('Idempotency-Key', 'lead-site-survey')
           .send({ newStage: 'site_survey' })
+          .expect(403)
+        await transaction
+          .update(users)
+          .set({ role: 'sales', updated_at: new Date() })
+          .where(
+            and(eq(users.id, salesA), eq(users.tenant_id, tenantA))
+          )
+
+        const isolatedTenantReplayKey = await request(app.getHttpServer())
+          .post(route(leadOpportunityB))
+          .set('Authorization', 'Bearer stage-sales-b-token')
+          .set('Idempotency-Key', 'lead-site-survey')
+          .send({ newStage: 'site_survey' })
           .expect(200)
-        expect(replay.body).toEqual(nonTerminal.body)
+        expect(isolatedTenantReplayKey.body).toMatchObject({
+          opportunityId: leadOpportunityB,
+          tenantId: tenantB,
+          fromStage: 'lead',
+          toStage: 'site_survey',
+        })
+
+        const tenantALeadRequests = await transaction
+          .select({ id: opportunityStageTransitionRequests.id })
+          .from(opportunityStageTransitionRequests)
+          .where(
+            and(
+              eq(opportunityStageTransitionRequests.tenant_id, tenantA),
+              eq(
+                opportunityStageTransitionRequests.idempotency_key,
+                'lead-site-survey'
+              )
+            )
+          )
+        expect(tenantALeadRequests).toHaveLength(1)
+        const tenantALeadAudits = await transaction
+          .select({ id: auditLog.id })
+          .from(auditLog)
+          .where(
+            and(
+              eq(auditLog.tenant_id, tenantA),
+              eq(auditLog.entity_id, leadOpportunityA),
+              eq(auditLog.action, 'stage_change')
+            )
+          )
+        expect(tenantALeadAudits).toHaveLength(1)
+
+        const [persistedCreate] = await transaction
+          .select({
+            projectId: opportunities.project_id,
+            accountId: opportunities.account_id,
+            repId: opportunities.rep_id,
+            stage: opportunities.stage,
+            tcvCents: opportunities.tcv_cents,
+            gpCents: opportunities.gp_cents,
+            weightedTcvCents: opportunities.weighted_tcv_cents,
+            closingDate: opportunities.closing_date,
+          })
+          .from(opportunities)
+          .where(
+            and(
+              eq(opportunities.tenant_id, tenantA),
+              eq(opportunities.id, created.body.opportunityId)
+            )
+          )
+          .limit(1)
+        expect(persistedCreate).toEqual({
+          projectId: rollbackProjectA,
+          accountId: accountA,
+          repId: salesA,
+          stage: 'opportunity_creation',
+          tcvCents: 10_005,
+          gpCents: -2_000,
+          weightedTcvCents: 1_001,
+          closingDate: new Date('2026-09-02T16:00:00.000Z'),
+        })
+        const createRequests = await transaction
+          .select()
+          .from(opportunityStageTransitionRequests)
+          .where(
+            and(
+              eq(opportunityStageTransitionRequests.tenant_id, tenantA),
+              eq(
+                opportunityStageTransitionRequests.idempotency_key,
+                'opportunity-create:project-opportunity-create'
+              )
+            )
+          )
+        expect(createRequests).toHaveLength(1)
+        expect(createRequests[0]).toMatchObject({
+          opportunity_id: created.body.opportunityId,
+          state: 'succeeded',
+          from_stage: 'opportunity_creation',
+          to_stage: 'opportunity_creation',
+          project_id: rollbackProjectA,
+        })
+        const createAudits = await transaction
+          .select({ id: auditLog.id })
+          .from(auditLog)
+          .where(
+            and(
+              eq(auditLog.tenant_id, tenantA),
+              eq(auditLog.entity_id, created.body.opportunityId),
+              eq(auditLog.action, 'create')
+            )
+          )
+        expect(createAudits).toHaveLength(1)
+
+        const [accountlessAfterGate] = await transaction
+          .select({ stage: opportunities.stage })
+          .from(opportunities)
+          .where(
+            and(
+              eq(opportunities.tenant_id, tenantA),
+              eq(opportunities.id, accountlessOpportunityA)
+            )
+          )
+          .limit(1)
+        expect(accountlessAfterGate?.stage).toBe('site_survey')
 
         await request(app.getHttpServer())
           .post(route(leadOpportunityA))
@@ -418,7 +922,13 @@ suite('Opportunity stage transition protected HTTP canary', () => {
           .expect(409)
 
         const [lead] = await transaction
-          .select({ stage: opportunities.stage })
+          .select({
+            stage: opportunities.stage,
+            tcvCents: opportunities.tcv_cents,
+            gpCents: opportunities.gp_cents,
+            weightedTcvCents: opportunities.weighted_tcv_cents,
+            closingDate: opportunities.closing_date,
+          })
           .from(opportunities)
           .where(
             and(
@@ -427,7 +937,13 @@ suite('Opportunity stage transition protected HTTP canary', () => {
             )
           )
           .limit(1)
-        expect(lead?.stage).toBe('site_survey')
+        expect(lead).toMatchObject({
+          stage: 'site_survey',
+          tcvCents: 100_002,
+          gpCents: -2_500,
+          weightedTcvCents: 25_001,
+          closingDate: new Date('2026-10-31T00:00:00.000Z'),
+        })
 
         const [converted] = await transaction
           .select()
@@ -524,7 +1040,12 @@ suite('Opportunity stage transition protected HTTP canary', () => {
           .select()
           .from(opportunityStageTransitionRequests)
           .where(eq(opportunityStageTransitionRequests.tenant_id, tenantB))
-        expect(otherTenantRows).toHaveLength(0)
+        expect(otherTenantRows).toHaveLength(1)
+        expect(otherTenantRows[0]).toMatchObject({
+          opportunity_id: leadOpportunityB,
+          idempotency_key: 'lead-site-survey',
+          state: 'succeeded',
+        })
         const [untouchedB] = await transaction
           .select({ stage: opportunities.stage })
           .from(opportunities)
@@ -536,6 +1057,17 @@ suite('Opportunity stage transition protected HTTP canary', () => {
           )
           .limit(1)
         expect(untouchedB?.stage).toBe('contract')
+        const [transitionedLeadB] = await transaction
+          .select({ stage: opportunities.stage })
+          .from(opportunities)
+          .where(
+            and(
+              eq(opportunities.id, leadOpportunityB),
+              eq(opportunities.tenant_id, tenantB)
+            )
+          )
+          .limit(1)
+        expect(transitionedLeadB?.stage).toBe('site_survey')
       } finally {
         await app.close()
       }

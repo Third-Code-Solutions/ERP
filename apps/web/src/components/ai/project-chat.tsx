@@ -113,7 +113,7 @@ export function ProjectChat({ projectId }: ProjectChatProps) {
           >
             <div>
               <div style={{ fontSize: '0.875rem', fontWeight: 600 }}>Project Assistant</div>
-              <div style={{ fontSize: '0.75rem', opacity: 0.7 }}>Ask about costs, margins, billing</div>
+              <div style={{ fontSize: '0.75rem', opacity: 0.7 }}>Ask about project status and details</div>
             </div>
             <button
               onClick={() => setIsOpen(false)}
@@ -137,7 +137,7 @@ export function ProjectChat({ projectId }: ProjectChatProps) {
             {messages.length === 0 && (
               <div style={{ color: 'var(--color-neutral-400)', fontSize: '0.8125rem', textAlign: 'center', marginTop: '40px' }}>
                 <div style={{ marginBottom: '8px' }}>Ask anything about this project</div>
-                {['What is the GP margin?', 'Show me the invoice summary', 'What are the biggest cost items?'].map((q) => (
+                {['Summarize this project', 'What is the current project status?', 'What project details are available?'].map((q) => (
                   <button
                     key={q}
                     onClick={() => { setInput(q); inputRef.current?.focus() }}
