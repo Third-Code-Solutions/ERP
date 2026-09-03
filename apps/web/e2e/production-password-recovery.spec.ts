@@ -14,6 +14,10 @@ function isProductionRecoveryUrl(rawUrl: string): boolean {
 }
 
 test.describe('Production password recovery delivery request', () => {
+  // This test sends a real email through the production provider. Replaying it
+  // would immediately collide with Supabase's per-user email cooldown.
+  test.describe.configure({ retries: 0 })
+
   test.skip(
     process.env.E2E_REAL_PASSWORD_RECOVERY !== '1',
     'Real password recovery is opt-in to avoid sending email from local/default suites.'

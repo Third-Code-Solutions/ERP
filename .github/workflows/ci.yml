@@ -113,6 +113,7 @@ jobs:
       - run: pnpm test:playwright-no-skips
       - run: pnpm test:empty-schema-diff
       - run: pnpm test:production-data-boundary
+      - run: pnpm test:production-auth-proof
       - name: Test dated Supabase parity manifest
         run: pnpm test:managed-supabase-parity-plan
       - name: Verify dated Supabase parity manifest against source

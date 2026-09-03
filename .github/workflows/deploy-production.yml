@@ -90,6 +90,7 @@ jobs:
           pnpm verify:type-safety
           pnpm verify:app-router-boundaries
           pnpm verify:build-ops-invariants
+          pnpm test:production-auth-proof
           pnpm ci:actionlint
           pnpm verify:workflow-action-refs
           pnpm lint
@@ -199,7 +200,6 @@ jobs:
           mkdir -p "$(dirname "$report_path")"
           pnpm exec playwright test \
             e2e/auth.spec.ts \
-            e2e/production-password-recovery.spec.ts \
             e2e/branding-authenticated.spec.ts \
             e2e/smoke-console.spec.ts \
             e2e/role-access-production.spec.ts \
@@ -207,6 +207,18 @@ jobs:
             --project=chromium --workers=1 --reporter=json > "$report_path"
           node "$GITHUB_WORKSPACE/scripts/assert-playwright-no-skips.mjs" \
             "$report_path" "authenticated production E2E"
+
+      # Magic-link authentication and password recovery share Supabase's
+      # per-user email cooldown. Run the one-shot recovery proof only after the
+      # role matrix has provided enough separation from the admin magic link.
+      - name: Verify production password recovery request
+        working-directory: apps/web
+        env:
+          E2E_REAL_PASSWORD_RECOVERY: "1"
+          PLAYWRIGHT_BASE_URL: https://thirdcode-erp.vercel.app
+        run: >-
+          pnpm exec playwright test e2e/production-password-recovery.spec.ts
+          --project=chromium --workers=1 --retries=0 --reporter=line
 
       - name: Verify live profile password rotation and restoration
         working-directory: apps/web
