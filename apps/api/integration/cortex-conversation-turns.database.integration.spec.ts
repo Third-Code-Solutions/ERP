@@ -178,6 +178,11 @@ suite('Cortex conversation user-turn database integration', () => {
         )
       ).rejects.toThrow('Forbidden')
 
+      await transaction
+        .update(users)
+        .set({ role: 'admin' })
+        .where(and(eq(users.tenant_id, tenantA), eq(users.id, userA)))
+
       const [foreignConversation] = await transaction
         .insert(cortexConversations)
         .values({
