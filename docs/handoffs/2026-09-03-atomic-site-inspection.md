@@ -626,3 +626,55 @@ mutations, 134/134 focused runtime evidence, and the prior green type/lint/build
 gitleaks gates. Expected output: exercise the three permitted and ten read-only
 accounts in a real browser and, if an isolated database lane is authorized,
 prove PostgreSQL advisory-lock/rollback behavior without production mutation.
+
+## Agent 05 QA P2 repair — Design-roster-stable replay
+
+Status: **runtime repair complete in `9c34bc5f`; Agent 12 verifier update
+required**.
+
+Independent QA identified a P2 replay-integrity defect: inspection replay
+recomputed the expected notification recipients from the current Design roster.
+Adding or removing a Design membership after a fully committed submission made
+an identical retry return `CONFLICT`, even though the original durable
+notification set was complete.
+
+The schema-free repair adds two strict, redacted fields to the existing semantic
+audit receipt: `notification_recipient_set_hash`, a SHA-256 digest of the sorted,
+de-duplicated original recipient UUIDs, and `notification_recipient_count`.
+Initial submission resolves and validates the Design recipients once inside the
+same transaction, records the digest/count, then commits the audit, SLA, and
+notifications atomically. Replay no longer queries current membership. It loads
+the correlated persisted notification rows and requires a unique set whose
+sorted digest and count exactly match the receipt. Missing, extra, duplicate, or
+wrong rows fail closed. An originally empty recipient set remains a valid exact
+replay even if a Design user is added later. The receipt contains no raw
+recipient UUID, email, command key, photo ID, or free-form content.
+
+TDD and verification evidence:
+
+- RED: expanded service suite collected 69 tests; 65 passed / four failed. Added
+  and removed rosters returned `CONFLICT`, the missing receipt invariant replayed
+  successfully, and privacy evidence lacked the new digest/count;
+- GREEN: service suite 69/69 passed;
+- focused service + mounted compatibility suite 143/143 passed across five
+  files (69 service, 56 actions, two inspection form, two RFI form, fourteen
+  page);
+- Web typecheck passed; runtime service ESLint passed with zero warnings/errors;
+  the direct test is intentionally ignored by repository ESLint and emits one
+  warning if forced into a `--max-warnings=0` invocation;
+- `git diff --check` passed with only expected checkout line-ending notices.
+
+No database/schema migration, dependency, mounted UI/action, verifier, data,
+environment, provider, browser, or deployment mutation was made. The current
+WO-12 verifier now fails at `inspection durable effects must be atomic and
+Design-only` because it pins the old recipient-query order and does not yet
+require the new receipt digest/count. This is an expected stale-contract failure,
+not a runtime regression.
+
+→ Handoff to Agent 12. Reason: update only the WO-12 verifier/direct mutation
+suite/docs for the new schema-free receipt invariant. Inputs: runtime commit
+`9c34bc5f`, 69/69 service evidence, 143/143 mounted compatibility evidence, and
+the exact stale-verifier failure above. Expected output: require original
+recipient hash/count creation, forbid replay membership recomputation, validate
+persisted correlated notification rows, and add roster churn plus missing/extra/
+wrong notification hostile mutations.

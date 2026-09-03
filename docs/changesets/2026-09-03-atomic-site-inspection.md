@@ -192,3 +192,25 @@ No runtime, shared, schema, dependency, data, environment, deployment, or
 functional-ledger file changed. No P0/P1/P2 finding remains in the verified
 source contract. Real browser/IndexedDB/Storage and isolated live-PostgreSQL
 atomicity remain outside this bounded verification and are explicitly NOT RUN.
+
+## QA P2 — Design-roster-stable inspection replay
+
+Runtime commit `9c34bc5f` fixes inspection replay incorrectly depending on the
+current Design membership roster. The strict inspection receipt now stores only
+the SHA-256 digest and count of the sorted, de-duplicated original recipient
+UUIDs. Exact replay compares correlated persisted notification rows with that
+committed digest/count instead of querying mutable current membership. Added,
+removed, or reordered Design memberships therefore cannot invalidate a complete
+historical submission; missing, extra, duplicate, or wrong persisted rows still
+return `CONFLICT`. Zero-recipient submissions intentionally remain replayable.
+
+TDD: RED was 65/69 passing with four expected failures; GREEN is 69/69 service
+and 143/143 focused service/actions/forms/page. Web typecheck and focused runtime
+ESLint pass; diff check passes. The direct test file remains repository-lint
+ignored. No schema migration or dependency was added, and receipt privacy tests
+prove no recipient UUID/email or existing prohibited payload/key fields are
+stored.
+
+The WO-12 verifier was intentionally not edited in this Agent 05 slice. It now
+fails its old recipient-effect ordering assertion and must be updated by Agent
+12 to require the digest/count and forbid replay against current membership.
