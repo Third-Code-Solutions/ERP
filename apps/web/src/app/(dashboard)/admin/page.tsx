@@ -9,10 +9,10 @@ interface AdminCard {
   href: string
   title: string
   subtitle: string
-  capability:
-    | 'admin.rate_card'
-    | 'admin.users'
-    | 'admin.system_config'
+  readCapability:
+    | 'admin.rate_card.read'
+    | 'admin.users.read'
+    | 'admin.system_config.read'
 }
 
 const CARDS: AdminCard[] = [
@@ -21,35 +21,35 @@ const CARDS: AdminCard[] = [
     title: 'Material items',
     subtitle:
       'Tenant catalog of items used to auto-fill BOMs. Code, unit, wastage allowance.',
-    capability: 'admin.rate_card',
+    readCapability: 'admin.rate_card.read',
   },
   {
     href: '/admin/rate-cards',
     title: 'Rate cards',
     subtitle:
       'Per-vendor unit pricing with lead times and preferred-vendor flagging.',
-    capability: 'admin.rate_card',
+    readCapability: 'admin.rate_card.read',
   },
   {
     href: '/admin/mapping-config',
     title: 'Togal mapping',
     subtitle:
       'Source-label → material-item map used by the Togal import to auto-build BOM lines.',
-    capability: 'admin.system_config',
+    readCapability: 'admin.system_config.read',
   },
   {
     href: '/admin/data-quality',
     title: 'Data quality',
     subtitle:
       'Read-only review of duplicate identifiers and release blockers before a migration.',
-    capability: 'admin.system_config',
+    readCapability: 'admin.system_config.read',
   },
   {
     href: '/admin/users',
     title: 'Users',
     subtitle:
-      'Create workspace accounts, assign roles, reset passwords. All changes audit-logged.',
-    capability: 'admin.users',
+      'Review workspace accounts and assigned roles. Authorized admins can manage access.',
+    readCapability: 'admin.users.read',
   },
 ]
 
@@ -57,9 +57,9 @@ export default async function AdminIndexPage() {
   const profile = await requireUserProfile()
   // Any admin-tier capability grants entry; per-card we filter below.
   if (
-    !can(profile.role, 'admin.rate_card') &&
-    !can(profile.role, 'admin.users') &&
-    !can(profile.role, 'admin.system_config')
+    !can(profile.role, 'admin.rate_card.read') &&
+    !can(profile.role, 'admin.users.read') &&
+    !can(profile.role, 'admin.system_config.read')
   ) {
     redirect('/dashboard?error=forbidden')
   }
@@ -82,7 +82,7 @@ export default async function AdminIndexPage() {
         }}
       >
         {CARDS.map((card) => {
-          const allowed = can(profile.role, card.capability)
+          const allowed = can(profile.role, card.readCapability)
           return (
             <Link
               key={card.href}

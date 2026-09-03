@@ -4,14 +4,39 @@ import type { AppRole } from '@third-code-erp/auth'
 import { describe, expect, it, vi } from 'vitest'
 
 import { ProjectTabs } from '@/components/projects/project-tabs'
+import { BomBuilder } from '@/components/bom/bom-builder'
 
 import {
+  getProjectBomControls,
   getProjectDetailAccess,
   type ProjectDetailAccess,
 } from './project-detail-access'
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/projects/project-1',
+  useRouter: () => ({ push: vi.fn() }),
+}))
+
+vi.mock('@/app/(dashboard)/projects/[id]/bom/actions', () => ({
+  addBomLineItem: vi.fn(),
+  approveBom: vi.fn(),
+  createBom: vi.fn(),
+  deleteBomLineItem: vi.fn(),
+  fetchProjectForecastTcv: vi.fn().mockResolvedValue({ tcvCents: null }),
+  setBomLineLocation: vi.fn(),
+}))
+
+vi.mock('@/app/(dashboard)/procurement/actions', () => ({
+  createInvoice: vi.fn(),
+  createPoFromBom: vi.fn(),
+}))
+
+vi.mock('@/components/bom/supplier-switcher-panel', () => ({
+  SupplierSwitcherPanel: () => null,
+}))
+
+vi.mock('@/components/bom/dupa-editor', () => ({
+  DupaEditor: () => null,
 }))
 
 const EXPECTED_ACCESS = {
@@ -150,13 +175,13 @@ const EXPECTED_ACCESS = {
   viewer: {
     project: true,
     opportunity: true,
-    bom: false,
-    purchaseOrders: false,
+    bom: true,
+    purchaseOrders: true,
     cost: true,
-    billing: false,
-    delivery: false,
+    billing: true,
+    delivery: true,
     audit: true,
-    access: false,
+    access: true,
   },
 } satisfies Record<AppRole, ProjectDetailAccess>
 
@@ -187,4 +212,43 @@ describe('project detail authorization', () => {
       }
     })
   }
+})
+
+describe('project BOM mutation controls', () => {
+  it('keeps Viewer read-only across edit, review, CAD import, and award controls', () => {
+    expect(getProjectBomControls('viewer')).toEqual({
+      edit: false,
+      review: false,
+      importCad: false,
+      award: false,
+    })
+  })
+
+  it.each(['draft', 'approved'] as const)(
+    'does not render write controls for a read-only %s BOM',
+    (status) => {
+      const markup = renderToStaticMarkup(
+        <BomBuilder
+          projectId="project-1"
+          readOnly
+          bom={{
+            id: 'bom-1',
+            version: 1,
+            label: null,
+            status,
+            total_cost_cents: 0,
+            tcv_cents: 0,
+            gp_cents: 0,
+            gp_margin_bps: 0,
+            lineItems: [],
+          }}
+        />,
+      )
+
+      expect(markup).not.toContain('+ Add Line')
+      expect(markup).not.toContain('Submit for Client Approval')
+      expect(markup).not.toContain('Generate PO')
+      expect(markup).not.toContain('Create Invoice')
+    },
+  )
 })

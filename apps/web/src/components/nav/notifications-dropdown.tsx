@@ -21,7 +21,13 @@ type NotificationReadStateCommand =
 
 const POLL_MS = 30_000
 
-export function NotificationsDropdown({ userId }: { userId: string }) {
+export function NotificationsDropdown({
+  userId,
+  canManage = true,
+}: {
+  userId: string
+  canManage?: boolean
+}) {
   const [open, setOpen] = useState(false)
   const [items, setItems] = useState<NotificationItem[]>([])
   const [unread, setUnread] = useState(0)
@@ -301,7 +307,7 @@ export function NotificationsDropdown({ userId }: { userId: string }) {
                 {unread > 0 ? `${unread} unread` : 'All caught up'}
               </p>
             </div>
-            {unread > 0 && (
+            {canManage && unread > 0 && (
               <button
                 type="button"
                 onClick={markAllRead}
@@ -471,7 +477,7 @@ export function NotificationsDropdown({ userId }: { userId: string }) {
                           href={it.link_url}
                           onClick={() => {
                             setOpen(false)
-                            if (!it.is_read) void markRead(it.id)
+                            if (canManage && !it.is_read) void markRead(it.id)
                           }}
                           style={{
                             fontSize: 12,
@@ -483,7 +489,7 @@ export function NotificationsDropdown({ userId }: { userId: string }) {
                           Open →
                         </Link>
                       )}
-                      {!it.is_read && (
+                      {canManage && !it.is_read && (
                         <button
                           type="button"
                           disabled={saving}

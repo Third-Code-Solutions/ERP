@@ -38,9 +38,10 @@ export default async function UserDetailPage({ params, searchParams }: PageProps
   const { created } = await searchParams
 
   const profile = await requireUserProfile()
-  if (!can(profile.role, 'admin.users')) {
+  if (!can(profile.role, 'admin.users.read')) {
     redirect('/admin?error=forbidden')
   }
+  const canManage = can(profile.role, 'admin.users')
 
   // Validate id looks like a UUID; otherwise notFound rather than letting
   // the DB throw a malformed-uuid error during render.
@@ -151,7 +152,7 @@ export default async function UserDetailPage({ params, searchParams }: PageProps
         </div>
       </div>
 
-      {created === '1' && (
+      {canManage && created === '1' && (
         <div
           role="status"
           aria-live="polite"
@@ -174,7 +175,7 @@ export default async function UserDetailPage({ params, searchParams }: PageProps
       <div className="section-grid-2">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           {/* Manage panel */}
-          <div className="card">
+          {canManage && <div className="card">
             <div className="card-header">
               <h2 className="card-title">Manage</h2>
             </div>
@@ -186,7 +187,7 @@ export default async function UserDetailPage({ params, searchParams }: PageProps
                 isSelf={isSelf}
               />
             </div>
-          </div>
+          </div>}
 
           {/* Audit trail */}
           <div className="card">
@@ -219,7 +220,7 @@ export default async function UserDetailPage({ params, searchParams }: PageProps
                         })}
                       </span>
                     </div>
-                    {e.diff !== null && (
+                    {canManage && e.diff !== null && (
                       <pre
                         style={{
                           margin: '6px 0 0',

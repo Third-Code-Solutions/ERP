@@ -2,6 +2,7 @@ import type { SQL } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import { boms, invoices, projects } from '@third-code-erp/database/schema'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { renderToStaticMarkup } from 'react-dom/server'
 
 const mocks = vi.hoisted(() => ({
   requireUserProfile: vi.fn(),
@@ -13,14 +14,15 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@third-code-erp/auth', () => ({
   requireUserProfile: mocks.requireUserProfile,
   requireCapability: mocks.requireCapability,
-  can: (_role: string, capability: string) =>
+  can: (role: string, capability: string) =>
     [
       'project.read',
       'opportunity.read',
       'finance.read',
       'budget.read',
       'audit.read',
-    ].includes(capability),
+    ].includes(capability) ||
+    (role === 'finance' && capability === 'finance.issue_invoice'),
 }))
 
 vi.mock('@third-code-erp/database', () => ({
@@ -28,7 +30,7 @@ vi.mock('@third-code-erp/database', () => ({
 }))
 
 vi.mock('@/components/billing/create-invoice-form', () => ({
-  CreateInvoiceForm: () => null,
+  CreateInvoiceForm: () => <button>Issue invoice</button>,
 }))
 
 import ProjectBillingPage from './page'
@@ -87,5 +89,32 @@ describe('ProjectBillingPage authorization', () => {
     expect(query.sql).toContain('"invoices"."tenant_id"')
     expect(query.params).toContain(PROJECT_ID)
     expect(query.params).toContain(TENANT_ID)
+  })
+
+  it('renders invoices without the issue-invoice control for Viewer', async () => {
+    mocks.requireUserProfile.mockResolvedValue({
+      tenantId: TENANT_ID,
+      role: 'viewer',
+    })
+    mocks.from.mockImplementation((table: unknown) => {
+      if (table === projects) {
+        return { where: async () => [{ id: PROJECT_ID, name: 'Visible project' }] }
+      }
+      if (table === invoices) {
+        return { where: () => ({ orderBy: async () => [] }) }
+      }
+      if (table === boms) {
+        return { where: () => ({ orderBy: () => ({ limit: async () => [] }) }) }
+      }
+      throw new Error('Unexpected query in Viewer billing page test')
+    })
+
+    const page = await ProjectBillingPage({
+      params: Promise.resolve({ id: PROJECT_ID }),
+    })
+    const markup = renderToStaticMarkup(page)
+
+    expect(markup).toContain('Invoices')
+    expect(markup).not.toContain('Issue invoice')
   })
 })

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { z } from 'zod'
-import { getUserProfile } from '@third-code-erp/auth'
+import { can, getUserProfile } from '@third-code-erp/auth'
 import { AccountNotProvisioned } from '@/components/auth/account-not-provisioned'
 import { CortexBriefPanel } from '@/components/cortex/cortex-brief-panel'
 import { CortexGraphView } from '@/components/cortex/cortex-graph-view'
@@ -134,6 +134,7 @@ export default async function CortexPage({ searchParams }: CortexPageProps) {
             initialConversationId={initialConversationId}
             initialDraftId={initialDraftId}
             contextUnavailable={Boolean(focus && !agentContext)}
+            canUseAssistant={can(profile.role, 'cortex.assistant.use')}
           />
         </div>
       </div>

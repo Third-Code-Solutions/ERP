@@ -39,7 +39,10 @@ import { summarizeBomPricing } from '@/lib/operations/bom-pricing-breakdown'
 import { AwardAutomationPanel } from '@/components/bom/award-automation-panel'
 import { isPriceHistoryStale } from '@/lib/operations/bom-supplier-matching'
 import type { DupaAssemblyOption } from '@/components/bom/dupa-editor'
-import { getProjectDetailAccess } from '../project-detail-access'
+import {
+  getProjectBomControls,
+  getProjectDetailAccess,
+} from '../project-detail-access'
 
 export const metadata: Metadata = { title: 'BOM' }
 
@@ -65,6 +68,7 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
   const profile = await requireUserProfile()
   const access = getProjectDetailAccess(profile.role)
   if (!access.bom) return notFound()
+  const controls = getProjectBomControls(profile.role)
 
   const [project] = await db
     .select({ id: projects.id, name: projects.name, projectCode: projects.project_code })
@@ -583,17 +587,17 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
         />
       )}
 
-      <BomGrainReviewQueue
+      {controls.review && <BomGrainReviewQueue
         projectId={id}
         reviews={pendingGrainReviews}
         parents={grainReviewParents}
-      />
+      />}
 
-      <BomLocationReviewQueue
+      {controls.review && <BomLocationReviewQueue
         projectId={id}
         reviews={pendingLocationReviews}
         locations={locations}
-      />
+      />}
 
       <BomLocationRollup rows={locationRollup} />
 
@@ -603,9 +607,10 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
         vendors={vendorList}
         locations={locations}
         assemblyOptions={assemblyOptions}
+        readOnly={!controls.edit}
       />
 
-      {latestBom?.status === 'locked' && (
+      {controls.award && latestBom?.status === 'locked' && (
         <AwardAutomationPanel
           projectId={id}
           bomId={latestBom.id}
@@ -627,7 +632,7 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
       )}
 
       {/* Live auto-extraction panel */}
-      <div style={{ marginTop: 24 }}>
+      {controls.importCad && <div style={{ marginTop: 24 }}>
         <div
           style={{
             background: 'var(--color-surface)',
@@ -704,7 +709,7 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
             />
           </div>
         </div>
-      </div>
+      </div>}
     </div>
   )
 }

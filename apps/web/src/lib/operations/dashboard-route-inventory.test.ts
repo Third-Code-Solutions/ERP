@@ -26,7 +26,8 @@ const PERSISTED_ROLES = [
 ] as const satisfies readonly AppRole[]
 
 const ALL_ROLES = PERSISTED_ROLES
-const ADMIN_AND_COMMERCIAL = ['owner', 'admin', 'commercial'] as const
+const ADMIN_AND_COMMERCIAL = ['owner', 'admin', 'commercial', 'viewer'] as const
+const ADMIN_READ = ['owner', 'admin', 'viewer'] as const
 const ADMIN_ONLY = ['owner', 'admin'] as const
 const ACCOUNT_CREATE = ['owner', 'admin', 'sales'] as const
 const BOM_READ = ['owner', 'admin', 'estimator', 'commercial', 'viewer'] as const
@@ -38,6 +39,7 @@ const CLAIM_READ = [
   'pm',
   'sd_pm_pe',
   'commercial',
+  'viewer',
 ] as const
 const CLAIM_CREATE = [
   'owner',
@@ -48,6 +50,7 @@ const CLAIM_CREATE = [
   'pm',
 ] as const
 const FINANCE = ['owner', 'admin', 'finance'] as const
+const FINANCE_READ = ['owner', 'admin', 'finance', 'viewer'] as const
 const INVENTORY_READ = [
   'owner',
   'admin',
@@ -79,7 +82,7 @@ const PROJECT_CREATE = [
   'estimator',
 ] as const
 const PROJECT_AUDIT = ['owner', 'admin', 'pm', 'finance', 'viewer'] as const
-const PROJECT_BOM = ['owner', 'admin', 'estimator', 'commercial'] as const
+const PROJECT_BOM = ['owner', 'admin', 'estimator', 'commercial', 'viewer'] as const
 const PROJECT_COST = [
   'owner',
   'admin',
@@ -98,6 +101,7 @@ const PROCUREMENT_ROOT = [
   'sd_pm_pe',
   'pm',
   'procurement',
+  'viewer',
 ] as const
 const DELIVERY_READ = [
   'owner',
@@ -146,12 +150,12 @@ const EXPECTED_ROLES_BY_TEMPLATE: Readonly<
   Record<string, readonly AppRole[]>
 > = {
   '/admin': ADMIN_AND_COMMERCIAL,
-  '/admin/data-quality': ADMIN_ONLY,
-  '/admin/mapping-config': ADMIN_ONLY,
+  '/admin/data-quality': ADMIN_READ,
+  '/admin/mapping-config': ADMIN_READ,
   '/admin/material-items': ADMIN_AND_COMMERCIAL,
   '/admin/rate-cards': ADMIN_AND_COMMERCIAL,
-  '/admin/users': ADMIN_ONLY,
-  '/admin/users/[id]': ADMIN_ONLY,
+  '/admin/users': ADMIN_READ,
+  '/admin/users/[id]': ADMIN_READ,
   '/admin/users/new': ADMIN_ONLY,
   '/assets': ALL_ROLES,
   '/assets/[assetId]': ALL_ROLES,
@@ -164,7 +168,7 @@ const EXPECTED_ROLES_BY_TEMPLATE: Readonly<
   '/crm/accounts': ALL_ROLES,
   '/crm/accounts/[id]': ALL_ROLES,
   '/crm/accounts/new': ACCOUNT_CREATE,
-  '/crm/kyc-queue': FINANCE,
+  '/crm/kyc-queue': FINANCE_READ,
   '/crm/opportunities': ALL_ROLES,
   '/crm/opportunities/[id]': ALL_ROLES,
   '/crm/opportunities/[id]/proposal': ALL_ROLES,
@@ -175,20 +179,20 @@ const EXPECTED_ROLES_BY_TEMPLATE: Readonly<
   '/crm/opportunities/new/pprf': ACCOUNT_CREATE,
   '/dashboard': ALL_ROLES,
   '/documents': ALL_ROLES,
-  '/finance': FINANCE,
-  '/finance/cash': FINANCE,
-  '/finance/cash/[id]': FINANCE,
+  '/finance': FINANCE_READ,
+  '/finance/cash': FINANCE_READ,
+  '/finance/cash/[id]': FINANCE_READ,
   '/finance/cash/new': FINANCE,
-  '/finance/journals/[id]': FINANCE,
+  '/finance/journals/[id]': FINANCE_READ,
   '/finance/journals/new': FINANCE,
-  '/finance/ledger': FINANCE,
-  '/finance/payables': FINANCE,
-  '/finance/payables/[id]': FINANCE,
+  '/finance/ledger': FINANCE_READ,
+  '/finance/payables': FINANCE_READ,
+  '/finance/payables/[id]': FINANCE_READ,
   '/finance/payables/[id]/edit': FINANCE,
   '/finance/payables/new': FINANCE,
-  '/finance/receivables': FINANCE,
-  '/finance/reconciliation': FINANCE,
-  '/finance/reconciliation/[id]': FINANCE,
+  '/finance/receivables': FINANCE_READ,
+  '/finance/reconciliation': FINANCE_READ,
+  '/finance/reconciliation/[id]': FINANCE_READ,
   '/finance/reconciliation/new': FINANCE,
   '/inventory': INVENTORY_READ,
   '/inventory/movements': INVENTORY_READ,
@@ -197,8 +201,8 @@ const EXPECTED_ROLES_BY_TEMPLATE: Readonly<
   '/inventory/receipts': INVENTORY_READ,
   '/inventory/receipts/[id]': INVENTORY_READ,
   '/inventory/receipts/new': INVENTORY_MANAGE,
-  '/invoices': FINANCE,
-  '/invoices/[id]': FINANCE,
+  '/invoices': FINANCE_READ,
+  '/invoices/[id]': FINANCE_READ,
   '/permits': PERMIT_READ,
   '/pipeline': ALL_ROLES,
   '/pipeline/board': ALL_ROLES,
@@ -208,16 +212,16 @@ const EXPECTED_ROLES_BY_TEMPLATE: Readonly<
   '/procurement': PROCUREMENT_ROOT,
   '/procurement/deliveries': DELIVERY_READ,
   '/procurement/deliveries/[id]': DELIVERY_READ,
-  '/procurement/deliveries/new': DELIVERY_READ,
+  '/procurement/deliveries/new': ['owner', 'admin', 'pm', 'procurement', 'sd_pm_pe'],
   '/procurement/rfqs': RFQ_READ,
   '/procurement/rfqs/[id]': RFQ_READ,
   '/projects': ALL_ROLES,
   '/projects/[id]': ALL_ROLES,
-  '/projects/[id]/access': ADMIN_ONLY,
+  '/projects/[id]/access': ADMIN_READ,
   '/projects/[id]/audit': PROJECT_AUDIT,
-  '/projects/[id]/billing': FINANCE,
+  '/projects/[id]/billing': FINANCE_READ,
   '/projects/[id]/bom': PROJECT_BOM,
-  '/projects/[id]/bom/togal': PROJECT_BOM,
+  '/projects/[id]/bom/togal': ['owner', 'admin', 'estimator', 'commercial'],
   '/projects/[id]/checklist': ALL_ROLES,
   '/projects/[id]/coc': ALL_ROLES,
   '/projects/[id]/comments': ALL_ROLES,
@@ -237,7 +241,7 @@ const EXPECTED_ROLES_BY_TEMPLATE: Readonly<
   '/punchlist/new': PUNCHLIST_MANAGE,
   '/purchase-orders': PURCHASE_ORDER_READ,
   '/purchase-orders/[id]': PURCHASE_ORDER_READ,
-  '/reports': ['owner', 'admin', 'sales', 'finance'],
+  '/reports': ['owner', 'admin', 'sales', 'finance', 'viewer'],
   '/settings': ALL_ROLES,
   '/settings/profile': ALL_ROLES,
   '/tasks': ALL_ROLES,

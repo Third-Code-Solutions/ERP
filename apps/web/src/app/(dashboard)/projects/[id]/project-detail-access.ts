@@ -14,6 +14,13 @@ export interface ProjectDetailAccess {
   access: boolean
 }
 
+export interface ProjectBomControls {
+  edit: boolean
+  review: boolean
+  importCad: boolean
+  award: boolean
+}
+
 /**
  * Project detail composes several independently protected domains. Keep this
  * view policy as a direct projection of the checked-in capability and search
@@ -29,6 +36,16 @@ export function getProjectDetailAccess(role: AppRole): ProjectDetailAccess {
     billing: can(role, 'finance.read'),
     delivery: canSearchEntity(role, 'delivery'),
     audit: can(role, 'audit.read'),
-    access: can(role, 'admin.users'),
+    access: can(role, 'project.access.read'),
+  }
+}
+
+export function getProjectBomControls(role: AppRole): ProjectBomControls {
+  const edit = can(role, 'bom.edit')
+  return {
+    edit,
+    review: edit,
+    importCad: can(role, 'bom.generate') && can(role, 'document.manage'),
+    award: can(role, 'project.award'),
   }
 }

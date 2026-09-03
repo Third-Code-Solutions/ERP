@@ -573,6 +573,11 @@ export async function attachClaimDocument(
   caption?: string
 ): Promise<{ error?: string }> {
   const profile = await requireUserProfile()
+  if (!can(profile.role, 'document.manage')) {
+    return {
+      error: `Forbidden: role "${profile.role}" lacks document.manage`,
+    }
+  }
 
   const parsed = attachSchema.safeParse({
     document_id: documentId,

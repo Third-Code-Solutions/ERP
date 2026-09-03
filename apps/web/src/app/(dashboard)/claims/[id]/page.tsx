@@ -17,7 +17,7 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { and, desc, eq, inArray } from 'drizzle-orm'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   auditLog,
@@ -91,6 +91,11 @@ interface PageProps {
 export default async function ClaimDetailPage({ params }: PageProps) {
   const { id } = await params
   const profile = await requireUserProfile()
+  const canManageClaim =
+    can(profile.role, 'po.create') ||
+    can(profile.role, 'precon.manage_checklist') ||
+    can(profile.role, 'finance.issue_invoice')
+  const canAttachDocument = can(profile.role, 'document.manage')
 
   // Claim + project join — bound by tenant.
   const [claim] = await db
@@ -490,14 +495,14 @@ export default async function ClaimDetailPage({ params }: PageProps) {
           </div>
 
           {/* Attach form — disabled on terminal states. */}
-          <ClaimDocumentAttach
+          {canAttachDocument && <ClaimDocumentAttach
             claimId={claim.id}
             disabled={
               claim.status === 'paid' ||
               claim.status === 'rejected' ||
               claim.status === 'cancelled'
             }
-          />
+          />}
 
           {/* Audit trail */}
           <div
@@ -585,7 +590,7 @@ export default async function ClaimDetailPage({ params }: PageProps) {
         </div>
 
         {/* Right rail */}
-        <aside style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {canManageClaim && <aside style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <ClaimTransitionActions
             claimId={claim.id}
             status={claim.status as ClaimStatus}
@@ -600,7 +605,7 @@ export default async function ClaimDetailPage({ params }: PageProps) {
               net_amount_cents: i.net_amount_cents,
             }))}
           />
-        </aside>
+        </aside>}
       </div>
     </div>
   )

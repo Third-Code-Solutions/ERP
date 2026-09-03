@@ -38,4 +38,16 @@ describe('Cortex agent active-record presentation', () => {
     expect(markup).toContain('Clear focus to continue')
     expect(markup).toMatch(/<textarea[^>]*disabled/)
   })
+
+  it('renders saved-history access without mutation controls for Viewer', () => {
+    const markup = renderToStaticMarkup(
+      <CortexAgent initialContext={null} canUseAssistant={false} />
+    )
+
+    expect(markup).toContain('Conversation history')
+    expect(markup).not.toContain('New chat')
+    expect(markup).not.toContain('Ask Cortex')
+    expect(markup).not.toContain('Message to Cortex')
+    expect(markup).not.toContain('>Send<')
+  })
 })

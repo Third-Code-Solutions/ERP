@@ -134,15 +134,25 @@ const RESTRICTED_NAV_HREFS_BY_ROLE = {
   safety: ['/permits', '/punchlist'],
   cx: ['/punchlist', '/warranty', '/warranty/cnps'],
   viewer: [
+    '/crm/kyc-queue',
     '/bom',
     '/permits',
     '/procurement/rfqs',
     '/procurement/deliveries',
     '/purchase-orders',
     '/inventory',
+    '/invoices',
+    '/claims',
     '/punchlist',
     '/warranty',
     '/warranty/cnps',
+    '/reports',
+    '/finance',
+    '/finance/receivables',
+    '/finance/payables',
+    '/finance/cash',
+    '/finance/reconciliation',
+    '/admin',
   ],
 } as const satisfies Record<AppRole, readonly string[]>
 
@@ -226,7 +236,7 @@ describe('RBAC: visibleNavSections', () => {
     expect(labels).toContain('Admin')
   })
 
-  it('viewer sees permitted operational read workspaces without finance or tenant administration', () => {
+  it('viewer sees every tenant-safe read workspace', () => {
     const sections = visibleNavSections('viewer')
     const hrefs = sections.flatMap((s) => s.items.map((i) => i.href))
     // Unrestricted items are visible to everyone.
@@ -246,17 +256,15 @@ describe('RBAC: visibleNavSections', () => {
     expect(hrefs).toContain('/punchlist')
     expect(hrefs).toContain('/warranty')
     expect(hrefs).toContain('/warranty/cnps')
-    // Finance, reports, tenant administration, and KYC remain deliberately
-    // restricted because they expose financial, identity, or configuration
-    // data rather than the Viewer operational projection.
-    expect(hrefs).not.toContain('/invoices')
-    expect(hrefs).not.toContain('/claims')
-    expect(hrefs).not.toContain('/reports')
-    expect(hrefs).not.toContain('/finance')
-    expect(hrefs).not.toContain('/finance/payables')
-    expect(hrefs).not.toContain('/finance/cash')
-    expect(hrefs).not.toContain('/finance/reconciliation')
-    expect(hrefs).not.toContain('/admin')
+    expect(hrefs).toContain('/crm/kyc-queue')
+    expect(hrefs).toContain('/invoices')
+    expect(hrefs).toContain('/claims')
+    expect(hrefs).toContain('/reports')
+    expect(hrefs).toContain('/finance')
+    expect(hrefs).toContain('/finance/payables')
+    expect(hrefs).toContain('/finance/cash')
+    expect(hrefs).toContain('/finance/reconciliation')
+    expect(hrefs).toContain('/admin')
     expect(hrefs).not.toContain('/assets')
   })
 
@@ -292,8 +300,8 @@ describe('RBAC: visibleNavSections', () => {
       expect(canViewPath(role, '/assets'), role).toBe(true)
       expect(canViewPath(role, '/assets/item-id'), role).toBe(true)
     }
-    expect(canViewPath('viewer', '/finance/cash')).toBe(false)
-    expect(canViewPath('viewer', '/finance/reconciliation')).toBe(false)
+    expect(canViewPath('viewer', '/finance/cash')).toBe(true)
+    expect(canViewPath('viewer', '/finance/reconciliation')).toBe(true)
     expect(canViewPath('viewer', '/warranty/cnps')).toBe(true)
   })
 
@@ -306,9 +314,9 @@ describe('RBAC: visibleNavSections', () => {
   })
 
   it('drops empty sections entirely', () => {
-    // viewer has no Admin items → no Admin section.
+    // Viewer has tenant-safe Admin metadata reads.
     const labels = visibleNavSections('viewer').map((s) => s.label)
-    expect(labels).not.toContain('Admin')
+    expect(labels).toContain('Admin')
   })
 })
 
@@ -357,8 +365,8 @@ describe('RBAC: canViewPath (deny-by-default route guard)', () => {
   })
 
   it('denies restricted routes to unprivileged roles', () => {
-    expect(canViewPath('viewer', '/admin')).toBe(false)
-    expect(canViewPath('viewer', '/admin/users')).toBe(false)
+    expect(canViewPath('viewer', '/admin')).toBe(true)
+    expect(canViewPath('viewer', '/admin/users')).toBe(true)
     expect(canViewPath('sales', '/invoices')).toBe(false)
     expect(canViewPath('sales', '/admin')).toBe(false)
     expect(canViewPath('procurement', '/invoices')).toBe(false)
@@ -413,7 +421,7 @@ describe('RBAC: canViewPath (deny-by-default route guard)', () => {
     expect(canViewPath('viewer', '/projects/new')).toBe(false)
     expect(canViewPath('estimator', '/projects/new')).toBe(true)
 
-    expect(canViewPath('viewer', '/projects/project-id/access')).toBe(false)
+    expect(canViewPath('viewer', '/projects/project-id/access')).toBe(true)
     expect(canViewPath('admin', '/projects/project-id/access')).toBe(true)
 
     expect(canViewPath('sales', '/projects/project-id/billing')).toBe(false)
@@ -425,6 +433,14 @@ describe('RBAC: canViewPath (deny-by-default route guard)', () => {
     expect(canViewPath('viewer', '/inventory/receipts/new')).toBe(false)
     expect(canViewPath('procurement', '/inventory/receipts/new')).toBe(true)
 
+    expect(canViewPath('viewer', '/admin/users/new')).toBe(false)
+    expect(canViewPath('viewer', '/finance/journals/new')).toBe(false)
+    expect(canViewPath('viewer', '/finance/payables/new')).toBe(false)
+    expect(canViewPath('viewer', '/finance/payables/payable-id/edit')).toBe(false)
+    expect(canViewPath('viewer', '/finance/cash/new')).toBe(false)
+    expect(canViewPath('viewer', '/finance/reconciliation/new')).toBe(false)
+    expect(canViewPath('viewer', '/procurement/deliveries/new')).toBe(false)
+
     expect(canViewPath('safety', '/punchlist/new')).toBe(false)
     expect(canViewPath('cx', '/punchlist/new')).toBe(true)
 
@@ -434,7 +450,9 @@ describe('RBAC: canViewPath (deny-by-default route guard)', () => {
 
   it('preserves page-specific project and claim read projections', () => {
     expect(canViewPath('viewer', '/bom')).toBe(true)
-    expect(canViewPath('viewer', '/projects/project-id/bom')).toBe(false)
+    expect(canViewPath('viewer', '/projects/project-id/bom')).toBe(true)
+    expect(canViewPath('viewer', '/projects/project-id/billing')).toBe(true)
+    expect(canViewPath('viewer', '/projects/project-id/access')).toBe(true)
     expect(canViewPath('viewer', '/projects/project-id/cost')).toBe(true)
     expect(canViewPath('sales', '/projects/project-id/cost')).toBe(false)
     expect(canViewPath('viewer', '/projects/project-id/audit')).toBe(true)
@@ -493,7 +511,7 @@ describe('RBAC: canViewPath (deny-by-default route guard)', () => {
     ).toBe(false)
   })
 
-  it('applies the page po.create policy to the procurement root only', () => {
+  it('applies the procurement.read policy to the procurement root only', () => {
     const permitted = new Set<AppRole>([
       'owner',
       'admin',
@@ -501,6 +519,7 @@ describe('RBAC: canViewPath (deny-by-default route guard)', () => {
       'sd_pm_pe',
       'pm',
       'procurement',
+      'viewer',
     ])
 
     for (const role of PERSISTED_ROLES) {

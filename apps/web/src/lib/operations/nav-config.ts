@@ -138,7 +138,7 @@ export function roleLabel(role: AppRole): string {
 //   /dashboard           → everyone
 //   /crm/accounts        → everyone (read); only permitted roles receive
 //                          create/mutation controls
-//   /crm/kyc-queue       → admin, finance
+//   /crm/kyc-queue       → admin, finance, viewer (read only)
 //   /pipeline/board      → everyone (read); stage commands remain capability-gated
 //   /projects            → everyone (project.read); creation/update/delete
 //                          commands remain capability-gated
@@ -151,15 +151,16 @@ export function roleLabel(role: AppRole): string {
 //                          procurement, viewer
 //   /inventory           → admin, pm, commercial, sd_pm_pe, finance,
 //                          procurement, viewer
-//   /invoices            → admin, finance
-//   /claims              → admin, estimator, pm, commercial, sd_pm_pe, finance
+//   /invoices            → admin, finance, viewer (read only)
+//   /claims              → admin, estimator, pm, commercial, sd_pm_pe, finance,
+//                          viewer (read only)
 //   /punchlist           → admin, pm, sd_pm_pe, cx, safety, viewer (read only)
 //   /warranty            → admin, cx, viewer (read only)
 //   /warranty/cnps       → admin, cx, viewer (read only)
 //   /documents           → everyone (per-doc RLS scoping in DB)
-//   /reports             → admin, sales, finance
-//   /admin               → admin, commercial (rate-card administration)
-//   /admin/users|config  → admin only (page-local capability gates)
+//   /reports             → admin, sales, finance, viewer (read only)
+//   /admin               → admin, commercial, viewer (read only)
+//   /admin/users|config  → admin, viewer (page-local mutation gates)
 //   /settings            → everyone (account-level settings)
 // -----------------------------------------------------------------------------
 
@@ -183,7 +184,7 @@ export const NAV_SECTIONS: NavSection[] = [
         href: '/crm/kyc-queue',
         label: 'KYC Queue',
         iconKey: 'User',
-        roles: ['admin', 'finance'],
+        roles: ['admin', 'finance', 'viewer'],
       },
       {
         href: '/pipeline/board',
@@ -295,7 +296,7 @@ export const NAV_SECTIONS: NavSection[] = [
         href: '/invoices',
         label: 'Invoices',
         iconKey: 'Invoice',
-        roles: ['admin', 'finance'],
+        roles: ['admin', 'finance', 'viewer'],
       },
       {
         href: '/claims',
@@ -308,6 +309,7 @@ export const NAV_SECTIONS: NavSection[] = [
           'pm',
           'sd_pm_pe',
           'commercial',
+          'viewer',
         ],
       },
       {
@@ -333,7 +335,7 @@ export const NAV_SECTIONS: NavSection[] = [
         href: '/reports',
         label: 'Reports',
         iconKey: 'Reports',
-        roles: ['admin', 'sales', 'finance'],
+        roles: ['admin', 'sales', 'finance', 'viewer'],
       },
     ],
   },
@@ -344,35 +346,35 @@ export const NAV_SECTIONS: NavSection[] = [
         href: '/finance',
         label: 'Finance',
         iconKey: 'Receipt',
-        roles: ['admin', 'finance'],
+        roles: ['admin', 'finance', 'viewer'],
         description: 'Chart, journals, periods, and general ledger',
       },
       {
         href: '/finance/receivables',
         label: 'Receivables',
         iconKey: 'Invoice',
-        roles: ['admin', 'finance'],
+        roles: ['admin', 'finance', 'viewer'],
         description: 'Posted customer balances and aging',
       },
       {
         href: '/finance/payables',
         label: 'Payables',
         iconKey: 'Receipt',
-        roles: ['admin', 'finance'],
+        roles: ['admin', 'finance', 'viewer'],
         description: 'Matched supplier bills and aging',
       },
       {
         href: '/finance/cash',
         label: 'Cash',
         iconKey: 'Receipt',
-        roles: ['admin', 'finance'],
+        roles: ['admin', 'finance', 'viewer'],
         description: 'Allocated receipts and disbursements',
       },
       {
         href: '/finance/reconciliation',
         label: 'Reconciliation',
         iconKey: 'Check',
-        roles: ['admin', 'finance'],
+        roles: ['admin', 'finance', 'viewer'],
         description: 'Bank statement matching and immutable close',
       },
     ],
@@ -386,13 +388,14 @@ export const NAV_SECTIONS: NavSection[] = [
         iconKey: 'Settings',
         // Commercial owns rate-card maintenance. The page and child routes
         // still capability-filter users/system configuration to admin/owner.
-        roles: ['admin', 'commercial'],
+        roles: ['admin', 'commercial', 'viewer'],
       },
     ],
   },
 ]
 
-const ADMIN_ROUTE_ROLES = ['admin', 'commercial'] as const
+const ADMIN_ROUTE_ROLES = ['admin', 'commercial', 'viewer'] as const
+const ADMIN_READ_ROUTE_ROLES = ['admin', 'viewer'] as const
 const ADMIN_ONLY_ROUTE_ROLES = ['admin'] as const
 const BOM_ROUTE_ROLES = ['admin', 'estimator', 'commercial', 'viewer'] as const
 const CLAIM_ROUTE_ROLES = [
@@ -402,8 +405,10 @@ const CLAIM_ROUTE_ROLES = [
   'pm',
   'sd_pm_pe',
   'commercial',
+  'viewer',
 ] as const
-const FINANCE_ROUTE_ROLES = ['admin', 'finance'] as const
+const FINANCE_ROUTE_ROLES = ['admin', 'finance', 'viewer'] as const
+const FINANCE_WRITE_ROUTE_ROLES = ['admin', 'finance'] as const
 const INVENTORY_MANAGE_ROUTE_ROLES = ['admin', 'procurement'] as const
 const INVENTORY_ROUTE_ROLES = [
   'admin',
@@ -432,7 +437,12 @@ const PURCHASE_ORDER_ROUTE_ROLES = [
   'procurement',
   'viewer',
 ] as const
-const PROJECT_BOM_ROUTE_ROLES = ['admin', 'estimator', 'commercial'] as const
+const PROJECT_BOM_ROUTE_ROLES = [
+  'admin',
+  'estimator',
+  'commercial',
+  'viewer',
+] as const
 const PROJECT_COST_ROUTE_ROLES = [
   'admin',
   'finance',
@@ -515,10 +525,10 @@ export const DASHBOARD_ROUTE_POLICIES: readonly DashboardRoutePolicy[] = [
       '/admin/mapping-config',
       '/admin/users',
       '/admin/users/[id]',
-      '/admin/users/new',
     ],
-    ADMIN_ONLY_ROUTE_ROLES
+    ADMIN_READ_ROUTE_ROLES
   ),
+  ...registerDashboardRoutes(['/admin/users/new'], ADMIN_ONLY_ROUTE_ROLES),
   ...registerDashboardRoutes(['/bom'], BOM_ROUTE_ROLES),
   ...registerDashboardRoutes(['/claims', '/claims/[id]'], CLAIM_ROUTE_ROLES),
   ...registerDashboardRoutes(['/claims/new'], [
@@ -529,7 +539,11 @@ export const DASHBOARD_ROUTE_POLICIES: readonly DashboardRoutePolicy[] = [
     'pm',
   ]),
   ...registerDashboardRoutes(['/crm/accounts/new'], ['admin', 'sales']),
-  ...registerDashboardRoutes(['/crm/kyc-queue'], ['admin', 'finance']),
+  ...registerDashboardRoutes(['/crm/kyc-queue'], [
+    'admin',
+    'finance',
+    'viewer',
+  ]),
   ...registerDashboardRoutes(['/crm/opportunities/new/pprf'], [
     'admin',
     'sales',
@@ -539,20 +553,25 @@ export const DASHBOARD_ROUTE_POLICIES: readonly DashboardRoutePolicy[] = [
       '/finance',
       '/finance/cash',
       '/finance/cash/[id]',
-      '/finance/cash/new',
       '/finance/journals/[id]',
-      '/finance/journals/new',
       '/finance/ledger',
       '/finance/payables',
       '/finance/payables/[id]',
-      '/finance/payables/[id]/edit',
-      '/finance/payables/new',
       '/finance/receivables',
       '/finance/reconciliation',
       '/finance/reconciliation/[id]',
-      '/finance/reconciliation/new',
     ],
     FINANCE_ROUTE_ROLES
+  ),
+  ...registerDashboardRoutes(
+    [
+      '/finance/cash/new',
+      '/finance/journals/new',
+      '/finance/payables/[id]/edit',
+      '/finance/payables/new',
+      '/finance/reconciliation/new',
+    ],
+    FINANCE_WRITE_ROUTE_ROLES
   ),
   ...registerDashboardRoutes(
     [
@@ -574,7 +593,7 @@ export const DASHBOARD_ROUTE_POLICIES: readonly DashboardRoutePolicy[] = [
   ),
   ...registerDashboardRoutes(['/permits'], PERMIT_ROUTE_ROLES),
   ...registerDashboardRoutes(['/projects/new'], PROJECT_CREATE_ROUTE_ROLES),
-  ...registerDashboardRoutes(['/projects/[id]/access'], ADMIN_ONLY_ROUTE_ROLES),
+  ...registerDashboardRoutes(['/projects/[id]/access'], ADMIN_READ_ROUTE_ROLES),
   ...registerDashboardRoutes(['/projects/[id]/audit'], [
     'admin',
     'pm',
@@ -586,8 +605,12 @@ export const DASHBOARD_ROUTE_POLICIES: readonly DashboardRoutePolicy[] = [
     FINANCE_ROUTE_ROLES
   ),
   ...registerDashboardRoutes(
-    ['/projects/[id]/bom', '/projects/[id]/bom/togal'],
+    ['/projects/[id]/bom'],
     PROJECT_BOM_ROUTE_ROLES
+  ),
+  ...registerDashboardRoutes(
+    ['/projects/[id]/bom/togal'],
+    ['admin', 'estimator', 'commercial']
   ),
   ...registerDashboardRoutes(
     ['/projects/[id]/cost', '/projects/[id]/cost/budget'],
@@ -599,15 +622,21 @@ export const DASHBOARD_ROUTE_POLICIES: readonly DashboardRoutePolicy[] = [
     'sd_pm_pe',
     'pm',
     'procurement',
+    'viewer',
   ]),
   ...registerDashboardRoutes(
     [
       '/procurement/deliveries',
       '/procurement/deliveries/[id]',
-      '/procurement/deliveries/new',
     ],
     ['admin', 'pm', 'procurement', 'sd_pm_pe', 'viewer']
   ),
+  ...registerDashboardRoutes(['/procurement/deliveries/new'], [
+    'admin',
+    'pm',
+    'procurement',
+    'sd_pm_pe',
+  ]),
   ...registerDashboardRoutes(
     ['/procurement/rfqs', '/procurement/rfqs/[id]'],
     ['admin', 'estimator', 'procurement', 'commercial', 'viewer']
@@ -616,7 +645,12 @@ export const DASHBOARD_ROUTE_POLICIES: readonly DashboardRoutePolicy[] = [
     ['/purchase-orders', '/purchase-orders/[id]'],
     PURCHASE_ORDER_ROUTE_ROLES
   ),
-  ...registerDashboardRoutes(['/reports'], ['admin', 'sales', 'finance']),
+  ...registerDashboardRoutes(['/reports'], [
+    'admin',
+    'sales',
+    'finance',
+    'viewer',
+  ]),
   ...registerDashboardRoutes(
     ['/punchlist', '/punchlist/[id]'],
     ['admin', 'pm', 'sd_pm_pe', 'cx', 'safety', 'viewer']

@@ -10,9 +10,10 @@ export const metadata: Metadata = { title: 'Material items' }
 
 export default async function MaterialItemsPage() {
   const profile = await requireUserProfile()
-  if (!can(profile.role, 'admin.rate_card')) {
+  if (!can(profile.role, 'admin.rate_card.read')) {
     redirect('/admin?error=forbidden')
   }
+  const canManage = can(profile.role, 'admin.rate_card')
 
   const rows = await db
     .select({
@@ -47,7 +48,7 @@ export default async function MaterialItemsPage() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1fr) 360px',
+          gridTemplateColumns: canManage ? 'minmax(0, 1fr) 360px' : '1fr',
           gap: 24,
           alignItems: 'start',
         }}
@@ -58,7 +59,9 @@ export default async function MaterialItemsPage() {
           </div>
           {rows.length === 0 ? (
             <div className="card-empty">
-              No material items yet. Add one on the right to begin building BOMs.
+              {canManage
+                ? 'No material items yet. Add one on the right to begin building BOMs.'
+                : 'No material items yet.'}
             </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
@@ -106,14 +109,14 @@ export default async function MaterialItemsPage() {
           )}
         </div>
 
-        <div className="card" style={{ position: 'sticky', top: 16 }}>
+        {canManage && <div className="card" style={{ position: 'sticky', top: 16 }}>
           <div className="card-header">
             <h2 className="card-title">Add item</h2>
           </div>
           <div style={{ padding: 16 }}>
             <MaterialItemForm />
           </div>
-        </div>
+        </div>}
       </div>
     </div>
   )

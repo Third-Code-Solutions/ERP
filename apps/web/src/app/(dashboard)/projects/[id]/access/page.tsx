@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { and, desc, eq } from 'drizzle-orm'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   customerPortalSessions,
@@ -27,6 +27,7 @@ export default async function ProjectAccessPage({
   const profile = await requireUserProfile()
   const access = getProjectDetailAccess(profile.role)
   if (!access.access) return notFound()
+  const canManage = can(profile.role, 'admin.users')
 
   // Verify the project exists in this tenant.
   const [project] = await db
@@ -116,13 +117,13 @@ export default async function ProjectAccessPage({
         </p>
       </div>
 
-      <MintTokenButton projectId={project.id} />
+      {canManage && <MintTokenButton projectId={project.id} />}
 
       <div style={{ marginTop: 20 }}>
         <h2 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: 'var(--color-navy-700)' }}>
           Active client links
         </h2>
-        <AccessListTable rows={rows} />
+        <AccessListTable rows={rows} canManage={canManage} />
       </div>
     </div>
   )

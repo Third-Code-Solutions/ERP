@@ -45,9 +45,10 @@ interface UsersListProps {
 export default async function UsersListPage({ searchParams }: UsersListProps) {
   const { created } = await searchParams
   const profile = await requireUserProfile()
-  if (!can(profile.role, 'admin.users')) {
+  if (!can(profile.role, 'admin.users.read')) {
     redirect('/admin?error=forbidden')
   }
+  const canManage = can(profile.role, 'admin.users')
 
   const rows = await db
     .select({
@@ -74,11 +75,11 @@ export default async function UsersListPage({ searchParams }: UsersListProps) {
             </p>
             <h1 className="page-title">Users</h1>
             <p className="page-subtitle">
-              Create workspace accounts, assign roles, and manage seats.
-              All changes are audit-logged.
+              Review workspace accounts and assigned roles. Authorized admins can
+              manage seats; all changes are audit-logged.
             </p>
           </div>
-          <Link
+          {canManage && <Link
             href="/admin/users/new"
             className="user-chip"
             style={{
@@ -88,11 +89,11 @@ export default async function UsersListPage({ searchParams }: UsersListProps) {
             }}
           >
             <span style={{ fontWeight: 600 }}>+ New user</span>
-          </Link>
+          </Link>}
         </div>
       </div>
 
-      {created && (
+      {canManage && created && (
         <div
           role="status"
           aria-live="polite"
@@ -188,7 +189,7 @@ export default async function UsersListPage({ searchParams }: UsersListProps) {
                         fontWeight: 500,
                       }}
                     >
-                      Manage →
+                      {canManage ? 'Manage →' : 'View →'}
                     </Link>
                   </td>
                 </tr>

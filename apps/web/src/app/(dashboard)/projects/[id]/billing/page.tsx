@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import React from 'react'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { boms, invoices, projects } from '@third-code-erp/database/schema'
 import { and, desc, eq } from 'drizzle-orm'
@@ -50,6 +50,7 @@ export default async function ProjectBillingPage({ params }: { params: Promise<{
   const profile = await requireUserProfile()
   const access = getProjectDetailAccess(profile.role)
   if (!access.billing) return notFound()
+  const canIssueInvoice = can(profile.role, 'finance.issue_invoice')
 
   const [project] = await db
     .select({ id: projects.id, name: projects.name })
@@ -182,10 +183,10 @@ export default async function ProjectBillingPage({ params }: { params: Promise<{
           <h2 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-neutral-800)', margin: 0 }}>
             Invoices
           </h2>
-          <CreateInvoiceForm
+          {canIssueInvoice && <CreateInvoiceForm
             projectId={id}
             tcvCents={access.bom ? contractValue : null}
-          />
+          />}
         </div>
 
         {projectInvoices.length === 0 ? (

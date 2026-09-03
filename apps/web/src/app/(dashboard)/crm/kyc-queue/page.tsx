@@ -8,9 +8,10 @@ export const metadata: Metadata = { title: 'KYC Queue' }
 
 export default async function KycQueuePage() {
   const profile = await requireUserProfile()
-  if (!can(profile.role, 'account.kyc_review')) {
+  if (!can(profile.role, 'account.kyc.read')) {
     redirect('/crm/accounts?error=forbidden')
   }
+  const canReview = can(profile.role, 'account.kyc_review')
 
   const rows = await getKycQueue(profile.tenantId)
 
@@ -20,8 +21,8 @@ export default async function KycQueuePage() {
         <p className="page-eyebrow">CRM · Finance</p>
         <h1 className="page-title">KYC review queue</h1>
         <p className="page-subtitle">
-          Accounts awaiting financial evaluation. Approve unblocks the sales pipeline;
-          flag or reject locks downstream stages until resolved.
+          Accounts awaiting financial evaluation. Reviewers can approve, flag, or
+          reject; read-only users can inspect the account record.
         </p>
       </div>
 
@@ -62,7 +63,7 @@ export default async function KycQueuePage() {
                     </td>
                     <td>
                       <Link href={`/crm/accounts/${r.id}`} style={{ color: 'var(--color-navy-700)', fontSize: 12.5, fontWeight: 500 }}>
-                        Review →
+                        {canReview ? 'Review →' : 'View →'}
                       </Link>
                     </td>
                   </tr>
