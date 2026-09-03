@@ -471,23 +471,34 @@ describe('legacy project chat data boundary', () => {
     expectPrivate(providerFailure)
     expect(mocks.writeAuditLog).toHaveBeenCalled()
 
-    for (const response of [quotaFailure, contextFailure, providerFailure]) {
-      await expect(response.json()).resolves.toEqual({
-        ok: false,
-        error: expect.any(String),
-      })
+    for (const [response, sensitiveDetail] of [
+      [quotaFailure, 'quota transport detail'],
+      [contextFailure, 'Simulated database failure.'],
+      [providerFailure, 'provider detail'],
+    ] as const) {
+      const body = await response.json()
+      expect(body).toEqual({ ok: false, error: 'AI chat unavailable' })
+      expect(JSON.stringify(body)).not.toContain(sensitiveDetail)
     }
   })
 
-  it('continues after a best-effort audit failure without leaking its error', async () => {
+  it('fails closed before provider work when the audit write fails', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     mocks.writeAuditLog.mockRejectedValue(new Error('audit storage detail'))
 
     const response = await request(validBody())
 
-    expect(response.status).toBe(200)
-    await expect(response.text()).resolves.toBe('Safe answer')
+    expect(response.status).toBe(503)
+    expectPrivate(response)
+    expect(response.headers.get('content-type')).toContain('application/json')
+    const body = await response.json()
+    expect(body).toEqual({ ok: false, error: 'AI chat unavailable' })
+    expect(JSON.stringify(body)).not.toContain('audit storage detail')
+    expect(
+      errorSpy.mock.calls.flat().map(String).join(' ')
+    ).not.toContain('audit storage detail')
     expect(errorSpy).toHaveBeenCalledWith('[ai/chat] audit log failed')
-    expect(mocks.openaiCreate).toHaveBeenCalledTimes(1)
+    expect(mocks.getOpenAI).not.toHaveBeenCalled()
+    expect(mocks.openaiCreate).not.toHaveBeenCalled()
   })
 })

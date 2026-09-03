@@ -284,8 +284,9 @@ async function auditQuery(
         granted_context_domains: grantedDomains,
       },
     })
-  } catch {
+  } catch (error) {
     console.error('[ai/chat] audit log failed')
+    throw error
   }
 }
 
