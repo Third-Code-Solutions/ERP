@@ -69,7 +69,7 @@ describe('dashboard layout route-policy consumer', () => {
   it('continues rendering a registered secondary route without adding it to navigation', async () => {
     mocks.headers.mockResolvedValue({
       get: (name: string) =>
-        name === 'x-pathname' ? '/pipeline/conversion' : null,
+        name === 'x-pathname' ? '/pipeline/list' : null,
     })
 
     await expect(

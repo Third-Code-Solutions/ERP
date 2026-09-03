@@ -29,7 +29,7 @@ const QUICK_ACCESS_PRIORITY: Partial<Record<AppRole, readonly string[]>> = {
   ],
   viewer: [
     '/projects',
-    '/pipeline/board',
+    '/pipeline',
     '/crm/accounts',
     '/documents',
     '/bom',

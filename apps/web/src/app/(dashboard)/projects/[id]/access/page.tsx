@@ -1,3 +1,4 @@
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -23,7 +24,7 @@ export default async function ProjectAccessPage({
 }: {
   params: Promise<{ id: string }>
 }) {
-  const { id } = await params
+  const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
   const access = getProjectDetailAccess(profile.role)
   if (!access.access) return notFound()

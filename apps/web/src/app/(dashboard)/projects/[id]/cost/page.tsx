@@ -1,3 +1,4 @@
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import type { Metadata } from 'next'
 import React from 'react'
 import Link from 'next/link'
@@ -41,7 +42,7 @@ function php(cents: number): string {
 }
 
 export default async function ProjectCostPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
+  const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
   const access = getProjectDetailAccess(profile.role)
   if (!access.cost) return notFound()
@@ -210,7 +211,7 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ id
     <div className="cost-page">
       <div className="cost-erosion-head">
         <div>
-          <h2 className="cost-section-title">Cost vs Budget</h2>
+          <h1 className="cost-section-title">Cost vs Budget</h1>
           <p className="cost-section-sub">
             {access.bom
               ? 'Actual spend against the approved BOM, with live GP-erosion signal.'

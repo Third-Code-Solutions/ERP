@@ -114,6 +114,7 @@ describe('ProjectBillingPage authorization', () => {
     })
     const markup = renderToStaticMarkup(page)
 
+    expect(markup).toContain('<h1 class="page-title">Billing</h1>')
     expect(markup).toContain('Invoices')
     expect(markup).not.toContain('Issue invoice')
   })

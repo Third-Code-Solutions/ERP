@@ -1,3 +1,4 @@
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { and, eq } from 'drizzle-orm'
@@ -40,7 +41,7 @@ function formatPhp(cents: number): string {
 }
 
 export default async function VoDetailPage({ params }: PageProps) {
-  const { id, voId } = await params
+  const { id, voId } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
 
   const [project] = await db

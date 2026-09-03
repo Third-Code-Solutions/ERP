@@ -6,6 +6,7 @@
  * In-progress → Close). Close requires a Service Report document id.
  */
 
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import type { Metadata } from 'next'
@@ -39,7 +40,7 @@ interface PageProps {
 }
 
 export default async function TicketDetailPage({ params }: PageProps) {
-  const { id } = await params
+  const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
 
   const [ticket] = await db

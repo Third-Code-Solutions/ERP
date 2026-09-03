@@ -2782,7 +2782,7 @@ export function verifyWo11Contract(root = process.cwd()) {
   )
   verifyOpportunityMutationEntryInventory(root)
 
-  const board = read(root, 'apps/web/src/app/(dashboard)/pipeline/board/page.tsx')
+  const board = read(root, 'apps/web/src/app/(dashboard)/pipeline/page.tsx')
   assertIncludes(board, 'opportunityKycTracks', 'board track projection')
   assertIncludes(board, 'opportunity_kyc_gate', 'board reason projection')
 

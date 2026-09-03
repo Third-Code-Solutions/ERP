@@ -1,3 +1,4 @@
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { randomUUID } from 'node:crypto'
@@ -155,7 +156,7 @@ export default async function AssetDetailPage({
 }) {
   const profile = await requireUserProfile()
   requireCapability(profile, 'asset.read')
-  const { assetId } = await params
+  const { assetId } = await requireUuidRouteParams(params)
 
   if (!assetReadsUseCoreApi(profile.tenantId)) {
     return <AssetState title="Asset detail staged" body="Core asset reads remain disabled until the protected tenant canary is approved." />

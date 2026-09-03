@@ -158,6 +158,17 @@ const EXPECTED_ROLES_BY_TEMPLATE: Readonly<
   '/admin/users/[id]': ADMIN_READ,
   '/admin/users/new': ADMIN_ONLY,
   '/assets': ALL_ROLES,
+  '/scope': ALL_ROLES,
+  '/checklist': ALL_ROLES,
+  '/progress': ALL_ROLES,
+  '/turnover': ALL_ROLES,
+  '/coc': ALL_ROLES,
+  '/comments': ALL_ROLES,
+  '/access': ADMIN_READ,
+  '/audit': PROJECT_AUDIT,
+  '/billing': FINANCE_READ,
+  '/cost': PROJECT_COST,
+  '/cost/budget': PROJECT_COST,
   '/assets/[assetId]': ALL_ROLES,
   '/bom': BOM_READ,
   '/claims': CLAIM_READ,
@@ -205,6 +216,7 @@ const EXPECTED_ROLES_BY_TEMPLATE: Readonly<
   '/invoices/[id]': FINANCE_READ,
   '/permits': PERMIT_READ,
   '/pipeline': ALL_ROLES,
+  '/pipeline/list': ALL_ROLES,
   '/pipeline/board': ALL_ROLES,
   '/pipeline/conversion': ALL_ROLES,
   '/pipeline/coverage': ALL_ROLES,
@@ -274,7 +286,7 @@ describe('dashboard route authorization inventory', () => {
       (policy) => policy.template
     ).sort()
 
-    expect(routeTemplates).toHaveLength(99)
+    expect(routeTemplates).toHaveLength(111)
     expect(new Set(registeredTemplates).size).toBe(registeredTemplates.length)
     expect(registeredTemplates).toEqual(routeTemplates)
     expect(Object.keys(EXPECTED_ROLES_BY_TEMPLATE).sort()).toEqual(

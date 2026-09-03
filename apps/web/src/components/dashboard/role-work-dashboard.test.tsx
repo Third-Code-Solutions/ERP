@@ -26,7 +26,7 @@ describe('RoleWorkDashboard', () => {
     expect(markup).toContain('href="/tasks?tab=overdue"')
     expect(markup).toContain('href="/tasks?tab=week"')
     expect(markup).not.toMatch(/gross profit/i)
-    expect(markup).toContain('href="/pipeline/board"')
+    expect(markup).toContain('href="/pipeline"')
   })
 
   it('shows only workspaces authorized for the current role', () => {
@@ -40,7 +40,7 @@ describe('RoleWorkDashboard', () => {
     expect(markup).toContain('href="/permits"')
     expect(markup).toContain('href="/punchlist"')
     expect(markup).not.toContain('href="/finance"')
-    expect(markup).not.toContain('href="/pipeline/board"')
+    expect(markup).not.toContain('href="/pipeline"')
     expect(quickAccessHrefs(markup)).toEqual([
       '/tasks',
       '/permits',
@@ -62,7 +62,7 @@ describe('RoleWorkDashboard', () => {
 
     expect(quickAccessHrefs(markup)).toEqual([
       '/projects',
-      '/pipeline/board',
+      '/pipeline',
       '/crm/accounts',
       '/documents',
       '/bom',
