@@ -4,7 +4,8 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
-import { can, type AppRole } from '@third-code-erp/auth'
+import type { AppRole } from '@third-code-erp/auth'
+import { roleHasCapability } from '@third-code-erp/shared-types/authorization'
 import { IconChevronRight, IconSearch } from '@/components/ui/icons'
 import { CommandPalette } from './command-palette'
 import { NotificationsDropdown } from './notifications-dropdown'
@@ -140,7 +141,7 @@ export function Topbar({ user, role, fullName }: TopbarProps) {
         <div className="topbar-actions">
           <NotificationsDropdown
             userId={user.id}
-            canManage={can(role, 'notification.manage')}
+            canManage={roleHasCapability(role, 'notification.manage')}
           />
 
           <span className="topbar-divider" aria-hidden />
@@ -156,7 +157,7 @@ export function Topbar({ user, role, fullName }: TopbarProps) {
       <CommandPalette
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
-        canUseCortexAssistant={can(role, 'cortex.assistant.use')}
+        canUseCortexAssistant={roleHasCapability(role, 'cortex.assistant.use')}
       />
     </>
   )
