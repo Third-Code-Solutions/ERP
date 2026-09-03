@@ -612,3 +612,69 @@ redacted one-event logging, and committed `success_refresh_failed` behavior.
 Then rerun the focused 73 tests, the 42 service tests, WO-11, Web/root gates,
 build, and gitleaks. Independent browser and PostgreSQL QA remain separate,
 explicitly isolated lanes; do not mutate hosted/demo state.
+
+## Agent 12 mounted-entry contract verification — 2026-09-03
+
+Status: **GO to independent browser and isolated PostgreSQL QA**, with one
+bounded P2 receipt-reader strictness risk recorded below. No in-scope P0 or P1
+finding remains.
+
+Contract commit `801ad89b` replaces the stale assumption that PPRF intake must
+write locally in its Web action. The verifier now follows both mounted seams —
+`createPprfIntake` to `submitIntake` and `submitPprf` to
+`submitResubmission` — and requires exactly one authoritative service delegate
+per action. Its reachable-call analysis rejects direct, aliased, imported, and
+named-reexported local database/KYC/audit/SLA/notification writers and fallback
+paths while retaining the service transaction, authorization, lock, receipt,
+atomic-effect, exact-recipient, exact-money, and date invariants.
+
+The mounted contract proves exact Owner/Admin/Sales submission authority across
+central policy, routes, controls, actions, and the service; all thirteen roles
+retain tenant-scoped detail read, and the other ten receive no submit control.
+It also proves a server-bound resubmission Opportunity, per-mount UUID,
+duplicate/unknown FormData rejection, tenant/kind/identity-scoped result
+validation, redacted per-outcome logs, synchronous single-flight controls,
+failure input retention, and success-only navigation/refresh with committed
+`success_refresh_failed` classification.
+
+### Agent 12 verification
+
+- PASS — authoritative plus mutation-sensitive WO-11 suite: 53/53 twice under
+  Node 22.23.2. The suite contains 43 PPRF-specific hostile mutations and 66
+  hostile mutations overall, plus benign formatting and imported-service alias
+  cases.
+- PASS — mounted action/form/page suites: 73/73 across six files.
+- PASS — atomic PPRF service suite: 42/42.
+- PASS — root typecheck (five runnable packages), root source lint with zero
+  warnings, and root production build; API build was cached and the changed Web
+  build executed fresh, producing all 89 pages.
+- PASS — `node --check` for both verifier files, staged/source diff checks, and
+  repository gitleaks 8.30.1 over 1,828 commits / approximately 46.18 MB with no
+  leak finding.
+- INFO — an initial direct Vitest invocation used the monorepo root and failed
+  to resolve Web `@/` aliases. Re-running the same files with `--root apps/web`
+  passed 73/73; this was a runner-root invocation error, not a product failure.
+- P2 / bounded runtime risk — the current receipt writer is bounded and the
+  verifier rejects raw key, notes, and payload mutations, but
+  `receiptSchema.passthrough()` accepts unknown keys on historical receipt
+  reads. Known fields are the only values consumed or returned, so no present
+  leak was found; fail-closed rejection of unexpected historical receipt fields
+  requires a later runtime-owner change outside Agent 12's authorized scope.
+- BOUNDED SCANNER LIMITATION — static call-graph proof follows named imports,
+  named reexports, local functions, and simple identifier aliases. It does not
+  prove safety for reflection, computed/namespace/default dynamic dispatch, raw
+  or tagged SQL, or arbitrary callback references. Runtime mutation tests use
+  transaction doubles and do not substitute for PostgreSQL lock/rollback/
+  trigger execution.
+- NOT RUN / BLOCKED — real PostgreSQL rollback/advisory-lock concurrency/
+  trigger canary and authenticated browser checks. No isolated database binding
+  was available, and Agent 12 was expressly prohibited from browser or database
+  mutation.
+- NOT RUN — provider, hosted/demo, schema, migration, data, environment,
+  dependency, deployment, functional-ledger, or remote operations.
+
+→ Handoff to independent QA. Exercise the three mounted submit controls with
+the shared demo accounts in an isolated browser lane, and run the transaction
+suite against an explicitly isolated PostgreSQL database. Treat the receipt
+reader's unknown-key acceptance as P2 follow-up owned by the runtime service
+agent; do not weaken the current bounded writer or replay checks.

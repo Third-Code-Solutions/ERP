@@ -170,3 +170,33 @@ Verification under pinned Node 22.23.2:
 the new service, assert one-call/no-fallback and hostile-entry/redacted-log/
 committed-refresh behavior, and replace the obsolete local-writer source
 assertions before the independent isolated QA lanes.
+
+## Agent 12 contract-owner closeout
+
+Contract commit `801ad89b` updates the WO-11 verifier from the obsolete local
+intake-writer assertion to the approved mounted service boundary for both
+intake and resubmission. It adds reachable named import/reexport and simple
+alias analysis; exact one-delegate/no-fallback checks; service-side authority,
+transaction, lock, receipt, atomic-effect, recipient, exact-money, and date
+checks; mounted route/control/result/log/recovery checks; and 43 PPRF hostile
+mutations. The complete mutation suite now covers 66 hostile mutations and
+accepts benign formatting and service aliases.
+
+Verification under Node 22.23.2 and repository-selected pnpm 10.33.0:
+
+- PASS — WO-11 authoritative/mutation suite 53/53 twice.
+- PASS — mounted Web action/form/page suite 73/73 and service suite 42/42.
+- PASS — root typecheck, zero-warning source lint, production build (89 Web
+  pages), verifier syntax, diff checks, and gitleaks 8.30.1 over 1,828 commits.
+- P2 — current receipt writes are bounded and privacy-checked, but the runtime
+  receipt reader uses `.passthrough()` and therefore does not fail closed on
+  unexpected historical receipt keys. Known fields only are consumed/returned;
+  no present leak was found. Runtime source was outside this changeset's scope.
+- BOUNDED — static analysis does not cover reflection, computed/default/
+  namespace dynamic dispatch, tagged/raw SQL, or arbitrary callback execution;
+  transaction-double tests are not real PostgreSQL proof.
+- BLOCKED / NOT RUN — authenticated browser and explicitly isolated PostgreSQL
+  rollback/concurrency/trigger checks. No browser or database mutation occurred.
+
+Status: **GO to independent QA**, with no in-scope P0/P1 finding and the P2
+receipt-reader strictness follow-up explicitly recorded.
