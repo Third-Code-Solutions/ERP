@@ -271,7 +271,7 @@ export interface SiteInspectionWorkflowTransaction {
     tenantId: string,
     opportunityId: string,
     inspectionId: string
-  ): Promise<string[]>
+  ): Promise<Array<string | null>>
   createInspection(input: {
     tenantId: string
     actorId: string
@@ -753,10 +753,16 @@ export class SiteInspectionWorkflowService {
       input.opportunityId,
       receipt.data.inspection_id
     )
+    const persistedNotificationRecipients = z
+      .array(z.string().uuid())
+      .safeParse(notified)
     const notifiedRecipientSetIsComplete =
-      new Set(notified).size === notified.length &&
-      notified.length === receipt.data.notification_recipient_count &&
-      notificationRecipientSetHash(notified) ===
+      persistedNotificationRecipients.success &&
+      new Set(persistedNotificationRecipients.data).size ===
+        persistedNotificationRecipients.data.length &&
+      persistedNotificationRecipients.data.length ===
+        receipt.data.notification_recipient_count &&
+      notificationRecipientSetHash(persistedNotificationRecipients.data) ===
         receipt.data.notification_recipient_set_hash
     if (
       !inspection ||
@@ -1081,7 +1087,7 @@ class DrizzleSiteInspectionWorkflowTransaction
           sql`${notifications.payload} ->> 'inspection_id' = ${inspectionId}`
         )
       )
-    return rows.flatMap((row) => (row.id ? [row.id] : []))
+    return rows.map((row) => row.id)
   }
 
   async createInspection(

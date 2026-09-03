@@ -64,6 +64,9 @@ type Audit = Parameters<SiteInspectionWorkflowTransaction['writeAudit']>[0]
 type Notification = Parameters<
   SiteInspectionWorkflowTransaction['createNotification']
 >[0]
+type StoredNotification = Omit<Notification, 'recipientUserId'> & {
+  recipientUserId: string | null
+}
 type FailAt =
   | 'inspection'
   | 'photos'
@@ -109,7 +112,7 @@ type State = {
   audits: Audit[]
   slas: Array<{ tenantId: string; opportunityId: string }>
   recipients: Array<{ tenantId: string; id: string; email: string; role: ErpRole }>
-  notifications: Notification[]
+  notifications: StoredNotification[]
 }
 
 function createHarness(options: {
@@ -563,19 +566,28 @@ describe('inspection replay, conflict, and concurrency', () => {
   )
 
   it.each([
-    ['missing', (notifications: Notification[]) => notifications.pop()],
-    ['extra', (notifications: Notification[]) => notifications.push({
+    ['missing', (notifications: StoredNotification[]) => notifications.pop()],
+    ['extra', (notifications: StoredNotification[]) => notifications.push({
       ...notifications[0]!,
       recipientUserId: OTHER_USER,
       recipientEmail: 'unexpected@example.test',
     })],
-    ['wrong', (notifications: Notification[]) => {
+    ['wrong', (notifications: StoredNotification[]) => {
       notifications[0] = {
         ...notifications[0]!,
         recipientUserId: OTHER_USER,
         recipientEmail: 'wrong@example.test',
       }
     }],
+    ['invalid', (notifications: StoredNotification[]) => {
+      notifications[0] = {
+        ...notifications[0]!,
+        recipientUserId: 'not-a-uuid',
+      }
+    }],
+    ['duplicate', (notifications: StoredNotification[]) => notifications.push({
+      ...notifications[0]!,
+    })],
   ] as const)(
     'rejects %s persisted notification rows independently of the current roster',
     async (_scenario, corruptNotifications) => {
@@ -588,6 +600,24 @@ describe('inspection replay, conflict, and concurrency', () => {
       })
     }
   )
+
+  it('rejects a correlated null-recipient row without erasing its cardinality', async () => {
+    const harness = createHarness({ inspection: false, recipients: [] })
+    await harness.service.submitInspection(principal(), inspectionCommand)
+    harness.state().notifications.push({
+      tenantId: TENANT_ID,
+      recipientUserId: null,
+      recipientEmail: 'invalid@example.test',
+      subject: 'Site Inspection ready for design',
+      body: 'invalid durable row',
+      linkUrl: `/crm/opportunities/${OPPORTUNITY_ID}/proposal/inspection`,
+      inspectionId: INSPECTION_ID,
+    })
+    expect(await harness.service.submitInspection(principal(), inspectionCommand)).toMatchObject({
+      ok: false,
+      error: { code: 'CONFLICT' },
+    })
+  })
 
   it.each([
     ['missing recipient hash', (receipt: Record<string, unknown>) => {
