@@ -122,3 +122,67 @@ stage command, panel form/action, PRD WO-11/WO-13 constraints, and acceptance
 criteria above. Expected output: evidence-backed API/no-API decision, scoped
 tests and source only if required, Node 22 gates, commit, and explicit Agent 03
 handoff or blocker.
+
+## Agent 05 result — atomic commercial-field authority
+
+Decision: extend the existing Core stage-transition command. There is no
+authoritative Core Opportunity update mutation to call first or compose with;
+`OpportunitiesController` exposes reads only. Separating the panel's stage
+submission from its TCV, GP, and closing-date edits would therefore either
+silently discard established input or reintroduce a second write transaction.
+The legacy mounted transition payload already treats the four values as one
+user operation, so the smallest domain-safe contract is the existing locked
+stage transaction.
+
+Source commit: `cb3d7b3d` (`fix(crm): retain opportunity commercial edits on
+stage change`).
+
+The strict shared command now optionally accepts:
+
+- `tcvCents`: non-negative safe integer;
+- `gpCents`: signed safe integer, preserving legitimate negative GP;
+- `closingDate`: RFC 3339 datetime with an explicit offset.
+
+Omitted values preserve the locked Opportunity row. Supplied values are written
+with stage, probability, closing/lost state, and exact weighted TCV inside the
+existing transaction. Weighted TCV uses a `BigInt` intermediate so multiplication
+cannot silently exceed JavaScript's precise-integer range. Commercial before/
+after values are included in the semantic stage audit, while the already-
+canonical command hash covers the new fields for replay, key-reuse rejection,
+and serialized same-key concurrency. The strict result shape is unchanged.
+
+No schema, dependency, Web, data, environment, credential, or deployment change
+was required.
+
+### Agent 05 evidence
+
+- TDD contract red: 1 failed / 8 passed because all three commercial keys were
+  rejected; final contract suite passed 9/9.
+- TDD service red: 2 failed / 65 passed because TCV/GP/date were not persisted
+  and weighted TCV used the old TCV; final service suite passed 67/67.
+- The service suite proves field preservation, cent rounding, signed GP,
+  semantic audit, validation before transaction, command-hash key reuse,
+  same-key concurrency, and rollback across audit, SLA stop/start, and request
+  completion failures.
+- Full shared suite passed 66 files / 442 tests.
+- Shared and API TypeScript, scoped source ESLint, API production build,
+  whitespace checks, and pinned Gitleaks 8.30.1 over 1,794 commits passed.
+- The broad API suite was not completed: an unrelated delivery-controller case
+  timed out while the frozen offline install and suites ran concurrently. Its
+  isolated rerun passed 24/24. No full-suite pass is claimed.
+- The protected PostgreSQL HTTP canary compiles and is extended to assert the
+  enriched request plus persisted TCV/GP/weighted/date state, but remained one
+  environment-gated skip because `DATABASE_URL` and
+  `ERP_API_INTEGRATION_EXPECTED=1` were unavailable. No live database proof is
+  claimed.
+
+→ Handoff to Agent 03. Reason: the Core command now owns the panel's complete
+atomic stage operation. Inputs: source commit `cb3d7b3d`, optional camelCase
+fields above, unchanged strict result, and the existing Core selector/client.
+Expected output: remove the Project action's direct Opportunity update and
+separate audit/SLA behavior; convert the panel's `YYYY-MM-DD` date control to an
+explicit-offset RFC 3339 `closingDate`; forward `tcvCents`, signed `gpCents`, and
+`closingDate` with `newStage` through selected Core using one stable idempotency
+command and no fallback; preserve omitted fields; validate the committed result
+before success-only revalidation; retain exact Owner/Admin/Sales direct-action
+authorization. Do not add a pre-Core financial write.
