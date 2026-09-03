@@ -164,3 +164,31 @@ Expected output: harden WO-12 against field/control/authority drift and hostile
 mutations, then independently verify the mounted service reachability,
 transaction guarantees, roles, privacy, retry behavior, and honest archival
 boundary.
+
+## Agent 12 verification-contract change
+
+Changed only the WO-12 verifier, its direct test, and the two existing tracking
+documents. The verifier now parses the relevant TypeScript/TSX AST rather than
+pinning formatting-sensitive literals or requiring obsolete action-local
+writers. It covers exact role/control/field projection, server-bound identities,
+recursive local writer reachability, imported/aliased/re-exported helpers,
+strict result/log/outcome handling, stable retry/single-flight/draft behavior,
+and both atomic service commands through authorization, locks, hashes, receipts,
+effects, replay, and focused concurrency/failure evidence.
+
+RED/GREEN and regression evidence:
+
+- stale baseline: 0/1 passed; first failure was the obsolete offline-button
+  literal and later assertions targeted removed local writers;
+- final verifier: 45/45 passed twice (three authoritative/benign positives and
+  42 hostile mutations; zero skipped/failed);
+- focused service/actions/forms/page: 134/134 passed across five files;
+- Node 22 syntax, direct verifier, and diff check: passed;
+- reused unchanged current-head evidence: Web lint passed, root typecheck 5/5,
+  Web build passed with 89 pages, and gitleaks 8.30.1 passed in Agent 03's lane.
+  The current shell has no gitleaks executable, so a duplicate scan was not run.
+
+No runtime, shared, schema, dependency, data, environment, deployment, or
+functional-ledger file changed. No P0/P1/P2 finding remains in the verified
+source contract. Real browser/IndexedDB/Storage and isolated live-PostgreSQL
+atomicity remain outside this bounded verification and are explicitly NOT RUN.

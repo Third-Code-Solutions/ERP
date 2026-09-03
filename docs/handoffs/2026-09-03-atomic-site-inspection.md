@@ -576,3 +576,53 @@ old reassuring-string/local-writer assertions with reachable service-call,
 role, privacy, replay, hostile-mutation, offline/draft, and honest archive/
 refresh verification, then record independent RED/GREEN counts without
 changing runtime behavior.
+
+## Agent 12 independent WO-12 contract closeout — 2026-09-03
+
+Status: **GO to independent browser/PostgreSQL QA; no P0/P1/P2 source-contract
+finding**.
+
+Agent 12 replaced the stale 72-line literal verifier with a TypeScript-AST
+contract verifier and a bounded mutation suite. It now proves the complete
+13-role vocabulary and exact Owner/Admin/Commercial mutation grant, the two
+mounted controls and exact duplicate-free field inventories, server-bound
+route identities, one service delegate per action, and the absence of reachable
+local/imported/aliased/re-exported durable writers. The only allowed post-commit
+writer remains non-replay inspection-report archival; its failure and refresh
+failure are explicitly classified as committed success.
+
+The verifier also proves stable UUID/synchronous single-flight/failure-retention
+contracts, tenant-selected reads, strict result scope and redacted outcome logs,
+one transaction per service command, current locked membership, capability and
+tenant locks, tenant/full-UUID SHA-256 key hashing, tenant/actor/full-command
+hashing, strict private receipts, safe photo binding, atomic inspection/photo/
+audit/SLA/Design-notification effects, atomic RFI/audit effects, complete replay
+validation, and direct replay/conflict/concurrency/failure-injection evidence.
+
+Verification evidence:
+
+- regression baseline: stale verifier **0/1 passed**, failing first at obsolete
+  `disabled={pending || photoBusy || !online}` and still requiring removed local
+  writers;
+- final authoritative/mutation suite: **45/45 passed twice**, with three
+  authoritative/benign positives and 42 hostile mutations, zero skipped/failed;
+- focused current service + mounted suites: **134/134 passed** across five files
+  (60 service, 56 actions, two inspection-form, two RFI-form, fourteen page);
+- both verifier scripts parse under repository Node 22; direct verifier and
+  `git diff --check` pass;
+- current-head Web lint, root typecheck (5/5), production build (89 pages), and
+  gitleaks 8.30.1 evidence are reused from Agent 03 because this slice changes
+  only verification scripts/docs. The gitleaks executable is not present in
+  this Agent 12 shell, so no redundant local scan was claimed.
+
+Bounded limitation: this is compiler-AST/source-contract evidence plus
+deterministic transaction doubles. It is not a TypeScript type-checker proof of
+arbitrary dynamically computed calls. Browser timing, IndexedDB, Storage, live
+PostgreSQL advisory locking/rollback, hosted providers, environment, deployment,
+and report-file archival remain **NOT RUN** by this no-browser/no-DB scope.
+
+→ Handoff to independent QA. Inputs: the committed AST verifier, 42 hostile
+mutations, 134/134 focused runtime evidence, and the prior green type/lint/build/
+gitleaks gates. Expected output: exercise the three permitted and ten read-only
+accounts in a real browser and, if an isolated database lane is authorized,
+prove PostgreSQL advisory-lock/rollback behavior without production mutation.
