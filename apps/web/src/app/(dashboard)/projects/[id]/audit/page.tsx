@@ -1,3 +1,4 @@
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import type { Metadata } from 'next'
 import React from 'react'
 import { notFound } from 'next/navigation'
@@ -82,7 +83,7 @@ export default async function ProjectAuditPage({
   params: Promise<{ id: string }>
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }) {
-  const { id } = await params
+  const { id } = await requireUuidRouteParams(params)
   const filters = parseAuditActivityViewParams(await searchParams)
   const profile = await requireUserProfile()
   const access = getProjectDetailAccess(profile.role)
@@ -226,6 +227,7 @@ export default async function ProjectAuditPage({
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
         <div>
+          <h1 className="page-title">Audit</h1>
           <p style={{ fontSize: '0.8125rem', color: 'var(--color-neutral-500)', margin: 0 }}>
             {total} matching event{total !== 1 ? 's' : ''} — append-only, hash-chained
           </p>

@@ -1,28 +1,28 @@
+import React from 'react'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'ABI OPS' }
 
 export default function PrintLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <head>
+    <div className="print-layout">
         <style>{`
-          *, *::before, *::after { box-sizing: border-box; }
-          body {
+          .print-layout, .print-layout *, .print-layout *::before, .print-layout *::after { box-sizing: border-box; }
+          .print-layout {
             margin: 0;
+            min-height: 100vh;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             font-size: 14px;
             color: #111827;
             background: #f3f4f6;
           }
           @media print {
-            body { background: white; }
-            .no-print { display: none !important; }
+            .print-layout { background: white; }
+            .print-layout .no-print { display: none !important; }
             @page { margin: 20mm; size: A4; }
           }
         `}</style>
-      </head>
-      <body>{children}</body>
-    </html>
+      {children}
+    </div>
   )
 }

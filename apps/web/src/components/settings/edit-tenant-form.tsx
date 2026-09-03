@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { updateTenantSettings } from '@/app/(dashboard)/settings/actions'
 
@@ -16,6 +16,8 @@ export function EditTenantForm({ tenant }: { tenant: Tenant }) {
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
+  const nameInput = useRef<HTMLInputElement>(null)
+  useEffect(() => { if (isOpen) nameInput.current?.focus() }, [isOpen])
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -53,27 +55,24 @@ export function EditTenantForm({ tenant }: { tenant: Tenant }) {
   }
 
   return (
-    <div
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-      onClick={(e) => { if (e.target === e.currentTarget) setIsOpen(false) }}
-    >
+    <section aria-labelledby="edit-workspace-heading">
       <form
         onSubmit={handleSubmit}
-        style={{ background: 'white', borderRadius: '10px', padding: '24px', width: '480px', maxWidth: '95vw', boxShadow: '0 8px 32px rgba(0,0,0,0.14)' }}
+        className="platform-form-card"
       >
-        <h2 style={{ fontSize: '1rem', fontWeight: 700, margin: '0 0 20px', color: 'var(--color-neutral-900)' }}>
+        <h2 id="edit-workspace-heading" style={{ fontSize: '1rem', fontWeight: 700, margin: '0 0 20px', color: 'var(--color-neutral-900)' }}>
           Edit Workspace Settings
         </h2>
 
         <div style={{ display: 'grid', gap: '12px' }}>
           <div>
-            <label style={labelStyle}>Company Name *</label>
-            <input name="name" required defaultValue={tenant.name} style={inputStyle} />
+            <label htmlFor="workspace-name" style={labelStyle}>Company Name *</label>
+            <input id="workspace-name" ref={nameInput} name="name" maxLength={255} required defaultValue={tenant.name} style={inputStyle} />
           </div>
           <div>
-            <label style={labelStyle}>BIR TIN</label>
+            <label htmlFor="workspace-bir_tin" style={labelStyle}>BIR TIN</label>
             <input
-              name="bir_tin"
+              id="workspace-bir_tin" maxLength={20} name="bir_tin"
               defaultValue={tenant.bir_tin ?? ''}
               placeholder="000-000-000-000"
               style={inputStyle}
@@ -83,18 +82,18 @@ export function EditTenantForm({ tenant }: { tenant: Tenant }) {
             </p>
           </div>
           <div>
-            <label style={labelStyle}>PCAB License No.</label>
+            <label htmlFor="workspace-pcab_license" style={labelStyle}>PCAB License No.</label>
             <input
-              name="pcab_license"
+              id="workspace-pcab_license" maxLength={50} name="pcab_license"
               defaultValue={tenant.pcab_license ?? ''}
               placeholder="e.g. PCAB-SP-12345"
               style={inputStyle}
             />
           </div>
           <div>
-            <label style={labelStyle}>DPO Contact (RA 10173)</label>
+            <label htmlFor="workspace-dpo_contact" style={labelStyle}>DPO Contact (RA 10173)</label>
             <input
-              name="dpo_contact"
+              id="workspace-dpo_contact" maxLength={255} name="dpo_contact"
               defaultValue={tenant.dpo_contact ?? ''}
               placeholder="dpo@yourcompany.com"
               style={inputStyle}
@@ -102,11 +101,12 @@ export function EditTenantForm({ tenant }: { tenant: Tenant }) {
           </div>
         </div>
 
-        {error && <p style={{ fontSize: '0.8125rem', color: '#ef4444', margin: '12px 0 0' }}>{error}</p>}
+        {error && <p role="alert" style={{ fontSize: '0.8125rem', color: 'var(--color-error)', margin: '12px 0 0' }}>{error}</p>}
 
         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '20px' }}>
           <button
             type="button"
+            disabled={isPending}
             onClick={() => setIsOpen(false)}
             style={{ background: 'none', border: '1px solid var(--color-border)', borderRadius: '6px', padding: '7px 14px', fontSize: '0.8125rem', cursor: 'pointer', color: 'var(--color-neutral-700)' }}
           >
@@ -121,7 +121,7 @@ export function EditTenantForm({ tenant }: { tenant: Tenant }) {
           </button>
         </div>
       </form>
-    </div>
+    </section>
   )
 }
 

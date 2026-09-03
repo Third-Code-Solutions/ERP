@@ -1,3 +1,4 @@
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import Link from 'next/link'
 import { randomUUID } from 'node:crypto'
 import { notFound } from 'next/navigation'
@@ -40,7 +41,7 @@ const EMPTY_DEFAULTS: {
 }
 
 export default async function PprfPage({ params }: PageProps) {
-  const { id } = await params
+  const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
 
   const [opp] = await db

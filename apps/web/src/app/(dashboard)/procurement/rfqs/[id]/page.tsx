@@ -9,6 +9,7 @@
  *   3. Action row: Complete RFQ (gated on quote coverage), Cancel RFQ.
  */
 
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import type { Metadata } from 'next'
@@ -51,7 +52,7 @@ interface PageProps {
 }
 
 export default async function RfqDetailPage({ params }: PageProps) {
-  const { id } = await params
+  const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
 
   const [rfq] = await db

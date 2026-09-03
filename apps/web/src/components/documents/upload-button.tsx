@@ -61,10 +61,10 @@ export function UploadButton({ projectId }: UploadButtonProps) {
         <span>{isPending ? 'Uploading…' : 'Upload file'}</span>
       </button>
       {progress ? (
-        <span style={{ fontSize: 12.5, color: 'var(--color-navy-700)' }}>{progress}</span>
+        <span role="status" style={{ fontSize: 12.5, color: 'var(--color-navy-700)' }}>{progress}</span>
       ) : null}
       {error ? (
-        <span style={{ fontSize: 12.5, color: 'var(--color-danger)' }}>{error}</span>
+        <span role="alert" style={{ fontSize: 12.5, color: 'var(--color-danger)' }}>{error}</span>
       ) : null}
     </div>
   )

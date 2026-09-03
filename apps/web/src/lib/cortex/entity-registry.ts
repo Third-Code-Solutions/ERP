@@ -45,7 +45,7 @@ export const CORTEX_ENTITY_REGISTRY = {
   opportunity: {
     label: 'Opportunity',
     color: '#b45309',
-    accessPath: '/pipeline/board',
+    accessPath: '/pipeline',
     refTables: ['opportunities'],
     href: direct('/crm/opportunities'),
   },
@@ -237,23 +237,23 @@ export const CORTEX_ENTITY_REGISTRY = {
   inspection: {
     label: 'Inspection',
     color: '#0284c7',
-    accessPath: '/pipeline/board',
+    accessPath: '/pipeline',
     refTables: ['site_inspections'],
     href: direct('/inspection'),
   },
   design: {
     label: 'Design File',
     color: '#9333ea',
-    accessPath: '/pipeline/board',
+    accessPath: '/pipeline',
     refTables: ['design_files'],
-    href: list('/pipeline/board'),
+    href: list('/pipeline'),
   },
   change_request: {
     label: 'Change Request',
     color: '#c026d3',
-    accessPath: '/pipeline/board',
+    accessPath: '/pipeline',
     refTables: ['change_requests'],
-    href: list('/pipeline/board'),
+    href: list('/pipeline'),
   },
   material: {
     label: 'Material',

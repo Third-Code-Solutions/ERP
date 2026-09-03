@@ -1,3 +1,4 @@
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -60,7 +61,7 @@ export default async function SupplierBillPage({
   const profile = await requireUserProfile()
   requireCapability(profile, 'finance.read')
   const canManagePayables = can(profile.role, 'finance.post_supplier_bill')
-  const { id } = await params
+  const { id } = await requireUuidRouteParams(params)
   const postingJournal = alias(journalEntries, 'posting_journal')
   const reversalJournal = alias(journalEntries, 'reversal_journal')
   const postedUser = alias(users, 'supplier_bill_posted_user')

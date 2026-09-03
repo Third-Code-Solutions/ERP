@@ -1,3 +1,4 @@
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { and, desc, eq } from 'drizzle-orm'
@@ -34,7 +35,7 @@ const ROLE_TONE: Record<string, string> = {
 }
 
 export default async function UserDetailPage({ params, searchParams }: PageProps) {
-  const { id } = await params
+  const { id } = await requireUuidRouteParams(params)
   const { created } = await searchParams
 
   const profile = await requireUserProfile()
@@ -42,11 +43,6 @@ export default async function UserDetailPage({ params, searchParams }: PageProps
     redirect('/admin?error=forbidden')
   }
   const canManage = can(profile.role, 'admin.users')
-
-  // Validate id looks like a UUID; otherwise notFound rather than letting
-  // the DB throw a malformed-uuid error during render.
-  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-  if (!UUID_RE.test(id)) notFound()
 
   const [user] = await db
     .select()

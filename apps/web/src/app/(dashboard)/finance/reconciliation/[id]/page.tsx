@@ -1,3 +1,4 @@
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -67,7 +68,7 @@ export default async function BankStatementDetailPage({
   const profile = await requireUserProfile()
   requireCapability(profile, 'finance.read')
   const canManageCash = can(profile.role, 'finance.manage_cash')
-  const { id } = await params
+  const { id } = await requireUuidRouteParams(params)
 
   let statement: StatementDetailRow
   let lineRows: ReconciliationLineRow[]

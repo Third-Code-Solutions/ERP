@@ -227,9 +227,9 @@ describe('atomic Won-to-Project pipeline handoff', () => {
       )
       expectNoLocalStageEffects()
       expect(mocks.revalidatePath.mock.calls).toEqual([
-        ['/pipeline/board'],
+        ['/pipeline'],
         ['/pipeline/coverage'],
-        ['/pipeline/conversion'],
+        ['/pipeline/list'],
         ['/'],
         [`/projects/${PROJECT_ID}`],
       ])
@@ -375,9 +375,9 @@ describe('atomic Won-to-Project pipeline handoff', () => {
     )
     expectNoLocalStageEffects()
     expect(mocks.revalidatePath.mock.calls).toEqual([
-      ['/pipeline/board'],
+      ['/pipeline'],
       ['/pipeline/coverage'],
-      ['/pipeline/conversion'],
+      ['/pipeline/list'],
       ['/'],
     ])
   })

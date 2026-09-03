@@ -45,6 +45,6 @@ export async function updateOpportunityKycTrack(
   revalidatePath(`/crm/opportunities/${parsed.data.opportunity_id}/proposal`)
   revalidatePath(`/crm/opportunities/${parsed.data.opportunity_id}`)
   revalidatePath('/crm/kyc-queue')
-  revalidatePath('/pipeline/board')
+  revalidatePath('/pipeline')
   return { status: result.status }
 }

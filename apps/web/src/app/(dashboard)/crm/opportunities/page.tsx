@@ -6,5 +6,5 @@ import { redirect } from 'next/navigation'
  * 404.
  */
 export default function OpportunitiesIndexPage(): never {
-  redirect('/pipeline/board')
+  redirect('/pipeline')
 }

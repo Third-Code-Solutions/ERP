@@ -1,3 +1,4 @@
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import { randomUUID } from 'node:crypto'
 
 import Link from 'next/link'
@@ -23,7 +24,7 @@ interface PageProps {
 }
 
 export default async function InspectionPage({ params }: PageProps) {
-  const { id } = await params
+  const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
   const canSubmit = can(profile.role, 'site_inspection.submit')
 
