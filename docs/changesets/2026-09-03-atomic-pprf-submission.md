@@ -130,3 +130,43 @@ Opportunity from the route for resubmission, preserve a client-stable UUID,
 validate returned tenant/kind/IDs/version, add redacted structured outcome logs,
 and keep refresh/navigation success-only. Do not retain any local or
 post-commit database/audit/KYC/SLA/notification fallback.
+
+## Agent 03 mounted integration
+
+Status: **implemented locally** in source commit `8bf06324`; ready for Agent 12
+and WO-11 contract-owner verification.
+
+- Replaced both mounted PPRF action writers with one strict authenticated call
+  to the Agent 05 service and removed the intake's obsolete DB/KYC/audit/SLA/
+  notification imports and path.
+- Added exact duplicate-free FormData allowlists, exported-schema validation,
+  canonical string/`BigInt` centavo conversion, server-bound resubmission
+  Opportunity identity, strict service-result parsing/scope checks, and one
+  redacted structured event per outcome.
+- Preserved committed truth across cache/navigation failure through
+  `success_refresh_failed`; precommit validation/auth/service failure performs
+  no refresh or navigation.
+- Added per-mount UUID keys, synchronous single-flight guards, failure input
+  retention, accessible returned/rejected error feedback, honest replay
+  messaging, and success-only navigation/refresh to both forms.
+- Kept new intake at exact Owner/Admin/Sales access. Kept the detail route
+  readable for all thirteen roles while projecting the form only to those
+  three and an explicit read-only prior-version state to the other ten.
+- Added action, form, and route tests covering 73 focused cases.
+
+Verification under pinned Node 22.23.2:
+
+- PASS — focused Agent 03 suite 73/73; service suite 42/42.
+- PASS — full Web suite 1,525 passed with two opt-in integration skips.
+- PASS — Web/root typecheck and lint; Web production build (89 static pages).
+- PASS — diff checks and gitleaks over 1,824 commits; no leaks.
+- FAIL — legacy WO-11 source contract 28/29: line 1810 still demands the
+  removed local action writer. This is a contract-owner update, not an
+  application regression.
+- BLOCKED / NOT RUN — isolated real PostgreSQL and authenticated browser lanes.
+- NOT RUN — hosted/demo mutation, providers, schema/data/env/deploy, or remote.
+
+→ Handoff to Agent 12 / WO-11 contract owner. Follow the mounted actions into
+the new service, assert one-call/no-fallback and hostile-entry/redacted-log/
+committed-refresh behavior, and replace the obsolete local-writer source
+assertions before the independent isolated QA lanes.

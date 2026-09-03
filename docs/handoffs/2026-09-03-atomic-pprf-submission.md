@@ -532,3 +532,83 @@ SLA, notification, or provider mutation after the service returns. Structured
 redacted outcome logging and success-only refresh/navigation remain Agent 03
 work; a refresh failure after committed success must stay
 `success_refresh_failed`, not become a command failure.
+
+## Agent 03 integration — 2026-09-03
+
+Status: **GO to Agent 12 / contract owner**, with the existing isolated
+PostgreSQL and authenticated-browser evidence blocks unchanged.
+
+Source commit `8bf06324` connects both mounted Web commands to the Agent 05
+service. `createPprfIntake` and `submitPprf` now parse an exact, duplicate-free
+FormData allowlist into the exported strict command schemas, independently
+enforce the central Owner/Admin/Sales capabilities, and make exactly one
+authenticated service call. Resubmission binds Opportunity identity from the
+mounted route argument; tenant, actor, role, Opportunity identity, and service
+result identities cannot be supplied in FormData. The service result is parsed
+again and tenant/kind/version plus every available mounted identity is checked
+before the action reports success. The service result contract intentionally
+does not expose an actor field, so actor binding is proved by the authenticated
+principal passed to the authoritative service and by rejection of browser
+identity fields.
+
+The intake action converts exact peso strings to canonical centavo strings
+with `BigInt`/string arithmetic and never converts money through `Number`.
+Invalid calendar dates, ambiguous/duplicate values, files, exponent/sign/
+whitespace/grouping monetary forms, and unknown fields fail before the service.
+Neither action contains a local PPRF/KYC/audit/SLA/notification writer or a
+fallback after service commit. Each outcome emits one structured event with
+`trace_id`, `tenant_id`, `actor_id`, action, and outcome only; raw keys,
+tokens, request bodies, contact/PPRF/notes values, and thrown messages are not
+logged.
+
+Both server pages create one UUID per mounted form. The two client forms keep
+that key and every uncontrolled user field through returned or rejected
+failures, clear stale feedback at retry start, synchronously reject duplicate
+submits, and navigate/refresh only after a strict committed result. Replay and
+refresh-failure messages state that the command was already committed. A
+successful detail refresh remounts the form under the fresh server UUID;
+refresh failure leaves the committed form disabled instead of permitting an
+accidental second version. The detail route remains tenant-scoped readable to
+all thirteen roles, but only Owner/Admin/Sales receive the form; the other ten
+receive an explicit prior-version read-only state. The intake route retains
+its exact dual-capability redirect guard.
+
+### Agent 03 verification
+
+- PASS — focused action/form/page suite: 73/73 across six files, including all
+  thirteen roles at both action and mounted route projections; direct no-auth;
+  hostile/duplicate/unknown fields; exact money/date parsing; one service call;
+  typed/throw/malformed/mismatched service results; no local writers; committed
+  refresh failure; stable keys; read-only projection; accessible labels/status;
+  synchronous guards; replay messages; and failure input retention contracts.
+- PASS — Agent 05 service suite: 42/42.
+- PASS — full Web Vitest: 1,525 passed, two opt-in integration tests skipped.
+- PASS — Web and root typecheck; root covered five runnable packages, with four
+  cache hits and the changed Web package executed fresh.
+- PASS — Web and root lint with zero warnings.
+- PASS — Next.js 15.5.23 production Web build; 89 static pages generated.
+- PASS — staged/source diff checks.
+- PASS — repository gitleaks 8.30.1; 1,824 commits and approximately 46.09 MB
+  scanned with no leaks.
+- FAIL (stale contract, outside Agent 03 scope) — `pnpm test:wo-11-contract`
+  passed 28/29 but `scripts/verify-wo-11-kyc-gate.mjs:1810` still requires the
+  intake action itself to contain `pprfSubmissions`, a local transaction, and
+  KYC/audit calls. Those assertions contradict this approved service-boundary
+  handoff and must follow the new service graph.
+- NOT RUN / BLOCKED — real PostgreSQL rollback/concurrency/generic-trigger
+  evidence; no explicitly isolated opt-in database binding was available.
+- NOT RUN — authenticated browser, provider, hosted/demo mutation, schema,
+  migration, data, environment, deployment, or remote operations.
+
+### → Handoff to Agent 12 / WO-11 contract owner
+
+Update only the WO-11 source contract to follow `createPprfIntake` and
+`submitPprf` into `pprf-submission-service.ts`: require exactly one service
+delegation, reject local/fallback durable writers, and retain the existing
+service-side transaction/KYC/audit/SLA/notification and exact-money
+invariants. Add hostile mounted-entry checks for duplicate/unknown identity
+fields, exact-three action and route projections, strict result mismatch,
+redacted one-event logging, and committed `success_refresh_failed` behavior.
+Then rerun the focused 73 tests, the 42 service tests, WO-11, Web/root gates,
+build, and gitleaks. Independent browser and PostgreSQL QA remain separate,
+explicitly isolated lanes; do not mutate hosted/demo state.
