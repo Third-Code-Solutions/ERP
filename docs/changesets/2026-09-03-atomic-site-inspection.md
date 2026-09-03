@@ -1,0 +1,92 @@
+# Atomic site inspection and RFI creation planning
+
+Date: 2026-09-03
+
+Status: **contract ready; no application source changed**.
+
+## Outcome
+
+Defined one sequential, decision-free repair for two WO-12 P1s:
+
+1. Site-inspection submission currently commits the inspection/photo/audit
+   transaction before separately opening its Design-handoff SLA and writing
+   Design notifications. Post-commit failure can therefore report submission
+   failure after durable state exists, and replay compares only Opportunity
+   identity rather than the complete command.
+2. RFI creation currently inserts the RFI before starting a separate audit
+   transaction and has no idempotency key, allowing an unaudited or duplicated
+   RFI on failure/retry.
+
+The PRD is unchanged. WO-12 already requires the mobile inspection and
+same-screen RFI, while A-44 requires immutable audit for every state change.
+
+## Frozen decisions
+
+- Owner, Admin, and Commercial remain the exact mutation roles through central
+  `site_inspection.submit`; the other ten roles retain tenant-scoped read-only
+  inspection detail with no mutation forms.
+- Inspection submit atomically owns inspection, every validated photo link,
+  one mandatory redacted semantic audit/receipt, the existing open
+  `inspection.design_handoff` SLA, and durable in-app notifications to the
+  existing Design recipient role.
+- RFI creation atomically owns the RFI and one mandatory redacted semantic
+  audit/receipt.
+- Both use the full stable UUID plus the complete normalized command for
+  tenant-scoped SHA-256 replay/conflict/concurrency. Inspection reuses its
+  existing UUID/index; RFI adds a stable per-mounted-form UUID and uses the
+  append-only audit receipt without schema change.
+- Every supplied photo UUID must be unique, bounded, and authorized under the
+  tenant plus Opportunity/current Project. Unsafe or missing IDs reject the
+  whole command rather than being silently dropped.
+- Receipt/result schemas are strict and versioned. Logs and receipts exclude
+  raw keys, inspection payload/contact/free text, RFI descriptions, photo IDs,
+  credentials, tokens, headers, and request bodies.
+- HTML report archival remains explicitly best effort outside the database
+  transaction. Committed success returns an honest archived/needs-repair state;
+  archival failure never relabels the inspection as failed. A durable repair
+  mechanism requires a later choice between bounded background reconciliation
+  and an authorized idempotent manual retry command.
+- Notification recipient taxonomy redesign, email/SMS/provider delivery, new
+  schema, dependencies, data, environment, and deployment are out of scope.
+
+## Sequential ownership
+
+1. Agent 05: create and test
+   `apps/web/src/server/crm/site-inspection-workflow-service.ts`, exporting the
+   strict inspection/RFI commands, results, receipts, transactions, authority,
+   full-command idempotency, and failure injection.
+2. Agent 03: replace only the two mounted action writers, bind trusted route
+   identity, project exact controls/read-only UI, add stable RFI key and
+   recoverable accessible form behavior, and represent report/refresh outcomes
+   honestly.
+3. Agent 12: harden the WO-12 source verifier with reachable-call and hostile-
+   mutation proof, then perform independent security/contract closeout.
+
+Agents run sequentially and do not edit the next owner's files.
+
+## Required evidence
+
+- All thirteen roles for both service and mounted action/control paths.
+- Failure injection at every inspection/photo/audit/SLA/recipient/notification
+  boundary and both RFI/audit boundaries, proving zero partial effects.
+- Exact replay, changed-command conflict, tenant independence, malformed
+  receipt rejection, and concurrent single-effect behavior.
+- Strict safe-photo authorization and exact stable result cross-checking.
+- Returned/thrown/malformed service failures, failure input retention,
+  synchronous single flight, accessible alert/labels, success-only reset and
+  refresh, honest replay, committed refresh failure, and honest best-effort
+  archive warning.
+- Focused/neighboring service, proposal, and WO-12 tests; Web/root typecheck and
+  lint; Web build; diff checks; and gitleaks as proportionate. Real browser and
+  PostgreSQL claims remain `BLOCKED`/`NOT RUN` unless an explicitly isolated
+  lane is later authorized.
+
+## Handoff
+
+→ Handoff to Agent 05. Reason: both defects require one tested transaction and
+idempotency authority before the mounted actions can be safely rewired. Inputs:
+this contract, the existing site-inspection schema/index, central
+`site_inspection.submit` policy, audit writer, SLA configuration, notification
+schema, and current proposal action/form/page source. Expected output: a
+committed service-only changeset with strict schemas and focused RED/GREEN
+evidence, followed by an explicit handoff to Agent 03.
