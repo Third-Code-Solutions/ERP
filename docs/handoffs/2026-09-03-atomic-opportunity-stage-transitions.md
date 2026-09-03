@@ -693,3 +693,53 @@ validation. Inputs: test commit `9e728084`, the 7/7 validator result, the 66/66
 behavioral result, and the unchanged runtime commits. Expected output:
 independently sever the six validated connections or rerun the supplied
 mutants, then return `GO` or `BLOCK` with direct evidence.
+
+## Agent 11 remediation round 4 — urgent retry alert clearing
+
+Verdict: `GO` for independent QA and targeted browser rerun. Pipeline source
+commit: `e66ca6d1`.
+
+The browser failure was caused by each stale-alert clear running from the typed
+runner's `onStart` callback after the caller had already entered React's async
+`startTransition`. React deferred that state update with the transition, so the
+prior failure remained visible during a delayed retry.
+
+Both actual callers now clear their own stale failure synchronously before
+calling `startTransition`: `StageAdvanceButton.advance` calls `setError(null)`,
+and `PipelineBoard.performAdvance` calls `clearBanner()`. The existing submitter,
+dialog state and reason input lifecycle were not moved or cleared to mask the
+problem. The `onStart` behavior remains intact, so pending/disabled state,
+single-call protection, Lost/regression flows, returned/thrown failure display,
+retry behavior, and success-only refresh are unchanged.
+
+The TypeScript-AST validator now requires each clear as a direct caller
+statement before its `startTransition`. Its in-memory mutants move each clear
+after the transition and are rejected independently. A delayed returned-error
+behavior test additionally proves the failure becomes the visible alert and
+the success callback remains unused; the existing rejected-error case remains
+green.
+
+Pinned Node 22.23.2 / pnpm 10.33.0 verification:
+
+- caller-ordering red: FAILED as expected with both missing pre-transition
+  issues;
+- final focused plus neighboring Pipeline suites: PASSED, 6 files / 70 tests;
+- Web plus all configured E2E TypeScript projects: PASSED;
+- focused changed-source lint and full Web source lint: PASSED;
+- Web production build: PASSED, 89 static pages generated;
+- authoritative WO-11 contract: PASSED, 5/5;
+- `git diff --check`: PASSED;
+- Gitleaks 8.30.1 through the pinned repository wrapper: PASSED, 1,791 commits /
+  no leaks.
+
+No action, Core/API, script, shared package, auth, route/page, schema,
+dependency, demo data, environment, credential, or deployment state changed.
+
+→ Handoff to independent QA and targeted browser verification. Reason: both
+callers now make the stale-error clear urgent before React's transition
+boundary, with mutation-sensitive evidence. Inputs: source commit `e66ca6d1`,
+the exact five-second delayed retry probe from browser round 1, and the 70/70
+focused result. Expected output: rerun the delayed StageAdvanceButton inline
+alert and PipelineBoard banner retries; verify each prior alert disappears
+while the request remains pending, dialog/input behavior is unchanged, and the
+new returned/thrown failure appears without refresh.

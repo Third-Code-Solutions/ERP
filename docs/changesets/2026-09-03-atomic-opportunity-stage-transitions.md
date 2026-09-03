@@ -231,3 +231,33 @@ Pipeline round-3 test commit: `9e728084`.
 No production runtime, action, Core/API, script, shared package, auth,
 route/page, schema, dependency, demo data, environment, credential, or
 deployment state changed. Independent QA owns the next release decision.
+
+## Agent 11 remediation round 4
+
+- Moved stale inline-error and board-banner clearing to the actual callers,
+  immediately before `startTransition`, so React cannot defer the retry clear
+  until a delayed request settles.
+- Left dialog state, reason input, typed runner, pending guards, failure mapping,
+  and success-only refresh behavior unchanged.
+- Extended the actual-source AST validator with two ordering invariants and two
+  in-memory reordered mutants.
+- Added delayed returned-failure behavior coverage proving the replacement alert
+  appears and success work remains suppressed.
+
+Pipeline round-4 source commit: `e66ca6d1`.
+
+### Agent 11 round-4 verification
+
+- Pinned Node 22.23.2 and pnpm 10.33.0: VERIFIED.
+- Caller-ordering red: FAILED as expected with both caller issues.
+- Focused plus neighboring Pipeline suites: PASSED, 6 files / 70 tests.
+- Web plus configured E2E TypeScript projects: PASSED.
+- Focused changed-source lint and full Web source lint: PASSED.
+- Web production build: PASSED, including 89 generated static pages.
+- WO-11 contract: PASSED, 5/5.
+- Diff check: PASSED.
+- Pinned Gitleaks 8.30.1 full-history scan: PASSED, 1,791 commits / no leaks.
+
+No action, Core/API, script, shared package, auth, route/page, schema,
+dependency, demo data, environment, credential, or deployment state changed.
+Independent QA and the targeted browser verifier own the next release decision.
