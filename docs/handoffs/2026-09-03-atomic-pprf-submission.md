@@ -678,3 +678,55 @@ the shared demo accounts in an isolated browser lane, and run the transaction
 suite against an explicitly isolated PostgreSQL database. Treat the receipt
 reader's unknown-key acceptance as P2 follow-up owned by the runtime service
 agent; do not weaken the current bounded writer or replay checks.
+
+## Agent 03 mounted field-inventory repair — 2026-09-03
+
+Status: **P1 fixed locally; GO to Agent 12 for verifier hardening**.
+
+Independent QA found that the strict intake action requires exactly one
+`area_sqm` field, while the mounted `PprfIntakeForm` did not render that named
+control. Every native intake therefore failed before reaching the atomic
+service, even when Opportunity area was intentionally omitted.
+
+Source commit `421bfacf` adds an accessible optional `Opportunity area (sqm)`
+number control with `min=1`, `step=1`, numeric input mode, and help text that
+explicitly distinguishes the whole-number commercial Opportunity estimate from
+the required decimal PPRF floor area below. Blank submission continues to map
+to the action's existing optional/undefined semantics.
+
+The regression test renders the actual form and compares every emitted named
+control against both an independent twenty-field literal and the action's
+`FIELD_NAMES` allowlist. It also proves uniqueness, so a missing, duplicate, or
+unknown mounted field fails the test. RED evidence was one failure out of three
+direct form tests, with `area_sqm` the only missing name; the implementation
+made the same test green.
+
+This repository's installed Web test environment has no DOM implementation
+capable of constructing `new FormData(form)`. The test therefore inspects
+React's rendered SSR markup rather than executing native browser successful-
+control serialization. It proves the mounted name inventory, uniqueness,
+labels, help association, and integer attributes, but it does not replace the
+still-blocked authenticated browser lane.
+
+### Verification
+
+- PASS — direct form regression 3/3.
+- PASS — focused mounted PPRF suite 74/74 across six files.
+- PASS — WO-11 authoritative/mutation suite 53/53. This current verifier does
+  not detect removal of `area_sqm`, which is the stated follow-up.
+- PASS — Web typecheck and zero-warning Web lint.
+- PASS — Next.js 15.5.23 Web production build; 89 static pages generated.
+- PASS — diff checks and repository gitleaks 8.30.1 over 1,828 commits /
+  approximately 46.18 MB; no leaks.
+- NOT RUN — browser, hosted/demo, database, environment, data, provider,
+  deployment, or remote mutation.
+
+### → Handoff to Agent 12 / WO-11 contract owner
+
+Harden the existing verifier so the mounted intake form's successful-control
+name inventory must equal the action's exact `FIELD_NAMES` allowlist with no
+missing, duplicate, or unknown names. Add a hostile mutation that removes
+`area_sqm` from the mounted form and require the verifier to fail. Preserve the
+current optional whole-positive-integer action semantics and the distinct
+required decimal `floor_area_sqm`; do not conflate the two fields or weaken the
+action allowlist.

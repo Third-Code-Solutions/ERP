@@ -200,3 +200,29 @@ Verification under Node 22.23.2 and repository-selected pnpm 10.33.0:
 
 Status: **GO to independent QA**, with no in-scope P0/P1 finding and the P2
 receipt-reader strictness follow-up explicitly recorded.
+
+## Agent 03 P1 field-inventory repair
+
+Source commit `421bfacf` fixes the mounted intake's missing `area_sqm` control.
+The new optional Opportunity-area input uses the existing positive-integer
+contract and explicitly remains separate from required decimal PPRF floor area.
+
+Regression-first evidence:
+
+- RED — direct rendered-form suite failed 1/3 because `area_sqm` alone was
+  absent from the mounted control inventory.
+- GREEN — direct form 3/3; focused mounted PPRF 74/74; WO-11 53/53.
+- PASS — Web typecheck, Web lint, production build with 89 static pages, diff
+  checks, and gitleaks over 1,828 commits / approximately 46.18 MB.
+- NOT RUN — browser/hosted/database/data/environment/provider/deployment/remote
+  mutation.
+
+The installed test environment cannot instantiate browser `FormData(form)`.
+The regression instead compares actual React SSR named controls, uniqueness,
+and accessibility attributes against an independent twenty-field literal and
+the action's exact `FIELD_NAMES`. It does not substitute for browser successful-
+control serialization.
+
+→ Handoff to Agent 12 / WO-11 contract owner. Make the verifier compare mounted
+control names to the exact action allowlist and add a mutation that removes
+`area_sqm`; keep Opportunity integer area distinct from PPRF decimal floor area.
