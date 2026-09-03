@@ -178,3 +178,34 @@ data, environment, provider, deployment, or unrelated functional files changed.
 → Handoff to Agent 12 / mounted-entry contract owner with Core `be26d477` and
 Web `292b4e3a`; independent QA/browser verification follows only after that
 contract is green.
+
+## Agent 12 mounted-entry contract verification
+
+Commit `8cb16056 test(tasks): verify mounted completion boundary` adds a
+dedicated TypeScript-AST/module-graph verifier and mutation suite without
+changing product runtime code.
+
+The verifier accounts for all 13 roles (exactly 5 allowed and 8 denied), one
+mounted control/action path, trusted bound task scope, notes-only hostile-field
+rejection, one tenant-selected Core request, full-command stable keying, strict
+result scope, redacted outcomes, UI single-flight/recovery/success-only refresh,
+and the absence of a reachable Web writer/audit/SLA/fallback. It also checks the
+Core guard and transaction evidence for tenant locks, assignee-or-Owner/Admin
+authorization, full receipt hashes, raw-secret/note exclusion, authorized done
+no-write, skipped conflict, atomic audit/SLA work, and replay/rollback/conflict/
+concurrency coverage. Imported helpers, aliases, exported arrows, and local
+named/export-star re-exports are included in the reachable-Web scan.
+
+Verification under Node `v22.23.2` / pnpm `10.33.0`: mounted contract mutation
+suite **22/22 passed twice**; shared focused **35/35**; Core focused **33/33**;
+Web focused **42/42**; root lint, typecheck (5/5), and production build (2/2)
+**passed**; verifier syntax, diff whitespace, and gitleaks **passed**. The
+protected PostgreSQL HTTP integration remained **1 skipped / 0 run** because no
+isolated database opt-in was present, and no database was contacted. Browser and
+hosted verification were not run by design.
+
+No P0-P2 product-source defect was found. The source verifier is not a full
+typechecker or runtime proof and does not model dynamic imports,
+computed-property dispatch, arbitrary higher-order indirection, or unusual
+default-export chains. Decision: **GO to independent QA/browser verification**;
+real PostgreSQL persistence/concurrency remains a separate blocked lane.

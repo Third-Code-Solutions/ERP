@@ -455,3 +455,64 @@ context, hostile-field rejection, stable-key replay/sensitivity, strict result
 scope, redacted outcomes, no local writer/audit/SLA/fallback, exact control
 projection, failure recovery, and success-only refresh before handing to
 independent QA/browser verification.
+
+## Agent 12 mounted-entry contract — 2026-09-03
+
+**Decision: GO to independent QA/browser verification.** No P0, P1, or P2
+product-source defect was found in the mounted daily-task completion slice.
+Agent 12 made no runtime application, Core/API, shared-contract, schema,
+dependency, data, environment, deployment, or functional-ledger change.
+
+Test commit `8cb16056` adds a TypeScript-AST and source-module-graph verifier for
+the mounted entry contract. It proves the checked source currently has:
+
+- all 13 ERP roles accounted for, with exactly five capable roles
+  (`owner`, `admin`, `sd_pm_pe`, `pm`, `safety`) and eight denied roles;
+- one mounted completion control/action path, with server-bound task, project,
+  assignee, and toolbox-note context and strict notes-only browser input;
+- central/page/UI/action/Core authorization, assignee-only completion except
+  same-tenant Owner/Admin override, and tenant/current-assignee-scoped reads;
+- one tenant-selected authenticated Core delegate, a stable SHA-256 key bound to
+  task identity and the full normalized command, strict returned-scope checks,
+  per-outcome redacted logs, single-flight recovery, and success-only refresh;
+- no reachable Web daily-task writer, transaction, audit/SLA helper, or local or
+  compatibility fallback, including local imports, aliases, exported arrows,
+  named re-exports, and export-star paths followed by the verifier; and
+- Core transaction membership/task locks and authorization order, full receipt
+  key/command hashes, no raw key/notes in the semantic audit, authorized-done
+  no-write behavior, skipped-state conflict, atomic task/SLA/audit behavior, and
+  replay, conflict, rollback, and concurrency test evidence.
+
+### Agent 12 verification
+
+All authoritative final commands used Node `v22.23.2` and pnpm `10.33.0`.
+
+- Mounted verifier baseline plus mutation suite: **22/22 passed twice**. The
+  suite includes benign TypeScript reformatting and 19 hostile mutation groups.
+- Shared completion/authorization: **35/35 passed** across 2 files.
+- Core completion controller/service: **33/33 passed** across 2 files.
+- Web action/client/UI/route inventory: **42/42 passed** across 4 files.
+- Protected PostgreSQL HTTP integration: **1 skipped / 0 run**, correctly gated
+  because the isolated database opt-in was absent; no database was contacted.
+- Root lint: **passed**.
+- Root typecheck: **passed**, 5/5 package tasks successful.
+- Root production build: **passed**, 2/2 package tasks successful; the Web build
+  included `/tasks` and the Core API webpack build completed successfully.
+- Both verifier files passed `node --check`; diff whitespace and repository
+  gitleaks checks passed with no leak finding.
+
+The verifier is deliberately bounded: it is a source-level TypeScript AST/module
+graph check, not a complete TypeScript typechecker, runtime control-flow proof,
+or PostgreSQL/browser test. Dynamic imports, computed-property dispatch,
+arbitrary higher-order callback indirection, and unusual default-export chains
+can fall outside its reachability model. Compiler and focused runtime tests
+cover ordinary typed/static paths; real PostgreSQL persistence/concurrency and
+browser behavior remain separately **BLOCKED / NOT RUN** in this no-database,
+no-browser lane.
+
+→ Handoff to independent QA/browser verification. Inputs: Core `be26d477`, Web
+`292b4e3a`, mounted contract verifier `8cb16056`, the exact 5-allowed/8-denied
+policy, and the bounded limitations above. Expected output: exercise the single
+mounted `/tasks` completion flow for allowed, denied, assignee, Owner/Admin
+override, error-retry, and success-refresh behavior without weakening the
+separate isolated-PostgreSQL requirement.
