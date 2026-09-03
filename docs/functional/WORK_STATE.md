@@ -11,8 +11,8 @@ authorization, legacy route-policy alignment, fail-closed dashboard routing,
 Material search/destination alignment, opportunity CSV export hardening, and
 the atomic Won-to-Project handoff, all-stage atomic Pipeline transitions, and
 Project-detail Opportunity create/transition, atomic daily-task completion,
-and atomic PPRF submission are the twelve completed local implementation
-slices; all remain `PARTIAL`
+atomic PPRF submission, and atomic site-inspection/RFI creation are the thirteen
+completed local implementation slices; all remain `PARTIAL`
 under the strict live-data definition of done.
 
 Current work-order scope:
@@ -37,19 +37,19 @@ repository's release gates pass.
 | Next.js page routes | 118 | VERIFIED by source inventory and production build |
 | Session/recovery-protected page routes | 104 | VERIFIED by route inventory + middleware policy |
 | Explicit HTTP operations | 175 | Prior source inventory plus the mounted daily-task completion command (134 Nest, 41 Next) |
-| Protected role/resource matrix records | 1,443 | VERIFIED as 16-column syntactically readable CSV records |
-| Automated-tested role/resource matrix records | 171 | VERIFIED from parsed CSV rows whose `Automated test` result is not `NOT TESTED` |
+| Protected role/resource matrix records | 1,456 | VERIFIED as 16-column syntactically readable CSV records |
+| Automated-tested role/resource matrix records | 197 | VERIFIED from parsed CSV rows whose `Automated test` result is not `NOT TESTED` |
 | Verified role/resource combinations | 0 | Strict full-route definition not yet met; tested rows remain PARTIAL or BLOCKED |
 | Failed role/resource combinations | 0 | No FAILED matrix rows remain after route-alias and project-audit reconciliation |
 | Needs-decision role/resource combinations | 32 | Parsed CSV total; existing product-policy decisions remain open |
 | Not-tested role/resource combinations | 1,071 | Parsed CSV total |
-| Partial role/resource combinations | 320 | Parsed CSV total after PPRF workflow closeout |
-| Blocked role/resource combinations | 20 | Prior blocked coverage plus Daily-task and PPRF workflow rows for the missing `estimator` and `pm` identities |
-| Browser-blocked matrix records | 255 | Parsed CSV total; includes all 13 atomic PPRF workflow rows |
-| Live-not-run matrix records | 119 | Parsed CSV total; includes all 13 atomic PPRF workflow rows |
-| Prioritized functional workflows | 12 | Password management, project-chat boundaries, project-detail boundaries, legacy route-policy alignment, fail-closed dashboard routing, Material-search alignment, opportunity CSV export hardening, atomic Won-to-Project handoff, atomic all-stage transitions, Project-detail Opportunity create/transition, atomic daily-task completion, and atomic PPRF submission |
+| Partial role/resource combinations | 331 | Parsed CSV total after site-inspection/RFI workflow closeout |
+| Blocked role/resource combinations | 22 | Prior blocked coverage plus Daily-task, PPRF, and site-inspection/RFI workflow rows for the missing `estimator` and `pm` identities |
+| Browser-blocked matrix records | 279 | Parsed CSV total; includes all 13 atomic site-inspection/RFI workflow rows and the 13 inspection-history route rows |
+| Live-not-run matrix records | 145 | Parsed CSV total; includes all 13 atomic site-inspection/RFI workflow rows and the 13 inspection-history route rows |
+| Prioritized functional workflows | 13 | Password management, project-chat boundaries, project-detail boundaries, legacy route-policy alignment, fail-closed dashboard routing, Material-search alignment, opportunity CSV export hardening, atomic Won-to-Project handoff, atomic all-stage transitions, Project-detail Opportunity create/transition, atomic daily-task completion, atomic PPRF submission, and atomic site-inspection/RFI creation |
 | Verified workflows | 0 | Strict live-data definition not yet met |
-| Partial workflows | 12 | All implemented and locally tested with explicit live/browser/persistence evidence limits |
+| Partial workflows | 13 | All implemented and locally tested with explicit live/browser/persistence evidence limits |
 | Failed workflows | 0 | No known implementation failure after focused QA |
 | Completed modules | 0 | NOT TESTED |
 | Modules remaining | 13 user-facing modules | NOT TESTED |
@@ -448,40 +448,82 @@ receipt-reader issue also remains: `.passthrough()` accepts unknown keys,
 although current writes and returned known fields are bounded and privacy-
 verified.
 
+### Atomic site inspection and RFI creation
+
+Implemented and independently contract-reviewed at source HEAD `4c3ccafd`.
+This thirteenth local workflow is `PARTIAL` under the strict authenticated-
+browser, offline-storage, live, and real-PostgreSQL definition.
+
+The `/crm/opportunities/[id]/proposal/inspection` route remains a tenant-scoped
+inspection/RFI history surface for all thirteen roles. Owner, Admin, and
+Commercial alone receive both mutation forms; the other ten receive accessible
+read-only history without controls. Both Web actions enforce central
+`site_inspection.submit` independently and call the atomic service exactly
+once. The service owns inspection, safe photo links, mandatory semantic audit/
+receipt, Design-handoff SLA, and durable Design notifications in one
+transaction, or RFI plus its mandatory audit/receipt in one transaction. Stable
+full-key replay, conflict, and concurrency checks remain tenant scoped.
+
+Independent QA closed the two original P1s: inspection could formerly return
+failure after partial durable success, while RFI could formerly persist without
+its audit and lacked durable idempotency. Three later P2 discoveries are also
+closed: the obsolete literal verifier was replaced by AST/mutation proof;
+replay now compares the original recipient digest/count with correlated
+persisted notifications instead of mutable current Design membership; and the
+notification adapter preserves nullable-row cardinality so null or invalid
+recipients fail closed before uniqueness/count/hash validation. Final evidence
+passed WO-12 77/77 twice—four authoritative/benign positives and 73 hostile
+mutations—and 146/146 focused service/mounted tests. Web and root typechecks,
+Web lint, the 89-page production build, diff checks, and gitleaks also passed.
+No P0-P2 remains in the verified source contract.
+
+Browser/IndexedDB/Storage evidence is `BLOCKED` for all thirteen roles because
+no safe reusable isolated authenticated session or storage lane was available;
+Estimator and PM are additionally identity-blocked. Hosted/live and real
+PostgreSQL execution are `NOT RUN`. HTML report archival intentionally remains
+best-effort after committed success with an honest repair warning; selecting a
+durable automated or manual repair path remains a bounded follow-up decision.
+
 Acceptance criteria and ordered agent handoffs are recorded in
 `docs/handoffs/2026-09-02-functional-completeness.md`,
 `docs/handoffs/2026-09-02-ai-chat-data-boundaries.md`,
-`docs/handoffs/2026-09-02-project-detail-authorization.md`, and
-`docs/handoffs/2026-09-03-legacy-route-policy-alignment.md`, and
-`docs/handoffs/2026-09-03-unknown-dashboard-route-denial.md`, and
-`docs/handoffs/2026-09-03-material-search-route-alignment.md`, and
-`docs/handoffs/2026-09-03-opportunity-export-hardening.md`, and
-`docs/handoffs/2026-09-03-won-project-atomic-handoff.md`, and
-`docs/handoffs/2026-09-03-atomic-opportunity-stage-transitions.md`, and
-`docs/handoffs/2026-09-03-project-opportunity-core-cutover.md`, and
-`docs/handoffs/2026-09-03-atomic-daily-task-completion.md`, and
-`docs/handoffs/2026-09-03-atomic-pprf-submission.md`.
+`docs/handoffs/2026-09-02-project-detail-authorization.md`,
+`docs/handoffs/2026-09-03-legacy-route-policy-alignment.md`,
+`docs/handoffs/2026-09-03-unknown-dashboard-route-denial.md`,
+`docs/handoffs/2026-09-03-material-search-route-alignment.md`,
+`docs/handoffs/2026-09-03-opportunity-export-hardening.md`,
+`docs/handoffs/2026-09-03-won-project-atomic-handoff.md`,
+`docs/handoffs/2026-09-03-atomic-opportunity-stage-transitions.md`,
+`docs/handoffs/2026-09-03-project-opportunity-core-cutover.md`,
+`docs/handoffs/2026-09-03-atomic-daily-task-completion.md`,
+`docs/handoffs/2026-09-03-atomic-pprf-submission.md`, and
+`docs/handoffs/2026-09-03-atomic-site-inspection.md`.
 
 ## Agent state
 
-- Principal Agent 1: read-only route/RBAC cartography complete; no files changed.
+- Principal Agent 1: route/RBAC cartography complete; the workflow-13
+  functional ledger and final evidence boundary are synchronized.
 - Principal Agent 2: continuous read-only workflow audit complete; latest
   P1 findings—the non-transactional Won-to-Project handoff and non-Won stage
   writer, the Project-detail Opportunity writer, and the non-atomic daily-task
-  completion path, and post-commit PPRF failure boundary—are repaired. The
-  independently discovered mounted PPRF field-inventory P1 is also closed.
+  completion path, post-commit PPRF failure boundary, post-commit inspection
+  failure boundary, and unaudited/non-idempotent RFI writer—are repaired. The
+  independently discovered mounted PPRF field-inventory P1 and inspection
+  verifier/roster/null-row P2s are also closed.
 - Principal Agent 3: sole application-source editor; auth, AI chat, project
   detail, legacy route-policy, and fail-closed route-registry implementations
   complete; Material-search Web/Core alignment and opportunity-export
   hardening complete; atomic Core/Web handoff and conversion visibility fixes
   complete; all-stage Web/Core cutover and retry-alert UX complete;
   Project-detail Opportunity create/transition and daily-task completion Core
-  cutovers complete; atomic PPRF integration and mounted field repair complete.
+  cutovers complete; atomic PPRF integration and mounted field repair complete;
+  atomic inspection/RFI integration and honest archival boundary complete.
 - Principal Agent 4: independent code/test/security review complete; `GO` for
-  all twelve implemented source slices. Three atomic-handoff rounds, five
+  all thirteen implemented source slices. Three atomic-handoff rounds, five
   all-stage transition rounds, and the Project-detail Opportunity contract
-  remediation plus daily-task mutation contract review are complete.
-  Authenticated browser acceptance for the twelfth workflow remains blocked.
+  remediation plus daily-task, PPRF, and inspection/RFI mutation contract
+  reviews are complete. Authenticated browser acceptance for the thirteenth
+  workflow remains blocked.
 - Principal Agent 5: auth verification complete for all eleven supplied
   identities; AI chat safe browser/API smoke complete for viewer, finance, and
   commercial; project-detail browser matrix complete for all eleven supplied
@@ -505,23 +547,27 @@ Acceptance criteria and ordered agent handoffs are recorded in
   exposed and no isolated authenticated provider/session was available. PPRF
   independent contract QA closed the mounted `area_sqm` P1 and passed WO-11
   59/59 twice, mounted PPRF 74/74, and service 42/42; its authenticated browser
-  and real-PostgreSQL lanes remain blocked.
+  and real-PostgreSQL lanes remain blocked. Inspection/RFI independent source
+  QA closed the two original P1s and the verifier/roster/null-row P2 sequence;
+  WO-12 passed 77/77 twice and focused service/mounted tests passed 146/146.
+  Its authenticated browser, IndexedDB/Storage, and real-PostgreSQL lanes remain
+  blocked or not run.
 
 ## Git state
 
 - Primary repository: `D:/thirdcode/ERP`; current stacked worktree:
-  `D:/thirdcode/ERP-pprf-20260903`.
-- Current stacked branch: `agent-05/atomic-pprf-submission`, based on the
-  Daily-task stack. Final PPRF source/contract review HEAD was
-  `d4ec979194eebfd10fecb8fbea150443e4d85530` before this ledger closeout.
+  `D:/thirdcode/ERP-inspection-20260903`.
+- Current stacked branch: `agent-05/atomic-site-inspection`, based on the PPRF
+  stack. Final inspection/RFI source/contract review HEAD was
+  `4c3ccafd889f4f3a2352f3b7a1a706931c292c93` before this ledger closeout.
 - Finance/security release-gate branch: PR #18 at commit `4369a01a`; all
   protected checks pass.
 - Auth PR branch: `agent-03/auth-password-workflows-20260902`; PR #15 at
   commit `dfa190ba`.
-- Pre-existing untracked files: five user-owned changeset/handoff documents
-  dated 2026-08-27 and 2026-08-29; preserved and excluded from this work.
+- The worktree was clean at the final source/contract HEAD before this docs-only
+  ledger closeout; no user-owned changes were overwritten.
 - Current work-order file:
-  `docs/handoffs/2026-09-03-atomic-pprf-submission.md`.
+  `docs/handoffs/2026-09-03-atomic-site-inspection.md`.
 
 ## Checks executed
 
@@ -601,6 +647,11 @@ Acceptance criteria and ordered agent handoffs are recorded in
 | PPRF type/lint/build/security | PASSED | Web typecheck; zero-warning lint; 89-page production build; diff checks; gitleaks over 1,831 commits |
 | PPRF authenticated browser matrix | BLOCKED | No secure reusable isolated authenticated session; all thirteen rows blocked and Estimator/PM identities additionally unavailable |
 | PPRF live/PostgreSQL proof | NOT RUN | No hosted/demo mutation or explicitly isolated PostgreSQL binding; rollback/concurrency/trigger behavior remains unexecuted against real PostgreSQL |
+| Site-inspection/RFI independent contract QA | PASSED | WO-12 77/77 twice: four authoritative/benign positives and 73 hostile mutations covering the mounted and atomic source contract |
+| Site-inspection/RFI focused source tests | PASSED | Service/actions/forms/page 146/146; exact three-role mutation projection and ten-role read-only history |
+| Site-inspection/RFI type/lint/build/security | PASSED | Web and root typechecks; Web lint; 89-page production build; diff checks; gitleaks |
+| Site-inspection/RFI authenticated browser/offline/Storage matrix | BLOCKED | No safe reusable isolated authenticated session or storage lane; all thirteen rows blocked and Estimator/PM identities additionally unavailable |
+| Site-inspection/RFI live/PostgreSQL proof | NOT RUN | No hosted mutation or explicitly isolated PostgreSQL binding; rollback/concurrency and durable Storage archival remain unexecuted live |
 | Deployment/live smoke | NOT RUN | ADR-020 requires the reviewed stack on `main` and green checks on that exact SHA |
 
 ## Confirmed high-priority RBAC findings outside the completed slices
@@ -631,6 +682,10 @@ reproduced before repair.
 - PPRF historical receipt parsing remains a bounded P2 because
   `receiptSchema.passthrough()` accepts unknown keys. Current receipt writes and
   returned known fields remain bounded and privacy-verified.
+- Inspection HTML report archival intentionally remains best-effort after the
+  atomic commit. The UI exposes an archive warning rather than false submission
+  failure, but a durable background or manual repair path remains a bounded
+  product/operations decision. Browser IndexedDB and Storage proof is blocked.
 
 These findings pre-date or sit outside the bounded implementation and do not
 change the independent conclusion that the slice introduced no P0-P2 source
@@ -638,10 +693,11 @@ defect.
 
 ## Exact next action
 
-Run PPRF authenticated browser serialization and role projection only in a
-secure reusable isolated session, and run rollback/concurrency/trigger proof
-only against an explicitly isolated PostgreSQL binding. Keep both PPRF
-recipient taxonomy and Viewer-sensitive permissions as `NEEDS DECISION`; keep
-the historical receipt-reader strictness as the bounded P2 runtime follow-up.
+Run site-inspection/RFI authenticated browser role, retry, offline-draft, and
+archive-warning coverage only in a safe reusable isolated session with a
+disposable Storage lane, and run rollback/concurrency proof only against an
+explicitly isolated PostgreSQL binding. Keep inspection report-repair policy,
+PPRF recipient taxonomy, and Viewer-sensitive permissions as `NEEDS DECISION`;
+keep the PPRF historical receipt-reader strictness as its bounded P2 follow-up.
 Production deployment remains blocked by ADR-020 until the reviewed stack
 reaches `main` and every required release check is green on that exact SHA.

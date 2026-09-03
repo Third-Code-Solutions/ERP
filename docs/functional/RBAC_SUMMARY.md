@@ -46,10 +46,10 @@ explicit `admin` super-admin projection.
   token/signature controlled, callback/health, webhook, or deprecated.
 - 81 central capabilities after adding the dedicated opportunity-export
   boundary; 42 are referenced by Nest controller guards.
-- 1,443 role/protected-resource matrix records: 0 `FAILED`, 32
-  `NEEDS DECISION`, 1,071 `NOT TESTED`, 320 `PARTIAL`, and 20 `BLOCKED`.
-- 171 matrix records have an automated-test result other than `NOT TESTED`;
-  255 have browser result `BLOCKED`; 119 have live result `NOT RUN`.
+- 1,456 role/protected-resource matrix records: 0 `FAILED`, 32
+  `NEEDS DECISION`, 1,071 `NOT TESTED`, 331 `PARTIAL`, and 22 `BLOCKED`.
+- 197 matrix records have an automated-test result other than `NOT TESTED`;
+  279 have browser result `BLOCKED`; 145 have live result `NOT RUN`.
 
 ## Confirmed policy conflicts
 
@@ -306,6 +306,39 @@ in-app recipient sets are preserved, but the recipient-role taxonomy remains
 `NEEDS DECISION`. A bounded P2 also remains: historical receipt reads accept
 unknown keys through `receiptSchema.passthrough()` even though current writes
 and returned known fields are bounded and privacy-verified.
+
+### Atomic site inspection and RFI creation
+
+The inspection detail route remains a tenant-scoped history surface for all
+thirteen roles. Owner, Admin, and Commercial alone receive inspection-submit
+and RFI-create controls. Both Web actions independently enforce
+`site_inspection.submit`, bind tenant/Opportunity/inspection identity on the
+server, and delegate once to the atomic service. Inspection submission commits
+the inspection, safe photo links, semantic audit/receipt, Design-handoff SLA,
+and durable Design notifications together; RFI creation commits its RFI and
+mandatory semantic audit/receipt together. Exact full-key replay, conflict, and
+concurrency behavior is covered without a schema change.
+
+Independent QA closed both original P1s: the former inspection path could
+report failure after partial durable success, and the former RFI path could
+persist without its audit and had no durable idempotency. It then closed three
+P2 proof/integrity defects: the first literal verifier targeted removed local
+writers and was replaced by an AST/mutation contract; replay no longer
+recomputes recipients from the mutable current Design roster; and the
+notification reader preserves nullable-row cardinality so corrupt null or
+invalid recipients fail before count/hash validation. Final evidence is WO-12
+77/77 twice (four authoritative/benign positives and 73 hostile mutations) and
+146/146 focused service/mounted tests, plus Web typecheck/lint, root typecheck,
+the 89-page production build, diff checks, and gitleaks. No P0-P2 remains in
+the verified source contract.
+
+Status: PARTIAL. Authenticated browser, offline IndexedDB, and Storage evidence
+is `BLOCKED` for all thirteen roles because no safe reusable isolated session
+or storage lane was available; Estimator and PM are additionally identity-
+blocked. Live PostgreSQL and hosted execution are `NOT RUN`. HTML report
+archival intentionally remains best-effort after the atomic commit and reports
+an honest warning on failure; a durable repair path remains a bounded follow-up
+decision rather than part of the committed transaction.
 
 ### Viewer semantics
 

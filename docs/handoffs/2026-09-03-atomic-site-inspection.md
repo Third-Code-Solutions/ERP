@@ -786,3 +786,51 @@ No runtime, mounted UI, shared, schema, dependency, data, environment, browser,
 provider, or deployment state changed. The proof remains bounded to compiler-AST
 and source-contract analysis plus deterministic focused tests; live PostgreSQL,
 real browser/offline storage, and hosted execution remain NOT RUN.
+
+## Agent 01 functional closeout
+
+Status: **strict PARTIAL; no failed matrix rows and no known P0-P2 source-
+contract defect remains**.
+
+The completed independent QA journey closed both original P1s:
+
+- inspection submit no longer risks returning submission failure after only
+  inspection/photo/audit durability; inspection, safe photo links, mandatory
+  semantic audit/receipt, open Design-handoff SLA, and durable Design
+  notifications now share one atomic service command; and
+- RFI creation no longer permits an RFI without its mandatory audit and now has
+  tenant-scoped full-key idempotency, replay, conflict, and concurrency control.
+
+Three later P2 discoveries were also closed sequentially. The initial literal
+WO-12 verifier was stale after mounting and was replaced by a compiler-AST
+contract plus mutation suite. Inspection replay stopped consulting the mutable
+current Design roster and instead commits and validates the original recipient
+set digest/count against correlated persisted notification rows. Finally, the
+notification adapter stopped erasing nullable rows: it preserves cardinality
+and requires the complete set to parse as UUIDs before uniqueness/count/hash
+checks. Final verifier evidence is **77/77 twice**—four authoritative/benign
+positives and 73 hostile mutations—and current service/mounted evidence is
+**146/146**. Web and root typechecks, Web lint, the 89-page production build,
+diff checks, and gitleaks passed in the recorded implementation/verification
+lanes.
+
+The functional ledger now records one combined Site Inspection submit + RFI
+create workflow across all thirteen roles. Owner/Admin/Commercial have mutation
+authority; the other ten are denied mutation while retaining tenant-scoped
+history reads. The existing inspection-history route rows now carry the proved
+all-role/read-only source evidence. Browser is `BLOCKED` for all thirteen
+because no safe reusable isolated authenticated session existed; Estimator and
+PM are additionally identity-blocked. Live is `NOT RUN`; PostgreSQL,
+IndexedDB, Storage, hosted execution, and deployment were not mutated.
+
+Parsed 16-column ledger totals changed from 1,443 to **1,456** rows: automated-
+tested 171 → **197**, `PARTIAL` 320 → **331**, `BLOCKED` 20 → **22**, browser-
+blocked 255 → **279**, and live-not-run 119 → **145**. `FAILED` remains **0**,
+`NEEDS DECISION` remains **32**, and `NOT TESTED` remains **1,071**. Each of the
+thirteen canonical roles has 112 rows.
+
+HTML report archival remains explicitly best-effort after committed success;
+the mounted UI reports an archive warning instead of false submission failure.
+A durable repair path is a bounded product/operations decision. This closeout
+does not relabel compiler/source tests as real browser, Storage, PostgreSQL, or
+hosted proof.

@@ -269,3 +269,32 @@ and missing null/invalid/duplicate/extra/missing-row evidence. TDD baseline was
 hostile). Focused service/mounted compatibility is 146/146. Syntax, direct
 verifier, and diff checks pass. No runtime/schema/UI/environment state changed;
 browser and live PostgreSQL remain NOT RUN.
+
+## Functional-ledger closeout
+
+Recorded the final independent QA sequence and strict evidence boundary. Both
+original P1s are closed: inspection durable effects are atomic, and RFI plus
+mandatory audit is atomic and idempotent. The stale-verifier, mutable Design-
+roster replay, and nullable-notification-row P2 discoveries are also closed.
+Final source evidence is WO-12 77/77 twice and focused service/mounted 146/146,
+with the recorded typecheck, lint, 89-page build, diff, and gitleaks gates.
+
+Updated the functional RBAC ledger using the established combined-workflow
+convention: one Site Inspection submit + RFI create row per canonical role.
+Owner/Admin/Commercial are exact mutation authorities; the other ten are denied
+mutation but retain tenant-scoped inspection/RFI history reads. Updated the
+existing thirteen inspection-history route rows only where page tests prove the
+all-role/read-only projection.
+
+The parsed 16-column CSV changed from 1,443 to 1,456 rows. Automated-tested rows
+changed 171 → 197; `PARTIAL` 320 → 331; `BLOCKED` 20 → 22; browser `BLOCKED`
+255 → 279; and live `NOT RUN` 119 → 145. `FAILED` remains 0, `NEEDS DECISION`
+remains 32, and `NOT TESTED` remains 1,071. All thirteen roles now have 112
+records.
+
+Overall status remains **PARTIAL**. Browser is blocked for all thirteen roles
+because no safe reusable isolated authenticated session was available;
+Estimator and PM are additionally identity-blocked. Live PostgreSQL, offline
+IndexedDB, Storage, hosted providers, and deployment remain not run. HTML report
+archival remains best-effort with an honest warning; choosing a durable repair
+path remains a bounded product/operations decision.
