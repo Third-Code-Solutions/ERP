@@ -21,7 +21,7 @@ export class InventoryWarehouseCloseoutController {
   ) {}
 
   @Get(':warehouseId/closeout')
-  @RequireCapabilities('inventory.manage')
+  @RequireCapabilities('inventory.closeout.read')
   read(
     @Param('warehouseId', new ParseUUIDPipe()) warehouseId: string,
     @CurrentPrincipal() principal: ErpPrincipal

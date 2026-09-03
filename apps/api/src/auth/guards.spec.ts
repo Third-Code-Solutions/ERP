@@ -324,7 +324,7 @@ describe('CapabilityGuard', () => {
     ).toBe(true)
   })
 
-  it('limits provider health and spend evidence to operational roles', () => {
+  it('allows Viewer to read tenant-safe provider health evidence', () => {
     expect(
       guard.canActivate(
         contextFor('cortexProviderHealth', {
@@ -337,7 +337,7 @@ describe('CapabilityGuard', () => {
         })
       )
     ).toBe(true)
-    expect(() =>
+    expect(
       guard.canActivate(
         contextFor('cortexProviderHealth', {
           principal: {
@@ -347,8 +347,8 @@ describe('CapabilityGuard', () => {
             email: 'viewer@example.test',
           },
         })
-      )
-    ).toThrow(ForbiddenException)
+      ),
+    ).toBe(true)
   })
 
   it('limits provider-spending Cortex indexing to owners and admins', () => {
@@ -378,7 +378,7 @@ describe('CapabilityGuard', () => {
     ).toThrow(ForbiddenException)
   })
 
-  it('allows ledger reads for finance but denies the read-only viewer', () => {
+  it('allows finance and Viewer to read tenant-safe ledger projections', () => {
     expect(
       guard.canActivate(
         contextFor('financeLedgerRead', {
@@ -392,7 +392,7 @@ describe('CapabilityGuard', () => {
       )
     ).toBe(true)
 
-    expect(() =>
+    expect(
       guard.canActivate(
         contextFor('financeLedgerRead', {
           principal: {
@@ -402,8 +402,8 @@ describe('CapabilityGuard', () => {
             email: 'viewer@example.test',
           },
         })
-      )
-    ).toThrow(ForbiddenException)
+      ),
+    ).toBe(true)
   })
 
   it('allows read-only Opportunity access for a viewer', () => {

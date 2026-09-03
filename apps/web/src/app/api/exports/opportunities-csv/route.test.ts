@@ -89,7 +89,7 @@ describe('opportunity CSV export route', () => {
 
     const response = await request()
 
-    const denied = role === 'safety' || role === 'cx' || role === 'viewer'
+    const denied = role === 'safety' || role === 'cx'
     expect(response.status).toBe(denied ? 403 : 200)
     expectPrivate(response)
     expect(mocks.getOpportunityExportRows).toHaveBeenCalledTimes(denied ? 0 : 1)

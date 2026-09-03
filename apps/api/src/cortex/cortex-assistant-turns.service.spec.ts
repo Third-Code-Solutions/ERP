@@ -23,6 +23,7 @@ vi.mock('@third-code-erp/database', async (importOriginal) => ({
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import type { AuditService } from '../audit/audit.service'
 import type { DatabaseService } from '../database/database.service'
+import { cortexSearchNodeTypeScope } from './cortex-search-scope'
 import { CortexAssistantTurnsService } from './cortex-assistant-turns.service'
 
 const PRINCIPAL: ErpPrincipal = {
@@ -271,7 +272,7 @@ describe('CortexAssistantTurnsService signing boundary', () => {
     expect(mocks.getCortexCitationsByNodeIds).toHaveBeenCalledWith(
       PRINCIPAL.tenantId,
       [citationNodeId],
-      ['task', 'announcement', 'document']
+      cortexSearchNodeTypeScope('viewer')
     )
   })
 })

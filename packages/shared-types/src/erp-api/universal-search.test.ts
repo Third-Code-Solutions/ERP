@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   canUniversalSearchEntity,
   universalSearchHitSchema,
+  universalSearchHitTypes,
   universalSearchQuerySchema,
   universalSearchResultSchema,
   universalSearchRoles,
@@ -56,16 +57,23 @@ describe('universal search contract', () => {
     expect(canUniversalSearchEntity('procurement', 'material')).toBe(false)
     expect(canUniversalSearchEntity('finance', 'vendor')).toBe(false)
     expect(canUniversalSearchEntity('sales', 'material')).toBe(false)
-    expect(canUniversalSearchEntity('viewer', 'invoice')).toBe(false)
+    expect(canUniversalSearchEntity('viewer', 'invoice')).toBe(true)
     expect(canUniversalSearchEntity('sales', 'ledger_account')).toBe(false)
     expect(canUniversalSearchEntity('cx', 'warranty')).toBe(true)
   })
+
+  it.each(universalSearchHitTypes)(
+    'allows Viewer to search tenant-safe %s records',
+    (type) => {
+      expect(canUniversalSearchEntity('viewer', type)).toBe(true)
+    },
+  )
 
   it.each(universalSearchRoles)(
     'aligns material search destination access for %s',
     (role) => {
       expect(canUniversalSearchEntity(role, 'material'), role).toBe(
-        role === 'owner' || role === 'admin' || role === 'commercial'
+        role === 'owner' || role === 'admin' || role === 'commercial' || role === 'viewer'
       )
     }
   )

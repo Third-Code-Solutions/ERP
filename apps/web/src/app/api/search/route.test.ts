@@ -97,8 +97,16 @@ function createMockQuery(): MockQuery {
 }
 
 describe('universal search RBAC', () => {
-  it('keeps tenant-wide documents and assignee-scoped tasks visible to every role', () => {
-    expect(allowed('viewer')).toEqual(['document', 'task'])
+  it('allows Viewer to search every tenant-safe construction record', () => {
+    expect(allowed('viewer')).toEqual([
+      'document',
+      'task',
+      'permit',
+      'punchlist',
+      'warranty',
+      'delivery',
+      'rfq',
+    ])
   })
 
   it.each([
@@ -127,11 +135,11 @@ describe('universal search RBAC', () => {
     expect(allowed('owner')).toEqual(allowed('admin'))
   })
 
-  it('keeps ledger accounts and journals finance-only', () => {
+  it('keeps ledger writes finance-only while allowing Viewer search', () => {
     expect(canSearchEntity('finance', 'ledger_account')).toBe(true)
     expect(canSearchEntity('finance', 'journal_entry')).toBe(true)
     expect(canSearchEntity('sales', 'ledger_account')).toBe(false)
-    expect(canSearchEntity('viewer', 'journal_entry')).toBe(false)
+    expect(canSearchEntity('viewer', 'journal_entry')).toBe(true)
     expect(canSearchEntity('admin', 'journal_entry')).toBe(true)
   })
 })

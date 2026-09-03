@@ -51,6 +51,7 @@ const capabilityRoles = {
   'project.award': ['owner', 'admin', 'commercial', 'sd_pm_pe', 'pm'],
   'account.create': ['owner', 'admin', 'sales'],
   'account.read': ALL_ROLES,
+  'account.kyc.read': ['owner', 'admin', 'finance', 'viewer'],
   'account.kyc_review': ['owner', 'admin', 'finance'],
   'opportunity.create': ['owner', 'admin', 'sales'],
   'opportunity.read': ALL_ROLES,
@@ -65,6 +66,7 @@ const capabilityRoles = {
     'sd_pm_pe',
     'finance',
     'procurement',
+    'viewer',
   ],
   'opportunity.advance_stage': ['owner', 'admin', 'sales'],
   'opportunity.stage_change': ['owner', 'admin', 'sales'],
@@ -82,6 +84,7 @@ const capabilityRoles = {
   'design.approve_client': ['owner', 'admin', 'design'],
 
   // Documents, BOM, and estimation
+  'document.read': ALL_ROLES,
   'document.manage': ALL_OPERATORS,
   'document.process': [
     'owner',
@@ -100,12 +103,14 @@ const capabilityRoles = {
     'sd_pm_pe',
     'pm',
     'sales',
+    'viewer',
   ],
   'bom.generate': ['owner', 'admin', 'commercial', 'estimator'],
   'bom.edit': ['owner', 'admin', 'commercial', 'estimator'],
   'bom.approve_internal': ['owner', 'admin', 'commercial'],
 
   // Procurement and delivery
+  'procurement.read': ['owner', 'admin', 'commercial', 'sd_pm_pe', 'pm', 'procurement', 'viewer'],
   'rfq.dispatch': ['owner', 'admin', 'procurement'],
   'po.create': ['owner', 'admin', 'commercial', 'sd_pm_pe', 'pm', 'procurement'],
   'po.approve': ['owner', 'admin', 'commercial'],
@@ -116,11 +121,9 @@ const capabilityRoles = {
   // Finance, cost, and budget
   'kyc.create_ar_code': ['owner', 'admin', 'finance'],
   'cost.record': ['owner', 'admin', 'sd_pm_pe', 'pm', 'commercial', 'finance'],
-  // Financial balances, ledgers, payables, receivables, cash, and bank
-  // reconciliation remain Finance-only reads. Viewer stays read-only for the
-  // operational projections it is explicitly granted, without financial or
-  // document-processing authority.
-  'finance.read': ['owner', 'admin', 'finance'],
+  // Financial projections remain role-bounded for operators, while Viewer is
+  // explicitly read-only. Mutation capabilities stay Finance-only.
+  'finance.read': ['owner', 'admin', 'finance', 'viewer'],
   'finance.manage': ['owner', 'admin', 'finance'],
   'finance.post': ['owner', 'admin', 'finance'],
   'finance.issue_invoice': ['owner', 'admin', 'finance'],
@@ -179,23 +182,31 @@ const capabilityRoles = {
     'commercial',
     'viewer',
   ],
+  'inventory.closeout.read': ['owner', 'admin', 'procurement', 'viewer'],
   'inventory.manage': ['owner', 'admin', 'procurement'],
   'inventory.post_receipt': ['owner', 'admin', 'finance'],
   'inventory.post_movement': ['owner', 'admin', 'finance'],
 
   // Administration and notifications
+  'admin.rate_card.read': ['owner', 'admin', 'commercial', 'viewer'],
   'admin.rate_card': ['owner', 'admin', 'commercial'],
+  'admin.users.read': ['owner', 'admin', 'viewer'],
   'admin.users': ['owner', 'admin'],
+  'admin.system_config.read': ['owner', 'admin', 'viewer'],
   'admin.system_config': ['owner', 'admin'],
+  'project.access.read': ['owner', 'admin', 'viewer'],
   'notification.read': ALL_ROLES,
+  'notification.manage': ALL_OPERATORS,
   'audit.read': ['owner', 'admin', 'pm', 'finance', 'viewer'],
 
   // Core-only projections and process authority
   'today.read': ALL_ROLES,
   'provider.quota.consume': ALL_ROLES,
   'cortex.search': ALL_ROLES,
+  'cortex.assistant.use': ALL_OPERATORS,
+  'cortex.index.read': ['owner', 'admin', 'viewer'],
   'cortex.index.manage': ['owner', 'admin'],
-  'cortex.provider.health.read': ['owner', 'admin', 'finance'],
+  'cortex.provider.health.read': ['owner', 'admin', 'finance', 'viewer'],
   'process.health.read': ALL_ROLES,
   'process.step.manage': ['owner', 'admin', 'commercial', 'sd_pm_pe', 'pm'],
   'process.task.manage': ['owner', 'admin', 'commercial', 'sd_pm_pe', 'pm'],
@@ -212,6 +223,43 @@ export const ERP_CAPABILITY_ROLES: Readonly<
 export const ERP_CAPABILITIES: readonly ErpCapability[] = Object.freeze(
   Object.keys(ERP_CAPABILITY_ROLES) as ErpCapability[],
 )
+
+/** Tenant-safe read and export capabilities. Viewer receives every one. */
+export const ERP_READ_CAPABILITIES = [
+  'project.read',
+  'project.access.read',
+  'account.read',
+  'account.kyc.read',
+  'opportunity.read',
+  'opportunity.export',
+  'document.read',
+  'document.processing.read',
+  'procurement.read',
+  'finance.read',
+  'budget.read',
+  'cx.cnps.read',
+  'asset.read',
+  'inventory.read',
+  'inventory.closeout.read',
+  'admin.rate_card.read',
+  'admin.users.read',
+  'admin.system_config.read',
+  'notification.read',
+  'audit.read',
+  'today.read',
+  'cortex.search',
+  'cortex.index.read',
+  'cortex.provider.health.read',
+  'process.health.read',
+] as const satisfies readonly ErpCapability[]
+
+/** Business mutations; Viewer must remain denied for every entry. */
+export const ERP_MUTATION_CAPABILITIES: readonly ErpCapability[] =
+  ERP_CAPABILITIES.filter(
+    (capability) =>
+      capability !== 'provider.quota.consume' &&
+      !(ERP_READ_CAPABILITIES as readonly ErpCapability[]).includes(capability),
+  )
 
 export function roleHasCapability(
   role: ErpRole,

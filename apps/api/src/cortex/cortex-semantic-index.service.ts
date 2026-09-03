@@ -232,7 +232,7 @@ export class CortexSemanticIndexService {
       )
       .limit(1)
     const role = membership?.role as ErpRole | undefined
-    if (!role || !roleHasCapability(role, 'cortex.index.manage')) {
+    if (!role || !roleHasCapability(role, 'cortex.index.read')) {
       throw new ForbiddenException('Cortex semantic indexing is not permitted')
     }
 

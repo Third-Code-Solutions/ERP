@@ -96,7 +96,7 @@ const ROLE_CASES: ReadonlyArray<{
   { role: 'procurement', domains: ['project', 'purchase_orders'] },
   { role: 'safety', domains: ['project'] },
   { role: 'cx', domains: ['project'] },
-  { role: 'viewer', domains: ['project'] },
+  { role: 'viewer', domains: ['project', 'bom', 'invoices', 'purchase_orders'] },
 ]
 
 const queryCalls: QueryCall[] = []

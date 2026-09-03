@@ -37,7 +37,7 @@ export class CortexAssistantGenerationController {
   ) {}
 
   @Post()
-  @RequireCapabilities('cortex.search')
+  @RequireCapabilities('cortex.assistant.use')
   async start(
     @Body(CortexAssistantGenerationStartPipe)
     command: CortexAssistantGenerationStartCommand,
@@ -82,7 +82,7 @@ export class CortexAssistantGenerationController {
 
   @Post(':jobId/cancel')
   @HttpCode(HttpStatus.OK)
-  @RequireCapabilities('cortex.search')
+  @RequireCapabilities('cortex.assistant.use')
   cancel(
     @Param('jobId', new ParseUUIDPipe({ version: '4' })) jobId: string,
     @Headers('idempotency-key') idempotencyKey: string | undefined,
