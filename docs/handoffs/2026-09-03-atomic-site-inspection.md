@@ -499,3 +499,80 @@ strict result schema, and this 60-test evidence. Expected output: replace the
 two mounted writers with exactly one service call each, bind route identities,
 project exact controls/read-only state, and preserve report archival as honest
 best-effort post-commit work.
+
+## Agent 03 mounted integration evidence — 2026-09-03
+
+Status: **mounted integration complete; ready for Agent 12 verification**.
+
+Runtime commit: `fbf68044` (`fix(proposal): mount atomic site inspection workflows`).
+
+Agent 03 replaced both exported proposal writers with strict adapters to the
+Agent 05 service. Each adapter authenticates independently, projects central
+`site_inspection.submit`, accepts an exact duplicate-free text-field inventory,
+binds tenant/actor/Opportunity/inspection identity outside browser input, calls
+its service method exactly once, and validates the strict result plus mounted
+scope before reporting success. The action slices contain no local database,
+audit, SLA, notification, or fallback writer.
+
+The inspection form retains its IndexedDB-backed UUID and draft across
+returned/rejected failures, adds a same-tick single-flight guard, and emits all
+ten accepted native fields exactly once without Opportunity identity. Strict
+committed success alone clears the draft and rotates the key. Fresh success
+states that the Design handoff was recorded; replay states that the existing
+handoff was recovered. Best-effort HTML report failure is returned as a
+separate accessible archive warning while committed inspection success is
+preserved. Refresh failure likewise remains committed success.
+
+The RFI form now receives a server-generated per-mount UUID, binds Opportunity
+and inspection identity outside the form, retains controlled description/
+priority/key through both returned and thrown failures, clears stale feedback
+on retry, and uses a synchronous single-flight guard. It resets and rotates
+only after strict committed success and distinguishes replay from a new RFI.
+Description, priority, errors, and pending/success state have explicit labels
+and accessible live semantics.
+
+The mounted page continues its existing tenant-scoped reads for all thirteen
+roles. Central `can` exposes both mutation forms only to Owner, Admin, and
+Commercial; the other ten see inspection/RFI history and explicit read-only
+notices.
+
+Verification evidence:
+
+- regression-first RED: 4/4 new mounted form tests failed against the prior
+  inventory and missing synchronous guards (the first actions/page filter was
+  malformed by Windows shell quoting and found no tests; it was corrected);
+- focused service + mounted tests: 134/134 passed across five files (60 service,
+  56 proposal action, four form, and fourteen page/role tests);
+- Web ESLint: passed with zero warnings/errors;
+- root typecheck: passed, five tasks successful (four cached, Web executed);
+- Web production build: passed; 89 static pages generated and inspection route
+  emitted successfully;
+- repository gitleaks 8.30.1: passed, 1,835 commits / ~46.33 MB scanned, no
+  leaks found;
+- `git diff --check`: passed (Git reported only expected LF-to-CRLF checkout
+  notices).
+
+The legacy WO-12 verifier is **FAILED / stale**, not a runtime regression. Its
+first exact-string failure is `WO-12 invariant missing: no network mutation
+while offline`: it requires the old literal
+`disabled={pending || photoBusy || !online}`, while the mounted form safely
+adds `|| !draftReady`. Subsequent assertions still require the removed local
+transaction/audit/RFI writers rather than tracing the new service authority.
+Per scope, Agent 03 did not edit the verifier.
+
+Coverage limits: the form tests use server rendering plus source/contract
+inspection because this Vitest lane has no interactive DOM environment; they
+prove actual rendered field/label inventory and source-level retry/single-flight
+contracts, not real browser timing. Browser, IndexedDB, Storage, live
+PostgreSQL, hosted, provider, database, environment, and deployment lanes are
+**NOT RUN** by scope. Report archival failure was injected at the mounted
+action boundary; no Storage mutation occurred.
+
+→ Handoff to Agent 12. Reason: runtime mounting is committed and all current
+source gates pass except the deliberately unchanged stale verifier. Inputs:
+Agent 05 service commit, Agent 03 runtime commit `fbf68044`, focused 134/134
+evidence, and the exact stale-verifier failure above. Expected output: replace
+old reassuring-string/local-writer assertions with reachable service-call,
+role, privacy, replay, hostile-mutation, offline/draft, and honest archive/
+refresh verification, then record independent RED/GREEN counts without
+changing runtime behavior.

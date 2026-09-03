@@ -121,3 +121,46 @@ integration.
 the Agent 05 evidence above. Expected output: one mounted delegate per command,
 no reachable local durable writers, exact role projection, stable retry keys,
 single-flight/error recovery, and honest report/refresh outcomes.
+
+## Agent 03 mounted integration
+
+Status: **completed locally** in runtime commit `fbf68044`.
+
+Changed only the owned proposal action/page/form paths and direct tests:
+
+- mounted inspection submission and RFI creation through exactly one strict
+  `siteInspectionWorkflowService` command apiece, with exact duplicate-free
+  FormData inventories, trusted route identities, central capability checks,
+  strict result/scope checks, and one redacted structured outcome event;
+- removed the two legacy local database/audit/SLA/notification mutation paths;
+- retained HTML report archival only as best-effort post-commit work, returning
+  an accessible repair warning without relabeling committed success; refresh
+  failures are also committed success;
+- added stable inspection/RFI retry keys, synchronous single-flight guards,
+  failure input retention, thrown-error containment, honest replay/success
+  copy, and success-only reset/rotation;
+- projected both mutation forms only to Owner/Admin/Commercial while retaining
+  the existing tenant-scoped history reads and read-only notices for the other
+  ten roles; and
+- added direct action, actual rendered field-inventory, accessibility/source
+  contract, and all-role page tests.
+
+Evidence: focused service + mounted tests 134/134 passed; Web ESLint passed;
+root typecheck passed (5/5 tasks); Web production build passed with 89 static
+pages; gitleaks 8.30.1 scanned 1,835 commits / ~46.33 MB with no leaks; diff
+check passed apart from checkout line-ending notices.
+
+The unchanged WO-12 verifier currently fails first with
+`WO-12 invariant missing: no network mutation while offline` because it pins
+the old button-disabled literal and still expects removed local action writers.
+This is explicitly Agent 12 scope. Browser/IndexedDB/Storage/live PostgreSQL/
+hosted/provider/deployment lanes remain **NOT RUN**; mounted form behavior is
+covered by server-rendered inventory and source contracts because the focused
+Vitest lane has no interactive DOM.
+
+→ Handoff to Agent 12. Inputs: service implementation, runtime commit
+`fbf68044`, 134/134 focused evidence, and the exact stale-verifier failure.
+Expected output: harden WO-12 against field/control/authority drift and hostile
+mutations, then independently verify the mounted service reachability,
+transaction guarantees, roles, privacy, retry behavior, and honest archival
+boundary.
