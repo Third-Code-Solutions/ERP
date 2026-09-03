@@ -132,7 +132,7 @@ No scripts, route, server action, Core/API, shared auth, schema, dependency,
 demo-data, environment, credential, or deployment change was made by this
 remediation.
 
-## Remaining work
+## WO-11 contract-gate remediation
 
 The stale cross-surface WO-11 oracle is repaired. It now parses the authoritative
 Core service and Web action with the repository's installed TypeScript compiler
@@ -196,10 +196,9 @@ Pipeline round-2 source commit: `aefde4fc`.
 No actions, Core/API, scripts, shared packages, auth, routes/pages, schema,
 dependency, demo data, environment, credential, or deployment state changed.
 
-Independent QA must rerun the combined branch. After QA, the designated browser
-verifier must exercise the supplied identity matrix and returned/rejected
-failure states. Safe positive persistence proof remains limited to a disposable
-or rollback-contained fixture.
+Independent QA reran the combined branch after this remediation. Safe positive
+persistence proof remains limited to a disposable or rollback-contained
+fixture.
 
 ## Agent 11 remediation round 3
 
@@ -260,4 +259,43 @@ Pipeline round-4 source commit: `e66ca6d1`.
 
 No action, Core/API, script, shared package, auth, route/page, schema,
 dependency, demo data, environment, credential, or deployment state changed.
-Independent QA and the targeted browser verifier own the next release decision.
+Independent QA and the targeted browser verifier subsequently returned `GO`
+and `PASS` for the source and visible retry correction.
+
+## Independent QA and browser closeout
+
+Five independent QA rounds successively found and closed required Lost-reason
+UX, the stale WO-11 source oracle, conversion regression routing, caller-wiring
+evidence, and urgent retry-alert timing. The final QA pass returned `GO` with
+Pipeline 70/70, WO-11 5/5, Web/E2E TypeScript, full Web lint, and the 89-page
+build green. Source and contract validators reject in-memory mutations to the
+Core/Web authority, component routing/dialog connections, and pre-transition
+alert-clear ordering.
+
+All eleven supplied identities passed the production-build Pipeline role
+matrix. Owner/Admin/Sales retained conversion/board controls; the other eight
+supplied roles retained readable data and links with accessible read-only state
+and no controls. Disposable local-Core browser probes verified:
+
+- distinct regression and Lost dialogs before network work;
+- zero calls for blank, whitespace, and forced 1,001-character reasons;
+- trimmed exactly-once submission under rapid pointer/keyboard input;
+- typed and transport failure with no optimistic stage move or refresh;
+- conversion and board stale alerts clearing in 32–34 ms and staying absent
+  throughout five-second delayed retries;
+- one strictly shaped simulated success producing exactly one router refresh.
+
+No browser request reached hosted Core, and hosted stage, ledger, and Project
+counts matched before/after. Browser console, unexpected HTTP failures, page
+exceptions, and Web server errors were zero in the final rerun. All disposable
+services, ports, browser state, artifacts, and temporary environment links were
+cleaned.
+
+## Release status
+
+Implemented locally on `agent-05/atomic-stage-transitions`, stacked above PR
+#23. Strict status is `PARTIAL`: live persistence/concurrency/rollback remains
+blocked without an explicitly isolated database fixture; no legacy
+`resubmission` row exists for browser proof; Estimator/PM identities were not
+supplied. No hosted mutation or deployment occurred. ADR-020 requires the
+reviewed stack on `main` and green release gates on the exact release SHA.

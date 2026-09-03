@@ -766,3 +766,43 @@ on both alert surfaces and prove the prior alert disappears immediately while
 pending, then the new failure appears without refresh. Preserve dialog input,
 exercise returned and transport failures, count single requests, inspect
 console/network/server output, and avoid hosted mutation.
+
+## Targeted browser rerun and closeout
+
+Verdict: targeted retry correction `PASS`; the workflow remains `PARTIAL` only
+under the strict live-persistence definition.
+
+At clean HEAD `26cdbeda`, Node 22.23.2, pnpm 10.33.0, Next.js 15.5.23, and an
+89/89-page production build, Sales exercised the exact fixed callers against a
+disposable local Core endpoint:
+
+- the conversion alert cleared in 33 ms and remained absent at 252, 1,015, and
+  4,214 ms while the request was pending; the unchanged reason/dialog remained
+  usable, and the new accessible rejection appeared by 6,013 ms;
+- the board banner cleared in 32 ms and remained absent through 4,508 ms,
+  beyond its former 4,200 ms timer; the new accessible rejection appeared by
+  6,214 ms;
+- each delayed retry produced exactly one Web POST and one Core request, no
+  `_rsc` refresh, no navigation, and no optimistic stage move;
+- transport failure cleared the prior alert in 34 ms, then rendered the generic
+  no-transition-committed alert with one POST, zero accepted Core calls, and no
+  refresh;
+- one strictly shaped fake-Core success produced exactly one POST and one
+  router refresh. This proves UI success handling only, not persistence.
+
+The prior 11/11 identity matrix remains applicable because the correction adds
+only two pre-transition clears and changes no role rendering. Owner/Admin/Sales
+retain controls; Commercial/Design/Service Delivery/Finance/Procurement/
+Safety/CX/Viewer retain the same data and links with accessible read-only state
+and zero controls.
+
+Before/after hosted stages, ledgers, and Project counts matched. No request
+targeted hosted Core. Console errors/warnings, unexpected browser HTTP failures,
+page exceptions, and Web server errors were zero. Browser, Web, fake Core,
+ports, artifacts, and temporary environment links were cleaned; Git remained
+clean.
+
+Remaining evidence limits: no isolated database fixture for positive
+persistence/concurrency/rollback, no legacy `resubmission` browser row, and no
+Estimator/PM identities. No deployment occurred; ADR-020 still requires the
+reviewed stack on `main` with green gates on the exact release SHA.

@@ -1,5 +1,33 @@
 # Third Code ERP capability matrix
 
+## M3.281 Atomic opportunity stage transitions (2026-09-03)
+
+Every Pipeline stage command now selects the tenant-gated Core authority before
+stage work. The retired Web-local path can no longer commit an Opportunity
+before its semantic audit or swallow a partial SLA rollover. Core holds current
+membership and Opportunity locks, tenant-qualified Account/KYC validation,
+shared transition and reason rules, the stage update, audit, SLA rollover, and
+idempotency completion in one transaction. Won/Closed Won continues into the
+Project handoff within that transaction.
+
+Core and Web mutation authority remains exact Owner/Admin/Sales. All other
+roles keep read-only Pipeline projections. Lost and valid backward transitions
+use distinct required, labelled, 1,000-character reason dialogs; blank,
+oversized, and concurrent duplicate submissions perform no request. Returned
+and transport failures remain visible without optimistic state or refresh, and
+stale alerts clear urgently before a retry enters React's async transition.
+
+Validation: Core stage service 63/63, focused Core/auth up to 128/128, full API
+187 files/912 tests, Pipeline up to 70/70, focused Web/Core-client up to
+230/230, shared 56/56, and mutation-sensitive WO-11 5/5; API/Web/E2E/shared
+type, lint, builds, gitleaks, and 89/89 Web pages passed. Five independent QA
+rounds ended `GO`. All eleven supplied identities passed the built-browser role
+matrix. Safe local-Core browser probes proved reason gating, single submission,
+typed/transport failure, 32-34 ms retry-alert clearing, zero failure refresh,
+and one simulated-success refresh without hosted mutation. Live persistence,
+legacy `resubmission`, and Estimator/PM browser proof remain fixture/identity
+blocked; no deployment occurred.
+
 ## M3.280 Current live release alignment (2026-08-14)
 
 This section supersedes older hosted-status snapshots below. `PASS` means the

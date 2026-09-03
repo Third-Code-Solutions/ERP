@@ -9,8 +9,9 @@ thirteen-role authorization vocabulary, one end-to-end workflow at a time.
 Password management, legacy project-chat authorization, project-detail
 authorization, legacy route-policy alignment, fail-closed dashboard routing,
 Material search/destination alignment, opportunity CSV export hardening, and
-the atomic Won-to-Project handoff are the eight completed local implementation
-slices; all remain `PARTIAL` under the strict live-data definition of done.
+the atomic Won-to-Project handoff plus all-stage atomic Pipeline transitions are
+the nine completed local implementation slices; all remain `PARTIAL` under the
+strict live-data definition of done.
 
 Current work-order scope:
 
@@ -34,14 +35,14 @@ repository's release gates pass.
 | Next.js page routes | 118 | VERIFIED by source inventory and production build |
 | Session/recovery-protected page routes | 104 | VERIFIED by route inventory + middleware policy |
 | Explicit HTTP operations | 174 | VERIFIED by source inventory (133 Nest, 41 Next) |
-| Protected role/resource matrix records | 1,391 | VERIFIED as syntactically readable CSV records |
-| Tested role/resource combinations in this work order | 124 | 33 auth browser observations plus 13 automated cases for each of AI-domain, project-detail, legacy route-policy, fail-closed route-registry, Material-search, opportunity-export, and atomic handoff policy |
+| Protected role/resource matrix records | 1,404 | VERIFIED as syntactically readable CSV records |
+| Tested role/resource combinations in this work order | 137 | 33 auth browser observations plus 13 automated cases for each of AI-domain, project-detail, legacy route-policy, fail-closed route-registry, Material-search, opportunity-export, atomic handoff, and all-stage transition policy |
 | Verified role/resource combinations | 0 | Strict full-route definition not yet met; tested rows remain PARTIAL or BLOCKED |
 | Failed role/resource combinations | 0 | No FAILED matrix rows remain after route-alias and project-audit reconciliation |
-| Blocked role/resource combinations | 12 | Prior blocked coverage plus atomic-handoff rows for the missing `estimator` and `pm` identities |
-| Prioritized functional workflows | 8 | Password management, project-chat boundaries, project-detail boundaries, legacy route-policy alignment, fail-closed dashboard routing, Material-search alignment, opportunity CSV export hardening, and the atomic Won-to-Project handoff |
+| Blocked role/resource combinations | 14 | Prior blocked coverage plus all-stage transition rows for the missing `estimator` and `pm` identities |
+| Prioritized functional workflows | 9 | Password management, project-chat boundaries, project-detail boundaries, legacy route-policy alignment, fail-closed dashboard routing, Material-search alignment, opportunity CSV export hardening, atomic Won-to-Project handoff, and atomic all-stage transitions |
 | Verified workflows | 0 | Strict live-data definition not yet met |
-| Partial workflows | 8 | All implemented and locally tested with explicit live-evidence limits |
+| Partial workflows | 9 | All implemented and locally tested with explicit live-evidence limits |
 | Failed workflows | 0 | No known implementation failure after focused QA |
 | Completed modules | 0 | NOT TESTED |
 | Modules remaining | 13 user-facing modules | NOT TESTED |
@@ -268,6 +269,44 @@ Implemented behavior:
   Core calls reached business validation for Owner/Admin/Sales and returned 403
   for every supplied denied role without data mutation.
 
+### Atomic all-stage Pipeline transitions
+
+Implemented, corrected through five independent QA rounds, and verified in a
+production build with disposable local-Core browser probes. The slice remains
+`PARTIAL` because no isolated database binding was available for a positive
+persistence/rollback browser flow, no legacy `resubmission` fixture exists,
+and Estimator/PM browser identities are unavailable.
+
+Implemented behavior:
+
+- all Won and non-Won stage commands leave the Web action through the exact
+  tenant Core selector; the stage-first Web update, separate audit, swallowed
+  SLA failure, and selected-Core fallback are removed;
+- Core holds current membership and Opportunity locks, tenant-qualified linked
+  Account/KYC validation, shared transition/Lost/regression rules, stage,
+  semantic audit, SLA rollover, and idempotency completion in one transaction;
+- missing Lost/Closed Lost reasons return `reason_required`; all 24 configured
+  non-Won edges, exact 3-allow/10-deny policy, rollback boundaries, replay,
+  key reuse, and serialized concurrency have focused coverage;
+- both Pipeline callers classify every destination before a request. Lost and
+  genuine regression use distinct accessible required-reason dialogs; blank,
+  oversized, and duplicate pending submissions perform no action;
+- returned and transport failures show accessible alerts, perform no optimistic
+  stage move or refresh, and preserve retry. Stale alerts clear synchronously
+  before `startTransition`, rather than being deferred with async work;
+- the WO-11 gate structurally verifies authoritative Core KYC/transaction
+  ownership and unconditional Web delegation/no fallback. A second AST gate
+  protects actual component-to-classifier/dialog wiring and urgent clear order;
+  both include in-memory mutation cases;
+- final independent gates passed Core up to 128/128, Pipeline 70/70, focused
+  Web/Core-client up to 230/230, shared 56/56, WO-11 5/5, full API 912 tests,
+  TypeScript/lint/builds, 89/89 Web pages, gitleaks, and diff checks;
+- all eleven supplied identities passed the browser role matrix. Disposable
+  local-Core probes proved distinct pre-request reason UI, zero invalid calls,
+  trimmed single submission, typed/transport failure, 32–34 ms retry-alert
+  clearing, zero failure refresh, and one strictly shaped simulated-success
+  refresh. No request reached hosted Core and demo counts stayed unchanged.
+
 Acceptance criteria and ordered agent handoffs are recorded in
 `docs/handoffs/2026-09-02-functional-completeness.md`,
 `docs/handoffs/2026-09-02-ai-chat-data-boundaries.md`,
@@ -276,21 +315,24 @@ Acceptance criteria and ordered agent handoffs are recorded in
 `docs/handoffs/2026-09-03-unknown-dashboard-route-denial.md`, and
 `docs/handoffs/2026-09-03-material-search-route-alignment.md`, and
 `docs/handoffs/2026-09-03-opportunity-export-hardening.md`, and
-`docs/handoffs/2026-09-03-won-project-atomic-handoff.md`.
+`docs/handoffs/2026-09-03-won-project-atomic-handoff.md`, and
+`docs/handoffs/2026-09-03-atomic-opportunity-stage-transitions.md`.
 
 ## Agent state
 
 - Principal Agent 1: read-only route/RBAC cartography complete; no files changed.
 - Principal Agent 2: continuous read-only workflow audit complete; latest
-  P1 finding—the non-transactional Won-to-Project handoff—is repaired; the next
-  unambiguous vertical workflow audit is in progress.
+  P1 findings—the non-transactional Won-to-Project handoff and non-Won stage
+  writer—are repaired; the next unambiguous vertical workflow audit resumes
+  after this slice is published.
 - Principal Agent 3: sole application-source editor; auth, AI chat, project
   detail, legacy route-policy, and fail-closed route-registry implementations
   complete; Material-search Web/Core alignment and opportunity-export
   hardening complete; atomic Core/Web handoff and conversion visibility fixes
-  complete.
+  complete; all-stage Web/Core cutover and retry-alert UX complete.
 - Principal Agent 4: independent code/test/security review complete; `GO` for
-  all eight implemented source slices after three atomic-handoff QA rounds.
+  all nine implemented source slices after three atomic-handoff and five
+  all-stage transition QA rounds.
 - Principal Agent 5: auth verification complete for all eleven supplied
   identities; AI chat safe browser/API smoke complete for viewer, finance, and
   commercial; project-detail browser matrix complete for all eleven supplied
@@ -302,14 +344,16 @@ Acceptance criteria and ordered agent handoffs are recorded in
   Opportunity-export browser/API checks passed for Sales, Commercial, Viewer,
   and Safety without persisting CSV data. Atomic-handoff Core/API checks and
   final conversion/board UI checks passed for all eleven supplied identities;
-  a real positive Won mutation is fixture-blocked.
+  a real positive Won mutation is fixture-blocked. All-stage transition role
+  and dialog/error/retry checks passed for all supplied identities plus safe
+  local-Core probes; positive persistence remains isolated-fixture blocked.
 
 ## Git state
 
 - Primary repository: `D:/thirdcode/ERP`; current stacked worktree:
-  `D:/thirdcode/ERP-won-project-20260903`.
-- Current stacked branch: `agent-05/won-project-atomic-handoff`, based on the
-  opportunity-export branch from PR #22.
+  `D:/thirdcode/ERP-stage-transition-20260903`.
+- Current stacked branch: `agent-05/atomic-stage-transitions`, based on the
+  Won-to-Project branch from PR #23.
 - Finance/security release-gate branch: PR #18 at commit `4369a01a`; all
   protected checks pass.
 - Auth PR branch: `agent-03/auth-password-workflows-20260902`; PR #15 at
@@ -372,6 +416,14 @@ Acceptance criteria and ordered agent handoffs are recorded in
 | Atomic-handoff direct Core account matrix | PASSED | Owner/Admin/Sales reached non-mutating 409 business validation; eight supplied denied roles received 403 on both endpoints; database counts unchanged |
 | Atomic-handoff final built-browser UI matrix | PASSED | 11/11 supplied identities; Owner/Admin/Sales controls present; eight denied roles preserve three rows/links with read-only status and zero controls; board parity and navigation pass |
 | Atomic-handoff positive Won browser mutation | BLOCKED | No Contract-stage demo opportunity; the Negotiation fixture has an existing Project but no Account/KYC or signed/legacy contract and was left unchanged |
+| All-stage Core tests | PASSED | Stage service 63/63; focused Core/auth up to 128/128; full API 187 files/912 tests; all 24 non-Won edges, exact roles, tenant/KYC/reason, rollback, replay, key reuse, and concurrency |
+| All-stage Web and Pipeline tests | PASSED | Web action 27/27; Pipeline up to 70/70; focused Web/Core-client up to 230/230; no local stage/audit/SLA writer or fallback |
+| All-stage mutation contracts | PASSED | WO-11 5/5 plus actual-TSX caller/order AST validator; removals, severed dialog/router wiring, and reordered urgent clears fail in memory |
+| All-stage independent QA | PASSED | Five rounds closed Lost UX, stale WO-11 oracle, conversion regression wiring/evidence, and retry alert timing; final round returned GO |
+| All-stage type/lint/build/security | PASSED | API/Web/E2E/shared TypeScript as applicable, full source lint, API build, Web 89/89 pages, gitleaks through 1,791 commits, and diff checks |
+| All-stage supplied-account browser matrix | PASSED | 11/11 identities; exact Owner/Admin/Sales controls and eight supplied denied-role read-only projections; login/identity/navigation/refresh/history/sign-out |
+| All-stage safe local-Core browser probes | PASSED | Distinct reason dialogs, invalid zero-call, trimmed single-submit, typed/transport failure, 32–34 ms retry clears, zero failure refresh, one simulated-success refresh; hosted counts unchanged |
+| All-stage PostgreSQL persistence browser proof | BLOCKED | No explicitly isolated database binding or disposable legacy resubmission fixture; no hosted mutation attempted |
 | Deployment/live smoke | NOT RUN | ADR-020 requires the reviewed stack on `main` and green checks on that exact SHA |
 
 ## Confirmed high-priority RBAC findings outside the completed slices

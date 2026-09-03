@@ -45,8 +45,8 @@ explicit `admin` super-admin projection.
   token/signature controlled, callback/health, webhook, or deprecated.
 - 81 central capabilities after adding the dedicated opportunity-export
   boundary; 42 are referenced by Nest controller guards.
-- 1,391 role/protected-resource matrix records: 0 `FAILED`, 32
-  `NEEDS DECISION`, 1,071 `NOT TESTED`, 276 `PARTIAL`, and 12 `BLOCKED`.
+- 1,404 role/protected-resource matrix records: 0 `FAILED`, 32
+  `NEEDS DECISION`, 1,071 `NOT TESTED`, 287 `PARTIAL`, and 14 `BLOCKED`.
 
 ## Confirmed policy conflicts
 
@@ -164,6 +164,35 @@ Status: PARTIAL. Automated, PostgreSQL rollback, independent QA, and browser
 authorization checks pass, but the demo tenant has no safe Contract-stage
 fixture for a real positive Won conversion and Estimator/PM identities remain
 unavailable. No demo data was changed.
+
+### Atomic opportunity stage transitions
+
+Every allowed Pipeline stage move now uses the same tenant-selected Core
+transaction. The former non-Won Web writer, separate semantic-audit call, and
+best-effort SLA rollover are removed. Core locks current membership and the
+Opportunity, validates tenant-linked Account/KYC and shared edge/reason rules,
+then commits stage, semantic audit, SLA, and idempotency state atomically.
+Missing Lost reasons now fail closed. Replay, key reuse, concurrency, strict
+result parsing, and rollback at audit/SLA/completion boundaries are covered.
+
+Both Pipeline callers distinguish Lost from a real regression before network
+work. Required reasons are labelled and capped at 1,000 characters; blank,
+oversized, or duplicate pending submissions issue zero requests. Returned and
+transport failures show accessible alerts without optimistic movement or
+refresh. Retry clears stale alerts urgently before React's transition boundary,
+while success refreshes only after a validated Core result. Mutation-sensitive
+validators protect both the cross-surface WO-11 authority and actual component
+wiring.
+
+Status: PARTIAL. Five independent QA rounds ended `GO`, the final focused lanes
+passed up to Core 128/128, Pipeline 70/70, Web/Core-client 230/230, shared
+56/56, and WO-11 5/5, and all eleven supplied identities passed the browser
+role matrix. Safe local-Core browser probes proved distinct reason dialogs,
+single-submit behavior, typed/transport failures, 32–34 ms stale-alert clears,
+zero failure refresh, and one simulated-success refresh. Live persistence and
+rollback remain blocked without an isolated database fixture; legacy
+`resubmission` lacks browser data, and Estimator/PM identities are unavailable.
+No hosted Core request, demo mutation, or deployment occurred.
 
 ### Viewer semantics
 
