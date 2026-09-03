@@ -91,6 +91,33 @@ test('accepts aliased service import and exported-arrow mounted actions', () => 
   assert.equal(verifyWo12Contract({ root: ROOT, overrides: { [FILES.action]: action } }).mountedActions, 2)
 })
 
+test('accepts benign persisted-notification local aliases', () => {
+  let service = read(FILES.service)
+  service = replaceOnce(
+    service,
+    '    const rows = await this.transaction\n      .select({ id: notifications.recipient_user_id })',
+    '    const correlatedNotificationRows = await this.transaction\n      .select({ id: notifications.recipient_user_id })',
+    'adapter result alias',
+  )
+  service = replaceOnce(
+    service,
+    '    return rows.map((row) => row.id)',
+    '    return correlatedNotificationRows.map((notificationRow) => notificationRow.id)',
+    'adapter callback alias',
+  )
+  service = replaceOnce(
+    service,
+    '    const notified = await transaction.findNotifiedDesignRecipientIds(',
+    '    const durableRecipientRows = await transaction.findNotifiedDesignRecipientIds(',
+    'replay result alias',
+  ).replace('safeParse(notified)', 'safeParse(durableRecipientRows)')
+    .replaceAll('persistedNotificationRecipients', 'validatedDurableRecipients')
+  assert.equal(
+    verifyWo12Contract({ root: ROOT, overrides: { [FILES.service]: service } }).serviceCommands,
+    2,
+  )
+})
+
 mutation('adds a fourth mutation role', FILES.authorization,
   (s) => replaceOnce(s, "'site_inspection.submit': ['owner', 'admin', 'commercial']", "'site_inspection.submit': ['owner', 'admin', 'commercial', 'sales']", 'role expansion'),
   /mutation roles/)
@@ -313,17 +340,79 @@ mutation('recomputes inspection replay from the current Design roster', FILES.se
   (s) => replaceOnce(s, '    const notified = await transaction.findNotifiedDesignRecipientIds(', '    await transaction.findDesignRecipients(input.tenantId)\n    const notified = await transaction.findNotifiedDesignRecipientIds(', 'current roster replay'),
   /must not query current Design membership/)
 
+mutation('makes the persisted-notification reader non-nullable', FILES.service,
+  (s) => replaceOnce(s, '  ): Promise<Array<string | null>>', '  ): Promise<string[]>', 'nullable reader contract'),
+  /reader contract must preserve nullable rows/)
+
+for (const [name, before, after, expected] of [
+  ['tenant', 'eq(notifications.tenant_id, tenantId)', 'sql`true`', /reader must bind tenant/],
+  ['channel', "eq(notifications.channel, 'in_app')", 'sql`true`', /reader must bind channel/],
+  ['subject', "eq(notifications.subject, 'Site Inspection ready for design')", 'sql`true`', /reader must bind subject/],
+  ['opportunity link', 'eq(\n            notifications.link_url,\n            `/crm/opportunities/${opportunityId}/proposal/inspection`\n          )', 'sql`true`', /reader must bind opportunity link/],
+  ['workflow source', "sql`${notifications.payload} ->> 'source' = ${INSPECTION_SOURCE}`", 'sql`true`', /reader must bind workflow source/],
+  ['inspection identity', "sql`${notifications.payload} ->> 'inspection_id' = ${inspectionId}`", 'sql`true`', /reader must bind inspection/],
+]) {
+  mutation(`drops persisted-notification ${name} correlation`, FILES.service,
+    (s) => replaceOnce(s, before, after, `${name} correlation`),
+    expected)
+}
+
+mutation('joins persisted replay rows to the current Design roster', FILES.service,
+  (s) => replaceOnce(
+    s,
+    '      .from(notifications)\n      .where(',
+    "      .from(notifications)\n      .innerJoin(users, and(eq(users.id, notifications.recipient_user_id), eq(users.role, 'design')))\n      .where(",
+    'current Design join',
+  ),
+  /must not join current user or Design-role state/)
+
+mutation('erases null persisted-notification rows with flatMap', FILES.service,
+  (s) => replaceOnce(
+    s,
+    '    return rows.map((row) => row.id)',
+    '    return rows.flatMap((row) => (row.id ? [row.id] : []))',
+    'nullable notification cardinality',
+  ),
+  /preserve every correlated notification row/)
+
+mutation('filters null persisted-notification rows before mapping', FILES.service,
+  (s) => replaceOnce(
+    s,
+    '    return rows.map((row) => row.id)',
+    '    return rows.filter((row) => Boolean(row.id)).map((row) => row.id)',
+    'nullable notification filter',
+  ),
+  /preserve every correlated notification row/)
+
+mutation('weakens persisted notification UUID-array validation', FILES.service,
+  (s) => replaceOnce(
+    s,
+    '.array(z.string().uuid())\n      .safeParse(notified)',
+    '.array(z.string())\n      .safeParse(notified)',
+    'persisted recipient UUID validation',
+  ),
+  /strictly validate every nullable row as a UUID/)
+
+mutation('allows completeness checks to bypass UUID validation', FILES.service,
+  (s) => replaceOnce(
+    s,
+    '      persistedNotificationRecipients.success &&',
+    '      persistedNotificationRecipients.success ||',
+    'UUID validation gate',
+  ),
+  /UUID validation must gate every completeness check/)
+
 mutation('drops persisted notification uniqueness validation', FILES.service,
-  (s) => replaceOnce(s, '      new Set(notified).size === notified.length &&\n', '', 'notification uniqueness'),
-  /persisted notification rows must be unique/)
+  (s) => replaceOnce(s, '      new Set(persistedNotificationRecipients.data).size ===\n        persistedNotificationRecipients.data.length &&\n', '', 'notification uniqueness'),
+  /duplicate, count, and hash/)
 
 mutation('drops persisted notification count validation', FILES.service,
-  (s) => replaceOnce(s, '      notified.length === receipt.data.notification_recipient_count &&\n', '', 'notification count'),
-  /persisted notification count/)
+  (s) => replaceOnce(s, '      persistedNotificationRecipients.data.length ===\n        receipt.data.notification_recipient_count &&\n', '', 'notification count'),
+  /duplicate, count, and hash/)
 
 mutation('drops persisted notification hash validation', FILES.service,
-  (s) => replaceOnce(s, '      notificationRecipientSetHash(notified) ===\n        receipt.data.notification_recipient_set_hash', '      true', 'notification hash'),
-  /persisted notification hash/)
+  (s) => replaceOnce(s, '      notificationRecipientSetHash(persistedNotificationRecipients.data) ===\n        receipt.data.notification_recipient_set_hash', '      true', 'notification hash'),
+  /duplicate, count, and hash/)
 
 for (const scenario of ['added', 'removed', 'reordered']) {
   mutation(`removes ${scenario} Design-roster replay evidence`, FILES.serviceTest,
@@ -331,11 +420,20 @@ for (const scenario of ['added', 'removed', 'reordered']) {
     /focused evidence is missing/)
 }
 
-for (const scenario of ['missing', 'extra', 'wrong']) {
+for (const scenario of ['missing', 'extra', 'wrong', 'invalid', 'duplicate']) {
   mutation(`removes ${scenario} persisted-notification evidence`, FILES.serviceTest,
     (s) => replaceOnce(s, `    ['${scenario}',`, `    ['unchecked-${scenario}',`, `${scenario} notification marker`),
     /focused evidence is missing/)
 }
+
+mutation('removes null persisted-notification cardinality evidence', FILES.serviceTest,
+  (s) => replaceOnce(
+    s,
+    'rejects a correlated null-recipient row without erasing its cardinality',
+    'accepts an erased null-recipient row',
+    'null notification marker',
+  ),
+  /focused evidence is missing: null persisted notification cardinality/)
 
 mutation('removes zero-recipient replay evidence', FILES.serviceTest,
   (s) => replaceOnce(s, 'preserves one open SLA, allows zero Design recipients, and de-duplicates recipients', 'preserves one open SLA and de-duplicates recipients', 'zero recipient marker'),

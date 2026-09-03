@@ -252,3 +252,20 @@ Agent 12 must update the WO-12 verifier to require nullable-row preservation in
 the adapter and strict UUID-array validation before uniqueness/count/hash checks,
 with hostile coverage for `flatMap`/truthy filtering, absent validation, and a
 removed duplicate guard.
+
+## Agent 12 nullable notification-row verifier
+
+The WO-12 AST verifier now requires the nullable persisted-notification reader
+contract, all six tenant/correlation predicates, no current user/Design-role join
+or secondary query, and a direct cardinality-preserving map of every matched row.
+Inspection replay must strictly parse the complete nullable array as UUIDs and
+gate duplicate, receipt-count, and recipient-set-hash checks on successful parse.
+
+The suite adds a benign local-alias positive plus mutations for non-nullability,
+each missing correlation, current-roster join/requery, null-erasing `flatMap` or
+truthy filtering, weakened/bypassed UUID validation, removed completeness checks,
+and missing null/invalid/duplicate/extra/missing-row evidence. TDD baseline was
+46/61; targeted RED was 0/1; final verifier is 77/77 twice (four positive, 73
+hostile). Focused service/mounted compatibility is 146/146. Syntax, direct
+verifier, and diff checks pass. No runtime/schema/UI/environment state changed;
+browser and live PostgreSQL remain NOT RUN.

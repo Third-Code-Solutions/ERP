@@ -146,6 +146,16 @@ class SourceUnit {
     return null
   }
 
+  interfaceMethod(interfaceName, methodName) {
+    for (const statement of this.ast.statements) {
+      if (!ts.isInterfaceDeclaration(statement) || statement.name.text !== interfaceName) continue
+      return statement.members.find((member) =>
+        ts.isMethodSignature(member) && propertyName(member.name) === methodName,
+      ) ?? null
+    }
+    return null
+  }
+
   variableInitializer(name) {
     for (const statement of this.ast.statements) {
       if (!ts.isVariableStatement(statement)) continue
@@ -298,6 +308,162 @@ function assertOrder(text, tokens, label) {
     invariant(next > cursor, label)
     cursor = next
   }
+}
+
+function variableDeclaration(node, predicate) {
+  return descendants(node).find((candidate) =>
+    ts.isVariableDeclaration(candidate) && ts.isIdentifier(candidate.name) &&
+    candidate.initializer && predicate(candidate),
+  ) ?? null
+}
+
+function directReturnExpression(node) {
+  const statement = node.body && ts.isBlock(node.body)
+    ? node.body.statements.find(ts.isReturnStatement)
+    : null
+  return statement?.expression ? unwrap(statement.expression) : null
+}
+
+function verifyPersistedNotificationAdapter(unit) {
+  const signature = unit.interfaceMethod(
+    'SiteInspectionWorkflowTransaction',
+    'findNotifiedDesignRecipientIds',
+  )
+  invariant(signature?.type, 'persisted notification reader contract must be declared')
+  const returnType = compact(signature.type)
+  invariant(
+    returnType === 'Promise<Array<string|null>>' || returnType === 'Promise<(string|null)[]>',
+    'persisted notification reader contract must preserve nullable rows',
+  )
+
+  const adapter = unit.classMethod(
+    'DrizzleSiteInspectionWorkflowTransaction',
+    'findNotifiedDesignRecipientIds',
+  )
+  invariant(adapter, 'database adapter must implement the persisted notification reader')
+  const adapterText = compact(adapter)
+  for (const [token, label] of [
+    ['.select({id:notifications.recipient_user_id})', 'select nullable recipient IDs'],
+    ['.from(notifications)', 'read notifications directly'],
+    ['eq(notifications.tenant_id,tenantId)', 'bind tenant'],
+    ["eq(notifications.channel,'in_app')", 'bind channel'],
+    ["eq(notifications.subject,'SiteInspectionreadyfordesign')", 'bind subject'],
+    ['eq(notifications.link_url,`/crm/opportunities/${opportunityId}/proposal/inspection`)', 'bind opportunity link'],
+    ["sql`${notifications.payload}->>'source'=${INSPECTION_SOURCE}`", 'bind workflow source'],
+    ["sql`${notifications.payload}->>'inspection_id'=${inspectionId}`", 'bind inspection'],
+  ]) assertContains(adapterText, token, `persisted notification reader must ${label}`)
+
+  const adapterCalls = callExpressions(adapter)
+  const fromCalls = adapterCalls.filter((call) => {
+    const expression = unwrap(call.expression)
+    return ts.isPropertyAccessExpression(expression) && expression.name.text === 'from'
+  })
+  invariant(
+    fromCalls.length === 1 && fromCalls[0].arguments.length === 1 &&
+      compact(fromCalls[0].arguments[0]) === 'notifications',
+    'persisted notification reader must not query current user or Design-role state',
+  )
+  invariant(!adapterCalls.some((call) => {
+    const expression = unwrap(call.expression)
+    return ts.isPropertyAccessExpression(expression) && /join$/i.test(expression.name.text)
+  }), 'persisted notification reader must not join current user or Design-role state')
+  invariant(!descendants(adapter).some((node) =>
+    (ts.isIdentifier(node) && node.text === 'users') ||
+    (ts.isStringLiteral(node) && node.text === 'design'),
+  ), 'persisted notification reader must not query current user or Design-role state')
+  invariant(!adapterText.includes('users') && !adapterText.includes("'design'"),
+    'persisted notification reader must not query current user or Design-role state')
+  invariant(!adapterCalls.some((call) => {
+    const expression = unwrap(call.expression)
+    return ts.isPropertyAccessExpression(expression) &&
+      ['flatMap', 'filter'].includes(expression.name.text)
+  }), 'persisted notification reader must preserve every correlated notification row')
+
+  const returned = directReturnExpression(adapter)
+  invariant(returned && ts.isCallExpression(returned),
+    'persisted notification reader must return a cardinality-preserving map')
+  const mapAccess = unwrap(returned.expression)
+  invariant(
+    ts.isPropertyAccessExpression(mapAccess) && mapAccess.name.text === 'map' &&
+      ts.isIdentifier(mapAccess.expression),
+    'persisted notification reader must preserve every correlated notification row',
+  )
+  const queryRowsName = mapAccess.expression.text
+  const queryRows = variableDeclaration(adapter, (declaration) =>
+    declaration.name.text === queryRowsName,
+  )
+  invariant(queryRows, 'persisted notification reader map must use the correlated query rows')
+  const queryRowsText = compact(queryRows.initializer)
+  for (const token of [
+    '.select({id:notifications.recipient_user_id})',
+    '.from(notifications)',
+    'eq(notifications.tenant_id,tenantId)',
+    "eq(notifications.channel,'in_app')",
+    "eq(notifications.subject,'SiteInspectionreadyfordesign')",
+    'eq(notifications.link_url,`/crm/opportunities/${opportunityId}/proposal/inspection`)',
+    "sql`${notifications.payload}->>'source'=${INSPECTION_SOURCE}`",
+    "sql`${notifications.payload}->>'inspection_id'=${inspectionId}`",
+  ]) assertContains(queryRowsText, token, 'persisted notification reader map must use the correlated query rows')
+  const callback = returned.arguments[0] && unwrap(returned.arguments[0])
+  invariant(callback && (ts.isArrowFunction(callback) || ts.isFunctionExpression(callback)),
+    'persisted notification reader must preserve every correlated notification row')
+  const parameter = callback.parameters[0]?.name
+  const callbackResult = callback.body && ts.isBlock(callback.body)
+    ? directReturnExpression(callback)
+    : callback.body && unwrap(callback.body)
+  invariant(
+    parameter && ts.isIdentifier(parameter) && callbackResult &&
+      ts.isPropertyAccessExpression(callbackResult) &&
+      ts.isIdentifier(callbackResult.expression) &&
+      callbackResult.expression.text === parameter.text && callbackResult.name.text === 'id',
+    'persisted notification reader must preserve every correlated notification row',
+  )
+}
+
+function verifyPersistedNotificationReplay(unit) {
+  const replay = unit.classMethod('SiteInspectionWorkflowService', 'replayInspection')
+  invariant(replay, 'workflow service must declare replayInspection')
+  const replayText = compact(replay)
+  invariant(!replayText.includes('findDesignRecipients'),
+    'inspection replay must not query current Design membership')
+  invariant(!descendants(replay).some((node) =>
+    (ts.isIdentifier(node) && node.text === 'users') ||
+    (ts.isStringLiteral(node) && node.text === 'design'),
+  ), 'inspection replay must not query current user or Design-role state')
+
+  const persistedRows = variableDeclaration(replay, (declaration) =>
+    compact(declaration.initializer).includes('transaction.findNotifiedDesignRecipientIds('),
+  )
+  invariant(persistedRows, 'inspection replay must load persisted notification rows')
+  const persistedRowsName = persistedRows.name.text
+  const validatedRows = variableDeclaration(replay, (declaration) =>
+    compact(declaration.initializer) ===
+      `z.array(z.string().uuid()).safeParse(${persistedRowsName})`,
+  )
+  invariant(validatedRows,
+    'persisted notification replay must strictly validate every nullable row as a UUID')
+  invariant(validatedRows.pos > persistedRows.pos,
+    'persisted notification UUID validation must follow the correlated read')
+  const validatedRowsName = validatedRows.name.text
+  const completeness = variableDeclaration(replay, (declaration) => {
+    const text = compact(declaration.initializer)
+    return text.includes(`${validatedRowsName}.success`) &&
+      text.includes('receipt.data.notification_recipient_count') &&
+      text.includes('receipt.data.notification_recipient_set_hash')
+  })
+  invariant(completeness,
+    'persisted notification replay must gate duplicate, count, and hash checks on UUID validation')
+  invariant(completeness.pos > validatedRows.pos,
+    'persisted notification UUID validation must occur before duplicate, count, and hash checks')
+  const completenessText = compact(completeness.initializer)
+  invariant(!completenessText.includes('||'),
+    'persisted notification UUID validation must gate every completeness check')
+  assertOrder(completenessText, [
+    `${validatedRowsName}.success`,
+    `newSet(${validatedRowsName}.data).size===${validatedRowsName}.data.length`,
+    `${validatedRowsName}.data.length===receipt.data.notification_recipient_count`,
+    `notificationRecipientSetHash(${validatedRowsName}.data)===receipt.data.notification_recipient_set_hash`,
+  ], 'persisted notification UUID validation must precede duplicate, count, and hash checks')
 }
 
 function verifyAuthorization(graph) {
@@ -499,6 +665,8 @@ function verifyService(graph) {
   assertContains(recipientHash, 'returnsha256(canonicalJson([...recipientIds].sort()))',
     'notification recipient hashes must canonicalize the sorted original set')
 
+  verifyPersistedNotificationAdapter(unit)
+
   const lockCommand = unit.classMethod('DrizzleSiteInspectionWorkflowTransaction', 'lockCommand')
   invariant(lockCommand, 'database adapter must implement the command advisory lock')
   const lockText = compact(lockCommand)
@@ -516,10 +684,7 @@ function verifyService(graph) {
   for (const token of ['transaction.loadInspection', 'transaction.countInspectionPhotos', 'transaction.hasOpenDesignHandoffSla', 'transaction.findNotifiedDesignRecipientIds']) {
     assertContains(replayInspection, token, 'inspection replay must validate the complete durable result')
   }
-  invariant(!replayInspection.includes('findDesignRecipients'), 'inspection replay must not query current Design membership')
-  assertContains(replayInspection, 'newSet(notified).size===notified.length', 'persisted notification rows must be unique')
-  assertContains(replayInspection, 'notified.length===receipt.data.notification_recipient_count', 'persisted notification count must match the original receipt')
-  assertContains(replayInspection, 'notificationRecipientSetHash(notified)===receipt.data.notification_recipient_set_hash', 'persisted notification hash must match the original receipt')
+  verifyPersistedNotificationReplay(unit)
   assertContains(replayRfi, 'transaction.loadRfi', 'RFI replay must validate the durable row')
 }
 
@@ -554,9 +719,13 @@ function verifyEvidence(graph) {
   for (const scenario of ['added', 'removed', 'reordered']) {
     invariant(tests.includes(`['${scenario}',`), `focused evidence is missing: ${scenario} Design roster churn`)
   }
-  for (const scenario of ['missing', 'extra', 'wrong']) {
+  for (const scenario of ['missing', 'extra', 'wrong', 'invalid', 'duplicate']) {
     invariant(tests.includes(`['${scenario}',`), `focused evidence is missing: ${scenario} persisted notification`)
   }
+  invariant(
+    tests.includes('rejects a correlated null-recipient row without erasing its cardinality'),
+    'focused evidence is missing: null persisted notification cardinality',
+  )
   invariant(tests.includes('notification_recipient_set_hash'), 'focused evidence is missing: receipt recipient hash')
   invariant(tests.includes('notification_recipient_count'), 'focused evidence is missing: receipt recipient count')
 }

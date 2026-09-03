@@ -750,3 +750,39 @@ is `Promise<Array<string | null>>`, the adapter returns every matched row withou
 Add hostile mutations for null-dropping adapters, absent UUID validation, and
 removed duplicate guards, while retaining null/invalid/duplicate/extra direct
 test markers and the exact correlation predicates/no-current-role-join proof.
+
+## Agent 12 nullable notification-row verification closeout
+
+Status: **GO; QA P2 runtime repair independently guarded**.
+
+The WO-12 verifier now inspects the persisted-notification reader and replay
+contract structurally. It requires the nullable `Array<string | null>` reader,
+one direct notifications query, every tenant/channel/subject/opportunity-link/
+workflow-source/inspection correlation predicate, no join or secondary query to
+current user/Design-role state, and a direct cardinality-preserving `map` of all
+matched recipient IDs. Replay must validate the complete nullable array through
+`z.array(z.string().uuid()).safeParse` and use successful validation as an `&&`
+gate before uniqueness, receipt count, and receipt SHA-256 checks.
+
+The direct suite adds benign local-alias coverage and hostile mutations for a
+non-nullable contract, each removed correlation predicate, current-roster join,
+`flatMap`/truthy filtering, weakened UUID parsing, bypassed validation gating,
+removed uniqueness/count/hash checks, and removed null/invalid/duplicate/extra/
+missing evidence.
+
+Evidence:
+
+- stale baseline: **46/61 passed**, with fifteen failures caused by assertions
+  pinned to the pre-repair replay variables;
+- targeted RED: **0/1 passed** because a null-erasing `flatMap` mutation lacked
+  the required cardinality-specific rejection;
+- final verifier: **77/77 passed twice** — four authoritative/benign positives
+  and 73 hostile mutations, zero skipped/failed;
+- focused current service and mounted suites: **146/146 passed** across five
+  files;
+- direct verifier, both Node 22 syntax checks, and `git diff --check` passed.
+
+No runtime, mounted UI, shared, schema, dependency, data, environment, browser,
+provider, or deployment state changed. The proof remains bounded to compiler-AST
+and source-contract analysis plus deterministic focused tests; live PostgreSQL,
+real browser/offline storage, and hosted execution remain NOT RUN.
