@@ -31,9 +31,15 @@ const mocks = vi.hoisted(() => ({
   consumeProviderQuotaViaCoreApi: vi.fn(),
 }))
 
-vi.mock('@third-code-erp/auth', () => ({
-  getUserProfile: mocks.getUserProfile,
-}))
+vi.mock('@third-code-erp/auth', async () => {
+  const { roleHasCapability } = await import(
+    '@third-code-erp/shared-types/authorization'
+  )
+  return {
+    can: roleHasCapability,
+    getUserProfile: mocks.getUserProfile,
+  }
+})
 
 vi.mock('@third-code-erp/database', () => ({
   getCortexConversation: mocks.getCortexConversation,
@@ -186,6 +192,108 @@ describe('Cortex chat conversation ownership', () => {
 
   afterEach(() => {
     vi.unstubAllEnvs()
+  })
+
+  it('denies Viewer before parsing or any downstream side effect', async () => {
+    mocks.getUserProfile.mockResolvedValue({
+      tenantId: 'tenant-a',
+      role: 'viewer',
+      user: { id: 'viewer-a' },
+    })
+    vi.stubEnv('OPENAI_API_KEY', 'must-not-be-used')
+    const response = await POST(
+      new NextRequest('http://localhost/api/cortex/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{not-valid-json',
+      })
+    )
+
+    expect(response.status).toBe(403)
+    expectPrivate(response)
+    await expect(response.text()).resolves.toBe('Forbidden')
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+    expect(mocks.consumeProviderQuotaViaCoreApi).not.toHaveBeenCalled()
+    expect(mocks.createCortexConversation).not.toHaveBeenCalled()
+    expect(mocks.appendCortexMessage).not.toHaveBeenCalled()
+    expect(mocks.getCortexConversation).not.toHaveBeenCalled()
+    expect(mocks.searchCortexNodes).not.toHaveBeenCalled()
+    expect(mocks.embedText).not.toHaveBeenCalled()
+    expect(mocks.openaiCreate).not.toHaveBeenCalled()
+    expect(
+      mocks.appendCortexConversationUserTurnThroughCoreApi
+    ).not.toHaveBeenCalled()
+    expect(
+      mocks.claimCortexConversationAssistantTurnThroughCoreApi
+    ).not.toHaveBeenCalled()
+    expect(
+      mocks.startCortexAssistantGenerationJobThroughCoreApi
+    ).not.toHaveBeenCalled()
+  })
+
+  it('fails closed on mandatory audit failure before provider or persistence work', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    mocks.writeAuditLog.mockRejectedValueOnce(
+      new Error('sensitive audit storage detail')
+    )
+    vi.stubEnv('OPENAI_API_KEY', 'must-not-be-used')
+    const response = await POST(
+      new NextRequest('http://localhost/api/cortex/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [{ role: 'user', content: 'Secret tender pricing' }],
+        }),
+      })
+    )
+
+    expect(response.status).toBe(503)
+    expectPrivate(response)
+    await expect(response.text()).resolves.toBe(
+      'Cortex is temporarily unavailable.'
+    )
+    expect(mocks.writeAuditLog).toHaveBeenCalledTimes(1)
+    expect(mocks.writeAuditLog).toHaveBeenCalledWith({
+      tenantId: 'tenant-a',
+      actorId: 'user-a',
+      entityType: 'cortex_chat',
+      entityId: 'user-a',
+      action: 'query',
+      diff: {
+        phase: 'request',
+        input_category: 'cortex_chat_message',
+        user_message_character_count: 21,
+        message_count: 1,
+        has_conversation_id: false,
+        has_context: false,
+      },
+    })
+    expect(JSON.stringify(mocks.writeAuditLog.mock.calls)).not.toContain(
+      'Secret tender pricing'
+    )
+    expect(errorSpy).toHaveBeenCalledWith('[cortex/chat] audit log failed')
+    expect(errorSpy.mock.calls.flat().map(String).join(' ')).not.toContain(
+      'sensitive audit storage detail'
+    )
+    expect(mocks.consumeProviderQuotaViaCoreApi).not.toHaveBeenCalled()
+    expect(mocks.getCortexConversation).not.toHaveBeenCalled()
+    expect(mocks.createCortexConversation).not.toHaveBeenCalled()
+    expect(mocks.appendCortexMessage).not.toHaveBeenCalled()
+    expect(mocks.searchCortexNodes).not.toHaveBeenCalled()
+    expect(mocks.embedText).not.toHaveBeenCalled()
+    expect(mocks.openaiCreate).not.toHaveBeenCalled()
+    expect(
+      mocks.appendCortexConversationUserTurnThroughCoreApi
+    ).not.toHaveBeenCalled()
+    expect(
+      mocks.claimCortexConversationAssistantTurnThroughCoreApi
+    ).not.toHaveBeenCalled()
+    expect(
+      mocks.startCortexAssistantGenerationJobThroughCoreApi
+    ).not.toHaveBeenCalled()
+    expect(
+      mocks.completeCortexConversationAssistantTurnThroughCoreApi
+    ).not.toHaveBeenCalled()
   })
 
   it('rejects a client-supplied conversation not owned by the caller', async () => {
@@ -363,6 +471,11 @@ describe('Cortex chat conversation ownership', () => {
   })
 
   it('preserves the text stream and exposes bounded grounded citations', async () => {
+    mocks.getUserProfile.mockResolvedValue({
+      tenantId: 'tenant-a',
+      role: 'commercial',
+      user: { id: 'operator-a' },
+    })
     const citation = {
       nodeId: NODE_ID,
       nodeType: 'project',
@@ -396,6 +509,30 @@ describe('Cortex chat conversation ownership', () => {
         response.headers.get(CORTEX_CITATIONS_HEADER)
       )
     ).toEqual([citation])
+    expect(mocks.writeAuditLog).toHaveBeenNthCalledWith(1, {
+      tenantId: 'tenant-a',
+      actorId: 'operator-a',
+      entityType: 'cortex_chat',
+      entityId: 'operator-a',
+      action: 'query',
+      diff: {
+        phase: 'request',
+        input_category: 'cortex_chat_message',
+        user_message_character_count: 20,
+        message_count: 1,
+        has_conversation_id: false,
+        has_context: false,
+      },
+    })
+    expect(JSON.stringify(mocks.writeAuditLog.mock.calls[0])).not.toContain(
+      'Show active projects'
+    )
+    expect(
+      mocks.writeAuditLog.mock.invocationCallOrder[0]
+    ).toBeLessThan(mocks.createCortexConversation.mock.invocationCallOrder[0] ?? 0)
+    expect(
+      mocks.writeAuditLog.mock.invocationCallOrder[0]
+    ).toBeLessThan(mocks.searchCortexNodes.mock.invocationCallOrder[0] ?? 0)
   })
 
   it('moves selected user-turn writes to Core without exposing assistant authority', async () => {
@@ -586,7 +723,7 @@ describe('Cortex chat conversation ownership', () => {
       { tenantId: 'tenant-a', userId: 'user-a' }
     )
     expect(mocks.appendCortexMessage).not.toHaveBeenCalled()
-    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLog).toHaveBeenCalledTimes(1)
   })
 
   it('hands provider-free Core work to bounded browser polling without waiting', async () => {
@@ -680,7 +817,9 @@ describe('Cortex chat conversation ownership', () => {
 
     expect(mocks.appendCortexMessage).not.toHaveBeenCalled()
     expect(errorSpy).toHaveBeenCalledWith(
-      '[cortex/chat] Core assistant completion failed:',
+      '[cortex/chat] Core assistant completion failed'
+    )
+    expect(errorSpy.mock.calls.flat().map(String).join(' ')).not.toContain(
       'Core completion unavailable.'
     )
   })
