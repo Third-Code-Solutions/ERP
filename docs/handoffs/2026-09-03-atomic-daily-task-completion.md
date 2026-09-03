@@ -383,3 +383,75 @@ complete normalized shared command; strictly validate returned task/tenant/
 project/assignee/status/completion identity; emit redacted structured outcomes;
 refresh only after success; preserve retry notes; and render accessible controls
 only for the five capable roles before handing off to the contract owner.
+
+## Agent 03 Web completion — 2026-09-03
+
+Source commit `292b4e3a` replaces the mounted Web-local completion sequence with
+the assigned Core-only vertical slice.
+
+- `/tasks` retains its existing tenant/current-assignee-scoped read queries and
+  binds task, project, assignee, and toolbox-note policy on the server-rendered
+  row. Browser `FormData` accepts only one optional `notes` field.
+- The server action parses the exported strict shared command, normalizes blank
+  notes to omission, rejects duplicates/hostile fields and values over 2,000
+  characters, independently enforces `can(role, 'sd.daily_tasks')`, and fails
+  closed when the explicit tenant selector is not enabled.
+- The action derives a stable 64-hex SHA-256 key from task identity plus the
+  complete normalized command, then invokes exactly one authenticated
+  `POST /v1/daily-tasks/:taskId/completion`. There is no reachable daily-task
+  database update, Web audit write, SLA helper, or compatibility fallback in
+  the completion action.
+- Web re-parses the strict result and cross-checks task, tenant, project,
+  assignee, and `done` status against authenticated/mounted scope. Core remains
+  authoritative for persisted completion notes, timestamp, and actor so an
+  authorized already-done no-op is accepted without claiming a fresh mutation.
+- Every action branch emits one redacted structured event with `trace_id`,
+  `tenant_id`, `actor_id`, `action`, and `outcome`; notes, idempotency keys,
+  tokens, headers, and bodies are not logged.
+- The UI projects the central five-role capability, leaves the other eight
+  roles with an explicit readable read-only state, labels and bounds the notes
+  field, requires toolbox notes before transport, prevents duplicate in-flight
+  submission, announces pending/errors, retains notes across failures, clears
+  stale errors on retry, and resets and refreshes only on validated success. The
+  success copy is the no-op-safe statement `Task is complete.`
+
+### Agent 03 verification
+
+All commands used process-local Node `v22.23.2` and pnpm `10.33.0`.
+
+- TDD initial red: **33 failed / 4 passed** across the three new Web seams.
+- Focused final Web action/client/UI: **40/40 passed** across **3/3 files**.
+- Focused plus neighboring Web Core client: **213/213 passed** across
+  **4/4 files**.
+- Full Web unit suite: **1,411 passed / 2 skipped** across **185 files**. The
+  two existing integration suites stayed skipped because their isolated
+  database prerequisites were absent; no database was contacted.
+- Core completion controller/service: **33/33 passed**.
+- Shared completion plus central authorization: **35/35 passed**.
+- Core authentication/authorization neighbors: **35/35 passed**.
+- Web main TypeScript check: **passed**.
+- Root Turborepo typecheck: **passed**, 5/5 executed package tasks.
+- Root lint with zero warnings: **passed**.
+- Web production build: **passed**, including `/tasks`.
+- Repository gitleaks `8.30.1`: **passed**, 1,816 commits / approximately
+  45.87 MB scanned with no leaks found.
+- Diff whitespace check: **passed**.
+- Browser and hosted verification: **NOT RUN by design**; this handoff forbade
+  browser/hosted mutation. PostgreSQL canary remains blocked as recorded by
+  Agent 05.
+
+No schema, migration, dependency, lockfile, script, data, environment,
+deployment, Core/API, or shared-contract source changed in Agent 03 work. The
+new selector remains fail-closed unless operations explicitly select the tenant
+with `ERP_DAILY_TASK_COMPLETION_WRITES_VIA_API=true` and its tenant allowlist;
+this task did not change environment state.
+
+→ Handoff to Agent 12 / mounted-entry contract owner. Reason: Core and Web
+source commits are now complete. Inputs: Core commit `be26d477`, Web commit
+`292b4e3a`, strict shared schemas, exact five-role policy, and the verification
+evidence above. Expected output: inventory every mounted daily-task completion
+entry and mutation-sensitively prove one selected Core delegate, signed mounted
+context, hostile-field rejection, stable-key replay/sensitivity, strict result
+scope, redacted outcomes, no local writer/audit/SLA/fallback, exact control
+projection, failure recovery, and success-only refresh before handing to
+independent QA/browser verification.

@@ -142,3 +142,39 @@ daily-task writer/audit/SLA fallback, use one authenticated Core call with a
 stable complete-command key, validate the full returned identity/state, log
 every outcome without raw notes or secrets, refresh only on validated success,
 and provide the exact five-role accessible control/recovery behavior.
+
+## Agent 03 Web delivery
+
+Source commit: `292b4e3a` (`fix(tasks): delegate completion to core`).
+
+- Replaced `completeTask` direct database update, separate audit write, and
+  best-effort SLA close with one fail-closed authenticated Core request and no
+  local fallback.
+- Added the explicit daily-task tenant selector and strict Core adapter for
+  `POST /v1/daily-tasks/:taskId/completion`.
+- Bound trusted task/project/assignee/toolbox context from the server-rendered
+  task row; accepted only strict normalized notes from browser `FormData`.
+- Added deterministic SHA-256 idempotency, action-side result scope checks, and
+  one redacted structured event for every action outcome.
+- Projected the central five-role capability into the mounted controls while
+  retaining assignee-scoped readable rows for all thirteen roles.
+- Added accessible labelled notes, toolbox preflight, pending and error
+  announcements, single-flight protection, retry-state preservation, neutral
+  canonical done messaging, and success-only reset/refresh.
+- Added **40** focused tests across the server action, Core adapter/selector,
+  and rendered/recovery UI seams.
+
+Verification under Node `v22.23.2` / pnpm `10.33.0`: focused Web **40/40**;
+focused plus neighboring Web Core client **213/213**; full Web **1,411 passed / 2
+pre-existing database-gated skips**; Core completion **33/33**; shared
+completion/authorization **35/35**; Core auth neighbors **35/35**; Web main and
+root typechecks **passed**; root lint **passed**; Web production build **passed**;
+gitleaks **passed** with no findings; diff check **passed**. Browser/hosted and
+database verification were not run under this Agent 03 no-mutation boundary.
+
+No Core/API/shared source, scripts, schema/migration, dependencies/lockfile,
+data, environment, provider, deployment, or unrelated functional files changed.
+
+→ Handoff to Agent 12 / mounted-entry contract owner with Core `be26d477` and
+Web `292b4e3a`; independent QA/browser verification follows only after that
+contract is green.
