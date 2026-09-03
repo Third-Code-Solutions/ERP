@@ -65,6 +65,14 @@ function profile(role: 'commercial' | 'viewer' = 'commercial') {
   }
 }
 
+function expectNoRawAuditInput(...inputs: string[]): void {
+  const serializedAuditCalls = JSON.stringify(mocks.writeAuditLog.mock.calls)
+
+  for (const input of inputs) {
+    expect(serializedAuditCalls).not.toContain(input)
+  }
+}
+
 describe('BOM similar-item retrieval boundary', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -143,6 +151,7 @@ describe('BOM similar-item retrieval boundary', () => {
       'sensitive audit storage detail'
     )
     expect(mocks.writeAuditLog).toHaveBeenCalledTimes(1)
+    expectNoRawAuditInput('Copper pipe')
     expect(mocks.isEmbeddingProviderConfigured).not.toHaveBeenCalled()
     expect(mocks.consumeProviderQuota).not.toHaveBeenCalled()
     expect(mocks.embedText).not.toHaveBeenCalled()
@@ -186,6 +195,7 @@ describe('BOM similar-item retrieval boundary', () => {
         diff: expect.objectContaining({ failure: 'provider_not_configured' }),
       })
     )
+    expectNoRawAuditInput('Copper pipe')
   })
 
   it('allows a Commercial operator to retrieve tenant-scoped suggestions with audit evidence', async () => {
@@ -216,7 +226,11 @@ describe('BOM similar-item retrieval boundary', () => {
       entityType: 'ai_similar_items',
       entityId: USER_ID,
       action: 'query',
-      diff: { query: 'Copper pipe', phase: 'request' },
+      diff: {
+        input_category: 'bom_description',
+        input_character_count: 11,
+        phase: 'request',
+      },
     })
     expect(mocks.writeAuditLog).toHaveBeenNthCalledWith(
       2,
@@ -226,12 +240,14 @@ describe('BOM similar-item retrieval boundary', () => {
         entityType: 'ai_similar_items',
         action: 'query',
         diff: expect.objectContaining({
-          query: 'Copper pipe',
+          input_category: 'bom_description',
+          input_character_count: 11,
           phase: 'result',
           result_count: 1,
         }),
       })
     )
+    expectNoRawAuditInput('Copper pipe', '  Copper pipe  ')
     expect(
       mocks.writeAuditLog.mock.invocationCallOrder[0]
     ).toBeLessThan(mocks.consumeProviderQuota.mock.invocationCallOrder[0] ?? 0)
@@ -260,6 +276,7 @@ describe('BOM similar-item retrieval boundary', () => {
         diff: expect.objectContaining({ failure: 'retrieval_unavailable' }),
       })
     )
+    expectNoRawAuditInput('Copper pipe')
     expect(errorSpy).toHaveBeenCalledWith(
       '[ai/similar-items] retrieval failed'
     )

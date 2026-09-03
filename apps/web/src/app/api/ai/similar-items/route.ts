@@ -48,6 +48,13 @@ function response(body: unknown, status = 200) {
   return NextResponse.json(body, { status, headers: RESPONSE_HEADERS })
 }
 
+function auditInputMetadata(description: string) {
+  return {
+    input_category: 'bom_description',
+    input_character_count: description.length,
+  } as const
+}
+
 async function auditQuery(
   profile: Awaited<ReturnType<typeof getUserProfile>> & object,
   description: string
@@ -59,7 +66,7 @@ async function auditQuery(
       entityType: 'ai_similar_items',
       entityId: profile.user.id, // no canonical entity for this query; use actor as anchor
       action: 'query',
-      diff: { query: description, phase: 'request' },
+      diff: { ...auditInputMetadata(description), phase: 'request' },
     })
   } catch (error) {
     console.error('[ai/similar-items] audit log failed')
@@ -80,7 +87,7 @@ async function auditOutcome(
       entityId: profile.user.id,
       action: 'query',
       diff: {
-        query: description,
+        ...auditInputMetadata(description),
         phase: 'result',
         ...diff,
       },
