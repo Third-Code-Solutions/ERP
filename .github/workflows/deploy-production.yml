@@ -165,14 +165,17 @@ jobs:
           # secret. Vercel snapshots variables per deployment, so this must run
           # before creating the production deployment.
           pnpm dlx vercel@54.7.1 env add DATABASE_URL production --force --value "$PRODUCTION_DATABASE_URL" --yes --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
+          pnpm dlx vercel@54.7.1 env add APP_REVISION production --force --value "$GITHUB_SHA" --yes --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
           pnpm dlx vercel@54.7.1 deploy . --prod --force --with-cache --yes --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
 
       - name: Verify production health and release identity
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error https://thirdcode-erp.vercel.app/api/health
-          curl --fail --silent --show-error https://thirdcode-erp.vercel.app/api/ready
+          web_health="$(curl --fail --silent --show-error https://thirdcode-erp.vercel.app/api/health)"
+          web_ready="$(curl --fail --silent --show-error https://thirdcode-erp.vercel.app/api/ready)"
+          test "$(jq -r '.revision' <<<"$web_health")" = "${GITHUB_SHA:0:12}"
+          test "$(jq -r '.revision' <<<"$web_ready")" = "${GITHUB_SHA:0:12}"
           curl --fail --silent --show-error https://third-code-erp-api-production.up.railway.app/health
           curl --fail --silent --show-error https://third-code-erp-api-production.up.railway.app/ready
           curl --fail --silent --show-error https://abi-ops-cad-worker-production.up.railway.app/health
