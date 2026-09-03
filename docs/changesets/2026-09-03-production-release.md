@@ -33,7 +33,8 @@ them. Never paste secret values, database URLs, auth tokens, or customer data.
 | Web release identity gate | `a99dfc3b0b0bce89e2f92da253368dd73b0a2833` | VERIFIED locally — Vercel receives the exact GitHub release SHA as `APP_REVISION`, and both health endpoints must return its 12-character revision before browser tests run |
 | Live password-recovery request proof | `f200a0a738d40bd72ea359c927e8893dbc07a385` + `e65f3a3f07affdf38951676fcbd5c088e24656eb` | VERIFIED locally — opt-in test requires the exact production URL and Supabase host, sends one un-intercepted recovery request, persists no trace/screenshot/video, and is enabled in the protected no-skip workflow; provider execution awaits promotion |
 | Independent security review | code HEAD `2c7d47590853edf14f6d683f05a3c82e5336f4d0` | GO — no P0/P1; complete mounted provider-backed POST inventory reviewed; 137/137 focused tests across 18 files, Web typecheck, dependency audits, gitleaks, actionlint, pinned-action references, and diff check passed |
-| Reviewed PR | `[url / number]` | NOT RUN |
+| WO-11 test-fixture repair | `50bc167cc682c01115ff7a2fcd42fbbb139527a9` | VERIFIED — CI exposed an ambiguous text replacement after new legitimate scope checks; the test now targets exact AST scopes and is line-ending independent; 59/59 contract tests and 95/95 focused PPRF tests passed under Node 22.23.2 |
+| Reviewed PR | `https://github.com/Third-Code-Solutions/ERP/pull/29` | IN PROGRESS — first run passed type/lint/security/invariants and exposed the repaired WO-11 test-fixture defect |
 | Exact merged `main` release SHA | `[40-character sha]` | NOT RUN |
 | Candidate clean status | `git status --short --branch` before push | VERIFIED after this record was committed; no uncommitted candidate changes |
 | Combined diff/conflict review | Independent Agent 12 review at code HEAD `2c7d4759`; integration merges `e3853215` and `bd1ae9cb` | VERIFIED — no merge conflicts; no remaining P0/P1 |
