@@ -50,9 +50,8 @@ function response(body: unknown, status = 200) {
 
 async function auditQuery(
   profile: Awaited<ReturnType<typeof getUserProfile>> & object,
-  description: string,
-  diff: { result_count: number; top_score: number | null; failure?: string }
-) {
+  description: string
+): Promise<void> {
   try {
     await writeAuditLog({
       tenantId: profile.tenantId,
@@ -60,13 +59,34 @@ async function auditQuery(
       entityType: 'ai_similar_items',
       entityId: profile.user.id, // no canonical entity for this query; use actor as anchor
       action: 'query',
+      diff: { query: description, phase: 'request' },
+    })
+  } catch (error) {
+    console.error('[ai/similar-items] audit log failed')
+    throw error
+  }
+}
+
+async function auditOutcome(
+  profile: Awaited<ReturnType<typeof getUserProfile>> & object,
+  description: string,
+  diff: { result_count: number; top_score: number | null; failure?: string }
+): Promise<void> {
+  try {
+    await writeAuditLog({
+      tenantId: profile.tenantId,
+      actorId: profile.user.id,
+      entityType: 'ai_similar_items',
+      entityId: profile.user.id,
+      action: 'query',
       diff: {
         query: description,
+        phase: 'result',
         ...diff,
       },
     })
-  } catch (err) {
-    console.error('[ai/similar-items] audit log failed:', err)
+  } catch {
+    console.error('[ai/similar-items] outcome audit log failed')
   }
 }
 
@@ -106,8 +126,14 @@ export async function POST(req: NextRequest) {
   }
   const description = parsed.data.description
 
+  try {
+    await auditQuery(profile, description)
+  } catch {
+    return response({ items: [], reason: 'AI suggestions unavailable' }, 503)
+  }
+
   if (!isEmbeddingProviderConfigured()) {
-    await auditQuery(profile, description, {
+    await auditOutcome(profile, description, {
       result_count: 0,
       top_score: null,
       failure: 'provider_not_configured',
@@ -149,9 +175,9 @@ export async function POST(req: NextRequest) {
       }))
       .filter((r) => Number.isFinite(r.score) && r.score >= MIN_SCORE && r.score <= 1)
       .map((r) => parseChunkText(r.chunk_text, r.score))
-  } catch (err) {
-    console.error('[ai/similar-items] retrieval failed:', err)
-    await auditQuery(profile, description, {
+  } catch {
+    console.error('[ai/similar-items] retrieval failed')
+    await auditOutcome(profile, description, {
       result_count: 0,
       top_score: null,
       failure: 'retrieval_unavailable',
@@ -159,9 +185,7 @@ export async function POST(req: NextRequest) {
     return response({ items: [], reason: 'AI suggestions unavailable' }, 503)
   }
 
-  // All valid AI queries are audit-attempted; a logging hiccup never fails the
-  // read-only suggestion request.
-  await auditQuery(profile, description, {
+  await auditOutcome(profile, description, {
     result_count: items.length,
     top_score: items[0]?.score ?? null,
   })

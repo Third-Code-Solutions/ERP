@@ -96,7 +96,6 @@ const ROLE_CASES: ReadonlyArray<{
   { role: 'procurement', domains: ['project', 'purchase_orders'] },
   { role: 'safety', domains: ['project'] },
   { role: 'cx', domains: ['project'] },
-  { role: 'viewer', domains: ['project', 'bom', 'invoices', 'purchase_orders'] },
 ]
 
 const queryCalls: QueryCall[] = []
@@ -296,7 +295,7 @@ describe('legacy project chat data boundary', () => {
     expect(mocks.getOpenAI).not.toHaveBeenCalled()
   })
 
-  it('preserves provider configuration and quota failures without context reads', async () => {
+  it('preserves provider configuration and quota failures around mandatory audit', async () => {
     vi.stubEnv('OPENAI_API_KEY', '')
     const unconfigured = await request(validBody())
 
@@ -329,8 +328,11 @@ describe('legacy project chat data boundary', () => {
         Vary: 'Cookie',
       })
     )
-    expect(mocks.dbSelect).not.toHaveBeenCalled()
-    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+    expect(mocks.dbSelect).toHaveBeenCalled()
+    expect(mocks.writeAuditLog).toHaveBeenCalledTimes(1)
+    expect(
+      mocks.writeAuditLog.mock.invocationCallOrder[0]
+    ).toBeLessThan(mocks.consumeProviderQuota.mock.invocationCallOrder[0] ?? 0)
     expect(mocks.openaiCreate).not.toHaveBeenCalled()
   })
 
@@ -382,6 +384,11 @@ describe('legacy project chat data boundary', () => {
       expect(
         mocks.writeAuditLog.mock.invocationCallOrder[0]
       ).toBeLessThan(mocks.openaiCreate.mock.invocationCallOrder[0] ?? 0)
+      expect(
+        mocks.writeAuditLog.mock.invocationCallOrder[0]
+      ).toBeLessThan(
+        mocks.consumeProviderQuota.mock.invocationCallOrder[0] ?? 0
+      )
 
       const modelRequest = mocks.openaiCreate.mock.calls[0]?.[0]
       expect(modelRequest?.messages.at(-1)).toEqual({
@@ -455,15 +462,24 @@ describe('legacy project chat data boundary', () => {
     const quotaFailure = await request(validBody())
     expect(quotaFailure.status).toBe(503)
     expectPrivate(quotaFailure)
-    expect(mocks.dbSelect).not.toHaveBeenCalled()
+    expect(mocks.dbSelect).toHaveBeenCalled()
+    expect(mocks.writeAuditLog).toHaveBeenCalled()
+    expect(mocks.openaiCreate).not.toHaveBeenCalled()
 
+    mocks.dbSelect.mockClear()
+    mocks.writeAuditLog.mockClear()
+    mocks.consumeProviderQuota.mockClear()
     mocks.consumeProviderQuota.mockResolvedValue({ ok: true, skipped: true })
     rejectedTable = projects
     const contextFailure = await request(validBody())
     expect(contextFailure.status).toBe(503)
     expectPrivate(contextFailure)
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+    expect(mocks.consumeProviderQuota).not.toHaveBeenCalled()
     expect(mocks.openaiCreate).not.toHaveBeenCalled()
 
+    mocks.writeAuditLog.mockClear()
+    mocks.consumeProviderQuota.mockClear()
     rejectedTable = null
     mocks.openaiCreate.mockRejectedValueOnce(new Error('provider detail'))
     const providerFailure = await request(validBody())
@@ -498,6 +514,32 @@ describe('legacy project chat data boundary', () => {
       errorSpy.mock.calls.flat().map(String).join(' ')
     ).not.toContain('audit storage detail')
     expect(errorSpy).toHaveBeenCalledWith('[ai/chat] audit log failed')
+    expect(mocks.consumeProviderQuota).not.toHaveBeenCalled()
+    expect(mocks.getOpenAI).not.toHaveBeenCalled()
+    expect(mocks.openaiCreate).not.toHaveBeenCalled()
+  })
+
+  it('denies Viewer assistant use before any downstream work', async () => {
+    mocks.getUserProfile.mockResolvedValue(profile('viewer'))
+    const viewerRequest = new NextRequest('http://localhost/api/ai/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(validBody()),
+    })
+    const jsonSpy = vi.spyOn(viewerRequest, 'json')
+
+    const response = await POST(viewerRequest)
+
+    expect(response.status).toBe(403)
+    expectPrivate(response)
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: 'Forbidden',
+    })
+    expect(jsonSpy).not.toHaveBeenCalled()
+    expect(mocks.dbSelect).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+    expect(mocks.consumeProviderQuota).not.toHaveBeenCalled()
     expect(mocks.getOpenAI).not.toHaveBeenCalled()
     expect(mocks.openaiCreate).not.toHaveBeenCalled()
   })

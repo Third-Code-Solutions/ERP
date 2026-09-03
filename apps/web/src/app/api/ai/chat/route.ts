@@ -293,6 +293,9 @@ async function auditQuery(
 async function handlePost(req: NextRequest): Promise<Response> {
   const profile = await getUserProfile()
   if (!profile) return errorResponse('Unauthorized', 401)
+  if (!can(profile.role, 'cortex.assistant.use')) {
+    return errorResponse('Forbidden', 403)
+  }
 
   let payload: unknown
   try {
@@ -308,17 +311,17 @@ async function handlePost(req: NextRequest): Promise<Response> {
     return errorResponse('AI not configured', 503)
   }
 
-  const quota = await consumeProviderQuota('provider-chat', profile.tenantId)
-  if (!quota.ok) {
-    return providerQuotaBlockedResponse(quota, RESPONSE_HEADERS)
-  }
-
   const context = await loadProjectContext(
     profile.role,
     profile.tenantId,
     parsed.data.projectId
   )
   await auditQuery(profile, parsed.data, context.grantedDomains)
+
+  const quota = await consumeProviderQuota('provider-chat', profile.tenantId)
+  if (!quota.ok) {
+    return providerQuotaBlockedResponse(quota, RESPONSE_HEADERS)
+  }
 
   const openai = getOpenAI()
   const stream = await openai.chat.completions.create({
