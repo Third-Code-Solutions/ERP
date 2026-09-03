@@ -26,23 +26,24 @@ describe('opportunity stage transition contract', () => {
     expect(
       opportunityStageTransitionCommandSchema.parse({
         newStage: 'contract',
-        tcvCents: 12_345_678,
-        gpCents: -250_000,
+        tcvCents: '12345678',
+        gpCents: '-250000',
         closingDate: '2026-10-31T00:00:00.000Z',
       })
     ).toEqual({
       newStage: 'contract',
-      tcvCents: 12_345_678,
-      gpCents: -250_000,
+      tcvCents: '12345678',
+      gpCents: '-250000',
       closingDate: '2026-10-31T00:00:00.000Z',
     })
   })
 
   it.each([
-    { newStage: 'contract', tcvCents: -1 },
-    { newStage: 'contract', tcvCents: Number.MAX_SAFE_INTEGER + 1 },
-    { newStage: 'contract', gpCents: Number.MAX_SAFE_INTEGER + 1 },
-    { newStage: 'contract', gpCents: Number.MIN_SAFE_INTEGER - 1 },
+    { newStage: 'contract', tcvCents: '-1' },
+    { newStage: 'contract', tcvCents: '9007199254740992' },
+    { newStage: 'contract', gpCents: '9007199254740992' },
+    { newStage: 'contract', gpCents: '-9007199254740992' },
+    { newStage: 'contract', tcvCents: 1 },
     { newStage: 'contract', closingDate: '2026-10-31' },
     { newStage: 'contract', closingDate: 'not-a-date' },
   ])('rejects an invalid commercial edit: %j', (command) => {

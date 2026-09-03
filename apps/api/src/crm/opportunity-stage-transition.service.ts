@@ -127,6 +127,19 @@ function exactWeightedTcvCents(
   )
 }
 
+function exactPersistedCentavos(value: string): number {
+  const amount = BigInt(value)
+  if (
+    amount < BigInt(Number.MIN_SAFE_INTEGER) ||
+    amount > BigInt(Number.MAX_SAFE_INTEGER)
+  ) {
+    throw new InternalServerErrorException(
+      'Opportunity amount is outside the exact persistence range'
+    )
+  }
+  return Number(amount)
+}
+
 @Injectable()
 export class OpportunityStageTransitionService {
   constructor(
@@ -252,6 +265,15 @@ export class OpportunityStageTransitionService {
       linkedAccount = account
     }
 
+    if (
+      !linkedAccount &&
+      [...KYC_GATED_STAGES].includes(command.newStage)
+    ) {
+      throw new ConflictException(
+        'Opportunity Account is required before this stage'
+      )
+    }
+
     const request = await this.claimRequest(
       transaction,
       authorizedPrincipal,
@@ -336,8 +358,14 @@ export class OpportunityStageTransitionService {
     }
 
     const newProbability = STAGE_PROBABILITY[command.newStage]
-    const newTcvCents = command.tcvCents ?? opportunity.tcvCents
-    const newGpCents = command.gpCents ?? opportunity.gpCents
+    const newTcvCents =
+      command.tcvCents === undefined
+        ? opportunity.tcvCents
+        : exactPersistedCentavos(command.tcvCents)
+    const newGpCents =
+      command.gpCents === undefined
+        ? opportunity.gpCents
+        : exactPersistedCentavos(command.gpCents)
     const newClosingDate = command.closingDate
       ? new Date(command.closingDate)
       : opportunity.closingDate
@@ -383,14 +411,14 @@ export class OpportunityStageTransitionService {
     }
     if (command.tcvCents !== undefined) {
       auditDiff.tcv_cents = {
-        from: opportunity.tcvCents,
-        to: newTcvCents,
+        from: String(opportunity.tcvCents),
+        to: String(newTcvCents),
       }
     }
     if (command.gpCents !== undefined) {
       auditDiff.gp_cents = {
-        from: opportunity.gpCents,
-        to: newGpCents,
+        from: String(opportunity.gpCents),
+        to: String(newGpCents),
       }
     }
     if (command.closingDate !== undefined) {

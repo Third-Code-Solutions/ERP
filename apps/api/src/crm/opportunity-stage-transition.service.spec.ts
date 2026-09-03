@@ -113,6 +113,37 @@ type KycTrack = {
   status: 'pending' | 'approved'
 }
 
+function isOpportunityStage(value: unknown): value is OpportunityStage {
+  return (
+    typeof value === 'string' &&
+    Object.prototype.hasOwnProperty.call(STAGE_TRANSITIONS, value)
+  )
+}
+
+function stageUpdateValues(payload: Record<string, unknown>): {
+  stage: OpportunityStage
+  tcvCents: number
+  gpCents: number
+  closingDate: Date | null
+  weightedTcvCents: number
+} {
+  const stage = payload.stage
+  const tcvCents = payload.tcv_cents
+  const gpCents = payload.gp_cents
+  const closingDate = payload.closing_date
+  const weightedTcvCents = payload.weighted_tcv_cents
+  if (
+    !isOpportunityStage(stage) ||
+    typeof tcvCents !== 'number' ||
+    typeof gpCents !== 'number' ||
+    (closingDate !== null && !(closingDate instanceof Date)) ||
+    typeof weightedTcvCents !== 'number'
+  ) {
+    throw new TypeError('Unexpected Opportunity stage update payload')
+  }
+  return { stage, tcvCents, gpCents, closingDate, weightedTcvCents }
+}
+
 function harness({
   role = 'sales',
   tracks = [
@@ -170,7 +201,14 @@ function harness({
     checklistId: convertsToProject ? CHECKLIST_ID : null,
     convertedToProject: convertsToProject,
   }
-  const request = {
+  const request: {
+    id: string
+    requestHash: string
+    state: 'processing' | 'succeeded'
+    fromStage: OpportunityStage
+    toStage: OpportunityStage
+    result: unknown
+  } = {
     id: REQUEST_ID,
     requestHash: requestState === 'succeeded' ? stageHash(storedCommand) : '',
     state: requestState,
@@ -271,7 +309,7 @@ function harness({
       if (completeRequestError) throw completeRequestError
       recordWrite(label)
       request.state = 'succeeded'
-      request.result = updatePayload.result as typeof request.result
+      request.result = updatePayload.result
       return [{ id: REQUEST_ID }]
     })
     const where = vi.fn().mockReturnValue(
@@ -283,12 +321,12 @@ function harness({
             }
             recordWrite(label)
             if (label === 'opportunity-stage') {
-              currentStage = updatePayload.stage as OpportunityStage
-              currentTcvCents = updatePayload.tcv_cents as number
-              currentGpCents = updatePayload.gp_cents as number
-              currentClosingDate = updatePayload.closing_date as Date | null
-              currentWeightedTcvCents =
-                updatePayload.weighted_tcv_cents as number
+              const values = stageUpdateValues(updatePayload)
+              currentStage = values.stage
+              currentTcvCents = values.tcvCents
+              currentGpCents = values.gpCents
+              currentClosingDate = values.closingDate
+              currentWeightedTcvCents = values.weightedTcvCents
             }
           })
     )
@@ -459,7 +497,6 @@ describe('Opportunity stage transition atomic authority', () => {
     const probe = harness({
       fromStage: 'negotiation',
       toStage: 'bom_submission',
-      accountId: null,
     })
 
     await expect(
@@ -476,7 +513,7 @@ describe('Opportunity stage transition atomic authority', () => {
   it.each(NON_WON_TRANSITIONS)(
     'commits allowed non-Won transition %s -> %s with a strict non-conversion result',
     async (fromStage, toStage) => {
-      const probe = harness({ fromStage, toStage, accountId: null })
+      const probe = harness({ fromStage, toStage })
 
       await expect(
         probe.candidate.transition(
@@ -586,6 +623,26 @@ describe('Opportunity stage transition atomic authority', () => {
     expect(probe.writes).toEqual([])
   })
 
+  it('fails closed when a KYC-gated transition has no tenant-resolved Account', async () => {
+    const probe = harness({
+      fromStage: 'site_survey',
+      toStage: 'design',
+      accountId: null,
+    })
+
+    await expect(
+      probe.candidate.transition(
+        OPPORTUNITY_ID,
+        { newStage: 'design' },
+        PRINCIPAL,
+        'accountless-design'
+      )
+    ).rejects.toThrow('Opportunity Account is required before this stage')
+    expect(probe.transactionClient.insert).not.toHaveBeenCalled()
+    expect(probe.transactionClient.update).not.toHaveBeenCalled()
+    expect(probe.writes).toEqual([])
+  })
+
   it('records the required Lost reason in the semantic audit', async () => {
     const probe = harness({
       fromStage: 'contract',
@@ -631,8 +688,8 @@ describe('Opportunity stage transition atomic authority', () => {
       OPPORTUNITY_ID,
       {
         newStage: 'site_survey',
-        tcvCents: 1_000_002,
-        gpCents: -25_000,
+        tcvCents: '1000002',
+        gpCents: '-25000',
         closingDate: '2026-10-31T00:00:00.000Z',
       },
       PRINCIPAL,
@@ -652,8 +709,8 @@ describe('Opportunity stage transition atomic authority', () => {
       probe.transactionClient,
       expect.objectContaining({
         diff: expect.objectContaining({
-          tcv_cents: { from: 1_000_000, to: 1_000_002 },
-          gp_cents: { from: 250_000, to: -25_000 },
+          tcv_cents: { from: '1000000', to: '1000002' },
+          gp_cents: { from: '250000', to: '-25000' },
           closing_date: {
             from: '2026-09-30T00:00:00.000Z',
             to: '2026-10-31T00:00:00.000Z',
@@ -699,7 +756,7 @@ describe('Opportunity stage transition atomic authority', () => {
         OPPORTUNITY_ID,
         {
           newStage: 'site_survey',
-          tcvCents: Number.MAX_SAFE_INTEGER + 1,
+          tcvCents: '9007199254740992',
         },
         PRINCIPAL,
         'unsafe-commercial-edit'
@@ -780,13 +837,13 @@ describe('Opportunity stage transition atomic authority', () => {
       toStage: 'site_survey',
       accountId: null,
       requestState: 'succeeded',
-      storedCommand: { newStage: 'site_survey', tcvCents: 1_000_000 },
+      storedCommand: { newStage: 'site_survey', tcvCents: '1000000' },
     })
 
     await expect(
       probe.candidate.transition(
         OPPORTUNITY_ID,
-        { newStage: 'site_survey', tcvCents: 2_000_000 },
+        { newStage: 'site_survey', tcvCents: '2000000' },
         PRINCIPAL,
         'reused-commercial-key'
       )
@@ -808,8 +865,8 @@ describe('Opportunity stage transition atomic authority', () => {
         OPPORTUNITY_ID,
         {
           newStage: 'site_survey',
-          tcvCents: 1_000_002,
-          gpCents: -25_000,
+          tcvCents: '1000002',
+          gpCents: '-25000',
           closingDate: '2026-10-31T00:00:00.000Z',
         },
         PRINCIPAL,
@@ -893,8 +950,8 @@ describe('Opportunity stage transition atomic authority', () => {
           OPPORTUNITY_ID,
           {
             newStage: 'site_survey',
-            tcvCents: 1_000_002,
-            gpCents: -25_000,
+            tcvCents: '1000002',
+            gpCents: '-25000',
             closingDate: '2026-10-31T00:00:00.000Z',
           },
           PRINCIPAL,
