@@ -704,3 +704,30 @@ the three verified Core entry paths.
 and denied-role Project creation/transition against local fake Core, verify
 failure recovery and success-only refresh, and leave hosted/demo data
 unchanged.
+
+## Independent browser QA closeout
+
+Browser verdict: **BLOCK only for authenticated eleven-identity Project panel
+and mutation runtime evidence.** The branch itself remained clean at
+`64edc2c5077ba269858ad823d9d1dbc829ef69a4`; this browser round made no source,
+configuration, database, hosted, or demo-data change.
+
+The safe loopback stack used Web at `http://127.0.0.1:3317` and fake Core at
+`http://127.0.0.1:3318` with Chromium 147.0.7727.15. The accessible
+unauthenticated login surface loaded at 1440×900 in 1,586 ms and at 390×844 in
+1,321 ms. Across both viewports QA observed zero console warnings/errors, zero
+page errors, zero failed requests, and zero non-GET requests. Fake Core recorded
+zero creation calls and zero transition calls. Both loopback servers were
+stopped after the run and ports 3317/3318 were confirmed free.
+
+Authenticated Project-panel behavior could not be exercised because no secure,
+reusable isolated browser session was available. QA correctly refused to use
+the engineer's daily browser session or expose credentials, so the supplied
+Owner/Admin/Sales and denied-role identity matrix, failure recovery, and
+success-only mutation runtime remain unverified in a real authenticated
+browser. The supplied identity set also has no Estimator or PM accounts, leaving
+those two readable/non-mutating roles without identity-level browser evidence.
+
+The protected PostgreSQL HTTP canary is unchanged **SKIPPED/BLOCKED** because
+`DATABASE_URL` and `ERP_API_INTEGRATION_EXPECTED=1` remain unavailable; no live
+persistence proof is claimed.
