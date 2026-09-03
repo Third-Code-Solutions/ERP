@@ -782,3 +782,31 @@ and `positiveDecimal`, respectively.
 `area_sqm` blank and once with a valid integer, and confirm `floor_area_sqm`
 remains independently required and decimal-capable. No hosted/demo or database
 mutation was performed here.
+
+## Agent 01 functional-ledger closeout — 2026-09-03
+
+Status: **workflow 12 recorded as PARTIAL; P1 closed in source**.
+
+Independent QA discovered that the strict intake action required exactly one
+`area_sqm`, but the mounted form emitted none, so every native intake failed
+before the atomic service. Agent 03 repaired the mounted form in `421bfacf` and
+Agent 12 hardened the source contract in `d4ec9791`. Final evidence passed
+WO-11 59/59 twice, mounted PPRF 74/74, atomic service 42/42, Web typecheck and
+zero-warning lint, the 89-page production build, diff checks, and gitleaks.
+The earlier P1 is closed and independent contract QA is `GO`.
+
+The functional matrix follows the existing combined-command convention: one
+thirteen-role `Atomic PPRF submission` resource covers intake and resubmission
+because both share the exact same mutation policy. Owner/Admin/Sales alone can
+mutate. New intake denies the other ten at its route gate; PPRF detail remains
+tenant-scoped readable for all thirteen and projects a read-only state without
+submit controls to those ten.
+
+Authenticated browser serialization and role coverage is `BLOCKED` for all
+thirteen roles; Estimator and PM are additionally blocked by missing identities.
+Live status is `NOT RUN`, and real PostgreSQL rollback/concurrency/trigger proof
+remains blocked without an explicitly isolated binding. Existing in-app
+recipient sets remain unchanged, while their recipient-role taxonomy remains
+`NEEDS DECISION`. The bounded P2 receipt-reader follow-up also remains:
+`receiptSchema.passthrough()` accepts unknown historical keys even though the
+current writer and returned known fields are bounded and privacy-verified.

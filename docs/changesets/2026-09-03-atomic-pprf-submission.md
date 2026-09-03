@@ -251,3 +251,20 @@ control names to the exact action allowlist and add a mutation that removes
   the current bounded writer and returned known fields remain privacy-verified.
 
 Status: **GO to independent browser QA** with no new P0/P1/P2 finding.
+
+## Agent 01 functional closeout
+
+- Recorded atomic PPRF submission as the twelfth functional workflow using one
+  combined thirteen-role resource, consistent with existing same-policy
+  multi-command matrix rows.
+- Corrected `/crm/opportunities/new/pprf` to exact Owner/Admin/Sales route
+  access; retained all-role tenant-scoped detail read and exact-three
+  submit/resubmit control projection.
+- Recorded the independent P1 discovery (missing mounted `area_sqm`) and its
+  closure by source commit `421bfacf` plus verifier commit `d4ec9791`.
+- Final automated evidence: WO-11 59/59 twice, mounted PPRF 74/74, service
+  42/42, Web type/lint/build, diff checks, and gitleaks passed.
+- Browser is `BLOCKED` for all thirteen roles, with Estimator/PM additionally
+  identity-blocked; live is `NOT RUN`. Recipient taxonomy stays
+  `NEEDS DECISION`, and the bounded P2 permissive historical receipt reader
+  remains open.
