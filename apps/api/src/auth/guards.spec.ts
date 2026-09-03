@@ -93,6 +93,8 @@ function databaseWithMembership(
         tenantId: string
         role: string
         email: string
+        accountStatus: string
+        tenantStatus: string
       }
     | undefined
 ): DatabaseService {
@@ -100,7 +102,8 @@ function databaseWithMembership(
     .fn()
     .mockResolvedValue(membership ? [membership] : [])
   const where = vi.fn().mockReturnValue({ limit })
-  const from = vi.fn().mockReturnValue({ where })
+  const innerJoin = vi.fn().mockReturnValue({ where })
+  const from = vi.fn().mockReturnValue({ innerJoin })
   const select = vi.fn().mockReturnValue({ from })
 
   return {
@@ -148,6 +151,8 @@ describe('SupabaseJwtGuard', () => {
     const identity = {
       verifyAccessToken: vi.fn().mockResolvedValue({
         userId: '11111111-1111-4111-8111-111111111111',
+        email: 'admin@example.test',
+        emailConfirmedAt: '2026-09-04T00:00:00.000Z',
       }),
     } as unknown as SupabaseIdentityService
     const request = {
@@ -160,6 +165,8 @@ describe('SupabaseJwtGuard', () => {
         tenantId: '22222222-2222-4222-8222-222222222222',
         role: 'admin',
         email: 'admin@example.test',
+        accountStatus: 'active',
+        tenantStatus: 'active',
       })
     )
 
@@ -172,6 +179,103 @@ describe('SupabaseJwtGuard', () => {
       role: 'admin',
       email: 'admin@example.test',
     })
+  })
+
+  it('activates a provider-verified invited user before granting a principal', async () => {
+    const identity = {
+      verifyAccessToken: vi.fn().mockResolvedValue({
+        userId: '11111111-1111-4111-8111-111111111111',
+        email: 'invited@example.test',
+        emailConfirmedAt: '2026-09-04T00:00:00.000Z',
+      }),
+      activateInvitedUser: vi.fn().mockResolvedValue(true),
+    } as unknown as SupabaseIdentityService
+    const request = {
+      headers: { authorization: 'Bearer verified-invitation-token' },
+    } as Partial<AuthenticatedRequest>
+    const guard = new SupabaseJwtGuard(
+      identity,
+      new Reflector(),
+      databaseWithMembership({
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        role: 'viewer',
+        email: 'invited@example.test',
+        accountStatus: 'invited',
+        tenantStatus: 'active',
+      })
+    )
+
+    await expect(
+      guard.canActivate(contextFor('projectRead', request))
+    ).resolves.toBe(true)
+    expect(identity.activateInvitedUser).toHaveBeenCalledWith(
+      'verified-invitation-token'
+    )
+    expect(request.principal?.role).toBe('viewer')
+  })
+
+  it('denies an invited user when verified activation fails', async () => {
+    const identity = {
+      verifyAccessToken: vi.fn().mockResolvedValue({
+        userId: '11111111-1111-4111-8111-111111111111',
+        email: 'invited@example.test',
+        emailConfirmedAt: '2026-09-04T00:00:00.000Z',
+      }),
+      activateInvitedUser: vi.fn().mockResolvedValue(false),
+    } as unknown as SupabaseIdentityService
+    const guard = new SupabaseJwtGuard(
+      identity,
+      new Reflector(),
+      databaseWithMembership({
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        role: 'viewer',
+        email: 'invited@example.test',
+        accountStatus: 'invited',
+        tenantStatus: 'active',
+      })
+    )
+
+    await expect(
+      guard.canActivate(
+        contextFor('projectRead', {
+          headers: { authorization: 'Bearer verified-invitation-token' },
+        })
+      )
+    ).rejects.toBeInstanceOf(ForbiddenException)
+  })
+
+  it.each([
+    ['suspended account', 'suspended', 'active'],
+    ['disabled account', 'disabled', 'active'],
+    ['suspended tenant', 'active', 'suspended'],
+    ['disabled tenant', 'active', 'disabled'],
+  ])('denies an authenticated %s', async (_label, accountStatus, tenantStatus) => {
+    const identity = {
+      verifyAccessToken: vi.fn().mockResolvedValue({
+        userId: '11111111-1111-4111-8111-111111111111',
+        email: 'admin@example.test',
+        emailConfirmedAt: '2026-09-04T00:00:00.000Z',
+      }),
+    } as unknown as SupabaseIdentityService
+    const guard = new SupabaseJwtGuard(
+      identity,
+      new Reflector(),
+      databaseWithMembership({
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        role: 'admin',
+        email: 'admin@example.test',
+        accountStatus,
+        tenantStatus,
+      })
+    )
+
+    await expect(
+      guard.canActivate(
+        contextFor('update', {
+          headers: { authorization: 'Bearer valid-token' },
+        })
+      )
+    ).rejects.toBeInstanceOf(ForbiddenException)
   })
 })
 

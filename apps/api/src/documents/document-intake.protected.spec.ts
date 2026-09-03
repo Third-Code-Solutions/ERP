@@ -19,12 +19,17 @@ const PROJECT_ID = '44444444-4444-4444-8444-444444444444'
 
 function databaseWithMembership(
   membership:
-    | { tenantId: string; role: string; email: string }
+    | { tenantId: string; role: string; email: string; accountStatus?: string; tenantStatus?: string }
     | undefined
 ): DatabaseService {
-  const limit = vi.fn().mockResolvedValue(membership ? [membership] : [])
+  const limit = vi.fn().mockResolvedValue(
+    membership
+      ? [{ accountStatus: 'active', tenantStatus: 'active', ...membership }]
+      : []
+  )
   const where = vi.fn().mockReturnValue({ limit })
-  const from = vi.fn().mockReturnValue({ where })
+  const innerJoin = vi.fn().mockReturnValue({ where })
+  const from = vi.fn().mockReturnValue({ innerJoin })
   const select = vi.fn().mockReturnValue({ from })
   return { client: { select } } as unknown as DatabaseService
 }

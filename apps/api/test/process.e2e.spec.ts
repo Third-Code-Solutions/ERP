@@ -34,10 +34,17 @@ function databaseWithMembership(
   role: 'admin' | 'viewer'
 ): DatabaseService {
   const limit = vi.fn().mockResolvedValue([
-    { tenantId: TENANT_ID, role, email: `${role}@example.test` },
+    {
+      tenantId: TENANT_ID,
+      role,
+      email: `${role}@example.test`,
+      accountStatus: 'active',
+      tenantStatus: 'active',
+    },
   ])
   const where = vi.fn().mockReturnValue({ limit })
-  const from = vi.fn().mockReturnValue({ where })
+  const innerJoin = vi.fn().mockReturnValue({ where })
+  const from = vi.fn().mockReturnValue({ innerJoin })
   const select = vi.fn().mockReturnValue({ from })
   return { client: { select } } as unknown as DatabaseService
 }
