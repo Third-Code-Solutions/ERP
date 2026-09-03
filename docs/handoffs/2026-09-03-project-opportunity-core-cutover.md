@@ -634,3 +634,73 @@ inventory and WO-11 mutations after the panel source changed. Inputs:
 evidence above. Expected output: rerun the authoritative 13-case contract and
 return the combined cutover to independent safe browser QA using local fake
 Core only.
+
+## Contract owner final QA remediation — mounted Opportunity mutation graph
+
+Contract commit: `0df05a49` (`test(crm): harden opportunity mutation inventory`).
+
+Decision: **GO to independent safe browser QA.** The stale 12/13 Project-writer
+failure is repaired without restoring production database/schema imports. The
+fixture now injects aliased `db` and `opportunities` imports plus the writer
+entirely through TypeScript AST/in-memory transforms.
+
+The fail-closed mounted-file inventory now distinguishes the exact three Core
+authorities—Pipeline `advanceOpportunityStage`, Project-detail
+`transitionStage`, and Project-detail `createOpportunity`—while explicitly
+retaining the two known pre-cutover Pipeline creators in the exported-mutator
+inventory. Any additional exported Opportunity writer from those mounted
+action files fails the gate. Each Core entry resolves one tenant selector and
+one matching delegate and rejects reachable database writers, separate audit,
+SLA, or conversion fallbacks.
+
+The graph recognizes exported function declarations, exported arrow/function
+expressions, import aliases, local callable aliases, named relative and `@/`
+imports, callback references, and named re-exports. It follows those reachable
+symbols across TS/TSX modules. Reachable local dynamic imports and
+namespace/default-call indirection fail closed. Both `update` and `insert`
+writers are mutation-tested through aliased Opportunity tables; read-only
+Opportunity access and benign TypeScript-printer formatting remain accepted.
+
+Creation is now part of the authoritative contract: the Project action must
+call the Core create endpoint once, use the shared strict command/result
+schemas, validate returned tenant/Project/stage identity, and have no local
+writer or fallback. The shared boundary fixes `opportunity_creation` and uses
+canonical non-negative TCV and signed-GP centavo strings. The mounted panel
+must call the same create action once, force that safe stage, and route both
+money fields through the exported shared schemas. Existing transition,
+reason-model, 3-allow/10-deny permission, Core KYC, tenant-linked Account, and
+atomic authority probes remain intact.
+
+### Contract-owner evidence
+
+- Original QA reproduction: **12/13**, with only the stale unbound writer
+  mutant failing to throw.
+- Final authoritative baseline/mutation suite: **PASSED twice, 29/29 per run**
+  under Node 22.23.2 / pnpm 10.33.0.
+- Shared create/transition contracts: **PASSED, 20/20**.
+- Project Web action/panel/route/Core-client lane: **PASSED, 6 files / 312
+  tests**.
+- Core create/controller/stage authority: **PASSED, 3 files / 93 tests**.
+- Root typecheck: **PASSED, 5/5 tasks**.
+- Full configured application-source ESLint: **PASSED, zero warnings**.
+- Root production build: **PASSED, 2/2 tasks**; Web generated **89/89 pages**.
+- Both verifier files passed `node --check`; diff/whitespace checks passed.
+- Pinned Gitleaks 8.30.1: **PASSED, 1,811 commits / no leaks** after source
+  and documentation closeout.
+- Browser/hosted mutation: **NOT RUN by scope**.
+- Protected PostgreSQL HTTP canary: unchanged **SKIPPED/BLOCKED** because
+  `DATABASE_URL` and `ERP_API_INTEGRATION_EXPECTED=1` remain unavailable; no
+  live persistence proof is claimed.
+
+Bounded analysis: this verifier follows the repository's established static,
+named local ESM conventions rather than claiming compiler-grade whole-program
+data flow. Unsupported local dynamic, namespace, default, and star-export
+routes cannot satisfy the mounted graph. Runtime-generated call targets and
+arbitrary third-party package internals are not inspected; none is present on
+the three verified Core entry paths.
+
+→ Handoff to independent QA. Inputs: Core `234ebe03`, Web `cb180ca0`, panel
+`796d333c`, and contract `0df05a49`. Expected output: exercise Owner/Admin/Sales
+and denied-role Project creation/transition against local fake Core, verify
+failure recovery and success-only refresh, and leave hosted/demo data
+unchanged.

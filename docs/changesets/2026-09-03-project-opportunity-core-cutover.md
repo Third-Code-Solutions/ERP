@@ -256,3 +256,56 @@ Browser/hosted mutation was intentionally not run.
 Next: contract owner reruns the exact mounted-entry/WO-11 gate, then independent
 QA exercises all eleven supplied accounts against local fake Core with no
 hosted write.
+
+## Contract owner QA remediation — fail-closed mounted mutation inventory
+
+Contract commit: `0df05a49`.
+
+- Replaced the stale unbound Project-writer fixture with self-contained
+  TypeScript-AST imports and an in-memory mutation; no production schema import
+  is required for the mutant to compile or be recognized.
+- Expanded the exact Core allowlist to the Pipeline transition, Project-detail
+  transition, and Project-detail creation actions. Each reachable graph must
+  contain exactly one tenant selector and exactly one matching Core delegate,
+  with no local database write, audit, SLA, or conversion fallback.
+- Kept the two pre-existing Pipeline creation authorities explicitly
+  inventoried as non-cutover local creators. A newly exported Opportunity
+  mutator from either mounted action file now fails the exact inventory.
+- Added bounded static call-graph traversal for exported declarations and
+  exported arrow/function expressions, local callable aliases, named relative
+  or established `@/` imports, callback references, and named re-exports.
+  Reachable local dynamic imports and namespace/default-call indirection fail
+  closed instead of being silently skipped.
+- Detects Opportunity `update` and `insert` calls through aliased schema table
+  identifiers. Read-only Opportunity queries remain accepted, and TypeScript
+  printer formatting remains accepted.
+- Added Project creation contract checks for the single safe
+  `opportunity_creation` stage, shared canonical TCV/signed-GP centavo strings,
+  strict result identity, one Core create call, and panel/model wiring. Existing
+  Core atomic KYC authority, panel transition/reason authority, and exact
+  three-allow/ten-deny permission checks remain in the gate.
+
+Verification under Node 22.23.2 / pnpm 10.33.0: authoritative WO-11 baseline
+and mutations **PASSED twice, 29/29 each run**; shared create/transition
+contracts **PASSED 20/20**; focused Project Web/action/panel/Core-client lane
+**PASSED 6 files / 312 tests**; Core creation/controller/stage authority
+**PASSED 3 files / 93 tests**; root typecheck **PASSED 5/5 tasks**; configured
+source ESLint **PASSED, zero warnings**; root production build **PASSED 2/2
+tasks** with Web **89/89 pages**; both verifier files passed `node --check`;
+diff/whitespace checks passed; pinned Gitleaks 8.30.1 **PASSED, 1,811 commits /
+no leaks** after source and documentation closeout.
+
+Analysis boundary: this is a fail-closed verifier for the repository's mounted
+TypeScript action conventions, not a TypeScript compiler or full-program data
+flow engine. It resolves statically named local ESM edges through relative and
+the repository's `@/` alias. Unsupported local dynamic, namespace, default, or
+star-export routes cannot satisfy the mounted graph. It does not inspect
+runtime-generated call targets or arbitrary third-party package internals;
+those are outside the mounted Web action contract and no such path is present
+in the verified entries.
+
+Decision: **GO to independent safe browser QA.** The protected PostgreSQL HTTP
+canary remains unchanged **SKIPPED/BLOCKED** because `DATABASE_URL` and
+`ERP_API_INTEGRATION_EXPECTED=1` are unavailable; no live persistence result is
+claimed. Browser and hosted-data mutation were not run by this contract-owner
+scope.
