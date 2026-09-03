@@ -166,7 +166,7 @@ export async function createPprfIntake(formData: FormData) {
     try {
       revalidatePath('/crm/accounts')
       revalidatePath('/crm/kyc-queue')
-      revalidatePath('/pipeline/board')
+      revalidatePath('/pipeline')
     } catch {
       refreshFailed = true
     }

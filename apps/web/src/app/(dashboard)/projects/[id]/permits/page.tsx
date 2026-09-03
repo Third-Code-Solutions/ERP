@@ -1,3 +1,4 @@
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -62,7 +63,7 @@ export default async function ProjectPermitsPage({
 }: {
   params: Promise<{ id: string }>
 }) {
-  const { id } = await params
+  const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
   const canManageAllPermits = can(profile.role, 'precon.manage_permits')
   const canManageDolePermit = canManageAllPermits || can(profile.role, 'safety.dole_permit.manage')
@@ -177,9 +178,9 @@ export default async function ProjectPermitsPage({
       {/* Header + create */}
       <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--color-neutral-900)' }}>
+          <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--color-neutral-900)' }}>
             Permits
-          </h2>
+          </h1>
           <p style={{ margin: '4px 0 0 0', fontSize: '0.875rem', color: 'var(--color-neutral-500)' }}>
             External permits, bonds, insurance, and return dates for this project.
           </p>

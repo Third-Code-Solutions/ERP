@@ -1,3 +1,4 @@
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -75,7 +76,7 @@ export default async function StockReceiptDetailPage({
 }: {
   params: Promise<{ id: string }>
 }) {
-  const { id } = await params
+  const { id } = await requireUuidRouteParams(params)
   if (!z.string().uuid().safeParse(id).success) notFound()
   const profile = await requireUserProfile()
   requireCapability(profile, 'inventory.read')

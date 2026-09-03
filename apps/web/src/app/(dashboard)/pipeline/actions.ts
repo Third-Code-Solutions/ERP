@@ -83,7 +83,7 @@ export async function createOpportunity(formData: FormData): Promise<{ error?: s
   })
 
   revalidatePath('/pipeline/coverage')
-  revalidatePath('/pipeline/conversion')
+  revalidatePath('/pipeline/list')
   revalidatePath('/')
   return {}
 }
@@ -192,9 +192,9 @@ export async function createOpportunityForAccount(formData: FormData): Promise<{
     // SLA failure is non-fatal — opp is created either way.
   }
 
-  revalidatePath('/pipeline/board')
+  revalidatePath('/pipeline')
   revalidatePath('/pipeline/coverage')
-  revalidatePath('/pipeline/conversion')
+  revalidatePath('/pipeline/list')
   revalidatePath('/')
   return {}
 }
@@ -352,9 +352,9 @@ function stageTransitionIdempotencyKey(
 }
 
 function revalidatePipelinePaths(): void {
-  revalidatePath('/pipeline/board')
+  revalidatePath('/pipeline')
   revalidatePath('/pipeline/coverage')
-  revalidatePath('/pipeline/conversion')
+  revalidatePath('/pipeline/list')
   revalidatePath('/')
 }
 

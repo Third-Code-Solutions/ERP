@@ -1,3 +1,4 @@
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -33,7 +34,7 @@ export default async function EditSupplierBillPage({
 }) {
   const profile = await requireUserProfile()
   requireCapability(profile, 'finance.post_supplier_bill')
-  const { id } = await params
+  const { id } = await requireUuidRouteParams(params)
 
   const [bill] = await db
     .select({

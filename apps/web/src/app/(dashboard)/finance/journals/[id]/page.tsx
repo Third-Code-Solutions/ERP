@@ -1,3 +1,4 @@
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -37,7 +38,7 @@ export default async function JournalPage({
   const profile = await requireUserProfile()
   requireCapability(profile, 'finance.read')
   const canManage = can(profile.role, 'finance.manage')
-  const { id } = await params
+  const { id } = await requireUuidRouteParams(params)
 
   const [entry] = await db
     .select()

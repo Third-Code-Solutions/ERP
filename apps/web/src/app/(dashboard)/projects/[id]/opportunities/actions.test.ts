@@ -499,9 +499,9 @@ describe('project Opportunity stage action', () => {
       expect(result).toEqual({})
       expect(mocks.revalidatePath.mock.calls).toEqual([
         [`/projects/${PROJECT_ID}`],
-        ['/pipeline/board'],
+        ['/pipeline'],
         ['/pipeline/coverage'],
-        ['/pipeline/conversion'],
+        ['/pipeline/list'],
         ['/dashboard'],
       ])
       expectStructuredActionLogs(1)
@@ -757,9 +757,9 @@ describe('project Opportunity stage action', () => {
     expect(result).toEqual({ projectId: WON_PROJECT_ID })
     expect(mocks.revalidatePath.mock.calls).toEqual([
       [`/projects/${PROJECT_ID}`],
-      ['/pipeline/board'],
+      ['/pipeline'],
       ['/pipeline/coverage'],
-      ['/pipeline/conversion'],
+      ['/pipeline/list'],
       ['/dashboard'],
       [`/projects/${WON_PROJECT_ID}`],
     ])

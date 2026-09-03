@@ -1,3 +1,4 @@
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import type { Metadata } from 'next'
 import React from 'react'
 import { notFound } from 'next/navigation'
@@ -46,7 +47,7 @@ function formatBps(bps: number): string {
 }
 
 export default async function ProjectBillingPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
+  const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
   const access = getProjectDetailAccess(profile.role)
   if (!access.billing) return notFound()
@@ -85,6 +86,7 @@ export default async function ProjectBillingPage({ params }: { params: Promise<{
 
   return (
     <div>
+      <h1 className="page-title">Billing</h1>
       {/* Breadcrumb */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
         <Link href="/projects" style={{ color: 'var(--color-neutral-400)', fontSize: '0.875rem', textDecoration: 'none' }}>

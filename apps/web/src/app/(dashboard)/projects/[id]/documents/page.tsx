@@ -1,7 +1,8 @@
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { documents, projects } from '@third-code-erp/database/schema'
 import { and, eq, desc, sum } from 'drizzle-orm'
@@ -9,6 +10,7 @@ import { UploadButton } from '@/components/documents/upload-button'
 import { DeleteDocumentButton } from '@/components/documents/delete-document-button'
 import { QuotaBar } from '@/components/documents/quota-bar'
 import { IconDownload, IconExternalLink } from '@/components/ui/icons'
+import { canViewPath } from '@/lib/operations/nav-config'
 
 export const metadata: Metadata = { title: 'Documents' }
 
@@ -65,8 +67,9 @@ const TABS = [
 ]
 
 export default async function ProjectDocumentsPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
+  const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
+  const canManage = can(profile.role, 'document.manage')
 
   const [project] = await db
     .select({ id: projects.id, name: projects.name })
@@ -109,7 +112,7 @@ export default async function ProjectDocumentsPage({ params }: { params: Promise
           <span style={{ color: 'var(--color-neutral-700)' }}>Documents</span>
         </div>
         <h1 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--color-neutral-900)', margin: '0 0 16px' }}>
-          {project.name}
+          {project.name} — Documents
         </h1>
         <div
           style={{
@@ -121,12 +124,13 @@ export default async function ProjectDocumentsPage({ params }: { params: Promise
             borderBottom: '1px solid var(--color-border)',
           }}
         >
-          {TABS.map(({ label, href }) => {
+          {TABS.filter(({ href }) => canViewPath(profile.role, `/projects/${id}${href}`)).map(({ label, href }) => {
             const isActive = href === '/documents'
             return (
               <Link
                 key={href}
                 href={`/projects/${id}${href}`}
+                aria-current={isActive ? 'page' : undefined}
                 style={{
                   padding: '8px 20px',
                   fontSize: '0.875rem',
@@ -152,7 +156,7 @@ export default async function ProjectDocumentsPage({ params }: { params: Promise
         <p style={{ fontSize: '0.875rem', color: 'var(--color-neutral-500)', margin: 0 }}>
           {docs.length} file{docs.length !== 1 ? 's' : ''}
         </p>
-        <UploadButton projectId={id} />
+        {canManage ? <UploadButton projectId={id} /> : <span>Read-only document access</span>}
       </div>
 
       {docs.length === 0 ? (
@@ -168,12 +172,12 @@ export default async function ProjectDocumentsPage({ params }: { params: Promise
         >
           <p style={{ fontSize: '0.875rem', marginBottom: '8px' }}>No documents uploaded yet.</p>
           <p style={{ fontSize: '0.8125rem' }}>
-            Use the Upload button above to add DWG/DXF drawings, PDFs, or images.{' '}
+            {canManage ? 'Use Upload file to add supported project evidence.' : 'Ask a workspace operator to upload project evidence.'}{' '}
             <Link href="/documents" style={{ color: 'var(--color-navy-700)' }}>View all documents</Link>
           </p>
         </div>
       ) : (
-        <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
+        <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px', overflowX: 'auto' }}>
           <table className="data-table">
             <thead>
               <tr>
@@ -270,11 +274,11 @@ export default async function ProjectDocumentsPage({ params }: { params: Promise
                     >
                       <IconDownload size={16} />
                     </a>
-                    <DeleteDocumentButton
+                    {canManage ? <DeleteDocumentButton
                       documentId={doc.id}
                       projectId={id}
                       fileName={doc.file_name}
-                    />
+                    /> : null}
                   </td>
                 </tr>
               ))}
@@ -294,7 +298,7 @@ export default async function ProjectDocumentsPage({ params }: { params: Promise
           color: 'var(--color-navy-700)',
         }}
       >
-        DWG is the primary CAD format. Upload a DWG or DXF and ABI OPS automatically extracts scope items and drafts a BOM. DXF parses instantly in-browser. Binary DWG runs through the server-side libredwg converter when DXF_PARSER_URL is configured. In-browser preview and version history land in Phase 3.
+        Uploads are validated and processed according to their format. Review the processing result: extracted evidence and candidate BOMs require review, and unpriced items need a DUPA before pricing. CAD processing depends on the configured worker; an upload is not proof that extraction or pricing succeeded.
       </div>
     </div>
   )

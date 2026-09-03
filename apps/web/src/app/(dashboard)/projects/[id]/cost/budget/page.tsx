@@ -1,3 +1,4 @@
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import type { Metadata } from 'next'
 import React from 'react'
 import Link from 'next/link'
@@ -90,7 +91,7 @@ export default async function ProjectBudgetPage({
 }: {
   params: Promise<{ id: string }>
 }) {
-  const { id: projectId } = await params
+  const { id: projectId } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
   const access = getProjectDetailAccess(profile.role)
   if (!access.cost) return notFound()

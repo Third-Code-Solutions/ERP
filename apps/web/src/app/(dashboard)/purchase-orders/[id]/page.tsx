@@ -1,3 +1,4 @@
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -67,7 +68,7 @@ interface PoBudgetControlRow extends Record<string, unknown> {
 }
 
 export default async function PoDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
+  const { id } = await requireUuidRouteParams(params)
   // The dashboard layout performs the path-level gate. The page still loads a
   // tenant-bound profile so direct server rendering cannot fall back to an
   // unscoped users lookup.

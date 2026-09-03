@@ -29,7 +29,7 @@ const UNRESTRICTED_NAV_HREFS = [
   '/dashboard',
   '/cortex',
   '/crm/accounts',
-  '/pipeline/board',
+  '/pipeline',
   '/projects',
   '/tasks',
   '/process',
@@ -161,7 +161,7 @@ const VISIBLE_NAV_ORDER = [
   '/cortex',
   '/crm/accounts',
   '/crm/kyc-queue',
-  '/pipeline/board',
+  '/pipeline',
   '/projects',
   '/bom',
   '/tasks',
@@ -242,7 +242,7 @@ describe('RBAC: visibleNavSections', () => {
     // Unrestricted items are visible to everyone.
     expect(hrefs).toContain('/dashboard')
     expect(hrefs).toContain('/crm/accounts')
-    expect(hrefs).toContain('/pipeline/board')
+    expect(hrefs).toContain('/pipeline')
     expect(hrefs).toContain('/projects')
     expect(hrefs).toContain('/tasks')
     expect(hrefs).toContain('/documents')
@@ -288,7 +288,7 @@ describe('RBAC: visibleNavSections', () => {
     for (const role of projectReaders) {
       const hrefs = visibleNavSections(role)
         .flatMap((section) => section.items.map((item) => item.href))
-      expect(hrefs, role).toContain('/pipeline/board')
+      expect(hrefs, role).toContain('/pipeline')
       expect(hrefs, role).toContain('/projects')
       expect(canViewPath(role, '/projects/project-id'), role).toBe(true)
     }
@@ -468,9 +468,10 @@ describe('RBAC: canViewPath (deny-by-default route guard)', () => {
     const routeOnlyHrefs = [
       '/crm',
       '/crm/opportunities',
-      '/pipeline',
-      '/pipeline/coverage',
+      '/pipeline/board',
       '/pipeline/conversion',
+      '/pipeline/coverage',
+      '/pipeline/list',
       '/procurement',
     ]
 
@@ -487,7 +488,7 @@ describe('RBAC: canViewPath (deny-by-default route guard)', () => {
       )
       expect(canViewPath(role, '/pipeline'), role).toBe(true)
       expect(canViewPath(role, '/pipeline/coverage'), role).toBe(true)
-      expect(canViewPath(role, '/pipeline/conversion'), role).toBe(true)
+      expect(canViewPath(role, '/pipeline/list'), role).toBe(true)
     }
   })
 
@@ -590,8 +591,8 @@ describe('sidebar active state', () => {
     expect(activeNavHref('/settings/profile', visibleNavSections('finance'))).toBe(
       null
     )
-    expect(activeNavHref('/pipeline/conversion', visibleNavSections('finance'))).toBe(
-      null
+    expect(activeNavHref('/pipeline/list', visibleNavSections('finance'))).toBe(
+      '/pipeline'
     )
   })
 })

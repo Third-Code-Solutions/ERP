@@ -1,3 +1,4 @@
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireUserProfile, can } from '@third-code-erp/auth'
@@ -29,7 +30,7 @@ const ARTIFACT_LABEL: Record<string, string> = {
 }
 
 export default async function AccountDetailPage({ params }: PageProps) {
-  const { id } = await params
+  const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
 
   const detail = await getAccountDetail(profile.tenantId, id)

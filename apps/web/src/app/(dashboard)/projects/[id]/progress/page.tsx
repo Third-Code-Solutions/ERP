@@ -1,3 +1,4 @@
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -70,7 +71,7 @@ export default async function ProjectProgressPage({
   params,
   searchParams,
 }: PageProps) {
-  const { id } = await params
+  const { id } = await requireUuidRouteParams(params)
   const { view: viewParam } = await searchParams
   const view: ProgressView = viewParam === 'gantt' ? 'gantt' : 'curve'
   const profile = await requireUserProfile()

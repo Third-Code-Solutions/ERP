@@ -1,3 +1,4 @@
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -54,7 +55,7 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 export default async function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
+  const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
   requireCapability(profile, 'project.read')
   const tenantId = profile.tenantId

@@ -1,3 +1,4 @@
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { and, eq, desc } from 'drizzle-orm'
@@ -47,7 +48,7 @@ interface DesignFileWithVersions {
 }
 
 export default async function DesignPage({ params }: PageProps) {
-  const { id } = await params
+  const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
   const canUpload = can(profile.role, 'design.upload')
   const canMarkReady = can(profile.role, 'design.ready_for_presentation')

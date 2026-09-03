@@ -1,4 +1,6 @@
 import type { Metadata } from 'next'
+import React from 'react'
+import { z } from 'zod'
 import { loadPortalBom, recordSign } from './sign-actions'
 
 export const metadata: Metadata = {
@@ -12,6 +14,11 @@ export const dynamic = 'force-dynamic'
 
 const VAT_BPS = 1200 // 12%
 const RETENTION_BPS = 1000 // 10%
+const signingUrlSchema = z.string().url().refine((value) => {
+  if (!URL.canParse(value)) return false
+  const url = new URL(value)
+  return url.protocol === 'https:' && !url.username && !url.password
+})
 
 function fmtPHP(cents: number): string {
   return (
@@ -42,6 +49,8 @@ export default async function PortalBomPage({
   }
 
   const bom = result.bom!
+  // Historical rows also contain provider slugs; they are not application routes.
+  const signingUrl = signingUrlSchema.safeParse(bom.docuseal_slug)
   const subtotal = bom.tcv_cents
   const vat = Math.round(subtotal * (VAT_BPS / 10000))
   const retention = Math.round(subtotal * (RETENTION_BPS / 10000))
@@ -219,7 +228,7 @@ export default async function PortalBomPage({
         <h3 style={{ margin: '0 0 8px', fontSize: 15, color: '#0F2D4A' }}>Signature</h3>
         <p style={{ margin: '0 0 14px', fontSize: 13, color: '#4b5563', lineHeight: 1.55 }}>
           Reviewing this BOM and clicking <em>I approve this BOM</em> records your acceptance and locks the
-          document for execution. A counter-signed PDF will be emailed to you.
+          document for execution.
         </p>
 
         {bom.is_dev_stub ? (
@@ -242,13 +251,15 @@ export default async function PortalBomPage({
               project team to issue a new secure signing link from the workspace.
             </p>
           </div>
-        ) : bom.docuseal_slug ? (
-          <iframe
-            src={bom.docuseal_slug.startsWith('http') ? bom.docuseal_slug : `/portal/dev-sign/${bom.docuseal_slug}`}
-            title="Sign BOM"
-            style={{ width: '100%', height: 480, border: '1px solid #d8dde6', borderRadius: 8, marginBottom: 14 }}
-          />
-        ) : null}
+        ) : signingUrl.success ? (
+          <p>
+            <a href={signingUrl.data} target="_blank" rel="noopener noreferrer">
+              Open secure signing page
+            </a>
+          </p>
+        ) : (
+          <p>Ask the project team for a current secure signing link if you need the external signing page.</p>
+        )}
 
         {!bom.is_dev_stub && (
           <form action={signAction}>
