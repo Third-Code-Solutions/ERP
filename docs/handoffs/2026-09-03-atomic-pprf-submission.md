@@ -730,3 +730,55 @@ missing, duplicate, or unknown names. Add a hostile mutation that removes
 current optional whole-positive-integer action semantics and the distinct
 required decimal `floor_area_sqm`; do not conflate the two fields or weaken the
 action allowlist.
+
+## Agent 12 field-inventory contract hardening — 2026-09-03
+
+Status: **GO to independent browser QA**. The mounted intake contract now fails
+closed if its native successful-control inventory diverges from the action.
+
+The verifier carries an independent twenty-field intake inventory, parses the
+action's static `FIELD_NAMES`, and compares both sets to every statically named
+native `input`, `select`, `textarea`, and `button` in the mounted form. It
+requires unique names and rejects JSX spreads on native controls so an unknown
+runtime name cannot hide outside the static inventory. The comparison is order
+independent and the existing TypeScript-printer/service-alias case remains
+green.
+
+The verifier separately binds the control with `id="area_sqm"` to optional
+`name="area_sqm"`, integer `min="1"`/`step="1"` semantics and no `required`
+attribute. It binds `id="floor_area_sqm"` to required decimal
+`name="floor_area_sqm"`, `min="0.01"`, and `step="0.01"`. The intake action
+must also parse those exact source fields through `optionalPositiveInteger`
+and `positiveDecimal`, respectively.
+
+### TDD and verification evidence
+
+- RED — six independent hostile mutations evaded the prior verifier: removed
+  `area_sqm`, direct unknown control, spread-hidden unknown control, duplicate
+  name, swapped mounted area names, and swapped action parser sources. They
+  failed 0/4, 0/1, and 0/1 in the three reproduction runs with the expected
+  missing-exception evidence.
+- GREEN — final authoritative/mutation suite 59/59 twice, zero skipped. This
+  adds six PPRF hostile mutations: 49 PPRF-specific and 72 hostile mutations
+  overall, plus the benign formatting/alias cases.
+- PASS — mounted action/form/page suite 74/74 and atomic service suite 42/42.
+- PASS — both verifier files pass `node --check`; source and staged diff checks
+  pass.
+- PASS — repository gitleaks 8.30.1 scanned 1,831 commits / approximately
+  46.20 MB with no leak finding.
+- REUSED CURRENT-HEAD EVIDENCE — Agent 03 passed Web typecheck, zero-warning
+  Web lint, and the 89-page production build at the runtime source now under
+  verification. Agent 12 changed only the verifier, its direct harness, and
+  these append-only notes, so those long runtime-only gates were not duplicated.
+- BOUNDED — this is syntax-aware static inventory proof. It rejects native
+  control spreads but does not execute browser successful-control serialization
+  or prove runtime DOM behavior. The authenticated browser lane remains
+  required and was not run or mutated by Agent 12.
+- UNCHANGED P2 — the historical receipt reader still accepts unknown keys via
+  `.passthrough()`; current writes remain bounded and privacy-verified. Runtime
+  service source remains outside this contract-owner scope.
+
+→ Handoff to independent browser QA. Submit the native intake once with
+`area_sqm` blank and once with a valid integer, and confirm `floor_area_sqm`
+remains independently required and decimal-capable. No hosted/demo or database
+mutation was performed here.

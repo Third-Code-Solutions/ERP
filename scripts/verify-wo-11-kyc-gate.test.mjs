@@ -1084,6 +1084,10 @@ test('accepts benign formatting and a local alias for the PPRF service', () => {
       new Map([
         [pprfServicePath, formattedService],
         [pprfIntakeActionPath, reprint(aliasedAction, pprfIntakeActionPath)],
+        [
+          pprfIntakeFormPath,
+          reprint(read(pprfIntakeFormPath), pprfIntakeFormPath),
+        ],
       ])
     )
   )
@@ -1394,6 +1398,122 @@ test('fails if a mounted form trusts browser Opportunity or tenant identity', ()
       /mounts only the stable submission UUID as hidden identity/
     )
   }
+})
+
+test('fails if the mounted intake form removes the optional Opportunity area control', () => {
+  const mutated = mutateFirst(
+    read(pprfIntakeFormPath),
+    pprfIntakeFormPath,
+    (node) =>
+      ts.isJsxSelfClosingElement(node) &&
+      node.tagName.getText() === 'input' &&
+      node.getText().includes('id="area_sqm"'),
+    (_node, factory) =>
+      factory.createJsxSelfClosingElement(
+        factory.createIdentifier('span'),
+        undefined,
+        factory.createJsxAttributes([])
+      ),
+    'field inventory fixture must remove the area_sqm control'
+  )
+  assert.throws(
+    () => verifyPprfOverride(pprfIntakeFormPath, mutated),
+    /mounted field inventory matches its exact action allowlist/
+  )
+})
+
+test('fails if the mounted intake form adds an unknown successful control', () => {
+  const marker = '<input type="hidden" name="submission_id" value={submissionId} />'
+  const mutated = replaceTextOnce(
+    read(pprfIntakeFormPath),
+    marker,
+    `${marker}\n      <input name="unexpected_field" />`,
+    'field inventory fixture must add an unknown control'
+  )
+  assert.throws(
+    () => verifyPprfOverride(pprfIntakeFormPath, mutated),
+    /mounted field inventory matches its exact action allowlist/
+  )
+})
+
+test('fails if a JSX spread can hide an unknown intake control name', () => {
+  const marker = '<input type="hidden" name="submission_id" value={submissionId} />'
+  const mutated = replaceTextOnce(
+    read(pprfIntakeFormPath),
+    marker,
+    `${marker}\n      <input {...{ name: 'unexpected_field' }} />`,
+    'field inventory fixture must add a spread control name'
+  )
+  assert.throws(
+    () => verifyPprfOverride(pprfIntakeFormPath, mutated),
+    /mounted controls do not hide names in JSX spreads/
+  )
+})
+
+test('fails if the mounted intake form emits a duplicate successful-control name', () => {
+  const marker = '<input type="hidden" name="submission_id" value={submissionId} />'
+  const mutated = replaceTextOnce(
+    read(pprfIntakeFormPath),
+    marker,
+    `${marker}\n      <input name="area_sqm" />`,
+    'field inventory fixture must duplicate area_sqm'
+  )
+  assert.throws(
+    () => verifyPprfOverride(pprfIntakeFormPath, mutated),
+    /mounted controls have unique static names/
+  )
+})
+
+test('fails if Opportunity area and PPRF floor area names are conflated', () => {
+  const source = read(pprfIntakeFormPath)
+  const temporary = replaceTextOnce(
+    source,
+    'name="area_sqm"',
+    'name="__opportunity_area__"',
+    'field inventory fixture must select area_sqm'
+  )
+  const swappedFloor = replaceTextOnce(
+    temporary,
+    'name="floor_area_sqm"',
+    'name="area_sqm"',
+    'field inventory fixture must select floor_area_sqm'
+  )
+  const mutated = replaceTextOnce(
+    swappedFloor,
+    'name="__opportunity_area__"',
+    'name="floor_area_sqm"',
+    'field inventory fixture must complete the name swap'
+  )
+  assert.throws(
+    () => verifyPprfOverride(pprfIntakeFormPath, mutated),
+    /Opportunity area and PPRF floor area remain distinct controls/
+  )
+})
+
+test('fails if intake parsing conflates Opportunity area with PPRF floor area', () => {
+  const source = read(pprfIntakeActionPath)
+  const temporary = replaceTextOnce(
+    source,
+    'fields.values.floor_area_sqm',
+    'fields.values.__floor_area__',
+    'action field fixture must select floor_area_sqm'
+  )
+  const swappedArea = replaceTextOnce(
+    temporary,
+    'fields.values.area_sqm',
+    'fields.values.floor_area_sqm',
+    'action field fixture must select area_sqm'
+  )
+  const mutated = replaceTextOnce(
+    swappedArea,
+    'fields.values.__floor_area__',
+    'fields.values.area_sqm',
+    'action field fixture must complete the parser swap'
+  )
+  assert.throws(
+    () => verifyPprfOverride(pprfIntakeActionPath, mutated),
+    /parses Opportunity area separately from PPRF floor area/
+  )
 })
 
 test('fails if detail exposes the PPRF form without the central submit capability', () => {

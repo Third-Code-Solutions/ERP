@@ -226,3 +226,28 @@ control serialization.
 → Handoff to Agent 12 / WO-11 contract owner. Make the verifier compare mounted
 control names to the exact action allowlist and add a mutation that removes
 `area_sqm`; keep Opportunity integer area distinct from PPRF decimal floor area.
+
+## Agent 12 field-inventory hardening
+
+- Added an independent exact twenty-field intake inventory and an AST-based
+  comparison against both the action allowlist and mounted native controls.
+- Rejects missing, unknown, duplicate, non-static, and JSX-spread-hidden control
+  names.
+- Keeps optional integer Opportunity `area_sqm` separate from required decimal
+  PPRF `floor_area_sqm` at both mounted controls and action parsing.
+- Added six hostile mutations. All six were RED before their corresponding
+  guards; the final suite is 59/59 twice, with 49 PPRF-specific and 72 hostile
+  mutations overall plus benign formatting/alias coverage.
+- PASS — focused mounted PPRF 74/74, service 42/42, verifier syntax, diff
+  checks, and gitleaks over 1,831 commits / approximately 46.20 MB. Current
+  runtime source is unchanged, so the immediately preceding
+  Agent 03 Web typecheck/lint/89-page build evidence remains applicable and was
+  not duplicated.
+- BOUNDED / NOT RUN — native browser serialization and authenticated form
+  submission; static analysis does not execute the DOM. No browser, database,
+  hosted/demo, provider, schema, data, environment, dependency, deployment, or
+  remote mutation occurred.
+- P2 unchanged — historical receipt parsing remains permissive to unknown keys;
+  the current bounded writer and returned known fields remain privacy-verified.
+
+Status: **GO to independent browser QA** with no new P0/P1/P2 finding.

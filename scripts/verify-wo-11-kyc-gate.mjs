@@ -1789,6 +1789,28 @@ const PPRF_MOUNTED_ENTRIES = Object.freeze([
     formName: 'PprfIntakeForm',
     formHandler: 'submit',
     capabilities: ['account.create', 'pprf.submit'],
+    expectedFieldNames: [
+      'submission_id',
+      'client_name',
+      'industry',
+      'billing_address',
+      'primary_email',
+      'primary_phone',
+      'tcv',
+      'gp',
+      'area_sqm',
+      'closing_date',
+      'opportunity_type',
+      'remarks',
+      'site_address',
+      'floor_area_sqm',
+      'landlord_contact',
+      'as_built_available',
+      'scope_notes',
+      'project_type',
+      'expected_start_date',
+      'budget_range',
+    ],
   }),
   Object.freeze({
     surface: 'PPRF resubmission',
@@ -1869,6 +1891,27 @@ function jsxStringAttribute(element, name) {
     ts.isStringLiteralLike(attribute.initializer)
     ? attribute.initializer.text
     : undefined
+}
+
+function jsxAttribute(element, name) {
+  return element.attributes.properties.find(
+    (candidate) =>
+      ts.isJsxAttribute(candidate) &&
+      ts.isIdentifier(candidate.name) &&
+      candidate.name.text === name
+  )
+}
+
+function nativeFormControls(root, sourceFile) {
+  return descendants(
+    root,
+    (node) =>
+      ts.isJsxSelfClosingElement(node) || ts.isJsxOpeningElement(node)
+  ).filter((element) =>
+    ['input', 'select', 'textarea', 'button'].includes(
+      element.tagName.getText(sourceFile)
+    )
+  )
 }
 
 function exactCapabilityPolicy(authorizationFile, capability) {
@@ -2134,6 +2177,94 @@ function verifyPprfForm(graph, config) {
     ['submission_id'],
     `${config.surface} mounts only the stable submission UUID as hidden identity`
   )
+  const nativeControls = nativeFormControls(form, record.sourceFile)
+  invariant(
+    !nativeControls.some((element) =>
+      element.attributes.properties.some(ts.isJsxSpreadAttribute)
+    ),
+    `${config.surface} mounted controls do not hide names in JSX spreads`
+  )
+  const namedControls = nativeControls.filter((element) =>
+    jsxAttribute(element, 'name')
+  )
+  const mountedNames = namedControls.map((element) =>
+    jsxStringAttribute(element, 'name')
+  )
+  invariant(
+    mountedNames.every((name) => name !== undefined),
+    `${config.surface} mounted controls use static names`
+  )
+  invariant(
+    new Set(mountedNames).size === mountedNames.length,
+    `${config.surface} mounted controls have unique static names`
+  )
+  if (config.expectedFieldNames) {
+    const actionRecord = moduleRecord(
+      graph.root,
+      config.actionPath,
+      graph.sourceOverrides,
+      graph.cache
+    )
+    const fieldNames = variable(
+      actionRecord.sourceFile,
+      'FIELD_NAMES',
+      `${config.surface} action field allowlist`
+    )
+    const acceptedNames = fieldNames.initializer
+      ? arrayLiteralValues(fieldNames.initializer)
+      : undefined
+    invariant(
+      acceptedNames && new Set(acceptedNames).size === acceptedNames.length,
+      `${config.surface} action field allowlist has unique static names`
+    )
+    assertExactValues(
+      [...acceptedNames].sort(),
+      [...config.expectedFieldNames].sort(),
+      `${config.surface} action field allowlist remains authoritative`
+    )
+    assertExactValues(
+      [...mountedNames].sort(),
+      [...config.expectedFieldNames].sort(),
+      `${config.surface} mounted field inventory matches its exact action allowlist`
+    )
+
+    const areaControl = nativeControls.find(
+      (element) => jsxStringAttribute(element, 'id') === 'area_sqm'
+    )
+    const floorAreaControl = nativeControls.find(
+      (element) => jsxStringAttribute(element, 'id') === 'floor_area_sqm'
+    )
+    invariant(
+      areaControl &&
+        floorAreaControl &&
+        jsxStringAttribute(areaControl, 'name') === 'area_sqm' &&
+        jsxStringAttribute(areaControl, 'type') === 'number' &&
+        jsxStringAttribute(areaControl, 'min') === '1' &&
+        jsxStringAttribute(areaControl, 'step') === '1' &&
+        !jsxAttribute(areaControl, 'required') &&
+        jsxStringAttribute(floorAreaControl, 'name') === 'floor_area_sqm' &&
+        jsxStringAttribute(floorAreaControl, 'type') === 'number' &&
+        jsxStringAttribute(floorAreaControl, 'min') === '0.01' &&
+        jsxStringAttribute(floorAreaControl, 'step') === '0.01' &&
+        jsxAttribute(floorAreaControl, 'required'),
+      `${config.surface} Opportunity area and PPRF floor area remain distinct controls`
+    )
+
+    const action = namedFunction(
+      actionRecord.sourceFile,
+      config.actionName,
+      `${config.surface} action`
+    )
+    invariant(
+      hasCallWithArguments(action, 'optionalPositiveInteger', [
+        { path: 'fields.values.area_sqm' },
+      ]) &&
+        hasCallWithArguments(action, 'positiveDecimal', [
+          { path: 'fields.values.floor_area_sqm' },
+        ]),
+      `${config.surface} parses Opportunity area separately from PPRF floor area`
+    )
+  }
   invariant(
     hasIdentifier(form.parameters[0], 'submissionId') &&
       hasStringLiteral(form, 'submission_id'),
