@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import React, { useEffect, useRef, useState, useTransition } from 'react'
 
 import { submitInspection } from '@/app/(dashboard)/crm/opportunities/[id]/proposal/actions'
 import { ActionFeedback } from '@/components/ui/action-feedback'
@@ -58,11 +58,13 @@ export function InspectionForm({ opportunityId, pprfSubmitted, defaults }: Inspe
   const [clientSubmissionId, setClientSubmissionId] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [archiveWarning, setArchiveWarning] = useState<string | null>(null)
   const [draftMessage, setDraftMessage] = useState<string | null>(null)
   const [online, setOnline] = useState(true)
   const [draftReady, setDraftReady] = useState(false)
   const [photoBusy, setPhotoBusy] = useState(false)
   const [pending, startTransition] = useTransition()
+  const inFlightRef = useRef(false)
 
   useEffect(() => {
     let active = true
@@ -125,6 +127,7 @@ export function InspectionForm({ opportunityId, pprfSubmitted, defaults }: Inspe
     setFields((current) => ({ ...current, [field]: value }))
     setError(null)
     setSuccess(null)
+    setArchiveWarning(null)
   }
 
   async function addPhotos(fileList: FileList | null) {
@@ -217,14 +220,18 @@ export function InspectionForm({ opportunityId, pprfSubmitted, defaults }: Inspe
   }
 
   function onSubmit(formData: FormData) {
+    if (inFlightRef.current) return
+    inFlightRef.current = true
     setError(null)
     setSuccess(null)
+    setArchiveWarning(null)
     const submissionId = clientSubmissionId || crypto.randomUUID()
     setClientSubmissionId(submissionId)
     formData.set('client_submission_id', submissionId)
     if (!online) {
       void saveDraftNow()
       setDraftMessage('Offline. Report saved; reconnect to sync it.')
+      inFlightRef.current = false
       return
     }
 
@@ -232,14 +239,23 @@ export function InspectionForm({ opportunityId, pprfSubmitted, defaults }: Inspe
       try {
         const documentIds = await uploadPendingPhotos()
         formData.set('photo_document_ids', JSON.stringify(documentIds))
-        const res = await submitInspection(formData)
-        if (res?.error) {
+        const res = await submitInspection(opportunityId, formData)
+        if (!res.ok) {
           setError(res.error)
           await saveDraftNow()
-        } else if (res?.id) {
-          await clearSiteInspectionDraft(opportunityId)
-          setSuccess('Site inspection submitted. Design has been notified.')
-          setDraftMessage(null)
+        } else {
+          try {
+            await clearSiteInspectionDraft(opportunityId)
+            setDraftMessage(null)
+          } catch {
+            setDraftMessage('Inspection submitted. The saved device draft could not be cleared.')
+          }
+          setSuccess(
+            res.replayed
+              ? 'This inspection was already submitted. The existing Design handoff was recovered.'
+              : 'Site inspection submitted. The Design handoff was recorded.',
+          )
+          setArchiveWarning(res.archiveWarning ?? null)
           setPhotos([])
           setUploadedPhotoIds([])
           setClientSubmissionId(crypto.randomUUID())
@@ -249,6 +265,8 @@ export function InspectionForm({ opportunityId, pprfSubmitted, defaults }: Inspe
         const message = submitError instanceof Error ? submitError.message : 'Report sync failed.'
         setError(message)
         await saveDraftNow()
+      } finally {
+        inFlightRef.current = false
       }
     })
   }
@@ -264,8 +282,8 @@ export function InspectionForm({ opportunityId, pprfSubmitted, defaults }: Inspe
       aria-busy={pending || photoBusy}
       aria-describedby="inspection-form-status"
     >
-      <input type="hidden" name="opportunity_id" value={opportunityId} />
       <input type="hidden" name="client_submission_id" value={clientSubmissionId} />
+      <input type="hidden" name="photo_document_ids" value={JSON.stringify(uploadedPhotoIds)} />
 
       <div className="form-context" role="note">
         <strong>Mobile field report</strong>
@@ -431,6 +449,9 @@ export function InspectionForm({ opportunityId, pprfSubmitted, defaults }: Inspe
         pendingMessage={photoBusy ? 'Saving photos on this device…' : 'Syncing inspection…'}
         success={success}
       />
+      {archiveWarning && (
+        <p className="form-warning" role="alert">{archiveWarning}</p>
+      )}
 
       <div className="form-actions">
         <button type="button" className="secondary-action" onClick={() => void saveDraftNow()}>
@@ -438,10 +459,10 @@ export function InspectionForm({ opportunityId, pprfSubmitted, defaults }: Inspe
         </button>
         <button
           type="submit"
-          disabled={pending || photoBusy || !online}
+          disabled={pending || photoBusy || !online || !draftReady}
           className="primary-action"
         >
-          {pending ? 'Syncing...' : online && uploadedPhotoIds.length + photos.filter((photo) => !photo.documentId).length > 0 ? 'Sync report and photos' : 'Submit inspection'}
+          {!draftReady ? 'Preparing…' : pending ? 'Syncing...' : online && uploadedPhotoIds.length + photos.filter((photo) => !photo.documentId).length > 0 ? 'Sync report and photos' : 'Submit inspection'}
         </button>
       </div>
 
