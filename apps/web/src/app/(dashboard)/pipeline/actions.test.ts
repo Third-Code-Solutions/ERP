@@ -102,6 +102,27 @@ function successfulWonTransition(toStage: 'won' | 'closed_won' = 'won') {
   }
 }
 
+function successfulNonWonTransition(
+  fromStage: 'lead' | 'site_survey' | 'design' | 'bom_submission' | 'negotiation' = 'lead',
+  toStage: 'site_survey' | 'design' | 'bom_submission' | 'negotiation' | 'contract' | 'lost' =
+    'site_survey'
+) {
+  return {
+    ok: true as const,
+    status: 200,
+    data: {
+      ok: true as const,
+      opportunityId: OPPORTUNITY_ID,
+      tenantId: TENANT_ID,
+      fromStage,
+      toStage,
+      projectId: null,
+      checklistId: null,
+      convertedToProject: false,
+    },
+  }
+}
+
 function expectNoLocalStageEffects() {
   expect(mocks.select).not.toHaveBeenCalled()
   expect(mocks.insert).not.toHaveBeenCalled()
@@ -329,61 +350,173 @@ describe('atomic Won-to-Project pipeline handoff', () => {
     expect(mocks.revalidatePath).not.toHaveBeenCalled()
   })
 
-  it('preserves the existing local path for a non-Won transition', async () => {
+  it('routes an authorized non-Won transition only through Core', async () => {
     mocks.getUserProfile.mockResolvedValue(profileFor('sales'))
-    mocks.select.mockReturnValue({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockResolvedValue([
-          {
-            id: OPPORTUNITY_ID,
-            stage: 'lead',
-            tcv_cents: 100_000,
-            project_id: null,
-            account_id: null,
-            lost_reason: null,
-          },
-        ]),
-      }),
-    })
-    const updateWhere = vi.fn().mockResolvedValue(undefined)
-    const updateSet = vi.fn().mockReturnValue({ where: updateWhere })
-    mocks.update.mockReturnValue({ set: updateSet })
+    mocks.transitionOpportunityStageThroughCoreApi.mockResolvedValue(
+      successfulNonWonTransition()
+    )
 
     const result = await advanceOpportunityStage(
       OPPORTUNITY_ID,
-      'site_survey'
+      'site_survey',
+      '  Site visit completed  '
     )
 
     expect(result).toEqual({})
-    expect(mocks.opportunityStageWritesUseCoreApi).not.toHaveBeenCalled()
+    expect(mocks.opportunityStageWritesUseCoreApi).toHaveBeenCalledWith(
+      TENANT_ID
+    )
     expect(
       mocks.transitionOpportunityStageThroughCoreApi
-    ).not.toHaveBeenCalled()
-    expect(mocks.select).toHaveBeenCalledTimes(1)
-    expect(mocks.update).toHaveBeenCalledTimes(1)
-    expect(updateSet).toHaveBeenCalledWith(
-      expect.objectContaining({
-        stage: 'site_survey',
-        probability: 25,
-        weighted_tcv_cents: 25_000,
-      })
+    ).toHaveBeenCalledWith(
+      OPPORTUNITY_ID,
+      { newStage: 'site_survey', reason: 'Site visit completed' },
+      expect.stringMatching(/^pipeline-stage-[a-f0-9]{64}$/)
     )
-    expect(updateWhere).toHaveBeenCalledTimes(1)
-    expect(mocks.writeAuditLog).toHaveBeenCalledWith(
-      expect.objectContaining({
-        entityId: OPPORTUNITY_ID,
-        action: 'stage_change',
-        diff: expect.objectContaining({ from: 'lead', to: 'site_survey' }),
-      })
-    )
-    expect(mocks.stopSlaClock).toHaveBeenCalledTimes(1)
-    expect(mocks.startSlaClock).toHaveBeenCalledTimes(1)
-    expect(mocks.legacyConvertOpportunityToProject).not.toHaveBeenCalled()
+    expectNoLocalStageEffects()
     expect(mocks.revalidatePath.mock.calls).toEqual([
       ['/pipeline/board'],
       ['/pipeline/coverage'],
       ['/pipeline/conversion'],
       ['/'],
     ])
+  })
+
+  it('uses a stable key for exact non-Won retries and a distinct key for a distinct command', async () => {
+    mocks.getUserProfile.mockResolvedValue(profileFor('sales'))
+    mocks.transitionOpportunityStageThroughCoreApi.mockResolvedValue(
+      successfulNonWonTransition()
+    )
+
+    await advanceOpportunityStage(OPPORTUNITY_ID, 'site_survey', 'Visit done')
+    await advanceOpportunityStage(OPPORTUNITY_ID, 'site_survey', ' Visit done ')
+    await advanceOpportunityStage(OPPORTUNITY_ID, 'site_survey', 'New evidence')
+
+    const firstKey =
+      mocks.transitionOpportunityStageThroughCoreApi.mock.calls[0]?.[2]
+    const retryKey =
+      mocks.transitionOpportunityStageThroughCoreApi.mock.calls[1]?.[2]
+    const distinctCommandKey =
+      mocks.transitionOpportunityStageThroughCoreApi.mock.calls[2]?.[2]
+    expect(firstKey).toBe(retryKey)
+    expect(distinctCommandKey).not.toBe(firstKey)
+    expectNoLocalStageEffects()
+  })
+
+  it('handles selector failure without Core, local effects, or refresh', async () => {
+    mocks.getUserProfile.mockResolvedValue(profileFor('sales'))
+    mocks.opportunityStageWritesUseCoreApi.mockImplementation(() => {
+      throw new Error('invalid selector configuration')
+    })
+
+    const result = await advanceOpportunityStage(
+      OPPORTUNITY_ID,
+      'site_survey'
+    )
+
+    expect(result).toEqual({
+      error:
+        'Opportunity stage transition could not be selected. No Opportunity stage transition was committed.',
+    })
+    expect(
+      mocks.transitionOpportunityStageThroughCoreApi
+    ).not.toHaveBeenCalled()
+    expectNoLocalStageEffects()
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [
+      'typed Core rejection',
+      {
+        ok: false as const,
+        status: 409,
+        error: 'Cannot move from lead to site_survey.',
+      },
+    ],
+    [
+      'Core unavailability',
+      {
+        ok: false as const,
+        error:
+          'ERP Core API is unavailable. No Opportunity stage transition was committed.',
+      },
+    ],
+    [
+      'invalid adapter response',
+      {
+        ok: false as const,
+        error:
+          'ERP Core API returned an invalid Opportunity stage transition result.',
+      },
+    ],
+  ])('preserves non-Won %s without local effects or refresh', async (_label, failure) => {
+    mocks.getUserProfile.mockResolvedValue(profileFor('sales'))
+    mocks.transitionOpportunityStageThroughCoreApi.mockResolvedValue(failure)
+
+    const result = await advanceOpportunityStage(
+      OPPORTUNITY_ID,
+      'site_survey'
+    )
+
+    expect(result).toEqual({ error: failure.error })
+    expectNoLocalStageEffects()
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('maps an unexpected non-Won adapter throw to a handled failure', async () => {
+    mocks.getUserProfile.mockResolvedValue(profileFor('sales'))
+    mocks.transitionOpportunityStageThroughCoreApi.mockRejectedValue(
+      new Error('provider detail')
+    )
+
+    const result = await advanceOpportunityStage(
+      OPPORTUNITY_ID,
+      'site_survey'
+    )
+
+    expect(result).toEqual({
+      error:
+        'ERP Core API is unavailable. No Opportunity stage transition was committed.',
+    })
+    expectNoLocalStageEffects()
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [
+      'opportunity identity',
+      {
+        opportunityId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      },
+    ],
+    [
+      'tenant identity',
+      { tenantId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' },
+    ],
+    ['from-stage transition edge', { fromStage: 'design' }],
+    ['to-stage identity', { toStage: 'design' }],
+    ['conversion flag', { convertedToProject: true }],
+    ['project identity', { projectId: PROJECT_ID }],
+    ['checklist identity', { checklistId: CHECKLIST_ID }],
+  ])('rejects an invalid non-Won %s result before refresh', async (_label, invalid) => {
+    mocks.getUserProfile.mockResolvedValue(profileFor('sales'))
+    const transition = successfulNonWonTransition()
+    mocks.transitionOpportunityStageThroughCoreApi.mockResolvedValue({
+      ...transition,
+      data: { ...transition.data, ...invalid },
+    })
+
+    const result = await advanceOpportunityStage(
+      OPPORTUNITY_ID,
+      'site_survey'
+    )
+
+    expect(result).toEqual({
+      error:
+        'ERP Core API returned an invalid Opportunity stage transition result.',
+    })
+    expectNoLocalStageEffects()
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
   })
 })

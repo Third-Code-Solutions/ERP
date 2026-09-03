@@ -313,12 +313,12 @@ export class OpportunityStageTransitionService {
         PIPELINE_STAGES.indexOf(currentPipelineStage) &&
       nextPipelineStage !== 'lost'
     const reason = command.reason?.trim() || undefined
-    if (isRegression && !reason) {
+    const isClosingLost =
+      command.newStage === 'closed_lost' || command.newStage === 'lost'
+    if ((isRegression || isClosingLost) && !reason) {
       throw new ConflictException('reason_required')
     }
 
-    const isClosingLost =
-      command.newStage === 'closed_lost' || command.newStage === 'lost'
     const newProbability = STAGE_PROBABILITY[command.newStage]
     const updateValues: {
       stage: OpportunityStage
