@@ -3,9 +3,6 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 
-import { createSupabaseBrowserClient } from '@third-code-erp/auth/client'
-
-import { changePasswordWithReauthentication } from '@/app/_auth/password-operations'
 import {
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
@@ -13,21 +10,19 @@ import {
   validateAuthenticatedPasswordChange,
 } from '@/app/_auth/password-validation'
 
-type ChangePasswordFormProps = {
-  email: string
-  userId: string
-}
+import { changeOwnPassword } from './actions'
 
 const CHANGE_PASSWORD_ERRORS = {
   invalid_input: 'Enter valid password details and try again.',
   reauth_failed: 'Current password could not be verified. Check it and try again.',
+  audit_failed: 'Password could not be changed safely. Try again.',
   update_failed: 'Password could not be changed. Try again.',
   cleanup_failed: 'Password could not be changed safely. Try again.',
   sign_out_failed:
     'Password changed, but secure sign-out did not complete. Use Sign out before continuing.',
 } as const
 
-export function ChangePasswordForm({ email, userId }: ChangePasswordFormProps) {
+export function ChangePasswordForm() {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -60,12 +55,10 @@ export function ChangePasswordForm({ email, userId }: ChangePasswordFormProps) {
     }
 
     startTransition(async () => {
-      const supabase = createSupabaseBrowserClient()
-      const result = await changePasswordWithReauthentication(supabase.auth, {
-        email,
-        expectedUserId: userId,
+      const result = await changeOwnPassword({
         currentPassword,
-        newPassword: password,
+        password,
+        confirmation,
       })
       if (!result.ok) {
         setError(CHANGE_PASSWORD_ERRORS[result.reason])

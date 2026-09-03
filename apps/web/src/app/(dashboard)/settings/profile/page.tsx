@@ -66,10 +66,7 @@ export default async function ProfileSettingsPage() {
           >
             Confirm your current password, then choose a new password with 12 to 128 characters.
           </p>
-          <ChangePasswordForm
-            email={profile.email || profile.user.email || ''}
-            userId={profile.user.id}
-          />
+          <ChangePasswordForm />
         </section>
       </div>
     </div>
