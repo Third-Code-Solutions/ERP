@@ -38,6 +38,7 @@ interface TaskJoinedRow {
   id: string
   project_id: string
   project_name: string
+  assignee_id: string | null
   title: string
   description: string | null
   role: string | null
@@ -51,6 +52,7 @@ const TASK_COLUMNS = {
   id: dailyTasks.id,
   project_id: dailyTasks.project_id,
   project_name: projects.name,
+  assignee_id: dailyTasks.assignee_id,
   title: dailyTasks.title,
   description: dailyTasks.description,
   role: dailyTasks.role,

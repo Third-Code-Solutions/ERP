@@ -15,9 +15,10 @@ function formatPHP(cents: number): string {
 
 export default async function ProcurementPage() {
   const profile = await requireUserProfile()
-  if (!can(profile.role, 'po.create')) {
+  if (!can(profile.role, 'procurement.read')) {
     redirect('/dashboard?error=forbidden')
   }
+  const canCreate = can(profile.role, 'po.create')
 
   const vendorList = await db
     .select({
@@ -62,7 +63,7 @@ export default async function ProcurementPage() {
             <h2 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-neutral-700)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Vendors ({vendorList.length})
             </h2>
-            <AddVendorForm />
+            {canCreate && <AddVendorForm />}
           </div>
 
           {vendorList.length === 0 ? (

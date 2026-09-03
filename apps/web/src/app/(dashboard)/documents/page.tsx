@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
+import { redirect } from 'next/navigation'
 import { db } from '@third-code-erp/database'
 import { documents, projects } from '@third-code-erp/database/schema'
 import { and, eq, desc } from 'drizzle-orm'
@@ -38,6 +39,9 @@ function formatBytes(bytes: number): string {
 
 export default async function DocumentsPage() {
   const profile = await requireUserProfile()
+  if (!can(profile.role, 'document.read')) {
+    redirect('/dashboard?error=forbidden')
+  }
 
   const docs = await db
     .select({

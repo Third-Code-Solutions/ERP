@@ -4,10 +4,20 @@ type CortexNodeType = string
 
 const ADMIN_SCOPE: null = null
 
+// Explicit rather than unrestricted: Viewer can inspect every current
+// tenant-safe business node but does not automatically inherit future node
+// kinds that might contain authentication or provider-secret material.
 const VIEWER_SCOPE: readonly CortexNodeType[] = [
-  'task',
-  'announcement',
-  'document',
+  'employee', 'project', 'opportunity', 'account', 'scope_item', 'bom',
+  'bom_line', 'vendor', 'purchase_order', 'po_line', 'invoice',
+  'invoice_line', 'milestone', 'cost_line', 'task', 'announcement',
+  'schedule_event', 'document', 'change_order', 'audit_event', 'contact',
+  'permit', 'claim', 'ticket', 'delivery', 'rfq', 'contract', 'certificate',
+  'punchlist', 'inspection', 'design', 'change_request', 'material',
+  'weekly_report', 'fiscal_period', 'ledger_account', 'journal_entry',
+  'journal_line', 'supplier_bill', 'cash_account', 'cash_transaction',
+  'bank_statement', 'warehouse', 'stock_receipt', 'stock_ledger_entry',
+  'cost_code', 'project_budget', 'stock_movement',
 ]
 
 const SALES_SCOPE: readonly CortexNodeType[] = [

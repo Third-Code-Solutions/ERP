@@ -370,10 +370,10 @@ suite('Accounts protected HTTP canary', () => {
           expect.objectContaining({ id: opportunityB1, tenantId: tenantB }),
         ])
 
-        await request(app.getHttpServer())
+        const viewerKycQueueA = await request(app.getHttpServer())
           .get('/v1/crm/accounts/kyc-queue')
           .set('Authorization', 'Bearer viewer-a-token')
-          .expect(403)
+          .expect(200)
 
         const kycQueueA = await request(app.getHttpServer())
           .get('/v1/crm/accounts/kyc-queue')
@@ -391,6 +391,7 @@ suite('Accounts protected HTTP canary', () => {
             }),
           ],
         })
+        expect(viewerKycQueueA.body).toEqual(kycQueueA.body)
         expect(kycQueueA.body.rows).not.toEqual(
           expect.arrayContaining([expect.objectContaining({ id: accountB1 })])
         )

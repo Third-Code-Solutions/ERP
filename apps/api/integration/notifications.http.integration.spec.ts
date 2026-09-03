@@ -272,6 +272,24 @@ suite('Notifications protected HTTP authority boundary', () => {
           'B unread',
         ])
 
+        await request(app.getHttpServer())
+          .post('/v1/notifications')
+          .set('Authorization', 'Bearer viewer-a-token')
+          .set('x-request-id', REQUEST_ID)
+          .send({ action: 'mark_read', id: notificationAUnread })
+          .expect(403)
+
+        const [viewerDeniedMutation] = await transaction
+          .select({ isRead: notifications.is_read, readAt: notifications.read_at })
+          .from(notifications)
+          .where(eq(notifications.id, notificationAUnread))
+        expect(viewerDeniedMutation).toMatchObject({ isRead: false, readAt: null })
+
+        await transaction
+          .update(users)
+          .set({ role: 'admin' })
+          .where(and(eq(users.tenant_id, tenantA), eq(users.id, userA)))
+
         const markReadResponse = await request(app.getHttpServer())
           .post('/v1/notifications')
           .set('Authorization', 'Bearer viewer-a-token')

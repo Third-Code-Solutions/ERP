@@ -20,7 +20,7 @@ jobs:
     name: Promote ABI OPS production
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     environment:
       name: production
       url: https://thirdcode-erp.vercel.app
@@ -42,6 +42,8 @@ jobs:
       PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
       BUILD_OPS_DEMO_TENANT_SLUGS: buildops-e2e
       E2E_PROJECT_ID: ${{ vars.E2E_PROJECT_ID }}
+      E2E_USER_EMAIL: ${{ secrets.E2E_USER_EMAIL }}
+      E2E_USER_PASSWORD: ${{ secrets.E2E_USER_PASSWORD }}
 
     steps:
       - name: Check production branch
@@ -69,7 +71,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for name in VERCEL_TOKEN RAILWAY_API_TOKEN SUPABASE_MIGRATION_DATABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY PRODUCTION_DATABASE_URL E2E_PROJECT_ID; do
+          for name in VERCEL_TOKEN RAILWAY_API_TOKEN SUPABASE_MIGRATION_DATABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY PRODUCTION_DATABASE_URL E2E_PROJECT_ID E2E_USER_EMAIL E2E_USER_PASSWORD; do
             if [[ -z "${!name:-}" ]]; then
               echo "$name is required for production promotion" >&2
               exit 1
@@ -96,7 +98,7 @@ jobs:
           pnpm test
           pnpm build
 
-      - name: Verify exact Supabase migration target
+      - name: Verify exact Supabase database targets
         shell: bash
         run: |
           set -euo pipefail
@@ -104,11 +106,30 @@ jobs:
           import os
           from urllib.parse import urlsplit
 
-          target = urlsplit(os.environ["SUPABASE_MIGRATION_DATABASE_URL"])
+          project_ref = os.environ["SUPABASE_PROJECT_REF"]
           expected_user = f"postgres.{os.environ['SUPABASE_PROJECT_REF']}"
-          if target.username != expected_user or target.port != 5432:
-              raise SystemExit("SUPABASE_MIGRATION_DATABASE_URL must target the exact project session pooler on port 5432")
+
+          def verify(name, allowed_ports):
+              target = urlsplit(os.environ[name])
+              hostname = (target.hostname or "").lower()
+              database = target.path.removeprefix("/")
+              if target.scheme not in {"postgres", "postgresql"}:
+                  raise SystemExit(f"{name} must use PostgreSQL")
+              if not hostname.endswith(".pooler.supabase.com"):
+                  raise SystemExit(f"{name} must target a Supabase pooler")
+              if target.username != expected_user:
+                  raise SystemExit(f"{name} must target the exact Supabase project")
+              if target.port not in allowed_ports or database != "postgres":
+                  raise SystemExit(f"{name} has an unexpected port or database")
+
+          verify("SUPABASE_MIGRATION_DATABASE_URL", {5432})
+          verify("PRODUCTION_DATABASE_URL", {5432, 6543})
           PY
+
+      - name: Require current production migration ledger
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: node scripts/plan-database-release.mjs --require-current
 
       - name: Preview Supabase migration push
         shell: bash
@@ -116,9 +137,9 @@ jobs:
           set -euo pipefail
           supabase db push --db-url "$SUPABASE_MIGRATION_DATABASE_URL" --dry-run --yes
 
-      - name: Apply Supabase additive migrations
-        shell: bash
-        run: supabase db push --db-url "$SUPABASE_MIGRATION_DATABASE_URL" --yes
+      # This promotion is deliberately code-only while PITR is unavailable.
+      # Any pending migration fails the ledger gate above and must use the
+      # separately reviewed database release runbook with recovery evidence.
 
       - name: Deploy Nest API to exact Railway service
         shell: bash
@@ -144,14 +165,17 @@ jobs:
           # secret. Vercel snapshots variables per deployment, so this must run
           # before creating the production deployment.
           pnpm dlx vercel@54.7.1 env add DATABASE_URL production --force --value "$PRODUCTION_DATABASE_URL" --yes --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
+          pnpm dlx vercel@54.7.1 env add APP_REVISION production --force --value "$GITHUB_SHA" --yes --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
           pnpm dlx vercel@54.7.1 deploy . --prod --force --with-cache --yes --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
 
       - name: Verify production health and release identity
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error https://thirdcode-erp.vercel.app/api/health
-          curl --fail --silent --show-error https://thirdcode-erp.vercel.app/api/ready
+          web_health="$(curl --fail --silent --show-error https://thirdcode-erp.vercel.app/api/health)"
+          web_ready="$(curl --fail --silent --show-error https://thirdcode-erp.vercel.app/api/ready)"
+          test "$(jq -r '.revision' <<<"$web_health")" = "${GITHUB_SHA:0:12}"
+          test "$(jq -r '.revision' <<<"$web_ready")" = "${GITHUB_SHA:0:12}"
           curl --fail --silent --show-error https://third-code-erp-api-production.up.railway.app/health
           curl --fail --silent --show-error https://third-code-erp-api-production.up.railway.app/ready
           curl --fail --silent --show-error https://abi-ops-cad-worker-production.up.railway.app/health
@@ -166,6 +190,7 @@ jobs:
         env:
           E2E_MAGIC_LINK_AUTH: "1"
           E2E_ROLE_MATRIX_AUTH: "1"
+          E2E_REAL_PASSWORD_RECOVERY: "1"
           PLAYWRIGHT_BASE_URL: https://thirdcode-erp.vercel.app
         shell: bash
         run: |
@@ -173,6 +198,8 @@ jobs:
           report_path="$GITHUB_WORKSPACE/tmp/production-e2e/playwright.json"
           mkdir -p "$(dirname "$report_path")"
           pnpm exec playwright test \
+            e2e/auth.spec.ts \
+            e2e/production-password-recovery.spec.ts \
             e2e/branding-authenticated.spec.ts \
             e2e/smoke-console.spec.ts \
             e2e/role-access-production.spec.ts \
@@ -180,6 +207,14 @@ jobs:
             --project=chromium --workers=1 --reporter=json > "$report_path"
           node "$GITHUB_WORKSPACE/scripts/assert-playwright-no-skips.mjs" \
             "$report_path" "authenticated production E2E"
+
+      - name: Verify live profile password rotation and restoration
+        working-directory: apps/web
+        env:
+          E2E_LIVE_PASSWORD_ROTATION: "1"
+          E2E_LIVE_PASSWORD_ROTATION_CONFIRM_EMAIL: ${{ secrets.E2E_USER_EMAIL }}
+          PLAYWRIGHT_BASE_URL: https://thirdcode-erp.vercel.app
+        run: node e2e/live-password-rotation-harness.mjs
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()

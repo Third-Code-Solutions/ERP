@@ -62,7 +62,7 @@ export class CortexConversationsController {
   }
 
   @Post('user-turns')
-  @RequireCapabilities('cortex.search')
+  @RequireCapabilities('cortex.assistant.use')
   appendUserTurn(
     @Body(CortexConversationTurnPipe)
     command: CortexConversationUserTurnCommand,
@@ -76,7 +76,7 @@ export class CortexConversationsController {
   }
 
   @Post('assistant-turns/claims')
-  @RequireCapabilities('cortex.search')
+  @RequireCapabilities('cortex.assistant.use')
   claimAssistantTurn(
     @Body(CortexAssistantTurnClaimPipe)
     command: CortexConversationAssistantTurnClaimCommand,
@@ -95,7 +95,7 @@ export class CortexConversationsController {
   }
 
   @Post('assistant-turns/complete')
-  @RequireCapabilities('cortex.search')
+  @RequireCapabilities('cortex.assistant.use')
   completeAssistantTurn(
     @Body(CortexAssistantTurnCompletePipe)
     command: CortexConversationAssistantTurnCompleteCommand,

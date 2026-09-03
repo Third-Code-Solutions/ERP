@@ -29,7 +29,7 @@ export class AccountsController {
   }
 
   @Get('kyc-queue')
-  @RequireCapabilities('account.kyc_review')
+  @RequireCapabilities('account.kyc.read')
   kycQueue(
     @CurrentPrincipal() principal: ErpPrincipal
   ): Promise<AccountKycQueueResult> {

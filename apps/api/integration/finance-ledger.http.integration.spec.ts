@@ -226,15 +226,16 @@ suite('Finance ledger protected HTTP canary', () => {
           .get(route)
           .set('Authorization', 'Bearer unknown-token')
           .expect(401)
-        await request(app.getHttpServer())
-          .get(route)
+        const viewerRead = await request(app.getHttpServer())
+          .get(`${route}?limit=1`)
           .set('Authorization', 'Bearer ledger-viewer-a-token')
-          .expect(403)
+          .expect(200)
 
         const first = await request(app.getHttpServer())
           .get(`${route}?limit=1`)
           .set('Authorization', 'Bearer ledger-finance-a-token')
           .expect(200)
+        expect(viewerRead.body).toEqual(first.body)
         expect(first.body).toMatchObject({
           total: 2,
           totalDebitCents: 10_000,

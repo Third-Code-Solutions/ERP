@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   ERP_CAPABILITIES,
   ERP_CAPABILITY_ROLES,
+  ERP_MUTATION_CAPABILITIES,
+  ERP_READ_CAPABILITIES,
   ERP_ROLES,
   roleHasCapability,
   type ErpCapability,
@@ -22,6 +24,19 @@ const SHARED_CAPABILITY_GRANT_BASELINE = {
   'project.update': ['owner', 'admin', 'sales', 'commercial', 'sd_pm_pe', 'pm'],
   'project.delete': ['owner', 'admin'],
   'opportunity.read': ALL_ROLES,
+  'opportunity.export': [
+    'owner',
+    'estimator',
+    'pm',
+    'admin',
+    'sales',
+    'commercial',
+    'design',
+    'sd_pm_pe',
+    'finance',
+    'procurement',
+    'viewer',
+  ],
   'account.kyc_review': ['owner', 'admin', 'finance'],
   'change_request.create': ['owner', 'admin', 'sales'],
   'document.manage': ALL_OPERATORS,
@@ -51,7 +66,7 @@ function sorted(roles: readonly ErpRole[]): ErpRole[] {
 describe('canonical authorization policy', () => {
   it('contains each current Web/Core capability once and gives each a non-empty role policy', () => {
     expect(new Set(ERP_CAPABILITIES).size).toBe(ERP_CAPABILITIES.length)
-    expect(ERP_CAPABILITIES).toHaveLength(80)
+    expect(ERP_CAPABILITIES).toHaveLength(92)
 
     for (const capability of ERP_CAPABILITIES) {
       const roles = ERP_CAPABILITY_ROLES[capability]
@@ -59,6 +74,29 @@ describe('canonical authorization policy', () => {
       expect(new Set(roles).size, capability).toBe(roles.length)
       expect(roles.every((role) => ERP_ROLES.includes(role))).toBe(true)
     }
+  })
+
+  it('grants Viewer every tenant-safe read and no business mutation', () => {
+    expect(new Set(ERP_READ_CAPABILITIES).size).toBe(ERP_READ_CAPABILITIES.length)
+    expect(new Set(ERP_MUTATION_CAPABILITIES).size).toBe(
+      ERP_MUTATION_CAPABILITIES.length,
+    )
+    expect(
+      ERP_READ_CAPABILITIES.filter((capability) =>
+        ERP_MUTATION_CAPABILITIES.includes(capability as never),
+      ),
+    ).toEqual([])
+
+    for (const capability of ERP_READ_CAPABILITIES) {
+      expect(roleHasCapability('viewer', capability), capability).toBe(true)
+    }
+    for (const capability of ERP_MUTATION_CAPABILITIES) {
+      expect(roleHasCapability('viewer', capability), capability).toBe(false)
+    }
+
+    expect(
+      [...ERP_READ_CAPABILITIES, ...ERP_MUTATION_CAPABILITIES, 'provider.quota.consume'].sort(),
+    ).toEqual([...ERP_CAPABILITIES].sort())
   })
 
   it('preserves the previously overlapping effective grants', () => {
@@ -83,6 +121,21 @@ describe('canonical authorization policy', () => {
     expect(roleHasCapability('viewer', 'project.delete')).toBe(false)
     expect(roleHasCapability('sales', 'project.delete')).toBe(false)
   })
+
+  it.each(ERP_ROLES)('matches opportunity export visibility for %s', (role) => {
+    expect(roleHasCapability(role, 'opportunity.export')).toBe(
+      !['safety', 'cx'].includes(role),
+    )
+  })
+
+  it.each(ERP_ROLES)(
+    'limits Opportunity stage changes and conversion to the requested roles for %s',
+    (role) => {
+      const expected = ['owner', 'admin', 'sales'].includes(role)
+      expect(roleHasCapability(role, 'opportunity.stage_change')).toBe(expected)
+      expect(roleHasCapability(role, 'opportunity.convert')).toBe(expected)
+    }
+  )
 
   it('retains distinct domain permissions instead of collapsing different workflows by name', () => {
     expect(ERP_CAPABILITIES).toEqual(
@@ -136,7 +189,7 @@ describe('canonical authorization policy', () => {
     expect(roleHasCapability('cx', 'warranty.manage')).toBe(true)
     expect(roleHasCapability('cx', 'cx.cnps.read')).toBe(true)
 
-    expect(roleHasCapability('viewer', 'finance.read')).toBe(false)
+    expect(roleHasCapability('viewer', 'finance.read')).toBe(true)
     expect(roleHasCapability('viewer', 'inventory.read')).toBe(true)
     expect(roleHasCapability('viewer', 'cx.cnps.read')).toBe(true)
     expect(roleHasCapability('viewer', 'project.update')).toBe(false)

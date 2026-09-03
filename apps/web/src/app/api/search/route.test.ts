@@ -1,4 +1,6 @@
 import { NextRequest } from 'next/server'
+import { PgDialect } from 'drizzle-orm/pg-core'
+import type { SQL } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AppRole } from '@third-code-erp/auth'
 
@@ -6,6 +8,10 @@ const mocks = vi.hoisted(() => ({
   getUserProfile: vi.fn(),
   universalSearchReadsUseCoreApi: vi.fn(),
   searchUniversalThroughCoreApi: vi.fn(),
+  select: vi.fn(),
+  databaseTables: Array<unknown>(),
+  databaseRows: new Map<unknown, unknown[]>(),
+  databaseWhere: new Map<unknown, SQL>(),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -13,7 +19,9 @@ vi.mock('@third-code-erp/auth', () => ({
 }))
 
 vi.mock('@third-code-erp/database', () => ({
-  db: {},
+  db: {
+    select: (selection: unknown) => mocks.select(selection),
+  },
 }))
 
 vi.mock('@/lib/erp-core-client', () => ({
@@ -21,6 +29,7 @@ vi.mock('@/lib/erp-core-client', () => ({
   searchUniversalThroughCoreApi: mocks.searchUniversalThroughCoreApi,
 }))
 
+import { materialItems } from '@third-code-erp/database/schema'
 import {
   canSearchEntity,
   literalSearchPattern,
@@ -44,9 +53,60 @@ function allowed(role: AppRole) {
   return types.filter((type) => canSearchEntity(role, type))
 }
 
+interface MockQuery extends PromiseLike<unknown[]> {
+  from(table: unknown): MockQuery
+  innerJoin(): MockQuery
+  leftJoin(): MockQuery
+  where(condition: SQL): MockQuery
+  orderBy(): MockQuery
+  limit(): MockQuery
+}
+
+function createMockQuery(): MockQuery {
+  let sourceTable: unknown
+  const query: MockQuery = {
+    from(table) {
+      sourceTable = table
+      mocks.databaseTables.push(table)
+      return query
+    },
+    innerJoin() {
+      return query
+    },
+    leftJoin() {
+      return query
+    },
+    where(condition) {
+      mocks.databaseWhere.set(sourceTable, condition)
+      return query
+    },
+    orderBy() {
+      return query
+    },
+    limit() {
+      return query
+    },
+    then(onfulfilled, onrejected) {
+      return Promise.resolve(mocks.databaseRows.get(sourceTable) ?? []).then(
+        onfulfilled,
+        onrejected
+      )
+    },
+  }
+  return query
+}
+
 describe('universal search RBAC', () => {
-  it('keeps tenant-wide documents and assignee-scoped tasks visible to every role', () => {
-    expect(allowed('viewer')).toEqual(['document', 'task'])
+  it('allows Viewer to search every tenant-safe construction record', () => {
+    expect(allowed('viewer')).toEqual([
+      'document',
+      'task',
+      'permit',
+      'punchlist',
+      'warranty',
+      'delivery',
+      'rfq',
+    ])
   })
 
   it.each([
@@ -75,11 +135,11 @@ describe('universal search RBAC', () => {
     expect(allowed('owner')).toEqual(allowed('admin'))
   })
 
-  it('keeps ledger accounts and journals finance-only', () => {
+  it('keeps ledger writes finance-only while allowing Viewer search', () => {
     expect(canSearchEntity('finance', 'ledger_account')).toBe(true)
     expect(canSearchEntity('finance', 'journal_entry')).toBe(true)
     expect(canSearchEntity('sales', 'ledger_account')).toBe(false)
-    expect(canSearchEntity('viewer', 'journal_entry')).toBe(false)
+    expect(canSearchEntity('viewer', 'journal_entry')).toBe(true)
     expect(canSearchEntity('admin', 'journal_entry')).toBe(true)
   })
 })
@@ -89,7 +149,12 @@ describe('universal search request hardening', () => {
     mocks.getUserProfile.mockReset()
     mocks.universalSearchReadsUseCoreApi.mockReset()
     mocks.searchUniversalThroughCoreApi.mockReset()
+    mocks.select.mockReset()
+    mocks.databaseTables.length = 0
+    mocks.databaseRows.clear()
+    mocks.databaseWhere.clear()
     mocks.universalSearchReadsUseCoreApi.mockReturnValue(false)
+    mocks.select.mockImplementation(() => createMockQuery())
   })
 
   it('trims and bounds user input before query fan-out', () => {
@@ -143,6 +208,73 @@ describe('universal search request hardening', () => {
       hint: 'Type at least 2 characters.',
     })
     expect(shortQuery.headers.get('cache-control')).toContain('no-store')
+  })
+
+  it.each(['estimator', 'pm', 'sd_pm_pe', 'procurement'] as const)(
+    'skips the material table before database fan-out for %s',
+    async (role) => {
+      mocks.getUserProfile.mockResolvedValueOnce({
+        role,
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        user: { id: '11111111-1111-4111-8111-111111111111' },
+      })
+
+      const result = await GET(
+        new NextRequest('http://localhost/api/search?q=concrete')
+      )
+
+      expect(result.status).toBe(200)
+      expect(mocks.databaseTables).not.toContain(materialItems)
+      expect((await result.json()).hits).not.toContainEqual(
+        expect.objectContaining({ type: 'material' })
+      )
+    }
+  )
+
+  it('returns the existing material destination for a commercial user', async () => {
+    const materialId = '33333333-3333-4333-8333-333333333333'
+    const tenantId = '22222222-2222-4222-8222-222222222222'
+    mocks.getUserProfile.mockResolvedValueOnce({
+      role: 'commercial',
+      tenantId,
+      user: { id: '11111111-1111-4111-8111-111111111111' },
+    })
+    mocks.databaseRows.set(materialItems, [
+      {
+        id: materialId,
+        code: 'CEM-001',
+        description: 'Portland cement',
+        category: 'concrete',
+        unit: 'bag',
+      },
+    ])
+
+    const result = await GET(
+      new NextRequest('http://localhost/api/search?q=cement')
+    )
+
+    expect(result.status).toBe(200)
+    expect(mocks.databaseTables).toContain(materialItems)
+    const materialWhere = mocks.databaseWhere.get(materialItems)
+    if (!materialWhere) {
+      throw new Error('Expected the material query predicate to be captured.')
+    }
+    const compiledWhere = new PgDialect().sqlToQuery(materialWhere)
+    expect(compiledWhere.sql).toContain('"material_items"."tenant_id" = $1')
+    expect(compiledWhere.params[0]).toBe(tenantId)
+    expect(await result.json()).toEqual({
+      hits: [
+        {
+          type: 'material',
+          id: materialId,
+          title: 'CEM-001',
+          subtitle: 'Portland cement / bag / concrete',
+          href: '/admin/material-items',
+        },
+      ],
+      status: 'complete',
+      failedTypes: [],
+    })
   })
 
   it('uses selected Core authority without falling back to browser-side fan-out', async () => {

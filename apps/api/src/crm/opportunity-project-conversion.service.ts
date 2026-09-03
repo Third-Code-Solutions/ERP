@@ -43,6 +43,8 @@ import {
 } from '../database/database.service'
 
 const RECIPIENT_ROLES = ['sd_pm_pe', 'admin', 'owner'] as const
+const INVALID_LINKED_ACCOUNT_MESSAGE =
+  'Opportunity Account is not available in this tenant'
 
 const DEFAULT_TEMPLATE = [
   { title: 'NTP issuance', owner_role: 'sd_pm_pe', sla_days: 2 },
@@ -290,6 +292,25 @@ export class OpportunityProjectConversionService {
         .for('update')
       if (!opportunity) throw new NotFoundException('Opportunity not found')
 
+      let accountName: string | null = null
+      if (opportunity.accountId) {
+        const [account] = await transaction
+          .select({ id: accounts.id, name: accounts.name })
+          .from(accounts)
+          .where(
+            and(
+              eq(accounts.id, opportunity.accountId),
+              eq(accounts.tenant_id, authorizedPrincipal.tenantId)
+            )
+          )
+          .limit(1)
+          .for('share')
+        if (!account) {
+          throw new ConflictException(INVALID_LINKED_ACCOUNT_MESSAGE)
+        }
+        accountName = account.name
+      }
+
       const request = await this.claimRequest(
         transaction,
         authorizedPrincipal,
@@ -308,22 +329,6 @@ export class OpportunityProjectConversionService {
         throw new ConflictException(
           `Opportunity must be in 'won' stage; got '${opportunity.stage}'`
         )
-      }
-
-      let accountName: string | null = null
-      if (opportunity.accountId) {
-        const [account] = await transaction
-          .select({ name: accounts.name })
-          .from(accounts)
-          .where(
-            and(
-              eq(accounts.id, opportunity.accountId),
-              eq(accounts.tenant_id, authorizedPrincipal.tenantId)
-            )
-          )
-          .limit(1)
-          .for('share')
-        accountName = account?.name ?? null
       }
 
       let projectId = opportunity.projectId

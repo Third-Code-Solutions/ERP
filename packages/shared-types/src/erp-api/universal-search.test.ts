@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest'
 import {
   canUniversalSearchEntity,
   universalSearchHitSchema,
+  universalSearchHitTypes,
   universalSearchQuerySchema,
   universalSearchResultSchema,
+  universalSearchRoles,
 } from './universal-search'
 
 const HIT = {
@@ -52,13 +54,29 @@ describe('universal search contract', () => {
     expect(canUniversalSearchEntity('pm', 'delivery')).toBe(true)
     expect(canUniversalSearchEntity('estimator', 'bom')).toBe(true)
     expect(canUniversalSearchEntity('procurement', 'vendor')).toBe(true)
-    expect(canUniversalSearchEntity('procurement', 'material')).toBe(true)
+    expect(canUniversalSearchEntity('procurement', 'material')).toBe(false)
     expect(canUniversalSearchEntity('finance', 'vendor')).toBe(false)
     expect(canUniversalSearchEntity('sales', 'material')).toBe(false)
-    expect(canUniversalSearchEntity('viewer', 'invoice')).toBe(false)
+    expect(canUniversalSearchEntity('viewer', 'invoice')).toBe(true)
     expect(canUniversalSearchEntity('sales', 'ledger_account')).toBe(false)
     expect(canUniversalSearchEntity('cx', 'warranty')).toBe(true)
   })
+
+  it.each(universalSearchHitTypes)(
+    'allows Viewer to search tenant-safe %s records',
+    (type) => {
+      expect(canUniversalSearchEntity('viewer', type)).toBe(true)
+    },
+  )
+
+  it.each(universalSearchRoles)(
+    'aligns material search destination access for %s',
+    (role) => {
+      expect(canUniversalSearchEntity(role, 'material'), role).toBe(
+        role === 'owner' || role === 'admin' || role === 'commercial' || role === 'viewer'
+      )
+    }
+  )
 
   it('bounds and normalizes Core query input', () => {
     expect(

@@ -78,7 +78,7 @@ export class CortexSemanticIndexController {
 
   @Get('v1/cortex/semantic-index-jobs/:jobId')
   @HttpCode(HttpStatus.OK)
-  @RequireCapabilities('cortex.index.manage')
+  @RequireCapabilities('cortex.index.read')
   status(
     @Param('jobId') jobId: string,
     @CurrentPrincipal() principal: ErpPrincipal

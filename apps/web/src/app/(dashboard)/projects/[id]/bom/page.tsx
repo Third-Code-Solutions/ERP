@@ -39,6 +39,10 @@ import { summarizeBomPricing } from '@/lib/operations/bom-pricing-breakdown'
 import { AwardAutomationPanel } from '@/components/bom/award-automation-panel'
 import { isPriceHistoryStale } from '@/lib/operations/bom-supplier-matching'
 import type { DupaAssemblyOption } from '@/components/bom/dupa-editor'
+import {
+  getProjectBomControls,
+  getProjectDetailAccess,
+} from '../project-detail-access'
 
 export const metadata: Metadata = { title: 'BOM' }
 
@@ -47,10 +51,10 @@ const TABS = [
   { label: 'Scope', href: '/scope' },
   { label: 'BOM', href: '/bom' },
   { label: 'Documents', href: '/documents' },
-  { label: 'Billing', href: '/billing' },
+  { label: 'Billing', href: '/billing', requiredAccess: 'billing' },
   { label: 'Comments', href: '/comments' },
-  { label: 'Audit', href: '/audit' },
-]
+  { label: 'Audit', href: '/audit', requiredAccess: 'audit' },
+] as const
 
 function formatDupaMoneyInput(centavos: bigint): string {
   const absolute = centavos < 0n ? -centavos : centavos
@@ -62,6 +66,9 @@ function formatDupaMoneyInput(centavos: bigint): string {
 export default async function ProjectBomPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const profile = await requireUserProfile()
+  const access = getProjectDetailAccess(profile.role)
+  if (!access.bom) return notFound()
+  const controls = getProjectBomControls(profile.role)
 
   const [project] = await db
     .select({ id: projects.id, name: projects.name, projectCode: projects.project_code })
@@ -543,7 +550,9 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
           {project.name}
         </h1>
         <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid var(--color-border)' }}>
-          {TABS.map(({ label, href }) => {
+          {TABS.filter(
+            (tab) => !('requiredAccess' in tab) || access[tab.requiredAccess],
+          ).map(({ label, href }) => {
             const isActive = href === '/bom'
             return (
               <Link
@@ -578,17 +587,17 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
         />
       )}
 
-      <BomGrainReviewQueue
+      {controls.review && <BomGrainReviewQueue
         projectId={id}
         reviews={pendingGrainReviews}
         parents={grainReviewParents}
-      />
+      />}
 
-      <BomLocationReviewQueue
+      {controls.review && <BomLocationReviewQueue
         projectId={id}
         reviews={pendingLocationReviews}
         locations={locations}
-      />
+      />}
 
       <BomLocationRollup rows={locationRollup} />
 
@@ -598,9 +607,10 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
         vendors={vendorList}
         locations={locations}
         assemblyOptions={assemblyOptions}
+        readOnly={!controls.edit}
       />
 
-      {latestBom?.status === 'locked' && (
+      {controls.award && latestBom?.status === 'locked' && (
         <AwardAutomationPanel
           projectId={id}
           bomId={latestBom.id}
@@ -622,7 +632,7 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
       )}
 
       {/* Live auto-extraction panel */}
-      <div style={{ marginTop: 24 }}>
+      {controls.importCad && <div style={{ marginTop: 24 }}>
         <div
           style={{
             background: 'var(--color-surface)',
@@ -699,7 +709,7 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
             />
           </div>
         </div>
-      </div>
+      </div>}
     </div>
   )
 }

@@ -35,6 +35,7 @@ export class NotificationsController {
 
   @Post()
   @HttpCode(HttpStatus.OK)
+  @RequireCapabilities('notification.manage')
   markReadState(
     @Body(NotificationReadStatePipe) command: NotificationReadStateCommand,
     @CurrentPrincipal() principal: ErpPrincipal

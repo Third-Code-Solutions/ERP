@@ -28,7 +28,7 @@ function totalRecords(groups: PurchaseOrderDuplicateGroup[]) {
 
 export default async function DataQualityPage() {
   const profile = await requireUserProfile()
-  if (!can(profile.role, 'admin.system_config')) {
+  if (!can(profile.role, 'admin.system_config.read')) {
     redirect('/admin?error=forbidden')
   }
 

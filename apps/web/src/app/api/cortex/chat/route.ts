@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { randomUUID } from 'node:crypto'
-import { getUserProfile } from '@third-code-erp/auth'
+import { can, getUserProfile } from '@third-code-erp/auth'
 import {
   searchCortexNodes,
   searchCortexNodesByTerms,
@@ -126,6 +126,12 @@ export async function POST(req: NextRequest) {
       headers: CORTEX_PRIVATE_HEADERS,
     })
   }
+  if (!can(profile.role, 'cortex.assistant.use')) {
+    return new Response('Forbidden', {
+      status: 403,
+      headers: CORTEX_PRIVATE_HEADERS,
+    })
+  }
 
   const parsed = chatRequestSchema.safeParse(await req.json().catch(() => null))
   if (!parsed.success) {
@@ -145,6 +151,30 @@ export async function POST(req: NextRequest) {
     req.headers.get('idempotency-key')?.trim() || randomUUID()
   const redactedUserMessage = redactCortexText(lastUserMessage)
   const redactedMessages = redactCortexMessages(messages)
+
+  try {
+    await writeAuditLog({
+      tenantId: profile.tenantId,
+      actorId: profile.user.id,
+      entityType: 'cortex_chat',
+      entityId: profile.user.id,
+      action: 'query',
+      diff: {
+        phase: 'request',
+        input_category: 'cortex_chat_message',
+        user_message_character_count: lastUserMessage.length,
+        message_count: messages.length,
+        has_conversation_id: Boolean(incomingConvId),
+        has_context: Boolean(incomingContext),
+      },
+    })
+  } catch {
+    console.error('[cortex/chat] audit log failed')
+    return new Response('Cortex is temporarily unavailable.', {
+      status: 503,
+      headers: CORTEX_PRIVATE_HEADERS,
+    })
+  }
 
   // Resolve the owned thread and persist the incoming user turn. Selected
   // tenants fail closed through ERP Core; legacy tenants retain the existing
@@ -320,8 +350,8 @@ export async function POST(req: NextRequest) {
           lastUserMessage
         )
       }
-    } catch (err) {
-      console.error('[cortex/chat] persist user turn failed:', err)
+    } catch {
+      console.error('[cortex/chat] persist user turn failed')
     }
   }
 
@@ -472,8 +502,8 @@ export async function POST(req: NextRequest) {
         .map((hit) => fmt(hit.node))
         .join('\n')
     }
-  } catch (err) {
-    console.error('[cortex/chat] semantic retrieval skipped:', err)
+  } catch {
+    console.error('[cortex/chat] semantic retrieval skipped')
   }
 
   const systemPrompt = `You are Cortex, the AI Brain for ABI OPS, a construction operations system for Philippine MEP contractors.
@@ -534,8 +564,8 @@ ${records || '(no records visible)'}`
           context_ref_id: authorizedContext?.refId ?? null,
         },
       })
-    } catch (err) {
-      console.error('[cortex/chat] audit log failed:', err)
+    } catch {
+      console.error('[cortex/chat] started audit log failed')
     }
   }
 
@@ -570,8 +600,8 @@ ${records || '(no records visible)'}`
         stream: true,
         max_tokens: 800,
       })) as AsyncIterable<ChatChunk>
-    } catch (err) {
-      console.error('[cortex/chat] LLM unavailable, using grounded fallback:', err)
+    } catch {
+      console.error('[cortex/chat] LLM unavailable, using grounded fallback')
       llmFailed = true
       llmStream = null
     }
@@ -593,8 +623,8 @@ ${records || '(no records visible)'}`
               controller.enqueue(encoder.encode(text))
             }
           }
-        } catch (err) {
-          console.error('[cortex/chat] LLM stream failed mid-flight:', err)
+        } catch {
+          console.error('[cortex/chat] LLM stream failed mid-flight')
           llmFailed = true
         }
       }
@@ -628,8 +658,8 @@ ${records || '(no records visible)'}`
               citation_count: grounded.citations.length,
             },
           })
-        } catch (err) {
-          console.error('[cortex/chat] completion audit failed:', err)
+        } catch {
+          console.error('[cortex/chat] completion audit failed')
         }
       }
       // Store the assistant turn + the records it cited into the agent's memory.
@@ -651,10 +681,7 @@ ${records || '(no records visible)'}`
               { tenantId: profile.tenantId, userId: profile.user.id }
             )
           if (!completed.ok) {
-            console.error(
-              '[cortex/chat] Core assistant completion failed:',
-              completed.error
-            )
+            console.error('[cortex/chat] Core assistant completion failed')
           }
         } else {
           try {
@@ -666,8 +693,8 @@ ${records || '(no records visible)'}`
               assistant,
               grounded.citations
             )
-          } catch (err) {
-            console.error('[cortex/chat] persist assistant turn failed:', err)
+          } catch {
+            console.error('[cortex/chat] persist assistant turn failed')
           }
         }
       }

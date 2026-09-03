@@ -66,6 +66,7 @@ interface CortexAgentProps {
   initialConversationId?: string | null
   initialDraftId?: string | null
   contextUnavailable?: boolean
+  canUseAssistant?: boolean
 }
 
 function relativeTime(iso: string): string {
@@ -87,6 +88,7 @@ export function CortexAgent({
   initialConversationId = null,
   initialDraftId = null,
   contextUnavailable = false,
+  canUseAssistant = true,
 }: CortexAgentProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -238,6 +240,7 @@ export function CortexAgent({
   }
 
   async function send(text: string) {
+    if (!canUseAssistant) return
     const trimmed = text.trim()
     if (!trimmed || isStreaming || isRestoring || contextUnavailable) return
 
@@ -368,9 +371,9 @@ export function CortexAgent({
           >
             ☰
           </button>
-          <button type="button" className="cortex-agent__iconbtn" onClick={newChat} title="New chat">
+          {canUseAssistant && <button type="button" className="cortex-agent__iconbtn" onClick={newChat} title="New chat">
             ✎
-          </button>
+          </button>}
         </div>
       </div>
 
@@ -507,7 +510,7 @@ export function CortexAgent({
                     ? 'Ask about this record, its changes, evidence, and linked work.'
                     : 'Ask anything across your projects, pipeline, BOMs, POs and invoices.'}
               </p>
-              {!contextUnavailable && !isRestoring && (
+              {canUseAssistant && !contextUnavailable && !isRestoring && (
                 <div className="cortex-agent__suggestions">
                   {suggestions.map((s) => (
                     <button
@@ -551,7 +554,7 @@ export function CortexAgent({
         </div>
       )}
 
-      {!historyOpen && (
+      {canUseAssistant && !historyOpen && (
         <div className="cortex-agent__input">
           <textarea
             ref={inputRef}

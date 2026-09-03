@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useTransition, useState, useEffect, useCallback } from 'react'
+import React, { Fragment, useTransition, useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   addBomLineItem,
@@ -186,6 +186,7 @@ interface BomBuilderProps {
   vendors?: Vendor[]
   locations?: ProjectLocationOption[]
   assemblyOptions?: DupaAssemblyOption[]
+  readOnly?: boolean
 }
 
 function formatPHP(cents: number): string {
@@ -199,7 +200,7 @@ const STATUS_COLORS: Record<string, string> = {
   archived: '#6b7280',
 }
 
-export function BomBuilder({ projectId, bom, vendors = [], locations = [], assemblyOptions = [] }: BomBuilderProps) {
+export function BomBuilder({ projectId, bom, vendors = [], locations = [], assemblyOptions = [], readOnly = false }: BomBuilderProps) {
   const [isPending, startTransition] = useTransition()
   const [showAddForm, setShowAddForm] = useState(false)
   const [form, setForm] = useState({
@@ -410,8 +411,8 @@ export function BomBuilder({ projectId, bom, vendors = [], locations = [], assem
           color: 'var(--color-neutral-400)',
         }}
       >
-        <p style={{ fontSize: '0.875rem', marginBottom: '16px' }}>No BOM yet for this project.</p>
-        <button
+        <p style={{ fontSize: '0.875rem', marginBottom: readOnly ? 0 : '16px' }}>No BOM yet for this project.</p>
+        {!readOnly && <button
           onClick={handleCreate}
           disabled={isPending}
           style={{
@@ -427,12 +428,12 @@ export function BomBuilder({ projectId, bom, vendors = [], locations = [], assem
           }}
         >
           {isPending ? 'Creating…' : 'Create BOM v1'}
-        </button>
+        </button>}
       </div>
     )
   }
 
-  const isEditable = bom.status === 'draft'
+  const isEditable = !readOnly && bom.status === 'draft'
 
   return (
     <div
@@ -511,7 +512,7 @@ export function BomBuilder({ projectId, bom, vendors = [], locations = [], assem
               </button>
             </>
           )}
-          {!isEditable && bom.status !== 'archived' && (
+          {!readOnly && !isEditable && bom.status !== 'archived' && (
             <>
               <button
                 onClick={() => { setShowPoForm((v) => !v); setShowInvoiceForm(false); setProcurementError('') }}

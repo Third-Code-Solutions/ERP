@@ -23,6 +23,7 @@ export interface AccessRow {
 
 interface AccessListTableProps {
   rows: AccessRow[]
+  canManage?: boolean
 }
 
 type DerivedStatus = 'active' | 'expired' | 'revoked'
@@ -52,7 +53,7 @@ function fmtDate(iso: string | null): string {
   })
 }
 
-export function AccessListTable({ rows }: AccessListTableProps) {
+export function AccessListTable({ rows, canManage = true }: AccessListTableProps) {
   const [pendingId, setPendingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [, startTransition] = useTransition()
@@ -93,7 +94,7 @@ export function AccessListTable({ rows }: AccessListTableProps) {
             <th style={thStyle}>Last viewed</th>
             <th style={{ ...thStyle, textAlign: 'right' }}>Views</th>
             <th style={thStyle}>Created</th>
-            <th style={thStyle} />
+            {canManage && <th style={thStyle} />}
           </tr>
         </thead>
         <tbody>
@@ -152,7 +153,7 @@ export function AccessListTable({ rows }: AccessListTableProps) {
                 <td style={{ ...tdStyle, color: 'var(--color-neutral-700, #3b424b)' }}>
                   {fmtDate(row.created_at)}
                 </td>
-                <td style={{ ...tdStyle, textAlign: 'right' }}>
+                {canManage && <td style={{ ...tdStyle, textAlign: 'right' }}>
                   {canRevoke ? (
                     <button
                       type="button"
@@ -165,7 +166,7 @@ export function AccessListTable({ rows }: AccessListTableProps) {
                   ) : (
                     <span style={{ fontSize: 12, color: 'var(--color-neutral-400, #9ca3af)' }}>—</span>
                   )}
-                </td>
+                </td>}
               </tr>
             )
           })}

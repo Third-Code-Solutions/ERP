@@ -271,7 +271,7 @@ export class CortexConversationTurnsService {
       .limit(1)
       .for('update')
     const role = membership?.role as ErpRole | undefined
-    if (!membership || !role || !roleHasCapability(role, 'cortex.search')) {
+    if (!membership || !role || !roleHasCapability(role, 'cortex.assistant.use')) {
       throw new ForbiddenException()
     }
     return {

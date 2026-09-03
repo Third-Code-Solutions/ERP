@@ -1,12 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { getUserProfile } from '@third-code-erp/auth'
+import { can, getUserProfile } from '@third-code-erp/auth'
 import {
   getUnembeddedCortexNodes,
   setCortexNodeEmbedding,
   cortexEmbeddingText,
 } from '@third-code-erp/database'
 import { embedBatch } from '@third-code-erp/ai'
-import { canonicalRole } from '@/lib/operations/nav-config'
+import { writeAuditLog } from '@/lib/audit'
 import { CORTEX_PRIVATE_HEADERS } from '@/lib/cortex/response'
 import {
   consumeProviderQuota,
@@ -35,11 +35,31 @@ export async function POST(_req: NextRequest) {
       { status: 401, headers: CORTEX_PRIVATE_HEADERS }
     )
   }
-  // Embedding the whole-tenant graph is an admin operation.
-  if (canonicalRole(profile.role) !== 'admin') {
+  if (!can(profile.role, 'cortex.index.manage')) {
     return NextResponse.json(
       { error: 'Forbidden' },
       { status: 403, headers: CORTEX_PRIVATE_HEADERS }
+    )
+  }
+
+  try {
+    await writeAuditLog({
+      tenantId: profile.tenantId,
+      actorId: profile.user.id,
+      entityType: 'cortex_embedding',
+      entityId: profile.tenantId,
+      action: 'update',
+      diff: {
+        phase: 'request',
+        input_category: 'tenant_cortex_nodes',
+        batch_size: BATCH_SIZE,
+      },
+    })
+  } catch {
+    console.error('[cortex/embed] audit log failed')
+    return NextResponse.json(
+      { error: 'Semantic indexing is temporarily unavailable.' },
+      { status: 503, headers: CORTEX_PRIVATE_HEADERS }
     )
   }
 

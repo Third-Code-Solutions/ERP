@@ -14,9 +14,10 @@ function formatPHP(cents: number): string {
 
 export default async function RateCardsPage() {
   const profile = await requireUserProfile()
-  if (!can(profile.role, 'admin.rate_card')) {
+  if (!can(profile.role, 'admin.rate_card.read')) {
     redirect('/admin?error=forbidden')
   }
+  const canManage = can(profile.role, 'admin.rate_card')
 
   const rows = await db
     .select({
@@ -80,7 +81,7 @@ export default async function RateCardsPage() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1fr) 380px',
+          gridTemplateColumns: canManage ? 'minmax(0, 1fr) 380px' : '1fr',
           gap: 24,
           alignItems: 'start',
         }}
@@ -91,7 +92,9 @@ export default async function RateCardsPage() {
           </div>
           {rows.length === 0 ? (
             <div className="card-empty">
-              No rate cards yet. Create one on the right (you must have at least one material item).
+              {canManage
+                ? 'No rate cards yet. Create one on the right (you must have at least one material item).'
+                : 'No rate cards yet.'}
             </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
@@ -156,7 +159,7 @@ export default async function RateCardsPage() {
           )}
         </div>
 
-        <div className="card" style={{ position: 'sticky', top: 16 }}>
+        {canManage && <div className="card" style={{ position: 'sticky', top: 16 }}>
           <div className="card-header">
             <h2 className="card-title">Add rate</h2>
           </div>
@@ -169,7 +172,7 @@ export default async function RateCardsPage() {
               <RateCardForm materialItems={itemOptions} vendors={vendorOptions} />
             )}
           </div>
-        </div>
+        </div>}
       </div>
     </div>
   )

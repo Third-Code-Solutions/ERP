@@ -14,6 +14,10 @@ interface Props {
   role: AppRole
 }
 
+export function profileMenuShowsAdminConsole(role: AppRole): boolean {
+  return canonicalRole(role) === 'admin'
+}
+
 export function ProfileMenu({ email, fullName, role }: Props) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
@@ -30,7 +34,7 @@ export function ProfileMenu({ email, fullName, role }: Props) {
       .slice(0, 2)
       .toUpperCase() || '?'
 
-  const isAdmin = canonicalRole(role) === 'admin'
+  const isAdmin = profileMenuShowsAdminConsole(role)
 
   useEffect(() => {
     if (!open) return

@@ -72,11 +72,16 @@ const TYPE_TONE: Record<SearchHit['type'], string> = {
 interface Props {
   open: boolean
   onClose: () => void
+  canUseCortexAssistant?: boolean
 }
 
 type CommandMode = 'search' | 'ask'
 
-export function CommandPalette({ open, onClose }: Props) {
+export function CommandPalette({
+  open,
+  onClose,
+  canUseCortexAssistant = true,
+}: Props) {
   const router = useRouter()
   const inputRef = useRef<HTMLInputElement | null>(null)
   const panelRef = useRef<HTMLDivElement | null>(null)
@@ -98,7 +103,8 @@ export function CommandPalette({ open, onClose }: Props) {
   const cortexRequestSeqRef = useRef(0)
   const term = q.trim()
   const visibleHits: PaletteHit[] = mode === 'search' ? hits : cortexHits
-  const canAskCortex = mode === 'ask' && term.length >= 2
+  const canAskCortex =
+    canUseCortexAssistant && mode === 'ask' && term.length >= 2
   const optionCount = commandPaletteOptionCount(
     visibleHits.length,
     canAskCortex
@@ -313,6 +319,7 @@ export function CommandPalette({ open, onClose }: Props) {
   )
 
   const askCortex = useCallback(() => {
+    if (!canUseCortexAssistant) return
     const handoffId = window.crypto.randomUUID()
     if (!stageCortexDraft(window.sessionStorage, handoffId, term)) {
       setCortexHint('Could not prepare Cortex. Try again.')
@@ -320,7 +327,7 @@ export function CommandPalette({ open, onClose }: Props) {
     }
     onClose()
     router.push(`/cortex?handoff=${encodeURIComponent(handoffId)}`)
-  }, [onClose, router, term])
+  }, [canUseCortexAssistant, onClose, router, term])
 
   useEffect(() => {
     setActiveIdx((index) =>
@@ -470,7 +477,7 @@ export function CommandPalette({ open, onClose }: Props) {
           aria-label="Command mode"
           style={{
             display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
+            gridTemplateColumns: canUseCortexAssistant ? '1fr 1fr' : '1fr',
             gap: 4,
             padding: '6px 8px',
             background: 'var(--color-neutral-50)',
@@ -478,10 +485,12 @@ export function CommandPalette({ open, onClose }: Props) {
           }}
         >
           {(
-            [
-              ['search', 'Search records'],
-              ['ask', 'Ask Cortex'],
-            ] as const
+            canUseCortexAssistant
+              ? ([
+                  ['search', 'Search records'],
+                  ['ask', 'Ask Cortex'],
+                ] as const)
+              : ([['search', 'Search records']] as const)
           ).map(([value, label]) => {
             const selected = mode === value
             return (

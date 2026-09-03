@@ -8,6 +8,7 @@ import styles from './project-command-center.module.css'
 interface ProjectCommandCenterProps {
   projectId: string
   data: ProjectCommandCenterData
+  canViewAudit: boolean
 }
 
 function formatDate(value: string | null): string {
@@ -24,12 +25,22 @@ function countLabel(count: number, singular: string, plural = `${singular}s`): s
   return `${count.toLocaleString()} ${count === 1 ? singular : plural}`
 }
 
-export function ProjectCommandCenter({ projectId, data }: ProjectCommandCenterProps) {
+export function ProjectCommandCenter({
+  projectId,
+  data,
+  canViewAudit,
+}: ProjectCommandCenterProps) {
   const decisionCount = data.pendingDecisions + data.openPunchlist
   const progress = data.progressPercent
   const progressLabel = progress === null ? 'No progress report' : `${progress}% complete`
 
-  const signals = [
+  const signals: Array<{
+    label: string
+    value: number
+    detail: string
+    href: string
+    tone: 'alert' | 'normal'
+  }> = [
     {
       label: 'Work queue',
       value: data.pendingTasks,
@@ -51,14 +62,17 @@ export function ProjectCommandCenter({ projectId, data }: ProjectCommandCenterPr
       href: `/projects/${projectId}/vos`,
       tone: decisionCount > 0 ? 'alert' : 'normal',
     },
-    {
+  ]
+
+  if (data.activeDeliveries !== null) {
+    signals.push({
       label: 'Delivery watch',
       value: data.activeDeliveries,
       detail: countLabel(data.activeDeliveries, 'active delivery'),
       href: '/procurement/deliveries',
       tone: 'normal',
-    },
-  ] as const
+    })
+  }
 
   return (
     <section className={styles.shell} aria-labelledby="project-command-center-heading">
@@ -79,9 +93,11 @@ export function ProjectCommandCenter({ projectId, data }: ProjectCommandCenterPr
           >
             Ask Cortex
           </Link>
-          <Link className={styles.secondaryAction} href={`/projects/${projectId}/audit`}>
-            View audit
-          </Link>
+          {canViewAudit ? (
+            <Link className={styles.secondaryAction} href={`/projects/${projectId}/audit`}>
+              View audit
+            </Link>
+          ) : null}
         </div>
       </header>
 

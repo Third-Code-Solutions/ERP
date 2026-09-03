@@ -50,7 +50,7 @@ export class InventoryWarehouseCloseoutService {
       if (
         !membership ||
         !role ||
-        !roleHasCapability(role, 'inventory.manage')
+        !roleHasCapability(role, 'inventory.closeout.read')
       ) {
         throw new ForbiddenException()
       }

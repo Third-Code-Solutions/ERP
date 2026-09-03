@@ -33,6 +33,8 @@ describe('Cortex RBAC — node-type scope', () => {
 
   it('covers nested estimating and procurement records', () => {
     expect(cortexCanSeeType('estimator', 'bom_line')).toBe(true)
+    expect(cortexCanSeeType('estimator', 'warehouse')).toBe(false)
+    expect(cortexCanSeeType('estimator', 'employee')).toBe(false)
     expect(cortexCanSeeType('procurement', 'po_line')).toBe(true)
     expect(cortexCanSeeType('sales', 'bom_line')).toBe(false)
     expect(cortexCanSeeType('sales', 'po_line')).toBe(false)
@@ -48,18 +50,19 @@ describe('Cortex RBAC — node-type scope', () => {
     expect(cortexCanSeeType('finance', 'journal_entry')).toBe(true)
   })
 
-  it('viewer sees operational read surfaces but not finance or administration', () => {
+  it('viewer sees every registered read surface without inheriting future types', () => {
     const v = cortexNodeTypeScope('viewer')!
     expect(v).toContain('document')
     expect(v).toContain('task')
     expect(v).toContain('opportunity')
     expect(v).toContain('project')
     expect(v).toContain('bom')
-    expect(v).not.toContain('invoice')
-    expect(v).not.toContain('claim')
-    expect(v).not.toContain('journal_entry')
-    expect(v).not.toContain('bank_statement')
-    expect(v).not.toContain('employee')
+    expect(v).toContain('invoice')
+    expect(v).toContain('claim')
+    expect(v).toContain('journal_entry')
+    expect(v).toContain('bank_statement')
+    expect(v).toContain('employee')
+    expect(cortexCanSeeType('viewer', 'some_future_type')).toBe(false)
   })
 
   it('cortexCanSeeType gates per role', () => {

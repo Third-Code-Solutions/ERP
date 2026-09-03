@@ -28,11 +28,14 @@ function selectQuery(rows: unknown[]) {
   return { from, where, limit, rowLock }
 }
 
-function harness(balance: { quantity_micros: string; value_cents: string }) {
+function harness(
+  balance: { quantity_micros: string; value_cents: string },
+  role: ErpPrincipal['role'] = PRINCIPAL.role,
+) {
   const membershipQuery = selectQuery([
     {
       tenantId: PRINCIPAL.tenantId,
-      role: PRINCIPAL.role,
+      role,
       email: PRINCIPAL.email,
     },
   ])
@@ -93,6 +96,14 @@ describe('InventoryWarehouseCloseoutService', () => {
       canDeactivate: false,
       disposition: 'nonzero_balance',
     })
+  })
+
+  it('allows Viewer to read the tenant-bound closeout projection', async () => {
+    const probe = harness({ quantity_micros: '0', value_cents: '0' }, 'viewer')
+
+    await expect(
+      probe.service.read(WAREHOUSE_ID, { ...PRINCIPAL, role: 'viewer' }),
+    ).resolves.toMatchObject({ warehouseId: WAREHOUSE_ID, canDeactivate: true })
   })
 
   it('fails closed for an unknown tenant member', async () => {

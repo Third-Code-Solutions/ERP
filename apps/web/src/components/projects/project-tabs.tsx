@@ -9,40 +9,54 @@
  * with project-specific slugs and a navy-bottom underline for active.
  */
 
+import React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
+import type { ProjectDetailAccess } from '@/app/(dashboard)/projects/[id]/project-detail-access'
+
 interface ProjectTabsProps {
   projectId: string
+  access: ProjectDetailAccess
 }
 
-const ITEMS = [
+type RestrictedProjectSection = 'bom' | 'cost' | 'billing' | 'audit' | 'access'
+
+interface ProjectTabItem {
+  slug: string
+  label: string
+  requiredAccess?: RestrictedProjectSection
+}
+
+const ITEMS: readonly ProjectTabItem[] = [
   { slug: '', label: 'Overview' },
   { slug: 'scope', label: 'Scope' },
-  { slug: 'bom', label: 'BOM' },
-  { slug: 'cost', label: 'Cost' },
+  { slug: 'bom', label: 'BOM', requiredAccess: 'bom' },
+  { slug: 'cost', label: 'Cost', requiredAccess: 'cost' },
   { slug: 'checklist', label: 'Checklist' },
   { slug: 'permits', label: 'Permits' },
   { slug: 'progress', label: 'Progress' },
   { slug: 'reports', label: 'Reports' },
   { slug: 'vos', label: 'VOs' },
   { slug: 'documents', label: 'Documents' },
-  { slug: 'billing', label: 'Billing' },
+  { slug: 'billing', label: 'Billing', requiredAccess: 'billing' },
   { slug: 'turnover', label: 'Turnover' },
   { slug: 'coc', label: 'COC' },
   { slug: 'comments', label: 'Comments' },
-  { slug: 'access', label: 'Access' },
-  { slug: 'audit', label: 'Audit' },
-] as const
+  { slug: 'access', label: 'Access', requiredAccess: 'access' },
+  { slug: 'audit', label: 'Audit', requiredAccess: 'audit' },
+]
 
-export function ProjectTabs({ projectId }: ProjectTabsProps) {
+export function ProjectTabs({ projectId, access }: ProjectTabsProps) {
   const pathname = usePathname()
   const base = `/projects/${projectId}`
 
   return (
     <div className="project-tabs-frame">
       <nav className="project-tabs" aria-label="Project sections">
-      {ITEMS.map((item) => {
+      {ITEMS.filter(
+        (item) => !item.requiredAccess || access[item.requiredAccess],
+      ).map((item) => {
         const href = item.slug ? `${base}/${item.slug}` : base
         const active = item.slug
           ? pathname?.startsWith(href) ?? false

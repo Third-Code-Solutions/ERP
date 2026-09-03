@@ -293,10 +293,10 @@ suite('Bank reconciliation protected HTTP canary', () => {
           .get(route)
           .set('Authorization', 'Bearer unknown-token')
           .expect(401)
-        await request(app.getHttpServer())
-          .get(route)
+        const viewerRead = await request(app.getHttpServer())
+          .get(`${route}?limit=1`)
           .set('Authorization', 'Bearer reconciliation-http-viewer-a-token')
-          .expect(403)
+          .expect(200)
         await request(app.getHttpServer())
           .get(`${route}?unexpected=true`)
           .set('Authorization', 'Bearer reconciliation-http-finance-a-token')
@@ -313,6 +313,7 @@ suite('Bank reconciliation protected HTTP canary', () => {
           .get(`${route}?limit=1`)
           .set('Authorization', 'Bearer reconciliation-http-finance-a-token')
           .expect(200)
+        expect(viewerRead.body).toEqual(bounded.body)
         expect(bounded.body).toMatchObject({
           tenantId: fixtureA.tenantId,
           total: 2,

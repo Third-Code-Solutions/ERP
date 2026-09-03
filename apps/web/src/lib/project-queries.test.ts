@@ -1,5 +1,14 @@
+import type { SQL } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  boms,
+  deliverySchedules,
+  invoices,
+  opportunities,
+  progressUpdates,
+  purchaseOrders,
+} from '@third-code-erp/database/schema'
 
 const mocks = vi.hoisted(() => ({
   select: vi.fn(),
@@ -25,10 +34,21 @@ vi.mock('@third-code-erp/database', () => ({
 
 vi.mock('./erp-core-client', () => coreMocks)
 
-import { getProject, getProjectsFiltered } from './project-queries'
+import {
+  getProject,
+  getProjectCommandCenter,
+  getProjectOverviewData,
+  getProjectsFiltered,
+} from './project-queries'
 
 const TENANT_ID = '22222222-2222-4222-8222-222222222222'
 const PROJECT_ID = '33333333-3333-4333-8333-333333333333'
+
+function requireSql(value: SQL | undefined, label: string): SQL {
+  expect(value, label).toBeDefined()
+  if (!value) throw new Error(`Missing ${label}`)
+  return value
+}
 
 describe('getProject', () => {
   beforeEach(() => {
@@ -239,7 +259,6 @@ describe('getProjectCommandCenter', () => {
       },
     })
 
-    const { getProjectCommandCenter } = await import('./project-queries')
     await expect(
       getProjectCommandCenter(TENANT_ID, PROJECT_ID)
     ).resolves.toEqual({
@@ -275,9 +294,163 @@ describe('getProjectCommandCenter', () => {
       },
     })
 
-    const { getProjectCommandCenter } = await import('./project-queries')
     await expect(
       getProjectCommandCenter(TENANT_ID, PROJECT_ID)
     ).rejects.toThrow('invalid tenant scope')
+  })
+
+  it('skips every delivery read when the domain policy denies it', async () => {
+    const queriedTables: unknown[] = []
+    mocks.from.mockImplementation((table: unknown) => {
+      queriedTables.push(table)
+      if (table === progressUpdates) {
+        return {
+          where: () => ({
+            orderBy: () => ({ limit: async () => [] }),
+          }),
+        }
+      }
+      return { where: async () => [] }
+    })
+
+    await expect(
+      getProjectCommandCenter(TENANT_ID, PROJECT_ID, new Date(), {
+        includeDelivery: false,
+      }),
+    ).resolves.toMatchObject({ activeDeliveries: null })
+
+    expect(coreMocks.projectCommandCenterReadsUseCoreApi).not.toHaveBeenCalled()
+    expect(coreMocks.getProjectCommandCenterThroughCoreApi).not.toHaveBeenCalled()
+    expect(queriedTables).not.toContain(deliverySchedules)
+    expect(queriedTables).not.toContain(purchaseOrders)
+  })
+
+  it('tenant- and project-scopes an allowed delivery read', async () => {
+    coreMocks.projectCommandCenterReadsUseCoreApi.mockReturnValue(false)
+    let joinCondition: SQL | undefined
+    let deliveryCondition: SQL | undefined
+
+    mocks.from.mockImplementation((table: unknown) => {
+      if (table === deliverySchedules) {
+        return {
+          innerJoin: (_joinedTable: unknown, condition: SQL) => {
+            joinCondition = condition
+            return {
+              where: async (whereCondition: SQL) => {
+                deliveryCondition = whereCondition
+                return []
+              },
+            }
+          },
+        }
+      }
+      if (table === progressUpdates) {
+        return {
+          where: () => ({
+            orderBy: () => ({ limit: async () => [] }),
+          }),
+        }
+      }
+      return { where: async () => [] }
+    })
+
+    await expect(
+      getProjectCommandCenter(TENANT_ID, PROJECT_ID, new Date(), {
+        includeDelivery: true,
+      }),
+    ).resolves.toMatchObject({ activeDeliveries: 0 })
+
+    const dialect = new PgDialect()
+    const joinQuery = dialect.sqlToQuery(
+      requireSql(joinCondition, 'delivery join condition'),
+    )
+    expect(joinQuery.sql).toContain('"purchase_orders"."tenant_id" = $1')
+    expect(joinQuery.sql).toContain('"purchase_orders"."project_id" = $2')
+    expect(joinQuery.params).toEqual([TENANT_ID, PROJECT_ID])
+
+    const deliveryQuery = dialect.sqlToQuery(
+      requireSql(deliveryCondition, 'delivery filter condition'),
+    )
+    expect(deliveryQuery.sql).toContain('"delivery_schedules"."tenant_id" = $1')
+    expect(deliveryQuery.params).toContain(TENANT_ID)
+  })
+})
+
+describe('getProjectOverviewData', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.select.mockReturnValue({ from: mocks.from })
+  })
+
+  it('does not create queries for denied overview domains', async () => {
+    const queriedTables: unknown[] = []
+    mocks.from.mockImplementation((table: unknown) => {
+      queriedTables.push(table)
+      return { where: async () => [] }
+    })
+
+    await expect(
+      getProjectOverviewData(TENANT_ID, PROJECT_ID, {
+        opportunity: true,
+        bom: false,
+        purchaseOrders: false,
+        billing: false,
+      }),
+    ).resolves.toEqual({
+      opportunities: [],
+      latestBom: null,
+      poCommittedCents: null,
+      invoiceBilledCents: null,
+    })
+
+    expect(queriedTables).toEqual([opportunities])
+    expect(queriedTables).not.toContain(boms)
+    expect(queriedTables).not.toContain(purchaseOrders)
+    expect(queriedTables).not.toContain(invoices)
+  })
+
+  it('tenant- and project-scopes every granted domain query', async () => {
+    const conditions = new Map<unknown, SQL>()
+    mocks.from.mockImplementation((table: unknown) => {
+      if (table === boms) {
+        return {
+          where: (condition: SQL) => {
+            conditions.set(table, condition)
+            return {
+              orderBy: () => ({ limit: async () => [] }),
+            }
+          },
+        }
+      }
+      return {
+        where: async (condition: SQL) => {
+          conditions.set(table, condition)
+          return []
+        },
+      }
+    })
+
+    await getProjectOverviewData(TENANT_ID, PROJECT_ID, {
+      opportunity: true,
+      bom: true,
+      purchaseOrders: true,
+      billing: true,
+    })
+
+    const dialect = new PgDialect()
+    for (const [table, tableName] of [
+      [opportunities, 'opportunities'],
+      [boms, 'boms'],
+      [purchaseOrders, 'purchase_orders'],
+      [invoices, 'invoices'],
+    ] as const) {
+      const query = dialect.sqlToQuery(
+        requireSql(conditions.get(table), `${tableName} condition`),
+      )
+      expect(query.sql).toContain(`"${tableName}"."project_id"`)
+      expect(query.sql).toContain(`"${tableName}"."tenant_id"`)
+      expect(query.params).toContain(PROJECT_ID)
+      expect(query.params).toContain(TENANT_ID)
+    }
   })
 })

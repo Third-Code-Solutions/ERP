@@ -18,7 +18,7 @@ import {
 } from '@third-code-erp/database'
 import { and, eq, sql } from 'drizzle-orm'
 import request from 'supertest'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CapabilityGuard } from '../src/auth/capability.guard'
 import { SupabaseIdentityService } from '../src/auth/supabase-identity.service'
 import { SupabaseJwtGuard } from '../src/auth/supabase-jwt.guard'
@@ -34,6 +34,7 @@ const integrationEnabled =
   process.env.ERP_API_INTEGRATION_EXPECTED === '1'
 const suite = integrationEnabled ? describe : describe.skip
 const ROLLBACK = Symbol('rollback')
+const FIXTURE_AS_OF = new Date('2026-08-06T12:00:00.000Z')
 
 function transactionBoundDatabase(
   transaction: DatabaseTransaction
@@ -248,6 +249,15 @@ async function seedReceivables(
 }
 
 suite('Finance receivables protected HTTP canary', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(FIXTURE_AS_OF)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('proves authorization, tenant isolation, exact totals, filters, pagination, and rollback', async () => {
     let observedTenantId = ''
     await alwaysRollback(async (transaction) => {
@@ -309,10 +319,10 @@ suite('Finance receivables protected HTTP canary', () => {
           .get(route)
           .set('Authorization', 'Bearer unknown-token')
           .expect(401)
-        await request(app.getHttpServer())
-          .get(route)
+        const viewerRead = await request(app.getHttpServer())
+          .get(`${route}?limit=1`)
           .set('Authorization', 'Bearer receivables-viewer-a-token')
-          .expect(403)
+          .expect(200)
         await request(app.getHttpServer())
           .get(`${route}?dueFrom=2026-09-01&dueTo=2026-08-01`)
           .set('Authorization', 'Bearer receivables-finance-a-token')
@@ -322,8 +332,10 @@ suite('Finance receivables protected HTTP canary', () => {
           .get(`${route}?limit=1`)
           .set('Authorization', 'Bearer receivables-finance-a-token')
           .expect(200)
+        expect(viewerRead.body).toEqual(first.body)
         expect(first.body).toMatchObject({
           tenantId: fixtureA.tenantId,
+          asOfDate: '2026-08-06',
           total: 2,
           totalDueCents: 148500,
           totalRetentionCents: 15000,

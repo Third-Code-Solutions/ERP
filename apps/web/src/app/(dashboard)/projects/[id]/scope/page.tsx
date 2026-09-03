@@ -1,7 +1,8 @@
 import type { Metadata } from 'next'
+import React from 'react'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { documents, projects, scopeItems } from '@third-code-erp/database/schema'
 import { and, asc, eq } from 'drizzle-orm'
@@ -35,6 +36,7 @@ function formatPHP(cents: number): string {
 export default async function ProjectScopePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const profile = await requireUserProfile()
+  const canManageScope = can(profile.role, 'project.update')
 
   const [project] = await db
     .select({ id: projects.id, name: projects.name })
@@ -197,7 +199,7 @@ export default async function ProjectScopePage({ params }: { params: Promise<{ i
           </div>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <AddScopeItemForm projectId={id} />
+          {canManageScope ? <AddScopeItemForm projectId={id} /> : null}
           <Link
             href={`/projects/${id}/bom`}
             style={{
@@ -219,7 +221,11 @@ export default async function ProjectScopePage({ params }: { params: Promise<{ i
 
       {items.length === 0 ? (
         <div>
-          <CadDropZone projectId={id} />
+          {canManageScope ? <CadDropZone projectId={id} /> : (
+            <p style={{ color: 'var(--color-neutral-500)', textAlign: 'center' }}>
+              No scope items have been added yet.
+            </p>
+          )}
           <p
             style={{
               fontSize: '0.75rem',
@@ -237,12 +243,14 @@ export default async function ProjectScopePage({ params }: { params: Promise<{ i
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <CadDropZone
-            projectId={id}
-            compact
-            title="Drop another CAD drawing"
-            subtitle="Each upload becomes its own section below — existing files stay untouched."
-          />
+          {canManageScope ? (
+            <CadDropZone
+              projectId={id}
+              compact
+              title="Drop another CAD drawing"
+              subtitle="Each upload becomes its own section below — existing files stay untouched."
+            />
+          ) : null}
           {orderedBuckets.map((bucket) => {
             const rows = bucket.rows
             const dateStr = bucket.docCreatedAt
@@ -361,17 +369,21 @@ export default async function ProjectScopePage({ params }: { params: Promise<{ i
                             {UNIT_LABELS[item.unit] ?? item.unit}
                           </td>
                           <td style={{ padding: '10px 16px', textAlign: 'right' }}>
-                            <EditableUnitCost
-                              projectId={id}
-                              itemId={item.id}
-                              unitCostCents={item.unit_cost_cents}
-                            />
+                            {canManageScope ? (
+                              <EditableUnitCost
+                                projectId={id}
+                                itemId={item.id}
+                                unitCostCents={item.unit_cost_cents}
+                              />
+                            ) : item.unit_cost_cents > 0 ? formatPHP(item.unit_cost_cents) : '—'}
                           </td>
                           <td style={{ padding: '10px 16px', textAlign: 'right', color: 'var(--color-neutral-900)', fontWeight: 600, fontFamily: 'JetBrains Mono, monospace' }}>
                             {item.line_total_cents > 0 ? formatPHP(item.line_total_cents) : '—'}
                           </td>
                           <td style={{ padding: '10px 8px', textAlign: 'center' }}>
-                            <DeleteScopeItemButton projectId={id} itemId={item.id} />
+                            {canManageScope ? (
+                              <DeleteScopeItemButton projectId={id} itemId={item.id} />
+                            ) : null}
                           </td>
                         </tr>
                       ))}

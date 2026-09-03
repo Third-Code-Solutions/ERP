@@ -60,9 +60,9 @@ const UNIVERSAL_SEARCH_ROLE_BY_TYPE: Record<
   UniversalSearchHitType,
   readonly UniversalSearchRole[]
 > = {
-  account: ['admin', 'sales', 'commercial', 'sd_pm_pe', 'finance', 'cx'],
-  vendor: ['admin', 'commercial', 'sd_pm_pe', 'procurement'],
-  material: ['admin', 'commercial', 'sd_pm_pe', 'procurement'],
+  account: ['admin', 'sales', 'commercial', 'sd_pm_pe', 'finance', 'cx', 'viewer'],
+  vendor: ['admin', 'commercial', 'sd_pm_pe', 'procurement', 'viewer'],
+  material: ['owner', 'admin', 'commercial', 'viewer'],
   project: [
     'admin',
     'sales',
@@ -71,6 +71,7 @@ const UNIVERSAL_SEARCH_ROLE_BY_TYPE: Record<
     'sd_pm_pe',
     'finance',
     'procurement',
+    'viewer',
   ],
   opportunity: [
     'admin',
@@ -80,20 +81,21 @@ const UNIVERSAL_SEARCH_ROLE_BY_TYPE: Record<
     'sd_pm_pe',
     'finance',
     'procurement',
+    'viewer',
   ],
-  bom: ['admin', 'commercial'],
-  po: ['admin', 'commercial', 'sd_pm_pe', 'procurement'],
-  invoice: ['admin', 'finance'],
-  claim: ['admin', 'finance', 'sd_pm_pe', 'commercial'],
+  bom: ['admin', 'commercial', 'viewer'],
+  po: ['admin', 'commercial', 'sd_pm_pe', 'procurement', 'viewer'],
+  invoice: ['admin', 'finance', 'viewer'],
+  claim: ['admin', 'finance', 'sd_pm_pe', 'commercial', 'viewer'],
   document: [...universalSearchRoles],
   task: [...universalSearchRoles],
-  permit: ['admin', 'commercial', 'sd_pm_pe', 'safety'],
-  punchlist: ['admin', 'sd_pm_pe', 'cx', 'safety'],
-  warranty: ['admin', 'cx'],
-  delivery: ['admin', 'procurement', 'sd_pm_pe'],
-  rfq: ['admin', 'procurement', 'commercial'],
-  ledger_account: ['admin', 'finance'],
-  journal_entry: ['admin', 'finance'],
+  permit: ['admin', 'commercial', 'sd_pm_pe', 'safety', 'viewer'],
+  punchlist: ['admin', 'sd_pm_pe', 'cx', 'safety', 'viewer'],
+  warranty: ['admin', 'cx', 'viewer'],
+  delivery: ['admin', 'procurement', 'sd_pm_pe', 'viewer'],
+  rfq: ['admin', 'procurement', 'commercial', 'viewer'],
+  ledger_account: ['admin', 'finance', 'viewer'],
+  journal_entry: ['admin', 'finance', 'viewer'],
 }
 
 const UNIVERSAL_SEARCH_CANONICAL_ROLE: Record<
@@ -120,8 +122,13 @@ export function canUniversalSearchEntity(
   role: UniversalSearchRole,
   type: UniversalSearchHitType
 ): boolean {
+  // Material results link to /admin/material-items. Legacy estimator/pm
+  // aliases must not inherit a result whose only destination rejects them.
+  const policyRole = type === 'material'
+    ? role
+    : UNIVERSAL_SEARCH_CANONICAL_ROLE[role]
   return UNIVERSAL_SEARCH_ROLE_BY_TYPE[type].includes(
-    UNIVERSAL_SEARCH_CANONICAL_ROLE[role]
+    policyRole
   )
 }
 

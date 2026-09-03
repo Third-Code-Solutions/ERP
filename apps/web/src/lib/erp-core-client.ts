@@ -10,6 +10,7 @@ import {
   accountListResultSchema,
   accountKycQueueResultSchema,
   accountDetailResultSchema,
+  opportunityCreationResultSchema,
   opportunityDetailResultSchema,
   opportunityProjectConversionResultSchema,
   opportunityStageTransitionResultSchema,
@@ -96,6 +97,8 @@ import {
   deliveryStartInspectionResultSchema,
   deliveryInspectionCompleteResultSchema,
   deliveryCancelResultSchema,
+  dailyTaskCompletionCommandSchema,
+  dailyTaskCompletionResultSchema,
   type CreateRfqCommand,
   type CreateStockReceiptCommand,
   type LogRfqQuoteCommand,
@@ -109,6 +112,8 @@ import {
   type AccountListResult,
   type AccountKycQueueResult,
   type AccountDetailResult,
+  type OpportunityCreationCommand,
+  type OpportunityCreationResult,
   type OpportunityDetailResult,
   type OpportunityProjectConversionResult,
   type OpportunityStageTransitionCommand,
@@ -255,6 +260,8 @@ import {
   type DeliveryInspectionCompleteResult,
   type DeliveryCancelCommand,
   type DeliveryCancelResult,
+  type DailyTaskCompletionCommand,
+  type DailyTaskCompletionResult,
   type CreateCostEntryCommand,
   costEntryCreationResultSchema,
   type CostEntryCreationResult,
@@ -1227,6 +1234,17 @@ export function deliveryCancelWritesUseCoreApi(tenantId: string): boolean {
   )
 }
 
+/** Daily-task completion has no Web-local fallback when this tenant gate is closed. */
+export function dailyTaskCompletionWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_DAILY_TASK_COMPLETION_WRITES_VIA_API,
+    process.env.ERP_DAILY_TASK_COMPLETION_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
 /**
  * Binary-CAD processing is delegated only for an explicit tenant canary.
  * The Nest service owns the worker bridge, evidence commit, and draft-BOM
@@ -1293,6 +1311,76 @@ export async function getCoreApiAccess(): Promise<
     ok: true,
     baseUrl,
     accessToken: session.access_token,
+  }
+}
+
+export async function completeDailyTaskThroughCoreApi(
+  taskId: string,
+  command: DailyTaskCompletionCommand,
+  idempotencyKey: string
+): Promise<CoreResult<DailyTaskCompletionResult>> {
+  const parsedTaskId = z.string().uuid().safeParse(taskId)
+  const parsedCommand = dailyTaskCompletionCommandSchema.safeParse(command)
+  const parsedKey = z.string().trim().min(1).max(256).safeParse(idempotencyKey)
+  if (!parsedTaskId.success || !parsedCommand.success || !parsedKey.success) {
+    return {
+      ok: false,
+      error: 'Invalid daily task completion request.',
+      status: 400,
+    }
+  }
+
+  try {
+    const access = await getCoreApiAccess()
+    if (!access.ok) return access
+
+    const response = await fetch(
+      `${access.baseUrl}/v1/daily-tasks/${encodeURIComponent(parsedTaskId.data)}/completion`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': parsedKey.data,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(parsedCommand.data),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 403
+            ? 'Forbidden'
+            : response.status === 404
+              ? 'Daily task not found.'
+              : response.status === 409
+                ? 'Daily task cannot be completed in its current state.'
+                : 'Daily task was not completed.'
+      return { ok: false, error: message, status: response.status }
+    }
+
+    const parsedResult = dailyTaskCompletionResultSchema.safeParse(body)
+    if (!parsedResult.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid daily task completion result.',
+        status: response.status,
+      }
+    }
+    return { ok: true, data: parsedResult.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. No daily task was completed.',
+      status: 503,
+    }
   }
 }
 
@@ -5404,6 +5492,56 @@ export async function convertOpportunityToProjectThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. No Project handoff was completed.',
+    }
+  }
+}
+
+export async function createOpportunityThroughCoreApi(
+  command: OpportunityCreationCommand,
+  idempotencyKey: string
+): Promise<CoreResult<OpportunityCreationResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(`${access.baseUrl}/v1/crm/opportunities`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${access.accessToken}`,
+        'content-type': 'application/json',
+        'Idempotency-Key': idempotencyKey,
+        'x-request-id': randomUUID(),
+      },
+      body: JSON.stringify(command),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(10_000),
+    })
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 404
+            ? 'Project not found.'
+            : response.status === 503
+              ? 'Opportunity creation is not enabled for this tenant.'
+              : 'Opportunity creation was not completed.'
+      return { ok: false, error: message, status: response.status }
+    }
+    const parsed = opportunityCreationResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid Opportunity creation result.',
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. No Opportunity was created.',
     }
   }
 }

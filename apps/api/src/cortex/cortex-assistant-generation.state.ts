@@ -441,7 +441,7 @@ export class CortexAssistantGenerationStateService {
         return null
       }
       const role = row.role as ErpRole
-      if (!roleHasCapability(role, 'cortex.search')) {
+      if (!roleHasCapability(role, 'cortex.assistant.use')) {
         alertEvents.push(
           ...(await this.failWithin(transaction, row.jobId, 'permission_revoked'))
         )
@@ -830,7 +830,7 @@ export class CortexAssistantGenerationStateService {
       .limit(1)
       .for('update')
     const role = membership?.role as ErpRole | undefined
-    if (!membership || !role || !roleHasCapability(role, 'cortex.search')) {
+    if (!membership || !role || !roleHasCapability(role, 'cortex.assistant.use')) {
       throw new ForbiddenException()
     }
     return {

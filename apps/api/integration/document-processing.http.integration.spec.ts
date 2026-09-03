@@ -363,10 +363,11 @@ suite('Document processing protected HTTP canary', () => {
           failureCode: null,
         })
 
-        await request(app.getHttpServer())
+        const viewerStatus = await request(app.getHttpServer())
           .get(statusRoute(first.body.jobId))
           .set('Authorization', 'Bearer document-processing-http-viewer-a-token')
-          .expect(403)
+          .expect(200)
+        expect(viewerStatus.body).toEqual(status.body)
 
         await request(app.getHttpServer())
           .get(statusRoute(first.body.jobId))

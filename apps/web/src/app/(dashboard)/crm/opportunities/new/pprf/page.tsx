@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { randomUUID } from 'node:crypto'
 import { redirect } from 'next/navigation'
 import { can, requireUserProfile } from '@third-code-erp/auth'
 import { PprfIntakeForm } from '@/components/proposal/pprf-intake-form'
@@ -22,7 +23,7 @@ export default async function NewPprfIntakePage() {
       </div>
       <div className="card" style={{ maxWidth: 900 }}>
         <div style={{ padding: 18 }}>
-          <PprfIntakeForm />
+          <PprfIntakeForm submissionId={randomUUID()} />
         </div>
       </div>
     </div>

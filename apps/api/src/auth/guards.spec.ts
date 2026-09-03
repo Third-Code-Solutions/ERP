@@ -6,7 +6,13 @@ import {
   UnauthorizedException,
 } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
+import {
+  ERP_ROLES,
+  type ErpRole,
+} from '@third-code-erp/shared-types/authorization'
 import { describe, expect, it, vi } from 'vitest'
+import { OpportunityProjectConversionController } from '../crm/opportunity-project-conversion.controller'
+import { OpportunityStageTransitionController } from '../crm/opportunity-stage-transition.controller'
 import type { DatabaseService } from '../database/database.service'
 import {
   CapabilityGuard,
@@ -40,6 +46,12 @@ class GuardFixtureController {
 
   @RequireCapabilities('opportunity.read')
   opportunityRead(): void {}
+
+  @RequireCapabilities('opportunity.stage_change')
+  opportunityStageChange(): void {}
+
+  @RequireCapabilities('opportunity.convert')
+  opportunityConvert(): void {}
 
   @RequireCapabilities('inventory.read')
   inventoryRead(): void {}
@@ -312,7 +324,7 @@ describe('CapabilityGuard', () => {
     ).toBe(true)
   })
 
-  it('limits provider health and spend evidence to operational roles', () => {
+  it('allows Viewer to read tenant-safe provider health evidence', () => {
     expect(
       guard.canActivate(
         contextFor('cortexProviderHealth', {
@@ -325,7 +337,7 @@ describe('CapabilityGuard', () => {
         })
       )
     ).toBe(true)
-    expect(() =>
+    expect(
       guard.canActivate(
         contextFor('cortexProviderHealth', {
           principal: {
@@ -335,8 +347,8 @@ describe('CapabilityGuard', () => {
             email: 'viewer@example.test',
           },
         })
-      )
-    ).toThrow(ForbiddenException)
+      ),
+    ).toBe(true)
   })
 
   it('limits provider-spending Cortex indexing to owners and admins', () => {
@@ -366,7 +378,7 @@ describe('CapabilityGuard', () => {
     ).toThrow(ForbiddenException)
   })
 
-  it('allows ledger reads for finance but denies the read-only viewer', () => {
+  it('allows finance and Viewer to read tenant-safe ledger projections', () => {
     expect(
       guard.canActivate(
         contextFor('financeLedgerRead', {
@@ -380,7 +392,7 @@ describe('CapabilityGuard', () => {
       )
     ).toBe(true)
 
-    expect(() =>
+    expect(
       guard.canActivate(
         contextFor('financeLedgerRead', {
           principal: {
@@ -390,8 +402,8 @@ describe('CapabilityGuard', () => {
             email: 'viewer@example.test',
           },
         })
-      )
-    ).toThrow(ForbiddenException)
+      ),
+    ).toBe(true)
   })
 
   it('allows read-only Opportunity access for a viewer', () => {
@@ -407,6 +419,52 @@ describe('CapabilityGuard', () => {
         })
       )
     ).toBe(true)
+  })
+
+  it.each(ERP_ROLES)(
+    'enforces the exact Opportunity mutation contract for %s',
+    (role) => {
+      const principal = {
+        userId: '11111111-1111-4111-8111-111111111111',
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        role,
+        email: `${role}@example.test`,
+      } satisfies {
+        userId: string
+        tenantId: string
+        role: ErpRole
+        email: string
+      }
+      const expected = ['owner', 'admin', 'sales'].includes(role)
+
+      for (const method of [
+        'opportunityStageChange',
+        'opportunityConvert',
+      ] as const) {
+        const authorize = () =>
+          guard.canActivate(contextFor(method, { principal }))
+        if (expected) {
+          expect(authorize(), `${role}:${method}`).toBe(true)
+        } else {
+          expect(authorize, `${role}:${method}`).toThrow(ForbiddenException)
+        }
+      }
+    }
+  )
+
+  it('keeps both real mutation controllers on their exact central capabilities', () => {
+    expect(
+      Reflect.getMetadata(
+        'third-code-erp:capabilities',
+        OpportunityStageTransitionController.prototype.transition
+      )
+    ).toEqual(['opportunity.stage_change'])
+    expect(
+      Reflect.getMetadata(
+        'third-code-erp:capabilities',
+        OpportunityProjectConversionController.prototype.convert
+      )
+    ).toEqual(['opportunity.convert'])
   })
 
   it('allows tenant-scoped audit activity for the read-only viewer', () => {

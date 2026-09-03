@@ -10,9 +10,10 @@ export const metadata: Metadata = { title: 'Togal mapping config' }
 
 export default async function MappingConfigPage() {
   const profile = await requireUserProfile()
-  if (!can(profile.role, 'admin.system_config')) {
+  if (!can(profile.role, 'admin.system_config.read')) {
     redirect('/admin?error=forbidden')
   }
+  const canManage = can(profile.role, 'admin.system_config')
 
   const rows = await db
     .select({
@@ -66,7 +67,7 @@ export default async function MappingConfigPage() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1fr) 380px',
+          gridTemplateColumns: canManage ? 'minmax(0, 1fr) 380px' : '1fr',
           gap: 24,
           alignItems: 'start',
         }}
@@ -77,7 +78,9 @@ export default async function MappingConfigPage() {
           </div>
           {rows.length === 0 ? (
             <div className="card-empty">
-              No mappings yet. Each entry connects a Togal label (e.g. “Wall — Drywall”) to a material item.
+              {canManage
+                ? 'No mappings yet. Each entry connects a Togal label (e.g. “Wall — Drywall”) to a material item.'
+                : 'No Togal mappings yet.'}
             </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
@@ -118,7 +121,7 @@ export default async function MappingConfigPage() {
           )}
         </div>
 
-        <div className="card" style={{ position: 'sticky', top: 16 }}>
+        {canManage && <div className="card" style={{ position: 'sticky', top: 16 }}>
           <div className="card-header">
             <h2 className="card-title">Add mapping</h2>
           </div>
@@ -131,7 +134,7 @@ export default async function MappingConfigPage() {
               <MappingConfigForm materialItems={itemOptions} />
             )}
           </div>
-        </div>
+        </div>}
       </div>
     </div>
   )

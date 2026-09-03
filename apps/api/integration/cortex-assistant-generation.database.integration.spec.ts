@@ -710,7 +710,7 @@ suite('Cortex assistant generation database integration', () => {
         .where(eq(users.id, userId))
       await expect(
         generation.result(workerClaim.jobId, principal)
-      ).rejects.toThrow('Conversation not found')
+      ).rejects.toThrow('Forbidden')
       const immutableAuthorityError = await transaction
           .update(cortexAssistantTurnRequests)
           .set({ provider_attempt_id: null })

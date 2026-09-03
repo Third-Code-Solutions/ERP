@@ -261,7 +261,7 @@ suite('Cortex assistant-turn database integration', () => {
             idempotencyKey
           )
         )
-      ).rejects.toThrow('Conversation not found')
+      ).rejects.toThrow('Forbidden')
       await transaction
         .update(users)
         .set({ role: 'admin' })

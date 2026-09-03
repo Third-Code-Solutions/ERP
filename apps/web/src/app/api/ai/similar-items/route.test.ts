@@ -11,9 +11,15 @@ const mocks = vi.hoisted(() => ({
   consumeProviderQuota: vi.fn(),
 }))
 
-vi.mock('@third-code-erp/auth', () => ({
-  getUserProfile: mocks.getUserProfile,
-}))
+vi.mock('@third-code-erp/auth', async () => {
+  const { roleHasCapability } = await import(
+    '@third-code-erp/shared-types/authorization'
+  )
+  return {
+    can: roleHasCapability,
+    getUserProfile: mocks.getUserProfile,
+  }
+})
 
 vi.mock('@third-code-erp/database', () => ({
   db: { execute: mocks.execute },
@@ -59,6 +65,14 @@ function profile(role: 'commercial' | 'viewer' = 'commercial') {
   }
 }
 
+function expectNoRawAuditInput(...inputs: string[]): void {
+  const serializedAuditCalls = JSON.stringify(mocks.writeAuditLog.mock.calls)
+
+  for (const input of inputs) {
+    expect(serializedAuditCalls).not.toContain(input)
+  }
+}
+
 describe('BOM similar-item retrieval boundary', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -92,13 +106,56 @@ describe('BOM similar-item retrieval boundary', () => {
     expect(mocks.embedText).not.toHaveBeenCalled()
   })
 
-  it('denies roles that cannot view BOMs before provider work', async () => {
+  it('denies Viewer assistant spend before any provider or retrieval side effect', async () => {
     mocks.getUserProfile.mockResolvedValue(profile('viewer'))
 
     const response = await request({ description: 'Copper pipe' })
 
     expect(response.status).toBe(403)
+    expect(response.headers.get('cache-control')).toBe(
+      'private, no-store, max-age=0'
+    )
+    expect(response.headers.get('vary')).toBe('Cookie')
+    await expect(response.json()).resolves.toEqual({ error: 'Forbidden' })
+    expect(mocks.isEmbeddingProviderConfigured).not.toHaveBeenCalled()
+    expect(mocks.consumeProviderQuota).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
     expect(mocks.embedText).not.toHaveBeenCalled()
+    expect(mocks.serializeEmbedding).not.toHaveBeenCalled()
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
+  it('fails closed before quota or provider work when the required audit fails', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    mocks.writeAuditLog.mockRejectedValueOnce(
+      new Error('sensitive audit storage detail')
+    )
+
+    const response = await request({ description: 'Copper pipe' })
+
+    expect(response.status).toBe(503)
+    expect(response.headers.get('cache-control')).toBe(
+      'private, no-store, max-age=0'
+    )
+    expect(response.headers.get('vary')).toBe('Cookie')
+    const body = await response.json()
+    expect(body).toEqual({
+      items: [],
+      reason: 'AI suggestions unavailable',
+    })
+    expect(JSON.stringify(body)).not.toContain('sensitive audit storage detail')
+    expect(errorSpy).toHaveBeenCalledWith(
+      '[ai/similar-items] audit log failed'
+    )
+    expect(errorSpy.mock.calls.flat().map(String).join(' ')).not.toContain(
+      'sensitive audit storage detail'
+    )
+    expect(mocks.writeAuditLog).toHaveBeenCalledTimes(1)
+    expectNoRawAuditInput('Copper pipe')
+    expect(mocks.isEmbeddingProviderConfigured).not.toHaveBeenCalled()
+    expect(mocks.consumeProviderQuota).not.toHaveBeenCalled()
+    expect(mocks.embedText).not.toHaveBeenCalled()
+    expect(mocks.serializeEmbedding).not.toHaveBeenCalled()
     expect(mocks.execute).not.toHaveBeenCalled()
   })
 
@@ -138,9 +195,10 @@ describe('BOM similar-item retrieval boundary', () => {
         diff: expect.objectContaining({ failure: 'provider_not_configured' }),
       })
     )
+    expectNoRawAuditInput('Copper pipe')
   })
 
-  it('returns tenant-scoped approved-history suggestions with audit evidence', async () => {
+  it('allows a Commercial operator to retrieve tenant-scoped suggestions with audit evidence', async () => {
     const response = await request({ description: '  Copper pipe  ' })
     const body = await response.json()
 
@@ -161,17 +219,48 @@ describe('BOM similar-item retrieval boundary', () => {
       TENANT_ID
     )
     expect(mocks.execute).toHaveBeenCalledTimes(1)
-    expect(mocks.writeAuditLog).toHaveBeenCalledWith(
+    expect(mocks.writeAuditLog).toHaveBeenCalledTimes(2)
+    expect(mocks.writeAuditLog).toHaveBeenNthCalledWith(1, {
+      tenantId: TENANT_ID,
+      actorId: USER_ID,
+      entityType: 'ai_similar_items',
+      entityId: USER_ID,
+      action: 'query',
+      diff: {
+        input_category: 'bom_description',
+        input_character_count: 11,
+        phase: 'request',
+      },
+    })
+    expect(mocks.writeAuditLog).toHaveBeenNthCalledWith(
+      2,
       expect.objectContaining({
         tenantId: TENANT_ID,
         actorId: USER_ID,
         entityType: 'ai_similar_items',
-        diff: expect.objectContaining({ query: 'Copper pipe', result_count: 1 }),
+        action: 'query',
+        diff: expect.objectContaining({
+          input_category: 'bom_description',
+          input_character_count: 11,
+          phase: 'result',
+          result_count: 1,
+        }),
       })
     )
+    expectNoRawAuditInput('Copper pipe', '  Copper pipe  ')
+    expect(
+      mocks.writeAuditLog.mock.invocationCallOrder[0]
+    ).toBeLessThan(mocks.consumeProviderQuota.mock.invocationCallOrder[0] ?? 0)
+    expect(
+      mocks.writeAuditLog.mock.invocationCallOrder[0]
+    ).toBeLessThan(mocks.embedText.mock.invocationCallOrder[0] ?? 0)
+    expect(
+      mocks.writeAuditLog.mock.invocationCallOrder[0]
+    ).toBeLessThan(mocks.execute.mock.invocationCallOrder[0] ?? 0)
   })
 
   it('fails closed when embedding or retrieval is unavailable', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     mocks.embedText.mockRejectedValue(new Error('provider down'))
 
     const response = await request({ description: 'Copper pipe' })
@@ -186,6 +275,13 @@ describe('BOM similar-item retrieval boundary', () => {
         tenantId: TENANT_ID,
         diff: expect.objectContaining({ failure: 'retrieval_unavailable' }),
       })
+    )
+    expectNoRawAuditInput('Copper pipe')
+    expect(errorSpy).toHaveBeenCalledWith(
+      '[ai/similar-items] retrieval failed'
+    )
+    expect(errorSpy.mock.calls.flat().map(String).join(' ')).not.toContain(
+      'provider down'
     )
   })
 })
