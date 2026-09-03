@@ -242,7 +242,20 @@ mutation('drops inspection audit receipt', FILES.service,
   /durable effects must be atomic/)
 
 mutation('swallows an inspection effect failure inside the transaction', FILES.service,
-  (s) => replaceOnce(s, 'await transaction.ensureDesignHandoffSla(\n          membership.tenantId,', 'try { await transaction.ensureDesignHandoffSla(\n          membership.tenantId,', 'effect try').replace('          opportunity.id\n        )\n        const recipients', '          opportunity.id\n        ) } catch {}\n        const recipients'),
+  (s) => replaceOnce(
+    s,
+    `        await transaction.ensureDesignHandoffSla(
+          membership.tenantId,
+          opportunity.id
+        )`,
+    `        try {
+          await transaction.ensureDesignHandoffSla(
+            membership.tenantId,
+            opportunity.id
+          )
+        } catch {}`,
+    'swallowed SLA failure',
+  ),
   /must not swallow an atomic effect failure/)
 
 mutation('drops inspection SLA effect', FILES.service,
@@ -263,12 +276,70 @@ mutation('drops RFI audit receipt', FILES.service,
   /RFI durable effects/)
 
 mutation('makes inspection receipt permissive', FILES.service,
-  (s) => replaceOnce(s, 'linked_photo_count: z.number().int().min(0).max(MAX_PHOTOS),\n  })\n  .strict()', 'linked_photo_count: z.number().int().min(0).max(MAX_PHOTOS),\n  })', 'inspection receipt strict'),
+  (s) => {
+    const schemaStart = s.indexOf('export const siteInspectionReceiptSchema = z')
+    const strictStart = s.indexOf('\n  .strict()', schemaStart)
+    assert.notEqual(schemaStart, -1, 'inspection receipt schema fixture missing')
+    assert.notEqual(strictStart, -1, 'inspection receipt strict fixture missing')
+    return `${s.slice(0, strictStart)}${s.slice(strictStart + '\n  .strict()'.length)}`
+  },
   /inspection receipt must reject/)
 
 mutation('stores a raw submission key in the RFI receipt', FILES.service,
   (s) => replaceOnce(s, "submission_kind: z.literal('rfi_creation'),", "submission_kind: z.literal('rfi_creation'),\n    submission_id: z.string().uuid(),", 'raw receipt key'),
-  /RFI receipt must not persist raw keys/)
+  /RFI receipt must not persist raw recipient identity, keys/)
+
+mutation('removes original notification recipient hash from the receipt schema', FILES.service,
+  (s) => replaceOnce(s, '    notification_recipient_set_hash: z.string().regex(HASH),\n', '', 'recipient hash schema'),
+  /inspection receipt must contain notification_recipient_set_hash/)
+
+mutation('weakens original notification recipient hash validation', FILES.service,
+  (s) => replaceOnce(s, 'notification_recipient_set_hash: z.string().regex(HASH)', 'notification_recipient_set_hash: z.string()', 'recipient hash validation'),
+  /recipient set hash must be strict SHA-256/)
+
+mutation('removes original notification recipient count from the receipt schema', FILES.service,
+  (s) => replaceOnce(s, '    notification_recipient_count: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),\n', '', 'recipient count schema'),
+  /inspection receipt must contain notification_recipient_count/)
+
+mutation('leaks raw notification recipient IDs into the receipt', FILES.service,
+  (s) => replaceOnce(s, '    notification_recipient_count:', '    notification_recipient_ids: z.array(z.string().uuid()),\n    notification_recipient_count:', 'raw recipient IDs'),
+  /receipt must not persist raw recipient/)
+
+mutation('omits original recipient hash from receipt construction', FILES.service,
+  (s) => replaceOnce(s, '          notification_recipient_set_hash: notificationRecipientSetHash(\n            notificationRecipientIds\n          ),\n', '', 'recipient hash receipt'),
+  /receipt must commit original notification recipient hash/)
+
+mutation('recomputes inspection replay from the current Design roster', FILES.service,
+  (s) => replaceOnce(s, '    const notified = await transaction.findNotifiedDesignRecipientIds(', '    await transaction.findDesignRecipients(input.tenantId)\n    const notified = await transaction.findNotifiedDesignRecipientIds(', 'current roster replay'),
+  /must not query current Design membership/)
+
+mutation('drops persisted notification uniqueness validation', FILES.service,
+  (s) => replaceOnce(s, '      new Set(notified).size === notified.length &&\n', '', 'notification uniqueness'),
+  /persisted notification rows must be unique/)
+
+mutation('drops persisted notification count validation', FILES.service,
+  (s) => replaceOnce(s, '      notified.length === receipt.data.notification_recipient_count &&\n', '', 'notification count'),
+  /persisted notification count/)
+
+mutation('drops persisted notification hash validation', FILES.service,
+  (s) => replaceOnce(s, '      notificationRecipientSetHash(notified) ===\n        receipt.data.notification_recipient_set_hash', '      true', 'notification hash'),
+  /persisted notification hash/)
+
+for (const scenario of ['added', 'removed', 'reordered']) {
+  mutation(`removes ${scenario} Design-roster replay evidence`, FILES.serviceTest,
+    (s) => replaceOnce(s, `    ['${scenario}',`, `    ['missing-${scenario}',`, `${scenario} roster marker`),
+    /focused evidence is missing/)
+}
+
+for (const scenario of ['missing', 'extra', 'wrong']) {
+  mutation(`removes ${scenario} persisted-notification evidence`, FILES.serviceTest,
+    (s) => replaceOnce(s, `    ['${scenario}',`, `    ['unchecked-${scenario}',`, `${scenario} notification marker`),
+    /focused evidence is missing/)
+}
+
+mutation('removes zero-recipient replay evidence', FILES.serviceTest,
+  (s) => replaceOnce(s, 'preserves one open SLA, allows zero Design recipients, and de-duplicates recipients', 'preserves one open SLA and de-duplicates recipients', 'zero recipient marker'),
+  /focused evidence is missing/)
 
 mutation('drops replay command conflict validation', FILES.service,
   (s) => replaceOnce(s, 'if (receipt.data.command_hash !== input.commandHash) {', 'if (false) {', 'replay command hash'),

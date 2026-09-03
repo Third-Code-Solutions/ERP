@@ -447,11 +447,25 @@ function verifyService(graph) {
   for (const token of ['row.tenantId===membership.tenantId', 'row.opportunityId===opportunity.id', 'row.projectId===opportunity.projectId']) {
     assertContains(inspection.text, token, 'inspection photo authorization must require safe tenant/opportunity/project binding')
   }
+  assertContains(
+    inspection.text,
+    'notification_recipient_set_hash:notificationRecipientSetHash(notificationRecipientIds)',
+    'inspection receipt must commit original notification recipient hash',
+  )
+  assertContains(
+    inspection.text,
+    'notification_recipient_count:notificationRecipientIds.length',
+    'inspection receipt must commit original notification recipient count',
+  )
   assertOrder(inspection.text, [
     'transaction.createInspection', 'transaction.createPhotoLinks',
-    'siteInspectionReceiptSchema.parse', 'transaction.writeAudit',
-    'transaction.ensureDesignHandoffSla', 'transaction.findDesignRecipients',
-    "recipient.role!=='design'", 'transaction.createNotification',
+    'transaction.findDesignRecipients', 'newMap(recipients.map',
+    "recipient.role!=='design'", '.map((recipient)=>recipient.id)', '.sort()',
+    'siteInspectionReceiptSchema.parse',
+    'notification_recipient_set_hash:notificationRecipientSetHash(notificationRecipientIds)',
+    'notification_recipient_count:notificationRecipientIds.length',
+    'transaction.writeAudit', 'transaction.ensureDesignHandoffSla',
+    'transaction.createNotification',
   ], 'inspection durable effects must be atomic and Design-only')
   assertOrder(rfi.text, [
     'transaction.lockInspection', 'inspection.opportunityId!==opportunity.id',
@@ -461,16 +475,29 @@ function verifyService(graph) {
   const inspectionReceipt = compact(unit.variableInitializer('siteInspectionReceiptSchema')?.getText() ?? '')
   const rfiReceipt = compact(unit.variableInitializer('siteInspectionRfiReceiptSchema')?.getText() ?? '')
   for (const [label, receipt, required] of [
-    ['inspection', inspectionReceipt, ['idempotency_key_hash', 'command_hash', 'tenant_id', 'actor_id', 'opportunity_id', 'inspection_id', 'linked_photo_count']],
+    ['inspection', inspectionReceipt, ['idempotency_key_hash', 'command_hash', 'tenant_id', 'actor_id', 'opportunity_id', 'inspection_id', 'linked_photo_count', 'notification_recipient_set_hash', 'notification_recipient_count']],
     ['RFI', rfiReceipt, ['idempotency_key_hash', 'command_hash', 'tenant_id', 'actor_id', 'opportunity_id', 'inspection_id', 'rfi_id', 'priority']],
   ]) {
     assertContains(receipt, '.strict()', `${label} receipt must reject added/raw payload fields`)
     for (const field of required) assertContains(receipt, `${field}:`, `${label} receipt must contain ${field}`)
-    invariant(!['submission_id:', 'description:', 'payload:', 'photo_document_ids:', 'landlord_contact:'].some((field) => receipt.includes(field)),
-      `${label} receipt must not persist raw keys or free-form payload`)
+    invariant(!['submission_id:', 'description:', 'payload:', 'photo_document_ids:', 'landlord_contact:', 'notification_recipient_ids:', 'recipient_user_id:', 'recipient_email:'].some((field) => receipt.includes(field)),
+      `${label} receipt must not persist raw recipient identity, keys, or free-form payload`)
   }
+  assertContains(
+    inspectionReceipt,
+    'notification_recipient_set_hash:z.string().regex(HASH)',
+    'notification recipient set hash must be strict SHA-256',
+  )
+  assertContains(
+    inspectionReceipt,
+    'notification_recipient_count:z.number().int().min(0).max(Number.MAX_SAFE_INTEGER)',
+    'notification recipient count must be a strict bounded non-negative integer',
+  )
   assertContains(compact(unit.source), "constHASH=/^[a-f0-9]{64}$/", 'receipt hashes must be full SHA-256 hex digests')
   assertContains(compact(unit.source), "createHash('sha256').update(value).digest('hex')", 'command receipts must use SHA-256')
+  const recipientHash = functionText(unit, 'notificationRecipientSetHash').text
+  assertContains(recipientHash, 'returnsha256(canonicalJson([...recipientIds].sort()))',
+    'notification recipient hashes must canonicalize the sorted original set')
 
   const lockCommand = unit.classMethod('DrizzleSiteInspectionWorkflowTransaction', 'lockCommand')
   invariant(lockCommand, 'database adapter must implement the command advisory lock')
@@ -489,6 +516,10 @@ function verifyService(graph) {
   for (const token of ['transaction.loadInspection', 'transaction.countInspectionPhotos', 'transaction.hasOpenDesignHandoffSla', 'transaction.findNotifiedDesignRecipientIds']) {
     assertContains(replayInspection, token, 'inspection replay must validate the complete durable result')
   }
+  invariant(!replayInspection.includes('findDesignRecipients'), 'inspection replay must not query current Design membership')
+  assertContains(replayInspection, 'newSet(notified).size===notified.length', 'persisted notification rows must be unique')
+  assertContains(replayInspection, 'notified.length===receipt.data.notification_recipient_count', 'persisted notification count must match the original receipt')
+  assertContains(replayInspection, 'notificationRecipientSetHash(notified)===receipt.data.notification_recipient_set_hash', 'persisted notification hash must match the original receipt')
   assertContains(replayRfi, 'transaction.loadRfi', 'RFI replay must validate the durable row')
 }
 
@@ -515,7 +546,19 @@ function verifyEvidence(graph) {
     'replays without duplicate effects and conflicts on changed payload/photo set',
     'replays exactly and conflicts on changed description or priority',
     'stores only hashes and durable IDs, never raw keys/free text/photo IDs',
+    'replays exactly after the current Design roster is %s',
+    'rejects %s persisted notification rows independently of the current roster',
+    'rejects a receipt with %s',
+    'preserves one open SLA, allows zero Design recipients, and de-duplicates recipients',
   ]) invariant(tests.includes(phrase), `focused evidence is missing: ${phrase}`)
+  for (const scenario of ['added', 'removed', 'reordered']) {
+    invariant(tests.includes(`['${scenario}',`), `focused evidence is missing: ${scenario} Design roster churn`)
+  }
+  for (const scenario of ['missing', 'extra', 'wrong']) {
+    invariant(tests.includes(`['${scenario}',`), `focused evidence is missing: ${scenario} persisted notification`)
+  }
+  invariant(tests.includes('notification_recipient_set_hash'), 'focused evidence is missing: receipt recipient hash')
+  invariant(tests.includes('notification_recipient_count'), 'focused evidence is missing: receipt recipient count')
 }
 
 export function verifyWo12Contract({ root = process.cwd(), overrides = {} } = {}) {
