@@ -743,3 +743,26 @@ focused result. Expected output: rerun the delayed StageAdvanceButton inline
 alert and PipelineBoard banner retries; verify each prior alert disappears
 while the request remains pending, dialog/input behavior is unchanged, and the
 new returned/thrown failure appears without refresh.
+
+## Independent QA round 5
+
+Verdict: `GO` for targeted browser rerun at clean HEAD `93d26465`; no P1/P2.
+
+QA confirmed both urgent clears execute as direct statements before
+`startTransition`, that board clearing also cancels the stale banner timer, and
+that dialog/reason state remains unchanged. Returned and thrown failures still
+reach accessible alerts; synchronous duplicate suppression, invalid-reason
+zero-call behavior, zero failure refresh, and success-only refresh remain.
+
+Independent in-memory probes removed and reordered each caller clear and
+observed the expected invariant failures; benign multiline/comment/whitespace
+formatting remained valid. Focused Pipeline 70/70, Web/E2E TypeScript, full Web
+source lint, WO-11 5/5, the 89-page production build, diff checks, and clean
+status passed. PostgreSQL integration remains blocked without isolated
+bindings.
+
+→ Handoff to targeted browser rerun. Reason: reproduce the five-second retry
+on both alert surfaces and prove the prior alert disappears immediately while
+pending, then the new failure appears without refresh. Preserve dialog input,
+exercise returned and transport failures, count single requests, inspect
+console/network/server output, and avoid hosted mutation.
