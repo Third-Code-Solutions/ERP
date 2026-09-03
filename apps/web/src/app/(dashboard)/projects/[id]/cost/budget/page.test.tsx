@@ -43,8 +43,11 @@ describe('ProjectBudgetPage sensitive query planning', () => {
     mocks.execute.mockResolvedValue([])
   })
 
-  for (const role of ['finance', 'viewer'] as const) {
-    it(`issues zero BOM or PO queries for ${role}`, async () => {
+  for (const [role, canViewCommercialDetails] of [
+    ['finance', false],
+    ['viewer', true],
+  ] as const) {
+    it(`queries only authorized budget domains for ${role}`, async () => {
       const queriedTables: unknown[] = []
       mocks.requireUserProfile.mockResolvedValue({
         tenantId: TENANT_ID,
@@ -62,6 +65,9 @@ describe('ProjectBudgetPage sensitive query planning', () => {
         if (table === costCodes) {
           return { where: () => ({ orderBy: async () => [] }) }
         }
+        if (table === boms) {
+          return { where: () => ({ orderBy: async () => [] }) }
+        }
         throw new Error('Unexpected sensitive table query')
       })
 
@@ -70,8 +76,11 @@ describe('ProjectBudgetPage sensitive query planning', () => {
       })
       const markup = renderToStaticMarkup(page)
 
-      expect(queriedTables).toEqual([projects, costCodes])
-      expect(queriedTables).not.toContain(boms)
+      expect(queriedTables).toEqual([
+        projects,
+        costCodes,
+        ...(canViewCommercialDetails ? [boms] : []),
+      ])
       expect(mocks.execute).toHaveBeenCalledOnce()
       const query = new PgDialect().sqlToQuery(
         requireSql(mocks.execute.mock.calls[0]?.[0]),
@@ -80,20 +89,28 @@ describe('ProjectBudgetPage sensitive query planning', () => {
       expect(query.sql).not.toContain('public.bom_line_items')
       expect(query.sql).not.toContain('public.po_line_items')
       expect(query.sql).not.toContain('public.purchase_orders')
-      expect(query.sql).not.toContain('budget.source_bom_id')
+      if (canViewCommercialDetails) {
+        expect(query.sql).toContain('budget.source_bom_id')
+      } else {
+        expect(query.sql).not.toContain('budget.source_bom_id')
+      }
       expect(query.params).toContain(TENANT_ID)
       expect(query.params).toContain(PROJECT_ID)
       expect(mocks.budgetWorkspace).toHaveBeenCalledWith(
         expect.objectContaining({
-          canViewBom: false,
+          canViewBom: canViewCommercialDetails,
           sourceBoms: [],
           bomLines: [],
         }),
         undefined,
       )
-      expect(markup).not.toContain('Source BOM')
-      expect(markup).not.toContain('Purchase Orders')
-      expect(markup).not.toContain('Forecast variance')
+      if (canViewCommercialDetails) {
+        expect(markup).toContain('Purchase Orders')
+      } else {
+        expect(markup).not.toContain('Source BOM')
+        expect(markup).not.toContain('Purchase Orders')
+        expect(markup).not.toContain('Forecast variance')
+      }
     })
   }
 })

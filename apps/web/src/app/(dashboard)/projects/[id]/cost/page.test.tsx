@@ -53,8 +53,11 @@ describe('ProjectCostPage sensitive query planning', () => {
     })
   })
 
-  for (const role of ['finance', 'viewer'] as const) {
-    it(`skips BOM and PO detail queries for ${role}`, async () => {
+  for (const [role, canViewCommercialDetails] of [
+    ['finance', false],
+    ['viewer', true],
+  ] as const) {
+    it(`queries only authorized cost domains for ${role}`, async () => {
       const queriedTables: unknown[] = []
       mocks.requireUserProfile.mockResolvedValue({
         tenantId: TENANT_ID,
@@ -65,6 +68,13 @@ describe('ProjectCostPage sensitive query planning', () => {
         if (table === projects) return { where: async () => [{ id: PROJECT_ID }] }
         if (table === projectBudgets) {
           return { where: () => ({ limit: async () => [] }) }
+        }
+        if (table === boms) {
+          return {
+            where: () => ({
+              orderBy: () => ({ limit: async () => [] }),
+            }),
+          }
         }
         if (table === costEntries || table === costCodes) {
           return { where: () => ({ orderBy: async () => [] }) }
@@ -79,28 +89,34 @@ describe('ProjectCostPage sensitive query planning', () => {
 
       expect(queriedTables).toEqual([
         projects,
+        ...(canViewCommercialDetails ? [boms] : []),
         projectBudgets,
         costEntries,
         costCodes,
       ])
-      expect(queriedTables).not.toContain(boms)
       expect(mocks.getProjectCostControl).toHaveBeenCalledWith({
         tenantId: TENANT_ID,
         projectId: PROJECT_ID,
-        includeBomDetails: false,
-        includePurchaseOrders: false,
+        includeBomDetails: canViewCommercialDetails,
+        includePurchaseOrders: canViewCommercialDetails,
       })
       expect(mocks.costControlTable).toHaveBeenCalledWith(
         expect.objectContaining({
-          showBomDetails: false,
-          showCommitments: false,
+          showBomDetails: canViewCommercialDetails,
+          showCommitments: canViewCommercialDetails,
         }),
         undefined,
       )
-      expect(markup).toContain('Approved budget and posted actuals by Cost Code.')
-      expect(markup).not.toContain('BOM')
-      expect(markup).not.toContain('PO Committed')
-      expect(markup).not.toContain('Budget Variance')
+      if (canViewCommercialDetails) {
+        expect(markup).toContain('BOM Estimate')
+        expect(markup).toContain('PO Committed')
+        expect(markup).toContain('Budget Variance')
+      } else {
+        expect(markup).toContain('Approved budget and posted actuals by Cost Code.')
+        expect(markup).not.toContain('BOM')
+        expect(markup).not.toContain('PO Committed')
+        expect(markup).not.toContain('Budget Variance')
+      }
     })
   }
 })

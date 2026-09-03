@@ -41,9 +41,9 @@ describe('ProjectAuditPage sensitive query planning', () => {
 
   for (const [role, expectedTables] of [
     ['finance', [projects, scopeItems, invoices]],
-    ['viewer', [projects, scopeItems]],
+    ['viewer', [projects, scopeItems, boms, invoices]],
   ] as const) {
-    it(`skips denied entity discovery for ${role}`, async () => {
+    it(`limits entity discovery to authorized domains for ${role}`, async () => {
       const queriedTables: unknown[] = []
       mocks.requireUserProfile.mockResolvedValue({
         tenantId: TENANT_ID,
@@ -56,7 +56,7 @@ describe('ProjectAuditPage sensitive query planning', () => {
             where: async () => [{ id: PROJECT_ID, name: 'Visible project' }],
           }
         }
-        if (table === scopeItems || table === invoices) {
+        if (table === scopeItems || table === boms || table === invoices) {
           return { where: async () => [] }
         }
         throw new Error('Unexpected denied-domain query')
@@ -70,8 +70,7 @@ describe('ProjectAuditPage sensitive query planning', () => {
       ).resolves.toBeTruthy()
 
       expect(queriedTables).toEqual(expectedTables)
-      expect(queriedTables).not.toContain(boms)
-      if (role === 'viewer') expect(queriedTables).not.toContain(invoices)
+      if (role === 'finance') expect(queriedTables).not.toContain(boms)
       expect(mocks.getAuditActivityThroughCoreApi).toHaveBeenCalledWith(
         expect.objectContaining({ entityIds: [PROJECT_ID] }),
       )

@@ -66,8 +66,8 @@ describe('RoleWorkDashboard', () => {
       '/crm/accounts',
       '/documents',
       '/bom',
-      '/cortex',
-      '/tasks',
+      '/finance',
+      '/reports',
     ])
   })
 })
