@@ -678,3 +678,36 @@ the exact stale-verifier failure above. Expected output: require original
 recipient hash/count creation, forbid replay membership recomputation, validate
 persisted correlated notification rows, and add roster churn plus missing/extra/
 wrong notification hostile mutations.
+
+## Agent 12 roster-stable replay verification closeout
+
+Status: **GO; QA P2 resolved and independently guarded**.
+
+Verifier commit `54a60562` updates the WO-12 AST contract without changing
+runtime behavior. It now requires the strict bounded
+`notification_recipient_set_hash` and `notification_recipient_count` receipt
+fields, sorted original-recipient SHA-256 construction, recipient de-duplication
+and Design-only validation before receipt creation, and matching hash/count
+construction from the same original set. Replay must not call
+`findDesignRecipients`; it must load correlated persisted notification rows and
+validate their uniqueness, original count, and original set hash.
+
+The mutation suite retains all previous role, mounting, field, writer,
+transaction, privacy, retry, and benign-format/alias coverage. New hostile cases
+remove/weaken hash or count, omit receipt construction, add raw recipient IDs,
+reintroduce current-roster lookup, remove persisted-row uniqueness/hash/count,
+or remove add/remove/reorder, missing/extra/wrong, and zero-recipient evidence.
+
+Verification:
+
+- final verifier suite: **61/61 passed twice** — three authoritative/benign
+  positives and 58 hostile mutations, zero skipped/failed;
+- focused runtime/mounted suite: **143/143 passed** across five files;
+- direct verifier and both Node 22 syntax checks passed;
+- `git diff --check` passed with only checkout line-ending notices;
+- unchanged Web typecheck, runtime ESLint, build, and gitleaks evidence is reused
+  from the immediately preceding Agent 05/Agent 03 gates.
+
+No new P0/P1/P2 finding surfaced. Browser/IndexedDB/Storage/live PostgreSQL,
+hosted providers, report-file archival, and deployment remain NOT RUN under the
+existing bounded scope.

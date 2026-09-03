@@ -214,3 +214,20 @@ stored.
 The WO-12 verifier was intentionally not edited in this Agent 05 slice. It now
 fails its old recipient-effect ordering assertion and must be updated by Agent
 12 to require the digest/count and forbid replay against current membership.
+
+## Agent 12 roster-replay verifier update
+
+Verifier commit `54a60562` closes the QA P2 contract gap. The AST verifier now
+requires strict original-recipient SHA-256/count receipt fields and construction,
+forbids current Design-membership lookup during replay, and requires exact
+unique persisted-notification hash/count validation. Its direct suite adds
+bounded hostile mutations for receipt-field removal/weakening/leakage,
+current-roster recomputation, persisted-row validation removal, add/remove/
+reorder roster evidence, missing/extra/wrong rows, and zero-recipient replay.
+
+Final evidence: verifier 61/61 passed twice (three authoritative/benign and 58
+hostile); focused service/actions/forms/page 143/143; direct verifier, both Node
+22 syntax checks, and diff check passed. The immediately preceding type/lint/
+build/gitleaks evidence remains applicable because this change touches only the
+verifier pair and documentation. No P0/P1/P2 remains in the verified source
+contract; browser and isolated live-PostgreSQL lanes remain NOT RUN.
