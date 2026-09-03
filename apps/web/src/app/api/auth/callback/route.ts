@@ -22,8 +22,19 @@ export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
   const next = resolveAuthCallbackPath(searchParams.get('next'))
+  // Server-initiated recovery has no recipient-browser PKCE verifier. The
+  // provider email template must send a recovery token hash to this endpoint.
+  // Only provider verification of type=recovery can establish recovery proof.
+  const tokenHash = searchParams.get('token_hash')
+  const recoveryToken = z.object({
+    token_hash: z.string().regex(/^[a-f0-9]{40,128}$/),
+    type: z.literal('recovery'),
+  }).safeParse({ token_hash: tokenHash, type: searchParams.get('type') })
+  if (tokenHash && (!recoveryToken.success || code || next !== '/auth/update-password')) {
+    return NextResponse.redirect(new URL('/auth/login?error=auth_callback_failed', origin))
+  }
 
-  if (code) {
+  if (code || recoveryToken.success) {
     const cookieStore = await cookies()
 
     const supabase = createServerClient(
@@ -43,9 +54,17 @@ export async function GET(request: NextRequest) {
       }
     )
 
-    let exchange: Awaited<ReturnType<typeof supabase.auth.exchangeCodeForSession>>
+    let exchange: Awaited<ReturnType<typeof supabase.auth.verifyOtp>>
+    let verifiedRecoveryToken = false
     try {
-      exchange = await supabase.auth.exchangeCodeForSession(code)
+      if (recoveryToken.success) {
+        exchange = await supabase.auth.verifyOtp(recoveryToken.data)
+        verifiedRecoveryToken = !exchange.error
+      } else if (code) {
+        exchange = await supabase.auth.exchangeCodeForSession(code)
+      } else {
+        return NextResponse.redirect(new URL('/auth/login?error=auth_callback_failed', origin))
+      }
     } catch {
       return NextResponse.redirect(
         new URL('/auth/login?error=auth_callback_failed', origin)
@@ -55,7 +74,7 @@ export async function GET(request: NextRequest) {
     if (!exchange.error) {
       const response = NextResponse.redirect(new URL(next, origin))
       if (next === '/auth/update-password') {
-        if (!recoveryExchangeSchema.safeParse(exchange.data).success) {
+        if (!verifiedRecoveryToken && !recoveryExchangeSchema.safeParse(exchange.data).success) {
           return NextResponse.redirect(new URL('/dashboard', origin))
         }
 
@@ -69,7 +88,7 @@ export async function GET(request: NextRequest) {
             )
             const claims = claimsResult.data?.claims
             if (
-              claims?.sub === user.id &&
+              !claimsResult.error && claims?.sub === user.id &&
               typeof claims.session_id === 'string'
             ) {
               marker = await createRecoveryMarker({
