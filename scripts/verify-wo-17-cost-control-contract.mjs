@@ -45,7 +45,14 @@ assertIncludes(query, 'computeCostControlMetrics', 'remaining and variance calcu
 
 const page = read('apps/web/src/app/(dashboard)/projects/[id]/cost/page.tsx')
 assertIncludes(page, 'getProjectCostControl', 'primary cost page cost-control query')
-assertIncludes(page, '<CostControlTable rows={costControl.rows} />', 'BOM-line cost-control table')
+assertIncludes(page, '<CostControlTable', 'BOM-line cost-control table')
+assertIncludes(page, 'rows={costControl.rows}', 'cost-control rows binding')
+assertIncludes(page, 'showBomDetails={access.bom}', 'role-aware BOM detail visibility')
+assertIncludes(
+  page,
+  'showCommitments={access.purchaseOrders}',
+  'role-aware commitment visibility'
+)
 assertIncludes(page, 'costControl.totals.committedCents', 'committed amount from cost-control query')
 assertIncludes(page, 'costControl.totals.actualCents', 'posted actual amount from cost-control query')
 assertIncludes(page, 'costControl.totals.unreconciledCents', 'visible unreconciled evidence')
