@@ -137,3 +137,31 @@ Contract decision: **GO to independent browser QA.** PostgreSQL persistence
 status is unchanged and remains **BLOCKED/NOT RUN** because `DATABASE_URL` and
 `ERP_API_INTEGRATION_EXPECTED=1` are unavailable; no live database result is
 claimed.
+## Agent 05 QA P1 remediation
+
+Source commit: `234ebe03`.
+
+- Added the tenant/current-membership/capability-checked
+  `POST /v1/crm/opportunities` Core command for Project-detail creation.
+- Derived and tenant-validated the Account from the active Project; retained
+  legacy accountless initial creation without inventing client linkage.
+- Made insert, semantic audit, and namespaced idempotency completion one
+  transaction with replay, payload-conflict, rollback, and concurrency proof.
+- Restricted creation to `opportunity_creation` and made all downstream
+  KYC-gated transitions reject without a tenant-resolved Account while
+  preserving dual-track and legacy Account KYC rules.
+- Corrected create/result and transition monetary boundaries to canonical
+  decimal centavo strings, shared one validation authority, and retained exact
+  `BigInt` weighted-TCV math.
+
+Verification under Node 22.23.2 / pnpm 10.33.0: focused Core **93/93**; full
+shared **451/451**; neighboring Core **159/159**; WO-11 **13/13**; shared/API
+typechecks, API build, and full source lint passed. Root typecheck is explicitly
+handed to Agent 03 because the scoped-out Project Web action still sends numeric
+transition money. PostgreSQL remained **SKIPPED 1/1** with
+`DATABASE_URL` and `ERP_API_INTEGRATION_EXPECTED=1` absent. Pinned Gitleaks
+after source commit passed over **1,804 commits** with no leaks.
+
+Next: Agent 03 delegates Project-detail creation to Core, sends string centavos
+for create/transition, removes the local insert/audit path, and reruns root/Web
+gates before independent QA.

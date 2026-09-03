@@ -446,3 +446,79 @@ commit `6a18d07a`, exact two-entry inventory, and the unchanged PostgreSQL block
 Expected output: safe local browser coverage for all supplied identities,
 selector/Core failure and retry recovery, no shared demo or production writes,
 and an explicit final GO/BLOCK decision.
+## Agent 05 QA remediation — atomic Project Opportunity creation
+
+Source commit: `234ebe03` (`fix(crm): make opportunity creation atomic`).
+
+Decision: **GO to Agent 03 contract adoption; not yet GO to independent QA.**
+The data model supports a usable Project-led create command without inventing an
+Account choice. `projects.account_id` is the canonical Account link and remains
+nullable for legacy Projects; Core therefore derives it from the tenant-scoped
+Project, validates it in the same tenant when present, and permits an accountless
+legacy Project only at the safe `opportunity_creation` initial stage. Any later
+KYC-gated transition now fails closed unless a linked Account resolves in the
+current tenant. Existing dual-track PPRF KYC and legacy Account-status fallback
+rules remain unchanged after that prerequisite.
+
+`POST /v1/crm/opportunities` is now the single atomic create authority. It
+rechecks the current `users` membership and the central
+`opportunity.create` capability, validates the active Project and its linked
+Account, inserts the Opportunity, writes semantic audit evidence, and completes
+a namespaced replay record in one transaction. The implementation reuses the
+existing service-only Opportunity request ledger under an
+`opportunity-create:` namespace because this remediation expressly prohibited
+schema changes. A unique tenant/key claim plus row locking serializes concurrent
+calls; a losing provisional insert is removed before a succeeded result is
+replayed. Audit or completion failure rolls the whole transaction back.
+
+The strict create and transition HTTP contracts now represent TCV, signed GP,
+and weighted TCV as canonical decimal centavo strings. They reject unsafe,
+non-canonical, or floating monetary input. Core computes weighted TCV with
+`BigInt` and half-up centavo rounding, then converts only already-bounded exact
+integers at the current Drizzle `bigint({ mode: 'number' })` persistence
+adapter. This is an intentional breaking correction to the optional transition
+commercial fields; no numeric currency remains in the changed command/result
+boundary.
+
+### Agent 05 evidence
+
+- TDD red: the new shared create contract failed 8/10 before implementation;
+  the accountless `site_survey -> design` Core case incorrectly succeeded.
+- Focused create/controller/transition authority: **PASSED, 3 files / 93 tests**.
+  Coverage includes all thirteen roles (Owner/Admin/Sales allow, ten deny),
+  missing current membership, cross-tenant Project and linked Account,
+  accountless initial policy, invalid money/date/stage, strict result, audit
+  rollback and clean retry, replay, key reuse, and concurrent same-key collapse.
+- Full shared suite: **PASSED, 66 files / 451 tests**.
+- Neighboring Core lane: **PASSED, 7 files / 159 tests** including conversion,
+  Opportunity detail, authorization guards, and HTTP read.
+- WO-11 authoritative/mutation gate: **PASSED, 13/13**.
+- Shared and API TypeScript: **PASSED**; API production build: **PASSED**.
+- Full configured application-source ESLint: **PASSED, zero warnings**.
+- Root TypeScript: **BLOCKED at the expected Agent 03 handoff**, after 3
+  successful tasks: Project-detail
+  `apps/web/src/app/(dashboard)/projects/[id]/opportunities/actions.ts:171`
+  still supplies numeric optional TCV/GP to the corrected string-cent transition
+  command. No Web file was changed in this Agent 05 scope.
+- Protected PostgreSQL HTTP canary: **SKIPPED, 1/1** because `DATABASE_URL`
+  and `ERP_API_INTEGRATION_EXPECTED=1` remain unavailable. It compiles and now
+  asserts create persistence/replay/role/tenant/audit plus accountless KYC
+  rejection, but no live database proof is claimed.
+- Diff/whitespace: **PASSED**.
+- Pinned Gitleaks 8.30.1 after the source commit: **PASSED, 1,804 commits / no
+  leaks**.
+
+No Web/UI, script, schema, dependency, data, environment, credential, or
+deployment file changed.
+
+→ Handoff to Agent 03. Reason: adopt the new Core creation endpoint and exact
+money contract before independent QA. Inputs: source commit `234ebe03`;
+`POST /v1/crm/opportunities`; required `Idempotency-Key`; strict body
+`{ projectId, stage?: 'opportunity_creation', tcvCents?: string,
+gpCents?: string, closingDate?: RFC3339-offset, areaSqm?, opportunityType?,
+remarks? }`; strict persisted result; existing three-allow/ten-deny policy.
+Expected output: replace the Project action's direct insert/separate audit with
+one selected Core create call and no fallback, send canonical centavo strings
+for both create and transition, offer only the safe initial stage, retain
+success-only revalidation, update focused Web/contract tests, and return the
+root typecheck plus browser path to green.
