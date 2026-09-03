@@ -115,6 +115,8 @@ export const siteInspectionReceiptSchema = z
     status: z.literal('submitted'),
     submitted_at: z.string().datetime(),
     linked_photo_count: z.number().int().min(0).max(MAX_PHOTOS),
+    notification_recipient_set_hash: z.string().regex(HASH),
+    notification_recipient_count: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
   })
   .strict()
 
@@ -334,6 +336,10 @@ function canonicalJson(value: unknown): string {
   return JSON.stringify(normalizeJson(value))
 }
 
+function notificationRecipientSetHash(recipientIds: readonly string[]): string {
+  return sha256(canonicalJson([...recipientIds].sort()))
+}
+
 function failure(
   code: Extract<SiteInspectionWorkflowResult, { ok: false }>['error']['code'],
   message: string
@@ -485,32 +491,6 @@ export class SiteInspectionWorkflowService {
           )
         }
 
-        const receipt = siteInspectionReceiptSchema.parse({
-          source: INSPECTION_SOURCE,
-          receipt_version: 1,
-          submission_kind: 'inspection_submission',
-          idempotency_key_hash: keyHash,
-          command_hash: commandHash,
-          tenant_id: membership.tenantId,
-          actor_id: principal.data.userId,
-          opportunity_id: opportunity.id,
-          inspection_id: inspection.id,
-          status: 'submitted',
-          submitted_at: submittedAt.toISOString(),
-          linked_photo_count: photoDocumentIds.length,
-        })
-        await transaction.writeAudit({
-          tenantId: membership.tenantId,
-          actorId: principal.data.userId,
-          entityType: 'site_inspection',
-          entityId: inspection.id,
-          action: 'create',
-          diff: receipt,
-        })
-        await transaction.ensureDesignHandoffSla(
-          membership.tenantId,
-          opportunity.id
-        )
         const recipients = await transaction.findDesignRecipients(
           membership.tenantId
         )
@@ -525,6 +505,42 @@ export class SiteInspectionWorkflowService {
           ) {
             throw new Error('Design recipient result is invalid')
           }
+        }
+        const notificationRecipientIds = uniqueRecipients
+          .map((recipient) => recipient.id)
+          .sort()
+
+        const receipt = siteInspectionReceiptSchema.parse({
+          source: INSPECTION_SOURCE,
+          receipt_version: 1,
+          submission_kind: 'inspection_submission',
+          idempotency_key_hash: keyHash,
+          command_hash: commandHash,
+          tenant_id: membership.tenantId,
+          actor_id: principal.data.userId,
+          opportunity_id: opportunity.id,
+          inspection_id: inspection.id,
+          status: 'submitted',
+          submitted_at: submittedAt.toISOString(),
+          linked_photo_count: photoDocumentIds.length,
+          notification_recipient_set_hash: notificationRecipientSetHash(
+            notificationRecipientIds
+          ),
+          notification_recipient_count: notificationRecipientIds.length,
+        })
+        await transaction.writeAudit({
+          tenantId: membership.tenantId,
+          actorId: principal.data.userId,
+          entityType: 'site_inspection',
+          entityId: inspection.id,
+          action: 'create',
+          diff: receipt,
+        })
+        await transaction.ensureDesignHandoffSla(
+          membership.tenantId,
+          opportunity.id
+        )
+        for (const recipient of uniqueRecipients) {
           await transaction.createNotification({
             tenantId: membership.tenantId,
             recipientUserId: recipient.id,
@@ -732,13 +748,16 @@ export class SiteInspectionWorkflowService {
       input.tenantId,
       input.opportunityId
     )
-    const recipients = await transaction.findDesignRecipients(input.tenantId)
     const notified = await transaction.findNotifiedDesignRecipientIds(
       input.tenantId,
       input.opportunityId,
       receipt.data.inspection_id
     )
-    const expectedRecipientIds = [...new Set(recipients.map((row) => row.id))]
+    const notifiedRecipientSetIsComplete =
+      new Set(notified).size === notified.length &&
+      notified.length === receipt.data.notification_recipient_count &&
+      notificationRecipientSetHash(notified) ===
+        receipt.data.notification_recipient_set_hash
     if (
       !inspection ||
       inspection.tenantId !== input.tenantId ||
@@ -747,7 +766,7 @@ export class SiteInspectionWorkflowService {
       inspection.submittedAt?.toISOString() !== receipt.data.submitted_at ||
       photoCount !== receipt.data.linked_photo_count ||
       !hasSla ||
-      !sameMembers(expectedRecipientIds, [...new Set(notified)])
+      !notifiedRecipientSetIsComplete
     ) {
       return failure('CONFLICT', 'Inspection durable result is incomplete')
     }

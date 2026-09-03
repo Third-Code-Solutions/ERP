@@ -471,6 +471,17 @@ describe('atomic inspection submission', () => {
     const none = createHarness({ inspection: false, recipients: [] })
     expect((await none.service.submitInspection(principal(), inspectionCommand)).ok).toBe(true)
     expect(none.state().notifications).toHaveLength(0)
+    none.state().recipients.push({
+      tenantId: TENANT_ID,
+      id: DESIGN_1,
+      email: 'later-design@example.test',
+      role: 'design',
+    })
+    expect(await none.service.submitInspection(principal(), inspectionCommand)).toMatchObject({
+      ok: true,
+      replayed: true,
+    })
+    expect(none.state().notifications).toHaveLength(0)
 
     const duplicate = createHarness({ inspection: false, recipients: [
       { tenantId: TENANT_ID, id: DESIGN_1, email: 'design@example.test', role: 'design' },
@@ -522,6 +533,79 @@ describe('inspection replay, conflict, and concurrency', () => {
     missingNotification.state().notifications.pop()
     expect(await missingNotification.service.submitInspection(principal(), inspectionCommand)).toMatchObject({
       ok: false, error: { code: 'CONFLICT' },
+    })
+  })
+
+  it.each([
+    ['added', (recipients: State['recipients']) => recipients.push({
+      tenantId: TENANT_ID,
+      id: OTHER_USER,
+      email: 'new-design@example.test',
+      role: 'design',
+    })],
+    ['removed', (recipients: State['recipients']) => recipients.pop()],
+    ['reordered', (recipients: State['recipients']) => recipients.reverse()],
+  ] as const)(
+    'replays exactly after the current Design roster is %s',
+    async (_scenario, changeRoster) => {
+      const harness = createHarness({ inspection: false })
+      expect(await harness.service.submitInspection(principal(), inspectionCommand)).toMatchObject({
+        ok: true,
+        replayed: false,
+      })
+      changeRoster(harness.state().recipients)
+      expect(await harness.service.submitInspection(principal(), inspectionCommand)).toMatchObject({
+        ok: true,
+        replayed: true,
+      })
+      expect(harness.state().notifications).toHaveLength(2)
+    }
+  )
+
+  it.each([
+    ['missing', (notifications: Notification[]) => notifications.pop()],
+    ['extra', (notifications: Notification[]) => notifications.push({
+      ...notifications[0]!,
+      recipientUserId: OTHER_USER,
+      recipientEmail: 'unexpected@example.test',
+    })],
+    ['wrong', (notifications: Notification[]) => {
+      notifications[0] = {
+        ...notifications[0]!,
+        recipientUserId: OTHER_USER,
+        recipientEmail: 'wrong@example.test',
+      }
+    }],
+  ] as const)(
+    'rejects %s persisted notification rows independently of the current roster',
+    async (_scenario, corruptNotifications) => {
+      const harness = createHarness({ inspection: false })
+      await harness.service.submitInspection(principal(), inspectionCommand)
+      corruptNotifications(harness.state().notifications)
+      expect(await harness.service.submitInspection(principal(), inspectionCommand)).toMatchObject({
+        ok: false,
+        error: { code: 'CONFLICT' },
+      })
+    }
+  )
+
+  it.each([
+    ['missing recipient hash', (receipt: Record<string, unknown>) => {
+      delete receipt.notification_recipient_set_hash
+    }],
+    ['malformed recipient hash', (receipt: Record<string, unknown>) => {
+      receipt.notification_recipient_set_hash = 'malformed'
+    }],
+    ['wrong recipient count', (receipt: Record<string, unknown>) => {
+      receipt.notification_recipient_count = 99
+    }],
+  ] as const)('rejects a receipt with %s', async (_scenario, corruptReceipt) => {
+    const harness = createHarness({ inspection: false })
+    await harness.service.submitInspection(principal(), inspectionCommand)
+    corruptReceipt(harness.state().audits[0]!.diff)
+    expect(await harness.service.submitInspection(principal(), inspectionCommand)).toMatchObject({
+      ok: false,
+      error: { code: 'CONFLICT' },
     })
   })
 
@@ -636,6 +720,9 @@ describe('receipt privacy', () => {
     expect(inspectionReceipt).not.toContain(SUBMISSION_ID)
     expect(inspectionReceipt).not.toContain(payload.observations)
     expect(inspectionReceipt).not.toContain(PHOTO_1)
+    expect(inspectionReceipt).toMatch(/"notification_recipient_set_hash":"[a-f0-9]{64}"/)
+    expect(inspectionReceipt).toContain('"notification_recipient_count":2')
+    expect(inspectionReceipt).not.toContain(DESIGN_1)
 
     const rfi = createHarness()
     await rfi.service.createRfi(principal(), rfiCommand)
