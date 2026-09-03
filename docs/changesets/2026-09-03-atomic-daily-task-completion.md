@@ -209,3 +209,44 @@ typechecker or runtime proof and does not model dynamic imports,
 computed-property dispatch, arbitrary higher-order indirection, or unusual
 default-export chains. Decision: **GO to independent QA/browser verification**;
 real PostgreSQL persistence/concurrency remains a separate blocked lane.
+
+## Independent QA and functional closeout
+
+Independent QA at clean source HEAD `cab3af16` returned **GO for source** with
+no introduced P0-P2 defect.
+
+- Contract plus 19 hostile mutation groups: **22/22**, 24.889 s.
+- Shared: **35/35**, 2.962 s.
+- Core: **33/33**, 10.402 s.
+- Web: **42/42**, 6.219 s.
+- Executed total: **132/132 passed**.
+- Protected PostgreSQL HTTP integration: **1/1 skipped**, 7.766 s; no isolated
+  binding/opt-in and no database contact.
+- Root lint: passed, 19.000 s.
+- Root typecheck: 5/5 cached tasks passed, 1.563 s.
+- Diff check: passed, 82 ms.
+
+Safe HTTP/SSR used Next.js 15.5.23 Web on `127.0.0.1:3317` and fake Core on
+`127.0.0.1:3318`. HTTP 307 normalized the request to
+`http://localhost:3317/auth/login`, then 200; cold/warm timings were 9.155 s and
+0.584 s. Fake Core received zero calls, no hosted write occurred, both servers
+were stopped, both ports were free, and source state stayed clean.
+
+This was not a real browser/console/interaction/accessibility assertion. Only
+the engineer's daily Opera session was exposed and correctly left untouched;
+isolated providers and a secure reusable authenticated session were unavailable.
+Browser result is therefore `BLOCKED` for every role. The eleven supplied roles
+remain `PARTIAL`; Estimator and PM are `BLOCKED` because their identities are
+also missing. Live remains `NOT RUN`, and the PostgreSQL block is unchanged.
+
+Pre-existing non-blocking queue: the generic audit trigger can include
+`completion_notes` beyond the redacted semantic receipt; daily-task Project and
+assignee foreign keys are not tenant-composite; and real PostgreSQL replay,
+rollback, and concurrency proof is unavailable. Independent QA did not classify
+these as introduced P0-P2 defects.
+
+The functional matrix now records this as the eleventh local workflow. Exact
+counts and role outcomes are maintained in `docs/functional/WORK_STATE.md`,
+`docs/functional/RBAC_SUMMARY.md`, and
+`docs/functional/RBAC_ROUTE_MATRIX.csv`. Selection of the next workflow remains
+pending a fresh Agent 01/02 audit; none is guessed here.

@@ -516,3 +516,57 @@ policy, and the bounded limitations above. Expected output: exercise the single
 mounted `/tasks` completion flow for allowed, denied, assignee, Owner/Admin
 override, error-retry, and success-refresh behavior without weakening the
 separate isolated-PostgreSQL requirement.
+
+## Independent QA and safe HTTP/SSR closeout — 2026-09-03
+
+Independent QA began from clean source HEAD
+`cab3af16cc8c6061024e4d34e5f08a7cfd1b6fb4` and returned **GO for source**:
+no introduced P0, P1, or P2 defect was found in the daily-task completion
+slice.
+
+Exact independent checks under the pinned local toolchain were:
+
+- mounted contract plus 19 hostile mutation groups: **22/22 passed** in
+  **24.889 s**;
+- shared completion/authorization: **35/35 passed** in **2.962 s**;
+- Core completion controller/service: **33/33 passed** in **10.402 s**;
+- Web action/client/UI/route inventory: **42/42 passed** in **6.219 s**;
+- total executed test assertions across those four lanes: **132/132 passed**;
+- protected PostgreSQL HTTP integration: **1/1 skipped** in **7.766 s**, with
+  no isolated database binding/opt-in and no database contact;
+- root lint: **passed** in **19.000 s**;
+- root typecheck: **5/5 cached tasks passed** in **1.563 s**; and
+- diff whitespace check: **passed** in **82 ms**.
+
+The only exposed daily browser was Opera, and QA correctly left that session
+untouched. Isolated browser providers were unavailable and no secure reusable
+authenticated session existed. Authenticated role, assignee/override,
+error-retry, completion-mutation, console, interaction, and accessibility
+browser evidence is therefore **BLOCKED**, not inferred from source tests.
+Estimator and PM remain additionally blocked because neither browser identity
+was supplied or seeded.
+
+QA performed a non-authenticated HTTP/SSR safety probe only. Local Next.js
+15.5.23 Web ran at `http://127.0.0.1:3317` and fake Core at
+`http://127.0.0.1:3318`. The Web request returned HTTP 307 and normalized to
+`http://localhost:3317/auth/login`, which returned 200. Cold response time was
+**9.155 s** and warm response time was **0.584 s**. Fake Core recorded **0**
+calls, including zero completion calls; no non-local or hosted write was
+attempted. Both servers were stopped, both ports were confirmed free, and the
+source worktree remained clean.
+
+This HTTP/SSR evidence is not a real rendered-browser, console, keyboard,
+interaction, responsive-layout, or accessibility assertion. Browser coverage
+remains **BLOCKED** for all thirteen roles, and live status remains **NOT RUN**.
+The protected PostgreSQL lane remains unchanged: **BLOCKED / NOT RUN**.
+
+Independent review also retained three pre-existing, non-blocking follow-ups:
+the generic database audit trigger can include `completion_notes` in its generic
+diff beyond the redacted semantic receipt; the existing daily-task Project and
+assignee foreign keys are not tenant-composite; and real PostgreSQL replay,
+rollback, and concurrency proof is unavailable. These are not evidenced as
+introduced P0-P2 defects and were not changed under this source/docs scope.
+
+Final functional result: **PARTIAL** for the eleven supplied roles and
+**BLOCKED** for Estimator/PM. The next workflow is not inferred from this slice;
+selection awaits a fresh Agent 01/02 functional and source audit.

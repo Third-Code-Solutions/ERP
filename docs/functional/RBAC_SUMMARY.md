@@ -40,15 +40,16 @@ explicit `admin` super-admin projection.
 - 118 Next.js page routes after the password slice.
 - 104 session/recovery-protected page routes: the prior 102 plus
   `/settings/profile` and recovery-bound `/auth/update-password`.
-- 174 explicit HTTP operations: 133 NestJS and 41 Next.js operations.
+- 175 explicit HTTP operations: the prior source inventory plus the mounted
+  daily-task completion command (134 NestJS and 41 Next.js operations).
 - 158 HTTP operations are session/capability/recovery protected; 16 are public,
   token/signature controlled, callback/health, webhook, or deprecated.
 - 81 central capabilities after adding the dedicated opportunity-export
   boundary; 42 are referenced by Nest controller guards.
-- 1,417 role/protected-resource matrix records: 0 `FAILED`, 32
-  `NEEDS DECISION`, 1,071 `NOT TESTED`, 298 `PARTIAL`, and 16 `BLOCKED`.
-- 119 matrix records have an automated-test result other than `NOT TESTED`;
-  229 have browser result `BLOCKED`; 93 have live result `NOT RUN`.
+- 1,430 role/protected-resource matrix records: 0 `FAILED`, 32
+  `NEEDS DECISION`, 1,071 `NOT TESTED`, 309 `PARTIAL`, and 18 `BLOCKED`.
+- 132 matrix records have an automated-test result other than `NOT TESTED`;
+  242 have browser result `BLOCKED`; 106 have live result `NOT RUN`.
 
 ## Confirmed policy conflicts
 
@@ -228,6 +229,50 @@ QA correctly refused the daily browser. The eleven supplied roles remain
 `PARTIAL`, while Estimator and PM remain `BLOCKED` because their identities are
 also missing. Live result is `NOT RUN`; the PostgreSQL canary remains blocked
 without its database binding and explicit opt-in.
+
+### Daily task completion
+
+All thirteen roles retain `/tasks` read access scoped to their current tenant
+and authenticated assignee. Completion is a separate exact policy: Owner,
+Admin, Service Delivery PM/PE, PM, and Safety are allowed; Estimator, Sales,
+Commercial, Design, Finance, Procurement, CX, and Viewer are denied before
+effects and receive no completion control. Service Delivery PM/PE, PM, and
+Safety remain assignee-only, while Owner/Admin have a same-tenant command
+override; their list/read surface remains assignee-scoped.
+
+The mounted Web action sends only strict normalized notes through the
+fail-closed daily-task tenant selector to one authenticated
+`POST /v1/daily-tasks/[id]/completion` Core command. It has no local task
+writer, audit, SLA helper, or fallback. Core locks current membership and the
+tenant task, rechecks capability/assignee/pending state, and transactionally
+commits completion metadata, every matching open legacy daily-task SLA closure,
+and one semantic audit. That redacted semantic record doubles as a durable
+tenant/key-hash receipt for replay, key conflict, rollback, and concurrency;
+raw notes and keys are not part of the receipt.
+
+Status: PARTIAL. Independent source QA at clean `cab3af16` found no introduced
+P0-P2 and passed contract 22/22, shared 35/35, Core 33/33, and Web 42/42—132/132
+tests total—plus root lint, cached 5/5 typecheck, and diff checks. Safe local
+HTTP/SSR on Next.js 15.5.23 redirected `127.0.0.1:3317` by 307 to
+`http://localhost:3317/auth/login`, then returned 200 in 9.155-second cold and
+0.584-second warm probes. Fake Core `127.0.0.1:3318` received zero calls; no
+hosted write occurred; both servers stopped and ports were free.
+
+Authenticated browser, console, interaction, and accessibility evidence is
+`BLOCKED` for all thirteen roles because the HTTP/SSR probe was not a real
+browser assertion, only the daily Opera session was exposed and correctly left
+untouched, isolated providers were unavailable, and no secure reusable
+authenticated session existed. The eleven supplied identities are `PARTIAL`;
+Estimator and PM are `BLOCKED` because their identities are also missing. Live
+is `NOT RUN`; the protected PostgreSQL canary was 1/1 skipped and no database
+was contacted.
+
+Pre-existing, non-blocking follow-up remains separate from this source result:
+the generic audit trigger can include `completion_notes` in a generic diff
+beyond the redacted semantic receipt, and the daily-task Project/assignee
+foreign keys are not tenant-composite. PostgreSQL runtime proof is likewise
+still unavailable. These items do not reclassify the slice as an introduced
+P0-P2 defect.
 
 ### Viewer semantics
 
