@@ -628,7 +628,12 @@ suite('Opportunity stage transition protected HTTP canary', () => {
           .post(route(leadOpportunityA))
           .set('Authorization', 'Bearer stage-sales-a-token')
           .set('Idempotency-Key', 'lead-site-survey')
-          .send({ newStage: 'site_survey' })
+          .send({
+            newStage: 'site_survey',
+            tcvCents: 100_002,
+            gpCents: -2_500,
+            closingDate: '2026-10-31T00:00:00.000Z',
+          })
           .expect(200)
         expect(nonTerminal.body).toMatchObject({
           ok: true,
@@ -645,7 +650,12 @@ suite('Opportunity stage transition protected HTTP canary', () => {
           .post(route(leadOpportunityA))
           .set('Authorization', 'Bearer stage-admin-a-token')
           .set('Idempotency-Key', 'lead-site-survey')
-          .send({ newStage: 'site_survey' })
+          .send({
+            newStage: 'site_survey',
+            tcvCents: 100_002,
+            gpCents: -2_500,
+            closingDate: '2026-10-31T00:00:00.000Z',
+          })
           .expect(200)
         expect(replay.body).toEqual(nonTerminal.body)
 
@@ -745,7 +755,13 @@ suite('Opportunity stage transition protected HTTP canary', () => {
           .expect(409)
 
         const [lead] = await transaction
-          .select({ stage: opportunities.stage })
+          .select({
+            stage: opportunities.stage,
+            tcvCents: opportunities.tcv_cents,
+            gpCents: opportunities.gp_cents,
+            weightedTcvCents: opportunities.weighted_tcv_cents,
+            closingDate: opportunities.closing_date,
+          })
           .from(opportunities)
           .where(
             and(
@@ -754,7 +770,13 @@ suite('Opportunity stage transition protected HTTP canary', () => {
             )
           )
           .limit(1)
-        expect(lead?.stage).toBe('site_survey')
+        expect(lead).toMatchObject({
+          stage: 'site_survey',
+          tcvCents: 100_002,
+          gpCents: -2_500,
+          weightedTcvCents: 25_001,
+          closingDate: new Date('2026-10-31T00:00:00.000Z'),
+        })
 
         const [converted] = await transaction
           .select()

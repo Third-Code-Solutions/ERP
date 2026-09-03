@@ -113,6 +113,20 @@ function replayResult(value: unknown): OpportunityStageTransitionResult {
   return parsed.data
 }
 
+function exactWeightedTcvCents(
+  tcvCents: number,
+  probabilityPercent: number
+): number {
+  if (!Number.isSafeInteger(tcvCents) || tcvCents < 0) {
+    throw new InternalServerErrorException(
+      'Opportunity TCV is outside the supported integer range'
+    )
+  }
+  return Number(
+    (BigInt(tcvCents) * BigInt(probabilityPercent) + 50n) / 100n
+  )
+}
+
 @Injectable()
 export class OpportunityStageTransitionService {
   constructor(
@@ -199,6 +213,8 @@ export class OpportunityStageTransitionService {
         tenantId: opportunities.tenant_id,
         stage: opportunities.stage,
         tcvCents: opportunities.tcv_cents,
+        gpCents: opportunities.gp_cents,
+        closingDate: opportunities.closing_date,
         accountId: opportunities.account_id,
         projectId: opportunities.project_id,
         lostReason: opportunities.lost_reason,
@@ -320,18 +336,30 @@ export class OpportunityStageTransitionService {
     }
 
     const newProbability = STAGE_PROBABILITY[command.newStage]
+    const newTcvCents = command.tcvCents ?? opportunity.tcvCents
+    const newGpCents = command.gpCents ?? opportunity.gpCents
+    const newClosingDate = command.closingDate
+      ? new Date(command.closingDate)
+      : opportunity.closingDate
     const updateValues: {
       stage: OpportunityStage
       probability: number
+      tcv_cents: number
+      gp_cents: number
       weighted_tcv_cents: number
+      closing_date: Date | null
       updated_at: Date
       lost_reason?: string | null
     } = {
       stage: command.newStage,
       probability: newProbability,
-      weighted_tcv_cents: Math.round(
-        opportunity.tcvCents * newProbability / 100
+      tcv_cents: newTcvCents,
+      gp_cents: newGpCents,
+      weighted_tcv_cents: exactWeightedTcvCents(
+        newTcvCents,
+        newProbability
       ),
+      closing_date: newClosingDate,
       updated_at: new Date(),
     }
     if (isClosingLost) updateValues.lost_reason = reason ?? null
@@ -352,6 +380,24 @@ export class OpportunityStageTransitionService {
       probability: newProbability,
       source: 'opportunity_stage_core',
       idempotency_key_hash: requestHash,
+    }
+    if (command.tcvCents !== undefined) {
+      auditDiff.tcv_cents = {
+        from: opportunity.tcvCents,
+        to: newTcvCents,
+      }
+    }
+    if (command.gpCents !== undefined) {
+      auditDiff.gp_cents = {
+        from: opportunity.gpCents,
+        to: newGpCents,
+      }
+    }
+    if (command.closingDate !== undefined) {
+      auditDiff.closing_date = {
+        from: opportunity.closingDate?.toISOString() ?? null,
+        to: newClosingDate?.toISOString() ?? null,
+      }
     }
     if (isClosingLost) {
       auditDiff.lost_reason = {

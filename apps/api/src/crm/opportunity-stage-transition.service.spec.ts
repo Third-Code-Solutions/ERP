@@ -132,6 +132,9 @@ function harness({
   accountId = ACCOUNT_ID,
   fromStage = 'contract',
   toStage = 'won',
+  tcvCents = 1_000_000,
+  gpCents = 250_000,
+  closingDate = new Date('2026-09-30T00:00:00.000Z'),
   storedCommand = { newStage: toStage },
   storedResult,
 }: {
@@ -150,6 +153,9 @@ function harness({
   accountId?: string | null
   fromStage?: OpportunityStage
   toStage?: OpportunityStage
+  tcvCents?: number
+  gpCents?: number
+  closingDate?: Date | null
   storedCommand?: OpportunityStageTransitionCommand
   storedResult?: unknown
 } = {}) {
@@ -185,6 +191,10 @@ function harness({
     toStage
   )
   let currentStage = requestState === 'succeeded' ? toStage : fromStage
+  let currentTcvCents = tcvCents
+  let currentGpCents = gpCents
+  let currentClosingDate = closingDate
+  let currentWeightedTcvCents: number | undefined
   const buildSelects = () => {
     const nextSelects = [
       selectQuery([
@@ -199,7 +209,9 @@ function harness({
           id: OPPORTUNITY_ID,
           tenantId: PRINCIPAL.tenantId,
           stage: currentStage,
-          tcvCents: 1_000_000,
+          tcvCents: currentTcvCents,
+          gpCents: currentGpCents,
+          closingDate: currentClosingDate,
           accountId,
           projectId: null,
           lostReason: null,
@@ -272,6 +284,11 @@ function harness({
             recordWrite(label)
             if (label === 'opportunity-stage') {
               currentStage = updatePayload.stage as OpportunityStage
+              currentTcvCents = updatePayload.tcv_cents as number
+              currentGpCents = updatePayload.gp_cents as number
+              currentClosingDate = updatePayload.closing_date as Date | null
+              currentWeightedTcvCents =
+                updatePayload.weighted_tcv_cents as number
             }
           })
     )
@@ -297,6 +314,10 @@ function harness({
     callback: (tx: typeof transactionClient) => unknown
   ) => {
     const originalStage = currentStage
+    const originalTcvCents = currentTcvCents
+    const originalGpCents = currentGpCents
+    const originalClosingDate = currentClosingDate
+    const originalWeightedTcvCents = currentWeightedTcvCents
     const originalRequestHash = request.requestHash
     const originalRequestState = request.state
     const originalRequestResult = request.result
@@ -311,6 +332,10 @@ function harness({
       return result
     } catch (error) {
       currentStage = originalStage
+      currentTcvCents = originalTcvCents
+      currentGpCents = originalGpCents
+      currentClosingDate = originalClosingDate
+      currentWeightedTcvCents = originalWeightedTcvCents
       request.requestHash = originalRequestHash
       request.state = originalRequestState
       request.result = originalRequestResult
@@ -387,6 +412,21 @@ function harness({
       },
       get rolledBack() {
         return rolledBack
+      },
+      get stage() {
+        return currentStage
+      },
+      get tcvCents() {
+        return currentTcvCents
+      },
+      get gpCents() {
+        return currentGpCents
+      },
+      get closingDate() {
+        return currentClosingDate
+      },
+      get weightedTcvCents() {
+        return currentWeightedTcvCents
       },
     },
   }
@@ -580,6 +620,94 @@ describe('Opportunity stage transition atomic authority', () => {
     )
   })
 
+  it('commits commercial edits with the stage and audits their before/after values', async () => {
+    const probe = harness({
+      fromStage: 'lead',
+      toStage: 'site_survey',
+      accountId: null,
+    })
+
+    await probe.candidate.transition(
+      OPPORTUNITY_ID,
+      {
+        newStage: 'site_survey',
+        tcvCents: 1_000_002,
+        gpCents: -25_000,
+        closingDate: '2026-10-31T00:00:00.000Z',
+      },
+      PRINCIPAL,
+      'commercial-edit'
+    )
+
+    expect(probe.state).toMatchObject({
+      stage: 'site_survey',
+      tcvCents: 1_000_002,
+      gpCents: -25_000,
+      weightedTcvCents: 250_001,
+    })
+    expect(probe.state.closingDate).toEqual(
+      new Date('2026-10-31T00:00:00.000Z')
+    )
+    expect(probe.audit.writeSemantic).toHaveBeenCalledWith(
+      probe.transactionClient,
+      expect.objectContaining({
+        diff: expect.objectContaining({
+          tcv_cents: { from: 1_000_000, to: 1_000_002 },
+          gp_cents: { from: 250_000, to: -25_000 },
+          closing_date: {
+            from: '2026-09-30T00:00:00.000Z',
+            to: '2026-10-31T00:00:00.000Z',
+          },
+        }),
+      })
+    )
+    expect(probe.writes).toContain('opportunity-stage')
+  })
+
+  it('preserves omitted commercial values while recalculating weighted TCV', async () => {
+    const probe = harness({
+      fromStage: 'lead',
+      toStage: 'site_survey',
+      accountId: null,
+    })
+
+    await probe.candidate.transition(
+      OPPORTUNITY_ID,
+      { newStage: 'site_survey' },
+      PRINCIPAL,
+      'preserve-commercial-edit'
+    )
+
+    expect(probe.state).toMatchObject({
+      tcvCents: 1_000_000,
+      gpCents: 250_000,
+    })
+    expect(probe.state.closingDate).toEqual(
+      new Date('2026-09-30T00:00:00.000Z')
+    )
+  })
+
+  it('rejects unsafe commercial integers before opening a transaction', async () => {
+    const probe = harness({
+      fromStage: 'lead',
+      toStage: 'site_survey',
+      accountId: null,
+    })
+
+    await expect(
+      probe.candidate.transition(
+        OPPORTUNITY_ID,
+        {
+          newStage: 'site_survey',
+          tcvCents: Number.MAX_SAFE_INTEGER + 1,
+        },
+        PRINCIPAL,
+        'unsafe-commercial-edit'
+      )
+    ).rejects.toThrow()
+    expect(probe.transaction).not.toHaveBeenCalled()
+  })
+
   it('replays a completed non-Won command without repeating stage, audit, or SLA effects', async () => {
     const probe = harness({
       fromStage: 'lead',
@@ -646,6 +774,29 @@ describe('Opportunity stage transition atomic authority', () => {
     expect(probe.audit.writeSemantic).not.toHaveBeenCalled()
   })
 
+  it('includes commercial edits in the idempotency command hash', async () => {
+    const probe = harness({
+      fromStage: 'site_survey',
+      toStage: 'site_survey',
+      accountId: null,
+      requestState: 'succeeded',
+      storedCommand: { newStage: 'site_survey', tcvCents: 1_000_000 },
+    })
+
+    await expect(
+      probe.candidate.transition(
+        OPPORTUNITY_ID,
+        { newStage: 'site_survey', tcvCents: 2_000_000 },
+        PRINCIPAL,
+        'reused-commercial-key'
+      )
+    ).rejects.toThrow(
+      'Idempotency key was already used with a different Opportunity command'
+    )
+    expect(probe.transactionClient.update).not.toHaveBeenCalled()
+    expect(probe.audit.writeSemantic).not.toHaveBeenCalled()
+  })
+
   it('serializes same-key concurrent non-Won retries and commits each effect once', async () => {
     const probe = harness({
       fromStage: 'lead',
@@ -655,7 +806,12 @@ describe('Opportunity stage transition atomic authority', () => {
     const execute = () =>
       probe.candidate.transition(
         OPPORTUNITY_ID,
-        { newStage: 'site_survey' },
+        {
+          newStage: 'site_survey',
+          tcvCents: 1_000_002,
+          gpCents: -25_000,
+          closingDate: '2026-10-31T00:00:00.000Z',
+        },
         PRINCIPAL,
         'lead-site-survey-concurrent'
       )
@@ -664,6 +820,14 @@ describe('Opportunity stage transition atomic authority', () => {
 
     expect(concurrentRetry).toEqual(first)
     expect(probe.transaction).toHaveBeenCalledTimes(2)
+    expect(probe.state).toMatchObject({
+      tcvCents: 1_000_002,
+      gpCents: -25_000,
+      weightedTcvCents: 250_001,
+    })
+    expect(probe.state.closingDate).toEqual(
+      new Date('2026-10-31T00:00:00.000Z')
+    )
     for (const onceOnly of [
       'stage-request-claim',
       'opportunity-stage',
@@ -727,13 +891,27 @@ describe('Opportunity stage transition atomic authority', () => {
       await expect(
         probe.candidate.transition(
           OPPORTUNITY_ID,
-          { newStage: 'site_survey' },
+          {
+            newStage: 'site_survey',
+            tcvCents: 1_000_002,
+            gpCents: -25_000,
+            closingDate: '2026-10-31T00:00:00.000Z',
+          },
           PRINCIPAL,
           `rollback-${_boundary}`
         )
       ).rejects.toThrow('injected')
       expect(probe.state.committed).toBe(false)
       expect(probe.state.rolledBack).toBe(true)
+      expect(probe.state).toMatchObject({
+        stage: 'lead',
+        tcvCents: 1_000_000,
+        gpCents: 250_000,
+        weightedTcvCents: undefined,
+      })
+      expect(probe.state.closingDate).toEqual(
+        new Date('2026-09-30T00:00:00.000Z')
+      )
       expect(probe.writes).toEqual([])
     }
   )
