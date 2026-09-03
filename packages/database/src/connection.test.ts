@@ -5,6 +5,10 @@ const sessionPoolerUrl =
   'postgresql://postgres.example:password@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres?sslmode=require'
 
 describe('resolveDatabaseConnectionConfig', () => {
+  it.each(['development', 'test'])('bounds reloadable %s client pools and releases idle connections', (NODE_ENV) => {
+    const config = resolveDatabaseConnectionConfig('postgresql://fixture:fixture@127.0.0.1:54322/fixture', { NODE_ENV })
+    expect(config.options).toEqual({ max: 5, idle_timeout: 20, connect_timeout: 10 })
+  })
   it('uses the Supabase transaction pooler with a bounded client in Vercel', () => {
     const config = resolveDatabaseConnectionConfig(sessionPoolerUrl, {
       VERCEL: '1',

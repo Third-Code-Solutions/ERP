@@ -12,7 +12,8 @@
     "./common": "./src/common.ts",
     "./authorization": "./src/authorization.ts",
     "./business-days": "./src/business-days/index.ts",
-    "./process-sla": "./src/process-sla/index.ts"
+    "./process-sla": "./src/process-sla/index.ts",
+    "./platform-administration": "./src/erp-api/platform-administration.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
