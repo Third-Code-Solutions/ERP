@@ -170,19 +170,28 @@ suite('RLS tenant isolation', () => {
     expect(rejected).toBe(true)
   })
 
-  it('authenticated user CANNOT update another tenant rows (USING filter)', async () => {
-    const affected = await inRollback(async (tx) => {
+  it('authenticated browser role CANNOT update Core-owned project rows', async () => {
+    const denied = await inRollback(async (tx) => {
       const { userA } = await seedProbes(tx)
       await becomeAuthenticated(tx, userA)
-      // A attempts to mutate tenant B's project. RLS USING hides B's row from
-      // A's view entirely, so the UPDATE matches 0 rows (silent isolation).
-      const r = await tx.unsafe(
-        `update projects set notes = 'tampered' where name = 'PROBE_PB'`
-      )
-      await tx.unsafe(`reset role`)
-      return r.count as number
+      try {
+        // ADR-025 moved all project mutations behind the audited Core API and
+        // revoked browser UPDATE entirely. Permission denial is stronger than
+        // the earlier RLS-only zero-row result and must remain fail closed.
+        await tx.unsafe(
+          `update projects set notes = 'tampered' where name = 'PROBE_PB'`
+        )
+        return false
+      } catch (error) {
+        return (
+          typeof error === 'object'
+          && error !== null
+          && 'code' in error
+          && (error as { code?: unknown }).code === '42501'
+        )
+      }
     })
-    expect(affected).toBe(0)
+    expect(denied).toBe(true)
   })
 
   it('every tenant-scoped core table has RLS enabled', async () => {

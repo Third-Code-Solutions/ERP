@@ -10,6 +10,14 @@ type DrizzleDb = ReturnType<typeof drizzle<typeof schema>>
 
 let _db: DrizzleDb | null = null
 
+// Next development reloads module state without ending the driver connections.
+// Cache the driver, not Drizzle: schema metadata must refresh after a code edit.
+// Keys include the complete connection configuration so a changed target can
+// never accidentally reuse another database's pool. This cache is server-only.
+const runtime = globalThis as typeof globalThis & {
+  __thirdCodeErpQueryClients?: Map<string, ReturnType<typeof postgres>>
+}
+
 function init(): DrizzleDb {
   const connectionString = process.env.DATABASE_URL
   if (!connectionString) {
@@ -17,7 +25,16 @@ function init(): DrizzleDb {
   }
 
   const connection = resolveDatabaseConnectionConfig(connectionString)
-  const queryClient = postgres(connection.connectionString, connection.options)
+  let queryClient: ReturnType<typeof postgres>
+  if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') {
+    const pools = runtime.__thirdCodeErpQueryClients ??= new Map()
+    const key = JSON.stringify(connection)
+    const cached = pools.get(key)
+    queryClient = cached ?? postgres(connection.connectionString, connection.options)
+    if (!cached) pools.set(key, queryClient)
+  } else {
+    queryClient = postgres(connection.connectionString, connection.options)
+  }
   return drizzle(queryClient, { schema })
 }
 
