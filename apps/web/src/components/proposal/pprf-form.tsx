@@ -1,11 +1,13 @@
 'use client'
 
-import { useRef, useState, useTransition } from 'react'
+import React, { useRef, useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { submitPprf } from '@/app/(dashboard)/crm/opportunities/[id]/proposal/actions'
 import { ActionFeedback } from '@/components/ui/action-feedback'
 
 interface PprfFormProps {
   opportunityId: string
+  submissionId: string
   defaults: {
     site_address: string
     floor_area_sqm: string
@@ -18,21 +20,46 @@ interface PprfFormProps {
   }
 }
 
-export function PprfForm({ opportunityId, defaults }: PprfFormProps) {
+export function PprfForm({ opportunityId, submissionId, defaults }: PprfFormProps) {
+  const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [committed, setCommitted] = useState(false)
   const [pending, startTransition] = useTransition()
   const formRef = useRef<HTMLFormElement>(null)
+  const inFlightRef = useRef(false)
 
   function onSubmit(formData: FormData) {
+    if (inFlightRef.current) return
+    inFlightRef.current = true
     setError(null)
     setSuccess(null)
     startTransition(async () => {
-      const res = await submitPprf(formData)
-      if (res?.error) {
-        setError(res.error)
-      } else if (res?.version) {
-        setSuccess(`PPRF v${res.version} submitted.`)
+      try {
+        const res = await submitPprf(opportunityId, formData)
+        if (!res.ok) {
+          setError(res.error)
+          inFlightRef.current = false
+          return
+        }
+
+        setCommitted(true)
+        const message = res.replayed
+          ? `PPRF v${res.version} was already submitted.`
+          : `PPRF v${res.version} submitted.`
+        if (res.refreshFailed) {
+          setSuccess(`${message} Refresh the page to view the latest version.`)
+          return
+        }
+        setSuccess(message)
+        try {
+          router.refresh()
+        } catch {
+          setSuccess(`${message} Refresh the page to view the latest version.`)
+        }
+      } catch {
+        setError('Unable to submit the PPRF. Please retry.')
+        inFlightRef.current = false
       }
     })
   }
@@ -45,7 +72,7 @@ export function PprfForm({ opportunityId, defaults }: PprfFormProps) {
       aria-busy={pending}
       aria-describedby="pprf-form-status"
     >
-      <input type="hidden" name="opportunity_id" value={opportunityId} />
+      <input type="hidden" name="submission_id" value={submissionId} />
 
       <div className="form-row">
         <label className="form-label" htmlFor="site_address">Site address *</label>
@@ -164,7 +191,7 @@ export function PprfForm({ opportunityId, defaults }: PprfFormProps) {
       <div className="action-row">
         <button
           type="submit"
-          disabled={pending}
+          disabled={pending || committed}
           className="button-primary"
         >
           {pending ? 'Submitting…' : 'Submit new PPRF version'}

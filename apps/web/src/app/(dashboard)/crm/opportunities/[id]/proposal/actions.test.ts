@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -6,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   select: vi.fn(),
   changeRequestWritesUseCoreApi: vi.fn(),
   createChangeRequestThroughCoreApi: vi.fn(),
+  submitResubmission: vi.fn(),
   revalidatePath: vi.fn(),
 }))
 
@@ -59,16 +61,32 @@ vi.mock('@/lib/pdf/site-inspection-report', () => ({
   buildInspectionReportHtml: vi.fn(),
 }))
 
+vi.mock('@/server/crm/pprf-submission-service', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/server/crm/pprf-submission-service')>()
+  return {
+    ...actual,
+    pprfSubmissionService: {
+      submitResubmission: mocks.submitResubmission,
+    },
+  }
+})
+
 vi.mock('next/cache', () => ({
   revalidatePath: mocks.revalidatePath,
 }))
 
-import { logChangeRequest } from './actions'
+import { logChangeRequest, submitPprf } from './actions'
 
 const USER_ID = '11111111-1111-4111-8111-111111111111'
 const TENANT_ID = '22222222-2222-4222-8222-222222222222'
 const OPPORTUNITY_ID = '33333333-3333-4333-8333-333333333333'
 const DESIGN_FILE_ID = '44444444-4444-4444-8444-444444444444'
+const SUBMISSION_ID = '55555555-5555-4555-8555-555555555555'
+const PPRF_ID = '66666666-6666-4666-8666-666666666666'
+const ROLES = [
+  'owner', 'estimator', 'pm', 'admin', 'sales', 'commercial', 'design',
+  'sd_pm_pe', 'finance', 'procurement', 'safety', 'cx', 'viewer',
+] as const
 
 function selectOpportunity(): void {
   const limit = vi.fn().mockResolvedValue([
@@ -140,5 +158,123 @@ describe('Change Request migration switch', () => {
     const key = mocks.createChangeRequestThroughCoreApi.mock.calls[0]?.[2]
     expect(key).toEqual(expect.any(String))
     expect(key).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i)
+  })
+})
+
+function pprfForm(): FormData {
+  const form = new FormData()
+  form.set('submission_id', SUBMISSION_ID)
+  form.set('site_address', 'Makati City')
+  form.set('floor_area_sqm', '45.5')
+  form.set('landlord_contact', 'Jane Doe')
+  form.set('as_built_available', 'partial')
+  form.set('scope_notes', 'Retain this on failure.')
+  form.set('project_type', 'Retail')
+  form.set('expected_start_date', '2026-10-01')
+  form.set('budget_range', 'PHP 1M-2M')
+  return form
+}
+
+describe('submitPprf service integration', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.revalidatePath.mockReset()
+    mocks.requireUserProfile.mockResolvedValue({
+      user: { id: USER_ID },
+      tenantId: TENANT_ID,
+      role: 'sales',
+    })
+    mocks.can.mockReturnValue(true)
+    mocks.submitResubmission.mockResolvedValue({
+      ok: true,
+      kind: 'resubmission',
+      tenantId: TENANT_ID,
+      opportunityId: OPPORTUNITY_ID,
+      pprfSubmissionId: PPRF_ID,
+      version: 2,
+      replayed: false,
+    })
+  })
+
+  it('binds opportunity identity outside FormData and calls the service once', async () => {
+    await expect(submitPprf(OPPORTUNITY_ID, pprfForm())).resolves.toMatchObject({
+      ok: true,
+      opportunityId: OPPORTUNITY_ID,
+      version: 2,
+    })
+    expect(mocks.submitResubmission).toHaveBeenCalledTimes(1)
+    expect(mocks.submitResubmission).toHaveBeenCalledWith(
+      { tenantId: TENANT_ID, userId: USER_ID },
+      expect.objectContaining({ submissionId: SUBMISSION_ID, opportunityId: OPPORTUNITY_ID })
+    )
+  })
+
+  it('rejects hostile identity and duplicate fields before the service', async () => {
+    const form = pprfForm()
+    form.set('opportunity_id', '77777777-7777-4777-8777-777777777777')
+    form.append('site_address', 'Second address')
+    await expect(submitPprf(OPPORTUNITY_ID, form)).resolves.toMatchObject({ ok: false })
+    expect(mocks.submitResubmission).not.toHaveBeenCalled()
+  })
+
+  it('does not turn a committed result into failure when refresh throws', async () => {
+    mocks.revalidatePath.mockImplementation(() => {
+      throw new Error('cache unavailable')
+    })
+    await expect(submitPprf(OPPORTUNITY_ID, pprfForm())).resolves.toMatchObject({
+      ok: true,
+      refreshFailed: true,
+    })
+  })
+
+  it.each(ROLES)('projects exact resubmission authority for %s', async (role) => {
+    mocks.requireUserProfile.mockResolvedValue({
+      user: { id: USER_ID }, tenantId: TENANT_ID, role,
+    })
+    mocks.can.mockImplementation((actualRole: string, capability: string) =>
+      actualRole === role && capability === 'pprf.submit' &&
+      ['owner', 'admin', 'sales'].includes(role)
+    )
+    const result = await submitPprf(OPPORTUNITY_ID, pprfForm())
+    expect(result.ok).toBe(['owner', 'admin', 'sales'].includes(role))
+    expect(mocks.submitResubmission).toHaveBeenCalledTimes(result.ok ? 1 : 0)
+  })
+
+  it('contains service errors, malformed responses, and scope mismatches', async () => {
+    mocks.submitResubmission.mockResolvedValueOnce({
+      ok: false, error: { code: 'CONFLICT', message: 'Submission conflict.' },
+    })
+    await expect(submitPprf(OPPORTUNITY_ID, pprfForm())).resolves.toEqual({
+      ok: false, error: 'Submission conflict.',
+    })
+    mocks.submitResubmission.mockResolvedValueOnce({ ok: true })
+    await expect(submitPprf(OPPORTUNITY_ID, pprfForm())).resolves.toMatchObject({ ok: false })
+    mocks.submitResubmission.mockResolvedValueOnce({
+      ok: true, kind: 'resubmission', tenantId: TENANT_ID,
+      opportunityId: '77777777-7777-4777-8777-777777777777',
+      pprfSubmissionId: PPRF_ID, version: 2, replayed: false,
+    })
+    await expect(submitPprf(OPPORTUNITY_ID, pprfForm())).resolves.toMatchObject({ ok: false })
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('contains missing auth and thrown service failures', async () => {
+    mocks.requireUserProfile.mockRejectedValueOnce(new Error('no session'))
+    await expect(submitPprf(OPPORTUNITY_ID, pprfForm())).resolves.toMatchObject({ ok: false })
+    mocks.submitResubmission.mockRejectedValueOnce(new Error('transport failed'))
+    await expect(submitPprf(OPPORTUNITY_ID, pprfForm())).resolves.toMatchObject({ ok: false })
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('keeps the PPRF action slice free of local durable side effects', () => {
+    const source = readFileSync(new URL('./actions.ts', import.meta.url), 'utf8')
+    const start = source.indexOf('export async function submitPprf')
+    const end = source.indexOf('// US-007', start)
+    const slice = source.slice(start, end)
+    expect(slice).toContain('pprfSubmissionService.submitResubmission')
+    expect(slice).not.toContain('db.')
+    expect(slice).not.toContain('writeAuditLog')
+    expect(slice).not.toContain('startSlaClock')
+    expect(slice).not.toContain('notifyRoles')
   })
 })

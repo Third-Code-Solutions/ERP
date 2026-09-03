@@ -1,27 +1,53 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import React, { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createPprfIntake } from '@/app/(dashboard)/crm/opportunities/new/pprf/actions'
 import { ActionFeedback } from '@/components/ui/action-feedback'
 
 const inputClass = 'form-input'
 
-export function PprfIntakeForm() {
+interface PprfIntakeFormProps {
+  submissionId: string
+}
+
+export function PprfIntakeForm({ submissionId }: PprfIntakeFormProps) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [committed, setCommitted] = useState(false)
   const [pending, startTransition] = useTransition()
+  const inFlightRef = useRef(false)
 
   function submit(formData: FormData) {
+    if (inFlightRef.current) return
+    inFlightRef.current = true
     setError(null)
+    setSuccess(null)
     startTransition(async () => {
-      const result = await createPprfIntake(formData)
-      if (result.error) {
-        setError(result.error)
-        return
-      }
-      if (result.opportunityId) {
-        router.push(`/crm/opportunities/${result.opportunityId}/proposal/pprf`)
+      try {
+        const result = await createPprfIntake(formData)
+        if (!result.ok) {
+          setError(result.error)
+          inFlightRef.current = false
+          return
+        }
+
+        setCommitted(true)
+        const committedMessage = result.replayed
+          ? 'This PPRF intake was already created.'
+          : 'PPRF intake created.'
+        if (result.refreshFailed) {
+          setSuccess(`${committedMessage} The destination may need a manual refresh.`)
+        }
+        try {
+          router.push(`/crm/opportunities/${result.opportunityId}/proposal/pprf`)
+        } catch {
+          setSuccess(`${committedMessage} Open the opportunity from CRM to continue.`)
+        }
+      } catch {
+        setError('Unable to submit the PPRF intake. Please retry.')
+        inFlightRef.current = false
       }
     })
   }
@@ -33,6 +59,7 @@ export function PprfIntakeForm() {
       aria-busy={pending}
       aria-describedby="pprf-intake-form-status"
     >
+      <input type="hidden" name="submission_id" value={submissionId} />
       <section className="intake-section">
         <div className="intake-section-heading">
           <div>
@@ -174,10 +201,11 @@ export function PprfIntakeForm() {
         error={error}
         pending={pending}
         pendingMessage="Creating client and review tracks…"
+        success={success}
       />
       <div className="intake-actions">
-        <button type="button" className="button-secondary" onClick={() => router.back()} disabled={pending}>Cancel</button>
-        <button type="submit" className="button-primary" disabled={pending}>
+        <button type="button" className="button-secondary" onClick={() => router.back()} disabled={pending || committed}>Cancel</button>
+        <button type="submit" className="button-primary" disabled={pending || committed}>
           {pending ? 'Creating review tracks…' : 'Create client + submit PPRF'}
         </button>
       </div>
