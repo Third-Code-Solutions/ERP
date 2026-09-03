@@ -20,7 +20,7 @@ jobs:
     name: Promote ABI OPS production
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     environment:
       name: production
       url: https://thirdcode-erp.vercel.app
@@ -42,6 +42,8 @@ jobs:
       PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
       BUILD_OPS_DEMO_TENANT_SLUGS: buildops-e2e
       E2E_PROJECT_ID: ${{ vars.E2E_PROJECT_ID }}
+      E2E_USER_EMAIL: ${{ secrets.E2E_USER_EMAIL }}
+      E2E_USER_PASSWORD: ${{ secrets.E2E_USER_PASSWORD }}
 
     steps:
       - name: Check production branch
@@ -69,7 +71,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for name in VERCEL_TOKEN RAILWAY_API_TOKEN SUPABASE_MIGRATION_DATABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY PRODUCTION_DATABASE_URL E2E_PROJECT_ID; do
+          for name in VERCEL_TOKEN RAILWAY_API_TOKEN SUPABASE_MIGRATION_DATABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY PRODUCTION_DATABASE_URL E2E_PROJECT_ID E2E_USER_EMAIL E2E_USER_PASSWORD; do
             if [[ -z "${!name:-}" ]]; then
               echo "$name is required for production promotion" >&2
               exit 1
@@ -173,6 +175,7 @@ jobs:
           report_path="$GITHUB_WORKSPACE/tmp/production-e2e/playwright.json"
           mkdir -p "$(dirname "$report_path")"
           pnpm exec playwright test \
+            e2e/auth.spec.ts \
             e2e/branding-authenticated.spec.ts \
             e2e/smoke-console.spec.ts \
             e2e/role-access-production.spec.ts \
@@ -180,6 +183,14 @@ jobs:
             --project=chromium --workers=1 --reporter=json > "$report_path"
           node "$GITHUB_WORKSPACE/scripts/assert-playwright-no-skips.mjs" \
             "$report_path" "authenticated production E2E"
+
+      - name: Verify live profile password rotation and restoration
+        working-directory: apps/web
+        env:
+          E2E_LIVE_PASSWORD_ROTATION: "1"
+          E2E_LIVE_PASSWORD_ROTATION_CONFIRM_EMAIL: ${{ secrets.E2E_USER_EMAIL }}
+          PLAYWRIGHT_BASE_URL: https://thirdcode-erp.vercel.app
+        run: node e2e/live-password-rotation-harness.mjs
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
