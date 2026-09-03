@@ -46,10 +46,10 @@ explicit `admin` super-admin projection.
   token/signature controlled, callback/health, webhook, or deprecated.
 - 81 central capabilities after adding the dedicated opportunity-export
   boundary; 42 are referenced by Nest controller guards.
-- 1,430 role/protected-resource matrix records: 0 `FAILED`, 32
-  `NEEDS DECISION`, 1,071 `NOT TESTED`, 309 `PARTIAL`, and 18 `BLOCKED`.
-- 132 matrix records have an automated-test result other than `NOT TESTED`;
-  242 have browser result `BLOCKED`; 106 have live result `NOT RUN`.
+- 1,443 role/protected-resource matrix records: 0 `FAILED`, 32
+  `NEEDS DECISION`, 1,071 `NOT TESTED`, 320 `PARTIAL`, and 20 `BLOCKED`.
+- 171 matrix records have an automated-test result other than `NOT TESTED`;
+  255 have browser result `BLOCKED`; 119 have live result `NOT RUN`.
 
 ## Confirmed policy conflicts
 
@@ -273,6 +273,39 @@ beyond the redacted semantic receipt, and the daily-task Project/assignee
 foreign keys are not tenant-composite. PostgreSQL runtime proof is likewise
 still unavailable. These items do not reclassify the slice as an introduced
 P0-P2 defect.
+
+### Atomic PPRF submission
+
+New intake at `/crm/opportunities/new/pprf` is restricted to Owner, Admin, and
+Sales. The existing-Opportunity detail route remains readable to all thirteen
+roles, but only Owner/Admin/Sales receive its submit/resubmit form; the other
+ten receive an accessible read-only prior-version state. Both Web actions
+enforce that capability independently and delegate once to the atomic PPRF
+service, which remains authoritative for current membership, tenant scope, and
+all Account, Opportunity, versioned PPRF, dual KYC, semantic audit, SLA,
+notification, and durable replay effects.
+
+Independent contract QA first found a P1 mounted-field defect: the strict
+intake action required `area_sqm`, but the actual form did not emit it, so every
+native intake stopped before the service. Source commit `421bfacf` added the
+optional whole-positive-integer Opportunity-area control without conflating it
+with required decimal PPRF `floor_area_sqm`; Agent 12 then made the mounted
+twenty-field inventory fail closed against missing, duplicate, unknown,
+spread-hidden, or parser-swapped fields. Final evidence is WO-11 59/59 twice,
+mounted PPRF 74/74, atomic service 42/42, Web typecheck/lint, the 89-page
+production build, diff checks, and gitleaks. The P1 is closed in source and the
+independent contract result is `GO`.
+
+Status: PARTIAL. Authenticated browser serialization, interaction, and role
+coverage is `BLOCKED` for all thirteen roles because no secure reusable
+isolated browser session was available; Estimator and PM are additionally
+blocked because no identities were supplied or seeded. Live status is
+`NOT RUN`, and real PostgreSQL rollback/concurrency/trigger proof remains
+blocked without an explicitly isolated database binding. The current exact
+in-app recipient sets are preserved, but the recipient-role taxonomy remains
+`NEEDS DECISION`. A bounded P2 also remains: historical receipt reads accept
+unknown keys through `receiptSchema.passthrough()` even though current writes
+and returned known fields are bounded and privacy-verified.
 
 ### Viewer semantics
 

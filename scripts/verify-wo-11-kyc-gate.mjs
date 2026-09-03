@@ -1518,7 +1518,7 @@ function resolveExportedCallable(graph, relativePath, exportName, resolving = ne
   invariant(false, `mounted exported action ${key}`)
 }
 
-function reachableCallGraph(graph, entry) {
+function reachableCallGraph(graph, entry, followReferencedImports = true) {
   const pending = [entry]
   const visited = new Set()
   const declarations = []
@@ -1620,6 +1620,7 @@ function reachableCallGraph(graph, entry) {
     // A named helper can be passed as a callback instead of being called at the
     // action site. Following every referenced local named import keeps that
     // indirection inside the same fail-closed graph.
+    if (!followReferencedImports) continue
     for (const identifier of descendants(current.declaration, ts.isIdentifier)) {
       const referencedName = canonicalCallName(current.record, identifier.text)
       const opaqueModule = current.record.opaqueLocalImports.get(referencedName)
@@ -1769,6 +1770,940 @@ export function verifyOpportunityMutationEntryInventory(
 export const verifyOpportunityStageMutationEntryInventory =
   verifyOpportunityMutationEntryInventory
 
+const PPRF_SERVICE_PATH =
+  'apps/web/src/server/crm/pprf-submission-service.ts'
+const PPRF_SERVICE_TEST_PATH =
+  'apps/web/src/server/crm/pprf-submission-service.test.ts'
+const PPRF_SERVICE_MODULE = '@/server/crm/pprf-submission-service'
+const PPRF_MOUNTED_ENTRIES = Object.freeze([
+  Object.freeze({
+    surface: 'PPRF intake',
+    actionPath:
+      'apps/web/src/app/(dashboard)/crm/opportunities/new/pprf/actions.ts',
+    actionName: 'createPprfIntake',
+    delegateName: 'submitIntake',
+    commandSchema: 'pprfIntakeCommandSchema',
+    pagePath:
+      'apps/web/src/app/(dashboard)/crm/opportunities/new/pprf/page.tsx',
+    formPath: 'apps/web/src/components/proposal/pprf-intake-form.tsx',
+    formName: 'PprfIntakeForm',
+    formHandler: 'submit',
+    capabilities: ['account.create', 'pprf.submit'],
+    expectedFieldNames: [
+      'submission_id',
+      'client_name',
+      'industry',
+      'billing_address',
+      'primary_email',
+      'primary_phone',
+      'tcv',
+      'gp',
+      'area_sqm',
+      'closing_date',
+      'opportunity_type',
+      'remarks',
+      'site_address',
+      'floor_area_sqm',
+      'landlord_contact',
+      'as_built_available',
+      'scope_notes',
+      'project_type',
+      'expected_start_date',
+      'budget_range',
+    ],
+  }),
+  Object.freeze({
+    surface: 'PPRF resubmission',
+    actionPath:
+      'apps/web/src/app/(dashboard)/crm/opportunities/[id]/proposal/actions.ts',
+    actionName: 'submitPprf',
+    delegateName: 'submitResubmission',
+    commandSchema: 'pprfResubmissionCommandSchema',
+    pagePath:
+      'apps/web/src/app/(dashboard)/crm/opportunities/[id]/proposal/pprf/page.tsx',
+    formPath: 'apps/web/src/components/proposal/pprf-form.tsx',
+    formName: 'PprfForm',
+    formHandler: 'onSubmit',
+    capabilities: ['pprf.submit'],
+  }),
+])
+
+function methodCallsOnImportedValue(
+  record,
+  declaration,
+  moduleName,
+  importedName,
+  methodName
+) {
+  const receivers = localIdentifierAliases(
+    record.sourceFile,
+    importedLocalNames(record.sourceFile, moduleName, importedName)
+  )
+  return descendants(declaration, (node) => {
+    if (!ts.isCallExpression(node)) return false
+    const expression = unwrapExpression(node.expression)
+    if (!ts.isPropertyAccessExpression(expression)) return false
+    const receiver = unwrapExpression(expression.expression)
+    return (
+      ts.isIdentifier(receiver) &&
+      receivers.has(receiver.text) &&
+      expression.name.text === methodName
+    )
+  })
+}
+
+function methodCallsOnPath(root, receiverPath, methodName) {
+  return descendants(root, (node) => {
+    if (!ts.isCallExpression(node)) return false
+    const expression = unwrapExpression(node.expression)
+    return (
+      ts.isPropertyAccessExpression(expression) &&
+      expressionPath(expression.expression) === receiverPath &&
+      expression.name.text === methodName
+    )
+  })
+}
+
+function propertyNames(object) {
+  return object.properties.flatMap((property) => {
+    if (
+      !ts.isPropertyAssignment(property) &&
+      !ts.isShorthandPropertyAssignment(property)
+    ) {
+      return []
+    }
+    return ts.isIdentifier(property.name) || ts.isStringLiteralLike(property.name)
+      ? [property.name.text]
+      : []
+  })
+}
+
+function jsxStringAttribute(element, name) {
+  const attribute = element.attributes.properties.find(
+    (candidate) =>
+      ts.isJsxAttribute(candidate) &&
+      ts.isIdentifier(candidate.name) &&
+      candidate.name.text === name
+  )
+  return attribute &&
+    ts.isJsxAttribute(attribute) &&
+    attribute.initializer &&
+    ts.isStringLiteralLike(attribute.initializer)
+    ? attribute.initializer.text
+    : undefined
+}
+
+function jsxAttribute(element, name) {
+  return element.attributes.properties.find(
+    (candidate) =>
+      ts.isJsxAttribute(candidate) &&
+      ts.isIdentifier(candidate.name) &&
+      candidate.name.text === name
+  )
+}
+
+function nativeFormControls(root, sourceFile) {
+  return descendants(
+    root,
+    (node) =>
+      ts.isJsxSelfClosingElement(node) || ts.isJsxOpeningElement(node)
+  ).filter((element) =>
+    ['input', 'select', 'textarea', 'button'].includes(
+      element.tagName.getText(sourceFile)
+    )
+  )
+}
+
+function exactCapabilityPolicy(authorizationFile, capability) {
+  const capabilityRoles = variable(
+    authorizationFile,
+    'capabilityRoles',
+    'central capability role policy'
+  )
+  const policy = capabilityRoles.initializer
+    ? unwrapExpression(capabilityRoles.initializer)
+    : undefined
+  invariant(
+    policy && ts.isObjectLiteralExpression(policy),
+    'central capability role policy object'
+  )
+  const property = objectProperty(policy, capability)
+  return property ? arrayLiteralValues(property.initializer) : undefined
+}
+
+function verifyPprfCentralAuthority(authorizationSource) {
+  const sourceFile = parseTypescript(
+    authorizationSource,
+    'packages/shared-types/src/authorization.ts'
+  )
+  const roles = variable(sourceFile, 'ERP_ROLES', 'central ERP role list')
+  assertExactValues(
+    roles.initializer ? arrayLiteralValues(roles.initializer) : undefined,
+    EXPECTED_ERP_ROLES,
+    'PPRF central thirteen-role vocabulary'
+  )
+  for (const capability of ['account.create', 'pprf.submit']) {
+    assertExactValues(
+      exactCapabilityPolicy(sourceFile, capability),
+      EXPECTED_OPPORTUNITY_MUTATORS,
+      `${capability} has exact Owner/Admin/Sales authority`
+    )
+  }
+}
+
+function verifyPprfAction(graph, config) {
+  const entry = resolveExportedCallable(
+    graph,
+    config.actionPath,
+    config.actionName
+  )
+  const reachable = reachableCallGraph(graph, entry, false)
+  const delegates = reachable.declarations.flatMap((current) =>
+    methodCallsOnImportedValue(
+      current.record,
+      current.declaration,
+      PPRF_SERVICE_MODULE,
+      'pprfSubmissionService',
+      config.delegateName
+    )
+  )
+  invariant(
+    delegates.length === 1,
+    `${config.surface} has one exact atomic service delegate`
+  )
+
+  const action = entry.declaration
+  invariant(
+    calls(action, 'requireUserProfile').length === 1,
+    `${config.surface} authenticates once`
+  )
+  for (const capability of config.capabilities) {
+    invariant(
+      hasCallWithArguments(action, 'can', [
+        { path: 'profile.role' },
+        { literal: capability },
+      ]),
+      `${config.surface} enforces ${capability}`
+    )
+  }
+
+  const commandSchemaNames = localIdentifierAliases(
+    entry.record.sourceFile,
+    importedLocalNames(
+      entry.record.sourceFile,
+      PPRF_SERVICE_MODULE,
+      config.commandSchema
+    )
+  )
+  const resultSchemaNames = localIdentifierAliases(
+    entry.record.sourceFile,
+    importedLocalNames(
+      entry.record.sourceFile,
+      PPRF_SERVICE_MODULE,
+      'pprfSubmissionResultSchema'
+    )
+  )
+  invariant(
+    [...commandSchemaNames].flatMap((name) =>
+      methodCallsOnPath(action, name, 'safeParse')
+    ).length === 1,
+    `${config.surface} parses one strict service command`
+  )
+  invariant(
+    [...resultSchemaNames].flatMap((name) =>
+      methodCallsOnPath(action, name, 'safeParse')
+    ).length === 1,
+    `${config.surface} parses one strict service result`
+  )
+
+  const fieldReaders = reachable.declarations.filter(
+    (current) =>
+      hasMethodCall(current.declaration, 'formData', 'entries')
+  )
+  invariant(
+    fieldReaders.length === 1,
+    `${config.surface} uses one strict FormData reader`
+  )
+  const fieldReader = fieldReaders[0].declaration
+  invariant(
+    ifStatements(fieldReader).some(
+      (statement) =>
+        hasMethodCall(statement.expression, 'FIELD_NAME_SET', 'has') ||
+        hasMethodCall(statement.expression, 'PPRF_FIELD_NAME_SET', 'has')
+    ),
+    `${config.surface} rejects unknown FormData fields`
+  )
+  invariant(
+    hasMethodCall(fieldReader, 'formData', 'getAll') &&
+      ifStatements(fieldReader).some(
+        (statement) =>
+          hasBinary(
+            statement.expression,
+            'entries.length',
+            ts.SyntaxKind.ExclamationEqualsEqualsToken,
+            undefined
+          )
+      ),
+    `${config.surface} rejects duplicate text fields`
+  )
+
+  for (const current of reachable.declarations) {
+    invariant(
+      !hasLocalDatabaseWrite(
+        current.declaration,
+        databaseTableNames(current.record.sourceFile)
+      ),
+      `${config.surface} has no reachable local database writer (${current.record.path}#${current.name})`
+    )
+  }
+  for (const forbiddenName of [
+    'writeAuditLog',
+    'writeAuditLogInTransaction',
+    'initializeOpportunityKycTracks',
+    'opportunityKycDueAt',
+    'startSlaClock',
+    'notifyRoles',
+    'createNotifications',
+  ]) {
+    invariant(
+      !reachable.importedCalls.some(
+        (candidate) => candidate.importedName === forbiddenName
+      ) &&
+        !reachable.declarations.some((current) =>
+          descendants(current.declaration, ts.isCallExpression).some(
+            (call) => {
+              const name = callName(call)
+              return (
+                name !== undefined &&
+                canonicalCallName(current.record, name) === forbiddenName
+              )
+            }
+          )
+        ),
+      `${config.surface} has no reachable ${forbiddenName} writer`
+    )
+  }
+
+  invariant(
+    hasBinary(
+      action,
+      'checked.data.tenantId',
+      ts.SyntaxKind.ExclamationEqualsEqualsToken,
+      'tenantId'
+    ) &&
+      (config.delegateName === 'submitIntake' ||
+        hasBinary(
+          action,
+          'checked.data.opportunityId',
+          ts.SyntaxKind.ExclamationEqualsEqualsToken,
+          'opportunityId'
+        )),
+    `${config.surface} validates committed result scope`
+  )
+
+  const refreshTry = descendants(action, ts.isTryStatement)
+    .filter(
+      (statement) =>
+        statement.catchClause &&
+        calls(statement.tryBlock, 'revalidatePath').length > 0
+    )
+    .sort((left, right) => left.end - left.pos - (right.end - right.pos))[0]
+  invariant(
+    refreshTry &&
+      hasBinary(
+        refreshTry.catchClause.block,
+        'refreshFailed',
+        ts.SyntaxKind.EqualsToken,
+        undefined
+      ) &&
+      !descendants(refreshTry.catchClause.block, ts.isReturnStatement).some(
+        (statement) => statement.expression && hasStringLiteral(statement, 'Refresh failed')
+      ),
+    `${config.surface} refresh failure remains committed success`
+  )
+  invariant(
+    delegates[0].pos < refreshTry.pos &&
+      hasStringLiteral(action, 'success_refresh_failed') &&
+      hasIdentifier(action, 'refreshFailed'),
+    `${config.surface} refresh is success-only and classified`
+  )
+
+  const logName = config.delegateName === 'submitIntake' ? 'logOutcome' : 'logPprfOutcome'
+  const logFunction = namedFunction(
+    entry.record.sourceFile,
+    logName,
+    `${config.surface} outcome logger`
+  )
+  for (const forbidden of [
+    'formData',
+    'submissionId',
+    'keyHash',
+    'commandHash',
+    'clientName',
+    'scopeNotes',
+    'payload',
+  ]) {
+    invariant(
+      !hasIdentifier(logFunction, forbidden),
+      `${config.surface} log is redacted (${forbidden})`
+    )
+  }
+  invariant(
+    hasIdentifier(logFunction, 'trace_id') &&
+      hasIdentifier(logFunction, 'tenant_id') &&
+      hasIdentifier(logFunction, 'actor_id') &&
+      hasIdentifier(logFunction, 'outcome'),
+    `${config.surface} log has required structured context`
+  )
+}
+
+function verifyPprfForm(graph, config) {
+  const record = moduleRecord(
+    graph.root,
+    config.formPath,
+    graph.sourceOverrides,
+    graph.cache
+  )
+  const form = namedFunction(record.sourceFile, config.formName, config.formName)
+  const hiddenNames = descendants(
+    form,
+    (node) =>
+      ts.isJsxSelfClosingElement(node) &&
+      node.tagName.getText(record.sourceFile) === 'input' &&
+      jsxStringAttribute(node, 'type') === 'hidden'
+  ).map((element) => jsxStringAttribute(element, 'name'))
+  assertExactValues(
+    hiddenNames,
+    ['submission_id'],
+    `${config.surface} mounts only the stable submission UUID as hidden identity`
+  )
+  const nativeControls = nativeFormControls(form, record.sourceFile)
+  invariant(
+    !nativeControls.some((element) =>
+      element.attributes.properties.some(ts.isJsxSpreadAttribute)
+    ),
+    `${config.surface} mounted controls do not hide names in JSX spreads`
+  )
+  const namedControls = nativeControls.filter((element) =>
+    jsxAttribute(element, 'name')
+  )
+  const mountedNames = namedControls.map((element) =>
+    jsxStringAttribute(element, 'name')
+  )
+  invariant(
+    mountedNames.every((name) => name !== undefined),
+    `${config.surface} mounted controls use static names`
+  )
+  invariant(
+    new Set(mountedNames).size === mountedNames.length,
+    `${config.surface} mounted controls have unique static names`
+  )
+  if (config.expectedFieldNames) {
+    const actionRecord = moduleRecord(
+      graph.root,
+      config.actionPath,
+      graph.sourceOverrides,
+      graph.cache
+    )
+    const fieldNames = variable(
+      actionRecord.sourceFile,
+      'FIELD_NAMES',
+      `${config.surface} action field allowlist`
+    )
+    const acceptedNames = fieldNames.initializer
+      ? arrayLiteralValues(fieldNames.initializer)
+      : undefined
+    invariant(
+      acceptedNames && new Set(acceptedNames).size === acceptedNames.length,
+      `${config.surface} action field allowlist has unique static names`
+    )
+    assertExactValues(
+      [...acceptedNames].sort(),
+      [...config.expectedFieldNames].sort(),
+      `${config.surface} action field allowlist remains authoritative`
+    )
+    assertExactValues(
+      [...mountedNames].sort(),
+      [...config.expectedFieldNames].sort(),
+      `${config.surface} mounted field inventory matches its exact action allowlist`
+    )
+
+    const areaControl = nativeControls.find(
+      (element) => jsxStringAttribute(element, 'id') === 'area_sqm'
+    )
+    const floorAreaControl = nativeControls.find(
+      (element) => jsxStringAttribute(element, 'id') === 'floor_area_sqm'
+    )
+    invariant(
+      areaControl &&
+        floorAreaControl &&
+        jsxStringAttribute(areaControl, 'name') === 'area_sqm' &&
+        jsxStringAttribute(areaControl, 'type') === 'number' &&
+        jsxStringAttribute(areaControl, 'min') === '1' &&
+        jsxStringAttribute(areaControl, 'step') === '1' &&
+        !jsxAttribute(areaControl, 'required') &&
+        jsxStringAttribute(floorAreaControl, 'name') === 'floor_area_sqm' &&
+        jsxStringAttribute(floorAreaControl, 'type') === 'number' &&
+        jsxStringAttribute(floorAreaControl, 'min') === '0.01' &&
+        jsxStringAttribute(floorAreaControl, 'step') === '0.01' &&
+        jsxAttribute(floorAreaControl, 'required'),
+      `${config.surface} Opportunity area and PPRF floor area remain distinct controls`
+    )
+
+    const action = namedFunction(
+      actionRecord.sourceFile,
+      config.actionName,
+      `${config.surface} action`
+    )
+    invariant(
+      hasCallWithArguments(action, 'optionalPositiveInteger', [
+        { path: 'fields.values.area_sqm' },
+      ]) &&
+        hasCallWithArguments(action, 'positiveDecimal', [
+          { path: 'fields.values.floor_area_sqm' },
+        ]),
+      `${config.surface} parses Opportunity area separately from PPRF floor area`
+    )
+  }
+  invariant(
+    hasIdentifier(form.parameters[0], 'submissionId') &&
+      hasStringLiteral(form, 'submission_id'),
+    `${config.surface} binds the per-mount submission UUID`
+  )
+  const handler = namedFunction(
+    record.sourceFile,
+    config.formHandler,
+    `${config.surface} client submit handler`
+  )
+  invariant(
+    ifStatements(handler).some((statement) =>
+      isPath(statement.expression, 'inFlightRef.current')
+    ) &&
+      hasBinary(
+        handler,
+        'inFlightRef.current',
+        ts.SyntaxKind.EqualsToken,
+        undefined
+      ),
+    `${config.surface} has a synchronous single-flight guard`
+  )
+  invariant(
+    calls(handler, config.actionName).length === 1,
+    `${config.surface} mounts exactly one action seam`
+  )
+  invariant(
+    hasNegatedPath(handler, 'result.ok') || hasNegatedPath(handler, 'res.ok'),
+    `${config.surface} contains command failures before navigation`
+  )
+  invariant(
+    hasIdentifier(handler, 'setCommitted') &&
+      hasIdentifier(form, 'committed'),
+    `${config.surface} disables replay after committed success`
+  )
+}
+
+function verifyPprfPages(graph) {
+  const intakePath = PPRF_MOUNTED_ENTRIES[0].pagePath
+  const intakeRecord = moduleRecord(
+    graph.root,
+    intakePath,
+    graph.sourceOverrides,
+    graph.cache
+  )
+  const intakePage = namedFunction(
+    intakeRecord.sourceFile,
+    'NewPprfIntakePage',
+    'PPRF intake page'
+  )
+  invariant(
+    hasCallWithArguments(intakePage, 'can', [
+      { path: 'profile.role' },
+      { literal: 'pprf.submit' },
+    ]) &&
+      hasCallWithArguments(intakePage, 'can', [
+        { path: 'profile.role' },
+        { literal: 'account.create' },
+      ]) &&
+      calls(intakePage, 'redirect').length === 1,
+    'PPRF intake route requires both central capabilities'
+  )
+  invariant(
+    calls(intakePage, 'randomUUID').length === 1 &&
+      descendants(
+        intakePage,
+        (node) =>
+          ts.isJsxSelfClosingElement(node) &&
+          node.tagName.getText(intakeRecord.sourceFile) === 'PprfIntakeForm' &&
+          hasCall(node, 'randomUUID')
+      ).length === 1,
+    'PPRF intake page creates one UUID for its mounted form'
+  )
+
+  const detailPath = PPRF_MOUNTED_ENTRIES[1].pagePath
+  const detailRecord = moduleRecord(
+    graph.root,
+    detailPath,
+    graph.sourceOverrides,
+    graph.cache
+  )
+  const detailPage = namedFunction(
+    detailRecord.sourceFile,
+    'PprfPage',
+    'PPRF detail page'
+  )
+  const canSubmit = variable(detailPage, 'canSubmit', 'PPRF detail permission')
+  invariant(
+    canSubmit.initializer &&
+      hasCallWithArguments(canSubmit.initializer, 'can', [
+        { path: 'profile.role' },
+        { literal: 'pprf.submit' },
+      ]) &&
+      descendants(
+        detailPage,
+        (node) =>
+          ts.isConditionalExpression(node) &&
+          isPath(node.condition, 'submissionId') &&
+          hasIdentifier(node.whenTrue, 'PprfForm') &&
+          node.whenFalse
+            .getText(detailRecord.sourceFile)
+            .includes('your role cannot submit a new version')
+      ).length === 1,
+    'PPRF detail projects exact-three submit controls'
+  )
+  invariant(
+    canSubmit.initializer &&
+      calls(detailPage, 'randomUUID').length === 1 &&
+      hasIdentifier(detailPage, 'history') &&
+      hasIdentifier(detailPage, 'tracks') &&
+      hasEq(detailPage, 'opportunities.tenant_id', 'profile.tenantId') &&
+      hasEq(detailPage, 'pprfSubmissions.tenant_id', 'profile.tenantId') &&
+      hasEq(
+        detailPage,
+        'opportunityKycTracks.tenant_id',
+        'profile.tenantId'
+      ),
+    'PPRF detail remains all-role read with one authorized form UUID'
+  )
+}
+
+function verifyPprfRouteRegistry(routeSource) {
+  const sourceFile = parseTypescript(
+    routeSource,
+    'apps/web/src/lib/operations/nav-config.ts'
+  )
+  const policyCalls = descendants(
+    sourceFile,
+    (node) => ts.isCallExpression(node) && callName(node) === 'registerDashboardRoutes'
+  )
+  const routePolicy = (route) =>
+    policyCalls.filter((call) => {
+      const routes = call.arguments[0]
+        ? arrayLiteralValues(call.arguments[0])
+        : undefined
+      return routes?.includes(route) === true
+    })
+
+  const detail = routePolicy('/crm/opportunities/[id]/proposal/pprf')
+  invariant(
+    detail.length === 1 && detail[0].arguments.length === 1,
+    'PPRF detail route is registered for every authenticated role'
+  )
+  const intake = routePolicy('/crm/opportunities/new/pprf')
+  invariant(
+    intake.length === 1 &&
+      intake[0].arguments.length === 2 &&
+      arrayLiteralValues(intake[0].arguments[1])?.join(',') === 'admin,sales',
+    'PPRF intake route has exact Admin/Sales registry roles'
+  )
+  const canonical = variable(sourceFile, 'CANONICAL', 'route role aliases')
+  const canonicalObject = canonical.initializer
+    ? unwrapExpression(canonical.initializer)
+    : undefined
+  const owner =
+    canonicalObject && ts.isObjectLiteralExpression(canonicalObject)
+      ? objectProperty(canonicalObject, 'owner')
+      : undefined
+  invariant(
+    owner &&
+      ts.isStringLiteralLike(unwrapExpression(owner.initializer)) &&
+      unwrapExpression(owner.initializer).text === 'admin',
+    'PPRF intake route inherits Owner through the explicit super-admin alias'
+  )
+}
+
+function verifyPprfService(serviceSource, serviceTestSource) {
+  const sourceFile = parseTypescript(serviceSource, PPRF_SERVICE_PATH)
+  for (const schemaName of [
+    'pprfSubmissionPayloadSchema',
+    'pprfIntakeCommandSchema',
+    'pprfResubmissionCommandSchema',
+  ]) {
+    const schema = variable(sourceFile, schemaName, `${schemaName} schema`)
+    invariant(hasCall(schema, 'strict'), `${schemaName} is strict`)
+  }
+  const resultSchema = variable(
+    sourceFile,
+    'pprfSubmissionResultSchema',
+    'PPRF result schema'
+  )
+  invariant(
+    hasIdentifier(resultSchema, 'intakeSuccessSchema') &&
+      hasIdentifier(resultSchema, 'resubmissionSuccessSchema') &&
+      hasIdentifier(resultSchema, 'failureSchema'),
+    'PPRF result is a strict discriminated union'
+  )
+
+  const intake = namedMethod(sourceFile, 'submitIntake', 'PPRF intake service')
+  const resubmission = namedMethod(
+    sourceFile,
+    'submitResubmission',
+    'PPRF resubmission service'
+  )
+  for (const [method, kind] of [
+    [intake, 'intake'],
+    [resubmission, 'resubmission'],
+  ]) {
+    invariant(
+      methodCallsOnPath(method, 'this.store', 'transaction').length === 1,
+      `PPRF ${kind} uses exactly one transaction`
+    )
+    const membershipCalls = methodCallsOnPath(
+      method,
+      'transaction',
+      'lockMembership'
+    )
+    invariant(
+      membershipCalls.length === 1 &&
+        hasBinary(
+          method,
+          'membership.tenantId',
+          ts.SyntaxKind.ExclamationEqualsEqualsToken,
+          'principal.data.tenantId'
+        ),
+      `PPRF ${kind} current membership lock`
+    )
+    invariant(
+      hasCallWithArguments(method, 'roleHasCapability', [
+        { path: 'membership.role' },
+        { literal: 'pprf.submit' },
+      ]),
+      `PPRF ${kind} exact submission capability`
+    )
+    const commandLocks = methodCallsOnPath(
+      method,
+      'transaction',
+      'lockCommand'
+    )
+    invariant(
+      commandLocks.length === 1 &&
+        commandLocks[0].arguments.length === 2 &&
+        isPath(commandLocks[0].arguments[0], 'membership.tenantId') &&
+        isPath(commandLocks[0].arguments[1], 'keyHash'),
+      `PPRF ${kind} tenant and full-key command lock`
+    )
+  }
+  invariant(
+    hasCallWithArguments(intake, 'roleHasCapability', [
+      { path: 'membership.role' },
+      { literal: 'account.create' },
+    ]),
+    'PPRF intake exact Account-create capability'
+  )
+
+  const requiredCounts = [
+    [intake, 'createAccount', 1, 'PPRF intake creates one Account'],
+    [intake, 'createOpportunity', 1, 'PPRF intake creates one Opportunity'],
+    [intake, 'createPprf', 1, 'PPRF intake creates one PPRF'],
+    [intake, 'resetKycTracks', 1, 'PPRF intake resets both KYC tracks'],
+    [intake, 'writeAudit', 3, 'PPRF intake writes three semantic audits'],
+    [intake, 'ensurePprfReviewSla', 1, 'PPRF intake ensures one PPRF SLA'],
+    [resubmission, 'lockOpportunity', 1, 'PPRF resubmission locked same-tenant Opportunity'],
+    [resubmission, 'nextPprfVersion', 1, 'PPRF resubmission allocates a locked version'],
+    [resubmission, 'createPprf', 1, 'PPRF resubmission creates one PPRF'],
+    [resubmission, 'resetKycTracks', 1, 'PPRF resubmission resets both KYC tracks'],
+    [resubmission, 'writeAudit', 1, 'PPRF resubmission writes one receipt audit'],
+    [resubmission, 'ensurePprfReviewSla', 1, 'PPRF resubmission ensures one PPRF SLA'],
+  ]
+  for (const [method, call, count, label] of requiredCounts) {
+    invariant(
+      methodCallsOnPath(method, 'transaction', call).length === count,
+      label
+    )
+  }
+  const opportunityLock = methodCallsOnPath(
+    resubmission,
+    'transaction',
+    'lockOpportunity'
+  )[0]
+  invariant(
+    opportunityLock.arguments.length === 2 &&
+      isPath(opportunityLock.arguments[0], 'membership.tenantId') &&
+      isPath(opportunityLock.arguments[1], 'command.data.opportunityId'),
+    'PPRF resubmission locked same-tenant Opportunity'
+  )
+
+  for (const [method, expected, label] of [
+    [intake, ['finance', 'owner', 'admin'], 'PPRF intake notification recipients are exact'],
+    [resubmission, ['commercial', 'finance'], 'PPRF resubmission notification recipients are exact'],
+  ]) {
+    const notificationCalls = methodCallsOnPath(
+      method,
+      'this',
+      'createNotifications'
+    )
+    invariant(notificationCalls.length === 1, label)
+    assertExactValues(
+      arrayLiteralValues(notificationCalls[0].arguments[2]),
+      expected,
+      label
+    )
+  }
+
+  const auditCalls = [
+    ...methodCallsOnPath(intake, 'transaction', 'writeAudit'),
+    ...methodCallsOnPath(resubmission, 'transaction', 'writeAudit'),
+  ].filter((call) => hasStringLiteral(call, 'pprf_submission_service'))
+  invariant(auditCalls.length === 2, 'both PPRF commands write one receipt')
+  for (const call of auditCalls) {
+    const input = unwrapExpression(call.arguments[0])
+    invariant(input && ts.isObjectLiteralExpression(input), 'PPRF receipt input')
+    const diffProperty = objectProperty(input, 'diff')
+    const diff = diffProperty
+      ? unwrapExpression(diffProperty.initializer)
+      : undefined
+    invariant(diff && ts.isObjectLiteralExpression(diff), 'PPRF receipt diff')
+    const keyHash = objectProperty(diff, 'idempotency_key_hash')
+    const commandHash = objectProperty(diff, 'command_hash')
+    invariant(
+      keyHash && isPath(keyHash.initializer, 'keyHash'),
+      'PPRF receipt stores only the full key hash'
+    )
+    invariant(
+      commandHash && isPath(commandHash.initializer, 'commandHash'),
+      'PPRF receipt stores only the full command hash'
+    )
+    const forbiddenReceiptKeys = new Set([
+      'submission_id',
+      'submissionId',
+      'payload',
+      'client_name',
+      'clientName',
+      'primary_email',
+      'primary_phone',
+      'scope_notes',
+      'scopeNotes',
+      'remarks',
+    ])
+    invariant(
+      propertyNames(diff).every((name) => !forbiddenReceiptKeys.has(name)),
+      'PPRF receipt excludes raw key and payload fields'
+    )
+  }
+
+  const lockCommand = namedMethod(
+    sourceFile,
+    'lockCommand',
+    'PPRF advisory command lock adapter'
+  )
+  invariant(
+    hasIdentifier(lockCommand, 'tenantId') &&
+      hasIdentifier(lockCommand, 'keyHash') &&
+      hasStringLiteral(lockCommand, 'pprf-command:') &&
+      lockCommand.getText(sourceFile).includes('hashtextextended'),
+    'PPRF advisory lock binds tenant and full key hash'
+  )
+  const findReceipts = namedMethod(
+    sourceFile,
+    'findReceipts',
+    'PPRF receipt lookup adapter'
+  )
+  invariant(
+    hasEq(findReceipts, 'auditLog.tenant_id', 'tenantId') &&
+      hasIdentifier(findReceipts, 'kind') &&
+      hasIdentifier(findReceipts, 'keyHash') &&
+      findReceipts.getText(sourceFile).includes('pprf_submission_service'),
+    'PPRF receipt lookup is tenant scoped'
+  )
+
+  const exactAdapter = namedFunction(
+    sourceFile,
+    'exactCentavosAdapter',
+    'PPRF bounded money adapter'
+  )
+  const weighted = namedFunction(
+    sourceFile,
+    'weightedCentavos',
+    'PPRF weighted money calculation'
+  )
+  invariant(
+      calls(exactAdapter, 'BigInt').length >= 2 &&
+      calls(exactAdapter, 'Number').length === 1 &&
+      calls(weighted, 'BigInt').length >= 2 &&
+      serviceSource.includes('+08:00') &&
+      hasIdentifier(sourceFile, 'calendarDateSchema'),
+    'PPRF money stays exact until the bounded adapter'
+  )
+
+  for (const title of [
+    'replays the same intake key exactly and rejects key reuse with changed payload',
+    'replays the same resubmission result and rejects changed payload reuse',
+    'serializes concurrent same-key intake into one complete effect',
+    'serializes concurrent resubmissions into distinct versions',
+  ]) {
+    invariant(
+      serviceTestSource.includes(title),
+      'PPRF service tests cover replay, conflict, and concurrency'
+    )
+  }
+  for (const failpoint of [
+    'account_audit',
+    'opportunity_audit',
+    'pprf_audit',
+    'kyc',
+    'sla',
+    'notifications',
+  ]) {
+    invariant(
+      serviceTestSource.includes(`'${failpoint}'`),
+      'PPRF service tests cover every atomic failpoint'
+    )
+  }
+}
+
+export function verifyPprfSubmissionContract(
+  root,
+  sourceOverrides = new Map()
+) {
+  const graph = {
+    root,
+    sourceOverrides: normalizedSourceOverrides(sourceOverrides),
+    cache: new Map(),
+  }
+  verifyPprfCentralAuthority(
+    readGraphSource(
+      root,
+      'packages/shared-types/src/authorization.ts',
+      graph.sourceOverrides
+    )
+  )
+  verifyPprfService(
+    readGraphSource(root, PPRF_SERVICE_PATH, graph.sourceOverrides),
+    readGraphSource(root, PPRF_SERVICE_TEST_PATH, graph.sourceOverrides)
+  )
+  for (const config of PPRF_MOUNTED_ENTRIES) {
+    verifyPprfAction(graph, config)
+    verifyPprfForm(graph, config)
+  }
+  verifyPprfPages(graph)
+  verifyPprfRouteRegistry(
+    readGraphSource(
+      root,
+      'apps/web/src/lib/operations/nav-config.ts',
+      graph.sourceOverrides
+    )
+  )
+}
+
 export function verifyWo11Contract(root = process.cwd()) {
   const migration = read(
     root,
@@ -1803,20 +2738,7 @@ export function verifyWo11Contract(root = process.cwd()) {
     'destructive migration operation'
   )
 
-  const intake = read(
-    root,
-    'apps/web/src/app/(dashboard)/crm/opportunities/new/pprf/actions.ts'
-  )
-  assertIncludes(intake, 'pprfSubmissions', 'structured PPRF persistence')
-  assertIncludes(intake, 'initializeOpportunityKycTracks', 'two-track initialization')
-  assertIncludes(intake, 'await db.transaction', 'atomic client/opportunity/PPRF transaction')
-  assertIncludes(intake, "source: 'pprf_intake'", 'PPRF provenance audit')
-  assertIncludes(intake, 'BigInt', 'integer-safe monetary conversion')
-  assertNotMatches(
-    intake,
-    /parseFloat|Math\.round\([^\n]*\*\s*100/,
-    'floating-point peso conversion'
-  )
+  verifyPprfSubmissionContract(root)
 
   const kyc = read(root, 'apps/web/src/lib/operations/opportunity-kyc.ts')
   assertIncludes(kyc, 'OPPORTUNITY_KYC_TRACK_TYPES.length', 'both-track completeness gate')

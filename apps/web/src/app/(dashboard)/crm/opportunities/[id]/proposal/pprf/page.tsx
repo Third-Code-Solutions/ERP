@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { randomUUID } from 'node:crypto'
 import { notFound } from 'next/navigation'
 import { and, eq, desc } from 'drizzle-orm'
 import { can, requireUserProfile } from '@third-code-erp/auth'
@@ -93,6 +94,8 @@ export default async function PprfPage({ params }: PageProps) {
   ])
 
   const latest = history[0]
+  const canSubmit = can(profile.role, 'pprf.submit')
+  const submissionId = canSubmit ? randomUUID() : null
   // Parse latest payload into the typed form defaults. If parse fails (e.g.
   // an older row without scope_notes), fall back to the empty template.
   let defaults = EMPTY_DEFAULTS
@@ -140,7 +143,18 @@ export default async function PprfPage({ params }: PageProps) {
             </h2>
           </div>
           <div style={{ padding: 16 }}>
-            <PprfForm opportunityId={id} defaults={defaults} />
+            {submissionId ? (
+              <PprfForm
+                key={submissionId}
+                opportunityId={id}
+                submissionId={submissionId}
+                defaults={defaults}
+              />
+            ) : (
+              <div className="card-empty">
+                You can review prior PPRF versions, but your role cannot submit a new version.
+              </div>
+            )}
           </div>
           <OpportunityKycTrackPanel
             opportunityId={id}

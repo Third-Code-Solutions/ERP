@@ -10,8 +10,9 @@ Password management, legacy project-chat authorization, project-detail
 authorization, legacy route-policy alignment, fail-closed dashboard routing,
 Material search/destination alignment, opportunity CSV export hardening, and
 the atomic Won-to-Project handoff, all-stage atomic Pipeline transitions, and
-Project-detail Opportunity create/transition, and atomic daily-task completion
-are the eleven completed local implementation slices; all remain `PARTIAL`
+Project-detail Opportunity create/transition, atomic daily-task completion,
+and atomic PPRF submission are the twelve completed local implementation
+slices; all remain `PARTIAL`
 under the strict live-data definition of done.
 
 Current work-order scope:
@@ -36,14 +37,19 @@ repository's release gates pass.
 | Next.js page routes | 118 | VERIFIED by source inventory and production build |
 | Session/recovery-protected page routes | 104 | VERIFIED by route inventory + middleware policy |
 | Explicit HTTP operations | 175 | Prior source inventory plus the mounted daily-task completion command (134 Nest, 41 Next) |
-| Protected role/resource matrix records | 1,430 | VERIFIED as 16-column syntactically readable CSV records |
-| Automated-tested role/resource matrix records | 132 | VERIFIED from parsed CSV rows whose `Automated test` result is not `NOT TESTED` |
+| Protected role/resource matrix records | 1,443 | VERIFIED as 16-column syntactically readable CSV records |
+| Automated-tested role/resource matrix records | 171 | VERIFIED from parsed CSV rows whose `Automated test` result is not `NOT TESTED` |
 | Verified role/resource combinations | 0 | Strict full-route definition not yet met; tested rows remain PARTIAL or BLOCKED |
 | Failed role/resource combinations | 0 | No FAILED matrix rows remain after route-alias and project-audit reconciliation |
-| Blocked role/resource combinations | 18 | Prior blocked coverage plus Daily-task completion rows for the missing `estimator` and `pm` identities |
-| Prioritized functional workflows | 11 | Password management, project-chat boundaries, project-detail boundaries, legacy route-policy alignment, fail-closed dashboard routing, Material-search alignment, opportunity CSV export hardening, atomic Won-to-Project handoff, atomic all-stage transitions, Project-detail Opportunity create/transition, and atomic daily-task completion |
+| Needs-decision role/resource combinations | 32 | Parsed CSV total; existing product-policy decisions remain open |
+| Not-tested role/resource combinations | 1,071 | Parsed CSV total |
+| Partial role/resource combinations | 320 | Parsed CSV total after PPRF workflow closeout |
+| Blocked role/resource combinations | 20 | Prior blocked coverage plus Daily-task and PPRF workflow rows for the missing `estimator` and `pm` identities |
+| Browser-blocked matrix records | 255 | Parsed CSV total; includes all 13 atomic PPRF workflow rows |
+| Live-not-run matrix records | 119 | Parsed CSV total; includes all 13 atomic PPRF workflow rows |
+| Prioritized functional workflows | 12 | Password management, project-chat boundaries, project-detail boundaries, legacy route-policy alignment, fail-closed dashboard routing, Material-search alignment, opportunity CSV export hardening, atomic Won-to-Project handoff, atomic all-stage transitions, Project-detail Opportunity create/transition, atomic daily-task completion, and atomic PPRF submission |
 | Verified workflows | 0 | Strict live-data definition not yet met |
-| Partial workflows | 11 | All implemented and locally tested with explicit live/browser/persistence evidence limits |
+| Partial workflows | 12 | All implemented and locally tested with explicit live/browser/persistence evidence limits |
 | Failed workflows | 0 | No known implementation failure after focused QA |
 | Completed modules | 0 | NOT TESTED |
 | Modules remaining | 13 user-facing modules | NOT TESTED |
@@ -405,6 +411,43 @@ PM are `BLOCKED` because their identities are additionally missing. Live result
 is `NOT RUN`. The protected PostgreSQL canary remains 1/1 skipped because its
 isolated binding and explicit opt-in are absent; no database was contacted.
 
+### Atomic PPRF submission
+
+Implemented and independently contract-reviewed at source HEAD `d4ec9791`.
+This twelfth local workflow is `PARTIAL` under the strict authenticated-browser,
+live, and real-PostgreSQL definition.
+
+The `/crm/opportunities/new/pprf` intake route is exact Owner/Admin/Sales. The
+existing `/crm/opportunities/[id]/proposal/pprf` detail remains readable for all
+thirteen roles, with submit/resubmit controls projected only to those same
+three and an accessible read-only prior-version state for the other ten. Both
+actions enforce the central capability independently and call the atomic PPRF
+service exactly once; the service rechecks current membership and tenant scope
+and owns Account, Opportunity, PPRF version, dual KYC, semantic audit, SLA,
+notification, and durable replay effects in one transaction.
+
+Independent QA discovered a P1 after the first integration: the intake
+action's exact field allowlist required `area_sqm`, while the mounted form
+omitted that control, making every native intake fail before service entry.
+Commit `421bfacf` closed the defect with an accessible optional positive-
+integer Opportunity-area control kept distinct from required decimal PPRF
+`floor_area_sqm`. Agent 12 then hardened the source verifier against missing,
+unknown, duplicate, spread-hidden, swapped, and parser-divergent mounted
+fields. Final evidence passed WO-11 59/59 twice, mounted PPRF 74/74, service
+42/42, Web typecheck/lint, the 89-page Web build, diff checks, and gitleaks;
+independent contract QA returned `GO` with the P1 closed.
+
+Browser result is `BLOCKED` for all thirteen workflow rows because no secure
+reusable isolated authenticated session was available. The eleven supplied
+identities remain `PARTIAL`; Estimator and PM are `BLOCKED` because identities
+are additionally missing. Live status is `NOT RUN`, and real PostgreSQL
+rollback/concurrency/trigger execution remains blocked without an explicitly
+isolated binding. Existing in-app recipient sets are preserved, while the
+recipient-role taxonomy remains `NEEDS DECISION`. The bounded P2 historical
+receipt-reader issue also remains: `.passthrough()` accepts unknown keys,
+although current writes and returned known fields are bounded and privacy-
+verified.
+
 Acceptance criteria and ordered agent handoffs are recorded in
 `docs/handoffs/2026-09-02-functional-completeness.md`,
 `docs/handoffs/2026-09-02-ai-chat-data-boundaries.md`,
@@ -416,7 +459,8 @@ Acceptance criteria and ordered agent handoffs are recorded in
 `docs/handoffs/2026-09-03-won-project-atomic-handoff.md`, and
 `docs/handoffs/2026-09-03-atomic-opportunity-stage-transitions.md`, and
 `docs/handoffs/2026-09-03-project-opportunity-core-cutover.md`, and
-`docs/handoffs/2026-09-03-atomic-daily-task-completion.md`.
+`docs/handoffs/2026-09-03-atomic-daily-task-completion.md`, and
+`docs/handoffs/2026-09-03-atomic-pprf-submission.md`.
 
 ## Agent state
 
@@ -424,20 +468,20 @@ Acceptance criteria and ordered agent handoffs are recorded in
 - Principal Agent 2: continuous read-only workflow audit complete; latest
   P1 findings—the non-transactional Won-to-Project handoff and non-Won stage
   writer, the Project-detail Opportunity writer, and the non-atomic daily-task
-  completion path—are repaired; selection of the next vertical workflow awaits
-  a fresh Agent 1/2 audit.
+  completion path, and post-commit PPRF failure boundary—are repaired. The
+  independently discovered mounted PPRF field-inventory P1 is also closed.
 - Principal Agent 3: sole application-source editor; auth, AI chat, project
   detail, legacy route-policy, and fail-closed route-registry implementations
   complete; Material-search Web/Core alignment and opportunity-export
   hardening complete; atomic Core/Web handoff and conversion visibility fixes
   complete; all-stage Web/Core cutover and retry-alert UX complete;
   Project-detail Opportunity create/transition and daily-task completion Core
-  cutovers complete.
+  cutovers complete; atomic PPRF integration and mounted field repair complete.
 - Principal Agent 4: independent code/test/security review complete; `GO` for
-  all eleven implemented source slices. Three atomic-handoff rounds, five
+  all twelve implemented source slices. Three atomic-handoff rounds, five
   all-stage transition rounds, and the Project-detail Opportunity contract
   remediation plus daily-task mutation contract review are complete.
-  Authenticated browser acceptance for the eleventh workflow remains blocked.
+  Authenticated browser acceptance for the twelfth workflow remains blocked.
 - Principal Agent 5: auth verification complete for all eleven supplied
   identities; AI chat safe browser/API smoke complete for viewer, finance, and
   commercial; project-detail browser matrix complete for all eleven supplied
@@ -458,15 +502,18 @@ Acceptance criteria and ordered agent handoffs are recorded in
   Daily-task completion independent source QA passed 132/132 checks; its safe
   HTTP/SSR login probe issued zero fake-Core calls, while real-browser role and
   mutation coverage did not run because only the daily Opera session was
-  exposed and no isolated authenticated provider/session was available.
+  exposed and no isolated authenticated provider/session was available. PPRF
+  independent contract QA closed the mounted `area_sqm` P1 and passed WO-11
+  59/59 twice, mounted PPRF 74/74, and service 42/42; its authenticated browser
+  and real-PostgreSQL lanes remain blocked.
 
 ## Git state
 
 - Primary repository: `D:/thirdcode/ERP`; current stacked worktree:
-  `D:/thirdcode/ERP-tasks-20260903`.
-- Current stacked branch: `agent-05/atomic-daily-task-completion`, based on the
-  Project-detail Opportunity stack. Daily-task source/contract review HEAD was
-  `cab3af16cc8c6061024e4d34e5f08a7cfd1b6fb4` before this ledger closeout.
+  `D:/thirdcode/ERP-pprf-20260903`.
+- Current stacked branch: `agent-05/atomic-pprf-submission`, based on the
+  Daily-task stack. Final PPRF source/contract review HEAD was
+  `d4ec979194eebfd10fecb8fbea150443e4d85530` before this ledger closeout.
 - Finance/security release-gate branch: PR #18 at commit `4369a01a`; all
   protected checks pass.
 - Auth PR branch: `agent-03/auth-password-workflows-20260902`; PR #15 at
@@ -474,7 +521,7 @@ Acceptance criteria and ordered agent handoffs are recorded in
 - Pre-existing untracked files: five user-owned changeset/handoff documents
   dated 2026-08-27 and 2026-08-29; preserved and excluded from this work.
 - Current work-order file:
-  `docs/handoffs/2026-09-03-atomic-daily-task-completion.md`.
+  `docs/handoffs/2026-09-03-atomic-pprf-submission.md`.
 
 ## Checks executed
 
@@ -549,6 +596,11 @@ Acceptance criteria and ordered agent handoffs are recorded in
 | Daily-task unauthenticated HTTP/SSR smoke | PASSED | Next.js 15.5.23 on `127.0.0.1:3317`; 307 normalized to `http://localhost:3317/auth/login`, then 200; cold 9.155 s, warm 0.584 s; fake Core `127.0.0.1:3318` received 0 calls; servers stopped and ports free |
 | Daily-task authenticated browser/interaction/accessibility matrix | BLOCKED | HTTP/SSR was not a real browser/console/a11y assertion; only daily Opera was exposed and untouched; isolated providers and reusable authenticated session unavailable; Estimator/PM identities additionally missing |
 | Daily-task PostgreSQL canary | BLOCKED | Protected HTTP integration 1/1 skipped in 7.766 s; isolated database binding and explicit opt-in unavailable; no database contacted and live result NOT RUN |
+| PPRF independent contract QA | PASSED | WO-11 59/59 twice after P1 closure; exact mounted twenty-field inventory; 49 PPRF-specific and 72 total hostile mutations |
+| PPRF focused source tests | PASSED | Mounted action/form/page 74/74; atomic service 42/42; all thirteen roles and exact three-role mutation projection |
+| PPRF type/lint/build/security | PASSED | Web typecheck; zero-warning lint; 89-page production build; diff checks; gitleaks over 1,831 commits |
+| PPRF authenticated browser matrix | BLOCKED | No secure reusable isolated authenticated session; all thirteen rows blocked and Estimator/PM identities additionally unavailable |
+| PPRF live/PostgreSQL proof | NOT RUN | No hosted/demo mutation or explicitly isolated PostgreSQL binding; rollback/concurrency/trigger behavior remains unexecuted against real PostgreSQL |
 | Deployment/live smoke | NOT RUN | ADR-020 requires the reviewed stack on `main` and green checks on that exact SHA |
 
 ## Confirmed high-priority RBAC findings outside the completed slices
@@ -574,6 +626,11 @@ reproduced before repair.
   remains unavailable until an explicitly isolated database lane is supplied.
   The opt-in canary stayed skipped and unit/AST evidence is not relabeled as
   persistence proof.
+- PPRF notification recipient-role taxonomy remains `NEEDS DECISION`; this
+  slice preserves the existing intake and resubmission recipient sets exactly.
+- PPRF historical receipt parsing remains a bounded P2 because
+  `receiptSchema.passthrough()` accepts unknown keys. Current receipt writes and
+  returned known fields remain bounded and privacy-verified.
 
 These findings pre-date or sit outside the bounded implementation and do not
 change the independent conclusion that the slice introduced no P0-P2 source
@@ -581,8 +638,10 @@ defect.
 
 ## Exact next action
 
-Selection of the next workflow is pending a fresh Agent 1/2 functional and
-source audit; the current ledger does not identify one unambiguous next slice,
-so none is guessed here. Keep Viewer-sensitive permissions as `NEEDS DECISION`.
+Run PPRF authenticated browser serialization and role projection only in a
+secure reusable isolated session, and run rollback/concurrency/trigger proof
+only against an explicitly isolated PostgreSQL binding. Keep both PPRF
+recipient taxonomy and Viewer-sensitive permissions as `NEEDS DECISION`; keep
+the historical receipt-reader strictness as the bounded P2 runtime follow-up.
 Production deployment remains blocked by ADR-020 until the reviewed stack
 reaches `main` and every required release check is green on that exact SHA.

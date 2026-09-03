@@ -33,10 +33,6 @@ import {
 } from '@/lib/erp-core-client'
 import { startSlaClock } from '@/lib/operations/sla-clock'
 import { notifyRoles } from '@/lib/operations/notifications'
-import {
-  initializeOpportunityKycTracks,
-  opportunityKycDueAt,
-} from '@/lib/operations/opportunity-kyc'
 import { inngest } from '@/lib/inngest'
 import {
   buildInspectionReportHtml,
@@ -90,7 +86,12 @@ const PRIORITY_VALUES = ['minor', 'major'] as const
 
 // Schemas live in ./schemas.ts so this 'use server' file only exports
 // async functions per Next.js constraint.
-import { submitPprfSchema, type PprfPayload } from './schemas'
+import type { PprfPayload } from './schemas'
+import {
+  pprfResubmissionCommandSchema,
+  pprfSubmissionResultSchema,
+  pprfSubmissionService,
+} from '@/server/crm/pprf-submission-service'
 import {
   createChangeRequestRecord,
   resolveChangeRequestRecord,
@@ -108,110 +109,150 @@ async function assertOpportunity(tenantId: string, opportunityId: string) {
   return opp ?? null
 }
 
-// US-006 — Submit a new versioned PPRF for an opportunity.
-export async function submitPprf(formData: FormData): Promise<{ error?: string; version?: number }> {
-  const profile = await requireUserProfile()
-  const forbid = guard(profile.role, 'pprf.submit')
-  if (forbid) return { error: forbid }
+const PPRF_FIELD_NAMES = [
+  'submission_id',
+  'site_address',
+  'floor_area_sqm',
+  'landlord_contact',
+  'as_built_available',
+  'scope_notes',
+  'project_type',
+  'expected_start_date',
+  'budget_range',
+] as const
+const PPRF_FIELD_NAME_SET = new Set<string>(PPRF_FIELD_NAMES)
 
-  const parsed = submitPprfSchema.safeParse({
-    opportunity_id: formData.get('opportunity_id'),
-    site_address: formData.get('site_address'),
-    floor_area_sqm: formData.get('floor_area_sqm'),
-    landlord_contact: formData.get('landlord_contact'),
-    as_built_available: formData.get('as_built_available'),
-    scope_notes: formData.get('scope_notes') || '',
-    project_type: formData.get('project_type') || '',
-    expected_start_date: formData.get('expected_start_date') || '',
-    budget_range: formData.get('budget_range') || '',
-  })
-  if (!parsed.success) {
-    const first = parsed.error.errors[0]
-    return { error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}` }
+function logPprfOutcome(input: {
+  traceId: string
+  tenantId: string | null
+  actorId: string | null
+  outcome: string
+  errorCode?: string
+}): void {
+  console.info(JSON.stringify({
+    event: 'pprf_action',
+    trace_id: input.traceId,
+    tenant_id: input.tenantId,
+    actor_id: input.actorId,
+    action: 'pprf.resubmission.submit',
+    outcome: input.outcome,
+    ...(input.errorCode ? { error_code: input.errorCode } : {}),
+  }))
+}
+
+function readPprfFields(formData: FormData):
+  | { ok: true; values: Record<(typeof PPRF_FIELD_NAMES)[number], string> }
+  | { ok: false; error: string } {
+  for (const [name] of formData.entries()) {
+    if (!PPRF_FIELD_NAME_SET.has(name)) {
+      return { ok: false, error: `form: unexpected field "${name}"` }
+    }
   }
-  const { opportunity_id, ...payload } = parsed.data
+  const values = {} as Record<(typeof PPRF_FIELD_NAMES)[number], string>
+  for (const name of PPRF_FIELD_NAMES) {
+    const entries = formData.getAll(name)
+    if (entries.length !== 1 || typeof entries[0] !== 'string') {
+      return { ok: false, error: `${name}: exactly one text value is required` }
+    }
+    values[name] = entries[0]
+  }
+  return { ok: true, values }
+}
 
-  const opp = await assertOpportunity(profile.tenantId, opportunity_id)
-  if (!opp) return { error: 'Opportunity not found' }
+// US-006 — Submit a new versioned PPRF for a server-bound opportunity.
+export async function submitPprf(opportunityId: string, formData: FormData) {
+  const traceId = randomUUID()
+  let tenantId: string | null = null
+  let actorId: string | null = null
+  try {
+    const profile = await requireUserProfile()
+    tenantId = profile.tenantId
+    actorId = profile.user.id
+    if (!can(profile.role, 'pprf.submit')) {
+      logPprfOutcome({ traceId, tenantId, actorId, outcome: 'forbidden' })
+      return { ok: false as const, error: 'You do not have permission to submit a PPRF.' }
+    }
 
-  const dueAt = await opportunityKycDueAt(profile.tenantId)
-  const result = await db.transaction(async (tx) => {
-    // Serialize versioning and track reset for concurrent submissions of one
-    // opportunity. A later PPRF is a new review baseline, never a partial edit
-    // of an already-decided track.
-    await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtextextended(${'pprf:' + profile.tenantId + ':' + opportunity_id}, 0))`
-    )
-
-    const [maxRow] = await tx
-      .select({ max: sql<number>`COALESCE(MAX(${pprfSubmissions.version}), 0)` })
-      .from(pprfSubmissions)
-      .where(
-        and(
-          eq(pprfSubmissions.opportunity_id, opportunity_id),
-          eq(pprfSubmissions.tenant_id, profile.tenantId),
-        ),
-      )
-    const nextVersion = (maxRow?.max ?? 0) + 1
-    const now = new Date()
-    const [inserted] = await tx
-      .insert(pprfSubmissions)
-      .values({
-        tenant_id: profile.tenantId,
-        opportunity_id,
-        version: nextVersion,
-        payload,
-        submitted_at: now,
-        submitted_by: profile.user.id,
-      })
-      .returning({ id: pprfSubmissions.id })
-
-    if (!inserted) throw new Error('Failed to persist PPRF submission')
-
-    await initializeOpportunityKycTracks(tx, {
-      tenantId: profile.tenantId,
-      opportunityId: opportunity_id,
-      dueAt,
-    })
-
-    await writeAuditLogInTransaction(tx, {
-      tenantId: profile.tenantId,
-      actorId: profile.user.id,
-      entityType: 'pprf_submission',
-      entityId: inserted.id,
-      action: 'create',
-      diff: {
-        version: nextVersion,
-        opportunity_id,
-        payload,
-        kyc_tracks_reset: true,
-        kyc_due_at: dueAt.toISOString(),
+    const fields = readPprfFields(formData)
+    if (!fields.ok) {
+      logPprfOutcome({ traceId, tenantId, actorId, outcome: 'validation_error' })
+      return { ok: false as const, error: fields.error }
+    }
+    if (!/^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(fields.values.floor_area_sqm)) {
+      logPprfOutcome({ traceId, tenantId, actorId, outcome: 'validation_error' })
+      return { ok: false as const, error: 'floor_area_sqm: invalid number' }
+    }
+    const floorAreaSqm = Number(fields.values.floor_area_sqm)
+    const parsed = pprfResubmissionCommandSchema.safeParse({
+      submissionId: fields.values.submission_id,
+      opportunityId,
+      pprf: {
+        siteAddress: fields.values.site_address,
+        floorAreaSqm,
+        landlordContact: fields.values.landlord_contact,
+        asBuiltAvailable: fields.values.as_built_available,
+        scopeNotes: fields.values.scope_notes,
+        projectType: fields.values.project_type,
+        expectedStartDate: fields.values.expected_start_date || undefined,
+        budgetRange: fields.values.budget_range,
       },
     })
+    if (!parsed.success) {
+      const first = parsed.error.errors[0]
+      logPprfOutcome({ traceId, tenantId, actorId, outcome: 'validation_error' })
+      return { ok: false as const, error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}` }
+    }
 
-    return { nextVersion }
-  })
-  const nextVersion = result.nextVersion
+    const rawResult = await pprfSubmissionService.submitResubmission(
+      { tenantId, userId: actorId }, parsed.data
+    )
+    const checked = pprfSubmissionResultSchema.safeParse(rawResult)
+    if (!checked.success) {
+      logPprfOutcome({ traceId, tenantId, actorId, outcome: 'service_contract_failure' })
+      return { ok: false as const, error: 'The PPRF service returned an invalid response. Please retry.' }
+    }
+    if (!checked.data.ok) {
+      logPprfOutcome({
+        traceId, tenantId, actorId,
+        outcome: checked.data.error.code === 'CONFLICT' ? 'conflict' : 'service_rejected',
+        errorCode: checked.data.error.code,
+      })
+      return { ok: false as const, error: checked.data.error.message }
+    }
+    if (
+      checked.data.kind !== 'resubmission' ||
+      checked.data.tenantId !== tenantId ||
+      checked.data.opportunityId !== opportunityId
+    ) {
+      logPprfOutcome({ traceId, tenantId, actorId, outcome: 'service_contract_failure' })
+      return { ok: false as const, error: 'The PPRF service response did not match this submission. Please retry.' }
+    }
 
-  await startSlaClock({
-    tenantId: profile.tenantId,
-    entityType: 'opportunity',
-    entityId: opportunity_id,
-    label: 'pprf.review',
-  })
-
-  await notifyRoles({
-    tenantId: profile.tenantId,
-    recipientRoles: ['commercial', 'finance'],
-    subject: `PPRF v${nextVersion} submitted`,
-    body: `A new Project Pre-Requirements Form (v${nextVersion}) is ready for review.`,
-    linkUrl: `/crm/opportunities/${opportunity_id}/proposal/pprf`,
-  })
-
-  revalidatePath(`/crm/opportunities/${opportunity_id}/proposal/pprf`)
-  revalidatePath(`/crm/opportunities/${opportunity_id}/proposal`)
-  revalidatePath(`/crm/opportunities/${opportunity_id}`)
-  return { version: nextVersion }
+    let refreshFailed = false
+    try {
+      revalidatePath(`/crm/opportunities/${opportunityId}/proposal/pprf`)
+      revalidatePath(`/crm/opportunities/${opportunityId}/proposal`)
+      revalidatePath(`/crm/opportunities/${opportunityId}`)
+    } catch {
+      refreshFailed = true
+    }
+    logPprfOutcome({
+      traceId, tenantId, actorId,
+      outcome: refreshFailed ? 'success_refresh_failed' : 'success',
+    })
+    return {
+      ok: true as const,
+      kind: checked.data.kind,
+      opportunityId: checked.data.opportunityId,
+      pprfSubmissionId: checked.data.pprfSubmissionId,
+      version: checked.data.version,
+      replayed: checked.data.replayed,
+      refreshFailed,
+    }
+  } catch {
+    logPprfOutcome({ traceId, tenantId, actorId, outcome: 'unexpected_error' })
+    return { ok: false as const, error: 'Unable to submit the PPRF. Please retry.' }
+  }
 }
 
 // US-007 — Submit a site inspection. Requires a PPRF to already exist.
