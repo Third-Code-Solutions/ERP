@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getUserProfile } from '@third-code-erp/auth'
+import { can, getUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { sql } from 'drizzle-orm'
 import {
@@ -73,7 +73,10 @@ async function auditQuery(
 export async function POST(req: NextRequest) {
   const profile = await getUserProfile()
   if (!profile) return response({ error: 'Unauthorized' }, 401)
-  if (!canSearchEntity(profile.role, 'bom')) {
+  if (
+    !can(profile.role, 'cortex.assistant.use') ||
+    !canSearchEntity(profile.role, 'bom')
+  ) {
     return response({ error: 'Forbidden' }, 403)
   }
 

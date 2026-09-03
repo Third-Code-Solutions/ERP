@@ -11,9 +11,15 @@ const mocks = vi.hoisted(() => ({
   consumeProviderQuota: vi.fn(),
 }))
 
-vi.mock('@third-code-erp/auth', () => ({
-  getUserProfile: mocks.getUserProfile,
-}))
+vi.mock('@third-code-erp/auth', async () => {
+  const { roleHasCapability } = await import(
+    '@third-code-erp/shared-types/authorization'
+  )
+  return {
+    can: roleHasCapability,
+    getUserProfile: mocks.getUserProfile,
+  }
+})
 
 vi.mock('@third-code-erp/database', () => ({
   db: { execute: mocks.execute },
@@ -92,13 +98,22 @@ describe('BOM similar-item retrieval boundary', () => {
     expect(mocks.embedText).not.toHaveBeenCalled()
   })
 
-  it('denies roles that cannot view BOMs before provider work', async () => {
+  it('denies Viewer assistant spend before any provider or retrieval side effect', async () => {
     mocks.getUserProfile.mockResolvedValue(profile('viewer'))
 
     const response = await request({ description: 'Copper pipe' })
 
     expect(response.status).toBe(403)
+    expect(response.headers.get('cache-control')).toBe(
+      'private, no-store, max-age=0'
+    )
+    expect(response.headers.get('vary')).toBe('Cookie')
+    await expect(response.json()).resolves.toEqual({ error: 'Forbidden' })
+    expect(mocks.isEmbeddingProviderConfigured).not.toHaveBeenCalled()
+    expect(mocks.consumeProviderQuota).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
     expect(mocks.embedText).not.toHaveBeenCalled()
+    expect(mocks.serializeEmbedding).not.toHaveBeenCalled()
     expect(mocks.execute).not.toHaveBeenCalled()
   })
 
@@ -140,7 +155,7 @@ describe('BOM similar-item retrieval boundary', () => {
     )
   })
 
-  it('returns tenant-scoped approved-history suggestions with audit evidence', async () => {
+  it('allows a Commercial operator to retrieve tenant-scoped suggestions with audit evidence', async () => {
     const response = await request({ description: '  Copper pipe  ' })
     const body = await response.json()
 
