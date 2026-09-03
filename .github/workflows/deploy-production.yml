@@ -190,6 +190,7 @@ jobs:
         env:
           E2E_MAGIC_LINK_AUTH: "1"
           E2E_ROLE_MATRIX_AUTH: "1"
+          E2E_REAL_PASSWORD_RECOVERY: "1"
           PLAYWRIGHT_BASE_URL: https://thirdcode-erp.vercel.app
         shell: bash
         run: |
@@ -198,6 +199,7 @@ jobs:
           mkdir -p "$(dirname "$report_path")"
           pnpm exec playwright test \
             e2e/auth.spec.ts \
+            e2e/production-password-recovery.spec.ts \
             e2e/branding-authenticated.spec.ts \
             e2e/smoke-console.spec.ts \
             e2e/role-access-production.spec.ts \
