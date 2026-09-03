@@ -224,3 +224,35 @@ bounded writer mutation fixture described above. Inputs: source commit
 `cb180ca0` and the 12/13 failure. Expected output: make the in-memory mutation
 self-contained or make writer recognition fail closed without requiring the
 production action to retain an unused schema import, then restore 13/13.
+
+## Agent 11 QA remediation — safe Project Opportunity panel
+
+Source commit: `796d333c`.
+
+- Removed the creation-stage selector and made Opportunity Creation read-only;
+  the form-data model now forces `opportunity_creation` regardless of submitted
+  controls.
+- Kept TCV and signed GP as canonical base-10 centavo strings from controls to
+  action FormData, with shared bounded validation and no JavaScript-number
+  coercion or UI monetary math.
+- Preserved the Owner/Admin/Sales mutation projection, the other ten roles'
+  readable non-mutating state, duplicate guards, stale-error clearing, retries,
+  and success-only close/reset behavior.
+- Added stable dialog labelling/descriptions, initial textarea focus, Escape
+  dismissal, and focus restoration for Lost and regression reasons.
+- Replaced the panel's introduced raw danger/pending colors and radii with
+  existing design tokens.
+- Added mutations for hostile initial stage, exact signed/MAX_SAFE cents,
+  decimal/exponent/leading-zero/range rejection, recoverable outcomes, and
+  reason-dialog accessibility.
+
+Verification under Node 22.23.2 / pnpm 10.33.0: TDD red **16/29 failed as
+expected**; focused Opportunity/Pipeline **76/76**; neighboring Project
+action/route/access **106/106**; Web/configured E2E TypeScript **PASSED**; full
+Web source ESLint **PASSED**; Web production build **PASSED, 89/89 pages**;
+scoped diff/whitespace **PASSED**. Prettier was unavailable and not installed.
+Browser/hosted mutation was intentionally not run.
+
+Next: contract owner reruns the exact mounted-entry/WO-11 gate, then independent
+QA exercises all eleven supplied accounts against local fake Core with no
+hosted write.

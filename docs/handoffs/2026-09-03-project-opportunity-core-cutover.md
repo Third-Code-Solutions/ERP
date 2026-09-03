@@ -581,3 +581,56 @@ import-free Project action. Inputs: `cb180ca0` and the exact WO-11 12/13
 failure. Expected output: make the AST mutation self-contained or recognize
 the injected writer without relying on a production schema import, preserve
 benign formatting acceptance, and restore 13/13 before independent QA.
+
+## Agent 11 QA remediation — safe Project Opportunity panel
+
+Source commit: `796d333c` (`fix(opportunities): harden project panel controls`).
+
+Decision: **GO to contract-owner revalidation; browser mutation remains on
+hold.** The Project creation form no longer offers a stage selector. It renders
+the only safe initial stage, Opportunity Creation, as read-only context, while
+the public form-data builder hard-codes `opportunity_creation` and ignores a
+hostile submitted stage.
+
+TCV and signed GP controls now use text FormData with whole-centavo patterns.
+The model validates the exact uncoerced strings with the shared bounded schemas,
+rejecting decimals, exponents, leading zeros, negative TCV, negative zero, and
+values outside the safe integer persistence range. Exact positive and negative
+boundary values are preserved; the UI performs no monetary arithmetic for the
+commands. Client validation errors remain visible and recoverable without
+calling an action.
+
+The existing Owner/Admin/Sales controls and ten-role read-only projection,
+single-flight guards, stale-alert clearing, and success-only close/reset paths
+remain intact. Lost and regression dialogs now have stable accessible names and
+descriptions, initially focus their reason textarea, dismiss on Escape when not
+submitting, and restore the prior focus on close. The panel's newly introduced
+danger/pending colors and radii now use existing design tokens.
+
+### Agent 11 evidence
+
+- TDD red: **16 failed / 13 passed** across the panel model and reason-dialog
+  contracts.
+- Focused Opportunity/Pipeline suites: **PASSED, 7 files / 76 tests**, including
+  the exact 3-allow/10-deny rendered role matrix, duplicate submission, returned
+  and rejected failures, retry, stage restriction, money mutations, and dialog
+  accessibility contracts.
+- Neighboring Project action/route/access suites: **PASSED, 3 files / 106
+  tests**.
+- Web/configured E2E TypeScript: **PASSED**.
+- Full configured Web source ESLint: **PASSED, zero warnings**.
+- Web production build: **PASSED, 89/89 static pages generated**.
+- Scoped name-only and whitespace diff checks: **PASSED**; only the seven
+  authorized source/test files changed before the source commit.
+- Prettier: **NOT RUN** because this repository does not expose a Prettier
+  binary; no dependency was installed. ESLint and diff checks remained green.
+- Browser and hosted mutations: **NOT RUN by design**. No data, configuration,
+  route/action/Core/API/shared/script/schema/dependency/environment, or deploy
+  surface changed.
+
+→ Handoff to the contract owner. Reason: revalidate the exact mounted-entry
+inventory and WO-11 mutations after the panel source changed. Inputs:
+`796d333c`, unchanged two-entry action inventory, and the green local UI/route
+evidence above. Expected output: rerun the authoritative 13-case contract and
+return the combined cutover to independent safe browser QA using local fake
+Core only.
