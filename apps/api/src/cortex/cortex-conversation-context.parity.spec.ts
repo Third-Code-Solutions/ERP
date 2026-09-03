@@ -170,11 +170,17 @@ const CASES: Fixture[] = [
     }),
   },
   {
-    name: 'new focused record outside current role scope',
+    name: 'new focused invoice within Viewer read scope',
     role: 'viewer',
     query: { context: invoiceContext },
     node: invoiceNode,
-    legacy: error(404, 'Focused record not found'),
+    legacy: success(null, {
+      refTable: 'invoices',
+      refId: INVOICE_REF_ID,
+      nodeId: INVOICE_NODE_ID,
+      nodeType: 'invoice',
+      title: 'Invoice 1042',
+    }),
   },
   {
     name: 'immutable context mismatch',
