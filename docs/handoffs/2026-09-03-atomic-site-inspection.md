@@ -711,3 +711,42 @@ Verification:
 No new P0/P1/P2 finding surfaced. Browser/IndexedDB/Storage/live PostgreSQL,
 hosted providers, report-file archival, and deployment remain NOT RUN under the
 existing bounded scope.
+
+## Agent 05 QA P2 repair — preserve invalid notification-row cardinality
+
+Status: **runtime repair complete; Agent 12 verifier update required**.
+
+Independent QA found that the persisted-notification adapter discarded matched
+rows whose nullable `recipient_user_id` was null. For an original submission
+with zero Design recipients, that transformed a corrupt correlated row into the
+valid empty set and allowed replay to succeed.
+
+The transaction contract now returns `Array<string | null>`, and the Drizzle
+adapter preserves every row selected by the existing tenant/channel/subject/
+link/source/inspection correlation predicates. Replay requires the complete
+returned array to pass strict UUID validation before applying duplicate, count,
+and SHA-256 recipient-set checks. Null, invalid, duplicate, missing, extra, and
+wrong recipients therefore fail closed; replay still performs no current-role
+join. Receipt version 1 remains valid because its digest/count meaning did not
+change, no receipts are deployed, and no database execution occurred.
+
+TDD and verification evidence:
+
+- RED: service suite **71/72 passed**, with the sole new failure demonstrating
+  the erased null-row cardinality;
+- GREEN: expanded service suite **72/72 passed**;
+- focused service and mounted compatibility suites **146/146 passed** across
+  five files;
+- Web typecheck, focused runtime ESLint, and `git diff --check` passed (the diff
+  check reported only expected checkout line-ending notices).
+
+No schema, dependency, mounted UI/action, verifier, environment, data, browser,
+hosted provider, or deployment file/state changed.
+
+→ Handoff to Agent 12. Require the WO-12 verifier to prove the reader contract
+is `Promise<Array<string | null>>`, the adapter returns every matched row without
+`flatMap`, truthy filtering, or `filter(Boolean)`, and replay requires successful
+`z.array(z.string().uuid()).safeParse` before duplicate/count/hash evaluation.
+Add hostile mutations for null-dropping adapters, absent UUID validation, and
+removed duplicate guards, while retaining null/invalid/duplicate/extra direct
+test markers and the exact correlation predicates/no-current-role-join proof.

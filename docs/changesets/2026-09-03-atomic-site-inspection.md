@@ -231,3 +231,24 @@ hostile); focused service/actions/forms/page 143/143; direct verifier, both Node
 build/gitleaks evidence remains applicable because this change touches only the
 verifier pair and documentation. No P0/P1/P2 remains in the verified source
 contract; browser and isolated live-PostgreSQL lanes remain NOT RUN.
+
+## QA P2 — fail closed on nullable persisted notification rows
+
+The notification replay reader no longer erases correlated rows with nullable
+recipient IDs. Its contract returns `Array<string | null>`, the Drizzle adapter
+preserves the selected row cardinality, and replay validates every returned
+value as a UUID before duplicate/count/hash checks. This closes the zero-original-
+recipient case where one corrupt null-recipient row previously appeared to be a
+valid empty set. Null, invalid, duplicate, missing, extra, and wrong rows now all
+return `CONFLICT`; the exact tenant/correlation predicates and absence of a
+current Design-roster join are unchanged.
+
+TDD RED was 71/72; GREEN is 72/72 service and 146/146 focused service/mounted
+compatibility. Web typecheck, focused service ESLint, and diff check pass. No
+receipt-version, schema, dependency, mounted UI, verifier, database, browser,
+environment, provider, or deployment change was made.
+
+Agent 12 must update the WO-12 verifier to require nullable-row preservation in
+the adapter and strict UUID-array validation before uniqueness/count/hash checks,
+with hostile coverage for `flatMap`/truthy filtering, absent validation, and a
+removed duplicate guard.
