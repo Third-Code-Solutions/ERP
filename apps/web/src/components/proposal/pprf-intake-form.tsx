@@ -139,6 +139,22 @@ export function PprfIntakeForm({ submissionId }: PprfIntakeFormProps) {
           </div>
         </div>
         <div className="form-row">
+          <label className="form-label" htmlFor="area_sqm">Opportunity area (sqm)</label>
+          <input
+            id="area_sqm"
+            name="area_sqm"
+            type="number"
+            min="1"
+            step="1"
+            inputMode="numeric"
+            aria-describedby="area_sqm_help"
+            className={inputClass}
+          />
+          <p id="area_sqm_help" className="form-help">
+            Optional whole-number commercial estimate. This is separate from the required PPRF floor area below.
+          </p>
+        </div>
+        <div className="form-row">
           <label className="form-label" htmlFor="remarks">Commercial notes</label>
           <textarea id="remarks" name="remarks" rows={3} className={inputClass} />
         </div>
@@ -219,6 +235,7 @@ export function PprfIntakeForm({ submissionId }: PprfIntakeFormProps) {
         .form-row { display: flex; flex-direction: column; gap: 6px; }
         .form-row-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         .form-label { font-size: 12px; font-weight: 600; color: var(--color-neutral-700); }
+        .form-help { margin: 0; color: var(--color-neutral-500); font-size: 12px; line-height: 1.45; }
         .form-input { width: 100%; box-sizing: border-box; font: inherit; font-size: 14px; padding: 9px 10px; background: white; border: 1px solid var(--color-border); border-radius: 5px; color: var(--color-neutral-900); }
         .form-input:focus { outline: 0; border-color: var(--color-navy-500); box-shadow: 0 0 0 3px color-mix(in oklch, var(--color-navy-500) 18%, transparent); }
         .form-error { color: var(--color-danger); font-size: 13px; margin: 0; }
