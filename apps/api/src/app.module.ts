@@ -27,6 +27,7 @@ import { AdminModule } from './admin/admin.module'
 import { SearchModule } from './search/search.module'
 import { NotificationsModule } from './notifications/notifications.module'
 import { TodayModule } from './today/today.module'
+import { DailyTasksModule } from './daily-tasks/daily-tasks.module'
 
 @Module({
   imports: [
@@ -66,6 +67,7 @@ import { TodayModule } from './today/today.module'
     AdminModule,
     NotificationsModule,
     TodayModule,
+    DailyTasksModule,
   ],
   controllers: [HealthController],
   providers: [

@@ -10,9 +10,9 @@ Password management, legacy project-chat authorization, project-detail
 authorization, legacy route-policy alignment, fail-closed dashboard routing,
 Material search/destination alignment, opportunity CSV export hardening, and
 the atomic Won-to-Project handoff, all-stage atomic Pipeline transitions, and
-Project-detail Opportunity create/transition are the ten completed local
-implementation slices; all remain `PARTIAL` under the strict live-data
-definition of done.
+Project-detail Opportunity create/transition, and atomic daily-task completion
+are the eleven completed local implementation slices; all remain `PARTIAL`
+under the strict live-data definition of done.
 
 Current work-order scope:
 
@@ -35,15 +35,15 @@ repository's release gates pass.
 | Missing browser identities | 2 | BLOCKED: `estimator`, `pm` |
 | Next.js page routes | 118 | VERIFIED by source inventory and production build |
 | Session/recovery-protected page routes | 104 | VERIFIED by route inventory + middleware policy |
-| Explicit HTTP operations | 174 | VERIFIED by source inventory (133 Nest, 41 Next) |
-| Protected role/resource matrix records | 1,417 | VERIFIED as syntactically readable CSV records |
-| Automated-tested role/resource matrix records | 119 | VERIFIED from parsed CSV rows whose `Automated test` result is not `NOT TESTED` |
+| Explicit HTTP operations | 175 | Prior source inventory plus the mounted daily-task completion command (134 Nest, 41 Next) |
+| Protected role/resource matrix records | 1,430 | VERIFIED as 16-column syntactically readable CSV records |
+| Automated-tested role/resource matrix records | 132 | VERIFIED from parsed CSV rows whose `Automated test` result is not `NOT TESTED` |
 | Verified role/resource combinations | 0 | Strict full-route definition not yet met; tested rows remain PARTIAL or BLOCKED |
 | Failed role/resource combinations | 0 | No FAILED matrix rows remain after route-alias and project-audit reconciliation |
-| Blocked role/resource combinations | 16 | Prior blocked coverage plus Project-detail Opportunity rows for the missing `estimator` and `pm` identities |
-| Prioritized functional workflows | 10 | Password management, project-chat boundaries, project-detail boundaries, legacy route-policy alignment, fail-closed dashboard routing, Material-search alignment, opportunity CSV export hardening, atomic Won-to-Project handoff, atomic all-stage transitions, and Project-detail Opportunity create/transition |
+| Blocked role/resource combinations | 18 | Prior blocked coverage plus Daily-task completion rows for the missing `estimator` and `pm` identities |
+| Prioritized functional workflows | 11 | Password management, project-chat boundaries, project-detail boundaries, legacy route-policy alignment, fail-closed dashboard routing, Material-search alignment, opportunity CSV export hardening, atomic Won-to-Project handoff, atomic all-stage transitions, Project-detail Opportunity create/transition, and atomic daily-task completion |
 | Verified workflows | 0 | Strict live-data definition not yet met |
-| Partial workflows | 10 | All implemented and locally tested with explicit live-evidence limits |
+| Partial workflows | 11 | All implemented and locally tested with explicit live/browser/persistence evidence limits |
 | Failed workflows | 0 | No known implementation failure after focused QA |
 | Completed modules | 0 | NOT TESTED |
 | Modules remaining | 13 user-facing modules | NOT TESTED |
@@ -355,6 +355,56 @@ PM remain `BLOCKED` because their identities are also missing. Live status is
 binding and explicit opt-in are unavailable; no live persistence or hosted
 mutation is claimed.
 
+### Atomic daily-task completion
+
+Implemented and independently contract-reviewed at source HEAD
+`cab3af16cc8c6061024e4d34e5f08a7cfd1b6fb4`. This eleventh local workflow is
+`PARTIAL` under the strict authenticated-browser/live/PostgreSQL definition.
+
+Implemented behavior:
+
+- all thirteen roles retain `/tasks` reads limited to the current tenant and
+  authenticated assignee; Owner/Admin do not gain a tenant-wide read list;
+- completion capability is exactly Owner, Admin, Service Delivery PM/PE, PM,
+  and Safety. The latter three complete only their assigned task, Owner/Admin
+  have a same-tenant command override, and the other eight roles receive no
+  completion control and are denied before effects;
+- the Web action accepts only strict normalized notes, sends one authenticated
+  `POST /v1/daily-tasks/[id]/completion` request through the explicit tenant
+  selector, validates the complete returned scope, logs redacted outcomes, and
+  refreshes only after success. Selector absence or denial fails closed, and no
+  local task writer, audit, SLA helper, or fallback remains;
+- Core locks and rechecks current membership, tenant, role, assignee, and
+  pending state, then atomically records exact completion metadata, closes all
+  matching open legacy daily-task SLA rows, and appends one semantic audit;
+- the required semantic audit also acts as the durable tenant/key-hash receipt,
+  with advisory serialization and a normalized command hash. Raw keys and notes
+  are excluded from that receipt; replay, conflict, rollback, and concurrent
+  single-effect behavior are automated;
+- toolbox meeting logs require meaningful trimmed notes, while authorized
+  already-done tasks return the canonical persisted completion with no new
+  effect and skipped tasks fail closed;
+- the mounted source contract passed 22/22 including 19 hostile mutation
+  groups; independent shared, Core, and Web suites passed 35/35, 33/33, and
+  42/42 respectively—132/132 total—with root lint/typecheck and source diff
+  checks passing. No introduced P0-P2 source defect was found.
+
+Safe unauthenticated HTTP/SSR evidence used local Next.js 15.5.23 Web
+`127.0.0.1:3317` and fake Core `127.0.0.1:3318`. The Web request normalized by
+HTTP 307 to `http://localhost:3317/auth/login`, then returned 200; cold response
+was 9.155 seconds and warm response 0.584 seconds. Fake Core observed zero
+calls, no hosted write was attempted, and both local servers were stopped with
+their ports free. This was not a real browser-render, console, interaction, or
+accessibility assertion.
+
+Browser result remains `BLOCKED` for all thirteen rows: only the engineer's
+daily Opera session was exposed and correctly left untouched, isolated browser
+providers were unavailable, and no secure reusable authenticated session was
+available. The eleven supplied-role rows are therefore `PARTIAL`; Estimator and
+PM are `BLOCKED` because their identities are additionally missing. Live result
+is `NOT RUN`. The protected PostgreSQL canary remains 1/1 skipped because its
+isolated binding and explicit opt-in are absent; no database was contacted.
+
 Acceptance criteria and ordered agent handoffs are recorded in
 `docs/handoffs/2026-09-02-functional-completeness.md`,
 `docs/handoffs/2026-09-02-ai-chat-data-boundaries.md`,
@@ -365,26 +415,29 @@ Acceptance criteria and ordered agent handoffs are recorded in
 `docs/handoffs/2026-09-03-opportunity-export-hardening.md`, and
 `docs/handoffs/2026-09-03-won-project-atomic-handoff.md`, and
 `docs/handoffs/2026-09-03-atomic-opportunity-stage-transitions.md`, and
-`docs/handoffs/2026-09-03-project-opportunity-core-cutover.md`.
+`docs/handoffs/2026-09-03-project-opportunity-core-cutover.md`, and
+`docs/handoffs/2026-09-03-atomic-daily-task-completion.md`.
 
 ## Agent state
 
 - Principal Agent 1: read-only route/RBAC cartography complete; no files changed.
 - Principal Agent 2: continuous read-only workflow audit complete; latest
   P1 findings—the non-transactional Won-to-Project handoff and non-Won stage
-  writer plus the Project-detail Opportunity writer—are repaired; selection of
-  the next vertical workflow awaits a fresh Agent 1/2 audit.
+  writer, the Project-detail Opportunity writer, and the non-atomic daily-task
+  completion path—are repaired; selection of the next vertical workflow awaits
+  a fresh Agent 1/2 audit.
 - Principal Agent 3: sole application-source editor; auth, AI chat, project
   detail, legacy route-policy, and fail-closed route-registry implementations
   complete; Material-search Web/Core alignment and opportunity-export
   hardening complete; atomic Core/Web handoff and conversion visibility fixes
   complete; all-stage Web/Core cutover and retry-alert UX complete;
-  Project-detail Opportunity create/transition Core cutover complete.
+  Project-detail Opportunity create/transition and daily-task completion Core
+  cutovers complete.
 - Principal Agent 4: independent code/test/security review complete; `GO` for
-  all ten implemented source slices. Three atomic-handoff rounds, five
+  all eleven implemented source slices. Three atomic-handoff rounds, five
   all-stage transition rounds, and the Project-detail Opportunity contract
-  remediation are complete. Authenticated browser acceptance for the tenth
-  workflow remains blocked.
+  remediation plus daily-task mutation contract review are complete.
+  Authenticated browser acceptance for the eleventh workflow remains blocked.
 - Principal Agent 5: auth verification complete for all eleven supplied
   identities; AI chat safe browser/API smoke complete for viewer, finance, and
   commercial; project-detail browser matrix complete for all eleven supplied
@@ -402,20 +455,26 @@ Acceptance criteria and ordered agent handoffs are recorded in
   Project-detail Opportunity anonymous desktop/narrow smoke passed with no
   request or console failure, but the authenticated eleven-identity panel and
   mutation matrix did not run because no isolated session was available.
+  Daily-task completion independent source QA passed 132/132 checks; its safe
+  HTTP/SSR login probe issued zero fake-Core calls, while real-browser role and
+  mutation coverage did not run because only the daily Opera session was
+  exposed and no isolated authenticated provider/session was available.
 
 ## Git state
 
 - Primary repository: `D:/thirdcode/ERP`; current stacked worktree:
-  `D:/thirdcode/ERP-project-opportunity-20260903`.
-- Current stacked branch: `agent-03/project-opportunity-core-cutover`, PR #25,
-  based on the completed Pipeline transition stack.
+  `D:/thirdcode/ERP-tasks-20260903`.
+- Current stacked branch: `agent-05/atomic-daily-task-completion`, based on the
+  Project-detail Opportunity stack. Daily-task source/contract review HEAD was
+  `cab3af16cc8c6061024e4d34e5f08a7cfd1b6fb4` before this ledger closeout.
 - Finance/security release-gate branch: PR #18 at commit `4369a01a`; all
   protected checks pass.
 - Auth PR branch: `agent-03/auth-password-workflows-20260902`; PR #15 at
   commit `dfa190ba`.
 - Pre-existing untracked files: five user-owned changeset/handoff documents
   dated 2026-08-27 and 2026-08-29; preserved and excluded from this work.
-- Current work-order file: `docs/handoffs/2026-09-02-functional-completeness.md`.
+- Current work-order file:
+  `docs/handoffs/2026-09-03-atomic-daily-task-completion.md`.
 
 ## Checks executed
 
@@ -485,6 +544,11 @@ Acceptance criteria and ordered agent handoffs are recorded in
 | Project-detail Opportunity anonymous browser smoke | PASSED | Chromium 147.0.7727.15; accessible login at 1440×900 and 390×844; zero console warnings/errors, page errors, failed requests, non-GET calls, or fake-Core mutations; loopback servers stopped |
 | Project-detail Opportunity authenticated role/mutation browser matrix | BLOCKED | No secure reusable isolated authenticated session; daily browser correctly refused; Estimator/PM identities additionally unavailable |
 | Project-detail Opportunity PostgreSQL canary | BLOCKED | `DATABASE_URL` and `ERP_API_INTEGRATION_EXPECTED=1` unavailable; live result NOT RUN |
+| Daily-task independent source QA | PASSED | Clean `cab3af16`; no introduced P0-P2; contract 22/22 in 24.889 s, shared 35/35 in 2.962 s, Core 33/33 in 10.402 s, Web 42/42 in 6.219 s (132/132 total) |
+| Daily-task static gates | PASSED | Root lint 19.000 s; root typecheck 5/5 cached in 1.563 s; diff check 82 ms; source build evidence retained from Agent 03/12 |
+| Daily-task unauthenticated HTTP/SSR smoke | PASSED | Next.js 15.5.23 on `127.0.0.1:3317`; 307 normalized to `http://localhost:3317/auth/login`, then 200; cold 9.155 s, warm 0.584 s; fake Core `127.0.0.1:3318` received 0 calls; servers stopped and ports free |
+| Daily-task authenticated browser/interaction/accessibility matrix | BLOCKED | HTTP/SSR was not a real browser/console/a11y assertion; only daily Opera was exposed and untouched; isolated providers and reusable authenticated session unavailable; Estimator/PM identities additionally missing |
+| Daily-task PostgreSQL canary | BLOCKED | Protected HTTP integration 1/1 skipped in 7.766 s; isolated database binding and explicit opt-in unavailable; no database contacted and live result NOT RUN |
 | Deployment/live smoke | NOT RUN | ADR-020 requires the reviewed stack on `main` and green checks on that exact SHA |
 
 ## Confirmed high-priority RBAC findings outside the completed slices
@@ -494,6 +558,26 @@ Acceptance criteria and ordered agent handoffs are recorded in
 
 These are queued sequentially after the completed local slices and must be
 reproduced before repair.
+
+## Pre-existing non-blocking integrity queue
+
+- The generic database audit trigger can include `completion_notes` in its
+  generic row diff in addition to the deliberately redacted semantic completion
+  receipt. This is a pre-existing audit-minimization concern, not an introduced
+  daily-task regression; review it with the schema/audit owners before changing
+  trigger behavior.
+- Existing `daily_tasks.project_id` and `daily_tasks.assignee_id` foreign keys
+  are not tenant-composite. The Core command still validates tenant/current
+  membership and scopes the locked task, but schema-level cross-tenant integrity
+  hardening remains a separate Agent 04 decision.
+- Real PostgreSQL rollback, receipt replay, and concurrent single-effect proof
+  remains unavailable until an explicitly isolated database lane is supplied.
+  The opt-in canary stayed skipped and unit/AST evidence is not relabeled as
+  persistence proof.
+
+These findings pre-date or sit outside the bounded implementation and do not
+change the independent conclusion that the slice introduced no P0-P2 source
+defect.
 
 ## Exact next action
 
