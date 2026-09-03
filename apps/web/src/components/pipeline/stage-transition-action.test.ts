@@ -67,6 +67,34 @@ describe('runStageTransitionAction', () => {
     expect(visibleError).toBeNull()
     expect(refreshCount).toBe(1)
   })
+
+  it('shows a delayed retry failure without running success work', async () => {
+    let resolveAction: ((result: { error: string }) => void) | undefined
+    const actionResult = new Promise<{ error: string }>((resolve) => {
+      resolveAction = resolve
+    })
+    let visibleAlert: string | null = 'Previous failure'
+    const onSuccess = vi.fn()
+
+    const pending = runStageTransitionAction(() => actionResult, {
+      onStart: () => {
+        visibleAlert = null
+      },
+      onError: (message) => {
+        visibleAlert = message
+      },
+      onSuccess,
+    })
+
+    expect(visibleAlert).toBeNull()
+    expect(onSuccess).not.toHaveBeenCalled()
+
+    resolveAction?.({ error: 'Retry failed.' })
+    await pending
+
+    expect(visibleAlert).toBe('Retry failed.')
+    expect(onSuccess).not.toHaveBeenCalled()
+  })
 })
 
 describe('createStageTransitionSubmitter', () => {

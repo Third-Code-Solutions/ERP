@@ -153,6 +153,7 @@ export function PipelineBoard({
     reason?: string,
     reasonRequired = false
   ) {
+    clearBanner()
     startTransition(() =>
       transitionSubmitterRef.current!.submit(
         {

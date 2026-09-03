@@ -10,6 +10,10 @@ export type StageAdvanceButtonWiringIssue =
   | 'RegressionReasonDialog.onConfirm->confirmRegression'
   | 'LostReasonDialog.onConfirm->confirmLost'
 
+export type PipelineTransitionAlertClearIssue =
+  | 'StageAdvanceButton.advance:setError(null)->startTransition'
+  | 'PipelineBoard.performAdvance:clearBanner()->startTransition'
+
 function descendants<T extends ts.Node>(
   root: ts.Node,
   predicate: (node: ts.Node) => node is T
@@ -25,6 +29,59 @@ function descendants<T extends ts.Node>(
 
 function callName(call: ts.CallExpression): string | null {
   return ts.isIdentifier(call.expression) ? call.expression.text : null
+}
+
+function directCall(statement: ts.Statement): ts.CallExpression | null {
+  return ts.isExpressionStatement(statement) &&
+    ts.isCallExpression(statement.expression)
+    ? statement.expression
+    : null
+}
+
+function findNestedFunction(
+  sourceText: string,
+  componentName: string,
+  functionName: string
+): ts.FunctionDeclaration | null {
+  const sourceFile = ts.createSourceFile(
+    `${componentName}.tsx`,
+    sourceText,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX
+  )
+  const component = descendants(sourceFile, ts.isFunctionDeclaration).find(
+    (declaration) => declaration.name?.text === componentName
+  )
+  return (
+    component?.body?.statements.find(
+      (statement): statement is ts.FunctionDeclaration =>
+        ts.isFunctionDeclaration(statement) &&
+        statement.name?.text === functionName
+    ) ?? null
+  )
+}
+
+function clearsBeforeTransition(
+  declaration: ts.FunctionDeclaration | null,
+  clearCallName: string,
+  clearNullArgument: boolean
+): boolean {
+  if (!declaration?.body) return false
+  const calls = declaration.body.statements.map(directCall)
+  const clearIndex = calls.findIndex(
+    (call) =>
+      call !== null &&
+      callName(call) === clearCallName &&
+      (clearNullArgument
+        ? call.arguments.length === 1 &&
+          call.arguments[0]?.kind === ts.SyntaxKind.NullKeyword
+        : call.arguments.length === 0)
+  )
+  const transitionIndex = calls.findIndex(
+    (call) => call !== null && callName(call) === 'startTransition'
+  )
+  return clearIndex >= 0 && transitionIndex >= 0 && clearIndex < transitionIndex
 }
 
 function identifierArgument(
@@ -128,5 +185,30 @@ export function validateStageAdvanceButtonSource(
     issues.push('LostReasonDialog.onConfirm->confirmLost')
   }
 
+  return issues
+}
+
+export function validatePipelineTransitionAlertClearOrdering(
+  stageAdvanceButtonSource: string,
+  pipelineBoardSource: string
+): PipelineTransitionAlertClearIssue[] {
+  const issues: PipelineTransitionAlertClearIssue[] = []
+  const advance = findNestedFunction(
+    stageAdvanceButtonSource,
+    'StageAdvanceButton',
+    'advance'
+  )
+  if (!clearsBeforeTransition(advance, 'setError', true)) {
+    issues.push('StageAdvanceButton.advance:setError(null)->startTransition')
+  }
+
+  const performAdvance = findNestedFunction(
+    pipelineBoardSource,
+    'PipelineBoard',
+    'performAdvance'
+  )
+  if (!clearsBeforeTransition(performAdvance, 'clearBanner', false)) {
+    issues.push('PipelineBoard.performAdvance:clearBanner()->startTransition')
+  }
   return issues
 }

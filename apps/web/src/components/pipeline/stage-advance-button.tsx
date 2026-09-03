@@ -102,6 +102,7 @@ export function StageAdvanceButton({ opportunityId, currentStage }: StageAdvance
     reason?: string,
     reasonRequired = false
   ) {
+    setError(null)
     startTransition(() =>
       transitionSubmitterRef.current!.submit(
         {
