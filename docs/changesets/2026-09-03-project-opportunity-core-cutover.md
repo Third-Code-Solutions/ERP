@@ -105,3 +105,35 @@ its out-of-scope stale exact-text Pipeline mutation fixture cannot construct
 the mutation; its main invariant passes. Final post-source Gitleaks was not
 rerun under the explicit docs-only closeout instruction and is assigned to the
 independent QA handoff.
+
+## Contract owner — mounted entry-point authority
+
+Contract commit: `6a18d07a`.
+
+- Repaired the stale WO-11 writer mutation with TypeScript AST/in-memory
+  transforms and converted the existing KYC/delegation mutations to the same
+  formatting-independent mechanism.
+- Added an exact fail-closed inventory for the Pipeline and Project-detail
+  Opportunity stage actions, including local reachable-call analysis, named
+  import-alias handling, one tenant-selected Core delegate per action, and no
+  local Opportunity update/audit/SLA/conversion fallback.
+- Added Project panel/model checks for shared transition projection, shared
+  Lost/regression reason routing, normalized single-action submission, and
+  caller permission guards.
+- Added Project route/shared authorization checks for central permission props
+  and the exact Owner/Admin/Sales allow set across all thirteen roles.
+- Added eleven mutation challenges plus a benign TypeScript-printer formatting
+  case. No product source or runtime surface changed.
+
+Verification under Node 22.23.2 / pnpm 10.33.0: WO-11 **PASSED 13/13**;
+shared contract **PASSED 9/9**; Core service **PASSED 67/67**; focused Web lane
+**PASSED 8 files / 121 tests**; root typecheck **PASSED 5/5 tasks**; full source
+ESLint **PASSED**; API build **PASSED**; Web build **PASSED 89/89 pages**;
+script syntax and diff checks **PASSED**; pinned Gitleaks 8.30.1 **PASSED,
+1,802 commits / no leaks** after the contract commit and documentation
+closeout.
+
+Contract decision: **GO to independent browser QA.** PostgreSQL persistence
+status is unchanged and remains **BLOCKED/NOT RUN** because `DATABASE_URL` and
+`ERP_API_INTEGRATION_EXPECTED=1` are unavailable; no live database result is
+claimed.

@@ -319,3 +319,79 @@ Expected output: independently enumerate mounted Opportunity stage writers,
 challenge permission/reason/error/pending mutations, run final diff and
 Gitleaks, and perform the approved safe browser identity/failure-retry matrix
 without mutating shared demo or production data.
+
+## Contract owner result — mounted Opportunity entry inventory
+
+Contract commit: `6a18d07a` (`test(crm): enumerate opportunity stage entry
+contracts`).
+
+Decision: **GO to independent browser QA.** The local source contract now
+fails closed unless the exported Opportunity stage-mutation action inventory is
+exactly:
+
+1. Pipeline `advanceOpportunityStage`;
+2. Project-detail `transitionStage`, mounted by `OpportunityPanel`.
+
+The inventory walks Web `actions.ts`/`actions.tsx` exports and their local call
+graphs, then matches the exact expected set when it finds the Core stage
+delegate or a local `update(opportunities)` writer. Each action separately must
+select Core once with the authenticated tenant, delegate once with a stable
+idempotency key, validate the shared returned edge and tenant identity, and
+contain no reachable local Opportunity update, semantic audit, SLA rollover,
+or legacy conversion fallback. Named import aliases for the selector, delegate,
+Opportunity table, and forbidden helpers are resolved.
+
+The same authoritative gate now verifies that the Project panel mounts the
+enumerated action, projects destinations from `STAGE_TRANSITIONS` through the
+shared model, routes Lost and regression reasons through the Pipeline reason
+authority, submits one normalized command, and permission-guards all create and
+transition callers. The Project route must derive and pass both permissions
+through central `can(...)`; the shared policy must remain exactly thirteen
+roles with Owner/Admin/Sales allowed and the other ten denied for both create
+and advance.
+
+All mutation fixtures use TypeScript AST transformations and in-memory printer
+output. No exact source-text insertion remains. A dedicated benign-printer case
+proves formatting-only changes remain accepted. The bounded verifier does not
+perform whole-program TypeScript symbol flow across arbitrary imported helper
+bodies or computed/dynamic calls; it instead fails closed on the exact mounted
+actions, required imports/calls, local call graph, and realistic named-import
+aliases.
+
+### Contract-owner evidence
+
+- Baseline reproduced under Node 22.23.2 / pnpm 10.33.0: **FAILED as expected,
+  4/5**, because the stale exact-text Pipeline writer fixture could not create
+  its mutation.
+- Updated WO-11 contract: **PASSED, 13/13** — one authoritative run, one benign
+  TypeScript-printer formatting case, and eleven mutation challenges covering
+  Core KYC/tenant authority, both Core delegates, both local-writer paths,
+  Project local audit, duplicate panel transitions, reason bypass, route
+  permission wiring, and panel caller guarding.
+- Focused shared command contract: **PASSED, 9/9**.
+- Focused Core transition service: **PASSED, 67/67**.
+- Focused Project action/route/panel and Pipeline-neighbor lane: **PASSED, 8
+  files / 121 tests**.
+- Root typecheck: **PASSED, 5/5 tasks**.
+- Full application-source ESLint: **PASSED, zero warnings**.
+- API production build: **PASSED**.
+- Web production build: **PASSED, 89/89 static pages generated**.
+- Script syntax and diff/whitespace checks: **PASSED**.
+- Pinned Gitleaks 8.30.1: **PASSED, 1,802 commits / no leaks** after the
+  contract commit and documentation closeout.
+
+No Core/API/Web runtime, UI, shared contract, schema, dependency, data,
+environment, credential, or deployment file changed in this contract slice.
+The Agent 05 PostgreSQL HTTP canary remains **BLOCKED/NOT RUN** exactly as
+before: `DATABASE_URL` and `ERP_API_INTEGRATION_EXPECTED=1` are unavailable, so
+the one protected integration case remains environment-gated and no live
+persistence claim is made.
+
+→ Handoff to independent browser QA. Reason: the source contract and local
+quality gates are green, while role rendering and safe failure/retry behavior
+still require the supplied-identity browser matrix. Inputs: Core/API commit
+`cb3d7b3d`, route/action commit `9f83cbd8`, panel commit `ebaa5dd3`, contract
+commit `6a18d07a`, exact two-entry inventory, and the unchanged PostgreSQL block.
+Expected output: safe local browser coverage for all supplied identities,
+selector/Core failure and retry recovery, no shared demo or production writes,
+and an explicit final GO/BLOCK decision.
