@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   changeRequestWritesUseCoreApi: vi.fn(),
   createChangeRequestThroughCoreApi: vi.fn(),
   submitResubmission: vi.fn(),
+  submitInspection: vi.fn(),
+  createRfi: vi.fn(),
   revalidatePath: vi.fn(),
 }))
 
@@ -71,11 +73,22 @@ vi.mock('@/server/crm/pprf-submission-service', async (importOriginal) => {
   }
 })
 
+vi.mock('@/server/crm/site-inspection-workflow-service', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/server/crm/site-inspection-workflow-service')>()
+  return {
+    ...actual,
+    siteInspectionWorkflowService: {
+      submitInspection: mocks.submitInspection,
+      createRfi: mocks.createRfi,
+    },
+  }
+})
+
 vi.mock('next/cache', () => ({
   revalidatePath: mocks.revalidatePath,
 }))
 
-import { logChangeRequest, submitPprf } from './actions'
+import { addInspectionRfi, logChangeRequest, submitInspection, submitPprf } from './actions'
 
 const USER_ID = '11111111-1111-4111-8111-111111111111'
 const TENANT_ID = '22222222-2222-4222-8222-222222222222'
@@ -83,6 +96,9 @@ const OPPORTUNITY_ID = '33333333-3333-4333-8333-333333333333'
 const DESIGN_FILE_ID = '44444444-4444-4444-8444-444444444444'
 const SUBMISSION_ID = '55555555-5555-4555-8555-555555555555'
 const PPRF_ID = '66666666-6666-4666-8666-666666666666'
+const INSPECTION_ID = '77777777-7777-4777-8777-777777777777'
+const RFI_ID = '88888888-8888-4888-8888-888888888888'
+const PHOTO_ID = '99999999-9999-4999-8999-999999999999'
 const ROLES = [
   'owner', 'estimator', 'pm', 'admin', 'sales', 'commercial', 'design',
   'sd_pm_pe', 'finance', 'procurement', 'safety', 'cx', 'viewer',
@@ -276,5 +292,216 @@ describe('submitPprf service integration', () => {
     expect(slice).not.toContain('writeAuditLog')
     expect(slice).not.toContain('startSlaClock')
     expect(slice).not.toContain('notifyRoles')
+  })
+})
+
+function inspectionForm(): FormData {
+  const form = new FormData()
+  form.set('client_submission_id', SUBMISSION_ID)
+  form.set('site_address', '  Makati City  ')
+  form.set('floor_area_sqm', '45.5')
+  form.set('landlord_contact', 'Jane Doe')
+  form.set('as_built_available', 'partial')
+  form.set('expected_start_date', '2026-10-01')
+  form.set('weather', 'Sunny')
+  form.set('accessibility_notes', 'Service elevator')
+  form.set('observations', 'Existing ceiling retained')
+  form.set('photo_document_ids', JSON.stringify([PHOTO_ID]))
+  return form
+}
+
+function rfiForm(): FormData {
+  const form = new FormData()
+  form.set('submission_id', SUBMISSION_ID)
+  form.set('description', '  Confirm slab penetration location.  ')
+  form.set('priority', 'major')
+  return form
+}
+
+describe('site inspection atomic service mounting', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.revalidatePath.mockReset()
+    mocks.requireUserProfile.mockResolvedValue({
+      user: { id: USER_ID }, tenantId: TENANT_ID, role: 'commercial',
+    })
+    mocks.can.mockReturnValue(true)
+    mocks.submitInspection.mockResolvedValue({
+      ok: true, kind: 'inspection_submission', tenantId: TENANT_ID,
+      actorId: USER_ID, opportunityId: OPPORTUNITY_ID,
+      inspectionId: INSPECTION_ID, status: 'submitted',
+      submittedAt: '2026-09-03T01:02:03.000Z', linkedPhotoCount: 1,
+      replayed: true,
+    })
+    mocks.createRfi.mockResolvedValue({
+      ok: true, kind: 'rfi_creation', tenantId: TENANT_ID,
+      actorId: USER_ID, opportunityId: OPPORTUNITY_ID,
+      inspectionId: INSPECTION_ID, rfiId: RFI_ID, priority: 'major',
+      createdAt: '2026-09-03T01:03:03.000Z', replayed: false,
+    })
+  })
+
+  it('binds inspection identity server-side and calls the service exactly once', async () => {
+    await expect(submitInspection(OPPORTUNITY_ID, inspectionForm())).resolves.toMatchObject({
+      ok: true, inspectionId: INSPECTION_ID, replayed: true,
+    })
+    expect(mocks.submitInspection).toHaveBeenCalledTimes(1)
+    expect(mocks.submitInspection).toHaveBeenCalledWith(
+      { tenantId: TENANT_ID, userId: USER_ID },
+      {
+        kind: 'inspection_submission', submissionId: SUBMISSION_ID,
+        opportunityId: OPPORTUNITY_ID,
+        payload: {
+          siteAddress: 'Makati City', floorAreaSqm: '45.5', landlordContact: 'Jane Doe',
+          asBuiltAvailable: 'partial', expectedStartDate: '2026-10-01', weather: 'Sunny',
+          accessibilityNotes: 'Service elevator', observations: 'Existing ceiling retained',
+        },
+        photoDocumentIds: [PHOTO_ID],
+      },
+    )
+  })
+
+  it('rejects unknown, duplicate, and hostile inspection fields before service', async () => {
+    const form = inspectionForm()
+    form.set('tenant_id', TENANT_ID)
+    form.set('opportunity_id', OPPORTUNITY_ID)
+    form.append('site_address', 'duplicate')
+    await expect(submitInspection(OPPORTUNITY_ID, form)).resolves.toMatchObject({ ok: false })
+    expect(mocks.submitInspection).not.toHaveBeenCalled()
+  })
+
+  it('contains service rejection, throws, malformed results, and scope mismatches', async () => {
+    mocks.submitInspection.mockResolvedValueOnce({
+      ok: false, error: { code: 'PPRF_REQUIRED', message: 'Submit the PPRF first.' },
+    })
+    await expect(submitInspection(OPPORTUNITY_ID, inspectionForm())).resolves.toEqual({
+      ok: false, error: 'Submit the PPRF first.',
+    })
+    mocks.submitInspection.mockRejectedValueOnce(new Error('transaction unavailable'))
+    await expect(submitInspection(OPPORTUNITY_ID, inspectionForm())).resolves.toMatchObject({ ok: false })
+    mocks.submitInspection.mockResolvedValueOnce({ ok: true })
+    await expect(submitInspection(OPPORTUNITY_ID, inspectionForm())).resolves.toMatchObject({ ok: false })
+    mocks.submitInspection.mockResolvedValueOnce({
+      ok: true, kind: 'inspection_submission', tenantId: TENANT_ID,
+      actorId: USER_ID, opportunityId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      inspectionId: INSPECTION_ID, status: 'submitted',
+      submittedAt: '2026-09-03T01:02:03.000Z', linkedPhotoCount: 1, replayed: false,
+    })
+    await expect(submitInspection(OPPORTUNITY_ID, inspectionForm())).resolves.toMatchObject({ ok: false })
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('contains missing inspection auth without calling the service', async () => {
+    mocks.requireUserProfile.mockRejectedValueOnce(new Error('no session'))
+    await expect(submitInspection(OPPORTUNITY_ID, inspectionForm())).resolves.toMatchObject({ ok: false })
+    expect(mocks.submitInspection).not.toHaveBeenCalled()
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it.each(ROLES)('projects exact inspection mutation authority for %s', async (role) => {
+    mocks.requireUserProfile.mockResolvedValue({ user: { id: USER_ID }, tenantId: TENANT_ID, role })
+    mocks.can.mockImplementation((actualRole: string, capability: string) =>
+      actualRole === role && capability === 'site_inspection.submit' &&
+      ['owner', 'admin', 'commercial'].includes(role)
+    )
+    const result = await submitInspection(OPPORTUNITY_ID, inspectionForm())
+    expect(result.ok).toBe(['owner', 'admin', 'commercial'].includes(role))
+    expect(mocks.submitInspection).toHaveBeenCalledTimes(result.ok ? 1 : 0)
+  })
+
+  it('keeps committed inspection and RFI success when refresh fails', async () => {
+    mocks.revalidatePath.mockImplementation(() => { throw new Error('cache unavailable') })
+    await expect(submitInspection(OPPORTUNITY_ID, inspectionForm())).resolves.toMatchObject({
+      ok: true, refreshFailed: true,
+    })
+    await expect(addInspectionRfi(OPPORTUNITY_ID, INSPECTION_ID, rfiForm())).resolves.toMatchObject({
+      ok: true, refreshFailed: true,
+    })
+  })
+
+  it('reports archive failure as a warning without reversing committed success', async () => {
+    mocks.submitInspection.mockResolvedValueOnce({
+      ok: true, kind: 'inspection_submission', tenantId: TENANT_ID,
+      actorId: USER_ID, opportunityId: OPPORTUNITY_ID,
+      inspectionId: INSPECTION_ID, status: 'submitted',
+      submittedAt: '2026-09-03T01:02:03.000Z', linkedPhotoCount: 1,
+      replayed: false,
+    })
+    await expect(submitInspection(OPPORTUNITY_ID, inspectionForm())).resolves.toMatchObject({
+      ok: true,
+      archiveWarning: expect.stringContaining('report could not be archived'),
+    })
+    expect(mocks.submitInspection).toHaveBeenCalledTimes(1)
+    expect(mocks.revalidatePath).toHaveBeenCalled()
+  })
+
+  it('binds RFI identities server-side, calls service once, and rejects hostile inventory', async () => {
+    await expect(addInspectionRfi(OPPORTUNITY_ID, INSPECTION_ID, rfiForm())).resolves.toMatchObject({
+      ok: true, rfiId: RFI_ID,
+    })
+    expect(mocks.createRfi).toHaveBeenCalledTimes(1)
+    expect(mocks.createRfi).toHaveBeenCalledWith(
+      { tenantId: TENANT_ID, userId: USER_ID },
+      {
+        kind: 'rfi_creation', submissionId: SUBMISSION_ID,
+        opportunityId: OPPORTUNITY_ID, inspectionId: INSPECTION_ID,
+        description: 'Confirm slab penetration location.', priority: 'major',
+      },
+    )
+    const hostile = rfiForm()
+    hostile.set('inspection_id', INSPECTION_ID)
+    await expect(addInspectionRfi(OPPORTUNITY_ID, INSPECTION_ID, hostile)).resolves.toMatchObject({ ok: false })
+    expect(mocks.createRfi).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(ROLES)('projects exact RFI mutation authority for %s', async (role) => {
+    mocks.requireUserProfile.mockResolvedValue({ user: { id: USER_ID }, tenantId: TENANT_ID, role })
+    mocks.can.mockImplementation((actualRole: string, capability: string) =>
+      actualRole === role && capability === 'site_inspection.submit' &&
+      ['owner', 'admin', 'commercial'].includes(role)
+    )
+    const result = await addInspectionRfi(OPPORTUNITY_ID, INSPECTION_ID, rfiForm())
+    expect(result.ok).toBe(['owner', 'admin', 'commercial'].includes(role))
+    expect(mocks.createRfi).toHaveBeenCalledTimes(result.ok ? 1 : 0)
+  })
+
+  it('contains RFI rejection, throws, malformed results, scope mismatch, and missing auth', async () => {
+    mocks.createRfi.mockResolvedValueOnce({
+      ok: false, error: { code: 'CONFLICT', message: 'RFI submission conflict.' },
+    })
+    await expect(addInspectionRfi(OPPORTUNITY_ID, INSPECTION_ID, rfiForm())).resolves.toEqual({
+      ok: false, error: 'RFI submission conflict.',
+    })
+    mocks.createRfi.mockRejectedValueOnce(new Error('transaction unavailable'))
+    await expect(addInspectionRfi(OPPORTUNITY_ID, INSPECTION_ID, rfiForm())).resolves.toMatchObject({ ok: false })
+    mocks.createRfi.mockResolvedValueOnce({ ok: true })
+    await expect(addInspectionRfi(OPPORTUNITY_ID, INSPECTION_ID, rfiForm())).resolves.toMatchObject({ ok: false })
+    mocks.createRfi.mockResolvedValueOnce({
+      ok: true, kind: 'rfi_creation', tenantId: TENANT_ID,
+      actorId: USER_ID, opportunityId: OPPORTUNITY_ID,
+      inspectionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      rfiId: RFI_ID, priority: 'major', createdAt: '2026-09-03T01:03:03.000Z', replayed: false,
+    })
+    await expect(addInspectionRfi(OPPORTUNITY_ID, INSPECTION_ID, rfiForm())).resolves.toMatchObject({ ok: false })
+    mocks.requireUserProfile.mockRejectedValueOnce(new Error('no session'))
+    await expect(addInspectionRfi(OPPORTUNITY_ID, INSPECTION_ID, rfiForm())).resolves.toMatchObject({ ok: false })
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('keeps both action slices free of legacy durable writers', () => {
+    const source = readFileSync(new URL('./actions.ts', import.meta.url), 'utf8')
+    const inspectionStart = source.indexOf('export async function submitInspection')
+    const rfiStart = source.indexOf('export async function addInspectionRfi', inspectionStart)
+    const nextAction = source.indexOf('// US-008', rfiStart)
+    const inspectionSlice = source.slice(inspectionStart, rfiStart)
+    const rfiSlice = source.slice(rfiStart, nextAction)
+    expect(inspectionSlice.match(/siteInspectionWorkflowService\.submitInspection/g)).toHaveLength(1)
+    expect(rfiSlice.match(/siteInspectionWorkflowService\.createRfi/g)).toHaveLength(1)
+    for (const slice of [inspectionSlice, rfiSlice]) {
+      expect(slice).not.toContain('db.')
+      expect(slice).not.toContain('writeAuditLog')
+      expect(slice).not.toContain('startSlaClock')
+      expect(slice).not.toContain('notifyRoles')
+    }
   })
 })
