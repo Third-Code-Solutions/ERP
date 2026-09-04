@@ -13,6 +13,12 @@ change belongs to this release. Work sequentially in this isolated checkout.
    reviewed main SHA to exact existing Railway Core/CAD and Vercel projects.
 
 Acceptance: route regressions, lint, types/build, CI and live health/revision plus
-authenticated production E2E pass. No production database writes/migrations or
-restoration tasks. Rollback is promotion of the prior Vercel deployment and
+authenticated production E2E pass. No production schema migration, business-data
+transformation or database-restoration task. The existing protected release
+workflow retains controlled test-tenant fixture operations and authentication
+checks; these are not database restoration. Rollback is promotion of the prior Vercel deployment and
 redeployment of prior Railway releases; no database rollback is needed.
+
+Agent03 completed the route release in merged PR33. Agent13 paused promotion
+before provider changes because the fresh main dependency audit repeatedly timed
+out at npm. Continue from the [recorded blocker](../blockers/2026-09-04-route-release-registry-audit.md).
