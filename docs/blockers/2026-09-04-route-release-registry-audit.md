@@ -2,6 +2,23 @@
 
 Status: BLOCKED, 2026-09-04 08:11 +08:00.
 
+## Renewed exact-target request: 2026-09-04 08:26 +08:00
+
+The supplied Vercel PAVI/thirdcode-erp URL resolves to the configured project
+`prj_5yZX5MTJdXZYWRIeS50jVhmjqzdb` in team`team_n60dl3ccO8BFGFeUKQdqPhp3`.
+The supplied Railway service and production environment IDs match the existing
+Core service; the last successful release remains0a248bc08c37.
+
+Main CI33819088752 attempt4 also FAILED with the same npm quick-endpoint timeout.
+No new production workflow was dispatched. Installed pnpm10 source plus upstream
+documentation revealed the legacy audit endpoint compatibility issue. A pinned
+audit-only pnpm11.21.0 candidate was investigated, with scripts disabled on
+download and no application dependency/lockfile changes. The current bulk
+endpoint also stalled: a direct one-package request timed out at20seconds, and
+native production-graph/negative-fixture diagnostics produced no result and were stopped.
+The proposed repair is in ADR028, NOT implemented or verified. CI/security
+controls remain unchanged. No database or hosting configuration was changed.
+
 The user selected a safer, schema-compatible route-only release to Vercel and
 Railway. PR #33 is merged as `3564ebe8fac7a5d9559cb6269f6e3194dd6e365c`.
 The broader platform feature remains excluded in draft PR #32.
