@@ -26,6 +26,9 @@ aws-credentials
 .gcloud/
 *.kubeconfig
 .npmrc
+# The tracked root file contains only package settings and is a Docker COPY input.
+# Nested/local registry credential files must remain ignored.
+!/.npmrc
 .yarnrc
 
 # 1Password / secret manager exports
