@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { tenants } from '@third-code-erp/database/schema'
 import { eq } from 'drizzle-orm'
@@ -10,6 +10,9 @@ export const metadata: Metadata = { title: 'Settings' }
 
 export default async function SettingsPage() {
   const profile = await requireUserProfile()
+  const canEditWorkspace = profile.role === 'owner' || profile.role === 'admin'
+  const canReadTeam = can(profile.role, 'admin.users.read')
+  const canManageTeam = can(profile.role, 'admin.users')
   const tenant = await db
     .select()
     .from(tenants)
@@ -53,7 +56,7 @@ export default async function SettingsPage() {
             >
               Workspace
             </h2>
-            {tenant && <EditTenantForm tenant={tenant} />}
+            {tenant && canEditWorkspace && <EditTenantForm tenant={tenant} />}
           </div>
           {tenant ? (
             <dl style={{ margin: 0 }}>
@@ -175,7 +178,33 @@ export default async function SettingsPage() {
         </div>
       </div>
 
-      {/* Phase 3+ roadmap notice */}
+      <section aria-labelledby="settings-team-heading" className="card mt-6 max-w-[860px]">
+        <div className="card-header">
+          <h2 id="settings-team-heading" className="card-title">Team management</h2>
+        </div>
+        <div className="space-y-4 p-6">
+          <p className="text-sm text-[var(--color-neutral-600)]">
+            {canManageTeam
+              ? 'Manage workspace users and their assigned roles. New accounts use an initial password that you share securely; email invitations are not enabled.'
+              : canReadTeam
+                ? 'Review workspace users and their assigned roles. Only owners and admins can change access.'
+                : 'Ask a workspace owner or admin to manage users and access.'}
+          </p>
+          {canReadTeam && (
+            <div className="flex flex-wrap gap-4">
+              <Link href="/admin/users" className="text-sm font-semibold text-[var(--color-navy-700)] underline underline-offset-4">
+                {canManageTeam ? 'Manage team' : 'View team'}
+              </Link>
+              {canManageTeam && (
+                <Link href="/admin/users/new" className="text-sm font-semibold text-[var(--color-navy-700)] underline underline-offset-4">
+                  Add team member
+                </Link>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
+
       <div
         style={{
           marginTop: '24px',
@@ -188,7 +217,7 @@ export default async function SettingsPage() {
           maxWidth: '860px',
         }}
       >
-        Team management, billing, integrations, and notification preferences are coming in Phase 3.
+        Billing settings, integration configuration, and notification preferences are not yet available here.
       </div>
     </div>
   )
