@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { IconBell } from '@/components/ui/icons'
 import { createSupabaseBrowserClient } from '@third-code-erp/auth/client'
+import { readNotificationPreferences, visibleNotifications, type NotificationPreferences } from '@/app/(dashboard)/settings/notification-preferences'
 
 interface NotificationItem {
   id: string
@@ -24,9 +25,11 @@ const POLL_MS = 30_000
 export function NotificationsDropdown({
   userId,
   canManage = true,
+  preferences = readNotificationPreferences(undefined),
 }: {
   userId: string
   canManage?: boolean
+  preferences?: NotificationPreferences
 }) {
   const [open, setOpen] = useState(false)
   const [items, setItems] = useState<NotificationItem[]>([])
@@ -38,6 +41,7 @@ export function NotificationsDropdown({
   const unmountedRef = useRef(false)
   const fetchControllerRef = useRef<AbortController | null>(null)
   const savingRef = useRef(false)
+  const visibleItems = visibleNotifications(items, preferences)
 
   const fetchItems = useCallback(async () => {
     if (unmountedRef.current) return
@@ -101,12 +105,13 @@ export function NotificationsDropdown({
     if (!open) return
 
     void fetchItems()
+    if (!preferences.autoRefresh) return
     const id = window.setInterval(fetchItems, POLL_MS)
     return () => {
       window.clearInterval(id)
       fetchControllerRef.current?.abort()
     }
-  }, [fetchItems, open])
+  }, [fetchItems, open, preferences.autoRefresh])
 
   useEffect(() => {
     unmountedRef.current = false
@@ -129,6 +134,7 @@ export function NotificationsDropdown({
 
   // Real-time push via Supabase Realtime on the notifications table for this user.
   useEffect(() => {
+    if (!preferences.autoRefresh) return
     const supabase = createSupabaseBrowserClient()
     const channel = supabase
       .channel(`notif:${userId}`)
@@ -148,7 +154,7 @@ export function NotificationsDropdown({
     return () => {
       void supabase.removeChannel(channel)
     }
-  }, [userId, fetchItems])
+  }, [userId, fetchItems, preferences.autoRefresh])
 
   // Click-outside to close.
   useEffect(() => {
@@ -260,12 +266,10 @@ export function NotificationsDropdown({
         <div
           role="dialog"
           aria-label="Notifications"
+          className="fixed right-3 top-16 sm:absolute sm:right-0 sm:top-[calc(100%+8px)]"
           style={{
-            position: 'absolute',
-            top: 'calc(100% + 8px)',
-            right: 0,
             width: 'min(380px, calc(100vw - 24px))',
-            maxHeight: 480,
+            maxHeight: 'min(480px, calc(100dvh - 80px))',
             background: 'white',
             border: '1px solid var(--color-border)',
             borderRadius: 12,
@@ -304,7 +308,7 @@ export function NotificationsDropdown({
                   color: 'var(--color-neutral-500)',
                 }}
               >
-                {unread > 0 ? `${unread} unread` : 'All caught up'}
+                {unread > 0 ? `${unread} unread in recent notifications` : 'No unread in recent notifications'}
               </p>
             </div>
             {canManage && unread > 0 && (
@@ -326,6 +330,11 @@ export function NotificationsDropdown({
                 Mark all read
               </button>
             )}
+          </div>
+
+          <div className="flex items-center justify-between gap-3 border-b px-4 py-2 text-xs">
+            <Link href="/settings#settings-notifications-heading" onClick={() => setOpen(false)}>Notification preferences</Link>
+            <button type="button" disabled={loading || saving} onClick={() => void fetchItems()} className="underline">Refresh</button>
           </div>
 
           <div style={{ overflowY: 'auto', flex: 1 }}>
@@ -368,7 +377,7 @@ export function NotificationsDropdown({
                 </button>
               </div>
             )}
-            {!loading && !error && items.length === 0 && (
+            {!loading && !error && visibleItems.length === 0 && (
               <div style={{ padding: 32, textAlign: 'center' }}>
                 <div
                   style={{
@@ -388,14 +397,14 @@ export function NotificationsDropdown({
                   </svg>
                 </div>
                 <p style={{ margin: 0, fontSize: 13.5, fontWeight: 500, color: 'var(--color-neutral-700)' }}>
-                  You&rsquo;re all caught up.
+                  {preferences.view === 'unread' ? 'No unread recent notifications.' : 'No recent notifications.'}
                 </p>
                 <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-neutral-500)' }}>
-                  New notifications appear here in real time.
+                  {preferences.autoRefresh ? 'New notifications appear here in real time.' : 'Open the bell or select Refresh to check for updates.'}
                 </p>
               </div>
             )}
-            {items.map((it) => {
+            {visibleItems.map((it) => {
               const ago = relativeTime(it.created_at)
               return (
                 <div

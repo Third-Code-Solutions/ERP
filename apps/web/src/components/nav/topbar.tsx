@@ -10,6 +10,7 @@ import { IconChevronRight, IconSearch } from '@/components/ui/icons'
 import { CommandPalette } from './command-palette'
 import { NotificationsDropdown } from './notifications-dropdown'
 import { ProfileMenu } from './profile-menu'
+import { readNotificationPreferences } from '@/app/(dashboard)/settings/notification-preferences'
 
 interface TopbarProps {
   user: User
@@ -140,6 +141,7 @@ export function Topbar({ user, role, fullName }: TopbarProps) {
 
         <div className="topbar-actions">
           <NotificationsDropdown
+            preferences={readNotificationPreferences(user.user_metadata?.notification_preferences)}
             userId={user.id}
             canManage={roleHasCapability(role, 'notification.manage')}
           />

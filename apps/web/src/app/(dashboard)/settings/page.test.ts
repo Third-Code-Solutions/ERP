@@ -18,6 +18,7 @@ vi.mock('@third-code-erp/database', () => ({
 vi.mock('@/components/settings/edit-tenant-form', () => ({
   EditTenantForm: () => React.createElement('button', null, 'Edit workspace'),
 }))
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }))
 
 import SettingsPage from './page'
 
@@ -43,7 +44,10 @@ describe('Settings team access', () => {
     expect(markup.includes('Edit workspace')).toBe(manages)
     expect(markup).toContain('href="/settings/profile"')
     expect(markup).not.toContain('coming in Phase 3')
-    expect(markup).toContain('notification preferences are not yet available')
+    expect(markup).toContain('aria-label="Notification preferences"')
+    expect(markup.includes('href="/invoices"')).toBe(['owner', 'admin', 'finance', 'viewer'].includes(role))
+    expect(markup.includes('href="/finance/cash/new"')).toBe(['owner', 'admin', 'finance'].includes(role))
+    expect(markup.includes('Transactional email')).toBe(manages)
   })
 
   it('does not fetch workspace details when authentication fails', async () => {
