@@ -91,6 +91,7 @@ jobs:
           pnpm verify:app-router-boundaries
           pnpm verify:build-ops-invariants
           pnpm test:production-auth-proof
+          node --test scripts/deploy-railway-service.test.mjs
           pnpm ci:actionlint
           pnpm verify:workflow-action-refs
           pnpm lint
@@ -143,19 +144,10 @@ jobs:
       # separately reviewed database release runbook with recovery evidence.
 
       - name: Deploy Nest API to exact Railway service
-        shell: bash
-        run: >-
-          pnpm dlx @railway/cli@5.28.0 up --project "$RAILWAY_PROJECT_ID"
-          --environment production --service "$RAILWAY_API_SERVICE_ID"
-          --ci --yes --message "${{ inputs.reason }}"
+        run: node scripts/deploy-railway-service.mjs api
 
       - name: Deploy CAD evidence worker to exact Railway service
-        shell: bash
-        run: >-
-          pnpm dlx @railway/cli@5.28.0 up apps/workers/dxf-parser
-          --path-as-root --project "$RAILWAY_PROJECT_ID"
-          --environment production --service "$RAILWAY_CAD_SERVICE_ID"
-          --ci --yes --message "${{ inputs.reason }}"
+        run: node scripts/deploy-railway-service.mjs cad
 
       - name: Deploy web to exact Vercel production project
         shell: bash
