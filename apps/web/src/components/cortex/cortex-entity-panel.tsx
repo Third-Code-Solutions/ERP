@@ -20,6 +20,7 @@ interface Props {
   refId: string
   showGraphLink?: boolean
   density?: 'default' | 'compact'
+  expandSources?: boolean
 }
 
 /**
@@ -32,6 +33,7 @@ export function CortexEntityPanel({
   refId,
   showGraphLink = true,
   density = 'default',
+  expandSources = false,
 }: Props) {
   const [state, setState] = useState<State>({ kind: 'loading' })
   const isCompact = density === 'compact'
@@ -119,21 +121,21 @@ export function CortexEntityPanel({
           )}
           <CortexRelationshipList
             relationships={state.answer.relationships ?? []}
-            limit={isCompact ? 4 : 12}
+            limit={expandSources ? (state.answer.relationships ?? []).length : isCompact ? 4 : 12}
             moreHref={graphHref}
           />
           <CortexEvidenceTrail evidence={state.answer.evidence ?? []} />
           <div className="cortex-panel__sources">
             <span className="cortex-panel__sources-label">
-              {isCompact && state.answer.citations.length > 4
+              {isCompact && !expandSources && state.answer.citations.length > 4
                 ? `Top 4 of ${state.answer.citations.length} sources`
                 : `${state.answer.citations.length} source${state.answer.citations.length === 1 ? '' : 's'}`}
             </span>
             <CortexCitationList
               citations={state.answer.citations}
-              limit={isCompact ? 4 : 12}
+              limit={expandSources ? state.answer.citations.length : isCompact ? 4 : 12}
             />
-            {isCompact && state.answer.citations.length > 4 && (
+            {isCompact && !expandSources && state.answer.citations.length > 4 && (
               <Link href={graphHref} className="cortex-panel__more-link">
                 View all sources in graph
                 <span aria-hidden>→</span>

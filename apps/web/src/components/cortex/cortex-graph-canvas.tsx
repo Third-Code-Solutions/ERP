@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { cortexColor } from '@/lib/cortex/href'
+import { fitGraphCamera, graphLabelFits, type GraphLabelBox } from '@/lib/cortex/graph-layout'
 import {
   forceSimulation,
   forceManyBody,
@@ -69,40 +71,10 @@ interface Props {
 }
 
 function radius(n: GraphNode): number {
-  return 2.6 + Math.sqrt(n.degree) * 1.7
+  return 5 + Math.min(12, Math.sqrt(n.degree) * 1.7)
 }
 
-// Bright palette tuned for the dark "AI brain" canvas (conducting.ai-style).
-const NODE_COLOR: Record<string, string> = {
-  project: '#6ea8ff',
-  account: '#22d3ee',
-  employee: '#c084fc',
-  opportunity: '#fbbf24',
-  document: '#94a3b8',
-  bom: '#4ade80',
-  purchase_order: '#e879f9',
-  invoice: '#fb7185',
-  task: '#38bdf8',
-  vendor: '#2dd4bf',
-  scope_item: '#a3e635',
-  change_order: '#facc15',
-  schedule_event: '#60a5fa',
-  contact: '#f472b6',
-  permit: '#fb923c',
-  claim: '#f87171',
-  ticket: '#fb7185',
-  delivery: '#22d3ee',
-  rfq: '#a78bfa',
-  contract: '#818cf8',
-  certificate: '#34d399',
-  punchlist: '#fbbf24',
-  inspection: '#38bdf8',
-  design: '#c084fc',
-  change_request: '#e879f9',
-  material: '#34d399',
-  weekly_report: '#94a3b8',
-}
-const nodeColor = (t: string): string => NODE_COLOR[t] ?? '#94a3b8'
+const nodeColor = (t: string): string => cortexColor(t)
 
 function withAlpha(hex: string, a: number): string {
   const h = hex.replace('#', '')
@@ -170,7 +142,7 @@ export function CortexGraphCanvas({
     ctx.translate(cam.x, cam.y)
     ctx.scale(cam.k, cam.k)
 
-    // edges — luminous on dark
+    // Low-contrast relationships let the source records remain the focal point.
     ctx.lineWidth = 0.7 / cam.k
     for (const l of linksRef.current) {
       const s = l.source as GraphNode
@@ -179,10 +151,10 @@ export function CortexGraphCanvas({
       const active =
         activeId != null && (s.id === activeId || t.id === activeId)
       ctx.strokeStyle = active
-        ? 'rgba(186,230,253,0.55)'
+        ? 'rgba(15,45,74,0.5)'
         : activeId != null
-          ? 'rgba(148,163,184,0.05)'
-          : 'rgba(148,163,184,0.16)'
+          ? 'rgba(148,163,184,0.15)'
+          : 'rgba(148,163,184,0.4)'
       ctx.beginPath()
       ctx.moveTo(s.x, s.y)
       ctx.lineTo(t.x, t.y)
@@ -190,10 +162,10 @@ export function CortexGraphCanvas({
     }
 
     // nodes — glow halo + bright core, conducting.ai style
-    const showLabels = cam.k > 1.1
+    const labelCandidates: { node: GraphNode; priority: number }[] = []
     for (const n of nodesRef.current) {
       if (n.x == null || n.y == null) continue
-      const r = radius(n)
+      const r = Math.max(radius(n), 3.5 / cam.k)
       const col = nodeColor(n.type)
       const isHover = n.id === hover
       const isFocused = n.id === focusId
@@ -224,15 +196,30 @@ export function CortexGraphCanvas({
         ctx.stroke()
       }
 
-      if ((showLabels || focus || isNeighbor) && n.title) {
-        ctx.globalAlpha = dim ? 0.3 : 0.95
-        ctx.fillStyle = focus ? '#f8fafc' : '#cbd5e1'
-        ctx.font = `${focus ? 600 : 400} ${10 / cam.k}px Inter, system-ui, sans-serif`
-        ctx.fillText(n.title.slice(0, 30), n.x + r + 2 / cam.k, n.y + 3 / cam.k)
-      }
+      if (!dim && n.title) labelCandidates.push({ node: n, priority: (isHover ? 10000 : isFocused ? 9000 : matches ? 8000 : isNeighbor ? 1000 : 0) + n.degree })
       ctx.globalAlpha = 1
     }
     ctx.restore()
+    // Labels are placed in screen coordinates and never overlap one another.
+    // All records remain accessible in the companion record list.
+    ctx.save()
+    ctx.scale(dpr, dpr)
+    const occupied: GraphLabelBox[] = []
+    ctx.font = '500 12px system-ui, sans-serif'
+    for (const { node: n } of labelCandidates.sort((a, b) => b.priority - a.priority)) {
+      const label = (n.title ?? '').length > 28 ? `${n.title!.slice(0, 27)}…` : n.title ?? ''
+      const box = { x: n.x! * cam.k + cam.x + radius(n) * cam.k + 6,
+        y: n.y! * cam.k + cam.y - 8, width: ctx.measureText(label).width + 8, height: 18 }
+      if (!graphLabelFits(box, occupied, w, h)) continue
+      occupied.push(box)
+      ctx.fillStyle = 'rgba(250,250,250,.94)'
+      ctx.fillRect(box.x - 2, box.y, box.width, box.height)
+      ctx.fillStyle = '#17324d'
+      ctx.fillText(label, box.x + 2, box.y + 13)
+    }
+    ctx.restore()
+    canvas.dataset.visibleLabels = String(occupied.length)
+    canvas.dataset.visibleNodes = String(nodesRef.current.length)
   }, [])
 
   // --- camera helpers -------------------------------------------------------
@@ -240,25 +227,7 @@ export function CortexGraphCanvas({
     const ns = nodesRef.current.filter((n) => n.x != null && n.y != null)
     const { w, h } = sizeRef.current
     if (ns.length === 0 || w === 0) return
-    let minX = Infinity
-    let minY = Infinity
-    let maxX = -Infinity
-    let maxY = -Infinity
-    for (const n of ns) {
-      minX = Math.min(minX, n.x!)
-      minY = Math.min(minY, n.y!)
-      maxX = Math.max(maxX, n.x!)
-      maxY = Math.max(maxY, n.y!)
-    }
-    const pad = 40
-    const gw = Math.max(1, maxX - minX)
-    const gh = Math.max(1, maxY - minY)
-    const k = Math.min(4, Math.max(0.2, Math.min((w - pad * 2) / gw, (h - pad * 2) / gh)))
-    camRef.current = {
-      k,
-      x: w / 2 - ((minX + maxX) / 2) * k,
-      y: h / 2 - ((minY + maxY) / 2) * k,
-    }
+    camRef.current = fitGraphCamera(ns, w, h)
     draw()
   }, [draw])
 
@@ -275,8 +244,8 @@ export function CortexGraphCanvas({
     canvas.style.width = `${w}px`
     canvas.style.height = `${h}px`
     sizeRef.current = { w, h }
-    draw()
-  }, [draw])
+    fitView()
+  }, [fitView])
 
   useEffect(() => {
     const wrap = wrapRef.current
@@ -305,18 +274,17 @@ export function CortexGraphCanvas({
     }
 
     const { w, h } = sizeRef.current
-    const availableWidth =
-      focusNodeId && window.innerWidth > 1100
-        ? Math.max(1, (w || 800) - 300)
-        : w || 800
+    const availableWidth = w || 800
     const cx = availableWidth / 2
     const cy = (h || 520) / 2
 
     const visNodes: GraphNode[] = nodes
       .filter((n) => visibleTypes.has(n.type))
-      .map((n) => {
+      .map((n, index) => {
         const prev = posRef.current.get(n.id)
-        return { ...n, degree: 0, x: prev?.x ?? cx + (Math.random() - 0.5) * 60, y: prev?.y ?? cy + (Math.random() - 0.5) * 60 }
+        const angle = index * Math.PI * (3 - Math.sqrt(5))
+        const distance = 32 * Math.sqrt(index + 1)
+        return { ...n, degree: 0, x: prev?.x ?? cx + Math.cos(angle) * distance, y: prev?.y ?? cy + Math.sin(angle) * distance }
       })
     const idSet = new Set(visNodes.map((n) => n.id))
     const byId = new Map(visNodes.map((n) => [n.id, n]))
@@ -362,11 +330,11 @@ export function CortexGraphCanvas({
         'link',
         forceLink<GraphNode, GraphLink>(visLinks)
           .id((d) => d.id)
-          .distance(groupByType ? 28 : 38)
+          .distance(groupByType ? 80 : 110)
           .strength(groupByType ? 0.2 : 0.5)
       )
-      .force('charge', forceManyBody<GraphNode>().strength(groupByType ? -50 : -95))
-      .force('collide', forceCollide<GraphNode>().radius((d) => radius(d) + 1.5))
+      .force('charge', forceManyBody<GraphNode>().strength(groupByType ? -180 : -260))
+      .force('collide', forceCollide<GraphNode>().radius((d) => radius(d) + 16))
       .alphaDecay(reduced ? 0.2 : 0.0228)
       .stop()
 
@@ -383,6 +351,9 @@ export function CortexGraphCanvas({
 
     simRef.current = sim
     sim.alpha(0.9)
+    // Settle before fitting: the first frame must not be a pile of labels.
+    sim.tick(180)
+    fitView()
 
     let stopped = false
     const loop = () => {
@@ -390,7 +361,7 @@ export function CortexGraphCanvas({
       const s = simRef.current
       if (s && s.alpha() > s.alphaMin()) s.tick()
       draw()
-      rafRef.current = requestAnimationFrame(loop)
+      if (s && s.alpha() > s.alphaMin()) rafRef.current = requestAnimationFrame(loop)
     }
     cancelAnimationFrame(rafRef.current)
     rafRef.current = requestAnimationFrame(loop)
@@ -401,7 +372,7 @@ export function CortexGraphCanvas({
       sim.stop()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterKey, draw])
+  }, [filterKey, draw, fitView, nodes, links])
 
   // redraw on query change (highlight only — no sim rebuild)
   useEffect(() => {
@@ -425,7 +396,7 @@ export function CortexGraphCanvas({
     let bestD = Infinity
     for (const n of nodesRef.current) {
       if (n.x == null || n.y == null) continue
-      const r = radius(n) + 4
+      const r = Math.max(radius(n) + 4, 10 / camRef.current.k)
       const d = (n.x - x) ** 2 + (n.y - y) ** 2
       if (d < r * r && d < bestD) {
         bestD = d
@@ -461,6 +432,8 @@ export function CortexGraphCanvas({
       const w = toWorld(x, y)
       n.fx = w.x
       n.fy = w.y
+      simRef.current?.tick(1)
+      draw()
     }
   }
   function onPointerMove(e: React.PointerEvent) {
@@ -480,6 +453,7 @@ export function CortexGraphCanvas({
       }
       return
     }
+    if (Math.abs(x - drag.lastX) + Math.abs(y - drag.lastY) < 3) return
     drag.moved = true
     setTooltip(null)
     if (drag.mode === 'pan') {
@@ -490,6 +464,8 @@ export function CortexGraphCanvas({
       const w = toWorld(x, y)
       drag.node.fx = w.x
       drag.node.fy = w.y
+      drag.node.x = w.x
+      drag.node.y = w.y
     }
     drag.lastX = x
     drag.lastY = y
@@ -509,8 +485,7 @@ export function CortexGraphCanvas({
           onSelect(toSelected(drag.node))
         }
       }
-      drag.node.fx = null
-      drag.node.fy = null
+      // Keep the manually placed node stable; layout controls reset positions.
       simRef.current?.alphaTarget(0)
     }
     dragRef.current = { mode: 'none', node: null, moved: false, lastX: 0, lastY: 0 }
@@ -546,6 +521,8 @@ export function CortexGraphCanvas({
       <canvas
         ref={canvasRef}
         className="cortex-graphcanvas"
+        role="img"
+        aria-label="Interactive knowledge graph. Use the Records view to inspect records with a keyboard."
         style={{ cursor: 'grab', touchAction: 'none' }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -554,7 +531,7 @@ export function CortexGraphCanvas({
         onWheel={onWheel}
       />
       {tooltip && (
-        <div className="cortex-graph-tip" style={{ left: tooltip.x + 12, top: tooltip.y + 12 }}>
+        <div className="cortex-graph-tip" style={{ left: Math.min(tooltip.x + 12, Math.max(8, sizeRef.current.w - 268)), top: Math.min(tooltip.y + 12, sizeRef.current.h - 72) }}>
           <span className="cortex-dot" style={{ background: nodeColor(tooltip.type) }} aria-hidden />
           <strong>{tooltip.title}</strong>
           <span className="cortex-graph-tip__meta">{tooltip.degree} link{tooltip.degree === 1 ? '' : 's'}</span>
@@ -565,7 +542,7 @@ export function CortexGraphCanvas({
         <button type="button" aria-label="Zoom out" onClick={() => zoom(1 / 1.3)}>−</button>
         <button type="button" aria-label="Fit to view" onClick={fitView} title="Fit to view">⤢</button>
       </div>
-      <div className="cortex-graph-hint">Click to inspect · double-click to open · scroll to zoom</div>
+      <div className="cortex-graph-hint">Select a node to inspect · drag to pan · use + / − to zoom</div>
     </div>
   )
 }

@@ -8,6 +8,7 @@ import React, {
   useState,
 } from 'react'
 import { CortexCitationList } from './cortex-citation-list'
+import { CortexMessageContent } from './cortex-message-content'
 import {
   CORTEX_CITATIONS_HEADER,
   decodeCortexCitationHeader,
@@ -359,7 +360,7 @@ export function CortexAgent({
         <span className="cortex-agent__spark" aria-hidden>✦</span>
         <div className="cortex-agent__headtext">
           <h2 className="cortex-agent__title">Cortex</h2>
-          <p className="cortex-agent__sub">Graph-grounded · remembers every chat</p>
+          <p className="cortex-agent__sub">Answers with sources · saved conversations</p>
         </div>
         <div className="cortex-agent__headbtns">
           <button
@@ -529,7 +530,9 @@ export function CortexAgent({
           {messages.map((m, i) => (
             <div key={i} className={`cortex-msg cortex-msg--${m.role}`}>
               <div className="cortex-msg__bubble">
-                {m.content || (isStreaming && i === messages.length - 1 ? '…' : '')}
+                {m.role === 'assistant'
+                  ? <CortexMessageContent content={m.content || (isStreaming && i === messages.length - 1 ? '…' : '')} />
+                  : m.content}
               </div>
               {m.role === 'assistant' &&
                 m.citations &&
@@ -555,6 +558,9 @@ export function CortexAgent({
       )}
 
       {canUseAssistant && !historyOpen && (
+        <p className="cortex-agent__scope-note">Cortex answers questions with evidence. To edit or delete a record, open its source page.</p>
+      )}
+      {canUseAssistant && !historyOpen && (
         <div className="cortex-agent__input">
           <textarea
             ref={inputRef}
@@ -562,7 +568,7 @@ export function CortexAgent({
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKeyDown}
             placeholder="Ask Cortex…"
-            rows={1}
+            rows={2}
             disabled={isStreaming || isRestoring || contextUnavailable}
             aria-label="Message to Cortex"
           />

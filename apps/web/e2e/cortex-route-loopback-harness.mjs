@@ -160,8 +160,8 @@ const authServer = createServer(async (request, response) => {
       url.searchParams.get('select') === 'tenant_id,role,email,full_name' &&
       url.searchParams.get('id') === `eq.${USER_ID}`
     if (
-      request.headers.apikey !== SERVICE_ROLE_KEY ||
-      bearer(request) !== SERVICE_ROLE_KEY ||
+      request.headers.apikey !== ANON_KEY ||
+      bearer(request) !== ACCESS_TOKEN ||
       !exactProfileQuery
     ) {
       return json(response, 400, {

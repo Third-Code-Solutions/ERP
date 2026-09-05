@@ -17,7 +17,7 @@ type State =
 const POLL_INTERVAL_MS = 1_500
 const MAX_STATUS_POLLS = 120
 const PAUSED_REASON =
-  'The provider-spend canary is closed for this tenant; no external indexing request can be sent.'
+  'Semantic indexing is not enabled for this workspace. Record search remains available; no external indexing requests will be sent.'
 
 function waitForNextPoll(signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
