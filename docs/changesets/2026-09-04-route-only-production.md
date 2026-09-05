@@ -19,10 +19,15 @@ revision as Vercel through the existing guarded workflow.
 
 ## Verification and release
 
-App Router boundary check passes for all 131 pages. Full isolated checks and
-production promotion are pending; previous PR32 results are not proof of this
-exact release. The unchanged migration gate must report 157/157 before release.
-No production database restoration or migration is planned or authorized here.
+App Router boundary check passes for all 131 pages. PR33 CI passed all nine jobs,
+including security and trusted-preview browser tests. Main lint, types, unit,
+database integration and build checks passed; production migration preflight
+confirmed 157/157. Main security audit subsequently timed out in three attempts
+at npm's registry, so production promotion was cancelled before any provider
+deployment. New production routes remain unverified on live infrastructure.
+See [the release blocker](../blockers/2026-09-04-route-release-registry-audit.md)
+for exact runs, outcomes and continuation. No production database restoration
+or migration is planned or authorized here.
 
 Rollback: retain current Vercel and Railway releases before promotion; on a failed
 critical flow, promote/redeploy the previous provider artifacts. Database rollback
