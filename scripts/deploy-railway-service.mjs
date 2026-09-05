@@ -46,6 +46,7 @@ export async function deploy(component) {
   if (!/^[a-f0-9]{40}$/.test(sha ?? '')) throw new Error('GITHUB_SHA must identify the reviewed release')
   const git = (args) => execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
   if (git(['rev-parse', 'HEAD']) !== sha) throw new Error('Checkout differs from the reviewed release')
+  if (git(['status', '--porcelain']) !== '') throw new Error('Refusing to upload an uncommitted source tree')
   const cli = (args) => execFileSync(process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm', ['dlx', '@railway/cli@5.28.0', ...args], {
     encoding: 'utf8', timeout: 180_000, maxBuffer: 4 * 1024 * 1024,
     stdio: ['ignore', 'pipe', 'pipe'],

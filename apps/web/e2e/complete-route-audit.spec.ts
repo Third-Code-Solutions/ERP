@@ -39,6 +39,7 @@ test('inventory every page with explicit live render and guard evidence', async 
   const auth = await authenticateRole(authenticated, baseUrl, 'admin')
   const health = z.object({ revision: z.string().nullable() })
   const before = health.parse(await (await fetch(`${baseUrl}/api/health`)).json())
+  let finalRevision = before.revision
   console.log(JSON.stringify({ phase: 'start', revision: before.revision, pages: templates.length }))
   const cache = new Map<string, string | null>()
   const ledger: { route: string; mode: string; status: number; result: string; consoleErrors: number; pageErrors: number }[] = []
@@ -100,12 +101,14 @@ test('inventory every page with explicit live render and guard evidence', async 
     }
   } finally {
     const after = health.parse(await (await fetch(`${baseUrl}/api/health`)).json())
+    finalRevision = after.revision
     console.log(JSON.stringify({ phase: 'finish', revision: after.revision, pages: ledger.length }))
     await testInfo.attach('complete-route-audit', { body: JSON.stringify({ baseUrl, before, after, ledger, lookups }, null, 2), contentType: 'application/json' })
     await auth.cleanup()
     await authenticated.close()
     await anonymous.close()
   }
+  expect(finalRevision, 'Deployment changed during the audit; rerun against a stable revision').toBe(before.revision)
   expect(ledger.filter((row) => row.result.startsWith('FAILED'))).toEqual([])
 })
 
