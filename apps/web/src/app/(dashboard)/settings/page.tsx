@@ -5,6 +5,9 @@ import { db } from '@third-code-erp/database'
 import { tenants } from '@third-code-erp/database/schema'
 import { eq } from 'drizzle-orm'
 import { EditTenantForm } from '@/components/settings/edit-tenant-form'
+import { getIntegrationStatus } from './integration-status'
+import { readNotificationPreferences } from './notification-preferences'
+import { NotificationPreferencesForm } from './notification-preferences-form'
 
 export const metadata: Metadata = { title: 'Settings' }
 
@@ -13,6 +16,10 @@ export default async function SettingsPage() {
   const canEditWorkspace = profile.role === 'owner' || profile.role === 'admin'
   const canReadTeam = can(profile.role, 'admin.users.read')
   const canManageTeam = can(profile.role, 'admin.users')
+  const canReadFinance = can(profile.role, 'finance.read')
+  const canManageCash = can(profile.role, 'finance.manage_cash')
+  const canConfigureIntegrations = can(profile.role, 'admin.system_config')
+  const integrations = canConfigureIntegrations ? getIntegrationStatus() : []
   const tenant = await db
     .select()
     .from(tenants)
@@ -205,20 +212,46 @@ export default async function SettingsPage() {
         </div>
       </section>
 
-      <div
-        style={{
-          marginTop: '24px',
-          background: 'var(--color-navy-50)',
-          border: '1px solid var(--color-navy-100)',
-          borderRadius: '8px',
-          padding: '16px 20px',
-          fontSize: '0.8125rem',
-          color: 'var(--color-navy-700)',
-          maxWidth: '860px',
-        }}
-      >
-        Billing settings, integration configuration, and notification preferences are not yet available here.
-      </div>
+      <section aria-labelledby="settings-finance-heading" className="card mt-6 max-w-[860px]">
+        <div className="card-header"><h2 id="settings-finance-heading" className="card-title">Project invoices and payments</h2></div>
+        <div className="space-y-4 p-6 text-sm">
+          <p>Prepare project invoices, review outstanding receivables, and record payments against issued invoices. Recording a payment does not transfer money or charge a card.</p>
+          {canReadFinance ? (
+            <div className="flex flex-wrap gap-4 font-semibold text-[var(--color-navy-700)]">
+              <Link href="/invoices" className="underline underline-offset-4">Project invoices</Link>
+              <Link href="/finance/receivables" className="underline underline-offset-4">Outstanding receivables</Link>
+              <Link href="/finance/cash" className="underline underline-offset-4">Payment records</Link>
+              {canManageCash && <Link href="/finance/cash/new" className="underline underline-offset-4">Record a payment</Link>}
+            </div>
+          ) : <p>Ask your finance team or workspace administrator for invoice and payment access.</p>}
+        </div>
+      </section>
+
+      <section aria-labelledby="settings-integrations-heading" className="card mt-6 max-w-[860px]">
+        <div className="card-header"><h2 id="settings-integrations-heading" className="card-title">Integrations</h2></div>
+        <div className="space-y-4 p-6 text-sm">
+          <p>Existing provider configuration for this Web deployment. This is not a live connectivity test; Railway worker configuration must be checked separately. Credentials stay in deployment secrets, never in browser forms.</p>
+          {canConfigureIntegrations ? (
+            <ul className="space-y-4">
+              {integrations.map((integration) => (
+                <li key={integration.name} className="space-y-1 border-b pb-4 last:border-0">
+                  <h3 className="font-semibold">{integration.name} — {integration.purpose}</h3>
+                  <p>{integration.configured ? 'Configuration present' : 'Setup required'}</p>
+                  {integration.missing.length > 0 && <p>Missing: {integration.missing.join(', ')}</p>}
+                  <p className="text-[var(--color-neutral-600)]">{integration.guidance}</p>
+                </li>
+              ))}
+            </ul>
+          ) : <p>Only owners and admins can inspect deployment configuration. Contact your workspace administrator for integration setup.</p>}
+        </div>
+      </section>
+
+      <section aria-labelledby="settings-notifications-heading" className="card mt-6 max-w-[860px]">
+        <div className="card-header"><h2 id="settings-notifications-heading" className="card-title">Notifications</h2></div>
+        <div className="p-6">
+          <NotificationPreferencesForm initial={readNotificationPreferences(profile.user.user_metadata?.notification_preferences)} />
+        </div>
+      </section>
     </div>
   )
 }

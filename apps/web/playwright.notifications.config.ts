@@ -26,6 +26,8 @@ export default defineConfig({
     command: 'node e2e/notifications-loopback-harness.mjs',
     url: `${webUrl}/auth/login`,
     reuseExistingServer: false,
-    timeout: 120_000,
+    // Cold Windows startup includes the bundled Core API and Next compilation.
+    // Keep assertion timeouts separate; this only bounds fixture boot time.
+    timeout: 240_000,
   },
 })

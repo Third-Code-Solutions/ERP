@@ -151,6 +151,32 @@ test('proves Core notification authority and tenant isolation', async ({
     )
   ).toHaveLength(0)
 
+  const preferencesForm = page.getByRole('form', { name: 'Notification preferences' })
+  await preferencesForm.getByLabel('Default inbox view').selectOption('unread')
+  await preferencesForm.getByLabel('Automatically refresh notifications').uncheck()
+  await preferencesForm.getByRole('button', { name: 'Save notification preferences' }).click()
+  await expect(preferencesForm.getByRole('status')).toHaveText('Notification preferences saved.')
+  await page.reload()
+  await expect(preferencesForm.getByLabel('Default inbox view')).toHaveValue('unread')
+  await expect(preferencesForm.getByLabel('Automatically refresh notifications')).not.toBeChecked()
+  await notificationButton.click()
+  const unreadDialog = page.getByRole('dialog', { name: 'Notifications' })
+  await expect(unreadDialog.getByText('Unread follow-up', { exact: true })).toBeVisible()
+  await expect(unreadDialog.getByText('Already seen', { exact: true })).toHaveCount(0)
+  await expect(unreadDialog.getByRole('button', { name: 'Refresh', exact: true })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await preferencesForm.getByLabel('Default inbox view').selectOption('all')
+  await preferencesForm.getByLabel('Automatically refresh notifications').check()
+  await preferencesForm.getByRole('button', { name: 'Save notification preferences' }).click()
+  await expect(preferencesForm.getByRole('status')).toHaveText('Notification preferences saved.')
+  await page.reload()
+  await expect(preferencesForm.getByLabel('Default inbox view')).toHaveValue('all')
+
+  const finance = page.getByRole('region', { name: 'Project invoices and payments' })
+  await expect(finance.getByRole('link', { name: 'Project invoices', exact: true })).toHaveAttribute('href', '/invoices')
+  await expect(finance.getByRole('link', { name: 'Record a payment' })).toHaveAttribute('href', '/finance/cash/new')
+  await expect(page.getByRole('region', { name: 'Integrations' })).toContainText('This is not a live connectivity test')
+
   await notificationButton.click()
 
   const dialog = page.getByRole('dialog', { name: 'Notifications' })
@@ -158,14 +184,14 @@ test('proves Core notification authority and tenant isolation', async ({
   await expect(dialog.getByText('Core notification authority', { exact: true })).toBeVisible()
   await expect(dialog.getByText('Unread follow-up', { exact: true })).toBeVisible()
   await expect(dialog.getByText('Already seen', { exact: true })).toBeVisible()
-  await expect(dialog.getByText('2 unread', { exact: true })).toBeVisible()
+  await expect(dialog.getByText('2 unread in recent notifications', { exact: true })).toBeVisible()
   await expect(notificationButton).toHaveAccessibleName('Notifications (2 unread)')
 
   await dialog.getByRole('button', { name: 'Mark read' }).first().click()
-  await expect(dialog.getByText('1 unread', { exact: true })).toBeVisible()
+  await expect(dialog.getByText('1 unread in recent notifications', { exact: true })).toBeVisible()
 
   await dialog.getByRole('button', { name: 'Mark all read' }).click()
-  await expect(dialog.getByText('All caught up', { exact: true })).toBeVisible()
+  await expect(dialog.getByText('No unread in recent notifications', { exact: true })).toBeVisible()
 
   await expect
     .poll(
@@ -229,13 +255,20 @@ test('proves Core notification authority and tenant isolation', async ({
 
   for (const viewport of [
     { name: 'desktop', width: 1440, height: 1000 },
+    { name: 'laptop', width: 1024, height: 900 },
+    { name: 'tablet', width: 768, height: 1024 },
     { name: 'mobile', width: 390, height: 844 },
+    { name: 'small-mobile', width: 320, height: 760 },
   ]) {
     await page.setViewportSize(viewport)
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - window.innerWidth
     )
     expect(overflow, viewport.name).toBeLessThanOrEqual(1)
+    const dialogBounds = await dialog.boundingBox()
+    expect(dialogBounds).not.toBeNull()
+    expect(dialogBounds!.x, `${viewport.name}: left edge`).toBeGreaterThanOrEqual(0)
+    expect(dialogBounds!.x + dialogBounds!.width, `${viewport.name}: right edge`).toBeLessThanOrEqual(viewport.width)
     await page.screenshot({
       path: testInfo.outputPath(`notifications-${viewport.name}.png`),
       fullPage: true,

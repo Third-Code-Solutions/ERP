@@ -545,6 +545,17 @@ const authServer = createServer(async (request, response) => {
     return json(response, 200, user)
   }
 
+  if (request.method === 'PUT' && url.pathname === '/auth/v1/user') {
+    if (bearer(request) !== ACCESS_TOKEN) return json(response, 401, { error: 'Unauthorized' })
+    const body = JSON.parse((await requestBody(request)).toString('utf8'))
+    const preferences = body.data?.notification_preferences
+    if (!preferences || !['all', 'unread'].includes(preferences.view) || typeof preferences.autoRefresh !== 'boolean') {
+      return json(response, 400, { error: 'Invalid presentation preferences' })
+    }
+    user.user_metadata = { ...user.user_metadata, notification_preferences: preferences }
+    return json(response, 200, user)
+  }
+
   if (request.method === 'GET' && url.pathname === '/rest/v1/users') {
     const exactProfileQuery =
       url.searchParams.get('select') === 'tenant_id,role,email,full_name' &&
