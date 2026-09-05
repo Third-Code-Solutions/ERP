@@ -14,6 +14,10 @@
   polling. Retention of an unchanged existing artifact requires source/config
   equivalence and health, and is reported separately from a new deployment.
   See ADR029; every existing release gate remains in place.
+- Add the API Dockerfile's previously unwatched `packages/ai` and `.npmrc`
+  inputs to Railway's watched paths. Test watched-path coverage against all
+  compared container inputs so future AI package changes cannot silently skip
+  API deployment. This configuration change requires a new API artifact.
 
 ## Evidence
 

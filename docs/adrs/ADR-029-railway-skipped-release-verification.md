@@ -30,8 +30,9 @@ cannot be treated as skipped successes. A missing predecessor Git object also
 fails; production checkout retains full history. Polling is capped at 20 minutes.
 
 The workflow still runs every existing source, migration, health, authenticated
-role, CAD, and password-proof gate. No watch path, provider setting, database,
-authentication control, or approval rule is changed. Reports distinguish
+role, CAD, and password-proof gate. The repository watch list gains the missing
+Dockerfile inputs `packages/ai/**` and `.npmrc`; no existing watch path is removed.
+No database, authentication control, or approval rule is changed. Reports distinguish
 `deployed` from `retained-identical`, including active deployment IDs and source
 SHAs; they do not claim a new backend artifact when no backend inputs changed.
 

@@ -34,6 +34,9 @@ test('API input comparison covers every Dockerfile copy source and CAD stays sep
   for (const path of ['apps/api', 'packages/ai', 'packages/config', 'packages/database', 'packages/shared-types', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'turbo.json', '.npmrc', '.dockerignore']) assert.ok(targets.api.paths.includes(path))
   assert.deepEqual(targets.cad.paths, ['apps/workers/dxf-parser'])
   const dockerfile = readFileSync(new URL('../apps/api/Dockerfile', import.meta.url), 'utf8')
+  const railwayConfig = readFileSync(new URL('../railway.toml', import.meta.url), 'utf8')
+  const watched = [...railwayConfig.matchAll(/"([^"\n]+)"/g)].map((match) => match[1].replace(/\/\*\*$/, ''))
+  for (const input of targets.api.paths) assert.ok(watched.includes(input), `Container input is not watched: ${input}`)
   for (const line of dockerfile.split('\n').filter((line) => line.startsWith('COPY ') && !line.includes('--from='))) {
     for (const source of line.trim().split(/\s+/).slice(1, -1)) {
       assert.ok(targets.api.paths.some((path) => source === path || source.startsWith(`${path}/`)), `Uncompared Dockerfile input: ${source}`)
