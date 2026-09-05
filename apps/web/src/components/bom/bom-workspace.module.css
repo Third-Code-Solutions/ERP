@@ -1,0 +1,84 @@
+.workspace {
+  min-width: 0;
+}
+.editor {
+  min-width: 0;
+  width: 100%;
+}
+.editor > div {
+  width: 100%;
+  max-width: 100%;
+}
+.editorHeader {
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.editorActions {
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.table {
+  overflow: auto !important;
+  max-height: 36rem;
+  max-width: 100%;
+}
+.table table {
+  min-width: 58rem;
+}
+.table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--color-neutral-50);
+}
+.details {
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  background: white;
+  margin: 1rem 0;
+  padding: 1rem;
+  min-width: 0;
+}
+.details summary {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--color-navy-700);
+  padding: 0.5rem 0;
+}
+.workspace :is(button, input, select, a):focus-visible {
+  outline: 2px solid var(--color-navy-700);
+  outline-offset: 3px;
+}
+.editor button {
+  min-height: 2.5rem;
+}
+@media (max-width: 767px) {
+  .workspace [aria-label='Drop CAD file to auto-extract scope'] {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .workspace [aria-label='Drop CAD file to auto-extract scope'] p {
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+  }
+}
+@media (max-width: 767px) {
+  .editorHeader,
+  .editorActions {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+  .editorHeader > div {
+    flex-wrap: wrap;
+  }
+  .editorActions {
+    width: 100%;
+  }
+  .editorActions button {
+    width: 100%;
+  }
+  .table {
+    max-height: 30rem;
+  }
+}

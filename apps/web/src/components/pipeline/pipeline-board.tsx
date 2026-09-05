@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   PIPELINE_STAGES,
   STAGE_LEGACY_MAP,
@@ -15,6 +15,8 @@ import {
   OpportunityKanbanCard,
   type KanbanCardData,
 } from './opportunity-kanban-card'
+import styles from './pipeline-workspace.module.css'
+import workspace from '@/components/projects/workspace.module.css'
 import { LostReasonDialog } from './lost-reason-dialog'
 import { RegressionReasonDialog } from './regression-reason-dialog'
 import {
@@ -81,9 +83,55 @@ export function PipelineBoard({
   canAdvanceOpportunity,
 }: PipelineBoardProps) {
   const router = useRouter()
+  const search = useSearchParams()
+  const query = search.get('q') ?? ''
+  const stageFilter = search.get('stage') ?? ''
+  const repFilter = search.get('rep') ?? ''
+  const listView = search.get('view') === 'list'
+  const [queryDraft, setQueryDraft] = useState(query)
+  useEffect(() => setQueryDraft(query), [query])
+  function filter(updates: Record<string, string>) {
+    const params = new URLSearchParams(search.toString())
+    for (const [key, value] of Object.entries(updates)) {
+      if (value) params.set(key, value)
+      else params.delete(key)
+    }
+    router.replace('/pipeline' + (params.size ? '?' + params.toString() : ''), {
+      scroll: false,
+    })
+  }
+  const filteredCards = useMemo(
+    () =>
+      cards.filter(
+        (card) =>
+          (!stageFilter || STAGE_LEGACY_MAP[card.stage] === stageFilter) &&
+          (!repFilter ||
+            card.rep_id === repFilter ||
+            (repFilter === 'unassigned' && !card.rep_id)) &&
+          (!query ||
+            [card.account_name, card.project_name, card.rep_email].some(
+              (value) => value?.toLowerCase().includes(query.toLowerCase()),
+            )),
+      ),
+    [cards, stageFilter, repFilter, query],
+  )
+  const reps = [
+    ...new Map(
+      cards
+        .filter((card) => card.rep_id)
+        .map((card) => [
+          card.rep_id!,
+          card.rep_email ?? 'Assigned representative',
+        ]),
+    ).entries(),
+  ]
+
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dragOverStage, setDragOverStage] = useState<PipelineStage | null>(null)
-  const [banner, setBanner] = useState<{ kind: 'error' | 'info'; text: string } | null>(null)
+  const [banner, setBanner] = useState<{
+    kind: 'error' | 'info'
+    text: string
+  } | null>(null)
   const [pendingStageReason, setPendingStageReason] =
     useState<PendingStageReason | null>(null)
   const [quickAddStage, setQuickAddStage] = useState<PipelineStage | null>(null)
@@ -106,12 +154,13 @@ export function PipelineBoard({
       won: [],
       lost: [],
     }
-    for (const c of cards) {
-      const pipelineStage = STAGE_LEGACY_MAP[c.stage as OpportunityStage] ?? 'lead'
+    for (const c of filteredCards) {
+      const pipelineStage =
+        STAGE_LEGACY_MAP[c.stage as OpportunityStage] ?? 'lead'
       buckets[pipelineStage].push(c)
     }
     return buckets
-  }, [cards])
+  }, [filteredCards])
 
   // ── Realtime: invalidate the route on any opportunities change. ─────────
   useEffect(() => {
@@ -125,7 +174,7 @@ export function PipelineBoard({
         () => {
           if (timer) clearTimeout(timer)
           timer = setTimeout(() => router.refresh(), 600)
-        }
+        },
       )
       .subscribe()
     return () => {
@@ -151,38 +200,40 @@ export function PipelineBoard({
     cardId: string,
     toStage: PipelineStage,
     reason?: string,
-    reasonRequired = false
+    reasonRequired = false,
   ) {
     clearBanner()
     startTransition(() =>
-      transitionSubmitterRef.current!.submit(
-        {
-          execute: (normalizedReason) =>
-            advanceOpportunityStage(cardId, toStage, normalizedReason),
-          reason,
-          reasonRequired,
-        },
-        {
-          onStart: clearBanner,
-          onError: (message) => {
-            if (message === 'reason_required') {
-              // Server insisted on a reason — open the dialog as a fallback.
-              const card = cards.find((candidate) => candidate.id === cardId)
-              if (card) {
-                const fromStage =
-                  STAGE_LEGACY_MAP[card.stage as OpportunityStage] ?? 'lead'
-                const kind = getStageTransitionReasonKind(fromStage, toStage)
-                if (kind) {
-                  setPendingStageReason({ cardId, fromStage, toStage, kind })
-                  return
+      transitionSubmitterRef
+        .current!.submit(
+          {
+            execute: (normalizedReason) =>
+              advanceOpportunityStage(cardId, toStage, normalizedReason),
+            reason,
+            reasonRequired,
+          },
+          {
+            onStart: clearBanner,
+            onError: (message) => {
+              if (message === 'reason_required') {
+                // Server insisted on a reason — open the dialog as a fallback.
+                const card = cards.find((candidate) => candidate.id === cardId)
+                if (card) {
+                  const fromStage =
+                    STAGE_LEGACY_MAP[card.stage as OpportunityStage] ?? 'lead'
+                  const kind = getStageTransitionReasonKind(fromStage, toStage)
+                  if (kind) {
+                    setPendingStageReason({ cardId, fromStage, toStage, kind })
+                    return
+                  }
                 }
               }
-            }
-            showBanner('error', message)
+              showBanner('error', message)
+            },
+            onSuccess: () => router.refresh(),
           },
-          onSuccess: () => router.refresh(),
-        }
-      ).then(() => undefined)
+        )
+        .then(() => undefined),
     )
   }
 
@@ -201,7 +252,7 @@ export function PipelineBoard({
     if (fromStage === toStage) return
 
     // ── Client-side KYC gate (mirrors server) ─────────────────────────────
-  if (KYC_GATED_STAGES.has(toStage)) {
+    if (KYC_GATED_STAGES.has(toStage)) {
       const kycBlocked = card.opportunity_kyc_initialized
         ? Boolean(card.opportunity_kyc_gate)
         : Boolean(card.account_id) &&
@@ -210,7 +261,8 @@ export function PipelineBoard({
       if (kycBlocked) {
         showBanner(
           'error',
-          card.opportunity_kyc_gate ?? 'Account KYC must be Approved before this stage',
+          card.opportunity_kyc_gate ??
+            'Account KYC must be Approved before this stage',
         )
         return
       }
@@ -222,6 +274,13 @@ export function PipelineBoard({
       return
     }
 
+    if (
+      toStage === 'won' &&
+      !window.confirm(
+        'Mark this opportunity as won? This changes the sales outcome.',
+      )
+    )
+      return
     performAdvance(cardId, toStage)
   }
 
@@ -233,7 +292,117 @@ export function PipelineBoard({
   }
 
   return (
-    <>
+    <section className={styles.workspace} aria-label="Pipeline workspace">
+      {canCreateOpportunity && (
+        <p style={{ margin: '0 0 16px' }}>
+          <button className={workspace.primary} onClick={() => setQuickAddStage('lead')}>
+            New opportunity
+          </button>
+        </p>
+      )}
+      <form
+        className={workspace.toolbar}
+        onSubmit={(event) => {
+          event.preventDefault()
+          filter({ q: queryDraft.trim() })
+        }}
+      >
+        <label>
+          Find opportunities
+          <input
+            type="search"
+            placeholder="Account, project, or representative"
+            value={queryDraft}
+            onChange={(event) => setQueryDraft(event.target.value)}
+          />
+        </label>
+        <label>
+          Stage
+          <select
+            value={stageFilter}
+            onChange={(event) => filter({ stage: event.target.value })}
+          >
+            <option value="">All stages</option>
+            {PIPELINE_STAGES.map((stage) => (
+              <option key={stage} value={stage}>
+                {STAGE_LABELS[stage]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Owner
+          <select
+            value={repFilter}
+            onChange={(event) => filter({ rep: event.target.value })}
+          >
+            <option value="">All representatives</option>
+            <option value="unassigned">Unassigned</option>
+            {reps.map(([id, label]) => (
+              <option key={id} value={id}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button className={workspace.primary}>Search</button>
+        <button
+          className={workspace.secondary}
+          type="button"
+          onClick={() => {
+            setQueryDraft('')
+            filter({ q: '', stage: '', rep: '' })
+          }}
+        >
+          Reset
+        </button>
+        <button
+          className={workspace.secondary}
+          type="button"
+          aria-pressed={!listView}
+          onClick={() => filter({ view: '' })}
+        >
+          Board
+        </button>
+        <button
+          className={workspace.secondary}
+          type="button"
+          aria-pressed={listView}
+          onClick={() => filter({ view: 'list' })}
+        >
+          List
+        </button>
+      </form>
+      <div className={workspace.summary} role="status">
+        <span>{filteredCards.length} matching opportunities</span>
+        <span>
+          Open an opportunity to review details and change its stage with the
+          keyboard.
+        </span>
+      </div>
+      {!filteredCards.length && (
+        <div className={workspace.empty}>
+          <h2>No matching opportunities</h2>
+          <p>Try another search or reset the filters.</p>
+        </div>
+      )}
+      {listView && (
+        <div className={styles.list}>
+          {filteredCards.map((card) => (
+            <div key={card.id}>
+              <span className={workspace.badge}>
+                {STAGE_LABELS[STAGE_LEGACY_MAP[card.stage]]}
+              </span>
+              <OpportunityKanbanCard
+                card={card}
+                canAdvance={canAdvanceOpportunity}
+                onDragStart={() => {}}
+                onDragEnd={() => {}}
+              />
+            </div>
+          ))}
+        </div>
+      )}
       {banner && (
         <div
           role="alert"
@@ -270,8 +439,12 @@ export function PipelineBoard({
       )}
 
       <div
+        className={styles.board}
+        hidden={listView}
+        aria-label="Pipeline stages"
+        tabIndex={0}
         style={{
-          display: 'flex',
+          display: listView ? 'none' : 'flex',
           gap: '12px',
           overflowX: 'auto',
           paddingBottom: '12px',
@@ -279,13 +452,16 @@ export function PipelineBoard({
           transition: 'opacity 120ms ease',
         }}
       >
-        {PIPELINE_STAGES.map((stage) => {
+        {PIPELINE_STAGES.filter(
+          (stage) => !stageFilter || stage === stageFilter,
+        ).map((stage) => {
           const items = columns[stage]
           const subtotal = items.reduce((acc, c) => acc + c.tcv_cents, 0)
           const isOver = dragOverStage === stage
           return (
             <div
               key={stage}
+              className={styles.column}
               onDragOver={
                 canAdvanceOpportunity
                   ? (e) => {
@@ -312,8 +488,9 @@ export function PipelineBoard({
                   : undefined
               }
               style={{
-                flex: '0 0 280px',
-                background: isOver ? 'var(--color-neutral-100)' : 'var(--color-neutral-50)',
+                background: isOver
+                  ? 'var(--color-neutral-100)'
+                  : 'var(--color-neutral-50)',
                 border: `1px solid ${isOver ? STAGE_ACCENTS[stage] : 'var(--color-border)'}`,
                 borderRadius: '8px',
                 padding: '12px',
@@ -332,7 +509,9 @@ export function PipelineBoard({
                   gap: '8px',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                >
                   <span
                     aria-hidden
                     style={{
@@ -373,8 +552,8 @@ export function PipelineBoard({
                       background: 'white',
                       border: '1px solid var(--color-border)',
                       borderRadius: '4px',
-                      width: '22px',
-                      height: '22px',
+                      width: '36px',
+                      height: '36px',
                       fontSize: '0.875rem',
                       fontWeight: 600,
                       lineHeight: 1,
@@ -398,7 +577,14 @@ export function PipelineBoard({
                 {formatCentsCompact(subtotal)}
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                  flex: 1,
+                }}
+              >
                 {items.length === 0 ? (
                   <div
                     style={{
@@ -435,8 +621,12 @@ export function PipelineBoard({
 
       <RegressionReasonDialog
         open={pendingStageReason?.kind === 'regression'}
-        fromLabel={pendingStageReason ? STAGE_LABELS[pendingStageReason.fromStage] : ''}
-        toLabel={pendingStageReason ? STAGE_LABELS[pendingStageReason.toStage] : ''}
+        fromLabel={
+          pendingStageReason ? STAGE_LABELS[pendingStageReason.fromStage] : ''
+        }
+        toLabel={
+          pendingStageReason ? STAGE_LABELS[pendingStageReason.toStage] : ''
+        }
         isSubmitting={isPending}
         onCancel={() => setPendingStageReason(null)}
         onConfirm={handleReasonConfirm}
@@ -458,6 +648,6 @@ export function PipelineBoard({
           onClose={() => setQuickAddStage(null)}
         />
       )}
-    </>
+    </section>
   )
 }
