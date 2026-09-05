@@ -560,6 +560,7 @@ export const DASHBOARD_ROUTE_POLICIES: readonly DashboardRoutePolicy[] = [
       '/finance',
       '/finance/cash',
       '/finance/cash/[id]',
+      '/finance/journals',
       '/finance/journals/[id]',
       '/finance/ledger',
       '/finance/payables',
