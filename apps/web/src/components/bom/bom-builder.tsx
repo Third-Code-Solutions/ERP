@@ -570,9 +570,7 @@ export function BomBuilder({
                 </button>
                 <button
                   onClick={handleApprove}
-                  disabled={
-                    isPending || bom.lineItems.length === 0 || hasFlaggedLines
-                  }
+                  disabled={isPending || bom.lineItems.length === 0 || hasFlaggedLines}
                   title={
                     hasFlaggedLines
                       ? 'Resolve flagged lines (missing unit cost) before submitting for client approval'

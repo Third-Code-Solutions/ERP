@@ -27,3 +27,10 @@ controls, no fake totals, no invalid project links, no lost source navigation;
 existing mutation validation preserved. No claim of whole-ERP certification.
 
 Rollback: revert this code-only feature branch; no data rollback needed.
+
+## Production release handoff
+
+User authorized deployment after PR42. Agent10 restores the exact formatting
+expected by the existing WO-08A source contract (approval predicate unchanged),
+then hands off to Agent13 for passing CI, normal PR merge and the guarded
+production workflow. No migrations or provider-control bypasses are authorized.
