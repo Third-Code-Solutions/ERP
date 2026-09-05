@@ -1,10 +1,21 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
 import { assessDeployment, sourceSha, targets } from './deploy-railway-service.mjs'
 
 const active = { status: 'SUCCESS', meta: { commitHash: 'a'.repeat(40), serviceManifest: { build: { builder: 'DOCKERFILE' } } } }
 const skipped = { status: 'SKIPPED', meta: { serviceManifest: active.meta.serviceManifest } }
+
+test('Railway Git-ignore filtering keeps root package config but excludes secrets', () => {
+  const ignored = (path) => spawnSync('git', ['check-ignore', '--no-index', '--quiet', path], { cwd: new URL('..', import.meta.url) }).status
+  assert.equal(ignored('.npmrc'), 1, 'Railway upload must include the tracked root package configuration')
+  for (const path of ['.env', '.env.local', 'apps/web/.env.local', 'apps/web/.npmrc']) {
+    assert.equal(ignored(path), 0, `Sensitive local input must remain excluded: ${path}`)
+  }
+  const config = readFileSync(new URL('../.npmrc', import.meta.url), 'utf8').trim()
+  assert.equal(config, 'auto-install-peers=false\nengine-strict=true'.replaceAll('\n', config.includes('\r\n') ? '\r\n' : '\n'))
+})
 
 test('successful deployments and pending states are distinct', () => {
   assert.equal(assessDeployment({ status: 'SUCCESS' }), 'deployed')
