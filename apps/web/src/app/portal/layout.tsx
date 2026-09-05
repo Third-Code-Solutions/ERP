@@ -1,12 +1,12 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'BOM Portal | ABI OPS',
+  title: 'Client Portal | ABI OPS',
   robots: { index: false, follow: false },
 }
 
 /**
- * Public, unauthenticated shell for client-facing BOM review/signature.
+ * Public shell shared by project, procurement, warranty, and signing portals.
  * No sidebar, no app chrome — just a navy-branded header + content area
  * and a footer noting validity. Anti-template per design-quality rules:
  * editorial header with sharp accent CTA tone (gold).
@@ -27,7 +27,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       <footer className="portal-footer">
         <p>
           This portal is for the named recipient only. If you weren&apos;t expecting
-          to receive a Bill of Materials from Actuate Builders Inc., please
+          a secure project link from Actuate Builders Inc., please
           ignore this link.
         </p>
       </footer>
