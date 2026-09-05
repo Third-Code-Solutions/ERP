@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import type { CortexEntityResponse } from '../src/lib/cortex/entity-response'
 
 const AUTH_ORIGIN = 'http://127.0.0.1:4328'
 const WEB_ORIGIN = 'http://127.0.0.1:4327'
@@ -123,18 +124,7 @@ test('renders the authenticated Cortex route against loopback auth and PostgreSQ
       await route.continue()
       return
     }
-    if (
-      url.hostname === 'api.fontshare.com' &&
-      url.pathname === '/v2/css'
-    ) {
-      providerRequests.push(url.toString())
-      await route.fulfill({
-        status: 200,
-        contentType: 'text/css',
-        body: '',
-      })
-      return
-    }
+    providerRequests.push(url.toString())
     await route.abort('blockedbyclient')
   })
 
@@ -164,7 +154,7 @@ test('renders the authenticated Cortex route against loopback auth and PostgreSQ
   expect(await conversationsResponse.json()).toEqual({ conversations: [] })
 
   const graph = (await graphResponse.json()) as {
-    nodes: Array<{ refTable: string; refId: string }>
+    nodes: Array<{ id: string; type: string; title: string; refTable: string; refId: string; projectId: string | null }>
     links: unknown[]
   }
   expect(graph.nodes.length).toBeGreaterThan(0)
@@ -191,19 +181,120 @@ test('renders the authenticated Cortex route against loopback auth and PostgreSQ
   await page.waitForTimeout(800)
   expect(await page.evaluate(() => window.scrollY)).toBe(0)
 
+  const canvas = page.locator('.cortex-graphcanvas')
+  await expect(canvas).toHaveAttribute('data-visible-nodes', String(graph.nodes.length))
+  await expect.poll(async () => Number(await canvas.getAttribute('data-visible-labels'))).toBeGreaterThan(0)
+  await page.getByRole('button', { name: 'Records', exact: true }).click()
+  await expect(page.getByRole('list', { name: 'Graph records' }).getByRole('button')).toHaveCount(graph.nodes.length)
+  const firstRecord = page.getByRole('list', { name: 'Graph records' }).getByRole('button').first()
+  await firstRecord.focus()
+  await page.keyboard.press('Enter')
+  const detail = page.getByRole('complementary', { name: 'Record detail' })
+  await expect(detail).toBeVisible()
+  await expect(detail).toBeFocused()
+  await expect(detail.locator('.cortex-panel__skeleton')).toHaveCount(0)
+  await expect(detail.getByRole('alert')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Close detail' }).click()
+  await page.getByRole('button', { name: 'Graph', exact: true }).click()
+  await page.getByTitle('Conversation history').click()
+  await expect(page.getByRole('searchbox', { name: 'Search saved conversations' })).toBeVisible()
+  await page.getByTitle('Conversation history').click()
+  await expect(page.getByRole('textbox', { name: 'Message to Cortex' })).toBeVisible()
+  await expect(page.getByText('Cortex answers questions with evidence.', { exact: false })).toBeVisible()
+  await page.evaluate(() => window.scrollTo(0, 0))
+
   for (const viewport of [
     { name: 'desktop', width: 1440, height: 1000 },
+    { name: 'laptop', width: 1024, height: 900 },
+    { name: 'tablet', width: 768, height: 900 },
     { name: 'mobile', width: 390, height: 844 },
+    { name: 'small-mobile', width: 320, height: 844 },
   ]) {
     await page.setViewportSize(viewport)
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - window.innerWidth
     )
     expect(overflow, viewport.name).toBeLessThanOrEqual(1)
+    const agentBounds = await page.locator('.cortex-agent').boundingBox()
+    expect(agentBounds).not.toBeNull()
+    for (const control of [page.getByTitle('Conversation history'), page.getByTitle('New chat'), page.getByRole('textbox', { name: 'Message to Cortex' })]) {
+      const bounds = await control.boundingBox()
+      expect(bounds).not.toBeNull()
+      expect(bounds!.x, viewport.name).toBeGreaterThanOrEqual(agentBounds!.x)
+      expect(bounds!.x + bounds!.width, viewport.name).toBeLessThanOrEqual(agentBounds!.x + agentBounds!.width)
+    }
     await page.screenshot({
       path: testInfo.outputPath(`cortex-route-${viewport.name}.png`),
       fullPage: true,
     })
+  }
+
+  // Local synthetic density fixture: never persisted or sent to a provider.
+  const rootNode = graph.nodes.find((node) => node.refTable === 'projects')!
+  const denseNodes = [rootNode, ...Array.from({ length: 80 }, (_, index) => ({
+    ...rootNode, id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+    title: `Electrical lighting fixture and mechanical installation ${index + 1}`,
+  }))]
+  let graphMode: 'dense' | 'invalid' | 'empty' = 'dense'
+  await page.route('**/api/cortex/graph', (route) => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({
+      nodes: graphMode === 'invalid' ? null : graphMode === 'empty' ? [] : denseNodes,
+      links: graphMode === 'dense' ? denseNodes.slice(1).map((node) => ({ source: rootNode.id, target: node.id, type: 'part_of' })) : [],
+    }),
+  }))
+  await page.setViewportSize({ width: 1440, height: 1000 })
+  await page.reload()
+  await expect(canvas).toHaveAttribute('data-visible-nodes', '81')
+  await expect.poll(async () => Number(await canvas.getAttribute('data-visible-labels'))).toBeGreaterThan(3)
+  await page.getByRole('button', { name: 'Fit', exact: true }).click()
+  await page.screenshot({ path: testInfo.outputPath('cortex-dense-desktop.png'), fullPage: true })
+  await page.getByRole('button', { name: 'Cluster by type' }).click()
+  await expect(canvas).toHaveAttribute('data-visible-nodes', '81')
+  await page.locator('.cortex-type-filters summary').click()
+  await page.getByTitle('Hide Project', { exact: true }).click()
+  await expect(page.getByText('All record types are hidden.')).toBeVisible()
+  await page.getByRole('button', { name: 'Reset filters' }).click()
+  await expect(canvas).toBeVisible()
+  graphMode = 'invalid'
+  await page.reload()
+  await expect(page.getByRole('alert').filter({ hasText: 'Could not load the graph' })).toBeVisible()
+  graphMode = 'dense'
+  await page.getByRole('button', { name: 'Retry graph' }).click()
+  await expect(canvas).toHaveAttribute('data-visible-nodes', '81')
+  graphMode = 'empty'
+  await page.reload()
+  await expect(page.getByText('The graph is empty for now.', { exact: false })).toBeVisible()
+
+  await page.unroute('**/api/cortex/graph')
+  await page.route(`**/api/cortex/entity/${rootNode.refTable}/${rootNode.refId}`, async (route) => {
+    const response = await route.fetch()
+    expect(response.ok()).toBe(true)
+    const original = await response.json() as CortexEntityResponse
+    const first = original.citations[0]!
+    // Presentation-only fixture ensures the full inspector is not stuck at four sources.
+    const citations = Array.from({ length: 9 }, (_, index) => ({ ...first,
+      nodeId: `00000000-0000-4000-8000-${String(index + 101).padStart(12, '0')}`,
+      refId: `00000000-0000-4000-8000-${String(index + 101).padStart(12, '0')}`,
+      title: `Source drawing with a long descriptive title ${index + 1}`,
+    }))
+    await route.fulfill({ response, json: { ...original, citations } })
+  })
+  const focusedUrl = `${WEB_ORIGIN}/cortex?refTable=${rootNode.refTable}&refId=${rootNode.refId}`
+  for (const width of [1440, 320]) {
+    await page.setViewportSize({ width, height: 1000 })
+    await page.goto(focusedUrl)
+    await expect(page.locator('.cortex-focusbar')).toBeVisible()
+    await expect(detail).toBeVisible()
+    await expect(detail.locator('.cortex-panel__skeleton')).toHaveCount(0)
+    await expect(detail.locator('.cortex-panel__chips > li')).toHaveCount(9)
+    await expect(detail.getByText('View all sources in graph')).toHaveCount(0)
+    expect(await detail.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1)
+    if (width === 320) {
+      await expect(page.getByRole('button', { name: 'Records', exact: true })).toHaveAttribute('aria-pressed', 'true')
+      await expect(page.getByRole('link', { name: 'Ask Cortex', exact: true })).toBeVisible()
+    }
+    await page.screenshot({ path: testInfo.outputPath(`cortex-focused-${width}.png`), fullPage: true })
   }
 
   const requestLogResponse = await fetch(
@@ -232,10 +323,8 @@ test('renders the authenticated Cortex route against loopback auth and PostgreSQ
       ['/auth/v1/user', '/rest/v1/users'].includes(request.path)
     )
   ).toBe(true)
-  expect(providerRequests).toEqual([
-    'https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,700&display=swap',
-  ])
+  expect(providerRequests).toEqual([])
   expect(semanticIndexRequests).toBe(0)
-  expect(realtimeConnections).toBe(1)
+  expect(realtimeConnections).toBe(6)
   expect(consoleErrors).toEqual([])
 })

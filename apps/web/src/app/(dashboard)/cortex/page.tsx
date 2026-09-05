@@ -10,6 +10,7 @@ import { presentCortexBrief } from '@/lib/cortex/brief-presentation'
 import { readCortexBrief } from '@/lib/cortex/brief-read'
 import { authorizeCortexRecordContext } from '@/lib/cortex/record-context'
 import { cortexSemanticIndexControlAccess } from '@/lib/cortex/semantic-index-control'
+import styles from '@/components/cortex/cortex-workspace.module.css'
 
 export const metadata: Metadata = { title: 'Cortex — AI Brain' }
 
@@ -73,15 +74,14 @@ export default async function CortexPage({ searchParams }: CortexPageProps) {
     : []
 
   return (
-    <div className="cortex-page">
+    <div className={`cortex-page ${styles.workspace}`}>
       <header className="cortex-page__head">
         <div>
           <h1 className="cortex-page__title">
             Cortex <span className="cortex-page__badge">AI Brain</span>
           </h1>
           <p className="cortex-page__sub">
-            Every record in your company — projects, pipeline, BOMs, POs, invoices, people —
-            linked into one permissioned, source-cited knowledge graph.
+            Explore connected work. Inspect the evidence. Ask questions with sources.
           </p>
         </div>
         {semanticIndexControl.visible && (
@@ -101,7 +101,6 @@ export default async function CortexPage({ searchParams }: CortexPageProps) {
               </div>
             ))}
           </div>
-          <CortexBriefPanel brief={brief} />
         </>
       ) : (
         <section className="dashboard-data-notice" role="status" aria-label="Cortex brief notice">
@@ -113,7 +112,10 @@ export default async function CortexPage({ searchParams }: CortexPageProps) {
       )}
 
       <div className="cortex-layout">
-        <div className="cortex-layout__graph">
+        <nav className={styles.mobileNav} aria-label="Cortex workspace">
+          <a href="#cortex-explore">Explore records</a><a href="#cortex-assistant">Ask Cortex</a>
+        </nav>
+        <div className="cortex-layout__graph" id="cortex-explore">
           <h2 className="cortex-section-title">Knowledge Graph</h2>
           {!stats ? (
             <p className="cortex-empty-note">
@@ -127,7 +129,7 @@ export default async function CortexPage({ searchParams }: CortexPageProps) {
             <CortexGraphView focus={focus} />
           )}
         </div>
-        <div className="cortex-layout__agent">
+        <div className="cortex-layout__agent" id="cortex-assistant">
           <CortexAgent
             key={initialDraftId ?? 'default'}
             initialContext={agentContext}
@@ -138,6 +140,12 @@ export default async function CortexPage({ searchParams }: CortexPageProps) {
           />
         </div>
       </div>
+      {brief && (
+        <details className={styles.activity}>
+          <summary>Knowledge pulse <span>Recent changes and graph coverage</span></summary>
+          <CortexBriefPanel brief={brief} />
+        </details>
+      )}
     </div>
   )
 }

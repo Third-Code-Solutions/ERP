@@ -8,6 +8,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react'
 import { useRouter } from 'next/navigation'
+import { cortexGraphResponseSchema } from '@third-code-erp/shared-types'
 import {
   CortexGraphCanvas,
   type RawNode,
@@ -59,6 +60,8 @@ export function CortexGraphView({ focus }: Props) {
   const [query, setQuery] = useState('')
   const [hidden, setHidden] = useState<Set<string>>(new Set())
   const [grouped, setGrouped] = useState(false)
+  const [view, setView] = useState<'graph' | 'records'>('graph')
+  const [reloadNonce, setReloadNonce] = useState(0)
   const [fitNonce, setFitNonce] = useState(0)
   const [selected, setSelected] = useState<SelectedNode | null>(null)
   const [searchHits, setSearchHits] = useState<CortexSearchHit[]>([])
@@ -67,6 +70,22 @@ export function CortexGraphView({ focus }: Props) {
   const [searchComplete, setSearchComplete] = useState(false)
   const [activeSearchIndex, setActiveSearchIndex] = useState(-1)
   const searchRef = useRef<HTMLInputElement>(null)
+  const detailRef = useRef<HTMLElement>(null)
+  const inspectionTriggerRef = useRef<HTMLElement | null>(null)
+
+  useEffect(() => {
+    // A list is a usable starting point on a phone; Graph remains one tap away.
+    if (window.matchMedia('(max-width: 767px)').matches) setView('records')
+  }, [])
+
+  function inspect(node: SelectedNode) {
+    inspectionTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    setSelected(node)
+    window.requestAnimationFrame(() => {
+      detailRef.current?.scrollIntoView({ block: 'nearest', behavior: 'instant' })
+      detailRef.current?.focus({ preventScroll: true })
+    })
+  }
 
   useEffect(() => {
     const controller = new AbortController()
@@ -77,9 +96,9 @@ export function CortexGraphView({ focus }: Props) {
     fetch(graphUrl, { signal: controller.signal })
       .then(async (res) => {
         if (!res.ok) throw new Error(String(res.status))
-        return (await res.json()) as GraphPayload
+        return cortexGraphResponseSchema.parse(await res.json())
       })
-      .then((p) => {
+      .then((p: GraphPayload) => {
         setData(p)
         const focused = p.focusNodeId
           ? p.nodes.find((node) => node.id === p.focusNodeId) ?? null
@@ -102,7 +121,7 @@ export function CortexGraphView({ focus }: Props) {
         setStatus('error')
     })
     return () => controller.abort()
-  }, [focus])
+  }, [focus, reloadNonce])
 
   // Server retrieval searches titles + summaries across the full tenant graph;
   // debounce so typing never floods the API or an external provider.
@@ -210,7 +229,10 @@ export function CortexGraphView({ focus }: Props) {
   // Keyboard: Esc closes the drawer, "/" focuses search.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setSelected(null)
+      if (e.key === 'Escape') {
+        setSelected(null)
+        inspectionTriggerRef.current?.focus({ preventScroll: true })
+      }
       if (e.key === '/' && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
         e.preventDefault()
         searchRef.current?.focus()
@@ -226,14 +248,17 @@ export function CortexGraphView({ focus }: Props) {
   const focusedNode = data?.focusNodeId
     ? data.nodes.find((node) => node.id === data.focusNodeId) ?? null
     : null
+  const visibleRecords = (data?.nodes ?? []).filter((node) =>
+    visibleTypes.has(node.type) && (!query.trim() || (node.title ?? '').toLowerCase().includes(query.trim().toLowerCase())))
 
   if (status === 'loading') {
-    return <div className="cortex-graph-shell cortex-graph-shell--msg">Loading knowledge graph…</div>
+    return <div className="cortex-graph-shell cortex-graph-shell--msg" role="status" aria-busy="true">Loading knowledge graph…</div>
   }
   if (status === 'error') {
     return (
       <div className="cortex-graph-shell cortex-graph-shell--msg" role="alert">
         Could not load the graph.
+        <button type="button" className="cortex-tool-btn" onClick={() => setReloadNonce((n) => n + 1)}>Retry graph</button>
       </div>
     )
   }
@@ -343,6 +368,8 @@ export function CortexGraphView({ focus }: Props) {
             </div>
           )}
         </div>
+        <details className="cortex-type-filters">
+          <summary>Record types <span>{visibleTypes.size} of {types.length} shown</span></summary>
         <div className="cortex-legend">
           {types.map(([t, n]) => {
             const off = hidden.has(t)
@@ -362,7 +389,10 @@ export function CortexGraphView({ focus }: Props) {
             )
           })}
         </div>
+        </details>
         <div className="cortex-toolbar__actions">
+          <button type="button" className={`cortex-tool-btn${view === 'graph' ? ' is-active' : ''}`} aria-pressed={view === 'graph'} onClick={() => setView('graph')}>Graph</button>
+          <button type="button" className={`cortex-tool-btn${view === 'records' ? ' is-active' : ''}`} aria-pressed={view === 'records'} onClick={() => setView('records')}>Records</button>
           <button
             type="button"
             className={`cortex-tool-btn${grouped ? ' is-active' : ''}`}
@@ -379,7 +409,23 @@ export function CortexGraphView({ focus }: Props) {
 
       {/* Graph + drawer */}
       <div className="cortex-graphview">
-        <CortexGraphCanvas
+        <p className="cortex-record-count" role="status">{visibleRecords.length} matching records in this graph · Search also finds records outside this view.</p>
+        {visibleTypes.size === 0 ? (
+          <div className="cortex-graph-shell--msg">All record types are hidden.<button type="button" className="cortex-tool-btn" onClick={() => setHidden(new Set())}>Reset filters</button></div>
+        ) : view === 'records' ? (
+          <ul className="cortex-records" aria-label="Graph records">
+            {visibleRecords.map((node) => (
+              <li key={node.id}>
+                <button type="button" className="cortex-record-row" aria-pressed={selected?.refTable === node.refTable && selected?.refId === node.refId} onClick={() => inspect(node)}>
+                  <span className="cortex-dot" style={{ background: cortexColor(node.type) }} aria-hidden />
+                  <span><strong>{node.title ?? 'Untitled record'}</strong><small>{CORTEX_TYPE_LABEL[node.type] ?? node.type}</small></span>
+                  <span aria-hidden>→</span>
+                </button>
+              </li>
+            ))}
+            {visibleRecords.length === 0 && <li className="cortex-index__empty">No records match these filters. Clear search or show another record type.</li>}
+          </ul>
+        ) : <CortexGraphCanvas
           nodes={data.nodes}
           links={data.links}
           visibleTypes={visibleTypes}
@@ -387,19 +433,22 @@ export function CortexGraphView({ focus }: Props) {
           groupByType={grouped}
           fitNonce={fitNonce}
           focusNodeId={data.focusNodeId ?? null}
-          onSelect={setSelected}
+          onSelect={inspect}
           onNavigate={navigate}
-        />
+        />}
         {selected && (
-          <aside className="cortex-graph-drawer" aria-label="Record detail">
+          <aside ref={detailRef} tabIndex={-1} className="cortex-graph-drawer" aria-label="Record detail">
             <div className="cortex-graph-drawer__head">
               <span className="cortex-graph-drawer__type">
-                {CORTEX_TYPE_LABEL[selected.type] ?? selected.type}
+                {CORTEX_TYPE_LABEL[selected.type] ?? selected.type} · {selected.title ?? 'Record details'}
               </span>
               <button
                 type="button"
                 className="cortex-graph-drawer__close"
-                onClick={() => setSelected(null)}
+                onClick={() => {
+                  setSelected(null)
+                  inspectionTriggerRef.current?.focus({ preventScroll: true })
+                }}
                 aria-label="Close detail"
               >
                 ×
@@ -410,6 +459,8 @@ export function CortexGraphView({ focus }: Props) {
               refTable={selected.refTable}
               refId={selected.refId}
               showGraphLink={false}
+              density="compact"
+              expandSources
             />
             {openHref && (
               <button type="button" className="cortex-open-record" onClick={() => navigate(selected)}>
