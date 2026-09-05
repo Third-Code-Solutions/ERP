@@ -26,94 +26,103 @@ export default async function PipelineBoardPage() {
   // Fetch everything in parallel — kanban needs opps + accounts (for KYC
   // gating + display) + open SLA logs (for the dot) + reps + projects/accounts
   // for the quick-add modal.
-  const [oppsRaw, accountsList, projectsList, openSlas, kycTracksRaw] = await Promise.all([
-    db
-      .select({
-        id: opportunities.id,
-        stage: opportunities.stage,
-        tcv_cents: opportunities.tcv_cents,
-        gp_cents: opportunities.gp_cents,
-        weighted_tcv_cents: opportunities.weighted_tcv_cents,
-        probability: opportunities.probability,
-        updated_at: opportunities.updated_at,
-        created_at: opportunities.created_at,
-        account_id: opportunities.account_id,
-        account_name: accounts.name,
-        account_kyc_status: accounts.kyc_status,
-        project_id: projects.id,
-        project_name: projects.name,
-        rep_id: opportunities.rep_id,
-        rep_email: users.email,
-      })
-      .from(opportunities)
-      .leftJoin(
-        accounts,
-        and(
-          eq(opportunities.account_id, accounts.id),
-          eq(accounts.tenant_id, tenantId)
+  const [oppsRaw, accountsList, projectsList, openSlas, kycTracksRaw] =
+    await Promise.all([
+      db
+        .select({
+          id: opportunities.id,
+          stage: opportunities.stage,
+          tcv_cents: opportunities.tcv_cents,
+          gp_cents: opportunities.gp_cents,
+          weighted_tcv_cents: opportunities.weighted_tcv_cents,
+          probability: opportunities.probability,
+          closing_date: opportunities.closing_date,
+          updated_at: opportunities.updated_at,
+          created_at: opportunities.created_at,
+          account_id: opportunities.account_id,
+          account_name: accounts.name,
+          account_kyc_status: accounts.kyc_status,
+          project_id: projects.id,
+          project_name: projects.name,
+          rep_id: opportunities.rep_id,
+          rep_email: users.email,
+        })
+        .from(opportunities)
+        .leftJoin(
+          accounts,
+          and(
+            eq(opportunities.account_id, accounts.id),
+            eq(accounts.tenant_id, tenantId),
+          ),
         )
-      )
-      .leftJoin(
-        projects,
-        and(
-          eq(opportunities.project_id, projects.id),
-          eq(projects.tenant_id, tenantId)
+        .leftJoin(
+          projects,
+          and(
+            eq(opportunities.project_id, projects.id),
+            eq(projects.tenant_id, tenantId),
+          ),
         )
-      )
-      .leftJoin(
-        users,
-        and(eq(opportunities.rep_id, users.id), eq(users.tenant_id, tenantId))
-      )
-      .where(
-        and(
-          eq(opportunities.tenant_id, tenantId),
-          or(isNull(opportunities.project_id), isNull(projects.deleted_at))
+        .leftJoin(
+          users,
+          and(
+            eq(opportunities.rep_id, users.id),
+            eq(users.tenant_id, tenantId),
+          ),
         )
-      )
-      .orderBy(desc(opportunities.updated_at)),
-    db
-      .select({
-        id: accounts.id,
-        name: accounts.name,
-        kyc_status: accounts.kyc_status,
-      })
-      .from(accounts)
-      .where(eq(accounts.tenant_id, tenantId))
-      .orderBy(asc(accounts.name)),
-    db
-      .select({ id: projects.id, name: projects.name, client: projects.client })
-      .from(projects)
-      .where(
-        and(eq(projects.tenant_id, tenantId), isNull(projects.deleted_at))
-      )
-      .orderBy(asc(projects.name)),
-    db
-      .select({
-        entity_id: slaLogs.entity_id,
-        started_at: slaLogs.started_at,
-        warned_at: slaLogs.warned_at,
-        breached_at: slaLogs.breached_at,
-        sla_label: slaLogs.sla_label,
-      })
-      .from(slaLogs)
-      .where(
-        and(
-          eq(slaLogs.tenant_id, tenantId),
-          eq(slaLogs.entity_type, 'opportunity'),
-          eq(slaLogs.sla_label, 'opp.stage_response'),
-          isNull(slaLogs.completed_at)
+        .where(
+          and(
+            eq(opportunities.tenant_id, tenantId),
+            or(isNull(opportunities.project_id), isNull(projects.deleted_at)),
+          ),
         )
-      ),
-    db
-      .select({
-        opportunity_id: opportunityKycTracks.opportunity_id,
-        track_type: opportunityKycTracks.track_type,
-        status: opportunityKycTracks.status,
-        decision_reason: opportunityKycTracks.decision_reason,
-      })
-      .from(opportunityKycTracks)
-      .where(eq(opportunityKycTracks.tenant_id, tenantId)),
-  ])
+        .orderBy(desc(opportunities.updated_at)),
+      db
+        .select({
+          id: accounts.id,
+          name: accounts.name,
+          kyc_status: accounts.kyc_status,
+        })
+        .from(accounts)
+        .where(eq(accounts.tenant_id, tenantId))
+        .orderBy(asc(accounts.name)),
+      db
+        .select({
+          id: projects.id,
+          name: projects.name,
+          client: projects.client,
+        })
+        .from(projects)
+        .where(
+          and(eq(projects.tenant_id, tenantId), isNull(projects.deleted_at)),
+        )
+        .orderBy(asc(projects.name)),
+      db
+        .select({
+          entity_id: slaLogs.entity_id,
+          started_at: slaLogs.started_at,
+          warned_at: slaLogs.warned_at,
+          breached_at: slaLogs.breached_at,
+          sla_label: slaLogs.sla_label,
+        })
+        .from(slaLogs)
+        .where(
+          and(
+            eq(slaLogs.tenant_id, tenantId),
+            eq(slaLogs.entity_type, 'opportunity'),
+            eq(slaLogs.sla_label, 'opp.stage_response'),
+            isNull(slaLogs.completed_at),
+          ),
+        ),
+      db
+        .select({
+          opportunity_id: opportunityKycTracks.opportunity_id,
+          track_type: opportunityKycTracks.track_type,
+          status: opportunityKycTracks.status,
+          decision_reason: opportunityKycTracks.decision_reason,
+        })
+        .from(opportunityKycTracks)
+        .where(eq(opportunityKycTracks.tenant_id, tenantId)),
+    ])
 
   // Build a quick lookup so the client component can render an SLA dot
   // without a second round trip.
@@ -139,10 +148,15 @@ export default async function PipelineBoardPage() {
     gp_cents: o.gp_cents,
     weighted_tcv_cents: o.weighted_tcv_cents,
     probability: o.probability,
+    closing_date: o.closing_date?.toISOString().slice(0, 10) ?? null,
     updated_at:
-      o.updated_at instanceof Date ? o.updated_at.toISOString() : String(o.updated_at),
+      o.updated_at instanceof Date
+        ? o.updated_at.toISOString()
+        : String(o.updated_at),
     created_at:
-      o.created_at instanceof Date ? o.created_at.toISOString() : String(o.created_at),
+      o.created_at instanceof Date
+        ? o.created_at.toISOString()
+        : String(o.created_at),
     account_id: o.account_id,
     account_name: o.account_name,
     account_kyc_status: o.account_kyc_status,
@@ -172,7 +186,8 @@ export default async function PipelineBoardPage() {
         <div className="page-header" style={{ marginBottom: 0 }}>
           <h1 className="page-title">Pipeline Board</h1>
           <p className="page-subtitle">
-            {cards.length} active opportunit{cards.length === 1 ? 'y' : 'ies'} · drag to advance
+            {cards.length} opportunit{cards.length === 1 ? 'y' : 'ies'} across
+            every stage · track ownership and next steps
           </p>
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>

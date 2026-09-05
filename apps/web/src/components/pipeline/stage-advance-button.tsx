@@ -51,11 +51,11 @@ function isStage(value: string): value is OpportunityStage {
 export function routeStageAdvanceDestination(
   currentStage: OpportunityStage,
   destination: OpportunityStage,
-  handlers: StageAdvanceDestinationHandlers
+  handlers: StageAdvanceDestinationHandlers,
 ): void {
   const reasonKind = getStageTransitionReasonKind(
     STAGE_LEGACY_MAP[currentStage],
-    destination
+    destination,
   )
   if (reasonKind === 'lost') {
     handlers.openLostReason(destination)
@@ -68,7 +68,10 @@ export function routeStageAdvanceDestination(
   handlers.advance(destination)
 }
 
-export function StageAdvanceButton({ opportunityId, currentStage }: StageAdvanceButtonProps) {
+export function StageAdvanceButton({
+  opportunityId,
+  currentStage,
+}: StageAdvanceButtonProps) {
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
@@ -95,33 +98,37 @@ export function StageAdvanceButton({ opportunityId, currentStage }: StageAdvance
     : transitions.includes('closed_lost')
       ? 'closed_lost'
       : null
-  const forwardNexts = transitions.filter((s) => s !== 'closed_lost' && s !== 'lost')
+  const forwardNexts = transitions.filter(
+    (s) => s !== 'closed_lost' && s !== 'lost',
+  )
 
   function advance(
     stage: OpportunityStage,
     reason?: string,
-    reasonRequired = false
+    reasonRequired = false,
   ) {
     setError(null)
     startTransition(() =>
-      transitionSubmitterRef.current!.submit(
-        {
-          execute: (normalizedReason) =>
-            advanceOpportunityStage(opportunityId, stage, normalizedReason),
-          reason,
-          reasonRequired,
-        },
-        {
-          onStart: () => {
-            setError(null)
-            setOpen(false)
-            setLostPromptOpen(false)
-            setPendingRegressionStage(null)
+      transitionSubmitterRef
+        .current!.submit(
+          {
+            execute: (normalizedReason) =>
+              advanceOpportunityStage(opportunityId, stage, normalizedReason),
+            reason,
+            reasonRequired,
           },
-          onError: setError,
-          onSuccess: () => router.refresh(),
-        }
-      ).then(() => undefined)
+          {
+            onStart: () => {
+              setError(null)
+              setOpen(false)
+              setLostPromptOpen(false)
+              setPendingRegressionStage(null)
+            },
+            onError: setError,
+            onSuccess: () => router.refresh(),
+          },
+        )
+        .then(() => undefined),
     )
   }
 
@@ -136,6 +143,13 @@ export function StageAdvanceButton({ opportunityId, currentStage }: StageAdvance
   }
 
   function requestDestination(stage: OpportunityStage) {
+    if (
+      (stage === 'won' || stage === 'closed_won') &&
+      !window.confirm(
+        'Mark this opportunity as won? This changes the sales outcome.',
+      )
+    )
+      return
     routeStageAdvanceDestination(sourceStage, stage, {
       advance,
       openLostReason: () => {
@@ -155,7 +169,14 @@ export function StageAdvanceButton({ opportunityId, currentStage }: StageAdvance
   const singleForward = forwardNexts.length === 1 ? forwardNexts[0]! : null
 
   return (
-    <div style={{ display: 'flex', gap: '4px', position: 'relative', flexWrap: 'wrap' }}>
+    <div
+      style={{
+        display: 'flex',
+        gap: '4px',
+        position: 'relative',
+        flexWrap: 'wrap',
+      }}
+    >
       {singleForward && (
         <button
           onClick={() => requestDestination(singleForward)}
@@ -209,7 +230,9 @@ export function StageAdvanceButton({ opportunityId, currentStage }: StageAdvance
       <RegressionReasonDialog
         open={pendingRegressionStage !== null}
         fromLabel={STAGE_LABELS[STAGE_LEGACY_MAP[sourceStage]]}
-        toLabel={pendingRegressionStage ? STAGE_LABELS[pendingRegressionStage] : ''}
+        toLabel={
+          pendingRegressionStage ? STAGE_LABELS[pendingRegressionStage] : ''
+        }
         isSubmitting={isPending}
         onCancel={() => setPendingRegressionStage(null)}
         onConfirm={confirmRegression}
@@ -217,7 +240,13 @@ export function StageAdvanceButton({ opportunityId, currentStage }: StageAdvance
       {error && (
         <p
           role="alert"
-          style={{ flexBasis: '100%', margin: '4px 0 0', color: 'var(--color-danger, #b91c1c)', fontSize: '0.75rem', lineHeight: 1.4 }}
+          style={{
+            flexBasis: '100%',
+            margin: '4px 0 0',
+            color: 'var(--color-danger, #b91c1c)',
+            fontSize: '0.75rem',
+            lineHeight: 1.4,
+          }}
         >
           {error}
         </p>

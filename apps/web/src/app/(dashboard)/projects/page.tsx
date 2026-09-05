@@ -14,12 +14,13 @@ import {
   type ProjectStatus,
   type ProjectType,
 } from '@/lib/project-queries'
+import styles from '@/components/projects/workspace.module.css'
 import { ProjectListControls } from '@/components/projects/project-list-controls'
 
 export const metadata: Metadata = { title: 'Projects' }
 
 const STATUS_COLORS: Record<string, string> = {
-  lead: 'var(--color-neutral-400)',
+  lead: 'var(--color-neutral-600)',
   active: 'var(--color-success)',
   on_hold: 'var(--color-warning)',
   completed: 'var(--color-info)',
@@ -51,7 +52,8 @@ function parseFilters(raw: Record<string, SearchParamValue>): ProjectFilters {
 
   const statusRaw = pickFirst(raw.status)
   const status =
-    statusRaw && (PROJECT_STATUS_VALUES as readonly string[]).includes(statusRaw)
+    statusRaw &&
+    (PROJECT_STATUS_VALUES as readonly string[]).includes(statusRaw)
       ? (statusRaw as ProjectStatus)
       : undefined
 
@@ -92,7 +94,10 @@ function parseFilters(raw: Record<string, SearchParamValue>): ProjectFilters {
   }
 }
 
-function buildPageHref(rawSearch: Record<string, SearchParamValue>, page: number): string {
+function buildPageHref(
+  rawSearch: Record<string, SearchParamValue>,
+  page: number,
+): string {
   const next = new URLSearchParams()
   for (const [key, value] of Object.entries(rawSearch)) {
     if (key === 'page') continue
@@ -104,7 +109,9 @@ function buildPageHref(rawSearch: Record<string, SearchParamValue>, page: number
   return qs ? `/projects?${qs}` : '/projects'
 }
 
-export default async function ProjectsPage({ searchParams }: ProjectsPageProps) {
+export default async function ProjectsPage({
+  searchParams,
+}: ProjectsPageProps) {
   const profile = await requireUserProfile()
   const tenantId = profile.tenantId
 
@@ -115,208 +122,182 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
   const hasActiveFilters = Boolean(filters.q || filters.status || filters.type)
   const canCreate = can(profile.role, 'project.create')
 
-  const { rows: projectList, total, page, totalPages } = await getProjectsFiltered(tenantId, filters)
+  const {
+    rows: projectList,
+    total,
+    page,
+    totalPages,
+  } = await getProjectsFiltered(tenantId, filters)
 
   const prevHref = page > 1 ? buildPageHref(rawSearch, page - 1) : null
   const nextHref = page < totalPages ? buildPageHref(rawSearch, page + 1) : null
 
+  const tableView = pickFirst(rawSearch.view) === 'table'
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-        <div className="page-header" style={{ marginBottom: 0 }}>
-          <h1 className="page-title">Projects</h1>
-          <p className="page-subtitle">
-            {total} project{total !== 1 ? 's' : ''}
-            {hasActiveFilters ? ' match your filters' : ''}
-          </p>
+    <section className={styles.workspace} aria-label="Projects workspace">
+      <header className={styles.header}>
+        <div>
+          <h1>Projects</h1>
+          <p>Keep project scope, estimates, and delivery in one place.</p>
         </div>
-        {canCreate ? (
-          <Link
-            href="/projects/new"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 16px',
-              background: 'var(--color-navy-700)',
-              color: 'white',
-              borderRadius: '6px',
-              textDecoration: 'none',
-              fontSize: '0.875rem',
-              fontWeight: 500,
-            }}
-          >
+        {canCreate && (
+          <Link className={styles.primary} href="/projects/new">
             + New Project
           </Link>
-        ) : null}
-      </div>
-
+        )}
+      </header>
       <ProjectListControls />
-
+      <div className={styles.summary}>
+        <span>
+          {total} project{total === 1 ? '' : 's'}
+          {hasActiveFilters ? ' match your filters' : ' in this workspace'}
+        </span>
+        <span>
+          Showing {projectList.length} · Page {page} of {totalPages}
+        </span>
+      </div>
       {projectList.length === 0 ? (
+        <div className={styles.empty}>
+          <h2>
+            {hasActiveFilters
+              ? 'No projects match your filters'
+              : 'No projects yet'}
+          </h2>
+          <p>
+            {hasActiveFilters
+              ? 'Try a different name, client, status, or project type.'
+              : 'Create a project to organize its scope and delivery.'}
+          </p>
+          <Link
+            className={styles.secondary}
+            href={
+              hasActiveFilters ? '/projects' : canCreate ? '/projects/new' : '/'
+            }
+          >
+            {hasActiveFilters
+              ? 'Clear filters'
+              : canCreate
+                ? 'Create your first project'
+                : 'Back to dashboard'}
+          </Link>
+        </div>
+      ) : tableView ? (
         <div
-          style={{
-            background: 'white',
-            border: '1px solid var(--color-border)',
-            borderRadius: '8px',
-            padding: '64px 24px',
-            textAlign: 'center',
-            color: 'var(--color-neutral-400)',
-          }}
+          className={styles.tableWrap}
+          tabIndex={0}
+          aria-label="Projects table, scroll for more columns"
         >
-          {hasActiveFilters ? (
-            <p style={{ fontSize: '1rem' }}>No projects match your filters</p>
-          ) : canCreate ? (
-            <>
-              <p style={{ fontSize: '1rem', marginBottom: '8px' }}>No projects yet</p>
-              <p style={{ fontSize: '0.875rem' }}>
-                <Link href="/projects/new" style={{ color: 'var(--color-navy-700)' }}>
-                  Create your first project
-                </Link>{' '}
-                to get started.
-              </p>
-            </>
-          ) : (
-            <p style={{ fontSize: '1rem' }}>
-              No active projects are available in this workspace.
-            </p>
-          )}
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>Project / client</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Area (sqm)</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              {projectList.map((project) => (
+                <tr key={project.id}>
+                  <td>
+                    <Link href={`/projects/${project.id}`}>{project.name}</Link>
+                    <small>
+                      {project.client} ·{' '}
+                      {project.location ?? 'Location not set'}
+                    </small>
+                  </td>
+                  <td>
+                    {TYPE_LABELS[project.project_type ?? ''] ?? 'Not set'}
+                  </td>
+                  <td>
+                    <span className={styles.badge}>
+                      {project.status.replace('_', ' ')}
+                    </span>
+                  </td>
+                  <td>{project.total_sqm?.toLocaleString('en-PH') ?? '—'}</td>
+                  <td>
+                    {new Date(project.created_at).toLocaleDateString('en-PH')}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       ) : (
-        <>
-          <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Project</th>
-                  <th>Client</th>
-                  <th>Type</th>
-                  <th>Status</th>
-                  <th className="numeric">Area (sqm)</th>
-                  <th>Created</th>
-                </tr>
-              </thead>
-              <tbody>
-                {projectList.map((project) => (
-                  <tr key={project.id}>
-                    <td>
-                      <Link
-                        href={`/projects/${project.id}`}
-                        style={{
-                          color: 'var(--color-navy-700)',
-                          fontWeight: 500,
-                          textDecoration: 'none',
-                        }}
-                      >
-                        {project.name}
-                      </Link>
-                      {project.location && (
-                        <span style={{ color: 'var(--color-neutral-400)', fontSize: '0.75rem', marginLeft: '8px' }}>
-                          {project.location}
-                        </span>
-                      )}
-                    </td>
-                    <td>{project.client}</td>
-                    <td>{project.project_type ? (TYPE_LABELS[project.project_type] ?? project.project_type) : '—'}</td>
-                    <td>
-                      <span
-                        style={{
-                          color: STATUS_COLORS[project.status] ?? 'inherit',
-                          fontWeight: 500,
-                          fontSize: '0.8125rem',
-                          textTransform: 'capitalize',
-                        }}
-                      >
-                        {project.status.replace('_', ' ')}
-                      </span>
-                    </td>
-                    <td className="numeric">{project.total_sqm?.toLocaleString() ?? '—'}</td>
-                    <td style={{ color: 'var(--color-neutral-500)', fontSize: '0.8125rem' }}>
-                      {new Date(project.created_at).toLocaleDateString('en-PH', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                      })}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <nav
-            aria-label="Pagination"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginTop: '16px',
-              fontSize: '0.875rem',
-              color: 'var(--color-neutral-600)',
-            }}
-          >
-            {prevHref ? (
-              <Link
-                href={prevHref}
-                style={{
-                  padding: '6px 12px',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: '6px',
-                  textDecoration: 'none',
-                  color: 'var(--color-navy-700)',
-                  background: 'white',
-                }}
-              >
-                Prev
-              </Link>
-            ) : (
+        <div className={styles.cards}>
+          {projectList.map((project) => (
+            <article className={styles.card} key={project.id}>
               <span
-                aria-disabled="true"
-                style={{
-                  padding: '6px 12px',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: '6px',
-                  color: 'var(--color-neutral-400)',
-                  background: 'var(--color-neutral-50)',
-                }}
+                className={styles.badge}
+                style={{ color: STATUS_COLORS[project.status] }}
               >
-                Prev
+                {project.status.replace('_', ' ')}
               </span>
-            )}
-            <span>
-              Page {page} of {totalPages}
-            </span>
-            {nextHref ? (
-              <Link
-                href={nextHref}
-                style={{
-                  padding: '6px 12px',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: '6px',
-                  textDecoration: 'none',
-                  color: 'var(--color-navy-700)',
-                  background: 'white',
-                }}
-              >
-                Next
-              </Link>
-            ) : (
-              <span
-                aria-disabled="true"
-                style={{
-                  padding: '6px 12px',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: '6px',
-                  color: 'var(--color-neutral-400)',
-                  background: 'var(--color-neutral-50)',
-                }}
-              >
-                Next
-              </span>
-            )}
-          </nav>
-        </>
+              <h2>
+                <Link href={`/projects/${project.id}`}>{project.name}</Link>
+              </h2>
+              <p>{project.client}</p>
+              <dl>
+                <div>
+                  <dt>Project type</dt>
+                  <dd>
+                    {TYPE_LABELS[project.project_type ?? ''] ?? 'Not set'}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Area</dt>
+                  <dd>
+                    {project.total_sqm?.toLocaleString('en-PH') ?? '—'}
+                    {project.total_sqm != null ? ' sqm' : ''}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Location</dt>
+                  <dd>{project.location ?? 'Not set'}</dd>
+                </div>
+                <div>
+                  <dt>Created</dt>
+                  <dd>
+                    {new Date(project.created_at).toLocaleDateString('en-PH', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })}
+                  </dd>
+                </div>
+              </dl>
+              <div className={styles.actions}>
+                <Link
+                  className={styles.secondary}
+                  href={`/projects/${project.id}`}
+                >
+                  Open project →
+                </Link>
+              </div>
+            </article>
+          ))}
+        </div>
       )}
-    </div>
+      {totalPages > 1 && (
+        <nav className={styles.summary} aria-label="Pagination">
+          {prevHref ? (
+            <Link className={styles.secondary} href={prevHref}>
+              Previous
+            </Link>
+          ) : (
+            <span>First page</span>
+          )}
+          <span>
+            Page {page} of {totalPages}
+          </span>
+          {nextHref && (
+            <Link className={styles.secondary} href={nextHref}>
+              Next
+            </Link>
+          )}
+        </nav>
+      )}
+    </section>
   )
 }

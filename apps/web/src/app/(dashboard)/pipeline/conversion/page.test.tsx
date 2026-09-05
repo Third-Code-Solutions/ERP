@@ -1,112 +1,75 @@
-import { renderToStaticMarkup } from 'react-dom/server'
 import React from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { can } from '@third-code-erp/auth'
+import { ERP_ROLES } from '@third-code-erp/shared-types/authorization'
+import { beforeEach, expect, it, vi } from 'vitest'
 import {
-  ERP_ROLES,
-  type ErpRole,
-} from '@third-code-erp/shared-types/authorization'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+  OpportunityKanbanCard,
+  type KanbanCardData,
+} from '@/components/pipeline/opportunity-kanban-card'
 
-const mocks = vi.hoisted(() => ({
-  requireUserProfile: vi.fn(),
-  select: vi.fn(),
-  from: vi.fn(),
-  leftJoin: vi.fn(),
-  where: vi.fn(),
-  orderBy: vi.fn(),
-  stageAdvanceButton: vi.fn(
-    (props: { opportunityId: string; currentStage: string }) => (
-      <button
-        type="button"
-        data-opportunity-id={props.opportunityId}
-        data-current-stage={props.currentStage}
-      >
-        Advance stage
-      </button>
-    )
-  ),
-}))
-
-vi.mock('@third-code-erp/auth', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@third-code-erp/auth')>()),
-  requireUserProfile: mocks.requireUserProfile,
-}))
-
-vi.mock('@third-code-erp/database', () => ({
-  db: { select: mocks.select },
-}))
-
+const mocks = vi.hoisted(() => ({ redirect: vi.fn(), stage: vi.fn() }))
+vi.mock('next/navigation', () => ({ redirect: mocks.redirect }))
 vi.mock('@/components/pipeline/stage-advance-button', () => ({
-  StageAdvanceButton: mocks.stageAdvanceButton,
+  StageAdvanceButton: (props: {
+    opportunityId: string
+    currentStage: string
+  }) => {
+    mocks.stage(props)
+    return <button>Advance stage</button>
+  },
 }))
+import PipelineListPage from '../list/page'
 
-import ConversionPage from '../list/page'
-
-const TENANT_ID = '22222222-2222-4222-8222-222222222222'
-const OPPORTUNITY_ID = '33333333-3333-4333-8333-333333333333'
-const PROJECT_ID = '44444444-4444-4444-8444-444444444444'
-const MUTATION_ROLES = new Set<ErpRole>(['owner', 'admin', 'sales'])
-const OPPORTUNITY = {
-  id: OPPORTUNITY_ID,
+const card: KanbanCardData = {
+  id: 'opportunity-one',
   stage: 'negotiation',
+  tcv_cents: 2000000,
+  gp_cents: 500000,
+  weighted_tcv_cents: 1400000,
   probability: 70,
-  tcv_cents: 2_000_000,
-  gp_cents: 500_000,
-  weighted_tcv_cents: 1_400_000,
-  closing_date: '2026-09-30',
-  created_at: new Date('2026-09-03T00:00:00.000Z'),
+  updated_at: '2026-09-01',
+  created_at: '2026-09-01',
+  account_id: null,
+  account_name: 'Example client',
+  account_kyc_status: null,
+  opportunity_kyc_initialized: false,
+  opportunity_kyc_gate: null,
+  project_id: 'project-one',
   project_name: 'Tenant-safe fit-out',
-  project_client: 'Example client',
-  project_id: PROJECT_ID,
+  rep_id: null,
+  rep_email: null,
+  sla: null,
 }
-
-describe('ConversionPage stage mutation visibility', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.select.mockReturnValue({ from: mocks.from })
-    mocks.from.mockReturnValue({ leftJoin: mocks.leftJoin })
-    mocks.leftJoin.mockReturnValue({ where: mocks.where })
-    mocks.where.mockReturnValue({ orderBy: mocks.orderBy })
-    mocks.orderBy.mockResolvedValue([OPPORTUNITY])
-  })
-
-  it.each(ERP_ROLES)(
-    'renders the central stage-advance policy for %s',
-    async (role) => {
-      mocks.requireUserProfile.mockResolvedValue({
-        tenantId: TENANT_ID,
-        role,
+beforeEach(() => vi.clearAllMocks())
+it.each(ERP_ROLES)(
+  'retains central mutation visibility in unified list for %s',
+  (role) => {
+    const allowed = can(role, 'opportunity.advance_stage')
+    const html = renderToStaticMarkup(
+      <OpportunityKanbanCard
+        card={card}
+        canAdvance={allowed}
+        onDragStart={() => {}}
+        onDragEnd={() => {}}
+      />,
+    )
+    expect(html.includes('Advance stage')).toBe(allowed)
+    expect(html).toContain('Example client')
+    expect(html).toContain('Tenant-safe fit-out')
+    expect(mocks.stage).toHaveBeenCalledTimes(allowed ? 1 : 0)
+    if (allowed)
+      expect(mocks.stage).toHaveBeenCalledWith({
+        opportunityId: 'opportunity-one',
+        currentStage: 'negotiation',
       })
-
-      const markup = renderToStaticMarkup(await ConversionPage())
-      const canAdvance = MUTATION_ROLES.has(role)
-
-      expect(can(role, 'opportunity.advance_stage')).toBe(canAdvance)
-      expect(markup).toContain('Tenant-safe fit-out')
-      expect(markup).toContain('Example client')
-      expect(markup.includes('Advance stage')).toBe(canAdvance)
-      expect(markup.includes('>Actions</th>')).toBe(canAdvance)
-      expect(markup.includes('role="status"')).toBe(!canAdvance)
-      expect(
-        markup.includes('Read-only conversion pipeline access.')
-      ).toBe(!canAdvance)
-      expect(mocks.stageAdvanceButton).toHaveBeenCalledTimes(
-        canAdvance ? 1 : 0
-      )
-    }
-  )
-
-  it('keeps an allowed stage control wired to the rendered opportunity', async () => {
-    mocks.requireUserProfile.mockResolvedValue({
-      tenantId: TENANT_ID,
-      role: 'sales',
-    })
-
-    renderToStaticMarkup(await ConversionPage())
-
-    expect(mocks.stageAdvanceButton.mock.calls[0]?.[0]).toEqual({
-      opportunityId: OPPORTUNITY_ID,
-      currentStage: 'negotiation',
-    })
+  },
+)
+it('preserves filters when routing the old list to the unified workspace', async () => {
+  await PipelineListPage({
+    searchParams: Promise.resolve({ q: 'Example', stage: 'negotiation' }),
   })
+  expect(mocks.redirect).toHaveBeenCalledWith(
+    '/pipeline?q=Example&stage=negotiation&view=list',
+  )
 })

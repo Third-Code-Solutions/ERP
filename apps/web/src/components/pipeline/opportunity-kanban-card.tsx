@@ -1,6 +1,14 @@
 'use client'
 
-import { formatCentsCompact, type OpportunityStage } from '@third-code-erp/shared-types'
+import Link from 'next/link'
+import React from 'react'
+import styles from './pipeline-workspace.module.css'
+import { StageAdvanceButton } from './stage-advance-button'
+
+import {
+  formatCentsCompact,
+  type OpportunityStage,
+} from '@third-code-erp/shared-types'
 
 export interface KanbanCardData {
   id: string
@@ -9,6 +17,7 @@ export interface KanbanCardData {
   gp_cents: number
   weighted_tcv_cents: number
   probability: number
+  closing_date?: string | null
   updated_at: string
   created_at: string
   account_id: string | null
@@ -53,7 +62,9 @@ export function OpportunityKanbanCard({
   const title = card.account_name ?? card.project_name ?? 'Untitled'
   const sub = card.account_name && card.project_name ? card.project_name : null
   const days = daysSince(card.updated_at)
-  const slaColor = card.sla ? SLA_COLORS[card.sla] : 'var(--color-neutral-300, #d1d5db)'
+  const slaColor = card.sla
+    ? SLA_COLORS[card.sla]
+    : 'var(--color-neutral-300, #d1d5db)'
   const kycBlocked = card.opportunity_kyc_initialized
     ? Boolean(card.opportunity_kyc_gate)
     : Boolean(card.account_id) &&
@@ -63,6 +74,7 @@ export function OpportunityKanbanCard({
 
   return (
     <div
+      className={styles.card}
       draggable={canAdvance}
       onDragStart={(e) => {
         if (!canAdvance) return
@@ -85,7 +97,14 @@ export function OpportunityKanbanCard({
         userSelect: 'none',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '8px',
+        }}
+      >
         <div
           style={{
             fontSize: '0.8125rem',
@@ -154,7 +173,7 @@ export function OpportunityKanbanCard({
             color: 'var(--color-neutral-500)',
           }}
         >
-          {days}d in stage
+          Updated {days}d ago
         </span>
       </div>
 
@@ -198,6 +217,39 @@ export function OpportunityKanbanCard({
           </span>
         )}
       </div>
+      <dl className={styles.metrics}>
+        <div>
+          <dt>Probability</dt>
+          <dd>{card.probability}%</dd>
+        </div>
+        <div>
+          <dt>Gross profit</dt>
+          <dd>
+            {formatCentsCompact(card.gp_cents)} ·{' '}
+            {card.tcv_cents > 0
+              ? ((card.gp_cents / card.tcv_cents) * 100).toFixed(1)
+              : '0.0'}
+            %
+          </dd>
+        </div>
+        <div>
+          <dt>Weighted value</dt>
+          <dd>{formatCentsCompact(card.weighted_tcv_cents)}</dd>
+        </div>
+        <div>
+          <dt>Expected close</dt>
+          <dd>{card.closing_date ?? 'Not set'}</dd>
+        </div>
+      </dl>
+      <footer>
+        <Link href={`/crm/opportunities/${card.id}`}>Open opportunity →</Link>
+        {card.project_id && (
+          <Link href={`/projects/${card.project_id}`}>Project</Link>
+        )}
+      </footer>
+      {canAdvance && (
+        <StageAdvanceButton opportunityId={card.id} currentStage={card.stage} />
+      )}
     </div>
   )
 }

@@ -1,5 +1,6 @@
 'use client'
 
+import styles from './workspace.module.css'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState, useTransition } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
@@ -34,17 +35,9 @@ const SORT_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
   { value: 'status:desc', label: 'Status (Z→A)' },
 ]
 
-const inputStyle: React.CSSProperties = {
-  padding: '8px 12px',
-  border: '1px solid var(--color-border)',
-  borderRadius: '6px',
-  background: 'white',
-  fontSize: '0.875rem',
-  color: 'var(--color-neutral-900)',
-  minWidth: 0,
-}
-
-export function ProjectListControls({ basePath = '/projects' }: ProjectListControlsProps) {
+export function ProjectListControls({
+  basePath = '/projects',
+}: ProjectListControlsProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isPending, startTransition] = useTransition()
@@ -104,77 +97,86 @@ export function ProjectListControls({ basePath = '/projects' }: ProjectListContr
   return (
     <form
       onSubmit={handleSearchSubmit}
-      style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: '8px',
-        alignItems: 'center',
-        marginBottom: '16px',
-        opacity: isPending ? 0.7 : 1,
-        transition: 'opacity 150ms ease',
-      }}
+      className={styles.toolbar}
       aria-busy={isPending}
+      aria-label="Project filters"
     >
-      <input
-        type="search"
-        name="q"
-        value={qDraft}
-        onChange={(event) => setQDraft(event.target.value)}
-        placeholder="Search by name or client..."
-        aria-label="Search projects"
-        style={{ ...inputStyle, flex: '1 1 240px', minWidth: '200px' }}
-      />
-      <select
-        value={status}
-        onChange={handleStatusChange}
-        aria-label="Filter by status"
-        style={{ ...inputStyle, flex: '0 0 auto' }}
-      >
-        {STATUS_OPTIONS.map((opt) => (
-          <option key={opt.value} value={opt.value}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
-      <select
-        value={type}
-        onChange={handleTypeChange}
-        aria-label="Filter by project type"
-        style={{ ...inputStyle, flex: '0 0 auto' }}
-      >
-        {TYPE_OPTIONS.map((opt) => (
-          <option key={opt.value} value={opt.value}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
-      <select
-        value={sortValue}
-        onChange={handleSortChange}
-        aria-label="Sort projects"
-        style={{ ...inputStyle, flex: '0 0 auto' }}
-      >
-        {SORT_OPTIONS.map((opt) => (
-          <option key={opt.value} value={opt.value}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
+      <label>
+        Search projects
+        <input
+          type="search"
+          value={qDraft}
+          onChange={(event) => setQDraft(event.target.value)}
+          placeholder="Project name or client"
+        />
+      </label>
+      <label>
+        Status
+        <select value={status} onChange={handleStatusChange}>
+          {STATUS_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Project type
+        <select value={type} onChange={handleTypeChange}>
+          {TYPE_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Sort
+        <select value={sortValue} onChange={handleSortChange}>
+          {SORT_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button className={styles.primary} disabled={isPending}>
+        {isPending ? 'Updating…' : 'Search'}
+      </button>
       <button
-        type="submit"
-        style={{
-          padding: '8px 16px',
-          background: 'var(--color-navy-700)',
-          color: 'white',
-          border: 'none',
-          borderRadius: '6px',
-          fontSize: '0.875rem',
-          fontWeight: 500,
-          cursor: 'pointer',
+        className={styles.secondary}
+        type="button"
+        onClick={() => {
+          setQDraft('')
+          navigate({
+            q: undefined,
+            status: undefined,
+            type: undefined,
+            sort: undefined,
+            order: undefined,
+          })
         }}
       >
-        Search
+        Reset
       </button>
+      <div className={styles.actions} aria-label="Project view">
+        <button
+          type="button"
+          className={styles.secondary}
+          aria-pressed={searchParams.get('view') !== 'table'}
+          onClick={() => navigate({ view: undefined })}
+        >
+          Cards
+        </button>
+        <button
+          type="button"
+          className={styles.secondary}
+          aria-pressed={searchParams.get('view') === 'table'}
+          onClick={() => navigate({ view: 'table' })}
+        >
+          Table
+        </button>
+      </div>
     </form>
   )
 }
