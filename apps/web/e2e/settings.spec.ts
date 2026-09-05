@@ -147,8 +147,23 @@ test.describe('Settings', () => {
     expect(updateRequests).toBe(0)
   })
 
-  test('roadmap notice is shown at bottom of settings', async ({ page }) => {
+  test('settings exposes team management according to the account role', async ({ page }) => {
     await page.goto('/settings')
-    await expect(page.getByText(/phase 3/i)).toBeVisible()
+    const role = (await page.getByText('Role', { exact: true }).locator('..').locator('dd').textContent())?.trim()
+    const team = page.getByRole('region', { name: 'Team management' })
+    await expect(team).toBeVisible()
+    if (role === 'owner' || role === 'admin') {
+      await expect(team.getByRole('link', { name: 'Add team member' })).toHaveAttribute('href', '/admin/users/new')
+      await team.getByRole('link', { name: 'Manage team', exact: true }).click()
+      await expect(page).toHaveURL(/\/admin\/users$/)
+      await expect(page.getByRole('heading', { name: 'Users', exact: true })).toBeVisible()
+    } else if (role === 'viewer') {
+      await expect(team.getByRole('link', { name: 'Add team member' })).toHaveCount(0)
+      await team.getByRole('link', { name: 'View team' }).click()
+      await expect(page).toHaveURL(/\/admin\/users$/)
+    } else {
+      await expect(team.getByRole('link')).toHaveCount(0)
+      await expect(team).toContainText('Ask a workspace owner or admin')
+    }
   })
 })
