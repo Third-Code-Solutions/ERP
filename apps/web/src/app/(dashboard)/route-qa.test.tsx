@@ -86,7 +86,7 @@ describe('route QA workflow entry points', () => {
     const empty = renderToStaticMarkup(await ProcessPage())
     expect(empty).toContain('Health by business unit')
     expect(empty).not.toContain('role="alert"')
-    expect(empty).toContain('No workflow activity yet')
+    expect(empty).toContain('No open workflow tasks')
     expect(empty).toContain('href="/tasks"')
     expect(empty).toContain('href="/projects"')
     expect(empty).not.toContain('Process health summary')
@@ -109,7 +109,7 @@ describe('route QA workflow entry points', () => {
     expect(html).toMatch(/<dt[^>]*>Open tasks<\/dt><dd[^>]*>5<\/dd>/)
     expect(html).toContain('<th scope="row">Commercial</th>')
     expect(html).toContain('<th scope="row">Procurement</th>')
-    expect(html).not.toContain('No workflow activity yet')
+    expect(html).not.toContain('No open workflow tasks')
     expect(html).toContain(observeMode
       ? 'Automatic escalation is off.'
       : 'Automatic escalation is enabled for eligible internal deadlines.')

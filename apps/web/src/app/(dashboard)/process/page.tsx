@@ -101,10 +101,10 @@ export default async function ProcessHealthPage() {
 
             {health.byBu.length === 0 ? (
               <div className={styles.empty}>
-                <h3>No workflow activity yet</h3>
+                <h3>No open workflow tasks</h3>
                 <p>
-                  Business-unit metrics appear when workflow tasks and deadlines
-                  are tracked. Daily site tasks are listed separately in My Tasks.
+                  Metrics appear here for open workflow tasks and active deadlines.
+                  Daily site tasks are listed separately in My Tasks.
                 </p>
                 <div className={styles.actions}>
                   <Link className="button-primary" href="/tasks">
