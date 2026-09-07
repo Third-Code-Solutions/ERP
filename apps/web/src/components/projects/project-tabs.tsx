@@ -65,6 +65,7 @@ export function ProjectTabs({ projectId, access }: ProjectTabsProps) {
           <Link
             key={item.slug || 'overview'}
             href={href}
+            aria-current={active ? 'page' : undefined}
             className={`project-tabs-tab${active ? ' is-active' : ''}`}
           >
             {item.label}

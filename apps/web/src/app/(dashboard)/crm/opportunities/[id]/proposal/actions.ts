@@ -2,7 +2,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
-import { and, eq, desc, sql } from 'drizzle-orm'
+import { and, eq, desc, or, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import {
   requireUserProfile,
@@ -24,7 +24,7 @@ import {
   tenants,
   users,
 } from '@third-code-erp/database/schema'
-import { writeAuditLog } from '@/lib/audit'
+import { writeAuditLog, writeAuditLogInTransaction } from '@/lib/audit'
 import {
   changeRequestWritesUseCoreApi,
   createChangeRequestThroughCoreApi,
@@ -684,9 +684,8 @@ export async function addInspectionRfi(
   }
 }
 
-// US-008 — Upload a design file version. Creates the design_files row if
-// missing for the opp/file_type pair (so "Initial Layout v1, v2..." stays
-// grouped), then writes a new design_file_versions row.
+// US-008 — Append a version to an editable design, or create a design when
+// no existing design ID is supplied.
 const uploadDesignFileSchema = z.object({
   opportunity_id: z.string().uuid(),
   file_type: z.enum(DESIGN_FILE_TYPE_VALUES),
@@ -718,87 +717,102 @@ export async function uploadDesignFile(formData: FormData): Promise<{ error?: st
   const opp = await assertOpportunity(profile.tenantId, input.opportunity_id)
   if (!opp) return { error: 'Opportunity not found' }
 
-  // Confirm the document exists in this tenant.
+  // Match the document picker scope; a tenant match alone permits unrelated attachments.
   const [doc] = await db
     .select({ id: documents.id })
     .from(documents)
-    .where(and(eq(documents.id, input.document_id), eq(documents.tenant_id, profile.tenantId)))
+    .where(and(
+      eq(documents.id, input.document_id),
+      eq(documents.tenant_id, profile.tenantId),
+      or(
+        eq(documents.opportunity_id, input.opportunity_id),
+        opp.project_id ? eq(documents.project_id, opp.project_id) : undefined,
+      ),
+    ))
     .limit(1)
   if (!doc) return { error: 'Document not found' }
 
-  let designFileId = input.design_file_id ?? null
-  if (designFileId) {
-    const [existing] = await db
-      .select({ id: designFiles.id })
-      .from(designFiles)
+  const result = await db.transaction(async (tx) => {
+    let designFileId = input.design_file_id ?? null
+    if (designFileId) {
+      // Serialize version numbering and approval against this design row.
+      const [existing] = await tx
+        .select({ id: designFiles.id, is_client_approved: designFiles.is_client_approved })
+        .from(designFiles)
+        .where(
+          and(
+            eq(designFiles.id, designFileId),
+            eq(designFiles.tenant_id, profile.tenantId),
+            eq(designFiles.opportunity_id, input.opportunity_id)
+          )
+        )
+        .limit(1)
+        .for('update')
+      if (!existing) return { error: 'Design file not found' }
+      if (existing.is_client_approved) return { error: 'Client-approved designs are locked. Create a new design for revisions.' }
+    }
+
+    if (!designFileId) {
+      const [created] = await tx
+        .insert(designFiles)
+        .values({
+          tenant_id: profile.tenantId,
+          opportunity_id: input.opportunity_id,
+          file_type: input.file_type,
+          name: input.name,
+        })
+        .returning({ id: designFiles.id })
+      designFileId = created!.id
+
+      await writeAuditLogInTransaction(tx, {
+        tenantId: profile.tenantId,
+        actorId: profile.user.id,
+        entityType: 'design_file',
+        entityId: designFileId,
+        action: 'create',
+        diff: { file_type: input.file_type, name: input.name },
+      })
+    }
+
+    const [maxRow] = await tx
+      .select({ max: sql<number>`COALESCE(MAX(${designFileVersions.version}), 0)` })
+      .from(designFileVersions)
       .where(
         and(
-          eq(designFiles.id, designFileId),
-          eq(designFiles.tenant_id, profile.tenantId),
-          eq(designFiles.opportunity_id, input.opportunity_id)
+          eq(designFileVersions.design_file_id, designFileId),
+          eq(designFileVersions.tenant_id, profile.tenantId)
         )
       )
-      .limit(1)
-    if (!existing) designFileId = null
-  }
+    const nextVersion = (maxRow?.max ?? 0) + 1
 
-  if (!designFileId) {
-    const [created] = await db
-      .insert(designFiles)
+    const [version] = await tx
+      .insert(designFileVersions)
       .values({
         tenant_id: profile.tenantId,
-        opportunity_id: input.opportunity_id,
-        file_type: input.file_type,
-        name: input.name,
+        design_file_id: designFileId,
+        version: nextVersion,
+        document_id: input.document_id,
+        notes: input.notes || null,
+        uploaded_by: profile.user.id,
       })
-      .returning({ id: designFiles.id })
-    designFileId = created!.id
+      .returning({ id: designFileVersions.id })
 
-    await writeAuditLog({
+    await writeAuditLogInTransaction(tx, {
       tenantId: profile.tenantId,
       actorId: profile.user.id,
-      entityType: 'design_file',
-      entityId: designFileId,
+      entityType: 'design_file_version',
+      entityId: version!.id,
       action: 'create',
-      diff: { file_type: input.file_type, name: input.name },
+      diff: { design_file_id: designFileId, version: nextVersion, document_id: input.document_id },
     })
-  }
 
-  const [maxRow] = await db
-    .select({ max: sql<number>`COALESCE(MAX(${designFileVersions.version}), 0)` })
-    .from(designFileVersions)
-    .where(
-      and(
-        eq(designFileVersions.design_file_id, designFileId),
-        eq(designFileVersions.tenant_id, profile.tenantId)
-      )
-    )
-  const nextVersion = (maxRow?.max ?? 0) + 1
-
-  const [version] = await db
-    .insert(designFileVersions)
-    .values({
-      tenant_id: profile.tenantId,
-      design_file_id: designFileId,
-      version: nextVersion,
-      document_id: input.document_id,
-      notes: input.notes || null,
-      uploaded_by: profile.user.id,
-    })
-    .returning({ id: designFileVersions.id })
-
-  await writeAuditLog({
-    tenantId: profile.tenantId,
-    actorId: profile.user.id,
-    entityType: 'design_file_version',
-    entityId: version!.id,
-    action: 'create',
-    diff: { design_file_id: designFileId, version: nextVersion, document_id: input.document_id },
+    return { design_file_id: designFileId, version: nextVersion }
   })
+  if (result.error) return result
 
   revalidatePath(`/crm/opportunities/${input.opportunity_id}/proposal/design`)
   revalidatePath(`/crm/opportunities/${input.opportunity_id}/proposal`)
-  return { design_file_id: designFileId, version: nextVersion }
+  return result
 }
 
 const designIdSchema = z.object({

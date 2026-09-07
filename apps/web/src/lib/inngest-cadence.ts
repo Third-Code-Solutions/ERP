@@ -4,7 +4,7 @@
  * Two surfaces:
  *   1. `generateDailyCadenceTasks` — cron at 23:00 UTC, which is 07:00 next
  *      day Manila time. For every tenant, generate the day's tasks. We
- *      target "tomorrow" relative to UTC so that by the time site teams
+ *      target the current Manila calendar date so that by the time site teams
  *      log in at 07:00 Manila the tasks for that working day are queued.
  *   2. `generateOnDemand` — event-driven so an admin UI (or another job)
  *      can force a generation for `{ tenantId, date }`.
@@ -17,7 +17,7 @@
 import { db } from '@third-code-erp/database'
 import { tenants } from '@third-code-erp/database/schema'
 import { inngest } from './inngest'
-import { generateTasksForDate } from './operations/cadence-engine'
+import { generateTasksForDate, manilaCalendarDate } from './operations/cadence-engine'
 
 type Step = {
   run: <T>(name: string, fn: () => Promise<T>) => Promise<T>
@@ -37,25 +37,6 @@ interface GenerationSummary {
   projectsConsidered: number
 }
 
-/**
- * Resolve the Manila calendar date for "tomorrow relative to now".
- * Using Manila boundaries avoids generating for the wrong calendar day when
- * the cron fires near midnight UTC.
- */
-function manilaTomorrow(now: Date = new Date()): Date {
-  // Shift "now" into Manila local, then add a day.
-  const manilaMs = now.getTime() + 8 * 3600 * 1000
-  const manilaNow = new Date(manilaMs)
-  // We only care about the Y/M/D — return a Date whose UTC fields match
-  // tomorrow's Manila calendar date.
-  const tomorrow = new Date(Date.UTC(
-    manilaNow.getUTCFullYear(),
-    manilaNow.getUTCMonth(),
-    manilaNow.getUTCDate() + 1,
-  ))
-  return tomorrow
-}
-
 export const generateDailyCadenceTasks = inngest.createFunction(
   {
     id: 'generate-daily-cadence-tasks',
@@ -64,7 +45,7 @@ export const generateDailyCadenceTasks = inngest.createFunction(
     triggers: [{ cron: '0 23 * * *' }],
   },
   async ({ step }: { step: Step }) => {
-    const targetDate = manilaTomorrow()
+    const targetDate = manilaCalendarDate(new Date())
 
     const tenantList = await step.run('load-tenants', async () => {
       return db.select({ id: tenants.id }).from(tenants)
@@ -107,7 +88,7 @@ export const generateOnDemand = inngest.createFunction(
       return { skipped: true, reason: 'tenantId missing' }
     }
 
-    const targetDate = date ? new Date(date) : manilaTomorrow()
+    const targetDate = date ? new Date(date) : manilaCalendarDate(new Date())
     if (Number.isNaN(targetDate.getTime())) {
       return { skipped: true, reason: 'invalid date' }
     }

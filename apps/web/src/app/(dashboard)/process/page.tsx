@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { ProcessRetry } from './retry'
 import { requireUserProfile } from '@third-code-erp/auth'
 import {
   getProcessHealthThroughCoreApi,
@@ -47,8 +48,7 @@ export default async function ProcessHealthPage() {
         <p className="page-eyebrow">Operations</p>
         <h1 className="page-title">Process Health</h1>
         <p className="page-subtitle">
-          BU-level SLA visibility. External clocks stay observable and never
-          escalate against an ABI BU.
+          Review overdue work and upcoming deadlines by business unit. External delays are tracked separately from your team’s deadlines.
         </p>
       </div>
 
@@ -56,12 +56,12 @@ export default async function ProcessHealthPage() {
         <section className="card" aria-labelledby="process-health-unavailable">
           <div className="card-header">
             <h2 id="process-health-unavailable" className="card-title">
-              Verified health data unavailable
+              Process health could not be loaded
             </h2>
           </div>
           <div className="card-empty" role="alert">
-            {result.error ?? 'Core API returned no process-health data.'} No
-            synthetic process metrics are shown.
+            <p>We could not retrieve the latest workflow deadlines. Try again; if the problem continues, contact your workspace administrator.</p>
+            <ProcessRetry />
           </div>
         </section>
       ) : (

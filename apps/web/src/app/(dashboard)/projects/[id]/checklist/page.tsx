@@ -14,18 +14,6 @@ import { ChecklistItemRow } from '@/components/checklist/checklist-item-row'
 
 export const metadata: Metadata = { title: 'Pre-Con Checklist' }
 
-const TABS = [
-  { label: 'Overview', href: '' },
-  { label: 'Scope', href: '/scope' },
-  { label: 'BOM', href: '/bom' },
-  { label: 'Documents', href: '/documents' },
-  { label: 'Billing', href: '/billing' },
-  { label: 'Checklist', href: '/checklist' },
-  { label: 'Permits', href: '/permits' },
-  { label: 'Comments', href: '/comments' },
-  { label: 'Audit', href: '/audit' },
-]
-
 type ChecklistItemStatus = 'not_started' | 'in_progress' | 'blocked' | 'done'
 
 const STATUS_GROUPS: Array<{ key: ChecklistItemStatus; label: string }> = [
@@ -114,41 +102,6 @@ export default async function ProjectChecklistPage({
         </Link>
         <span style={{ color: 'var(--color-neutral-300)' }}>/</span>
         <span style={{ fontSize: '0.875rem', color: 'var(--color-neutral-600)' }}>Pre-Con Checklist</span>
-      </div>
-
-      {/* Tab nav */}
-      <div
-        style={{
-          display: 'flex',
-          gap: '2px',
-          marginBottom: '24px',
-          borderBottom: '1px solid var(--color-border)',
-          marginTop: '16px',
-          overflowX: 'auto',
-        }}
-      >
-        {TABS.map(({ label, href }) => {
-          const fullHref = baseHref + href
-          const isActive = href === '/checklist'
-          return (
-            <Link
-              key={label}
-              href={fullHref}
-              style={{
-                padding: '8px 16px',
-                fontSize: '0.875rem',
-                fontWeight: isActive ? 600 : 400,
-                color: isActive ? 'var(--color-navy-700)' : 'var(--color-neutral-500)',
-                textDecoration: 'none',
-                borderBottom: isActive ? '2px solid var(--color-navy-700)' : '2px solid transparent',
-                marginBottom: '-1px',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {label}
-            </Link>
-          )
-        })}
       </div>
 
       {/* Header */}

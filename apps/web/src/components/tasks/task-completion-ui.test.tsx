@@ -25,6 +25,26 @@ const INITIAL: CompletionUiState = {
 }
 
 describe('daily-task completion experience', () => {
+  it('shows due and completion dates in Manila time across the UTC day boundary', () => {
+    const markup = renderToStaticMarkup(
+      <table><tbody><TaskRow readOnly task={{
+        id: '11111111-1111-4111-8111-111111111111',
+        project_id: '22222222-2222-4222-8222-222222222222',
+        project_name: 'Site A',
+        assignee_id: null,
+        title: 'Toolbox meeting log',
+        description: null,
+        role: 'safety',
+        due_date: '2026-09-06T23:00:00.000Z',
+        completed_at: '2026-09-06T23:30:00.000Z',
+        status: 'done',
+      }} /></tbody></table>
+    )
+    expect(markup).toContain('Sep 7, 7:00 AM')
+    expect(markup).toContain('Done Sep 7')
+    expect(markup).not.toContain('Sep 6')
+  })
+
   it('renders a named, labelled, bounded required toolbox form and recoverable alert', () => {
     const markup = renderToStaticMarkup(
       <CompleteTaskForm

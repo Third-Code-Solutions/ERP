@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { desc, eq } from 'drizzle-orm'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { punchlistItems, projects } from '@third-code-erp/database/schema'
 import type { Metadata } from 'next'
@@ -56,6 +56,8 @@ export default async function PunchlistPage() {
           Defects tracked to closure with photos and PE sign-off. {pct}% closed across {rows.length} items.
         </p>
       </div>
+
+      {can(profile.role, 'punchlist.manage') && <p style={{ marginBottom: 20 }}><Link className="button-primary" href="/punchlist/new">New punchlist item</Link></p>}
 
       <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
         <Kpi label="Open" value={openCount.toString()} />

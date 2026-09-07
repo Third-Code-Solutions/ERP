@@ -12,18 +12,6 @@ import { MobilizationReadinessPanel } from './mobilization-readiness-panel'
 
 export const metadata: Metadata = { title: 'Permits' }
 
-const TABS = [
-  { label: 'Overview', href: '' },
-  { label: 'Scope', href: '/scope' },
-  { label: 'BOM', href: '/bom' },
-  { label: 'Documents', href: '/documents' },
-  { label: 'Billing', href: '/billing' },
-  { label: 'Checklist', href: '/checklist' },
-  { label: 'Permits', href: '/permits' },
-  { label: 'Comments', href: '/comments' },
-  { label: 'Audit', href: '/audit' },
-]
-
 const TYPE_LABEL: Record<string, string> = {
   building_admin_vetting: 'Building Admin Vetting',
   lgu_building_permit: 'LGU Building Permit',
@@ -138,41 +126,6 @@ export default async function ProjectPermitsPage({
         </Link>
         <span style={{ color: 'var(--color-neutral-300)' }}>/</span>
         <span style={{ fontSize: '0.875rem', color: 'var(--color-neutral-600)' }}>Permits</span>
-      </div>
-
-      {/* Tabs */}
-      <div
-        style={{
-          display: 'flex',
-          gap: '2px',
-          marginBottom: '24px',
-          borderBottom: '1px solid var(--color-border)',
-          marginTop: '16px',
-          overflowX: 'auto',
-        }}
-      >
-        {TABS.map(({ label, href }) => {
-          const fullHref = baseHref + href
-          const isActive = href === '/permits'
-          return (
-            <Link
-              key={label}
-              href={fullHref}
-              style={{
-                padding: '8px 16px',
-                fontSize: '0.875rem',
-                fontWeight: isActive ? 600 : 400,
-                color: isActive ? 'var(--color-navy-700)' : 'var(--color-neutral-500)',
-                textDecoration: 'none',
-                borderBottom: isActive ? '2px solid var(--color-navy-700)' : '2px solid transparent',
-                marginBottom: '-1px',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {label}
-            </Link>
-          )
-        })}
       </div>
 
       {/* Header + create */}

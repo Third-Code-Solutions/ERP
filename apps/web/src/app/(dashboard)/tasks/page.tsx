@@ -6,6 +6,8 @@ import { db } from '@third-code-erp/database'
 import { dailyTasks, projects } from '@third-code-erp/database/schema'
 import { TaskRow, type TaskRowData } from '@/components/tasks/task-row'
 import { manilaBoundaries } from '@/lib/operations/cadence-engine'
+import { GenerationControl } from './generation-control'
+import styles from '../workspace-qa.module.css'
 
 export const metadata: Metadata = { title: 'My Tasks' }
 
@@ -15,7 +17,7 @@ const TAB_ORDER: TabKey[] = ['today', 'overdue', 'week', 'completed']
 const TAB_LABELS: Record<TabKey, string> = {
   today: 'Today',
   overdue: 'Overdue',
-  week: 'This week',
+  week: 'Next 7 days',
   completed: 'Completed',
 }
 
@@ -177,7 +179,7 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
         <p className="page-eyebrow">Construction</p>
         <h1 className="page-title">My Tasks</h1>
         <p className="page-subtitle">
-          Daily cadence assigned to {profile.fullName || profile.email}.
+          Project tasks assigned to {profile.fullName || profile.email}. Dates follow Manila time.
           {overdueCount > 0 && (
             <>
               {' '}
@@ -193,14 +195,11 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
         </p>
       </div>
 
+      {(profile.role === 'admin' || profile.role === 'owner') && <GenerationControl />}
+
       <nav
         aria-label="Task tabs"
-        style={{
-          display: 'flex',
-          gap: 4,
-          borderBottom: '1px solid var(--color-border)',
-          marginBottom: 16,
-        }}
+        className={styles.tabs}
       >
         {TAB_ORDER.map((key) => {
           const active = key === tab
@@ -209,6 +208,7 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
             <Link
               key={key}
               href={key === 'today' ? '/tasks' : `/tasks?tab=${key}`}
+              aria-current={active ? 'page' : undefined}
               style={{
                 padding: '8px 14px',
                 fontSize: '0.875rem',
@@ -244,11 +244,10 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
 
       {rows.length === 0 ? (
         <div className="card">
-          <div className="card-empty">
-            {tab === 'today' && 'No tasks today. Generate them from /admin (admin only).'}
-            {tab === 'overdue' && 'Nothing overdue. Nice work.'}
-            {tab === 'week' && 'No upcoming tasks this week.'}
-            {tab === 'completed' && 'No completed tasks yet.'}
+          <div className={styles.empty}>
+            <h2>{tab === 'today' ? 'No tasks assigned for today' : tab === 'overdue' ? 'No overdue tasks' : tab === 'week' ? 'No tasks in the next 7 days' : 'No completed tasks yet'}</h2>
+            <p>This view shows only work assigned to you. Open a project to review its team and current work.</p>
+            <Link href="/projects" className="button-secondary">View projects</Link>
           </div>
         </div>
       ) : (
@@ -258,7 +257,7 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
               <h2 className="card-title">{projectName}</h2>
               <span className="muted">{tasks.length} task{tasks.length === 1 ? '' : 's'}</span>
             </div>
-            <table className="data-table">
+            <div className={styles.table}><table className="data-table">
               <thead>
                 <tr>
                   <th>Task</th>
@@ -278,7 +277,7 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
                   />
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </div>
         ))
       )}

@@ -7,7 +7,7 @@
  * report document id from the project's document list.
  */
 
-import { useState, useTransition } from 'react'
+import React, { useId, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   acknowledgeTicket,
@@ -15,6 +15,10 @@ import {
   markTicketInProgress,
   closeTicket,
 } from '@/app/(dashboard)/warranty/actions'
+import {
+  fromManilaDateTimeInput,
+  toManilaDateTimeInput,
+} from './warranty-schedule-time'
 
 interface DocumentChoice {
   id: string
@@ -40,12 +44,20 @@ export function TicketStatusActions({
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
-  const [scheduleDate, setScheduleDate] = useState<string>(
-    scheduledAt ? scheduledAt.slice(0, 16) : ''
+  const [scheduleDate, setScheduleDate] = useState<string>(() =>
+    toManilaDateTimeInput(scheduledAt),
   )
   const [reportDocId, setReportDocId] = useState<string>(serviceReportDocumentId ?? '')
   const [showScheduleForm, setShowScheduleForm] = useState(false)
   const [showCloseForm, setShowCloseForm] = useState(false)
+  const scheduleDateId = useId()
+  const serviceReportId = useId()
+
+  function openScheduleForm() {
+    setError(null)
+    setScheduleDate(toManilaDateTimeInput(scheduledAt))
+    setShowScheduleForm(true)
+  }
 
   function run(fn: () => Promise<{ error?: string; ok?: true }>) {
     setError(null)
@@ -80,7 +92,7 @@ export function TicketStatusActions({
             <button
               type="button"
               className="ticket-action"
-              onClick={() => setShowScheduleForm(true)}
+              onClick={openScheduleForm}
               disabled={isPending}
             >
               {status === 'scheduled' ? 'Reschedule repair' : 'Schedule repair'}
@@ -89,10 +101,14 @@ export function TicketStatusActions({
 
         {showScheduleForm && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 12, color: 'var(--color-neutral-600)' }}>
-              Proposed date &amp; time
+            <label
+              htmlFor={scheduleDateId}
+              style={{ fontSize: 12, color: 'var(--color-neutral-600)' }}
+            >
+              Proposed date &amp; time (Manila)
             </label>
             <input
+              id={scheduleDateId}
               type="datetime-local"
               value={scheduleDate}
               onChange={(e) => setScheduleDate(e.target.value)}
@@ -108,7 +124,7 @@ export function TicketStatusActions({
                     return
                   }
                   run(() =>
-                    scheduleTicketRepair(ticketId, new Date(scheduleDate).toISOString())
+                    scheduleTicketRepair(ticketId, fromManilaDateTimeInput(scheduleDate))
                   )
                   setShowScheduleForm(false)
                 }}
@@ -153,10 +169,14 @@ export function TicketStatusActions({
 
         {showCloseForm && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 12, color: 'var(--color-neutral-600)' }}>
+            <label
+              htmlFor={serviceReportId}
+              style={{ fontSize: 12, color: 'var(--color-neutral-600)' }}
+            >
               Service report document *
             </label>
             <select
+              id={serviceReportId}
               value={reportDocId}
               onChange={(e) => setReportDocId(e.target.value)}
               style={inputStyle}

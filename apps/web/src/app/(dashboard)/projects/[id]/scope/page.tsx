@@ -12,16 +12,6 @@ import { CadDropZone } from '@/components/cad/cad-dropzone'
 
 export const metadata: Metadata = { title: 'Scope' }
 
-const TABS = [
-  { label: 'Overview', href: '' },
-  { label: 'Scope', href: '/scope' },
-  { label: 'BOM', href: '/bom' },
-  { label: 'Documents', href: '/documents' },
-  { label: 'Billing', href: '/billing' },
-  { label: 'Comments', href: '/comments' },
-  { label: 'Audit', href: '/audit' },
-]
-
 const UNIT_LABELS: Record<string, string> = {
   unit: 'unit',
   sqm: 'm²',
@@ -125,31 +115,6 @@ export default async function ProjectScopePage({ params }: { params: Promise<{ i
         </Link>
         <span style={{ color: 'var(--color-neutral-300)' }}>/</span>
         <span style={{ fontSize: '0.875rem', color: 'var(--color-neutral-600)' }}>Scope</span>
-      </div>
-
-      {/* Tab nav */}
-      <div style={{ display: 'flex', gap: '2px', marginBottom: '24px', borderBottom: '1px solid var(--color-border)', marginTop: '16px' }}>
-        {TABS.map(({ label, href }) => {
-          const fullHref = baseHref + href
-          const isActive = href === '/scope'
-          return (
-            <Link
-              key={label}
-              href={fullHref}
-              style={{
-                padding: '8px 16px',
-                fontSize: '0.875rem',
-                fontWeight: isActive ? 600 : 400,
-                color: isActive ? 'var(--color-navy-700)' : 'var(--color-neutral-500)',
-                textDecoration: 'none',
-                borderBottom: isActive ? '2px solid var(--color-navy-700)' : '2px solid transparent',
-                marginBottom: '-1px',
-              }}
-            >
-              {label}
-            </Link>
-          )
-        })}
       </div>
 
       {/* Summary bar */}

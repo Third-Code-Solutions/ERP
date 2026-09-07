@@ -63,6 +63,12 @@ export const DEFAULT_CADENCE_TEMPLATES: CadenceTemplate[] = [
 // Manila is UTC+8 with no DST.
 const MANILA_OFFSET_HOURS = 8
 
+/** UTC fields encode the Manila calendar date, for date-only generation inputs. */
+export function manilaCalendarDate(instant: Date): Date {
+  const local = new Date(instant.getTime() + MANILA_OFFSET_HOURS * 3600 * 1000)
+  return new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()))
+}
+
 /**
  * Convert a "local Manila day" into the UTC instant for the given hour.
  * The `date` arg is treated as a Manila calendar date (year/month/day),
@@ -184,11 +190,11 @@ export async function generateTasksForDate(
   return { created, skipped, projectsConsidered: activeProjects.length }
 }
 
-// Re-exported so callers can compute Manila day boundaries identically.
+// Read-side callers supply instants; generation above accepts a calendar date.
 export const manilaBoundaries = {
-  startOfDay: (date: Date) => manilaDayAt(date, 0),
-  endOfDay: manilaEndOfDay,
-  atHour: manilaDayAt,
+  startOfDay: (date: Date) => manilaDayAt(manilaCalendarDate(date), 0),
+  endOfDay: (date: Date) => manilaEndOfDay(manilaCalendarDate(date)),
+  atHour: (date: Date, hour: number) => manilaDayAt(manilaCalendarDate(date), hour),
 }
 
 // Suppress unused warning — `sql` is reserved for a future ON CONFLICT path

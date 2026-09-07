@@ -6,6 +6,7 @@
 // status workflow on the detail page.
 
 import { useState, useTransition } from 'react'
+import Link from 'next/link'
 import { scheduleDelivery } from '@/app/(dashboard)/procurement/deliveries/actions'
 
 interface PoOption {
@@ -71,9 +72,9 @@ export function ScheduleDeliveryForm({
       }}
     >
       <div>
-        <label style={labelStyle}>Purchase order</label>
+        <label htmlFor="delivery-purchase_order_id" style={labelStyle}>Purchase order</label>
         <select
-          name="purchase_order_id"
+          id="delivery-purchase_order_id" name="purchase_order_id"
           required
           defaultValue={defaultPurchaseOrderId ?? ''}
           style={inputStyle}
@@ -94,15 +95,15 @@ export function ScheduleDeliveryForm({
             }}
           >
             No issued POs available. Approve and issue a PO before scheduling its
-            delivery.
+            delivery. <Link href="/purchase-orders">Open purchase orders</Link>
           </p>
         ) : null}
       </div>
 
       <div>
-        <label style={labelStyle}>Scheduled date</label>
+        <label htmlFor="delivery-scheduled_date" style={labelStyle}>Scheduled date</label>
         <input
-          name="scheduled_date"
+          id="delivery-scheduled_date" name="scheduled_date"
           type="datetime-local"
           required
           style={inputStyle}
@@ -110,9 +111,9 @@ export function ScheduleDeliveryForm({
       </div>
 
       <div>
-        <label style={labelStyle}>Site address</label>
+        <label htmlFor="delivery-site_address" style={labelStyle}>Site address</label>
         <textarea
-          name="site_address"
+          id="delivery-site_address" name="site_address"
           required
           rows={2}
           placeholder="Building / floor / room / landmarks"
@@ -120,15 +121,15 @@ export function ScheduleDeliveryForm({
         />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: 16 }}>
         <div>
-          <label style={labelStyle}>Site contact name</label>
-          <input name="site_contact_name" type="text" required style={inputStyle} />
+          <label htmlFor="delivery-site_contact_name" style={labelStyle}>Site contact name</label>
+          <input id="delivery-site_contact_name" name="site_contact_name" type="text" required style={inputStyle} />
         </div>
         <div>
-          <label style={labelStyle}>Site contact phone</label>
+          <label htmlFor="delivery-site_contact_phone" style={labelStyle}>Site contact phone</label>
           <input
-            name="site_contact_phone"
+            id="delivery-site_contact_phone" name="site_contact_phone"
             type="tel"
             required
             placeholder="+63 9xx xxx xxxx"
@@ -138,8 +139,9 @@ export function ScheduleDeliveryForm({
       </div>
 
       <div>
-        <label style={labelStyle}>Site preparation notes</label>
+        <label htmlFor="delivery-site_preparation_notes" style={labelStyle}>Site preparation notes</label>
         <textarea
+          id="delivery-site_preparation_notes"
           name="site_preparation_notes"
           rows={3}
           placeholder="e.g. Clear 6F freight elevator from 8AM–10AM. Coordinate with building admin."

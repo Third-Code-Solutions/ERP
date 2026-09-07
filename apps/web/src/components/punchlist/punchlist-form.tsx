@@ -84,9 +84,9 @@ export function PunchlistForm({ projects, users, defaultProjectId }: PunchlistFo
       }}
     >
       <div>
-        <label style={labelStyle}>Project</label>
+        <label htmlFor="punchlist-project_id" style={labelStyle}>Project</label>
         <select
-          name="project_id"
+          id="punchlist-project_id" name="project_id"
           required
           defaultValue={defaultProjectId ?? ''}
           style={inputStyle}
@@ -101,9 +101,9 @@ export function PunchlistForm({ projects, users, defaultProjectId }: PunchlistFo
       </div>
 
       <div>
-        <label style={labelStyle}>Description</label>
+        <label htmlFor="punchlist-description" style={labelStyle}>Description</label>
         <textarea
-          name="description"
+          id="punchlist-description" name="description"
           required
           minLength={3}
           rows={3}
@@ -112,20 +112,20 @@ export function PunchlistForm({ projects, users, defaultProjectId }: PunchlistFo
         />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 16 }}>
         <div>
-          <label style={labelStyle}>Location</label>
+          <label htmlFor="punchlist-location" style={labelStyle}>Location</label>
           <input
-            name="location"
+            id="punchlist-location" name="location"
             type="text"
             placeholder="3F · Pantry"
             style={inputStyle}
           />
         </div>
         <div>
-          <label style={labelStyle}>Trade</label>
+          <label htmlFor="punchlist-trade" style={labelStyle}>Trade</label>
           <input
-            name="trade"
+            id="punchlist-trade" name="trade"
             type="text"
             placeholder="HVAC / Electrical / Plumbing"
             style={inputStyle}
@@ -133,10 +133,10 @@ export function PunchlistForm({ projects, users, defaultProjectId }: PunchlistFo
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 16 }}>
         <div>
-          <label style={labelStyle}>Priority</label>
-          <select name="priority" defaultValue="medium" style={inputStyle}>
+          <label htmlFor="punchlist-priority" style={labelStyle}>Priority</label>
+          <select id="punchlist-priority" name="priority" defaultValue="medium" style={inputStyle}>
             {PRIORITY_OPTIONS.map((p) => (
               <option key={p.value} value={p.value}>
                 {p.label}
@@ -145,15 +145,15 @@ export function PunchlistForm({ projects, users, defaultProjectId }: PunchlistFo
           </select>
         </div>
         <div>
-          <label style={labelStyle}>Due date</label>
-          <input name="due_date" type="date" style={inputStyle} />
+          <label htmlFor="punchlist-due_date" style={labelStyle}>Due date</label>
+          <input id="punchlist-due_date" name="due_date" type="date" style={inputStyle} />
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 16 }}>
         <div>
-          <label style={labelStyle}>Assign to teammate</label>
-          <select name="assigned_to_user_id" defaultValue="" style={inputStyle}>
+          <label htmlFor="punchlist-assigned_to_user_id" style={labelStyle}>Assign to teammate</label>
+          <select id="punchlist-assigned_to_user_id" name="assigned_to_user_id" defaultValue="" style={inputStyle}>
             <option value="">— No internal assignee —</option>
             {users.map((u) => (
               <option key={u.id} value={u.id}>
@@ -163,9 +163,9 @@ export function PunchlistForm({ projects, users, defaultProjectId }: PunchlistFo
           </select>
         </div>
         <div>
-          <label style={labelStyle}>Or external party</label>
+          <label htmlFor="punchlist-assigned_to_text" style={labelStyle}>Or external party</label>
           <input
-            name="assigned_to_text"
+            id="punchlist-assigned_to_text" name="assigned_to_text"
             type="text"
             placeholder="e.g. Aircon Subcon"
             style={inputStyle}

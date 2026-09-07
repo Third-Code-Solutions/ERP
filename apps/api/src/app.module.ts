@@ -28,6 +28,7 @@ import { SearchModule } from './search/search.module'
 import { NotificationsModule } from './notifications/notifications.module'
 import { TodayModule } from './today/today.module'
 import { DailyTasksModule } from './daily-tasks/daily-tasks.module'
+import { ProcessModule } from './process/process.module'
 
 @Module({
   imports: [
@@ -68,6 +69,7 @@ import { DailyTasksModule } from './daily-tasks/daily-tasks.module'
     NotificationsModule,
     TodayModule,
     DailyTasksModule,
+    ProcessModule,
   ],
   controllers: [HealthController],
   providers: [

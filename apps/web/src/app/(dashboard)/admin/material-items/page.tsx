@@ -1,3 +1,4 @@
+import styles from '../../workspace-qa.module.css'
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { desc, eq } from 'drizzle-orm'
@@ -45,14 +46,7 @@ export default async function MaterialItemsPage() {
         </div>
       </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: canManage ? 'minmax(0, 1fr) 360px' : '1fr',
-          gap: 24,
-          alignItems: 'start',
-        }}
-      >
+      <div className={canManage ? styles.split : styles.stack}>
         <div className="card">
           <div className="card-header">
             <h2 className="card-title">Catalog</h2>
@@ -60,7 +54,7 @@ export default async function MaterialItemsPage() {
           {rows.length === 0 ? (
             <div className="card-empty">
               {canManage
-                ? 'No material items yet. Add one on the right to begin building BOMs.'
+                ? 'No material items yet. Use the Add item form to begin building your catalog.'
                 : 'No material items yet.'}
             </div>
           ) : (

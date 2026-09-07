@@ -86,8 +86,8 @@ export default async function WarrantyPortalPage({ params, searchParams }: PageP
         <p className="portal-success-eyebrow">Ticket submitted</p>
         <h2 style={{ margin: '0 0 8px', fontSize: 24 }}>Thanks — we&apos;ve received it.</h2>
         <p style={{ margin: 0, color: '#525866' }}>
-          Your reference number is <strong>{sp.ticket}</strong>. A confirmation
-          email is on its way; our CX team will respond within 24 hours.
+          Your reference number is <strong>{sp.ticket}</strong>. Keep this reference
+          when contacting the service team about your request.
         </p>
         <a href={`/portal/warranty/${token}`} className="portal-link">
           Submit another ticket →

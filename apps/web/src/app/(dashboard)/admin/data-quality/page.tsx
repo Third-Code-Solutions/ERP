@@ -37,7 +37,7 @@ export default async function DataQualityPage() {
   const reviewRequired = groups.length > 0
 
   return (
-    <main className={styles.page}>
+    <div className={styles.page}>
       <header className={styles.header}>
         <div>
           <p className={styles.eyebrow}>Release readiness</p>
@@ -140,6 +140,6 @@ export default async function DataQualityPage() {
         <span>Tenant: {profile.email}</span>
         <span>Generated from the current database snapshot · no records changed</span>
       </footer>
-    </main>
+    </div>
   )
 }

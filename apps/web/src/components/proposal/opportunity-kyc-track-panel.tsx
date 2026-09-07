@@ -59,10 +59,10 @@ export function OpportunityKycTrackPanel({
     <section className="card" aria-labelledby="kyc-track-heading">
       <div className="card-header">
         <div>
-          <p className="page-eyebrow">WO-11 · Dual-track gate</p>
+          <p className="page-eyebrow">Proposal approval</p>
           <h2 className="card-title" id="kyc-track-heading">Finance review</h2>
         </div>
-        <span className="track-count">{tracks.filter((track) => track.status === 'approved').length}/{tracks.length} clear</span>
+        <span className="track-count">{tracks.length === 0 ? 'Not started' : `${tracks.filter((track) => track.status === 'approved').length}/${tracks.length} approved`}</span>
       </div>
       {tracks.length === 0 ? (
         <div className="card-empty">Submit a PPRF to open Financial Evaluation and Credit Investigation.</div>

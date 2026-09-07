@@ -8,7 +8,7 @@
  * email to the client.
  */
 
-import { useState, useTransition } from 'react'
+import React, { useState, useTransition } from 'react'
 import { mintWarrantyPortalToken } from '@/app/(dashboard)/warranty/actions'
 
 interface Props {
