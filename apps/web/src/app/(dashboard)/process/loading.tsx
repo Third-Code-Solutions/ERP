@@ -2,11 +2,16 @@ import styles from './process.module.css'
 
 export default function Loading() {
   return (
-    <div>
-      <div className="page-header">
-        <p className="page-eyebrow">Operations</p>
-        <h1 className="page-title">Process Health</h1>
-      </div>
+    <div className={styles.page}>
+      <header className={styles.pageHeader}>
+        <div>
+          <p className={styles.eyebrow}>Operations</p>
+          <h1 className={styles.pageTitle}>Process Health</h1>
+          <p className={styles.introduction}>
+            Track workflow deadlines and the work that needs your team’s attention.
+          </p>
+        </div>
+      </header>
       <div
         className={styles.summary}
         role="status"
@@ -14,7 +19,7 @@ export default function Loading() {
       >
         {Array.from({ length: 5 }).map((_, index) => (
           <div
-            className={`card ${styles.metric}`}
+            className={styles.metric}
             key={index}
           >
             <div className="skeleton" style={{ height: 14, width: '60%' }} />
