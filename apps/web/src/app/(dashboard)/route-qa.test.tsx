@@ -86,6 +86,33 @@ describe('route QA workflow entry points', () => {
     const empty = renderToStaticMarkup(await ProcessPage())
     expect(empty).toContain('Health by business unit')
     expect(empty).not.toContain('role="alert"')
+    expect(empty).toContain('No open workflow tasks')
+    expect(empty).toContain('href="/tasks"')
+    expect(empty).toContain('href="/projects"')
+    expect(empty).not.toContain('Process health summary')
+    expect(empty).not.toContain('Automatic escalation')
+    expect(empty).not.toContain('seed data')
+    expect(empty).not.toContain('Observe')
+    expect(empty).toContain('PHT')
+  })
+
+  it.each([true, false])('shows recorded BU activity and the escalation policy (observe=%s)', async (observeMode) => {
+    mocks.health.mockResolvedValue({ ok: true, data: {
+      observeMode, generatedAt: '2026-09-07T03:00:00Z',
+      byBu: [
+        { responsibleBu: 'Commercial', openTasks: 2, atRiskClocks: 1, breachedClocks: 0, escalatedClocks: 0, externalBreachedClocks: 0 },
+        { responsibleBu: 'Procurement', openTasks: 3, atRiskClocks: 0, breachedClocks: 2, escalatedClocks: 0, externalBreachedClocks: 1 },
+      ],
+    } })
+    const html = renderToStaticMarkup(await ProcessPage())
+    expect(html).toContain('Process health summary')
+    expect(html).toMatch(/<dt[^>]*>Open tasks<\/dt><dd[^>]*>5<\/dd>/)
+    expect(html).toContain('<th scope="row">Commercial</th>')
+    expect(html).toContain('<th scope="row">Procurement</th>')
+    expect(html).not.toContain('No open workflow tasks')
+    expect(html).toContain(observeMode
+      ? 'Automatic escalation is off.'
+      : 'Automatic escalation is enabled for eligible internal deadlines.')
   })
 
   it('shows account and opportunity empty states with the PPRF prerequisite', async () => {

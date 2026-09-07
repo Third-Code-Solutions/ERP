@@ -1,0 +1,83 @@
+.summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
+  margin: 0 0 24px;
+}
+
+.metric {
+  padding: 20px;
+}
+
+.metricLabel {
+  color: var(--color-neutral-600);
+  font-size: 0.8125rem;
+}
+
+.metricValue {
+  margin: 8px 0 0;
+  font-family: var(--font-mono);
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.header {
+  padding: 20px 24px;
+}
+
+.description {
+  margin: 6px 0 0;
+  font-size: 0.8125rem;
+  color: var(--color-neutral-600);
+  line-height: 1.6;
+}
+
+.empty {
+  padding: 32px 24px;
+}
+
+.empty h3 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.empty p {
+  max-width: 60ch;
+  margin: 0;
+  color: var(--color-neutral-600);
+  font-size: 0.875rem;
+  line-height: 1.7;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.mode {
+  margin: 0;
+  padding: 16px 24px;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-neutral-600);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+.footer {
+  margin: 0;
+  padding: 14px 24px;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-neutral-600);
+  font-size: 0.75rem;
+}
+
+@media (max-width: 480px) {
+  .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .metric { padding: 16px; }
+  .header, .empty, .mode, .footer { padding-inline: 16px; }
+}
