@@ -20,3 +20,9 @@ The reviewed general workflow source remains absent; see
 unapproved process definitions or claim the full workflow catalog is operational.
 Signed-BOM award automation remains the existing initializer for its five
 approved award-specific process steps.
+
+## Design follow-up
+
+The user requested further UI design work. Agent 03 owns the page composition,
+route CSS, loading state and refresh control. The data contract remains unchanged.
+Agent 13 receives the visually verified change for the existing release path.

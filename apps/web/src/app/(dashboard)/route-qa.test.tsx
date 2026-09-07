@@ -17,7 +17,9 @@ vi.mock('@third-code-erp/database', () => ({ db: { select: mocks.select } }))
 vi.mock('@/lib/erp-core-client', () => ({ getProcessHealthThroughCoreApi: mocks.health }))
 vi.mock('@/lib/account-queries', () => ({ getKycQueue: mocks.queue }))
 vi.mock('./tasks/generation-control', () => ({ GenerationControl: () => <div>Daily task generation control</div> }))
-vi.mock('./process/retry', () => ({ ProcessRetry: () => <button>Try again</button> }))
+vi.mock('./process/retry', () => ({
+  ProcessRetry: ({ label = 'Try again' }: { label?: string }) => <button>{label}</button>,
+}))
 
 import TasksPage from './tasks/page'
 import PunchlistPage from './punchlist/page'
@@ -94,6 +96,8 @@ describe('route QA workflow entry points', () => {
     expect(empty).not.toContain('seed data')
     expect(empty).not.toContain('Observe')
     expect(empty).toContain('PHT')
+    expect(empty).toContain('<button>Refresh</button>')
+    expect(empty).toContain('dateTime="2026-09-07T03:00:00Z"')
   })
 
   it.each([true, false])('shows recorded BU activity and the escalation policy (observe=%s)', async (observeMode) => {

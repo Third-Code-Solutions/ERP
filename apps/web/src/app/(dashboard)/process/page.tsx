@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { requireUserProfile } from '@third-code-erp/auth'
 import { getProcessHealthThroughCoreApi } from '@/lib/erp-core-client'
+import { IconActivity, IconArrowUpRight, IconClock } from '@/components/ui/icons'
 import { ProcessRetry } from './retry'
 import styles from './process.module.css'
 
@@ -44,23 +45,41 @@ export default async function ProcessHealthPage() {
   )
 
   return (
-    <div>
-      <div className="page-header">
-        <p className="page-eyebrow">Operations</p>
-        <h1 className="page-title">Process Health</h1>
-        <p className="page-subtitle">
-          Review overdue work and upcoming deadlines by business unit. External delays are tracked separately from your team’s deadlines.
-        </p>
-      </div>
+    <div className={styles.page}>
+      <header className={styles.pageHeader}>
+        <div>
+          <p className={styles.eyebrow}>Operations</p>
+          <h1 className={styles.pageTitle}>Process Health</h1>
+          <p className={styles.introduction}>
+            Track workflow deadlines and the work that needs your team’s attention.
+          </p>
+        </div>
+        {health && (
+          <div className={styles.refresh}>
+            <ProcessRetry label="Refresh" pendingLabel="Refreshing…" />
+            <time
+              className={styles.timestamp}
+              dateTime={health.generatedAt}
+              title={new Date(health.generatedAt).toLocaleString('en-PH', {
+                dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Manila',
+              })}
+            >
+              Updated {new Date(health.generatedAt).toLocaleTimeString('en-PH', {
+                hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Manila',
+              })} PHT
+            </time>
+          </div>
+        )}
+      </header>
 
       {!health ? (
-        <section className="card" aria-labelledby="process-health-unavailable">
-          <div className="card-header">
+        <section className={styles.panel} aria-labelledby="process-health-unavailable">
+          <div className={styles.header}>
             <h2 id="process-health-unavailable" className="card-title">
               Process health could not be loaded
             </h2>
           </div>
-          <div className="card-empty" role="alert">
+          <div className={styles.failure} role="alert">
             <p>We could not retrieve the latest workflow deadlines. Try again; if the problem continues, contact your workspace administrator.</p>
             <ProcessRetry />
           </div>
@@ -79,7 +98,7 @@ export default async function ProcessHealthPage() {
                   value: totals?.externalBreachedClocks ?? 0,
                 },
               ].map((metric) => (
-                <div className={`card ${styles.metric}`} key={metric.label}>
+                <div className={styles.metric} key={metric.label}>
                   <dt className={styles.metricLabel}>{metric.label}</dt>
                   <dd className={styles.metricValue}>{number(metric.value)}</dd>
                 </div>
@@ -87,84 +106,99 @@ export default async function ProcessHealthPage() {
             </dl>
           )}
 
-          <section className="card" aria-labelledby="process-health-by-bu">
-            <div className={`card-header ${styles.header}`}>
-              <div>
-                <h2 id="process-health-by-bu" className="card-title">
-                  Health by business unit
-                </h2>
-                <p className={styles.description}>
-                  Open workflow tasks and deadlines, grouped by responsible team.
-                </p>
-              </div>
-            </div>
-
-            {health.byBu.length === 0 ? (
-              <div className={styles.empty}>
-                <h3>No open workflow tasks</h3>
-                <p>
-                  Metrics appear here for open workflow tasks and active deadlines.
-                  Daily site tasks are listed separately in My Tasks.
-                </p>
-                <div className={styles.actions}>
-                  <Link className="button-primary" href="/tasks">
-                    Open my tasks
-                  </Link>
-                  <Link className="button-secondary" href="/projects">
-                    View projects
-                  </Link>
+          <div className={styles.layout}>
+            <section className={styles.panel} aria-labelledby="process-health-by-bu">
+              <div className={styles.header}>
+                <IconActivity size={18} />
+                <div className={styles.sectionHeading}>
+                  <h2 id="process-health-by-bu" className="card-title">
+                    Health by business unit
+                  </h2>
                 </div>
               </div>
-            ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table className="data-table">
-                  <caption className="sr-only">
-                    Process health metrics grouped by responsible business unit
-                  </caption>
-                  <thead>
-                    <tr>
-                      <th>Business unit</th>
-                      <th className="numeric">Open tasks</th>
-                      <th className="numeric">At risk</th>
-                      <th className="numeric">Breached</th>
-                      <th className="numeric">Escalated</th>
-                      <th className="numeric">External breach</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {health.byBu.map((bu) => (
-                      <tr key={bu.responsibleBu}>
-                        <th scope="row">{bu.responsibleBu}</th>
-                        <td className="numeric">{number(bu.openTasks)}</td>
-                        <td className="numeric">{number(bu.atRiskClocks)}</td>
-                        <td className="numeric">{number(bu.breachedClocks)}</td>
-                        <td className="numeric">{number(bu.escalatedClocks)}</td>
-                        <td className="numeric">
-                          {number(bu.externalBreachedClocks)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
 
-            {hasActivity && (
-              <p className={styles.mode}>
-                {health.observeMode
-                  ? 'Deadlines are being monitored. Automatic escalation is off.'
-                  : 'Automatic escalation is enabled for eligible internal deadlines.'}
-                {' '}External delays do not trigger escalation against your team.
-              </p>
-            )}
-            <p className={styles.footer}>
-              Updated {new Date(health.generatedAt).toLocaleString('en-PH', {
-                dateStyle: 'medium',
-                timeStyle: 'short',
-                timeZone: 'Asia/Manila',
-              })} PHT
-            </p>
-          </section>
+              {health.byBu.length === 0 ? (
+                <div className={styles.empty}>
+                  <div className={styles.emptyIcon}>
+                    <IconClock size={26} />
+                  </div>
+                  <div className={styles.emptyContent}>
+                    <h3>No open workflow tasks</h3>
+                    <p>
+                      Workflow deadlines appear here by business unit.
+                      Daily site tasks are available in My Tasks.
+                    </p>
+                    <div className={styles.actions}>
+                      <Link className="button-primary" href="/tasks">
+                        Open my tasks
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className={styles.tableScroll}>
+                  <table className={`data-table ${styles.table}`}>
+                    <caption className="sr-only">
+                      Process health metrics grouped by responsible business unit
+                    </caption>
+                    <thead>
+                      <tr>
+                        <th>Business unit</th>
+                        <th className="numeric">Open tasks</th>
+                        <th className="numeric">At risk</th>
+                        <th className="numeric">Breached</th>
+                        <th className="numeric">Escalated</th>
+                        <th className="numeric">External breach</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {health.byBu.map((bu) => (
+                        <tr key={bu.responsibleBu}>
+                          <th scope="row">{bu.responsibleBu}</th>
+                          <td className="numeric">{number(bu.openTasks)}</td>
+                          <td className="numeric">{number(bu.atRiskClocks)}</td>
+                          <td className="numeric">{number(bu.breachedClocks)}</td>
+                          <td className="numeric">{number(bu.escalatedClocks)}</td>
+                          <td className="numeric">
+                            {number(bu.externalBreachedClocks)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {hasActivity && (
+                <p className={styles.mode}>
+                  {health.observeMode
+                    ? 'Deadlines are being monitored. Automatic escalation is off.'
+                    : 'Automatic escalation is enabled for eligible internal deadlines.'}
+                  {' '}External delays do not trigger escalation against your team.
+                </p>
+              )}
+            </section>
+            <aside className={styles.guide} aria-labelledby="process-status-guide">
+              <h2 id="process-status-guide">Reading this view</h2>
+              <dl className={styles.definitions}>
+                <div>
+                  <dt><span className={styles.riskMark} />At risk</dt>
+                  <dd>A tracked deadline is approaching its target.</dd>
+                </div>
+                <div>
+                  <dt><span className={styles.breachMark} />Breached</dt>
+                  <dd>A tracked deadline has passed its due time.</dd>
+                </div>
+                <div>
+                  <dt><span className={styles.externalMark} />External delays</dt>
+                  <dd>Tracked separately. These do not trigger escalation against your team.</dd>
+                </div>
+              </dl>
+              <Link className={styles.projectLink} href="/projects">
+                View projects <IconArrowUpRight size={16} />
+              </Link>
+            </aside>
+          </div>
         </>
       )}
     </div>
