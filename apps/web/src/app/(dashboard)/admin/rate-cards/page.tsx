@@ -1,3 +1,5 @@
+import styles from '../../workspace-qa.module.css'
+import Link from 'next/link'
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { and, asc, desc, eq } from 'drizzle-orm'
@@ -78,14 +80,7 @@ export default async function RateCardsPage() {
         </div>
       </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: canManage ? 'minmax(0, 1fr) 380px' : '1fr',
-          gap: 24,
-          alignItems: 'start',
-        }}
-      >
+      <div className={canManage ? styles.split : styles.stack}>
         <div className="card">
           <div className="card-header">
             <h2 className="card-title">Pricing catalog</h2>
@@ -93,7 +88,7 @@ export default async function RateCardsPage() {
           {rows.length === 0 ? (
             <div className="card-empty">
               {canManage
-                ? 'No rate cards yet. Create one on the right (you must have at least one material item).'
+                ? 'No rate cards yet. Add a rate after creating your material catalog.'
                 : 'No rate cards yet.'}
             </div>
           ) : (
@@ -166,7 +161,7 @@ export default async function RateCardsPage() {
           <div style={{ padding: 16 }}>
             {itemOptions.length === 0 ? (
               <p style={{ color: 'var(--color-neutral-500)', fontSize: 13 }}>
-                Add a material item first.
+                <Link href="/admin/material-items" className="button-secondary">Add a material item</Link>
               </p>
             ) : (
               <RateCardForm materialItems={itemOptions} vendors={vendorOptions} />

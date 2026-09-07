@@ -1,3 +1,5 @@
+import styles from '../../workspace-qa.module.css'
+import Link from 'next/link'
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { and, asc, eq } from 'drizzle-orm'
@@ -64,14 +66,7 @@ export default async function MappingConfigPage() {
         </div>
       </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: canManage ? 'minmax(0, 1fr) 380px' : '1fr',
-          gap: 24,
-          alignItems: 'start',
-        }}
-      >
+      <div className={canManage ? styles.split : styles.stack}>
         <div className="card">
           <div className="card-header">
             <h2 className="card-title">Mappings</h2>
@@ -128,7 +123,7 @@ export default async function MappingConfigPage() {
           <div style={{ padding: 16 }}>
             {itemOptions.length === 0 ? (
               <p style={{ color: 'var(--color-neutral-500)', fontSize: 13 }}>
-                Add a material item first.
+                <Link href="/admin/material-items" className="button-secondary">Add a material item</Link>
               </p>
             ) : (
               <MappingConfigForm materialItems={itemOptions} />

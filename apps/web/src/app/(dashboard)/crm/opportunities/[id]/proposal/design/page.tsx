@@ -1,7 +1,7 @@
 import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { and, eq, desc } from 'drizzle-orm'
+import { and, desc, eq, inArray, or } from 'drizzle-orm'
 import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
@@ -59,6 +59,7 @@ export default async function DesignPage({ params }: PageProps) {
       id: opportunities.id,
       account_id: opportunities.account_id,
       account_name: accounts.name,
+      project_id: opportunities.project_id,
     })
     .from(opportunities)
     .leftJoin(accounts, eq(opportunities.account_id, accounts.id))
@@ -77,7 +78,12 @@ export default async function DesignPage({ params }: PageProps) {
       created_at: designFiles.created_at,
     })
     .from(designFiles)
-    .where(eq(designFiles.opportunity_id, id))
+    .where(
+      and(
+        eq(designFiles.opportunity_id, id),
+        eq(designFiles.tenant_id, profile.tenantId),
+      ),
+    )
     .orderBy(desc(designFiles.created_at))
 
   const versions =
@@ -94,13 +100,47 @@ export default async function DesignPage({ params }: PageProps) {
             file_name: documents.file_name,
           })
           .from(designFileVersions)
-          .leftJoin(documents, eq(documents.id, designFileVersions.document_id))
-          .where(
-            eq(
-              designFileVersions.tenant_id,
-              profile.tenantId
-            )
+          .leftJoin(
+            documents,
+            and(
+              eq(documents.id, designFileVersions.document_id),
+              eq(documents.tenant_id, profile.tenantId),
+            ),
           )
+          .where(
+            and(
+              eq(designFileVersions.tenant_id, profile.tenantId),
+              inArray(designFileVersions.design_file_id, fileRows.map((file) => file.id)),
+            ),
+          )
+
+  const availableDocuments = canUpload
+    ? await db
+        .select({
+          id: documents.id,
+          file_name: documents.file_name,
+          created_at: documents.created_at,
+        })
+        .from(documents)
+        .where(
+          and(
+            eq(documents.tenant_id, profile.tenantId),
+            opp.project_id
+              ? or(
+                  eq(documents.opportunity_id, id),
+                  eq(documents.project_id, opp.project_id),
+                )
+              : eq(documents.opportunity_id, id),
+          ),
+        )
+        .orderBy(desc(documents.created_at))
+    : []
+
+  const documentOptions = availableDocuments.map((document) => ({
+    id: document.id,
+    fileName: document.file_name,
+    createdAt: document.created_at.toISOString(),
+  }))
 
   // Group versions per design file. Filter to versions of files on this opp.
   const fileIds = new Set(fileRows.map((f) => f.id))
@@ -250,6 +290,8 @@ export default async function DesignPage({ params }: PageProps) {
                           <div style={{ marginTop: 8 }}>
                             <DesignUploadForm
                               opportunityId={id}
+                              documents={documentOptions}
+                              projectId={opp.project_id}
                               designFileId={f.id}
                               defaultFileType={f.file_type}
                               defaultName={f.name}
@@ -273,7 +315,11 @@ export default async function DesignPage({ params }: PageProps) {
               <h2 className="card-title">New design file</h2>
             </div>
             <div style={{ padding: 16 }}>
-              <DesignUploadForm opportunityId={id} />
+              <DesignUploadForm
+                opportunityId={id}
+                documents={documentOptions}
+                projectId={opp.project_id}
+              />
             </div>
           </div>
         </aside>

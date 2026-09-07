@@ -1,8 +1,9 @@
 import Link from 'next/link'
-import { desc, eq } from 'drizzle-orm'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { asc, desc, eq } from 'drizzle-orm'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { warrantyTickets, projects, accounts } from '@third-code-erp/database/schema'
+import { WarrantyPortalLinkIssuer } from '@/components/warranty/warranty-portal-link-issuer'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Warranty Tickets' }
@@ -18,6 +19,15 @@ const STATUS_BADGE: Record<string, string> = {
 
 export default async function WarrantyTicketsPage() {
   const profile = await requireUserProfile()
+  const canManage = can(profile.role, 'warranty.manage')
+
+  const portalProjects = canManage
+    ? await db
+        .select({ id: projects.id, name: projects.name })
+        .from(projects)
+        .where(eq(projects.tenant_id, profile.tenantId))
+        .orderBy(asc(projects.name))
+    : []
 
   const rows = await db
     .select({
@@ -59,6 +69,17 @@ export default async function WarrantyTicketsPage() {
         <Kpi label="SLA breached" value={breachedCount.toString()} tone={breachedCount > 0 ? 'danger' : 'normal'} />
         <Kpi label="Closed" value={rows.filter((r) => r.status === 'closed').length.toString()} />
       </div>
+
+      {canManage && (
+        <div className="card" style={{ marginBottom: 20 }}>
+          <div className="card-header">
+            <h2 className="card-title">Client warranty portal</h2>
+          </div>
+          <div style={{ padding: 16 }}>
+            <WarrantyPortalLinkIssuer projects={portalProjects} />
+          </div>
+        </div>
+      )}
 
       <div className="card">
         <div className="card-header">
@@ -112,9 +133,18 @@ export default async function WarrantyTicketsPage() {
                         : new Date(r.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}
                     </td>
                     <td>
-                      <span style={{ color: 'var(--color-navy-700)', fontSize: 12.5, fontWeight: 500 }}>
+                      <Link
+                        href={`/warranty/${r.id}`}
+                        aria-label={`Open warranty ticket ${r.ticket_number}`}
+                        style={{
+                          color: 'var(--color-navy-700)',
+                          fontSize: 12.5,
+                          fontWeight: 500,
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
                         Open →
-                      </span>
+                      </Link>
                     </td>
                   </tr>
                 )

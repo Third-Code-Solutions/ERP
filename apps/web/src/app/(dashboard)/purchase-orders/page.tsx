@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   boms,
@@ -12,6 +12,7 @@ import {
 import { eq, desc, and, inArray } from 'drizzle-orm'
 import { CreatePoForm } from '@/components/procurement/create-po-form'
 import { GeneratePosTrigger } from '@/components/procurement/generate-pos-trigger'
+import { COMMITTED_PO_STATUSES } from '@/lib/po-status'
 
 export const metadata: Metadata = { title: 'Purchase Orders' }
 
@@ -22,6 +23,12 @@ const STATUS_LABELS: Record<string, string> = {
   partial_delivery: 'Partial Delivery',
   delivered: 'Delivered',
   cancelled: 'Cancelled',
+  pending_pm_approval: 'Pending PM Approval',
+  pending_commercial_approval: 'Pending Commercial Approval',
+  pending_scm_issuance: 'Pending SCM Issuance',
+  issued: 'Issued',
+  partial_delivered: 'Partial Delivered',
+  fully_delivered: 'Fully Delivered',
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -31,6 +38,12 @@ const STATUS_COLORS: Record<string, string> = {
   partial_delivery: '#f59e0b',
   delivered: '#10b981',
   cancelled: '#ef4444',
+  pending_pm_approval: '#f59e0b',
+  pending_commercial_approval: '#f59e0b',
+  pending_scm_issuance: '#E07B2A',
+  issued: '#3b82f6',
+  partial_delivered: '#f59e0b',
+  fully_delivered: '#10b981',
 }
 
 function formatPHP(cents: number): string {
@@ -39,8 +52,9 @@ function formatPHP(cents: number): string {
 
 export default async function PurchaseOrdersPage() {
   const profile = await requireUserProfile()
+  const canCreate = can(profile.role, 'po.create')
 
-  const [projectList, vendorList, eligibleBomRows, costCodeRows] = await Promise.all([
+  const creationPrerequisites = canCreate ? await Promise.all([
     db.select({ id: projects.id, name: projects.name }).from(projects).where(eq(projects.tenant_id, profile.tenantId)).orderBy(projects.name),
     db.select({ id: vendors.id, name: vendors.name }).from(vendors).where(eq(vendors.tenant_id, profile.tenantId)).orderBy(vendors.name),
     db
@@ -69,7 +83,12 @@ export default async function PurchaseOrdersPage() {
         )
       )
       .orderBy(costCodes.code),
-  ])
+  ]) : null
+
+  const projectList = creationPrerequisites?.[0] ?? []
+  const vendorList = creationPrerequisites?.[1] ?? []
+  const eligibleBomRows = creationPrerequisites?.[2] ?? []
+  const costCodeRows = creationPrerequisites?.[3] ?? []
 
   const eligibleBoms = eligibleBomRows.map((b) => ({
     id: b.id,
@@ -100,14 +119,15 @@ export default async function PurchaseOrdersPage() {
     .where(eq(purchaseOrders.tenant_id, profile.tenantId))
     .orderBy(desc(purchaseOrders.created_at))
 
+  const committedStatuses = new Set<string>(COMMITTED_PO_STATUSES)
   const totalCommitted = rows
-    .filter((r) => ['submitted', 'confirmed', 'partial_delivery'].includes(r.status))
+    .filter((r) => committedStatuses.has(r.status))
     .reduce((s, r) => s + r.total_cents, 0)
   const totalDelivered = rows
-    .filter((r) => r.status === 'delivered')
+    .filter((r) => ['delivered', 'fully_delivered'].includes(r.status))
     .reduce((s, r) => s + r.total_cents, 0)
   const pendingDelivery = rows
-    .filter((r) => r.status === 'partial_delivery')
+    .filter((r) => ['partial_delivery', 'partial_delivered'].includes(r.status))
     .reduce((s, r) => s + r.total_cents, 0)
 
   return (
@@ -117,22 +137,24 @@ export default async function PurchaseOrdersPage() {
           <h1 className="page-title">Purchase Orders</h1>
           <p className="page-subtitle">{rows.length} PO{rows.length !== 1 ? 's' : ''} across all projects</p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <GeneratePosTrigger boms={eligibleBoms} />
-          <CreatePoForm
-            projects={projectList}
-            vendors={vendorList}
-            costCodes={costCodeRows}
-          />
-        </div>
+        {canCreate ? (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <GeneratePosTrigger boms={eligibleBoms} />
+            <CreatePoForm
+              projects={projectList}
+              vendors={vendorList}
+              costCodes={costCodeRows}
+            />
+          </div>
+        ) : null}
       </div>
 
       {/* KPI strip */}
       <div style={{ display: 'flex', gap: '16px', marginBottom: '24px', flexWrap: 'wrap' }}>
         {[
           { label: 'Committed', value: formatPHP(totalCommitted), color: '#8b5cf6' },
-          { label: 'Delivered', value: formatPHP(totalDelivered), color: '#10b981' },
-          { label: 'Partial Delivery', value: formatPHP(pendingDelivery), color: '#f59e0b' },
+          { label: 'Delivered PO value', value: formatPHP(totalDelivered), color: '#10b981' },
+          { label: 'Partially delivered PO value', value: formatPHP(pendingDelivery), color: '#f59e0b' },
         ].map(({ label, value, color }) => (
           <div
             key={label}
@@ -167,11 +189,13 @@ export default async function PurchaseOrdersPage() {
         >
           <p style={{ fontSize: '0.875rem', marginBottom: '8px' }}>No purchase orders yet.</p>
           <p style={{ fontSize: '0.8125rem', color: 'var(--color-neutral-400)' }}>
-            Create a PO directly using the button above, or generate one from an approved BOM.
+            {canCreate
+              ? 'Create a PO directly using the button above, or generate one from an approved BOM.'
+              : 'Purchase orders will appear here when they are created.'}
           </p>
         </div>
       ) : (
-        <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
+        <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px', overflowX: 'auto' }}>
           <table className="data-table">
             <thead>
               <tr>

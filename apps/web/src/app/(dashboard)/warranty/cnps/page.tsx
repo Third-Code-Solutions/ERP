@@ -117,10 +117,10 @@ export default async function CnpsDashboardPage() {
       </div>
 
       <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
-        <Kpi label="Avg score" value={avg.toFixed(1)} hint="0–10 NPS scale" />
+        <Kpi label="Avg score" value={responded.length ? avg.toFixed(1) : "—"} hint="0–10 NPS scale" />
         <Kpi
           label="Response rate"
-          value={`${responseRate.toFixed(0)}%`}
+          value={surveys.length ? `${responseRate.toFixed(0)}%` : "—"}
           hint={`${responded.length} of ${surveys.length} sent`}
         />
         <Kpi label="Responses" value={responded.length.toString()} />
@@ -243,7 +243,7 @@ export default async function CnpsDashboardPage() {
           <h2 className="card-title">Low-score tickets ({lowScoreRows.length})</h2>
         </div>
         {lowScoreRows.length === 0 ? (
-          <div className="card-empty">No low-score responses. Keep it up.</div>
+          <div className="card-empty">{responded.length ? 'No low-score responses.' : 'No survey responses yet. Scores will appear after customers respond.'}</div>
         ) : (
           <table className="data-table">
             <thead>

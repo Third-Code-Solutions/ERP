@@ -1,10 +1,18 @@
 'use client'
 
-import { useRef, useState, useTransition } from 'react'
+import React, { useId, useRef, useState, useTransition } from 'react'
 import { uploadDesignFile } from '@/app/(dashboard)/crm/opportunities/[id]/proposal/actions'
+
+interface DesignDocumentOption {
+  id: string
+  fileName: string
+  createdAt: string
+}
 
 interface DesignUploadFormProps {
   opportunityId: string
+  documents: DesignDocumentOption[]
+  projectId?: string | null
   /** Pass an existing design_file_id to add a new version to it. */
   designFileId?: string
   /** Default file_type if attaching to existing. */
@@ -22,6 +30,8 @@ const FILE_TYPE_LABELS: Record<string, string> = {
 
 export function DesignUploadForm({
   opportunityId,
+  documents,
+  projectId,
   designFileId,
   defaultFileType = 'initial_layout',
   defaultName = '',
@@ -30,6 +40,10 @@ export function DesignUploadForm({
   const [success, setSuccess] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
   const formRef = useRef<HTMLFormElement>(null)
+  const fileTypeId = useId()
+  const nameId = useId()
+  const documentId = useId()
+  const notesId = useId()
 
   function onSubmit(formData: FormData) {
     setError(null)
@@ -39,7 +53,7 @@ export function DesignUploadForm({
       if (res?.error) {
         setError(res.error)
       } else if (res?.version) {
-        setSuccess(`Uploaded version ${res.version}.`)
+        setSuccess(`Added version ${res.version}.`)
         formRef.current?.reset()
       }
     })
@@ -51,18 +65,25 @@ export function DesignUploadForm({
       {designFileId && <input type="hidden" name="design_file_id" value={designFileId} />}
 
       {!designFileId && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+            gap: 8,
+          }}
+        >
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label className="lbl">File type</label>
-            <select name="file_type" defaultValue={defaultFileType} className="inp">
+            <label className="lbl" htmlFor={fileTypeId}>File type</label>
+            <select id={fileTypeId} name="file_type" defaultValue={defaultFileType} className="inp">
               {Object.entries(FILE_TYPE_LABELS).map(([k, v]) => (
                 <option key={k} value={k}>{v}</option>
               ))}
             </select>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label className="lbl">Name</label>
+            <label className="lbl" htmlFor={nameId}>Name</label>
             <input
+              id={nameId}
               name="name"
               required
               defaultValue={defaultName}
@@ -80,20 +101,57 @@ export function DesignUploadForm({
         </>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <label className="lbl">Document ID (uploaded asset UUID)</label>
-        <input
-          name="document_id"
-          required
-          placeholder="00000000-0000-0000-0000-000000000000"
-          className="inp"
-          style={{ fontFamily: 'var(--font-mono, ui-monospace)' }}
-        />
-      </div>
+      {documents.length > 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label className="lbl" htmlFor={documentId}>Uploaded document</label>
+          <select id={documentId} name="document_id" required defaultValue="" className="inp">
+            <option value="" disabled>Select a document</option>
+            {documents.map((document) => (
+              <option key={document.id} value={document.id}>
+                {document.fileName} · {new Date(document.createdAt).toLocaleDateString('en-PH', {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                })}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : (
+        <div
+          role="status"
+          style={{
+            padding: 10,
+            border: '1px solid var(--color-border)',
+            borderRadius: 6,
+            color: 'var(--color-neutral-600)',
+            fontSize: 12.5,
+          }}
+        >
+          No uploaded documents are available for this opportunity.
+          {projectId ? (
+            <>
+              {' '}
+              <a href={`/projects/${projectId}/documents`} style={{ color: 'var(--color-navy-700)' }}>
+                Upload a document in the project Documents workspace.
+              </a>
+            </>
+          ) : null}
+        </div>
+      )}
+
+      {projectId && documents.length > 0 ? (
+        <p style={{ margin: 0, fontSize: 12, color: 'var(--color-neutral-600)' }}>
+          Need another file?{' '}
+          <a href={`/projects/${projectId}/documents`} style={{ color: 'var(--color-navy-700)' }}>
+            Open the project Documents workspace.
+          </a>
+        </p>
+      ) : null}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <label className="lbl">Notes</label>
-        <textarea name="notes" rows={2} className="inp" placeholder="Changes since previous version…" />
+        <label className="lbl" htmlFor={notesId}>Notes</label>
+        <textarea id={notesId} name="notes" rows={2} className="inp" placeholder="Changes since previous version…" />
       </div>
 
       {error && <p style={{ color: 'var(--color-danger)', fontSize: 12, margin: 0 }}>{error}</p>}
@@ -101,11 +159,11 @@ export function DesignUploadForm({
 
       <button
         type="submit"
-        disabled={pending}
+        disabled={pending || documents.length === 0}
         className="user-chip"
         style={{ alignSelf: 'flex-start', cursor: pending ? 'wait' : 'pointer' }}
       >
-        {pending ? 'Uploading…' : designFileId ? 'Upload new version' : 'Create design file'}
+        {pending ? 'Adding…' : designFileId ? 'Add new version' : 'Create design file'}
       </button>
 
       <style>{`

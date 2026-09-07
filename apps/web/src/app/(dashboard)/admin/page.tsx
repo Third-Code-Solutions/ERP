@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireUserProfile, can } from '@third-code-erp/auth'
+import styles from '../workspace-qa.module.css'
 
 export const metadata: Metadata = { title: 'Admin' }
 
@@ -74,14 +75,16 @@ export default async function AdminIndexPage() {
         </p>
       </div>
 
+      {(profile.role === 'admin' || profile.role === 'owner') && <section className={styles.notice} aria-label="Daily operations"><h2 className="card-title">Daily operations</h2><p>Request today’s project task generation and review your assigned work.</p><Link className="button-secondary" href="/tasks">Open task generation</Link></section>}
+
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))',
           gap: 16,
         }}
       >
-        {CARDS.map((card) => {
+        {CARDS.filter((card) => can(profile.role, card.readCapability)).map((card) => {
           const allowed = can(profile.role, card.readCapability)
           return (
             <Link

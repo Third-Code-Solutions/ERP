@@ -112,6 +112,12 @@ export default async function FinancePage() {
         </div>
       </div>
 
+      {(activeAccounts.length < 2 || openPeriods.length === 0) && <section className="finance-callout" aria-label="Finance setup required">
+        <h2>Complete Finance setup before posting</h2>
+        <p>{activeAccounts.length < 2 ? 'Create your ledger accounts first. ' : ''}{openPeriods.length === 0 ? 'Add an open fiscal period for posting dates. ' : ''}Then map the control accounts used by invoices, supplier bills and stock receipts.</p>
+        <p><Link href="#chart-of-accounts">Chart of accounts</Link> | <Link href="#fiscal-periods">Fiscal periods</Link> | <Link href="#cash-accounts">Cash accounts</Link></p>
+      </section>}
+
       <div className="kpi-grid finance-kpis">
         <div className="kpi-card">
           <p className="kpi-card-label">Open periods</p>
@@ -134,7 +140,7 @@ export default async function FinancePage() {
         <div className="finance-section-heading">
           <div>
             <p className="finance-eyebrow">Settlement policy</p>
-            <h2>Cash Accounts</h2>
+            <h2 id="cash-accounts">Cash Accounts</h2>
           </div>
           <p>
             Map each bank, till, or e-wallet to one active asset ledger account.
@@ -298,7 +304,7 @@ export default async function FinancePage() {
           <div className="finance-section-heading">
             <div>
               <p className="finance-eyebrow">Posting calendar</p>
-              <h2>Fiscal periods</h2>
+              <h2 id="fiscal-periods">Fiscal periods</h2>
             </div>
           </div>
           {canManage && <CreateFiscalPeriodForm />}
@@ -328,7 +334,7 @@ export default async function FinancePage() {
           <div className="finance-section-heading">
             <div>
               <p className="finance-eyebrow">Classification</p>
-              <h2>Chart of accounts</h2>
+              <h2 id="chart-of-accounts">Chart of accounts</h2>
             </div>
           </div>
           {canManage && <CreateLedgerAccountForm />}

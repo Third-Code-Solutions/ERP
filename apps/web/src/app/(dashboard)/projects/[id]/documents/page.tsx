@@ -10,7 +10,6 @@ import { UploadButton } from '@/components/documents/upload-button'
 import { DeleteDocumentButton } from '@/components/documents/delete-document-button'
 import { QuotaBar } from '@/components/documents/quota-bar'
 import { IconDownload, IconExternalLink } from '@/components/ui/icons'
-import { canViewPath } from '@/lib/operations/nav-config'
 
 export const metadata: Metadata = { title: 'Documents' }
 
@@ -56,16 +55,6 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-const TABS = [
-  { label: 'Overview', href: '' },
-  { label: 'Scope', href: '/scope' },
-  { label: 'BOM', href: '/bom' },
-  { label: 'Documents', href: '/documents' },
-  { label: 'Billing', href: '/billing' },
-  { label: 'Comments', href: '/comments' },
-  { label: 'Audit', href: '/audit' },
-]
-
 export default async function ProjectDocumentsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
@@ -102,7 +91,7 @@ export default async function ProjectDocumentsPage({ params }: { params: Promise
 
   return (
     <div>
-      {/* Breadcrumb + tabs */}
+      {/* Project navigation is supplied by the shared layout. */}
       <div style={{ marginBottom: '24px' }}>
         <div style={{ fontSize: '0.8125rem', color: 'var(--color-neutral-400)', marginBottom: '8px' }}>
           <Link href="/projects" style={{ color: 'var(--color-neutral-400)', textDecoration: 'none' }}>Projects</Link>
@@ -114,40 +103,6 @@ export default async function ProjectDocumentsPage({ params }: { params: Promise
         <h1 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--color-neutral-900)', margin: '0 0 16px' }}>
           {project.name} — Documents
         </h1>
-        <div
-          style={{
-            display: 'flex',
-            gap: '0',
-            minWidth: 0,
-            maxWidth: '100%',
-            overflowX: 'auto',
-            borderBottom: '1px solid var(--color-border)',
-          }}
-        >
-          {TABS.filter(({ href }) => canViewPath(profile.role, `/projects/${id}${href}`)).map(({ label, href }) => {
-            const isActive = href === '/documents'
-            return (
-              <Link
-                key={href}
-                href={`/projects/${id}${href}`}
-                aria-current={isActive ? 'page' : undefined}
-                style={{
-                  padding: '8px 20px',
-                  fontSize: '0.875rem',
-                  fontWeight: isActive ? 600 : 400,
-                  color: isActive ? 'var(--color-navy-700)' : 'var(--color-neutral-500)',
-                  textDecoration: 'none',
-                  borderBottom: isActive ? '2px solid var(--color-navy-700)' : '2px solid transparent',
-                  marginBottom: '-1px',
-                  flex: '0 0 auto',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {label}
-              </Link>
-            )
-          })}
-        </div>
       </div>
 
       <QuotaBar usedBytes={usedBytes} />

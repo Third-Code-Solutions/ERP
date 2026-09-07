@@ -12,16 +12,6 @@ import { getProjectDetailAccess } from '../project-detail-access'
 
 export const metadata: Metadata = { title: 'Billing' }
 
-const TABS = [
-  { label: 'Overview', href: '' },
-  { label: 'Scope', href: '/scope' },
-  { label: 'BOM', href: '/bom', requiredAccess: 'bom' },
-  { label: 'Documents', href: '/documents' },
-  { label: 'Billing', href: '/billing' },
-  { label: 'Comments', href: '/comments' },
-  { label: 'Audit', href: '/audit', requiredAccess: 'audit' },
-] as const
-
 const STATUS_LABELS: Record<string, string> = {
   draft: 'Draft',
   issued: 'Issued',
@@ -98,33 +88,6 @@ export default async function ProjectBillingPage({ params }: { params: Promise<{
         </Link>
         <span style={{ color: 'var(--color-neutral-300)' }}>/</span>
         <span style={{ fontSize: '0.875rem', color: 'var(--color-neutral-600)' }}>Billing</span>
-      </div>
-
-      {/* Tab nav */}
-      <div style={{ display: 'flex', gap: '2px', marginBottom: '24px', borderBottom: '1px solid var(--color-border)', marginTop: '16px' }}>
-        {TABS.filter(
-          (tab) => !('requiredAccess' in tab) || access[tab.requiredAccess],
-        ).map(({ label, href }) => {
-          const fullHref = baseHref + href
-          const isActive = href === '/billing'
-          return (
-            <Link
-              key={label}
-              href={fullHref}
-              style={{
-                padding: '8px 16px',
-                fontSize: '0.875rem',
-                fontWeight: isActive ? 600 : 400,
-                color: isActive ? 'var(--color-navy-700)' : 'var(--color-neutral-500)',
-                textDecoration: 'none',
-                borderBottom: isActive ? '2px solid var(--color-navy-700)' : '2px solid transparent',
-                marginBottom: '-1px',
-              }}
-            >
-              {label}
-            </Link>
-          )
-        })}
       </div>
 
       {/* Summary KPIs */}

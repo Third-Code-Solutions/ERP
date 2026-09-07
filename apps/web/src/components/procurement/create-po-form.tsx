@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import Link from 'next/link'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createStandalonePo } from '@/app/(dashboard)/procurement/actions'
 
@@ -67,6 +68,18 @@ export function CreatePoForm({
   const [idempotencyKey, setIdempotencyKey] = useState('')
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
+  const dialog = useRef<HTMLDialogElement>(null)
+  const trigger = useRef<HTMLButtonElement>(null)
+  const restoreTriggerFocus = useRef(false)
+  const [projectId, setProjectId] = useState('')
+
+  useEffect(() => {
+    if (isOpen) dialog.current?.showModal()
+    else if (restoreTriggerFocus.current) {
+      trigger.current?.focus()
+      restoreTriggerFocus.current = false
+    }
+  }, [isOpen])
 
   function openForm() {
     setIdempotencyKey(crypto.randomUUID())
@@ -134,7 +147,10 @@ export function CreatePoForm({
   }
 
   function handleClose() {
+    if (isPending) return
+    restoreTriggerFocus.current = true
     setIsOpen(false)
+    setProjectId('')
     setIdempotencyKey('')
     setError('')
     setLines([emptyLine(costCodes[0]?.id ?? '')])
@@ -143,6 +159,7 @@ export function CreatePoForm({
   if (!isOpen) {
     return (
       <button
+        ref={trigger}
         onClick={openForm}
         style={{
           background: 'var(--color-navy-700)',
@@ -161,24 +178,27 @@ export function CreatePoForm({
   }
 
   return (
-    <div
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', overflowY: 'auto', padding: '32px 16px' }}
+    <dialog
+      ref={dialog}
+      aria-labelledby="create-po-title"
+      onCancel={(event) => { event.preventDefault(); if (!isPending) handleClose() }}
+      style={{ border: 'none', borderRadius: 10, padding: 0, width: 'min(1000px, calc(100vw - 32px))', maxHeight: 'calc(100dvh - 32px)', margin: 'auto', overflowY: 'auto' }}
       onClick={(e) => { if (e.target === e.currentTarget) handleClose() }}
     >
       <form
         onSubmit={handleSubmit}
-        style={{ background: 'white', borderRadius: '10px', padding: '28px', width: '720px', maxWidth: '100%', boxShadow: '0 12px 40px rgba(0,0,0,0.18)', marginBottom: '32px' }}
+        style={{ background: 'white', padding: 'clamp(16px, 3vw, 28px)', maxWidth: '100%' }}
       >
         <input type="hidden" name="idempotency_key" value={idempotencyKey} readOnly />
-        <h2 style={{ fontSize: '1rem', fontWeight: 700, margin: '0 0 24px', color: 'var(--color-neutral-900)' }}>
+        <h2 id="create-po-title" style={{ fontSize: '1rem', fontWeight: 700, margin: '0 0 24px', color: 'var(--color-neutral-900)' }}>
           Create Purchase Order
         </h2>
 
         {/* Header fields */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '12px', marginBottom: '20px' }}>
           <div>
-            <label style={labelStyle}>Project *</label>
-            <select name="project_id" required style={inputStyle}>
+            <label htmlFor="po-project" style={labelStyle}>Project *</label>
+            <select id="po-project" name="project_id" required style={inputStyle} value={projectId} onChange={event => setProjectId(event.target.value)}>
               <option value="">Select project…</option>
               {projects.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
@@ -186,8 +206,8 @@ export function CreatePoForm({
             </select>
           </div>
           <div>
-            <label style={labelStyle}>Vendor</label>
-            <select name="vendor_id" style={inputStyle}>
+            <label htmlFor="po-vendor" style={labelStyle}>Vendor</label>
+            <select id="po-vendor" name="vendor_id" style={inputStyle}>
               <option value="">No vendor</option>
               {vendors.map((v) => (
                 <option key={v.id} value={v.id}>{v.name}</option>
@@ -195,14 +215,16 @@ export function CreatePoForm({
             </select>
           </div>
           <div>
-            <label style={labelStyle}>Expected Delivery</label>
-            <input type="date" name="delivery_date" style={inputStyle} />
+            <label htmlFor="po-delivery" style={labelStyle}>Expected Delivery</label>
+            <input id="po-delivery" type="date" name="delivery_date" style={inputStyle} />
           </div>
           <div>
-            <label style={labelStyle}>Notes</label>
-            <input name="notes" placeholder="Optional" style={inputStyle} />
+            <label htmlFor="po-notes" style={labelStyle}>Notes</label>
+            <input id="po-notes" name="notes" placeholder="Optional" style={inputStyle} />
           </div>
         </div>
+
+        {costCodes.length === 0 && <div role="status" style={{ marginBottom: 20, lineHeight: 1.6 }}><p>A cost code is required for every PO line. {projectId ? 'Set up cost codes in this project’s Budget Control, then return to create the PO.' : 'Select a project to open its Budget Control setup.'}</p>{projectId && <Link className="button-secondary" href={`/projects/${projectId}/cost/budget`}>Open Budget Control</Link>}</div>}
 
         {/* Line items */}
         <div style={{ marginBottom: '16px' }}>
@@ -217,7 +239,7 @@ export function CreatePoForm({
             </button>
           </div>
 
-          <div style={{ border: '1px solid var(--color-border)', borderRadius: '6px', overflow: 'hidden' }}>
+          <div style={{ border: '1px solid var(--color-border)', borderRadius: '6px', overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem' }}>
               <thead>
                 <tr style={{ background: 'var(--color-neutral-50)', borderBottom: '1px solid var(--color-border)' }}>
@@ -237,6 +259,7 @@ export function CreatePoForm({
                     <tr key={line.id} style={{ borderBottom: idx < lines.length - 1 ? '1px solid var(--color-border)' : 'none' }}>
                       <td style={{ padding: '6px 8px', width: '80px' }}>
                         <input
+                          aria-label={`Item code ${idx + 1}`}
                           value={line.code}
                           onChange={(e) => updateLine(line.id, 'code', e.target.value)}
                           placeholder="FCU-01"
@@ -245,6 +268,8 @@ export function CreatePoForm({
                       </td>
                       <td style={{ padding: '6px 8px' }}>
                         <input
+                          aria-label={`Description ${idx + 1}`}
+                          required
                           value={line.description}
                           onChange={(e) => updateLine(line.id, 'description', e.target.value)}
                           placeholder="Description *"
@@ -253,6 +278,7 @@ export function CreatePoForm({
                       </td>
                       <td style={{ padding: '6px 8px', width: '150px' }}>
                         <select
+                          aria-label={`Cost code ${idx + 1}`}
                           value={line.cost_code_id}
                           onChange={(e) =>
                             updateLine(line.id, 'cost_code_id', e.target.value)
@@ -270,6 +296,7 @@ export function CreatePoForm({
                       </td>
                       <td style={{ padding: '6px 8px', width: '70px' }}>
                         <select
+                          aria-label={`Unit ${idx + 1}`}
                           value={line.unit}
                           onChange={(e) => updateLine(line.id, 'unit', e.target.value)}
                           style={{ ...cellInput, width: '60px' }}
@@ -281,7 +308,9 @@ export function CreatePoForm({
                       </td>
                       <td style={{ padding: '6px 8px', width: '70px' }}>
                         <input
+                          aria-label={`Quantity ${idx + 1}`}
                           type="number"
+                          required
                           min="1"
                           step="1"
                           value={line.quantity}
@@ -291,7 +320,9 @@ export function CreatePoForm({
                       </td>
                       <td style={{ padding: '6px 8px', width: '110px' }}>
                         <input
+                          aria-label={`Unit cost ${idx + 1}`}
                           type="number"
+                          required
                           min="0"
                           step="0.01"
                           value={line.unit_cost}
@@ -306,6 +337,7 @@ export function CreatePoForm({
                       <td style={{ padding: '6px 8px', width: '28px' }}>
                         {lines.length > 1 && (
                           <button
+                            aria-label={`Remove line ${idx + 1}`}
                             type="button"
                             onClick={() => removeLine(line.id)}
                             style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: '1rem', lineHeight: 1, padding: '2px 4px', opacity: 0.6 }}
@@ -344,11 +376,12 @@ export function CreatePoForm({
           </div>
         )}
 
-        {error && <p style={{ fontSize: '0.8125rem', color: '#ef4444', margin: '0 0 12px' }}>{error}</p>}
+        {error && <p role="alert" style={{ fontSize: '0.8125rem', color: 'var(--color-danger)', margin: '0 0 12px' }}>{error}</p>}
 
         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
           <button
             type="button"
+            disabled={isPending}
             onClick={handleClose}
             style={{ background: 'none', border: '1px solid var(--color-border)', borderRadius: '6px', padding: '7px 14px', fontSize: '0.8125rem', cursor: 'pointer', color: 'var(--color-neutral-700)' }}
           >
@@ -367,7 +400,7 @@ export function CreatePoForm({
           </button>
         </div>
       </form>
-    </div>
+    </dialog>
   )
 }
 

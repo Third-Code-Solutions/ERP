@@ -73,7 +73,7 @@ export default async function PermitsPage() {
           <h2 className="card-title">{rows.length} permit{rows.length === 1 ? '' : 's'}</h2>
         </div>
         {rows.length === 0 ? (
-          <div className="card-empty">No permits filed yet. Create one from any project detail page.</div>
+          <div className="card-empty"><p>No permits filed yet. Open a project’s permit workspace to record a permit, insurance policy, or bond.</p><Link href="/projects" className="button-secondary">Choose a project</Link></div>
         ) : (
           <table className="data-table">
             <thead>

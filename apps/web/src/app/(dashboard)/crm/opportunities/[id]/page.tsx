@@ -91,9 +91,9 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
             <h2 className="card-title">Commercials</h2>
           </div>
           <div style={{ padding: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 13 }}>
-            <Meta label="TCV" value={`₱${formatCentsCompact(opp.tcv_cents)}`} />
-            <Meta label="GP" value={`₱${formatCentsCompact(opp.gp_cents)}`} />
-            <Meta label="Weighted" value={`₱${formatCentsCompact(opp.weighted_tcv_cents)}`} />
+            <Meta label="TCV" value={formatCentsCompact(opp.tcv_cents)} />
+            <Meta label="GP" value={formatCentsCompact(opp.gp_cents)} />
+            <Meta label="Weighted" value={formatCentsCompact(opp.weighted_tcv_cents)} />
             <Meta label="Area" value={opp.area_sqm ? `${opp.area_sqm} sqm` : '—'} />
             <Meta
               label="Closing date"

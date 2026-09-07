@@ -24,10 +24,8 @@ export default async function NewDeliveryPage({
   const profile = await requireUserProfile()
   const { po: defaultPoId } = await searchParams
 
-  // Restrict to POs that are realistically scheduleable — issued or queued
-  // for issuance. Draft / approval-pending POs shouldn't appear because a
-  // delivery can't exist before the PO is committed to the supplier.
-  const eligibleStatuses = ['issued', 'pending_scm_issuance'] as const
+  // Match Core's scheduling guard: approval-pending POs cannot be delivered.
+  const eligibleStatuses = ['issued'] as const
   const poRows = await db
     .select({
       id: purchaseOrders.id,

@@ -213,8 +213,7 @@ export default async function PayablesPage() {
           <h1 className="page-title">Payables</h1>
           <p className="page-subtitle">
             Match supplier bills to issued Purchase Orders before a liability
-            reaches the ledger. Receipt-level matching arrives with the
-            inventory slice.
+            reaches the ledger. Inventory-tracked lines also require posted stock receipt evidence.
           </p>
         </div>
         <div className="finance-header-actions">

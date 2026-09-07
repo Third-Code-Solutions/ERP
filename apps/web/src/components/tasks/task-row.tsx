@@ -44,6 +44,7 @@ const ROLE_LABELS: Record<string, string> = {
 function formatDue(value: Date | string): string {
   const d = typeof value === 'string' ? new Date(value) : value
   return d.toLocaleString('en-PH', {
+    timeZone: 'Asia/Manila',
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
@@ -114,6 +115,7 @@ export function TaskRow({ task, overdue = false, readOnly = false }: TaskRowProp
           <span className="muted" style={{ fontSize: '0.75rem' }}>
             {task.status === 'done' && task.completed_at
               ? `Done ${new Date(task.completed_at).toLocaleDateString('en-PH', {
+                  timeZone: 'Asia/Manila',
                   month: 'short',
                   day: 'numeric',
                 })}`

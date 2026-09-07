@@ -23,6 +23,7 @@ import {
 } from '@third-code-erp/database/schema'
 import { TicketMessageThread } from '@/components/warranty/ticket-message-thread'
 import { TicketStatusActions } from '@/components/warranty/ticket-status-actions'
+import { MintWarrantyPortalToken } from '@/components/warranty/mint-warranty-portal-token'
 
 export const metadata: Metadata = { title: 'Warranty Ticket' }
 
@@ -222,17 +223,37 @@ export default async function TicketDetailPage({ params }: PageProps) {
 
         <aside style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           {canManage && (
-            <TicketStatusActions
-              ticketId={ticket.id}
-              status={ticket.status}
-              scheduledAt={ticket.scheduled_at ? ticket.scheduled_at.toISOString() : null}
-              serviceReportDocumentId={ticket.service_report_document_id}
-              documents={projectDocs.map((d) => ({
-                id: d.id,
-                file_name: d.file_name,
-                document_type: d.document_type,
-              }))}
-            />
+            <>
+              <TicketStatusActions
+                ticketId={ticket.id}
+                status={ticket.status}
+                scheduledAt={ticket.scheduled_at ? ticket.scheduled_at.toISOString() : null}
+                serviceReportDocumentId={ticket.service_report_document_id}
+                documents={projectDocs.map((d) => ({
+                  id: d.id,
+                  file_name: d.file_name,
+                  document_type: d.document_type,
+                }))}
+              />
+              <div className="card">
+                <div className="card-header">
+                  <h2 className="card-title">Client portal</h2>
+                </div>
+                <div style={{ padding: 16 }}>
+                  <p
+                    style={{
+                      margin: '0 0 12px',
+                      color: 'var(--color-neutral-600)',
+                      fontSize: 12.5,
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    Issue a project link for the client to submit and track warranty requests.
+                  </p>
+                  <MintWarrantyPortalToken projectId={ticket.project_id} />
+                </div>
+              </div>
+            </>
           )}
           <div className="card">
             <div className="card-header">
