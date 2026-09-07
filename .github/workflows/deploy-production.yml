@@ -84,6 +84,13 @@ jobs:
       - name: Block contaminated production promotion
         run: node scripts/verify-production-data-boundary.mjs --require-clear
 
+      - name: Verify pinned workflow action refs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          pnpm test:workflow-action-refs
+          pnpm verify:workflow-action-refs
+
       - name: Run release gates
         run: |
           pnpm verify:abi-ops-brand
@@ -93,7 +100,6 @@ jobs:
           pnpm test:production-auth-proof
           node --test scripts/deploy-railway-service.test.mjs
           pnpm ci:actionlint
-          pnpm verify:workflow-action-refs
           pnpm lint
           pnpm turbo typecheck
           pnpm test:database-repro-policy-contract

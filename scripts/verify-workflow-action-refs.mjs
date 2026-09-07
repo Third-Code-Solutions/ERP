@@ -1,48 +1,72 @@
 #!/usr/bin/env node
-/**
- * Verifies workflow action tags exist on api.github.com (public, unauthenticated).
- * The GitHub Actions VS Code/Cursor extension requires a signed-in GitHub session
- * for its language server to reach the API — this script only validates tags exist.
- */
+/** Verifies that pinned workflow action tags resolve through the GitHub API. */
 import https from "node:https";
+import { pathToFileURL } from "node:url";
 
-const REFS = [
+export const REFS = [
   ["actions/checkout", "refs/tags/v4.3.1"],
   ["pnpm/action-setup", "refs/tags/v4.4.0"],
   ["actions/setup-node", "refs/tags/v4.4.0"],
   ["actions/upload-artifact", "refs/tags/v4.6.2"],
 ];
 
-function getStatus(repo, refPath) {
+export function getStatus(
+  repo,
+  refPath,
+  { token = process.env.GITHUB_TOKEN, request = https.get, timeoutMs = 10_000 } = {},
+) {
   const url = `https://api.github.com/repos/${repo}/git/${refPath}`;
   return new Promise((resolve, reject) => {
-    https
-      .get(
-        url,
-        {
-          headers: {
-            Accept: "application/vnd.github+json",
-            "User-Agent": "third-code-erp-verify-workflow-refs",
-          },
-        },
-        (res) => {
-          res.resume();
-          resolve(res.statusCode ?? 0);
-        }
-      )
-      .on("error", reject);
+    const headers = {
+      Accept: "application/vnd.github+json",
+      "User-Agent": "third-code-erp-verify-workflow-refs",
+      "X-GitHub-Api-Version": "2022-11-28",
+    };
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    const req = request(url, { headers }, (res) => {
+      res.resume();
+      resolve(res.statusCode ?? 0);
+    });
+    req.setTimeout(timeoutMs, () => {
+      req.destroy(new Error(`GitHub API request timed out after ${timeoutMs}ms`));
+    });
+    req.on("error", reject);
   });
 }
 
-const failures = [];
-for (const [repo, refPath] of REFS) {
-  const status = await getStatus(repo, refPath);
-  const ref = `${repo}@${refPath.replace("refs/tags/", "")}`;
-  console.log(`${status === 200 ? "PASS" : "FAIL"} ${ref} (${status})`);
-  if (status !== 200) failures.push(ref);
+export async function verifyWorkflowActionRefs({
+  refs = REFS,
+  statusFor = getStatus,
+  log = console.log,
+  error = console.error,
+} = {}) {
+  const failures = [];
+  for (const [repo, refPath] of refs) {
+    const ref = `${repo}@${refPath.replace("refs/tags/", "")}`;
+    try {
+      const status = await statusFor(repo, refPath);
+      if (status === 200) {
+        log(`PASS ${ref} (200)`);
+        continue;
+      }
+      const reason = status === 404 ? "missing" : `GitHub API unavailable (${status})`;
+      error(`FAIL ${ref}: ${reason}`);
+      failures.push(ref);
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "unknown request failure";
+      error(`FAIL ${ref}: GitHub API unavailable (${message})`);
+      failures.push(ref);
+    }
+  }
+
+  if (failures.length > 0) {
+    error(`Workflow action refs could not be verified: ${failures.join(", ")}`);
+    return false;
+  }
+  return true;
 }
 
-if (failures.length > 0) {
-  console.error(`Missing workflow action refs: ${failures.join(", ")}`);
-  process.exitCode = 1;
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  if (!(await verifyWorkflowActionRefs())) process.exitCode = 1;
 }

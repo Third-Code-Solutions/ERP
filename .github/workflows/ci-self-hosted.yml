@@ -38,6 +38,11 @@ jobs:
       - name: Validate workflows
         run: |
           pnpm ci:actionlint
+      - name: Verify pinned workflow action refs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          pnpm test:workflow-action-refs
           pnpm verify:workflow-action-refs
       - name: Lint
         run: pnpm lint
