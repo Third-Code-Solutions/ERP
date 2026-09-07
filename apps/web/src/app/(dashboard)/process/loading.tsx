@@ -1,3 +1,5 @@
+import styles from './process.module.css'
+
 export default function Loading() {
   return (
     <div>
@@ -5,12 +7,15 @@ export default function Loading() {
         <p className="page-eyebrow">Operations</p>
         <h1 className="page-title">Process Health</h1>
       </div>
-      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+      <div
+        className={styles.summary}
+        role="status"
+        aria-label="Loading process health"
+      >
         {Array.from({ length: 5 }).map((_, index) => (
           <div
-            className="card"
+            className={`card ${styles.metric}`}
             key={index}
-            style={{ minWidth: 150, height: 94, flex: '1 1 150px' }}
           >
             <div className="skeleton" style={{ height: 14, width: '60%' }} />
             <div

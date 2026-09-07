@@ -1,9 +1,9 @@
 import type { Metadata } from 'next'
-import { ProcessRetry } from './retry'
+import Link from 'next/link'
 import { requireUserProfile } from '@third-code-erp/auth'
-import {
-  getProcessHealthThroughCoreApi,
-} from '@/lib/erp-core-client'
+import { getProcessHealthThroughCoreApi } from '@/lib/erp-core-client'
+import { ProcessRetry } from './retry'
+import styles from './process.module.css'
 
 export const metadata: Metadata = { title: 'Process Health' }
 
@@ -24,6 +24,7 @@ export default async function ProcessHealthPage() {
 
   const result = await getProcessHealthThroughCoreApi()
   const health = result.ok ? result.data : null
+  const hasActivity = Boolean(health?.byBu.length)
   const totals = health?.byBu.reduce(
     (summary, bu) => ({
       openTasks: summary.openTasks + bu.openTasks,
@@ -66,78 +67,53 @@ export default async function ProcessHealthPage() {
         </section>
       ) : (
         <>
-          <div
-            style={{
-              display: 'flex',
-              gap: 16,
-              marginBottom: 24,
-              flexWrap: 'wrap',
-            }}
-            aria-label="Process health summary"
-          >
-            {[
-              { label: 'Open tasks', value: totals?.openTasks ?? 0 },
-              { label: 'At risk', value: totals?.atRiskClocks ?? 0 },
-              { label: 'Breached', value: totals?.breachedClocks ?? 0 },
-              { label: 'Escalated', value: totals?.escalatedClocks ?? 0 },
-              {
-                label: 'External breaches',
-                value: totals?.externalBreachedClocks ?? 0,
-              },
-            ].map((metric) => (
-              <div
-                className="card"
-                key={metric.label}
-                style={{ minWidth: 150, flex: '1 1 150px' }}
-              >
-                <div className="muted" style={{ fontSize: '0.75rem' }}>
-                  {metric.label}
+          {hasActivity && (
+            <dl className={styles.summary} aria-label="Process health summary">
+              {[
+                { label: 'Open tasks', value: totals?.openTasks ?? 0 },
+                { label: 'At risk', value: totals?.atRiskClocks ?? 0 },
+                { label: 'Breached', value: totals?.breachedClocks ?? 0 },
+                { label: 'Escalated', value: totals?.escalatedClocks ?? 0 },
+                {
+                  label: 'External breaches',
+                  value: totals?.externalBreachedClocks ?? 0,
+                },
+              ].map((metric) => (
+                <div className={`card ${styles.metric}`} key={metric.label}>
+                  <dt className={styles.metricLabel}>{metric.label}</dt>
+                  <dd className={styles.metricValue}>{number(metric.value)}</dd>
                 </div>
-                <div
-                  style={{
-                    fontSize: '1.5rem',
-                    fontWeight: 700,
-                    fontFamily: 'var(--font-mono)',
-                    marginTop: 6,
-                  }}
-                >
-                  {number(metric.value)}
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </dl>
+          )}
 
           <section className="card" aria-labelledby="process-health-by-bu">
-            <div className="card-header">
+            <div className={`card-header ${styles.header}`}>
               <div>
                 <h2 id="process-health-by-bu" className="card-title">
                   Health by business unit
                 </h2>
-                <p className="muted" style={{ marginTop: 4 }}>
-                  {health.observeMode
-                    ? 'Observe mode active. Escalation remains suppressed during the initial BU observation period.'
-                    : 'Escalation mode active for internal clocks.'}
+                <p className={styles.description}>
+                  Open workflow tasks and deadlines, grouped by responsible team.
                 </p>
               </div>
-              <span
-                className="badge"
-                style={{
-                  background: health.observeMode
-                    ? 'var(--color-warning-soft)'
-                    : 'var(--color-success-soft)',
-                  color: health.observeMode
-                    ? 'var(--color-warning)'
-                    : 'var(--color-success)',
-                }}
-              >
-                {health.observeMode ? 'Observe' : 'Enforce'}
-              </span>
             </div>
 
             {health.byBu.length === 0 ? (
-              <div className="card-empty">
-                No source-backed process steps are loaded yet. SD Framework
-                seed data is required before workflow metrics can appear.
+              <div className={styles.empty}>
+                <h3>No workflow activity yet</h3>
+                <p>
+                  Business-unit metrics appear when workflow tasks and deadlines
+                  are tracked. Daily site tasks are listed separately in My Tasks.
+                </p>
+                <div className={styles.actions}>
+                  <Link className="button-primary" href="/tasks">
+                    Open my tasks
+                  </Link>
+                  <Link className="button-secondary" href="/projects">
+                    View projects
+                  </Link>
+                </div>
               </div>
             ) : (
               <div style={{ overflowX: 'auto' }}>
@@ -173,13 +149,20 @@ export default async function ProcessHealthPage() {
               </div>
             )}
 
-            <p className="muted" style={{ marginTop: 16, fontSize: '0.75rem' }}>
-              Generated {new Date(health.generatedAt).toLocaleString('en-PH', {
+            {hasActivity && (
+              <p className={styles.mode}>
+                {health.observeMode
+                  ? 'Deadlines are being monitored. Automatic escalation is off.'
+                  : 'Automatic escalation is enabled for eligible internal deadlines.'}
+                {' '}External delays do not trigger escalation against your team.
+              </p>
+            )}
+            <p className={styles.footer}>
+              Updated {new Date(health.generatedAt).toLocaleString('en-PH', {
                 dateStyle: 'medium',
                 timeStyle: 'short',
                 timeZone: 'Asia/Manila',
-              })}{' '}
-              for {profile.fullName || profile.email}.
+              })} PHT
             </p>
           </section>
         </>
