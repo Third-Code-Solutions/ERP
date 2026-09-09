@@ -229,7 +229,7 @@ function manilaCalendarDate(value: string): string {
 
 describe('project Opportunity stage action', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
     vi.spyOn(console, 'info').mockImplementation(() => undefined)
     mocks.requireUserProfile.mockResolvedValue(profileFor('sales'))
     mocks.opportunityStageWritesUseCoreApi.mockReturnValue(true)

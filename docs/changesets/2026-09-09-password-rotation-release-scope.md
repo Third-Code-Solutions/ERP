@@ -64,6 +64,9 @@ The regenerated full dependency graph audit reports no known vulnerabilities.
 Finance and notification query-test helpers now declare callable callbacks
 explicitly; Vitest 4's generic mock type also permits constructors. Assertions
 and application behavior are unchanged.
+Opportunity action tests reset mock implementations between cases, preventing
+the intentional cache-failure implementation from leaking into later cases.
+All 78 tests in that file pass with the freshly installed Vitest 4.1.11.
 
 The test counts above precede dependency remediation. A frozen-lockfile CI run
 must verify the patched dependencies before merge or release.

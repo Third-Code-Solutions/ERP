@@ -7,7 +7,9 @@
 3. Agent 05: narrow query-test callback types for Vitest 4's constructor-aware
    mocks. Preserve all assertions and application behavior, then hand back to
    Agent 13 for verification.
-4. Agent 13: review the resulting lockfile, require patched-dependency CI and
+4. Agent 03: reset Opportunity action mocks between tests so a simulated cache
+   failure cannot leak into the subsequent transition test under Vitest 4.
+5. Agent 13: review the resulting lockfile, require patched-dependency CI and
    production build, then perform the authorized guarded release. Record live
    checks separately from local tests and unresolved provider/master-data setup.
 
