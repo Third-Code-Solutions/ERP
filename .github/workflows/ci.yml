@@ -400,7 +400,15 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Install Playwright browsers
         working-directory: apps/web
-        run: npx playwright install --with-deps chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The hosted runner preinstalls a Google Chrome apt source. Its
+          # index can be briefly out of sync with the mirror while Playwright
+          # installs Linux dependencies, so remove that unrelated source.
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list \
+            /etc/apt/sources.list.d/google-chrome.sources
+          pnpm exec playwright install --with-deps chromium
       - name: Require isolated E2E configuration
         shell: bash
         run: |

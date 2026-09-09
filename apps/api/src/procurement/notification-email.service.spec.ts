@@ -194,8 +194,10 @@ describe('NotificationEmailService', () => {
     expect(body.html).toContain('Concrete &lt;Co&gt;')
     expect(body.html).toContain('PHP 1,234.05')
     expect(body.text).toBe(
-      'Hello Concrete <Co>, Purchase order PO-0042 for HQ <Fit-out> is issued. Total: PHP 1,234.05. https://thirdcode-erp.example.test/purchase-orders/33333333-3333-4333-8333-333333333333'
+      'Purchase order PO-0042 issued\n\nHello Concrete <Co>, purchase order PO-0042 for HQ <Fit-out> has been issued. Total order value: PHP 1,234.05. Review the purchase order: https://thirdcode-erp.example.test/purchase-orders/33333333-3333-4333-8333-333333333333.\n\nABI OPS\nActuate Builders Inc.'
     )
+    expect(body.html).toContain('This message was sent by ABI OPS for Actuate Builders Inc.')
+    expect(body.html).not.toMatch(/[—–→]/)
   })
 
   it('adds a supplier confirmation link only when the gated sender provides one', async () => {
