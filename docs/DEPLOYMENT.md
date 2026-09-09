@@ -260,6 +260,32 @@ envelope flow.
 
 ---
 
+## 7. Resend and Auth Email
+
+1. Verify the sender domain in Resend and create a sending-only API key scoped
+   to that domain. Keep the key in provider secret stores.
+2. Set `RESEND_API_KEY` and `EMAIL_FROM` on Vercel Production and the Railway
+   Core API production service, then deploy those services. The CAD worker
+   does not send email.
+3. Configure Supabase Auth custom SMTP separately: host `smtp.resend.com`,
+   port `465`, username `resend`, and the Resend API key as the SMTP password.
+   Use a sender address under the verified domain.
+4. Request recovery once for an existing, controlled mailbox through the ERP
+   forgot-password form. Confirm both the successful provider request and the
+   corresponding **delivered** event in Resend. A successful HTTP response
+   alone does not establish delivery. Do not open the reset link or change a
+   password merely to verify the email path.
+
+On 2026-09-10, production was configured with the verified
+`thirdcodesolutions.com` domain and sender
+`ABI OPS <abi-ops@thirdcodesolutions.com>`. Supabase SMTP and both application
+services use the dedicated domain-scoped key. The one-shot ERP recovery test
+passed, and its matching Resend message
+`ca6ca9b9-ed64-4065-a219-26dd9f036742` was delivered. This verifies Auth recovery
+delivery; it does not prove every procurement or notification workflow.
+
+---
+
 ## Migration Order
 
 `supabase/migrations` is the only ordered deployment authority. Never maintain
