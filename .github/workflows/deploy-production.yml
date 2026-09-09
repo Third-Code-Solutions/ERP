@@ -187,7 +187,14 @@ jobs:
 
       - name: Install Playwright Chromium
         working-directory: apps/web
-        run: pnpm exec playwright install --with-deps chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Keep production verification deterministic when the hosted
+          # runner's unrelated Google Chrome apt index is stale.
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list \
+            /etc/apt/sources.list.d/google-chrome.sources
+          pnpm exec playwright install --with-deps chromium
 
       - name: Run authenticated production E2E
         working-directory: apps/web

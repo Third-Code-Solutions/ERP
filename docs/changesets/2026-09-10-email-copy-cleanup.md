@@ -21,6 +21,10 @@ In the Supabase Authentication email templates for project `aqqrtkmtcsfkbyyqxowv
 
 Security notification switches were left at their existing provider state. Their copy was not enabled or changed as part of this release.
 
+CI and production verification now remove the hosted runner's unrelated Google
+Chrome apt source before installing Playwright dependencies. This avoids
+transient repository hash mismatches without weakening browser coverage.
+
 ## Verification
 
 - `pnpm --filter @third-code-erp/web exec vitest run src/lib/operations/integrations/resend.test.ts` passed: 4 tests.
@@ -29,4 +33,3 @@ Security notification switches were left at their existing provider state. Their
 - ESLint passed for the changed production source files.
 - `git diff --check` passed.
 - Supabase template reload checks confirmed the saved subjects and bodies listed above.
-
