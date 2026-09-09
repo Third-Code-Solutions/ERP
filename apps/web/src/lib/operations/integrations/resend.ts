@@ -1,9 +1,8 @@
 /**
- * Resend email client (REFACTOR.md §7.3) + the 11 transactional templates.
+ * Resend email client (REFACTOR.md §7.3) and transactional templates.
  *
- * Templates are pure string-builder functions for now (HTML + plaintext).
- * Migrating each to a React Email component when the Resend SDK is added
- * is a mechanical refactor — the call sites won't change.
+ * Templates are pure string builders with matching HTML and plain-text
+ * versions. Dynamic values are escaped before they enter HTML or links.
  *
  * Live mode: RESEND_API_KEY + EMAIL_FROM env vars.
  * Development/test mode: logs the email payload to stdout via console.warn.
@@ -39,7 +38,9 @@ const canUseDevelopmentStub = () => process.env.NODE_ENV !== 'production'
 const FROM = () =>
   process.env.EMAIL_FROM || 'ABI OPS <dev@abi-ops.invalid>'
 
-export async function sendEmail(envelope: EmailEnvelope): Promise<{ id: string; is_dev_stub: boolean }> {
+export async function sendEmail(
+  envelope: EmailEnvelope
+): Promise<{ id: string; is_dev_stub: boolean }> {
   if (!hasEmailConfig()) {
     if (!canUseDevelopmentStub()) {
       throw new Error(
@@ -79,81 +80,112 @@ export async function sendEmail(envelope: EmailEnvelope): Promise<{ id: string; 
 }
 
 // -----------------------------------------------------------------------------
-// 11 templates per REFACTOR §7.3
+// Transactional templates
 // -----------------------------------------------------------------------------
 
-const wrap = (subject: string, html: string, text: string) => ({
-  subject: `[ABI OPS] ${subject}`,
-  html: `<div style="font-family:Inter,Arial,sans-serif;font-size:14px;color:#1a1a1a;line-height:1.5;max-width:600px"><h2 style="color:#0F2D4A">${subject}</h2>${html}<hr style="border:none;border-top:1px solid #e5e5e5;margin:20px 0"/><p style="color:#737373;font-size:12px">ABI OPS — Actuate Builders Inc.</p></div>`,
-  text: `${subject}\n\n${text}\n\n— ABI OPS`,
-})
+const BRAND_NAVY = '#0F2D4A'
+const BRAND_ORANGE = '#E07B2A'
+const BODY_FONT = 'Arial, Helvetica, sans-serif'
+
+function escapeHtml(value: string): string {
+  return value.replace(
+    /[&<>"']/g,
+    (character) =>
+      ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;',
+      })[character]!
+  )
+}
+
+function actionLink(url: string, label: string, background = BRAND_NAVY): string {
+  return `<a href="${escapeHtml(url)}" style="display:inline-block;padding:11px 16px;background:${background};color:#ffffff;text-decoration:none;border-radius:6px;font-weight:700">${escapeHtml(label)}</a>`
+}
+
+function noteBlock(value: string): string {
+  return `<div style="margin:20px 0;padding:14px 16px;background:#f4f6f8;border-left:3px solid ${BRAND_ORANGE};color:#334155">${escapeHtml(value)}</div>`
+}
+
+function wrap(subject: string, html: string, text: string) {
+  const safeSubject = escapeHtml(subject)
+  const preheader = escapeHtml(text.replace(/\s+/g, ' ').trim().slice(0, 140))
+
+  return {
+    subject: `[ABI OPS] ${subject}`,
+    html: `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#f3f5f7;color:#17212b;font-family:${BODY_FONT};font-size:15px;line-height:1.55"><div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">${preheader}</div><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3f5f7;padding:32px 16px"><tr><td align="center"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border:1px solid #dbe1e6;border-radius:10px"><tr><td style="padding:24px 28px 18px;border-bottom:1px solid #edf0f2"><div style="color:${BRAND_NAVY};font-size:18px;font-weight:700;letter-spacing:.02em">ABI OPS</div><div style="margin-top:3px;color:#64748b;font-size:12px">Actuate Builders Inc.</div></td></tr><tr><td style="padding:28px"><h1 style="margin:0 0 18px;color:${BRAND_NAVY};font-size:24px;line-height:1.25;font-weight:700">${safeSubject}</h1>${html}</td></tr><tr><td style="padding:18px 28px 24px;border-top:1px solid #edf0f2;color:#64748b;font-size:12px"><p style="margin:0 0 8px">This message was sent by ABI OPS for Actuate Builders Inc.</p><p style="margin:0">If you did not expect this message, contact your workspace administrator.</p></td></tr></table></td></tr></table></body></html>`,
+    text: `${subject}\n\n${text}\n\nABI OPS\nActuate Builders Inc.`,
+  }
+}
 
 export const templates = {
   'kyc-request': (vars: { account_name: string; review_url: string }) =>
     wrap(
-      'New account pending KYC review',
-      `<p>A new account <strong>${vars.account_name}</strong> is pending your financial evaluation.</p><p><a href="${vars.review_url}" style="display:inline-block;padding:10px 16px;background:#0F2D4A;color:white;text-decoration:none;border-radius:6px">Open KYC queue →</a></p>`,
-      `New account ${vars.account_name} is pending KYC. Review: ${vars.review_url}`
+      'KYC review required',
+      `<p>Account <strong>${escapeHtml(vars.account_name)}</strong> is waiting for KYC review.</p><p style="margin:22px 0">${actionLink(vars.review_url, 'Open KYC queue')}</p>`,
+      `Account ${vars.account_name} is waiting for KYC review. Open the KYC queue: ${vars.review_url}`
     ),
   'kyc-result': (vars: { account_name: string; decision: string; notes?: string; account_url: string }) =>
     wrap(
-      `KYC ${vars.decision}: ${vars.account_name}`,
-      `<p>The KYC review for <strong>${vars.account_name}</strong> is now <strong>${vars.decision}</strong>.</p>${vars.notes ? `<p style="background:#f5f5f5;padding:12px;border-radius:6px"><em>${vars.notes}</em></p>` : ''}<p><a href="${vars.account_url}">View account →</a></p>`,
-      `KYC ${vars.decision}: ${vars.account_name}. ${vars.notes ?? ''}\n${vars.account_url}`
+      `KYC review ${vars.decision}: ${vars.account_name}`,
+      `<p>The KYC review for <strong>${escapeHtml(vars.account_name)}</strong> is complete.</p><p><strong>Decision:</strong> ${escapeHtml(vars.decision)}</p>${vars.notes ? noteBlock(vars.notes) : ''}<p style="margin:22px 0">${actionLink(vars.account_url, 'View account')}</p>`,
+      `KYC review ${vars.decision} for ${vars.account_name}. ${vars.notes ? `Notes: ${vars.notes} ` : ''}View the account: ${vars.account_url}`
     ),
   'design-ready': (vars: { opportunity_name: string; design_url: string }) =>
     wrap(
-      'Design ready for client presentation',
-      `<p>The design files for <strong>${vars.opportunity_name}</strong> are ready to share with the client.</p><p><a href="${vars.design_url}">Open opportunity →</a></p>`,
-      `Designs ready for ${vars.opportunity_name}: ${vars.design_url}`
+      'Design files ready',
+      `<p>Design files for <strong>${escapeHtml(vars.opportunity_name)}</strong> are ready for client presentation.</p><p style="margin:22px 0">${actionLink(vars.design_url, 'Open opportunity')}</p>`,
+      `Design files for ${vars.opportunity_name} are ready for client presentation. Open the opportunity: ${vars.design_url}`
     ),
   'bom-portal-link': (vars: { project_name: string; portal_url: string; valid_until: string }) =>
     wrap(
-      'Your BOM is ready for review',
-      `<p>The Bill of Materials for <strong>${vars.project_name}</strong> is ready for your review and signature.</p><p><a href="${vars.portal_url}" style="display:inline-block;padding:10px 16px;background:#E07B2A;color:white;text-decoration:none;border-radius:6px">Review &amp; sign BOM →</a></p><p style="font-size:12px;color:#737373">This link is valid until ${vars.valid_until}.</p>`,
-      `Your BOM for ${vars.project_name} is ready. Sign at: ${vars.portal_url} (valid until ${vars.valid_until})`
+      'BOM ready for review',
+      `<p>The Bill of Materials for <strong>${escapeHtml(vars.project_name)}</strong> is ready for review and signature.</p><p style="margin:22px 0">${actionLink(vars.portal_url, 'Review and sign BOM', BRAND_ORANGE)}</p><p style="color:#64748b;font-size:13px">This review link expires on ${escapeHtml(vars.valid_until)}.</p>`,
+      `The Bill of Materials for ${vars.project_name} is ready for review and signature. Review it here: ${vars.portal_url}. The link expires on ${vars.valid_until}.`
     ),
   'bom-signed': (vars: { project_name: string; tcv_php: string; project_url: string }) =>
     wrap(
-      'Client signed the BOM',
-      `<p>The client has signed the BOM for <strong>${vars.project_name}</strong> (TCV ₱${vars.tcv_php}).</p><p><a href="${vars.project_url}">Open project →</a></p>`,
-      `Client signed BOM for ${vars.project_name}. TCV: ₱${vars.tcv_php}. ${vars.project_url}`
+      'BOM signed by client',
+      `<p>The client signed the Bill of Materials for <strong>${escapeHtml(vars.project_name)}</strong>.</p><p><strong>Total contract value:</strong> PHP ${escapeHtml(vars.tcv_php)}</p><p style="margin:22px 0">${actionLink(vars.project_url, 'Open project')}</p>`,
+      `The client signed the Bill of Materials for ${vars.project_name}. Total contract value: PHP ${vars.tcv_php}. Open the project: ${vars.project_url}`
     ),
   'rfq-dispatch': (vars: { project_name: string; line_count: number; rfq_url: string }) =>
     wrap(
-      'RFQs ready for supplier outreach',
-      `<p>${vars.line_count} line items are flagged for RFQ on <strong>${vars.project_name}</strong>.</p><p><a href="${vars.rfq_url}">Open procurement →</a></p>`,
-      `${vars.line_count} RFQs ready for ${vars.project_name}. ${vars.rfq_url}`
+      'RFQ request ready',
+      `<p>The procurement team prepared <strong>${vars.line_count} ${vars.line_count === 1 ? 'line item' : 'line items'}</strong> for supplier quotes on <strong>${escapeHtml(vars.project_name)}</strong>.</p><p style="margin:22px 0">${actionLink(vars.rfq_url, 'Open procurement')}</p>`,
+      `The procurement team prepared ${vars.line_count} ${vars.line_count === 1 ? 'line item' : 'line items'} for supplier quotes on ${vars.project_name}. Open procurement: ${vars.rfq_url}`
     ),
   'po-issued': (vars: { po_number: string; total_php: string; supplier_name: string; po_pdf_url?: string }) =>
     wrap(
-      `Purchase order ${vars.po_number}`,
-      `<p>Dear ${vars.supplier_name},</p><p>Please find attached purchase order <strong>${vars.po_number}</strong> for ₱${vars.total_php}.</p>${vars.po_pdf_url ? `<p><a href="${vars.po_pdf_url}">Download PO PDF →</a></p>` : ''}`,
-      `PO ${vars.po_number} for ₱${vars.total_php} issued to ${vars.supplier_name}. ${vars.po_pdf_url ?? ''}`
+      `Purchase order ${vars.po_number} issued`,
+      `<p>Dear ${escapeHtml(vars.supplier_name)},</p><p>Purchase order <strong>${escapeHtml(vars.po_number)}</strong> has been issued for a total value of <strong>PHP ${escapeHtml(vars.total_php)}</strong>.</p>${vars.po_pdf_url ? `<p style="margin:22px 0">${actionLink(vars.po_pdf_url, 'Download purchase order')}</p>` : ''}`,
+      `Dear ${vars.supplier_name}, purchase order ${vars.po_number} has been issued for PHP ${vars.total_php}.${vars.po_pdf_url ? ` Download the purchase order: ${vars.po_pdf_url}` : ''}`
     ),
   'ticket-ack': (vars: { ticket_number: string; description: string }) =>
     wrap(
-      `Warranty ticket ${vars.ticket_number} received`,
-      `<p>We've received your warranty request. Our CX team will respond within 24 hours.</p><p><strong>Reference:</strong> ${vars.ticket_number}</p><p><strong>Issue:</strong> ${vars.description}</p>`,
-      `Warranty ticket ${vars.ticket_number} received. We'll respond within 24h. Issue: ${vars.description}`
+      `Warranty request received: ${vars.ticket_number}`,
+      `<p>We received your warranty request. Our customer experience team will review it and reply within one business day.</p><p><strong>Reference:</strong> ${escapeHtml(vars.ticket_number)}</p><p><strong>Issue:</strong> ${escapeHtml(vars.description)}</p>`,
+      `We received warranty request ${vars.ticket_number}. Our customer experience team will reply within one business day. Issue: ${vars.description}`
     ),
   'ticket-schedule': (vars: { ticket_number: string; scheduled_for: string; confirm_url: string }) =>
     wrap(
-      `Repair scheduled — ticket ${vars.ticket_number}`,
-      `<p>We've scheduled the repair for <strong>${vars.scheduled_for}</strong>.</p><p><a href="${vars.confirm_url}">Confirm or reschedule →</a></p>`,
-      `Repair for ticket ${vars.ticket_number} scheduled for ${vars.scheduled_for}. Confirm: ${vars.confirm_url}`
+      `Repair appointment scheduled: ${vars.ticket_number}`,
+      `<p>Your repair is scheduled for <strong>${escapeHtml(vars.scheduled_for)}</strong>.</p><p style="margin:22px 0">${actionLink(vars.confirm_url, 'Confirm or request a change')}</p>`,
+      `Repair ticket ${vars.ticket_number} is scheduled for ${vars.scheduled_for}. Confirm or request a change: ${vars.confirm_url}`
     ),
   'cnps-survey': (vars: { ticket_number: string; survey_url: string }) =>
     wrap(
-      'How did we do?',
-      `<p>Your warranty ticket <strong>${vars.ticket_number}</strong> was recently closed. Could you rate our service?</p><p><a href="${vars.survey_url}" style="display:inline-block;padding:10px 16px;background:#0F2D4A;color:white;text-decoration:none;border-radius:6px">Rate us (takes 30s) →</a></p>`,
-      `Please rate our service for ticket ${vars.ticket_number}: ${vars.survey_url}`
+      'Service feedback requested',
+      `<p>Your warranty ticket <strong>${escapeHtml(vars.ticket_number)}</strong> is closed. Please share your experience using the link below.</p><p style="margin:22px 0">${actionLink(vars.survey_url, 'Share feedback')}</p>`,
+      `Your warranty ticket ${vars.ticket_number} is closed. Share your service feedback: ${vars.survey_url}`
     ),
   'sla-breach': (vars: { entity_label: string; sla_label: string; project_name?: string; link_url: string }) =>
     wrap(
-      `SLA breached: ${vars.sla_label}`,
-      `<p>SLA <strong>${vars.sla_label}</strong> has breached on <strong>${vars.entity_label}</strong>${vars.project_name ? ` (${vars.project_name})` : ''}.</p><p><a href="${vars.link_url}">Open →</a></p>`,
-      `SLA breach: ${vars.sla_label} on ${vars.entity_label}. ${vars.link_url}`
+      `Action required: ${vars.sla_label}`,
+      `<p>The service-level target <strong>${escapeHtml(vars.sla_label)}</strong> was missed for <strong>${escapeHtml(vars.entity_label)}</strong>${vars.project_name ? ` in <strong>${escapeHtml(vars.project_name)}</strong>` : ''}.</p><p style="margin:22px 0">${actionLink(vars.link_url, 'Review in ABI OPS')}</p>`,
+      `The service-level target ${vars.sla_label} was missed for ${vars.entity_label}${vars.project_name ? ` in ${vars.project_name}` : ''}. Review it in ABI OPS: ${vars.link_url}`
     ),
 } as const
 
