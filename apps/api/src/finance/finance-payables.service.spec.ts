@@ -46,7 +46,7 @@ const ROW = {
   projectName: 'Warehouse fit-out',
 }
 
-function chain<T>(result: T, whereCalls: ReturnType<typeof vi.fn>) {
+function chain<T>(result: T, whereCalls: (...args: unknown[]) => unknown) {
   const query: Record<string, ReturnType<typeof vi.fn>> = {}
   query.from = vi.fn().mockReturnValue(query)
   query.innerJoin = vi.fn().mockReturnValue(query)

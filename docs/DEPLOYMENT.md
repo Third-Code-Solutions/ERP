@@ -222,6 +222,18 @@ through `BUILD_OPS_DEMO_TENANT_SLUGS`. Do not add a customer or foreign test
 tenant to this allowlist to make a promotion pass. The gate is read-only and
 must report clear before migrations or provider deployment start.
 
+The manual `verify_password_rotation` input defaults to `true`. Set it to
+`false` only when the release owner explicitly excludes demo-account password
+rotation and restoration from that release. The workflow records the exclusion
+in its job summary. This input does not disable the one-shot password-recovery
+proof or any application, data, provider, health, authorization, or role-matrix
+gate.
+
+The authenticated production suite also inventories every page route and probes
+anonymous GET handlers. Its route ledger distinguishes rendered pages from
+invalid-record guards and records positive cases without available data as not
+run. Passing that audit does not establish mutation or outbound-provider delivery.
+
 Do not add production provider credentials to repository variables or `.env`
 files. The workflow runs the authenticated ABI OPS production E2E journeys
 after public health checks and fails closed when either E2E secret is missing.
