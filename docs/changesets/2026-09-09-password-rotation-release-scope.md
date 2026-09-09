@@ -61,6 +61,9 @@ Vitest consumers are updated together; the removed `minWorkers` option is
 removed while `maxWorkers: 1` preserves serial file execution. The auth package
 also requires patched Next.js, avoiding a second vulnerable development copy.
 The regenerated full dependency graph audit reports no known vulnerabilities.
+Finance and notification query-test helpers now declare callable callbacks
+explicitly; Vitest 4's generic mock type also permits constructors. Assertions
+and application behavior are unchanged.
 
 The test counts above precede dependency remediation. A frozen-lockfile CI run
 must verify the patched dependencies before merge or release.
