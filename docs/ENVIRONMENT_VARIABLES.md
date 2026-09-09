@@ -159,7 +159,12 @@ and must be observed separately until its durable outbox path is generalized.
 | Variable | Required | Scope | Where to get | Controls |
 |---|---|---|---|---|
 | `RESEND_API_KEY` | no | server | `resend.com → API Keys` | Outbound transactional email |
-| `RESEND_FROM_EMAIL` | no | server | Verified sender on Resend | Default `From:` address |
+| `EMAIL_FROM` | no | server | Verified sender on Resend | Default `From:` address |
+
+Set both variables on the production Web and Core API services. Supabase Auth
+uses its own custom SMTP configuration; setting these application variables
+does not configure password-recovery delivery. See the
+[email deployment procedure](DEPLOYMENT.md#7-resend-and-auth-email).
 
 In non-production, unset credentials use explicit development stubs. In
 production, missing credentials fail closed; no fake delivery is recorded.
