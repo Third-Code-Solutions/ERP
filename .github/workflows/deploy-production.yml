@@ -7,6 +7,11 @@ on:
         description: Release reason and change reference
         required: true
         type: string
+      verify_password_rotation:
+        description: Verify and restore the demo account password during this release
+        required: true
+        type: boolean
+        default: true
 
 concurrency:
   group: abi-ops-production-promotion
@@ -201,6 +206,7 @@ jobs:
             e2e/branding-authenticated.spec.ts \
             e2e/smoke-console.spec.ts \
             e2e/role-access-production.spec.ts \
+            e2e/complete-route-audit.spec.ts \
             e2e/cad-worker-production.spec.ts \
             --project=chromium --workers=1 --reporter=json > "$report_path"
           node "$GITHUB_WORKSPACE/scripts/assert-playwright-no-skips.mjs" \
@@ -219,12 +225,24 @@ jobs:
           --project=chromium --workers=1 --retries=0 --reporter=line
 
       - name: Verify live profile password rotation and restoration
+        if: ${{ inputs.verify_password_rotation }}
         working-directory: apps/web
         env:
           E2E_LIVE_PASSWORD_ROTATION: "1"
           E2E_LIVE_PASSWORD_ROTATION_CONFIRM_EMAIL: ${{ secrets.E2E_USER_EMAIL }}
           PLAYWRIGHT_BASE_URL: https://thirdcode-erp.vercel.app
         run: node e2e/live-password-rotation-harness.mjs
+
+      - name: Record excluded password rotation verification
+        if: ${{ always() && !inputs.verify_password_rotation }}
+        shell: bash
+        run: |
+          {
+            echo "### Verification scope"
+            echo
+            echo "Live demo-account password rotation and restoration were explicitly excluded from this release."
+            echo "Password recovery and all non-password production gates remained mandatory."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()

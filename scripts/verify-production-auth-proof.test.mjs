@@ -29,4 +29,17 @@ test('production recovery proof is one-shot and follows magic-link role QA', asy
     workflow,
     /playwright test e2e\/production-password-recovery\.spec\.ts[\s\S]*?--retries=0/
   )
+  assert.match(
+    workflow,
+    /verify_password_rotation:[\s\S]*?type: boolean[\s\S]*?default: true/
+  )
+  assert.match(
+    workflow,
+    /Verify live profile password rotation and restoration[\s\S]*?if: \$\{\{ inputs\.verify_password_rotation \}\}/
+  )
+  assert.match(
+    workflow,
+    /Record excluded password rotation verification[\s\S]*?if: \$\{\{ always\(\) && !inputs\.verify_password_rotation \}\}[\s\S]*?Password recovery and all non-password production gates remained mandatory\./
+  )
+  assert.match(workflow, /e2e\/complete-route-audit\.spec\.ts/)
 })
