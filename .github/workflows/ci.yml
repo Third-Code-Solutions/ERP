@@ -342,6 +342,34 @@ jobs:
       - name: Verify Vercel spend guard
         run: node scripts/verify-vercel-spend-guard.mjs
       - run: pnpm turbo build
+      - name: Verify built image optimizer
+        shell: bash
+        run: |
+          set -euo pipefail
+          node apps/web/node_modules/next/dist/bin/next start apps/web --hostname 127.0.0.1 --port 3100 > "$RUNNER_TEMP/image-optimizer.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:3100/api/health > /dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail --silent --show-error --max-time 30 \
+            -H 'Accept: image/webp' \
+            'http://127.0.0.1:3100/_next/image?url=%2Fimages%2Fabi-mark.png&w=256&q=75' \
+            -D "$RUNNER_TEMP/image-optimizer.headers" \
+            -o "$RUNNER_TEMP/image-optimizer.bin"
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import { readFileSync } from "node:fs";
+            const base = process.env.RUNNER_TEMP + "/image-optimizer";
+            const headers = readFileSync(base + ".headers", "utf8");
+            const bytes = readFileSync(base + ".bin");
+            assert.match(headers, /content-type: image\/webp/i);
+            assert.equal(bytes.toString("ascii", 0, 4), "RIFF");
+            assert.equal(bytes.toString("ascii", 8, 12), "WEBP");
+            assert.ok(bytes.length > 100);
+            console.log("PASS built Next.js/Sharp image optimization");
+          '
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: next-build

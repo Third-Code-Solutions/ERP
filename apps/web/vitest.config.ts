@@ -11,7 +11,6 @@ export default defineConfig({
     // workers makes valid five-second contracts flaky on CI and Windows.
     // Keep this deterministic and consistent with the Core API suite.
     pool: 'forks',
-    minWorkers: 1,
     maxWorkers: 1,
   },
   resolve: {
