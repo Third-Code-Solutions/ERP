@@ -33,9 +33,19 @@ describe('TodayCommandCenter', () => {
 
     expect(markup).toContain('Today, SD / PM / PE')
     expect(markup).toContain('Confirm site handoff')
+    expect(markup).toContain('Process work queue')
+    expect(markup).toContain('href="/process"')
     expect(markup).toContain('href="/projects/22222222-2222-4222-8222-222222222222"')
     expect(markup).toContain('refTable=projects')
     expect(markup).toContain('refId=22222222-2222-4222-8222-222222222222')
+  })
+
+  it('hides the process queue entry when the role lacks task-management capability', () => {
+    const markup = renderToStaticMarkup(<TodayCommandCenter role="viewer" data={baseData} />)
+
+    expect(markup).not.toContain('Process work queue')
+    expect(markup).not.toContain('href="/process"')
+    expect(markup).toContain('href="/tasks"')
   })
 
   it('does not invent executive financial content for viewer workspaces', () => {

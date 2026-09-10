@@ -41,6 +41,10 @@ import { PublicVendorConfirmationPipe } from './public-vendor-confirmation.pipe'
 import { PublicVendorConfirmationService } from './public-vendor-confirmation.service'
 import { VendorConfirmationSessionMintingService } from './vendor-confirmation-session-minting.service'
 import { VendorConfirmationLinkService } from './vendor-confirmation-link.service'
+import { VendorPerformanceController } from './vendor-performance.controller'
+import { VendorPerformanceService } from './vendor-performance.service'
+import { RfqBidLevelingController } from './rfq-bid-leveling.controller'
+import { RfqBidLevelingService } from './rfq-bid-leveling.service'
 
 @Module({
   imports: [
@@ -57,6 +61,8 @@ import { VendorConfirmationLinkService } from './vendor-confirmation-link.servic
     DeliveryWorkflowController,
     PublicVendorConfirmationController,
     TogalBomCommitController,
+    VendorPerformanceController,
+    RfqBidLevelingController,
   ],
   providers: [
     ProcurementService,
@@ -84,6 +90,8 @@ import { VendorConfirmationLinkService } from './vendor-confirmation-link.servic
     VendorConfirmationLinkService,
     TogalBomCommitService,
     TogalBomCommitPipe,
+    VendorPerformanceService,
+    RfqBidLevelingService,
   ],
 })
 export class ProcurementModule implements NestModule {
@@ -95,7 +103,9 @@ export class ProcurementModule implements NestModule {
         PurchaseOrderController,
         DeliveryWorkflowController,
         PublicVendorConfirmationController,
-        TogalBomCommitController
+        TogalBomCommitController,
+        VendorPerformanceController,
+        RfqBidLevelingController,
       )
   }
 }

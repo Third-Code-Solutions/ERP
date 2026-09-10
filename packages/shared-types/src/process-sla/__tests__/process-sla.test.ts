@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  approvalRoutePreviewQuerySchema,
+  approvalRoutePreviewResultSchema,
   canEscalateSlaClock,
   createSlaClockSchedule,
   evaluateSlaClock,
+  processTaskQueueQuerySchema,
+  processTaskQueueResultSchema,
   updateTaskStatusCommandSchema,
 } from '..'
 import { philippineBusinessDays } from '../../business-days'
@@ -109,6 +113,176 @@ describe('M-06 process SLA clock contracts', () => {
       updateTaskStatusCommandSchema.safeParse({
         status: 'completed',
         blockedReason: 'not applicable',
+      }).success
+    ).toBe(false)
+  })
+
+  it('defines a strict, trimmed approval-route preview query', () => {
+    expect(
+      approvalRoutePreviewQuerySchema.safeParse({
+        objectType: ' purchase_order ',
+        amountCentavos: '9007199254740993',
+      })
+    ).toEqual({
+      success: true,
+      data: {
+        objectType: 'purchase_order',
+        amountCentavos: '9007199254740993',
+      },
+    })
+    expect(
+      approvalRoutePreviewQuerySchema.safeParse({
+        objectType: 'purchase_order',
+        amountCentavos: '1.00',
+      }).success
+    ).toBe(false)
+    expect(
+      approvalRoutePreviewQuerySchema.safeParse({
+        objectType: 'purchase_order',
+        amountCentavos: '0',
+        extra: true,
+      }).success
+    ).toBe(false)
+  })
+
+  it('keeps the approval-route preview result contract strict and literal', () => {
+    const result = approvalRoutePreviewResultSchema.safeParse({
+      objectType: 'purchase_order',
+      amountCentavos: '0',
+      mode: 'preview_only',
+      authority: 'configured_rules_only',
+      status: 'matched',
+      steps: [
+        {
+          sequence: 10,
+          status: 'matched',
+          rules: [],
+        },
+      ],
+    })
+
+    expect(result.success).toBe(true)
+    expect(
+      approvalRoutePreviewResultSchema.safeParse({
+        objectType: 'purchase_order',
+        amountCentavos: '0',
+        mode: 'live',
+        authority: 'configured_rules_only',
+        status: 'matched',
+        steps: [],
+      }).success
+    ).toBe(false)
+  })
+
+  it('defines a strict task-queue query with bounded pagination and trimmed BU', () => {
+    expect(
+      processTaskQueueQuerySchema.safeParse({
+        status: 'blocked',
+        responsibleBu: '  Commercial  ',
+        page: '100000',
+        limit: '100',
+      })
+    ).toEqual({
+      success: true,
+      data: {
+        status: 'blocked',
+        responsibleBu: 'Commercial',
+        page: 100000,
+        limit: 100,
+      },
+    })
+    expect(processTaskQueueQuerySchema.parse({})).toEqual({
+      page: 1,
+      limit: 25,
+    })
+    expect(
+      processTaskQueueQuerySchema.safeParse({
+        responsibleBu: '   ',
+      }).success
+    ).toBe(false)
+    expect(
+      processTaskQueueQuerySchema.safeParse({ status: 'unknown' }).success
+    ).toBe(false)
+    expect(
+      processTaskQueueQuerySchema.safeParse({ page: 100001 }).success
+    ).toBe(false)
+    expect(
+      processTaskQueueQuerySchema.safeParse({ limit: 101 }).success
+    ).toBe(false)
+    expect(
+      processTaskQueueQuerySchema.safeParse({ unexpected: true }).success
+    ).toBe(false)
+  })
+
+  it('accepts both unassigned/no-clock and external observe-mode queue rows', () => {
+    const result = processTaskQueueResultSchema.safeParse({
+      tenantId: '22222222-2222-4222-8222-222222222222',
+      rows: [
+        {
+          id: '44444444-4444-4444-8444-444444444444',
+          processStepId: '33333333-3333-4333-8333-333333333333',
+          processStepCode: 'PR-L',
+          processStepName: 'Lead qualification',
+          responsibleBu: 'Sales',
+          subjectType: 'opportunity',
+          subjectId: '77777777-7777-4777-8777-777777777777',
+          instanceKey: 'opportunity:777:PR-L',
+          assignedTo: null,
+          status: 'pending',
+          blockedReason: null,
+          startedAt: null,
+          completedAt: null,
+          createdAt: '2026-08-12T00:00:00.000Z',
+          updatedAt: '2026-08-12T00:00:00.000Z',
+          clock: null,
+        },
+        {
+          id: '44444444-4444-4444-8444-444444444445',
+          processStepId: '33333333-3333-4333-8333-333333333333',
+          processStepCode: 'LGU-PERMIT',
+          processStepName: 'LGU permit return',
+          responsibleBu: 'SD',
+          subjectType: 'project',
+          subjectId: '77777777-7777-4777-8777-777777777778',
+          instanceKey: 'project:778:LGU-PERMIT',
+          assignedTo: '66666666-6666-4666-8666-666666666666',
+          status: 'in_progress',
+          blockedReason: null,
+          startedAt: '2026-08-12T00:00:00.000Z',
+          completedAt: null,
+          createdAt: '2026-08-12T00:00:00.000Z',
+          updatedAt: '2026-08-12T01:00:00.000Z',
+          clock: {
+            id: '55555555-5555-4555-8555-555555555555',
+            clockType: 'calendar_hours',
+            clockScope: 'external',
+            targetValue: 24,
+            startedAt: '2026-08-12T00:00:00.000Z',
+            dueAt: '2026-08-13T00:00:00.000Z',
+            atRiskAt: '2026-08-12T19:12:00.000Z',
+            breachedAt: '2026-08-13T00:00:00.000Z',
+            escalatedAt: null,
+            status: 'breached',
+            observeMode: true,
+          },
+        },
+      ],
+      total: 2,
+      page: 1,
+      limit: 25,
+      totalPages: 1,
+    })
+
+    expect(result.success).toBe(true)
+    expect(
+      processTaskQueueResultSchema.safeParse({
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        rows: [],
+        total: 0,
+        page: 1,
+        limit: 25,
+        totalPages: 1,
+        extra: true,
       }).success
     ).toBe(false)
   })

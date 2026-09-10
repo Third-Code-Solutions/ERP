@@ -402,6 +402,81 @@ deployment identity, and rollback evidence are recorded.
 | `ERP_PROJECT_LISTS_VIA_API` | no | Next server | Selects Nest `GET /v1/projects`; exact `true` only |
 | `ERP_PROJECT_LISTS_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist; default empty |
 
+## Vendor performance read cutover (NestJS, disabled by default)
+
+The vendor performance register projects purchase-order, delivery, and posted
+supplier-bill evidence. It is restricted to operational/finance roles and may
+switch to Core for one exact tenant; the compatibility database path remains
+the default until protected HTTP, browser, and rollback evidence is recorded.
+
+| Variable | Required | Scope | Controls |
+|---|---|---|---|
+| `ERP_VENDOR_PERFORMANCE_READS_VIA_API` | no | Next server | Selects Nest `GET /v1/procurement/vendors/performance`; exact `true` only |
+| `ERP_VENDOR_PERFORMANCE_READS_VIA_API_TENANT_IDS` | no | Next server | Strict exact UUID allowlist; wildcard rejected; default empty |
+
+## RFQ bid-leveling read cutover (NestJS, disabled by default)
+
+The RFQ detail page can switch its quote-coverage and freshness projection to
+Core for one exact tenant. Awarding remains an explicit commercial action; this
+flag never auto-selects a supplier.
+
+| Variable | Required | Scope | Controls |
+|---|---|---|---|
+| `ERP_RFQ_BID_LEVELING_READS_VIA_API` | no | Next server | Selects Nest `GET /v1/procurement/rfqs/:id/bid-leveling`; exact `true` only |
+| `ERP_RFQ_BID_LEVELING_READS_VIA_API_TENANT_IDS` | no | Next server | Strict exact UUID allowlist; wildcard rejected; default empty |
+
+## Project material actuals read cutover (NestJS, disabled by default)
+
+The project cost view can switch its posted goods-receipt and project
+consumption projection to Core for one exact tenant. Receipt value and issue
+value remain separate from posted supplier-bill actual cost; SAP posting is not
+claimed by this read path.
+
+| Variable | Required | Scope | Controls |
+|---|---|---|---|
+| `ERP_PROJECT_MATERIAL_ACTUALS_READS_VIA_API` | no | Next server | Selects Nest `GET /v1/projects/:id/material-actuals`; exact `true` only |
+| `ERP_PROJECT_MATERIAL_ACTUALS_READS_VIA_API_TENANT_IDS` | no | Next server | Strict exact UUID allowlist; wildcard rejected; default empty |
+
+## Project labour reconciliation read cutover (NestJS, disabled by default)
+
+The schedule view can switch planned-versus-captured task minutes to Core for
+one exact tenant. It does not infer labour cost or headcount, and the direct
+database path remains the default until protected parity is approved.
+
+| Variable | Required | Scope | Controls |
+|---|---|---|---|
+| `ERP_PROJECT_LABOUR_RECONCILIATION_READS_VIA_API` | no | Next server | Selects Nest `GET /v1/projects/:id/labour-reconciliation`; exact `true` only |
+| `ERP_PROJECT_LABOUR_RECONCILIATION_READS_VIA_API_TENANT_IDS` | no | Next server | Strict exact UUID allowlist; wildcard rejected; default empty |
+
+## Project handover readiness read cutover (NestJS, disabled by default)
+
+The turnover page can switch its turnover/COC/punchlist/occupancy evidence gate
+to Core for one exact tenant. It does not create zone handover records or claim
+bond, retention, P&L, or external SAP completion.
+
+| Variable | Required | Scope | Controls |
+|---|---|---|---|
+| `ERP_PROJECT_HANDOVER_READINESS_READS_VIA_API` | no | Next server | Selects Nest `GET /v1/projects/:id/handover-readiness`; exact `true` only |
+| `ERP_PROJECT_HANDOVER_READINESS_READS_VIA_API_TENANT_IDS` | no | Next server | Strict exact UUID allowlist; wildcard rejected; default empty |
+
+## Project close-out readiness read cutover (NestJS, disabled by default)
+
+The turnover page can switch its bond, retention, and explicit P&L evidence
+projection to Core for one exact tenant. It reports source evidence only; it
+does not infer contract release terms, create a P&L close-out, or claim SAP
+statutory accounting completion.
+
+| Variable | Required | Scope | Controls |
+|---|---|---|---|
+| `ERP_PROJECT_CLOSEOUT_READINESS_READS_VIA_API` | no | Next server | Selects Nest `GET /v1/projects/:id/closeout-readiness`; exact `true` only |
+| `ERP_PROJECT_CLOSEOUT_READINESS_READS_VIA_API_TENANT_IDS` | no | Next server | Strict exact UUID allowlist; wildcard rejected; default empty |
+| `E2E_TENDER_AUTH` | no | Playwright | Set to `1` only for authenticated tender-workspace role-matrix QA |
+| `E2E_TENDER_OPPORTUNITY_ID` | no | Playwright | Isolated demo-tenant opportunity UUID for tender role-matrix QA |
+| `E2E_IWR_PUNCHLIST_AUTH` | no | Playwright | Set to `1` only for the isolated rejected-IWR → punchlist role-matrix journey |
+| `E2E_IWR_PUNCHLIST_PROJECT_ID` | no | Playwright | Demo-tenant project UUID containing the prepared rejected IWR |
+| `E2E_IWR_PUNCHLIST_ID` | no | Playwright | Prepared rejected IWR UUID used by the handoff journey |
+| `E2E_IWR_PUNCHLIST_NUMBER` | no | Playwright | Visible IWR number for locating the prepared rejected record |
+
 ## Today/Project Command Center read cutover (NestJS, disabled by default)
 
 The dashboard Today surface may opt into the tenant-scoped Nest `GET

@@ -7,6 +7,8 @@ import { AccountsController } from './accounts.controller'
 import { AccountsService } from './accounts.service'
 import { OpportunitiesController } from './opportunities.controller'
 import { OpportunitiesService } from './opportunities.service'
+import { InspectionRfisController } from './inspection-rfis.controller'
+import { InspectionRfisService } from './inspection-rfis.service'
 import { OpportunityProjectConversionController } from './opportunity-project-conversion.controller'
 import { OpportunityProjectConversionService } from './opportunity-project-conversion.service'
 import { OpportunityStageTransitionController } from './opportunity-stage-transition.controller'
@@ -16,6 +18,7 @@ import { OpportunityStageTransitionService } from './opportunity-stage-transitio
 @Module({
   imports: [AuditModule],
   controllers: [
+    InspectionRfisController,
     ChangeRequestsController,
     AccountsController,
     OpportunitiesController,
@@ -23,6 +26,7 @@ import { OpportunityStageTransitionService } from './opportunity-stage-transitio
     OpportunityStageTransitionController,
   ],
   providers: [
+    InspectionRfisService,
     ChangeRequestCreationService,
     AccountsService,
     OpportunitiesService,
@@ -36,6 +40,7 @@ export class CrmModule implements NestModule {
     consumer
       .apply(RequestObservabilityMiddleware)
       .forRoutes(
+        InspectionRfisController,
         ChangeRequestsController,
         AccountsController,
         OpportunitiesController,

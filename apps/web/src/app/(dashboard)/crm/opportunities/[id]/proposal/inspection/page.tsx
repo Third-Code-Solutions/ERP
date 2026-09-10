@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { and, eq, desc } from 'drizzle-orm'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
+import type { InspectionRfiListResult } from '@third-code-erp/shared-types'
 import { db } from '@third-code-erp/database'
 import {
   opportunities,
@@ -12,17 +13,57 @@ import {
   siteInspectionRfis,
   documents,
 } from '@third-code-erp/database/schema'
+import { getInspectionRfisThroughCoreApi } from '@/lib/erp-core-client'
 import { ProposalSubNav } from '@/components/proposal/sub-nav'
 import { InspectionForm } from '@/components/proposal/inspection-form'
 import { RfiForm } from '@/components/proposal/rfi-form'
+import { InspectionRfiRegister } from './inspection-rfi-register'
+
+type SearchParamValue = string | string[] | undefined
+
+function firstSearchParam(value: SearchParamValue): string | undefined {
+  return Array.isArray(value) ? value[0] : value
+}
+
+function optionalSearchParam(value: SearchParamValue): string | undefined {
+  const first = firstSearchParam(value)
+  return first?.trim() ? first.trim() : undefined
+}
+
+function positiveInteger(value: string | undefined, fallback: number): number {
+  if (!value || !/^[1-9]\d*$/.test(value)) return fallback
+  const parsed = Number(value)
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback
+}
+
+function inspectionHref(
+  opportunityId: string,
+  filters: { status?: string; priority?: string; page?: number; limit?: number },
+): string {
+  const params = new URLSearchParams()
+  if (filters.status) params.set('rfiStatus', filters.status)
+  if (filters.priority) params.set('rfiPriority', filters.priority)
+  if (filters.page && filters.page > 1) params.set('rfiPage', String(filters.page))
+  if (filters.limit && filters.limit !== 25) params.set('rfiLimit', String(filters.limit))
+  const query = params.toString()
+  return `/crm/opportunities/${opportunityId}/proposal/inspection${query ? `?${query}` : ''}`
+}
 
 interface PageProps {
   params: Promise<{ id: string }>
+  searchParams?: Promise<Record<string, SearchParamValue>>
 }
 
-export default async function InspectionPage({ params }: PageProps) {
+export default async function InspectionPage({ params, searchParams }: PageProps) {
   const { id } = await params
   const profile = await requireUserProfile()
+  const rawSearchParams = (await searchParams) ?? {}
+  const rawStatus = optionalSearchParam(rawSearchParams.rfiStatus)
+  const rawPriority = optionalSearchParam(rawSearchParams.rfiPriority)
+  const status = rawStatus === 'open' || rawStatus === 'resolved' ? rawStatus : undefined
+  const priority = rawPriority === 'minor' || rawPriority === 'major' ? rawPriority : undefined
+  const page = Math.min(100000, positiveInteger(optionalSearchParam(rawSearchParams.rfiPage), 1))
+  const limit = Math.min(100, positiveInteger(optionalSearchParam(rawSearchParams.rfiLimit), 25))
 
   const [opp] = await db
     .select({
@@ -68,9 +109,17 @@ export default async function InspectionPage({ params }: PageProps) {
 
   const latest = inspections[0]
 
-  // For the latest inspection, pull photos + RFIs.
+  // For the latest inspection, pull photos. RFI status is read through Core
+  // below so resolution authority and tenant filtering stay in one boundary.
+  // Keep the existing latest-inspection read as a display fallback if Core is
+  // unavailable; it never exposes a mutation path.
   let photos: { id: string; document_id: string; file_name: string | null }[] = []
-  let rfis: { id: string; description: string; priority: 'minor' | 'major'; resolved_at: Date | null }[] = []
+  let legacyLatestRfis: {
+    id: string
+    description: string
+    priority: 'minor' | 'major'
+    resolved_at: Date | null
+  }[] = []
   let pdfFile: { file_name: string | null } | null = null
   if (latest) {
     const photoRows = await db
@@ -104,7 +153,7 @@ export default async function InspectionPage({ params }: PageProps) {
         ),
       )
       .orderBy(desc(siteInspectionRfis.created_at))
-    rfis = rfiRows
+    legacyLatestRfis = rfiRows
 
     if (latest.pdf_document_id) {
       const [doc] = await db
@@ -135,6 +184,26 @@ export default async function InspectionPage({ params }: PageProps) {
     expected_start_date: String(pprfPayload.expected_start_date ?? ''),
     scope_notes: String(pprfPayload.scope_notes ?? ''),
   }
+
+  const canReadRfis = can(profile.role, 'opportunity.read')
+  const rfiRegisterResponse = canReadRfis
+    ? await getInspectionRfisThroughCoreApi(id, { status, priority, page, limit })
+    : { ok: false as const, error: 'You do not have permission to view inspection RFIs.' }
+  const rfiRegister: InspectionRfiListResult | null =
+    rfiRegisterResponse.ok && rfiRegisterResponse.data
+      ? rfiRegisterResponse.data
+      : null
+  const rfiRegisterError = rfiRegisterResponse.ok
+    ? null
+    : rfiRegisterResponse.error ?? 'Inspection RFI register is unavailable.'
+  const latestRfis = rfiRegister
+    ? rfiRegister.rows.filter((row) => row.inspectionId === latest?.id)
+    : legacyLatestRfis.map((row) => ({
+        id: row.id,
+        description: row.description,
+        priority: row.priority,
+        resolvedAt: row.resolved_at?.toISOString() ?? null,
+      }))
 
   return (
     <div>
@@ -228,10 +297,10 @@ export default async function InspectionPage({ params }: PageProps) {
 
               <div className="card">
                 <div className="card-header">
-                  <h2 className="card-title">RFIs ({rfis.length})</h2>
+                <h2 className="card-title">RFIs ({latestRfis.length})</h2>
                 </div>
-                {rfis.length === 0 ? (
-                  <div className="card-empty">No RFIs logged.</div>
+                {latestRfis.length === 0 ? (
+                  <div className="card-empty">No RFIs logged on this page.</div>
                 ) : (
                   <table className="data-table">
                     <thead>
@@ -242,11 +311,11 @@ export default async function InspectionPage({ params }: PageProps) {
                       </tr>
                     </thead>
                     <tbody>
-                      {rfis.map((r) => (
+                      {latestRfis.map((r) => (
                         <tr key={r.id}>
                           <td>{r.description}</td>
                           <td>{r.priority}</td>
-                          <td className="muted">{r.resolved_at ? 'Resolved' : 'Open'}</td>
+                          <td className="muted">{r.resolvedAt ? 'Resolved' : 'Open'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -259,6 +328,25 @@ export default async function InspectionPage({ params }: PageProps) {
             </>
           )}
         </aside>
+      </div>
+
+      <div style={{ marginTop: 18 }}>
+        <InspectionRfiRegister
+          opportunityId={id}
+          result={rfiRegister}
+          error={rfiRegisterError}
+          canMutate={can(profile.role, 'site_inspection.submit')}
+          activeStatus={status}
+          activePriority={priority}
+          filterHref={({ status: nextStatus, priority: nextPriority, page: nextPage }) =>
+            inspectionHref(id, {
+              status: nextStatus,
+              priority: nextPriority,
+              page: nextPage,
+              limit,
+            })
+          }
+        />
       </div>
     </div>
   )

@@ -27,7 +27,7 @@ import {
   projects,
   documents,
 } from '@third-code-erp/database/schema'
-import { writeAuditLog, computeDiff } from '@/lib/audit'
+import { stampActorInTransaction, writeAuditLog, writeAuditLogInTransaction, computeDiff } from '@/lib/audit'
 import { notifyExternalEmail } from '@/lib/operations/notifications'
 import { startSlaClock, stopSlaClock } from '@/lib/operations/sla-clock'
 import { inngest } from '@/lib/inngest'
@@ -43,14 +43,12 @@ function siteBase(): string {
 }
 
 async function loadTicket(profileTenantId: string, ticketId: string) {
-  const [t] = await db
+  const [ticket] = await db
     .select()
     .from(warrantyTickets)
-    .where(
-      and(eq(warrantyTickets.id, ticketId), eq(warrantyTickets.tenant_id, profileTenantId))
-    )
+    .where(and(eq(warrantyTickets.id, ticketId), eq(warrantyTickets.tenant_id, profileTenantId)))
     .limit(1)
-  return t ?? null
+  return ticket ?? null
 }
 
 export async function acknowledgeTicket(ticketId: string): Promise<ActionResult> {
@@ -61,30 +59,40 @@ export async function acknowledgeTicket(ticketId: string): Promise<ActionResult>
     return { error: e instanceof Error ? e.message : 'Forbidden' }
   }
 
-  const existing = await loadTicket(profile.tenantId, ticketId)
-  if (!existing) return { error: 'Ticket not found' }
-  if (existing.status !== 'open') return { error: 'Only open tickets can be acknowledged' }
-
-  const now = new Date()
-  await db
-    .update(warrantyTickets)
-    .set({ status: 'acknowledged', acknowledged_at: now, updated_at: now })
-    .where(
-      and(eq(warrantyTickets.id, ticketId), eq(warrantyTickets.tenant_id, profile.tenantId))
-    )
-
-  await stopSlaClock({
-    tenantId: profile.tenantId,
-    entityType: 'warranty_ticket',
-    entityId: ticketId,
-    label: 'ticket.acknowledge',
-  })
-  await startSlaClock({
-    tenantId: profile.tenantId,
-    entityType: 'warranty_ticket',
-    entityId: ticketId,
-    label: 'ticket.schedule',
-  })
+  let existing: typeof warrantyTickets.$inferSelect
+  try {
+    existing = await db.transaction(async (tx) => {
+      await stampActorInTransaction(tx, profile.user.id)
+      const [ticket] = await tx
+        .select()
+        .from(warrantyTickets)
+        .where(and(eq(warrantyTickets.id, ticketId), eq(warrantyTickets.tenant_id, profile.tenantId)))
+        .limit(1)
+        .for('update')
+      if (!ticket) throw new Error('Ticket not found')
+      if (ticket.status !== 'open') throw new Error('Only open tickets can be acknowledged')
+      const now = new Date()
+      const [updated] = await tx
+        .update(warrantyTickets)
+        .set({ status: 'acknowledged', acknowledged_at: now, updated_at: now })
+        .where(and(eq(warrantyTickets.id, ticketId), eq(warrantyTickets.tenant_id, profile.tenantId), eq(warrantyTickets.status, 'open')))
+        .returning({ id: warrantyTickets.id })
+      if (!updated) throw new Error('Ticket changed; refresh before trying again')
+      await stopSlaClock({ tenantId: profile.tenantId, entityType: 'warranty_ticket', entityId: ticketId, label: 'ticket.acknowledge', client: tx })
+      await startSlaClock({ tenantId: profile.tenantId, entityType: 'warranty_ticket', entityId: ticketId, label: 'ticket.schedule', client: tx })
+      await writeAuditLogInTransaction(tx, {
+        tenantId: profile.tenantId,
+        actorId: profile.user.id,
+        entityType: 'warranty_ticket',
+        entityId: ticketId,
+        action: 'status_change',
+        diff: computeDiff({ status: ticket.status }, { status: 'acknowledged' }),
+      })
+      return ticket
+    })
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : 'Ticket could not be acknowledged' }
+  }
 
   if (existing.submitted_by_email) {
     await notifyExternalEmail({
@@ -99,15 +107,6 @@ export async function acknowledgeTicket(ticketId: string): Promise<ActionResult>
       },
     })
   }
-
-  await writeAuditLog({
-    tenantId: profile.tenantId,
-    actorId: profile.user.id,
-    entityType: 'warranty_ticket',
-    entityId: ticketId,
-    action: 'status_change',
-    diff: computeDiff({ status: existing.status }, { status: 'acknowledged' }),
-  })
 
   revalidatePath(`/warranty/${ticketId}`)
   revalidatePath('/warranty')
@@ -125,28 +124,44 @@ export async function scheduleTicketRepair(
     return { error: e instanceof Error ? e.message : 'Forbidden' }
   }
 
-  const existing = await loadTicket(profile.tenantId, ticketId)
-  if (!existing) return { error: 'Ticket not found' }
-
   const scheduled = new Date(scheduledIsoStr)
   if (Number.isNaN(scheduled.getTime())) {
     return { error: 'Invalid scheduled date' }
   }
 
-  const now = new Date()
-  await db
-    .update(warrantyTickets)
-    .set({ status: 'scheduled', scheduled_at: scheduled, updated_at: now })
-    .where(
-      and(eq(warrantyTickets.id, ticketId), eq(warrantyTickets.tenant_id, profile.tenantId))
-    )
-
-  await stopSlaClock({
-    tenantId: profile.tenantId,
-    entityType: 'warranty_ticket',
-    entityId: ticketId,
-    label: 'ticket.schedule',
-  })
+  let existing: typeof warrantyTickets.$inferSelect
+  try {
+    existing = await db.transaction(async (tx) => {
+      await stampActorInTransaction(tx, profile.user.id)
+      const [ticket] = await tx
+        .select()
+        .from(warrantyTickets)
+        .where(and(eq(warrantyTickets.id, ticketId), eq(warrantyTickets.tenant_id, profile.tenantId)))
+        .limit(1)
+        .for('update')
+      if (!ticket) throw new Error('Ticket not found')
+      if (!['acknowledged', 'scheduled', 'in_progress'].includes(ticket.status)) throw new Error('Only acknowledged, scheduled, or in-progress tickets can be scheduled')
+      const now = new Date()
+      const [updated] = await tx
+        .update(warrantyTickets)
+        .set({ status: 'scheduled', scheduled_at: scheduled, updated_at: now })
+        .where(and(eq(warrantyTickets.id, ticketId), eq(warrantyTickets.tenant_id, profile.tenantId), eq(warrantyTickets.status, ticket.status)))
+        .returning({ id: warrantyTickets.id })
+      if (!updated) throw new Error('Ticket changed; refresh before trying again')
+      await stopSlaClock({ tenantId: profile.tenantId, entityType: 'warranty_ticket', entityId: ticketId, label: 'ticket.schedule', client: tx })
+      await writeAuditLogInTransaction(tx, {
+        tenantId: profile.tenantId,
+        actorId: profile.user.id,
+        entityType: 'warranty_ticket',
+        entityId: ticketId,
+        action: 'status_change',
+        diff: computeDiff({ status: ticket.status, scheduled_at: ticket.scheduled_at }, { status: 'scheduled', scheduled_at: scheduled }),
+      })
+      return ticket
+    })
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : 'Ticket could not be scheduled' }
+  }
 
   if (existing.submitted_by_email) {
     await notifyExternalEmail({
@@ -162,18 +177,6 @@ export async function scheduleTicketRepair(
     })
   }
 
-  await writeAuditLog({
-    tenantId: profile.tenantId,
-    actorId: profile.user.id,
-    entityType: 'warranty_ticket',
-    entityId: ticketId,
-    action: 'status_change',
-    diff: computeDiff(
-      { status: existing.status, scheduled_at: existing.scheduled_at },
-      { status: 'scheduled', scheduled_at: scheduled }
-    ),
-  })
-
   revalidatePath(`/warranty/${ticketId}`)
   revalidatePath('/warranty')
   return { ok: true }
@@ -187,25 +190,36 @@ export async function markTicketInProgress(ticketId: string): Promise<ActionResu
     return { error: e instanceof Error ? e.message : 'Forbidden' }
   }
 
-  const existing = await loadTicket(profile.tenantId, ticketId)
-  if (!existing) return { error: 'Ticket not found' }
-
-  const now = new Date()
-  await db
-    .update(warrantyTickets)
-    .set({ status: 'in_progress', updated_at: now })
-    .where(
-      and(eq(warrantyTickets.id, ticketId), eq(warrantyTickets.tenant_id, profile.tenantId))
-    )
-
-  await writeAuditLog({
-    tenantId: profile.tenantId,
-    actorId: profile.user.id,
-    entityType: 'warranty_ticket',
-    entityId: ticketId,
-    action: 'status_change',
-    diff: computeDiff({ status: existing.status }, { status: 'in_progress' }),
-  })
+  try {
+    await db.transaction(async (tx) => {
+      await stampActorInTransaction(tx, profile.user.id)
+      const [ticket] = await tx
+        .select()
+        .from(warrantyTickets)
+        .where(and(eq(warrantyTickets.id, ticketId), eq(warrantyTickets.tenant_id, profile.tenantId)))
+        .limit(1)
+        .for('update')
+      if (!ticket) throw new Error('Ticket not found')
+      if (!['acknowledged', 'scheduled'].includes(ticket.status)) throw new Error('Only acknowledged or scheduled tickets can be marked in-progress')
+      const now = new Date()
+      const [updated] = await tx
+        .update(warrantyTickets)
+        .set({ status: 'in_progress', updated_at: now })
+        .where(and(eq(warrantyTickets.id, ticketId), eq(warrantyTickets.tenant_id, profile.tenantId), eq(warrantyTickets.status, ticket.status)))
+        .returning({ id: warrantyTickets.id })
+      if (!updated) throw new Error('Ticket changed; refresh before trying again')
+      await writeAuditLogInTransaction(tx, {
+        tenantId: profile.tenantId,
+        actorId: profile.user.id,
+        entityType: 'warranty_ticket',
+        entityId: ticketId,
+        action: 'status_change',
+        diff: computeDiff({ status: ticket.status }, { status: 'in_progress' }),
+      })
+    })
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : 'Ticket could not be started' }
+  }
 
   revalidatePath(`/warranty/${ticketId}`)
   return { ok: true }
@@ -226,44 +240,44 @@ export async function closeTicket(
     return { error: 'Service report document is required to close the ticket' }
   }
 
-  const existing = await loadTicket(profile.tenantId, ticketId)
-  if (!existing) return { error: 'Ticket not found' }
-
-  // Verify service report document belongs to this tenant + project.
-  const [doc] = await db
-    .select({ id: documents.id })
-    .from(documents)
-    .where(
-      and(
-        eq(documents.id, serviceReportDocumentId),
-        eq(documents.tenant_id, profile.tenantId),
-        eq(documents.project_id, existing.project_id)
-      )
-    )
-    .limit(1)
-  if (!doc) {
-    return { error: 'Service report document not found in this project' }
-  }
-
-  const now = new Date()
-  await db
-    .update(warrantyTickets)
-    .set({
-      status: 'closed',
-      closed_at: now,
-      service_report_document_id: serviceReportDocumentId,
-      updated_at: now,
+  try {
+    await db.transaction(async (tx) => {
+      await stampActorInTransaction(tx, profile.user.id)
+      const [ticket] = await tx
+        .select()
+        .from(warrantyTickets)
+        .where(and(eq(warrantyTickets.id, ticketId), eq(warrantyTickets.tenant_id, profile.tenantId)))
+        .limit(1)
+        .for('update')
+      if (!ticket) throw new Error('Ticket not found')
+      if (!['open', 'acknowledged', 'scheduled', 'in_progress'].includes(ticket.status)) throw new Error('Only non-terminal tickets can be closed')
+      const [doc] = await tx
+        .select({ id: documents.id })
+        .from(documents)
+        .where(and(eq(documents.id, serviceReportDocumentId), eq(documents.tenant_id, profile.tenantId), eq(documents.project_id, ticket.project_id)))
+        .limit(1)
+      if (!doc) throw new Error('Service report document not found in this project')
+      const now = new Date()
+      const [updated] = await tx
+        .update(warrantyTickets)
+        .set({ status: 'closed', closed_at: now, service_report_document_id: serviceReportDocumentId, updated_at: now })
+        .where(and(eq(warrantyTickets.id, ticketId), eq(warrantyTickets.tenant_id, profile.tenantId), eq(warrantyTickets.status, ticket.status)))
+        .returning({ id: warrantyTickets.id })
+      if (!updated) throw new Error('Ticket changed; refresh before trying again')
+      await stopSlaClock({ tenantId: profile.tenantId, entityType: 'warranty_ticket', entityId: ticketId, client: tx })
+      await writeAuditLogInTransaction(tx, {
+        tenantId: profile.tenantId,
+        actorId: profile.user.id,
+        entityType: 'warranty_ticket',
+        entityId: ticketId,
+        action: 'status_change',
+        diff: computeDiff({ status: ticket.status }, { status: 'closed', service_report_document_id: serviceReportDocumentId }),
+      })
+      return ticket
     })
-    .where(
-      and(eq(warrantyTickets.id, ticketId), eq(warrantyTickets.tenant_id, profile.tenantId))
-    )
-
-  // Stop all SLA clocks for this ticket (label-less stop).
-  await stopSlaClock({
-    tenantId: profile.tenantId,
-    entityType: 'warranty_ticket',
-    entityId: ticketId,
-  })
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : 'Ticket could not be closed' }
+  }
 
   // Schedule the 48h CNPS survey via Inngest.
   await inngest
@@ -275,18 +289,6 @@ export async function closeTicket(
       },
     })
     .catch(() => undefined) // Inngest may be unreachable in dev; cron will still pick it up.
-
-  await writeAuditLog({
-    tenantId: profile.tenantId,
-    actorId: profile.user.id,
-    entityType: 'warranty_ticket',
-    entityId: ticketId,
-    action: 'status_change',
-    diff: computeDiff(
-      { status: existing.status },
-      { status: 'closed', service_report_document_id: serviceReportDocumentId }
-    ),
-  })
 
   revalidatePath(`/warranty/${ticketId}`)
   revalidatePath('/warranty')

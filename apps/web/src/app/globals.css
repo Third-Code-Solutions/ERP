@@ -4522,6 +4522,78 @@ textarea.form-input {
 .cost-page .mono, .cost-table .mono { font-family: 'JetBrains Mono', monospace; }
 .cost-page .num, .cost-table .num { text-align: right; }
 
+.project-performance { overflow: hidden; }
+.project-performance__header { align-items: flex-start; gap: 16px; }
+.project-performance__status {
+  flex: 0 0 auto;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.project-performance__status--ready { color: #166534; background: #f0fdf4; border-color: #bbf7d0; }
+.project-performance__status--partial { color: #92400e; background: #fffbeb; border-color: #fde68a; }
+.project-performance__status--unavailable { color: var(--color-neutral-600); background: var(--color-neutral-50); }
+.project-performance__metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-border);
+}
+.project-performance__metrics > div { min-width: 0; display: flex; flex-direction: column; gap: 3px; padding: 13px 16px; background: #fff; }
+.project-performance__metrics span { color: var(--color-neutral-500); font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.04em; }
+.project-performance__metrics strong { color: var(--color-neutral-900); font-family: 'JetBrains Mono', monospace; font-size: 1rem; }
+.project-performance__metrics small { color: var(--color-neutral-400); font-size: 0.6875rem; line-height: 1.35; }
+.project-performance__note { margin: 0; padding: 10px 16px; color: #92400e; background: #fffbeb; font-size: 0.75rem; line-height: 1.45; }
+.project-performance__notes { margin: 0; padding: 10px 32px 12px; color: var(--color-neutral-500); font-size: 0.75rem; line-height: 1.45; }
+@media (max-width: 760px) { .project-performance__metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .project-performance__header { flex-direction: column; } .project-performance__metrics { grid-template-columns: 1fr; } }
+
+.weekly-war-ledger { overflow: hidden; }
+.weekly-war-ledger__header { align-items: flex-start; gap: 16px; }
+.weekly-war-ledger__badge,
+.weekly-war-ledger__status {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.weekly-war-ledger__badge { color: var(--color-navy-700); background: var(--color-navy-50, #eff6ff); }
+.weekly-war-ledger__status--open { color: #92400e; background: #fffbeb; border-color: #fde68a; }
+.weekly-war-ledger__status--locked { color: #166534; background: #f0fdf4; border-color: #bbf7d0; }
+.weekly-war-ledger__error { margin: 0; padding: 10px 16px; color: #991b1b; background: #fef2f2; font-size: 0.75rem; }
+.weekly-war-ledger__table-wrap { overflow-x: auto; }
+.weekly-war-ledger .data-table { min-width: 700px; }
+.weekly-war-ledger .button-small { padding: 5px 9px; font-size: 0.6875rem; }
+@media (max-width: 620px) { .weekly-war-ledger__header { flex-direction: column; } }
+
+.project-billing-milestones { overflow: hidden; margin-bottom: 24px; }
+.project-billing-milestones__header { align-items: flex-start; gap: 16px; }
+.project-billing-milestones__coc {
+  flex: 0 0 auto; border: 1px solid var(--color-border); border-radius: 999px;
+  padding: 4px 9px; color: var(--color-neutral-600); background: var(--color-neutral-50);
+  font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+}
+.project-billing-milestones__coc--signed { color: #166534; background: #f0fdf4; border-color: #bbf7d0; }
+.project-billing-milestones__table-wrap { overflow-x: auto; }
+.project-billing-milestones .data-table { min-width: 900px; }
+.project-billing-milestones .data-table td { vertical-align: top; }
+.project-billing-milestones__amount { display: block; margin-top: 3px; color: var(--color-neutral-500); font-size: 0.6875rem; font-family: 'JetBrains Mono', monospace; }
+.project-billing-milestones__ready { color: #166534; font-weight: 700; font-size: 0.75rem; }
+.project-billing-milestones__blockers { margin: 0; padding-left: 16px; color: #92400e; font-size: 0.6875rem; line-height: 1.35; }
+.project-billing-milestones__unavailable { margin-bottom: 24px; }
+@media (max-width: 620px) { .project-billing-milestones__header { flex-direction: column; } }
+
 .cost-grid { display: grid; grid-template-columns: 1fr 340px; gap: 16px; align-items: start; }
 @media (max-width: 1024px) { .cost-grid { grid-template-columns: 1fr; } }
 .cost-control-card { min-width: 0; }

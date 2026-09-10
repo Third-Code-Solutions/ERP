@@ -20,6 +20,16 @@ const ALL_OPERATORS = ALL_ROLES.filter((role) => role !== 'viewer')
 const SHARED_CAPABILITY_GRANT_BASELINE = {
   'project.create': ['owner', 'admin', 'sales', 'commercial', 'sd_pm_pe', 'pm', 'estimator'],
   'project.update': ['owner', 'admin', 'sales', 'commercial', 'sd_pm_pe', 'pm'],
+  'project.rfi.read': ALL_ROLES,
+  'project.rfi.manage': ['owner', 'admin', 'commercial', 'design', 'sd_pm_pe', 'pm', 'procurement', 'safety'],
+  'project.diary.read': ALL_ROLES,
+  'project.diary.manage': ['owner', 'admin', 'commercial', 'sd_pm_pe', 'pm', 'safety'],
+  'project.quality.read': ALL_ROLES,
+  'project.quality.manage': ['owner', 'admin', 'sd_pm_pe', 'pm', 'safety'],
+  'project.quality.approve': ['owner', 'admin', 'sd_pm_pe', 'pm'],
+  'project.submittal.read': ALL_ROLES,
+  'project.submittal.manage': ['owner', 'admin', 'design', 'sd_pm_pe', 'pm', 'procurement'],
+  'project.submittal.review': ['owner', 'admin', 'design', 'sd_pm_pe', 'pm'],
   'project.delete': ['owner', 'admin'],
   'opportunity.read': ALL_ROLES,
   'account.kyc_review': ['owner', 'admin', 'finance'],
@@ -51,7 +61,7 @@ function sorted(roles: readonly ErpRole[]): ErpRole[] {
 describe('canonical authorization policy', () => {
   it('contains each current Web/Core capability once and gives each a non-empty role policy', () => {
     expect(new Set(ERP_CAPABILITIES).size).toBe(ERP_CAPABILITIES.length)
-    expect(ERP_CAPABILITIES).toHaveLength(80)
+    expect(ERP_CAPABILITIES).toHaveLength(96)
 
     for (const capability of ERP_CAPABILITIES) {
       const roles = ERP_CAPABILITY_ROLES[capability]
@@ -132,6 +142,9 @@ describe('canonical authorization policy', () => {
 
     expect(roleHasCapability('safety', 'sd.daily_tasks')).toBe(true)
     expect(roleHasCapability('safety', 'safety.dole_permit.manage')).toBe(true)
+    expect(roleHasCapability('safety', 'project.quality.manage')).toBe(true)
+    expect(roleHasCapability('pm', 'project.quality.approve')).toBe(true)
+    expect(roleHasCapability('safety', 'project.quality.approve')).toBe(false)
     expect(roleHasCapability('cx', 'punchlist.manage')).toBe(true)
     expect(roleHasCapability('cx', 'warranty.manage')).toBe(true)
     expect(roleHasCapability('cx', 'cx.cnps.read')).toBe(true)
@@ -140,6 +153,11 @@ describe('canonical authorization policy', () => {
     expect(roleHasCapability('viewer', 'inventory.read')).toBe(true)
     expect(roleHasCapability('viewer', 'cx.cnps.read')).toBe(true)
     expect(roleHasCapability('viewer', 'project.update')).toBe(false)
+    expect(roleHasCapability('viewer', 'project.rfi.read')).toBe(true)
+    expect(roleHasCapability('viewer', 'project.rfi.manage')).toBe(false)
+    expect(roleHasCapability('viewer', 'project.quality.read')).toBe(true)
+    expect(roleHasCapability('viewer', 'project.quality.manage')).toBe(false)
+    expect(roleHasCapability('design', 'project.rfi.manage')).toBe(true)
     expect(roleHasCapability('viewer', 'finance.post')).toBe(false)
     expect(roleHasCapability('viewer', 'variation_order.create')).toBe(false)
     expect(roleHasCapability('viewer', 'sd.daily_tasks')).toBe(false)

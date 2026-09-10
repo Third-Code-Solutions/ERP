@@ -11,6 +11,8 @@ import {
 } from '@nestjs/common'
 import type {
   ApprovalResult,
+  ApprovalRoutePreviewQuery,
+  ApprovalRoutePreviewResult,
   ApprovalRuleResult,
   AssignTaskInstanceCommand,
   CreateApprovalCommand,
@@ -21,6 +23,8 @@ import type {
   EvaluateSlaClockCommand,
   ProcessHealthResult,
   ProcessStepResult,
+  ProcessTaskQueueQuery,
+  ProcessTaskQueueResult,
   ListApprovalRulesQuery,
   SetSlaObserveModeCommand,
   SlaClockResult,
@@ -31,12 +35,14 @@ import type {
 import {
   createApprovalCommandSchema,
   createApprovalRuleCommandSchema,
+  approvalRoutePreviewQuerySchema,
   assignTaskInstanceCommandSchema,
   createProcessStepCommandSchema,
   createTaskInstanceCommandSchema,
   decideApprovalCommandSchema,
   evaluateSlaClockCommandSchema,
   listApprovalRulesQuerySchema,
+  processTaskQueueQuerySchema,
   setSlaObserveModeCommandSchema,
   startProcessClockCommandSchema,
   updateTaskStatusCommandSchema,
@@ -85,6 +91,16 @@ export class ProcessController {
     return this.process.createTask(command, principal)
   }
 
+  @Get('tasks')
+  @RequireCapabilities('process.task.manage')
+  listTasks(
+    @Query(new ZodQueryPipe(processTaskQueueQuerySchema))
+    query: ProcessTaskQueueQuery,
+    @CurrentPrincipal() principal: ErpPrincipal
+  ): Promise<ProcessTaskQueueResult> {
+    return this.process.listTasks(query, principal)
+  }
+
   @Get('approval-rules')
   @RequireCapabilities('process.health.read')
   listApprovalRules(
@@ -93,6 +109,16 @@ export class ProcessController {
     @CurrentPrincipal() principal: ErpPrincipal
   ): Promise<ApprovalRuleResult[]> {
     return this.process.listApprovalRules(principal, query.objectType)
+  }
+
+  @Get('approval-route-preview')
+  @RequireCapabilities('process.health.read')
+  previewApprovalRoute(
+    @Query(new ZodQueryPipe(approvalRoutePreviewQuerySchema))
+    query: ApprovalRoutePreviewQuery,
+    @CurrentPrincipal() principal: ErpPrincipal
+  ): Promise<ApprovalRoutePreviewResult> {
+    return this.process.previewApprovalRoute(query, principal)
   }
 
   @Post('approval-rules')

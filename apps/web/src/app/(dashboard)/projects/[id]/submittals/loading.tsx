@@ -1,0 +1,1 @@
+export default function Loading() { return <div className="card" aria-busy="true"><div className="card-header"><h1 className="card-title">Project submittals</h1></div><div className="card-empty">Loading submittal register…</div></div> }

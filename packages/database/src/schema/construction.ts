@@ -1,4 +1,5 @@
-import { pgTable, uuid, varchar, text, bigint, integer, timestamp, jsonb, index, pgEnum, uniqueIndex } from 'drizzle-orm/pg-core'
+import { check, foreignKey, pgTable, uuid, varchar, text, bigint, integer, timestamp, jsonb, index, pgEnum, uniqueIndex } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
 import { tenants } from './tenants'
 import { projects } from './projects'
 import { users } from './users'
@@ -70,8 +71,18 @@ export const variationOrders = pgTable(
     created_by: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
   },
   (table) => ({
+    tenantIdUniqueIdx: uniqueIndex('ux_variation_orders_tenant_id_id').on(table.tenant_id, table.id),
     tenantIdx: index('idx_vos_tenant_id').on(table.tenant_id),
     projectIdx: index('idx_vos_project_id').on(table.project_id),
+    projectTenantFk: foreignKey({
+      name: 'variation_orders_project_tenant_fk',
+      columns: [table.tenant_id, table.project_id],
+      foreignColumns: [projects.tenant_id, projects.id],
+    }).onDelete('cascade'),
+    impactDaysCheck: check(
+      'variation_orders_time_impact_days_reasonable',
+      sql`${table.time_impact_days} between -3650 and 3650`,
+    ),
   })
 )
 

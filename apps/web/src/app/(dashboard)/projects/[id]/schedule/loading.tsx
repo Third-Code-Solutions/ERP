@@ -1,0 +1,1 @@
+export default function Loading() { return <div className="card" aria-busy="true"><div className="card-header"><h1 className="card-title">Schedule & lookahead</h1></div><div className="card-empty">Loading normalized schedule…</div></div> }

@@ -10,6 +10,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { DatabaseService } from '../database/database.service'
 import {
   CapabilityGuard,
+  RequireAnyCapabilities,
   RequireCapabilities,
 } from './capability.guard'
 import type { AuthenticatedRequest } from './current-principal.decorator'
@@ -55,6 +56,9 @@ class GuardFixtureController {
 
   @RequireCapabilities('provider.quota.consume')
   quota(): void {}
+
+  @RequireAnyCapabilities('tender.manage', 'tender.evaluate')
+  tenderTransition(): void {}
 
   @Public()
   open(): void {}
@@ -473,5 +477,32 @@ describe('CapabilityGuard', () => {
 
   it('allows a route explicitly marked public', () => {
     expect(guard.canActivate(contextFor('open', {}))).toBe(true)
+  })
+
+  it('supports role-dependent routes that accept any one of several capabilities', () => {
+    expect(
+      guard.canActivate(
+        contextFor('tenderTransition', {
+          principal: {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId: '22222222-2222-4222-8222-222222222222',
+            role: 'sd_pm_pe',
+            email: 'sd@example.test',
+          },
+        }),
+      ),
+    ).toBe(true)
+    expect(() =>
+      guard.canActivate(
+        contextFor('tenderTransition', {
+          principal: {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId: '22222222-2222-4222-8222-222222222222',
+            role: 'viewer',
+            email: 'viewer@example.test',
+          },
+        }),
+      ),
+    ).toThrow(ForbiddenException)
   })
 })

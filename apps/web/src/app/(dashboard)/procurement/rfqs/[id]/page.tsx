@@ -14,6 +14,7 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { and, eq } from 'drizzle-orm'
 import { requireUserProfile, can } from '@third-code-erp/auth'
+import { buildRfqBidLevelingResult } from '@third-code-erp/shared-types'
 import { db } from '@third-code-erp/database'
 import {
   rfqs,
@@ -26,6 +27,8 @@ import {
 } from '@third-code-erp/database/schema'
 import { LogQuoteForm } from '@/components/rfq/log-quote-form'
 import { PriceComparisonTable } from '@/components/rfq/price-comparison-table'
+import { BidLevelingSummary } from '@/components/rfq/bid-leveling-summary'
+import { getRfqBidLevelingThroughCoreApi, rfqBidLevelingReadsUseCoreApi } from '@/lib/erp-core-client'
 import { completeRfq, cancelRfq } from '../actions'
 
 export const metadata: Metadata = { title: 'RFQ Detail' }
@@ -173,6 +176,41 @@ export default async function RfqDetailPage({ params }: PageProps) {
       return false
     })
 
+  const localBidLeveling = buildRfqBidLevelingResult(
+    rfq.id,
+    rfq.project_id,
+    rfq.status,
+    lineItems.map((line) => ({
+      bomLineItemId: line.bom_line_item_id,
+      materialItemId: line.material_item_id,
+      code: line.code,
+      description: line.description,
+      quantity: line.qty,
+      unit: line.unit,
+    })),
+    quotes.map((quote) => ({
+      quoteId: quote.id,
+      bomLineItemId: quote.bom_line_item_id,
+      materialItemId: quote.material_item_id,
+      materialCode: quote.material_code,
+      vendorId: quote.vendor_id,
+      vendorName: quote.vendor_name,
+      unitPriceCents: quote.unit_price_cents,
+      leadTimeDays: quote.lead_time_days,
+      validUntil: quote.valid_until,
+      createdAt: quote.created_at,
+      isAwarded: awardedQuoteIds.has(quote.id),
+    })),
+  )
+  const bidLevelingResponse = rfqBidLevelingReadsUseCoreApi(profile.tenantId)
+    ? await getRfqBidLevelingThroughCoreApi(rfq.id)
+    : null
+  const bidLeveling = bidLevelingResponse?.ok && bidLevelingResponse.data
+    ? bidLevelingResponse.data
+    : bidLevelingResponse
+      ? null
+      : localBidLeveling
+
   const canManage = can(profile.role, 'rfq.dispatch')
   const isTerminal = rfq.status === 'completed' || rfq.status === 'cancelled'
 
@@ -308,6 +346,15 @@ export default async function RfqDetailPage({ params }: PageProps) {
               />
             )}
           </div>
+
+          {bidLeveling ? (
+            <BidLevelingSummary result={bidLeveling} />
+          ) : (
+            <div className="card" role="status">
+              <h2 className="card-title">Bid-leveling unavailable</h2>
+              <p className="card-subtitle">Core did not return a verified comparison. Existing quote rows remain visible above.</p>
+            </div>
+          )}
         </div>
 
         {/* Actions sidebar */}

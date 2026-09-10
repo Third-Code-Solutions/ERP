@@ -10,6 +10,11 @@ import { GanttChart } from '@/components/progress/gantt-chart'
 import { ProgressViewToggle } from '@/components/progress/progress-view-toggle'
 import { MasterScheduleImport } from '@/components/progress/master-schedule-import'
 import { WeeklyUpdateForm } from '@/components/progress/weekly-update-form'
+import { WeeklyWarLedger } from '@/components/progress/weekly-war-ledger'
+import {
+  getProjectWeeklyProgressThroughCoreApi,
+  projectWeeklyProgressReadsUseCoreApi,
+} from '@/lib/erp-core-client'
 import { loadProgressContext } from './actions'
 
 export const metadata: Metadata = { title: 'Progress' }
@@ -86,6 +91,10 @@ export default async function ProjectProgressPage({
   if (!project) notFound()
 
   const { schedule, updates } = await loadProgressContext(id, profile.tenantId)
+  const weeklyLedgerEnabled = projectWeeklyProgressReadsUseCoreApi(profile.tenantId)
+  const weeklyLedger = weeklyLedgerEnabled
+    ? await getProjectWeeklyProgressThroughCoreApi(id, { limit: 12 })
+    : null
   const tasks = (schedule?.tasks ?? []) as MasterTask[]
   const planned = deriveProjectPlannedCurve(tasks)
   const actual = updates.map(
@@ -155,6 +164,24 @@ export default async function ProjectProgressPage({
               )}
             </div>
           </div>
+
+          {weeklyLedgerEnabled && weeklyLedger?.ok && weeklyLedger.data ? (
+            <WeeklyWarLedger
+              projectId={id}
+              rows={weeklyLedger.data.rows}
+              canLock={can(profile.role, 'precon.manage_checklist')}
+            />
+          ) : null}
+          {weeklyLedgerEnabled && weeklyLedger && !weeklyLedger.ok ? (
+            <div className="card" role="status">
+              <div className="card-header">
+                <h2 className="card-title">WAR cut-off ledger</h2>
+              </div>
+              <p className="card-empty">
+                Core weekly evidence is unavailable. Legacy progress history remains visible; no WAR state was assumed.
+              </p>
+            </div>
+          ) : null}
 
           <div className="card">
             <div className="card-header">

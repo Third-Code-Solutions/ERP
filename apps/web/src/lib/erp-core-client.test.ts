@@ -175,6 +175,9 @@ import {
   getCortexSemanticIndexJobThroughCoreApi,
   financeLedgerReadsUseCoreApi,
   getFinanceLedgerThroughCoreApi,
+  getProcessTaskQueueThroughCoreApi,
+  updateProcessTaskStatusThroughCoreApi,
+  getApprovalRoutePreviewThroughCoreApi,
 } from './erp-core-client'
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -183,6 +186,76 @@ vi.mock('@third-code-erp/auth', () => ({
 
 const PROJECT_ID = '33333333-3333-4333-8333-333333333333'
 const DOCUMENT_ID = '88888888-8888-4888-8888-888888888888'
+const APPROVAL_ROUTE_PREVIEW_RESULT = {
+  objectType: 'purchase_order',
+  amountCentavos: '125000',
+  mode: 'preview_only' as const,
+  authority: 'configured_rules_only' as const,
+  status: 'matched' as const,
+  steps: [
+    {
+      sequence: 1,
+      status: 'matched' as const,
+      rules: [
+        {
+          id: '11111111-1111-4111-8111-111111111111',
+          tenantId: '22222222-2222-4222-8222-222222222222',
+          objectType: 'purchase_order',
+          amountBandLow: '0',
+          amountBandHigh: '500000',
+          approverRole: 'project_manager',
+          sequence: 1,
+          escalationAfterDays: null,
+          isActive: true,
+          createdAt: '2026-09-10T00:00:00.000Z',
+          updatedAt: '2026-09-10T00:00:00.000Z',
+        },
+      ],
+    },
+  ],
+}
+const PROCESS_TASK_QUEUE_RESULT = {
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  rows: [
+    {
+      id: '44444444-4444-4444-8444-444444444444',
+      processStepId: '33333333-3333-4333-8333-333333333333',
+      processStepCode: 'LGU-PERMIT',
+      processStepName: 'LGU permit return',
+      responsibleBu: 'Commercial',
+      subjectType: 'project',
+      subjectId: '77777777-7777-4777-8777-777777777777',
+      instanceKey: 'project:777:LGU-PERMIT',
+      assignedTo: null,
+      status: 'blocked' as const,
+      blockedReason: 'Waiting for Building Admin return',
+      startedAt: null,
+      completedAt: null,
+      createdAt: '2026-09-10T00:00:00.000Z',
+      updatedAt: '2026-09-10T01:00:00.000Z',
+      clock: null,
+    },
+  ],
+  total: 1,
+  page: 2,
+  limit: 10,
+  totalPages: 1,
+}
+const PROCESS_TASK_STATUS_RESULT = {
+  id: '44444444-4444-4444-8444-444444444444',
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  processStepId: '33333333-3333-4333-8333-333333333333',
+  subjectType: 'project',
+  subjectId: '77777777-7777-4777-8777-777777777777',
+  instanceKey: 'project:777:LGU-PERMIT',
+  assignedTo: null,
+  status: 'in_progress' as const,
+  blockedReason: null,
+  startedAt: '2026-09-10T01:00:00.000Z',
+  completedAt: null,
+  createdAt: '2026-09-10T00:00:00.000Z',
+  updatedAt: '2026-09-10T01:00:00.000Z',
+}
 const DOCUMENT_INTAKE_RESULT = {
   documentId: DOCUMENT_ID,
   tenantId: '22222222-2222-4222-8222-222222222222',
@@ -997,6 +1070,243 @@ describe('ERP Core client', () => {
     vi.unstubAllEnvs()
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
+  })
+
+  it('reads the purchase-order approval route preview through the authenticated Core API', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(APPROVAL_ROUTE_PREVIEW_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      getApprovalRoutePreviewThroughCoreApi('125000')
+    ).resolves.toEqual({
+      ok: true,
+      data: APPROVAL_ROUTE_PREVIEW_RESULT,
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/process/approval-route-preview?objectType=purchase_order&amountCentavos=125000',
+      expect.objectContaining({
+        method: 'GET',
+        cache: 'no-store',
+        headers: expect.objectContaining({
+          authorization: 'Bearer never-log-or-return-this-token',
+          'x-request-id': expect.stringMatching(
+            /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+          ),
+        }),
+      })
+    )
+  })
+
+  it('reads the filtered process task queue through the authenticated Core API', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(PROCESS_TASK_QUEUE_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      getProcessTaskQueueThroughCoreApi({
+        status: 'blocked',
+        responsibleBu: '  Commercial  ',
+        page: '2',
+        limit: '10',
+      })
+    ).resolves.toEqual({
+      ok: true,
+      data: PROCESS_TASK_QUEUE_RESULT,
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/process/tasks?status=blocked&responsibleBu=Commercial&page=2&limit=10',
+      expect.objectContaining({
+        method: 'GET',
+        cache: 'no-store',
+        headers: expect.objectContaining({
+          authorization: 'Bearer never-log-or-return-this-token',
+          'x-request-id': expect.stringMatching(
+            /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+          ),
+        }),
+      })
+    )
+  })
+
+  it('rejects an invalid task queue query before calling Core', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      getProcessTaskQueueThroughCoreApi({
+        status: 'not-a-status',
+        unexpected: true,
+      })
+    ).resolves.toEqual({
+      ok: false,
+      status: 400,
+      error: 'Invalid process task queue query.',
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when Core returns an invalid process task queue', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({ ...PROCESS_TASK_QUEUE_RESULT, rows: [{}] }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+      )
+    )
+
+    await expect(
+      getProcessTaskQueueThroughCoreApi({ page: 1, limit: 25 })
+    ).resolves.toEqual({
+      ok: false,
+      status: 503,
+      error: 'ERP Core API returned an invalid process task queue result.',
+    })
+  })
+
+  it('updates a process task status through the authenticated Core API', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(PROCESS_TASK_STATUS_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      updateProcessTaskStatusThroughCoreApi(
+        PROCESS_TASK_STATUS_RESULT.id,
+        { status: 'in_progress' }
+      )
+    ).resolves.toEqual({
+      ok: true,
+      data: PROCESS_TASK_STATUS_RESULT,
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/process/tasks/${PROCESS_TASK_STATUS_RESULT.id}/status`,
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'in_progress' }),
+        cache: 'no-store',
+        headers: expect.objectContaining({
+          authorization: 'Bearer never-log-or-return-this-token',
+          'content-type': 'application/json',
+          'x-request-id': expect.stringMatching(
+            /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+          ),
+        }),
+      })
+    )
+  })
+
+  it('rejects a blocked status without a reason before calling Core', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      updateProcessTaskStatusThroughCoreApi(
+        PROCESS_TASK_STATUS_RESULT.id,
+        { status: 'blocked', blockedReason: '   ' }
+      )
+    ).resolves.toEqual({
+      ok: false,
+      status: 400,
+      error: 'Invalid process task status command.',
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when Core returns an invalid process task status result', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ ...PROCESS_TASK_STATUS_RESULT, id: 'bad' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      )
+    )
+
+    await expect(
+      updateProcessTaskStatusThroughCoreApi(
+        PROCESS_TASK_STATUS_RESULT.id,
+        { status: 'in_progress' }
+      )
+    ).resolves.toEqual({
+      ok: false,
+      status: 503,
+      error: 'ERP Core API returned an invalid process task result.',
+    })
+  })
+
+  it('does not claim a dispatched task status failed when the request outcome is unknown', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockRejectedValue(new Error('network timeout'))
+    )
+
+    await expect(
+      updateProcessTaskStatusThroughCoreApi(
+        PROCESS_TASK_STATUS_RESULT.id,
+        { status: 'in_progress' }
+      )
+    ).resolves.toEqual({
+      ok: false,
+      status: 503,
+      error:
+        'ERP Core API is unavailable. Process task status outcome is unconfirmed; refresh Process Health before retrying.',
+    })
+  })
+
+  it('fails closed when Core returns an invalid approval route preview', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            ...APPROVAL_ROUTE_PREVIEW_RESULT,
+            mode: 'executable',
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+      )
+    )
+
+    await expect(
+      getApprovalRoutePreviewThroughCoreApi('125000')
+    ).resolves.toEqual({
+      ok: false,
+      status: 503,
+      error: 'ERP Core API returned an invalid approval route preview result.',
+    })
+  })
+
+  it('rejects non-centavo input before calling Core', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      getApprovalRoutePreviewThroughCoreApi('12.50')
+    ).resolves.toEqual({
+      ok: false,
+      status: 400,
+      error:
+        'Invalid approval route preview amount. Use non-negative integer centavos.',
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('keeps bank import on the legacy route unless an exact tenant gate matches', () => {
