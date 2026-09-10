@@ -39,19 +39,6 @@ function positiveInteger(value: string | undefined, fallback: number): number {
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback
 }
 
-function inspectionHref(
-  opportunityId: string,
-  filters: { status?: string; priority?: string; page?: number; limit?: number },
-): string {
-  const params = new URLSearchParams()
-  if (filters.status) params.set('rfiStatus', filters.status)
-  if (filters.priority) params.set('rfiPriority', filters.priority)
-  if (filters.page && filters.page > 1) params.set('rfiPage', String(filters.page))
-  if (filters.limit && filters.limit !== 25) params.set('rfiLimit', String(filters.limit))
-  const query = params.toString()
-  return `/crm/opportunities/${opportunityId}/proposal/inspection${query ? `?${query}` : ''}`
-}
-
 interface PageProps {
   params: Promise<{ id: string }>
   searchParams?: Promise<Record<string, SearchParamValue>>
@@ -359,14 +346,6 @@ export default async function InspectionPage({ params, searchParams }: PageProps
           canMutate={canSubmit}
           activeStatus={status}
           activePriority={priority}
-          filterHref={({ status: nextStatus, priority: nextPriority, page: nextPage }) =>
-            inspectionHref(id, {
-              status: nextStatus,
-              priority: nextPriority,
-              page: nextPage,
-              limit,
-            })
-          }
         />
       </div>
     </div>

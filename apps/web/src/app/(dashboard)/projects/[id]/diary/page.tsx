@@ -4,7 +4,6 @@ import { can, requireUserProfile } from '@third-code-erp/auth'
 import {
   siteDiaryListQuerySchema,
   type SiteDiaryListQuery,
-  type SiteDiaryStatus,
 } from '@third-code-erp/shared-types'
 import {
   getProjectThroughCoreApi,
@@ -31,20 +30,6 @@ function parseQuery(raw: Record<string, SearchParamValue>): SiteDiaryListQuery {
     limit: first(raw.limit),
   })
   return parsed.success ? parsed.data : siteDiaryListQuerySchema.parse({})
-}
-
-function diaryHref(
-  projectId: string,
-  filters: { status?: SiteDiaryStatus; fromDate?: string; toDate?: string; page?: number; limit?: number },
-): string {
-  const params = new URLSearchParams()
-  if (filters.status) params.set('status', filters.status)
-  if (filters.fromDate) params.set('fromDate', filters.fromDate)
-  if (filters.toDate) params.set('toDate', filters.toDate)
-  if (filters.page && filters.page > 1) params.set('page', String(filters.page))
-  if (filters.limit && filters.limit !== 25) params.set('limit', String(filters.limit))
-  const query = params.toString()
-  return `/projects/${projectId}/diary${query ? `?${query}` : ''}`
 }
 
 export default async function SiteDiaryPage({
@@ -84,7 +69,6 @@ export default async function SiteDiaryPage({
         activeStatus={query.status}
         activeFromDate={query.fromDate}
         activeToDate={query.toDate}
-        filterHref={({ status, fromDate, toDate, page }) => diaryHref(id, { status, fromDate, toDate, page, limit: query.limit })}
       />
     </div>
   )
