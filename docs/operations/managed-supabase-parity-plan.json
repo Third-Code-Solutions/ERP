@@ -10,10 +10,10 @@
     "projectStatus": "ACTIVE_HEALTHY",
     "databaseVersion": "17.6.1.121",
     "postgresMajor": 17,
-    "appliedCount": 150,
-    "sourceCount": 161,
+    "appliedCount": 157,
+    "sourceCount": 168,
     "pendingCount": 11,
-    "appliedHead": "20260819110000",
+    "appliedHead": "20260901141949",
     "sourceHead": "20260910200000",
     "ledgerStatus": "current_remote_ledger_matches_source",
     "purchaseOrderPreflight": {
