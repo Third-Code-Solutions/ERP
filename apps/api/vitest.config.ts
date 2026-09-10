@@ -25,6 +25,7 @@ export default defineConfig({
     // Nest HTTP-contract specs create a full application per file. Bound the
     // worker count so CI and developer machines do not starve those app.init()
     // calls and turn valid contracts into 5-second harness timeouts.
+    fileParallelism: false,
     maxWorkers: 1,
   },
 })

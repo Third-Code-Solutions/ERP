@@ -29,6 +29,7 @@ import { NotificationsModule } from './notifications/notifications.module'
 import { TodayModule } from './today/today.module'
 import { DailyTasksModule } from './daily-tasks/daily-tasks.module'
 import { ProcessModule } from './process/process.module'
+import { TendersModule } from './tenders/tenders.module'
 
 @Module({
   imports: [
@@ -70,6 +71,7 @@ import { ProcessModule } from './process/process.module'
     TodayModule,
     DailyTasksModule,
     ProcessModule,
+    TendersModule,
   ],
   controllers: [HealthController],
   providers: [

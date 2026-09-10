@@ -16,6 +16,20 @@ import {
   markTurnoverCompiled,
   type TurnoverSlot,
 } from './actions'
+import type {
+  ProjectCloseoutReadinessResult,
+  ProjectHandoverReadinessResult,
+} from '@third-code-erp/shared-types'
+import {
+  getProjectCloseoutReadinessThroughCoreApi,
+  getProjectHandoverReadinessThroughCoreApi,
+  projectCloseoutReadinessReadsUseCoreApi,
+  projectHandoverReadinessReadsUseCoreApi,
+} from '@/lib/erp-core-client'
+import { readProjectCloseoutReadinessForTenant } from '@/lib/operations/project-closeout-readiness'
+import { readProjectHandoverReadinessForTenant } from '@/lib/operations/project-handover-readiness'
+import { ProjectCloseoutReadinessCard } from '@/components/turnover/project-closeout-readiness-card'
+import { ProjectHandoverReadinessCard } from '@/components/turnover/project-handover-readiness-card'
 
 export const metadata: Metadata = { title: 'Turnover Package' }
 
@@ -107,6 +121,34 @@ export default async function TurnoverPage({
   const allAttached = slotsFilled === SLOTS.length
   const isCompiled = !!pkg?.compiled_at
 
+  let readiness: ProjectHandoverReadinessResult | null = null
+  let readinessError: string | null = null
+  if (projectHandoverReadinessReadsUseCoreApi(profile.tenantId)) {
+    const response = await getProjectHandoverReadinessThroughCoreApi(id)
+    if (response.ok && response.data) readiness = response.data
+    else readinessError = response.error ?? 'Handover readiness is unavailable.'
+  } else {
+    try {
+      readiness = await readProjectHandoverReadinessForTenant(profile.tenantId, id, {})
+    } catch {
+      readinessError = 'Handover readiness could not be loaded from the current data source.'
+    }
+  }
+
+  let closeoutReadiness: ProjectCloseoutReadinessResult | null = null
+  let closeoutReadinessError: string | null = null
+  if (projectCloseoutReadinessReadsUseCoreApi(profile.tenantId)) {
+    const response = await getProjectCloseoutReadinessThroughCoreApi(id)
+    if (response.ok && response.data) closeoutReadiness = response.data
+    else closeoutReadinessError = response.error ?? 'Project close-out readiness is unavailable.'
+  } else {
+    try {
+      closeoutReadiness = await readProjectCloseoutReadinessForTenant(profile.tenantId, id, {})
+    } catch {
+      closeoutReadinessError = 'Project close-out readiness could not be loaded from the current data source.'
+    }
+  }
+
   const baseHref = `/projects/${id}`
 
   return (
@@ -144,6 +186,24 @@ export default async function TurnoverPage({
           Attach the four turnover artifacts. Once all are in place, compile the package and proceed to the Certificate of Completion.
         </p>
       </div>
+
+      {readiness ? (
+        <ProjectHandoverReadinessCard result={readiness} />
+      ) : (
+        <div className="card" role="status" style={{ marginBottom: 20 }}>
+          <div className="card-header"><h2 className="card-title">Handover readiness unavailable</h2></div>
+          <p className="card-empty">{readinessError ?? 'No verified handover readiness result was returned.'}</p>
+        </div>
+      )}
+
+      {closeoutReadiness ? (
+        <ProjectCloseoutReadinessCard result={closeoutReadiness} />
+      ) : (
+        <div className="card" role="status" style={{ marginBottom: 20 }}>
+          <div className="card-header"><h2 className="card-title">Financial close-out evidence unavailable</h2></div>
+          <p className="card-empty">{closeoutReadinessError ?? 'No verified close-out evidence result was returned.'}</p>
+        </div>
+      )}
 
       {/* Progress strip */}
       <div

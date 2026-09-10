@@ -18,7 +18,7 @@ import {
 } from '@third-code-erp/database'
 import { and, eq, sql } from 'drizzle-orm'
 import request from 'supertest'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { CapabilityGuard } from '../src/auth/capability.guard'
 import { SupabaseIdentityService } from '../src/auth/supabase-identity.service'
 import { SupabaseJwtGuard } from '../src/auth/supabase-jwt.guard'
@@ -34,7 +34,15 @@ const integrationEnabled =
   process.env.ERP_API_INTEGRATION_EXPECTED === '1'
 const suite = integrationEnabled ? describe : describe.skip
 const ROLLBACK = Symbol('rollback')
-const FIXTURE_AS_OF = new Date('2026-08-06T12:00:00.000Z')
+
+function shiftDate(date: string, days: number): string {
+  const [yearText, monthText, dayText] = date.split('-')
+  const shifted = new Date(
+    Date.UTC(Number(yearText), Number(monthText) - 1, Number(dayText))
+  )
+  shifted.setUTCDate(shifted.getUTCDate() + days)
+  return shifted.toISOString().slice(0, 10)
+}
 
 function transactionBoundDatabase(
   transaction: DatabaseTransaction
@@ -73,7 +81,7 @@ async function alwaysRollback(
 async function seedReceivables(
   transaction: DatabaseTransaction,
   label: string,
-  options: { invoiceCount: 1 | 2 }
+  options: { invoiceCount: 1 | 2; asOfDate: string }
 ) {
   const suffix = randomUUID().slice(0, 12)
   const tenantId = randomUUID()
@@ -129,9 +137,9 @@ async function seedReceivables(
   await transaction.insert(fiscalPeriods).values({
     id: periodId,
     tenant_id: tenantId,
-    name: `FY 2026 receivables ${label} ${suffix}`,
-    starts_on: '2026-01-01',
-    ends_on: '2026-12-31',
+    name: `FY ${options.asOfDate.slice(0, 4)} receivables ${label} ${suffix}`,
+    starts_on: `${options.asOfDate.slice(0, 4)}-01-01`,
+    ends_on: `${options.asOfDate.slice(0, 4)}-12-31`,
     status: 'open',
     created_by: financeId,
   })
@@ -204,7 +212,9 @@ async function seedReceivables(
       vat_cents: 10800,
       withholding_tax_cents: 1800,
       net_amount_cents: 99000,
-      due_date: new Date('2026-07-01T00:00:00.000Z'),
+      due_date: new Date(
+        `${shiftDate(options.asOfDate, -36)}T00:00:00.000Z`
+      ),
     },
   ]
   if (options.invoiceCount === 2) {
@@ -223,7 +233,9 @@ async function seedReceivables(
       vat_cents: 5400,
       withholding_tax_cents: 900,
       net_amount_cents: 49500,
-      due_date: new Date('2026-09-01T00:00:00.000Z'),
+      due_date: new Date(
+        `${shiftDate(options.asOfDate, 26)}T00:00:00.000Z`
+      ),
     })
   }
   await transaction.insert(invoices).values(invoiceValues)
@@ -233,7 +245,7 @@ async function seedReceivables(
       select * from public.issue_customer_invoice(
         ${invoiceId}::uuid,
         ${financeId}::uuid,
-        ${index === 0 ? '2026-07-01' : '2026-08-01'}::date
+        ${shiftDate(options.asOfDate, index === 0 ? -40 : -5)}::date
       )
     `)
   }
@@ -249,23 +261,22 @@ async function seedReceivables(
 }
 
 suite('Finance receivables protected HTTP canary', () => {
-  beforeEach(() => {
-    vi.useFakeTimers({ toFake: ['Date'] })
-    vi.setSystemTime(FIXTURE_AS_OF)
-  })
-
-  afterEach(() => {
-    vi.useRealTimers()
-  })
-
   it('proves authorization, tenant isolation, exact totals, filters, pagination, and rollback', async () => {
+    // Keep overdue assertions stable as the calendar advances while exercising
+    // the real timers used by the HTTP and database clients.
+    const asOfDate = new Date().toISOString().slice(0, 10)
+    const currentDueDate = shiftDate(asOfDate, 26)
+    const filteredFrom = shiftDate(asOfDate, -10)
+    const filteredTo = shiftDate(asOfDate, 100)
     let observedTenantId = ''
     await alwaysRollback(async (transaction) => {
       const fixtureA = await seedReceivables(transaction, 'a', {
         invoiceCount: 2,
+        asOfDate,
       })
       const fixtureB = await seedReceivables(transaction, 'b', {
         invoiceCount: 1,
+        asOfDate,
       })
       observedTenantId = fixtureA.tenantId
       const identities = new Map([
@@ -335,7 +346,7 @@ suite('Finance receivables protected HTTP canary', () => {
         expect(viewerRead.body).toEqual(first.body)
         expect(first.body).toMatchObject({
           tenantId: fixtureA.tenantId,
-          asOfDate: '2026-08-06',
+          asOfDate,
           total: 2,
           totalDueCents: 148500,
           totalRetentionCents: 15000,
@@ -361,7 +372,9 @@ suite('Finance receivables protected HTTP canary', () => {
           projectId: fixtureA.projectId,
           accountId: fixtureA.accountId,
         })
-        expect(first.body.rows[0].dueDate).toBe('2026-09-01T00:00:00.000Z')
+        expect(first.body.rows[0].dueDate).toBe(
+          `${currentDueDate}T00:00:00.000Z`
+        )
 
         const pageTwo = await request(app.getHttpServer())
           .get(`${route}?page=2&limit=1`)
@@ -384,7 +397,7 @@ suite('Finance receivables protected HTTP canary', () => {
         })
 
         const dateFiltered = await request(app.getHttpServer())
-          .get(`${route}?dueFrom=2026-08-01&dueTo=2026-12-31`)
+          .get(`${route}?dueFrom=${filteredFrom}&dueTo=${filteredTo}`)
           .set('Authorization', 'Bearer receivables-finance-a-token')
           .expect(200)
         expect(dateFiltered.body).toMatchObject({

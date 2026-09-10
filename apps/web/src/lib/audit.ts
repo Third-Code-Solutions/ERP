@@ -28,7 +28,25 @@ export interface WriteAuditParams {
   userAgent?: string
 }
 
-type DatabaseTransaction = Parameters<Parameters<Database['transaction']>[0]>[0]
+export type DatabaseTransaction = Parameters<Parameters<Database['transaction']>[0]>[0]
+
+export async function stampActorInTransaction(
+  tx: DatabaseTransaction,
+  actorId: string,
+): Promise<void> {
+  await tx.execute(sql`
+    select pg_catalog.set_config(
+      'request.jwt.claims',
+      pg_catalog.json_build_object(
+        'sub',
+        ${actorId}::uuid,
+        'role',
+        'authenticated'
+      )::text,
+      true
+    )
+  `)
+}
 
 export async function writeAuditLogInTransaction(
   tx: DatabaseTransaction,

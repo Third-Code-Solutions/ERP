@@ -13,6 +13,7 @@ const ITEMS = [
   { slug: 'inspection', label: 'Inspection' },
   { slug: 'design', label: 'Design' },
   { slug: 'change-requests', label: 'Change Requests' },
+  { slug: 'tender', label: 'Tender / Bid' },
 ] as const
 
 export function ProposalSubNav({ opportunityId }: SubNavProps) {

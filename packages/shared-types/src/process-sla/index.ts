@@ -165,6 +165,78 @@ export const taskInstanceResultSchema = z
   })
   .strict()
 
+export const processTaskQueueStatusSchema = z.enum([
+  'pending',
+  'in_progress',
+  'blocked',
+  'completed',
+  'cancelled',
+])
+
+export const processTaskQueueQuerySchema = z
+  .object({
+    status: processTaskQueueStatusSchema.optional(),
+    responsibleBu: z.string().trim().min(1).max(120).optional(),
+    page: z.coerce.number().int().min(1).max(100_000).default(1),
+    limit: z.coerce.number().int().min(1).max(100).default(25),
+  })
+  .strict()
+
+export const processTaskQueueClockSchema = z
+  .object({
+    id: apiUuidSchema,
+    clockType: slaClockTypeSchema,
+    clockScope: slaClockScopeSchema,
+    targetValue: z.number().int().positive(),
+    startedAt: apiDateTimeSchema,
+    dueAt: apiDateTimeSchema,
+    atRiskAt: apiDateTimeSchema,
+    breachedAt: apiDateTimeSchema.nullable(),
+    escalatedAt: apiDateTimeSchema.nullable(),
+    status: z.enum([
+      'running',
+      'paused',
+      'breached',
+      'escalated',
+      'completed',
+      'cancelled',
+    ]),
+    observeMode: z.boolean(),
+  })
+  .strict()
+
+export const processTaskQueueRowSchema = z
+  .object({
+    id: apiUuidSchema,
+    processStepId: apiUuidSchema,
+    processStepCode: z.string(),
+    processStepName: z.string(),
+    responsibleBu: z.string(),
+    subjectType: z.string(),
+    subjectId: apiUuidSchema,
+    instanceKey: z.string(),
+    assignedTo: apiUuidSchema.nullable(),
+    status: processTaskQueueStatusSchema,
+    blockedReason: z.string().nullable(),
+    startedAt: apiDateTimeSchema.nullable(),
+    completedAt: apiDateTimeSchema.nullable(),
+    createdAt: apiDateTimeSchema,
+    updatedAt: apiDateTimeSchema,
+    clock: processTaskQueueClockSchema.nullable(),
+  })
+  .strict()
+
+export const processTaskQueueResultSchema = z
+  .object({
+    tenantId: apiUuidSchema,
+    rows: z.array(processTaskQueueRowSchema).max(100),
+    total: z.number().int().nonnegative(),
+    page: z.number().int().min(1).max(100_000),
+    limit: z.number().int().min(1).max(100),
+    totalPages: z.number().int().min(1),
+  })
+  .strict()
+
 export const startProcessClockCommandSchema = z
   .object({
     startedAt: apiDateTimeSchema.optional(),
@@ -248,6 +320,21 @@ const centavoStringSchema = z
   .regex(/^(0|[1-9][0-9]*)$/, 'Use non-negative integer centavos')
   .max(18)
 
+export const approvalRoutePreviewQuerySchema = z
+  .object({
+    objectType: z.string().trim().min(1).max(64),
+    amountCentavos: centavoStringSchema,
+  })
+  .strict()
+
+export const approvalRoutePreviewStatusSchema = z.enum([
+  'unconfigured',
+  'no_match',
+  'incomplete',
+  'ambiguous',
+  'matched',
+])
+
 export const createApprovalRuleCommandSchema = z
   .object({
     objectType: z.string().trim().min(1).max(64),
@@ -285,6 +372,31 @@ export const approvalRuleResultSchema = z
     isActive: z.boolean(),
     createdAt: apiDateTimeSchema,
     updatedAt: apiDateTimeSchema,
+  })
+  .strict()
+
+export const approvalRoutePreviewStepStatusSchema = z.enum([
+  'matched',
+  'missing',
+  'ambiguous',
+])
+
+export const approvalRoutePreviewStepSchema = z
+  .object({
+    sequence: z.number().int().positive(),
+    status: approvalRoutePreviewStepStatusSchema,
+    rules: z.array(approvalRuleResultSchema),
+  })
+  .strict()
+
+export const approvalRoutePreviewResultSchema = z
+  .object({
+    objectType: z.string(),
+    amountCentavos: centavoStringSchema,
+    mode: z.literal('preview_only'),
+    authority: z.literal('configured_rules_only'),
+    status: approvalRoutePreviewStatusSchema,
+    steps: z.array(approvalRoutePreviewStepSchema),
   })
   .strict()
 
@@ -352,6 +464,19 @@ export type UpdateTaskStatusCommand = z.infer<
   typeof updateTaskStatusCommandSchema
 >
 export type TaskInstanceResult = z.infer<typeof taskInstanceResultSchema>
+export type ProcessTaskQueueStatus = z.infer<
+  typeof processTaskQueueStatusSchema
+>
+export type ProcessTaskQueueQuery = z.infer<
+  typeof processTaskQueueQuerySchema
+>
+export type ProcessTaskQueueClock = z.infer<
+  typeof processTaskQueueClockSchema
+>
+export type ProcessTaskQueueRow = z.infer<typeof processTaskQueueRowSchema>
+export type ProcessTaskQueueResult = z.infer<
+  typeof processTaskQueueResultSchema
+>
 export type StartProcessClockCommand = z.infer<
   typeof startProcessClockCommandSchema
 >
@@ -368,10 +493,26 @@ export type ProcessHealthResult = z.infer<
 export type ListApprovalRulesQuery = z.infer<
   typeof listApprovalRulesQuerySchema
 >
+export type ApprovalRoutePreviewQuery = z.infer<
+  typeof approvalRoutePreviewQuerySchema
+>
 export type CreateApprovalRuleCommand = z.infer<
   typeof createApprovalRuleCommandSchema
 >
 export type ApprovalRuleResult = z.infer<typeof approvalRuleResultSchema>
+export type ApprovalRoutePreviewStep = z.infer<
+  typeof approvalRoutePreviewStepSchema
+>
+export type ApprovalRoutePreviewStepResult = ApprovalRoutePreviewStep
+export type ApprovalRoutePreviewResult = z.infer<
+  typeof approvalRoutePreviewResultSchema
+>
+export type ApprovalRoutePreviewStatus = z.infer<
+  typeof approvalRoutePreviewStatusSchema
+>
+export type ApprovalRoutePreviewStepStatus = z.infer<
+  typeof approvalRoutePreviewStepStatusSchema
+>
 export type CreateApprovalCommand = z.infer<
   typeof createApprovalCommandSchema
 >

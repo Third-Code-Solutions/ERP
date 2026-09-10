@@ -461,6 +461,15 @@ const PROJECT_CREATE_ROUTE_ROLES = [
   'pm',
   'estimator',
 ] as const
+const VENDOR_PERFORMANCE_ROUTE_ROLES = [
+  'owner',
+  'admin',
+  'commercial',
+  'finance',
+  'procurement',
+  'sd_pm_pe',
+  'pm',
+] as const
 
 function registerDashboardRoutes(
   templates: readonly string[],
@@ -497,6 +506,7 @@ export const DASHBOARD_ROUTE_POLICIES: readonly DashboardRoutePolicy[] = [
     '/crm/opportunities/[id]/proposal/design',
     '/crm/opportunities/[id]/proposal/inspection',
     '/crm/opportunities/[id]/proposal/pprf',
+    '/crm/opportunities/[id]/proposal/tender',
     '/dashboard',
     '/documents',
     '/pipeline',
@@ -510,11 +520,16 @@ export const DASHBOARD_ROUTE_POLICIES: readonly DashboardRoutePolicy[] = [
     '/projects/[id]/checklist',
     '/projects/[id]/coc',
     '/projects/[id]/comments',
+    '/projects/[id]/diary',
     '/projects/[id]/documents',
     '/projects/[id]/permits',
     '/projects/[id]/progress',
+    '/projects/[id]/quality',
     '/projects/[id]/reports',
+    '/projects/[id]/rfis',
+    '/projects/[id]/schedule',
     '/projects/[id]/scope',
+    '/projects/[id]/submittals',
     '/projects/[id]/turnover',
     '/projects/[id]/vos',
     '/projects/[id]/vos/[voId]',
@@ -648,6 +663,10 @@ export const DASHBOARD_ROUTE_POLICIES: readonly DashboardRoutePolicy[] = [
   ...registerDashboardRoutes(
     ['/procurement/rfqs', '/procurement/rfqs/[id]'],
     ['admin', 'estimator', 'procurement', 'commercial', 'viewer']
+  ),
+  ...registerDashboardRoutes(
+    ['/procurement/vendors/performance'],
+    VENDOR_PERFORMANCE_ROUTE_ROLES,
   ),
   ...registerDashboardRoutes(
     ['/purchase-orders', '/purchase-orders/[id]'],

@@ -12,7 +12,7 @@ import {
 } from '@third-code-erp/database'
 import { eq, sql } from 'drizzle-orm'
 import request from 'supertest'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { CapabilityGuard } from '../src/auth/capability.guard'
 import { SupabaseIdentityService } from '../src/auth/supabase-identity.service'
 import { SupabaseJwtGuard } from '../src/auth/supabase-jwt.guard'
@@ -28,7 +28,15 @@ const integrationEnabled =
   process.env.ERP_API_INTEGRATION_EXPECTED === '1'
 const suite = integrationEnabled ? describe : describe.skip
 const ROLLBACK = Symbol('rollback')
-const FIXTURE_AS_OF = new Date('2026-08-06T12:00:00.000Z')
+
+function shiftDate(date: string, days: number): string {
+  const [yearText, monthText, dayText] = date.split('-')
+  const shifted = new Date(
+    Date.UTC(Number(yearText), Number(monthText) - 1, Number(dayText))
+  )
+  shifted.setUTCDate(shifted.getUTCDate() + days)
+  return shifted.toISOString().slice(0, 10)
+}
 
 function transactionBoundDatabase(
   transaction: DatabaseTransaction
@@ -77,7 +85,8 @@ type BillSpec = {
 async function seedPayables(
   transaction: DatabaseTransaction,
   label: string,
-  billSpecs: BillSpec[]
+  billSpecs: BillSpec[],
+  asOfDate: string
 ) {
   const suffix = randomUUID().slice(0, 12)
   const tenantId = randomUUID()
@@ -156,9 +165,9 @@ async function seedPayables(
     values (
       ${periodId}::uuid,
       ${tenantId}::uuid,
-      ${`FY 2026 payables ${label} ${suffix}`},
-      '2026-01-01',
-      '2026-12-31',
+      ${`FY ${asOfDate.slice(0, 4)} payables ${label} ${suffix}`},
+      ${`${asOfDate.slice(0, 4)}-01-01`},
+      ${`${asOfDate.slice(0, 4)}-12-31`},
       'open',
       ${financeId}::uuid
     )
@@ -314,58 +323,67 @@ async function seedPayables(
 }
 
 suite('Finance payables protected HTTP canary', () => {
-  beforeEach(() => {
-    vi.useFakeTimers({ toFake: ['Date'] })
-    vi.setSystemTime(FIXTURE_AS_OF)
-  })
-
-  afterEach(() => {
-    vi.useRealTimers()
-  })
-
   it('proves authorization, tenant isolation, exact aging, filters, pagination, and rollback', async () => {
+    // Keep aging assertions stable as the calendar advances while exercising
+    // the real timers used by the HTTP and database clients.
+    const asOfDate = new Date().toISOString().slice(0, 10)
+    const overdueDueDate = shiftDate(asOfDate, -36)
+    const currentDueDate = shiftDate(asOfDate, 26)
+    const draftDueDate = shiftDate(asOfDate, 9)
+    const filteredFrom = shiftDate(asOfDate, -10)
+    const filteredTo = shiftDate(asOfDate, 100)
     let observedTenantId = ''
     await alwaysRollback(async (transaction) => {
-      const fixtureA = await seedPayables(transaction, 'a', [
-        {
-          key: 'overdue',
-          status: 'posted',
-          billDate: '2026-07-01',
-          dueDate: '2026-07-01',
-          subtotalCents: 100000,
-          vatCents: 12000,
-          withholdingCents: 2000,
-        },
-        {
-          key: 'current',
-          status: 'posted',
-          billDate: '2026-08-01',
-          dueDate: '2026-09-01',
-          subtotalCents: 50000,
-          vatCents: 6000,
-          withholdingCents: 1000,
-        },
-        {
-          key: 'draft',
-          status: 'draft',
-          billDate: '2026-08-05',
-          dueDate: '2026-08-15',
-          subtotalCents: 30000,
-          vatCents: 3600,
-          withholdingCents: 600,
-        },
-      ])
-      const fixtureB = await seedPayables(transaction, 'b', [
-        {
-          key: 'foreign',
-          status: 'posted',
-          billDate: '2026-08-02',
-          dueDate: '2026-09-15',
-          subtotalCents: 40000,
-          vatCents: 4800,
-          withholdingCents: 800,
-        },
-      ])
+      const fixtureA = await seedPayables(
+        transaction,
+        'a',
+        [
+          {
+            key: 'overdue',
+            status: 'posted',
+            billDate: shiftDate(asOfDate, -40),
+            dueDate: overdueDueDate,
+            subtotalCents: 100000,
+            vatCents: 12000,
+            withholdingCents: 2000,
+          },
+          {
+            key: 'current',
+            status: 'posted',
+            billDate: shiftDate(asOfDate, -5),
+            dueDate: currentDueDate,
+            subtotalCents: 50000,
+            vatCents: 6000,
+            withholdingCents: 1000,
+          },
+          {
+            key: 'draft',
+            status: 'draft',
+            billDate: shiftDate(asOfDate, -1),
+            dueDate: draftDueDate,
+            subtotalCents: 30000,
+            vatCents: 3600,
+            withholdingCents: 600,
+          },
+        ],
+        asOfDate
+      )
+      const fixtureB = await seedPayables(
+        transaction,
+        'b',
+        [
+          {
+            key: 'foreign',
+            status: 'posted',
+            billDate: shiftDate(asOfDate, -4),
+            dueDate: shiftDate(asOfDate, 40),
+            subtotalCents: 40000,
+            vatCents: 4800,
+            withholdingCents: 800,
+          },
+        ],
+        asOfDate
+      )
       observedTenantId = fixtureA.tenantId
 
       const identities = new Map([
@@ -435,7 +453,7 @@ suite('Finance payables protected HTTP canary', () => {
         expect(viewerRead.body).toEqual(first.body)
         expect(first.body).toMatchObject({
           tenantId: fixtureA.tenantId,
-          asOfDate: '2026-08-06',
+          asOfDate,
           total: 3,
           totalPayableCents: 198000,
           totalPaidCents: 0,
@@ -459,7 +477,7 @@ suite('Finance payables protected HTTP canary', () => {
           vendorBillNumber: expect.stringContaining('draft'),
           totalPayableCents: 33000,
           openCents: 0,
-          dueDate: '2026-08-15',
+          dueDate: draftDueDate,
           postedAt: null,
           postingJournalEntryId: null,
           vendorId: fixtureA.vendorId,
@@ -476,7 +494,7 @@ suite('Finance payables protected HTTP canary', () => {
           vendorBillNumber: expect.stringContaining('current'),
           totalPayableCents: 55000,
           openCents: 55000,
-          dueDate: '2026-09-01',
+          dueDate: currentDueDate,
           postingJournalEntryId: expect.any(String),
         })
 
@@ -494,7 +512,7 @@ suite('Finance payables protected HTTP canary', () => {
         expect(posted.body.rows).toHaveLength(2)
 
         const dateFiltered = await request(app.getHttpServer())
-          .get(`${route}?dueFrom=2026-08-01&dueTo=2026-12-31`)
+          .get(`${route}?dueFrom=${filteredFrom}&dueTo=${filteredTo}`)
           .set('Authorization', 'Bearer payables-finance-a-token')
           .expect(200)
         expect(dateFiltered.body).toMatchObject({
