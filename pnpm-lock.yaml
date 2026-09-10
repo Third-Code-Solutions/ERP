@@ -34,7 +34,6 @@ overrides:
   inngest>@opentelemetry/resources: 2.10.0
   inngest>@opentelemetry/sdk-trace-base: 2.10.0
   '@traceloop/instrumentation-anthropic>@opentelemetry/core': 2.10.0
-  '@ai-sdk/provider-utils@4': 4.0.33
 
 importers:
 
