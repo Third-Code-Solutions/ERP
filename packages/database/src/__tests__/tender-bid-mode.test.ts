@@ -35,4 +35,11 @@ describe('tender bid mode migration', () => {
     expect(migration).toContain('execute function audit_log_trigger()')
     expect(migration).not.toMatch(/drop\s+(?:table|column|type)|delete\s+from/)
   })
+
+  it('limits generated tenant policies to authenticated sessions', () => {
+    expect(migration).toContain('for select to authenticated using (tenant_id = auth_tenant_id())')
+    expect(migration).toContain('for insert to authenticated with check (tenant_id = auth_tenant_id())')
+    expect(migration).toContain('for update to authenticated using (tenant_id = auth_tenant_id()) with check (tenant_id = auth_tenant_id())')
+    expect(migration).toContain('for delete to authenticated using (tenant_id = auth_tenant_id())')
+  })
 })

@@ -186,10 +186,10 @@ BEGIN
     EXECUTE format('DROP POLICY IF EXISTS "%s_tenant_insert" ON %I', t, t);
     EXECUTE format('DROP POLICY IF EXISTS "%s_tenant_update" ON %I', t, t);
     EXECUTE format('DROP POLICY IF EXISTS "%s_tenant_delete" ON %I', t, t);
-    EXECUTE format('CREATE POLICY "%s_tenant_read" ON %I FOR SELECT USING (tenant_id = auth_tenant_id())', t, t);
-    EXECUTE format('CREATE POLICY "%s_tenant_insert" ON %I FOR INSERT WITH CHECK (tenant_id = auth_tenant_id())', t, t);
-    EXECUTE format('CREATE POLICY "%s_tenant_update" ON %I FOR UPDATE USING (tenant_id = auth_tenant_id()) WITH CHECK (tenant_id = auth_tenant_id())', t, t);
-    EXECUTE format('CREATE POLICY "%s_tenant_delete" ON %I FOR DELETE USING (tenant_id = auth_tenant_id())', t, t);
+    EXECUTE format('CREATE POLICY "%s_tenant_read" ON %I FOR SELECT TO authenticated USING (tenant_id = auth_tenant_id())', t, t);
+    EXECUTE format('CREATE POLICY "%s_tenant_insert" ON %I FOR INSERT TO authenticated WITH CHECK (tenant_id = auth_tenant_id())', t, t);
+    EXECUTE format('CREATE POLICY "%s_tenant_update" ON %I FOR UPDATE TO authenticated USING (tenant_id = auth_tenant_id()) WITH CHECK (tenant_id = auth_tenant_id())', t, t);
+    EXECUTE format('CREATE POLICY "%s_tenant_delete" ON %I FOR DELETE TO authenticated USING (tenant_id = auth_tenant_id())', t, t);
     EXECUTE format('DROP TRIGGER IF EXISTS audit_%s ON %I', t, t);
     EXECUTE format('CREATE TRIGGER audit_%s AFTER INSERT OR UPDATE OR DELETE ON %I FOR EACH ROW EXECUTE FUNCTION audit_log_trigger()', t, t);
   END LOOP;
