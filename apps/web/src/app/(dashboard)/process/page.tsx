@@ -445,7 +445,7 @@ function ProcessTaskQueueSection({
 
 export default async function ProcessHealthPage({
   searchParams,
-}: ProcessHealthPageProps) {
+}: ProcessHealthPageProps = {}) {
   const profile = await requireUserProfile().catch(() => null)
   if (!profile) {
     return (
