@@ -7,6 +7,7 @@ import {
   type QualityHoldPointStatus,
 } from '@third-code-erp/shared-types'
 import { getProjectThroughCoreApi, getQualityHoldPointsThroughCoreApi } from '@/lib/erp-core-client'
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import { QualityHoldPointRegister } from './quality-hold-point-register'
 
 export const metadata: Metadata = { title: 'QA/QC Hold Points' }
@@ -45,7 +46,7 @@ export default async function QualityHoldPointsPage({
   params: Promise<{ id: string }>
   searchParams?: Promise<Record<string, SearchParamValue>>
 }) {
-  const { id } = await params
+  const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
   const query = parseQuery((await searchParams) ?? {})
   const projectResponse = await getProjectThroughCoreApi(id)

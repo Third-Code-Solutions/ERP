@@ -10,6 +10,7 @@ import {
   getProjectThroughCoreApi,
   getSiteDiaryThroughCoreApi,
 } from '@/lib/erp-core-client'
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import { SiteDiaryRegister } from './site-diary-register'
 
 export const metadata: Metadata = { title: 'Daily Site Diary' }
@@ -53,7 +54,7 @@ export default async function SiteDiaryPage({
   params: Promise<{ id: string }>
   searchParams?: Promise<Record<string, SearchParamValue>>
 }) {
-  const { id } = await params
+  const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
   const query = parseQuery((await searchParams) ?? {})
   const projectResponse = await getProjectThroughCoreApi(id)

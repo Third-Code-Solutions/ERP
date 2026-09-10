@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   profile: vi.fn(),
   select: vi.fn(),
   health: vi.fn(),
+  taskQueue: vi.fn(),
   queue: vi.fn(),
 }))
 
@@ -14,7 +15,10 @@ vi.mock('@third-code-erp/auth', async (original) => ({
   requireUserProfile: mocks.profile,
 }))
 vi.mock('@third-code-erp/database', () => ({ db: { select: mocks.select } }))
-vi.mock('@/lib/erp-core-client', () => ({ getProcessHealthThroughCoreApi: mocks.health }))
+vi.mock('@/lib/erp-core-client', () => ({
+  getProcessHealthThroughCoreApi: mocks.health,
+  getProcessTaskQueueThroughCoreApi: mocks.taskQueue,
+}))
 vi.mock('@/lib/account-queries', () => ({ getKycQueue: mocks.queue }))
 vi.mock('./tasks/generation-control', () => ({ GenerationControl: () => <div>Daily task generation control</div> }))
 vi.mock('./process/retry', () => ({
@@ -39,6 +43,10 @@ describe('route QA workflow entry points', () => {
     for (const method of [query.from, query.innerJoin, query.leftJoin, query.where, query.orderBy, query.limit]) method.mockReturnValue(query)
     mocks.select.mockReturnValue(query)
     mocks.queue.mockResolvedValue([])
+    mocks.taskQueue.mockResolvedValue({
+      ok: true,
+      data: { tenantId: 'qa-tenant', rows: [], total: 0, page: 1, limit: 25, totalPages: 1 },
+    })
   })
   afterEach(() => vi.unstubAllGlobals())
 

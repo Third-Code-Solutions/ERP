@@ -4,6 +4,7 @@ import { can, requireUserProfile } from '@third-code-erp/auth'
 import { projectSubmittalListQuerySchema, type ProjectDocumentRow, type ProjectSubmittalDocumentListResult, type ProjectSubmittalListQuery, type ProjectSubmittalStatus } from '@third-code-erp/shared-types'
 import { getProjectDocumentsThroughCoreApi, getProjectSubmittalDocumentsThroughCoreApi, getProjectSubmittalsThroughCoreApi, getProjectThroughCoreApi } from '@/lib/erp-core-client'
 import { ProjectSubmittalRegister } from './project-submittal-register'
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 
 export const metadata: Metadata = { title: 'Project Submittals' }
 type SearchParamValue = string | string[] | undefined
@@ -12,7 +13,7 @@ function parseQuery(raw: Record<string, SearchParamValue>): ProjectSubmittalList
 function href(projectId: string, filters: { status?: ProjectSubmittalStatus; page?: number; limit?: number }): string { const params = new URLSearchParams(); if (filters.status) params.set('status', filters.status); if (filters.page && filters.page > 1) params.set('page', String(filters.page)); if (filters.limit && filters.limit !== 25) params.set('limit', String(filters.limit)); const query = params.toString(); return `/projects/${projectId}/submittals${query ? `?${query}` : ''}` }
 
 export default async function ProjectSubmittalsPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams?: Promise<Record<string, SearchParamValue>> }) {
-  const { id } = await params; const profile = await requireUserProfile(); const query = parseQuery((await searchParams) ?? {}); const projectResponse = await getProjectThroughCoreApi(id)
+  const { id } = await requireUuidRouteParams(params); const profile = await requireUserProfile(); const query = parseQuery((await searchParams) ?? {}); const projectResponse = await getProjectThroughCoreApi(id)
   if (!projectResponse.ok || !projectResponse.data) return <div className="card" role="alert"><div className="card-header"><h1 className="card-title">Project submittals</h1></div><div className="card-empty">{projectResponse.error ?? 'Project data was not read.'}</div></div>
   if (projectResponse.data.id !== id || projectResponse.data.tenantId !== profile.tenantId) return <div className="card" role="alert"><div className="card-header"><h1 className="card-title">Project submittals</h1></div><div className="card-empty">Submittal data returned an invalid tenant or project scope.</div></div>
   const response = await getProjectSubmittalsThroughCoreApi(id, query)

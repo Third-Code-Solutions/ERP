@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   select: vi.fn(),
   from: vi.fn(),
   getProjectCostControl: vi.fn(),
+  materialActuals: vi.fn(),
   costControlTable: vi.fn(() => null),
 }))
 
@@ -21,6 +22,9 @@ vi.mock('@third-code-erp/database', () => ({
 
 vi.mock('@/lib/operations/project-cost-control', () => ({
   getProjectCostControl: mocks.getProjectCostControl,
+}))
+vi.mock('@/lib/operations/project-material-actuals', () => ({
+  readProjectMaterialActualsForTenant: mocks.materialActuals,
 }))
 
 vi.mock('@/components/cost/gp-erosion-badge', () => ({ GpErosionBadge: () => null }))
@@ -51,6 +55,7 @@ describe('ProjectCostPage sensitive query planning', () => {
         varianceCents: 0,
       },
     })
+    mocks.materialActuals.mockRejectedValue(new Error('material actuals unavailable'))
   })
 
   for (const [role, canViewCommercialDetails] of [

@@ -6,6 +6,7 @@ import { getProjectLabourReconciliationThroughCoreApi, getProjectScheduleThrough
 import { readProjectLabourReconciliationForTenant } from '@/lib/operations/project-labour-reconciliation'
 import { ProjectLabourReconciliationCard } from '@/components/schedule/project-labour-reconciliation-card'
 import { ProjectScheduleRegister } from './project-schedule-register'
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 
 export const metadata: Metadata = { title: 'Project Schedule' }
 type SearchParamValue = string | string[] | undefined
@@ -14,7 +15,7 @@ function parseQuery(raw: Record<string, SearchParamValue>) { const parsed = proj
 function href(projectId: string, filters: { level?: ProjectScheduleLevel; status?: ProjectScheduleTaskStatus; page?: number; limit?: number }): string { const params = new URLSearchParams(); if (filters.level) params.set('level', filters.level); if (filters.status) params.set('status', filters.status); if (filters.page && filters.page > 1) params.set('page', String(filters.page)); if (filters.limit && filters.limit !== 50) params.set('limit', String(filters.limit)); const query = params.toString(); return `/projects/${projectId}/schedule${query ? `?${query}` : ''}` }
 
 export default async function ProjectSchedulePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams?: Promise<Record<string, SearchParamValue>> }) {
-  const { id } = await params
+  const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
   const query = parseQuery((await searchParams) ?? {})
   const projectResponse = await getProjectThroughCoreApi(id)

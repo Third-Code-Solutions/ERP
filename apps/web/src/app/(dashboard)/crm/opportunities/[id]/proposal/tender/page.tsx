@@ -16,6 +16,7 @@ import {
   vendors,
 } from '@third-code-erp/database/schema'
 import { ProposalSubNav } from '@/components/proposal/sub-nav'
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import {
   addTenderCriterion,
   addTenderDeviation,
@@ -31,7 +32,7 @@ interface PageProps { params: Promise<{ id: string }> }
 const badge = (value: string) => value.replace(/_/g, ' ')
 
 export default async function TenderPage({ params }: PageProps) {
-  const { id } = await params
+  const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
   const [opportunity] = await db.select({ id: opportunities.id, accountName: accounts.name }).from(opportunities).leftJoin(accounts, and(eq(accounts.id, opportunities.account_id), eq(accounts.tenant_id, profile.tenantId))).where(and(eq(opportunities.id, id), eq(opportunities.tenant_id, profile.tenantId))).limit(1)
   if (!opportunity) notFound()

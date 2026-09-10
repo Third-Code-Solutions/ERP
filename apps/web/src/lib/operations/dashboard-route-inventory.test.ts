@@ -187,6 +187,7 @@ const EXPECTED_ROLES_BY_TEMPLATE: Readonly<
   '/crm/opportunities/[id]/proposal/design': ALL_ROLES,
   '/crm/opportunities/[id]/proposal/inspection': ALL_ROLES,
   '/crm/opportunities/[id]/proposal/pprf': ALL_ROLES,
+  '/crm/opportunities/[id]/proposal/tender': ALL_ROLES,
   '/crm/opportunities/new/pprf': ACCOUNT_CREATE,
   '/dashboard': ALL_ROLES,
   '/documents': ALL_ROLES,
@@ -228,6 +229,15 @@ const EXPECTED_ROLES_BY_TEMPLATE: Readonly<
   '/procurement/deliveries/new': ['owner', 'admin', 'pm', 'procurement', 'sd_pm_pe'],
   '/procurement/rfqs': RFQ_READ,
   '/procurement/rfqs/[id]': RFQ_READ,
+  '/procurement/vendors/performance': [
+    'owner',
+    'admin',
+    'commercial',
+    'finance',
+    'procurement',
+    'sd_pm_pe',
+    'pm',
+  ],
   '/projects': ALL_ROLES,
   '/projects/[id]': ALL_ROLES,
   '/projects/[id]/access': ADMIN_READ,
@@ -240,11 +250,16 @@ const EXPECTED_ROLES_BY_TEMPLATE: Readonly<
   '/projects/[id]/comments': ALL_ROLES,
   '/projects/[id]/cost': PROJECT_COST,
   '/projects/[id]/cost/budget': PROJECT_COST,
+  '/projects/[id]/diary': ALL_ROLES,
   '/projects/[id]/documents': ALL_ROLES,
   '/projects/[id]/permits': ALL_ROLES,
   '/projects/[id]/progress': ALL_ROLES,
+  '/projects/[id]/quality': ALL_ROLES,
   '/projects/[id]/reports': ALL_ROLES,
+  '/projects/[id]/rfis': ALL_ROLES,
+  '/projects/[id]/schedule': ALL_ROLES,
   '/projects/[id]/scope': ALL_ROLES,
+  '/projects/[id]/submittals': ALL_ROLES,
   '/projects/[id]/turnover': ALL_ROLES,
   '/projects/[id]/vos': ALL_ROLES,
   '/projects/[id]/vos/[voId]': ALL_ROLES,
@@ -287,7 +302,7 @@ describe('dashboard route authorization inventory', () => {
       (policy) => policy.template
     ).sort()
 
-    expect(routeTemplates).toHaveLength(112)
+    expect(routeTemplates).toHaveLength(119)
     expect(new Set(registeredTemplates).size).toBe(registeredTemplates.length)
     expect(registeredTemplates).toEqual(routeTemplates)
     expect(Object.keys(EXPECTED_ROLES_BY_TEMPLATE).sort()).toEqual(

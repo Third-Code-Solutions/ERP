@@ -12,6 +12,7 @@ import {
 } from '@/lib/erp-core-client'
 import { projectRfiListQuerySchema } from '@third-code-erp/shared-types'
 import { ProjectRfiRegister } from './project-rfi-register'
+import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 
 export const metadata: Metadata = { title: 'Project RFIs' }
 
@@ -56,7 +57,7 @@ interface PageProps {
 }
 
 export default async function ProjectRfisPage({ params, searchParams }: PageProps) {
-  const { id } = await params
+  const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
   const query = parseQuery((await searchParams) ?? {})
   const projectResponse = await getProjectThroughCoreApi(id)
