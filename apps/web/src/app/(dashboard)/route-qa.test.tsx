@@ -87,13 +87,13 @@ describe('route QA workflow entry points', () => {
 
   it('distinguishes a process failure from an empty healthy result', async () => {
     mocks.health.mockResolvedValue({ ok: false, error: 'Cannot GET /v1/process/health' })
-    const failure = renderToStaticMarkup(await ProcessPage())
+    const failure = renderToStaticMarkup(await ProcessPage({}))
     expect(failure).toContain('role="alert"')
     expect(failure).toContain('Try again')
     expect(failure).not.toContain('Cannot GET')
     expect(failure).not.toContain('Health by business unit')
     mocks.health.mockResolvedValue({ ok: true, data: { byBu: [], observeMode: true, generatedAt: '2026-09-07T03:00:00Z' } })
-    const empty = renderToStaticMarkup(await ProcessPage())
+    const empty = renderToStaticMarkup(await ProcessPage({}))
     expect(empty).toContain('Health by business unit')
     expect(empty).not.toContain('role="alert"')
     expect(empty).toContain('No open workflow tasks')
@@ -116,7 +116,7 @@ describe('route QA workflow entry points', () => {
         { responsibleBu: 'Procurement', openTasks: 3, atRiskClocks: 0, breachedClocks: 2, escalatedClocks: 0, externalBreachedClocks: 1 },
       ],
     } })
-    const html = renderToStaticMarkup(await ProcessPage())
+    const html = renderToStaticMarkup(await ProcessPage({}))
     expect(html).toContain('Process health summary')
     expect(html).toMatch(/<dt[^>]*>Open tasks<\/dt><dd[^>]*>5<\/dd>/)
     expect(html).toContain('<th scope="row">Commercial</th>')
