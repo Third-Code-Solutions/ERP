@@ -18,7 +18,7 @@ import {
 } from '@third-code-erp/database'
 import { and, eq, sql } from 'drizzle-orm'
 import request from 'supertest'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CapabilityGuard } from '../src/auth/capability.guard'
 import { SupabaseIdentityService } from '../src/auth/supabase-identity.service'
 import { SupabaseJwtGuard } from '../src/auth/supabase-jwt.guard'
@@ -34,6 +34,9 @@ const integrationEnabled =
   process.env.ERP_API_INTEGRATION_EXPECTED === '1'
 const suite = integrationEnabled ? describe : describe.skip
 const ROLLBACK = Symbol('rollback')
+const INTEGRATION_AS_OF = new Date('2026-08-06T12:00:00.000Z')
+
+afterEach(() => vi.useRealTimers())
 
 function transactionBoundDatabase(
   transaction: DatabaseTransaction
@@ -249,6 +252,9 @@ async function seedReceivables(
 
 suite('Finance receivables protected HTTP canary', () => {
   it('proves authorization, tenant isolation, exact totals, filters, pagination, and rollback', async () => {
+    // Keep overdue assertions stable as the calendar advances; production
+    // still derives the as-of date from the real application clock.
+    vi.useFakeTimers({ now: INTEGRATION_AS_OF })
     let observedTenantId = ''
     await alwaysRollback(async (transaction) => {
       const fixtureA = await seedReceivables(transaction, 'a', {
