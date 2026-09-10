@@ -11,3 +11,8 @@ Verification: the parity unit/consistency checks pass locally and
 no known vulnerabilities.
 Hosted migration, provider deployment, and authenticated production E2E remain
 guarded by the protected promotion workflow.
+
+The finance payables and receivables HTTP canaries now freeze their fixture
+as-of date during each test and restore real timers afterward, keeping aging
+assertions deterministic as the calendar advances without changing production
+clock behavior.

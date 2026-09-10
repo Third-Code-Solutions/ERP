@@ -324,6 +324,9 @@ suite('Finance payables protected HTTP canary', () => {
   })
 
   it('proves authorization, tenant isolation, exact aging, filters, pagination, and rollback', async () => {
+    // Keep aging assertions stable as the calendar advances; production still
+    // derives the as-of date from the real application clock.
+    vi.useFakeTimers({ now: INTEGRATION_AS_OF })
     let observedTenantId = ''
     await alwaysRollback(async (transaction) => {
       const fixtureA = await seedPayables(transaction, 'a', [

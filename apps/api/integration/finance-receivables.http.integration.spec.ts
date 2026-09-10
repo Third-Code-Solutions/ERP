@@ -259,6 +259,9 @@ suite('Finance receivables protected HTTP canary', () => {
   })
 
   it('proves authorization, tenant isolation, exact totals, filters, pagination, and rollback', async () => {
+    // Keep overdue assertions stable as the calendar advances; production
+    // still derives the as-of date from the real application clock.
+    vi.useFakeTimers({ now: INTEGRATION_AS_OF })
     let observedTenantId = ''
     await alwaysRollback(async (transaction) => {
       const fixtureA = await seedReceivables(transaction, 'a', {
