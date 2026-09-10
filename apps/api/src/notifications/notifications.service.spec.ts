@@ -28,7 +28,7 @@ const ROW = {
   createdAt: new Date('2026-08-10T04:00:00.000Z'),
 }
 
-function selectChain<T>(result: T, whereCalls: ReturnType<typeof vi.fn>) {
+function selectChain<T>(result: T, whereCalls: (...args: unknown[]) => unknown) {
   const query: Record<string, ReturnType<typeof vi.fn>> = {}
   query.from = vi.fn().mockReturnValue(query)
   query.where = vi.fn((...args: unknown[]) => {
@@ -45,7 +45,7 @@ function selectChain<T>(result: T, whereCalls: ReturnType<typeof vi.fn>) {
 
 function updateChain(
   result: unknown[],
-  whereCalls: ReturnType<typeof vi.fn>
+  whereCalls: (...args: unknown[]) => unknown
 ) {
   const query: Record<string, ReturnType<typeof vi.fn>> = {}
   query.set = vi.fn().mockReturnValue(query)
