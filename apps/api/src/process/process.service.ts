@@ -31,6 +31,9 @@ import {
   type CreateTaskInstanceCommand,
   type EvaluateSlaClockCommand,
   type ProcessHealthResult,
+  processTaskQueueResultSchema,
+  type ProcessTaskQueueQuery,
+  type ProcessTaskQueueResult,
   type ProcessStepResult,
   type SlaClockResult,
   type SetSlaObserveModeCommand,
@@ -40,12 +43,23 @@ import {
   type UpdateTaskStatusCommand,
   type ApprovalResult,
   type ApprovalRuleResult,
+  type ApprovalRoutePreviewQuery,
+  type ApprovalRoutePreviewResult,
   type CreateApprovalCommand,
   type CreateApprovalRuleCommand,
   type DecideApprovalCommand,
   type BusinessDayService,
 } from '@third-code-erp/shared-types'
-import { and, asc, eq, lt, notInArray } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  countDistinct,
+  desc,
+  eq,
+  inArray,
+  lt,
+  notInArray,
+} from 'drizzle-orm'
 import { z } from 'zod'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import { AuditService } from '../audit/audit.service'
@@ -92,6 +106,136 @@ export class ProcessService {
       .orderBy(asc(processSteps.code))
 
     return rows.map((row) => this.stepResult(row))
+  }
+
+  async listTasks(
+    query: ProcessTaskQueueQuery,
+    principal: ErpPrincipal
+  ): Promise<ProcessTaskQueueResult> {
+    const filters = [
+      eq(taskInstances.tenant_id, principal.tenantId),
+      eq(processSteps.tenant_id, principal.tenantId),
+    ]
+    if (query.status) {
+      filters.push(eq(taskInstances.status, query.status))
+    }
+    if (query.responsibleBu) {
+      filters.push(eq(processSteps.responsible_bu, query.responsibleBu))
+    }
+
+    const whereClause = and(...filters)
+    const activeClockJoin = and(
+      eq(slaClocks.task_instance_id, taskInstances.id),
+      eq(slaClocks.tenant_id, principal.tenantId),
+      notInArray(slaClocks.status, ['completed', 'cancelled'])
+    )
+    const offset = (query.page - 1) * query.limit
+
+    const [rows, countRows] = await Promise.all([
+      this.database.client
+        .select({
+          taskId: taskInstances.id,
+          processStepId: taskInstances.process_step_id,
+          processStepCode: processSteps.code,
+          processStepName: processSteps.name,
+          responsibleBu: processSteps.responsible_bu,
+          subjectType: taskInstances.subject_type,
+          subjectId: taskInstances.subject_id,
+          instanceKey: taskInstances.instance_key,
+          assignedTo: taskInstances.assigned_to,
+          status: taskInstances.status,
+          blockedReason: taskInstances.blocked_reason,
+          startedAt: taskInstances.started_at,
+          completedAt: taskInstances.completed_at,
+          createdAt: taskInstances.created_at,
+          updatedAt: taskInstances.updated_at,
+          clockId: slaClocks.id,
+          clockType: slaClocks.clock_type,
+          clockScope: slaClocks.clock_scope,
+          clockTargetValue: slaClocks.target_value,
+          clockStartedAt: slaClocks.started_at,
+          clockDueAt: slaClocks.due_at,
+          clockAtRiskAt: slaClocks.at_risk_at,
+          clockBreachedAt: slaClocks.breached_at,
+          clockEscalatedAt: slaClocks.escalated_at,
+          clockStatus: slaClocks.status,
+          clockObserveMode: slaClocks.observe_mode,
+        })
+        .from(taskInstances)
+        .innerJoin(
+          processSteps,
+          and(
+            eq(taskInstances.process_step_id, processSteps.id),
+            eq(taskInstances.tenant_id, processSteps.tenant_id),
+            eq(processSteps.tenant_id, principal.tenantId)
+          )
+        )
+        .leftJoin(slaClocks, activeClockJoin)
+        .where(whereClause)
+        .orderBy(desc(taskInstances.updated_at), asc(taskInstances.id))
+        .limit(query.limit)
+        .offset(offset),
+      this.database.client
+        .select({ total: countDistinct(taskInstances.id) })
+        .from(taskInstances)
+        .innerJoin(
+          processSteps,
+          and(
+            eq(taskInstances.process_step_id, processSteps.id),
+            eq(taskInstances.tenant_id, processSteps.tenant_id),
+            eq(processSteps.tenant_id, principal.tenantId)
+          )
+        )
+        .leftJoin(slaClocks, activeClockJoin)
+        .where(whereClause),
+    ])
+
+    const total = Number(countRows[0]?.total ?? 0)
+    if (!Number.isSafeInteger(total) || total < 0) {
+      throw new InternalServerErrorException('Process task count is invalid')
+    }
+
+    const totalPages = total === 0 ? 1 : Math.ceil(total / query.limit)
+    return processTaskQueueResultSchema.parse({
+      tenantId: principal.tenantId,
+      rows: rows.map((row) => ({
+        id: row.taskId,
+        processStepId: row.processStepId,
+        processStepCode: row.processStepCode,
+        processStepName: row.processStepName,
+        responsibleBu: row.responsibleBu,
+        subjectType: row.subjectType,
+        subjectId: row.subjectId,
+        instanceKey: row.instanceKey,
+        assignedTo: row.assignedTo,
+        status: row.status,
+        blockedReason: row.blockedReason,
+        startedAt: row.startedAt?.toISOString() ?? null,
+        completedAt: row.completedAt?.toISOString() ?? null,
+        createdAt: row.createdAt.toISOString(),
+        updatedAt: row.updatedAt.toISOString(),
+        clock:
+          row.clockId === null
+            ? null
+            : {
+                id: row.clockId,
+                clockType: row.clockType,
+                clockScope: row.clockScope,
+                targetValue: row.clockTargetValue,
+                startedAt: row.clockStartedAt?.toISOString(),
+                dueAt: row.clockDueAt?.toISOString(),
+                atRiskAt: row.clockAtRiskAt?.toISOString(),
+                breachedAt: row.clockBreachedAt?.toISOString() ?? null,
+                escalatedAt: row.clockEscalatedAt?.toISOString() ?? null,
+                status: row.clockStatus,
+                observeMode: row.clockObserveMode,
+              },
+      })),
+      total,
+      page: query.page,
+      limit: query.limit,
+      totalPages,
+    })
   }
 
   async createStep(
@@ -199,6 +343,96 @@ export class ProcessService {
     return rows.map((row) => this.approvalRuleResult(row))
   }
 
+  async previewApprovalRoute(
+    query: ApprovalRoutePreviewQuery,
+    principal: ErpPrincipal
+  ): Promise<ApprovalRoutePreviewResult> {
+    const rows = await this.database.client
+      .select()
+      .from(approvalRules)
+      .where(
+        and(
+          eq(approvalRules.tenant_id, principal.tenantId),
+          eq(approvalRules.object_type, query.objectType),
+          eq(approvalRules.is_active, true)
+        )
+      )
+      .orderBy(asc(approvalRules.sequence), asc(approvalRules.id))
+
+    // Keep the route preview defensive if a future adapter returns rows outside
+    // the database predicate. The API must never surface another tenant,
+    // object type, or inactive rule.
+    const configuredRows = rows
+      .filter(
+        (row) =>
+          row.tenant_id === principal.tenantId &&
+          row.object_type === query.objectType &&
+          row.is_active
+      )
+      .sort(
+        (left, right) =>
+          left.sequence - right.sequence ||
+          (left.id < right.id ? -1 : left.id > right.id ? 1 : 0)
+      )
+
+    const amount = BigInt(query.amountCentavos)
+    const rulesBySequence = new Map<number, ApprovalRule[]>()
+    for (const row of configuredRows) {
+      const sequenceRules = rulesBySequence.get(row.sequence)
+      if (sequenceRules) {
+        sequenceRules.push(row)
+      } else {
+        rulesBySequence.set(row.sequence, [row])
+      }
+    }
+
+    const steps = [...rulesBySequence.entries()]
+      .sort(([left], [right]) => left - right)
+      .map(([sequence, sequenceRules]) => {
+        const matchingRules = sequenceRules
+          .filter(
+            (rule) =>
+              rule.amount_band_low <= amount &&
+              (rule.amount_band_high === null ||
+                amount <= rule.amount_band_high)
+          )
+          .sort((left, right) =>
+            left.id < right.id ? -1 : left.id > right.id ? 1 : 0
+          )
+
+        return {
+          sequence,
+          status:
+            matchingRules.length === 0
+              ? ('missing' as const)
+              : matchingRules.length === 1
+                ? ('matched' as const)
+                : ('ambiguous' as const),
+          rules: matchingRules.map((rule) => this.approvalRuleResult(rule)),
+        }
+      })
+
+    const status =
+      configuredRows.length === 0
+        ? ('unconfigured' as const)
+        : steps.every((step) => step.rules.length === 0)
+          ? ('no_match' as const)
+          : steps.some((step) => step.status === 'ambiguous')
+            ? ('ambiguous' as const)
+            : steps.some((step) => step.status === 'missing')
+              ? ('incomplete' as const)
+              : ('matched' as const)
+
+    return {
+      objectType: query.objectType,
+      amountCentavos: query.amountCentavos,
+      mode: 'preview_only',
+      authority: 'configured_rules_only',
+      status,
+      steps,
+    }
+  }
+
   async createApprovalRule(
     command: CreateApprovalRuleCommand,
     principal: ErpPrincipal
@@ -278,21 +512,48 @@ export class ProcessService {
         throw new ConflictException('Approval sequence already exists')
       }
 
-      if (command.sequence > 1) {
-        const prior = await transaction
-          .select({ status: approvals.status })
+      const priorRules = await transaction
+        .select({ id: approvalRules.id, sequence: approvalRules.sequence })
+        .from(approvalRules)
+        .where(
+          and(
+            eq(approvalRules.tenant_id, principal.tenantId),
+            eq(approvalRules.object_type, command.objectType),
+            eq(approvalRules.is_active, true),
+            lt(approvalRules.sequence, rule.sequence)
+          )
+        )
+
+      if (priorRules.length > 0) {
+        const priorRuleIds = priorRules.map(({ id }) => id)
+        const approvedPriorApprovals = await transaction
+          .select({ approvalRuleId: approvals.approval_rule_id })
           .from(approvals)
           .where(
             and(
               eq(approvals.tenant_id, principal.tenantId),
               eq(approvals.object_type, command.objectType),
               eq(approvals.object_id, command.objectId),
-              lt(approvals.sequence, command.sequence)
+              inArray(approvals.approval_rule_id, priorRuleIds),
+              eq(approvals.status, 'approved')
             )
           )
+        const approvedPriorRuleIds = new Set(
+          approvedPriorApprovals.map(({ approvalRuleId }) => approvalRuleId)
+        )
+        const priorSequences = new Set(
+          priorRules.map(({ sequence }) => sequence)
+        )
+        const approvedPriorSequences = new Set(
+          priorRules
+            .filter(({ id }) => approvedPriorRuleIds.has(id))
+            .map(({ sequence }) => sequence)
+        )
+
         if (
-          prior.length === 0 ||
-          prior.some((approval) => approval.status !== 'approved')
+          [...priorSequences].some(
+            (sequence) => !approvedPriorSequences.has(sequence)
+          )
         ) {
           throw new ConflictException(
             'Prior approval sequences must be approved first'
@@ -357,7 +618,10 @@ export class ProcessService {
       }
 
       const [rule] = await transaction
-        .select({ approverRole: approvalRules.approver_role })
+        .select({
+          approverRole: approvalRules.approver_role,
+          isActive: approvalRules.is_active,
+        })
         .from(approvalRules)
         .where(
           and(
@@ -367,6 +631,9 @@ export class ProcessService {
         )
         .limit(1)
       if (!rule) throw new NotFoundException('Approval rule not found')
+      if (!rule.isActive) {
+        throw new ConflictException('Approval rule is inactive')
+      }
 
       const elevated = principal.role === 'owner' || principal.role === 'admin'
       if (
@@ -530,6 +797,18 @@ export class ProcessService {
   ): Promise<TaskInstanceResult> {
     return this.database.client.transaction(async (transaction) => {
       await this.audit.stampActor(transaction, principal)
+
+      if (command.status === 'blocked' && !command.blockedReason?.trim()) {
+        throw new ConflictException('Blocked tasks require a reason')
+      }
+      if (
+        command.status !== 'blocked' &&
+        command.blockedReason !== undefined
+      ) {
+        throw new ConflictException(
+          'Blocked reason is only valid for blocked tasks'
+        )
+      }
 
       const [task] = await transaction
         .select()

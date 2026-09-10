@@ -10,10 +10,11 @@
  * rather than scattering clock semantics across server actions.
  */
 
-import { db } from '@third-code-erp/database'
+import { db, type Database } from '@third-code-erp/database'
 import { slaLogs } from '@third-code-erp/database/schema'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { SlaConfig } from './sla-clock-utils'
+import type { DatabaseTransaction } from '@/lib/audit'
 
 export type SlaLabel =
   | 'opp.kyc_review'
@@ -51,6 +52,7 @@ interface StartArgs {
   entityType: string
   entityId: string
   label: SlaLabel
+  client?: Database | DatabaseTransaction
 }
 
 export async function startSlaClock(args: StartArgs): Promise<void> {
@@ -58,7 +60,8 @@ export async function startSlaClock(args: StartArgs): Promise<void> {
   if (!cfg) throw new Error(`Unknown SLA label: ${args.label}`)
 
   // Don't start a duplicate open clock for the same entity+label.
-  const existing = await db
+  const client = args.client ?? db
+  const existing = await client
     .select({ id: slaLogs.id })
     .from(slaLogs)
     .where(
@@ -73,7 +76,7 @@ export async function startSlaClock(args: StartArgs): Promise<void> {
     .limit(1)
   if (existing.length > 0) return
 
-  await db.insert(slaLogs).values({
+  await client.insert(slaLogs).values({
     tenant_id: args.tenantId,
     entity_type: args.entityType,
     entity_id: args.entityId,
@@ -86,6 +89,7 @@ export async function startSlaClock(args: StartArgs): Promise<void> {
  * Mark an SLA clock complete. Idempotent.
  */
 export async function stopSlaClock(args: Omit<StartArgs, 'label'> & { label?: SlaLabel }): Promise<void> {
+  const client = args.client ?? db
   const conds = [
     eq(slaLogs.tenant_id, args.tenantId),
     eq(slaLogs.entity_type, args.entityType),
@@ -94,7 +98,7 @@ export async function stopSlaClock(args: Omit<StartArgs, 'label'> & { label?: Sl
   ]
   if (args.label) conds.push(eq(slaLogs.sla_label, args.label))
 
-  await db
+  await client
     .update(slaLogs)
     .set({ completed_at: new Date() })
     .where(and(...conds))

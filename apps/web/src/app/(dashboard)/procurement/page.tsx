@@ -163,6 +163,17 @@ export default async function ProcurementPage() {
         </div>
       </div>
 
+      {can(profile.role, 'procurement.vendor_performance.read') ? (
+        <div style={{ marginTop: 24 }}>
+          <Link
+            href="/procurement/vendors/performance"
+            style={{ color: 'var(--color-navy-700)', fontSize: '0.875rem', fontWeight: 600 }}
+          >
+            Open vendor performance →
+          </Link>
+        </div>
+      ) : null}
+
     </div>
   )
 }

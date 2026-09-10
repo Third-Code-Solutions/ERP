@@ -19,12 +19,21 @@ import {
   COST_CATEGORIES,
   type CostCategory,
 } from '@third-code-erp/shared-types/cost'
+import type { ProjectMaterialActualsResult } from '@third-code-erp/shared-types'
 import { GpErosionBadge } from '@/components/cost/gp-erosion-badge'
 import { CostEntryForm } from '@/components/cost/cost-entry-form'
 import { CostTable, type CostRow } from '@/components/cost/cost-table'
 import { CostControlTable } from '@/components/cost/cost-control-table'
 import { getProjectCostControl } from '@/lib/operations/project-cost-control'
 import { getProjectDetailAccess } from '../project-detail-access'
+import { getProjectPerformanceThroughCoreApi } from '@/lib/erp-core-client'
+import {
+  getProjectMaterialActualsThroughCoreApi,
+  projectMaterialActualsReadsUseCoreApi,
+} from '@/lib/erp-core-client'
+import { readProjectMaterialActualsForTenant } from '@/lib/operations/project-material-actuals'
+import { ProjectPerformanceCard } from '@/components/cost/project-performance-card'
+import { ProjectMaterialActualsCard } from '@/components/cost/project-material-actuals-card'
 
 export const metadata: Metadata = { title: 'Cost Tracking' }
 
@@ -53,12 +62,35 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ id
     .where(and(eq(projects.id, id), eq(projects.tenant_id, profile.tenantId)))
   if (!project) return notFound()
 
-  const costControl = await getProjectCostControl({
-    tenantId: profile.tenantId,
-    projectId: id,
-    includeBomDetails: access.bom,
-    includePurchaseOrders: access.purchaseOrders,
-  })
+  const [costControl, performanceResponse] = await Promise.all([
+    getProjectCostControl({
+      tenantId: profile.tenantId,
+      projectId: id,
+      includeBomDetails: access.bom,
+      includePurchaseOrders: access.purchaseOrders,
+    }),
+    getProjectPerformanceThroughCoreApi(id),
+  ])
+
+  let materialActuals: ProjectMaterialActualsResult | null = null
+  let materialActualsError: string | null = null
+  if (can(profile.role, 'project.material_actuals.read')) {
+    if (projectMaterialActualsReadsUseCoreApi(profile.tenantId)) {
+      const response = await getProjectMaterialActualsThroughCoreApi(id)
+      if (response.ok && response.data) materialActuals = response.data
+      else materialActualsError = response.error ?? 'Project material actuals are unavailable.'
+    } else {
+      try {
+        materialActuals = await readProjectMaterialActualsForTenant(
+          profile.tenantId,
+          id,
+          {},
+        )
+      } catch {
+        materialActualsError = 'Project material actuals could not be loaded from the current data source.'
+      }
+    }
+  }
 
   const [latestBom] = access.bom
     ? await db
@@ -231,6 +263,31 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ id
           Budget Control
         </Link>
       </div>
+
+      <ProjectPerformanceCard
+        performance={performanceResponse.ok ? performanceResponse.data ?? null : null}
+        error={performanceResponse.error}
+      />
+
+      {can(profile.role, 'project.material_actuals.read') ? (
+        materialActuals ? (
+          <ProjectMaterialActualsCard result={materialActuals} />
+        ) : (
+          <section className="card" role="status" style={{ marginBottom: 16 }}>
+            <div className="card-header">
+              <div>
+                <h3 className="card-title">Inventory actuals unavailable</h3>
+                <p className="card-subtitle">
+                  {materialActualsError ?? 'No verified inventory actuals result was returned.'}
+                </p>
+              </div>
+            </div>
+            <p className="muted" style={{ margin: '0 16px 16px' }}>
+              No inventory value or SAP posting has been fabricated.
+            </p>
+          </section>
+        )
+      ) : null}
 
       <div className="cost-kpis">
         {kpis.map((k) => (

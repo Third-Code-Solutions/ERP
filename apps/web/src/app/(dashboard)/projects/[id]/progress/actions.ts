@@ -15,8 +15,9 @@
  * where planned_pct_curve is a JSON-array string of weekly cumulative %.
  */
 
+import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
-import { and, asc, desc, eq } from 'drizzle-orm'
+import { and, asc, desc, eq, isNull } from 'drizzle-orm'
 import { can, getUserProfile, type AppRole } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
@@ -24,15 +25,29 @@ import {
   progressUpdates,
   projects,
 } from '@third-code-erp/database/schema'
-import { writeAuditLog } from '@/lib/audit'
+import { writeAuditLog, writeAuditLogInTransaction } from '@/lib/audit'
 import { notifyRoles } from '@/lib/operations/notifications'
+import {
+  createProjectWeeklyProgressThroughCoreApi,
+  lockProjectWeeklyProgressThroughCoreApi,
+  projectWeeklyProgressWritesUseCoreApi,
+} from '@/lib/erp-core-client'
 
-export interface MasterScheduleTask {
-  name: string
-  start_date: string
-  finish_date: string
-  predecessor_index: number | null
-  planned_pct_curve: number[]
+import {
+  formatImportRejections,
+  parseMasterScheduleCsv,
+  type MasterScheduleImportPreview,
+} from './master-schedule-parser'
+export type {
+  MasterScheduleImportPreview,
+  MasterScheduleImportRejection,
+  MasterScheduleTask,
+} from './master-schedule-parser'
+
+export interface MasterScheduleImportResult {
+  error?: string
+  taskCount?: number
+  preview?: MasterScheduleImportPreview
 }
 
 export interface PercentByCategory {
@@ -58,83 +73,16 @@ async function assertProjectInTenant(projectId: string, tenantId: string): Promi
   const [row] = await db
     .select({ id: projects.id })
     .from(projects)
-    .where(and(eq(projects.id, projectId), eq(projects.tenant_id, tenantId)))
+    .where(and(eq(projects.id, projectId), eq(projects.tenant_id, tenantId), isNull(projects.deleted_at)))
     .limit(1)
   return Boolean(row)
 }
 
-/**
- * Minimal CSV parser. Handles quoted cells (used for JSON-array of weekly %)
- * and rejects malformed rows. Avoids pulling in a CSV dep just for L1
- * schedule imports.
- */
-function parseCsv(text: string): string[][] {
-  const rows: string[][] = []
-  let cur: string[] = []
-  let cell = ''
-  let inQuotes = false
 
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i]
-    if (inQuotes) {
-      if (ch === '"' && text[i + 1] === '"') {
-        cell += '"'
-        i++
-      } else if (ch === '"') {
-        inQuotes = false
-      } else {
-        cell += ch
-      }
-      continue
-    }
-    if (ch === '"') {
-      inQuotes = true
-      continue
-    }
-    if (ch === ',') {
-      cur.push(cell)
-      cell = ''
-      continue
-    }
-    if (ch === '\n' || ch === '\r') {
-      if (ch === '\r' && text[i + 1] === '\n') i++
-      cur.push(cell)
-      if (cur.some((c) => c.trim() !== '')) rows.push(cur)
-      cur = []
-      cell = ''
-      continue
-    }
-    cell += ch
-  }
-  if (cell !== '' || cur.length > 0) {
-    cur.push(cell)
-    if (cur.some((c) => c.trim() !== '')) rows.push(cur)
-  }
-  return rows
-}
-
-function parsePctCurve(raw: string): number[] {
-  const trimmed = raw.trim()
-  if (!trimmed) return []
-  try {
-    const parsed: unknown = JSON.parse(trimmed)
-    if (!Array.isArray(parsed)) return []
-    return parsed
-      .map((v) => (typeof v === 'number' ? v : Number(v)))
-      .filter((v) => Number.isFinite(v))
-  } catch {
-    // Fallback: pipe-separated.
-    return trimmed
-      .split('|')
-      .map((s) => Number(s.trim()))
-      .filter((v) => Number.isFinite(v))
-  }
-}
-
-export async function importMasterSchedule(
-  projectId: string,
-  csvText: string
-): Promise<{ error?: string; taskCount?: number }> {
+async function getScheduleImportContext(projectId: string): Promise<
+  | { tenantId: string; userId: string; role: AppRole }
+  | { error: string }
+> {
   const ctx = await getTenantContext()
   if ('error' in ctx) return { error: ctx.error }
   if (!can(ctx.role, 'project.schedule.manage')) {
@@ -144,78 +92,76 @@ export async function importMasterSchedule(
   if (!(await assertProjectInTenant(projectId, ctx.tenantId))) {
     return { error: 'Project not found' }
   }
+  return ctx
+}
+
+export async function previewMasterSchedule(
+  projectId: string,
+  csvText: string,
+): Promise<{ error?: string; preview?: MasterScheduleImportPreview }> {
+  const ctx = await getScheduleImportContext(projectId)
+  if ('error' in ctx) return { error: ctx.error }
+  if (!csvText.trim()) return { error: 'CSV is empty' }
+  const preview = parseMasterScheduleCsv(csvText)
+  return { preview }
+}
+
+export async function importMasterSchedule(
+  projectId: string,
+  csvText: string,
+): Promise<MasterScheduleImportResult> {
+  const ctx = await getScheduleImportContext(projectId)
+  if ('error' in ctx) return { error: ctx.error }
 
   if (!csvText.trim()) return { error: 'CSV is empty' }
 
-  const rows = parseCsv(csvText)
-  if (rows.length === 0) return { error: 'No rows parsed' }
+  const preview = parseMasterScheduleCsv(csvText)
+  if (preview.rejectedRows.length > 0) {
+    return { error: formatImportRejections(preview.rejectedRows), preview }
+  }
+  if (preview.tasks.length === 0) return { error: 'No valid task rows found', preview }
 
-  // Drop header row if present (first cell looks like "name").
-  const header = rows[0]
-  const start = header && header[0]?.trim().toLowerCase() === 'name' ? 1 : 0
+  try {
+    await db.transaction(async (tx) => {
+      // Lock project row so two replacement imports cannot interleave delete/insert.
+      const [project] = await tx
+        .select({ id: projects.id })
+        .from(projects)
+        .where(and(eq(projects.id, projectId), eq(projects.tenant_id, ctx.tenantId), isNull(projects.deleted_at)))
+        .limit(1)
+        .for('update')
+      if (!project) throw new Error('Project not found')
 
-  const tasks: MasterScheduleTask[] = []
-  for (let i = start; i < rows.length; i++) {
-    const cols = rows[i]
-    if (!cols || cols.length < 5) continue
-    const name = cols[0]?.trim()
-    const startDate = cols[1]?.trim()
-    const finishDate = cols[2]?.trim()
-    const predRaw = cols[3]?.trim() ?? ''
-    const curveRaw = cols[4] ?? ''
+      await tx
+        .delete(masterSchedules)
+        .where(and(eq(masterSchedules.project_id, projectId), eq(masterSchedules.tenant_id, ctx.tenantId)))
 
-    if (!name || !startDate || !finishDate) continue
+      const [inserted] = await tx
+        .insert(masterSchedules)
+        .values({
+          tenant_id: ctx.tenantId,
+          project_id: projectId,
+          tasks: preview.tasks,
+          imported_by: ctx.userId,
+        })
+        .returning({ id: masterSchedules.id })
+      if (!inserted) throw new Error('Schedule replacement was not created')
 
-    const predecessor_index = predRaw === '' || predRaw.toLowerCase() === 'null'
-      ? null
-      : Number.isFinite(Number(predRaw))
-        ? Number(predRaw)
-        : null
-
-    tasks.push({
-      name,
-      start_date: startDate,
-      finish_date: finishDate,
-      predecessor_index,
-      planned_pct_curve: parsePctCurve(curveRaw),
+      await writeAuditLogInTransaction(tx, {
+        tenantId: ctx.tenantId,
+        actorId: ctx.userId,
+        entityType: 'master_schedule',
+        entityId: inserted.id,
+        action: 'create',
+        diff: { task_count: preview.tasks.length, replaced: true },
+      })
     })
+  } catch {
+    return { error: 'Schedule replacement failed. Existing schedule was preserved.', preview }
   }
 
-  if (tasks.length === 0) return { error: 'No valid task rows found' }
-
-  // Replace any existing schedule. There's no unique constraint, so we
-  // delete + insert atomically inside a single transaction would be ideal —
-  // but the existing codebase uses plain awaits, so we mirror that style.
-  await db
-    .delete(masterSchedules)
-    .where(
-      and(
-        eq(masterSchedules.project_id, projectId),
-        eq(masterSchedules.tenant_id, ctx.tenantId),
-      ),
-    )
-
-  const [inserted] = await db
-    .insert(masterSchedules)
-    .values({
-      tenant_id: ctx.tenantId,
-      project_id: projectId,
-      tasks,
-      imported_by: ctx.userId,
-    })
-    .returning({ id: masterSchedules.id })
-
-  await writeAuditLog({
-    tenantId: ctx.tenantId,
-    actorId: ctx.userId,
-    entityType: 'master_schedule',
-    entityId: inserted!.id,
-    action: 'create',
-    diff: { task_count: tasks.length },
-  })
-
   revalidatePath(`/projects/${projectId}/progress`)
-  return { taskCount: tasks.length }
+  return { taskCount: preview.tasks.length, preview }
 }
 
 /** Find the highest milestone (25/50/75/100) that overall_pct has crossed. */
@@ -231,6 +177,7 @@ export async function submitWeeklyProgress(
   projectId: string,
   weekEnding: string,
   percentByCategory: PercentByCategory,
+  notes = '',
 ): Promise<{ error?: string; id?: string }> {
   const ctx = await getTenantContext()
   if ('error' in ctx) return { error: ctx.error }
@@ -240,6 +187,19 @@ export async function submitWeeklyProgress(
 
   if (!(await assertProjectInTenant(projectId, ctx.tenantId))) {
     return { error: 'Project not found' }
+  }
+
+  if (projectWeeklyProgressWritesUseCoreApi(ctx.tenantId)) {
+    const result = await createProjectWeeklyProgressThroughCoreApi({
+      projectId,
+      clientRequestId: randomUUID(),
+      weekEnding,
+      percentByCategory,
+      notes,
+    })
+    if (!result.ok || !result.data) return { error: result.error ?? 'Weekly progress was not captured.' }
+    revalidatePath(`/projects/${projectId}/progress`)
+    return { id: result.data.row.progressUpdateId }
   }
 
   const week = new Date(weekEnding)
@@ -315,6 +275,33 @@ export async function submitWeeklyProgress(
 
   revalidatePath(`/projects/${projectId}/progress`)
   return { id: inserted!.id }
+}
+
+/** Lock a Core weekly period into its immutable WAR snapshot after cut-off. */
+export async function lockWeeklyProgress(
+  projectId: string,
+  periodId: string,
+  expectedVersion: number,
+  lockReason = '',
+): Promise<{ error?: string; id?: string }> {
+  const ctx = await getTenantContext()
+  if ('error' in ctx) return { error: ctx.error }
+  if (!can(ctx.role, 'precon.manage_checklist')) {
+    return { error: 'Forbidden: your role cannot lock weekly WAR periods.' }
+  }
+  if (!(await assertProjectInTenant(projectId, ctx.tenantId))) {
+    return { error: 'Project not found' }
+  }
+  if (!projectWeeklyProgressWritesUseCoreApi(ctx.tenantId)) {
+    return { error: 'WAR locking is available only after the Core weekly-progress canary is enabled.' }
+  }
+  const result = await lockProjectWeeklyProgressThroughCoreApi(projectId, periodId, {
+    expectedVersion,
+    lockReason,
+  })
+  if (!result.ok || !result.data) return { error: result.error ?? 'WAR was not locked.' }
+  revalidatePath(`/projects/${projectId}/progress`)
+  return { id: result.data.row.id }
 }
 
 /** Helper used by the page to load the latest schedule + ordered updates. */

@@ -1,8 +1,9 @@
-import { pgTable, uuid, varchar, text, timestamp, boolean, index, pgEnum } from 'drizzle-orm/pg-core'
+import { foreignKey, pgTable, uuid, varchar, text, timestamp, boolean, index, pgEnum } from 'drizzle-orm/pg-core'
 import { tenants } from './tenants'
 import { projects } from './projects'
 import { users } from './users'
 import { documents } from './documents'
+import { qualityHoldPointPunchlistHandoffs } from './quality-hold-points'
 
 // REFACTOR.md M6 US-Post-001 — Punchlist items.
 export const punchlistStatusEnum = pgEnum('punchlist_status', [
@@ -38,12 +39,23 @@ export const punchlistItems = pgTable(
     closed_at: timestamp('closed_at', { withTimezone: true }),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     created_by: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    source_handoff_id: uuid('source_handoff_id'),
   },
   (table) => ({
     tenantIdx: index('idx_punchlist_tenant_id').on(table.tenant_id),
     projectIdx: index('idx_punchlist_project_id').on(table.project_id),
     tenantStatusIdx: index('idx_punchlist_tenant_status').on(table.tenant_id, table.status),
     projectTradeIdx: index('idx_punchlist_project_trade').on(table.project_id, table.trade),
+    sourceHandoffIdx: index('idx_punchlist_source_handoff').on(table.tenant_id, table.source_handoff_id),
+    sourceHandoffTenantProjectFk: foreignKey({
+      name: 'punchlist_items_source_handoff_tenant_project_fk',
+      columns: [table.tenant_id, table.source_handoff_id, table.project_id],
+      foreignColumns: [
+        qualityHoldPointPunchlistHandoffs.tenant_id,
+        qualityHoldPointPunchlistHandoffs.id,
+        qualityHoldPointPunchlistHandoffs.project_id,
+      ],
+    }).onDelete('restrict'),
   })
 )
 

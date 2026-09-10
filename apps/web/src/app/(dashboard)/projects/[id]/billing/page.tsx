@@ -9,6 +9,11 @@ import { boms, invoices, projects } from '@third-code-erp/database/schema'
 import { and, desc, eq } from 'drizzle-orm'
 import { CreateInvoiceForm } from '@/components/billing/create-invoice-form'
 import { getProjectDetailAccess } from '../project-detail-access'
+import { ProjectBillingMilestoneCard } from '@/components/billing/project-billing-milestone-card'
+import {
+  getProjectBillingMilestonesThroughCoreApi,
+  projectBillingMilestoneReadsUseCoreApi,
+} from '@/lib/erp-core-client'
 
 export const metadata: Metadata = { title: 'Billing' }
 
@@ -49,6 +54,11 @@ export default async function ProjectBillingPage({ params }: { params: Promise<{
     .where(and(eq(projects.id, id), eq(projects.tenant_id, profile.tenantId)))
 
   if (!project) return notFound()
+
+  const billingMilestonesEnabled = projectBillingMilestoneReadsUseCoreApi(profile.tenantId)
+  const billingMilestones = billingMilestonesEnabled
+    ? await getProjectBillingMilestonesThroughCoreApi(id, { limit: 25 })
+    : null
 
   const [latestBom] = access.bom
     ? await db
@@ -126,6 +136,16 @@ export default async function ProjectBillingPage({ params }: { params: Promise<{
           </div>
         ))}
       </div>
+
+      {billingMilestonesEnabled && billingMilestones?.ok && billingMilestones.data ? (
+        <ProjectBillingMilestoneCard result={billingMilestones.data} />
+      ) : null}
+      {billingMilestonesEnabled && billingMilestones && !billingMilestones.ok ? (
+        <div className="card project-billing-milestones__unavailable" role="status">
+          <div className="card-header"><h2 className="card-title">Milestone billing traceability</h2></div>
+          <p className="card-empty">Core could not verify the WAR → COC → claim → invoice chain. Existing invoice records remain visible below; no readiness was inferred.</p>
+        </div>
+      ) : null}
 
       {/* Invoices table */}
       <div

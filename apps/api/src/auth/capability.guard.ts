@@ -20,10 +20,16 @@ export { ERP_CAPABILITIES, roleHasCapability }
 export type { ErpCapability }
 
 const CAPABILITIES_KEY = 'third-code-erp:capabilities'
+const ANY_CAPABILITIES_KEY = 'third-code-erp:any-capabilities'
 
 export const RequireCapabilities = (
   ...capabilities: ErpCapability[]
 ) => SetMetadata(CAPABILITIES_KEY, capabilities)
+
+/** Require at least one capability when a route has role-dependent behavior. */
+export const RequireAnyCapabilities = (
+  ...capabilities: ErpCapability[]
+) => SetMetadata(ANY_CAPABILITIES_KEY, capabilities)
 
 @Injectable()
 export class CapabilityGuard implements CanActivate {
@@ -46,7 +52,11 @@ export class CapabilityGuard implements CanActivate {
       CAPABILITIES_KEY,
       [context.getHandler(), context.getClass()],
     )
-    if (!required || required.length === 0) {
+    const requiredAny = this.reflector.getAllAndOverride<ErpCapability[]>(
+      ANY_CAPABILITIES_KEY,
+      [context.getHandler(), context.getClass()],
+    )
+    if ((!required || required.length === 0) && (!requiredAny || requiredAny.length === 0)) {
       throw new ForbiddenException(
         'Route has no explicit ERP capability policy',
       )
@@ -56,10 +66,9 @@ export class CapabilityGuard implements CanActivate {
       .switchToHttp()
       .getRequest<AuthenticatedRequest>()
     const role: ErpRole | undefined = request.principal?.role
-    if (
-      !role ||
-      !required.every((capability) => roleHasCapability(role, capability))
-    ) {
+    const hasAll = required?.every((capability) => role !== undefined && roleHasCapability(role, capability)) ?? true
+    const hasAny = requiredAny?.some((capability) => role !== undefined && roleHasCapability(role, capability)) ?? true
+    if (!hasAll || !hasAny) {
       throw new ForbiddenException()
     }
     return true

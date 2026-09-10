@@ -1,6 +1,6 @@
 import React from 'react'
 import Link from 'next/link'
-import type { AppRole } from '@third-code-erp/auth'
+import { can, type AppRole } from '@third-code-erp/auth'
 
 import type { TodayCommandCenterData, TodayTask } from '@/lib/dashboard-queries'
 import { roleLabel } from '@/lib/operations/nav-config'
@@ -91,6 +91,11 @@ export function TodayCommandCenter({ role, data }: TodayCommandCenterProps) {
           <Link className={styles.primaryAction} href="/tasks">
             Open my tasks
           </Link>
+          {can(role, 'process.task.manage') && (
+            <Link className={styles.secondaryAction} href="/process">
+              Process work queue
+            </Link>
+          )}
           <Link className={styles.secondaryAction} href="/cortex">
             Ask Cortex
           </Link>

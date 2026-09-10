@@ -49,6 +49,24 @@ const STEP_RESULT = {
   updatedAt: '2026-08-12T00:00:00.000Z',
 }
 
+const APPROVAL_ROUTE_PREVIEW_RESULT = {
+  objectType: 'purchase_order',
+  amountCentavos: '0',
+  mode: 'preview_only',
+  authority: 'configured_rules_only',
+  status: 'unconfigured',
+  steps: [],
+}
+
+const TASK_QUEUE_RESULT = {
+  tenantId: TENANT_ID,
+  rows: [],
+  total: 0,
+  page: 1,
+  limit: 25,
+  totalPages: 1,
+}
+
 describe('Process API HTTP contracts', () => {
   let close: (() => Promise<void>) | undefined
 
@@ -143,6 +161,40 @@ describe('Process API HTTP contracts', () => {
     expect(assignTask).not.toHaveBeenCalled()
   })
 
+  it('lists tasks through the strict, task-management queue boundary', async () => {
+    const listTasks = vi.fn().mockResolvedValue(TASK_QUEUE_RESULT)
+    const app = await appFor({ listTasks })
+
+    await request(app.getHttpServer())
+      .get(
+        '/v1/process/tasks?status=blocked&responsibleBu=%20Commercial%20&page=2&limit=10'
+      )
+      .expect(200)
+      .expect(TASK_QUEUE_RESULT)
+
+    expect(listTasks).toHaveBeenCalledWith(
+      {
+        status: 'blocked',
+        responsibleBu: 'Commercial',
+        page: 2,
+        limit: 10,
+      },
+      expect.objectContaining({ tenantId: TENANT_ID })
+    )
+
+    await request(app.getHttpServer())
+      .get('/v1/process/tasks?status=blocked&unexpected=1')
+      .expect(400)
+
+    expect(listTasks).toHaveBeenCalledOnce()
+    expect(
+      Reflect.getMetadata(
+        'third-code-erp:capabilities',
+        ProcessController.prototype.listTasks
+      )
+    ).toEqual(['process.task.manage'])
+  })
+
   it('strictly validates approval-rule query parameters', async () => {
     const listApprovalRules = vi.fn().mockResolvedValue([])
     const app = await appFor({ listApprovalRules })
@@ -159,6 +211,36 @@ describe('Process API HTTP contracts', () => {
       expect.objectContaining({ tenantId: TENANT_ID }),
       'purchase_order'
     )
+  })
+
+  it('previews an approval route through the strict read-only query boundary', async () => {
+    const previewApprovalRoute = vi
+      .fn()
+      .mockResolvedValue(APPROVAL_ROUTE_PREVIEW_RESULT)
+    const app = await appFor({ previewApprovalRoute })
+
+    await request(app.getHttpServer())
+      .get(
+        '/v1/process/approval-route-preview?objectType=%20purchase_order%20&amountCentavos=0'
+      )
+      .expect(200)
+      .expect(APPROVAL_ROUTE_PREVIEW_RESULT)
+
+    expect(previewApprovalRoute).toHaveBeenCalledWith(
+      {
+        objectType: 'purchase_order',
+        amountCentavos: '0',
+      },
+      expect.objectContaining({ tenantId: TENANT_ID })
+    )
+
+    await request(app.getHttpServer())
+      .get(
+        '/v1/process/approval-route-preview?objectType=purchase_order&amountCentavos=0&unexpected=1'
+      )
+      .expect(400)
+
+    expect(previewApprovalRoute).toHaveBeenCalledOnce()
   })
 
   it('rejects blocked task status without a reason', async () => {

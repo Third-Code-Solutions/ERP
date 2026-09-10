@@ -18,6 +18,7 @@ import { and, asc, count, eq } from 'drizzle-orm'
 import { can, getUserProfile, type AppRole } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
+  documents,
   projects,
   users,
   variationOrders,
@@ -269,6 +270,18 @@ export async function recordVoSigned(
   const vo = await loadVo(voId, ctx.tenantId)
   if (!vo) return { error: 'VO not found' }
   if (vo.status === 'signed') return {}
+  if (vo.status !== 'pending_client_signature') {
+    return { error: 'VO must be awaiting client signature before it can be signed' }
+  }
+
+  if (signedDocumentId) {
+    const [document] = await db
+      .select({ id: documents.id })
+      .from(documents)
+      .where(and(eq(documents.id, signedDocumentId), eq(documents.tenant_id, ctx.tenantId)))
+      .limit(1)
+    if (!document) return { error: 'Signed document not found in this tenant' }
+  }
 
   await db
     .update(variationOrders)
