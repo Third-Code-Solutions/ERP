@@ -23,7 +23,19 @@ interface QualityHoldPointRegisterProps {
   canPunchlist: boolean
   activeStatus?: QualityHoldPointStatus
   activeHoldPoint?: boolean
-  filterHref: (filters: { status?: QualityHoldPointStatus; holdPoint?: boolean; page?: number }) => string
+}
+
+function qualityHref(
+  projectId: string,
+  filters: { status?: QualityHoldPointStatus; holdPoint?: boolean; page?: number; limit?: number },
+): string {
+  const params = new URLSearchParams()
+  if (filters.status) params.set('status', filters.status)
+  if (filters.holdPoint !== undefined) params.set('holdPoint', String(filters.holdPoint))
+  if (filters.page && filters.page > 1) params.set('page', String(filters.page))
+  if (filters.limit && filters.limit !== 25) params.set('limit', String(filters.limit))
+  const query = params.toString()
+  return `/projects/${projectId}/quality${query ? `?${query}` : ''}`
 }
 
 function dateTime(value: string | null): string {
@@ -191,7 +203,7 @@ function ReadOnlyQualityEntry({ row }: { row: QualityHoldPointRow }) {
   return <article className="card" style={{ marginBottom: 12 }} aria-labelledby={`quality-readonly-${row.id}`}><div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}><div><h3 id={`quality-readonly-${row.id}`} className="card-title">{row.iwrNumber} · {row.title}</h3><p className="card-subtitle">{row.discipline || 'General'} · {row.location || 'No location'}</p></div><span className={statusClass(row.status)}><span className="stage-badge-dot" /> {label(row.status)}</span></div><div style={{ padding: '0 16px 16px', display: 'grid', gap: 10 }}><div><div className="form-help">Scope</div><div>{row.description}</div></div><div><div className="form-help">Plan reference</div><div>{row.planReference || '—'}</div></div></div></article>
 }
 
-export function QualityHoldPointRegister({ projectId, result, error, canManage, canApprove, canPunchlist, activeStatus, activeHoldPoint, filterHref }: QualityHoldPointRegisterProps) {
+export function QualityHoldPointRegister({ projectId, result, error, canManage, canApprove, canPunchlist, activeStatus, activeHoldPoint }: QualityHoldPointRegisterProps) {
   if (error) return <section className="card" aria-labelledby="quality-register"><div className="card-header"><h2 id="quality-register" className="card-title">QA/QC hold points</h2></div><div className="card-empty" role="alert">{error}</div></section>
   if (!result) return null
   const counts = result.rows.reduce<Record<QualityHoldPointStatus, number>>((all, row) => ({ ...all, [row.status]: (all[row.status] ?? 0) + 1 }), { planned: 0, ready: 0, submitted: 0, accepted: 0, rejected: 0 })
@@ -208,7 +220,7 @@ export function QualityHoldPointRegister({ projectId, result, error, canManage, 
           <input type="hidden" name="page" value="1" /><input type="hidden" name="limit" value={result.limit} /><button type="submit" className="button-secondary">Apply filters</button>
         </form>
         {result.rows.length === 0 ? <div className="card-empty" role="status">No quality requests match these filters.</div> : <div style={{ padding: '0 12px 4px' }}>{result.rows.map((row) => canManage || (canPunchlist && row.status === 'rejected') ? <QualityEntry key={row.id} projectId={projectId} row={row} canManage={canManage} canApprove={canApprove} canPunchlist={canPunchlist} /> : <ReadOnlyQualityEntry key={row.id} row={row} />)}</div>}
-        {(hasPrevious || hasNext) ? <nav aria-label="Quality request pages" style={{ display: 'flex', justifyContent: 'space-between', padding: 14 }}>{hasPrevious ? <a className="button-secondary" href={filterHref({ status: activeStatus, holdPoint: activeHoldPoint, page: result.page - 1 })}>Previous</a> : <span />}{hasNext ? <a className="button-secondary" href={filterHref({ status: activeStatus, holdPoint: activeHoldPoint, page: result.page + 1 })}>Next</a> : null}</nav> : null}
+        {(hasPrevious || hasNext) ? <nav aria-label="Quality request pages" style={{ display: 'flex', justifyContent: 'space-between', padding: 14 }}>{hasPrevious ? <a className="button-secondary" href={qualityHref(projectId, { status: activeStatus, holdPoint: activeHoldPoint, page: result.page - 1, limit: result.limit })}>Previous</a> : <span />}{hasNext ? <a className="button-secondary" href={qualityHref(projectId, { status: activeStatus, holdPoint: activeHoldPoint, page: result.page + 1, limit: result.limit })}>Next</a> : null}</nav> : null}
       </div>
     </section>
   )
