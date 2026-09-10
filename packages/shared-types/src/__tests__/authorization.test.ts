@@ -141,7 +141,18 @@ describe('canonical authorization policy', () => {
   it.each(ERP_ROLES)(
     'limits Opportunity stage changes and conversion to the requested roles for %s',
     (role) => {
-      const expected = ['owner', 'admin', 'sales'].includes(role)
+      // `advance_stage` remains the narrow funnel transition. The richer
+      // stage-change and conversion surfaces also serve the construction
+      // roles that own tender and project handoff work.
+      const expected = [
+        'owner',
+        'admin',
+        'sales',
+        'commercial',
+        'sd_pm_pe',
+        'pm',
+        'estimator',
+      ].includes(role)
       expect(roleHasCapability(role, 'opportunity.stage_change')).toBe(expected)
       expect(roleHasCapability(role, 'opportunity.convert')).toBe(expected)
     }
