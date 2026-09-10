@@ -20,11 +20,24 @@ interface ProjectRfiRegisterProps {
   canManage: boolean
   activeStatus?: ProjectRfiStatus
   activePriority?: ProjectRfiPriority
-  filterHref: (filters: {
+}
+
+function projectRfiHref(
+  projectId: string,
+  filters: {
     status?: ProjectRfiStatus
     priority?: ProjectRfiPriority
     page?: number
-  }) => string
+    limit?: number
+  },
+): string {
+  const params = new URLSearchParams()
+  if (filters.status) params.set('status', filters.status)
+  if (filters.priority) params.set('priority', filters.priority)
+  if (filters.page && filters.page > 1) params.set('page', String(filters.page))
+  if (filters.limit && filters.limit !== 25) params.set('limit', String(filters.limit))
+  const query = params.toString()
+  return `/projects/${projectId}/rfis${query ? `?${query}` : ''}`
 }
 
 function dateTime(value: string | null): string {
@@ -289,7 +302,6 @@ export function ProjectRfiRegister({
   canManage,
   activeStatus,
   activePriority,
-  filterHref,
 }: ProjectRfiRegisterProps) {
   if (error) {
     return (
@@ -425,12 +437,12 @@ export function ProjectRfiRegister({
         {(hasPrevious || hasNext) ? (
           <nav aria-label="Project RFI pages" style={{ display: 'flex', justifyContent: 'space-between', padding: 14 }}>
             {hasPrevious ? (
-              <a className="button-secondary" href={filterHref({ status: activeStatus, priority: activePriority, page: result.page - 1 })}>
+              <a className="button-secondary" href={projectRfiHref(projectId, { status: activeStatus, priority: activePriority, page: result.page - 1, limit: result.limit })}>
                 Previous
               </a>
             ) : <span />}
             {hasNext ? (
-              <a className="button-secondary" href={filterHref({ status: activeStatus, priority: activePriority, page: result.page + 1 })}>
+              <a className="button-secondary" href={projectRfiHref(projectId, { status: activeStatus, priority: activePriority, page: result.page + 1, limit: result.limit })}>
                 Next
               </a>
             ) : null}

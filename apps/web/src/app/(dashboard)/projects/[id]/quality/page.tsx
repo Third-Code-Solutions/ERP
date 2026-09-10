@@ -4,7 +4,6 @@ import { can, requireUserProfile } from '@third-code-erp/auth'
 import {
   qualityHoldPointListQuerySchema,
   type QualityHoldPointListQuery,
-  type QualityHoldPointStatus,
 } from '@third-code-erp/shared-types'
 import { getProjectThroughCoreApi, getQualityHoldPointsThroughCoreApi } from '@/lib/erp-core-client'
 import { requireUuidRouteParams } from '@/lib/uuid-route-params'
@@ -27,16 +26,6 @@ function parseQuery(raw: Record<string, SearchParamValue>): QualityHoldPointList
     limit: first(raw.limit),
   })
   return parsed.success ? parsed.data : qualityHoldPointListQuerySchema.parse({})
-}
-
-function qualityHref(projectId: string, filters: { status?: QualityHoldPointStatus; holdPoint?: boolean; page?: number; limit?: number }): string {
-  const params = new URLSearchParams()
-  if (filters.status) params.set('status', filters.status)
-  if (filters.holdPoint !== undefined) params.set('holdPoint', String(filters.holdPoint))
-  if (filters.page && filters.page > 1) params.set('page', String(filters.page))
-  if (filters.limit && filters.limit !== 25) params.set('limit', String(filters.limit))
-  const query = params.toString()
-  return `/projects/${projectId}/quality${query ? `?${query}` : ''}`
 }
 
 export default async function QualityHoldPointsPage({
@@ -72,7 +61,6 @@ export default async function QualityHoldPointsPage({
         canPunchlist={can(profile.role, 'punchlist.manage')}
         activeStatus={query.status}
         activeHoldPoint={query.holdPoint}
-        filterHref={({ status, holdPoint, page }) => qualityHref(id, { status, holdPoint, page, limit: query.limit })}
       />
     </div>
   )

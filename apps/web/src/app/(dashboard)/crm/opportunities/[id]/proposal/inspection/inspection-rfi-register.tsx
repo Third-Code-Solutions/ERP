@@ -15,13 +15,26 @@ interface InspectionRfiRegisterProps {
   result: InspectionRfiListResult | null
   error: string | null
   canMutate: boolean
-  filterHref: (filters: {
+  activeStatus?: string
+  activePriority?: string
+}
+
+function inspectionHref(
+  opportunityId: string,
+  filters: {
     status?: string
     priority?: string
     page?: number
-  }) => string
-  activeStatus?: string
-  activePriority?: string
+    limit?: number
+  },
+): string {
+  const params = new URLSearchParams()
+  if (filters.status) params.set('rfiStatus', filters.status)
+  if (filters.priority) params.set('rfiPriority', filters.priority)
+  if (filters.page && filters.page > 1) params.set('rfiPage', String(filters.page))
+  if (filters.limit && filters.limit !== 25) params.set('rfiLimit', String(filters.limit))
+  const query = params.toString()
+  return `/crm/opportunities/${opportunityId}/proposal/inspection${query ? `?${query}` : ''}`
 }
 
 function dateTime(value: string | null): string {
@@ -110,7 +123,6 @@ export function InspectionRfiRegister({
   result,
   error,
   canMutate,
-  filterHref,
   activeStatus,
   activePriority,
 }: InspectionRfiRegisterProps) {
@@ -221,8 +233,8 @@ export function InspectionRfiRegister({
 
       {(hasPrevious || hasNext) ? (
         <nav aria-label="Inspection RFI pages" style={{ display: 'flex', justifyContent: 'space-between', padding: 14 }}>
-          {hasPrevious ? <a className="button-secondary" href={filterHref({ status: activeStatus, priority: activePriority, page: result.page - 1 })}>Previous</a> : <span />}
-          {hasNext ? <a className="button-secondary" href={filterHref({ status: activeStatus, priority: activePriority, page: result.page + 1 })}>Next</a> : null}
+          {hasPrevious ? <a className="button-secondary" href={inspectionHref(opportunityId, { status: activeStatus, priority: activePriority, page: result.page - 1, limit: result.limit })}>Previous</a> : <span />}
+          {hasNext ? <a className="button-secondary" href={inspectionHref(opportunityId, { status: activeStatus, priority: activePriority, page: result.page + 1, limit: result.limit })}>Next</a> : null}
         </nav>
       ) : null}
     </section>

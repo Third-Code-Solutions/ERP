@@ -3,8 +3,6 @@ import Link from 'next/link'
 import { can, requireUserProfile } from '@third-code-erp/auth'
 import type {
   ProjectRfiListQuery,
-  ProjectRfiPriority,
-  ProjectRfiStatus,
 } from '@third-code-erp/shared-types'
 import {
   getProjectRfisThroughCoreApi,
@@ -31,24 +29,6 @@ function parseQuery(raw: Record<string, SearchParamValue>): ProjectRfiListQuery 
     limit: first(raw.limit),
   })
   return parsed.success ? parsed.data : projectRfiListQuerySchema.parse({})
-}
-
-function projectRfiHref(
-  projectId: string,
-  filters: {
-    status?: ProjectRfiStatus
-    priority?: ProjectRfiPriority
-    page?: number
-    limit?: number
-  },
-): string {
-  const params = new URLSearchParams()
-  if (filters.status) params.set('status', filters.status)
-  if (filters.priority) params.set('priority', filters.priority)
-  if (filters.page && filters.page > 1) params.set('page', String(filters.page))
-  if (filters.limit && filters.limit !== 25) params.set('limit', String(filters.limit))
-  const query = params.toString()
-  return `/projects/${projectId}/rfis${query ? `?${query}` : ''}`
 }
 
 interface PageProps {
@@ -121,14 +101,6 @@ export default async function ProjectRfisPage({ params, searchParams }: PageProp
         canManage={can(profile.role, 'project.rfi.manage')}
         activeStatus={query.status}
         activePriority={query.priority}
-        filterHref={({ status, priority, page }) =>
-          projectRfiHref(id, {
-            status,
-            priority,
-            page,
-            limit: query.limit,
-          })
-        }
       />
     </div>
   )

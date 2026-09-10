@@ -21,7 +21,26 @@ interface SiteDiaryRegisterProps {
   activeStatus?: SiteDiaryStatus
   activeFromDate?: string
   activeToDate?: string
-  filterHref: (filters: { status?: SiteDiaryStatus; fromDate?: string; toDate?: string; page?: number }) => string
+}
+
+function diaryHref(
+  projectId: string,
+  filters: {
+    status?: SiteDiaryStatus
+    fromDate?: string
+    toDate?: string
+    page?: number
+    limit?: number
+  },
+): string {
+  const params = new URLSearchParams()
+  if (filters.status) params.set('status', filters.status)
+  if (filters.fromDate) params.set('fromDate', filters.fromDate)
+  if (filters.toDate) params.set('toDate', filters.toDate)
+  if (filters.page && filters.page > 1) params.set('page', String(filters.page))
+  if (filters.limit && filters.limit !== 25) params.set('limit', String(filters.limit))
+  const query = params.toString()
+  return `/projects/${projectId}/diary${query ? `?${query}` : ''}`
 }
 
 function dateTime(value: string | null): string {
@@ -156,7 +175,6 @@ export function SiteDiaryRegister({
   activeStatus,
   activeFromDate,
   activeToDate,
-  filterHref,
 }: SiteDiaryRegisterProps) {
   if (error) {
     return <section className="card" aria-labelledby="site-diary-register"><div className="card-header"><h2 id="site-diary-register" className="card-title">Daily site diary</h2></div><div className="card-empty" role="alert">{error}</div></section>
@@ -182,7 +200,7 @@ export function SiteDiaryRegister({
           <input type="hidden" name="page" value="1" /><input type="hidden" name="limit" value={result.limit} /><button type="submit" className="button-secondary">Apply filters</button>
         </form>
         {result.rows.length === 0 ? <div className="card-empty" role="status">No daily diary entries match these filters.</div> : <div style={{ padding: '0 12px 4px' }}>{result.rows.map((row) => canManage ? <DiaryEntry key={row.id} projectId={projectId} row={row} /> : <DiaryEntryReadOnly key={row.id} row={row} />)}</div>}
-        {(hasPrevious || hasNext) ? <nav aria-label="Site diary pages" style={{ display: 'flex', justifyContent: 'space-between', padding: 14 }}>{hasPrevious ? <a className="button-secondary" href={filterHref({ status: activeStatus, fromDate: activeFromDate, toDate: activeToDate, page: result.page - 1 })}>Previous</a> : <span />}{hasNext ? <a className="button-secondary" href={filterHref({ status: activeStatus, fromDate: activeFromDate, toDate: activeToDate, page: result.page + 1 })}>Next</a> : null}</nav> : null}
+        {(hasPrevious || hasNext) ? <nav aria-label="Site diary pages" style={{ display: 'flex', justifyContent: 'space-between', padding: 14 }}>{hasPrevious ? <a className="button-secondary" href={diaryHref(projectId, { status: activeStatus, fromDate: activeFromDate, toDate: activeToDate, page: result.page - 1, limit: result.limit })}>Previous</a> : <span />}{hasNext ? <a className="button-secondary" href={diaryHref(projectId, { status: activeStatus, fromDate: activeFromDate, toDate: activeToDate, page: result.page + 1, limit: result.limit })}>Next</a> : null}</nav> : null}
       </div>
     </section>
   )
