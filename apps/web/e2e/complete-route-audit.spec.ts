@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
-import { test, expect } from '@playwright/test'
+import { test, expect, type ConsoleMessage, type Page } from '@playwright/test'
 import { z } from 'zod'
 import { authenticateRole } from './helpers/supabase-magic-link'
 import { requireE2EBaseUrl } from './helpers/env'
@@ -44,6 +44,8 @@ test('inventory every page with explicit live render and guard evidence', async 
   const cache = new Map<string, string | null>()
   const ledger: { route: string; mode: string; status: number; result: string; consoleErrors: number; pageErrors: number }[] = []
   const lookups: { table: string; status: number; available: boolean }[] = []
+  let authenticatedPage: Page | null = null
+  let anonymousPage: Page | null = null
   async function recordId(table: string): Promise<string | null> {
     if (cache.has(table)) return cache.get(table) ?? null
     const response = await fetch(`${auth.supabaseUrl}/rest/v1/${table}?select=id&tenant_id=eq.${auth.tenantId}&limit=1`, {
@@ -56,6 +58,13 @@ test('inventory every page with explicit live render and guard evidence', async 
     return id
   }
   try {
+    // Reuse one page per auth boundary so the long audit keeps a bounded
+    // number of browser/realtime clients. Full navigations still reset the
+    // document and route state, while the listeners below are attached and
+    // detached per route for isolation.
+    authenticatedPage = await authenticated.newPage()
+    anonymousPage = await anonymous.newPage()
+
     for (const template of templates) {
       const publicPage = template === '/' || template.startsWith('/auth/') || template.startsWith('/portal/')
       const dynamic = template.includes('[')
@@ -67,11 +76,16 @@ test('inventory every page with explicit live render and guard evidence', async 
         mode = id ? 'record-render' : 'invalid-parameter-guard; positive case NOT RUN'
         path = template.replace(/\[[^\]]+\]/g, id ?? 'route-audit-invalid')
       }
-      const page = await (publicPage ? anonymous : authenticated).newPage()
+      const page = publicPage ? anonymousPage : authenticatedPage
+      if (!page) throw new Error('Route-audit page was not initialized')
       let consoleErrors = 0
       let pageErrors = 0
-      page.on('console', (message) => { if (message.type() === 'error') consoleErrors++ })
-      page.on('pageerror', () => { pageErrors++ })
+      const onConsole = (message: ConsoleMessage) => {
+        if (message.type() === 'error') consoleErrors++
+      }
+      const onPageError = () => { pageErrors++ }
+      page.on('console', onConsole)
+      page.on('pageerror', onPageError)
       let status = 0
       let result = 'FAILED navigation'
       try {
@@ -96,7 +110,8 @@ test('inventory every page with explicit live render and guard evidence', async 
       } finally {
         ledger.push({ route: template, mode, status, result, consoleErrors, pageErrors })
         console.log(JSON.stringify(ledger.at(-1)))
-        await page.close()
+        page.off('console', onConsole)
+        page.off('pageerror', onPageError)
       }
     }
   } finally {
@@ -104,6 +119,8 @@ test('inventory every page with explicit live render and guard evidence', async 
     finalRevision = after.revision
     console.log(JSON.stringify({ phase: 'finish', revision: after.revision, pages: ledger.length }))
     await testInfo.attach('complete-route-audit', { body: JSON.stringify({ baseUrl, before, after, ledger, lookups }, null, 2), contentType: 'application/json' })
+    await authenticatedPage?.close()
+    await anonymousPage?.close()
     await auth.cleanup()
     await authenticated.close()
     await anonymous.close()
