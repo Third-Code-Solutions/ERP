@@ -12,4 +12,3 @@
 
 - Focused `TodayCommandCenter` component tests passed.
 - Web lint passed for the changed component and test.
-
