@@ -95,24 +95,11 @@ const capabilityRoles = {
     'viewer',
   ],
   'opportunity.advance_stage': ['owner', 'admin', 'sales'],
-  'opportunity.stage_change': [
-    'owner',
-    'admin',
-    'sales',
-    'commercial',
-    'sd_pm_pe',
-    'pm',
-    'estimator',
-  ],
-  'opportunity.convert': [
-    'owner',
-    'admin',
-    'sales',
-    'commercial',
-    'sd_pm_pe',
-    'pm',
-    'estimator',
-  ],
+  // Won handoff and stage mutation remain restricted to the CRM command
+  // owners. Construction roles can read the new project registers without
+  // gaining the ability to advance or convert an opportunity.
+  'opportunity.stage_change': ['owner', 'admin', 'sales'],
+  'opportunity.convert': ['owner', 'admin', 'sales'],
   'tender.read': ALL_ROLES,
   'tender.manage': ['owner', 'admin', 'sales', 'commercial', 'procurement', 'estimator'],
   'tender.evaluate': ['owner', 'admin', 'commercial', 'procurement', 'pm', 'sd_pm_pe'],
