@@ -323,6 +323,23 @@ suite('Customer invoice draft create protected HTTP canary', () => {
           .send({ ...command, bomId: draftBomA })
           .expect(409)
 
+        const defaultBom = await request(app.getHttpServer())
+          .post(route)
+          .set('Authorization', 'Bearer customer-invoice-draft-http-finance-a-token')
+          .set('Idempotency-Key', 'default-approved-bom')
+          .send({ ...command, bomId: null })
+          .expect(201)
+        expect(defaultBom.body).toMatchObject({
+          projectId: projectA,
+          status: 'draft',
+          billingPercentBps: 2500,
+          subtotalCents: 250000,
+          retentionCents: 25000,
+          vatCents: 27000,
+          withholdingTaxCents: 4500,
+          netAmountCents: 247500,
+        })
+
         const first = await request(app.getHttpServer())
           .post(route)
           .set('Authorization', 'Bearer customer-invoice-draft-http-finance-a-token')

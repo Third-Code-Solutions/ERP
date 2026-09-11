@@ -142,6 +142,14 @@ describe('computeVAT', () => {
     // 12% of 10 = 1.2 → 1
     expect(computeVAT(10)).toBe(1)
   })
+
+  it('keeps VAT exact near the safe-integer boundary', () => {
+    const amount = Number.MAX_SAFE_INTEGER
+    const expected = Number(
+      (BigInt(amount) * 1200n + 5000n) / 10000n
+    )
+    expect(computeVAT(amount)).toBe(expected)
+  })
 })
 
 describe('computeEWT', () => {
@@ -184,6 +192,14 @@ describe('progressBillingAmount', () => {
 
   it('rounds fractional amounts', () => {
     expect(progressBillingAmount(3, 3333)).toBe(1)
+  })
+
+  it('does not lose a cent when multiplying a large centavo amount', () => {
+    const contractCents = Number.MAX_SAFE_INTEGER
+    const expected = Number(
+      (BigInt(contractCents) * 9999n + 5000n) / 10000n
+    )
+    expect(progressBillingAmount(contractCents, 9999)).toBe(expected)
   })
 })
 

@@ -29,7 +29,7 @@ import {
   computeVAT,
   progressBillingAmount,
 } from '@third-code-erp/shared-types/bom'
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import { roleHasCapability } from '../auth/capability.guard'
 import type { ErpPrincipal, ErpRole } from '../auth/current-principal.decorator'
 import { AuditService } from '../audit/audit.service'
@@ -39,6 +39,51 @@ import {
 } from '../database/database.service'
 
 const RETENTION_BPS = 1_000
+const MAX_SAFE_INTEGER_BIGINT = BigInt(Number.MAX_SAFE_INTEGER)
+
+type BillableBomStatus = 'approved' | 'locked'
+
+type BillableBom = {
+  id: string
+  projectId: string
+  status: string
+  tcvCents: string | number | bigint
+}
+
+export function isBillableBomStatus(
+  status: string
+): status is BillableBomStatus {
+  return status === 'approved' || status === 'locked'
+}
+
+export function requireBillableBom<T extends BillableBom>(bom: T | undefined): T {
+  if (!bom) {
+    throw new ConflictException(
+      'An approved BOM is required before billing'
+    )
+  }
+  if (!isBillableBomStatus(bom.status)) {
+    throw new ConflictException('BOM must be approved before billing')
+  }
+  return bom
+}
+
+function exactCentavoNumber(value: string | number | bigint): number {
+  let amount: bigint
+  try {
+    amount = typeof value === 'bigint' ? value : BigInt(value)
+  } catch {
+    throw new InternalServerErrorException(
+      'BOM TCV is not an exact integer centavo amount'
+    )
+  }
+  if (amount < 0n || amount > MAX_SAFE_INTEGER_BIGINT) {
+    throw new InternalServerErrorException(
+      'BOM TCV is outside the exact centavo range'
+    )
+  }
+  return Number(amount)
+}
 
 type DraftCreateRequestRecord = {
   id: string
@@ -154,14 +199,14 @@ export class CustomerInvoiceDraftCreateService {
         )
       }
 
-      let bom: { id: string; projectId: string; status: string; tcvCents: number } | undefined
+      let bom: BillableBom
       if (parsedBody.bomId) {
         const [selectedBom] = await transaction
           .select({
             id: boms.id,
             projectId: boms.project_id,
             status: boms.status,
-            tcvCents: boms.tcv_cents,
+            tcvCents: sql<string>`cast(${boms.tcv_cents} as text)`,
           })
           .from(boms)
           .where(
@@ -176,32 +221,31 @@ export class CustomerInvoiceDraftCreateService {
         if (selectedBom.projectId !== project.id) {
           throw new ConflictException('BOM belongs to a different project')
         }
-        if (selectedBom.status === 'draft') {
-          throw new ConflictException('BOM must be approved before billing')
-        }
-        bom = selectedBom
+        bom = requireBillableBom(selectedBom)
       } else {
         const [latestBom] = await transaction
           .select({
             id: boms.id,
             projectId: boms.project_id,
             status: boms.status,
-            tcvCents: boms.tcv_cents,
+            tcvCents: sql<string>`cast(${boms.tcv_cents} as text)`,
           })
           .from(boms)
           .where(
             and(
               eq(boms.project_id, project.id),
-              eq(boms.tenant_id, authorizedPrincipal.tenantId)
+              eq(boms.tenant_id, authorizedPrincipal.tenantId),
+              inArray(boms.status, ['approved', 'locked'])
             )
           )
           .orderBy(desc(boms.version))
           .limit(1)
-        bom = latestBom
+          .for('update')
+        bom = requireBillableBom(latestBom)
       }
 
       const subtotalCents = progressBillingAmount(
-        Number(bom?.tcvCents ?? 0),
+        exactCentavoNumber(bom.tcvCents),
         parsedBody.billingPercentBps
       )
       const retentionCents = computeRetention(subtotalCents, RETENTION_BPS)
@@ -290,6 +334,7 @@ export class CustomerInvoiceDraftCreateService {
           project_id: created.project_id,
           invoice_number: created.invoice_number,
           billing_percent_bps: created.billing_percent_bps,
+          bom_id: bom.id,
           subtotal_cents: created.subtotal_cents,
           retention_cents: created.retention_cents,
           vat_cents: created.vat_cents,

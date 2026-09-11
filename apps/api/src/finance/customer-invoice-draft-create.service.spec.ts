@@ -8,7 +8,11 @@ import { describe, expect, it, vi } from 'vitest'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import type { AuditService } from '../audit/audit.service'
 import type { DatabaseService } from '../database/database.service'
-import { CustomerInvoiceDraftCreateService } from './customer-invoice-draft-create.service'
+import {
+  CustomerInvoiceDraftCreateService,
+  isBillableBomStatus,
+  requireBillableBom,
+} from './customer-invoice-draft-create.service'
 
 const PRINCIPAL: ErpPrincipal = {
   userId: '11111111-1111-4111-8111-111111111111',
@@ -56,6 +60,33 @@ function enabledService(
 }
 
 describe('CustomerInvoiceDraftCreateService', () => {
+  it('allows only approved or locked BOMs as billing sources', () => {
+    expect(isBillableBomStatus('approved')).toBe(true)
+    expect(isBillableBomStatus('locked')).toBe(true)
+    expect(isBillableBomStatus('draft')).toBe(false)
+    expect(isBillableBomStatus('archived')).toBe(false)
+
+    expect(
+      requireBillableBom({
+        id: 'bom-approved',
+        projectId: PROJECT_ID,
+        status: 'approved',
+        tcvCents: 1_000_000,
+      })
+    ).toMatchObject({ status: 'approved' })
+    expect(() =>
+      requireBillableBom({
+        id: 'bom-draft',
+        projectId: PROJECT_ID,
+        status: 'draft',
+        tcvCents: 1_000_000,
+      })
+    ).toThrow('BOM must be approved before billing')
+    expect(() => requireBillableBom(undefined)).toThrow(
+      'An approved BOM is required before billing'
+    )
+  })
+
   it('fails closed before opening a transaction when the canary is disabled', async () => {
     const transaction = vi.fn()
     const service = new CustomerInvoiceDraftCreateService(
