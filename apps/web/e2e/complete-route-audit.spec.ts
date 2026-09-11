@@ -143,6 +143,19 @@ test('inventory every page with explicit live render and guard evidence', async 
           // resulting page instead of treating open client requests as a
           // render failure.
           const response = await page.goto(`${baseUrl}${path}`, { waitUntil: 'load', timeout: 45_000 })
+          // Next streams the route shell and page content separately. The load
+          // event avoids waiting on long-lived realtime requests, but it can
+          // still fire before the streamed body is useful to a user. Wait for
+          // the same minimum content threshold used by the response assertion
+          // (or an explicit runtime error) without waiting for network idle.
+          await page.waitForFunction(
+            () => {
+              const text = document.body?.innerText.trim() ?? ''
+              return text.length > 80 || /Runtime Error|Application error:/i.test(text)
+            },
+            undefined,
+            { timeout: 15_000 },
+          )
           status = response?.status() ?? 0
           const body = await page.locator('body').innerText()
           const failed = /Runtime Error|Application error:|Workspace paused before anything changed\./i.test(body)
