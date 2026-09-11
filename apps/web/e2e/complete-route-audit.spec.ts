@@ -62,7 +62,7 @@ test('inventory every page with explicit live render and guard evidence', async 
       if (anonymousRoutesInContext > 0 && anonymousRoutesInContext % ROUTES_PER_CONTEXT === 0) {
         await anonymousContext.close()
         anonymousContext = await browser.newContext()
-        anonymousPage = await anonymousContext.newPage()
+        anonymousPage = null
       }
       anonymousRoutesInContext += 1
       anonymousPage ??= await anonymousContext.newPage()
@@ -72,11 +72,26 @@ test('inventory every page with explicit live render and guard evidence', async 
     if (authenticatedRoutesInContext > 0 && authenticatedRoutesInContext % ROUTES_PER_CONTEXT === 0) {
       await authenticatedContext.close()
       authenticatedContext = await browser.newContext({ storageState: authenticatedStorage })
-      authenticatedPage = await authenticatedContext.newPage()
+      authenticatedPage = null
     }
     authenticatedRoutesInContext += 1
     authenticatedPage ??= await authenticatedContext.newPage()
     return authenticatedPage
+  }
+
+  async function rotateRouteContext(publicPage: boolean): Promise<void> {
+    if (publicPage) {
+      await anonymousContext.close()
+      anonymousContext = await browser.newContext()
+      anonymousRoutesInContext = 0
+      anonymousPage = null
+      return
+    }
+
+    await authenticatedContext.close()
+    authenticatedContext = await browser.newContext({ storageState: authenticatedStorage })
+    authenticatedRoutesInContext = 0
+    authenticatedPage = null
   }
 
   async function recordId(table: string): Promise<string | null> {
@@ -102,42 +117,66 @@ test('inventory every page with explicit live render and guard evidence', async 
         mode = id ? 'record-render' : 'invalid-parameter-guard; positive case NOT RUN'
         path = template.replace(/\[[^\]]+\]/g, id ?? 'route-audit-invalid')
       }
-      const page = await routePage(publicPage)
-      let consoleErrors = 0
-      let pageErrors = 0
-      const onConsole = (message: ConsoleMessage) => {
-        if (message.type() === 'error') consoleErrors++
+      async function visitRoute(): Promise<{
+        status: number
+        result: string
+        consoleErrors: number
+        pageErrors: number
+      }> {
+        const page = await routePage(publicPage)
+        let consoleErrors = 0
+        let pageErrors = 0
+        const onConsole = (message: ConsoleMessage) => {
+          if (message.type() === 'error') consoleErrors++
+        }
+        const onPageError = () => { pageErrors++ }
+        page.on('console', onConsole)
+        page.on('pageerror', onPageError)
+        let status = 0
+        let result = 'FAILED navigation'
+        try {
+          const response = await page.goto(`${baseUrl}${path}`, { waitUntil: 'networkidle', timeout: 45_000 })
+          status = response?.status() ?? 0
+          const body = await page.locator('body').innerText()
+          const failed = /Runtime Error|Application error:|Workspace paused before anything changed\./i.test(body)
+          const denied = /access denied|permission denied|not authorized|don't have permission|do not have permission/i.test(body)
+          const missing = status === 404 || /this page could not be found/i.test(body)
+          const login = !publicPage && new URL(page.url()).pathname.startsWith('/auth/')
+          result = failed || status >= 500 || pageErrors > 0 ? 'FAILED runtime'
+            : login ? 'FAILED redirected to login'
+            : mode.startsWith('invalid-') ? (missing || /invalid|expired|not found|unavailable|link is no longer active/i.test(body) ? 'GUARD VERIFIED; positive case NOT RUN' : 'REVIEW guard response')
+            : denied ? 'ACCESS DENIED; positive case NOT RUN'
+            : missing ? 'FAILED record/page not found'
+            : consoleErrors > 0 ? 'FAILED browser console; investigate resource errors'
+            : status >= 200 && status < 400 && body.length > 80 ? 'RENDER VERIFIED; mutations NOT RUN'
+            : 'FAILED response'
+        } catch {
+          // Do not retain response bodies or URLs containing controlled record IDs.
+          result = 'FAILED navigation/timeout'
+        } finally {
+          page.off('console', onConsole)
+          page.off('pageerror', onPageError)
+          // Close every route page after its assertions. This releases page
+          // scoped fetches/realtime clients before the next template starts;
+          // the surrounding context is still rotated in bounded batches.
+          await page.close()
+          if (publicPage) anonymousPage = null
+          else authenticatedPage = null
+        }
+        return { status, result, consoleErrors, pageErrors }
       }
-      const onPageError = () => { pageErrors++ }
-      page.on('console', onConsole)
-      page.on('pageerror', onPageError)
-      let status = 0
-      let result = 'FAILED navigation'
-      try {
-        const response = await page.goto(`${baseUrl}${path}`, { waitUntil: 'networkidle', timeout: 45_000 })
-        status = response?.status() ?? 0
-        const body = await page.locator('body').innerText()
-        const failed = /Runtime Error|Application error:|Workspace paused before anything changed\./i.test(body)
-        const denied = /access denied|permission denied|not authorized|don't have permission|do not have permission/i.test(body)
-        const missing = status === 404 || /this page could not be found/i.test(body)
-        const login = !publicPage && new URL(page.url()).pathname.startsWith('/auth/')
-        result = failed || status >= 500 || pageErrors > 0 ? 'FAILED runtime'
-          : login ? 'FAILED redirected to login'
-          : mode.startsWith('invalid-') ? (missing || /invalid|expired|not found|unavailable|link is no longer active/i.test(body) ? 'GUARD VERIFIED; positive case NOT RUN' : 'REVIEW guard response')
-          : denied ? 'ACCESS DENIED; positive case NOT RUN'
-          : missing ? 'FAILED record/page not found'
-          : consoleErrors > 0 ? 'FAILED browser console; investigate resource errors'
-          : status >= 200 && status < 400 && body.length > 80 ? 'RENDER VERIFIED; mutations NOT RUN'
-          : 'FAILED response'
-      } catch {
-        // Do not retain response bodies or URLs containing controlled record IDs.
-        result = 'FAILED navigation/timeout'
-      } finally {
-        ledger.push({ route: template, mode, status, result, consoleErrors, pageErrors })
-        console.log(JSON.stringify(ledger.at(-1)))
-        page.off('console', onConsole)
-        page.off('pageerror', onPageError)
+
+      let visit = await visitRoute()
+      if (visit.result === 'FAILED navigation/timeout') {
+        // A single route-local retry gets an entirely fresh context. It keeps
+        // the exhaustive render assertion strict while recovering from a
+        // transient hosted navigation stall without masking a repeat failure.
+        console.log(JSON.stringify({ phase: 'route-retry', route: template, reason: 'navigation/timeout' }))
+        await rotateRouteContext(publicPage)
+        visit = await visitRoute()
       }
+      ledger.push({ route: template, mode, ...visit })
+      console.log(JSON.stringify(ledger.at(-1)))
     }
   } finally {
     const after = health.parse(await (await fetch(`${baseUrl}/api/health`)).json())
