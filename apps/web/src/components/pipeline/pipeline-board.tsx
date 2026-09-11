@@ -133,6 +133,7 @@ export function PipelineBoard({
     kind: 'error' | 'info'
     text: string
   } | null>(null)
+  const [announcement, setAnnouncement] = useState('')
   const [pendingStageReason, setPendingStageReason] =
     useState<PendingStageReason | null>(null)
   const [quickAddStage, setQuickAddStage] = useState<PipelineStage | null>(null)
@@ -231,7 +232,12 @@ export function PipelineBoard({
               }
               showBanner('error', message)
             },
-            onSuccess: () => router.refresh(),
+            onSuccess: () => {
+              const moved = cards.find((candidate) => candidate.id === cardId)
+              const label = moved?.account_name ?? moved?.project_name ?? 'Opportunity'
+              setAnnouncement(`${label} moved to ${STAGE_LABELS[toStage]}.`)
+              router.refresh()
+            },
           },
         )
         .then(() => undefined),
@@ -294,6 +300,9 @@ export function PipelineBoard({
 
   return (
     <section className={styles.workspace} aria-label="Pipeline workspace">
+      <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {announcement}
+      </div>
       {canCreateOpportunity && (
         <p style={{ margin: '0 0 16px' }}>
           <button className={workspace.primary} onClick={() => setQuickAddStage('lead')}>

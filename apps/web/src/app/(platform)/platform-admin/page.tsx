@@ -49,9 +49,10 @@ export default async function PlatformOverviewPage({
               <Link href="/platform-admin/audit">View audit</Link>
             </div>
             {result.data.recentAudit.length === 0 ? <EmptyPlatformState>No privileged activity recorded yet.</EmptyPlatformState> : null}
-            <div className="platform-table-wrap">
+            <div className="platform-table-wrap" tabIndex={0}>
               <table className="data-table">
-                <thead><tr><th>Time</th><th>Action</th><th>Target</th><th>Outcome</th></tr></thead>
+                <caption className="sr-only">Recent privileged platform activity</caption>
+                <thead><tr><th scope="col">Time</th><th scope="col">Action</th><th scope="col">Target</th><th scope="col">Outcome</th></tr></thead>
                 <tbody>
                   {result.data.recentAudit.map((event) => (
                     <tr key={event.id}>

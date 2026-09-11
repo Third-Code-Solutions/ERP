@@ -9,8 +9,9 @@
  * offer "Generate POs from BOM" alongside its existing Create PO button.
  */
 
-import { useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { GroupBySupplierForm } from './group-by-supplier-form'
+import { useDialogFocus } from '@/components/ui/use-dialog-focus'
 
 export interface BomOption {
   id: string
@@ -37,6 +38,10 @@ function formatPHP(cents: number): string {
 export function GeneratePosTrigger({ boms }: Props) {
   const [pickerOpen, setPickerOpen] = useState(false)
   const [selectedBomId, setSelectedBomId] = useState<string | null>(null)
+  const pickerPanelRef = useRef<HTMLDivElement | null>(null)
+  const pickerTitleId = useId()
+  const pickerDialogOpen = pickerOpen && !selectedBomId
+  const pickerDialogRef = useDialogFocus<HTMLDivElement>(pickerDialogOpen, undefined, pickerPanelRef)
 
   const hasBoms = boms.length > 0
 
@@ -63,9 +68,15 @@ export function GeneratePosTrigger({ boms }: Props) {
 
       {pickerOpen && !selectedBomId && (
         <div
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              event.preventDefault()
+              setPickerOpen(false)
+            }
+          }}
           role="dialog"
           aria-modal="true"
-          aria-label="Select BOM for PO generation"
+          aria-labelledby={pickerTitleId}
           style={{
             position: 'fixed',
             inset: 0,
@@ -81,6 +92,8 @@ export function GeneratePosTrigger({ boms }: Props) {
           }}
         >
           <div
+            ref={pickerDialogRef}
+            tabIndex={-1}
             style={{
               background: 'white',
               borderRadius: 12,
@@ -97,7 +110,7 @@ export function GeneratePosTrigger({ boms }: Props) {
                 borderBottom: '1px solid var(--color-border)',
               }}
             >
-              <h2 style={{ margin: 0, fontSize: '1.0625rem', fontWeight: 700, color: 'var(--color-neutral-900)' }}>
+              <h2 id={pickerTitleId} style={{ margin: 0, fontSize: '1.0625rem', fontWeight: 700, color: 'var(--color-neutral-900)' }}>
                 Select an approved BOM
               </h2>
               <p style={{ margin: '4px 0 0', fontSize: '0.8125rem', color: 'var(--color-neutral-500)' }}>

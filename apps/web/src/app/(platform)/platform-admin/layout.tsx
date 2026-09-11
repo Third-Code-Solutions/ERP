@@ -1,22 +1,12 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { PlatformSupportBanner } from './_support-banner'
+import { PlatformNavigation } from './_platform-nav'
 
 export const metadata: Metadata = {
   title: 'Platform Control',
   robots: { index: false, follow: false },
 }
-
-const navigation = [
-  ['Overview', '/platform-admin'],
-  ['Tenants', '/platform-admin/tenants'],
-  ['Users', '/platform-admin/users'],
-  ['Roles', '/platform-admin/roles'],
-  ['Analytics', '/platform-admin/analytics'],
-  ['Audit', '/platform-admin/audit'],
-  ['Integrations', '/platform-admin/integrations'],
-  ['System health', '/platform-admin/system-health'],
-] as const
 
 export default function PlatformLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -33,13 +23,7 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
           </div>
         </div>
         <p className="platform-restricted">Restricted global authority</p>
-        <nav>
-          {navigation.map(([label, href]) => (
-            <Link key={href} href={href}>
-              {label}
-            </Link>
-          ))}
-        </nav>
+        <PlatformNavigation />
         <div className="platform-sidebar-footer">
           <Link href="/dashboard">Return to tenant workspace</Link>
         </div>

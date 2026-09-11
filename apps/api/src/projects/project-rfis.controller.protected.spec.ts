@@ -38,11 +38,13 @@ describe('Project RFI protected boundary', () => {
     const database = {
       client: {
         select: () => ({
-          from: () => ({
+        from: () => ({
+          innerJoin: () => ({
             where: () => ({
-              limit: async () => [{ tenantId: TENANT_ID, role, email: 'demo@example.test' }],
+              limit: async () => [{ tenantId: TENANT_ID, role, email: 'demo@example.test', accountStatus: 'active', tenantStatus: 'active' }],
             }),
           }),
+        }),
         }),
       },
     }

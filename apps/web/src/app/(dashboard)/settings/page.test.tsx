@@ -3,9 +3,14 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ profile: vi.fn(), rpc: vi.fn() }))
-vi.mock('@third-code-erp/auth', () => ({ requireUserProfile: mocks.profile, createSupabaseServerClient: async () => ({ rpc: mocks.rpc }) }))
+vi.mock('@third-code-erp/auth', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@third-code-erp/auth')>()),
+  requireUserProfile: mocks.profile,
+  createSupabaseServerClient: async () => ({ rpc: mocks.rpc }),
+}))
 vi.mock('@third-code-erp/database', () => ({ db: { select: () => ({ from: () => ({ where: async () => [{ name: 'Fixture tenant', bir_tin: null, pcab_license: null, dpo_contact: null, created_at: new Date('2026-01-01') }] }) }) } }))
 vi.mock('@/components/settings/edit-tenant-form', () => ({ EditTenantForm: () => <button>Edit workspace</button> }))
+vi.mock('./notification-preferences-form', () => ({ NotificationPreferencesForm: () => <div>Notification preferences fixture</div> }))
 import SettingsPage from './page'
 
 describe('Settings visibility boundary', () => {

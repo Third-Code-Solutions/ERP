@@ -21,7 +21,7 @@ describe('Inspection RFI protected boundary', () => {
   async function harness(role: string) {
     const service = { list: vi.fn().mockResolvedValue({ rows: [] }), transition: vi.fn().mockResolvedValue({ changed: true }) }
     const identity = { verifyAccessToken: vi.fn().mockResolvedValue({ userId }) }
-    const database = { client: { select: () => ({ from: () => ({ where: () => ({ limit: async () => [{ tenantId, role, email: 'demo@example.test' }] }) }) }) } }
+    const database = { client: { select: () => ({ from: () => ({ innerJoin: () => ({ where: () => ({ limit: async () => [{ tenantId, role, email: 'demo@example.test', accountStatus: 'active', tenantStatus: 'active' }] }) }) }) }) } }
     const module = await Test.createTestingModule({ controllers: [InspectionRfisController], providers: [{ provide: InspectionRfisService, useValue: service }] }).compile()
     const app = module.createNestApplication()
     const reflector = new Reflector()

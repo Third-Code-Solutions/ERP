@@ -899,6 +899,11 @@ body {
 
 .data-table tbody tr:last-child td { border-bottom: 0; }
 .data-table tbody tr:hover td { background: var(--color-neutral-50); }
+.data-table tbody tr:focus-visible {
+  outline: 3px solid var(--color-gold-300);
+  outline-offset: -3px;
+}
+.data-table tbody tr:focus-visible td { background: var(--color-info-soft); }
 
 .data-table td.numeric,
 .data-table th.numeric {
@@ -3464,10 +3469,18 @@ textarea.form-input {
   display: block; padding: 9px 11px; border-radius: 6px; color: var(--color-neutral-200);
   font-size: 13px; text-decoration: none;
 }
+.platform-sidebar nav a.is-active {
+  color: var(--color-surface);
+  background: color-mix(in oklch, var(--color-navy-700) 72%, transparent);
+  box-shadow: inset 2px 0 0 var(--color-gold-400);
+  font-weight: 700;
+}
 .platform-sidebar nav a:hover, .platform-sidebar nav a:focus-visible,
 .platform-sidebar-footer a:hover, .platform-sidebar-footer a:focus-visible {
   color: var(--color-surface); background: var(--color-navy-700); outline: none;
 }
+.platform-sidebar nav a.is-active:hover,
+.platform-sidebar nav a.is-active:focus-visible { background: var(--color-navy-700); }
 .platform-sidebar-footer { margin-top: auto; border-top: 1px solid var(--color-navy-800); padding-top: 14px; }
 .platform-main { min-width: 0; }
 .platform-topline {
@@ -3504,9 +3517,47 @@ textarea.form-input {
 .platform-status.is-warning { color: var(--color-gold-800); background: var(--color-warning-soft); }
 .platform-status.is-danger { color: var(--color-danger); background: var(--color-danger-soft); }
 .platform-table-wrap { overflow-x: auto; }
+.platform-table-wrap:focus-visible {
+  outline: 3px solid var(--color-gold-300);
+  outline-offset: 2px;
+}
 .platform-table-wrap td { vertical-align: top; }
 .platform-table-wrap td small { display: block; margin-top: 4px; color: var(--color-neutral-600); max-width: 32ch; }
 .platform-table-wrap code { font-size: 11px; }
+.bom-division-row {
+  padding: 10px 12px;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-navy-50);
+}
+.bom-division-badge {
+  display: inline-flex;
+  margin-right: 8px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--color-navy-100);
+  color: var(--color-navy-700);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+.bom-division-count { margin-left: 8px; color: var(--color-neutral-600); font-size: 11px; }
+.bom-subtotal-label {
+  padding: 9px 12px;
+  text-align: right;
+  color: var(--color-neutral-600);
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--color-neutral-50);
+}
+.bom-subtotal-value {
+  padding: 9px 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-neutral-900);
+  background: var(--color-neutral-50);
+}
 .platform-form-card { overflow: visible; }
 .platform-form-grid { display: grid; grid-template-columns: repeat(3, minmax(160px, 1fr)); gap: 14px; padding: 18px; }
 .platform-form-grid label { display: grid; gap: 6px; color: var(--color-neutral-600); font-size: 12px; font-weight: 600; }
@@ -3554,6 +3605,14 @@ textarea.form-input {
   .platform-page-header, .platform-support-banner { align-items: flex-start; flex-direction: column; }
   .platform-metric-grid, .platform-form-grid, .platform-role-grid, .platform-integration-grid { grid-template-columns: 1fr; }
   .platform-role-card ul { columns: 1; }
+}
+
+@media (max-width: 420px) {
+  .platform-topline { min-height: 48px; font-size: 10px; }
+  .platform-content { padding-top: 24px; padding-bottom: 40px; }
+  .platform-sidebar { padding: 18px 14px; }
+  .platform-sidebar nav a, .platform-sidebar-footer a { padding: 10px; font-size: 12px; }
+  .platform-filter-form, .platform-pagination { padding-inline: 12px; }
 }
 
 .finance-callout,

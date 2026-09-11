@@ -11,6 +11,7 @@
 
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useDialogFocus } from '@/components/ui/use-dialog-focus'
 
 interface ProposedLine {
   source_label: string
@@ -430,6 +431,7 @@ function ConfirmModal({
   onCancel: () => void
   onConfirm: () => void
 }) {
+  const dialogRef = useDialogFocus<HTMLDivElement>(true)
   return (
     <div
       role="dialog"
@@ -449,6 +451,8 @@ function ConfirmModal({
       }}
     >
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         className="card"
         style={{
           maxWidth: 460,

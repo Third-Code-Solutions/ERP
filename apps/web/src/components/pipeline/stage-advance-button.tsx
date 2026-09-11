@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   STAGE_LEGACY_MAP,
@@ -78,11 +78,25 @@ export function StageAdvanceButton({
   const [lostPromptOpen, setLostPromptOpen] = useState(false)
   const [pendingRegressionStage, setPendingRegressionStage] =
     useState<OpportunityStage | null>(null)
+  const advanceMenuButtonRef = useRef<HTMLButtonElement | null>(null)
   const transitionSubmitterRef = useRef<ReturnType<
     typeof createStageTransitionSubmitter
   > | null>(null)
   transitionSubmitterRef.current ??= createStageTransitionSubmitter()
   const router = useRouter()
+
+  useEffect(() => {
+    if (!open) return
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        setOpen(false)
+        advanceMenuButtonRef.current?.focus()
+      }
+    }
+    document.addEventListener('keydown', closeOnEscape)
+    return () => document.removeEventListener('keydown', closeOnEscape)
+  }, [open])
 
   if (!isStage(currentStage)) return null
 
@@ -179,8 +193,10 @@ export function StageAdvanceButton({
     >
       {singleForward && (
         <button
+          type="button"
           onClick={() => requestDestination(singleForward)}
           disabled={isPending}
+          aria-label={`Move opportunity to ${STAGE_LABELS[singleForward]}`}
           title={`Move to ${STAGE_LABELS[singleForward]}`}
           style={primaryStyle(isPending)}
         >
@@ -190,17 +206,24 @@ export function StageAdvanceButton({
       {forwardNexts.length > 1 && (
         <>
           <button
+            ref={advanceMenuButtonRef}
+            type="button"
             onClick={() => setOpen((v) => !v)}
             disabled={isPending}
+            aria-haspopup="menu"
+            aria-expanded={open}
+            aria-controls={`stage-advance-menu-${opportunityId}`}
             style={primaryStyle(isPending)}
           >
             {isPending ? '…' : 'Advance ▾'}
           </button>
           {open && (
-            <div style={menuStyle}>
+            <div id={`stage-advance-menu-${opportunityId}`} role="menu" aria-label="Advance opportunity to" style={menuStyle}>
               {forwardNexts.map((stage) => (
                 <button
                   key={stage}
+                  type="button"
+                  role="menuitem"
                   onClick={() => requestDestination(stage)}
                   style={menuItemStyle}
                 >
@@ -213,6 +236,7 @@ export function StageAdvanceButton({
       )}
       {lostNext && (
         <button
+          type="button"
           onClick={() => requestDestination(lostNext)}
           disabled={isPending}
           title="Close Lost"

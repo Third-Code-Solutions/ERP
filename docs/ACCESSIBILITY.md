@@ -2,10 +2,10 @@
 
 | Field | Value |
 |---|---|
-| **Audit date** | 2026-05-12 |
+| **Audit date** | 2026-09-11 (follow-up pass) |
 | **Target standard** | WCAG 2.1 Level AA |
 | **Auditor** | Compound-engineering pass (automated heuristics + manual review) |
-| **Scope** | Auth surfaces, dashboard shell (sidebar, topbar), dashboard widgets (KPI cards, stage distribution, alerts panel), global styles |
+| **Scope** | Auth surfaces, dashboard shell, dashboard widgets, pipeline, BOM builder, platform administration, global styles |
 
 ---
 
@@ -22,7 +22,7 @@
 | Login form | `apps/web/src/app/(auth)/auth/login/login-form.tsx` |
 | Signup form | `apps/web/src/app/(auth)/auth/signup/signup-form.tsx` |
 
-This is a **horizontal pass** focused on common patterns repeated across the product. Deep-surface audits (BOM builder, document viewer, kanban) are tracked in "Remaining gaps".
+This is a horizontal pass plus a focused deep-surface follow-up for the pipeline, BOM builder, and platform administration console. It is not a full WCAG conformance claim.
 
 ---
 
@@ -53,8 +53,7 @@ Each row records the severity, WCAG criterion, what was wrong, and what was appl
 
 - **WCAG**: 2.4.1 Bypass Blocks (Level A)
 - **Issue**: There is no "Skip to main content" link, so keyboard users must Tab through ~25 sidebar items on every page navigation.
-- **Fix applied (partial)**: Added `.skip-link` utility CSS to `globals.css`. The link is hidden off-screen until focused, when it slides into the top-left.
-- **Remaining**: The dashboard `layout.tsx` file is outside the ownership boundary for this pass. The CSS is in place; a follow-up should add `<a href="#main-content" className="skip-link">Skip to main content</a>` at the top of `(dashboard)/layout.tsx` and `id="main-content"` to the `.app-content` element. Tracked under "Remaining gaps".
+- **Fix applied**: Added `.skip-link` utility CSS and wired the link to `#main-content` in `(dashboard)/layout.tsx`. The target is the protected main landmark.
 
 ### 3.2 [High / Global] No `prefers-reduced-motion` honored
 
@@ -136,22 +135,29 @@ Each row records the severity, WCAG criterion, what was wrong, and what was appl
 - **Issue**: Mixed treatment — some decorative icons had `aria-hidden`, others didn't.
 - **Fix applied**: Audited and added `aria-hidden` to: kpi-cards badges, topbar search/bell/chevron icons. Sidebar icons (next to text labels) and the alert markers were already `aria-hidden`.
 
+### 3.11 [High / Pipeline] Drag transitions and modal reasons lacked status feedback
+
+- **Fix applied**: Stage movement now announces the affected opportunity and destination in a polite live region. Closed-lost and regression dialogs use labelled modal landmarks, Escape handling, focus trapping, initial focus, and focus return. The advance menu exposes menu semantics and a keyboard Escape path.
+
+### 3.12 [High / BOM builder] Large line-item tables were not keyboard-friendly or bounded
+
+- **Fix applied**: BOM rows are keyboard-selectable with Enter/Space, the table has a caption and scoped headers, source/provenance and DUPA disclosures remain readable, and tables larger than 200 rendered rows use a bounded semantic window with spacer rows and an announced saving state. The normal table path is retained for smaller BOMs.
+
+### 3.13 [High / Platform administration] Restricted console needed stronger route and table semantics
+
+- **Fix applied**: Platform navigation now marks the active route, all major directory/audit/dependency tables have captions and scoped headers, horizontal table regions are keyboard-focusable, loading/error/empty states are present, and the console has its own skip link and responsive layout.
+
 ---
 
 ## 4. Remaining Gaps (Next Pass)
 
 These are out of scope for this pass due to file-ownership constraints, but should be picked up next:
 
-1. **Skip link wiring in `(dashboard)/layout.tsx`**: drop `<a href="#main-content" className="skip-link">Skip to main content</a>` as the first child inside the layout, and add `id="main-content"` to the `.app-content` element. The CSS is already in place.
-2. **Heading hierarchy audit on each `(dashboard)/*/page.tsx`**: confirm exactly one `<h1>` per page (the `.page-title` should be `<h1>` everywhere).
-3. **BOM builder**: large interactive surface that needs its own pass — keyboard handling for the line-item editor, ARIA for the virtual scroller, focus management on save/diff actions.
-4. **Document viewer**: PDF preview pages should announce page changes; verify `aria-label` on the iframe/embed.
-5. **Kanban pipeline board**: drag-and-drop needs keyboard alternatives and live-region announcements for column transitions.
-6. **Color contrast spot-check on `.muted` cells and `--color-neutral-500` (#737373) on white**: ratio is ~4.6:1 — borderline. Consider deepening to `--color-neutral-600` (#525252, ~7:1) for body copy.
-7. **`stage-` badge color tokens** (e.g., `#6b7280` on `#f3f4f6`) should be re-verified after any palette change; current ratios are ~4.6–6:1.
-8. **Modal/dialog focus traps**: any `<Dialog>` or `<Sheet>` must trap focus, return focus on close, and respond to Escape — verify across all surfaces.
-9. **Form validation patterns beyond auth**: project create, BOM line add, PO submit — wire up the same `aria-invalid` / `aria-describedby` pattern globally.
-10. **Reduced-motion verification**: confirm Lottie/Framer-Motion animations (if any are introduced later) also honor the OS preference.
+1. **Heading hierarchy audit on each `(dashboard)/*/page.tsx`**: confirm exactly one `<h1>` per page (the `.page-title` should be `<h1>` everywhere).
+2. **Document viewer**: PDF preview pages should announce page changes; verify `aria-label` on the iframe/embed.
+3. **Color contrast spot-check on `.muted` cells and `--color-neutral-500` (#737373) on white**: ratio is ~4.6:1 — borderline. Consider deepening to `--color-neutral-600` (#525252, ~7:1) for body copy.
+4. **Form validation patterns beyond the deep surfaces**: project create, PO submit, and less-travelled mutation forms still need a product-wide `aria-invalid` / `aria-describedby` pass.
+5. **Automated audit**: axe/Lighthouse has not been run in this environment; add it to CI before making a conformance statement.
 
 ---
 
@@ -193,4 +199,4 @@ Target **score ≥ 95**.
 
 ## 6. Sign-off
 
-This audit covered the eight files listed in §1. All Critical and High-severity findings within those files are fixed. The work above does **not** constitute a full WCAG 2.1 AA conformance claim for the product — sections 4 (remaining gaps) and untouched surfaces must be passed before a conformance statement is issued.
+The follow-up covers the surfaces listed in §1 and closes the tracked skip-link, pipeline, BOM, and platform-console findings. It does **not** constitute a full WCAG 2.1 AA conformance claim: the remaining gaps and an automated axe/Lighthouse run are still required.

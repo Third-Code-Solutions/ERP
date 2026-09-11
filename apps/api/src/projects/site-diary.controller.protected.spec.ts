@@ -37,8 +37,10 @@ describe('Site diary protected boundary', () => {
       client: {
         select: () => ({
           from: () => ({
-            where: () => ({
-              limit: async () => [{ tenantId: TENANT_ID, role, email: 'demo@example.test' }],
+            innerJoin: () => ({
+              where: () => ({
+                limit: async () => [{ tenantId: TENANT_ID, role, email: 'demo@example.test', accountStatus: 'active', tenantStatus: 'active' }],
+              }),
             }),
           }),
         }),

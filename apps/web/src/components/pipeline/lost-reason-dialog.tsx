@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { STAGE_REASON_MAX_LENGTH } from './stage-transition-action'
+import { useDialogFocus } from '@/components/ui/use-dialog-focus'
 
 interface LostReasonDialogProps {
   open: boolean
@@ -18,21 +19,12 @@ export function LostReasonDialog({
 }: LostReasonDialogProps) {
   const [reason, setReason] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
-  const previousFocusRef = useRef<HTMLElement | null>(null)
+  const dialogRef = useDialogFocus<HTMLDivElement>(open, textareaRef)
+  // useDialogFocus owns the equivalent textareaRef.current?.focus() and
+  // previousFocusRef.current?.focus() lifecycle for this modal.
 
   useEffect(() => {
-    if (open) {
-      previousFocusRef.current =
-        document.activeElement instanceof HTMLElement
-          ? document.activeElement
-          : null
-      setReason('')
-      const timer = setTimeout(() => textareaRef.current?.focus(), 0)
-      return () => {
-        clearTimeout(timer)
-        previousFocusRef.current?.focus()
-      }
-    }
+    if (open) setReason('')
   }, [open])
 
   if (!open) return null
@@ -56,7 +48,7 @@ export function LostReasonDialog({
       onKeyDown={handleKeyDown}
       style={backdropStyle}
     >
-      <div onClick={(event) => event.stopPropagation()} style={dialogStyle}>
+      <div ref={dialogRef} tabIndex={-1} onClick={(event) => event.stopPropagation()} style={dialogStyle}>
         <h3 id="lost-reason-dialog-title" style={{ margin: '0 0 4px', fontSize: '1rem', fontWeight: 600 }}>
           Lost reason required
         </h3>
