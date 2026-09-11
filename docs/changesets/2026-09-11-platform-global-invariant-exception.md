@@ -9,3 +9,6 @@
 - Reconciled the source-only managed-Supabase parity manifest to the added
   migration (157/169 applied, 12 pending); this records source bookkeeping only
   and does not apply SQL to the hosted project.
+- Kept the stricter empty `search_path` hardening for `auth_tenant_id()` and
+  taught the disposable database verifier to accept that fully qualified,
+  security-definer configuration.
