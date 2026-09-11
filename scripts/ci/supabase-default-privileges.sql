@@ -27,12 +27,14 @@ alter default privileges for role postgres in schema public
   grant execute on functions to anon, authenticated, service_role;
 
 -- The legacy Project table predates the repository's explicit privilege
--- hardening migrations. Reproduce only the reviewed authenticated RLS test
--- surface; anonymous clients must not receive direct ERP-table privileges.
+-- hardening migrations. Project mutations are Core-owned (ADR-025); the
+-- browser role is intentionally read-only even in the disposable CI DB.
+-- Keep this fixture aligned with the production revoke in the controlled
+-- project-retirement migration so CI cannot re-introduce a browser write path.
 revoke all privileges
   on table public.projects
-  from public, anon;
-grant select, insert, update, delete
+  from public, anon, authenticated;
+grant select
   on table public.projects
   to authenticated;
 

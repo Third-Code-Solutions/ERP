@@ -187,6 +187,10 @@ test('CI runs the full PR suite and keeps migration checks ahead of CI-only gran
   )
   assert.match(
     workflow,
+    /has_table_privilege\('authenticated', 'public\.projects', 'SELECT'\)[\s\S]*?not has_table_privilege\('authenticated', 'public\.projects', 'UPDATE'\)/
+  )
+  assert.match(
+    workflow,
     /build:\s*\n[\s\S]*?needs: \[typecheck, lint, test, build-ops-invariants, database-reproducibility\]/
   )
 })
