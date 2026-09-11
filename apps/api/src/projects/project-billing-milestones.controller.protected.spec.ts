@@ -23,7 +23,7 @@ describe('ProjectBillingMilestonesController protected boundary', () => {
   async function harness(role: string) {
     const service = { list: vi.fn().mockResolvedValue({}) }
     const identity = { verifyAccessToken: vi.fn().mockResolvedValue({ userId: USER_ID }) }
-    const database = { client: { select: () => ({ from: () => ({ where: () => ({ limit: async () => [{ tenantId: TENANT_ID, role, email: 'demo@example.test' }] }) }) }) } }
+    const database = { client: { select: () => ({ from: () => ({ innerJoin: () => ({ where: () => ({ limit: async () => [{ tenantId: TENANT_ID, role, email: 'demo@example.test', accountStatus: 'active', tenantStatus: 'active' }] }) }) }) }) } }
     const module = await Test.createTestingModule({ controllers: [ProjectBillingMilestonesController], providers: [{ provide: ProjectBillingMilestonesService, useValue: service }] }).compile()
     const app = module.createNestApplication()
     const reflector = new Reflector()

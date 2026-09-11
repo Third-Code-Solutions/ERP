@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { can, requireUserProfile } from '@third-code-erp/auth'
+import { can, createSupabaseServerClient, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { tenants } from '@third-code-erp/database/schema'
 import { eq } from 'drizzle-orm'
@@ -20,6 +20,18 @@ export default async function SettingsPage() {
   const canManageCash = can(profile.role, 'finance.manage_cash')
   const canConfigureIntegrations = can(profile.role, 'admin.system_config')
   const integrations = canConfigureIntegrations ? getIntegrationStatus() : []
+  let platformOwner = false
+  if (profile.user.email?.trim().toLowerCase() === 'kurt@thirdcodesolutions.com') {
+    try {
+      const client = await createSupabaseServerClient()
+      const decision = await client.rpc('is_platform_owner')
+      platformOwner = !decision.error && decision.data === true
+    } catch {
+      // The platform destination fails closed when the authoritative assignment
+      // check is unavailable; the platform route still enforces its own guard.
+      platformOwner = false
+    }
+  }
   const tenant = await db
     .select()
     .from(tenants)
@@ -209,6 +221,14 @@ export default async function SettingsPage() {
               )}
             </div>
           )}
+          {platformOwner ? (
+            <p className="mt-4 text-sm">
+              <Link href="/platform-admin" className="font-semibold text-[var(--color-navy-700)] underline underline-offset-4">
+                Open platform administration
+              </Link>
+              <span className="text-[var(--color-neutral-600)]"> — restricted platform-owner controls.</span>
+            </p>
+          ) : null}
         </div>
       </section>
 

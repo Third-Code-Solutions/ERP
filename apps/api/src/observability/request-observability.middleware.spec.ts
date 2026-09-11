@@ -38,6 +38,26 @@ function requestHarness(
 }
 
 describe('RequestObservabilityMiddleware', () => {
+  it.each([
+    ['POST', '/v1/platform-admin/tenants', 'platform.tenant.create'],
+    ['PATCH', '/v1/platform-admin/tenants/:tenantId/status', 'platform.tenant.status'],
+    ['POST', '/v1/platform-admin/invitations', 'platform.user.invite'],
+    ['PATCH', '/v1/platform-admin/users/:userId/role', 'platform.user.role'],
+    ['POST', '/v1/platform-admin/support-context', 'platform.support_context.start'],
+    ['DELETE', '/v1/platform-admin/support-context/:sessionId', 'platform.support_context.end'],
+  ])('names platform command %s %s', (method, path, action) => {
+    const log = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined)
+    const response = new ResponseHarness()
+    new RequestObservabilityMiddleware().use(
+      requestHarness({ method, route: { path } }),
+      response as unknown as Response,
+      vi.fn()
+    )
+    response.emit('finish')
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({ action, trace_id: REQUEST_ID })
+    expect(String(log.mock.calls[0]?.[0])).not.toContain('never-log-this')
+  })
+
   afterEach(() => {
     vi.restoreAllMocks()
   })

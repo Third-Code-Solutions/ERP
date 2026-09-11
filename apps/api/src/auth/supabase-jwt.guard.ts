@@ -3,11 +3,12 @@ import {
   ExecutionContext,
   Inject,
   Injectable,
+  ForbiddenException,
   UnauthorizedException,
   SetMetadata,
 } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
-import { users } from '@third-code-erp/database/schema'
+import { tenants, users } from '@third-code-erp/database/schema'
 import { eq } from 'drizzle-orm'
 import { DatabaseService } from '../database/database.service'
 import {
@@ -54,8 +55,11 @@ export class SupabaseJwtGuard implements CanActivate {
         tenantId: users.tenant_id,
         role: users.role,
         email: users.email,
+        accountStatus: users.account_status,
+        tenantStatus: tenants.status,
       })
       .from(users)
+      .innerJoin(tenants, eq(tenants.id, users.tenant_id))
       .where(eq(users.id, identity.userId))
       .limit(1)
 
@@ -66,6 +70,20 @@ export class SupabaseJwtGuard implements CanActivate {
       throw new UnauthorizedException()
     }
 
+    if (
+      membership.accountStatus === 'invited' &&
+      identity.emailConfirmedAt &&
+      identity.email === membership.email.trim().toLowerCase()
+    ) {
+      const activated = await this.identity.activateInvitedUser(token)
+      if (activated) membership.accountStatus = 'active'
+    }
+
+    if (membership.accountStatus !== 'active' || membership.tenantStatus !== 'active') {
+      throw new ForbiddenException('Account or tenant is not active')
+    }
+
+    request.verifiedIdentity = identity
     request.principal = {
       userId: identity.userId,
       tenantId: membership.tenantId,

@@ -22,6 +22,7 @@ import {
   activeCommandPaletteIndex,
   nextCommandPaletteIndex,
 } from './command-palette-navigation'
+import { useDialogFocus } from '@/components/ui/use-dialog-focus'
 
 type SearchHit = UniversalSearchHit
 
@@ -85,6 +86,7 @@ export function CommandPalette({
   const router = useRouter()
   const inputRef = useRef<HTMLInputElement | null>(null)
   const panelRef = useRef<HTMLDivElement | null>(null)
+  useDialogFocus<HTMLDivElement>(open, inputRef, panelRef)
   const [q, setQ] = useState('')
   const [mode, setMode] = useState<CommandMode>('search')
   const [hits, setHits] = useState<SearchHit[]>([])

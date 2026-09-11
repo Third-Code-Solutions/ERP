@@ -4,6 +4,62 @@
 
 export type BasisPoints = number
 
+const MAX_SAFE_INTEGER_BIGINT = BigInt(Number.MAX_SAFE_INTEGER)
+const MIN_SAFE_INTEGER_BIGINT = BigInt(Number.MIN_SAFE_INTEGER)
+
+function exactInteger(value: number, label: string): bigint {
+  if (!Number.isSafeInteger(value)) {
+    throw new RangeError(`${label} must be a safe integer`)
+  }
+  return BigInt(value)
+}
+
+function safeNumber(value: bigint, label: string): number {
+  if (
+    value < MIN_SAFE_INTEGER_BIGINT ||
+    value > MAX_SAFE_INTEGER_BIGINT
+  ) {
+    throw new RangeError(`${label} exceeds the exact number range`)
+  }
+  return Number(value)
+}
+
+/**
+ * Round a rational amount half-up without converting the monetary numerator
+ * through a JavaScript floating point number.
+ */
+function roundHalfUp(numerator: bigint, denominator: bigint): bigint {
+  if (denominator === 0n) {
+    throw new RangeError('Ratio denominator must not be zero')
+  }
+
+  const product = numerator
+  const sign =
+    (product < 0n) === (denominator < 0n) ? 1n : -1n
+  const absoluteProduct = product < 0n ? -product : product
+  const absoluteDenominator =
+    denominator < 0n ? -denominator : denominator
+  return sign *
+    ((absoluteProduct * 2n + absoluteDenominator) /
+      (absoluteDenominator * 2n))
+}
+
+function roundedRatio(
+  value: number,
+  numerator: number,
+  denominator: number,
+  label: string
+): number {
+  const valueBigInt = exactInteger(value, label)
+  const numeratorBigInt = exactInteger(numerator, `${label} numerator`)
+  const denominatorBigInt = exactInteger(denominator, `${label} denominator`)
+
+  return safeNumber(
+    roundHalfUp(valueBigInt * numeratorBigInt, denominatorBigInt),
+    label
+  )
+}
+
 export interface BomLine {
   unit_cost_cents: number
   quantity: number
@@ -17,9 +73,12 @@ export function lineTotal(
   quantity: number,
   markupBps: BasisPoints
 ): number {
-  const subtotal = unitCostCents * quantity
-  const markup = Math.round((subtotal * markupBps) / 10000)
-  return subtotal + markup
+  const unitCost = exactInteger(unitCostCents, 'unit cost')
+  const quantityBigInt = exactInteger(quantity, 'quantity')
+  const markupRate = exactInteger(markupBps, 'markup basis points')
+  const subtotal = unitCost * quantityBigInt
+  const markup = roundHalfUp(subtotal * markupRate, 10000n)
+  return safeNumber(subtotal + markup, 'line total')
 }
 
 // Manual BOM lines do not accept an ad-hoc line-level markup. Client pricing
@@ -31,7 +90,11 @@ export function manualLineTotal(unitCostCents: number, quantity: number): number
 
 // Sum of all line totals
 export function bomTotalCost(lines: { line_total_cents: number }[]): number {
-  return lines.reduce((sum, line) => sum + line.line_total_cents, 0)
+  const total = lines.reduce(
+    (sum, line) => sum + exactInteger(line.line_total_cents, 'line total'),
+    0n
+  )
+  return safeNumber(total, 'BOM total cost')
 }
 
 // TCV = cost / (1 - margin)
@@ -41,38 +104,41 @@ export function computeTCV(costCents: number, marginBps: BasisPoints): number {
   if (marginBps < 0) throw new Error('marginBps must be >= 0')
   if (costCents === 0) return 0
   const denominator = 10000 - marginBps
-  return Math.round((costCents * 10000) / denominator)
+  return roundedRatio(costCents, 10000, denominator, 'TCV')
 }
 
 // GP = TCV - cost
 export function computeGP(tcvCents: number, costCents: number): number {
-  return tcvCents - costCents
+  return safeNumber(
+    exactInteger(tcvCents, 'TCV') - exactInteger(costCents, 'cost'),
+    'gross profit'
+  )
 }
 
 // GP margin in basis points = (GP / TCV) * 10000
 export function computeGPMargin(gpCents: number, tcvCents: number): BasisPoints {
   if (tcvCents === 0) return 0
-  return Math.round((gpCents * 10000) / tcvCents)
+  return roundedRatio(gpCents, 10000, tcvCents, 'gross profit margin')
 }
 
 // Weighted TCV = TCV * probability / 100
 export function weightedTCV(tcvCents: number, probabilityPercent: number): number {
-  return Math.round((tcvCents * probabilityPercent) / 100)
+  return roundedRatio(tcvCents, probabilityPercent, 100, 'weighted TCV')
 }
 
 // 12% VAT (Philippine standard)
 export function computeVAT(amountCents: number): number {
-  return Math.round(amountCents * 0.12)
+  return roundedRatio(amountCents, 1200, 10000, 'VAT')
 }
 
 // 2% expanded withholding tax (BIR EWT)
 export function computeEWT(amountCents: number): number {
-  return Math.round(amountCents * 0.02)
+  return roundedRatio(amountCents, 200, 10000, 'EWT')
 }
 
 // 10% retention (standard Philippine construction billing)
 export function computeRetention(amountCents: number, retentionBps = 1000): number {
-  return Math.round((amountCents * retentionBps) / 10000)
+  return roundedRatio(amountCents, retentionBps, 10000, 'retention')
 }
 
 // Progress billing amount for a given billing percent
@@ -80,5 +146,10 @@ export function progressBillingAmount(
   contractCents: number,
   billingPercentBps: BasisPoints
 ): number {
-  return Math.round((contractCents * billingPercentBps) / 10000)
+  return roundedRatio(
+    contractCents,
+    billingPercentBps,
+    10000,
+    'progress billing amount'
+  )
 }

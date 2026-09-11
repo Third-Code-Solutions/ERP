@@ -30,8 +30,10 @@ describe('ProjectCloseoutReadinessController protected boundary', () => {
       client: {
         select: () => ({
           from: () => ({
-            where: () => ({
-              limit: async () => [{ tenantId: TENANT_ID, role: 'viewer', email: 'demo@example.test' }],
+            innerJoin: () => ({
+              where: () => ({
+                limit: async () => [{ tenantId: TENANT_ID, role: 'viewer', email: 'demo@example.test', accountStatus: 'active', tenantStatus: 'active' }],
+              }),
             }),
           }),
         }),

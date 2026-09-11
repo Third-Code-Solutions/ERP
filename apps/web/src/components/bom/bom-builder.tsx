@@ -1,7 +1,8 @@
 'use client'
 
 import React, {
-  Fragment,
+  useMemo,
+  useRef,
   useTransition,
   useState,
   useEffect,
@@ -178,6 +179,156 @@ function SourceBadge({ item }: { item: BomLineItem }) {
     >
       {label}
     </span>
+  )
+}
+
+type BomTableGroup = {
+  key: string
+  label: string
+  lines: BomLineItem[]
+  subtotal_cents: number
+}
+
+type BomTableRow =
+  | { type: 'division'; key: string; group: BomTableGroup }
+  | { type: 'line'; key: string; item: BomLineItem }
+  | { type: 'subtotal'; key: string; group: BomTableGroup }
+
+interface BomLineItemsTableProps {
+  groups: BomTableGroup[]
+  isEditable: boolean
+  isPending: boolean
+  totalCents: number
+  onSelect: (lineId: string) => void
+  selectedLineId: string | null
+  onDelete: (lineId: string) => void
+  onLocationChange: (lineId: string, locationId: string | null) => void
+  onDupaEdit: (lineId: string) => void
+  locationOptions: ProjectLocationOption[]
+}
+
+/**
+ * A table-first, dependency-free window for very large BOMs. Normal-sized
+ * bills keep their full semantic table; once the row count grows, offscreen
+ * rows are replaced with spacer rows while the sticky commercial footer stays
+ * in the same DOM order.
+ */
+function BomLineItemsTable({
+  groups,
+  isEditable,
+  isPending,
+  totalCents,
+  onSelect,
+  selectedLineId,
+  onDelete,
+  onLocationChange,
+  onDupaEdit,
+  locationOptions,
+}: BomLineItemsTableProps) {
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const [scrollTop, setScrollTop] = React.useState(0)
+  const rows = useMemo<BomTableRow[]>(
+    () => groups.flatMap((group) => [
+      { type: 'division', key: `division-${group.key}`, group } as const,
+      ...group.lines.map((item) => ({ type: 'line', key: `line-${item.id}`, item }) as const),
+      { type: 'subtotal', key: `subtotal-${group.key}`, group } as const,
+    ]),
+    [groups],
+  )
+  const shouldVirtualize = rows.length > 200
+  const estimatedRowHeight = 58
+  const viewportHeight = 640
+  const overscan = 10
+  const startIndex = shouldVirtualize
+    ? Math.max(0, Math.floor(scrollTop / estimatedRowHeight) - overscan)
+    : 0
+  const visibleCount = shouldVirtualize
+    ? Math.ceil(viewportHeight / estimatedRowHeight) + overscan * 2
+    : rows.length
+  const endIndex = Math.min(rows.length, startIndex + visibleCount)
+  const visibleRows = shouldVirtualize ? rows.slice(startIndex, endIndex) : rows
+  const columnCount = isEditable ? 9 : 8
+
+  function renderRow(row: BomTableRow): React.ReactNode {
+    if (row.type === 'line') {
+      return (
+        <BomLineRow
+          key={row.key}
+          item={row.item}
+          depth={row.item.parent_line_item_id ? 1 : 0}
+          isSelected={selectedLineId === row.item.id}
+          isEditable={isEditable}
+          isPending={isPending}
+          onSelect={() => onSelect(row.item.id)}
+          onDelete={() => onDelete(row.item.id)}
+          onLocationChange={(locationId) => onLocationChange(row.item.id, locationId)}
+          onDupaEdit={() => onDupaEdit(row.item.id)}
+          locationOptions={locationOptions}
+          sourceBadge={<SourceBadge item={row.item} />}
+        />
+      )
+    }
+    if (row.type === 'division') {
+      return (
+        <tr key={row.key} data-division-key={row.group.key}>
+          <td colSpan={columnCount} className="bom-division-row">
+            <span className="bom-division-badge">DIVISION</span>
+            <strong>{row.group.label}</strong>
+            <span className="bom-division-count">{row.group.lines.length} line{row.group.lines.length === 1 ? '' : 's'}</span>
+          </td>
+        </tr>
+      )
+    }
+    return (
+      <tr key={row.key} data-division-subtotal={row.group.key}>
+        <td colSpan={isEditable ? 7 : 6} className="bom-subtotal-label">{row.group.label} subtotal</td>
+        <td className="numeric bom-subtotal-value">{formatPHP(row.group.subtotal_cents)}</td>
+        {isEditable ? <td /> : null}
+      </tr>
+    )
+  }
+
+  return (
+    <div
+      ref={scrollRef}
+      className={workspaceStyles.table}
+      tabIndex={0}
+      role="region"
+      aria-label="BOM line items, scroll for more columns"
+      data-virtualized={shouldVirtualize ? 'true' : 'false'}
+      onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+      style={{
+        background: 'white',
+        border: '1px solid var(--color-border)',
+        borderRadius: '8px',
+        overflow: shouldVirtualize ? 'auto' : 'hidden',
+        maxHeight: shouldVirtualize ? viewportHeight : undefined,
+      }}
+    >
+      <table className="data-table" aria-rowcount={rows.length + 1}>
+        <caption className="sr-only">Bill of materials line items and commercial totals</caption>
+        <thead>
+          <tr>
+            <th scope="col">Code</th><th scope="col">Description</th><th scope="col">Vendor</th><th scope="col">Location</th>
+            <th scope="col" className="numeric">Unit</th><th scope="col" className="numeric">Qty</th>
+            <th scope="col" className="numeric">Unit Cost</th><th scope="col" className="numeric">Line Total</th>
+            {isEditable ? <th scope="col" aria-label="Line actions" style={{ width: '40px' }} /> : null}
+          </tr>
+        </thead>
+        <tbody>
+          {shouldVirtualize && startIndex > 0 ? <tr aria-hidden="true"><td colSpan={columnCount} style={{ height: startIndex * estimatedRowHeight, padding: 0, border: 0 }} /></tr> : null}
+          {visibleRows.map(renderRow)}
+          {shouldVirtualize && endIndex < rows.length ? <tr aria-hidden="true"><td colSpan={columnCount} style={{ height: (rows.length - endIndex) * estimatedRowHeight, padding: 0, border: 0 }} /></tr> : null}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colSpan={isEditable ? 7 : 6} className="bom-subtotal-label">Total</td>
+            <td className="numeric bom-subtotal-value">{formatPHP(totalCents)}</td>
+            {isEditable ? <td /> : null}
+          </tr>
+        </tfoot>
+      </table>
+    </div>
   )
 }
 
@@ -554,7 +705,10 @@ export function BomBuilder({
             {isEditable && (
               <>
                 <button
+                  type="button"
                   onClick={() => setShowAddForm((v) => !v)}
+                  aria-expanded={showAddForm}
+                  aria-controls="bom-add-line-form"
                   style={{
                     background: 'white',
                     color: 'var(--color-navy-700)',
@@ -569,6 +723,7 @@ export function BomBuilder({
                   + Add Line
                 </button>
                 <button
+                  type="button"
                   onClick={handleApprove}
                   disabled={isPending || bom.lineItems.length === 0 || hasFlaggedLines}
                   title={
@@ -605,11 +760,14 @@ export function BomBuilder({
             {!readOnly && !isEditable && bom.status !== 'archived' && (
               <>
                 <button
+                  type="button"
                   onClick={() => {
                     setShowPoForm((v) => !v)
                     setShowInvoiceForm(false)
                     setProcurementError('')
                   }}
+                  aria-expanded={showPoForm}
+                  aria-controls="bom-generate-po-form"
                   style={{
                     background: 'white',
                     color: 'var(--color-navy-700)',
@@ -624,11 +782,14 @@ export function BomBuilder({
                   Generate PO
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
                     setShowInvoiceForm((v) => !v)
                     setShowPoForm(false)
                     setProcurementError('')
                   }}
+                  aria-expanded={showInvoiceForm}
+                  aria-controls="bom-create-invoice-form"
                   style={{
                     background: 'var(--color-navy-700)',
                     color: 'white',
@@ -708,6 +869,7 @@ export function BomBuilder({
         {/* Add line form */}
         {showAddForm && isEditable && (
           <form
+            id="bom-add-line-form"
             onSubmit={handleAddLine}
             style={{
               background: 'var(--color-neutral-50)',
@@ -996,6 +1158,7 @@ export function BomBuilder({
         {/* Generate PO form */}
         {showPoForm && !isEditable && bom.status !== 'archived' && (
           <form
+            id="bom-generate-po-form"
             onSubmit={handleGeneratePO}
             style={{
               background: 'var(--color-neutral-50)',
@@ -1123,6 +1286,7 @@ export function BomBuilder({
         {/* Create invoice form */}
         {showInvoiceForm && !isEditable && bom.status !== 'archived' && (
           <form
+            id="bom-create-invoice-form"
             onSubmit={handleCreateInvoice}
             style={{
               background: 'var(--color-neutral-50)',
@@ -1249,6 +1413,9 @@ export function BomBuilder({
         )}
 
         {/* Line items table */}
+        <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+          {isPending ? 'Saving BOM changes…' : ''}
+        </p>
         {bom.lineItems.length === 0 ? (
           <div
             style={{
@@ -1265,163 +1432,18 @@ export function BomBuilder({
             {isEditable && 'Click "Add Line" to begin building the BOM.'}
           </div>
         ) : (
-          <div
-            className={workspaceStyles.table}
-            tabIndex={0}
-            role="region"
-            aria-label="BOM line items, scroll for more columns"
-            style={{
-              background: 'white',
-              border: '1px solid var(--color-border)',
-              borderRadius: '8px',
-              overflow: 'hidden',
-            }}
-          >
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Code</th>
-                  <th>Description</th>
-                  <th>Vendor</th>
-                  <th>Location</th>
-                  <th className="numeric">Unit</th>
-                  <th className="numeric">Qty</th>
-                  <th className="numeric">Unit Cost</th>
-                  <th className="numeric">Line Total</th>
-                  {isEditable && <th style={{ width: '40px' }}></th>}
-                </tr>
-              </thead>
-              <tbody>
-                {divisionGroups.map((group) => (
-                  <Fragment key={group.key}>
-                    <tr
-                      data-division-key={group.key}
-                      style={{ background: 'var(--color-navy-50)' }}
-                    >
-                      <td
-                        colSpan={isEditable ? 9 : 8}
-                        style={{
-                          padding: '10px 12px',
-                          borderTop: '1px solid var(--color-border)',
-                        }}
-                      >
-                        <span
-                          style={{
-                            display: 'inline-flex',
-                            marginRight: 8,
-                            padding: '2px 6px',
-                            borderRadius: 4,
-                            background: 'var(--color-navy-100)',
-                            color: 'var(--color-navy-700)',
-                            fontFamily: 'var(--font-mono)',
-                            fontSize: 10,
-                            fontWeight: 700,
-                            letterSpacing: '0.04em',
-                          }}
-                        >
-                          DIVISION
-                        </span>
-                        <strong
-                          style={{
-                            color: 'var(--color-neutral-900)',
-                            fontSize: 12,
-                          }}
-                        >
-                          {group.label}
-                        </strong>
-                        <span
-                          style={{
-                            marginLeft: 8,
-                            color: 'var(--color-neutral-500)',
-                            fontSize: 11,
-                          }}
-                        >
-                          {group.lines.length} line
-                          {group.lines.length === 1 ? '' : 's'}
-                        </span>
-                      </td>
-                    </tr>
-                    {group.lines.map((item) => (
-                      <BomLineRow
-                        key={item.id}
-                        item={item}
-                        depth={item.parent_line_item_id ? 1 : 0}
-                        isSelected={selectedLineId === item.id}
-                        isEditable={isEditable}
-                        isPending={isPending}
-                        onSelect={() => setSelectedLineId(item.id)}
-                        onDelete={() => handleDelete(item.id)}
-                        onLocationChange={(locationId) =>
-                          handleLocationChange(item.id, locationId)
-                        }
-                        onDupaEdit={() => setEditingDupaLineId(item.id)}
-                        locationOptions={locations}
-                        sourceBadge={<SourceBadge item={item} />}
-                      />
-                    ))}
-                    <tr
-                      data-division-subtotal={group.key}
-                      style={{ background: 'var(--color-neutral-50)' }}
-                    >
-                      <td
-                        colSpan={isEditable ? 7 : 6}
-                        style={{
-                          padding: '8px 12px',
-                          textAlign: 'right',
-                          color: 'var(--color-neutral-500)',
-                          fontSize: 11,
-                          fontWeight: 600,
-                        }}
-                      >
-                        {group.label} subtotal
-                      </td>
-                      <td
-                        className="numeric"
-                        style={{
-                          padding: '8px 12px',
-                          fontFamily: 'var(--font-mono)',
-                          fontSize: 12,
-                          fontWeight: 700,
-                          color: 'var(--color-neutral-800)',
-                        }}
-                      >
-                        {formatPHP(group.subtotal_cents)}
-                      </td>
-                      {isEditable && <td />}
-                    </tr>
-                  </Fragment>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr style={{ background: 'var(--color-neutral-50)' }}>
-                  <td
-                    colSpan={isEditable ? 7 : 6}
-                    style={{
-                      fontSize: '0.8rem',
-                      fontWeight: 600,
-                      color: 'var(--color-neutral-600)',
-                      padding: '10px 12px',
-                      textAlign: 'right',
-                    }}
-                  >
-                    Total
-                  </td>
-                  <td
-                    className="numeric"
-                    style={{
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: '0.875rem',
-                      fontWeight: 700,
-                      color: 'var(--color-neutral-900)',
-                    }}
-                  >
-                    {formatPHP(bom.tcv_cents)}
-                  </td>
-                  {isEditable && <td />}
-                </tr>
-              </tfoot>
-            </table>
-          </div>
+          <BomLineItemsTable
+            groups={divisionGroups}
+            isEditable={isEditable}
+            isPending={isPending}
+            totalCents={bom.tcv_cents}
+            onSelect={setSelectedLineId}
+            selectedLineId={selectedLineId}
+            onDelete={handleDelete}
+            onLocationChange={handleLocationChange}
+            onDupaEdit={setEditingDupaLineId}
+            locationOptions={locations}
+          />
         )}
 
         <DupaEditor

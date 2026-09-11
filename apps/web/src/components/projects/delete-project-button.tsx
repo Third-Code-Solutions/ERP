@@ -1,8 +1,9 @@
 'use client'
 
-import { useId, useState, useTransition } from 'react'
+import { useId, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { retireProject } from '@/app/(dashboard)/projects/[id]/actions'
+import { useDialogFocus } from '@/components/ui/use-dialog-focus'
 
 interface DeleteProjectButtonProps {
   projectId: string
@@ -24,6 +25,9 @@ export function DeleteProjectButton({
   const [isOpen, setIsOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const formRef = useRef<HTMLFormElement | null>(null)
+  const reasonRef = useRef<HTMLTextAreaElement | null>(null)
+  const dialogRef = useDialogFocus<HTMLFormElement>(isOpen, reasonRef, formRef)
 
   function close(): void {
     if (!isPending) {
@@ -83,10 +87,17 @@ export function DeleteProjectButton({
           }}
         >
           <form
+            ref={dialogRef}
             aria-describedby={descriptionId}
             aria-labelledby={headingId}
             aria-modal="true"
             onSubmit={submit}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape' && !isPending) {
+                event.preventDefault()
+                close()
+              }
+            }}
             role="dialog"
             style={{
               width: 'min(100%, 520px)',
@@ -125,6 +136,7 @@ export function DeleteProjectButton({
               Reason for deletion
             </label>
             <textarea
+              ref={reasonRef}
               required
               id={`${headingId}-reason`}
               minLength={3}

@@ -287,11 +287,19 @@ export function BomLineRow({
   return (
     <tr
       onClick={onSelect}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onSelect()
+        }
+      }}
+      tabIndex={0}
       style={{
         cursor: 'pointer',
         background: isSelected ? 'var(--color-info-soft)' : undefined,
       }}
       aria-selected={isSelected}
+      aria-label={`${item.code ?? 'Line item'} ${item.description}`}
     >
       <td
         style={{
@@ -434,6 +442,7 @@ export function BomLineRow({
       {isEditable && (
         <td>
           <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation()
               onDelete()

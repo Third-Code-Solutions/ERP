@@ -30,6 +30,7 @@ import { TodayModule } from './today/today.module'
 import { DailyTasksModule } from './daily-tasks/daily-tasks.module'
 import { ProcessModule } from './process/process.module'
 import { TendersModule } from './tenders/tenders.module'
+import { PlatformAdministrationModule } from './platform-admin/platform-administration.module'
 
 @Module({
   imports: [
@@ -72,6 +73,7 @@ import { TendersModule } from './tenders/tenders.module'
     DailyTasksModule,
     ProcessModule,
     TendersModule,
+    PlatformAdministrationModule,
   ],
   controllers: [HealthController],
   providers: [

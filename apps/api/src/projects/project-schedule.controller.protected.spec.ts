@@ -25,7 +25,7 @@ describe('ProjectScheduleController protected boundary', () => {
   async function harness(role: string) {
     const service = { list: vi.fn().mockResolvedValue({}), create: vi.fn().mockResolvedValue({}), update: vi.fn().mockResolvedValue({}), updateStatus: vi.fn().mockResolvedValue({}) }
     const identity = { verifyAccessToken: vi.fn().mockResolvedValue({ userId: USER_ID }) }
-    const database = { client: { select: () => ({ from: () => ({ where: () => ({ limit: async () => [{ tenantId: TENANT_ID, role, email: 'demo@example.test' }] }) }) }) } }
+    const database = { client: { select: () => ({ from: () => ({ innerJoin: () => ({ where: () => ({ limit: async () => [{ tenantId: TENANT_ID, role, email: 'demo@example.test', accountStatus: 'active', tenantStatus: 'active' }] }) }) }) }) } }
     const module = await Test.createTestingModule({ controllers: [ProjectScheduleController], providers: [{ provide: ProjectScheduleService, useValue: service }] }).compile()
     const app = module.createNestApplication(); const reflector = new Reflector()
     app.useGlobalGuards(new SupabaseJwtGuard(identity as unknown as SupabaseIdentityService, reflector, database as unknown as DatabaseService), new CapabilityGuard(reflector))

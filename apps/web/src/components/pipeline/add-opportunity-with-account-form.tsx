@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createOpportunityForAccount } from '@/app/(dashboard)/pipeline/actions'
 import type { PipelineStage } from '@third-code-erp/shared-types'
+import { useDialogFocus } from '@/components/ui/use-dialog-focus'
 
 export interface AccountOption {
   id: string
@@ -47,6 +48,7 @@ export function AddOpportunityWithAccountForm({
   const [accountId, setAccountId] = useState('')
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
+  const dialogRef = useDialogFocus<HTMLFormElement>(open)
 
   useEffect(() => {
     if (open) {
@@ -102,6 +104,10 @@ export function AddOpportunityWithAccountForm({
       }}
     >
       <form
+        ref={dialogRef}
+        tabIndex={-1}
+        aria-labelledby="new-opportunity-title"
+        aria-describedby={error ? 'new-opportunity-error' : undefined}
         onSubmit={handleSubmit}
         style={{
           background: 'white',
@@ -112,7 +118,8 @@ export function AddOpportunityWithAccountForm({
           boxShadow: '0 8px 32px rgba(0,0,0,0.14)',
         }}
       >
-        <h2
+          <h2
+            id="new-opportunity-title"
           style={{
             fontSize: '1rem',
             fontWeight: 700,
@@ -134,8 +141,9 @@ export function AddOpportunityWithAccountForm({
 
         <div style={{ display: 'grid', gap: '14px' }}>
           <div>
-            <label style={labelStyle}>Account *</label>
+            <label htmlFor="new-opportunity-account" style={labelStyle}>Account *</label>
             <select
+              id="new-opportunity-account"
               name="account_id"
               required
               value={accountId}
@@ -161,8 +169,8 @@ export function AddOpportunityWithAccountForm({
           </div>
 
           <div>
-            <label style={labelStyle}>Project (optional)</label>
-            <select name="project_id" style={inputStyle}>
+            <label htmlFor="new-opportunity-project" style={labelStyle}>Project (optional)</label>
+            <select id="new-opportunity-project" name="project_id" style={inputStyle}>
               <option value="">—</option>
               {projects.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -174,8 +182,9 @@ export function AddOpportunityWithAccountForm({
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             <div>
-              <label style={labelStyle}>Expected TCV (₱)</label>
+              <label htmlFor="new-opportunity-tcv" style={labelStyle}>Expected TCV (₱)</label>
               <input
+                id="new-opportunity-tcv"
                 type="number"
                 name="tcv"
                 min="0"
@@ -185,8 +194,9 @@ export function AddOpportunityWithAccountForm({
               />
             </div>
             <div>
-              <label style={labelStyle}>Expected GP (₱)</label>
+              <label htmlFor="new-opportunity-gp" style={labelStyle}>Expected GP (₱)</label>
               <input
+                id="new-opportunity-gp"
                 type="number"
                 name="gp"
                 min="0"
@@ -199,18 +209,18 @@ export function AddOpportunityWithAccountForm({
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             <div>
-              <label style={labelStyle}>Area (sqm)</label>
-              <input type="number" name="area_sqm" min="0" placeholder="—" style={inputStyle} />
+              <label htmlFor="new-opportunity-area" style={labelStyle}>Area (sqm)</label>
+              <input id="new-opportunity-area" type="number" name="area_sqm" min="0" placeholder="—" style={inputStyle} />
             </div>
             <div>
-              <label style={labelStyle}>Est. Closing Date</label>
-              <input type="date" name="closing_date" style={inputStyle} />
+              <label htmlFor="new-opportunity-close" style={labelStyle}>Est. Closing Date</label>
+              <input id="new-opportunity-close" type="date" name="closing_date" style={inputStyle} />
             </div>
           </div>
 
           <div>
-            <label style={labelStyle}>Type</label>
-            <select name="opportunity_type" style={inputStyle}>
+            <label htmlFor="new-opportunity-type" style={labelStyle}>Type</label>
+            <select id="new-opportunity-type" name="opportunity_type" style={inputStyle}>
               <option value="">—</option>
               <option value="mep">MEP</option>
               <option value="fit_out">Fit-out</option>
@@ -220,8 +230,9 @@ export function AddOpportunityWithAccountForm({
           </div>
 
           <div>
-            <label style={labelStyle}>Remarks</label>
+            <label htmlFor="new-opportunity-remarks" style={labelStyle}>Remarks</label>
             <textarea
+              id="new-opportunity-remarks"
               name="remarks"
               rows={2}
               placeholder="Optional notes…"
@@ -231,7 +242,7 @@ export function AddOpportunityWithAccountForm({
         </div>
 
         {error && (
-          <p style={{ fontSize: '0.8125rem', color: '#ef4444', margin: '12px 0 0' }}>{error}</p>
+          <p id="new-opportunity-error" role="alert" aria-live="assertive" style={{ fontSize: '0.8125rem', color: '#ef4444', margin: '12px 0 0' }}>{error}</p>
         )}
 
         <div

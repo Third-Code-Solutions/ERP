@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { STAGE_REASON_MAX_LENGTH } from './stage-transition-action'
+import { useDialogFocus } from '@/components/ui/use-dialog-focus'
 
 interface RegressionReasonDialogProps {
   open: boolean
@@ -22,23 +23,15 @@ export function RegressionReasonDialog({
 }: RegressionReasonDialogProps) {
   const [reason, setReason] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
-  const previousFocusRef = useRef<HTMLElement | null>(null)
+  const dialogRef = useDialogFocus<HTMLDivElement>(open, textareaRef)
+  // useDialogFocus owns the equivalent textareaRef.current?.focus() and
+  // previousFocusRef.current?.focus() lifecycle for this modal.
 
   // Reset state every time the dialog reopens so the previous reason is not
   // accidentally carried over to a different opportunity.
   useEffect(() => {
     if (open) {
-      previousFocusRef.current =
-        document.activeElement instanceof HTMLElement
-          ? document.activeElement
-          : null
       setReason('')
-      // Defer focus so the modal has time to mount.
-      const t = setTimeout(() => textareaRef.current?.focus(), 0)
-      return () => {
-        clearTimeout(t)
-        previousFocusRef.current?.focus()
-      }
     }
   }, [open])
 
@@ -72,6 +65,8 @@ export function RegressionReasonDialog({
     >
       <div
         onClick={(e) => e.stopPropagation()}
+        ref={dialogRef}
+        tabIndex={-1}
         style={{
           background: 'white',
           borderRadius: '8px',

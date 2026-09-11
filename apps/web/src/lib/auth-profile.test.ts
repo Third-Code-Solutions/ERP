@@ -80,4 +80,16 @@ describe('getUserProfile', () => {
     expect(authenticatedClient.from).not.toHaveBeenCalled()
     expect(mocks.createAdminClient).not.toHaveBeenCalled()
   })
+
+  it.each([true, false])('retries hidden profile only after verified invitation activation: %s', async (activated) => {
+    const row = { tenant_id: 'tenant-1', role: 'viewer', email: 'invite@example.com', full_name: 'Invited User' }
+    const query = { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), single: vi.fn().mockResolvedValueOnce({ data: null, error: null }).mockResolvedValue({ data: row, error: null }) }
+    const client = { auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1', email_confirmed_at: '2026-09-04T00:00:00Z' } }, error: null }) }, from: vi.fn().mockReturnValue(query), rpc: vi.fn().mockResolvedValue({ data: activated, error: null }) }
+    mocks.createServerClient.mockReturnValue(client)
+    const profile = await getUserProfile()
+    expect(profile?.tenantId ?? null).toBe(activated ? 'tenant-1' : null)
+    expect(client.rpc).toHaveBeenCalledWith('activate_current_invited_user')
+    expect(query.single).toHaveBeenCalledTimes(activated ? 2 : 1)
+    expect(mocks.createAdminClient).not.toHaveBeenCalled()
+  })
 })

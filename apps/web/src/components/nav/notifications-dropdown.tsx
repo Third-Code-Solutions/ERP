@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { IconBell } from '@/components/ui/icons'
 import { createSupabaseBrowserClient } from '@third-code-erp/auth/client'
 import { readNotificationPreferences, visibleNotifications, type NotificationPreferences } from '@/app/(dashboard)/settings/notification-preferences'
+import { useDialogFocus } from '@/components/ui/use-dialog-focus'
 
 interface NotificationItem {
   id: string
@@ -38,6 +39,8 @@ export function NotificationsDropdown({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const dialogRef = useRef<HTMLDivElement | null>(null)
+  useDialogFocus<HTMLDivElement>(open, undefined, dialogRef)
   const unmountedRef = useRef(false)
   const fetchControllerRef = useRef<AbortController | null>(null)
   const savingRef = useRef(false)
@@ -226,7 +229,7 @@ export function NotificationsDropdown({
       <button
         type="button"
         className="icon-btn"
-        aria-label={`Notifications${unread ? ` (${unread} unread)` : ''}`}
+        aria-label={`View notifications${unread ? ` (${unread} unread)` : ''}`}
         aria-haspopup="dialog"
         aria-expanded={open}
         title="Notifications"
@@ -264,8 +267,11 @@ export function NotificationsDropdown({
 
       {open && (
         <div
+          ref={dialogRef}
           role="dialog"
-          aria-label="Notifications"
+          aria-modal="true"
+          aria-labelledby="notifications-title"
+          tabIndex={-1}
           className="fixed right-3 top-16 sm:absolute sm:right-0 sm:top-[calc(100%+8px)]"
           style={{
             width: 'min(380px, calc(100vw - 24px))',
@@ -292,6 +298,7 @@ export function NotificationsDropdown({
           >
             <div>
               <h2
+                id="notifications-title"
                 style={{
                   margin: 0,
                   fontSize: 13.5,

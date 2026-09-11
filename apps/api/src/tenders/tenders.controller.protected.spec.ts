@@ -38,7 +38,7 @@ describe('TendersController protected boundary', () => {
       upsertScore: vi.fn().mockResolvedValue({}),
     }
     const identity = { verifyAccessToken: vi.fn().mockResolvedValue({ userId: USER_ID }) }
-    const database = { client: { select: () => ({ from: () => ({ where: () => ({ limit: async () => [{ tenantId: TENANT_ID, role, email: 'demo@example.test' }] }) }) }) } }
+    const database = { client: { select: () => ({ from: () => ({ innerJoin: () => ({ where: () => ({ limit: async () => [{ tenantId: TENANT_ID, role, email: 'demo@example.test', accountStatus: 'active', tenantStatus: 'active' }] }) }) }) }) } }
     const module = await Test.createTestingModule({ controllers: [TendersController], providers: [{ provide: TendersService, useValue: service }] }).compile()
     const app = module.createNestApplication(); const reflector = new Reflector()
     app.useGlobalGuards(new SupabaseJwtGuard(identity as unknown as SupabaseIdentityService, reflector, database as unknown as DatabaseService), new CapabilityGuard(reflector))

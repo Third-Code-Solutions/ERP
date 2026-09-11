@@ -21,6 +21,12 @@ export interface ErpPrincipal {
 
 export interface AuthenticatedRequest extends Request {
   principal?: ErpPrincipal
+  verifiedIdentity?: {
+    userId: string
+    email: string | null
+    emailConfirmedAt: string | null
+    authenticatedAt?: number
+  }
 }
 
 export function requireCurrentPrincipal(

@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { PLATFORM_OWNER_EMAIL } from '@third-code-erp/shared-types/platform-administration'
 
 import {
   consumeRequestRateLimit as consumeLocalRequestRateLimit,
@@ -199,6 +200,25 @@ function redirectToLogin(
   return applySecurityHeaders(redirect, nonce, csp)
 }
 
+function platformAccessResponse(
+  status: 403 | 503,
+  nonce: string,
+  csp: string
+): NextResponse {
+  const unavailable = status === 503
+  const response = new NextResponse(
+    `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${unavailable ? 'Platform console unavailable' : 'Platform access denied'}</title></head><body style="margin:0;background:#f4f1ea;color:#171a1f;font-family:system-ui,sans-serif"><main style="max-width:640px;margin:12vh auto;padding:40px"><p style="font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#7a6952">ABI OPS · Platform Control</p><h1>${unavailable ? 'The platform authority check is unavailable.' : 'This account does not have platform authority.'}</h1><p>${unavailable ? 'No privileged data was loaded. Retry after the identity service is healthy.' : 'Tenant roles, including owner and admin, cannot open the platform console.'}</p><a href="/dashboard" style="color:#8a4f2d">Return to your workspace</a></main></body></html>`,
+    {
+      status,
+      headers: {
+        'Cache-Control': 'private, no-store, max-age=0',
+        'Content-Type': 'text/html; charset=utf-8',
+      },
+    }
+  )
+  return applySecurityHeaders(response, nonce, csp)
+}
+
 // ---------------------------------------------------------------------------
 // Middleware
 // ---------------------------------------------------------------------------
@@ -354,7 +374,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Auth redirects
-  if (user && pathname.startsWith('/auth') && !isPasswordRecoveryRoute) {
+  if (user && pathname.startsWith('/auth') && !isPasswordRecoveryRoute && pathname !== '/auth/accept-invite') {
     return applySecurityHeaders(
       NextResponse.redirect(new URL('/dashboard', request.url)),
       nonce,
@@ -368,6 +388,24 @@ export async function middleware(request: NextRequest) {
 
   if (!user && isProtectedRoute(pathname)) {
     return redirectToLogin(request, staleAuthCookieNames, nonce, csp)
+  }
+
+  if (user && (pathname === '/platform-admin' || pathname.startsWith('/platform-admin/'))) {
+    if (
+      user.email?.trim().toLowerCase() !== PLATFORM_OWNER_EMAIL ||
+      !user.email_confirmed_at
+    ) {
+      return platformAccessResponse(403, nonce, csp)
+    }
+    const { data: isOwner, error: ownerError } = await supabase.rpc(
+      'is_platform_owner'
+    )
+    if (ownerError) return platformAccessResponse(503, nonce, csp)
+    if (isOwner !== true) return platformAccessResponse(403, nonce, csp)
+    supabaseResponse.headers.set(
+      'Cache-Control',
+      'private, no-store, max-age=0'
+    )
   }
 
   // Security headers on every rendered response

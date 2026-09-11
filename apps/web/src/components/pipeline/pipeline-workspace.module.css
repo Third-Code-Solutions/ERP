@@ -60,6 +60,141 @@
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
   gap: 1rem;
 }
+.listTableWrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-xs);
+}
+.listTable {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+.listTable th,
+.listTable td {
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: middle;
+}
+.listTable thead th {
+  background: var(--color-neutral-50);
+  color: var(--color-neutral-600);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.listTable tbody tr:last-child th,
+.listTable tbody tr:last-child td {
+  border-bottom: 0;
+}
+.listTable tbody tr:hover {
+  background: var(--color-neutral-50);
+}
+.listTable tbody th {
+  color: var(--color-neutral-900);
+  font-weight: 650;
+}
+.listTable a {
+  color: var(--color-navy-700);
+  text-decoration: none;
+}
+.listTable a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.listTable a:focus-visible {
+  outline: 2px solid var(--color-navy-700);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+.numericCell {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.actionsCell {
+  min-width: 220px;
+}
+.listActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+}
+.listOpenLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.25rem;
+  padding: 0.375rem 0.625rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+.listOwner {
+  display: block;
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.listSecondaryText,
+.listWarning {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--color-neutral-500);
+  font-size: 0.6875rem;
+  font-weight: 500;
+}
+.listWarning {
+  color: var(--color-gold-700);
+  font-weight: 650;
+}
+.stageBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.75rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.stageBadge::before {
+  width: 0.375rem;
+  height: 0.375rem;
+  margin-right: 0.375rem;
+  border-radius: 999px;
+  background: currentColor;
+  content: '';
+}
+.stagelead { color: var(--color-neutral-600); background: var(--color-neutral-50); }
+.stagesite_survey { color: #4338ca; background: #eef2ff; }
+.stagedesign { color: #6d28d9; background: #f5f3ff; }
+.stagebom_submission { color: #a16207; background: #fefce8; }
+.stagenegotiation { color: #047857; background: #ecfdf5; }
+.stagecontract { color: #0369a1; background: #f0f9ff; }
+.stagewon { color: #15803d; background: #f0fdf4; }
+.stagelost { color: #b91c1c; background: #fef2f2; }
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 @media (max-width: 767px) {
   .column {
     flex-basis: 100%;

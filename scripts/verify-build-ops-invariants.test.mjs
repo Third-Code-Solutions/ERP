@@ -38,6 +38,21 @@ test('fails a tenant-scoped table without tenant_id not null', () => {
   assert.deepEqual(violations.map(({ rule }) => rule), ['tenant-id-not-null'])
 })
 
+test('allows only the ADR-027 platform control-plane globals', () => {
+  const approved = `
+    create table public.platform_role_assignments (user_id uuid primary key);
+    create table public.platform_audit_events (id bigint primary key);
+  `
+  assert.deepEqual(scanMigrationSource(approved, 'platform-globals.sql'), [])
+
+  const unapproved =
+    'create table public.unapproved_global_control (id uuid primary key);'
+  assert.deepEqual(
+    scanMigrationSource(unapproved, 'unapproved-global.sql').map(({ rule }) => rule),
+    ['tenant-id-not-null']
+  )
+})
+
 test('ignores comments and literals while allowing bigint and scaled numeric', () => {
   const source = `
     -- create table public.fake (total_cost real);
@@ -169,6 +184,10 @@ test('CI runs the full PR suite and keeps migration checks ahead of CI-only gran
   assert.match(
     workflow,
     /database-reproducibility:\s*\n[\s\S]*?needs: \[actionlint, build-ops-invariants\]/
+  )
+  assert.match(
+    workflow,
+    /has_table_privilege\('authenticated', 'public\.projects', 'SELECT'\)[\s\S]*?not has_table_privilege\('authenticated', 'public\.projects', 'UPDATE'\)/
   )
   assert.match(
     workflow,

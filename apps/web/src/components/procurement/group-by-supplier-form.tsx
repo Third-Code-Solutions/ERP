@@ -12,9 +12,10 @@
  * a buyer needs to triage.
  */
 
-import { useRef, useState, useTransition } from 'react'
+import { useId, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createPosFromBomGrouped } from '@/app/(dashboard)/procurement/actions'
+import { useDialogFocus } from '@/components/ui/use-dialog-focus'
 
 interface SupplierGroup {
   vendor_id: string | null
@@ -49,6 +50,9 @@ export function GroupBySupplierForm({ bomId, label = 'Generate POs grouped by su
   const [pending, startTransition] = useTransition()
   const router = useRouter()
   const retryKeyRef = useRef<string | null>(null)
+  const dialogContainerRef = useRef<HTMLDivElement | null>(null)
+  const dialogTitleId = useId()
+  const dialogRef = useDialogFocus<HTMLDivElement>(open, undefined, dialogContainerRef)
 
   function handleConfirm() {
     setError(null)
@@ -95,9 +99,15 @@ export function GroupBySupplierForm({ bomId, label = 'Generate POs grouped by su
 
       {open && (
         <div
+          onKeyDown={(event) => {
+            if (event.key === 'Escape' && !pending) {
+              event.preventDefault()
+              handleClose()
+            }
+          }}
           role="dialog"
           aria-modal="true"
-          aria-label="Generate POs grouped by supplier"
+          aria-labelledby={dialogTitleId}
           style={{
             position: 'fixed',
             inset: 0,
@@ -113,6 +123,8 @@ export function GroupBySupplierForm({ bomId, label = 'Generate POs grouped by su
           }}
         >
           <div
+            ref={dialogRef}
+            tabIndex={-1}
             style={{
               background: 'white',
               borderRadius: 12,
@@ -129,7 +141,7 @@ export function GroupBySupplierForm({ bomId, label = 'Generate POs grouped by su
                 borderBottom: '1px solid var(--color-border)',
               }}
             >
-              <h2 style={{ margin: 0, fontSize: '1.0625rem', fontWeight: 700, color: 'var(--color-neutral-900)' }}>
+              <h2 id={dialogTitleId} style={{ margin: 0, fontSize: '1.0625rem', fontWeight: 700, color: 'var(--color-neutral-900)' }}>
                 {createdIds ? 'POs generated' : 'Group BOM lines by best-rate vendor'}
               </h2>
               <p style={{ margin: '4px 0 0', fontSize: '0.8125rem', color: 'var(--color-neutral-500)' }}>
@@ -159,15 +171,16 @@ export function GroupBySupplierForm({ bomId, label = 'Generate POs grouped by su
 
               {groups && groups.length > 0 ? (
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                  <caption className="sr-only">Purchase orders grouped by supplier</caption>
                   <thead>
                     <tr style={{ background: 'var(--color-neutral-50)', borderBottom: '1px solid var(--color-border)' }}>
-                      <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: 'var(--color-neutral-600)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      <th scope="col" style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: 'var(--color-neutral-600)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                         Vendor
                       </th>
-                      <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: 'var(--color-neutral-600)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      <th scope="col" style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: 'var(--color-neutral-600)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                         Lines
                       </th>
-                      <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: 'var(--color-neutral-600)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      <th scope="col" style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: 'var(--color-neutral-600)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                         Subtotal
                       </th>
                     </tr>
