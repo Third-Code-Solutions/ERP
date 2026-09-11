@@ -29,6 +29,7 @@ import {
   type AccountOption,
   type ProjectOption,
 } from './add-opportunity-with-account-form'
+import { PipelineListTable } from './pipeline-list-table'
 
 interface PipelineBoardProps {
   cards: KanbanCardData[]
@@ -386,23 +387,12 @@ export function PipelineBoard({
           <p>Try another search or reset the filters.</p>
         </div>
       )}
-      {listView && (
-        <div className={styles.list}>
-          {filteredCards.map((card) => (
-            <div key={card.id}>
-              <span className={workspace.badge}>
-                {STAGE_LABELS[STAGE_LEGACY_MAP[card.stage]]}
-              </span>
-              <OpportunityKanbanCard
-                card={card}
-                canAdvance={canAdvanceOpportunity}
-                onDragStart={() => {}}
-                onDragEnd={() => {}}
-              />
-            </div>
-          ))}
-        </div>
-      )}
+      {listView ? (
+        <PipelineListTable
+          cards={filteredCards}
+          canAdvance={canAdvanceOpportunity}
+        />
+      ) : null}
       {banner && (
         <div
           role="alert"
