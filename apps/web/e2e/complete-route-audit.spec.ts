@@ -145,8 +145,8 @@ test('inventory every page with explicit live render and guard evidence', async 
     console.log(JSON.stringify({ phase: 'finish', revision: after.revision, pages: ledger.length }))
     await testInfo.attach('complete-route-audit', { body: JSON.stringify({ baseUrl, before, after, ledger, lookups }, null, 2), contentType: 'application/json' })
     await auth.cleanup()
-    await authenticatedPage?.close()
-    await anonymousPage?.close()
+    // Browser-context close also closes the current route pages and any
+    // page-scoped realtime connections that remain during teardown.
     await authenticatedContext.close()
     await anonymousContext.close()
   }
