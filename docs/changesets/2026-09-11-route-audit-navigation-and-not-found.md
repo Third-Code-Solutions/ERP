@@ -5,6 +5,8 @@
 - The authenticated route inventory now treats the document `load` event as
   the navigation boundary, so a healthy rendered route cannot fail solely
   because a long-lived realtime or analytics request prevents `networkidle`.
+  It then waits for meaningful streamed body content before evaluating the
+  response, so load can remain fast without racing Next.js rendering.
 - Invalid dynamic routes are classified only after their user-visible guard
   response is verified; weekly reports now have a print-shell not-found
   boundary that keeps tenant-safe links and recovery actions clear.
