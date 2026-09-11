@@ -37,6 +37,9 @@ test('inventory every page with explicit live render and guard evidence', async 
   const authenticated = await browser.newContext()
   const anonymous = await browser.newContext()
   const auth = await authenticateRole(authenticated, baseUrl, 'admin')
+  const authenticatedStorage = await authenticated.storageState()
+  let authenticatedContext = authenticated
+  let anonymousContext = anonymous
   const health = z.object({ revision: z.string().nullable() })
   const before = health.parse(await (await fetch(`${baseUrl}/api/health`)).json())
   let finalRevision = before.revision
@@ -46,6 +49,36 @@ test('inventory every page with explicit live render and guard evidence', async 
   const lookups: { table: string; status: number; available: boolean }[] = []
   let authenticatedPage: Page | null = null
   let anonymousPage: Page | null = null
+  let authenticatedRoutesInContext = 0
+  let anonymousRoutesInContext = 0
+  // A full audit visits 139 templates. Rotate each auth boundary after a
+  // small, bounded batch so page-scoped fetches and realtime clients cannot
+  // accumulate across the long sequence. The controlled session is restored
+  // from the same storage state, so every protected route remains authenticated.
+  const ROUTES_PER_CONTEXT = 8
+
+  async function routePage(publicPage: boolean): Promise<Page> {
+    if (publicPage) {
+      if (anonymousRoutesInContext > 0 && anonymousRoutesInContext % ROUTES_PER_CONTEXT === 0) {
+        await anonymousContext.close()
+        anonymousContext = await browser.newContext()
+        anonymousPage = await anonymousContext.newPage()
+      }
+      anonymousRoutesInContext += 1
+      anonymousPage ??= await anonymousContext.newPage()
+      return anonymousPage
+    }
+
+    if (authenticatedRoutesInContext > 0 && authenticatedRoutesInContext % ROUTES_PER_CONTEXT === 0) {
+      await authenticatedContext.close()
+      authenticatedContext = await browser.newContext({ storageState: authenticatedStorage })
+      authenticatedPage = await authenticatedContext.newPage()
+    }
+    authenticatedRoutesInContext += 1
+    authenticatedPage ??= await authenticatedContext.newPage()
+    return authenticatedPage
+  }
+
   async function recordId(table: string): Promise<string | null> {
     if (cache.has(table)) return cache.get(table) ?? null
     const response = await fetch(`${auth.supabaseUrl}/rest/v1/${table}?select=id&tenant_id=eq.${auth.tenantId}&limit=1`, {
@@ -58,13 +91,6 @@ test('inventory every page with explicit live render and guard evidence', async 
     return id
   }
   try {
-    // Reuse one page per auth boundary so the long audit keeps a bounded
-    // number of browser/realtime clients. Full navigations still reset the
-    // document and route state, while the listeners below are attached and
-    // detached per route for isolation.
-    authenticatedPage = await authenticated.newPage()
-    anonymousPage = await anonymous.newPage()
-
     for (const template of templates) {
       const publicPage = template === '/' || template.startsWith('/auth/') || template.startsWith('/portal/')
       const dynamic = template.includes('[')
@@ -76,8 +102,7 @@ test('inventory every page with explicit live render and guard evidence', async 
         mode = id ? 'record-render' : 'invalid-parameter-guard; positive case NOT RUN'
         path = template.replace(/\[[^\]]+\]/g, id ?? 'route-audit-invalid')
       }
-      const page = publicPage ? anonymousPage : authenticatedPage
-      if (!page) throw new Error('Route-audit page was not initialized')
+      const page = await routePage(publicPage)
       let consoleErrors = 0
       let pageErrors = 0
       const onConsole = (message: ConsoleMessage) => {
@@ -119,11 +144,11 @@ test('inventory every page with explicit live render and guard evidence', async 
     finalRevision = after.revision
     console.log(JSON.stringify({ phase: 'finish', revision: after.revision, pages: ledger.length }))
     await testInfo.attach('complete-route-audit', { body: JSON.stringify({ baseUrl, before, after, ledger, lookups }, null, 2), contentType: 'application/json' })
-    await authenticatedPage?.close()
-    await anonymousPage?.close()
     await auth.cleanup()
-    await authenticated.close()
-    await anonymous.close()
+    // Browser-context close also closes the current route pages and any
+    // page-scoped realtime connections that remain during teardown.
+    await authenticatedContext.close()
+    await anonymousContext.close()
   }
   expect(finalRevision, 'Deployment changed during the audit; rerun against a stable revision').toBe(before.revision)
   expect(ledger.filter((row) => row.result.startsWith('FAILED'))).toEqual([])
