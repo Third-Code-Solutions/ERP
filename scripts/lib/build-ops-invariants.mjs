@@ -17,7 +17,15 @@ const numericTypePattern = /\b(?:numeric|decimal)\b/i
 const scaledNumericPattern = /\b(?:numeric|decimal)\s*\(\s*\d+\s*,\s*\d+\s*\)/i
 const tableConstraintPattern =
   /^(?:constraint\b|primary\s+key\b|foreign\s+key\b|unique\b|check\b|exclude\b|like\b)/i
-const globalTableNames = new Set(['tenants'])
+// ADR-027 approves only these server-owned platform-control tables as global.
+// They deliberately omit tenant_id because they describe cross-tenant authority
+// or evidence; force-RLS, revoked browser privileges, and server-only guards
+// remain mandatory for every one of them.
+const globalTableNames = new Set([
+  'tenants',
+  'platform_role_assignments',
+  'platform_audit_events',
+])
 
 function maskSql(source) {
   let output = ''
