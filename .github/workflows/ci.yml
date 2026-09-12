@@ -269,6 +269,18 @@ jobs:
           node scripts/assert-vitest-no-skips.mjs
           tmp/database-reproducibility/api-integration-vitest.json
           "API integration tests"
+      - name: Run Web database-backed workflows
+        run: >-
+          pnpm --filter @third-code-erp/web exec vitest run
+          src/lib/management-dashboard.integration.test.ts
+          'src/app/(dashboard)/crm/opportunities/[id]/proposal/change-request-workflow.integration.test.ts'
+          --reporter=json
+          --outputFile="$GITHUB_WORKSPACE/tmp/database-reproducibility/web-integration-vitest.json"
+      - name: Assert every Web database workflow executed
+        run: >-
+          node scripts/assert-vitest-no-skips.mjs
+          tmp/database-reproducibility/web-integration-vitest.json
+          "Web database workflow tests"
       - name: Build and smoke the Nest production container
         shell: bash
         run: |
@@ -398,7 +410,7 @@ jobs:
           sudo rm -f /etc/apt/sources.list.d/google-chrome.list \
             /etc/apt/sources.list.d/google-chrome.sources
           pnpm exec playwright install --with-deps chromium
-      - name: Run credential-free claim document browser interaction
+      - name: Run credential-free claim and KYC document browser interactions
         shell: bash
         run: |
           set -euo pipefail
@@ -406,6 +418,7 @@ jobs:
           mkdir -p "$(dirname "$report_path")"
           pnpm --dir apps/web exec playwright test \
             e2e/claim-document-attach.spec.ts \
+            e2e/kyc-artifact-workflow.spec.ts \
             --project=chromium \
             --workers=1 \
             --retries=0 \
@@ -413,15 +426,15 @@ jobs:
             --global-timeout=300000 \
             --reporter=json > "$report_path"
           node scripts/assert-playwright-no-skips.mjs \
-            "$report_path" "claim document browser interaction"
-      - name: Collect claim document browser artifacts
+            "$report_path" "claim and KYC document browser interactions"
+      - name: Collect claim and KYC document browser artifacts
         if: always()
         shell: bash
         run: |
           set -u
           artifact_dir="$GITHUB_WORKSPACE/tmp/claim-document-browser"
           mkdir -p "$artifact_dir"
-          for screenshot in /tmp/erp-claim-document-*.png; do
+          for screenshot in /tmp/erp-claim-document-*.png /tmp/erp-kyc-artifact-*.png; do
             if [ -f "$screenshot" ]; then
               cp "$screenshot" "$artifact_dir/"
             fi
