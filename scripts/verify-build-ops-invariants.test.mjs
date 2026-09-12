@@ -195,7 +195,7 @@ test('CI runs the full PR suite and keeps migration checks ahead of CI-only gran
   )
 })
 
-test('CI runs claim and KYC document browser interactions without production credentials', async () => {
+test('CI runs document interactions and smoke readiness regressions without production credentials', async () => {
   const workflow = await readFile(resolve('.github/workflows/ci.yml'), 'utf8')
   const start = workflow.indexOf('  claim-document-browser:')
   const end = workflow.indexOf('\n  e2e:', start)
@@ -212,7 +212,8 @@ test('CI runs claim and KYC document browser interactions without production cre
   assert.match(job, /--retries=0/)
   assert.match(job, /--global-timeout=300000/)
   assert.match(job, /e2e\/kyc-artifact-workflow\.spec\.ts/)
-  assert.match(job, /assert-playwright-no-skips\.mjs[\s\S]*?claim and KYC document browser interactions/)
+  assert.match(job, /e2e\/authenticated-smoke-readiness\.spec\.ts/)
+  assert.match(job, /assert-playwright-no-skips\.mjs[\s\S]*?credential-free browser interactions/)
   assert.match(job, /\/tmp\/erp-claim-document-\*\.png/)
   assert.match(job, /\/tmp\/erp-kyc-artifact-\*\.png/)
   assert.match(job, /actions\/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02/)
