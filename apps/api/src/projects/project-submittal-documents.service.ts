@@ -12,6 +12,7 @@ import {
   projectSubmittalDocuments,
   projectSubmittals,
   projects,
+  tenants,
   users,
 } from '@third-code-erp/database/schema'
 import {
@@ -144,7 +145,19 @@ export class ProjectSubmittalDocumentsService {
     principal: ErpPrincipal,
   ): Promise<ProjectDocumentListResult> {
     const filters = projectDocumentListQuerySchema.parse(query)
-    await this.requireMembership(principal, 'project.submittal.read')
+    const [membership] = await this.database.client
+      .select({ role: users.role })
+      .from(users)
+      .innerJoin(tenants, eq(tenants.id, users.tenant_id))
+      .where(and(
+        eq(users.id, principal.userId),
+        eq(users.tenant_id, principal.tenantId),
+        eq(users.account_status, 'active'),
+        eq(tenants.status, 'active'),
+      ))
+      .limit(1)
+    const role = z.enum(ERP_ROLES).safeParse(membership?.role)
+    if (!role.success || !roleHasCapability(role.data, 'project.submittal.read')) throw new ForbiddenException()
     const [project] = await this.database.client
       .select({ id: projects.id })
       .from(projects)
