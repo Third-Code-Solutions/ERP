@@ -399,6 +399,9 @@ import {
   type ProjectSubmittalDocumentListResult,
   type ProjectSubmittalDocumentUnlinkResult,
   projectScheduleListQuerySchema,
+  projectScheduleDependencyQuerySchema,
+  projectScheduleDependencyResultSchema,
+  type ProjectScheduleDependencyResult,
   legacyProjectSchedulePreviewSchema,
   importLegacyProjectScheduleCommandSchema,
   importLegacyProjectScheduleResultSchema,
@@ -9414,6 +9417,38 @@ export async function getProjectScheduleThroughCoreApi(
     return parsed.success ? { ok: true, data: parsed.data } : { ok: false, status: 503, error: 'ERP Core API returned an invalid schedule result.' }
   } catch {
     return { ok: false, status: 503, error: 'ERP Core API is unavailable. Project schedule was not loaded.' }
+  }
+}
+
+export async function getProjectScheduleDependenciesThroughCoreApi(projectId: unknown, query: unknown): Promise<CoreResult<ProjectScheduleDependencyResult>> {
+  const project = z.string().uuid().safeParse(projectId)
+  const input = projectScheduleDependencyQuerySchema.safeParse(query)
+  if (!project.success || !input.success) return { ok: false, status: 400, error: 'Invalid schedule dependency filters.' }
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(input.data)) if (value !== undefined) params.set(key, String(value))
+  try {
+    const response = await fetch(`${access.baseUrl}/v1/projects/${project.data}/schedule/dependency-options?${params.toString()}`, {
+      method: 'GET', headers: { authorization: `Bearer ${access.accessToken}`, 'x-request-id': randomUUID() },
+      cache: 'no-store', signal: AbortSignal.timeout(10_000),
+    })
+    const body: unknown = await response.json().catch(() => null)
+    if (!response.ok) return { ok: false, status: response.status, error: z.object({ message: z.string() }).safeParse(body).data?.message ?? 'Schedule task choices are unavailable.' }
+    const result = projectScheduleDependencyResultSchema.safeParse(body)
+    if (
+      !result.success ||
+      result.data.projectId !== project.data ||
+      result.data.kind !== input.data.kind || result.data.level !== input.data.level ||
+      result.data.page !== input.data.page || result.data.limit !== input.data.limit ||
+      result.data.rows.some((row) => row.projectId !== project.data || row.id === input.data.excludeTaskId) ||
+      (result.data.selected && (result.data.selected.projectId !== project.data || result.data.selected.id !== input.data.selectedTaskId))
+    ) {
+      return { ok: false, status: 503, error: 'ERP Core API returned invalid schedule task choices.' }
+    }
+    return { ok: true, data: result.data }
+  } catch {
+    return { ok: false, status: 503, error: 'Schedule task choices could not be loaded. Retry without changing your selection.' }
   }
 }
 

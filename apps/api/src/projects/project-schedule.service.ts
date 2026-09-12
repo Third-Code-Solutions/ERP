@@ -17,6 +17,9 @@ import {
   type LegacyProjectSchedulePreview,
   type ImportLegacyProjectScheduleCommand,
   type ImportLegacyProjectScheduleResult,
+  projectScheduleDependencyOptionSchema,
+  projectScheduleDependencyQuerySchema,
+  projectScheduleDependencyResultSchema,
   projectScheduleListQuerySchema,
   projectScheduleListResultSchema,
   projectScheduleMutationResultSchema,
@@ -27,6 +30,9 @@ import {
   type CreateProjectScheduleTaskCommand,
   type ProjectScheduleListQuery,
   type ProjectScheduleListResult,
+  type ProjectScheduleDependencyOption,
+  type ProjectScheduleDependencyQuery,
+  type ProjectScheduleDependencyResult,
   type ProjectScheduleMutationResult,
   type ProjectScheduleTaskRow,
   type ProjectScheduleTaskStatusCommand,
@@ -67,6 +73,14 @@ const rowSelection = {
   updatedAt: projectScheduleTasks.updated_at,
 }
 
+const dependencyOptionSelection = {
+  id: projectScheduleTasks.id,
+  projectId: projectScheduleTasks.project_id,
+  level: projectScheduleTasks.level,
+  taskCode: projectScheduleTasks.task_code,
+  name: projectScheduleTasks.name,
+}
+
 type ScheduleTaskDbRow = {
   id: string
   projectId: string
@@ -95,7 +109,8 @@ type ScheduleTaskDbRow = {
   updatedAt: Date
 }
 
-const levelOrder: Record<'l1' | 'l2' | 'l3' | 'l4', number> = { l1: 1, l2: 2, l3: 3, l4: 4 }
+const scheduleLevels = ['l1', 'l2', 'l3', 'l4'] as const
+const levelOrder: Record<(typeof scheduleLevels)[number], number> = { l1: 1, l2: 2, l3: 3, l4: 4 }
 const transitions: Record<string, readonly string[]> = {
   planned: ['in_progress', 'blocked', 'cancelled'],
   in_progress: ['planned', 'blocked', 'completed', 'cancelled'],
@@ -126,6 +141,10 @@ function serialize(row: ScheduleTaskDbRow): ProjectScheduleTaskRow {
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   })
+}
+
+function serializeDependencyOption(row: ProjectScheduleDependencyOption): ProjectScheduleDependencyOption {
+  return projectScheduleDependencyOptionSchema.parse(row)
 }
 
 function sameEditable(row: ScheduleTaskDbRow, input: UpdateProjectScheduleTaskCommand): boolean {
@@ -174,6 +193,80 @@ export class ProjectScheduleService {
       total,
       page: filters.page,
       limit: filters.limit,
+      totalPages: Math.max(1, Math.ceil(total / filters.limit)),
+    })
+  }
+
+  async dependencyOptions(projectId: string, query: ProjectScheduleDependencyQuery, principal: ErpPrincipal): Promise<ProjectScheduleDependencyResult> {
+    const filters = projectScheduleDependencyQuerySchema.parse(query)
+    const actor = await this.requireMembership(principal, 'project.read')
+    await this.assertProject(projectId, actor)
+
+    const eligibleLevels = filters.kind === 'parent'
+      ? scheduleLevels.filter((candidate) => levelOrder[candidate] < levelOrder[filters.level])
+      : [filters.level]
+    const levelPredicate = eligibleLevels.length > 0
+      ? inArray(projectScheduleTasks.level, eligibleLevels)
+      : sql`false`
+    const searchPredicate = filters.search
+      ? sql`(
+          strpos(lower(${projectScheduleTasks.task_code}), lower(${filters.search})) > 0
+          or strpos(lower(${projectScheduleTasks.name}), lower(${filters.search})) > 0
+        )`
+      : undefined
+    const predicate = and(
+      eq(projectScheduleTasks.tenant_id, actor.tenantId),
+      eq(projectScheduleTasks.project_id, projectId),
+      levelPredicate,
+      filters.excludeTaskId ? sql`${projectScheduleTasks.id} <> ${filters.excludeTaskId}` : undefined,
+      searchPredicate,
+    )
+    const selectedPredicate = filters.selectedTaskId
+      ? and(
+          eq(projectScheduleTasks.id, filters.selectedTaskId),
+          eq(projectScheduleTasks.tenant_id, actor.tenantId),
+          eq(projectScheduleTasks.project_id, projectId),
+          filters.excludeTaskId ? sql`${projectScheduleTasks.id} <> ${filters.excludeTaskId}` : undefined,
+        )
+      : undefined
+
+    const [rows, totals, selectedRows] = await Promise.all([
+      this.database.client
+        .select(dependencyOptionSelection)
+        .from(projectScheduleTasks)
+        .where(predicate)
+        .orderBy(
+          asc(projectScheduleTasks.level),
+          asc(projectScheduleTasks.task_code),
+          asc(projectScheduleTasks.name),
+          asc(projectScheduleTasks.id),
+        )
+        .limit(filters.limit)
+        .offset((filters.page - 1) * filters.limit),
+      this.database.client
+        .select({ total: count() })
+        .from(projectScheduleTasks)
+        .where(predicate),
+      filters.selectedTaskId
+        ? this.database.client
+            .select(dependencyOptionSelection)
+            .from(projectScheduleTasks)
+            .where(selectedPredicate)
+            .limit(1)
+        : Promise.resolve([]),
+    ])
+
+    const total = Number(totals[0]?.total ?? 0)
+    const selectedRow = selectedRows[0]
+    return projectScheduleDependencyResultSchema.parse({
+      projectId,
+      kind: filters.kind,
+      level: filters.level,
+      rows: rows.map((row) => serializeDependencyOption(row)),
+      selected: selectedRow ? serializeDependencyOption(selectedRow) : null,
+      page: filters.page,
+      limit: filters.limit,
+      total,
       totalPages: Math.max(1, Math.ceil(total / filters.limit)),
     })
   }

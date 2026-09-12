@@ -3,11 +3,14 @@ import {
   createProjectScheduleTaskCommandSchema,
   importLegacyProjectScheduleCommandSchema,
   legacyProjectScheduleTasksSchema,
+  projectScheduleDependencyQuerySchema,
+  projectScheduleDependencyResultSchema,
   projectScheduleListQuerySchema,
   projectScheduleTaskStatusCommandSchema,
 } from './project-schedule'
 
 const PROJECT_ID = '33333333-3333-4333-8333-333333333333'
+const TASK_ID = '44444444-4444-4444-8444-444444444444'
 const REQUEST_ID = '55555555-5555-4555-8555-555555555555'
 
 const base = {
@@ -41,6 +44,26 @@ describe('project schedule contracts', () => {
   })
   it('defaults bounded list filters', () => {
     expect(projectScheduleListQuerySchema.parse({})).toEqual({ page: 1, limit: 50 })
+  })
+
+  it('defines a strict, bounded dependency lookup contract', () => {
+    expect(projectScheduleDependencyQuerySchema.parse({ kind: 'parent', level: 'l3' })).toEqual({ kind: 'parent', level: 'l3', page: 1, limit: 25 })
+    expect(projectScheduleDependencyQuerySchema.parse({ kind: 'predecessor', level: 'l2', excludeTaskId: REQUEST_ID, selectedTaskId: PROJECT_ID, search: '  MEP & 10%  ', page: '2', limit: '100' })).toEqual({ kind: 'predecessor', level: 'l2', excludeTaskId: REQUEST_ID, selectedTaskId: PROJECT_ID, search: 'MEP & 10%', page: 2, limit: 100 })
+    for (const invalid of [
+      {},
+      { kind: 'parent' },
+      { kind: 'parent', level: 'l5' },
+      { kind: 'parent', level: 'l2', limit: 101 },
+      { kind: 'parent', level: 'l2', page: 0 },
+      { kind: 'parent', level: 'l2', search: 'x'.repeat(201) },
+      { kind: 'parent', level: 'l2', tenantId: PROJECT_ID },
+    ]) expect(projectScheduleDependencyQuerySchema.safeParse(invalid).success).toBe(false)
+  })
+
+  it('keeps selected dependency options separate from paged rows', () => {
+    const option = { id: TASK_ID, projectId: PROJECT_ID, level: 'l1', taskCode: 'L1-001', name: 'Master schedule' }
+    expect(projectScheduleDependencyResultSchema.parse({ projectId: PROJECT_ID, kind: 'parent', level: 'l2', rows: [], selected: { ...option, level: 'l4' }, page: 3, limit: 25, total: 0, totalPages: 1 })).toMatchObject({ selected: { id: TASK_ID, level: 'l4' } })
+    expect(projectScheduleDependencyResultSchema.safeParse({ projectId: PROJECT_ID, kind: 'parent', level: 'l2', rows: [], selected: null, page: 1, limit: 25, total: 0, totalPages: 0 }).success).toBe(false)
   })
 
   it('validates normalized task dates and commitment constraints', () => {

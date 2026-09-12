@@ -26,6 +26,15 @@ describe('ProjectScheduleController', () => {
     expect(service.create).not.toHaveBeenCalled()
   })
 
+  it('validates and forwards dependency option queries with bounded defaults', async () => {
+    const service = { dependencyOptions: vi.fn().mockResolvedValue({}) } as unknown as ProjectScheduleService
+    const controller = new ProjectScheduleController(service)
+    expect(() => controller.dependencyOptions(PROJECT_ID, { kind: 'parent' }, PRINCIPAL)).toThrow(BadRequestException)
+    expect(service.dependencyOptions).not.toHaveBeenCalled()
+    await controller.dependencyOptions(PROJECT_ID, { kind: 'parent', level: 'l2' }, PRINCIPAL)
+    expect(service.dependencyOptions).toHaveBeenCalledWith(PROJECT_ID, { kind: 'parent', level: 'l2', page: 1, limit: 25 }, PRINCIPAL)
+  })
+
   it('forwards list, create, edit, and status operations', async () => {
     const service = { list: vi.fn().mockResolvedValue({}), create: vi.fn().mockResolvedValue({}), update: vi.fn().mockResolvedValue({}), updateStatus: vi.fn().mockResolvedValue({}) } as unknown as ProjectScheduleService
     const controller = new ProjectScheduleController(service)

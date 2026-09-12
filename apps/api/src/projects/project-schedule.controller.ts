@@ -17,6 +17,8 @@ import {
   importLegacyProjectScheduleCommandSchema,
   type ImportLegacyProjectScheduleResult,
   type LegacyProjectSchedulePreview,
+  projectScheduleDependencyQuerySchema,
+  type ProjectScheduleDependencyResult,
   projectScheduleListQuerySchema,
   projectScheduleTaskStatusCommandSchema,
   updateProjectScheduleTaskCommandSchema,
@@ -53,6 +55,14 @@ export class ProjectScheduleController {
     const parsed = projectScheduleListQuerySchema.safeParse(query)
     if (!parsed.success) throw new BadRequestException('Invalid schedule filters')
     return this.schedule.list(projectId, parsed.data, principal)
+  }
+
+  @Get(':projectId/schedule/dependency-options')
+  @RequireCapabilities('project.read')
+  dependencyOptions(@Param('projectId', new ParseUUIDPipe()) projectId: string, @Query() query: unknown, @CurrentPrincipal() principal: ErpPrincipal): Promise<ProjectScheduleDependencyResult> {
+    const parsed = projectScheduleDependencyQuerySchema.safeParse(query)
+    if (!parsed.success) throw new BadRequestException('Invalid schedule dependency filters')
+    return this.schedule.dependencyOptions(projectId, parsed.data, principal)
   }
 
   @Post(':projectId/schedule/tasks')

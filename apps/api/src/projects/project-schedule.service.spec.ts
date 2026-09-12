@@ -27,7 +27,16 @@ function query(result: unknown[]) {
 }
 
 function harness(selectResults: unknown[], options?: { insertResult?: unknown[]; updateResult?: unknown[] }) {
-  const select = vi.fn(() => query((selectResults.shift() as unknown[] | undefined) ?? []))
+  const predicates: SQL[] = []
+  const select = vi.fn(() => {
+    const builder = query((selectResults.shift() as unknown[] | undefined) ?? [])
+    const originalWhere = builder.where as (predicate: SQL) => unknown
+    builder.where = vi.fn((predicate: SQL) => {
+      predicates.push(predicate)
+      return originalWhere(predicate)
+    })
+    return builder
+  })
   const insertQuery: Record<string, unknown> = { values: vi.fn().mockReturnThis(), returning: vi.fn().mockResolvedValue(options?.insertResult ?? []) }
   const updateQuery: Record<string, unknown> = { set: vi.fn().mockReturnThis(), where: vi.fn().mockReturnThis(), returning: vi.fn().mockResolvedValue(options?.updateResult ?? []) }
   const insert = vi.fn().mockReturnValue(insertQuery); const update = vi.fn().mockReturnValue(updateQuery)
@@ -35,7 +44,7 @@ function harness(selectResults: unknown[], options?: { insertResult?: unknown[];
   const transaction = vi.fn(async (callback: (tx: typeof transactionClient) => Promise<unknown>) => callback(transactionClient))
   const database = { client: { select, transaction } } as unknown as DatabaseService
   const audit = { stampActor: vi.fn().mockResolvedValue(undefined), writeSemantic: vi.fn().mockResolvedValue(undefined) } as unknown as AuditService
-  return { service: new ProjectScheduleService(database, audit), audit, insert, update }
+  return { service: new ProjectScheduleService(database, audit), audit, insert, update, predicates, select }
 }
 
 const membership = [{ tenantId: PRINCIPAL.tenantId, role: PRINCIPAL.role, email: PRINCIPAL.email }]
@@ -168,6 +177,49 @@ describe('legacy L1 schedule import', () => {
 })
 
 describe('ProjectScheduleService', () => {
+  it('returns eligible parent options with a separately resolved incompatible selected task', async () => {
+    const parentRows = [
+      { id: TASK_ID, projectId: PROJECT_ID, level: 'l1', taskCode: 'L1-001', name: 'Master schedule' },
+      { id: REQUEST_ID, projectId: PROJECT_ID, level: 'l2', taskCode: 'L2-001', name: 'Electrical package' },
+    ]
+    const selected = { id: '66666666-6666-4666-8666-666666666666', projectId: PROJECT_ID, level: 'l4', taskCode: 'L4-999', name: 'Existing detail task' }
+    const probe = harness([membership, project, parentRows, [{ total: 2 }], [selected]])
+    await expect(probe.service.dependencyOptions(PROJECT_ID, {
+      kind: 'parent', level: 'l3', selectedTaskId: selected.id, search: 'schedule', page: 2, limit: 1,
+    }, PRINCIPAL)).resolves.toEqual({
+      projectId: PROJECT_ID,
+      kind: 'parent',
+      level: 'l3',
+      rows: parentRows,
+      selected,
+      page: 2,
+      limit: 1,
+      total: 2,
+      totalPages: 2,
+    })
+    expect(probe.predicates).toHaveLength(5)
+    const rowsSql = new PgDialect().sqlToQuery(probe.predicates[2]!)
+    expect(rowsSql.sql).toContain('strpos(lower')
+    expect(rowsSql.sql).toContain('"project_schedule_tasks"."tenant_id"')
+    expect(rowsSql.params).toContain('schedule')
+  })
+
+  it('keeps predecessor options at the requested level, excludes self, and returns no selected self', async () => {
+    const option = { id: TASK_ID, projectId: PROJECT_ID, level: 'l2', taskCode: 'L2-001', name: 'Same-level predecessor' }
+    const probe = harness([membership, project, [option], [{ total: 1 }], []])
+    await expect(probe.service.dependencyOptions(PROJECT_ID, {
+      kind: 'predecessor', level: 'l2', excludeTaskId: REQUEST_ID, selectedTaskId: REQUEST_ID, page: 1, limit: 25,
+    }, PRINCIPAL)).resolves.toMatchObject({ rows: [option], selected: null, total: 1, totalPages: 1 })
+    const selectedSql = new PgDialect().sqlToQuery(probe.predicates[4]!)
+    expect(selectedSql.sql).toContain('"project_schedule_tasks"."id" = $1')
+    expect(selectedSql.sql).toContain('"project_schedule_tasks"."id" <> $4')
+  })
+
+  it('fails closed for revoked membership and an unauthorized project', async () => {
+    await expect(harness([[]]).service.dependencyOptions(PROJECT_ID, { kind: 'parent', level: 'l2', page: 1, limit: 25 }, PRINCIPAL)).rejects.toBeInstanceOf(ForbiddenException)
+    await expect(harness([membership, []]).service.dependencyOptions(PROJECT_ID, { kind: 'parent', level: 'l2', page: 1, limit: 25 }, PRINCIPAL)).rejects.toBeInstanceOf(NotFoundException)
+  })
+
   it('creates normalized tasks idempotently and audits the source', async () => {
     const probe = harness([membership, project, [], [], [task()] ], { insertResult: [task()] })
     await expect(probe.service.create({ projectId: PROJECT_ID, clientRequestId: REQUEST_ID, level: 'l1', taskCode: 'A-001', name: 'Mobilize', description: 'Mobilize site.', parentTaskId: null, predecessorTaskId: null, plannedStart: '2026-09-10', plannedFinish: '2026-09-12', plannedLaborMinutes: 120, ownerId: null, commitmentWeek: null, commitmentStatus: 'not_set', constraintReason: '' }, PRINCIPAL)).resolves.toMatchObject({ created: true, task: { taskCode: 'A-001' } })
