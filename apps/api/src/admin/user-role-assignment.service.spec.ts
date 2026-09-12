@@ -6,6 +6,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common'
 import { describe, expect, it, vi } from 'vitest'
+import { PgDialect } from 'drizzle-orm/pg-core'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import type { AuditService } from '../audit/audit.service'
 import type { DatabaseService } from '../database/database.service'
@@ -21,17 +22,20 @@ const TARGET_ID = '33333333-3333-4333-8333-333333333333'
 const UPDATED_AT = new Date('2026-08-07T00:00:00.000Z')
 
 function selectQuery(rows: unknown[]) {
-  const rowLock = vi.fn().mockResolvedValue(rows)
+  const rowLock = vi.fn().mockResolvedValue(rows.map(row =>
+    row && typeof row === 'object' && 'email' in row
+      ? { accountStatus: 'active', ...row } : row,
+  ))
   const limit = vi.fn().mockReturnValue({ for: rowLock })
   const where = vi.fn().mockReturnValue({ limit, for: rowLock })
   const from = vi.fn().mockReturnValue({ where })
-  return { from }
+  return { from, rowLock }
 }
 
 function enabledService(
   transactionClient: Record<string, unknown>,
   actorRole: ErpPrincipal['role'] = PRINCIPAL.role,
-  audit = { stampActor: vi.fn(), writeSemantic: vi.fn() }
+  audit = { stampActor: vi.fn(), writeSemantic: vi.fn(), tryLockTenantChain: vi.fn().mockResolvedValue(true) }
 ) {
   const config = {
     get: vi.fn((key: string) =>
@@ -40,8 +44,9 @@ function enabledService(
         : [PRINCIPAL.tenantId]
     ),
   }
+  const execute = vi.fn().mockResolvedValue([])
   const transaction = vi.fn(async (callback: (tx: unknown) => unknown) =>
-    callback(transactionClient)
+    callback({ execute, ...transactionClient })
   )
   const service = new UserRoleAssignmentService(
     config as never,
@@ -51,6 +56,7 @@ function enabledService(
   return {
     service,
     transaction,
+    execute,
     audit,
     principal: { ...PRINCIPAL, role: actorRole },
   }
@@ -73,6 +79,110 @@ function requestInsert(request: ReturnType<typeof processingRequest>) {
 }
 
 describe('UserRoleAssignmentService', () => {
+  describe.each(['55P03', '40P01'])('PostgreSQL %s', (code) => {
+  it.each(['actor', 'tenant', 'target'] as const)('maps nested lock conflict at the %s admission to a retryable conflict', async (stage) => {
+    const actor = selectQuery([{ tenantId: PRINCIPAL.tenantId, role: 'admin', email: PRINCIPAL.email }])
+    const tenant = selectQuery([{ status: 'active' }])
+    const target = selectQuery([])
+    const request = processingRequest()
+    const admissions = { actor, tenant, target }
+    admissions[stage].rowLock.mockRejectedValue({ cause: { cause: { code } } })
+    const transactionClient = {
+      select: vi.fn().mockReturnValueOnce(actor).mockReturnValueOnce(tenant)
+        .mockReturnValueOnce(selectQuery([request])).mockReturnValueOnce(target),
+      insert: vi.fn().mockReturnValue({ values: requestInsert(request) }),
+      update: vi.fn(),
+    }
+    const { service, audit, execute } = enabledService(transactionClient)
+    await expect(service.assign(TARGET_ID, { expectedRole: 'viewer', role: 'pm' }, PRINCIPAL, 'busy'))
+      .rejects.toThrow('Retry with the same request ID')
+    expect(admissions[stage].rowLock).toHaveBeenCalledWith(stage === 'tenant' ? 'share' : 'update', { noWait: true })
+    expect(transactionClient.update).not.toHaveBeenCalled()
+    expect(audit.writeSemantic).not.toHaveBeenCalled()
+    expect(new PgDialect().sqlToQuery(execute.mock.calls[0]![0]).sql).toBe("select set_config('lock_timeout', '1s', true)")
+    expect(execute.mock.invocationCallOrder[0]).toBeLessThan(actor.rowLock.mock.invocationCallOrder[0]!)
+    if (stage === 'target') {
+      expect(audit.tryLockTenantChain.mock.invocationCallOrder[0]).toBeLessThan(transactionClient.insert.mock.invocationCallOrder[0]!)
+    } else {
+      expect(transactionClient.insert).not.toHaveBeenCalled()
+    }
+  })
+
+  })
+
+  it('rejects busy audit admission before creating an idempotency row', async () => {
+    const transactionClient = {
+      select: vi.fn().mockReturnValueOnce(selectQuery([{ tenantId: PRINCIPAL.tenantId, role: 'admin', email: PRINCIPAL.email }]))
+        .mockReturnValueOnce(selectQuery([{ status: 'active' }])),
+      insert: vi.fn(), update: vi.fn(),
+    }
+    const { service, audit } = enabledService(transactionClient)
+    audit.tryLockTenantChain.mockResolvedValue(false)
+    await expect(service.assign(TARGET_ID, { expectedRole: 'viewer', role: 'pm' }, PRINCIPAL, 'audit-busy'))
+      .rejects.toBeInstanceOf(ConflictException)
+    expect(audit.tryLockTenantChain).toHaveBeenCalledWith(expect.anything(), PRINCIPAL.tenantId)
+    expect(transactionClient.insert).not.toHaveBeenCalled()
+    expect(transactionClient.update).not.toHaveBeenCalled()
+    expect(audit.writeSemantic).not.toHaveBeenCalled()
+  })
+
+  it('does not disguise unrelated database failures as contention', async () => {
+    const failure = { cause: { code: '23505' } }
+    const actor = selectQuery([])
+    actor.rowLock.mockRejectedValue(failure)
+    const { service } = enabledService({ select: vi.fn().mockReturnValue(actor) })
+    await expect(service.assign(TARGET_ID, { expectedRole: 'viewer', role: 'pm' }, PRINCIPAL, 'failure')).rejects.toBe(failure)
+  })
+
+  it.each([
+    { accountStatus: 'suspended', tenantStatus: 'active' },
+    { accountStatus: 'disabled', tenantStatus: 'active' },
+    { accountStatus: 'invited', tenantStatus: 'active' },
+    { accountStatus: 'active', tenantStatus: 'suspended' },
+    { accountStatus: 'active', tenantStatus: 'disabled' },
+  ])('rejects current actor $accountStatus / tenant $tenantStatus before idempotency, despite an earlier allowed principal', async (status) => {
+    const membership = selectQuery([{
+      tenantId: PRINCIPAL.tenantId,
+      role: 'admin',
+      email: PRINCIPAL.email,
+      ...status,
+    }])
+    // A valid completed request makes the old service resolve successfully.
+    // Authorization must still be current even when replaying an old result.
+    const request = {
+      id: '44444444-4444-4444-8444-444444444444',
+      requestHash: '',
+      state: 'succeeded',
+      result: {
+        userId: TARGET_ID, tenantId: PRINCIPAL.tenantId,
+        previousRole: 'viewer', role: 'pm', status: 'updated',
+        updatedAt: UPDATED_AT.toISOString(),
+      },
+    }
+    const requestQuery = selectQuery([request])
+    const transactionClient = {
+      select: vi.fn()
+        .mockReturnValueOnce({ from: membership.from })
+        .mockReturnValueOnce(selectQuery([{ status: status.tenantStatus }]))
+        .mockReturnValueOnce({ from: requestQuery.from }),
+      insert: vi.fn().mockReturnValue({
+        values: vi.fn((values: { request_hash: string }) => {
+          request.requestHash = values.request_hash
+          return { onConflictDoNothing: vi.fn() }
+        }),
+      }),
+      update: vi.fn(),
+    }
+    const { service, audit } = enabledService(transactionClient)
+    await expect(service.assign(
+      TARGET_ID, { expectedRole: 'viewer', role: 'pm' }, PRINCIPAL, 'role-inactive',
+    )).rejects.toBeInstanceOf(ForbiddenException)
+    expect(transactionClient.insert).not.toHaveBeenCalled()
+    expect(transactionClient.update).not.toHaveBeenCalled()
+    expect(audit.stampActor).not.toHaveBeenCalled()
+    expect(audit.writeSemantic).not.toHaveBeenCalled()
+  })
+
   it('fails closed before opening a transaction when disabled', async () => {
     const transaction = vi.fn()
     const service = new UserRoleAssignmentService(
@@ -140,6 +250,7 @@ describe('UserRoleAssignmentService', () => {
       select: vi
         .fn()
         .mockReturnValueOnce({ from: membership.from })
+        .mockReturnValueOnce(selectQuery([{ status: 'active' }]))
         .mockReturnValueOnce({ from: requestQuery.from })
         .mockReturnValueOnce({ from: target.from }),
       insert: vi.fn().mockReturnValue({ values: requestInsert(request) }),
@@ -181,6 +292,7 @@ describe('UserRoleAssignmentService', () => {
       select: vi
         .fn()
         .mockReturnValueOnce({ from: membership.from })
+        .mockReturnValueOnce(selectQuery([{ status: 'active' }]))
         .mockReturnValueOnce({ from: requestQuery.from })
         .mockReturnValueOnce({ from: target.from }),
       insert: vi.fn().mockReturnValue({ values: requestInsert(request) }),
@@ -222,6 +334,7 @@ describe('UserRoleAssignmentService', () => {
       select: vi
         .fn()
         .mockReturnValueOnce({ from: membership.from })
+        .mockReturnValueOnce(selectQuery([{ status: 'active' }]))
         .mockReturnValueOnce({ from: requestQuery.from })
         .mockReturnValueOnce({ from: target.from }),
       insert: vi.fn().mockReturnValue({ values: requestInsert(request) }),
@@ -274,6 +387,7 @@ describe('UserRoleAssignmentService', () => {
       select: vi
         .fn()
         .mockReturnValueOnce({ from: membership.from })
+        .mockReturnValueOnce(selectQuery([{ status: 'active' }]))
         .mockReturnValueOnce({ from: requestQuery.from }),
       insert: vi.fn().mockReturnValue({ values: insertValues }),
       update: vi.fn(),
@@ -332,6 +446,7 @@ describe('UserRoleAssignmentService', () => {
       select: vi
         .fn()
         .mockReturnValueOnce({ from: membership.from })
+        .mockReturnValueOnce(selectQuery([{ status: 'active' }]))
         .mockReturnValueOnce({ from: requestQuery.from })
         .mockReturnValueOnce({ from: target.from }),
       insert: vi.fn().mockReturnValue({ values: requestInsert(request) }),

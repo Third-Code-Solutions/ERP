@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "exports": {
+    "./inspection-report": "./src/reports/inspection-report.ts",
     ".": "./src/index.ts",
     "./bom": "./src/bom/index.ts",
     "./cost": "./src/cost/index.ts",

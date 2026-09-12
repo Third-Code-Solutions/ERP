@@ -122,8 +122,8 @@ test('accepts aliased service import and exported-arrow mounted actions', () => 
     .replaceAll('siteInspectionWorkflowService.createRfi', 'workflowService.createRfi')
   action = replaceOnce(
     action,
-    'export async function submitInspection(opportunityId: string, formData: FormData) {',
-    'export const submitInspection = async (opportunityId: string, formData: FormData) => {',
+    'export async function submitInspection(opportunityId: string, formData: FormData, expectedOwner?: unknown): Promise<InspectionSubmissionActionResult> {',
+    'export const submitInspection = async (opportunityId: string, formData: FormData, expectedOwner?: unknown): Promise<InspectionSubmissionActionResult> => {',
     'inspection exported arrow',
   )
   action = replaceOnce(
@@ -132,12 +132,14 @@ test('accepts aliased service import and exported-arrow mounted actions', () => 
   opportunityId: string,
   inspectionId: string,
   formData: FormData,
-) {`,
+  expectedOwner?: unknown,
+): Promise<InspectionRfiActionResult> {`,
     `export const addInspectionRfi = async (
   opportunityId: string,
   inspectionId: string,
   formData: FormData,
-) => {`,
+  expectedOwner?: unknown,
+): Promise<InspectionRfiActionResult> => {`,
     'RFI exported arrow',
   )
   assert.equal(verifyWo12Contract({ root: ROOT, overrides: { [FILES.action]: action } }).mountedActions, 2)
@@ -256,9 +258,43 @@ mutation('logs a raw RFI description', FILES.action,
   (s) => replaceOnce(s, "traceId, tenantId, actorId, action, outcome: 'service_rejected',", "traceId, tenantId, actorId, action, description: command.data.description, outcome: 'service_rejected',", 'raw log'),
   /log must exclude raw keys/)
 
-mutation('runs archival on replay', FILES.action,
-  (s) => replaceOnce(s, 'if (!checked.data.replayed) {', 'if (true) {', 'replay archival'),
-  /classify post-commit archive/)
+test('accepts an aliased approved Core archive import', () => {
+  const source = read(FILES.action)
+  const changed = source.replaceAll('archiveInspectionReportThroughCoreApi', 'archiveThroughCore')
+    .replace('  archiveThroughCore,', '  archiveInspectionReportThroughCoreApi as archiveThroughCore,')
+  assert.doesNotThrow(() => verifyWo12Contract({ root: ROOT, overrides: { [FILES.action]: changed } }))
+})
+
+mutation('skips Core archive recovery on submission replay', FILES.action,
+  (s) => replaceOnce(s, 'const archived = await archiveInspectionReportThroughCoreApi({', 'if (!checked.data.replayed) { const archived = await archiveInspectionReportThroughCoreApi({', 'replay archival')
+    .replace('    } catch {\n      archiveWarning', '    } } catch {\n      archiveWarning'),
+  /available on submission replay/)
+
+mutation('spoofs the approved archive import from another module', FILES.action,
+  (s) => replaceOnce(s, "} from '@/lib/erp-core-client'", "} from '@/server/crm/legacy-writers'", 'spoofed archive import'),
+  /imported or re-exported durable helper/)
+
+mutation('reintroduces the old report helper database writer exemption', FILES.action,
+  (s) => replaceOnce(s, 'const archived = await archiveInspectionReportThroughCoreApi({', 'async function persistInspectionReport() { await db.insert(documents) }\n await persistInspectionReport()\n const archived = await archiveInspectionReportThroughCoreApi({', 'old report writer'),
+  /reachable local durable database writer/)
+
+mutation('passes client fields to the Core archive command', FILES.action,
+  (s) => replaceOnce(s, 'opportunityId, inspectionId: checked.data.inspectionId,', 'opportunityId, inspectionId: checked.data.inspectionId, payload: fields.values,', 'untrusted archive fields'),
+  /only the confirmed inspection identity/)
+
+mutation('duplicates Core archival dispatch', FILES.action,
+  (s) => replaceOnce(s, 'const archived = await archiveInspectionReportThroughCoreApi({', 'await archiveInspectionReportThroughCoreApi({ opportunityId, inspectionId: checked.data.inspectionId })\n const archived = await archiveInspectionReportThroughCoreApi({', 'duplicate archive'),
+  /archive exactly once/)
+
+mutation('calls the archive boundary from the RFI action', FILES.action,
+  (s) => replaceOnce(s, 'const rawResult = await siteInspectionWorkflowService.createRfi(', 'await archiveInspectionReportThroughCoreApi({ opportunityId, inspectionId })\n const rawResult = await siteInspectionWorkflowService.createRfi(', 'RFI archive'),
+  /imported or re-exported durable helper/)
+
+for (const field of ['tenantId', 'opportunityId', 'inspectionId']) {
+  mutation(`drops archive receipt ${field} scope`, FILES.action,
+    (s) => replaceOnce(s, `archived.data.${field}.toLowerCase() !==`, `archived.data.${field}.toLowerCase() ===`, 'archive receipt scope'),
+    /validate the Core receipt scope/)
+}
 
 mutation('turns refresh failure into action failure', FILES.action,
   (s) => mutateFirst(
@@ -305,13 +341,57 @@ mutation('rotates inspection UUID before success', FILES.inspectionForm,
   (s) => replaceOnce(s, 'startTransition(async () => {', 'setClientSubmissionId(crypto.randomUUID())\n    startTransition(async () => {', 'early rotation'),
   /rotate its UUID exactly once after success/)
 
+mutation('sends inspection without durable pending command', FILES.inspectionForm,
+  (s) => replaceOnce(s, 'await persistDraft(command)', 'void command', 'missing inspection enqueue'),
+  /single-flight, preserve failures/)
+
+mutation('clears inspection before local transaction commits', FILES.inspectionForm,
+  (s) => replaceOnce(s, 'await clearSiteInspectionDraft(scope, revisionRef.current)', 'clearSiteInspectionDraft(scope, revisionRef.current)', 'unawaited inspection cleanup'),
+  /inspection cleanup must commit/)
+
+mutation('accepts mismatched inspection acknowledgement', FILES.inspectionForm,
+  (s) => replaceOnce(s, "throw new Error('The inspection acknowledgement did not match this saved report. Retry the unchanged report to confirm its outcome.')", 'setError(null)', 'ignored inspection mismatch'),
+  /matching owner and command acknowledgement/)
+
+mutation('overwrites inspection upload receipts from failure snapshot', FILES.inspectionForm,
+  (s) => replaceOnce(s, '} catch (submitError) {', '} catch (submitError) {\n        void saveDraftNow()', 'stale inspection failure save'),
+  /stale snapshot/)
+
+mutation('unlocks inspection after rejected retry of unknown command', FILES.inspectionForm,
+  (s) => replaceOnce(s, "res.outcome === 'rejected' && !submissionPending", "res.outcome === 'rejected'", 'unknown inspection retry unlock'),
+  /single-flight, preserve failures/)
+
 mutation('removes RFI synchronous guard', FILES.rfiForm,
-  (s) => replaceOnce(s, 'if (inFlightRef.current) return', 'if (false) return', 'RFI guard'),
+  (s) => replaceOnce(s, 'function onSubmit(formData: FormData) {\n    if (inFlightRef.current) return', 'function onSubmit(formData: FormData) {\n    if (false) return', 'RFI submit guard'),
   /RFI form must single-flight/)
 
+mutation('removes queued RFI retry synchronous guard', FILES.rfiForm,
+  (s) => replaceOnce(s, 'if (inFlightRef.current) return', 'if (false) return', 'RFI retry guard'),
+  /RFI sync must bind/)
+
 mutation('rotates the RFI key on rejection', FILES.rfiForm,
-  (s) => replaceOnce(s, 'if (!result.ok) {', 'setRetryKey(crypto.randomUUID())\n        if (!result.ok) {', 'early RFI rotation'),
+  (s) => replaceOnce(s, 'const failure = readFailure(result)', 'setRetryKey(crypto.randomUUID())\n      const failure = readFailure(result)', 'early RFI rotation'),
   /rotate its key exactly once after success/)
+
+mutation('sends RFI without a durable queue acknowledgement', FILES.rfiForm,
+  (s) => replaceOnce(s, 'await putRfiPending(envelope, revisionRef.current)', 'revisionRef.current', 'missing durable enqueue'),
+  /RFI form must single-flight/)
+
+mutation('sends RFI as the current owner instead of its persisted author', FILES.rfiForm,
+  (s) => replaceOnce(s, 'actorId: stored.scope.actorId', 'actorId: actorId', 'queued owner binding'),
+  /RFI sync must bind/)
+
+mutation('clears RFI before the local acknowledgement transaction completes', FILES.rfiForm,
+  (s) => replaceOnce(s, 'await deleteRfiPending(stored)', 'deleteRfiPending(stored)', 'unawaited cleanup'),
+  /RFI cleanup must commit/)
+
+mutation('sends queued RFI while connectivity is unknown', FILES.rfiForm,
+  (s) => replaceOnce(s, 'if (online !== true)', 'if (online === false)', 'unknown connectivity'),
+  /RFI sync must bind/)
+
+mutation('dispatches an obsolete RFI after a delayed storage read', FILES.rfiForm,
+  (s) => replaceOnce(s, 'if (!isCurrentScope(epoch, expectedScopeKey)) return\n      revisionRef.current = snapshotRevision', 'revisionRef.current = snapshotRevision', 'post-read scope guard'),
+  /RFI sync must bind/)
 
 mutation('removes current-membership authorization', FILES.service,
   (s) => replaceOnce(s, 'const membership = await transaction.lockMembership(principal.data)', 'const membership = principal.data as never', 'membership lock'),

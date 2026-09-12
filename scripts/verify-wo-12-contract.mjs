@@ -14,6 +14,7 @@ const FILES = {
   inspectionFormTest: 'apps/web/src/components/proposal/inspection-form.test.tsx',
   rfiForm: 'apps/web/src/components/proposal/rfi-form.tsx',
   rfiFormTest: 'apps/web/src/components/proposal/rfi-form.test.tsx',
+  rfiBrowserTest: 'apps/web/e2e/inspection-rfi-offline.spec.ts',
   service: 'apps/web/src/server/crm/site-inspection-workflow-service.ts',
   serviceTest: 'apps/web/src/server/crm/site-inspection-workflow-service.test.ts',
 }
@@ -236,10 +237,11 @@ function verifyNoReachableActionWriter(unit, startNode, label) {
       }
       if (!ts.isIdentifier(expression)) continue
       const imported = unit.importedIdentity(expression.text)
+      if (label === 'inspection' && imported?.imported === 'archiveInspectionReportThroughCoreApi' &&
+        imported.module === '@/lib/erp-core-client') continue
       if (imported && !allowedDirectImports.has(imported.imported)) {
         fail(`${label} action must not call an imported or re-exported durable helper`)
       }
-      if (expression.text === 'persistInspectionReport') continue
       const local = unit.callable(expression.text)
       if (local && local !== node) visit(local)
     }
@@ -288,6 +290,15 @@ function assertExactFieldSet(actual, expected, label) {
 function functionText(unit, name) {
   const node = unit.callable(name)
   invariant(node, `${unit.relativePath} must declare ${name}`)
+  return { node, text: compact(node) }
+}
+
+function callbackText(unit, name) {
+  const declaration = descendants(unit.ast).find(node => ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === name)
+  const call = declaration?.initializer && unwrap(declaration.initializer)
+  invariant(call && ts.isCallExpression(call) && ts.isIdentifier(call.expression) && unit.importedIdentity(call.expression.text)?.imported === 'useCallback', `${name} must be an inspectable React callback`)
+  const node = call.arguments[0] && unwrap(call.arguments[0])
+  invariant(node && ts.isArrowFunction(node), `${name} must expose its callback body`)
   return { node, text: compact(node) }
 }
 
@@ -515,11 +526,27 @@ function verifyAction(graph) {
     verifyNoReachableActionWriter(unit, data.node, label)
   }
 
+  const archiveCalls = callExpressions(inspection.node).filter(call => {
+    const expression = unwrap(call.expression)
+    const imported = ts.isIdentifier(expression) && unit.importedIdentity(expression.text)
+    return imported?.imported === 'archiveInspectionReportThroughCoreApi' && imported.module === '@/lib/erp-core-client'
+  })
+  invariant(archiveCalls.length === 1, 'inspection must archive exactly once through the approved Core boundary')
+  invariant(archiveCalls[0].arguments.length === 1 && compact(archiveCalls[0].arguments[0]).replace(/,}$/, '}') === '{opportunityId,inspectionId:checked.data.inspectionId}',
+    'inspection archive must use only the confirmed inspection identity')
+  for (const ancestor of ancestors(archiveCalls[0], inspection.node)) {
+    invariant(!ts.isIfStatement(ancestor), 'inspection archive must remain available on submission replay')
+  }
+  for (const token of ['!archived.ok', '!archived.data', 'archived.data.tenantId.toLowerCase()!==tenantId.toLowerCase()',
+    'archived.data.opportunityId.toLowerCase()!==opportunityId.toLowerCase()',
+    'archived.data.inspectionId.toLowerCase()!==checked.data.inspectionId.toLowerCase()']) {
+    assertContains(inspection.text, token, 'inspection archive must validate the Core receipt scope')
+  }
   assertOrder(inspection.text, [
     'siteInspectionWorkflowResultSchema.safeParse',
     'if(!checked.success',
-    'if(!checked.data.replayed)',
-    'persistInspectionReport',
+    'checked.data.status!==\'submitted\'',
+    compact(archiveCalls[0]),
     'catch',
     'archiveWarning=',
     'revalidatePath',
@@ -529,6 +556,12 @@ function verifyAction(graph) {
   ], 'inspection action must classify post-commit archive/refresh failures as committed success')
   assertOrder(rfi.text, ['revalidatePath', 'catch', 'refreshFailed=true', 'return{ok:true'],
     'RFI refresh failure must remain committed success')
+}
+
+function ancestors(node, stop) {
+  const result = []
+  for (let current = node.parent; current && current !== stop; current = current.parent) result.push(current)
+  return result
 }
 
 function verifyPage(graph) {
@@ -559,25 +592,63 @@ function verifyForms(graph) {
   const inspectSubmit = functionText(inspection, 'onSubmit')
   assertOrder(inspectSubmit.text, [
     'if(inFlightRef.current)return', 'inFlightRef.current=true', 'if(!online)',
-    'saveDraftNow()', 'inFlightRef.current=false', 'return', 'startTransition',
-    'submitInspection(opportunityId,formData)', 'if(!res.ok)', 'saveDraftNow()',
-    'clearSiteInspectionDraft(opportunityId)', 'setClientSubmissionId(crypto.randomUUID())',
-    'catch', 'saveDraftNow()', 'finally', 'inFlightRef.current=false',
+    'inFlightRef.current=false', 'saveDraftNow()', 'return', 'startTransition',
+    'await persistDraft(', 'requireCurrentSession(lifetime)',
+    'await persistDraft(command)', 'requireCurrentSession(lifetime)', 'setSubmissionPending(true)',
+    'submitInspection(opportunityId,formData,{actorId,tenantId})', 'requireCurrentSession(lifetime)',
+    'if(!res.ok)', 'if(res.outcome===\'rejected\'&&!submissionPending)',
+    'await persistDraft({...command,submissionPending:false})',
+    'confirmationSchema.safeParse', 'setSubmitted(true)', 'await finishClearingDraft()',
+    'catch', 'finally', 'inFlightRef.current=false',
   ], 'inspection form must single-flight, preserve failures, and clear/rotate only on success')
   assertContains(inspectSubmit.text, "formData.set('client_submission_id',submissionId)", 'inspection form must reuse a stable command UUID')
   assertContains(inspectSubmit.text, "formData.set('photo_document_ids',JSON.stringify(documentIds))", 'inspection form must submit exact photo IDs')
-  invariant((inspectSubmit.text.match(/setClientSubmissionId\(crypto\.randomUUID\(\)\)/g) ?? []).length === 1,
+  const cleanup = functionText(inspection, 'finishClearingDraft')
+  invariant((inspectSubmit.text.match(/setClientSubmissionId\(crypto\.randomUUID\(\)\)/g) ?? []).length === 0 &&
+    (cleanup.text.match(/setClientSubmissionId\(crypto\.randomUUID\(\)\)/g) ?? []).length === 1,
     'inspection form must rotate its UUID exactly once after success')
-  assertContains(compact(inspection.source), 'disabled={pending||photoBusy||!online||!draftReady}', 'inspection submit must wait for draft identity and connectivity')
+  assertOrder(cleanup.text, ['await saveQueueRef.current', 'if(!memoryOnly)',
+    'await clearSiteInspectionDraft(scope,revisionRef.current)', 'setPhotos([])',
+    'setUploadedPhotoIds([])', 'setClientSubmissionId(crypto.randomUUID())',
+    'setFields(initialFields(defaults))', 'setSubmissionPending(false)', 'catch'],
+  'inspection cleanup must commit before clearing fields and rotating the key')
+  const acknowledgement = descendants(inspectSubmit.node).find(node => ts.isIfStatement(node) &&
+    compact(node.expression).startsWith('!checked.success||Object.entries({actorId,tenantId,opportunityId,submissionId})'))
+  invariant(acknowledgement && descendants(acknowledgement.thenStatement).some(ts.isThrowStatement),
+    'inspection cleanup must require a matching owner and command acknowledgement')
+  for (const clause of descendants(inspectSubmit.node).filter(ts.isCatchClause)) {
+    invariant(!/saveDraftNow\(|persistDraft\(/.test(compact(clause)),
+      'inspection failure must not overwrite confirmed receipts with a stale snapshot')
+  }
+  assertContains(compact(inspection.source), 'disabled={pending||photoBusy||!online||!draftReady||submitted}', 'inspection submit must wait for draft identity and connectivity')
 
   const rfiSubmit = functionText(rfi, 'onSubmit')
   assertOrder(rfiSubmit.text, [
-    'if(inFlightRef.current)return', 'inFlightRef.current=true', 'startTransition',
-    'addInspectionRfi(opportunityId,inspectionId,formData)', 'if(!result.ok)', 'return',
-    "setDescription('')", "setPriority('minor')", 'setRetryKey(crypto.randomUUID())',
-    'catch', 'finally', 'inFlightRef.current=false',
+    'if(inFlightRef.current)return', 'if(pendingEnvelope)return',
+    'createRfiPendingEnvelope(scope,input,retryKey)', 'inFlightRef.current={scopeKey,epoch}',
+    'await persistDraft(input,epoch)', 'if(!persisted||!isCurrentScope(epoch,scopeKey))return',
+    'await putRfiPending(envelope,revisionRef.current)', 'setPendingEnvelope(envelope)',
+    'await syncPending(envelope,epoch,true)', 'finally', 'inFlightRef.current=null',
   ], 'RFI form must single-flight and retain fields/key on failure')
-  invariant((rfiSubmit.text.match(/setRetryKey\(crypto\.randomUUID\(\)\)/g) ?? []).length === 1,
+  const sync = callbackText(rfi, 'syncPending')
+  assertOrder(sync.text, [
+    'if(!isCurrentScope(epoch,expectedScopeKey))return', 'if(online!==true)', 'return',
+    'if(inFlightRef.current)return', 'await loadRfiSnapshot(envelope.scope)',
+    'if(!isCurrentScope(epoch,expectedScopeKey))return',
+    'if(!stored||!samePendingEnvelope(stored,envelope))', 'return',
+    "formData.set('submission_id',stored.submissionId)",
+    "formData.set('description',stored.description)", "formData.set('priority',stored.priority)",
+    'await addInspectionRfi(stored.scope.opportunityId,stored.scope.inspectionId,formData,{actorId:stored.scope.actorId,tenantId:stored.scope.tenantId}',
+    'if(!isCurrentScope(epoch,expectedScopeKey))return',
+    'if(isMatchingSuccess(result,stored))',
+  ], 'RFI sync must bind the durable command and owner before sending')
+  const confirmed = descendants(sync.node).find(node => ts.isIfStatement(node) && compact(node.expression) === 'isMatchingSuccess(result,stored)')
+  invariant(confirmed, 'RFI cleanup must require a matching acknowledgement')
+  assertOrder(compact(confirmed.thenStatement), [
+    'await deleteRfiPending(stored)', 'catch', 'return', 'setPendingEnvelope(null)',
+    "setDescription('')", "setPriority('minor')", 'setRetryKey(crypto.randomUUID())', 'return',
+  ], 'RFI cleanup must commit before clearing fields and rotating the key')
+  invariant((compact(rfi.source).match(/setRetryKey\(crypto\.randomUUID\(\)\)/g) ?? []).length === 1,
     'RFI form must rotate its key exactly once after success')
   assertContains(compact(rfi.source), 'name="submission_id"value={retryKey}', 'RFI form must mount the stable server-seeded UUID')
 }
@@ -694,6 +765,7 @@ function verifyEvidence(graph) {
     graph.get(FILES.pageTest).source,
     graph.get(FILES.inspectionFormTest).source,
     graph.get(FILES.rfiFormTest).source,
+    graph.get(FILES.rfiBrowserTest).source,
     graph.get(FILES.serviceTest).source,
   ].join('\n')
   for (const phrase of [
@@ -704,7 +776,9 @@ function verifyEvidence(graph) {
     'reports archive failure as a warning without reversing committed success',
     'projects exact mutation controls for %s',
     'uses a synchronous single-flight guard and keeps drafts on failure',
-    'contains thrown failures, clears stale state, retains input, and guards double submit',
+    'unknown and mismatched acknowledgement retain immutable payload across reload and retry',
+    'queues only explicit offline submission and reconnects after reload using the exact key',
+    'failed local cleanup retains the exact confirmed request for safe retry',
     'rolls back every inspection effect when %s fails',
     'serializes concurrent retries into one effect set',
     'serializes concurrent same-key calls',

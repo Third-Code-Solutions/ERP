@@ -109,6 +109,12 @@ export class RequestObservabilityMiddleware implements NestMiddleware {
         : ''
     const platformAction = PLATFORM_COMMANDS[`${request.method} ${routePath}`]
     if (platformAction) return platformAction
+    if (request.method === 'POST' && routePath.endsWith('/v1/opportunities/:opportunityId/inspection-photos/upload')) {
+      return 'site_inspection.photo_upload'
+    }
+    if (request.method === 'POST' && routePath.endsWith('/v1/opportunities/:opportunityId/inspections/:inspectionId/report')) {
+      return 'site_inspection.report_archive'
+    }
     if (
       request.method === 'PATCH' &&
       routePath.endsWith('/v1/admin/users/:userId/role')

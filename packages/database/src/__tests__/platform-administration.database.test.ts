@@ -334,7 +334,7 @@ runtimeDescribe('ADR-027 platform administration runtime proof', () => {
     })
   })
 
-  it('removes tenant RLS identity for suspended users and tenants', async () => {
+  it.each(['suspended', 'disabled'] as const)('hides authenticated profiles and tenant RLS identity for %s users and tenants', async (status) => {
     await inRollback(sql, async (tx) => {
       const [{ tenant_id: tenantId } = { tenant_id: '' }] = await tx.unsafe<
         Array<{ tenant_id: string }>
@@ -357,22 +357,25 @@ runtimeDescribe('ADR-027 platform administration runtime proof', () => {
         'select public.auth_tenant_id() as tenant_id'
       )
       expect(active?.tenant_id).toBe(tenantId)
+      const profileQuery = 'select tenant_id, role, email, full_name from public.users where id = $1'
+      expect(await tx.unsafe(profileQuery, [userId])).toHaveLength(1)
       await tx.unsafe('reset role')
 
       await tx.unsafe(
         `update public.users
-            set account_status = 'suspended',
+            set account_status = $2::public.user_account_status,
                 status_reason = 'security review',
                 status_changed_at = now(),
                 status_changed_by = $1
           where id = $1`,
-        [userId]
+        [userId, status]
       )
       await becomeAuthenticated(tx, userId)
       const [suspendedUser] = await tx.unsafe<Array<{ tenant_id: string | null }>>(
         'select public.auth_tenant_id() as tenant_id'
       )
       expect(suspendedUser?.tenant_id).toBeNull()
+      expect(await tx.unsafe(profileQuery, [userId])).toHaveLength(0)
       await tx.unsafe('reset role')
 
       await tx.unsafe(
@@ -386,18 +389,19 @@ runtimeDescribe('ADR-027 platform administration runtime proof', () => {
       )
       await tx.unsafe(
         `update public.tenants
-            set status = 'suspended',
+            set status = $3::public.tenant_lifecycle_status,
                 status_reason = 'billing hold',
                 status_changed_at = now(),
                 status_changed_by = $1
           where id = $2`,
-        [userId, tenantId]
+        [userId, tenantId, status]
       )
       await becomeAuthenticated(tx, userId)
       const [suspendedTenant] = await tx.unsafe<
         Array<{ tenant_id: string | null }>
       >('select public.auth_tenant_id() as tenant_id')
       expect(suspendedTenant?.tenant_id).toBeNull()
+      expect(await tx.unsafe(profileQuery, [userId])).toHaveLength(0)
     })
   })
 

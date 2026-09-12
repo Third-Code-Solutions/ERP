@@ -25,6 +25,7 @@ export const accountKycArtifacts = pgTable(
     tenantIdx: index('idx_account_kyc_tenant_id').on(table.tenant_id),
     accountIdx: index('idx_account_kyc_account_id').on(table.account_id),
     accountTypeIdx: index('idx_account_kyc_account_type').on(table.account_id, table.artifact_type),
+    tenantDocumentIdx: index('idx_account_kyc_tenant_document').on(table.tenant_id, table.document_id),
   })
 )
 
