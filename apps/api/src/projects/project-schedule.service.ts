@@ -286,6 +286,7 @@ export class ProjectScheduleService {
         return { projectId: input.projectId, created: false, changed: false, task: serialize(task) }
       }
       await this.assertDependencies(transaction, authorizedPrincipal.tenantId, input.projectId, input.level, input.parentTaskId, input.predecessorTaskId)
+      await this.assertDependencyGraph(transaction, authorizedPrincipal.tenantId, input.projectId, input.level, input.predecessorTaskId)
       await this.assertOwner(transaction, authorizedPrincipal.tenantId, input.ownerId)
       const [duplicate] = await transaction.select({ id: projectScheduleTasks.id }).from(projectScheduleTasks).where(and(eq(projectScheduleTasks.tenant_id, authorizedPrincipal.tenantId), eq(projectScheduleTasks.project_id, input.projectId), eq(projectScheduleTasks.level, input.level), eq(projectScheduleTasks.task_code, input.taskCode))).limit(1)
       if (duplicate) throw new ConflictException('Task code already exists at this schedule level')
@@ -369,7 +370,10 @@ export class ProjectScheduleService {
     return this.database.client.transaction(async (transaction) => {
       const authorizedPrincipal = await this.requireMembershipOn(transaction, principal, 'project.schedule.manage')
       await this.audit.stampActor(transaction, authorizedPrincipal)
-      await this.assertProjectOn(transaction, projectId, authorizedPrincipal.tenantId)
+      // Create/import use this same project-first lock. Individual task locks
+      // alone allow concurrent reciprocal links to pass separate graph checks.
+      const [project] = await transaction.select({ id: projects.id }).from(projects).where(and(eq(projects.id, projectId), eq(projects.tenant_id, authorizedPrincipal.tenantId), isNull(projects.deleted_at))).limit(1).for('update')
+      if (!project) throw new NotFoundException('Project not found')
       const [current] = await transaction.select(rowSelection).from(projectScheduleTasks).where(and(eq(projectScheduleTasks.id, taskId), eq(projectScheduleTasks.project_id, projectId), eq(projectScheduleTasks.tenant_id, authorizedPrincipal.tenantId))).limit(1).for('update')
       if (!current) throw new NotFoundException('Project schedule task not found')
       const row = current as ScheduleTaskDbRow
@@ -377,6 +381,7 @@ export class ProjectScheduleService {
       if (row.status === 'completed' || row.status === 'cancelled') throw new ConflictException('Completed or cancelled schedule tasks cannot be edited')
       if (sameEditable(row, input)) return projectScheduleMutationResultSchema.parse({ projectId, changed: false, task: serialize(row) })
       await this.assertDependencies(transaction, authorizedPrincipal.tenantId, projectId, input.level, input.parentTaskId, input.predecessorTaskId, taskId)
+      await this.assertDependencyGraph(transaction, authorizedPrincipal.tenantId, projectId, input.level, input.predecessorTaskId, taskId, row.level !== input.level)
       await this.assertOwner(transaction, authorizedPrincipal.tenantId, input.ownerId)
       const [duplicate] = await transaction.select({ id: projectScheduleTasks.id }).from(projectScheduleTasks).where(and(eq(projectScheduleTasks.tenant_id, authorizedPrincipal.tenantId), eq(projectScheduleTasks.project_id, projectId), eq(projectScheduleTasks.level, input.level), eq(projectScheduleTasks.task_code, input.taskCode))).limit(1)
       if (duplicate && duplicate.id !== taskId) throw new ConflictException('Task code already exists at this schedule level')
@@ -434,6 +439,50 @@ export class ProjectScheduleService {
       if (predecessorTaskId === selfId) throw new ConflictException('Schedule task cannot precede itself')
       const [predecessor] = await client.select({ id: projectScheduleTasks.id, projectId: projectScheduleTasks.project_id, level: projectScheduleTasks.level }).from(projectScheduleTasks).where(and(eq(projectScheduleTasks.id, predecessorTaskId), eq(projectScheduleTasks.tenant_id, tenantId))).limit(1)
       if (!predecessor || predecessor.projectId !== projectId || predecessor.level !== level) throw new ConflictException('Predecessor task must be in the same project and level')
+    }
+  }
+
+  private async assertDependencyGraph(
+    client: DatabaseTransaction,
+    tenantId: string,
+    projectId: string,
+    level: 'l1' | 'l2' | 'l3' | 'l4',
+    predecessorTaskId: string | null,
+    selfId?: string,
+    levelChanged = false,
+  ): Promise<void> {
+    if (!predecessorTaskId && !levelChanged) return
+    // This compact graph must not use the paginated UI lookup: a dependency
+    // outside the first page is still authoritative, including terminal tasks.
+    const graph = await client.select({
+      id: projectScheduleTasks.id,
+      level: projectScheduleTasks.level,
+      parentTaskId: projectScheduleTasks.parent_task_id,
+      predecessorTaskId: projectScheduleTasks.predecessor_task_id,
+    }).from(projectScheduleTasks).where(and(eq(projectScheduleTasks.tenant_id, tenantId), eq(projectScheduleTasks.project_id, projectId)))
+
+    if (levelChanged && selfId) {
+      for (const task of graph) {
+        if (task.parentTaskId === selfId && levelOrder[level] >= levelOrder[task.level]) {
+          throw new ConflictException('Level change would invalidate existing child tasks; reassign their parent first')
+        }
+        if (task.predecessorTaskId === selfId && task.level !== level) {
+          throw new ConflictException('Level change would invalidate existing dependent tasks; clear or reassign their predecessor first')
+        }
+      }
+    }
+
+    const byId = new Map(graph.map((task) => [task.id, task]))
+    const visited = new Set<string>(selfId ? [selfId] : [])
+    let currentId = predecessorTaskId
+    while (currentId !== null) {
+      if (visited.has(currentId)) throw new ConflictException('Predecessor cycle detected; clear or choose another predecessor')
+      visited.add(currentId)
+      const current = byId.get(currentId)
+      if (!current || current.level !== level) {
+        throw new ConflictException('Predecessor chain must stay in the same project and level')
+      }
+      currentId = current.predecessorTaskId
     }
   }
 
