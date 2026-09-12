@@ -14,6 +14,7 @@ export const projectScheduleLevelSchema = z.enum(['l1', 'l2', 'l3', 'l4'])
 export const projectScheduleTaskStatusSchema = z.enum(['planned', 'in_progress', 'blocked', 'completed', 'cancelled'])
 export const projectScheduleCommitmentStatusSchema = z.enum(['not_set', 'committed', 'complete', 'not_done'])
 export const projectScheduleSourceSchema = z.enum(['manual', 'legacy_l1', 'ms_project'])
+export const projectScheduleDependencyKindSchema = z.enum(['parent', 'predecessor'])
 
 export const importLegacyProjectScheduleCommandSchema = z.object({
   sourceScheduleId: z.string().uuid(),
@@ -56,6 +57,16 @@ export const projectScheduleListQuerySchema = z.object({
   commitmentStatus: projectScheduleCommitmentStatusSchema.optional(),
   page: z.coerce.number().int().min(1).max(100000).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(50),
+}).strict()
+
+export const projectScheduleDependencyQuerySchema = z.object({
+  kind: projectScheduleDependencyKindSchema,
+  level: projectScheduleLevelSchema,
+  excludeTaskId: z.string().uuid().optional(),
+  selectedTaskId: z.string().uuid().optional(),
+  search: z.string().trim().max(200).optional(),
+  page: z.coerce.number().int().min(1).max(100000).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(25),
 }).strict()
 
 const scheduleFields = {
@@ -153,6 +164,26 @@ export const projectScheduleListResultSchema = z.object({
   totalPages: z.number().int().positive(),
 }).strict()
 
+export const projectScheduleDependencyOptionSchema = z.object({
+  id: z.string().uuid(),
+  projectId: z.string().uuid(),
+  level: projectScheduleLevelSchema,
+  taskCode: z.string().trim().min(1).max(80),
+  name: z.string().trim().min(1).max(200),
+}).strict()
+
+export const projectScheduleDependencyResultSchema = z.object({
+  projectId: z.string().uuid(),
+  kind: projectScheduleDependencyKindSchema,
+  level: projectScheduleLevelSchema,
+  rows: z.array(projectScheduleDependencyOptionSchema),
+  selected: projectScheduleDependencyOptionSchema.nullable(),
+  page: z.number().int().positive(),
+  limit: z.number().int().min(1).max(100),
+  total: z.number().int().nonnegative(),
+  totalPages: z.number().int().positive(),
+}).strict()
+
 export const projectScheduleCreateResultSchema = z.object({
   projectId: z.string().uuid(),
   created: z.boolean(),
@@ -182,6 +213,10 @@ export type ProjectScheduleTaskStatus = z.infer<typeof projectScheduleTaskStatus
 export type ProjectScheduleCommitmentStatus = z.infer<typeof projectScheduleCommitmentStatusSchema>
 export type ProjectScheduleSource = z.infer<typeof projectScheduleSourceSchema>
 export type ProjectScheduleListQuery = z.infer<typeof projectScheduleListQuerySchema>
+export type ProjectScheduleDependencyKind = z.infer<typeof projectScheduleDependencyKindSchema>
+export type ProjectScheduleDependencyQuery = z.infer<typeof projectScheduleDependencyQuerySchema>
+export type ProjectScheduleDependencyOption = z.infer<typeof projectScheduleDependencyOptionSchema>
+export type ProjectScheduleDependencyResult = z.infer<typeof projectScheduleDependencyResultSchema>
 export type CreateProjectScheduleTaskCommand = z.infer<typeof createProjectScheduleTaskCommandSchema>
 export type UpdateProjectScheduleTaskCommand = z.infer<typeof updateProjectScheduleTaskCommandSchema>
 export type ProjectScheduleTaskStatusCommand = z.infer<typeof projectScheduleTaskStatusCommandSchema>

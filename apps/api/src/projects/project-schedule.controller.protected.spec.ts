@@ -17,13 +17,14 @@ const REQUEST_ID = '55555555-5555-4555-8555-555555555555'
 const TENANT_ID = '22222222-2222-4222-8222-222222222222'
 const USER_ID = '11111111-1111-4111-8111-111111111111'
 const base = `/v1/projects/${PROJECT_ID}/schedule/tasks`
+const dependencyBase = `/v1/projects/${PROJECT_ID}/schedule/dependency-options`
 
 describe('ProjectScheduleController protected boundary', () => {
   let close: (() => Promise<void>) | undefined
   afterEach(async () => { await close?.(); close = undefined })
 
   async function harness(role: string) {
-    const service = { previewLegacy: vi.fn().mockResolvedValue({}), importLegacy: vi.fn().mockResolvedValue({}), list: vi.fn().mockResolvedValue({}), create: vi.fn().mockResolvedValue({}), update: vi.fn().mockResolvedValue({}), updateStatus: vi.fn().mockResolvedValue({}) }
+    const service = { previewLegacy: vi.fn().mockResolvedValue({}), importLegacy: vi.fn().mockResolvedValue({}), list: vi.fn().mockResolvedValue({}), dependencyOptions: vi.fn().mockResolvedValue({}), create: vi.fn().mockResolvedValue({}), update: vi.fn().mockResolvedValue({}), updateStatus: vi.fn().mockResolvedValue({}) }
     const identity = { verifyAccessToken: vi.fn().mockResolvedValue({ userId: USER_ID }) }
     const database = { client: { select: () => ({ from: () => ({ innerJoin: () => ({ where: () => ({ limit: async () => [{ tenantId: TENANT_ID, role, email: 'demo@example.test', accountStatus: 'active', tenantStatus: 'active' }] }) }) }) }) } }
     const module = await Test.createTestingModule({ controllers: [ProjectScheduleController], providers: [{ provide: ProjectScheduleService, useValue: service }] }).compile()
@@ -35,6 +36,8 @@ describe('ProjectScheduleController protected boundary', () => {
   it('allows viewers to read but denies schedule mutations', async () => {
     const { app, service } = await harness('viewer')
     await request(app.getHttpServer()).get(base).set('Authorization', 'Bearer valid').expect(200)
+    await request(app.getHttpServer()).get(`${dependencyBase}?kind=parent&level=l2`).set('Authorization', 'Bearer valid').expect(200)
+    expect(service.dependencyOptions).toHaveBeenCalledWith(PROJECT_ID, { kind: 'parent', level: 'l2', page: 1, limit: 25 }, expect.objectContaining({ role: 'viewer', tenantId: TENANT_ID }))
     await request(app.getHttpServer()).post(base).set('Authorization', 'Bearer valid').send({ projectId: PROJECT_ID, clientRequestId: REQUEST_ID, level: 'l1', taskCode: 'A-001', name: 'Mobilize', description: '', parentTaskId: null, predecessorTaskId: null, plannedStart: '2026-09-10', plannedFinish: '2026-09-12', plannedLaborMinutes: 120, ownerId: null, commitmentWeek: null, commitmentStatus: 'not_set', constraintReason: '' }).expect(403)
     expect(service.list).toHaveBeenCalled(); expect(service.create).not.toHaveBeenCalled()
     await request(app.getHttpServer()).post(`/v1/projects/${PROJECT_ID}/schedule/import-legacy-l1`).set('Authorization', 'Bearer valid').send({ sourceScheduleId: REQUEST_ID }).expect(403)

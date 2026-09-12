@@ -103,6 +103,140 @@ suite('Project schedule import PostgreSQL integration', () => {
     ])
   })
 
+  it('returns tenant-scoped parent and predecessor choices with literal search and incompatible selection', async () => {
+    const context = await fixture()
+    const imported = await context.service.importLegacy(context.projectId, context.command, context.principal)
+    const l1 = imported.rows[0]!
+    const l2 = (await context.service.create({
+      projectId: context.projectId,
+      clientRequestId: randomUUID(),
+      level: 'l2',
+      taskCode: 'L2-001',
+      name: 'Electrical package',
+      description: '',
+      parentTaskId: l1.id,
+      predecessorTaskId: null,
+      plannedStart: '2026-09-15',
+      plannedFinish: '2026-09-18',
+      plannedLaborMinutes: 480,
+      ownerId: null,
+      commitmentWeek: null,
+      commitmentStatus: 'not_set',
+      constraintReason: '',
+    }, context.principal)).task
+    const current = (await context.service.create({
+      projectId: context.projectId,
+      clientRequestId: randomUUID(),
+      level: 'l3',
+      taskCode: 'L3-001',
+      name: 'Current detail task',
+      description: '',
+      parentTaskId: l2.id,
+      predecessorTaskId: null,
+      plannedStart: '2026-09-19',
+      plannedFinish: '2026-09-20',
+      plannedLaborMinutes: 240,
+      ownerId: null,
+      commitmentWeek: null,
+      commitmentStatus: 'not_set',
+      constraintReason: '',
+    }, context.principal)).task
+    const candidate = (await context.service.create({
+      projectId: context.projectId,
+      clientRequestId: randomUUID(),
+      level: 'l3',
+      taskCode: 'L3-999',
+      name: 'QA 100%_literal',
+      description: '',
+      parentTaskId: l2.id,
+      predecessorTaskId: current.id,
+      plannedStart: '2026-09-21',
+      plannedFinish: '2026-09-22',
+      plannedLaborMinutes: 240,
+      ownerId: null,
+      commitmentWeek: null,
+      commitmentStatus: 'not_set',
+      constraintReason: '',
+    }, context.principal)).task
+
+    await db.insert(projectScheduleTasks).values(Array.from({ length: 101 }, (_, index) => ({
+      id: randomUUID(),
+      tenant_id: context.tenantId,
+      project_id: context.projectId,
+      level: 'l3' as const,
+      task_code: `L3-${String(index + 10).padStart(3, '0')}`,
+      name: `Detail ${index + 10}`,
+      description: '',
+      parent_task_id: l2.id,
+      predecessor_task_id: null,
+      planned_start: '2026-09-23',
+      planned_finish: '2026-09-24',
+      planned_labor_minutes: 0,
+      owner_id: null,
+      commitment_week: null,
+      commitment_status: 'not_set' as const,
+      constraint_reason: '',
+      source: 'manual' as const,
+      client_request_id: randomUUID(),
+      request_hash: 'a'.repeat(64),
+      version: 1,
+      created_by: context.userId,
+    })))
+
+    const parents = await context.service.dependencyOptions(context.projectId, {
+      kind: 'parent',
+      level: 'l3',
+      excludeTaskId: current.id,
+      selectedTaskId: l2.id,
+      page: 1,
+      limit: 1,
+    }, context.principal)
+    expect(parents.selected).toMatchObject({ id: l2.id, level: 'l2' })
+    expect(parents.rows).not.toContainEqual(expect.objectContaining({ id: l2.id }))
+    expect(parents.rows.every((row) => row.level === 'l1' || row.level === 'l2')).toBe(true)
+    expect(parents.rows.some((row) => row.id === current.id)).toBe(false)
+
+    const pagedPredecessors = await context.service.dependencyOptions(context.projectId, {
+      kind: 'predecessor',
+      level: 'l3',
+      excludeTaskId: current.id,
+      selectedTaskId: candidate.id,
+      page: 1,
+      limit: 100,
+    }, context.principal)
+    expect(pagedPredecessors).toMatchObject({ total: 102, totalPages: 2, selected: { id: candidate.id, level: 'l3' } })
+    expect(pagedPredecessors.rows).toHaveLength(100)
+    expect(pagedPredecessors.rows.some((row) => row.id === candidate.id)).toBe(false)
+
+    const predecessors = await context.service.dependencyOptions(context.projectId, {
+      kind: 'predecessor',
+      level: 'l3',
+      excludeTaskId: current.id,
+      selectedTaskId: l2.id,
+      search: '100%_literal',
+      page: 1,
+      limit: 25,
+    }, context.principal)
+    expect(predecessors).toMatchObject({
+      rows: [{ id: candidate.id, projectId: context.projectId, level: 'l3', taskCode: 'L3-999', name: 'QA 100%_literal' }],
+      selected: { id: l2.id, level: 'l2' },
+      total: 1,
+      totalPages: 1,
+    })
+  })
+
+  it('rejects dependency lookups across tenants and forged current membership', async () => {
+    const context = await fixture()
+    const foreign = await fixture()
+    const query = { kind: 'predecessor' as const, level: 'l1' as const, page: 1, limit: 25 }
+    const foreignTasks = await foreign.service.importLegacy(foreign.projectId, foreign.command, foreign.principal)
+    const isolated = await context.service.dependencyOptions(context.projectId, { ...query, selectedTaskId: foreignTasks.rows[0]!.id }, context.principal)
+    expect(isolated.selected).toBeNull()
+    expect(isolated.rows).toEqual([])
+    await expect(context.service.dependencyOptions(context.projectId, query, foreign.principal)).rejects.toBeInstanceOf(NotFoundException)
+    await expect(context.service.dependencyOptions(context.projectId, query, { ...foreign.principal, tenantId: context.tenantId })).rejects.toBeInstanceOf(ForbiddenException)
+  })
+
   it('retries without writes and preserves subsequent operational edits', async () => {
     const context = await fixture()
     const initial = await context.service.importLegacy(context.projectId, context.command, context.principal)
