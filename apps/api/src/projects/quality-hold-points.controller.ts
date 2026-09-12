@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   Inject,
@@ -135,14 +136,29 @@ export class QualityHoldPointsController {
   @Post(':projectId/quality/:entryId/punchlist')
   @HttpCode(HttpStatus.CREATED)
   @RequireCapabilities('punchlist.manage')
-  handoffToPunchlist(
+  async handoffToPunchlist(
     @Param('projectId', new ParseUUIDPipe()) projectId: string,
     @Param('entryId', new ParseUUIDPipe()) entryId: string,
     @Body() body: unknown,
     @CurrentPrincipal() principal: ErpPrincipal,
-  ): Promise<QualityHoldPointPunchlistHandoffResult> {
+    @Headers('x-erp-receipt-version') receiptVersion?: string,
+  ): Promise<QualityHoldPointPunchlistHandoffResult | Omit<QualityHoldPointPunchlistHandoffResult, 'clientRequestId'>> {
+    if (receiptVersion !== undefined && receiptVersion !== '1') {
+      throw new BadRequestException('Unsupported punchlist receipt version')
+    }
     const parsed = qualityHoldPointPunchlistHandoffCommandSchema.safeParse(body)
     if (!parsed.success) throw new BadRequestException('Invalid quality punchlist handoff command')
-    return this.quality.handoffToPunchlist(projectId, entryId, parsed.data, principal)
+    const result = await this.quality.handoffToPunchlist(projectId, entryId, parsed.data, principal)
+    if (receiptVersion === '1') return result
+    // Older strict clients must keep their original response during rolling deployment.
+    return {
+      projectId: result.projectId,
+      qualityHoldPointId: result.qualityHoldPointId,
+      handoffId: result.handoffId,
+      created: result.created,
+      changed: result.changed,
+      source: result.source,
+      items: result.items,
+    }
   }
 }

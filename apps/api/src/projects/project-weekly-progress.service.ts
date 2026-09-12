@@ -46,7 +46,7 @@ import {
   type DatabaseTransaction,
 } from '../database/database.service'
 
-const rowSelection = {
+const periodSelection = {
   id: projectWeeklyProgress.id,
   projectId: projectWeeklyProgress.project_id,
   progressUpdateId: projectWeeklyProgress.progress_update_id,
@@ -63,6 +63,10 @@ const rowSelection = {
   createdBy: projectWeeklyProgress.created_by,
   createdAt: projectWeeklyProgress.created_at,
   updatedAt: projectWeeklyProgress.updated_at,
+}
+
+const rowSelection = {
+  ...periodSelection,
   percentByCategory: progressUpdates.percent_by_category,
   notes: progressUpdates.notes,
 }
@@ -298,10 +302,10 @@ export class ProjectWeeklyProgressService {
               eq(projectWeeklyProgress.status, 'open'),
             ),
           )
-          .returning()
+          .returning(periodSelection)
         if (!updated) throw new ConflictException('Weekly progress changed; refresh before submitting again')
         const row = serialize({
-          ...(updated as unknown as DbRow),
+          ...updated,
           percentByCategory: input.percentByCategory,
           notes: input.notes,
         })
@@ -336,10 +340,10 @@ export class ProjectWeeklyProgressService {
           created_at: now,
           updated_at: now,
         })
-        .returning()
+        .returning(periodSelection)
       if (!created) throw new InternalServerErrorException('Weekly progress period was not created')
       const row = serialize({
-        ...(created as unknown as DbRow),
+        ...created,
         percentByCategory: input.percentByCategory,
         notes: input.notes,
       })
@@ -423,9 +427,9 @@ export class ProjectWeeklyProgressService {
             eq(projectWeeklyProgress.version, row.version),
           ),
         )
-        .returning()
+        .returning(periodSelection)
       if (!updated) throw new ConflictException('Weekly progress changed; refresh before locking')
-      const locked = serialize({ ...(updated as unknown as DbRow), percentByCategory: percentages, notes: row.notes })
+      const locked = serialize({ ...updated, percentByCategory: percentages, notes: row.notes })
       await this.audit.writeSemantic(transaction, {
         tenantId: authorizedPrincipal.tenantId,
         actorId: authorizedPrincipal.userId,
