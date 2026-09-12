@@ -7,6 +7,7 @@ import { getProjectScheduleDependenciesThroughCoreApi } from './erp-core-client'
 const projectId = '33333333-3333-4333-8333-333333333333'
 const taskId = '44444444-4444-4444-8444-444444444444'
 const otherId = '55555555-5555-4555-8555-555555555555'
+const caseProjectId = 'abcdefab-cdef-4abc-8def-abcdefabcdef'
 const option = { id: taskId, projectId, level: 'l1', taskCode: 'MASTER', name: 'Master schedule' }
 const result = { projectId, kind: 'parent', level: 'l2', rows: [option], selected: null, page: 2, limit: 25, total: 26, totalPages: 2 }
 const query = { kind: 'parent', level: 'l2', page: 2, limit: 25, search: 'MEP & 10%' }
@@ -27,6 +28,33 @@ describe('schedule dependency Core client', () => {
     expect(new URL(String(url)).searchParams.get('search')).toBe(query.search)
     expect(new URL(String(url)).searchParams.get('page')).toBe('2')
     expect(init).toMatchObject({ method: 'GET', cache: 'no-store', headers: { authorization: 'Bearer token' } })
+  })
+
+  it.each([
+    {
+      name: 'parent row at the requested level',
+      query,
+      body: { ...result, rows: [{ ...option, level: 'l2' }] },
+    },
+    {
+      name: 'predecessor row at another level',
+      query: { kind: 'predecessor' as const, level: 'l2' as const, page: 2, limit: 25 },
+      body: { ...result, kind: 'predecessor' as const, level: 'l2' as const, rows: [{ ...option, level: 'l1' }] },
+    },
+  ])('fails closed for an ineligible $name', async ({ query: input, body }) => {
+    vi.mocked(fetch).mockResolvedValueOnce(Response.json(body))
+    await expect(getProjectScheduleDependenciesThroughCoreApi(projectId, input)).resolves.toMatchObject({ ok: false, status: 503 })
+  })
+
+  it('accepts UUID casing differences while preserving dependency eligibility', async () => {
+    const lowercaseProjectId = caseProjectId.toLowerCase()
+    const body = {
+      ...result,
+      projectId: lowercaseProjectId,
+      rows: [{ ...option, projectId: lowercaseProjectId }],
+    }
+    vi.mocked(fetch).mockResolvedValueOnce(Response.json(body))
+    await expect(getProjectScheduleDependenciesThroughCoreApi(caseProjectId.toUpperCase(), query)).resolves.toMatchObject({ ok: true })
   })
 
   it('rejects invalid input before authentication or network access', async () => {
@@ -56,9 +84,29 @@ describe('schedule dependency Core client', () => {
     await expect(getProjectScheduleDependenciesThroughCoreApi(projectId, { ...query, selectedTaskId: taskId })).resolves.toMatchObject({ ok: true, data: body })
   })
 
+  it('preserves an unavailable selected task as null', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(Response.json({ ...result, selected: null }))
+    await expect(getProjectScheduleDependenciesThroughCoreApi(projectId, { ...query, selectedTaskId: taskId })).resolves.toMatchObject({ ok: true, data: { selected: null } })
+  })
+
   it('rejects excluded self in options', async () => {
     vi.mocked(fetch).mockResolvedValueOnce(Response.json(result))
     await expect(getProjectScheduleDependenciesThroughCoreApi(projectId, { ...query, excludeTaskId: taskId })).resolves.toMatchObject({ ok: false })
+  })
+
+  it('rejects an excluded selected task even outside the current page', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(Response.json({ ...result, rows: [], selected: option }))
+    await expect(getProjectScheduleDependenciesThroughCoreApi(projectId, {
+      ...query, selectedTaskId: taskId, excludeTaskId: taskId,
+    })).resolves.toMatchObject({ ok: false, status: 503 })
+  })
+
+  it('accepts same-level predecessors', async () => {
+    const body = { ...result, kind: 'predecessor', rows: [{ ...option, level: 'l2' }] }
+    vi.mocked(fetch).mockResolvedValueOnce(Response.json(body))
+    await expect(getProjectScheduleDependenciesThroughCoreApi(projectId, {
+      ...query, kind: 'predecessor',
+    })).resolves.toEqual({ ok: true, data: body })
   })
 
   it('reports denied access and network failures without substituting empty choices', async () => {

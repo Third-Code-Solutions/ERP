@@ -4,9 +4,8 @@ import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { can, getUserProfile } from '@third-code-erp/auth'
-import { createSupabaseAdminClient } from '@third-code-erp/auth/server'
 import { db } from '@third-code-erp/database'
-import { documents, scopeItems } from '@third-code-erp/database/schema'
+import { accountKycArtifacts, documents, progressClaimDocuments, scopeItems, siteInspectionPhotos, siteInspections } from '@third-code-erp/database/schema'
 import { and, eq, like } from 'drizzle-orm'
 import { writeAuditLogInTransaction } from '@/lib/audit'
 import {
@@ -26,6 +25,9 @@ const DeleteDocumentSchema = z.object({
 })
 
 class DocumentNotFoundError extends Error {}
+class ClaimEvidenceRetainedError extends Error {}
+class KycEvidenceRetainedError extends Error {}
+class InspectionEvidenceRetainedError extends Error {}
 
 export async function deleteDocument(formData: FormData): Promise<DeleteResult> {
   const parsed = DeleteDocumentSchema.safeParse({
@@ -65,7 +67,7 @@ export async function deleteDocument(formData: FormData): Promise<DeleteResult> 
         error: 'ERP Core API returned an invalid document deletion result.',
       }
     }
-    await cleanupDocumentStorage(coreResult.data.storagePath)
+    // Never clean a receipt's object path: another document may now own it.
     refreshDocumentPaths(coreResult.data.projectId)
     return { ok: true }
   }
@@ -97,6 +99,50 @@ export async function deleteDocument(formData: FormData): Promise<DeleteResult> 
         .for('update')
 
       if (!doc || !doc.project_id) throw new DocumentNotFoundError()
+
+      // Match Core retention while the document lock excludes new attachments.
+      // Do not lock claims here: attachment commands lock claim before document.
+      const [claimEvidence] = await tx
+        .select({ id: progressClaimDocuments.id })
+        .from(progressClaimDocuments)
+        .where(and(
+          eq(progressClaimDocuments.tenant_id, doc.tenant_id),
+          eq(progressClaimDocuments.document_id, doc.id)
+        ))
+        .limit(1)
+      if (claimEvidence) throw new ClaimEvidenceRetainedError()
+
+      // Keep KYC evidence and its replay identity intact, matching Core.
+      const [kycEvidence] = await tx
+        .select({ id: accountKycArtifacts.id })
+        .from(accountKycArtifacts)
+        .where(and(
+          eq(accountKycArtifacts.tenant_id, doc.tenant_id),
+          eq(accountKycArtifacts.document_id, doc.id)
+        ))
+        .limit(1)
+      if (kycEvidence) throw new KycEvidenceRetainedError()
+
+      // Inspection FKs serialize attachment against this document's UPDATE lock.
+      // Keep these reads separate from the lock statement to see waited-on commits.
+      const [inspectionPhoto] = await tx
+        .select({ id: siteInspectionPhotos.id })
+        .from(siteInspectionPhotos)
+        .where(and(
+          eq(siteInspectionPhotos.tenant_id, doc.tenant_id),
+          eq(siteInspectionPhotos.document_id, doc.id)
+        ))
+        .limit(1)
+      if (inspectionPhoto) throw new InspectionEvidenceRetainedError()
+      const [inspectionReport] = await tx
+        .select({ id: siteInspections.id })
+        .from(siteInspections)
+        .where(and(
+          eq(siteInspections.tenant_id, doc.tenant_id),
+          eq(siteInspections.pdf_document_id, doc.id)
+        ))
+        .limit(1)
+      if (inspectionReport) throw new InspectionEvidenceRetainedError()
 
       const removedScopeItems = await tx
         .delete(scopeItems)
@@ -131,7 +177,7 @@ export async function deleteDocument(formData: FormData): Promise<DeleteResult> 
         diff: {
           project_id: doc.project_id,
           derived_scope_items_removed: removedScopeItems.length,
-          storage_cleanup: 'best_effort_after_commit',
+          storage_cleanup: 'retained_pending_generation_fencing',
         },
       })
 
@@ -143,6 +189,15 @@ export async function deleteDocument(formData: FormData): Promise<DeleteResult> 
       }
     })
   } catch (error) {
+    if (error instanceof InspectionEvidenceRetainedError) {
+      return { ok: false, error: 'Document is attached to an inspection and cannot be deleted' }
+    }
+    if (error instanceof KycEvidenceRetainedError) {
+      return { ok: false, error: 'Document is attached to a KYC artifact and cannot be deleted' }
+    }
+    if (error instanceof ClaimEvidenceRetainedError) {
+      return { ok: false, error: 'Document is attached to a claim and cannot be deleted' }
+    }
     if (error instanceof DocumentNotFoundError) {
       return { ok: false, error: 'Document not found' }
     }
@@ -150,28 +205,11 @@ export async function deleteDocument(formData: FormData): Promise<DeleteResult> 
     return { ok: false, error: 'Delete failed' }
   }
 
-  // Object Storage cannot join the PostgreSQL transaction. Run cleanup only
-  // after the official record, derived rows, and audit entry commit together.
-  await cleanupDocumentStorage(deletedDocument.storage_path)
+  // Storage paths can be shared or reused by other documents and inspection
+  // evidence. Retain private bytes until cleanup can prove object generation
+  // ownership atomically; a reference preflight cannot close this race.
   refreshDocumentPaths(deletedDocument.project_id)
   return { ok: true }
-}
-
-async function cleanupDocumentStorage(storagePath: string): Promise<void> {
-  try {
-    const supabase = createSupabaseAdminClient()
-    const { error: storageErr } = await supabase.storage
-      .from('documents')
-      .remove([storagePath])
-    if (storageErr) {
-      console.warn(
-        '[documents/delete] storage remove warning:',
-        storageErr.message,
-      )
-    }
-  } catch (error) {
-    console.warn('[documents/delete] storage remove failed:', error)
-  }
 }
 
 function refreshDocumentPaths(projectId: string): void {

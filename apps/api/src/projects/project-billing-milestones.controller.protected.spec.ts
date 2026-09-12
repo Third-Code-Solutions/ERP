@@ -4,6 +4,7 @@ import { Reflector } from '@nestjs/core'
 import { Test } from '@nestjs/testing'
 import request from 'supertest'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { ERP_ROLES } from '@third-code-erp/shared-types/authorization'
 import { CapabilityGuard } from '../auth/capability.guard'
 import { SupabaseJwtGuard } from '../auth/supabase-jwt.guard'
 import type { SupabaseIdentityService } from '../auth/supabase-identity.service'
@@ -31,9 +32,11 @@ describe('ProjectBillingMilestonesController protected boundary', () => {
     await app.init(); close = () => app.close(); return { app, service }
   }
 
-  it('allows viewer reads and passes the tenant-bound principal', async () => {
-    const { app, service } = await harness('viewer')
-    await request(app.getHttpServer()).get(route).set('Authorization', 'Bearer valid').expect(200)
-    expect(service.list).toHaveBeenCalledWith(PROJECT_ID, { page: 1, limit: 25 }, expect.objectContaining({ role: 'viewer', tenantId: TENANT_ID }))
+  it.each(ERP_ROLES)('applies the existing finance-read policy to %s', async role => {
+    const allowed = ['owner', 'admin', 'finance', 'viewer'].includes(role)
+    const { app, service } = await harness(role)
+    await request(app.getHttpServer()).get(route).set('Authorization', 'Bearer valid').expect(allowed ? 200 : 403)
+    if (allowed) expect(service.list).toHaveBeenCalledWith(PROJECT_ID, { page: 1, limit: 25 }, expect.objectContaining({ role, tenantId: TENANT_ID }))
+    else expect(service.list).not.toHaveBeenCalled()
   })
 })

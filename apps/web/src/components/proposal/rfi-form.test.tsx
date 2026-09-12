@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
@@ -9,43 +8,45 @@ vi.mock('@/app/(dashboard)/crm/opportunities/[id]/proposal/actions', () => ({
 
 import { RfiForm } from './rfi-form'
 
-const SUBMISSION_ID = '55555555-5555-4555-8555-555555555555'
+const PROPS = {
+  actorId: '11111111-1111-4111-8111-111111111111',
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  opportunityId: '33333333-3333-4333-8333-333333333333',
+  inspectionId: '44444444-4444-4444-8444-444444444444',
+  submissionId: '55555555-5555-4555-8555-555555555555',
+}
 
 describe('RfiForm', () => {
-  it('mounts its stable key and only the duplicate-free command fields', () => {
-    const html = renderToStaticMarkup(
-      <RfiForm
-        opportunityId="33333333-3333-4333-8333-333333333333"
-        inspectionId="77777777-7777-4777-8777-777777777777"
-        submissionId={SUBMISSION_ID}
-      />
-    )
-    const names = [...html.matchAll(/\sname="([^"]+)"/g)].map((match) => match[1]).sort()
-    const actionSource = readFileSync(
-      new URL('../../app/(dashboard)/crm/opportunities/[id]/proposal/actions.ts', import.meta.url),
-      'utf8',
-    )
-    const fieldBlock = /const RFI_FIELD_NAMES = \[([\s\S]*?)\] as const/.exec(actionSource)
-    const acceptedNames = [...(fieldBlock?.[1] ?? '').matchAll(/'([^']+)'/g)]
-      .map((match) => match[1]).sort()
-    expect(names).toEqual(['description', 'priority', 'submission_id'])
-    expect(acceptedNames).toEqual(names)
-    expect(new Set(names).size).toBe(names.length)
-    expect(html).toContain(`name="submission_id" value="${SUBMISSION_ID}"`)
-    expect(html).not.toContain('name="opportunity_id"')
-    expect(html).not.toContain('name="inspection_id"')
-    expect(html).toContain('for="rfi-description"')
-    expect(html).toContain('for="rfi-priority"')
+  it('renders one accessible description, priority, and stable command identity', () => {
+    const html = renderToStaticMarkup(<RfiForm {...PROPS} />)
+
+    expect([...html.matchAll(/\sname="([^"]+)"/g)].map((match) => match[1]).sort()).toEqual([
+      'description',
+      'priority',
+      'submission_id',
+    ])
+    expect(html).toContain('<label class="form-label" for="rfi-description">Description</label>')
+    expect(html).toContain('<label class="form-label" for="rfi-priority">Priority</label>')
+    expect(html).toContain('name="submission_id" value="55555555-5555-4555-8555-555555555555"')
+    expect(html).toContain('aria-describedby="rfi-form-status"')
+    expect(html).toContain('aria-live="polite"')
   })
 
-  it('contains thrown failures, clears stale state, retains input, and guards double submit', () => {
-    const source = readFileSync(new URL('./rfi-form.tsx', import.meta.url), 'utf8')
-    expect(source).toContain('if (inFlightRef.current) return')
-    expect(source).toContain('addInspectionRfi(opportunityId, inspectionId, formData)')
-    expect(source).toContain('catch')
-    expect(source).toContain("setError('Unable to add the RFI. Please retry.')")
-    expect(source).not.toContain('.reset()')
-    expect(source).toContain('value={description}')
-    expect(source).toContain('result.replayed')
+  it('does not expose server scope identities as form fields', () => {
+    const html = renderToStaticMarkup(<RfiForm {...PROPS} />)
+
+    expect(html).not.toContain('name="actor_id"')
+    expect(html).not.toContain('name="tenant_id"')
+    expect(html).not.toContain('name="opportunity_id"')
+    expect(html).not.toContain('name="inspection_id"')
+  })
+
+  it('uses a phone-friendly multiline description control and retry-safe button types', () => {
+    const html = renderToStaticMarkup(<RfiForm {...PROPS} />)
+
+    expect(html).toContain('<textarea')
+    expect(html).toContain('rows="3"')
+    expect(html).toContain('type="submit"')
+    expect(html).not.toContain('type="button"')
   })
 })

@@ -175,7 +175,13 @@ export default async function ClaimDetailPage({ params }: PageProps) {
       document_type: documents.document_type,
     })
     .from(progressClaimDocuments)
-    .innerJoin(documents, eq(documents.id, progressClaimDocuments.document_id))
+    .leftJoin(
+      documents,
+      and(
+        eq(documents.id, progressClaimDocuments.document_id),
+        eq(documents.tenant_id, profile.tenantId)
+      )
+    )
     .where(
       and(
         eq(progressClaimDocuments.claim_id, id),
@@ -464,9 +470,9 @@ export default async function ClaimDetailPage({ params }: PageProps) {
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap',
                         }}
-                        title={d.file_name}
+                        title={d.file_name ?? 'Document unavailable'}
                       >
-                        {d.file_name}
+                        {d.file_name ?? 'Document unavailable'}
                       </div>
                       {d.caption && (
                         <div

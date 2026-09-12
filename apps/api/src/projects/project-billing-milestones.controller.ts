@@ -23,7 +23,7 @@ export class ProjectBillingMilestonesController {
   ) {}
 
   @Get(':projectId/billing/milestones')
-  @RequireCapabilities('project.read')
+  @RequireCapabilities('finance.read')
   list(
     @Param('projectId', new ParseUUIDPipe()) projectId: string,
     @Query() query: unknown,
