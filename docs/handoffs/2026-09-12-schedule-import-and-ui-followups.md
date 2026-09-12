@@ -17,3 +17,5 @@ Imported tasks retain names, dates and predecessor links; retries do not duplica
 ## Current evidence
 
 Backend/shared initial slice: `6058d14b`; focused API 11 tests and shared 5 tests passed before Web integration. UI follow-ups: `24d446fb`; project document render suite 13 tests, E2E TypeScript and scoped lint passed. Further integration and release checks are pending; these local results are not deployment evidence.
+
+The existing release `role-access-production.spec.ts` now checks schedule heading/data and import-preview visibility for all eleven seeded roles within the existing login loop, plus admin mobile procurement stacking/no overflow at 390px. It requires a valid `E2E_PROJECT_ID` before authentication and submits no business mutations. Agent 13 owns hosted execution; local typechecking does not prove deployed role access.

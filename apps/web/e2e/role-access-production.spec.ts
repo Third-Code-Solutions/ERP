@@ -1,4 +1,6 @@
 import { expect, test } from '@playwright/test'
+import { roleHasCapability } from '@third-code-erp/shared-types/authorization'
+import { z } from 'zod'
 import {
   canViewPath,
   visibleNavSections,
@@ -28,6 +30,7 @@ test.describe('production role access matrix', () => {
     testInfo.setTimeout(300_000)
     const baseUrl = testInfo.project.use.baseURL
     expect(baseUrl).toBeTruthy()
+    const projectId = z.string().uuid().parse(process.env.E2E_PROJECT_ID)
 
     const allRoles: MagicLinkRole[] = [
       'admin',
@@ -145,6 +148,59 @@ test.describe('production role access matrix', () => {
               expect(new URL(page.url()).searchParams.get('error')).toBe('forbidden')
             } else {
               expect(page.url(), `${role} ${path}`).not.toMatch(/\/auth\/login/)
+            }
+          }
+
+          const schedule = await page.goto(`${baseUrl}/projects/${projectId}/schedule`, {
+            waitUntil: 'domcontentloaded',
+          })
+          expect(schedule?.status() ?? 0, `${role} schedule`).toBe(200)
+          await expect(page, `${role} schedule route`).toHaveURL(
+            `${baseUrl}/projects/${projectId}/schedule`
+          )
+          await expect(
+            page.getByRole('heading', { name: 'Schedule & lookahead', exact: true }),
+            `${role} schedule heading`
+          ).toBeVisible()
+          await expect(
+            page.getByRole('heading', { name: 'Normalized schedule', exact: true }),
+            `${role} verified schedule data`
+          ).toBeVisible()
+          const preview = page.getByRole('button', {
+            name: 'Preview stored schedule', exact: true,
+          })
+          if (roleHasCapability(role, 'project.schedule.manage')) {
+            await expect(preview, `${role} schedule import preview`).toBeVisible()
+          } else {
+            await expect(preview, `${role} schedule import withheld`).toHaveCount(0)
+          }
+
+          if (role === 'admin') {
+            const originalViewport = page.viewportSize()
+            try {
+              await page.setViewportSize({ width: 390, height: 844 })
+              const procurement = await page.goto(`${baseUrl}/procurement`, {
+                waitUntil: 'domcontentloaded',
+              })
+              expect(procurement?.status() ?? 0, 'admin mobile procurement').toBe(200)
+              await expect(page.getByRole('heading', { name: 'Procurement', exact: true })).toBeVisible()
+              const workspace = page.getByTestId('procurement-workspace-columns')
+              await expect(workspace).toBeVisible()
+              const sections = workspace.locator(':scope > div')
+              await expect(sections).toHaveCount(2)
+              const bounds = await sections.evaluateAll((elements) => elements.map((element) => {
+                const rect = element.getBoundingClientRect()
+                return { top: rect.top, bottom: rect.bottom }
+              }))
+              const [vendors, purchaseOrders] = bounds
+              if (!vendors || !purchaseOrders) throw new Error('Procurement sections were not rendered')
+              expect(purchaseOrders.top, 'mobile procurement sections stack').toBeGreaterThanOrEqual(vendors.bottom - 1)
+              expect(
+                await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
+                'mobile procurement has no document overflow'
+              ).toBeLessThanOrEqual(1)
+            } finally {
+              if (originalViewport) await page.setViewportSize(originalViewport)
             }
           }
         } finally {
