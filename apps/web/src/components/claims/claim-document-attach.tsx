@@ -37,6 +37,8 @@ const KIND_OPTIONS = [
 ] as const
 
 type Kind = (typeof KIND_OPTIONS)[number]['value']
+type PaginationDirection = 'previous' | 'next'
+
 export type ClaimDocumentOption = Pick<
   ProjectDocumentRow,
   'id' | 'fileName' | 'documentType'
@@ -94,6 +96,13 @@ export function ClaimDocumentAttach({
   const requestSequence = useRef(0)
   const [uncertainPayload, setUncertainPayload] =
     useState<ClaimDocumentAttachCommand | null>(null)
+  const pendingPaginationFocus = useRef<{
+    direction: PaginationDirection
+    sourceElement: HTMLButtonElement
+    targetPage: number
+  } | null>(null)
+  const previousPageButtonRef = useRef<HTMLButtonElement>(null)
+  const nextPageButtonRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     const sequence = ++requestSequence.current
@@ -133,6 +142,48 @@ export function ClaimDocumentAttach({
       if (requestSequence.current === sequence) requestSequence.current += 1
     }
   }, [claimId, disabled, page, reloadNonce])
+
+  useEffect(() => {
+    const pendingFocus = pendingPaginationFocus.current
+    if (!pendingFocus || isLoadingDocuments) return
+
+    if (!documents || documents.page !== pendingFocus.targetPage) {
+      pendingPaginationFocus.current = null
+      return
+    }
+
+    pendingPaginationFocus.current = null
+
+    const activeElement = document.activeElement
+    if (
+      activeElement !== document.body &&
+      activeElement !== pendingFocus.sourceElement
+    ) {
+      return
+    }
+
+    const requestedButton =
+      pendingFocus.direction === 'previous'
+        ? previousPageButtonRef.current
+        : nextPageButtonRef.current
+    const fallbackButton =
+      pendingFocus.direction === 'previous'
+        ? nextPageButtonRef.current
+        : previousPageButtonRef.current
+    const button =
+      requestedButton && !requestedButton.disabled
+        ? requestedButton
+        : fallbackButton && !fallbackButton.disabled
+          ? fallbackButton
+          : null
+    button?.focus()
+  }, [documents, isLoadingDocuments])
+
+  useEffect(() => {
+    return () => {
+      pendingPaginationFocus.current = null
+    }
+  }, [claimId, disabled])
 
   const options = mergeClaimDocumentOptions(
     documents?.rows ?? [],
@@ -224,6 +275,28 @@ export function ClaimDocumentAttach({
     })
   }
 
+  function onPagination(direction: PaginationDirection): void {
+    if (isLoadingDocuments || disabled || isPending || uncertainPayload) return
+
+    const button =
+      direction === 'previous'
+        ? previousPageButtonRef.current
+        : nextPageButtonRef.current
+    const nextPage =
+      direction === 'previous' ? Math.max(1, page - 1) : page + 1
+    if (button && document.activeElement === button) {
+      pendingPaginationFocus.current = {
+        direction,
+        sourceElement: button,
+        targetPage: nextPage,
+      }
+    } else {
+      pendingPaginationFocus.current = null
+    }
+    setIsLoadingDocuments(true)
+    setPage(nextPage)
+  }
+
   const canGoPrevious = !isLoadingDocuments && page > 1
   const canGoNext =
     !isLoadingDocuments && documents !== null && page < documents.totalPages
@@ -304,7 +377,8 @@ export function ClaimDocumentAttach({
           >
             <button
               type="button"
-              onClick={() => setPage((value) => Math.max(1, value - 1))}
+              ref={previousPageButtonRef}
+              onClick={() => onPagination('previous')}
               disabled={!canGoPrevious || disabled || isPending || Boolean(uncertainPayload)}
               className="button-secondary"
             >
@@ -317,7 +391,8 @@ export function ClaimDocumentAttach({
             </span>
             <button
               type="button"
-              onClick={() => setPage((value) => value + 1)}
+              ref={nextPageButtonRef}
+              onClick={() => onPagination('next')}
               disabled={!canGoNext || disabled || isPending || Boolean(uncertainPayload)}
               className="button-secondary"
             >

@@ -5,6 +5,7 @@ const CLAIM_ID = '44444444-4444-4444-8444-444444444444'
 const OTHER_CLAIM_ID = '55555555-5555-4555-8555-555555555555'
 const DOCUMENT_ONE_ID = '66666666-6666-4666-8666-666666666666'
 const DOCUMENT_TWO_ID = '77777777-7777-4777-8777-777777777777'
+const DOCUMENT_THREE_ID = '99999999-9999-4999-8999-999999999999'
 const TENANT_ID = '22222222-2222-4222-8222-222222222222'
 const REQUESTED_ATTACHMENT_ID = '88888888-8888-4888-8888-888888888888'
 
@@ -472,7 +473,14 @@ test('fits the supported widths and keeps every control keyboard reachable', asy
     await expect(selector).toBeFocused()
     await page.keyboard.press('Tab')
     await expect(page.locator('#claim-document-kind')).toBeFocused()
-    await expect(page.locator('#claim-document-kind')).toHaveCSS('box-shadow', /.+/)
+    const focusIndicator = await page.locator('#claim-document-kind').evaluate((element) => {
+      const style = getComputedStyle(element)
+      return {
+        hasOutline: style.outlineStyle !== 'none' && style.outlineWidth !== '0px',
+        hasBoxShadow: style.boxShadow !== 'none' && style.boxShadow !== '',
+      }
+    })
+    expect(focusIndicator.hasOutline || focusIndicator.hasBoxShadow).toBe(true)
     await page.keyboard.press('Tab')
     await expect(page.locator('#claim-document-caption')).toBeFocused()
     await page.keyboard.press('Tab')
@@ -483,4 +491,202 @@ test('fits the supported widths and keeps every control keyboard reachable', asy
       fullPage: true,
     })
   }
+})
+
+test('paginates with keyboard controls and retains focus at page boundaries', async ({ page }) => {
+  await page.waitForFunction(() => {
+    const bridge = (window as unknown as { __claimDocumentTest: BrowserBridge }).__claimDocumentTest
+    return bridge.listPending.length === 1
+  })
+  await expect(page.locator('#claim-document-id')).toBeDisabled()
+  await resolveList(page, {
+    ok: true,
+    data: pageResult([documentRow(DOCUMENT_ONE_ID, 'page-one-photo.jpg', 'image')], 1, 51, 3),
+  })
+
+  const nextButton = page.getByRole('button', { name: 'Next' })
+  const previousButton = page.getByRole('button', { name: 'Previous' })
+  await expect(nextButton).toBeEnabled()
+  await expect(previousButton).toBeDisabled()
+  await nextButton.focus()
+  await expect(nextButton).toBeFocused()
+  await page.keyboard.press('Enter')
+  await page.waitForFunction(() => {
+    const bridge = (window as unknown as { __claimDocumentTest: BrowserBridge }).__claimDocumentTest
+    return bridge.listPending.length === 1
+  })
+  await expect(page.locator('#claim-document-id')).toBeDisabled()
+  await resolveList(page, {
+    ok: true,
+    data: pageResult([documentRow(DOCUMENT_TWO_ID, 'page-two-plan.pdf', 'pdf')], 2, 51, 3),
+  })
+
+  await expect(nextButton).toBeEnabled()
+  await expect(previousButton).toBeEnabled()
+  await expect(page.getByText('Page 2 of 3')).toBeVisible()
+  const nextFocusRetained = await nextButton.evaluate(
+    (element) => document.activeElement === element,
+  )
+
+  await previousButton.focus()
+  await expect(previousButton).toBeFocused()
+  await page.keyboard.press('Enter')
+  await page.waitForFunction(() => {
+    const bridge = (window as unknown as { __claimDocumentTest: BrowserBridge }).__claimDocumentTest
+    return bridge.listPending.length === 1
+  })
+  await resolveList(page, {
+    ok: true,
+    data: pageResult([documentRow(DOCUMENT_ONE_ID, 'page-one-photo.jpg', 'image')], 1, 51, 3),
+  })
+
+  await expect(nextButton).toBeEnabled()
+  await expect(previousButton).toBeDisabled()
+  await expect(page.getByText('Page 1 of 3')).toBeVisible()
+  const firstPageFocusFallback = await nextButton.evaluate(
+    (element) => document.activeElement === element,
+  )
+
+  await nextButton.focus()
+  await expect(nextButton).toBeFocused()
+  await page.keyboard.press('Enter')
+  await page.waitForFunction(() => {
+    const bridge = (window as unknown as { __claimDocumentTest: BrowserBridge }).__claimDocumentTest
+    return bridge.listPending.length === 1
+  })
+  await expect(page.locator('#claim-document-id')).toBeDisabled()
+  await resolveList(page, {
+    ok: true,
+    data: pageResult([documentRow(DOCUMENT_TWO_ID, 'page-two-plan.pdf', 'pdf')], 2, 51, 3),
+  })
+
+  await expect(nextButton).toBeEnabled()
+  await expect(previousButton).toBeEnabled()
+  await expect(page.getByText('Page 2 of 3')).toBeVisible()
+  const secondPageFocusRetained = await nextButton.evaluate(
+    (element) => document.activeElement === element,
+  )
+
+  await nextButton.focus()
+  await expect(nextButton).toBeFocused()
+  await page.keyboard.press('Enter')
+  await page.waitForFunction(() => {
+    const bridge = (window as unknown as { __claimDocumentTest: BrowserBridge }).__claimDocumentTest
+    return bridge.listPending.length === 1
+  })
+  await expect(page.locator('#claim-document-id')).toBeDisabled()
+  await resolveList(page, {
+    ok: true,
+    data: pageResult([documentRow(DOCUMENT_THREE_ID, 'page-three-drawing.pdf', 'pdf')], 3, 51, 3),
+  })
+
+  await expect(nextButton).toBeDisabled()
+  await expect(previousButton).toBeEnabled()
+  await expect(page.getByText('Page 3 of 3')).toBeVisible()
+  const lastPageFocusFallback = await previousButton.evaluate(
+    (element) => document.activeElement === element,
+  )
+
+  expect({
+    nextFocusRetained,
+    firstPageFocusFallback,
+    secondPageFocusRetained,
+    lastPageFocusFallback,
+  }).toEqual({
+    nextFocusRetained: true,
+    firstPageFocusFallback: true,
+    secondPageFocusRetained: true,
+    lastPageFocusFallback: true,
+  })
+  expect(await bridgeSnapshot(page)).toMatchObject({
+    listRequests: [
+      { claimId: CLAIM_ID, query: { page: 1, limit: 25 } },
+      { claimId: CLAIM_ID, query: { page: 2, limit: 25 } },
+      { claimId: CLAIM_ID, query: { page: 1, limit: 25 } },
+      { claimId: CLAIM_ID, query: { page: 2, limit: 25 } },
+      { claimId: CLAIM_ID, query: { page: 3, limit: 25 } },
+    ],
+  })
+})
+
+test('does not steal focus moved to another field during pagination loading', async ({ page }) => {
+  await page.waitForFunction(() => {
+    const bridge = (window as unknown as { __claimDocumentTest: BrowserBridge }).__claimDocumentTest
+    return bridge.listPending.length === 1
+  })
+  await resolveList(page, {
+    ok: true,
+    data: pageResult([documentRow(DOCUMENT_ONE_ID, 'page-one-photo.jpg', 'image')], 1, 51, 3),
+  })
+
+  const nextButton = page.getByRole('button', { name: 'Next' })
+  const caption = page.locator('#claim-document-caption')
+  await nextButton.focus()
+  await page.keyboard.press('Enter')
+  await page.waitForFunction(() => {
+    const bridge = (window as unknown as { __claimDocumentTest: BrowserBridge }).__claimDocumentTest
+    return bridge.listPending.length === 1
+  })
+  await expect(page.locator('#claim-document-id')).toBeDisabled()
+  await caption.focus()
+  await expect(caption).toBeFocused()
+  await resolveList(page, {
+    ok: true,
+    data: pageResult([documentRow(DOCUMENT_TWO_ID, 'page-two-plan.pdf', 'pdf')], 2, 51, 3),
+  })
+
+  await expect(page.getByText('Page 2 of 3')).toBeVisible()
+  await expect(caption).toBeFocused()
+})
+
+test('does not restore pagination focus after the claim scope changes', async ({ page }) => {
+  await page.waitForFunction(() => {
+    const bridge = (window as unknown as { __claimDocumentTest: BrowserBridge }).__claimDocumentTest
+    return bridge.listPending.length === 1
+  })
+  await resolveList(page, {
+    ok: true,
+    data: pageResult([documentRow(DOCUMENT_ONE_ID, 'page-one-photo.jpg', 'image')], 1, 51, 3),
+  })
+
+  const nextButton = page.getByRole('button', { name: 'Next' })
+  await nextButton.focus()
+  await page.keyboard.press('Enter')
+  await page.waitForFunction(() => {
+    const bridge = (window as unknown as { __claimDocumentTest: BrowserBridge }).__claimDocumentTest
+    return bridge.listPending.length === 1
+  })
+  await expect(page.locator('#claim-document-id')).toBeDisabled()
+  await page.evaluate((claimId) => {
+    const bridge = (window as unknown as { __claimDocumentTest: BrowserBridge }).__claimDocumentTest
+    bridge.mount(claimId)
+  }, OTHER_CLAIM_ID)
+  await page.waitForFunction(() => {
+    const bridge = (window as unknown as { __claimDocumentTest: BrowserBridge }).__claimDocumentTest
+    return bridge.listPending.length === 2
+  })
+
+  await resolveList(page, {
+    ok: true,
+    data: pageResult([documentRow(DOCUMENT_TWO_ID, 'stale-page-two.pdf', 'pdf')], 2, 51, 3),
+  })
+  await resolveList(page, {
+    ok: true,
+    data: pageResult([documentRow(DOCUMENT_TWO_ID, 'current-page-two.pdf', 'pdf')], 2, 51, 3),
+  })
+
+  await expect(page.getByText('Page 2 of 3')).toBeVisible()
+  const paginationButtonFocused = await page.evaluate(() => {
+    const active = document.activeElement
+    return active instanceof HTMLButtonElement &&
+      (active.textContent?.trim() === 'Previous' || active.textContent?.trim() === 'Next')
+  })
+  expect(paginationButtonFocused).toBe(false)
+  expect(await bridgeSnapshot(page)).toMatchObject({
+    listRequests: [
+      { claimId: CLAIM_ID, query: { page: 1, limit: 25 } },
+      { claimId: CLAIM_ID, query: { page: 2, limit: 25 } },
+      { claimId: OTHER_CLAIM_ID, query: { page: 2, limit: 25 } },
+    ],
+  })
 })
