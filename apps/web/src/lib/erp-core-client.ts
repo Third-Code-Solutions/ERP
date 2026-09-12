@@ -2,6 +2,10 @@ import 'server-only'
 
 import { createHash, createHmac, randomUUID } from 'node:crypto'
 import {
+  inspectionReportArchiveCommandSchema,
+  inspectionReportArchiveResultSchema,
+  type InspectionReportArchiveCommand,
+  type InspectionReportArchiveResult,
   rfqCreationResultSchema,
   rfqDispatchResultSchema,
   projectUpdateResultSchema,
@@ -3268,6 +3272,31 @@ export async function executeTakeoffImportThroughCoreApi(
  * Core is the durable authority for pre-project opportunity inspection-photo
  * metadata and audit evidence. Storage upload remains a bounded Web concern.
  */
+export async function archiveInspectionReportThroughCoreApi(
+  command: InspectionReportArchiveCommand,
+): Promise<CoreResult<InspectionReportArchiveResult>> {
+  const parsedCommand = inspectionReportArchiveCommandSchema.safeParse(command)
+  if (!parsedCommand.success) return { ok: false, error: 'Invalid inspection report request.', status: 400 }
+  try {
+    const access = await getCoreApiAccess()
+    if (!access.ok) return access
+    const { opportunityId, inspectionId } = parsedCommand.data
+    const response = await fetch(`${access.baseUrl}/v1/opportunities/${opportunityId}/inspections/${inspectionId}/report`, {
+      method: 'POST', headers: { authorization: `Bearer ${access.accessToken}`, 'content-type': 'application/json', 'x-request-id': randomUUID() },
+      body: '{}', cache: 'no-store', signal: AbortSignal.timeout(20_000),
+    })
+    const body: unknown = await response.json().catch(() => null)
+    if (!response.ok) return { ok: false, error: 'Inspection report archive was not confirmed. Retry the same inspection.', status: response.status }
+    const parsed = inspectionReportArchiveResultSchema.safeParse(body)
+    if (!parsed.success || parsed.data.opportunityId.toLowerCase() !== opportunityId.toLowerCase() || parsed.data.inspectionId.toLowerCase() !== inspectionId.toLowerCase()) {
+      return { ok: false, error: 'ERP Core API returned an invalid inspection archive result.', status: 502 }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return { ok: false, error: 'Inspection report archive is unconfirmed. Retry the same inspection.', status: 503 }
+  }
+}
+
 export async function createInspectionPhotoThroughCoreApi(
   command: InspectionPhotoCommand
 ): Promise<CoreResult<InspectionPhotoResult>> {

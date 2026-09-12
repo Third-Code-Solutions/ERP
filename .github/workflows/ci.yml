@@ -423,6 +423,7 @@ jobs:
             e2e/user-role-workflow.spec.ts \
             e2e/inspection-rfi-offline.spec.ts \
             e2e/inspection-draft-durability.spec.ts \
+            e2e/inspection-report-repair.spec.ts \
             e2e/billing-milestone-navigation.spec.ts \
             e2e/quality-document-handoff.spec.ts \
             --project=chromium \

@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   requireUserProfile: vi.fn(),
   can: vi.fn(),
   select: vi.fn(),
+  archiveInspectionReportThroughCoreApi: vi.fn(),
   changeRequestWritesUseCoreApi: vi.fn(),
   createChangeRequestThroughCoreApi: vi.fn(),
   submitResubmission: vi.fn(),
@@ -38,6 +39,7 @@ vi.mock('drizzle-orm', () => ({
 }))
 
 vi.mock('@/lib/erp-core-client', () => ({
+  archiveInspectionReportThroughCoreApi: mocks.archiveInspectionReportThroughCoreApi,
   changeRequestWritesUseCoreApi: mocks.changeRequestWritesUseCoreApi,
   createChangeRequestThroughCoreApi:
     mocks.createChangeRequestThroughCoreApi,
@@ -88,7 +90,7 @@ vi.mock('next/cache', () => ({
   revalidatePath: mocks.revalidatePath,
 }))
 
-import { addInspectionRfi, logChangeRequest, submitInspection, submitPprf } from './actions'
+import { addInspectionRfi, logChangeRequest, repairInspectionReport, submitInspection, submitPprf } from './actions'
 
 const USER_ID = '11111111-1111-4111-8111-111111111111'
 const TENANT_ID = '22222222-2222-4222-8222-222222222222'
@@ -326,6 +328,10 @@ describe('site inspection atomic service mounting', () => {
       user: { id: USER_ID }, tenantId: TENANT_ID, role: 'commercial',
     })
     mocks.can.mockReturnValue(true)
+    mocks.archiveInspectionReportThroughCoreApi.mockResolvedValue({ ok: true, data: {
+      tenantId: TENANT_ID, opportunityId: OPPORTUNITY_ID, inspectionId: INSPECTION_ID,
+      documentId: PHOTO_ID, status: 'archived', replayed: false,
+    } })
     mocks.submitInspection.mockResolvedValue({
       ok: true, kind: 'inspection_submission', tenantId: TENANT_ID,
       actorId: USER_ID, opportunityId: OPPORTUNITY_ID,
@@ -346,6 +352,9 @@ describe('site inspection atomic service mounting', () => {
       ok: true, inspectionId: INSPECTION_ID, replayed: true,
     })
     expect(mocks.submitInspection).toHaveBeenCalledTimes(1)
+    expect(mocks.archiveInspectionReportThroughCoreApi).toHaveBeenCalledWith({
+      opportunityId: OPPORTUNITY_ID, inspectionId: INSPECTION_ID,
+    })
     expect(mocks.submitInspection).toHaveBeenCalledWith(
       { tenantId: TENANT_ID, userId: USER_ID },
       {
@@ -420,6 +429,7 @@ describe('site inspection atomic service mounting', () => {
   })
 
   it('reports archive failure as a warning without reversing committed success', async () => {
+    mocks.archiveInspectionReportThroughCoreApi.mockResolvedValueOnce({ ok: false, error: 'Unavailable' })
     mocks.submitInspection.mockResolvedValueOnce({
       ok: true, kind: 'inspection_submission', tenantId: TENANT_ID,
       actorId: USER_ID, opportunityId: OPPORTUNITY_ID,
@@ -452,6 +462,37 @@ describe('site inspection atomic service mounting', () => {
     hostile.set('inspection_id', INSPECTION_ID)
     await expect(addInspectionRfi(OPPORTUNITY_ID, INSPECTION_ID, hostile)).resolves.toMatchObject({ ok: false })
     expect(mocks.createRfi).toHaveBeenCalledTimes(1)
+  })
+
+  it('repairs only the scoped existing inspection through Core', async () => {
+    expect(await repairInspectionReport(OPPORTUNITY_ID, INSPECTION_ID, { actorId: USER_ID, tenantId: TENANT_ID })).toEqual({
+      ok: true, documentId: PHOTO_ID, refreshFailed: false,
+    })
+    expect(mocks.archiveInspectionReportThroughCoreApi).toHaveBeenCalledWith({ opportunityId: OPPORTUNITY_ID, inspectionId: INSPECTION_ID })
+    expect(mocks.submitInspection).not.toHaveBeenCalled()
+  })
+
+  it('rejects archive repair after account switch without a Core call', async () => {
+    expect(await repairInspectionReport(OPPORTUNITY_ID, INSPECTION_ID, { actorId: PHOTO_ID, tenantId: TENANT_ID })).toMatchObject({ ok: false })
+    expect(mocks.archiveInspectionReportThroughCoreApi).not.toHaveBeenCalled()
+  })
+
+  it('accepts canonical lower-case archive receipts for upper-case UUID routes', async () => {
+    const opportunityId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const inspectionId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+    mocks.archiveInspectionReportThroughCoreApi.mockResolvedValueOnce({ ok: true, data: {
+      tenantId: TENANT_ID, opportunityId, inspectionId, documentId: PHOTO_ID, status: 'archived', replayed: true,
+    } })
+    expect(await repairInspectionReport(opportunityId.toUpperCase(), inspectionId.toUpperCase(), { actorId: USER_ID, tenantId: TENANT_ID })).toMatchObject({ ok: true })
+  })
+
+  it('rejects mismatched archive receipts and preserves retry on failed refresh', async () => {
+    mocks.archiveInspectionReportThroughCoreApi.mockResolvedValueOnce({ ok: true, data: {
+      tenantId: PHOTO_ID, opportunityId: OPPORTUNITY_ID, inspectionId: INSPECTION_ID, documentId: PHOTO_ID, status: 'archived', replayed: true,
+    } })
+    expect(await repairInspectionReport(OPPORTUNITY_ID, INSPECTION_ID, { actorId: USER_ID, tenantId: TENANT_ID })).toMatchObject({ ok: false })
+    mocks.revalidatePath.mockImplementation(() => { throw new Error('cache down') })
+    expect(await repairInspectionReport(OPPORTUNITY_ID, INSPECTION_ID, { actorId: USER_ID, tenantId: TENANT_ID })).toMatchObject({ ok: true, refreshFailed: true })
   })
 
   it.each([{ actorId: PHOTO_ID, tenantId: TENANT_ID }, { actorId: USER_ID, tenantId: PHOTO_ID }, { actorId: 'invalid', tenantId: TENANT_ID }, { actorId: USER_ID, tenantId: TENANT_ID, extra: true }])('rejects stale or malformed inspection owner %j before effects', async owner => {

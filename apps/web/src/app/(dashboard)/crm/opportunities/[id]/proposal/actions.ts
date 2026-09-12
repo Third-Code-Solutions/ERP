@@ -7,36 +7,26 @@ import { z } from 'zod'
 import {
   requireUserProfile,
   can,
-  createSupabaseAdminClient,
   type ErpCapability,
   type AppRole,
 } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   pprfSubmissions,
-  siteInspections,
   designFiles,
   designFileVersions,
   opportunities,
   documents,
-  accounts,
-  projects,
-  tenants,
-  users,
 } from '@third-code-erp/database/schema'
 import { writeAuditLog, writeAuditLogInTransaction } from '@/lib/audit'
 import {
+  archiveInspectionReportThroughCoreApi,
   changeRequestWritesUseCoreApi,
   createChangeRequestThroughCoreApi,
 } from '@/lib/erp-core-client'
 import { startSlaClock } from '@/lib/operations/sla-clock'
 import { notifyRoles } from '@/lib/operations/notifications'
 import { inngest } from '@/lib/inngest'
-import {
-  buildInspectionReportHtml,
-  type InspectionPhotoInput,
-  type InspectionRfiInput,
-} from '@/lib/pdf/site-inspection-report'
 
 // REFACTOR.md M2 US-006..US-009 — Proposal Workflow server actions.
 //
@@ -302,7 +292,7 @@ function logSiteInspectionOutcome(input: {
   traceId: string
   tenantId: string | null
   actorId: string | null
-  action: 'site_inspection.submit' | 'site_inspection_rfi.create'
+  action: 'site_inspection.submit' | 'site_inspection_rfi.create' | 'site_inspection.report_archive'
   outcome: string
   errorCode?: string
 }): void {
@@ -317,156 +307,6 @@ function logSiteInspectionOutcome(input: {
   }))
 }
 
-// US-007 #5 — Render the inspection report to HTML, upload to Storage, and
-// insert a tenant-scoped documents row + link pdf_document_id on the
-// inspection. Pre-Won opportunities have no project yet, so opportunity_id
-// is the durable parent for the report until a project is created.
-//
-// Why this lives next to the action: it's tightly coupled to the
-// submitInspection flow and only ever called from there. Extracting to a
-// dedicated module would just add an import without changing reuse.
-async function persistInspectionReport(args: {
-  tenantId: string
-  actorId: string
-  inspectionId: string
-  opportunityId: string
-  payload: Record<string, unknown>
-  photoDocumentIds: string[]
-}): Promise<void> {
-  // Resolve the joined context the builder needs. Same shape as the
-  // /print/inspection page so the archived HTML matches the live view.
-  const [oppRow] = await db
-    .select({ project_id: opportunities.project_id, account_id: opportunities.account_id })
-    .from(opportunities)
-    .where(
-      and(
-        eq(opportunities.id, args.opportunityId),
-        eq(opportunities.tenant_id, args.tenantId),
-      ),
-    )
-    .limit(1)
-  if (!oppRow) throw new Error('Opportunity not found while archiving inspection report')
-
-  const [projectRow] = oppRow.project_id
-    ? await db
-        .select({
-          id: projects.id,
-          name: projects.name,
-          client: projects.client,
-          location: projects.location,
-        })
-        .from(projects)
-        .where(and(eq(projects.id, oppRow.project_id), eq(projects.tenant_id, args.tenantId)))
-        .limit(1)
-    : [null]
-
-  const [accountRow] = oppRow.account_id
-    ? await db
-        .select({
-          id: accounts.id,
-          name: accounts.name,
-          billing_address: accounts.billing_address,
-        })
-        .from(accounts)
-        .where(and(eq(accounts.id, oppRow.account_id), eq(accounts.tenant_id, args.tenantId)))
-        .limit(1)
-    : [null]
-
-  const [tenantRow] = await db
-    .select({
-      name: tenants.name,
-      bir_tin: tenants.bir_tin,
-      pcab_license: tenants.pcab_license,
-    })
-    .from(tenants)
-    .where(eq(tenants.id, args.tenantId))
-    .limit(1)
-
-  const [inspectorRow] = await db
-    .select({ full_name: users.full_name, email: users.email })
-    .from(users)
-    .where(and(eq(users.id, args.actorId), eq(users.tenant_id, args.tenantId)))
-    .limit(1)
-
-  // Photos archive — we only need (document_id, caption) for the builder.
-  // Captions don't exist on first submission yet; pull whatever's there.
-  const photoRows: InspectionPhotoInput[] = args.photoDocumentIds.map((doc, i) => ({
-    id: `${args.inspectionId}-photo-${i}`,
-    document_id: doc,
-    caption: null,
-  }))
-
-  // RFIs are added post-submission via addInspectionRfi, so at this point
-  // there are none. The builder handles the empty case cleanly.
-  const rfiRows: InspectionRfiInput[] = []
-
-  const now = new Date()
-  const html = buildInspectionReportHtml({
-    inspection: {
-      id: args.inspectionId,
-      opportunity_id: args.opportunityId,
-      payload: args.payload,
-      submitted_at: now,
-      created_at: now,
-    },
-    photos: photoRows,
-    rfis: rfiRows,
-    project: projectRow ?? null,
-    account: accountRow ?? null,
-    brand: {
-      tenant_name: tenantRow?.name ?? null,
-      bir_tin: tenantRow?.bir_tin ?? null,
-      pcab_license: tenantRow?.pcab_license ?? null,
-      inspector_name: inspectorRow?.full_name ?? inspectorRow?.email ?? null,
-    },
-  })
-
-  // Storage path. Use project_id when we have it (groups archived reports
-  // under the project the same way other docs are organised); fall back
-  // to opportunity_id so the file still lands in a deterministic location
-  // for pre-Won inspections.
-  const folderId = oppRow.project_id ?? args.opportunityId
-  const ts = Date.now()
-  const storagePath = `${args.tenantId}/${folderId}/inspection-report-${ts}.html`
-  const fileName = `inspection-report-${args.inspectionId.slice(0, 8)}-${ts}.html`
-  const bytes = Buffer.from(html, 'utf-8')
-
-  const admin = createSupabaseAdminClient()
-  const { error: uploadErr } = await admin.storage
-    .from('documents')
-    .upload(storagePath, bytes, { contentType: 'text/html; charset=utf-8', upsert: false })
-  if (uploadErr) {
-    throw new Error(`storage upload: ${uploadErr.message}`)
-  }
-
-  const [doc] = await db
-    .insert(documents)
-    .values({
-      tenant_id: args.tenantId,
-      project_id: oppRow.project_id,
-      opportunity_id: args.opportunityId,
-      uploaded_by: args.actorId,
-      document_type: 'other',
-      file_name: fileName,
-      storage_path: storagePath,
-      mime_type: 'text/html; charset=utf-8',
-      size_bytes: bytes.length,
-      description: `Site Inspection Report (auto-generated) for inspection ${args.inspectionId}`,
-    })
-    .returning({ id: documents.id })
-
-  if (!doc) return
-
-  await db
-    .update(siteInspections)
-    .set({ pdf_document_id: doc.id, updated_at: new Date() })
-    .where(
-      and(
-        eq(siteInspections.id, args.inspectionId),
-        eq(siteInspections.tenant_id, args.tenantId)
-      )
-    )
-}
 
 const inspectionExpectedOwnerSchema = z.object({
   actorId: z.string().uuid(),
@@ -476,6 +316,42 @@ const inspectionExpectedOwnerSchema = z.object({
 export type InspectionSubmissionActionResult =
   | { ok: false; error: string; outcome: 'rejected' | 'unknown' }
   | { ok: true; inspectionId: string; replayed: boolean; refreshFailed: boolean; archiveWarning?: string; confirmation: { actorId: string; tenantId: string; opportunityId: string; submissionId: string } }
+
+export type InspectionReportRepairResult =
+  | { ok: false; error: string }
+  | { ok: true; documentId: string; refreshFailed: boolean }
+
+export async function repairInspectionReport(opportunityId: string, inspectionId: string, expectedOwner: unknown): Promise<InspectionReportRepairResult> {
+  const traceId = randomUUID()
+  let tenantId: string | null = null
+  let actorId: string | null = null
+  let outcome = 'rejected'
+  try {
+    const profile = await requireUserProfile()
+    tenantId = profile.tenantId
+    actorId = profile.user.id
+    const owner = inspectionExpectedOwnerSchema.safeParse(expectedOwner)
+    if (!owner.success || owner.data.actorId.toLowerCase() !== actorId.toLowerCase() || owner.data.tenantId.toLowerCase() !== tenantId.toLowerCase()) {
+      return { ok: false, error: 'The signed-in account changed. Reload before repairing this report.' }
+    }
+    if (!can(profile.role, 'site_inspection.submit')) return { ok: false, error: 'You cannot archive inspection reports.' }
+    if (!z.string().uuid().safeParse(opportunityId).success || !z.string().uuid().safeParse(inspectionId).success) return { ok: false, error: 'Invalid inspection report request.' }
+    const result = await archiveInspectionReportThroughCoreApi({ opportunityId, inspectionId })
+    if (!result.ok || !result.data || result.data.tenantId.toLowerCase() !== tenantId.toLowerCase() || result.data.opportunityId.toLowerCase() !== opportunityId.toLowerCase() || result.data.inspectionId.toLowerCase() !== inspectionId.toLowerCase()) {
+      outcome = 'unconfirmed'
+      return { ok: false, error: 'Report archive is unconfirmed. Your inspection remains submitted. Retry this report.' }
+    }
+    let refreshFailed = false
+    try { revalidatePath(`/crm/opportunities/${opportunityId}/proposal/inspection`) } catch { refreshFailed = true }
+    outcome = refreshFailed ? 'success_refresh_failed' : 'success'
+    return { ok: true, documentId: result.data.documentId, refreshFailed }
+  } catch {
+    outcome = 'unconfirmed'
+    return { ok: false, error: 'Report archive is unconfirmed. Your inspection remains submitted. Retry this report.' }
+  } finally {
+    logSiteInspectionOutcome({ traceId, tenantId, actorId, action: 'site_inspection.report_archive', outcome })
+  }
+}
 
 export async function submitInspection(opportunityId: string, formData: FormData, expectedOwner?: unknown): Promise<InspectionSubmissionActionResult> {
   const traceId = randomUUID()
@@ -566,28 +442,16 @@ export async function submitInspection(opportunityId: string, formData: FormData
     }
 
     let archiveWarning: string | undefined
-    if (!checked.data.replayed) {
-      try {
-        await persistInspectionReport({
-          tenantId,
-          actorId,
-          inspectionId: checked.data.inspectionId,
-          opportunityId,
-          payload: {
-            site_address: command.data.payload.siteAddress,
-            floor_area_sqm: command.data.payload.floorAreaSqm,
-            landlord_contact: command.data.payload.landlordContact,
-            as_built_available: command.data.payload.asBuiltAvailable,
-            expected_start_date: command.data.payload.expectedStartDate,
-            weather: command.data.payload.weather,
-            accessibility_notes: command.data.payload.accessibilityNotes,
-            observations: command.data.payload.observations,
-          },
-          photoDocumentIds: command.data.photoDocumentIds,
-        })
-      } catch {
-        archiveWarning = 'The inspection was submitted, but its report could not be archived. Retry the report repair later.'
+    try {
+      const archived = await archiveInspectionReportThroughCoreApi({
+        opportunityId, inspectionId: checked.data.inspectionId,
+      })
+      if (!archived.ok || !archived.data || archived.data.tenantId.toLowerCase() !== tenantId.toLowerCase() ||
+        archived.data.opportunityId.toLowerCase() !== opportunityId.toLowerCase() || archived.data.inspectionId.toLowerCase() !== checked.data.inspectionId.toLowerCase()) {
+        archiveWarning = 'The inspection was submitted, but its report could not be archived. Use Retry report archive on this inspection.'
       }
+    } catch {
+      archiveWarning = 'The inspection was submitted, but its report could not be archived. Use Retry report archive on this inspection.'
     }
 
     let refreshFailed = false

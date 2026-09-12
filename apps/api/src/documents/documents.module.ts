@@ -21,6 +21,9 @@ import { PublicSigningStorageService } from './public-signing.storage'
 import { ClaimDocumentController } from './claim-document.controller'
 import { ClaimDocumentPipe } from './claim-document.pipe'
 import { ClaimDocumentService } from './claim-document.service'
+import { InspectionReportController } from './inspection-report.controller'
+import { InspectionReportService } from './inspection-report.service'
+import { InspectionReportStorageService } from './inspection-report.storage'
 
 @Module({
   imports: [AuditModule],
@@ -30,6 +33,7 @@ import { ClaimDocumentService } from './claim-document.service'
     DocumentIntakeController,
     DocuSealWebhookController,
     InspectionPhotoController,
+    InspectionReportController,
     PublicSigningController,
   ],
   providers: [
@@ -44,6 +48,8 @@ import { ClaimDocumentService } from './claim-document.service'
     InspectionPhotoPipe,
     InspectionPhotoService,
     InspectionPhotoStorageService,
+    InspectionReportService,
+    InspectionReportStorageService,
     PublicSigningPipe,
     PublicSigningService,
     PublicSigningStorageService,
@@ -58,6 +64,7 @@ export class DocumentsModule implements NestModule {
         DocumentDeleteController,
         DocumentIntakeController,
         InspectionPhotoController,
+        InspectionReportController,
         PublicSigningController
       )
   }
