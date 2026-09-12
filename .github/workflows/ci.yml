@@ -410,7 +410,7 @@ jobs:
           sudo rm -f /etc/apt/sources.list.d/google-chrome.list \
             /etc/apt/sources.list.d/google-chrome.sources
           pnpm exec playwright install --with-deps chromium
-      - name: Run credential-free document, role, offline RFI, billing and authenticated smoke regressions
+      - name: Run credential-free document, role, offline RFI, billing, QA/QC and authenticated smoke regressions
         shell: bash
         run: |
           set -euo pipefail
@@ -423,6 +423,7 @@ jobs:
             e2e/user-role-workflow.spec.ts \
             e2e/inspection-rfi-offline.spec.ts \
             e2e/billing-milestone-navigation.spec.ts \
+            e2e/quality-document-handoff.spec.ts \
             --project=chromium \
             --workers=1 \
             --retries=0 \
@@ -431,14 +432,14 @@ jobs:
             --reporter=json > "$report_path"
           node scripts/assert-playwright-no-skips.mjs \
             "$report_path" "credential-free browser interactions"
-      - name: Collect document, role, offline RFI and billing browser artifacts
+      - name: Collect document, role, offline RFI, billing and QA/QC browser artifacts
         if: always()
         shell: bash
         run: |
           set -u
           artifact_dir="$GITHUB_WORKSPACE/tmp/claim-document-browser"
           mkdir -p "$artifact_dir"
-          for screenshot in /tmp/erp-claim-document-*.png /tmp/erp-kyc-artifact-*.png /tmp/erp-user-role-*.png /tmp/erp-rfi-offline-*.png /tmp/erp-billing-milestone-*.png; do
+          for screenshot in /tmp/erp-claim-document-*.png /tmp/erp-kyc-artifact-*.png /tmp/erp-user-role-*.png /tmp/erp-rfi-offline-*.png /tmp/erp-billing-milestone-*.png /tmp/erp-quality-document-*.png; do
             if [ -f "$screenshot" ]; then
               cp "$screenshot" "$artifact_dir/"
             fi
