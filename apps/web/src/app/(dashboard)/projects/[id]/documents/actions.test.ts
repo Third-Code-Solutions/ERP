@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { progressClaimDocuments } from '@third-code-erp/database/schema'
+import { accountKycArtifacts, progressClaimDocuments } from '@third-code-erp/database/schema'
 import { SQL } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
 
@@ -17,6 +17,8 @@ const mocks = vi.hoisted(() => ({
   txFor: vi.fn(),
   evidenceWhere: vi.fn(),
   evidenceLimit: vi.fn(),
+  kycEvidenceWhere: vi.fn(),
+  kycEvidenceLimit: vi.fn(),
   txDelete: vi.fn(),
   txDeleteWhere: vi.fn(),
   txReturning: vi.fn(),
@@ -93,10 +95,12 @@ describe('deleteDocument authority and integrity', () => {
 
     mocks.txSelect.mockReturnValue({ from: mocks.txFrom })
     mocks.txFrom.mockImplementation((table) => ({
-      where: table === progressClaimDocuments ? mocks.evidenceWhere : mocks.txWhere,
+      where: table === progressClaimDocuments ? mocks.evidenceWhere : table === accountKycArtifacts ? mocks.kycEvidenceWhere : mocks.txWhere,
     }))
     mocks.evidenceWhere.mockReturnValue({ limit: mocks.evidenceLimit })
     mocks.evidenceLimit.mockResolvedValue([])
+    mocks.kycEvidenceWhere.mockReturnValue({ limit: mocks.kycEvidenceLimit })
+    mocks.kycEvidenceLimit.mockResolvedValue([])
     mocks.txWhere.mockReturnValue({ limit: mocks.txLimit })
     mocks.txLimit.mockReturnValue({ for: mocks.txFor })
     mocks.txFor.mockResolvedValue([
@@ -269,9 +273,23 @@ describe('deleteDocument authority and integrity', () => {
     expect(mocks.revalidatePath).not.toHaveBeenCalled()
   })
 
-  it('fails closed without deleting data or Storage when evidence lookup fails', async () => {
+  it('retains KYC evidence and Storage in the legacy path', async () => {
+    mocks.kycEvidenceLimit.mockResolvedValue([{ id: '55555555-5555-4555-8555-555555555555' }])
+    expect(await deleteDocument(requestForm())).toEqual({ ok: false, error: 'Document is attached to a KYC artifact and cannot be deleted' })
+    const predicate: unknown = mocks.kycEvidenceWhere.mock.calls[0]?.[0]
+    if (!(predicate instanceof SQL)) throw new Error('Expected a scoped KYC evidence predicate')
+    expect(new PgDialect().sqlToQuery(predicate).params).toEqual([TENANT_ID, DOCUMENT_ID])
+    expect(mocks.txFor.mock.invocationCallOrder[0]).toBeLessThan(mocks.kycEvidenceWhere.mock.invocationCallOrder[0]!)
+    expect(mocks.txDelete).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
+    expect(mocks.remove).not.toHaveBeenCalled()
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it.each(['claim', 'KYC'])('fails closed without deleting data or Storage when %s evidence lookup fails', async (kind) => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    mocks.evidenceLimit.mockRejectedValue(new Error('lookup unavailable'))
+    const lookup = kind === 'claim' ? mocks.evidenceLimit : mocks.kycEvidenceLimit
+    lookup.mockRejectedValue(new Error('lookup unavailable'))
     try {
       expect(await deleteDocument(requestForm())).toEqual({ ok: false, error: 'Delete failed' })
       expect(mocks.txDelete).not.toHaveBeenCalled()

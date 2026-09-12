@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { can, getUserProfile } from '@third-code-erp/auth'
 import { createSupabaseAdminClient } from '@third-code-erp/auth/server'
 import { db } from '@third-code-erp/database'
-import { documents, progressClaimDocuments, scopeItems } from '@third-code-erp/database/schema'
+import { accountKycArtifacts, documents, progressClaimDocuments, scopeItems } from '@third-code-erp/database/schema'
 import { and, eq, like } from 'drizzle-orm'
 import { writeAuditLogInTransaction } from '@/lib/audit'
 import {
@@ -27,6 +27,7 @@ const DeleteDocumentSchema = z.object({
 
 class DocumentNotFoundError extends Error {}
 class ClaimEvidenceRetainedError extends Error {}
+class KycEvidenceRetainedError extends Error {}
 
 export async function deleteDocument(formData: FormData): Promise<DeleteResult> {
   const parsed = DeleteDocumentSchema.safeParse({
@@ -111,6 +112,17 @@ export async function deleteDocument(formData: FormData): Promise<DeleteResult> 
         .limit(1)
       if (claimEvidence) throw new ClaimEvidenceRetainedError()
 
+      // Keep KYC evidence and its replay identity intact, matching Core.
+      const [kycEvidence] = await tx
+        .select({ id: accountKycArtifacts.id })
+        .from(accountKycArtifacts)
+        .where(and(
+          eq(accountKycArtifacts.tenant_id, doc.tenant_id),
+          eq(accountKycArtifacts.document_id, doc.id)
+        ))
+        .limit(1)
+      if (kycEvidence) throw new KycEvidenceRetainedError()
+
       const removedScopeItems = await tx
         .delete(scopeItems)
         .where(
@@ -156,6 +168,9 @@ export async function deleteDocument(formData: FormData): Promise<DeleteResult> 
       }
     })
   } catch (error) {
+    if (error instanceof KycEvidenceRetainedError) {
+      return { ok: false, error: 'Document is attached to a KYC artifact and cannot be deleted' }
+    }
     if (error instanceof ClaimEvidenceRetainedError) {
       return { ok: false, error: 'Document is attached to a claim and cannot be deleted' }
     }

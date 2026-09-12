@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import {
+  accountKycArtifacts,
   documentDeleteRequests,
   documentProcessingJobs,
   documents,
@@ -125,6 +126,20 @@ export class DocumentDeleteService {
         .limit(1)
       if (claimAttachment) {
         throw new ConflictException('Document is attached to a claim and cannot be deleted')
+      }
+
+      // KYC creation holds the same document share lock. Preserve the reference
+      // and request identity instead of allowing the legacy FK to set it null.
+      const [kycArtifact] = await transaction
+        .select({ id: accountKycArtifacts.id })
+        .from(accountKycArtifacts)
+        .where(and(
+          eq(accountKycArtifacts.document_id, document.id),
+          eq(accountKycArtifacts.tenant_id, authorizedPrincipal.tenantId)
+        ))
+        .limit(1)
+      if (kycArtifact) {
+        throw new ConflictException('Document is attached to a KYC artifact and cannot be deleted')
       }
 
       const processingHistory = await transaction
