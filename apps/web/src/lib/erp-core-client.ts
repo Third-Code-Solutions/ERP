@@ -394,10 +394,19 @@ import {
   projectSubmittalDocumentListResultSchema,
   projectSubmittalDocumentUnlinkCommandSchema,
   projectSubmittalDocumentUnlinkResultSchema,
+  claimDocumentAttachCommandSchema,
+  claimDocumentAttachResultSchema,
+  kycArtifactCreateCommandSchema,
+  kycArtifactCreateResultSchema,
+  accountKycDocumentQuerySchema,
+  accountKycDocumentResultSchema,
   type ProjectDocumentListResult,
   type ProjectSubmittalDocumentLinkResult,
   type ProjectSubmittalDocumentListResult,
   type ProjectSubmittalDocumentUnlinkResult,
+  type ClaimDocumentAttachResult,
+  type KycArtifactCreateResult,
+  type AccountKycDocumentResult,
   projectScheduleListQuerySchema,
   projectScheduleDependencyQuerySchema,
   projectScheduleDependencyResultSchema,
@@ -9284,6 +9293,75 @@ export async function mutateProjectSubmittalThroughCoreApi(projectId: unknown, s
   }
 }
 
+/** Attaches an existing project document to a progress claim through Core. */
+export async function attachClaimDocumentThroughCoreApi(
+  claimId: unknown,
+  command: unknown,
+): Promise<CoreResult<ClaimDocumentAttachResult>> {
+  const parsedClaimId = z.string().uuid().transform((value) => value.toLowerCase()).safeParse(claimId)
+  const parsedCommand = claimDocumentAttachCommandSchema.safeParse(command)
+  if (!parsedClaimId.success || !parsedCommand.success) {
+    return {
+      ok: false,
+      status: 400,
+      error: 'Invalid claim document attachment command.',
+    }
+  }
+
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/claims/${encodeURIComponent(parsedClaimId.data)}/documents`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': parsedCommand.data.clientRequestId,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(parsedCommand.data),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      },
+    )
+    const rawBody: unknown = await response.json().catch(() => null)
+    if (!response.ok) {
+      const body = z.object({ message: z.string() }).safeParse(rawBody)
+      const message = response.status >= 500
+        ? 'ERP Core API returned a server error. Attachment outcome is unconfirmed; retry with the same request.'
+        : body.success
+          ? body.data.message
+          : response.status === 403
+            ? 'Forbidden'
+            : response.status === 404
+              ? 'Claim or project document not found.'
+              : response.status === 409
+                ? 'Attachment request conflicts with an existing command or claim state.'
+                : 'Document was not attached to the claim.'
+      return { ok: false, status: response.status, error: message }
+    }
+
+    const parsedResult = claimDocumentAttachResultSchema.safeParse(rawBody)
+    if (!parsedResult.success) {
+      return {
+        ok: false,
+        status: 503,
+        error: 'ERP Core API returned an invalid claim document attachment result.',
+      }
+    }
+    return { ok: true, status: response.status, data: parsedResult.data }
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      error: 'ERP Core API is unavailable. Attachment outcome is unconfirmed; retry with the same request.',
+    }
+  }
+}
+
 /** Lists project documents that can be pinned into a submittal CDE record. */
 export async function getProjectDocumentsThroughCoreApi(
   projectId: unknown,
@@ -9309,6 +9387,150 @@ export async function getProjectDocumentsThroughCoreApi(
     return parsed.success ? { ok: true, data: parsed.data } : { ok: false, status: 503, error: 'ERP Core API returned an invalid project document list.' }
   } catch {
     return { ok: false, status: 503, error: 'ERP Core API is unavailable. Project documents were not loaded.' }
+  }
+}
+
+/** Lists account-eligible documents for the KYC artifact picker. */
+export async function getAccountKycDocumentsThroughCoreApi(
+  accountId: unknown,
+  query: unknown = {},
+): Promise<CoreResult<AccountKycDocumentResult>> {
+  const parsedAccountId = z
+    .string()
+    .uuid()
+    .transform((value) => value.toLowerCase())
+    .safeParse(accountId)
+  const parsedQuery = accountKycDocumentQuerySchema.safeParse(query)
+  if (!parsedAccountId.success || !parsedQuery.success) {
+    return { ok: false, status: 400, error: 'Invalid KYC document filters.' }
+  }
+
+  const access = await getCoreApiAccess()
+  if (!access.ok) return { ...access, status: 503 }
+
+  const params = new URLSearchParams()
+  if (parsedQuery.data.q) params.set('q', parsedQuery.data.q)
+  params.set('page', String(parsedQuery.data.page))
+  params.set('limit', String(parsedQuery.data.limit))
+  if (parsedQuery.data.selectedDocumentId) {
+    params.set('selectedDocumentId', parsedQuery.data.selectedDocumentId)
+  }
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/crm/accounts/${encodeURIComponent(parsedAccountId.data)}/kyc-document-options?${params.toString()}`,
+      {
+        method: 'GET',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'x-request-id': randomUUID(),
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      },
+    )
+    const rawBody: unknown = await response.json().catch(() => null)
+    if (!response.ok) {
+      const body = z.object({ message: z.string() }).safeParse(rawBody)
+      return {
+        ok: false,
+        status: response.status,
+        error: body.success
+          ? body.data.message
+          : response.status === 403
+            ? 'You do not have permission to view account documents.'
+            : 'Account documents are unavailable.',
+      }
+    }
+
+    const parsedResult = accountKycDocumentResultSchema.safeParse(rawBody)
+    if (!parsedResult.success) {
+      return {
+        ok: false,
+        status: 502,
+        error: 'ERP Core API returned an invalid KYC document list.',
+      }
+    }
+    return { ok: true, status: response.status, data: parsedResult.data }
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      error: 'ERP Core API is unavailable. Account documents were not loaded.',
+    }
+  }
+}
+
+/** Creates an account KYC artifact through Core with immutable retry identity. */
+export async function createKycArtifactThroughCoreApi(
+  accountId: unknown,
+  command: unknown,
+): Promise<CoreResult<KycArtifactCreateResult>> {
+  const parsedAccountId = z
+    .string()
+    .uuid()
+    .transform((value) => value.toLowerCase())
+    .safeParse(accountId)
+  const parsedCommand = kycArtifactCreateCommandSchema.safeParse(command)
+  if (!parsedAccountId.success || !parsedCommand.success) {
+    return {
+      ok: false,
+      status: 400,
+      error: 'Invalid KYC artifact command.',
+    }
+  }
+
+  const access = await getCoreApiAccess()
+  if (!access.ok) return { ...access, status: 503 }
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/crm/accounts/${encodeURIComponent(parsedAccountId.data)}/kyc-artifacts`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': parsedCommand.data.clientRequestId,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(parsedCommand.data),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      },
+    )
+    const rawBody: unknown = await response.json().catch(() => null)
+    if (!response.ok) {
+      const body = z.object({ message: z.string() }).safeParse(rawBody)
+      const message = response.status >= 500
+        ? 'ERP Core API returned a server error. KYC artifact outcome is unconfirmed; retry with the same request.'
+        : body.success
+          ? body.data.message
+          : response.status === 403
+            ? 'You do not have permission to add KYC artifacts.'
+            : response.status === 404
+              ? 'Account or eligible document was not found.'
+              : response.status === 409
+                ? 'KYC artifact request conflicts with existing account evidence.'
+                : 'KYC artifact was not added.'
+      return { ok: false, status: response.status, error: message }
+    }
+
+    const parsedResult = kycArtifactCreateResultSchema.safeParse(rawBody)
+    if (!parsedResult.success) {
+      return {
+        ok: false,
+        status: 502,
+        error: 'ERP Core API returned an invalid KYC artifact result. Outcome is unconfirmed; retry with the same request.',
+      }
+    }
+    return { ok: true, status: response.status, data: parsedResult.data }
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      error: 'ERP Core API is unavailable. KYC artifact outcome is unconfirmed; retry with the same request.',
+    }
   }
 }
 
