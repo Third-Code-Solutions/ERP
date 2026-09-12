@@ -11,10 +11,10 @@
     "databaseVersion": "17.6.1.121",
     "postgresMajor": 17,
     "appliedCount": 157,
-    "sourceCount": 171,
-    "pendingCount": 14,
+    "sourceCount": 172,
+    "pendingCount": 15,
     "appliedHead": "20260901141949",
-    "sourceHead": "20260912131004",
+    "sourceHead": "20260912142153",
     "ledgerStatus": "current_remote_ledger_matches_source",
     "purchaseOrderPreflight": {
       "duplicateGroups": 0,
@@ -61,6 +61,16 @@
       "hostedApplyApproved": false,
       "risk": "Revokes direct client attachment mutations and cascading parent DELETE/TRUNCATE privileges while retaining SELECT and trusted server grants. Requires integrated Core and legacy Web retention guards. The non-concurrent tenant/document index requires hosted size and lock-impact preflight; both migrations use 5-second lock and 60-second statement timeouts.",
       "recovery": "Require backup/PITR and Storage recovery evidence plus isolated restore and migration rehearsal before hosted application. Roll forward or disable attachment submission while retaining privilege denials and the supporting index; never automatically restore unsafe grants. Existing rows, foreign keys and audit history are unchanged. Privileged database-owner and approved tenant-lifecycle operations remain an administrative boundary."
+    },
+    {
+      "id": "20260912-kyc-artifact-authority",
+      "migrations": [
+        "20260912142153_kyc_artifact_core_authority.sql"
+      ],
+      "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
+      "hostedApplyApproved": false,
+      "risk": "Revokes direct client KYC artifact table and column mutations, account/opportunity DELETE and TRUNCATE, and remaining users TRUNCATE. Preserves SELECT, trusted server privileges, account/opportunity INSERT and UPDATE, existing data and foreign-key lifecycles. Requires integrated Core KYC creation and both document-retention paths. The tenant/document index requires hosted size and lock-impact preflight; migration uses 5-second lock and 60-second statement timeouts.",
+      "recovery": "Require database backup/PITR, separate Storage recovery and isolated restore/migration rehearsal before hosted application. Retain denials and index when rolling forward or disabling artifact submission; never automatically restore unsafe client grants. Controlled privileged user deletion retains its existing uploaded_by SET NULL lifecycle. This batch does not authorize hosted changes."
     }
   ]
 }

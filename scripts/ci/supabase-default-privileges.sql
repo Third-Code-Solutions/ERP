@@ -56,6 +56,17 @@ grant select on table public.documents, public.progress_claims,
 grant select, insert, update, delete, truncate on table public.documents,
   public.progress_claims, public.tenants, public.progress_claim_documents,
   public.projects to service_role;
+-- KYC uses the same pre-existing table boundary. Preserve known reader and
+-- trusted-server access; artifact mutation and parent deletion denials stay put.
+grant select on table public.account_kyc_artifacts, public.accounts,
+  public.opportunities to authenticated;
+-- Account/opportunity INSERT and UPDATE were observed in the legacy baseline
+-- and are explicitly outside this migration's deletion-only parent boundary.
+grant insert, update on table public.accounts, public.opportunities
+  to authenticated;
+grant select, insert, update, delete, truncate on table
+  public.account_kyc_artifacts, public.accounts, public.opportunities
+  to service_role;
 -- Audit access is already granted by the Cortex security migration; trigger
 -- writes retain their existing SECURITY DEFINER authority. No audit grant here.
 

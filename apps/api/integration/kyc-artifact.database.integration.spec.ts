@@ -152,6 +152,25 @@ suite('KYC artifact PostgreSQL authority', () => {
     expect(await artifacts(f)).toHaveLength(1)
     expect(await artifacts(foreign)).toHaveLength(0)
   })
+  it('rejects physical deletion of an audited user and retains the user, artifact and immutable audit', async () => {
+    const f = await fixture(), documentId = await document(f)
+    const command = { ...f.command, documentId }
+    await f.service.create(f.accountId, command, f.principal)
+    const before = { users: await db.select().from(users).where(eq(users.id, f.userId)), artifacts: await artifacts(f), audit: await db.select().from(auditLog).where(eq(auditLog.tenant_id, f.tenantId)) }
+    // SET NULL is declared by the FK, but audited-user deletion is blocked by
+    // existing append-only audit rules. Never disable those rules to fake success.
+    await expect(db.delete(users).where(and(eq(users.id, f.userId), eq(users.tenant_id, f.tenantId)))).rejects.toMatchObject({ cause: { code: 'XX000' } })
+    expect({ users: await db.select().from(users).where(eq(users.id, f.userId)), artifacts: await artifacts(f), audit: await db.select().from(auditLog).where(eq(auditLog.tenant_id, f.tenantId)) }).toEqual(before)
+  })
+  it('preserves a synthetic historical null-uploader artifact and rejects missing-principal or new-actor replay', async () => {
+    const f = await fixture()
+    // Explicit historical-shape fixture, not a claim that user deletion succeeded.
+    await db.insert(accountKycArtifacts).values({ id: f.command.clientRequestId, tenant_id: f.tenantId, account_id: f.accountId, artifact_type: f.command.artifactType, document_id: null, notes: null, uploaded_by: null })
+    const before = await artifacts(f)
+    await expect(f.service.create(f.accountId, f.command, { ...f.principal, userId: randomUUID() })).rejects.toBeInstanceOf(ForbiddenException)
+    await expect(f.service.create(f.accountId, f.command, f.principal)).rejects.toBeInstanceOf(ConflictException)
+    expect(await artifacts(f)).toEqual(before)
+  })
   it('denies suspended tenants and unresolved opportunity project inheritance', async () => {
     const f = await fixture()
     const [unresolved] = await db.insert(projects).values({ tenant_id: f.tenantId, name: 'Unresolved', client: 'Synthetic', project_type: 'mep' }).returning({ id: projects.id })
