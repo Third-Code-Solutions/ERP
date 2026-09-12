@@ -28,7 +28,7 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
           <Link href="/dashboard">Return to tenant workspace</Link>
         </div>
       </aside>
-      <main id="platform-main" className="platform-main">
+      <main id="platform-main" className="platform-main" tabIndex={-1}>
         <div className="platform-topline">
           <span>Global administration</span>
           <span className="platform-owner-chip">Platform owner</span>

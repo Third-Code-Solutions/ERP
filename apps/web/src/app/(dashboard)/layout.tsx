@@ -51,7 +51,7 @@ export default async function DashboardLayout({
           role={profile.role}
           fullName={profile.fullName}
         />
-        <main id="main-content" className="app-content">
+        <main id="main-content" className="app-content" tabIndex={-1}>
           {children}
           <CortexRouteContext pathname={pathname} />
         </main>

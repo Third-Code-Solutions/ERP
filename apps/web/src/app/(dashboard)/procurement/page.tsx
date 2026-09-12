@@ -6,6 +6,7 @@ import { db } from '@third-code-erp/database'
 import { purchaseOrders, vendors } from '@third-code-erp/database/schema'
 import { eq, desc } from 'drizzle-orm'
 import { AddVendorForm } from '@/components/procurement/add-vendor-form'
+import styles from './procurement.module.css'
 
 export const metadata: Metadata = { title: 'Procurement' }
 
@@ -56,9 +57,9 @@ export default async function ProcurementPage() {
         <p className="page-subtitle">Vendor directory and purchase order management</p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', maxWidth: '1100px' }}>
+      <div className={styles.workspaceColumns} data-testid="procurement-workspace-columns">
         {/* Vendor directory */}
-        <div>
+        <div className={styles.sectionPanel}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
             <h2 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-neutral-700)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Vendors ({vendorList.length})
@@ -74,7 +75,7 @@ export default async function ProcurementPage() {
                 borderRadius: '8px',
                 padding: '40px 24px',
                 textAlign: 'center',
-                color: 'var(--color-neutral-400)',
+                color: 'var(--color-neutral-500)',
                 fontSize: '0.875rem',
               }}
             >
@@ -108,7 +109,7 @@ export default async function ProcurementPage() {
         </div>
 
         {/* Recent POs */}
-        <div>
+        <div className={styles.sectionPanel}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
             <h2 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-neutral-700)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Recent Purchase Orders
@@ -126,7 +127,7 @@ export default async function ProcurementPage() {
                 borderRadius: '8px',
                 padding: '40px 24px',
                 textAlign: 'center',
-                color: 'var(--color-neutral-400)',
+                color: 'var(--color-neutral-500)',
                 fontSize: '0.875rem',
               }}
             >

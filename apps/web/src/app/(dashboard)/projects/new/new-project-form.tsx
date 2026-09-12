@@ -48,7 +48,11 @@ export function NewProjectForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit}>
+    <form
+      onSubmit={handleSubmit}
+      aria-busy={isPending}
+      aria-describedby={error ? 'new-project-error' : undefined}
+    >
       <input type="hidden" name="idempotency_key" value={idempotencyKey} />
       <div style={fieldStyle}>
         <label htmlFor="name" style={labelStyle}>Project name *</label>
@@ -65,7 +69,7 @@ export function NewProjectForm() {
         <input id="location" name="location" type="text" style={inputStyle} placeholder="BGC, Taguig" />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '16px', marginBottom: '20px' }}>
         <div>
           <label htmlFor="project_type" style={labelStyle}>Project type</label>
           <select id="project_type" name="project_type" style={{ ...inputStyle, background: 'white' }}>
@@ -96,6 +100,9 @@ export function NewProjectForm() {
 
       {error && (
         <div
+          id="new-project-error"
+          role="alert"
+          aria-live="assertive"
           style={{
             background: '#fef2f2',
             border: '1px solid #fecaca',

@@ -12,6 +12,27 @@ test.describe('Procurement', () => {
     await expect(page.getByText(/vendor/i).first()).toBeVisible()
   })
 
+  test('procurement sections stack without horizontal overflow on mobile', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/procurement')
+
+    const workspace = page.getByTestId('procurement-workspace-columns')
+    await expect(workspace).toBeVisible()
+    const sections = workspace.locator(':scope > div')
+    await expect(sections).toHaveCount(2)
+
+    const bounds = await sections.evaluateAll((elements) =>
+      elements.map((element) => {
+        const rect = element.getBoundingClientRect()
+        return { top: rect.top, bottom: rect.bottom }
+      })
+    )
+    const [vendors, purchaseOrders] = bounds
+    if (!vendors || !purchaseOrders) throw new Error('Procurement sections were not rendered')
+    expect(purchaseOrders.top).toBeGreaterThanOrEqual(vendors.bottom - 1)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1)
+  })
+
   test('purchase orders page loads', async ({ page }) => {
     await page.goto('/purchase-orders')
     await expect(page.locator('h1')).toContainText('Purchase Orders')

@@ -92,7 +92,7 @@ export default async function DocumentsPage() {
             borderRadius: '8px',
             padding: '64px 24px',
             textAlign: 'center',
-            color: 'var(--color-neutral-400)',
+            color: 'var(--color-neutral-500)',
           }}
         >
           <p style={{ fontSize: '0.875rem', marginBottom: '8px' }}>No documents uploaded yet.</p>
@@ -109,18 +109,23 @@ export default async function DocumentsPage() {
             background: 'white',
             border: '1px solid var(--color-border)',
             borderRadius: '8px',
-            overflow: 'hidden',
+            overflowX: 'auto',
           }}
+          className="data-table-wrap"
+          role="region"
+          tabIndex={0}
+          aria-label="Documents table, scroll for more columns"
         >
           <table className="data-table">
+            <caption className="sr-only">Documents across all projects</caption>
             <thead>
               <tr>
-                <th>File</th>
-                <th>Type</th>
-                <th>Project</th>
-                <th className="numeric">Size</th>
-                <th>Uploaded</th>
-                <th style={{ width: 90 }} aria-label="Actions" />
+                <th scope="col">File</th>
+                <th scope="col">Type</th>
+                <th scope="col">Project</th>
+                <th scope="col" className="numeric">Size</th>
+                <th scope="col">Uploaded</th>
+                <th scope="col" style={{ width: 90 }} aria-label="Actions" />
               </tr>
             </thead>
             <tbody>
@@ -145,7 +150,7 @@ export default async function DocumentsPage() {
                         style={{
                           display: 'block',
                           fontSize: '0.75rem',
-                          color: 'var(--color-neutral-400)',
+                          color: 'var(--color-neutral-500)',
                           marginTop: '2px',
                         }}
                       >
@@ -177,7 +182,7 @@ export default async function DocumentsPage() {
                         {doc.project_name ?? '—'}
                       </Link>
                     ) : (
-                      <span style={{ color: 'var(--color-neutral-400)' }}>—</span>
+                      <span style={{ color: 'var(--color-neutral-500)' }}>—</span>
                     )}
                   </td>
                   <td className="numeric" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}>

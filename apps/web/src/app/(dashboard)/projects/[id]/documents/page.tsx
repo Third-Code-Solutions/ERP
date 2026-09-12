@@ -93,10 +93,10 @@ export default async function ProjectDocumentsPage({ params }: { params: Promise
     <div>
       {/* Project navigation is supplied by the shared layout. */}
       <div style={{ marginBottom: '24px' }}>
-        <div style={{ fontSize: '0.8125rem', color: 'var(--color-neutral-400)', marginBottom: '8px' }}>
-          <Link href="/projects" style={{ color: 'var(--color-neutral-400)', textDecoration: 'none' }}>Projects</Link>
+        <div style={{ fontSize: '0.8125rem', color: 'var(--color-neutral-500)', marginBottom: '8px' }}>
+          <Link href="/projects" style={{ color: 'var(--color-neutral-500)', textDecoration: 'none' }}>Projects</Link>
           {' / '}
-          <Link href={`/projects/${id}`} style={{ color: 'var(--color-neutral-400)', textDecoration: 'none' }}>{project.name}</Link>
+          <Link href={`/projects/${id}`} style={{ color: 'var(--color-neutral-500)', textDecoration: 'none' }}>{project.name}</Link>
           {' / '}
           <span style={{ color: 'var(--color-neutral-700)' }}>Documents</span>
         </div>
@@ -122,7 +122,7 @@ export default async function ProjectDocumentsPage({ params }: { params: Promise
             borderRadius: '8px',
             padding: '64px 24px',
             textAlign: 'center',
-            color: 'var(--color-neutral-400)',
+            color: 'var(--color-neutral-500)',
           }}
         >
           <p style={{ fontSize: '0.875rem', marginBottom: '8px' }}>No documents uploaded yet.</p>
@@ -132,15 +132,22 @@ export default async function ProjectDocumentsPage({ params }: { params: Promise
           </p>
         </div>
       ) : (
-        <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px', overflowX: 'auto' }}>
+        <div
+          className="data-table-wrap"
+          style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px' }}
+          role="region"
+          tabIndex={0}
+          aria-label={`Documents table for ${project.name}, scroll for more columns`}
+        >
           <table className="data-table">
+            <caption className="sr-only">Project documents for {project.name}</caption>
             <thead>
               <tr>
-                <th>File</th>
-                <th>Type</th>
-                <th className="numeric">Size</th>
-                <th>Uploaded</th>
-                <th style={{ width: 130 }} aria-label="Actions" />
+                <th scope="col">File</th>
+                <th scope="col">Type</th>
+                <th scope="col" className="numeric">Size</th>
+                <th scope="col">Uploaded</th>
+                <th scope="col" style={{ width: 130 }} aria-label="Actions" />
               </tr>
             </thead>
             <tbody>
@@ -161,7 +168,7 @@ export default async function ProjectDocumentsPage({ params }: { params: Promise
                       {doc.file_name}
                     </a>
                     {doc.description && (
-                      <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--color-neutral-400)', marginTop: '2px' }}>
+                      <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--color-neutral-500)', marginTop: '2px' }}>
                         {doc.description}
                       </span>
                     )}

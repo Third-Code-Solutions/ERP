@@ -875,6 +875,15 @@ body {
   line-height: 1.45;
 }
 
+.data-table-wrap {
+  overflow-x: auto;
+}
+
+.data-table-wrap:focus-visible {
+  outline: 3px solid var(--color-gold-300);
+  outline-offset: 2px;
+}
+
 .data-table th {
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
