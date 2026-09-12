@@ -17,10 +17,14 @@ import { PublicSigningController } from './public-signing.controller'
 import { PublicSigningPipe } from './public-signing.pipe'
 import { PublicSigningService } from './public-signing.service'
 import { PublicSigningStorageService } from './public-signing.storage'
+import { ClaimDocumentController } from './claim-document.controller'
+import { ClaimDocumentPipe } from './claim-document.pipe'
+import { ClaimDocumentService } from './claim-document.service'
 
 @Module({
   imports: [AuditModule],
   controllers: [
+    ClaimDocumentController,
     DocumentDeleteController,
     DocumentIntakeController,
     DocuSealWebhookController,
@@ -28,6 +32,8 @@ import { PublicSigningStorageService } from './public-signing.storage'
     PublicSigningController,
   ],
   providers: [
+    ClaimDocumentPipe,
+    ClaimDocumentService,
     DocumentDeletePipe,
     DocumentDeleteService,
     DocumentIntakePipe,
@@ -46,6 +52,7 @@ export class DocumentsModule implements NestModule {
     consumer
       .apply(RequestObservabilityMiddleware)
       .forRoutes(
+        ClaimDocumentController,
         DocumentDeleteController,
         DocumentIntakeController,
         InspectionPhotoController,
