@@ -258,9 +258,43 @@ mutation('logs a raw RFI description', FILES.action,
   (s) => replaceOnce(s, "traceId, tenantId, actorId, action, outcome: 'service_rejected',", "traceId, tenantId, actorId, action, description: command.data.description, outcome: 'service_rejected',", 'raw log'),
   /log must exclude raw keys/)
 
-mutation('runs archival on replay', FILES.action,
-  (s) => replaceOnce(s, 'if (!checked.data.replayed) {', 'if (true) {', 'replay archival'),
-  /classify post-commit archive/)
+test('accepts an aliased approved Core archive import', () => {
+  const source = read(FILES.action)
+  const changed = source.replaceAll('archiveInspectionReportThroughCoreApi', 'archiveThroughCore')
+    .replace('  archiveThroughCore,', '  archiveInspectionReportThroughCoreApi as archiveThroughCore,')
+  assert.doesNotThrow(() => verifyWo12Contract({ root: ROOT, overrides: { [FILES.action]: changed } }))
+})
+
+mutation('skips Core archive recovery on submission replay', FILES.action,
+  (s) => replaceOnce(s, 'const archived = await archiveInspectionReportThroughCoreApi({', 'if (!checked.data.replayed) { const archived = await archiveInspectionReportThroughCoreApi({', 'replay archival')
+    .replace('    } catch {\n      archiveWarning', '    } } catch {\n      archiveWarning'),
+  /available on submission replay/)
+
+mutation('spoofs the approved archive import from another module', FILES.action,
+  (s) => replaceOnce(s, "} from '@/lib/erp-core-client'", "} from '@/server/crm/legacy-writers'", 'spoofed archive import'),
+  /imported or re-exported durable helper/)
+
+mutation('reintroduces the old report helper database writer exemption', FILES.action,
+  (s) => replaceOnce(s, 'const archived = await archiveInspectionReportThroughCoreApi({', 'async function persistInspectionReport() { await db.insert(documents) }\n await persistInspectionReport()\n const archived = await archiveInspectionReportThroughCoreApi({', 'old report writer'),
+  /reachable local durable database writer/)
+
+mutation('passes client fields to the Core archive command', FILES.action,
+  (s) => replaceOnce(s, 'opportunityId, inspectionId: checked.data.inspectionId,', 'opportunityId, inspectionId: checked.data.inspectionId, payload: fields.values,', 'untrusted archive fields'),
+  /only the confirmed inspection identity/)
+
+mutation('duplicates Core archival dispatch', FILES.action,
+  (s) => replaceOnce(s, 'const archived = await archiveInspectionReportThroughCoreApi({', 'await archiveInspectionReportThroughCoreApi({ opportunityId, inspectionId: checked.data.inspectionId })\n const archived = await archiveInspectionReportThroughCoreApi({', 'duplicate archive'),
+  /archive exactly once/)
+
+mutation('calls the archive boundary from the RFI action', FILES.action,
+  (s) => replaceOnce(s, 'const rawResult = await siteInspectionWorkflowService.createRfi(', 'await archiveInspectionReportThroughCoreApi({ opportunityId, inspectionId })\n const rawResult = await siteInspectionWorkflowService.createRfi(', 'RFI archive'),
+  /imported or re-exported durable helper/)
+
+for (const field of ['tenantId', 'opportunityId', 'inspectionId']) {
+  mutation(`drops archive receipt ${field} scope`, FILES.action,
+    (s) => replaceOnce(s, `archived.data.${field}.toLowerCase() !==`, `archived.data.${field}.toLowerCase() ===`, 'archive receipt scope'),
+    /validate the Core receipt scope/)
+}
 
 mutation('turns refresh failure into action failure', FILES.action,
   (s) => mutateFirst(

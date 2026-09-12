@@ -31,15 +31,27 @@
   API production build, Actionlint and BUILD OPS static invariants.
 - PASSED: independent Astra review after correcting case-insensitive receipt
   binding and older-inspection repair access.
+- PASSED: corrected WO-12 static contract, 97/97 tests without skips. The gate
+  recognizes only the exact approved Core archive import, removes the legacy
+  writer exemption, and checks replay recovery and confirmed receipt scope.
+- PASSED: downloaded CI run 34723148797 evidence at 6ddc8d46: 508 database,
+  251 API, two Web integration and 90 credential-free browser cases, no skips;
+  empty schema diff. That run failed the obsolete WO-12 contract before this fix,
+  so build and trusted-PR E2E were skipped. Replacement CI remains required.
 - NOT RUN: live Storage, full all-role hosted journeys, live archive download.
 
 ## Release
 
-Not deployed. Hosted CI for this slice pending PR. Base PR83 CI run34722129620
+Not deployed. PR84 requires replacement CI after the static contract fix.
+Base PR83 CI run34722129620
 passed all ten GitHub jobs; downloaded reports had no skips and empty schema diff.
 Its Supabase Preview was cancelled at the concurrent-branch limit.
 
 Production recovery evidence and the missing Core Storage credential remain release
 blockers. Core and Web must release together. This is explicit retry, not automatic
 background repair; provider-admin deletion, report version history and safe orphan
-reclamation remain separate work. Large-photo direct Storage upload remains needed.
+reclamation remain separate work. Large-photo transport bypassing Web's request
+limit remains needed; direct authenticated Core upload is the selected next design.
+Read-only production checks confirmed Core database/Redis readiness and allowed
+Web-origin CORS preflight for bearer and expected-owner headers. They do not prove
+the not-yet-implemented multipart route or any live photo upload.

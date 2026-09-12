@@ -237,10 +237,11 @@ function verifyNoReachableActionWriter(unit, startNode, label) {
       }
       if (!ts.isIdentifier(expression)) continue
       const imported = unit.importedIdentity(expression.text)
+      if (label === 'inspection' && imported?.imported === 'archiveInspectionReportThroughCoreApi' &&
+        imported.module === '@/lib/erp-core-client') continue
       if (imported && !allowedDirectImports.has(imported.imported)) {
         fail(`${label} action must not call an imported or re-exported durable helper`)
       }
-      if (expression.text === 'persistInspectionReport') continue
       const local = unit.callable(expression.text)
       if (local && local !== node) visit(local)
     }
@@ -525,11 +526,27 @@ function verifyAction(graph) {
     verifyNoReachableActionWriter(unit, data.node, label)
   }
 
+  const archiveCalls = callExpressions(inspection.node).filter(call => {
+    const expression = unwrap(call.expression)
+    const imported = ts.isIdentifier(expression) && unit.importedIdentity(expression.text)
+    return imported?.imported === 'archiveInspectionReportThroughCoreApi' && imported.module === '@/lib/erp-core-client'
+  })
+  invariant(archiveCalls.length === 1, 'inspection must archive exactly once through the approved Core boundary')
+  invariant(archiveCalls[0].arguments.length === 1 && compact(archiveCalls[0].arguments[0]).replace(/,}$/, '}') === '{opportunityId,inspectionId:checked.data.inspectionId}',
+    'inspection archive must use only the confirmed inspection identity')
+  for (const ancestor of ancestors(archiveCalls[0], inspection.node)) {
+    invariant(!ts.isIfStatement(ancestor), 'inspection archive must remain available on submission replay')
+  }
+  for (const token of ['!archived.ok', '!archived.data', 'archived.data.tenantId.toLowerCase()!==tenantId.toLowerCase()',
+    'archived.data.opportunityId.toLowerCase()!==opportunityId.toLowerCase()',
+    'archived.data.inspectionId.toLowerCase()!==checked.data.inspectionId.toLowerCase()']) {
+    assertContains(inspection.text, token, 'inspection archive must validate the Core receipt scope')
+  }
   assertOrder(inspection.text, [
     'siteInspectionWorkflowResultSchema.safeParse',
     'if(!checked.success',
-    'if(!checked.data.replayed)',
-    'persistInspectionReport',
+    'checked.data.status!==\'submitted\'',
+    compact(archiveCalls[0]),
     'catch',
     'archiveWarning=',
     'revalidatePath',
@@ -539,6 +556,12 @@ function verifyAction(graph) {
   ], 'inspection action must classify post-commit archive/refresh failures as committed success')
   assertOrder(rfi.text, ['revalidatePath', 'catch', 'refreshFailed=true', 'return{ok:true'],
     'RFI refresh failure must remain committed success')
+}
+
+function ancestors(node, stop) {
+  const result = []
+  for (let current = node.parent; current && current !== stop; current = current.parent) result.push(current)
+  return result
 }
 
 function verifyPage(graph) {
