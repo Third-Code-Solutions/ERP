@@ -17,6 +17,7 @@
 - Independently passed the combined claim/KYC Chromium run: 16/16 with one worker and zero retries; inspected the KYC screenshots at 320/768/1024/1440 px. This proves the component harness, not the full authenticated account page.
 - Full disposable database suite passed 507/507 with zero skips. Full Web suite passed 2,057 tests with one database-gated skip; that test passed separately, then both named CI Web database workflows passed together 2/2 with zero skips. No claim is made that the original Web run had zero skips. Focused KYC client/actions passed 14/14; Web and E2E typechecks passed.
 - Full API source/HTTP suite passed 1,270/1,270 with zero skips. Focused changed Web-source ESLint passed. The full Redis/container API integration lane remains a fresh CI gate; the local KYC PostgreSQL suite is not a substitute for it.
-- Pending: fresh Node 22/Supabase CLI CI, push/PR and any release.
+- Pushed `e129495a` to draft PR #68, dependent on #67. Gitleaks then passed across 2,000 commits. Initial CI run `34700439998` passed lint, security and the browser job, but its invariant self-test rejected the stale claim-only report label before database verification. Updated that contract to require both browser specs, both screenshot families and the combined no-skips label; added a contract for both Web database workflows and their no-skips report. The 10 invariant tests and actionlint passed locally. No gate was removed or weakened.
+- Pending: fresh Node 22/Supabase CLI CI after the contract correction and any release.
 
 No hosted DDL, Auth deletion, Storage mutation, provider configuration change or deployment was performed. Database backup/PITR, separate Storage recovery, isolated restore rehearsal and hosted index/lock preflight remain release gates.
