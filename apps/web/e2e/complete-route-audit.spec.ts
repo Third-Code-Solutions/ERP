@@ -1,3 +1,4 @@
+import { createServer } from 'node:http'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import { test, expect, type ConsoleMessage, type Page } from '@playwright/test'
@@ -20,11 +21,48 @@ const entities: Record<string, string> = {
   '/inspection/': 'site_inspections', '/weekly-report/': 'weekly_reports',
 }
 
-// Collection routes that intentionally resolve through the canonical parent
-// surface. Keep the redirect explicit so the audit proves the route contract
-// instead of treating a healthy Next navigation as an empty response.
-const expectedRedirects: Record<string, string> = {
-  '/finance/journals': '/finance',
+// Collection routes that intentionally resolve through a canonical surface.
+// Keep both the destination and a visible target landmark explicit so the
+// audit proves the route contract instead of sampling an intermediate shell.
+type CanonicalRedirectExpectation = {
+  targetPath: string
+  heading: RegExp
+  content: RegExp
+}
+
+const expectedRedirects: Record<string, CanonicalRedirectExpectation> = {
+  '/crm': {
+    targetPath: '/crm/accounts',
+    heading: /^Accounts$/,
+    content: /Client companies with KYC review status/,
+  },
+  '/finance/journals': {
+    targetPath: '/finance',
+    heading: /^Finance$/,
+    content: /Prepare, post, trace, and reverse/,
+  },
+}
+
+const CANONICAL_REDIRECT_READY_TIMEOUT_MS = 15_000
+
+async function waitForCanonicalRedirect(
+  page: Page,
+  expectation: CanonicalRedirectExpectation,
+  timeoutMs = CANONICAL_REDIRECT_READY_TIMEOUT_MS,
+): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs
+  const remaining = () => Math.max(1, deadline - Date.now())
+  try {
+    await page.waitForURL(
+      (url) => url.pathname.replace(/\/+$/, '') === expectation.targetPath,
+      { waitUntil: 'domcontentloaded', timeout: remaining() },
+    )
+    await expect(page.getByRole('heading', { name: expectation.heading })).toBeVisible({ timeout: remaining() })
+    await expect(page.getByText(expectation.content)).toBeVisible({ timeout: remaining() })
+    return true
+  } catch {
+    return false
+  }
 }
 
 function inventory(directory: string, pattern = /^page\.tsx?$/): string[] {
@@ -141,6 +179,8 @@ test('inventory every page with explicit live render and guard evidence', async 
         page.on('pageerror', onPageError)
         let status = 0
         let result = 'FAILED navigation'
+        const expectedRedirect = expectedRedirects[path]
+        let canonicalRedirectReady = false
         try {
           // Route pages can legitimately keep a realtime or analytics request
           // open after the document is usable. Waiting for networkidle here
@@ -150,37 +190,46 @@ test('inventory every page with explicit live render and guard evidence', async 
           // resulting page instead of treating open client requests as a
           // render failure.
           const response = await page.goto(`${baseUrl}${path}`, { waitUntil: 'load', timeout: 45_000 })
-          // Next streams the route shell and page content separately. The load
-          // event avoids waiting on long-lived realtime requests, but it can
-          // still fire before the streamed body is useful to a user. Wait for
-          // the same minimum content threshold used by the response assertion
-          // (or an explicit runtime error) without waiting for network idle.
-          await page.waitForFunction(
-            () => {
-              const text = document.body?.innerText.trim() ?? ''
-              return text.length > 80 || /Runtime Error|Application error:/i.test(text)
-            },
-            undefined,
-            { timeout: 15_000 },
-          )
+          if (expectedRedirect) {
+            // A redirect can expose a short streamed shell after load. Wait
+            // for the canonical URL and its real target landmarks as one
+            // bounded readiness check before taking the body snapshot.
+            canonicalRedirectReady = await waitForCanonicalRedirect(page, expectedRedirect)
+          } else {
+            // Next streams the route shell and page content separately. The
+            // load event avoids waiting on long-lived realtime requests, but
+            // it can still fire before the streamed body is useful to a user.
+            // Wait for the same minimum content threshold used by the response
+            // assertion (or an explicit runtime error) without waiting for
+            // network idle.
+            await page.waitForFunction(
+              () => {
+                const text = document.body?.innerText.trim() ?? ''
+                return text.length > 80 || /Runtime Error|Application error:/i.test(text)
+              },
+              undefined,
+              { timeout: 15_000 },
+            )
+          }
           status = response?.status() ?? 0
           const body = await page.locator('body').innerText()
-          const finalPath = new URL(page.url()).pathname
           const failed = /Runtime Error|Application error:|Workspace paused before anything changed\./i.test(body)
           const denied = /access denied|permission denied|not authorized|don't have permission|do not have permission/i.test(body)
           const missing = status === 404 || /this page could not be found|does not exist|could not find that/i.test(body)
           const login = !publicPage && new URL(page.url()).pathname.startsWith('/auth/')
           const accessDenied = status === 401 || status === 403 || denied
-          const expectedRedirect = expectedRedirects[path] === finalPath
           const guardVerified = mode.startsWith('invalid-') && (missing || /invalid|expired|not found|unavailable|link is no longer active|does not exist|could not find that/i.test(body))
           result = guardVerified ? 'GUARD VERIFIED; positive case NOT RUN'
             : failed || status >= 500 || pageErrors > 0 ? 'FAILED runtime'
             : login ? 'FAILED redirected to login'
+            : expectedRedirect
+              ? canonicalRedirectReady && status >= 200 && status < 400 && !accessDenied && !missing && consoleErrors === 0
+                ? 'REDIRECT VERIFIED; canonical target reached'
+                : 'FAILED canonical redirect readiness'
             : mode.startsWith('invalid-') ? 'REVIEW guard response'
             : accessDenied ? 'ACCESS DENIED; positive case NOT RUN'
             : missing ? 'FAILED record/page not found'
             : consoleErrors > 0 ? 'FAILED browser console; investigate resource errors'
-            : expectedRedirect ? 'REDIRECT VERIFIED; canonical target reached'
             : status >= 200 && status < 400 && body.length > 80 ? 'RENDER VERIFIED; mutations NOT RUN'
             : 'FAILED response'
         } catch {
@@ -224,6 +273,110 @@ test('inventory every page with explicit live render and guard evidence', async 
   }
   expect(finalRevision, 'Deployment changed during the audit; rerun against a stable revision').toBe(before.revision)
   expect(ledger.filter((row) => row.result.startsWith('FAILED'))).toEqual([])
+})
+
+test('CRM root reaches the canonical Accounts surface before redirect audit passes', async ({ browser }) => {
+  test.setTimeout(90_000)
+  const baseUrl = requireE2EBaseUrl(process.env.PLAYWRIGHT_BASE_URL)
+  const context = await browser.newContext()
+  const auth = await authenticateRole(context, baseUrl, 'admin')
+  const page = await context.newPage()
+  try {
+    await page.goto(`${baseUrl}/crm`, { waitUntil: 'load', timeout: 45_000 })
+    const expectation = expectedRedirects['/crm']
+    if (!expectation) throw new Error('CRM redirect expectation is missing')
+    expect(await waitForCanonicalRedirect(page, expectation)).toBe(true)
+    expect(new URL(page.url()).pathname).toBe(expectation.targetPath)
+  } finally {
+    await auth.cleanup()
+    await context.close()
+  }
+})
+
+test('redirect readiness waits through a delayed shell before accepting the target', async ({ browser }) => {
+  test.setTimeout(30_000)
+  const expectation = expectedRedirects['/crm']
+  if (!expectation) throw new Error('CRM redirect expectation is missing')
+  const server = createServer((request, response) => {
+    if (request.url === '/crm') {
+      response.writeHead(200, { 'content-type': 'text/html' }).end(`
+        <main>
+          <p>${'Loading the CRM workspace while the canonical route is resolving. '.repeat(3)}</p>
+          <button onclick="location.assign('/crm/accounts')">Resolve canonical route</button>
+        </main>
+      `)
+      return
+    }
+    if (request.url === '/crm/accounts') {
+      response.writeHead(200, { 'content-type': 'text/html' })
+        .end('<main><h1>Accounts</h1><p>Client companies with KYC review status and linked opportunities.</p></main>')
+      return
+    }
+    response.writeHead(404).end()
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', resolve)
+  })
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('Local redirect regression server did not bind')
+  const context = await browser.newContext()
+  const page = await context.newPage()
+  const crmUrl = `http://127.0.0.1:${address.port}/crm`
+  try {
+    await page.goto(crmUrl, { waitUntil: 'load', timeout: 15_000 })
+    expect((await page.locator('body').innerText()).length).toBeGreaterThan(80)
+    expect(await page.getByRole('heading', { name: 'Accounts' }).count()).toBe(0)
+    // Hold the intermediate shell until it has been observed. Wall-clock
+    // sleeps could navigate before these assertions on a busy CI worker.
+    const readiness = waitForCanonicalRedirect(page, expectation)
+    await page.getByRole('button', { name: 'Resolve canonical route' }).click()
+    expect(await readiness).toBe(true)
+    expect(new URL(page.url()).pathname).toBe(expectation.targetPath)
+  } finally {
+    await context.close()
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => error ? reject(error) : resolve())
+    })
+  }
+})
+
+test('redirect audit rejects a wrong canonical target even when it renders', async ({ browser }) => {
+  test.setTimeout(30_000)
+  const expectation = expectedRedirects['/crm']
+  if (!expectation) throw new Error('CRM redirect expectation is missing')
+  const server = createServer((request, response) => {
+    if (request.url === '/crm') {
+      response.writeHead(302, { location: '/crm/wrong' }).end()
+      return
+    }
+    if (request.url === '/crm/wrong') {
+      response.writeHead(200, { 'content-type': 'text/html' })
+        .end('<main><h1>Wrong target</h1><p>This page is intentionally not Accounts.</p></main>')
+      return
+    }
+    response.writeHead(404).end()
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', resolve)
+  })
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('Local redirect regression server did not bind')
+  const context = await browser.newContext()
+  const page = await context.newPage()
+  const crmUrl = `http://127.0.0.1:${address.port}/crm`
+  const wrongPath = '/crm/wrong'
+  try {
+    await page.goto(crmUrl, { waitUntil: 'load', timeout: 15_000 })
+    expect(await waitForCanonicalRedirect(page, expectation, 500)).toBe(false)
+    expect(new URL(page.url()).pathname).toBe(wrongPath)
+  } finally {
+    await context.close()
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => error ? reject(error) : resolve())
+    })
+  }
 })
 
 test('inventory HTTP handlers and probe anonymous GET boundaries', async ({ request }, testInfo) => {
