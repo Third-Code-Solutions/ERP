@@ -15,6 +15,9 @@
   committed and read back. Guard attempts and the positive open-period delete
   are rollback-isolated, retaining all fixtures and immutable audit history.
 - Corrected the original handoff's overstatement of end-to-end guarantees.
+- CI follow-up synchronizes the existing parity manifest with 173 source / 16
+  pending migrations. The new guard batch remains explicitly unapproved for
+  hosted application; dated applied-ledger evidence is unchanged.
 
 ## Verification
 

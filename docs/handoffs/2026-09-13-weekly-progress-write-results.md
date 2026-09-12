@@ -27,3 +27,11 @@ never roll back by deliberately restoring the bypass. No hosted application.
 → Handoff to Agent 05 / independent review after local schema verification.
 Complete the response mapping proof against the repaired schema, then record
 the migration's recovery/roll-forward limits in the changeset and draft PR.
+
+## CI follow-up
+
+Agent 13: CI run 34707293948 failed the existing dated parity-manifest test.
+The new migration was missing from the source-only pending suffix. Update the
+existing manifest to 173 source / 16 pending with the exact ordered filename;
+retain the dated hosted evidence and mark this batch unapproved for hosted apply.
+Do not weaken the verifier or rewrite the historical applied ledger.
