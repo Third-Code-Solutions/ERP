@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { can, getUser } from '@third-code-erp/auth'
+import { can, getUserProfile } from '@third-code-erp/auth'
 import { createSupabaseAdminClient } from '@third-code-erp/auth/server'
-import { db } from '@third-code-erp/database'
-import { users } from '@third-code-erp/database/schema'
 import {
   bankStatementImportUploadSignBodySchema,
   bankStatementImportUploadSignResultSchema,
 } from '@third-code-erp/shared-types'
-import { eq } from 'drizzle-orm'
 import { writeAuditLog } from '@/lib/audit'
 import {
   cleanupBankStatementStorageThroughCoreApi,
@@ -33,28 +30,17 @@ function storageEntityId(storagePath: string, tenantId: string): string {
   return storagePath.match(storageEntityIdPattern)?.[1] ?? tenantId
 }
 
-export async function POST(req: NextRequest) {
-  const user = await getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const [userRow] = await db
-    .select({ tenant_id: users.tenant_id, role: users.role })
-    .from(users)
-    .where(eq(users.id, user.id))
-  if (!userRow?.tenant_id) {
-    return NextResponse.json(
-      { error: 'No tenant associated with account' },
-      { status: 403 }
-    )
-  }
-  if (!can(userRow.role, 'finance.manage_cash')) {
+export async function POST(req: NextRequest): Promise<NextResponse> {
+  const profile = await getUserProfile()
+  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!can(profile.role, 'finance.manage_cash')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   const storageUploadsViaCoreApi = financeReconciliationStorageUploadsViaCoreApi(
-    userRow.tenant_id
+    profile.tenantId
   )
   if (
-    !financeReconciliationStorageUploadsUseCoreApi(userRow.tenant_id) &&
+    !financeReconciliationStorageUploadsUseCoreApi(profile.tenantId) &&
     !storageUploadsViaCoreApi
   ) {
     return NextResponse.json(
@@ -88,7 +74,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(coreResult.data)
   }
 
-  const storagePath = `${userRow.tenant_id}/bank-statements/${crypto.randomUUID()}-${safeFileName(parsed.data.fileName)}`
+  const storagePath = `${profile.tenantId}/bank-statements/${crypto.randomUUID()}-${safeFileName(parsed.data.fileName)}`
   const supabase = createSupabaseAdminClient()
   const { data, error } = await supabase.storage
     .from('documents')
@@ -102,10 +88,10 @@ export async function POST(req: NextRequest) {
 
   try {
     await writeAuditLog({
-      tenantId: userRow.tenant_id,
-      actorId: user.id,
+      tenantId: profile.tenantId,
+      actorId: profile.user.id,
       entityType: 'bank_statement_upload',
-      entityId: storageEntityId(storagePath, userRow.tenant_id),
+      entityId: storageEntityId(storagePath, profile.tenantId),
       action: 'query',
       diff: {
         operation: 'signed_upload_url_created',
@@ -132,21 +118,10 @@ export async function POST(req: NextRequest) {
 
 const storagePathSchema = bankStatementImportUploadSignResultSchema.shape.storagePath
 
-export async function DELETE(req: NextRequest) {
-  const user = await getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const [userRow] = await db
-    .select({ tenant_id: users.tenant_id, role: users.role })
-    .from(users)
-    .where(eq(users.id, user.id))
-  if (!userRow?.tenant_id) {
-    return NextResponse.json(
-      { error: 'No tenant associated with account' },
-      { status: 403 }
-    )
-  }
-  if (!can(userRow.role, 'finance.manage_cash')) {
+export async function DELETE(req: NextRequest): Promise<NextResponse> {
+  const profile = await getUserProfile()
+  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!can(profile.role, 'finance.manage_cash')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -167,7 +142,7 @@ export async function DELETE(req: NextRequest) {
     )
   }
 
-  const expectedPrefix = `${userRow.tenant_id}/bank-statements/`
+  const expectedPrefix = `${profile.tenantId}/bank-statements/`
   if (
     !parsed.data.storagePath.startsWith(expectedPrefix) ||
     parsed.data.storagePath.includes('..')
@@ -175,7 +150,7 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  if (financeReconciliationStorageUploadsViaCoreApi(userRow.tenant_id)) {
+  if (financeReconciliationStorageUploadsViaCoreApi(profile.tenantId)) {
     const coreResult = await cleanupBankStatementStorageThroughCoreApi(parsed.data)
     if (!coreResult.ok || !coreResult.data) {
       return NextResponse.json(
@@ -188,10 +163,10 @@ export async function DELETE(req: NextRequest) {
 
   try {
     await writeAuditLog({
-      tenantId: userRow.tenant_id,
-      actorId: user.id,
+      tenantId: profile.tenantId,
+      actorId: profile.user.id,
       entityType: 'bank_statement_upload',
-      entityId: storageEntityId(parsed.data.storagePath, userRow.tenant_id),
+      entityId: storageEntityId(parsed.data.storagePath, profile.tenantId),
       action: 'delete',
       diff: {
         operation: 'signed_upload_source_cleanup_requested',

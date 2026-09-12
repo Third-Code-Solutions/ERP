@@ -9,6 +9,8 @@ import {
 } from './erp-core-client'
 
 const PROJECT_ID = '33333333-3333-4333-8333-333333333333'
+const OTHER_PROJECT_ID = '66666666-6666-4666-8666-666666666666'
+const CASE_PROJECT_ID = 'abcdefab-cdef-4abc-8def-abcdefabcdef'
 const TASK_ID = '44444444-4444-4444-8444-444444444444'
 const RESULT = {
   projectId: PROJECT_ID,
@@ -54,6 +56,16 @@ describe('project labour reconciliation Core client', () => {
     vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify(RESULT), { status: 200 }))
     await expect(getProjectLabourReconciliationThroughCoreApi(PROJECT_ID)).resolves.toMatchObject({ ok: true, data: { totals: { varianceMinutes: -200 } } })
     expect(fetch).toHaveBeenCalledWith(expect.stringContaining(`/v1/projects/${PROJECT_ID}/labour-reconciliation`), expect.objectContaining({ method: 'GET' }))
+  })
+
+  it('fails closed for a mismatched project in the reconciliation response', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ ...RESULT, projectId: OTHER_PROJECT_ID }), { status: 200 }))
+    await expect(getProjectLabourReconciliationThroughCoreApi(PROJECT_ID)).resolves.toMatchObject({ ok: false, status: 503 })
+  })
+
+  it('accepts UUID casing differences when binding reconciliation response scope', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ ...RESULT, projectId: CASE_PROJECT_ID.toLowerCase() }), { status: 200 }))
+    await expect(getProjectLabourReconciliationThroughCoreApi(CASE_PROJECT_ID.toUpperCase())).resolves.toMatchObject({ ok: true })
   })
 
   it('fails closed for malformed payloads', async () => {
