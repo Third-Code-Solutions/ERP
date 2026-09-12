@@ -14,6 +14,7 @@ const FILES = {
   inspectionFormTest: 'apps/web/src/components/proposal/inspection-form.test.tsx',
   rfiForm: 'apps/web/src/components/proposal/rfi-form.tsx',
   rfiFormTest: 'apps/web/src/components/proposal/rfi-form.test.tsx',
+  rfiBrowserTest: 'apps/web/e2e/inspection-rfi-offline.spec.ts',
   service: 'apps/web/src/server/crm/site-inspection-workflow-service.ts',
   serviceTest: 'apps/web/src/server/crm/site-inspection-workflow-service.test.ts',
 }
@@ -288,6 +289,15 @@ function assertExactFieldSet(actual, expected, label) {
 function functionText(unit, name) {
   const node = unit.callable(name)
   invariant(node, `${unit.relativePath} must declare ${name}`)
+  return { node, text: compact(node) }
+}
+
+function callbackText(unit, name) {
+  const declaration = descendants(unit.ast).find(node => ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === name)
+  const call = declaration?.initializer && unwrap(declaration.initializer)
+  invariant(call && ts.isCallExpression(call) && ts.isIdentifier(call.expression) && unit.importedIdentity(call.expression.text)?.imported === 'useCallback', `${name} must be an inspectable React callback`)
+  const node = call.arguments[0] && unwrap(call.arguments[0])
+  invariant(node && ts.isArrowFunction(node), `${name} must expose its callback body`)
   return { node, text: compact(node) }
 }
 
@@ -572,12 +582,31 @@ function verifyForms(graph) {
 
   const rfiSubmit = functionText(rfi, 'onSubmit')
   assertOrder(rfiSubmit.text, [
-    'if(inFlightRef.current)return', 'inFlightRef.current=true', 'startTransition',
-    'addInspectionRfi(opportunityId,inspectionId,formData)', 'if(!result.ok)', 'return',
-    "setDescription('')", "setPriority('minor')", 'setRetryKey(crypto.randomUUID())',
-    'catch', 'finally', 'inFlightRef.current=false',
+    'if(inFlightRef.current)return', 'if(pendingEnvelope)return',
+    'createRfiPendingEnvelope(scope,input,retryKey)', 'inFlightRef.current={scopeKey,epoch}',
+    'await persistDraft(input,epoch)', 'if(!persisted||!isCurrentScope(epoch,scopeKey))return',
+    'await putRfiPending(envelope,revisionRef.current)', 'setPendingEnvelope(envelope)',
+    'await syncPending(envelope,epoch,true)', 'finally', 'inFlightRef.current=null',
   ], 'RFI form must single-flight and retain fields/key on failure')
-  invariant((rfiSubmit.text.match(/setRetryKey\(crypto\.randomUUID\(\)\)/g) ?? []).length === 1,
+  const sync = callbackText(rfi, 'syncPending')
+  assertOrder(sync.text, [
+    'if(!isCurrentScope(epoch,expectedScopeKey))return', 'if(online!==true)', 'return',
+    'if(inFlightRef.current)return', 'await loadRfiSnapshot(envelope.scope)',
+    'if(!isCurrentScope(epoch,expectedScopeKey))return',
+    'if(!stored||!samePendingEnvelope(stored,envelope))', 'return',
+    "formData.set('submission_id',stored.submissionId)",
+    "formData.set('description',stored.description)", "formData.set('priority',stored.priority)",
+    'await addInspectionRfi(stored.scope.opportunityId,stored.scope.inspectionId,formData,{actorId:stored.scope.actorId,tenantId:stored.scope.tenantId}',
+    'if(!isCurrentScope(epoch,expectedScopeKey))return',
+    'if(isMatchingSuccess(result,stored))',
+  ], 'RFI sync must bind the durable command and owner before sending')
+  const confirmed = descendants(sync.node).find(node => ts.isIfStatement(node) && compact(node.expression) === 'isMatchingSuccess(result,stored)')
+  invariant(confirmed, 'RFI cleanup must require a matching acknowledgement')
+  assertOrder(compact(confirmed.thenStatement), [
+    'await deleteRfiPending(stored)', 'catch', 'return', 'setPendingEnvelope(null)',
+    "setDescription('')", "setPriority('minor')", 'setRetryKey(crypto.randomUUID())', 'return',
+  ], 'RFI cleanup must commit before clearing fields and rotating the key')
+  invariant((compact(rfi.source).match(/setRetryKey\(crypto\.randomUUID\(\)\)/g) ?? []).length === 1,
     'RFI form must rotate its key exactly once after success')
   assertContains(compact(rfi.source), 'name="submission_id"value={retryKey}', 'RFI form must mount the stable server-seeded UUID')
 }
@@ -694,6 +723,7 @@ function verifyEvidence(graph) {
     graph.get(FILES.pageTest).source,
     graph.get(FILES.inspectionFormTest).source,
     graph.get(FILES.rfiFormTest).source,
+    graph.get(FILES.rfiBrowserTest).source,
     graph.get(FILES.serviceTest).source,
   ].join('\n')
   for (const phrase of [
@@ -704,7 +734,9 @@ function verifyEvidence(graph) {
     'reports archive failure as a warning without reversing committed success',
     'projects exact mutation controls for %s',
     'uses a synchronous single-flight guard and keeps drafts on failure',
-    'contains thrown failures, clears stale state, retains input, and guards double submit',
+    'unknown and mismatched acknowledgement retain immutable payload across reload and retry',
+    'queues only explicit offline submission and reconnects after reload using the exact key',
+    'failed local cleanup retains the exact confirmed request for safe retry',
     'rolls back every inspection effect when %s fails',
     'serializes concurrent retries into one effect set',
     'serializes concurrent same-key calls',
