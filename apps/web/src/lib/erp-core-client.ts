@@ -10074,10 +10074,10 @@ export async function getProjectBillingMilestonesThroughCoreApi(
   if (!parsedProjectId.success) return { ok: false, status: 400, error: 'Invalid project identifier.' }
   const parsedQuery = projectBillingMilestoneListQuerySchema.safeParse(query)
   if (!parsedQuery.success) return { ok: false, status: 400, error: 'Invalid billing milestone filters.' }
-  const access = await getCoreApiAccess()
-  if (!access.ok) return access
   const params = new URLSearchParams({ page: String(parsedQuery.data.page), limit: String(parsedQuery.data.limit) })
   try {
+    const access = await getCoreApiAccess()
+    if (!access.ok) return access
     const response = await fetch(`${access.baseUrl}/v1/projects/${encodeURIComponent(parsedProjectId.data)}/billing/milestones?${params.toString()}`, { method: 'GET', headers: { authorization: `Bearer ${access.accessToken}`, 'x-request-id': randomUUID() }, cache: 'no-store', signal: AbortSignal.timeout(10_000) })
     const rawBody: unknown = await response.json().catch(() => null)
     if (!response.ok) {
@@ -10085,7 +10085,19 @@ export async function getProjectBillingMilestonesThroughCoreApi(
       return { ok: false, status: response.status, error: body.success ? body.data.message : 'Billing milestone traceability is unavailable.' }
     }
     const parsed = projectBillingMilestoneListResultSchema.safeParse(rawBody)
-    return parsed.success ? { ok: true, data: parsed.data } : { ok: false, status: 503, error: 'ERP Core API returned an invalid billing milestone result.' }
+    if (
+      !parsed.success ||
+      parsed.data.projectId !== parsedProjectId.data ||
+      parsed.data.page !== parsedQuery.data.page ||
+      parsed.data.limit !== parsedQuery.data.limit ||
+      !Number.isSafeInteger(parsed.data.total) ||
+      parsed.data.totalPages !== Math.max(1, Math.ceil(parsed.data.total / parsedQuery.data.limit)) ||
+      parsed.data.rows.length > parsedQuery.data.limit ||
+      new Set(parsed.data.rows.map(row => row.claimId)).size !== parsed.data.rows.length
+    ) {
+      return { ok: false, status: 503, error: 'ERP Core API returned an invalid billing milestone result.' }
+    }
+    return { ok: true, data: parsed.data }
   } catch {
     return { ok: false, status: 503, error: 'ERP Core API is unavailable. Billing milestone traceability was not loaded.' }
   }
