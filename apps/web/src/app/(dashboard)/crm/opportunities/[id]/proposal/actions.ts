@@ -468,18 +468,30 @@ async function persistInspectionReport(args: {
     )
 }
 
-export async function submitInspection(opportunityId: string, formData: FormData) {
+export type InspectionSubmissionActionResult =
+  | { ok: false; error: string; outcome: 'rejected' | 'unknown' }
+  | { ok: true; inspectionId: string; replayed: boolean; refreshFailed: boolean; archiveWarning?: string; confirmation: { actorId: string; tenantId: string; opportunityId: string; submissionId: string } }
+
+export async function submitInspection(opportunityId: string, formData: FormData, expectedOwner?: unknown): Promise<InspectionSubmissionActionResult> {
   const traceId = randomUUID()
   let tenantId: string | null = null
   let actorId: string | null = null
+  let serviceStarted = false
   const action = 'site_inspection.submit' as const
   try {
     const profile = await requireUserProfile()
     tenantId = profile.tenantId
     actorId = profile.user.id
+    if (expectedOwner !== undefined) {
+      const owner = z.object({ actorId: z.string().uuid(), tenantId: z.string().uuid() }).strict().safeParse(expectedOwner)
+      if (!owner.success || owner.data.actorId.toLowerCase() !== actorId.toLowerCase() || owner.data.tenantId.toLowerCase() !== tenantId.toLowerCase()) {
+        logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'forbidden' })
+        return { ok: false, outcome: 'rejected', error: 'The signed-in account changed. Reload before submitting this inspection.' }
+      }
+    }
     if (!can(profile.role, 'site_inspection.submit')) {
       logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'forbidden' })
-      return { ok: false as const, error: 'You do not have permission to submit a site inspection.' }
+      return { ok: false as const, outcome: 'rejected', error: 'You do not have permission to submit a site inspection.' }
     }
 
     const fields = readExactTextFields(
@@ -487,7 +499,7 @@ export async function submitInspection(opportunityId: string, formData: FormData
     )
     if (!fields.ok) {
       logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'validation_error' })
-      return { ok: false as const, error: fields.error }
+      return { ok: false as const, outcome: 'rejected', error: fields.error }
     }
 
     let photoDocumentIds: unknown
@@ -495,7 +507,7 @@ export async function submitInspection(opportunityId: string, formData: FormData
       photoDocumentIds = JSON.parse(fields.values.photo_document_ids)
     } catch {
       logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'validation_error' })
-      return { ok: false as const, error: 'photo_document_ids: must be a JSON array of UUIDs' }
+      return { ok: false as const, outcome: 'rejected', error: 'photo_document_ids: must be a JSON array of UUIDs' }
     }
     const command = siteInspectionSubmissionCommandSchema.safeParse({
       kind: 'inspection_submission',
@@ -516,23 +528,25 @@ export async function submitInspection(opportunityId: string, formData: FormData
     if (!command.success) {
       const first = command.error.errors[0]
       logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'validation_error' })
-      return { ok: false as const, error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}` }
+      return { ok: false as const, outcome: 'rejected', error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}` }
     }
 
+    serviceStarted = true
     const rawResult = await siteInspectionWorkflowService.submitInspection(
       { tenantId, userId: actorId }, command.data,
     )
     const checked = siteInspectionWorkflowResultSchema.safeParse(rawResult)
     if (!checked.success) {
       logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'service_contract_failure' })
-      return { ok: false as const, error: 'The inspection service returned an invalid response. Please retry.' }
+      return { ok: false as const, outcome: 'unknown', error: 'The inspection service returned an invalid response. Please retry.' }
     }
     if (!checked.data.ok) {
       logSiteInspectionOutcome({
         traceId, tenantId, actorId, action, outcome: 'service_rejected',
         errorCode: checked.data.error.code,
       })
-      return { ok: false as const, error: checked.data.error.message }
+      // A replay conflict can describe an already-committed but incomplete receipt.
+      return { ok: false as const, outcome: ['INTERNAL_ERROR', 'CONFLICT'].includes(checked.data.error.code) ? 'unknown' : 'rejected', error: checked.data.error.message }
     }
     if (
       checked.data.kind !== 'inspection_submission' ||
@@ -543,7 +557,7 @@ export async function submitInspection(opportunityId: string, formData: FormData
       checked.data.linkedPhotoCount !== command.data.photoDocumentIds.length
     ) {
       logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'service_contract_failure' })
-      return { ok: false as const, error: 'The inspection service response did not match this submission. Please retry.' }
+      return { ok: false as const, outcome: 'unknown', error: 'The inspection service response did not match this submission. Please retry.' }
     }
 
     let archiveWarning: string | undefined
@@ -588,6 +602,7 @@ export async function submitInspection(opportunityId: string, formData: FormData
     logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome })
     return {
       ok: true as const,
+      confirmation: { actorId, tenantId, opportunityId: command.data.opportunityId, submissionId: command.data.submissionId },
       inspectionId: checked.data.inspectionId,
       replayed: checked.data.replayed,
       refreshFailed,
@@ -595,7 +610,7 @@ export async function submitInspection(opportunityId: string, formData: FormData
     }
   } catch {
     logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'unexpected_error' })
-    return { ok: false as const, error: 'Unable to submit the inspection. Please retry.' }
+    return { ok: false as const, outcome: serviceStarted ? 'unknown' : 'rejected', error: serviceStarted ? 'The inspection outcome is unconfirmed. Retry the unchanged submission.' : 'Your access could not be verified. Sign in again or retry.' }
   }
 }
 

@@ -94,6 +94,17 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   const file = formData.get('file')
+  const expectedActors = formData.getAll('expected_actor_id')
+  const expectedTenants = formData.getAll('expected_tenant_id')
+  if (expectedActors.length > 0 || expectedTenants.length > 0) {
+    const owner = z.object({ actorId: z.string().uuid(), tenantId: z.string().uuid() }).strict().safeParse({ actorId: expectedActors[0], tenantId: expectedTenants[0] })
+    if (expectedActors.length !== 1 || expectedTenants.length !== 1 || !owner.success) {
+      return NextResponse.json({ error: 'Invalid expected inspection owner.' }, { status: 400 })
+    }
+    if (owner.data.actorId.toLowerCase() !== profile.user.id.toLowerCase() || owner.data.tenantId.toLowerCase() !== profile.tenantId.toLowerCase()) {
+      return NextResponse.json({ error: 'The signed-in account changed. Reload before uploading inspection photos.' }, { status: 403 })
+    }
+  }
   if (!(file instanceof File)) {
     return NextResponse.json({ error: 'An image file is required' }, { status: 400 })
   }

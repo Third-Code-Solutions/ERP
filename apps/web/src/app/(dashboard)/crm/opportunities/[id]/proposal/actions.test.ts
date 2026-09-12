@@ -375,7 +375,7 @@ describe('site inspection atomic service mounting', () => {
       ok: false, error: { code: 'PPRF_REQUIRED', message: 'Submit the PPRF first.' },
     })
     await expect(submitInspection(OPPORTUNITY_ID, inspectionForm())).resolves.toEqual({
-      ok: false, error: 'Submit the PPRF first.',
+      ok: false, outcome: 'rejected', error: 'Submit the PPRF first.',
     })
     mocks.submitInspection.mockRejectedValueOnce(new Error('transaction unavailable'))
     await expect(submitInspection(OPPORTUNITY_ID, inspectionForm())).resolves.toMatchObject({ ok: false })
@@ -452,6 +452,27 @@ describe('site inspection atomic service mounting', () => {
     hostile.set('inspection_id', INSPECTION_ID)
     await expect(addInspectionRfi(OPPORTUNITY_ID, INSPECTION_ID, hostile)).resolves.toMatchObject({ ok: false })
     expect(mocks.createRfi).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([{ actorId: PHOTO_ID, tenantId: TENANT_ID }, { actorId: USER_ID, tenantId: PHOTO_ID }, { actorId: 'invalid', tenantId: TENANT_ID }, { actorId: USER_ID, tenantId: TENANT_ID, extra: true }])('rejects stale or malformed inspection owner %j before effects', async owner => {
+    await expect(submitInspection(OPPORTUNITY_ID, inspectionForm(), owner)).resolves.toMatchObject({ ok: false, outcome: 'rejected' })
+    expect(mocks.submitInspection).not.toHaveBeenCalled()
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('returns a bound inspection confirmation for its validated command', async () => {
+    await expect(submitInspection(OPPORTUNITY_ID, inspectionForm(), { actorId: USER_ID, tenantId: TENANT_ID })).resolves.toMatchObject({ ok: true, confirmation: { actorId: USER_ID, tenantId: TENANT_ID, opportunityId: OPPORTUNITY_ID, submissionId: SUBMISSION_ID } })
+  })
+
+  it.each([{ ok: true }, { ok: false, error: { code: 'INTERNAL_ERROR', message: 'Unconfirmed transaction' } }, { ok: false, error: { code: 'CONFLICT', message: 'Inspection durable result is incomplete' } }])('keeps ambiguous inspection response unknown: %j', async response => {
+    mocks.submitInspection.mockResolvedValueOnce(response)
+    await expect(submitInspection(OPPORTUNITY_ID, inspectionForm())).resolves.toMatchObject({ ok: false, outcome: 'unknown' })
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('keeps thrown inspection writes unknown', async () => {
+    mocks.submitInspection.mockRejectedValueOnce(new Error('Lost transaction acknowledgement'))
+    await expect(submitInspection(OPPORTUNITY_ID, inspectionForm())).resolves.toMatchObject({ ok: false, outcome: 'unknown' })
   })
 
   it.each([

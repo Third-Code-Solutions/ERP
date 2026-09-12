@@ -57,6 +57,37 @@ function requestWithFile(file: Blob, fileName: string, caption?: string) {
 }
 
 describe('inspection photo upload route', () => {
+  it('accepts the complete matching owner pair without changing the success contract', async () => {
+    const body = new FormData()
+    body.set('file', jpeg(), 'photo.jpg')
+    body.set('expected_actor_id', USER_ID)
+    body.set('expected_tenant_id', TENANT_ID)
+    const response = await POST(new Request(`http://localhost/api/crm/opportunities/${OPPORTUNITY_ID}/inspection-photos`, { method: 'POST', body }), context(OPPORTUNITY_ID))
+    expect(response.status).toBe(200)
+    expect(mocks.upload).toHaveBeenCalledTimes(1)
+  })
+  it('rejects duplicate owner fields before effects', async () => {
+    const body = new FormData()
+    body.set('file', jpeg(), 'photo.jpg')
+    body.append('expected_actor_id', USER_ID)
+    body.append('expected_actor_id', USER_ID)
+    body.set('expected_tenant_id', TENANT_ID)
+    const response = await POST(new Request(`http://localhost/api/crm/opportunities/${OPPORTUNITY_ID}/inspection-photos`, { method: 'POST', body }), context(OPPORTUNITY_ID))
+    expect(response.status).toBe(400)
+    expect(mocks.getOpportunityThroughCoreApi).not.toHaveBeenCalled()
+    expect(mocks.upload).not.toHaveBeenCalled()
+  })
+  it.each([[DOCUMENT_ID, TENANT_ID], [USER_ID, DOCUMENT_ID], ['invalid', TENANT_ID], [USER_ID, undefined], [undefined, TENANT_ID]])('rejects invalid expected owner pair %j before effects', async (actor, tenant) => {
+    const body = new FormData()
+    body.set('file', jpeg(), 'photo.jpg')
+    if (actor !== undefined) body.set('expected_actor_id', actor)
+    if (tenant !== undefined) body.set('expected_tenant_id', tenant)
+    const response = await POST(new Request(`http://localhost/api/crm/opportunities/${OPPORTUNITY_ID}/inspection-photos`, { method: 'POST', body }), context(OPPORTUNITY_ID))
+    expect(response.status).toBeGreaterThanOrEqual(400)
+    expect(mocks.getOpportunityThroughCoreApi).not.toHaveBeenCalled()
+    expect(mocks.upload).not.toHaveBeenCalled()
+    expect(mocks.createInspectionPhotoThroughCoreApi).not.toHaveBeenCalled()
+  })
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.getUserProfile.mockResolvedValue({

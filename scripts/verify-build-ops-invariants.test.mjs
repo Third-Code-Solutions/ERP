@@ -215,6 +215,7 @@ test('CI runs document, role and smoke readiness regressions without production 
   assert.match(job, /e2e\/authenticated-smoke-readiness\.spec\.ts/)
   assert.match(job, /e2e\/user-role-workflow\.spec\.ts/)
   assert.match(job, /e2e\/inspection-rfi-offline\.spec\.ts/)
+  assert.match(job, /e2e\/inspection-draft-durability\.spec\.ts/)
   assert.match(job, /e2e\/billing-milestone-navigation\.spec\.ts/)
   assert.match(job, /e2e\/quality-document-handoff\.spec\.ts/)
   assert.match(job, /assert-playwright-no-skips\.mjs[\s\S]*?credential-free browser interactions/)
