@@ -46,7 +46,8 @@ jobs:
       SUPABASE_MIGRATION_DATABASE_URL: ${{ secrets.SUPABASE_MIGRATION_DATABASE_URL }}
       PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
       BUILD_OPS_DEMO_TENANT_SLUGS: buildops-e2e
-      E2E_PROJECT_ID: ${{ vars.E2E_PROJECT_ID }}
+      # The stable preview uses a different database/project fixture.
+      E2E_PROJECT_ID: ${{ vars.PRODUCTION_E2E_PROJECT_ID }}
       E2E_USER_EMAIL: ${{ secrets.E2E_USER_EMAIL }}
       E2E_USER_PASSWORD: ${{ secrets.E2E_USER_PASSWORD }}
 
@@ -201,6 +202,7 @@ jobs:
         env:
           E2E_MAGIC_LINK_AUTH: "1"
           E2E_ROLE_MATRIX_AUTH: "1"
+          E2E_SCHEDULE_AUTH: "1"
           E2E_REAL_PASSWORD_RECOVERY: "1"
           PLAYWRIGHT_BASE_URL: https://thirdcode-erp.vercel.app
         shell: bash
@@ -214,6 +216,7 @@ jobs:
             e2e/smoke-console.spec.ts \
             e2e/role-access-production.spec.ts \
             e2e/complete-route-audit.spec.ts \
+            e2e/project-schedule-role-matrix.spec.ts \
             e2e/cad-worker-production.spec.ts \
             --project=chromium --workers=1 --reporter=json > "$report_path"
           node "$GITHUB_WORKSPACE/scripts/assert-playwright-no-skips.mjs" \
