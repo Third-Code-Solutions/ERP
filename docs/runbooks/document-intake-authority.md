@@ -70,6 +70,34 @@ No new migration is required. Before production proof, verify exact release iden
 Storage access, archive/download/retry journeys and recovery gates. No provider
 configuration was changed by the local implementation.
 
+### Direct inspection photo transport (ADR-032)
+
+The inspection form obtains owner-bound connection metadata from Web, then sends
+one multipart `file` directly to Core at
+`POST /v1/opportunities/:opportunityId/inspection-photos/upload`. Its own current
+session bearer token and expected actor/tenant headers travel only to the validated
+configured Core origin. No service credential or token enters the saved draft.
+Web's older multipart endpoint and Core's metadata registration remain compatible;
+the updated form no longer sends photo bytes through the Web function.
+
+Core checks current authority before parsing and again under locks before Storage.
+It limits photos to 15 MiB, ingress to 90 seconds, and retained upload processing to
+four concurrent requests per process. Multipart overhead, file/field counts are
+bounded. Timeout terminates ingress; the browser treats it as unconfirmed and keeps
+the photo for retry. Capacity is released only after parser settlement or processing
+completion. Immutable Storage upload and full read verification each have a ten-second
+deadline. Verified document registration and semantic audit share one transaction.
+
+The browser uses a 120-second overall deadline and sends a canonical ASCII filename,
+including normalization of consecutive dots. Hash, name, tenant and opportunity must
+match the Core receipt before the document ID is durably saved. Lost responses,
+component replacement and changed login never discard the original saved evidence.
+
+Before release verify Core/Web identities, private Storage credentials, CORS from the
+real Web origin and an authenticated photo larger than 4.5 MB. Local controlled
+browser and synthetic database tests are not hosted upload proof. Existing production
+backup, restore and migration gates apply; no provider setting was changed here.
+
 ```powershell
 $env:DATABASE_URL='postgresql://postgres:postgres@127.0.0.1:54322/erp_self_hosted_ci'
 $env:REDIS_URL='redis://127.0.0.1:6379'

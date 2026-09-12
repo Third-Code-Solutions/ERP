@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { tmpdir } from 'node:os'
 import { basename, join, resolve, sep } from 'node:path'
 import type { ServerResponse } from 'node:http'
+import { createHash } from 'node:crypto'
 
 const scope = { actorId: '11111111-1111-4111-8111-111111111111', tenantId: '22222222-2222-4222-8222-222222222222', opportunityId: '33333333-3333-4333-8333-333333333333' }
 const other = '44444444-4444-4444-8444-444444444444'
@@ -16,6 +17,10 @@ const submissions: Submission[] = []
 const pending: ServerResponse[] = []
 const errors: string[] = []
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a7ioAAAAASUVORK5CYII=', 'base64')
+function photoReceipt(fileName: string, bytes = png) {
+  return { documentId, tenantId: scope.tenantId, opportunityId: scope.opportunityId, projectId: null, fileName,
+    storagePath: `${scope.tenantId}/opportunities/${scope.opportunityId}/inspection/${createHash('sha256').update(bytes).digest('hex')}-${fileName}`, status: 'created' }
+}
 
 // Real React, production CSS and IndexedDB; only the server action is replaced.
 // This does not establish authenticated Next/Core or provider persistence.
@@ -26,6 +31,8 @@ test.beforeAll(async () => {
   directory = resolve(await mkdtemp(join(tmpdir(), 'erp-inspection-draft-')))
   if (!directory.startsWith(resolve(tmpdir()) + sep) || !basename(directory).startsWith('erp-inspection-draft-')) throw new Error('Unsafe harness path')
   const actions = join(directory, 'actions.ts')
+  const auth = join(directory, 'auth.ts')
+  await writeFile(auth, `export function createSupabaseBrowserClient(){return {auth:{async getSession(){return {data:{session:{access_token:'controlled-browser-session',user:{id:window.__scope.actorId}}},error:null}}}}}`)
   await writeFile(actions, `export async function submitInspection(opportunityId, formData, owner) {
     const response = await fetch('/__submit', {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({opportunityId,fields:Object.fromEntries(formData),owner})}); const result=await response.json(); window.__resolved=(window.__resolved||0)+1; return result
   }`)
@@ -37,9 +44,9 @@ import {InspectionForm} from ${JSON.stringify(join(process.cwd(), 'src/component
 import * as store from ${JSON.stringify(join(process.cwd(), 'src/lib/operations/site-inspection-draft.ts'))}
 window.__draftStore=store
 const nativeFetch=window.fetch.bind(window)
-window.fetch=async(...args)=>{const response=await nativeFetch(...args); if(String(args[0]).includes('/inspection-photos')){await response.clone().json();window.__photoResolved=(window.__photoResolved||0)+1}return response}
+window.fetch=async(...args)=>{const response=await nativeFetch(...args); if(String(args[0]).endsWith('/inspection-photos/upload')){await response.clone().json();window.__photoResolved=(window.__photoResolved||0)+1}return response}
 const root=createRoot(document.getElementById('root'))
-window.__inspection={mount(scope){root.render(<main style={{maxWidth:680,margin:'0 auto',padding:16}}><h1>Site inspection</h1><InspectionForm {...scope} pprfSubmitted={true}/></main>)}}
+window.__inspection={mount(scope){window.__scope=scope;root.render(<main style={{maxWidth:680,margin:'0 auto',padding:16}}><h1>Site inspection</h1><InspectionForm {...scope} pprfSubmitted={true}/></main>)}}
 window.__inspection.mount(JSON.parse(new URL(location.href).searchParams.get('scope') || ${JSON.stringify(JSON.stringify(scope))}))
 `)
   vite = await createServer({ root: directory, configFile: false, esbuild: { jsx: 'automatic' },
@@ -49,6 +56,7 @@ window.__inspection.mount(JSON.parse(new URL(location.href).searchParams.get('sc
       { find: 'react', replacement: join(process.cwd(), 'node_modules/react') },
       { find: 'react-dom', replacement: join(process.cwd(), 'node_modules/react-dom') },
       { find: '@/app/(dashboard)/crm/opportunities/[id]/proposal/actions', replacement: actions },
+      { find: '@third-code-erp/auth', replacement: auth },
       { find: '@', replacement: join(process.cwd(), 'src') },
     ] }, plugins: [{ name: 'controlled-inspection-action', configureServer(server) {
       server.middlewares.use('/__submit', (request, response) => {
@@ -66,6 +74,10 @@ window.__inspection.mount(JSON.parse(new URL(location.href).searchParams.get('sc
 test.beforeEach(async ({ page }) => {
   submissions.length = 0; pending.length = 0; errors.length = 0
   page.on('pageerror', error => errors.push(error.message))
+  await page.route('**/api/crm/opportunities/*/inspection-photos/transport', route => route.fulfill({ json: {
+    actorId: route.request().headers()['x-expected-actor-id'], tenantId: route.request().headers()['x-expected-tenant-id'],
+    opportunityId: scope.opportunityId, uploadUrl: `https://core.example.test/v1/opportunities/${scope.opportunityId}/inspection-photos/upload`,
+  } }))
 })
 test.afterEach(() => {
   for (const response of pending) if (!response.writableEnded) response.end(JSON.stringify({ ok: false, error: 'Controlled test ended' }))
@@ -274,14 +286,14 @@ test('saved acknowledgement waits for actual write transaction completion', asyn
 
 test('partial photo receipt reloads and removing it excludes its document from submission', async ({ page }) => {
   let uploads = 0
-  await page.route('**/api/crm/opportunities/*/inspection-photos', async route => {
+  await page.route('**/v1/opportunities/*/inspection-photos/upload', async route => {
     uploads++
-    await route.fulfill({ status: uploads === 1 ? 200 : 503, json: uploads === 1 ? { id: documentId } : { error: 'Controlled second upload failure' } })
+    await route.fulfill({ status: uploads === 1 ? 200 : 503, json: uploads === 1 ? photoReceipt('first.png') : { error: 'Controlled second upload failure' } })
   })
   await open(page); await save(page, 'Partial upload site'); await addPhotos(page, ['first.png', 'second.png'])
   const key = await page.locator('[name=client_submission_id]').inputValue()
   await page.getByRole('button', { name: 'Sync report and photos', exact: true }).click()
-  await expect(page.getByText('Controlled second upload failure', { exact: true })).toBeVisible()
+  await expect(page.getByText('Photo upload is unconfirmed. Your saved photo remains available; retry the same photo.', { exact: true })).toBeVisible()
   expect(submissions).toHaveLength(0)
   await page.reload()
   await expect(page.getByText('Uploaded; attaches when report syncs', { exact: true })).toBeVisible()
@@ -330,7 +342,7 @@ test('stale tab cannot overwrite a newer draft or resurrect a cleared report', a
 })
 
 test('unknown and mismatched confirmation survive reload and retry the exact frozen report', async ({ page }) => {
-  await page.route('**/api/crm/opportunities/*/inspection-photos', route => route.fulfill({ json: { id: documentId } }))
+  await page.route('**/v1/opportunities/*/inspection-photos/upload', route => route.fulfill({ json: photoReceipt('pending.png') }))
   await open(page); await save(page, 'Frozen submitted site')
   await page.getByLabel('Observations').fill('Exact submitted observations')
   await addPhotos(page, ['pending.png'])
@@ -364,13 +376,11 @@ test('unknown and mismatched confirmation survive reload and retry the exact fro
 
 test('owner switch during photo upload prevents the obsolete session dispatching a report', async ({ page }) => {
   let releaseUpload: (() => Promise<void>) | undefined
-  await page.route('**/api/crm/opportunities/*/inspection-photos', route => {
-    const body = route.request().postData() ?? ''
-    expect(body).toContain('expected_actor_id')
-    expect(body).toContain(scope.actorId)
-    expect(body).toContain('expected_tenant_id')
-    expect(body).toContain(scope.tenantId)
-    releaseUpload = () => route.fulfill({ json: { id: documentId } })
+  await page.route('**/v1/opportunities/*/inspection-photos/upload', route => {
+    expect(route.request().headers()['x-expected-actor-id']).toBe(scope.actorId)
+    expect(route.request().headers()['x-expected-tenant-id']).toBe(scope.tenantId)
+    expect(route.request().headers().authorization).toBe('Bearer controlled-browser-session')
+    releaseUpload = () => route.fulfill({ json: photoReceipt('held.png') })
   })
   await open(page); await save(page, 'Original uploading report'); await addPhotos(page, ['held.png'])
   await page.getByRole('button', { name: 'Sync report and photos', exact: true }).click()
@@ -403,3 +413,53 @@ test('keyboard form and long photo name fit four viewport widths', async ({ page
     await page.screenshot({ path: join(tmpdir(), `erp-inspection-draft-${width}.png`), fullPage: true })
   }
 })
+
+test('photo above Web body limit transfers directly to Core and persists its verified receipt', async ({ page }) => {
+  const large = Buffer.alloc(5 * 1024 * 1024)
+  png.copy(large)
+  let uploads = 0
+  const webBodies: number[] = []
+  page.on('request', request => {
+    if (request.url().includes('/api/crm/')) webBodies.push(request.postDataBuffer()?.length ?? 0)
+  })
+  await page.route('**/v1/opportunities/*/inspection-photos/upload', async route => {
+    uploads++
+    expect(route.request().postDataBuffer()!.length).toBeGreaterThan(5 * 1024 * 1024)
+    expect(route.request().headers().authorization).toBe('Bearer controlled-browser-session')
+    await route.fulfill({ json: photoReceipt('large.png', large) })
+  })
+  await open(page); await save(page, 'Large evidence upload')
+  await page.getByLabel('Photos', { exact: true }).setInputFiles({ name: 'large.png', mimeType: 'image/png', buffer: large })
+  await expect(page.getByRole('button', { name: 'Remove photo large.png' })).toBeVisible()
+  await page.getByRole('button', { name: 'Sync report and photos', exact: true }).click()
+  await expect.poll(() => submissions.length).toBe(1)
+  expect(JSON.parse(submissions[0]!.fields.photo_document_ids!)).toEqual([documentId])
+  expect(webBodies.length).toBeGreaterThan(0)
+  expect(webBodies.every(length => length === 0)).toBe(true)
+  pending[0]!.end(JSON.stringify({ ok: false, error: 'Controlled response loss' }))
+  await expect(page.getByRole('button', { name: 'Retry report sync', exact: true })).toBeEnabled()
+  await page.reload()
+  await expect(page.getByText('Uploaded; attaches when report syncs', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Retry report sync', exact: true }).click()
+  await expect.poll(() => submissions.length).toBe(2)
+  expect(uploads).toBe(1)
+  expect(submissions[1]).toEqual(submissions[0])
+  confirmSubmission(1)
+})
+
+for (const originalName of ['café.png', 'folder/photo.png', 'folder\\photo.png']) {
+  test(`canonical multipart filename preserves receipt recovery: ${originalName}`, async ({ page }) => {
+    const canonicalName = originalName.replace(/[^a-zA-Z0-9._-]/g, '_')
+    await page.route('**/v1/opportunities/*/inspection-photos/upload', async route => {
+      expect(route.request().postDataBuffer()?.toString('utf8')).toContain(`filename="${canonicalName}"`)
+      await route.fulfill({ json: photoReceipt(canonicalName) })
+    })
+    await open(page); await save(page, 'Canonical filename evidence')
+    await addPhotos(page, [originalName])
+    await page.getByRole('button', { name: 'Sync report and photos', exact: true }).click()
+    await expect.poll(() => submissions.length).toBe(1)
+    expect(JSON.parse(submissions[0]!.fields.photo_document_ids!)).toEqual([documentId])
+    confirmSubmission(0)
+    await expect(page.getByLabel('Site address')).toHaveValue('')
+  })
+}

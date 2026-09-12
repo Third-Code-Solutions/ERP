@@ -161,7 +161,7 @@ suite('Inspection photo database authority', () => {
       const sha256 = createHash('sha256').update('Synthetic stored evidence fixture').digest('hex')
       const storagePath = `${tenantA}/opportunities/${opportunityA}/inspection/${sha256}-evidence.jpg`
       // Byte verification is a controlled dependency; transaction/query results are real PostgreSQL.
-      const storage = { verify: vi.fn(async () => ({ sha256, sizeBytes: 1_024, mimeType: 'image/jpeg' as const })) }
+      const storage = { upload: vi.fn(async () => { throw new Error('Metadata registration must not upload') }), verify: vi.fn(async () => ({ sha256, sizeBytes: 1_024, mimeType: 'image/jpeg' as const })) }
       const service = new InspectionPhotoService(
         transactionBoundDatabase(transaction),
         new AuditService(),

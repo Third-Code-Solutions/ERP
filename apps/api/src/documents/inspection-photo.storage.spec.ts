@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { InspectionPhotoStorageService } from './inspection-photo.storage'
 
 const bytes = new Uint8Array([255, 216, 255, 0, 1])
+const uploadBytes = Buffer.from(bytes)
 const digest = createHash('sha256').update(bytes).digest('hex')
 const command = {
   opportunityId: '33333333-3333-4333-8333-333333333333',
@@ -14,6 +15,127 @@ const command = {
 const service = () => new InspectionPhotoStorageService(new ConfigService({ SUPABASE_URL: 'https://storage.example.test', SUPABASE_SERVICE_ROLE_KEY: 'synthetic-key' }))
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
 describe('InspectionPhotoStorageService', () => {
+  it('uploads an immutable photo before resolving', async () => {
+    const fetcher = vi.fn().mockResolvedValueOnce(new Response(null, { status: 201 }))
+    vi.stubGlobal('fetch', fetcher)
+
+    await expect(service().upload(command, uploadBytes)).resolves.toBeUndefined()
+    expect(fetcher).toHaveBeenNthCalledWith(
+      1,
+      `https://storage.example.test/storage/v1/object/documents/${command.storagePath}`,
+      expect.objectContaining({
+        method: 'POST',
+        body: uploadBytes,
+        redirect: 'error',
+        headers: expect.objectContaining({
+          'content-type': 'image/jpeg',
+          'content-length': String(uploadBytes.length),
+          'x-upsert': 'false',
+        }),
+      }),
+    )
+    expect(fetcher).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    [200, null],
+    [201, null],
+    [400, JSON.stringify({ error: 'Asset Already Exists' })],
+    [400, JSON.stringify({ message: 'Asset Already Exists' })],
+    [409, JSON.stringify({ code: 'ResourceAlreadyExists' })],
+    [409, JSON.stringify({ code: 'KeyAlreadyExists' })],
+    [400, JSON.stringify({ code: 'already_exists' })],
+  ] as const)('accepts only a successful or documented duplicate response (%s)', async (status, responseBody) => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(responseBody, { status }))
+    vi.stubGlobal('fetch', fetcher)
+
+    await expect(service().upload(command, uploadBytes)).resolves.toBeUndefined()
+    expect(fetcher).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    [400, JSON.stringify({ code: 'InvalidRequest', message: 'not a duplicate' })],
+    [409, JSON.stringify({ code: 'Conflict', message: 'already exists maybe' })],
+    [408, JSON.stringify({ message: 'Asset Already Exists' })],
+  ] as const)('does not treat an unclassified provider response (%s) as a duplicate', async (status, responseBody) => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(responseBody, { status })))
+
+    await expect(service().upload(command, uploadBytes)).rejects.toThrow()
+  })
+
+  it.each([
+    ['size', { ...command, sizeBytes: command.sizeBytes + 1 }, uploadBytes],
+    ['MIME', { ...command, mimeType: 'image/png' as const }, uploadBytes],
+    ['path hash', { ...command, storagePath: command.storagePath.replace(digest, 'a'.repeat(64)) }, uploadBytes],
+    ['magic bytes', command, Buffer.from('not-an-image')],
+    ['maximum size', command, Buffer.concat([Buffer.from([255, 216, 255]), Buffer.alloc(15 * 1024 * 1024)])],
+  ] as const)('rejects invalid %s before contacting Storage', async (_kind, invalidCommand, invalidBytes) => {
+    const fetcher = vi.fn()
+    vi.stubGlobal('fetch', fetcher)
+
+    await expect(service().upload(invalidCommand, invalidBytes)).rejects.toThrow()
+    expect(fetcher).not.toHaveBeenCalled()
+  })
+
+  it('rejects unsafe upload configuration before contacting Storage', async () => {
+    const fetcher = vi.fn()
+    vi.stubGlobal('fetch', fetcher)
+    const unsafe = new InspectionPhotoStorageService(new ConfigService({
+      SUPABASE_URL: 'https://storage.example.test/private',
+      SUPABASE_SERVICE_ROLE_KEY: 'synthetic-key',
+    }))
+
+    await expect(unsafe.upload(command, uploadBytes)).rejects.toThrow('unavailable')
+    expect(fetcher).not.toHaveBeenCalled()
+  })
+
+  it('contains provider transport errors without exposing credentials', async () => {
+    const fetcher = vi.fn().mockRejectedValue(new Error('provider leaked synthetic-key and a private object path'))
+    vi.stubGlobal('fetch', fetcher)
+
+    const error = await service().upload(command, uploadBytes).catch((value: unknown) => value)
+    expect(error).toBeInstanceOf(Error)
+    expect((error as Error).message).toBe('Inspection photo upload is unconfirmed')
+    expect((error as Error).message).not.toContain('synthetic-key')
+  })
+
+  it('bounds a transport that ignores abort', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', vi.fn().mockReturnValue(new Promise(() => undefined)))
+
+    const pending = service().upload(command, uploadBytes)
+    const result = expect(pending).rejects.toThrow('timed out')
+    await vi.advanceTimersByTimeAsync(10_001)
+    await result
+  })
+
+  it('bounds a provider body that stalls after successful headers', async () => {
+    vi.useFakeTimers()
+    const cancel = vi.fn()
+    const body = new ReadableStream<Uint8Array>({ cancel })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(body, { status: 201 })))
+
+    const pending = service().upload(command, uploadBytes)
+    const result = expect(pending).rejects.toThrow('timed out')
+    await vi.advanceTimersByTimeAsync(10_001)
+    await result
+    expect(cancel).toHaveBeenCalled()
+  })
+
+  it('caps provider response bodies without waiting for unbounded data', async () => {
+    const cancel = vi.fn()
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(64 * 1024 + 1))
+      },
+      cancel,
+    })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(body, { status: 500 })))
+
+    await expect(service().upload(command, uploadBytes)).rejects.toThrow('unconfirmed')
+    expect(cancel).toHaveBeenCalled()
+  })
+
   it.each([
     ['image/jpeg', Buffer.from([255, 216, 255, 0])],
     ['image/png', Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])],

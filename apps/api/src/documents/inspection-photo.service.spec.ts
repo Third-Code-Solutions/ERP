@@ -78,7 +78,7 @@ function harness({
     stampActor: vi.fn().mockResolvedValue(undefined),
     writeSemantic: vi.fn().mockResolvedValue(undefined),
   } as unknown as AuditService
-  const storage = { verify: vi.fn().mockResolvedValue({ sha256: 'a'.repeat(64), sizeBytes: COMMAND.sizeBytes, mimeType: COMMAND.mimeType }) }
+  const storage = { upload: vi.fn(async () => { throw new Error('Metadata registration must not upload') }), verify: vi.fn().mockResolvedValue({ sha256: 'a'.repeat(64), sizeBytes: COMMAND.sizeBytes, mimeType: COMMAND.mimeType }) }
   return {
     service: new InspectionPhotoService(
       { client: { transaction } } as unknown as DatabaseService,

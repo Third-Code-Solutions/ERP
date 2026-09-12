@@ -13,6 +13,8 @@ import { DocuSealWebhookService } from './docuseal-webhook.service'
 import { InspectionPhotoController } from './inspection-photo.controller'
 import { InspectionPhotoPipe } from './inspection-photo.pipe'
 import { InspectionPhotoService } from './inspection-photo.service'
+import { InspectionPhotoUploadGuard } from './inspection-photo-upload.guard'
+import { InspectionPhotoUploadInterceptor } from './inspection-photo-upload.interceptor'
 import { InspectionPhotoStorageService } from './inspection-photo.storage'
 import { PublicSigningController } from './public-signing.controller'
 import { PublicSigningPipe } from './public-signing.pipe'
@@ -47,6 +49,8 @@ import { InspectionReportStorageService } from './inspection-report.storage'
     DocuSealWebhookService,
     InspectionPhotoPipe,
     InspectionPhotoService,
+    InspectionPhotoUploadGuard,
+    InspectionPhotoUploadInterceptor,
     InspectionPhotoStorageService,
     InspectionReportService,
     InspectionReportStorageService,

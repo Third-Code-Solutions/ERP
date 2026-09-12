@@ -22,6 +22,7 @@ import { and, eq } from 'drizzle-orm'
 import { ERP_ROLES } from '@third-code-erp/shared-types/authorization'
 import { z } from 'zod'
 import { InspectionPhotoStorageService } from './inspection-photo.storage'
+import { buildInspectionPhotoUploadCommand, type InspectionPhotoUploadFile } from './inspection-photo-upload'
 import { roleHasCapability } from '../auth/capability.guard'
 import type {
   ErpPrincipal,
@@ -41,13 +42,32 @@ export class InspectionPhotoService {
   constructor(
     @Inject(DatabaseService) private readonly database: DatabaseService,
     @Inject(AuditService) private readonly audit: AuditService,
-    @Inject(InspectionPhotoStorageService) private readonly storage: Pick<InspectionPhotoStorageService, 'verify'>
+    @Inject(InspectionPhotoStorageService) private readonly storage: Pick<InspectionPhotoStorageService, 'verify' | 'upload'>
   ) {}
+
+  async authorizeUpload(opportunityId: string, principal: ErpPrincipal): Promise<void> {
+    // Pre-ingress snapshot only: the mutation repeats authorization under locks.
+    const [row] = await this.database.client.select({ role: users.role }).from(users)
+      .innerJoin(tenants, and(eq(tenants.id, users.tenant_id), eq(tenants.status, 'active')))
+      .innerJoin(opportunities, and(eq(opportunities.tenant_id, users.tenant_id), eq(opportunities.id, opportunityId)))
+      .where(and(eq(users.id, principal.userId), eq(users.tenant_id, principal.tenantId), eq(users.account_status, 'active'))).limit(1)
+    const role = z.enum(ERP_ROLES).safeParse(row?.role)
+    if (!row || !role.success || !roleHasCapability(role.data, 'site_inspection.submit')) throw new ForbiddenException('Photo upload scope is unavailable')
+  }
+
+  async upload(opportunityId: string, file: InspectionPhotoUploadFile, principal: ErpPrincipal): Promise<InspectionPhotoResult> {
+    const command = buildInspectionPhotoUploadCommand(principal.tenantId, opportunityId, file)
+    return this.register(command, principal, file.buffer)
+  }
 
   async create(
     input: InspectionPhotoCommand,
     principal: ErpPrincipal
   ): Promise<InspectionPhotoResult> {
+    return this.register(input, principal)
+  }
+
+  private async register(input: InspectionPhotoCommand, principal: ErpPrincipal, bytes?: Buffer): Promise<InspectionPhotoResult> {
     const command = inspectionPhotoCommandSchema.parse(input)
 
     return this.database.client.transaction(async (transaction) => {
@@ -121,6 +141,9 @@ export class InspectionPhotoService {
         })
       }
 
+      if (bytes) {
+        await this.storage.upload(command, bytes)
+      }
       const verified = await this.storage.verify(command)
       const [document] = await transaction
         .insert(documents)

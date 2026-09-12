@@ -23,7 +23,8 @@ beforeAll(() => {
 const database = new DatabaseService()
 const syntheticHash = createHash('sha256').update('Synthetic verified photograph fixture').digest('hex')
 // This substitute proves service admission/transaction behavior, not actual Storage bytes.
-const storage = { verify: async (command: InspectionPhotoCommand) => ({ sha256: syntheticHash, sizeBytes: command.sizeBytes, mimeType: command.mimeType }) }
+const metadataUpload = async (): Promise<void> => { throw new Error('Metadata registration must not upload') }
+const storage = { upload: metadataUpload, verify: async (command: InspectionPhotoCommand) => ({ sha256: syntheticHash, sizeBytes: command.sizeBytes, mimeType: command.mimeType }) }
 const service = new InspectionPhotoService(database, new AuditService(), storage)
 
 // Synthetic committed metadata fixtures and their audit history are retained. No Storage calls.
@@ -106,7 +107,7 @@ suite('Inspection photo fresh admission and exact metadata replay', () => {
   it('rejects unavailable stored-byte verification without document or audit changes', async () => {
     const f = await fixture(), before = await snapshot(f)
     const failure = new ServiceUnavailableException('Synthetic object verification unavailable')
-    const verifier = { verify: vi.fn(async () => { throw failure }) }
+    const verifier = { upload: metadataUpload, verify: vi.fn(async () => { throw failure }) }
     await expect(new InspectionPhotoService(database, new AuditService(), verifier).create(f.command, f.principal)).rejects.toBe(failure)
     expect(verifier.verify).toHaveBeenCalledExactlyOnceWith(f.command)
     expect(await snapshot(f)).toEqual(before)
@@ -116,7 +117,7 @@ suite('Inspection photo fresh admission and exact metadata replay', () => {
     const f = await fixture(), before = await snapshot(f)
     let release!: () => void
     const gate = new Promise<void>(resolve => { release = resolve })
-    const verifier = { verify: vi.fn(async (command: InspectionPhotoCommand) => {
+    const verifier = { upload: metadataUpload, verify: vi.fn(async (command: InspectionPhotoCommand) => {
       await gate
       return storage.verify(command)
     }) }
@@ -148,7 +149,7 @@ suite('Inspection photo fresh admission and exact metadata replay', () => {
     const id = randomUUID()
     await db.insert(documents).values({ id, tenant_id: f.tenantId, opportunity_id: f.opportunityId, document_type: 'image', file_name: command.fileName, storage_path: command.storagePath, mime_type: command.mimeType, size_bytes: command.sizeBytes, description: 'WO-12 site inspection photo', uploaded_by: f.userId })
     const before = await snapshot(f)
-    const verifier = { verify: vi.fn(async () => { throw new Error('Legacy replay must not verify historical bytes') }) }
+    const verifier = { upload: metadataUpload, verify: vi.fn(async () => { throw new Error('Legacy replay must not verify historical bytes') }) }
     expect(await new InspectionPhotoService(database, new AuditService(), verifier).create(command, f.principal)).toMatchObject({ documentId: id, storagePath: command.storagePath, fileName: command.fileName, status: 'created' })
     expect(verifier.verify).not.toHaveBeenCalled()
     expect(await snapshot(f)).toEqual(before)

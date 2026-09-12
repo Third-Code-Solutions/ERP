@@ -5,6 +5,7 @@ import { z } from 'zod'
 
 import { submitInspection } from '@/app/(dashboard)/crm/opportunities/[id]/proposal/actions'
 import { ActionFeedback } from '@/components/ui/action-feedback'
+import { uploadInspectionPhoto } from '@/lib/inspection-photo-upload'
 import {
   clearSiteInspectionDraft,
   fileToSiteInspectionDraftPhoto,
@@ -221,7 +222,7 @@ function InspectionFormSession({ actorId, tenantId, opportunityId, pprfSubmitted
           continue
         }
         if (file.size <= 0 || file.size > MAX_PHOTO_BYTES) {
-          setError(`${file.name} exceeds the 15 MB photo limit.`)
+          setError(`${file.name} exceeds the 15 MiB photo limit.`)
           continue
         }
         next.push(await fileToSiteInspectionDraftPhoto(file))
@@ -278,25 +279,8 @@ function InspectionFormSession({ actorId, tenantId, opportunityId, pprfSubmitted
 
       const file = await siteInspectionDraftPhotoToFile(photo)
       requireCurrentSession(lifetime)
-      const body = new FormData()
-      body.set('file', file)
-      body.set('expected_actor_id', actorId)
-      body.set('expected_tenant_id', tenantId)
-      const response = await fetch(`/api/crm/opportunities/${opportunityId}/inspection-photos`, {
-        method: 'POST',
-        body,
-      })
-      const result: unknown = await response.json().catch(() => null)
+      const documentId = await uploadInspectionPhoto(file, scope, () => requireCurrentSession(lifetime))
       requireCurrentSession(lifetime)
-      if (!response.ok || !result || typeof result !== 'object' || !('id' in result)) {
-        const message =
-          result && typeof result === 'object' && 'error' in result && typeof result.error === 'string'
-            ? result.error
-            : 'Photo upload failed.'
-        throw new Error(message)
-      }
-      const documentId = result.id
-      if (!z.string().uuid().safeParse(documentId).success || typeof documentId !== 'string') throw new Error('Photo upload returned an invalid document.')
       if (!documentIds.includes(documentId)) documentIds.push(documentId)
       draftPhotos = draftPhotos.map((currentPhoto) =>
         currentPhoto.id === photo.id ? { ...currentPhoto, documentId } : currentPhoto,
@@ -535,7 +519,7 @@ function InspectionFormSession({ actorId, tenantId, opportunityId, pprfSubmitted
 
       <div className="form-row">
         <label className="form-label" htmlFor="inspection-photos">Photos</label>
-        <p className="form-help">Use the camera on a phone or choose images. Up to {MAX_PHOTOS} photos, 15 MB each.</p>
+        <p className="form-help">Use the camera on a phone or choose images. Up to {MAX_PHOTOS} photos, 15 MiB each.</p>
         <input
           id="inspection-photos"
           type="file"

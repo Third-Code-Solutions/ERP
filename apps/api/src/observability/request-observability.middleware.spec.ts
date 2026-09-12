@@ -710,6 +710,17 @@ describe('RequestObservabilityMiddleware', () => {
     expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
   })
 
+  it('labels direct inspection photo upload without logging identifiers or content', () => {
+    const log = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined)
+    const response = new ResponseHarness()
+    new RequestObservabilityMiddleware().use(requestHarness({ method: 'POST', route: {
+      path: '/v1/opportunities/:opportunityId/inspection-photos/upload',
+    } }), response as unknown as Response, vi.fn() as NextFunction)
+    response.emit('finish')
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({ operation: 'site_inspection.photo_upload', method: 'POST' })
+    expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
+  })
+
   it('labels inspection report archiving without logging identifiers or content', () => {
     const log = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined)
     const response = new ResponseHarness()
