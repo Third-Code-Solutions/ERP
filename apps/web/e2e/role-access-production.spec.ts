@@ -171,6 +171,16 @@ test.describe('production role access matrix', () => {
           })
           if (roleHasCapability(role, 'project.schedule.manage')) {
             await expect(preview, `${role} schedule import preview`).toBeVisible()
+            await page.getByText('New schedule task', { exact: true }).click()
+            const createForm = page.locator('form').filter({
+              has: page.getByRole('button', { name: 'Create schedule task', exact: true }),
+            })
+            await expect(createForm.getByRole('combobox', { name: 'Parent task', exact: true })).toBeVisible()
+            await expect(createForm.getByRole('combobox', { name: 'Predecessor task', exact: true })).toBeVisible()
+            const choices = createForm.locator('[data-dependency-kind="predecessor"]')
+            await expect(choices.getByText(/\d+ predecessor tasks? found|No predecessor tasks are available/)).toBeVisible({ timeout: 20_000 })
+            await expect(choices.getByRole('alert')).toHaveCount(0)
+            await expect(createForm.locator('input[name="parentTaskId"], input[name="predecessorTaskId"]')).toHaveCount(0)
           } else {
             await expect(preview, `${role} schedule import withheld`).toHaveCount(0)
           }

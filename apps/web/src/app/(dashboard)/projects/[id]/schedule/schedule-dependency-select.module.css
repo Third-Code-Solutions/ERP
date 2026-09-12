@@ -1,0 +1,126 @@
+.dependencyGroup {
+  display: grid;
+  min-width: 0;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.field {
+  display: grid;
+  align-content: start;
+  min-width: 0;
+  gap: 6px;
+}
+
+.selectRow {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.selectRow > select {
+  min-width: 0;
+  flex: 1 1 160px;
+}
+
+.clearButton {
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding-inline: 10px;
+  font-size: 0.72rem;
+}
+
+.searchRow {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+}
+
+.searchLabel {
+  color: var(--color-neutral-500);
+  font-size: 0.68rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.searchInput {
+  min-height: 34px;
+  padding-block: 6px;
+  font-size: 0.75rem;
+}
+
+.state {
+  min-height: 18px;
+  color: var(--color-neutral-500);
+  font-size: 0.68rem;
+  line-height: 1.45;
+}
+
+.error {
+  margin: 0;
+}
+
+.errorRow {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--color-danger);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.errorRow > span {
+  min-width: 0;
+  flex: 1 1 180px;
+}
+
+.errorRow > button {
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding-inline: 10px;
+  font-size: 0.7rem;
+}
+
+.pagination {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  color: var(--color-neutral-500);
+  font-size: 0.68rem;
+}
+
+.pagination > button {
+  min-height: 32px;
+  padding-inline: 9px;
+  font-size: 0.7rem;
+}
+
+@media (max-width: 767px) {
+  .dependencyGroup {
+    grid-template-columns: 1fr;
+  }
+
+  .searchRow {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+
+  .searchLabel {
+    white-space: normal;
+  }
+
+  .clearButton {
+    flex: 1 1 100%;
+  }
+}
