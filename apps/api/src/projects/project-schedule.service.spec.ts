@@ -28,6 +28,7 @@ function query(result: unknown[]) {
 
 function harness(selectResults: unknown[], options?: { insertResult?: unknown[]; updateResult?: unknown[] }) {
   const predicates: SQL[] = []
+  const locks: string[] = []
   const select = vi.fn(() => {
     const builder = query((selectResults.shift() as unknown[] | undefined) ?? [])
     const originalWhere = builder.where as (predicate: SQL) => unknown
@@ -35,6 +36,8 @@ function harness(selectResults: unknown[], options?: { insertResult?: unknown[];
       predicates.push(predicate)
       return originalWhere(predicate)
     })
+    const originalFor = builder.for as (lock: string) => unknown
+    builder.for = vi.fn((lock: string) => { locks.push(lock); return originalFor(lock) })
     return builder
   })
   const insertQuery: Record<string, unknown> = { values: vi.fn().mockReturnThis(), returning: vi.fn().mockResolvedValue(options?.insertResult ?? []) }
@@ -44,7 +47,7 @@ function harness(selectResults: unknown[], options?: { insertResult?: unknown[];
   const transaction = vi.fn(async (callback: (tx: typeof transactionClient) => Promise<unknown>) => callback(transactionClient))
   const database = { client: { select, transaction } } as unknown as DatabaseService
   const audit = { stampActor: vi.fn().mockResolvedValue(undefined), writeSemantic: vi.fn().mockResolvedValue(undefined) } as unknown as AuditService
-  return { service: new ProjectScheduleService(database, audit), audit, insert, update, predicates, select }
+  return { service: new ProjectScheduleService(database, audit), audit, insert, update, predicates, select, locks }
 }
 
 const membership = [{ tenantId: PRINCIPAL.tenantId, role: PRINCIPAL.role, email: PRINCIPAL.email }]
@@ -177,6 +180,74 @@ describe('legacy L1 schedule import', () => {
 })
 
 describe('ProjectScheduleService', () => {
+  it.each(['cycle', 'missing', 'wrong-level', 'valid'] as const)('checks the entire proposed predecessor chain on create: %s', async (scenario) => {
+    const tailId = '66666666-6666-4666-8666-666666666666'
+    const predecessor = { ...task(), id: REQUEST_ID, predecessorTaskId: tailId }
+    const tail = { ...task(), id: tailId, level: scenario === 'wrong-level' ? 'l2' : 'l1', predecessorTaskId: scenario === 'cycle' ? REQUEST_ID : null }
+    const graph = scenario === 'missing' ? [predecessor] : [predecessor, tail]
+    const probe = harness([membership, project, [], [predecessor], graph, []], {
+      insertResult: [{ ...task(), predecessorTaskId: REQUEST_ID }],
+    })
+    const result = probe.service.create({
+      projectId: PROJECT_ID, clientRequestId: REQUEST_ID, level: 'l1', taskCode: 'A-001', name: 'Mobilize', description: 'Mobilize site.',
+      parentTaskId: null, predecessorTaskId: REQUEST_ID, plannedStart: '2026-09-10', plannedFinish: '2026-09-12',
+      plannedLaborMinutes: 120, ownerId: null, commitmentWeek: null, commitmentStatus: 'not_set', constraintReason: '',
+    }, PRINCIPAL)
+    if (scenario === 'valid') {
+      await expect(result).resolves.toMatchObject({ created: true, task: { predecessorTaskId: REQUEST_ID } })
+      expect(probe.audit.writeSemantic).toHaveBeenCalledTimes(1)
+    } else {
+      await expect(result).rejects.toThrow(scenario === 'cycle' ? 'Predecessor cycle' : 'same project and level')
+      expect(probe.insert).not.toHaveBeenCalled()
+      expect(probe.audit.writeSemantic).not.toHaveBeenCalled()
+    }
+    const graphQuery = new PgDialect().sqlToQuery(probe.predicates[4]!)
+    expect(graphQuery.sql).toContain('"project_schedule_tasks"."tenant_id"')
+    expect(graphQuery.sql).toContain('"project_schedule_tasks"."project_id"')
+    expect(graphQuery.params).toEqual([PRINCIPAL.tenantId, PROJECT_ID])
+  })
+
+  it('allows clearing a predecessor to repair a cycle while locking project before task', async () => {
+    const current = { ...task(), predecessorTaskId: REQUEST_ID }
+    const probe = harness([membership, project, [current], []], { updateResult: [task({ version: 2 })] })
+    await expect(probe.service.update(PROJECT_ID, TASK_ID, {
+      expectedVersion: 1, level: 'l1', taskCode: 'A-001', name: 'Mobilize', description: 'Mobilize site.',
+      parentTaskId: null, predecessorTaskId: null, plannedStart: '2026-09-10', plannedFinish: '2026-09-12',
+      plannedLaborMinutes: 120, ownerId: null, commitmentWeek: null, commitmentStatus: 'not_set', constraintReason: '',
+    }, PRINCIPAL)).resolves.toMatchObject({ changed: true, task: { predecessorTaskId: null, version: 2 } })
+    expect(probe.locks).toEqual(['update', 'update'])
+    expect(new PgDialect().sqlToQuery(probe.predicates[1]!).sql).toContain('"projects"."id"')
+    expect(new PgDialect().sqlToQuery(probe.predicates[2]!).sql).toContain('"project_schedule_tasks"."id"')
+  })
+
+  it.each(['parentTaskId', 'predecessorTaskId'] as const)('rejects a level change invalidating an incoming %s', async (link) => {
+    const dependent = { ...task({ status: 'completed' }), id: REQUEST_ID, taskCode: 'B-001', level: link === 'parentTaskId' ? 'l2' : 'l1', [link]: TASK_ID }
+    const probe = harness([membership, project, [task()], [task(), dependent], []], {
+      updateResult: [{ ...task({ version: 2 }), level: 'l2' }],
+    })
+    await expect(probe.service.update(PROJECT_ID, TASK_ID, {
+      expectedVersion: 1, level: 'l2', taskCode: 'A-001', name: 'Mobilize', description: 'Mobilize site.',
+      parentTaskId: null, predecessorTaskId: null, plannedStart: '2026-09-10', plannedFinish: '2026-09-12',
+      plannedLaborMinutes: 120, ownerId: null, commitmentWeek: null, commitmentStatus: 'not_set', constraintReason: '',
+    }, PRINCIPAL)).rejects.toThrow('existing')
+    expect(probe.update).not.toHaveBeenCalled()
+    expect(probe.audit.writeSemantic).not.toHaveBeenCalled()
+  })
+
+  it('rejects a reciprocal predecessor cycle before writing or auditing an update', async () => {
+    const predecessor = { ...task(), id: REQUEST_ID, taskCode: 'B-001', predecessorTaskId: TASK_ID }
+    const probe = harness([membership, project, [task()], [predecessor], [task(), predecessor], []], {
+      updateResult: [{ ...task({ version: 2 }), predecessorTaskId: REQUEST_ID }],
+    })
+    await expect(probe.service.update(PROJECT_ID, TASK_ID, {
+      expectedVersion: 1, level: 'l1', taskCode: 'A-001', name: 'Mobilize', description: 'Mobilize site.',
+      parentTaskId: null, predecessorTaskId: REQUEST_ID, plannedStart: '2026-09-10', plannedFinish: '2026-09-12',
+      plannedLaborMinutes: 120, ownerId: null, commitmentWeek: null, commitmentStatus: 'not_set', constraintReason: '',
+    }, PRINCIPAL)).rejects.toThrow('Predecessor cycle')
+    expect(probe.update).not.toHaveBeenCalled()
+    expect(probe.audit.writeSemantic).not.toHaveBeenCalled()
+  })
+
   it('returns eligible parent options with a separately resolved incompatible selected task', async () => {
     const parentRows = [
       { id: TASK_ID, projectId: PROJECT_ID, level: 'l1', taskCode: 'L1-001', name: 'Master schedule' },

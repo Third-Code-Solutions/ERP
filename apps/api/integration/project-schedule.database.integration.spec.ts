@@ -15,6 +15,7 @@ import {
   createProjectScheduleTaskCommandSchema,
   projectScheduleTaskStatusCommandSchema,
   updateProjectScheduleTaskCommandSchema,
+  type ProjectScheduleTaskRow,
 } from '@third-code-erp/shared-types'
 import { and, asc, eq, sql } from 'drizzle-orm'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
@@ -68,6 +69,16 @@ async function fixture() {
 
 type Fixture = Awaited<ReturnType<typeof fixture>>
 
+function editablePlan(task: ProjectScheduleTaskRow) {
+  return {
+    expectedVersion: task.version, level: task.level, taskCode: task.taskCode, name: task.name,
+    description: task.description, parentTaskId: task.parentTaskId, predecessorTaskId: task.predecessorTaskId,
+    plannedStart: task.plannedStart, plannedFinish: task.plannedFinish, plannedLaborMinutes: task.plannedLaborMinutes,
+    ownerId: task.ownerId, commitmentWeek: task.commitmentWeek, commitmentStatus: task.commitmentStatus,
+    constraintReason: task.constraintReason,
+  }
+}
+
 async function snapshot(context: Fixture) {
   const [tasks, source, audits] = await Promise.all([
     db.select().from(projectScheduleTasks).where(and(eq(projectScheduleTasks.tenant_id, context.tenantId), eq(projectScheduleTasks.project_id, context.projectId))).orderBy(asc(projectScheduleTasks.task_code)),
@@ -78,6 +89,92 @@ async function snapshot(context: Fixture) {
 }
 
 suite('Project schedule import PostgreSQL integration', () => {
+  it('rejects a multi-task predecessor cycle without changing tasks or audit history and permits explicit repair', async () => {
+    const context = await fixture()
+    const imported = await context.service.importLegacy(context.projectId, context.command, context.principal)
+    const first = imported.rows[1]!
+    const last = imported.rows[0]!
+    const command = updateProjectScheduleTaskCommandSchema.parse({
+      ...editablePlan(first), predecessorTaskId: last.id,
+    })
+    const before = await snapshot(context)
+    await expect(context.service.update(context.projectId, first.id, command, context.principal)).rejects.toBeInstanceOf(ConflictException)
+    expect(await snapshot(context)).toEqual(before)
+    const cleared = await context.service.update(context.projectId, last.id,
+      updateProjectScheduleTaskCommandSchema.parse({ ...editablePlan(last), predecessorTaskId: null }), context.principal)
+    expect(cleared.task.predecessorTaskId).toBeNull()
+    const repaired = await context.service.update(context.projectId, first.id, command, context.principal)
+    expect(repaired.task.predecessorTaskId).toBe(last.id)
+  })
+
+  it('rejects level changes that invalidate incoming links, then allows a valid explicit re-sequencing', async () => {
+    const context = await fixture()
+    const create = async (code: string, level: 'l1' | 'l2', parentTaskId: string | null, predecessorTaskId: string | null) =>
+      (await context.service.create(createProjectScheduleTaskCommandSchema.parse({
+        projectId: context.projectId, clientRequestId: randomUUID(), level, taskCode: code, name: code,
+        plannedStart: '2026-09-10', plannedFinish: '2026-09-12', parentTaskId, predecessorTaskId,
+        plannedLaborMinutes: 0, ownerId: null, commitmentWeek: null, commitmentStatus: 'not_set',
+      }), context.principal)).task
+    const parent = await create('ROOT', 'l1', null, null)
+    const child = await create('CHILD', 'l2', parent.id, null)
+    const successor = await create('NEXT', 'l2', parent.id, child.id)
+    const before = await snapshot(context)
+    await expect(context.service.update(context.projectId, parent.id,
+      updateProjectScheduleTaskCommandSchema.parse({ ...editablePlan(parent), level: 'l2' }), context.principal)).rejects.toBeInstanceOf(ConflictException)
+    await expect(context.service.update(context.projectId, child.id,
+      updateProjectScheduleTaskCommandSchema.parse({ ...editablePlan(child), level: 'l3' }), context.principal)).rejects.toBeInstanceOf(ConflictException)
+    expect(await snapshot(context)).toEqual(before)
+    await context.service.update(context.projectId, successor.id,
+      updateProjectScheduleTaskCommandSchema.parse({ ...editablePlan(successor), predecessorTaskId: null }), context.principal)
+    const changed = await context.service.update(context.projectId, child.id,
+      updateProjectScheduleTaskCommandSchema.parse({ ...editablePlan(child), level: 'l3' }), context.principal)
+    expect(changed.task).toMatchObject({ level: 'l3', parentTaskId: parent.id, version: 2 })
+  })
+
+  it('serializes opposing dependency edits across independent PostgreSQL connections so only one commits', async () => {
+    const context = await fixture()
+    const create = async (code: string) => (await context.service.create(createProjectScheduleTaskCommandSchema.parse({
+      projectId: context.projectId, clientRequestId: randomUUID(), level: 'l1', taskCode: code, name: code,
+      plannedStart: '2026-09-10', plannedFinish: '2026-09-12',
+      parentTaskId: null, predecessorTaskId: null, plannedLaborMinutes: 0, ownerId: null,
+      commitmentWeek: null, commitmentStatus: 'not_set',
+    }), context.principal)).task
+    const first = await create('FIRST')
+    const second = await create('SECOND')
+    const before = await snapshot(context)
+    const stampActor = context.audit.stampActor.bind(context.audit)
+    const backendPids = new Set<number>()
+    let release = () => {}
+    const bothStarted = new Promise<void>((resolve) => { release = resolve })
+    const stamp = vi.spyOn(context.audit, 'stampActor').mockImplementation(async (transaction, principal) => {
+      await stampActor(transaction, principal)
+      const [backend] = await transaction.execute<{ pid: number }>(sql`select pg_backend_pid() as pid`)
+      backendPids.add(backend!.pid)
+      if (backendPids.size === 2) release()
+      let timer: ReturnType<typeof setTimeout> | undefined
+      try {
+        await Promise.race([bothStarted, new Promise<never>((_resolve, reject) => {
+          timer = setTimeout(() => reject(new Error('Two independent schedule edit transactions did not start')), 5000)
+        })])
+      } finally { clearTimeout(timer) }
+    })
+    try {
+      const outcomes = await Promise.allSettled([
+        context.service.update(context.projectId, first.id, updateProjectScheduleTaskCommandSchema.parse({ ...editablePlan(first), predecessorTaskId: second.id }), context.principal),
+        context.service.update(context.projectId, second.id, updateProjectScheduleTaskCommandSchema.parse({ ...editablePlan(second), predecessorTaskId: first.id }), context.principal),
+      ])
+      expect(backendPids.size).toBe(2)
+      expect(outcomes.filter((outcome) => outcome.status === 'fulfilled')).toHaveLength(1)
+      const rejected = outcomes.find((outcome) => outcome.status === 'rejected')
+      expect(rejected?.status === 'rejected' && rejected.reason instanceof ConflictException).toBe(true)
+      const after = await snapshot(context)
+      expect(after.tasks.filter((task) => task.predecessor_task_id !== null)).toHaveLength(1)
+      expect(after.tasks.map((task) => task.version).sort()).toEqual([1, 2])
+      expect(after.audits.filter((entry) => entry.entity_type === 'project_schedule_task' && entry.action === 'update')).toHaveLength(1)
+      expect(after.source).toEqual(before.source)
+    } finally { stamp.mockRestore() }
+  })
+
   it('persists every task with forward and backward predecessor FKs and one semantic audit per task and import', async () => {
     const context = await fixture()
     const before = await snapshot(context)
