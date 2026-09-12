@@ -3,10 +3,12 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { can, getUserProfile } from '@third-code-erp/auth'
 import { createSupabaseAdminClient } from '@third-code-erp/auth/server'
-import { createInspectionPhotoThroughCoreApi } from '@/lib/erp-core-client'
+import { inspectionPhotoResultSchema } from '@third-code-erp/shared-types'
+import { createInspectionPhotoThroughCoreApi, getOpportunityThroughCoreApi } from '@/lib/erp-core-client'
 
 const MAX_PHOTO_BYTES = 15 * 1024 * 1024
-const opportunityIdSchema = z.string().uuid()
+const opportunityIdSchema = z.string().uuid().transform(value => value.toLowerCase())
+const opportunityScopeSchema = z.object({ id: z.string().uuid(), tenantId: z.string().uuid() })
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -68,8 +70,8 @@ function isExistingStorageObject(error: {
 
 /**
  * Uploads bounded image bytes to Storage, then delegates the durable document
- * metadata and audit transaction to Core. A Core failure removes the newly
- * uploaded object rather than re-entering a Web database write path.
+ * metadata and audit transaction to Core. Never delete an object on a failed
+ * acknowledgement: Core or a concurrent retry may already reference it.
  */
 export async function POST(request: Request, context: RouteContext) {
   const profile = await getUserProfile()
@@ -117,14 +119,25 @@ export async function POST(request: Request, context: RouteContext) {
     .update(new Uint8Array(bytes))
     .digest('hex')
   const storagePath = `${profile.tenantId}/opportunities/${opportunityId.data}/inspection/${contentHash}-${fileName}`
-  const storage = createSupabaseAdminClient().storage.from('documents')
-  const { error: uploadError } = await storage.upload(storagePath, bytes, {
-    contentType: mimeType,
-    upsert: false,
-  })
-  const storageCreated = uploadError === null
-  if (uploadError && !isExistingStorageObject(uploadError)) {
-    return NextResponse.json({ error: 'Photo upload failed' }, { status: 502 })
+  // Scope proof must precede privileged Storage work. Core reauthorizes the
+  // later metadata transaction; this read is not a lifecycle reservation.
+  const preflight = await getOpportunityThroughCoreApi(opportunityId.data).catch(() => null)
+  const scope = opportunityScopeSchema.safeParse(preflight?.ok ? preflight.data?.opportunity : null)
+  if (!scope.success || scope.data.id.toLowerCase() !== opportunityId.data
+    || scope.data.tenantId.toLowerCase() !== profile.tenantId.toLowerCase()) {
+    return NextResponse.json({ error: 'Photo upload authorization could not be verified. Try again.' }, { status: 503 })
+  }
+  try {
+    const storage = createSupabaseAdminClient().storage.from('documents')
+    const { error: uploadError } = await storage.upload(storagePath, bytes, {
+      contentType: mimeType,
+      upsert: false,
+    })
+    if (uploadError && !isExistingStorageObject(uploadError)) {
+      return NextResponse.json({ error: 'Photo upload could not be confirmed. Retry the same file and caption.' }, { status: 503 })
+    }
+  } catch {
+    return NextResponse.json({ error: 'Photo upload could not be confirmed. Retry the same file and caption.' }, { status: 503 })
   }
 
   const coreResult = await createInspectionPhotoThroughCoreApi({
@@ -134,23 +147,30 @@ export async function POST(request: Request, context: RouteContext) {
     mimeType,
     sizeBytes: file.size,
     caption: caption || null,
-  })
-  if (!coreResult.ok || !coreResult.data) {
-    if (storageCreated) {
-      await storage.remove([storagePath]).catch(() => undefined)
-    }
+  }).catch(() => null)
+  if (!coreResult?.ok || !coreResult.data) {
+    const knownRejection = coreResult?.status !== undefined
+      && [400, 401, 403, 404, 409, 422].includes(coreResult.status)
     return NextResponse.json(
       {
-        error:
-          coreResult.error ?? 'Photo metadata could not be recorded',
+        error: knownRejection
+          ? coreResult?.error ?? 'Photo metadata request was rejected.'
+          : 'Photo recording could not be confirmed. Retry the same file and caption.',
       },
-      { status: coreResult.status ?? 502 }
+      { status: knownRejection ? coreResult?.status ?? 503 : 503 }
     )
   }
 
+  const receipt = inspectionPhotoResultSchema.safeParse(coreResult.data)
+  if (!receipt.success || receipt.data.tenantId.toLowerCase() !== profile.tenantId.toLowerCase()
+    || receipt.data.opportunityId.toLowerCase() !== opportunityId.data
+    || receipt.data.storagePath !== storagePath || receipt.data.fileName !== fileName) {
+    return NextResponse.json({ error: 'Photo recording could not be confirmed. Retry the same file and caption.' }, { status: 503 })
+  }
+
   return NextResponse.json({
-    id: coreResult.data.documentId,
-    fileName: coreResult.data.fileName,
-    storagePath: coreResult.data.storagePath,
+    id: receipt.data.documentId,
+    fileName: receipt.data.fileName,
+    storagePath: receipt.data.storagePath,
   })
 }

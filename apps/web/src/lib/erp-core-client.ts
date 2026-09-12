@@ -3279,10 +3279,22 @@ export async function createInspectionPhotoThroughCoreApi(
       status: 400,
     }
   }
-  const access = await getCoreApiAccess()
-  if (!access.ok) return access
+
+  const tenantPrefix = parsedCommand.data.storagePath.split('/')[0]
+  const parsedTenantPrefix = z.string().uuid().safeParse(tenantPrefix)
+  if (!parsedTenantPrefix.success) {
+    return {
+      ok: false,
+      error: 'Inspection photo metadata is invalid.',
+      status: 400,
+    }
+  }
+  const validatedTenantPrefix = parsedTenantPrefix.data
 
   try {
+    const access = await getCoreApiAccess()
+    if (!access.ok) return access
+
     const response = await fetch(
       `${access.baseUrl}/v1/opportunities/${parsedCommand.data.opportunityId}/inspection-photos`,
       {
@@ -3297,18 +3309,24 @@ export async function createInspectionPhotoThroughCoreApi(
         signal: AbortSignal.timeout(10_000),
       }
     )
-    const body = (await response.json().catch(() => null)) as
-      | Record<string, unknown>
-      | null
+    const body: unknown = await response.json().catch(() => null)
     if (!response.ok) {
+      const parsedError = z.object({ message: z.string() }).safeParse(body)
+      const knownRejectionStatus = [400, 401, 403, 404, 409, 422].includes(
+        response.status,
+      )
       const message =
-        typeof body?.message === 'string'
-          ? body.message
-          : response.status === 403
-            ? 'You cannot record an inspection photo for this opportunity.'
-            : response.status === 404
-              ? 'Opportunity not found.'
-              : 'Inspection photo metadata was not recorded.'
+        knownRejectionStatus
+          ? parsedError.success
+            ? parsedError.data.message
+            : response.status === 403
+              ? 'You cannot record an inspection photo for this opportunity.'
+              : response.status === 404
+                ? 'Opportunity not found.'
+                : 'Inspection photo request was rejected.'
+          : response.status >= 500
+            ? 'ERP Core API returned a server error. Inspection photo outcome is unconfirmed; retry the same request.'
+            : 'ERP Core API returned an unconfirmed inspection photo outcome. Retry the same request.'
       return { ok: false, error: message, status: response.status }
     }
 
@@ -3316,15 +3334,33 @@ export async function createInspectionPhotoThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid inspection photo result.',
+        error:
+          'ERP Core API returned an invalid inspection photo result. Outcome is unconfirmed; retry the same request.',
         status: 502,
       }
     }
+
+    const isBoundToRequest =
+      parsed.data.opportunityId.toLowerCase() ===
+        parsedCommand.data.opportunityId.toLowerCase() &&
+      parsed.data.storagePath === parsedCommand.data.storagePath &&
+      parsed.data.fileName === parsedCommand.data.fileName &&
+      parsed.data.tenantId.toLowerCase() === validatedTenantPrefix.toLowerCase()
+    if (!isBoundToRequest) {
+      return {
+        ok: false,
+        error:
+          'ERP Core API returned a mismatched inspection photo result. Outcome is unconfirmed; retry the same request.',
+        status: 502,
+      }
+    }
+
     return { ok: true, data: parsed.data, status: response.status }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. Inspection photo metadata was not recorded.',
+      error:
+        'ERP Core API is unavailable. Inspection photo outcome is unconfirmed; retry the same request.',
       status: 503,
     }
   }

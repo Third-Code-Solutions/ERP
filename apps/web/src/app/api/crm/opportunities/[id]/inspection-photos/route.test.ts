@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ERP_ROLES, roleHasCapability, type InspectionPhotoCommand } from '@third-code-erp/shared-types'
 
 const mocks = vi.hoisted(() => ({
   getUserProfile: vi.fn(),
   can: vi.fn(),
   upload: vi.fn(),
   remove: vi.fn(),
+  getOpportunityThroughCoreApi: vi.fn(),
   createInspectionPhotoThroughCoreApi: vi.fn(),
 }))
 
@@ -20,6 +22,7 @@ vi.mock('@third-code-erp/auth/server', () => ({
   }),
 }))
 vi.mock('@/lib/erp-core-client', () => ({
+  getOpportunityThroughCoreApi: mocks.getOpportunityThroughCoreApi,
   createInspectionPhotoThroughCoreApi: mocks.createInspectionPhotoThroughCoreApi,
 }))
 
@@ -62,21 +65,22 @@ describe('inspection photo upload route', () => {
       role: 'commercial',
     })
     mocks.can.mockReturnValue(true)
+    mocks.getOpportunityThroughCoreApi.mockResolvedValue({ ok: true, data: { opportunity: { id: OPPORTUNITY_ID, tenantId: TENANT_ID } } })
     mocks.upload.mockResolvedValue({ error: null })
     mocks.remove.mockResolvedValue({ error: null })
-    mocks.createInspectionPhotoThroughCoreApi.mockResolvedValue({
+    mocks.createInspectionPhotoThroughCoreApi.mockImplementation(async (command: InspectionPhotoCommand) => ({
       ok: true,
       data: {
         documentId: DOCUMENT_ID,
         tenantId: TENANT_ID,
         opportunityId: OPPORTUNITY_ID,
         projectId: null,
-        storagePath: `${TENANT_ID}/opportunities/${OPPORTUNITY_ID}/inspection/photo.jpg`,
-        fileName: 'front_elevation.jpg',
+        storagePath: command.storagePath,
+        fileName: command.fileName,
         status: 'created',
       },
       status: 201,
-    })
+    }))
   })
 
   it('fails before Storage work for an unauthenticated caller', async () => {
@@ -103,6 +107,39 @@ describe('inspection photo upload route', () => {
     expect(response.status).toBe(403)
     expect(mocks.can).toHaveBeenCalledWith('commercial', 'site_inspection.submit')
     expect(mocks.upload).not.toHaveBeenCalled()
+  })
+
+  it.each(ERP_ROLES)('uses canonical photo permission for %s', async role => {
+    mocks.getUserProfile.mockResolvedValue({ user: { id: USER_ID }, tenantId: TENANT_ID, role })
+    mocks.can.mockImplementation(roleHasCapability)
+    const allowed = ['owner', 'admin', 'commercial'].includes(role)
+    const response = await POST(requestWithFile(jpeg(), 'site.jpg'), context(OPPORTUNITY_ID))
+    expect(response.status).toBe(allowed ? 200 : 403)
+    expect(mocks.upload).toHaveBeenCalledTimes(allowed ? 1 : 0)
+  })
+
+  it.each([
+    { tenantId: DOCUMENT_ID },
+    { opportunityId: DOCUMENT_ID },
+    { storagePath: `${TENANT_ID}/opportunities/${OPPORTUNITY_ID}/inspection/other.jpg` },
+    { fileName: 'other.jpg' },
+    { documentId: 'not-a-uuid' },
+  ])('does not confirm mismatched photo evidence: %j', async overrides => {
+    mocks.createInspectionPhotoThroughCoreApi.mockImplementation(async (command: InspectionPhotoCommand) => ({
+      ok: true, data: { documentId: DOCUMENT_ID, tenantId: TENANT_ID, opportunityId: OPPORTUNITY_ID,
+        projectId: null, storagePath: command.storagePath, fileName: command.fileName, status: 'created', ...overrides },
+    }))
+    const response = await POST(requestWithFile(jpeg(), 'site.jpg'), context(OPPORTUNITY_ID))
+    expect(response.status).toBe(503)
+    expect(mocks.remove).not.toHaveBeenCalled()
+  })
+
+  it('contains an uncertain Storage upload failure without metadata registration or cleanup', async () => {
+    mocks.upload.mockRejectedValue(new Error('Synthetic lost Storage response'))
+    const response = await POST(requestWithFile(jpeg(), 'site.jpg'), context(OPPORTUNITY_ID))
+    expect(response.status).toBe(503)
+    expect(mocks.createInspectionPhotoThroughCoreApi).not.toHaveBeenCalled()
+    expect(mocks.remove).not.toHaveBeenCalled()
   })
 
   it('rejects a spoofed image MIME type before Storage upload', async () => {
@@ -151,7 +188,7 @@ describe('inspection photo upload route', () => {
     )
   })
 
-  it('removes an orphaned object when Core rejects the metadata command', async () => {
+  it('retains an object on rejection because this request cannot exclude a concurrent reference', async () => {
     mocks.createInspectionPhotoThroughCoreApi.mockResolvedValue({
       ok: false,
       error: 'Opportunity not found.',
@@ -167,11 +204,62 @@ describe('inspection photo upload route', () => {
     await expect(response.json()).resolves.toEqual({
       error: 'Opportunity not found.',
     })
-    expect(mocks.remove).toHaveBeenCalledWith([
-      expect.stringMatching(
-        new RegExp(`^${TENANT_ID}/opportunities/${OPPORTUNITY_ID}/inspection/`)
-      ),
-    ])
+    expect(mocks.remove).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { ok: false, status: 404 },
+    { ok: false, status: 503 },
+    { ok: true, data: { opportunity: { id: DOCUMENT_ID, tenantId: TENANT_ID } } },
+    { ok: true, data: { opportunity: { id: OPPORTUNITY_ID, tenantId: DOCUMENT_ID } } },
+    { ok: true, data: null },
+  ])('does no Storage work without a bound opportunity preflight: %j', async result => {
+    mocks.getOpportunityThroughCoreApi.mockResolvedValue(result)
+    const response = await POST(requestWithFile(jpeg(), 'site.jpg'), context(OPPORTUNITY_ID))
+    expect(response.status).toBe(503)
+    expect(mocks.upload).not.toHaveBeenCalled()
+    expect(mocks.createInspectionPhotoThroughCoreApi).not.toHaveBeenCalled()
+  })
+
+  it('contains a thrown preflight before privileged upload', async () => {
+    mocks.getOpportunityThroughCoreApi.mockRejectedValue(new Error('Synthetic unavailable session'))
+    const response = await POST(requestWithFile(jpeg(), 'site.jpg'), context(OPPORTUNITY_ID))
+    expect(response.status).toBe(503)
+    expect(mocks.upload).not.toHaveBeenCalled()
+    expect(mocks.createInspectionPhotoThroughCoreApi).not.toHaveBeenCalled()
+  })
+
+  it('keeps committed photo bytes when the metadata acknowledgement is lost', async () => {
+    const objects = new Set<string>()
+    const references = new Set<string>()
+    mocks.upload.mockImplementation(async (path: string) => {
+      objects.add(path)
+      return { error: null }
+    })
+    mocks.remove.mockImplementation(async (paths: string[]) => {
+      for (const path of paths) objects.delete(path)
+      return { error: null }
+    })
+    mocks.createInspectionPhotoThroughCoreApi.mockImplementation(async (command: { storagePath: string }) => {
+      references.add(command.storagePath)
+      return { ok: false, status: 503, error: 'ERP Core API is unavailable. Inspection photo metadata was not recorded.' }
+    })
+
+    const response = await POST(requestWithFile(jpeg(), 'site.jpg'), context(OPPORTUNITY_ID))
+
+    expect(response.status).toBe(503)
+    expect(references.size).toBe(1)
+    expect(objects).toEqual(references)
+    expect(mocks.remove).not.toHaveBeenCalled()
+    await expect(response.json()).resolves.toEqual({ error: 'Photo recording could not be confirmed. Retry the same file and caption.' })
+  })
+
+  it('contains thrown metadata failures without deleting possible evidence', async () => {
+    mocks.createInspectionPhotoThroughCoreApi.mockRejectedValue(new Error('Synthetic lost response'))
+    const response = await POST(requestWithFile(jpeg(), 'site.jpg'), context(OPPORTUNITY_ID))
+    expect(response.status).toBe(503)
+    expect(mocks.remove).not.toHaveBeenCalled()
+    await expect(response.json()).resolves.toEqual({ error: 'Photo recording could not be confirmed. Retry the same file and caption.' })
   })
 
   it('reuses an existing Storage object for a retry and still delegates idempotency to Core', async () => {
