@@ -52,3 +52,9 @@ Safe rollback keeps the client-write denial and supporting index. Revert compati
 The dedicated local database is retained for independent verification; cleanup, if requested, must target exactly `erp_claim_authority_20260912`. No production credentials or data were copied.
 
 → Handoff to Agent 03/12/13: independently verify both privilege migrations with the Core and guarded fallback paths, obtain recovery evidence, then run integrated release gates. This changeset alone is not deploy-ready.
+
+## Source parity manifest follow-up
+
+Updated the managed Supabase source manifest to 171 migrations, head `20260912131004`, and 14 pending migrations relative to its unchanged dated hosted snapshot (157 through `20260901141949`). Added the two claim migrations as an ordered review batch with explicit hosted-approval, recovery and rehearsal holds, risk and safe-recovery notes; aligned the runbook's source counts. No hosted observation, applied migration count, test, validator or migration SQL was changed.
+
+RED: `node --test scripts/verify-managed-supabase-parity-plan.test.mjs` reproduced the stale manifest failure (5 passed, 1 failed). GREEN: the same command passed all 6 tests; `node scripts/verify-managed-supabase-parity-plan.mjs` passed the 171-source/14-pending ordered manifest check. These are local source checks, not provider verification or deployment authorization.

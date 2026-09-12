@@ -11,10 +11,10 @@
     "databaseVersion": "17.6.1.121",
     "postgresMajor": 17,
     "appliedCount": 157,
-    "sourceCount": 169,
-    "pendingCount": 12,
+    "sourceCount": 171,
+    "pendingCount": 14,
     "appliedHead": "20260901141949",
-    "sourceHead": "20260910200000",
+    "sourceHead": "20260912131004",
     "ledgerStatus": "current_remote_ledger_matches_source",
     "purchaseOrderPreflight": {
       "duplicateGroups": 0,
@@ -50,6 +50,17 @@
         "20260910190000_tender_bid_mode.sql",
         "20260910200000_iwr_punchlist_handoff.sql"
       ]
+    },
+    {
+      "id": "20260912-claim-document-authority",
+      "migrations": [
+        "20260912130031_claim_document_core_authority.sql",
+        "20260912131004_claim_document_parent_delete_authority.sql"
+      ],
+      "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
+      "hostedApplyApproved": false,
+      "risk": "Revokes direct client attachment mutations and cascading parent DELETE/TRUNCATE privileges while retaining SELECT and trusted server grants. Requires integrated Core and legacy Web retention guards. The non-concurrent tenant/document index requires hosted size and lock-impact preflight; both migrations use 5-second lock and 60-second statement timeouts.",
+      "recovery": "Require backup/PITR and Storage recovery evidence plus isolated restore and migration rehearsal before hosted application. Roll forward or disable attachment submission while retaining privilege denials and the supporting index; never automatically restore unsafe grants. Existing rows, foreign keys and audit history are unchanged. Privileged database-owner and approved tenant-lifecycle operations remain an administrative boundary."
     }
   ]
 }
