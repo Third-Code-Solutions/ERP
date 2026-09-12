@@ -10,11 +10,12 @@ import {
   createQualityHoldPoint,
   transitionQualityHoldPoint,
   updateQualityHoldPoint,
-  handoffQualityHoldPointToPunchlist,
   type QualityActionState,
 } from './actions'
+import { QualityPunchlistHandoffForm } from './quality-punchlist-handoff-form'
 
 interface QualityHoldPointRegisterProps {
+  owner: { actorId: string; tenantId: string }
   projectId: string
   result: QualityHoldPointListResult | null
   error: string | null
@@ -129,46 +130,7 @@ function TransitionForm({ projectId, row, target, canApprove }: { projectId: str
   )
 }
 
-function PunchlistHandoffForm({ projectId, row }: { projectId: string; row: QualityHoldPointRow }) {
-  const [state, action, pending] = useActionState<QualityActionState, FormData>(handoffQualityHoldPointToPunchlist, { ok: true })
-  const [clientRequestId, setClientRequestId] = useState('')
-  useEffect(() => setClientRequestId(globalThis.crypto.randomUUID()), [])
-  return (
-    <details>
-      <summary className="button-primary" style={{ cursor: 'pointer' }}>Create punchlist work</summary>
-      <div style={{ marginTop: 10, padding: 12, border: '1px solid var(--color-border)', borderRadius: 8, background: 'var(--color-surface-subtle)' }}>
-        <div className="form-help">Source evidence from {row.iwrNumber} is retained with the handoff.</div>
-        <div style={{ display: 'grid', gap: 6, marginTop: 8 }}>
-          {row.findings ? <div><strong>Findings:</strong> <span style={{ whiteSpace: 'pre-wrap' }}>{row.findings}</span></div> : null}
-          <div><strong>Correction required:</strong> <span style={{ whiteSpace: 'pre-wrap' }}>{row.rejectionReason}</span></div>
-          <div><strong>Plan reference:</strong> {row.planReference || '—'}</div>
-        </div>
-      </div>
-      <form action={action} style={{ display: 'grid', gap: 8, marginTop: 10 }}>
-        <input type="hidden" name="projectId" value={projectId} />
-        <input type="hidden" name="entryId" value={row.id} />
-        <input type="hidden" name="clientRequestId" value={clientRequestId} />
-        <label className="form-label">Punchlist corrections <span className="form-help">one item per line</span><textarea className="form-input" name="descriptions" required minLength={3} maxLength={10000} rows={3} defaultValue={row.rejectionReason} placeholder="Describe each correction to track to closure." disabled={pending} /></label>
-        <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}>
-          <label className="form-label">Trade<input className="form-input" name="trade" maxLength={120} placeholder={row.discipline || 'Trade'} disabled={pending} /></label>
-          <label className="form-label">Location<input className="form-input" name="location" maxLength={255} defaultValue={row.location} disabled={pending} /></label>
-          <label className="form-label">Priority<select className="form-input" name="priority" defaultValue="medium" disabled={pending}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option></select></label>
-          <label className="form-label">Due date<input className="form-input" name="dueDate" type="date" disabled={pending} /></label>
-        </div>
-        <label className="form-label">Plan document ID <span className="form-help">optional UUID; must belong to this project</span><input className="form-input" name="planDocumentId" placeholder="Attach project plan evidence by document ID" disabled={pending} /></label>
-        <label className="form-label">Assigned party<input className="form-input" name="assignedToText" maxLength={255} placeholder="Subcontractor or responsible party" disabled={pending} /></label>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-          <button type="submit" className="button-primary" disabled={pending || clientRequestId.length === 0}>{pending ? 'Creating…' : 'Create punchlist items'}</button>
-          <span className="form-help">One handoff per rejected IWR. Retrying this form reuses its request token.</span>
-        </div>
-        {state.error ? <p role="alert" aria-live="polite" style={{ margin: 0, color: 'var(--color-danger)' }}>{state.error}</p> : null}
-        {state.success ? <p role="status" aria-live="polite" style={{ margin: 0 }}>{state.success}</p> : null}
-      </form>
-    </details>
-  )
-}
-
-function QualityEntry({ projectId, row, canManage, canApprove, canPunchlist }: { projectId: string; row: QualityHoldPointRow; canManage: boolean; canApprove: boolean; canPunchlist: boolean }) {
+function QualityEntry({ projectId, row, canManage, canApprove, canPunchlist, owner }: { projectId: string; row: QualityHoldPointRow; canManage: boolean; canApprove: boolean; canPunchlist: boolean; owner: { actorId: string; tenantId: string } }) {
   const canEdit = canManage && !row.punchlistHandoffAt && (row.status === 'planned' || row.status === 'rejected')
   return (
     <article className="card" style={{ marginBottom: 12 }} aria-labelledby={`quality-${row.id}`}>
@@ -192,7 +154,7 @@ function QualityEntry({ projectId, row, canManage, canApprove, canPunchlist }: {
         {canManage && !row.punchlistHandoffAt && (row.status === 'planned' || row.status === 'rejected') ? <TransitionForm projectId={projectId} row={row} target="ready" canApprove={canApprove} /> : null}
         {row.status === 'ready' ? <TransitionForm projectId={projectId} row={row} target="submit" canApprove={canApprove} /> : null}
         {row.status === 'submitted' ? <><TransitionForm projectId={projectId} row={row} target="accept" canApprove={canApprove} /><TransitionForm projectId={projectId} row={row} target="reject" canApprove={canApprove} /></> : null}
-        {canPunchlist && row.status === 'rejected' && !row.punchlistHandoffAt ? <PunchlistHandoffForm projectId={projectId} row={row} /> : null}
+        {canPunchlist && row.status === 'rejected' && !row.punchlistHandoffAt ? <QualityPunchlistHandoffForm projectId={projectId} row={row} owner={owner} /> : null}
         {row.punchlistHandoffAt ? <p className="form-help" role="status">Punchlist handoff recorded {dateTime(row.punchlistHandoffAt)}{row.punchlistHandoffBy ? ` by ${row.punchlistHandoffBy}` : ''}. Linked items are traceable from Punchlist.</p> : null}
       </div> : null}
     </article>
@@ -203,7 +165,7 @@ function ReadOnlyQualityEntry({ row }: { row: QualityHoldPointRow }) {
   return <article className="card" style={{ marginBottom: 12 }} aria-labelledby={`quality-readonly-${row.id}`}><div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}><div><h3 id={`quality-readonly-${row.id}`} className="card-title">{row.iwrNumber} · {row.title}</h3><p className="card-subtitle">{row.discipline || 'General'} · {row.location || 'No location'}</p></div><span className={statusClass(row.status)}><span className="stage-badge-dot" /> {label(row.status)}</span></div><div style={{ padding: '0 16px 16px', display: 'grid', gap: 10 }}><div><div className="form-help">Scope</div><div>{row.description}</div></div><div><div className="form-help">Plan reference</div><div>{row.planReference || '—'}</div></div></div></article>
 }
 
-export function QualityHoldPointRegister({ projectId, result, error, canManage, canApprove, canPunchlist, activeStatus, activeHoldPoint }: QualityHoldPointRegisterProps) {
+export function QualityHoldPointRegister({ projectId, result, error, canManage, canApprove, canPunchlist, activeStatus, activeHoldPoint, owner }: QualityHoldPointRegisterProps) {
   if (error) return <section className="card" aria-labelledby="quality-register"><div className="card-header"><h2 id="quality-register" className="card-title">QA/QC hold points</h2></div><div className="card-empty" role="alert">{error}</div></section>
   if (!result) return null
   const counts = result.rows.reduce<Record<QualityHoldPointStatus, number>>((all, row) => ({ ...all, [row.status]: (all[row.status] ?? 0) + 1 }), { planned: 0, ready: 0, submitted: 0, accepted: 0, rejected: 0 })
@@ -219,7 +181,7 @@ export function QualityHoldPointRegister({ projectId, result, error, canManage, 
           <div><label className="form-label" htmlFor="quality-hold-point">Type</label><select id="quality-hold-point" className="form-input" name="holdPoint" defaultValue={activeHoldPoint === undefined ? '' : String(activeHoldPoint)}><option value="">All checks</option><option value="true">Hold points</option><option value="false">Witness / routine</option></select></div>
           <input type="hidden" name="page" value="1" /><input type="hidden" name="limit" value={result.limit} /><button type="submit" className="button-secondary">Apply filters</button>
         </form>
-        {result.rows.length === 0 ? <div className="card-empty" role="status">No quality requests match these filters.</div> : <div style={{ padding: '0 12px 4px' }}>{result.rows.map((row) => canManage || (canPunchlist && row.status === 'rejected') ? <QualityEntry key={row.id} projectId={projectId} row={row} canManage={canManage} canApprove={canApprove} canPunchlist={canPunchlist} /> : <ReadOnlyQualityEntry key={row.id} row={row} />)}</div>}
+        {result.rows.length === 0 ? <div className="card-empty" role="status">No quality requests match these filters.</div> : <div style={{ padding: '0 12px 4px' }}>{result.rows.map((row) => canManage || (canPunchlist && row.status === 'rejected') ? <QualityEntry key={row.id} projectId={projectId} row={row} canManage={canManage} canApprove={canApprove} canPunchlist={canPunchlist} owner={owner} /> : <ReadOnlyQualityEntry key={row.id} row={row} />)}</div>}
         {(hasPrevious || hasNext) ? <nav aria-label="Quality request pages" style={{ display: 'flex', justifyContent: 'space-between', padding: 14 }}>{hasPrevious ? <a className="button-secondary" href={qualityHref(projectId, { status: activeStatus, holdPoint: activeHoldPoint, page: result.page - 1, limit: result.limit })}>Previous</a> : <span />}{hasNext ? <a className="button-secondary" href={qualityHref(projectId, { status: activeStatus, holdPoint: activeHoldPoint, page: result.page + 1, limit: result.limit })}>Next</a> : null}</nav> : null}
       </div>
     </section>

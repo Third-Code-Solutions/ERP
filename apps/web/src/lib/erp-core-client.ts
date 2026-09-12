@@ -9203,27 +9203,63 @@ export async function mutateQualityHoldPointThroughCoreApi(
 }
 
 /** Creates or replays the tenant-scoped punchlist handoff for a rejected IWR. */
+export type QualityPunchlistHandoffCoreResult =
+  | {
+      ok: true
+      data: QualityHoldPointPunchlistHandoffResult
+      outcome: 'confirmed'
+    }
+  | {
+      ok: false
+      status: number
+      error: string
+      outcome: 'rejected' | 'unknown'
+    }
+
 export async function handoffQualityHoldPointToPunchlistThroughCoreApi(
   projectId: unknown,
   entryId: unknown,
   command: unknown,
-): Promise<CoreResult<QualityHoldPointPunchlistHandoffResult>> {
-  const parsedProjectId = z.string().uuid().safeParse(projectId)
-  const parsedEntryId = z.string().uuid().safeParse(entryId)
+): Promise<QualityPunchlistHandoffCoreResult> {
+  const parsedProjectId = z.string().uuid().transform((value) => value.toLowerCase()).safeParse(projectId)
+  const parsedEntryId = z.string().uuid().transform((value) => value.toLowerCase()).safeParse(entryId)
   const parsedCommand = qualityHoldPointPunchlistHandoffCommandSchema.safeParse(command)
   if (!parsedProjectId.success || !parsedEntryId.success || !parsedCommand.success) {
-    return { ok: false, status: 400, error: 'Invalid quality punchlist handoff command.' }
+    return {
+      ok: false,
+      status: 400,
+      error: 'Invalid quality punchlist handoff command.',
+      outcome: 'rejected',
+    }
   }
-  const access = await getCoreApiAccess()
-  if (!access.ok) return access
+
+  const expectedClientRequestId = parsedCommand.data.clientRequestId.toLowerCase()
+  const expectedPlanDocumentId = parsedCommand.data.planDocumentId?.toLowerCase() ?? null
+  const unknownOutcome =
+    'Punchlist handoff outcome could not be confirmed. Retry the same request before making another change.'
+  let dispatched = false
+
   try {
+    const access = await getCoreApiAccess()
+    if (!access.ok) {
+      return {
+        ok: false,
+        status: 503,
+        error: access.error,
+        outcome: 'rejected',
+      }
+    }
+
+    const requestUrl = `${access.baseUrl}/v1/projects/${encodeURIComponent(parsedProjectId.data)}/quality/${encodeURIComponent(parsedEntryId.data)}/punchlist`
+    dispatched = true
     const response = await fetch(
-      `${access.baseUrl}/v1/projects/${encodeURIComponent(parsedProjectId.data)}/quality/${encodeURIComponent(parsedEntryId.data)}/punchlist`,
+      requestUrl,
       {
         method: 'POST',
         headers: {
           authorization: `Bearer ${access.accessToken}`,
           'content-type': 'application/json',
+          'x-erp-receipt-version': '1',
           'x-request-id': randomUUID(),
         },
         body: JSON.stringify(parsedCommand.data),
@@ -9234,6 +9270,14 @@ export async function handoffQualityHoldPointToPunchlistThroughCoreApi(
     const rawBody: unknown = await response.json().catch(() => null)
     if (!response.ok) {
       const body = z.object({ message: z.string() }).safeParse(rawBody)
+      if (![400, 401, 403, 404, 409, 422].includes(response.status)) {
+        return {
+          ok: false,
+          status: response.status,
+          error: unknownOutcome,
+          outcome: 'unknown',
+        }
+      }
       return {
         ok: false,
         status: response.status,
@@ -9243,15 +9287,48 @@ export async function handoffQualityHoldPointToPunchlistThroughCoreApi(
             ? 'This rejected IWR is already linked to punchlist work or has changed.'
             : response.status === 404
               ? 'Quality request or plan document was not found.'
-              : 'Punchlist handoff was not committed.',
+              : 'Punchlist handoff was rejected.',
+        outcome: 'rejected',
       }
     }
+
     const parsed = qualityHoldPointPunchlistHandoffResultSchema.safeParse(rawBody)
-    return parsed.success
-      ? { ok: true, data: parsed.data, status: response.status }
-      : { ok: false, status: 503, error: 'ERP Core API returned an invalid punchlist handoff result.' }
+    if (!parsed.success) {
+      return { ok: false, status: 503, error: unknownOutcome, outcome: 'unknown' }
+    }
+
+    const result = parsed.data
+    const itemIds = result.items.map((item) => item.id.toLowerCase())
+    const responseIsBound =
+      result.clientRequestId.toLowerCase() === expectedClientRequestId &&
+      result.projectId.toLowerCase() === parsedProjectId.data &&
+      result.qualityHoldPointId.toLowerCase() === parsedEntryId.data &&
+      result.source.qualityHoldPointId.toLowerCase() === parsedEntryId.data &&
+      (result.source.planDocumentId === null
+        ? expectedPlanDocumentId === null
+        : expectedPlanDocumentId !== null &&
+          result.source.planDocumentId.toLowerCase() === expectedPlanDocumentId) &&
+      result.items.every(
+        (item) =>
+          item.projectId.toLowerCase() === parsedProjectId.data &&
+          item.sourceHandoffId.toLowerCase() === result.handoffId.toLowerCase(),
+      ) &&
+      new Set(itemIds).size === itemIds.length
+
+    if (!responseIsBound) {
+      return { ok: false, status: 503, error: unknownOutcome, outcome: 'unknown' }
+    }
+
+    return { ok: true, data: result, outcome: 'confirmed' }
   } catch {
-    return { ok: false, status: 503, error: 'ERP Core API is unavailable. Punchlist handoff outcome is unconfirmed; refresh before retrying.' }
+    return dispatched
+      ? { ok: false, status: 503, error: unknownOutcome, outcome: 'unknown' }
+      : {
+          ok: false,
+          status: 503,
+          error: 'The session could not be verified. Sign in and retry.',
+          outcome: 'rejected',
+        }
   }
 }
 
@@ -9404,16 +9481,16 @@ export async function getProjectDocumentsThroughCoreApi(
   projectId: unknown,
   query: unknown = {},
 ): Promise<CoreResult<ProjectDocumentListResult>> {
-  const parsedProjectId = z.string().uuid().safeParse(projectId)
+  const parsedProjectId = z.string().uuid().transform((value) => value.toLowerCase()).safeParse(projectId)
   if (!parsedProjectId.success) return { ok: false, status: 400, error: 'Invalid project identifier.' }
   const parsedQuery = projectDocumentListQuerySchema.safeParse(query)
   if (!parsedQuery.success) return { ok: false, status: 400, error: 'Invalid project document filters.' }
-  const access = await getCoreApiAccess()
-  if (!access.ok) return access
-  const params = new URLSearchParams()
-  if (parsedQuery.data.documentType) params.set('documentType', parsedQuery.data.documentType)
-  params.set('page', String(parsedQuery.data.page)); params.set('limit', String(parsedQuery.data.limit))
   try {
+    const access = await getCoreApiAccess()
+    if (!access.ok) return access
+    const params = new URLSearchParams()
+    if (parsedQuery.data.documentType) params.set('documentType', parsedQuery.data.documentType)
+    params.set('page', String(parsedQuery.data.page)); params.set('limit', String(parsedQuery.data.limit))
     const response = await fetch(`${access.baseUrl}/v1/projects/${encodeURIComponent(parsedProjectId.data)}/documents?${params.toString()}`, { method: 'GET', headers: { authorization: `Bearer ${access.accessToken}`, 'x-request-id': randomUUID() }, cache: 'no-store', signal: AbortSignal.timeout(10_000) })
     const rawBody: unknown = await response.json().catch(() => null)
     if (!response.ok) {
@@ -9421,7 +9498,22 @@ export async function getProjectDocumentsThroughCoreApi(
       return { ok: false, status: response.status, error: body.success ? body.data.message : 'Project documents are unavailable.' }
     }
     const parsed = projectDocumentListResultSchema.safeParse(rawBody)
-    return parsed.success ? { ok: true, data: parsed.data } : { ok: false, status: 503, error: 'ERP Core API returned an invalid project document list.' }
+    if (
+      !parsed.success ||
+      parsed.data.projectId.toLowerCase() !== parsedProjectId.data ||
+      parsed.data.rows.some((row) => row.projectId.toLowerCase() !== parsedProjectId.data) ||
+      parsed.data.page !== parsedQuery.data.page ||
+      parsed.data.limit !== parsedQuery.data.limit ||
+      !Number.isSafeInteger(parsed.data.total) ||
+      !Number.isSafeInteger(parsed.data.totalPages) ||
+      parsed.data.totalPages !== Math.max(1, Math.ceil(parsed.data.total / parsedQuery.data.limit)) ||
+      parsed.data.rows.length > parsedQuery.data.limit ||
+      new Set(parsed.data.rows.map((row) => row.id.toLowerCase())).size !== parsed.data.rows.length ||
+      (parsedQuery.data.documentType !== undefined && parsed.data.rows.some((row) => row.documentType !== parsedQuery.data.documentType))
+    ) {
+      return { ok: false, status: 503, error: 'ERP Core API returned an invalid project document list.' }
+    }
+    return { ok: true, data: parsed.data }
   } catch {
     return { ok: false, status: 503, error: 'ERP Core API is unavailable. Project documents were not loaded.' }
   }
