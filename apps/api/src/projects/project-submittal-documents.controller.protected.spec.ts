@@ -2,6 +2,7 @@ import 'reflect-metadata'
 
 import { Reflector } from '@nestjs/core'
 import { Test } from '@nestjs/testing'
+import { ERP_ROLES } from '@third-code-erp/shared-types/authorization'
 import request from 'supertest'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CapabilityGuard } from '../auth/capability.guard'
@@ -39,6 +40,12 @@ describe('ProjectSubmittalDocumentsController protected boundary', () => {
     app.useGlobalGuards(new SupabaseJwtGuard(identity as unknown as SupabaseIdentityService, reflector, database as unknown as DatabaseService), new CapabilityGuard(reflector))
     await app.init(); close = () => app.close(); return { app, service }
   }
+
+  it.each(ERP_ROLES)('allows active %s membership to read project documents', async role => {
+    const { app, service } = await harness(role)
+    await request(app.getHttpServer()).get(`${base}/documents`).set('Authorization', 'Bearer valid').expect(200)
+    expect(service.listProjectDocuments).toHaveBeenCalledWith(PROJECT_ID, expect.anything(), expect.objectContaining({ role, tenantId: TENANT_ID, userId: USER_ID }))
+  })
 
   it('allows all roles to read but denies a viewer link mutation', async () => {
     const { app, service } = await harness('viewer')

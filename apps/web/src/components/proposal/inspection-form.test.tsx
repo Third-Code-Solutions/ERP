@@ -16,9 +16,15 @@ const EXPECTED_FIELD_NAMES = [
 ] as const
 
 describe('InspectionForm', () => {
+  it('keeps input disabled until the correct device draft has loaded', () => {
+    const html = renderToStaticMarkup(
+      <InspectionForm actorId="11111111-1111-4111-8111-111111111111" tenantId="22222222-2222-4222-8222-222222222222" opportunityId="33333333-3333-4333-8333-333333333333" pprfSubmitted />,
+    )
+    expect(html).toMatch(/<fieldset[^>]*disabled=""/)
+  })
   it('mounts every accepted field exactly once without browser opportunity identity', () => {
     const html = renderToStaticMarkup(
-      <InspectionForm opportunityId="33333333-3333-4333-8333-333333333333" pprfSubmitted />
+      <InspectionForm actorId="11111111-1111-4111-8111-111111111111" tenantId="22222222-2222-4222-8222-222222222222" opportunityId="33333333-3333-4333-8333-333333333333" pprfSubmitted />
     )
     const names = [...html.matchAll(/\sname="([^"]+)"/g)].map((match) => match[1]).sort()
     const actionSource = readFileSync(
@@ -39,9 +45,9 @@ describe('InspectionForm', () => {
   it('uses a synchronous single-flight guard and keeps drafts on failure', () => {
     const source = readFileSync(new URL('./inspection-form.tsx', import.meta.url), 'utf8')
     expect(source).toContain('if (inFlightRef.current) return')
-    expect(source).toContain('submitInspection(opportunityId, formData)')
+    expect(source).toContain('submitInspection(opportunityId, formData, { actorId, tenantId })')
     expect(source).toContain('if (!res.ok)')
-    expect(source).toContain('await saveDraftNow()')
+    expect(source).toContain('clientSubmissionId: submissionId, submissionPending')
     expect(source).toContain('res.archiveWarning')
     expect(source).toContain('res.replayed')
   })

@@ -26,6 +26,24 @@ idempotency key; Core derives tenant, actor, role, and project scope.
 
 ## Verification
 
+### Document deletion and inspection evidence retention
+
+Core and legacy Web deletion lock the document before checking tenant-bound claim,
+KYC, inspection-photo and archived-inspection-report references. Attached evidence
+cannot be deleted. Unreferenced document records and derived scope still delete
+transactionally with audit; this is not physical file erasure.
+
+Both Web deletion paths retain private Storage bytes, including successful Core
+receipt replay. Paths can be shared or reused by later documents; a reference
+preflight cannot safely authorize asynchronous object removal. New semantic audit
+events record `retained_pending_generation_fencing`. No orphan cleanup is enabled.
+Storage reclamation requires a separately verified generation-ownership protocol.
+
+Deploy the Web change as well as Core and drain old Web instances before claiming
+this protection: old in-flight cleanup can still remove bytes. This does not fix
+the report archive's separate insert/link transaction gap or protect against
+provider-admin file deletion. Existing backup and migration release gates apply.
+
 ```powershell
 $env:DATABASE_URL='postgresql://postgres:postgres@127.0.0.1:54322/erp_self_hosted_ci'
 $env:REDIS_URL='redis://127.0.0.1:6379'

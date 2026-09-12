@@ -11,6 +11,12 @@ import { CreateInvoiceForm } from '@/components/billing/create-invoice-form'
 import { getProjectDetailAccess } from '../project-detail-access'
 import { ProjectBillingMilestoneCard } from '@/components/billing/project-billing-milestone-card'
 import {
+  billingMilestonePageHref,
+  buildBillingMilestoneNavigation,
+  parseBillingMilestonePage,
+  type BillingSearchParams,
+} from '@/components/billing/billing-milestone-navigation'
+import {
   getProjectBillingMilestonesThroughCoreApi,
   projectBillingMilestoneReadsUseCoreApi,
 } from '@/lib/erp-core-client'
@@ -41,7 +47,10 @@ function formatBps(bps: number): string {
   return `${(bps / 100).toFixed(1)}%`
 }
 
-export default async function ProjectBillingPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ProjectBillingPage({ params, searchParams }: {
+  params: Promise<{ id: string }>
+  searchParams?: Promise<BillingSearchParams>
+}) {
   const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
   const access = getProjectDetailAccess(profile.role)
@@ -55,9 +64,11 @@ export default async function ProjectBillingPage({ params }: { params: Promise<{
 
   if (!project) return notFound()
 
+  const query = await searchParams ?? {}
+  const milestonePage = parseBillingMilestonePage(query.milestonePage)
   const billingMilestonesEnabled = projectBillingMilestoneReadsUseCoreApi(profile.tenantId)
-  const billingMilestones = billingMilestonesEnabled
-    ? await getProjectBillingMilestonesThroughCoreApi(id, { limit: 25 })
+  const billingMilestones = billingMilestonesEnabled && milestonePage !== null
+    ? await getProjectBillingMilestonesThroughCoreApi(id, { page: milestonePage, limit: 25 })
     : null
 
   const [latestBom] = access.bom
@@ -138,13 +149,24 @@ export default async function ProjectBillingPage({ params }: { params: Promise<{
       </div>
 
       {billingMilestonesEnabled && billingMilestones?.ok && billingMilestones.data ? (
-        <ProjectBillingMilestoneCard result={billingMilestones.data} />
+        <ProjectBillingMilestoneCard
+          result={billingMilestones.data}
+          pagination={buildBillingMilestoneNavigation(id, query, billingMilestones.data)}
+        />
+      ) : null}
+      {billingMilestonesEnabled && milestonePage === null ? (
+        <section className="card project-billing-milestones__unavailable" aria-labelledby="project-billing-milestones-heading">
+          <div className="card-header"><h2 id="project-billing-milestones-heading" className="card-title">Milestone billing traceability</h2></div>
+          <p className="card-empty" role="alert">Invalid milestone page. Enter a whole number from 1 to 100000. Existing invoice records remain visible below.</p>
+          <div className="card-header"><Link className="button-secondary" href={billingMilestonePageHref(id, query, 1)}>First milestone page</Link></div>
+        </section>
       ) : null}
       {billingMilestonesEnabled && billingMilestones && !billingMilestones.ok ? (
-        <div className="card project-billing-milestones__unavailable" role="status">
-          <div className="card-header"><h2 className="card-title">Milestone billing traceability</h2></div>
-          <p className="card-empty">Core could not verify the WAR → COC → claim → invoice chain. Existing invoice records remain visible below; no readiness was inferred.</p>
-        </div>
+        <section className="card project-billing-milestones__unavailable" aria-labelledby="project-billing-milestones-heading">
+          <div className="card-header"><h2 id="project-billing-milestones-heading" className="card-title">Milestone billing traceability</h2></div>
+          <p className="card-empty" role="alert">Core could not verify the WAR → COC → claim → invoice chain. Existing invoice records remain visible below; no readiness was inferred.</p>
+          <div className="card-header"><a className="button-secondary" href={billingMilestonePageHref(id, query, milestonePage ?? 1)}>Retry milestone evidence</a></div>
+        </section>
       ) : null}
 
       {/* Invoices table */}

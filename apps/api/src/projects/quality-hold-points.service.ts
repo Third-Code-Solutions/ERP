@@ -12,6 +12,7 @@ import {
   punchlistItems,
   qualityHoldPointPunchlistHandoffs,
   qualityHoldPoints,
+  tenants,
   users,
 } from '@third-code-erp/database/schema'
 import { createHash } from 'node:crypto'
@@ -417,212 +418,251 @@ export class QualityHoldPointsService {
   ): Promise<QualityHoldPointPunchlistHandoffResult> {
     const input = qualityHoldPointPunchlistHandoffCommandSchema.parse(command)
     const hash = requestHash(input)
-    return this.database.client.transaction(async (transaction) => {
-      const authorizedPrincipal = await this.requireMembershipOn(
-        transaction,
-        principal,
-        'punchlist.manage',
-      )
-      await this.audit.stampActor(transaction, authorizedPrincipal)
-      await transaction.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`quality-punchlist-handoff:${authorizedPrincipal.tenantId}:${input.clientRequestId}`}, 0))`)
+    try {
+      return await this.database.client.transaction(async (transaction) => {
+        const authorizedPrincipal = await this.requireHandoffMembership(transaction, principal)
+        await this.audit.stampActor(transaction, authorizedPrincipal)
+        await transaction.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`quality-punchlist-handoff:${authorizedPrincipal.tenantId}:${input.clientRequestId}`}, 0))`)
 
-      const [project] = await transaction
-        .select({ id: projects.id })
-        .from(projects)
-        .where(
-          and(
-            eq(projects.id, projectId),
-            eq(projects.tenant_id, authorizedPrincipal.tenantId),
-            isNull(projects.deleted_at),
-          ),
-        )
-        .limit(1)
-        .for('update')
-      if (!project) throw new NotFoundException('Project not found')
+        const [project] = await transaction
+          .select({ id: projects.id })
+          .from(projects)
+          .where(
+            and(
+              eq(projects.id, projectId),
+              eq(projects.tenant_id, authorizedPrincipal.tenantId),
+              isNull(projects.deleted_at),
+            ),
+          )
+          .limit(1)
+          .for('update')
+        if (!project) throw new NotFoundException('Project not found')
 
-      const [source] = await transaction
-        .select({
-          id: qualityHoldPoints.id,
-          projectId: qualityHoldPoints.project_id,
-          status: qualityHoldPoints.status,
-          iwrNumber: qualityHoldPoints.iwr_number,
-          findings: qualityHoldPoints.findings,
-          rejectionReason: qualityHoldPoints.rejection_reason,
-          punchlistHandoffAt: qualityHoldPoints.punchlist_handoff_at,
-        })
-        .from(qualityHoldPoints)
-        .where(
-          and(
-            eq(qualityHoldPoints.id, entryId),
-            eq(qualityHoldPoints.project_id, projectId),
-            eq(qualityHoldPoints.tenant_id, authorizedPrincipal.tenantId),
-          ),
-        )
-        .limit(1)
-        .for('update')
-      if (!source) throw new NotFoundException('Quality request not found')
-      if (source.status !== 'rejected') {
-        throw new ConflictException('Only rejected IWRs can be handed off to punchlist')
-      }
+        const [source] = await transaction
+          .select({
+            id: qualityHoldPoints.id,
+            projectId: qualityHoldPoints.project_id,
+            status: qualityHoldPoints.status,
+            iwrNumber: qualityHoldPoints.iwr_number,
+            findings: qualityHoldPoints.findings,
+            rejectionReason: qualityHoldPoints.rejection_reason,
+            punchlistHandoffAt: qualityHoldPoints.punchlist_handoff_at,
+          })
+          .from(qualityHoldPoints)
+          .where(
+            and(
+              eq(qualityHoldPoints.id, entryId),
+              eq(qualityHoldPoints.project_id, projectId),
+              eq(qualityHoldPoints.tenant_id, authorizedPrincipal.tenantId),
+            ),
+          )
+          .limit(1)
+          .for('update')
+        if (!source) throw new NotFoundException('Quality request not found')
+        if (source.status !== 'rejected') {
+          throw new ConflictException('Only rejected IWRs can be handed off to punchlist')
+        }
 
-      if (source.punchlistHandoffAt) {
-        const [existing] = await transaction
+        if (source.punchlistHandoffAt) {
+          const [existing] = await transaction
+            .select(handoffSelection)
+            .from(qualityHoldPointPunchlistHandoffs)
+            .where(
+              and(
+                eq(qualityHoldPointPunchlistHandoffs.tenant_id, authorizedPrincipal.tenantId),
+                eq(qualityHoldPointPunchlistHandoffs.quality_hold_point_id, entryId),
+              ),
+            )
+            .limit(1)
+            .for('update')
+          if (!existing) {
+            throw new InternalServerErrorException('IWR punchlist lock has no handoff record')
+          }
+          const handoff = existing as QualityHoldPointPunchlistHandoffDbRow
+          if (handoff.clientRequestId.toLowerCase() !== input.clientRequestId.toLowerCase() || handoff.requestHash !== hash) {
+            throw new ConflictException('Rejected IWR is already linked to punchlist')
+          }
+          return this.loadPunchlistHandoffResult(transaction, handoff, false)
+        }
+
+        const [existingRequest] = await transaction
           .select(handoffSelection)
           .from(qualityHoldPointPunchlistHandoffs)
           .where(
             and(
               eq(qualityHoldPointPunchlistHandoffs.tenant_id, authorizedPrincipal.tenantId),
-              eq(qualityHoldPointPunchlistHandoffs.quality_hold_point_id, entryId),
+              eq(qualityHoldPointPunchlistHandoffs.client_request_id, input.clientRequestId),
             ),
           )
           .limit(1)
           .for('update')
-        if (!existing) {
-          throw new InternalServerErrorException('IWR punchlist lock has no handoff record')
+        if (existingRequest) {
+          const handoff = existingRequest as QualityHoldPointPunchlistHandoffDbRow
+          if (
+            handoff.projectId.toLowerCase() !== projectId.toLowerCase() ||
+            handoff.qualityHoldPointId.toLowerCase() !== entryId.toLowerCase() ||
+            handoff.requestHash !== hash
+          ) {
+            throw new ConflictException('Client request id was already used with a different punchlist handoff')
+          }
+          return this.loadPunchlistHandoffResult(transaction, handoff, false)
         }
-        const handoff = existing as QualityHoldPointPunchlistHandoffDbRow
-        if (handoff.clientRequestId !== input.clientRequestId || handoff.requestHash !== hash) {
-          throw new ConflictException('Rejected IWR is already linked to punchlist')
-        }
-        return this.loadPunchlistHandoffResult(transaction, handoff, false)
-      }
 
-      const [existingRequest] = await transaction
-        .select(handoffSelection)
-        .from(qualityHoldPointPunchlistHandoffs)
-        .where(
-          and(
-            eq(qualityHoldPointPunchlistHandoffs.tenant_id, authorizedPrincipal.tenantId),
-            eq(qualityHoldPointPunchlistHandoffs.client_request_id, input.clientRequestId),
-          ),
+        if (input.planDocumentId) {
+          const [planDocument] = await transaction
+            .select({ id: documents.id })
+            .from(documents)
+            .where(
+              and(
+                eq(documents.id, input.planDocumentId),
+                eq(documents.tenant_id, authorizedPrincipal.tenantId),
+                eq(documents.project_id, projectId),
+              ),
+            )
+            .limit(1)
+            .for('share')
+          if (!planDocument) throw new NotFoundException('Plan document not found in project')
+        }
+        await this.assertPunchlistAssignees(
+          transaction,
+          authorizedPrincipal.tenantId,
+          input.items.map((item) => item.assignedToUserId),
         )
-        .limit(1)
-        .for('update')
-      if (existingRequest) {
-        const handoff = existingRequest as QualityHoldPointPunchlistHandoffDbRow
-        if (
-          handoff.projectId !== projectId ||
-          handoff.qualityHoldPointId !== entryId ||
-          handoff.requestHash !== hash
-        ) {
-          throw new ConflictException('Client request id was already used with a different punchlist handoff')
-        }
-        return this.loadPunchlistHandoffResult(transaction, handoff, false)
-      }
 
-      if (input.planDocumentId) {
-        const [planDocument] = await transaction
-          .select({ id: documents.id })
-          .from(documents)
+        const [createdHandoff] = await transaction
+          .insert(qualityHoldPointPunchlistHandoffs)
+          .values({
+            tenant_id: authorizedPrincipal.tenantId,
+            project_id: projectId,
+            quality_hold_point_id: entryId,
+            client_request_id: input.clientRequestId,
+            request_hash: hash,
+            source_iwr_number: source.iwrNumber,
+            source_findings: source.findings,
+            source_rejection_reason: source.rejectionReason,
+            plan_document_id: input.planDocumentId,
+            created_by: authorizedPrincipal.userId,
+          })
+          .returning(handoffSelection)
+        if (!createdHandoff) {
+          throw new InternalServerErrorException('Punchlist handoff insert returned no record')
+        }
+        const handoff = createdHandoff as QualityHoldPointPunchlistHandoffDbRow
+
+        const [createdItems] = await Promise.all([
+          transaction
+            .insert(punchlistItems)
+            .values(
+              input.items.map((item) => ({
+                tenant_id: authorizedPrincipal.tenantId,
+                project_id: projectId,
+                description: item.description,
+                location: item.location,
+                trade: item.trade,
+                priority: item.priority,
+                due_date: toDate(item.dueDate),
+                assigned_to_user_id: item.assignedToUserId,
+                assigned_to_text: item.assignedToText,
+                created_by: authorizedPrincipal.userId,
+                source_handoff_id: handoff.id,
+              })),
+            )
+            .returning(punchlistItemSelection),
+        ])
+        if (createdItems.length !== input.items.length) {
+          throw new InternalServerErrorException('Punchlist item insert returned an incomplete result')
+        }
+
+        const now = new Date()
+        const [lockedSource] = await transaction
+          .update(qualityHoldPoints)
+          .set({
+            punchlist_handoff_at: now,
+            punchlist_handoff_by: authorizedPrincipal.userId,
+          })
           .where(
             and(
-              eq(documents.id, input.planDocumentId),
-              eq(documents.tenant_id, authorizedPrincipal.tenantId),
-              eq(documents.project_id, projectId),
+              eq(qualityHoldPoints.id, entryId),
+              eq(qualityHoldPoints.project_id, projectId),
+              eq(qualityHoldPoints.tenant_id, authorizedPrincipal.tenantId),
+              eq(qualityHoldPoints.status, 'rejected'),
+              isNull(qualityHoldPoints.punchlist_handoff_at),
             ),
           )
-          .limit(1)
-          .for('share')
-        if (!planDocument) throw new NotFoundException('Plan document not found in project')
-      }
-      await this.assertPunchlistAssignees(
-        transaction,
-        authorizedPrincipal.tenantId,
-        input.items.map((item) => item.assignedToUserId),
-      )
+          .returning({ id: qualityHoldPoints.id })
+        if (!lockedSource) {
+          throw new ConflictException('Rejected IWR changed; retry the handoff')
+        }
 
-      const [createdHandoff] = await transaction
-        .insert(qualityHoldPointPunchlistHandoffs)
-        .values({
-          tenant_id: authorizedPrincipal.tenantId,
-          project_id: projectId,
-          quality_hold_point_id: entryId,
-          client_request_id: input.clientRequestId,
-          request_hash: hash,
-          source_iwr_number: source.iwrNumber,
-          source_findings: source.findings,
-          source_rejection_reason: source.rejectionReason,
-          plan_document_id: input.planDocumentId,
-          created_by: authorizedPrincipal.userId,
+        const items = createdItems.map((row) => serializePunchlistItem(row as PunchlistItemDbRow))
+        await this.audit.writeSemantic(transaction, {
+          tenantId: authorizedPrincipal.tenantId,
+          actorId: authorizedPrincipal.userId,
+          entityType: 'quality_hold_point_punchlist_handoff',
+          entityId: handoff.id,
+          action: 'create',
+          diff: {
+            project_id: projectId,
+            quality_hold_point_id: entryId,
+            iwr_number: source.iwrNumber,
+            source_findings: source.findings,
+            source_rejection_reason: source.rejectionReason,
+            plan_document_id: input.planDocumentId,
+            punchlist_item_ids: items.map((item) => item.id),
+          },
         })
-        .returning(handoffSelection)
-      if (!createdHandoff) {
-        throw new InternalServerErrorException('Punchlist handoff insert returned no record')
-      }
-      const handoff = createdHandoff as QualityHoldPointPunchlistHandoffDbRow
-
-      const [createdItems] = await Promise.all([
-        transaction
-          .insert(punchlistItems)
-          .values(
-            input.items.map((item) => ({
-              tenant_id: authorizedPrincipal.tenantId,
-              project_id: projectId,
-              description: item.description,
-              location: item.location,
-              trade: item.trade,
-              priority: item.priority,
-              due_date: toDate(item.dueDate),
-              assigned_to_user_id: item.assignedToUserId,
-              assigned_to_text: item.assignedToText,
-              created_by: authorizedPrincipal.userId,
-              source_handoff_id: handoff.id,
-            })),
-          )
-          .returning(punchlistItemSelection),
-      ])
-      if (createdItems.length !== input.items.length) {
-        throw new InternalServerErrorException('Punchlist item insert returned an incomplete result')
-      }
-
-      const now = new Date()
-      const [lockedSource] = await transaction
-        .update(qualityHoldPoints)
-        .set({
-          punchlist_handoff_at: now,
-          punchlist_handoff_by: authorizedPrincipal.userId,
+        return qualityHoldPointPunchlistHandoffResultSchema.parse({
+          clientRequestId: handoff.clientRequestId,
+          projectId,
+          qualityHoldPointId: entryId,
+          handoffId: handoff.id,
+          created: true,
+          changed: true,
+          source: sourceFromHandoff(handoff),
+          items,
         })
-        .where(
-          and(
-            eq(qualityHoldPoints.id, entryId),
-            eq(qualityHoldPoints.project_id, projectId),
-            eq(qualityHoldPoints.tenant_id, authorizedPrincipal.tenantId),
-            eq(qualityHoldPoints.status, 'rejected'),
-            isNull(qualityHoldPoints.punchlist_handoff_at),
-          ),
-        )
-        .returning({ id: qualityHoldPoints.id })
-      if (!lockedSource) {
-        throw new ConflictException('Rejected IWR changed; retry the handoff')
+      })
+    } catch (error) {
+      let cause: unknown = error
+      const seen = new Set<unknown>()
+      while (cause instanceof Object && !seen.has(cause)) {
+        seen.add(cause)
+        if ('code' in cause && cause.code === '55P03') {
+          throw new ConflictException('Punchlist handoff authority is changing; retry the same request')
+        }
+        cause = 'cause' in cause ? cause.cause : undefined
       }
+      throw error
+    }
+  }
 
-      const items = createdItems.map((row) => serializePunchlistItem(row as PunchlistItemDbRow))
-      await this.audit.writeSemantic(transaction, {
-        tenantId: authorizedPrincipal.tenantId,
-        actorId: authorizedPrincipal.userId,
-        entityType: 'quality_hold_point_punchlist_handoff',
-        entityId: handoff.id,
-        action: 'create',
-        diff: {
-          project_id: projectId,
-          quality_hold_point_id: entryId,
-          iwr_number: source.iwrNumber,
-          source_findings: source.findings,
-          source_rejection_reason: source.rejectionReason,
-          plan_document_id: input.planDocumentId,
-          punchlist_item_ids: items.map((item) => item.id),
-        },
-      })
-      return qualityHoldPointPunchlistHandoffResultSchema.parse({
-        projectId,
-        qualityHoldPointId: entryId,
-        handoffId: handoff.id,
-        created: true,
-        changed: true,
-        source: sourceFromHandoff(handoff),
-        items,
-      })
-    })
+  private async requireHandoffMembership(
+    transaction: DatabaseTransaction,
+    principal: ErpPrincipal,
+  ): Promise<ErpPrincipal> {
+    // SHARE prevents lifecycle/role changes without conflicting with FK key-share readers.
+    const [membership] = await transaction
+      .select({ tenantId: users.tenant_id, role: users.role, email: users.email })
+      .from(users)
+      .where(and(
+        eq(users.id, principal.userId),
+        eq(users.tenant_id, principal.tenantId),
+        eq(users.account_status, 'active'),
+      ))
+      .limit(1)
+      .for('share', { noWait: true })
+    const role = z.enum(ERP_ROLES).safeParse(membership?.role)
+    if (!membership || !role.success || !roleHasCapability(role.data, 'punchlist.manage')) {
+      throw new ForbiddenException()
+    }
+    const [tenant] = await transaction
+      .select({ id: tenants.id })
+      .from(tenants)
+      .where(and(eq(tenants.id, principal.tenantId), eq(tenants.status, 'active')))
+      .limit(1)
+      .for('share', { noWait: true })
+    if (!tenant) throw new ForbiddenException()
+    return { userId: principal.userId, tenantId: membership.tenantId, role: role.data, email: membership.email }
   }
 
   private async loadPunchlistHandoffResult(
@@ -645,6 +685,7 @@ export class QualityHoldPointsService {
       throw new InternalServerErrorException('Punchlist handoff has no linked items')
     }
     return qualityHoldPointPunchlistHandoffResultSchema.parse({
+      clientRequestId: handoff.clientRequestId,
       projectId: handoff.projectId,
       qualityHoldPointId: handoff.qualityHoldPointId,
       handoffId: handoff.id,
