@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { inRollback, seedTwoTenants } from './_db-harness'
@@ -24,6 +25,52 @@ suite('Claim attachment direct database authority', () => {
     sql = postgres(connection, { max: 1, prepare: false, onnotice: () => {} })
   })
   afterAll(async () => { await sql?.end() })
+
+  it('candidate migrations preserve representative baseline access without relying on post-migration CI grants', async () => {
+    await inRollback(sql, async (tx) => {
+      const tables = ['documents', 'progress_claims', 'tenants', 'projects', 'progress_claim_documents']
+      // Exact representative pre-migration grants, confined to this rollback.
+      // This catches revocation bugs that the post-schema CI fixture could mask.
+      await tx.unsafe('grant select on public.documents, public.progress_claims, public.tenants, public.projects, public.progress_claim_documents to authenticated')
+      await tx.unsafe('grant select, insert, update, delete, truncate on public.documents, public.progress_claims, public.tenants, public.projects, public.progress_claim_documents to service_role')
+      await tx.unsafe('grant insert, update, delete, truncate, references, trigger on public.progress_claim_documents to authenticated')
+      await tx.unsafe('grant update(caption) on public.progress_claim_documents to authenticated')
+      await tx.unsafe('grant delete, truncate on public.documents, public.progress_claims, public.tenants to authenticated')
+      await tx.unsafe('grant truncate on public.projects to authenticated')
+      for (const file of ['20260912130031_claim_document_core_authority.sql', '20260912131004_claim_document_parent_delete_authority.sql']) {
+        const source = readFileSync(new URL(`../../../../supabase/migrations/${file}`, import.meta.url), 'utf8')
+        // Remove only the outer transaction statements so real candidate SQL
+        // executes inside the harness rollback; never commit fixture privileges.
+        expect(source.match(/^begin;\s*$/gim)).toHaveLength(1)
+        expect(source.match(/^commit;\s*$/gim)).toHaveLength(1)
+        await tx.unsafe(source.replace(/^begin;\s*$/gim, '').replace(/^commit;\s*$/gim, ''))
+      }
+      for (const table of tables) {
+        const [reader] = await tx<{ allowed: boolean }[]>`select has_table_privilege('authenticated',${'public.' + table},'SELECT') as allowed`
+        expect(reader!.allowed, `preserved authenticated ${table} SELECT`).toBe(true)
+        for (const privilege of ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE']) {
+          const [server] = await tx<{ allowed: boolean }[]>`select has_table_privilege('service_role',${'public.' + table},${privilege}) as allowed`
+          expect(server!.allowed, `preserved service_role ${table} ${privilege}`).toBe(true)
+        }
+        for (const role of ['anon', 'authenticated']) {
+          for (const privilege of ['DELETE', 'TRUNCATE']) {
+            const [client] = await tx<{ allowed: boolean }[]>`select has_table_privilege(${role},${'public.' + table},${privilege}) as allowed`
+            expect(client!.allowed, `denied ${role} ${table} ${privilege}`).toBe(false)
+          }
+        }
+      }
+      for (const role of ['anon', 'authenticated']) {
+        for (const privilege of ['INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER']) {
+          const [client] = await tx<{ allowed: boolean }[]>`select has_table_privilege(${role},'public.progress_claim_documents',${privilege}) as allowed`
+          expect(client!.allowed, `denied ${role} attachment ${privilege}`).toBe(false)
+        }
+        for (const privilege of ['INSERT', 'UPDATE', 'REFERENCES']) {
+          const [client] = await tx<{ allowed: boolean }[]>`select has_any_column_privilege(${role},'public.progress_claim_documents',${privilege}) as allowed`
+          expect(client!.allowed, `denied ${role} attachment column ${privilege}`).toBe(false)
+        }
+      }
+    })
+  })
 
   it('denies direct mutation grants while preserving authenticated reads and service writes', async () => {
     const roles = ['anon', 'authenticated']
