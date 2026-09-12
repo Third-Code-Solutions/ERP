@@ -35,6 +35,18 @@
 
 ## Release and limitations
 
+### Contract-check follow-up
+
+Hosted run 34719087575 exposed obsolete WO-12 structural expectations for the
+old form. Reuse the existing strict owner schema at module scope; retain the
+imported-helper write guard. Update structural checks for durable pending commands,
+owner-bound acknowledgement, transaction-complete cleanup and immutable retries.
+Add five negative mutation cases; all 88 WO-12 contract cases pass locally.
+The broader script run also exposed daily-task mutation fixtures sensitive to
+Windows line endings and a non-unique fetch target. Normalize fixture input and
+target the daily-task endpoint explicitly, without changing application behavior.
+The owner-schema refactor passes all 76 action tests, Web type checks and ESLint.
+
 Hosted CI must run on the final commit. No production deployment or migration is
 claimed. Current production ledger is 169/173; the four claim/KYC/WAR migrations
 still require the database release runbook's recovery evidence. Available WSL

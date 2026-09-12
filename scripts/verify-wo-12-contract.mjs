@@ -569,16 +569,35 @@ function verifyForms(graph) {
   const inspectSubmit = functionText(inspection, 'onSubmit')
   assertOrder(inspectSubmit.text, [
     'if(inFlightRef.current)return', 'inFlightRef.current=true', 'if(!online)',
-    'saveDraftNow()', 'inFlightRef.current=false', 'return', 'startTransition',
-    'submitInspection(opportunityId,formData)', 'if(!res.ok)', 'saveDraftNow()',
-    'clearSiteInspectionDraft(opportunityId)', 'setClientSubmissionId(crypto.randomUUID())',
-    'catch', 'saveDraftNow()', 'finally', 'inFlightRef.current=false',
+    'inFlightRef.current=false', 'saveDraftNow()', 'return', 'startTransition',
+    'await persistDraft(', 'requireCurrentSession(lifetime)',
+    'await persistDraft(command)', 'requireCurrentSession(lifetime)', 'setSubmissionPending(true)',
+    'submitInspection(opportunityId,formData,{actorId,tenantId})', 'requireCurrentSession(lifetime)',
+    'if(!res.ok)', 'if(res.outcome===\'rejected\'&&!submissionPending)',
+    'await persistDraft({...command,submissionPending:false})',
+    'confirmationSchema.safeParse', 'setSubmitted(true)', 'await finishClearingDraft()',
+    'catch', 'finally', 'inFlightRef.current=false',
   ], 'inspection form must single-flight, preserve failures, and clear/rotate only on success')
   assertContains(inspectSubmit.text, "formData.set('client_submission_id',submissionId)", 'inspection form must reuse a stable command UUID')
   assertContains(inspectSubmit.text, "formData.set('photo_document_ids',JSON.stringify(documentIds))", 'inspection form must submit exact photo IDs')
-  invariant((inspectSubmit.text.match(/setClientSubmissionId\(crypto\.randomUUID\(\)\)/g) ?? []).length === 1,
+  const cleanup = functionText(inspection, 'finishClearingDraft')
+  invariant((inspectSubmit.text.match(/setClientSubmissionId\(crypto\.randomUUID\(\)\)/g) ?? []).length === 0 &&
+    (cleanup.text.match(/setClientSubmissionId\(crypto\.randomUUID\(\)\)/g) ?? []).length === 1,
     'inspection form must rotate its UUID exactly once after success')
-  assertContains(compact(inspection.source), 'disabled={pending||photoBusy||!online||!draftReady}', 'inspection submit must wait for draft identity and connectivity')
+  assertOrder(cleanup.text, ['await saveQueueRef.current', 'if(!memoryOnly)',
+    'await clearSiteInspectionDraft(scope,revisionRef.current)', 'setPhotos([])',
+    'setUploadedPhotoIds([])', 'setClientSubmissionId(crypto.randomUUID())',
+    'setFields(initialFields(defaults))', 'setSubmissionPending(false)', 'catch'],
+  'inspection cleanup must commit before clearing fields and rotating the key')
+  const acknowledgement = descendants(inspectSubmit.node).find(node => ts.isIfStatement(node) &&
+    compact(node.expression).startsWith('!checked.success||Object.entries({actorId,tenantId,opportunityId,submissionId})'))
+  invariant(acknowledgement && descendants(acknowledgement.thenStatement).some(ts.isThrowStatement),
+    'inspection cleanup must require a matching owner and command acknowledgement')
+  for (const clause of descendants(inspectSubmit.node).filter(ts.isCatchClause)) {
+    invariant(!/saveDraftNow\(|persistDraft\(/.test(compact(clause)),
+      'inspection failure must not overwrite confirmed receipts with a stale snapshot')
+  }
+  assertContains(compact(inspection.source), 'disabled={pending||photoBusy||!online||!draftReady||submitted}', 'inspection submit must wait for draft identity and connectivity')
 
   const rfiSubmit = functionText(rfi, 'onSubmit')
   assertOrder(rfiSubmit.text, [

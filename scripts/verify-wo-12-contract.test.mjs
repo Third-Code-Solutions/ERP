@@ -122,8 +122,8 @@ test('accepts aliased service import and exported-arrow mounted actions', () => 
     .replaceAll('siteInspectionWorkflowService.createRfi', 'workflowService.createRfi')
   action = replaceOnce(
     action,
-    'export async function submitInspection(opportunityId: string, formData: FormData) {',
-    'export const submitInspection = async (opportunityId: string, formData: FormData) => {',
+    'export async function submitInspection(opportunityId: string, formData: FormData, expectedOwner?: unknown): Promise<InspectionSubmissionActionResult> {',
+    'export const submitInspection = async (opportunityId: string, formData: FormData, expectedOwner?: unknown): Promise<InspectionSubmissionActionResult> => {',
     'inspection exported arrow',
   )
   action = replaceOnce(
@@ -306,6 +306,26 @@ mutation('allows inspection network mutation offline', FILES.inspectionForm,
 mutation('rotates inspection UUID before success', FILES.inspectionForm,
   (s) => replaceOnce(s, 'startTransition(async () => {', 'setClientSubmissionId(crypto.randomUUID())\n    startTransition(async () => {', 'early rotation'),
   /rotate its UUID exactly once after success/)
+
+mutation('sends inspection without durable pending command', FILES.inspectionForm,
+  (s) => replaceOnce(s, 'await persistDraft(command)', 'void command', 'missing inspection enqueue'),
+  /single-flight, preserve failures/)
+
+mutation('clears inspection before local transaction commits', FILES.inspectionForm,
+  (s) => replaceOnce(s, 'await clearSiteInspectionDraft(scope, revisionRef.current)', 'clearSiteInspectionDraft(scope, revisionRef.current)', 'unawaited inspection cleanup'),
+  /inspection cleanup must commit/)
+
+mutation('accepts mismatched inspection acknowledgement', FILES.inspectionForm,
+  (s) => replaceOnce(s, "throw new Error('The inspection acknowledgement did not match this saved report. Retry the unchanged report to confirm its outcome.')", 'setError(null)', 'ignored inspection mismatch'),
+  /matching owner and command acknowledgement/)
+
+mutation('overwrites inspection upload receipts from failure snapshot', FILES.inspectionForm,
+  (s) => replaceOnce(s, '} catch (submitError) {', '} catch (submitError) {\n        void saveDraftNow()', 'stale inspection failure save'),
+  /stale snapshot/)
+
+mutation('unlocks inspection after rejected retry of unknown command', FILES.inspectionForm,
+  (s) => replaceOnce(s, "res.outcome === 'rejected' && !submissionPending", "res.outcome === 'rejected'", 'unknown inspection retry unlock'),
+  /single-flight, preserve failures/)
 
 mutation('removes RFI synchronous guard', FILES.rfiForm,
   (s) => replaceOnce(s, 'function onSubmit(formData: FormData) {\n    if (inFlightRef.current) return', 'function onSubmit(formData: FormData) {\n    if (false) return', 'RFI submit guard'),

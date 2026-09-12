@@ -468,6 +468,11 @@ async function persistInspectionReport(args: {
     )
 }
 
+const inspectionExpectedOwnerSchema = z.object({
+  actorId: z.string().uuid(),
+  tenantId: z.string().uuid(),
+}).strict()
+
 export type InspectionSubmissionActionResult =
   | { ok: false; error: string; outcome: 'rejected' | 'unknown' }
   | { ok: true; inspectionId: string; replayed: boolean; refreshFailed: boolean; archiveWarning?: string; confirmation: { actorId: string; tenantId: string; opportunityId: string; submissionId: string } }
@@ -483,7 +488,7 @@ export async function submitInspection(opportunityId: string, formData: FormData
     tenantId = profile.tenantId
     actorId = profile.user.id
     if (expectedOwner !== undefined) {
-      const owner = z.object({ actorId: z.string().uuid(), tenantId: z.string().uuid() }).strict().safeParse(expectedOwner)
+      const owner = inspectionExpectedOwnerSchema.safeParse(expectedOwner)
       if (!owner.success || owner.data.actorId.toLowerCase() !== actorId.toLowerCase() || owner.data.tenantId.toLowerCase() !== tenantId.toLowerCase()) {
         logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'forbidden' })
         return { ok: false, outcome: 'rejected', error: 'The signed-in account changed. Reload before submitting this inspection.' }
@@ -614,11 +619,6 @@ export async function submitInspection(opportunityId: string, formData: FormData
   }
 }
 
-const rfiExpectedOwnerSchema = z.object({
-  actorId: z.string().uuid(),
-  tenantId: z.string().uuid(),
-}).strict()
-
 type InspectionRfiActionResult =
   | {
       ok: true
@@ -653,7 +653,7 @@ export async function addInspectionRfi(
     // A queued command belongs to its original author, not whichever account
     // has since signed in on this browser. These IDs are preconditions only.
     if (expectedOwner !== undefined) {
-      const owner = rfiExpectedOwnerSchema.safeParse(expectedOwner)
+      const owner = inspectionExpectedOwnerSchema.safeParse(expectedOwner)
       if (!owner.success) {
         logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'validation_error' })
         return { ok: false, error: 'The queued RFI owner is invalid. Your saved command was not submitted.', code: 'VALIDATION_ERROR', outcome: 'rejected' }
