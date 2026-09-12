@@ -375,7 +375,7 @@ describe('site inspection atomic service mounting', () => {
       ok: false, error: { code: 'PPRF_REQUIRED', message: 'Submit the PPRF first.' },
     })
     await expect(submitInspection(OPPORTUNITY_ID, inspectionForm())).resolves.toEqual({
-      ok: false, error: 'Submit the PPRF first.',
+      ok: false, outcome: 'rejected', error: 'Submit the PPRF first.',
     })
     mocks.submitInspection.mockRejectedValueOnce(new Error('transaction unavailable'))
     await expect(submitInspection(OPPORTUNITY_ID, inspectionForm())).resolves.toMatchObject({ ok: false })
@@ -454,6 +454,83 @@ describe('site inspection atomic service mounting', () => {
     expect(mocks.createRfi).toHaveBeenCalledTimes(1)
   })
 
+  it.each([{ actorId: PHOTO_ID, tenantId: TENANT_ID }, { actorId: USER_ID, tenantId: PHOTO_ID }, { actorId: 'invalid', tenantId: TENANT_ID }, { actorId: USER_ID, tenantId: TENANT_ID, extra: true }])('rejects stale or malformed inspection owner %j before effects', async owner => {
+    await expect(submitInspection(OPPORTUNITY_ID, inspectionForm(), owner)).resolves.toMatchObject({ ok: false, outcome: 'rejected' })
+    expect(mocks.submitInspection).not.toHaveBeenCalled()
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('returns a bound inspection confirmation for its validated command', async () => {
+    await expect(submitInspection(OPPORTUNITY_ID, inspectionForm(), { actorId: USER_ID, tenantId: TENANT_ID })).resolves.toMatchObject({ ok: true, confirmation: { actorId: USER_ID, tenantId: TENANT_ID, opportunityId: OPPORTUNITY_ID, submissionId: SUBMISSION_ID } })
+  })
+
+  it.each([{ ok: true }, { ok: false, error: { code: 'INTERNAL_ERROR', message: 'Unconfirmed transaction' } }, { ok: false, error: { code: 'CONFLICT', message: 'Inspection durable result is incomplete' } }])('keeps ambiguous inspection response unknown: %j', async response => {
+    mocks.submitInspection.mockResolvedValueOnce(response)
+    await expect(submitInspection(OPPORTUNITY_ID, inspectionForm())).resolves.toMatchObject({ ok: false, outcome: 'unknown' })
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('keeps thrown inspection writes unknown', async () => {
+    mocks.submitInspection.mockRejectedValueOnce(new Error('Lost transaction acknowledgement'))
+    await expect(submitInspection(OPPORTUNITY_ID, inspectionForm())).resolves.toMatchObject({ ok: false, outcome: 'unknown' })
+  })
+
+  it.each([
+    { actorId: RFI_ID, tenantId: TENANT_ID },
+    { actorId: USER_ID, tenantId: RFI_ID },
+    { actorId: USER_ID },
+    { actorId: 'invalid', tenantId: TENANT_ID },
+    { actorId: USER_ID, tenantId: TENANT_ID, role: 'owner' },
+    null,
+  ])('rejects a queued RFI with a different or malformed owner before writing: %j', async (owner) => {
+    await expect(addInspectionRfi(OPPORTUNITY_ID, INSPECTION_ID, rfiForm(), owner))
+      .resolves.toMatchObject({ ok: false, outcome: 'rejected' })
+    expect(mocks.createRfi).not.toHaveBeenCalled()
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('acknowledges the exact queued identity even when cache refresh fails', async () => {
+    mocks.revalidatePath.mockImplementation(() => { throw new Error('cache unavailable') })
+    await expect(addInspectionRfi(OPPORTUNITY_ID, INSPECTION_ID, rfiForm(), {
+      actorId: USER_ID, tenantId: TENANT_ID,
+    })).resolves.toMatchObject({
+      ok: true, rfiId: RFI_ID, refreshFailed: true,
+      confirmation: {
+        actorId: USER_ID, tenantId: TENANT_ID, submissionId: SUBMISSION_ID,
+        opportunityId: OPPORTUNITY_ID, inspectionId: INSPECTION_ID,
+      },
+    })
+    expect(mocks.createRfi).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    { ok: true },
+    { ok: false, error: { code: 'INTERNAL_ERROR', message: 'Retry later.' } },
+    { ok: true, kind: 'rfi_creation', tenantId: TENANT_ID,
+      actorId: USER_ID, opportunityId: OPPORTUNITY_ID, inspectionId: INSPECTION_ID,
+      rfiId: RFI_ID, priority: 'minor', createdAt: '2026-09-03T01:03:03.000Z', replayed: false },
+  ])('does not acknowledge an unconfirmed queued RFI response: %j', async (response) => {
+    mocks.createRfi.mockResolvedValueOnce(response)
+    const result = await addInspectionRfi(OPPORTUNITY_ID, INSPECTION_ID, rfiForm(), {
+      actorId: USER_ID, tenantId: TENANT_ID,
+    })
+    expect(result).toMatchObject({ ok: false, outcome: 'unknown' })
+    expect(result).not.toHaveProperty('confirmation')
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('distinguishes pre-write access failure from a thrown workflow outcome', async () => {
+    mocks.requireUserProfile.mockRejectedValueOnce(new Error('session unavailable'))
+    await expect(addInspectionRfi(OPPORTUNITY_ID, INSPECTION_ID, rfiForm(), {
+      actorId: USER_ID, tenantId: TENANT_ID,
+    })).resolves.toMatchObject({ ok: false, outcome: 'rejected' })
+    expect(mocks.createRfi).not.toHaveBeenCalled()
+    mocks.createRfi.mockRejectedValueOnce(new Error('response lost'))
+    await expect(addInspectionRfi(OPPORTUNITY_ID, INSPECTION_ID, rfiForm(), {
+      actorId: USER_ID, tenantId: TENANT_ID,
+    })).resolves.toMatchObject({ ok: false, outcome: 'unknown' })
+  })
+
   it.each(ROLES)('projects exact RFI mutation authority for %s', async (role) => {
     mocks.requireUserProfile.mockResolvedValue({ user: { id: USER_ID }, tenantId: TENANT_ID, role })
     mocks.can.mockImplementation((actualRole: string, capability: string) =>
@@ -470,7 +547,7 @@ describe('site inspection atomic service mounting', () => {
       ok: false, error: { code: 'CONFLICT', message: 'RFI submission conflict.' },
     })
     await expect(addInspectionRfi(OPPORTUNITY_ID, INSPECTION_ID, rfiForm())).resolves.toEqual({
-      ok: false, error: 'RFI submission conflict.',
+      ok: false, error: 'RFI submission conflict.', code: 'CONFLICT', outcome: 'rejected',
     })
     mocks.createRfi.mockRejectedValueOnce(new Error('transaction unavailable'))
     await expect(addInspectionRfi(OPPORTUNITY_ID, INSPECTION_ID, rfiForm())).resolves.toMatchObject({ ok: false })

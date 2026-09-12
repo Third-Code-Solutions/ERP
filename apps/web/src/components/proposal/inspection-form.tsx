@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useEffect, useRef, useState, useTransition } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from 'react'
+import { z } from 'zod'
 
 import { submitInspection } from '@/app/(dashboard)/crm/opportunities/[id]/proposal/actions'
 import { ActionFeedback } from '@/components/ui/action-feedback'
@@ -10,12 +11,19 @@ import {
   loadSiteInspectionDraft,
   saveSiteInspectionDraft,
   siteInspectionDraftPhotoToFile,
+  siteInspectionDraftScopeKey,
+  SiteInspectionDraftStorageError,
+  type SiteInspectionDraft,
   type SiteInspectionDraftFields,
   type SiteInspectionDraftPhoto,
 } from '@/lib/operations/site-inspection-draft'
 
 const MAX_PHOTOS = 10
 const MAX_PHOTO_BYTES = 15 * 1024 * 1024
+const confirmationSchema = z.object({
+  actorId: z.string().uuid(), tenantId: z.string().uuid(),
+  opportunityId: z.string().uuid(), submissionId: z.string().uuid(),
+})
 
 interface InspectionDefaults {
   site_address?: string
@@ -27,6 +35,8 @@ interface InspectionDefaults {
 }
 
 interface InspectionFormProps {
+  actorId: string
+  tenantId: string
   opportunityId: string
   pprfSubmitted: boolean
   defaults?: InspectionDefaults
@@ -51,7 +61,14 @@ function describeDraftAge(updatedAt: string): string {
   return `Saved draft restored from ${date.toLocaleString()}.`
 }
 
-export function InspectionForm({ opportunityId, pprfSubmitted, defaults }: InspectionFormProps) {
+export function InspectionForm(props: InspectionFormProps) {
+  // Reset all in-memory fields before a different identity can render them.
+  const { actorId, tenantId, opportunityId } = props
+  return <InspectionFormSession key={siteInspectionDraftScopeKey({ actorId, tenantId, opportunityId })} {...props} />
+}
+
+function InspectionFormSession({ actorId, tenantId, opportunityId, pprfSubmitted, defaults }: InspectionFormProps) {
+  const scope = useMemo(() => ({ actorId, tenantId, opportunityId }), [actorId, tenantId, opportunityId])
   const [fields, setFields] = useState<SiteInspectionDraftFields>(() => initialFields(defaults))
   const [photos, setPhotos] = useState<SiteInspectionDraftPhoto[]>([])
   const [uploadedPhotoIds, setUploadedPhotoIds] = useState<string[]>([])
@@ -62,41 +79,77 @@ export function InspectionForm({ opportunityId, pprfSubmitted, defaults }: Inspe
   const [draftMessage, setDraftMessage] = useState<string | null>(null)
   const [online, setOnline] = useState(true)
   const [draftReady, setDraftReady] = useState(false)
+  const [draftError, setDraftError] = useState<string | null>(null)
+  const [loadAttempt, setLoadAttempt] = useState(0)
+  const [submitted, setSubmitted] = useState(false)
+  const [submissionPending, setSubmissionPending] = useState(false)
+  const [storageUnavailable, setStorageUnavailable] = useState(false)
+  const [memoryOnly, setMemoryOnly] = useState(false)
   const [photoBusy, setPhotoBusy] = useState(false)
   const [pending, startTransition] = useTransition()
   const inFlightRef = useRef(false)
+  const revisionRef = useRef(0)
+  const editVersionRef = useRef(0)
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve())
+  const lifetimeRef = useRef(0)
+  const clearingRef = useRef(false)
+
+  useLayoutEffect(() => {
+    lifetimeRef.current += 1
+    return () => { lifetimeRef.current += 1 }
+  }, [])
+
+  function requireCurrentSession(lifetime: number) {
+    if (lifetimeRef.current !== lifetime) throw new Error('Inspection session changed. Return to the original account to resume its saved draft.')
+  }
+
+  const persistDraft = useCallback((draft: Omit<SiteInspectionDraft, 'updatedAt'>) => {
+    if (memoryOnly) return Promise.resolve()
+    // Preserve local write order; the store's revision also fences other tabs.
+    const save = saveQueueRef.current.then(async () => {
+      revisionRef.current = await saveSiteInspectionDraft(scope, draft, revisionRef.current)
+    })
+    saveQueueRef.current = save.then(() => {}, () => {})
+    return save
+  }, [scope, memoryOnly])
 
   useEffect(() => {
     let active = true
     setDraftReady(false)
     setClientSubmissionId('')
-    void loadSiteInspectionDraft(opportunityId).then((draft) => {
+    setDraftError(null)
+    setStorageUnavailable(false)
+    void loadSiteInspectionDraft(scope).then(({ draft, revision }) => {
       if (!active) return
+      revisionRef.current = revision
       if (draft) {
         setFields(draft.fields)
         setPhotos(draft.photos)
         setUploadedPhotoIds(draft.uploadedPhotoIds)
+        setSubmissionPending(draft.submissionPending === true)
         setClientSubmissionId(draft.clientSubmissionId || crypto.randomUUID())
         setDraftMessage(describeDraftAge(draft.updatedAt))
       } else {
         setClientSubmissionId(crypto.randomUUID())
       }
       setDraftReady(true)
+    }).catch((loadError: unknown) => {
+      if (!active) return
+      setStorageUnavailable(loadError instanceof SiteInspectionDraftStorageError && loadError.code === 'UNAVAILABLE')
+      setDraftError('The saved inspection draft could not be loaded. Check browser storage and retry; existing device evidence was not overwritten.')
     })
     return () => {
       active = false
     }
-  }, [opportunityId])
+  }, [scope, loadAttempt])
 
   useEffect(() => {
     if (typeof navigator !== 'undefined') setOnline(navigator.onLine)
     const handleOnline = () => {
       setOnline(true)
-      setDraftMessage('Connection restored. Your saved report is ready to sync.')
     }
     const handleOffline = () => {
       setOnline(false)
-      setDraftMessage('Offline. Changes are being saved on this device.')
     }
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
@@ -107,23 +160,44 @@ export function InspectionForm({ opportunityId, pprfSubmitted, defaults }: Inspe
   }, [])
 
   useEffect(() => {
-    if (!draftReady || !clientSubmissionId) return
+    if (!memoryOnly) return
+    const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', warnBeforeLeaving)
+    return () => window.removeEventListener('beforeunload', warnBeforeLeaving)
+  }, [memoryOnly])
+
+  useEffect(() => {
+    if (!draftReady || !clientSubmissionId || pending || submitted || submissionPending || photoBusy || memoryOnly) return
+    let active = true
+    const version = editVersionRef.current
     const timer = window.setTimeout(() => {
-      void saveSiteInspectionDraft(opportunityId, {
+      void persistDraft({
         fields,
         photos,
         uploadedPhotoIds,
         clientSubmissionId,
+      }).then(() => {
+        if (!active || version !== editVersionRef.current) return
+        setDraftError(null)
+        setDraftMessage(online ? 'Draft saved on this device.' : 'Saved offline on this device.')
+      }).catch(() => {
+        if (!active) return
+        setDraftMessage(null)
+        setDraftError('Changes could not be saved on this device. Keep this page open. Check browser storage, or reload if the draft changed in another tab.')
       })
-      setDraftMessage(online ? 'Draft saved on this device.' : 'Saved offline on this device.')
     }, 350)
-    return () => window.clearTimeout(timer)
-  }, [clientSubmissionId, draftReady, fields, online, opportunityId, photos, uploadedPhotoIds])
+    return () => { active = false; window.clearTimeout(timer) }
+  }, [clientSubmissionId, draftReady, fields, online, persistDraft, photos, uploadedPhotoIds, pending, submitted, submissionPending, photoBusy, memoryOnly])
 
   function setField<K extends keyof SiteInspectionDraftFields>(
     field: K,
     value: SiteInspectionDraftFields[K],
   ) {
+    editVersionRef.current += 1
+    setDraftMessage(null)
     setFields((current) => ({ ...current, [field]: value }))
     setError(null)
     setSuccess(null)
@@ -152,7 +226,11 @@ export function InspectionForm({ opportunityId, pprfSubmitted, defaults }: Inspe
         }
         next.push(await fileToSiteInspectionDraftPhoto(file))
       }
-      if (next.length > 0) setPhotos((current) => [...current, ...next])
+      if (next.length > 0) {
+        editVersionRef.current += 1
+        setDraftMessage(null)
+        setPhotos((current) => [...current, ...next])
+      }
     } catch {
       setError('The photo could not be saved on this device. Try another image.')
     } finally {
@@ -161,23 +239,35 @@ export function InspectionForm({ opportunityId, pprfSubmitted, defaults }: Inspe
   }
 
   function removePhoto(id: string) {
-    setPhotos((current) => current.filter((photo) => photo.id !== id))
+    const removed = photos.find((photo) => photo.id === id)
+    const remaining = photos.filter((photo) => photo.id !== id)
+    setPhotos(remaining)
+    if (removed?.documentId && !remaining.some((photo) => photo.documentId === removed.documentId)) {
+      setUploadedPhotoIds((ids) => ids.filter((documentId) => documentId !== removed.documentId))
+    }
+    editVersionRef.current += 1
+    setDraftMessage(null)
     setError(null)
   }
 
   async function saveDraftNow() {
+    if (!draftReady || inFlightRef.current || submitted || submissionPending || memoryOnly) return
     const submissionId = clientSubmissionId || crypto.randomUUID()
     if (!clientSubmissionId) setClientSubmissionId(submissionId)
-    await saveSiteInspectionDraft(opportunityId, {
-      fields,
-      photos,
-      uploadedPhotoIds,
-      clientSubmissionId: submissionId,
-    })
-    setDraftMessage(online ? 'Draft saved on this device.' : 'Saved offline on this device.')
+    const version = editVersionRef.current
+    try {
+      await persistDraft({ fields, photos, uploadedPhotoIds, clientSubmissionId: submissionId })
+      if (version === editVersionRef.current) {
+        setDraftError(null)
+        setDraftMessage(online ? 'Draft saved on this device.' : 'Saved offline on this device.')
+      }
+    } catch {
+      setDraftMessage(null)
+      setDraftError('Changes could not be saved on this device. Keep this page open. Check browser storage, or reload if the draft changed in another tab.')
+    }
   }
 
-  async function uploadPendingPhotos(): Promise<string[]> {
+  async function uploadPendingPhotos(lifetime: number): Promise<{ documentIds: string[]; draftPhotos: SiteInspectionDraftPhoto[] }> {
     const documentIds = [...uploadedPhotoIds]
     let draftPhotos = photos
     for (const photo of draftPhotos) {
@@ -187,13 +277,17 @@ export function InspectionForm({ opportunityId, pprfSubmitted, defaults }: Inspe
       }
 
       const file = await siteInspectionDraftPhotoToFile(photo)
+      requireCurrentSession(lifetime)
       const body = new FormData()
       body.set('file', file)
+      body.set('expected_actor_id', actorId)
+      body.set('expected_tenant_id', tenantId)
       const response = await fetch(`/api/crm/opportunities/${opportunityId}/inspection-photos`, {
         method: 'POST',
         body,
       })
       const result: unknown = await response.json().catch(() => null)
+      requireCurrentSession(lifetime)
       if (!response.ok || !result || typeof result !== 'object' || !('id' in result)) {
         const message =
           result && typeof result === 'object' && 'error' in result && typeof result.error === 'string'
@@ -202,73 +296,114 @@ export function InspectionForm({ opportunityId, pprfSubmitted, defaults }: Inspe
         throw new Error(message)
       }
       const documentId = result.id
-      if (typeof documentId !== 'string') throw new Error('Photo upload returned an invalid document.')
-      documentIds.push(documentId)
+      if (!z.string().uuid().safeParse(documentId).success || typeof documentId !== 'string') throw new Error('Photo upload returned an invalid document.')
+      if (!documentIds.includes(documentId)) documentIds.push(documentId)
       draftPhotos = draftPhotos.map((currentPhoto) =>
         currentPhoto.id === photo.id ? { ...currentPhoto, documentId } : currentPhoto,
       )
       setPhotos(draftPhotos)
       setUploadedPhotoIds([...documentIds])
-      await saveSiteInspectionDraft(opportunityId, {
+      await persistDraft({
         fields,
         photos: draftPhotos,
         uploadedPhotoIds: documentIds,
         clientSubmissionId,
       })
+      requireCurrentSession(lifetime)
     }
-    return documentIds
+    return { documentIds, draftPhotos }
   }
 
   function onSubmit(formData: FormData) {
     if (inFlightRef.current) return
+    if (!draftReady || submitted || photoBusy) return
     inFlightRef.current = true
     setError(null)
     setSuccess(null)
     setArchiveWarning(null)
     const submissionId = clientSubmissionId || crypto.randomUUID()
+    const lifetime = lifetimeRef.current
     setClientSubmissionId(submissionId)
+    // Disabled controls are omitted by native FormData during exact retries.
+    for (const [name, value] of Object.entries(fields)) formData.set(name, value)
     formData.set('client_submission_id', submissionId)
     if (!online) {
-      void saveDraftNow()
-      setDraftMessage('Offline. Report saved; reconnect to sync it.')
       inFlightRef.current = false
+      void saveDraftNow()
       return
     }
 
     startTransition(async () => {
       try {
-        const documentIds = await uploadPendingPhotos()
+        // Durable mode persists before effects; explicit online-only mode keeps
+        // the same command in memory and never claims reload recovery.
+        await persistDraft({ fields, photos, uploadedPhotoIds, clientSubmissionId: submissionId, submissionPending })
+        requireCurrentSession(lifetime)
+        const { documentIds, draftPhotos } = submissionPending
+          ? { documentIds: uploadedPhotoIds, draftPhotos: photos }
+          : await uploadPendingPhotos(lifetime)
+        requireCurrentSession(lifetime)
+        const command = { fields, photos: draftPhotos, uploadedPhotoIds: documentIds, clientSubmissionId: submissionId, submissionPending: true }
+        await persistDraft(command)
+        requireCurrentSession(lifetime)
+        setSubmissionPending(true)
         formData.set('photo_document_ids', JSON.stringify(documentIds))
-        const res = await submitInspection(opportunityId, formData)
+        const res = await submitInspection(opportunityId, formData, { actorId, tenantId })
+        requireCurrentSession(lifetime)
         if (!res.ok) {
           setError(res.error)
-          await saveDraftNow()
-        } else {
-          try {
-            await clearSiteInspectionDraft(opportunityId)
-            setDraftMessage(null)
-          } catch {
-            setDraftMessage('Inspection submitted. The saved device draft could not be cleared.')
+          // A rejected retry does not settle an earlier unknown dispatch.
+          if (res.outcome === 'rejected' && !submissionPending) {
+            await persistDraft({ ...command, submissionPending: false })
+            requireCurrentSession(lifetime)
+            setSubmissionPending(false)
           }
+        } else {
+          const checked = confirmationSchema.safeParse('confirmation' in res ? res.confirmation : null)
+          if (!checked.success || Object.entries({ actorId, tenantId, opportunityId, submissionId }).some(([key, value]) => checked.data[key as keyof typeof checked.data].toLowerCase() !== value.toLowerCase())) {
+            throw new Error('The inspection acknowledgement did not match this saved report. Retry the unchanged report to confirm its outcome.')
+          }
+          setSubmitted(true)
           setSuccess(
             res.replayed
               ? 'This inspection was already submitted. The existing Design handoff was recovered.'
               : 'Site inspection submitted. The Design handoff was recorded.',
           )
           setArchiveWarning(res.archiveWarning ?? null)
-          setPhotos([])
-          setUploadedPhotoIds([])
-          setClientSubmissionId(crypto.randomUUID())
-          setFields(initialFields(defaults))
+          await finishClearingDraft()
         }
       } catch (submitError) {
+        if (lifetimeRef.current !== lifetime) return
         const message = submitError instanceof Error ? submitError.message : 'Report sync failed.'
         setError(message)
-        await saveDraftNow()
+        // Initial payload and each confirmed receipt were persisted in order.
+        // Re-saving this render's older snapshot would erase upload receipts.
       } finally {
         inFlightRef.current = false
       }
     })
+  }
+
+  async function finishClearingDraft() {
+    if (clearingRef.current) return
+    clearingRef.current = true
+    try {
+      await saveQueueRef.current
+      if (!memoryOnly) revisionRef.current = await clearSiteInspectionDraft(scope, revisionRef.current)
+      setDraftMessage(null)
+      setDraftError(null)
+      setPhotos([])
+      setUploadedPhotoIds([])
+      setClientSubmissionId(crypto.randomUUID())
+      setFields(initialFields(defaults))
+      setSubmitted(false)
+      setSubmissionPending(false)
+    } catch {
+      setDraftMessage(null)
+      setDraftError('Inspection submitted, but the saved device draft could not be cleared. Your evidence was retained; retry clearing it before starting another report.')
+    } finally {
+      clearingRef.current = false
+    }
   }
 
   if (!pprfSubmitted) {
@@ -284,6 +419,8 @@ export function InspectionForm({ opportunityId, pprfSubmitted, defaults }: Inspe
     >
       <input type="hidden" name="client_submission_id" value={clientSubmissionId} />
       <input type="hidden" name="photo_document_ids" value={JSON.stringify(uploadedPhotoIds)} />
+
+      <fieldset className="inspection-fields" disabled={!draftReady || pending || photoBusy || submitted || submissionPending}>
 
       <div className="form-context" role="note">
         <strong>Mobile field report</strong>
@@ -423,7 +560,7 @@ export function InspectionForm({ opportunityId, pprfSubmitted, defaults }: Inspe
                   <img src={photo.dataUrl} alt="" className="photo-thumb" />
                   <span>
                     <strong>{photo.name}</strong>
-                    <small>{photo.documentId ? 'Uploaded and linked' : 'Saved locally; uploads on sync'}</small>
+                    <small>{photo.documentId ? 'Uploaded; attaches when report syncs' : 'Selected on this device; uploads on sync'}</small>
                   </span>
                 </div>
                 <button
@@ -440,8 +577,13 @@ export function InspectionForm({ opportunityId, pprfSubmitted, defaults }: Inspe
         )}
       </div>
 
+      </fieldset>
+
       {draftMessage && <p className="form-help" role="status" aria-live="polite">{draftMessage}</p>}
-      {!online && <p className="form-warning" role="alert">No connection. Keep working; this report will remain on this device until you sync.</p>}
+      {draftError && <p className="form-warning" role="alert">{draftError}</p>}
+      {memoryOnly && <p className="form-warning" role="alert">Online-only report: not saved on this device. Reloading or leaving will lose this report and its photos. Keep this page open until submission is confirmed.</p>}
+      {submissionPending && !submitted && <p className="form-warning" role="alert">Report submission is not yet confirmed. Its exact contents are {memoryOnly ? 'retained in this page' : 'saved'} and locked. Retry the unchanged report to recover the result.</p>}
+      {!online && <p className="form-warning" role="alert">No connection. Check the draft save status before leaving this page; reconnect to sync.</p>}
       <ActionFeedback
         id="inspection-form-status"
         error={error}
@@ -454,20 +596,30 @@ export function InspectionForm({ opportunityId, pprfSubmitted, defaults }: Inspe
       )}
 
       <div className="form-actions">
-        <button type="button" className="secondary-action" onClick={() => void saveDraftNow()}>
+        {!draftReady && draftError && <button type="button" className="secondary-action" onClick={() => setLoadAttempt((value) => value + 1)}>Retry loading draft</button>}
+        {!draftReady && storageUnavailable && online && <button type="button" className="secondary-action" onClick={() => {
+          setMemoryOnly(true)
+          setDraftError(null)
+          setDraftMessage(null)
+          setClientSubmissionId(crypto.randomUUID())
+          setDraftReady(true)
+        }}>Continue online without a saved draft</button>}
+        {submitted && <button type="button" className="secondary-action" disabled={pending} onClick={() => void finishClearingDraft()}>Finish clearing saved draft</button>}
+        <button type="button" className="secondary-action" disabled={!draftReady || pending || photoBusy || submitted || submissionPending || memoryOnly} onClick={() => void saveDraftNow()}>
           Save draft
         </button>
         <button
           type="submit"
-          disabled={pending || photoBusy || !online || !draftReady}
+          disabled={pending || photoBusy || !online || !draftReady || submitted}
           className="primary-action"
         >
-          {!draftReady ? 'Preparing…' : pending ? 'Syncing...' : online && uploadedPhotoIds.length + photos.filter((photo) => !photo.documentId).length > 0 ? 'Sync report and photos' : 'Submit inspection'}
+          {!draftReady ? 'Preparing…' : pending ? 'Syncing...' : submissionPending ? 'Retry report sync' : online && uploadedPhotoIds.length + photos.filter((photo) => !photo.documentId).length > 0 ? 'Sync report and photos' : 'Submit inspection'}
         </button>
       </div>
 
       <style>{`
         .inspection-form { display: flex; flex-direction: column; gap: 14px; }
+        .inspection-fields { display: flex; flex-direction: column; gap: 14px; min-width: 0; padding: 0; margin: 0; border: 0; }
         .form-context { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border-left: 3px solid var(--color-navy-500); background: var(--color-neutral-50); font-size: 13px; color: var(--color-neutral-700); }
         .form-context strong { color: var(--color-navy-800); }
         .form-row { display: flex; flex-direction: column; gap: 6px; }

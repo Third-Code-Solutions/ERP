@@ -225,6 +225,8 @@ export default async function InspectionPage({ params, searchParams }: PageProps
           <div style={{ padding: 16 }}>
             {canSubmit ? (
               <InspectionForm
+                actorId={profile.user.id}
+                tenantId={profile.tenantId}
                 opportunityId={id}
                 pprfSubmitted={pprfSubmitted}
                 defaults={pprfDefaults}
@@ -325,6 +327,8 @@ export default async function InspectionPage({ params, searchParams }: PageProps
                       opportunityId={id}
                       inspectionId={latest.id}
                       submissionId={rfiSubmissionId}
+                      actorId={profile.user.id}
+                      tenantId={profile.tenantId}
                     />
                   ) : (
                     <p className="card-empty" role="note">
