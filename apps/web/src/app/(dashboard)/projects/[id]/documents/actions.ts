@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { can, getUserProfile } from '@third-code-erp/auth'
 import { createSupabaseAdminClient } from '@third-code-erp/auth/server'
 import { db } from '@third-code-erp/database'
-import { documents, scopeItems } from '@third-code-erp/database/schema'
+import { documents, progressClaimDocuments, scopeItems } from '@third-code-erp/database/schema'
 import { and, eq, like } from 'drizzle-orm'
 import { writeAuditLogInTransaction } from '@/lib/audit'
 import {
@@ -26,6 +26,7 @@ const DeleteDocumentSchema = z.object({
 })
 
 class DocumentNotFoundError extends Error {}
+class ClaimEvidenceRetainedError extends Error {}
 
 export async function deleteDocument(formData: FormData): Promise<DeleteResult> {
   const parsed = DeleteDocumentSchema.safeParse({
@@ -98,6 +99,18 @@ export async function deleteDocument(formData: FormData): Promise<DeleteResult> 
 
       if (!doc || !doc.project_id) throw new DocumentNotFoundError()
 
+      // Match Core retention while the document lock excludes new attachments.
+      // Do not lock claims here: attachment commands lock claim before document.
+      const [claimEvidence] = await tx
+        .select({ id: progressClaimDocuments.id })
+        .from(progressClaimDocuments)
+        .where(and(
+          eq(progressClaimDocuments.tenant_id, doc.tenant_id),
+          eq(progressClaimDocuments.document_id, doc.id)
+        ))
+        .limit(1)
+      if (claimEvidence) throw new ClaimEvidenceRetainedError()
+
       const removedScopeItems = await tx
         .delete(scopeItems)
         .where(
@@ -143,6 +156,9 @@ export async function deleteDocument(formData: FormData): Promise<DeleteResult> 
       }
     })
   } catch (error) {
+    if (error instanceof ClaimEvidenceRetainedError) {
+      return { ok: false, error: 'Document is attached to a claim and cannot be deleted' }
+    }
     if (error instanceof DocumentNotFoundError) {
       return { ok: false, error: 'Document not found' }
     }

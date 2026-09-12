@@ -14,6 +14,7 @@ import {
   documentDeleteRequests,
   documentProcessingJobs,
   documents,
+  progressClaimDocuments,
   scopeItems,
   users,
 } from '@third-code-erp/database/schema'
@@ -110,6 +111,21 @@ export class DocumentDeleteService {
         .limit(1)
         .for('update')
       if (!document) throw new NotFoundException('Document not found')
+
+      // Attachment creation holds a share lock on this document through commit.
+      // Read only after taking its update lock so a concurrent append is visible;
+      // do not lock claims here (the append path locks claim before document).
+      const [claimAttachment] = await transaction
+        .select({ id: progressClaimDocuments.id })
+        .from(progressClaimDocuments)
+        .where(and(
+          eq(progressClaimDocuments.document_id, document.id),
+          eq(progressClaimDocuments.tenant_id, authorizedPrincipal.tenantId)
+        ))
+        .limit(1)
+      if (claimAttachment) {
+        throw new ConflictException('Document is attached to a claim and cannot be deleted')
+      }
 
       const processingHistory = await transaction
         .select({ id: documentProcessingJobs.id })
