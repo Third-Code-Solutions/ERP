@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { authenticateRole, type MagicLinkRole } from './helpers/supabase-magic-link'
+import { assertAuthenticatedSmokeReady } from './helpers/authenticated-smoke-readiness'
 
 const RUN_MATRIX = process.env.E2E_SCHEDULE_AUTH === '1'
 const PROJECT_ID = process.env.E2E_PROJECT_ID
@@ -15,7 +16,15 @@ test.describe('normalized project schedule role matrix', () => {
     for (const role of selectedRoles) await test.step(role, async () => {
       const context = await browser.newContext(); let auth: Awaited<ReturnType<typeof authenticateRole>> | null = null
       try {
-        auth = await authenticateRole(context, baseUrl!, role); const page = await context.newPage(); const response = await page.goto(`${baseUrl}/projects/${PROJECT_ID}/schedule`, { waitUntil: 'domcontentloaded' }); expect(response?.status() ?? 0, role).toBeLessThan(500); expect(page.url(), role).not.toMatch(/\/auth\/login/); await expect(page.getByRole('heading', { name: 'Schedule & lookahead' }), role).toBeVisible()
+        auth = await authenticateRole(context, baseUrl!, role)
+        const page = await context.newPage()
+        const route = `/projects/${PROJECT_ID}/schedule`
+        const response = await page.goto(`${baseUrl}${route}`, { waitUntil: 'domcontentloaded' })
+        expect(response?.status() ?? 0, role).toBeGreaterThanOrEqual(200)
+        expect(response?.status() ?? 0, role).toBeLessThan(400)
+        await assertAuthenticatedSmokeReady(page, baseUrl!, route)
+        await expect(page.getByRole('heading', { name: 'Schedule & lookahead' }), role).toBeVisible()
+        await expect(page.getByRole('heading', { name: 'Labour reconciliation', exact: true }), role).toBeVisible()
         const canManage = ['admin', 'owner', 'sd_pm_pe', 'pm'].includes(role)
         if (canManage) { await page.getByText('New schedule task', { exact: true }).click(); await expect(page.getByRole('button', { name: 'Create schedule task' }), role).toBeVisible() } else { await expect(page.getByRole('button', { name: 'Create schedule task' }), role).toHaveCount(0); await expect(page.getByText(/Read-only access/), role).toBeVisible() }
       } finally { try { if (auth) await auth.cleanup() } finally { await context.close() } }
