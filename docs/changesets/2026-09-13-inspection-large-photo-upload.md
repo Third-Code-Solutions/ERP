@@ -37,13 +37,24 @@
   source ESLint, WO-12 contract 97/97, Actionlint, BUILD OPS static invariants.
 - PASSED: independent Astra review after correcting parser cancellation and
   multipart filename normalization. Review is not hosted runtime proof.
-- NOT RUN: full local Web production build, hosted Auth/Storage upload and all-role
-  live journeys. Browser uses controlled boundaries, not a deployed Core service.
+- PASSED (follow-up): full local Next.js production build, including type validation
+  and 112 generated pages. CI exposed a client import through the mixed Auth barrel;
+  the transport now imports the existing `/client` export. Its 22 focused tests pass.
+- NOT RUN: hosted Auth/Storage upload and all-role live journeys. Browser uses
+  controlled boundaries, not a deployed Core service.
 
 ## Release
 
-Not deployed. Parent PR84 replacement CI run34723600911 remains queued at last
-observation. This slice needs its own fresh green CI and exact release verification.
-Production is still gated on Core's missing private Storage credential, pending
-migration/recovery evidence and Supabase preview branch capacity. No environments
-were deleted and no safeguard was disabled. Full ERP roadmap remains incomplete.
+Not deployed. Parent PR84 run34723600911 passed all ten jobs. Initial PR85
+run34724416753 passed its earlier gates but failed Web build on the Auth import;
+the correction requires a fresh green CI run and exact release verification.
+
+The existing production Storage credential was verified against the private
+`documents` bucket and staged on the verified Railway production API service through
+stdin with `--skip-deploys`. The stored value was compared without exposing it;
+the latest deployment ID remained unchanged. This is configuration staging, not
+proof that a running release has loaded the credential or completed an upload.
+
+Pending migration/recovery evidence and Supabase preview branch capacity still
+gate production. No environments were deleted and no safeguard was disabled.
+Full ERP roadmap remains incomplete.

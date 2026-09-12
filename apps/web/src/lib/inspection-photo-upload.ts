@@ -1,6 +1,6 @@
 'use client'
 
-import { createSupabaseBrowserClient } from '@third-code-erp/auth'
+import { createSupabaseBrowserClient } from '@third-code-erp/auth/client'
 import { inspectionPhotoResultSchema } from '@third-code-erp/shared-types'
 import { inspectionPhotoTransportSchema, inspectionPhotoUploadUrl, safeInspectionPhotoFileName } from './inspection-photo-upload-contract'
 

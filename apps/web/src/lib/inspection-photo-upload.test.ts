@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ getSession: vi.fn() }))
-vi.mock('@third-code-erp/auth', () => ({ createSupabaseBrowserClient: () => ({ auth: mocks }) }))
+vi.mock('@third-code-erp/auth/client', () => ({ createSupabaseBrowserClient: () => ({ auth: mocks }) }))
 import { uploadInspectionPhoto } from './inspection-photo-upload'
 
 const scope = { actorId: '11111111-1111-4111-8111-111111111111', tenantId: '22222222-2222-4222-8222-222222222222', opportunityId: '33333333-3333-4333-8333-333333333333' }

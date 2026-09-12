@@ -56,7 +56,7 @@ window.__inspection.mount(JSON.parse(new URL(location.href).searchParams.get('sc
       { find: 'react', replacement: join(process.cwd(), 'node_modules/react') },
       { find: 'react-dom', replacement: join(process.cwd(), 'node_modules/react-dom') },
       { find: '@/app/(dashboard)/crm/opportunities/[id]/proposal/actions', replacement: actions },
-      { find: '@third-code-erp/auth', replacement: auth },
+      { find: '@third-code-erp/auth/client', replacement: auth },
       { find: '@', replacement: join(process.cwd(), 'src') },
     ] }, plugins: [{ name: 'controlled-inspection-action', configureServer(server) {
       server.middlewares.use('/__submit', (request, response) => {
