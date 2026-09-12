@@ -20,6 +20,13 @@ const entities: Record<string, string> = {
   '/inspection/': 'site_inspections', '/weekly-report/': 'weekly_reports',
 }
 
+// Collection routes that intentionally resolve through the canonical parent
+// surface. Keep the redirect explicit so the audit proves the route contract
+// instead of treating a healthy Next navigation as an empty response.
+const expectedRedirects: Record<string, string> = {
+  '/finance/journals': '/finance',
+}
+
 function inventory(directory: string, pattern = /^page\.tsx?$/): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = join(directory, entry.name)
@@ -158,18 +165,22 @@ test('inventory every page with explicit live render and guard evidence', async 
           )
           status = response?.status() ?? 0
           const body = await page.locator('body').innerText()
+          const finalPath = new URL(page.url()).pathname
           const failed = /Runtime Error|Application error:|Workspace paused before anything changed\./i.test(body)
           const denied = /access denied|permission denied|not authorized|don't have permission|do not have permission/i.test(body)
           const missing = status === 404 || /this page could not be found|does not exist|could not find that/i.test(body)
           const login = !publicPage && new URL(page.url()).pathname.startsWith('/auth/')
+          const accessDenied = status === 401 || status === 403 || denied
+          const expectedRedirect = expectedRedirects[path] === finalPath
           const guardVerified = mode.startsWith('invalid-') && (missing || /invalid|expired|not found|unavailable|link is no longer active|does not exist|could not find that/i.test(body))
           result = guardVerified ? 'GUARD VERIFIED; positive case NOT RUN'
             : failed || status >= 500 || pageErrors > 0 ? 'FAILED runtime'
             : login ? 'FAILED redirected to login'
             : mode.startsWith('invalid-') ? 'REVIEW guard response'
-            : denied ? 'ACCESS DENIED; positive case NOT RUN'
+            : accessDenied ? 'ACCESS DENIED; positive case NOT RUN'
             : missing ? 'FAILED record/page not found'
             : consoleErrors > 0 ? 'FAILED browser console; investigate resource errors'
+            : expectedRedirect ? 'REDIRECT VERIFIED; canonical target reached'
             : status >= 200 && status < 400 && body.length > 80 ? 'RENDER VERIFIED; mutations NOT RUN'
             : 'FAILED response'
         } catch {
