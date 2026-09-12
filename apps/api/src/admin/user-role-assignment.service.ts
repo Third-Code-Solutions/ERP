@@ -13,6 +13,7 @@ import {
 import { ConfigService } from '@nestjs/config'
 import {
   userRoleAssignmentRequests,
+  tenants,
   users,
 } from '@third-code-erp/database/schema'
 import {
@@ -21,7 +22,7 @@ import {
   type UserRoleAssignmentCommand,
   type UserRoleAssignmentResult,
 } from '@third-code-erp/shared-types'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { roleHasCapability } from '../auth/capability.guard'
 import type {
   ErpPrincipal,
@@ -51,6 +52,21 @@ function commandHash(
 
 function keyHash(idempotencyKey: string): string {
   return createHash('sha256').update(idempotencyKey).digest('hex')
+}
+
+function isRetryableLockConflict(error: unknown): boolean {
+  const seen = new Set<object>()
+  let current = error
+  while (current && typeof current === 'object' && !seen.has(current)) {
+    seen.add(current)
+    if ('code' in current && (current.code === '55P03' || current.code === '40P01')) return true
+    current = 'cause' in current ? current.cause : undefined
+  }
+  return false
+}
+
+function retryConflict(): ConflictException {
+  return new ConflictException('Another administrative update is in progress. Retry with the same request ID.')
 }
 
 function validateIdempotencyKey(raw: string | undefined): string {
@@ -105,11 +121,15 @@ export class UserRoleAssignmentService {
 
     const requestHash = commandHash(userId, parsedCommand)
     return this.database.client.transaction(async (transaction) => {
+      // Older writers can own an uncommitted idempotency key before waiting
+      // on the audit chain. Bound that mixed-version wait to this transaction.
+      await transaction.execute(sql`select set_config('lock_timeout', '1s', true)`)
       const [membership] = await transaction
         .select({
           tenantId: users.tenant_id,
           role: users.role,
           email: users.email,
+          accountStatus: users.account_status,
         })
         .from(users)
         .where(
@@ -119,16 +139,21 @@ export class UserRoleAssignmentService {
           )
         )
         .limit(1)
-        .for('update')
+        .for('update', { noWait: true })
 
       const actorRole = membership?.role as ErpRole | undefined
       if (
         !membership ||
+        membership.accountStatus !== 'active' ||
         !actorRole ||
         !roleHasCapability(actorRole, 'admin.users')
       ) {
         throw new ForbiddenException()
       }
+      const [tenant] = await transaction.select({ status: tenants.status })
+        .from(tenants).where(eq(tenants.id, membership.tenantId)).limit(1)
+        .for('share', { noWait: true })
+      if (tenant?.status !== 'active') throw new ForbiddenException()
       const authorizedPrincipal: ErpPrincipal = {
         userId: principal.userId,
         tenantId: membership.tenantId,
@@ -136,6 +161,11 @@ export class UserRoleAssignmentService {
         email: membership.email,
       }
       await this.audit.stampActor(transaction, authorizedPrincipal)
+      // Ledger INSERT triggers the tenant audit chain. Never wait on that
+      // chain while holding entity locks in this administrative command.
+      if (!await this.audit.tryLockTenantChain(transaction, authorizedPrincipal.tenantId)) {
+        throw retryConflict()
+      }
 
       const request = await this.claimRequest(
         transaction,
@@ -166,7 +196,7 @@ export class UserRoleAssignmentService {
           )
         )
         .limit(1)
-        .for('update')
+        .for('update', { noWait: true })
       if (!target) throw new NotFoundException('User not found')
 
       const previousRole = target.role as ErpRole
@@ -256,6 +286,9 @@ export class UserRoleAssignmentService {
         },
       })
       return result
+    }).catch((error: unknown) => {
+      if (isRetryableLockConflict(error)) throw retryConflict()
+      throw error
     })
   }
 
