@@ -61,23 +61,61 @@ function importHarness(selectResults: unknown[][], failAudit = false) {
   type InsertRow = typeof projectScheduleTasks.$inferInsert
   let pending: InsertRow[] = []
   let committed: InsertRow[] = []
-  const rows = () => pending.map((row) => ({ ...task(), id: row.id!, taskCode: row.task_code, name: row.name, plannedStart: row.planned_start, plannedFinish: row.planned_finish, predecessorTaskId: row.predecessor_task_id ?? null, plannedLaborMinutes: 0, description: '', source: row.source!, requestHash: row.request_hash, clientRequestId: row.client_request_id }))
-  const insert = vi.fn(() => ({ values: (values: InsertRow[]) => { pending = values; return { returning: async () => rows().map(({ requestHash: _requestHash, clientRequestId: _clientRequestId, ...row }) => row) } } }))
+  const rows = (source = pending) => source.map((row) => ({ ...task(), id: row.id!, taskCode: row.task_code, name: row.name, plannedStart: row.planned_start, plannedFinish: row.planned_finish, predecessorTaskId: row.predecessor_task_id ?? null, plannedLaborMinutes: 0, description: '', source: row.source!, requestHash: row.request_hash, clientRequestId: row.client_request_id }))
+  const batches: InsertRow[][] = []
+  const insert = vi.fn(() => ({ values: (values: InsertRow[]) => ({ returning: async () => {
+    // Model the immediate scope trigger: every predecessor must be visible from
+    // an earlier completed statement, rather than relying on VALUES row order.
+    for (const row of values) if (row.predecessor_task_id && !pending.some((existing) => existing.id === row.predecessor_task_id)) throw new Error('Predecessor is not visible')
+    batches.push(values)
+    pending.push(...values)
+    return rows(values).map(({ requestHash: _requestHash, clientRequestId: _clientRequestId, ...row }) => row)
+  } }) }))
   const client = { select, insert }
   const transaction = vi.fn(async (callback: (tx: typeof client) => Promise<unknown>) => {
     try { const result = await callback(client); committed = [...pending]; return result } catch (error) { pending = []; throw error }
   })
   const audit = { stampActor: vi.fn().mockResolvedValue(undefined), writeSemantic: failAudit ? vi.fn().mockRejectedValue(new Error('audit unavailable')) : vi.fn().mockResolvedValue(undefined) }
   const service = new ProjectScheduleService({ client: { transaction } } as unknown as DatabaseService, audit as unknown as AuditService)
-  return { service, insert, select, audit, predicates, locks, rows, committed: () => committed }
+  return { service, insert, select, audit, predicates, locks, rows, batches, committed: () => committed }
 }
 
 describe('legacy L1 schedule import', () => {
+  it('inserts forward predecessor chains in visible layers but returns stable source order', async () => {
+    const tasks = [
+      { ...legacyTasks[0]!, name: 'Third', predecessor_index: 2 },
+      { ...legacyTasks[0]!, name: 'First', predecessor_index: null },
+      { ...legacyTasks[0]!, name: 'Second', predecessor_index: 1 },
+      { ...legacyTasks[0]!, name: 'Independent', predecessor_index: null },
+    ]
+    const probe = importHarness([membership, project, [{ ...legacySource, tasks }], []])
+    const result = await probe.service.importLegacy(PROJECT_ID, { sourceScheduleId: REQUEST_ID }, PRINCIPAL)
+    expect(probe.batches.map((batch) => batch.map((row) => row.task_code))).toEqual([['L1-002', 'L1-004'], ['L1-003'], ['L1-001']])
+    expect(result.rows.map((row) => row.taskCode)).toEqual(['L1-001', 'L1-002', 'L1-003', 'L1-004'])
+    expect(result.rows[0]!.predecessorTaskId).toBe(result.rows[2]!.id)
+    expect(result.rows[2]!.predecessorTaskId).toBe(result.rows[1]!.id)
+    const retry = importHarness([membership, project, [{ ...legacySource, tasks }], probe.rows()])
+    await expect(retry.service.importLegacy(PROJECT_ID, { sourceScheduleId: REQUEST_ID }, PRINCIPAL)).resolves.toMatchObject({ created: false, rows: result.rows })
+    expect(retry.insert).not.toHaveBeenCalled()
+  })
+  it('previews only authorized source data and rejects changed content before writing', async () => {
+    const probe = harness([membership, project, [legacySource]])
+    const preview = await probe.service.previewLegacy(PROJECT_ID, PRINCIPAL)
+    expect(preview).toMatchObject({ projectId: PROJECT_ID, sourceScheduleId: REQUEST_ID, tasks: legacyTasks })
+    expect(preview.sourceHash).toMatch(/^[a-f0-9]{64}$/)
+    expect(probe.insert).not.toHaveBeenCalled()
+    const changed = importHarness([membership, project, [{ ...legacySource, tasks: [{ ...legacyTasks[0], name: 'Changed task' }] }]])
+    await expect(changed.service.importLegacy(PROJECT_ID, { sourceScheduleId: REQUEST_ID, sourceHash: preview.sourceHash }, PRINCIPAL)).rejects.toThrow('preview again')
+    expect(changed.insert).not.toHaveBeenCalled()
+    await expect(harness([[{ ...membership[0], role: 'viewer' }]]).service.previewLegacy(PROJECT_ID, PRINCIPAL)).rejects.toBeInstanceOf(ForbiddenException)
+    await expect(harness([membership, []]).service.previewLegacy(PROJECT_ID, PRINCIPAL)).rejects.toBeInstanceOf(NotFoundException)
+    await expect(harness([membership, project, []]).service.previewLegacy(PROJECT_ID, PRINCIPAL)).rejects.toBeInstanceOf(NotFoundException)
+  })
   it('imports one atomic batch with stable identities, predecessors and tenant-qualified source locks', async () => {
     const probe = importHarness([membership, project, [legacySource], []])
     const result = await probe.service.importLegacy(PROJECT_ID, { sourceScheduleId: REQUEST_ID }, PRINCIPAL)
     expect(result).toMatchObject({ created: true, changed: true, sourceScheduleId: REQUEST_ID, rows: [{ taskCode: 'L1-001', source: 'legacy_l1', plannedLaborMinutes: 0 }, { taskCode: 'L1-002', predecessorTaskId: result.rows[0]!.id }] })
-    expect(probe.insert).toHaveBeenCalledTimes(1)
+    expect(probe.insert).toHaveBeenCalledTimes(2)
     expect(probe.audit.writeSemantic).toHaveBeenCalledTimes(3)
     expect(probe.audit.writeSemantic).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ action: 'create', diff: expect.objectContaining({ operation: 'import_to_schedule', task_count: 2 }) }))
     expect(probe.locks).toEqual(['update', 'update', 'update'])
@@ -124,7 +162,7 @@ describe('legacy L1 schedule import', () => {
   it('propagates audit failure through the transaction without committing a partial batch', async () => {
     const probe = importHarness([membership, project, [legacySource], []], true)
     await expect(probe.service.importLegacy(PROJECT_ID, { sourceScheduleId: REQUEST_ID }, PRINCIPAL)).rejects.toThrow('audit unavailable')
-    expect(probe.insert).toHaveBeenCalledTimes(1)
+    expect(probe.insert).toHaveBeenCalledTimes(2)
     expect(probe.committed()).toEqual([])
   })
 })
@@ -135,6 +173,10 @@ describe('ProjectScheduleService', () => {
     await expect(probe.service.create({ projectId: PROJECT_ID, clientRequestId: REQUEST_ID, level: 'l1', taskCode: 'A-001', name: 'Mobilize', description: 'Mobilize site.', parentTaskId: null, predecessorTaskId: null, plannedStart: '2026-09-10', plannedFinish: '2026-09-12', plannedLaborMinutes: 120, ownerId: null, commitmentWeek: null, commitmentStatus: 'not_set', constraintReason: '' }, PRINCIPAL)).resolves.toMatchObject({ created: true, task: { taskCode: 'A-001' } })
     expect(probe.insert).toHaveBeenCalledWith(projectScheduleTasks)
     expect(probe.audit.writeSemantic).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ entityType: 'project_schedule_task', action: 'create' }))
+    const inserted = probe.insert.mock.results[0]!.value.values.mock.calls[0]![0] as { request_hash: string }
+    const retry = harness([membership, project, [{ ...task(), requestHash: inserted.request_hash }]])
+    await expect(retry.service.create({ projectId: PROJECT_ID, clientRequestId: REQUEST_ID, level: 'l1', taskCode: 'A-001', name: 'Mobilize', description: 'Mobilize site.', parentTaskId: null, predecessorTaskId: null, plannedStart: '2026-09-10', plannedFinish: '2026-09-12', plannedLaborMinutes: 120, ownerId: null, commitmentWeek: null, commitmentStatus: 'not_set', constraintReason: '' }, PRINCIPAL)).resolves.toMatchObject({ created: false, task: { id: TASK_ID } })
+    expect(retry.insert).not.toHaveBeenCalled()
   })
 
   it('advances status with optimistic concurrency and blocks stale or unauthorized writes', async () => {

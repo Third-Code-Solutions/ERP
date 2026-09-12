@@ -13,6 +13,8 @@ import {
   importLegacyProjectScheduleCommandSchema,
   importLegacyProjectScheduleResultSchema,
   legacyProjectScheduleTasksSchema,
+  legacyProjectSchedulePreviewSchema,
+  type LegacyProjectSchedulePreview,
   type ImportLegacyProjectScheduleCommand,
   type ImportLegacyProjectScheduleResult,
   projectScheduleListQuerySchema,
@@ -187,7 +189,8 @@ export class ProjectScheduleService {
       const [replay] = await transaction.select({ ...rowSelection, requestHash: projectScheduleTasks.request_hash }).from(projectScheduleTasks).where(and(eq(projectScheduleTasks.tenant_id, authorizedPrincipal.tenantId), eq(projectScheduleTasks.client_request_id, input.clientRequestId))).limit(1).for('update')
       if (replay) {
         if (replay.requestHash !== hash) throw new ConflictException('Client request id was already used with different schedule data')
-        return { projectId: input.projectId, created: false, changed: false, task: serialize(replay as ScheduleTaskDbRow) }
+        const { requestHash: _requestHash, ...task } = replay
+        return { projectId: input.projectId, created: false, changed: false, task: serialize(task) }
       }
       await this.assertDependencies(transaction, authorizedPrincipal.tenantId, input.projectId, input.level, input.parentTaskId, input.predecessorTaskId)
       await this.assertOwner(transaction, authorizedPrincipal.tenantId, input.ownerId)
@@ -200,6 +203,17 @@ export class ProjectScheduleService {
       return { projectId: input.projectId, created: true, changed: true, task }
     })
     return projectScheduleCreateResultSchema.parse(result)
+  }
+
+  async previewLegacy(projectId: string, principal: ErpPrincipal): Promise<LegacyProjectSchedulePreview> {
+    const actor = await this.requireMembership(principal, 'project.schedule.manage')
+    await this.assertProject(projectId, actor)
+    const [source] = await this.database.client.select({ id: masterSchedules.id, tasks: masterSchedules.tasks }).from(masterSchedules).where(and(eq(masterSchedules.project_id, projectId), eq(masterSchedules.tenant_id, actor.tenantId))).orderBy(desc(masterSchedules.imported_at), desc(masterSchedules.id)).limit(1)
+    if (!source) throw new NotFoundException('No legacy L1 schedule exists. Upload one from Project Progress first.')
+    const parsed = legacyProjectScheduleTasksSchema.safeParse(source.tasks)
+    if (!parsed.success) throw new ConflictException(`Legacy schedule is invalid: ${parsed.error.issues.map((issue) => `Row ${Number(issue.path[0]) + 1}: ${issue.message}`).join('; ')}`)
+    const sourceHash = createHash('sha256').update(canonicalJson({ projectId, sourceScheduleId: source.id, tasks: parsed.data })).digest('hex')
+    return legacyProjectSchedulePreviewSchema.parse({ projectId, sourceScheduleId: source.id, sourceHash, tasks: parsed.data })
   }
 
   async importLegacy(projectId: string, command: ImportLegacyProjectScheduleCommand, principal: ErpPrincipal): Promise<ImportLegacyProjectScheduleResult> {
@@ -216,6 +230,7 @@ export class ProjectScheduleService {
       const parsed = legacyProjectScheduleTasksSchema.safeParse(source.tasks)
       if (!parsed.success) throw new ConflictException('Legacy schedule contains invalid tasks; correct the source before importing')
       const hash = createHash('sha256').update(canonicalJson({ projectId, sourceScheduleId: source.id, tasks: parsed.data })).digest('hex')
+      if (input.sourceHash && input.sourceHash !== hash) throw new ConflictException('Legacy schedule changed; preview again before importing')
       const entries = parsed.data.map((task, index) => ({ task, id: legacyTaskIdentity(source.id, index, 'task'), requestId: legacyTaskIdentity(source.id, index, 'request'), code: `L1-${String(index + 1).padStart(3, '0')}` }))
       const existing = await transaction.select({ ...rowSelection, requestHash: projectScheduleTasks.request_hash, clientRequestId: projectScheduleTasks.client_request_id }).from(projectScheduleTasks).where(and(eq(projectScheduleTasks.tenant_id, actor.tenantId), or(inArray(projectScheduleTasks.id, entries.map((entry) => entry.id)), inArray(projectScheduleTasks.client_request_id, entries.map((entry) => entry.requestId)), and(eq(projectScheduleTasks.project_id, projectId), eq(projectScheduleTasks.level, 'l1'), inArray(projectScheduleTasks.task_code, entries.map((entry) => entry.code)))))).for('update')
       if (existing.length > 0) {
@@ -226,12 +241,24 @@ export class ProjectScheduleService {
           return serialize(taskRow)
         }) })
       }
-      const created = await transaction.insert(projectScheduleTasks).values(entries.map(({ task, id, requestId, code }) => ({
-        id, tenant_id: actor.tenantId, project_id: projectId, level: 'l1' as const, task_code: code, name: task.name,
-        planned_start: task.start_date, planned_finish: task.finish_date,
-        predecessor_task_id: task.predecessor_index === null ? null : entries[task.predecessor_index]!.id,
-        source: 'legacy_l1' as const, client_request_id: requestId, request_hash: hash, created_by: actor.userId,
-      }))).returning(rowSelection)
+      const created: ScheduleTaskDbRow[] = []
+      const remaining = new Map(entries.map((entry, index) => [index, entry]))
+      const insertedIndexes = new Set<number>()
+      // The scope trigger reads predecessors before each INSERT. Separate topological
+      // layers guarantee visibility even when the source lists a predecessor later.
+      while (remaining.size > 0) {
+        const layer = [...remaining].filter(([, { task }]) => task.predecessor_index === null || insertedIndexes.has(task.predecessor_index))
+        if (layer.length === 0) throw new ConflictException('Legacy schedule contains a predecessor cycle')
+        const inserted = await transaction.insert(projectScheduleTasks).values(layer.map(([, { task, id, requestId, code }]) => ({
+          id, tenant_id: actor.tenantId, project_id: projectId, level: 'l1' as const, task_code: code, name: task.name,
+          planned_start: task.start_date, planned_finish: task.finish_date,
+          predecessor_task_id: task.predecessor_index === null ? null : entries[task.predecessor_index]!.id,
+          source: 'legacy_l1' as const, client_request_id: requestId, request_hash: hash, created_by: actor.userId,
+        }))).returning(rowSelection)
+        if (inserted.length !== layer.length) throw new InternalServerErrorException('Schedule import did not create every task')
+        created.push(...inserted)
+        for (const [index] of layer) { insertedIndexes.add(index); remaining.delete(index) }
+      }
       if (created.length !== entries.length) throw new InternalServerErrorException('Schedule import did not create every task')
       const rows = entries.map((entry) => {
         const row = created.find((candidate) => candidate.id === entry.id)

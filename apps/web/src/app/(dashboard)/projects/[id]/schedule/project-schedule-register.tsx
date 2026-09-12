@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useEffect, useState } from 'react'
+import { LegacyScheduleImport } from './legacy-schedule-import'
 import type { ProjectScheduleListResult, ProjectScheduleTaskRow, ProjectScheduleTaskStatus, ProjectScheduleCommitmentStatus, ProjectScheduleLevel } from '@third-code-erp/shared-types'
 import { createProjectScheduleTask, updateProjectScheduleTask, updateProjectScheduleTaskStatus, type ProjectScheduleActionState } from './actions'
 
@@ -44,7 +45,11 @@ function TaskRow({ projectId, row, canManage }: { projectId: string; row: Projec
   return <article className="card" style={{ marginBottom: 10 }} aria-labelledby={`schedule-${row.id}`}><div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}><div><h3 id={`schedule-${row.id}`} className="card-title">{row.taskCode} · {row.name}</h3><p className="card-subtitle">{row.level.toUpperCase()} · {row.plannedStart} → {row.plannedFinish} · v{row.version}</p></div><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}><span className="badge">{label(row.status)}</span><span className="badge">{label(row.commitmentStatus)}</span></div></div><div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, padding: '0 16px 12px' }}><div><div className="form-help">Progress</div><div>{row.percentComplete}%</div></div><div><div className="form-help">Labour</div><div>{hours(row.actualLaborMinutes)} / {hours(row.plannedLaborMinutes)}</div></div><div><div className="form-help">Actual dates</div><div>{row.actualStart ?? '—'} → {row.actualFinish ?? '—'}</div></div><div><div className="form-help">Constraint</div><div>{row.constraintReason || '—'}</div></div></div>{canManage && row.status !== 'completed' && row.status !== 'cancelled' ? <div style={{ borderTop: '1px solid var(--color-border)', padding: 14, display: 'grid', gap: 10 }}><EditForm projectId={projectId} row={row} /><StatusForm projectId={projectId} row={row} /></div> : null}</article>
 }
 
-export function ProjectScheduleRegister({ projectId, result, error, canManage, activeLevel, activeStatus }: Props) {
+export function ProjectScheduleRegister(props: Props) {
+  return <>{props.canManage ? <LegacyScheduleImport projectId={props.projectId} /> : null}<ScheduleRegister {...props} /></>
+}
+
+function ScheduleRegister({ projectId, result, error, canManage, activeLevel, activeStatus }: Props) {
   if (error) return <section className="card" role="alert"><div className="card-header"><h2 className="card-title">Schedule & lookahead</h2></div><div className="card-empty">{error}</div></section>
   if (!result) return null
   const hasPrevious = result.page > 1; const hasNext = result.page < result.totalPages

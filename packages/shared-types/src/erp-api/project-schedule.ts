@@ -17,6 +17,7 @@ export const projectScheduleSourceSchema = z.enum(['manual', 'legacy_l1', 'ms_pr
 
 export const importLegacyProjectScheduleCommandSchema = z.object({
   sourceScheduleId: z.string().uuid(),
+  sourceHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
 }).strict()
 
 export const legacyProjectScheduleTasksSchema = z.array(z.object({
@@ -40,6 +41,14 @@ export const legacyProjectScheduleTasksSchema = z.array(z.object({
     }
   })
 })
+
+export const legacyProjectSchedulePreviewSchema = z.object({
+  projectId: z.string().uuid(),
+  sourceScheduleId: z.string().uuid(),
+  sourceHash: z.string().regex(/^[a-f0-9]{64}$/),
+  tasks: legacyProjectScheduleTasksSchema,
+}).strict()
+export type LegacyProjectSchedulePreview = z.infer<typeof legacyProjectSchedulePreviewSchema>
 
 export const projectScheduleListQuerySchema = z.object({
   level: projectScheduleLevelSchema.optional(),

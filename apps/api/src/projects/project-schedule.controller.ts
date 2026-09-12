@@ -16,6 +16,7 @@ import {
   createProjectScheduleTaskCommandSchema,
   importLegacyProjectScheduleCommandSchema,
   type ImportLegacyProjectScheduleResult,
+  type LegacyProjectSchedulePreview,
   projectScheduleListQuerySchema,
   projectScheduleTaskStatusCommandSchema,
   updateProjectScheduleTaskCommandSchema,
@@ -30,6 +31,12 @@ import { ProjectScheduleService } from './project-schedule.service'
 @Controller('v1/projects')
 export class ProjectScheduleController {
   constructor(@Inject(ProjectScheduleService) private readonly schedule: ProjectScheduleService) {}
+
+  @Get(':projectId/schedule/legacy-l1/preview')
+  @RequireCapabilities('project.schedule.manage')
+  previewLegacy(@Param('projectId', new ParseUUIDPipe()) projectId: string, @CurrentPrincipal() principal: ErpPrincipal): Promise<LegacyProjectSchedulePreview> {
+    return this.schedule.previewLegacy(projectId, principal)
+  }
 
   @Post(':projectId/schedule/import-legacy-l1')
   @HttpCode(HttpStatus.OK)

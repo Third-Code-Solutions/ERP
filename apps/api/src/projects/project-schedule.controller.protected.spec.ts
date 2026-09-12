@@ -23,7 +23,7 @@ describe('ProjectScheduleController protected boundary', () => {
   afterEach(async () => { await close?.(); close = undefined })
 
   async function harness(role: string) {
-    const service = { importLegacy: vi.fn().mockResolvedValue({}), list: vi.fn().mockResolvedValue({}), create: vi.fn().mockResolvedValue({}), update: vi.fn().mockResolvedValue({}), updateStatus: vi.fn().mockResolvedValue({}) }
+    const service = { previewLegacy: vi.fn().mockResolvedValue({}), importLegacy: vi.fn().mockResolvedValue({}), list: vi.fn().mockResolvedValue({}), create: vi.fn().mockResolvedValue({}), update: vi.fn().mockResolvedValue({}), updateStatus: vi.fn().mockResolvedValue({}) }
     const identity = { verifyAccessToken: vi.fn().mockResolvedValue({ userId: USER_ID }) }
     const database = { client: { select: () => ({ from: () => ({ innerJoin: () => ({ where: () => ({ limit: async () => [{ tenantId: TENANT_ID, role, email: 'demo@example.test', accountStatus: 'active', tenantStatus: 'active' }] }) }) }) }) } }
     const module = await Test.createTestingModule({ controllers: [ProjectScheduleController], providers: [{ provide: ProjectScheduleService, useValue: service }] }).compile()
@@ -39,10 +39,15 @@ describe('ProjectScheduleController protected boundary', () => {
     expect(service.list).toHaveBeenCalled(); expect(service.create).not.toHaveBeenCalled()
     await request(app.getHttpServer()).post(`/v1/projects/${PROJECT_ID}/schedule/import-legacy-l1`).set('Authorization', 'Bearer valid').send({ sourceScheduleId: REQUEST_ID }).expect(403)
     expect(service.importLegacy).not.toHaveBeenCalled()
+    await request(app.getHttpServer()).get(`/v1/projects/${PROJECT_ID}/schedule/legacy-l1/preview`).set('Authorization', 'Bearer valid').expect(403)
+    expect(service.previewLegacy).not.toHaveBeenCalled()
   })
 
   it('permits PM schedule management and keeps status mutation guarded', async () => {
     const { app, service } = await harness('pm')
+    await request(app.getHttpServer()).get(`/v1/projects/${PROJECT_ID}/schedule/legacy-l1/preview`).expect(401)
+    await request(app.getHttpServer()).get(`/v1/projects/${PROJECT_ID}/schedule/legacy-l1/preview`).set('Authorization', 'Bearer valid').expect(200)
+    expect(service.previewLegacy).toHaveBeenCalledWith(PROJECT_ID, expect.objectContaining({ role: 'pm', tenantId: TENANT_ID }))
     await request(app.getHttpServer()).post(`${base}/${TASK_ID}/status`).set('Authorization', 'Bearer valid').send({ expectedVersion: 1, status: 'in_progress', percentComplete: 20, actualStart: '2026-09-10', actualFinish: null, actualLaborMinutes: 30, commitmentWeek: null, commitmentStatus: 'not_set', constraintReason: '' }).expect(200)
     expect(service.updateStatus).toHaveBeenCalledWith(PROJECT_ID, TASK_ID, expect.objectContaining({ status: 'in_progress' }), expect.objectContaining({ role: 'pm' }))
     await request(app.getHttpServer()).post(`/v1/projects/${PROJECT_ID}/schedule/import-legacy-l1`).send({ sourceScheduleId: REQUEST_ID }).expect(401)
