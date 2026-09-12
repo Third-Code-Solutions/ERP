@@ -22,4 +22,12 @@ describe('site inspection mounted authorization projection', () => {
     expect(source).toContain('submissionId={rfiSubmissionId}')
     expect(source).not.toContain("redirect('/crm/accounts?error=forbidden')")
   })
+
+  it('mounts scoped repair controls for latest and earlier unarchived reports', () => {
+    const source = readFileSync(new URL('./page.tsx', import.meta.url), 'utf8')
+    expect(source).toContain("inspections.slice(1).filter(inspection => inspection.status !== 'draft' && !inspection.pdf_document_id)")
+    expect(source).toContain('earlierPendingReports.map(inspection =>')
+    expect(source).toContain('canSubmit ? <InspectionReportRepair opportunityId={id} inspectionId={inspection.id}')
+    expect(source).toContain("canSubmit && latest.status !== 'draft' ? <InspectionReportRepair")
+  })
 })

@@ -19,6 +19,7 @@ import {
 import { getInspectionRfisThroughCoreApi } from '@/lib/erp-core-client'
 import { ProposalSubNav } from '@/components/proposal/sub-nav'
 import { InspectionForm } from '@/components/proposal/inspection-form'
+import { InspectionReportRepair } from '@/components/proposal/inspection-report-repair'
 import { RfiForm } from '@/components/proposal/rfi-form'
 import { InspectionRfiRegister } from './inspection-rfi-register'
 
@@ -99,6 +100,7 @@ export default async function InspectionPage({ params, searchParams }: PageProps
     .orderBy(desc(siteInspections.created_at))
 
   const latest = inspections[0]
+  const earlierPendingReports = inspections.slice(1).filter(inspection => inspection.status !== 'draft' && !inspection.pdf_document_id)
   const rfiSubmissionId = canSubmit && latest ? randomUUID() : null
 
   // For the latest inspection, pull photos. RFI status is read through Core
@@ -225,6 +227,8 @@ export default async function InspectionPage({ params, searchParams }: PageProps
           <div style={{ padding: 16 }}>
             {canSubmit ? (
               <InspectionForm
+                actorId={profile.user.id}
+                tenantId={profile.tenantId}
                 opportunityId={id}
                 pprfSubmitted={pprfSubmitted}
                 defaults={pprfDefaults}
@@ -262,9 +266,11 @@ export default async function InspectionPage({ params, searchParams }: PageProps
                 </div>
                 <div style={{ padding: 16, fontSize: 13 }}>
                   {pdfFile ? (
-                    <p>Inspection PDF: <strong>{pdfFile.file_name ?? 'document'}</strong></p>
+                    <p>Archived report: <a href={`/api/documents/${latest.pdf_document_id}?download=1`}>{pdfFile.file_name ?? 'Download report'}</a></p>
                   ) : (
-                    <p style={{ color: 'var(--color-neutral-500)' }}>PDF not generated yet.</p>
+                    canSubmit && latest.status !== 'draft' ? <InspectionReportRepair
+                      opportunityId={id} inspectionId={latest.id} actorId={profile.user.id} tenantId={profile.tenantId}
+                    /> : <p style={{ color: 'var(--color-neutral-600)' }}>Report archive pending. An authorized inspection submitter can retry.</p>
                   )}
                 </div>
               </div>
@@ -325,6 +331,8 @@ export default async function InspectionPage({ params, searchParams }: PageProps
                       opportunityId={id}
                       inspectionId={latest.id}
                       submissionId={rfiSubmissionId}
+                      actorId={profile.user.id}
+                      tenantId={profile.tenantId}
                     />
                   ) : (
                     <p className="card-empty" role="note">
@@ -339,6 +347,14 @@ export default async function InspectionPage({ params, searchParams }: PageProps
       </div>
 
       <div style={{ marginTop: 18 }}>
+        {earlierPendingReports.length > 0 && <section className="card" aria-label="Earlier reports awaiting archive">
+          <div className="card-header"><h2 className="card-title">Earlier reports awaiting archive ({earlierPendingReports.length})</h2></div>
+          {earlierPendingReports.map(inspection => <div key={inspection.id} style={{ padding: 16, borderTop: '1px solid var(--color-border)' }}>
+            <p>Inspection submitted {inspection.submitted_at?.toLocaleString('en-PH') ?? '—'}</p>
+            {canSubmit ? <InspectionReportRepair opportunityId={id} inspectionId={inspection.id} actorId={profile.user.id} tenantId={profile.tenantId} />
+              : <p>An authorized inspection submitter can retry this report.</p>}
+          </div>)}
+        </section>}
         <InspectionRfiRegister
           opportunityId={id}
           result={rfiRegister}

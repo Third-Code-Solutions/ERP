@@ -1,0 +1,7 @@
+.root { display: grid; gap: 0.75rem; min-width: 0; }
+.message { margin: 0; color: var(--color-neutral-700); line-height: 1.5; overflow-wrap: anywhere; }
+.error { margin: 0; color: var(--color-danger); line-height: 1.5; overflow-wrap: anywhere; }
+.button { justify-self: start; min-height: 44px; max-width: 100%; padding: 0.5rem 1rem; border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-neutral-900); font: inherit; font-weight: 600; cursor: pointer; }
+.button:hover:not(:disabled) { background: var(--color-neutral-100); }
+.button:disabled { opacity: 0.65; cursor: wait; }
+.button:focus-visible { outline: 2px solid var(--color-neutral-900); outline-offset: 3px; }

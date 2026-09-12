@@ -36,7 +36,7 @@ export class InspectionPhotoController {
     @Body(InspectionPhotoPipe) command: InspectionPhotoCommand,
     @CurrentPrincipal() principal: ErpPrincipal
   ): Promise<InspectionPhotoResult> {
-    if (command.opportunityId !== opportunityId) {
+    if (command.opportunityId.toLowerCase() !== opportunityId.toLowerCase()) {
       throw new BadRequestException('Opportunity id does not match the request path')
     }
     return this.photos.create(command, principal)

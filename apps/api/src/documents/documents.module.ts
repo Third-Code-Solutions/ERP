@@ -13,21 +13,32 @@ import { DocuSealWebhookService } from './docuseal-webhook.service'
 import { InspectionPhotoController } from './inspection-photo.controller'
 import { InspectionPhotoPipe } from './inspection-photo.pipe'
 import { InspectionPhotoService } from './inspection-photo.service'
+import { InspectionPhotoStorageService } from './inspection-photo.storage'
 import { PublicSigningController } from './public-signing.controller'
 import { PublicSigningPipe } from './public-signing.pipe'
 import { PublicSigningService } from './public-signing.service'
 import { PublicSigningStorageService } from './public-signing.storage'
+import { ClaimDocumentController } from './claim-document.controller'
+import { ClaimDocumentPipe } from './claim-document.pipe'
+import { ClaimDocumentService } from './claim-document.service'
+import { InspectionReportController } from './inspection-report.controller'
+import { InspectionReportService } from './inspection-report.service'
+import { InspectionReportStorageService } from './inspection-report.storage'
 
 @Module({
   imports: [AuditModule],
   controllers: [
+    ClaimDocumentController,
     DocumentDeleteController,
     DocumentIntakeController,
     DocuSealWebhookController,
     InspectionPhotoController,
+    InspectionReportController,
     PublicSigningController,
   ],
   providers: [
+    ClaimDocumentPipe,
+    ClaimDocumentService,
     DocumentDeletePipe,
     DocumentDeleteService,
     DocumentIntakePipe,
@@ -36,6 +47,9 @@ import { PublicSigningStorageService } from './public-signing.storage'
     DocuSealWebhookService,
     InspectionPhotoPipe,
     InspectionPhotoService,
+    InspectionPhotoStorageService,
+    InspectionReportService,
+    InspectionReportStorageService,
     PublicSigningPipe,
     PublicSigningService,
     PublicSigningStorageService,
@@ -46,9 +60,11 @@ export class DocumentsModule implements NestModule {
     consumer
       .apply(RequestObservabilityMiddleware)
       .forRoutes(
+        ClaimDocumentController,
         DocumentDeleteController,
         DocumentIntakeController,
         InspectionPhotoController,
+        InspectionReportController,
         PublicSigningController
       )
   }

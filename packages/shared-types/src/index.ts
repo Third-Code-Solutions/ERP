@@ -82,6 +82,10 @@ export * from './erp-api/project-closeout-readiness'
 export * from './erp-api/opportunity-tenders'
 export * from './erp-api/rfq-bid-leveling'
 export * from './erp-api/platform-administration'
+export * from './erp-api/claim-documents'
+export * from './erp-api/kyc-artifacts'
+export * from './erp-api/inspection-report'
+
 // BOM calculations exported via './bom' subpath to avoid BasisPoints conflict
 export {
   lineTotal,
