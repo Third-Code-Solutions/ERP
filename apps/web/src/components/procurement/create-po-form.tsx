@@ -187,6 +187,8 @@ export function CreatePoForm({
     >
       <form
         onSubmit={handleSubmit}
+        aria-busy={isPending}
+        aria-describedby={error ? 'create-po-error' : undefined}
         style={{ background: 'white', padding: 'clamp(16px, 3vw, 28px)', maxWidth: '100%' }}
       >
         <input type="hidden" name="idempotency_key" value={idempotencyKey} readOnly />
@@ -376,7 +378,7 @@ export function CreatePoForm({
           </div>
         )}
 
-        {error && <p role="alert" style={{ fontSize: '0.8125rem', color: 'var(--color-danger)', margin: '0 0 12px' }}>{error}</p>}
+        {error && <p id="create-po-error" role="alert" aria-live="assertive" style={{ fontSize: '0.8125rem', color: 'var(--color-danger)', margin: '0 0 12px' }}>{error}</p>}
 
         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
           <button

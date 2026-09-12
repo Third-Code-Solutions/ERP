@@ -7,9 +7,16 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common'
-import { projectScheduleTasks, projects, users } from '@third-code-erp/database/schema'
+import { masterSchedules, projectScheduleTasks, projects, users } from '@third-code-erp/database/schema'
 import {
   createProjectScheduleTaskCommandSchema,
+  importLegacyProjectScheduleCommandSchema,
+  importLegacyProjectScheduleResultSchema,
+  legacyProjectScheduleTasksSchema,
+  legacyProjectSchedulePreviewSchema,
+  type LegacyProjectSchedulePreview,
+  type ImportLegacyProjectScheduleCommand,
+  type ImportLegacyProjectScheduleResult,
   projectScheduleListQuerySchema,
   projectScheduleListResultSchema,
   projectScheduleMutationResultSchema,
@@ -26,7 +33,7 @@ import {
   type UpdateProjectScheduleTaskCommand,
 } from '@third-code-erp/shared-types'
 import { ERP_ROLES, roleHasCapability, type ErpCapability } from '@third-code-erp/shared-types/authorization'
-import { and, asc, count, eq, isNull, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import { AuditService } from '../audit/audit.service'
@@ -108,6 +115,11 @@ function commandHash(command: CreateProjectScheduleTaskCommand): string {
   return createHash('sha256').update(canonicalJson({ action: 'create', command })).digest('hex')
 }
 
+function legacyTaskIdentity(sourceId: string, index: number, purpose: 'task' | 'request'): string {
+  const hash = createHash('sha256').update(`project-schedule:legacy-l1:${sourceId}:${index}:${purpose}`).digest('hex')
+  return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-8${hash.slice(17, 20)}-${hash.slice(20, 32)}`
+}
+
 function serialize(row: ScheduleTaskDbRow): ProjectScheduleTaskRow {
   return projectScheduleTaskRowSchema.parse({
     ...row,
@@ -177,7 +189,8 @@ export class ProjectScheduleService {
       const [replay] = await transaction.select({ ...rowSelection, requestHash: projectScheduleTasks.request_hash }).from(projectScheduleTasks).where(and(eq(projectScheduleTasks.tenant_id, authorizedPrincipal.tenantId), eq(projectScheduleTasks.client_request_id, input.clientRequestId))).limit(1).for('update')
       if (replay) {
         if (replay.requestHash !== hash) throw new ConflictException('Client request id was already used with different schedule data')
-        return { projectId: input.projectId, created: false, changed: false, task: serialize(replay as ScheduleTaskDbRow) }
+        const { requestHash: _requestHash, ...task } = replay
+        return { projectId: input.projectId, created: false, changed: false, task: serialize(task) }
       }
       await this.assertDependencies(transaction, authorizedPrincipal.tenantId, input.projectId, input.level, input.parentTaskId, input.predecessorTaskId)
       await this.assertOwner(transaction, authorizedPrincipal.tenantId, input.ownerId)
@@ -190,6 +203,72 @@ export class ProjectScheduleService {
       return { projectId: input.projectId, created: true, changed: true, task }
     })
     return projectScheduleCreateResultSchema.parse(result)
+  }
+
+  async previewLegacy(projectId: string, principal: ErpPrincipal): Promise<LegacyProjectSchedulePreview> {
+    const actor = await this.requireMembership(principal, 'project.schedule.manage')
+    await this.assertProject(projectId, actor)
+    const [source] = await this.database.client.select({ id: masterSchedules.id, tasks: masterSchedules.tasks }).from(masterSchedules).where(and(eq(masterSchedules.project_id, projectId), eq(masterSchedules.tenant_id, actor.tenantId))).orderBy(desc(masterSchedules.imported_at), desc(masterSchedules.id)).limit(1)
+    if (!source) throw new NotFoundException('No legacy L1 schedule exists. Upload one from Project Progress first.')
+    const parsed = legacyProjectScheduleTasksSchema.safeParse(source.tasks)
+    if (!parsed.success) throw new ConflictException(`Legacy schedule is invalid: ${parsed.error.issues.map((issue) => `Row ${Number(issue.path[0]) + 1}: ${issue.message}`).join('; ')}`)
+    const sourceHash = createHash('sha256').update(canonicalJson({ projectId, sourceScheduleId: source.id, tasks: parsed.data })).digest('hex')
+    return legacyProjectSchedulePreviewSchema.parse({ projectId, sourceScheduleId: source.id, sourceHash, tasks: parsed.data })
+  }
+
+  async importLegacy(projectId: string, command: ImportLegacyProjectScheduleCommand, principal: ErpPrincipal): Promise<ImportLegacyProjectScheduleResult> {
+    const input = importLegacyProjectScheduleCommandSchema.parse(command)
+    return this.database.client.transaction(async (transaction) => {
+      const actor = await this.requireMembershipOn(transaction, principal, 'project.schedule.manage')
+      await this.audit.stampActor(transaction, actor)
+      // The CSV replacement path takes the same project lock before replacing its snapshot.
+      const [project] = await transaction.select({ id: projects.id }).from(projects).where(and(eq(projects.id, projectId), eq(projects.tenant_id, actor.tenantId), isNull(projects.deleted_at))).limit(1).for('update')
+      if (!project) throw new NotFoundException('Project not found')
+      const [source] = await transaction.select({ id: masterSchedules.id, tasks: masterSchedules.tasks }).from(masterSchedules).where(and(eq(masterSchedules.project_id, projectId), eq(masterSchedules.tenant_id, actor.tenantId))).orderBy(desc(masterSchedules.imported_at), desc(masterSchedules.id)).limit(1).for('update')
+      if (!source) throw new NotFoundException('No legacy L1 schedule exists')
+      if (source.id !== input.sourceScheduleId) throw new ConflictException('Legacy schedule changed; refresh before importing')
+      const parsed = legacyProjectScheduleTasksSchema.safeParse(source.tasks)
+      if (!parsed.success) throw new ConflictException('Legacy schedule contains invalid tasks; correct the source before importing')
+      const hash = createHash('sha256').update(canonicalJson({ projectId, sourceScheduleId: source.id, tasks: parsed.data })).digest('hex')
+      if (input.sourceHash && input.sourceHash !== hash) throw new ConflictException('Legacy schedule changed; preview again before importing')
+      const entries = parsed.data.map((task, index) => ({ task, id: legacyTaskIdentity(source.id, index, 'task'), requestId: legacyTaskIdentity(source.id, index, 'request'), code: `L1-${String(index + 1).padStart(3, '0')}` }))
+      const existing = await transaction.select({ ...rowSelection, requestHash: projectScheduleTasks.request_hash, clientRequestId: projectScheduleTasks.client_request_id }).from(projectScheduleTasks).where(and(eq(projectScheduleTasks.tenant_id, actor.tenantId), or(inArray(projectScheduleTasks.id, entries.map((entry) => entry.id)), inArray(projectScheduleTasks.client_request_id, entries.map((entry) => entry.requestId)), and(eq(projectScheduleTasks.project_id, projectId), eq(projectScheduleTasks.level, 'l1'), inArray(projectScheduleTasks.task_code, entries.map((entry) => entry.code)))))).for('update')
+      if (existing.length > 0) {
+        const rows = entries.map((entry) => existing.find((row) => row.id === entry.id))
+        if (existing.length !== entries.length || rows.some((row, index) => !row || row.projectId !== projectId || row.source !== 'legacy_l1' || row.requestHash !== hash || row.clientRequestId !== entries[index]!.requestId)) throw new ConflictException('Schedule import conflicts with existing tasks; no tasks were changed')
+        return importLegacyProjectScheduleResultSchema.parse({ projectId, sourceScheduleId: source.id, created: false, changed: false, rows: rows.map((row) => {
+          const { requestHash: _requestHash, clientRequestId: _clientRequestId, ...taskRow } = row!
+          return serialize(taskRow)
+        }) })
+      }
+      const created: ScheduleTaskDbRow[] = []
+      const remaining = new Map(entries.map((entry, index) => [index, entry]))
+      const insertedIndexes = new Set<number>()
+      // The scope trigger reads predecessors before each INSERT. Separate topological
+      // layers guarantee visibility even when the source lists a predecessor later.
+      while (remaining.size > 0) {
+        const layer = [...remaining].filter(([, { task }]) => task.predecessor_index === null || insertedIndexes.has(task.predecessor_index))
+        if (layer.length === 0) throw new ConflictException('Legacy schedule contains a predecessor cycle')
+        const inserted = await transaction.insert(projectScheduleTasks).values(layer.map(([, { task, id, requestId, code }]) => ({
+          id, tenant_id: actor.tenantId, project_id: projectId, level: 'l1' as const, task_code: code, name: task.name,
+          planned_start: task.start_date, planned_finish: task.finish_date,
+          predecessor_task_id: task.predecessor_index === null ? null : entries[task.predecessor_index]!.id,
+          source: 'legacy_l1' as const, client_request_id: requestId, request_hash: hash, created_by: actor.userId,
+        }))).returning(rowSelection)
+        if (inserted.length !== layer.length) throw new InternalServerErrorException('Schedule import did not create every task')
+        created.push(...inserted)
+        for (const [index] of layer) { insertedIndexes.add(index); remaining.delete(index) }
+      }
+      if (created.length !== entries.length) throw new InternalServerErrorException('Schedule import did not create every task')
+      const rows = entries.map((entry) => {
+        const row = created.find((candidate) => candidate.id === entry.id)
+        if (!row) throw new InternalServerErrorException('Schedule import returned an unexpected task')
+        return serialize(row)
+      })
+      for (const row of rows) await this.audit.writeSemantic(transaction, { tenantId: actor.tenantId, actorId: actor.userId, entityType: 'project_schedule_task', entityId: row.id, action: 'create', diff: { project_id: projectId, source: 'legacy_l1', source_schedule_id: source.id, task_code: row.taskCode, source_hash: hash } })
+      await this.audit.writeSemantic(transaction, { tenantId: actor.tenantId, actorId: actor.userId, entityType: 'master_schedule', entityId: source.id, action: 'create', diff: { operation: 'import_to_schedule', project_id: projectId, task_count: rows.length, task_ids: rows.map((row) => row.id), source_hash: hash } })
+      return importLegacyProjectScheduleResultSchema.parse({ projectId, sourceScheduleId: source.id, created: true, changed: true, rows })
+    })
   }
 
   async update(projectId: string, taskId: string, command: UpdateProjectScheduleTaskCommand, principal: ErpPrincipal): Promise<ProjectScheduleMutationResult> {

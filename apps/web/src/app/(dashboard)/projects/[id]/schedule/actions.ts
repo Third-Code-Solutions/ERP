@@ -4,16 +4,45 @@ import { revalidatePath } from 'next/cache'
 import { can, requireUserProfile } from '@third-code-erp/auth'
 import {
   createProjectScheduleTaskCommandSchema,
+  importLegacyProjectScheduleCommandSchema,
+  type LegacyProjectSchedulePreview,
   projectScheduleTaskStatusCommandSchema,
   updateProjectScheduleTaskCommandSchema,
 } from '@third-code-erp/shared-types'
 import { z } from 'zod'
 import {
   createProjectScheduleTaskThroughCoreApi,
+  previewLegacyProjectScheduleThroughCoreApi,
+  importLegacyProjectScheduleThroughCoreApi,
   mutateProjectScheduleTaskThroughCoreApi,
 } from '@/lib/erp-core-client'
 
 export interface ProjectScheduleActionState { ok: boolean; error?: string; success?: string }
+export interface LegacyScheduleActionState extends ProjectScheduleActionState { preview?: LegacyProjectSchedulePreview }
+
+export async function previewLegacySchedule(_previous: LegacyScheduleActionState, form: FormData): Promise<LegacyScheduleActionState> {
+  const profile = await requireUserProfile().catch(() => null)
+  if (!profile || !can(profile.role, 'project.schedule.manage')) return { ok: false, error: 'You do not have permission to import schedules.' }
+  const projectId = z.string().uuid().safeParse(form.get('projectId'))
+  if (!projectId.success) return { ok: false, error: 'Invalid project identifier.' }
+  const result = await previewLegacyProjectScheduleThroughCoreApi(projectId.data)
+  if (!result.ok || !result.data) return { ok: false, error: result.error ?? 'Preview unavailable.' }
+  if (result.data.projectId !== projectId.data) return { ok: false, error: 'Invalid preview scope.' }
+  return { ok: true, preview: result.data }
+}
+
+export async function importLegacySchedule(_previous: ProjectScheduleActionState, form: FormData): Promise<ProjectScheduleActionState> {
+  const profile = await requireUserProfile().catch(() => null)
+  if (!profile || !can(profile.role, 'project.schedule.manage')) return { ok: false, error: 'You do not have permission to import schedules.' }
+  const projectId = z.string().uuid().safeParse(form.get('projectId'))
+  const command = importLegacyProjectScheduleCommandSchema.safeParse({ sourceScheduleId: form.get('sourceScheduleId'), sourceHash: form.get('sourceHash') })
+  if (!projectId.success || !command.success) return { ok: false, error: 'Preview the stored schedule before importing.' }
+  const result = await importLegacyProjectScheduleThroughCoreApi(projectId.data, command.data)
+  if (!result.ok || !result.data) return { ok: false, error: result.error ?? 'Import failed.' }
+  if (result.data.projectId !== projectId.data || result.data.sourceScheduleId !== command.data.sourceScheduleId || result.data.rows.some((row) => row.projectId !== projectId.data || row.source !== 'legacy_l1')) return { ok: false, error: 'Invalid import scope.' }
+  refresh(projectId.data)
+  return { ok: true, success: result.data.created ? `${result.data.rows.length} L1 tasks imported.` : 'This schedule was already imported. Existing task edits were preserved.' }
+}
 const uuidSchema = z.string().uuid()
 const text = (form: FormData, name: string): string => { const value = form.get(name); return typeof value === 'string' ? value : '' }
 const optional = (form: FormData, name: string): string | null => text(form, name).trim() || null

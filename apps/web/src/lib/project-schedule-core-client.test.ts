@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ createSupabaseServerClient: vi.fn() }))
 vi.mock('@third-code-erp/auth', () => ({ createSupabaseServerClient: mocks.createSupabaseServerClient }))
-import { createProjectScheduleTaskThroughCoreApi, getProjectScheduleThroughCoreApi, mutateProjectScheduleTaskThroughCoreApi } from './erp-core-client'
+import { createProjectScheduleTaskThroughCoreApi, getProjectScheduleThroughCoreApi, mutateProjectScheduleTaskThroughCoreApi, previewLegacyProjectScheduleThroughCoreApi, importLegacyProjectScheduleThroughCoreApi } from './erp-core-client'
 
 const PROJECT_ID = '33333333-3333-4333-8333-333333333333'
 const TASK_ID = '44444444-4444-4444-8444-444444444444'
@@ -20,6 +20,22 @@ describe('project schedule Core client', () => {
     vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ projectId: PROJECT_ID, rows: [TASK], summary: { plannedLaborMinutes: 120, actualLaborMinutes: 0, laborVarianceMinutes: -120, averagePercentComplete: 0, committedCount: 0, notDoneCount: 0 }, total: 1, page: 1, limit: 50, totalPages: 1 }), { status: 200 }))
     await expect(getProjectScheduleThroughCoreApi(PROJECT_ID, { level: 'l1', commitmentStatus: 'not_set' })).resolves.toMatchObject({ ok: true, data: { summary: { plannedLaborMinutes: 120 } } })
     expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/schedule/tasks?level=l1&commitmentStatus=not_set&page=1&limit=50'), expect.objectContaining({ method: 'GET' }))
+  })
+
+  it('requires valid scoped preview and import results, and preserves uncertain retry semantics', async () => {
+    const preview = { projectId: PROJECT_ID, sourceScheduleId: REQUEST_ID, sourceHash: 'a'.repeat(64), tasks: [{ name: 'Mobilize', start_date: '2026-09-10', finish_date: '2026-09-12', predecessor_index: null, planned_pct_curve: [] }] }
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify(preview)))
+    await expect(previewLegacyProjectScheduleThroughCoreApi(PROJECT_ID)).resolves.toMatchObject({ ok: true, data: preview })
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ ...preview, projectId: TASK_ID })))
+    await expect(previewLegacyProjectScheduleThroughCoreApi(PROJECT_ID)).resolves.toMatchObject({ ok: false })
+    const command = { sourceScheduleId: REQUEST_ID, sourceHash: preview.sourceHash }
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ projectId: PROJECT_ID, sourceScheduleId: REQUEST_ID, created: true, changed: true, rows: [{ ...TASK, source: 'legacy_l1' }] })))
+    await expect(importLegacyProjectScheduleThroughCoreApi(PROJECT_ID, command)).resolves.toMatchObject({ ok: true })
+    expect(fetch).toHaveBeenLastCalledWith(expect.stringContaining('/schedule/import-legacy-l1'), expect.objectContaining({ method: 'POST', body: JSON.stringify(command) }))
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ projectId: PROJECT_ID, sourceScheduleId: REQUEST_ID, created: true, changed: true, rows: [{ ...TASK, projectId: TASK_ID, source: 'legacy_l1' }] })))
+    await expect(importLegacyProjectScheduleThroughCoreApi(PROJECT_ID, command)).resolves.toMatchObject({ ok: false })
+    vi.mocked(fetch).mockRejectedValueOnce(new Error('timeout'))
+    await expect(importLegacyProjectScheduleThroughCoreApi(PROJECT_ID, command)).resolves.toMatchObject({ ok: false, error: expect.stringContaining('unconfirmed') })
   })
 
   it('validates task commands and routes create/status mutations', async () => {

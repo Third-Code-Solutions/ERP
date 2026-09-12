@@ -399,6 +399,11 @@ import {
   type ProjectSubmittalDocumentListResult,
   type ProjectSubmittalDocumentUnlinkResult,
   projectScheduleListQuerySchema,
+  legacyProjectSchedulePreviewSchema,
+  importLegacyProjectScheduleCommandSchema,
+  importLegacyProjectScheduleResultSchema,
+  type LegacyProjectSchedulePreview,
+  type ImportLegacyProjectScheduleResult,
   projectScheduleListResultSchema,
   createProjectScheduleTaskCommandSchema,
   projectScheduleCreateResultSchema,
@@ -9410,6 +9415,35 @@ export async function getProjectScheduleThroughCoreApi(
   } catch {
     return { ok: false, status: 503, error: 'ERP Core API is unavailable. Project schedule was not loaded.' }
   }
+}
+
+export async function previewLegacyProjectScheduleThroughCoreApi(projectId: string): Promise<CoreResult<LegacyProjectSchedulePreview>> {
+  if (!z.string().uuid().safeParse(projectId).success) return { ok: false as const, error: 'Invalid project identifier.' }
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+  try {
+    const response = await fetch(`${access.baseUrl}/v1/projects/${projectId}/schedule/legacy-l1/preview`, { headers: { authorization: `Bearer ${access.accessToken}`, 'x-request-id': randomUUID() }, cache: 'no-store', signal: AbortSignal.timeout(10_000) })
+    const body: unknown = await response.json()
+    if (!response.ok) return { ok: false as const, error: z.object({ message: z.string() }).safeParse(body).data?.message ?? 'Legacy schedule preview is unavailable.' }
+    const parsed = legacyProjectSchedulePreviewSchema.safeParse(body)
+    if (!parsed.success || parsed.data.projectId !== projectId) return { ok: false as const, error: 'ERP Core API returned an invalid schedule scope.' }
+    return { ok: true as const, data: parsed.data }
+  } catch { return { ok: false as const, error: 'Legacy preview could not be loaded. Retry preview.' } }
+}
+
+export async function importLegacyProjectScheduleThroughCoreApi(projectId: string, command: unknown): Promise<CoreResult<ImportLegacyProjectScheduleResult>> {
+  const input = importLegacyProjectScheduleCommandSchema.safeParse(command)
+  if (!z.string().uuid().safeParse(projectId).success || !input.success) return { ok: false as const, error: 'Invalid schedule import.' }
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+  try {
+    const response = await fetch(`${access.baseUrl}/v1/projects/${projectId}/schedule/import-legacy-l1`, { method: 'POST', headers: { authorization: `Bearer ${access.accessToken}`, 'content-type': 'application/json', 'x-request-id': randomUUID() }, body: JSON.stringify(input.data), cache: 'no-store', signal: AbortSignal.timeout(10_000) })
+    const body: unknown = await response.json()
+    if (!response.ok) return { ok: false as const, error: z.object({ message: z.string() }).safeParse(body).data?.message ?? 'Schedule import failed.' }
+    const parsed = importLegacyProjectScheduleResultSchema.safeParse(body)
+    if (!parsed.success || parsed.data.projectId !== projectId || parsed.data.sourceScheduleId !== input.data.sourceScheduleId || parsed.data.rows.some((row) => row.projectId !== projectId || row.source !== 'legacy_l1')) return { ok: false as const, error: 'ERP Core API returned an invalid schedule scope.' }
+    return { ok: true as const, data: parsed.data }
+  } catch { return { ok: false as const, error: 'Import outcome is unconfirmed. Retry this import safely to check whether it completed.' } }
 }
 
 /** Creates one normalized schedule task without replacing legacy L1 imports. */

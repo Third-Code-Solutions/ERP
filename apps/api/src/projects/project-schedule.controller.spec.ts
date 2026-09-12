@@ -11,6 +11,14 @@ const REQUEST_ID = '55555555-5555-4555-8555-555555555555'
 const PRINCIPAL = { userId: '11111111-1111-4111-8111-111111111111', tenantId: '22222222-2222-4222-8222-222222222222', role: 'pm' as const, email: 'pm@example.test' }
 
 describe('ProjectScheduleController', () => {
+  it('validates import snapshot identity without accepting actor or tenant fields', async () => {
+    const service = { importLegacy: vi.fn().mockResolvedValue({}) } as unknown as ProjectScheduleService
+    const controller = new ProjectScheduleController(service)
+    for (const body of [{}, { sourceScheduleId: REQUEST_ID, tenantId: PROJECT_ID }, { sourceScheduleId: REQUEST_ID, actorId: PROJECT_ID }]) expect(() => controller.importLegacy(PROJECT_ID, body, PRINCIPAL)).toThrow(BadRequestException)
+    expect(service.importLegacy).not.toHaveBeenCalled()
+    await controller.importLegacy(PROJECT_ID, { sourceScheduleId: REQUEST_ID }, PRINCIPAL)
+    expect(service.importLegacy).toHaveBeenCalledWith(PROJECT_ID, { sourceScheduleId: REQUEST_ID }, PRINCIPAL)
+  })
   it('rejects invalid schedule commands before service invocation', () => {
     const service = { create: vi.fn() } as unknown as ProjectScheduleService
     const controller = new ProjectScheduleController(service)

@@ -15,6 +15,41 @@ export const projectScheduleTaskStatusSchema = z.enum(['planned', 'in_progress',
 export const projectScheduleCommitmentStatusSchema = z.enum(['not_set', 'committed', 'complete', 'not_done'])
 export const projectScheduleSourceSchema = z.enum(['manual', 'legacy_l1', 'ms_project'])
 
+export const importLegacyProjectScheduleCommandSchema = z.object({
+  sourceScheduleId: z.string().uuid(),
+  sourceHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+}).strict()
+
+export const legacyProjectScheduleTasksSchema = z.array(z.object({
+  name: z.string().trim().min(1).max(200),
+  start_date: calendarDateSchema,
+  finish_date: calendarDateSchema,
+  predecessor_index: z.number().int().min(0).nullable(),
+  planned_pct_curve: z.array(z.number().finite().min(0).max(100)).max(1000),
+}).strict()).min(1).max(1000).superRefine((tasks, context) => {
+  tasks.forEach((task, index) => {
+    const fail = (field: string, message: string) => context.addIssue({ code: z.ZodIssueCode.custom, path: [index, field], message })
+    if (task.finish_date < task.start_date) fail('finish_date', 'Finish must follow start.')
+    if (task.predecessor_index !== null && task.predecessor_index >= tasks.length) fail('predecessor_index', 'Predecessor is outside the schedule.')
+    if (task.planned_pct_curve.some((value, position) => position > 0 && value < task.planned_pct_curve[position - 1]!)) fail('planned_pct_curve', 'Planned percentages must be cumulative.')
+    const visited = new Set<number>([index])
+    let predecessor = task.predecessor_index
+    while (predecessor !== null && predecessor < tasks.length) {
+      if (visited.has(predecessor)) { fail('predecessor_index', 'Predecessor cycle detected.'); break }
+      visited.add(predecessor)
+      predecessor = tasks[predecessor]!.predecessor_index
+    }
+  })
+})
+
+export const legacyProjectSchedulePreviewSchema = z.object({
+  projectId: z.string().uuid(),
+  sourceScheduleId: z.string().uuid(),
+  sourceHash: z.string().regex(/^[a-f0-9]{64}$/),
+  tasks: legacyProjectScheduleTasksSchema,
+}).strict()
+export type LegacyProjectSchedulePreview = z.infer<typeof legacyProjectSchedulePreviewSchema>
+
 export const projectScheduleListQuerySchema = z.object({
   level: projectScheduleLevelSchema.optional(),
   status: projectScheduleTaskStatusSchema.optional(),
@@ -130,6 +165,17 @@ export const projectScheduleMutationResultSchema = z.object({
   changed: z.boolean(),
   task: projectScheduleTaskRowSchema,
 }).strict()
+
+export const importLegacyProjectScheduleResultSchema = z.object({
+  projectId: z.string().uuid(),
+  sourceScheduleId: z.string().uuid(),
+  created: z.boolean(),
+  changed: z.boolean(),
+  rows: z.array(projectScheduleTaskRowSchema).min(1).max(1000),
+}).strict()
+
+export type ImportLegacyProjectScheduleCommand = z.infer<typeof importLegacyProjectScheduleCommandSchema>
+export type ImportLegacyProjectScheduleResult = z.infer<typeof importLegacyProjectScheduleResultSchema>
 
 export type ProjectScheduleLevel = z.infer<typeof projectScheduleLevelSchema>
 export type ProjectScheduleTaskStatus = z.infer<typeof projectScheduleTaskStatusSchema>
