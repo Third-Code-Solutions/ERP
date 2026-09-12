@@ -101,22 +101,15 @@ suite('Actual legacy Web document deletion PostgreSQL retention', () => {
     expect(boundary.revalidate).not.toHaveBeenCalled()
   })
 
-  it('commits unreferenced document/derived-scope deletion and semantic audit before Storage cleanup', async () => {
+  it('commits unreferenced document/derived-scope deletion and semantic audit while retaining Storage', async () => {
     const f = await fixture()
-    let atCleanup: Awaited<ReturnType<typeof snapshot>> | undefined
-    boundary.remove.mockImplementation(async () => {
-      // Read on another pool checkout: cleanup can only run after commit.
-      atCleanup = await snapshot(f)
-      return { error: null }
-    })
     expect(await deleteDocument(f.form)).toEqual({ ok: true })
-    // Assert outside cleanup's best-effort catch so failures cannot be swallowed.
-    expect(atCleanup).toBeDefined()
-    expect(atCleanup!.documents).toHaveLength(0)
-    expect(atCleanup!.scope.map((row) => row.id)).toEqual([f.unrelatedScopeId])
-    expect(atCleanup!.attachments).toHaveLength(0)
-    expect(atCleanup!.audit.filter((row) => row.entity_type === 'document' && row.entity_id === f.documentId && row.action === 'delete')).toHaveLength(1)
-    expect(boundary.remove).toHaveBeenCalledExactlyOnceWith([f.storagePath])
+    const after = await snapshot(f)
+    expect(after.documents).toHaveLength(0)
+    expect(after.scope.map((row) => row.id)).toEqual([f.unrelatedScopeId])
+    expect(after.attachments).toHaveLength(0)
+    expect(after.audit.filter((row) => row.entity_type === 'document' && row.entity_id === f.documentId && row.action === 'delete')).toHaveLength(1)
+    expect(boundary.remove).not.toHaveBeenCalled()
     expect(boundary.revalidate).toHaveBeenCalledWith(`/projects/${f.projectId}/documents`)
   })
 

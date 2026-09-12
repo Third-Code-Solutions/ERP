@@ -17,6 +17,8 @@ import {
   documents,
   progressClaimDocuments,
   scopeItems,
+  siteInspectionPhotos,
+  siteInspections,
   users,
 } from '@third-code-erp/database/schema'
 import {
@@ -142,6 +144,31 @@ export class DocumentDeleteService {
         throw new ConflictException('Document is attached to a KYC artifact and cannot be deleted')
       }
 
+      // Immediate inspection FKs take a document key-share lock during append.
+      // Read after acquiring UPDATE so a committing attachment remains visible.
+      const [inspectionPhoto] = await transaction
+        .select({ id: siteInspectionPhotos.id })
+        .from(siteInspectionPhotos)
+        .where(and(
+          eq(siteInspectionPhotos.tenant_id, authorizedPrincipal.tenantId),
+          eq(siteInspectionPhotos.document_id, document.id)
+        ))
+        .limit(1)
+      if (inspectionPhoto) {
+        throw new ConflictException('Document is attached to an inspection and cannot be deleted')
+      }
+      const [inspectionReport] = await transaction
+        .select({ id: siteInspections.id })
+        .from(siteInspections)
+        .where(and(
+          eq(siteInspections.tenant_id, authorizedPrincipal.tenantId),
+          eq(siteInspections.pdf_document_id, document.id)
+        ))
+        .limit(1)
+      if (inspectionReport) {
+        throw new ConflictException('Document is attached to an inspection and cannot be deleted')
+      }
+
       const processingHistory = await transaction
         .select({ id: documentProcessingJobs.id })
         .from(documentProcessingJobs)
@@ -201,7 +228,7 @@ export class DocumentDeleteService {
         diff: {
           project_id: document.projectId,
           derived_scope_items_removed: removedScopeItems.length,
-          storage_cleanup: 'best_effort_after_commit',
+          storage_cleanup: 'retained_pending_generation_fencing',
           idempotency_key_hash: requestHash,
         },
       })

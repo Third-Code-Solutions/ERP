@@ -32,12 +32,12 @@ function service(enabled = false, tenantIds: string[] = []) {
 }
 
 describe('DocumentDeleteService migration boundary', () => {
-  it.each(['claim', 'KYC artifact'])('retains referenced %s evidence before attempting destructive deletion', async (kind) => {
+  it.each(['claim', 'KYC artifact', 'inspection photo', 'inspection report'])('retains referenced %s evidence before attempting destructive deletion', async (kind) => {
     const rows = [
       [{ tenantId: PRINCIPAL.tenantId, role: 'pm', email: PRINCIPAL.email }],
       [{ id: DOCUMENT_ID, documentId: DOCUMENT_ID, requestHash: createHash('sha256').update(JSON.stringify({ action: 'delete', command: { documentId: DOCUMENT_ID } })).digest('hex'), state: 'processing', result: null }],
       [{ id: DOCUMENT_ID, tenantId: PRINCIPAL.tenantId, projectId: null, storagePath: 'synthetic.pdf' }],
-      ...(kind === 'KYC artifact' ? [[]] : []),
+      ...Array.from({ length: ['claim', 'KYC artifact', 'inspection photo', 'inspection report'].indexOf(kind) }, () => []),
       [{ id: '55555555-5555-4555-8555-555555555555' }],
     ]
     const select = vi.fn(() => {
@@ -55,7 +55,7 @@ describe('DocumentDeleteService migration boundary', () => {
     const database = { client: { transaction: async (callback: (transaction: typeof tx) => unknown) => callback(tx) } } as unknown as DatabaseService
     const config = { get: (key: string) => key === 'ERP_DOCUMENT_DELETE_WRITES_ENABLED' ? true : [PRINCIPAL.tenantId] } as unknown as ConfigService
     const audit = { stampActor: vi.fn() } as unknown as AuditService
-    await expect(new DocumentDeleteService(config, database, audit).delete(DOCUMENT_ID, PRINCIPAL, 'evidence-retention')).rejects.toThrow(`Document is attached to a ${kind} and cannot be deleted`)
+    await expect(new DocumentDeleteService(config, database, audit).delete(DOCUMENT_ID, PRINCIPAL, 'evidence-retention')).rejects.toThrow(kind.startsWith('inspection') ? 'Document is attached to an inspection and cannot be deleted' : `Document is attached to a ${kind} and cannot be deleted`)
     expect(remove).not.toHaveBeenCalled()
   })
 
