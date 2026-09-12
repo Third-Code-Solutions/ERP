@@ -13,3 +13,11 @@
 - Deployment remains gated on CI. No production data was mutated during local verification.
 - Extended the existing release role-access matrix within its current eleven authenticated sessions: every role visits the configured project's schedule; import preview visibility follows schedule-management capability (admin, owner and SD/PM/PE among seeded roles). The admin session also verifies procurement stacking and no document overflow at 390px, then restores its viewport. Missing/invalid `E2E_PROJECT_ID` fails before login; no business mutation is submitted. Hosted execution remains pending release verification.
 - PASSED: E2E TypeScript after the role-access extension. Hosted role matrix execution is NOT RUN locally.
+
+## Release evidence
+
+- PR #62 merged as `644434a6a09b40c5d8000a8d4afcdcae9c57a61b`. CI run `34683981671` passed lint, types, unit tests, security, database reproducibility/transaction tests with no skips, build and trusted-PR browser smoke.
+- Production run `34684525034`, attempt 1, deployed Web/API/CAD and passed health/readiness. Web confirmed revision `644434a6a09b`.
+- Production Chromium: 11 expected, 1 unexpected, zero skipped/flaky. The new role test failed before the schedule heading because repository `E2E_PROJECT_ID` referenced a nonexistent project; the independent route inventory successfully rendered the schedule using an existing tenant-scoped record. Full release verification was not green.
+- Read-only Supabase checks verified all eleven demo role profiles belong to `buildops-e2e`, and project `11111111-1111-4111-8111-111111111111` exists there and is not deleted. Added a Production-environment `E2E_PROJECT_ID` override pointing to that controlled fixture; repository-wide settings and business data were unchanged. Previous inherited binding: `60678948-fc79-40bb-8ff3-33aa27f6ad21`. Removing the environment override restores that prior configuration if needed.
+- Attempt 2 reruns the guarded release on the same code SHA. Its final production verification remains pending.
