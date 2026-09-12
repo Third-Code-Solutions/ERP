@@ -423,6 +423,7 @@ import {
   updateProjectScheduleTaskCommandSchema,
   projectScheduleTaskStatusCommandSchema,
   type ProjectScheduleListResult,
+  type ProjectScheduleLevel,
   type ProjectScheduleCreateResult,
   type ProjectScheduleMutationResult,
   projectPerformanceQuerySchema,
@@ -493,6 +494,17 @@ const providerQuotaDecisionSchema = z.object({
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+const projectScheduleLevelOrder: Record<ProjectScheduleLevel, number> = {
+  l1: 0,
+  l2: 1,
+  l3: 2,
+  l4: 3,
+}
+
+function scheduleUuidMatches(left: string, right: string): boolean {
+  return left.toLowerCase() === right.toLowerCase()
+}
 
 export function tenantEnabledForCoreApi(
   tenantId: string,
@@ -9636,7 +9648,22 @@ export async function getProjectScheduleThroughCoreApi(
       return { ok: false, status: response.status, error: body.success ? body.data.message : 'Project schedule is unavailable.' }
     }
     const parsed = projectScheduleListResultSchema.safeParse(rawBody)
-    return parsed.success ? { ok: true, data: parsed.data } : { ok: false, status: 503, error: 'ERP Core API returned an invalid schedule result.' }
+    const rowsMatchQuery = parsed.success && parsed.data.rows.every((row) =>
+      (parsedQuery.data.level === undefined || row.level === parsedQuery.data.level) &&
+      (parsedQuery.data.status === undefined || row.status === parsedQuery.data.status) &&
+      (parsedQuery.data.commitmentStatus === undefined || row.commitmentStatus === parsedQuery.data.commitmentStatus),
+    )
+    if (
+      !parsed.success ||
+      !scheduleUuidMatches(parsed.data.projectId, parsedProjectId.data) ||
+      parsed.data.page !== parsedQuery.data.page ||
+      parsed.data.limit !== parsedQuery.data.limit ||
+      !rowsMatchQuery ||
+      parsed.data.rows.some((row) => !scheduleUuidMatches(row.projectId, parsedProjectId.data))
+    ) {
+      return { ok: false, status: 503, error: 'ERP Core API returned an invalid schedule result.' }
+    }
+    return { ok: true, data: parsed.data }
   } catch {
     return { ok: false, status: 503, error: 'ERP Core API is unavailable. Project schedule was not loaded.' }
   }
@@ -9658,13 +9685,28 @@ export async function getProjectScheduleDependenciesThroughCoreApi(projectId: un
     const body: unknown = await response.json().catch(() => null)
     if (!response.ok) return { ok: false, status: response.status, error: z.object({ message: z.string() }).safeParse(body).data?.message ?? 'Schedule task choices are unavailable.' }
     const result = projectScheduleDependencyResultSchema.safeParse(body)
+    const selected = result.success ? result.data.selected : null
+    const selectedMatchesQuery = selected === null || (
+      input.data.selectedTaskId !== undefined &&
+      scheduleUuidMatches(selected.projectId, project.data) &&
+      scheduleUuidMatches(selected.id, input.data.selectedTaskId) &&
+      (input.data.excludeTaskId === undefined || !scheduleUuidMatches(selected.id, input.data.excludeTaskId))
+    )
+    const rowsMatchQuery = result.success && result.data.rows.every((row) => {
+      const levelEligible = input.data.kind === 'parent'
+        ? projectScheduleLevelOrder[row.level] < projectScheduleLevelOrder[input.data.level]
+        : row.level === input.data.level
+      return scheduleUuidMatches(row.projectId, project.data) &&
+        (input.data.excludeTaskId === undefined || !scheduleUuidMatches(row.id, input.data.excludeTaskId)) &&
+        levelEligible
+    })
     if (
       !result.success ||
-      result.data.projectId !== project.data ||
+      !scheduleUuidMatches(result.data.projectId, project.data) ||
       result.data.kind !== input.data.kind || result.data.level !== input.data.level ||
       result.data.page !== input.data.page || result.data.limit !== input.data.limit ||
-      result.data.rows.some((row) => row.projectId !== project.data || row.id === input.data.excludeTaskId) ||
-      (result.data.selected && (result.data.selected.projectId !== project.data || result.data.selected.id !== input.data.selectedTaskId))
+      !rowsMatchQuery ||
+      !selectedMatchesQuery
     ) {
       return { ok: false, status: 503, error: 'ERP Core API returned invalid schedule task choices.' }
     }
@@ -9877,13 +9919,14 @@ export async function getProjectLabourReconciliationThroughCoreApi(
       }
     }
     const parsed = projectLabourReconciliationResultSchema.safeParse(rawBody)
-    return parsed.success
-      ? { ok: true, data: parsed.data }
-      : {
-          ok: false,
-          status: 503,
-          error: 'ERP Core API returned an invalid labour reconciliation result.',
-        }
+    if (!parsed.success || !scheduleUuidMatches(parsed.data.projectId, parsedProjectId.data)) {
+      return {
+        ok: false,
+        status: 503,
+        error: 'ERP Core API returned an invalid labour reconciliation result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
   } catch {
     return {
       ok: false,
