@@ -1,6 +1,5 @@
 'use server'
 
-import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { and, eq, ne, sql } from 'drizzle-orm'
@@ -17,7 +16,7 @@ import {
   adminUserRoleAssignmentWritesUseCoreApi,
   assignUserRoleThroughCoreApi,
 } from '@/lib/erp-core-client'
-import { ASSIGNABLE_ROLES } from './roles'
+import { ASSIGNABLE_ROLES, type AssignableRole } from './roles'
 
 const createUserSchema = z.object({
   email: z.string().email().max(255),
@@ -160,107 +159,85 @@ export async function createUser(
 const updateRoleSchema = z.object({
   user_id: z.string().uuid(),
   role: z.enum(ASSIGNABLE_ROLES),
+  expected_role: z.enum(ASSIGNABLE_ROLES),
+  client_request_id: z.string().uuid(),
 })
+
+type UpdateUserRoleResult =
+  | { ok: true; role: AssignableRole }
+  | { ok: false; error: string; outcome: 'rejected' | 'unknown' }
 
 export async function updateUserRole(
   formData: FormData
-): Promise<{ error?: string }> {
-  return safe('updateUserRole', async () => {
+): Promise<UpdateUserRoleResult> {
+  let submitted = false
+  try {
     const profile = await requireUserProfile()
     const forbid = guardAdmin(profile.role)
-    if (forbid) return { error: forbid }
+    if (forbid) return { ok: false, error: forbid, outcome: 'rejected' }
 
     const parsed = updateRoleSchema.safeParse({
       user_id: formData.get('user_id'),
       role: formData.get('role'),
+      expected_role: formData.get('expected_role'),
+      client_request_id: formData.get('client_request_id'),
     })
     if (!parsed.success) {
       const first = parsed.error.errors[0]
-      return { error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid'}` }
+      return { ok: false, error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid'}`, outcome: 'rejected' }
     }
-    const { user_id, role } = parsed.data
+    const { user_id, role, expected_role, client_request_id } = parsed.data
 
     // Disallow self-demotion below admin — protects the workspace from
     // being locked out of admin access.
-    if (user_id === profile.user.id && role !== 'admin' && role !== 'owner') {
-      return { error: 'You cannot remove your own admin role.' }
+    if (user_id.toLowerCase() === profile.user.id.toLowerCase() && role !== 'admin' && role !== 'owner') {
+      return { ok: false, error: 'You cannot remove your own admin role.', outcome: 'rejected' }
     }
 
-    const [existing] = await db
-      .select({ id: usersTable.id, role: usersTable.role, email: usersTable.email })
-      .from(usersTable)
-      .where(and(eq(usersTable.id, user_id), eq(usersTable.tenant_id, profile.tenantId)))
-      .limit(1)
-    if (!existing) return { error: 'User not found in this workspace.' }
-    if (existing.role === role) return {}
-
     if (
-      user_id === profile.user.id &&
-      existing.role === 'owner' &&
+      user_id.toLowerCase() === profile.user.id.toLowerCase() &&
+      profile.role === 'owner' &&
       role !== 'owner'
     ) {
-      return { error: 'An owner cannot remove their own owner role.' }
+      return { ok: false, error: 'An owner cannot remove their own owner role.', outcome: 'rejected' }
     }
 
     if (
       profile.role !== 'owner' &&
-      (existing.role === 'owner' || role === 'owner')
+      role === 'owner'
     ) {
-      return { error: 'Only an owner can assign or change the owner role.' }
+      return { ok: false, error: 'Only an owner can assign or change the owner role.', outcome: 'rejected' }
     }
 
-    if (adminUserRoleAssignmentWritesUseCoreApi(profile.tenantId)) {
-      const result = await assignUserRoleThroughCoreApi(
-        user_id,
-        { expectedRole: existing.role, role },
-        randomUUID()
-      )
-      if (!result.ok || !result.data) {
-        return {
-          error: result.error ?? 'User role assignment was not committed.',
-        }
-      }
-      if (
-        result.data.userId !== user_id ||
-        result.data.tenantId !== profile.tenantId ||
-        result.data.role !== role
-      ) {
-        return { error: 'User role assignment returned an invalid tenant scope.' }
-      }
-
-      revalidatePath('/admin/users')
-      revalidatePath(`/admin/users/${user_id}`)
-      return {}
+    if (!adminUserRoleAssignmentWritesUseCoreApi(profile.tenantId)) {
+      return { ok: false, error: 'Core role changes are not enabled for this workspace. No role change was submitted.', outcome: 'rejected' }
     }
 
-    await db
-      .update(usersTable)
-      .set({ role, updated_at: new Date() })
-      .where(
-        and(
-          eq(usersTable.id, user_id),
-          eq(usersTable.tenant_id, profile.tenantId)
-        )
-      )
-
-    try {
-      await writeAuditLog({
-        tenantId: profile.tenantId,
-        actorId: profile.user.id,
-        entityType: 'user',
-        entityId: user_id,
-        action: 'update',
-        diff: { role: { before: existing.role, after: role }, email: existing.email },
-      })
-    } catch (err) {
-
-      console.warn('[admin/users:updateUserRole] audit log failed:', err)
+    // The client keeps this command immutable through uncertain retries. Core
+    // rechecks current authority and owns both the role change and atomic audit.
+    submitted = true
+    const result = await assignUserRoleThroughCoreApi(user_id, { expectedRole: expected_role, role }, client_request_id)
+    if (!result.ok) {
+      return { ok: false, error: result.error, outcome: result.outcome }
+    }
+    if (
+      result.data.userId.toLowerCase() !== user_id.toLowerCase() ||
+      result.data.tenantId.toLowerCase() !== profile.tenantId.toLowerCase() ||
+      result.data.role !== role || result.data.previousRole !== expected_role
+    ) {
+      return { ok: false, error: 'Role change outcome could not be confirmed. Retry the same request.', outcome: 'unknown' }
     }
 
     revalidatePath('/admin/users')
     revalidatePath(`/admin/users/${user_id}`)
-    return {}
-  })
+    return { ok: true, role: result.data.role }
+  } catch {
+    return {
+      ok: false,
+      error: submitted ? 'Role change outcome could not be confirmed. Retry the same request.' : 'Unable to authorize this role change. Refresh and try again.',
+      outcome: submitted ? 'unknown' : 'rejected',
+    }
+  }
 }
 
 const resetPasswordSchema = z.object({

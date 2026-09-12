@@ -575,22 +575,53 @@ export class PlatformAdministrationService {
     principal: PlatformPrincipal
   ): Promise<PlatformInvitationSummary> {
     const invitation = await this.readInvitationRecord(invitationId)
-    await this.checkSupportContext(principal, invitation.tenantId)
-    if (!['pending', 'sent'].includes(invitation.status)) {
-      throw new ConflictException('Only an open invitation can be revoked')
-    }
-    if (invitation.authUserId) {
-      await this.identity.setSuspended(invitation.authUserId, true)
-    }
+    let suspendedUserId: string | undefined
     try {
       await this.database.client.transaction(async (tx) => {
         await this.lockOwner(tx, principal)
-      await this.requireSupportContext(tx, principal, invitation.tenantId)
+        await this.requireSupportContext(tx, principal, invitation.tenantId)
+        // Activation updates the user before the invitation. The preliminary
+        // read only locates this lock; fresh locked records authorize the ban.
+        const [target] = invitation.authUserId
+          ? await tx.select({
+              id: users.id,
+              tenantId: users.tenant_id,
+              email: users.email,
+              accountStatus: users.account_status,
+            }).from(users)
+              .where(and(eq(users.id, invitation.authUserId), eq(users.tenant_id, invitation.tenantId)))
+              .limit(1).for('update', { noWait: true })
+          : []
+        const [current] = await tx.select({
+          id: platformUserInvitations.id,
+          tenantId: platformUserInvitations.tenant_id,
+          authUserId: platformUserInvitations.auth_user_id,
+          email: platformUserInvitations.normalized_email,
+          status: platformUserInvitations.status,
+        }).from(platformUserInvitations)
+          .where(eq(platformUserInvitations.id, invitationId))
+          .limit(1).for('update', { noWait: true })
+        if (!current) throw new NotFoundException('Invitation not found')
+        if (current.tenantId !== invitation.tenantId || current.authUserId !== invitation.authUserId) {
+          throw new ConflictException('Invitation binding changed; refresh before revoking')
+        }
+        if (current.authUserId) {
+          if (!target || target.id !== current.authUserId || target.tenantId !== current.tenantId
+            || target.email.trim().toLowerCase() !== current.email
+            || target.accountStatus !== 'invited' || current.status !== 'sent') {
+            throw new ConflictException('Only a sent invitation for its still-invited user can be revoked')
+          }
+          await this.ensureNotPlatformOwner(tx, target.id)
+          await this.identity.setSuspended(target.id, true)
+          suspendedUserId = target.id
+        } else if (current.status !== 'pending') {
+          throw new ConflictException('Only an unbound pending invitation can be revoked')
+        }
         await tx
           .update(platformUserInvitations)
           .set({ status: 'revoked', revoked_at: new Date() })
-          .where(eq(platformUserInvitations.id, invitationId))
-        if (invitation.authUserId) {
+          .where(and(eq(platformUserInvitations.id, current.id), eq(platformUserInvitations.tenant_id, current.tenantId)))
+        if (current.authUserId) {
           await tx
             .update(users)
             .set({
@@ -600,19 +631,25 @@ export class PlatformAdministrationService {
               status_changed_by: principal.userId,
               updated_at: new Date(),
             })
-            .where(eq(users.id, invitation.authUserId))
+            .where(and(eq(users.id, current.authUserId), eq(users.tenant_id, current.tenantId)))
         }
         await this.writeAudit(tx, principal, {
           action: 'platform.user.invitation_revoke',
           outcome: 'succeeded',
           targetType: 'user_invitation',
           targetId: invitationId,
-          targetTenantId: invitation.tenantId,
+          targetTenantId: current.tenantId,
         })
       })
     } catch (error) {
-      if (invitation.authUserId) {
-        await this.identity.setSuspended(invitation.authUserId, false).catch(() => undefined)
+      // Preserve the existing post-ban compensation contract. A provider
+      // timeout or failed compensation still needs separate reconciliation;
+      // neither is evidence that the remote identity stayed unchanged.
+      if (suspendedUserId) {
+        await this.identity.setSuspended(suspendedUserId, false).catch(() => undefined)
+      }
+      if (['55P03', '40P01'].includes(databaseErrorCode(error) ?? '')) {
+        throw new ConflictException('Invitation is being updated. Refresh and retry revocation.')
       }
       throw error
     }

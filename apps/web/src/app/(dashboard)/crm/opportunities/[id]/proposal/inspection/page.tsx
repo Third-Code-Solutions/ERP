@@ -325,6 +325,8 @@ export default async function InspectionPage({ params, searchParams }: PageProps
                       opportunityId={id}
                       inspectionId={latest.id}
                       submissionId={rfiSubmissionId}
+                      actorId={profile.user.id}
+                      tenantId={profile.tenantId}
                     />
                   ) : (
                     <p className="card-empty" role="note">
