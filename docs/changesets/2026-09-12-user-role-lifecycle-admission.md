@@ -13,7 +13,13 @@ Actor/target UPDATE and tenant SHARE locks use NOWAIT. Nonblocking tenant audit-
 - Dedicated strict TypeScript check including the new integration file passed. API source typecheck and source ESLint passed. Existing ESLint configuration does not cover integration files; no integration lint pass is claimed.
 - Diff whitespace check passed. Synthetic fixtures and their immutable audit evidence remain in the existing disposable loopback database; no cleanup, hosted writes or external Auth calls occurred.
 
-Local runtime was Node 24/pnpm 10 with the existing engine override; required Node 22 CI remains authoritative. The mixed-version test changes deadlock_timeout only inside its synthetic older transaction to make the application's timeout deterministic. It does not prove default detector victim selection or that all repository writers are deadlock-free.
+Local runtime was Node 24/pnpm 10 with the existing engine override; required Node 22 CI remains authoritative. The mixed-version test uses unchanged database timeout settings and accepts only the two valid deadlock-victim outcomes: new-command conflict with unchanged durable state, or old-writer 40P01 with exactly one valid new command and unchanged exact replay. It does not prove that all repository writers are deadlock-free.
+
+### CI test correction
+
+Run 34703171000 failed the initial mixed-version test. That test attempted a privileged `deadlock_timeout` change; a failure before its readiness signal was consumed without waking the peer. Local superuser runs hid this defect. Independently reproduced that ordinary roles cannot set this parameter. The original PID-only blocker check could also mistake a creator foreign-key wait for the intended audit wait.
+
+The corrected test removes that privileged setting, races readiness against peer failure, drains both transactions on exit, and verifies exact Lock/advisory and Lock/transactionid wait edges. Its synthetic older writer references an unlocked creator to avoid the unrelated actor FK lock. No timeout was increased, production code changed or audit assertion disabled. Both disposable local database variants passed 12/12; main independently passed the CLI-equivalent variant and strict integration TypeScript. Fresh CI is required; no production rollout is claimed.
 
 ## Remaining work
 
