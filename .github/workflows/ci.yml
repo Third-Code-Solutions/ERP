@@ -269,6 +269,18 @@ jobs:
           node scripts/assert-vitest-no-skips.mjs
           tmp/database-reproducibility/api-integration-vitest.json
           "API integration tests"
+      - name: Run Web database-backed workflows
+        run: >-
+          pnpm --filter @third-code-erp/web exec vitest run
+          src/lib/management-dashboard.integration.test.ts
+          'src/app/(dashboard)/crm/opportunities/[id]/proposal/change-request-workflow.integration.test.ts'
+          --reporter=json
+          --outputFile="$GITHUB_WORKSPACE/tmp/database-reproducibility/web-integration-vitest.json"
+      - name: Assert every Web database workflow executed
+        run: >-
+          node scripts/assert-vitest-no-skips.mjs
+          tmp/database-reproducibility/web-integration-vitest.json
+          "Web database workflow tests"
       - name: Build and smoke the Nest production container
         shell: bash
         run: |
@@ -322,7 +334,7 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [typecheck, lint, test, build-ops-invariants, database-reproducibility]
+    needs: [typecheck, lint, test, build-ops-invariants, database-reproducibility, claim-document-browser]
     env:
       # Build-time envs. If a repo secret is set, it wins; otherwise placeholders
       # keep CI green. The artifact is just a buildability gate — Vercel runs its
@@ -374,6 +386,72 @@ jobs:
           name: next-build
           path: apps/web/.next/
           retention-days: 1
+
+  claim-document-browser:
+    name: Claim Document Browser Interaction
+    runs-on: ubuntu-latest
+    needs: [actionlint]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: pnpm/action-setup@a15d269cd4658e1107c09f1fabf4cbd7bd1f308a # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install Playwright Chromium
+        working-directory: apps/web
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Avoid an unrelated preinstalled apt source occasionally blocking
+          # Playwright's Linux dependency resolution on hosted runners.
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list \
+            /etc/apt/sources.list.d/google-chrome.sources
+          pnpm exec playwright install --with-deps chromium
+      - name: Run credential-free document, role, offline RFI, billing, QA/QC and authenticated smoke regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          report_path="$GITHUB_WORKSPACE/tmp/claim-document-browser/playwright.json"
+          mkdir -p "$(dirname "$report_path")"
+          pnpm --dir apps/web exec playwright test \
+            e2e/claim-document-attach.spec.ts \
+            e2e/kyc-artifact-workflow.spec.ts \
+            e2e/authenticated-smoke-readiness.spec.ts \
+            e2e/user-role-workflow.spec.ts \
+            e2e/inspection-rfi-offline.spec.ts \
+            e2e/billing-milestone-navigation.spec.ts \
+            e2e/quality-document-handoff.spec.ts \
+            --project=chromium \
+            --workers=1 \
+            --retries=0 \
+            --timeout=30000 \
+            --global-timeout=300000 \
+            --reporter=json > "$report_path"
+          node scripts/assert-playwright-no-skips.mjs \
+            "$report_path" "credential-free browser interactions"
+      - name: Collect document, role, offline RFI, billing and QA/QC browser artifacts
+        if: always()
+        shell: bash
+        run: |
+          set -u
+          artifact_dir="$GITHUB_WORKSPACE/tmp/claim-document-browser"
+          mkdir -p "$artifact_dir"
+          for screenshot in /tmp/erp-claim-document-*.png /tmp/erp-kyc-artifact-*.png /tmp/erp-user-role-*.png /tmp/erp-rfi-offline-*.png /tmp/erp-billing-milestone-*.png /tmp/erp-quality-document-*.png; do
+            if [ -f "$screenshot" ]; then
+              cp "$screenshot" "$artifact_dir/"
+            fi
+          done
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: claim-document-browser
+          path: |
+            tmp/claim-document-browser/
+            apps/web/test-results/
+          retention-days: 7
 
   e2e:
     name: E2E Tests (trusted PR)

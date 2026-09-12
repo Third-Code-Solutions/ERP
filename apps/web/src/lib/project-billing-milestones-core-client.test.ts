@@ -39,6 +39,7 @@ const RESULT = {
 describe('project billing milestone Core client', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
+    vi.clearAllMocks()
     vi.stubEnv('ERP_CORE_API_URL', 'https://core.example.test')
     mocks.createSupabaseServerClient.mockResolvedValue({ auth: { getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: 'token' } } }) } })
     vi.stubGlobal('fetch', vi.fn())
@@ -56,11 +57,49 @@ describe('project billing milestone Core client', () => {
     await expect(getProjectBillingMilestonesThroughCoreApi(PROJECT_ID)).resolves.toMatchObject({ ok: false, status: 503 })
   })
 
+  it.each(['client construction', 'session lookup'])('returns 503 without fetching when %s throws', async (failure) => {
+    if (failure === 'client construction') {
+      mocks.createSupabaseServerClient.mockRejectedValueOnce(new Error('client unavailable'))
+    } else {
+      mocks.createSupabaseServerClient.mockResolvedValueOnce({ auth: { getSession: vi.fn().mockRejectedValueOnce(new Error('session unavailable')) } })
+    }
+
+    await expect(getProjectBillingMilestonesThroughCoreApi(PROJECT_ID)).resolves.toMatchObject({ ok: false, status: 503 })
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
   it('keeps the traceability read canary exact-tenant', () => {
     vi.stubEnv('ERP_PROJECT_BILLING_MILESTONE_READS_VIA_API', 'true')
     vi.stubEnv('ERP_PROJECT_BILLING_MILESTONE_READS_VIA_API_TENANT_IDS', '*')
     expect(projectBillingMilestoneReadsUseCoreApi('22222222-2222-4222-8222-222222222222')).toBe(false)
     vi.stubEnv('ERP_PROJECT_BILLING_MILESTONE_READS_VIA_API_TENANT_IDS', '22222222-2222-4222-8222-222222222222')
     expect(projectBillingMilestoneReadsUseCoreApi('22222222-2222-4222-8222-222222222222')).toBe(true)
+  })
+
+  it.each([
+    ['other project', { projectId: COC_ID }],
+    ['wrong page', { page: 2 }],
+    ['wrong page size', { limit: 10 }],
+    ['invalid page count', { totalPages: 2 }],
+    ['duplicate claims', { rows: [RESULT.rows[0], RESULT.rows[0]], total: 2 }],
+    ['too many rows', { rows: Array.from({ length: 26 }, () => RESULT.rows[0]), total: 26, totalPages: 2 }],
+  ])('rejects %s rather than rendering unbound pagination evidence', async (_label, changes) => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ ...RESULT, ...changes }), { status: 200 }))
+    await expect(getProjectBillingMilestonesThroughCoreApi(PROJECT_ID)).resolves.toMatchObject({ ok: false, status: 503 })
+  })
+
+  it('supports a last page and an empty out-of-range page without inventing rows', async () => {
+    const last = { ...RESULT, page: 2, total: 26, totalPages: 2 }
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify(last), { status: 200 }))
+    await expect(getProjectBillingMilestonesThroughCoreApi(PROJECT_ID, { page: 2, limit: 25 })).resolves.toEqual({ ok: true, data: last })
+    const empty = { ...last, page: 3, rows: [] }
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify(empty), { status: 200 }))
+    await expect(getProjectBillingMilestonesThroughCoreApi(PROJECT_ID, { page: 3, limit: 25 })).resolves.toEqual({ ok: true, data: empty })
+  })
+
+  it.each([{ page: 0 }, { page: 100001 }, { page: ['1', '2'] }, { limit: 101 }])('rejects invalid pagination before access or network use: %j', async (query) => {
+    await expect(getProjectBillingMilestonesThroughCoreApi(PROJECT_ID, query)).resolves.toMatchObject({ ok: false, status: 400 })
+    expect(fetch).not.toHaveBeenCalled()
+    expect(mocks.createSupabaseServerClient).not.toHaveBeenCalled()
   })
 })

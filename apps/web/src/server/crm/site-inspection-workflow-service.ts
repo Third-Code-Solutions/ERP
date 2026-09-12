@@ -14,6 +14,7 @@ import {
   siteInspectionRfis,
   siteInspections,
   slaLogs,
+  tenants,
   users,
 } from '@third-code-erp/database/schema'
 import {
@@ -864,12 +865,22 @@ class DrizzleSiteInspectionWorkflowTransaction
       .where(
         and(
           eq(users.id, principal.userId),
-          eq(users.tenant_id, principal.tenantId)
+          eq(users.tenant_id, principal.tenantId),
+          eq(users.account_status, 'active')
         )
       )
       .limit(1)
       .for('update')
-    return row ?? null
+    if (!row) return null
+    // Actor admission stays first so exact concurrent submissions serialize.
+    // Do not wait on a tenant lifecycle writer while holding the actor lock.
+    const [tenant] = await this.transaction
+      .select({ id: tenants.id })
+      .from(tenants)
+      .where(and(eq(tenants.id, principal.tenantId), eq(tenants.status, 'active')))
+      .limit(1)
+      .for('share', { noWait: true })
+    return tenant ? row : null
   }
 
   async lockCommand(tenantId: string, keyHash: string): Promise<void> {

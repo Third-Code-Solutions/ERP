@@ -132,12 +132,14 @@ test('accepts aliased service import and exported-arrow mounted actions', () => 
   opportunityId: string,
   inspectionId: string,
   formData: FormData,
-) {`,
+  expectedOwner?: unknown,
+): Promise<InspectionRfiActionResult> {`,
     `export const addInspectionRfi = async (
   opportunityId: string,
   inspectionId: string,
   formData: FormData,
-) => {`,
+  expectedOwner?: unknown,
+): Promise<InspectionRfiActionResult> => {`,
     'RFI exported arrow',
   )
   assert.equal(verifyWo12Contract({ root: ROOT, overrides: { [FILES.action]: action } }).mountedActions, 2)
@@ -306,12 +308,36 @@ mutation('rotates inspection UUID before success', FILES.inspectionForm,
   /rotate its UUID exactly once after success/)
 
 mutation('removes RFI synchronous guard', FILES.rfiForm,
-  (s) => replaceOnce(s, 'if (inFlightRef.current) return', 'if (false) return', 'RFI guard'),
+  (s) => replaceOnce(s, 'function onSubmit(formData: FormData) {\n    if (inFlightRef.current) return', 'function onSubmit(formData: FormData) {\n    if (false) return', 'RFI submit guard'),
   /RFI form must single-flight/)
 
+mutation('removes queued RFI retry synchronous guard', FILES.rfiForm,
+  (s) => replaceOnce(s, 'if (inFlightRef.current) return', 'if (false) return', 'RFI retry guard'),
+  /RFI sync must bind/)
+
 mutation('rotates the RFI key on rejection', FILES.rfiForm,
-  (s) => replaceOnce(s, 'if (!result.ok) {', 'setRetryKey(crypto.randomUUID())\n        if (!result.ok) {', 'early RFI rotation'),
+  (s) => replaceOnce(s, 'const failure = readFailure(result)', 'setRetryKey(crypto.randomUUID())\n      const failure = readFailure(result)', 'early RFI rotation'),
   /rotate its key exactly once after success/)
+
+mutation('sends RFI without a durable queue acknowledgement', FILES.rfiForm,
+  (s) => replaceOnce(s, 'await putRfiPending(envelope, revisionRef.current)', 'revisionRef.current', 'missing durable enqueue'),
+  /RFI form must single-flight/)
+
+mutation('sends RFI as the current owner instead of its persisted author', FILES.rfiForm,
+  (s) => replaceOnce(s, 'actorId: stored.scope.actorId', 'actorId: actorId', 'queued owner binding'),
+  /RFI sync must bind/)
+
+mutation('clears RFI before the local acknowledgement transaction completes', FILES.rfiForm,
+  (s) => replaceOnce(s, 'await deleteRfiPending(stored)', 'deleteRfiPending(stored)', 'unawaited cleanup'),
+  /RFI cleanup must commit/)
+
+mutation('sends queued RFI while connectivity is unknown', FILES.rfiForm,
+  (s) => replaceOnce(s, 'if (online !== true)', 'if (online === false)', 'unknown connectivity'),
+  /RFI sync must bind/)
+
+mutation('dispatches an obsolete RFI after a delayed storage read', FILES.rfiForm,
+  (s) => replaceOnce(s, 'if (!isCurrentScope(epoch, expectedScopeKey)) return\n      revisionRef.current = snapshotRevision', 'revisionRef.current = snapshotRevision', 'post-read scope guard'),
+  /RFI sync must bind/)
 
 mutation('removes current-membership authorization', FILES.service,
   (s) => replaceOnce(s, 'const membership = await transaction.lockMembership(principal.data)', 'const membership = principal.data as never', 'membership lock'),
