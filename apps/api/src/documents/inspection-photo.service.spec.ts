@@ -47,6 +47,10 @@ function harness({
     projectId: string | null
     fileName: string
     storagePath: string
+    documentType: string
+    mimeType: string
+    sizeBytes: number
+    description: string
   } | null
 } = {}) {
   const membershipQuery = lockedQuery([
@@ -60,7 +64,7 @@ function harness({
   const existingQuery = lockedQuery(existing ? [existing] : [])
   let selectCount = 0
   const select = vi.fn(() => {
-    return [membershipQuery, opportunityQuery, existingQuery][selectCount++] ?? existingQuery
+    return [membershipQuery, lockedQuery([{ id: PRINCIPAL.tenantId }]), opportunityQuery, existingQuery][selectCount++] ?? existingQuery
   })
   const returning = vi.fn().mockResolvedValue([{ id: DOCUMENT_ID }])
   const values = vi.fn().mockReturnValue({ returning })
@@ -138,6 +142,10 @@ describe('InspectionPhotoService', () => {
         projectId: null,
         fileName: COMMAND.fileName,
         storagePath: COMMAND.storagePath,
+        documentType: 'image',
+        mimeType: COMMAND.mimeType,
+        sizeBytes: COMMAND.sizeBytes,
+        description: COMMAND.caption,
       },
     })
 
