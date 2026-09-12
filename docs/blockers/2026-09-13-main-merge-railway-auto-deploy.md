@@ -1,6 +1,7 @@
 # Main merge would bypass the production release hold
 
-Status: awaiting owner decision; no provider change made.
+Status: production deployment authorized; database recovery evidence remains
+unverified. No provider change made. Routine permission is not the blocker.
 
 Read-only Railway API evidence on 2026-09-13:
 
@@ -25,10 +26,15 @@ connected can deploy production before database/Storage recovery evidence and
 hosted migration preflight are complete. A healthy current `/ready` is not proof
 that the pending source and schema are safe to deploy.
 
-Owner was asked whether to disconnect only the production API GitHub source,
-retaining manual gated promotion, so verified source can merge independently.
-Until answered, do not merge into the watched branch, disconnect sources, delete
-provider branches, increase capacity, apply hosted migrations or deploy.
+The owner subsequently authorized pushing and deploying every verified PR and
+asked that routine permission requests stop. That authorizes release execution,
+but does not supply the database release runbook's required recovery evidence.
+The current ledger is 169/173. Four claim/KYC/WAR migrations remain pending;
+physical backup/PITR, separate Storage recovery and a restored rehearsal have not
+been verified. Available PostgreSQL 17 tools and protected credential names are
+not evidence of recoverability. Do not merge into the watched branch or apply
+those migrations until the technical release gates pass. No further conversational
+approval is needed for the already authorized release once those gates pass.
 
 The two inspection-photo safety commits following #80 are locally verified and
 published on `codex/inspection-photo-evidence`; their final-head CI is separate.
