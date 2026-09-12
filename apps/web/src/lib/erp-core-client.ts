@@ -319,6 +319,7 @@ import {
   type CortexSemanticIndexAccepted,
   type CortexSemanticIndexCommand,
   type CortexSemanticIndexStatus,
+  userRoleAssignmentCommandSchema,
   userRoleAssignmentResultSchema,
   type UserRoleAssignmentCommand,
   type UserRoleAssignmentResult,
@@ -3436,56 +3437,80 @@ export async function updateProjectThroughCoreApi(
   }
 }
 
+export type UserRoleAssignmentCoreResult =
+  | { ok: true; data: UserRoleAssignmentResult }
+  | { ok: false; error: string; outcome: 'rejected' | 'unknown'; status?: number }
+
 export async function assignUserRoleThroughCoreApi(
   userId: string,
   command: UserRoleAssignmentCommand,
   idempotencyKey: string
-): Promise<CoreResult<UserRoleAssignmentResult>> {
-  const access = await getCoreApiAccess()
-  if (!access.ok) return access
+): Promise<UserRoleAssignmentCoreResult> {
+  const parsedUserId = z.string().uuid().safeParse(userId)
+  const parsedCommand = userRoleAssignmentCommandSchema.safeParse(command)
+  const parsedKey = z.string().min(1).max(256)
+    .refine((value) => value.trim().length > 0).safeParse(idempotencyKey)
+  if (!parsedUserId.success || !parsedCommand.success || !parsedKey.success) {
+    return { ok: false, error: 'Invalid user role assignment request.', outcome: 'rejected', status: 400 }
+  }
+  let access: Awaited<ReturnType<typeof getCoreApiAccess>>
+  try {
+    access = await getCoreApiAccess()
+  } catch {
+    return { ok: false, error: 'The session could not be verified. Sign in and retry.', outcome: 'rejected' }
+  }
+  if (!access.ok) return { ...access, outcome: 'rejected' }
+
+  const unknownOutcome = 'The role change outcome could not be confirmed. Retry the same request before making another change.'
 
   try {
     const response = await fetch(
-      `${access.baseUrl}/v1/admin/users/${encodeURIComponent(userId)}/role`,
+      `${access.baseUrl}/v1/admin/users/${parsedUserId.data.toLowerCase()}/role`,
       {
         method: 'PATCH',
         headers: {
           authorization: `Bearer ${access.accessToken}`,
           'content-type': 'application/json',
-          'Idempotency-Key': idempotencyKey,
+          'Idempotency-Key': parsedKey.data,
           'x-request-id': randomUUID(),
         },
-        body: JSON.stringify(command),
+        body: JSON.stringify(parsedCommand.data),
         cache: 'no-store',
         signal: AbortSignal.timeout(10_000),
       }
     )
 
-    const body = (await response.json().catch(() => null)) as
-      | Record<string, unknown>
-      | null
+    const body: unknown = await response.json()
     if (!response.ok) {
-      const message =
-        typeof body?.message === 'string'
-          ? body.message
-          : response.status === 409
-            ? 'User role changed after this form was opened.'
-            : 'User role assignment was not committed.'
-      return { ok: false, error: message, status: response.status }
+      if (![400, 401, 403, 404, 409, 422].includes(response.status)) {
+        return { ok: false, error: unknownOutcome, outcome: 'unknown', status: response.status }
+      }
+      const failure = z.object({ message: z.string() }).safeParse(body)
+      return {
+        ok: false, outcome: 'rejected', status: response.status,
+        error: failure.success ? failure.data.message : 'User role assignment was rejected. Review the current role before trying again.',
+      }
     }
 
     const parsed = userRoleAssignmentResultSchema.safeParse(body)
-    if (!parsed.success) {
+    if (!parsed.success
+      || parsed.data.userId.toLowerCase() !== parsedUserId.data.toLowerCase()
+      || parsed.data.role !== parsedCommand.data.role
+      || parsed.data.previousRole !== parsedCommand.data.expectedRole
+      || (parsed.data.status === 'unchanged') !== (parsedCommand.data.expectedRole === parsedCommand.data.role)) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid user role result.',
+        error: unknownOutcome,
+        outcome: 'unknown',
+        status: response.status,
       }
     }
     return { ok: true, data: parsed.data }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. No user role was changed.',
+      error: unknownOutcome,
+      outcome: 'unknown',
     }
   }
 }
