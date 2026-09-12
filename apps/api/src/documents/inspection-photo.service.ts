@@ -21,6 +21,7 @@ import {
 import { and, eq } from 'drizzle-orm'
 import { ERP_ROLES } from '@third-code-erp/shared-types/authorization'
 import { z } from 'zod'
+import { InspectionPhotoStorageService } from './inspection-photo.storage'
 import { roleHasCapability } from '../auth/capability.guard'
 import type {
   ErpPrincipal,
@@ -39,7 +40,8 @@ function expectedStoragePrefix(tenantId: string, opportunityId: string): string 
 export class InspectionPhotoService {
   constructor(
     @Inject(DatabaseService) private readonly database: DatabaseService,
-    @Inject(AuditService) private readonly audit: AuditService
+    @Inject(AuditService) private readonly audit: AuditService,
+    @Inject(InspectionPhotoStorageService) private readonly storage: Pick<InspectionPhotoStorageService, 'verify'>
   ) {}
 
   async create(
@@ -119,6 +121,7 @@ export class InspectionPhotoService {
         })
       }
 
+      const verified = await this.storage.verify(command)
       const [document] = await transaction
         .insert(documents)
         .values({
@@ -158,6 +161,9 @@ export class InspectionPhotoService {
         action: 'create',
         diff: {
           source: 'site_inspection_photo_core_authority',
+          verified_sha256: verified.sha256,
+          verified_size_bytes: verified.sizeBytes,
+          verified_mime_type: verified.mimeType,
           opportunity_id: opportunity.id,
           project_id: opportunity.projectId,
           size_bytes: command.sizeBytes,

@@ -1,6 +1,6 @@
 import 'reflect-metadata'
 
-import { ForbiddenException } from '@nestjs/common'
+import { ForbiddenException, ServiceUnavailableException } from '@nestjs/common'
 import { documents } from '@third-code-erp/database/schema'
 import { describe, expect, it, vi } from 'vitest'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
@@ -78,18 +78,28 @@ function harness({
     stampActor: vi.fn().mockResolvedValue(undefined),
     writeSemantic: vi.fn().mockResolvedValue(undefined),
   } as unknown as AuditService
+  const storage = { verify: vi.fn().mockResolvedValue({ sha256: 'a'.repeat(64), sizeBytes: COMMAND.sizeBytes, mimeType: COMMAND.mimeType }) }
   return {
     service: new InspectionPhotoService(
       { client: { transaction } } as unknown as DatabaseService,
-      audit
+      audit,
+      storage
     ),
     insert,
     values,
     audit,
+    storage,
   }
 }
 
 describe('InspectionPhotoService', () => {
+  it('does not register missing stored evidence', async () => {
+    const probe = harness()
+    probe.storage.verify.mockRejectedValue(new ServiceUnavailableException('Stored evidence unavailable'))
+    await expect(probe.service.create(COMMAND, PRINCIPAL)).rejects.toBeInstanceOf(ServiceUnavailableException)
+    expect(probe.insert).not.toHaveBeenCalled()
+    expect(probe.audit.writeSemantic).not.toHaveBeenCalled()
+  })
   it('records opportunity evidence and audit in the Core transaction', async () => {
     const probe = harness()
 
@@ -119,6 +129,7 @@ describe('InspectionPhotoService', () => {
         entityType: 'document',
         entityId: DOCUMENT_ID,
         action: 'create',
+        diff: expect.objectContaining({ verified_sha256: 'a'.repeat(64), verified_size_bytes: 1, verified_mime_type: 'image/jpeg' }),
       })
     )
   })
@@ -156,6 +167,7 @@ describe('InspectionPhotoService', () => {
     })
     expect(probe.insert).not.toHaveBeenCalled()
     expect(probe.audit.writeSemantic).not.toHaveBeenCalled()
+    expect(probe.storage.verify).not.toHaveBeenCalled()
   })
 
   it('re-authorizes the persisted role instead of trusting the Web caller', async () => {
