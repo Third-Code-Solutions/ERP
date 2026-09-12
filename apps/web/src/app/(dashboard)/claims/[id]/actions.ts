@@ -25,15 +25,23 @@ import {
   type ErpCapability,
   type AppRole,
 } from '@third-code-erp/auth'
+import {
+  claimDocumentAttachCommandSchema,
+  projectDocumentListQuerySchema,
+  type ProjectDocumentListResult,
+} from '@third-code-erp/shared-types'
 import { db } from '@third-code-erp/database'
 import {
   progressClaims,
-  progressClaimDocuments,
   documents,
   invoices,
 } from '@third-code-erp/database/schema'
 import { writeAuditLog } from '@/lib/audit'
 import { notifyRoles } from '@/lib/operations/notifications'
+import {
+  attachClaimDocumentThroughCoreApi,
+  getProjectDocumentsThroughCoreApi,
+} from '@/lib/erp-core-client'
 
 type ClaimStatus =
   | 'draft'
@@ -56,14 +64,6 @@ function hasAnyCapability(role: AppRole, caps: ErpCapability[]): boolean {
 function hasAnyRole(role: AppRole, allowed: AppRole[]): boolean {
   return allowed.includes(role)
 }
-
-const DOCUMENT_KINDS = ['photo', 'certificate', 'measurement', 'other'] as const
-
-const attachSchema = z.object({
-  document_id: z.string().uuid('document_id must be a UUID'),
-  kind: z.enum(DOCUMENT_KINDS),
-  caption: z.string().max(255).optional(),
-})
 
 function revalidateClaim(claimId: string): void {
   revalidatePath('/claims')
@@ -563,15 +563,20 @@ export async function cancelClaim(
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// attachClaimDocument: insert a row in progress_claim_documents
+// attachClaimDocument: Core-owned append with idempotent request identity
 // ─────────────────────────────────────────────────────────────────────
+
+export type ClaimDocumentAttachActionResult = {
+  error?: string
+  success?: string
+  changed?: boolean
+  outcome?: 'rejected' | 'unknown'
+}
 
 export async function attachClaimDocument(
   claimId: string,
-  documentId: string,
-  kind: 'photo' | 'certificate' | 'measurement' | 'other',
-  caption?: string
-): Promise<{ error?: string }> {
+  command: unknown,
+): Promise<ClaimDocumentAttachActionResult> {
   const profile = await requireUserProfile()
   if (!can(profile.role, 'document.manage')) {
     return {
@@ -579,56 +584,105 @@ export async function attachClaimDocument(
     }
   }
 
-  const parsed = attachSchema.safeParse({
-    document_id: documentId,
-    kind,
-    caption: caption || undefined,
-  })
-  if (!parsed.success) {
-    const first = parsed.error.errors[0]
+  const parsedClaimId = z
+    .string()
+    .uuid('claimId must be a UUID')
+    .transform((value) => value.toLowerCase())
+    .safeParse(claimId)
+  const parsedCommand = claimDocumentAttachCommandSchema.safeParse(command)
+  if (!parsedClaimId.success) {
+    const first = parsedClaimId.error.errors[0]
     return {
       error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}`,
     }
   }
-  const input = parsed.data
+  if (!parsedCommand.success) {
+    const first = parsedCommand.error.errors[0]
+    return {
+      error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}`,
+    }
+  }
 
-  const claim = await loadClaim(claimId, profile.tenantId)
+  const claim = await loadClaim(parsedClaimId.data, profile.tenantId)
   if (!claim) return { error: 'Progress claim not found' }
 
-  const [doc] = await db
-    .select({ id: documents.id })
-    .from(documents)
-    .where(
-      and(eq(documents.id, input.document_id), eq(documents.tenant_id, profile.tenantId))
-    )
-    .limit(1)
-  if (!doc) return { error: 'Document not found in this tenant' }
+  const result = await attachClaimDocumentThroughCoreApi(
+    parsedClaimId.data,
+    parsedCommand.data,
+  )
+  if (!result.ok) {
+    return {
+      error: result.error ?? 'Document attachment was not committed.',
+      outcome: result.status !== undefined && result.status >= 500 ? 'unknown' : 'rejected',
+    }
+  }
+  if (!result.data) {
+    return {
+      error: 'ERP Core API returned no attachment result.',
+      outcome: 'unknown',
+    }
+  }
 
-  const [created] = await db
-    .insert(progressClaimDocuments)
-    .values({
-      tenant_id: profile.tenantId,
-      claim_id: claimId,
-      document_id: input.document_id,
-      kind: input.kind,
-      caption: input.caption,
-      uploaded_by: profile.user.id,
-    })
-    .returning({ id: progressClaimDocuments.id })
+  if (
+    result.data.attachmentId !== parsedCommand.data.clientRequestId ||
+    result.data.tenantId !== profile.tenantId ||
+    result.data.projectId !== claim.project_id ||
+    result.data.claimId !== parsedClaimId.data ||
+    result.data.documentId !== parsedCommand.data.documentId
+  ) {
+    return {
+      error: 'ERP Core API returned an invalid claim document result.',
+      outcome: 'unknown',
+    }
+  }
 
-  await writeAuditLog({
-    tenantId: profile.tenantId,
-    actorId: profile.user.id,
-    entityType: 'progress_claim_document',
-    entityId: created!.id,
-    action: 'create',
-    diff: {
-      claim_id: claimId,
-      document_id: input.document_id,
-      kind: input.kind,
-    },
-  })
+  revalidateClaim(parsedClaimId.data)
+  return {
+    success: result.data.changed ? 'Document attached.' : 'Document already attached.',
+    changed: result.data.changed,
+  }
+}
 
-  revalidateClaim(claimId)
-  return {}
+export async function listClaimDocuments(
+  claimId: string,
+  query: unknown = {},
+): Promise<
+  | { ok: true; data: ProjectDocumentListResult }
+  | { ok: false; error: string }
+> {
+  const profile = await requireUserProfile()
+  if (!can(profile.role, 'document.manage')) {
+    return {
+      ok: false,
+      error: `Forbidden: role "${profile.role}" lacks document.manage permission`,
+    }
+  }
+
+  const parsedClaimId = z
+    .string()
+    .uuid('claimId must be a UUID')
+    .transform((value) => value.toLowerCase())
+    .safeParse(claimId)
+  const parsedQuery = projectDocumentListQuerySchema.safeParse(query)
+  if (!parsedClaimId.success || !parsedQuery.success) {
+    return { ok: false, error: 'Invalid project document request.' }
+  }
+
+  const claim = await loadClaim(parsedClaimId.data, profile.tenantId)
+  if (!claim) return { ok: false, error: 'Progress claim not found' }
+
+  const result = await getProjectDocumentsThroughCoreApi(
+    claim.project_id,
+    parsedQuery.data,
+  )
+  if (!result.ok) {
+    return { ok: false, error: result.error ?? 'Project documents were not loaded.' }
+  }
+  if (!result.data) {
+    return { ok: false, error: 'ERP Core API returned no project document list.' }
+  }
+  if (result.data.projectId !== claim.project_id) {
+    return { ok: false, error: 'ERP Core API returned an invalid project document scope.' }
+  }
+  return { ok: true, data: result.data }
 }

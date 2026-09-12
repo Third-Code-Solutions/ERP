@@ -5,6 +5,8 @@ import { ChangeRequestsController } from './change-requests.controller'
 import { ChangeRequestCreationService } from './change-request-creation.service'
 import { AccountsController } from './accounts.controller'
 import { AccountsService } from './accounts.service'
+import { KycArtifactController } from './kyc-artifact.controller'
+import { KycArtifactService } from './kyc-artifact.service'
 import { OpportunitiesController } from './opportunities.controller'
 import { OpportunitiesService } from './opportunities.service'
 import { OpportunityCreationController } from './opportunity-creation.controller'
@@ -24,6 +26,7 @@ import { OpportunityStageTransitionService } from './opportunity-stage-transitio
     InspectionRfisController,
     ChangeRequestsController,
     AccountsController,
+    KycArtifactController,
     OpportunitiesController,
     OpportunityCreationController,
     OpportunityProjectConversionController,
@@ -33,6 +36,7 @@ import { OpportunityStageTransitionService } from './opportunity-stage-transitio
     InspectionRfisService,
     ChangeRequestCreationService,
     AccountsService,
+    KycArtifactService,
     OpportunitiesService,
     OpportunityCreationService,
     OpportunityCreationPipe,
@@ -49,6 +53,7 @@ export class CrmModule implements NestModule {
         InspectionRfisController,
         ChangeRequestsController,
         AccountsController,
+        KycArtifactController,
         OpportunitiesController,
         OpportunityCreationController,
         OpportunityProjectConversionController
