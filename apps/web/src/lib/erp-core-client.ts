@@ -394,10 +394,13 @@ import {
   projectSubmittalDocumentListResultSchema,
   projectSubmittalDocumentUnlinkCommandSchema,
   projectSubmittalDocumentUnlinkResultSchema,
+  claimDocumentAttachCommandSchema,
+  claimDocumentAttachResultSchema,
   type ProjectDocumentListResult,
   type ProjectSubmittalDocumentLinkResult,
   type ProjectSubmittalDocumentListResult,
   type ProjectSubmittalDocumentUnlinkResult,
+  type ClaimDocumentAttachResult,
   projectScheduleListQuerySchema,
   projectScheduleDependencyQuerySchema,
   projectScheduleDependencyResultSchema,
@@ -9281,6 +9284,75 @@ export async function mutateProjectSubmittalThroughCoreApi(projectId: unknown, s
     return parsed.success ? { ok: true, data: parsed.data } : { ok: false, status: 503, error: 'ERP Core API returned an invalid submittal mutation result.' }
   } catch {
     return { ok: false, status: 503, error: 'ERP Core API is unavailable. Submittal mutation outcome is unconfirmed; refresh before retrying.' }
+  }
+}
+
+/** Attaches an existing project document to a progress claim through Core. */
+export async function attachClaimDocumentThroughCoreApi(
+  claimId: unknown,
+  command: unknown,
+): Promise<CoreResult<ClaimDocumentAttachResult>> {
+  const parsedClaimId = z.string().uuid().transform((value) => value.toLowerCase()).safeParse(claimId)
+  const parsedCommand = claimDocumentAttachCommandSchema.safeParse(command)
+  if (!parsedClaimId.success || !parsedCommand.success) {
+    return {
+      ok: false,
+      status: 400,
+      error: 'Invalid claim document attachment command.',
+    }
+  }
+
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/claims/${encodeURIComponent(parsedClaimId.data)}/documents`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': parsedCommand.data.clientRequestId,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(parsedCommand.data),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      },
+    )
+    const rawBody: unknown = await response.json().catch(() => null)
+    if (!response.ok) {
+      const body = z.object({ message: z.string() }).safeParse(rawBody)
+      const message = response.status >= 500
+        ? 'ERP Core API returned a server error. Attachment outcome is unconfirmed; retry with the same request.'
+        : body.success
+          ? body.data.message
+          : response.status === 403
+            ? 'Forbidden'
+            : response.status === 404
+              ? 'Claim or project document not found.'
+              : response.status === 409
+                ? 'Attachment request conflicts with an existing command or claim state.'
+                : 'Document was not attached to the claim.'
+      return { ok: false, status: response.status, error: message }
+    }
+
+    const parsedResult = claimDocumentAttachResultSchema.safeParse(rawBody)
+    if (!parsedResult.success) {
+      return {
+        ok: false,
+        status: 503,
+        error: 'ERP Core API returned an invalid claim document attachment result.',
+      }
+    }
+    return { ok: true, status: response.status, data: parsedResult.data }
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      error: 'ERP Core API is unavailable. Attachment outcome is unconfirmed; retry with the same request.',
+    }
   }
 }
 

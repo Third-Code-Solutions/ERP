@@ -1,5 +1,6 @@
 import 'reflect-metadata'
 
+import { createHash } from 'node:crypto'
 import { ServiceUnavailableException } from '@nestjs/common'
 import type { ConfigService } from '@nestjs/config'
 import { describe, expect, it, vi } from 'vitest'
@@ -31,6 +32,32 @@ function service(enabled = false, tenantIds: string[] = []) {
 }
 
 describe('DocumentDeleteService migration boundary', () => {
+  it('retains referenced claim evidence before attempting destructive deletion', async () => {
+    const rows = [
+      [{ tenantId: PRINCIPAL.tenantId, role: 'pm', email: PRINCIPAL.email }],
+      [{ id: DOCUMENT_ID, documentId: DOCUMENT_ID, requestHash: createHash('sha256').update(JSON.stringify({ action: 'delete', command: { documentId: DOCUMENT_ID } })).digest('hex'), state: 'processing', result: null }],
+      [{ id: DOCUMENT_ID, tenantId: PRINCIPAL.tenantId, projectId: null, storagePath: 'synthetic.pdf' }],
+      [{ id: '55555555-5555-4555-8555-555555555555' }],
+    ]
+    const select = vi.fn(() => {
+      const response = rows.shift() ?? []
+      const query = { from: vi.fn(), where: vi.fn(), limit: vi.fn(), for: vi.fn() }
+      query.from.mockReturnValue(query)
+      query.where.mockReturnValue(query)
+      query.limit.mockReturnValue(Object.assign(Promise.resolve(response), { for: query.for }))
+      query.for.mockResolvedValue(response)
+      return query
+    })
+    const remove = vi.fn()
+    const tx = { select, delete: remove, insert: vi.fn().mockReturnValue({ values: () => ({ onConflictDoNothing: async () => {} }) }) }
+    // Partial transaction double proves early rejection; integration proves persisted evidence is unchanged.
+    const database = { client: { transaction: async (callback: (transaction: typeof tx) => unknown) => callback(tx) } } as unknown as DatabaseService
+    const config = { get: (key: string) => key === 'ERP_DOCUMENT_DELETE_WRITES_ENABLED' ? true : [PRINCIPAL.tenantId] } as unknown as ConfigService
+    const audit = { stampActor: vi.fn() } as unknown as AuditService
+    await expect(new DocumentDeleteService(config, database, audit).delete(DOCUMENT_ID, PRINCIPAL, 'claim-retention')).rejects.toThrow('Document is attached to a claim and cannot be deleted')
+    expect(remove).not.toHaveBeenCalled()
+  })
+
   it('fails closed by default without touching the database', async () => {
     const probe = service()
     await expect(

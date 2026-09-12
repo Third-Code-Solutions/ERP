@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { progressClaimDocuments } from '@third-code-erp/database/schema'
+import { SQL } from 'drizzle-orm'
+import { PgDialect } from 'drizzle-orm/pg-core'
 
 const mocks = vi.hoisted(() => ({
   getUserProfile: vi.fn(),
@@ -12,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   txWhere: vi.fn(),
   txLimit: vi.fn(),
   txFor: vi.fn(),
+  evidenceWhere: vi.fn(),
+  evidenceLimit: vi.fn(),
   txDelete: vi.fn(),
   txDeleteWhere: vi.fn(),
   txReturning: vi.fn(),
@@ -87,7 +92,11 @@ describe('deleteDocument authority and integrity', () => {
     mocks.where.mockResolvedValue([{ tenant_id: TENANT_ID, role: 'pm' }])
 
     mocks.txSelect.mockReturnValue({ from: mocks.txFrom })
-    mocks.txFrom.mockReturnValue({ where: mocks.txWhere })
+    mocks.txFrom.mockImplementation((table) => ({
+      where: table === progressClaimDocuments ? mocks.evidenceWhere : mocks.txWhere,
+    }))
+    mocks.evidenceWhere.mockReturnValue({ limit: mocks.evidenceLimit })
+    mocks.evidenceLimit.mockResolvedValue([])
     mocks.txWhere.mockReturnValue({ limit: mocks.txLimit })
     mocks.txLimit.mockReturnValue({ for: mocks.txFor })
     mocks.txFor.mockResolvedValue([
@@ -235,6 +244,43 @@ describe('deleteDocument authority and integrity', () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith(
       `/projects/${PROJECT_ID}/documents`
     )
+  })
+
+  it('retains claim evidence and Storage when the legacy path is selected', async () => {
+    mocks.evidenceLimit.mockResolvedValue([{ id: '55555555-5555-4555-8555-555555555555' }])
+
+    expect(await deleteDocument(requestForm())).toEqual({
+      ok: false,
+      error: 'Document is attached to a claim and cannot be deleted',
+    })
+    expect(mocks.txFor).toHaveBeenCalledWith('update')
+    const predicate: unknown = mocks.evidenceWhere.mock.calls[0]?.[0]
+    if (!(predicate instanceof SQL)) throw new Error('Expected a scoped evidence predicate')
+    const query = new PgDialect().sqlToQuery(predicate)
+    expect(query.params).toEqual([TENANT_ID, DOCUMENT_ID])
+    expect(query.sql).toContain('"tenant_id"')
+    expect(query.sql).toContain('"document_id"')
+    expect(mocks.txFor.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.evidenceWhere.mock.invocationCallOrder[0]!
+    )
+    expect(mocks.txDelete).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
+    expect(mocks.remove).not.toHaveBeenCalled()
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('fails closed without deleting data or Storage when evidence lookup fails', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    mocks.evidenceLimit.mockRejectedValue(new Error('lookup unavailable'))
+    try {
+      expect(await deleteDocument(requestForm())).toEqual({ ok: false, error: 'Delete failed' })
+      expect(mocks.txDelete).not.toHaveBeenCalled()
+      expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
+      expect(mocks.remove).not.toHaveBeenCalled()
+      expect(mocks.revalidatePath).not.toHaveBeenCalled()
+    } finally {
+      errorSpy.mockRestore()
+    }
   })
 
   it('keeps Storage intact when the official database transaction fails', async () => {

@@ -191,6 +191,27 @@ test('CI runs the full PR suite and keeps migration checks ahead of CI-only gran
   )
   assert.match(
     workflow,
-    /build:\s*\n[\s\S]*?needs: \[typecheck, lint, test, build-ops-invariants, database-reproducibility\]/
+    /build:\s*\n[\s\S]*?needs: \[typecheck, lint, test, build-ops-invariants, database-reproducibility, claim-document-browser\]/
   )
+})
+
+test('CI runs the claim document browser interaction without production credentials', async () => {
+  const workflow = await readFile(resolve('.github/workflows/ci.yml'), 'utf8')
+  const start = workflow.indexOf('  claim-document-browser:')
+  const end = workflow.indexOf('\n  e2e:', start)
+  assert.notEqual(start, -1)
+  assert.notEqual(end, -1)
+  const job = workflow.slice(start, end)
+
+  assert.match(job, /name: Claim Document Browser Interaction/)
+  assert.match(job, /needs: \[actionlint\]/)
+  assert.match(job, /timeout-minutes: 15/)
+  assert.match(job, /pnpm install --frozen-lockfile/)
+  assert.match(job, /playwright test \\\n\s+e2e\/claim-document-attach\.spec\.ts/)
+  assert.match(job, /--workers=1/)
+  assert.match(job, /--retries=0/)
+  assert.match(job, /--global-timeout=300000/)
+  assert.match(job, /assert-playwright-no-skips\.mjs[\s\S]*?claim document browser interaction/)
+  assert.match(job, /actions\/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02/)
+  assert.doesNotMatch(job, /E2E_|SUPABASE|PLAYWRIGHT_BASE_URL/)
 })
