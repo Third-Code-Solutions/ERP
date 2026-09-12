@@ -49,6 +49,7 @@ import {
 const USER_ID = '11111111-1111-4111-8111-111111111111'
 const TENANT_ID = '22222222-2222-4222-8222-222222222222'
 const TARGET_ID = '33333333-3333-4333-8333-333333333333'
+const REQUEST_ID = '44444444-4444-4444-8444-444444444444'
 const PROFILE = {
   user: { id: USER_ID },
   tenantId: TENANT_ID,
@@ -61,6 +62,8 @@ function roleForm(role: string): FormData {
   const form = new FormData()
   form.set('user_id', TARGET_ID)
   form.set('role', role)
+  form.set('expected_role', 'viewer')
+  form.set('client_request_id', REQUEST_ID)
   return form
 }
 
@@ -87,7 +90,7 @@ describe('admin user role authority', () => {
     vi.clearAllMocks()
     mocks.requireUserProfile.mockResolvedValue(PROFILE)
     mocks.can.mockReturnValue(true)
-    mocks.adminUserRoleAssignmentWritesUseCoreApi.mockReturnValue(false)
+    mocks.adminUserRoleAssignmentWritesUseCoreApi.mockReturnValue(true)
     const query = userQuery([
       { id: TARGET_ID, role: 'viewer', email: 'viewer@example.test' },
     ])
@@ -111,14 +114,12 @@ describe('admin user role authority', () => {
       },
     })
 
-    await expect(updateUserRole(roleForm('pm'))).resolves.toEqual({})
+    await expect(updateUserRole(roleForm('pm'))).resolves.toEqual({ ok: true, role: 'pm' })
 
     expect(mocks.assignUserRoleThroughCoreApi).toHaveBeenCalledWith(
       TARGET_ID,
       { expectedRole: 'viewer', role: 'pm' },
-      expect.stringMatching(
-        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-      )
+      REQUEST_ID
     )
     expect(mocks.update).not.toHaveBeenCalled()
     expect(mocks.writeAuditLog).not.toHaveBeenCalled()
@@ -129,33 +130,31 @@ describe('admin user role authority', () => {
     mocks.assignUserRoleThroughCoreApi.mockResolvedValue({
       ok: false,
       error: 'User role changed after this form was opened.',
+      outcome: 'rejected',
     })
 
     await expect(updateUserRole(roleForm('pm'))).resolves.toEqual({
+      ok: false,
       error: 'User role changed after this form was opened.',
+      outcome: 'rejected',
     })
     expect(mocks.update).not.toHaveBeenCalled()
     expect(mocks.writeAuditLog).not.toHaveBeenCalled()
   })
 
-  it('preserves the tenant-scoped server fallback while the canary is off', async () => {
-    await expect(updateUserRole(roleForm('pm'))).resolves.toEqual({})
-
-    expect(mocks.update).toHaveBeenCalledOnce()
-    expect(mocks.writeAuditLog).toHaveBeenCalledWith(
-      expect.objectContaining({
-        tenantId: TENANT_ID,
-        actorId: USER_ID,
-        entityId: TARGET_ID,
-        action: 'update',
-      })
-    )
+  it('rejects without a database fallback when Core routing is disabled', async () => {
+    mocks.adminUserRoleAssignmentWritesUseCoreApi.mockReturnValue(false)
+    await expect(updateUserRole(roleForm('pm'))).resolves.toMatchObject({ ok: false, outcome: 'rejected' })
+    expect(mocks.update).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
     expect(mocks.assignUserRoleThroughCoreApi).not.toHaveBeenCalled()
   })
 
   it('prevents an admin from assigning owner before any mutation', async () => {
     await expect(updateUserRole(roleForm('owner'))).resolves.toEqual({
+      ok: false,
       error: 'Only an owner can assign or change the owner role.',
+      outcome: 'rejected',
     })
     expect(mocks.update).not.toHaveBeenCalled()
     expect(mocks.assignUserRoleThroughCoreApi).not.toHaveBeenCalled()
@@ -199,12 +198,67 @@ describe('admin user role authority', () => {
   })
 
   it('rejects a target outside the tenant', async () => {
-    const query = userQuery([])
-    mocks.select.mockReturnValue({ from: query.from })
+    mocks.assignUserRoleThroughCoreApi.mockResolvedValue({ ok: false, error: 'User not found', outcome: 'rejected', status: 404 })
 
     await expect(updateUserRole(roleForm('pm'))).resolves.toEqual({
-      error: 'User not found in this workspace.',
+      ok: false, error: 'User not found', outcome: 'rejected',
     })
+    expect(mocks.update).not.toHaveBeenCalled()
+  })
+
+  it.each(['user_id', 'expected_role', 'client_request_id'])('rejects invalid %s before Core', async (field) => {
+    const form = roleForm('pm'); form.set(field, 'invalid')
+    await expect(updateUserRole(form)).resolves.toMatchObject({ ok: false, outcome: 'rejected' })
+    expect(mocks.assignUserRoleThroughCoreApi).not.toHaveBeenCalled()
+    expect(mocks.update).not.toHaveBeenCalled()
+  })
+
+  it('preserves an uncertain command and key across retries without rereading role', async () => {
+    mocks.assignUserRoleThroughCoreApi.mockResolvedValue({ ok: false, error: 'Outcome not confirmed', outcome: 'unknown' })
+    const form = roleForm('pm')
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await expect(updateUserRole(form)).resolves.toEqual({ ok: false, error: 'Outcome not confirmed', outcome: 'unknown' })
+      expect(mocks.assignUserRoleThroughCoreApi).toHaveBeenNthCalledWith(attempt + 1, TARGET_ID, { expectedRole: 'viewer', role: 'pm' }, REQUEST_ID)
+    }
+    expect(mocks.select).not.toHaveBeenCalled()
+    expect(mocks.update).not.toHaveBeenCalled()
+  })
+
+  it('does not bypass Core for an apparently unchanged role', async () => {
+    const form = roleForm('viewer')
+    mocks.assignUserRoleThroughCoreApi.mockResolvedValue({ ok: false, error: 'Forbidden', outcome: 'rejected' })
+    await expect(updateUserRole(form)).resolves.toMatchObject({ ok: false })
+    expect(mocks.assignUserRoleThroughCoreApi).toHaveBeenCalledWith(TARGET_ID, { expectedRole: 'viewer', role: 'viewer' }, REQUEST_ID)
+  })
+
+  it('treats a cross-tenant success as unknown, never confirmed', async () => {
+    mocks.assignUserRoleThroughCoreApi.mockResolvedValue({ ok: true, data: { userId: TARGET_ID, tenantId: USER_ID, previousRole: 'viewer', role: 'pm' } })
+    await expect(updateUserRole(roleForm('pm'))).resolves.toMatchObject({ ok: false, outcome: 'unknown' })
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('does not replace a stale expected role with a fresh database value', async () => {
+    const form = roleForm('pm'); form.set('expected_role', 'sales')
+    mocks.assignUserRoleThroughCoreApi.mockResolvedValue({ ok: false, error: 'Stale role', outcome: 'rejected', status: 409 })
+    await expect(updateUserRole(form)).resolves.toEqual({ ok: false, error: 'Stale role', outcome: 'rejected' })
+    expect(mocks.assignUserRoleThroughCoreApi).toHaveBeenCalledWith(TARGET_ID, { expectedRole: 'sales', role: 'pm' }, REQUEST_ID)
+    expect(mocks.select).not.toHaveBeenCalled()
+  })
+
+  it('treats a thrown post-submission failure as unknown without exposing its detail', async () => {
+    mocks.assignUserRoleThroughCoreApi.mockRejectedValue(new Error('private upstream detail'))
+    const result = await updateUserRole(roleForm('pm'))
+    expect(result).toMatchObject({ ok: false, outcome: 'unknown' })
+    expect(JSON.stringify(result)).not.toContain('private upstream detail')
+    expect(mocks.update).not.toHaveBeenCalled()
+  })
+
+  it('rejects a pre-submission profile failure without Core or database writes', async () => {
+    mocks.requireUserProfile.mockRejectedValue(new Error('private session detail'))
+    const result = await updateUserRole(roleForm('pm'))
+    expect(result).toMatchObject({ ok: false, outcome: 'rejected' })
+    expect(JSON.stringify(result)).not.toContain('private session detail')
+    expect(mocks.assignUserRoleThroughCoreApi).not.toHaveBeenCalled()
     expect(mocks.update).not.toHaveBeenCalled()
   })
 })

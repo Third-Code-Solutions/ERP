@@ -38,6 +38,7 @@ export default async function AccountDetailPage({ params }: PageProps) {
   const { account, contactRows, kycRows, oppRows, projectRows } = detail
 
   const isFinance = can(profile.role, 'account.kyc_review')
+  const canAddArtifact = can(profile.role, 'account.create')
 
   return (
     <div>
@@ -93,9 +94,11 @@ export default async function AccountDetailPage({ params }: PageProps) {
                 </tbody>
               </table>
             )}
-            <div style={{ padding: 16, borderTop: '1px solid var(--color-border)' }}>
-              <AddKycArtifactForm accountId={id} />
-            </div>
+            {canAddArtifact && (
+              <div style={{ padding: 16, borderTop: '1px solid var(--color-border)' }}>
+                <AddKycArtifactForm accountId={id} />
+              </div>
+            )}
           </div>
 
           {/* Opportunities */}

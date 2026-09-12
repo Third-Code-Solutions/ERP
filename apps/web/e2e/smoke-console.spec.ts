@@ -18,6 +18,7 @@ import { test, expect, type BrowserContext } from '@playwright/test'
 import { requireE2ECredentials } from './helpers/auth'
 import { readE2EEnv, requireE2EBaseUrl } from './helpers/env'
 import { authenticateRole } from './helpers/supabase-magic-link'
+import { assertAuthenticatedSmokeReady } from './helpers/authenticated-smoke-readiness'
 
 function requireE2EProjectId(): string {
   const projectId = process.env.E2E_PROJECT_ID?.trim()
@@ -159,6 +160,7 @@ test('visits every major route without console errors', async ({ page, context }
       expect(status, `${route} returned ${status}`).toBeGreaterThanOrEqual(200)
       expect(status, `${route} returned ${status}`).toBeLessThan(400)
       await page.waitForTimeout(800)
+      await assertAuthenticatedSmokeReady(page, baseUrl, route)
 
       // Did the Next.js dev error overlay appear? `nextjs-portal` is always
       // present (it hosts the dev-tools button), so we look for actual error
