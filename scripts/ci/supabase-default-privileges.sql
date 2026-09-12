@@ -70,4 +70,9 @@ grant select, insert, update, delete, truncate on table
 -- Audit access is already granted by the Cortex security migration; trigger
 -- writes retain their existing SECURITY DEFINER authority. No audit grant here.
 
+-- Scheduling preserves the hosted service-role read grant, but CLI reset
+-- creates this table before the default grants above. Match that read access
+-- without restoring any client privilege or granting server mutations.
+grant select on table public.project_schedule_tasks to service_role;
+
 commit;

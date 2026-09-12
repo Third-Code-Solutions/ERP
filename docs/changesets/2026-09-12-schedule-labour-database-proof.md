@@ -23,6 +23,10 @@ These are additive evidence tests for existing correct behavior, not a RED/GREEN
 
 ## Limits and handoff
 
+### CI role-grant correction
+
+CI run 34701882122 failed the service-role read assertion while 508 database tests passed. Reproduced on the separate CLI-equivalent synthetic database `erp_claim_ci_grants_20260912`: catalog SELECT privilege was false and an actual service-role SELECT returned permission denied. Read-only hosted catalog inspection confirmed SELECT is present for service_role, absent for authenticated, with enabled/FORCE RLS. The post-reset CI fixture now grants only SELECT on `project_schedule_tasks` to service_role. No client grant, production migration, policy change or test relaxation was made. The unchanged seven-test labour suite passed on that formerly failing database after fixture application; independent JSON no-skips verification passed. Fresh CI remains required. This database has replayed SQL but no migration ledger and is not production restore evidence.
+
 This proves the scoped read and database authority contracts, not JWT issuance/session revocation, browser role coverage, production performance, or candidate deployment. The service's membership query validates current tenant/role; active-account/tenant HTTP enforcement belongs to the JWT guard and is not claimed by these direct-service tests. Hosted state and inherited migration recovery holds remain unchanged. Local Node 24/pnpm 10 uses the engine override; CI Node 22 remains authoritative.
 
 → Handoff to Agent 12/13 (main): independently run the focused PostgreSQL suite and types, then verify inclusion through the existing required integration CI glob. No commit, push or deployment performed by this agent.
