@@ -43,6 +43,10 @@
 - Independent reviews of the changed route and backend found no required issue. Real provider
   operations, deployed photo journeys and full offline capture are not proven by
   these local tests. Synthetic PostgreSQL fixtures retain their audit history.
+- The merge-blocker note's public Railway service UUID triggered a secret-scan
+  false positive in commit `81926c55`. A fingerprint exception is restricted to
+  that exact historical commit, file, rule and line. It does not disable a rule
+  or exclude future versions of the file. The subsequent full-history scan passed.
 
 ## Remaining work and release boundaries
 
