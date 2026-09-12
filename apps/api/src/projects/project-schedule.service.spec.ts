@@ -1,7 +1,9 @@
 import 'reflect-metadata'
 
-import { ConflictException, ForbiddenException } from '@nestjs/common'
+import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common'
 import { projectScheduleTasks } from '@third-code-erp/database/schema'
+import { PgDialect } from 'drizzle-orm/pg-core'
+import type { SQL } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import type { AuditService } from '../audit/audit.service'
@@ -38,6 +40,94 @@ function harness(selectResults: unknown[], options?: { insertResult?: unknown[];
 
 const membership = [{ tenantId: PRINCIPAL.tenantId, role: PRINCIPAL.role, email: PRINCIPAL.email }]
 const project = [{ id: PROJECT_ID }]
+
+const legacyTasks = [
+  { name: 'Mobilize', start_date: '2026-09-10', finish_date: '2026-09-12', predecessor_index: null, planned_pct_curve: [0, 100] },
+  { name: 'Build', start_date: '2026-09-13', finish_date: '2026-09-15', predecessor_index: 0, planned_pct_curve: [0, 50, 100] },
+]
+const legacySource = { id: REQUEST_ID, tasks: legacyTasks }
+
+function importHarness(selectResults: unknown[][], failAudit = false) {
+  const predicates: SQL[] = []
+  const locks: string[] = []
+  const select = vi.fn(() => {
+    const builder = query(selectResults.shift() ?? [])
+    const originalWhere = builder.where
+    builder.where = vi.fn((predicate: SQL) => { predicates.push(predicate); return (originalWhere as (predicate: SQL) => unknown)(predicate) })
+    const originalFor = builder.for
+    builder.for = vi.fn((lock: string) => { locks.push(lock); return (originalFor as (lock: string) => unknown)(lock) })
+    return builder
+  })
+  type InsertRow = typeof projectScheduleTasks.$inferInsert
+  let pending: InsertRow[] = []
+  let committed: InsertRow[] = []
+  const rows = () => pending.map((row) => ({ ...task(), id: row.id!, taskCode: row.task_code, name: row.name, plannedStart: row.planned_start, plannedFinish: row.planned_finish, predecessorTaskId: row.predecessor_task_id ?? null, plannedLaborMinutes: 0, description: '', source: row.source!, requestHash: row.request_hash, clientRequestId: row.client_request_id }))
+  const insert = vi.fn(() => ({ values: (values: InsertRow[]) => { pending = values; return { returning: async () => rows().map(({ requestHash: _requestHash, clientRequestId: _clientRequestId, ...row }) => row) } } }))
+  const client = { select, insert }
+  const transaction = vi.fn(async (callback: (tx: typeof client) => Promise<unknown>) => {
+    try { const result = await callback(client); committed = [...pending]; return result } catch (error) { pending = []; throw error }
+  })
+  const audit = { stampActor: vi.fn().mockResolvedValue(undefined), writeSemantic: failAudit ? vi.fn().mockRejectedValue(new Error('audit unavailable')) : vi.fn().mockResolvedValue(undefined) }
+  const service = new ProjectScheduleService({ client: { transaction } } as unknown as DatabaseService, audit as unknown as AuditService)
+  return { service, insert, select, audit, predicates, locks, rows, committed: () => committed }
+}
+
+describe('legacy L1 schedule import', () => {
+  it('imports one atomic batch with stable identities, predecessors and tenant-qualified source locks', async () => {
+    const probe = importHarness([membership, project, [legacySource], []])
+    const result = await probe.service.importLegacy(PROJECT_ID, { sourceScheduleId: REQUEST_ID }, PRINCIPAL)
+    expect(result).toMatchObject({ created: true, changed: true, sourceScheduleId: REQUEST_ID, rows: [{ taskCode: 'L1-001', source: 'legacy_l1', plannedLaborMinutes: 0 }, { taskCode: 'L1-002', predecessorTaskId: result.rows[0]!.id }] })
+    expect(probe.insert).toHaveBeenCalledTimes(1)
+    expect(probe.audit.writeSemantic).toHaveBeenCalledTimes(3)
+    expect(probe.audit.writeSemantic).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ action: 'create', diff: expect.objectContaining({ operation: 'import_to_schedule', task_count: 2 }) }))
+    expect(probe.locks).toEqual(['update', 'update', 'update'])
+    const sourceSql = new PgDialect().sqlToQuery(probe.predicates[2]!)
+    expect(sourceSql.sql).toContain('"master_schedules"."tenant_id"')
+    expect(sourceSql.params).toEqual([PROJECT_ID, PRINCIPAL.tenantId])
+    const replayRows = probe.rows().map((row) => ({ ...row, status: 'in_progress', actualLaborMinutes: 45, version: 2 }))
+    const retry = importHarness([membership, project, [legacySource], replayRows])
+    await expect(retry.service.importLegacy(PROJECT_ID, { sourceScheduleId: REQUEST_ID }, PRINCIPAL)).resolves.toMatchObject({ created: false, changed: false, rows: [{ id: result.rows[0]!.id, actualLaborMinutes: 45, version: 2 }, { id: result.rows[1]!.id }] })
+    expect(retry.insert).not.toHaveBeenCalled()
+    expect(retry.audit.writeSemantic).not.toHaveBeenCalled()
+  })
+
+  it('fails closed for stale snapshots, invalid source graphs, missing source/project, and current role revocation', async () => {
+    for (const selections of [
+      [membership, project, [{ ...legacySource, id: TASK_ID }]],
+      [membership, project, [{ ...legacySource, tasks: [{ ...legacyTasks[0], predecessor_index: 0 }] }]],
+    ]) {
+      const probe = importHarness(selections)
+      await expect(probe.service.importLegacy(PROJECT_ID, { sourceScheduleId: REQUEST_ID }, PRINCIPAL)).rejects.toBeInstanceOf(ConflictException)
+      expect(probe.insert).not.toHaveBeenCalled()
+    }
+    for (const selections of [[membership, []], [membership, project, []]]) {
+      const probe = importHarness(selections)
+      await expect(probe.service.importLegacy(PROJECT_ID, { sourceScheduleId: REQUEST_ID }, PRINCIPAL)).rejects.toBeInstanceOf(NotFoundException)
+      expect(probe.insert).not.toHaveBeenCalled()
+    }
+    const revoked = importHarness([[{ ...membership[0], role: 'viewer' }]])
+    await expect(revoked.service.importLegacy(PROJECT_ID, { sourceScheduleId: REQUEST_ID }, PRINCIPAL)).rejects.toBeInstanceOf(ForbiddenException)
+    expect(revoked.select).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects manual code collisions, partial replay and changed content without writes', async () => {
+    const initial = importHarness([membership, project, [legacySource], []])
+    await initial.service.importLegacy(PROJECT_ID, { sourceScheduleId: REQUEST_ID }, PRINCIPAL)
+    for (const existing of [[task()], initial.rows().slice(0, 1), initial.rows().map((row) => ({ ...row, requestHash: 'changed' }))]) {
+      const probe = importHarness([membership, project, [legacySource], existing])
+      await expect(probe.service.importLegacy(PROJECT_ID, { sourceScheduleId: REQUEST_ID }, PRINCIPAL)).rejects.toBeInstanceOf(ConflictException)
+      expect(probe.insert).not.toHaveBeenCalled()
+      expect(probe.committed()).toEqual([])
+    }
+  })
+
+  it('propagates audit failure through the transaction without committing a partial batch', async () => {
+    const probe = importHarness([membership, project, [legacySource], []], true)
+    await expect(probe.service.importLegacy(PROJECT_ID, { sourceScheduleId: REQUEST_ID }, PRINCIPAL)).rejects.toThrow('audit unavailable')
+    expect(probe.insert).toHaveBeenCalledTimes(1)
+    expect(probe.committed()).toEqual([])
+  })
+})
 
 describe('ProjectScheduleService', () => {
   it('creates normalized tasks idempotently and audits the source', async () => {

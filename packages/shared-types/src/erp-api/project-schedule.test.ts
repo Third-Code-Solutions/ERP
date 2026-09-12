@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   createProjectScheduleTaskCommandSchema,
+  importLegacyProjectScheduleCommandSchema,
+  legacyProjectScheduleTasksSchema,
   projectScheduleListQuerySchema,
   projectScheduleTaskStatusCommandSchema,
 } from './project-schedule'
@@ -27,6 +29,16 @@ const base = {
 }
 
 describe('project schedule contracts', () => {
+  it('binds an import to an explicit snapshot and rejects caller identity', () => {
+    expect(importLegacyProjectScheduleCommandSchema.parse({ sourceScheduleId: REQUEST_ID })).toEqual({ sourceScheduleId: REQUEST_ID })
+    for (const invalid of [{}, { sourceScheduleId: 'bad' }, { sourceScheduleId: REQUEST_ID, tenantId: PROJECT_ID }, { sourceScheduleId: REQUEST_ID, actorId: PROJECT_ID }]) expect(importLegacyProjectScheduleCommandSchema.safeParse(invalid).success).toBe(false)
+  })
+
+  it('validates the whole legacy graph, calendar dates, bounds and cumulative curves', () => {
+    const task = { name: 'Install', start_date: '2026-09-01', finish_date: '2026-09-02', predecessor_index: null, planned_pct_curve: [0, 50, 100] }
+    expect(legacyProjectScheduleTasksSchema.parse([task, { ...task, predecessor_index: 0 }])).toHaveLength(2)
+    for (const invalid of [[], [{ ...task, start_date: '2026-02-30' }], [{ ...task, finish_date: '2026-08-01' }], [{ ...task, predecessor_index: 1 }], [{ ...task, predecessor_index: 0 }], [{ ...task, planned_pct_curve: [50, 10] }], [{ ...task, planned_pct_curve: [101] }], [{ ...task, name: '' }], [{ ...task, predecessor_index: 1 }, { ...task, predecessor_index: 0 }]]) expect(legacyProjectScheduleTasksSchema.safeParse(invalid).success).toBe(false)
+  })
   it('defaults bounded list filters', () => {
     expect(projectScheduleListQuerySchema.parse({})).toEqual({ page: 1, limit: 50 })
   })

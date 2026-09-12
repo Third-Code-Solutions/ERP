@@ -14,6 +14,8 @@ import {
 } from '@nestjs/common'
 import {
   createProjectScheduleTaskCommandSchema,
+  importLegacyProjectScheduleCommandSchema,
+  type ImportLegacyProjectScheduleResult,
   projectScheduleListQuerySchema,
   projectScheduleTaskStatusCommandSchema,
   updateProjectScheduleTaskCommandSchema,
@@ -28,6 +30,15 @@ import { ProjectScheduleService } from './project-schedule.service'
 @Controller('v1/projects')
 export class ProjectScheduleController {
   constructor(@Inject(ProjectScheduleService) private readonly schedule: ProjectScheduleService) {}
+
+  @Post(':projectId/schedule/import-legacy-l1')
+  @HttpCode(HttpStatus.OK)
+  @RequireCapabilities('project.schedule.manage')
+  importLegacy(@Param('projectId', new ParseUUIDPipe()) projectId: string, @Body() body: unknown, @CurrentPrincipal() principal: ErpPrincipal): Promise<ImportLegacyProjectScheduleResult> {
+    const parsed = importLegacyProjectScheduleCommandSchema.safeParse(body)
+    if (!parsed.success) throw new BadRequestException('Invalid legacy schedule import')
+    return this.schedule.importLegacy(projectId, parsed.data, principal)
+  }
 
   @Get(':projectId/schedule/tasks')
   @RequireCapabilities('project.read')
