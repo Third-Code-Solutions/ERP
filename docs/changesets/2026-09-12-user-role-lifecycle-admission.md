@@ -17,9 +17,9 @@ Local runtime was Node 24/pnpm 10 with the existing engine override; required No
 
 ### CI test correction
 
-Run 34703171000 failed the initial mixed-version test. That test attempted a privileged `deadlock_timeout` change; a failure before its readiness signal was consumed without waking the peer. Local superuser runs hid this defect. Independently reproduced that ordinary roles cannot set this parameter. The original PID-only blocker check could also mistake a creator foreign-key wait for the intended audit wait.
+Run 34703171000 failed the initial mixed-version test. That test attempted a privileged `deadlock_timeout` change; a failure before its readiness signal was consumed without waking the peer. Local superuser runs hid this defect. Independently reproduced that ordinary roles cannot set this parameter. The original PID-only blocker check did not identify the actual lock type; no creator foreign-key wait was reproduced and the inspected ledger has no such constraint.
 
-The corrected test removes that privileged setting, races readiness against peer failure, drains both transactions on exit, and verifies exact Lock/advisory and Lock/transactionid wait edges. Its synthetic older writer references an unlocked creator to avoid the unrelated actor FK lock. No timeout was increased, production code changed or audit assertion disabled. Both disposable local database variants passed 12/12; main independently passed the CLI-equivalent variant and strict integration TypeScript. Fresh CI is required; no production rollout is claimed.
+The corrected test removes that privileged setting, races readiness against peer failure, drains both transactions on exit, and verifies exact Lock/advisory and Lock/transactionid wait edges. Separate synthetic administrators hold their own actor locks while submitting the same tenant request key. No timeout was increased, production code changed or audit assertion disabled. Both disposable local database variants passed 12/12; main independently passed the CLI-equivalent variant and strict integration TypeScript. Fresh CI is required; no production rollout is claimed.
 
 ## Remaining work
 

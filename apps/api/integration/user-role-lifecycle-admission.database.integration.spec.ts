@@ -202,7 +202,10 @@ suite('User role lifecycle PostgreSQL admission', () => {
   })
 
   it('recovers either mixed-version deadlock victim without partial role or audit state', async () => {
-    const f = await fixture(), before = await snapshot(f)
+    const f = await fixture()
+    const oldActorId = randomUUID()
+    await db.insert(users).values({ id: oldActorId, tenant_id: f.tenantId, email: `${oldActorId}@integration.test`, full_name: 'Synthetic older administrator', role: 'admin' })
+    const before = await snapshot(f)
     const auditAdmitted = signal(), oldStarted = signal()
     let assignmentPid = 0, oldPid = 0
     const rollback = new Error('Roll back synthetic old writer after contention proof')
@@ -226,15 +229,15 @@ suite('User role lifecycle PostgreSQL admission', () => {
     old = db.transaction(async (tx) => {
       const [backend] = await tx.execute<{ pid: number }>(sql`select pg_backend_pid() as pid`)
       oldPid = backend!.pid
+      await tx.select().from(users).where(eq(users.id, oldActorId)).for('update')
       // Use ordinary database settings: either writer may be selected as the
       // deadlock victim before the command's one-second lock timeout expires.
       await bounded(auditAdmitted.promise)
       oldStarted.resolve()
       await tx.insert(userRoleAssignmentRequests).values({
         tenant_id: f.tenantId, idempotency_key: f.requestId,
-        // Avoid the new command's actor UPDATE lock: the old writer must reach
-        // its audit trigger, rather than stop at the creator's user FK check.
-        request_hash: '0'.repeat(64), target_user_id: f.targetId, created_by: f.targetId,
+        // Separate authorized actors can submit the same tenant request key.
+        request_hash: '0'.repeat(64), target_user_id: f.targetId, created_by: oldActorId,
       })
       throw rollback
     }).catch((error: unknown) => error)
