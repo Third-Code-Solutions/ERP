@@ -19,6 +19,10 @@ CSV importer, progress updates, Gantt, and S-curve remain available.
 
 ## Explicit limits / dependencies
 
+2026-09-14 amendment: ADR-034 permits a bounded, explicitly reviewed XML planning
+task import without defining ABI level/owner policy. O-04/O-09 and full MS Project
+fidelity remain unresolved; see `2026-09-14-ms-project-xml-task-import.md`.
+
 - No replacement of legacy `master_schedules` JSON data.
 - MS Project binary/XML import is deferred until the real template and L2/L3
   ownership/shape are resolved (PRD O-04/O-09).

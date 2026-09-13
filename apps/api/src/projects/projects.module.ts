@@ -36,6 +36,8 @@ import { ProjectSubmittalDocumentsController } from './project-submittal-documen
 import { ProjectSubmittalDocumentsService } from './project-submittal-documents.service'
 import { ProjectScheduleController } from './project-schedule.controller'
 import { ProjectScheduleService } from './project-schedule.service'
+import { MsProjectXmlImportController } from './ms-project-xml-import.controller'
+import { MsProjectXmlImportService } from './ms-project-xml-import.service'
 import { ProjectPerformanceController } from './project-performance.controller'
 import { ProjectPerformanceService } from './project-performance.service'
 import { ProjectMaterialActualsController } from './project-material-actuals.controller'
@@ -65,6 +67,7 @@ import { ProjectBillingMilestonesService } from './project-billing-milestones.se
     ProjectSubmittalsController,
     ProjectSubmittalDocumentsController,
     ProjectScheduleController,
+    MsProjectXmlImportController,
     ProjectPerformanceController,
     ProjectMaterialActualsController,
     ProjectLabourReconciliationController,
@@ -94,6 +97,7 @@ import { ProjectBillingMilestonesService } from './project-billing-milestones.se
     ProjectSubmittalsService,
     ProjectSubmittalDocumentsService,
     ProjectScheduleService,
+    MsProjectXmlImportService,
     ProjectPerformanceService,
     ProjectMaterialActualsService,
     ProjectLabourReconciliationService,
@@ -119,6 +123,7 @@ export class ProjectsModule implements NestModule {
         ProjectSubmittalsController,
         ProjectSubmittalDocumentsController,
         ProjectScheduleController,
+        MsProjectXmlImportController,
         ProjectPerformanceController,
         ProjectMaterialActualsController,
         ProjectLabourReconciliationController,

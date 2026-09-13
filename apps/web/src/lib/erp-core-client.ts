@@ -466,6 +466,11 @@ import {
 } from '@third-code-erp/shared-types'
 import { createSupabaseServerClient } from '@third-code-erp/auth'
 import { z } from 'zod'
+import {
+  msProjectXmlPreviewCommandSchema, msProjectXmlCommitCommandSchema,
+  msProjectXmlPreviewResultSchema, msProjectXmlImportResultSchema,
+  type MsProjectXmlPreviewResult, type MsProjectXmlImportResult,
+} from '@third-code-erp/shared-types'
 
 interface CoreResult<T> {
   ok: boolean
@@ -9899,6 +9904,53 @@ export async function getProjectScheduleDependenciesThroughCoreApi(projectId: un
     return { ok: true, data: result.data }
   } catch {
     return { ok: false, status: 503, error: 'Schedule task choices could not be loaded. Retry without changing your selection.' }
+  }
+}
+
+export async function previewMsProjectXmlThroughCoreApi(command: unknown): Promise<CoreResult<MsProjectXmlPreviewResult>> {
+  const input = msProjectXmlPreviewCommandSchema.safeParse(command)
+  if (!input.success) return { ok: false, status: 400, error: 'Invalid XML preview command.' }
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+  try {
+    const response = await fetch(`${access.baseUrl}/v1/projects/${input.data.projectId}/schedule/ms-project-xml/preview`, {
+      method: 'POST', headers: { authorization: `Bearer ${access.accessToken}`, 'content-type': 'application/json', 'x-request-id': randomUUID() },
+      body: JSON.stringify(input.data), cache: 'no-store', signal: AbortSignal.timeout(15_000),
+    })
+    if (!response.ok) return { ok: false, status: response.status, error: 'XML preview unavailable. Check the source and your schedule permissions.' }
+    const parsed = msProjectXmlPreviewResultSchema.safeParse(await response.json())
+    if (!parsed.success || parsed.data.projectId.toLowerCase() !== input.data.projectId.toLowerCase()) return { ok: false, status: 503, error: 'Invalid XML preview response.' }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return { ok: false, status: 503, error: 'XML preview could not be loaded. Retry preview.' }
+  }
+}
+
+export async function importMsProjectXmlThroughCoreApi(command: unknown): Promise<CoreResult<MsProjectXmlImportResult>> {
+  const input = msProjectXmlCommitCommandSchema.safeParse(command)
+  if (!input.success) return { ok: false, status: 400, error: 'Invalid reviewed XML import command.' }
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+  try {
+    const response = await fetch(`${access.baseUrl}/v1/projects/${input.data.projectId}/schedule/ms-project-xml/import`, {
+      method: 'POST', headers: { authorization: `Bearer ${access.accessToken}`, 'content-type': 'application/json', 'x-request-id': randomUUID() },
+      body: JSON.stringify(input.data), cache: 'no-store', signal: AbortSignal.timeout(30_000),
+    })
+    if (!response.ok) {
+      const outcomeUnknown = response.status >= 500 || response.status === 408
+      return { ok: false, status: response.status, ...(outcomeUnknown ? { outcomeUnknown: true } : {}), error: outcomeUnknown
+        ? 'Import outcome is unconfirmed. Retry the unchanged command.'
+        : response.status === 409 ? 'Import conflicts with current schedule or account state. Retry the unchanged command if its outcome was previously unconfirmed.'
+        : 'Import rejected. Check your schedule permissions, source and reviewed mappings.' }
+    }
+    const parsed = msProjectXmlImportResultSchema.safeParse(await response.json())
+    if (!parsed.success || parsed.data.projectId.toLowerCase() !== input.data.projectId.toLowerCase() ||
+      parsed.data.requestId.toLowerCase() !== input.data.requestId.toLowerCase() || parsed.data.sourceHash !== input.data.sourceHash) {
+      return { ok: false, status: 503, outcomeUnknown: true, error: 'Import receipt could not be verified. Retry the unchanged command.' }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return { ok: false, status: 503, outcomeUnknown: true, error: 'Import outcome is unconfirmed. Retry the unchanged command.' }
   }
 }
 

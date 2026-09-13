@@ -15,4 +15,8 @@
 
 ## Deferred
 
+2026-09-14 amendment: ADR-034 and the reviewed XML task-import handoff permit the
+generic planning subset with explicit mapping. This does not resolve O-09 or
+enable native `.mpp`, template-specific automation or synchronization.
+
 - Full `.mpp`/MS Project normalized import remains deferred. Existing normalized schedule source enum is preserved, but external task identity and L2/L3 ownership semantics need a separate bounded design and ABI input O-09.
