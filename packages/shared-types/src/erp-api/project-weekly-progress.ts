@@ -42,6 +42,7 @@ export const createProjectWeeklyProgressCommandSchema = z.object({
 }).strict()
 
 export const lockProjectWeeklyProgressCommandSchema = z.object({
+  clientRequestId: z.string().uuid().optional(),
   expectedVersion: z.number().int().min(1),
   lockReason: notesSchema,
 }).strict()
@@ -78,6 +79,21 @@ export const projectWeeklyProgressRowSchema = z
   })
   .strict()
 
+const commandReceiptFields = {
+  schemaVersion: z.literal(1),
+  tenantId: z.string().uuid(),
+  actorId: z.string().uuid(),
+  projectId: z.string().uuid(),
+  clientRequestId: z.string().uuid(),
+  payloadHash: z.string().regex(/^[a-f0-9]{64}$/),
+  row: projectWeeklyProgressRowSchema,
+}
+
+export const projectWeeklyProgressCommandReceiptSchema = z.discriminatedUnion('operation', [
+  z.object({ ...commandReceiptFields, operation: z.literal('capture'), created: z.boolean() }).strict(),
+  z.object({ ...commandReceiptFields, operation: z.literal('lock'), expectedVersion: z.number().int().positive() }).strict(),
+])
+
 export const projectWeeklyProgressListResultSchema = z.object({
   projectId: z.string().uuid(),
   rows: z.array(projectWeeklyProgressRowSchema),
@@ -88,6 +104,7 @@ export const projectWeeklyProgressListResultSchema = z.object({
 }).strict()
 
 export const projectWeeklyProgressMutationResultSchema = z.object({
+  receipt: projectWeeklyProgressCommandReceiptSchema.optional(),
   projectId: z.string().uuid(),
   created: z.boolean(),
   changed: z.boolean(),
@@ -95,12 +112,14 @@ export const projectWeeklyProgressMutationResultSchema = z.object({
 }).strict()
 
 export const projectWeeklyProgressLockResultSchema = z.object({
+  receipt: projectWeeklyProgressCommandReceiptSchema.optional(),
   projectId: z.string().uuid(),
   changed: z.boolean(),
   row: projectWeeklyProgressRowSchema,
 }).strict()
 
 export type ProjectWeeklyProgressStatus = z.infer<typeof projectWeeklyProgressStatusSchema>
+export type ProjectWeeklyProgressCommandReceipt = z.infer<typeof projectWeeklyProgressCommandReceiptSchema>
 export type ProjectWeeklyProgressPercent = z.infer<typeof projectWeeklyProgressPercentSchema>
 export type ProjectWeeklyProgressListQuery = z.infer<typeof projectWeeklyProgressListQuerySchema>
 export type CreateProjectWeeklyProgressCommand = z.infer<typeof createProjectWeeklyProgressCommandSchema>
@@ -110,6 +129,29 @@ export type ProjectWeeklyProgressRow = z.infer<typeof projectWeeklyProgressRowSc
 export type ProjectWeeklyProgressListResult = z.infer<typeof projectWeeklyProgressListResultSchema>
 export type ProjectWeeklyProgressMutationResult = z.infer<typeof projectWeeklyProgressMutationResultSchema>
 export type ProjectWeeklyProgressLockResult = z.infer<typeof projectWeeklyProgressLockResultSchema>
+
+/** Stable semantic serialization shared by server hashing and browser validation. */
+export function weeklyProgressCapturePayload(command: CreateProjectWeeklyProgressCommand): string {
+  const input = createProjectWeeklyProgressCommandSchema.parse(command)
+  return JSON.stringify({
+    operation: 'capture',
+    projectId: input.projectId.toLowerCase(),
+    weekEnding: input.weekEnding,
+    percentByCategory: input.percentByCategory,
+    notes: input.notes,
+  })
+}
+
+export function weeklyProgressLockPayload(projectId: string, periodId: string, command: LockProjectWeeklyProgressCommand): string {
+  const input = lockProjectWeeklyProgressCommandSchema.parse(command)
+  return JSON.stringify({
+    operation: 'lock',
+    projectId: z.string().uuid().parse(projectId).toLowerCase(),
+    periodId: z.string().uuid().parse(periodId).toLowerCase(),
+    expectedVersion: input.expectedVersion,
+    lockReason: input.lockReason,
+  })
+}
 
 /**
  * Weekly reports use Sunday as the period boundary (the existing progress

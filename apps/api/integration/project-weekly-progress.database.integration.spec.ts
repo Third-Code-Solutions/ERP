@@ -6,6 +6,7 @@ import { NotFoundException } from '@nestjs/common'
 import { auditLog, db, progressUpdates, projects, projectWeeklyProgress, tenants, users } from '@third-code-erp/database'
 import { and, asc, eq, sql } from 'drizzle-orm'
 import { beforeAll, describe, expect, it } from 'vitest'
+import { weeklyProgressCutoffAt } from '@third-code-erp/shared-types'
 import type { ErpPrincipal } from '../src/auth/current-principal.decorator'
 import { AuditService } from '../src/audit/audit.service'
 import { DatabaseService, type DatabaseTransaction } from '../src/database/database.service'
@@ -19,6 +20,7 @@ const cutoff = new Date('2020-01-09T09:00:00.000Z')
 const captureTime = new Date('2020-01-08T09:00:00.000Z')
 const lockTime = new Date('2020-01-09T10:00:00.000Z')
 const percentages = { civil_pct: 20, electrical_pct: 30, mep_pct: 40, finishes_pct: 50, overall_pct: 35 }
+let futureWeek: string
 
 beforeAll(async () => {
   if (!expected) return
@@ -28,11 +30,13 @@ beforeAll(async () => {
   }
   const [clock] = await db.execute<{ ready: boolean }>(sql`select now() > ${lockTime.toISOString()}::timestamptz as ready`)
   expect(clock?.ready).toBe(true)
+  const [future] = await db.execute<{ week: string }>(sql`select (clock_timestamp() at time zone 'UTC' + interval '14 days')::date::text as week`)
+  futureWeek = future!.week
 })
 
 // UUID-isolated synthetic fixtures commit and retain all immutable audit history.
-// Historical service timestamps exercise both sides of cutoff without modifying
-// the actual DB clock: the lock trigger independently checks PostgreSQL now().
+// Captures use a future period; lock fixtures are seeded in a historical period.
+// Service commands always enforce the actual PostgreSQL clock.
 async function fixture() {
   const tenantId = randomUUID()
   const userId = randomUUID()
@@ -49,17 +53,17 @@ async function fixture() {
 type Fixture = Awaited<ReturnType<typeof fixture>>
 
 function command(f: Fixture) {
-  return { projectId: f.projectId, clientRequestId: randomUUID(), weekEnding, percentByCategory: percentages, notes: 'Synthetic weekly capture' }
+  return { projectId: f.projectId, clientRequestId: randomUUID(), weekEnding: futureWeek, percentByCategory: percentages, notes: 'Synthetic weekly capture' }
 }
 
 // Seed an open period directly so update and lock independently reproduce their
 // write-result mapping bugs even while service create is failing.
-async function seedPeriod(f: Fixture) {
+async function seedPeriod(f: Fixture, seedWeek = weekEnding) {
   const progressId = randomUUID()
   const periodId = randomUUID()
   await db.transaction(async tx => {
-    await tx.insert(progressUpdates).values({ id: progressId, tenant_id: f.tenantId, project_id: f.projectId, week_ending: new Date(`${weekEnding}T00:00:00.000Z`), percent_by_category: percentages, notes: 'Original evidence', submitted_by: f.userId })
-    await tx.insert(projectWeeklyProgress).values({ id: periodId, tenant_id: f.tenantId, project_id: f.projectId, progress_update_id: progressId, client_request_id: randomUUID(), request_hash: '0'.repeat(64), week_ending: weekEnding, cutoff_at: cutoff, created_by: f.userId, created_at: captureTime, updated_at: captureTime })
+    await tx.insert(progressUpdates).values({ id: progressId, tenant_id: f.tenantId, project_id: f.projectId, week_ending: new Date(`${seedWeek}T00:00:00.000Z`), percent_by_category: percentages, notes: 'Original evidence', submitted_by: f.userId })
+    await tx.insert(projectWeeklyProgress).values({ id: periodId, tenant_id: f.tenantId, project_id: f.projectId, progress_update_id: progressId, client_request_id: randomUUID(), request_hash: '0'.repeat(64), week_ending: seedWeek, cutoff_at: new Date(weeklyProgressCutoffAt(seedWeek)), created_by: f.userId, created_at: captureTime, updated_at: captureTime })
   })
   return { progressId, periodId }
 }
@@ -93,22 +97,22 @@ suite('Weekly progress PostgreSQL write results', () => {
   it('returns a serialized create result backed by committed evidence and semantic audit', async () => {
     const f = await fixture()
     const input = command(f)
-    const result = await service.create(input, f.principal, captureTime)
-    expect(result).toMatchObject({ projectId: f.projectId, created: true, changed: true, row: { projectId: f.projectId, clientRequestId: input.clientRequestId, weekEnding, cutoffAt: cutoff.toISOString(), percentByCategory: percentages, notes: input.notes, status: 'open', version: 1, createdBy: f.userId, createdAt: captureTime.toISOString(), updatedAt: captureTime.toISOString(), warSnapshot: null, lockedAt: null, lockedBy: null, lockReason: '' } })
+    const result = await service.create(input, f.principal)
+    expect(result).toMatchObject({ projectId: f.projectId, created: true, changed: true, row: { projectId: f.projectId, clientRequestId: input.clientRequestId, weekEnding: futureWeek, cutoffAt: weeklyProgressCutoffAt(futureWeek), percentByCategory: percentages, notes: input.notes, status: 'open', version: 1, createdBy: f.userId, createdAt: result.row.createdAt, updatedAt: result.row.createdAt, warSnapshot: null, lockedAt: null, lockedBy: null, lockReason: '' } })
     const persisted = await state(f)
     expect(persisted.periods).toHaveLength(1)
     expect(persisted.periods[0]).toMatchObject({ id: result.row.id, progress_update_id: result.row.progressUpdateId, client_request_id: input.clientRequestId, version: 1 })
     expect(persisted.evidence).toHaveLength(1)
     expect(persisted.evidence[0]).toMatchObject({ id: result.row.progressUpdateId, notes: input.notes, percent_by_category: percentages })
-    expect(persisted.audits.filter(a => a.entity_type === 'project_weekly_progress' && a.action === 'create' && isDeepStrictEqual(a.diff, { project_id: f.projectId, week_ending: weekEnding, cutoff_at: cutoff.toISOString() }))).toHaveLength(1)
+    expect(persisted.audits.filter(a => a.entity_type === 'project_weekly_progress' && a.action === 'create' && isDeepStrictEqual(a.diff, { project_id: f.projectId, week_ending: futureWeek, cutoff_at: weeklyProgressCutoffAt(futureWeek) }))).toHaveLength(1)
   })
 
   it('returns a serialized second capture and commits a new evidence pointer without deleting old evidence', async () => {
     const f = await fixture()
-    const original = await seedPeriod(f)
+    const original = await seedPeriod(f, futureWeek)
     const input = { ...command(f), notes: 'Second evidence', percentByCategory: { ...percentages, overall_pct: 55 } }
-    const result = await service.create(input, f.principal, captureTime)
-    expect(result).toMatchObject({ created: false, changed: true, row: { id: original.periodId, projectId: f.projectId, clientRequestId: input.clientRequestId, weekEnding, cutoffAt: cutoff.toISOString(), version: 2, percentByCategory: input.percentByCategory, notes: input.notes, updatedAt: captureTime.toISOString() } })
+    const result = await service.create(input, f.principal)
+    expect(result).toMatchObject({ created: false, changed: true, row: { id: original.periodId, projectId: f.projectId, clientRequestId: input.clientRequestId, weekEnding: futureWeek, cutoffAt: weeklyProgressCutoffAt(futureWeek), version: 2, percentByCategory: input.percentByCategory, notes: input.notes, updatedAt: result.row.updatedAt } })
     expect(result.row.progressUpdateId).not.toBe(original.progressId)
     const persisted = await state(f)
     expect(persisted.periods).toHaveLength(1)
@@ -116,17 +120,17 @@ suite('Weekly progress PostgreSQL write results', () => {
     expect(persisted.evidence).toHaveLength(2)
     expect(persisted.evidence.find(e => e.id === original.progressId)?.notes).toBe('Original evidence')
     expect(persisted.evidence.find(e => e.id === result.row.progressUpdateId)).toMatchObject({ notes: input.notes, percent_by_category: input.percentByCategory })
-    expect(persisted.audits.filter(a => a.entity_type === 'project_weekly_progress' && a.action === 'update' && isDeepStrictEqual(a.diff, { project_id: f.projectId, week_ending: weekEnding, version: 2 }))).toHaveLength(1)
+    expect(persisted.audits.filter(a => a.entity_type === 'project_weekly_progress' && a.action === 'update' && isDeepStrictEqual(a.diff, { project_id: f.projectId, week_ending: futureWeek, version: 2 }))).toHaveLength(1)
   })
 
   it('returns a serialized lock result with the committed WAR snapshot and lock audit', async () => {
     const f = await fixture()
     const original = await seedPeriod(f)
-    const snapshot = { weekEnding, overallPct: percentages.overall_pct, percentByCategory: percentages, notes: 'Original evidence', capturedAt: lockTime.toISOString() }
-    const result = await service.lock(f.projectId, original.periodId, { expectedVersion: 1, lockReason: 'Synthetic WAR lock' }, f.principal, lockTime)
-    expect(result).toMatchObject({ changed: true, projectId: f.projectId, row: { id: original.periodId, progressUpdateId: original.progressId, status: 'locked', version: 2, cutoffAt: cutoff.toISOString(), lockedAt: lockTime.toISOString(), lockedBy: f.userId, lockReason: 'Synthetic WAR lock', warSnapshot: snapshot } })
+    const result = await service.lock(f.projectId, original.periodId, { expectedVersion: 1, lockReason: 'Synthetic WAR lock' }, f.principal)
+    const snapshot = { weekEnding, overallPct: percentages.overall_pct, percentByCategory: percentages, notes: 'Original evidence', capturedAt: result.row.lockedAt }
+    expect(result).toMatchObject({ changed: true, projectId: f.projectId, row: { id: original.periodId, progressUpdateId: original.progressId, status: 'locked', version: 2, cutoffAt: cutoff.toISOString(), lockedAt: result.row.lockedAt, lockedBy: f.userId, lockReason: 'Synthetic WAR lock', warSnapshot: snapshot } })
     const persisted = await state(f)
-    expect(persisted.periods[0]).toMatchObject({ status: 'locked', version: 2, war_snapshot: snapshot, locked_by: f.userId, locked_at: lockTime })
+    expect(persisted.periods[0]).toMatchObject({ status: 'locked', version: 2, war_snapshot: snapshot, locked_by: f.userId, locked_at: new Date(result.row.lockedAt!) })
     expect(persisted.evidence).toHaveLength(1)
     expect(persisted.audits.filter(a => a.entity_type === 'project_weekly_progress' && a.action === 'lock')).toHaveLength(1)
   })
@@ -137,8 +141,8 @@ suite('Weekly progress PostgreSQL write results', () => {
     const original = await seedPeriod(f)
     const before = await state(f)
     const foreignBefore = await state(foreign)
-    await expect(service.create(command(f), foreign.principal, captureTime)).rejects.toBeInstanceOf(NotFoundException)
-    await expect(service.lock(f.projectId, original.periodId, { expectedVersion: 1, lockReason: '' }, foreign.principal, lockTime)).rejects.toBeInstanceOf(NotFoundException)
+    await expect(service.create(command(f), foreign.principal)).rejects.toBeInstanceOf(NotFoundException)
+    await expect(service.lock(f.projectId, original.periodId, { expectedVersion: 1, lockReason: '' }, foreign.principal)).rejects.toBeInstanceOf(NotFoundException)
     expect(await state(f)).toEqual(before)
     expect(await state(foreign)).toEqual(foreignBefore)
   })

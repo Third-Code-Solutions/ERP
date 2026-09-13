@@ -47,6 +47,7 @@ function weeklyRow(overrides: Partial<Record<string, unknown>> = {}) {
     clientRequestId: REQUEST_ID,
     requestHash: 'a'.repeat(64),
     weekEnding: '2026-09-13',
+    evidenceWeek: '2026-09-13',
     cutoffAt: new Date('2026-09-17T09:00:00.000Z'),
     status: 'open' as const,
     warSnapshot: null,
@@ -65,7 +66,7 @@ function weeklyRow(overrides: Partial<Record<string, unknown>> = {}) {
 
 function harness(
   selectResults: unknown[],
-  options: { insertResults?: unknown[][]; updateResults?: unknown[][] } = {},
+  options: { insertResults?: unknown[][]; updateResults?: unknown[][]; clock?: string; transactionStart?: string } = {},
 ) {
   const select = vi.fn(() => query((selectResults.shift() as unknown[] | undefined) ?? []))
   const insertResults = [...(options.insertResults ?? [])]
@@ -85,7 +86,7 @@ function harness(
     }
     return updateQuery
   })
-  const transactionClient = { select, insert, update, execute: vi.fn().mockResolvedValue([]) }
+  const transactionClient = { select, insert, update, execute: vi.fn().mockResolvedValue([{ found: false, now: options.clock ?? '2026-09-10T12:00:00.000Z', transactionStart: options.transactionStart ?? options.clock ?? '2026-09-10T12:00:00.000Z' }]) }
   const transaction = vi.fn(async (callback: (tx: typeof transactionClient) => Promise<unknown>) => callback(transactionClient))
   const database = { client: { select, transaction } } as unknown as DatabaseService
   const audit = {
@@ -101,6 +102,13 @@ const tenant = [{ status: 'active' }]
 const project = [{ id: PROJECT_ID }]
 
 describe('ProjectWeeklyProgressService', () => {
+  it('requires a retry when the lock transaction began before cutoff even if wall time crossed it', async () => {
+    const probe = harness([membership, tenant, project, [weeklyRow()]], { clock: '2026-09-17T09:00:00.001Z', transactionStart: '2026-09-17T08:59:59.999Z' })
+    await expect(probe.service.lock(PROJECT_ID, PERIOD_ID, { expectedVersion: 1, lockReason: 'WAR' }, PRINCIPAL)).rejects.toBeInstanceOf(ConflictException)
+    expect(probe.update).not.toHaveBeenCalled()
+    expect(probe.audit.writeSemantic).not.toHaveBeenCalled()
+  })
+
   it.each(['create', 'lock'] as const)('maps wrapped database contention to a safe conflict for %s', async (operation) => {
     for (const code of ['55P03', '40P01']) {
       const probe = harness([])
@@ -135,8 +143,8 @@ describe('ProjectWeeklyProgressService', () => {
     ]) {
       const probe = harness(rows)
       const result = operation === 'create'
-        ? probe.service.create({ projectId: PROJECT_ID, clientRequestId: REQUEST_ID, weekEnding: '2026-09-13', percentByCategory: PERCENTAGES, notes: '' }, PRINCIPAL, new Date('2026-09-10T12:00:00.000Z'))
-        : probe.service.lock(PROJECT_ID, PERIOD_ID, { expectedVersion: 1, lockReason: 'WAR cut-off' }, PRINCIPAL, new Date('2026-09-17T10:00:00.000Z'))
+        ? probe.service.create({ projectId: PROJECT_ID, clientRequestId: REQUEST_ID, weekEnding: '2026-09-13', percentByCategory: PERCENTAGES, notes: '' }, PRINCIPAL)
+        : probe.service.lock(PROJECT_ID, PERIOD_ID, { expectedVersion: 1, lockReason: 'WAR cut-off' }, PRINCIPAL)
       await expect(result).rejects.toBeInstanceOf(ForbiddenException)
       expect(probe.insert).not.toHaveBeenCalled()
       expect(probe.update).not.toHaveBeenCalled()
@@ -150,8 +158,8 @@ describe('ProjectWeeklyProgressService', () => {
     const probe = harness([membership, tenant])
     vi.mocked(probe.audit.tryLockTenantChain).mockResolvedValue(false)
     const result = operation === 'create'
-      ? probe.service.create({ projectId: PROJECT_ID, clientRequestId: REQUEST_ID, weekEnding: '2026-09-13', percentByCategory: PERCENTAGES, notes: '' }, PRINCIPAL, new Date('2026-09-10T12:00:00.000Z'))
-      : probe.service.lock(PROJECT_ID, PERIOD_ID, { expectedVersion: 1, lockReason: 'WAR cut-off' }, PRINCIPAL, new Date('2026-09-17T10:00:00.000Z'))
+      ? probe.service.create({ projectId: PROJECT_ID, clientRequestId: REQUEST_ID, weekEnding: '2026-09-13', percentByCategory: PERCENTAGES, notes: '' }, PRINCIPAL)
+      : probe.service.lock(PROJECT_ID, PERIOD_ID, { expectedVersion: 1, lockReason: 'WAR cut-off' }, PRINCIPAL)
     await expect(result).rejects.toBeInstanceOf(ConflictException)
     expect(probe.insert).not.toHaveBeenCalled()
     expect(probe.update).not.toHaveBeenCalled()
@@ -175,7 +183,6 @@ describe('ProjectWeeklyProgressService', () => {
           notes: 'Weekly site capture',
         },
         PRINCIPAL,
-        new Date('2026-09-10T12:00:00.000Z'),
       ),
     ).resolves.toMatchObject({ created: true, changed: true, row: { id: PERIOD_ID, status: 'open' } })
     expect(probe.insert).toHaveBeenCalledTimes(2)
@@ -201,7 +208,7 @@ describe('ProjectWeeklyProgressService', () => {
         capturedAt: '2026-09-17T10:00:00.000Z',
       },
     })
-    const probe = harness([membership, tenant, project, [current]], { updateResults: [[updated]] })
+    const probe = harness([membership, tenant, project, [current]], { updateResults: [[updated]], clock: '2026-09-17T10:00:00.000Z' })
 
     await expect(
       probe.service.lock(
@@ -209,7 +216,6 @@ describe('ProjectWeeklyProgressService', () => {
         PERIOD_ID,
         { expectedVersion: 1, lockReason: 'Thursday WAR cut-off' },
         PRINCIPAL,
-        new Date('2026-09-17T10:00:00.000Z'),
       ),
     ).resolves.toMatchObject({ changed: true, row: { status: 'locked', version: 2 } })
     expect(probe.update).toHaveBeenCalledTimes(1)
@@ -220,7 +226,7 @@ describe('ProjectWeeklyProgressService', () => {
   })
 
   it('rejects pre-cut-off capture and viewer mutation', async () => {
-    const beforeCutoff = harness([membership, tenant, project, [], []])
+    const beforeCutoff = harness([membership, tenant, project, [], []], { clock: '2026-09-17T09:00:00.000Z' })
     await expect(
       beforeCutoff.service.create(
         {
@@ -231,7 +237,6 @@ describe('ProjectWeeklyProgressService', () => {
           notes: '',
         },
         PRINCIPAL,
-        new Date('2026-09-17T09:00:00.000Z'),
       ),
     ).rejects.toBeInstanceOf(ConflictException)
 

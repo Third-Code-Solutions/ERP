@@ -8,6 +8,7 @@ import {
   NotFoundException,
 } from '@nestjs/common'
 import {
+  auditLog,
   progressUpdates,
   projectWeeklyProgress,
   projects,
@@ -24,6 +25,10 @@ import {
   projectWeeklyProgressPercentSchema,
   projectWeeklyProgressRowSchema,
   weeklyProgressCutoffAt,
+  weeklyProgressCapturePayload,
+  weeklyProgressLockPayload,
+  projectWeeklyProgressCommandReceiptSchema,
+  type ProjectWeeklyProgressCommandReceipt,
   type CreateProjectWeeklyProgressCommand,
   type LockProjectWeeklyProgressCommand,
   type ProjectWeeklyProgressListQuery,
@@ -70,6 +75,7 @@ const rowSelection = {
   ...periodSelection,
   percentByCategory: progressUpdates.percent_by_category,
   notes: progressUpdates.notes,
+  evidenceWeek: sql<string>`to_char(${progressUpdates.week_ending} at time zone 'UTC', 'YYYY-MM-DD')`,
 }
 
 type DbRow = {
@@ -91,6 +97,7 @@ type DbRow = {
   updatedAt: Date
   percentByCategory: unknown
   notes: string | null
+  evidenceWeek?: string
 }
 
 function canonicalJson(value: unknown): string {
@@ -186,10 +193,11 @@ export class ProjectWeeklyProgressService {
   async create(
     command: CreateProjectWeeklyProgressCommand,
     principal: ErpPrincipal,
-    now = new Date(),
   ): Promise<ProjectWeeklyProgressMutationResult> {
-    const input = createProjectWeeklyProgressCommandSchema.parse(command)
+    const parsed = createProjectWeeklyProgressCommandSchema.parse(command)
+    const input = { ...parsed, projectId: parsed.projectId.toLowerCase(), clientRequestId: parsed.clientRequestId.toLowerCase() }
     const requestHash = commandHash(input)
+    const payloadHash = createHash('sha256').update(weeklyProgressCapturePayload(input)).digest('hex')
     return this.mutationTransaction(async (transaction) => {
       const authorizedPrincipal = await this.admitMutation(
         transaction,
@@ -199,41 +207,9 @@ export class ProjectWeeklyProgressService {
       await this.audit.stampActor(transaction, authorizedPrincipal)
       await this.lockProject(transaction, input.projectId, authorizedPrincipal.tenantId)
 
-      const [requestReplay] = await transaction
-        .select(rowSelection)
-        .from(projectWeeklyProgress)
-        .innerJoin(
-          progressUpdates,
-          and(
-            eq(progressUpdates.id, projectWeeklyProgress.progress_update_id),
-            eq(progressUpdates.tenant_id, authorizedPrincipal.tenantId),
-          ),
-        )
-        .where(
-          and(
-            eq(projectWeeklyProgress.tenant_id, authorizedPrincipal.tenantId),
-            eq(projectWeeklyProgress.client_request_id, input.clientRequestId),
-          ),
-        )
-        .limit(1)
-        .for('update')
-      if (requestReplay) {
-        const replay = requestReplay as unknown as DbRow
-        if (replay.requestHash !== requestHash) {
-          throw new ConflictException('Client request id was already used with different progress data')
-        }
-        return projectWeeklyProgressMutationResultSchema.parse({
-          projectId: input.projectId,
-          created: false,
-          changed: false,
-          row: serialize(replay),
-        })
-      }
-
-      const cutoffAt = new Date(weeklyProgressCutoffAt(input.weekEnding))
-      if (now.getTime() >= cutoffAt.getTime()) {
-        throw new ConflictException('Weekly progress is past the Thursday 17:00 PHT cut-off')
-      }
+      const replay = await this.findReceipt(transaction, authorizedPrincipal, input.projectId, input.clientRequestId, 'capture', payloadHash)
+      if (replay?.operation === 'capture') return projectWeeklyProgressMutationResultSchema.parse({ projectId: input.projectId, created: false, changed: false, row: replay.row, receipt: replay })
+      await this.rejectLegacyKey(transaction, authorizedPrincipal.tenantId, input.clientRequestId)
 
       const [existing] = await transaction
         .select(rowSelection)
@@ -258,6 +234,10 @@ export class ProjectWeeklyProgressService {
       if (existing && (existing as unknown as DbRow).status === 'locked') {
         throw new ConflictException('Weekly progress is already locked into the WAR')
       }
+      if (existing) this.assertEvidence(existing as unknown as DbRow)
+      const { now } = await this.clock(transaction)
+      const cutoffAt = new Date(weeklyProgressCutoffAt(input.weekEnding))
+      if (now.getTime() >= cutoffAt.getTime()) throw new ConflictException('Weekly progress is past the Thursday 17:00 PHT cut-off')
 
       const [progress] = await transaction
         .insert(progressUpdates)
@@ -306,7 +286,8 @@ export class ProjectWeeklyProgressService {
           action: 'update',
           diff: { project_id: input.projectId, week_ending: input.weekEnding, version: row.version },
         })
-        return projectWeeklyProgressMutationResultSchema.parse({ projectId: input.projectId, created: false, changed: true, row })
+        const receipt = await this.saveReceipt(transaction, { schemaVersion: 1, tenantId: authorizedPrincipal.tenantId, actorId: authorizedPrincipal.userId, projectId: input.projectId, clientRequestId: input.clientRequestId, payloadHash, operation: 'capture', created: false, row })
+        return projectWeeklyProgressMutationResultSchema.parse({ projectId: input.projectId, created: false, changed: true, row, receipt })
       }
 
       const [created] = await transaction
@@ -344,7 +325,8 @@ export class ProjectWeeklyProgressService {
         action: 'create',
         diff: { project_id: input.projectId, week_ending: input.weekEnding, cutoff_at: cutoffAt.toISOString() },
       })
-      return projectWeeklyProgressMutationResultSchema.parse({ projectId: input.projectId, created: true, changed: true, row })
+      const receipt = await this.saveReceipt(transaction, { schemaVersion: 1, tenantId: authorizedPrincipal.tenantId, actorId: authorizedPrincipal.userId, projectId: input.projectId, clientRequestId: input.clientRequestId, payloadHash, operation: 'capture', created: true, row })
+      return projectWeeklyProgressMutationResultSchema.parse({ projectId: input.projectId, created: true, changed: true, row, receipt })
     })
   }
 
@@ -353,13 +335,21 @@ export class ProjectWeeklyProgressService {
     periodId: string,
     command: LockProjectWeeklyProgressCommand,
     principal: ErpPrincipal,
-    now = new Date(),
   ): Promise<ProjectWeeklyProgressLockResult> {
     const input = lockProjectWeeklyProgressCommandSchema.parse(command)
+    projectId = z.string().uuid().parse(projectId).toLowerCase()
+    periodId = z.string().uuid().parse(periodId).toLowerCase()
+    const requestId = input.clientRequestId?.toLowerCase()
+    const payloadHash = createHash('sha256').update(weeklyProgressLockPayload(projectId, periodId, input)).digest('hex')
     return this.mutationTransaction(async (transaction) => {
       const authorizedPrincipal = await this.admitMutation(transaction, principal, 'precon.manage_checklist')
       await this.audit.stampActor(transaction, authorizedPrincipal)
       await this.lockProject(transaction, projectId, authorizedPrincipal.tenantId)
+      if (requestId) {
+        const replay = await this.findReceipt(transaction, authorizedPrincipal, projectId, requestId, 'lock', payloadHash)
+        if (replay) return projectWeeklyProgressLockResultSchema.parse({ projectId, changed: false, row: replay.row, receipt: replay })
+        await this.rejectLegacyKey(transaction, authorizedPrincipal.tenantId, requestId)
+      }
       const [current] = await transaction
         .select(rowSelection)
         .from(projectWeeklyProgress)
@@ -383,9 +373,12 @@ export class ProjectWeeklyProgressService {
       const row = current as unknown as DbRow
       if (row.version !== input.expectedVersion) throw new ConflictException('Weekly progress changed; refresh before locking')
       if (row.status === 'locked') {
+        if (requestId) throw new ConflictException('Weekly progress is already locked; reconcile the existing WAR record')
         return projectWeeklyProgressLockResultSchema.parse({ projectId, changed: false, row: serialize(row) })
       }
-      if (now.getTime() < row.cutoffAt.getTime()) {
+      this.assertEvidence(row)
+      const { now, transactionStart } = await this.clock(transaction)
+      if (now.getTime() < row.cutoffAt.getTime() || transactionStart.getTime() < row.cutoffAt.getTime()) {
         throw new ConflictException('Weekly progress cannot be locked before the Thursday 17:00 PHT cut-off')
       }
       const percentages = percent(row.percentByCategory)
@@ -427,8 +420,66 @@ export class ProjectWeeklyProgressService {
         action: 'lock',
         diff: { project_id: projectId, week_ending: row.weekEnding, cutoff_at: row.cutoffAt.toISOString(), lock_reason: input.lockReason },
       })
-      return projectWeeklyProgressLockResultSchema.parse({ projectId, changed: true, row: locked })
+      const receipt = requestId ? await this.saveReceipt(transaction, { schemaVersion: 1, tenantId: authorizedPrincipal.tenantId, actorId: authorizedPrincipal.userId, projectId, clientRequestId: requestId, payloadHash, operation: 'lock', expectedVersion: input.expectedVersion, row: locked }) : undefined
+      return projectWeeklyProgressLockResultSchema.parse({ projectId, changed: true, row: locked, ...(receipt ? { receipt } : {}) })
     })
+  }
+
+  private async clock(transaction: DatabaseTransaction): Promise<{ now: Date; transactionStart: Date }> {
+    const [clock] = await transaction.execute<{ now: string; transactionStart: string }>(sql`select clock_timestamp()::text as now, transaction_timestamp()::text as "transactionStart"`)
+    if (!clock) throw new InternalServerErrorException('Database clock unavailable')
+    const now = new Date(clock.now), transactionStart = new Date(clock.transactionStart)
+    if (!Number.isFinite(now.getTime()) || !Number.isFinite(transactionStart.getTime())) throw new InternalServerErrorException('Database clock unavailable')
+    return { now, transactionStart }
+  }
+
+  private assertEvidence(row: DbRow): void {
+    if (row.evidenceWeek !== row.weekEnding || row.cutoffAt.toISOString() !== weeklyProgressCutoffAt(row.weekEnding)) throw new ConflictException('Weekly progress period evidence requires reconciliation')
+  }
+
+  private async findReceipt(transaction: DatabaseTransaction, actor: ErpPrincipal, projectId: string, requestId: string, operation: 'capture' | 'lock', payloadHash: string): Promise<ProjectWeeklyProgressCommandReceipt | undefined> {
+    const rows = await transaction.select({ actorId: auditLog.actor_id, action: auditLog.action, diff: auditLog.diff }).from(auditLog).where(and(eq(auditLog.tenant_id, actor.tenantId), eq(auditLog.entity_type, 'project_weekly_progress_command'), eq(auditLog.entity_id, requestId))).limit(2)
+    if (!rows.length) return undefined
+    const stored = z.object({ schemaVersion: z.literal(1), payloadHash: z.string(), receipt: projectWeeklyProgressCommandReceiptSchema }).strict().safeParse(rows[0]!.diff)
+    if (rows.length !== 1 || !stored.success) throw new ConflictException('Weekly progress command receipt requires reconciliation')
+    const receipt = stored.data.receipt
+    if (rows[0]!.action !== (receipt.operation === 'capture' ? 'create' : 'lock')) throw new ConflictException('Weekly progress command receipt requires reconciliation')
+    if (rows[0]!.actorId !== actor.userId || receipt.tenantId !== actor.tenantId || receipt.actorId !== actor.userId || receipt.projectId !== projectId || receipt.row.projectId !== projectId || receipt.clientRequestId !== requestId || receipt.operation !== operation || receipt.payloadHash !== payloadHash || stored.data.payloadHash !== payloadHash) throw new ConflictException('Client request id was already used by another command')
+    this.assertReceipt(receipt)
+    return receipt
+  }
+
+  private assertReceipt(receipt: ProjectWeeklyProgressCommandReceipt): void {
+    const row = receipt.row
+    let valid = row.cutoffAt === weeklyProgressCutoffAt(row.weekEnding) && Date.parse(row.updatedAt) >= Date.parse(row.createdAt)
+    let payload: string
+    if (receipt.operation === 'capture') {
+      valid &&= row.status === 'open' && row.warSnapshot === null && row.lockedAt === null && row.lockedBy === null && row.lockReason === '' && row.clientRequestId === receipt.clientRequestId && Date.parse(row.updatedAt) < Date.parse(row.cutoffAt) && (receipt.created ? row.version === 1 && row.createdBy === receipt.actorId : row.version >= 2)
+      payload = weeklyProgressCapturePayload({ projectId: receipt.projectId, clientRequestId: receipt.clientRequestId, weekEnding: row.weekEnding, notes: row.notes, percentByCategory: row.percentByCategory })
+    } else {
+      valid &&= row.status === 'locked' && row.version === receipt.expectedVersion + 1 && row.lockedBy === receipt.actorId && row.lockedAt !== null && Date.parse(row.lockedAt) >= Date.parse(row.cutoffAt) && row.updatedAt === row.lockedAt && row.warSnapshot !== null && row.warSnapshot.weekEnding === row.weekEnding && row.warSnapshot.notes === row.notes && row.warSnapshot.overallPct === row.percentByCategory.overall_pct && canonicalJson(row.warSnapshot.percentByCategory) === canonicalJson(row.percentByCategory) && row.warSnapshot.capturedAt === row.lockedAt
+      payload = weeklyProgressLockPayload(receipt.projectId, row.id, { expectedVersion: receipt.expectedVersion, lockReason: row.lockReason })
+    }
+    if (!valid || createHash('sha256').update(payload).digest('hex') !== receipt.payloadHash) throw new ConflictException('Weekly progress command receipt requires reconciliation')
+  }
+
+  private async rejectLegacyKey(transaction: DatabaseTransaction, tenantId: string, requestId: string): Promise<void> {
+    const [legacy] = await transaction.execute<{ found: boolean }>(sql`select (
+      exists(select 1 from ${projectWeeklyProgress} where ${projectWeeklyProgress.tenant_id} = ${tenantId}::uuid and ${projectWeeklyProgress.client_request_id} = ${requestId}::uuid)
+      or exists(select 1 from ${auditLog} where ${auditLog.tenant_id} = ${tenantId}::uuid and ${auditLog.entity_type} = 'project_weekly_progress' and (
+        lower(${auditLog.diff}->>'client_request_id') = ${requestId}
+        or lower(${auditLog.diff}->'client_request_id'->>'before') = ${requestId}
+        or lower(${auditLog.diff}->'client_request_id'->>'after') = ${requestId}
+      ))
+    ) as found`)
+    if (legacy?.found) throw new ConflictException('Legacy weekly progress request requires reconciliation; refresh the existing record')
+  }
+
+  private async saveReceipt(transaction: DatabaseTransaction, value: ProjectWeeklyProgressCommandReceipt): Promise<ProjectWeeklyProgressCommandReceipt> {
+    const receipt = projectWeeklyProgressCommandReceiptSchema.parse(value)
+    this.assertReceipt(receipt)
+    await this.audit.writeSemantic(transaction, { tenantId: receipt.tenantId, actorId: receipt.actorId, entityType: 'project_weekly_progress_command', entityId: receipt.clientRequestId, action: receipt.operation === 'capture' ? 'create' : 'lock', diff: { schemaVersion: 1, payloadHash: receipt.payloadHash, receipt } })
+    return receipt
   }
 
   private async mutationTransaction<T>(operation: (transaction: DatabaseTransaction) => Promise<T>): Promise<T> {

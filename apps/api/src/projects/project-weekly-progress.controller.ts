@@ -52,7 +52,7 @@ export class ProjectWeeklyProgressController {
   ): Promise<ProjectWeeklyProgressMutationResult> {
     const parsed = createProjectWeeklyProgressCommandSchema.safeParse(body)
     if (!parsed.success) throw new BadRequestException('Invalid weekly progress capture')
-    if (parsed.data.projectId !== projectId) throw new BadRequestException('Project id does not match route')
+    if (parsed.data.projectId.toLowerCase() !== projectId.toLowerCase()) throw new BadRequestException('Project id does not match route')
     return this.progress.create(parsed.data, principal)
   }
 

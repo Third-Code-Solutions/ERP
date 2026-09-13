@@ -10392,33 +10392,56 @@ export async function getProjectWeeklyProgressThroughCoreApi(
     const response = await fetch(`${access.baseUrl}/v1/projects/${encodeURIComponent(parsedProjectId.data)}/progress/weekly?${params.toString()}`, { method: 'GET', headers: { authorization: `Bearer ${access.accessToken}`, 'x-request-id': randomUUID() }, cache: 'no-store', signal: AbortSignal.timeout(10_000) })
     const rawBody: unknown = await response.json().catch(() => null)
     if (!response.ok) {
-      const body = z.object({ message: z.string() }).safeParse(rawBody)
-      return { ok: false, status: response.status, error: body.success ? body.data.message : 'Weekly progress is unavailable.' }
+      return { ok: false, status: response.status, error: 'Weekly progress is unavailable.' }
     }
     const parsed = projectWeeklyProgressListResultSchema.safeParse(rawBody)
-    return parsed.success ? { ok: true, data: parsed.data } : { ok: false, status: 503, error: 'ERP Core API returned an invalid weekly progress result.' }
+    return parsed.success && parsed.data.projectId.toLowerCase() === parsedProjectId.data.toLowerCase()
+      && parsed.data.page === parsedQuery.data.page && parsed.data.limit === parsedQuery.data.limit
+      && parsed.data.rows.length <= parsed.data.limit
+      && parsed.data.totalPages === Math.max(1, Math.ceil(parsed.data.total / parsed.data.limit))
+      && parsed.data.rows.every(row => row.projectId.toLowerCase() === parsedProjectId.data.toLowerCase())
+      ? { ok: true, data: parsed.data }
+      : { ok: false, status: 503, error: 'ERP Core API returned an invalid weekly progress result.' }
   } catch {
     return { ok: false, status: 503, error: 'ERP Core API is unavailable. Weekly progress was not loaded.' }
+  }
+}
+
+function weeklyProgressWriteFailure(status: number): CoreResult<never> {
+  const outcomeUnknown = status >= 500 || status === 408
+  return {
+    ok: false, status, outcomeUnknown,
+    error: outcomeUnknown
+      ? 'Weekly command outcome is unconfirmed. Retry the unchanged command to recover its receipt.'
+      : status === 409
+        ? 'Weekly progress changed, its cutoff applies, or the request needs reconciliation. Review the ledger before starting a new command.'
+        : status === 401 || status === 403
+          ? 'Your current session cannot perform this weekly progress action.'
+          : status === 404 ? 'The requested weekly progress project or period is unavailable.'
+            : status === 429 ? 'Weekly progress is busy. Try again shortly.'
+              : 'The weekly progress command was rejected. Check the submitted values.',
   }
 }
 
 /** Captures one weekly progress update and opens its Thursday cut-off period. */
 export async function createProjectWeeklyProgressThroughCoreApi(command: unknown): Promise<CoreResult<ProjectWeeklyProgressMutationResult>> {
   const parsedCommand = createProjectWeeklyProgressCommandSchema.safeParse(command)
-  if (!parsedCommand.success) return { ok: false, status: 400, error: 'Invalid weekly progress capture.' }
-  const access = await getCoreApiAccess()
-  if (!access.ok) return access
+  if (!parsedCommand.success) return { ok: false, status: 400, outcomeUnknown: false, error: 'Invalid weekly progress capture.' }
+  let access: Awaited<ReturnType<typeof getCoreApiAccess>>
+  try { access = await getCoreApiAccess() } catch {
+    return { ok: false, status: 503, outcomeUnknown: false, error: 'The Core session could not be verified. No weekly command was sent.' }
+  }
+  if (!access.ok) return { ...access, outcomeUnknown: false }
   try {
     const response = await fetch(`${access.baseUrl}/v1/projects/${encodeURIComponent(parsedCommand.data.projectId)}/progress/weekly`, { method: 'POST', headers: { authorization: `Bearer ${access.accessToken}`, 'content-type': 'application/json', 'x-request-id': randomUUID() }, body: JSON.stringify(parsedCommand.data), cache: 'no-store', signal: AbortSignal.timeout(10_000) })
     const rawBody: unknown = await response.json().catch(() => null)
     if (!response.ok) {
-      const body = z.object({ message: z.string() }).safeParse(rawBody)
-      return { ok: false, status: response.status, error: body.success ? body.data.message : response.status === 409 ? 'Weekly progress changed or passed its Thursday cut-off.' : 'Weekly progress was not captured.' }
+      return weeklyProgressWriteFailure(response.status)
     }
     const parsed = projectWeeklyProgressMutationResultSchema.safeParse(rawBody)
-    return parsed.success ? { ok: true, data: parsed.data } : { ok: false, status: 503, error: 'ERP Core API returned an invalid weekly progress result.' }
+    return parsed.success ? { ok: true, data: parsed.data } : weeklyProgressWriteFailure(503)
   } catch {
-    return { ok: false, status: 503, error: 'ERP Core API is unavailable. Progress capture outcome is unconfirmed; refresh before retrying.' }
+    return weeklyProgressWriteFailure(503)
   }
 }
 
@@ -10427,19 +10450,21 @@ export async function lockProjectWeeklyProgressThroughCoreApi(projectId: unknown
   const parsedProjectId = z.string().uuid().safeParse(projectId)
   const parsedPeriodId = z.string().uuid().safeParse(periodId)
   const parsedCommand = lockProjectWeeklyProgressCommandSchema.safeParse(command)
-  if (!parsedProjectId.success || !parsedPeriodId.success || !parsedCommand.success) return { ok: false, status: 400, error: 'Invalid weekly progress lock.' }
-  const access = await getCoreApiAccess()
-  if (!access.ok) return access
+  if (!parsedProjectId.success || !parsedPeriodId.success || !parsedCommand.success) return { ok: false, status: 400, outcomeUnknown: false, error: 'Invalid weekly progress lock.' }
+  let access: Awaited<ReturnType<typeof getCoreApiAccess>>
+  try { access = await getCoreApiAccess() } catch {
+    return { ok: false, status: 503, outcomeUnknown: false, error: 'The Core session could not be verified. No weekly command was sent.' }
+  }
+  if (!access.ok) return { ...access, outcomeUnknown: false }
   try {
     const response = await fetch(`${access.baseUrl}/v1/projects/${encodeURIComponent(parsedProjectId.data)}/progress/weekly/${encodeURIComponent(parsedPeriodId.data)}/lock`, { method: 'POST', headers: { authorization: `Bearer ${access.accessToken}`, 'content-type': 'application/json', 'x-request-id': randomUUID() }, body: JSON.stringify(parsedCommand.data), cache: 'no-store', signal: AbortSignal.timeout(10_000) })
     const rawBody: unknown = await response.json().catch(() => null)
     if (!response.ok) {
-      const body = z.object({ message: z.string() }).safeParse(rawBody)
-      return { ok: false, status: response.status, error: body.success ? body.data.message : response.status === 409 ? 'Weekly progress changed or is not past its Thursday cut-off.' : 'WAR was not locked.' }
+      return weeklyProgressWriteFailure(response.status)
     }
     const parsed = projectWeeklyProgressLockResultSchema.safeParse(rawBody)
-    return parsed.success ? { ok: true, data: parsed.data } : { ok: false, status: 503, error: 'ERP Core API returned an invalid WAR lock result.' }
+    return parsed.success ? { ok: true, data: parsed.data } : weeklyProgressWriteFailure(503)
   } catch {
-    return { ok: false, status: 503, error: 'ERP Core API is unavailable. WAR lock outcome is unconfirmed; refresh before retrying.' }
+    return weeklyProgressWriteFailure(503)
   }
 }

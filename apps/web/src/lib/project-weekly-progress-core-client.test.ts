@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ createSupabaseServerClient: vi.fn() }))
 vi.mock('@third-code-erp/auth', () => ({ createSupabaseServerClient: mocks.createSupabaseServerClient }))
@@ -38,6 +38,7 @@ const ROW = {
 }
 
 describe('project weekly progress Core client', () => {
+  afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals() })
   beforeEach(() => {
     vi.restoreAllMocks()
     vi.stubEnv('ERP_CORE_API_URL', 'https://core.example.test')
@@ -73,5 +74,49 @@ describe('project weekly progress Core client', () => {
     vi.stubEnv('ERP_PROJECT_WEEKLY_PROGRESS_WRITES_VIA_API', 'true')
     vi.stubEnv('ERP_PROJECT_WEEKLY_PROGRESS_WRITES_VIA_API_TENANT_IDS', '*')
     expect(projectWeeklyProgressWritesUseCoreApi('22222222-2222-4222-8222-222222222222')).toBe(true)
+  })
+
+  it.each(['capture', 'lock'] as const)('preserves an unknown %s outcome without exposing provider text', async (operation) => {
+    for (const status of [408, 500, 502, 503]) {
+      vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ message: 'internal provider stack and private record details' }), { status }))
+      const result = operation === 'capture'
+        ? await createProjectWeeklyProgressThroughCoreApi({ projectId: PROJECT_ID, clientRequestId: REQUEST_ID, weekEnding: ROW.weekEnding, percentByCategory: PERCENTAGES, notes: ROW.notes })
+        : await lockProjectWeeklyProgressThroughCoreApi(PROJECT_ID, PERIOD_ID, { expectedVersion: 1, lockReason: 'cut-off' })
+      expect(result).toMatchObject({ ok: false, status, outcomeUnknown: true })
+      expect(result.error).not.toContain('private record details')
+    }
+  })
+
+  it.each(['capture', 'lock'] as const)('uses safe messages for rejected %s commands', async (operation) => {
+    for (const status of [400, 401, 403, 404, 409, 422, 429]) {
+      vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ message: 'internal provider stack and private record details' }), { status }))
+      const result = operation === 'capture'
+        ? await createProjectWeeklyProgressThroughCoreApi({ projectId: PROJECT_ID, clientRequestId: REQUEST_ID, weekEnding: ROW.weekEnding, percentByCategory: PERCENTAGES, notes: ROW.notes })
+        : await lockProjectWeeklyProgressThroughCoreApi(PROJECT_ID, PERIOD_ID, { expectedVersion: 1, lockReason: 'cut-off' })
+      expect(result).toMatchObject({ ok: false, status })
+      expect(result.outcomeUnknown).not.toBe(true)
+      expect(result.error).not.toContain('private record details')
+    }
+  })
+
+  it('treats lost and malformed success responses as unknown writes', async () => {
+    const command = { projectId: PROJECT_ID, clientRequestId: REQUEST_ID, weekEnding: ROW.weekEnding, percentByCategory: PERCENTAGES, notes: ROW.notes }
+    vi.mocked(fetch).mockRejectedValueOnce(new Error('network response lost'))
+    await expect(createProjectWeeklyProgressThroughCoreApi(command)).resolves.toMatchObject({ ok: false, outcomeUnknown: true })
+    vi.mocked(fetch).mockResolvedValueOnce(new Response('{"ok":true}', { status: 200 }))
+    await expect(lockProjectWeeklyProgressThroughCoreApi(PROJECT_ID, PERIOD_ID, { expectedVersion: 1, lockReason: '' })).resolves.toMatchObject({ ok: false, outcomeUnknown: true })
+  })
+
+  it('rejects a structurally valid ledger from another project or requested page', async () => {
+    const result = { projectId: PROJECT_ID, rows: [ROW], total: 1, page: 1, limit: 25, totalPages: 1 }
+    for (const body of [
+      { ...result, projectId: PERIOD_ID },
+      { ...result, rows: [{ ...ROW, projectId: PERIOD_ID }] },
+      { ...result, page: 2 },
+      { ...result, limit: 50 },
+    ]) {
+      vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify(body), { status: 200 }))
+      await expect(getProjectWeeklyProgressThroughCoreApi(PROJECT_ID)).resolves.toMatchObject({ ok: false, status: 503 })
+    }
   })
 })

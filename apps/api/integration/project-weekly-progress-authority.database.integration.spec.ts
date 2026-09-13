@@ -27,6 +27,7 @@ const weekEnding = '2020-01-05'
 const cutoff = new Date('2020-01-09T09:00:00.000Z')
 const captureTime = new Date('2020-01-08T09:00:00.000Z')
 const lockTime = new Date('2020-01-09T10:00:00.000Z')
+let futureWeek: string
 const percentages = {
   civil_pct: 20,
   electrical_pct: 30,
@@ -43,6 +44,8 @@ beforeAll(async () => {
   }
   const [clock] = await db.execute<{ ready: boolean }>(sql`select now() > ${lockTime.toISOString()}::timestamptz as ready`)
   expect(clock?.ready).toBe(true)
+  const [future] = await db.execute<{ week: string }>(sql`select (clock_timestamp() at time zone 'UTC' + interval '14 days')::date::text as week`)
+  futureWeek = future!.week
 })
 
 // UUID-isolated synthetic fixtures are committed so the service uses an
@@ -93,7 +96,7 @@ function createCommand(f: Fixture) {
   return {
     projectId: f.projectId,
     clientRequestId: randomUUID(),
-    weekEnding,
+    weekEnding: futureWeek,
     percentByCategory: percentages,
     notes: 'Synthetic weekly authority capture',
   }
@@ -298,7 +301,7 @@ suite('Weekly progress current-authority PostgreSQL admission', () => {
     await expectRejectedWithoutMutation(
       f,
       before,
-      () => service.create(createCommand(f), f.principal, captureTime),
+      () => service.create(createCommand(f), f.principal),
       (error) => error instanceof ForbiddenException,
       `capture with actor status ${status}`,
     )
@@ -317,7 +320,6 @@ suite('Weekly progress current-authority PostgreSQL admission', () => {
         seeded.periodId,
         { expectedVersion: 1, lockReason: 'Synthetic current-authority lock' },
         f.principal,
-        lockTime,
       ),
       (error) => error instanceof ForbiddenException,
       `lock with actor status ${status}`,
@@ -331,7 +333,7 @@ suite('Weekly progress current-authority PostgreSQL admission', () => {
     await expectRejectedWithoutMutation(
       f,
       before,
-      () => service.create(createCommand(f), f.principal, captureTime),
+      () => service.create(createCommand(f), f.principal),
       (error) => error instanceof ForbiddenException,
       `capture with tenant status ${status}`,
     )
@@ -350,7 +352,6 @@ suite('Weekly progress current-authority PostgreSQL admission', () => {
         seeded.periodId,
         { expectedVersion: 1, lockReason: 'Synthetic current-authority lock' },
         f.principal,
-        lockTime,
       ),
       (error) => error instanceof ForbiddenException,
       `lock with tenant status ${status}`,
@@ -364,7 +365,7 @@ suite('Weekly progress current-authority PostgreSQL admission', () => {
     await expectRejectedWithoutMutation(
       f,
       before,
-      () => service.create(createCommand(f), f.principal, captureTime),
+      () => service.create(createCommand(f), f.principal),
       (error) => error instanceof ForbiddenException,
       'capture after current-role demotion',
     )
@@ -383,7 +384,6 @@ suite('Weekly progress current-authority PostgreSQL admission', () => {
         seeded.periodId,
         { expectedVersion: 1, lockReason: 'Synthetic current-authority lock' },
         f.principal,
-        lockTime,
       ),
       (error) => error instanceof ForbiddenException,
       'lock after current-role demotion',
@@ -408,7 +408,7 @@ suite('Weekly progress current-authority PostgreSQL admission', () => {
     const f = await fixture()
     await markCurrentRole(f, role)
     const before = await state(f)
-    const outcome = await invoke(() => service.create(createCommand(f), f.principal, captureTime))
+    const outcome = await invoke(() => service.create(createCommand(f), f.principal))
     if (allowed) {
       if ('error' in outcome) throw outcome.error
       expect(outcome.value).toMatchObject({ projectId: f.projectId, created: true, changed: true })
@@ -446,7 +446,6 @@ suite('Weekly progress current-authority PostgreSQL admission', () => {
       seeded.periodId,
       { expectedVersion: 1, lockReason: 'Synthetic capability matrix lock' },
       f.principal,
-      lockTime,
     ))
     if (allowed) {
       if ('error' in outcome) throw outcome.error
@@ -471,7 +470,7 @@ suite('Weekly progress current-authority PostgreSQL admission', () => {
     await expectRejectedWithoutMutation(
       f,
       before,
-      () => service.create({ ...createCommand(f), projectId: foreign.projectId }, f.principal, captureTime),
+      () => service.create({ ...createCommand(f), projectId: foreign.projectId }, f.principal),
       (error) => error instanceof NotFoundException,
       'foreign-project capture',
     )
@@ -485,7 +484,6 @@ suite('Weekly progress current-authority PostgreSQL admission', () => {
         foreignPeriod.periodId,
         { expectedVersion: 1, lockReason: 'Synthetic foreign-project lock' },
         f.principal,
-        lockTime,
       ),
       (error) => error instanceof NotFoundException,
       'foreign-project WAR lock',
@@ -503,7 +501,7 @@ suite('Weekly progress current-authority PostgreSQL admission', () => {
     await expectRejectedWithoutMutation(
       retired,
       retiredBefore,
-      () => service.create(createCommand(retired), retired.principal, captureTime),
+      () => service.create(createCommand(retired), retired.principal),
       (error) => error instanceof NotFoundException,
       'retired-project capture',
     )
@@ -515,7 +513,6 @@ suite('Weekly progress current-authority PostgreSQL admission', () => {
         retiredPeriod.periodId,
         { expectedVersion: 1, lockReason: 'Synthetic retired-project lock' },
         retired.principal,
-        lockTime,
       ),
       (error) => error instanceof NotFoundException,
       'retired-project WAR lock',
@@ -529,7 +526,7 @@ suite('Weekly progress current-authority PostgreSQL admission', () => {
       f,
       target,
       before,
-      () => service.create(createCommand(f), f.principal, captureTime),
+      () => service.create(createCommand(f), f.principal),
       'capture',
     )
   })
@@ -547,7 +544,6 @@ suite('Weekly progress current-authority PostgreSQL admission', () => {
         seeded.periodId,
         { expectedVersion: 1, lockReason: `Synthetic ${target} contention` },
         f.principal,
-        lockTime,
       ),
       'WAR lock',
     )

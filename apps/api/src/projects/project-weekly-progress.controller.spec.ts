@@ -23,6 +23,16 @@ const payload = {
 }
 
 describe('ProjectWeeklyProgressController', () => {
+  it('accepts equivalent mixed-case UUIDs without relaxing project equality', async () => {
+    const progress = { create: vi.fn().mockResolvedValue({}) } as unknown as ProjectWeeklyProgressService
+    const controller = new ProjectWeeklyProgressController(progress)
+    const projectId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    await controller.create(projectId, { ...payload, projectId: projectId.toUpperCase() }, PRINCIPAL)
+    expect(progress.create).toHaveBeenCalledTimes(1)
+    expect(() => controller.create(projectId, { ...payload, projectId: PERIOD_ID }, PRINCIPAL)).toThrow(BadRequestException)
+    expect(progress.create).toHaveBeenCalledTimes(1)
+  })
+
   it('rejects malformed commands before service invocation', () => {
     const progress = { create: vi.fn() } as unknown as ProjectWeeklyProgressService
     const controller = new ProjectWeeklyProgressController(progress)
