@@ -174,27 +174,29 @@ runtimeSuite('WO-16 permit and mobilization database controls', () => {
         )) as unknown as Array<{ id: string }>
       )[0]!.id
 
+      // ADR-033: privileged writes carry the controlled server actor stamp.
+      await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: userA, role: 'authenticated' })}, true)`
       await expectSqlFailure(
         tx,
-        `insert into mobilization_readiness(tenant_id, project_id, started_at, started_by)
-         values ('${tenantA}', '${projectA}', now(), '${userA}')`,
+        `insert into mobilization_readiness(tenant_id, project_id, started_at, started_by, created_by, updated_by)
+         values ('${tenantA}', '${projectA}', now(), '${userA}', '${userA}', '${userA}')`,
         /mobilization_readiness_start_gate|check constraint/i
       )
 
       await expectSqlFailure(
         tx,
         `insert into mobilization_readiness(tenant_id, project_id, commented_fcd_received_at,
-           po_copies_received_at, cari_received_at, ntp_received_at, started_at, started_by)
-         values ('${tenantA}', '${projectB}', now(), now(), now(), now(), now(), '${userA}')`,
+           po_copies_received_at, cari_received_at, ntp_received_at, started_at, started_by, created_by, updated_by)
+         values ('${tenantA}', '${projectB}', now(), now(), now(), now(), now(), '${userA}', '${userA}', '${userA}')`,
         /mobilization_readiness_project_tenant_fk|foreign key/i
       )
 
       const [complete] = (await tx.unsafe(
         `insert into mobilization_readiness(
            tenant_id, project_id, commented_fcd_received_at, po_copies_received_at,
-           cari_received_at, ntp_received_at, started_at, started_by
+           cari_received_at, ntp_received_at, started_at, started_by, created_by, updated_by
          ) values (
-           '${tenantA}', '${projectA}', now(), now(), now(), now(), now(), '${userA}'
+           '${tenantA}', '${projectA}', now(), now(), now(), now(), now(), '${userA}', '${userA}', '${userA}'
          ) returning id, started_at`
       )) as unknown as Array<{ id: string; started_at: string }>
       expect(complete?.id).toBeTruthy()
@@ -202,10 +204,10 @@ runtimeSuite('WO-16 permit and mobilization database controls', () => {
       const [override] = (await tx.unsafe(
         `insert into mobilization_readiness(
            tenant_id, project_id, started_at, started_by,
-           override_reason, override_at, override_by
+           override_reason, override_at, override_by, created_by, updated_by
          ) values (
            '${tenantA}', '${projectC}', now(), '${userA}',
-           'CARI return pending; PM accepted documented exposure.', now(), '${userA}'
+           'CARI return pending; PM accepted documented exposure.', now(), '${userA}', '${userA}', '${userA}'
          ) returning id, started_at`
       )) as unknown as Array<{ id: string; started_at: string }>
       expect(override?.id).toBeTruthy()
