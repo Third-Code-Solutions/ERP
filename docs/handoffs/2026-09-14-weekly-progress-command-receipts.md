@@ -32,3 +32,13 @@ or schema migration; preserve non-Core canary flows and all unrelated features.
 Disjoint lanes may proceed against the fixed contract, never concurrently edit
 the same file. No production write, merge, migration, copy or release until the
 existing production recovery and coordinated-deployment gates are satisfied.
+
+## CI repair handoff
+
+CI run 34773797693 exposed scope-replacement ordering races in the existing
+budget and XML browser fixtures. Main (Agent 13) owns the narrow test-harness
+repair in those two specs and the new weekly spec: await an effect acknowledgement
+of the React commit before delivering a prior-scope result. Keep assertions,
+scope keys, component state preservation and production rendering unchanged.
+No sleeps, retries, skipped tests or production-code changes are authorized by
+this test repair. Independent Astra review confirmed the missing commit barrier.

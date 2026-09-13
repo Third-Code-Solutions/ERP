@@ -84,7 +84,7 @@ type BrowserBridge = {
   legacyLockPending: Pending[]
   refreshes: number
   throwOnRefresh: boolean
-  mount: (kind: MountKind, props: MountProps) => void
+  mount: (kind: MountKind, props: MountProps) => Promise<void>
   resolveCapture: (value: unknown) => void
   rejectCapture: (error: unknown) => void
   resolveLock: (value: unknown) => void
@@ -202,7 +202,7 @@ async function mount(
   await page.evaluate(
     ({ nextKind, nextProps }) => {
       const value = (window as unknown as { __weeklyProgressTest: BrowserBridge }).__weeklyProgressTest
-      value.mount(nextKind, nextProps)
+      return value.mount(nextKind, nextProps)
     },
     { nextKind: kind, nextProps: next },
   )
@@ -494,24 +494,30 @@ import { WeeklyWarLedger } from __LEDGER_PATH__
 const root = createRoot(document.getElementById('root')!)
 type FormProps = React.ComponentProps<typeof WeeklyUpdateForm>
 type LedgerProps = React.ComponentProps<typeof WeeklyWarLedger>
+function CommitBoundary({ children, committed }: { children: React.ReactNode; committed: () => void }) {
+  React.useEffect(committed, [committed])
+  return children
+}
 const bridge = (globalThis as unknown as {
   __weeklyProgressTest: {
-    mount: (kind: 'form' | 'ledger' | 'both', props: { form?: FormProps; ledger?: LedgerProps }) => void
+    mount: (kind: 'form' | 'ledger' | 'both', props: { form?: FormProps; ledger?: LedgerProps }) => Promise<void>
   }
 }).__weeklyProgressTest
-bridge.mount = (kind, props) => {
+bridge.mount = (kind, props) => new Promise<void>(committed => {
   const form = props.form
   const ledger = props.ledger
   const scoped = form ?? ledger
-  if (!scoped) return
+  if (!scoped) throw new Error('A scoped component is required')
   const key = scoped.projectId + ':' + scoped.tenantId + ':' + scoped.actorId
   root.render(
     <React.StrictMode>
+      <CommitBoundary committed={committed}>
       {form && (kind === 'form' || kind === 'both') ? <WeeklyUpdateForm key={'form:' + key} {...form} /> : null}
       {ledger && (kind === 'ledger' || kind === 'both') ? <WeeklyWarLedger key={'ledger:' + key} {...ledger} /> : null}
+      </CommitBoundary>
     </React.StrictMode>,
   )
-}
+})
 `
     .replaceAll('__GLOBALS_PATH__', JSON.stringify(globalsPath))
     .replaceAll('__FORM_PATH__', JSON.stringify(formPath))

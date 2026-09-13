@@ -103,7 +103,7 @@ type BrowserBridge = {
   importPending: Pending[]
   refreshes: number
   throwOnRefresh: boolean
-  mount: (props: FormProps) => void
+  mount: (props: FormProps) => Promise<void>
   resolvePreview: (value: unknown) => void
   rejectPreview: (error: unknown) => void
   resolveImport: (value: unknown) => void
@@ -249,7 +249,7 @@ async function resolveImport(page: import('@playwright/test').Page, value: unkno
 async function mount(page: import('@playwright/test').Page, props: FormProps) {
   await page.evaluate((nextProps) => {
     const bridge = (window as unknown as { __msProjectXmlTest: BrowserBridge }).__msProjectXmlTest
-    bridge.mount(nextProps)
+    return bridge.mount(nextProps)
   }, props)
 }
 
@@ -327,11 +327,15 @@ import ${JSON.stringify(globalsPath)}
 import { MsProjectXmlImporter } from ${JSON.stringify(componentPath)}
 const root = createRoot(document.getElementById('root')!)
 type HarnessProps = { projectId: string; tenantId: string; actorId: string; canManage: boolean }
-const bridge = (globalThis as unknown as { __msProjectXmlTest: { mount: (props: HarnessProps) => void } }).__msProjectXmlTest
-bridge.mount = (props) => {
-  const key = props.projectId + ':' + props.tenantId + ':' + props.actorId
-  root.render(<React.StrictMode><MsProjectXmlImporter key={key} {...props} /></React.StrictMode>)
+function CommitBoundary({ children, committed }: { children: React.ReactNode; committed: () => void }) {
+  React.useEffect(committed, [committed])
+  return children
 }
+const bridge = (globalThis as unknown as { __msProjectXmlTest: { mount: (props: HarnessProps) => Promise<void> } }).__msProjectXmlTest
+bridge.mount = (props) => new Promise<void>(committed => {
+  const key = props.projectId + ':' + props.tenantId + ':' + props.actorId
+  root.render(<React.StrictMode><CommitBoundary committed={committed}><MsProjectXmlImporter key={key} {...props} /></CommitBoundary></React.StrictMode>)
+})
 bridge.mount(${JSON.stringify(defaultProps)})
 `)
 

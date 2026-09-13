@@ -127,7 +127,7 @@ type BrowserBridge = {
   }>
   refreshes: number
   throwOnRefresh: boolean
-  mount: (props: PanelProps) => void
+  mount: (props: PanelProps) => Promise<void>
   resolveSubmit: (value: unknown) => void
   rejectSubmit: (error: unknown) => void
   resolveApprove: (value: unknown) => void
@@ -238,7 +238,7 @@ async function mount(page: import('@playwright/test').Page, props: PanelProps) {
   await page.evaluate((value) => {
     const bridge = (window as unknown as { __budgetTest: BrowserBridge })
       .__budgetTest
-    bridge.mount(value)
+    return bridge.mount(value)
   }, props)
 }
 
@@ -415,8 +415,16 @@ import { createRoot } from 'react-dom/client'
 import ${JSON.stringify(globalsPath)}
 import { BudgetWorkspace } from ${JSON.stringify(componentPath)}
 const root = createRoot(document.getElementById('root')!)
-const bridge = (globalThis as unknown as { __budgetTest: { mount: (props: unknown) => void } }).__budgetTest
-bridge.mount = (props: unknown) => root.render(<React.StrictMode><BudgetWorkspace {...(props as never)} /></React.StrictMode>)
+// A scheduled render is not a committed scope. Acknowledge its effect before
+// delivering late responses, without forcing synchronous production rendering.
+function CommitBoundary({ children, committed }: { children: React.ReactNode; committed: () => void }) {
+  React.useEffect(committed, [committed])
+  return children
+}
+const bridge = (globalThis as unknown as { __budgetTest: { mount: (props: React.ComponentProps<typeof BudgetWorkspace>) => Promise<void> } }).__budgetTest
+bridge.mount = (props) => new Promise<void>(committed => {
+  root.render(<React.StrictMode><CommitBoundary committed={committed}><BudgetWorkspace {...props} /></CommitBoundary></React.StrictMode>)
+})
 bridge.mount(${JSON.stringify(defaultProps)})
 `
   )

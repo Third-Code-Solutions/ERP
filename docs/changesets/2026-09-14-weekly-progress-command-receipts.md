@@ -52,6 +52,18 @@ responsive screenshots collected as artifacts. No dependencies or migrations.
 
 ## Release boundaries
 
+Initial hosted CI run 34773797693 failed two existing budget/XML scope tests
+(`refreshes=1` instead of 0), leaving nine serial tests unexecuted. The browser
+fixtures scheduled `root.render` but returned before React committed the new
+scope; their next zero-count assertions could already pass in the old view.
+Those failures were not reproduced by 16 local baseline repetitions. Independent
+review confirmed the ordering gap. All three affected fixture mount helpers now
+await a commit-effect promise. No assertion was weakened, no sleep/retry was
+added, and production components are unchanged by this repair. The complete
+budget/XML/weekly set then passed 40/40, followed by the complete 152/152 browser
+suite without skips or retries, with E2E types passing. A fresh hosted
+run must verify the corrected head; the failed run is not accepted as green.
+
 Production remains held by the existing backup/recovery and coordinated-release
 gates. This slice does not establish production recovery, change legacy direct
 writers, or introduce global database cutoff enforcement. No production write,
