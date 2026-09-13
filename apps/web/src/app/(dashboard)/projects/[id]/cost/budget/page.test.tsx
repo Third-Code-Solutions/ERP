@@ -46,6 +46,8 @@ describe('ProjectBudgetPage sensitive query planning', () => {
   for (const [role, canViewCommercialDetails] of [
     ['finance', false],
     ['viewer', true],
+    ['owner', true],
+    ['admin', true],
   ] as const) {
     it(`queries only authorized budget domains for ${role}`, async () => {
       const queriedTables: unknown[] = []
@@ -99,6 +101,7 @@ describe('ProjectBudgetPage sensitive query planning', () => {
       expect(mocks.budgetWorkspace).toHaveBeenCalledWith(
         expect.objectContaining({
           canViewBom: canViewCommercialDetails,
+          ownerOverride: role === 'owner',
           sourceBoms: [],
           bomLines: [],
         }),

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
+import { randomUUID } from 'node:crypto'
 import {
   requireCapability,
   requireUserProfile,
@@ -16,9 +17,13 @@ import {
   projectBudgetLines,
   projectBudgets,
   projects,
+  users,
+  tenants,
+  auditLog,
 } from '@third-code-erp/database/schema'
 import { canUniversalSearchEntity } from '@third-code-erp/shared-types'
-import { writeAuditLog } from '@/lib/audit'
+import { ERP_ROLES, roleHasCapability } from '@third-code-erp/shared-types/authorization'
+import { stampActorInTransaction, writeAuditLogInTransaction, writeAuditLog, type DatabaseTransaction } from '@/lib/audit'
 import { parsePesosToCents } from '@/lib/operations/scope-money'
 
 type ActionResult =
@@ -93,6 +98,7 @@ const KNOWN_ERRORS = [
   'Finance budget lane is already approved',
   'Commercial and Finance approvals require separate actors',
   'Only a submitted Project Budget can be reviewed',
+  'Only a submitted Project Budget can be rejected',
   'Project Budget rejection reason is required',
   'Only the approved Project Budget can be revised',
   'Project Budget revision reason is required',
@@ -121,7 +127,7 @@ function safeMessage(error: unknown): string {
       return 'That Cost Code or budget revision already exists.'
     }
   }
-  return 'Project Budget action failed. No changes were saved.'
+  return 'Project Budget outcome could not be confirmed. Refresh before retrying.'
 }
 
 async function requireTenantProject(tenantId: string, projectId: string) {
@@ -691,180 +697,223 @@ export async function saveProjectBudget(
   }
 }
 
+type WorkflowOperation = 'submit' | 'commercial' | 'finance' | 'reject' | 'revise'
+type BudgetRow = typeof projectBudgets.$inferSelect
+
+export type BudgetWorkflowReceipt = {
+  projectId: string
+  sourceBudgetId: string
+  operation: WorkflowOperation
+  resultBudgetId: string
+  status: BudgetRow['status']
+  requestId?: string
+}
+export type BudgetWorkflowResult =
+  | { ok: true; id: string; receipt: BudgetWorkflowReceipt; refreshWarning?: string; error?: never }
+  | { ok?: false; error: string; unconfirmed?: true }
+
+class BudgetWorkflowError extends Error {}
+
+function workflowError(error: unknown): { error: string; unconfirmed?: true } {
+  if (error instanceof BudgetWorkflowError) return { error: error.message }
+  const seen = new Set<unknown>()
+  let cause = error
+  while (cause instanceof Object && !seen.has(cause)) {
+    seen.add(cause)
+    if ('code' in cause && (cause.code === '55P03' || cause.code === '40P01')) {
+      return { error: 'Project Budget authority is changing or busy. Refresh and retry.' }
+    }
+    if (cause instanceof Error) {
+      const known = KNOWN_ERRORS.find(message => cause instanceof Error && cause.message.includes(message))
+      if (known) return { error: known }
+    }
+    cause = 'cause' in cause ? cause.cause : undefined
+  }
+  return { error: 'Project Budget outcome could not be confirmed. Retry the same request to reconcile it.', unconfirmed: true }
+}
+
+async function admitBudgetWorkflow(
+  tx: DatabaseTransaction,
+  tenantId: string,
+  actorId: string,
+  operation: WorkflowOperation,
+) {
+  await tx.execute(sql`set local lock_timeout = '3s'`)
+  const [actor] = await tx.select({ role: users.role }).from(users)
+    .where(and(eq(users.id, actorId), eq(users.tenant_id, tenantId), eq(users.account_status, 'active')))
+    .limit(1).for('share', { noWait: true })
+  const role = z.enum(ERP_ROLES).safeParse(actor?.role)
+  const capability: ErpCapability = operation === 'commercial' ? 'budget.approve_commercial'
+    : operation === 'finance' ? 'budget.approve_finance' : 'budget.manage'
+  const allowed = role.success && (operation === 'reject'
+    ? roleHasCapability(role.data, 'budget.approve_commercial') || roleHasCapability(role.data, 'budget.approve_finance')
+    : roleHasCapability(role.data, capability))
+  if (!role.success || !allowed) {
+    throw new BudgetWorkflowError('Your current account cannot perform this Project Budget workflow.')
+  }
+  const [tenant] = await tx.select({ id: tenants.id }).from(tenants)
+    .where(and(eq(tenants.id, tenantId), eq(tenants.status, 'active')))
+    .limit(1).for('share', { noWait: true })
+  if (!tenant) throw new BudgetWorkflowError('This organization is not active.')
+  await stampActorInTransaction(tx, actorId)
+  return role.data
+}
+
+async function lockedWorkflowBudget(tx: DatabaseTransaction, tenantId: string, projectId: string, budgetId: string) {
+  const [budget] = await tx.select().from(projectBudgets)
+    .where(and(eq(projectBudgets.id, budgetId), eq(projectBudgets.project_id, projectId), eq(projectBudgets.tenant_id, tenantId)))
+    .limit(1).for('update')
+  if (!budget) throw new BudgetWorkflowError('Project Budget not found')
+  return budget
+}
+
+function existingWorkflowReceipt(budget: BudgetRow, operation: WorkflowOperation, actorId: string, reason?: string): boolean {
+  if (operation === 'submit') return budget.submitted_by === actorId && budget.submitted_at !== null
+  if (operation === 'commercial') return budget.commercial_approved_by === actorId && budget.commercial_approved_at !== null
+  if (operation === 'finance') return budget.finance_approved_by === actorId && budget.finance_approved_at !== null
+  if (operation === 'reject') {
+    return budget.rejected_by === actorId && budget.rejected_at !== null && budget.rejection_reason === reason
+  }
+  return false
+}
+
 async function runWorkflow(
-  capability: ErpCapability,
   projectId: string,
   budgetId: string,
-  statement: 'submit' | 'commercial' | 'finance',
-  reason?: string
-): Promise<ActionResult> {
+  operation: WorkflowOperation,
+  reason?: string,
+  requestId?: string,
+): Promise<BudgetWorkflowResult> {
+  const traceId = randomUUID()
+  let actorId: string | null = null
+  let tenantId: string | null = null
+  let validatedOperation: WorkflowOperation | null = null
+  let outcome = 'rejected'
   try {
-    const profile = await requireUserProfile()
-    requireCapability(profile, capability)
-    const [budget] = await db
-      .select({ id: projectBudgets.id })
-      .from(projectBudgets)
-      .where(
-        and(
-          eq(projectBudgets.id, budgetId),
-          eq(projectBudgets.project_id, projectId),
-          eq(projectBudgets.tenant_id, profile.tenantId)
-        )
-      )
-      .limit(1)
-    if (!budget) return { error: 'Project Budget not found' }
-
-    if (statement === 'submit') {
-      await db.execute(sql`
-        select *
-        from public.submit_project_budget(
-          ${budgetId}::uuid,
-          ${profile.user.id}::uuid
-        )
-      `)
-    } else {
-      await db.execute(sql`
-        select *
-        from public.review_project_budget(
-          ${budgetId}::uuid,
-          ${profile.user.id}::uuid,
-          ${statement}
-        )
-      `)
+    const parsed = z.object({
+      projectId: z.string().uuid().transform(value => value.toLowerCase()),
+      budgetId: z.string().uuid().transform(value => value.toLowerCase()),
+      operation: z.enum(['submit', 'commercial', 'finance', 'reject', 'revise']),
+      reason: z.string().trim().max(operation === 'revise' ? 500 : 1000).optional(),
+      requestId: z.string().uuid().transform(value => value.toLowerCase()).optional(),
+    }).safeParse({ projectId, budgetId, operation, reason, requestId })
+    if (!parsed.success) return { error: 'A valid project, budget, workflow and bounded reason are required.' }
+    const command = parsed.data
+    validatedOperation = command.operation
+    if ((command.operation === 'reject' || command.operation === 'revise') && (!command.reason || command.reason.length < 3)) {
+      return { error: command.operation === 'reject' ? 'Project Budget rejection reason is required.' : 'Project Budget revision reason is required.' }
     }
+    const profile = await requireUserProfile()
+    actorId = profile.user.id
+    tenantId = profile.tenantId
+    outcome = 'unconfirmed'
+    const receipt = await db.transaction(async tx => {
+      const role = await admitBudgetWorkflow(tx, profile.tenantId, profile.user.id, command.operation)
+      // SQL workflows use this exact advisory-before-row order. Do not invert it.
+      await tx.execute(sql`select pg_catalog.pg_advisory_xact_lock(
+        pg_catalog.hashtextextended(${profile.tenantId}::uuid::text || ':' || ${command.projectId}::uuid::text, 0)
+      )`)
+      const budget = await lockedWorkflowBudget(tx, profile.tenantId, command.projectId, command.budgetId)
+      const receiptFor = (result: BudgetRow): BudgetWorkflowReceipt => ({
+        projectId: command.projectId,
+        sourceBudgetId: command.budgetId,
+        operation: command.operation,
+        resultBudgetId: result.id,
+        status: result.status,
+        ...(command.operation === 'revise' && command.requestId ? { requestId: command.requestId } : {}),
+      })
 
-    await writeAuditLog({
-      tenantId: profile.tenantId,
-      actorId: profile.user.id,
-      entityType: 'project_budget',
-      entityId: budgetId,
-      action: statement === 'submit' ? 'status_change' : 'approve',
-      diff: reason ? { lane: statement, reason } : { lane: statement },
+      if (command.operation === 'revise' && command.requestId) {
+        // Scope keys to this actor/source/project. A new command gets a new key,
+        // even when its reason matches an earlier rejected revision.
+        const [prior] = await tx.select({ id: auditLog.entity_id, diff: auditLog.diff }).from(auditLog)
+          .where(and(
+            eq(auditLog.tenant_id, profile.tenantId), eq(auditLog.actor_id, profile.user.id),
+            eq(auditLog.entity_type, 'project_budget'), eq(auditLog.action, 'create'),
+            sql`${auditLog.diff}->>'workflow_operation' = 'revise'`,
+            sql`${auditLog.diff}->>'request_id' = ${command.requestId}`,
+            sql`${auditLog.diff}->>'source_budget_id' = ${command.budgetId}`,
+            sql`${auditLog.diff}->>'project_id' = ${command.projectId}`,
+          )).limit(1)
+        if (prior) {
+          if (!prior.diff || typeof prior.diff !== 'object' || !('reason' in prior.diff) || prior.diff.reason !== command.reason) {
+            throw new BudgetWorkflowError('This revision request was already used with a different reason.')
+          }
+          return receiptFor(await lockedWorkflowBudget(tx, profile.tenantId, command.projectId, prior.id))
+        }
+      }
+      if (existingWorkflowReceipt(budget, command.operation, profile.user.id, command.reason)) return receiptFor(budget)
+
+      let resultId = budget.id
+      if (command.operation === 'submit') {
+        await tx.execute(sql`select * from public.submit_project_budget(${budget.id}::uuid, ${profile.user.id}::uuid)`)
+      } else if (command.operation === 'commercial' || command.operation === 'finance') {
+        await tx.execute(sql`select * from public.review_project_budget(${budget.id}::uuid, ${profile.user.id}::uuid, ${command.operation})`)
+      } else if (command.operation === 'reject') {
+        await tx.execute(sql`select * from public.reject_project_budget(${budget.id}::uuid, ${profile.user.id}::uuid, ${command.reason})`)
+      } else {
+        const [created] = await tx.execute<{ budget_id: string }>(sql`select * from public.create_project_budget_revision(
+          ${budget.id}::uuid, ${profile.user.id}::uuid, ${command.reason}
+        )`)
+        if (!created) throw new Error('Project Budget revision receipt missing')
+        resultId = created.budget_id
+      }
+      // Revision line-total triggers also set this context. Never carry it into
+      // subsequent work; on failure the enclosing rollback clears it.
+      await tx.execute(sql`select pg_catalog.set_config('app.project_budget_write', '', true)`)
+      const result = await lockedWorkflowBudget(tx, profile.tenantId, command.projectId, resultId)
+      const approval = command.operation === 'commercial' || command.operation === 'finance'
+      await writeAuditLogInTransaction(tx, {
+        tenantId: profile.tenantId, actorId: profile.user.id,
+        entityType: 'project_budget', entityId: resultId,
+        action: command.operation === 'revise' ? 'create' : approval ? 'approve' : 'status_change',
+        diff: {
+          workflow_operation: command.operation, project_id: command.projectId, source_budget_id: budget.id,
+          ...(command.reason ? { reason: command.reason } : {}),
+          ...(command.operation === 'revise' ? { supersedes_budget_id: budget.id, ...(command.requestId ? { request_id: command.requestId } : {}) } : {}),
+          ...(approval || command.operation === 'submit' ? { lane: command.operation } : {}),
+          ...(approval ? {
+            owner_override: role === 'owner',
+            commercial_approved_by: result.commercial_approved_by,
+            finance_approved_by: result.finance_approved_by,
+          } : {}),
+          status: result.status,
+        },
+      })
+      return receiptFor(result)
     })
-    refreshProjectBudget(projectId)
-    return { ok: true, id: budgetId }
+    let refreshWarning: string | undefined
+    try { refreshProjectBudget(parsed.data.projectId) } catch {
+      refreshWarning = 'The workflow committed, but the view could not refresh. Reload to see the recorded result.'
+    }
+    outcome = refreshWarning ? 'succeeded_refresh_pending' : 'succeeded'
+    return { ok: true, id: receipt.resultBudgetId, receipt, ...(refreshWarning ? { refreshWarning } : {}) }
   } catch (error) {
-    return { error: safeMessage(error) }
+    const failure = workflowError(error)
+    if (!failure.unconfirmed) outcome = 'rejected'
+    if (failure.unconfirmed && validatedOperation === 'revise' && !requestId) {
+      return { error: 'Project Budget outcome could not be confirmed. Refresh and inspect revisions before starting another revision.', unconfirmed: true }
+    }
+    return failure
+  } finally {
+    console.info(JSON.stringify({ trace_id: traceId, tenant_id: tenantId, actor_id: actorId, action: 'project_budget.workflow', operation: validatedOperation, outcome }))
   }
 }
 
-export async function submitProjectBudget(
-  projectId: string,
-  budgetId: string
-) {
-  return runWorkflow(
-    'budget.manage',
-    projectId,
-    budgetId,
-    'submit'
-  )
+export async function submitProjectBudget(projectId: string, budgetId: string): Promise<BudgetWorkflowResult> {
+  return runWorkflow(projectId, budgetId, 'submit')
 }
 
-export async function approveProjectBudget(
-  projectId: string,
-  budgetId: string,
-  lane: 'commercial' | 'finance'
-) {
-  return runWorkflow(
-    lane === 'commercial'
-      ? 'budget.approve_commercial'
-      : 'budget.approve_finance',
-    projectId,
-    budgetId,
-    lane
-  )
+export async function approveProjectBudget(projectId: string, budgetId: string, lane: 'commercial' | 'finance'): Promise<BudgetWorkflowResult> {
+  const parsedLane = z.enum(['commercial', 'finance']).safeParse(lane)
+  if (!parsedLane.success) return { error: 'Project Budget approval lane is invalid.' }
+  return runWorkflow(projectId, budgetId, parsedLane.data)
 }
 
-export async function rejectProjectBudget(
-  projectId: string,
-  budgetId: string,
-  reason: string
-): Promise<ActionResult> {
-  try {
-    const profile = await requireUserProfile()
-    const mayReview =
-      profile.role === 'owner' ||
-      profile.role === 'admin' ||
-      profile.role === 'commercial' ||
-      profile.role === 'finance'
-    if (!mayReview) {
-      return { error: 'You do not have permission to reject this Project Budget.' }
-    }
-    const parsedReason = z.string().trim().min(3).max(1000).safeParse(reason)
-    if (!parsedReason.success) {
-      return { error: 'Project Budget rejection reason is required.' }
-    }
-
-    const [budget] = await db
-      .select({ id: projectBudgets.id })
-      .from(projectBudgets)
-      .where(
-        and(
-          eq(projectBudgets.id, budgetId),
-          eq(projectBudgets.project_id, projectId),
-          eq(projectBudgets.tenant_id, profile.tenantId)
-        )
-      )
-      .limit(1)
-    if (!budget) return { error: 'Project Budget not found' }
-
-    await db.execute(sql`
-      select *
-      from public.reject_project_budget(
-        ${budgetId}::uuid,
-        ${profile.user.id}::uuid,
-        ${parsedReason.data}
-      )
-    `)
-    await writeAuditLog({
-      tenantId: profile.tenantId,
-      actorId: profile.user.id,
-      entityType: 'project_budget',
-      entityId: budgetId,
-      action: 'status_change',
-      diff: { reason: parsedReason.data },
-    })
-    refreshProjectBudget(projectId)
-    return { ok: true, id: budgetId }
-  } catch (error) {
-    return { error: safeMessage(error) }
-  }
+export async function rejectProjectBudget(projectId: string, budgetId: string, reason: string): Promise<BudgetWorkflowResult> {
+  return runWorkflow(projectId, budgetId, 'reject', reason)
 }
 
-export async function reviseProjectBudget(
-  projectId: string,
-  budgetId: string,
-  reason: string
-): Promise<ActionResult> {
-  try {
-    const profile = await requireUserProfile()
-    requireCapability(profile, 'budget.manage')
-    const parsedReason = z.string().trim().min(3).max(500).safeParse(reason)
-    if (!parsedReason.success) {
-      return { error: 'Project Budget revision reason is required.' }
-    }
-    const rows = await db.execute<{ budget_id: string }>(sql`
-      select *
-      from public.create_project_budget_revision(
-        ${budgetId}::uuid,
-        ${profile.user.id}::uuid,
-        ${parsedReason.data}
-      )
-    `)
-    const created = rows[0]
-    if (!created) return { error: 'Project Budget revision was not created.' }
-
-    await writeAuditLog({
-      tenantId: profile.tenantId,
-      actorId: profile.user.id,
-      entityType: 'project_budget',
-      entityId: created.budget_id,
-      action: 'create',
-      diff: { supersedes_budget_id: budgetId, reason: parsedReason.data },
-    })
-    refreshProjectBudget(projectId)
-    return { ok: true, id: created.budget_id }
-  } catch (error) {
-    return { error: safeMessage(error) }
-  }
+export async function reviseProjectBudget(projectId: string, budgetId: string, reason: string, requestId?: string): Promise<BudgetWorkflowResult> {
+  return runWorkflow(projectId, budgetId, 'revise', reason, requestId)
 }

@@ -521,6 +521,7 @@ export default async function ProjectBudgetPage({
           'budget.approve_commercial'
         )}
         canFinanceApprove={can(profile.role, 'budget.approve_finance')}
+        ownerOverride={profile.role === 'owner'}
         draft={draft}
         pendingBudget={
           pendingRow

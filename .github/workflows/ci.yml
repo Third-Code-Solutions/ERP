@@ -426,6 +426,7 @@ jobs:
             e2e/inspection-report-repair.spec.ts \
             e2e/award-reversal-authority.spec.ts \
             e2e/mobilization-receipt-authority.spec.ts \
+            e2e/budget-workflow-receipts.spec.ts \
             e2e/billing-milestone-navigation.spec.ts \
             e2e/quality-document-handoff.spec.ts \
             --project=chromium \
