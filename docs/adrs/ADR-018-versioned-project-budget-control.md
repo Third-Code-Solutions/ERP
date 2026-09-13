@@ -28,3 +28,35 @@ surfaces but does not mutate or silently approve a commitment.
 
 Revisions never edit the active baseline. A new draft clones the approved
 revision, records its reason, and becomes active only after both approvals.
+
+## Draft command integrity (2026-09-13)
+
+Draft saves must not silently replace another editor's changes. The editable
+header, exact persisted version and ordered lines are loaded from a coherent
+database snapshot. An opaque token combines the budget tuple's `xmin` and exact
+microsecond `updated_at` representation; JavaScript dates must not truncate it.
+The current token is compared under the budget lock before any new save. A
+missing or stale token rejects with reload/conflict guidance. This token is a
+concurrency precondition, never authorization.
+
+Each editor command carries a stable request UUID. Current actor, tenant and
+project authority, data changes and semantic audit share a transaction. The
+existing project advisory lock is canonicalized and acquired before the budget
+row lock. Saved receipts bind the request to its normalized ordered payload,
+including the expected version and omitted-versus-null BOM association fields.
+Exact replay is checked before current status/version admission, so a committed
+save can be reconciled after subsequent submission without repeating writes.
+The receipt retains the original new-line identity mapping and resulting token.
+A changed payload with the same key is rejected.
+
+The UI retains an uncertain command exactly, freezes its editable inputs and
+validates the returned scope. A stale receipt cannot reset a newer editor state.
+Cache failures are refresh warnings after commit, not failed mutations. Legacy
+unkeyed create callers may remain supported without a safe-retry promise; save
+callers missing the concurrency precondition must reload rather than overwrite.
+Tenant-wide Cost Code uniqueness remains authoritative across projects; a
+different request's duplicate is not treated as a successful replay.
+
+This adds no table or dependency. Existing centavo calculations, cost-code swaps,
+line identities/creation timestamps, hidden BOM associations, approval rules and
+the immutable approved baseline remain unchanged.

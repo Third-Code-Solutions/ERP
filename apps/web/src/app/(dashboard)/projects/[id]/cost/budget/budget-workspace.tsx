@@ -20,7 +20,6 @@ import {
 import { parsePesosToCents } from '@/lib/operations/scope-money'
 import {
   budgetWorkflowCommandIsScoped,
-  hasSuccessfulActionResult,
   isUnconfirmedResult,
   messageFrom,
   nextBudgetWorkflowRequestId,
@@ -31,6 +30,17 @@ import {
   workflowMessage,
   type BudgetWorkflowCommand,
 } from './budget-workflow-receipts'
+import {
+  validateBudgetDraftReceipt,
+  type BudgetDraftCommandScope,
+  type ConfirmedBudgetDraftReceipt,
+} from './budget-draft-receipts'
+
+type DraftCommand = BudgetDraftCommandScope & {
+  invoke: () => Promise<unknown>
+  success: string
+  onConfirmed?: (receipt: ConfirmedBudgetDraftReceipt) => void
+}
 
 export { validateBudgetWorkflowReceipt } from './budget-workflow-receipts'
 
@@ -48,6 +58,7 @@ export interface BudgetBomLineOption {
 }
 
 export interface BudgetDraft {
+  version: string
   id: string
   revision: number
   sourceBomId: string | null
@@ -66,6 +77,7 @@ export interface BudgetDraft {
 }
 
 interface Props {
+  actorId: string
   projectId: string
   canViewBom: boolean
   canManage: boolean
@@ -127,10 +139,20 @@ export function reconcileSavedLineIdentities(
       line.clientKey ? [[line.clientKey, line.id] as const] : []
     )
   )
-  return current.map((line) => ({
+  const reconciled = current.map((line) => ({
     ...line,
     persistedId: persistedByClientKey.get(line.key) ?? line.persistedId,
   }))
+  // A refresh may deliver a saved server row before its local request receipt.
+  // Prefer the receipt-bound local row; never duplicate that persisted identity.
+  const preferredKeys = new Map(saved.flatMap(line =>
+    line.clientKey && current.some(row => row.key === line.clientKey)
+      ? [[line.id, line.clientKey] as const] : []
+  ))
+  return reconciled.filter(line => {
+    const preferred = line.persistedId ? preferredKeys.get(line.persistedId) : undefined
+    return !preferred || line.key === preferred
+  })
 }
 
 const CATEGORIES = [
@@ -146,11 +168,11 @@ function today(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
-function formatCents(cents: number | bigint): string {
+function formatCents(cents: number | bigint, grouped = true): string {
   const value = typeof cents === 'bigint' ? cents : BigInt(cents)
   const whole = value / 100n
   const fraction = (value % 100n).toString().padStart(2, '0')
-  return `${whole.toLocaleString('en-PH')}.${fraction}`
+  return `${grouped ? whole.toLocaleString('en-PH') : whole.toString()}.${fraction}`
 }
 
 function editorLineFromServer(line: DraftServerLine): EditorLine {
@@ -160,7 +182,7 @@ function editorLineFromServer(line: DraftServerLine): EditorLine {
     costCodeId: line.costCodeId,
     bomLineItemId: line.bomLineItemId ?? '',
     description: line.description,
-    amountPhp: formatCents(line.amountCents),
+    amountPhp: formatCents(line.amountCents, false),
   }
 }
 
@@ -353,6 +375,7 @@ function BudgetWorkspaceContent({
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [ordinaryBusy, setOrdinaryBusy] = useState(false)
+  const [uncertainDraftCommand, setUncertainDraftCommand] = useState<DraftCommand | null>(null)
   const [workflowState, setWorkflowState] = useState<WorkflowState>({
     phase: 'idle',
   })
@@ -392,6 +415,9 @@ function BudgetWorkspaceContent({
   const mountedRef = useRef(false)
   const activeKindRef = useRef<'ordinary' | 'workflow' | null>(null)
   const workflowCommandRef = useRef<WorkflowCommand | null>(null)
+  const draftCommandRef = useRef<DraftCommand | null>(null)
+  const editorVersionRef = useRef(draft?.version ?? '')
+  const draftEditedRef = useRef(false)
   const previousDraftIdentityRef = useRef(draftIdentity(draft))
   const previousServerLinesRef = useRef(serverLines)
   const previousServerSettingsRef = useRef(serverSettings)
@@ -406,6 +432,7 @@ function BudgetWorkspaceContent({
     draftId: draft?.id ?? null,
     pendingBudgetId: pendingBudget?.id ?? null,
     approvedBudgetId: approvedBudget?.id ?? null,
+    draftVersion: draft?.version ?? null,
   })
 
   scopeRef.current = {
@@ -413,6 +440,7 @@ function BudgetWorkspaceContent({
     draftId: draft?.id ?? null,
     pendingBudgetId: pendingBudget?.id ?? null,
     approvedBudgetId: approvedBudget?.id ?? null,
+    draftVersion: draft?.version ?? null,
   }
 
   useEffect(() => {
@@ -431,12 +459,26 @@ function BudgetWorkspaceContent({
       setError(null)
       setNotice(null)
     }
+    const draftCommand = draftCommandRef.current
+    if (draftCommand?.sourceBudgetId &&
+      ![draft?.id, pendingBudget?.id, approvedBudget?.id].some(
+        id => id?.toLowerCase() === draftCommand.sourceBudgetId?.toLowerCase()
+      )) {
+      activeKindRef.current = null
+      draftCommandRef.current = null
+      setUncertainDraftCommand(null)
+      setOrdinaryBusy(false)
+      setError(null)
+      setNotice(null)
+    }
   }, [projectId, draft?.id, pendingBudget?.id, approvedBudget?.id])
 
   useEffect(() => {
     const nextIdentity = draftIdentity(draft)
     const previousIdentity = previousDraftIdentityRef.current
     if (nextIdentity !== previousIdentity) {
+      editorVersionRef.current = draft?.version ?? ''
+      draftEditedRef.current = false
       dirtyLineFieldsRef.current.clear()
       dirtySettingsFieldsRef.current.clear()
       sourceBomDirtyRef.current = false
@@ -444,10 +486,13 @@ function BudgetWorkspaceContent({
       setDraftSettings(serverSettings ?? initialSettings)
       setSelectedSourceBomId(draft?.sourceBomId ?? '')
     } else if (draft && serverSettings) {
+      if (!draftEditedRef.current) editorVersionRef.current = draft.version
+      const previousLines = previousServerLinesRef.current
+      const previousSettings = previousServerSettingsRef.current
       setLines((current) =>
         mergeBudgetEditorLines(
           current,
-          previousServerLinesRef.current,
+          previousLines,
           serverLines,
           dirtyLineFieldsRef.current
         )
@@ -455,7 +500,7 @@ function BudgetWorkspaceContent({
       setDraftSettings((current) =>
         mergeDraftSettings(
           current,
-          previousServerSettingsRef.current,
+          previousSettings,
           serverSettings,
           dirtySettingsFieldsRef.current
         )
@@ -476,11 +521,13 @@ function BudgetWorkspaceContent({
 
   const isBusy =
     pending || ordinaryBusy || workflowState.phase === 'pending'
-  const workflowLocked = workflowState.phase !== 'idle'
+  const workflowLocked = workflowState.phase !== 'idle' || uncertainDraftCommand !== null
 
-  function finishOrdinaryAction() {
-    if (activeKindRef.current !== 'ordinary') return
+  function finishOrdinaryAction(command: DraftCommand) {
+    if (activeKindRef.current !== 'ordinary' || draftCommandRef.current !== command) return
     activeKindRef.current = null
+    draftCommandRef.current = null
+    setUncertainDraftCommand(null)
     setOrdinaryBusy(false)
   }
 
@@ -517,33 +564,44 @@ function BudgetWorkspaceContent({
     return budgetWorkflowCommandIsScoped(command, scopeRef.current)
   }
 
-  function run(
-    action: () => Promise<unknown>,
-    success: string
-  ) {
-    if (activeKindRef.current !== null || workflowLocked) return
+  function draftCommandCurrent(command: DraftCommand): boolean {
+    return mountedRef.current && draftCommandRef.current === command &&
+      (command.sourceBudgetId === null ||
+        [scopeRef.current.draftId, scopeRef.current.pendingBudgetId, scopeRef.current.approvedBudgetId]
+          .some(id => id?.toLowerCase() === command.sourceBudgetId?.toLowerCase()))
+  }
+
+  function runDraft(command: DraftCommand, retry = false) {
+    if (retry) {
+      if (!draftCommandCurrent(command)) return
+    } else if (activeKindRef.current !== null || workflowLocked) return
     activeKindRef.current = 'ordinary'
+    draftCommandRef.current = command
+    setUncertainDraftCommand(null)
     setOrdinaryBusy(true)
     setError(null)
     setNotice(null)
     startTransition(() => {
       void (async () => {
         try {
-          const result = await action()
-          const actionError = messageFrom(result)
-          if (actionError) {
-            if (mountedRef.current) setError(actionError)
+          const result = await command.invoke()
+          if (!draftCommandCurrent(command)) {
+            finishOrdinaryAction(command)
             return
           }
-          if (!hasSuccessfulActionResult(result)) {
-            if (mountedRef.current) {
-              setError(
-                'Budget action outcome could not be confirmed. Reload before retrying.'
-              )
-            }
+          const actionError = messageFrom(result)
+          if (actionError && !isUnconfirmedResult(result)) {
+            finishOrdinaryAction(command)
+            setError(actionError)
+            return
+          }
+          const receipt = validateBudgetDraftReceipt(result, command)
+          if (!receipt) {
+            markDraftUnknown(command)
             return
           }
 
+          command.onConfirmed?.(receipt)
           let refreshFailed = false
           try {
             router.refresh()
@@ -553,21 +611,28 @@ function BudgetWorkspaceContent({
           if (mountedRef.current) {
             setNotice(
               withRefreshOutcome(
-                success,
+                command.success,
                 refreshWarningFrom(result),
                 refreshFailed
               )
             )
           }
+          finishOrdinaryAction(command)
         } catch {
-          if (mountedRef.current) {
-            setError('Budget action could not be confirmed. Reload before retrying.')
-          }
-        } finally {
-          finishOrdinaryAction()
+          markDraftUnknown(command)
         }
       })()
     })
+  }
+
+  function markDraftUnknown(command: DraftCommand) {
+    if (!draftCommandCurrent(command)) {
+      finishOrdinaryAction(command)
+      return
+    }
+    setOrdinaryBusy(false)
+    setUncertainDraftCommand(command)
+    setError('Draft command outcome is unconfirmed. The exact request is retained; retry to reconcile it.')
   }
 
   function runWorkflow(command: WorkflowCommand, retry = false) {
@@ -672,32 +737,38 @@ function BudgetWorkspaceContent({
   }
 
   function markLineFieldDirty(key: string, field: DraftLineField) {
+    draftEditedRef.current = true
     const fields = dirtyLineFieldsRef.current.get(key) ?? new Set<DraftLineField>()
     fields.add(field)
     dirtyLineFieldsRef.current.set(key, fields)
   }
 
   function markSettingsFieldDirty(field: DraftSettingsField) {
+    draftEditedRef.current = true
     dirtySettingsFieldsRef.current.add(field)
   }
 
   function createCodeAction(form: HTMLFormElement) {
     const data = new FormData(form)
     data.set('project_id', projectId)
-    run(
-      () => createCostCode(data),
-      'Cost Code created. It is ready for budget and cost allocation.'
-    )
-    form.reset()
+    const requestId = crypto.randomUUID()
+    data.set('request_id', requestId)
+    runDraft({ operation: 'create_cost_code', projectId, sourceBudgetId: null, requestId,
+      invoke: () => createCostCode(data),
+      success: 'Cost Code created. It is ready for budget and cost allocation.',
+      onConfirmed: () => form.reset(),
+    })
   }
 
   function createBudgetAction(form: HTMLFormElement) {
     const data = new FormData(form)
     data.set('project_id', projectId)
-    run(
-      () => createProjectBudget(data),
-      'Draft baseline created. Add controlled budget lines next.'
-    )
+    const requestId = crypto.randomUUID()
+    data.set('request_id', requestId)
+    runDraft({ operation: 'create_budget', projectId, sourceBudgetId: null, requestId,
+      invoke: () => createProjectBudget(data),
+      success: 'Draft baseline created. Add controlled budget lines next.',
+    })
   }
 
   function saveDraft(form: HTMLFormElement) {
@@ -705,6 +776,11 @@ function BudgetWorkspaceContent({
     const data = new FormData(form)
     data.set('project_id', projectId)
     data.set('budget_id', draft.id)
+    const requestId = crypto.randomUUID()
+    const expectedVersion = editorVersionRef.current
+    const displayedVersionAtStart = scopeRef.current.draftVersion
+    data.set('request_id', requestId)
+    data.set('expected_version', expectedVersion)
     data.set(
       'lines',
       JSON.stringify(
@@ -720,18 +796,24 @@ function BudgetWorkspaceContent({
         }))
       )
     )
-    run(async () => {
-      const result = await saveProjectBudget(data)
-      if (result.ok) {
+    runDraft({ operation: 'save_draft', projectId, sourceBudgetId: draft.id, requestId, expectedVersion,
+      lineBindings: lines.map(line => ({ clientKey: line.key, costCodeId: line.costCodeId,
+        ...(line.persistedId ? { id: line.persistedId } : {}) })),
+      invoke: () => saveProjectBudget(data), success: 'Draft baseline saved.',
+      onConfirmed: receipt => {
+        if (scopeRef.current.draftId !== draft.id) return
+        const displayedVersion = scopeRef.current.draftVersion
+        if (displayedVersion !== displayedVersionAtStart && displayedVersion !== receipt.resultVersion) return
         dirtyLineFieldsRef.current.clear()
         dirtySettingsFieldsRef.current.clear()
         sourceBomDirtyRef.current = false
+        draftEditedRef.current = false
+        editorVersionRef.current = receipt.resultVersion ?? expectedVersion
         setLines((current) =>
-          reconcileSavedLineIdentities(current, result.lines)
+          reconcileSavedLineIdentities(current, receipt.lines ?? [])
         )
-      }
-      return result
-    }, 'Draft baseline saved.')
+      },
+    })
   }
 
   function submitDraft() {
@@ -814,6 +896,7 @@ function BudgetWorkspaceContent({
   }
 
   function addLine() {
+    draftEditedRef.current = true
     const unused = codes.find(
       (code) => !lines.some((line) => line.costCodeId === code.id)
     )
@@ -860,6 +943,12 @@ function BudgetWorkspaceContent({
               Retry budget workflow
             </button>
           )}
+          {uncertainDraftCommand && (
+            <button className="finance-secondary-button" type="button"
+              onClick={() => runDraft(uncertainDraftCommand, true)} disabled={ordinaryBusy}>
+              Retry draft command
+            </button>
+          )}
         </div>
       )}
 
@@ -882,6 +971,7 @@ function BudgetWorkspaceContent({
               createCodeAction(event.currentTarget)
             }}
           >
+            <fieldset disabled={isBusy || workflowLocked} style={{ display: 'contents' }}>
             <label>
               <span>Code</span>
               <input name="code" required maxLength={40} placeholder="MAT-100" />
@@ -912,6 +1002,7 @@ function BudgetWorkspaceContent({
             >
               Add code
             </button>
+            </fieldset>
           </form>
           <div className="budget-code-grid">
             {codes.map((code) => (
@@ -944,6 +1035,7 @@ function BudgetWorkspaceContent({
               createBudgetAction(event.currentTarget)
             }}
           >
+            <fieldset disabled={isBusy || workflowLocked} style={{ display: 'contents' }}>
             {canViewBom && (
               <label>
                 <span>Source BOM</span>
@@ -1009,6 +1101,7 @@ function BudgetWorkspaceContent({
                 <small>Create at least one Cost Code first.</small>
               )}
             </div>
+            </fieldset>
           </form>
         </section>
       )}
@@ -1047,6 +1140,7 @@ function BudgetWorkspaceContent({
                     onChange={(event) => {
                       const nextSourceBomId = event.currentTarget.value
                       sourceBomDirtyRef.current = true
+                      draftEditedRef.current = true
                       for (const line of lines) {
                         markLineFieldDirty(line.key, 'bomLineItemId')
                       }
@@ -1173,7 +1267,9 @@ function BudgetWorkspaceContent({
               </div>
               {lines.map((line, index) => (
                 <div className="budget-line" key={line.key}>
+                  <label className="budget-line-label" htmlFor={`budget-code-${line.key}`}>Cost Code</label>
                   <select
+                    id={`budget-code-${line.key}`}
                     aria-label={`Cost Code ${index + 1}`}
                     value={line.costCodeId}
                     disabled={isBusy || workflowLocked}
@@ -1205,7 +1301,10 @@ function BudgetWorkspaceContent({
                     ))}
                   </select>
                   {canViewBom ? (
+                    <>
+                    <label className="budget-line-label" htmlFor={`budget-bom-${line.key}`}>Source BOM line</label>
                     <select
+                      id={`budget-bom-${line.key}`}
                       aria-label={`Source BOM line ${index + 1}`}
                       value={line.bomLineItemId}
                       disabled={isBusy || workflowLocked}
@@ -1228,10 +1327,13 @@ function BudgetWorkspaceContent({
                         </option>
                       ))}
                     </select>
+                    </>
                   ) : (
-                    <span />
+                    <span className="budget-line-empty" />
                   )}
+                  <label className="budget-line-label" htmlFor={`budget-description-${line.key}`}>Description</label>
                   <input
+                    id={`budget-description-${line.key}`}
                     aria-label={`Description ${index + 1}`}
                     value={line.description}
                     maxLength={500}
@@ -1249,7 +1351,9 @@ function BudgetWorkspaceContent({
                       )
                     }}
                   />
+                  <label className="budget-line-label" htmlFor={`budget-amount-${line.key}`}>Baseline amount ({draftSettings.currency})</label>
                   <input
+                    id={`budget-amount-${line.key}`}
                     aria-label={`Baseline amount ${index + 1}`}
                     value={line.amountPhp}
                     type="number"
@@ -1273,11 +1377,12 @@ function BudgetWorkspaceContent({
                     type="button"
                     className="finance-text-button"
                     disabled={isBusy || workflowLocked || lines.length === 1}
-                    onClick={() =>
+                    onClick={() => {
+                      draftEditedRef.current = true
                       setLines((current) =>
                         current.filter((item) => item.key !== line.key)
                       )
-                    }
+                    }}
                   >
                     Remove
                   </button>
@@ -1458,5 +1563,5 @@ function BudgetWorkspaceContent({
 }
 
 export function BudgetWorkspace(props: Props) {
-  return <BudgetWorkspaceContent key={props.projectId} {...props} />
+  return <BudgetWorkspaceContent key={`${props.actorId}:${props.projectId}`} {...props} />
 }

@@ -43,6 +43,7 @@ type WorkflowResponse =
   | { error: string; unconfirmed?: boolean }
 
 type PanelProps = {
+  actorId: string
   projectId: string
   canViewBom: boolean
   canManage: boolean
@@ -50,6 +51,7 @@ type PanelProps = {
   canFinanceApprove: boolean
   ownerOverride?: boolean
   draft: {
+    version: string
     id: string
     revision: number
     sourceBomId: string | null
@@ -79,6 +81,17 @@ type PanelProps = {
 }
 
 type BrowserBridge = {
+  createBudgetRequests: Array<Record<string, string>>
+  createBudgetPending: Array<{ resolve: (value: unknown) => void; reject: (error: unknown) => void }>
+  resolveCreateBudget: (value: unknown) => void
+  codeRequests: Array<Record<string, string>>
+  codePending: Array<{ resolve: (value: unknown) => void; reject: (error: unknown) => void }>
+  resolveCode: (value: unknown) => void
+  rejectCode: (error: unknown) => void
+  saveRequests: Array<Record<string, string>>
+  savePending: Array<{ resolve: (value: unknown) => void; reject: (error: unknown) => void }>
+  resolveSave: (value: unknown) => void
+  rejectSave: (error: unknown) => void
   submitRequests: Array<{ projectId: string; budgetId: string }>
   approveRequests: Array<{
     projectId: string
@@ -132,6 +145,7 @@ let vite: import('vite').ViteDevServer | undefined
 test.describe.configure({ mode: 'serial' })
 
 const defaultDraft: NonNullable<PanelProps['draft']> = {
+  version: '123:1789320000.123456',
   id: BUDGET_ID,
   revision: 1,
   sourceBomId: null,
@@ -159,6 +173,7 @@ const defaultPending: NonNullable<PanelProps['pendingBudget']> = {
 }
 
 const defaultProps: PanelProps = {
+  actorId: APPROVER_ID,
   projectId: PROJECT_ID,
   canViewBom: false,
   canManage: true,
@@ -212,6 +227,9 @@ async function snapshot(page: import('@playwright/test').Page) {
       rejectRequests: bridge.rejectRequests,
       reviseRequests: bridge.reviseRequests,
       refreshes: bridge.refreshes,
+      saveRequests: bridge.saveRequests,
+      codeRequests: bridge.codeRequests,
+      createBudgetRequests: bridge.createBudgetRequests,
     }
   })
 }
@@ -293,6 +311,17 @@ test.beforeAll(async () => {
     `
 type Pending = { resolve: (value: unknown) => void; reject: (error: unknown) => void }
 type Bridge = {
+  createBudgetRequests: Array<Record<string, string>>
+  createBudgetPending: Pending[]
+  resolveCreateBudget: (value: unknown) => void
+  codeRequests: Array<Record<string, string>>
+  codePending: Pending[]
+  resolveCode: (value: unknown) => void
+  rejectCode: (error: unknown) => void
+  saveRequests: Array<Record<string, string>>
+  savePending: Pending[]
+  resolveSave: (value: unknown) => void
+  rejectSave: (error: unknown) => void
   submitRequests: Array<{ projectId: string; budgetId: string }>
   approveRequests: Array<{ projectId: string; budgetId: string; lane: 'commercial' | 'finance' }>
   rejectRequests: Array<{ projectId: string; budgetId: string; reason: string }>
@@ -312,6 +341,14 @@ type Bridge = {
 }
 const target = globalThis as unknown as { __budgetTest?: Bridge }
 const bridge = target.__budgetTest ?? {
+  createBudgetRequests: [], createBudgetPending: [],
+  resolveCreateBudget(value: unknown) { target.__budgetTest?.createBudgetPending.shift()?.resolve(value) },
+  codeRequests: [], codePending: [],
+  resolveCode(value: unknown) { target.__budgetTest?.codePending.shift()?.resolve(value) },
+  rejectCode(error: unknown) { target.__budgetTest?.codePending.shift()?.reject(error) },
+  saveRequests: [], savePending: [],
+  resolveSave(value: unknown) { target.__budgetTest?.savePending.shift()?.resolve(value) },
+  rejectSave(error: unknown) { target.__budgetTest?.savePending.shift()?.reject(error) },
   submitRequests: [], approveRequests: [], rejectRequests: [], reviseRequests: [],
   submitPending: [], approvePending: [], rejectPending: [], revisePending: [],
   refreshes: 0, throwOnRefresh: false,
@@ -328,10 +365,17 @@ target.__budgetTest = bridge
 function pending(queue: Pending[]): Promise<unknown> {
   return new Promise((resolve, reject) => queue.push({ resolve, reject }))
 }
-export function createCostCode(): Promise<unknown> { return Promise.resolve({ ok: true, id: '11111111-1111-4111-8111-111111111111' }) }
-export function createProjectBudget(): Promise<unknown> { return Promise.resolve({ ok: true, id: '55555555-5555-4555-8555-555555555555' }) }
+export function createCostCode(formData: FormData): Promise<unknown> {
+  bridge.codeRequests.push(Object.fromEntries([...formData.entries()].map(([key, value]) => [key, String(value)])))
+  return pending(bridge.codePending)
+}
+export function createProjectBudget(formData: FormData): Promise<unknown> {
+  bridge.createBudgetRequests.push(Object.fromEntries([...formData.entries()].map(([key, value]) => [key, String(value)])))
+  return pending(bridge.createBudgetPending)
+}
 export function saveProjectBudget(formData: FormData): Promise<unknown> {
-  return Promise.resolve({ ok: true, id: String(formData.get('budget_id') ?? ''), lines: [] })
+  bridge.saveRequests.push(Object.fromEntries([...formData.entries()].map(([key, value]) => [key, String(value)])))
+  return pending(bridge.savePending)
 }
 export function submitProjectBudget(projectId: string, budgetId: string): Promise<unknown> {
   bridge.submitRequests.push({ projectId, budgetId })
@@ -433,6 +477,184 @@ test('blocks submission of dirty draft lines instead of silently submitting stal
   await page.getByRole('button', { name: 'Submit for approval' }).click()
   await expect(page.getByRole('alert')).toContainText('Save the draft before submitting')
   expect((await snapshot(page)).submitRequests).toHaveLength(0)
+})
+
+test('loads large centavo amounts as valid ungrouped numeric editor values', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 900 })
+  await page.goto(harnessUrl)
+  await mount(page, { ...defaultProps, draft: { ...defaultDraft,
+    lines: [{ ...defaultDraft.lines[0]!, amountCents: 125_099 }],
+  } })
+  await expect(page.getByLabel('Baseline amount 1')).toHaveValue('1250.99')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  expect(await page.locator('.budget-line-shell').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
+  await page.screenshot({ path: join(tmpdir(), 'erp-budget-draft-editor-320.png'), fullPage: true })
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click()
+  const savedLines: Array<{ amountPhp: string }> = JSON.parse((await snapshot(page)).saveRequests[0]!.lines!)
+  expect(savedLines[0]!.amountPhp).toBe('1250.99')
+})
+
+test('creates a baseline through a scoped keyed receipt without clearing an uncertain form', async ({ page }) => {
+  await page.goto(harnessUrl)
+  await mount(page, { ...defaultProps, draft: null })
+  await page.getByLabel('Revision reason').fill('Initial site budget')
+  await page.getByRole('button', { name: 'Create draft', exact: true }).click()
+  const first = (await snapshot(page)).createBudgetRequests[0]!
+  expect(first.request_id).toMatch(/^[0-9a-f-]{36}$/)
+  await page.evaluate(() => {
+    const bridge = (window as unknown as { __budgetTest: BrowserBridge }).__budgetTest
+    bridge.resolveCreateBudget({ error: 'Outcome unconfirmed', unconfirmed: true })
+  })
+  await expect(page.getByLabel('Revision reason')).toHaveValue('Initial site budget')
+  await expect(page.getByLabel('Revision reason')).toBeDisabled()
+  await page.getByRole('button', { name: 'Retry draft command' }).click()
+  expect((await snapshot(page)).createBudgetRequests).toEqual([first, first])
+  await page.evaluate(({ first, projectId, budgetId }) => {
+    const bridge = (window as unknown as { __budgetTest: BrowserBridge }).__budgetTest
+    bridge.resolveCreateBudget({ ok: true, id: budgetId, receipt: {
+      operation: 'create_budget', projectId, sourceBudgetId: null, requestId: first.request_id,
+      resultId: budgetId, resultVersion: '124:1789320001.654321',
+    } })
+  }, { first, projectId: PROJECT_ID, budgetId: BUDGET_ID })
+  await expect(page.getByRole('status')).toContainText('Draft baseline created')
+})
+
+test('retains cost-code inputs until its exact create request is confirmed', async ({ page }) => {
+  await page.goto(harnessUrl)
+  await page.getByText('Cost Code library', { exact: true }).click()
+  await page.getByLabel('Code', { exact: true }).fill('MAT-200')
+  await page.getByLabel('Name', { exact: true }).fill('Finishes')
+  await page.getByRole('button', { name: 'Add code', exact: true }).click()
+  await page.evaluate(() => (window as unknown as { __budgetTest: BrowserBridge }).__budgetTest.rejectCode(new Error('connection lost')))
+  await expect(page.getByLabel('Code', { exact: true })).toHaveValue('MAT-200')
+  await expect(page.getByLabel('Name', { exact: true })).toHaveValue('Finishes')
+  await expect(page.getByLabel('Code', { exact: true })).toBeDisabled()
+  await page.getByRole('button', { name: 'Retry draft command' }).click()
+  const requests = (await snapshot(page)).codeRequests
+  expect(requests).toHaveLength(2)
+  expect(requests[1]).toEqual(requests[0])
+  await page.evaluate(({ first, projectId, resultId }) => {
+    const bridge = (window as unknown as { __budgetTest: BrowserBridge }).__budgetTest
+    bridge.resolveCode({ ok: true, id: resultId, receipt: {
+      operation: 'create_cost_code', projectId, sourceBudgetId: null,
+      requestId: first.request_id, resultId,
+    } })
+  }, { first: requests[0]!, projectId: PROJECT_ID, resultId: REVISION_ID })
+  await expect(page.getByRole('status')).toContainText('Cost Code created')
+  await expect(page.getByLabel('Code', { exact: true })).toHaveValue('')
+})
+
+test('retains and retries the exact draft save, then keeps its returned concurrency token', async ({ page }) => {
+  await page.goto(harnessUrl)
+  await page.getByLabel('Description 1').fill('Saved scope correction')
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click()
+  await expect(page.getByLabel('Description 1')).toBeDisabled()
+  const first = (await snapshot(page)).saveRequests[0]!
+  expect(first.request_id).toMatch(/^[0-9a-f-]{36}$/)
+  expect(first.expected_version).toBe('123:1789320000.123456')
+  await page.evaluate(() => (window as unknown as { __budgetTest: BrowserBridge }).__budgetTest.rejectSave(new Error('connection lost')))
+  await expect(page.getByLabel('Description 1')).toHaveValue('Saved scope correction')
+  await page.getByRole('button', { name: 'Retry draft command' }).click()
+  expect((await snapshot(page)).saveRequests).toEqual([first, first])
+  const lines = [{ id: LINE_ID, costCodeId: CODE_ID, clientKey: LINE_ID }]
+  await page.evaluate(({ first, lines, projectId, budgetId }) => {
+    (window as unknown as { __budgetTest: BrowserBridge }).__budgetTest.resolveSave({
+      ok: true, id: budgetId, lines,
+      receipt: { operation: 'save_draft', projectId, sourceBudgetId: budgetId,
+        requestId: first.request_id, expectedVersion: first.expected_version,
+        resultId: budgetId, resultVersion: '124:1789320001.654321', lines },
+      refreshWarning: 'Saved; reload the latest view.',
+    })
+  }, { first, lines, projectId: PROJECT_ID, budgetId: BUDGET_ID })
+  await expect(page.getByRole('status')).toContainText('Draft baseline saved')
+  await expect(page.getByRole('status')).toContainText('reload the latest view')
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click()
+  const next = (await snapshot(page)).saveRequests[2]!
+  expect(next.expected_version).toBe('124:1789320001.654321')
+  expect(next.request_id).not.toBe(first.request_id)
+  await page.evaluate(({ next, lines, projectId, budgetId }) => {
+    (window as unknown as { __budgetTest: BrowserBridge }).__budgetTest.resolveSave({
+      ok: true, id: budgetId, lines,
+      receipt: { operation: 'save_draft', projectId, sourceBudgetId: budgetId,
+        requestId: next.request_id, expectedVersion: next.expected_version,
+        resultId: budgetId, resultVersion: '125:1789320002.654321', lines },
+    })
+  }, { next, lines, projectId: PROJECT_ID, budgetId: BUDGET_ID })
+  await expect(page.getByRole('button', { name: 'Save draft', exact: true })).toBeEnabled()
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click()
+  expect((await snapshot(page)).saveRequests[3]!.expected_version).toBe('125:1789320002.654321')
+})
+
+test('keeps the original editor version after another editor refreshes a dirty draft', async ({ page }) => {
+  await page.goto(harnessUrl)
+  await page.getByLabel('Description 1').fill('My unsaved correction')
+  await mount(page, { ...defaultProps, draft: { ...defaultDraft,
+    version: '999:1789320100.654321',
+    lines: [{ ...defaultDraft.lines[0]!, amountCents: 25_000 }],
+  } })
+  await expect(page.getByLabel('Baseline amount 1')).toHaveValue('250.00')
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click()
+  expect((await snapshot(page)).saveRequests[0]!.expected_version).toBe(defaultDraft.version)
+  await page.evaluate(() => (window as unknown as { __budgetTest: BrowserBridge }).__budgetTest.resolveSave({ error: 'This draft changed after you loaded it. Reload before saving; your edits were not applied.' }))
+  await expect(page.getByRole('alert')).toContainText('changed after you loaded')
+  await expect(page.getByLabel('Description 1')).toHaveValue('My unsaved correction')
+  await expect(page.getByLabel('Description 1')).toBeEnabled()
+  await expect(page.getByRole('button', { name: 'Retry draft command' })).toHaveCount(0)
+})
+
+test('reconciles a new line arriving through refresh before its save receipt without duplicate identities', async ({ page }) => {
+  await page.goto(harnessUrl)
+  const props = { ...defaultProps, codes: [...defaultProps.codes,
+    { id: OTHER_PROJECT_ID, code: 'MAT-200', name: 'Finishes', category: 'material' },
+  ] }
+  await mount(page, props)
+  await page.getByRole('button', { name: 'Add Cost Code', exact: true }).click()
+  await page.getByLabel('Baseline amount 2').fill('250.00')
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click()
+  const first = (await snapshot(page)).saveRequests[0]!
+  const submitted: Array<{ clientKey: string; costCodeId: string }> = JSON.parse(first.lines!)
+  const newKey = submitted.find(line => line.costCodeId === OTHER_PROJECT_ID)!.clientKey
+  await mount(page, { ...props, draft: { ...defaultDraft, version: '124:1789320001.654321',
+    lines: [...defaultDraft.lines, { id: REVISION_ID, costCodeId: OTHER_PROJECT_ID,
+      bomLineItemId: null, description: 'Finishes', amountCents: 25_000 }],
+  } })
+  await page.evaluate(({ first, newKey, projectId, budgetId, lineId, codeId, newId, newCodeId }) => {
+    const bridge = (window as unknown as { __budgetTest: BrowserBridge }).__budgetTest
+    bridge.throwOnRefresh = true
+    const lines = [{ id: lineId, costCodeId: codeId, clientKey: lineId },
+      { id: newId, costCodeId: newCodeId, clientKey: newKey }]
+    bridge.resolveSave({ ok: true, id: budgetId, lines, receipt: {
+      operation: 'save_draft', projectId, sourceBudgetId: budgetId,
+      requestId: first.request_id, expectedVersion: first.expected_version,
+      resultId: budgetId, resultVersion: '124:1789320001.654321', lines,
+    } })
+  }, { first, newKey, projectId: PROJECT_ID, budgetId: BUDGET_ID,
+    lineId: LINE_ID, codeId: CODE_ID, newId: REVISION_ID, newCodeId: OTHER_PROJECT_ID })
+  await expect(page.getByRole('status')).toContainText('could not refresh')
+  await expect(page.getByLabel(/^Baseline amount \d+$/)).toHaveCount(2)
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click()
+  const nextLines: Array<{ id: string; costCodeId: string }> = JSON.parse((await snapshot(page)).saveRequests[1]!.lines!)
+  expect(nextLines.map(line => line.id)).toEqual([LINE_ID, REVISION_ID])
+})
+
+test('ignores a pending draft response after the authenticated actor changes', async ({ page }) => {
+  await page.goto(harnessUrl)
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click()
+  const first = (await snapshot(page)).saveRequests[0]!
+  await mount(page, { ...defaultProps, actorId: OTHER_PROJECT_ID })
+  await expect(page.getByRole('button', { name: 'Save draft', exact: true })).toBeEnabled()
+  await page.evaluate(({ first, projectId, budgetId, lineId, codeId }) => {
+    const lines = [{ id: lineId, costCodeId: codeId, clientKey: lineId }]
+    const bridge = (window as unknown as { __budgetTest: BrowserBridge }).__budgetTest
+    bridge.resolveSave({
+      ok: true, id: budgetId, lines,
+      receipt: { operation: 'save_draft', projectId, sourceBudgetId: budgetId,
+        requestId: first.request_id, expectedVersion: first.expected_version,
+        resultId: budgetId, resultVersion: '124:1789320001.654321', lines },
+    })
+  }, { first, projectId: PROJECT_ID, budgetId: BUDGET_ID, lineId: LINE_ID, codeId: CODE_ID })
+  await expect(page.getByRole('status')).toHaveCount(0)
+  expect((await snapshot(page)).refreshes).toBe(0)
 })
 
 test('single-flights submit, retains exact uncertain request, and accepts a durable replay state', async ({ page }) => {

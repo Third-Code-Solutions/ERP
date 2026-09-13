@@ -3,9 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import {
-  requireCapability,
   requireUserProfile,
   type ErpCapability,
 } from '@third-code-erp/auth'
@@ -23,21 +22,37 @@ import {
 } from '@third-code-erp/database/schema'
 import { canUniversalSearchEntity } from '@third-code-erp/shared-types'
 import { ERP_ROLES, roleHasCapability } from '@third-code-erp/shared-types/authorization'
-import { stampActorInTransaction, writeAuditLogInTransaction, writeAuditLog, type DatabaseTransaction } from '@/lib/audit'
+import { stampActorInTransaction, writeAuditLogInTransaction, type DatabaseTransaction } from '@/lib/audit'
 import { parsePesosToCents } from '@/lib/operations/scope-money'
 
 type ActionResult =
-  | { ok: true; id?: string; error?: never }
-  | { ok?: false; error: string }
+  | { ok: true; id: string; receipt: BudgetDraftReceipt; refreshWarning?: string; error?: never }
+  | { ok?: false; error: string; unconfirmed?: true }
 
 type SaveBudgetResult =
   | {
       ok: true
       id: string
       lines: Array<{ id: string; costCodeId: string; clientKey?: string }>
+      receipt: BudgetDraftReceipt
+      refreshWarning?: string
       error?: never
     }
-  | { ok?: false; error: string }
+  | { ok?: false; error: string; unconfirmed?: true }
+
+const canonicalUuid = z.string().uuid().transform(value => value.toLowerCase())
+const budgetVersionSchema = z.string().regex(/^\d+:-?\d+(?:\.\d{1,6})?$/).max(80)
+const draftReceiptSchema = z.object({
+  operation: z.enum(['create_cost_code', 'create_budget', 'save_draft']),
+  projectId: canonicalUuid,
+  sourceBudgetId: canonicalUuid.nullable(),
+  requestId: canonicalUuid.optional(),
+  resultId: canonicalUuid,
+  expectedVersion: budgetVersionSchema.optional(),
+  resultVersion: budgetVersionSchema.optional(),
+  lines: z.array(z.object({ id: canonicalUuid, costCodeId: canonicalUuid, clientKey: canonicalUuid.optional() })).optional(),
+})
+export type BudgetDraftReceipt = z.infer<typeof draftReceiptSchema>
 
 const categorySchema = z.enum([
   'material',
@@ -49,15 +64,17 @@ const categorySchema = z.enum([
 ])
 
 const createCodeSchema = z.object({
-  projectId: z.string().uuid(),
+  projectId: canonicalUuid,
+  requestId: canonicalUuid.optional(),
   code: z.string().trim().min(1).max(40),
   name: z.string().trim().min(1).max(160),
   category: categorySchema,
 })
 
 const createBudgetSchema = z.object({
-  projectId: z.string().uuid(),
-  sourceBomId: z.string().uuid().nullable().optional(),
+  projectId: canonicalUuid,
+  requestId: canonicalUuid.optional(),
+  sourceBomId: canonicalUuid.nullable().optional(),
   controlMode: z.enum(['monitor', 'warn', 'block']),
   toleranceBps: z.coerce.number().int().min(0).max(10_000),
   currency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/),
@@ -66,10 +83,10 @@ const createBudgetSchema = z.object({
 })
 
 const lineSchema = z.object({
-  clientKey: z.string().uuid().optional(),
-  id: z.string().uuid().optional(),
-  costCodeId: z.string().uuid(),
-  bomLineItemId: z.string().uuid().nullable().optional(),
+  clientKey: canonicalUuid.optional(),
+  id: canonicalUuid.optional(),
+  costCodeId: canonicalUuid,
+  bomLineItemId: canonicalUuid.nullable().optional(),
   description: z.string().trim().min(1).max(500),
   amountPhp: z.string()
     .trim()
@@ -83,8 +100,10 @@ const lineSchema = z.object({
 const saveBudgetSchema = createBudgetSchema
   .omit({ projectId: true })
   .extend({
-    projectId: z.string().uuid(),
-    budgetId: z.string().uuid(),
+    projectId: canonicalUuid,
+    budgetId: canonicalUuid,
+    requestId: canonicalUuid,
+    expectedVersion: budgetVersionSchema,
     lines: z.array(lineSchema).min(1).max(200),
   })
 
@@ -130,38 +149,6 @@ function safeMessage(error: unknown): string {
   return 'Project Budget outcome could not be confirmed. Refresh before retrying.'
 }
 
-async function requireTenantProject(tenantId: string, projectId: string) {
-  const [project] = await db
-    .select({ id: projects.id })
-    .from(projects)
-    .where(
-      and(eq(projects.id, projectId), eq(projects.tenant_id, tenantId))
-    )
-    .limit(1)
-  if (!project) throw new Error('Project Budget not found')
-}
-
-async function requireTenantProjectBom(
-  tenantId: string,
-  projectId: string,
-  bomId: string
-) {
-  const [bom] = await db
-    .select({ id: boms.id })
-    .from(boms)
-    .where(
-      and(
-        eq(boms.id, bomId),
-        eq(boms.project_id, projectId),
-        eq(boms.tenant_id, tenantId)
-      )
-    )
-    .limit(1)
-  if (!bom) {
-    throw new Error('Project Budget source BOM must belong to its project')
-  }
-}
-
 function refreshProjectBudget(projectId: string) {
   revalidatePath(`/projects/${projectId}`)
   revalidatePath(`/projects/${projectId}/cost`)
@@ -174,8 +161,8 @@ export async function createCostCode(
 ): Promise<ActionResult> {
   try {
     const profile = await requireUserProfile()
-    requireCapability(profile, 'budget.manage')
     const parsed = createCodeSchema.safeParse({
+      requestId: formData.get('request_id') ?? undefined,
       projectId: formData.get('project_id'),
       code: formData.get('code'),
       name: formData.get('name'),
@@ -186,9 +173,11 @@ export async function createCostCode(
         error: parsed.error.issues[0]?.message ?? 'Invalid Cost Code.',
       }
     }
-    await requireTenantProject(profile.tenantId, parsed.data.projectId)
-
-    const [created] = await db
+    return await executeDraftCommand(profile, {
+      operation: 'create_cost_code', projectId: parsed.data.projectId, sourceBudgetId: null,
+      requestId: parsed.data.requestId, fingerprint: draftFingerprint({ ...parsed.data, code: parsed.data.code.toUpperCase() }),
+    }, async tx => {
+    const [created] = await tx
       .insert(costCodes)
       .values({
         tenant_id: profile.tenantId,
@@ -199,22 +188,11 @@ export async function createCostCode(
       })
       .returning({ id: costCodes.id })
 
-    if (!created) return { error: 'Cost Code was not created.' }
-    await writeAuditLog({
-      tenantId: profile.tenantId,
-      actorId: profile.user.id,
-      entityType: 'cost_code',
-      entityId: created.id,
-      action: 'create',
-      diff: {
-        code: parsed.data.code.toUpperCase(),
-        category: parsed.data.category,
-      },
+    if (!created) throw new Error('Cost Code receipt missing')
+    return { id: created.id }
     })
-    refreshProjectBudget(parsed.data.projectId)
-    return { ok: true, id: created.id }
   } catch (error) {
-    return { error: safeMessage(error) }
+    return draftFailure(error, Boolean(formData.get('request_id')))
   }
 }
 
@@ -223,8 +201,8 @@ export async function createProjectBudget(
 ): Promise<ActionResult> {
   try {
     const profile = await requireUserProfile()
-    requireCapability(profile, 'budget.manage')
     const parsed = createBudgetSchema.safeParse({
+      requestId: formData.get('request_id') ?? undefined,
       projectId: formData.get('project_id'),
       sourceBomId: formData.get('source_bom_id') || undefined,
       controlMode: formData.get('control_mode'),
@@ -238,30 +216,22 @@ export async function createProjectBudget(
         error: parsed.error.issues[0]?.message ?? 'Invalid Project Budget.',
       }
     }
+    return await executeDraftCommand(profile, {
+      operation: 'create_budget', projectId: parsed.data.projectId, sourceBudgetId: null,
+      requestId: parsed.data.requestId, fingerprint: draftFingerprint({ ...parsed.data, sourceBomId: parsed.data.sourceBomId }),
+    }, async (tx, role) => {
     if (
       parsed.data.sourceBomId &&
-      !canUniversalSearchEntity(profile.role, 'bom')
+      !canUniversalSearchEntity(role, 'bom')
     ) {
       throw new Error('Forbidden: BOM associations require BOM read access')
     }
-    await requireTenantProject(profile.tenantId, parsed.data.projectId)
     if (parsed.data.sourceBomId) {
-      await requireTenantProjectBom(
-        profile.tenantId,
-        parsed.data.projectId,
-        parsed.data.sourceBomId
-      )
+      const [bom] = await tx.select({ id: boms.id }).from(boms).where(and(
+        eq(boms.id, parsed.data.sourceBomId), eq(boms.tenant_id, profile.tenantId), eq(boms.project_id, parsed.data.projectId),
+      )).limit(1)
+      if (!bom) throw new BudgetWorkflowError('Project Budget source BOM must belong to its project')
     }
-
-    const createdId = await db.transaction(async (tx) => {
-      await tx.execute(sql`
-        select pg_catalog.pg_advisory_xact_lock(
-          pg_catalog.hashtextextended(
-            ${`${profile.tenantId}:${parsed.data.projectId}`},
-            0
-          )
-        )
-      `)
       const revisions = await tx
         .select({ revision: projectBudgets.revision })
         .from(projectBudgets)
@@ -294,24 +264,10 @@ export async function createProjectBudget(
         })
         .returning({ id: projectBudgets.id })
       if (!created) throw new Error('Project Budget not found')
-      return created.id
+      return { id: created.id }
     })
-
-    await writeAuditLog({
-      tenantId: profile.tenantId,
-      actorId: profile.user.id,
-      entityType: 'project_budget',
-      entityId: createdId,
-      action: 'create',
-      diff: {
-        project_id: parsed.data.projectId,
-        reason: parsed.data.reason,
-      },
-    })
-    refreshProjectBudget(parsed.data.projectId)
-    return { ok: true, id: createdId }
   } catch (error) {
-    return { error: safeMessage(error) }
+    return draftFailure(error, Boolean(formData.get('request_id')))
   }
 }
 
@@ -320,7 +276,9 @@ export async function saveProjectBudget(
 ): Promise<SaveBudgetResult> {
   try {
     const profile = await requireUserProfile()
-    requireCapability(profile, 'budget.manage')
+    if (!formData.get('request_id') || !formData.get('expected_version')) {
+      return { error: 'Reload this draft before saving; a request key and current version are required.' }
+    }
     let rawLines: unknown
     try {
       rawLines = JSON.parse(String(formData.get('lines') ?? '[]'))
@@ -329,6 +287,8 @@ export async function saveProjectBudget(
     }
     const rawSourceBomId = formData.get('source_bom_id')
     const parsed = saveBudgetSchema.safeParse({
+      requestId: formData.get('request_id'),
+      expectedVersion: formData.get('expected_version'),
       projectId: formData.get('project_id'),
       budgetId: formData.get('budget_id'),
       sourceBomId:
@@ -350,7 +310,14 @@ export async function saveProjectBudget(
       }
     }
 
-    const canReadBom = canUniversalSearchEntity(profile.role, 'bom')
+    const result = await executeDraftCommand(profile, {
+      operation: 'save_draft', projectId: parsed.data.projectId, sourceBudgetId: parsed.data.budgetId,
+      requestId: parsed.data.requestId, expectedVersion: parsed.data.expectedVersion,
+      fingerprint: draftFingerprint({ ...parsed.data, sourceBomId: parsed.data.sourceBomId,
+        lines: parsed.data.lines.map(line => ({ clientKey: line.clientKey, id: line.id, costCodeId: line.costCodeId,
+          bomLineItemId: line.bomLineItemId, description: line.description, amountCents: String(parsePesosToCents(line.amountPhp)) })) }),
+    }, async (tx, role) => {
+    const canReadBom = canUniversalSearchEntity(role, 'bom')
     if (
       !canReadBom &&
       (parsed.data.sourceBomId !== undefined ||
@@ -359,7 +326,6 @@ export async function saveProjectBudget(
       throw new Error('Forbidden: BOM associations require BOM read access')
     }
 
-    const savedLines = await db.transaction(async (tx) => {
       // This row is the serialization point for every save of this draft. It
       // must be locked before the line snapshot so concurrent requests cannot
       // both reconcile against stale identities or line numbers.
@@ -669,7 +635,7 @@ export async function saveProjectBudget(
       const insertedByCostCode = new Map(
         insertedLines.map((line) => [line.costCodeId, line.id])
       )
-      return lineWrites.map((line) => {
+      const savedLines = lineWrites.map((line) => {
         const id = line.id ?? insertedByCostCode.get(line.costCodeId)
         if (!id) {
           throw new Error('Project Budget changed during save. Please retry.')
@@ -680,20 +646,12 @@ export async function saveProjectBudget(
           ...(line.clientKey ? { clientKey: line.clientKey } : {}),
         }
       })
+      return { id: parsed.data.budgetId, lines: savedLines }
     })
-
-    await writeAuditLog({
-      tenantId: profile.tenantId,
-      actorId: profile.user.id,
-      entityType: 'project_budget',
-      entityId: parsed.data.budgetId,
-      action: 'update',
-      diff: { line_count: parsed.data.lines.length },
-    })
-    refreshProjectBudget(parsed.data.projectId)
-    return { ok: true, id: parsed.data.budgetId, lines: savedLines }
+    if (!result.receipt.lines) throw new Error('Saved line receipt missing')
+    return { ...result, lines: result.receipt.lines }
   } catch (error) {
-    return { error: safeMessage(error) }
+    return draftFailure(error, Boolean(formData.get('request_id')))
   }
 }
 
@@ -707,6 +665,114 @@ export type BudgetWorkflowReceipt = {
   resultBudgetId: string
   status: BudgetRow['status']
   requestId?: string
+}
+
+function draftFingerprint(value: unknown): string {
+  function canonical(input: unknown): unknown {
+    if (input === undefined) return { omitted: true }
+    if (Array.isArray(input)) return input.map(canonical)
+    if (input !== null && typeof input === 'object') {
+      return Object.fromEntries(Object.entries(input).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([key, item]) => [key, canonical(item)]))
+    }
+    return input
+  }
+  return createHash('sha256').update(JSON.stringify(canonical(value))).digest('hex')
+}
+
+function draftFailure(error: unknown, keyed: boolean): { error: string; unconfirmed?: true } {
+  if (error instanceof BudgetWorkflowError) return { error: error.message }
+  const seen = new Set<unknown>()
+  let cause = error
+  while (cause instanceof Object && !seen.has(cause)) {
+    seen.add(cause)
+    // PostgreSQL rejected and rolled back this write. A nested driver wrapper
+    // must not turn a definite uniqueness conflict into an uncertain retry.
+    if ('code' in cause && cause.code === '23505') {
+      return { error: 'This command conflicts with an existing Cost Code or budget record. Refresh and review it.' }
+    }
+    cause = 'cause' in cause ? cause.cause : undefined
+  }
+  const safe = safeMessage(error)
+  if (safe !== 'Project Budget outcome could not be confirmed. Refresh before retrying.') return { error: safe }
+  const failure = workflowError(error)
+  if (!failure.unconfirmed) return failure
+  return { error: keyed
+    ? 'Project Budget outcome could not be confirmed. Retry the unchanged request to reconcile it.'
+    : 'Project Budget outcome could not be confirmed. Refresh and inspect existing records before creating another.', unconfirmed: true }
+}
+
+async function exactBudgetVersion(tx: DatabaseTransaction, tenantId: string, budgetId: string): Promise<string> {
+  const [row] = await tx.execute<{ version: string }>(sql`select xmin::text || ':' || extract(epoch from updated_at)::text as version
+    from public.project_budgets where tenant_id = ${tenantId}::uuid and id = ${budgetId}::uuid`)
+  if (!row) throw new Error('Budget version receipt missing')
+  return row.version
+}
+
+async function executeDraftCommand(
+  profile: Awaited<ReturnType<typeof requireUserProfile>>,
+  command: { operation: BudgetDraftReceipt['operation']; projectId: string; sourceBudgetId: string | null; requestId?: string; expectedVersion?: string; fingerprint: string },
+  mutate: (tx: DatabaseTransaction, role: (typeof ERP_ROLES)[number]) => Promise<{ id: string; lines?: NonNullable<BudgetDraftReceipt['lines']> }>,
+): Promise<Extract<ActionResult, { ok: true }>> {
+  const traceId = randomUUID()
+  let outcome = 'unconfirmed'
+  try {
+    const receipt = await db.transaction(async tx => {
+      const role = await admitBudgetWorkflow(tx, profile.tenantId, profile.user.id, 'submit')
+      await tx.execute(sql`select pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
+        ${profile.tenantId}::uuid::text || ':' || ${command.projectId}::uuid::text, 0))`)
+      const [project] = await tx.select({ id: projects.id }).from(projects)
+        .where(and(eq(projects.id, command.projectId), eq(projects.tenant_id, profile.tenantId))).limit(1).for('key share')
+      if (!project) throw new BudgetWorkflowError('Project Budget not found')
+      // Do not filter draft here: a committed save must reconcile after submit.
+      if (command.sourceBudgetId) await lockedWorkflowBudget(tx, profile.tenantId, command.projectId, command.sourceBudgetId)
+      if (command.requestId) {
+        const [prior] = await tx.select({ diff: auditLog.diff }).from(auditLog).where(and(
+          eq(auditLog.tenant_id, profile.tenantId), eq(auditLog.actor_id, profile.user.id),
+          sql`${auditLog.diff}->>'draft_operation' = ${command.operation}`,
+          sql`${auditLog.diff}->>'request_id' = ${command.requestId}`,
+          sql`${auditLog.diff}->>'project_id' = ${command.projectId}`,
+        )).limit(1)
+        if (prior) {
+          const saved = z.object({ payload_sha256: z.string(), receipt: draftReceiptSchema }).safeParse(prior.diff)
+          if (!saved.success) throw new Error('Draft receipt is invalid')
+          if (saved.data.payload_sha256 !== command.fingerprint) throw new BudgetWorkflowError('This request was already used with different draft data.')
+          return saved.data.receipt
+        }
+      }
+      if (command.sourceBudgetId && await exactBudgetVersion(tx, profile.tenantId, command.sourceBudgetId) !== command.expectedVersion) {
+        throw new BudgetWorkflowError('This draft changed after you loaded it. Reload before saving; your edits were not applied.')
+      }
+      const result = await mutate(tx, role)
+      await tx.execute(sql`select pg_catalog.set_config('app.project_budget_write', '', true)`)
+      const committedReceipt: BudgetDraftReceipt = {
+        operation: command.operation, projectId: command.projectId, sourceBudgetId: command.sourceBudgetId,
+        ...(command.requestId ? { requestId: command.requestId } : {}),
+        resultId: result.id,
+        ...(command.expectedVersion ? { expectedVersion: command.expectedVersion } : {}),
+        ...(command.operation !== 'create_cost_code' ? { resultVersion: await exactBudgetVersion(tx, profile.tenantId, result.id) } : {}),
+        ...(result.lines ? { lines: result.lines } : {}),
+      }
+      await writeAuditLogInTransaction(tx, {
+        tenantId: profile.tenantId, actorId: profile.user.id,
+        entityType: command.operation === 'create_cost_code' ? 'cost_code' : 'project_budget', entityId: result.id,
+        action: command.operation === 'save_draft' ? 'update' : 'create',
+        diff: { draft_operation: command.operation, project_id: command.projectId, request_id: command.requestId ?? null,
+          payload_sha256: command.fingerprint, receipt: committedReceipt },
+      })
+      return committedReceipt
+    })
+    let refreshWarning: string | undefined
+    try { refreshProjectBudget(command.projectId) } catch {
+      refreshWarning = 'The draft command committed, but the view could not refresh. Reload to see the recorded result.'
+    }
+    outcome = refreshWarning ? 'succeeded_refresh_pending' : 'succeeded'
+    return { ok: true, id: receipt.resultId, receipt, ...(refreshWarning ? { refreshWarning } : {}) }
+  } catch (error) {
+    if (!draftFailure(error, Boolean(command.requestId)).unconfirmed) outcome = 'rejected'
+    throw error
+  } finally {
+    console.info(JSON.stringify({ trace_id: traceId, tenant_id: profile.tenantId, actor_id: profile.user.id, action: 'project_budget.draft', operation: command.operation, outcome }))
+  }
 }
 export type BudgetWorkflowResult =
   | { ok: true; id: string; receipt: BudgetWorkflowReceipt; refreshWarning?: string; error?: never }

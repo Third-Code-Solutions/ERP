@@ -16,6 +16,15 @@ const REVISION_ID = '66666666-6666-4666-8666-666666666666'
 const REQUEST_ID = '77777777-7777-4777-8777-777777777777'
 
 describe('BudgetWorkspace saved-line reconciliation', () => {
+  it('collapses a refreshed server row and its just-confirmed local row into one identity', () => {
+    const common = { costCodeId: COST_CODE_ID, bomLineItemId: '', description: 'Saved scope', amountPhp: '125.00' }
+    expect(reconcileSavedLineIdentities([
+      { ...common, key: SERVER_ID, persistedId: SERVER_ID },
+      { ...common, key: CLIENT_KEY, persistedId: null },
+    ], [{ id: SERVER_ID, clientKey: CLIENT_KEY }])).toEqual([
+      { ...common, key: CLIENT_KEY, persistedId: SERVER_ID },
+    ])
+  })
   it('uses the same UUID acceptance as the action boundary and normalizes case', () => {
     for (const value of [
       PROJECT_ID,
