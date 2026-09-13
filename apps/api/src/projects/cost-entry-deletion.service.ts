@@ -27,7 +27,7 @@ import {
   type DeleteCostEntryCommand,
   type RestoreCostEntryCommand,
 } from '@third-code-erp/shared-types'
-import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm'
+import { and, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm'
 import { roleHasCapability } from '../auth/capability.guard'
 import type { ErpPrincipal, ErpRole } from '../auth/current-principal.decorator'
 import { AuditService } from '../audit/audit.service'
@@ -38,6 +38,7 @@ import {
 
 type CostEntryDeleteRequestRecord = {
   id: string
+  createdBy: string
   projectId: string
   costEntryId: string
   requestHash: string
@@ -48,6 +49,7 @@ type CostEntryDeleteRequestRecord = {
 
 type CostEntryRestoreRequestRecord = {
   id: string
+  createdBy: string
   projectId: string
   costEntryId: string
   requestHash: string
@@ -457,22 +459,28 @@ export class CostEntryDeletionService {
     transaction: DatabaseTransaction,
     principal: ErpPrincipal
   ): Promise<ErpPrincipal> {
+    await transaction.execute(sql`select set_config('lock_timeout', '3s', true)`)
     const [membership] = await transaction
       .select({
         tenantId: users.tenant_id,
         role: users.role,
         email: users.email,
+        accountStatus: users.account_status,
       })
       .from(users)
       .where(
         and(eq(users.id, principal.userId), eq(users.tenant_id, principal.tenantId))
       )
       .limit(1)
-      .for('update')
+      .for('share', { noWait: true })
     const role = membership?.role as ErpRole | undefined
-    if (!membership || !role || !roleHasCapability(role, 'cost.record')) {
+    if (!membership || membership.accountStatus !== 'active' || !role || !roleHasCapability(role, 'cost.record')) {
       throw new ForbiddenException()
     }
+    const [tenant] = await transaction.execute<{ status: string }>(sql`
+      select status from public.tenants where id = ${principal.tenantId}::uuid for share nowait
+    `)
+    if (tenant?.status !== 'active') throw new ForbiddenException()
     return {
       userId: principal.userId,
       tenantId: membership.tenantId,
@@ -508,6 +516,7 @@ export class CostEntryDeletionService {
     const [request] = await transaction
       .select({
         id: costEntryDeleteRequests.id,
+        createdBy: costEntryDeleteRequests.created_by,
         projectId: costEntryDeleteRequests.project_id,
         costEntryId: costEntryDeleteRequests.cost_entry_id,
         requestHash: costEntryDeleteRequests.request_hash,
@@ -530,7 +539,7 @@ export class CostEntryDeletionService {
       )
     }
     if (
-      request.requestHash !== requestHash ||
+      request.createdBy !== principal.userId || request.requestHash !== requestHash ||
       request.projectId !== command.projectId ||
       request.costEntryId !== command.costEntryId
     ) {
@@ -558,7 +567,8 @@ export class CostEntryDeletionService {
         state: 'succeeded',
         result,
         snapshot,
-        completed_at: new Date(),
+        // Use the same clock and precision as the database-created request.
+        completed_at: sql`greatest(clock_timestamp(), ${costEntryDeleteRequests.created_at})`,
       })
       .where(
         and(
@@ -601,6 +611,7 @@ export class CostEntryDeletionService {
     const [request] = await transaction
       .select({
         id: costEntryRestoreRequests.id,
+        createdBy: costEntryRestoreRequests.created_by,
         projectId: costEntryRestoreRequests.project_id,
         costEntryId: costEntryRestoreRequests.cost_entry_id,
         requestHash: costEntryRestoreRequests.request_hash,
@@ -623,7 +634,7 @@ export class CostEntryDeletionService {
       )
     }
     if (
-      request.requestHash !== requestHash ||
+      request.createdBy !== principal.userId || request.requestHash !== requestHash ||
       request.projectId !== command.projectId ||
       request.costEntryId !== command.costEntryId
     ) {
@@ -651,7 +662,8 @@ export class CostEntryDeletionService {
         state: 'succeeded',
         result,
         snapshot,
-        completed_at: new Date(),
+        // Use the same clock and precision as the database-created request.
+        completed_at: sql`greatest(clock_timestamp(), ${costEntryRestoreRequests.created_at})`,
       })
       .where(
         and(

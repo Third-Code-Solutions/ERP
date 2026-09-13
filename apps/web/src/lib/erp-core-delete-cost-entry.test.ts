@@ -1,6 +1,6 @@
 import { createSupabaseServerClient } from '@third-code-erp/auth'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { deleteCostEntryThroughCoreApi } from './erp-core-client'
+import { createCostEntryThroughCoreApi, deleteCostEntryThroughCoreApi } from './erp-core-client'
 
 vi.mock('@third-code-erp/auth', () => ({
   createSupabaseServerClient: vi.fn(),
@@ -19,6 +19,7 @@ const RESULT = {
   voidedAt: '2026-08-07T00:00:00.000Z',
   restorable: true as const,
 }
+const CREATE_COMMAND = { costCodeId: ENTRY_ID, costCategory: 'material' as const, description: 'Concrete', amountCents: 125, quantity: 1, unit: null, incurredAt: null, referenceNumber: null, notes: null }
 
 describe('deleteCostEntryThroughCoreApi', () => {
   beforeEach(() => {
@@ -74,7 +75,7 @@ describe('deleteCostEntryThroughCoreApi', () => {
     )
   })
 
-  it('maps a closed Core tenant gate without pretending a write happened', async () => {
+  it('does not mistake an unclassified 503 for proof of no committed write', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({}), { status: 503 })
     )
@@ -84,8 +85,9 @@ describe('deleteCostEntryThroughCoreApi', () => {
       deleteCostEntryThroughCoreApi(PROJECT_ID, ENTRY_ID, 'Manual correction', 'key-2')
     ).resolves.toEqual({
       ok: false,
-      error: 'Cost entry deletion is not enabled for this tenant.',
+      error: expect.any(String),
       status: 503,
+      outcomeUnknown: true,
     })
   })
 
@@ -100,6 +102,7 @@ describe('deleteCostEntryThroughCoreApi', () => {
     ).resolves.toEqual({
       ok: false,
       error: 'ERP Core API returned an invalid cost entry deletion result.',
+      outcomeUnknown: true,
     })
   })
 
@@ -110,7 +113,43 @@ describe('deleteCostEntryThroughCoreApi', () => {
       deleteCostEntryThroughCoreApi(PROJECT_ID, ENTRY_ID, 'Manual correction', 'key-4')
     ).resolves.toEqual({
       ok: false,
-      error: 'ERP Core API is unavailable. No cost entry was changed.',
+      error: expect.stringContaining('unconfirmed'),
+      outcomeUnknown: true,
     })
+  })
+
+  it.each(['create', 'void'] as const)('keeps %s server errors private and marks the result unconfirmed', async (operation) => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ message: 'secret database host' }), { status: 500 })))
+    const result = operation === 'create'
+      ? await createCostEntryThroughCoreApi(PROJECT_ID, { costCodeId: ENTRY_ID, costCategory: 'material', description: 'Concrete', amountCents: 125, quantity: 1, unit: null, incurredAt: null, referenceNumber: null, notes: null }, 'key-5')
+      : await deleteCostEntryThroughCoreApi(PROJECT_ID, ENTRY_ID, 'Correction', 'key-5')
+    expect(result).toMatchObject({ ok: false, status: 500, outcomeUnknown: true })
+    expect(JSON.stringify(result)).not.toContain('secret database host')
+  })
+
+  it('marks a lost creation response as unconfirmed', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('secret timeout')))
+    const result = await createCostEntryThroughCoreApi(PROJECT_ID, { costCodeId: ENTRY_ID, costCategory: 'material', description: 'Concrete', amountCents: 125, quantity: 1, unit: null, incurredAt: null, referenceNumber: null, notes: null }, 'key-6')
+    expect(result).toMatchObject({ ok: false, outcomeUnknown: true, error: expect.stringContaining('unconfirmed') })
+    expect(JSON.stringify(result)).not.toContain('secret timeout')
+  })
+
+  it('validates successful creation and preserves exact command and request key', async () => {
+    const created = { ...CREATE_COMMAND, id: ENTRY_ID, projectId: PROJECT_ID, tenantId: TENANT_ID, costSource: 'manual', incurredAt: '2026-08-07T00:00:00.000Z', createdAt: '2026-08-07T00:00:00.000Z' }
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(created), { status: 201 }))
+    vi.stubGlobal('fetch', fetchMock)
+    expect(await createCostEntryThroughCoreApi(PROJECT_ID, CREATE_COMMAND, 'exact-create-key')).toEqual({ ok: true, data: created })
+    expect(fetchMock).toHaveBeenCalledWith(`https://erp-api.example.test/v1/projects/${PROJECT_ID}/cost-entries`, expect.objectContaining({ method: 'POST', body: JSON.stringify(CREATE_COMMAND), headers: expect.objectContaining({ 'Idempotency-Key': 'exact-create-key' }) }))
+  })
+
+  it('does not treat malformed successful creation as proof of rejection', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: ENTRY_ID }), { status: 201 })))
+    expect(await createCostEntryThroughCoreApi(PROJECT_ID, CREATE_COMMAND, 'invalid-create-result')).toMatchObject({ ok: false, outcomeUnknown: true })
+  })
+
+  it('maps a definite access rejection without reflecting arbitrary server text', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ message: 'secret access context' }), { status: 403 })))
+    const result = await createCostEntryThroughCoreApi(PROJECT_ID, CREATE_COMMAND, 'rejected-create')
+    expect(result).toEqual({ ok: false, status: 403, error: 'You do not have permission to change this cost entry.' })
   })
 })

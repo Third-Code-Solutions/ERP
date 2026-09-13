@@ -427,6 +427,7 @@ jobs:
             e2e/award-reversal-authority.spec.ts \
             e2e/mobilization-receipt-authority.spec.ts \
             e2e/budget-workflow-receipts.spec.ts \
+            e2e/manual-cost-command-receipts.spec.ts \
             e2e/billing-milestone-navigation.spec.ts \
             e2e/quality-document-handoff.spec.ts \
             --project=chromium \
@@ -444,7 +445,7 @@ jobs:
           set -u
           artifact_dir="$GITHUB_WORKSPACE/tmp/claim-document-browser"
           mkdir -p "$artifact_dir"
-          for screenshot in /tmp/erp-claim-document-*.png /tmp/erp-kyc-artifact-*.png /tmp/erp-user-role-*.png /tmp/erp-rfi-offline-*.png /tmp/erp-billing-milestone-*.png /tmp/erp-quality-document-*.png; do
+          for screenshot in /tmp/erp-claim-document-*.png /tmp/erp-kyc-artifact-*.png /tmp/erp-user-role-*.png /tmp/erp-rfi-offline-*.png /tmp/erp-billing-milestone-*.png /tmp/erp-quality-document-*.png /tmp/erp-manual-cost-*.png; do
             if [ -f "$screenshot" ]; then
               cp "$screenshot" "$artifact_dir/"
             fi

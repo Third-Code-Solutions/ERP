@@ -472,6 +472,7 @@ interface CoreResult<T> {
   data?: T
   error?: string
   status?: number
+  outcomeUnknown?: boolean
 }
 
 export type ProviderQuotaBucket =
@@ -6431,6 +6432,21 @@ export async function deleteProjectCommentThroughCoreApi(
   }
 }
 
+function costCommandFailure(status: number): CoreResult<never> {
+  if (status >= 500 || status === 408) {
+    return { ok: false, status, outcomeUnknown: true, error: 'Cost command outcome is unconfirmed. Retry the unchanged command to recover its receipt.' }
+  }
+  const messages: Record<number, string> = {
+    400: 'The cost command is invalid. Check the submitted fields.',
+    401: 'Your session has expired. Sign in again before continuing.',
+    403: 'You do not have permission to change this cost entry.',
+    404: 'The project, Cost Code or cost entry is unavailable.',
+    409: 'The cost command conflicts with the current record or request key.',
+    429: 'Too many requests. Wait before retrying the unchanged command.',
+  }
+  return { ok: false, status, error: messages[status] ?? 'The cost command was rejected.' }
+}
+
 export async function createCostEntryThroughCoreApi(
   projectId: string,
   command: CreateCostEntryCommand,
@@ -6460,15 +6476,7 @@ export async function createCostEntryThroughCoreApi(
       | Record<string, unknown>
       | null
     if (!response.ok) {
-      const message =
-        typeof body?.message === 'string'
-          ? body.message
-          : response.status === 503
-            ? 'Cost entry creation is not enabled for this tenant.'
-            : response.status === 409
-              ? 'Cost entry conflicts with the selected Cost Code.'
-              : 'Cost entry was not created.'
-      return { ok: false, error: message }
+      return costCommandFailure(response.status)
     }
 
     const parsed = costEntryCreationResultSchema.safeParse(body)
@@ -6476,13 +6484,15 @@ export async function createCostEntryThroughCoreApi(
       return {
         ok: false,
         error: 'ERP Core API returned an invalid cost entry result.',
+        outcomeUnknown: true,
       }
     }
     return { ok: true, data: parsed.data }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. No cost entry was created.',
+      error: 'Cost creation outcome is unconfirmed. Retry the unchanged command to recover its receipt.',
+      outcomeUnknown: true,
     }
   }
 }
@@ -6517,15 +6527,7 @@ export async function deleteCostEntryThroughCoreApi(
       | Record<string, unknown>
       | null
     if (!response.ok) {
-      const message =
-        typeof body?.message === 'string'
-          ? body.message
-          : response.status === 503
-            ? 'Cost entry deletion is not enabled for this tenant.'
-            : response.status === 409
-              ? 'Cost entry could not be voided.'
-              : 'Cost entry was not voided.'
-      return { ok: false, error: message, status: response.status }
+      return costCommandFailure(response.status)
     }
 
     const parsed = costEntryDeletionResultSchema.safeParse(body)
@@ -6533,13 +6535,15 @@ export async function deleteCostEntryThroughCoreApi(
       return {
         ok: false,
         error: 'ERP Core API returned an invalid cost entry deletion result.',
+        outcomeUnknown: true,
       }
     }
     return { ok: true, data: parsed.data, status: response.status }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. No cost entry was changed.',
+      error: 'Cost void outcome is unconfirmed. Retry the unchanged command to recover its receipt.',
+      outcomeUnknown: true,
     }
   }
 }

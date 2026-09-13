@@ -24,7 +24,7 @@ import {
   type CostEntryCreationResult,
   type CreateCostEntryCommand,
 } from '@third-code-erp/shared-types'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { roleHasCapability } from '../auth/capability.guard'
 import type { ErpPrincipal, ErpRole } from '../auth/current-principal.decorator'
 import { AuditService } from '../audit/audit.service'
@@ -35,6 +35,7 @@ import {
 
 type CostEntryCreateRequestRecord = {
   id: string
+  createdBy: string
   requestHash: string
   state: 'processing' | 'succeeded'
   result: unknown
@@ -101,11 +102,13 @@ export class CostEntryCreationService {
 
     const requestHash = commandHash(projectId, parsedCommand)
     return this.database.client.transaction(async (transaction) => {
+      await transaction.execute(sql`select set_config('lock_timeout', '3s', true)`)
       const [membership] = await transaction
         .select({
           tenantId: users.tenant_id,
           role: users.role,
           email: users.email,
+          accountStatus: users.account_status,
         })
         .from(users)
         .where(
@@ -115,12 +118,16 @@ export class CostEntryCreationService {
           )
         )
         .limit(1)
-        .for('update')
+        .for('share', { noWait: true })
 
       const role = membership?.role as ErpRole | undefined
-      if (!membership || !role || !roleHasCapability(role, 'cost.record')) {
+      if (!membership || membership.accountStatus !== 'active' || !role || !roleHasCapability(role, 'cost.record')) {
         throw new ForbiddenException()
       }
+      const [tenant] = await transaction.execute<{ status: string }>(sql`
+        select status from public.tenants where id = ${principal.tenantId}::uuid for share nowait
+      `)
+      if (tenant?.status !== 'active') throw new ForbiddenException()
       const authorizedPrincipal: ErpPrincipal = {
         userId: principal.userId,
         tenantId: membership.tenantId,
@@ -262,6 +269,7 @@ export class CostEntryCreationService {
     const [request] = await transaction
       .select({
         id: costEntryCreateRequests.id,
+        createdBy: costEntryCreateRequests.created_by,
         requestHash: costEntryCreateRequests.request_hash,
         state: costEntryCreateRequests.state,
         result: costEntryCreateRequests.result,
@@ -281,7 +289,7 @@ export class CostEntryCreationService {
         'Cost entry creation idempotency record was not created'
       )
     }
-    if (request.requestHash !== requestHash) {
+    if (request.createdBy !== principal.userId || request.requestHash !== requestHash) {
       throw new ConflictException(
         'Idempotency key was already used with a different cost entry command'
       )
@@ -300,7 +308,8 @@ export class CostEntryCreationService {
         state: 'succeeded',
         cost_entry_id: result.id,
         result,
-        completed_at: new Date(),
+        // Use the same clock and precision as the database-created request.
+        completed_at: sql`greatest(clock_timestamp(), ${costEntryCreateRequests.created_at})`,
       })
       .where(
         and(
