@@ -18,3 +18,8 @@
 
 Production recovery and migration gates remain unchanged. Separate lanes do not
 edit the same files. No new dependency or public override policy is proposed.
+
+CI follow-up: Agent01 records the new migration in the source-only parity plan;
+Agent13 reruns the unchanged manifest verifier and PR gates. Initial CI caught
+the omitted source suffix. The dated hosted ledger evidence is not refreshed or
+presented as a current provider read by this source-only correction.

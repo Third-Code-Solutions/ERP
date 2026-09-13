@@ -55,3 +55,12 @@ checked: PR85 database 508/API 257/Web 2/browser 94/trusted PR 1; PR86 database
 508/API 273/Web 2/browser 98/trusted PR 1, all without skips and with empty schema
 diffs. These predecessors do not prove this new slice or hosted all-role behavior.
 The complete ERP roadmap remains unfinished.
+
+## CI manifest correction
+
+Initial PR87 CI failed the unchanged managed-Supabase parity-plan unit gate:
+the source manifest omitted the new mobilization migration. The same failure
+was reproduced locally. The source count/head and ordered pending suffix now
+include the migration with its compatible Web release and recovery constraints.
+The dated provider snapshot remains unchanged; this does not claim a hosted
+apply. No verifier or application behavior was weakened to resolve the failure.
