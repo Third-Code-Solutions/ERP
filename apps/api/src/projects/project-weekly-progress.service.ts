@@ -11,6 +11,7 @@ import {
   progressUpdates,
   projectWeeklyProgress,
   projects,
+  tenants,
   users,
 } from '@third-code-erp/database/schema'
 import {
@@ -37,7 +38,7 @@ import {
   roleHasCapability,
   type ErpCapability,
 } from '@third-code-erp/shared-types/authorization'
-import { and, asc, count, desc, eq, isNull } from 'drizzle-orm'
+import { and, asc, count, desc, eq, isNull, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import { AuditService } from '../audit/audit.service'
@@ -189,26 +190,14 @@ export class ProjectWeeklyProgressService {
   ): Promise<ProjectWeeklyProgressMutationResult> {
     const input = createProjectWeeklyProgressCommandSchema.parse(command)
     const requestHash = commandHash(input)
-    return this.database.client.transaction(async (transaction) => {
-      const authorizedPrincipal = await this.requireMembershipOn(
+    return this.mutationTransaction(async (transaction) => {
+      const authorizedPrincipal = await this.admitMutation(
         transaction,
         principal,
         'project.weekly_progress.submit',
       )
       await this.audit.stampActor(transaction, authorizedPrincipal)
-      const [project] = await transaction
-        .select({ id: projects.id })
-        .from(projects)
-        .where(
-          and(
-            eq(projects.id, input.projectId),
-            eq(projects.tenant_id, authorizedPrincipal.tenantId),
-            isNull(projects.deleted_at),
-          ),
-        )
-        .limit(1)
-        .for('update')
-      if (!project) throw new NotFoundException('Project not found')
+      await this.lockProject(transaction, input.projectId, authorizedPrincipal.tenantId)
 
       const [requestReplay] = await transaction
         .select(rowSelection)
@@ -367,10 +356,10 @@ export class ProjectWeeklyProgressService {
     now = new Date(),
   ): Promise<ProjectWeeklyProgressLockResult> {
     const input = lockProjectWeeklyProgressCommandSchema.parse(command)
-    return this.database.client.transaction(async (transaction) => {
-      const authorizedPrincipal = await this.requireMembershipOn(transaction, principal, 'precon.manage_checklist')
+    return this.mutationTransaction(async (transaction) => {
+      const authorizedPrincipal = await this.admitMutation(transaction, principal, 'precon.manage_checklist')
       await this.audit.stampActor(transaction, authorizedPrincipal)
-      await this.assertProjectOn(transaction, projectId, authorizedPrincipal.tenantId)
+      await this.lockProject(transaction, projectId, authorizedPrincipal.tenantId)
       const [current] = await transaction
         .select(rowSelection)
         .from(projectWeeklyProgress)
@@ -440,6 +429,56 @@ export class ProjectWeeklyProgressService {
       })
       return projectWeeklyProgressLockResultSchema.parse({ projectId, changed: true, row: locked })
     })
+  }
+
+  private async mutationTransaction<T>(operation: (transaction: DatabaseTransaction) => Promise<T>): Promise<T> {
+    try {
+      return await this.database.client.transaction(operation)
+    } catch (error) {
+      const seen = new Set<object>()
+      let cause: unknown = error
+      while (cause && typeof cause === 'object' && !seen.has(cause)) {
+        seen.add(cause)
+        if ('code' in cause && (cause.code === '55P03' || cause.code === '40P01')) {
+          throw new ConflictException('Weekly progress authority is changing; refresh before trying again')
+        }
+        cause = 'cause' in cause ? cause.cause : undefined
+      }
+      throw error
+    }
+  }
+
+  private async admitMutation(transaction: DatabaseTransaction, principal: ErpPrincipal, capability: ErpCapability): Promise<ErpPrincipal> {
+    await transaction.execute(sql`select set_config('lock_timeout', '3s', true)`)
+    const [actor] = await transaction
+      .select({ role: users.role, status: users.account_status, email: users.email })
+      .from(users)
+      .where(and(eq(users.id, principal.userId), eq(users.tenant_id, principal.tenantId)))
+      .limit(1)
+      .for('share', { noWait: true })
+    const role = z.enum(ERP_ROLES).safeParse(actor?.role)
+    if (!actor || actor.status !== 'active' || !role.success || !roleHasCapability(role.data, capability)) throw new ForbiddenException()
+    const [tenant] = await transaction
+      .select({ status: tenants.status })
+      .from(tenants)
+      .where(eq(tenants.id, principal.tenantId))
+      .limit(1)
+      .for('share', { noWait: true })
+    if (tenant?.status !== 'active') throw new ForbiddenException('Current tenant is not active')
+    const currentPrincipal: ErpPrincipal = {
+      userId: principal.userId.toLowerCase(),
+      tenantId: principal.tenantId.toLowerCase(),
+      role: role.data,
+      email: actor.email,
+    }
+    // Admit the audit chain before project locks, including legacy project-first writers.
+    if (!await this.audit.tryLockTenantChain(transaction, currentPrincipal.tenantId)) throw new ConflictException('Project writes are busy; refresh before trying again')
+    return currentPrincipal
+  }
+
+  private async lockProject(transaction: DatabaseTransaction, projectId: string, tenantId: string): Promise<void> {
+    const [project] = await transaction.select({ id: projects.id }).from(projects).where(and(eq(projects.id, projectId), eq(projects.tenant_id, tenantId), isNull(projects.deleted_at))).limit(1).for('update', { noWait: true })
+    if (!project) throw new NotFoundException('Project not found')
   }
 
   private async assertProject(projectId: string, tenantId: string): Promise<void> {
