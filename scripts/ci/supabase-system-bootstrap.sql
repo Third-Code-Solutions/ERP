@@ -32,6 +32,7 @@ create schema if not exists auth;
 create table auth.users (
   id uuid primary key,
   email text,
+  email_confirmed_at timestamptz,
   raw_app_meta_data jsonb not null default '{}'::jsonb,
   raw_user_meta_data jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
@@ -74,6 +75,7 @@ create table storage.buckets (
   id text primary key,
   name text not null unique,
   public boolean not null default false,
+  allowed_mime_types text[],
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

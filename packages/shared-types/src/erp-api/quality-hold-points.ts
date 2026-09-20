@@ -184,6 +184,7 @@ export const qualityHoldPointPunchlistItemRowSchema = z.object({
 }).strict()
 
 export const qualityHoldPointPunchlistHandoffResultSchema = z.object({
+  clientRequestId: z.string().uuid(),
   projectId: z.string().uuid(),
   qualityHoldPointId: z.string().uuid(),
   handoffId: z.string().uuid(),

@@ -200,6 +200,8 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ id
   }))
 
   const variancePositive = snapshot.budgetVarianceCents >= 0
+  const actorId = profile.user.id
+  const costScopeKey = `${profile.tenantId}:${actorId}:${id}`
 
   const kpis = [
     {
@@ -363,10 +365,23 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ id
           <div className="card-header">
             <h3 className="card-title">Cost log</h3>
             {canRecord && (
-              <CostEntryForm projectId={id} costCodes={activeCostCodes} />
+              <CostEntryForm
+                key={costScopeKey}
+                projectId={id}
+                tenantId={profile.tenantId}
+                actorId={actorId}
+                costCodes={activeCostCodes}
+              />
             )}
           </div>
-          <CostTable entries={rows} projectId={id} canRecord={canRecord} />
+          <CostTable
+            key={costScopeKey}
+            entries={rows}
+            projectId={id}
+            tenantId={profile.tenantId}
+            actorId={actorId}
+            canRecord={canRecord}
+          />
         </div>
 
         <div className="card" style={{ height: 'fit-content' }}>

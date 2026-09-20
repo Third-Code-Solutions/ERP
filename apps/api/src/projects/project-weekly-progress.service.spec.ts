@@ -47,6 +47,7 @@ function weeklyRow(overrides: Partial<Record<string, unknown>> = {}) {
     clientRequestId: REQUEST_ID,
     requestHash: 'a'.repeat(64),
     weekEnding: '2026-09-13',
+    evidenceWeek: '2026-09-13',
     cutoffAt: new Date('2026-09-17T09:00:00.000Z'),
     status: 'open' as const,
     warSnapshot: null,
@@ -65,7 +66,7 @@ function weeklyRow(overrides: Partial<Record<string, unknown>> = {}) {
 
 function harness(
   selectResults: unknown[],
-  options: { insertResults?: unknown[][]; updateResults?: unknown[][] } = {},
+  options: { insertResults?: unknown[][]; updateResults?: unknown[][]; clock?: string; transactionStart?: string } = {},
 ) {
   const select = vi.fn(() => query((selectResults.shift() as unknown[] | undefined) ?? []))
   const insertResults = [...(options.insertResults ?? [])]
@@ -85,23 +86,90 @@ function harness(
     }
     return updateQuery
   })
-  const transactionClient = { select, insert, update }
+  const transactionClient = { select, insert, update, execute: vi.fn().mockResolvedValue([{ found: false, now: options.clock ?? '2026-09-10T12:00:00.000Z', transactionStart: options.transactionStart ?? options.clock ?? '2026-09-10T12:00:00.000Z' }]) }
   const transaction = vi.fn(async (callback: (tx: typeof transactionClient) => Promise<unknown>) => callback(transactionClient))
   const database = { client: { select, transaction } } as unknown as DatabaseService
   const audit = {
+    tryLockTenantChain: vi.fn().mockResolvedValue(true),
     stampActor: vi.fn().mockResolvedValue(undefined),
     writeSemantic: vi.fn().mockResolvedValue(undefined),
   } as unknown as AuditService
-  return { service: new ProjectWeeklyProgressService(database, audit), audit, insert, update }
+  return { service: new ProjectWeeklyProgressService(database, audit), audit, insert, update, transaction }
 }
 
-const membership = [{ tenantId: PRINCIPAL.tenantId, role: PRINCIPAL.role, email: PRINCIPAL.email }]
+const membership = [{ tenantId: PRINCIPAL.tenantId, role: PRINCIPAL.role, email: PRINCIPAL.email, status: 'active' }]
+const tenant = [{ status: 'active' }]
 const project = [{ id: PROJECT_ID }]
 
 describe('ProjectWeeklyProgressService', () => {
+  it('requires a retry when the lock transaction began before cutoff even if wall time crossed it', async () => {
+    const probe = harness([membership, tenant, project, [weeklyRow()]], { clock: '2026-09-17T09:00:00.001Z', transactionStart: '2026-09-17T08:59:59.999Z' })
+    await expect(probe.service.lock(PROJECT_ID, PERIOD_ID, { expectedVersion: 1, lockReason: 'WAR' }, PRINCIPAL)).rejects.toBeInstanceOf(ConflictException)
+    expect(probe.update).not.toHaveBeenCalled()
+    expect(probe.audit.writeSemantic).not.toHaveBeenCalled()
+  })
+
+  it.each(['create', 'lock'] as const)('maps wrapped database contention to a safe conflict for %s', async (operation) => {
+    for (const code of ['55P03', '40P01']) {
+      const probe = harness([])
+      probe.transaction.mockRejectedValueOnce(new Error('Query failed', { cause: { cause: { code, detail: 'private database detail' } } }))
+      const result = operation === 'create'
+        ? probe.service.create({ projectId: PROJECT_ID, clientRequestId: REQUEST_ID, weekEnding: '2026-09-13', percentByCategory: PERCENTAGES, notes: '' }, PRINCIPAL)
+        : probe.service.lock(PROJECT_ID, PERIOD_ID, { expectedVersion: 1, lockReason: 'WAR cut-off' }, PRINCIPAL)
+      await expect(result).rejects.toMatchObject({
+        status: 409,
+        message: 'Weekly progress authority is changing; refresh before trying again',
+      })
+    }
+  })
+
+  it.each(['create', 'lock'] as const)('preserves unrelated transaction failures for %s', async (operation) => {
+    const probe = harness([])
+    const failure = new Error('Audit failed', { cause: { code: '23514' } })
+    probe.transaction.mockRejectedValueOnce(failure)
+    const result = operation === 'create'
+      ? probe.service.create({ projectId: PROJECT_ID, clientRequestId: REQUEST_ID, weekEnding: '2026-09-13', percentByCategory: PERCENTAGES, notes: '' }, PRINCIPAL)
+      : probe.service.lock(PROJECT_ID, PERIOD_ID, { expectedVersion: 1, lockReason: 'WAR cut-off' }, PRINCIPAL)
+    await expect(result).rejects.toBe(failure)
+  })
+
+  it.each(['create', 'lock'] as const)('denies %s before writes when current lifecycle admission fails', async (operation) => {
+    for (const rows of [
+      [[{ ...membership[0], status: 'suspended' }]],
+      [membership, [{ status: 'suspended' }]],
+      [[{ ...membership[0], role: 'viewer' }]],
+      [[]],
+      [membership, []],
+    ]) {
+      const probe = harness(rows)
+      const result = operation === 'create'
+        ? probe.service.create({ projectId: PROJECT_ID, clientRequestId: REQUEST_ID, weekEnding: '2026-09-13', percentByCategory: PERCENTAGES, notes: '' }, PRINCIPAL)
+        : probe.service.lock(PROJECT_ID, PERIOD_ID, { expectedVersion: 1, lockReason: 'WAR cut-off' }, PRINCIPAL)
+      await expect(result).rejects.toBeInstanceOf(ForbiddenException)
+      expect(probe.insert).not.toHaveBeenCalled()
+      expect(probe.update).not.toHaveBeenCalled()
+      expect(probe.audit.stampActor).not.toHaveBeenCalled()
+      expect(probe.audit.writeSemantic).not.toHaveBeenCalled()
+      expect(probe.audit.tryLockTenantChain).not.toHaveBeenCalled()
+    }
+  })
+
+  it.each(['create', 'lock'] as const)('denies %s before writes when the audit chain is busy', async (operation) => {
+    const probe = harness([membership, tenant])
+    vi.mocked(probe.audit.tryLockTenantChain).mockResolvedValue(false)
+    const result = operation === 'create'
+      ? probe.service.create({ projectId: PROJECT_ID, clientRequestId: REQUEST_ID, weekEnding: '2026-09-13', percentByCategory: PERCENTAGES, notes: '' }, PRINCIPAL)
+      : probe.service.lock(PROJECT_ID, PERIOD_ID, { expectedVersion: 1, lockReason: 'WAR cut-off' }, PRINCIPAL)
+    await expect(result).rejects.toBeInstanceOf(ConflictException)
+    expect(probe.insert).not.toHaveBeenCalled()
+    expect(probe.update).not.toHaveBeenCalled()
+    expect(probe.audit.stampActor).not.toHaveBeenCalled()
+    expect(probe.audit.writeSemantic).not.toHaveBeenCalled()
+  })
+
   it('captures a weekly progress period idempotently and audits the evidence', async () => {
     const probe = harness(
-      [membership, project, [], []],
+      [membership, tenant, project, [], []],
       { insertResults: [[{ id: PROGRESS_ID }], [weeklyRow()]] },
     )
 
@@ -115,7 +183,6 @@ describe('ProjectWeeklyProgressService', () => {
           notes: 'Weekly site capture',
         },
         PRINCIPAL,
-        new Date('2026-09-10T12:00:00.000Z'),
       ),
     ).resolves.toMatchObject({ created: true, changed: true, row: { id: PERIOD_ID, status: 'open' } })
     expect(probe.insert).toHaveBeenCalledTimes(2)
@@ -141,7 +208,7 @@ describe('ProjectWeeklyProgressService', () => {
         capturedAt: '2026-09-17T10:00:00.000Z',
       },
     })
-    const probe = harness([membership, project, [current]], { updateResults: [[updated]] })
+    const probe = harness([membership, tenant, project, [current]], { updateResults: [[updated]], clock: '2026-09-17T10:00:00.000Z' })
 
     await expect(
       probe.service.lock(
@@ -149,7 +216,6 @@ describe('ProjectWeeklyProgressService', () => {
         PERIOD_ID,
         { expectedVersion: 1, lockReason: 'Thursday WAR cut-off' },
         PRINCIPAL,
-        new Date('2026-09-17T10:00:00.000Z'),
       ),
     ).resolves.toMatchObject({ changed: true, row: { status: 'locked', version: 2 } })
     expect(probe.update).toHaveBeenCalledTimes(1)
@@ -160,7 +226,7 @@ describe('ProjectWeeklyProgressService', () => {
   })
 
   it('rejects pre-cut-off capture and viewer mutation', async () => {
-    const beforeCutoff = harness([membership, project, [], []])
+    const beforeCutoff = harness([membership, tenant, project, [], []], { clock: '2026-09-17T09:00:00.000Z' })
     await expect(
       beforeCutoff.service.create(
         {
@@ -171,7 +237,6 @@ describe('ProjectWeeklyProgressService', () => {
           notes: '',
         },
         PRINCIPAL,
-        new Date('2026-09-17T09:00:00.000Z'),
       ),
     ).rejects.toBeInstanceOf(ConflictException)
 

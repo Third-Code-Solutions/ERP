@@ -142,6 +142,7 @@ export default async function ProjectPermitsPage({
 
       {canManageAllPermits && <MobilizationReadinessPanel
         projectId={id}
+        canOverride={can(profile.role, 'precon.override_mobilization')}
         readiness={
           readiness
             ? {

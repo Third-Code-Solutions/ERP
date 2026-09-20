@@ -22,6 +22,7 @@
     "@third-code-erp/ai": "workspace:*",
     "@third-code-erp/database": "workspace:*",
     "@third-code-erp/shared-types": "workspace:*",
+    "@xmldom/xmldom": "0.8.15",
     "bullmq": "^5.81.2",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",

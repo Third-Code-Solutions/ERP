@@ -20,6 +20,7 @@ import {
 import {
   customerInvoiceDraftCreateBodySchema,
   customerInvoiceDraftCreateResultSchema,
+  nextInvoiceNumber,
   type CustomerInvoiceDraftCreateBody,
   type CustomerInvoiceDraftCreateResult,
 } from '@third-code-erp/shared-types'
@@ -263,7 +264,12 @@ export class CustomerInvoiceDraftCreateService {
         sql`select pg_advisory_xact_lock(hashtext(${`invoice-number:${authorizedPrincipal.tenantId}:${prefix}`}))`
       )
       const [lastInvoice] = await transaction
-        .select({ invoiceNumber: invoices.invoice_number })
+        .select({
+          highestSuffix: sql<string>`coalesce(
+            max(nullif(substring(${invoices.invoice_number} from ${`^${prefix}([0-9]+)$`}), '')::numeric),
+            0
+          )::text`,
+        })
         .from(invoices)
         .where(
           and(
@@ -271,14 +277,7 @@ export class CustomerInvoiceDraftCreateService {
             sql`${invoices.invoice_number} like ${prefix + '%'}`
           )
         )
-        .orderBy(desc(invoices.invoice_number))
-        .limit(1)
-      const previous = Number.parseInt(
-        lastInvoice?.invoiceNumber?.split('-').at(-1) ?? '0',
-        10
-      )
-      const next = Number.isFinite(previous) ? previous + 1 : 1
-      const invoiceNumber = `${prefix}${String(next).padStart(3, '0')}`
+      const invoiceNumber = nextInvoiceNumber(prefix, lastInvoice?.highestSuffix)
       const dueDate = parsedBody.dueDate
         ? new Date(`${parsedBody.dueDate}T00:00:00.000Z`)
         : null

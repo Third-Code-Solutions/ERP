@@ -13,6 +13,14 @@ const PRINCIPAL: ErpPrincipal = {
 const OPPORTUNITY_ID = '33333333-3333-4333-8333-333333333333'
 
 describe('inspection photo controller contract', () => {
+  it('accepts equivalent mixed-case UUIDs without changing the Storage path', () => {
+    const create = vi.fn()
+    const controller = new InspectionPhotoController({ create } as never)
+    const id = 'abcdefab-cdef-4abc-8def-abcdefabcdef'
+    const command = { opportunityId: id.toUpperCase(), storagePath: `${PRINCIPAL.tenantId}/opportunities/${id}/inspection/PHOTO.JPG`, fileName: 'PHOTO.JPG', mimeType: 'image/jpeg' as const, sizeBytes: 1, caption: null }
+    controller.create(id, command, PRINCIPAL)
+    expect(create).toHaveBeenCalledWith(command, PRINCIPAL)
+  })
   it('rejects a body opportunity id that differs from the route id', () => {
     const create = vi.fn()
     const controller = new InspectionPhotoController({ create } as never)

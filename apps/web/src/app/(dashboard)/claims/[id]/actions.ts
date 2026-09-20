@@ -14,8 +14,10 @@
 //   3. Capability check (when one applies).
 //   4. Enforce the allowed state transition server-side — never trust
 //      whatever status the client thinks should come next.
-//   5. writeAuditLog + revalidatePath. Notify the right role bucket.
+//   5. Core commits the transition receipt; this adapter revalidates and
+//      notifies the right role bucket.
 
+import { createHash, randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
@@ -25,15 +27,21 @@ import {
   type ErpCapability,
   type AppRole,
 } from '@third-code-erp/auth'
-import { db } from '@third-code-erp/database'
 import {
-  progressClaims,
-  progressClaimDocuments,
-  documents,
-  invoices,
-} from '@third-code-erp/database/schema'
-import { writeAuditLog } from '@/lib/audit'
+  claimDocumentAttachCommandSchema,
+  claimTransitionPayload,
+  projectDocumentListQuerySchema,
+  type ProjectDocumentListResult,
+  type ClaimTransitionCommand,
+} from '@third-code-erp/shared-types'
+import { db } from '@third-code-erp/database'
+import { progressClaims } from '@third-code-erp/database/schema'
 import { notifyRoles } from '@/lib/operations/notifications'
+import {
+  attachClaimDocumentThroughCoreApi,
+  getProjectDocumentsThroughCoreApi,
+} from '@/lib/erp-core-client'
+import { transitionClaimThroughCoreApi } from '@/lib/claim-transition-core-client'
 
 type ClaimStatus =
   | 'draft'
@@ -57,14 +65,6 @@ function hasAnyRole(role: AppRole, allowed: AppRole[]): boolean {
   return allowed.includes(role)
 }
 
-const DOCUMENT_KINDS = ['photo', 'certificate', 'measurement', 'other'] as const
-
-const attachSchema = z.object({
-  document_id: z.string().uuid('document_id must be a UUID'),
-  kind: z.enum(DOCUMENT_KINDS),
-  caption: z.string().max(255).optional(),
-})
-
 function revalidateClaim(claimId: string): void {
   revalidatePath('/claims')
   revalidatePath(`/claims/${claimId}`)
@@ -81,11 +81,59 @@ async function loadClaim(claimId: string, tenantId: string) {
   return row ?? null
 }
 
+export type ClaimTransitionActionResult = {
+  error?: string
+  outcome?: 'rejected' | 'unknown'
+  changed?: boolean
+}
+
+function requestId(input: string | undefined): string {
+  const parsed = z.string().uuid().safeParse(input)
+  return (parsed.success ? parsed.data : randomUUID()).toLowerCase()
+}
+
+async function executeCoreTransition(
+  profile: Awaited<ReturnType<typeof requireUserProfile>>,
+  claim: NonNullable<Awaited<ReturnType<typeof loadClaim>>>,
+  command: ClaimTransitionCommand,
+  expectedToStatus: ClaimStatus,
+): Promise<ClaimTransitionActionResult> {
+  const result = await transitionClaimThroughCoreApi(claim.id, command)
+  if (!result.ok) {
+    return {
+      error: result.error,
+      outcome: result.outcomeUnknown ? 'unknown' : 'rejected',
+    }
+  }
+  const receipt = result.data.receipt
+  const expectedHash = createHash('sha256').update(claimTransitionPayload(claim.id, command)).digest('hex')
+  if (
+    result.data.claimId !== claim.id ||
+    receipt.claimId !== claim.id ||
+    receipt.projectId !== claim.project_id ||
+    receipt.tenantId !== profile.tenantId ||
+    receipt.actorId !== profile.user.id ||
+    receipt.clientRequestId !== command.clientRequestId ||
+    receipt.payloadHash !== expectedHash ||
+    receipt.toStatus !== expectedToStatus ||
+    (result.data.changed && receipt.fromStatus !== claim.status)
+  ) {
+    return {
+      error: 'ERP Core API returned an invalid claim transition result.',
+      outcome: 'unknown',
+    }
+  }
+  return { changed: result.data.changed }
+}
+
 // ─────────────────────────────────────────────────────────────────────
 // submitClaim: draft → submitted
 // ─────────────────────────────────────────────────────────────────────
 
-export async function submitClaim(claimId: string): Promise<{ error?: string }> {
+export async function submitClaim(
+  claimId: string,
+  clientRequestId?: string,
+): Promise<ClaimTransitionActionResult> {
   const profile = await requireUserProfile()
 
   if (
@@ -98,42 +146,23 @@ export async function submitClaim(claimId: string): Promise<{ error?: string }> 
 
   const claim = await loadClaim(claimId, profile.tenantId)
   if (!claim) return { error: 'Progress claim not found' }
-  if (claim.status !== 'draft') {
-    return { error: `Cannot submit a claim in status "${claim.status}"` }
-  }
+  const transition = await executeCoreTransition(
+    profile,
+    claim,
+    { action: 'submit', clientRequestId: requestId(clientRequestId) },
+    'submitted',
+  )
+  if (transition.error) return transition
 
-  const now = new Date()
-  await db
-    .update(progressClaims)
-    .set({
-      status: 'submitted',
-      submitted_at: now,
-      submitted_by: profile.user.id,
-      updated_at: now,
+  if (transition.changed !== false) {
+    await notifyRoles({
+      tenantId: profile.tenantId,
+      recipientRoles: ['commercial'],
+      subject: `Progress claim ${claim.claim_number} submitted for review`,
+      body: `Milestone ${claim.milestone_pct}% · ₱${(claim.amount_cents / 100).toLocaleString('en-PH')}`,
+      linkUrl: `/claims/${claimId}`,
     })
-    .where(
-      and(
-        eq(progressClaims.id, claimId),
-        eq(progressClaims.tenant_id, profile.tenantId)
-      )
-    )
-
-  await writeAuditLog({
-    tenantId: profile.tenantId,
-    actorId: profile.user.id,
-    entityType: 'progress_claim',
-    entityId: claimId,
-    action: 'status_change',
-    diff: { from: 'draft', to: 'submitted' },
-  })
-
-  await notifyRoles({
-    tenantId: profile.tenantId,
-    recipientRoles: ['commercial'],
-    subject: `Progress claim ${claim.claim_number} submitted for review`,
-    body: `Milestone ${claim.milestone_pct}% · ₱${(claim.amount_cents / 100).toLocaleString('en-PH')}`,
-    linkUrl: `/claims/${claimId}`,
-  })
+  }
 
   revalidateClaim(claimId)
   return {}
@@ -144,8 +173,9 @@ export async function submitClaim(claimId: string): Promise<{ error?: string }> 
 // ─────────────────────────────────────────────────────────────────────
 
 export async function markCertificatePending(
-  claimId: string
-): Promise<{ error?: string }> {
+  claimId: string,
+  clientRequestId?: string,
+): Promise<ClaimTransitionActionResult> {
   const profile = await requireUserProfile()
 
   if (!hasAnyRole(profile.role, COMMERCIAL_ROLES)) {
@@ -156,31 +186,13 @@ export async function markCertificatePending(
 
   const claim = await loadClaim(claimId, profile.tenantId)
   if (!claim) return { error: 'Progress claim not found' }
-  if (claim.status !== 'submitted') {
-    return {
-      error: `Cannot mark certificate pending from status "${claim.status}"`,
-    }
-  }
-
-  const now = new Date()
-  await db
-    .update(progressClaims)
-    .set({ status: 'certificate_pending', updated_at: now })
-    .where(
-      and(
-        eq(progressClaims.id, claimId),
-        eq(progressClaims.tenant_id, profile.tenantId)
-      )
-    )
-
-  await writeAuditLog({
-    tenantId: profile.tenantId,
-    actorId: profile.user.id,
-    entityType: 'progress_claim',
-    entityId: claimId,
-    action: 'status_change',
-    diff: { from: 'submitted', to: 'certificate_pending' },
-  })
+  const transition = await executeCoreTransition(
+    profile,
+    claim,
+    { action: 'certificate_pending', clientRequestId: requestId(clientRequestId) },
+    'certificate_pending',
+  )
+  if (transition.error) return transition
 
   revalidateClaim(claimId)
   return {}
@@ -192,8 +204,9 @@ export async function markCertificatePending(
 
 export async function recordCertification(
   claimId: string,
-  certificateDocumentId: string
-): Promise<{ error?: string }> {
+  certificateDocumentId: string,
+  clientRequestId?: string,
+): Promise<ClaimTransitionActionResult> {
   const profile = await requireUserProfile()
 
   if (!hasAnyRole(profile.role, COMMERCIAL_ROLES)) {
@@ -209,60 +222,27 @@ export async function recordCertification(
 
   const claim = await loadClaim(claimId, profile.tenantId)
   if (!claim) return { error: 'Progress claim not found' }
-  if (claim.status !== 'submitted' && claim.status !== 'certificate_pending') {
-    return { error: `Cannot certify a claim in status "${claim.status}"` }
-  }
-
-  // Verify certificate document belongs to the same tenant before linking.
-  const [doc] = await db
-    .select({ id: documents.id })
-    .from(documents)
-    .where(
-      and(
-        eq(documents.id, certificateDocumentId),
-        eq(documents.tenant_id, profile.tenantId)
-      )
-    )
-    .limit(1)
-  if (!doc) return { error: 'Certificate document not found in this tenant' }
-
-  const now = new Date()
-  await db
-    .update(progressClaims)
-    .set({
-      status: 'certified',
-      certified_at: now,
-      certified_by: profile.user.id,
-      certificate_document_id: certificateDocumentId,
-      updated_at: now,
-    })
-    .where(
-      and(
-        eq(progressClaims.id, claimId),
-        eq(progressClaims.tenant_id, profile.tenantId)
-      )
-    )
-
-  await writeAuditLog({
-    tenantId: profile.tenantId,
-    actorId: profile.user.id,
-    entityType: 'progress_claim',
-    entityId: claimId,
-    action: 'status_change',
-    diff: {
-      from: claim.status,
-      to: 'certified',
-      certificate_document_id: certificateDocumentId,
+  const transition = await executeCoreTransition(
+    profile,
+    claim,
+    {
+      action: 'certify',
+      clientRequestId: requestId(clientRequestId),
+      certificateDocumentId,
     },
-  })
+    'certified',
+  )
+  if (transition.error) return transition
 
-  await notifyRoles({
-    tenantId: profile.tenantId,
-    recipientRoles: ['finance'],
-    subject: `Progress claim ${claim.claim_number} certified`,
-    body: `Ready for handover to Finance. ₱${(claim.amount_cents / 100).toLocaleString('en-PH')}.`,
-    linkUrl: `/claims/${claimId}`,
-  })
+  if (transition.changed !== false) {
+    await notifyRoles({
+      tenantId: profile.tenantId,
+      recipientRoles: ['finance'],
+      subject: `Progress claim ${claim.claim_number} certified`,
+      body: `Ready for handover to Finance. ₱${(claim.amount_cents / 100).toLocaleString('en-PH')}.`,
+      linkUrl: `/claims/${claimId}`,
+    })
+  }
 
   revalidateClaim(claimId)
   return {}
@@ -273,8 +253,9 @@ export async function recordCertification(
 // ─────────────────────────────────────────────────────────────────────
 
 export async function handoverToFinance(
-  claimId: string
-): Promise<{ error?: string }> {
+  claimId: string,
+  clientRequestId?: string,
+): Promise<ClaimTransitionActionResult> {
   const profile = await requireUserProfile()
 
   if (!hasAnyRole(profile.role, COMMERCIAL_ROLES)) {
@@ -285,42 +266,23 @@ export async function handoverToFinance(
 
   const claim = await loadClaim(claimId, profile.tenantId)
   if (!claim) return { error: 'Progress claim not found' }
-  if (claim.status !== 'certified') {
-    return { error: `Cannot handover a claim in status "${claim.status}"` }
-  }
+  const transition = await executeCoreTransition(
+    profile,
+    claim,
+    { action: 'handover', clientRequestId: requestId(clientRequestId) },
+    'handed_over_finance',
+  )
+  if (transition.error) return transition
 
-  const now = new Date()
-  await db
-    .update(progressClaims)
-    .set({
-      status: 'handed_over_finance',
-      handed_over_to_finance_at: now,
-      handed_over_to_finance_by: profile.user.id,
-      updated_at: now,
+  if (transition.changed !== false) {
+    await notifyRoles({
+      tenantId: profile.tenantId,
+      recipientRoles: ['finance'],
+      subject: `Progress claim ${claim.claim_number} handed over for invoicing`,
+      body: `Issue the sales invoice for ₱${(claim.amount_cents / 100).toLocaleString('en-PH')}.`,
+      linkUrl: `/claims/${claimId}`,
     })
-    .where(
-      and(
-        eq(progressClaims.id, claimId),
-        eq(progressClaims.tenant_id, profile.tenantId)
-      )
-    )
-
-  await writeAuditLog({
-    tenantId: profile.tenantId,
-    actorId: profile.user.id,
-    entityType: 'progress_claim',
-    entityId: claimId,
-    action: 'status_change',
-    diff: { from: 'certified', to: 'handed_over_finance' },
-  })
-
-  await notifyRoles({
-    tenantId: profile.tenantId,
-    recipientRoles: ['finance'],
-    subject: `Progress claim ${claim.claim_number} handed over for invoicing`,
-    body: `Issue the sales invoice for ₱${(claim.amount_cents / 100).toLocaleString('en-PH')}.`,
-    linkUrl: `/claims/${claimId}`,
-  })
+  }
 
   revalidateClaim(claimId)
   return {}
@@ -332,8 +294,9 @@ export async function handoverToFinance(
 
 export async function linkInvoice(
   claimId: string,
-  invoiceId: string
-): Promise<{ error?: string }> {
+  invoiceId: string,
+  clientRequestId?: string,
+): Promise<ClaimTransitionActionResult> {
   const profile = await requireUserProfile()
 
   if (!hasAnyRole(profile.role, FINANCE_ROLES)) {
@@ -345,56 +308,17 @@ export async function linkInvoice(
 
   const claim = await loadClaim(claimId, profile.tenantId)
   if (!claim) return { error: 'Progress claim not found' }
-  if (claim.status !== 'handed_over_finance') {
-    return {
-      error: `Cannot link invoice from status "${claim.status}"`,
-    }
-  }
-
-  const [invoice] = await db
-    .select({
-      id: invoices.id,
-      project_id: invoices.project_id,
-      invoice_number: invoices.invoice_number,
-    })
-    .from(invoices)
-    .where(
-      and(eq(invoices.id, invoiceId), eq(invoices.tenant_id, profile.tenantId))
-    )
-    .limit(1)
-  if (!invoice) return { error: 'Invoice not found in this tenant' }
-  if (invoice.project_id !== claim.project_id) {
-    return { error: 'Invoice belongs to a different project than the claim' }
-  }
-
-  const now = new Date()
-  await db
-    .update(progressClaims)
-    .set({
-      status: 'invoiced',
-      invoice_id: invoiceId,
-      updated_at: now,
-    })
-    .where(
-      and(
-        eq(progressClaims.id, claimId),
-        eq(progressClaims.tenant_id, profile.tenantId)
-      )
-    )
-
-  await writeAuditLog({
-    tenantId: profile.tenantId,
-    actorId: profile.user.id,
-    entityType: 'progress_claim',
-    entityId: claimId,
-    action: 'status_change',
-    diff: {
-      from: 'handed_over_finance',
-      to: 'invoiced',
-      invoice_id: invoiceId,
-      invoice_number: invoice.invoice_number,
+  const transition = await executeCoreTransition(
+    profile,
+    claim,
+    {
+      action: 'link_invoice',
+      clientRequestId: requestId(clientRequestId),
+      invoiceId,
     },
-  })
+    'invoiced',
+  )
+  if (transition.error) return transition
 
   revalidateClaim(claimId)
   return {}
@@ -405,8 +329,9 @@ export async function linkInvoice(
 // ─────────────────────────────────────────────────────────────────────
 
 export async function recordPayment(
-  claimId: string
-): Promise<{ error?: string }> {
+  claimId: string,
+  clientRequestId?: string,
+): Promise<ClaimTransitionActionResult> {
   const profile = await requireUserProfile()
 
   if (!hasAnyRole(profile.role, FINANCE_ROLES)) {
@@ -415,37 +340,23 @@ export async function recordPayment(
 
   const claim = await loadClaim(claimId, profile.tenantId)
   if (!claim) return { error: 'Progress claim not found' }
-  if (claim.status !== 'invoiced') {
-    return { error: `Cannot record payment from status "${claim.status}"` }
+  const transition = await executeCoreTransition(
+    profile,
+    claim,
+    { action: 'record_payment', clientRequestId: requestId(clientRequestId) },
+    'paid',
+  )
+  if (transition.error) return transition
+
+  if (transition.changed !== false) {
+    await notifyRoles({
+      tenantId: profile.tenantId,
+      recipientRoles: ['admin', 'owner', 'sales'],
+      subject: `Progress claim ${claim.claim_number} paid`,
+      body: `Payment recorded for ₱${(claim.amount_cents / 100).toLocaleString('en-PH')}.`,
+      linkUrl: `/claims/${claimId}`,
+    })
   }
-
-  const now = new Date()
-  await db
-    .update(progressClaims)
-    .set({ status: 'paid', paid_at: now, updated_at: now })
-    .where(
-      and(
-        eq(progressClaims.id, claimId),
-        eq(progressClaims.tenant_id, profile.tenantId)
-      )
-    )
-
-  await writeAuditLog({
-    tenantId: profile.tenantId,
-    actorId: profile.user.id,
-    entityType: 'progress_claim',
-    entityId: claimId,
-    action: 'status_change',
-    diff: { from: 'invoiced', to: 'paid', paid_at: now.toISOString() },
-  })
-
-  await notifyRoles({
-    tenantId: profile.tenantId,
-    recipientRoles: ['admin', 'owner', 'sales'],
-    subject: `Progress claim ${claim.claim_number} paid`,
-    body: `Payment recorded for ₱${(claim.amount_cents / 100).toLocaleString('en-PH')}.`,
-    linkUrl: `/claims/${claimId}`,
-  })
 
   revalidateClaim(claimId)
   return {}
@@ -455,13 +366,24 @@ export async function recordPayment(
 // rejectClaim: any non-terminal status → rejected
 // ─────────────────────────────────────────────────────────────────────
 
-const TERMINAL_STATUSES: ClaimStatus[] = ['paid', 'rejected', 'cancelled']
-
 export async function rejectClaim(
   claimId: string,
-  reason: string
-): Promise<{ error?: string }> {
+  reason: string,
+  clientRequestId?: string,
+): Promise<ClaimTransitionActionResult> {
   const profile = await requireUserProfile()
+
+  if (
+    !hasAnyCapability(profile.role, [
+      'po.create',
+      'precon.manage_checklist',
+      'finance.issue_invoice',
+    ])
+  ) {
+    return {
+      error: `Forbidden: role "${profile.role}" cannot reject progress claims`,
+    }
+  }
 
   const reasonResult = z
     .string()
@@ -475,34 +397,13 @@ export async function rejectClaim(
 
   const claim = await loadClaim(claimId, profile.tenantId)
   if (!claim) return { error: 'Progress claim not found' }
-  if (TERMINAL_STATUSES.includes(claim.status as ClaimStatus)) {
-    return { error: `Cannot reject a claim in terminal status "${claim.status}"` }
-  }
-
-  const now = new Date()
-  await db
-    .update(progressClaims)
-    .set({
-      status: 'rejected',
-      rejected_at: now,
-      rejected_reason: reasonResult.data,
-      updated_at: now,
-    })
-    .where(
-      and(
-        eq(progressClaims.id, claimId),
-        eq(progressClaims.tenant_id, profile.tenantId)
-      )
-    )
-
-  await writeAuditLog({
-    tenantId: profile.tenantId,
-    actorId: profile.user.id,
-    entityType: 'progress_claim',
-    entityId: claimId,
-    action: 'status_change',
-    diff: { from: claim.status, to: 'rejected', reason: reasonResult.data },
-  })
+  const transition = await executeCoreTransition(
+    profile,
+    claim,
+    { action: 'reject', clientRequestId: requestId(clientRequestId), reason: reasonResult.data },
+    'rejected',
+  )
+  if (transition.error) return transition
 
   revalidateClaim(claimId)
   return {}
@@ -514,9 +415,22 @@ export async function rejectClaim(
 
 export async function cancelClaim(
   claimId: string,
-  reason: string
-): Promise<{ error?: string }> {
+  reason: string,
+  clientRequestId?: string,
+): Promise<ClaimTransitionActionResult> {
   const profile = await requireUserProfile()
+
+  if (
+    !hasAnyCapability(profile.role, [
+      'po.create',
+      'precon.manage_checklist',
+      'finance.issue_invoice',
+    ])
+  ) {
+    return {
+      error: `Forbidden: role "${profile.role}" cannot cancel progress claims`,
+    }
+  }
 
   const reasonResult = z
     .string()
@@ -530,48 +444,33 @@ export async function cancelClaim(
 
   const claim = await loadClaim(claimId, profile.tenantId)
   if (!claim) return { error: 'Progress claim not found' }
-  if (claim.status !== 'draft') {
-    return { error: `Only draft claims can be cancelled (was "${claim.status}")` }
-  }
-
-  const now = new Date()
-  await db
-    .update(progressClaims)
-    .set({
-      status: 'cancelled',
-      rejected_reason: reasonResult.data,
-      updated_at: now,
-    })
-    .where(
-      and(
-        eq(progressClaims.id, claimId),
-        eq(progressClaims.tenant_id, profile.tenantId)
-      )
-    )
-
-  await writeAuditLog({
-    tenantId: profile.tenantId,
-    actorId: profile.user.id,
-    entityType: 'progress_claim',
-    entityId: claimId,
-    action: 'status_change',
-    diff: { from: 'draft', to: 'cancelled', reason: reasonResult.data },
-  })
+  const transition = await executeCoreTransition(
+    profile,
+    claim,
+    { action: 'cancel', clientRequestId: requestId(clientRequestId), reason: reasonResult.data },
+    'cancelled',
+  )
+  if (transition.error) return transition
 
   revalidateClaim(claimId)
   return {}
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// attachClaimDocument: insert a row in progress_claim_documents
+// attachClaimDocument: Core-owned append with idempotent request identity
 // ─────────────────────────────────────────────────────────────────────
+
+export type ClaimDocumentAttachActionResult = {
+  error?: string
+  success?: string
+  changed?: boolean
+  outcome?: 'rejected' | 'unknown'
+}
 
 export async function attachClaimDocument(
   claimId: string,
-  documentId: string,
-  kind: 'photo' | 'certificate' | 'measurement' | 'other',
-  caption?: string
-): Promise<{ error?: string }> {
+  command: unknown,
+): Promise<ClaimDocumentAttachActionResult> {
   const profile = await requireUserProfile()
   if (!can(profile.role, 'document.manage')) {
     return {
@@ -579,56 +478,105 @@ export async function attachClaimDocument(
     }
   }
 
-  const parsed = attachSchema.safeParse({
-    document_id: documentId,
-    kind,
-    caption: caption || undefined,
-  })
-  if (!parsed.success) {
-    const first = parsed.error.errors[0]
+  const parsedClaimId = z
+    .string()
+    .uuid('claimId must be a UUID')
+    .transform((value) => value.toLowerCase())
+    .safeParse(claimId)
+  const parsedCommand = claimDocumentAttachCommandSchema.safeParse(command)
+  if (!parsedClaimId.success) {
+    const first = parsedClaimId.error.errors[0]
     return {
       error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}`,
     }
   }
-  const input = parsed.data
+  if (!parsedCommand.success) {
+    const first = parsedCommand.error.errors[0]
+    return {
+      error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}`,
+    }
+  }
 
-  const claim = await loadClaim(claimId, profile.tenantId)
+  const claim = await loadClaim(parsedClaimId.data, profile.tenantId)
   if (!claim) return { error: 'Progress claim not found' }
 
-  const [doc] = await db
-    .select({ id: documents.id })
-    .from(documents)
-    .where(
-      and(eq(documents.id, input.document_id), eq(documents.tenant_id, profile.tenantId))
-    )
-    .limit(1)
-  if (!doc) return { error: 'Document not found in this tenant' }
+  const result = await attachClaimDocumentThroughCoreApi(
+    parsedClaimId.data,
+    parsedCommand.data,
+  )
+  if (!result.ok) {
+    return {
+      error: result.error ?? 'Document attachment was not committed.',
+      outcome: result.status !== undefined && result.status >= 500 ? 'unknown' : 'rejected',
+    }
+  }
+  if (!result.data) {
+    return {
+      error: 'ERP Core API returned no attachment result.',
+      outcome: 'unknown',
+    }
+  }
 
-  const [created] = await db
-    .insert(progressClaimDocuments)
-    .values({
-      tenant_id: profile.tenantId,
-      claim_id: claimId,
-      document_id: input.document_id,
-      kind: input.kind,
-      caption: input.caption,
-      uploaded_by: profile.user.id,
-    })
-    .returning({ id: progressClaimDocuments.id })
+  if (
+    result.data.attachmentId !== parsedCommand.data.clientRequestId ||
+    result.data.tenantId !== profile.tenantId ||
+    result.data.projectId !== claim.project_id ||
+    result.data.claimId !== parsedClaimId.data ||
+    result.data.documentId !== parsedCommand.data.documentId
+  ) {
+    return {
+      error: 'ERP Core API returned an invalid claim document result.',
+      outcome: 'unknown',
+    }
+  }
 
-  await writeAuditLog({
-    tenantId: profile.tenantId,
-    actorId: profile.user.id,
-    entityType: 'progress_claim_document',
-    entityId: created!.id,
-    action: 'create',
-    diff: {
-      claim_id: claimId,
-      document_id: input.document_id,
-      kind: input.kind,
-    },
-  })
+  revalidateClaim(parsedClaimId.data)
+  return {
+    success: result.data.changed ? 'Document attached.' : 'Document already attached.',
+    changed: result.data.changed,
+  }
+}
 
-  revalidateClaim(claimId)
-  return {}
+export async function listClaimDocuments(
+  claimId: string,
+  query: unknown = {},
+): Promise<
+  | { ok: true; data: ProjectDocumentListResult }
+  | { ok: false; error: string }
+> {
+  const profile = await requireUserProfile()
+  if (!can(profile.role, 'document.manage')) {
+    return {
+      ok: false,
+      error: `Forbidden: role "${profile.role}" lacks document.manage permission`,
+    }
+  }
+
+  const parsedClaimId = z
+    .string()
+    .uuid('claimId must be a UUID')
+    .transform((value) => value.toLowerCase())
+    .safeParse(claimId)
+  const parsedQuery = projectDocumentListQuerySchema.safeParse(query)
+  if (!parsedClaimId.success || !parsedQuery.success) {
+    return { ok: false, error: 'Invalid project document request.' }
+  }
+
+  const claim = await loadClaim(parsedClaimId.data, profile.tenantId)
+  if (!claim) return { ok: false, error: 'Progress claim not found' }
+
+  const result = await getProjectDocumentsThroughCoreApi(
+    claim.project_id,
+    parsedQuery.data,
+  )
+  if (!result.ok) {
+    return { ok: false, error: result.error ?? 'Project documents were not loaded.' }
+  }
+  if (!result.data) {
+    return { ok: false, error: 'ERP Core API returned no project document list.' }
+  }
+  if (result.data.projectId !== claim.project_id) {
+    return { ok: false, error: 'ERP Core API returned an invalid project document scope.' }
+  }
+  return { ok: true, data: result.data }
 }

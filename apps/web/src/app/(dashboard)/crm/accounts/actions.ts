@@ -12,15 +12,20 @@ import {
 import { db } from '@third-code-erp/database'
 import {
   accounts,
-  accountKycArtifacts,
-  documents,
 } from '@third-code-erp/database/schema'
 import {
   createAccountSchema,
   reviewKycSchema,
-  addKycArtifactSchema,
+  accountKycDocumentQuerySchema,
+  kycArtifactCreateCommandSchema,
+  type AccountKycDocumentResult,
 } from '@third-code-erp/shared-types'
 import { writeAuditLog } from '@/lib/audit'
+import {
+  createKycArtifactThroughCoreApi,
+  getAccountKycDocumentsThroughCoreApi,
+} from '@/lib/erp-core-client'
+import { z } from 'zod'
 
 function guard(role: AppRole, capability: ErpCapability) {
   if (!can(role, capability)) {
@@ -158,61 +163,147 @@ export async function reviewKyc(formData: FormData): Promise<{ error?: string }>
   return {}
 }
 
-// Attach an uploaded document as a KYC artifact (AFS×3, BIR 2303, etc.).
-export async function addKycArtifact(formData: FormData): Promise<{ error?: string }> {
+export type KycArtifactActionResult = {
+  error?: string
+  success?: string
+  changed?: boolean
+  outcome?: 'rejected' | 'unknown'
+}
+
+// Attach an existing account-eligible document as a KYC artifact through Core.
+// The Web action intentionally has no legacy database fallback: Core owns the
+// relationship, tenant, idempotency and audit checks.
+export async function addKycArtifact(
+  accountId: unknown,
+  command: unknown,
+): Promise<KycArtifactActionResult> {
   const profile = await requireUserProfile()
   const forbid = guard(profile.role, 'account.create')
   if (forbid) return { error: forbid }
 
-  const parsed = addKycArtifactSchema.safeParse({
-    account_id: formData.get('account_id'),
-    artifact_type: formData.get('artifact_type'),
-    document_id: formData.get('document_id') || undefined,
-    notes: formData.get('notes') || undefined,
-  })
-  if (!parsed.success) {
-    const first = parsed.error.errors[0]
+  const parsedAccountId = z
+    .string()
+    .uuid('accountId must be a UUID')
+    .transform((value) => value.toLowerCase())
+    .safeParse(accountId)
+  const parsedCommand = kycArtifactCreateCommandSchema.safeParse(command)
+  if (!parsedAccountId.success) {
+    const first = parsedAccountId.error.errors[0]
     return { error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}` }
   }
-  const input = parsed.data
-
-  const [account] = await db
-    .select({ id: accounts.id })
-    .from(accounts)
-    .where(and(eq(accounts.id, input.account_id), eq(accounts.tenant_id, profile.tenantId)))
-    .limit(1)
-  if (!account) return { error: 'Account not found' }
-
-  if (input.document_id) {
-    const [doc] = await db
-      .select({ id: documents.id })
-      .from(documents)
-      .where(and(eq(documents.id, input.document_id), eq(documents.tenant_id, profile.tenantId)))
-      .limit(1)
-    if (!doc) return { error: 'Document not found' }
+  if (!parsedCommand.success) {
+    const first = parsedCommand.error.errors[0]
+    return { error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}` }
   }
 
-  const [created] = await db
-    .insert(accountKycArtifacts)
-    .values({
-      tenant_id: profile.tenantId,
-      account_id: input.account_id,
-      artifact_type: input.artifact_type,
-      document_id: input.document_id,
-      notes: input.notes,
-      uploaded_by: profile.user.id,
-    })
-    .returning({ id: accountKycArtifacts.id })
+  const normalizedAccountId = parsedAccountId.data
+  const normalizedCommand = parsedCommand.data
+  const result = await createKycArtifactThroughCoreApi(
+    normalizedAccountId,
+    normalizedCommand,
+  )
+  if (!result.ok) {
+    return {
+      error: result.error ?? 'KYC artifact was not committed.',
+      outcome:
+        result.status !== undefined && result.status < 500
+          ? 'rejected'
+          : 'unknown',
+    }
+  }
+  if (!result.data) {
+    return {
+      error: 'ERP Core API returned no KYC artifact result.',
+      outcome: 'unknown',
+    }
+  }
 
-  await writeAuditLog({
-    tenantId: profile.tenantId,
-    actorId: profile.user.id,
-    entityType: 'account_kyc_artifact',
-    entityId: created!.id,
-    action: 'create',
-    diff: { artifact_type: input.artifact_type, account_id: input.account_id },
-  })
+  const sameScope =
+    result.data.artifactId === normalizedCommand.clientRequestId &&
+    result.data.accountId === normalizedAccountId &&
+    result.data.tenantId.toLowerCase() === profile.tenantId.toLowerCase() &&
+    result.data.documentId === normalizedCommand.documentId
+  if (!sameScope) {
+    return {
+      error: 'ERP Core API returned an invalid KYC artifact result.',
+      outcome: 'unknown',
+    }
+  }
 
-  revalidatePath(`/crm/accounts/${input.account_id}`)
-  return {}
+  revalidatePath(`/crm/accounts/${normalizedAccountId}`)
+  return {
+    success: result.data.changed
+      ? 'KYC artifact added.'
+      : 'KYC artifact already exists.',
+    changed: result.data.changed,
+  }
+}
+
+export async function listAccountKycDocuments(
+  accountId: unknown,
+  query: unknown = {},
+): Promise<
+  | { ok: true; data: AccountKycDocumentResult }
+  | { ok: false; error: string }
+> {
+  const profile = await requireUserProfile()
+  const forbid = guard(profile.role, 'account.create')
+  if (forbid) return { ok: false, error: forbid }
+
+  const parsedAccountId = z
+    .string()
+    .uuid('accountId must be a UUID')
+    .transform((value) => value.toLowerCase())
+    .safeParse(accountId)
+  const parsedQuery = accountKycDocumentQuerySchema.safeParse(query)
+  if (!parsedAccountId.success || !parsedQuery.success) {
+    return { ok: false, error: 'Invalid KYC document request.' }
+  }
+
+  const result = await getAccountKycDocumentsThroughCoreApi(
+    parsedAccountId.data,
+    parsedQuery.data,
+  )
+  if (!result.ok) {
+    return {
+      ok: false,
+      error: result.error ?? 'Account documents were not loaded.',
+    }
+  }
+  if (!result.data) {
+    return { ok: false, error: 'ERP Core API returned no account documents.' }
+  }
+
+  const expectedAccountId = parsedAccountId.data
+  const expectedTenantId = profile.tenantId.toLowerCase()
+  const scopedRows = result.data.rows.every(
+    (row) =>
+      row.accountId === expectedAccountId &&
+      row.tenantId.toLowerCase() === expectedTenantId,
+  )
+  const selected = result.data.selectedDocument
+  const selectedIsScoped =
+    selected === null ||
+    (selected.accountId === expectedAccountId &&
+      selected.tenantId.toLowerCase() === expectedTenantId)
+  const selectedMatchesQuery = parsedQuery.data.selectedDocumentId
+    ? selected === null ||
+      selected?.documentId === parsedQuery.data.selectedDocumentId
+    : selected === null
+  if (
+    result.data.accountId !== expectedAccountId ||
+    result.data.tenantId.toLowerCase() !== expectedTenantId ||
+    result.data.page !== parsedQuery.data.page ||
+    result.data.limit !== parsedQuery.data.limit ||
+    result.data.rows.length > parsedQuery.data.limit ||
+    !scopedRows ||
+    !selectedIsScoped ||
+    !selectedMatchesQuery
+  ) {
+    return {
+      ok: false,
+      error: 'ERP Core API returned an invalid account document scope.',
+    }
+  }
+  return { ok: true, data: result.data }
 }

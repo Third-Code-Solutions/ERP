@@ -5,6 +5,12 @@ import {
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { z } from 'zod'
+
+const lifecycleAcknowledgementSchema = z.object({
+  id: z.string().uuid(),
+  banned_until: z.string().datetime({ offset: true }).nullish(),
+})
 
 @Injectable()
 export class PlatformIdentityAdminService {
@@ -56,13 +62,35 @@ export class PlatformIdentityAdminService {
   }
 
   async setSuspended(userId: string, suspended: boolean): Promise<void> {
-    const { error } = await this.requireClient().auth.admin.updateUserById(
-      userId,
-      { ban_duration: suspended ? '876000h' : 'none' }
-    )
+    const client = this.requireClient()
+    let response: Awaited<ReturnType<typeof client.auth.admin.updateUserById>>
+    try {
+      response = await client.auth.admin.updateUserById(
+        userId,
+        { ban_duration: suspended ? '876000h' : 'none' }
+      )
+    } catch {
+      throw new ServiceUnavailableException(
+        'The authentication provider lifecycle outcome could not be confirmed'
+      )
+    }
+    const { data, error } = response
     if (error) {
       throw new ServiceUnavailableException(
         'The authentication provider could not update the user lifecycle'
+      )
+    }
+    // Auth clears banned_until for ban_duration='none'. A 2xx response alone
+    // does not bind the affected identity or acknowledge the requested state.
+    // https://github.com/supabase/auth/blob/master/internal/models/user.go
+    const acknowledgement = lifecycleAcknowledgementSchema.safeParse(data.user)
+    if (!acknowledgement.success
+      || acknowledgement.data.id.toLowerCase() !== userId.toLowerCase()
+      || (suspended
+        ? !acknowledgement.data.banned_until || Date.parse(acknowledgement.data.banned_until) <= Date.now()
+        : acknowledgement.data.banned_until != null)) {
+      throw new ServiceUnavailableException(
+        'The authentication provider lifecycle outcome could not be confirmed'
       )
     }
   }

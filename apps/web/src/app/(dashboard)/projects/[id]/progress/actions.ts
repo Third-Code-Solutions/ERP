@@ -15,7 +15,6 @@
  * where planned_pct_curve is a JSON-array string of weekly cumulative %.
  */
 
-import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { and, asc, desc, eq, isNull } from 'drizzle-orm'
 import { can, getUserProfile, type AppRole } from '@third-code-erp/auth'
@@ -28,8 +27,6 @@ import {
 import { writeAuditLog, writeAuditLogInTransaction } from '@/lib/audit'
 import { notifyRoles } from '@/lib/operations/notifications'
 import {
-  createProjectWeeklyProgressThroughCoreApi,
-  lockProjectWeeklyProgressThroughCoreApi,
   projectWeeklyProgressWritesUseCoreApi,
 } from '@/lib/erp-core-client'
 
@@ -177,7 +174,7 @@ export async function submitWeeklyProgress(
   projectId: string,
   weekEnding: string,
   percentByCategory: PercentByCategory,
-  notes = '',
+  _notes = '',
 ): Promise<{ error?: string; id?: string }> {
   const ctx = await getTenantContext()
   if ('error' in ctx) return { error: ctx.error }
@@ -190,16 +187,9 @@ export async function submitWeeklyProgress(
   }
 
   if (projectWeeklyProgressWritesUseCoreApi(ctx.tenantId)) {
-    const result = await createProjectWeeklyProgressThroughCoreApi({
-      projectId,
-      clientRequestId: randomUUID(),
-      weekEnding,
-      percentByCategory,
-      notes,
-    })
-    if (!result.ok || !result.data) return { error: result.error ?? 'Weekly progress was not captured.' }
-    revalidatePath(`/projects/${projectId}/progress`)
-    return { id: result.data.row.progressUpdateId }
+    // An outdated client cannot establish a stable command identity. Never
+    // generate a replacement key here after a response might have been lost.
+    return { error: 'Refresh the project page to use the confirmed weekly command flow.' }
   }
 
   const week = new Date(weekEnding)
@@ -277,12 +267,12 @@ export async function submitWeeklyProgress(
   return { id: inserted!.id }
 }
 
-/** Lock a Core weekly period into its immutable WAR snapshot after cut-off. */
+/** Old Web clients must refresh before using keyed WAR commands. */
 export async function lockWeeklyProgress(
   projectId: string,
-  periodId: string,
-  expectedVersion: number,
-  lockReason = '',
+  _periodId: string,
+  _expectedVersion: number,
+  _lockReason = '',
 ): Promise<{ error?: string; id?: string }> {
   const ctx = await getTenantContext()
   if ('error' in ctx) return { error: ctx.error }
@@ -295,13 +285,7 @@ export async function lockWeeklyProgress(
   if (!projectWeeklyProgressWritesUseCoreApi(ctx.tenantId)) {
     return { error: 'WAR locking is available only after the Core weekly-progress canary is enabled.' }
   }
-  const result = await lockProjectWeeklyProgressThroughCoreApi(projectId, periodId, {
-    expectedVersion,
-    lockReason,
-  })
-  if (!result.ok || !result.data) return { error: result.error ?? 'WAR was not locked.' }
-  revalidatePath(`/projects/${projectId}/progress`)
-  return { id: result.data.row.id }
+  return { error: 'Refresh the project page to use the confirmed WAR command flow.' }
 }
 
 /** Helper used by the page to load the latest schedule + ordered updates. */

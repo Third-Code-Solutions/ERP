@@ -575,22 +575,53 @@ export class PlatformAdministrationService {
     principal: PlatformPrincipal
   ): Promise<PlatformInvitationSummary> {
     const invitation = await this.readInvitationRecord(invitationId)
-    await this.checkSupportContext(principal, invitation.tenantId)
-    if (!['pending', 'sent'].includes(invitation.status)) {
-      throw new ConflictException('Only an open invitation can be revoked')
-    }
-    if (invitation.authUserId) {
-      await this.identity.setSuspended(invitation.authUserId, true)
-    }
+    let suspendedUserId: string | undefined
     try {
       await this.database.client.transaction(async (tx) => {
         await this.lockOwner(tx, principal)
-      await this.requireSupportContext(tx, principal, invitation.tenantId)
+        await this.requireSupportContext(tx, principal, invitation.tenantId)
+        // Activation updates the user before the invitation. The preliminary
+        // read only locates this lock; fresh locked records authorize the ban.
+        const [target] = invitation.authUserId
+          ? await tx.select({
+              id: users.id,
+              tenantId: users.tenant_id,
+              email: users.email,
+              accountStatus: users.account_status,
+            }).from(users)
+              .where(and(eq(users.id, invitation.authUserId), eq(users.tenant_id, invitation.tenantId)))
+              .limit(1).for('update', { noWait: true })
+          : []
+        const [current] = await tx.select({
+          id: platformUserInvitations.id,
+          tenantId: platformUserInvitations.tenant_id,
+          authUserId: platformUserInvitations.auth_user_id,
+          email: platformUserInvitations.normalized_email,
+          status: platformUserInvitations.status,
+        }).from(platformUserInvitations)
+          .where(eq(platformUserInvitations.id, invitationId))
+          .limit(1).for('update', { noWait: true })
+        if (!current) throw new NotFoundException('Invitation not found')
+        if (current.tenantId !== invitation.tenantId || current.authUserId !== invitation.authUserId) {
+          throw new ConflictException('Invitation binding changed; refresh before revoking')
+        }
+        if (current.authUserId) {
+          if (!target || target.id !== current.authUserId || target.tenantId !== current.tenantId
+            || target.email.trim().toLowerCase() !== current.email
+            || target.accountStatus !== 'invited' || current.status !== 'sent') {
+            throw new ConflictException('Only a sent invitation for its still-invited user can be revoked')
+          }
+          await this.ensureNotPlatformOwner(tx, target.id)
+          await this.identity.setSuspended(target.id, true)
+          suspendedUserId = target.id
+        } else if (current.status !== 'pending') {
+          throw new ConflictException('Only an unbound pending invitation can be revoked')
+        }
         await tx
           .update(platformUserInvitations)
           .set({ status: 'revoked', revoked_at: new Date() })
-          .where(eq(platformUserInvitations.id, invitationId))
-        if (invitation.authUserId) {
+          .where(and(eq(platformUserInvitations.id, current.id), eq(platformUserInvitations.tenant_id, current.tenantId)))
+        if (current.authUserId) {
           await tx
             .update(users)
             .set({
@@ -600,19 +631,25 @@ export class PlatformAdministrationService {
               status_changed_by: principal.userId,
               updated_at: new Date(),
             })
-            .where(eq(users.id, invitation.authUserId))
+            .where(and(eq(users.id, current.authUserId), eq(users.tenant_id, current.tenantId)))
         }
         await this.writeAudit(tx, principal, {
           action: 'platform.user.invitation_revoke',
           outcome: 'succeeded',
           targetType: 'user_invitation',
           targetId: invitationId,
-          targetTenantId: invitation.tenantId,
+          targetTenantId: current.tenantId,
         })
       })
     } catch (error) {
-      if (invitation.authUserId) {
-        await this.identity.setSuspended(invitation.authUserId, false).catch(() => undefined)
+      // Preserve the existing post-ban compensation contract. A provider
+      // timeout or failed compensation still needs separate reconciliation;
+      // neither is evidence that the remote identity stayed unchanged.
+      if (suspendedUserId) {
+        await this.reconcileUserIdentityFromDurableState(suspendedUserId, principal).catch(() => undefined)
+      }
+      if (['55P03', '40P01'].includes(databaseErrorCode(error) ?? '')) {
+        throw new ConflictException('Invitation is being updated. Refresh and retry revocation.')
       }
       throw error
     }
@@ -653,19 +690,74 @@ export class PlatformAdministrationService {
     command: UpdatePlatformUserStatusCommand,
     principal: PlatformPrincipal
   ): Promise<PlatformUserSummary> {
-    const user = await this.readUser(userId)
-    await this.checkSupportContext(principal, user.tenantId)
-    if (user.id === principal.userId) {
-      throw new ForbiddenException('The platform owner cannot change their own lifecycle')
-    }
     const suspended = command.status !== 'active'
-    await this.identity.setSuspended(userId, suspended)
+    let providerChanged = false
     try {
       await this.database.client.transaction(async (tx) => {
         await this.lockOwner(tx, principal)
-      await this.requireSupportContext(tx, principal, user.tenantId)
-        await this.ensureNotPlatformOwner(tx, userId)
-        await tx
+        const [admission] = await tx
+          .select({ tenantId: users.tenant_id })
+          .from(users)
+          .where(eq(users.id, userId))
+          .limit(1)
+        if (!admission) throw new NotFoundException('User not found')
+
+        // Every lifecycle/role writer takes the same transaction-scoped
+        // tenant lock before changing administrator membership. This closes
+        // the last-active-admin race across platform and workspace paths.
+        await tx.execute(
+          sql`select pg_advisory_xact_lock(hashtextextended(${admission.tenantId}, 0))`
+        )
+        await this.requireSupportContext(tx, principal, admission.tenantId)
+        const [target] = await tx
+          .select({
+            id: users.id,
+            tenantId: users.tenant_id,
+            role: users.role,
+            accountStatus: users.account_status,
+          })
+          .from(users)
+          .where(eq(users.id, userId))
+          .limit(1)
+          .for('update')
+        if (!target) throw new NotFoundException('User not found')
+        if (target.id === principal.userId) {
+          throw new ForbiddenException('The platform owner cannot change their own lifecycle')
+        }
+        await this.ensureNotPlatformOwner(tx, target.id)
+
+        const administrators = await tx
+          .select({
+            id: users.id,
+            role: users.role,
+            accountStatus: users.account_status,
+          })
+          .from(users)
+          .where(
+            and(
+              eq(users.tenant_id, target.tenantId),
+              sql`${users.role} in ('admin', 'owner')`
+            )
+          )
+          .orderBy(asc(users.id))
+          .for('update')
+        if (
+          suspended
+          && target.accountStatus === 'active'
+          && (target.role === 'admin' || target.role === 'owner')
+          && administrators.filter(
+            (administrator) => administrator.accountStatus === 'active'
+              && administrator.id !== target.id
+          ).length < 1
+        ) {
+          throw new ConflictException(
+            'Cannot suspend the last active admin/owner in this workspace.'
+          )
+        }
+
+        await this.identity.setSuspended(target.id, suspended)
+        providerChanged = true
+        const [updated] = await tx
           .update(users)
           .set({
             account_status: command.status,
@@ -675,18 +767,22 @@ export class PlatformAdministrationService {
               command.status === 'active' ? null : principal.userId,
             updated_at: new Date(),
           })
-          .where(eq(users.id, userId))
+          .where(eq(users.id, target.id))
+          .returning({ id: users.id, tenantId: users.tenant_id })
+        if (!updated) throw new NotFoundException('User not found')
         await this.writeAudit(tx, principal, {
           action: 'platform.user.status',
           outcome: 'succeeded',
           targetType: 'user',
-          targetId: userId,
-          targetTenantId: user.tenantId,
+          targetId: target.id,
+          targetTenantId: updated.tenantId,
           metadata: { status: command.status, reason: command.reason },
         })
       })
     } catch (error) {
-      await this.identity.setSuspended(userId, user.status === 'suspended' || user.status === 'disabled').catch(() => undefined)
+      if (providerChanged) {
+        await this.reconcileUserIdentityFromDurableState(userId, principal).catch(() => undefined)
+      }
       throw error
     }
     return this.readUser(userId)
@@ -1194,6 +1290,42 @@ export class PlatformAdministrationService {
     await this.database.client.transaction(async (tx) => {
       await this.lockOwner(tx, principal)
       await this.requireSupportContext(tx, principal, tenantId)
+    })
+  }
+
+  /**
+   * Reconcile a provider side effect after the database transaction failed.
+   *
+   * The failed transaction has already released its tenant lock by the time
+   * the catch path runs. Re-acquire that same lock and read the committed
+   * account status before touching Auth, otherwise a newer lifecycle command
+   * can commit between rollback and stale compensation and be undone here.
+   */
+  private async reconcileUserIdentityFromDurableState(
+    userId: string,
+    principal: PlatformPrincipal
+  ): Promise<void> {
+    await this.database.client.transaction(async (tx) => {
+      await this.lockOwner(tx, principal)
+      const [target] = await tx
+        .select({ tenantId: users.tenant_id })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1)
+      if (!target) return
+
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtextextended(${target.tenantId}, 0))`
+      )
+      const [current] = await tx
+        .select({ accountStatus: users.account_status })
+        .from(users)
+        .where(and(eq(users.id, userId), eq(users.tenant_id, target.tenantId)))
+        .limit(1)
+        .for('update')
+      if (!current) return
+
+      await this.identity.setSuspended(userId, current.accountStatus !== 'active')
     })
   }
 

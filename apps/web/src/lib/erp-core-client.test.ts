@@ -6,6 +6,7 @@ import {
 } from '@third-code-erp/shared-types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  archiveInspectionReportThroughCoreApi,
   createRfqThroughCoreApi,
   createPurchaseOrderFromBomThroughCoreApi,
   createPurchaseOrdersGroupedFromBomThroughCoreApi,
@@ -1071,6 +1072,32 @@ describe('ERP Core client', () => {
     vi.unstubAllEnvs()
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
+  })
+
+  it('archives a scoped inspection through Core with no client findings or Storage path', async () => {
+    const command = { opportunityId: '11111111-1111-4111-8111-111111111111', inspectionId: '22222222-2222-4222-8222-222222222222' }
+    const result = { ...command, tenantId: '33333333-3333-4333-8333-333333333333', documentId: '44444444-4444-4444-8444-444444444444', status: 'archived', replayed: true }
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(result)))
+    vi.stubGlobal('fetch', fetchMock)
+    expect(await archiveInspectionReportThroughCoreApi(command)).toEqual({ ok: true, data: result })
+    expect(fetchMock).toHaveBeenCalledWith(`https://erp-api.example.test/v1/opportunities/${command.opportunityId}/inspections/${command.inspectionId}/report`, expect.objectContaining({ method: 'POST', body: '{}', cache: 'no-store' }))
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ ...result, inspectionId: result.tenantId })))
+    expect(await archiveInspectionReportThroughCoreApi(command)).toMatchObject({ ok: false, status: 502 })
+  })
+
+  it('contains malformed, unavailable, and invalid inspection archive responses without exposing provider details', async () => {
+    const command = { opportunityId: '11111111-1111-4111-8111-111111111111', inspectionId: '22222222-2222-4222-8222-222222222222' }
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ message: 'provider-secret' }), { status: 503 }))
+    vi.stubGlobal('fetch', fetchMock)
+    expect(await archiveInspectionReportThroughCoreApi(command)).toMatchObject({ ok: false, status: 503 })
+    expect(JSON.stringify(await archiveInspectionReportThroughCoreApi(command))).not.toContain('provider-secret')
+    fetchMock.mockResolvedValue(new Response('{}'))
+    expect(await archiveInspectionReportThroughCoreApi(command)).toMatchObject({ ok: false, status: 502 })
+    fetchMock.mockRejectedValue(new Error('provider-secret'))
+    expect(await archiveInspectionReportThroughCoreApi(command)).toMatchObject({ ok: false, status: 503 })
+    fetchMock.mockClear()
+    expect(await archiveInspectionReportThroughCoreApi({ ...command, inspectionId: 'invalid' })).toMatchObject({ ok: false, status: 400 })
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('reads the purchase-order approval route preview through the authenticated Core API', async () => {

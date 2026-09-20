@@ -13,13 +13,10 @@ import {
   bomLineItems,
   boms,
   costCodes,
-  projectBudgetLines,
   projects,
 } from '@third-code-erp/database/schema'
-import {
-  BudgetWorkspace,
-  type BudgetDraft,
-} from './budget-workspace'
+import { BudgetWorkspace } from './budget-workspace'
+import { loadBudgetDraft } from './draft-query'
 import { getProjectDetailAccess } from '../../project-detail-access'
 
 export const metadata: Metadata = {
@@ -211,38 +208,9 @@ export default async function ProjectBudgetPage({
   const approvedRow =
     budgetRows.find((budget) => budget.status === 'approved') ?? null
 
-  let draft: BudgetDraft | null = null
-  if (draftRow) {
-    const lines = await db
-      .select({
-        id: projectBudgetLines.id,
-        costCodeId: projectBudgetLines.cost_code_id,
-        bomLineItemId: access.bom
-          ? projectBudgetLines.bom_line_item_id
-          : sql<string | null>`null::uuid`,
-        description: projectBudgetLines.description,
-        amountCents: projectBudgetLines.amount_cents,
-      })
-      .from(projectBudgetLines)
-      .where(
-        and(
-          eq(projectBudgetLines.tenant_id, profile.tenantId),
-          eq(projectBudgetLines.project_budget_id, draftRow.id)
-        )
-      )
-      .orderBy(asc(projectBudgetLines.line_number))
-    draft = {
-      id: draftRow.id,
-      revision: draftRow.revision,
-      sourceBomId: draftRow.source_bom_id,
-      controlMode: draftRow.control_mode,
-      toleranceBps: draftRow.commitment_tolerance_bps,
-      currency: draftRow.currency,
-      effectiveFrom: draftRow.effective_from,
-      reason: draftRow.revision_reason,
-      lines,
-    }
-  }
+  const draft = draftRow
+    ? await loadBudgetDraft(profile.tenantId, projectId, draftRow.id, access.bom)
+    : null
 
   const commitmentCte = access.purchaseOrders
     ? sql`
@@ -513,6 +481,7 @@ export default async function ProjectBudgetPage({
       )}
 
       <BudgetWorkspace
+        actorId={profile.user.id}
         projectId={projectId}
         canViewBom={access.bom}
         canManage={can(profile.role, 'budget.manage')}
@@ -521,6 +490,7 @@ export default async function ProjectBudgetPage({
           'budget.approve_commercial'
         )}
         canFinanceApprove={can(profile.role, 'budget.approve_finance')}
+        ownerOverride={profile.role === 'owner'}
         draft={draft}
         pendingBudget={
           pendingRow

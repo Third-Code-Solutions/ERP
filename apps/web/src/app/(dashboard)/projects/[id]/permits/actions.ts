@@ -1,7 +1,8 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { and, eq, ilike, or } from 'drizzle-orm'
+import { and, eq, ilike, or, sql } from 'drizzle-orm'
+import { randomUUID } from 'node:crypto'
 import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
@@ -12,10 +13,12 @@ import {
   preConChecklistItems,
   projects,
   users,
+  tenants,
 } from '@third-code-erp/database/schema'
 import { philippineBusinessDays } from '@third-code-erp/shared-types'
+import { ERP_ROLES } from '@third-code-erp/shared-types/authorization'
 import { z } from 'zod'
-import { writeAuditLogInTransaction, writeAuditLog } from '@/lib/audit'
+import { stampActorInTransaction, writeAuditLogInTransaction, writeAuditLog, type DatabaseTransaction } from '@/lib/audit'
 import { startSlaClock, stopSlaClock } from '@/lib/operations/sla-clock'
 
 const permitTypeSchema = z.enum([
@@ -509,46 +512,101 @@ async function learnPermitDuration(
     )
 }
 
+class MobilizationError extends Error {}
+
+const receiptDateSchema = z.union([
+  z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  z.string().datetime({ offset: true }),
+]).refine((value) => {
+  const day = new Date(`${value.slice(0, 10)}T00:00:00.000Z`)
+  return !Number.isNaN(new Date(value).getTime()) && !Number.isNaN(day.getTime())
+    && day.toISOString().slice(0, 10) === value.slice(0, 10)
+}).optional()
+
+function mobilizationError(error: unknown): { error: string; unconfirmed?: true } {
+  if (error instanceof MobilizationError) return { error: error.message }
+  const seen = new Set<unknown>()
+  let cause = error
+  while (cause instanceof Object && !seen.has(cause)) {
+    seen.add(cause)
+    if ('code' in cause && (cause.code === '55P03' || cause.code === '40P01')) {
+      return { error: 'Mobilization authority is changing or busy. Refresh and retry.' }
+    }
+    cause = 'cause' in cause ? cause.cause : undefined
+  }
+  return { error: 'Mobilization outcome could not be confirmed. Retry the same request to reconcile it.', unconfirmed: true }
+}
+
+async function admitMobilization(
+  tx: DatabaseTransaction, tenantId: string, actorId: string, projectId: string, override: boolean,
+): Promise<void> {
+  await tx.execute(sql`set local lock_timeout = '3s'`)
+  const [actor] = await tx.select({ role: users.role }).from(users)
+    .where(and(eq(users.id, actorId), eq(users.tenant_id, tenantId), eq(users.account_status, 'active')))
+    .limit(1).for('share', { noWait: true })
+  const role = z.enum(ERP_ROLES).safeParse(actor?.role)
+  if (!actor || !role.success || !can(role.data, 'precon.manage_permits')) {
+    throw new MobilizationError('Your current account cannot manage mobilization readiness.')
+  }
+  if (override && !can(role.data, 'precon.override_mobilization')) {
+    throw new MobilizationError('Your role cannot authorize a mobilization override.')
+  }
+  const [tenant] = await tx.select({ id: tenants.id }).from(tenants)
+    .where(and(eq(tenants.id, tenantId), eq(tenants.status, 'active')))
+    .limit(1).for('share', { noWait: true })
+  if (!tenant) throw new MobilizationError('This organization is not active.')
+  await stampActorInTransaction(tx, actorId)
+  // Rendezvous on the parent even when the first readiness row does not exist.
+  const [project] = await tx.select({ id: projects.id }).from(projects)
+    .where(and(eq(projects.id, projectId), eq(projects.tenant_id, tenantId)))
+    .limit(1).for('update')
+  if (!project) throw new MobilizationError('Project not found.')
+}
+
+function refreshMobilization(projectId: string): string | undefined {
+  try { revalidatePermitPaths(projectId) } catch {
+    return 'The change was committed, but the view could not refresh. Reload to see the recorded result.'
+  }
+}
+
 /** Record one of the four external returns used by the mobilization gate. */
 export async function recordMobilizationInput(
   projectId: string,
   inputType: MobilizationInput,
   receivedAtRaw?: string
-): Promise<{ error?: string }> {
-  const profile = await requireUserProfile()
-  const capabilityError = permitCapabilityError(profile)
-  if (capabilityError) return { error: capabilityError }
-
-  const parsedProjectId = z.string().uuid().safeParse(projectId)
-  const parsedInput = mobilizationInputSchema.safeParse(inputType)
-  if (!parsedProjectId.success || !parsedInput.success) return { error: 'Invalid mobilization input.' }
-  const receivedAt = parseDateInput(receivedAtRaw) ?? new Date()
-
-  const [project] = await db
-    .select({ id: projects.id })
-    .from(projects)
-    .where(and(eq(projects.id, parsedProjectId.data), eq(projects.tenant_id, profile.tenantId)))
-    .limit(1)
-  if (!project) return { error: 'Project not found.' }
-
+): Promise<{ error?: string; unconfirmed?: true; projectId?: string; inputType?: MobilizationInput; receivedAt?: string; refreshWarning?: string }> {
+  const traceId = randomUUID()
+  let actorId: string | null = null, tenantId: string | null = null, outcome = 'rejected'
   try {
+    const parsed = z.object({ projectId: z.string().uuid(), inputType: mobilizationInputSchema, receivedAt: receiptDateSchema })
+      .safeParse({ projectId, inputType, receivedAt: receivedAtRaw })
+    if (!parsed.success) return { error: 'A valid project, return type and calendar date are required.' }
+    const receivedAt = parsed.data.receivedAt === undefined ? new Date() : new Date(parsed.data.receivedAt)
+    const profile = await requireUserProfile()
+    actorId = profile.user.id
+    tenantId = profile.tenantId
+    outcome = 'unconfirmed'
     const result = await db.transaction(async (tx) => {
+      await admitMobilization(tx, profile.tenantId, profile.user.id, parsed.data.projectId, false)
       const current = await tx
-        .select({ id: mobilizationReadiness.id, started_at: mobilizationReadiness.started_at })
+        .select()
         .from(mobilizationReadiness)
         .where(
           and(
-            eq(mobilizationReadiness.project_id, parsedProjectId.data),
+            eq(mobilizationReadiness.project_id, parsed.data.projectId),
             eq(mobilizationReadiness.tenant_id, profile.tenantId)
           )
         )
-        .limit(1)
-      if (current[0]?.started_at) return { alreadyStarted: true }
+        .limit(1).for('update')
+      if (current[0]?.[parsed.data.inputType]?.getTime() === receivedAt.getTime()) {
+        return { receivedAt: receivedAt.toISOString() }
+      }
+      if (current[0]?.started_at) throw new MobilizationError('Mobilization is already started; evidence is immutable.')
 
-      const inputUpdate = mobilizationInputUpdate(parsedInput.data, receivedAt)
+      const inputUpdate = mobilizationInputUpdate(parsed.data.inputType, receivedAt)
       let readinessId = current[0]?.id
       if (current[0]) {
-        await tx
+        const [updated] = await tx
           .update(mobilizationReadiness)
           .set({ ...inputUpdate, updated_by: profile.user.id, updated_at: new Date() })
           .where(
@@ -556,13 +614,14 @@ export async function recordMobilizationInput(
               eq(mobilizationReadiness.id, current[0].id),
               eq(mobilizationReadiness.tenant_id, profile.tenantId)
             )
-          )
+          ).returning({ id: mobilizationReadiness.id })
+        if (!updated) throw new MobilizationError('Readiness changed. Refresh before retrying.')
       } else {
         const [inserted] = await tx
           .insert(mobilizationReadiness)
           .values({
             tenant_id: profile.tenantId,
-            project_id: parsedProjectId.data,
+            project_id: parsed.data.projectId,
             ...inputUpdate,
             created_by: profile.user.id,
             updated_by: profile.user.id,
@@ -577,15 +636,17 @@ export async function recordMobilizationInput(
         entityType: 'mobilization_readiness',
         entityId: readinessId,
         action: 'update',
-        diff: { input_type: parsedInput.data, received_at: receivedAt.toISOString() },
+        diff: { input_type: parsed.data.inputType, received_at: receivedAt.toISOString() },
       })
-      return { alreadyStarted: false }
+      return { receivedAt: receivedAt.toISOString() }
     })
-    if (result.alreadyStarted) return { error: 'Mobilization is already started; evidence is immutable.' }
-    revalidatePermitPaths(parsedProjectId.data)
-    return {}
-  } catch {
-    return { error: 'Mobilization input could not be recorded.' }
+    const refreshWarning = refreshMobilization(parsed.data.projectId)
+    outcome = refreshWarning ? 'succeeded_refresh_pending' : 'succeeded'
+    return { projectId: parsed.data.projectId, inputType: parsed.data.inputType, ...result, ...(refreshWarning ? { refreshWarning } : {}) }
+  } catch (error) {
+    return mobilizationError(error)
+  } finally {
+    console.info(JSON.stringify({ trace_id: traceId, tenant_id: tenantId, actor_id: actorId, action: 'mobilization.record_input', outcome }))
   }
 }
 
@@ -593,38 +654,31 @@ export async function recordMobilizationInput(
 export async function startMobilization(
   projectId: string,
   overrideReasonRaw?: string
-): Promise<{ error?: string; startedAt?: string }> {
-  const profile = await requireUserProfile()
-  const capabilityError = permitCapabilityError(profile)
-  if (capabilityError) return { error: capabilityError }
-
-  const parsedProjectId = z.string().uuid().safeParse(projectId)
-  if (!parsedProjectId.success) return { error: 'Invalid project id.' }
-  const overrideReason = (overrideReasonRaw ?? '').trim()
-  if (overrideReason && !can(profile.role, 'precon.override_mobilization')) {
-    return { error: 'Your role cannot authorize a mobilization override.' }
-  }
-  if (overrideReason.length > 500) return { error: 'Override reason is too long.' }
-
+): Promise<{ error?: string; unconfirmed?: true; projectId?: string; startedAt?: string; refreshWarning?: string }> {
+  const traceId = randomUUID()
+  let actorId: string | null = null, tenantId: string | null = null, outcome = 'rejected'
   try {
+    const parsed = z.object({ projectId: z.string().uuid(), overrideReason: z.string().trim().max(500).optional().default('') })
+      .safeParse({ projectId, overrideReason: overrideReasonRaw })
+    if (!parsed.success) return { error: 'A valid project and override reason of at most 500 characters are required.' }
+    const overrideReason = parsed.data.overrideReason
+    const profile = await requireUserProfile()
+    actorId = profile.user.id
+    tenantId = profile.tenantId
+    outcome = 'unconfirmed'
     const result = await db.transaction(async (tx) => {
-      const [project] = await tx
-        .select({ id: projects.id })
-        .from(projects)
-        .where(and(eq(projects.id, parsedProjectId.data), eq(projects.tenant_id, profile.tenantId)))
-        .limit(1)
-      if (!project) return { error: 'Project not found.' as const }
+      await admitMobilization(tx, profile.tenantId, profile.user.id, parsed.data.projectId, Boolean(overrideReason))
 
       const [current] = await tx
         .select()
         .from(mobilizationReadiness)
         .where(
           and(
-            eq(mobilizationReadiness.project_id, parsedProjectId.data),
+            eq(mobilizationReadiness.project_id, parsed.data.projectId),
             eq(mobilizationReadiness.tenant_id, profile.tenantId)
           )
         )
-        .limit(1)
+        .limit(1).for('update')
       if (current?.started_at) return { startedAt: current.started_at.toISOString() as string }
 
       const complete = Boolean(
@@ -649,7 +703,7 @@ export async function startMobilization(
       }
       let readinessId = current?.id
       if (current) {
-        await tx
+        const [updated] = await tx
           .update(mobilizationReadiness)
           .set(values)
           .where(
@@ -657,13 +711,14 @@ export async function startMobilization(
               eq(mobilizationReadiness.id, current.id),
               eq(mobilizationReadiness.tenant_id, profile.tenantId)
             )
-          )
+          ).returning({ id: mobilizationReadiness.id })
+        if (!updated) throw new MobilizationError('Readiness changed. Refresh before retrying.')
       } else {
         const [inserted] = await tx
           .insert(mobilizationReadiness)
           .values({
             tenant_id: profile.tenantId,
-            project_id: parsedProjectId.data,
+            project_id: parsed.data.projectId,
             ...values,
             created_by: profile.user.id,
           })
@@ -689,10 +744,13 @@ export async function startMobilization(
     })
 
     if ('error' in result) return { error: result.error }
-    revalidatePermitPaths(parsedProjectId.data)
-    return result
-  } catch {
-    return { error: 'Mobilization could not be started.' }
+    const refreshWarning = refreshMobilization(parsed.data.projectId)
+    outcome = refreshWarning ? 'succeeded_refresh_pending' : 'succeeded'
+    return { projectId: parsed.data.projectId, ...result, ...(refreshWarning ? { refreshWarning } : {}) }
+  } catch (error) {
+    return mobilizationError(error)
+  } finally {
+    console.info(JSON.stringify({ trace_id: traceId, tenant_id: tenantId, actor_id: actorId, action: 'mobilization.start', outcome }))
   }
 }
 

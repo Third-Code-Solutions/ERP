@@ -11,6 +11,7 @@ import {
   progressClaims,
   projectWeeklyProgress,
   projects,
+  tenants,
   users,
 } from '@third-code-erp/database/schema'
 import {
@@ -60,7 +61,7 @@ export class ProjectBillingMilestonesService {
     principal: ErpPrincipal,
   ): Promise<ProjectBillingMilestoneListResult> {
     const filters = projectBillingMilestoneListQuerySchema.parse(query)
-    await this.requireMembership(principal, 'project.read')
+    await this.requireMembership(principal, 'finance.read')
     await this.assertProject(projectId, principal.tenantId)
 
     const projectPredicate = and(
@@ -227,7 +228,13 @@ export class ProjectBillingMilestonesService {
     const [membership] = await this.database.client
       .select({ tenantId: users.tenant_id, role: users.role })
       .from(users)
-      .where(and(eq(users.id, principal.userId), eq(users.tenant_id, principal.tenantId)))
+      .innerJoin(tenants, eq(tenants.id, users.tenant_id))
+      .where(and(
+        eq(users.id, principal.userId),
+        eq(users.tenant_id, principal.tenantId),
+        eq(users.account_status, 'active'),
+        eq(tenants.status, 'active'),
+      ))
       .limit(1)
     const role = z.enum(ERP_ROLES).safeParse(membership?.role)
     if (!membership || !role.success || !roleHasCapability(role.data, capability)) {

@@ -1,6 +1,6 @@
 import 'reflect-metadata'
 
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import {
   accounts,
   auditLog,
@@ -12,7 +12,7 @@ import {
   type Database,
 } from '@third-code-erp/database'
 import { and, eq } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { AuditService } from '../src/audit/audit.service'
 import type { ErpPrincipal } from '../src/auth/current-principal.decorator'
 import {
@@ -22,10 +22,14 @@ import {
 import { InspectionPhotoService } from '../src/documents/inspection-photo.service'
 
 const integrationEnabled =
-  Boolean(process.env.DATABASE_URL) &&
   process.env.ERP_API_INTEGRATION_EXPECTED === '1'
 const suite = integrationEnabled ? describe : describe.skip
 const ROLLBACK = Symbol('rollback')
+beforeAll(() => {
+  if (!integrationEnabled) return
+  const url = process.env.DATABASE_URL
+  if (!url || !['localhost', '127.0.0.1', '[::1]'].includes(new URL(url).hostname)) throw new Error('Photo database proof requires loopback DATABASE_URL')
+})
 
 function transactionBoundDatabase(
   transaction: DatabaseTransaction
@@ -154,10 +158,14 @@ suite('Inspection photo database authority', () => {
         role: 'commercial',
         email: `inspection-photo-a-${suffix}@integration.test`,
       }
-      const storagePath = `${tenantA}/opportunities/${opportunityA}/inspection/evidence.jpg`
+      const sha256 = createHash('sha256').update('Synthetic stored evidence fixture').digest('hex')
+      const storagePath = `${tenantA}/opportunities/${opportunityA}/inspection/${sha256}-evidence.jpg`
+      // Byte verification is a controlled dependency; transaction/query results are real PostgreSQL.
+      const storage = { upload: vi.fn(async () => { throw new Error('Metadata registration must not upload') }), verify: vi.fn(async () => ({ sha256, sizeBytes: 1_024, mimeType: 'image/jpeg' as const })) }
       const service = new InspectionPhotoService(
         transactionBoundDatabase(transaction),
-        new AuditService()
+        new AuditService(),
+        storage
       )
       const command = {
         opportunityId: opportunityA,
@@ -188,6 +196,7 @@ suite('Inspection photo database authority', () => {
         storagePath,
       })
       expect(replay).toEqual(first)
+      expect(storage.verify).toHaveBeenCalledExactlyOnceWith(command)
 
       const photoDocuments = await transaction
         .select({
@@ -237,6 +246,9 @@ suite('Inspection photo database authority', () => {
             source: 'site_inspection_photo_core_authority',
             opportunity_id: opportunityA,
             project_id: null,
+            verified_sha256: sha256,
+            verified_size_bytes: 1_024,
+            verified_mime_type: 'image/jpeg',
           }),
         }),
       ])

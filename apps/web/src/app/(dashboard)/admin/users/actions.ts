@@ -1,9 +1,8 @@
 'use server'
 
-import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import { and, eq, ne, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import {
   requireUserProfile,
   can,
@@ -12,12 +11,16 @@ import {
 } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { users as usersTable } from '@third-code-erp/database/schema'
-import { writeAuditLog } from '@/lib/audit'
+import {
+  stampActorInTransaction,
+  writeAuditLog,
+  writeAuditLogInTransaction,
+} from '@/lib/audit'
 import {
   adminUserRoleAssignmentWritesUseCoreApi,
   assignUserRoleThroughCoreApi,
 } from '@/lib/erp-core-client'
-import { ASSIGNABLE_ROLES } from './roles'
+import { ASSIGNABLE_ROLES, type AssignableRole } from './roles'
 
 const createUserSchema = z.object({
   email: z.string().email().max(255),
@@ -160,107 +163,85 @@ export async function createUser(
 const updateRoleSchema = z.object({
   user_id: z.string().uuid(),
   role: z.enum(ASSIGNABLE_ROLES),
+  expected_role: z.enum(ASSIGNABLE_ROLES),
+  client_request_id: z.string().uuid(),
 })
+
+type UpdateUserRoleResult =
+  | { ok: true; role: AssignableRole }
+  | { ok: false; error: string; outcome: 'rejected' | 'unknown' }
 
 export async function updateUserRole(
   formData: FormData
-): Promise<{ error?: string }> {
-  return safe('updateUserRole', async () => {
+): Promise<UpdateUserRoleResult> {
+  let submitted = false
+  try {
     const profile = await requireUserProfile()
     const forbid = guardAdmin(profile.role)
-    if (forbid) return { error: forbid }
+    if (forbid) return { ok: false, error: forbid, outcome: 'rejected' }
 
     const parsed = updateRoleSchema.safeParse({
       user_id: formData.get('user_id'),
       role: formData.get('role'),
+      expected_role: formData.get('expected_role'),
+      client_request_id: formData.get('client_request_id'),
     })
     if (!parsed.success) {
       const first = parsed.error.errors[0]
-      return { error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid'}` }
+      return { ok: false, error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid'}`, outcome: 'rejected' }
     }
-    const { user_id, role } = parsed.data
+    const { user_id, role, expected_role, client_request_id } = parsed.data
 
     // Disallow self-demotion below admin — protects the workspace from
     // being locked out of admin access.
-    if (user_id === profile.user.id && role !== 'admin' && role !== 'owner') {
-      return { error: 'You cannot remove your own admin role.' }
+    if (user_id.toLowerCase() === profile.user.id.toLowerCase() && role !== 'admin' && role !== 'owner') {
+      return { ok: false, error: 'You cannot remove your own admin role.', outcome: 'rejected' }
     }
 
-    const [existing] = await db
-      .select({ id: usersTable.id, role: usersTable.role, email: usersTable.email })
-      .from(usersTable)
-      .where(and(eq(usersTable.id, user_id), eq(usersTable.tenant_id, profile.tenantId)))
-      .limit(1)
-    if (!existing) return { error: 'User not found in this workspace.' }
-    if (existing.role === role) return {}
-
     if (
-      user_id === profile.user.id &&
-      existing.role === 'owner' &&
+      user_id.toLowerCase() === profile.user.id.toLowerCase() &&
+      profile.role === 'owner' &&
       role !== 'owner'
     ) {
-      return { error: 'An owner cannot remove their own owner role.' }
+      return { ok: false, error: 'An owner cannot remove their own owner role.', outcome: 'rejected' }
     }
 
     if (
       profile.role !== 'owner' &&
-      (existing.role === 'owner' || role === 'owner')
+      role === 'owner'
     ) {
-      return { error: 'Only an owner can assign or change the owner role.' }
+      return { ok: false, error: 'Only an owner can assign or change the owner role.', outcome: 'rejected' }
     }
 
-    if (adminUserRoleAssignmentWritesUseCoreApi(profile.tenantId)) {
-      const result = await assignUserRoleThroughCoreApi(
-        user_id,
-        { expectedRole: existing.role, role },
-        randomUUID()
-      )
-      if (!result.ok || !result.data) {
-        return {
-          error: result.error ?? 'User role assignment was not committed.',
-        }
-      }
-      if (
-        result.data.userId !== user_id ||
-        result.data.tenantId !== profile.tenantId ||
-        result.data.role !== role
-      ) {
-        return { error: 'User role assignment returned an invalid tenant scope.' }
-      }
-
-      revalidatePath('/admin/users')
-      revalidatePath(`/admin/users/${user_id}`)
-      return {}
+    if (!adminUserRoleAssignmentWritesUseCoreApi(profile.tenantId)) {
+      return { ok: false, error: 'Core role changes are not enabled for this workspace. No role change was submitted.', outcome: 'rejected' }
     }
 
-    await db
-      .update(usersTable)
-      .set({ role, updated_at: new Date() })
-      .where(
-        and(
-          eq(usersTable.id, user_id),
-          eq(usersTable.tenant_id, profile.tenantId)
-        )
-      )
-
-    try {
-      await writeAuditLog({
-        tenantId: profile.tenantId,
-        actorId: profile.user.id,
-        entityType: 'user',
-        entityId: user_id,
-        action: 'update',
-        diff: { role: { before: existing.role, after: role }, email: existing.email },
-      })
-    } catch (err) {
-
-      console.warn('[admin/users:updateUserRole] audit log failed:', err)
+    // The client keeps this command immutable through uncertain retries. Core
+    // rechecks current authority and owns both the role change and atomic audit.
+    submitted = true
+    const result = await assignUserRoleThroughCoreApi(user_id, { expectedRole: expected_role, role }, client_request_id)
+    if (!result.ok) {
+      return { ok: false, error: result.error, outcome: result.outcome }
+    }
+    if (
+      result.data.userId.toLowerCase() !== user_id.toLowerCase() ||
+      result.data.tenantId.toLowerCase() !== profile.tenantId.toLowerCase() ||
+      result.data.role !== role || result.data.previousRole !== expected_role
+    ) {
+      return { ok: false, error: 'Role change outcome could not be confirmed. Retry the same request.', outcome: 'unknown' }
     }
 
     revalidatePath('/admin/users')
     revalidatePath(`/admin/users/${user_id}`)
-    return {}
-  })
+    return { ok: true, role: result.data.role }
+  } catch {
+    return {
+      ok: false,
+      error: submitted ? 'Role change outcome could not be confirmed. Retry the same request.' : 'Unable to authorize this role change. Refresh and try again.',
+      outcome: submitted ? 'unknown' : 'rejected',
+    }
+  }
 }
 
 const resetPasswordSchema = z.object({
@@ -324,82 +305,164 @@ export async function resetUserPassword(
   })
 }
 
+const suspendUserSchema = z.object({
+  user_id: z.string().uuid().transform((value) => value.toLowerCase()),
+  reason: z.string().trim().min(3).max(500).optional().default('Access suspended; retained history preserved.'),
+})
+
+async function reconcileSuspensionFromDurableState(
+  admin: ReturnType<typeof createSupabaseAdminClient>,
+  userId: string,
+  tenantId: string,
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${tenantId}, 0))`
+    )
+    const [current] = await tx
+      .select({ accountStatus: usersTable.account_status })
+      .from(usersTable)
+      .where(and(eq(usersTable.id, userId), eq(usersTable.tenant_id, tenantId)))
+      .limit(1)
+      .for('update')
+    if (!current) return
+
+    const { error } = await admin.auth.admin.updateUserById(userId, {
+      ban_duration: current.accountStatus === 'active' ? 'none' : '876000h',
+    })
+    if (error) throw error
+  })
+}
+
 /**
- * Delete a user. Returns `{ ok: true }` on success so the client can
- * navigate — we DO NOT `redirect()` here because the form action runs
- * inside `useTransition` and a thrown redirect inside a transition is
- * fragile across Next versions. Client-side `router.push` is safer.
+ * Suspend a user without deleting retained identity, project, or audit history.
+ * The Auth ban is compensated when the database/audit write cannot be confirmed.
  */
-export async function deleteUser(
+export async function suspendUser(
   formData: FormData
-): Promise<{ error?: string; ok?: boolean }> {
-  return safe('deleteUser', async () => {
+): Promise<{ error?: string; ok?: boolean; status?: 'suspended' }> {
+  return safe('suspendUser', async () => {
     const profile = await requireUserProfile()
     const forbid = guardAdmin(profile.role)
     if (forbid) return { error: forbid }
 
-    const userId = String(formData.get('user_id') ?? '')
-    if (!userId) return { error: 'user_id required' }
+    const parsed = suspendUserSchema.safeParse({
+      user_id: formData.get('user_id'),
+      reason: formData.get('reason') ?? undefined,
+    })
+    if (!parsed.success) {
+      const first = parsed.error.errors[0]
+      return { error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}` }
+    }
+    const { user_id: userId, reason } = parsed.data
 
     if (userId === profile.user.id) {
-      return { error: 'You cannot delete your own account.' }
+      return { error: 'You cannot suspend your own account.' }
     }
-
-    const [target] = await db
-      .select({ id: usersTable.id, email: usersTable.email, role: usersTable.role })
-      .from(usersTable)
-      .where(and(eq(usersTable.id, userId), eq(usersTable.tenant_id, profile.tenantId)))
-      .limit(1)
-    if (!target) return { error: 'User not found in this workspace.' }
-    if (target.role === 'owner' && profile.role !== 'owner') {
-      return { error: 'Only an owner can delete another owner.' }
-    }
-
-    // Protect the last admin/owner — count the remaining admins/owners
-    // in this tenant (excluding the target).
-    if (target.role === 'admin' || target.role === 'owner') {
-      const [{ count } = { count: 0 }] = await db
-        .select({ count: sql<number>`COUNT(*)::int` })
-        .from(usersTable)
-        .where(
-          and(
-            eq(usersTable.tenant_id, profile.tenantId),
-            ne(usersTable.id, userId),
-            // role IN ('admin', 'owner')
-            sql`${usersTable.role} IN ('admin', 'owner')`
-          )
-        )
-      if (!count || count < 1) {
-        return { error: 'Cannot delete the last admin/owner in this workspace.' }
-      }
-    }
-
-    const admin = createSupabaseAdminClient()
-    const { error: authErr } = await admin.auth.admin.deleteUser(userId)
-    if (authErr) return { error: authErr.message }
-
-    // FK from public.users.id → auth.users.id is ON DELETE CASCADE in
-    // Supabase by default, so the row often goes with it. We delete
-    // explicitly to be safe (idempotent).
-    await db
-      .delete(usersTable)
-      .where(and(eq(usersTable.id, userId), eq(usersTable.tenant_id, profile.tenantId)))
-
+    let admin: ReturnType<typeof createSupabaseAdminClient> | undefined
+    let providerAttempted = false
+    const missingTargetMessage = 'User not found in this workspace.'
+    const lastAdministratorMessage = 'Cannot suspend the last active admin/owner in this workspace.'
     try {
-      await writeAuditLog({
-        tenantId: profile.tenantId,
-        actorId: profile.user.id,
-        entityType: 'user',
-        entityId: userId,
-        action: 'delete',
-        diff: { email: target.email, role: target.role },
+      await db.transaction(async (tx) => {
+        // Match Core role/lifecycle writers with a transaction-scoped tenant
+        // lock so the administrator guard cannot be bypassed by a race.
+        await tx.execute(
+          sql`select pg_advisory_xact_lock(hashtextextended(${profile.tenantId}, 0))`
+        )
+        const [target] = await tx
+          .select({
+            id: usersTable.id,
+            email: usersTable.email,
+            role: usersTable.role,
+            accountStatus: usersTable.account_status,
+            activeAdministratorCount: sql<number>`(
+              select count(*)::int
+              from public.users as active_administrator
+              where active_administrator.tenant_id = ${usersTable.tenant_id}
+                and active_administrator.account_status = 'active'
+                and active_administrator.role in ('admin', 'owner')
+                and active_administrator.id <> ${usersTable.id}
+            )`,
+          })
+          .from(usersTable)
+          .where(and(eq(usersTable.id, userId), eq(usersTable.tenant_id, profile.tenantId)))
+          .limit(1)
+          .for('update')
+        if (!target) throw new Error(missingTargetMessage)
+        if (target.role === 'owner' && profile.role !== 'owner') {
+          throw new Error('Only an owner can suspend another owner.')
+        }
+        if (
+          (target.role === 'admin' || target.role === 'owner')
+          && target.accountStatus === 'active'
+          && Number(target.activeAdministratorCount) < 1
+        ) {
+          throw new Error(lastAdministratorMessage)
+        }
+
+        admin = createSupabaseAdminClient()
+        const { error: authErr } = await admin.auth.admin.updateUserById(userId, {
+          ban_duration: '876000h',
+        })
+        providerAttempted = true
+        if (authErr) throw new Error(authErr.message)
+        await stampActorInTransaction(tx, profile.user.id)
+        const [updated] = await tx
+          .update(usersTable)
+          .set({
+            account_status: 'suspended',
+            status_reason: reason,
+            status_changed_at: new Date(),
+            status_changed_by: profile.user.id,
+            updated_at: new Date(),
+          })
+          .where(and(eq(usersTable.id, userId), eq(usersTable.tenant_id, profile.tenantId)))
+          .returning({ id: usersTable.id })
+        if (!updated) throw new Error('User changed before suspension was committed')
+        await writeAuditLogInTransaction(tx, {
+          tenantId: profile.tenantId,
+          actorId: profile.user.id,
+          entityType: 'user',
+          entityId: userId,
+          action: 'status_change',
+          diff: {
+            email: target.email,
+            role: target.role,
+            from_status: target.accountStatus,
+            to_status: 'suspended',
+            reason,
+          },
+        })
       })
     } catch (err) {
-
-      console.warn('[admin/users:deleteUser] audit log failed:', err)
+      if (err instanceof Error && err.message === lastAdministratorMessage) {
+        return { error: err.message }
+      }
+      if (err instanceof Error && err.message === missingTargetMessage) {
+        return { error: err.message }
+      }
+      if (err instanceof Error && err.message === 'Only an owner can suspend another owner.') {
+        return { error: err.message }
+      }
+      if (providerAttempted) {
+        if (admin) {
+          await reconcileSuspensionFromDurableState(admin, userId, profile.tenantId).catch(() => undefined)
+        }
+        console.warn('[admin/users:suspendUser] suspension compensation attempted:', err)
+      }
+      return { error: 'User suspension could not be confirmed. Retry or reconcile with support.' }
     }
 
     revalidatePath('/admin/users')
-    return { ok: true }
+    revalidatePath(`/admin/users/${userId}`)
+    return { ok: true, status: 'suspended' }
   })
+}
+
+/** @deprecated Use suspendUser. Kept as a safe compatibility alias; it never deletes. */
+export async function deleteUser(
+  formData: FormData
+): Promise<{ error?: string; ok?: boolean; status?: 'suspended' }> {
+  return suspendUser(formData)
 }

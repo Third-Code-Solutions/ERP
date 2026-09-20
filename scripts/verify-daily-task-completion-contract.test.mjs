@@ -19,7 +19,7 @@ const FILES = {
 }
 
 function read(file) {
-  return fs.readFileSync(file, 'utf8')
+  return fs.readFileSync(file, 'utf8').replace(/\r\n?/g, '\n')
 }
 
 function replaceOnce(source, before, after, label) {
@@ -378,8 +378,8 @@ test('rejects a second HTTP request or weakened tenant selector', () => {
   const client = read(FILES.client)
   const duplicate = replaceOnce(
     client,
-    '    const response = await fetch(\n',
-    "    await fetch('https://invalid.example.test')\n    const response = await fetch(\n",
+    '    const response = await fetch(\n      `${access.baseUrl}/v1/daily-tasks/',
+    "    await fetch('https://invalid.example.test')\n    const response = await fetch(\n      `${access.baseUrl}/v1/daily-tasks/",
     'single adapter fetch'
   )
   expectMutationFailure({ [FILES.client]: duplicate }, /exactly one HTTP request/)

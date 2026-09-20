@@ -2,6 +2,10 @@ import 'server-only'
 
 import { createHash, createHmac, randomUUID } from 'node:crypto'
 import {
+  inspectionReportArchiveCommandSchema,
+  inspectionReportArchiveResultSchema,
+  type InspectionReportArchiveCommand,
+  type InspectionReportArchiveResult,
   rfqCreationResultSchema,
   rfqDispatchResultSchema,
   projectUpdateResultSchema,
@@ -319,6 +323,7 @@ import {
   type CortexSemanticIndexAccepted,
   type CortexSemanticIndexCommand,
   type CortexSemanticIndexStatus,
+  userRoleAssignmentCommandSchema,
   userRoleAssignmentResultSchema,
   type UserRoleAssignmentCommand,
   type UserRoleAssignmentResult,
@@ -394,10 +399,19 @@ import {
   projectSubmittalDocumentListResultSchema,
   projectSubmittalDocumentUnlinkCommandSchema,
   projectSubmittalDocumentUnlinkResultSchema,
+  claimDocumentAttachCommandSchema,
+  claimDocumentAttachResultSchema,
+  kycArtifactCreateCommandSchema,
+  kycArtifactCreateResultSchema,
+  accountKycDocumentQuerySchema,
+  accountKycDocumentResultSchema,
   type ProjectDocumentListResult,
   type ProjectSubmittalDocumentLinkResult,
   type ProjectSubmittalDocumentListResult,
   type ProjectSubmittalDocumentUnlinkResult,
+  type ClaimDocumentAttachResult,
+  type KycArtifactCreateResult,
+  type AccountKycDocumentResult,
   projectScheduleListQuerySchema,
   projectScheduleDependencyQuerySchema,
   projectScheduleDependencyResultSchema,
@@ -414,6 +428,7 @@ import {
   updateProjectScheduleTaskCommandSchema,
   projectScheduleTaskStatusCommandSchema,
   type ProjectScheduleListResult,
+  type ProjectScheduleLevel,
   type ProjectScheduleCreateResult,
   type ProjectScheduleMutationResult,
   projectPerformanceQuerySchema,
@@ -451,12 +466,18 @@ import {
 } from '@third-code-erp/shared-types'
 import { createSupabaseServerClient } from '@third-code-erp/auth'
 import { z } from 'zod'
+import {
+  msProjectXmlPreviewCommandSchema, msProjectXmlCommitCommandSchema,
+  msProjectXmlPreviewResultSchema, msProjectXmlImportResultSchema,
+  type MsProjectXmlPreviewResult, type MsProjectXmlImportResult,
+} from '@third-code-erp/shared-types'
 
 interface CoreResult<T> {
   ok: boolean
   data?: T
   error?: string
   status?: number
+  outcomeUnknown?: boolean
 }
 
 export type ProviderQuotaBucket =
@@ -484,6 +505,17 @@ const providerQuotaDecisionSchema = z.object({
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+const projectScheduleLevelOrder: Record<ProjectScheduleLevel, number> = {
+  l1: 0,
+  l2: 1,
+  l3: 2,
+  l4: 3,
+}
+
+function scheduleUuidMatches(left: string, right: string): boolean {
+  return left.toLowerCase() === right.toLowerCase()
+}
 
 export function tenantEnabledForCoreApi(
   tenantId: string,
@@ -3246,6 +3278,31 @@ export async function executeTakeoffImportThroughCoreApi(
  * Core is the durable authority for pre-project opportunity inspection-photo
  * metadata and audit evidence. Storage upload remains a bounded Web concern.
  */
+export async function archiveInspectionReportThroughCoreApi(
+  command: InspectionReportArchiveCommand,
+): Promise<CoreResult<InspectionReportArchiveResult>> {
+  const parsedCommand = inspectionReportArchiveCommandSchema.safeParse(command)
+  if (!parsedCommand.success) return { ok: false, error: 'Invalid inspection report request.', status: 400 }
+  try {
+    const access = await getCoreApiAccess()
+    if (!access.ok) return access
+    const { opportunityId, inspectionId } = parsedCommand.data
+    const response = await fetch(`${access.baseUrl}/v1/opportunities/${opportunityId}/inspections/${inspectionId}/report`, {
+      method: 'POST', headers: { authorization: `Bearer ${access.accessToken}`, 'content-type': 'application/json', 'x-request-id': randomUUID() },
+      body: '{}', cache: 'no-store', signal: AbortSignal.timeout(20_000),
+    })
+    const body: unknown = await response.json().catch(() => null)
+    if (!response.ok) return { ok: false, error: 'Inspection report archive was not confirmed. Retry the same inspection.', status: response.status }
+    const parsed = inspectionReportArchiveResultSchema.safeParse(body)
+    if (!parsed.success || parsed.data.opportunityId.toLowerCase() !== opportunityId.toLowerCase() || parsed.data.inspectionId.toLowerCase() !== inspectionId.toLowerCase()) {
+      return { ok: false, error: 'ERP Core API returned an invalid inspection archive result.', status: 502 }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return { ok: false, error: 'Inspection report archive is unconfirmed. Retry the same inspection.', status: 503 }
+  }
+}
+
 export async function createInspectionPhotoThroughCoreApi(
   command: InspectionPhotoCommand
 ): Promise<CoreResult<InspectionPhotoResult>> {
@@ -3257,10 +3314,22 @@ export async function createInspectionPhotoThroughCoreApi(
       status: 400,
     }
   }
-  const access = await getCoreApiAccess()
-  if (!access.ok) return access
+
+  const tenantPrefix = parsedCommand.data.storagePath.split('/')[0]
+  const parsedTenantPrefix = z.string().uuid().safeParse(tenantPrefix)
+  if (!parsedTenantPrefix.success) {
+    return {
+      ok: false,
+      error: 'Inspection photo metadata is invalid.',
+      status: 400,
+    }
+  }
+  const validatedTenantPrefix = parsedTenantPrefix.data
 
   try {
+    const access = await getCoreApiAccess()
+    if (!access.ok) return access
+
     const response = await fetch(
       `${access.baseUrl}/v1/opportunities/${parsedCommand.data.opportunityId}/inspection-photos`,
       {
@@ -3275,18 +3344,24 @@ export async function createInspectionPhotoThroughCoreApi(
         signal: AbortSignal.timeout(10_000),
       }
     )
-    const body = (await response.json().catch(() => null)) as
-      | Record<string, unknown>
-      | null
+    const body: unknown = await response.json().catch(() => null)
     if (!response.ok) {
+      const parsedError = z.object({ message: z.string() }).safeParse(body)
+      const knownRejectionStatus = [400, 401, 403, 404, 409, 422].includes(
+        response.status,
+      )
       const message =
-        typeof body?.message === 'string'
-          ? body.message
-          : response.status === 403
-            ? 'You cannot record an inspection photo for this opportunity.'
-            : response.status === 404
-              ? 'Opportunity not found.'
-              : 'Inspection photo metadata was not recorded.'
+        knownRejectionStatus
+          ? parsedError.success
+            ? parsedError.data.message
+            : response.status === 403
+              ? 'You cannot record an inspection photo for this opportunity.'
+              : response.status === 404
+                ? 'Opportunity not found.'
+                : 'Inspection photo request was rejected.'
+          : response.status >= 500
+            ? 'ERP Core API returned a server error. Inspection photo outcome is unconfirmed; retry the same request.'
+            : 'ERP Core API returned an unconfirmed inspection photo outcome. Retry the same request.'
       return { ok: false, error: message, status: response.status }
     }
 
@@ -3294,15 +3369,33 @@ export async function createInspectionPhotoThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid inspection photo result.',
+        error:
+          'ERP Core API returned an invalid inspection photo result. Outcome is unconfirmed; retry the same request.',
         status: 502,
       }
     }
+
+    const isBoundToRequest =
+      parsed.data.opportunityId.toLowerCase() ===
+        parsedCommand.data.opportunityId.toLowerCase() &&
+      parsed.data.storagePath === parsedCommand.data.storagePath &&
+      parsed.data.fileName === parsedCommand.data.fileName &&
+      parsed.data.tenantId.toLowerCase() === validatedTenantPrefix.toLowerCase()
+    if (!isBoundToRequest) {
+      return {
+        ok: false,
+        error:
+          'ERP Core API returned a mismatched inspection photo result. Outcome is unconfirmed; retry the same request.',
+        status: 502,
+      }
+    }
+
     return { ok: true, data: parsed.data, status: response.status }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. Inspection photo metadata was not recorded.',
+      error:
+        'ERP Core API is unavailable. Inspection photo outcome is unconfirmed; retry the same request.',
       status: 503,
     }
   }
@@ -3415,56 +3508,80 @@ export async function updateProjectThroughCoreApi(
   }
 }
 
+export type UserRoleAssignmentCoreResult =
+  | { ok: true; data: UserRoleAssignmentResult }
+  | { ok: false; error: string; outcome: 'rejected' | 'unknown'; status?: number }
+
 export async function assignUserRoleThroughCoreApi(
   userId: string,
   command: UserRoleAssignmentCommand,
   idempotencyKey: string
-): Promise<CoreResult<UserRoleAssignmentResult>> {
-  const access = await getCoreApiAccess()
-  if (!access.ok) return access
+): Promise<UserRoleAssignmentCoreResult> {
+  const parsedUserId = z.string().uuid().safeParse(userId)
+  const parsedCommand = userRoleAssignmentCommandSchema.safeParse(command)
+  const parsedKey = z.string().min(1).max(256)
+    .refine((value) => value.trim().length > 0).safeParse(idempotencyKey)
+  if (!parsedUserId.success || !parsedCommand.success || !parsedKey.success) {
+    return { ok: false, error: 'Invalid user role assignment request.', outcome: 'rejected', status: 400 }
+  }
+  let access: Awaited<ReturnType<typeof getCoreApiAccess>>
+  try {
+    access = await getCoreApiAccess()
+  } catch {
+    return { ok: false, error: 'The session could not be verified. Sign in and retry.', outcome: 'rejected' }
+  }
+  if (!access.ok) return { ...access, outcome: 'rejected' }
+
+  const unknownOutcome = 'The role change outcome could not be confirmed. Retry the same request before making another change.'
 
   try {
     const response = await fetch(
-      `${access.baseUrl}/v1/admin/users/${encodeURIComponent(userId)}/role`,
+      `${access.baseUrl}/v1/admin/users/${parsedUserId.data.toLowerCase()}/role`,
       {
         method: 'PATCH',
         headers: {
           authorization: `Bearer ${access.accessToken}`,
           'content-type': 'application/json',
-          'Idempotency-Key': idempotencyKey,
+          'Idempotency-Key': parsedKey.data,
           'x-request-id': randomUUID(),
         },
-        body: JSON.stringify(command),
+        body: JSON.stringify(parsedCommand.data),
         cache: 'no-store',
         signal: AbortSignal.timeout(10_000),
       }
     )
 
-    const body = (await response.json().catch(() => null)) as
-      | Record<string, unknown>
-      | null
+    const body: unknown = await response.json()
     if (!response.ok) {
-      const message =
-        typeof body?.message === 'string'
-          ? body.message
-          : response.status === 409
-            ? 'User role changed after this form was opened.'
-            : 'User role assignment was not committed.'
-      return { ok: false, error: message, status: response.status }
+      if (![400, 401, 403, 404, 409, 422].includes(response.status)) {
+        return { ok: false, error: unknownOutcome, outcome: 'unknown', status: response.status }
+      }
+      const failure = z.object({ message: z.string() }).safeParse(body)
+      return {
+        ok: false, outcome: 'rejected', status: response.status,
+        error: failure.success ? failure.data.message : 'User role assignment was rejected. Review the current role before trying again.',
+      }
     }
 
     const parsed = userRoleAssignmentResultSchema.safeParse(body)
-    if (!parsed.success) {
+    if (!parsed.success
+      || parsed.data.userId.toLowerCase() !== parsedUserId.data.toLowerCase()
+      || parsed.data.role !== parsedCommand.data.role
+      || parsed.data.previousRole !== parsedCommand.data.expectedRole
+      || (parsed.data.status === 'unchanged') !== (parsedCommand.data.expectedRole === parsedCommand.data.role)) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid user role result.',
+        error: unknownOutcome,
+        outcome: 'unknown',
+        status: response.status,
       }
     }
     return { ok: true, data: parsed.data }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. No user role was changed.',
+      error: unknownOutcome,
+      outcome: 'unknown',
     }
   }
 }
@@ -6320,6 +6437,21 @@ export async function deleteProjectCommentThroughCoreApi(
   }
 }
 
+function costCommandFailure(status: number): CoreResult<never> {
+  if (status >= 500 || status === 408) {
+    return { ok: false, status, outcomeUnknown: true, error: 'Cost command outcome is unconfirmed. Retry the unchanged command to recover its receipt.' }
+  }
+  const messages: Record<number, string> = {
+    400: 'The cost command is invalid. Check the submitted fields.',
+    401: 'Your session has expired. Sign in again before continuing.',
+    403: 'You do not have permission to change this cost entry.',
+    404: 'The project, Cost Code or cost entry is unavailable.',
+    409: 'The cost command conflicts with the current record or request key.',
+    429: 'Too many requests. Wait before retrying the unchanged command.',
+  }
+  return { ok: false, status, error: messages[status] ?? 'The cost command was rejected.' }
+}
+
 export async function createCostEntryThroughCoreApi(
   projectId: string,
   command: CreateCostEntryCommand,
@@ -6349,15 +6481,7 @@ export async function createCostEntryThroughCoreApi(
       | Record<string, unknown>
       | null
     if (!response.ok) {
-      const message =
-        typeof body?.message === 'string'
-          ? body.message
-          : response.status === 503
-            ? 'Cost entry creation is not enabled for this tenant.'
-            : response.status === 409
-              ? 'Cost entry conflicts with the selected Cost Code.'
-              : 'Cost entry was not created.'
-      return { ok: false, error: message }
+      return costCommandFailure(response.status)
     }
 
     const parsed = costEntryCreationResultSchema.safeParse(body)
@@ -6365,13 +6489,15 @@ export async function createCostEntryThroughCoreApi(
       return {
         ok: false,
         error: 'ERP Core API returned an invalid cost entry result.',
+        outcomeUnknown: true,
       }
     }
     return { ok: true, data: parsed.data }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. No cost entry was created.',
+      error: 'Cost creation outcome is unconfirmed. Retry the unchanged command to recover its receipt.',
+      outcomeUnknown: true,
     }
   }
 }
@@ -6406,15 +6532,7 @@ export async function deleteCostEntryThroughCoreApi(
       | Record<string, unknown>
       | null
     if (!response.ok) {
-      const message =
-        typeof body?.message === 'string'
-          ? body.message
-          : response.status === 503
-            ? 'Cost entry deletion is not enabled for this tenant.'
-            : response.status === 409
-              ? 'Cost entry could not be voided.'
-              : 'Cost entry was not voided.'
-      return { ok: false, error: message, status: response.status }
+      return costCommandFailure(response.status)
     }
 
     const parsed = costEntryDeletionResultSchema.safeParse(body)
@@ -6422,13 +6540,15 @@ export async function deleteCostEntryThroughCoreApi(
       return {
         ok: false,
         error: 'ERP Core API returned an invalid cost entry deletion result.',
+        outcomeUnknown: true,
       }
     }
     return { ok: true, data: parsed.data, status: response.status }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. No cost entry was changed.',
+      error: 'Cost void outcome is unconfirmed. Retry the unchanged command to recover its receipt.',
+      outcomeUnknown: true,
     }
   }
 }
@@ -9157,27 +9277,63 @@ export async function mutateQualityHoldPointThroughCoreApi(
 }
 
 /** Creates or replays the tenant-scoped punchlist handoff for a rejected IWR. */
+export type QualityPunchlistHandoffCoreResult =
+  | {
+      ok: true
+      data: QualityHoldPointPunchlistHandoffResult
+      outcome: 'confirmed'
+    }
+  | {
+      ok: false
+      status: number
+      error: string
+      outcome: 'rejected' | 'unknown'
+    }
+
 export async function handoffQualityHoldPointToPunchlistThroughCoreApi(
   projectId: unknown,
   entryId: unknown,
   command: unknown,
-): Promise<CoreResult<QualityHoldPointPunchlistHandoffResult>> {
-  const parsedProjectId = z.string().uuid().safeParse(projectId)
-  const parsedEntryId = z.string().uuid().safeParse(entryId)
+): Promise<QualityPunchlistHandoffCoreResult> {
+  const parsedProjectId = z.string().uuid().transform((value) => value.toLowerCase()).safeParse(projectId)
+  const parsedEntryId = z.string().uuid().transform((value) => value.toLowerCase()).safeParse(entryId)
   const parsedCommand = qualityHoldPointPunchlistHandoffCommandSchema.safeParse(command)
   if (!parsedProjectId.success || !parsedEntryId.success || !parsedCommand.success) {
-    return { ok: false, status: 400, error: 'Invalid quality punchlist handoff command.' }
+    return {
+      ok: false,
+      status: 400,
+      error: 'Invalid quality punchlist handoff command.',
+      outcome: 'rejected',
+    }
   }
-  const access = await getCoreApiAccess()
-  if (!access.ok) return access
+
+  const expectedClientRequestId = parsedCommand.data.clientRequestId.toLowerCase()
+  const expectedPlanDocumentId = parsedCommand.data.planDocumentId?.toLowerCase() ?? null
+  const unknownOutcome =
+    'Punchlist handoff outcome could not be confirmed. Retry the same request before making another change.'
+  let dispatched = false
+
   try {
+    const access = await getCoreApiAccess()
+    if (!access.ok) {
+      return {
+        ok: false,
+        status: 503,
+        error: access.error,
+        outcome: 'rejected',
+      }
+    }
+
+    const requestUrl = `${access.baseUrl}/v1/projects/${encodeURIComponent(parsedProjectId.data)}/quality/${encodeURIComponent(parsedEntryId.data)}/punchlist`
+    dispatched = true
     const response = await fetch(
-      `${access.baseUrl}/v1/projects/${encodeURIComponent(parsedProjectId.data)}/quality/${encodeURIComponent(parsedEntryId.data)}/punchlist`,
+      requestUrl,
       {
         method: 'POST',
         headers: {
           authorization: `Bearer ${access.accessToken}`,
           'content-type': 'application/json',
+          'x-erp-receipt-version': '1',
           'x-request-id': randomUUID(),
         },
         body: JSON.stringify(parsedCommand.data),
@@ -9188,6 +9344,14 @@ export async function handoffQualityHoldPointToPunchlistThroughCoreApi(
     const rawBody: unknown = await response.json().catch(() => null)
     if (!response.ok) {
       const body = z.object({ message: z.string() }).safeParse(rawBody)
+      if (![400, 401, 403, 404, 409, 422].includes(response.status)) {
+        return {
+          ok: false,
+          status: response.status,
+          error: unknownOutcome,
+          outcome: 'unknown',
+        }
+      }
       return {
         ok: false,
         status: response.status,
@@ -9197,15 +9361,48 @@ export async function handoffQualityHoldPointToPunchlistThroughCoreApi(
             ? 'This rejected IWR is already linked to punchlist work or has changed.'
             : response.status === 404
               ? 'Quality request or plan document was not found.'
-              : 'Punchlist handoff was not committed.',
+              : 'Punchlist handoff was rejected.',
+        outcome: 'rejected',
       }
     }
+
     const parsed = qualityHoldPointPunchlistHandoffResultSchema.safeParse(rawBody)
-    return parsed.success
-      ? { ok: true, data: parsed.data, status: response.status }
-      : { ok: false, status: 503, error: 'ERP Core API returned an invalid punchlist handoff result.' }
+    if (!parsed.success) {
+      return { ok: false, status: 503, error: unknownOutcome, outcome: 'unknown' }
+    }
+
+    const result = parsed.data
+    const itemIds = result.items.map((item) => item.id.toLowerCase())
+    const responseIsBound =
+      result.clientRequestId.toLowerCase() === expectedClientRequestId &&
+      result.projectId.toLowerCase() === parsedProjectId.data &&
+      result.qualityHoldPointId.toLowerCase() === parsedEntryId.data &&
+      result.source.qualityHoldPointId.toLowerCase() === parsedEntryId.data &&
+      (result.source.planDocumentId === null
+        ? expectedPlanDocumentId === null
+        : expectedPlanDocumentId !== null &&
+          result.source.planDocumentId.toLowerCase() === expectedPlanDocumentId) &&
+      result.items.every(
+        (item) =>
+          item.projectId.toLowerCase() === parsedProjectId.data &&
+          item.sourceHandoffId.toLowerCase() === result.handoffId.toLowerCase(),
+      ) &&
+      new Set(itemIds).size === itemIds.length
+
+    if (!responseIsBound) {
+      return { ok: false, status: 503, error: unknownOutcome, outcome: 'unknown' }
+    }
+
+    return { ok: true, data: result, outcome: 'confirmed' }
   } catch {
-    return { ok: false, status: 503, error: 'ERP Core API is unavailable. Punchlist handoff outcome is unconfirmed; refresh before retrying.' }
+    return dispatched
+      ? { ok: false, status: 503, error: unknownOutcome, outcome: 'unknown' }
+      : {
+          ok: false,
+          status: 503,
+          error: 'The session could not be verified. Sign in and retry.',
+          outcome: 'rejected',
+        }
   }
 }
 
@@ -9284,21 +9481,90 @@ export async function mutateProjectSubmittalThroughCoreApi(projectId: unknown, s
   }
 }
 
+/** Attaches an existing project document to a progress claim through Core. */
+export async function attachClaimDocumentThroughCoreApi(
+  claimId: unknown,
+  command: unknown,
+): Promise<CoreResult<ClaimDocumentAttachResult>> {
+  const parsedClaimId = z.string().uuid().transform((value) => value.toLowerCase()).safeParse(claimId)
+  const parsedCommand = claimDocumentAttachCommandSchema.safeParse(command)
+  if (!parsedClaimId.success || !parsedCommand.success) {
+    return {
+      ok: false,
+      status: 400,
+      error: 'Invalid claim document attachment command.',
+    }
+  }
+
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/claims/${encodeURIComponent(parsedClaimId.data)}/documents`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': parsedCommand.data.clientRequestId,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(parsedCommand.data),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      },
+    )
+    const rawBody: unknown = await response.json().catch(() => null)
+    if (!response.ok) {
+      const body = z.object({ message: z.string() }).safeParse(rawBody)
+      const message = response.status >= 500
+        ? 'ERP Core API returned a server error. Attachment outcome is unconfirmed; retry with the same request.'
+        : body.success
+          ? body.data.message
+          : response.status === 403
+            ? 'Forbidden'
+            : response.status === 404
+              ? 'Claim or project document not found.'
+              : response.status === 409
+                ? 'Attachment request conflicts with an existing command or claim state.'
+                : 'Document was not attached to the claim.'
+      return { ok: false, status: response.status, error: message }
+    }
+
+    const parsedResult = claimDocumentAttachResultSchema.safeParse(rawBody)
+    if (!parsedResult.success) {
+      return {
+        ok: false,
+        status: 503,
+        error: 'ERP Core API returned an invalid claim document attachment result.',
+      }
+    }
+    return { ok: true, status: response.status, data: parsedResult.data }
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      error: 'ERP Core API is unavailable. Attachment outcome is unconfirmed; retry with the same request.',
+    }
+  }
+}
+
 /** Lists project documents that can be pinned into a submittal CDE record. */
 export async function getProjectDocumentsThroughCoreApi(
   projectId: unknown,
   query: unknown = {},
 ): Promise<CoreResult<ProjectDocumentListResult>> {
-  const parsedProjectId = z.string().uuid().safeParse(projectId)
+  const parsedProjectId = z.string().uuid().transform((value) => value.toLowerCase()).safeParse(projectId)
   if (!parsedProjectId.success) return { ok: false, status: 400, error: 'Invalid project identifier.' }
   const parsedQuery = projectDocumentListQuerySchema.safeParse(query)
   if (!parsedQuery.success) return { ok: false, status: 400, error: 'Invalid project document filters.' }
-  const access = await getCoreApiAccess()
-  if (!access.ok) return access
-  const params = new URLSearchParams()
-  if (parsedQuery.data.documentType) params.set('documentType', parsedQuery.data.documentType)
-  params.set('page', String(parsedQuery.data.page)); params.set('limit', String(parsedQuery.data.limit))
   try {
+    const access = await getCoreApiAccess()
+    if (!access.ok) return access
+    const params = new URLSearchParams()
+    if (parsedQuery.data.documentType) params.set('documentType', parsedQuery.data.documentType)
+    params.set('page', String(parsedQuery.data.page)); params.set('limit', String(parsedQuery.data.limit))
     const response = await fetch(`${access.baseUrl}/v1/projects/${encodeURIComponent(parsedProjectId.data)}/documents?${params.toString()}`, { method: 'GET', headers: { authorization: `Bearer ${access.accessToken}`, 'x-request-id': randomUUID() }, cache: 'no-store', signal: AbortSignal.timeout(10_000) })
     const rawBody: unknown = await response.json().catch(() => null)
     if (!response.ok) {
@@ -9306,9 +9572,168 @@ export async function getProjectDocumentsThroughCoreApi(
       return { ok: false, status: response.status, error: body.success ? body.data.message : 'Project documents are unavailable.' }
     }
     const parsed = projectDocumentListResultSchema.safeParse(rawBody)
-    return parsed.success ? { ok: true, data: parsed.data } : { ok: false, status: 503, error: 'ERP Core API returned an invalid project document list.' }
+    if (
+      !parsed.success ||
+      parsed.data.projectId.toLowerCase() !== parsedProjectId.data ||
+      parsed.data.rows.some((row) => row.projectId.toLowerCase() !== parsedProjectId.data) ||
+      parsed.data.page !== parsedQuery.data.page ||
+      parsed.data.limit !== parsedQuery.data.limit ||
+      !Number.isSafeInteger(parsed.data.total) ||
+      !Number.isSafeInteger(parsed.data.totalPages) ||
+      parsed.data.totalPages !== Math.max(1, Math.ceil(parsed.data.total / parsedQuery.data.limit)) ||
+      parsed.data.rows.length > parsedQuery.data.limit ||
+      new Set(parsed.data.rows.map((row) => row.id.toLowerCase())).size !== parsed.data.rows.length ||
+      (parsedQuery.data.documentType !== undefined && parsed.data.rows.some((row) => row.documentType !== parsedQuery.data.documentType))
+    ) {
+      return { ok: false, status: 503, error: 'ERP Core API returned an invalid project document list.' }
+    }
+    return { ok: true, data: parsed.data }
   } catch {
     return { ok: false, status: 503, error: 'ERP Core API is unavailable. Project documents were not loaded.' }
+  }
+}
+
+/** Lists account-eligible documents for the KYC artifact picker. */
+export async function getAccountKycDocumentsThroughCoreApi(
+  accountId: unknown,
+  query: unknown = {},
+): Promise<CoreResult<AccountKycDocumentResult>> {
+  const parsedAccountId = z
+    .string()
+    .uuid()
+    .transform((value) => value.toLowerCase())
+    .safeParse(accountId)
+  const parsedQuery = accountKycDocumentQuerySchema.safeParse(query)
+  if (!parsedAccountId.success || !parsedQuery.success) {
+    return { ok: false, status: 400, error: 'Invalid KYC document filters.' }
+  }
+
+  const access = await getCoreApiAccess()
+  if (!access.ok) return { ...access, status: 503 }
+
+  const params = new URLSearchParams()
+  if (parsedQuery.data.q) params.set('q', parsedQuery.data.q)
+  params.set('page', String(parsedQuery.data.page))
+  params.set('limit', String(parsedQuery.data.limit))
+  if (parsedQuery.data.selectedDocumentId) {
+    params.set('selectedDocumentId', parsedQuery.data.selectedDocumentId)
+  }
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/crm/accounts/${encodeURIComponent(parsedAccountId.data)}/kyc-document-options?${params.toString()}`,
+      {
+        method: 'GET',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'x-request-id': randomUUID(),
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      },
+    )
+    const rawBody: unknown = await response.json().catch(() => null)
+    if (!response.ok) {
+      const body = z.object({ message: z.string() }).safeParse(rawBody)
+      return {
+        ok: false,
+        status: response.status,
+        error: body.success
+          ? body.data.message
+          : response.status === 403
+            ? 'You do not have permission to view account documents.'
+            : 'Account documents are unavailable.',
+      }
+    }
+
+    const parsedResult = accountKycDocumentResultSchema.safeParse(rawBody)
+    if (!parsedResult.success) {
+      return {
+        ok: false,
+        status: 502,
+        error: 'ERP Core API returned an invalid KYC document list.',
+      }
+    }
+    return { ok: true, status: response.status, data: parsedResult.data }
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      error: 'ERP Core API is unavailable. Account documents were not loaded.',
+    }
+  }
+}
+
+/** Creates an account KYC artifact through Core with immutable retry identity. */
+export async function createKycArtifactThroughCoreApi(
+  accountId: unknown,
+  command: unknown,
+): Promise<CoreResult<KycArtifactCreateResult>> {
+  const parsedAccountId = z
+    .string()
+    .uuid()
+    .transform((value) => value.toLowerCase())
+    .safeParse(accountId)
+  const parsedCommand = kycArtifactCreateCommandSchema.safeParse(command)
+  if (!parsedAccountId.success || !parsedCommand.success) {
+    return {
+      ok: false,
+      status: 400,
+      error: 'Invalid KYC artifact command.',
+    }
+  }
+
+  const access = await getCoreApiAccess()
+  if (!access.ok) return { ...access, status: 503 }
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/crm/accounts/${encodeURIComponent(parsedAccountId.data)}/kyc-artifacts`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': parsedCommand.data.clientRequestId,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(parsedCommand.data),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      },
+    )
+    const rawBody: unknown = await response.json().catch(() => null)
+    if (!response.ok) {
+      const body = z.object({ message: z.string() }).safeParse(rawBody)
+      const message = response.status >= 500
+        ? 'ERP Core API returned a server error. KYC artifact outcome is unconfirmed; retry with the same request.'
+        : body.success
+          ? body.data.message
+          : response.status === 403
+            ? 'You do not have permission to add KYC artifacts.'
+            : response.status === 404
+              ? 'Account or eligible document was not found.'
+              : response.status === 409
+                ? 'KYC artifact request conflicts with existing account evidence.'
+                : 'KYC artifact was not added.'
+      return { ok: false, status: response.status, error: message }
+    }
+
+    const parsedResult = kycArtifactCreateResultSchema.safeParse(rawBody)
+    if (!parsedResult.success) {
+      return {
+        ok: false,
+        status: 502,
+        error: 'ERP Core API returned an invalid KYC artifact result. Outcome is unconfirmed; retry with the same request.',
+      }
+    }
+    return { ok: true, status: response.status, data: parsedResult.data }
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      error: 'ERP Core API is unavailable. KYC artifact outcome is unconfirmed; retry with the same request.',
+    }
   }
 }
 
@@ -9414,7 +9839,22 @@ export async function getProjectScheduleThroughCoreApi(
       return { ok: false, status: response.status, error: body.success ? body.data.message : 'Project schedule is unavailable.' }
     }
     const parsed = projectScheduleListResultSchema.safeParse(rawBody)
-    return parsed.success ? { ok: true, data: parsed.data } : { ok: false, status: 503, error: 'ERP Core API returned an invalid schedule result.' }
+    const rowsMatchQuery = parsed.success && parsed.data.rows.every((row) =>
+      (parsedQuery.data.level === undefined || row.level === parsedQuery.data.level) &&
+      (parsedQuery.data.status === undefined || row.status === parsedQuery.data.status) &&
+      (parsedQuery.data.commitmentStatus === undefined || row.commitmentStatus === parsedQuery.data.commitmentStatus),
+    )
+    if (
+      !parsed.success ||
+      !scheduleUuidMatches(parsed.data.projectId, parsedProjectId.data) ||
+      parsed.data.page !== parsedQuery.data.page ||
+      parsed.data.limit !== parsedQuery.data.limit ||
+      !rowsMatchQuery ||
+      parsed.data.rows.some((row) => !scheduleUuidMatches(row.projectId, parsedProjectId.data))
+    ) {
+      return { ok: false, status: 503, error: 'ERP Core API returned an invalid schedule result.' }
+    }
+    return { ok: true, data: parsed.data }
   } catch {
     return { ok: false, status: 503, error: 'ERP Core API is unavailable. Project schedule was not loaded.' }
   }
@@ -9436,19 +9876,81 @@ export async function getProjectScheduleDependenciesThroughCoreApi(projectId: un
     const body: unknown = await response.json().catch(() => null)
     if (!response.ok) return { ok: false, status: response.status, error: z.object({ message: z.string() }).safeParse(body).data?.message ?? 'Schedule task choices are unavailable.' }
     const result = projectScheduleDependencyResultSchema.safeParse(body)
+    const selected = result.success ? result.data.selected : null
+    const selectedMatchesQuery = selected === null || (
+      input.data.selectedTaskId !== undefined &&
+      scheduleUuidMatches(selected.projectId, project.data) &&
+      scheduleUuidMatches(selected.id, input.data.selectedTaskId) &&
+      (input.data.excludeTaskId === undefined || !scheduleUuidMatches(selected.id, input.data.excludeTaskId))
+    )
+    const rowsMatchQuery = result.success && result.data.rows.every((row) => {
+      const levelEligible = input.data.kind === 'parent'
+        ? projectScheduleLevelOrder[row.level] < projectScheduleLevelOrder[input.data.level]
+        : row.level === input.data.level
+      return scheduleUuidMatches(row.projectId, project.data) &&
+        (input.data.excludeTaskId === undefined || !scheduleUuidMatches(row.id, input.data.excludeTaskId)) &&
+        levelEligible
+    })
     if (
       !result.success ||
-      result.data.projectId !== project.data ||
+      !scheduleUuidMatches(result.data.projectId, project.data) ||
       result.data.kind !== input.data.kind || result.data.level !== input.data.level ||
       result.data.page !== input.data.page || result.data.limit !== input.data.limit ||
-      result.data.rows.some((row) => row.projectId !== project.data || row.id === input.data.excludeTaskId) ||
-      (result.data.selected && (result.data.selected.projectId !== project.data || result.data.selected.id !== input.data.selectedTaskId))
+      !rowsMatchQuery ||
+      !selectedMatchesQuery
     ) {
       return { ok: false, status: 503, error: 'ERP Core API returned invalid schedule task choices.' }
     }
     return { ok: true, data: result.data }
   } catch {
     return { ok: false, status: 503, error: 'Schedule task choices could not be loaded. Retry without changing your selection.' }
+  }
+}
+
+export async function previewMsProjectXmlThroughCoreApi(command: unknown): Promise<CoreResult<MsProjectXmlPreviewResult>> {
+  const input = msProjectXmlPreviewCommandSchema.safeParse(command)
+  if (!input.success) return { ok: false, status: 400, error: 'Invalid XML preview command.' }
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+  try {
+    const response = await fetch(`${access.baseUrl}/v1/projects/${input.data.projectId}/schedule/ms-project-xml/preview`, {
+      method: 'POST', headers: { authorization: `Bearer ${access.accessToken}`, 'content-type': 'application/json', 'x-request-id': randomUUID() },
+      body: JSON.stringify(input.data), cache: 'no-store', signal: AbortSignal.timeout(15_000),
+    })
+    if (!response.ok) return { ok: false, status: response.status, error: 'XML preview unavailable. Check the source and your schedule permissions.' }
+    const parsed = msProjectXmlPreviewResultSchema.safeParse(await response.json())
+    if (!parsed.success || parsed.data.projectId.toLowerCase() !== input.data.projectId.toLowerCase()) return { ok: false, status: 503, error: 'Invalid XML preview response.' }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return { ok: false, status: 503, error: 'XML preview could not be loaded. Retry preview.' }
+  }
+}
+
+export async function importMsProjectXmlThroughCoreApi(command: unknown): Promise<CoreResult<MsProjectXmlImportResult>> {
+  const input = msProjectXmlCommitCommandSchema.safeParse(command)
+  if (!input.success) return { ok: false, status: 400, error: 'Invalid reviewed XML import command.' }
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+  try {
+    const response = await fetch(`${access.baseUrl}/v1/projects/${input.data.projectId}/schedule/ms-project-xml/import`, {
+      method: 'POST', headers: { authorization: `Bearer ${access.accessToken}`, 'content-type': 'application/json', 'x-request-id': randomUUID() },
+      body: JSON.stringify(input.data), cache: 'no-store', signal: AbortSignal.timeout(30_000),
+    })
+    if (!response.ok) {
+      const outcomeUnknown = response.status >= 500 || response.status === 408
+      return { ok: false, status: response.status, ...(outcomeUnknown ? { outcomeUnknown: true } : {}), error: outcomeUnknown
+        ? 'Import outcome is unconfirmed. Retry the unchanged command.'
+        : response.status === 409 ? 'Import conflicts with current schedule or account state. Retry the unchanged command if its outcome was previously unconfirmed.'
+        : 'Import rejected. Check your schedule permissions, source and reviewed mappings.' }
+    }
+    const parsed = msProjectXmlImportResultSchema.safeParse(await response.json())
+    if (!parsed.success || parsed.data.projectId.toLowerCase() !== input.data.projectId.toLowerCase() ||
+      parsed.data.requestId.toLowerCase() !== input.data.requestId.toLowerCase() || parsed.data.sourceHash !== input.data.sourceHash) {
+      return { ok: false, status: 503, outcomeUnknown: true, error: 'Import receipt could not be verified. Retry the unchanged command.' }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return { ok: false, status: 503, outcomeUnknown: true, error: 'Import outcome is unconfirmed. Retry the unchanged command.' }
   }
 }
 
@@ -9655,13 +10157,14 @@ export async function getProjectLabourReconciliationThroughCoreApi(
       }
     }
     const parsed = projectLabourReconciliationResultSchema.safeParse(rawBody)
-    return parsed.success
-      ? { ok: true, data: parsed.data }
-      : {
-          ok: false,
-          status: 503,
-          error: 'ERP Core API returned an invalid labour reconciliation result.',
-        }
+    if (!parsed.success || !scheduleUuidMatches(parsed.data.projectId, parsedProjectId.data)) {
+      return {
+        ok: false,
+        status: 503,
+        error: 'ERP Core API returned an invalid labour reconciliation result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
   } catch {
     return {
       ok: false,
@@ -9784,10 +10287,10 @@ export async function getProjectBillingMilestonesThroughCoreApi(
   if (!parsedProjectId.success) return { ok: false, status: 400, error: 'Invalid project identifier.' }
   const parsedQuery = projectBillingMilestoneListQuerySchema.safeParse(query)
   if (!parsedQuery.success) return { ok: false, status: 400, error: 'Invalid billing milestone filters.' }
-  const access = await getCoreApiAccess()
-  if (!access.ok) return access
   const params = new URLSearchParams({ page: String(parsedQuery.data.page), limit: String(parsedQuery.data.limit) })
   try {
+    const access = await getCoreApiAccess()
+    if (!access.ok) return access
     const response = await fetch(`${access.baseUrl}/v1/projects/${encodeURIComponent(parsedProjectId.data)}/billing/milestones?${params.toString()}`, { method: 'GET', headers: { authorization: `Bearer ${access.accessToken}`, 'x-request-id': randomUUID() }, cache: 'no-store', signal: AbortSignal.timeout(10_000) })
     const rawBody: unknown = await response.json().catch(() => null)
     if (!response.ok) {
@@ -9795,7 +10298,19 @@ export async function getProjectBillingMilestonesThroughCoreApi(
       return { ok: false, status: response.status, error: body.success ? body.data.message : 'Billing milestone traceability is unavailable.' }
     }
     const parsed = projectBillingMilestoneListResultSchema.safeParse(rawBody)
-    return parsed.success ? { ok: true, data: parsed.data } : { ok: false, status: 503, error: 'ERP Core API returned an invalid billing milestone result.' }
+    if (
+      !parsed.success ||
+      parsed.data.projectId !== parsedProjectId.data ||
+      parsed.data.page !== parsedQuery.data.page ||
+      parsed.data.limit !== parsedQuery.data.limit ||
+      !Number.isSafeInteger(parsed.data.total) ||
+      parsed.data.totalPages !== Math.max(1, Math.ceil(parsed.data.total / parsedQuery.data.limit)) ||
+      parsed.data.rows.length > parsedQuery.data.limit ||
+      new Set(parsed.data.rows.map(row => row.claimId)).size !== parsed.data.rows.length
+    ) {
+      return { ok: false, status: 503, error: 'ERP Core API returned an invalid billing milestone result.' }
+    }
+    return { ok: true, data: parsed.data }
   } catch {
     return { ok: false, status: 503, error: 'ERP Core API is unavailable. Billing milestone traceability was not loaded.' }
   }
@@ -9877,33 +10392,56 @@ export async function getProjectWeeklyProgressThroughCoreApi(
     const response = await fetch(`${access.baseUrl}/v1/projects/${encodeURIComponent(parsedProjectId.data)}/progress/weekly?${params.toString()}`, { method: 'GET', headers: { authorization: `Bearer ${access.accessToken}`, 'x-request-id': randomUUID() }, cache: 'no-store', signal: AbortSignal.timeout(10_000) })
     const rawBody: unknown = await response.json().catch(() => null)
     if (!response.ok) {
-      const body = z.object({ message: z.string() }).safeParse(rawBody)
-      return { ok: false, status: response.status, error: body.success ? body.data.message : 'Weekly progress is unavailable.' }
+      return { ok: false, status: response.status, error: 'Weekly progress is unavailable.' }
     }
     const parsed = projectWeeklyProgressListResultSchema.safeParse(rawBody)
-    return parsed.success ? { ok: true, data: parsed.data } : { ok: false, status: 503, error: 'ERP Core API returned an invalid weekly progress result.' }
+    return parsed.success && parsed.data.projectId.toLowerCase() === parsedProjectId.data.toLowerCase()
+      && parsed.data.page === parsedQuery.data.page && parsed.data.limit === parsedQuery.data.limit
+      && parsed.data.rows.length <= parsed.data.limit
+      && parsed.data.totalPages === Math.max(1, Math.ceil(parsed.data.total / parsed.data.limit))
+      && parsed.data.rows.every(row => row.projectId.toLowerCase() === parsedProjectId.data.toLowerCase())
+      ? { ok: true, data: parsed.data }
+      : { ok: false, status: 503, error: 'ERP Core API returned an invalid weekly progress result.' }
   } catch {
     return { ok: false, status: 503, error: 'ERP Core API is unavailable. Weekly progress was not loaded.' }
+  }
+}
+
+function weeklyProgressWriteFailure(status: number): CoreResult<never> {
+  const outcomeUnknown = status >= 500 || status === 408
+  return {
+    ok: false, status, outcomeUnknown,
+    error: outcomeUnknown
+      ? 'Weekly command outcome is unconfirmed. Retry the unchanged command to recover its receipt.'
+      : status === 409
+        ? 'Weekly progress changed, its cutoff applies, or the request needs reconciliation. Review the ledger before starting a new command.'
+        : status === 401 || status === 403
+          ? 'Your current session cannot perform this weekly progress action.'
+          : status === 404 ? 'The requested weekly progress project or period is unavailable.'
+            : status === 429 ? 'Weekly progress is busy. Try again shortly.'
+              : 'The weekly progress command was rejected. Check the submitted values.',
   }
 }
 
 /** Captures one weekly progress update and opens its Thursday cut-off period. */
 export async function createProjectWeeklyProgressThroughCoreApi(command: unknown): Promise<CoreResult<ProjectWeeklyProgressMutationResult>> {
   const parsedCommand = createProjectWeeklyProgressCommandSchema.safeParse(command)
-  if (!parsedCommand.success) return { ok: false, status: 400, error: 'Invalid weekly progress capture.' }
-  const access = await getCoreApiAccess()
-  if (!access.ok) return access
+  if (!parsedCommand.success) return { ok: false, status: 400, outcomeUnknown: false, error: 'Invalid weekly progress capture.' }
+  let access: Awaited<ReturnType<typeof getCoreApiAccess>>
+  try { access = await getCoreApiAccess() } catch {
+    return { ok: false, status: 503, outcomeUnknown: false, error: 'The Core session could not be verified. No weekly command was sent.' }
+  }
+  if (!access.ok) return { ...access, outcomeUnknown: false }
   try {
     const response = await fetch(`${access.baseUrl}/v1/projects/${encodeURIComponent(parsedCommand.data.projectId)}/progress/weekly`, { method: 'POST', headers: { authorization: `Bearer ${access.accessToken}`, 'content-type': 'application/json', 'x-request-id': randomUUID() }, body: JSON.stringify(parsedCommand.data), cache: 'no-store', signal: AbortSignal.timeout(10_000) })
     const rawBody: unknown = await response.json().catch(() => null)
     if (!response.ok) {
-      const body = z.object({ message: z.string() }).safeParse(rawBody)
-      return { ok: false, status: response.status, error: body.success ? body.data.message : response.status === 409 ? 'Weekly progress changed or passed its Thursday cut-off.' : 'Weekly progress was not captured.' }
+      return weeklyProgressWriteFailure(response.status)
     }
     const parsed = projectWeeklyProgressMutationResultSchema.safeParse(rawBody)
-    return parsed.success ? { ok: true, data: parsed.data } : { ok: false, status: 503, error: 'ERP Core API returned an invalid weekly progress result.' }
+    return parsed.success ? { ok: true, data: parsed.data } : weeklyProgressWriteFailure(503)
   } catch {
-    return { ok: false, status: 503, error: 'ERP Core API is unavailable. Progress capture outcome is unconfirmed; refresh before retrying.' }
+    return weeklyProgressWriteFailure(503)
   }
 }
 
@@ -9912,19 +10450,21 @@ export async function lockProjectWeeklyProgressThroughCoreApi(projectId: unknown
   const parsedProjectId = z.string().uuid().safeParse(projectId)
   const parsedPeriodId = z.string().uuid().safeParse(periodId)
   const parsedCommand = lockProjectWeeklyProgressCommandSchema.safeParse(command)
-  if (!parsedProjectId.success || !parsedPeriodId.success || !parsedCommand.success) return { ok: false, status: 400, error: 'Invalid weekly progress lock.' }
-  const access = await getCoreApiAccess()
-  if (!access.ok) return access
+  if (!parsedProjectId.success || !parsedPeriodId.success || !parsedCommand.success) return { ok: false, status: 400, outcomeUnknown: false, error: 'Invalid weekly progress lock.' }
+  let access: Awaited<ReturnType<typeof getCoreApiAccess>>
+  try { access = await getCoreApiAccess() } catch {
+    return { ok: false, status: 503, outcomeUnknown: false, error: 'The Core session could not be verified. No weekly command was sent.' }
+  }
+  if (!access.ok) return { ...access, outcomeUnknown: false }
   try {
     const response = await fetch(`${access.baseUrl}/v1/projects/${encodeURIComponent(parsedProjectId.data)}/progress/weekly/${encodeURIComponent(parsedPeriodId.data)}/lock`, { method: 'POST', headers: { authorization: `Bearer ${access.accessToken}`, 'content-type': 'application/json', 'x-request-id': randomUUID() }, body: JSON.stringify(parsedCommand.data), cache: 'no-store', signal: AbortSignal.timeout(10_000) })
     const rawBody: unknown = await response.json().catch(() => null)
     if (!response.ok) {
-      const body = z.object({ message: z.string() }).safeParse(rawBody)
-      return { ok: false, status: response.status, error: body.success ? body.data.message : response.status === 409 ? 'Weekly progress changed or is not past its Thursday cut-off.' : 'WAR was not locked.' }
+      return weeklyProgressWriteFailure(response.status)
     }
     const parsed = projectWeeklyProgressLockResultSchema.safeParse(rawBody)
-    return parsed.success ? { ok: true, data: parsed.data } : { ok: false, status: 503, error: 'ERP Core API returned an invalid WAR lock result.' }
+    return parsed.success ? { ok: true, data: parsed.data } : weeklyProgressWriteFailure(503)
   } catch {
-    return { ok: false, status: 503, error: 'ERP Core API is unavailable. WAR lock outcome is unconfirmed; refresh before retrying.' }
+    return weeklyProgressWriteFailure(503)
   }
 }

@@ -7,36 +7,26 @@ import { z } from 'zod'
 import {
   requireUserProfile,
   can,
-  createSupabaseAdminClient,
   type ErpCapability,
   type AppRole,
 } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   pprfSubmissions,
-  siteInspections,
   designFiles,
   designFileVersions,
   opportunities,
   documents,
-  accounts,
-  projects,
-  tenants,
-  users,
 } from '@third-code-erp/database/schema'
 import { writeAuditLog, writeAuditLogInTransaction } from '@/lib/audit'
 import {
+  archiveInspectionReportThroughCoreApi,
   changeRequestWritesUseCoreApi,
   createChangeRequestThroughCoreApi,
 } from '@/lib/erp-core-client'
 import { startSlaClock } from '@/lib/operations/sla-clock'
 import { notifyRoles } from '@/lib/operations/notifications'
 import { inngest } from '@/lib/inngest'
-import {
-  buildInspectionReportHtml,
-  type InspectionPhotoInput,
-  type InspectionRfiInput,
-} from '@/lib/pdf/site-inspection-report'
 
 // REFACTOR.md M2 US-006..US-009 — Proposal Workflow server actions.
 //
@@ -302,7 +292,7 @@ function logSiteInspectionOutcome(input: {
   traceId: string
   tenantId: string | null
   actorId: string | null
-  action: 'site_inspection.submit' | 'site_inspection_rfi.create'
+  action: 'site_inspection.submit' | 'site_inspection_rfi.create' | 'site_inspection.report_archive'
   outcome: string
   errorCode?: string
 }): void {
@@ -317,169 +307,72 @@ function logSiteInspectionOutcome(input: {
   }))
 }
 
-// US-007 #5 — Render the inspection report to HTML, upload to Storage, and
-// insert a tenant-scoped documents row + link pdf_document_id on the
-// inspection. Pre-Won opportunities have no project yet, so opportunity_id
-// is the durable parent for the report until a project is created.
-//
-// Why this lives next to the action: it's tightly coupled to the
-// submitInspection flow and only ever called from there. Extracting to a
-// dedicated module would just add an import without changing reuse.
-async function persistInspectionReport(args: {
-  tenantId: string
-  actorId: string
-  inspectionId: string
-  opportunityId: string
-  payload: Record<string, unknown>
-  photoDocumentIds: string[]
-}): Promise<void> {
-  // Resolve the joined context the builder needs. Same shape as the
-  // /print/inspection page so the archived HTML matches the live view.
-  const [oppRow] = await db
-    .select({ project_id: opportunities.project_id, account_id: opportunities.account_id })
-    .from(opportunities)
-    .where(
-      and(
-        eq(opportunities.id, args.opportunityId),
-        eq(opportunities.tenant_id, args.tenantId),
-      ),
-    )
-    .limit(1)
-  if (!oppRow) throw new Error('Opportunity not found while archiving inspection report')
 
-  const [projectRow] = oppRow.project_id
-    ? await db
-        .select({
-          id: projects.id,
-          name: projects.name,
-          client: projects.client,
-          location: projects.location,
-        })
-        .from(projects)
-        .where(and(eq(projects.id, oppRow.project_id), eq(projects.tenant_id, args.tenantId)))
-        .limit(1)
-    : [null]
+const inspectionExpectedOwnerSchema = z.object({
+  actorId: z.string().uuid(),
+  tenantId: z.string().uuid(),
+}).strict()
 
-  const [accountRow] = oppRow.account_id
-    ? await db
-        .select({
-          id: accounts.id,
-          name: accounts.name,
-          billing_address: accounts.billing_address,
-        })
-        .from(accounts)
-        .where(and(eq(accounts.id, oppRow.account_id), eq(accounts.tenant_id, args.tenantId)))
-        .limit(1)
-    : [null]
+export type InspectionSubmissionActionResult =
+  | { ok: false; error: string; outcome: 'rejected' | 'unknown' }
+  | { ok: true; inspectionId: string; replayed: boolean; refreshFailed: boolean; archiveWarning?: string; confirmation: { actorId: string; tenantId: string; opportunityId: string; submissionId: string } }
 
-  const [tenantRow] = await db
-    .select({
-      name: tenants.name,
-      bir_tin: tenants.bir_tin,
-      pcab_license: tenants.pcab_license,
-    })
-    .from(tenants)
-    .where(eq(tenants.id, args.tenantId))
-    .limit(1)
+export type InspectionReportRepairResult =
+  | { ok: false; error: string }
+  | { ok: true; documentId: string; refreshFailed: boolean }
 
-  const [inspectorRow] = await db
-    .select({ full_name: users.full_name, email: users.email })
-    .from(users)
-    .where(and(eq(users.id, args.actorId), eq(users.tenant_id, args.tenantId)))
-    .limit(1)
-
-  // Photos archive — we only need (document_id, caption) for the builder.
-  // Captions don't exist on first submission yet; pull whatever's there.
-  const photoRows: InspectionPhotoInput[] = args.photoDocumentIds.map((doc, i) => ({
-    id: `${args.inspectionId}-photo-${i}`,
-    document_id: doc,
-    caption: null,
-  }))
-
-  // RFIs are added post-submission via addInspectionRfi, so at this point
-  // there are none. The builder handles the empty case cleanly.
-  const rfiRows: InspectionRfiInput[] = []
-
-  const now = new Date()
-  const html = buildInspectionReportHtml({
-    inspection: {
-      id: args.inspectionId,
-      opportunity_id: args.opportunityId,
-      payload: args.payload,
-      submitted_at: now,
-      created_at: now,
-    },
-    photos: photoRows,
-    rfis: rfiRows,
-    project: projectRow ?? null,
-    account: accountRow ?? null,
-    brand: {
-      tenant_name: tenantRow?.name ?? null,
-      bir_tin: tenantRow?.bir_tin ?? null,
-      pcab_license: tenantRow?.pcab_license ?? null,
-      inspector_name: inspectorRow?.full_name ?? inspectorRow?.email ?? null,
-    },
-  })
-
-  // Storage path. Use project_id when we have it (groups archived reports
-  // under the project the same way other docs are organised); fall back
-  // to opportunity_id so the file still lands in a deterministic location
-  // for pre-Won inspections.
-  const folderId = oppRow.project_id ?? args.opportunityId
-  const ts = Date.now()
-  const storagePath = `${args.tenantId}/${folderId}/inspection-report-${ts}.html`
-  const fileName = `inspection-report-${args.inspectionId.slice(0, 8)}-${ts}.html`
-  const bytes = Buffer.from(html, 'utf-8')
-
-  const admin = createSupabaseAdminClient()
-  const { error: uploadErr } = await admin.storage
-    .from('documents')
-    .upload(storagePath, bytes, { contentType: 'text/html; charset=utf-8', upsert: false })
-  if (uploadErr) {
-    throw new Error(`storage upload: ${uploadErr.message}`)
-  }
-
-  const [doc] = await db
-    .insert(documents)
-    .values({
-      tenant_id: args.tenantId,
-      project_id: oppRow.project_id,
-      opportunity_id: args.opportunityId,
-      uploaded_by: args.actorId,
-      document_type: 'other',
-      file_name: fileName,
-      storage_path: storagePath,
-      mime_type: 'text/html; charset=utf-8',
-      size_bytes: bytes.length,
-      description: `Site Inspection Report (auto-generated) for inspection ${args.inspectionId}`,
-    })
-    .returning({ id: documents.id })
-
-  if (!doc) return
-
-  await db
-    .update(siteInspections)
-    .set({ pdf_document_id: doc.id, updated_at: new Date() })
-    .where(
-      and(
-        eq(siteInspections.id, args.inspectionId),
-        eq(siteInspections.tenant_id, args.tenantId)
-      )
-    )
-}
-
-export async function submitInspection(opportunityId: string, formData: FormData) {
+export async function repairInspectionReport(opportunityId: string, inspectionId: string, expectedOwner: unknown): Promise<InspectionReportRepairResult> {
   const traceId = randomUUID()
   let tenantId: string | null = null
   let actorId: string | null = null
+  let outcome = 'rejected'
+  try {
+    const profile = await requireUserProfile()
+    tenantId = profile.tenantId
+    actorId = profile.user.id
+    const owner = inspectionExpectedOwnerSchema.safeParse(expectedOwner)
+    if (!owner.success || owner.data.actorId.toLowerCase() !== actorId.toLowerCase() || owner.data.tenantId.toLowerCase() !== tenantId.toLowerCase()) {
+      return { ok: false, error: 'The signed-in account changed. Reload before repairing this report.' }
+    }
+    if (!can(profile.role, 'site_inspection.submit')) return { ok: false, error: 'You cannot archive inspection reports.' }
+    if (!z.string().uuid().safeParse(opportunityId).success || !z.string().uuid().safeParse(inspectionId).success) return { ok: false, error: 'Invalid inspection report request.' }
+    const result = await archiveInspectionReportThroughCoreApi({ opportunityId, inspectionId })
+    if (!result.ok || !result.data || result.data.tenantId.toLowerCase() !== tenantId.toLowerCase() || result.data.opportunityId.toLowerCase() !== opportunityId.toLowerCase() || result.data.inspectionId.toLowerCase() !== inspectionId.toLowerCase()) {
+      outcome = 'unconfirmed'
+      return { ok: false, error: 'Report archive is unconfirmed. Your inspection remains submitted. Retry this report.' }
+    }
+    let refreshFailed = false
+    try { revalidatePath(`/crm/opportunities/${opportunityId}/proposal/inspection`) } catch { refreshFailed = true }
+    outcome = refreshFailed ? 'success_refresh_failed' : 'success'
+    return { ok: true, documentId: result.data.documentId, refreshFailed }
+  } catch {
+    outcome = 'unconfirmed'
+    return { ok: false, error: 'Report archive is unconfirmed. Your inspection remains submitted. Retry this report.' }
+  } finally {
+    logSiteInspectionOutcome({ traceId, tenantId, actorId, action: 'site_inspection.report_archive', outcome })
+  }
+}
+
+export async function submitInspection(opportunityId: string, formData: FormData, expectedOwner?: unknown): Promise<InspectionSubmissionActionResult> {
+  const traceId = randomUUID()
+  let tenantId: string | null = null
+  let actorId: string | null = null
+  let serviceStarted = false
   const action = 'site_inspection.submit' as const
   try {
     const profile = await requireUserProfile()
     tenantId = profile.tenantId
     actorId = profile.user.id
+    if (expectedOwner !== undefined) {
+      const owner = inspectionExpectedOwnerSchema.safeParse(expectedOwner)
+      if (!owner.success || owner.data.actorId.toLowerCase() !== actorId.toLowerCase() || owner.data.tenantId.toLowerCase() !== tenantId.toLowerCase()) {
+        logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'forbidden' })
+        return { ok: false, outcome: 'rejected', error: 'The signed-in account changed. Reload before submitting this inspection.' }
+      }
+    }
     if (!can(profile.role, 'site_inspection.submit')) {
       logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'forbidden' })
-      return { ok: false as const, error: 'You do not have permission to submit a site inspection.' }
+      return { ok: false as const, outcome: 'rejected', error: 'You do not have permission to submit a site inspection.' }
     }
 
     const fields = readExactTextFields(
@@ -487,7 +380,7 @@ export async function submitInspection(opportunityId: string, formData: FormData
     )
     if (!fields.ok) {
       logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'validation_error' })
-      return { ok: false as const, error: fields.error }
+      return { ok: false as const, outcome: 'rejected', error: fields.error }
     }
 
     let photoDocumentIds: unknown
@@ -495,7 +388,7 @@ export async function submitInspection(opportunityId: string, formData: FormData
       photoDocumentIds = JSON.parse(fields.values.photo_document_ids)
     } catch {
       logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'validation_error' })
-      return { ok: false as const, error: 'photo_document_ids: must be a JSON array of UUIDs' }
+      return { ok: false as const, outcome: 'rejected', error: 'photo_document_ids: must be a JSON array of UUIDs' }
     }
     const command = siteInspectionSubmissionCommandSchema.safeParse({
       kind: 'inspection_submission',
@@ -516,23 +409,25 @@ export async function submitInspection(opportunityId: string, formData: FormData
     if (!command.success) {
       const first = command.error.errors[0]
       logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'validation_error' })
-      return { ok: false as const, error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}` }
+      return { ok: false as const, outcome: 'rejected', error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}` }
     }
 
+    serviceStarted = true
     const rawResult = await siteInspectionWorkflowService.submitInspection(
       { tenantId, userId: actorId }, command.data,
     )
     const checked = siteInspectionWorkflowResultSchema.safeParse(rawResult)
     if (!checked.success) {
       logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'service_contract_failure' })
-      return { ok: false as const, error: 'The inspection service returned an invalid response. Please retry.' }
+      return { ok: false as const, outcome: 'unknown', error: 'The inspection service returned an invalid response. Please retry.' }
     }
     if (!checked.data.ok) {
       logSiteInspectionOutcome({
         traceId, tenantId, actorId, action, outcome: 'service_rejected',
         errorCode: checked.data.error.code,
       })
-      return { ok: false as const, error: checked.data.error.message }
+      // A replay conflict can describe an already-committed but incomplete receipt.
+      return { ok: false as const, outcome: ['INTERNAL_ERROR', 'CONFLICT'].includes(checked.data.error.code) ? 'unknown' : 'rejected', error: checked.data.error.message }
     }
     if (
       checked.data.kind !== 'inspection_submission' ||
@@ -543,32 +438,20 @@ export async function submitInspection(opportunityId: string, formData: FormData
       checked.data.linkedPhotoCount !== command.data.photoDocumentIds.length
     ) {
       logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'service_contract_failure' })
-      return { ok: false as const, error: 'The inspection service response did not match this submission. Please retry.' }
+      return { ok: false as const, outcome: 'unknown', error: 'The inspection service response did not match this submission. Please retry.' }
     }
 
     let archiveWarning: string | undefined
-    if (!checked.data.replayed) {
-      try {
-        await persistInspectionReport({
-          tenantId,
-          actorId,
-          inspectionId: checked.data.inspectionId,
-          opportunityId,
-          payload: {
-            site_address: command.data.payload.siteAddress,
-            floor_area_sqm: command.data.payload.floorAreaSqm,
-            landlord_contact: command.data.payload.landlordContact,
-            as_built_available: command.data.payload.asBuiltAvailable,
-            expected_start_date: command.data.payload.expectedStartDate,
-            weather: command.data.payload.weather,
-            accessibility_notes: command.data.payload.accessibilityNotes,
-            observations: command.data.payload.observations,
-          },
-          photoDocumentIds: command.data.photoDocumentIds,
-        })
-      } catch {
-        archiveWarning = 'The inspection was submitted, but its report could not be archived. Retry the report repair later.'
+    try {
+      const archived = await archiveInspectionReportThroughCoreApi({
+        opportunityId, inspectionId: checked.data.inspectionId,
+      })
+      if (!archived.ok || !archived.data || archived.data.tenantId.toLowerCase() !== tenantId.toLowerCase() ||
+        archived.data.opportunityId.toLowerCase() !== opportunityId.toLowerCase() || archived.data.inspectionId.toLowerCase() !== checked.data.inspectionId.toLowerCase()) {
+        archiveWarning = 'The inspection was submitted, but its report could not be archived. Use Retry report archive on this inspection.'
       }
+    } catch {
+      archiveWarning = 'The inspection was submitted, but its report could not be archived. Use Retry report archive on this inspection.'
     }
 
     let refreshFailed = false
@@ -588,6 +471,7 @@ export async function submitInspection(opportunityId: string, formData: FormData
     logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome })
     return {
       ok: true as const,
+      confirmation: { actorId, tenantId, opportunityId: command.data.opportunityId, submissionId: command.data.submissionId },
       inspectionId: checked.data.inspectionId,
       replayed: checked.data.replayed,
       refreshFailed,
@@ -595,31 +479,62 @@ export async function submitInspection(opportunityId: string, formData: FormData
     }
   } catch {
     logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'unexpected_error' })
-    return { ok: false as const, error: 'Unable to submit the inspection. Please retry.' }
+    return { ok: false as const, outcome: serviceStarted ? 'unknown' : 'rejected', error: serviceStarted ? 'The inspection outcome is unconfirmed. Retry the unchanged submission.' : 'Your access could not be verified. Sign in again or retry.' }
   }
 }
+
+type InspectionRfiActionResult =
+  | {
+      ok: true
+      rfiId: string
+      replayed: boolean
+      refreshFailed: boolean
+      confirmation: {
+        actorId: string
+        tenantId: string
+        submissionId: string
+        opportunityId: string
+        inspectionId: string
+      }
+    }
+  | { ok: false; error: string; code: string; outcome: 'rejected' | 'unknown' }
 
 export async function addInspectionRfi(
   opportunityId: string,
   inspectionId: string,
   formData: FormData,
-) {
+  expectedOwner?: unknown,
+): Promise<InspectionRfiActionResult> {
   const traceId = randomUUID()
   let tenantId: string | null = null
   let actorId: string | null = null
   const action = 'site_inspection_rfi.create' as const
+  let serviceStarted = false
   try {
     const profile = await requireUserProfile()
     tenantId = profile.tenantId
     actorId = profile.user.id
+    // A queued command belongs to its original author, not whichever account
+    // has since signed in on this browser. These IDs are preconditions only.
+    if (expectedOwner !== undefined) {
+      const owner = inspectionExpectedOwnerSchema.safeParse(expectedOwner)
+      if (!owner.success) {
+        logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'validation_error' })
+        return { ok: false, error: 'The queued RFI owner is invalid. Your saved command was not submitted.', code: 'VALIDATION_ERROR', outcome: 'rejected' }
+      }
+      if (owner.data.actorId !== actorId || owner.data.tenantId !== tenantId) {
+        logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'owner_changed' })
+        return { ok: false, error: 'Sign in with the account that saved this RFI before retrying.', code: 'OWNER_CHANGED', outcome: 'rejected' }
+      }
+    }
     if (!can(profile.role, 'site_inspection.submit')) {
       logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'forbidden' })
-      return { ok: false as const, error: 'You do not have permission to add an inspection RFI.' }
+      return { ok: false, error: 'You do not have permission to add an inspection RFI.', code: 'FORBIDDEN', outcome: 'rejected' }
     }
     const fields = readExactTextFields(formData, RFI_FIELD_NAMES, RFI_FIELD_NAME_SET)
     if (!fields.ok) {
       logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'validation_error' })
-      return { ok: false as const, error: fields.error }
+      return { ok: false, error: fields.error, code: 'VALIDATION_ERROR', outcome: 'rejected' }
     }
     const command = siteInspectionRfiCommandSchema.safeParse({
       kind: 'rfi_creation',
@@ -632,23 +547,24 @@ export async function addInspectionRfi(
     if (!command.success) {
       const first = command.error.errors[0]
       logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'validation_error' })
-      return { ok: false as const, error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}` }
+      return { ok: false, error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}`, code: 'VALIDATION_ERROR', outcome: 'rejected' }
     }
 
+    serviceStarted = true
     const rawResult = await siteInspectionWorkflowService.createRfi(
       { tenantId, userId: actorId }, command.data,
     )
     const checked = siteInspectionWorkflowResultSchema.safeParse(rawResult)
     if (!checked.success) {
       logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'service_contract_failure' })
-      return { ok: false as const, error: 'The RFI service returned an invalid response. Please retry.' }
+      return { ok: false, error: 'The RFI service returned an invalid response. Please retry.', code: 'UNCONFIRMED', outcome: 'unknown' }
     }
     if (!checked.data.ok) {
       logSiteInspectionOutcome({
         traceId, tenantId, actorId, action, outcome: 'service_rejected',
         errorCode: checked.data.error.code,
       })
-      return { ok: false as const, error: checked.data.error.message }
+      return { ok: false, error: checked.data.error.message, code: checked.data.error.code, outcome: checked.data.error.code === 'INTERNAL_ERROR' ? 'unknown' : 'rejected' }
     }
     if (
       checked.data.kind !== 'rfi_creation' ||
@@ -659,7 +575,7 @@ export async function addInspectionRfi(
       checked.data.priority !== command.data.priority
     ) {
       logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'service_contract_failure' })
-      return { ok: false as const, error: 'The RFI service response did not match this request. Please retry.' }
+      return { ok: false, error: 'The RFI service response did not match this request. Please retry.', code: 'UNCONFIRMED', outcome: 'unknown' }
     }
 
     let refreshFailed = false
@@ -677,10 +593,22 @@ export async function addInspectionRfi(
       rfiId: checked.data.rfiId,
       replayed: checked.data.replayed,
       refreshFailed,
+      confirmation: {
+        actorId,
+        tenantId,
+        submissionId: command.data.submissionId,
+        opportunityId: command.data.opportunityId,
+        inspectionId: command.data.inspectionId,
+      },
     }
   } catch {
     logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'unexpected_error' })
-    return { ok: false as const, error: 'Unable to add the RFI. Please retry.' }
+    return {
+      ok: false,
+      error: serviceStarted ? 'The RFI outcome could not be confirmed. Retry the saved command.' : 'Your access could not be verified. Sign in again or retry.',
+      code: serviceStarted ? 'UNCONFIRMED' : 'ACCESS_UNAVAILABLE',
+      outcome: serviceStarted ? 'unknown' : 'rejected',
+    }
   }
 }
 

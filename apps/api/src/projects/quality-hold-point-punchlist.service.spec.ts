@@ -126,6 +126,7 @@ function harness(
 }
 
 const membership = [{ tenantId: PRINCIPAL.tenantId, role: PRINCIPAL.role, email: PRINCIPAL.email }]
+const tenant = [{ id: PRINCIPAL.tenantId }]
 const project = [{ id: PROJECT_ID }]
 
 const command = {
@@ -145,15 +146,24 @@ const command = {
 const COMMAND_HASH = createHash('sha256').update(JSON.stringify(command)).digest('hex')
 
 describe('QualityHoldPointsService rejected-IWR punchlist handoff', () => {
+  it('maps nested PostgreSQL contention only after the transaction rejects', async () => {
+    const probe = harness([])
+    probe.transaction.mockRejectedValueOnce({ cause: { cause: { code: '55P03' } } })
+    await expect(probe.service.handoffToPunchlist(PROJECT_ID, IWR_ID, command, PRINCIPAL)).rejects.toBeInstanceOf(ConflictException)
+    const otherError = new Error('Unrelated failure')
+    probe.transaction.mockRejectedValueOnce(otherError)
+    await expect(probe.service.handoffToPunchlist(PROJECT_ID, IWR_ID, command, PRINCIPAL)).rejects.toBe(otherError)
+  })
   it('creates linked punchlist rows, snapshots rejection evidence, locks the IWR, and audits atomically', async () => {
     const probe = harness(
-      [membership, project, [source()], [], [],],
+      [membership, tenant, project, [source()], [], [],],
       { insertResults: [[handoff({ requestHash: undefined })], [item()]], updateResult: [{ id: IWR_ID }] },
     )
     const result = await probe.service.handoffToPunchlist(PROJECT_ID, IWR_ID, command, PRINCIPAL)
 
     expect(result).toMatchObject({
       created: true,
+      clientRequestId: REQUEST_ID,
       changed: true,
       qualityHoldPointId: IWR_ID,
       handoffId: HANDOFF_ID,
@@ -181,20 +191,20 @@ describe('QualityHoldPointsService rejected-IWR punchlist handoff', () => {
   })
 
   it('replays the same client request without duplicating linked rows', async () => {
-    const probe = harness([membership, project, [source({ punchlistHandoffAt: CREATED_AT })], [handoff({ requestHash: COMMAND_HASH })], [item()]])
+    const probe = harness([membership, tenant, project, [source({ punchlistHandoffAt: CREATED_AT })], [handoff({ requestHash: COMMAND_HASH })], [item()]])
     const result = await probe.service.handoffToPunchlist(PROJECT_ID, IWR_ID, command, PRINCIPAL)
 
-    expect(result).toMatchObject({ created: false, changed: false, handoffId: HANDOFF_ID, items: [{ id: ITEM_ID }] })
+    expect(result).toMatchObject({ clientRequestId: REQUEST_ID, created: false, changed: false, handoffId: HANDOFF_ID, items: [{ id: ITEM_ID }] })
     expect(probe.insert).not.toHaveBeenCalled()
     expect(probe.audit.writeSemantic).not.toHaveBeenCalled()
   })
 
   it('denies accepted IWRs, a second handoff, and a caller without punchlist capability', async () => {
-    const accepted = harness([membership, project, [source({ status: 'accepted' })]])
+    const accepted = harness([membership, tenant, project, [source({ status: 'accepted' })]])
     await expect(accepted.service.handoffToPunchlist(PROJECT_ID, IWR_ID, command, PRINCIPAL))
       .rejects.toBeInstanceOf(ConflictException)
 
-    const locked = harness([membership, project, [source({ punchlistHandoffAt: CREATED_AT })], [handoff({ clientRequestId: '99999999-9999-4999-8999-999999999999' })]])
+    const locked = harness([membership, tenant, project, [source({ punchlistHandoffAt: CREATED_AT })], [handoff({ clientRequestId: '99999999-9999-4999-8999-999999999999' })]])
     await expect(locked.service.handoffToPunchlist(PROJECT_ID, IWR_ID, command, PRINCIPAL))
       .rejects.toBeInstanceOf(ConflictException)
 
@@ -209,14 +219,14 @@ describe('QualityHoldPointsService rejected-IWR punchlist handoff', () => {
       ...command,
       planDocumentId: '88888888-8888-4888-8888-888888888888',
     }
-    const documentDenied = harness([membership, project, [source()], [], []])
+    const documentDenied = harness([membership, tenant, project, [source()], [], []])
     await expect(documentDenied.service.handoffToPunchlist(PROJECT_ID, IWR_ID, withDocument, PRINCIPAL))
       .rejects.toBeInstanceOf(NotFoundException)
     expect(documentDenied.insert).not.toHaveBeenCalled()
 
     const auditFailure = new Error('audit unavailable')
     const probe = harness(
-      [membership, project, [source()], [], [],],
+      [membership, tenant, project, [source()], [], [],],
       { insertResults: [[handoff({ requestHash: undefined })], [item()]], updateResult: [{ id: IWR_ID }], auditError: auditFailure },
     )
     await expect(probe.service.handoffToPunchlist(PROJECT_ID, IWR_ID, command, PRINCIPAL))

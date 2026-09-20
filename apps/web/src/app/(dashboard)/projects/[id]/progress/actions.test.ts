@@ -10,6 +10,9 @@ const mocks = vi.hoisted(() => ({
   writeAuditLog: vi.fn(),
   writeAuditLogInTransaction: vi.fn(),
   revalidatePath: vi.fn(),
+  coreEnabled: vi.fn(),
+  capture: vi.fn(),
+  lock: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/database', () => ({ db: mocks.db }))
@@ -18,11 +21,11 @@ vi.mock('@/lib/audit', () => ({ writeAuditLog: mocks.writeAuditLog, writeAuditLo
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }))
 vi.mock('@/lib/operations/notifications', () => ({ notifyRoles: vi.fn() }))
 vi.mock('@/lib/erp-core-client', () => ({
-  createProjectWeeklyProgressThroughCoreApi: vi.fn(),
-  lockProjectWeeklyProgressThroughCoreApi: vi.fn(),
-  projectWeeklyProgressWritesUseCoreApi: vi.fn(() => false),
+  createProjectWeeklyProgressThroughCoreApi: mocks.capture,
+  lockProjectWeeklyProgressThroughCoreApi: mocks.lock,
+  projectWeeklyProgressWritesUseCoreApi: mocks.coreEnabled,
 }))
-import { importMasterSchedule } from './actions'
+import { importMasterSchedule, submitWeeklyProgress, lockWeeklyProgress } from './actions'
 import { parseMasterScheduleCsv } from './master-schedule-parser'
 
 const PROJECT_ID = '33333333-3333-4333-8333-333333333333'
@@ -151,5 +154,28 @@ describe('master schedule CSV validation', () => {
     await expect(importMasterSchedule(PROJECT_ID, VALID_IMPORT)).resolves.toMatchObject({
       error: 'Schedule replacement failed. Existing schedule was preserved.',
     })
+  })
+})
+
+describe('outdated Core weekly action callers', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.getUserProfile.mockResolvedValue(PROFILE)
+    mocks.can.mockReturnValue(true)
+    mocks.db.select.mockReturnValue(selectBuilder([{ id: PROJECT_ID }]))
+    mocks.coreEnabled.mockReturnValue(true)
+    mocks.capture.mockResolvedValue({ ok: true, data: { row: { progressUpdateId: SCHEDULE_ID } } })
+    mocks.lock.mockResolvedValue({ ok: true, data: { row: { id: SCHEDULE_ID } } })
+  })
+
+  it('requires refresh rather than creating a new Core request key on each old capture call', async () => {
+    await expect(submitWeeklyProgress(PROJECT_ID, '2026-10-04', { civil_pct: 10, electrical_pct: 10, mep_pct: 10, finishes_pct: 10, overall_pct: 10 })).resolves.toMatchObject({ error: expect.stringMatching(/refresh/i) })
+    expect(mocks.capture).not.toHaveBeenCalled()
+    expect(mocks.db.transaction).not.toHaveBeenCalled()
+  })
+
+  it('requires the keyed WAR command flow for outdated Web lock calls', async () => {
+    await expect(lockWeeklyProgress(PROJECT_ID, SCHEDULE_ID, 1)).resolves.toMatchObject({ error: expect.stringMatching(/refresh/i) })
+    expect(mocks.lock).not.toHaveBeenCalled()
   })
 })

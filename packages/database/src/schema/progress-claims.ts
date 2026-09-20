@@ -76,6 +76,7 @@ export const progressClaimDocuments = pgTable(
   },
   (table) => ({
     claimIdx: index('idx_progress_claim_docs_claim').on(table.claim_id),
+    tenantDocumentIdx: index('idx_progress_claim_docs_tenant_document').on(table.tenant_id, table.document_id),
   })
 )
 

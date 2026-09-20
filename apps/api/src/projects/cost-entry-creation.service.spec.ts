@@ -1,6 +1,7 @@
 import 'reflect-metadata'
 
 import {
+  ConflictException,
   ForbiddenException,
   ServiceUnavailableException,
 } from '@nestjs/common'
@@ -65,7 +66,12 @@ const REPLAY_RESULT = {
 }
 
 function selectQuery(rows: unknown[]) {
-  const rowLock = vi.fn().mockResolvedValue(rows)
+  const rowLock = vi.fn().mockImplementation(async () => rows.map(row => {
+    if (typeof row !== 'object' || row === null) return row
+    if ('role' in row) return { accountStatus: 'active', ...row }
+    if ('requestHash' in row) return { createdBy: PRINCIPAL.userId, ...row }
+    return row
+  }))
   const limit = vi.fn().mockReturnValue({ for: rowLock })
   const where = vi.fn().mockReturnValue({ limit, for: rowLock })
   const from = vi.fn().mockReturnValue({ where })
@@ -76,6 +82,7 @@ function enabledService(
   transactionClient: Record<string, unknown>,
   audit = { stampActor: vi.fn(), writeSemantic: vi.fn() }
 ) {
+  transactionClient.execute ??= vi.fn().mockResolvedValue([{ status: 'active' }])
   const config = {
     get: vi.fn((key: string) =>
       key === 'ERP_COST_ENTRY_CREATE_WRITES_ENABLED'
@@ -162,17 +169,19 @@ describe('CostEntryCreationService', () => {
     expect(audit.stampActor).not.toHaveBeenCalled()
   })
 
-  it('replays the exact result without inserting or writing a second audit row', async () => {
+  it.each(['active', 'suspended', 'other-actor'] as const)('checks %s before replaying the exact result', async (scenario) => {
     const membershipQuery = selectQuery([
       {
         tenantId: PRINCIPAL.tenantId,
         role: PRINCIPAL.role,
         email: PRINCIPAL.email,
+        accountStatus: scenario === 'suspended' ? 'suspended' : 'active',
       },
     ])
     const request = {
       id: '66666666-6666-4666-8666-666666666666',
       requestHash: '',
+      createdBy: scenario === 'other-actor' ? CREATED.id : PRINCIPAL.userId,
       state: 'succeeded',
       result: REPLAY_RESULT,
     }
@@ -190,14 +199,18 @@ describe('CostEntryCreationService', () => {
     }
     const { service, transaction, audit } = enabledService(transactionClient)
 
-    await expect(
-      service.create(
+    const result = service.create(
         CREATED.project_id,
         COMMAND,
         PRINCIPAL,
         'cost-create-replay'
       )
-    ).resolves.toEqual(REPLAY_RESULT)
+    if (scenario !== 'active') {
+      await expect(result).rejects.toBeInstanceOf(scenario === 'suspended' ? ForbiddenException : ConflictException)
+      expect(audit.writeSemantic).not.toHaveBeenCalled()
+      return
+    }
+    await expect(result).resolves.toEqual(REPLAY_RESULT)
     expect(transaction).toHaveBeenCalledOnce()
     expect(transactionClient.select).toHaveBeenCalledTimes(2)
     expect(transactionClient.insert).toHaveBeenCalledOnce()

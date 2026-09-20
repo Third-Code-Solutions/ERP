@@ -6,6 +6,9 @@ import {
   projectBudgetLines,
   projectBudgets,
   projects,
+  users,
+  tenants,
+  auditLog,
 } from '@third-code-erp/database/schema'
 
 const mocks = vi.hoisted(() => ({
@@ -28,6 +31,8 @@ const mocks = vi.hoisted(() => ({
   txValues: vi.fn(),
   txInsertReturning: vi.fn(),
   writeAuditLog: vi.fn(),
+  writeAuditLogInTransaction: vi.fn(),
+  stampActorInTransaction: vi.fn(),
   revalidatePath: vi.fn(),
 }))
 
@@ -46,6 +51,8 @@ vi.mock('@third-code-erp/database', () => ({
 
 vi.mock('@/lib/audit', () => ({
   writeAuditLog: mocks.writeAuditLog,
+  writeAuditLogInTransaction: mocks.writeAuditLogInTransaction,
+  stampActorInTransaction: mocks.stampActorInTransaction,
 }))
 
 vi.mock('next/cache', () => ({
@@ -57,6 +64,7 @@ import {
   createProjectBudget,
   saveProjectBudget,
   submitProjectBudget,
+  reviseProjectBudget,
 } from './actions'
 
 const PROFILE = {
@@ -76,6 +84,8 @@ const REPLACEMENT_BOM_LINE_ID = '99999999-9999-4999-8999-999999999999'
 const SECOND_BUDGET_LINE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 const SECOND_COST_CODE_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 const SECOND_BOM_LINE_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+const REQUEST_ID = 'ffffffff-ffff-4fff-8fff-ffffffffffff'
+const DRAFT_VERSION = '100:1780000000.000000'
 const NEW_BUDGET_LINE_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
 const CLIENT_LINE_KEY = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
 const FIRST_CREATED_AT = new Date('2026-08-01T00:00:00.000Z')
@@ -92,6 +102,8 @@ function saveForm(lines: unknown, sourceBomId?: string): FormData {
   const form = new FormData()
   form.set('project_id', PROJECT_ID)
   form.set('budget_id', BUDGET_ID)
+  form.set('request_id', REQUEST_ID)
+  form.set('expected_version', DRAFT_VERSION)
   form.set('control_mode', 'warn')
   form.set('tolerance_bps', '0')
   form.set('currency', 'PHP')
@@ -123,8 +135,23 @@ describe('Project Budget workflow actions', () => {
     mocks.writeAuditLog.mockResolvedValue(undefined)
     const query = budgetQuery([{ id: BUDGET_ID }])
     mocks.select.mockReturnValue({ from: query.from })
-    mocks.txSelect.mockReturnValue({ from: mocks.txFrom })
-    mocks.txExecute.mockResolvedValue([])
+    mocks.txSelect.mockImplementation((selection?: unknown) => ({ from: (table: unknown) => {
+      if (table === users) return { where: () => ({ limit: () => ({ for: async () => [{ role: (await mocks.requireUserProfile()).role }] }) }) }
+      if (table === tenants || table === projects) return { where: () => ({ limit: () => ({ for: async () => [{ id: table === tenants ? PROFILE.tenantId : PROJECT_ID }] }) }) }
+      if (table === projectBudgets && selection === undefined) return { where: () => ({ limit: () => ({ for: async () => [{ id: BUDGET_ID, status: 'pending_approval', submitted_by: null, submitted_at: null }] }) }) }
+      if (table === auditLog) return { where: () => ({ limit: async () => [] }) }
+      return mocks.txFrom(table)
+    } }))
+    mocks.txFrom.mockImplementation((table: unknown) => ({ where: () => ({ limit: () => ({ for: async () => {
+      if (table === users) return [{ role: PROFILE.role }]
+      if (table === tenants) return [{ id: PROFILE.tenantId }]
+      if (table === projectBudgets) return [{ id: BUDGET_ID, status: 'pending_approval', submitted_by: null, submitted_at: null }]
+      throw new Error('Unexpected workflow query')
+    } }) }) }))
+    mocks.txExecute.mockImplementation(async statement => {
+      const query = new PgDialect().sqlToQuery(statement).sql
+      return query.includes('extract(epoch from updated_at)') ? [{ version: DRAFT_VERSION }] : []
+    })
     mocks.txDelete.mockReturnValue({ where: mocks.txDeleteWhere })
     mocks.txDeleteWhere.mockReturnValue({
       returning: mocks.txDeleteReturning,
@@ -162,13 +189,11 @@ describe('Project Budget workflow actions', () => {
   it('submits only through the trusted workflow after a tenant lookup', async () => {
     const result = await submitProjectBudget(PROJECT_ID, BUDGET_ID)
 
-    expect(result).toEqual({ ok: true, id: BUDGET_ID })
-    expect(mocks.requireCapability).toHaveBeenCalledWith(
-      PROFILE,
-      'budget.manage'
-    )
-    expect(mocks.execute).toHaveBeenCalledOnce()
-    expect(mocks.writeAuditLog).toHaveBeenCalledWith(
+    expect(result).toMatchObject({ ok: true, id: BUDGET_ID, receipt: { projectId: PROJECT_ID, sourceBudgetId: BUDGET_ID, operation: 'submit', resultBudgetId: BUDGET_ID, status: 'pending_approval' } })
+    expect(mocks.execute).not.toHaveBeenCalled()
+    expect(mocks.stampActorInTransaction).toHaveBeenCalledWith(expect.any(Object), PROFILE.user.id)
+    expect(mocks.writeAuditLogInTransaction).toHaveBeenCalledWith(
+      expect.any(Object),
       expect.objectContaining({
         entityId: BUDGET_ID,
         action: 'status_change',
@@ -186,16 +211,53 @@ describe('Project Budget workflow actions', () => {
       'finance'
     )
 
-    expect(result).toEqual({ ok: true, id: BUDGET_ID })
-    expect(mocks.requireCapability).toHaveBeenCalledWith(
-      PROFILE,
-      'budget.approve_finance'
-    )
-    expect(mocks.execute).toHaveBeenCalledOnce()
+    expect(result).toMatchObject({ ok: true, id: BUDGET_ID, receipt: { operation: 'finance' } })
+    expect(mocks.execute).not.toHaveBeenCalled()
+    const denied = await approveProjectBudget(PROJECT_ID, BUDGET_ID, 'commercial')
+    expect(denied).toMatchObject({ error: 'Your current account cannot perform this Project Budget workflow.' })
+  })
+
+  it('rejects a forged submit operation passed as an approval lane', async () => {
+    // Reflect exercises the runtime boundary without pretending the input is typed.
+    const result: unknown = await Reflect.apply(approveProjectBudget, undefined, [PROJECT_ID, BUDGET_ID, 'submit'])
+    expect(result).toMatchObject({ error: 'Project Budget approval lane is invalid.' })
+    expect(mocks.transaction).not.toHaveBeenCalled()
+  })
+
+  it('does not promise a safe retry for an unkeyed revision with unknown outcome', async () => {
+    mocks.txExecute.mockRejectedValueOnce(new Error('Synthetic connection loss'))
+    expect(await reviseProjectBudget(PROJECT_ID, BUDGET_ID, 'Revised allocation')).toEqual({
+      error: 'Project Budget outcome could not be confirmed. Refresh and inspect revisions before starting another revision.',
+      unconfirmed: true,
+    })
+  })
+
+  it('uses PostgreSQL canonical UUID text for the workflow advisory key', async () => {
+    await submitProjectBudget(PROJECT_ID, BUDGET_ID)
+    const dialect = new PgDialect()
+    const statements = mocks.txExecute.mock.calls.map(([statement]) => dialect.sqlToQuery(statement).sql)
+    expect(statements.find(statement => statement.includes('pg_advisory_xact_lock'))).toContain("::uuid::text || ':' ||")
+  })
+
+  it('fails closed when a legacy save lacks its request and version preconditions', async () => {
+    const form = saveForm([])
+    form.delete('request_id')
+    form.delete('expected_version')
+    expect(await saveProjectBudget(form)).toEqual({ error: 'Reload this draft before saving; a request key and current version are required.' })
+    expect(mocks.transaction).not.toHaveBeenCalled()
+  })
+
+  it('rejects a stale draft version before any data write', async () => {
+    const form = saveForm([{ costCodeId: COST_CODE_ID, description: 'Stale edit', amountPhp: '1.00' }])
+    form.set('expected_version', '99:1779999999.000000')
+    expect(await saveProjectBudget(form)).toEqual({ error: 'This draft changed after you loaded it. Reload before saving; your edits were not applied.' })
+    expect(mocks.txUpdate).not.toHaveBeenCalled()
+    expect(mocks.txInsert).not.toHaveBeenCalled()
+    expect(mocks.txDelete).not.toHaveBeenCalled()
   })
 
   it('returns a safe database control message without audit or revalidation', async () => {
-    mocks.execute.mockRejectedValue(
+    mocks.txExecute.mockRejectedValueOnce(
       new Error(
         'Project Budget creator cannot approve their own revision: internal detail'
       )
@@ -210,7 +272,7 @@ describe('Project Budget workflow actions', () => {
     expect(result).toEqual({
       error: 'Project Budget creator cannot approve their own revision',
     })
-    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
     expect(mocks.revalidatePath).not.toHaveBeenCalled()
   })
 
@@ -277,11 +339,13 @@ describe('Project Budget workflow actions', () => {
     expect(firstResult).toEqual({
       ok: true,
       id: BUDGET_ID,
+      receipt: expect.objectContaining({ operation: 'save_draft', projectId: PROJECT_ID, sourceBudgetId: BUDGET_ID, resultId: BUDGET_ID, requestId: REQUEST_ID, expectedVersion: DRAFT_VERSION, resultVersion: DRAFT_VERSION }),
       lines: expectedLines,
     })
     expect(secondResult).toEqual({
       ok: true,
       id: BUDGET_ID,
+      receipt: expect.objectContaining({ operation: 'save_draft', projectId: PROJECT_ID, sourceBudgetId: BUDGET_ID, resultId: BUDGET_ID, requestId: REQUEST_ID, expectedVersion: DRAFT_VERSION, resultVersion: DRAFT_VERSION }),
       lines: expectedLines,
     })
     expect(mocks.txFrom).not.toHaveBeenCalledWith(boms)
@@ -361,6 +425,7 @@ describe('Project Budget workflow actions', () => {
     expect(firstResult).toEqual({
       ok: true,
       id: BUDGET_ID,
+      receipt: expect.objectContaining({ operation: 'save_draft', projectId: PROJECT_ID, sourceBudgetId: BUDGET_ID, resultId: BUDGET_ID, requestId: REQUEST_ID, expectedVersion: DRAFT_VERSION, resultVersion: DRAFT_VERSION }),
       lines: [
         {
           id: NEW_BUDGET_LINE_ID,
@@ -386,6 +451,7 @@ describe('Project Budget workflow actions', () => {
     expect(secondResult).toEqual({
       ok: true,
       id: BUDGET_ID,
+      receipt: expect.objectContaining({ operation: 'save_draft', projectId: PROJECT_ID, sourceBudgetId: BUDGET_ID, resultId: BUDGET_ID, requestId: REQUEST_ID, expectedVersion: DRAFT_VERSION, resultVersion: DRAFT_VERSION }),
       lines: [
         {
           id: NEW_BUDGET_LINE_ID,
@@ -448,8 +514,10 @@ describe('Project Budget workflow actions', () => {
       }
       throw new Error('Unexpected query')
     })
-    mocks.txExecute.mockImplementation(async () => {
-      events.push('context')
+    mocks.txExecute.mockImplementation(async statement => {
+      const query = new PgDialect().sqlToQuery(statement)
+      if (query.sql.includes('extract(epoch from updated_at)')) return [{ version: DRAFT_VERSION }]
+      if (query.sql.includes('app.project_budget_write') && query.params.includes(BUDGET_ID)) events.push('context')
       return []
     })
     mocks.txUpdate.mockImplementation((table: unknown) => {
@@ -477,6 +545,7 @@ describe('Project Budget workflow actions', () => {
     expect(result).toEqual({
       ok: true,
       id: BUDGET_ID,
+      receipt: expect.objectContaining({ operation: 'save_draft', projectId: PROJECT_ID, sourceBudgetId: BUDGET_ID, resultId: BUDGET_ID, requestId: REQUEST_ID, expectedVersion: DRAFT_VERSION, resultVersion: DRAFT_VERSION }),
       lines: [{ id: NEW_BUDGET_LINE_ID, costCodeId: COST_CODE_ID }],
     })
     expect(events).toEqual([
@@ -486,10 +555,8 @@ describe('Project Budget workflow actions', () => {
       'context',
       'metadata',
     ])
-    expect(mocks.txExecute).toHaveBeenCalledOnce()
-    const contextQuery = new PgDialect().sqlToQuery(
-      mocks.txExecute.mock.calls[0]?.[0]
-    )
+    const contextQuery = mocks.txExecute.mock.calls.map(([statement]) => new PgDialect().sqlToQuery(statement))
+      .find(query => query.sql.includes('app.project_budget_write') && query.params.includes(BUDGET_ID))!
     expect(contextQuery.sql).toMatch(
       /pg_catalog\.set_config\(\s*'app\.project_budget_write'/
     )
@@ -518,7 +585,12 @@ describe('Project Budget workflow actions', () => {
       }
       throw new Error('Unexpected query')
     })
-    mocks.txExecute.mockRejectedValue(new Error('provider context failure'))
+    mocks.txExecute.mockImplementation(async statement => {
+      const query = new PgDialect().sqlToQuery(statement)
+      if (query.sql.includes('extract(epoch from updated_at)')) return [{ version: DRAFT_VERSION }]
+      if (query.sql.includes('app.project_budget_write')) throw new Error('provider context failure')
+      return []
+    })
 
     const result = await saveProjectBudget(
       saveForm([
@@ -531,7 +603,8 @@ describe('Project Budget workflow actions', () => {
     )
 
     expect(result).toEqual({
-      error: 'Project Budget action failed. No changes were saved.',
+      error: 'Project Budget outcome could not be confirmed. Retry the unchanged request to reconcile it.',
+      unconfirmed: true,
     })
     expect(mocks.txUpdate).not.toHaveBeenCalled()
     expect(mocks.txDelete).not.toHaveBeenCalled()
@@ -667,6 +740,7 @@ describe('Project Budget workflow actions', () => {
     expect(result).toEqual({
       ok: true,
       id: BUDGET_ID,
+      receipt: expect.objectContaining({ operation: 'save_draft', projectId: PROJECT_ID, sourceBudgetId: BUDGET_ID, resultId: BUDGET_ID, requestId: REQUEST_ID, expectedVersion: DRAFT_VERSION, resultVersion: DRAFT_VERSION }),
       lines: [
         { id: BUDGET_LINE_ID, costCodeId: SECOND_COST_CODE_ID },
         { id: SECOND_BUDGET_LINE_ID, costCodeId: COST_CODE_ID },
@@ -744,6 +818,7 @@ describe('Project Budget workflow actions', () => {
     expect(result).toEqual({
       ok: true,
       id: BUDGET_ID,
+      receipt: expect.objectContaining({ operation: 'save_draft', projectId: PROJECT_ID, sourceBudgetId: BUDGET_ID, resultId: BUDGET_ID, requestId: REQUEST_ID, expectedVersion: DRAFT_VERSION, resultVersion: DRAFT_VERSION }),
       lines: [{ id: BUDGET_LINE_ID, costCodeId: COST_CODE_ID }],
     })
     expect(mocks.txSet).toHaveBeenCalledWith(
@@ -809,6 +884,7 @@ describe('Project Budget workflow actions', () => {
     expect(result).toEqual({
       ok: true,
       id: BUDGET_ID,
+      receipt: expect.objectContaining({ operation: 'save_draft', projectId: PROJECT_ID, sourceBudgetId: BUDGET_ID, resultId: BUDGET_ID, requestId: REQUEST_ID, expectedVersion: DRAFT_VERSION, resultVersion: DRAFT_VERSION }),
       lines: [{ id: NEW_BUDGET_LINE_ID, costCodeId: COST_CODE_ID }],
     })
     expect(mocks.txDelete).toHaveBeenCalledWith(projectBudgetLines)
@@ -885,6 +961,7 @@ describe('Project Budget workflow actions', () => {
     expect(result).toEqual({
       ok: true,
       id: BUDGET_ID,
+      receipt: expect.objectContaining({ operation: 'save_draft', projectId: PROJECT_ID, sourceBudgetId: BUDGET_ID, resultId: BUDGET_ID, requestId: REQUEST_ID, expectedVersion: DRAFT_VERSION, resultVersion: DRAFT_VERSION }),
       lines: [{ id: BUDGET_LINE_ID, costCodeId: COST_CODE_ID }],
     })
     expect(mocks.txSet).toHaveBeenCalledWith(
@@ -956,7 +1033,8 @@ describe('Project Budget workflow actions', () => {
     expect(result).toEqual({
       error: 'You do not have permission to manage this Project Budget.',
     })
-    expect(mocks.transaction).not.toHaveBeenCalled()
+    expect(mocks.txUpdate).not.toHaveBeenCalled()
+    expect(mocks.txInsert).not.toHaveBeenCalled()
   })
 
   it('rejects a source BOM forged during creation by a Finance caller', async () => {
@@ -966,7 +1044,7 @@ describe('Project Budget workflow actions', () => {
       error: 'You do not have permission to manage this Project Budget.',
     })
     expect(mocks.select).not.toHaveBeenCalled()
-    expect(mocks.transaction).not.toHaveBeenCalled()
+    expect(mocks.txInsert).not.toHaveBeenCalled()
   })
 
   it('rejects an authorized source BOM from another project', async () => {
@@ -983,15 +1061,14 @@ describe('Project Budget workflow actions', () => {
       }
       throw new Error('Unexpected query')
     })
-    mocks.select.mockReturnValue({ from })
+    mocks.txFrom.mockImplementation(from)
 
     const result = await createProjectBudget(createForm(SOURCE_BOM_ID))
 
     expect(result).toEqual({
       error: 'Project Budget source BOM must belong to its project',
     })
-    expect(from).toHaveBeenCalledWith(projects)
     expect(from).toHaveBeenCalledWith(boms)
-    expect(mocks.transaction).not.toHaveBeenCalled()
+    expect(mocks.txInsert).not.toHaveBeenCalled()
   })
 })

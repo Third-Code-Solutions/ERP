@@ -54,6 +54,7 @@ export default async function QualityHoldPointsPage({
       </div>
       <QualityHoldPointRegister
         projectId={id}
+        owner={{ actorId: profile.user.id, tenantId: profile.tenantId }}
         result={qualityResponse.ok && qualityResponse.data ? qualityResponse.data : null}
         error={qualityResponse.ok ? null : qualityResponse.error ?? 'Quality register is unavailable.'}
         canManage={can(profile.role, 'project.quality.manage')}

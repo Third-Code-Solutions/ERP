@@ -15,6 +15,7 @@ import { WeeklyWarLedger } from '@/components/progress/weekly-war-ledger'
 import {
   getProjectWeeklyProgressThroughCoreApi,
   projectWeeklyProgressReadsUseCoreApi,
+  projectWeeklyProgressWritesUseCoreApi,
 } from '@/lib/erp-core-client'
 import { loadProgressContext } from './actions'
 
@@ -93,6 +94,8 @@ export default async function ProjectProgressPage({
 
   const { schedule, updates } = await loadProgressContext(id, profile.tenantId)
   const weeklyLedgerEnabled = projectWeeklyProgressReadsUseCoreApi(profile.tenantId)
+  const coreWritesEnabled = projectWeeklyProgressWritesUseCoreApi(profile.tenantId)
+  const weeklyScopeKey = `${profile.tenantId}:${profile.user.id}:${id}`
   const weeklyLedger = weeklyLedgerEnabled
     ? await getProjectWeeklyProgressThroughCoreApi(id, { limit: 12 })
     : null
@@ -166,23 +169,18 @@ export default async function ProjectProgressPage({
             </div>
           </div>
 
-          {weeklyLedgerEnabled && weeklyLedger?.ok && weeklyLedger.data ? (
-            <WeeklyWarLedger
-              projectId={id}
-              rows={weeklyLedger.data.rows}
-              canLock={can(profile.role, 'precon.manage_checklist')}
-            />
-          ) : null}
-          {weeklyLedgerEnabled && weeklyLedger && !weeklyLedger.ok ? (
-            <div className="card" role="status">
-              <div className="card-header">
-                <h2 className="card-title">WAR cut-off ledger</h2>
-              </div>
-              <p className="card-empty">
-                Core weekly evidence is unavailable. Legacy progress history remains visible; no WAR state was assumed.
-              </p>
-            </div>
-          ) : null}
+          <WeeklyWarLedger
+            key={weeklyScopeKey}
+            projectId={id}
+            tenantId={profile.tenantId}
+            actorId={profile.user.id}
+            enabled={weeklyLedgerEnabled}
+            rows={weeklyLedger?.ok && weeklyLedger.data ? weeklyLedger.data.rows : []}
+            canLock={coreWritesEnabled && can(profile.role, 'precon.manage_checklist')}
+            loadError={weeklyLedgerEnabled && (!weeklyLedger?.ok || !weeklyLedger.data)
+              ? 'Core weekly evidence is unavailable. Legacy progress history remains visible; no WAR state was assumed.'
+              : null}
+          />
 
           <div className="card">
             <div className="card-header">
@@ -270,16 +268,14 @@ export default async function ProjectProgressPage({
         </div>
 
         <aside style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {canSubmitWeeklyProgress && (
-          <div className="card">
-            <div className="card-header">
-              <h2 className="card-title">Submit weekly update</h2>
-            </div>
-            <div style={{ padding: 16 }}>
-              <WeeklyUpdateForm projectId={id} />
-            </div>
-          </div>
-          )}
+          <WeeklyUpdateForm
+            key={weeklyScopeKey}
+            projectId={id}
+            tenantId={profile.tenantId}
+            actorId={profile.user.id}
+            canSubmit={canSubmitWeeklyProgress}
+            coreWritesEnabled={coreWritesEnabled}
+          />
 
           {latestPct && (
             <div className="card">

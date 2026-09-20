@@ -90,6 +90,9 @@ importers:
       '@third-code-erp/shared-types':
         specifier: workspace:*
         version: link:../../packages/shared-types
+      '@xmldom/xmldom':
+        specifier: 0.8.15
+        version: 0.8.15
       bullmq:
         specifier: ^5.81.2
         version: 5.81.2

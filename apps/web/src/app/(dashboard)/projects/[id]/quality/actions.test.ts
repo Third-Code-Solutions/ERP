@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ERP_ROLES, roleHasCapability } from '@third-code-erp/shared-types'
 
 const mocks = vi.hoisted(() => ({
   requireUserProfile: vi.fn(),
@@ -72,7 +73,8 @@ describe('quality hold point server actions', () => {
     mocks.can.mockReturnValue(true)
     mocks.createQualityHoldPointThroughCoreApi.mockResolvedValue({ ok: true, data: { projectId: PROJECT_ID, created: true, changed: true, entry: entry() } })
     mocks.mutateQualityHoldPointThroughCoreApi.mockResolvedValue({ ok: true, data: { projectId: PROJECT_ID, changed: true, entry: entry('submitted', 2) } })
-    mocks.handoffQualityHoldPointToPunchlistThroughCoreApi.mockResolvedValue({ ok: true, data: {
+    mocks.handoffQualityHoldPointToPunchlistThroughCoreApi.mockResolvedValue({ ok: true, outcome: 'confirmed', data: {
+      clientRequestId: REQUEST_ID,
       projectId: PROJECT_ID,
       qualityHoldPointId: ENTRY_ID,
       handoffId: '66666666-6666-4666-8666-666666666666',
@@ -112,7 +114,7 @@ describe('quality hold point server actions', () => {
     form.set('projectId', PROJECT_ID); form.set('entryId', ENTRY_ID); form.set('clientRequestId', REQUEST_ID)
     form.set('descriptions', 'Repair membrane.\nReinspect north wall.')
     form.set('location', 'Level 2'); form.set('trade', 'Waterproofing'); form.set('priority', 'high'); form.set('dueDate', '2026-09-20'); form.set('planDocumentId', ''); form.set('assignedToText', 'Subcontractor')
-    await expect(handoffQualityHoldPointToPunchlist({ ok: true }, form)).resolves.toEqual({ ok: true, success: '1 punchlist item created from IWR-0001.' })
+    await expect(handoffQualityHoldPointToPunchlist({ ok: true }, form)).resolves.toMatchObject({ ok: true, outcome: 'confirmed', success: '1 punchlist item created from IWR-0001.', receipt: { projectId: PROJECT_ID, entryId: ENTRY_ID, clientRequestId: REQUEST_ID } })
     expect(mocks.handoffQualityHoldPointToPunchlistThroughCoreApi).toHaveBeenCalledWith(PROJECT_ID, ENTRY_ID, expect.objectContaining({ clientRequestId: REQUEST_ID, items: expect.any(Array) }))
     const command = mocks.handoffQualityHoldPointToPunchlistThroughCoreApi.mock.calls[0]?.[2] as { items: Array<{ description: string; dueDate: string | null }> }
     expect(command.items).toHaveLength(2)
@@ -125,5 +127,62 @@ describe('quality hold point server actions', () => {
     form.set('descriptions', 'Repair membrane.'); form.set('dueDate', '2026-02-30')
     await expect(handoffQualityHoldPointToPunchlist({ ok: true }, form)).resolves.toMatchObject({ ok: false })
     expect(mocks.handoffQualityHoldPointToPunchlistThroughCoreApi).not.toHaveBeenCalled()
+  })
+
+  function handoffForm(): FormData {
+    const form = new FormData()
+    form.set('projectId', PROJECT_ID); form.set('entryId', ENTRY_ID)
+    form.set('clientRequestId', REQUEST_ID); form.set('descriptions', 'Repair membrane.')
+    return form
+  }
+
+  it.each(ERP_ROLES)('enforces canonical punchlist permission for %s', async role => {
+    mocks.requireUserProfile.mockResolvedValue({ ...PROFILE, role })
+    mocks.can.mockImplementation(roleHasCapability)
+    const result = await handoffQualityHoldPointToPunchlist({ ok: true }, handoffForm())
+    const allowed = roleHasCapability(role, 'punchlist.manage')
+    expect(result.ok).toBe(allowed)
+    if (!allowed) expect(mocks.handoffQualityHoldPointToPunchlistThroughCoreApi).not.toHaveBeenCalled()
+  })
+
+  it('keeps a known current-attempt rejection distinct from uncertainty', async () => {
+    mocks.handoffQualityHoldPointToPunchlistThroughCoreApi.mockResolvedValue({ ok: false, outcome: 'rejected', status: 409, error: 'Document is unavailable.' })
+    await expect(handoffQualityHoldPointToPunchlist({ ok: true }, handoffForm())).resolves.toEqual({ ok: false, outcome: 'rejected', error: 'Document is unavailable.' })
+  })
+
+  it.each([
+    { actorId: USER_ID, tenantId: ENTRY_ID },
+    { actorId: 'invalid', tenantId: TENANT_ID },
+  ])('rejects changed or invalid owner scope: %j', async owner => {
+    await expect(handoffQualityHoldPointToPunchlist({ ok: true }, handoffForm(), owner)).resolves.toMatchObject({ ok: false, outcome: 'rejected' })
+    expect(mocks.handoffQualityHoldPointToPunchlistThroughCoreApi).not.toHaveBeenCalled()
+  })
+
+  it('keeps an uncertain Core result explicitly unknown', async () => {
+    mocks.handoffQualityHoldPointToPunchlistThroughCoreApi.mockResolvedValue({ ok: false, outcome: 'unknown', status: 503, error: 'Outcome unconfirmed.' })
+    await expect(handoffQualityHoldPointToPunchlist({ ok: true }, handoffForm())).resolves.toMatchObject({ ok: false, outcome: 'unknown' })
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('contains thrown mutation responses as unknown', async () => {
+    mocks.handoffQualityHoldPointToPunchlistThroughCoreApi.mockRejectedValue(new Error('Synthetic connection loss'))
+    await expect(handoffQualityHoldPointToPunchlist({ ok: true }, handoffForm())).resolves.toMatchObject({ ok: false, outcome: 'unknown' })
+  })
+
+  it('preserves a confirmed write when route refresh fails', async () => {
+    mocks.revalidatePath.mockImplementationOnce(() => { throw new Error('Synthetic refresh failure') })
+    await expect(handoffQualityHoldPointToPunchlist({ ok: true }, handoffForm())).resolves.toMatchObject({ ok: true, outcome: 'confirmed', refreshWarning: expect.any(String) })
+  })
+
+  it('rejects a changed client owner before sending a mutation', async () => {
+    await expect(handoffQualityHoldPointToPunchlist({ ok: true }, handoffForm(), { actorId: ENTRY_ID, tenantId: TENANT_ID })).resolves.toMatchObject({ ok: false, outcome: 'rejected' })
+    expect(mocks.handoffQualityHoldPointToPunchlistThroughCoreApi).not.toHaveBeenCalled()
+  })
+
+  it('does not confirm a response for another request token', async () => {
+    const response = await mocks.handoffQualityHoldPointToPunchlistThroughCoreApi()
+    mocks.handoffQualityHoldPointToPunchlistThroughCoreApi.mockResolvedValue({ ...response, data: { ...response.data, clientRequestId: ENTRY_ID } })
+    await expect(handoffQualityHoldPointToPunchlist({ ok: true }, handoffForm())).resolves.toMatchObject({ ok: false, outcome: 'unknown' })
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
   })
 })

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
+  getUserProfile: vi.fn(),
   can: vi.fn(),
   select: vi.fn(),
   from: vi.fn(),
@@ -20,6 +21,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@third-code-erp/auth', () => ({
   getUser: mocks.getUser,
+  getUserProfile: mocks.getUserProfile,
   can: mocks.can,
 }))
 vi.mock('@third-code-erp/auth/server', () => ({
@@ -45,6 +47,7 @@ describe('bank statement signed upload route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.getUser.mockResolvedValue({ id: USER_ID })
+    mocks.getUserProfile.mockResolvedValue({ user: { id: USER_ID }, tenantId: TENANT_ID, role: 'finance' })
     mocks.can.mockReturnValue(true)
     mocks.storageUploadsEnabled.mockReturnValue(true)
     mocks.storageUploadsViaCore.mockReturnValue(false)
@@ -68,6 +71,62 @@ describe('bank statement signed upload route', () => {
     }))
     mocks.writeAuditLog.mockResolvedValue(undefined)
     mocks.remove.mockResolvedValue({ data: [], error: null })
+  })
+
+  // Hidden profiles model the authenticated-RLS boundary, not real PostgreSQL
+  // lifecycle enforcement. Keep the legacy identity/privileged row available
+  // so reverting to that lookup reproduces the authorization bypass.
+  describe.each([false, true])('upload gate=%s', (enabled) => {
+    describe.each([false, true])('Core forwarding=%s', (viaCore) => {
+      it.each(['POST', 'DELETE'] as const)('%s rejects an unavailable active profile before effects', async (method) => {
+        mocks.getUserProfile.mockResolvedValue(null)
+        mocks.storageUploadsEnabled.mockReturnValue(enabled)
+        mocks.storageUploadsViaCore.mockReturnValue(viaCore)
+        mocks.signStorageThroughCore.mockResolvedValue({ ok: true, data: { token: 'core-token' } })
+        mocks.cleanupStorageThroughCore.mockResolvedValue({ ok: true, data: { ok: true } })
+        const response = await (method === 'POST' ? POST : DELETE)(new NextRequest(
+          'http://localhost/api/finance/reconciliation/import/sign',
+          { method, body: JSON.stringify(method === 'POST'
+            ? { fileName: 'statement.csv', sizeBytes: 1_024 }
+            : { storagePath: `${TENANT_ID}/bank-statements/failed.csv` }) },
+        ))
+        expect(response.status).toBe(401)
+        expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
+        expect(mocks.createSignedUploadUrl).not.toHaveBeenCalled()
+        expect(mocks.remove).not.toHaveBeenCalled()
+        expect(mocks.signStorageThroughCore).not.toHaveBeenCalled()
+        expect(mocks.cleanupStorageThroughCore).not.toHaveBeenCalled()
+        expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+      })
+    })
+  })
+
+  it.each(['POST', 'DELETE'] as const)('%s requires the finance capability before effects', async (method) => {
+    mocks.can.mockReturnValue(false)
+    const response = await (method === 'POST' ? POST : DELETE)(new NextRequest(
+      'http://localhost/api/finance/reconciliation/import/sign', { method },
+    ))
+    expect(response.status).toBe(403)
+    expect(mocks.can).toHaveBeenCalledWith('finance', 'finance.manage_cash')
+    expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
+    expect(mocks.signStorageThroughCore).not.toHaveBeenCalled()
+    expect(mocks.cleanupStorageThroughCore).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+  })
+
+  it.each(['POST', 'DELETE'] as const)('%s never falls back after Core denies the request', async (method) => {
+    mocks.storageUploadsViaCore.mockReturnValue(true)
+    mocks.signStorageThroughCore.mockResolvedValue({ ok: false, status: 403, error: 'Account or tenant is not active' })
+    mocks.cleanupStorageThroughCore.mockResolvedValue({ ok: false, status: 403, error: 'Account or tenant is not active' })
+    const response = await (method === 'POST' ? POST : DELETE)(new NextRequest(
+      'http://localhost/api/finance/reconciliation/import/sign',
+      { method, body: JSON.stringify(method === 'POST'
+        ? { fileName: 'statement.csv', sizeBytes: 1_024 }
+        : { storagePath: `${TENANT_ID}/bank-statements/failed.csv` }) },
+    ))
+    expect(response.status).toBe(403)
+    expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
   })
 
   it('rejects a non-finance role before Storage work', async () => {

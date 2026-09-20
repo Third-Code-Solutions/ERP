@@ -21,7 +21,7 @@ export function DeleteDocumentButton({
   const idempotencyKeyRef = useRef<string | null>(null)
 
   function handleDelete() {
-    if (!confirm(`Delete "${fileName}"? This removes the file from storage and cannot be undone.`)) {
+    if (!confirm(`Delete "${fileName}"? This removes its document record and cannot be undone. The private stored file is retained for evidence safety.`)) {
       return
     }
     setError('')

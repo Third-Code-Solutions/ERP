@@ -35,6 +35,7 @@ describe('quality hold point punchlist handoff contracts', () => {
 
   it('returns linked item rows together with immutable source rejection evidence', () => {
     const result = qualityHoldPointPunchlistHandoffResultSchema.parse({
+      clientRequestId: REQUEST_ID,
       projectId: PROJECT_ID,
       qualityHoldPointId: IWR_ID,
       handoffId: HANDOFF_ID,
@@ -65,5 +66,8 @@ describe('quality hold point punchlist handoff contracts', () => {
     })
     expect(result.items[0]?.sourceHandoffId).toBe(HANDOFF_ID)
     expect(result.source.rejectionReason).toContain('Repair')
+    expect(result.clientRequestId).toBe(REQUEST_ID)
+    const { clientRequestId: _requestId, ...unbound } = result
+    expect(qualityHoldPointPunchlistHandoffResultSchema.safeParse(unbound).success).toBe(false)
   })
 })

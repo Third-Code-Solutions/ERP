@@ -252,6 +252,22 @@ financial imbalance, or readiness failure.
 Never run `supabase db reset --linked` against production. Never claim rollback
 readiness until a restore drill succeeds.
 
+## Mobilization receipt guard (ADR-033)
+
+`20260912233513_mobilization_receipt_authority.sql` retires direct client writes
+to mobilization readiness and requires the controlled server actor stamp. The
+updated record/start actions work with both the previous and new guard, but the
+previous unstamped actions cannot write after this migration.
+
+During the approved recovery-backed release, pause mobilization writes and deploy
+the compatible Web actions with the migration as one release unit. Verify scoped
+receipt recording, exact replay, four-return start, authorized override, current
+user/tenant denial and immutable started evidence before resuming writes. Preserve
+all existing receipts and audit history. Do not grant client mutation privileges
+or weaken the guard to recover an old application build; promote a compatible
+build or use a reviewed fix-forward. Other release and restore gates above remain
+mandatory.
+
 ## Closure evidence
 
 - Target ledger exactly equals repository ledger.

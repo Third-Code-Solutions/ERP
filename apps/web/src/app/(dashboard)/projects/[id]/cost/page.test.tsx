@@ -65,6 +65,7 @@ describe('ProjectCostPage sensitive query planning', () => {
     it(`queries only authorized cost domains for ${role}`, async () => {
       const queriedTables: unknown[] = []
       mocks.requireUserProfile.mockResolvedValue({
+        user: { id: '11111111-1111-4111-8111-111111111111' },
         tenantId: TENANT_ID,
         role,
       })

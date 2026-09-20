@@ -222,6 +222,7 @@ function harness({
     }
   )
   const audit: AuditService = {
+    tryLockTenantChain: vi.fn().mockResolvedValue(true),
     stampActor: vi.fn().mockResolvedValue(undefined),
     writeSemantic: vi.fn().mockImplementation(
       async (_transaction: DatabaseTransaction, params: SemanticAuditParams) => {

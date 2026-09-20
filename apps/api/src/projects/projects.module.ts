@@ -36,6 +36,8 @@ import { ProjectSubmittalDocumentsController } from './project-submittal-documen
 import { ProjectSubmittalDocumentsService } from './project-submittal-documents.service'
 import { ProjectScheduleController } from './project-schedule.controller'
 import { ProjectScheduleService } from './project-schedule.service'
+import { MsProjectXmlImportController } from './ms-project-xml-import.controller'
+import { MsProjectXmlImportService } from './ms-project-xml-import.service'
 import { ProjectPerformanceController } from './project-performance.controller'
 import { ProjectPerformanceService } from './project-performance.service'
 import { ProjectMaterialActualsController } from './project-material-actuals.controller'
@@ -50,6 +52,10 @@ import { ProjectWeeklyProgressController } from './project-weekly-progress.contr
 import { ProjectWeeklyProgressService } from './project-weekly-progress.service'
 import { ProjectBillingMilestonesController } from './project-billing-milestones.controller'
 import { ProjectBillingMilestonesService } from './project-billing-milestones.service'
+import { ClaimDraftController } from './claim-draft.controller'
+import { ClaimDraftService } from './claim-draft.service'
+import { ClaimTransitionController } from './claim-transition.controller'
+import { ClaimTransitionService } from './claim-transition.service'
 
 @Module({
   imports: [AuditModule],
@@ -65,6 +71,7 @@ import { ProjectBillingMilestonesService } from './project-billing-milestones.se
     ProjectSubmittalsController,
     ProjectSubmittalDocumentsController,
     ProjectScheduleController,
+    MsProjectXmlImportController,
     ProjectPerformanceController,
     ProjectMaterialActualsController,
     ProjectLabourReconciliationController,
@@ -72,6 +79,8 @@ import { ProjectBillingMilestonesService } from './project-billing-milestones.se
     ProjectCloseoutReadinessController,
     ProjectWeeklyProgressController,
     ProjectBillingMilestonesController,
+    ClaimDraftController,
+    ClaimTransitionController,
   ],
   providers: [
     ProjectsService,
@@ -94,6 +103,7 @@ import { ProjectBillingMilestonesService } from './project-billing-milestones.se
     ProjectSubmittalsService,
     ProjectSubmittalDocumentsService,
     ProjectScheduleService,
+    MsProjectXmlImportService,
     ProjectPerformanceService,
     ProjectMaterialActualsService,
     ProjectLabourReconciliationService,
@@ -101,6 +111,8 @@ import { ProjectBillingMilestonesService } from './project-billing-milestones.se
     ProjectCloseoutReadinessService,
     ProjectWeeklyProgressService,
     ProjectBillingMilestonesService,
+    ClaimDraftService,
+    ClaimTransitionService,
   ],
 })
 export class ProjectsModule implements NestModule {
@@ -119,6 +131,7 @@ export class ProjectsModule implements NestModule {
         ProjectSubmittalsController,
         ProjectSubmittalDocumentsController,
         ProjectScheduleController,
+        MsProjectXmlImportController,
         ProjectPerformanceController,
         ProjectMaterialActualsController,
         ProjectLabourReconciliationController,
@@ -126,6 +139,8 @@ export class ProjectsModule implements NestModule {
         ProjectCloseoutReadinessController,
         ProjectWeeklyProgressController,
         ProjectBillingMilestonesController,
+        ClaimDraftController,
+        ClaimTransitionController,
       )
   }
 }

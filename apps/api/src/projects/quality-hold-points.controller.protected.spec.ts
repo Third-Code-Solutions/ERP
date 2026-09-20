@@ -2,6 +2,8 @@ import 'reflect-metadata'
 
 import { Reflector } from '@nestjs/core'
 import { Test } from '@nestjs/testing'
+import { ERP_ROLES } from '@third-code-erp/shared-types/authorization'
+import { qualityHoldPointPunchlistHandoffResultSchema } from '@third-code-erp/shared-types'
 import request from 'supertest'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CapabilityGuard } from '../auth/capability.guard'
@@ -78,6 +80,29 @@ describe('QualityHoldPointsController protected boundary', () => {
     expect(service.create).not.toHaveBeenCalled()
   })
 
+  it('preserves the strict legacy receipt and serves request identity only on explicit opt-in', async () => {
+    const { app, service } = await harness('pm')
+    const receipt = {
+      clientRequestId: REQUEST_ID, projectId: PROJECT_ID, qualityHoldPointId: ENTRY_ID,
+      handoffId: REQUEST_ID, created: true, changed: true,
+      source: { qualityHoldPointId: ENTRY_ID, iwrNumber: 'IWR-001', findings: '', rejectionReason: 'Repair defect', planDocumentId: null },
+      items: [{ id: USER_ID, projectId: PROJECT_ID, description: 'Repair defect', location: null, trade: null, priority: 'medium', status: 'open', dueDate: null, assignedToUserId: null, assignedToText: null, createdAt: '2026-09-13T00:00:00.000Z', createdBy: USER_ID, sourceHandoffId: REQUEST_ID }],
+    }
+    service.handoffToPunchlist.mockResolvedValue(receipt)
+    const body = { clientRequestId: REQUEST_ID, items: [{ description: 'Repair defect' }] }
+    const legacy = await request(app.getHttpServer()).post(`${path}/${ENTRY_ID}/punchlist`).set('Authorization', 'Bearer valid').send(body).expect(201)
+    expect(legacy.body).not.toHaveProperty('clientRequestId')
+    expect(qualityHoldPointPunchlistHandoffResultSchema.omit({ clientRequestId: true }).safeParse(legacy.body).success).toBe(true)
+    const bound = await request(app.getHttpServer()).post(`${path}/${ENTRY_ID}/punchlist`).set('Authorization', 'Bearer valid').set('x-erp-receipt-version', '1').send(body).expect(201)
+    expect(qualityHoldPointPunchlistHandoffResultSchema.parse(bound.body)).toEqual(receipt)
+  })
+
+  it.each(['2', '1, 1', ''])('rejects unsupported receipt version %j before mutation', async version => {
+    const { app, service } = await harness('pm')
+    await request(app.getHttpServer()).post(`${path}/${ENTRY_ID}/punchlist`).set('Authorization', 'Bearer valid').set('x-erp-receipt-version', version).send({ clientRequestId: REQUEST_ID, items: [{ description: 'Repair defect' }] }).expect(400)
+    expect(service.handoffToPunchlist).not.toHaveBeenCalled()
+  })
+
   it.each(['viewer', 'sales', 'finance'])('allows %s to read but denies quality mutation', async (role) => {
     const { app, service } = await harness(role)
     await request(app.getHttpServer()).get(path).set('Authorization', 'Bearer valid').expect(200)
@@ -144,8 +169,9 @@ describe('QualityHoldPointsController protected boundary', () => {
     expect(service.accept).toHaveBeenCalledWith(PROJECT_ID, ENTRY_ID, expect.anything(), expect.objectContaining({ role: 'pm' }))
   })
 
-  it.each(['viewer', 'sales', 'finance'])('denies %s from creating rejected-IWR punchlist work', async (role) => {
+  it.each(ERP_ROLES)('enforces punchlist handoff authority for %s', async (role) => {
     const { app, service } = await harness(role)
+    const allowed = ['owner', 'admin', 'sd_pm_pe', 'pm', 'cx'].includes(role)
     await request(app.getHttpServer())
       .post(`${path}/${ENTRY_ID}/punchlist`)
       .set('Authorization', 'Bearer valid')
@@ -154,8 +180,8 @@ describe('QualityHoldPointsController protected boundary', () => {
         planDocumentId: null,
         items: [{ description: 'Repair the failed inspection item.' }],
       })
-      .expect(403)
-    expect(service.handoffToPunchlist).not.toHaveBeenCalled()
+      .expect(allowed ? 201 : 403)
+    expect(service.handoffToPunchlist).toHaveBeenCalledTimes(allowed ? 1 : 0)
   })
 
   it('passes the authenticated actor and route scope to the punchlist handoff service', async () => {

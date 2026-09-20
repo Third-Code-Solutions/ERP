@@ -17,6 +17,7 @@
     "test:database-repro-policy-contract": "node --test scripts/verify-database-repro-policy-contract.test.mjs",
     "test:production-data-boundary": "node --test scripts/verify-production-data-boundary.test.mjs",
     "test:production-auth-proof": "node --test scripts/verify-production-auth-proof.test.mjs",
+    "test:production-ci": "node --test scripts/verify-production-ci.test.mjs",
     "test:production-surface": "node --test scripts/verify-production-surface.test.mjs",
     "test:demo-tenant": "node --test scripts/lib/demo-tenant.test.mjs",
     "test:process-sla-sql": "node --test scripts/verify-process-sla-migration.test.mjs",

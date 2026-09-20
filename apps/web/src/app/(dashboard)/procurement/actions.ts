@@ -18,7 +18,7 @@ import {
   rateCards,
   vendors,
 } from '@third-code-erp/database/schema'
-import { and, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { writeAuditLog, writeAuditLogInTransaction } from '@/lib/audit'
 import { notifyRoles, notifyExternalEmail } from '@/lib/operations/notifications'
@@ -44,7 +44,10 @@ import {
   purchaseOrderWorkflowWritesUseCoreApi,
   transitionPurchaseOrderThroughCoreApi,
 } from '@/lib/erp-core-client'
-import type { PurchaseOrderWorkflowAction } from '@third-code-erp/shared-types'
+import {
+  nextInvoiceNumber,
+  type PurchaseOrderWorkflowAction,
+} from '@third-code-erp/shared-types'
 import {
   computeEWT,
   computeRetention,
@@ -917,7 +920,12 @@ export async function createInvoice(
       sql`select pg_advisory_xact_lock(hashtext(${allocationLockKey}))`
     )
     const [lastInvoice] = await tx
-      .select({ invoice_number: invoices.invoice_number })
+      .select({
+        highest_suffix: sql<string>`coalesce(
+          max(nullif(substring(${invoices.invoice_number} from ${`^${prefix}([0-9]+)$`}), '')::numeric),
+          0
+        )::text`,
+      })
       .from(invoices)
       .where(
         and(
@@ -925,15 +933,7 @@ export async function createInvoice(
           sql`${invoices.invoice_number} like ${prefix + '%'}`
         )
       )
-      .orderBy(desc(invoices.invoice_number))
-      .limit(1)
-
-    const previous = Number.parseInt(
-      lastInvoice?.invoice_number.split('-').at(-1) ?? '0',
-      10
-    )
-    const next = Number.isFinite(previous) ? previous + 1 : 1
-    const invoiceNumber = `${prefix}${String(next).padStart(3, '0')}`
+    const invoiceNumber = nextInvoiceNumber(prefix, lastInvoice?.highest_suffix)
     const [invoice] = await tx
       .insert(invoices)
       .values({

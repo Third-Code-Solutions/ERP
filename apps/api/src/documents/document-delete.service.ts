@@ -11,10 +11,14 @@ import {
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import {
+  accountKycArtifacts,
   documentDeleteRequests,
   documentProcessingJobs,
   documents,
+  progressClaimDocuments,
   scopeItems,
+  siteInspectionPhotos,
+  siteInspections,
   users,
 } from '@third-code-erp/database/schema'
 import {
@@ -111,6 +115,60 @@ export class DocumentDeleteService {
         .for('update')
       if (!document) throw new NotFoundException('Document not found')
 
+      // Attachment creation holds a share lock on this document through commit.
+      // Read only after taking its update lock so a concurrent append is visible;
+      // do not lock claims here (the append path locks claim before document).
+      const [claimAttachment] = await transaction
+        .select({ id: progressClaimDocuments.id })
+        .from(progressClaimDocuments)
+        .where(and(
+          eq(progressClaimDocuments.document_id, document.id),
+          eq(progressClaimDocuments.tenant_id, authorizedPrincipal.tenantId)
+        ))
+        .limit(1)
+      if (claimAttachment) {
+        throw new ConflictException('Document is attached to a claim and cannot be deleted')
+      }
+
+      // KYC creation holds the same document share lock. Preserve the reference
+      // and request identity instead of allowing the legacy FK to set it null.
+      const [kycArtifact] = await transaction
+        .select({ id: accountKycArtifacts.id })
+        .from(accountKycArtifacts)
+        .where(and(
+          eq(accountKycArtifacts.document_id, document.id),
+          eq(accountKycArtifacts.tenant_id, authorizedPrincipal.tenantId)
+        ))
+        .limit(1)
+      if (kycArtifact) {
+        throw new ConflictException('Document is attached to a KYC artifact and cannot be deleted')
+      }
+
+      // Immediate inspection FKs take a document key-share lock during append.
+      // Read after acquiring UPDATE so a committing attachment remains visible.
+      const [inspectionPhoto] = await transaction
+        .select({ id: siteInspectionPhotos.id })
+        .from(siteInspectionPhotos)
+        .where(and(
+          eq(siteInspectionPhotos.tenant_id, authorizedPrincipal.tenantId),
+          eq(siteInspectionPhotos.document_id, document.id)
+        ))
+        .limit(1)
+      if (inspectionPhoto) {
+        throw new ConflictException('Document is attached to an inspection and cannot be deleted')
+      }
+      const [inspectionReport] = await transaction
+        .select({ id: siteInspections.id })
+        .from(siteInspections)
+        .where(and(
+          eq(siteInspections.tenant_id, authorizedPrincipal.tenantId),
+          eq(siteInspections.pdf_document_id, document.id)
+        ))
+        .limit(1)
+      if (inspectionReport) {
+        throw new ConflictException('Document is attached to an inspection and cannot be deleted')
+      }
+
       const processingHistory = await transaction
         .select({ id: documentProcessingJobs.id })
         .from(documentProcessingJobs)
@@ -170,7 +228,7 @@ export class DocumentDeleteService {
         diff: {
           project_id: document.projectId,
           derived_scope_items_removed: removedScopeItems.length,
-          storage_cleanup: 'best_effort_after_commit',
+          storage_cleanup: 'retained_pending_generation_fencing',
           idempotency_key_hash: requestHash,
         },
       })

@@ -2,8 +2,15 @@ import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}))
+
 vi.mock('@/app/(dashboard)/projects/[id]/progress/actions', () => ({
   lockWeeklyProgress: vi.fn(),
+}))
+vi.mock('@/app/(dashboard)/projects/[id]/progress/weekly-command-actions', () => ({
+  lockWeeklyProgressCommand: vi.fn(),
 }))
 
 import { WeeklyWarLedger } from './weekly-war-ledger'
@@ -30,10 +37,41 @@ const ROW = {
 
 describe('WeeklyWarLedger', () => {
   it('renders immutable status and cut-off evidence', () => {
-    const markup = renderToStaticMarkup(<WeeklyWarLedger projectId={ROW.projectId} rows={[ROW]} canLock />)
+    const markup = renderToStaticMarkup(<WeeklyWarLedger projectId={ROW.projectId} rows={[ROW]} canLock tenantId="22222222-2222-4222-8222-222222222222" actorId={ROW.lockedBy!} enabled />)
     expect(markup).toContain('WAR cut-off ledger')
     expect(markup).toContain('Locked')
     expect(markup).toContain('Immutable evidence')
     expect(markup).toContain('35%')
+  })
+
+  it('keeps the ledger visible for read-only roles and reports a read failure truthfully', () => {
+    const markup = renderToStaticMarkup(
+      <WeeklyWarLedger
+        projectId={ROW.projectId}
+        rows={[ROW]}
+        canLock={false}
+        tenantId="22222222-2222-4222-8222-222222222222"
+        actorId={ROW.lockedBy!}
+        enabled
+        loadError="Core weekly evidence is unavailable."
+      />,
+    )
+    expect(markup).toContain('WAR cut-off ledger')
+    expect(markup).toContain('Core weekly evidence is unavailable.')
+    expect(markup).not.toContain('Lock WAR')
+  })
+
+  it('hides only when the Core ledger is disabled', () => {
+    const markup = renderToStaticMarkup(
+      <WeeklyWarLedger
+        projectId={ROW.projectId}
+        rows={[]}
+        canLock
+        tenantId="22222222-2222-4222-8222-222222222222"
+        actorId={ROW.createdBy}
+        enabled={false}
+      />,
+    )
+    expect(markup).toBe('')
   })
 })

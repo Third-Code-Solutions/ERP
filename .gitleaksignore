@@ -1,0 +1,3 @@
+# Verified public Railway service UUID, identical to the pinned production workflow target.
+# Exception is restricted to this historical commit, file, rule and line; no credential rule is disabled.
+81926c557a6b9f779ae351ff1a9c834a1a49f3b7:docs/blockers/2026-09-13-main-merge-railway-auto-deploy.md:generic-api-key:9

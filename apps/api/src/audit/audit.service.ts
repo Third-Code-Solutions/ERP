@@ -5,6 +5,10 @@ import { desc, eq, sql } from 'drizzle-orm'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import type { DatabaseTransaction } from '../database/database.service'
 
+function tenantChainLockKey(tenantId: string): string {
+  return 'audit_log:' + tenantId
+}
+
 export interface SemanticAuditParams {
   tenantId: string
   actorId: string | null
@@ -25,6 +29,19 @@ export interface SemanticAuditParams {
 
 @Injectable()
 export class AuditService {
+  /** Admit a writer without waiting while it holds business-entity locks. */
+  async tryLockTenantChain(
+    transaction: DatabaseTransaction,
+    tenantId: string,
+  ): Promise<boolean> {
+    const [lock] = await transaction.execute<{ acquired: boolean }>(sql`
+      select pg_try_advisory_xact_lock(
+        hashtextextended(${tenantChainLockKey(tenantId)}, 0)
+      ) as acquired
+    `)
+    return lock!.acquired
+  }
+
   async stampActor(
     transaction: DatabaseTransaction,
     principal: ErpPrincipal
@@ -49,7 +66,7 @@ export class AuditService {
   ): Promise<void> {
     await transaction.execute(
       sql`select pg_advisory_xact_lock(hashtextextended(${
-        'audit_log:' + params.tenantId
+        tenantChainLockKey(params.tenantId)
       }, 0))`
     )
 

@@ -17,7 +17,7 @@
  *   cancelled
  */
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   submitClaim,
@@ -82,13 +82,42 @@ export function ClaimTransitionActions({
 
   const [showCancel, setShowCancel] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
+  const requestIdsRef = useRef(new Map<string, string>())
+  const [retry, setRetry] = useState<(() => void) | null>(null)
 
-  function run(fn: () => Promise<{ error?: string }>): void {
+  function stableRequestId(key: string): string {
+    const existing = requestIdsRef.current.get(key)
+    if (existing) return existing
+    const id = typeof globalThis.crypto?.randomUUID === 'function'
+      ? globalThis.crypto.randomUUID()
+      : ''
+    if (!id) throw new Error('This browser cannot create a safe request identifier')
+    requestIdsRef.current.set(key, id)
+    return id
+  }
+
+  function run(key: string, fn: (clientRequestId: string) => Promise<{ error?: string; outcome?: 'rejected' | 'unknown' }>): void {
     setError(null)
+    const retryFn = () => run(key, fn)
     startTransition(async () => {
-      const r = await fn()
+      let id: string
+      try {
+        id = stableRequestId(key)
+      } catch {
+        setError('This browser cannot create a safe request identifier. Refresh or use a current browser.')
+        return
+      }
+      let r: { error?: string; outcome?: 'rejected' | 'unknown' }
+      try {
+        r = await fn(id)
+      } catch {
+        setError('The transition outcome is unconfirmed. Keep this page open and retry the unchanged command.')
+        setRetry(() => retryFn)
+        return
+      }
       if (r?.error) {
         setError(r.error)
+        setRetry(r.outcome === 'unknown' ? () => retryFn : null)
         return
       }
       // Reset inline forms on success.
@@ -100,6 +129,8 @@ export function ClaimTransitionActions({
       setCancelReason('')
       setCertDocId('')
       setInvoiceId('')
+      requestIdsRef.current.delete(key)
+      setRetry(null)
       router.refresh()
     })
   }
@@ -138,7 +169,7 @@ export function ClaimTransitionActions({
           <button
             type="button"
             className="claim-action claim-action-primary"
-            onClick={() => run(() => submitClaim(claimId))}
+            onClick={() => run('submit', (id) => submitClaim(claimId, id))}
             disabled={isPending}
           >
             Submit for commercial review
@@ -156,7 +187,7 @@ export function ClaimTransitionActions({
             <CancelInline
               reason={cancelReason}
               setReason={setCancelReason}
-              onConfirm={() => run(() => cancelClaim(claimId, cancelReason))}
+              onConfirm={() => run(`cancel:${cancelReason.trim()}`, (id) => cancelClaim(claimId, cancelReason, id))}
               onAbort={() => {
                 setShowCancel(false)
                 setCancelReason('')
@@ -171,7 +202,7 @@ export function ClaimTransitionActions({
         <button
           type="button"
           className="claim-action claim-action-primary"
-          onClick={() => run(() => markCertificatePending(claimId))}
+          onClick={() => run('certificate_pending', (id) => markCertificatePending(claimId, id))}
           disabled={isPending}
         >
           Mark certificate pending
@@ -210,7 +241,7 @@ export function ClaimTransitionActions({
                     setError('Pick the certification document')
                     return
                   }
-                  run(() => recordCertification(claimId, certDocId))
+                  run(`certify:${certDocId}`, (id) => recordCertification(claimId, certDocId, id))
                 }}
                 disabled={isPending || !certDocId}
                 style={{ flex: 1 }}
@@ -242,7 +273,7 @@ export function ClaimTransitionActions({
         <button
           type="button"
           className="claim-action claim-action-primary"
-          onClick={() => run(() => handoverToFinance(claimId))}
+          onClick={() => run('handover', (id) => handoverToFinance(claimId, id))}
           disabled={isPending}
         >
           Handover to Finance
@@ -282,7 +313,7 @@ export function ClaimTransitionActions({
                     setError('Pick an invoice to link')
                     return
                   }
-                  run(() => linkInvoice(claimId, invoiceId))
+                  run(`link_invoice:${invoiceId}`, (id) => linkInvoice(claimId, invoiceId, id))
                 }}
                 disabled={isPending || !invoiceId}
                 style={{ flex: 1 }}
@@ -314,7 +345,7 @@ export function ClaimTransitionActions({
         <button
           type="button"
           className="claim-action claim-action-success"
-          onClick={() => run(() => recordPayment(claimId))}
+          onClick={() => run('record_payment', (id) => recordPayment(claimId, id))}
           disabled={isPending}
         >
           Record payment
@@ -332,7 +363,7 @@ export function ClaimTransitionActions({
                 setError('Reason must be at least 3 characters')
                 return
               }
-              run(() => rejectClaim(claimId, rejectReason))
+              run(`reject:${rejectReason.trim()}`, (id) => rejectClaim(claimId, rejectReason, id))
             }}
             onAbort={() => {
               setShowReject(false)
@@ -392,6 +423,17 @@ export function ClaimTransitionActions({
           <div style={{ fontWeight: 600, marginBottom: 4 }}>Claim cancelled</div>
           <div>{rejectedReason || '(no reason recorded)'}</div>
         </div>
+      )}
+
+      {retry && (
+        <button
+          type="button"
+          className="claim-action"
+          onClick={retry}
+          disabled={isPending}
+        >
+          {isPending ? 'Retrying…' : 'Retry unchanged command'}
+        </button>
       )}
 
       {error && (

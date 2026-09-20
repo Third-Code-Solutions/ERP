@@ -46,10 +46,13 @@ describe('ProjectBudgetPage sensitive query planning', () => {
   for (const [role, canViewCommercialDetails] of [
     ['finance', false],
     ['viewer', true],
+    ['owner', true],
+    ['admin', true],
   ] as const) {
     it(`queries only authorized budget domains for ${role}`, async () => {
       const queriedTables: unknown[] = []
       mocks.requireUserProfile.mockResolvedValue({
+        user: { id: '44444444-4444-4444-8444-444444444444' },
         tenantId: TENANT_ID,
         role,
       })
@@ -99,6 +102,7 @@ describe('ProjectBudgetPage sensitive query planning', () => {
       expect(mocks.budgetWorkspace).toHaveBeenCalledWith(
         expect.objectContaining({
           canViewBom: canViewCommercialDetails,
+          ownerOverride: role === 'owner',
           sourceBoms: [],
           bomLines: [],
         }),

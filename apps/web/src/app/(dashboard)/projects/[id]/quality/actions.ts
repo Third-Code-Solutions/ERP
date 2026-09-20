@@ -24,6 +24,16 @@ export interface QualityActionState {
   success?: string
 }
 
+export type QualityPunchlistHandoffActionState =
+  | { ok: false; outcome: 'rejected' | 'unknown'; error: string }
+  | {
+      ok: true
+      outcome: 'confirmed'
+      success: string
+      receipt: { projectId: string; entryId: string; clientRequestId: string; actorId: string; tenantId: string }
+      refreshWarning?: string
+    }
+
 const uuidSchema = z.string().uuid()
 
 function refresh(projectId: string): void {
@@ -149,15 +159,22 @@ export async function transitionQualityHoldPoint(
 export async function handoffQualityHoldPointToPunchlist(
   _previous: QualityActionState,
   formData: FormData,
-): Promise<QualityActionState> {
+  expectedOwner?: { actorId: string; tenantId: string },
+): Promise<QualityPunchlistHandoffActionState> {
   const profile = await requireUserProfile().catch(() => null)
-  if (!profile) return { ok: false, error: 'Unauthorized.' }
+  if (!profile) return { ok: false, outcome: 'rejected', error: 'Unauthorized.' }
+  if (expectedOwner !== undefined) {
+    const owner = z.object({ actorId: uuidSchema, tenantId: uuidSchema }).strict().safeParse(expectedOwner)
+    if (!owner.success || owner.data.actorId.toLowerCase() !== profile.user.id.toLowerCase() || owner.data.tenantId.toLowerCase() !== profile.tenantId.toLowerCase()) {
+      return { ok: false, outcome: 'rejected', error: 'The signed-in account changed. Reload before preparing new work.' }
+    }
+  }
   if (!can(profile.role, 'punchlist.manage')) {
-    return { ok: false, error: 'You do not have permission to create punchlist work.' }
+    return { ok: false, outcome: 'rejected', error: 'You do not have permission to create punchlist work.' }
   }
   const projectId = uuidSchema.safeParse(text(formData, 'projectId'))
   const entryId = uuidSchema.safeParse(text(formData, 'entryId'))
-  if (!projectId.success || !entryId.success) return { ok: false, error: 'Invalid punchlist handoff scope.' }
+  if (!projectId.success || !entryId.success) return { ok: false, outcome: 'rejected', error: 'Invalid punchlist handoff scope.' }
 
   const descriptions = text(formData, 'descriptions')
     .split(/\r?\n/u)
@@ -176,17 +193,36 @@ export async function handoffQualityHoldPointToPunchlist(
       assignedToText: nullableText(formData, 'assignedToText'),
     })),
   })
-  if (!command.success) return { ok: false, error: command.error.issues[0]?.message ?? 'Invalid punchlist handoff.' }
+  if (!command.success) return { ok: false, outcome: 'rejected', error: command.error.issues[0]?.message ?? 'Invalid punchlist handoff.' }
 
-  const result = await handoffQualityHoldPointToPunchlistThroughCoreApi(projectId.data, entryId.data, command.data)
-  if (!result.ok || !result.data) return { ok: false, error: result.error ?? 'Punchlist handoff was not committed.' }
-  if (result.data.projectId !== projectId.data || result.data.qualityHoldPointId !== entryId.data) {
-    return { ok: false, error: 'ERP Core API returned an invalid punchlist handoff scope.' }
+  let result: Awaited<ReturnType<typeof handoffQualityHoldPointToPunchlistThroughCoreApi>>
+  try {
+    result = await handoffQualityHoldPointToPunchlistThroughCoreApi(projectId.data, entryId.data, command.data)
+  } catch {
+    return { ok: false, outcome: 'unknown', error: 'Punchlist handoff outcome is unconfirmed. Retry the unchanged request.' }
   }
-  refresh(projectId.data)
+  if (!result.ok) return { ok: false, outcome: result.outcome, error: result.error }
+  if (result.data.projectId.toLowerCase() !== projectId.data.toLowerCase() || result.data.qualityHoldPointId.toLowerCase() !== entryId.data.toLowerCase() || result.data.clientRequestId?.toLowerCase() !== command.data.clientRequestId.toLowerCase()) {
+    return { ok: false, outcome: 'unknown', error: 'ERP Core API returned an unconfirmed punchlist handoff scope.' }
+  }
+  let refreshWarning: string | undefined
+  try {
+    refresh(projectId.data)
+  } catch {
+    refreshWarning = 'Punchlist handoff is confirmed, but the page could not refresh. Reload to see current records.'
+  }
   const count = result.data.items.length
   return {
     ok: true,
+    outcome: 'confirmed',
+    receipt: {
+      projectId: projectId.data,
+      entryId: entryId.data,
+      clientRequestId: command.data.clientRequestId,
+      actorId: profile.user.id,
+      tenantId: profile.tenantId,
+    },
+    ...(refreshWarning ? { refreshWarning } : {}),
     success: result.data.created
       ? `${count} punchlist item${count === 1 ? '' : 's'} created from ${result.data.source.iwrNumber}.`
       : `${result.data.source.iwrNumber} is already linked to ${count} punchlist item${count === 1 ? '' : 's'}.`,

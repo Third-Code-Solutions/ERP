@@ -58,7 +58,12 @@ const RESTORED = {
 }
 
 function selectQuery(rows: unknown[]) {
-  const rowLock = vi.fn().mockResolvedValue(rows)
+  const rowLock = vi.fn().mockImplementation(async () => rows.map(row => {
+    if (typeof row !== 'object' || row === null) return row
+    if ('role' in row) return { accountStatus: 'active', ...row }
+    if ('requestHash' in row) return { createdBy: PRINCIPAL.userId, ...row }
+    return row
+  }))
   const limit = vi.fn().mockReturnValue({ for: rowLock })
   const orderBy = vi.fn().mockReturnValue({ limit })
   const where = vi.fn().mockReturnValue({ limit, for: rowLock, orderBy })
@@ -70,6 +75,7 @@ function enabledService(
   transactionClient: Record<string, unknown>,
   audit = { stampActor: vi.fn(), writeSemantic: vi.fn() }
 ) {
+  transactionClient.execute ??= vi.fn().mockResolvedValue([{ status: 'active' }])
   const config = {
     get: vi.fn((key: string) =>
       key === 'ERP_COST_ENTRY_DELETE_WRITES_ENABLED' ||
@@ -133,12 +139,13 @@ describe('CostEntryDeletionService', () => {
     expect(audit.stampActor).not.toHaveBeenCalled()
   })
 
-  it('replays the committed result without a second void or semantic audit', async () => {
+  it.each(['active', 'suspended', 'other-actor'] as const)('checks %s before replaying a committed void', async (scenario) => {
     const membership = selectQuery([
       {
         tenantId: PRINCIPAL.tenantId,
         role: PRINCIPAL.role,
         email: PRINCIPAL.email,
+        accountStatus: scenario === 'suspended' ? 'suspended' : 'active',
       },
     ])
     const request = {
@@ -146,6 +153,7 @@ describe('CostEntryDeletionService', () => {
       projectId: PROJECT_ID,
       costEntryId: ENTRY_ID,
       requestHash: '',
+      createdBy: scenario === 'other-actor' ? ENTRY_ID : PRINCIPAL.userId,
       state: 'succeeded',
       result: RESULT,
       snapshot: { costEntryId: ENTRY_ID },
@@ -165,7 +173,14 @@ describe('CostEntryDeletionService', () => {
     }
     const { service, transaction, audit } = enabledService(transactionClient)
 
-    await expect(service.delete(...command())).resolves.toEqual(RESULT)
+    const result = service.delete(...command())
+    if (scenario !== 'active') {
+      await expect(result).rejects.toBeInstanceOf(scenario === 'suspended' ? ForbiddenException : ConflictException)
+      expect(transactionClient.update).not.toHaveBeenCalled()
+      expect(audit.writeSemantic).not.toHaveBeenCalled()
+      return
+    }
+    await expect(result).resolves.toEqual(RESULT)
     expect(transaction).toHaveBeenCalledOnce()
     expect(transactionClient.update).not.toHaveBeenCalled()
     expect(audit.writeSemantic).not.toHaveBeenCalled()
