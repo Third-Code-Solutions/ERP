@@ -11,10 +11,10 @@
     "databaseVersion": "17.6.1.121",
     "postgresMajor": 17,
     "appliedCount": 157,
-    "sourceCount": 174,
-    "pendingCount": 17,
+    "sourceCount": 175,
+    "pendingCount": 18,
     "appliedHead": "20260901141949",
-    "sourceHead": "20260912233513",
+    "sourceHead": "20260921120000",
     "ledgerStatus": "current_remote_ledger_matches_source",
     "purchaseOrderPreflight": {
       "duplicateGroups": 0,
@@ -91,6 +91,16 @@
       "hostedApplyApproved": false,
       "risk": "Retires direct client mobilization mutations while preserving tenant reads. The invoker guard requires active actor and tenant authority, canonical manage/override capabilities and attribution, and makes started evidence immutable. Existing unstamped Web actions are incompatible: pause mobilization writes and release the compatible Web actions and migration as one release unit. No stored data, foreign keys or audit history are changed.",
       "recovery": "Require database and separate Storage recovery evidence, isolated restore/migration rehearsal and exact-target preflight before hosted application. Abort the transactional migration on failure; after commit recover a compatible Web build or roll forward, never reopen client grants or revert to an unstamped writer. Local synthetic verification does not establish hosted application or production recovery readiness."
+    },
+    {
+      "id": "20260921-dupa-child-move-recomputation",
+      "migrations": [
+        "20260921120000_dupa_child_move_recomputation.sql"
+      ],
+      "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
+      "hostedApplyApproved": false,
+      "risk": "Replaces the existing SECURITY DEFINER child trigger function so INSERT, DELETE and ordinary updates continue to recompute their affected DUPA, while an UPDATE that moves a child between DUPAs recomputes both source and destination parents in deterministic UUID-text order. This corrects stale source-parent totals and reduces opposite-move lock inversion, but hosted execution depends on the WO-06 recomputation functions and child triggers being present and can lock both affected DUPA rows. No table shape, stored rows, foreign keys or audit history change; local verification does not establish hosted state or lock behavior.",
+      "recovery": "Require database backup/PITR, isolated restore and migration rehearsal, and exact-target lock/grant preflight before hosted application. The function replacement is transactional and aborts without data changes on failure. After commit retain the corrected function or roll forward; an emergency restoration of the prior function from 20260812180000_wo_06_dupa_engine.sql reintroduces the stale-source-parent defect and must be a reviewed recovery action. Preserve the existing execute denial for public, anon and authenticated and the service_role grant. This source-only batch does not authorize hosted application."
     }
   ]
 }
