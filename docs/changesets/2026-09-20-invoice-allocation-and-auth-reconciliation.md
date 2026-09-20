@@ -26,5 +26,9 @@ schema:
 - Targeted source lint passed after removing the obsolete lexical-order import;
   the repository's existing Next pages-directory warning remains.
 
-Hosted CI/build and full suites are required before merge. No migration,
+Hosted CI/build and full suites passed on commit `a38853cfb0aa69f3d559b92e1951b92e34b5b7c9`:
+[run 35506660238](https://github.com/Third-Code-Solutions/ERP/actions/runs/35506660238).
+Actionlint, BUILD OPS invariants, Security Scan, Type Check, Lint, Unit Tests,
+PostgreSQL 17 database reproducibility, Build, Claim Document Browser
+Interaction, and trusted authenticated E2E all passed. No migration,
 dependency, hosted data, or production deployment was performed.
