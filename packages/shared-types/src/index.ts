@@ -94,6 +94,7 @@ export * from './erp-api/inspection-report'
 export {
   lineTotal,
   bomTotalCost,
+  topLevelBomLines,
   computeTCV,
   computeGP,
   computeGPMargin,

@@ -67,6 +67,17 @@ export interface BomLine {
   line_total_cents: number
 }
 
+/**
+ * Return the commercial BOM spine. Attached material rows are preserved in
+ * the BOM, but their cost is represented by the top-level work item.
+ */
+export function topLevelBomLines<TLine>(
+  lines: ReadonlyArray<TLine>,
+  getParentLineItemId: (line: TLine) => string | null,
+): TLine[] {
+  return lines.filter((line) => getParentLineItemId(line) === null)
+}
+
 // line_total = unit_cost * quantity * (1 + markup_bps / 10000)
 export function lineTotal(
   unitCostCents: number,

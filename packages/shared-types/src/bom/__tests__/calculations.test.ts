@@ -3,6 +3,7 @@ import {
   lineTotal,
   manualLineTotal,
   bomTotalCost,
+  topLevelBomLines,
   computeTCV,
   computeGP,
   computeGPMargin,
@@ -58,6 +59,40 @@ describe('bomTotalCost', () => {
 
   it('returns zero for empty BOM', () => {
     expect(bomTotalCost([])).toBe(0)
+  })
+})
+
+describe('topLevelBomLines', () => {
+  it('rolls up attached material cost through its parent exactly once', () => {
+    const lines = [
+      {
+        id: 'parent',
+        line_total_cents: 100000,
+        unit_cost_cents: 100000,
+        quantity: 1,
+        parent_line_item_id: null,
+      },
+      {
+        id: 'material-child',
+        line_total_cents: 40000,
+        unit_cost_cents: 40000,
+        quantity: 1,
+        parent_line_item_id: 'parent',
+      },
+    ]
+
+    const topLevel = topLevelBomLines(lines, (line) => line.parent_line_item_id)
+    const totalCostCents = topLevel.reduce(
+      (total, line) => total + line.unit_cost_cents * line.quantity,
+      0,
+    )
+    const tcvCents = bomTotalCost(topLevel)
+
+    expect(topLevel.map((line) => line.id)).toEqual(['parent'])
+    expect(totalCostCents).toBe(100000)
+    expect(tcvCents).toBe(100000)
+    expect(computeGP(tcvCents, totalCostCents)).toBe(0)
+    expect(computeGPMargin(0, tcvCents)).toBe(0)
   })
 })
 

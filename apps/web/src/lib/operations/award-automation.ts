@@ -19,6 +19,7 @@ import {
 } from '@third-code-erp/database/schema'
 import { and, asc, desc, eq, sql } from 'drizzle-orm'
 import { randomUUID } from 'node:crypto'
+import { topLevelBomLines } from '@third-code-erp/shared-types/bom'
 import { writeAuditLogInTransaction } from '@/lib/audit'
 import { resolveTenantBusinessDayService } from './business-calendar'
 
@@ -64,8 +65,8 @@ export function selectSignedBomAwardLines(
     }
   }
 
-  const lines = rows.filter(
-    (row) => row.isGroup === 0 && row.lineTotalCents > 0 && row.parentLineItemId === null,
+  const lines = topLevelBomLines(rows, (row) => row.parentLineItemId).filter(
+    (row) => row.isGroup === 0 && row.lineTotalCents > 0,
   )
   if (lines.length === 0) throw new Error('Signed BOM has no priced line items for the budget baseline')
   return lines
