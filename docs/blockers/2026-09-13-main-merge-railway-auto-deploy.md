@@ -7,9 +7,9 @@ Read-only Railway API evidence on 2026-09-13:
 
 - Project: `a21fd382-80b2-4218-8025-11f420a062e3`.
 - Production environment: `ce3a09da-9334-4256-a0a6-85d69676cb89`.
-- API service: `c45b3d01-036a-4663-a524-0713d782fce3`.
-- Deployment trigger: `8b297e97-8c43-4ee9-a38e-ee7ff0156ae9`, GitHub
-  `Third-Code-Solutions/ERP`, branch `main`, `checkSuites=false`.
+- API service: public identifier redacted.
+- Deployment trigger: public identifier redacted, GitHub `Third-Code-Solutions/ERP`,
+  branch `main`, `checkSuites=false`.
 - CAD service query returned no deployment triggers. Vercel repository config
   keeps `git.deploymentEnabled=false`; production GitHub workflow is manual.
 

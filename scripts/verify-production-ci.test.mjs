@@ -6,6 +6,7 @@ import test from 'node:test'
 import {
   evaluateProductionCiEvidence,
   REQUIRED_CI_JOBS,
+  selectProductionCiRun,
 } from './lib/production-ci-gate.mjs'
 
 const SHA = 'a'.repeat(40)
@@ -73,6 +74,36 @@ test('rejects missing, mismatched, or non-push release runs', () => {
 
   assert.equal(result.ok, false)
   assert.equal(result.code, 'MISSING_RUN')
+})
+
+for (const state of [
+  { status: 'completed', conclusion: 'failure' },
+  { status: 'in_progress', conclusion: null },
+]) {
+  test(`newer ${state.status}/${state.conclusion} run outranks an older successful rerun`, () => {
+    const older = run({ id: 123, run_number: 41, run_attempt: 3 })
+    const newer = run({ id: 456, run_number: 42, run_attempt: 1, ...state })
+
+    for (const workflowRuns of [[older, newer], [newer, older]]) {
+      const selected = selectProductionCiRun({ sha: SHA, workflowRuns })
+      assert.equal(selected.id, 456)
+      const result = evaluateProductionCiEvidence({ sha: SHA, workflowRuns, jobs: jobs() })
+      assert.equal(result.ok, false)
+      assert.equal(result.code, 'RUN_NOT_GREEN')
+      assert.equal(result.run.id, selected.id)
+    }
+  })
+}
+
+test('a pending retry of the newest run cannot reuse its earlier successful attempt', () => {
+  const workflowRuns = [
+    run({ id: 456, run_number: 42, run_attempt: 1 }),
+    run({ id: 456, run_number: 42, run_attempt: 2, status: 'queued', conclusion: null }),
+  ]
+  const result = evaluateProductionCiEvidence({ sha: SHA, workflowRuns, jobs: jobs() })
+  assert.equal(result.ok, false)
+  assert.equal(result.code, 'RUN_NOT_GREEN')
+  assert.equal(result.run.run_attempt, 2)
 })
 
 test('rejects pending or failed canonical run before provider mutation', () => {
