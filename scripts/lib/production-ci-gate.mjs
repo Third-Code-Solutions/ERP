@@ -18,7 +18,16 @@ function runSortKey(run) {
   const attempt = Number.isInteger(run?.run_attempt) ? run.run_attempt : 0
   const runNumber = Number.isInteger(run?.run_number) ? run.run_number : 0
   const createdAt = typeof run?.created_at === 'string' ? run.created_at : ''
-  return `${String(attempt).padStart(8, '0')}:${String(runNumber).padStart(12, '0')}:${createdAt}`
+  return `${String(runNumber).padStart(12, '0')}:${String(attempt).padStart(8, '0')}:${createdAt}`
+}
+
+export function selectProductionCiRun({ sha, workflowRuns }) {
+  const expectedSha = normalizeSha(sha)
+  return (Array.isArray(workflowRuns) ? workflowRuns : [])
+    .filter((run) => normalizeSha(run?.head_sha) === expectedSha)
+    .filter((run) => run?.head_branch === 'main' && run?.event === 'push')
+    // Attempts belong to one run; an older run's retries cannot supersede a newer run.
+    .sort((left, right) => runSortKey(right).localeCompare(runSortKey(left)))[0]
 }
 
 function failure(code, message, details = {}) {
@@ -36,19 +45,14 @@ export function evaluateProductionCiEvidence({ sha, workflowRuns, jobs }) {
     return failure('INVALID_SHA', 'Release SHA must be a 40-character hexadecimal commit SHA')
   }
 
-  const candidates = (Array.isArray(workflowRuns) ? workflowRuns : [])
-    .filter((run) => normalizeSha(run?.head_sha) === expectedSha)
-    .filter((run) => run?.head_branch === 'main' && run?.event === 'push')
-    .sort((left, right) => runSortKey(right).localeCompare(runSortKey(left)))
-
-  if (candidates.length === 0) {
+  const run = selectProductionCiRun({ sha: expectedSha, workflowRuns })
+  if (!run) {
     return failure(
       'MISSING_RUN',
       `No canonical CI push run found for release SHA ${expectedSha}`,
     )
   }
 
-  const run = candidates[0]
   if (run.status !== 'completed' || run.conclusion !== 'success') {
     return failure(
       'RUN_NOT_GREEN',
