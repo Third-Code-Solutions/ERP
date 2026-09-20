@@ -12,8 +12,8 @@ Suspension now:
 - blocks the target Auth account with the existing provider admin API;
 - preserves the tenant user row, foreign-key references, and immutable audit history;
 - writes `account_status = suspended`, reason, actor, and timestamp metadata;
-- records a `status_change` audit event and compensates the Auth ban when the
-  local write/audit outcome cannot be confirmed;
+- commits the status row and `status_change` audit event in one transaction, and
+  compensates the Auth ban when that local outcome cannot be confirmed;
 - prevents self-suspension, non-owner suspension of an owner, and removal of the
   last active admin/owner.
 
@@ -22,6 +22,6 @@ history is retained and access can be restored by a workspace owner.
 
 ## Verification
 
-- Focused admin action suite: 19 tests passed.
+- Focused admin action suite: 20 tests passed.
 - Full Web/API/shared suites and hosted CI remain required for this follow-up.
 - No migration, dependency, production data, or production environment changed.

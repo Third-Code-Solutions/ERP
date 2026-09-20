@@ -11,7 +11,11 @@ import {
 } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { users as usersTable } from '@third-code-erp/database/schema'
-import { writeAuditLog } from '@/lib/audit'
+import {
+  stampActorInTransaction,
+  writeAuditLog,
+  writeAuditLogInTransaction,
+} from '@/lib/audit'
 import {
   adminUserRoleAssignmentWritesUseCoreApi,
   assignUserRoleThroughCoreApi,
@@ -373,31 +377,34 @@ export async function suspendUser(
     if (authErr) return { error: authErr.message }
 
     try {
-      const [updated] = await db
-        .update(usersTable)
-        .set({
-          account_status: 'suspended',
-          status_reason: reason,
-          status_changed_at: new Date(),
-          status_changed_by: profile.user.id,
-          updated_at: new Date(),
+      await db.transaction(async (tx) => {
+        await stampActorInTransaction(tx, profile.user.id)
+        const [updated] = await tx
+          .update(usersTable)
+          .set({
+            account_status: 'suspended',
+            status_reason: reason,
+            status_changed_at: new Date(),
+            status_changed_by: profile.user.id,
+            updated_at: new Date(),
+          })
+          .where(and(eq(usersTable.id, userId), eq(usersTable.tenant_id, profile.tenantId)))
+          .returning({ id: usersTable.id })
+        if (!updated) throw new Error('User changed before suspension was committed')
+        await writeAuditLogInTransaction(tx, {
+          tenantId: profile.tenantId,
+          actorId: profile.user.id,
+          entityType: 'user',
+          entityId: userId,
+          action: 'status_change',
+          diff: {
+            email: target.email,
+            role: target.role,
+            from_status: target.accountStatus,
+            to_status: 'suspended',
+            reason,
+          },
         })
-        .where(and(eq(usersTable.id, userId), eq(usersTable.tenant_id, profile.tenantId)))
-        .returning({ id: usersTable.id })
-      if (!updated) throw new Error('User changed before suspension was committed')
-      await writeAuditLog({
-        tenantId: profile.tenantId,
-        actorId: profile.user.id,
-        entityType: 'user',
-        entityId: userId,
-        action: 'status_change',
-        diff: {
-          email: target.email,
-          role: target.role,
-          from_status: target.accountStatus,
-          to_status: 'suspended',
-          reason,
-        },
       })
     } catch (err) {
       await admin.auth.admin.updateUserById(userId, { ban_duration: 'none' }).catch(() => undefined)

@@ -6,7 +6,10 @@ const mocks = vi.hoisted(() => ({
   createSupabaseAdminClient: vi.fn(),
   select: vi.fn(),
   update: vi.fn(),
+  transaction: vi.fn(),
   writeAuditLog: vi.fn(),
+  writeAuditLogInTransaction: vi.fn(),
+  stampActorInTransaction: vi.fn(),
   revalidatePath: vi.fn(),
   adminUserRoleAssignmentWritesUseCoreApi: vi.fn(),
   assignUserRoleThroughCoreApi: vi.fn(),
@@ -22,11 +25,14 @@ vi.mock('@third-code-erp/database', () => ({
   db: {
     select: mocks.select,
     update: mocks.update,
+    transaction: mocks.transaction,
   },
 }))
 
 vi.mock('@/lib/audit', () => ({
   writeAuditLog: mocks.writeAuditLog,
+  writeAuditLogInTransaction: mocks.writeAuditLogInTransaction,
+  stampActorInTransaction: mocks.stampActorInTransaction,
 }))
 
 vi.mock('@/lib/erp-core-client', () => ({
@@ -103,6 +109,9 @@ describe('admin user role authority', () => {
         }),
       }),
     })
+    mocks.transaction.mockImplementation(async (callback: (tx: unknown) => Promise<unknown>) =>
+      callback({ update: mocks.update }),
+    )
   })
 
   it('uses Core for the selected tenant and performs no fallback write', async () => {
@@ -216,7 +225,7 @@ describe('admin user role authority', () => {
     expect(updateUserById).toHaveBeenCalledWith(TARGET_ID, { ban_duration: '876000h' })
     expect(deleteUser).not.toHaveBeenCalled()
     expect(mocks.update).toHaveBeenCalled()
-    expect(mocks.writeAuditLog).toHaveBeenCalledWith(expect.objectContaining({
+    expect(mocks.writeAuditLogInTransaction).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       action: 'status_change',
       entityId: TARGET_ID,
       diff: expect.objectContaining({ to_status: 'suspended', reason: 'Access review retained history' }),
@@ -232,6 +241,23 @@ describe('admin user role authority', () => {
 
     await expect(suspendUser(form)).resolves.toMatchObject({ error: expect.stringContaining('reason') })
     expect(updateUserById).not.toHaveBeenCalled()
+  })
+
+  it('compensates the Auth ban when the audited transaction cannot commit', async () => {
+    const updateUserById = vi.fn()
+      .mockResolvedValueOnce({ error: null })
+      .mockResolvedValueOnce({ error: null })
+    mocks.createSupabaseAdminClient.mockReturnValue({ auth: { admin: { updateUserById } } })
+    mocks.writeAuditLogInTransaction.mockRejectedValueOnce(new Error('synthetic audit failure'))
+    const form = new FormData()
+    form.set('user_id', TARGET_ID)
+    form.set('reason', 'Retain history during review')
+
+    await expect(suspendUser(form)).resolves.toEqual({
+      error: 'User suspension could not be confirmed. Retry or reconcile with support.',
+    })
+    expect(updateUserById).toHaveBeenNthCalledWith(1, TARGET_ID, { ban_duration: '876000h' })
+    expect(updateUserById).toHaveBeenNthCalledWith(2, TARGET_ID, { ban_duration: 'none' })
   })
 
   it('rejects a target outside the tenant', async () => {
