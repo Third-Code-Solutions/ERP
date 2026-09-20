@@ -81,7 +81,12 @@ export default async function NewClaimPage({
           </p>
         </div>
       ) : (
-        <ClaimForm projects={eligibleProjects} defaultProjectId={defaultProjectId} />
+        <ClaimForm
+          projects={eligibleProjects}
+          defaultProjectId={defaultProjectId}
+          tenantId={profile.tenantId}
+          actorId={profile.user.id}
+        />
       )}
     </div>
   )

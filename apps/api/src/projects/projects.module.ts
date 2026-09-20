@@ -52,6 +52,8 @@ import { ProjectWeeklyProgressController } from './project-weekly-progress.contr
 import { ProjectWeeklyProgressService } from './project-weekly-progress.service'
 import { ProjectBillingMilestonesController } from './project-billing-milestones.controller'
 import { ProjectBillingMilestonesService } from './project-billing-milestones.service'
+import { ClaimDraftController } from './claim-draft.controller'
+import { ClaimDraftService } from './claim-draft.service'
 
 @Module({
   imports: [AuditModule],
@@ -75,6 +77,7 @@ import { ProjectBillingMilestonesService } from './project-billing-milestones.se
     ProjectCloseoutReadinessController,
     ProjectWeeklyProgressController,
     ProjectBillingMilestonesController,
+    ClaimDraftController,
   ],
   providers: [
     ProjectsService,
@@ -105,6 +108,7 @@ import { ProjectBillingMilestonesService } from './project-billing-milestones.se
     ProjectCloseoutReadinessService,
     ProjectWeeklyProgressService,
     ProjectBillingMilestonesService,
+    ClaimDraftService,
   ],
 })
 export class ProjectsModule implements NestModule {
@@ -131,6 +135,7 @@ export class ProjectsModule implements NestModule {
         ProjectCloseoutReadinessController,
         ProjectWeeklyProgressController,
         ProjectBillingMilestonesController,
+        ClaimDraftController,
       )
   }
 }
