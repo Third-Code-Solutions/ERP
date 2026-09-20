@@ -78,7 +78,7 @@ export function RepScorecardTable({ reps }: RepScorecardTableProps) {
           No pipeline data yet. Create opportunities to see rep performance here.
         </div>
       ) : (
-        <div style={{ overflowX: 'auto' }}>
+        <div className="data-table-wrap">
           <table className="data-table">
             <thead>
               <tr>
@@ -112,17 +112,17 @@ export function RepScorecardTable({ reps }: RepScorecardTableProps) {
                         >
                           {initialsFromEmail(rep.repEmail)}
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <span style={{ fontWeight: 500, color: 'var(--color-neutral-900)' }}>
+                        <div className="rep-identity">
+                          <span className="rep-identity-name">
                             {rep.repEmail.split('@')[0]}
                           </span>
                           {conversionRate !== null ? (
-                            <span style={{ fontSize: 11.5, color: 'var(--color-neutral-500)' }}>
+                            <span className="rep-identity-meta">
                               {conversionRate.toFixed(0)}% conv ·{' '}
                               {rep.wonCount + rep.lostCount} closed
                             </span>
                           ) : (
-                            <span style={{ fontSize: 11.5, color: 'var(--color-neutral-500)' }}>
+                            <span className="rep-identity-meta">
                               No closed deals yet
                             </span>
                           )}
@@ -131,13 +131,7 @@ export function RepScorecardTable({ reps }: RepScorecardTableProps) {
                     </td>
                     <td className="currency">{formatCentsCompact(rep.activeTcv)}</td>
                     <td className="currency">{formatCentsCompact(rep.activeGp)}</td>
-                    <td
-                      className="numeric"
-                      style={{
-                        color: lowMargin ? 'var(--color-danger)' : 'inherit',
-                        fontWeight: lowMargin ? 600 : 400,
-                      }}
-                    >
+                    <td className={`numeric ${lowMargin ? 'rep-margin-low' : ''}`}>
                       {gpPct.toFixed(1)}%
                     </td>
                     <td className="currency">{formatCentsCompact(rep.weightedTcv)}</td>
@@ -150,35 +144,35 @@ export function RepScorecardTable({ reps }: RepScorecardTableProps) {
               })}
             </tbody>
             <tfoot>
-              <tr style={{ background: 'var(--color-neutral-50)' }}>
-                <td style={{ fontWeight: 600, color: 'var(--color-neutral-700)' }}>
+              <tr className="rep-scorecard-total">
+                <td className="rep-scorecard-total-label">
                   Team total
                 </td>
-                <td className="currency" style={{ fontWeight: 600 }}>
+                <td className="currency rep-scorecard-total-cell">
                   {formatCentsCompact(totals.activeTcv)}
                 </td>
-                <td className="currency" style={{ fontWeight: 600 }}>
+                <td className="currency rep-scorecard-total-cell">
                   {formatCentsCompact(totals.activeGp)}
                 </td>
-                <td className="numeric" style={{ fontWeight: 600 }}>
+                <td className="numeric rep-scorecard-total-cell">
                   {totals.activeTcv > 0
                     ? ((totals.activeGp / totals.activeTcv) * 100).toFixed(1)
                     : '0.0'}
                   %
                 </td>
-                <td className="currency" style={{ fontWeight: 600 }}>
+                <td className="currency rep-scorecard-total-cell">
                   {formatCentsCompact(totals.weightedTcv)}
                 </td>
-                <td className="currency muted" style={{ fontWeight: 600 }}>
+                <td className="currency muted rep-scorecard-total-cell">
                   {formatCentsCompact(totals.wonTcv)}
                 </td>
-                <td className="numeric" style={{ fontWeight: 600 }}>
+                <td className="numeric rep-scorecard-total-cell">
                   {totals.wonCount}
                 </td>
-                <td className="numeric muted" style={{ fontWeight: 600 }}>
+                <td className="numeric muted rep-scorecard-total-cell">
                   {totals.lostCount}
                 </td>
-                <td className="numeric" style={{ fontWeight: 600 }}>
+                <td className="numeric rep-scorecard-total-cell">
                   {totals.activeCount}
                 </td>
               </tr>

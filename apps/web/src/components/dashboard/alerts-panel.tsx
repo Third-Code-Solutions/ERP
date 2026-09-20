@@ -28,7 +28,7 @@ export function AlertsPanel({ alerts }: AlertsPanelProps) {
     <section
       className="card"
       aria-labelledby="risk-signals-heading"
-      style={{ height: 'fit-content' }}
+      data-dashboard-panel="risk-signals"
     >
       <div className="card-header">
         <div>
@@ -44,15 +44,7 @@ export function AlertsPanel({ alerts }: AlertsPanelProps) {
         {alerts.length > 0 ? (
           <span
             aria-label={`${alerts.length} active ${alerts.length === 1 ? 'alert' : 'alerts'}`}
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 12,
-              fontWeight: 600,
-              padding: '2px 8px',
-              borderRadius: 999,
-              background: danger.length > 0 ? 'var(--color-danger-soft)' : 'var(--color-warning-soft)',
-              color: danger.length > 0 ? 'var(--color-danger)' : 'var(--color-warning)',
-            }}
+            className={`alert-count ${danger.length > 0 ? 'is-danger' : 'is-warning'}`}
           >
             {alerts.length}
           </span>
