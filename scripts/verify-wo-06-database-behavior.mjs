@@ -203,6 +203,60 @@ try {
       assert.equal(String(line.line_total_cents), '1353')
       assert.notEqual(String(totals.unit_rate_centavos), String(totals.total_cost_centavos))
 
+      // Each child table shares the trigger. Moving any child must remove its
+      // cost from the previous parent and update both downstream H-derived BOQs.
+      const destinationLineId = randomUUID()
+      const destinationDupaId = randomUUID()
+      await tx`
+        insert into public.bom_line_items (
+          id, tenant_id, bom_id, kind, classification_status, description,
+          description_original, unit, quantity, unit_rate_source
+        ) values (
+          ${destinationLineId}, ${tenantId}, ${bomId}, 'work_item', 'classified',
+          'Move destination', 'Move destination', 'lot', 3, 'manual'
+        )
+      `
+      await tx`
+        insert into public.dupas (
+          id, tenant_id, bom_line_item_id, header_quantity, uom, vat_base
+        ) values (${destinationDupaId}, ${tenantId}, ${destinationLineId}, 2, 'lot', 'direct_only')
+      `
+
+      async function assertPersistedRate(parentId, expectedDirect, expectedTotal, expectedRate) {
+        const [parent] = await tx`
+          select d.direct_cost_centavos, d.total_cost_centavos, d.unit_rate_centavos,
+                 b.unit_cost_cents, b.line_total_cents
+            from public.dupas d
+            join public.bom_line_items b
+              on b.id = d.bom_line_item_id and b.tenant_id = d.tenant_id
+           where d.id = ${parentId} and d.tenant_id = ${tenantId}
+        `
+        assert.equal(String(parent.direct_cost_centavos), expectedDirect)
+        assert.equal(String(parent.total_cost_centavos), expectedTotal)
+        assert.equal(String(parent.unit_rate_centavos), expectedRate)
+        assert.equal(String(parent.unit_cost_cents), expectedRate)
+        assert.equal(String(parent.line_total_cents), String(BigInt(expectedRate) * 3n))
+      }
+
+      for (const child of [
+        { table: 'dupa_material_lines', id: materialLineId, oldDirect: '500', oldTotal: '644', oldRate: '322', newDirect: '200', newTotal: '254', newRate: '127' },
+        { table: 'dupa_labour_lines', id: labourLineId, oldDirect: '450', oldTotal: '580', oldRate: '290', newDirect: '250', newTotal: '318', newRate: '159' },
+        { table: 'dupa_equipment_lines', id: equipmentLineId, oldDirect: '450', oldTotal: '580', oldRate: '290', newDirect: '250', newTotal: '318', newRate: '159' },
+      ]) {
+        await tx`
+          update ${tx(`public.${child.table}`)} set dupa_id = ${destinationDupaId}
+           where id = ${child.id} and tenant_id = ${tenantId}
+        `
+        await assertPersistedRate(dupaId, child.oldDirect, child.oldTotal, child.oldRate)
+        await assertPersistedRate(destinationDupaId, child.newDirect, child.newTotal, child.newRate)
+        await tx`
+          update ${tx(`public.${child.table}`)} set dupa_id = ${dupaId}
+           where id = ${child.id} and tenant_id = ${tenantId}
+        `
+        await assertPersistedRate(dupaId, '700', '902', '451')
+        await assertPersistedRate(destinationDupaId, '0', '0', '0')
+      }
+
       await expectRejected(
         tx,
         'dupa_unclassified_guard',
@@ -279,7 +333,7 @@ try {
   } catch (error) {
     if (error !== ROLLBACK) throw error
   }
-  console.log('PASS WO-06 database behavior: cascade, H sync, crew refresh, VAT base, audit, and classified-work guard')
+  console.log('PASS WO-06 database behavior: cascade, H sync, child moves, crew refresh, VAT base, audit, and classified-work guard')
 } finally {
   await sql.end({ timeout: 5 })
 }
