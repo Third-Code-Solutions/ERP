@@ -17,8 +17,10 @@ import {
   evaluateSlaClock,
   type SlaClockEvaluation,
 } from '@third-code-erp/shared-types'
-import { and, asc, eq, notInArray } from 'drizzle-orm'
+import { and, asc, eq, gt, lte, notInArray, or } from 'drizzle-orm'
 import { inngest } from './inngest'
+
+const PROCESS_SLA_PAGE_SIZE = 1_000
 
 export type ProcessSlaSweepRow = {
   id: string
@@ -110,32 +112,50 @@ export function deriveProcessSlaTransition(
   }
 }
 
-interface Step {
+export interface ProcessSlaSweepStep {
   run: <T>(name: string, operation: () => Promise<T>) => Promise<T>
 }
 
-export const processSlaChecker = inngest.createFunction(
-  {
-    id: 'process-sla-checker',
-    name: 'M-06 Process SLA Checker',
-    triggers: [{ cron: '*/15 * * * *' as const }],
-  },
-  async ({ step }: { step: Step }): Promise<ProcessSlaRunSummary> => {
-    const summary: ProcessSlaRunSummary = {
-      processed: 0,
-      changed: 0,
-      breached: 0,
-      escalated: 0,
-      externalBreached: 0,
-      errors: 0,
-    }
+export type ProcessSlaSweepCursor = Pick<
+  ProcessSlaSweepRow,
+  'due_at' | 'id'
+>
 
-    if (process.env.PROCESS_SLA_ENGINE_ENABLED !== '1') {
-      return { ...summary, disabled: true }
-    }
+export interface ProcessSlaSweepStore {
+  loadOpenClocks(input: {
+    cursor: ProcessSlaSweepCursor | null
+    sweepAt: Date
+  }): Promise<ProcessSlaSweepRow[]>
+  compareAndSetClock(input: {
+    row: ProcessSlaSweepRow
+    transition: ProcessSlaTransition
+    sweepAt: Date
+  }): Promise<boolean>
+}
 
-    const rows = await step.run('load-open-process-sla-clocks', async () =>
-      db
+function createProcessSlaSweepStore(): ProcessSlaSweepStore {
+  return {
+    loadOpenClocks: async ({ cursor, sweepAt }) => {
+      const eligible = and(
+        notInArray(slaClocks.status, [
+          'paused',
+          'completed',
+          'cancelled',
+          'escalated',
+        ]),
+        lte(slaClocks.due_at, sweepAt)
+      )
+      const afterCursor = cursor
+        ? or(
+            gt(slaClocks.due_at, cursor.due_at),
+            and(
+              eq(slaClocks.due_at, cursor.due_at),
+              gt(slaClocks.id, cursor.id)
+            )
+          )
+        : undefined
+
+      return db
         .select({
           id: slaClocks.id,
           tenant_id: slaClocks.tenant_id,
@@ -169,41 +189,80 @@ export const processSlaChecker = inngest.createFunction(
             eq(taskInstances.tenant_id, processSteps.tenant_id)
           )
         )
+        .where(afterCursor ? and(eligible, afterCursor) : eligible)
+        .orderBy(asc(slaClocks.due_at), asc(slaClocks.id))
+        .limit(PROCESS_SLA_PAGE_SIZE)
+    },
+    compareAndSetClock: async ({ row, transition, sweepAt }) => {
+      const [updated] = await db
+        .update(slaClocks)
+        .set({
+          status: transition.status,
+          breached_at: transition.breached_at,
+          escalated_at: transition.escalated_at,
+          updated_at: sweepAt,
+        })
         .where(
-          notInArray(slaClocks.status, ['paused', 'completed', 'cancelled', 'escalated'])
+          and(
+            eq(slaClocks.id, row.id),
+            eq(slaClocks.tenant_id, row.tenant_id),
+            eq(slaClocks.status, row.status),
+            eq(slaClocks.updated_at, row.updated_at)
+          )
         )
-        .orderBy(asc(slaClocks.due_at))
-        .limit(1_000)
+        .returning({ id: slaClocks.id })
+
+      return Boolean(updated)
+    },
+  }
+}
+
+export async function runProcessSlaSweep(
+  step: ProcessSlaSweepStep,
+  store: ProcessSlaSweepStore,
+  sweepAt: Date
+): Promise<ProcessSlaRunSummary> {
+  const summary: ProcessSlaRunSummary = {
+    processed: 0,
+    changed: 0,
+    breached: 0,
+    escalated: 0,
+    externalBreached: 0,
+    errors: 0,
+  }
+
+  let cursor: ProcessSlaSweepCursor | null = null
+  let page = 0
+
+  while (true) {
+    const rows = await step.run(
+      page === 0
+        ? 'load-open-process-sla-clocks'
+        : `load-open-process-sla-clocks-page-${page}`,
+      () => store.loadOpenClocks({ cursor, sweepAt })
     )
 
-    const now = new Date()
+    if (rows.length === 0) break
+
     for (const row of rows) {
       summary.processed += 1
       try {
-        const result = await step.run(`evaluate-process-sla-${row.id}`, async () => {
-          const transition = deriveProcessSlaTransition(row, now)
-          if (!transition.changed) return transition
+        const result = await step.run(
+          `evaluate-process-sla-${row.id}`,
+          async () => {
+            const transition = deriveProcessSlaTransition(row, sweepAt)
+            if (!transition.changed) return transition
 
-          const [updated] = await db
-            .update(slaClocks)
-            .set({
-              status: transition.status,
-              breached_at: transition.breached_at,
-              escalated_at: transition.escalated_at,
-              updated_at: now,
-            })
-            .where(
-              and(
-                eq(slaClocks.id, row.id),
-                eq(slaClocks.tenant_id, row.tenant_id),
-                eq(slaClocks.status, row.status),
-                eq(slaClocks.updated_at, row.updated_at)
-              )
-            )
-            .returning({ id: slaClocks.id })
-
-          return { ...transition, changed: Boolean(updated) }
-        })
+            return {
+              ...transition,
+              changed: await store.compareAndSetClock({
+                row,
+                transition,
+                sweepAt,
+              }),
+            }
+          }
+        )
 
         if (!result.changed) continue
         summary.changed += 1
@@ -217,6 +276,35 @@ export const processSlaChecker = inngest.createFunction(
       }
     }
 
-    return summary
+    const last = rows.at(-1)
+    if (!last) break
+    cursor = { due_at: last.due_at, id: last.id }
+    page += 1
+    if (rows.length < PROCESS_SLA_PAGE_SIZE) break
+  }
+
+  return summary
+}
+
+export const processSlaChecker = inngest.createFunction(
+  {
+    id: 'process-sla-checker',
+    name: 'M-06 Process SLA Checker',
+    triggers: [{ cron: '*/15 * * * *' as const }],
+  },
+  async ({ step }: { step: ProcessSlaSweepStep }): Promise<ProcessSlaRunSummary> => {
+    if (process.env.PROCESS_SLA_ENGINE_ENABLED !== '1') {
+      return {
+        disabled: true,
+        processed: 0,
+        changed: 0,
+        breached: 0,
+        escalated: 0,
+        externalBreached: 0,
+        errors: 0,
+      }
+    }
+
+    return runProcessSlaSweep(step, createProcessSlaSweepStore(), new Date())
   }
 )
