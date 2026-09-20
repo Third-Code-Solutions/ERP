@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import {
   updateUserRole,
   resetUserPassword,
-  deleteUser,
+  suspendUser,
 } from '@/app/(dashboard)/admin/users/actions'
 import {
   ASSIGNABLE_ROLES,
@@ -382,8 +382,8 @@ export function ManageUserPanel({ userId, currentRole, email, isSelf }: Props) {
   const router = useRouter()
   const [pwdError, setPwdError] = useState<string | null>(null)
   const [pwdOk, setPwdOk] = useState(false)
-  const [delError, setDelError] = useState<string | null>(null)
-  const [showDelete, setShowDelete] = useState(false)
+  const [suspendError, setSuspendError] = useState<string | null>(null)
+  const [showSuspend, setShowSuspend] = useState(false)
   const [pending, startTransition] = useTransition()
 
   function handlePassword(e: React.FormEvent<HTMLFormElement>) {
@@ -411,25 +411,24 @@ export function ManageUserPanel({ userId, currentRole, email, isSelf }: Props) {
     })
   }
 
-  function handleDelete(e: React.FormEvent<HTMLFormElement>) {
+  function handleSuspend(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const formData = new FormData(e.currentTarget)
-    setDelError(null)
+    setSuspendError(null)
     startTransition(async () => {
       try {
-        const res = await deleteUser(formData)
+        const res = await suspendUser(formData)
         if (res?.error) {
-          setDelError(res.error)
+          setSuspendError(res.error)
           return
         }
-        // Client-side navigate now that the server action returned ok.
         router.push('/admin/users')
         router.refresh()
       } catch (err) {
-        setDelError(
+        setSuspendError(
           err instanceof Error
             ? `Network error: ${err.message}`
-            : 'Could not delete user.'
+            : 'Could not suspend user.'
         )
       }
     })
@@ -484,13 +483,13 @@ export function ManageUserPanel({ userId, currentRole, email, isSelf }: Props) {
 
       <div style={{ borderTop: '1px solid var(--color-border)' }} />
 
-      {/* Danger zone */}
+      {/* Retained-history access control */}
       <section>
-        <h3 style={{ ...sectionHead, color: 'var(--color-danger)' }}>Danger zone</h3>
-        {!showDelete ? (
+        <h3 style={{ ...sectionHead, color: 'var(--color-danger)' }}>Access control</h3>
+        {!showSuspend ? (
           <button
             type="button"
-            onClick={() => setShowDelete(true)}
+            onClick={() => setShowSuspend(true)}
             disabled={isSelf}
             style={{
               padding: '8px 14px',
@@ -504,17 +503,31 @@ export function ManageUserPanel({ userId, currentRole, email, isSelf }: Props) {
               fontWeight: 500,
               cursor: isSelf ? 'not-allowed' : 'pointer',
             }}
-            title={isSelf ? 'You cannot delete your own account' : undefined}
+            title={isSelf ? 'You cannot suspend your own account' : undefined}
           >
-            Delete this user
+            Suspend this user
           </button>
         ) : (
-          <form onSubmit={handleDelete} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <form onSubmit={handleSuspend} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <input type="hidden" name="user_id" value={userId} />
             <p style={{ fontSize: 13, color: 'var(--color-neutral-700)', margin: 0 }}>
-              This removes the auth account and the workspace user row. Audit-logged.
-              This cannot be undone.
+              Suspension blocks sign-in while retaining the workspace user, project
+              references, and immutable audit history. A workspace owner can restore
+              access later.
             </p>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600 }}>
+              Reason
+              <textarea
+                name="reason"
+                required
+                minLength={3}
+                maxLength={500}
+                defaultValue="Access suspended; retained history preserved."
+                rows={3}
+                disabled={pending}
+                style={{ ...inputStyle, resize: 'vertical' }}
+              />
+            </label>
             <div style={{ display: 'flex', gap: 8 }}>
               <button
                 type="submit"
@@ -530,11 +543,11 @@ export function ManageUserPanel({ userId, currentRole, email, isSelf }: Props) {
                   cursor: pending ? 'wait' : 'pointer',
                 }}
               >
-                {pending ? 'Deleting…' : 'Yes, delete'}
+                {pending ? 'Suspending…' : 'Yes, suspend'}
               </button>
               <button
                 type="button"
-                onClick={() => setShowDelete(false)}
+                onClick={() => setShowSuspend(false)}
                 style={{
                   padding: '8px 14px',
                   background: 'transparent',
@@ -549,7 +562,7 @@ export function ManageUserPanel({ userId, currentRole, email, isSelf }: Props) {
             </div>
           </form>
         )}
-        {delError && <p style={errorText}>{delError}</p>}
+        {suspendError && <p style={errorText}>{suspendError}</p>}
       </section>
     </div>
   )

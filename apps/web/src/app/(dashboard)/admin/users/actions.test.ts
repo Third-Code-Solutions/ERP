@@ -42,6 +42,7 @@ vi.mock('next/cache', () => ({
 import {
   createUser,
   deleteUser,
+  suspendUser,
   resetUserPassword,
   updateUserRole,
 } from './actions'
@@ -96,7 +97,11 @@ describe('admin user role authority', () => {
     ])
     mocks.select.mockReturnValue({ from: query.from })
     mocks.update.mockReturnValue({
-      set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) }),
+      set: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          returning: vi.fn().mockResolvedValue([{ id: TARGET_ID }]),
+        }),
+      }),
     })
   })
 
@@ -192,9 +197,41 @@ describe('admin user role authority', () => {
     form.set('user_id', TARGET_ID)
 
     await expect(deleteUser(form)).resolves.toEqual({
-      error: 'Only an owner can delete another owner.',
+      error: 'Only an owner can suspend another owner.',
     })
     expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
+  })
+
+  it('suspends a retained-history user without deleting identity or row', async () => {
+    const updateUserById = vi.fn().mockResolvedValue({ error: null })
+    const deleteUser = vi.fn()
+    mocks.createSupabaseAdminClient.mockReturnValue({
+      auth: { admin: { updateUserById, deleteUser } },
+    })
+    const form = new FormData()
+    form.set('user_id', TARGET_ID)
+    form.set('reason', 'Access review retained history')
+
+    await expect(suspendUser(form)).resolves.toEqual({ ok: true, status: 'suspended' })
+    expect(updateUserById).toHaveBeenCalledWith(TARGET_ID, { ban_duration: '876000h' })
+    expect(deleteUser).not.toHaveBeenCalled()
+    expect(mocks.update).toHaveBeenCalled()
+    expect(mocks.writeAuditLog).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'status_change',
+      entityId: TARGET_ID,
+      diff: expect.objectContaining({ to_status: 'suspended', reason: 'Access review retained history' }),
+    }))
+  })
+
+  it('rejects an invalid suspension reason before Auth', async () => {
+    const updateUserById = vi.fn()
+    mocks.createSupabaseAdminClient.mockReturnValue({ auth: { admin: { updateUserById } } })
+    const form = new FormData()
+    form.set('user_id', TARGET_ID)
+    form.set('reason', 'x')
+
+    await expect(suspendUser(form)).resolves.toMatchObject({ error: expect.stringContaining('reason') })
+    expect(updateUserById).not.toHaveBeenCalled()
   })
 
   it('rejects a target outside the tenant', async () => {

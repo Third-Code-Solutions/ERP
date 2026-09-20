@@ -301,40 +301,55 @@ export async function resetUserPassword(
   })
 }
 
+const suspendUserSchema = z.object({
+  user_id: z.string().uuid().transform((value) => value.toLowerCase()),
+  reason: z.string().trim().min(3).max(500).optional().default('Access suspended; retained history preserved.'),
+})
+
 /**
- * Delete a user. Returns `{ ok: true }` on success so the client can
- * navigate — we DO NOT `redirect()` here because the form action runs
- * inside `useTransition` and a thrown redirect inside a transition is
- * fragile across Next versions. Client-side `router.push` is safer.
+ * Suspend a user without deleting retained identity, project, or audit history.
+ * The Auth ban is compensated when the database/audit write cannot be confirmed.
  */
-export async function deleteUser(
+export async function suspendUser(
   formData: FormData
-): Promise<{ error?: string; ok?: boolean }> {
-  return safe('deleteUser', async () => {
+): Promise<{ error?: string; ok?: boolean; status?: 'suspended' }> {
+  return safe('suspendUser', async () => {
     const profile = await requireUserProfile()
     const forbid = guardAdmin(profile.role)
     if (forbid) return { error: forbid }
 
-    const userId = String(formData.get('user_id') ?? '')
-    if (!userId) return { error: 'user_id required' }
+    const parsed = suspendUserSchema.safeParse({
+      user_id: formData.get('user_id'),
+      reason: formData.get('reason') ?? undefined,
+    })
+    if (!parsed.success) {
+      const first = parsed.error.errors[0]
+      return { error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}` }
+    }
+    const { user_id: userId, reason } = parsed.data
 
     if (userId === profile.user.id) {
-      return { error: 'You cannot delete your own account.' }
+      return { error: 'You cannot suspend your own account.' }
     }
 
     const [target] = await db
-      .select({ id: usersTable.id, email: usersTable.email, role: usersTable.role })
+      .select({
+        id: usersTable.id,
+        email: usersTable.email,
+        role: usersTable.role,
+        accountStatus: usersTable.account_status,
+      })
       .from(usersTable)
       .where(and(eq(usersTable.id, userId), eq(usersTable.tenant_id, profile.tenantId)))
       .limit(1)
     if (!target) return { error: 'User not found in this workspace.' }
     if (target.role === 'owner' && profile.role !== 'owner') {
-      return { error: 'Only an owner can delete another owner.' }
+      return { error: 'Only an owner can suspend another owner.' }
     }
 
-    // Protect the last admin/owner — count the remaining admins/owners
-    // in this tenant (excluding the target).
-    if (target.role === 'admin' || target.role === 'owner') {
+    // Protect the last active admin/owner — a workspace must retain an
+    // administrator who can restore access or complete future lifecycle work.
+    if ((target.role === 'admin' || target.role === 'owner') && target.accountStatus === 'active') {
       const [{ count } = { count: 0 }] = await db
         .select({ count: sql<number>`COUNT(*)::int` })
         .from(usersTable)
@@ -342,41 +357,63 @@ export async function deleteUser(
           and(
             eq(usersTable.tenant_id, profile.tenantId),
             ne(usersTable.id, userId),
-            // role IN ('admin', 'owner')
+            eq(usersTable.account_status, 'active'),
             sql`${usersTable.role} IN ('admin', 'owner')`
           )
         )
       if (!count || count < 1) {
-        return { error: 'Cannot delete the last admin/owner in this workspace.' }
+        return { error: 'Cannot suspend the last active admin/owner in this workspace.' }
       }
     }
 
     const admin = createSupabaseAdminClient()
-    const { error: authErr } = await admin.auth.admin.deleteUser(userId)
+    const { error: authErr } = await admin.auth.admin.updateUserById(userId, {
+      ban_duration: '876000h',
+    })
     if (authErr) return { error: authErr.message }
 
-    // FK from public.users.id → auth.users.id is ON DELETE CASCADE in
-    // Supabase by default, so the row often goes with it. We delete
-    // explicitly to be safe (idempotent).
-    await db
-      .delete(usersTable)
-      .where(and(eq(usersTable.id, userId), eq(usersTable.tenant_id, profile.tenantId)))
-
     try {
+      const [updated] = await db
+        .update(usersTable)
+        .set({
+          account_status: 'suspended',
+          status_reason: reason,
+          status_changed_at: new Date(),
+          status_changed_by: profile.user.id,
+          updated_at: new Date(),
+        })
+        .where(and(eq(usersTable.id, userId), eq(usersTable.tenant_id, profile.tenantId)))
+        .returning({ id: usersTable.id })
+      if (!updated) throw new Error('User changed before suspension was committed')
       await writeAuditLog({
         tenantId: profile.tenantId,
         actorId: profile.user.id,
         entityType: 'user',
         entityId: userId,
-        action: 'delete',
-        diff: { email: target.email, role: target.role },
+        action: 'status_change',
+        diff: {
+          email: target.email,
+          role: target.role,
+          from_status: target.accountStatus,
+          to_status: 'suspended',
+          reason,
+        },
       })
     } catch (err) {
-
-      console.warn('[admin/users:deleteUser] audit log failed:', err)
+      await admin.auth.admin.updateUserById(userId, { ban_duration: 'none' }).catch(() => undefined)
+      console.warn('[admin/users:suspendUser] suspension compensation attempted:', err)
+      return { error: 'User suspension could not be confirmed. Retry or reconcile with support.' }
     }
 
     revalidatePath('/admin/users')
-    return { ok: true }
+    revalidatePath(`/admin/users/${userId}`)
+    return { ok: true, status: 'suspended' }
   })
+}
+
+/** @deprecated Use suspendUser. Kept as a safe compatibility alias; it never deletes. */
+export async function deleteUser(
+  formData: FormData
+): Promise<{ error?: string; ok?: boolean; status?: 'suspended' }> {
+  return suspendUser(formData)
 }
