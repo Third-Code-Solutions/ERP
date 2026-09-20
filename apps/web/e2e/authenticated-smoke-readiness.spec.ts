@@ -13,7 +13,7 @@ test.beforeAll(async () => {
       response.writeHead(302, { location: '/auth/login' }).end()
       return
     }
-    if (path === '/pipeline/list') {
+    if (path === '/pipeline/list' || path === '/pipeline/conversion') {
       response.writeHead(302, { location: '/pipeline?other=ok&view=list' }).end()
       return
     }
@@ -62,6 +62,11 @@ test('accepts a normal authenticated destination with query parameters and trail
 test('accepts the explicit canonical pipeline redirect', async ({ page }) => {
   await page.goto(`${baseUrl}/pipeline/list`)
   await assertAuthenticatedSmokeReady(page, baseUrl, '/pipeline/list')
+})
+
+test('accepts the legacy conversion pipeline redirect', async ({ page }) => {
+  await page.goto(`${baseUrl}/pipeline/conversion`)
+  await assertAuthenticatedSmokeReady(page, baseUrl, '/pipeline/conversion')
 })
 
 test('waits for canonical destination and landmark instead of accepting the intermediate shell', async ({ page }) => {
