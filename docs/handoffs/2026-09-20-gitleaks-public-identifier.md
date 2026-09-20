@@ -6,8 +6,9 @@ Status: Agent 12 security cleanup complete; ready for Agent 13 release-control h
 
 - Remove a nonessential public Railway deployment-trigger identifier from the
   blocker evidence document rather than suppressing a secret-detection rule.
-- Remove the stale commit-specific `.gitleaksignore` entry created before the
-  squash merge changed the fingerprint.
+- Replace the stale single-entry `.gitleaksignore` exception with exact
+  historical fingerprints for both pre-redaction findings; current source is
+  redacted and no broad rule or path suppression is added.
 - Re-run local gitleaks and the focused production-CI tests before handoff back
   to Agent 13.
 
