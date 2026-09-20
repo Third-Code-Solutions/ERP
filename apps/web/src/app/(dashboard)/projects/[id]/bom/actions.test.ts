@@ -1035,3 +1035,380 @@ describe('BOM draft-lock regression', () => {
     expect(mocks.transactionUpdate).not.toHaveBeenCalled()
   })
 })
+
+describe('BOM review resolution concurrency guards', () => {
+  const LOCATION_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+  const GRAIN_REVIEW_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+  const LOCATION_REVIEW_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+  const transaction = {
+    select: mocks.transactionSelect,
+    update: mocks.transactionUpdate,
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.select.mockReset()
+    mocks.transaction.mockReset()
+    mocks.transactionSelect.mockReset()
+    mocks.transactionUpdate.mockReset()
+    mocks.writeAuditLogInTransaction.mockReset()
+    mocks.grainReviewSafeParse.mockReset()
+    mocks.locationReviewSafeParse.mockReset()
+    mocks.revalidatePath.mockReset()
+    mocks.requireUserProfile.mockResolvedValue({
+      tenantId: TENANT_ID,
+      user: { id: USER_ID },
+      role: 'commercial',
+    })
+    mocks.can.mockReturnValue(true)
+    mocks.transaction.mockImplementation(async (callback) => callback(transaction))
+    mocks.writeAuditLogInTransaction.mockResolvedValue(undefined)
+  })
+
+  it('rejects a grain review consumed before the locked reread', async () => {
+    const input = {
+      reviewId: GRAIN_REVIEW_ID,
+      projectId: PROJECT_ID,
+      kind: 'work_item' as const,
+      parentLineItemId: null,
+    }
+    mocks.grainReviewSafeParse.mockReturnValue({ success: true, data: input })
+    mocks.select.mockReturnValueOnce(
+      selectResult([
+        {
+          reviewId: GRAIN_REVIEW_ID,
+          lineItemId: LINE_ITEM_ID,
+          bomId: BOM_ID,
+          projectId: PROJECT_ID,
+          bomStatus: 'draft',
+          previousKind: null,
+          previousParentLineItemId: null,
+        },
+      ]),
+    )
+    mocks.transactionSelect
+      .mockReturnValueOnce(selectResult([{ id: BOM_ID, status: 'draft' }]))
+      .mockReturnValueOnce(selectResult([]))
+
+    await expect(resolveBomGrainReview(input)).resolves.toEqual({
+      error: 'Pending grain review not found',
+    })
+    expect(mocks.transactionUpdate).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('uses the locked grain line snapshot for audit and requires one review CAS row', async () => {
+    const input = {
+      reviewId: GRAIN_REVIEW_ID,
+      projectId: PROJECT_ID,
+      kind: 'work_item' as const,
+      parentLineItemId: null,
+    }
+    mocks.grainReviewSafeParse.mockReturnValue({ success: true, data: input })
+    mocks.select.mockReturnValueOnce(
+      selectResult([
+        {
+          reviewId: GRAIN_REVIEW_ID,
+          lineItemId: LINE_ITEM_ID,
+          bomId: BOM_ID,
+          projectId: PROJECT_ID,
+          bomStatus: 'draft',
+          previousKind: null,
+          previousParentLineItemId: null,
+        },
+      ]),
+    )
+    mocks.transactionSelect
+      .mockReturnValueOnce(selectResult([{ id: BOM_ID, status: 'draft' }]))
+      .mockReturnValueOnce(
+        selectResult([{ reviewId: GRAIN_REVIEW_ID, lineItemId: LINE_ITEM_ID, bomId: BOM_ID }]),
+      )
+      .mockReturnValueOnce(
+        selectResult([
+          {
+            id: LINE_ITEM_ID,
+            bomId: BOM_ID,
+            tenantId: TENANT_ID,
+            previousKind: 'material_line',
+            previousParentLineItemId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          },
+        ]),
+      )
+    mocks.transactionUpdate
+      .mockReturnValueOnce(returningUpdateChain([{ id: LINE_ITEM_ID }]))
+      .mockReturnValueOnce(returningUpdateChain([{ id: GRAIN_REVIEW_ID }]))
+
+    await expect(resolveBomGrainReview(input)).resolves.toEqual({})
+    expect(mocks.writeAuditLogInTransaction).toHaveBeenCalledWith(
+      transaction,
+      expect.objectContaining({
+        entityId: LINE_ITEM_ID,
+        diff: expect.objectContaining({
+          before: {
+            kind: 'material_line',
+            parent_line_item_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          },
+        }),
+      }),
+    )
+    expect(mocks.revalidatePath).toHaveBeenCalledWith(`/projects/${PROJECT_ID}/bom`)
+  })
+
+  it('does not update or audit when the grain review CAS loses', async () => {
+    const input = {
+      reviewId: GRAIN_REVIEW_ID,
+      projectId: PROJECT_ID,
+      kind: 'work_item' as const,
+      parentLineItemId: null,
+    }
+    mocks.grainReviewSafeParse.mockReturnValue({ success: true, data: input })
+    mocks.select.mockReturnValueOnce(
+      selectResult([
+        {
+          reviewId: GRAIN_REVIEW_ID,
+          lineItemId: LINE_ITEM_ID,
+          bomId: BOM_ID,
+          projectId: PROJECT_ID,
+          bomStatus: 'draft',
+          previousKind: null,
+          previousParentLineItemId: null,
+        },
+      ]),
+    )
+    mocks.transactionSelect
+      .mockReturnValueOnce(selectResult([{ id: BOM_ID, status: 'draft' }]))
+      .mockReturnValueOnce(
+        selectResult([{ reviewId: GRAIN_REVIEW_ID, lineItemId: LINE_ITEM_ID, bomId: BOM_ID }]),
+      )
+      .mockReturnValueOnce(
+        selectResult([
+          {
+            id: LINE_ITEM_ID,
+            bomId: BOM_ID,
+            tenantId: TENANT_ID,
+            previousKind: null,
+            previousParentLineItemId: null,
+          },
+        ]),
+      )
+    mocks.transactionUpdate
+      .mockReturnValueOnce(returningUpdateChain([{ id: LINE_ITEM_ID }]))
+      .mockReturnValueOnce(returningUpdateChain([]))
+
+    await expect(resolveBomGrainReview(input)).resolves.toEqual({
+      error: 'Pending grain review not found',
+    })
+    expect(mocks.transactionUpdate).toHaveBeenCalledTimes(2)
+    expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('rejects a location review consumed before the locked reread', async () => {
+    const input = {
+      reviewId: LOCATION_REVIEW_ID,
+      projectId: PROJECT_ID,
+      locationId: LOCATION_ID,
+    }
+    mocks.locationReviewSafeParse.mockReturnValue({ success: true, data: input })
+    mocks.select
+      .mockReturnValueOnce(
+        selectResult([
+          {
+            reviewId: LOCATION_REVIEW_ID,
+            lineItemId: LINE_ITEM_ID,
+            bomId: BOM_ID,
+            projectId: PROJECT_ID,
+            bomStatus: 'draft',
+            previousLocationId: null,
+            descriptionOriginal: 'Concrete slab work',
+          },
+        ]),
+      )
+      .mockReturnValueOnce(selectResult([{ id: LOCATION_ID, name: 'Lobby' }]))
+    mocks.transactionSelect
+      .mockReturnValueOnce(selectResult([{ id: BOM_ID, status: 'draft' }]))
+      .mockReturnValueOnce(selectResult([]))
+
+    await expect(resolveBomLocationReview(input)).resolves.toEqual({
+      error: 'Pending location review not found',
+    })
+    expect(mocks.transactionUpdate).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('uses the locked location line snapshot for audit and requires one review CAS row', async () => {
+    const input = {
+      reviewId: LOCATION_REVIEW_ID,
+      projectId: PROJECT_ID,
+      locationId: LOCATION_ID,
+    }
+    mocks.locationReviewSafeParse.mockReturnValue({ success: true, data: input })
+    mocks.select
+      .mockReturnValueOnce(
+        selectResult([
+          {
+            reviewId: LOCATION_REVIEW_ID,
+            lineItemId: LINE_ITEM_ID,
+            bomId: BOM_ID,
+            projectId: PROJECT_ID,
+            bomStatus: 'draft',
+            previousLocationId: null,
+            descriptionOriginal: 'Concrete slab work',
+          },
+        ]),
+      )
+      .mockReturnValueOnce(selectResult([{ id: LOCATION_ID, name: 'Lobby' }]))
+    mocks.transactionSelect
+      .mockReturnValueOnce(selectResult([{ id: BOM_ID, status: 'draft' }]))
+      .mockReturnValueOnce(
+        selectResult([
+          {
+            reviewId: LOCATION_REVIEW_ID,
+            lineItemId: LINE_ITEM_ID,
+            bomId: BOM_ID,
+            descriptionOriginal: 'Concrete slab work',
+          },
+        ]),
+      )
+      .mockReturnValueOnce(
+        selectResult([
+          {
+            id: LINE_ITEM_ID,
+            bomId: BOM_ID,
+            tenantId: TENANT_ID,
+            previousLocationId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+          },
+        ]),
+      )
+      .mockReturnValueOnce(selectResult([{ id: LOCATION_ID, name: 'Lobby' }]))
+    mocks.transactionUpdate
+      .mockReturnValueOnce(returningUpdateChain([{ id: LINE_ITEM_ID }]))
+      .mockReturnValueOnce(returningUpdateChain([{ id: LOCATION_REVIEW_ID }]))
+
+    await expect(resolveBomLocationReview(input)).resolves.toEqual({})
+    expect(mocks.writeAuditLogInTransaction).toHaveBeenCalledWith(
+      transaction,
+      expect.objectContaining({
+        entityId: LINE_ITEM_ID,
+        diff: expect.objectContaining({
+          before: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+          after: { id: LOCATION_ID, name: 'Lobby' },
+        }),
+      }),
+    )
+    expect(mocks.revalidatePath).toHaveBeenCalledWith(`/projects/${PROJECT_ID}/bom`)
+  })
+
+  it('does not update or audit when the location review CAS loses', async () => {
+    const input = {
+      reviewId: LOCATION_REVIEW_ID,
+      projectId: PROJECT_ID,
+      locationId: LOCATION_ID,
+    }
+    mocks.locationReviewSafeParse.mockReturnValue({ success: true, data: input })
+    mocks.select
+      .mockReturnValueOnce(
+        selectResult([
+          {
+            reviewId: LOCATION_REVIEW_ID,
+            lineItemId: LINE_ITEM_ID,
+            bomId: BOM_ID,
+            projectId: PROJECT_ID,
+            bomStatus: 'draft',
+            previousLocationId: null,
+            descriptionOriginal: 'Concrete slab work',
+          },
+        ]),
+      )
+      .mockReturnValueOnce(selectResult([{ id: LOCATION_ID, name: 'Lobby' }]))
+    mocks.transactionSelect
+      .mockReturnValueOnce(selectResult([{ id: BOM_ID, status: 'draft' }]))
+      .mockReturnValueOnce(
+        selectResult([
+          {
+            reviewId: LOCATION_REVIEW_ID,
+            lineItemId: LINE_ITEM_ID,
+            bomId: BOM_ID,
+            descriptionOriginal: 'Concrete slab work',
+          },
+        ]),
+      )
+      .mockReturnValueOnce(
+        selectResult([
+          {
+            id: LINE_ITEM_ID,
+            bomId: BOM_ID,
+            tenantId: TENANT_ID,
+            previousLocationId: null,
+          },
+        ]),
+      )
+      .mockReturnValueOnce(selectResult([{ id: LOCATION_ID, name: 'Lobby' }]))
+    mocks.transactionUpdate
+      .mockReturnValueOnce(returningUpdateChain([{ id: LINE_ITEM_ID }]))
+      .mockReturnValueOnce(returningUpdateChain([]))
+
+    await expect(resolveBomLocationReview(input)).resolves.toEqual({
+      error: 'Pending location review not found',
+    })
+    expect(mocks.transactionUpdate).toHaveBeenCalledTimes(2)
+    expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('rejects a selected location deleted after the initial validation', async () => {
+    const input = {
+      reviewId: LOCATION_REVIEW_ID,
+      projectId: PROJECT_ID,
+      locationId: LOCATION_ID,
+    }
+    mocks.locationReviewSafeParse.mockReturnValue({ success: true, data: input })
+    mocks.select
+      .mockReturnValueOnce(
+        selectResult([
+          {
+            reviewId: LOCATION_REVIEW_ID,
+            lineItemId: LINE_ITEM_ID,
+            bomId: BOM_ID,
+            projectId: PROJECT_ID,
+            bomStatus: 'draft',
+            previousLocationId: null,
+            descriptionOriginal: 'Concrete slab work',
+          },
+        ]),
+      )
+      .mockReturnValueOnce(selectResult([{ id: LOCATION_ID, name: 'Lobby' }]))
+    mocks.transactionSelect
+      .mockReturnValueOnce(selectResult([{ id: BOM_ID, status: 'draft' }]))
+      .mockReturnValueOnce(
+        selectResult([
+          {
+            reviewId: LOCATION_REVIEW_ID,
+            lineItemId: LINE_ITEM_ID,
+            bomId: BOM_ID,
+            descriptionOriginal: 'Concrete slab work',
+          },
+        ]),
+      )
+      .mockReturnValueOnce(
+        selectResult([
+          {
+            id: LINE_ITEM_ID,
+            bomId: BOM_ID,
+            tenantId: TENANT_ID,
+            previousLocationId: null,
+          },
+        ]),
+      )
+      .mockReturnValueOnce(selectResult([]))
+
+    await expect(resolveBomLocationReview(input)).resolves.toEqual({
+      error: 'Location not found in this project',
+    })
+    expect(mocks.transactionUpdate).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+})
