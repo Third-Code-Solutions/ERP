@@ -15,19 +15,18 @@ const STAGE_LABELS: Record<string, string> = {
 }
 
 interface BandStyle {
-  background: string
-  color: string
+  tone: 'strong' | 'watch' | 'risk'
   label: string
 }
 
 function bandFor(pct: number): BandStyle {
   if (pct >= 60) {
-    return { background: '#dcfce7', color: '#166534', label: 'Strong' }
+    return { tone: 'strong', label: 'Strong' }
   }
   if (pct >= 30) {
-    return { background: '#fef3c7', color: '#92400e', label: 'Watch' }
+    return { tone: 'watch', label: 'Watch' }
   }
-  return { background: '#fee2e2', color: '#991b1b', label: 'At risk' }
+  return { tone: 'risk', label: 'At risk' }
 }
 
 export function ConversionRateTable({ rows }: ConversionRateTableProps) {
@@ -48,7 +47,7 @@ export function ConversionRateTable({ rows }: ConversionRateTableProps) {
       {rows.length === 0 ? (
         <div className="card-empty">No opportunities yet — conversion rates unavailable.</div>
       ) : (
-        <div style={{ overflowX: 'auto' }}>
+        <div className="data-table-wrap">
           <table className="data-table">
             <thead>
               <tr>
@@ -70,17 +69,7 @@ export function ConversionRateTable({ rows }: ConversionRateTableProps) {
                     <td className="numeric">{r.toCount}</td>
                     <td className="numeric">
                       <span
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 6,
-                          padding: '2px 10px',
-                          borderRadius: 999,
-                          background: band.background,
-                          color: band.color,
-                          fontVariantNumeric: 'tabular-nums',
-                          fontWeight: 600,
-                        }}
+                        className={`conversion-band conversion-band--${band.tone}`}
                         title={band.label}
                       >
                         {r.ratePct.toFixed(1)}%

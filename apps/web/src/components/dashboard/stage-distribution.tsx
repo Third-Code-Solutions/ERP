@@ -79,7 +79,7 @@ export function StageDistributionTable({ rows }: StageDistributionTableProps) {
       ) : (
         <>
           {activeTotal > 0 ? (
-            <div style={{ padding: '18px 18px 0' }}>
+            <div className="funnel-shell">
               <div className="funnel-bar" role="img" aria-label="Active pipeline distribution by stage">
                 {activeRows.map((r) => {
                   const widthPct = (r.tcvCents / activeTotal) * 100
@@ -115,14 +115,14 @@ export function StageDistributionTable({ rows }: StageDistributionTableProps) {
                       aria-hidden
                     />
                     {STAGE_LABELS[r.stage]}
-                    <span style={{ color: 'var(--color-neutral-400)' }}>· {r.count}</span>
+                    <span className="funnel-legend-count">· {r.count}</span>
                   </span>
                 ))}
               </div>
             </div>
           ) : null}
 
-          <div style={{ overflowX: 'auto' }}>
+          <div className="data-table-wrap">
             <table className="data-table">
               <caption className="sr-only">
                 Pipeline distribution by stage, showing deal count, total contract
@@ -151,7 +151,7 @@ export function StageDistributionTable({ rows }: StageDistributionTableProps) {
                   const stageLabel = STAGE_LABELS[row.stage] ?? row.stage
                   return (
                     <tr key={row.stage}>
-                      <th scope="row" style={{ fontWeight: 'normal', textAlign: 'left' }}>
+                      <th scope="row" className="stage-table-heading">
                         <span className={`stage-badge stage-${row.stage}`}>
                           <span className="stage-badge-dot" aria-hidden />
                           <span className="sr-only">Stage: </span>

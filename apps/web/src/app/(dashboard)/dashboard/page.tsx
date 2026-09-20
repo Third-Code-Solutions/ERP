@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { requireUserProfile } from '@third-code-erp/auth'
 import {
   getDashboardKpis,
@@ -119,7 +120,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
   if (dashboard.mode === 'my_work' || dashboard.mode === 'degraded') {
     return (
-      <>
+      <div className="dashboard-page dashboard-page--my-work">
         {dashboard.mode === 'degraded' && (
           <section
             className="dashboard-data-notice"
@@ -133,60 +134,86 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             </span>
           </section>
         )}
-        <div className="page-header">
-          <p className="page-eyebrow">Today · {roleLabel(profile.role)}</p>
-          <h1 className="page-title">
-            {greetingFor(renderedAt)}, {firstName(profile.email)}
-          </h1>
-          <p className="page-subtitle">
-            Your assigned work and authorized workspaces for{' '}
-            {fmt.format(renderedAt)}.
-          </p>
-        </div>
+        <header className="dashboard-hero dashboard-hero--compact">
+          <div className="dashboard-hero-copy">
+            <p className="dashboard-hero-kicker">Today · {roleLabel(profile.role)}</p>
+            <h1 className="dashboard-hero-title page-title">
+              {greetingFor(renderedAt)}, {firstName(profile.email)}
+            </h1>
+            <p className="dashboard-hero-subtitle">
+              Your assigned work and authorized workspaces for {fmt.format(renderedAt)}.
+            </p>
+          </div>
+          <div className="dashboard-hero-actions">
+            <Link className="dashboard-hero-action dashboard-hero-action--primary" href="/tasks">
+              Open my tasks
+            </Link>
+            <Link className="dashboard-hero-action" href="/cortex">
+              Ask Cortex
+            </Link>
+          </div>
+        </header>
 
-        <TodayCommandCenter role={profile.role} data={dashboard.data} />
-      </>
+        <div className="dashboard-command-center" id="dashboard-command-center">
+          <TodayCommandCenter role={profile.role} data={dashboard.data} />
+        </div>
+      </div>
     )
   }
 
   const { kpis, stages, reps, alerts, conversionRates, forecast, today, management } =
     dashboard.data
 
+  const canViewPipeline = canViewPath(profile.role, '/pipeline')
+
   return (
-    <>
+    <div className="dashboard-page">
       <DashboardRealtimeRefresher />
 
-      <div className="page-header">
-        <div className="page-toolbar">
-          <div>
-            <p className="page-eyebrow">Executive Overview</p>
-            <h1 className="page-title">
-              {greetingFor(renderedAt)}, {firstName(profile.email)}
-            </h1>
-            <p className="page-subtitle">
-              Live pipeline, gross profit and project health for {fmt.format(renderedAt)}.
-            </p>
-          </div>
-
-          <div className="page-meta">
-            <span className="page-meta-item">
-              <span className="live-dot" aria-hidden /> Live
+      <header className="dashboard-hero">
+        <div className="dashboard-hero-copy">
+          <p className="dashboard-hero-kicker">Executive command center</p>
+          <h1 className="dashboard-hero-title page-title">
+            {greetingFor(renderedAt)}, {firstName(profile.email)}
+          </h1>
+          <p className="dashboard-hero-subtitle">
+            A live view of pipeline momentum, project margin, and delivery risk for {fmt.format(renderedAt)}.
+          </p>
+          <div className="dashboard-hero-status" aria-label="Dashboard status">
+            <span className="dashboard-status-chip dashboard-status-chip--live">
+              <span className="live-dot" aria-hidden /> Live workspace
             </span>
-            <span className="page-meta-item">
-              Updated {time.format(renderedAt)} PHT
-            </span>
-            <span className="page-meta-item">{kpis.activeDeals} active deals</span>
+            <span className="dashboard-status-chip">Updated {time.format(renderedAt)} PHT</span>
+            <span className="dashboard-status-chip">{kpis.activeDeals} active deals</span>
           </div>
         </div>
-      </div>
 
-      <TodayCommandCenter role={profile.role} data={today} />
+        <div className="dashboard-hero-aside">
+          <span className="dashboard-hero-aside-label">Portfolio pulse</span>
+          <strong>{kpis.activeDeals.toLocaleString()} active opportunities</strong>
+          <span>Use the command center below to move from signal to action.</span>
+          <div className="dashboard-hero-actions">
+            {canViewPipeline ? (
+              <Link className="dashboard-hero-action dashboard-hero-action--primary" href="/pipeline">
+                Open pipeline
+              </Link>
+            ) : null}
+            <Link className="dashboard-hero-action" href="/tasks">
+              Open my work
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      <div className="dashboard-command-center" id="dashboard-command-center">
+        <TodayCommandCenter role={profile.role} data={today} />
+      </div>
 
       <KpiCards kpis={kpis} />
 
       <ManagementHealth data={management} />
 
-      <div className="section-grid-2">
+      <div className="section-grid-2 dashboard-grid-split">
         <StageDistributionTable rows={stages} />
         <AlertsPanel alerts={alerts} />
       </div>
@@ -194,43 +221,30 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       <RepScorecardTable reps={reps} />
 
       <section
+        className="dashboard-analytics"
         aria-labelledby="pipeline-analytics-heading"
-        style={{ marginTop: 32 }}
       >
-        <div
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: 12,
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: 12,
-          }}
-        >
-          <h2
-            id="pipeline-analytics-heading"
-            style={{ fontSize: 16, fontWeight: 600, margin: 0 }}
-          >
-            Pipeline analytics
-          </h2>
-          <div
-            style={{
-              display: 'flex',
-              gap: 12,
-              flexWrap: 'wrap',
-              alignItems: 'center',
-            }}
-          >
+        <div className="dashboard-section-header">
+          <div>
+            <p className="dashboard-section-kicker">Pipeline intelligence</p>
+            <h2 id="pipeline-analytics-heading" className="dashboard-section-title">
+              Pipeline analytics
+            </h2>
+            <p className="dashboard-section-description">
+              See where opportunities advance and how weighted value is expected to land.
+            </p>
+          </div>
+          <div className="dashboard-analytics-actions">
             <CloseDateFilter />
             <ExportCsvButton />
           </div>
         </div>
 
-        <div className="section-grid-2">
+        <div className="section-grid-2 dashboard-grid-analytics">
           <ConversionRateTable rows={conversionRates} />
           <ForecastChart data={forecast} />
         </div>
       </section>
-    </>
+    </div>
   )
 }

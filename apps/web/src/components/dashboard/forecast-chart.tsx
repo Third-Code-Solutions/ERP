@@ -77,13 +77,13 @@ export function ForecastChart({ data }: ForecastChartProps) {
           No opportunities with closing dates in the next {data.months.length} months.
         </div>
       ) : (
-        <div style={{ padding: 18 }}>
+        <div className="forecast-chart-body">
           <svg
             viewBox={`0 0 ${CHART_W} ${CHART_H}`}
             preserveAspectRatio="xMidYMid meet"
             role="img"
             aria-label="Monthly weighted TCV forecast by sales rep"
-            style={{ width: '100%', height: 'auto', display: 'block' }}
+            className="forecast-chart-svg"
           >
             {/* gridlines + y labels */}
             {yTicks.map((t) => {
@@ -157,30 +157,15 @@ export function ForecastChart({ data }: ForecastChartProps) {
             })}
           </svg>
 
-          <div
-            style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: '8px 18px',
-              marginTop: 12,
-              fontSize: 12,
-            }}
-          >
+          <div className="forecast-chart-legend">
             {reps.map((repId) => (
-              <span
-                key={repId}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-              >
+              <span key={repId} className="forecast-chart-legend-item">
                 <span
                   aria-hidden
-                  style={{
-                    width: 10,
-                    height: 10,
-                    borderRadius: 2,
-                    background: `hsl(${hashHue(repId)}, 65%, 45%)`,
-                  }}
+                  className="forecast-chart-legend-dot"
+                  style={{ background: `hsl(${hashHue(repId)}, 65%, 45%)` }}
                 />
-                <span style={{ color: 'var(--color-neutral-700, #404040)' }}>
+                <span className="forecast-chart-legend-label">
                   {data.repLabels[repId] ?? repId}
                 </span>
               </span>
