@@ -19,6 +19,8 @@ schema:
 
 - Shared invoice-number regression: 3/3 passed.
 - API lifecycle compensation regression: 1/1 passed.
+- API invitation-revocation/lifecycle compensation suite: 20/20 passed,
+  including durable-state reconciliation after rollback.
 - Web admin user suite: 22/22 passed.
 - API invoice draft focused suite: 4/4 passed.
 - Targeted source lint passed after removing the obsolete lexical-order import;

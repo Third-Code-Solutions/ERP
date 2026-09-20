@@ -42,13 +42,26 @@ async function harness(options: {
   if (preliminary.authUserId) queries.push(query([{ ...invitedUser, ...options.user }], options.lockCode ? { cause: { code: options.lockCode } } : undefined))
   queries.push(query([current], !preliminary.authUserId && options.lockCode ? { cause: { code: options.lockCode } } : undefined))
   if (preliminary.authUserId) queries.push(query(options.protectedOwner ? [{ userId }] : []))
+  // Failed provider/audit paths reconcile from the committed durable status
+  // after the original transaction rolls back. Keep those reads explicit so
+  // this fixture proves the compensation is a fresh, lock-protected decision.
+  if (options.auditError && preliminary.authUserId) {
+    queries.push(query([{ userId: principal.userId }]))
+    queries.push(query([{ tenantId }]))
+    queries.push(query([{ accountStatus: 'invited' }]))
+  }
   const select = vi.fn()
   for (const item of queries) select.mockReturnValueOnce(item)
   const updateWhere = vi.fn().mockResolvedValue(undefined)
   const updateSet = vi.fn(() => ({ where: updateWhere }))
   const update = vi.fn(() => ({ set: updateSet }))
   const auditValues = options.auditError ? vi.fn().mockRejectedValue(new Error('Synthetic audit failure')) : vi.fn().mockResolvedValue(undefined)
-  const tx = { select, update, insert: vi.fn(() => ({ values: auditValues })) }
+  const tx = {
+    select,
+    update,
+    insert: vi.fn(() => ({ values: auditValues })),
+    execute: vi.fn().mockResolvedValue(undefined),
+  }
   const transaction = vi.fn(async (callback: (client: typeof tx) => Promise<void>) => callback(tx))
   const read = vi.fn().mockReturnValueOnce(query([preliminary])).mockReturnValue(query([{ ...current, status: 'revoked', revokedAt: new Date() }]))
   const setSuspended = vi.fn().mockResolvedValue(undefined)
@@ -147,11 +160,11 @@ describe('invitation revocation locked admission', () => {
     } finally { await f.module.close() }
   })
 
-  it('compensates only the admitted target after a successful ban and database failure', async () => {
+  it('reconciles only the admitted target after a successful ban and database failure', async () => {
     const f = await harness({ auditError: true })
     try {
       await expect(f.service.revokeInvitation(invitationId, principal)).rejects.toThrow('Synthetic audit failure')
-      expect(f.setSuspended.mock.calls).toEqual([[userId, true], [userId, false]])
+      expect(f.setSuspended.mock.calls).toEqual([[userId, true], [userId, true]])
     } finally { await f.module.close() }
   })
 })
