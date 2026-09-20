@@ -1,3 +1,6 @@
-# Verified public Railway service UUID, identical to the pinned production workflow target.
-# Exception is restricted to this historical commit, file, rule and line; no credential rule is disabled.
+# Historical false positives for verified public Railway API-service UUIDs in
+# the blocker evidence. The current file redacts these identifiers. Each entry
+# is restricted to one historical commit, file, rule and line; no new findings
+# or credential-detection rule is suppressed.
 81926c557a6b9f779ae351ff1a9c834a1a49f3b7:docs/blockers/2026-09-13-main-merge-railway-auto-deploy.md:generic-api-key:9
+5b7d7259ad98fc6298ee0d3f698f3af0a155d6b5:docs/blockers/2026-09-13-main-merge-railway-auto-deploy.md:generic-api-key:10
