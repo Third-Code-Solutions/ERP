@@ -29,6 +29,7 @@ suite('platform administration real database/HTTP boundary', () => {
         const tenantB = randomUUID()
         const ownerId = randomUUID()
         const adminId = randomUUID()
+        const tenantBAdminId = randomUUID()
         const memberId = randomUUID()
         await tx.insert(tenants).values([
           { id: tenantA, name: 'Platform Fixture A', slug: `platform-a-${tenantA}` },
@@ -37,6 +38,7 @@ suite('platform administration real database/HTTP boundary', () => {
         await tx.insert(users).values([
           { id: ownerId, tenant_id: tenantA, email: PLATFORM_OWNER_EMAIL, full_name: 'Platform Fixture Owner', role: 'owner' },
           { id: adminId, tenant_id: tenantA, email: `admin-${adminId}@example.invalid`, full_name: 'Tenant Admin', role: 'admin' },
+          { id: tenantBAdminId, tenant_id: tenantB, email: `admin-${tenantBAdminId}@example.invalid`, full_name: 'Tenant B Admin', role: 'admin' },
           { id: memberId, tenant_id: tenantB, email: `member-${memberId}@example.invalid`, full_name: 'Tenant B Member', role: 'viewer' },
         ])
         await tx.execute(sql`insert into auth.users (id, email, email_confirmed_at) values (${ownerId}, ${PLATFORM_OWNER_EMAIL}, now())`)
@@ -113,6 +115,12 @@ suite('platform administration real database/HTTP boundary', () => {
           await request(http).patch(`/v1/platform-admin/tenants/${tenantA}`).set('Authorization', 'Bearer owner-fixture').set(supportHeader).send({ name: 'Wrong tenant' }).expect(403)
           await request(http).patch(`/v1/platform-admin/tenants/${tenantB}/status`).set('Authorization', 'Bearer owner-fixture').set(supportHeader).send({ status: 'suspended', reason: 'Fixture suspension' }).expect(200)
           await request(http).patch(`/v1/platform-admin/tenants/${tenantB}/status`).set('Authorization', 'Bearer owner-fixture').set(supportHeader).send({ status: 'active', reason: null }).expect(200)
+          await request(http).patch(`/v1/platform-admin/users/${memberId}/status`).set('Authorization', 'Bearer owner-fixture').set(supportHeader)
+            .send({ status: 'suspended', reason: 'Retain history during review' }).expect(200)
+          expect((await tx.select({ status: users.account_status }).from(users).where(eq(users.id, memberId)))[0]?.status).toBe('suspended')
+          await request(http).patch(`/v1/platform-admin/users/${tenantBAdminId}/status`).set('Authorization', 'Bearer owner-fixture').set(supportHeader)
+            .send({ status: 'suspended', reason: 'Last administrator guard' }).expect(409)
+          expect((await tx.select({ status: users.account_status }).from(users).where(eq(users.id, tenantBAdminId)))[0]?.status).toBe('active')
           expect(context.body.tenantId).toBe(tenantB)
           const withoutContext = await request(http).get('/v1/platform-admin').set('Authorization', 'Bearer owner-fixture').expect(200)
           expect(withoutContext.body.activeSupportSession).toBeNull()
@@ -122,7 +130,8 @@ suite('platform administration real database/HTTP boundary', () => {
           const audit = await tx.select().from(platformAuditEvents).where(eq(platformAuditEvents.actor_id, ownerId))
           expect(audit.map((row) => row.action)).toEqual(expect.arrayContaining(['platform.user.role', 'platform.tenant.status', 'platform.support_context.start', 'platform.support_context.end']))
           expect(audit.every((row) => row.actor_id === ownerId)).toBe(true)
-          expect(identityAdmin.setSuspended).not.toHaveBeenCalled()
+          expect(identityAdmin.setSuspended).toHaveBeenCalledWith(memberId, true)
+          expect(identityAdmin.setSuspended).not.toHaveBeenCalledWith(tenantBAdminId, true)
         } finally {
           await app.close()
         }

@@ -160,6 +160,11 @@ export class UserRoleAssignmentService {
         role: actorRole,
         email: membership.email,
       }
+      // Coordinate role demotions with lifecycle suspension writers. The
+      // advisory lock is transaction-scoped and requires no schema change.
+      await transaction.execute(
+        sql`select pg_advisory_xact_lock(hashtextextended(${authorizedPrincipal.tenantId}, 0))`
+      )
       await this.audit.stampActor(transaction, authorizedPrincipal)
       // Ledger INSERT triggers the tenant audit chain. Never wait on that
       // chain while holding entity locks in this administrative command.
@@ -186,6 +191,15 @@ export class UserRoleAssignmentService {
           id: users.id,
           tenantId: users.tenant_id,
           role: users.role,
+          accountStatus: users.account_status,
+          activeAdministratorCount: sql<number>`(
+            select count(*)::int
+            from public.users as active_administrator
+            where active_administrator.tenant_id = ${users.tenant_id}
+              and active_administrator.account_status = 'active'
+              and active_administrator.role in ('admin', 'owner')
+              and active_administrator.id <> ${users.id}
+          )`,
           updatedAt: users.updated_at,
         })
         .from(users)
@@ -229,6 +243,18 @@ export class UserRoleAssignmentService {
       if (previousRole !== parsedCommand.expectedRole) {
         throw new ConflictException(
           'User role changed after this command was prepared.'
+        )
+      }
+
+      if (
+        target.accountStatus === 'active'
+        && (previousRole === 'admin' || previousRole === 'owner')
+        && parsedCommand.role !== 'admin'
+        && parsedCommand.role !== 'owner'
+        && Number(target.activeAdministratorCount) < 1
+      ) {
+        throw new ConflictException(
+          'Cannot remove the last active admin/owner in this workspace.'
         )
       }
 

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import { and, eq, ne, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import {
   requireUserProfile,
   can,
@@ -335,49 +335,54 @@ export async function suspendUser(
     if (userId === profile.user.id) {
       return { error: 'You cannot suspend your own account.' }
     }
-
-    const [target] = await db
-      .select({
-        id: usersTable.id,
-        email: usersTable.email,
-        role: usersTable.role,
-        accountStatus: usersTable.account_status,
-      })
-      .from(usersTable)
-      .where(and(eq(usersTable.id, userId), eq(usersTable.tenant_id, profile.tenantId)))
-      .limit(1)
-    if (!target) return { error: 'User not found in this workspace.' }
-    if (target.role === 'owner' && profile.role !== 'owner') {
-      return { error: 'Only an owner can suspend another owner.' }
-    }
-
-    // Protect the last active admin/owner — a workspace must retain an
-    // administrator who can restore access or complete future lifecycle work.
-    if ((target.role === 'admin' || target.role === 'owner') && target.accountStatus === 'active') {
-      const [{ count } = { count: 0 }] = await db
-        .select({ count: sql<number>`COUNT(*)::int` })
-        .from(usersTable)
-        .where(
-          and(
-            eq(usersTable.tenant_id, profile.tenantId),
-            ne(usersTable.id, userId),
-            eq(usersTable.account_status, 'active'),
-            sql`${usersTable.role} IN ('admin', 'owner')`
-          )
-        )
-      if (!count || count < 1) {
-        return { error: 'Cannot suspend the last active admin/owner in this workspace.' }
-      }
-    }
-
-    const admin = createSupabaseAdminClient()
-    const { error: authErr } = await admin.auth.admin.updateUserById(userId, {
-      ban_duration: '876000h',
-    })
-    if (authErr) return { error: authErr.message }
-
+    let admin: ReturnType<typeof createSupabaseAdminClient> | undefined
+    let providerAttempted = false
+    const missingTargetMessage = 'User not found in this workspace.'
+    const lastAdministratorMessage = 'Cannot suspend the last active admin/owner in this workspace.'
     try {
       await db.transaction(async (tx) => {
+        // Match Core role/lifecycle writers with a transaction-scoped tenant
+        // lock so the administrator guard cannot be bypassed by a race.
+        await tx.execute(
+          sql`select pg_advisory_xact_lock(hashtextextended(${profile.tenantId}, 0))`
+        )
+        const [target] = await tx
+          .select({
+            id: usersTable.id,
+            email: usersTable.email,
+            role: usersTable.role,
+            accountStatus: usersTable.account_status,
+            activeAdministratorCount: sql<number>`(
+              select count(*)::int
+              from public.users as active_administrator
+              where active_administrator.tenant_id = ${usersTable.tenant_id}
+                and active_administrator.account_status = 'active'
+                and active_administrator.role in ('admin', 'owner')
+                and active_administrator.id <> ${usersTable.id}
+            )`,
+          })
+          .from(usersTable)
+          .where(and(eq(usersTable.id, userId), eq(usersTable.tenant_id, profile.tenantId)))
+          .limit(1)
+          .for('update')
+        if (!target) throw new Error(missingTargetMessage)
+        if (target.role === 'owner' && profile.role !== 'owner') {
+          throw new Error('Only an owner can suspend another owner.')
+        }
+        if (
+          (target.role === 'admin' || target.role === 'owner')
+          && target.accountStatus === 'active'
+          && Number(target.activeAdministratorCount) < 1
+        ) {
+          throw new Error(lastAdministratorMessage)
+        }
+
+        admin = createSupabaseAdminClient()
+        const { error: authErr } = await admin.auth.admin.updateUserById(userId, {
+          ban_duration: '876000h',
+        })
+        providerAttempted = true
+        if (authErr) throw new Error(authErr.message)
         await stampActorInTransaction(tx, profile.user.id)
         const [updated] = await tx
           .update(usersTable)
@@ -407,8 +412,21 @@ export async function suspendUser(
         })
       })
     } catch (err) {
-      await admin.auth.admin.updateUserById(userId, { ban_duration: 'none' }).catch(() => undefined)
-      console.warn('[admin/users:suspendUser] suspension compensation attempted:', err)
+      if (err instanceof Error && err.message === lastAdministratorMessage) {
+        return { error: err.message }
+      }
+      if (err instanceof Error && err.message === missingTargetMessage) {
+        return { error: err.message }
+      }
+      if (err instanceof Error && err.message === 'Only an owner can suspend another owner.') {
+        return { error: err.message }
+      }
+      if (providerAttempted) {
+        if (admin) {
+          await admin.auth.admin.updateUserById(userId, { ban_duration: 'none' }).catch(() => undefined)
+        }
+        console.warn('[admin/users:suspendUser] suspension compensation attempted:', err)
+      }
       return { error: 'User suspension could not be confirmed. Retry or reconcile with support.' }
     }
 

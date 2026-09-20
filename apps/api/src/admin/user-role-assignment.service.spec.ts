@@ -312,6 +312,53 @@ describe('UserRoleAssignmentService', () => {
     expect(audit.writeSemantic).not.toHaveBeenCalled()
   })
 
+  it('protects the last active administrator during role demotion', async () => {
+    const membership = selectQuery([
+      {
+        tenantId: PRINCIPAL.tenantId,
+        role: 'owner',
+        email: PRINCIPAL.email,
+      },
+    ])
+    const request = processingRequest()
+    const requestQuery = selectQuery([request])
+    const target = selectQuery([
+      {
+        id: TARGET_ID,
+        tenantId: PRINCIPAL.tenantId,
+        role: 'admin',
+        accountStatus: 'active',
+        activeAdministratorCount: 0,
+        updatedAt: UPDATED_AT,
+      },
+    ])
+    const transactionClient = {
+      select: vi
+        .fn()
+        .mockReturnValueOnce({ from: membership.from })
+        .mockReturnValueOnce(selectQuery([{ status: 'active' }]))
+        .mockReturnValueOnce({ from: requestQuery.from })
+        .mockReturnValueOnce({ from: target.from }),
+      insert: vi.fn().mockReturnValue({ values: requestInsert(request) }),
+      update: vi.fn(),
+    }
+    const { service, audit, principal } = enabledService(
+      transactionClient,
+      'owner'
+    )
+
+    await expect(
+      service.assign(
+        TARGET_ID,
+        { expectedRole: 'admin', role: 'viewer' },
+        principal,
+        'role-last-admin'
+      )
+    ).rejects.toThrow('Cannot remove the last active admin/owner')
+    expect(transactionClient.update).not.toHaveBeenCalled()
+    expect(audit.writeSemantic).not.toHaveBeenCalled()
+  })
+
   it('prevents an owner from removing their own owner role', async () => {
     const membership = selectQuery([
       {

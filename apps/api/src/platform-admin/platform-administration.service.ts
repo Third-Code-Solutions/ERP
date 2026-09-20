@@ -690,19 +690,76 @@ export class PlatformAdministrationService {
     command: UpdatePlatformUserStatusCommand,
     principal: PlatformPrincipal
   ): Promise<PlatformUserSummary> {
-    const user = await this.readUser(userId)
-    await this.checkSupportContext(principal, user.tenantId)
-    if (user.id === principal.userId) {
-      throw new ForbiddenException('The platform owner cannot change their own lifecycle')
-    }
     const suspended = command.status !== 'active'
-    await this.identity.setSuspended(userId, suspended)
+    let providerChanged = false
+    let previousSuspended = false
     try {
       await this.database.client.transaction(async (tx) => {
         await this.lockOwner(tx, principal)
-      await this.requireSupportContext(tx, principal, user.tenantId)
-        await this.ensureNotPlatformOwner(tx, userId)
-        await tx
+        const [admission] = await tx
+          .select({ tenantId: users.tenant_id })
+          .from(users)
+          .where(eq(users.id, userId))
+          .limit(1)
+        if (!admission) throw new NotFoundException('User not found')
+
+        // Every lifecycle/role writer takes the same transaction-scoped
+        // tenant lock before changing administrator membership. This closes
+        // the last-active-admin race across platform and workspace paths.
+        await tx.execute(
+          sql`select pg_advisory_xact_lock(hashtextextended(${admission.tenantId}, 0))`
+        )
+        await this.requireSupportContext(tx, principal, admission.tenantId)
+        const [target] = await tx
+          .select({
+            id: users.id,
+            tenantId: users.tenant_id,
+            role: users.role,
+            accountStatus: users.account_status,
+          })
+          .from(users)
+          .where(eq(users.id, userId))
+          .limit(1)
+          .for('update')
+        if (!target) throw new NotFoundException('User not found')
+        if (target.id === principal.userId) {
+          throw new ForbiddenException('The platform owner cannot change their own lifecycle')
+        }
+        await this.ensureNotPlatformOwner(tx, target.id)
+
+        const administrators = await tx
+          .select({
+            id: users.id,
+            role: users.role,
+            accountStatus: users.account_status,
+          })
+          .from(users)
+          .where(
+            and(
+              eq(users.tenant_id, target.tenantId),
+              sql`${users.role} in ('admin', 'owner')`
+            )
+          )
+          .orderBy(asc(users.id))
+          .for('update')
+        if (
+          suspended
+          && target.accountStatus === 'active'
+          && (target.role === 'admin' || target.role === 'owner')
+          && administrators.filter(
+            (administrator) => administrator.accountStatus === 'active'
+              && administrator.id !== target.id
+          ).length < 1
+        ) {
+          throw new ConflictException(
+            'Cannot suspend the last active admin/owner in this workspace.'
+          )
+        }
+
+        previousSuspended = target.accountStatus === 'suspended' || target.accountStatus === 'disabled'
+        await this.identity.setSuspended(target.id, suspended)
+        providerChanged = true
+        const [updated] = await tx
           .update(users)
           .set({
             account_status: command.status,
@@ -712,18 +769,22 @@ export class PlatformAdministrationService {
               command.status === 'active' ? null : principal.userId,
             updated_at: new Date(),
           })
-          .where(eq(users.id, userId))
+          .where(eq(users.id, target.id))
+          .returning({ id: users.id, tenantId: users.tenant_id })
+        if (!updated) throw new NotFoundException('User not found')
         await this.writeAudit(tx, principal, {
           action: 'platform.user.status',
           outcome: 'succeeded',
           targetType: 'user',
-          targetId: userId,
-          targetTenantId: user.tenantId,
+          targetId: target.id,
+          targetTenantId: updated.tenantId,
           metadata: { status: command.status, reason: command.reason },
         })
       })
     } catch (error) {
-      await this.identity.setSuspended(userId, user.status === 'suspended' || user.status === 'disabled').catch(() => undefined)
+      if (providerChanged) {
+        await this.identity.setSuspended(userId, previousSuspended).catch(() => undefined)
+      }
       throw error
     }
     return this.readUser(userId)

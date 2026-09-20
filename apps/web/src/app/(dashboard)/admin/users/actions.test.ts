@@ -84,10 +84,19 @@ function createUserForm(role: string): FormData {
 }
 
 function userQuery(
-  rows: Array<{ id: string; role: string; email: string }>
+  rows: Array<{
+    id: string
+    role: string
+    email: string
+    accountStatus?: string
+    activeAdministratorCount?: number
+  }>
 ) {
-  const limit = vi.fn().mockResolvedValue(rows)
-  const where = vi.fn().mockReturnValue({ limit })
+  const rowLock = vi.fn().mockResolvedValue(rows)
+  const value = Promise.resolve(rows)
+  const limitResult = { for: rowLock, then: value.then.bind(value) }
+  const limit = vi.fn().mockReturnValue(limitResult)
+  const where = vi.fn().mockReturnValue({ limit, for: rowLock })
   const from = vi.fn().mockReturnValue({ where })
   return { from }
 }
@@ -110,7 +119,11 @@ describe('admin user role authority', () => {
       }),
     })
     mocks.transaction.mockImplementation(async (callback: (tx: unknown) => Promise<unknown>) =>
-      callback({ update: mocks.update }),
+      callback({
+        execute: vi.fn().mockResolvedValue([]),
+        select: mocks.select,
+        update: mocks.update,
+      }),
     )
   })
 
@@ -241,6 +254,30 @@ describe('admin user role authority', () => {
 
     await expect(suspendUser(form)).resolves.toMatchObject({ error: expect.stringContaining('reason') })
     expect(updateUserById).not.toHaveBeenCalled()
+  })
+
+  it('protects the last active workspace administrator after the tenant lock', async () => {
+    const query = userQuery([
+      {
+        id: TARGET_ID,
+        role: 'admin',
+        email: 'only-admin@example.test',
+        accountStatus: 'active',
+        activeAdministratorCount: 0,
+      },
+    ])
+    mocks.select.mockReturnValue({ from: query.from })
+    const updateUserById = vi.fn()
+    mocks.createSupabaseAdminClient.mockReturnValue({ auth: { admin: { updateUserById } } })
+    const form = new FormData()
+    form.set('user_id', TARGET_ID)
+    form.set('reason', 'Retain history during review')
+
+    await expect(suspendUser(form)).resolves.toEqual({
+      error: 'Cannot suspend the last active admin/owner in this workspace.',
+    })
+    expect(updateUserById).not.toHaveBeenCalled()
+    expect(mocks.update).not.toHaveBeenCalled()
   })
 
   it('compensates the Auth ban when the audited transaction cannot commit', async () => {
