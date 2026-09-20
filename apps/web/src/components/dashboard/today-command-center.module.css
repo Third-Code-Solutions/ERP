@@ -86,10 +86,13 @@
   background: rgba(255, 255, 255, 0.08);
 }
 
-.secondaryAction:hover,
+.secondaryAction:hover {
+  color: var(--color-gold-300);
+}
+
 .panelLink:hover,
 .cortexLink:hover {
-  color: var(--color-gold-300);
+  color: var(--color-gold-800);
 }
 
 .summaryGrid {
