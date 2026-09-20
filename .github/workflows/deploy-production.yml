@@ -19,6 +19,8 @@ concurrency:
 
 permissions:
   contents: read
+  actions: read
+  checks: read
 
 jobs:
   promote:
@@ -73,6 +75,13 @@ jobs:
         with:
           version: 2.109.1
 
+      - name: Verify hosted CI for exact release SHA
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: node scripts/verify-production-ci.mjs
+
       - name: Require production credentials
         shell: bash
         run: |
@@ -104,6 +113,7 @@ jobs:
           pnpm verify:app-router-boundaries
           pnpm verify:build-ops-invariants
           pnpm test:production-auth-proof
+          pnpm test:production-ci
           node --test scripts/deploy-railway-service.test.mjs
           pnpm ci:actionlint
           pnpm lint
