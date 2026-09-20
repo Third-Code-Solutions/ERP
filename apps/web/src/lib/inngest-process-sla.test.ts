@@ -13,7 +13,9 @@ vi.mock('./inngest', () => ({
 import {
   deriveProcessSlaTransition,
   runProcessSlaSweep,
+  serializeProcessSlaSweepRow,
   type ProcessSlaSweepRow,
+  type ProcessSlaSweepRowDto,
   type ProcessSlaSweepStep,
   type ProcessSlaSweepStore,
   processSlaChecker,
@@ -90,7 +92,7 @@ function createSweepHarness(
         )
         .slice(0, 1_000)
       loadedIds.push(page.map((row) => row.id))
-      return page
+      return page.map(serializeProcessSlaSweepRow)
     },
     compareAndSetClock: async ({ row }) => {
       compareAndSetCalls.push(row.id)
@@ -112,6 +114,15 @@ function createImmediateStep(calls: string[]): ProcessSlaSweepStep {
     run: async <T>(name: string, operation: () => Promise<T>) => {
       calls.push(name)
       return operation()
+    },
+  }
+}
+
+function createJsonRoundTripStep(calls: string[]): ProcessSlaSweepStep {
+  return {
+    run: async <T>(name: string, operation: () => Promise<T>) => {
+      calls.push(name)
+      return JSON.parse(JSON.stringify(await operation())) as T
     },
   }
 }
@@ -222,7 +233,11 @@ describe('M-06 process SLA checker', () => {
     expect(harness.loadedIds).toHaveLength(2)
     expect(stepCalls).toContain('load-open-process-sla-clocks-page-1')
     expect(harness.sweepTimes).toHaveLength(2)
-    expect(harness.sweepTimes.every((value) => value === SWEEP_AT)).toBe(true)
+    expect(
+      harness.sweepTimes.every(
+        (value) => value.getTime() === SWEEP_AT.getTime()
+      )
+    ).toBe(true)
   })
 
   it('uses due_at and id keyset ordering without skipping equal timestamps', async () => {
@@ -297,5 +312,47 @@ describe('M-06 process SLA checker', () => {
       externalBreached: 1,
       errors: 0,
     })
+  })
+
+  it('revives JSON-round-tripped rows before evaluating an overdue clock', async () => {
+    const row = clock({ id: 'serialized-0000' })
+    const harness = createSweepHarness([row])
+    const stepCalls: string[] = []
+
+    const result = await runProcessSlaSweep(
+      createJsonRoundTripStep(stepCalls),
+      harness.store,
+      SWEEP_AT
+    )
+
+    expect(result).toMatchObject({
+      processed: 1,
+      changed: 1,
+      breached: 1,
+      escalated: 0,
+      errors: 0,
+    })
+    expect(harness.compareAndSetCalls).toEqual([row.id])
+    expect(stepCalls).toContain('load-open-process-sla-clocks')
+  })
+
+  it('fails closed when a serialized row contains an invalid timestamp', async () => {
+    const valid = serializeProcessSlaSweepRow(clock({ id: 'invalid-0000' }))
+    const invalid: ProcessSlaSweepRowDto = {
+      ...valid,
+      due_at: 'not-a-timestamp',
+    }
+    const store: ProcessSlaSweepStore = {
+      loadOpenClocks: async () => [invalid],
+      compareAndSetClock: async () => true,
+    }
+
+    await expect(
+      runProcessSlaSweep(
+        createJsonRoundTripStep([]),
+        store,
+        SWEEP_AT
+      )
+    ).rejects.toThrow('due_at must be a valid timestamp')
   })
 })

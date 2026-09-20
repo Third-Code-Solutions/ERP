@@ -41,6 +41,28 @@ export type ProcessSlaSweepRow = {
   updated_at: Date
 }
 
+type ProcessSlaSweepDateField =
+  | 'started_at'
+  | 'at_risk_at'
+  | 'due_at'
+  | 'escalation_at'
+  | 'breached_at'
+  | 'escalated_at'
+  | 'updated_at'
+
+export type ProcessSlaSweepRowDto = Omit<
+  ProcessSlaSweepRow,
+  ProcessSlaSweepDateField
+> & {
+  started_at: string
+  at_risk_at: string
+  due_at: string
+  escalation_at: string | null
+  breached_at: string | null
+  escalated_at: string | null
+  updated_at: string
+}
+
 export type ProcessSlaTransition = {
   status: ProcessSlaSweepRow['status']
   breached_at: Date | null
@@ -58,6 +80,11 @@ export type ProcessSlaRunSummary = {
   externalBreached: number
   errors: number
 }
+
+type ProcessSlaEvaluationResult = Pick<
+  ProcessSlaTransition,
+  'evaluation' | 'changed'
+>
 
 export function deriveProcessSlaTransition(
   row: Pick<
@@ -112,6 +139,68 @@ export function deriveProcessSlaTransition(
   }
 }
 
+function reviveProcessSlaDate(value: unknown, field: string): Date {
+  if (typeof value !== 'string') {
+    throw new TypeError(`Process SLA row ${field} must be an ISO timestamp`)
+  }
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    throw new RangeError(`Process SLA row ${field} must be a valid timestamp`)
+  }
+  return date
+}
+
+function reviveNullableProcessSlaDate(
+  value: unknown,
+  field: string
+): Date | null {
+  return value === null ? null : reviveProcessSlaDate(value, field)
+}
+
+export function serializeProcessSlaSweepRow(
+  row: ProcessSlaSweepRow
+): ProcessSlaSweepRowDto {
+  return {
+    ...row,
+    started_at: row.started_at.toISOString(),
+    at_risk_at: row.at_risk_at.toISOString(),
+    due_at: row.due_at.toISOString(),
+    escalation_at: row.escalation_at?.toISOString() ?? null,
+    breached_at: row.breached_at?.toISOString() ?? null,
+    escalated_at: row.escalated_at?.toISOString() ?? null,
+    updated_at: row.updated_at.toISOString(),
+  }
+}
+
+export function reviveProcessSlaSweepRow(
+  row: ProcessSlaSweepRowDto
+): ProcessSlaSweepRow {
+  if (row === null || typeof row !== 'object') {
+    throw new TypeError('Process SLA row must be an object')
+  }
+
+  return {
+    ...row,
+    started_at: reviveProcessSlaDate(row.started_at, 'started_at'),
+    at_risk_at: reviveProcessSlaDate(row.at_risk_at, 'at_risk_at'),
+    due_at: reviveProcessSlaDate(row.due_at, 'due_at'),
+    escalation_at: reviveNullableProcessSlaDate(
+      row.escalation_at,
+      'escalation_at'
+    ),
+    breached_at: reviveNullableProcessSlaDate(
+      row.breached_at,
+      'breached_at'
+    ),
+    escalated_at: reviveNullableProcessSlaDate(
+      row.escalated_at,
+      'escalated_at'
+    ),
+    updated_at: reviveProcessSlaDate(row.updated_at, 'updated_at'),
+  }
+}
+
 export interface ProcessSlaSweepStep {
   run: <T>(name: string, operation: () => Promise<T>) => Promise<T>
 }
@@ -125,7 +214,7 @@ export interface ProcessSlaSweepStore {
   loadOpenClocks(input: {
     cursor: ProcessSlaSweepCursor | null
     sweepAt: Date
-  }): Promise<ProcessSlaSweepRow[]>
+  }): Promise<ProcessSlaSweepRowDto[]>
   compareAndSetClock(input: {
     row: ProcessSlaSweepRow
     transition: ProcessSlaTransition
@@ -155,7 +244,7 @@ function createProcessSlaSweepStore(): ProcessSlaSweepStore {
           )
         : undefined
 
-      return db
+      const rows = await db
         .select({
           id: slaClocks.id,
           tenant_id: slaClocks.tenant_id,
@@ -192,6 +281,8 @@ function createProcessSlaSweepStore(): ProcessSlaSweepStore {
         .where(afterCursor ? and(eligible, afterCursor) : eligible)
         .orderBy(asc(slaClocks.due_at), asc(slaClocks.id))
         .limit(PROCESS_SLA_PAGE_SIZE)
+
+      return rows.map(serializeProcessSlaSweepRow)
     },
     compareAndSetClock: async ({ row, transition, sweepAt }) => {
       const [updated] = await db
@@ -235,26 +326,32 @@ export async function runProcessSlaSweep(
   let page = 0
 
   while (true) {
-    const rows = await step.run(
+    const serializedRows = await step.run(
       page === 0
         ? 'load-open-process-sla-clocks'
         : `load-open-process-sla-clocks-page-${page}`,
       () => store.loadOpenClocks({ cursor, sweepAt })
     )
+    const rows = serializedRows.map(reviveProcessSlaSweepRow)
 
     if (rows.length === 0) break
 
     for (const row of rows) {
       summary.processed += 1
       try {
-        const result = await step.run(
+        const result = await step.run<ProcessSlaEvaluationResult>(
           `evaluate-process-sla-${row.id}`,
           async () => {
             const transition = deriveProcessSlaTransition(row, sweepAt)
-            if (!transition.changed) return transition
+            if (!transition.changed) {
+              return {
+                evaluation: transition.evaluation,
+                changed: false,
+              }
+            }
 
             return {
-              ...transition,
+              evaluation: transition.evaluation,
               changed: await store.compareAndSetClock({
                 row,
                 transition,
@@ -305,6 +402,12 @@ export const processSlaChecker = inngest.createFunction(
       }
     }
 
-    return runProcessSlaSweep(step, createProcessSlaSweepStore(), new Date())
+    const sweepAtIso = await step.run(
+      'capture-process-sla-sweep-at',
+      async () => new Date().toISOString()
+    )
+    const sweepAt = reviveProcessSlaDate(sweepAtIso, 'sweepAt')
+
+    return runProcessSlaSweep(step, createProcessSlaSweepStore(), sweepAt)
   }
 )
