@@ -17,6 +17,9 @@ the production workflow still runs its own authenticated E2E after deployment.
   - runs `scripts/verify-production-ci.mjs` immediately after checkout/tool
     setup, before protected credentials and provider mutation;
   - includes the gate contract in local release tests.
+- `.github/workflows/ci.yml`
+  - runs the gate contract in the standard Unit Tests job so PR/push CI
+    verifies its own release-control logic.
 - `scripts/lib/production-ci-gate.mjs`
   - pure exact-SHA/run/job evidence evaluator.
 - `scripts/verify-production-ci.mjs`

@@ -114,6 +114,7 @@ jobs:
       - run: pnpm test:empty-schema-diff
       - run: pnpm test:production-data-boundary
       - run: pnpm test:production-auth-proof
+      - run: pnpm test:production-ci
       - run: node --test scripts/deploy-railway-service.test.mjs
       - run: pnpm test:workflow-action-refs
       - name: Test dated Supabase parity manifest
