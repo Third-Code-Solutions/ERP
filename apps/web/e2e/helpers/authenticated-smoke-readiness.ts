@@ -8,9 +8,10 @@ export async function assertAuthenticatedSmokeReady(
 ): Promise<void> {
   const expected = new URL(requestedRoute, baseUrl)
   const normalizedPath = (path: string) => path.replace(/\/+$/, '') || '/'
-  // This is the only canonical redirect in the current smoke inventory.
-  // It preserves incoming query values and explicitly selects list view.
-  if (normalizedPath(expected.pathname) === '/pipeline/list') {
+  const expectedPath = normalizedPath(expected.pathname)
+  // These are the intentional legacy pipeline aliases in the smoke inventory.
+  // They preserve incoming query values and explicitly select list view.
+  if (expectedPath === '/pipeline/list' || expectedPath === '/pipeline/conversion') {
     expected.pathname = '/pipeline'
     expected.searchParams.set('view', 'list')
   }
