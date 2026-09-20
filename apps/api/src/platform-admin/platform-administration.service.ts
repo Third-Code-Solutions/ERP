@@ -646,7 +646,7 @@ export class PlatformAdministrationService {
       // timeout or failed compensation still needs separate reconciliation;
       // neither is evidence that the remote identity stayed unchanged.
       if (suspendedUserId) {
-        await this.identity.setSuspended(suspendedUserId, false).catch(() => undefined)
+        await this.reconcileUserIdentityFromDurableState(suspendedUserId, principal).catch(() => undefined)
       }
       if (['55P03', '40P01'].includes(databaseErrorCode(error) ?? '')) {
         throw new ConflictException('Invitation is being updated. Refresh and retry revocation.')
@@ -692,7 +692,6 @@ export class PlatformAdministrationService {
   ): Promise<PlatformUserSummary> {
     const suspended = command.status !== 'active'
     let providerChanged = false
-    let previousSuspended = false
     try {
       await this.database.client.transaction(async (tx) => {
         await this.lockOwner(tx, principal)
@@ -756,7 +755,6 @@ export class PlatformAdministrationService {
           )
         }
 
-        previousSuspended = target.accountStatus === 'suspended' || target.accountStatus === 'disabled'
         await this.identity.setSuspended(target.id, suspended)
         providerChanged = true
         const [updated] = await tx
@@ -783,7 +781,7 @@ export class PlatformAdministrationService {
       })
     } catch (error) {
       if (providerChanged) {
-        await this.identity.setSuspended(userId, previousSuspended).catch(() => undefined)
+        await this.reconcileUserIdentityFromDurableState(userId, principal).catch(() => undefined)
       }
       throw error
     }
@@ -1292,6 +1290,42 @@ export class PlatformAdministrationService {
     await this.database.client.transaction(async (tx) => {
       await this.lockOwner(tx, principal)
       await this.requireSupportContext(tx, principal, tenantId)
+    })
+  }
+
+  /**
+   * Reconcile a provider side effect after the database transaction failed.
+   *
+   * The failed transaction has already released its tenant lock by the time
+   * the catch path runs. Re-acquire that same lock and read the committed
+   * account status before touching Auth, otherwise a newer lifecycle command
+   * can commit between rollback and stale compensation and be undone here.
+   */
+  private async reconcileUserIdentityFromDurableState(
+    userId: string,
+    principal: PlatformPrincipal
+  ): Promise<void> {
+    await this.database.client.transaction(async (tx) => {
+      await this.lockOwner(tx, principal)
+      const [target] = await tx
+        .select({ tenantId: users.tenant_id })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1)
+      if (!target) return
+
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtextextended(${target.tenantId}, 0))`
+      )
+      const [current] = await tx
+        .select({ accountStatus: users.account_status })
+        .from(users)
+        .where(and(eq(users.id, userId), eq(users.tenant_id, target.tenantId)))
+        .limit(1)
+        .for('update')
+      if (!current) return
+
+      await this.identity.setSuspended(userId, current.accountStatus !== 'active')
     })
   }
 

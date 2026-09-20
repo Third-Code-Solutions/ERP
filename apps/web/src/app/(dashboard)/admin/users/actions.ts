@@ -310,6 +310,30 @@ const suspendUserSchema = z.object({
   reason: z.string().trim().min(3).max(500).optional().default('Access suspended; retained history preserved.'),
 })
 
+async function reconcileSuspensionFromDurableState(
+  admin: ReturnType<typeof createSupabaseAdminClient>,
+  userId: string,
+  tenantId: string,
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${tenantId}, 0))`
+    )
+    const [current] = await tx
+      .select({ accountStatus: usersTable.account_status })
+      .from(usersTable)
+      .where(and(eq(usersTable.id, userId), eq(usersTable.tenant_id, tenantId)))
+      .limit(1)
+      .for('update')
+    if (!current) return
+
+    const { error } = await admin.auth.admin.updateUserById(userId, {
+      ban_duration: current.accountStatus === 'active' ? 'none' : '876000h',
+    })
+    if (error) throw error
+  })
+}
+
 /**
  * Suspend a user without deleting retained identity, project, or audit history.
  * The Auth ban is compensated when the database/audit write cannot be confirmed.
@@ -423,7 +447,7 @@ export async function suspendUser(
       }
       if (providerAttempted) {
         if (admin) {
-          await admin.auth.admin.updateUserById(userId, { ban_duration: 'none' }).catch(() => undefined)
+          await reconcileSuspensionFromDurableState(admin, userId, profile.tenantId).catch(() => undefined)
         }
         console.warn('[admin/users:suspendUser] suspension compensation attempted:', err)
       }

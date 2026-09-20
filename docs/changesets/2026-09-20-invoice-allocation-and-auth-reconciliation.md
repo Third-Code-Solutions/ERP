@@ -1,0 +1,28 @@
+# Invoice allocation and Auth compensation reconciliation
+
+## Outcome
+
+Closed two post-CI P1 consistency defects without changing the database
+schema:
+
+- Core customer-invoice drafts and the retained Web procurement invoice writer
+  now query the maximum numeric invoice suffix for the tenant/month. Lexical
+  ordering no longer allocates `INV-...-1000` a second time after `...-999`.
+  Suffix arithmetic uses shared `BigInt` logic and is exact beyond the
+  JavaScript safe-integer range.
+- Core platform-user lifecycle and invitation compensation, plus Web retained
+  history suspension, now reacquire the shared tenant advisory lock and read
+  the committed account status before reconciling Auth. A failed transaction
+  cannot unban or re-enable a newer successful suspension.
+
+## Verification
+
+- Shared invoice-number regression: 3/3 passed.
+- API lifecycle compensation regression: 1/1 passed.
+- Web admin user suite: 22/22 passed.
+- API invoice draft focused suite: 4/4 passed.
+- Targeted source lint passed after removing the obsolete lexical-order import;
+  the repository's existing Next pages-directory warning remains.
+
+Hosted CI/build and full suites are required before merge. No migration,
+dependency, hosted data, or production deployment was performed.

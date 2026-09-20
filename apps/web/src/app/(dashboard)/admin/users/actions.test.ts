@@ -108,7 +108,7 @@ describe('admin user role authority', () => {
     mocks.can.mockReturnValue(true)
     mocks.adminUserRoleAssignmentWritesUseCoreApi.mockReturnValue(true)
     const query = userQuery([
-      { id: TARGET_ID, role: 'viewer', email: 'viewer@example.test' },
+      { id: TARGET_ID, role: 'viewer', email: 'viewer@example.test', accountStatus: 'active' },
     ])
     mocks.select.mockReturnValue({ from: query.from })
     mocks.update.mockReturnValue({
@@ -295,6 +295,33 @@ describe('admin user role authority', () => {
     })
     expect(updateUserById).toHaveBeenNthCalledWith(1, TARGET_ID, { ban_duration: '876000h' })
     expect(updateUserById).toHaveBeenNthCalledWith(2, TARGET_ID, { ban_duration: 'none' })
+  })
+
+  it('reconciles compensation to a newer committed durable suspension', async () => {
+    const activeTarget = userQuery([
+      { id: TARGET_ID, role: 'viewer', email: 'viewer@example.test', accountStatus: 'active' },
+    ])
+    const committedTarget = userQuery([
+      { id: TARGET_ID, role: 'viewer', email: 'viewer@example.test', accountStatus: 'suspended' },
+    ])
+    mocks.select
+      .mockReturnValueOnce({ from: activeTarget.from })
+      .mockReturnValueOnce({ from: committedTarget.from })
+      .mockReturnValueOnce({ from: committedTarget.from })
+    const updateUserById = vi.fn()
+      .mockResolvedValueOnce({ error: null })
+      .mockResolvedValueOnce({ error: null })
+    mocks.createSupabaseAdminClient.mockReturnValue({ auth: { admin: { updateUserById } } })
+    mocks.writeAuditLogInTransaction.mockRejectedValueOnce(new Error('synthetic audit failure'))
+    const form = new FormData()
+    form.set('user_id', TARGET_ID)
+    form.set('reason', 'Retain history during review')
+
+    await expect(suspendUser(form)).resolves.toEqual({
+      error: 'User suspension could not be confirmed. Retry or reconcile with support.',
+    })
+    expect(updateUserById).toHaveBeenNthCalledWith(1, TARGET_ID, { ban_duration: '876000h' })
+    expect(updateUserById).toHaveBeenNthCalledWith(2, TARGET_ID, { ban_duration: '876000h' })
   })
 
   it('rejects a target outside the tenant', async () => {
