@@ -28,6 +28,49 @@ type AwardTaskKey = 'arProjectCode' | 'downPaymentInvoice' | 'cari' | 'projectTr
 
 type AwardTaskResult = Record<AwardTaskKey, string>
 
+export interface SignedBomAwardLine {
+  id: string
+  description: string
+  kind: string
+  lineTotalCents: number
+  divisionCode: string | null
+  divisionName: string | null
+  parentLineItemId: string | null
+  classificationStatus: string
+  isGroup: number
+}
+
+/**
+ * Project only priced top-level BOQ lines into the signed-award baseline.
+ * Attached material rows remain represented by their parent work item and
+ * must never become a second budget line. Validate the complete hierarchy
+ * before returning so malformed rows fail before award side effects begin.
+ */
+export function selectSignedBomAwardLines(
+  rows: ReadonlyArray<SignedBomAwardLine>,
+): SignedBomAwardLine[] {
+  const byId = new Map(rows.map((row) => [row.id, row]))
+
+  for (const row of rows) {
+    if (row.classificationStatus !== 'classified') {
+      throw new Error('Signed BOM contains unresolved line items')
+    }
+
+    if (row.kind === 'material_line') {
+      const parent = row.parentLineItemId ? byId.get(row.parentLineItemId) : undefined
+      if (!parent || parent.kind !== 'work_item' || parent.classificationStatus !== 'classified') {
+        throw new Error('Signed BOM contains an orphan material line')
+      }
+    }
+  }
+
+  const lines = rows.filter(
+    (row) => row.isGroup === 0 && row.lineTotalCents > 0 && row.parentLineItemId === null,
+  )
+  if (lines.length === 0) throw new Error('Signed BOM has no priced line items for the budget baseline')
+  return lines
+}
+
 export interface AwardAutomationResult {
   handoffId: string
   projectId: string
@@ -280,6 +323,9 @@ async function loadAwardLines(tx: DatabaseTransaction, tenantId: string, bomId: 
       lineTotalCents: bomLineItems.line_total_cents,
       divisionCode: boqDivisions.code,
       divisionName: boqDivisions.name,
+      parentLineItemId: bomLineItems.parent_line_item_id,
+      classificationStatus: bomLineItems.classification_status,
+      isGroup: bomLineItems.is_group,
     })
     .from(bomLineItems)
     .leftJoin(
@@ -293,14 +339,11 @@ async function loadAwardLines(tx: DatabaseTransaction, tenantId: string, bomId: 
       and(
         eq(bomLineItems.tenant_id, tenantId),
         eq(bomLineItems.bom_id, bomId),
-        eq(bomLineItems.is_group, 0),
-        sql`${bomLineItems.line_total_cents} > 0`
       )
     )
     .orderBy(asc(bomLineItems.sort_order), asc(bomLineItems.id))
 
-  if (rows.length === 0) throw new Error('Signed BOM has no priced line items for the budget baseline')
-  return rows
+  return selectSignedBomAwardLines(rows)
 }
 
 async function ensureBudget(
@@ -745,6 +788,9 @@ export async function runSignedBomAward(
   if (opportunity?.projectId && opportunity.projectId !== bom.projectId) {
     throw new Error('BOM opportunity belongs to a different project')
   }
+
+  const lines = await loadAwardLines(tx, args.tenantId, args.bomId)
+
   if (opportunity && !opportunity.projectId) {
     await tx
       .update(opportunities)
@@ -760,7 +806,6 @@ export async function runSignedBomAward(
     project.projectCode,
     now
   )
-  const lines = await loadAwardLines(tx, args.tenantId, args.bomId)
   const budgetId = await ensureBudget(tx, {
     tenantId: args.tenantId,
     projectId: bom.projectId,
