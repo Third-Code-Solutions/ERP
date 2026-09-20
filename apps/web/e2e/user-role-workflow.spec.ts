@@ -167,6 +167,9 @@ export async function resetUserPassword(): Promise<{ error?: string }> {
 export async function deleteUser(): Promise<{ error?: string }> {
   throw new Error('User deletion is outside this credential-free role harness')
 }
+export async function suspendUser(): Promise<{ error?: string }> {
+  throw new Error('User suspension is outside this credential-free role harness')
+}
 `,
   )
   await writeFile(
@@ -248,8 +251,8 @@ test.afterAll(async () => {
 })
 
 test.beforeEach(async ({ page }) => {
-  await page.goto(harnessUrl)
-  await expect(page.locator('#admin-user-role-select')).toBeVisible()
+  await page.goto(harnessUrl, { waitUntil: 'networkidle' })
+  await expect(page.locator('#admin-user-role-select')).toBeVisible({ timeout: 15000 })
 })
 
 test('freezes exact role command through uncertain retry and handles known rejection', async ({

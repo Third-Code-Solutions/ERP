@@ -199,13 +199,28 @@ async function mount(
       : kind === 'ledger'
         ? { ledger: props as LedgerProps }
         : props as { form: FormProps; ledger: LedgerProps }
-  await page.evaluate(
-    ({ nextKind, nextProps }) => {
-      const value = (window as unknown as { __weeklyProgressTest: BrowserBridge }).__weeklyProgressTest
-      return value.mount(nextKind, nextProps)
-    },
-    { nextKind: kind, nextProps: next },
-  )
+  let lastError: unknown
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await page.waitForFunction(() => {
+        const value = (window as unknown as { __weeklyProgressTest?: BrowserBridge }).__weeklyProgressTest
+        return typeof value?.mount === 'function'
+      })
+      await page.evaluate(
+        ({ nextKind, nextProps }) => {
+          const value = (window as unknown as { __weeklyProgressTest: BrowserBridge }).__weeklyProgressTest
+          return value.mount(nextKind, nextProps)
+        },
+        { nextKind: kind, nextProps: next },
+      )
+      return
+    } catch (error) {
+      lastError = error
+      if (attempt === 2) throw error
+      await page.waitForTimeout(250)
+    }
+  }
+  throw lastError
 }
 
 async function resolveCapture(page: import('@playwright/test').Page, value: unknown) {
