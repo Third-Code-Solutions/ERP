@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createHash } from 'node:crypto'
+import { claimTransitionPayload, type ClaimTransitionCommand } from '@third-code-erp/shared-types'
 
 const mocks = vi.hoisted(() => ({
   requireUserProfile: vi.fn(),
@@ -14,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   updateReturning: vi.fn(),
   writeAuditLog: vi.fn(),
   notifyRoles: vi.fn(),
+  transitionClaimThroughCoreApi: vi.fn(),
 }))
 
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }))
@@ -34,6 +37,9 @@ vi.mock('@/lib/operations/notifications', () => ({
 vi.mock('@/lib/erp-core-client', () => ({
   attachClaimDocumentThroughCoreApi: vi.fn(),
   getProjectDocumentsThroughCoreApi: vi.fn(),
+}))
+vi.mock('@/lib/claim-transition-core-client', () => ({
+  transitionClaimThroughCoreApi: mocks.transitionClaimThroughCoreApi,
 }))
 
 import { cancelClaim, rejectClaim, submitClaim } from './actions'
@@ -76,6 +82,27 @@ describe('claim transition server actions', () => {
     mocks.updateReturning.mockResolvedValue([{ id: CLAIM_ID }])
     mocks.writeAuditLog.mockResolvedValue(undefined)
     mocks.notifyRoles.mockResolvedValue(undefined)
+    mocks.transitionClaimThroughCoreApi.mockImplementation(async (claimId: string, command: ClaimTransitionCommand) => ({
+      ok: true,
+      data: {
+        claimId,
+        changed: true,
+        receipt: {
+          schemaVersion: 1,
+          operation: 'transition',
+          tenantId: TENANT_ID,
+          actorId: USER_ID,
+          claimId,
+          projectId: CLAIM.project_id,
+          clientRequestId: command.clientRequestId,
+          payloadHash: createHash('sha256').update(claimTransitionPayload(claimId, command)).digest('hex'),
+          action: command.action,
+          fromStatus: CLAIM.status,
+          toStatus: command.action === 'submit' ? 'submitted' : command.action === 'reject' ? 'rejected' : 'cancelled',
+          changedAt: '2026-09-20T00:00:00.000Z',
+        },
+      },
+    }))
   })
 
   it('requires the same capability union as the transition panel for rejection', async () => {
@@ -99,10 +126,16 @@ describe('claim transition server actions', () => {
   })
 
   it('fails closed when another request wins the status transition race', async () => {
-    mocks.updateReturning.mockResolvedValueOnce([])
+    mocks.transitionClaimThroughCoreApi.mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      outcomeUnknown: false,
+      error: 'Claim changed before this action completed; retry the unchanged command',
+    })
 
     await expect(submitClaim(CLAIM_ID)).resolves.toEqual({
-      error: 'Claim changed before this action completed. Refresh and try again.',
+      error: 'Claim changed before this action completed; retry the unchanged command',
+      outcome: 'rejected',
     })
     expect(mocks.writeAuditLog).not.toHaveBeenCalled()
     expect(mocks.notifyRoles).not.toHaveBeenCalled()
@@ -111,28 +144,17 @@ describe('claim transition server actions', () => {
 
   it('audits and revalidates only after the guarded transition succeeds', async () => {
     await expect(submitClaim(CLAIM_ID)).resolves.toEqual({})
-    expect(mocks.update).toHaveBeenCalledTimes(1)
-    expect(mocks.writeAuditLog).toHaveBeenCalledWith(
-      expect.objectContaining({
-        tenantId: TENANT_ID,
-        actorId: USER_ID,
-        entityType: 'progress_claim',
-        entityId: CLAIM_ID,
-        action: 'status_change',
-        diff: { from: 'draft', to: 'submitted' },
-      }),
-    )
+    expect(mocks.transitionClaimThroughCoreApi).toHaveBeenCalledTimes(1)
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/claims')
     expect(mocks.revalidatePath).toHaveBeenCalledWith(`/claims/${CLAIM_ID}`)
   })
 
-  it('uses the loaded status as the rejection compare-and-set value', async () => {
+  it('sends the normalized rejection command to Core', async () => {
     await expect(rejectClaim(CLAIM_ID, 'Scope changed')).resolves.toEqual({})
-    expect(mocks.updateReturning).toHaveBeenCalledTimes(1)
-    expect(mocks.writeAuditLog).toHaveBeenCalledWith(
-      expect.objectContaining({
-        diff: { from: 'draft', to: 'rejected', reason: 'Scope changed' },
-      }),
+    expect(mocks.transitionClaimThroughCoreApi).toHaveBeenCalledWith(
+      CLAIM_ID,
+      expect.objectContaining({ action: 'reject', reason: 'Scope changed' }),
     )
   })
 })
