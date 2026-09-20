@@ -97,6 +97,21 @@ const addBomLineItemActionSchema = z
 
 type DatabaseTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
+type BomReviewResolutionOutcome =
+  | 'resolved'
+  | 'not_draft'
+  | 'stale'
+  | 'invalid_parent'
+  | 'self_parent'
+  | 'location_missing'
+
+class BomReviewResolutionConflict extends Error {
+  constructor() {
+    super('BOM review changed during resolution')
+    this.name = 'BomReviewResolutionConflict'
+  }
+}
+
 /**
  * Serialize every direct BOM mutation against the BOM row itself. The
  * approval transition uses the same row, so `FOR UPDATE` prevents a stale
@@ -1118,71 +1133,147 @@ export async function resolveBomGrainReview(input: unknown): Promise<{ error?: s
   }
 
   const now = new Date()
-  const resolved = await db.transaction(async (tx) => {
-    const lockedBom = await lockBomForMutation(tx, {
-      bomId: review.bomId,
-      projectId: parsed.data.projectId,
-      tenantId: profile.tenantId,
-    })
-    if (!lockedBom || lockedBom.status !== 'draft') return false
-
-    await tx
-      .update(bomLineItems)
-      .set({
-        kind: parsed.data.kind,
-        parent_line_item_id: parsed.data.parentLineItemId,
-        classification_status: 'classified',
-        classification_reason: null,
-        updated_at: now,
+  let resolution: BomReviewResolutionOutcome
+  try {
+    resolution = await db.transaction(async (tx) => {
+      const lockedBom = await lockBomForMutation(tx, {
+        bomId: review.bomId,
+        projectId: parsed.data.projectId,
+        tenantId: profile.tenantId,
       })
-      .where(
-        and(
-          eq(bomLineItems.id, review.lineItemId),
-          eq(bomLineItems.tenant_id, profile.tenantId),
-        ),
-      )
+      if (!lockedBom || lockedBom.status !== 'draft') return 'not_draft'
 
-    await tx
-      .update(bomLineItemGrainReviews)
-      .set({
-        status: 'resolved',
-        resolved_kind: parsed.data.kind,
-        resolved_parent_line_item_id: parsed.data.parentLineItemId,
-        resolved_by: profile.user.id,
-        updated_by: profile.user.id,
-        resolved_at: now,
-        updated_at: now,
-      })
-      .where(
-        and(
-          eq(bomLineItemGrainReviews.id, review.reviewId),
-          eq(bomLineItemGrainReviews.tenant_id, profile.tenantId),
-          eq(bomLineItemGrainReviews.status, 'pending'),
-        ),
-      )
+      const [currentReview] = await tx
+        .select({
+          reviewId: bomLineItemGrainReviews.id,
+          lineItemId: bomLineItemGrainReviews.bom_line_item_id,
+          bomId: bomLineItemGrainReviews.bom_id,
+        })
+        .from(bomLineItemGrainReviews)
+        .where(
+          and(
+            eq(bomLineItemGrainReviews.id, review.reviewId),
+            eq(bomLineItemGrainReviews.tenant_id, profile.tenantId),
+            eq(bomLineItemGrainReviews.status, 'pending'),
+            eq(bomLineItemGrainReviews.bom_id, review.bomId),
+            eq(bomLineItemGrainReviews.bom_line_item_id, review.lineItemId),
+          ),
+        )
+        .for('update')
+      if (!currentReview) return 'stale'
 
-    await writeAuditLogInTransaction(tx, {
-      tenantId: profile.tenantId,
-      actorId: profile.user.id,
-      entityType: 'bom_line_item',
-      entityId: review.lineItemId,
-      action: 'update',
-      diff: {
-        field_changed: 'classification',
-        before: {
-          kind: review.previousKind,
-          parent_line_item_id: review.previousParentLineItemId,
-        },
-        after: {
+      const [currentLine] = await tx
+        .select({
+          id: bomLineItems.id,
+          bomId: bomLineItems.bom_id,
+          tenantId: bomLineItems.tenant_id,
+          previousKind: bomLineItems.kind,
+          previousParentLineItemId: bomLineItems.parent_line_item_id,
+        })
+        .from(bomLineItems)
+        .where(
+          and(
+            eq(bomLineItems.id, currentReview.lineItemId),
+            eq(bomLineItems.bom_id, lockedBom.id),
+            eq(bomLineItems.tenant_id, profile.tenantId),
+          ),
+        )
+        .for('update')
+      if (!currentLine || currentLine.bomId !== currentReview.bomId) return 'stale'
+
+      if (parsed.data.parentLineItemId === currentLine.id) return 'self_parent'
+      if (parsed.data.parentLineItemId) {
+        const [parent] = await tx
+          .select({ id: bomLineItems.id })
+          .from(bomLineItems)
+          .where(
+            and(
+              eq(bomLineItems.id, parsed.data.parentLineItemId),
+              eq(bomLineItems.bom_id, currentLine.bomId),
+              eq(bomLineItems.tenant_id, profile.tenantId),
+              eq(bomLineItems.kind, 'work_item'),
+              eq(bomLineItems.classification_status, 'classified'),
+            ),
+          )
+          .for('update')
+        if (!parent) return 'invalid_parent'
+      }
+
+      const updatedLines = await tx
+        .update(bomLineItems)
+        .set({
           kind: parsed.data.kind,
           parent_line_item_id: parsed.data.parentLineItemId,
+          classification_status: 'classified',
+          classification_reason: null,
+          updated_at: now,
+        })
+        .where(
+          and(
+            eq(bomLineItems.id, currentLine.id),
+            eq(bomLineItems.bom_id, currentLine.bomId),
+            eq(bomLineItems.tenant_id, currentLine.tenantId),
+          ),
+        )
+        .returning({ id: bomLineItems.id })
+      if (updatedLines.length !== 1) return 'stale'
+
+      const updatedReviews = await tx
+        .update(bomLineItemGrainReviews)
+        .set({
+          status: 'resolved',
+          resolved_kind: parsed.data.kind,
+          resolved_parent_line_item_id: parsed.data.parentLineItemId,
+          resolved_by: profile.user.id,
+          updated_by: profile.user.id,
+          resolved_at: now,
+          updated_at: now,
+        })
+        .where(
+          and(
+            eq(bomLineItemGrainReviews.id, currentReview.reviewId),
+            eq(bomLineItemGrainReviews.bom_id, currentReview.bomId),
+            eq(bomLineItemGrainReviews.bom_line_item_id, currentReview.lineItemId),
+            eq(bomLineItemGrainReviews.tenant_id, profile.tenantId),
+            eq(bomLineItemGrainReviews.status, 'pending'),
+          ),
+        )
+        .returning({ id: bomLineItemGrainReviews.id })
+      if (updatedReviews.length !== 1) throw new BomReviewResolutionConflict()
+
+      await writeAuditLogInTransaction(tx, {
+        tenantId: profile.tenantId,
+        actorId: profile.user.id,
+        entityType: 'bom_line_item',
+        entityId: currentLine.id,
+        action: 'update',
+        diff: {
+          field_changed: 'classification',
+          before: {
+            kind: currentLine.previousKind,
+            parent_line_item_id: currentLine.previousParentLineItemId,
+          },
+          after: {
+            kind: parsed.data.kind,
+            parent_line_item_id: parsed.data.parentLineItemId,
+          },
+          review_id: currentReview.reviewId,
         },
-        review_id: review.reviewId,
-      },
+      })
+      return 'resolved'
     })
-    return true
-  })
-  if (!resolved) return { error: 'Only draft BOMs can be edited' }
+  } catch (error) {
+    if (error instanceof BomReviewResolutionConflict) {
+      return { error: 'Pending grain review not found' }
+    }
+    throw error
+  }
+  if (resolution === 'not_draft') return { error: 'Only draft BOMs can be edited' }
+  if (resolution === 'stale') return { error: 'Pending grain review not found' }
+  if (resolution === 'self_parent') return { error: 'A line item cannot be its own parent' }
+  if (resolution === 'invalid_parent') {
+    return { error: 'Parent must be a classified work item in this BOM' }
+  }
 
   revalidatePath(`/projects/${parsed.data.projectId}/bom`)
   return {}
@@ -1445,59 +1536,130 @@ export async function resolveBomLocationReview(input: unknown): Promise<{ error?
   if (!location) return { error: 'Location not found in this project' }
 
   const now = new Date()
-  const resolved = await db.transaction(async (tx) => {
-    const lockedBom = await lockBomForMutation(tx, {
-      bomId: review.bomId,
-      projectId: parsed.data.projectId,
-      tenantId: profile.tenantId,
-    })
-    if (!lockedBom || lockedBom.status !== 'draft') return false
-
-    await tx
-      .update(bomLineItems)
-      .set({ location_id: location.id, updated_at: now })
-      .where(
-        and(
-          eq(bomLineItems.id, review.lineItemId),
-          eq(bomLineItems.bom_id, review.bomId),
-          eq(bomLineItems.tenant_id, profile.tenantId),
-        ),
-      )
-
-    await tx
-      .update(bomLineItemLocationReviews)
-      .set({
-        status: 'resolved',
-        resolved_location_id: location.id,
-        resolved_by: profile.user.id,
-        updated_by: profile.user.id,
-        resolved_at: now,
-        updated_at: now,
+  let resolution: BomReviewResolutionOutcome
+  try {
+    resolution = await db.transaction(async (tx) => {
+      const lockedBom = await lockBomForMutation(tx, {
+        bomId: review.bomId,
+        projectId: parsed.data.projectId,
+        tenantId: profile.tenantId,
       })
-      .where(
-        and(
-          eq(bomLineItemLocationReviews.id, review.reviewId),
-          eq(bomLineItemLocationReviews.tenant_id, profile.tenantId),
-          eq(bomLineItemLocationReviews.status, 'pending'),
-        ),
-      )
+      if (!lockedBom || lockedBom.status !== 'draft') return 'not_draft'
 
-    await writeAuditLogInTransaction(tx, {
-      tenantId: profile.tenantId,
-      actorId: profile.user.id,
-      entityType: 'bom_line_item',
-      entityId: review.lineItemId,
-      action: 'update',
-      diff: {
-        field_changed: 'location_id',
-        before: review.previousLocationId,
-        after: { id: location.id, name: location.name },
-        description_original: review.descriptionOriginal,
-      },
+      const [currentReview] = await tx
+        .select({
+          reviewId: bomLineItemLocationReviews.id,
+          lineItemId: bomLineItemLocationReviews.bom_line_item_id,
+          bomId: bomLineItemLocationReviews.bom_id,
+          descriptionOriginal: bomLineItemLocationReviews.description_original,
+        })
+        .from(bomLineItemLocationReviews)
+        .where(
+          and(
+            eq(bomLineItemLocationReviews.id, review.reviewId),
+            eq(bomLineItemLocationReviews.tenant_id, profile.tenantId),
+            eq(bomLineItemLocationReviews.status, 'pending'),
+            eq(bomLineItemLocationReviews.project_id, parsed.data.projectId),
+            eq(bomLineItemLocationReviews.bom_id, review.bomId),
+            eq(bomLineItemLocationReviews.bom_line_item_id, review.lineItemId),
+          ),
+        )
+        .for('update')
+      if (!currentReview) return 'stale'
+
+      const [currentLine] = await tx
+        .select({
+          id: bomLineItems.id,
+          bomId: bomLineItems.bom_id,
+          tenantId: bomLineItems.tenant_id,
+          previousLocationId: bomLineItems.location_id,
+        })
+        .from(bomLineItems)
+        .where(
+          and(
+            eq(bomLineItems.id, currentReview.lineItemId),
+            eq(bomLineItems.bom_id, lockedBom.id),
+            eq(bomLineItems.tenant_id, profile.tenantId),
+          ),
+      )
+      .for('update')
+      if (!currentLine || currentLine.bomId !== currentReview.bomId) return 'stale'
+
+      const [currentLocation] = await tx
+        .select({ id: projectLocations.id, name: projectLocations.name })
+        .from(projectLocations)
+        .where(
+          and(
+            eq(projectLocations.id, location.id),
+            eq(projectLocations.project_id, parsed.data.projectId),
+            eq(projectLocations.tenant_id, profile.tenantId),
+          ),
+        )
+        .for('update')
+      if (!currentLocation) return 'location_missing'
+
+      const updatedLines = await tx
+        .update(bomLineItems)
+        .set({ location_id: currentLocation.id, updated_at: now })
+        .where(
+          and(
+            eq(bomLineItems.id, currentLine.id),
+            eq(bomLineItems.bom_id, currentLine.bomId),
+            eq(bomLineItems.tenant_id, currentLine.tenantId),
+          ),
+        )
+        .returning({ id: bomLineItems.id })
+      if (updatedLines.length !== 1) return 'stale'
+
+      const updatedReviews = await tx
+        .update(bomLineItemLocationReviews)
+        .set({
+          status: 'resolved',
+          resolved_location_id: currentLocation.id,
+          resolved_by: profile.user.id,
+          updated_by: profile.user.id,
+          resolved_at: now,
+          updated_at: now,
+        })
+        .where(
+          and(
+            eq(bomLineItemLocationReviews.id, currentReview.reviewId),
+            eq(bomLineItemLocationReviews.project_id, parsed.data.projectId),
+            eq(bomLineItemLocationReviews.bom_id, currentReview.bomId),
+            eq(bomLineItemLocationReviews.bom_line_item_id, currentReview.lineItemId),
+            eq(bomLineItemLocationReviews.tenant_id, profile.tenantId),
+            eq(bomLineItemLocationReviews.status, 'pending'),
+          ),
+        )
+        .returning({ id: bomLineItemLocationReviews.id })
+      if (updatedReviews.length !== 1) throw new BomReviewResolutionConflict()
+
+      await writeAuditLogInTransaction(tx, {
+        tenantId: profile.tenantId,
+        actorId: profile.user.id,
+        entityType: 'bom_line_item',
+        entityId: currentLine.id,
+        action: 'update',
+        diff: {
+          field_changed: 'location_id',
+          before: currentLine.previousLocationId,
+          after: { id: currentLocation.id, name: currentLocation.name },
+          description_original: currentReview.descriptionOriginal,
+        },
+      })
+      return 'resolved'
     })
-    return true
-  })
-  if (!resolved) return { error: 'Only draft BOMs can be edited' }
+  } catch (error) {
+    if (error instanceof BomReviewResolutionConflict) {
+      return { error: 'Pending location review not found' }
+    }
+    throw error
+  }
+  if (resolution === 'not_draft') return { error: 'Only draft BOMs can be edited' }
+  if (resolution === 'stale') return { error: 'Pending location review not found' }
+  if (resolution === 'location_missing') {
+    return { error: 'Location not found in this project' }
+  }
 
   revalidatePath('/projects/' + parsed.data.projectId + '/bom')
   return {}
