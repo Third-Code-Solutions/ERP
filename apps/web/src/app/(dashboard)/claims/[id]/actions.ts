@@ -65,6 +65,9 @@ function hasAnyRole(role: AppRole, allowed: AppRole[]): boolean {
   return allowed.includes(role)
 }
 
+const CLAIM_CONCURRENT_MODIFICATION_ERROR =
+  'Claim changed before this action completed. Refresh and try again.'
+
 function revalidateClaim(claimId: string): void {
   revalidatePath('/claims')
   revalidatePath(`/claims/${claimId}`)
@@ -79,6 +82,36 @@ async function loadClaim(claimId: string, tenantId: string) {
     )
     .limit(1)
   return row ?? null
+}
+
+type ClaimUpdatePatch = Partial<typeof progressClaims.$inferInsert>
+
+/**
+ * Apply a transition only if the status read by this request is still current.
+ * The status predicate makes concurrent submissions single-winner: a second
+ * request cannot overwrite the first transition after its initial read.
+ */
+async function updateClaimFromExpectedStatus(
+  claimId: string,
+  tenantId: string,
+  expectedStatus: ClaimStatus,
+  patch: ClaimUpdatePatch,
+): Promise<boolean> {
+  const statusPredicate = eq(progressClaims.status, expectedStatus)
+
+  const [updated] = await db
+    .update(progressClaims)
+    .set(patch)
+    .where(
+      and(
+        eq(progressClaims.id, claimId),
+        eq(progressClaims.tenant_id, tenantId),
+        statusPredicate,
+      ),
+    )
+    .returning({ id: progressClaims.id })
+
+  return Boolean(updated)
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -103,20 +136,18 @@ export async function submitClaim(claimId: string): Promise<{ error?: string }> 
   }
 
   const now = new Date()
-  await db
-    .update(progressClaims)
-    .set({
+  const changed = await updateClaimFromExpectedStatus(
+    claimId,
+    profile.tenantId,
+    'draft',
+    {
       status: 'submitted',
       submitted_at: now,
       submitted_by: profile.user.id,
       updated_at: now,
-    })
-    .where(
-      and(
-        eq(progressClaims.id, claimId),
-        eq(progressClaims.tenant_id, profile.tenantId)
-      )
-    )
+    },
+  )
+  if (!changed) return { error: CLAIM_CONCURRENT_MODIFICATION_ERROR }
 
   await writeAuditLog({
     tenantId: profile.tenantId,
@@ -163,15 +194,13 @@ export async function markCertificatePending(
   }
 
   const now = new Date()
-  await db
-    .update(progressClaims)
-    .set({ status: 'certificate_pending', updated_at: now })
-    .where(
-      and(
-        eq(progressClaims.id, claimId),
-        eq(progressClaims.tenant_id, profile.tenantId)
-      )
-    )
+  const changed = await updateClaimFromExpectedStatus(
+    claimId,
+    profile.tenantId,
+    'submitted',
+    { status: 'certificate_pending', updated_at: now },
+  )
+  if (!changed) return { error: CLAIM_CONCURRENT_MODIFICATION_ERROR }
 
   await writeAuditLog({
     tenantId: profile.tenantId,
@@ -213,35 +242,35 @@ export async function recordCertification(
     return { error: `Cannot certify a claim in status "${claim.status}"` }
   }
 
-  // Verify certificate document belongs to the same tenant before linking.
+  // Verify certificate document belongs to this tenant and this claim's
+  // project before linking. Opportunity-only documents cannot certify a claim.
   const [doc] = await db
     .select({ id: documents.id })
     .from(documents)
     .where(
       and(
         eq(documents.id, certificateDocumentId),
-        eq(documents.tenant_id, profile.tenantId)
+        eq(documents.tenant_id, profile.tenantId),
+        eq(documents.project_id, claim.project_id),
       )
     )
     .limit(1)
   if (!doc) return { error: 'Certificate document not found in this tenant' }
 
   const now = new Date()
-  await db
-    .update(progressClaims)
-    .set({
+  const changed = await updateClaimFromExpectedStatus(
+    claimId,
+    profile.tenantId,
+    claim.status,
+    {
       status: 'certified',
       certified_at: now,
       certified_by: profile.user.id,
       certificate_document_id: certificateDocumentId,
       updated_at: now,
-    })
-    .where(
-      and(
-        eq(progressClaims.id, claimId),
-        eq(progressClaims.tenant_id, profile.tenantId)
-      )
-    )
+    },
+  )
+  if (!changed) return { error: CLAIM_CONCURRENT_MODIFICATION_ERROR }
 
   await writeAuditLog({
     tenantId: profile.tenantId,
@@ -290,20 +319,18 @@ export async function handoverToFinance(
   }
 
   const now = new Date()
-  await db
-    .update(progressClaims)
-    .set({
+  const changed = await updateClaimFromExpectedStatus(
+    claimId,
+    profile.tenantId,
+    'certified',
+    {
       status: 'handed_over_finance',
       handed_over_to_finance_at: now,
       handed_over_to_finance_by: profile.user.id,
       updated_at: now,
-    })
-    .where(
-      and(
-        eq(progressClaims.id, claimId),
-        eq(progressClaims.tenant_id, profile.tenantId)
-      )
-    )
+    },
+  )
+  if (!changed) return { error: CLAIM_CONCURRENT_MODIFICATION_ERROR }
 
   await writeAuditLog({
     tenantId: profile.tenantId,
@@ -368,19 +395,13 @@ export async function linkInvoice(
   }
 
   const now = new Date()
-  await db
-    .update(progressClaims)
-    .set({
-      status: 'invoiced',
-      invoice_id: invoiceId,
-      updated_at: now,
-    })
-    .where(
-      and(
-        eq(progressClaims.id, claimId),
-        eq(progressClaims.tenant_id, profile.tenantId)
-      )
-    )
+  const changed = await updateClaimFromExpectedStatus(
+    claimId,
+    profile.tenantId,
+    'handed_over_finance',
+    { status: 'invoiced', invoice_id: invoiceId, updated_at: now },
+  )
+  if (!changed) return { error: CLAIM_CONCURRENT_MODIFICATION_ERROR }
 
   await writeAuditLog({
     tenantId: profile.tenantId,
@@ -420,15 +441,13 @@ export async function recordPayment(
   }
 
   const now = new Date()
-  await db
-    .update(progressClaims)
-    .set({ status: 'paid', paid_at: now, updated_at: now })
-    .where(
-      and(
-        eq(progressClaims.id, claimId),
-        eq(progressClaims.tenant_id, profile.tenantId)
-      )
-    )
+  const changed = await updateClaimFromExpectedStatus(
+    claimId,
+    profile.tenantId,
+    'invoiced',
+    { status: 'paid', paid_at: now, updated_at: now },
+  )
+  if (!changed) return { error: CLAIM_CONCURRENT_MODIFICATION_ERROR }
 
   await writeAuditLog({
     tenantId: profile.tenantId,
@@ -463,6 +482,18 @@ export async function rejectClaim(
 ): Promise<{ error?: string }> {
   const profile = await requireUserProfile()
 
+  if (
+    !hasAnyCapability(profile.role, [
+      'po.create',
+      'precon.manage_checklist',
+      'finance.issue_invoice',
+    ])
+  ) {
+    return {
+      error: `Forbidden: role "${profile.role}" cannot reject progress claims`,
+    }
+  }
+
   const reasonResult = z
     .string()
     .trim()
@@ -480,20 +511,18 @@ export async function rejectClaim(
   }
 
   const now = new Date()
-  await db
-    .update(progressClaims)
-    .set({
+  const changed = await updateClaimFromExpectedStatus(
+    claimId,
+    profile.tenantId,
+    claim.status,
+    {
       status: 'rejected',
       rejected_at: now,
       rejected_reason: reasonResult.data,
       updated_at: now,
-    })
-    .where(
-      and(
-        eq(progressClaims.id, claimId),
-        eq(progressClaims.tenant_id, profile.tenantId)
-      )
-    )
+    },
+  )
+  if (!changed) return { error: CLAIM_CONCURRENT_MODIFICATION_ERROR }
 
   await writeAuditLog({
     tenantId: profile.tenantId,
@@ -518,6 +547,18 @@ export async function cancelClaim(
 ): Promise<{ error?: string }> {
   const profile = await requireUserProfile()
 
+  if (
+    !hasAnyCapability(profile.role, [
+      'po.create',
+      'precon.manage_checklist',
+      'finance.issue_invoice',
+    ])
+  ) {
+    return {
+      error: `Forbidden: role "${profile.role}" cannot cancel progress claims`,
+    }
+  }
+
   const reasonResult = z
     .string()
     .trim()
@@ -535,19 +576,13 @@ export async function cancelClaim(
   }
 
   const now = new Date()
-  await db
-    .update(progressClaims)
-    .set({
-      status: 'cancelled',
-      rejected_reason: reasonResult.data,
-      updated_at: now,
-    })
-    .where(
-      and(
-        eq(progressClaims.id, claimId),
-        eq(progressClaims.tenant_id, profile.tenantId)
-      )
-    )
+  const changed = await updateClaimFromExpectedStatus(
+    claimId,
+    profile.tenantId,
+    'draft',
+    { status: 'cancelled', rejected_reason: reasonResult.data, updated_at: now },
+  )
+  if (!changed) return { error: CLAIM_CONCURRENT_MODIFICATION_ERROR }
 
   await writeAuditLog({
     tenantId: profile.tenantId,
