@@ -18,7 +18,15 @@ interface RoleWorkDashboardProps {
 }
 
 const QUICK_ACCESS_PRIORITY: Partial<Record<AppRole, readonly string[]>> = {
-  safety: ['/tasks', '/permits', '/punchlist', '/projects', '/documents'],
+  safety: [
+    '/tasks',
+    '/permits',
+    '/punchlist',
+    '/projects',
+    '/documents',
+    '/cortex',
+    '/crm/accounts',
+  ],
   cx: [
     '/tasks',
     '/punchlist',

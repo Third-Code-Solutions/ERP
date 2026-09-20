@@ -112,7 +112,7 @@ export function Sidebar({ user, role, fullName }: SidebarProps) {
   }
 
   return (
-    <nav className="sidebar" aria-label="Main navigation">
+    <nav className="sidebar" aria-label="Primary navigation">
       <div className="sidebar-brand">
         <div
           className="sidebar-brand-mark"
@@ -127,50 +127,45 @@ export function Sidebar({ user, role, fullName }: SidebarProps) {
         </div>
       </div>
 
-      {sections.map((section) => (
-        <div className="sidebar-section" key={section.label}>
-          <div className="sidebar-section-label">{section.label}</div>
-          {section.items.map((item) => {
-            const Icon = ICONS[item.iconKey] ?? IconActivity
-            const isActive = currentNavHref === item.href
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                prefetch={false}
-                className={`sidebar-item ${isActive ? 'active' : ''}`}
-                aria-current={isActive ? 'page' : undefined}
-                title={item.description ? `${item.label}: ${item.description}` : item.label}
-                onMouseEnter={() => prefetchOnIntent(item.href)}
-                onMouseLeave={() => cancelPrefetchOnIntent(item.href)}
-                onFocus={() => prefetchOnIntent(item.href)}
-                onBlur={() => cancelPrefetchOnIntent(item.href)}
-              >
-                <Icon size={16} className="sidebar-icon" />
-                <span>{item.label}</span>
-              </Link>
-            )
-          })}
-        </div>
-      ))}
+      {sections.map((section, sectionIndex) => {
+        const sectionId = `sidebar-section-${sectionIndex}`
+
+        return (
+          <div
+            className="sidebar-section"
+            key={section.label}
+            aria-labelledby={sectionId}
+          >
+            <div className="sidebar-section-label" id={sectionId}>
+              {section.label}
+            </div>
+            {section.items.map((item) => {
+              const Icon = ICONS[item.iconKey] ?? IconActivity
+              const isActive = currentNavHref === item.href
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  prefetch={false}
+                  className={`sidebar-item ${isActive ? 'active' : ''}`}
+                  aria-current={isActive ? 'page' : undefined}
+                  aria-label={item.label}
+                  title={item.description ? `${item.label}: ${item.description}` : item.label}
+                  onMouseEnter={() => prefetchOnIntent(item.href)}
+                  onMouseLeave={() => cancelPrefetchOnIntent(item.href)}
+                  onFocus={() => prefetchOnIntent(item.href)}
+                  onBlur={() => cancelPrefetchOnIntent(item.href)}
+                >
+                  <Icon size={16} className="sidebar-icon" />
+                  <span>{item.label}</span>
+                </Link>
+              )
+            })}
+          </div>
+        )
+      })}
 
       <div className="sidebar-footer">
-        <div className="sidebar-section" style={{ padding: 0, marginBottom: 8 }}>
-          <Link
-            href="/settings"
-            prefetch={false}
-            className={`sidebar-item ${pathname.startsWith('/settings') ? 'active' : ''}`}
-            aria-current={pathname.startsWith('/settings') ? 'page' : undefined}
-            onMouseEnter={() => prefetchOnIntent('/settings')}
-            onMouseLeave={() => cancelPrefetchOnIntent('/settings')}
-            onFocus={() => prefetchOnIntent('/settings')}
-            onBlur={() => cancelPrefetchOnIntent('/settings')}
-          >
-            <IconSettings size={16} className="sidebar-icon" />
-            <span>Settings</span>
-          </Link>
-        </div>
-
         <div className="sidebar-user" aria-label="Signed-in user">
           <div className="sidebar-user-avatar" aria-hidden>
             {initials}

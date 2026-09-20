@@ -27,13 +27,15 @@ const PERSISTED_ROLES = [
 
 const UNRESTRICTED_NAV_HREFS = [
   '/dashboard',
-  '/cortex',
-  '/crm/accounts',
-  '/pipeline',
-  '/projects',
   '/tasks',
+  '/cortex',
+  '/pipeline',
+  '/crm/accounts',
+  '/projects',
+  '/scope',
   '/process',
   '/documents',
+  '/settings',
 ] as const
 
 const RESTRICTED_NAV_HREFS_BY_ROLE = {
@@ -158,32 +160,34 @@ const RESTRICTED_NAV_HREFS_BY_ROLE = {
 
 const VISIBLE_NAV_ORDER = [
   '/dashboard',
+  '/tasks',
   '/cortex',
+  '/pipeline',
   '/crm/accounts',
   '/crm/kyc-queue',
-  '/pipeline',
   '/projects',
   '/bom',
-  '/tasks',
+  '/scope',
   '/process',
   '/permits',
-  '/procurement/rfqs',
+  '/punchlist',
+  '/documents',
   '/procurement/deliveries',
+  '/procurement/rfqs',
   '/purchase-orders',
   '/inventory',
-  '/invoices',
   '/claims',
-  '/punchlist',
-  '/warranty',
-  '/warranty/cnps',
-  '/documents',
-  '/reports',
+  '/invoices',
   '/finance',
   '/finance/receivables',
   '/finance/payables',
   '/finance/cash',
   '/finance/reconciliation',
+  '/reports',
+  '/warranty',
+  '/warranty/cnps',
   '/admin',
+  '/settings',
 ] as const
 
 function visibleHrefs(role: AppRole): string[] {
@@ -230,10 +234,13 @@ describe('RBAC: visibleNavSections', () => {
   it('admin sees every section', () => {
     const sections = visibleNavSections('admin')
     const labels = sections.map((s) => s.label)
-    expect(labels).toContain('Workspace')
-    expect(labels).toContain('Operations')
-    expect(labels).toContain('Finance')
-    expect(labels).toContain('Admin')
+    expect(labels).toEqual([
+      'Home',
+      'Preconstruction',
+      'Project Delivery',
+      'Commercial',
+      'Closeout',
+    ])
   })
 
   it('viewer sees every tenant-safe read workspace', () => {
@@ -314,9 +321,9 @@ describe('RBAC: visibleNavSections', () => {
   })
 
   it('drops empty sections entirely', () => {
-    // Viewer has tenant-safe Admin metadata reads.
+    // Viewer has tenant-safe Closeout/Admin metadata reads.
     const labels = visibleNavSections('viewer').map((s) => s.label)
-    expect(labels).toContain('Admin')
+    expect(labels).toContain('Closeout')
   })
 })
 
@@ -589,7 +596,7 @@ describe('sidebar active state', () => {
 
   it('returns no active item for an unrelated route', () => {
     expect(activeNavHref('/settings/profile', visibleNavSections('finance'))).toBe(
-      null
+      '/settings'
     )
     expect(activeNavHref('/pipeline/list', visibleNavSections('finance'))).toBe(
       '/pipeline'
