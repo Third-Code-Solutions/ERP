@@ -5612,8 +5612,9 @@ body {
 }
 
 :where(a, button, input, select, textarea):focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--color-gold-500) 52%, transparent);
+  outline: 3px solid var(--color-gold-700);
   outline-offset: 3px;
+  box-shadow: 0 0 0 6px var(--color-surface);
 }
 
 .app-layout {
@@ -5662,7 +5663,7 @@ body {
 }
 
 .sidebar-section-label {
-  color: rgba(255, 255, 255, 0.42);
+  color: rgba(255, 255, 255, 0.56);
   letter-spacing: 0.12em;
 }
 
@@ -5874,10 +5875,14 @@ body {
 @media (max-width: 1100px) {
   .app-content { padding-inline: 24px; }
   .app-topbar { padding-inline: 24px; }
+  .search-trigger { min-width: 0; }
 }
 
 @media (max-width: 700px) {
   :root { --sidebar-width: 64px; }
+  .sidebar-brand { padding: 14px 8px 12px; }
+  .sidebar-section { padding-inline: 8px; }
+  .sidebar-item { padding-inline: 8px; }
   .app-content { padding: 24px 16px 56px; }
   .app-topbar { height: 60px; padding-inline: 12px; }
   .sidebar-item.active::before { left: -8px; }

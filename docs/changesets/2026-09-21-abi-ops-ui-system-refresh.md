@@ -18,6 +18,10 @@ visually anchored while remaining data-driven.
 - Dashboard Today command center styling only; no API, database, auth, or route
   changes.
 - Existing route slugs and role-filtered navigation remain unchanged.
+- Mobile shell overrides retain the compact sidebar and toolbar at 390px, and
+  dashboard panel links keep readable hover contrast on light surfaces.
+- Focus rings use a high-contrast gold/white treatment, and sidebar section
+  labels meet the intended readable contrast on the navy shell.
 
 ## Verification
 
