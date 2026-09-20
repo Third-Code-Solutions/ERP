@@ -44,3 +44,14 @@ recovery is required, restore the previous `dupa_recompute_from_child()` functio
 definition from `20260812180000_wo_06_dupa_engine.sql`; this restores the previous
 behavior but also restores the known stale-parent defect. No data rollback or
 schema destruction is necessary.
+
+## CI manifest correction
+
+The managed Supabase parity manifest now records this migration as a separate
+source-only pending review batch: 175 source migrations, 157 applied at the
+recorded boundary, and 18 pending through `20260921120000`. The dated provider
+snapshot and applied-ledger evidence remain unchanged; this update does not
+claim hosted application.
+
+- PASSED: `pnpm --config.engine-strict=false test:managed-supabase-parity-plan` (6/6).
+- PASSED: `pnpm --config.engine-strict=false verify:managed-supabase-parity-plan` (157/175 applied, 18 pending in 7 ordered review batches).
