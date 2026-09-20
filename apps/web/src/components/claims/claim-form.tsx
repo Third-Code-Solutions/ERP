@@ -43,7 +43,8 @@ export function ClaimForm({ projects, defaultProjectId, tenantId, actorId }: Cla
         return
       }
       setError(result.error); setOutcome(result.outcome); setRetryCommand(result.outcome === 'unknown' ? command : null)
-      if (result.outcome === 'rejected') requestIdRef.current = null
+      // Keep a dispatched key after any server rejection. Replacing it could
+      // turn an ambiguous conflict into a second financial record.
     })
   }
 
