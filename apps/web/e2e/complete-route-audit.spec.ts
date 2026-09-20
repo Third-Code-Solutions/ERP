@@ -36,6 +36,11 @@ const expectedRedirects: Record<string, CanonicalRedirectExpectation> = {
     heading: /^Accounts$/,
     content: /Client companies with KYC review status/,
   },
+  '/crm/opportunities': {
+    targetPath: '/pipeline',
+    heading: /^Pipeline Board$/,
+    content: /track ownership and next steps/,
+  },
   '/finance/journals': {
     targetPath: '/finance',
     heading: /^Finance$/,
@@ -90,7 +95,15 @@ test('inventory every page with explicit live render and guard evidence', async 
   let finalRevision = before.revision
   console.log(JSON.stringify({ phase: 'start', revision: before.revision, pages: templates.length }))
   const cache = new Map<string, string | null>()
-  const ledger: { route: string; mode: string; status: number; result: string; consoleErrors: number; pageErrors: number }[] = []
+  const ledger: {
+    route: string
+    mode: string
+    status: number
+    result: string
+    consoleErrors: number
+    pageErrors: number
+    pageErrorMessages: string[]
+  }[] = []
   const lookups: { table: string; status: number; available: boolean }[] = []
   let authenticatedPage: Page | null = null
   let anonymousPage: Page | null = null
@@ -167,14 +180,29 @@ test('inventory every page with explicit live render and guard evidence', async 
         result: string
         consoleErrors: number
         pageErrors: number
+        pageErrorMessages: string[]
       }> {
         const page = await routePage(publicPage)
         let consoleErrors = 0
         let pageErrors = 0
+        const pageErrorMessages: string[] = []
         const onConsole = (message: ConsoleMessage) => {
           if (message.type() === 'error') consoleErrors++
         }
-        const onPageError = () => { pageErrors++ }
+        const onPageError = (error: Error) => {
+          pageErrors++
+          // Keep diagnostics useful without retaining record IDs, URLs, or
+          // response bodies in the artifact uploaded from production.
+          const message = String(error?.message ?? error)
+            .replace(/https?:\/\/\S+/gi, '[url]')
+            .replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/gi, '[uuid]')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .slice(0, 240)
+          if (message && !pageErrorMessages.includes(message)) {
+            pageErrorMessages.push(message)
+          }
+        }
         page.on('console', onConsole)
         page.on('pageerror', onPageError)
         let status = 0
@@ -245,7 +273,7 @@ test('inventory every page with explicit live render and guard evidence', async 
           if (publicPage) anonymousPage = null
           else authenticatedPage = null
         }
-        return { status, result, consoleErrors, pageErrors }
+        return { status, result, consoleErrors, pageErrors, pageErrorMessages }
       }
 
       let visit = await visitRoute()
