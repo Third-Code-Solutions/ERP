@@ -1,10 +1,10 @@
 .shell {
-  margin-top: 28px;
+  margin-top: 30px;
   overflow: hidden;
-  border: 1px solid var(--color-border);
-  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--color-navy-300) 26%, var(--color-border));
+  border-radius: 18px;
   background: var(--color-surface);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-md);
 }
 
 .header {
@@ -12,15 +12,15 @@
   align-items: flex-end;
   justify-content: space-between;
   gap: 24px;
-  padding: 24px 24px 20px;
+  padding: 30px 30px 26px;
   background:
-    radial-gradient(circle at 88% 0%, rgba(224, 123, 42, 0.12), transparent 34%),
-    linear-gradient(135deg, rgba(234, 240, 248, 0.88), rgba(255, 255, 255, 0.98));
+    radial-gradient(circle at 88% 0%, rgba(224, 123, 42, 0.3), transparent 35%),
+    linear-gradient(135deg, #061421 0%, #0c2945 68%, #163c5e 100%);
 }
 
 .eyebrow {
   margin: 0 0 6px;
-  color: var(--color-gold-700);
+  color: var(--color-gold-300);
   font-size: 0.6875rem;
   font-weight: 700;
   letter-spacing: 0.1em;
@@ -29,7 +29,7 @@
 
 .title {
   margin: 0;
-  color: var(--color-navy-950);
+  color: white;
   font-size: clamp(1.45rem, 2vw, 2rem);
   font-weight: 700;
   letter-spacing: -0.04em;
@@ -39,7 +39,7 @@
 .subtitle {
   max-width: 620px;
   margin: 8px 0 0;
-  color: var(--color-neutral-600);
+  color: rgba(255, 255, 255, 0.7);
   font-size: 0.875rem;
   line-height: 1.55;
 }
@@ -63,7 +63,7 @@
 
 .primaryAction,
 .secondaryAction {
-  border-radius: var(--radius-md);
+  border-radius: 9px;
   font-size: 0.8125rem;
   font-weight: 700;
   padding: 0 14px;
@@ -71,25 +71,25 @@
 }
 
 .primaryAction {
-  background: var(--color-navy-800);
-  color: white;
-  box-shadow: var(--shadow-xs);
+  background: var(--color-gold-500);
+  color: var(--color-gold-950);
+  box-shadow: 0 8px 18px -10px rgba(224, 123, 42, 0.95);
 }
 
 .primaryAction:hover {
-  background: var(--color-navy-950);
+  background: var(--color-gold-400);
 }
 
 .secondaryAction {
-  border: 1px solid var(--color-border-strong);
-  color: var(--color-navy-800);
-  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  color: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .secondaryAction:hover,
 .panelLink:hover,
 .cortexLink:hover {
-  color: var(--color-gold-800);
+  color: var(--color-gold-300);
 }
 
 .summaryGrid {
@@ -97,15 +97,15 @@
   grid-auto-flow: dense;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1px;
-  background: var(--color-border);
-  border-block: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-navy-200) 32%, var(--color-border));
+  border-block: 1px solid color-mix(in srgb, var(--color-navy-200) 32%, var(--color-border));
 }
 
 .summaryCard {
   display: flex;
-  min-height: 124px;
+  min-height: 136px;
   flex-direction: column;
-  padding: 18px 20px;
+  padding: 20px 22px;
   background: var(--color-surface);
   color: inherit;
   text-decoration: none;
@@ -113,7 +113,7 @@
 }
 
 .summaryCard:hover {
-  background: var(--color-gold-50);
+  background: #fffaf5;
 }
 
 .cardLabel,
@@ -132,7 +132,7 @@
 }
 
 .cardCount {
-  margin-top: 13px;
+  margin-top: 16px;
   color: var(--color-navy-950);
   font-size: clamp(1.8rem, 4vw, 2.65rem);
   font-variant-numeric: tabular-nums;
@@ -156,8 +156,8 @@
   display: grid;
   grid-auto-flow: dense;
   grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
-  gap: 12px;
-  padding: 12px;
+  gap: 14px;
+  padding: 14px;
   background: var(--color-surface-sunken);
 }
 
@@ -165,8 +165,9 @@
   min-width: 0;
   overflow: hidden;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 4px 14px -12px rgba(15, 45, 74, 0.5);
 }
 
 .panelHeader {
@@ -174,7 +175,7 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  padding: 16px 16px 12px;
+  padding: 18px 18px 14px;
 }
 
 .panelTitle {
@@ -218,8 +219,8 @@
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 16px;
-  min-height: 68px;
-  padding: 10px 16px;
+  min-height: 72px;
+  padding: 12px 18px;
   color: inherit;
   text-decoration: none;
   transition: background-color 160ms ease;
@@ -282,7 +283,7 @@
   justify-content: space-between;
   gap: 12px;
   min-width: 0;
-  padding: 12px 16px;
+  padding: 14px 18px;
 }
 
 .projectMain {
@@ -302,12 +303,12 @@
 }
 
 .status {
-  border-radius: 999px;
+  border-radius: 6px;
   background: var(--color-navy-50);
   color: var(--color-navy-700);
   font-size: 0.625rem;
   font-weight: 700;
-  padding: 4px 7px;
+  padding: 4px 8px;
   white-space: nowrap;
 }
 
