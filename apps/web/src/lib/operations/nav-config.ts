@@ -166,14 +166,30 @@ export function roleLabel(role: AppRole): string {
 
 export const NAV_SECTIONS: NavSection[] = [
   {
-    label: 'Workspace',
+    label: 'Home',
     items: [
       { href: '/dashboard', label: 'Dashboard', iconKey: 'Dashboard' },
+      {
+        href: '/tasks',
+        label: 'Today',
+        iconKey: 'Check',
+        description: 'Your assigned work and due dates',
+      },
       {
         href: '/cortex',
         label: 'Cortex',
         iconKey: 'Cortex',
         description: 'AI Brain — knowledge graph + agent',
+      },
+    ],
+  },
+  {
+    label: 'Preconstruction',
+    items: [
+      {
+        href: '/pipeline',
+        label: 'CRM & Pipeline',
+        iconKey: 'Pipeline',
       },
       {
         href: '/crm/accounts',
@@ -187,30 +203,30 @@ export const NAV_SECTIONS: NavSection[] = [
         roles: ['admin', 'finance', 'viewer'],
       },
       {
-        href: '/pipeline',
-        label: 'Pipeline',
-        iconKey: 'Pipeline',
-      },
-      {
         href: '/projects',
         label: 'Projects',
         iconKey: 'Projects',
       },
       {
         href: '/bom',
-        label: 'BOM Builder',
+        label: 'BOM & Estimates',
         iconKey: 'Bom',
         roles: ['admin', 'estimator', 'commercial', 'viewer'],
       },
-      { href: '/tasks', label: 'My Tasks', iconKey: 'Check' },
+      {
+        href: '/scope',
+        label: 'Takeoff',
+        iconKey: 'Layers',
+        description: 'Scope and quantity takeoff workspace',
+      },
     ],
   },
   {
-    label: 'Operations',
+    label: 'Project Delivery',
     items: [
       {
         href: '/process',
-        label: 'Process Health',
+        label: 'Planning & Controls',
         iconKey: 'Activity',
         description: 'BU-level SLA, breach, and escalation health',
       },
@@ -231,16 +247,33 @@ export const NAV_SECTIONS: NavSection[] = [
         ],
       },
       {
-        href: '/procurement/rfqs',
-        label: 'RFQs',
-        iconKey: 'PurchaseOrder',
-        roles: ['admin', 'estimator', 'procurement', 'commercial', 'viewer'],
+        href: '/punchlist',
+        label: 'Punchlist',
+        iconKey: 'Check',
+        roles: ['admin', 'pm', 'sd_pm_pe', 'cx', 'safety', 'viewer'],
+      },
+      {
+        href: '/documents',
+        label: 'Documents & CDE',
+        iconKey: 'Documents',
+        description: 'Controlled project documents and evidence',
       },
       {
         href: '/procurement/deliveries',
         label: 'Deliveries',
         iconKey: 'Upload',
         roles: ['admin', 'pm', 'procurement', 'sd_pm_pe', 'viewer'],
+      },
+    ],
+  },
+  {
+    label: 'Commercial',
+    items: [
+      {
+        href: '/procurement/rfqs',
+        label: 'RFQs',
+        iconKey: 'PurchaseOrder',
+        roles: ['admin', 'estimator', 'procurement', 'commercial', 'viewer'],
       },
       {
         href: '/purchase-orders',
@@ -272,35 +305,8 @@ export const NAV_SECTIONS: NavSection[] = [
         description: 'Warehouses, receipts, and perpetual stock',
       },
       {
-        href: '/assets',
-        label: 'Assets',
-        iconKey: 'Layers',
-        visible: false,
-        roles: [
-          'admin',
-          'estimator',
-          'pm',
-          'sales',
-          'commercial',
-          'design',
-          'sd_pm_pe',
-          'finance',
-          'procurement',
-          'safety',
-          'cx',
-          'viewer',
-        ],
-        description: 'Equipment, vehicles, tools, and custody',
-      },
-      {
-        href: '/invoices',
-        label: 'Invoices',
-        iconKey: 'Invoice',
-        roles: ['admin', 'finance', 'viewer'],
-      },
-      {
         href: '/claims',
-        label: 'Claims',
+        label: 'Changes & Claims',
         iconKey: 'Receipt',
         roles: [
           'admin',
@@ -313,35 +319,11 @@ export const NAV_SECTIONS: NavSection[] = [
         ],
       },
       {
-        href: '/punchlist',
-        label: 'Punchlist',
-        iconKey: 'Check',
-        roles: ['admin', 'pm', 'sd_pm_pe', 'cx', 'safety', 'viewer'],
+        href: '/invoices',
+        label: 'Invoices',
+        iconKey: 'Invoice',
+        roles: ['admin', 'finance', 'viewer'],
       },
-      {
-        href: '/warranty',
-        label: 'Warranty',
-        iconKey: 'Activity',
-        roles: ['admin', 'cx', 'viewer'],
-      },
-      {
-        href: '/warranty/cnps',
-        label: 'CNPS',
-        iconKey: 'Activity',
-        roles: ['admin', 'cx', 'viewer'],
-      },
-      { href: '/documents', label: 'Documents', iconKey: 'Documents' },
-      {
-        href: '/reports',
-        label: 'Reports',
-        iconKey: 'Reports',
-        roles: ['admin', 'sales', 'finance', 'viewer'],
-      },
-    ],
-  },
-  {
-    label: 'Finance',
-    items: [
       {
         href: '/finance',
         label: 'Finance',
@@ -377,11 +359,50 @@ export const NAV_SECTIONS: NavSection[] = [
         roles: ['admin', 'finance', 'viewer'],
         description: 'Bank statement matching and immutable close',
       },
+      {
+        href: '/reports',
+        label: 'Reports',
+        iconKey: 'Reports',
+        roles: ['admin', 'sales', 'finance', 'viewer'],
+      },
     ],
   },
   {
-    label: 'Admin',
+    label: 'Closeout',
     items: [
+      {
+        href: '/warranty',
+        label: 'Closeout & Warranty',
+        iconKey: 'Activity',
+        roles: ['admin', 'cx', 'viewer'],
+      },
+      {
+        href: '/warranty/cnps',
+        label: 'CNPS',
+        iconKey: 'Activity',
+        roles: ['admin', 'cx', 'viewer'],
+      },
+      {
+        href: '/assets',
+        label: 'Assets & Service',
+        iconKey: 'Layers',
+        visible: false,
+        roles: [
+          'admin',
+          'estimator',
+          'pm',
+          'sales',
+          'commercial',
+          'design',
+          'sd_pm_pe',
+          'finance',
+          'procurement',
+          'safety',
+          'cx',
+          'viewer',
+        ],
+        description: 'Equipment, vehicles, tools, and custody',
+      },
       {
         href: '/admin',
         label: 'Admin',
@@ -390,6 +411,7 @@ export const NAV_SECTIONS: NavSection[] = [
         // still capability-filter users/system configuration to admin/owner.
         roles: ['admin', 'commercial', 'viewer'],
       },
+      { href: '/settings', label: 'Settings', iconKey: 'Settings' },
     ],
   },
 ]
