@@ -27,9 +27,11 @@ const selected = candidates
   .filter((run) => run?.head_sha?.toLowerCase() === sha)
   .filter((run) => run?.head_branch === 'main' && run?.event === 'push')
   .sort((left, right) => {
-    const rightKey = `${right.run_attempt ?? 0}:${right.run_number ?? 0}:${right.created_at ?? ''}`
-    const leftKey = `${left.run_attempt ?? 0}:${left.run_number ?? 0}:${left.created_at ?? ''}`
-    return rightKey.localeCompare(leftKey)
+    const attemptDifference = Number(right.run_attempt ?? 0) - Number(left.run_attempt ?? 0)
+    if (attemptDifference !== 0) return attemptDifference
+    const runDifference = Number(right.run_number ?? 0) - Number(left.run_number ?? 0)
+    if (runDifference !== 0) return runDifference
+    return String(right.created_at ?? '').localeCompare(String(left.created_at ?? ''))
   })[0]
 
 if (!selected?.id) {

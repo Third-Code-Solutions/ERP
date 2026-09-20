@@ -46,6 +46,20 @@ test('accepts exact successful main push CI evidence', () => {
   assert.deepEqual(result.jobs, REQUIRED_CI_JOBS)
 })
 
+test('uses newest rerun evidence when a release has multiple CI attempts', () => {
+  const result = evaluateProductionCiEvidence({
+    sha: SHA,
+    workflowRuns: [
+      run({ id: 123, run_attempt: 1, run_number: 42 }),
+      run({ id: 456, run_attempt: 2, run_number: 42 }),
+    ],
+    jobs: jobs(),
+  })
+
+  assert.equal(result.ok, true)
+  assert.equal(result.runId, 456)
+})
+
 test('rejects missing, mismatched, or non-push release runs', () => {
   const result = evaluateProductionCiEvidence({
     sha: SHA,
