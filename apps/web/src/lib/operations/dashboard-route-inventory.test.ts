@@ -223,6 +223,7 @@ const EXPECTED_ROLES_BY_TEMPLATE: Readonly<
   '/pipeline/conversion': ALL_ROLES,
   '/pipeline/coverage': ALL_ROLES,
   '/process': ALL_ROLES,
+  '/roadmap': ALL_ROLES,
   '/procurement': PROCUREMENT_ROOT,
   '/procurement/deliveries': DELIVERY_READ,
   '/procurement/deliveries/[id]': DELIVERY_READ,
@@ -302,7 +303,7 @@ describe('dashboard route authorization inventory', () => {
       (policy) => policy.template
     ).sort()
 
-    expect(routeTemplates).toHaveLength(119)
+    expect(routeTemplates).toHaveLength(120)
     expect(new Set(registeredTemplates).size).toBe(registeredTemplates.length)
     expect(registeredTemplates).toEqual(routeTemplates)
     expect(Object.keys(EXPECTED_ROLES_BY_TEMPLATE).sort()).toEqual(

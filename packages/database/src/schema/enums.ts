@@ -555,6 +555,7 @@ export const stockLedgerEventTypeEnum = pgEnum('stock_ledger_event_type', [
   'consumption',
   'adjustment',
   'movement_reversal',
+  'landed_cost',
 ])
 
 export const stockMovementTypeEnum = pgEnum('stock_movement_type', [

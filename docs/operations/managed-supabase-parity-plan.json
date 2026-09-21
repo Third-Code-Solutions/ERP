@@ -11,10 +11,10 @@
     "databaseVersion": "17.6.1.121",
     "postgresMajor": 17,
     "appliedCount": 157,
-    "sourceCount": 176,
-    "pendingCount": 19,
+    "sourceCount": 177,
+    "pendingCount": 20,
     "appliedHead": "20260901141949",
-    "sourceHead": "20260921130000",
+    "sourceHead": "20260921181036",
     "ledgerStatus": "current_remote_ledger_matches_source",
     "purchaseOrderPreflight": {
       "duplicateGroups": 0,
@@ -111,6 +111,16 @@
       "hostedApplyApproved": false,
       "risk": "Adds deterministic advisory-lock and balance guards to inventory reversal paths so a reversal cannot drive stock quantity or value negative under concurrent writes. Existing rows, foreign keys and audit history are unchanged; the migration changes transactional validation and can reject previously unsafe reversals. Local verification does not establish hosted lock behavior or recovery readiness.",
       "recovery": "Require database backup/PITR, isolated restore and migration rehearsal, and exact-target lock/grant preflight before hosted application. The migration is transactional and aborts without data changes on failure. Roll forward with the guarded reversal path; any emergency restoration of the prior function must be a reviewed recovery action because it reintroduces the negative-balance defect. This source-only batch does not authorize hosted application."
+    },
+    {
+      "id": "20260921-roadmap-integrations-foundation",
+      "migrations": [
+        "20260921181036_roadmap_integrations_foundation.sql"
+      ],
+      "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
+      "hostedApplyApproved": false,
+      "risk": "Adds tenant-scoped, RLS-protected procurement, inventory reservation, landed-cost, price-list, currency, tax/statutory, period-close, SAP outbox and provider-delivery foundations. The migration preserves existing ERP tables and keeps new workflows dark behind tenant feature flags; live provider behavior and hosted schema application remain unverified.",
+      "recovery": "Require backup/PITR, isolated restore and migration rehearsal, exact-target lock/grant preflight, and provider/SAP credential verification before hosted application. The migration is transactional and aborts without data changes on failure. Keep roadmap flags and workers disabled until live replay and all-role E2E evidence are recorded; roll forward or use the reviewed migration recovery procedure rather than bypassing RLS or audit controls."
     }
   ]
 }

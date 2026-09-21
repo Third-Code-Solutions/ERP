@@ -537,6 +537,7 @@ export const DASHBOARD_ROUTE_POLICIES: readonly DashboardRoutePolicy[] = [
     '/pipeline/conversion',
     '/pipeline/coverage',
     '/process',
+    '/roadmap',
     '/projects',
     '/projects/[id]',
     '/projects/[id]/checklist',
