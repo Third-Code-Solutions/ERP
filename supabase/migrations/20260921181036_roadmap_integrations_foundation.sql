@@ -17,7 +17,7 @@ alter table public.stock_ledger_entries
         or (quantity_delta_micros < 0 and value_delta_cents < 0)
       )
     )
-    or (event_type = 'landed_cost' and quantity_delta_micros = 0 and value_delta_cents > 0)
+    or (event_type::text = 'landed_cost' and quantity_delta_micros = 0 and value_delta_cents > 0)
   );
 alter table public.stock_ledger_entries
   drop constraint if exists stock_ledger_entries_single_source;
@@ -316,7 +316,7 @@ alter table public.stock_ledger_entries
       and landed_cost_allocation_id is null
     )
     or (
-      event_type = 'landed_cost'
+      event_type::text = 'landed_cost'
       and stock_receipt_id is null
       and stock_receipt_line_id is null
       and stock_movement_id is null
@@ -357,7 +357,7 @@ begin
     ''
   );
 
-  if new.event_type = 'landed_cost' then
+  if new.event_type::text = 'landed_cost' then
     if new.landed_cost_document_id is null
        or new.landed_cost_allocation_id is null
        or v_write_id <> new.landed_cost_document_id::text then
