@@ -16,5 +16,10 @@ available for older POs, and the existing `partial_delivered` to
 
 ## Verification
 
-Focused Vitest coverage and web typecheck/lint are recorded in the task handoff.
-No migration, deployment, or production data change is included.
+- Procurement Vitest suites: 23 tests passed, including 7 new status tests.
+- Targeted ESLint on the changed action and regression test: passed.
+- WO-15 commitment contract: passed.
+- Web typecheck was attempted with engine checks relaxed because the host has
+  Node 24 while the repository requires Node 22; compilation is currently
+  blocked by pre-existing `forecastCents` errors in the project cost files.
+- No migration, deployment, or production data change is included.
