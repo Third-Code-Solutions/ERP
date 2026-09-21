@@ -152,6 +152,7 @@ async function getCostCodeGrainControlRows(params: {
       from public.cost_entries entry
       where entry.tenant_id = ${params.tenantId}::uuid
         and entry.project_id = ${params.projectId}::uuid
+        and entry.voided_at is null
       group by entry.cost_code_id
     ),
     dimensions as (
@@ -283,6 +284,7 @@ export async function getProjectCostControlTotalsForProjects(params: {
       from public.cost_entries entry
       where entry.tenant_id = ${params.tenantId}::uuid
         and entry.project_id in (${projectIdList})
+        and entry.voided_at is null
       group by entry.project_id, entry.cost_code_id, entry.bom_line_item_id
     ),
     dimensions as (
@@ -443,6 +445,7 @@ export async function getProjectCostControl(params: {
       from public.cost_entries entry
       where entry.tenant_id = ${params.tenantId}::uuid
         and entry.project_id = ${params.projectId}::uuid
+        and entry.voided_at is null
       group by entry.cost_code_id, entry.bom_line_item_id
     ),
     dimensions as (

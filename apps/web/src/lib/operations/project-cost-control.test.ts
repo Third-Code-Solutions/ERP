@@ -55,6 +55,7 @@ describe('getProjectCostControl authorization-aware reads', () => {
       expect(query.sql).not.toContain('public.boms')
       expect(query.sql).not.toContain('public.po_line_items')
       expect(query.sql).not.toContain('public.purchase_orders')
+      expect(query.sql.match(/entry\.voided_at is null/g)).toHaveLength(1)
       expect(query.params).toContain(TENANT_ID)
       expect(query.params).toContain(PROJECT_A)
     })
@@ -74,6 +75,7 @@ describe('getProjectCostControl authorization-aware reads', () => {
     expect(query.sql).toContain('public.po_line_items')
     expect(query.sql).toContain('public.purchase_orders')
     expect(query.sql).not.toContain('public.bom_line_items')
+    expect(query.sql.match(/entry\.voided_at is null/g)).toHaveLength(1)
   })
 })
 
@@ -144,6 +146,7 @@ describe('getProjectCostControlTotalsForProjects', () => {
     expect(query.params).toContain(TENANT_ID)
     expect(query.params).toContain(PROJECT_A)
     expect(query.params).toContain(PROJECT_B)
+    expect(query.sql.match(/entry\.voided_at is null/g)).toHaveLength(1)
     expect(query.sql).toContain('group by project_id, cost_code_id, bom_line_item_id')
   })
 
@@ -156,5 +159,78 @@ describe('getProjectCostControlTotalsForProjects', () => {
     ).resolves.toEqual(new Map())
 
     expect(mocks.execute).not.toHaveBeenCalled()
+  })
+})
+
+describe('voided manual cost lifecycle projections', () => {
+  beforeEach(() => {
+    mocks.execute.mockReset()
+  })
+
+  it('keeps an active entry once, removes voided-only dimensions, and restores once', async () => {
+    const activeAmountCents = 125
+    const voidedAmountCents = 900
+    const activeRow = {
+      cost_code_id: '66666666-6666-4666-8666-666666666666',
+      code: 'MAT-01',
+      name: 'Materials',
+      category: 'material',
+      bom_line_item_id: '77777777-7777-4777-8777-777777777777',
+      bom_line_code: 'MAT-01',
+      bom_line_description: 'Steel frame',
+      baseline_cents: '1000',
+      committed_cents: '0',
+      actual_cents: '0',
+      unreconciled_cents: String(activeAmountCents),
+    }
+
+    // Each mocked response represents the database result after the query's
+    // active-entry predicate: active + voided, voided-only, then restored.
+    mocks.execute
+      .mockResolvedValueOnce([activeRow])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([activeRow])
+
+    const active = await getProjectCostControl({
+      tenantId: TENANT_ID,
+      projectId: PROJECT_A,
+    })
+    const voided = await getProjectCostControl({
+      tenantId: TENANT_ID,
+      projectId: PROJECT_A,
+    })
+    const restored = await getProjectCostControl({
+      tenantId: TENANT_ID,
+      projectId: PROJECT_A,
+    })
+
+    expect(active.rows).toHaveLength(1)
+    expect(active.rows[0]?.unreconciledCents).toBe(activeAmountCents)
+    expect(active.totals.unreconciledCents).toBe(activeAmountCents)
+    expect(active.totals.unreconciledCents).not.toBe(
+      activeAmountCents + voidedAmountCents,
+    )
+
+    expect(voided).toEqual({
+      rows: [],
+      totals: {
+        baselineCents: 0,
+        committedCents: 0,
+        actualCents: 0,
+        unreconciledCents: 0,
+        forecastCents: 0,
+        remainingCents: 0,
+        varianceCents: 0,
+      },
+    })
+
+    expect(restored.rows).toHaveLength(1)
+    expect(restored.rows[0]?.key).toBe(active.rows[0]?.key)
+    expect(restored.totals.unreconciledCents).toBe(activeAmountCents)
+
+    for (const call of mocks.execute.mock.calls) {
+      const query = new PgDialect().sqlToQuery(call[0])
+      expect(query.sql.match(/entry\.voided_at is null/g)).toHaveLength(1)
+    }
   })
 })
