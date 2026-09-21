@@ -25,6 +25,13 @@ const workflowSql = readFileSync(
   ),
   'utf8'
 ).toLowerCase()
+const reversalHardeningSql = readFileSync(
+  resolve(
+    __dirname,
+    '../../../../supabase/migrations/20260921130000_wo_20_inventory_reversal_balance_guards.sql'
+  ),
+  'utf8'
+).toLowerCase()
 const billMatchSchemaSql = readFileSync(
   resolve(
     __dirname,
@@ -127,6 +134,23 @@ describe('inventory stock ledger migration contract', () => {
     expect(workflowSql).toContain('-line.line_total_cents')
     expect(workflowSql).toContain(
       'stock ledger entries are append-only'
+    )
+  })
+
+  it('guards receipt and movement reversals with ordered projected balances', () => {
+    expect(reversalHardeningSql).toMatch(
+      /reverse_stock_receipt[\s\S]*?pg_catalog\.pg_advisory_xact_lock/
+    )
+    expect(reversalHardeningSql).toMatch(
+      /reverse_stock_movement[\s\S]*?pg_catalog\.pg_advisory_xact_lock/
+    )
+    expect(reversalHardeningSql).toContain('v_projected_quantity')
+    expect(reversalHardeningSql).toContain('v_projected_value')
+    expect(reversalHardeningSql).toContain(
+      'stock receipt reversal exceeds available stock value'
+    )
+    expect(reversalHardeningSql).toContain(
+      'stock movement reversal exceeds available stock value'
     )
   })
 
@@ -277,6 +301,8 @@ interface InventoryFixture {
   viewerId: string
   projectId: string
   vendorId: string
+  itemId: string
+  uomId: string
   purchaseOrderId: string
   poLineId: string
   costCodeId: string
@@ -365,6 +391,18 @@ async function seedInventoryFixture(
        (
          '${tenantId}', '2000', 'Accounts payable',
          'liability', 'credit', 'accounts_payable', '${financeId}'
+       ),
+       (
+         '${tenantId}', '5100', 'Inventory consumption',
+         'expense', 'debit', 'inventory_consumption', '${financeId}'
+       ),
+       (
+         '${tenantId}', '4200', 'Inventory adjustment gain',
+         'income', 'credit', 'inventory_adjustment_gain', '${financeId}'
+       ),
+       (
+         '${tenantId}', '6100', 'Inventory adjustment loss',
+         'expense', 'debit', 'inventory_adjustment_loss', '${financeId}'
        )`
   )
   const uomId = (
@@ -541,6 +579,8 @@ async function seedInventoryFixture(
     viewerId,
     projectId,
     vendorId,
+    itemId,
+    uomId,
     purchaseOrderId,
     poLineId,
     costCodeId,
@@ -548,6 +588,64 @@ async function seedInventoryFixture(
     receiptId,
     receiptLineId,
   }
+}
+
+async function createInventoryMovement(
+  tx: postgres.TransactionSql,
+  fixture: InventoryFixture,
+  type: 'consumption' | 'adjustment',
+  quantityMicros: number,
+  declaredUnitCostCents?: number
+): Promise<string> {
+  const movementId = (
+    (await tx.unsafe(
+      `insert into stock_movements(
+         tenant_id,
+         movement_type,
+         source_warehouse_id,
+         project_id,
+         movement_date,
+         reason,
+         created_by
+       )
+       values(
+         '${fixture.tenantId}',
+         '${type}',
+         '${fixture.warehouseId}',
+         ${type === 'consumption' ? `'${fixture.projectId}'` : 'null'},
+         '2026-07-27',
+         'Inventory reversal regression movement',
+         '${fixture.procurementId}'
+       )
+       returning id`
+    )) as Rows
+  )[0]!.id as string
+
+  await tx.unsafe(
+    `insert into stock_movement_lines(
+       tenant_id,
+       stock_movement_id,
+       material_item_id,
+       uom_id,
+       cost_code_id,
+       line_number,
+       description,
+       quantity_micros,
+       declared_unit_cost_cents
+     )
+     values(
+       '${fixture.tenantId}',
+       '${movementId}',
+       '${fixture.itemId}',
+       '${fixture.uomId}',
+       ${type === 'consumption' ? `'${fixture.costCodeId}'` : 'null'},
+       1,
+       'Inventory reversal regression line',
+       ${quantityMicros},
+       ${declaredUnitCostCents ?? 'null'}
+     )`
+  )
+  return movementId
 }
 
 async function createMatchedSupplierBill(
@@ -854,6 +952,164 @@ runtimeSuite('inventory stock ledger runtime proof', () => {
     expect(result.poLine).toMatchObject({
       received_quantity_micros: '0',
       received_qty: 0,
+    })
+  })
+
+  it('rejects receipt reversal after dependent consumption atomically', async () => {
+    const result = await inRollback(sqlClient, async (tx) => {
+      const fixture = await seedInventoryFixture(tx, {
+        receiptMicros: 10_000_000,
+      })
+      await tx.unsafe(
+        `select * from post_stock_receipt(
+          '${fixture.receiptId}', '${fixture.financeId}', '2026-07-27'
+        )`
+      )
+      const movementId = await createInventoryMovement(
+        tx,
+        fixture,
+        'consumption',
+        6_000_000
+      )
+      await tx.unsafe(
+        `select * from post_stock_movement(
+          '${movementId}', '${fixture.financeId}'
+        )`
+      )
+
+      await tx.unsafe('savepoint receipt_reversal_quantity_guard')
+      let rejected = false
+      try {
+        await tx.unsafe(
+          `select * from reverse_stock_receipt(
+            '${fixture.receiptId}',
+            '${fixture.financeId}',
+            'Reject after consumption',
+            '2026-07-28'
+          )`
+        )
+      } catch {
+        rejected = true
+        await tx.unsafe(
+          'rollback to savepoint receipt_reversal_quantity_guard'
+        )
+      }
+
+      const receipt = (await tx.unsafe(
+        `select status, reversal_journal_entry_id
+         from stock_receipts where id = '${fixture.receiptId}'`
+      )) as Rows
+      const receiptLedger = (await tx.unsafe(
+        `select
+           count(*)::integer as entries,
+           sum(quantity_delta_micros)::bigint as quantity,
+           sum(value_delta_cents)::bigint as value
+         from stock_ledger_entries
+         where stock_receipt_id = '${fixture.receiptId}'`
+      )) as Rows
+      const receiptJournals = (await tx.unsafe(
+        `select count(*)::integer as count
+         from journal_entries
+         where reference_type = 'stock_receipt'
+           and reference_id = '${fixture.receiptId}'`
+      )) as Rows
+      return {
+        rejected,
+        receipt: receipt[0],
+        receiptLedger: receiptLedger[0],
+        receiptJournals: receiptJournals[0],
+      }
+    })
+
+    expect(result.rejected).toBe(true)
+    expect(result.receipt).toEqual({
+      status: 'posted',
+      reversal_journal_entry_id: null,
+    })
+    expect(result.receiptLedger).toEqual({
+      entries: 1,
+      quantity: '10000000',
+      value: '100000',
+    })
+    expect(result.receiptJournals).toEqual({ count: 1 })
+  })
+
+  it('rejects mixed-price receipt reversal on projected value atomically', async () => {
+    const result = await inRollback(sqlClient, async (tx) => {
+      const fixture = await seedInventoryFixture(tx, {
+        receiptMicros: 10_000_000,
+      })
+      await tx.unsafe(
+        `select * from post_stock_receipt(
+          '${fixture.receiptId}', '${fixture.financeId}', '2026-07-27'
+        )`
+      )
+      const adjustmentId = await createInventoryMovement(
+        tx,
+        fixture,
+        'adjustment',
+        5_000_000,
+        1_000
+      )
+      await tx.unsafe(
+        `select * from post_stock_movement(
+          '${adjustmentId}', '${fixture.financeId}'
+        )`
+      )
+      const consumptionId = await createInventoryMovement(
+        tx,
+        fixture,
+        'consumption',
+        5_000_000
+      )
+      await tx.unsafe(
+        `select * from post_stock_movement(
+          '${consumptionId}', '${fixture.financeId}'
+        )`
+      )
+
+      await tx.unsafe('savepoint receipt_reversal_value_guard')
+      let rejected = false
+      try {
+        await tx.unsafe(
+          `select * from reverse_stock_receipt(
+            '${fixture.receiptId}',
+            '${fixture.financeId}',
+            'Reject mixed-price reversal',
+            '2026-07-28'
+          )`
+        )
+      } catch {
+        rejected = true
+        await tx.unsafe(
+          'rollback to savepoint receipt_reversal_value_guard'
+        )
+      }
+
+      const receipt = (await tx.unsafe(
+        `select status, reversal_journal_entry_id
+         from stock_receipts where id = '${fixture.receiptId}'`
+      )) as Rows
+      const balance = (await tx.unsafe(
+        `select
+           sum(quantity_delta_micros)::bigint as quantity,
+           sum(value_delta_cents)::bigint as value
+         from stock_ledger_entries
+         where tenant_id = '${fixture.tenantId}'
+           and warehouse_id = '${fixture.warehouseId}'
+           and material_item_id = '${fixture.itemId}'`
+      )) as Rows
+      return { rejected, receipt: receipt[0], balance: balance[0] }
+    })
+
+    expect(result.rejected).toBe(true)
+    expect(result.receipt).toEqual({
+      status: 'posted',
+      reversal_journal_entry_id: null,
+    })
+    expect(result.balance).toEqual({
+      quantity: '10000000',
+      value: '70000',
     })
   })
 
