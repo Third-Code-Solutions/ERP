@@ -820,6 +820,7 @@ export async function getAlerts(tenantId: string): Promise<Alert[]> {
         budgetCents: bom.total_cost_cents,
         committedCents: committed,
         actualCents: actual,
+        forecastCents: controlTotals?.forecastCents,
         bomTcvCents: bom.tcv_cents ?? 0,
         bomGpCents: bom.gp_cents ?? 0,
       })

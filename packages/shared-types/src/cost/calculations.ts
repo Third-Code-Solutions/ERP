@@ -32,6 +32,11 @@ export interface ProjectCostInput {
   committedCents: number
   /** sum of recorded actual cost entries */
   actualCents: number
+  /**
+   * Per-line forecast rollup: sum(max(commitment, actual)) for each cost
+   * control line. When omitted, the legacy aggregate fallback is used.
+   */
+  forecastCents?: number
   /** contract value from the BOM (held constant for projection) */
   bomTcvCents: number
   /** original gross profit from the BOM */
@@ -116,8 +121,10 @@ export function computeProjectCostSnapshot(input: ProjectCostInput): ProjectCost
   } = input
 
   // Invariant: NEVER sum actual + committed (that double-counts when PO→cost
-  // ingestion lands). Estimate-at-completion is the higher of the two.
-  const forecastCostCents = Math.max(actualCents, committedCents)
+  // ingestion lands). Cost-control lines already apply the greater-of rule
+  // before roll-up, so preserve that per-line forecast when supplied.
+  const forecastCostCents =
+    input.forecastCents ?? Math.max(actualCents, committedCents)
   const budgetVarianceCents = budgetCents - actualCents
   const committedVarianceCents = budgetCents - committedCents
   const projectedGpCents = bomTcvCents - forecastCostCents

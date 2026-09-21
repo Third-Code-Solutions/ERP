@@ -170,6 +170,7 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ id
       approvedBudget?.total_budget_cents ?? latestBom?.total_cost_cents ?? 0,
     committedCents: costControl.totals.committedCents,
     actualCents,
+    forecastCents: costControl.totals.forecastCents,
     bomTcvCents: latestBom?.tcv_cents ?? 0,
     bomGpCents: latestBom?.gp_cents ?? 0,
     originalGpMarginBps: approvedBudget?.original_gp_margin_bps,

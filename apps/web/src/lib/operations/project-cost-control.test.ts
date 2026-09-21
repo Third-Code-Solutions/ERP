@@ -150,6 +150,40 @@ describe('getProjectCostControlTotalsForProjects', () => {
     expect(query.sql).toContain('group by project_id, cost_code_id, bom_line_item_id')
   })
 
+  it('rolls up the greater of commitment and actual per cost-control line', async () => {
+    mocks.execute.mockResolvedValue([
+      {
+        project_id: PROJECT_A,
+        baseline_cents: '300000',
+        committed_cents: '100000',
+        actual_cents: '200000',
+        unreconciled_cents: '0',
+      },
+      {
+        project_id: PROJECT_A,
+        baseline_cents: '100000',
+        committed_cents: '100000',
+        actual_cents: '0',
+        unreconciled_cents: '0',
+      },
+    ])
+
+    const totals = await getProjectCostControlTotalsForProjects({
+      tenantId: TENANT_ID,
+      projectIds: [PROJECT_A],
+    })
+
+    expect(totals.get(PROJECT_A)).toEqual({
+      baselineCents: 400_000,
+      committedCents: 200_000,
+      actualCents: 200_000,
+      unreconciledCents: 0,
+      forecastCents: 300_000,
+      remainingCents: 100_000,
+      varianceCents: -200_000,
+    })
+  })
+
   it('returns no totals and does not query when there are no projects', async () => {
     await expect(
       getProjectCostControlTotalsForProjects({

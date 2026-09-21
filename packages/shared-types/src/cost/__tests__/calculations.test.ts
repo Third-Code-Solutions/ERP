@@ -52,6 +52,27 @@ describe('computeProjectCostSnapshot', () => {
     expect(s.budgetVarianceCents).toBe(-100_000) // over budget
   })
 
+  it('preserves a per-line forecast rollup before calculating GP erosion', () => {
+    // Line 1: max(100k committed, 200k actual) = 200k.
+    // Line 2: max(100k committed, 0 actual) = 100k.
+    // The per-line total is 300k, while max(200k aggregate committed, 200k
+    // aggregate actual) would incorrectly collapse it to 200k.
+    const s = computeProjectCostSnapshot({
+      budgetCents: 300_000,
+      committedCents: 200_000,
+      actualCents: 200_000,
+      forecastCents: 300_000,
+      bomTcvCents: 400_000,
+      bomGpCents: 200_000,
+    })
+
+    expect(s.forecastCostCents).toBe(300_000)
+    expect(s.projectedGpCents).toBe(100_000)
+    expect(s.gpErosionCents).toBe(100_000)
+    expect(s.gpErosionBps).toBe(2500)
+    expect(s.severity).toBe('danger')
+  })
+
   it('cost overrun erodes GP and crosses the danger threshold', () => {
     // TCV 1,000,000, original GP 200,000. Actual 1,100,000 → projected GP -100,000.
     const s = computeProjectCostSnapshot({
