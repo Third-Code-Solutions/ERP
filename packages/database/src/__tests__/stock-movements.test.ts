@@ -672,6 +672,96 @@ runtimeSuite('Stock Movement runtime controls', () => {
     expect(result.net).toEqual({ quantity: '0', value: '0' })
   })
 
+  it('rejects mixed-price movement reversal on projected value atomically', async () => {
+    const result = await inRollback(sqlClient, async (tx) => {
+      const fixture = await seedMovementFixture(tx)
+      const adjustmentId = await createMovement(
+        tx,
+        fixture,
+        'adjustment',
+        5_000_000,
+        20_000
+      )
+      await tx.unsafe(
+        `select * from post_stock_movement(
+           '${adjustmentId}', '${fixture.financeId}'
+         )`
+      )
+      const consumptionId = await createMovement(
+        tx,
+        fixture,
+        'consumption',
+        10_000_000
+      )
+      await tx.unsafe(
+        `select * from post_stock_movement(
+           '${consumptionId}', '${fixture.financeId}'
+         )`
+      )
+
+      await tx.unsafe('savepoint movement_reversal_value_guard')
+      let rejected = false
+      try {
+        await tx.unsafe(
+          `select * from reverse_stock_movement(
+             '${adjustmentId}',
+             '${fixture.financeId}',
+             'Reject mixed-price reversal',
+             '2026-07-28'
+           )`
+        )
+      } catch {
+        rejected = true
+        await tx.unsafe(
+          'rollback to savepoint movement_reversal_value_guard'
+        )
+      }
+
+      const movement = (await tx.unsafe(
+        `select status, reversal_journal_entry_id
+         from stock_movements where id = '${adjustmentId}'`
+      )) as Rows
+      const entries = (await tx.unsafe(
+        `select
+           count(*)::integer as count,
+           sum(quantity_delta_micros)::bigint as quantity,
+           sum(value_delta_cents)::bigint as value
+         from stock_ledger_entries
+         where stock_movement_id = '${adjustmentId}'`
+      )) as Rows
+      const balance = (await tx.unsafe(
+        `select
+           sum(quantity_delta_micros)::bigint as quantity,
+           sum(value_delta_cents)::bigint as value
+         from stock_ledger_entries
+         where tenant_id = '${fixture.tenantId}'
+           and warehouse_id = '${fixture.sourceWarehouseId}'
+           and material_item_id = '${fixture.itemId}'`
+      )) as Rows
+      return {
+        rejected,
+        movement: movement[0],
+        entries: entries[0],
+        balance: balance[0],
+      }
+    })
+
+    expect(result.rejected).toBe(true)
+    expect(result.movement).toEqual({
+      status: 'posted',
+      reversal_journal_entry_id: null,
+    })
+    expect(result.entries).toEqual({
+      count: 1,
+      quantity: '5000000',
+      value: '100000',
+    })
+    expect(result.balance).toEqual({
+      quantity: '5000000',
+      value: '66667',
+    })
+  })
+
   it('rejects cross-tenant movement Warehouse references', async () => {
     const rejected = await inRollback(sqlClient, async (tx) => {
       const fixture = await seedMovementFixture(tx)

@@ -11,10 +11,10 @@
     "databaseVersion": "17.6.1.121",
     "postgresMajor": 17,
     "appliedCount": 157,
-    "sourceCount": 175,
-    "pendingCount": 18,
+    "sourceCount": 176,
+    "pendingCount": 19,
     "appliedHead": "20260901141949",
-    "sourceHead": "20260921120000",
+    "sourceHead": "20260921130000",
     "ledgerStatus": "current_remote_ledger_matches_source",
     "purchaseOrderPreflight": {
       "duplicateGroups": 0,
@@ -101,6 +101,16 @@
       "hostedApplyApproved": false,
       "risk": "Replaces the existing SECURITY DEFINER child trigger function so INSERT, DELETE and ordinary updates continue to recompute their affected DUPA, while an UPDATE that moves a child between DUPAs recomputes both source and destination parents in deterministic UUID-text order. This corrects stale source-parent totals and reduces opposite-move lock inversion, but hosted execution depends on the WO-06 recomputation functions and child triggers being present and can lock both affected DUPA rows. No table shape, stored rows, foreign keys or audit history change; local verification does not establish hosted state or lock behavior.",
       "recovery": "Require database backup/PITR, isolated restore and migration rehearsal, and exact-target lock/grant preflight before hosted application. The function replacement is transactional and aborts without data changes on failure. After commit retain the corrected function or roll forward; an emergency restoration of the prior function from 20260812180000_wo_06_dupa_engine.sql reintroduces the stale-source-parent defect and must be a reviewed recovery action. Preserve the existing execute denial for public, anon and authenticated and the service_role grant. This source-only batch does not authorize hosted application."
+    },
+    {
+      "id": "20260921-wo20-inventory-reversal-balance-guards",
+      "migrations": [
+        "20260921130000_wo_20_inventory_reversal_balance_guards.sql"
+      ],
+      "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
+      "hostedApplyApproved": false,
+      "risk": "Adds deterministic advisory-lock and balance guards to inventory reversal paths so a reversal cannot drive stock quantity or value negative under concurrent writes. Existing rows, foreign keys and audit history are unchanged; the migration changes transactional validation and can reject previously unsafe reversals. Local verification does not establish hosted lock behavior or recovery readiness.",
+      "recovery": "Require database backup/PITR, isolated restore and migration rehearsal, and exact-target lock/grant preflight before hosted application. The migration is transactional and aborts without data changes on failure. Roll forward with the guarded reversal path; any emergency restoration of the prior function must be a reviewed recovery action because it reintroduces the negative-balance defect. This source-only batch does not authorize hosted application."
     }
   ]
 }
