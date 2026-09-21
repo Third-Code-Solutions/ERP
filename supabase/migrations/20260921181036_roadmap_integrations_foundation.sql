@@ -821,6 +821,56 @@ create unique index if not exists ux_roadmap_workflow_events_idempotency
 create index if not exists idx_roadmap_workflow_events_entity
   on public.roadmap_workflow_events(tenant_id, entity_type, entity_id, created_at);
 
+-- Every new tenant-scoped row participates in the append-only audit chain.
+-- Keep this explicit so the roadmap tables cannot silently drift out of audit
+-- coverage as the migration evolves.
+do $$
+declare
+  table_name text;
+begin
+  if to_regprocedure('public.audit_log_trigger()') is null then
+    raise exception 'Roadmap integrations require public.audit_log_trigger() before applying'
+      using errcode = '55000';
+  end if;
+
+  foreach table_name in array array[
+    'tenant_feature_flags',
+    'procurement_requisitions',
+    'procurement_requisition_lines',
+    'procurement_requisition_events',
+    'inventory_reservations',
+    'inventory_reservation_events',
+    'landed_cost_documents',
+    'landed_cost_lines',
+    'landed_cost_allocations',
+    'price_lists',
+    'price_list_items',
+    'tenant_currencies',
+    'exchange_rates',
+    'tax_profiles',
+    'statutory_outputs',
+    'fiscal_period_close_runs',
+    'sap_posting_outbox',
+    'sap_posting_attempts',
+    'provider_delivery_outbox',
+    'provider_delivery_attempts',
+    'roadmap_workflow_events'
+  ]
+  loop
+    execute format(
+      'drop trigger if exists %I on public.%I',
+      'audit_' || table_name,
+      table_name
+    );
+    execute format(
+      'create trigger %I after insert or update or delete on public.%I for each row execute function public.audit_log_trigger()',
+      'audit_' || table_name,
+      table_name
+    );
+  end loop;
+end
+$$;
+
 -- All new tables are tenant-isolated. Append-only event/attempt tables receive
 -- insert/select access only; mutations are performed by audited server commands.
 do $$
