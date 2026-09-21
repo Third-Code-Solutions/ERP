@@ -23,6 +23,13 @@ export function sourceSha(deployment) {
   return /^[a-f0-9]{40}$/.test(candidate ?? '') ? candidate : null
 }
 
+export function canRetainIdentical(previous, candidateSha, unchangedInputs) {
+  return /^[a-f0-9]{40}$/.test(candidateSha ?? '') &&
+    previous?.status === 'SUCCESS' &&
+    Boolean(sourceSha(previous)) &&
+    unchangedInputs === true
+}
+
 export function assessDeployment(deployment, active, unchanged) {
   if (deployment.status === 'SUCCESS') return 'deployed'
   if (pending.has(deployment.status)) return 'pending'
@@ -52,13 +59,33 @@ export async function deploy(component) {
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   const scope = ['--project', project, '--environment', environment, '--service', target.service]
-  const list = () => {
-    const records = JSON.parse(cli(['deployment', 'list', ...scope, '--limit', '50', '--json']))
-    if (!Array.isArray(records)) throw new Error('Unexpected Railway deployment list')
-    return records
+  const list = async () => {
+    const retryDelays = [0, 2_000, 4_000, 8_000, 16_000]
+    for (const [attempt, delay] of retryDelays.entries()) {
+      if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay))
+      try {
+        const records = JSON.parse(cli(['deployment', 'list', ...scope, '--limit', '50', '--json']))
+        if (!Array.isArray(records)) throw new Error('Unexpected Railway deployment list')
+        return records
+      } catch {
+        if (attempt === retryDelays.length - 1) {
+          throw new Error('Railway deployment list unavailable after transient retries')
+        }
+      }
+    }
+    throw new Error('Railway deployment list unavailable')
   }
-  const before = list()
+  const before = await list()
   const previous = before.find((record) => record.status === 'SUCCESS')
+  const unchangedInputs = sourceSha(previous)
+    ? git(['diff', '--name-only', sourceSha(previous), sha, '--', ...target.paths]) === ''
+    : false
+  if (canRetainIdentical(previous, sha, unchangedInputs)) {
+    const response = await fetch(target.health, { signal: AbortSignal.timeout(30_000) })
+    if (!response.ok) throw new Error(`${component} live health returned ${response.status}`)
+    console.log(JSON.stringify({ component, outcome: 'retained-identical', candidateSha: sha, activeDeploymentId: previous.id, predecessorSha: sourceSha(previous), reason: 'no watched container inputs changed' }))
+    return
+  }
   const seen = new Set(before.map((record) => record.id))
   const label = `release-sha:${sha};run:${process.env.GITHUB_RUN_ID ?? 'manual'};attempt:${process.env.GITHUB_RUN_ATTEMPT ?? '1'};component:${component}`
   const pathArgs = component === 'cad' ? ['apps/workers/dxf-parser', '--path-as-root'] : []
@@ -68,7 +95,7 @@ export async function deploy(component) {
   const deadline = Date.now() + 20 * 60_000
   let lastState = ''
   while (Date.now() < deadline) {
-    const current = list()
+    const current = await list()
     const deployment = current.find((record) => !seen.has(record.id) && record.meta?.cliMessage === label)
     if (deployment) {
       let unchanged = false

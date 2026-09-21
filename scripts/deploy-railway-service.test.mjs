@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
-import { assessDeployment, sourceSha, targets } from './deploy-railway-service.mjs'
+import { assessDeployment, canRetainIdentical, sourceSha, targets } from './deploy-railway-service.mjs'
 
 const active = { status: 'SUCCESS', meta: { commitHash: 'a'.repeat(40), serviceManifest: { build: { builder: 'DOCKERFILE' } } } }
 const skipped = { status: 'SKIPPED', meta: { serviceManifest: active.meta.serviceManifest } }
@@ -20,6 +20,13 @@ test('Railway Git-ignore filtering keeps root package config but excludes secret
 test('successful deployments and pending states are distinct', () => {
   assert.equal(assessDeployment({ status: 'SUCCESS' }), 'deployed')
   for (const status of ['INITIALIZING', 'QUEUED', 'BUILDING', 'DEPLOYING', 'WAITING']) assert.equal(assessDeployment({ status }), 'pending')
+})
+test('preflight retains a healthy source-bound release when watched inputs are unchanged', () => {
+  assert.equal(canRetainIdentical(active, 'b'.repeat(40), true), true)
+  assert.equal(canRetainIdentical(active, 'b'.repeat(40), false), false)
+  assert.equal(canRetainIdentical({ status: 'BUILDING', meta: active.meta }, 'b'.repeat(40), true), false)
+  assert.equal(canRetainIdentical({ status: 'SUCCESS' }, 'b'.repeat(40), true), false)
+  assert.equal(canRetainIdentical(active, 'short-sha', true), false)
 })
 test('skipped is retained only with unchanged inputs and source-bound predecessor', () => {
   assert.equal(assessDeployment(skipped, active, true), 'retained-identical')
