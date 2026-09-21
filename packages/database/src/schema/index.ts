@@ -132,3 +132,7 @@ export * from './takeoff-imports'
 export * from './opportunity-kyc-tracks'
 export * from './award-handoffs'
 export * from './tenders'
+// Remaining roadmap workflows: procurement lifecycle, inventory reservations,
+// landed cost, pricing, currency/tax configuration, period close, SAP and
+// provider outbox evidence.
+export * from './roadmap'

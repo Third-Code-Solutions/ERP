@@ -89,6 +89,7 @@ export * from './erp-api/platform-administration'
 export * from './erp-api/claim-documents'
 export * from './erp-api/kyc-artifacts'
 export * from './erp-api/inspection-report'
+export * from './erp-api/roadmap'
 
 // BOM calculations exported via './bom' subpath to avoid BasisPoints conflict
 export {

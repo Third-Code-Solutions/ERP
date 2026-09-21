@@ -767,6 +767,24 @@ const environmentSchema = z.object({
     .pipe(z.array(z.string().uuid())),
   RESEND_API_KEY: z.string().min(20).optional(),
   EMAIL_FROM: z.string().min(3).max(320).optional(),
+  SEMAPHORE_API_KEY: z.string().min(20).optional(),
+  SEMAPHORE_SENDER_NAME: z.string().min(3).max(32).optional(),
+  SAP_API_URL: optionalHttpsUrl,
+  SAP_API_TOKEN: z.string().min(20).optional(),
+  ERP_ROADMAP_PROVIDER_DELIVERY_WORKER_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_ROADMAP_SAP_POSTING_WORKER_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_ROADMAP_INTEGRATION_SWEEP_INTERVAL_MS: z.coerce
+    .number()
+    .int()
+    .min(10_000)
+    .max(3_600_000)
+    .default(60_000),
   ERP_WEB_BASE_URL: optionalHttpUrl,
   ERP_NOTIFICATION_SWEEP_ENABLED: z
     .enum(['true', 'false'])

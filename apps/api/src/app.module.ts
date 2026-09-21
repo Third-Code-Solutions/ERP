@@ -31,6 +31,7 @@ import { DailyTasksModule } from './daily-tasks/daily-tasks.module'
 import { ProcessModule } from './process/process.module'
 import { TendersModule } from './tenders/tenders.module'
 import { PlatformAdministrationModule } from './platform-admin/platform-administration.module'
+import { RoadmapModule } from './roadmap/roadmap.module'
 
 @Module({
   imports: [
@@ -74,6 +75,7 @@ import { PlatformAdministrationModule } from './platform-admin/platform-administ
     ProcessModule,
     TendersModule,
     PlatformAdministrationModule,
+    RoadmapModule,
   ],
   controllers: [HealthController],
   providers: [

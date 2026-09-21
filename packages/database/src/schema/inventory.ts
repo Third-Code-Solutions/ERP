@@ -30,6 +30,7 @@ import { poLineItems } from './po-line-items'
 import { purchaseOrders } from './purchase-orders'
 import { tenants } from './tenants'
 import { users } from './users'
+import { landedCostAllocations, landedCostDocuments } from './roadmap'
 
 export const stockReceipts = pgTable(
   'stock_receipts',
@@ -217,6 +218,8 @@ export const stockLedgerEntries = pgTable(
     stock_receipt_line_id: uuid('stock_receipt_line_id'),
     stock_movement_id: uuid('stock_movement_id'),
     stock_movement_line_id: uuid('stock_movement_line_id'),
+    landed_cost_document_id: uuid('landed_cost_document_id'),
+    landed_cost_allocation_id: uuid('landed_cost_allocation_id'),
     reverses_stock_ledger_entry_id: uuid(
       'reverses_stock_ledger_entry_id'
     ),
@@ -298,6 +301,19 @@ export const stockLedgerEntries = pgTable(
         stockMovementLines.id,
       ],
     }).onDelete('restrict'),
+    landedCostDocumentTenantFk: foreignKey({
+      name: 'stock_ledger_entries_landed_cost_document_fk',
+      columns: [table.tenant_id, table.landed_cost_document_id],
+      foreignColumns: [landedCostDocuments.tenant_id, landedCostDocuments.id],
+    }).onDelete('restrict'),
+    landedCostAllocationTenantFk: foreignKey({
+      name: 'stock_ledger_entries_landed_cost_allocation_fk',
+      columns: [table.tenant_id, table.landed_cost_allocation_id],
+      foreignColumns: [
+        landedCostAllocations.tenant_id,
+        landedCostAllocations.id,
+      ],
+    }).onDelete('restrict'),
     reversalTenantFk: foreignKey({
       name: 'stock_ledger_entries_reversal_tenant_fk',
       columns: [table.tenant_id, table.reverses_stock_ledger_entry_id],
@@ -325,13 +341,22 @@ export const stockLedgerEntries = pgTable(
     }).onDelete('restrict'),
     signedValuesCheck: check(
       'stock_ledger_entries_signed_values',
-      sql`${table.quantity_delta_micros} <> 0
-        and ${table.value_delta_cents} <> 0
-        and (
-          (${table.quantity_delta_micros} > 0 and ${table.value_delta_cents} > 0)
-          or
-          (${table.quantity_delta_micros} < 0 and ${table.value_delta_cents} < 0)
-        )`
+      sql`(
+        (
+          ${table.quantity_delta_micros} <> 0
+          and ${table.value_delta_cents} <> 0
+          and (
+            (${table.quantity_delta_micros} > 0 and ${table.value_delta_cents} > 0)
+            or
+            (${table.quantity_delta_micros} < 0 and ${table.value_delta_cents} < 0)
+          )
+        )
+        or (
+          ${table.event_type} = 'landed_cost'
+          and ${table.quantity_delta_micros} = 0
+          and ${table.value_delta_cents} > 0
+        )
+      )`
     ),
     singleSourceCheck: check(
       'stock_ledger_entries_single_source',
@@ -342,6 +367,8 @@ export const stockLedgerEntries = pgTable(
           and ${table.stock_movement_id} is null
           and ${table.stock_movement_line_id} is null
           and ${table.reverses_stock_ledger_entry_id} is null
+          and ${table.landed_cost_document_id} is null
+          and ${table.landed_cost_allocation_id} is null
         )
         or
         (
@@ -349,6 +376,18 @@ export const stockLedgerEntries = pgTable(
           and ${table.stock_receipt_line_id} is null
           and ${table.stock_movement_id} is not null
           and ${table.stock_movement_line_id} is not null
+          and ${table.landed_cost_document_id} is null
+          and ${table.landed_cost_allocation_id} is null
+        )
+        or (
+          ${table.event_type} = 'landed_cost'
+          and ${table.stock_receipt_id} is null
+          and ${table.stock_receipt_line_id} is null
+          and ${table.stock_movement_id} is null
+          and ${table.stock_movement_line_id} is null
+          and ${table.reverses_stock_ledger_entry_id} is null
+          and ${table.landed_cost_document_id} is not null
+          and ${table.landed_cost_allocation_id} is not null
         )
       )`
     ),

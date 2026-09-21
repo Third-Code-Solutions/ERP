@@ -2811,6 +2811,101 @@ a { color: inherit; }
   margin-bottom: 24px;
 }
 
+.roadmap-hub {
+  display: grid;
+  gap: 24px;
+}
+
+.roadmap-hub__notice {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 24px 28px;
+  border: 1px solid color-mix(in srgb, var(--color-orange-500) 42%, var(--color-border));
+  border-radius: 14px;
+  background: linear-gradient(115deg, color-mix(in srgb, var(--color-orange-100) 78%, white), white 68%);
+}
+
+.roadmap-hub__notice h2 {
+  margin: 6px 0 8px;
+  color: var(--color-navy-900);
+  font-size: 1.1rem;
+}
+
+.roadmap-hub__notice p:not(.finance-eyebrow) {
+  max-width: 760px;
+  margin: 0;
+  color: var(--color-neutral-600);
+  line-height: 1.6;
+}
+
+.roadmap-hub__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.roadmap-hub__card {
+  display: flex;
+  min-height: 220px;
+  flex-direction: column;
+  gap: 12px;
+  padding: 22px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: var(--color-surface, white);
+  box-shadow: 0 12px 34px rgb(15 45 74 / 5%);
+}
+
+.roadmap-hub__card-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.roadmap-hub__card h2 {
+  margin: 0;
+  color: var(--color-navy-900);
+  font-size: 1.25rem;
+}
+
+.roadmap-hub__card > p {
+  flex: 1;
+  margin: 0;
+  color: var(--color-neutral-600);
+  line-height: 1.6;
+}
+
+.roadmap-hub__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.skeleton-block {
+  border-radius: 10px;
+  background: linear-gradient(90deg, rgb(226 232 240 / 65%), rgb(248 250 252 / 95%), rgb(226 232 240 / 65%));
+  background-size: 200% 100%;
+  animation: roadmap-skeleton 1.4s ease-in-out infinite;
+}
+
+@keyframes roadmap-skeleton {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@media (max-width: 860px) {
+  .roadmap-hub__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .roadmap-hub__notice {
+    flex-direction: column;
+  }
+}
+
 .finance-section {
   min-width: 0;
   margin-bottom: 24px;

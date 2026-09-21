@@ -1,0 +1,5 @@
+export const ROADMAP_INTEGRATION_QUEUE = 'roadmap-integrations'
+export const ROADMAP_PROVIDER_SWEEP_JOB = 'roadmap-provider-delivery-sweep'
+export const ROADMAP_SAP_SWEEP_JOB = 'roadmap-sap-posting-sweep'
+export const ROADMAP_PROVIDER_SCHEDULER = 'roadmap-provider-delivery-v1'
+export const ROADMAP_SAP_SCHEDULER = 'roadmap-sap-posting-v1'
