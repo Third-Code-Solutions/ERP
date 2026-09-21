@@ -200,6 +200,7 @@ vi.mock('@third-code-erp/shared-types/bom', () => ({
   MAX_BOM_LINE_ITEM_QUANTITY: 2_147_483_647,
   lineTotal: vi.fn(),
   bomTotalCost: vi.fn(() => 0),
+  topLevelBomLines: vi.fn((lines: unknown[]) => lines),
   computeGP: vi.fn(() => 0),
   computeGPMargin: vi.fn(() => 0),
   dupaUpsertInputSchema: { safeParse: mocks.dupaSafeParse },

@@ -48,6 +48,7 @@ import {
 import {
   manualLineTotal,
   bomTotalCost,
+  topLevelBomLines,
   computeGP,
   computeGPMargin,
 } from '@third-code-erp/shared-types/bom'
@@ -2087,6 +2088,7 @@ async function recalcBomTotalsInTransaction(
       line_total_cents: bomLineItems.line_total_cents,
       unit_cost_cents: bomLineItems.unit_cost_cents,
       quantity: bomLineItems.quantity,
+      parent_line_item_id: bomLineItems.parent_line_item_id,
     })
     .from(bomLineItems)
     .where(and(eq(bomLineItems.bom_id, bomId), eq(bomLineItems.tenant_id, tenantId)))
@@ -2095,8 +2097,12 @@ async function recalcBomTotalsInTransaction(
   // tcv        = sum of line totals (rate-source-adjusted, never UI markup)
   // gp         = tcv - cost
   // gp_margin  = gp / tcv (in basis points)
-  const total_cost_cents = lines.reduce((s, l) => s + l.unit_cost_cents * l.quantity, 0)
-  const tcv_cents = bomTotalCost(lines)
+  const commercialLines = topLevelBomLines(lines, (line) => line.parent_line_item_id)
+  const total_cost_cents = commercialLines.reduce(
+    (s, l) => s + l.unit_cost_cents * l.quantity,
+    0,
+  )
+  const tcv_cents = bomTotalCost(commercialLines)
   const gp_cents = computeGP(tcv_cents, total_cost_cents)
   const gp_margin_bps = computeGPMargin(gp_cents, tcv_cents)
 
