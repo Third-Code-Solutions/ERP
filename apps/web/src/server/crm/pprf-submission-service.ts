@@ -316,8 +316,10 @@ const receiptSchema = z
     opportunity_id: z.string().uuid(),
     pprf_submission_id: z.string().uuid(),
     pprf_version: z.number().int().positive(),
+    kyc_tracks_reset: z.literal(true).optional(),
+    kyc_due_at: z.string().datetime(),
   })
-  .passthrough()
+  .strict()
 
 function sha256(value: string): string {
   return createHash('sha256').update(value).digest('hex')

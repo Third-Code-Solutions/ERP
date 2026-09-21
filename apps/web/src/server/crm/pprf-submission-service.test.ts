@@ -538,6 +538,29 @@ describe('PPRF submission atomic authority', () => {
     expect(probe.state().notifications).toHaveLength(3)
   })
 
+  it('fails closed when a replay receipt contains unknown fields', async () => {
+    const probe = createHarness()
+    const principal = { tenantId: TENANT_ID, userId: USER_ID }
+
+    const first = await probe.service.submitIntake(principal, intakeCommand)
+    expect(first).toMatchObject({ ok: true, replayed: false })
+
+    const state = probe.state()
+    const receipt = state.audits.find(
+      (audit) => audit.entityType === 'pprf_submission'
+    )
+    expect(receipt).toBeDefined()
+    receipt!.diff = { ...receipt!.diff, forged_result: 'ignore-me' }
+    probe.replaceState(state)
+
+    await expect(
+      probe.service.submitIntake(principal, intakeCommand)
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'CONFLICT', message: 'PPRF submission receipt is invalid' },
+    })
+  })
+
   it('replays the same resubmission result and rejects changed payload reuse', async () => {
     const probe = createHarness()
     seedOpportunity(probe)
