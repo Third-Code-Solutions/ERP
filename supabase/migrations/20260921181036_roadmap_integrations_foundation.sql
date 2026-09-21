@@ -286,6 +286,8 @@ create table if not exists public.landed_cost_allocations (
 );
 create unique index if not exists ux_landed_cost_allocations_line_receipt
   on public.landed_cost_allocations(landed_cost_line_id, stock_receipt_line_id);
+create unique index if not exists ux_landed_cost_allocations_tenant_id
+  on public.landed_cost_allocations(tenant_id, id);
 alter table public.stock_ledger_entries
   add constraint stock_ledger_entries_landed_cost_document_fk
     foreign key (tenant_id, landed_cost_document_id)
