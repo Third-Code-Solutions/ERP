@@ -36,7 +36,7 @@ const data = {
 
 describe('ManagementHealth', () => {
   it('renders project margin and exposure signals for a Monday meeting', () => {
-    const markup = renderToStaticMarkup(<ManagementHealth data={data} />)
+    const markup = renderToStaticMarkup(<ManagementHealth data={data} role="owner" />)
 
     expect(markup).toContain('Project margin &amp; exposure')
     expect(markup).toContain('Harbor Office')
@@ -46,11 +46,20 @@ describe('ManagementHealth', () => {
     expect(markup).toContain('Unsigned VO exposure')
     expect(markup).toContain('management-health__bad')
     expect(markup).toContain('management-health__warning')
+    expect(markup).toContain('href="/projects/project-1/cost"')
+  })
+
+  it('routes Sales to the permitted project overview instead of project cost', () => {
+    const markup = renderToStaticMarkup(<ManagementHealth data={data} role="sales" />)
+
+    expect(markup).toContain('href="/projects/project-1"')
+    expect(markup).not.toContain('href="/projects/project-1/cost"')
   })
 
   it('renders a truthful empty state when no active projects or breaches exist', () => {
     const markup = renderToStaticMarkup(
       <ManagementHealth
+        role="owner"
         data={{
           projectMargins: [],
           slaBreachesByBu: [],

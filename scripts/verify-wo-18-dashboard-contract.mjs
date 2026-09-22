@@ -51,7 +51,8 @@ assertIncludes(queries, 'lte(opportunities.closing_date, now)', 'FYTD upper boun
 const page = read('apps/web/src/app/(dashboard)/dashboard/page.tsx')
 assertIncludes(page, "getManagementDashboard(profile.tenantId)", 'dashboard management query')
 assertIncludes(page, 'return { kpis, stages, reps, alerts, conversionRates, forecast, today, management }', 'management data in executive payload')
-assertIncludes(page, '<ManagementHealth data={management} />', 'management health presentation')
+assertIncludes(page, '<ManagementHealth data={management} role={profile.role} />', 'role-aware management health presentation')
+assertIncludes(page, '<AlertsPanel alerts={alerts} role={profile.role} />', 'role-aware risk signal navigation')
 assertNotMatches(page, /getManagementDashboard\([^)]*profile\.user\.id/, 'management query widened to user identity')
 
 const kpis = read('apps/web/src/components/dashboard/kpi-cards.tsx')

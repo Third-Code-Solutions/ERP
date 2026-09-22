@@ -1,4 +1,6 @@
+import React from 'react'
 import Link from 'next/link'
+import type { AppRole } from '@third-code-erp/auth'
 import type { Alert } from '@/lib/dashboard-queries'
 import {
   IconAlert,
@@ -7,6 +9,7 @@ import {
   IconTrendingDown,
   IconCheck,
 } from '@/components/ui/icons'
+import { dashboardHrefForRole } from './dashboard-navigation'
 
 const ALERT_ICONS: Record<Alert['type'], (props: { size?: number }) => React.ReactElement> = {
   low_margin: (p) => <IconTrendingDown {...p} />,
@@ -18,9 +21,10 @@ const ALERT_ICONS: Record<Alert['type'], (props: { size?: number }) => React.Rea
 
 interface AlertsPanelProps {
   alerts: Alert[]
+  role: AppRole
 }
 
-export function AlertsPanel({ alerts }: AlertsPanelProps) {
+export function AlertsPanel({ alerts, role }: AlertsPanelProps) {
   const danger = alerts.filter((a) => a.severity === 'danger')
   const warning = alerts.filter((a) => a.severity === 'warning')
 
@@ -78,7 +82,7 @@ export function AlertsPanel({ alerts }: AlertsPanelProps) {
                 Critical
               </div>
               {danger.map((alert, idx) => (
-                <AlertRow key={`d-${idx}`} alert={alert} />
+                <AlertRow key={`d-${idx}`} alert={alert} role={role} />
               ))}
             </>
           ) : null}
@@ -88,7 +92,7 @@ export function AlertsPanel({ alerts }: AlertsPanelProps) {
                 Warning
               </div>
               {warning.map((alert, idx) => (
-                <AlertRow key={`w-${idx}`} alert={alert} />
+                <AlertRow key={`w-${idx}`} alert={alert} role={role} />
               ))}
             </>
           ) : null}
@@ -98,16 +102,13 @@ export function AlertsPanel({ alerts }: AlertsPanelProps) {
   )
 }
 
-function AlertRow({ alert }: { alert: Alert }) {
+function AlertRow({ alert, role }: { alert: Alert; role: AppRole }) {
   const Icon = ALERT_ICONS[alert.type] ?? ((p: { size?: number }) => <IconAlert {...p} />)
   const markerCls = alert.severity === 'danger' ? 'is-danger' : 'is-warning'
   const severityLabel = alert.severity === 'danger' ? 'Critical' : 'Warning'
-  return (
-    <Link
-      href={alert.href}
-      className="alert-item"
-      aria-label={`${severityLabel}: ${alert.label}. ${alert.detail}`}
-    >
+  const href = dashboardHrefForRole(role, alert.href)
+  const content = (
+    <>
       <div className={`alert-marker ${markerCls}`} aria-hidden>
         <Icon size={14} />
       </div>
@@ -116,6 +117,16 @@ function AlertRow({ alert }: { alert: Alert }) {
         <p className="alert-title">{alert.label}</p>
         <p className="alert-detail">{alert.detail}</p>
       </div>
+    </>
+  )
+
+  return href ? (
+    <Link href={href} className="alert-item" aria-label={`${severityLabel}: ${alert.label}. ${alert.detail}`}>
+      {content}
     </Link>
+  ) : (
+    <div className="alert-item" aria-label={`${severityLabel}: ${alert.label}. ${alert.detail}`}>
+      {content}
+    </div>
   )
 }

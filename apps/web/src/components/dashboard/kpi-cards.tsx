@@ -110,7 +110,7 @@ export function KpiCards({ kpis }: KpiCardsProps) {
         icon={<IconUser size={15} />}
         label="Coverage Leads"
         value={kpis.coverageLeads.toLocaleString()}
-        sub={`${kpis.coverageLeads === 1 ? 'lead' : 'leads'} in Leads`}
+        sub={`${kpis.coverageLeads === 1 ? 'lead' : 'leads'} at initial pipeline stage`}
         badge={
           <span aria-hidden className="kpi-card-badge-icon">
             <IconUser size={12} />
