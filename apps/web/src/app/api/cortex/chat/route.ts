@@ -3,13 +3,14 @@ import { randomUUID } from 'node:crypto'
 import { can, getUserProfile } from '@third-code-erp/auth'
 import {
   searchCortexNodes,
-  searchCortexNodesByTerms,
+  searchCortexNodesWithRelationsByTerms,
   cortexSemanticSearch,
   getCortexGraphStats,
   createCortexConversation,
   appendCortexMessage,
   getCortexConversation,
   cortexKeywordAnswer,
+  cortexEntitySearchTerms,
   cortexDescribeEntity,
 } from '@third-code-erp/database'
 import { getOpenAI, embedText } from '@third-code-erp/ai'
@@ -467,11 +468,11 @@ export async function POST(req: NextRequest) {
 
   // Ground the agent in the tenant's graph: high-level shape, a recent sample,
   // and records that match the question's keywords.
-  const terms = lastUserMessage.toLowerCase().split(/[^a-z0-9₱]+/i).filter(Boolean)
+  const terms = cortexEntitySearchTerms(lastUserMessage)
   const [stats, recentRows, matchRows] = await Promise.all([
     getCortexGraphStats(profile.tenantId, scope),
     searchCortexNodes(profile.tenantId, { limit: 40, nodeTypes: scope }),
-    searchCortexNodesByTerms(profile.tenantId, terms, 12, scope),
+    searchCortexNodesWithRelationsByTerms(profile.tenantId, terms, 12, scope),
   ])
   const recent = recentRows.filter(isSafeCortexPromptNode)
   const matches = matchRows.filter(isSafeCortexPromptNode)

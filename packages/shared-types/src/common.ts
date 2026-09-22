@@ -37,6 +37,17 @@ export function formatBasisPoints(bps: number, decimals = 1): string {
   return `${(bps / 100).toFixed(decimals)}%`
 }
 
+// Date-only opportunity inputs are persisted at Manila midnight. UTC slicing
+// would display the previous calendar day after a server round trip.
+export function manilaCalendarDate(value: Date | string): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(value))
+}
+
 // Pagination
 export const paginationSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),

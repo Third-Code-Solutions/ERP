@@ -11,9 +11,12 @@ import {
   cortexAssistantTurnRequests,
   cortexConversationTurnRequests,
   cortexConversations,
+  cortexEdges,
   cortexMessages,
   cortexNodes,
   users,
+  cortexEntitySearchTerms,
+  isBroadCortexQuestion,
 } from '@third-code-erp/database'
 import {
   CORTEX_ASSISTANT_GENERATION_MAX_ATTEMPTS,
@@ -34,6 +37,7 @@ import {
   isNull,
   lt,
   or,
+  sql,
 } from 'drizzle-orm'
 import { roleHasCapability } from '../auth/capability.guard'
 import type {
@@ -76,6 +80,35 @@ export interface ClaimedCortexAssistantGenerationJob {
     title: string | null
     summary: string | null
   }>
+}
+
+type GenerationEvidence = ClaimedCortexAssistantGenerationJob['evidence'][number]
+
+export function prioritizeGenerationEvidence<T extends GenerationEvidence>(
+  direct: T[],
+  related: T[],
+  limit = 12
+): T[] {
+  const anchor =
+    direct.find((item) => item.nodeType === 'account') ?? direct[0]
+  const weakerDirect =
+    anchor?.nodeType === 'account'
+      ? direct.filter(
+          (item) => item.nodeId !== anchor.nodeId && item.nodeType === 'account'
+        )
+      : direct.filter((item) => item.nodeId !== anchor?.nodeId)
+  const seen = new Set<string>()
+  return [
+    ...(anchor ? [anchor] : []),
+    ...related,
+    ...weakerDirect,
+  ]
+    .filter((item) => {
+      if (seen.has(item.nodeId)) return false
+      seen.add(item.nodeId)
+      return true
+    })
+    .slice(0, limit)
 }
 
 const NON_RETRYABLE_FAILURES = new Set([
@@ -541,11 +574,7 @@ export class CortexAssistantGenerationStateService {
       }
 
       const question = redactCortexText(row.question).slice(0, 20_000)
-      const terms = question
-        .toLowerCase()
-        .split(/[^a-z0-9]+/i)
-        .filter((term) => term.length >= 3)
-        .slice(0, 8)
+      const terms = cortexEntitySearchTerms(question)
       const typeFilter =
         scope === null
           ? undefined
@@ -559,6 +588,13 @@ export class CortexAssistantGenerationStateService {
           ilike(cortexNodes.summary, `%${term.replace(/[\\%_]/g, '\\$&')}%`)
         )
       )
+      const relevance = sql<number>`${sql.join(
+        terms.map((term) => {
+          const escaped = term.replace(/[\\%_]/g, '\\$&')
+          return sql`case when ${cortexNodes.title} ilike ${`%${escaped}%`} or ${cortexNodes.summary} ilike ${`%${escaped}%`} then 1 else 0 end`
+        }),
+        sql` + `
+      )}`
       const selectEvidence = () =>
         transaction
           .select({
@@ -578,10 +614,57 @@ export class CortexAssistantGenerationStateService {
                 or(...termConditions)
               )
             )
-            .orderBy(desc(cortexNodes.recorded_at))
-            .limit(12)
+            .orderBy(desc(relevance), desc(cortexNodes.recorded_at))
+            .limit(8)
         : []
-      if (evidence.length === 0) {
+      if (evidence.length > 0) {
+        // Expand only the highest-ranked entity match. Lower-ranked direct
+        // matches remain visible for ambiguity, but cannot pull in records
+        // belonging to another similarly named account.
+        const anchor =
+          evidence.find((item) => item.nodeType === 'account') ?? evidence[0]
+        const directNodeIds = anchor ? [anchor.nodeId] : []
+        const edges = await transaction
+          .select({
+            sourceId: cortexEdges.src_id,
+            destinationId: cortexEdges.dst_id,
+          })
+          .from(cortexEdges)
+          .where(
+            and(
+              eq(cortexEdges.tenant_id, row.tenantId),
+              isNull(cortexEdges.valid_to),
+              or(
+                inArray(cortexEdges.src_id, directNodeIds),
+                inArray(cortexEdges.dst_id, directNodeIds)
+              )
+            )
+          )
+          .orderBy(desc(cortexEdges.recorded_at))
+          .limit(24)
+        const directNodeIdSet = new Set(directNodeIds)
+        const relatedNodeIds = [
+          ...new Set(
+            edges.flatMap((edge) => [edge.sourceId, edge.destinationId])
+          ),
+        ].filter((nodeId) => !directNodeIdSet.has(nodeId))
+        if (relatedNodeIds.length > 0) {
+          const related = await selectEvidence()
+            .where(
+              and(
+                eq(cortexNodes.tenant_id, row.tenantId),
+                isNull(cortexNodes.valid_to),
+                typeFilter,
+                inArray(cortexNodes.id, relatedNodeIds)
+              )
+            )
+            .orderBy(desc(cortexNodes.recorded_at))
+            .limit(11)
+          evidence = prioritizeGenerationEvidence(evidence, related)
+        }
+        evidence = prioritizeGenerationEvidence(evidence, [])
+      }
+      if (evidence.length === 0 && isBroadCortexQuestion(question)) {
         evidence = await selectEvidence()
           .where(
             and(

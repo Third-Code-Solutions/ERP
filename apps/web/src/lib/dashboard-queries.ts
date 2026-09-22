@@ -29,6 +29,14 @@ import {
   desc,
 } from 'drizzle-orm'
 import { computeProjectCostSnapshot } from '@third-code-erp/shared-types/cost'
+import {
+  ACTIVE_OPPORTUNITY_STAGES,
+  LEAD_OPPORTUNITY_STAGES,
+  LOST_OPPORTUNITY_STAGES,
+  STAGE_LEGACY_MAP,
+  WON_OPPORTUNITY_STAGES,
+  type OpportunityStage,
+} from '@third-code-erp/shared-types'
 import { manilaBoundaries } from '@/lib/operations/cadence-engine'
 import { getProjectCostControlTotalsForProjects } from '@/lib/operations/project-cost-control'
 import {
@@ -244,14 +252,6 @@ export interface Alert {
   detail: string
   href: string
 }
-
-const ACTIVE_STAGES = [
-  'opportunity_creation',
-  'scoping',
-  'bom_submission',
-  'resubmission',
-  'negotiation',
-] as const
 
 // Canonical ABI OPS 8-stage flow (REFACTOR.md M1 US-002). Pairs of
 // adjacent stages drive conversion-rate computation in the dashboard.
@@ -540,7 +540,7 @@ export async function getDashboardKpis(tenantId: string): Promise<KpiData> {
       .where(
         and(
           eq(opportunities.tenant_id, tenantId),
-          inArray(opportunities.stage, [...ACTIVE_STAGES])
+          inArray(opportunities.stage, [...ACTIVE_OPPORTUNITY_STAGES])
         )
       ),
     db
@@ -549,7 +549,7 @@ export async function getDashboardKpis(tenantId: string): Promise<KpiData> {
       .where(
         and(
           eq(opportunities.tenant_id, tenantId),
-          eq(opportunities.stage, 'closed_won'),
+          inArray(opportunities.stage, [...WON_OPPORTUNITY_STAGES]),
           gte(opportunities.closing_date, fiscalYearStart),
           lte(opportunities.closing_date, now)
         )
@@ -560,7 +560,7 @@ export async function getDashboardKpis(tenantId: string): Promise<KpiData> {
       .where(
         and(
           eq(opportunities.tenant_id, tenantId),
-          eq(opportunities.stage, 'opportunity_creation')
+          inArray(opportunities.stage, [...LEAD_OPPORTUNITY_STAGES])
         )
       ),
   ])
@@ -587,12 +587,38 @@ export async function getStageDistribution(tenantId: string): Promise<StageRow[]
     .where(eq(opportunities.tenant_id, tenantId))
     .groupBy(opportunities.stage)
 
-  return rows.map((r) => ({
-    stage: r.stage,
-    count: Number(r.count),
-    tcvCents: Number(r.tcvCents ?? 0),
-    gpCents: Number(r.gpCents ?? 0),
-  }))
+  return normalizeStageRows(rows)
+}
+
+type ActiveRepRow = {
+  repId: string | null
+  tcv: number | string | null
+  gp: number | string | null
+  weighted: number | string | null
+  activeCount: number
+}
+
+type WonRepRow = {
+  repId: string | null
+  wonTcv: number | string | null
+  wonCount: number
+}
+
+type LostRepRow = { repId: string | null; lostCount: number }
+
+export function normalizeStageRows(
+  rows: Array<{ stage: OpportunityStage; count: number; tcvCents: number | string | null; gpCents: number | string | null }>
+): StageRow[] {
+  const totals = new Map<string, StageRow>()
+  for (const row of rows) {
+    const stage = STAGE_LEGACY_MAP[row.stage]
+    const current = totals.get(stage) ?? { stage, count: 0, tcvCents: 0, gpCents: 0 }
+    current.count += Number(row.count)
+    current.tcvCents += Number(row.tcvCents ?? 0)
+    current.gpCents += Number(row.gpCents ?? 0)
+    totals.set(stage, current)
+  }
+  return [...totals.values()]
 }
 
 export async function getRepScorecards(tenantId: string): Promise<RepScorecard[]> {
@@ -609,7 +635,7 @@ export async function getRepScorecards(tenantId: string): Promise<RepScorecard[]
       .where(
         and(
           eq(opportunities.tenant_id, tenantId),
-          inArray(opportunities.stage, [...ACTIVE_STAGES])
+          inArray(opportunities.stage, [...ACTIVE_OPPORTUNITY_STAGES])
         )
       )
       .groupBy(opportunities.rep_id),
@@ -621,14 +647,20 @@ export async function getRepScorecards(tenantId: string): Promise<RepScorecard[]
       })
       .from(opportunities)
       .where(
-        and(eq(opportunities.tenant_id, tenantId), eq(opportunities.stage, 'closed_won'))
+        and(
+          eq(opportunities.tenant_id, tenantId),
+          inArray(opportunities.stage, [...WON_OPPORTUNITY_STAGES])
+        )
       )
       .groupBy(opportunities.rep_id),
     db
       .select({ repId: opportunities.rep_id, lostCount: count() })
       .from(opportunities)
       .where(
-        and(eq(opportunities.tenant_id, tenantId), eq(opportunities.stage, 'closed_lost'))
+        and(
+          eq(opportunities.tenant_id, tenantId),
+          inArray(opportunities.stage, [...LOST_OPPORTUNITY_STAGES])
+        )
       )
       .groupBy(opportunities.rep_id),
   ])
@@ -646,27 +678,49 @@ export async function getRepScorecards(tenantId: string): Promise<RepScorecard[]
   const repUsers = await db
     .select({ id: users.id, email: users.email })
     .from(users)
-    .where(inArray(users.id, repIds))
+    .where(and(eq(users.tenant_id, tenantId), inArray(users.id, repIds)))
 
-  const emailMap = new Map(repUsers.map((u) => [u.id, u.email]))
-  const wonMap = new Map(wonRows.map((r) => [r.repId, r]))
-  const lostMap = new Map(lostRows.map((r) => [r.repId, r]))
+  return mergeRepScorecardRows(
+    activeRows,
+    wonRows,
+    lostRows,
+    new Map(repUsers.map((user) => [user.id, user.email]))
+  )
+}
 
-  return activeRows.map((ar) => {
-    const tcv = Number(ar.tcv ?? 0)
-    const gp = Number(ar.gp ?? 0)
-    const won = wonMap.get(ar.repId ?? '')
+export function mergeRepScorecardRows(
+  activeRows: ActiveRepRow[],
+  wonRows: WonRepRow[],
+  lostRows: LostRepRow[],
+  emailMap: ReadonlyMap<string, string>
+): RepScorecard[] {
+  const repIds = [
+    ...new Set([
+      ...activeRows.map((row) => row.repId),
+      ...wonRows.map((row) => row.repId),
+      ...lostRows.map((row) => row.repId),
+    ]),
+  ].filter(Boolean) as string[]
+  const wonMap = new Map(wonRows.map((row) => [row.repId, row]))
+  const lostMap = new Map(lostRows.map((row) => [row.repId, row]))
+  const activeMap = new Map(activeRows.map((row) => [row.repId, row]))
+
+  return repIds.map((repId) => {
+    const active = activeMap.get(repId)
+    const tcv = Number(active?.tcv ?? 0)
+    const gp = Number(active?.gp ?? 0)
+    const won = wonMap.get(repId)
     return {
-      repId: ar.repId ?? '',
-      repEmail: emailMap.get(ar.repId ?? '') ?? 'Unknown',
+      repId,
+      repEmail: emailMap.get(repId) ?? 'Unknown',
       activeTcv: tcv,
       activeGp: gp,
       gpMarginBps: tcv > 0 ? Math.round((gp / tcv) * 10000) : 0,
       wonTcv: Number(won?.wonTcv ?? 0),
       wonCount: Number(won?.wonCount ?? 0),
-      lostCount: Number(lostMap.get(ar.repId ?? '')?.lostCount ?? 0),
-      activeCount: Number(ar.activeCount ?? 0),
-      weightedTcv: Number(ar.weighted ?? 0),
+      lostCount: Number(lostMap.get(repId)?.lostCount ?? 0),
+      activeCount: Number(active?.activeCount ?? 0),
+      weightedTcv: Number(active?.weighted ?? 0),
     }
   })
 }
@@ -695,7 +749,7 @@ export async function getAlerts(tenantId: string): Promise<Alert[]> {
       .where(
         and(
           eq(opportunities.tenant_id, tenantId),
-          inArray(opportunities.stage, [...ACTIVE_STAGES])
+          inArray(opportunities.stage, [...ACTIVE_OPPORTUNITY_STAGES])
         )
       ),
     // Overdue invoices.

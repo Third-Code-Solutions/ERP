@@ -16,7 +16,7 @@ import {
   getCortexCitationNodesByIds,
   getCortexNeighbors,
   getCortexProvenance,
-  searchCortexNodesByTerms,
+  searchCortexNodesWithRelationsByTerms,
   searchCortexNodes,
   type CortexNeighbor,
 } from './graph'
@@ -49,6 +49,76 @@ export interface CortexAnswer {
   citations: Citation[]
 }
 
+const ENTITY_QUERY_STOP_WORDS = new Set([
+  'about',
+  'and',
+  'action',
+  'approvals',
+  'accessible',
+  'cite',
+  'changed',
+  'changes',
+  'complete',
+  'contract',
+  'current',
+  'design',
+  'demo',
+  'distinguish',
+  'finance',
+  'for',
+  'from',
+  'its',
+  'latest',
+  'new',
+  'next',
+  'overview',
+  'opportunity',
+  'opportunities',
+  'pending',
+  'records',
+  'recent',
+  'recently',
+  'reviews',
+  'sales',
+  'active',
+  'site',
+  'stage',
+  'summarize',
+  'survey',
+  'that',
+  'the',
+  'their',
+  'value',
+  'what',
+  'with',
+])
+
+/** Keep the proper-name portion of an entity question ahead of generic ERP terms. */
+export function cortexEntitySearchTerms(question: string): string[] {
+  const terms = question
+    .toLocaleLowerCase()
+    .split(/[^\p{L}\p{N}₱]+/u)
+    .filter((term) => term.length >= 3)
+  const specific = terms.filter((term) => !ENTITY_QUERY_STOP_WORDS.has(term))
+  return (specific.length > 0 ? specific : terms).slice(0, 8)
+}
+
+export function isBroadCortexQuestion(question: string): boolean {
+  const terms = question
+    .toLocaleLowerCase()
+    .split(/[^\p{L}\p{N}₱]+/u)
+    .filter((term) => term.length >= 3)
+  const hasEntityTerms = terms.some(
+    (term) => !ENTITY_QUERY_STOP_WORDS.has(term)
+  )
+  return (
+    !hasEntityTerms &&
+    /\b(overview|recent|recently|changed|changes|new|active|latest)\b/i.test(
+      question
+    )
+  )
+}
+
 /** Only registered source-table/node-type pairs may become answer evidence. */
 function isSafeAnswerNode(
   node: Pick<CortexNode, 'node_type' | 'ref_table'>
@@ -70,20 +140,29 @@ export async function cortexKeywordAnswer(
   question: string,
   nodeTypes?: string[] | null
 ): Promise<{ answer: string; citations: Citation[] }> {
-  const terms = question.toLowerCase().split(/[^a-z0-9₱]+/i).filter(Boolean)
-  const hits = await searchCortexNodesByTerms(tenantId, terms, 8, nodeTypes)
+  const terms = cortexEntitySearchTerms(question)
+  const hits = await searchCortexNodesWithRelationsByTerms(
+    tenantId,
+    terms,
+    8,
+    nodeTypes
+  )
 
   // Never come up empty: for broad/meta questions (e.g. "what changed recently",
   // "overview") keyword match misses, so fall back to the most recent records.
   const matched = hits.length > 0
   const candidates = matched
     ? hits
-    : await searchCortexNodes(tenantId, { limit: 8, nodeTypes })
+    : isBroadCortexQuestion(question)
+      ? await searchCortexNodes(tenantId, { limit: 8, nodeTypes })
+      : []
   const used = candidates.filter(isSafeAnswerNode)
 
   if (used.length === 0) {
     return {
-      answer: 'Your knowledge graph is empty for now — create a project, account or BOM and it will appear here.',
+      answer: matched || isBroadCortexQuestion(question)
+        ? 'Your knowledge graph is empty for now — create a project, account or BOM and it will appear here.'
+        : "I don't have relevant context for that specific record in the knowledge graph.",
       citations: [],
     }
   }

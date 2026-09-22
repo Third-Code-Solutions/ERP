@@ -54,6 +54,20 @@ export const STAGE_LEGACY_MAP: Record<OpportunityStage, PipelineStage> = {
   lost: 'lost',
 }
 
+// Aggregate both persisted taxonomies without dropping current pipeline stages.
+export const ACTIVE_OPPORTUNITY_STAGES = opportunityStageValues.filter(
+  (stage) => !['won', 'lost'].includes(STAGE_LEGACY_MAP[stage])
+)
+export const WON_OPPORTUNITY_STAGES = opportunityStageValues.filter(
+  (stage) => STAGE_LEGACY_MAP[stage] === 'won'
+)
+export const LOST_OPPORTUNITY_STAGES = opportunityStageValues.filter(
+  (stage) => STAGE_LEGACY_MAP[stage] === 'lost'
+)
+export const LEAD_OPPORTUNITY_STAGES = opportunityStageValues.filter(
+  (stage) => STAGE_LEGACY_MAP[stage] === 'lead'
+)
+
 // Stage probability mapping (0-100 integer). Legacy values inherit the
 // probability of their canonical equivalent so weighted_tcv_cents math is
 // consistent across both taxonomies.

@@ -2,41 +2,45 @@ import type { StageRow } from '@/lib/dashboard-queries'
 import { formatCentsCompact } from '@third-code-erp/shared-types'
 
 const STAGE_LABELS: Record<string, string> = {
-  opportunity_creation: 'Opportunity Creation',
-  scoping: 'Scoping',
+  lead: 'Lead',
+  site_survey: 'Site Survey',
+  design: 'Design',
   bom_submission: 'BOM Submission',
-  resubmission: 'Resubmission',
   negotiation: 'Negotiation',
-  closed_won: 'Closed Won',
-  closed_lost: 'Closed Lost',
+  contract: 'Contract',
+  won: 'Won',
+  lost: 'Lost',
 }
 
 const STAGE_ORDER = [
-  'opportunity_creation',
-  'scoping',
+  'lead',
+  'site_survey',
+  'design',
   'bom_submission',
-  'resubmission',
   'negotiation',
-  'closed_won',
-  'closed_lost',
+  'contract',
+  'won',
+  'lost',
 ]
 
 const STAGE_HUES: Record<string, string> = {
-  opportunity_creation: '#6b7280',
-  scoping: '#4f46e5',
+  lead: '#6b7280',
+  site_survey: '#4f46e5',
+  design: '#7c3aed',
   bom_submission: '#0891b2',
-  resubmission: '#ca8a04',
   negotiation: '#ea580c',
-  closed_won: '#16a34a',
-  closed_lost: '#dc2626',
+  contract: '#c2410c',
+  won: '#16a34a',
+  lost: '#dc2626',
 }
 
 const ACTIVE_STAGES = new Set([
-  'opportunity_creation',
-  'scoping',
+  'lead',
+  'site_survey',
+  'design',
   'bom_submission',
-  'resubmission',
   'negotiation',
+  'contract',
 ])
 
 interface StageDistributionTableProps {

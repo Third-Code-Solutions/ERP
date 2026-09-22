@@ -209,6 +209,13 @@ export async function searchCortexNodesByTerms(
       ilike(cortexNodes.summary, `%${t.replace(/[\\%_]/g, '\\$&')}%`)
     )
   )
+  const relevance = sql<number>`${sql.join(
+    cleaned.map((t) => {
+      const escaped = t.replace(/[\\%_]/g, '\\$&')
+      return sql`case when ${cortexNodes.title} ilike ${`%${escaped}%`} or ${cortexNodes.summary} ilike ${`%${escaped}%`} then 1 else 0 end`
+    }),
+    sql` + `
+  )}`
   return db
     .select()
     .from(cortexNodes)
@@ -220,8 +227,78 @@ export async function searchCortexNodesByTerms(
         or(...termConds)
       )
     )
-    .orderBy(desc(cortexNodes.recorded_at))
+    .orderBy(desc(relevance), desc(cortexNodes.recorded_at))
     .limit(limit)
+}
+
+/**
+ * Resolve entity-specific matches together with their current one-hop records.
+ *
+ * Canonical graph nodes intentionally keep their own source fields only. For
+ * example, an opportunity title does not repeat its account name; that
+ * association lives on a graph edge. Specific questions naming an account
+ * therefore need the matched account plus its related opportunity, rather than
+ * unrelated opportunities that happen to contain generic query words.
+ */
+export async function searchCortexNodesWithRelationsByTerms(
+  tenantId: string,
+  terms: string[],
+  limit = 8,
+  nodeTypes?: string[] | null
+): Promise<CortexNode[]> {
+  const boundedLimit = Math.max(1, Math.min(limit, 40))
+  const direct = await searchCortexNodesByTerms(
+    tenantId,
+    terms,
+    boundedLimit,
+    nodeTypes
+  )
+  if (direct.length === 0) return []
+
+  const anchor = direct.find((node) => node.node_type === 'account') ?? direct[0]
+  if (!anchor) return []
+
+  const related = await getCortexNeighbors(tenantId, anchor.id, {
+    limit: boundedLimit,
+    nodeTypes,
+  })
+  return prioritizeCortexEntityMatches(
+    direct,
+    related.map((neighbor) => neighbor.node),
+    boundedLimit,
+    anchor.id
+  )
+}
+
+/** Keep the entity anchor and its relations ahead of weaker direct matches. */
+export function prioritizeCortexEntityMatches<T extends Pick<CortexNode, 'id' | 'node_type'>>(
+  direct: T[],
+  related: T[],
+  limit: number,
+  anchorId?: string
+): T[] {
+  const anchor =
+    direct.find((node) => node.id === anchorId) ??
+    direct.find((node) => node.node_type === 'account') ??
+    direct[0]
+  const weakerDirect =
+    anchor?.node_type === 'account'
+      ? direct.filter(
+          (node) => node.id !== anchor.id && node.node_type === 'account'
+        )
+      : direct.filter((node) => node.id !== anchor?.id)
+  const seen = new Set<string>()
+  return [
+    ...(anchor ? [anchor] : []),
+    ...related,
+    ...weakerDirect,
+  ]
+    .filter((node) => {
+      if (seen.has(node.id)) return false
+      seen.add(node.id)
+      return true
+    })
+    .slice(0, Math.max(1, Math.min(limit, 40)))
 }
 
 export interface SemanticHit {
