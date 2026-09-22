@@ -5,6 +5,7 @@ import type { Metadata } from 'next'
 import { headers } from 'next/headers'
 import { resolvePublicOrigin } from '@/lib/public-origin'
 import './globals.css'
+import './workspace.css'
 
 export const metadata: Metadata = {
   metadataBase: resolvePublicOrigin(),
@@ -57,6 +58,7 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
+      data-scroll-behavior="smooth"
       suppressHydrationWarning
     >
       <body>

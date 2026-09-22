@@ -1,4 +1,4 @@
-import type { SVGProps } from 'react'
+import React, { type SVGProps } from 'react'
 
 // Stroke-based icon system. 24×24 grid, 1.75 stroke, currentColor.
 // Kept inline so we avoid a dependency on lucide and stay tree-shakable.

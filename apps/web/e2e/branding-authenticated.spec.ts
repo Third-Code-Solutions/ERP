@@ -29,10 +29,8 @@ test.describe('ABI OPS signed-in shell', () => {
         waitUntil: 'domcontentloaded',
       })
       expect(response?.status() ?? 0).toBe(200)
-      await expect(page.locator('.sidebar-brand-name')).toHaveText('ABI OPS')
-      await expect(page.locator('.sidebar-brand-org')).toHaveText(
-        'Actuate Builders Inc.'
-      )
+      await expect(page.locator('.workspace-brand-copy strong')).toHaveText('ABI OPS')
+      await expect(page.locator('.workspace-brand-copy > span')).toHaveText('Admin workspace')
       await expect(page.locator('.breadcrumb-item').first()).toHaveText('ABI OPS')
       expect(errors).toEqual([])
     } finally {

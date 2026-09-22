@@ -27,20 +27,6 @@ import { canViewPath, roleLabel } from '@/lib/operations/nav-config'
 
 export const metadata: Metadata = { title: 'Dashboard' }
 
-function greetingFor(date: Date): string {
-  const h = date.getHours()
-  if (h < 12) return 'Good morning'
-  if (h < 18) return 'Good afternoon'
-  return 'Good evening'
-}
-
-function firstName(email: string | undefined): string {
-  if (!email) return 'there'
-  const local = email.split('@')[0] ?? ''
-  const part = local.split(/[._-]/)[0] ?? ''
-  return part.charAt(0).toUpperCase() + part.slice(1) || 'there'
-}
-
 interface DashboardPageProps {
   // Next 15 App Router: searchParams arrives as a Promise.
   searchParams?: Promise<{ since?: string; until?: string; stage?: string }>
@@ -136,21 +122,12 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         )}
         <header className="dashboard-hero dashboard-hero--compact">
           <div className="dashboard-hero-copy">
-            <p className="dashboard-hero-kicker">Today · {roleLabel(profile.role)}</p>
             <h1 className="dashboard-hero-title page-title">
-              {greetingFor(renderedAt)}, {firstName(profile.email)}
+              My work
             </h1>
             <p className="dashboard-hero-subtitle">
-              Your assigned work and authorized workspaces for {fmt.format(renderedAt)}.
+              {roleLabel(profile.role)} workspace · {fmt.format(renderedAt)}
             </p>
-          </div>
-          <div className="dashboard-hero-actions">
-            <Link className="dashboard-hero-action dashboard-hero-action--primary" href="/tasks">
-              Open my tasks
-            </Link>
-            <Link className="dashboard-hero-action" href="/cortex">
-              Ask Cortex
-            </Link>
           </div>
         </header>
 
@@ -172,12 +149,11 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
       <header className="dashboard-hero">
         <div className="dashboard-hero-copy">
-          <p className="dashboard-hero-kicker">Executive command center</p>
           <h1 className="dashboard-hero-title page-title">
-            {greetingFor(renderedAt)}, {firstName(profile.email)}
+            Workspace overview
           </h1>
           <p className="dashboard-hero-subtitle">
-            A live view of pipeline momentum, project margin, and delivery risk for {fmt.format(renderedAt)}.
+            {roleLabel(profile.role)} workspace · {fmt.format(renderedAt)}
           </p>
           <div className="dashboard-hero-status" aria-label="Dashboard status">
             <span className="dashboard-status-chip dashboard-status-chip--live">
@@ -188,20 +164,15 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           </div>
         </div>
 
-        <div className="dashboard-hero-aside">
-          <span className="dashboard-hero-aside-label">Portfolio pulse</span>
-          <strong>{kpis.activeDeals.toLocaleString()} active opportunities</strong>
-          <span>Use the command center below to move from signal to action.</span>
-          <div className="dashboard-hero-actions">
-            {canViewPipeline ? (
-              <Link className="dashboard-hero-action dashboard-hero-action--primary" href="/pipeline">
-                Open pipeline
-              </Link>
-            ) : null}
-            <Link className="dashboard-hero-action" href="/tasks">
-              Open my work
+        <div className="dashboard-hero-actions">
+          {canViewPipeline ? (
+            <Link className="dashboard-hero-action dashboard-hero-action--primary" href="/pipeline">
+              Open pipeline
             </Link>
-          </div>
+          ) : null}
+          <Link className="dashboard-hero-action" href="/tasks">
+            Open my work
+          </Link>
         </div>
       </header>
 
@@ -226,7 +197,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       >
         <div className="dashboard-section-header">
           <div>
-            <p className="dashboard-section-kicker">Pipeline intelligence</p>
             <h2 id="pipeline-analytics-heading" className="dashboard-section-title">
               Pipeline analytics
             </h2>

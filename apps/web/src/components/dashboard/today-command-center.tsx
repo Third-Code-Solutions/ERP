@@ -79,12 +79,11 @@ export function TodayCommandCenter({ role, data }: TodayCommandCenterProps) {
     <section className={styles.shell} aria-labelledby="today-command-center-heading">
       <div className={styles.header}>
         <div>
-          <p className={styles.eyebrow}>Your operating view</p>
           <h2 id="today-command-center-heading" className={styles.title}>
             Today, {roleLabel(role)}
           </h2>
           <p className={styles.subtitle}>
-            One calm queue for work that needs a decision, a handoff, or a next step.
+            Your assigned tasks and recent projects.
           </p>
         </div>
         <div className={styles.actions}>
