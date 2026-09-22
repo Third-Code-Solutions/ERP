@@ -1,46 +1,33 @@
 .shell {
-  margin-top: 30px;
+  margin-top: 16px;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--color-navy-300) 26%, var(--color-border));
-  border-radius: 18px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
-  box-shadow: var(--shadow-md);
 }
 
 .header {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
-  gap: 24px;
-  padding: 30px 30px 26px;
-  background:
-    radial-gradient(circle at 88% 0%, rgba(224, 123, 42, 0.3), transparent 35%),
-    linear-gradient(135deg, #061421 0%, #0c2945 68%, #163c5e 100%);
-}
-
-.eyebrow {
-  margin: 0 0 6px;
-  color: var(--color-gold-300);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  gap: 16px;
+  padding: 16px 20px;
+  background: var(--color-surface);
 }
 
 .title {
   margin: 0;
-  color: white;
-  font-size: clamp(1.45rem, 2vw, 2rem);
-  font-weight: 700;
-  letter-spacing: -0.04em;
-  line-height: 1.05;
+  color: var(--color-neutral-900);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.4;
 }
 
 .subtitle {
   max-width: 620px;
-  margin: 8px 0 0;
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 0.875rem;
+  margin: 4px 0 0;
+  color: var(--color-neutral-500);
+  font-size: 0.8125rem;
   line-height: 1.55;
 }
 
@@ -57,42 +44,48 @@
 .cortexLink {
   align-items: center;
   display: inline-flex;
-  min-height: 44px;
+  min-height: 36px;
   text-decoration: none;
 }
 
 .primaryAction,
 .secondaryAction {
-  border-radius: 9px;
+  border-radius: var(--radius-md);
   font-size: 0.8125rem;
-  font-weight: 700;
+  font-weight: 500;
   padding: 0 14px;
   white-space: nowrap;
 }
 
 .primaryAction {
-  background: var(--color-gold-500);
-  color: var(--color-gold-950);
-  box-shadow: 0 8px 18px -10px rgba(224, 123, 42, 0.95);
+  background: var(--color-primary);
+  color: var(--color-white);
+  border: 1px solid var(--color-primary);
 }
 
 .primaryAction:hover {
-  background: var(--color-gold-400);
+  background: color-mix(in srgb, var(--color-primary) 90%, black);
 }
 
 .secondaryAction {
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  color: rgba(255, 255, 255, 0.92);
-  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--color-border);
+  color: var(--color-neutral-900);
+  background: var(--color-surface);
 }
 
 .secondaryAction:hover {
-  color: var(--color-gold-300);
+  background: var(--color-neutral-50);
 }
 
 .panelLink:hover,
 .cortexLink:hover {
-  color: var(--color-gold-800);
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+.shell a:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
 }
 
 .summaryGrid {
@@ -100,15 +93,15 @@
   grid-auto-flow: dense;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1px;
-  background: color-mix(in srgb, var(--color-navy-200) 32%, var(--color-border));
-  border-block: 1px solid color-mix(in srgb, var(--color-navy-200) 32%, var(--color-border));
+  background: var(--color-border);
+  border-block: 1px solid var(--color-border);
 }
 
 .summaryCard {
   display: flex;
-  min-height: 136px;
+  min-height: 112px;
   flex-direction: column;
-  padding: 20px 22px;
+  padding: 16px 20px;
   background: var(--color-surface);
   color: inherit;
   text-decoration: none;
@@ -116,7 +109,7 @@
 }
 
 .summaryCard:hover {
-  background: #fffaf5;
+  background: var(--color-neutral-50);
 }
 
 .cardLabel,
@@ -131,17 +124,17 @@
 
 .cardLabel {
   font-size: 0.75rem;
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .cardCount {
-  margin-top: 16px;
-  color: var(--color-navy-950);
-  font-size: clamp(1.8rem, 4vw, 2.65rem);
+  margin-top: 10px;
+  color: var(--color-neutral-900);
+  font-size: 1.75rem;
   font-variant-numeric: tabular-nums;
-  font-weight: 700;
-  letter-spacing: -0.06em;
-  line-height: 0.95;
+  font-weight: 500;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
 }
 
 .cardCountDanger {
@@ -161,16 +154,15 @@
   grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
   gap: 14px;
   padding: 14px;
-  background: var(--color-surface-sunken);
+  background: var(--color-neutral-50);
 }
 
 .panel {
   min-width: 0;
   overflow: hidden;
   border: 1px solid var(--color-border);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 4px 14px -12px rgba(15, 45, 74, 0.5);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
 }
 
 .panelHeader {
@@ -178,14 +170,14 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  padding: 18px 18px 14px;
+  padding: 14px 16px;
 }
 
 .panelTitle {
   margin: 0;
-  color: var(--color-navy-950);
-  font-size: 0.9375rem;
-  font-weight: 700;
+  color: var(--color-neutral-900);
+  font-size: 0.875rem;
+  font-weight: 600;
   letter-spacing: -0.015em;
 }
 
@@ -196,9 +188,9 @@
 }
 
 .panelLink {
-  color: var(--color-navy-700);
+  color: var(--color-primary);
   font-size: 0.75rem;
-  font-weight: 700;
+  font-weight: 500;
   white-space: nowrap;
 }
 
@@ -222,7 +214,7 @@
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 16px;
-  min-height: 72px;
+  min-height: 64px;
   padding: 12px 18px;
   color: inherit;
   text-decoration: none;
@@ -245,9 +237,9 @@
 .taskCopy strong,
 .projectMain strong {
   overflow: hidden;
-  color: var(--color-navy-900);
+  color: var(--color-neutral-900);
   font-size: 0.8125rem;
-  font-weight: 700;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -263,7 +255,7 @@
   flex-direction: column;
   align-items: flex-end;
   gap: 3px;
-  color: var(--color-navy-700);
+  color: var(--color-neutral-700);
   font-size: 0.6875rem;
   font-weight: 700;
   white-space: nowrap;
@@ -307,8 +299,8 @@
 
 .status {
   border-radius: 6px;
-  background: var(--color-navy-50);
-  color: var(--color-navy-700);
+  background: var(--color-neutral-100);
+  color: var(--color-neutral-700);
   font-size: 0.625rem;
   font-weight: 700;
   padding: 4px 8px;
@@ -317,7 +309,7 @@
 
 .cortexLink {
   min-height: 32px;
-  color: var(--color-gold-700);
+  color: var(--color-primary);
   font-size: 0.6875rem;
   font-weight: 700;
   white-space: nowrap;
@@ -325,7 +317,7 @@
 
 .emptyState {
   display: flex;
-  min-height: 130px;
+  min-height: 112px;
   flex-direction: column;
   justify-content: center;
   gap: 5px;
@@ -333,7 +325,7 @@
 }
 
 .emptyState strong {
-  color: var(--color-navy-900);
+  color: var(--color-neutral-900);
   font-size: 0.8125rem;
 }
 

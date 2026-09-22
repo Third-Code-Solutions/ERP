@@ -18,7 +18,7 @@ const runtimeRoots = [
   runtimePackagesRoot,
 ]
 const sidebarSource = readFileSync(
-  resolve(directory, '../components/nav/sidebar.tsx'),
+  resolve(directory, '../components/nav/workspace-navigation.tsx'),
   'utf8'
 )
 const faviconSource = readFileSync(resolve(directory, '../app/icon.svg'), 'utf8')
@@ -51,7 +51,7 @@ function collectTextFiles(root: string): string[] {
 describe('ABI OPS runtime branding', () => {
   it('uses ABI OPS identity in the authenticated shell mark', () => {
     expect(sidebarSource).toMatch(/aria-label="ABI OPS"/)
-    expect(sidebarSource).toMatch(/sidebar-brand-mark[\s\S]*>\s*A\s*</)
+    expect(sidebarSource).toMatch(/workspace-brand-mark[\s\S]*>\s*A\s*</)
   })
 
   it('uses ABI OPS identity in the browser favicon', () => {

@@ -1,36 +1,16 @@
 'use client'
 
-import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useRef } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { createSupabaseBrowserClient } from '@third-code-erp/auth/client'
 import type { AppRole } from '@third-code-erp/auth'
-import {
-  IconDashboard,
-  IconProjects,
-  IconPipeline,
-  IconBom,
-  IconBuilding,
-  IconUser,
-  IconInvoice,
-  IconPurchaseOrder,
-  IconDocuments,
-  IconReports,
-  IconLayers,
-  IconCheck,
-  IconActivity,
-  IconCortex,
-  IconSettings,
-  IconLogout,
-  IconUpload,
-  IconReceipt,
-} from '@/components/ui/icons'
+import { IconLogout } from '@/components/ui/icons'
+import { WorkspaceNavigation } from './workspace-navigation'
 import {
   visibleNavSections,
   roleLabel,
   activeNavHref,
-  type NavIconKey,
 } from '@/lib/operations/nav-config'
 import {
   cancelScheduledRoutePrefetch,
@@ -41,26 +21,6 @@ interface SidebarProps {
   user: User
   role: AppRole
   fullName?: string | null
-}
-
-const ICONS: Record<NavIconKey, (props: { size?: number; className?: string }) => React.ReactElement> = {
-  Dashboard: IconDashboard,
-  Projects: IconProjects,
-  Pipeline: IconPipeline,
-  Bom: IconBom,
-  Building: IconBuilding,
-  User: IconUser,
-  Invoice: IconInvoice,
-  PurchaseOrder: IconPurchaseOrder,
-  Documents: IconDocuments,
-  Reports: IconReports,
-  Layers: IconLayers,
-  Check: IconCheck,
-  Activity: IconActivity,
-  Cortex: IconCortex,
-  Settings: IconSettings,
-  Upload: IconUpload,
-  Receipt: IconReceipt,
 }
 
 export function Sidebar({ user, role, fullName }: SidebarProps) {
@@ -112,60 +72,14 @@ export function Sidebar({ user, role, fullName }: SidebarProps) {
   }
 
   return (
-    <nav className="sidebar" aria-label="Primary navigation">
-      <div className="sidebar-brand">
-        <div
-          className="sidebar-brand-mark"
-          aria-label="ABI OPS"
-          role="img"
-        >
-          A
-        </div>
-        <div className="sidebar-brand-text">
-          <span className="sidebar-brand-name">ABI OPS</span>
-          <span className="sidebar-brand-org">Actuate Builders Inc.</span>
-        </div>
-      </div>
-
-      {sections.map((section, sectionIndex) => {
-        const sectionId = `sidebar-section-${sectionIndex}`
-
-        return (
-          <div
-            className="sidebar-section"
-            key={section.label}
-            aria-labelledby={sectionId}
-          >
-            <div className="sidebar-section-label" id={sectionId}>
-              {section.label}
-            </div>
-            {section.items.map((item) => {
-              const Icon = ICONS[item.iconKey] ?? IconActivity
-              const isActive = currentNavHref === item.href
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  prefetch={false}
-                  className={`sidebar-item ${isActive ? 'active' : ''}`}
-                  aria-current={isActive ? 'page' : undefined}
-                  aria-label={item.label}
-                  title={item.description ? `${item.label}: ${item.description}` : item.label}
-                  onMouseEnter={() => prefetchOnIntent(item.href)}
-                  onMouseLeave={() => cancelPrefetchOnIntent(item.href)}
-                  onFocus={() => prefetchOnIntent(item.href)}
-                  onBlur={() => cancelPrefetchOnIntent(item.href)}
-                >
-                  <Icon size={16} className="sidebar-icon" />
-                  <span>{item.label}</span>
-                </Link>
-              )
-            })}
-          </div>
-        )
-      })}
-
-      <div className="sidebar-footer">
+    <WorkspaceNavigation
+      label="Primary navigation"
+      subtitle={roleLabel(role) + ' workspace'}
+      sections={sections}
+      activeHref={currentNavHref}
+      onLinkIntent={prefetchOnIntent}
+      onLinkLeave={cancelPrefetchOnIntent}
+      footer={
         <div className="sidebar-user" aria-label="Signed-in user">
           <div className="sidebar-user-avatar" aria-hidden>
             {initials}
@@ -188,7 +102,7 @@ export function Sidebar({ user, role, fullName }: SidebarProps) {
             <IconLogout size={15} />
           </button>
         </div>
-      </div>
-    </nav>
+      }
+    />
   )
 }

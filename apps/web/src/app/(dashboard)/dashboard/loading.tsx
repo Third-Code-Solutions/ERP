@@ -77,8 +77,8 @@ export default function DashboardPageLoading() {
 
       <div className="dashboard-loading-table">
         <div className="dashboard-loading-table-head">
-          {[140, 100, 100, 80, 80, 80].map((width) => (
-            <div className="skeleton" key={width} style={{ width }} />
+          {[140, 100, 100, 80, 80, 80].map((width, index) => (
+            <div className="skeleton" key={index} style={{ width }} />
           ))}
         </div>
         {Array.from({ length: 4 }).map((_, i) => (
