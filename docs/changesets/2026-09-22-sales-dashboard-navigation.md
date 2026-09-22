@@ -11,6 +11,7 @@
 
 - Focused component and navigation-policy tests cover Sales fallbacks and Owner deep links.
 - Web TypeScript and focused production-file ESLint passed under Node 22.
+- Updated the dashboard contract gate to require the authenticated role on both dashboard navigation components; its previous exact JSX assertion rejected the new required prop.
 
 ## Handoff
 
