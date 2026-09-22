@@ -7,6 +7,7 @@
 - Replaced raw opportunity type and lead-stage copy with user-facing labels.
 - Aggregated legacy and canonical opportunity stages consistently for dashboard KPIs, scorecards, alerts, and stage distribution.
 - Tenant-scoped sales-rep lookups and retained reps whose activity is terminal-only.
+- Applied Manila month and fiscal-year boundaries to forecast and KPI reporting, including tenant-scoped forecast rep labels.
 
 ## Verification
 

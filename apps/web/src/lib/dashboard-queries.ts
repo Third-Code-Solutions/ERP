@@ -37,7 +37,10 @@ import {
   WON_OPPORTUNITY_STAGES,
   type OpportunityStage,
 } from '@third-code-erp/shared-types'
-import { manilaBoundaries } from '@/lib/operations/cadence-engine'
+import {
+  manilaBoundaries,
+  manilaCalendarDate,
+} from '@/lib/operations/cadence-engine'
 import { getProjectCostControlTotalsForProjects } from '@/lib/operations/project-cost-control'
 import {
   getTodayThroughCoreApi,
@@ -524,9 +527,7 @@ export async function getManagementDashboard(
 
 export async function getDashboardKpis(tenantId: string): Promise<KpiData> {
   const now = new Date()
-  const fiscalYearStart = manilaBoundaries.startOfDay(
-    new Date(Date.UTC(now.getUTCFullYear(), 0, 1))
-  )
+  const fiscalYearStart = manilaFiscalYearStart(now)
 
   const [[activeResult], [wonResult], [leadResult]] = await Promise.all([
     db
@@ -588,6 +589,13 @@ export async function getStageDistribution(tenantId: string): Promise<StageRow[]
     .groupBy(opportunities.stage)
 
   return normalizeStageRows(rows)
+}
+
+export function manilaFiscalYearStart(now: Date): Date {
+  const manilaToday = manilaCalendarDate(now)
+  return manilaBoundaries.startOfDay(
+    new Date(Date.UTC(manilaToday.getUTCFullYear(), 0, 1))
+  )
 }
 
 type ActiveRepRow = {
@@ -947,23 +955,52 @@ export async function getConversionRates(tenantId: string): Promise<ConversionRa
 // `closing_date`. Closed-won and closed-lost rows are excluded.
 // -----------------------------------------------------------------------------
 
+export function monthlyForecastWindow(now: Date, monthsAhead: number) {
+  const manilaToday = manilaCalendarDate(now)
+  const startCalendarMonth = new Date(
+    Date.UTC(manilaToday.getUTCFullYear(), manilaToday.getUTCMonth(), 1)
+  )
+  const endCalendarMonth = new Date(
+    Date.UTC(
+      startCalendarMonth.getUTCFullYear(),
+      startCalendarMonth.getUTCMonth() + monthsAhead,
+      1
+    )
+  )
+  const months = Array.from({ length: monthsAhead }, (_, index) => {
+    const month = new Date(
+      Date.UTC(
+        startCalendarMonth.getUTCFullYear(),
+        startCalendarMonth.getUTCMonth() + index,
+        1
+      )
+    )
+    return `${month.getUTCFullYear()}-${String(month.getUTCMonth() + 1).padStart(2, '0')}`
+  })
+
+  return {
+    startMonth: manilaBoundaries.startOfDay(startCalendarMonth),
+    endMonth: manilaBoundaries.startOfDay(endCalendarMonth),
+    months,
+  }
+}
+
+export function manilaMonthKey(value: Date): string {
+  const calendarDate = manilaCalendarDate(value)
+  return `${calendarDate.getUTCFullYear()}-${String(calendarDate.getUTCMonth() + 1).padStart(2, '0')}`
+}
+
 export async function getMonthlyForecast(
   tenantId: string,
   monthsAhead = 6
 ): Promise<MonthlyForecastData> {
   const now = new Date()
-  const startMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
-  const endMonth = new Date(
-    Date.UTC(startMonth.getUTCFullYear(), startMonth.getUTCMonth() + monthsAhead, 1)
-  )
+  const { startMonth, endMonth, months } = monthlyForecastWindow(now, monthsAhead)
 
-  const months: string[] = []
-  for (let i = 0; i < monthsAhead; i += 1) {
-    const d = new Date(Date.UTC(startMonth.getUTCFullYear(), startMonth.getUTCMonth() + i, 1))
-    months.push(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`)
-  }
-
-  const TERMINAL = new Set(['closed_won', 'closed_lost', 'won', 'lost'])
+  const terminalStages = new Set<OpportunityStage>([
+    ...WON_OPPORTUNITY_STAGES,
+    ...LOST_OPPORTUNITY_STAGES,
+  ])
   const rows = await db
     .select({
       repId: opportunities.rep_id,
@@ -983,10 +1020,9 @@ export async function getMonthlyForecast(
   const byRep: Record<string, number[]> = {}
   for (const row of rows) {
     if (!row.closingDate) continue
-    if (TERMINAL.has(row.stage)) continue
+    if (terminalStages.has(row.stage)) continue
     const repId = row.repId ?? 'unassigned'
-    const d = new Date(row.closingDate)
-    const monthKey = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
+    const monthKey = manilaMonthKey(new Date(row.closingDate))
     const idx = months.indexOf(monthKey)
     if (idx < 0) continue
     const series = byRep[repId] ?? new Array<number>(monthsAhead).fill(0)
@@ -1000,7 +1036,7 @@ export async function getMonthlyForecast(
     const repUsers = await db
       .select({ id: users.id, email: users.email })
       .from(users)
-      .where(inArray(users.id, repIds))
+      .where(and(eq(users.tenant_id, tenantId), inArray(users.id, repIds)))
     for (const u of repUsers) repLabels[u.id] = u.email
   }
   if (byRep['unassigned']) repLabels['unassigned'] = 'Unassigned'

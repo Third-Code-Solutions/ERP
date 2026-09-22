@@ -13,7 +13,14 @@ vi.mock('@third-code-erp/shared-types/cost', () =>
   import('../../../../packages/shared-types/src/cost/index')
 )
 
-import { getAlerts, mergeRepScorecardRows, normalizeStageRows } from './dashboard-queries'
+import {
+  getAlerts,
+  manilaFiscalYearStart,
+  manilaMonthKey,
+  mergeRepScorecardRows,
+  monthlyForecastWindow,
+  normalizeStageRows,
+} from './dashboard-queries'
 
 const TENANT_ID = '22222222-2222-4222-8222-222222222222'
 const PROJECT_ID = '33333333-3333-4333-8333-333333333333'
@@ -88,5 +95,22 @@ describe('dashboard opportunity aggregation', () => {
       expect.objectContaining({ repId: 'won-rep', wonCount: 2, activeCount: 0 }),
       expect.objectContaining({ repId: 'lost-rep', lostCount: 3, activeCount: 0 }),
     ])
+  })
+})
+
+describe('dashboard Manila calendar boundaries', () => {
+  it('uses the Manila year and month when UTC is still on the prior year', () => {
+    const now = new Date('2026-12-31T16:30:00.000Z')
+    const window = monthlyForecastWindow(now, 2)
+
+    expect(window).toEqual({
+      startMonth: new Date('2026-12-31T16:00:00.000Z'),
+      endMonth: new Date('2027-02-28T16:00:00.000Z'),
+      months: ['2027-01', '2027-02'],
+    })
+    expect(manilaMonthKey(new Date('2026-12-31T16:00:00.000Z'))).toBe('2027-01')
+    expect(manilaFiscalYearStart(now)).toEqual(
+      new Date('2026-12-31T16:00:00.000Z')
+    )
   })
 })
