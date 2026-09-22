@@ -211,11 +211,11 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
       <KpiCards kpis={kpis} />
 
-      <ManagementHealth data={management} />
+      <ManagementHealth data={management} role={profile.role} />
 
       <div className="section-grid-2 dashboard-grid-split">
         <StageDistributionTable rows={stages} />
-        <AlertsPanel alerts={alerts} />
+        <AlertsPanel alerts={alerts} role={profile.role} />
       </div>
 
       <RepScorecardTable reps={reps} />

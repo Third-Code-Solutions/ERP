@@ -1,10 +1,12 @@
 import React from 'react'
 import Link from 'next/link'
+import type { AppRole } from '@third-code-erp/auth'
 import { formatCents, formatCentsCompact } from '@third-code-erp/shared-types'
 import type {
   ManagementDashboardData,
   ManagementProjectMarginRow,
 } from '@/lib/dashboard-queries'
+import { dashboardHrefForRole } from './dashboard-navigation'
 
 function signedMoney(cents: number): string {
   return `${cents > 0 ? '+' : ''}${formatCents(cents)}`
@@ -21,19 +23,30 @@ function varianceClass(value: number, positiveIsBad = true): string {
   return 'management-health__good'
 }
 
-function ProjectHealthRow({ row }: { row: ManagementProjectMarginRow }) {
+function ProjectHealthRow({
+  row,
+  role,
+}: {
+  row: ManagementProjectMarginRow
+  role: AppRole
+}) {
   const hasMarginBaseline =
     row.hasApprovedBom && row.tcvCents > 0 && row.hasApprovedBudget
+  const projectHref = dashboardHrefForRole(
+    role,
+    `/projects/${row.projectId}/cost`
+  )
 
   return (
     <tr>
       <td>
-        <Link
-          className="management-health__project-link"
-          href={`/projects/${row.projectId}/cost`}
-        >
+        {projectHref ? (
+          <Link className="management-health__project-link" href={projectHref}>
+            <strong>{row.projectName}</strong>
+          </Link>
+        ) : (
           <strong>{row.projectName}</strong>
-        </Link>
+        )}
         <span className="finance-cell-detail">
           {row.projectCode ?? 'No project code'} | {row.projectStatus.replace('_', ' ')}
         </span>
@@ -80,7 +93,13 @@ function ProjectHealthRow({ row }: { row: ManagementProjectMarginRow }) {
   )
 }
 
-export function ManagementHealth({ data }: { data: ManagementDashboardData }) {
+export function ManagementHealth({
+  data,
+  role,
+}: {
+  data: ManagementDashboardData
+  role: AppRole
+}) {
   return (
     <section className="management-health" aria-labelledby="management-health-heading">
       <div className="management-health__header">
@@ -126,7 +145,7 @@ export function ManagementHealth({ data }: { data: ManagementDashboardData }) {
             </thead>
             <tbody>
               {data.projectMargins.map((row) => (
-                <ProjectHealthRow key={row.projectId} row={row} />
+                <ProjectHealthRow key={row.projectId} row={row} role={role} />
               ))}
             </tbody>
           </table>
