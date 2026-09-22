@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   appendCortexMessage: vi.fn(),
   createCortexConversation: vi.fn(),
   searchCortexNodes: vi.fn(),
-  searchCortexNodesByTerms: vi.fn(),
+  searchCortexNodesWithRelationsByTerms: vi.fn(),
   cortexSemanticSearch: vi.fn(),
   getCortexGraphStats: vi.fn(),
   cortexKeywordAnswer: vi.fn(),
@@ -46,10 +46,13 @@ vi.mock('@third-code-erp/database', () => ({
   appendCortexMessage: mocks.appendCortexMessage,
   createCortexConversation: mocks.createCortexConversation,
   searchCortexNodes: mocks.searchCortexNodes,
-  searchCortexNodesByTerms: mocks.searchCortexNodesByTerms,
+  searchCortexNodesWithRelationsByTerms:
+    mocks.searchCortexNodesWithRelationsByTerms,
   cortexSemanticSearch: mocks.cortexSemanticSearch,
   getCortexGraphStats: mocks.getCortexGraphStats,
   cortexKeywordAnswer: mocks.cortexKeywordAnswer,
+  cortexEntitySearchTerms: (question: string) =>
+    question.toLowerCase().split(/[^a-z0-9₱]+/i).filter(Boolean).slice(0, 8),
   cortexDescribeEntity: mocks.cortexDescribeEntity,
 }))
 
@@ -136,7 +139,7 @@ describe('Cortex chat conversation ownership', () => {
     mocks.appendCortexMessage.mockResolvedValue(undefined)
     mocks.getCortexGraphStats.mockResolvedValue({ byType: [] })
     mocks.searchCortexNodes.mockResolvedValue([])
-    mocks.searchCortexNodesByTerms.mockResolvedValue([])
+    mocks.searchCortexNodesWithRelationsByTerms.mockResolvedValue([])
     mocks.cortexSemanticSearch.mockResolvedValue([])
     mocks.embedText.mockResolvedValue([0.1])
     mocks.cortexKeywordAnswer.mockResolvedValue({
@@ -913,7 +916,7 @@ describe('Cortex chat conversation ownership', () => {
       summary: `Owner TIN ${tin}; phone ${phone}`,
     }
     mocks.searchCortexNodes.mockResolvedValue([node])
-    mocks.searchCortexNodesByTerms.mockResolvedValue([node])
+    mocks.searchCortexNodesWithRelationsByTerms.mockResolvedValue([node])
     mocks.openaiCreate.mockResolvedValue(
       (async function* () {
         yield { choices: [{ delta: { content: 'Safe model response' } }] }
@@ -977,7 +980,10 @@ describe('Cortex chat conversation ownership', () => {
       summary: 'Must not reach the prompt',
     }
     mocks.searchCortexNodes.mockResolvedValue([safeNode, unsafeNode])
-    mocks.searchCortexNodesByTerms.mockResolvedValue([safeNode, unsafeNode])
+    mocks.searchCortexNodesWithRelationsByTerms.mockResolvedValue([
+      safeNode,
+      unsafeNode,
+    ])
     mocks.openaiCreate.mockResolvedValue(
       (async function* () {
         yield { choices: [{ delta: { content: 'Safe response' } }] }

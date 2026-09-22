@@ -4,6 +4,11 @@ import { notFound } from 'next/navigation'
 import { requireUserProfile } from '@third-code-erp/auth'
 import { formatCentsCompact } from '@third-code-erp/shared-types'
 import { getOpportunityDetail } from '@/lib/opportunity-queries'
+import {
+  formatOpportunityDate,
+  opportunityTypeLabel,
+  opportunityWorkspaceAccess,
+} from './opportunity-detail-presentation'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -35,7 +40,11 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
     openCrCount,
   } = detail
 
-  const isWon = opp.stage === 'closed_won'
+  const workspace = opportunityWorkspaceAccess({
+    role: profile.role,
+    projectId: opp.project_id,
+    stage: opp.stage,
+  })
 
   return (
     <div>
@@ -68,21 +77,20 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
         <Link href={`/crm/opportunities/${id}/proposal`} className="opp-tab is-active">
           Proposal
         </Link>
-        <Link
-          href={opp.project_id ? `/projects/${opp.project_id}/bom` : '#'}
-          className={`opp-tab${opp.project_id ? '' : ' is-disabled'}`}
-          aria-disabled={!opp.project_id}
-        >
-          BOM
-        </Link>
-        <Link
-          href={opp.project_id ? `/projects/${opp.project_id}` : '#'}
-          className={`opp-tab${isWon && opp.project_id ? '' : ' is-disabled'}`}
-          aria-disabled={!isWon || !opp.project_id}
-          title={isWon ? 'Project workspace' : 'Available once the deal is Won'}
-        >
-          Project
-        </Link>
+        {workspace.canViewBom && workspace.bomPath ? (
+          <Link href={workspace.bomPath} className="opp-tab">BOM</Link>
+        ) : (
+          <span className="opp-tab is-disabled" aria-disabled="true" title="Your role does not have access to the project BOM">
+            BOM
+          </span>
+        )}
+        {workspace.canViewProject && workspace.projectPath ? (
+          <Link href={workspace.projectPath} className="opp-tab" title="Project workspace">Project</Link>
+        ) : (
+          <span className="opp-tab is-disabled" aria-disabled="true" title={workspace.projectDisabledReason}>
+            Project
+          </span>
+        )}
       </nav>
 
       <div className="section-grid-2">
@@ -98,14 +106,10 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
             <Meta
               label="Closing date"
               value={
-                opp.closing_date
-                  ? new Date(opp.closing_date).toLocaleDateString('en-PH', {
-                      year: 'numeric', month: 'short', day: 'numeric',
-                    })
-                  : '—'
+                formatOpportunityDate(opp.closing_date)
               }
             />
-            <Meta label="Type" value={opp.opportunity_type ?? '—'} />
+            <Meta label="Type" value={opportunityTypeLabel(opp.opportunity_type)} />
           </div>
         </div>
 

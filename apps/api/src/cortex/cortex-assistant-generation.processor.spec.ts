@@ -10,7 +10,10 @@ import {
 } from './cortex-assistant-generation.constants'
 import { CortexAssistantGenerationProcessor } from './cortex-assistant-generation.processor'
 import type { CortexAssistantGenerationJobQueue } from './cortex-assistant-generation.queue'
-import type { CortexAssistantGenerationStateService } from './cortex-assistant-generation.state'
+import {
+  prioritizeGenerationEvidence,
+  type CortexAssistantGenerationStateService,
+} from './cortex-assistant-generation.state'
 import type { CortexAssistantGenerationWorkerClient } from './cortex-assistant-generation.worker'
 import {
   CortexAssistantProviderExecutionError,
@@ -24,6 +27,32 @@ const TENANT_ID = '33333333-3333-4333-8333-333333333333'
 const USER_ID = '44444444-4444-4444-8444-444444444444'
 const NODE_ID = '55555555-5555-4555-8555-555555555555'
 const PROVIDER_ATTEMPT_ID = '66666666-6666-4666-8666-666666666666'
+
+describe('Core Cortex entity evidence ordering', () => {
+  it('keeps the account-linked opportunity ahead of unrelated direct evidence', () => {
+    const evidence = (
+      nodeId: string,
+      nodeType: string
+    ) => ({ nodeId, nodeType, title: nodeId, summary: null })
+
+    expect(
+      prioritizeGenerationEvidence(
+        [
+          evidence('unrelated-opportunity', 'opportunity'),
+          evidence('amihan-account', 'account'),
+          evidence('amihan-change-request', 'change_request'),
+          evidence('ambiguous-account', 'account'),
+        ],
+        [evidence('amihan-opportunity', 'opportunity')],
+        3
+      ).map((item) => item.nodeId)
+    ).toEqual([
+      'amihan-account',
+      'amihan-opportunity',
+      'ambiguous-account',
+    ])
+  })
+})
 
 function transportJob(overrides: Partial<Job> = {}): Job {
   return {

@@ -13,6 +13,7 @@ import {
 import { and, asc, desc, eq, isNull, or } from 'drizzle-orm'
 import { PipelineBoard } from '@/components/pipeline/pipeline-board'
 import { opportunityKycGateMessage } from '@/lib/operations/opportunity-kyc'
+import { pipelineClosingDate } from './pipeline-card-model'
 
 export const metadata: Metadata = { title: 'Pipeline Board' }
 
@@ -148,7 +149,7 @@ export default async function PipelineBoardPage() {
     gp_cents: o.gp_cents,
     weighted_tcv_cents: o.weighted_tcv_cents,
     probability: o.probability,
-    closing_date: o.closing_date?.toISOString().slice(0, 10) ?? null,
+    closing_date: pipelineClosingDate(o.closing_date),
     updated_at:
       o.updated_at instanceof Date
         ? o.updated_at.toISOString()
