@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { authenticateRole, type MagicLinkRole } from './helpers/supabase-magic-link'
 import { assertAuthenticatedSmokeReady } from './helpers/authenticated-smoke-readiness'
+import { assertConfiguredDemoProject } from './helpers/production-demo-boundary'
 
 const RUN_MATRIX = process.env.E2E_SCHEDULE_AUTH === '1'
 const PROJECT_ID = process.env.E2E_PROJECT_ID
@@ -11,6 +12,7 @@ test.describe('normalized project schedule role matrix', () => {
   test('all seeded roles can read the schedule and only SD/PM roles see mutation controls', async ({ browser }, testInfo) => {
     testInfo.setTimeout(300_000)
     const baseUrl = testInfo.project.use.baseURL; expect(baseUrl).toBeTruthy()
+    await assertConfiguredDemoProject(PROJECT_ID!)
     const roles: MagicLinkRole[] = ['admin', 'commercial', 'cx', 'design', 'finance', 'owner', 'procurement', 'safety', 'sales', 'sd_pm_pe', 'viewer']
     const requestedRole = process.env.E2E_ROLE_ONLY as MagicLinkRole | undefined; const selectedRoles = requestedRole ? roles.filter((role) => role === requestedRole) : roles; expect(selectedRoles.length).toBeGreaterThan(0)
     for (const role of selectedRoles) await test.step(role, async () => {

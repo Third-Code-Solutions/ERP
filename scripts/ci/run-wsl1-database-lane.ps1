@@ -286,6 +286,7 @@ $env:DATABASE_INVENTORY_EXPECTED = '1'
 $env:DATABASE_BUDGET_EXPECTED = '1'
 $env:DATABASE_STOCK_MOVEMENT_EXPECTED = '1'
 $env:ERP_API_INTEGRATION_EXPECTED = '1'
+$env:ACCOUNT_ACTIONS_DATABASE_EXPECTED = '1'
 
 Push-Location $repositoryRoot
 try {
@@ -342,8 +343,15 @@ try {
     'exec',
     'vitest',
     'run',
+    'src/app/(dashboard)/crm/accounts/actions.database.integration.test.ts',
     'src/app/(dashboard)/crm/opportunities/[id]/proposal/change-request-workflow.integration.test.ts',
-    '--reporter=dot'
+    '--reporter=json',
+    "--outputFile=$(Join-Path $artifactRoot 'web-integration-vitest.json')"
+  )
+  Invoke-Checked -Command 'node' -ArgumentList @(
+    'scripts/assert-vitest-no-skips.mjs',
+    (Join-Path $artifactRoot 'web-integration-vitest.json'),
+    'Web database workflow tests'
   )
 } finally {
   Pop-Location

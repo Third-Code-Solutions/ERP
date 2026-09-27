@@ -13,6 +13,7 @@ import {
 } from '@third-code-erp/database/schema'
 import { createSupabaseAdminClient } from '@third-code-erp/auth'
 import { hashToken } from '@/lib/operations/integrations/canvas-sign'
+import { runSignedBomAward } from '@/lib/operations/award-automation'
 import { writeAuditLogInTransaction } from '@/lib/audit'
 import {
   publicSigningWritesUseCoreApi,
@@ -100,17 +101,47 @@ async function stampSignedSource(
   now: Date
 ): Promise<boolean> {
   if (session.entity_type === 'bom') {
-    const rows = await tx
-      .update(boms)
-      .set({ status: 'locked', locked_at: now, updated_at: now })
+    const [bom] = await tx
+      .select({
+        status: boms.status,
+      })
+      .from(boms)
       .where(
         and(
           eq(boms.id, session.entity_id),
           eq(boms.tenant_id, session.tenant_id)
         )
       )
+      .limit(1)
+      .for('update')
+    if (!bom) return false
+    if (bom.status !== 'approved') {
+      throw new PublicSigningError('Only an approved BOM can be signed.')
+    }
+
+    const rows = await tx
+      .update(boms)
+      .set({ status: 'locked', locked_at: now, updated_at: now })
+      .where(
+        and(
+          eq(boms.id, session.entity_id),
+          eq(boms.tenant_id, session.tenant_id),
+          eq(boms.status, 'approved')
+        )
+      )
       .returning({ id: boms.id })
-    return rows.length === 1
+    if (rows.length !== 1) {
+      throw new PublicSigningError('Only an approved BOM can be signed.')
+    }
+
+    await runSignedBomAward(tx, {
+      tenantId: session.tenant_id,
+      bomId: session.entity_id,
+      actorId: null,
+      downPaymentBps: 0,
+      now,
+    })
+    return true
   }
 
   if (session.entity_type === 'contract') {
@@ -198,7 +229,8 @@ async function removeUploadedSignature(
  *   2. Validate (not signed, not expired, not revoked).
  *   3. Decode PNG and upload it under a collision-resistant Storage key.
  *   4. Lock and revalidate the signing session inside one DB transaction.
- *   5. Insert the document and stamp both session and tenant-scoped source.
+ *   5. Insert the document and stamp both session and tenant-scoped source;
+ *      a signed BOM also creates its award handoff in that transaction.
  *   6. Insert the nullable-actor audit before the same transaction commits.
  *   7. Remove the uploaded object if the DB transaction fails.
  *

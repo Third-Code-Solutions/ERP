@@ -9,6 +9,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
+import { runSignedBomAward } from '@third-code-erp/operations/signed-bom-award'
 import {
   boms,
   certificatesOfCompletion,
@@ -166,9 +167,6 @@ export class PublicSigningService {
       .limit(1)
     if (!session) throw new NotFoundException('Invalid signing link.')
 
-    const initialError = stateError(session, new Date())
-    if (initialError) throw new ConflictException(initialError)
-
     if (!tenantIds.includes(session.tenant_id)) {
       throw new ServiceUnavailableException(
         'Public signing is not enabled for this tenant; no signature was recorded.'
@@ -202,6 +200,9 @@ export class PublicSigningService {
       }
       if (existing.state === 'succeeded') return replayResult(existing.result)
     }
+
+    const initialError = stateError(session, new Date())
+    if (initialError) throw new ConflictException(initialError)
 
     const projectId = await this.resolveProjectId(
       this.database.client,
@@ -294,8 +295,6 @@ export class PublicSigningService {
       .limit(1)
       .for('update')
     if (!lockedSession) throw new NotFoundException('Invalid signing link.')
-    const lockedStateError = stateError(lockedSession, new Date())
-    if (lockedStateError) throw new ConflictException(lockedStateError)
 
     await transaction
       .insert(publicSigningRequests)
@@ -339,6 +338,8 @@ export class PublicSigningService {
       )
     }
     if (request.state === 'succeeded') return replayResult(request.result)
+    const lockedStateError = stateError(lockedSession, new Date())
+    if (lockedStateError) throw new ConflictException(lockedStateError)
 
     const signedAt = new Date()
     const documentId = await this.createSignedDocument(
@@ -357,6 +358,15 @@ export class PublicSigningService {
       signedAt
     )
     if (!stamped) throw new NotFoundException('Source entity not found.')
+
+    if (lockedSession.entity_type === 'bom') {
+      await runSignedBomAward(transaction, {
+        tenantId,
+        bomId: lockedSession.entity_id,
+        actorId: null,
+        now: signedAt,
+      })
+    }
 
     const [updatedSession] = await transaction
       .update(signatureSessions)
@@ -452,7 +462,11 @@ export class PublicSigningService {
       const rows = await transaction
         .update(boms)
         .set({ status: 'locked', locked_at: now, updated_at: now })
-        .where(and(eq(boms.id, session.entity_id), eq(boms.tenant_id, session.tenant_id)))
+        .where(and(
+          eq(boms.id, session.entity_id),
+          eq(boms.tenant_id, session.tenant_id),
+          eq(boms.status, 'approved')
+        ))
         .returning({ id: boms.id })
       return rows.length === 1
     }

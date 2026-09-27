@@ -1,36 +1,13 @@
 import type { BrowserContext } from '@playwright/test'
 import { readE2EEnv, type E2EEnv } from './env'
+import { DEMO_ROLE_EMAILS, resolveDemoTenantId, type DemoRole } from './production-demo-boundary'
 
-export type MagicLinkRole =
-  | 'admin'
-  | 'commercial'
-  | 'cx'
-  | 'design'
-  | 'finance'
-  | 'owner'
-  | 'procurement'
-  | 'safety'
-  | 'sales'
-  | 'sd_pm_pe'
-  | 'viewer'
-
-const ROLE_TEST_EMAILS: Record<MagicLinkRole, string> = {
-  admin: 'admin@abi.demo.ph',
-  commercial: 'commercial@abi.demo.ph',
-  cx: 'cx@abi.demo.ph',
-  design: 'design@abi.demo.ph',
-  finance: 'finance@abi.demo.ph',
-  owner: 'owner@abi.demo.ph',
-  procurement: 'procurement@abi.demo.ph',
-  safety: 'safety@abi.demo.ph',
-  sales: 'sales@abi.demo.ph',
-  sd_pm_pe: 'sd@abi.demo.ph',
-  viewer: 'viewer@abi.demo.ph',
-}
+export type MagicLinkRole = DemoRole
 
 type UserProfile = {
   email: string
   tenant_id: string
+  account_status: string
 }
 
 type AuthenticatedRole = {
@@ -45,11 +22,12 @@ type AuthenticatedRole = {
 function isUserProfile(value: unknown): value is UserProfile {
   if (!value || typeof value !== 'object') return false
   // The REST payload is untrusted JSON; this post-guard view is limited to
-  // checking the two primitive fields required by the role harness.
+  // checking the primitive fields required by the role harness.
   const candidate = value as Record<string, unknown>
   return (
     typeof candidate.email === 'string' &&
-    typeof candidate.tenant_id === 'string'
+    typeof candidate.tenant_id === 'string' &&
+    typeof candidate.account_status === 'string'
   )
 }
 
@@ -62,7 +40,7 @@ function assertObject(value: unknown, label: string): Record<string, unknown> {
 }
 
 export async function authenticateRole(
-  context: BrowserContext,
+  context: Pick<BrowserContext, 'addCookies'>,
   baseUrl: string,
   role: MagicLinkRole
 ): Promise<AuthenticatedRole> {
@@ -78,9 +56,9 @@ export async function authenticateRole(
     apikey: serviceRoleKey,
     Authorization: `Bearer ${serviceRoleKey}`,
   }
-  const roleEmail = ROLE_TEST_EMAILS[role]
+  const roleEmail = DEMO_ROLE_EMAILS[role]
   const profileResponse = await fetch(
-    `${supabaseUrl}/rest/v1/users?select=email,tenant_id&role=eq.${encodeURIComponent(role)}&email=eq.${encodeURIComponent(roleEmail)}&limit=2`,
+    `${supabaseUrl}/rest/v1/users?select=email,tenant_id,account_status&role=eq.${encodeURIComponent(role)}&email=eq.${encodeURIComponent(roleEmail)}&limit=2`,
     { headers: serviceHeaders }
   )
   if (!profileResponse.ok) {
@@ -97,6 +75,16 @@ export async function authenticateRole(
     )
   }
   const profile = profiles[0]!
+  const expectedDemoSlug = process.env.E2E_DEMO_TENANT_SLUG?.trim()
+  if (expectedDemoSlug) {
+    const expectedTenantId = await resolveDemoTenantId(expectedDemoSlug)
+    if (profile.tenant_id !== expectedTenantId) {
+      throw new Error(`${role} demo profile is outside the dedicated demo tenant`)
+    }
+    if (profile.account_status !== 'active') {
+      throw new Error(`${role} demo profile is not active`)
+    }
+  }
 
   const linkResponse = await fetch(`${supabaseUrl}/auth/v1/admin/generate_link`, {
     method: 'POST',

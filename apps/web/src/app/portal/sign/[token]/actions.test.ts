@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   upload: vi.fn(),
   remove: vi.fn(),
   writeAuditLogInTransaction: vi.fn(),
+  runSignedBomAward: vi.fn(),
   publicSigningWritesUseCoreApi: vi.fn(),
   signPublicSignatureThroughCoreApi: vi.fn(),
 }))
@@ -40,6 +41,10 @@ vi.mock('@third-code-erp/auth', () => ({
 
 vi.mock('@/lib/audit', () => ({
   writeAuditLogInTransaction: mocks.writeAuditLogInTransaction,
+}))
+
+vi.mock('@/lib/operations/award-automation', () => ({
+  runSignedBomAward: mocks.runSignedBomAward,
 }))
 
 vi.mock('@/lib/erp-core-client', () => ({
@@ -159,6 +164,7 @@ describe('public canvas signing integrity', () => {
       storage: { from: mocks.storageFrom },
     })
     mocks.writeAuditLogInTransaction.mockResolvedValue(undefined)
+    mocks.runSignedBomAward.mockResolvedValue(undefined)
   })
 
   it('rejects malformed and oversized PNG payloads before external work', async () => {
@@ -226,6 +232,98 @@ describe('public canvas signing integrity', () => {
       mocks.writeAuditLogInTransaction.mock.invocationCallOrder[0]!
     )
     expect(mocks.remove).not.toHaveBeenCalled()
+  })
+
+  it('awards an approved BOM in the same transaction as its canvas signature', async () => {
+    const bomSession = { ...session, entity_type: 'bom' as const }
+    mocks.limit.mockReset()
+    mocks.limit
+      .mockResolvedValueOnce([bomSession])
+      .mockResolvedValueOnce([{ project_id: PROJECT_ID }])
+    mocks.txFor.mockReset()
+    mocks.txFor
+      .mockResolvedValueOnce([bomSession])
+      .mockResolvedValueOnce([{
+        status: 'approved',
+        approvedBy: SESSION_ID,
+        createdBy: null,
+      }])
+
+    await expect(recordCanvasSign(signInput())).resolves.toEqual({ ok: true })
+
+    expect(mocks.runSignedBomAward).toHaveBeenCalledOnce()
+    expect(mocks.runSignedBomAward).toHaveBeenCalledWith(
+      expect.objectContaining({ update: mocks.txUpdate, insert: mocks.txInsert }),
+      {
+        tenantId: TENANT_ID,
+        bomId: ENTITY_ID,
+        actorId: null,
+        downPaymentBps: 0,
+        now: expect.any(Date),
+      }
+    )
+    expect(mocks.txUpdate).toHaveBeenCalledTimes(2)
+    expect(mocks.txUpdate.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.runSignedBomAward.mock.invocationCallOrder[0]!
+    )
+    expect(mocks.runSignedBomAward.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.txUpdate.mock.invocationCallOrder[1]!
+    )
+    expect(mocks.writeAuditLogInTransaction).toHaveBeenCalledOnce()
+    expect(mocks.remove).not.toHaveBeenCalled()
+  })
+
+  it('refuses a draft BOM before locking or awarding it', async () => {
+    const bomSession = { ...session, entity_type: 'bom' as const }
+    mocks.limit.mockReset()
+    mocks.limit
+      .mockResolvedValueOnce([bomSession])
+      .mockResolvedValueOnce([{ project_id: PROJECT_ID }])
+    mocks.txFor.mockReset()
+    mocks.txFor
+      .mockResolvedValueOnce([bomSession])
+      .mockResolvedValueOnce([{
+        status: 'draft',
+        approvedBy: null,
+        createdBy: SESSION_ID,
+      }])
+
+    await expect(recordCanvasSign(signInput())).resolves.toEqual({
+      ok: false,
+      error: 'Only an approved BOM can be signed.',
+    })
+    expect(mocks.txUpdate).not.toHaveBeenCalled()
+    expect(mocks.runSignedBomAward).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
+    expect(mocks.remove).toHaveBeenCalledOnce()
+  })
+
+  it('fails signing and cleans the upload when the BOM award cannot commit', async () => {
+    const bomSession = { ...session, entity_type: 'bom' as const }
+    mocks.limit.mockReset()
+    mocks.limit
+      .mockResolvedValueOnce([bomSession])
+      .mockResolvedValueOnce([{ project_id: PROJECT_ID }])
+    mocks.txFor.mockReset()
+    mocks.txFor
+      .mockResolvedValueOnce([bomSession])
+      .mockResolvedValueOnce([{
+        status: 'approved',
+        approvedBy: SESSION_ID,
+        createdBy: null,
+      }])
+    mocks.runSignedBomAward.mockRejectedValue(new Error('Budget could not be created'))
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    await expect(recordCanvasSign(signInput())).resolves.toEqual({
+      ok: false,
+      error: 'Could not record signature. Try again.',
+    })
+    expect(mocks.runSignedBomAward).toHaveBeenCalledOnce()
+    expect(mocks.txUpdate).toHaveBeenCalledOnce()
+    expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
+    expect(mocks.remove).toHaveBeenCalledOnce()
+    errorSpy.mockRestore()
   })
 
   it('rolls back the official result and removes Storage when audit fails', async () => {

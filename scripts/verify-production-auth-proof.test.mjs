@@ -57,3 +57,16 @@ test('production recovery proof is one-shot and follows magic-link role QA', asy
   )
   assert.match(workflow, /e2e\/complete-route-audit\.spec\.ts/)
 })
+
+test('protected production promotion gates on read-only cross-tenant project isolation', async () => {
+  const workflow = await readFile(
+    resolve('.github/workflows/deploy-production.yml'),
+    'utf8'
+  )
+  assert.match(
+    workflow,
+    /Verify production demo role and project boundary[\s\S]*?Verify production cross-tenant project isolation[\s\S]*?Run authenticated production E2E/
+  )
+  assert.match(workflow, /E2E_CROSS_TENANT_PROOF: "1"/)
+  assert.match(workflow, /e2e\/production-cross-tenant-isolation\.spec\.ts[\s\S]*?--retries=0[\s\S]*?assert-playwright-no-skips/)
+})

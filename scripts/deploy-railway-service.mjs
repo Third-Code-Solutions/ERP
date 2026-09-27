@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url'
 export const targets = {
   api: {
     service: 'c45b3d01-036a-4663-a524-0713d782fce3',
-    paths: ['apps/api', 'packages/ai', 'packages/config', 'packages/database', 'packages/shared-types', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'turbo.json', 'railway.toml', '.npmrc', '.dockerignore'],
+    paths: ['apps/api', 'packages/ai', 'packages/config', 'packages/database', 'packages/operations', 'packages/shared-types', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'turbo.json', 'railway.toml', '.npmrc', '.dockerignore'],
     health: 'https://third-code-erp-api-production.up.railway.app/ready',
   },
   cad: {

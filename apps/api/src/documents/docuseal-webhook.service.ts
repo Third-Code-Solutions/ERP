@@ -1,5 +1,6 @@
-import { Inject, Injectable } from '@nestjs/common'
+import { ConflictException, Inject, Injectable, ServiceUnavailableException } from '@nestjs/common'
 import {
+  awardHandoffs,
   bomPortalTokens,
   boms,
   documents,
@@ -7,6 +8,7 @@ import {
   projects,
   users,
 } from '@third-code-erp/database/schema'
+import { runSignedBomAward } from '@third-code-erp/operations/signed-bom-award'
 import {
   docuSealWebhookCommandSchema,
   docuSealWebhookResultSchema,
@@ -78,6 +80,7 @@ export class DocuSealWebhookService {
           id: boms.id,
           projectId: boms.project_id,
           tenantId: boms.tenant_id,
+          status: boms.status,
           lockedAt: boms.locked_at,
           tcvCents: boms.tcv_cents,
           projectName: projects.name,
@@ -121,20 +124,26 @@ export class DocuSealWebhookService {
       }
 
       if (token.usedAt) {
+        const [handoff] = await transaction
+          .select({ id: awardHandoffs.id })
+          .from(awardHandoffs)
+          .where(and(
+            eq(awardHandoffs.tenant_id, token.tenantId),
+            eq(awardHandoffs.source_bom_id, bom.id),
+            eq(awardHandoffs.status, 'active')
+          ))
+          .limit(1)
+        if (!handoff) throw new ConflictException('Signed BOM award handoff is missing.')
         return docuSealWebhookResultSchema.parse(baseResult)
       }
 
-      const now = new Date()
-      await transaction
-        .update(bomPortalTokens)
-        .set({ used_at: now })
-        .where(
-          and(
-            eq(bomPortalTokens.id, token.id),
-            eq(bomPortalTokens.tenant_id, token.tenantId),
-            isNull(bomPortalTokens.used_at)
-          )
+      if (bom.status !== 'approved') {
+        throw new ServiceUnavailableException(
+          'BOM must be approved before the provider signature can be recorded.'
         )
+      }
+
+      const now = new Date()
 
       if (signedDocument) {
         await transaction.insert(documents).values({
@@ -151,7 +160,7 @@ export class DocuSealWebhookService {
         })
       }
 
-      await transaction
+      const [lockedBom] = await transaction
         .update(boms)
         .set({
           status: 'locked',
@@ -161,9 +170,30 @@ export class DocuSealWebhookService {
         .where(
           and(
             eq(boms.id, bom.id),
-            eq(boms.tenant_id, token.tenantId)
+            eq(boms.tenant_id, token.tenantId),
+            eq(boms.status, 'approved')
           )
         )
+        .returning({ id: boms.id })
+      if (!lockedBom) throw new ConflictException('BOM must be approved before signing.')
+
+      await runSignedBomAward(transaction, {
+        tenantId: token.tenantId,
+        bomId: bom.id,
+        actorId: null,
+        now,
+      })
+
+      const [usedToken] = await transaction
+        .update(bomPortalTokens)
+        .set({ used_at: now })
+        .where(and(
+          eq(bomPortalTokens.id, token.id),
+          eq(bomPortalTokens.tenant_id, token.tenantId),
+          isNull(bomPortalTokens.used_at)
+        ))
+        .returning({ id: bomPortalTokens.id })
+      if (!usedToken) throw new ConflictException('Signing token was already used.')
 
       const recipients = await transaction
         .select({ id: users.id, email: users.email })

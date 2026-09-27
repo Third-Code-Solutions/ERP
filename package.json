@@ -10,7 +10,7 @@
   "scripts": {
     "build": "turbo build --concurrency=1",
     "dev": "turbo dev --parallel",
-    "lint": "eslint --max-warnings=0 apps/api/src apps/web/src packages/ai/src packages/auth/src packages/database/src packages/shared-types/src",
+    "lint": "eslint --max-warnings=0 apps/api/src apps/web/src packages/ai/src packages/auth/src packages/database/src packages/operations/src packages/shared-types/src",
     "typecheck": "turbo typecheck",
     "test": "turbo test --concurrency=1",
     "test:build-ops-invariants": "node --test scripts/verify-build-ops-invariants.test.mjs",

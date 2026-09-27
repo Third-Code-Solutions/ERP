@@ -9,6 +9,7 @@ import {
   authenticateRole,
   type MagicLinkRole,
 } from './helpers/supabase-magic-link'
+import { assertConfiguredDemoProject } from './helpers/production-demo-boundary'
 
 const RUN_ROLE_MATRIX = process.env.E2E_ROLE_MATRIX_AUTH === '1'
 
@@ -31,6 +32,7 @@ test.describe('production role access matrix', () => {
     const baseUrl = testInfo.project.use.baseURL
     expect(baseUrl).toBeTruthy()
     const projectId = z.string().uuid().parse(process.env.E2E_PROJECT_ID)
+    await assertConfiguredDemoProject(projectId)
 
     const allRoles: MagicLinkRole[] = [
       'admin',

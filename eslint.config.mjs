@@ -7,6 +7,7 @@ const genericTypeScriptFiles = [
   'packages/ai/src/**/*.{ts,tsx}',
   'packages/auth/src/**/*.{ts,tsx}',
   'packages/database/src/**/*.{ts,tsx}',
+  'packages/operations/src/**/*.{ts,tsx}',
   'packages/shared-types/src/**/*.{ts,tsx}',
 ]
 
