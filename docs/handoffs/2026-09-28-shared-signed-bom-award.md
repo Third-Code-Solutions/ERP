@@ -42,3 +42,9 @@ against the shared export and complete browser signing evidence. Inputs:
 ADR-039, `@third-code-erp/operations/signed-bom-award`, the Web compatibility
 delegate, and the focused checks above. Expected output: confirmed Web route
 behavior, same-transaction signing, and post-commit UI state.
+→ Handoff to Agent 13. Reason: the new operations package is a production
+container input. Inputs: Core/Web Dockerfile workspace copies,
+`railway.toml` watch pattern, and `deploy-railway-service.mjs` source comparison.
+Expected output: verify the exact-commit Core container build and protected
+Railway promotion; do not retain an earlier container when operations source
+changes.

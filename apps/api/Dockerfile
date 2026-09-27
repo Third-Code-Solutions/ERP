@@ -8,6 +8,7 @@ COPY apps/api/package.json apps/api/package.json
 COPY packages/ai/package.json packages/ai/package.json
 COPY packages/config/package.json packages/config/package.json
 COPY packages/database/package.json packages/database/package.json
+COPY packages/operations/package.json packages/operations/package.json
 COPY packages/shared-types/package.json packages/shared-types/package.json
 RUN pnpm install --frozen-lockfile
 
@@ -15,6 +16,7 @@ COPY apps/api apps/api
 COPY packages/ai packages/ai
 COPY packages/config packages/config
 COPY packages/database packages/database
+COPY packages/operations packages/operations
 COPY packages/shared-types packages/shared-types
 RUN pnpm --filter @third-code-erp/api build
 
@@ -28,6 +30,7 @@ COPY apps/api/package.json apps/api/package.json
 COPY packages/ai/package.json packages/ai/package.json
 COPY packages/config/package.json packages/config/package.json
 COPY packages/database/package.json packages/database/package.json
+COPY packages/operations/package.json packages/operations/package.json
 COPY packages/shared-types/package.json packages/shared-types/package.json
 RUN pnpm install --prod --frozen-lockfile
 

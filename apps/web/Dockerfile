@@ -11,6 +11,7 @@ COPY packages/ai/package.json packages/ai/package.json
 COPY packages/auth/package.json packages/auth/package.json
 COPY packages/config/package.json packages/config/package.json
 COPY packages/database/package.json packages/database/package.json
+COPY packages/operations/package.json packages/operations/package.json
 COPY packages/shared-types/package.json packages/shared-types/package.json
 RUN pnpm install --frozen-lockfile
 
