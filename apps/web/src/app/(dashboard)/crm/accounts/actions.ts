@@ -1,5 +1,6 @@
 'use server'
 
+import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { and, eq } from 'drizzle-orm'
@@ -20,7 +21,7 @@ import {
   kycArtifactCreateCommandSchema,
   type AccountKycDocumentResult,
 } from '@third-code-erp/shared-types'
-import { writeAuditLog } from '@/lib/audit'
+import { stampActorInTransaction, writeAuditLogInTransaction } from '@/lib/audit'
 import {
   createKycArtifactThroughCoreApi,
   getAccountKycDocumentsThroughCoreApi,
@@ -34,14 +35,47 @@ function guard(role: AppRole, capability: ErpCapability) {
   return null
 }
 
+type AccountAction = 'account.create' | 'account.kyc_review'
+
+function logAccountAction(input: {
+  traceId: string
+  tenantId: string | null
+  actorId: string | null
+  action: AccountAction
+  outcome: string
+}): void {
+  console.info(JSON.stringify({
+    trace_id: input.traceId,
+    tenant_id: input.tenantId,
+    actor_id: input.actorId,
+    action: input.action,
+    outcome: input.outcome,
+  }))
+}
+
+async function requireAccountProfile(traceId: string, action: AccountAction) {
+  try {
+    return await requireUserProfile()
+  } catch (error) {
+    logAccountAction({ traceId, tenantId: null, actorId: null, action, outcome: 'profile_unavailable' })
+    throw error
+  }
+}
+
 // REFACTOR.md M1 US-001 — Create Account with KYC.
 // The form collects core fields; KYC artifacts are uploaded separately
 // (via addKycArtifact) so the upload flow can use the existing 3-step
 // signed-URL pipeline.
 export async function createAccount(formData: FormData): Promise<{ error?: string }> {
-  const profile = await requireUserProfile()
+  const traceId = randomUUID()
+  const action = 'account.create' as const
+  const profile = await requireAccountProfile(traceId, action)
+  const log = (outcome: string) => logAccountAction({ traceId, tenantId: profile.tenantId, actorId: profile.user.id, action, outcome })
   const forbid = guard(profile.role, 'account.create')
-  if (forbid) return { error: forbid }
+  if (forbid) {
+    log('forbidden')
+    return { error: forbid }
+  }
 
   const parsed = createAccountSchema.safeParse({
     name: formData.get('name'),
@@ -52,53 +86,75 @@ export async function createAccount(formData: FormData): Promise<{ error?: strin
   })
   if (!parsed.success) {
     const first = parsed.error.errors[0]
+    log('validation_error')
     return { error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}` }
   }
   const input = parsed.data
 
-  // Duplicate detection (US-001 #4) — match on exact name (tenant-scoped).
-  // Email-domain matching would be ideal but requires email parsing; the
-  // unique index on (tenant_id, name) is the hard guard.
-  const [dupe] = await db
-    .select({ id: accounts.id })
-    .from(accounts)
-    .where(and(eq(accounts.tenant_id, profile.tenantId), eq(accounts.name, input.name)))
-    .limit(1)
-  if (dupe) return { error: `An account named "${input.name}" already exists.` }
+  let createdId: string | null
+  try {
+    createdId = await db.transaction(async (tx) => {
+      await stampActorInTransaction(tx, profile.user.id)
+      // Keep the duplicate check and audit append in the same transaction as
+      // the insert. The database unique index remains the race guard.
+      const [dupe] = await tx
+        .select({ id: accounts.id })
+        .from(accounts)
+        .where(and(eq(accounts.tenant_id, profile.tenantId), eq(accounts.name, input.name)))
+        .limit(1)
+      if (dupe) return null
 
-  const [created] = await db
-    .insert(accounts)
-    .values({
-      tenant_id: profile.tenantId,
-      name: input.name,
-      industry: input.industry,
-      billing_address: input.billing_address,
-      primary_email: input.primary_email,
-      primary_phone: input.primary_phone,
-      kyc_status: 'pending',
-      created_by: profile.user.id,
+      const [created] = await tx
+        .insert(accounts)
+        .values({
+          tenant_id: profile.tenantId,
+          name: input.name,
+          industry: input.industry,
+          billing_address: input.billing_address,
+          primary_email: input.primary_email,
+          primary_phone: input.primary_phone,
+          kyc_status: 'pending',
+          created_by: profile.user.id,
+        })
+        .returning({ id: accounts.id })
+      if (!created) throw new Error('Account insert returned no row')
+
+      await writeAuditLogInTransaction(tx, {
+        tenantId: profile.tenantId,
+        actorId: profile.user.id,
+        entityType: 'account',
+        entityId: created.id,
+        action: 'create',
+        diff: { name: input.name, industry: input.industry, kyc_status: 'pending' },
+      })
+      return created.id
     })
-    .returning({ id: accounts.id })
+  } catch {
+    log('unknown')
+    return { error: 'Account creation could not be confirmed. Refresh the account list before retrying.' }
+  }
+  if (!createdId) {
+    log('duplicate')
+    return { error: `An account named "${input.name}" already exists.` }
+  }
 
-  await writeAuditLog({
-    tenantId: profile.tenantId,
-    actorId: profile.user.id,
-    entityType: 'account',
-    entityId: created!.id,
-    action: 'create',
-    diff: { name: input.name, industry: input.industry, kyc_status: 'pending' },
-  })
-
+  log('success')
   revalidatePath('/crm/accounts')
   revalidatePath('/crm/kyc-queue')
-  redirect(`/crm/accounts/${created!.id}`)
+  redirect(`/crm/accounts/${createdId}`)
 }
 
 // REFACTOR.md M1 US-003 — Finance reviews KYC and stamps the decision.
 export async function reviewKyc(formData: FormData): Promise<{ error?: string }> {
-  const profile = await requireUserProfile()
+  const traceId = randomUUID()
+  const action = 'account.kyc_review' as const
+  const profile = await requireAccountProfile(traceId, action)
+  const log = (outcome: string) => logAccountAction({ traceId, tenantId: profile.tenantId, actorId: profile.user.id, action, outcome })
   const forbid = guard(profile.role, 'account.kyc_review')
-  if (forbid) return { error: forbid }
+  if (forbid) {
+    log('forbidden')
+    return { error: forbid }
+  }
 
   const parsed = reviewKycSchema.safeParse({
     account_id: formData.get('account_id'),
@@ -107,57 +163,69 @@ export async function reviewKyc(formData: FormData): Promise<{ error?: string }>
   })
   if (!parsed.success) {
     const first = parsed.error.errors[0]
+    log('validation_error')
     return { error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}` }
   }
   const input = parsed.data
 
-  // Verify tenant ownership before updating.
-  const [existing] = await db
-    .select({
-      id: accounts.id,
-      kyc_status: accounts.kyc_status,
-      name: accounts.name,
-    })
-    .from(accounts)
-    .where(and(eq(accounts.id, input.account_id), eq(accounts.tenant_id, profile.tenantId)))
-    .limit(1)
-  if (!existing) return { error: 'Account not found' }
-
-  const before = existing.kyc_status
   const decisionMap = {
     approved: 'approved' as const,
     flagged: 'flagged' as const,
     rejected: 'rejected' as const,
   }
 
-  await db
-    .update(accounts)
-    .set({
-      kyc_status: decisionMap[input.decision],
-      kyc_notes: input.notes,
-      kyc_decided_at: new Date(),
-      kyc_decided_by: profile.user.id,
-      updated_at: new Date(),
+  let found: boolean
+  try {
+    found = await db.transaction(async (tx) => {
+      await stampActorInTransaction(tx, profile.user.id)
+      const [existing] = await tx
+        .select({ id: accounts.id, kyc_status: accounts.kyc_status, kyc_notes: accounts.kyc_notes })
+        .from(accounts)
+        .where(and(eq(accounts.id, input.account_id), eq(accounts.tenant_id, profile.tenantId)))
+        .limit(1)
+        .for('update')
+      if (!existing) return false
+      const notes = input.notes ?? existing.kyc_notes
+      if (existing.kyc_status === decisionMap[input.decision] && existing.kyc_notes === notes) {
+        return true
+      }
+
+      const [updated] = await tx
+        .update(accounts)
+        .set({
+          kyc_status: decisionMap[input.decision],
+          kyc_notes: notes,
+          kyc_decided_at: new Date(),
+          kyc_decided_by: profile.user.id,
+          updated_at: new Date(),
+        })
+        .where(and(eq(accounts.id, input.account_id), eq(accounts.tenant_id, profile.tenantId)))
+        .returning({ id: accounts.id })
+      if (!updated) throw new Error('Account changed before KYC review was committed')
+
+      await writeAuditLogInTransaction(tx, {
+        tenantId: profile.tenantId,
+        actorId: profile.user.id,
+        entityType: 'account',
+        entityId: input.account_id,
+        action: input.decision === 'approved' ? 'approve' : 'status_change',
+        diff: {
+          kyc_status: { before: existing.kyc_status, after: decisionMap[input.decision] },
+          notes,
+        },
+      })
+      return true
     })
-    .where(
-      and(
-        eq(accounts.id, input.account_id),
-        eq(accounts.tenant_id, profile.tenantId)
-      )
-    )
+  } catch {
+    log('unknown')
+    return { error: 'KYC review could not be confirmed. Refresh the account before retrying.' }
+  }
+  if (!found) {
+    log('not_found')
+    return { error: 'Account not found' }
+  }
 
-  await writeAuditLog({
-    tenantId: profile.tenantId,
-    actorId: profile.user.id,
-    entityType: 'account',
-    entityId: input.account_id,
-    action: input.decision === 'approved' ? 'approve' : 'status_change',
-    diff: {
-      kyc_status: { before, after: decisionMap[input.decision] },
-      notes: input.notes ?? null,
-    },
-  })
-
+  log('success')
   revalidatePath('/crm/kyc-queue')
   revalidatePath(`/crm/accounts/${input.account_id}`)
   return {}

@@ -177,6 +177,7 @@ jobs:
       DATABASE_INVENTORY_EXPECTED: "1"
       DATABASE_BUDGET_EXPECTED: "1"
       DATABASE_STOCK_MOVEMENT_EXPECTED: "1"
+      ACCOUNT_ACTIONS_DATABASE_EXPECTED: "1"
       BUILD_OPS_DEMO_TENANT_SLUGS: abi-ops-local
       ERP_API_INTEGRATION_EXPECTED: "1"
       ERP_REDIS_RESTART_EXPECTED: "1"
@@ -274,6 +275,7 @@ jobs:
         run: >-
           pnpm --filter @third-code-erp/web exec vitest run
           src/lib/management-dashboard.integration.test.ts
+          'src/app/(dashboard)/crm/accounts/actions.database.integration.test.ts'
           'src/app/(dashboard)/crm/opportunities/[id]/proposal/change-request-workflow.integration.test.ts'
           --reporter=json
           --outputFile="$GITHUB_WORKSPACE/tmp/database-reproducibility/web-integration-vitest.json"
