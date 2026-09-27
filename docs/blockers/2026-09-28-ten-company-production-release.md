@@ -23,6 +23,10 @@ PR #119 are not deployed.
   in that run. The latter used one viewer identity, an active synthetic project
   in `buildops-e2e`, and one separately approved synthetic tenant/project. It
   does not establish isolation for all companies, roles, records, or actions.
+- PR #119 extends the same synthetic project isolation check to all eleven
+  seeded demo roles. A local read-only run against the deployed site passed
+  1/1 with zero retries, as did a separate 11-role route matrix run. The
+  extension has not passed the protected production workflow.
 - An authorized synthetic BOM in `buildops-e2e` was signed through the live
   canvas page. Read-only database verification found the locked BOM, signed
   session, signature document, active award handoff, project code, one budget
