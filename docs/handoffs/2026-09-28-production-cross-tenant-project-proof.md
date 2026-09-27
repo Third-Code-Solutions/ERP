@@ -1,0 +1,3 @@
+# Production cross-tenant project proof handoff
+
+→ Handoff to Agent 13 and Agent 12. Reason: the new security observation is wired into the protected production promotion workflow. Inputs: `production-cross-tenant-isolation.spec.ts`, the metadata-only fixture helper, workflow gate, and focused test evidence in the matching changeset. Expected output: review the release gate and execute it only through the protected production workflow against the exact release revision. If no active foreign fixture exists, record the blocked result; do not substitute a fabricated pass. This checks one resource and actor, so a wider 10-company matrix remains necessary for enterprise isolation claims.

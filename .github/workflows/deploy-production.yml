@@ -222,6 +222,21 @@ jobs:
           node "$GITHUB_WORKSPACE/scripts/assert-playwright-no-skips.mjs" \
             "$report_path" "production demo boundary"
 
+      - name: Verify production cross-tenant project isolation
+        working-directory: apps/web
+        env:
+          E2E_CROSS_TENANT_PROOF: "1"
+          PLAYWRIGHT_BASE_URL: https://thirdcode-erp.vercel.app
+        shell: bash
+        run: |
+          set -euo pipefail
+          report_path="$GITHUB_WORKSPACE/tmp/production-e2e/cross-tenant-isolation.json"
+          mkdir -p "$(dirname "$report_path")"
+          pnpm exec playwright test e2e/production-cross-tenant-isolation.spec.ts \
+            --project=chromium --workers=1 --retries=0 --reporter=json > "$report_path"
+          node "$GITHUB_WORKSPACE/scripts/assert-playwright-no-skips.mjs" \
+            "$report_path" "production cross-tenant project isolation"
+
       - name: Run authenticated production E2E
         working-directory: apps/web
         env:

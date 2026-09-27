@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { assertProductionDemoBoundary, DEMO_ROLE_EMAILS } from './helpers/production-demo-boundary'
+import { assertProductionDemoBoundary, DEMO_ROLE_EMAILS, resolveForeignProjectId } from './helpers/production-demo-boundary'
 import { authenticateRole } from './helpers/supabase-magic-link'
 
 const TENANT_ID = 'fdd60ae0-9819-4564-8626-3f5571d2dca1'
@@ -67,6 +67,34 @@ test('rejects an inactive role profile', async () => {
 test('rejects a project in another tenant', async () => {
   await expect(assertProductionDemoBoundary(fixtureFetch({ foreignProject: true })))
     .rejects.toThrow('Demo project is outside the dedicated demo tenant')
+})
+
+test('selects only an active foreign project through service-role read', async () => {
+  const foreignFetch: typeof fetch = async (input, init) => {
+    const url = new URL(String(input))
+    expect(url.pathname).toBe('/rest/v1/projects')
+    expect(url.searchParams.get('tenant_id')).toBe(`neq.${TENANT_ID}`)
+    expect(url.searchParams.get('deleted_at')).toBe('is.null')
+    expect(init?.method).toBeUndefined()
+    expect(init?.headers).toMatchObject({ apikey: 'fixture-service-key' })
+    return Response.json([{ id: PROJECT_ID, tenant_id: FOREIGN_TENANT_ID, deleted_at: null }])
+  }
+  await expect(resolveForeignProjectId(TENANT_ID, foreignFetch)).resolves.toBe(PROJECT_ID)
+})
+
+test('fails closed when no foreign project exists', async () => {
+  await expect(resolveForeignProjectId(TENANT_ID, async () => Response.json([])))
+    .rejects.toThrow('No safe active foreign project fixture is available')
+})
+
+test('rejects a same-tenant or deleted foreign fixture', async () => {
+  for (const row of [
+    { id: PROJECT_ID, tenant_id: TENANT_ID, deleted_at: null },
+    { id: PROJECT_ID, tenant_id: FOREIGN_TENANT_ID, deleted_at: '2026-01-01T00:00:00Z' },
+  ]) {
+    await expect(resolveForeignProjectId(TENANT_ID, async () => Response.json([row])))
+      .rejects.toThrow('No safe active foreign project fixture is available')
+  }
 })
 
 test('requires both protected production fixture selectors', async () => {

@@ -23,7 +23,6 @@ import {
   documents,
   projects,
   turnoverPackages,
-  accounts,
   contacts,
   opportunities,
 } from '@third-code-erp/database/schema'
@@ -131,9 +130,7 @@ export async function sendCocForSignature(
     return { error: `COC is in status "${coc.status}", cannot resend` }
   }
 
-  // Resolve the client signatory via the project's primary opportunity → account → primary contact.
-  // This is a best-effort lookup; if it fails we fall back to a placeholder
-  // so the DocuSeal call still works in dev.
+  // Resolve a tenant-linked client signatory before creating an external submission.
   const [opp] = await db
     .select({ account_id: opportunities.account_id })
     .from(opportunities)
@@ -145,46 +142,35 @@ export async function sendCocForSignature(
     )
     .limit(1)
 
-  let signerEmail = 'client@example.com'
-  let signerName = 'Client Signatory'
-  if (opp?.account_id) {
-    const [primary] = await db
-      .select({
-        full_name: contacts.full_name,
-        email: contacts.email,
-      })
-      .from(contacts)
-      .where(
-        and(
-          eq(contacts.account_id, opp.account_id),
-          eq(contacts.tenant_id, profile.tenantId),
-          eq(contacts.is_primary, true)
-        )
-      )
-      .limit(1)
-    if (primary?.email) {
-      signerEmail = primary.email
-      signerName = primary.full_name ?? signerName
-    }
-    // Stamp account name into the submission metadata for traceability.
-    const [acct] = await db
-      .select({ name: accounts.name })
-      .from(accounts)
-      .where(
-        and(
-          eq(accounts.id, opp.account_id),
-          eq(accounts.tenant_id, profile.tenantId)
-        )
-      )
-      .limit(1)
-    if (acct?.name && !primary?.email) signerName = `${acct.name} representative`
+  if (!opp?.account_id) {
+    return { error: 'Link a client account to this project before sending the COC for signature.' }
   }
+
+  const [primary] = await db
+    .select({
+      full_name: contacts.full_name,
+      email: contacts.email,
+    })
+    .from(contacts)
+    .where(
+      and(
+        eq(contacts.account_id, opp.account_id),
+        eq(contacts.tenant_id, profile.tenantId),
+        eq(contacts.is_primary, true)
+      )
+    )
+    .limit(1)
+  const signerEmail = z.string().trim().email().safeParse(primary?.email)
+  if (!signerEmail.success) {
+    return { error: 'Add a valid email to the client account’s primary contact before sending the COC for signature.' }
+  }
+  const signerName = primary?.full_name?.trim() || 'Client Signatory'
 
   const session = await createSigningSession({
     tenantId: profile.tenantId,
     entityType: 'coc',
     entityId: coc.id,
-    signerEmail,
+    signerEmail: signerEmail.data,
     signerName,
   })
 

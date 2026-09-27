@@ -127,6 +127,24 @@ export async function assertConfiguredDemoProject(
   await assertDemoProject(projectId, tenantId, fetcher)
 }
 
+export async function resolveForeignProjectId(
+  expectedDemoTenantId: string,
+  fetcher: typeof fetch = fetch
+): Promise<string> {
+  const demoTenantId = z.string().uuid().parse(expectedDemoTenantId)
+  const rows = await selectRows(
+    client(fetcher),
+    `projects?select=id,tenant_id,deleted_at&tenant_id=neq.${encodeURIComponent(demoTenantId)}&deleted_at=is.null&order=id.asc&limit=2`,
+    'Foreign project'
+  )
+  const projects = z.array(projectRow).parse(rows)
+  const project = projects[0]
+  if (!project || project.tenant_id === demoTenantId || project.deleted_at !== null) {
+    throw new Error('No safe active foreign project fixture is available')
+  }
+  return project.id
+}
+
 export async function assertProductionDemoBoundary(fetcher: typeof fetch = fetch): Promise<void> {
   const slug = process.env.E2E_DEMO_TENANT_SLUG?.trim()
   const projectId = process.env.E2E_PROJECT_ID?.trim()

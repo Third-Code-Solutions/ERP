@@ -76,8 +76,6 @@ export async function recordSign(token: string): Promise<SignResult> {
       const [bom] = await tx
         .select({
           status: boms.status,
-          approved_by: boms.approved_by,
-          created_by: boms.created_by,
         })
         .from(boms)
         .where(and(eq(boms.id, row.bom_id), eq(boms.tenant_id, row.tenant_id)))
@@ -96,22 +94,28 @@ export async function recordSign(token: string): Promise<SignResult> {
             eq(bomPortalTokens.tenant_id, row.tenant_id)
           )
         )
-      await tx
+      const [lockedBom] = await tx
         .update(boms)
         .set({ status: 'locked', locked_at: now, updated_at: now })
-        .where(and(eq(boms.id, row.bom_id), eq(boms.tenant_id, row.tenant_id)))
+        .where(and(
+          eq(boms.id, row.bom_id),
+          eq(boms.tenant_id, row.tenant_id),
+          eq(boms.status, 'approved')
+        ))
+        .returning({ id: boms.id })
+      if (!lockedBom) throw new Error('Only an approved BOM can be signed')
 
       const award = await runSignedBomAward(tx, {
         tenantId: row.tenant_id,
         bomId: row.bom_id,
-        actorId: bom.approved_by ?? bom.created_by,
+        actorId: null,
         downPaymentBps: 0,
         now,
       })
 
       await writeAuditLogInTransaction(tx, {
         tenantId: row.tenant_id,
-        actorId: bom.approved_by ?? bom.created_by,
+        actorId: null,
         entityType: 'bom',
         entityId: row.bom_id,
         action: 'lock',

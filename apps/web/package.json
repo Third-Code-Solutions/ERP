@@ -48,6 +48,7 @@
     "@third-code-erp/ai": "workspace:*",
     "@third-code-erp/auth": "workspace:*",
     "@third-code-erp/database": "workspace:*",
+    "@third-code-erp/operations": "workspace:*",
     "@third-code-erp/shared-types": "workspace:*",
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "2.0.0",

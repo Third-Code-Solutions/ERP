@@ -20,7 +20,7 @@ export function databaseAuditHash(row) {
   return sha256(
     row.prevHash +
       row.entityType +
-      row.entityId +
+      (row.entityKey ?? row.entityId) +
       row.action +
       row.createdAtText
   )

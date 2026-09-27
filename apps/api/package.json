@@ -21,6 +21,7 @@
     "@supabase/supabase-js": "^2.105.4",
     "@third-code-erp/ai": "workspace:*",
     "@third-code-erp/database": "workspace:*",
+    "@third-code-erp/operations": "workspace:*",
     "@third-code-erp/shared-types": "workspace:*",
     "@xmldom/xmldom": "0.8.15",
     "bullmq": "^5.81.2",

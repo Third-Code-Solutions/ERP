@@ -22,6 +22,20 @@ test('classifies the current database formula', () => {
     'database'
   )
 })
+
+test('verifies numeric row identities using the trigger entity key', () => {
+  const row = {
+    ...base,
+    entityType: 'cortex_provenance',
+    entityKey: '1234',
+  }
+  const hash = databaseAuditHash(row)
+  assert.equal(classifyAuditHash({ ...row, hash }), 'database')
+  assert.notEqual(
+    hash,
+    databaseAuditHash({ ...row, entityKey: null })
+  )
+})
 test('classifies the legacy JSON formula', () => {
   assert.equal(
     classifyAuditHash({ ...base, hash: legacyJsonAuditHash(base) }),

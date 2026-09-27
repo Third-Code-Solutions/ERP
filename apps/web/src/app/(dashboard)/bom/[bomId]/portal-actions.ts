@@ -61,14 +61,21 @@ export async function mintBomPortalToken(
       account_name: accounts.name,
     })
     .from(boms)
-    .leftJoin(projects, eq(boms.project_id, projects.id))
-    .leftJoin(accounts, eq(projects.account_id, accounts.id))
+    .leftJoin(projects, and(
+      eq(boms.project_id, projects.id),
+      eq(projects.tenant_id, profile.tenantId)
+    ))
+    .leftJoin(accounts, and(
+      eq(projects.account_id, accounts.id),
+      eq(accounts.tenant_id, profile.tenantId)
+    ))
     .where(and(eq(boms.id, input.bom_id), eq(boms.tenant_id, profile.tenantId)))
     .limit(1)
   if (!row) return { error: 'BOM not found' }
-  if (row.bom_status === 'archived') {
-    return { error: 'Cannot mint a portal token for an archived BOM' }
+  if (row.bom_status !== 'approved') {
+    return { error: 'Only an approved BOM can be sent for client signature.' }
   }
+  if (!row.project_id) return { error: 'BOM project not found in this workspace.' }
 
   // Legacy back-compat: keep the bom_portal_tokens row populated so the
   // existing /portal/bom/[token] flow keeps working for in-flight links.

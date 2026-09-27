@@ -91,7 +91,7 @@ try {
               extensions.digest(
                 a.prev_hash
                   || a.entity_type
-                  || a.entity_id::text
+                  || coalesce(a.entity_key, a.entity_id::text)
                   || a.action
                   || a.created_at::text,
                 'sha256'
@@ -142,7 +142,7 @@ try {
               extensions.digest(
                 a.prev_hash
                   || a.entity_type
-                  || a.entity_id::text
+                  || coalesce(a.entity_key, a.entity_id::text)
                   || a.action
                   || a.created_at::text,
                 'sha256'
@@ -186,7 +186,7 @@ try {
               extensions.digest(
                 a.prev_hash
                   || a.entity_type
-                  || a.entity_id::text
+                  || coalesce(a.entity_key, a.entity_id::text)
                   || a.action
                   || a.created_at::text,
                 'sha256'
