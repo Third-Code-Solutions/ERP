@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   can: vi.fn(),
   createSupabaseAdminClient: vi.fn(),
   select: vi.fn(),
+  insert: vi.fn(),
   update: vi.fn(),
   transaction: vi.fn(),
   writeAuditLog: vi.fn(),
@@ -83,6 +84,13 @@ function createUserForm(role: string): FormData {
   return form
 }
 
+function resetPasswordForm(): FormData {
+  const form = new FormData()
+  form.set('user_id', TARGET_ID)
+  form.set('password', 'long-enough-password')
+  return form
+}
+
 function userQuery(
   rows: Array<{
     id: string
@@ -122,6 +130,7 @@ describe('admin user role authority', () => {
       callback({
         execute: vi.fn().mockResolvedValue([]),
         select: mocks.select,
+        insert: mocks.insert,
         update: mocks.update,
       }),
     )
@@ -195,6 +204,77 @@ describe('admin user role authority', () => {
     expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
   })
 
+  it('commits a new workspace user only with its audit entry', async () => {
+    mocks.select.mockReturnValue({ from: userQuery([]).from })
+    const values = vi.fn().mockResolvedValue(undefined)
+    mocks.insert.mockReturnValue({ values })
+    const createAuthUser = vi.fn().mockResolvedValue({ data: { user: { id: TARGET_ID } }, error: null })
+    const deleteAuthUser = vi.fn()
+    mocks.createSupabaseAdminClient.mockReturnValue({
+      auth: { admin: { createUser: createAuthUser, deleteUser: deleteAuthUser } },
+    })
+
+    await expect(createUser(createUserForm('viewer'))).resolves.toEqual({ userId: TARGET_ID })
+
+    expect(values).toHaveBeenCalledWith(expect.objectContaining({
+      id: TARGET_ID,
+      tenant_id: TENANT_ID,
+      role: 'viewer',
+    }))
+    expect(mocks.writeAuditLogInTransaction).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        tenantId: TENANT_ID,
+        actorId: USER_ID,
+        entityId: TARGET_ID,
+        action: 'create',
+      }),
+    )
+    expect(deleteAuthUser).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+  })
+
+  it('compensates Auth when the user audit cannot commit', async () => {
+    mocks.select.mockReturnValue({ from: userQuery([]).from })
+    mocks.insert.mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) })
+    mocks.writeAuditLogInTransaction.mockRejectedValueOnce(new Error('synthetic audit failure'))
+    const createAuthUser = vi.fn().mockResolvedValue({ data: { user: { id: TARGET_ID } }, error: null })
+    const deleteAuthUser = vi.fn().mockResolvedValue({ error: null })
+    mocks.createSupabaseAdminClient.mockReturnValue({
+      auth: { admin: { createUser: createAuthUser, deleteUser: deleteAuthUser } },
+    })
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      await expect(createUser(createUserForm('viewer'))).resolves.toEqual({
+        error: 'User creation failed before the workspace account was committed.',
+      })
+      expect(deleteAuthUser).toHaveBeenCalledWith(TARGET_ID)
+      expect(mocks.revalidatePath).not.toHaveBeenCalled()
+    } finally {
+      errorSpy.mockRestore()
+    }
+  })
+
+  it('reports reconciliation when Auth compensation also fails', async () => {
+    mocks.select.mockReturnValue({ from: userQuery([]).from })
+    mocks.insert.mockReturnValue({ values: vi.fn().mockRejectedValue(new Error('synthetic insert failure')) })
+    const createAuthUser = vi.fn().mockResolvedValue({ data: { user: { id: TARGET_ID } }, error: null })
+    const deleteAuthUser = vi.fn().mockResolvedValue({ error: new Error('synthetic cleanup failure') })
+    mocks.createSupabaseAdminClient.mockReturnValue({
+      auth: { admin: { createUser: createAuthUser, deleteUser: deleteAuthUser } },
+    })
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      await expect(createUser(createUserForm('viewer'))).resolves.toEqual({
+        error: 'User creation could not be confirmed. Contact support to reconcile the Auth account.',
+      })
+      expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
+      expect(mocks.revalidatePath).not.toHaveBeenCalled()
+    } finally {
+      errorSpy.mockRestore()
+    }
+  })
+
   it('prevents an admin from resetting an owner password', async () => {
     const query = userQuery([
       { id: TARGET_ID, role: 'owner', email: 'owner@example.test' },
@@ -208,6 +288,65 @@ describe('admin user role authority', () => {
       error: 'Only an owner can reset another owner password.',
     })
     expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
+  })
+
+  it('does not submit a password reset when authorization audit fails', async () => {
+    mocks.writeAuditLog.mockRejectedValueOnce(new Error('synthetic audit failure'))
+
+    await expect(resetUserPassword(resetPasswordForm())).resolves.toEqual({
+      error: 'Password reset could not be audited. No password change was submitted.',
+    })
+    expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
+  })
+
+  it('audits the authorized and confirmed phases around the provider update', async () => {
+    const updateUserById = vi.fn().mockResolvedValue({ error: null })
+    mocks.createSupabaseAdminClient.mockReturnValue({ auth: { admin: { updateUserById } } })
+
+    await expect(resetUserPassword(resetPasswordForm())).resolves.toEqual({})
+
+    expect(mocks.writeAuditLog).toHaveBeenCalledTimes(2)
+    const [authorized, confirmed] = mocks.writeAuditLog.mock.calls.map(([entry]) => entry)
+    expect(authorized).toMatchObject({
+      tenantId: TENANT_ID,
+      actorId: USER_ID,
+      entityId: TARGET_ID,
+      entityType: 'user_password_reset',
+      diff: { phase: 'authorized' },
+    })
+    expect(confirmed).toMatchObject({
+      entityType: 'user_password_reset',
+      diff: { phase: 'provider_confirmed', operation_id: authorized.diff.operation_id },
+    })
+    expect(mocks.writeAuditLog.mock.invocationCallOrder[0]!).toBeLessThan(
+      updateUserById.mock.invocationCallOrder[0]!
+    )
+    expect(updateUserById.mock.invocationCallOrder[0]!).toBeLessThan(
+      mocks.writeAuditLog.mock.invocationCallOrder[1]!
+    )
+    expect(JSON.stringify(mocks.writeAuditLog.mock.calls)).not.toContain('long-enough-password')
+  })
+
+  it('reports a partially confirmed reset when the final audit fails', async () => {
+    const updateUserById = vi.fn().mockResolvedValue({ error: null })
+    mocks.createSupabaseAdminClient.mockReturnValue({ auth: { admin: { updateUserById } } })
+    mocks.writeAuditLog.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('synthetic audit failure'))
+
+    await expect(resetUserPassword(resetPasswordForm())).resolves.toEqual({
+      error: 'Password may have changed, but confirmation could not be audited. Contact support before retrying.',
+    })
+    expect(updateUserById).toHaveBeenCalledOnce()
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('reports an unknown provider outcome after a thrown Auth request', async () => {
+    const updateUserById = vi.fn().mockRejectedValue(new Error('synthetic timeout'))
+    mocks.createSupabaseAdminClient.mockReturnValue({ auth: { admin: { updateUserById } } })
+
+    await expect(resetUserPassword(resetPasswordForm())).resolves.toEqual({
+      error: 'Password reset outcome could not be confirmed. Contact support before retrying.',
+    })
+    expect(mocks.writeAuditLog).toHaveBeenCalledOnce()
   })
 
   it('prevents an admin from deleting an owner', async () => {

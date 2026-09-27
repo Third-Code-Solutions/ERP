@@ -91,6 +91,7 @@ function InspectionFormSession({ actorId, tenantId, opportunityId, pprfSubmitted
   const inFlightRef = useRef(false)
   const revisionRef = useRef(0)
   const editVersionRef = useRef(0)
+  const savedEditVersionRef = useRef(0)
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve())
   const lifetimeRef = useRef(0)
   const clearingRef = useRef(false)
@@ -174,6 +175,7 @@ function InspectionFormSession({ actorId, tenantId, opportunityId, pprfSubmitted
     if (!draftReady || !clientSubmissionId || pending || submitted || submissionPending || photoBusy || memoryOnly) return
     let active = true
     const version = editVersionRef.current
+    if (version <= savedEditVersionRef.current) return
     const timer = window.setTimeout(() => {
       void persistDraft({
         fields,
@@ -181,6 +183,7 @@ function InspectionFormSession({ actorId, tenantId, opportunityId, pprfSubmitted
         uploadedPhotoIds,
         clientSubmissionId,
       }).then(() => {
+        savedEditVersionRef.current = Math.max(savedEditVersionRef.current, version)
         if (!active || version !== editVersionRef.current) return
         setDraftError(null)
         setDraftMessage(online ? 'Draft saved on this device.' : 'Saved offline on this device.')
@@ -258,6 +261,7 @@ function InspectionFormSession({ actorId, tenantId, opportunityId, pprfSubmitted
     const version = editVersionRef.current
     try {
       await persistDraft({ fields, photos, uploadedPhotoIds, clientSubmissionId: submissionId })
+      savedEditVersionRef.current = Math.max(savedEditVersionRef.current, version)
       if (version === editVersionRef.current) {
         setDraftError(null)
         setDraftMessage(online ? 'Draft saved on this device.' : 'Saved offline on this device.')
@@ -380,6 +384,8 @@ function InspectionFormSession({ actorId, tenantId, opportunityId, pprfSubmitted
       setUploadedPhotoIds([])
       setClientSubmissionId(crypto.randomUUID())
       setFields(initialFields(defaults))
+      editVersionRef.current = 0
+      savedEditVersionRef.current = 0
       setSubmitted(false)
       setSubmissionPending(false)
     } catch {
