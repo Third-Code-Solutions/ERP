@@ -59,12 +59,9 @@ async function safe<T extends { error?: string }>(
  *   1. Supabase Auth admin API creates the auth.users row with the
  *      provided email + password. `email_confirm: true` skips the
  *      verification email so the admin can hand off credentials.
- *   2. INSERT into public.users with the returned auth user id, the
- *      caller's tenant_id, and the assigned role.
- *   3. Audit log entry (best-effort — failure does not roll back).
+ *   2. INSERT into public.users and its audit entry in one transaction.
  *
- * Rolls back the auth user if the public.users insert fails so we
- * never leave dangling auth-only accounts.
+ * Deletes the Auth user if the database transaction cannot commit.
  */
 export async function createUser(
   formData: FormData
@@ -120,39 +117,38 @@ export async function createUser(
     }
     const authUserId = created.user.id
 
-    // 2) Mirror into public.users. If this fails we delete the auth user.
+    // 2) Mirror the identity and audit the grant in one database commit.
     try {
-      await db.insert(usersTable).values({
-        id: authUserId,
-        tenant_id: profile.tenantId,
-        email: input.email,
-        full_name: input.full_name,
-        role: input.role,
+      await db.transaction(async (tx) => {
+        await stampActorInTransaction(tx, profile.user.id)
+        await tx.insert(usersTable).values({
+          id: authUserId,
+          tenant_id: profile.tenantId,
+          email: input.email,
+          full_name: input.full_name,
+          role: input.role,
+        })
+        await writeAuditLogInTransaction(tx, {
+          tenantId: profile.tenantId,
+          actorId: profile.user.id,
+          entityType: 'user',
+          entityId: authUserId,
+          action: 'create',
+          diff: { email: input.email, full_name: input.full_name, role: input.role },
+        })
       })
     } catch (err) {
-      await admin.auth.admin.deleteUser(authUserId).catch(() => {})
-      return {
-        error:
-          err instanceof Error
-            ? `User row insert failed: ${err.message}`
-            : 'User row insert failed.',
+      const cleanup = await admin.auth.admin.deleteUser(authUserId).catch((cleanupError: unknown) => ({
+        error: cleanupError,
+      }))
+      console.error('[admin/users:createUser] database transaction failed:', err)
+      if (cleanup.error) {
+        console.error('[admin/users:createUser] Auth compensation failed:', cleanup.error)
+        return { error: 'User creation could not be confirmed. Contact support to reconcile the Auth account.' }
       }
-    }
-
-    // 3) Audit — best-effort. A broken audit chain must not break
-    // user creation, so we log and continue.
-    try {
-      await writeAuditLog({
-        tenantId: profile.tenantId,
-        actorId: profile.user.id,
-        entityType: 'user',
-        entityId: authUserId,
-        action: 'create',
-        diff: { email: input.email, full_name: input.full_name, role: input.role },
-      })
-    } catch (err) {
-
-      console.warn('[admin/users:createUser] audit log insert failed (non-fatal):', err)
+      return {
+        error: 'User creation failed before the workspace account was committed.',
+      }
     }
 
     revalidatePath('/admin/users')
