@@ -4,53 +4,60 @@ Date: 2026-09-28
 
 ## Current decision
 
-NO-GO for a production promotion or ten-company rollout from
-`agent-03/account-kyc-audit-fix`. The account/KYC atomic-audit change is a
-reviewable local candidate, not a deployed release.
+**NO-GO** for a whole-ERP client demo or ten-company rollout. Main revision
+`fe96ded831baa4badbf2082dc37f990a270c2eaa` was promoted to production,
+but the protected production verification run failed. The follow-up fixes in
+PR #119 are not deployed.
 
 ## Direct evidence
 
-- The read-only controlled release planner, run against the configured hosted
-  Supabase URL, returned `review_required` because
-  `AUDIT_RECOVERY_TENANT_ID` is absent. It reported 177/177 migrations, zero
-  duplicate Purchase Order groups, healthy Web/Core readiness, and a clear
-  source spend guard. Those passing components do not override the audit gate.
-- The live Web readiness endpoint reported revision `2d80e043ac75`; the
-  candidate is not live.
-- Vercel project `thirdcode-erp` was identified under the PAVI team with
-  project ID `prj_5yZX5MTJdXZYWRIeS50jVhmjqzdb`. Its production target was
-  observed as ready. No promotion was made.
-- Focused account/KYC unit tests and disposable PostgreSQL integration tests
-  passed; the authenticated production role/tenant matrix, departmental
-  handoffs, and ten-company workload tests have not been run for this candidate.
-- A 2026-09-28 read-only hosted inventory found the dedicated `buildops-e2e`
-  tenant and eleven active seeded role profiles, but zero locked BOMs and zero
-  award handoffs. The approved BOM cannot enter the signed-BOM award action.
-- The new demo boundary preflight passed 1/1, and the existing role-access and
-  schedule browser matrices passed 2/2 against live revision `2d80e043ac75`
-  using demo identities. These checks cover selected routes and visible
-  controls; they do not prove cross-company data isolation or a completed
-  award transaction, and they did not exercise the unmerged candidate live.
+- Main CI run 36352174413 passed for the exact deployed revision. Production
+  run 36353106697 deployed Web, Core, and CAD after its release preflight,
+  migration dry run, and health checks passed. Live Web readiness reported the
+  deployed revision and database readiness. No migration was applied.
+- The production authenticated role matrix had one flaky test: the owner role
+  emitted minified React hydration error #418 on the first attempt, and the
+  retry passed. The strict no-skips/no-flakes gate rejected that run. The
+  password recovery step did not run because the workflow stopped there.
+- The protected demo boundary and cross-tenant project isolation checks passed
+  in that run. The latter used one viewer identity, an active synthetic project
+  in `buildops-e2e`, and one separately approved synthetic tenant/project. It
+  does not establish isolation for all companies, roles, records, or actions.
+- An authorized synthetic BOM in `buildops-e2e` was signed through the live
+  canvas page. Read-only database verification found the locked BOM, signed
+  session, signature document, active award handoff, project code, one budget
+  line, a draft invoice, five tasks, and a linked audit entry. The draft invoice
+  had zero net amount and needs Finance confirmation. The BOM was seeded as
+  approved, so this did not verify the approval workflow. The demo tenant audit
+  verifier passed 3596/3596 current hashes with zero link mismatches after the
+  signing test.
+- PR #119 adds an atomic database user-row/audit transaction with Auth
+  compensation, fixes an inspection draft autosave revision race, and adds
+  route context to browser error reporting. These changes remain candidate
+  code until merged, deployed, and verified at their exact revision.
 
 ## Required before GO
 
-1. Supply the exact approved audit-recovery tenant and obtain a clear
-   controlled release report for the intended production target.
-2. Resolve the outstanding identity lifecycle and user provisioning/reset
-   findings under an accepted product/security contract.
-3. Run protected, non-destructive role and cross-tenant checks with approved
-   identities from distinct companies; verify departmental handoffs and
-   integration outcomes against source records.
-4. Demonstrate a ten-company workload and operational recovery at the intended
-   rollout scale, with current logs, monitoring, and rollback evidence.
-5. Complete CI and exact-commit deployment verification before any production
-   promotion, then verify the live application again.
+1. Diagnose and fix the intermittent hydration error. Rerun the protected
+   production role matrix with zero failed or flaky tests; keep the strict gate.
+2. Complete exact-revision CI and deployment verification for any follow-up
+   fix, including the password recovery check that did not execute in run
+   36353106697.
+3. Resolve the password reset audit gap: the Supabase Auth password update can
+   succeed while its database audit write fails. Define and verify a durable
+   identity/audit reconciliation contract without masking partial success.
+4. Verify each implemented module's representative actions and departmental
+   handoffs with read-only checks or synthetic records confined to the approved
+   test tenants. Confirm source data, totals, audit, and authorized role views
+   after refresh. External provider delivery must be checked against real
+   receipts where applicable.
+5. Extend cross-tenant and permission checks to the relevant record types,
+   mutations, and role combinations. Demonstrate ten-company workload,
+   monitoring, and recovery at the intended rollout scale.
+6. Keep draft or preview-only features out of an unqualified demo promise. In
+   particular, BIR 2307 output still awaits official-template verification,
+   and approval delegation is a preview rather than an enforced policy.
 
-For a client-facing signed-BOM demo, also prepare an explicitly synthetic,
-approved fixture in the dedicated demo tenant and verify the complete award
-handoff, Finance draft, tasks and audit after refresh. Do not represent the
-existing approved BOM as signed or awarded.
-
-No production business records, provider configuration, or deployment was
-changed during this release preflight. The selected browser checks created and
-revoked sessions for dedicated demo identities.
+Only clearly labeled synthetic records were created for the live signing and
+isolation checks. No customer business record was edited, and no provider
+message was sent by those checks.
