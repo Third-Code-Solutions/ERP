@@ -34,7 +34,15 @@ if (explicitlyEnabled) {
   const isDisposableDatabase = /^\/(?:erp_(?:self_hosted_ci|readiness)(?:_[a-z0-9]+)*|test_[a-z0-9_]+)$/i.test(
     target.pathname,
   )
-  if (!isLoopback || !isDisposableDatabase) {
+  // GitHub's Supabase CLI rebuilds its own loopback database at this exact
+  // address; its database name remains `postgres` after the reset.
+  const isGitHubSupabaseDatabase =
+    process.env.GITHUB_ACTIONS === 'true' &&
+    target.hostname === '127.0.0.1' &&
+    target.port === '54322' &&
+    target.pathname === '/postgres' &&
+    target.username === 'postgres'
+  if (!isLoopback || (!isDisposableDatabase && !isGitHubSupabaseDatabase)) {
     throw new Error('Account action database tests only accept a loopback disposable test database')
   }
 }
