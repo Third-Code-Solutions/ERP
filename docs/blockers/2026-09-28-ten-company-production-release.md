@@ -23,6 +23,14 @@ reviewable local candidate, not a deployed release.
 - Focused account/KYC unit tests and disposable PostgreSQL integration tests
   passed; the authenticated production role/tenant matrix, departmental
   handoffs, and ten-company workload tests have not been run for this candidate.
+- A 2026-09-28 read-only hosted inventory found the dedicated `buildops-e2e`
+  tenant and eleven active seeded role profiles, but zero locked BOMs and zero
+  award handoffs. The approved BOM cannot enter the signed-BOM award action.
+- The new demo boundary preflight passed 1/1, and the existing role-access and
+  schedule browser matrices passed 2/2 against live revision `2d80e043ac75`
+  using demo identities. These checks cover selected routes and visible
+  controls; they do not prove cross-company data isolation or a completed
+  award transaction, and they did not exercise the unmerged candidate live.
 
 ## Required before GO
 
@@ -38,5 +46,11 @@ reviewable local candidate, not a deployed release.
 5. Complete CI and exact-commit deployment verification before any production
    promotion, then verify the live application again.
 
-No production data, provider configuration, or deployment was changed during
-this release preflight.
+For a client-facing signed-BOM demo, also prepare an explicitly synthetic,
+approved fixture in the dedicated demo tenant and verify the complete award
+handoff, Finance draft, tasks and audit after refresh. Do not represent the
+existing approved BOM as signed or awarded.
+
+No production business records, provider configuration, or deployment was
+changed during this release preflight. The selected browser checks created and
+revoked sessions for dedicated demo identities.

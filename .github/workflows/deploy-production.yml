@@ -48,6 +48,7 @@ jobs:
       SUPABASE_MIGRATION_DATABASE_URL: ${{ secrets.SUPABASE_MIGRATION_DATABASE_URL }}
       PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
       BUILD_OPS_DEMO_TENANT_SLUGS: buildops-e2e
+      E2E_DEMO_TENANT_SLUG: buildops-e2e
       # The stable preview uses a different database/project fixture.
       E2E_PROJECT_ID: ${{ vars.PRODUCTION_E2E_PROJECT_ID }}
       E2E_USER_EMAIL: ${{ secrets.E2E_USER_EMAIL }}
@@ -206,6 +207,20 @@ jobs:
           sudo rm -f /etc/apt/sources.list.d/google-chrome.list \
             /etc/apt/sources.list.d/google-chrome.sources
           pnpm exec playwright install --with-deps chromium
+
+      - name: Verify production demo role and project boundary
+        working-directory: apps/web
+        env:
+          E2E_PRODUCTION_DEMO_BOUNDARY: "1"
+        shell: bash
+        run: |
+          set -euo pipefail
+          report_path="$GITHUB_WORKSPACE/tmp/production-e2e/demo-boundary.json"
+          mkdir -p "$(dirname "$report_path")"
+          pnpm exec playwright test e2e/production-demo-boundary.spec.ts \
+            --project=chromium --workers=1 --retries=0 --reporter=json > "$report_path"
+          node "$GITHUB_WORKSPACE/scripts/assert-playwright-no-skips.mjs" \
+            "$report_path" "production demo boundary"
 
       - name: Run authenticated production E2E
         working-directory: apps/web
