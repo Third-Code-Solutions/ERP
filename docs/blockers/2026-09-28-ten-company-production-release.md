@@ -32,9 +32,11 @@ PR #119 are not deployed.
   verifier passed 3596/3596 current hashes with zero link mismatches after the
   signing test.
 - PR #119 adds an atomic database user-row/audit transaction with Auth
-  compensation, fixes an inspection draft autosave revision race, and adds
-  route context to browser error reporting. These changes remain candidate
-  code until merged, deployed, and verified at their exact revision.
+  compensation, records password-reset authorization before the Auth request
+  and reports uncertain confirmation, fixes an inspection draft autosave
+  revision race, and adds route context to browser error reporting. These
+  changes remain candidate code until merged, deployed, and verified at their
+  exact revision.
 
 ## Required before GO
 
@@ -43,9 +45,10 @@ PR #119 are not deployed.
 2. Complete exact-revision CI and deployment verification for any follow-up
    fix, including the password recovery check that did not execute in run
    36353106697.
-3. Resolve the password reset audit gap: the Supabase Auth password update can
-   succeed while its database audit write fails. Define and verify a durable
-   identity/audit reconciliation contract without masking partial success.
+3. Deploy and verify the password reset audit guard in PR #119. A pre-request
+   audit prevents an unaudited Auth submission, but provider success followed
+   by a failed confirmation audit remains an explicit reconciliation case.
+   Define and verify the durable identity/audit reconciliation contract.
 4. Verify each implemented module's representative actions and departmental
    handoffs with read-only checks or synthetic records confined to the approved
    test tenants. Confirm source data, totals, audit, and authorized role views

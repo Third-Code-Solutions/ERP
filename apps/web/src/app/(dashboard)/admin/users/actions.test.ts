@@ -84,6 +84,13 @@ function createUserForm(role: string): FormData {
   return form
 }
 
+function resetPasswordForm(): FormData {
+  const form = new FormData()
+  form.set('user_id', TARGET_ID)
+  form.set('password', 'long-enough-password')
+  return form
+}
+
 function userQuery(
   rows: Array<{
     id: string
@@ -281,6 +288,65 @@ describe('admin user role authority', () => {
       error: 'Only an owner can reset another owner password.',
     })
     expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
+  })
+
+  it('does not submit a password reset when authorization audit fails', async () => {
+    mocks.writeAuditLog.mockRejectedValueOnce(new Error('synthetic audit failure'))
+
+    await expect(resetUserPassword(resetPasswordForm())).resolves.toEqual({
+      error: 'Password reset could not be audited. No password change was submitted.',
+    })
+    expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
+  })
+
+  it('audits the authorized and confirmed phases around the provider update', async () => {
+    const updateUserById = vi.fn().mockResolvedValue({ error: null })
+    mocks.createSupabaseAdminClient.mockReturnValue({ auth: { admin: { updateUserById } } })
+
+    await expect(resetUserPassword(resetPasswordForm())).resolves.toEqual({})
+
+    expect(mocks.writeAuditLog).toHaveBeenCalledTimes(2)
+    const [authorized, confirmed] = mocks.writeAuditLog.mock.calls.map(([entry]) => entry)
+    expect(authorized).toMatchObject({
+      tenantId: TENANT_ID,
+      actorId: USER_ID,
+      entityId: TARGET_ID,
+      entityType: 'user_password_reset',
+      diff: { phase: 'authorized' },
+    })
+    expect(confirmed).toMatchObject({
+      entityType: 'user_password_reset',
+      diff: { phase: 'provider_confirmed', operation_id: authorized.diff.operation_id },
+    })
+    expect(mocks.writeAuditLog.mock.invocationCallOrder[0]!).toBeLessThan(
+      updateUserById.mock.invocationCallOrder[0]!
+    )
+    expect(updateUserById.mock.invocationCallOrder[0]!).toBeLessThan(
+      mocks.writeAuditLog.mock.invocationCallOrder[1]!
+    )
+    expect(JSON.stringify(mocks.writeAuditLog.mock.calls)).not.toContain('long-enough-password')
+  })
+
+  it('reports a partially confirmed reset when the final audit fails', async () => {
+    const updateUserById = vi.fn().mockResolvedValue({ error: null })
+    mocks.createSupabaseAdminClient.mockReturnValue({ auth: { admin: { updateUserById } } })
+    mocks.writeAuditLog.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('synthetic audit failure'))
+
+    await expect(resetUserPassword(resetPasswordForm())).resolves.toEqual({
+      error: 'Password may have changed, but confirmation could not be audited. Contact support before retrying.',
+    })
+    expect(updateUserById).toHaveBeenCalledOnce()
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('reports an unknown provider outcome after a thrown Auth request', async () => {
+    const updateUserById = vi.fn().mockRejectedValue(new Error('synthetic timeout'))
+    mocks.createSupabaseAdminClient.mockReturnValue({ auth: { admin: { updateUserById } } })
+
+    await expect(resetUserPassword(resetPasswordForm())).resolves.toEqual({
+      error: 'Password reset outcome could not be confirmed. Contact support before retrying.',
+    })
+    expect(mocks.writeAuditLog).toHaveBeenCalledOnce()
   })
 
   it('prevents an admin from deleting an owner', async () => {

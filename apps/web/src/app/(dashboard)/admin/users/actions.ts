@@ -267,7 +267,6 @@ export async function resetUserPassword(
     const [target] = await db
       .select({
         id: usersTable.id,
-        email: usersTable.email,
         role: usersTable.role,
       })
       .from(usersTable)
@@ -278,22 +277,41 @@ export async function resetUserPassword(
       return { error: 'Only an owner can reset another owner password.' }
     }
 
+    const operationId = globalThis.crypto.randomUUID()
+    try {
+      await writeAuditLog({
+        tenantId: profile.tenantId,
+        actorId: profile.user.id,
+        entityType: 'user_password_reset',
+        entityId: user_id,
+        action: 'update',
+        diff: { operation_id: operationId, phase: 'authorized' },
+      })
+    } catch {
+      return { error: 'Password reset could not be audited. No password change was submitted.' }
+    }
+
     const admin = createSupabaseAdminClient()
-    const { error } = await admin.auth.admin.updateUserById(user_id, { password })
+    let error: Error | null
+    try {
+      const result = await admin.auth.admin.updateUserById(user_id, { password })
+      error = result.error
+    } catch {
+      return { error: 'Password reset outcome could not be confirmed. Contact support before retrying.' }
+    }
     if (error) return { error: error.message }
 
     try {
       await writeAuditLog({
         tenantId: profile.tenantId,
         actorId: profile.user.id,
-        entityType: 'user',
+        entityType: 'user_password_reset',
         entityId: user_id,
         action: 'update',
-        diff: { password_reset: true, email: target.email },
+        diff: { operation_id: operationId, phase: 'provider_confirmed' },
       })
-    } catch (err) {
-
-      console.warn('[admin/users:resetUserPassword] audit log failed:', err)
+    } catch {
+      return { error: 'Password may have changed, but confirmation could not be audited. Contact support before retrying.' }
     }
 
     revalidatePath(`/admin/users/${user_id}`)
