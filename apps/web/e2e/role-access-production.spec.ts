@@ -65,10 +65,10 @@ test.describe('production role access matrix', () => {
             message.type() === 'error' &&
             /Failed to load resource: the server responded with a status of 401 \(\)$/.test(text)
           if (message.type() === 'error' && !isTransientNotification401) {
-            errors.push(`${role}: ${text}`)
+            errors.push(`${role} ${page.url()}: ${text}`)
           }
         })
-        page.on('pageerror', (error) => errors.push(`${role}: ${error.message}`))
+        page.on('pageerror', (error) => errors.push(`${role} ${page.url()}: ${error.message}`))
         page.on('requestfailed', (request) => {
           const errorText = request.failure()?.errorText ?? ''
           if (errorText && errorText !== 'net::ERR_ABORTED') {
