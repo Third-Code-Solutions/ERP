@@ -47,8 +47,31 @@ test('all demo roles cannot read an active project from another tenant', async (
         })
         expect(ownProject.status(), `${role} demo project control route`).toBe(200)
         const ownBody = await ownProject.text()
-        expect(ownBody, `${role} demo project control content`).not.toContain('NEXT_HTTP_ERROR_FALLBACK;404')
+        expect(
+          ownBody.includes('NEXT_HTTP_ERROR_FALLBACK;404'),
+          `${role} demo project control content`
+        ).toBe(false)
         await ownProject.dispose()
+
+        const ownRestResponse = await fetch(
+          `${auth.supabaseUrl}/rest/v1/projects?select=id&id=eq.${encodeURIComponent(configuredProjectId)}`,
+          {
+            headers: {
+              apikey: auth.anonKey,
+              Authorization: `Bearer ${auth.accessToken}`,
+            },
+            cache: 'no-store',
+          }
+        )
+        expect(ownRestResponse.status, `${role} own project RLS control status`).toBe(200)
+        const ownRestRows: unknown = await ownRestResponse.json()
+        const ownRestParsed = z.array(z.object({ id: z.string().uuid() })).safeParse(ownRestRows)
+        expect(
+          ownRestParsed.success &&
+            ownRestParsed.data.length === 1 &&
+            ownRestParsed.data[0]?.id === configuredProjectId,
+          `${role} own project must be visible through RLS`
+        ).toBe(true)
 
         const restResponse = await fetch(
           `${auth.supabaseUrl}/rest/v1/projects?select=id&id=eq.${encodeURIComponent(foreignProjectId)}`,
@@ -74,9 +97,18 @@ test('all demo roles cannot read an active project from another tenant', async (
         // Next.js may stream the parent shell before notFound(), yielding HTTP 200
         // with an RSC 404 marker. The successful control route must lack that marker.
         expect([200, 404], `${role} foreign project Web route status`).toContain(foreignProject.status())
-        expect(foreignBody, `${role} foreign project not-found state`).toContain('NEXT_HTTP_ERROR_FALLBACK;404')
-        expect(foreignBody, `${role} foreign project name must stay private`).not.toContain(ISOLATION_PROJECT_NAME)
-        expect(foreignBody, `${role} foreign project client must stay private`).not.toContain(ISOLATION_PROJECT_CLIENT)
+        expect(
+          foreignBody.includes('NEXT_HTTP_ERROR_FALLBACK;404'),
+          `${role} foreign project not-found state`
+        ).toBe(true)
+        expect(
+          foreignBody.includes(ISOLATION_PROJECT_NAME),
+          `${role} foreign project name must stay private`
+        ).toBe(false)
+        expect(
+          foreignBody.includes(ISOLATION_PROJECT_CLIENT),
+          `${role} foreign project client must stay private`
+        ).toBe(false)
         await foreignProject.dispose()
       } finally {
         try {
