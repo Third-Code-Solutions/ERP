@@ -1,5 +1,12 @@
 import { expect, test } from '@playwright/test'
-import { assertProductionDemoBoundary, DEMO_ROLE_EMAILS, resolveForeignProjectId } from './helpers/production-demo-boundary'
+import {
+  assertProductionDemoBoundary,
+  DEMO_ROLE_EMAILS,
+  ISOLATION_PROJECT_CLIENT,
+  ISOLATION_PROJECT_NAME,
+  ISOLATION_TENANT_SLUG,
+  resolveForeignProjectId,
+} from './helpers/production-demo-boundary'
 import { authenticateRole } from './helpers/supabase-magic-link'
 
 const TENANT_ID = 'fdd60ae0-9819-4564-8626-3f5571d2dca1'
@@ -69,30 +76,60 @@ test('rejects a project in another tenant', async () => {
     .rejects.toThrow('Demo project is outside the dedicated demo tenant')
 })
 
-test('selects only an active foreign project through service-role read', async () => {
+test('selects only the dedicated synthetic isolation project through service-role read', async () => {
   const foreignFetch: typeof fetch = async (input, init) => {
     const url = new URL(String(input))
-    expect(url.pathname).toBe('/rest/v1/projects')
-    expect(url.searchParams.get('tenant_id')).toBe(`neq.${TENANT_ID}`)
-    expect(url.searchParams.get('deleted_at')).toBe('is.null')
     expect(init?.method).toBeUndefined()
     expect(init?.headers).toMatchObject({ apikey: 'fixture-service-key' })
-    return Response.json([{ id: PROJECT_ID, tenant_id: FOREIGN_TENANT_ID, deleted_at: null }])
+    if (url.pathname === '/rest/v1/tenants') {
+      expect(url.searchParams.get('slug')).toBe(`eq.${ISOLATION_TENANT_SLUG}`)
+      return Response.json([{ id: FOREIGN_TENANT_ID, slug: ISOLATION_TENANT_SLUG }])
+    }
+    expect(url.pathname).toBe('/rest/v1/projects')
+    expect(url.searchParams.get('tenant_id')).toBe(`eq.${FOREIGN_TENANT_ID}`)
+    expect(url.searchParams.get('name')).toBe(`eq.${ISOLATION_PROJECT_NAME}`)
+    expect(url.searchParams.get('deleted_at')).toBe('is.null')
+    return Response.json([{
+      id: PROJECT_ID,
+      tenant_id: FOREIGN_TENANT_ID,
+      deleted_at: null,
+      name: ISOLATION_PROJECT_NAME,
+      client: ISOLATION_PROJECT_CLIENT,
+      status: 'active',
+    }])
   }
   await expect(resolveForeignProjectId(TENANT_ID, foreignFetch)).resolves.toBe(PROJECT_ID)
 })
 
-test('fails closed when no foreign project exists', async () => {
+test('fails closed when the synthetic isolation tenant is absent', async () => {
   await expect(resolveForeignProjectId(TENANT_ID, async () => Response.json([])))
+    .rejects.toThrow('No safe synthetic isolation tenant is available')
+})
+
+test('fails closed when the synthetic project is absent', async () => {
+  const foreignFetch: typeof fetch = async (input) => {
+    const url = new URL(String(input))
+    return url.pathname === '/rest/v1/tenants'
+      ? Response.json([{ id: FOREIGN_TENANT_ID, slug: ISOLATION_TENANT_SLUG }])
+      : Response.json([])
+  }
+  await expect(resolveForeignProjectId(TENANT_ID, foreignFetch))
     .rejects.toThrow('No safe active foreign project fixture is available')
 })
 
-test('rejects a same-tenant or deleted foreign fixture', async () => {
+test('rejects a same-tenant, deleted, or mislabeled isolation fixture', async () => {
   for (const row of [
-    { id: PROJECT_ID, tenant_id: TENANT_ID, deleted_at: null },
-    { id: PROJECT_ID, tenant_id: FOREIGN_TENANT_ID, deleted_at: '2026-01-01T00:00:00Z' },
+    { id: PROJECT_ID, tenant_id: TENANT_ID, deleted_at: null, name: ISOLATION_PROJECT_NAME, client: ISOLATION_PROJECT_CLIENT, status: 'active' },
+    { id: PROJECT_ID, tenant_id: FOREIGN_TENANT_ID, deleted_at: '2026-01-01T00:00:00Z', name: ISOLATION_PROJECT_NAME, client: ISOLATION_PROJECT_CLIENT, status: 'active' },
+    { id: PROJECT_ID, tenant_id: FOREIGN_TENANT_ID, deleted_at: null, name: 'Customer project', client: ISOLATION_PROJECT_CLIENT, status: 'active' },
   ]) {
-    await expect(resolveForeignProjectId(TENANT_ID, async () => Response.json([row])))
+    const foreignFetch: typeof fetch = async (input) => {
+      const url = new URL(String(input))
+      return url.pathname === '/rest/v1/tenants'
+        ? Response.json([{ id: FOREIGN_TENANT_ID, slug: ISOLATION_TENANT_SLUG }])
+        : Response.json([row])
+    }
+    await expect(resolveForeignProjectId(TENANT_ID, foreignFetch))
       .rejects.toThrow('No safe active foreign project fixture is available')
   }
 })

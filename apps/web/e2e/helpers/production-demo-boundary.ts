@@ -30,6 +30,14 @@ const profileRow = z.object({
   account_status: z.string(),
 })
 const projectRow = z.object({ id: z.string().uuid(), tenant_id: z.string().uuid(), deleted_at: z.string().nullable() })
+export const ISOLATION_TENANT_SLUG = 'buildops-isolation-qa'
+export const ISOLATION_PROJECT_NAME = 'QA Synthetic Cross-Company Project'
+export const ISOLATION_PROJECT_CLIENT = 'QA Synthetic Client'
+const isolationProjectRow = projectRow.extend({
+  name: z.string(),
+  client: z.string(),
+  status: z.string(),
+})
 
 function client(fetcher: typeof fetch = fetch): BoundaryClient {
   const env = readE2EEnv()
@@ -132,14 +140,28 @@ export async function resolveForeignProjectId(
   fetcher: typeof fetch = fetch
 ): Promise<string> {
   const demoTenantId = z.string().uuid().parse(expectedDemoTenantId)
-  const rows = await selectRows(
-    client(fetcher),
-    `projects?select=id,tenant_id,deleted_at&tenant_id=neq.${encodeURIComponent(demoTenantId)}&deleted_at=is.null&order=id.asc&limit=2`,
-    'Foreign project'
+  const connection = client(fetcher)
+  const tenantRows = await selectRows(
+    connection,
+    `tenants?select=id,slug&slug=eq.${encodeURIComponent(ISOLATION_TENANT_SLUG)}&limit=2`,
+    'Synthetic isolation tenant'
   )
-  const projects = z.array(projectRow).parse(rows)
+  const fixtureTenants = z.array(tenantRow).parse(tenantRows)
+  const fixtureTenant = fixtureTenants[0]
+  if (fixtureTenants.length !== 1 || !fixtureTenant ||
+    fixtureTenant.slug !== ISOLATION_TENANT_SLUG || fixtureTenant.id === demoTenantId) {
+    throw new Error('No safe synthetic isolation tenant is available')
+  }
+  const rows = await selectRows(
+    connection,
+    `projects?select=id,tenant_id,deleted_at,name,client,status&tenant_id=eq.${encodeURIComponent(fixtureTenant.id)}&name=eq.${encodeURIComponent(ISOLATION_PROJECT_NAME)}&deleted_at=is.null&limit=2`,
+    'Synthetic isolation project'
+  )
+  const projects = z.array(isolationProjectRow).parse(rows)
   const project = projects[0]
-  if (!project || project.tenant_id === demoTenantId || project.deleted_at !== null) {
+  if (projects.length !== 1 || !project || project.tenant_id !== fixtureTenant.id ||
+    project.deleted_at !== null || project.name !== ISOLATION_PROJECT_NAME ||
+    project.client !== ISOLATION_PROJECT_CLIENT || project.status !== 'active') {
     throw new Error('No safe active foreign project fixture is available')
   }
   return project.id

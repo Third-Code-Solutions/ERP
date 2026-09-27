@@ -15,7 +15,13 @@ Verification on 2026-09-28:
   Web award adapter test, 1/1; WO-13 contract test.
 - PASSED: operations, Core API, and Web TypeScript checks; repository ESLint;
   Core API and Web production builds.
-- NOT RUN: disposable PostgreSQL signing and rollback replay, browser signing,
-  hosted integration, and production deployment. Those remain release gates.
+- FAILED in hosted CI on `7bfdd784`: the existing disposable PostgreSQL
+  DocuSeal integration fixture used a draft BOM, which the corrected signer
+  now rejects. The fixture now uses an approved classified and priced BOM and
+  checks its award handoff and budget; its rerun is pending.
+- NOT RUN: successful disposable PostgreSQL signing and rollback replay,
+  browser signing, exact-candidate hosted integration, and production
+  deployment. Those remain release gates.
 
-No schema migration or hosted record change was performed.
+No schema migration was added. The separate owner-authorized synthetic
+cross-tenant isolation fixture is recorded in its own changeset.

@@ -2,12 +2,15 @@ import 'reflect-metadata'
 
 import { randomUUID } from 'node:crypto'
 import {
+  awardHandoffs,
   auditLog,
+  bomLineItems,
   bomPortalTokens,
   boms,
   db,
   documents,
   notifications,
+  projectBudgets,
   projects,
   tenants,
   users,
@@ -140,7 +143,10 @@ suite('DocuSeal webhook database authority', () => {
           tenant_id: tenantA,
           project_id: projectA,
           created_by: userA,
-          status: 'draft',
+          approved_by: userA,
+          approved_at: new Date('2026-09-01T00:00:00.000Z'),
+          status: 'approved',
+          total_cost_cents: 100_000,
           tcv_cents: 125_000,
         },
         {
@@ -152,6 +158,17 @@ suite('DocuSeal webhook database authority', () => {
           tcv_cents: 275_000,
         },
       ])
+      await transaction.insert(bomLineItems).values({
+        tenant_id: tenantA,
+        bom_id: bomA,
+        kind: 'work_item',
+        classification_status: 'classified',
+        description: 'Synthetic signed BOQ line',
+        unit: 'lot',
+        quantity: 1,
+        unit_cost_cents: 100_000,
+        line_total_cents: 100_000,
+      })
       await transaction.insert(bomPortalTokens).values([
         {
           tenant_id: tenantA,
@@ -244,6 +261,14 @@ suite('DocuSeal webhook database authority', () => {
             eq(auditLog.action, 'lock')
           )
         )
+      const handoffs = await transaction
+        .select({ id: awardHandoffs.id, projectId: awardHandoffs.project_id })
+        .from(awardHandoffs)
+        .where(and(eq(awardHandoffs.tenant_id, tenantA), eq(awardHandoffs.source_bom_id, bomA)))
+      const budgets = await transaction
+        .select({ id: projectBudgets.id })
+        .from(projectBudgets)
+        .where(and(eq(projectBudgets.tenant_id, tenantA), eq(projectBudgets.source_bom_id, bomA)))
 
       expect(lockedBomA).toMatchObject({ status: 'locked' })
       expect(lockedBomA?.lockedAt).toBeInstanceOf(Date)
@@ -257,6 +282,9 @@ suite('DocuSeal webhook database authority', () => {
       )
       expect(inAppNotifications).toHaveLength(2)
       expect(auditRows).toHaveLength(1)
+      expect(handoffs).toHaveLength(1)
+      expect(handoffs[0]?.projectId).toBe(projectA)
+      expect(budgets).toHaveLength(1)
     })
 
     const leaked = await db

@@ -3,13 +3,14 @@ import { z } from 'zod'
 import { authenticateRole } from './helpers/supabase-magic-link'
 import {
   assertDemoProject,
+  ISOLATION_PROJECT_CLIENT,
+  ISOLATION_PROJECT_NAME,
   resolveDemoTenantId,
   resolveForeignProjectId,
 } from './helpers/production-demo-boundary'
 
-// A failed isolation check could expose a customer page. Check only response
-// status through the browser context's cookie-aware request client, without
-// rendering or attaching the response body to the production report.
+// Probe only the dedicated synthetic project through the cookie-aware request
+// client. Never render or attach the response body to the production report.
 test.use({ screenshot: 'off', trace: 'off' })
 
 test('demo viewer cannot read an active project from another tenant', async ({ browser }, testInfo) => {
@@ -40,6 +41,8 @@ test('demo viewer cannot read an active project from another tenant', async ({ b
       maxRedirects: 0,
     })
     expect(ownProject.status(), 'demo project control route').toBe(200)
+    const ownBody = await ownProject.text()
+    expect(ownBody, 'demo project control content').not.toContain('NEXT_HTTP_ERROR_FALLBACK;404')
     await ownProject.dispose()
 
     const restResponse = await fetch(
@@ -62,7 +65,13 @@ test('demo viewer cannot read an active project from another tenant', async ({ b
     const foreignProject = await context.request.get(`${baseUrl}/projects/${foreignProjectId}`, {
       maxRedirects: 0,
     })
-    expect(foreignProject.status(), 'foreign project Web route').toBe(404)
+    const foreignBody = await foreignProject.text()
+    // Next.js may stream the parent shell before notFound(), yielding HTTP 200
+    // with an RSC 404 marker. The successful control route must lack that marker.
+    expect([200, 404], 'foreign project Web route status').toContain(foreignProject.status())
+    expect(foreignBody, 'foreign project not-found state').toContain('NEXT_HTTP_ERROR_FALLBACK;404')
+    expect(foreignBody, 'foreign project name must stay private').not.toContain(ISOLATION_PROJECT_NAME)
+    expect(foreignBody, 'foreign project client must stay private').not.toContain(ISOLATION_PROJECT_CLIENT)
     await foreignProject.dispose()
   } finally {
     try {
