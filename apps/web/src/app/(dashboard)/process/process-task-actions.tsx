@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import type { ProcessTaskQueueStatus } from '@third-code-erp/shared-types'
-import { updateProcessTaskStatus } from './actions'
+import { completeAwardTask, updateProcessTaskStatus } from './actions'
 
 type TaskActionStatus =
   | 'in_progress'
@@ -40,27 +40,40 @@ const VALID_TRANSITIONS: Record<
 interface ProcessTaskActionsProps {
   taskId: string
   status: ProcessTaskQueueStatus
+  awardParticipant?: boolean
+  blockedReason?: string | null
 }
 
 export function ProcessTaskActions({
   taskId,
   status,
+  awardParticipant = false,
+  blockedReason,
 }: ProcessTaskActionsProps) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-  const actions = VALID_TRANSITIONS[status]
+  const actions: readonly TaskAction[] = awardParticipant
+    ? status === 'in_progress' && blockedReason == null
+      ? [{ status: 'completed', label: 'Complete' }]
+      : []
+    : VALID_TRANSITIONS[status]
 
   function submit(formData: FormData): void {
     setError(null)
     setSuccess(null)
     startTransition(async () => {
-      const result = await updateProcessTaskStatus(formData)
+      const result = await (awardParticipant
+        ? completeAwardTask(formData)
+        : updateProcessTaskStatus(formData)).catch(() => ({
+          ok: false,
+          error: 'Unable to confirm the task update. Refresh before trying again.',
+        }))
       if (!result.ok) {
         setError(result.error ?? 'Process task status was not updated.')
         return
       }
-      setSuccess('Updated')
+      setSuccess('refreshWarning' in result && result.refreshWarning ? result.refreshWarning : 'Updated')
     })
   }
 

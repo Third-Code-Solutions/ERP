@@ -74,7 +74,7 @@ describe('Process API protected boundary', () => {
       providers: [
         {
           provide: ProcessService,
-          useValue: { listTasks, updateTaskStatus },
+          useValue: { listTasks, updateTaskStatus, listAwardTasks: listTasks, completeAwardTask: updateTaskStatus },
         },
       ],
     }).compile()
@@ -113,6 +113,36 @@ describe('Process API protected boundary', () => {
 
     expect(harness.identity.verifyAccessToken).not.toHaveBeenCalled()
     expect(harness.listTasks).not.toHaveBeenCalled()
+  })
+
+  it.each(['finance', 'cx'])('admits verified %s only to the award participation routes', async role => {
+    const harness = await appFor({ tenantId: TENANT_ID, role, email: 'participant@example.test' })
+    await request(harness.app.getHttpServer()).get('/v1/process/award-tasks')
+      .set('Authorization', 'Bearer verified-token').expect(200)
+    expect(harness.listTasks).toHaveBeenCalledWith(expect.objectContaining({ page: 1 }),
+      expect.objectContaining({ tenantId: TENANT_ID, userId: USER_ID, role }))
+    await request(harness.app.getHttpServer()).patch('/v1/process/award-tasks/44444444-4444-4444-8444-444444444444/complete')
+      .set('Authorization', 'Bearer verified-token').expect(200)
+    for (const path of ['status', 'assignment']) {
+      await request(harness.app.getHttpServer()).patch(`/v1/process/tasks/44444444-4444-4444-8444-444444444444/${path}`)
+        .set('Authorization', 'Bearer verified-token').send({ status: 'cancelled' }).expect(403)
+    }
+    for (const path of ['tasks', 'tasks/44444444-4444-4444-8444-444444444444/clock']) {
+      await request(harness.app.getHttpServer()).post(`/v1/process/${path}`)
+        .set('Authorization', 'Bearer verified-token').send({}).expect(403)
+    }
+    await request(harness.app.getHttpServer()).get('/v1/process/tasks')
+      .set('Authorization', 'Bearer verified-token').expect(403)
+  })
+
+  it.each(['viewer', 'sales', 'procurement'])('denies %s award participation', async role => {
+    const harness = await appFor({ tenantId: TENANT_ID, role, email: 'denied@example.test' })
+    await request(harness.app.getHttpServer()).get('/v1/process/award-tasks')
+      .set('Authorization', 'Bearer verified-token').expect(403)
+    await request(harness.app.getHttpServer()).patch('/v1/process/award-tasks/44444444-4444-4444-8444-444444444444/complete')
+      .set('Authorization', 'Bearer verified-token').expect(403)
+    expect(harness.listTasks).not.toHaveBeenCalled()
+    expect(harness.updateTaskStatus).not.toHaveBeenCalled()
   })
 
   it('denies a verified role without process.task.manage', async () => {

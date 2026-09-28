@@ -8,6 +8,9 @@ import {
 } from '@nestjs/common'
 import {
   approvalRules,
+  awardHandoffs,
+  projects,
+  tenants,
   approvals,
   processSteps,
   slaClocks,
@@ -56,6 +59,10 @@ import {
   countDistinct,
   desc,
   eq,
+  exists,
+  isNull,
+  or,
+  sql,
   inArray,
   lt,
   notInArray,
@@ -83,6 +90,15 @@ const tenantHolidayRowSchema = z.object({
   source: z.string(),
   is_enabled: z.boolean(),
 })
+
+const awardRoleTasks = {
+  finance: [
+    { key: 'arProjectCode', code: 'AWARD.AR_PROJECT_CODE' },
+    { key: 'downPaymentInvoice', code: 'AWARD.DP_INVOICE' },
+    { key: 'cari', code: 'AWARD.CARI' },
+  ],
+  cx: [{ key: 'cxOnboarding', code: 'AWARD.CX_ONBOARDING' }],
+} as const
 
 @Injectable()
 export class ProcessService {
@@ -112,10 +128,63 @@ export class ProcessService {
     query: ProcessTaskQueueQuery,
     principal: ErpPrincipal
   ): Promise<ProcessTaskQueueResult> {
+    return this.listTaskQueue(query, principal, false)
+  }
+
+  async listAwardTasks(
+    query: ProcessTaskQueueQuery,
+    principal: ErpPrincipal
+  ): Promise<ProcessTaskQueueResult> {
+    this.awardTaskSpecs(principal)
+    return this.listTaskQueue(query, principal, true)
+  }
+
+  private awardTaskSpecs(principal: ErpPrincipal) {
+    if (principal.role !== 'finance' && principal.role !== 'cx') {
+      throw new ForbiddenException('Award task participation requires Finance or CX')
+    }
+    return awardRoleTasks[principal.role]
+  }
+
+  private awardTaskMatch(principal: ErpPrincipal) {
+    return and(
+      eq(taskInstances.tenant_id, principal.tenantId),
+      eq(taskInstances.subject_type, 'award_handoff'),
+      eq(taskInstances.subject_id, awardHandoffs.id),
+      eq(processSteps.tenant_id, principal.tenantId),
+      eq(processSteps.is_active, true),
+      eq(processSteps.responsible_bu, principal.role === 'finance' ? 'Finance' : 'CX'),
+      or(...this.awardTaskSpecs(principal).map(({ key, code }) => and(
+        eq(processSteps.code, code),
+        eq(sql`${taskInstances.id}::text`, sql`${awardHandoffs.task_ids}->>${key}`),
+        eq(taskInstances.instance_key, sql`'award:' || ${awardHandoffs.id}::text || ':' || ${key}`)
+      )))
+    )
+  }
+
+  private async listTaskQueue(
+    query: ProcessTaskQueueQuery,
+    principal: ErpPrincipal,
+    awardOnly: boolean
+  ): Promise<ProcessTaskQueueResult> {
     const filters = [
       eq(taskInstances.tenant_id, principal.tenantId),
       eq(processSteps.tenant_id, principal.tenantId),
     ]
+    if (awardOnly) {
+      filters.push(exists(this.database.client.select({ id: awardHandoffs.id })
+        .from(awardHandoffs)
+        .innerJoin(projects, and(
+          eq(projects.id, awardHandoffs.project_id),
+          eq(projects.tenant_id, principal.tenantId),
+          isNull(projects.deleted_at)
+        ))
+        .where(and(
+          eq(awardHandoffs.tenant_id, principal.tenantId),
+          eq(awardHandoffs.status, 'active'),
+          this.awardTaskMatch(principal)
+        ))))
+    }
     if (query.status) {
       filters.push(eq(taskInstances.status, query.status))
     }
@@ -235,6 +304,71 @@ export class ProcessService {
       page: query.page,
       limit: query.limit,
       totalPages,
+    })
+  }
+
+  async completeAwardTask(
+    taskId: string,
+    principal: ErpPrincipal
+  ): Promise<TaskInstanceResult> {
+    this.awardTaskSpecs(principal)
+    return this.database.client.transaction(async (transaction) => {
+      const [actor] = await transaction.select({ role: users.role, status: users.account_status })
+        .from(users).where(and(eq(users.id, principal.userId), eq(users.tenant_id, principal.tenantId)))
+        .limit(1).for('share', { noWait: true })
+      const [tenant] = await transaction.select({ status: tenants.status }).from(tenants)
+        .where(eq(tenants.id, principal.tenantId)).limit(1).for('share', { noWait: true })
+      if (actor?.role !== principal.role || actor.status !== 'active' || tenant?.status !== 'active') {
+        throw new ForbiddenException('Current award task authority is not active')
+      }
+      await this.audit.stampActor(transaction, principal)
+      // Hold the ledger and its exact task through completion so reversal
+      // cannot invalidate the admission between the read and write.
+      const [match] = await transaction.select({ id: awardHandoffs.id })
+        .from(awardHandoffs)
+        .innerJoin(projects, and(
+          eq(projects.id, awardHandoffs.project_id),
+          eq(projects.tenant_id, principal.tenantId),
+          isNull(projects.deleted_at)
+        ))
+        .innerJoin(taskInstances, and(
+          eq(taskInstances.subject_id, awardHandoffs.id),
+          eq(taskInstances.id, taskId)
+        ))
+        .innerJoin(processSteps, eq(processSteps.id, taskInstances.process_step_id))
+        .where(and(
+          eq(awardHandoffs.tenant_id, principal.tenantId),
+          eq(awardHandoffs.status, 'active'),
+          this.awardTaskMatch(principal)
+        ))
+        .limit(1)
+        .for('update', { of: [awardHandoffs, projects, taskInstances, processSteps] })
+      if (!match) throw new NotFoundException('Award task not found')
+
+      const now = new Date()
+      const [updated] = await transaction.update(taskInstances).set({
+        status: 'completed',
+        completed_at: now,
+        updated_at: now,
+        updated_by: principal.userId,
+      }).where(and(
+        eq(taskInstances.id, taskId),
+        eq(taskInstances.tenant_id, principal.tenantId),
+        eq(taskInstances.status, 'in_progress'),
+        isNull(taskInstances.blocked_reason)
+      )).returning()
+      if (!updated) {
+        throw new ConflictException('Only an in-progress, unblocked award task can be completed')
+      }
+      await transaction.update(slaClocks).set({
+        status: 'completed', updated_at: now, updated_by: principal.userId,
+      }).where(and(
+        eq(slaClocks.task_instance_id, taskId),
+        eq(slaClocks.tenant_id, principal.tenantId),
+        notInArray(slaClocks.status, ['completed', 'cancelled'])
+      ))
+      // Existing audit triggers record task and clock changes using stampActor.
+      return this.taskResult(updated)
     })
   }
 

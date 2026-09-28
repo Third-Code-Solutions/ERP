@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   requireUserProfile: vi.fn(),
   can: vi.fn(),
   updateProcessTaskStatusThroughCoreApi: vi.fn(),
+  completeAwardTaskThroughCoreApi: vi.fn(),
   revalidatePath: vi.fn(),
 }))
 
@@ -13,6 +14,7 @@ vi.mock('@third-code-erp/auth', () => ({
 }))
 
 vi.mock('@/lib/erp-core-client', () => ({
+  completeAwardTaskThroughCoreApi: mocks.completeAwardTaskThroughCoreApi,
   updateProcessTaskStatusThroughCoreApi:
     mocks.updateProcessTaskStatusThroughCoreApi,
 }))
@@ -21,7 +23,8 @@ vi.mock('next/cache', () => ({
   revalidatePath: mocks.revalidatePath,
 }))
 
-import { updateProcessTaskStatus } from './actions'
+import { completeAwardTask, updateProcessTaskStatus } from './actions'
+import { roleHasCapability } from '@third-code-erp/shared-types'
 
 const TASK_ID = '44444444-4444-4444-8444-444444444444'
 const PROFILE = {
@@ -99,5 +102,61 @@ describe('process task status action', () => {
       error: 'Cannot transition task from completed to cancelled',
     })
     expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+})
+
+describe('award task completion action', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.can.mockImplementation(roleHasCapability)
+    mocks.completeAwardTaskThroughCoreApi.mockResolvedValue({ ok: true, data: { id: TASK_ID } })
+  })
+
+  it.each(['finance', 'cx'])('routes %s only through award completion', async (role) => {
+    mocks.requireUserProfile.mockResolvedValue({ ...PROFILE, role })
+    await expect(completeAwardTask(taskForm('cancelled'))).resolves.toEqual({ ok: true })
+    expect(mocks.completeAwardTaskThroughCoreApi).toHaveBeenCalledWith(TASK_ID)
+    expect(mocks.updateProcessTaskStatusThroughCoreApi).not.toHaveBeenCalled()
+    await expect(updateProcessTaskStatus(taskForm('completed'))).resolves.toMatchObject({ ok: false })
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/process')
+  })
+
+  it.each(['owner', 'admin', 'pm', 'sales', 'client'])('rejects %s from participant action', async (role) => {
+    mocks.requireUserProfile.mockResolvedValue({ ...PROFILE, role })
+    await expect(completeAwardTask(taskForm('completed'))).resolves.toMatchObject({ ok: false })
+    expect(mocks.completeAwardTaskThroughCoreApi).not.toHaveBeenCalled()
+  })
+
+  it('rejects invalid IDs and unauthenticated calls', async () => {
+    mocks.requireUserProfile.mockResolvedValue({ ...PROFILE, role: 'finance' })
+    const form = taskForm('completed')
+    form.set('taskId', 'invalid')
+    await expect(completeAwardTask(form)).resolves.toMatchObject({ ok: false })
+    mocks.requireUserProfile.mockRejectedValue(new Error('no session'))
+    await expect(completeAwardTask(taskForm('completed'))).resolves.toEqual({ ok: false, error: 'Unauthorized' })
+    expect(mocks.completeAwardTaskThroughCoreApi).not.toHaveBeenCalled()
+  })
+
+  it('preserves Core blocked-state and tenant denials without revalidation', async () => {
+    mocks.requireUserProfile.mockResolvedValue({ ...PROFILE, role: 'cx' })
+    mocks.completeAwardTaskThroughCoreApi.mockResolvedValue({ ok: false, error: 'Task is blocked awaiting NTP' })
+    await expect(completeAwardTask(taskForm('completed'))).resolves.toEqual({ ok: false, error: 'Task is blocked awaiting NTP' })
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('does not report a failed completion after Core committed but refresh failed', async () => {
+    mocks.requireUserProfile.mockResolvedValue({ ...PROFILE, role: 'finance' })
+    mocks.revalidatePath.mockImplementationOnce(() => { throw new Error('refresh failed') })
+    await expect(completeAwardTask(taskForm('completed'))).resolves.toEqual({
+      ok: true, refreshWarning: 'Task completed. Refresh to see the updated queue.',
+    })
+  })
+
+  it('reports unconfirmed transport failures without leaking details', async () => {
+    mocks.requireUserProfile.mockResolvedValue({ ...PROFILE, role: 'finance' })
+    mocks.completeAwardTaskThroughCoreApi.mockRejectedValueOnce(new Error('private transport detail'))
+    await expect(completeAwardTask(taskForm('completed'))).resolves.toEqual({
+      ok: false, error: 'Unable to confirm completion. Refresh before trying again.',
+    })
   })
 })

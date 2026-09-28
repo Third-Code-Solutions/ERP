@@ -9,6 +9,7 @@ import {
   getApprovalRoutePreviewThroughCoreApi,
   getProcessHealthThroughCoreApi,
   getProcessTaskQueueThroughCoreApi,
+  getAwardTaskQueueThroughCoreApi,
 } from '@/lib/erp-core-client'
 import { IconActivity, IconArrowUpRight, IconClock } from '@/components/ui/icons'
 import { ProcessRetry } from './retry'
@@ -137,6 +138,7 @@ function ProcessTaskQueueClockCell({
 
 interface ProcessTaskQueueSectionProps {
   canManage: boolean
+  awardParticipant: boolean
   data: ProcessTaskQueueResult | null
   error: string | null
   filters: QueueFilterValues
@@ -145,6 +147,7 @@ interface ProcessTaskQueueSectionProps {
 
 function ProcessTaskQueueSection({
   canManage,
+  awardParticipant,
   data,
   error,
   filters,
@@ -158,8 +161,9 @@ function ProcessTaskQueueSection({
             Process task queue
           </h2>
           <p className="muted" style={{ marginTop: 4 }}>
-            Core-owned process tasks. Subject references and assignee UUIDs
-            remain opaque; clock labels are displayed exactly from Core.
+            {awardParticipant
+              ? 'Award handoff tasks for your business unit. Tasks awaiting prerequisites cannot be completed.'
+              : 'Core-owned process tasks. Subject references and assignee UUIDs remain opaque; clock labels are displayed exactly from Core.'}
           </p>
         </div>
         {data ? (
@@ -169,7 +173,7 @@ function ProcessTaskQueueSection({
         ) : null}
       </div>
 
-      {!canManage ? (
+      {!canManage && !awardParticipant ? (
         <div className="card-empty" role="status">
           You do not have permission to view the process task queue.
         </div>
@@ -379,6 +383,8 @@ function ProcessTaskQueueSection({
                           <ProcessTaskActions
                             taskId={row.id}
                             status={row.status}
+                            awardParticipant={awardParticipant}
+                            blockedReason={row.blockedReason}
                           />
                         </td>
                       </tr>
@@ -470,9 +476,12 @@ export default async function ProcessHealthPage({
     amountCentavos: optionalSearchParam(resolvedSearch.amountCentavos),
   }
   const canManageTaskQueue = can(profile.role, 'process.task.manage')
+  const awardParticipant = !canManageTaskQueue && can(profile.role, 'process.award_task.participate')
   const queueResult = canManageTaskQueue
     ? await getProcessTaskQueueThroughCoreApi(queueFilters)
-    : null
+    : awardParticipant
+      ? await getAwardTaskQueueThroughCoreApi(queueFilters)
+      : null
   const taskQueue = queueResult?.ok ? queueResult.data ?? null : null
   const taskQueueError =
     queueResult && !queueResult.ok
@@ -670,6 +679,7 @@ export default async function ProcessHealthPage({
 
       <ProcessTaskQueueSection
         canManage={canManageTaskQueue}
+        awardParticipant={awardParticipant}
         data={taskQueue}
         error={taskQueueError}
         filters={queueFilters}

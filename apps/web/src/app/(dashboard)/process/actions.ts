@@ -1,16 +1,21 @@
 'use server'
 
+import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { can, requireUserProfile } from '@third-code-erp/auth'
 import {
   updateTaskStatusCommandSchema,
 } from '@third-code-erp/shared-types'
 import { z } from 'zod'
-import { updateProcessTaskStatusThroughCoreApi } from '@/lib/erp-core-client'
+import {
+  completeAwardTaskThroughCoreApi,
+  updateProcessTaskStatusThroughCoreApi,
+} from '@/lib/erp-core-client'
 
 export interface ProcessTaskStatusActionResult {
   ok: boolean
   error?: string
+  refreshWarning?: string
 }
 
 const taskIdSchema = z.string().uuid()
@@ -65,4 +70,44 @@ export async function updateProcessTaskStatus(
 
   revalidatePath('/process')
   return { ok: true }
+}
+
+/** Core rechecks the active award, tenant, BU and unblocked task state. */
+export async function completeAwardTask(
+  formData: FormData
+): Promise<ProcessTaskStatusActionResult> {
+  const traceId = randomUUID()
+  let tenantId: string | null = null
+  let actorId: string | null = null
+  let outcome = 'rejected'
+  try {
+    const profile = await requireUserProfile().catch(() => null)
+    if (!profile) return { ok: false, error: 'Unauthorized' }
+    tenantId = profile.tenantId
+    actorId = profile.user.id
+    if (!can(profile.role, 'process.award_task.participate')) {
+      return { ok: false, error: 'You do not have permission to complete award tasks.' }
+    }
+    const parsedTaskId = taskIdSchema.safeParse(formData.get('taskId'))
+    if (!parsedTaskId.success) {
+      return { ok: false, error: 'Invalid process task identifier.' }
+    }
+    const result = await completeAwardTaskThroughCoreApi(parsedTaskId.data)
+    if (!result.ok || !result.data) {
+      return { ok: false, error: result.error ?? 'Award task was not completed.' }
+    }
+    outcome = 'succeeded'
+    try {
+      revalidatePath('/process')
+    } catch {
+      outcome = 'succeeded_refresh_pending'
+      return { ok: true, refreshWarning: 'Task completed. Refresh to see the updated queue.' }
+    }
+    return { ok: true }
+  } catch {
+    outcome = 'unconfirmed'
+    return { ok: false, error: 'Unable to confirm completion. Refresh before trying again.' }
+  } finally {
+    console.info(JSON.stringify({ trace_id: traceId, tenant_id: tenantId, actor_id: actorId, action: 'process.award_task.complete', outcome }))
+  }
 }
