@@ -10,12 +10,14 @@ import { IconChevronRight, IconSearch } from '@/components/ui/icons'
 import { CommandPalette } from './command-palette'
 import { NotificationsDropdown } from './notifications-dropdown'
 import { ProfileMenu } from './profile-menu'
+import { ThemeToggle } from './theme-toggle'
 import { readNotificationPreferences } from '@/app/(dashboard)/settings/notification-preferences'
 
 interface TopbarProps {
   user: User
   role: AppRole
   fullName: string | null
+  initialTheme: 'light' | 'dark'
 }
 
 const ROUTE_LABELS: Record<string, string> = {
@@ -72,7 +74,7 @@ function humanize(segment: string): string {
   return ROUTE_LABELS[segment] ?? segment.charAt(0).toUpperCase() + segment.slice(1)
 }
 
-export function Topbar({ user, role, fullName }: TopbarProps) {
+export function Topbar({ user, role, fullName, initialTheme }: TopbarProps) {
   const pathname = usePathname()
   const segments = pathname.split('/').filter(Boolean)
   const [paletteOpen, setPaletteOpen] = useState(false)
@@ -142,6 +144,7 @@ export function Topbar({ user, role, fullName }: TopbarProps) {
         </button>
 
         <div className="topbar-actions">
+          <ThemeToggle initialTheme={initialTheme} />
           <NotificationsDropdown
             preferences={readNotificationPreferences(user.user_metadata?.notification_preferences)}
             userId={user.id}

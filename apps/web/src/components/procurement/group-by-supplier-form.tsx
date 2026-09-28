@@ -126,7 +126,7 @@ export function GroupBySupplierForm({ bomId, label = 'Generate POs grouped by su
             ref={dialogRef}
             tabIndex={-1}
             style={{
-              background: 'white',
+              background: 'var(--color-surface)',
               borderRadius: 12,
               width: '100%',
               maxWidth: 640,
@@ -232,7 +232,7 @@ export function GroupBySupplierForm({ bomId, label = 'Generate POs grouped by su
                   padding: '8px 14px',
                   borderRadius: 6,
                   border: '1px solid var(--color-border)',
-                  background: 'white',
+                  background: 'var(--color-surface)',
                   color: 'var(--color-neutral-700)',
                   fontSize: '0.8125rem',
                   fontWeight: 500,

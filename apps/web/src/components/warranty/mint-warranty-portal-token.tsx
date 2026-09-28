@@ -96,7 +96,7 @@ export function MintWarrantyPortalToken({
             style={{
               fontSize: 12,
               padding: 8,
-              background: 'white',
+              background: 'var(--color-surface)',
               borderRadius: 4,
               border: '1px solid #e1e4ea',
               wordBreak: 'break-all',
@@ -109,7 +109,7 @@ export function MintWarrantyPortalToken({
             onClick={handleCopy}
             style={{
               alignSelf: 'flex-start',
-              background: 'white',
+              background: 'var(--color-surface)',
               border: '1px solid #d0d5dd',
               padding: '6px 12px',
               borderRadius: 6,

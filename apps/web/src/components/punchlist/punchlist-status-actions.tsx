@@ -84,7 +84,7 @@ export function PunchlistStatusActions({
   return (
     <div
       style={{
-        background: 'white',
+        background: 'var(--color-surface)',
         border: '1px solid var(--color-border)',
         borderRadius: 8,
         padding: 16,
@@ -123,7 +123,7 @@ export function PunchlistStatusActions({
                 title={blocked ? 'Requires PE sign-off' : undefined}
                 style={{
                   border: '1px solid var(--color-border)',
-                  background: blocked ? 'var(--color-neutral-50)' : 'white',
+                  background: blocked ? 'var(--color-neutral-50)' : 'var(--color-surface)',
                   color: blocked ? 'var(--color-neutral-400)' : 'var(--color-neutral-800)',
                   padding: '8px 12px',
                   borderRadius: 6,

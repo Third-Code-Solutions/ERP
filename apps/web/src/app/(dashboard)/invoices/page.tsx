@@ -93,7 +93,7 @@ export default async function InvoicesPage() {
           <div
             key={label}
             style={{
-              background: 'white',
+              background: 'var(--color-surface)',
               border: '1px solid var(--color-border)',
               borderRadius: '8px',
               padding: '14px 20px',
@@ -113,7 +113,7 @@ export default async function InvoicesPage() {
       {rows.length === 0 ? (
         <div
           style={{
-            background: 'white',
+            background: 'var(--color-surface)',
             border: '1px solid var(--color-border)',
             borderRadius: '8px',
             padding: '64px 24px',
@@ -124,13 +124,13 @@ export default async function InvoicesPage() {
           <p style={{ fontSize: '0.875rem', marginBottom: '8px' }}>No invoices yet.</p>
           <p style={{ fontSize: '0.8125rem' }}>
             Invoices are generated from project billing milestones.{' '}
-            <Link href="/projects" style={{ color: 'var(--color-navy-700)' }}>
+            <Link href="/projects" style={{ color: 'var(--color-navy-text)' }}>
               Go to Projects
             </Link>
           </p>
         </div>
       ) : (
-        <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
+        <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
           <table className="data-table">
             <thead>
               <tr>
@@ -150,7 +150,7 @@ export default async function InvoicesPage() {
                   <td>
                     <Link
                       href={`/invoices/${row.id}`}
-                      style={{ fontWeight: 600, fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--color-navy-700)', textDecoration: 'none' }}
+                      style={{ fontWeight: 600, fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--color-navy-text)', textDecoration: 'none' }}
                     >
                       {row.invoice_number}
                     </Link>
@@ -159,7 +159,7 @@ export default async function InvoicesPage() {
                     {row.project_id ? (
                       <Link
                         href={`/projects/${row.project_id}`}
-                        style={{ color: 'var(--color-navy-700)', textDecoration: 'none', fontSize: '0.875rem' }}
+                        style={{ color: 'var(--color-navy-text)', textDecoration: 'none', fontSize: '0.875rem' }}
                       >
                         {row.project_name ?? '—'}
                       </Link>
@@ -210,7 +210,7 @@ export default async function InvoicesPage() {
           borderRadius: '8px',
           padding: '16px 20px',
           fontSize: '0.8125rem',
-          color: 'var(--color-navy-700)',
+          color: 'var(--color-navy-text)',
         }}
       >
         Drafts have no ledger effect. “Issue and post” creates the immutable

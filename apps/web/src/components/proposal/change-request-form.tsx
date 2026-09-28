@@ -105,7 +105,7 @@ export function ChangeRequestForm({ opportunityId, designOptions }: ChangeReques
         .inp {
           font-family: inherit; font-size: 13px; padding: 7px 9px;
           border: 1px solid var(--color-border); border-radius: 4px;
-          background: white;
+          background: var(--color-surface);
         }
         .inp:focus {
           outline: 0; border-color: var(--color-navy-500);

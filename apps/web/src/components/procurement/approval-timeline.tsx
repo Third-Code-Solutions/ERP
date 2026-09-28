@@ -103,7 +103,7 @@ export function ApprovalTimeline(props: Props) {
     <section
       aria-label="Approval timeline"
       style={{
-        background: 'white',
+        background: 'var(--color-surface)',
         border: '1px solid var(--color-border)',
         borderRadius: '8px',
         padding: '20px',

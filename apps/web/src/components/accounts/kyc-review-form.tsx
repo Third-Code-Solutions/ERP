@@ -102,7 +102,7 @@ function RadioPill({
         padding: '6px 10px',
         fontSize: 12.5,
         fontWeight: 500,
-        background: checked ? toneBg : 'white',
+        background: checked ? toneBg : 'var(--color-surface)',
         color: checked ? toneColor : 'var(--color-neutral-600)',
         border: `1px solid ${checked ? toneColor : 'var(--color-border)'}`,
         borderRadius: 'var(--radius-md, 6px)',

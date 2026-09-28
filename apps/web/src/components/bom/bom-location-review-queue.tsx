@@ -239,7 +239,7 @@ export function BomLocationReviewQueue({
             borderRadius: 7,
             padding: '0 13px',
             background: 'var(--color-surface)',
-            color: 'var(--color-navy-700)',
+            color: 'var(--color-navy-text)',
             fontSize: 12,
             fontWeight: 700,
             cursor: isPending ? 'wait' : 'pointer',

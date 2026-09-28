@@ -76,7 +76,7 @@ export function CreateInvoiceForm({ projectId, tcvCents }: CreateInvoiceFormProp
     >
       <form
         onSubmit={handleSubmit}
-        style={{ background: 'white', borderRadius: '10px', padding: '24px', width: '440px', maxWidth: '95vw', boxShadow: '0 8px 32px rgba(0,0,0,0.14)' }}
+        style={{ background: 'var(--color-surface)', borderRadius: '10px', padding: '24px', width: '440px', maxWidth: '95vw', boxShadow: '0 8px 32px rgba(0,0,0,0.14)' }}
       >
         <h2 style={{ fontSize: '1rem', fontWeight: 700, margin: '0 0 20px', color: 'var(--color-neutral-900)' }}>
           Create Progress Invoice
@@ -129,7 +129,7 @@ export function CreateInvoiceForm({ projectId, tcvCents }: CreateInvoiceFormProp
             ))}
             <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '6px', marginTop: '6px', display: 'flex', justifyContent: 'space-between' }}>
               <span style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--color-neutral-800)' }}>Net Amount Due</span>
-              <span style={{ fontSize: '0.9rem', fontWeight: 700, fontFamily: 'JetBrains Mono, monospace', color: 'var(--color-navy-700)' }}>{formatPHP(net)}</span>
+              <span style={{ fontSize: '0.9rem', fontWeight: 700, fontFamily: 'JetBrains Mono, monospace', color: 'var(--color-navy-text)' }}>{formatPHP(net)}</span>
             </div>
           </div>
         )}

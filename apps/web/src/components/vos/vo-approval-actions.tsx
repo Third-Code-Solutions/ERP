@@ -151,7 +151,7 @@ const primaryBtnStyle: React.CSSProperties = {
 
 const secondaryBtnStyle: React.CSSProperties = {
   padding: '8px 14px',
-  background: 'white',
+  background: 'var(--color-surface)',
   color: 'var(--color-neutral-700)',
   border: '1px solid var(--color-border)',
   borderRadius: 6,

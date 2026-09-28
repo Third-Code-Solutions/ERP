@@ -137,7 +137,7 @@ export default async function WarrantyTicketsPage() {
                         href={`/warranty/${r.id}`}
                         aria-label={`Open warranty ticket ${r.ticket_number}`}
                         style={{
-                          color: 'var(--color-navy-700)',
+                          color: 'var(--color-navy-text)',
                           fontSize: 12.5,
                           fontWeight: 500,
                           whiteSpace: 'nowrap',

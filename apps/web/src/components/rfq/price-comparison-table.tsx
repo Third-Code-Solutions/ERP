@@ -193,7 +193,7 @@ function AwardQuoteButton({ rfqId, quoteId }: { rfqId: string; quoteId: string }
           marginTop: 4,
           border: '1px solid #98a2b3',
           borderRadius: 4,
-          background: 'white',
+          background: 'var(--color-surface)',
           color: '#344054',
           padding: '3px 7px',
           fontSize: 10.5,

@@ -20,7 +20,7 @@ export default function ProjectBillingLoading() {
       {/* Milestones */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px 20px' }}>
+          <div key={i} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px 20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
               <div className="skeleton" style={{ height: '16px', width: '200px' }} />
               <div className="skeleton" style={{ height: '20px', width: '60px', borderRadius: '4px' }} />

@@ -186,7 +186,7 @@ export default async function ProjectPermitsPage({
 
       <div
         style={{
-          background: 'white',
+          background: 'var(--color-surface)',
           border: '1px solid var(--color-border)',
           borderRadius: '8px',
           overflow: 'hidden',

@@ -1,11 +1,11 @@
-# BUILD OPS PRD v1.4
+# BUILD OPS PRD v1.5
 
 > Repository execution authority, reconciled with current source and provider evidence on 2026-08-14.
 > Historical PDF exports remain reference material; they do not override this file, the current code,
 > migration ledger, or timestamped release evidence.
 BUILD OPS — Refactor PRD (Execution Edition)
 Construction ERP for Actuate Builders Inc. (ABI) · product brand ABI OPS.
-Version 1.4 · 14 August 2026 · Supersedes v1.0–v1.3
+Version 1.5 · 28 September 2026 · Supersedes v1.0–v1.4
 Execution: Codex desktop/CLI or any equivalent engineering agent. Tool-agnostic in substance.
 Companion files:
 In the repo Purpose
@@ -16,6 +16,11 @@ fixtures/abi/ (gitignored)Real ABI Excel templates and Togal exports
 BUILD_OPS_Blueprint.md — the why: evidence, audit, contradictions, reasoning record.
 Keep this out of the repo; it contains competitor analysis, an audit of the current build, and
 a named error in a client-facing document.
+What changed in v1.5: authenticated tenant workspaces and Platform Control gain a
+user-selectable light/dark appearance. The selection persists in a browser cookie;
+public portals and print output retain their separately designed presentation. This
+defines the product behavior and verification boundary without asserting that every
+route has completed visual review.
 What changed in v1.4: current frontend, Core API, routing, storage, hosting and deployment
 surfaces are recorded so the refactor does not erase working product behavior. Local repository
 edits, tests, documentation and reversible build work are executable from the requesting task
@@ -153,6 +158,26 @@ Current runtime surfaces that this refactor must preserve:
   provider-backed AI behind explicit feature flags and tenant allowlists.
 - Hosting: Vercel project `thirdcode-erp` for Web, Railway for Core API and CAD worker,
   Supabase for database/Auth/Storage/Realtime, and Redis for readiness/queue coordination.
+
+1.1 Authenticated workspace appearance
+The tenant workspace and Platform Control each expose a keyboard-operable control to
+switch between light and dark modes. A user's selected mode applies immediately to the
+active authenticated shell and is restored on navigation and later visits in the same
+browser through a saved `erp_theme` cookie. An absent or unsupported cookie value uses
+light mode. The preference changes appearance only; it does not change tenant context,
+permissions, data, or business behavior.
+
+Both modes use the shared design tokens for canvas, surfaces, text, borders, status colors,
+focus states, and form controls. Reachable workspace content, including loading and error
+states, should remain readable and usable in dark mode at desktop and mobile widths.
+The public/authentication and client-portal experiences and print layouts have their own
+presentation requirements and do not inherit the authenticated shell preference.
+
+Acceptance: the control works with pointer and keyboard in both authenticated shells;
+the selected mode persists after navigation and reload; invalid or missing preference
+resolves to light; text and controls remain legible and focus visible in representative
+workspace journeys. Route-by-route visual coverage must be reported from actual browser
+evidence before a full-system dark-mode claim is made.
 
 Current product modules include CRM/accounts/opportunities/KYC/PPRF/proposal inspection,
 projects/documents/comments/access, BOM and Togal/takeoff intake, procurement/RFQ/PO/delivery,
@@ -1133,7 +1158,7 @@ BUILD_OPS_Blueprint.md1.1
 Evidence and reasoning record — the why.
 Audit of the current build, AS-IS/TO-BE,
 contradictions, competitor analysis, AI map
-docs/PRD.md 1.4
+docs/PRD.md 1.5
 Implementation authority — the what and in
 what order. Where the two disagree, this
 document wins
@@ -1165,6 +1190,10 @@ surface, legacy CAD scope input, Finance compatibility routes, Supabase Storage,
 Redis/BullMQ, Railway workers, Vercel deployment and current work-order evidence. Removed
 interactive approval/wait instructions for repository work. No tenant, audit, migration,
 pricing or release safety invariant was removed.
+v1.5 (28 Sep 2026) — defined light/dark appearance for authenticated tenant workspaces
+and Platform Control, cookie persistence, light fallback, accessible interaction, and
+browser verification expectations. Public portals and print remain separately styled.
+No schema, tenant, authorization, audit, pricing, or release invariant changed.
 13. Final direction
 Purge the test data. Load ABI’s own process deck as the workflow engine. Build the DUPA
 engine on top of the bom_line_items spine that already exists — fixing the grain, not the

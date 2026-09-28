@@ -333,7 +333,7 @@ export function CadDropZone({
             style={{
               margin: '4px 0 0',
               fontSize: 12,
-              color: 'var(--color-navy-700)',
+              color: 'var(--color-navy-text)',
               fontWeight: 500,
               display: 'inline-flex',
               alignItems: 'center',
@@ -352,7 +352,7 @@ export function CadDropZone({
                 background: 'transparent',
                 border: 0,
                 padding: 0,
-                color: 'var(--color-navy-700)',
+                color: 'var(--color-navy-text)',
                 fontSize: 12,
                 fontWeight: 600,
                 cursor: 'pointer',
@@ -386,7 +386,7 @@ export function CadDropZone({
         <span
           style={{
             fontSize: 12.5,
-            color: 'var(--color-navy-700)',
+            color: 'var(--color-navy-text)',
             fontWeight: 600,
             whiteSpace: 'nowrap',
           }}

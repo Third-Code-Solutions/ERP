@@ -95,7 +95,7 @@ export function UpdatePermitStatus({
           fontSize: '0.8125rem',
           border: '1px solid var(--color-border)',
           borderRadius: '4px',
-          background: 'white',
+          background: 'var(--color-surface)',
           cursor: pending || !canManage ? 'not-allowed' : 'pointer',
         }}
       >

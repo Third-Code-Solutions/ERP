@@ -37,7 +37,7 @@ export default function ProjectDetailLoading() {
           {/* Quick links */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '24px' }}>
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+              <div key={i} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
                 <div className="skeleton" style={{ height: '24px', width: '24px', borderRadius: '4px' }} />
                 <div className="skeleton" style={{ height: '13px', width: '80px' }} />
               </div>
@@ -45,7 +45,7 @@ export default function ProjectDetailLoading() {
           </div>
 
           {/* Opportunities panel */}
-          <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '20px' }}>
+          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '20px' }}>
             <div className="skeleton" style={{ height: '16px', width: '180px', marginBottom: '16px' }} />
             {Array.from({ length: 3 }).map((_, i) => (
               <div key={i} style={{ padding: '10px 0', borderBottom: '1px solid var(--color-border)' }}>
@@ -60,7 +60,7 @@ export default function ProjectDetailLoading() {
         </div>
 
         {/* Right rail */}
-        <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '20px' }}>
+        <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '20px' }}>
           <div className="skeleton" style={{ height: '14px', width: '100px', marginBottom: '16px' }} />
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} style={{ marginBottom: '12px' }}>

@@ -68,7 +68,7 @@ export function RegressionReasonDialog({
         ref={dialogRef}
         tabIndex={-1}
         style={{
-          background: 'white',
+          background: 'var(--color-surface)',
           borderRadius: '8px',
           padding: '20px',
           width: '460px',
@@ -109,7 +109,7 @@ export function RegressionReasonDialog({
             onClick={onCancel}
             disabled={isSubmitting}
             style={{
-              background: 'white',
+              background: 'var(--color-surface)',
               border: '1px solid var(--color-border)',
               padding: '6px 12px',
               borderRadius: '6px',

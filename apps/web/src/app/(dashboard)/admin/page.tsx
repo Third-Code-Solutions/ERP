@@ -100,7 +100,7 @@ export default async function AdminIndexPage() {
             >
               <div
                 style={{
-                  background: 'white',
+                  background: 'var(--color-surface)',
                   border: '1px solid var(--color-border)',
                   borderRadius: 8,
                   padding: '18px 20px',
@@ -111,7 +111,7 @@ export default async function AdminIndexPage() {
                   transition: 'border-color var(--duration-fast), transform var(--duration-fast)',
                 }}
               >
-                <strong style={{ fontSize: 15, color: 'var(--color-navy-700)' }}>
+                <strong style={{ fontSize: 15, color: 'var(--color-navy-text)' }}>
                   {card.title}
                 </strong>
                 <p
@@ -128,7 +128,7 @@ export default async function AdminIndexPage() {
                   style={{
                     marginTop: 'auto',
                     fontSize: 12,
-                    color: 'var(--color-navy-700)',
+                    color: 'var(--color-navy-text)',
                     fontWeight: 600,
                   }}
                 >

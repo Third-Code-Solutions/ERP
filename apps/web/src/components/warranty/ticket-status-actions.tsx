@@ -244,7 +244,7 @@ export function TicketStatusActions({
       </div>
       <style>{`
         .ticket-action {
-          background: white;
+          background: var(--color-surface);
           border: 1px solid #d0d5dd;
           padding: 8px 14px;
           border-radius: 6px;
@@ -280,5 +280,5 @@ const inputStyle: React.CSSProperties = {
   borderRadius: 6,
   padding: '7px 10px',
   fontSize: 13,
-  background: 'white',
+  background: 'var(--color-surface)',
 }

@@ -141,7 +141,7 @@ export function ClaimTransitionActions({
   return (
     <div
       style={{
-        background: 'white',
+        background: 'var(--color-surface)',
         border: '1px solid var(--color-border)',
         borderRadius: 8,
         padding: 16,
@@ -452,7 +452,7 @@ export function ClaimTransitionActions({
 
       <style>{`
         .claim-action {
-          background: white;
+          background: var(--color-surface);
           border: 1px solid #d0d5dd;
           padding: 8px 14px;
           border-radius: 6px;
@@ -478,7 +478,7 @@ export function ClaimTransitionActions({
         }
         .claim-action-success:hover:not(:disabled) { background: #166f37; }
         .claim-action-danger-outline {
-          background: white;
+          background: var(--color-surface);
           color: #b42318;
           border-color: #f4b4b4;
         }
@@ -574,7 +574,7 @@ const inputStyle: React.CSSProperties = {
   borderRadius: 6,
   padding: '7px 10px',
   fontSize: 13,
-  background: 'white',
+  background: 'var(--color-surface)',
 }
 
 const labelStyle: React.CSSProperties = {

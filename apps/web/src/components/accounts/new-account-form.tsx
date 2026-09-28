@@ -106,7 +106,7 @@ export function NewAccountForm() {
           font-family: inherit;
           font-size: 14px;
           padding: 8px 10px;
-          background: white;
+          background: var(--color-surface);
           border: 1px solid var(--color-border);
           border-radius: var(--radius-sm, 4px);
           color: var(--color-neutral-900);

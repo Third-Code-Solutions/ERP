@@ -408,7 +408,7 @@ export function CommandPalette({
         style={{
           width: '100%',
           maxWidth: 640,
-          background: 'white',
+          background: 'var(--color-surface)',
           borderRadius: 12,
           boxShadow:
             '0 24px 64px -16px rgba(15, 45, 74, 0.32), 0 4px 12px rgba(15, 45, 74, 0.08)',
@@ -766,7 +766,7 @@ export function CommandPalette({
                 <span
                   style={{
                     display: 'block',
-                    color: 'var(--color-navy-700)',
+                    color: 'var(--color-navy-text)',
                     fontSize: 13.5,
                     fontWeight: 650,
                   }}

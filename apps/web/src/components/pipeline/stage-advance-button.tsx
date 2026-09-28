@@ -311,7 +311,7 @@ const menuStyle: React.CSSProperties = {
   position: 'absolute',
   top: 'calc(100% + 4px)',
   left: 0,
-  background: 'white',
+  background: 'var(--color-surface)',
   border: '1px solid var(--color-neutral-200, #e5e7eb)',
   borderRadius: '6px',
   boxShadow: '0 4px 12px rgba(0,0,0,0.08)',

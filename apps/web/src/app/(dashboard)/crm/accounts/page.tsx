@@ -35,7 +35,7 @@ export default async function AccountsListPage() {
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <Link href="/crm/opportunities/new/pprf" className="user-chip" style={{ borderColor: 'var(--color-navy-700)' }}>
-              <span style={{ fontWeight: 600, color: 'var(--color-navy-700)' }}>+ New PPRF intake</span>
+              <span style={{ fontWeight: 600, color: 'var(--color-navy-text)' }}>+ New PPRF intake</span>
             </Link>
             <Link href="/crm/accounts/new" className="user-chip" style={{ borderColor: 'var(--color-border)' }}>
               <span style={{ fontWeight: 600, color: 'var(--color-neutral-700)' }}>+ New account</span>

@@ -136,7 +136,7 @@ export default async function ProjectChecklistPage({
       {!checklist ? (
         <div
           style={{
-            background: 'white',
+            background: 'var(--color-surface)',
             border: '1px dashed var(--color-border)',
             borderRadius: '8px',
             padding: '32px',

@@ -54,7 +54,7 @@ export function CostCodeAssignment({
           padding: '5px 7px',
           border: '1px solid var(--color-border)',
           borderRadius: 5,
-          background: 'white',
+          background: 'var(--color-surface)',
           fontSize: '0.75rem',
         }}
       >

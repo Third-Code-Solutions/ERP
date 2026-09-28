@@ -24,7 +24,7 @@ export default function InvoiceDetailLoading() {
       </div>
 
       {/* Billing summary */}
-      <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '20px', maxWidth: '420px' }}>
+      <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '20px', maxWidth: '420px' }}>
         <div className="skeleton" style={{ height: '12px', width: '100px', marginBottom: '16px' }} />
         {Array.from({ length: 4 }).map((_, i) => (
           <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>

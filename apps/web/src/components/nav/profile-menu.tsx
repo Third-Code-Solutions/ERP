@@ -98,7 +98,7 @@ export function ProfileMenu({ email, fullName, role }: Props) {
             top: 'calc(100% + 8px)',
             right: 0,
             width: 260,
-            background: 'white',
+            background: 'var(--color-surface)',
             border: '1px solid var(--color-border)',
             borderRadius: 12,
             boxShadow:
@@ -167,7 +167,7 @@ export function ProfileMenu({ email, fullName, role }: Props) {
                   padding: '2px 7px',
                   borderRadius: 4,
                   background: 'var(--color-navy-50)',
-                  color: 'var(--color-navy-700)',
+                  color: 'var(--color-navy-text)',
                   fontWeight: 600,
                 }}
               >

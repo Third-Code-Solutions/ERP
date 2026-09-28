@@ -311,7 +311,7 @@ export function DupaEditor({ projectId, bomId, line, assemblyOptions, isEditable
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
         <div>
-          <div style={{ color: 'var(--color-navy-700)', fontSize: 11, fontWeight: 800, letterSpacing: '0.05em' }}>
+          <div style={{ color: 'var(--color-navy-text)', fontSize: 11, fontWeight: 800, letterSpacing: '0.05em' }}>
             DUPA BUILDER
           </div>
           <h3 style={{ margin: '3px 0 0', color: 'var(--color-neutral-900)', fontSize: 15 }}>

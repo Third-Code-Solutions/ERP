@@ -264,7 +264,7 @@ function primaryStyle(isPending: boolean): React.CSSProperties {
 
 function secondaryStyle(isPending: boolean): React.CSSProperties {
   return {
-    background: 'white',
+    background: 'var(--color-surface)',
     color: 'var(--color-neutral-700)',
     border: '1px solid var(--color-border)',
     borderRadius: '4px',

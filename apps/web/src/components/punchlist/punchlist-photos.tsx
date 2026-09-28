@@ -68,13 +68,13 @@ export function PunchlistPhotos({
     fontSize: '0.8125rem',
     border: '1px solid var(--color-border)',
     borderRadius: 6,
-    background: 'white',
+    background: 'var(--color-surface)',
   }
 
   return (
     <div
       style={{
-        background: 'white',
+        background: 'var(--color-surface)',
         border: '1px solid var(--color-border)',
         borderRadius: 8,
         padding: 16,
@@ -119,7 +119,7 @@ export function PunchlistPhotos({
             Upload photos to the{' '}
             <Link
               href={`/projects/${projectId}/documents`}
-              style={{ color: 'var(--color-navy-700)' }}
+              style={{ color: 'var(--color-navy-text)' }}
             >
               Documents
             </Link>{' '}

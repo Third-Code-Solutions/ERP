@@ -48,7 +48,7 @@ export function WarrantyPortalLinkIssuer({ projects }: WarrantyPortalLinkIssuerP
             padding: '8px 10px',
             border: '1px solid var(--color-border)',
             borderRadius: 6,
-            background: 'white',
+            background: 'var(--color-surface)',
             color: 'var(--color-neutral-900)',
             fontSize: 13,
           }}
