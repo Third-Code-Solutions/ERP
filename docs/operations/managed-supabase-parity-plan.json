@@ -149,7 +149,7 @@
       ],
       "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
       "hostedApplyApproved": false,
-      "risk": "Corrects active AWARD.CX_ONBOARDING process steps from two to seven business days as required by PRD A-11. It updates stored process-step data and appends audit entries. A bounded table lock prevents concurrent SLA-clock inserts during the guard and update; the migration aborts if a two-day CX clock already exists or the active step configuration differs from the expected shape. Hosted clock and lock state require fresh preflight.",
+      "risk": "Corrects active AWARD.CX_ONBOARDING process steps from two to seven business days as required by PRD A-11. It updates stored process-step data, clears stale human updated_by attribution, and appends audit entries. A bounded table lock prevents concurrent SLA-clock inserts during the guard and update; the migration aborts if a two-day CX clock already exists or the active step configuration differs from the expected shape. Hosted clock and lock state require fresh preflight.",
       "recovery": "Require exact-target process-step and clock inventory, database and separate Storage recovery evidence, isolated restore/migration rehearsal, and database-owner plus independent review before hosted application. Abort on the guard or lock timeout. Reconcile any existing two-day CX clock with an audited, tenant-specific correction; do not automatically revert the seven-day rule. This source-only batch does not authorize hosted application."
     }
   ]

@@ -40,14 +40,18 @@ const databaseUrl = process.env.DATABASE_URL?.trim()
   async function createStep(tx: postgres.TransactionSql): Promise<{ tenantId: string; stepId: string }> {
     const tenantId = randomUUID()
     const stepId = randomUUID()
+    const userId = randomUUID()
     await tx.unsafe('insert into public.tenants (id, name, slug) values ($1, $2, $3)',
       [tenantId, 'Synthetic CX SLA proof', `cx-sla-${tenantId}`])
+    await tx.unsafe(`insert into public.users (id, tenant_id, email, full_name, role)
+      values ($1, $2, $3, 'Synthetic CX SLA user', 'cx')`,
+    [userId, tenantId, `${userId}@example.test`])
     await tx.unsafe(`insert into public.process_steps
       (id, tenant_id, code, stage, name, responsible_bu, input, input_from,
-       output, output_by, sla_days)
+       output, output_by, sla_days, updated_by)
       values ($1, $2, 'AWARD.CX_ONBOARDING', 'award', 'CX onboarding task',
-              'CX', 'Signed BOM', 'SD/PM/PE', 'CX onboarding task', 'CX', 2)`,
-    [stepId, tenantId])
+              'CX', 'Signed BOM', 'SD/PM/PE', 'CX onboarding task', 'CX', 2, $3)`,
+    [stepId, tenantId, userId])
     return { tenantId, stepId }
   }
 
@@ -56,9 +60,10 @@ const databaseUrl = process.env.DATABASE_URL?.trim()
       await sql.begin(async (tx) => {
         const { tenantId, stepId } = await createStep(tx)
         await tx.unsafe(migrationBody)
-        const rows = await tx.unsafe<Array<{ sla_days: number }>>(
-          'select sla_days from public.process_steps where id = $1', [stepId])
+        const rows = await tx.unsafe<Array<{ sla_days: number; updated_by: string | null }>>(
+          'select sla_days, updated_by from public.process_steps where id = $1', [stepId])
         expect(rows[0]?.sla_days).toBe(7)
+        expect(rows[0]?.updated_by).toBeNull()
         const audit = await tx.unsafe<Array<{ action: string }>>(
           `select action from public.audit_log
             where tenant_id = $1 and entity_type = 'process_steps' and entity_id = $2`,

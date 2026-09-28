@@ -60,6 +60,7 @@ begin
 
   update public.process_steps
      set sla_days = 7,
+         updated_by = null,
          updated_at = now()
    where code = 'AWARD.CX_ONBOARDING'
      and is_active
