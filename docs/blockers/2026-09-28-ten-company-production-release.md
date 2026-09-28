@@ -6,9 +6,10 @@ Date: 2026-09-28
 
 **NO-GO** for a whole-ERP client demo or ten-company rollout. Live Web health
 and readiness reported revision `efa32923c0f0` on 2026-09-28, matching the
-merge commit of PR #120. PR #119 and PR #120 are merged; draft PR #121 at
-`2658008868e7b93de1b94363c4799a6a4b76d41f` remains undeployed. The
-production migration ledger is 177/179, so the code-only promotion workflow
+merge commit of PR #120. PR #119 and PR #120 are merged; draft PR #121
+contains code commit `2658008868e7b93de1b94363c4799a6a4b76d41f` and
+remains undeployed. The production migration ledger is 177/179, so the
+code-only promotion workflow
 rejects this candidate before deployment.
 
 ## Current PR #121 release evidence
