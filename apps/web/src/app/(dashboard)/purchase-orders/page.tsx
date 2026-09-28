@@ -159,7 +159,7 @@ export default async function PurchaseOrdersPage() {
           <div
             key={label}
             style={{
-              background: 'white',
+              background: 'var(--color-surface)',
               border: '1px solid var(--color-border)',
               borderRadius: '8px',
               padding: '14px 20px',
@@ -179,7 +179,7 @@ export default async function PurchaseOrdersPage() {
       {rows.length === 0 ? (
         <div
           style={{
-            background: 'white',
+            background: 'var(--color-surface)',
             border: '1px solid var(--color-border)',
             borderRadius: '8px',
             padding: '64px 24px',
@@ -195,7 +195,7 @@ export default async function PurchaseOrdersPage() {
           </p>
         </div>
       ) : (
-        <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px', overflowX: 'auto' }}>
+        <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', overflowX: 'auto' }}>
           <table className="data-table">
             <thead>
               <tr>
@@ -215,7 +215,7 @@ export default async function PurchaseOrdersPage() {
                   <td>
                     <Link
                       href={`/purchase-orders/${row.id}`}
-                      style={{ fontWeight: 600, fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--color-navy-700)', textDecoration: 'none' }}
+                      style={{ fontWeight: 600, fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--color-navy-text)', textDecoration: 'none' }}
                     >
                       {row.po_number}
                     </Link>
@@ -224,7 +224,7 @@ export default async function PurchaseOrdersPage() {
                     {row.project_id ? (
                       <Link
                         href={`/projects/${row.project_id}`}
-                        style={{ color: 'var(--color-navy-700)', textDecoration: 'none', fontSize: '0.875rem' }}
+                        style={{ color: 'var(--color-navy-text)', textDecoration: 'none', fontSize: '0.875rem' }}
                       >
                         {row.project_name ?? '—'}
                       </Link>

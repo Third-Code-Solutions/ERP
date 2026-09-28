@@ -233,5 +233,5 @@ const inputStyle: React.CSSProperties = {
   borderRadius: 6,
   padding: '7px 10px',
   fontSize: 13,
-  background: 'white',
+  background: 'var(--color-surface)',
 }

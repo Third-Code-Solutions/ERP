@@ -202,7 +202,7 @@ export default async function PipelineBoardPage() {
               textDecoration: 'none',
               border: '1px solid var(--color-border)',
               borderRadius: '6px',
-              background: 'white',
+              background: 'var(--color-surface)',
             }}
           >
             List view

@@ -161,7 +161,7 @@ function DupaDetailDisclosure({ dupa }: { dupa: BomDupaDetail }) {
       <summary
         style={{
           cursor: 'pointer',
-          color: 'var(--color-navy-700)',
+          color: 'var(--color-navy-text)',
           fontSize: 11,
           fontWeight: 600,
         }}
@@ -188,7 +188,7 @@ function DupaDetailDisclosure({ dupa }: { dupa: BomDupaDetail }) {
             {formatPHP(dupa.vat_centavos)}
           </span>
           <strong style={{ color: 'var(--color-neutral-900)' }}>Total {formatPHP(dupa.total_cost_centavos)}</strong>
-          <strong style={{ color: 'var(--color-navy-700)' }}>Unit rate {formatPHP(dupa.unit_rate_centavos)}</strong>
+          <strong style={{ color: 'var(--color-navy-text)' }}>Unit rate {formatPHP(dupa.unit_rate_centavos)}</strong>
         </div>
         {dupa.materials.length > 0 && (
           <DupaMaterialSection rows={dupa.materials} />
@@ -345,7 +345,7 @@ export function BomLineRow({
               border: '1px solid var(--color-navy-200)',
               borderRadius: 4,
               background: 'var(--color-surface)',
-              color: 'var(--color-navy-700)',
+              color: 'var(--color-navy-text)',
               fontSize: 10,
               fontWeight: 700,
               cursor: 'pointer',

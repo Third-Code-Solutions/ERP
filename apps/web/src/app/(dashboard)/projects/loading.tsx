@@ -8,7 +8,7 @@ export default function ProjectsLoading() {
         </div>
         <div className="skeleton" style={{ height: '34px', width: '120px', borderRadius: '6px' }} />
       </div>
-      <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
+      <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
         <div style={{ padding: '10px 12px', background: 'var(--color-neutral-50)', borderBottom: '1px solid var(--color-border)' }}>
           <div className="skeleton" style={{ height: '12px', width: '300px' }} />
         </div>

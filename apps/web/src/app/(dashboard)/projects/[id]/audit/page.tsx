@@ -217,7 +217,7 @@ export default async function ProjectAuditPage({
           <select
             name="action"
             defaultValue={filters.action ?? ''}
-            style={{ minWidth: '150px', minHeight: '36px', padding: '0 8px', border: '1px solid var(--color-border-strong)', borderRadius: '6px', background: 'white', color: 'var(--color-neutral-800)' }}
+            style={{ minWidth: '150px', minHeight: '36px', padding: '0 8px', border: '1px solid var(--color-border-strong)', borderRadius: '6px', background: 'var(--color-surface)', color: 'var(--color-neutral-800)' }}
           >
             <option value="">All actions</option>
             {AUDIT_ACTION_OPTIONS.map((action) => (
@@ -232,7 +232,7 @@ export default async function ProjectAuditPage({
           <select
             name="entityType"
             defaultValue={filters.entityType ?? ''}
-            style={{ minWidth: '170px', minHeight: '36px', padding: '0 8px', border: '1px solid var(--color-border-strong)', borderRadius: '6px', background: 'white', color: 'var(--color-neutral-800)' }}
+            style={{ minWidth: '170px', minHeight: '36px', padding: '0 8px', border: '1px solid var(--color-border-strong)', borderRadius: '6px', background: 'var(--color-surface)', color: 'var(--color-neutral-800)' }}
           >
             <option value="">All entities</option>
             {AUDIT_ENTITY_OPTIONS.map((entityType) => (
@@ -261,7 +261,7 @@ export default async function ProjectAuditPage({
       {entries.length === 0 ? (
         <div
           style={{
-            background: 'white',
+            background: 'var(--color-surface)',
             border: '1px solid var(--color-border)',
             borderRadius: '8px',
             padding: '48px 24px',
@@ -275,7 +275,7 @@ export default async function ProjectAuditPage({
       ) : (
         <div
           style={{
-            background: 'white',
+            background: 'var(--color-surface)',
             border: '1px solid var(--color-border)',
             borderRadius: '8px',
             overflow: 'hidden',
@@ -371,7 +371,7 @@ export default async function ProjectAuditPage({
           {filters.page > 1 ? (
             <Link
               href={auditActivityHref(`${baseHref}/audit`, filters, filters.page - 1)}
-              style={{ color: 'var(--color-navy-700)', textDecoration: 'none' }}
+              style={{ color: 'var(--color-navy-text)', textDecoration: 'none' }}
             >
               Previous
             </Link>
@@ -384,7 +384,7 @@ export default async function ProjectAuditPage({
           {filters.page < totalPages ? (
             <Link
               href={auditActivityHref(`${baseHref}/audit`, filters, filters.page + 1)}
-              style={{ color: 'var(--color-navy-700)', textDecoration: 'none' }}
+              style={{ color: 'var(--color-navy-text)', textDecoration: 'none' }}
             >
               Next
             </Link>

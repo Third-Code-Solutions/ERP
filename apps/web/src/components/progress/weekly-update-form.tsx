@@ -191,7 +191,7 @@ const inputStyle: React.CSSProperties = {
   borderRadius: 4,
   fontSize: 13,
   fontFamily: 'inherit',
-  background: 'white',
+  background: 'var(--color-surface)',
 }
 
 export function WeeklyUpdateForm({

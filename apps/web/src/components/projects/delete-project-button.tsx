@@ -57,7 +57,7 @@ export function DeleteProjectButton({
         type="button"
         onClick={() => setIsOpen(true)}
         style={{
-          background: 'white',
+          background: 'var(--color-surface)',
           border: '1px solid #fecaca',
           borderRadius: '6px',
           padding: '6px 12px',
@@ -103,7 +103,7 @@ export function DeleteProjectButton({
               width: 'min(100%, 520px)',
               borderRadius: '12px',
               border: '1px solid #fecaca',
-              background: 'white',
+              background: 'var(--color-surface)',
               padding: '24px',
               boxShadow: '0 20px 48px rgba(15, 23, 42, 0.24)',
             }}
@@ -230,7 +230,7 @@ const inputStyle: React.CSSProperties = {
 const secondaryButtonStyle: React.CSSProperties = {
   border: '1px solid var(--color-border)',
   borderRadius: '6px',
-  background: 'white',
+  background: 'var(--color-surface)',
   padding: '8px 14px',
   color: 'var(--color-neutral-700)',
   cursor: 'pointer',

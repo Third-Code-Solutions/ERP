@@ -56,7 +56,7 @@ export default async function SettingsPage() {
         {/* Workspace card */}
         <div
           style={{
-            background: 'white',
+            background: 'var(--color-surface)',
             border: '1px solid var(--color-border)',
             borderRadius: '8px',
             padding: '24px',
@@ -122,7 +122,7 @@ export default async function SettingsPage() {
         {/* Account card */}
         <div
           style={{
-            background: 'white',
+            background: 'var(--color-surface)',
             border: '1px solid var(--color-border)',
             borderRadius: '8px',
             padding: '24px',
@@ -186,7 +186,7 @@ export default async function SettingsPage() {
             style={{
               display: 'inline-flex',
               marginTop: '4px',
-              color: 'var(--color-navy-700)',
+              color: 'var(--color-navy-text)',
               fontSize: '0.875rem',
               fontWeight: 600,
               textDecoration: 'none',

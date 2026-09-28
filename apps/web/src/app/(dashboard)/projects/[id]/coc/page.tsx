@@ -129,7 +129,7 @@ export default async function CocPage({
       {!coc ? (
         <div
           style={{
-            background: 'white',
+            background: 'var(--color-surface)',
             border: '1px solid var(--color-border)',
             borderRadius: 8,
             padding: 28,
@@ -198,7 +198,7 @@ export default async function CocPage({
       ) : (
         <div
           style={{
-            background: 'white',
+            background: 'var(--color-surface)',
             border: '1px solid var(--color-border)',
             borderRadius: 8,
             padding: 24,

@@ -73,7 +73,7 @@ export function ChecklistItemRow({ projectId, item, dependencyTitle }: Checklist
   return (
     <div
       style={{
-        background: 'white',
+        background: 'var(--color-surface)',
         border: '1px solid var(--color-border)',
         borderLeft: `3px solid ${STATUS_COLOR[item.status]}`,
         borderRadius: '6px',

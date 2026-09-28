@@ -10,7 +10,7 @@ export default function PipelineLoading() {
           <div key={label} className="skeleton" style={{ height: '32px', width: '100px', borderRadius: '4px 4px 0 0' }} />
         ))}
       </div>
-      <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
+      <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
         {Array.from({ length: 8 }).map((_, i) => (
           <div key={i} style={{ padding: '10px 12px', borderBottom: '1px solid var(--color-border)', display: 'flex', gap: '24px' }}>
             <div className="skeleton" style={{ height: '14px', width: '180px' }} />

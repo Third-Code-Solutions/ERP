@@ -111,7 +111,7 @@ export function InspectionPanel({ scheduleId, status, inspections }: Props) {
   return (
     <div
       style={{
-        background: 'white',
+        background: 'var(--color-surface)',
         border: '1px solid var(--color-border)',
         borderRadius: 8,
         overflow: 'hidden',
@@ -359,7 +359,7 @@ const textareaStyle: React.CSSProperties = {
   fontSize: '0.875rem',
   border: '1px solid var(--color-border)',
   borderRadius: 6,
-  background: 'white',
+  background: 'var(--color-surface)',
   fontFamily: 'inherit',
   resize: 'vertical',
 }

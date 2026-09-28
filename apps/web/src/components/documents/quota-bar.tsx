@@ -52,7 +52,7 @@ export function QuotaBar({ usedBytes, quotaBytes = QUOTA_BYTES }: QuotaBarProps)
       role="group"
       aria-label="Project storage quota"
       style={{
-        background: 'white',
+        background: 'var(--color-surface)',
         border: '1px solid var(--color-border)',
         borderRadius: '8px',
         padding: '12px 16px',

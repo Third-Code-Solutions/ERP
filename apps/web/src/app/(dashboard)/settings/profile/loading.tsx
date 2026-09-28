@@ -11,7 +11,7 @@ export default function ProfileSettingsLoading() {
         }}
       >
         {Array.from({ length: 2 }).map((_, index) => (
-          <div key={index} style={{ padding: 24, background: 'white', borderRadius: 8 }}>
+          <div key={index} style={{ padding: 24, background: 'var(--color-surface)', borderRadius: 8 }}>
             <div className="skeleton" style={{ height: 14, width: 130, marginBottom: 20 }} />
             {Array.from({ length: 4 }).map((__, row) => (
               <div key={row} className="skeleton" style={{ height: 44, width: '100%', marginBottom: 14 }} />

@@ -125,7 +125,7 @@ const backdropStyle: React.CSSProperties = {
 }
 
 const dialogStyle: React.CSSProperties = {
-  background: 'white',
+  background: 'var(--color-surface)',
   borderRadius: '8px',
   padding: '20px',
   width: '460px',
@@ -145,7 +145,7 @@ const textareaStyle: React.CSSProperties = {
 }
 
 const cancelButtonStyle: React.CSSProperties = {
-  background: 'white',
+  background: 'var(--color-surface)',
   border: '1px solid var(--color-border)',
   padding: '6px 12px',
   borderRadius: '6px',

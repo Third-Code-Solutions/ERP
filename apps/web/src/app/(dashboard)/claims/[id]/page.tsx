@@ -279,7 +279,7 @@ export default async function ClaimDetailPage({ params }: PageProps) {
           {/* Summary card */}
           <div
             style={{
-              background: 'white',
+              background: 'var(--color-surface)',
               border: '1px solid var(--color-border)',
               borderRadius: 8,
               padding: 16,
@@ -389,7 +389,7 @@ export default async function ClaimDetailPage({ params }: PageProps) {
           {/* Attached documents */}
           <div
             style={{
-              background: 'white',
+              background: 'var(--color-surface)',
               border: '1px solid var(--color-border)',
               borderRadius: 8,
               overflow: 'hidden',
@@ -514,7 +514,7 @@ export default async function ClaimDetailPage({ params }: PageProps) {
           {/* Audit trail */}
           <div
             style={{
-              background: 'white',
+              background: 'var(--color-surface)',
               border: '1px solid var(--color-border)',
               borderRadius: 8,
               overflow: 'hidden',

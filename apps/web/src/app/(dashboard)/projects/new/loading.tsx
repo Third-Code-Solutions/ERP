@@ -5,7 +5,7 @@ export default function NewProjectLoading() {
         <div className="skeleton" style={{ height: '24px', width: '120px', marginBottom: '6px' }} />
         <div className="skeleton" style={{ height: '14px', width: '180px' }} />
       </div>
-      <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '32px', maxWidth: '600px' }}>
+      <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '32px', maxWidth: '600px' }}>
         {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} style={{ marginBottom: '16px' }}>
             <div className="skeleton" style={{ height: '10px', width: '80px', marginBottom: '6px' }} />

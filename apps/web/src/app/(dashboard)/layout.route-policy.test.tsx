@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   getUserProfile: vi.fn(),
   headers: vi.fn(),
+  cookies: vi.fn(),
   redirect: vi.fn((destination: string) => {
     throw new Error(`redirect:${destination}`)
   }),
@@ -15,6 +16,7 @@ vi.mock('@third-code-erp/auth', () => ({
 
 vi.mock('next/headers', () => ({
   headers: mocks.headers,
+  cookies: mocks.cookies,
 }))
 
 vi.mock('next/navigation', () => ({
@@ -48,6 +50,7 @@ describe('dashboard layout route-policy consumer', () => {
       role: 'viewer',
       fullName: 'Viewer',
     })
+    mocks.cookies.mockResolvedValue({ get: () => undefined })
   })
 
   afterEach(() => {

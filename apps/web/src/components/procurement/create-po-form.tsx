@@ -189,7 +189,7 @@ export function CreatePoForm({
         onSubmit={handleSubmit}
         aria-busy={isPending}
         aria-describedby={error ? 'create-po-error' : undefined}
-        style={{ background: 'white', padding: 'clamp(16px, 3vw, 28px)', maxWidth: '100%' }}
+        style={{ background: 'var(--color-surface)', padding: 'clamp(16px, 3vw, 28px)', maxWidth: '100%' }}
       >
         <input type="hidden" name="idempotency_key" value={idempotencyKey} readOnly />
         <h2 id="create-po-title" style={{ fontSize: '1rem', fontWeight: 700, margin: '0 0 24px', color: 'var(--color-neutral-900)' }}>
@@ -235,7 +235,7 @@ export function CreatePoForm({
             <button
               type="button"
               onClick={addLine}
-              style={{ background: 'none', border: '1px solid var(--color-border)', borderRadius: '4px', padding: '4px 10px', fontSize: '0.75rem', cursor: 'pointer', color: 'var(--color-navy-700)', fontWeight: 500 }}
+              style={{ background: 'none', border: '1px solid var(--color-border)', borderRadius: '4px', padding: '4px 10px', fontSize: '0.75rem', cursor: 'pointer', color: 'var(--color-navy-text)', fontWeight: 500 }}
             >
               + Add row
             </button>
@@ -372,7 +372,7 @@ export function CreatePoForm({
               ))}
               <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '6px', marginTop: '4px', display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--color-neutral-800)' }}>Total</span>
-                <span style={{ fontSize: '0.9rem', fontWeight: 700, fontFamily: 'JetBrains Mono, monospace', color: 'var(--color-navy-700)' }}>{formatPHP(total)}</span>
+                <span style={{ fontSize: '0.9rem', fontWeight: 700, fontFamily: 'JetBrains Mono, monospace', color: 'var(--color-navy-text)' }}>{formatPHP(total)}</span>
               </div>
             </div>
           </div>

@@ -90,7 +90,7 @@ export function VoCreateForm({ projectId, onCreated }: Props) {
                   padding: '8px 10px',
                   border: `1px solid ${active ? 'var(--color-navy-700)' : 'var(--color-border)'}`,
                   borderRadius: 6,
-                  background: active ? 'var(--color-neutral-50)' : 'white',
+                  background: active ? 'var(--color-neutral-50)' : 'var(--color-surface)',
                   cursor: 'pointer',
                 }}
               >
@@ -183,5 +183,5 @@ const inputStyle: React.CSSProperties = {
   borderRadius: 4,
   fontSize: 13,
   fontFamily: 'inherit',
-  background: 'white',
+  background: 'var(--color-surface)',
 }

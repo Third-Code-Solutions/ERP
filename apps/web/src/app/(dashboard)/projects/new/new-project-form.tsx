@@ -72,7 +72,7 @@ export function NewProjectForm() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '16px', marginBottom: '20px' }}>
         <div>
           <label htmlFor="project_type" style={labelStyle}>Project type</label>
-          <select id="project_type" name="project_type" style={{ ...inputStyle, background: 'white' }}>
+          <select id="project_type" name="project_type" style={{ ...inputStyle, background: 'var(--color-surface)' }}>
             <option value="">Select type…</option>
             <option value="mep">MEP</option>
             <option value="fit_out">Fit-out</option>

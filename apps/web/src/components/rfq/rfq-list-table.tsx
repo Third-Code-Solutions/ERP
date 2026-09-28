@@ -71,8 +71,8 @@ export function RfqListTable({ rows, activeStatus }: Props) {
                 padding: '4px 10px',
                 borderRadius: 999,
                 border: '1px solid #d0d5dd',
-                background: activeStatus === f.key ? '#0F2D4A' : 'white',
-                color: activeStatus === f.key ? 'white' : '#1f2937',
+                background: activeStatus === f.key ? '#0F2D4A' : 'var(--color-surface)',
+                color: activeStatus === f.key ? 'white' : 'var(--color-neutral-800)',
                 textDecoration: 'none',
                 fontWeight: 500,
               }}
@@ -134,7 +134,7 @@ export function RfqListTable({ rows, activeStatus }: Props) {
                   <td>
                     <Link
                       href={`/procurement/rfqs/${r.id}`}
-                      style={{ color: 'var(--color-navy-700)', fontSize: 12.5, fontWeight: 500 }}
+                      style={{ color: 'var(--color-navy-text)', fontSize: 12.5, fontWeight: 500 }}
                     >
                       Open →
                     </Link>

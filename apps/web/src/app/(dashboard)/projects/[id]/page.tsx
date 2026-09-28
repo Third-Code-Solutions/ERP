@@ -207,7 +207,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           {project.notes && (
             <div
               style={{
-                background: 'white',
+                background: 'var(--color-surface)',
                 border: '1px solid var(--color-border)',
                 borderRadius: '8px',
                 padding: '20px',
@@ -280,7 +280,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           {hasFinancialData && (
             <div
               style={{
-                background: 'white',
+                background: 'var(--color-surface)',
                 border: '1px solid var(--color-border)',
                 borderRadius: '8px',
                 padding: '20px',
@@ -335,7 +335,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
         <aside className={styles.contextRail} aria-label="Project context">
         <div
           style={{
-            background: 'white',
+            background: 'var(--color-surface)',
             border: '1px solid var(--color-border)',
             borderRadius: '8px',
             padding: '20px',

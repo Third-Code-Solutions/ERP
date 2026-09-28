@@ -6,7 +6,7 @@ export default function RfqsLoading() {
         <div className="skeleton" style={{ height: '14px', width: '260px' }} />
       </div>
 
-      <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
+      <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
         <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--color-border)' }}>
           <div className="skeleton" style={{ height: '14px', width: '120px' }} />
         </div>

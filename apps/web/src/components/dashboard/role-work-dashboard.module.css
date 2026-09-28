@@ -28,7 +28,7 @@
 }
 
 .workCard {
-  background: var(--color-white);
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   color: inherit;
@@ -83,7 +83,7 @@
 
 .quickLink {
   align-items: center;
-  background: var(--color-white);
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   color: var(--color-neutral-900);

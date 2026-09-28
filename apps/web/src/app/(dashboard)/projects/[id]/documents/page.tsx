@@ -117,7 +117,7 @@ export default async function ProjectDocumentsPage({ params }: { params: Promise
       {docs.length === 0 ? (
         <div
           style={{
-            background: 'white',
+            background: 'var(--color-surface)',
             border: '1px solid var(--color-border)',
             borderRadius: '8px',
             padding: '64px 24px',
@@ -128,13 +128,13 @@ export default async function ProjectDocumentsPage({ params }: { params: Promise
           <p style={{ fontSize: '0.875rem', marginBottom: '8px' }}>No documents uploaded yet.</p>
           <p style={{ fontSize: '0.8125rem' }}>
             {canManage ? 'Use Upload file to add supported project evidence.' : 'Ask a workspace operator to upload project evidence.'}{' '}
-            <Link href="/documents" style={{ color: 'var(--color-navy-700)' }}>View all documents</Link>
+            <Link href="/documents" style={{ color: 'var(--color-navy-text)' }}>View all documents</Link>
           </p>
         </div>
       ) : (
         <div
           className="data-table-wrap"
-          style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px' }}
+          style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px' }}
           role="region"
           tabIndex={0}
           aria-label={`Documents table for ${project.name}, scroll for more columns`}
@@ -160,7 +160,7 @@ export default async function ProjectDocumentsPage({ params }: { params: Promise
                       rel="noopener noreferrer"
                       style={{
                         fontWeight: 500,
-                        color: 'var(--color-navy-700)',
+                        color: 'var(--color-navy-text)',
                         textDecoration: 'none',
                       }}
                       title="Open in new tab"
@@ -257,7 +257,7 @@ export default async function ProjectDocumentsPage({ params }: { params: Promise
           borderRadius: '8px',
           padding: '16px 20px',
           fontSize: '0.8125rem',
-          color: 'var(--color-navy-700)',
+          color: 'var(--color-navy-text)',
         }}
       >
         Uploads are validated and processed according to their format. Review the processing result: extracted evidence and candidate BOMs require review, and unpriced items need a DUPA before pricing. CAD processing depends on the configured worker; an upload is not proof that extraction or pricing succeeded.

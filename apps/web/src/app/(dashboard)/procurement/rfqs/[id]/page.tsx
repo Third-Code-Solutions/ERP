@@ -454,13 +454,13 @@ function CancelRfqForm({ rfqId }: { rfqId: string }) {
           borderRadius: 6,
           padding: '7px 10px',
           fontSize: 13,
-          background: 'white',
+          background: 'var(--color-surface)',
         }}
       />
       <button
         type="submit"
         style={{
-          background: 'white',
+          background: 'var(--color-surface)',
           border: '1px solid #d0d5dd',
           padding: '8px 14px',
           borderRadius: 6,

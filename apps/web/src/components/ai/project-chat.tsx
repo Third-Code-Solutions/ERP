@@ -90,7 +90,7 @@ export function ProjectChat({ projectId }: ProjectChatProps) {
             bottom: '52px',
             right: 0,
             width: '360px',
-            background: 'white',
+            background: 'var(--color-surface)',
             border: '1px solid var(--color-border)',
             borderRadius: '12px',
             boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
@@ -152,7 +152,7 @@ export function ProjectChat({ projectId }: ProjectChatProps) {
                       borderRadius: '6px',
                       fontSize: '0.8125rem',
                       cursor: 'pointer',
-                      color: 'var(--color-navy-700)',
+                      color: 'var(--color-navy-text)',
                     }}
                   >
                     {q}

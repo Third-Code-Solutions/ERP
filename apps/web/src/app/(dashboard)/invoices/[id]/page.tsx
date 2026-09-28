@@ -164,14 +164,14 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
           </h1>
           <div style={{ display: 'flex', gap: '16px', fontSize: '0.875rem', color: 'var(--color-neutral-500)' }}>
             {inv.project_id && (
-              <Link href={`/projects/${inv.project_id}`} style={{ color: 'var(--color-navy-700)', textDecoration: 'none' }}>
+              <Link href={`/projects/${inv.project_id}`} style={{ color: 'var(--color-navy-text)', textDecoration: 'none' }}>
                 {inv.project_name}
               </Link>
             )}
             {inv.account_id && (
               <Link
                 href={`/crm/accounts/${inv.account_id}`}
-                style={{ color: 'var(--color-navy-700)', textDecoration: 'none' }}
+                style={{ color: 'var(--color-navy-text)', textDecoration: 'none' }}
               >
                 {inv.account_name}
               </Link>
@@ -209,7 +209,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
               fontSize: '0.8125rem',
               fontWeight: 500,
               border: '1px solid var(--color-border)',
-              background: 'white',
+              background: 'var(--color-surface)',
               color: 'var(--color-neutral-700)',
               textDecoration: 'none',
               display: 'inline-flex',
@@ -229,7 +229,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
               fontSize: '0.8125rem',
               fontWeight: 500,
               border: '1px solid var(--color-border)',
-              background: 'white',
+              background: 'var(--color-surface)',
               color: 'var(--color-neutral-700)',
               textDecoration: 'none',
               display: 'inline-flex',
@@ -289,7 +289,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
       {/* Financial breakdown */}
       <div
         style={{
-          background: 'white',
+          background: 'var(--color-surface)',
           border: '1px solid var(--color-border)',
           borderRadius: '8px',
           padding: '20px',
@@ -404,7 +404,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
       {inv.notes && (
         <div
           style={{
-            background: 'white',
+            background: 'var(--color-surface)',
             border: '1px solid var(--color-border)',
             borderRadius: '8px',
             padding: '20px',

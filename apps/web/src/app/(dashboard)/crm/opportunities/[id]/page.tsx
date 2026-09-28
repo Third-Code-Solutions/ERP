@@ -155,7 +155,7 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
                 marginTop: 6,
                 fontSize: 13,
                 fontWeight: 500,
-                color: 'var(--color-navy-700)',
+                color: 'var(--color-navy-text)',
                 textDecoration: 'none',
               }}
             >

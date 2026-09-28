@@ -109,7 +109,7 @@ export default async function ProjectAccessPage({
 
       {/* Page header */}
       <div style={{ margin: '20px 0 18px' }}>
-        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: 'var(--color-navy-700)' }}>
+        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: 'var(--color-navy-text)' }}>
           Client portal access
         </h1>
         <p style={{ margin: '6px 0 0', fontSize: 13.5, color: 'var(--color-neutral-600)', lineHeight: 1.5 }}>
@@ -121,7 +121,7 @@ export default async function ProjectAccessPage({
       {canManage && <MintTokenButton projectId={project.id} />}
 
       <div style={{ marginTop: 20 }}>
-        <h2 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: 'var(--color-navy-700)' }}>
+        <h2 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: 'var(--color-navy-text)' }}>
           Active client links
         </h2>
         <AccessListTable rows={rows} canManage={canManage} />

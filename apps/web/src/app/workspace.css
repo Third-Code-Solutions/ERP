@@ -262,3 +262,97 @@
   .app-layout .dashboard-page .kpi-grid, .platform-layout .platform-metric-grid { grid-template-columns: 1fr; }
   .platform-layout .platform-topline { flex-wrap: wrap; gap: 4px; }
 }
+
+body:has(.app-layout[data-theme='dark'], .platform-layout[data-theme='dark']) {
+  background: #0d1b29;
+  background-image: none;
+}
+
+.app-layout[data-theme='dark'],
+.platform-layout[data-theme='dark'] {
+  --color-primary: #326fe5;
+  --color-primary-hover: #225ac6;
+}
+.app-layout[data-theme='dark'] .workspace-sidebar,
+.app-layout[data-theme='dark'] .app-topbar,
+.platform-layout[data-theme='dark'] .workspace-sidebar,
+.platform-layout[data-theme='dark'] .platform-topline {
+  background: var(--color-surface);
+  color: var(--color-neutral-900);
+}
+.app-layout[data-theme='dark'] .workspace-search,
+.app-layout[data-theme='dark'] .search-trigger,
+.app-layout[data-theme='dark'] .card,
+.app-layout[data-theme='dark'] .card-header,
+.app-layout[data-theme='dark'] .button-secondary,
+.app-layout[data-theme='dark'] .dashboard-hero-action,
+.app-layout[data-theme='dark'] .dashboard-page .kpi-card,
+.app-layout[data-theme='dark'] .dashboard-page .card-header,
+.app-layout[data-theme='dark'] .dashboard-loading-hero {
+  background: var(--color-surface-raised);
+  color: var(--color-neutral-900);
+}
+.app-layout[data-theme='dark'] .workspace-brand-mark,
+.app-layout[data-theme='dark'] .workspace-sidebar .sidebar-user-avatar,
+.app-layout[data-theme='dark'] .workspace-nav-link[aria-current='page'] {
+  background: var(--color-neutral-100);
+  color: var(--color-neutral-900);
+  border-color: var(--color-border);
+}
+.app-layout[data-theme='dark'] .workspace-nav-icon,
+.app-layout[data-theme='dark'] .workspace-sidebar .sidebar-icon-btn {
+  color: var(--color-neutral-600);
+}
+.app-layout[data-theme='dark'] .workspace-nav-link:hover,
+.app-layout[data-theme='dark'] .workspace-nav-heading:hover,
+.app-layout[data-theme='dark'] .workspace-collapse:hover,
+.app-layout[data-theme='dark'] .workspace-sidebar .sidebar-icon-btn:hover,
+.app-layout[data-theme='dark'] .dashboard-hero-action:hover {
+  background: var(--color-neutral-75);
+  color: var(--color-neutral-900);
+}
+.app-layout[data-theme='dark'] .dashboard-hero-action--primary,
+.app-layout[data-theme='dark'] .dashboard-hero-action--primary:hover {
+  background: var(--color-primary);
+  color: #fff;
+}
+.app-layout[data-theme='dark'] .data-table th,
+.app-layout[data-theme='dark'] .dashboard-page .data-table th,
+.app-layout[data-theme='dark'] .dashboard-page .kpi-card-bar {
+  background: var(--color-surface-sunken);
+  color: var(--color-neutral-700);
+}
+.app-layout[data-theme='dark'] .data-table tbody tr:hover td {
+  background: var(--color-neutral-75);
+}
+.app-layout[data-theme='dark'] :is(.finance-field input, .finance-field select, .finance-field textarea, .journal-line input, .journal-line select, .form-input) {
+  background: var(--color-surface-raised);
+  color: var(--color-neutral-900);
+}
+.app-layout[data-theme='dark'] .empty-state {
+  background: var(--color-surface-sunken);
+}
+
+.platform-layout[data-theme='dark'] .card,
+.platform-layout[data-theme='dark'] .card-header,
+.platform-layout[data-theme='dark'] .button-secondary {
+  background: var(--color-surface-raised);
+  color: var(--color-neutral-900);
+}
+.platform-layout[data-theme='dark'] .workspace-search,
+.platform-layout[data-theme='dark'] .workspace-nav-link[aria-current='page'],
+.platform-layout[data-theme='dark'] .workspace-sidebar .sidebar-user-avatar {
+  background: var(--color-neutral-100);
+  color: var(--color-neutral-900);
+}
+.platform-layout[data-theme='dark'] .workspace-nav-link:hover,
+.platform-layout[data-theme='dark'] .workspace-nav-heading:hover,
+.platform-layout[data-theme='dark'] .workspace-collapse:hover,
+.platform-layout[data-theme='dark'] .platform-flash:not(.is-error):not(.is-success) {
+  background: var(--color-neutral-75);
+  color: var(--color-neutral-900);
+}
+.platform-layout[data-theme='dark'] .data-table th {
+  background: var(--color-surface-sunken);
+  color: var(--color-neutral-700);
+}

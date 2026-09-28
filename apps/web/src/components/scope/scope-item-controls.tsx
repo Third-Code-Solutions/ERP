@@ -74,7 +74,7 @@ export function AddScopeItemForm({ projectId }: { projectId: string }) {
       <form
         onSubmit={handleSubmit}
         style={{
-          background: 'white',
+          background: 'var(--color-surface)',
           borderRadius: '10px',
           padding: '24px',
           width: '480px',

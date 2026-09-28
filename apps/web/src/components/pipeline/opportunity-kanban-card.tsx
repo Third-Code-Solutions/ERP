@@ -84,7 +84,7 @@ export function OpportunityKanbanCard({
       }}
       onDragEnd={onDragEnd}
       style={{
-        background: 'white',
+        background: 'var(--color-surface)',
         border: '1px solid var(--color-border)',
         borderRadius: '6px',
         padding: '10px 12px',

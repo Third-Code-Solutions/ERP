@@ -617,7 +617,7 @@ function InspectionFormSession({ actorId, tenantId, opportunityId, pprfSubmitted
         .form-row-2col > div { display: flex; flex-direction: column; gap: 6px; }
         .form-label { font-size: 12.5px; font-weight: 500; color: var(--color-neutral-700); }
         .form-help { margin: 0; color: var(--color-neutral-600); font-size: 12px; }
-        .form-input { width: 100%; box-sizing: border-box; font-family: inherit; font-size: 14px; padding: 10px 11px; background: white; border: 1px solid var(--color-border); border-radius: var(--radius-sm, 4px); }
+        .form-input { width: 100%; box-sizing: border-box; font-family: inherit; font-size: 14px; padding: 10px 11px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-sm, 4px); }
         .form-input:focus { outline: 0; border-color: var(--color-navy-500); box-shadow: 0 0 0 3px color-mix(in oklch, var(--color-navy-500) 18%, transparent); }
         .file-input { padding: 9px; }
         .photo-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
@@ -631,7 +631,7 @@ function InspectionFormSession({ actorId, tenantId, opportunityId, pprfSubmitted
         .form-actions { display: flex; flex-wrap: wrap; gap: 8px; }
         .primary-action, .secondary-action { min-height: 44px; border-radius: var(--radius-sm, 4px); padding: 10px 14px; font: inherit; font-weight: 600; cursor: pointer; }
         .primary-action { border: 1px solid var(--color-navy-700); background: var(--color-navy-700); color: white; }
-        .secondary-action { border: 1px solid var(--color-border); background: white; color: var(--color-navy-800); }
+        .secondary-action { border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-navy-heading); }
         .primary-action:disabled { cursor: wait; opacity: .6; }
         .form-error, .form-warning, .form-success { font-size: 13px; }
         .form-error { color: var(--color-danger); }

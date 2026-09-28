@@ -15,7 +15,7 @@
   justify-content: space-between;
   gap: 24px;
   padding: 22px 24px 18px;
-  background: linear-gradient(135deg, #fff, #fafafa);
+  background: linear-gradient(135deg, var(--color-surface), var(--color-surface-sunken));
 }
 
 .headingGroup {
@@ -36,7 +36,7 @@
 
 .heading {
   margin: 7px 0 0;
-  color: var(--color-navy-900, #08203a);
+  color: var(--color-navy-heading);
   font-family: 'Cabinet Grotesk', 'Satoshi', var(--font-sans), sans-serif;
   font-size: 1.25rem;
   font-weight: 700;
@@ -97,7 +97,7 @@
 }
 
 .item:hover {
-  background: #fafafa;
+  background: var(--color-neutral-50);
   transform: translateX(3px);
 }
 
@@ -205,7 +205,7 @@
 .scopeTitle {
   display: block;
   margin-top: 8px;
-  color: var(--color-navy-900, #08203a);
+  color: var(--color-navy-heading);
   font-size: 0.875rem;
   line-height: 1.25;
 }

@@ -70,7 +70,7 @@ export default async function ProcurementPage() {
           {vendorList.length === 0 ? (
             <div
               style={{
-                background: 'white',
+                background: 'var(--color-surface)',
                 border: '1px solid var(--color-border)',
                 borderRadius: '8px',
                 padding: '40px 24px',
@@ -82,7 +82,7 @@ export default async function ProcurementPage() {
               No vendors registered yet.
             </div>
           ) : (
-            <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
+            <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
               {vendorList.map((vendor, i) => (
                 <div
                   key={vendor.id}
@@ -114,7 +114,7 @@ export default async function ProcurementPage() {
             <h2 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-neutral-700)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Recent Purchase Orders
             </h2>
-            <Link href="/purchase-orders" style={{ fontSize: '0.8125rem', color: 'var(--color-navy-700)' }}>
+            <Link href="/purchase-orders" style={{ fontSize: '0.8125rem', color: 'var(--color-navy-text)' }}>
               View all →
             </Link>
           </div>
@@ -122,7 +122,7 @@ export default async function ProcurementPage() {
           {recentPOs.length === 0 ? (
             <div
               style={{
-                background: 'white',
+                background: 'var(--color-surface)',
                 border: '1px solid var(--color-border)',
                 borderRadius: '8px',
                 padding: '40px 24px',
@@ -134,7 +134,7 @@ export default async function ProcurementPage() {
               No purchase orders yet.
             </div>
           ) : (
-            <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
+            <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
               {recentPOs.map((po, i) => (
                 <div
                   key={po.id}
@@ -147,7 +147,7 @@ export default async function ProcurementPage() {
                   }}
                 >
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: '0.8rem', fontFamily: 'var(--font-mono)', color: 'var(--color-navy-700)' }}>
+                    <div style={{ fontWeight: 600, fontSize: '0.8rem', fontFamily: 'var(--font-mono)', color: 'var(--color-navy-text)' }}>
                       {po.po_number}
                     </div>
                     <div style={{ fontSize: '0.8125rem', color: 'var(--color-neutral-500)', marginTop: '2px' }}>
@@ -168,7 +168,7 @@ export default async function ProcurementPage() {
         <div style={{ marginTop: 24 }}>
           <Link
             href="/procurement/vendors/performance"
-            style={{ color: 'var(--color-navy-700)', fontSize: '0.875rem', fontWeight: 600 }}
+            style={{ color: 'var(--color-navy-text)', fontSize: '0.875rem', fontWeight: 600 }}
           >
             Open vendor performance →
           </Link>

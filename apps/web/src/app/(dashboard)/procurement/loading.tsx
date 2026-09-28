@@ -32,7 +32,7 @@ export default function ProcurementLoading() {
             <div className="skeleton" style={{ height: '14px', width: '110px' }} />
             <div className="skeleton" style={{ height: '30px', width: '98px', borderRadius: '6px' }} />
           </div>
-          <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
+          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
             <SkeletonRows count={VENDOR_ROWS} />
           </div>
         </div>
@@ -42,7 +42,7 @@ export default function ProcurementLoading() {
             <div className="skeleton" style={{ height: '14px', width: '170px' }} />
             <div className="skeleton" style={{ height: '14px', width: '72px' }} />
           </div>
-          <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
+          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
             <SkeletonRows count={PURCHASE_ORDER_ROWS} />
           </div>
         </div>

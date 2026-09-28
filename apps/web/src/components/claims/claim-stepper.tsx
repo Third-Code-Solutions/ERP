@@ -76,7 +76,7 @@ export function ClaimStepper({ status }: ClaimStepperProps) {
       <section
         aria-label="Claim progress"
         style={{
-          background: 'white',
+          background: 'var(--color-surface)',
           border: '1px solid var(--color-border)',
           borderRadius: 8,
           padding: 16,
@@ -116,7 +116,7 @@ export function ClaimStepper({ status }: ClaimStepperProps) {
     <section
       aria-label="Claim progress"
       style={{
-        background: 'white',
+        background: 'var(--color-surface)',
         border: '1px solid var(--color-border)',
         borderRadius: 8,
         padding: 20,

@@ -16,7 +16,7 @@ export default async function ProfileSettingsPage() {
     <div style={{ maxWidth: 860 }}>
       <div className="page-header">
         <p style={{ margin: '0 0 6px', fontSize: 13 }}>
-          <Link href="/settings" style={{ color: 'var(--color-navy-700)' }}>
+          <Link href="/settings" style={{ color: 'var(--color-navy-text)' }}>
             Settings
           </Link>{' '}
           / Profile
@@ -113,7 +113,7 @@ function ProfileDetail({
 
 const cardStyle: React.CSSProperties = {
   padding: 24,
-  background: 'white',
+  background: 'var(--color-surface)',
   border: '1px solid var(--color-border)',
   borderRadius: 8,
 }

@@ -22,7 +22,7 @@ export default function ProjectAuditLoading() {
       </div>
 
       {/* Audit log table */}
-      <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
+      <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
         <div style={{ padding: '10px 16px', background: 'var(--color-neutral-50)', borderBottom: '1px solid var(--color-border)', display: 'flex', gap: '24px' }}>
           {[80, 70, 80, 280, 100].map((w, i) => (
             <div key={i} className="skeleton" style={{ height: '12px', width: w }} />
