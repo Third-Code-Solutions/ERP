@@ -28,7 +28,7 @@ type Fixture = {
 
 let fixture: Fixture
 let readTaskStatus: (taskId: string) => Promise<string | undefined>
-let readClock: (taskId: string) => Promise<{ status: string; startedAt: string } | undefined>
+let readClock: (taskId: string) => Promise<{ status: string; startedAt: string; targetValue: number } | undefined>
 type FixtureRow = Record<string, string | number | boolean | null | object>
 type InsertFixture = (table: string, values: FixtureRow | FixtureRow[]) => Promise<void>
 type SqlClient = {
@@ -104,7 +104,7 @@ async function createAward(
       { id: dpStepId, tenant_id: tenantId, code: 'AWARD.DP_INVOICE', stage: 'award', name: 'Down payment invoice', responsible_bu: 'Finance', input: 'Signed BOM', input_from: 'Commercial', output: 'Draft invoice', output_by: 'Finance', sla_days: 2 },
       { id: cariStepId, tenant_id: tenantId, code: 'AWARD.CARI', stage: 'award', name: 'CARI', responsible_bu: 'Finance', input: 'Signed BOM', input_from: 'Commercial', output: 'CARI task', output_by: 'Finance', sla_days: 2 },
       { id: trackerStepId, tenant_id: tenantId, code: 'AWARD.PROJECT_TRACKER', stage: 'award', name: 'Project Tracker', responsible_bu: 'SD/PM/PE', input: 'Signed BOM', input_from: 'Commercial', output: 'Tracker', output_by: 'SD/PM/PE', sla_days: 2 },
-      { id: cxStepId, tenant_id: tenantId, code: 'AWARD.CX_ONBOARDING', stage: 'award', name: 'CX onboarding', responsible_bu: 'CX', input: 'Signed BOM', input_from: 'Commercial', output: 'Onboarding', output_by: 'CX', sla_days: 2 },
+      { id: cxStepId, tenant_id: tenantId, code: 'AWARD.CX_ONBOARDING', stage: 'award', name: 'CX onboarding', responsible_bu: 'CX', input: 'Signed BOM', input_from: 'Commercial', output: 'Onboarding', output_by: 'CX', sla_days: 7 },
     ])
     await insert('task_instances', [
       { id: financeTaskId, tenant_id: tenantId, process_step_id: financeStepId, subject_type: 'award_handoff', subject_id: handoffId, instance_key: `award:${handoffId}:arProjectCode`, status: 'in_progress', started_at: new Date().toISOString(), created_by: finance.id },
@@ -164,13 +164,13 @@ test.beforeAll(async () => {
     return row.status
   }
   readClock = async (taskId) => {
-    const rows = await sqlClient.unsafe('select status, started_at from public.sla_clocks where task_instance_id = $1 order by created_at desc limit 1', [taskId])
+    const rows = await sqlClient.unsafe('select status, started_at, target_value from public.sla_clocks where task_instance_id = $1 order by created_at desc limit 1', [taskId])
     const row = rows[0]
     if (!row) return undefined
-    if (typeof row !== 'object' || !('status' in row) || typeof row.status !== 'string' || !('started_at' in row) || !(row.started_at instanceof Date)) {
+    if (typeof row !== 'object' || !('status' in row) || typeof row.status !== 'string' || !('started_at' in row) || !(row.started_at instanceof Date) || !('target_value' in row) || typeof row.target_value !== 'number') {
       throw new Error('Local award clock row is invalid')
     }
-    return { status: row.status, startedAt: row.started_at.toISOString() }
+    return { status: row.status, startedAt: row.started_at.toISOString(), targetValue: row.target_value }
   }
   const createUser = async (email: string, password: string): Promise<string> => {
     const { data, error } = await auth.auth.admin.createUser({ email, password, email_confirm: true })
@@ -284,8 +284,8 @@ test('Project Manager records NTP through permits and releases CX and Project Tr
   await expect.poll(async () => readTaskStatus(fixture.cxTaskId)).toBe('in_progress')
   await expect.poll(async () => readTaskStatus(fixture.trackerTaskId)).toBe('in_progress')
   const expectedStart = `${receiptDate}T00:00:00.000Z`
-  await expect.poll(async () => readClock(fixture.cxTaskId)).toEqual({ status: 'running', startedAt: expectedStart })
-  await expect.poll(async () => readClock(fixture.trackerTaskId)).toEqual({ status: 'running', startedAt: expectedStart })
+  await expect.poll(async () => readClock(fixture.cxTaskId)).toEqual({ status: 'running', startedAt: expectedStart, targetValue: 7 })
+  await expect.poll(async () => readClock(fixture.trackerTaskId)).toEqual({ status: 'running', startedAt: expectedStart, targetValue: 2 })
 })
 
 test('CX completes its released task through its scoped queue', async ({ page }) => {
