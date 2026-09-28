@@ -9,7 +9,7 @@ import { parseClaimAmount } from '@/app/(dashboard)/claims/claim-amount'
 interface ProjectOption { id: string; name: string }
 interface ClaimFormProps { projects: ProjectOption[]; defaultProjectId?: string; tenantId: string; actorId: string }
 
-const inputStyle: React.CSSProperties = { width: '100%', padding: '8px 12px', fontSize: '0.875rem', border: '1px solid var(--color-border)', borderRadius: '6px', background: 'white' }
+const inputStyle: React.CSSProperties = { width: '100%', padding: '8px 12px', fontSize: '0.875rem', border: '1px solid var(--color-border)', borderRadius: '6px', background: 'var(--color-surface)' }
 const labelStyle: React.CSSProperties = { display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-neutral-600)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }
 
 function requestId(): string | undefined {
@@ -69,7 +69,7 @@ export function ClaimForm({ projects, defaultProjectId, tenantId, actorId }: Cla
   }
 
   return (
-    <form onSubmit={handleSubmit} aria-busy={isPending} style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: 8, padding: 24, display: 'grid', gap: 16, maxWidth: 720 }}>
+    <form onSubmit={handleSubmit} aria-busy={isPending} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 8, padding: 24, display: 'grid', gap: 16, maxWidth: 720 }}>
       <div><label htmlFor="claim-project" style={labelStyle}>Project</label><select id="claim-project" name="project_id" required defaultValue={defaultProjectId ?? ''} style={inputStyle}><option value="">Select a project…</option>{projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
         <div><label htmlFor="claim-milestone" style={labelStyle}>Milestone %</label><input id="claim-milestone" name="milestone_pct" type="number" min={0} max={100} step={1} required placeholder="50" style={inputStyle} /></div>
@@ -80,7 +80,7 @@ export function ClaimForm({ projects, defaultProjectId, tenantId, actorId }: Cla
       {error ? <div role="alert" aria-live="assertive" style={{ background: outcome === 'unknown' ? 'var(--color-warning-soft)' : 'var(--color-danger-soft)', color: 'var(--color-danger)', padding: '10px 12px', borderRadius: 6, fontSize: '0.8125rem' }}>{error}</div> : null}
       {confirmedClaim ? <div role="status" aria-live="polite" style={{ background: 'var(--color-success-soft)', color: 'var(--color-success)', padding: '10px 12px', borderRadius: 6, fontSize: '0.8125rem' }}>Draft {confirmedClaim.claimNumber} confirmed. <a href={`/claims/${confirmedClaim.id}`}>Open claim</a>.</div> : null}
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-        {outcome === 'unknown' && retryCommand ? <button type="button" disabled={isPending} onClick={() => dispatch(retryCommand)} style={{ background: 'white', color: 'var(--color-navy-700)', border: '1px solid var(--color-border-strong)', borderRadius: 6, padding: '9px 18px', fontSize: '0.875rem', fontWeight: 600 }}>{isPending ? 'Retrying…' : 'Retry unchanged draft'}</button> : null}
+        {outcome === 'unknown' && retryCommand ? <button type="button" disabled={isPending} onClick={() => dispatch(retryCommand)} style={{ background: 'var(--color-surface)', color: 'var(--color-navy-text)', border: '1px solid var(--color-border-strong)', borderRadius: 6, padding: '9px 18px', fontSize: '0.875rem', fontWeight: 600 }}>{isPending ? 'Retrying…' : 'Retry unchanged draft'}</button> : null}
         <button type="submit" disabled={isPending || outcome === 'unknown'} style={{ background: 'var(--color-navy-700)', color: 'white', border: 'none', borderRadius: 6, padding: '9px 18px', fontSize: '0.875rem', fontWeight: 600, cursor: isPending ? 'wait' : 'pointer', opacity: isPending || outcome === 'unknown' ? 0.7 : 1 }}>{isPending ? 'Saving…' : 'Save as draft'}</button>
       </div>
     </form>

@@ -122,7 +122,7 @@ export default async function ProjectScopePage({ params }: { params: Promise<{ i
         style={{
           display: 'flex',
           gap: '24px',
-          background: 'white',
+          background: 'var(--color-surface)',
           border: '1px solid var(--color-border)',
           borderRadius: '8px',
           padding: '16px 20px',
@@ -174,7 +174,7 @@ export default async function ProjectScopePage({ params }: { params: Promise<{ i
               padding: '8px 16px',
               background: 'none',
               border: '1px solid var(--color-border)',
-              color: 'var(--color-navy-700)',
+              color: 'var(--color-navy-text)',
               borderRadius: '6px',
               fontSize: '0.875rem',
               fontWeight: 500,
@@ -202,7 +202,7 @@ export default async function ProjectScopePage({ params }: { params: Promise<{ i
             }}
           >
             Or manage all uploads in the{' '}
-            <Link href={`/projects/${id}/documents`} style={{ color: 'var(--color-navy-700)' }}>
+            <Link href={`/projects/${id}/documents`} style={{ color: 'var(--color-navy-text)' }}>
               Documents tab
             </Link>
             .
@@ -255,7 +255,7 @@ export default async function ProjectScopePage({ params }: { params: Promise<{ i
                       <Link
                         href={`/projects/${id}/documents`}
                         style={{
-                          color: 'var(--color-navy-700)',
+                          color: 'var(--color-navy-text)',
                           textDecoration: 'none',
                         }}
                       >
@@ -285,7 +285,7 @@ export default async function ProjectScopePage({ params }: { params: Promise<{ i
                 </div>
                 <div
                   style={{
-                    background: 'white',
+                    background: 'var(--color-surface)',
                     border: '1px solid var(--color-border)',
                     borderRadius: '8px',
                     overflow: 'hidden',

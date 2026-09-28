@@ -58,7 +58,7 @@ export function GeneratePosTrigger({ boms }: Props) {
           fontSize: '0.8125rem',
           fontWeight: 600,
           border: '1px solid var(--color-border)',
-          background: hasBoms ? 'white' : 'var(--color-neutral-100)',
+          background: hasBoms ? 'var(--color-surface)' : 'var(--color-neutral-100)',
           color: hasBoms ? 'var(--color-neutral-800)' : 'var(--color-neutral-400)',
           cursor: hasBoms ? 'pointer' : 'not-allowed',
         }}
@@ -95,7 +95,7 @@ export function GeneratePosTrigger({ boms }: Props) {
             ref={pickerDialogRef}
             tabIndex={-1}
             style={{
-              background: 'white',
+              background: 'var(--color-surface)',
               borderRadius: 12,
               width: '100%',
               maxWidth: 560,
@@ -127,7 +127,7 @@ export function GeneratePosTrigger({ boms }: Props) {
                   style={{
                     width: '100%',
                     padding: '12px 24px',
-                    background: 'white',
+                    background: 'var(--color-surface)',
                     border: 'none',
                     borderBottom: '1px solid var(--color-border)',
                     textAlign: 'left',
@@ -168,7 +168,7 @@ export function GeneratePosTrigger({ boms }: Props) {
                   padding: '8px 14px',
                   borderRadius: 6,
                   border: '1px solid var(--color-border)',
-                  background: 'white',
+                  background: 'var(--color-surface)',
                   color: 'var(--color-neutral-700)',
                   fontSize: '0.8125rem',
                   fontWeight: 500,

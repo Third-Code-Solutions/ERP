@@ -42,7 +42,7 @@ export function CommentThread({ projectId, currentUserId, comments }: CommentThr
     return (
       <div
         style={{
-          background: 'white',
+          background: 'var(--color-surface)',
           border: '1px dashed var(--color-border)',
           borderRadius: '8px',
           padding: '32px 20px',
@@ -93,7 +93,7 @@ function CommentRow({
   return (
     <li
       style={{
-        background: 'white',
+        background: 'var(--color-surface)',
         border: '1px solid var(--color-border)',
         borderRadius: '8px',
         padding: '14px 16px',
@@ -109,7 +109,7 @@ function CommentRow({
             flex: '0 0 32px',
             borderRadius: '50%',
             background: 'var(--color-neutral-100)',
-            color: 'var(--color-navy-700)',
+            color: 'var(--color-navy-text)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',

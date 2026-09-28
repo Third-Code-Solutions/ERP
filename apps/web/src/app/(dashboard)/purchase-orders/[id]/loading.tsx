@@ -24,7 +24,7 @@ export default function PoDetailLoading() {
       </div>
 
       {/* Line items table */}
-      <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden', marginBottom: '16px' }}>
+      <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden', marginBottom: '16px' }}>
         <div style={{ padding: '12px 16px', background: 'var(--color-neutral-50)', borderBottom: '1px solid var(--color-border)', display: 'flex', gap: '16px' }}>
           {[200, 60, 80, 100, 100].map((w, i) => (
             <div key={i} className="skeleton" style={{ height: '12px', width: w }} />
@@ -42,7 +42,7 @@ export default function PoDetailLoading() {
       </div>
 
       {/* Totals */}
-      <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '20px', maxWidth: '320px', marginLeft: 'auto' }}>
+      <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '20px', maxWidth: '320px', marginLeft: 'auto' }}>
         {Array.from({ length: 3 }).map((_, i) => (
           <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
             <div className="skeleton" style={{ height: '14px', width: '80px' }} />

@@ -9,7 +9,7 @@ export default function Loading() {
       {/* Stepper skeleton */}
       <div
         style={{
-          background: 'white',
+          background: 'var(--color-surface)',
           border: '1px solid var(--color-border)',
           borderRadius: 8,
           padding: 20,
@@ -33,7 +33,7 @@ export default function Loading() {
       >
         <div
           style={{
-            background: 'white',
+            background: 'var(--color-surface)',
             border: '1px solid var(--color-border)',
             borderRadius: 8,
             padding: 16,
@@ -48,7 +48,7 @@ export default function Loading() {
         </div>
         <div
           style={{
-            background: 'white',
+            background: 'var(--color-surface)',
             border: '1px solid var(--color-border)',
             borderRadius: 8,
             padding: 16,

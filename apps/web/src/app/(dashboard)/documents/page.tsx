@@ -87,7 +87,7 @@ export default async function DocumentsPage() {
       {docs.length === 0 ? (
         <div
           style={{
-            background: 'white',
+            background: 'var(--color-surface)',
             border: '1px solid var(--color-border)',
             borderRadius: '8px',
             padding: '64px 24px',
@@ -98,7 +98,7 @@ export default async function DocumentsPage() {
           <p style={{ fontSize: '0.875rem', marginBottom: '8px' }}>No documents uploaded yet.</p>
           <p style={{ fontSize: '0.8125rem' }}>
             Documents uploaded to projects will appear here.{' '}
-            <Link href="/projects" style={{ color: 'var(--color-navy-700)' }}>
+            <Link href="/projects" style={{ color: 'var(--color-navy-text)' }}>
               Go to Projects
             </Link>
           </p>
@@ -106,7 +106,7 @@ export default async function DocumentsPage() {
       ) : (
         <div
           style={{
-            background: 'white',
+            background: 'var(--color-surface)',
             border: '1px solid var(--color-border)',
             borderRadius: '8px',
             overflowX: 'auto',
@@ -138,7 +138,7 @@ export default async function DocumentsPage() {
                       rel="noopener noreferrer"
                       style={{
                         fontWeight: 500,
-                        color: 'var(--color-navy-700)',
+                        color: 'var(--color-navy-text)',
                         textDecoration: 'none',
                       }}
                       title="Open in new tab"
@@ -174,7 +174,7 @@ export default async function DocumentsPage() {
                       <Link
                         href={`/projects/${doc.project_id}`}
                         style={{
-                          color: 'var(--color-navy-700)',
+                          color: 'var(--color-navy-text)',
                           textDecoration: 'none',
                           fontSize: '0.875rem',
                         }}

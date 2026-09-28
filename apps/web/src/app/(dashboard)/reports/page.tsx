@@ -107,7 +107,7 @@ export default async function ReportsPage() {
           <div
             key={label}
             style={{
-              background: 'white',
+              background: 'var(--color-surface)',
               border: '1px solid var(--color-border)',
               borderRadius: '8px',
               padding: '14px 20px',
@@ -139,7 +139,7 @@ export default async function ReportsPage() {
           <div
             key={label}
             style={{
-              background: 'white',
+              background: 'var(--color-surface)',
               border: '1px solid var(--color-border)',
               borderRadius: '8px',
               padding: '14px 20px',
@@ -160,7 +160,7 @@ export default async function ReportsPage() {
       <h2 style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-neutral-400)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 12px' }}>
         Stage Breakdown
       </h2>
-      <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px', overflowX: 'auto', marginBottom: '32px', maxWidth: '860px' }}>
+      <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', overflowX: 'auto', marginBottom: '32px', maxWidth: '860px' }}>
         <table className="data-table">
           <thead>
             <tr>
@@ -201,7 +201,7 @@ export default async function ReportsPage() {
           <div
             key={label}
             style={{
-              background: 'white',
+              background: 'var(--color-surface)',
               border: '1px solid var(--color-border)',
               borderRadius: '8px',
               padding: '14px 20px',
@@ -225,7 +225,7 @@ export default async function ReportsPage() {
           borderRadius: '8px',
           padding: '16px 20px',
           fontSize: '0.8125rem',
-          color: 'var(--color-navy-700)',
+          color: 'var(--color-navy-text)',
           maxWidth: '860px',
         }}
       >

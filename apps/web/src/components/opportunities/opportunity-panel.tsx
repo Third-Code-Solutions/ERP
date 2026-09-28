@@ -457,7 +457,7 @@ export function OpportunityPanel({
   )
 }
 
-const panelStyle: React.CSSProperties = { background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }
+const panelStyle: React.CSSProperties = { background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }
 const headerStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid var(--color-border)' }
 const readOnlyStyle: React.CSSProperties = { margin: 0, color: 'var(--color-neutral-500)', fontSize: '0.75rem' }
 const readOnlyFieldStyle: React.CSSProperties = { ...inputStyle, margin: 0, background: 'var(--color-neutral-100)', color: 'var(--color-neutral-600)' }
@@ -477,5 +477,5 @@ function submitButtonStyle(isPending: boolean): React.CSSProperties {
 }
 
 function advanceButtonStyle(isPending: boolean): React.CSSProperties {
-  return { fontSize: '0.75rem', padding: '2px 8px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', background: 'none', cursor: isPending ? 'not-allowed' : 'pointer', color: 'var(--color-navy-700)', opacity: isPending ? 0.6 : 1 }
+  return { fontSize: '0.75rem', padding: '2px 8px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', background: 'none', cursor: isPending ? 'not-allowed' : 'pointer', color: 'var(--color-navy-text)', opacity: isPending ? 0.6 : 1 }
 }

@@ -41,8 +41,8 @@
   border-color: var(--color-navy-700);
 }
 .secondary {
-  background: white;
-  color: var(--color-navy-700);
+  background: var(--color-surface);
+  color: var(--color-navy-text);
 }
 .toolbar {
   display: flex;
@@ -50,7 +50,7 @@
   gap: 0.75rem;
   align-items: end;
   padding: 1rem;
-  background: white;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 0.5rem;
   margin-bottom: 1rem;
@@ -105,7 +105,7 @@
 .card {
   min-width: 0;
   padding: 1.25rem;
-  background: white;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 0.5rem;
   display: flex;
@@ -120,7 +120,7 @@
   overflow-wrap: anywhere;
 }
 .card h2 a {
-  color: var(--color-navy-700);
+  color: var(--color-navy-text);
   text-decoration: none;
 }
 .card p {
@@ -193,7 +193,7 @@
   vertical-align: top;
 }
 .table a {
-  color: var(--color-navy-700);
+  color: var(--color-navy-text);
   font-weight: 600;
   text-decoration: none;
 }
@@ -210,7 +210,7 @@
   overflow: auto;
   border: 1px solid var(--color-border);
   border-radius: 0.5rem;
-  background: white;
+  background: var(--color-surface);
 }
 .empty {
   padding: 3rem 1.5rem;
@@ -230,13 +230,13 @@
   padding: 1rem;
   background: var(--color-navy-50);
   border-radius: 0.5rem;
-  color: var(--color-navy-700);
+  color: var(--color-navy-text);
   font-size: 0.8125rem;
   line-height: 1.6;
   margin-top: 1.5rem;
 }
 .workspace :is(a, button, input, select):focus-visible {
-  outline: 2px solid var(--color-navy-700);
+  outline: 2px solid var(--color-navy-text);
   outline-offset: 3px;
 }
 .workspace button:disabled {

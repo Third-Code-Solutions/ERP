@@ -77,7 +77,7 @@ export function DeliveryStatusActions({ scheduleId, status }: Props) {
   return (
     <div
       style={{
-        background: 'white',
+        background: 'var(--color-surface)',
         border: '1px solid var(--color-border)',
         borderRadius: 8,
         padding: 16,
@@ -109,7 +109,7 @@ export function DeliveryStatusActions({ scheduleId, status }: Props) {
           onClick={() => setShowCancel(true)}
           style={{
             border: '1px solid var(--color-border)',
-            background: 'white',
+            background: 'var(--color-surface)',
             color: 'var(--color-danger)',
             padding: '8px 12px',
             borderRadius: 6,
@@ -180,7 +180,7 @@ export function DeliveryStatusActions({ scheduleId, status }: Props) {
               }}
               disabled={isPending}
               style={{
-                background: 'white',
+                background: 'var(--color-surface)',
                 color: 'var(--color-neutral-700)',
                 border: '1px solid var(--color-border)',
                 borderRadius: 6,

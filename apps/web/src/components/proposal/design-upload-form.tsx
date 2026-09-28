@@ -132,7 +132,7 @@ export function DesignUploadForm({
           {projectId ? (
             <>
               {' '}
-              <a href={`/projects/${projectId}/documents`} style={{ color: 'var(--color-navy-700)' }}>
+              <a href={`/projects/${projectId}/documents`} style={{ color: 'var(--color-navy-text)' }}>
                 Upload a document in the project Documents workspace.
               </a>
             </>
@@ -143,7 +143,7 @@ export function DesignUploadForm({
       {projectId && documents.length > 0 ? (
         <p style={{ margin: 0, fontSize: 12, color: 'var(--color-neutral-600)' }}>
           Need another file?{' '}
-          <a href={`/projects/${projectId}/documents`} style={{ color: 'var(--color-navy-700)' }}>
+          <a href={`/projects/${projectId}/documents`} style={{ color: 'var(--color-navy-text)' }}>
             Open the project Documents workspace.
           </a>
         </p>
@@ -171,7 +171,7 @@ export function DesignUploadForm({
         .inp {
           font-family: inherit; font-size: 13px; padding: 7px 9px;
           border: 1px solid var(--color-border); border-radius: 4px;
-          background: white;
+          background: var(--color-surface);
         }
         .inp:focus {
           outline: 0; border-color: var(--color-navy-500);

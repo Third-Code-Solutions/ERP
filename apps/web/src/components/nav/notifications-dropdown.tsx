@@ -276,7 +276,7 @@ export function NotificationsDropdown({
           style={{
             width: 'min(380px, calc(100vw - 24px))',
             maxHeight: 'min(480px, calc(100dvh - 80px))',
-            background: 'white',
+            background: 'var(--color-surface)',
             border: '1px solid var(--color-border)',
             borderRadius: 12,
             boxShadow:
@@ -326,7 +326,7 @@ export function NotificationsDropdown({
                 style={{
                   background: 'transparent',
                   border: 0,
-                  color: 'var(--color-navy-700)',
+                  color: 'var(--color-navy-text)',
                   fontSize: 12,
                   fontWeight: 500,
                   cursor: saving ? 'wait' : 'pointer',
@@ -419,7 +419,7 @@ export function NotificationsDropdown({
                   style={{
                     padding: '12px 16px',
                     borderBottom: '1px solid var(--color-border)',
-                    background: it.is_read ? 'white' : 'color-mix(in oklch, var(--color-navy-700) 3%, white)',
+                    background: it.is_read ? 'var(--color-surface)' : 'color-mix(in oklch, var(--color-navy-700) 3%, var(--color-surface))',
                     display: 'flex',
                     gap: 10,
                     alignItems: 'flex-start',
@@ -498,7 +498,7 @@ export function NotificationsDropdown({
                           style={{
                             fontSize: 12,
                             fontWeight: 500,
-                            color: 'var(--color-navy-700)',
+                            color: 'var(--color-navy-text)',
                             textDecoration: 'none',
                           }}
                         >

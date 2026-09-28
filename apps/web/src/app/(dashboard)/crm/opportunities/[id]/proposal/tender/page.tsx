@@ -133,7 +133,7 @@ const styles = `
 .tender-form label, .inline-form label { display: grid; gap: 5px; font-size: 12px; font-weight: 600; color: var(--color-neutral-700); }
 .tender-form .checkbox-field { display: flex; align-items: center; gap: 7px; }
 .tender-form .checkbox-field input { width: auto; }
-.tender-form input, .tender-form select, .tender-form textarea, .inline-form select, .score-form input { font: inherit; font-size: 13px; border: 1px solid var(--color-border); border-radius: 4px; padding: 7px 9px; background: white; }
+.tender-form input, .tender-form select, .tender-form textarea, .inline-form select, .score-form input { font: inherit; font-size: 13px; border: 1px solid var(--color-border); border-radius: 4px; padding: 7px 9px; background: var(--color-surface); }
 .inline-form { display: flex; align-items: end; gap: 8px; flex-wrap: wrap; }
 .score-form { display: grid; gap: 5px; min-width: 140px; }
 .score-form input { width: 100%; }

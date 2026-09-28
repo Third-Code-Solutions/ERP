@@ -298,7 +298,7 @@ function BomLineItemsTable({
       data-virtualized={shouldVirtualize ? 'true' : 'false'}
       onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
       style={{
-        background: 'white',
+        background: 'var(--color-surface)',
         border: '1px solid var(--color-border)',
         borderRadius: '8px',
         overflow: shouldVirtualize ? 'auto' : 'hidden',
@@ -611,7 +611,7 @@ export function BomBuilder({
     return (
       <div
         style={{
-          background: 'white',
+          background: 'var(--color-surface)',
           border: '1px solid var(--color-border)',
           borderRadius: '8px',
           padding: '64px 24px',
@@ -710,8 +710,8 @@ export function BomBuilder({
                   aria-expanded={showAddForm}
                   aria-controls="bom-add-line-form"
                   style={{
-                    background: 'white',
-                    color: 'var(--color-navy-700)',
+                    background: 'var(--color-surface)',
+                    color: 'var(--color-navy-text)',
                     border: '1px solid var(--color-navy-700)',
                     borderRadius: '6px',
                     padding: '6px 14px',
@@ -769,8 +769,8 @@ export function BomBuilder({
                   aria-expanded={showPoForm}
                   aria-controls="bom-generate-po-form"
                   style={{
-                    background: 'white',
-                    color: 'var(--color-navy-700)',
+                    background: 'var(--color-surface)',
+                    color: 'var(--color-navy-text)',
                     border: '1px solid var(--color-navy-700)',
                     borderRadius: '6px',
                     padding: '6px 14px',
@@ -833,7 +833,7 @@ export function BomBuilder({
             <div
               key={label}
               style={{
-                background: 'white',
+                background: 'var(--color-surface)',
                 border: '1px solid var(--color-border)',
                 borderRadius: '6px',
                 padding: '10px 16px',
@@ -1019,7 +1019,7 @@ export function BomBuilder({
                   {isFetchingSuggestions && (
                     <span
                       style={{
-                        color: 'var(--color-navy-700)',
+                        color: 'var(--color-navy-text)',
                         fontStyle: 'italic',
                         fontWeight: 400,
                         textTransform: 'none',
@@ -1037,7 +1037,7 @@ export function BomBuilder({
                       alignItems: 'center',
                       gap: '10px',
                       padding: '6px 8px',
-                      background: 'white',
+                      background: 'var(--color-surface)',
                       border: '1px solid var(--color-border)',
                       borderRadius: '4px',
                       marginBottom: '4px',
@@ -1419,7 +1419,7 @@ export function BomBuilder({
         {bom.lineItems.length === 0 ? (
           <div
             style={{
-              background: 'white',
+              background: 'var(--color-surface)',
               border: '1px solid var(--color-border)',
               borderRadius: '8px',
               padding: '32px 24px',

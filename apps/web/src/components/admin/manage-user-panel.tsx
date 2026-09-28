@@ -580,7 +580,7 @@ const sectionHead: React.CSSProperties = {
 const inputStyle: React.CSSProperties = {
   height: 38,
   padding: '0 12px',
-  background: 'white',
+  background: 'var(--color-surface)',
   border: '1px solid var(--color-border)',
   borderRadius: 'var(--radius-md, 6px)',
   fontFamily: 'inherit',

@@ -100,7 +100,7 @@ export function OpportunityKycTrackPanel({
         .track-form { display: grid; gap: 7px; }
         .track-notes { width: 100%; box-sizing: border-box; min-height: 52px; resize: vertical; padding: 7px 8px; font: inherit; font-size: 12px; border: 1px solid var(--color-border); border-radius: 4px; }
         .track-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-        .track-action { border: 1px solid var(--color-border); border-radius: 4px; background: white; color: var(--color-neutral-700); padding: 6px 8px; font: inherit; font-size: 11px; cursor: pointer; }
+        .track-action { border: 1px solid var(--color-border); border-radius: 4px; background: var(--color-surface); color: var(--color-neutral-700); padding: 6px 8px; font: inherit; font-size: 11px; cursor: pointer; }
         .track-action.primary { border-color: var(--color-navy-700); background: var(--color-navy-700); color: white; }
         .track-action.danger { border-color: #fecaca; color: #b91c1c; }
         .track-action:disabled { opacity: .55; cursor: wait; }

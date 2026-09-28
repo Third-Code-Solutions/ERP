@@ -45,7 +45,7 @@ export default function ProjectCommentsLoading() {
       {/* Composer skeleton */}
       <div
         style={{
-          background: 'white',
+          background: 'var(--color-surface)',
           border: '1px solid var(--color-border)',
           borderRadius: '8px',
           padding: '12px 12px 10px',
@@ -74,7 +74,7 @@ export default function ProjectCommentsLoading() {
           <div
             key={i}
             style={{
-              background: 'white',
+              background: 'var(--color-surface)',
               border: '1px solid var(--color-border)',
               borderRadius: '8px',
               padding: '14px 16px',

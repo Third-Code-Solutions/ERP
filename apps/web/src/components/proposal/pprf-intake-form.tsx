@@ -236,13 +236,13 @@ export function PprfIntakeForm({ submissionId }: PprfIntakeFormProps) {
         .form-row-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         .form-label { font-size: 12px; font-weight: 600; color: var(--color-neutral-700); }
         .form-help { margin: 0; color: var(--color-neutral-500); font-size: 12px; line-height: 1.45; }
-        .form-input { width: 100%; box-sizing: border-box; font: inherit; font-size: 14px; padding: 9px 10px; background: white; border: 1px solid var(--color-border); border-radius: 5px; color: var(--color-neutral-900); }
+        .form-input { width: 100%; box-sizing: border-box; font: inherit; font-size: 14px; padding: 9px 10px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 5px; color: var(--color-neutral-900); }
         .form-input:focus { outline: 0; border-color: var(--color-navy-500); box-shadow: 0 0 0 3px color-mix(in oklch, var(--color-navy-500) 18%, transparent); }
         .form-error { color: var(--color-danger); font-size: 13px; margin: 0; }
         .intake-actions { display: flex; justify-content: flex-end; gap: 8px; }
         .button-primary, .button-secondary { border-radius: 5px; padding: 9px 14px; font: inherit; font-size: 13px; cursor: pointer; }
         .button-primary { border: 1px solid var(--color-navy-700); background: var(--color-navy-700); color: white; font-weight: 600; }
-        .button-secondary { border: 1px solid var(--color-border); background: white; color: var(--color-neutral-700); }
+        .button-secondary { border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-neutral-700); }
         button:disabled { cursor: wait; opacity: .65; }
         @media (max-width: 680px) { .form-row-2col { grid-template-columns: 1fr; } .intake-section-heading { flex-direction: column; } .intake-section-heading p:last-child { text-align: left; } .intake-actions { flex-direction: column-reverse; } .intake-actions button { width: 100%; } }
       `}</style>

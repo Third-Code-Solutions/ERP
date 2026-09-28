@@ -11,7 +11,7 @@ export default function PurchaseOrdersLoading() {
       {/* Summary cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
         {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px 20px' }}>
+          <div key={i} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px 20px' }}>
             <div className="skeleton" style={{ height: '10px', width: '80px', marginBottom: '8px' }} />
             <div className="skeleton" style={{ height: '22px', width: '110px' }} />
           </div>
@@ -19,7 +19,7 @@ export default function PurchaseOrdersLoading() {
       </div>
 
       {/* Table */}
-      <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
+      <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
         <div style={{ padding: '10px 16px', background: 'var(--color-neutral-50)', borderBottom: '1px solid var(--color-border)', display: 'flex', gap: '16px' }}>
           {[120, 180, 80, 90, 80, 70].map((w, i) => (
             <div key={i} className="skeleton" style={{ height: '12px', width: w }} />

@@ -18,7 +18,7 @@ export default function ProjectBomLoading() {
       </div>
 
       {/* BOM summary bar */}
-      <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px 20px', marginBottom: '20px', display: 'flex', gap: '24px', alignItems: 'center' }}>
+      <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px 20px', marginBottom: '20px', display: 'flex', gap: '24px', alignItems: 'center' }}>
         {Array.from({ length: 3 }).map((_, i) => (
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
             <div>
@@ -35,7 +35,7 @@ export default function ProjectBomLoading() {
       </div>
 
       {/* BOM table */}
-      <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
+      <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
         <div style={{ padding: '10px 16px', background: 'var(--color-neutral-50)', borderBottom: '1px solid var(--color-border)', display: 'flex', gap: '24px' }}>
           {[200, 80, 60, 100, 100, 100].map((w, i) => (
             <div key={i} className="skeleton" style={{ height: '12px', width: w }} />

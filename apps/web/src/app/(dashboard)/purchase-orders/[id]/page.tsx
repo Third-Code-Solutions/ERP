@@ -293,7 +293,7 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
           </h1>
           <div style={{ display: 'flex', gap: '16px', fontSize: '0.875rem', color: 'var(--color-neutral-500)' }}>
             {po.project_id && (
-              <Link href={`/projects/${po.project_id}`} style={{ color: 'var(--color-navy-700)', textDecoration: 'none' }}>
+              <Link href={`/projects/${po.project_id}`} style={{ color: 'var(--color-navy-text)', textDecoration: 'none' }}>
                 {po.project_name}
               </Link>
             )}
@@ -329,7 +329,7 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
               fontSize: '0.8125rem',
               fontWeight: 500,
               border: '1px solid var(--color-border)',
-              background: 'white',
+              background: 'var(--color-surface)',
               color: 'var(--color-neutral-700)',
               textDecoration: 'none',
               display: 'inline-flex',
@@ -361,7 +361,7 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
         {/* Financial summary */}
         <div
           style={{
-            background: 'white',
+            background: 'var(--color-surface)',
             border: '1px solid var(--color-border)',
             borderRadius: '8px',
             padding: '20px',
@@ -401,7 +401,7 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
         {/* Vendor info */}
         <div
           style={{
-            background: 'white',
+            background: 'var(--color-surface)',
             border: '1px solid var(--color-border)',
             borderRadius: '8px',
             padding: '20px',
@@ -432,7 +432,7 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
           ) : (
             <p style={{ fontSize: '0.875rem', color: 'var(--color-neutral-400)', margin: 0 }}>
               No vendor assigned.{' '}
-              <Link href="/procurement" style={{ color: 'var(--color-navy-700)' }}>
+              <Link href="/procurement" style={{ color: 'var(--color-navy-text)' }}>
                 Manage vendors →
               </Link>
             </p>
@@ -443,7 +443,7 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
       {canManagePayables && (
         <div
           style={{
-            background: 'white',
+            background: 'var(--color-surface)',
             border: '1px solid var(--color-border)',
             borderRadius: '8px',
             overflow: 'hidden',
@@ -635,7 +635,7 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
 
       <div
         style={{
-          background: 'white',
+          background: 'var(--color-surface)',
           border: '1px solid var(--color-border)',
           borderRadius: '8px',
           overflow: 'hidden',
@@ -735,7 +735,7 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
         <div
           style={{
             marginTop: '16px',
-            background: 'white',
+            background: 'var(--color-surface)',
             border: '1px solid var(--color-border)',
             borderRadius: '8px',
             padding: '20px',

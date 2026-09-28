@@ -120,7 +120,7 @@ export default async function KycQueuePage() {
                       {days}d
                     </td>
                     <td>
-                      <Link href={`/crm/accounts/${r.id}`} style={{ color: 'var(--color-navy-700)', fontSize: 12.5, fontWeight: 500 }}>
+                      <Link href={`/crm/accounts/${r.id}`} style={{ color: 'var(--color-navy-text)', fontSize: 12.5, fontWeight: 500 }}>
                         {canReview ? 'Review →' : 'View →'}
                       </Link>
                     </td>
@@ -195,7 +195,7 @@ export default async function KycQueuePage() {
                       <Link
                         href={href}
                         aria-label={`${canReview ? 'Review' : 'View'} ${trackLabel} for ${accountName}`}
-                        style={{ color: 'var(--color-navy-700)', fontSize: 12.5, fontWeight: 500 }}
+                        style={{ color: 'var(--color-navy-text)', fontSize: 12.5, fontWeight: 500 }}
                       >
                         {canReview ? 'Review →' : 'View →'}
                       </Link>

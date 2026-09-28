@@ -184,7 +184,7 @@ export default async function UsersListPage({ searchParams }: UsersListProps) {
                     <Link
                       href={`/admin/users/${r.id}`}
                       style={{
-                        color: 'var(--color-navy-700)',
+                        color: 'var(--color-navy-text)',
                         fontSize: 12.5,
                         fontWeight: 500,
                       }}

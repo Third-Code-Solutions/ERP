@@ -57,7 +57,7 @@ export function PunchlistForm({ projects, users, defaultProjectId }: PunchlistFo
     fontSize: '0.875rem',
     border: '1px solid var(--color-border)',
     borderRadius: '6px',
-    background: 'white',
+    background: 'var(--color-surface)',
   }
 
   const labelStyle: React.CSSProperties = {
@@ -74,7 +74,7 @@ export function PunchlistForm({ projects, users, defaultProjectId }: PunchlistFo
     <form
       onSubmit={handleSubmit}
       style={{
-        background: 'white',
+        background: 'var(--color-surface)',
         border: '1px solid var(--color-border)',
         borderRadius: 8,
         padding: 24,

@@ -473,7 +473,7 @@ function MobilizationReadinessPanelContent({
                     const nextValue = event.currentTarget.value
                     setDates((current) => ({ ...current, [key]: nextValue }))
                   }}
-                  style={{ background: 'white', border: 0, borderRadius: '5px', color: '#102538', minHeight: '44px', minWidth: 0, padding: '7px 8px', width: '100%' }}
+                  style={{ background: 'var(--color-surface)', border: 0, borderRadius: '5px', color: '#102538', minHeight: '44px', minWidth: 0, padding: '7px 8px', width: '100%' }}
                 />
                 <button
                   type="button"

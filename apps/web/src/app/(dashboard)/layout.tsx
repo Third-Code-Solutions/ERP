@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { headers } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { getUserProfile } from '@third-code-erp/auth'
 import { Sidebar } from '@/components/nav/sidebar'
 import { Topbar } from '@/components/nav/topbar'
@@ -30,13 +30,14 @@ export default async function DashboardLayout({
   //
   // Middleware sets `x-pathname` on the request — see `apps/web/src/middleware.ts`.
   const hdrs = await headers()
+  const theme = (await cookies()).get('erp_theme')?.value === 'dark' ? 'dark' : 'light'
   const pathname = hdrs.get('x-pathname') ?? ''
   if (pathname && !canViewPath(profile.role, pathname)) {
     redirect('/dashboard?error=forbidden')
   }
 
   return (
-    <div className="app-layout">
+    <div className="app-layout" data-theme={theme}>
       <a href="#main-content" className="skip-link">
         Skip to main content
       </a>
@@ -50,6 +51,7 @@ export default async function DashboardLayout({
           user={profile.user}
           role={profile.role}
           fullName={profile.fullName}
+          initialTheme={theme}
         />
         <main id="main-content" className="app-content" tabIndex={-1}>
           {children}

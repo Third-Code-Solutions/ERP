@@ -71,7 +71,7 @@ export function DeliveryListTable({ rows }: Props) {
                     fontFamily: 'var(--font-mono)',
                     fontSize: '0.8125rem',
                     fontWeight: 600,
-                    color: 'var(--color-navy-700)',
+                    color: 'var(--color-navy-text)',
                     textDecoration: 'none',
                   }}
                 >

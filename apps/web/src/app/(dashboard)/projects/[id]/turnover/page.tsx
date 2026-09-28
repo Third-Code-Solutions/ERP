@@ -208,7 +208,7 @@ export default async function TurnoverPage({
       {/* Progress strip */}
       <div
         style={{
-          background: 'white',
+          background: 'var(--color-surface)',
           border: '1px solid var(--color-border)',
           borderRadius: 8,
           padding: '14px 18px',
@@ -299,7 +299,7 @@ export default async function TurnoverPage({
       {/* Slot checklist */}
       <div
         style={{
-          background: 'white',
+          background: 'var(--color-surface)',
           border: '1px solid var(--color-border)',
           borderRadius: 8,
           overflow: 'hidden',
@@ -359,7 +359,7 @@ export default async function TurnoverPage({
                     href={`${baseHref}/documents`}
                     style={{
                       fontSize: '0.8125rem',
-                      color: 'var(--color-navy-700)',
+                      color: 'var(--color-navy-text)',
                       textDecoration: 'none',
                       marginTop: 6,
                       display: 'inline-block',
@@ -401,7 +401,7 @@ export default async function TurnoverPage({
           }}
         >
           No documents uploaded yet. Use the{' '}
-          <Link href={`${baseHref}/documents`} style={{ color: 'var(--color-navy-700)' }}>
+          <Link href={`${baseHref}/documents`} style={{ color: 'var(--color-navy-text)' }}>
             Documents tab
           </Link>{' '}
           to upload the turnover artifacts, then attach them here.
@@ -449,7 +449,7 @@ function SlotPicker({
           fontSize: '0.75rem',
           border: '1px solid var(--color-border)',
           borderRadius: 6,
-          background: 'white',
+          background: 'var(--color-surface)',
           minWidth: 180,
         }}
       >

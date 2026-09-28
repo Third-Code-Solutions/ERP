@@ -548,7 +548,7 @@ export function PipelineBoard({
                     aria-label={`Add opportunity to ${STAGE_LABELS[stage]}`}
                     title={`Add opportunity to ${STAGE_LABELS[stage]}`}
                     style={{
-                      background: 'white',
+                      background: 'var(--color-surface)',
                       border: '1px solid var(--color-border)',
                       borderRadius: '4px',
                       width: '36px',

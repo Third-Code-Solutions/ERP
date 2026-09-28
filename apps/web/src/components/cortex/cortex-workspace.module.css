@@ -1,7 +1,7 @@
 .workspace { min-width: 0; gap: 1rem; }
 .workspace :global(.cortex-record-count) { font-size: .75rem; color: var(--color-neutral-600); margin: 0 0 .75rem; }
-.workspace :global(.cortex-records) { height: 30rem; overflow-y: auto; list-style: none; margin: 0; padding: .5rem; border: 1px solid var(--color-border); border-radius: var(--radius-lg, 8px); background: white; }
-.workspace :global(.cortex-record-row) { display: flex; width: 100%; align-items: center; gap: .75rem; text-align: left; padding: .75rem; min-height: 3.5rem; background: white; color: var(--color-neutral-800); border: 0; border-bottom: 1px solid var(--color-border); cursor: pointer; }
+.workspace :global(.cortex-records) { height: 30rem; overflow-y: auto; list-style: none; margin: 0; padding: .5rem; border: 1px solid var(--color-border); border-radius: var(--radius-lg, 8px); background: var(--color-surface); }
+.workspace :global(.cortex-record-row) { display: flex; width: 100%; align-items: center; gap: .75rem; text-align: left; padding: .75rem; min-height: 3.5rem; background: var(--color-surface); color: var(--color-neutral-800); border: 0; border-bottom: 1px solid var(--color-border); cursor: pointer; }
 .workspace :global(.cortex-record-row > span:nth-child(2)) { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .workspace :global(.cortex-record-row strong) { display: block; font-size: .875rem; font-weight: 600; }
 .workspace :global(.cortex-record-row small) { display: block; color: var(--color-neutral-500); margin-top: .25rem; }
@@ -29,13 +29,13 @@
 .workspace :global(.cortex-legend-chip.is-off) { opacity: .65; }
 .workspace :global(.cortex-tool-btn) { height: 2.75rem; }
 .workspace :global(.cortex-focusbar) { grid-template-columns: minmax(0, 1fr) auto; background: var(--color-info-soft); border-color: var(--color-border); }
-.workspace :global(.cortex-focusbar__eyebrow) { color: var(--color-navy-700); }
+.workspace :global(.cortex-focusbar__eyebrow) { color: var(--color-navy-text); }
 .workspace :global(.cortex-focusbar__title) { white-space: normal; overflow-wrap: anywhere; }
-.workspace :global(.cortex-focusbar__clear) { color: var(--color-navy-700); border-color: var(--color-border); }
+.workspace :global(.cortex-focusbar__clear) { color: var(--color-navy-text); border-color: var(--color-border); }
 .workspace :global(.cortex-graphwrap) { height: 30rem; background: var(--color-neutral-50); border-color: var(--color-border); }
 .workspace :global(.cortex-graph-hint) { position: absolute; left: 1rem; top: 1rem; right: 1rem; color: var(--color-neutral-600); background: transparent; padding: 0; backdrop-filter: none; font-size: .75rem; pointer-events: none; }
 .workspace :global(.cortex-graph-zoom) { flex-direction: row; }
-.workspace :global(.cortex-graph-zoom button) { width: 2.75rem; height: 2.75rem; background: white; color: var(--color-navy-700); border-color: var(--color-border); box-shadow: none; }
+.workspace :global(.cortex-graph-zoom button) { width: 2.75rem; height: 2.75rem; background: var(--color-surface); color: var(--color-navy-text); border-color: var(--color-border); box-shadow: none; }
 .workspace :global(.cortex-graph-zoom button:hover) { background: var(--color-info-soft); }
 .workspace :global(.cortex-graph-drawer) { position: relative; inset: auto; width: 100%; height: auto; max-height: 34rem; border: 1px solid var(--color-border); border-radius: var(--radius-lg, 8px); margin-top: .75rem; box-shadow: none; padding: 1rem; min-width: 0; overflow: auto; }
 .workspace :global(.cortex-graph-drawer__close) { min-width: 2.75rem; min-height: 2.75rem; }
@@ -47,16 +47,16 @@
 .workspace :global(.cortex-relationship__record) { min-width: 0; }
 .workspace :global(.cortex-relationship__name) { white-space: normal; overflow-wrap: anywhere; }
 .workspace :global(.cortex-chip) { min-width: 0; max-width: 100%; }
-.workspace :global(.cortex-open-record) { min-height: 2.75rem; padding: .5rem 1rem; border: 1px solid var(--color-border); border-radius: var(--radius-md, 6px); color: var(--color-navy-700); background: var(--color-info-soft); cursor: pointer; margin-top: .75rem; }
+.workspace :global(.cortex-open-record) { min-height: 2.75rem; padding: .5rem 1rem; border: 1px solid var(--color-border); border-radius: var(--radius-md, 6px); color: var(--color-navy-text); background: var(--color-info-soft); cursor: pointer; margin-top: .75rem; }
 .workspace :global(.cortex-agent) { position: static; height: 42rem; max-height: none; }
-.workspace :global(.cortex-agent__head) { background: white; color: var(--color-navy-700); border-bottom: 1px solid var(--color-border); padding: 1rem; }
+.workspace :global(.cortex-agent__head) { background: var(--color-surface); color: var(--color-navy-text); border-bottom: 1px solid var(--color-border); padding: 1rem; }
 .workspace :global(.cortex-agent__headtext) { min-width: 0; }
 .workspace :global(.cortex-agent__headbtns) { flex-shrink: 0; }
 .workspace :global(.cortex-graph-tip) { max-width: calc(100% - 1rem); }
-.workspace :global(.cortex-agent__iconbtn) { color: var(--color-navy-700); background: var(--color-neutral-100); min-width: 2.75rem; min-height: 2.75rem; }
+.workspace :global(.cortex-agent__iconbtn) { color: var(--color-navy-text); background: var(--color-neutral-100); min-width: 2.75rem; min-height: 2.75rem; }
 .workspace :global(.cortex-agent__sub) { opacity: 1; color: var(--color-neutral-600); font-size: .75rem; }
 .workspace :global(.cortex-agent__context) { flex-wrap: wrap; background: var(--color-neutral-50); border-color: var(--color-border); gap: .5rem; }
-.workspace :global(.cortex-agent__context-eyebrow) { color: var(--color-navy-700); }
+.workspace :global(.cortex-agent__context-eyebrow) { color: var(--color-navy-text); }
 .workspace :global(.cortex-agent__context-title) { white-space: normal; overflow-wrap: anywhere; }
 .workspace :global(.cortex-agent__context-note) { flex-shrink: 1; text-align: left; }
 .workspace :global(.cortex-agent__log) { min-height: 0; overscroll-behavior: contain; padding: 1rem; gap: 1rem; }
@@ -89,7 +89,7 @@
   .workspace :global(.cortex-agent__head) { padding: .75rem; }
   .workspace :global(.cortex-agent__sub) { font-size: .6875rem; }
   .mobileNav { display: flex; gap: .75rem; }
-  .mobileNav a { flex: 1; text-align: center; padding: .75rem; border: 1px solid var(--color-border); border-radius: var(--radius-md, 6px); color: var(--color-navy-700); background: white; text-decoration: none; font-size: .875rem; }
+  .mobileNav a { flex: 1; text-align: center; padding: .75rem; border: 1px solid var(--color-border); border-radius: var(--radius-md, 6px); color: var(--color-navy-text); background: var(--color-surface); text-decoration: none; font-size: .875rem; }
   .workspace :global(.cortex-kpis) { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: .5rem; }
   .workspace :global(.cortex-kpi) { padding: .25rem 0; flex-direction: column; gap: .25rem; }
   .workspace :global(.cortex-graphwrap) { height: 24rem; }

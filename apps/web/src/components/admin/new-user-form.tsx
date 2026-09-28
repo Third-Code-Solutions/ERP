@@ -282,7 +282,7 @@ const inputStyle: React.CSSProperties = {
   width: '100%',
   height: 42,
   padding: '0 12px',
-  background: 'white',
+  background: 'var(--color-surface)',
   border: '1px solid var(--color-border)',
   borderRadius: 'var(--radius-md, 6px)',
   fontFamily: 'inherit',
@@ -300,7 +300,7 @@ const miniButtonStyle: React.CSSProperties = {
   borderRadius: 'var(--radius-sm, 4px)',
   fontSize: 12,
   fontWeight: 500,
-  color: 'var(--color-navy-700)',
+  color: 'var(--color-navy-text)',
   cursor: 'pointer',
 }
 

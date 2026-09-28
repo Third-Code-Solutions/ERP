@@ -84,7 +84,7 @@ export function CreatePermitForm({ projectId, users, permittedTypes }: CreatePer
   return (
     <div
       style={{
-        background: 'white',
+        background: 'var(--color-surface)',
         border: '1px solid var(--color-border)',
         borderRadius: '8px',
         padding: '20px',
@@ -227,11 +227,11 @@ const inputStyle: React.CSSProperties = {
   fontSize: '0.875rem',
   border: '1px solid var(--color-border)',
   borderRadius: '4px',
-  background: 'white',
+  background: 'var(--color-surface)',
 }
 
 const selectStyle: React.CSSProperties = {
   ...inputStyle,
-  background: 'white',
+  background: 'var(--color-surface)',
   cursor: 'pointer',
 }

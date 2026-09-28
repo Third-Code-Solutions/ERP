@@ -19,7 +19,7 @@ export default function DocumentsLoading() {
       {/* Document grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '12px' }}>
         {Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px' }}>
+          <div key={i} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px' }}>
             <div className="skeleton" style={{ height: '80px', borderRadius: '4px', marginBottom: '10px' }} />
             <div className="skeleton" style={{ height: '14px', width: '80%', marginBottom: '6px' }} />
             <div className="skeleton" style={{ height: '12px', width: '50%' }} />

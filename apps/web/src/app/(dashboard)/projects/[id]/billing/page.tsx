@@ -131,7 +131,7 @@ export default async function ProjectBillingPage({ params, searchParams }: {
           <div
             key={label}
             style={{
-              background: 'white',
+              background: 'var(--color-surface)',
               border: '1px solid var(--color-border)',
               borderRadius: '8px',
               padding: '16px 20px',
@@ -172,7 +172,7 @@ export default async function ProjectBillingPage({ params, searchParams }: {
       {/* Invoices table */}
       <div
         style={{
-          background: 'white',
+          background: 'var(--color-surface)',
           border: '1px solid var(--color-border)',
           borderRadius: '8px',
           overflow: 'hidden',
@@ -202,7 +202,7 @@ export default async function ProjectBillingPage({ params, searchParams }: {
               No invoices yet.{' '}
               {access.bom && !latestBom ? (
                 <>Build and approve a{' '}
-                  <Link href={`/projects/${id}/bom`} style={{ color: 'var(--color-navy-700)' }}>BOM</Link>
+                  <Link href={`/projects/${id}/bom`} style={{ color: 'var(--color-navy-text)' }}>BOM</Link>
                   {' '}first.</>
               ) : (
                 'Invoices will appear here once billing milestones are created.'
@@ -236,7 +236,7 @@ export default async function ProjectBillingPage({ params, searchParams }: {
                   style={{ borderBottom: idx < projectInvoices.length - 1 ? '1px solid var(--color-border)' : 'none' }}
                 >
                   <td style={{ padding: '12px 16px', fontWeight: 600, fontFamily: 'JetBrains Mono, monospace', fontSize: '0.8125rem' }}>
-                    <Link href={`/invoices/${inv.id}`} style={{ color: 'var(--color-navy-700)', textDecoration: 'none' }}>
+                    <Link href={`/invoices/${inv.id}`} style={{ color: 'var(--color-navy-text)', textDecoration: 'none' }}>
                       {inv.invoice_number}
                     </Link>
                   </td>
