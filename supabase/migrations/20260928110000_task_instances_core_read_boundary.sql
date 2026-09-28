@@ -2,6 +2,9 @@
 -- them through Core's capability-checked task endpoints, not the Data API.
 begin;
 
+set local lock_timeout = '5s';
+set local statement_timeout = '60s';
+
 do $$
 begin
   if to_regclass('public.task_instances') is null then

@@ -7,7 +7,14 @@ The live synthetic signed-BOM award created Finance and CX process tasks, but th
 3. Agent 03: connect the Process page and server action to those routes for Finance and CX, with only permitted actions shown. Verify browser behavior.
 4. Agent 13: run release gates, inspect exact targets and migrations, deploy only after all gates pass, and verify the live synthetic tenant without mutating the existing signed-award tasks.
 
-The CX task is blocked awaiting NTP. The source of truth for releasing that task requires a separate product decision; this handoff must not silently release it.
+PRD A-11 makes NTP receipt the start of the Project Tracker and CX clocks. The
+existing `mobilization_readiness.ntp_received_at` is the saved receipt. The
+receipt action, signed-BOM entry paths, reversal, and award-task completion
+now serialize on the project, and the
+shared operation releases only those two handoffs with clocks dated from the
+receipt. An unchanged receipt retry reconciles tasks still blocked by the old
+path. Corrections to an NTP date with an active award require a separate
+audited correction workflow because a clock may already be running.
 
 ## Agent 05 → Agent 03
 
@@ -50,3 +57,26 @@ mutated. See `docs/changesets/2026-09-28-award-task-process-ui.md`.
 routes, read-boundary migration, Process UI and focused tests. Expected output:
 current-schema database tests and read-only demo Finance/CX browser verification,
 followed by the authorized release process only after its gates pass.
+
+## Agent 13 release preflight update
+
+The isolated PostgreSQL 17 replay now includes the task read boundary and a
+`projects` authenticated SELECT parity migration. The latter repairs a source
+replay gap; the hosted project already has that grant. The rollback-only award
+suite passed 15/15, including tenant-scoped release and an advisory-lock
+contention proof. A ten-company, two-role project RLS matrix passed 6/6 and
+left no rows. An integrated local browser pass passed 6/6 against disposable
+Auth, Core, Web, and source-replayed PostgreSQL: Finance/CX queue and
+completion, Viewer denial, foreign Finance isolation, NTP release with saved
+receipt clock dates, and retired-project rejection. The final lock-order
+refinement passed 15/15 rollback PostgreSQL award checks, 54/54 Process tests,
+Core build/typecheck, and independent code review found no remaining concrete
+inversion. A second 6/6 browser pass used the final source with 179/179
+source migration hashes; it does not establish hosted behavior.
+
+Hosted migrations and deployment remain blocked by the database release
+runbook: PITR is disabled, an isolated database restore and separate Storage
+recovery are unverified, and the protected production environment has no
+reviewer gate. Draft PR #121 has no independent review. The production
+workflow rejects pending migrations, so a code-only dispatch cannot release
+this candidate. No hosted SQL or production task mutation was performed.

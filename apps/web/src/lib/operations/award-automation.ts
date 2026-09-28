@@ -6,6 +6,7 @@ import {
 } from '@third-code-erp/operations/signed-bom-award'
 
 export {
+  lockSignedBomAwardScope,
   runSignedBomAward,
   selectSignedBomAwardLines,
   type SignedBomAwardLine,

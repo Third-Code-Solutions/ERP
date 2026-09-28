@@ -68,6 +68,7 @@ import {
   notInArray,
 } from 'drizzle-orm'
 import { z } from 'zod'
+import { lockAwardNtpHandoff } from '@third-code-erp/operations/signed-bom-award'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import { AuditService } from '../audit/audit.service'
 import {
@@ -81,6 +82,13 @@ type HealthCounter = {
   breachedClocks: number
   escalatedClocks: number
   externalBreachedClocks: number
+}
+
+function isNtpGatedAwardTask(task: TaskInstance): boolean {
+  return task.subject_type === 'award_handoff' && (
+    task.instance_key === `award:${task.subject_id}:projectTracker` ||
+    task.instance_key === `award:${task.subject_id}:cxOnboarding`
+  )
 }
 
 const tenantHolidayRowSchema = z.object({
@@ -322,6 +330,26 @@ export class ProcessService {
         throw new ForbiddenException('Current award task authority is not active')
       }
       await this.audit.stampActor(transaction, principal)
+      const [candidate] = await transaction.select({ projectId: awardHandoffs.project_id })
+        .from(awardHandoffs)
+        .innerJoin(projects, and(
+          eq(projects.id, awardHandoffs.project_id),
+          eq(projects.tenant_id, principal.tenantId),
+          isNull(projects.deleted_at)
+        ))
+        .innerJoin(taskInstances, and(
+          eq(taskInstances.subject_id, awardHandoffs.id),
+          eq(taskInstances.id, taskId)
+        ))
+        .innerJoin(processSteps, eq(processSteps.id, taskInstances.process_step_id))
+        .where(and(
+          eq(awardHandoffs.tenant_id, principal.tenantId),
+          eq(awardHandoffs.status, 'active'),
+          this.awardTaskMatch(principal)
+        ))
+        .limit(1)
+      if (!candidate) throw new NotFoundException('Award task not found')
+      await lockAwardNtpHandoff(transaction, principal.tenantId, candidate.projectId)
       // Hold the ledger and its exact task through completion so reversal
       // cannot invalidate the admission between the read and write.
       const [match] = await transaction.select({ id: awardHandoffs.id })
@@ -338,6 +366,7 @@ export class ProcessService {
         .innerJoin(processSteps, eq(processSteps.id, taskInstances.process_step_id))
         .where(and(
           eq(awardHandoffs.tenant_id, principal.tenantId),
+          eq(awardHandoffs.project_id, candidate.projectId),
           eq(awardHandoffs.status, 'active'),
           this.awardTaskMatch(principal)
         ))
@@ -974,6 +1003,15 @@ export class ProcessService {
         )
       }
 
+      if (
+        task.status === 'blocked' &&
+        command.status === 'in_progress' &&
+        task.blocked_reason === 'Awaiting NTP date' &&
+        isNtpGatedAwardTask(task)
+      ) {
+        throw new ConflictException('Record the NTP receipt to start this award task and its SLA clock')
+      }
+
       const now = new Date()
       const [updated] = await transaction
         .update(taskInstances)
@@ -1044,6 +1082,9 @@ export class ProcessService {
       if (!task) throw new NotFoundException('Task not found')
       if (task.status === 'completed' || task.status === 'cancelled') {
         throw new ConflictException('Cannot clock a terminal task')
+      }
+      if (task.status === 'blocked' && isNtpGatedAwardTask(task)) {
+        throw new ConflictException('NTP-gated award task cannot start a clock while blocked')
       }
       if (!task.assigned_to) {
         throw new ConflictException('Task must be assigned before clock starts')

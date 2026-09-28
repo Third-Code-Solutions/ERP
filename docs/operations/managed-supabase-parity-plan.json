@@ -11,10 +11,10 @@
     "databaseVersion": "17.6.1.121",
     "postgresMajor": 17,
     "appliedCount": 157,
-    "sourceCount": 178,
-    "pendingCount": 21,
+    "sourceCount": 179,
+    "pendingCount": 22,
     "appliedHead": "20260901141949",
-    "sourceHead": "20260928110000",
+    "sourceHead": "20260928110100",
     "ledgerStatus": "current_remote_ledger_matches_source",
     "purchaseOrderPreflight": {
       "duplicateGroups": 0,
@@ -131,6 +131,16 @@
       "hostedApplyApproved": false,
       "risk": "Revokes direct public, anon and authenticated SELECT on task_instances and removes its broad tenant-read policy while preserving Core's service_role SELECT. Existing browser Data API readers will lose access and must use the scoped Core task endpoints. No stored task rows or audit history change; local verification does not establish hosted application or all-consumer compatibility.",
       "recovery": "Require exact-target grant and consumer preflight, database backup/PITR, isolated restore and migration rehearsal, and integrated Core/Web role checks before hosted application. The migration is transactional and aborts on failure. After commit restore a compatible Core/Web build or roll forward; do not restore the broad client read grant or policy as an automatic rollback. This source-only batch does not authorize hosted application."
+    },
+    {
+      "id": "20260928-projects-authenticated-read-parity",
+      "migrations": [
+        "20260928110100_projects_authenticated_read_parity.sql"
+      ],
+      "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
+      "hostedApplyApproved": false,
+      "risk": "Grants only authenticated SELECT on public.projects after asserting RLS and the existing tenant-scoped projects_tenant_read policy. A fresh source replay lacks this grant while the last read-only hosted catalog check found it already present. No project rows, policies, foreign keys, audit history, or other table privileges change; local replay and live application compatibility still require verification.",
+      "recovery": "Require exact-target grant and policy preflight, database backup/PITR, separate Storage recovery and isolated restore rehearsal before hosted application. The bounded transactional grant aborts without data changes on failure. Because the hosted project already has this grant, do not automatically revoke it as rollback; retain the tenant RLS predicate and use a reviewed fix-forward or application rollback if needed. This source-only batch does not authorize hosted application."
     }
   ]
 }

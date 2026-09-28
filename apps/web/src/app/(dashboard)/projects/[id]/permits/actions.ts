@@ -1,12 +1,13 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { and, eq, ilike, or, sql } from 'drizzle-orm'
+import { and, eq, ilike, isNull, or, sql } from 'drizzle-orm'
 import { randomUUID } from 'node:crypto'
 import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   mobilizationReadiness,
+  awardHandoffs,
   permitDurationProfiles,
   permits,
   preConChecklists,
@@ -17,6 +18,7 @@ import {
 } from '@third-code-erp/database/schema'
 import { philippineBusinessDays } from '@third-code-erp/shared-types'
 import { ERP_ROLES } from '@third-code-erp/shared-types/authorization'
+import { lockAwardNtpHandoff, lockAwardNtpReconciliationRows, releaseAwardTasksForRecordedNtp } from '@third-code-erp/operations/signed-bom-award'
 import { z } from 'zod'
 import { stampActorInTransaction, writeAuditLogInTransaction, writeAuditLog, type DatabaseTransaction } from '@/lib/audit'
 import { startSlaClock, stopSlaClock } from '@/lib/operations/sla-clock'
@@ -558,7 +560,7 @@ async function admitMobilization(
   await stampActorInTransaction(tx, actorId)
   // Rendezvous on the parent even when the first readiness row does not exist.
   const [project] = await tx.select({ id: projects.id }).from(projects)
-    .where(and(eq(projects.id, projectId), eq(projects.tenant_id, tenantId)))
+    .where(and(eq(projects.id, projectId), eq(projects.tenant_id, tenantId), isNull(projects.deleted_at)))
     .limit(1).for('update')
   if (!project) throw new MobilizationError('Project not found.')
 }
@@ -582,12 +584,20 @@ export async function recordMobilizationInput(
       .safeParse({ projectId, inputType, receivedAt: receivedAtRaw })
     if (!parsed.success) return { error: 'A valid project, return type and calendar date are required.' }
     const receivedAt = parsed.data.receivedAt === undefined ? new Date() : new Date(parsed.data.receivedAt)
+    if (receivedAt.getTime() > Date.now()) return { error: 'A return date cannot be in the future.' }
     const profile = await requireUserProfile()
     actorId = profile.user.id
     tenantId = profile.tenantId
     outcome = 'unconfirmed'
     const result = await db.transaction(async (tx) => {
+      if (parsed.data.inputType === 'ntp_received_at') {
+        await tx.execute(sql`set local lock_timeout = '3s'`)
+        await lockAwardNtpHandoff(tx, profile.tenantId, parsed.data.projectId)
+      }
       await admitMobilization(tx, profile.tenantId, profile.user.id, parsed.data.projectId, false)
+      if (parsed.data.inputType === 'ntp_received_at') {
+        await lockAwardNtpReconciliationRows(tx, profile.tenantId, parsed.data.projectId)
+      }
       const current = await tx
         .select()
         .from(mobilizationReadiness)
@@ -599,9 +609,27 @@ export async function recordMobilizationInput(
         )
         .limit(1).for('update')
       if (current[0]?.[parsed.data.inputType]?.getTime() === receivedAt.getTime()) {
+        if (parsed.data.inputType === 'ntp_received_at') {
+          await releaseAwardTasksForRecordedNtp(tx, {
+            tenantId: profile.tenantId,
+            projectId: parsed.data.projectId,
+            actorId: profile.user.id,
+          })
+        }
         return { receivedAt: receivedAt.toISOString() }
       }
       if (current[0]?.started_at) throw new MobilizationError('Mobilization is already started; evidence is immutable.')
+      if (parsed.data.inputType === 'ntp_received_at' && current[0]?.ntp_received_at) {
+        const [activeAward] = await tx.select({ id: awardHandoffs.id }).from(awardHandoffs)
+          .where(and(
+            eq(awardHandoffs.tenant_id, profile.tenantId),
+            eq(awardHandoffs.project_id, parsed.data.projectId),
+            eq(awardHandoffs.status, 'active')
+          )).limit(1)
+        if (activeAward) {
+          throw new MobilizationError('The recorded NTP date cannot change while an active award handoff exists.')
+        }
+      }
 
       const inputUpdate = mobilizationInputUpdate(parsed.data.inputType, receivedAt)
       let readinessId = current[0]?.id
@@ -638,6 +666,13 @@ export async function recordMobilizationInput(
         action: 'update',
         diff: { input_type: parsed.data.inputType, received_at: receivedAt.toISOString() },
       })
+      if (parsed.data.inputType === 'ntp_received_at') {
+        await releaseAwardTasksForRecordedNtp(tx, {
+          tenantId: profile.tenantId,
+          projectId: parsed.data.projectId,
+          actorId: profile.user.id,
+        })
+      }
       return { receivedAt: receivedAt.toISOString() }
     })
     const refreshWarning = refreshMobilization(parsed.data.projectId)

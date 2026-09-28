@@ -282,13 +282,13 @@ describe('ProcessService', () => {
   })
 
   it('does not finish clocks when the conditional completion rejects a blocked task', async () => {
-    const h = harness([[{ role: 'cx', status: 'active' }], [{ status: 'active' }], [{ handoff: {} }]])
+    const h = harness([[{ role: 'cx', status: 'active' }], [{ status: 'active' }], [{ projectId: TASK.subject_id }], [{ handoff: {} }]])
     await expect(h.service.completeAwardTask(TASK_ID, { ...PRINCIPAL, role: 'cx' })).rejects.toThrow('Only an in-progress')
     expect(h.transactionClient.update).toHaveBeenCalledTimes(1)
   })
 
   it('completes an admitted award task and clocks under actor-stamped transaction', async () => {
-    const h = harness([[{ role: 'finance', status: 'active' }], [{ status: 'active' }], [{ handoff: {} }]])
+    const h = harness([[{ role: 'finance', status: 'active' }], [{ status: 'active' }], [{ projectId: TASK.subject_id }], [{ handoff: {} }]])
     h.updateReturning.mockResolvedValue([{ ...TASK, status: 'completed', completed_at: new Date() }])
     expect(await h.service.completeAwardTask(TASK_ID, { ...PRINCIPAL, role: 'finance' })).toMatchObject({ id: TASK_ID, status: 'completed' })
     expect(h.audit.stampActor).toHaveBeenCalledWith(h.transactionClient, { ...PRINCIPAL, role: 'finance' })
