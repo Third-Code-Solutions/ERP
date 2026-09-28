@@ -11,10 +11,10 @@
     "databaseVersion": "17.6.1.121",
     "postgresMajor": 17,
     "appliedCount": 157,
-    "sourceCount": 177,
-    "pendingCount": 20,
+    "sourceCount": 178,
+    "pendingCount": 21,
     "appliedHead": "20260901141949",
-    "sourceHead": "20260921181036",
+    "sourceHead": "20260928110000",
     "ledgerStatus": "current_remote_ledger_matches_source",
     "purchaseOrderPreflight": {
       "duplicateGroups": 0,
@@ -121,6 +121,16 @@
       "hostedApplyApproved": false,
       "risk": "Adds tenant-scoped, RLS-protected procurement, inventory reservation, landed-cost, price-list, currency, tax/statutory, period-close, SAP outbox and provider-delivery foundations. The migration preserves existing ERP tables and keeps new workflows dark behind tenant feature flags; live provider behavior and hosted schema application remain unverified.",
       "recovery": "Require backup/PITR, isolated restore and migration rehearsal, exact-target lock/grant preflight, and provider/SAP credential verification before hosted application. The migration is transactional and aborts without data changes on failure. Keep roadmap flags and workers disabled until live replay and all-role E2E evidence are recorded; roll forward or use the reviewed migration recovery procedure rather than bypassing RLS or audit controls."
+    },
+    {
+      "id": "20260928-task-instances-core-read-boundary",
+      "migrations": [
+        "20260928110000_task_instances_core_read_boundary.sql"
+      ],
+      "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
+      "hostedApplyApproved": false,
+      "risk": "Revokes direct public, anon and authenticated SELECT on task_instances and removes its broad tenant-read policy while preserving Core's service_role SELECT. Existing browser Data API readers will lose access and must use the scoped Core task endpoints. No stored task rows or audit history change; local verification does not establish hosted application or all-consumer compatibility.",
+      "recovery": "Require exact-target grant and consumer preflight, database backup/PITR, isolated restore and migration rehearsal, and integrated Core/Web role checks before hosted application. The migration is transactional and aborts on failure. After commit restore a compatible Core/Web build or roll forward; do not restore the broad client read grant or policy as an automatic rollback. This source-only batch does not authorize hosted application."
     }
   ]
 }
