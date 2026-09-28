@@ -6,23 +6,32 @@ Date: 2026-09-28
 
 **NO-GO** for a whole-ERP client demo or ten-company rollout. Live Web health
 and readiness reported revision `efa32923c0f0` on 2026-09-28, matching the
-merge commit of PR #120. PR #119 and PR #120 are merged; draft PR #121
-contains code commit `2658008868e7b93de1b94363c4799a6a4b76d41f` and
-remains undeployed. The production migration ledger is 177/179, so the
+merge commit of PR #120. PR #119 and PR #120 are merged; PR #121 is ready
+for review and remains undeployed. The production migration ledger was
+177/179 before the self-review correction added one source migration;
+the current source tree has 180 migrations. The
 code-only promotion workflow
 rejects this candidate before deployment.
 
 ## Current PR #121 release evidence
 
-- GitHub checks passed on code commit `2658008868e7b93de1b94363c4799a6a4b76d41f`:
+- GitHub checks passed on PR head `f970d7a62dcea005b64c0d2b94022fb432f4aec3` before the self-review correction:
   Actionlint, invariants, build, browser
   interaction, PostgreSQL 17 reproducibility, trusted E2E, lint, security
-  scan, types, and unit tests. Supabase Preview skipped; CodeRabbit skipped
-  review because PR #121 is a draft. No formal independent review is recorded.
+  scan, types, and unit tests. Supabase Preview skipped because of the
+  concurrent branch limit. No formal independent human review is recorded.
 - Disposable PostgreSQL 17 replay matched 179/179 source migration hashes.
   Award integration passed 15/15; ten-tenant, two-role project RLS passed 6/6;
   final-source integrated local browser journey passed 6/6. These are not
-  production behavior or whole-module coverage.
+  production behavior or whole-module coverage. The self-review correction's
+  rollback-only migration tests passed 3/3 and award integration passed 16/16;
+  a clean 180-migration replay and exact-head CI remain pending.
+- Self-review found that PRD A-11 requires seven business days for CX
+  onboarding after NTP, while code and the live active process step had two.
+  The code now creates seven-day steps and rejects an uncorrected step. A
+  guarded third migration changes active two-day steps only if no CX award
+  clock exists. The last read-only live check found one such step and no CX
+  clock; hosted state must be rechecked before application.
 - Read-only live audit recovery check on the owner-confirmed `buildops-e2e`
   tenant found 3,745 rows with zero link and hash mismatches at 2026-09-28
   12:17 UTC. The controlled release planner still returned `review_required`
@@ -42,7 +51,7 @@ rejects this candidate before deployment.
 Before #121 can release, the database owner and independent reviewer must
 verify the exact target and migration hashes; the runbook requires a restorable
 point, supplemental encrypted exports, separate Storage recovery, and an
-isolated restore rehearsal. Then apply the two reviewed migrations through
+isolated restore rehearsal. Then apply the three reviewed migrations through
 the approved runner, recheck the ledger and RLS, and deploy and verify the
 exact code revision. Whole-ERP and ten-company GO additionally require the
 module, handoff, role, isolation, integration, and workload evidence below.

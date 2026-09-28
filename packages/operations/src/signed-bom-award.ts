@@ -161,7 +161,7 @@ const AWARD_PROCESS_STEP_SPECS: ReadonlyArray<{
     inputFrom: 'SD/PM/PE',
     output: 'CX onboarding task',
     outputBy: 'CX',
-    slaDays: 2,
+    slaDays: 7,
     blockedUntilNtp: true,
   },
 ]
@@ -577,6 +577,9 @@ async function ensureProcessSteps(
       .where(and(eq(processSteps.tenant_id, tenantId), eq(processSteps.code, spec.code)))
       .limit(1)
     if (existing?.id) {
+      if (spec.key === 'cxOnboarding' && existing.slaDays !== spec.slaDays) {
+        throw new Error('CX award onboarding SLA requires the seven-day process-step migration')
+      }
       result.set(spec.key, { id: existing.id, slaDays: existing.slaDays ?? spec.slaDays })
       continue
     }
@@ -1030,7 +1033,8 @@ export async function releaseAwardTasksForRecordedNtp(
           eq(processSteps.is_active, true)
         ))
         .limit(1)
-      if (!step || step.code !== spec.code || step.responsibleBu !== spec.responsibleBu || !step.slaDays) {
+      if (!step || step.code !== spec.code || step.responsibleBu !== spec.responsibleBu || !step.slaDays ||
+        (spec.key === 'cxOnboarding' && step.slaDays !== spec.slaDays)) {
         throw new Error(`Award handoff ${handoff.id} has invalid ${spec.key} process step`)
       }
       if (task.status !== 'blocked' || task.blocked_reason !== 'Awaiting NTP date') continue

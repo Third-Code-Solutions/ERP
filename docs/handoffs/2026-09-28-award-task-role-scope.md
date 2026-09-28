@@ -80,3 +80,12 @@ recovery are unverified, and the protected production environment has no
 reviewer gate. Draft PR #121 has no independent review. The production
 workflow rejects pending migrations, so a code-only dispatch cannot release
 this candidate. No hosted SQL or production task mutation was performed.
+
+## Self-review correction before release
+
+PRD A-11 requires a seven-business-day CX onboarding clock from NTP. The
+award template and stored active step had two days. Agent 04's guarded
+migration corrects a two-day step only if no CX clock already exists, and
+Agent 05's award template/test now use seven days. Database-owner and
+independent review, recovery rehearsal, and hosted migration application
+remain release gates. Self-review does not replace the independent reviewer.

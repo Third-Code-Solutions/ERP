@@ -42,7 +42,7 @@ async function fixture(tx: DatabaseTransaction) {
     const taskId = randomUUID(), stepId = randomUUID()
     taskIds[key] = taskId
     stepIds[key] = stepId
-    await tx.insert(processSteps).values({ id: stepId, tenant_id: tenantId, code, stage: 'award', name: code, responsible_bu: bu, input: 'Signed BOM', input_from: 'Commercial', output: 'Handoff', output_by: bu, sla_days: 2 })
+    await tx.insert(processSteps).values({ id: stepId, tenant_id: tenantId, code, stage: 'award', name: code, responsible_bu: bu, input: 'Signed BOM', input_from: 'Commercial', output: 'Handoff', output_by: bu, sla_days: key === 'cxOnboarding' ? 7 : 2 })
     const blocked = bu !== 'Finance'
     await tx.insert(taskInstances).values({ id: taskId, tenant_id: tenantId, process_step_id: stepId, subject_type: 'award_handoff', subject_id: handoffId, instance_key: `award:${handoffId}:${key}`, status: blocked ? 'blocked' : 'in_progress', blocked_reason: blocked ? 'Awaiting NTP date' : null, started_at: blocked ? null : new Date(), created_by: userId })
   }
@@ -151,6 +151,24 @@ const query = { page: 1, limit: 25 }
     })
   }))
 
+  it('refuses to release a CX handoff with a persisted two-day process step', async () => proof(async (tx, _service, f) => {
+    await tx.update(processSteps).set({ sla_days: 2 }).where(eq(processSteps.id, f.stepIds.cxOnboarding!))
+    await new AuditService().stampActor(tx, f.manager)
+    await tx.insert(mobilizationReadiness).values({
+      tenant_id: f.tenantId,
+      project_id: f.projectId,
+      ntp_received_at: new Date('2026-09-28T09:00:00.000Z'),
+      created_by: f.managerId,
+      updated_by: f.managerId,
+    })
+    await expect(releaseAwardTasksForRecordedNtp(tx, {
+      tenantId: f.tenantId,
+      projectId: f.projectId,
+      actorId: f.managerId,
+    })).rejects.toThrow('invalid cxOnboarding process step')
+    expect((await tx.select().from(taskInstances).where(eq(taskInstances.id, f.taskIds.cxOnboarding!)))[0]?.status).toBe('blocked')
+  }))
+
   it('releases the Project Tracker and CX handoffs once with business-day clocks after NTP receipt', async () => proof(async (tx, _service, f) => {
     const args = { tenantId: f.tenantId, projectId: f.projectId, actorId: f.managerId }
     expect(await releaseAwardTasksForRecordedNtp(tx, args)).toEqual([])
@@ -198,7 +216,7 @@ const query = { page: 1, limit: 25 }
       expect(task).toMatchObject({ status: 'in_progress', blocked_reason: null, started_at: receiptAt })
       const clocks = await tx.select().from(slaClocks).where(eq(slaClocks.task_instance_id, taskId))
       expect(clocks).toHaveLength(1)
-      expect(clocks[0]).toMatchObject({ status: 'running', clock_type: 'business_days', target_value: 2, started_at: receiptAt, breached_at: null, escalated_at: null, paused_reason: null })
+      expect(clocks[0]).toMatchObject({ status: 'running', clock_type: 'business_days', target_value: taskId === f.taskIds.cxOnboarding ? 7 : 2, started_at: receiptAt, breached_at: null, escalated_at: null, paused_reason: null })
       expect(clocks[0]?.due_at.getTime()).toBeGreaterThan(receiptAt.getTime())
       const audit = await tx.select().from(auditLog).where(and(eq(auditLog.tenant_id, f.tenantId), eq(auditLog.entity_id, taskId)))
       expect(audit.some(row => row.actor_id === f.managerId && row.action === 'update')).toBe(true)

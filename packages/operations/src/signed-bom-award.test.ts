@@ -362,7 +362,7 @@ describe('runSignedBomAward hierarchy validation', () => {
             return new WriteChain([{ id: 'cost-code-1' }])
           }
           if (typeof record?.code === 'string' && record.code.startsWith('AWARD.')) {
-            return new WriteChain([{ id: record.code, slaDays: 2 }])
+            return new WriteChain([{ id: record.code, slaDays: record.code === 'AWARD.CX_ONBOARDING' ? 7 : 2 }])
           }
           return new WriteChain()
         }),
