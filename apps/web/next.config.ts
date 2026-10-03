@@ -2,6 +2,17 @@ import type { NextConfig } from 'next'
 import path from 'node:path'
 
 const config: NextConfig = {
+  // Do not advertise the framework in every response; it is free
+  // reconnaissance for anyone fingerprinting the deployment.
+  poweredByHeader: false,
+  images: {
+    // AVIF first: roughly half the bytes of the PNG sources for the same
+    // visual result. `webp` stays as the fallback for browsers without AVIF.
+    // A client that advertises neither (curl, most link previewers) still gets
+    // the original PNG — that is the optimizer's documented behaviour, not a
+    // misconfiguration.
+    formats: ['image/avif', 'image/webp'],
+  },
   // Resolve bookmarks before streaming starts; static destinations retain queries.
   async redirects() {
     return [
@@ -53,6 +64,15 @@ const config: NextConfig = {
         headers: [
           { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
+          // Middleware does not run for these paths, so without these the
+          // transport and framing policy was silently dropped on asset
+          // responses while every HTML response enforced it.
+          {
+            key: 'Strict-Transport-Security',
+            value: 'max-age=31536000; includeSubDomains',
+          },
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'Cross-Origin-Resource-Policy', value: 'same-origin' },
         ],
       },
     ]

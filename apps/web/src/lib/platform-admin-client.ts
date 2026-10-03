@@ -39,6 +39,67 @@ export type PlatformResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: string; status?: number }
 
+/**
+ * Every failure from the platform service used to reach the operator as the
+ * same sentence, so a transport timeout, an unreachable host and a 502 were
+ * indistinguishable and the message pointed at a "refresh" control that does
+ * not exist. Classify the failure, name a trace id, and say what is true:
+ * nothing was read and nothing was submitted.
+ */
+export type PlatformFailureKind = 'timeout' | 'unreachable' | 'invalid_response'
+
+export function classifyPlatformFailure(error: unknown): {
+  kind: PlatformFailureKind
+  detail: string
+  traceId: string
+  message: string
+} {
+  const traceId = randomUUID()
+  const detail =
+    error instanceof Error ? `${error.name}: ${error.message}` : String(error)
+  const timedOut =
+    (error instanceof Error &&
+      (error.name === 'TimeoutError' || error.name === 'AbortError')) ||
+    /timeout|timed out/i.test(detail)
+  const consequence =
+    'Nothing was read and no change was submitted, so there is no uncertain outcome to reconcile.'
+
+  return timedOut
+    ? {
+        kind: 'timeout',
+        detail,
+        traceId,
+        message: `The platform service did not answer within 10 seconds and the request was abandoned. ${consequence} Reference ${traceId}.`,
+      }
+    : {
+        kind: 'unreachable',
+        detail,
+        traceId,
+        message: `The platform service could not be reached from the web application. ${consequence} Reference ${traceId}.`,
+      }
+}
+
+function logPlatformFailure(entry: {
+  kind: PlatformFailureKind
+  route: string
+  traceId: string
+  target?: string
+  detail?: string
+}): void {
+  console.error(
+    JSON.stringify({
+      trace_id: entry.traceId,
+      action: 'platform-administration.request',
+      outcome: 'failure',
+      dependency: 'erp-core-api',
+      route: entry.route || '/',
+      target: entry.target,
+      failure: entry.kind,
+      detail: entry.detail,
+    })
+  )
+}
+
 async function requestPlatform<T>(
   path: string,
   schema: z.ZodType<T>,
@@ -79,14 +140,26 @@ async function requestPlatform<T>(
       }
     }
     const parsed = schema.safeParse(await response.json())
-    if (!parsed.success) return { ok: false, status: 502, error: 'The platform service returned an invalid response. Refresh the directory and audit log before retrying a change.' }
-    return { ok: true, data: parsed.data }
-  } catch {
-    return {
-      ok: false,
-      status: 503,
-      error: 'The platform service response is unavailable. Refresh the directory and audit log before retrying a change; its outcome may be uncertain.',
+    if (!parsed.success) {
+      logPlatformFailure({ kind: 'invalid_response', route: path, traceId: randomUUID() })
+      return {
+        ok: false,
+        status: 502,
+        error:
+          'The platform service answered with an unexpected response shape, so nothing was read or changed. Retrying will not help — this is a platform-service defect.',
+      }
     }
+    return { ok: true, data: parsed.data }
+  } catch (error) {
+    const failure = classifyPlatformFailure(error)
+    logPlatformFailure({
+      kind: failure.kind,
+      route: path,
+      traceId: failure.traceId,
+      target: access.baseUrl,
+      detail: failure.detail,
+    })
+    return { ok: false, status: 503, error: failure.message }
   }
 }
 

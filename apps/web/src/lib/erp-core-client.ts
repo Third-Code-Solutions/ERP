@@ -1443,12 +1443,52 @@ function getCoreApiBaseUrl(): string | null {
   return baseUrl || null
 }
 
+/**
+ * Callers collapse every failure into one operator-facing sentence, so a
+ * missing variable, an expired session and an unreachable host were
+ * indistinguishable in the logs. Record the real class of failure where the
+ * request is authorised, with a trace id an operator can quote.
+ */
+export function logCoreApiFailure(
+  action: string,
+  failure: 'not_configured' | 'unauthenticated' | 'unreachable' | 'timeout' | 'invalid_response',
+  detail?: unknown
+): void {
+  console.error(
+    JSON.stringify({
+      trace_id: randomUUID(),
+      action,
+      outcome: 'failure',
+      dependency: 'erp-core-api',
+      failure,
+      detail:
+        detail instanceof Error
+          ? `${detail.name}: ${detail.message}`
+          : detail === undefined
+            ? undefined
+            : String(detail),
+    })
+  )
+}
+
+/** A fetch that was abandoned by `AbortSignal.timeout` is not the same fault as one that never connected. */
+export function classifyCoreApiTransport(error: unknown): 'timeout' | 'unreachable' {
+  const detail =
+    error instanceof Error ? `${error.name}: ${error.message}` : String(error)
+  return (error instanceof Error &&
+    (error.name === 'TimeoutError' || error.name === 'AbortError')) ||
+    /timeout|timed out/i.test(detail)
+    ? 'timeout'
+    : 'unreachable'
+}
+
 export async function getCoreApiAccess(): Promise<
   | { ok: true; baseUrl: string; accessToken: string }
   | { ok: false; error: string }
 > {
   const baseUrl = process.env.ERP_CORE_API_URL?.replace(/\/+$/, '')
   if (!baseUrl) {
+    logCoreApiFailure('erp-core.access', 'not_configured')
     return {
       ok: false,
       error: 'ERP Core API is not configured.',
@@ -1458,8 +1498,10 @@ export async function getCoreApiAccess(): Promise<
   const supabase = await createSupabaseServerClient()
   const {
     data: { session },
+    error: sessionError,
   } = await supabase.auth.getSession()
   if (!session?.access_token) {
+    logCoreApiFailure('erp-core.access', 'unauthenticated', sessionError ?? baseUrl)
     return { ok: false, error: 'Unauthorized' }
   }
 
@@ -4799,7 +4841,8 @@ export async function getProjectsThroughCoreApi(
       }
     }
     return { ok: true, data: parsed.data }
-  } catch {
+  } catch (error) {
+    logCoreApiFailure('projects.list', classifyCoreApiTransport(error), error)
     return {
       ok: false,
       error: 'ERP Core API is unavailable. Project list was not read.',
