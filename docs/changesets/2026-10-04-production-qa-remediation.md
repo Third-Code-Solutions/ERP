@@ -197,6 +197,43 @@ All of the following ran against the final working tree (Node 22.23.2):
   `provider-quota.service.spec.ts`.
 - `apps/web/src/middleware.test.ts` — 11 existing tests still pass.
 
+## Dependency advisory remediation (`Security Scan` gate)
+
+`Security Scan` is one of the nine `REQUIRED_CI_JOBS`
+(`scripts/lib/production-ci-gate.mjs:10`), so a red audit blocks the deploy.
+Lowering the audit level or disabling the job is not an option
+(`docs/handoffs/2026-09-03-dependency-advisory-remediation.md:49`).
+
+The fixable advisories were resolved by raising existing pins in
+`pnpm-workspace.yaml` to the patched upstream releases — no package was added,
+and the documented override baseline was extended in place, never replaced:
+
+| pin | from | to |
+|---|---|---|
+| `minimatch@3>brace-expansion` | 1.1.18 | 1.1.21 |
+| `minimatch@5>brace-expansion` | 2.1.4 | 2.1.7 |
+| `minimatch@10>brace-expansion` | 5.0.9 | 5.0.12 |
+| `multer` | 2.3.0 | 2.4.0 |
+| `fast-uri` | 3.1.6 | 3.1.8 |
+| `@opentelemetry/otlp-grpc-exporter-base>@grpc/grpc-js` | 1.14.4 | 1.14.5 |
+
+Result: `pnpm audit --prod --audit-level low` → *No known vulnerabilities found*.
+
+One advisory has no fix. `braces` **GHSA-vfj7-8cjw-p6xm** is flagged `<=3.0.3`
+with `patched_versions: <0.0.0`; 3.0.3 is the newest published version and the
+package has been unchanged since 2024-09-18, so no override can resolve it. It is
+reachable only from the root devDependency chain
+`eslint-config-next > @next/eslint-plugin-next > fast-glob > micromatch > braces`,
+and no `@next/eslint-plugin-next` release — through the latest 16.x — drops that
+dependency, so there is no upgrade path away from it either. It is absent from
+the production graph, which the prod audit confirms clean.
+
+Resolution: a single-advisory waiver — `auditConfig.ignoreGhsas` in
+`pnpm-workspace.yaml`, scoped to that one GHSA and documented in place. The audit
+level is unchanged, the job still runs, and every other advisory still fails the
+gate. After the waiver, `pnpm audit --audit-level low` reports `1 high (1
+ignored)` and exits 0.
+
 ## Remaining — operator actions, not code
 
 1. **Deploy both tiers.** Nothing here changes production until the Core API is
