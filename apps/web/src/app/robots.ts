@@ -14,7 +14,6 @@ export default function robots(): MetadataRoute.Robots {
         '/auth',
         '/bom',
         '/claims',
-        '/client',
         '/cortex',
         '/crm',
         '/dashboard',
@@ -23,7 +22,10 @@ export default function robots(): MetadataRoute.Robots {
         '/invoices',
         '/permits',
         '/pipeline',
+        // Token-addressed client pages (/portal/bom/<token>) are unguessable
+        // and must never be indexed, so the whole prefix stays excluded.
         '/portal',
+        '/platform-admin',
         '/procurement',
         '/projects',
         '/punchlist',

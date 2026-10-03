@@ -285,6 +285,7 @@ export function AbiOpsLanding() {
             <Image
               alt="Architectural plans and construction materials arranged in a project workspace"
               fill
+              priority
               sizes="100vw"
               src="/images/abi-ops-hero.png"
             />

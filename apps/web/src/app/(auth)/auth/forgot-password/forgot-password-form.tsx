@@ -81,7 +81,6 @@ export function ForgotPasswordForm() {
           aria-describedby={error ? 'reset-email-error' : undefined}
           className="auth-input"
           placeholder="you@company.com"
-          autoFocus
         />
       </div>
 
