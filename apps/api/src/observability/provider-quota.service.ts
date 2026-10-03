@@ -82,6 +82,33 @@ export function providerQuotaKey(
   return `third-code-erp:provider-quota:v1:${bucket}:${subjectHash}`
 }
 
+const REDIS_OPERATION_TIMEOUT_MS = 2_000
+
+/**
+ * ioredis runs with `maxRetriesPerRequest: null`, so a command issued while the
+ * connection is down is queued instead of rejected. Without a bound the `catch`
+ * below never runs and the request hangs indefinitely — the same defect that
+ * left `/ready` pending forever. Bounding it turns an outage into the
+ * fail-closed 503 this service already intends to return.
+ */
+async function boundedRedisOperation<T>(operation: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(
+          () => reject(new Error('provider quota operation did not settle')),
+          REDIS_OPERATION_TIMEOUT_MS
+        )
+      }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
 @Injectable()
 export class ProviderQuotaService {
   constructor(@Inject(REDIS_CLIENT) private readonly redis: Redis) {}
@@ -95,12 +122,14 @@ export class ProviderQuotaService {
 
     let result: unknown
     try {
-      result = await this.redis.eval(
-        INCREMENT_SCRIPT,
-        1,
-        key,
-        String(policy.windowMs),
-        String(policy.limit)
+      result = await boundedRedisOperation(
+        this.redis.eval(
+          INCREMENT_SCRIPT,
+          1,
+          key,
+          String(policy.windowMs),
+          String(policy.limit)
+        )
       )
     } catch {
       throw new ServiceUnavailableException(
