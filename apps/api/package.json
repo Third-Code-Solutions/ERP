@@ -14,10 +14,10 @@
   },
   "dependencies": {
     "@nestjs/bullmq": "^11.0.4",
-    "@nestjs/common": "^11.1.28",
+    "@nestjs/common": "^11.2.7",
     "@nestjs/config": "^4.0.4",
-    "@nestjs/core": "^11.1.28",
-    "@nestjs/platform-express": "^11.1.28",
+    "@nestjs/core": "^11.2.7",
+    "@nestjs/platform-express": "^11.2.7",
     "@supabase/supabase-js": "^2.105.4",
     "@third-code-erp/ai": "workspace:*",
     "@third-code-erp/database": "workspace:*",
@@ -37,7 +37,7 @@
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.16",
-    "@nestjs/testing": "^11.1.28",
+    "@nestjs/testing": "^11.2.7",
     "@third-code-erp/config": "workspace:*",
     "@types/express": "^5.0.6",
     "@types/node": "^22.0.0",

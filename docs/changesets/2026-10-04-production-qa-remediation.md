@@ -234,6 +234,23 @@ level is unchanged, the job still runs, and every other advisory still fails the
 gate. After the waiver, `pnpm audit --audit-level low` reports `1 high (1
 ignored)` and exits 0.
 
+### `multer` 2.4.0 follow-up — Nest bump
+
+The `multer` pin above (patched for **GHSA-3pph-fpjx-jg34**, a DoS on aborted
+uploads, vulnerable `>= 2.2.0, < 2.4.0`) broke
+`apps/api/src/documents/inspection-photo-upload.http.spec.ts`: multer 2.4.0
+renamed the `LIMIT_UNEXPECTED_FILE` message from `Unexpected field` to
+`Unexpected file field`, and `@nestjs/platform-express@11.1.28` matched that
+error by message **text**, so the raw `MulterError` escaped as HTTP 500 instead
+of the expected 400.
+
+Fixed on the sanctioned path — select the upstream patched release instead of
+patching around it: `@nestjs/common`, `@nestjs/core`,
+`@nestjs/platform-express` and `@nestjs/testing` **11.1.28 → 11.2.7**, where
+`transformException` switches on `error.code` (`isMulterExceptionCode`). The
+first release carrying that fix is 11.2.6. No assertion was relaxed, no test
+deleted, and no application code changed.
+
 ## Remaining — operator actions, not code
 
 1. **Deploy both tiers.** Nothing here changes production until the Core API is
