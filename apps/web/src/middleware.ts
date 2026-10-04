@@ -22,6 +22,12 @@ import {
   recoveryMarkerMatches,
   RECOVERY_MARKER_COOKIE,
 } from '@/lib/auth-recovery-binding'
+import {
+  isSessionChoiceExpired,
+  parseSessionChoice,
+  SESSION_CHOICE_COOKIE,
+  SESSION_LIVE_COOKIE,
+} from '@/lib/session-persistence'
 
 // ---------------------------------------------------------------------------
 // Local limiter — compatibility only when distributed enforcement is disabled.
@@ -105,14 +111,17 @@ function generateNonce(): string {
 
 function buildCSP(nonce: string): string {
   // In dev we must allow eval + inline scripts for HMR/Fast Refresh.
-  // In prod the nonce path is strict and uses 'strict-dynamic' so the
-  // nonced framework bootstrap can chain-load route chunks without each
-  // needing its own nonce. http: + https: are CSP3 fallbacks ignored by
-  // browsers that honor 'strict-dynamic'.
   const isDev = process.env.NODE_ENV !== 'production'
+  // 'strict-dynamic' lets the nonced framework bootstrap chain-load route
+  // chunks without each needing its own nonce. Do NOT re-add bare `https:` or
+  // `'unsafe-inline'` "for safety": any browser that honours a nonce already
+  // ignores 'unsafe-inline', and a bare `https:` source would let every HTTPS
+  // origin on the internet execute script wherever the nonce path is not
+  // supported. The previous pair weakened the policy without protecting
+  // anything.
   const scriptSrc = isDev
     ? `script-src 'self' 'unsafe-eval' 'unsafe-inline' 'nonce-${nonce}'`
-    : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https: 'unsafe-inline'`
+    : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`
   let localSupabaseConnectSrc = ''
   if (isDev) {
     try {
@@ -141,15 +150,23 @@ function buildCSP(nonce: string): string {
     // 'unsafe-inline' on style-src — modern browsers do not yet treat it as
     // unsafe in the way they treat inline scripts.
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://api.fontshare.com",
-    "img-src 'self' data: blob: https:",
+    // Imagery is served from the platform itself: Supabase Storage objects,
+    // data: URIs and generated blob previews. A bare `https:` source let any
+    // host supply images to authenticated screens.
+    "img-src 'self' data: blob: https://*.supabase.co",
     "font-src 'self' data: https://fonts.gstatic.com https://cdn.fontshare.com",
-    `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.inngest.com https://api.openai.com https://vitals.vercel-insights.com${localSupabaseConnectSrc}`,
+    // No browser-side code calls OpenAI: model traffic is server-only. The
+    // origin was allowlisted in error and widened the exfiltration surface.
+    `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.inngest.com https://vitals.vercel-insights.com${localSupabaseConnectSrc}`,
     "frame-src 'none'",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",
     "upgrade-insecure-requests",
+    // Without a collector, violations are silent in production.
+    'report-uri /api/csp-report',
+    'report-to csp-endpoint',
   ].join('; ')
 }
 
@@ -166,8 +183,12 @@ function applySecurityHeaders(
   nonce: string,
   csp: string
 ): NextResponse {
+  // x-nonce is intentionally published: it is the same value the
+  // Content-Security-Policy header already carries, so it discloses nothing an
+  // attacker cannot read from the response they were served.
   response.headers.set('x-nonce', nonce)
   response.headers.set('Content-Security-Policy', csp)
+  response.headers.set('Reporting-Endpoints', 'csp-endpoint="/api/csp-report"')
   response.headers.set('X-Content-Type-Options', 'nosniff')
   response.headers.set('X-Frame-Options', 'DENY')
   response.headers.set(
@@ -178,6 +199,12 @@ function applySecurityHeaders(
     'Permissions-Policy',
     'camera=(), microphone=(), geolocation=()'
   )
+  // Coop/CORP: the console is never framed or embedded elsewhere, and it loads
+  // no cross-origin opener-dependent resources. COEP is deliberately NOT set —
+  // require-corp would block the Supabase-hosted objects authenticated screens
+  // depend on, and credentialless buys nothing here.
+  response.headers.set('Cross-Origin-Opener-Policy', 'same-origin')
+  response.headers.set('Cross-Origin-Resource-Policy', 'same-origin')
   response.headers.set(
     'Strict-Transport-Security',
     'max-age=31536000; includeSubDomains'
@@ -225,15 +252,17 @@ function platformAccessResponse(
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Monitoring probes must not depend on Supabase Auth session refresh or the
-  // per-instance request limiter. /api/ready performs its own database check.
-  if (pathname === '/api/health' || pathname === '/api/ready') {
-    return NextResponse.next()
-  }
-
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
   const nonce = generateNonce()
   const csp = buildCSP(nonce)
+
+  // Monitoring probes must not depend on Supabase Auth session refresh or the
+  // per-instance request limiter. /api/ready performs its own database check.
+  // They still receive the security headers: probes that answered without HSTS
+  // produced the inconsistent Strict-Transport-Security the QA audit flagged.
+  if (pathname === '/api/health' || pathname === '/api/ready') {
+    return applySecurityHeaders(NextResponse.next(), nonce, csp)
+  }
 
   // Propagate nonce + CSP through REQUEST headers. Next.js inspects the
   // Content-Security-Policy request header during render and applies the
@@ -299,6 +328,47 @@ export async function middleware(request: NextRequest) {
     for (const name of staleAuthCookieNames) {
       supabaseResponse.cookies.delete(name)
     }
+  }
+
+  // "Keep me signed in" is enforced here, not by cookie lifetime: @supabase/ssr
+  // pins the auth cookies to its own 400-day Max-Age and overwrites any
+  // `cookieOptions.maxAge` a caller passes, so a session the user chose not to
+  // remember would otherwise survive a browser restart. No record means the
+  // session came from another flow (magic link, invitation, password recovery)
+  // and is left alone.
+  const sessionChoice = parseSessionChoice(
+    request.cookies.get(SESSION_CHOICE_COOKIE)?.value
+  )
+  if (
+    user &&
+    sessionChoice &&
+    isSessionChoiceExpired(
+      sessionChoice,
+      request.cookies.has(SESSION_LIVE_COOKIE)
+    )
+  ) {
+    const expiredSessionCookieNames = request.cookies
+      .getAll()
+      .map(({ name }) => name)
+      .filter(isSupabaseAuthCookieName)
+    for (const name of expiredSessionCookieNames) {
+      request.cookies.delete(name)
+    }
+    requestHeaders.set('cookie', request.cookies.toString())
+    supabaseResponse = buildSupabaseResponse(requestHeaders)
+    for (const name of expiredSessionCookieNames) {
+      supabaseResponse.cookies.delete(name)
+    }
+    return redirectToLogin(
+      request,
+      [
+        ...expiredSessionCookieNames,
+        SESSION_CHOICE_COOKIE,
+        SESSION_LIVE_COOKIE,
+      ],
+      nonce,
+      csp
+    )
   }
 
   // Rate limiting

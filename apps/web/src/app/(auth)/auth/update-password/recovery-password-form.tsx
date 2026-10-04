@@ -98,7 +98,6 @@ export function RecoveryPasswordForm() {
               : passwordHintId
           }
           className="auth-input"
-          autoFocus
         />
         <p id={passwordHintId} className="auth-hint">
           {PASSWORD_MIN_LENGTH}–{PASSWORD_MAX_LENGTH} characters.

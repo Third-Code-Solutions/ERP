@@ -121,7 +121,6 @@ export function SignupForm() {
           maxLength={120}
           className="auth-input"
           placeholder="Juan dela Cruz"
-          autoFocus
         />
       </div>
 

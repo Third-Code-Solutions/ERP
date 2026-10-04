@@ -92,4 +92,24 @@ describe('ProviderQuotaService', () => {
       service.consume('provider-embedding', PRINCIPAL)
     ).rejects.toThrow('Provider quota accounting is unavailable')
   })
+
+  it('fails closed instead of hanging when Redis never answers', async () => {
+    // maxRetriesPerRequest: null queues the command while the connection is
+    // down, so without a bound this promise never settles and the AI route
+    // waits forever rather than returning its fail-closed 503.
+    vi.useFakeTimers()
+    const evalRedis = vi.fn(() => new Promise<never>(() => {}))
+    const service = new ProviderQuotaService(
+      { eval: evalRedis } as unknown as Redis
+    )
+
+    const pending = service.consume('provider-chat', PRINCIPAL)
+    const assertion = expect(pending).rejects.toThrow(
+      'Provider quota accounting is unavailable'
+    )
+
+    await vi.advanceTimersByTimeAsync(2_500)
+    await assertion
+    vi.useRealTimers()
+  })
 })

@@ -3,12 +3,16 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@third-code-erp/auth/client'
+import { rememberSessionChoice } from '@/lib/session-persistence'
 
 export function LoginForm() {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
+  // Unchecked by default: a shared workstation should not hand the next person
+  // a seven-day session because nobody unticked a box.
+  const [remember, setRemember] = useState(false)
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -19,6 +23,10 @@ export function LoginForm() {
     const password = formData.get('password') as string
 
     startTransition(async () => {
+      // Recorded before authenticating: @supabase/ssr writes the session
+      // cookies during signInWithPassword and pins their lifetime itself, so
+      // the choice has to be on record first for middleware to enforce it.
+      rememberSessionChoice(remember)
       const supabase = createSupabaseBrowserClient()
       const { error: authError } = await supabase.auth.signInWithPassword({
         email,
@@ -61,7 +69,6 @@ export function LoginForm() {
           aria-describedby={hasError ? 'login-error' : undefined}
           className="auth-input"
           placeholder="you@company.com"
-          autoFocus
         />
       </div>
 
@@ -93,7 +100,6 @@ export function LoginForm() {
             className="auth-input-toggle"
             aria-label={showPassword ? 'Hide password' : 'Show password'}
             aria-pressed={showPassword}
-            tabIndex={-1}
           >
             {showPassword ? (
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -118,8 +124,15 @@ export function LoginForm() {
         </div>
       </div>
 
-      <label className="auth-remember">
-        <input type="checkbox" name="remember" defaultChecked className="auth-checkbox" />
+      <label className="auth-remember" htmlFor="remember">
+        <input
+          id="remember"
+          type="checkbox"
+          name="remember"
+          checked={remember}
+          onChange={(event) => setRemember(event.target.checked)}
+          className="auth-checkbox"
+        />
         <span>Keep me signed in for 7 days</span>
       </label>
 

@@ -29,17 +29,11 @@ export const metadata: Metadata = {
     'Philippines construction software',
     'AI operations platform',
   ],
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: {
-      index: true,
-      follow: true,
-      'max-image-preview': 'large',
-      'max-snippet': -1,
-      'max-video-preview': -1,
-    },
-  },
+  // No `robots` here on purpose. A permissive `index, follow` declared at the
+  // root is inherited by /_not-found, which Next.js already renders with its own
+  // `noindex` — producing a 404 that told crawlers both to index and not to
+  // index it. Indexable surfaces declare their own robots metadata; gated
+  // surfaces are excluded in robots.txt.
 }
 
 // Reading the per-request nonce from headers() opts the entire route tree

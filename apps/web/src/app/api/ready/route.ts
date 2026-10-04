@@ -7,6 +7,22 @@ import { deploymentRevision } from '@/lib/deployment-revision'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
+const RESPONSE_HEADERS = {
+  'Cache-Control': 'no-store',
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+  'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+}
+
+/**
+ * The deployed revision is release identity, not a secret:
+ * `.github/workflows/deploy-production.yml` asserts
+ * `revision == ${GITHUB_SHA:0:12}` against an anonymous probe of this route,
+ * so it is returned unconditionally. Gating it behind HEALTH_DETAIL_TOKEN
+ * breaks the release contract, and the pipeline deploys before it verifies.
+ */
 export async function GET() {
   try {
     await db.execute(sql`select 1 as ready`)
@@ -18,16 +34,7 @@ export async function GET() {
         revision: deploymentRevision(),
         timestamp: new Date().toISOString(),
       },
-      {
-        headers: {
-          'Cache-Control': 'no-store',
-          'X-Content-Type-Options': 'nosniff',
-          'X-Frame-Options': 'DENY',
-          'Referrer-Policy': 'strict-origin-when-cross-origin',
-          'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
-          'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
-        },
-      }
+      { headers: RESPONSE_HEADERS }
     )
   } catch {
     return NextResponse.json(
@@ -37,17 +44,7 @@ export async function GET() {
         revision: deploymentRevision(),
         timestamp: new Date().toISOString(),
       },
-      {
-        status: 503,
-        headers: {
-          'Cache-Control': 'no-store',
-          'X-Content-Type-Options': 'nosniff',
-          'X-Frame-Options': 'DENY',
-          'Referrer-Policy': 'strict-origin-when-cross-origin',
-          'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
-          'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
-        },
-      }
+      { status: 503, headers: RESPONSE_HEADERS }
     )
   }
 }

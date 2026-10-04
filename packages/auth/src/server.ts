@@ -28,6 +28,14 @@ export async function createSupabaseServerClient() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      // The library pins `maxAge` to its own 400-day default, but it leaves
+      // `secure` alone — without this the server-written auth cookies are
+      // served over plaintext HTTP as well as HTTPS.
+      cookieOptions: {
+        path: '/',
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+      },
       cookies: {
         getAll() {
           return cookieStore.getAll()

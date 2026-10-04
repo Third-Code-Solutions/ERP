@@ -11,6 +11,19 @@ export const metadata: Metadata = {
   applicationName: 'ABI OPS',
   description:
     'ABI OPS connects pipeline, projects, procurement, cost, billing, compliance, and evidence in one construction operating system.',
+  // The public landing page is the one surface meant to be indexed, so it
+  // declares its own robots policy rather than inheriting one from the root.
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+      'max-video-preview': -1,
+    },
+  },
   alternates: {
     canonical: '/',
   },
