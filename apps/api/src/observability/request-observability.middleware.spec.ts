@@ -39,6 +39,7 @@ function requestHarness(
 
 describe('RequestObservabilityMiddleware', () => {
   it.each([
+    ['PATCH', '/v1/process/award-tasks/:taskId/complete', 'process.award_task.complete'],
     ['POST', '/v1/platform-admin/tenants', 'platform.tenant.create'],
     ['PATCH', '/v1/platform-admin/tenants/:tenantId/status', 'platform.tenant.status'],
     ['POST', '/v1/platform-admin/invitations', 'platform.user.invite'],

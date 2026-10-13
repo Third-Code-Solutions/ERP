@@ -8,7 +8,7 @@ import {
   projects,
   users,
 } from '@third-code-erp/database/schema'
-import { runSignedBomAward } from '@third-code-erp/operations/signed-bom-award'
+import { lockSignedBomAwardScope, runSignedBomAward } from '@third-code-erp/operations/signed-bom-award'
 import {
   docuSealWebhookCommandSchema,
   docuSealWebhookResultSchema,
@@ -75,6 +75,13 @@ export class DocuSealWebhookService {
 
       if (!token) return emptyResult()
 
+      const [scopeBom] = await transaction.select({ projectId: boms.project_id }).from(boms)
+        .where(and(eq(boms.id, token.bomId), eq(boms.tenant_id, token.tenantId)))
+        .limit(1)
+      if (scopeBom) {
+        await lockSignedBomAwardScope(transaction, token.tenantId, token.bomId, scopeBom.projectId)
+      }
+
       const [bom] = await transaction
         .select({
           id: boms.id,
@@ -109,6 +116,9 @@ export class DocuSealWebhookService {
           bomId: token.bomId,
         })
       }
+      if (!scopeBom || bom.projectId !== scopeBom.projectId) {
+        throw new ConflictException('BOM project changed before signing.')
+      }
 
       const signedDocument = parsedCommand.documents[0] ?? null
       const baseResult = {
@@ -136,7 +146,6 @@ export class DocuSealWebhookService {
         if (!handoff) throw new ConflictException('Signed BOM award handoff is missing.')
         return docuSealWebhookResultSchema.parse(baseResult)
       }
-
       if (bom.status !== 'approved') {
         throw new ServiceUnavailableException(
           'BOM must be approved before the provider signature can be recorded.'

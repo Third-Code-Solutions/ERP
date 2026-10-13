@@ -11,7 +11,7 @@ import type { DatabaseService } from '../database/database.service'
 import type { PublicSigningStorageService } from './public-signing.storage'
 import { PublicSigningService } from './public-signing.service'
 
-const awardMock = vi.hoisted(() => ({ runSignedBomAward: vi.fn() }))
+const awardMock = vi.hoisted(() => ({ lockSignedBomAwardScope: vi.fn(), runSignedBomAward: vi.fn() }))
 vi.mock('@third-code-erp/operations/signed-bom-award', () => awardMock)
 
 const BODY = {
@@ -149,14 +149,17 @@ describe('PublicSigningService migration boundary', () => {
     }
     const selected = [
       [session],
+      [{ projectId: '66666666-6666-4666-8666-666666666666' }],
       [{ id: '55555555-5555-4555-8555-555555555555', requestHash: 'request-hash', state: 'processing', result: null }],
     ]
     const select = vi.fn(() => {
+      const rows = selected.shift() ?? []
       const chain = {
         from: vi.fn(),
         where: vi.fn(),
         limit: vi.fn(),
-        for: vi.fn().mockResolvedValue(selected.shift()),
+        for: vi.fn().mockResolvedValue(rows),
+        then: (resolve: (value: unknown[]) => void) => Promise.resolve(rows).then(resolve),
       }
       chain.from.mockReturnValue(chain)
       chain.where.mockReturnValue(chain)
@@ -194,6 +197,11 @@ describe('PublicSigningService migration boundary', () => {
       tx,
       expect.objectContaining({ tenantId, bomId, actorId: null })
     )
+    expect(awardMock.lockSignedBomAwardScope).toHaveBeenCalledWith(
+      tx, tenantId, bomId, '66666666-6666-4666-8666-666666666666'
+    )
+    expect(awardMock.lockSignedBomAwardScope.mock.invocationCallOrder[0]!)
+      .toBeLessThan(insert.mock.invocationCallOrder[0]!)
     expect(update).not.toHaveBeenCalledWith(signatureSessions)
   })
 
@@ -213,15 +221,18 @@ describe('PublicSigningService migration boundary', () => {
     const selected = [
       [{ id: sessionId, tenant_id: tenantId, entity_type: 'bom', entity_id: bomId,
         signed_at: new Date(), revoked_at: null, expires_at: new Date('2030-01-01') }],
+      [{ projectId: '66666666-6666-4666-8666-666666666666' }],
       [{ id: '55555555-5555-4555-8555-555555555555', requestHash: 'request-hash',
         state: 'succeeded', result }],
     ]
     const select = vi.fn(() => {
+      const rows = selected.shift() ?? []
       const chain = {
         from: vi.fn(),
         where: vi.fn(),
         limit: vi.fn(),
-        for: vi.fn().mockResolvedValue(selected.shift()),
+        for: vi.fn().mockResolvedValue(rows),
+        then: (resolve: (value: unknown[]) => void) => Promise.resolve(rows).then(resolve),
       }
       chain.from.mockReturnValue(chain)
       chain.where.mockReturnValue(chain)

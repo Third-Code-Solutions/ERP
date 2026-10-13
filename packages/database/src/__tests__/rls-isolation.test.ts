@@ -11,8 +11,8 @@
  * What this proves:
  *   1. SELECT isolation     — an authenticated user sees only its own tenant.
  *   2. Deny-by-default      — `anon` (no JWT) has no direct table authority.
- *   3. INSERT WITH CHECK    — an authenticated user cannot write into another
- *                             tenant (cross-tenant insert is rejected).
+ *   3. Write authorization — an authenticated user cannot insert or update
+ *                             project rows, including another tenant's rows.
  *   4. Audit append-only    — UPDATE/DELETE on audit_log is denied.
  *
  * NOTE: the application's primary SSR path uses Drizzle connected as the
@@ -42,6 +42,11 @@ interface ProbeTenants {
   tenantB: string
   userA: string
   userB: string
+}
+
+function databaseErrorCode(error: unknown): string | undefined {
+  if (typeof error !== 'object' || error === null || !('code' in error)) return undefined
+  return typeof error.code === 'string' ? error.code : undefined
 }
 
 suite('RLS tenant isolation', () => {
@@ -153,22 +158,101 @@ suite('RLS tenant isolation', () => {
     expect(denied).toBe(true)
   })
 
-  it('authenticated user CANNOT insert into another tenant (WITH CHECK)', async () => {
-    const rejected = await inRollback(async (tx) => {
+  it('authenticated user CANNOT insert a project into another tenant', async () => {
+    const rejectionCode = await inRollback(async (tx) => {
       const { tenantB, userA } = await seedProbes(tx)
       await becomeAuthenticated(tx, userA)
       try {
-        // A tries to plant a row in tenant B — RLS WITH CHECK must reject it.
+        // Direct project writes are revoked from authenticated users. If that
+        // privilege changes, RLS must still reject a foreign-tenant row.
         await tx.unsafe(
           `insert into projects(tenant_id, name, client) values('${tenantB}','PROBE_HACK','X')`
         )
-        return false // insert unexpectedly succeeded
-      } catch {
-        return true // rejected as required (tx is now aborted; rollback follows)
+        return undefined
+      } catch (error) {
+        return databaseErrorCode(error)
       }
     })
-    expect(rejected).toBe(true)
+    expect(rejectionCode).toBe('42501')
   })
+
+  it('isolates ten synthetic companies across departmental readers and foreign writes', async () => {
+    await inRollback(async (tx) => {
+      const suffix = (await tx.unsafe<{ value: string }[]>(
+        `select substr(md5(random()::text), 1, 10) as value`
+      ))[0]?.value
+      if (!suffix) throw new Error('Could not create a synthetic tenant suffix')
+
+      const companies: Array<{ tenantId: string; projectId: string; userIds: string[] }> = []
+      for (let index = 0; index < 10; index += 1) {
+        const tenantRows = await tx.unsafe<{ id: string }[]>(
+          `insert into public.tenants (name, slug)
+           values ($1, $2) returning id`,
+          [`RLS Probe ${index}`, `rls-probe-${suffix}-${index}`]
+        )
+        const tenantId = tenantRows[0]?.id
+        if (!tenantId) throw new Error(`Could not create synthetic tenant ${index}`)
+
+        const userIds: string[] = []
+        for (const role of ['admin', 'finance'] as const) {
+          const userRows = await tx.unsafe<{ id: string }[]>(
+            `insert into public.users (id, tenant_id, email, full_name, role)
+             values (gen_random_uuid(), $1, $2, $3, $4) returning id`,
+            [tenantId, `${role}-${suffix}-${index}@rls-probe.test`, `RLS Probe ${role}`, role]
+          )
+          const userId = userRows[0]?.id
+          if (!userId) throw new Error(`Could not create ${role} for tenant ${index}`)
+          userIds.push(userId)
+        }
+        const creatorId = userIds[0]
+        if (!creatorId) throw new Error(`Could not resolve project creator for tenant ${index}`)
+
+        const projectRows = await tx.unsafe<{ id: string }[]>(
+          `insert into public.projects (tenant_id, name, client, created_by)
+           values ($1, $2, $3, $4) returning id`,
+          [tenantId, `RLS Probe Project ${suffix}-${index}`, `RLS Probe Client ${index}`, creatorId]
+        )
+        const projectId = projectRows[0]?.id
+        if (!projectId) throw new Error(`Could not create project for tenant ${index}`)
+        companies.push({ tenantId, projectId, userIds })
+      }
+
+      expect(companies).toHaveLength(10)
+      for (const [sourceIndex, source] of companies.entries()) {
+        for (const userId of source.userIds) {
+          await becomeAuthenticated(tx, userId)
+          const visibleRows = await tx.unsafe<{ id: string }[]>(
+            `select id from public.projects where id = any($1::uuid[])`,
+            [companies.map((company) => company.projectId)]
+          )
+          expect(visibleRows.map((row) => row.id), `tenant ${sourceIndex} reader ${userId}`).toEqual([
+            source.projectId,
+          ])
+
+          for (const [targetIndex, target] of companies.entries()) {
+            if (targetIndex === sourceIndex) continue
+            const targetCreatorId = target.userIds[0]
+            if (!targetCreatorId) throw new Error(`Could not resolve target creator for tenant ${targetIndex}`)
+            await tx.unsafe('savepoint rls_foreign_write')
+            let rejectionCode: string | undefined
+            try {
+              await tx.unsafe(
+                `insert into public.projects (tenant_id, name, client, created_by)
+                 values ($1, $2, $3, $4)`,
+                [target.tenantId, `RLS Foreign Probe ${suffix}-${sourceIndex}-${targetIndex}`, 'X', targetCreatorId]
+              )
+            } catch (error) {
+              rejectionCode = databaseErrorCode(error)
+            }
+            await tx.unsafe('rollback to savepoint rls_foreign_write')
+            await tx.unsafe('release savepoint rls_foreign_write')
+            expect(rejectionCode, `tenant ${sourceIndex} writing tenant ${targetIndex}`).toBe('42501')
+          }
+          await tx.unsafe('reset role')
+        }
+      }
+    })
+  }, 60_000)
 
   it('authenticated browser role CANNOT update Core-owned project rows', async () => {
     const denied = await inRollback(async (tx) => {

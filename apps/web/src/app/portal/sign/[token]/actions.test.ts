@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   upload: vi.fn(),
   remove: vi.fn(),
   writeAuditLogInTransaction: vi.fn(),
+  lockSignedBomAwardScope: vi.fn(),
   runSignedBomAward: vi.fn(),
   publicSigningWritesUseCoreApi: vi.fn(),
   signPublicSignatureThroughCoreApi: vi.fn(),
@@ -44,6 +45,7 @@ vi.mock('@/lib/audit', () => ({
 }))
 
 vi.mock('@/lib/operations/award-automation', () => ({
+  lockSignedBomAwardScope: mocks.lockSignedBomAwardScope,
   runSignedBomAward: mocks.runSignedBomAward,
 }))
 
@@ -126,7 +128,11 @@ describe('public canvas signing integrity', () => {
     mocks.txSelect.mockReturnValue({ from: mocks.txFrom })
     mocks.txFrom.mockReturnValue({ where: mocks.txWhere })
     mocks.txWhere.mockReturnValue({ limit: mocks.txLimit })
-    mocks.txLimit.mockReturnValue({ for: mocks.txFor })
+    mocks.txLimit.mockReturnValue({
+      for: mocks.txFor,
+      then: (resolve: (value: { projectId: string }[]) => void) =>
+        Promise.resolve([{ projectId: PROJECT_ID }]).then(resolve),
+    })
     mocks.txFor.mockResolvedValue([session])
 
     mocks.txInsert.mockReturnValue({ values: mocks.txInsertValues })
@@ -252,6 +258,11 @@ describe('public canvas signing integrity', () => {
     await expect(recordCanvasSign(signInput())).resolves.toEqual({ ok: true })
 
     expect(mocks.runSignedBomAward).toHaveBeenCalledOnce()
+    expect(mocks.lockSignedBomAwardScope).toHaveBeenCalledWith(
+      expect.anything(), TENANT_ID, ENTITY_ID, PROJECT_ID
+    )
+    expect(mocks.lockSignedBomAwardScope.mock.invocationCallOrder[0]!)
+      .toBeLessThan(mocks.txInsert.mock.invocationCallOrder[0]!)
     expect(mocks.runSignedBomAward).toHaveBeenCalledWith(
       expect.objectContaining({ update: mocks.txUpdate, insert: mocks.txInsert }),
       {

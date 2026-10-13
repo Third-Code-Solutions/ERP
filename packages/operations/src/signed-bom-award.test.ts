@@ -33,6 +33,7 @@ vi.mock('@third-code-erp/database/schema', () => {
     costCodes: makeTable(),
     invoices: makeTable(),
     masterSchedules: makeTable(),
+    mobilizationReadiness: makeTable(),
     opportunities: makeTable(),
     processSteps: makeTable(),
     projectBudgetLines: makeTable(),
@@ -211,8 +212,49 @@ describe('runSignedBomAward hierarchy validation', () => {
     vi.clearAllMocks()
   })
 
+  it('reconciles recorded NTP on an idempotent award retry without repeating award writes', async () => {
+    const handoff = {
+      id: 'handoff-1',
+      status: 'active',
+      project_id: 'project-1',
+      project_code: 'PRJ-2026-0001',
+      budget_id: 'budget-1',
+      dp_invoice_id: 'invoice-1',
+      project_tracker_id: 'tracker-1',
+      task_ids: {
+        arProjectCode: 'task-ar',
+        downPaymentInvoice: 'task-dp',
+        cari: 'task-cari',
+        projectTracker: 'task-tracker',
+        cxOnboarding: 'task-cx',
+      },
+    }
+    const selectResults: SelectResult[] = [[{ projectId: 'project-1' }], [], [handoff], []]
+    const select = vi.fn(() => {
+      const result = selectResults.shift()
+      if (!result) throw new Error('unexpected select')
+      return new SelectChain(result)
+    })
+    const execute = vi.fn(async () => [])
+    const insert = vi.fn()
+    const update = vi.fn()
+
+    const result = await runSignedBomAward(
+      asAwardTransaction({ execute, select, insert, update }),
+      { tenantId: 'tenant-1', bomId: 'bom-1', actorId: null },
+    )
+
+    expect(result).toMatchObject({ handoffId: handoff.id, reused: true })
+    expect(select).toHaveBeenCalledTimes(4)
+    expect(execute).toHaveBeenCalledTimes(4)
+    expect(insert).not.toHaveBeenCalled()
+    expect(update).not.toHaveBeenCalled()
+  })
+
   it('rejects an orphan before opportunity, project, budget, or audit writes', async () => {
     const selectResults: SelectResult[] = [
+      [{ projectId: 'project-1' }],
+      [],
       [],
       [
         {
@@ -250,11 +292,13 @@ describe('runSignedBomAward hierarchy validation', () => {
     expect(update).not.toHaveBeenCalled()
     expect(insert).not.toHaveBeenCalled()
     expect(auditMock.writeAwardAuditInTransaction).not.toHaveBeenCalled()
-    expect(execute).toHaveBeenCalledTimes(1)
+    expect(execute).toHaveBeenCalledTimes(3)
   })
 
   it('creates one budget line for the parent amount, not the attached material amount', async () => {
     const selectResults: SelectResult[] = [
+      [{ projectId: 'project-1' }],
+      [],
       [],
       [
         {
@@ -279,6 +323,7 @@ describe('runSignedBomAward hierarchy validation', () => {
         }),
       ],
       [{ id: 'creator-1' }],
+      [],
       [],
       [],
       [],
@@ -317,7 +362,7 @@ describe('runSignedBomAward hierarchy validation', () => {
             return new WriteChain([{ id: 'cost-code-1' }])
           }
           if (typeof record?.code === 'string' && record.code.startsWith('AWARD.')) {
-            return new WriteChain([{ id: record.code, slaDays: 2 }])
+            return new WriteChain([{ id: record.code, slaDays: record.code === 'AWARD.CX_ONBOARDING' ? 7 : 2 }])
           }
           return new WriteChain()
         }),

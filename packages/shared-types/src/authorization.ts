@@ -268,6 +268,8 @@ const capabilityRoles = {
   'process.health.read': ALL_ROLES,
   'process.step.manage': ['owner', 'admin', 'commercial', 'sd_pm_pe', 'pm'],
   'process.task.manage': ['owner', 'admin', 'commercial', 'sd_pm_pe', 'pm'],
+  // Participation is restricted again to exact role-owned award ledger tasks in Core.
+  'process.award_task.participate': ['finance', 'cx'],
   'process.approval.manage': ['owner', 'admin', 'commercial', 'sd_pm_pe', 'pm'],
   'process.sla.manage': ['owner', 'admin', 'commercial', 'sd_pm_pe', 'pm'],
 } as const satisfies Record<string, readonly ErpRole[]>

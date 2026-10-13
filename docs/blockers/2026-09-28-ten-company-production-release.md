@@ -4,12 +4,61 @@ Date: 2026-09-28
 
 ## Current decision
 
-**NO-GO** for a whole-ERP client demo or ten-company rollout. Main revision
-`fe96ded831baa4badbf2082dc37f990a270c2eaa` was promoted to production,
-but the protected production verification run failed. The follow-up fixes in
-PR #119 are not deployed.
+**NO-GO** for a whole-ERP client demo or ten-company rollout. Live Web health
+and readiness reported revision `efa32923c0f0` on 2026-09-28, matching the
+merge commit of PR #120. PR #119 and PR #120 are merged; PR #121 is ready
+for review and remains undeployed. The production migration ledger was
+177/179 before the self-review correction added one source migration;
+the current source tree has 180 migrations. The
+code-only promotion workflow
+rejects this candidate before deployment.
 
-## Direct evidence
+## Current PR #121 release evidence
+
+- GitHub checks passed on PR head `f970d7a62dcea005b64c0d2b94022fb432f4aec3` before the self-review correction:
+  Actionlint, invariants, build, browser
+  interaction, PostgreSQL 17 reproducibility, trusted E2E, lint, security
+  scan, types, and unit tests. Supabase Preview skipped because of the
+  concurrent branch limit. No formal independent human review is recorded.
+- Disposable PostgreSQL 17 replay matched 179/179 source migration hashes.
+  Award integration passed 15/15; ten-tenant, two-role project RLS passed 6/6;
+  final-source integrated local browser journey passed 6/6. These are not
+  production behavior or whole-module coverage. The self-review correction's
+  rollback-only migration tests passed 3/3 and award integration passed 16/16;
+  a clean 180-migration replay and exact-head CI remain pending.
+- Self-review found that PRD A-11 requires seven business days for CX
+  onboarding after NTP, while code and the live active process step had two.
+  The code now creates seven-day steps and rejects an uncorrected step. A
+  guarded third migration changes active two-day steps only if no CX award
+  clock exists. The last read-only live check found one such step and no CX
+  clock; hosted state must be rechecked before application.
+- Read-only live audit recovery check on the owner-confirmed `buildops-e2e`
+  tenant found 3,745 rows with zero link and hash mismatches at 2026-09-28
+  12:17 UTC. The controlled release planner still returned `review_required`
+  because of the missing migrations.
+- The Supabase ERP project showed a completed physical database backup dated
+  2026-09-27 17:23:41 UTC and a restore-to-new-project option. PITR is an
+  inactive add-on. A listed backup is not an isolated restore drill, and
+  Supabase states that database backups exclude Storage objects.
+- The local `plan:database-export` preflight returned `review_required`:
+  no approved export URL and no supported dump client were configured in the
+  checkout. No encrypted roles, schema, or data export or separate Storage
+  recovery evidence is recorded. No production SQL or #121 deployment ran.
+- GitHub's production environments have no protection rules. The GitHub
+  session is `kurtgav`, also the PR author, so this account cannot provide
+  the required independent review. A different reviewer is pending.
+
+Before #121 can release, the database owner and independent reviewer must
+verify the exact target and migration hashes; the runbook requires a restorable
+point, supplemental encrypted exports, separate Storage recovery, and an
+isolated restore rehearsal. Then apply the three reviewed migrations through
+the approved runner, recheck the ledger and RLS, and deploy and verify the
+exact code revision. Whole-ERP and ten-company GO additionally require the
+module, handoff, role, isolation, integration, and workload evidence below.
+
+## Historical earlier release evidence
+
+### Direct evidence
 
 - Main CI run 36352174413 passed for the exact deployed revision. Production
   run 36353106697 deployed Web, Core, and CAD after its release preflight,
@@ -42,7 +91,7 @@ PR #119 are not deployed.
   changes remain candidate code until merged, deployed, and verified at their
   exact revision.
 
-## Required before GO
+### Required before GO at that earlier snapshot
 
 1. Diagnose and fix the intermittent hydration error. Rerun the protected
    production role matrix with zero failed or flaky tests; keep the strict gate.

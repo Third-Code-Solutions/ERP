@@ -12,7 +12,7 @@ import {
 } from '@third-code-erp/database/schema'
 import { notifyRoles } from '@/lib/operations/notifications'
 import { writeAuditLogInTransaction } from '@/lib/audit'
-import { runSignedBomAward } from '@/lib/operations/award-automation'
+import { lockSignedBomAwardScope, runSignedBomAward } from '@/lib/operations/award-automation'
 import { isDevelopmentStubSubmissionId } from '@/lib/operations/integrations/docuseal'
 
 interface SignResult {
@@ -76,6 +76,7 @@ export async function recordSign(token: string): Promise<SignResult> {
       const [bom] = await tx
         .select({
           status: boms.status,
+          projectId: boms.project_id,
         })
         .from(boms)
         .where(and(eq(boms.id, row.bom_id), eq(boms.tenant_id, row.tenant_id)))
@@ -84,6 +85,7 @@ export async function recordSign(token: string): Promise<SignResult> {
       if (!bom) throw new Error('BOM not found')
       if (bom.status === 'locked') throw new Error('This BOM has already been signed')
       if (bom.status !== 'approved') throw new Error('Only an approved BOM can be signed')
+      await lockSignedBomAwardScope(tx, row.tenant_id, row.bom_id, bom.projectId)
 
       await tx
         .update(bomPortalTokens)

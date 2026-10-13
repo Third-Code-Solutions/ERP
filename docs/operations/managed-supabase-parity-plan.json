@@ -11,10 +11,10 @@
     "databaseVersion": "17.6.1.121",
     "postgresMajor": 17,
     "appliedCount": 157,
-    "sourceCount": 177,
-    "pendingCount": 20,
+    "sourceCount": 180,
+    "pendingCount": 23,
     "appliedHead": "20260901141949",
-    "sourceHead": "20260921181036",
+    "sourceHead": "20260928110200",
     "ledgerStatus": "current_remote_ledger_matches_source",
     "purchaseOrderPreflight": {
       "duplicateGroups": 0,
@@ -121,6 +121,36 @@
       "hostedApplyApproved": false,
       "risk": "Adds tenant-scoped, RLS-protected procurement, inventory reservation, landed-cost, price-list, currency, tax/statutory, period-close, SAP outbox and provider-delivery foundations. The migration preserves existing ERP tables and keeps new workflows dark behind tenant feature flags; live provider behavior and hosted schema application remain unverified.",
       "recovery": "Require backup/PITR, isolated restore and migration rehearsal, exact-target lock/grant preflight, and provider/SAP credential verification before hosted application. The migration is transactional and aborts without data changes on failure. Keep roadmap flags and workers disabled until live replay and all-role E2E evidence are recorded; roll forward or use the reviewed migration recovery procedure rather than bypassing RLS or audit controls."
+    },
+    {
+      "id": "20260928-task-instances-core-read-boundary",
+      "migrations": [
+        "20260928110000_task_instances_core_read_boundary.sql"
+      ],
+      "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
+      "hostedApplyApproved": false,
+      "risk": "Revokes direct public, anon and authenticated SELECT on task_instances and removes its broad tenant-read policy while preserving Core's service_role SELECT. Existing browser Data API readers will lose access and must use the scoped Core task endpoints. No stored task rows or audit history change; local verification does not establish hosted application or all-consumer compatibility.",
+      "recovery": "Require exact-target grant and consumer preflight, database backup/PITR, isolated restore and migration rehearsal, and integrated Core/Web role checks before hosted application. The migration is transactional and aborts on failure. After commit restore a compatible Core/Web build or roll forward; do not restore the broad client read grant or policy as an automatic rollback. This source-only batch does not authorize hosted application."
+    },
+    {
+      "id": "20260928-projects-authenticated-read-parity",
+      "migrations": [
+        "20260928110100_projects_authenticated_read_parity.sql"
+      ],
+      "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
+      "hostedApplyApproved": false,
+      "risk": "Grants only authenticated SELECT on public.projects after asserting RLS and the existing tenant-scoped projects_tenant_read policy. A fresh source replay lacks this grant while the last read-only hosted catalog check found it already present. No project rows, policies, foreign keys, audit history, or other table privileges change; local replay and live application compatibility still require verification.",
+      "recovery": "Require exact-target grant and policy preflight, database backup/PITR, separate Storage recovery and isolated restore rehearsal before hosted application. The bounded transactional grant aborts without data changes on failure. Because the hosted project already has this grant, do not automatically revoke it as rollback; retain the tenant RLS predicate and use a reviewed fix-forward or application rollback if needed. This source-only batch does not authorize hosted application."
+    },
+    {
+      "id": "20260928-award-cx-onboarding-seven-day-sla",
+      "migrations": [
+        "20260928110200_award_cx_onboarding_seven_day_sla.sql"
+      ],
+      "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
+      "hostedApplyApproved": false,
+      "risk": "Corrects active AWARD.CX_ONBOARDING process steps from two to seven business days as required by PRD A-11. It updates stored process-step data, clears stale human updated_by attribution, and appends audit entries. A bounded table lock prevents concurrent SLA-clock inserts during the guard and update; the migration aborts if a two-day CX clock already exists or the active step configuration differs from the expected shape. Hosted clock and lock state require fresh preflight.",
+      "recovery": "Require exact-target process-step and clock inventory, database and separate Storage recovery evidence, isolated restore/migration rehearsal, and database-owner plus independent review before hosted application. Abort on the guard or lock timeout. Reconcile any existing two-day CX clock with an audited, tenant-specific correction; do not automatically revert the seven-day rule. This source-only batch does not authorize hosted application."
     }
   ]
 }

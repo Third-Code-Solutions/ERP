@@ -17,7 +17,7 @@ import {
 } from '@third-code-erp/database/schema'
 import { ERP_ROLES } from '@third-code-erp/shared-types/authorization'
 import { stampActorInTransaction, writeAuditLogInTransaction, type DatabaseTransaction } from '@/lib/audit'
-import { runSignedBomAward } from '@/lib/operations/award-automation'
+import { lockSignedBomAwardScope, runSignedBomAward } from '@/lib/operations/award-automation'
 
 export type AwardActionResult =
   | ({ ok: true; refreshWarning?: string } & Awaited<ReturnType<typeof runSignedBomAward>>)
@@ -127,6 +127,7 @@ export async function awardLockedBom(formData: FormData): Promise<AwardActionRes
     outcome = 'unconfirmed'
     const result = await db.transaction(async (tx) => {
       await authorizeAward(tx, profile.tenantId, profile.user.id)
+      await lockSignedBomAwardScope(tx, profile.tenantId, parsed.data.bomId, parsed.data.projectId)
       const [bom] = await tx
         .select({ id: boms.id, projectId: boms.project_id, status: boms.status })
         .from(boms)
@@ -184,8 +185,7 @@ export async function reverseAwardHandoff(formData: FormData): Promise<{ ok: tru
         eq(awardHandoffs.id, parsed.data.handoffId), eq(awardHandoffs.project_id, parsed.data.projectId))
       const [identity] = await tx.select({ sourceBomId: awardHandoffs.source_bom_id }).from(awardHandoffs).where(scope).limit(1)
       if (!identity) throw new AwardWorkflowError('Award handoff not found in this project.')
-      // Match award creation's advisory identity before locking the durable receipt.
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${'award-handoff:' + profile.tenantId + ':' + identity.sourceBomId}, 0))`)
+      await lockSignedBomAwardScope(tx, profile.tenantId, identity.sourceBomId, parsed.data.projectId)
       const [handoff] = await tx
         .select({
           id: awardHandoffs.id,

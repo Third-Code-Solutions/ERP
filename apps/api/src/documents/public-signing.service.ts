@@ -9,7 +9,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { runSignedBomAward } from '@third-code-erp/operations/signed-bom-award'
+import { lockSignedBomAwardScope, runSignedBomAward } from '@third-code-erp/operations/signed-bom-award'
 import {
   boms,
   certificatesOfCompletion,
@@ -295,6 +295,13 @@ export class PublicSigningService {
       .limit(1)
       .for('update')
     if (!lockedSession) throw new NotFoundException('Invalid signing link.')
+    if (lockedSession.entity_type === 'bom') {
+      const [currentBom] = await transaction.select({ projectId: boms.project_id }).from(boms)
+        .where(and(eq(boms.id, lockedSession.entity_id), eq(boms.tenant_id, tenantId)))
+        .limit(1)
+      if (!currentBom || currentBom.projectId !== projectId) throw new ConflictException('BOM project changed before signing.')
+      await lockSignedBomAwardScope(transaction, tenantId, lockedSession.entity_id, projectId)
+    }
 
     await transaction
       .insert(publicSigningRequests)

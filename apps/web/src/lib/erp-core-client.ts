@@ -1715,6 +1715,19 @@ export function projectWeeklyProgressWritesUseCoreApi(tenantId: string): boolean
 export async function getProcessTaskQueueThroughCoreApi(
   query: unknown = {}
 ): Promise<CoreResult<ProcessTaskQueueResult>> {
+  return readProcessTaskQueueThroughCoreApi(query, 'tasks')
+}
+
+export async function getAwardTaskQueueThroughCoreApi(
+  query: unknown = {}
+): Promise<CoreResult<ProcessTaskQueueResult>> {
+  return readProcessTaskQueueThroughCoreApi(query, 'award-tasks')
+}
+
+async function readProcessTaskQueueThroughCoreApi(
+  query: unknown,
+  route: 'tasks' | 'award-tasks'
+): Promise<CoreResult<ProcessTaskQueueResult>> {
   const access = await getCoreApiAccess()
   if (!access.ok) return access
 
@@ -1739,7 +1752,7 @@ export async function getProcessTaskQueueThroughCoreApi(
 
   try {
     const response = await fetch(
-      `${access.baseUrl}/v1/process/tasks?${params.toString()}`,
+      `${access.baseUrl}/v1/process/${route}?${params.toString()}`,
       {
         method: 'GET',
         headers: {
@@ -1791,6 +1804,20 @@ export async function updateProcessTaskStatusThroughCoreApi(
   taskId: unknown,
   command: unknown
 ): Promise<CoreResult<TaskInstanceResult>> {
+  return writeProcessTaskStatusThroughCoreApi(taskId, command, false)
+}
+
+export async function completeAwardTaskThroughCoreApi(
+  taskId: unknown
+): Promise<CoreResult<TaskInstanceResult>> {
+  return writeProcessTaskStatusThroughCoreApi(taskId, { status: 'completed' }, true)
+}
+
+async function writeProcessTaskStatusThroughCoreApi(
+  taskId: unknown,
+  command: unknown,
+  awardCompletion: boolean
+): Promise<CoreResult<TaskInstanceResult>> {
   const parsedTaskId = z.string().uuid().safeParse(taskId)
   if (!parsedTaskId.success) {
     return {
@@ -1814,9 +1841,9 @@ export async function updateProcessTaskStatusThroughCoreApi(
 
   try {
     const response = await fetch(
-      `${access.baseUrl}/v1/process/tasks/${encodeURIComponent(
+      `${access.baseUrl}/v1/process/${awardCompletion ? 'award-tasks' : 'tasks'}/${encodeURIComponent(
         parsedTaskId.data
-      )}/status`,
+      )}/${awardCompletion ? 'complete' : 'status'}`,
       {
         method: 'PATCH',
         headers: {
@@ -1824,7 +1851,7 @@ export async function updateProcessTaskStatusThroughCoreApi(
           'content-type': 'application/json',
           'x-request-id': randomUUID(),
         },
-        body: JSON.stringify(parsedCommand.data),
+        body: awardCompletion ? undefined : JSON.stringify(parsedCommand.data),
         cache: 'no-store',
         signal: AbortSignal.timeout(10_000),
       }

@@ -76,7 +76,7 @@ function sorted(roles: readonly ErpRole[]): ErpRole[] {
 describe('canonical authorization policy', () => {
   it('contains each current Web/Core capability once and gives each a non-empty role policy', () => {
     expect(new Set(ERP_CAPABILITIES).size).toBe(ERP_CAPABILITIES.length)
-    expect(ERP_CAPABILITIES).toHaveLength(108)
+    expect(ERP_CAPABILITIES).toHaveLength(109)
 
     for (const capability of ERP_CAPABILITIES) {
       const roles = ERP_CAPABILITY_ROLES[capability]
@@ -107,6 +107,11 @@ describe('canonical authorization policy', () => {
     expect(
       [...ERP_READ_CAPABILITIES, ...ERP_MUTATION_CAPABILITIES, 'provider.quota.consume'].sort(),
     ).toEqual([...ERP_CAPABILITIES].sort())
+  })
+
+  it.each(ERP_ROLES)('limits award participation without widening task management for %s', role => {
+    expect(roleHasCapability(role, 'process.award_task.participate')).toBe(['finance', 'cx'].includes(role))
+    expect(roleHasCapability(role, 'process.task.manage')).toBe(['owner', 'admin', 'commercial', 'sd_pm_pe', 'pm'].includes(role))
   })
 
   it('preserves the previously overlapping effective grants', () => {

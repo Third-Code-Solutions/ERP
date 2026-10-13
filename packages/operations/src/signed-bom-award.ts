@@ -7,6 +7,7 @@ import {
   costCodes,
   invoices,
   masterSchedules,
+  mobilizationReadiness,
   opportunities,
   processSteps,
   projectBudgetLines,
@@ -17,7 +18,7 @@ import {
   users,
   boqDivisions,
 } from '@third-code-erp/database/schema'
-import { and, asc, desc, eq, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, notInArray, sql } from 'drizzle-orm'
 import { randomUUID } from 'node:crypto'
 import { topLevelBomLines } from '@third-code-erp/shared-types/bom'
 import { writeAwardAuditInTransaction } from './audit'
@@ -160,7 +161,7 @@ const AWARD_PROCESS_STEP_SPECS: ReadonlyArray<{
     inputFrom: 'SD/PM/PE',
     output: 'CX onboarding task',
     outputBy: 'CX',
-    slaDays: 2,
+    slaDays: 7,
     blockedUntilNtp: true,
   },
 ]
@@ -576,6 +577,9 @@ async function ensureProcessSteps(
       .where(and(eq(processSteps.tenant_id, tenantId), eq(processSteps.code, spec.code)))
       .limit(1)
     if (existing?.id) {
+      if (spec.key === 'cxOnboarding' && existing.slaDays !== spec.slaDays) {
+        throw new Error('CX award onboarding SLA requires the seven-day process-step migration')
+      }
       result.set(spec.key, { id: existing.id, slaDays: existing.slaDays ?? spec.slaDays })
       continue
     }
@@ -729,9 +733,13 @@ export async function runSignedBomAward(
   const downPaymentBps = args.downPaymentBps ?? 0
   assertDownPaymentBps(downPaymentBps)
 
-  await tx.execute(
-    sql`select pg_advisory_xact_lock(hashtextextended(${'award-handoff:' + args.tenantId + ':' + args.bomId}, 0))`
-  )
+  const [scopeBom] = await tx
+    .select({ projectId: boms.project_id })
+    .from(boms)
+    .where(and(eq(boms.tenant_id, args.tenantId), eq(boms.id, args.bomId)))
+    .limit(1)
+  if (!scopeBom) throw new Error('BOM not found in tenant scope')
+  await lockSignedBomAwardScope(tx, args.tenantId, args.bomId, scopeBom.projectId)
 
   const [existing] = await tx
     .select()
@@ -740,6 +748,12 @@ export async function runSignedBomAward(
     .limit(1)
   if (existing) {
     if (existing.status === 'reversed') throw new Error('This signed BOM has a reversed award handoff')
+    if (existing.project_id !== scopeBom.projectId) throw new Error('Award handoff project changed')
+    await releaseAwardTasksForRecordedNtp(tx, {
+      tenantId: args.tenantId,
+      projectId: existing.project_id,
+      actorId: args.actorId,
+    })
     return taskResultFromRow(existing)
   }
 
@@ -756,6 +770,7 @@ export async function runSignedBomAward(
     .where(and(eq(boms.tenant_id, args.tenantId), eq(boms.id, args.bomId)))
     .limit(1)
   if (!bom || bom.tenantId !== args.tenantId) throw new Error('BOM not found in tenant scope')
+  if (bom.projectId !== scopeBom.projectId) throw new Error('BOM project changed during award')
   if (bom.status !== 'locked') throw new Error('Only a locked BOM can be awarded')
 
   const [project] = await tx
@@ -883,6 +898,12 @@ export async function runSignedBomAward(
     },
   })
 
+  await releaseAwardTasksForRecordedNtp(tx, {
+    tenantId: args.tenantId,
+    projectId: bom.projectId,
+    actorId: args.actorId,
+  })
+
   return {
     handoffId,
     projectId: bom.projectId,
@@ -893,4 +914,191 @@ export async function runSignedBomAward(
     taskIds,
     reused: false,
   }
+}
+
+/** Use one lock order before an award caller locks rows or writes audited data. */
+export async function lockSignedBomAwardScope(
+  tx: DatabaseTransaction,
+  tenantId: string,
+  bomId: string,
+  projectId: string
+): Promise<void> {
+  await tx.execute(
+    sql`select pg_advisory_xact_lock(hashtextextended(${'award-project-code:' + tenantId}, 0))`
+  )
+  await lockAwardNtpHandoff(tx, tenantId, projectId)
+  await tx.execute(
+    sql`select pg_advisory_xact_lock(hashtextextended(${'award-handoff:' + tenantId + ':' + bomId}, 0))`
+  )
+  await lockAwardNtpReconciliationRows(tx, tenantId, projectId)
+}
+
+/** Serialize NTP receipt and signed-award task creation for one project. */
+export async function lockAwardNtpHandoff(
+  tx: DatabaseTransaction,
+  tenantId: string,
+  projectId: string
+): Promise<void> {
+  await tx.execute(
+    sql`select pg_advisory_xact_lock(hashtextextended(${'award-ntp:' + tenantId + ':' + projectId}, 0))`
+  )
+}
+
+/** Admit the rows reconciliation may update before the receipt takes the audit lock. */
+export async function lockAwardNtpReconciliationRows(
+  tx: DatabaseTransaction,
+  tenantId: string,
+  projectId: string
+): Promise<void> {
+  const handoffs = await tx.select({ taskIds: awardHandoffs.task_ids }).from(awardHandoffs)
+    .where(and(
+      eq(awardHandoffs.tenant_id, tenantId),
+      eq(awardHandoffs.project_id, projectId),
+      eq(awardHandoffs.status, 'active')
+    ))
+  const taskIds = [...new Set(handoffs.flatMap(({ taskIds }) => [
+    taskIds.projectTracker,
+    taskIds.cxOnboarding,
+  ]).filter((id): id is string => typeof id === 'string'))].sort()
+  if (taskIds.length === 0) return
+
+  await tx.select({ id: taskInstances.id }).from(taskInstances)
+    .where(and(eq(taskInstances.tenant_id, tenantId), inArray(taskInstances.id, taskIds)))
+    .orderBy(asc(taskInstances.id))
+    .for('update')
+  await tx.select({ id: slaClocks.id }).from(slaClocks)
+    .where(and(
+      eq(slaClocks.tenant_id, tenantId),
+      inArray(slaClocks.task_instance_id, taskIds),
+      notInArray(slaClocks.status, ['completed', 'cancelled'])
+    ))
+    .orderBy(asc(slaClocks.id))
+    .for('update')
+}
+
+/** Release only the two signed-award handoffs whose clock starts on recorded NTP. */
+export async function releaseAwardTasksForRecordedNtp(
+  tx: DatabaseTransaction,
+  args: { tenantId: string; projectId: string; actorId: string | null }
+): Promise<string[]> {
+  await lockAwardNtpHandoff(tx, args.tenantId, args.projectId)
+  const [receipt] = await tx
+    .select({ receivedAt: mobilizationReadiness.ntp_received_at })
+    .from(mobilizationReadiness)
+    .where(and(
+      eq(mobilizationReadiness.tenant_id, args.tenantId),
+      eq(mobilizationReadiness.project_id, args.projectId)
+    ))
+    .limit(1)
+  if (!receipt?.receivedAt) return []
+
+  const handoffs = await tx
+    .select({ id: awardHandoffs.id, taskIds: awardHandoffs.task_ids })
+    .from(awardHandoffs)
+    .where(and(
+      eq(awardHandoffs.tenant_id, args.tenantId),
+      eq(awardHandoffs.project_id, args.projectId),
+      eq(awardHandoffs.status, 'active')
+    ))
+  if (handoffs.length === 0) return []
+
+  const calendar = await resolveAwardBusinessDayService(tx, args.tenantId)
+  const released: string[] = []
+  for (const handoff of handoffs) {
+    for (const spec of AWARD_PROCESS_STEP_SPECS.filter((step) => step.blockedUntilNtp)) {
+      const taskId = handoff.taskIds[spec.key]
+      if (!taskId) throw new Error(`Award handoff ${handoff.id} has no ${spec.key} task`)
+      const [task] = await tx
+        .select()
+        .from(taskInstances)
+        .where(and(
+          eq(taskInstances.id, taskId),
+          eq(taskInstances.tenant_id, args.tenantId)
+        ))
+        .limit(1)
+        .for('update')
+      if (
+        !task || task.subject_type !== 'award_handoff' ||
+        task.subject_id !== handoff.id ||
+        task.instance_key !== `award:${handoff.id}:${spec.key}`
+      ) {
+        throw new Error(`Award handoff ${handoff.id} has invalid ${spec.key} task linkage`)
+      }
+      const [step] = await tx
+        .select({ code: processSteps.code, responsibleBu: processSteps.responsible_bu, slaDays: processSteps.sla_days })
+        .from(processSteps)
+        .where(and(
+          eq(processSteps.id, task.process_step_id),
+          eq(processSteps.tenant_id, args.tenantId),
+          eq(processSteps.is_active, true)
+        ))
+        .limit(1)
+      if (!step || step.code !== spec.code || step.responsibleBu !== spec.responsibleBu || !step.slaDays ||
+        (spec.key === 'cxOnboarding' && step.slaDays !== spec.slaDays)) {
+        throw new Error(`Award handoff ${handoff.id} has invalid ${spec.key} process step`)
+      }
+      if (task.status !== 'blocked' || task.blocked_reason !== 'Awaiting NTP date') continue
+
+      const now = new Date()
+      const schedule = createSlaClockSchedule({
+        clock_type: 'business_days',
+        clock_scope: 'internal',
+        target_value: step.slaDays,
+        started_at: receipt.receivedAt,
+        observe_mode: true,
+        time_zone: 'Asia/Manila',
+      }, calendar)
+      const [activeClock] = await tx
+        .select({ id: slaClocks.id })
+        .from(slaClocks)
+        .where(and(
+          eq(slaClocks.tenant_id, args.tenantId),
+          eq(slaClocks.task_instance_id, taskId),
+          notInArray(slaClocks.status, ['completed', 'cancelled'])
+        ))
+        .limit(1)
+      const clockValues = {
+        clock_type: schedule.clock_type,
+        clock_scope: schedule.clock_scope,
+        target_value: schedule.target_value,
+        started_at: schedule.started_at,
+        due_at: schedule.due_at,
+        at_risk_at: schedule.at_risk_at,
+        escalation_at: schedule.escalation_at,
+        breached_at: null,
+        escalated_at: null,
+        paused_reason: null,
+        status: 'running' as const,
+        observe_mode: schedule.observe_mode,
+        updated_by: args.actorId,
+        updated_at: now,
+      }
+      if (activeClock) {
+        await tx.update(slaClocks).set(clockValues).where(and(
+          eq(slaClocks.id, activeClock.id),
+          eq(slaClocks.tenant_id, args.tenantId)
+        ))
+      } else {
+        await tx.insert(slaClocks).values({
+          tenant_id: args.tenantId,
+          task_instance_id: taskId,
+          ...clockValues,
+          created_by: args.actorId,
+          created_at: now,
+        })
+      }
+      await tx.update(taskInstances).set({
+        status: 'in_progress',
+        blocked_reason: null,
+        started_at: receipt.receivedAt,
+        updated_by: args.actorId,
+        updated_at: now,
+      }).where(and(
+        eq(taskInstances.id, taskId),
+        eq(taskInstances.tenant_id, args.tenantId)
+      ))
+      released.push(taskId)
+    }
+  }
+  return released
 }

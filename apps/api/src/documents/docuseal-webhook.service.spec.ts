@@ -12,7 +12,7 @@ import type { AuditService } from '../audit/audit.service'
 import type { DatabaseService } from '../database/database.service'
 import { DocuSealWebhookService } from './docuseal-webhook.service'
 
-const awardMock = vi.hoisted(() => ({ runSignedBomAward: vi.fn() }))
+const awardMock = vi.hoisted(() => ({ lockSignedBomAwardScope: vi.fn(), runSignedBomAward: vi.fn() }))
 vi.mock('@third-code-erp/operations/signed-bom-award', () => awardMock)
 
 const TENANT_ID = '22222222-2222-4222-8222-222222222222'
@@ -34,6 +34,7 @@ function query(rows: unknown[]) {
     where: vi.fn(),
     limit: vi.fn(),
     for: vi.fn().mockResolvedValue(rows),
+    then: (resolve: (value: unknown[]) => void) => Promise.resolve(rows).then(resolve),
   }
   chain.from.mockReturnValue(chain)
   chain.innerJoin.mockReturnValue(chain)
@@ -87,6 +88,7 @@ function harness({
       projectName: 'Fit-out',
     },
   ])
+  const scopeBomQuery = query(bomRows?.map((bom) => ({ projectId: bom.projectId })) ?? [{ projectId: PROJECT_ID }])
   const recipientQuery = {
     from: vi.fn(),
     where: vi.fn().mockResolvedValue([
@@ -101,7 +103,7 @@ function harness({
   handoffQuery.limit.mockResolvedValue(handoffRows)
   let selectCount = 0
   const select = vi.fn(() => {
-    const result = [tokenQuery, bomQuery, usedAt ? handoffQuery : recipientQuery][selectCount++] ?? recipientQuery
+    const result = [tokenQuery, scopeBomQuery, bomQuery, usedAt ? handoffQuery : recipientQuery][selectCount++] ?? recipientQuery
     return result
   })
   const update = vi.fn((table: unknown) => ({
@@ -168,6 +170,11 @@ describe('DocuSeal webhook authority', () => {
       expect.anything(),
       expect.objectContaining({ tenantId: TENANT_ID, bomId: BOM_ID, actorId: null })
     )
+    expect(awardMock.lockSignedBomAwardScope).toHaveBeenCalledWith(
+      expect.anything(), TENANT_ID, BOM_ID, PROJECT_ID
+    )
+    const scopeLockCall = awardMock.lockSignedBomAwardScope.mock.invocationCallOrder[0]!
+    expect(scopeLockCall).toBeLessThan(probe.insert.mock.invocationCallOrder[0]!)
     const bomLockCall = probe.update.mock.invocationCallOrder[0]!
     const tokenConsumeCall = probe.update.mock.invocationCallOrder[1]!
     const awardCall = awardMock.runSignedBomAward.mock.invocationCallOrder[0]!
@@ -198,7 +205,7 @@ describe('DocuSeal webhook authority', () => {
     expect(probe.update).not.toHaveBeenCalled()
     expect(probe.audit.writeSemantic).not.toHaveBeenCalled()
     expect(awardMock.runSignedBomAward).not.toHaveBeenCalled()
-    expect(probe.select).toHaveBeenCalledTimes(3)
+    expect(probe.select).toHaveBeenCalledTimes(4)
   })
 
   it('rejects a consumed token with no active award handoff', async () => {

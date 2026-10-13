@@ -13,7 +13,7 @@ import {
 } from '@third-code-erp/database/schema'
 import { createSupabaseAdminClient } from '@third-code-erp/auth'
 import { hashToken } from '@/lib/operations/integrations/canvas-sign'
-import { runSignedBomAward } from '@/lib/operations/award-automation'
+import { lockSignedBomAwardScope, runSignedBomAward } from '@/lib/operations/award-automation'
 import { writeAuditLogInTransaction } from '@/lib/audit'
 import {
   publicSigningWritesUseCoreApi,
@@ -373,6 +373,13 @@ export async function recordCanvasSign(input: SignInput): Promise<SignResult> {
       const signedAt = new Date()
       const lockedStateError = signingSessionError(lockedSession, signedAt)
       if (lockedStateError) throw new PublicSigningError(lockedStateError)
+      if (lockedSession.entity_type === 'bom') {
+        const [currentBom] = await tx.select({ projectId: boms.project_id }).from(boms)
+          .where(and(eq(boms.id, lockedSession.entity_id), eq(boms.tenant_id, lockedSession.tenant_id)))
+          .limit(1)
+        if (!currentBom || currentBom.projectId !== projectId) throw new PublicSigningError('Source entity changed.')
+        await lockSignedBomAwardScope(tx, lockedSession.tenant_id, lockedSession.entity_id, projectId)
+      }
 
       const [document] = await tx
         .insert(documents)

@@ -178,6 +178,8 @@ import {
   financeLedgerReadsUseCoreApi,
   getFinanceLedgerThroughCoreApi,
   getProcessTaskQueueThroughCoreApi,
+  getAwardTaskQueueThroughCoreApi,
+  completeAwardTaskThroughCoreApi,
   updateProcessTaskStatusThroughCoreApi,
   getApprovalRoutePreviewThroughCoreApi,
 } from './erp-core-client'
@@ -1129,6 +1131,32 @@ describe('ERP Core client', () => {
         }),
       })
     )
+  })
+
+  it('reads the scoped award queue and sends completion with no client command or tenant', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(PROCESS_TASK_QUEUE_RESULT)))
+      .mockResolvedValueOnce(new Response(JSON.stringify(PROCESS_TASK_STATUS_RESULT)))
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(getAwardTaskQueueThroughCoreApi({ status: 'blocked' })).resolves.toMatchObject({ ok: true })
+    expect(fetchMock).toHaveBeenNthCalledWith(1,
+      'https://erp-api.example.test/v1/process/award-tasks?status=blocked&page=1&limit=25',
+      expect.objectContaining({ method: 'GET', cache: 'no-store' }))
+    await expect(completeAwardTaskThroughCoreApi(PROCESS_TASK_STATUS_RESULT.id)).resolves.toMatchObject({ ok: true })
+    expect(fetchMock).toHaveBeenNthCalledWith(2,
+      `https://erp-api.example.test/v1/process/award-tasks/${PROCESS_TASK_STATUS_RESULT.id}/complete`,
+      expect.objectContaining({ method: 'PATCH', body: undefined, headers: expect.objectContaining({ authorization: 'Bearer never-log-or-return-this-token' }) }))
+  })
+
+  it('fails closed on invalid award queue results and Core completion denials', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ rows: [{}] })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ message: 'Award task is blocked' }), { status: 409 }))
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(getAwardTaskQueueThroughCoreApi()).resolves.toMatchObject({ ok: false, status: 503 })
+    await expect(completeAwardTaskThroughCoreApi(PROCESS_TASK_STATUS_RESULT.id)).resolves.toEqual({ ok: false, status: 409, error: 'Award task is blocked' })
+    await expect(completeAwardTaskThroughCoreApi('invalid')).resolves.toMatchObject({ ok: false, status: 400 })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   it('reads the filtered process task queue through the authenticated Core API', async () => {

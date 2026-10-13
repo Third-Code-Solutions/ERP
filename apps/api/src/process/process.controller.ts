@@ -101,6 +101,24 @@ export class ProcessController {
     return this.process.listTasks(query, principal)
   }
 
+  @Get('award-tasks')
+  @RequireCapabilities('process.award_task.participate')
+  listAwardTasks(
+    @Query(new ZodQueryPipe(processTaskQueueQuerySchema)) query: ProcessTaskQueueQuery,
+    @CurrentPrincipal() principal: ErpPrincipal
+  ): Promise<ProcessTaskQueueResult> {
+    return this.process.listAwardTasks(query, principal)
+  }
+
+  @Patch('award-tasks/:taskId/complete')
+  @RequireCapabilities('process.award_task.participate')
+  completeAwardTask(
+    @Param('taskId', new ParseUUIDPipe()) taskId: string,
+    @CurrentPrincipal() principal: ErpPrincipal
+  ): Promise<TaskInstanceResult> {
+    return this.process.completeAwardTask(taskId, principal)
+  }
+
   @Get('approval-rules')
   @RequireCapabilities('process.health.read')
   listApprovalRules(
