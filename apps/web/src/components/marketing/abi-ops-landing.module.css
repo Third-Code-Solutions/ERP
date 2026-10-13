@@ -341,6 +341,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 24px;
+  /* Wrap instead of clipping when the rail runs out of width (QA sweep: clipped hero meta). */
+  flex-wrap: wrap;
+  row-gap: 6px;
   color: rgba(245, 246, 248, 0.64);
   font-family: var(--font-mono);
   font-size: 10px;
@@ -581,7 +584,8 @@
 .featureGrid {
   display: grid;
   grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr);
-  grid-template-rows: minmax(270px, 0.95fr) minmax(250px, 0.8fr);
+  /* Content-sized rows: fr rows under-sized featureCardTrust/Flow and clipped card copy (QA sweep). */
+  grid-template-rows: minmax(270px, auto) minmax(250px, auto);
   width: min(100%, var(--page-max));
   min-height: 760px;
   margin: 0 auto;
@@ -1338,6 +1342,10 @@
 }
 
 .footerLinks a {
+  display: flex;
+  align-items: center;
+  /* 24px min tap target (WCAG 2.5.8; QA sweep: 8 footer links measured 18px). */
+  min-height: 24px;
   width: fit-content;
   color: rgba(245, 246, 248, 0.48);
   font-size: 12px;

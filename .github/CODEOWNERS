@@ -1,0 +1,6 @@
+# Default owners for everything in this repository.
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+* @kurtgav @ncmatcs @thirdcodekurt
+
+# CI/CD, security scanning, and release plumbing.
+/.github/ @kurtgav @ncmatcs

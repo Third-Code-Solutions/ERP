@@ -1,0 +1,79 @@
+name: E2E
+
+# Standalone authenticated E2E workflow. The pull-request variant lives in
+# ci.yml (the `e2e` job) and requires an isolated E2E target; this workflow
+# runs the same smoke suite on demand and weekly against whatever isolated
+# target the repository variables point at. While no target is configured
+# (E2E_BASE_URL unset) the job is skipped, never green-skipped mid-run: once
+# the target exists, missing credentials fail the run loudly.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * 1"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: E2E Tests (authenticated smoke)
+    runs-on: ubuntu-latest
+    if: ${{ vars.E2E_BASE_URL != '' }}
+    env:
+      PLAYWRIGHT_BASE_URL: ${{ vars.E2E_BASE_URL }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ vars.E2E_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
+      E2E_USER_EMAIL: ${{ secrets.E2E_USER_EMAIL }}
+      E2E_USER_PASSWORD: ${{ secrets.E2E_USER_PASSWORD }}
+      E2E_VERCEL_PROTECTION_BYPASS_SECRET: ${{ secrets.E2E_VERCEL_PROTECTION_BYPASS_SECRET }}
+      E2E_PROJECT_ID: ${{ vars.E2E_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: pnpm/action-setup@a15d269cd4658e1107c09f1fabf4cbd7bd1f308a # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install Playwright browsers
+        working-directory: apps/web
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The hosted runner preinstalls a Google Chrome apt source. Its
+          # index can be briefly out of sync with the mirror while Playwright
+          # installs Linux dependencies, so remove that unrelated source.
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list \
+            /etc/apt/sources.list.d/google-chrome.sources
+          pnpm exec playwright install --with-deps chromium
+      - name: Require isolated E2E configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PLAYWRIGHT_BASE_URL NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY E2E_USER_EMAIL E2E_USER_PASSWORD E2E_VERCEL_PROTECTION_BYPASS_SECRET E2E_PROJECT_ID; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "$name is required for authenticated E2E" >&2
+              exit 1
+            fi
+          done
+      - name: Run authenticated E2E smoke
+        working-directory: apps/web
+        shell: bash
+        run: |
+          set -euo pipefail
+          report_path="$GITHUB_WORKSPACE/tmp/e2e/playwright.json"
+          mkdir -p "$(dirname "$report_path")"
+          pnpm exec playwright test e2e/smoke-console.spec.ts \
+            --project=chromium --workers=1 --reporter=json > "$report_path"
+          node "$GITHUB_WORKSPACE/scripts/assert-playwright-no-skips.mjs" \
+            "$report_path" "authenticated E2E"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: playwright-report
+          path: tmp/e2e/
+          retention-days: 7
