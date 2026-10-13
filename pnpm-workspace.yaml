@@ -13,10 +13,15 @@ overrides:
   nanoid: 3.3.18
   postcss: 8.5.23
   qs: 6.16.0
-  sharp: 0.35.4
+  sharp: 0.35.5
+  proxy-addr: 2.0.8
+  source-map-js: 1.2.2
   multer: 2.4.0
   "@ai-sdk/provider-utils@4": 4.0.33
-  shell-quote: 1.9.0
+  shell-quote: 1.11.0
+  # ABI OPS calls Mammoth's library, never its optional command-line program.
+  # Remove the CLI-only argparse -> unpatched sprintf-js advisory chain.
+  "mammoth@1.12.0>argparse": "-"
   tmp: 0.2.7
   fast-uri: 3.1.8
   js-yaml: 4.3.2
