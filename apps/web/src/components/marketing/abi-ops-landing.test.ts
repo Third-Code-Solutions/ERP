@@ -30,7 +30,13 @@ describe('ABI OPS public landing contract', () => {
     expect(landingStyles).toContain('max-width: 980px')
     expect(landingStyles).toContain('font-size: clamp(3.5rem, 6.1vw, 6.25rem)')
     expect(landingStyles).toContain('grid-template-columns: minmax(0, 1.35fr)')
-    expect(landingStyles).toContain('grid-template-rows: minmax(270px, 0.95fr)')
+    expect(landingStyles).toContain(
+      'grid-template-rows: minmax(270px, auto) minmax(250px, auto)'
+    )
+    // QA sweep safeguards: the hero rail wraps instead of clipping, and the
+    // footer links keep the 24px minimum tap target.
+    expect(landingStyles).toContain('row-gap: 6px')
+    expect(landingStyles).toContain('min-height: 24px')
     expect(landingStyles).toContain('@media (max-width: 700px)')
     expect(landingStyles).toContain('.hero h1 {')
     expect(landingStyles).toContain('.proofItems {')

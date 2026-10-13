@@ -32,6 +32,11 @@ Third Code ERP.
      base rule was the outlier.
    - `.footerLinks a` gets `display: flex; align-items: center;
      min-height: 24px` (8 links measured 18px tall).
+   - The landing contract test (`abi-ops-landing.test.ts`, "keeps readable
+     hero sizing and responsive layout safeguards") now pins the new
+     `minmax(270px, auto) minmax(250px, auto)` rows plus the wrap and 24px
+     tap-target safeguards, replacing the stale `minmax(270px, 0.95fr)`
+     expectation it carried.
 
 3. **WARN — login tap target**: the "Create an account" link (`auth-link
    auth-link-strong`) measured 18px; the base `.auth-link` rule in
