@@ -1,12 +1,12 @@
 import 'reflect-metadata'
 
-import { ServiceUnavailableException } from '@nestjs/common'
+import { ConflictException, ServiceUnavailableException } from '@nestjs/common'
 import type { ConfigService } from '@nestjs/config'
 import { describe, expect, it, vi } from 'vitest'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import type { AuditService } from '../audit/audit.service'
 import type { DatabaseService } from '../database/database.service'
-import { CustomerInvoiceIssueService } from './customer-invoice-issue.service'
+import { CustomerInvoiceIssueService, mapCustomerInvoiceIssueDatabaseFailure } from './customer-invoice-issue.service'
 
 const PRINCIPAL: ErpPrincipal = {
   userId: '11111111-1111-4111-8111-111111111111',
@@ -40,6 +40,14 @@ function service(enabled = false, tenantIds: string[] = []) {
 }
 
 describe('CustomerInvoiceIssueService migration boundary', () => {
+  it.each([
+    'Legacy invoice pricing requires an explicitly reviewed replacement draft before issue',
+    'Company legal document identity is incomplete',
+  ])('maps user-correctable database validation to conflict: %s', (message) => {
+    expect(() => mapCustomerInvoiceIssueDatabaseFailure(new Error(message))).toThrow(ConflictException)
+    expect(() => mapCustomerInvoiceIssueDatabaseFailure(new Error(message))).toThrow(message)
+  })
+
   it('fails closed by default without touching the database', async () => {
     const probe = service()
 

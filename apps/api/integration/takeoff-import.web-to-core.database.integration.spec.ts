@@ -9,14 +9,11 @@ import {
   auditLog,
   bomLineItems,
   boms,
-  boqDivisions,
   db,
   documents,
-  drawingRevisions,
+  dupas,
+  dupaMaterialLines,
   projects,
-  projectLocations,
-  takeoffImports,
-  takeoffMappingProfiles,
   takeoffUnresolvedItems,
   tenants,
   users,
@@ -236,7 +233,7 @@ suite('generic takeoff import Web-to-Core disposable integration', () => {
         tenantId,
         bomId,
         rowCount: 3,
-        unresolvedCount: 3,
+        unresolvedCount: 2,
       })
 
       const foreignPreview = await POST(
@@ -262,7 +259,7 @@ suite('generic takeoff import Web-to-Core disposable integration', () => {
         ok: true,
         mode: 'commit',
         linesUpserted: 3,
-        unresolvedCount: 3,
+        unresolvedCount: 2,
         bomId,
       })
 
@@ -277,12 +274,11 @@ suite('generic takeoff import Web-to-Core disposable integration', () => {
           )
         )
       expect(line).toBeDefined()
+      const [analysis] = await db.insert(dupas).values({ tenant_id: tenantId, bom_line_item_id: line!.id, header_quantity: '1', uom: 'sqm', ocm_bps: 0, profit_bps: 0, vat_bps: 0 }).returning({ id: dupas.id })
+      await db.insert(dupaMaterialLines).values({ tenant_id: tenantId, dupa_id: analysis!.id, description: 'Retained source rate', quantity: '1', uom: 'sqm', unit_rate_centavos: 777n, rate_source: 'manual' })
       await db
         .update(bomLineItems)
         .set({
-          unit_rate_source: 'dupa',
-          unit_cost_cents: 777,
-          line_total_cents: 777,
           notes: '[VENDOR:11111111-1111-1111-1111-111111111111:Vendor One]',
         })
         .where(eq(bomLineItems.id, line!.id))
@@ -303,7 +299,7 @@ suite('generic takeoff import Web-to-Core disposable integration', () => {
       expect(secondPayload).toMatchObject({
         importId: firstPayload.importId,
         linesUpserted: 3,
-        unresolvedCount: 3,
+        unresolvedCount: 2,
       })
 
       const [persisted] = await db
@@ -370,16 +366,16 @@ suite('generic takeoff import Web-to-Core disposable integration', () => {
         description: 'Suspended ceiling',
         quantity: 12,
         unitCostCents: 777,
-        lineTotalCents: 777,
+        lineTotalCents: 9324,
       })
       expect(persisted?.notes).toContain(
         'VENDOR:11111111-1111-1111-1111-111111111111'
       )
       expect(fractionalLine).toEqual({
-        quantity: 0,
-        classificationStatus: 'review',
+        quantity: 0.1,
+        classificationStatus: 'classified',
       })
-      expect(fractionalIssues).toEqual([{ reasonCode: 'INVALID_QUANTITY' }])
+      expect(fractionalIssues).toEqual([])
       expect(audit).toMatchObject({
         actorId: userId,
         entityId: firstPayload.importId,
@@ -557,48 +553,9 @@ suite('generic takeoff import Web-to-Core disposable integration', () => {
       expect(identity.verifyAccessToken).toHaveBeenCalledWith(accessToken)
     } finally {
       await app?.close()
-      await db.transaction(async (transaction) => {
-        await transaction
-          .delete(takeoffUnresolvedItems)
-          .where(eq(takeoffUnresolvedItems.tenant_id, tenantId))
-        await transaction
-          .delete(bomLineItems)
-          .where(eq(bomLineItems.tenant_id, tenantId))
-        await transaction
-          .delete(takeoffImports)
-          .where(eq(takeoffImports.tenant_id, tenantId))
-        await transaction
-          .delete(takeoffMappingProfiles)
-          .where(eq(takeoffMappingProfiles.tenant_id, tenantId))
-        await transaction
-          .delete(drawingRevisions)
-          .where(eq(drawingRevisions.tenant_id, tenantId))
-        await transaction
-          .delete(documents)
-          .where(eq(documents.tenant_id, tenantId))
-        await transaction
-          .delete(projectLocations)
-          .where(eq(projectLocations.tenant_id, tenantId))
-        await transaction
-          .delete(boqDivisions)
-          .where(eq(boqDivisions.tenant_id, tenantId))
-        await transaction.delete(auditLog).where(eq(auditLog.tenant_id, tenantId))
-        await transaction.delete(boms).where(eq(boms.tenant_id, tenantId))
-        await transaction
-          .delete(projects)
-          .where(eq(projects.tenant_id, tenantId))
-        await transaction
-          .delete(boms)
-          .where(eq(boms.tenant_id, foreignTenantId))
-        await transaction
-          .delete(documents)
-          .where(eq(documents.tenant_id, foreignTenantId))
-        await transaction
-          .delete(projects)
-          .where(eq(projects.tenant_id, foreignTenantId))
-        // Tenant deletion is deliberately omitted: database audit triggers
-        // retain immutable tenant evidence in this shared disposable lane.
-      })
+      // HTTP requests commit independently. Retain this uniquely named synthetic
+      // fixture until the disposable database is dropped: approved BOM snapshots
+      // and append-only audit evidence must not be deleted during cleanup.
     }
   }, 45_000)
 })

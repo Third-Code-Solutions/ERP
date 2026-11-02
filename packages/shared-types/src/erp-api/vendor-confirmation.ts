@@ -89,7 +89,7 @@ export const vendorConfirmationViewSchema = z
             id: z.string().uuid(),
             description: z.string().min(1).max(4_000),
             unit: z.string().max(20).nullable(),
-            quantity: z.number().int().nonnegative(),
+            quantity: z.number().nonnegative(),
             quantityMicros: z.number().int().nonnegative(),
             unitCostCents: z.number().int().nonnegative(),
             lineTotalCents: z.number().int().nonnegative(),

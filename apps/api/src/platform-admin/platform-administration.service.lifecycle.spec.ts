@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config'
 import { DatabaseService } from '../database/database.service'
 import { PlatformAdministrationService } from './platform-administration.service'
 import { PlatformIdentityAdminService } from './platform-identity-admin.service'
-import { PLATFORM_OWNER_EMAIL, type PlatformPrincipal } from '../auth/platform-owner.guard'
+import type { PlatformPrincipal } from '../auth/platform-owner.guard'
 
 const OWNER_ID = '11111111-1111-4111-8111-111111111111'
 const TARGET_ID = '22222222-2222-4222-8222-222222222222'
@@ -13,7 +13,7 @@ const SUPPORT_SESSION_ID = '55555555-5555-4555-8555-555555555555'
 
 const PRINCIPAL: PlatformPrincipal = {
   userId: OWNER_ID,
-  email: PLATFORM_OWNER_EMAIL,
+  email: 'owner@independent.example.invalid',
   traceId: '66666666-6666-4666-8666-666666666666',
   supportSessionId: SUPPORT_SESSION_ID,
 }

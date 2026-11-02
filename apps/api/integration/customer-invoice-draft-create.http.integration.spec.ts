@@ -168,7 +168,10 @@ suite('Customer invoice draft create protected HTTP canary', () => {
           label: 'Approved billing BOM',
           status: 'approved',
           total_cost_cents: 800_000,
-          tcv_cents: 1_000_000,
+          tcv_cents: 1_120_000,
+          pricing_basis: 'reconciled_v1',
+          selling_ex_vat_cents: 1_000_000,
+          vat_cents: 120_000,
           gp_cents: 200_000,
           gp_margin_bps: 2_000,
           approved_at: new Date('2026-08-01T00:00:00.000Z'),
@@ -335,9 +338,9 @@ suite('Customer invoice draft create protected HTTP canary', () => {
           billingPercentBps: 2500,
           subtotalCents: 250000,
           retentionCents: 25000,
-          vatCents: 27000,
-          withholdingTaxCents: 4500,
-          netAmountCents: 247500,
+          vatCents: 30000,
+          withholdingTaxCents: 5000,
+          netAmountCents: 250000,
         })
 
         const first = await request(app.getHttpServer())
@@ -355,9 +358,9 @@ suite('Customer invoice draft create protected HTTP canary', () => {
           retentionBps: 1000,
           subtotalCents: 250000,
           retentionCents: 25000,
-          vatCents: 27000,
-          withholdingTaxCents: 4500,
-          netAmountCents: 247500,
+          vatCents: 30000,
+          withholdingTaxCents: 5000,
+          netAmountCents: 250000,
           dueDate: '2026-09-15T00:00:00.000Z',
           notes: 'Progress billing',
         })
@@ -396,7 +399,7 @@ suite('Customer invoice draft create protected HTTP canary', () => {
           id: first.body.invoiceId,
           status: 'draft',
           subtotalCents: 250000,
-          netAmountCents: 247500,
+          netAmountCents: 250000,
         })
 
         const [requestLedger] = await transaction

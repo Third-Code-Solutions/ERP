@@ -7,11 +7,12 @@ import { Test } from '@nestjs/testing'
 import { auditLog, db, platformAuditEvents, platformRoleAssignments, platformSupportSessions, platformUserInvitations, tenants, users } from '@third-code-erp/database'
 import { asc, eq, sql } from 'drizzle-orm'
 import { beforeAll, describe, expect, it, vi, type MockInstance } from 'vitest'
-import { PLATFORM_OWNER_EMAIL, type PlatformPrincipal } from '../src/auth/platform-owner.guard'
+import type { PlatformPrincipal } from '../src/auth/platform-owner.guard'
 import { DatabaseService, type DatabaseTransaction } from '../src/database/database.service'
 import { PlatformAdministrationService } from '../src/platform-admin/platform-administration.service'
 import { PlatformIdentityAdminService } from '../src/platform-admin/platform-identity-admin.service'
 
+const PLATFORM_OWNER_EMAIL = 'owner@independent.example.invalid'
 const enabled = process.env.ERP_API_INTEGRATION_EXPECTED === '1'
 const suite = enabled ? describe : describe.skip
 

@@ -17,14 +17,17 @@ const contents = Object.fromEntries(
   )
 )
 
+const prdVersion = /^# BUILD OPS PRD v(\d+\.\d+)\s*$/m.exec(contents.prd)?.[1]
+const promptVersion = /^# BUILD OPS Prompt Pack v(\d+\.\d+)\s*$/m.exec(contents.prompts)?.[1]
+
 const assertions = [
-  ['PRD is v1.4', contents.prd.includes('# BUILD OPS PRD v1.4')],
+  ['PRD has a versioned authority heading', Boolean(prdVersion)],
   ['PRD names itself implementation authority', contents.prd.includes('docs/PRD.md (this file) Implementation authority')],
-  ['PRD document-control version is v1.4', contents.prd.includes('docs/PRD.md 1.4')],
+  ['PRD document-control version matches heading', Boolean(prdVersion) && contents.prd.includes(`docs/PRD.md ${prdVersion}`)],
   ['PRD distinguishes machine and external evidence', contents.prd.includes('Every machine-verifiable acceptance criterion ships automated coverage.') && !contents.prd.includes('Every acceptance criterion ships as an automated test, not a manual check.')],
-  ['Prompt pack is v1.4', contents.prompts.includes('# BUILD OPS Prompt Pack v1.4')],
-  ['Prompt pack points to PRD authority', contents.prompts.includes('Execution authority is `docs/PRD.md` v1.4')],
-  ['Prompt pack companion version is v1.4', contents.prompts.includes('Companion to docs/PRD.md v1.4')],
+  ['Prompt pack version matches PRD', Boolean(prdVersion) && promptVersion === prdVersion],
+  ['Prompt pack points to PRD authority', Boolean(prdVersion) && contents.prompts.includes(`Execution authority is \`docs/PRD.md\` v${prdVersion}`)],
+  ['Prompt pack companion version matches PRD', Boolean(prdVersion) && contents.prompts.includes(`Companion to docs/PRD.md v${prdVersion}`)],
   ['Prompt pack distinguishes machine and external evidence', contents.prompts.includes('Every machine-verifiable acceptance criterion ships automated coverage.') && !contents.prompts.includes('Every acceptance criterion ships as an automated test, not a manual check.')],
   ['Working agreement is v1.1', contents.agreement.includes('# BUILD OPS Working Agreement v1.1')],
   ['Working agreement distinguishes machine and human evidence', contents.agreement.includes('Every machine-verifiable acceptance criterion ships automated coverage.')],

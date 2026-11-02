@@ -2,7 +2,10 @@
 param(
   [string]$Ref = '',
   [string]$Repository = $env:GITHUB_REPOSITORY,
-  [string]$RunnerBase = 'D:\thirdcode\.github-runners\Third-Code-ERP',
+  [Parameter(Mandatory = $true)]
+  [string]$RunnerBase,
+  [Parameter(Mandatory = $true)]
+  [string]$ExpectedActor,
   [switch]$CleanupOnly
 )
 
@@ -114,8 +117,8 @@ function Remove-TransientRunnerDirectory {
 
 Invoke-Checked -Command 'gh' -ArgumentList @('auth', 'status')
 $viewer = (& gh api user --jq '.login').Trim()
-if ($LASTEXITCODE -ne 0 -or $viewer -ne 'kurtgav') {
-  throw "GitHub CLI must use kurtgav; active identity: $viewer"
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($ExpectedActor) -or $viewer -ne $ExpectedActor) {
+  throw 'GitHub CLI identity must match the explicitly selected -ExpectedActor.'
 }
 
 $repositoryMetadata = Get-GhJson -Endpoint "repos/$Repository"

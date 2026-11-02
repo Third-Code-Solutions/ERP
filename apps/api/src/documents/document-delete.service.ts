@@ -14,6 +14,7 @@ import {
   accountKycArtifacts,
   documentDeleteRequests,
   documentProcessingJobs,
+  documentUploadReservations,
   documents,
   progressClaimDocuments,
   scopeItems,
@@ -184,6 +185,14 @@ export class DocumentDeleteService {
         throw new ConflictException(
           'Document has processing history and cannot be deleted'
         )
+      }
+
+      if (document.projectId) {
+        const [retainedCapacity] = await transaction.select({ id: documentUploadReservations.id })
+          .from(documentUploadReservations)
+          .where(and(eq(documentUploadReservations.tenant_id, document.tenantId), eq(documentUploadReservations.project_id, document.projectId), eq(documentUploadReservations.document_id, document.id), eq(documentUploadReservations.state, 'completed')))
+          .limit(1)
+        if (!retainedCapacity) throw new ConflictException('Legacy document requires verified Storage cleanup before deletion; no document was deleted')
       }
 
       const removedScopeItems = document.projectId

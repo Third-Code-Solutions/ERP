@@ -1,8 +1,12 @@
-import { Injectable } from '@nestjs/common'
+import { Inject, Injectable, Optional } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
+import { tenants } from '@third-code-erp/database/schema'
 import type { PurchaseOrderWorkflowNotificationPayload } from '@third-code-erp/shared-types'
+import { eq } from 'drizzle-orm'
+import { DatabaseService } from '../database/database.service'
 
 interface SendRfqCreatedEmail {
+  tenantId?: string
   idempotencyKey: string
   lineCount: number
   projectName: string
@@ -11,6 +15,7 @@ interface SendRfqCreatedEmail {
 }
 
 export interface SendPurchaseOrderWorkflowEmail {
+  tenantId?: string
   idempotencyKey: string
   poNumber: string
   projectName: string
@@ -20,6 +25,7 @@ export interface SendPurchaseOrderWorkflowEmail {
 }
 
 export interface SendPurchaseOrderSupplierEmail {
+  tenantId?: string
   idempotencyKey: string
   poNumber: string
   projectName: string
@@ -52,18 +58,19 @@ function actionLink(url: string, label: string, background = BRAND_NAVY): string
   return `<a href="${escapeHtml(url)}" style="display:inline-block;padding:11px 16px;background:${background};color:#ffffff;text-decoration:none;border-radius:6px;font-weight:700">${escapeHtml(label)}</a>`
 }
 
-function renderEmail(subject: string, bodyHtml: string, text: string): {
+function renderEmail(subject: string, bodyHtml: string, text: string, companyLegalName: string | null): {
   subject: string
   html: string
   text: string
 } {
   const safeSubject = escapeHtml(subject)
   const preheader = escapeHtml(text.replace(/\s+/g, ' ').trim().slice(0, 140))
+  const companyLabel = companyLegalName ? escapeHtml(companyLegalName) : 'Company legal identity not configured'
 
   return {
     subject: `[ABI OPS] ${subject}`,
-    html: `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#f3f5f7;color:#17212b;font-family:${BODY_FONT};font-size:15px;line-height:1.55"><div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">${preheader}</div><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3f5f7;padding:32px 16px"><tr><td align="center"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border:1px solid #dbe1e6;border-radius:10px"><tr><td style="padding:24px 28px 18px;border-bottom:1px solid #edf0f2"><div style="color:${BRAND_NAVY};font-size:18px;font-weight:700;letter-spacing:.02em">ABI OPS</div><div style="margin-top:3px;color:#64748b;font-size:12px">Actuate Builders Inc.</div></td></tr><tr><td style="padding:28px"><h1 style="margin:0 0 18px;color:${BRAND_NAVY};font-size:24px;line-height:1.25;font-weight:700">${safeSubject}</h1>${bodyHtml}</td></tr><tr><td style="padding:18px 28px 24px;border-top:1px solid #edf0f2;color:#64748b;font-size:12px"><p style="margin:0 0 8px">This message was sent by ABI OPS for Actuate Builders Inc.</p><p style="margin:0">If you did not expect this message, contact your workspace administrator.</p></td></tr></table></td></tr></table></body></html>`,
-    text: `${subject}\n\n${text}\n\nABI OPS\nActuate Builders Inc.`,
+    html: `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#f3f5f7;color:#17212b;font-family:${BODY_FONT};font-size:15px;line-height:1.55"><div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">${preheader}</div><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3f5f7;padding:32px 16px"><tr><td align="center"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border:1px solid #dbe1e6;border-radius:10px"><tr><td style="padding:24px 28px 18px;border-bottom:1px solid #edf0f2"><div style="color:${BRAND_NAVY};font-size:18px;font-weight:700;letter-spacing:.02em">ABI OPS</div><div style="margin-top:3px;color:#64748b;font-size:12px">${companyLabel}</div></td></tr><tr><td style="padding:28px"><h1 style="margin:0 0 18px;color:${BRAND_NAVY};font-size:24px;line-height:1.25;font-weight:700">${safeSubject}</h1>${bodyHtml}</td></tr><tr><td style="padding:18px 28px 24px;border-top:1px solid #edf0f2;color:#64748b;font-size:12px"><p style="margin:0 0 8px">This message was sent by ABI OPS${companyLegalName ? ` for ${companyLabel}` : '; company legal identity is not configured for this workspace'}.</p><p style="margin:0">If you did not expect this message, contact your workspace administrator.</p></td></tr></table></td></tr></table></body></html>`,
+    text: `${subject}\n\n${text}\n\nABI OPS\n${companyLegalName ?? 'Company legal identity not configured'}`,
   }
 }
 
@@ -96,7 +103,20 @@ function formatCents(totalCents: number): string {
 
 @Injectable()
 export class NotificationEmailService {
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    @Optional() @Inject(DatabaseService) private readonly database?: DatabaseService
+  ) {}
+
+  private async companyLegalName(tenantId?: string): Promise<string | null> {
+    if (!tenantId || !this.database) return null
+    const [tenant] = await this.database.client
+      .select({ legalName: tenants.legal_name })
+      .from(tenants)
+      .where(eq(tenants.id, tenantId))
+      .limit(1)
+    return tenant?.legalName?.trim() || null
+  }
 
   async sendRfqCreated(
     input: SendRfqCreatedEmail
@@ -125,7 +145,8 @@ export class NotificationEmailService {
     const message = renderEmail(
       subject,
       `<p>The procurement team prepared <strong>${input.lineCount} ${itemLabel}</strong> for supplier quotes on <strong>${escapeHtml(input.projectName)}</strong>.</p><p style="margin:22px 0">${actionLink(rfqUrl, 'Open procurement')}</p>`,
-      text
+      text,
+      await this.companyLegalName(input.tenantId)
     )
 
     const response = await fetch('https://api.resend.com/emails', {
@@ -182,7 +203,8 @@ export class NotificationEmailService {
     const message = renderEmail(
       subject,
       `<p>Purchase order <strong>${escapeHtml(input.poNumber)}</strong> for <strong>${escapeHtml(input.projectName)}</strong> is ${escapeHtml(actionLabel)}.</p><p><strong>Status:</strong> ${escapeHtml(toStatus)}</p><p style="margin:22px 0">${actionLink(purchaseOrderUrl, 'Open purchase order')}</p>`,
-      text
+      text,
+      await this.companyLegalName(input.tenantId)
     )
 
     const response = await fetch('https://api.resend.com/emails', {
@@ -249,7 +271,8 @@ export class NotificationEmailService {
     const message = renderEmail(
       subject,
       `<p>Dear ${escapeHtml(input.supplierName)},</p><p>Purchase order <strong>${escapeHtml(input.poNumber)}</strong> for <strong>${escapeHtml(input.projectName)}</strong> has been issued.</p><p><strong>Total order value:</strong> ${escapeHtml(totalLabel)}</p><p style="margin:22px 0">${actionLink(purchaseOrderUrl, 'Review purchase order')}</p>${input.confirmationUrl ? `<p style="margin:22px 0">${actionLink(input.confirmationUrl, 'Confirm or request a change', BRAND_ORANGE)}</p>` : ''}`,
-      text
+      text,
+      await this.companyLegalName(input.tenantId)
     )
 
     const response = await fetch('https://api.resend.com/emails', {

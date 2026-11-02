@@ -1,6 +1,4 @@
-'use client'
-
-import { useFormStatus } from 'react-dom'
+import { NativeSubmitButton } from '@/components/forms/native-submit-button'
 
 /** Confirmation is a UX safeguard; the Core service remains the authority. */
 export function PlatformSubmitButton({ children, className, confirmation }: {
@@ -8,14 +6,7 @@ export function PlatformSubmitButton({ children, className, confirmation }: {
   className?: string
   confirmation?: string
 }) {
-  const { pending } = useFormStatus()
-  return <button
-    type="submit"
-    className={className}
-    disabled={pending}
-    aria-busy={pending}
-    onClick={(event) => {
-      if (confirmation && !window.confirm(confirmation)) event.preventDefault()
-    }}
-  >{pending ? 'Working…' : children}</button>
+  return <NativeSubmitButton className={className} confirmation={confirmation} pendingLabel="Working…">
+    {children}
+  </NativeSubmitButton>
 }

@@ -58,6 +58,9 @@ runtimeSuite('WO-17 cost control database evidence', () => {
     expect(sql).not.toBeNull()
     const result = await inRollback(sql!, async (tx) => {
       const fixture = await seedTwoTenants(tx)
+      await tx`update tenants set legal_name='Synthetic Cost Company',
+        registered_address='Synthetic cost fixture address', bir_tin='TEST-COST-TIN'
+        where id=${fixture.tenantA}`
       const suffix = ((await tx.unsafe(
         `select substr(md5(random()::text), 1, 10) as suffix`
       )) as unknown as Array<{ suffix: string }>)[0]!.suffix
@@ -78,31 +81,31 @@ runtimeSuite('WO-17 cost control database evidence', () => {
       )) as unknown as Array<{ id: string }>)[0]!.id
       const bomId = ((await tx.unsafe(
         `insert into boms(
-           tenant_id, project_id, created_by, approved_by, status,
-           total_cost_cents, tcv_cents, gp_cents, gp_margin_bps, approved_at
+           tenant_id, project_id, created_by, status
          ) values(
-           '${fixture.tenantA}', '${projectId}', '${fixture.userA}', '${fixture.userA}', 'locked',
-           100000, 150000, 50000, 3333, now()
+           '${fixture.tenantA}', '${projectId}', '${fixture.userA}', 'draft'
          ) returning id`
       )) as unknown as Array<{ id: string }>)[0]!.id
       const bomLineId = ((await tx.unsafe(
         `insert into bom_line_items(
            tenant_id, bom_id, code, description, quantity,
-           unit_cost_cents, line_total_cents
+           unit_cost_cents, manual_vat_bps
          ) values(
            '${fixture.tenantA}', '${bomId}', 'MAT-01', 'Steel frame', 1,
-           100000, 100000
+           100000, 0
          ) returning id`
       )) as unknown as Array<{ id: string }>)[0]!.id
       const secondBomLineId = ((await tx.unsafe(
         `insert into bom_line_items(
            tenant_id, bom_id, code, description, quantity,
-           unit_cost_cents, line_total_cents
+           unit_cost_cents, manual_vat_bps
          ) values(
            '${fixture.tenantA}', '${bomId}', 'MAT-02', 'Wrong frame', 1,
-           10000, 10000
+           10000, 0
          ) returning id`
       )) as unknown as Array<{ id: string }>)[0]!.id
+      await tx`update boms set status='approved',approved_by=${commercialId},approved_at=now() where id=${bomId}`
+      await tx`update boms set status='locked' where id=${bomId}`
       const costCodeId = ((await tx.unsafe(
         `insert into cost_codes(tenant_id, code, name, category, created_by)
          values('${fixture.tenantA}', 'MAT-${suffix}', 'Materials', 'material', '${fixture.userA}')

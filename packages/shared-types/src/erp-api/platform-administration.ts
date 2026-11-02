@@ -3,7 +3,6 @@ import { z } from 'zod'
 import { ERP_CAPABILITIES, ERP_ROLES, type ErpCapability, type ErpRole } from '../authorization'
 import { ORGANIZATION_TYPES } from '../organization-types'
 
-export const PLATFORM_OWNER_EMAIL = 'kurt@thirdcodesolutions.com' as const
 export const PLATFORM_TENANT_STATUSES = [
   'active',
   'suspended',

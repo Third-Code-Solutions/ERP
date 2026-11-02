@@ -208,7 +208,11 @@ describe('PurchaseOrderCreationService migration boundary', () => {
     expect(audit.stampActor).not.toHaveBeenCalled()
   })
 
-  it('creates exact centavo totals and audits bounded Purchase Order evidence in one transaction', async () => {
+  it.each([
+    { quantity: 1, subtotal: 10000, vat: 1200, withholding: 200, total: 11000 },
+    { quantity: 0.1, subtotal: 1000, vat: 120, withholding: 20, total: 1100 },
+    { quantity: 12.5, subtotal: 125000, vat: 15000, withholding: 2500, total: 137500 },
+  ])('creates exact centavo totals for quantity $quantity in one audited transaction', async ({ quantity, subtotal, vat, withholding, total }) => {
     const membershipQuery = selectQuery([
       {
         tenantId: PRINCIPAL.tenantId,
@@ -266,7 +270,7 @@ describe('PurchaseOrderCreationService migration boundary', () => {
     const { candidate, transaction, audit } = enabledHarness(transactionClient)
 
     await expect(
-      candidate.create(COMMAND, PRINCIPAL, 'po-create-exact')
+      candidate.create({ ...COMMAND, lines: COMMAND.lines.map(line => ({ ...line, quantity })) }, PRINCIPAL, 'po-create-exact')
     ).resolves.toEqual({
       purchaseOrderId: created.id,
       tenantId: PRINCIPAL.tenantId,
@@ -279,19 +283,19 @@ describe('PurchaseOrderCreationService migration boundary', () => {
         tenant_id: PRINCIPAL.tenantId,
         project_id: COMMAND.projectId,
         po_number: 'PO-0042',
-        subtotal_cents: 10_000,
-        vat_cents: 1_200,
-        withholding_tax_cents: 200,
-        total_cents: 11_000,
+        subtotal_cents: subtotal,
+        vat_cents: vat,
+        withholding_tax_cents: withholding,
+        total_cents: total,
       })
     )
     expect(insertLineValues).toHaveBeenCalledWith([
       expect.objectContaining({
         tenant_id: PRINCIPAL.tenantId,
         po_id: created.id,
-        quantity: 1,
+        quantity,
         unit_cost_cents: 10_000,
-        line_total_cents: 10_000,
+        line_total_cents: subtotal,
         cost_code_id: COMMAND.lines[0]!.costCodeId,
       }),
     ])
@@ -302,7 +306,7 @@ describe('PurchaseOrderCreationService migration boundary', () => {
     expect(auditInput.diff).toMatchObject({
       project_id: COMMAND.projectId,
       vendor_id: null,
-      subtotal_cents: 10_000,
+      subtotal_cents: subtotal,
       line_count: 1,
     })
     expect(auditInput.diff.idempotency_key_hash).toMatch(/^[a-f0-9]{64}$/)

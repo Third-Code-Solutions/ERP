@@ -48,7 +48,7 @@ export type PlatformResult<T> =
  */
 export type PlatformFailureKind = 'timeout' | 'unreachable' | 'invalid_response'
 
-export function classifyPlatformFailure(error: unknown): {
+export function classifyPlatformFailure(error: unknown, mutation = false): {
   kind: PlatformFailureKind
   detail: string
   traceId: string
@@ -61,8 +61,9 @@ export function classifyPlatformFailure(error: unknown): {
     (error instanceof Error &&
       (error.name === 'TimeoutError' || error.name === 'AbortError')) ||
     /timeout|timed out/i.test(detail)
-  const consequence =
-    'Nothing was read and no change was submitted, so there is no uncertain outcome to reconcile.'
+  const consequence = mutation
+    ? 'The mutation outcome is uncertain. Review current state and audit evidence before retrying.'
+    : 'Nothing was read and no change was submitted, so there is no uncertain outcome to reconcile.'
 
   return timedOut
     ? {
@@ -105,6 +106,7 @@ async function requestPlatform<T>(
   schema: z.ZodType<T>,
   init?: RequestInit
 ): Promise<PlatformResult<T>> {
+  const mutation = Boolean(init?.method && init.method !== 'GET')
   const access = await getCoreApiAccess()
   if (!access.ok) return access
   try {
@@ -145,13 +147,14 @@ async function requestPlatform<T>(
       return {
         ok: false,
         status: 502,
-        error:
-          'The platform service answered with an unexpected response shape, so nothing was read or changed. Retrying will not help — this is a platform-service defect.',
+        error: mutation
+          ? 'The platform service answered with an unexpected response shape. The mutation outcome is uncertain; review current state and audit evidence before retrying.'
+          : 'The platform service answered with an unexpected response shape, so nothing was read. Retrying will not help — this is a platform-service defect.',
       }
     }
     return { ok: true, data: parsed.data }
   } catch (error) {
-    const failure = classifyPlatformFailure(error)
+    const failure = classifyPlatformFailure(error, mutation)
     logPlatformFailure({
       kind: failure.kind,
       route: path,

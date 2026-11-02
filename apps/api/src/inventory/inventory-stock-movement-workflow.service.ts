@@ -95,7 +95,7 @@ function replayReversalResult(value: unknown): StockMovementReversalResult {
   return parsed.data
 }
 
-function mapDatabaseFailure(error: unknown): never {
+export function mapStockMovementDatabaseFailure(error: unknown): never {
   const message = databaseErrorMessage(error)
   if (message.includes('Stock Movement not found')) {
     throw new NotFoundException('Stock Movement not found')
@@ -112,6 +112,7 @@ function mapDatabaseFailure(error: unknown): never {
     message.includes('Stock Movement requires at least one line') ||
     message.includes('Movement date is not in an open fiscal period') ||
     message.includes('Stock Movement quantity exceeds available stock') ||
+    message.includes('Stock movement exceeds unreserved available quantity') ||
     message.includes('Stock Movement value must be positive') ||
     message.includes('Inventory account required for Stock Movement') ||
     message.includes('Inventory Consumption account required') ||
@@ -317,7 +318,7 @@ export class InventoryStockMovementWorkflowService {
         })
         return result
       } catch (error) {
-        mapDatabaseFailure(error)
+        mapStockMovementDatabaseFailure(error)
       }
     })
   }

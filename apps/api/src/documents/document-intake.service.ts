@@ -23,6 +23,7 @@ import {
 } from '@third-code-erp/shared-types'
 import { and, eq } from 'drizzle-orm'
 import { roleHasCapability } from '../auth/capability.guard'
+import { DocumentUploadService } from './document-upload.service'
 import type {
   ErpPrincipal,
   ErpRole,
@@ -35,6 +36,7 @@ import {
 
 type IntakeRequest = {
   id: string
+  createdBy: string
   requestHash: string
   state: 'processing' | 'succeeded'
   result: unknown
@@ -96,7 +98,8 @@ function replayResult(value: unknown): DocumentIntakeResult {
 export class DocumentIntakeService {
   constructor(
     @Inject(DatabaseService) private readonly database: DatabaseService,
-    @Inject(AuditService) private readonly audit: AuditService
+    @Inject(AuditService) private readonly audit: AuditService,
+    @Inject(DocumentUploadService) private readonly uploads: DocumentUploadService
   ) {}
 
   async create(
@@ -121,7 +124,7 @@ export class DocumentIntakeService {
           )
         )
         .limit(1)
-        .for('share')
+        .for('update')
       if (!project) throw new NotFoundException('Project not found')
 
       const expectedPrefix = `${authorizedPrincipal.tenantId}/${project.id}/`
@@ -144,6 +147,8 @@ export class DocumentIntakeService {
       )
       if (replay.state === 'succeeded') return replayResult(replay.result)
 
+      const reservation = await this.uploads.verifyCompletion(transaction, command, authorizedPrincipal)
+
       const documentType = classifyDocumentType(
         command.fileName,
         command.mimeType
@@ -163,6 +168,7 @@ export class DocumentIntakeService {
         })
         .returning({ id: documents.id })
       if (!document) throw new InternalServerErrorException('Document was not created')
+      await this.uploads.complete(transaction, reservation, document.id)
 
       const result = documentIntakeResultSchema.parse({
         documentId: document.id,
@@ -246,6 +252,7 @@ export class DocumentIntakeService {
     const [request] = await transaction
       .select({
         id: documentIntakeRequests.id,
+        createdBy: documentIntakeRequests.created_by,
         requestHash: documentIntakeRequests.request_hash,
         state: documentIntakeRequests.state,
         result: documentIntakeRequests.result,
@@ -263,6 +270,9 @@ export class DocumentIntakeService {
       throw new InternalServerErrorException(
         'Document intake idempotency record was not created'
       )
+    }
+    if (request.createdBy !== principal.userId) {
+      throw new ForbiddenException('Document intake request belongs to another actor')
     }
     if (request.requestHash !== requestHash) {
       throw new ConflictException(

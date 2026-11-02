@@ -23,7 +23,7 @@ export default defineConfig({
   },
   webServer: {
     command: 'node e2e/platform-admin-loopback-harness.mjs',
-    url: 'http://127.0.0.1:4417/auth/login',
+    url: 'http://127.0.0.1:4418/__fixture/ready',
     reuseExistingServer: process.env.PLATFORM_BROWSER_REUSE === 'true',
     timeout: 120_000,
   },

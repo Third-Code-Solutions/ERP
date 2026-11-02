@@ -113,11 +113,14 @@ runtimeSuite('WO-08 takeoff importer runtime controls', () => {
            updated_at = now()`,
       )
 
-      await tx.unsafe(
-        `update bom_line_items
-         set unit_rate_source = 'dupa', unit_cost_cents = 777, line_total_cents = 777
-         where id = '${lineId}'`,
-      )
+      const [analysis] = await tx<{ id: string }[]>`
+        insert into dupas(tenant_id,bom_line_item_id,header_quantity,uom,ocm_bps,profit_bps,vat_bps,created_by)
+        values(${fixture.tenantA},${lineId},1,'sqm',0,0,0,${fixture.userA}) returning id
+      `
+      await tx`
+        insert into dupa_material_lines(tenant_id,dupa_id,description,quantity,uom,unit_rate_centavos,rate_source)
+        values(${fixture.tenantA},${analysis!.id},'Reviewed material rate',1,'sqm',777,'manual')
+      `
       await tx.unsafe(
         `insert into bom_line_items(
            tenant_id, bom_id, kind, drawing_revision_id, takeoff_import_id,
@@ -164,7 +167,7 @@ runtimeSuite('WO-08 takeoff importer runtime controls', () => {
     expect(state.row.description).toBe('Re-extracted description')
     expect(Number(state.row.quantity)).toBe(9)
     expect(Number(state.row.unit_cost_cents)).toBe(777)
-    expect(Number(state.row.line_total_cents)).toBe(777)
+    expect(Number(state.row.line_total_cents)).toBe(6_993)
     expect(state.row.notes).toContain('VENDOR:11111111-1111-1111-1111-111111111111')
   })
 

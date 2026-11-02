@@ -285,8 +285,10 @@ $env:DATABASE_RECONCILIATION_EXPECTED = '1'
 $env:DATABASE_INVENTORY_EXPECTED = '1'
 $env:DATABASE_BUDGET_EXPECTED = '1'
 $env:DATABASE_STOCK_MOVEMENT_EXPECTED = '1'
+$env:DATABASE_DOCUMENT_IDENTITY_EXPECTED = '1'
 $env:ERP_API_INTEGRATION_EXPECTED = '1'
 $env:ACCOUNT_ACTIONS_DATABASE_EXPECTED = '1'
+$env:PORTAL_DATABASE_EXPECTED = '1'
 
 Push-Location $repositoryRoot
 try {
@@ -344,6 +346,8 @@ try {
     'vitest',
     'run',
     'src/app/(dashboard)/crm/accounts/actions.database.integration.test.ts',
+    'src/lib/operations/customer-portal.database.test.ts',
+    'src/app/portal/cnps/[token]/actions.database.test.ts',
     'src/app/(dashboard)/crm/opportunities/[id]/proposal/change-request-workflow.integration.test.ts',
     '--reporter=json',
     "--outputFile=$(Join-Path $artifactRoot 'web-integration-vitest.json')"

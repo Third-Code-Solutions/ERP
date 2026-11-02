@@ -11,6 +11,7 @@ import { AuditService } from '../src/audit/audit.service'
 import { DatabaseService, type DatabaseTransaction } from '../src/database/database.service'
 import { ClaimDocumentService } from '../src/documents/claim-document.service'
 import { DocumentDeleteService } from '../src/documents/document-delete.service'
+import { documentUploadFixture } from './document-upload.fixture'
 
 const expected = process.env.ERP_API_INTEGRATION_EXPECTED === '1'
 const suite = expected ? describe : describe.skip
@@ -24,7 +25,7 @@ beforeAll(() => {
 
 // UUID-isolated committed synthetic fixtures enable independent connections.
 // Their append-only audit records are retained until the disposable lane resets.
-async function fixture() {
+async function fixture(controlledUpload = false) {
   const tenantId = randomUUID(), userId = randomUUID(), projectId = randomUUID(), claimId = randomUUID(), documentId = randomUUID()
   const principal: ErpPrincipal = { tenantId, userId, role: 'admin', email: `claim-${userId}@integration.test` }
   await db.transaction(async (tx) => {
@@ -35,6 +36,16 @@ async function fixture() {
     await tx.insert(documents).values({ id: documentId, tenant_id: tenantId, project_id: projectId, uploaded_by: userId, document_type: 'pdf', file_name: 'Evidence.pdf', storage_path: `${tenantId}/${projectId}/${documentId}.pdf`, mime_type: 'application/pdf', size_bytes: 10 })
   })
   const audit = new AuditService(), database = new DatabaseService()
+  if (controlledUpload) {
+    const upload = documentUploadFixture(database, 10)
+    const input = { projectId, fileName: 'Evidence.pdf', mimeType: 'application/pdf', sizeBytes: 10 }
+    const storagePath = await upload.prepare(input, principal, randomUUID())
+    await db.transaction(async (tx) => {
+      await tx.update(documents).set({ storage_path: storagePath }).where(eq(documents.id, documentId))
+      const reservation = await upload.uploads.verifyCompletion(tx, { ...input, storagePath }, principal)
+      await upload.uploads.complete(tx, reservation, documentId)
+    })
+  }
   const service = new ClaimDocumentService(database, audit)
   const deletion = new DocumentDeleteService(new ConfigService({ ERP_DOCUMENT_DELETE_WRITES_ENABLED: true, ERP_DOCUMENT_DELETE_WRITES_TENANT_IDS: [tenantId] }), database, audit)
   const command = { clientRequestId: randomUUID(), documentId, kind: 'photo' as const, caption: 'Evidence' }
@@ -237,13 +248,20 @@ suite('Claim attachment PostgreSQL authority', () => {
   }, 15000)
 
   it('preserves deletion of an unreferenced document', async () => {
-    const f = await fixture()
+    const f = await fixture(true)
     expect(await f.deletion.delete(f.documentId, f.principal, randomUUID())).toMatchObject({ documentId: f.documentId, status: 'deleted' })
     await expect(f.service.attach(f.claimId, f.command, f.principal)).rejects.toBeInstanceOf(NotFoundException)
   })
 
+  it('retains an unreferenced legacy document without a completed capacity reservation', async () => {
+    const f = await fixture(), before = await snapshot(f)
+    await expect(f.deletion.delete(f.documentId, f.principal, randomUUID())).rejects.toThrow('Legacy document requires verified Storage cleanup before deletion; no document was deleted')
+    expect(await snapshot(f)).toEqual(before)
+    expect(await db.select({ id: documents.id }).from(documents).where(eq(documents.id, f.documentId))).toHaveLength(1)
+  })
+
   it('returns a deliberate retry conflict instead of deadlocking against reverse deletion lock ordering', async () => {
-    const f = await fixture()
+    const f = await fixture(true)
     const otherUser = randomUUID()
     await db.insert(users).values({ id: otherUser, tenant_id: f.tenantId, email: `${otherUser}@integration.test`, full_name: 'Reverse race operator', role: 'admin' })
     const otherPrincipal = { ...f.principal, userId: otherUser, email: `${otherUser}@integration.test` }

@@ -112,6 +112,7 @@ function mapReverseFailure(error: unknown): never {
   }
   if (
     message.includes('Stock Receipt reversal reason is required') ||
+    message.includes('Stock movement exceeds unreserved available quantity') ||
     message.includes('Only a posted Stock Receipt can be reversed') ||
     message.includes('Reversal date cannot precede receipt date')
   ) {

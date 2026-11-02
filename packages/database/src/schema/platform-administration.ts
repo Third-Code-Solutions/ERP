@@ -45,10 +45,10 @@ export const platformRoleAssignments = pgTable(
     soleActiveRoleIdx: uniqueIndex('ux_platform_role_assignments_active_role')
       .on(table.role)
       .where(sql`${table.revoked_at} is null`),
-    exactOwnerEmailCheck: check(
-      'platform_role_assignments_exact_owner_email',
-      sql`${table.normalized_email} = 'kurt@thirdcodesolutions.com'
-        and ${table.normalized_email} = lower(btrim(${table.normalized_email}))`
+    normalizedEmailCheck: check(
+      'platform_role_assignments_normalized_email',
+      sql`${table.normalized_email} = lower(btrim(${table.normalized_email}))
+        and length(${table.normalized_email}) > 0`
     ),
     revocationEvidenceCheck: check(
       'platform_role_assignments_revocation_evidence',

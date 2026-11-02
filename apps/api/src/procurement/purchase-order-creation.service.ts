@@ -29,6 +29,7 @@ import {
   createPurchaseOrdersGroupedFromBomCommandSchema,
   createPurchaseOrderFromBomCommandSchema,
   createPurchaseOrderCommandSchema,
+  purchaseOrderLineTotal,
   purchaseOrderBomCreationResultSchema,
   purchaseOrdersGroupedFromBomResultSchema,
   purchaseOrderCreationResultSchema,
@@ -55,7 +56,6 @@ import { DatabaseService } from '../database/database.service'
 
 const MAX_SAFE_INTEGER_BIGINT = BigInt(Number.MAX_SAFE_INTEGER)
 const MAX_POSTGRES_BIGINT = 9_223_372_036_854_775_807n
-const MAX_PO_QUANTITY = 2_147_483_647
 
 function canonicalJson(value: unknown): string {
   if (value === null || typeof value !== 'object') {
@@ -454,7 +454,7 @@ export class PurchaseOrderCreationService {
       const groups = [...buckets.values()].map((bucket) => {
         const subtotal = bucket.lines.reduce(
           (sum, line) =>
-            sum + BigInt(line.unitCostCents) * BigInt(line.quantity),
+            sum + BigInt(purchaseOrderLineTotal(line.unitCostCents, line.quantity)),
           0n
         )
         return {
@@ -543,7 +543,7 @@ export class PurchaseOrderCreationService {
             quantity: line.quantity,
             unit_cost_cents: safeDatabaseCents(BigInt(line.unitCostCents)),
             line_total_cents: safeDatabaseCents(
-              BigInt(line.unitCostCents) * BigInt(line.quantity)
+              BigInt(purchaseOrderLineTotal(line.unitCostCents, line.quantity))
             ),
             bom_line_item_id: line.id,
             cost_code_id: costCodeByBomLine.get(line.id),
@@ -857,7 +857,9 @@ export class PurchaseOrderCreationService {
         )
       )
 
-      const subtotalCents = BigInt(bom.totalCostCents)
+      // PO amounts foot from its persisted unit prices, which can differ by a
+      // cent from a DUPA's unrounded direct-cost analysis.
+      const subtotalCents = lines.reduce((sum, line) => sum + BigInt(purchaseOrderLineTotal(line.unitCostCents, line.quantity)), 0n)
       const vatCents = percentHalfUp(subtotalCents, 12n)
       const withholdingTaxCents = percentHalfUp(subtotalCents, 2n)
       const totalCents = subtotalCents + vatCents - withholdingTaxCents
@@ -914,7 +916,7 @@ export class PurchaseOrderCreationService {
         lines.map((line, index) => {
           const unitCost = BigInt(line.unitCostCents)
           const lineTotal = safeDatabaseCents(
-            unitCost * BigInt(line.quantity)
+            BigInt(purchaseOrderLineTotal(line.unitCostCents, line.quantity))
           )
           return {
             tenant_id: authorizedPrincipal.tenantId,
@@ -1168,14 +1170,8 @@ export class PurchaseOrderCreationService {
       }
 
       const lineValues = parsedCommand.lines.map((line, index) => {
-        if (line.quantity > MAX_PO_QUANTITY) {
-          throw new ConflictException(
-            'Purchase Order quantity exceeds PostgreSQL integer range'
-          )
-        }
-        const quantity = BigInt(line.quantity)
         const unitCost = BigInt(line.unitCostCents)
-        const lineTotal = unitCost * quantity
+        const lineTotal = BigInt(purchaseOrderLineTotal(line.unitCostCents, line.quantity))
         return {
           index,
           code: line.code ?? undefined,

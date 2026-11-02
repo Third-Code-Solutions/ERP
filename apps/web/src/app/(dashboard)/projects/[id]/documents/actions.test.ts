@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { accountKycArtifacts, progressClaimDocuments, siteInspectionPhotos, siteInspections } from '@third-code-erp/database/schema'
+import {
+  accountKycArtifacts,
+  documentUploadReservations,
+  progressClaimDocuments,
+  siteInspectionPhotos,
+  siteInspections,
+} from '@third-code-erp/database/schema'
 import { SQL } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
 
@@ -23,6 +29,8 @@ const mocks = vi.hoisted(() => ({
   inspectionPhotoLimit: vi.fn(),
   inspectionReportWhere: vi.fn(),
   inspectionReportLimit: vi.fn(),
+  reservationWhere: vi.fn(),
+  reservationLimit: vi.fn(),
   txDelete: vi.fn(),
   txDeleteWhere: vi.fn(),
   txReturning: vi.fn(),
@@ -102,7 +110,9 @@ describe('deleteDocument authority and integrity', () => {
       where: table === progressClaimDocuments ? mocks.evidenceWhere
         : table === accountKycArtifacts ? mocks.kycEvidenceWhere
         : table === siteInspectionPhotos ? mocks.inspectionPhotoWhere
-        : table === siteInspections ? mocks.inspectionReportWhere : mocks.txWhere,
+        : table === siteInspections ? mocks.inspectionReportWhere
+        : table === documentUploadReservations ? mocks.reservationWhere
+        : mocks.txWhere,
     }))
     mocks.evidenceWhere.mockReturnValue({ limit: mocks.evidenceLimit })
     mocks.evidenceLimit.mockResolvedValue([])
@@ -112,6 +122,10 @@ describe('deleteDocument authority and integrity', () => {
     mocks.inspectionPhotoLimit.mockResolvedValue([])
     mocks.inspectionReportWhere.mockReturnValue({ limit: mocks.inspectionReportLimit })
     mocks.inspectionReportLimit.mockResolvedValue([])
+    mocks.reservationWhere.mockReturnValue({ limit: mocks.reservationLimit })
+    mocks.reservationLimit.mockResolvedValue([
+      { id: '66666666-6666-4666-8666-666666666666' },
+    ])
     mocks.txWhere.mockReturnValue({ limit: mocks.txLimit })
     mocks.txLimit.mockReturnValue({ for: mocks.txFor })
     mocks.txFor.mockResolvedValue([

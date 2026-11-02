@@ -4,6 +4,9 @@ import Link from 'next/link'
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createStandalonePo } from '@/app/(dashboard)/procurement/actions'
+import { purchaseOrderQuantitySchema } from '@third-code-erp/shared-types'
+import { parsePesosToCents } from '@/lib/operations/scope-money'
+import { calculateLineTotalCents, calculatePurchaseOrderTotals } from '@/lib/operations/purchase-order-money'
 
 interface Project {
   id: string
@@ -101,19 +104,30 @@ export function CreatePoForm({
     setLines((prev) => prev.map((l) => (l.id === id ? { ...l, [field]: value } : l)))
   }
 
-  const subtotal = lines.reduce((sum, l) => {
-    const qty = parseFloat(l.quantity) || 0
-    const cost = parseFloat(l.unit_cost) || 0
-    return sum + Math.round(qty * cost * 100)
-  }, 0)
-  const vat = Math.round(subtotal * 0.12)
-  const ewt = Math.round(subtotal * 0.02)
-  const total = subtotal + vat - ewt
+  function previewLine(line: LineItem): number {
+    const cents = parsePesosToCents(line.unit_cost)
+    if (cents === undefined) return 0
+    try { return calculateLineTotalCents(cents, Number(line.quantity)) }
+    catch { return 0 }
+  }
+  const subtotal = lines.reduce((sum, line) => sum + previewLine(line), 0)
+  let totals: ReturnType<typeof calculatePurchaseOrderTotals> | null = null
+  try { totals = calculatePurchaseOrderTotals(subtotal) } catch { /* Invalid drafts remain editable. */ }
+  const vat = totals?.vatCents ?? 0
+  const ewt = totals?.withholdingTaxCents ?? 0
+  const total = totals?.totalCents ?? 0
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setError('')
     const formData = new FormData(e.currentTarget)
+    if (lines.filter((line) => line.description.trim()).some((line) =>
+      !purchaseOrderQuantitySchema.safeParse(Number(line.quantity)).success || parsePesosToCents(line.unit_cost) === undefined
+    )) {
+      setError('Enter positive quantities with at most six decimal places and valid peso prices with at most two decimal places.')
+      return
+    }
+    if (!totals) { setError('Purchase Order total exceeds the supported centavo range.'); return }
 
     const lineItems = lines
       .filter((l) => l.description.trim())
@@ -121,8 +135,8 @@ export function CreatePoForm({
         code: l.code || undefined,
         description: l.description,
         unit: l.unit || undefined,
-        quantity: Math.max(1, parseFloat(l.quantity) || 1),
-        unit_cost_cents: Math.round((parseFloat(l.unit_cost) || 0) * 100),
+        quantity: Number(l.quantity),
+        unit_cost_cents: parsePesosToCents(l.unit_cost),
         costCodeId: l.cost_code_id,
       }))
 
@@ -254,9 +268,7 @@ export function CreatePoForm({
               </thead>
               <tbody>
                 {lines.map((line, idx) => {
-                  const qty = parseFloat(line.quantity) || 0
-                  const cost = parseFloat(line.unit_cost) || 0
-                  const lineTotal = Math.round(qty * cost * 100)
+                  const lineTotal = previewLine(line)
                   return (
                     <tr key={line.id} style={{ borderBottom: idx < lines.length - 1 ? '1px solid var(--color-border)' : 'none' }}>
                       <td style={{ padding: '6px 8px', width: '80px' }}>
@@ -313,8 +325,8 @@ export function CreatePoForm({
                           aria-label={`Quantity ${idx + 1}`}
                           type="number"
                           required
-                          min="1"
-                          step="1"
+                          min="0.000001"
+                          step="0.000001"
                           value={line.quantity}
                           onChange={(e) => updateLine(line.id, 'quantity', e.target.value)}
                           style={{ ...cellInput, width: '55px', textAlign: 'right' }}

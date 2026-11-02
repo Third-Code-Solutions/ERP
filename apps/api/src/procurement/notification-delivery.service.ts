@@ -408,6 +408,7 @@ export class NotificationDeliveryService {
 
     const providerMessageId = await this.email.sendRfqCreated({
       ...claim.email,
+      tenantId: job.tenantId,
     })
     await this.markDelivered(
       job.tenantId,
@@ -682,7 +683,7 @@ export class NotificationDeliveryService {
     }
 
     const providerMessageId =
-      await this.email.sendPurchaseOrderWorkflow(claim.email)
+      await this.email.sendPurchaseOrderWorkflow({ ...claim.email, tenantId: job.tenantId })
     await this.markDelivered(
       job.tenantId,
       job.deliveryId,
@@ -918,7 +919,7 @@ export class NotificationDeliveryService {
     if (claim.kind === 'result') return claim.result
 
     const providerMessageId = await this.email.sendPurchaseOrderSupplier(
-      claim.email
+      { ...claim.email, tenantId: job.tenantId }
     )
     await this.database.client.transaction(async (transaction) => {
       const now = new Date()

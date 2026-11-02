@@ -15,8 +15,8 @@ describe('auth brand lockup', () => {
     )
 
     expect(markup.match(/ABI OPS/g)).toHaveLength(2)
-    expect(markup.match(/Actuate Builders Inc\./g)).toHaveLength(3)
-    expect(markup.match(/>A</g)).toHaveLength(2)
+    expect(markup.match(/Independent company installation/g)).toHaveLength(3)
+    expect(markup.match(/>AO</g)).toHaveLength(2)
     expect(markup).not.toContain(legacyProductName)
     expect(markup).not.toContain(legacyCompanyName)
   })

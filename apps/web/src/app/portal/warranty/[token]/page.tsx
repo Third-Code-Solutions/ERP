@@ -10,7 +10,7 @@
 
 import { createHash } from 'node:crypto'
 import { db } from '@third-code-erp/database'
-import { warrantyPortalTokens, projects, accounts } from '@third-code-erp/database/schema'
+import { warrantyPortalTokens, projects, accounts, tenants } from '@third-code-erp/database/schema'
 import { and, eq } from 'drizzle-orm'
 import { submitTicket } from './actions'
 import type { Metadata } from 'next'
@@ -45,6 +45,7 @@ export default async function WarrantyPortalPage({ params, searchParams }: PageP
       account_name: accounts.name,
     })
     .from(warrantyPortalTokens)
+    .innerJoin(tenants, eq(tenants.id, warrantyPortalTokens.tenant_id))
     .innerJoin(
       projects,
       and(
@@ -59,7 +60,7 @@ export default async function WarrantyPortalPage({ params, searchParams }: PageP
         eq(accounts.tenant_id, warrantyPortalTokens.tenant_id)
       )
     )
-    .where(eq(warrantyPortalTokens.token_hash, tokenHash))
+    .where(and(eq(warrantyPortalTokens.token_hash, tokenHash), eq(tenants.status, 'active')))
     .limit(1)
 
   const now = new Date()

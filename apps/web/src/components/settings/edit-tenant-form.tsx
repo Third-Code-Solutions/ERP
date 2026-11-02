@@ -1,11 +1,14 @@
 'use client'
 
-import { useEffect, useRef, useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
-import { updateTenantSettings } from '@/app/(dashboard)/settings/actions'
+import { useEffect, useRef, useState } from 'react'
+import { NativeSubmitButton } from '@/components/forms/native-submit-button'
 
 interface Tenant {
   name: string
+  legal_name: string | null
+  registered_address: string | null
+  document_email: string | null
+  document_phone: string | null
   bir_tin: string | null
   pcab_license: string | null
   dpo_contact: string | null
@@ -13,27 +16,8 @@ interface Tenant {
 
 export function EditTenantForm({ tenant }: { tenant: Tenant }) {
   const [isOpen, setIsOpen] = useState(false)
-  const [error, setError] = useState('')
-  const [isPending, startTransition] = useTransition()
-  const router = useRouter()
   const nameInput = useRef<HTMLInputElement>(null)
   useEffect(() => { if (isOpen) nameInput.current?.focus() }, [isOpen])
-
-  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    setError('')
-    const data = new FormData(e.currentTarget)
-    startTransition(async () => {
-      const result = await updateTenantSettings(data)
-      if (result.error) {
-        setError(result.error)
-      } else {
-        setIsOpen(false)
-        router.refresh()
-      }
-    })
-  }
-
   if (!isOpen) {
     return (
       <button
@@ -57,7 +41,8 @@ export function EditTenantForm({ tenant }: { tenant: Tenant }) {
   return (
     <section aria-labelledby="edit-workspace-heading">
       <form
-        onSubmit={handleSubmit}
+        method="post"
+        action="/settings/submit"
         className="platform-form-card"
       >
         <h2 id="edit-workspace-heading" style={{ fontSize: '1rem', fontWeight: 700, margin: '0 0 20px', color: 'var(--color-neutral-900)' }}>
@@ -66,8 +51,24 @@ export function EditTenantForm({ tenant }: { tenant: Tenant }) {
 
         <div style={{ display: 'grid', gap: '12px' }}>
           <div>
-            <label htmlFor="workspace-name" style={labelStyle}>Company Name *</label>
+            <label htmlFor="workspace-name" style={labelStyle}>Workspace Name *</label>
             <input id="workspace-name" ref={nameInput} name="name" maxLength={255} required defaultValue={tenant.name} style={inputStyle} />
+          </div>
+          <div>
+            <label htmlFor="workspace-legal_name" style={labelStyle}>Registered Legal Name</label>
+            <input id="workspace-legal_name" name="legal_name" maxLength={255} defaultValue={tenant.legal_name ?? ''} style={inputStyle} />
+          </div>
+          <div>
+            <label htmlFor="workspace-registered_address" style={labelStyle}>Registered Address</label>
+            <textarea id="workspace-registered_address" name="registered_address" maxLength={1000} defaultValue={tenant.registered_address ?? ''} style={{ ...inputStyle, minHeight: '72px', resize: 'vertical' }} />
+          </div>
+          <div>
+            <label htmlFor="workspace-document_email" style={labelStyle}>Document Contact Email</label>
+            <input id="workspace-document_email" name="document_email" type="email" maxLength={255} defaultValue={tenant.document_email ?? ''} style={inputStyle} />
+          </div>
+          <div>
+            <label htmlFor="workspace-document_phone" style={labelStyle}>Document Contact Phone</label>
+            <input id="workspace-document_phone" name="document_phone" maxLength={64} defaultValue={tenant.document_phone ?? ''} style={inputStyle} />
           </div>
           <div>
             <label htmlFor="workspace-bir_tin" style={labelStyle}>BIR TIN</label>
@@ -78,7 +79,7 @@ export function EditTenantForm({ tenant }: { tenant: Tenant }) {
               style={inputStyle}
             />
             <p style={{ fontSize: '0.7rem', color: 'var(--color-neutral-400)', margin: '3px 0 0' }}>
-              Shown on invoices and purchase orders for BIR compliance.
+              Printed with configured legal identity. ABI OPS does not certify BIR registration or form acceptance.
             </p>
           </div>
           <div>
@@ -101,24 +102,15 @@ export function EditTenantForm({ tenant }: { tenant: Tenant }) {
           </div>
         </div>
 
-        {error && <p role="alert" style={{ fontSize: '0.8125rem', color: 'var(--color-error)', margin: '12px 0 0' }}>{error}</p>}
-
         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '20px' }}>
           <button
             type="button"
-            disabled={isPending}
             onClick={() => setIsOpen(false)}
             style={{ background: 'none', border: '1px solid var(--color-border)', borderRadius: '6px', padding: '7px 14px', fontSize: '0.8125rem', cursor: 'pointer', color: 'var(--color-neutral-700)' }}
           >
             Cancel
           </button>
-          <button
-            type="submit"
-            disabled={isPending}
-            style={{ background: 'var(--color-navy-700)', color: 'white', border: 'none', borderRadius: '6px', padding: '7px 16px', fontSize: '0.8125rem', fontWeight: 600, cursor: isPending ? 'not-allowed' : 'pointer', opacity: isPending ? 0.7 : 1 }}
-          >
-            {isPending ? 'Saving…' : 'Save Changes'}
-          </button>
+          <NativeSubmitButton pendingLabel="Saving…" className="button button-primary">Save Changes</NativeSubmitButton>
         </div>
       </form>
     </section>

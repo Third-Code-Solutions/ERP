@@ -38,6 +38,8 @@ import {
   roadmapWorkflowEvents,
   statutoryOutputs,
   stockLedgerEntries,
+  stockMovementLines,
+  stockMovements,
   stockReceiptLines,
   stockReceipts,
   supplierBills,
@@ -49,6 +51,7 @@ import {
 } from '@third-code-erp/database/schema'
 import {
   allocateProRata,
+  quantityToMicros,
   availableInventory,
   activatePriceListCommandSchema,
   calculateTaxByProfileCommandSchema,
@@ -106,6 +109,7 @@ import { roleHasCapability } from '../auth/capability.guard'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import { AuditService } from '../audit/audit.service'
 import { DatabaseService, type DatabaseTransaction } from '../database/database.service'
+import { mapStockMovementDatabaseFailure } from '../inventory/inventory-stock-movement-workflow.service'
 
 const MAX_SAFE_INTEGER_BIGINT = BigInt(Number.MAX_SAFE_INTEGER)
 const MAX_POSTGRES_BIGINT = 9_223_372_036_854_775_807n
@@ -580,8 +584,12 @@ export class RoadmapService {
       if (line.material_item_id && quote.material_item_id && line.material_item_id !== quote.material_item_id) throw new ConflictException('Selected quote material does not match the requisition line')
       const quantity = asBigInt(line.quantity_micros)
       const unit = BigInt(quote.unit_price_cents)
-      const lineTotal = (quantity * unit) / MICROS_PER_UNIT
-      return { line, quote, quantity, unit, lineTotal }
+      const lineTotal = (quantity * unit + MICROS_PER_UNIT / 2n) / MICROS_PER_UNIT
+      const decimalQuantity = Number(quantity) / Number(MICROS_PER_UNIT)
+      if (decimalQuantity > 2_147_483_647 || quantityToMicros(String(decimalQuantity)) !== quantity) {
+        throw new ConflictException('Purchase Order quantity cannot be represented losslessly within the supported range')
+      }
+      return { line, quote, quantity, decimalQuantity, unit, lineTotal }
     })
     const subtotal = totals.reduce((sum, value) => sum + value.lineTotal, 0n)
     const vat = (subtotal * 1_200n + 5_000n) / 10_000n
@@ -599,7 +607,7 @@ export class RoadmapService {
       total_cents: safeDbInteger(subtotal + vat - withholding, 'Purchase Order total'),
     }).returning({ id: purchaseOrders.id })
     if (!po) throw new InternalServerErrorException('Purchase Order was not created')
-    await transaction.insert(poLineItems).values(totals.map(({ line, quantity, unit, lineTotal }, index) => ({
+    await transaction.insert(poLineItems).values(totals.map(({ line, quantity, decimalQuantity, unit, lineTotal }, index) => ({
       tenant_id: principal.tenantId,
       po_id: po.id,
       sort_order: index,
@@ -608,7 +616,7 @@ export class RoadmapService {
       bom_line_item_id: line.bom_line_item_id,
       cost_code_id: line.cost_code_id,
       uom_id: line.uom_id,
-      quantity: safeDbInteger(quantity / MICROS_PER_UNIT, 'Purchase Order quantity'),
+      quantity: decimalQuantity,
       quantity_micros: safeDbInteger(quantity, 'Purchase Order quantity micros'),
       unit_cost_cents: safeDbInteger(unit, 'Purchase Order unit cost'),
       line_total_cents: safeDbInteger(lineTotal, 'Purchase Order line total'),
@@ -629,11 +637,23 @@ export class RoadmapService {
       await this.lockInventory(transaction, principal.tenantId, command.warehouseId, command.materialItemId)
       await this.audit.stampActor(transaction, principal)
       const [existing] = await transaction.select().from(inventoryReservations).where(and(eq(inventoryReservations.tenant_id, principal.tenantId), eq(inventoryReservations.idempotency_key, idempotencyKey))).limit(1)
-      if (existing) return this.reservationResult(existing, false, await this.availableQuantity(transaction, principal.tenantId, command.warehouseId, command.materialItemId, command.uomId))
+      if (existing) {
+        if (existing.warehouse_id !== command.warehouseId || existing.material_item_id !== command.materialItemId ||
+          existing.uom_id !== command.uomId || existing.quantity_micros !== BigInt(command.quantityMicros) ||
+          existing.project_id !== (command.projectId ?? null) || existing.cost_code_id !== (command.costCodeId ?? null) ||
+          existing.po_line_item_id !== (command.poLineItemId ?? null) || existing.source_type !== command.sourceType ||
+          existing.source_id !== (command.sourceId ?? null) || existing.requested_by !== principal.userId ||
+          (existing.expires_at?.toISOString() ?? null) !== (command.expiresAt ? new Date(command.expiresAt).toISOString() : null)) {
+          throw new ConflictException('Reservation idempotency key was already used for a different request')
+        }
+        return this.reservationResult(existing, false, await this.availableQuantity(transaction, principal.tenantId, command.warehouseId, command.materialItemId, command.uomId))
+      }
       const [warehouse] = await transaction.select({ id: warehouses.id }).from(warehouses).where(and(eq(warehouses.id, command.warehouseId), eq(warehouses.tenant_id, principal.tenantId), eq(warehouses.is_active, true))).limit(1)
       if (!warehouse) throw new NotFoundException('Warehouse not found in this tenant')
-      const [item] = await transaction.select({ id: materialItems.id }).from(materialItems).where(and(eq(materialItems.id, command.materialItemId), eq(materialItems.tenant_id, principal.tenantId), eq(materialItems.is_active, true))).limit(1)
+      const [item] = await transaction.select({ id: materialItems.id, baseUomId: materialItems.base_uom_id, inventoryTracked: materialItems.inventory_tracked }).from(materialItems).where(and(eq(materialItems.id, command.materialItemId), eq(materialItems.tenant_id, principal.tenantId), eq(materialItems.is_active, true))).limit(1)
       if (!item) throw new NotFoundException('Material item not found in this tenant')
+      if (!item.inventoryTracked || item.baseUomId !== command.uomId) throw new ConflictException('Reservation requires a tracked item in its base unit')
+      if (command.expiresAt && new Date(command.expiresAt).getTime() <= Date.now()) throw new ConflictException('Reservation expiry must be in the future')
       const available = await this.availableQuantity(transaction, principal.tenantId, command.warehouseId, command.materialItemId, command.uomId)
       const requested = BigInt(command.quantityMicros)
       if (requested > available) throw new ConflictException(`Insufficient available inventory; requested ${requested}, available ${available}`)
@@ -673,24 +693,56 @@ export class RoadmapService {
       await this.assertPrincipal(transaction, principal)
       await this.lockTenant(transaction, principal.tenantId)
       await this.audit.stampActor(transaction, principal)
-      const [event] = await transaction.select({ reservationId: inventoryReservationEvents.reservation_id }).from(inventoryReservationEvents).where(and(eq(inventoryReservationEvents.tenant_id, principal.tenantId), eq(inventoryReservationEvents.idempotency_key, idempotencyKey))).limit(1)
+      const [event] = await transaction.select({ reservationId: inventoryReservationEvents.reservation_id, action: inventoryReservationEvents.action, actorId: inventoryReservationEvents.actor_id, reason: inventoryReservationEvents.reason }).from(inventoryReservationEvents).where(and(eq(inventoryReservationEvents.tenant_id, principal.tenantId), eq(inventoryReservationEvents.idempotency_key, idempotencyKey))).limit(1)
+      if (event && (event.reservationId !== reservationId || event.action !== command.action || event.actorId !== principal.userId || event.reason !== (command.reason ?? null))) {
+        throw new ConflictException('Reservation workflow idempotency key was already used for a different request')
+      }
       const targetId = event?.reservationId ?? reservationId
       const [reservation] = await transaction.select().from(inventoryReservations).where(and(eq(inventoryReservations.id, targetId), eq(inventoryReservations.tenant_id, principal.tenantId))).limit(1).for('update')
       if (!reservation) throw new NotFoundException('Inventory reservation not found')
+      await this.lockInventory(transaction, principal.tenantId, reservation.warehouse_id, reservation.material_item_id)
       if (event) return this.reservationResult(reservation, false, await this.availableQuantity(transaction, principal.tenantId, reservation.warehouse_id, reservation.material_item_id, reservation.uom_id))
       const current = reservationStatus(reservation.status)
       if (current !== 'active') throw new ConflictException(`Reservation cannot perform ${command.action} from status ${current}`)
+      if (command.action === 'expire' && (!reservation.expires_at || reservation.expires_at.getTime() > Date.now())) {
+        throw new ConflictException('Reservation has not reached its expiry; release it explicitly instead')
+      }
+      let consumptionMovementId: string | null = null
+      if (command.action === 'consume') {
+        if (!roleHasCapability(principal.role, 'inventory.post_movement')) throw new ForbiddenException('Stock posting capability is required to consume a reservation')
+        if (!reservation.project_id) throw new ConflictException('Consumption requires a project-linked reservation')
+        if (reservation.expires_at && reservation.expires_at.getTime() <= Date.now()) throw new ConflictException('Expired reservation cannot be consumed')
+        const [movement] = await transaction.insert(stockMovements).values({
+          tenant_id: principal.tenantId, movement_type: 'consumption', source_warehouse_id: reservation.warehouse_id,
+          project_id: reservation.project_id, movement_date: new Date().toISOString().slice(0, 10),
+          reason: command.reason ?? `Consume reservation ${reservation.id}`, created_by: principal.userId,
+        }).returning({ id: stockMovements.id })
+        if (!movement) throw new InternalServerErrorException('Reservation consumption movement was not created')
+        consumptionMovementId = movement.id
+        await transaction.insert(stockMovementLines).values({
+          tenant_id: principal.tenantId, stock_movement_id: movement.id, material_item_id: reservation.material_item_id,
+          uom_id: reservation.uom_id, cost_code_id: reservation.cost_code_id, line_number: 1,
+          description: `Reserved stock ${reservation.id}`, quantity_micros: safeDbInteger(reservation.quantity_micros, 'Reserved stock quantity'),
+        })
+      }
       const next = command.action === 'release' ? 'released' : command.action === 'consume' ? 'consumed' : 'expired'
-      const [updated] = await transaction.update(inventoryReservations).set({ status: next, released_by: command.action === 'release' || command.action === 'expire' ? principal.userId : reservation.released_by, released_at: command.action === 'release' || command.action === 'expire' ? new Date() : reservation.released_at, consumed_at: command.action === 'consume' ? new Date() : reservation.consumed_at, updated_at: new Date() }).where(and(eq(inventoryReservations.id, reservation.id), eq(inventoryReservations.tenant_id, principal.tenantId))).returning()
+      const [updated] = await transaction.update(inventoryReservations).set({ status: next, consumption_movement_id: consumptionMovementId, released_by: command.action === 'release' || command.action === 'expire' ? principal.userId : reservation.released_by, released_at: command.action === 'release' || command.action === 'expire' ? new Date() : reservation.released_at, consumed_at: command.action === 'consume' ? new Date() : reservation.consumed_at, updated_at: new Date() }).where(and(eq(inventoryReservations.id, reservation.id), eq(inventoryReservations.tenant_id, principal.tenantId))).returning()
       if (!updated) throw new InternalServerErrorException('Reservation workflow update failed')
+      if (consumptionMovementId) {
+        try {
+          await transaction.execute(sql`select * from public.post_stock_movement(${consumptionMovementId}::uuid,${principal.userId}::uuid)`)
+        } catch (error) {
+          mapStockMovementDatabaseFailure(error)
+        }
+      }
       await transaction.insert(inventoryReservationEvents).values({ tenant_id: principal.tenantId, reservation_id: reservation.id, action: command.action, quantity_micros: reservation.quantity_micros, actor_id: principal.userId, reason: command.reason ?? null, idempotency_key: idempotencyKey })
-      await this.audit.writeSemantic(transaction, { tenantId: principal.tenantId, actorId: principal.userId, entityType: 'inventory_reservation', entityId: reservation.id, action: 'status_change', diff: { from: current, to: next, reason: command.reason ?? null } })
+      await this.audit.writeSemantic(transaction, { tenantId: principal.tenantId, actorId: principal.userId, entityType: 'inventory_reservation', entityId: reservation.id, action: 'status_change', diff: { from: current, to: next, reason: command.reason ?? null, consumptionMovementId } })
       return this.reservationResult(updated, true, await this.availableQuantity(transaction, principal.tenantId, reservation.warehouse_id, reservation.material_item_id, reservation.uom_id))
     })
   }
 
   private async lockInventory(transaction: DatabaseTransaction, tenantId: string, warehouseId: string, materialItemId: string): Promise<void> {
-    await transaction.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`roadmap:inventory:${tenantId}:${warehouseId}:${materialItemId}`}, 0))`)
+    await transaction.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`${tenantId}:${warehouseId}:${materialItemId}`}, 0))`)
   }
 
   private async availableQuantity(transaction: DatabaseTransaction, tenantId: string, warehouseId: string, materialItemId: string, uomId: string): Promise<bigint> {
@@ -1172,8 +1224,8 @@ export class RoadmapService {
         .from(bankStatements)
         .where(and(eq(bankStatements.tenant_id, principal.tenantId), eq(bankStatements.status, 'draft'), lte(bankStatements.statement_end, period.ends_on), gte(bankStatements.statement_end, period.starts_on)))
       const [reservationRows] = await transaction.select({ count: sql<string>`count(*)::text` }).from(inventoryReservations).where(and(eq(inventoryReservations.tenant_id, principal.tenantId), eq(inventoryReservations.status, 'active'), lte(inventoryReservations.created_at, new Date(`${period.ends_on}T23:59:59.999Z`))))
-      const [sapRows] = await transaction.select({ count: sql<string>`count(*)::text` }).from(sapPostingOutbox).where(and(eq(sapPostingOutbox.tenant_id, principal.tenantId), inArray(sapPostingOutbox.status, ['pending', 'processing'])))
-      const [providerRows] = await transaction.select({ count: sql<string>`count(*)::text` }).from(providerDeliveryOutbox).where(and(eq(providerDeliveryOutbox.tenant_id, principal.tenantId), inArray(providerDeliveryOutbox.status, ['pending', 'processing'])))
+      const [sapRows] = await transaction.select({ count: sql<string>`count(*)::text` }).from(sapPostingOutbox).where(and(eq(sapPostingOutbox.tenant_id, principal.tenantId), inArray(sapPostingOutbox.status, ['pending', 'processing', 'dead_letter'])))
+      const [providerRows] = await transaction.select({ count: sql<string>`count(*)::text` }).from(providerDeliveryOutbox).where(and(eq(providerDeliveryOutbox.tenant_id, principal.tenantId), inArray(providerDeliveryOutbox.status, ['pending', 'processing', 'dead_letter'])))
       const checks = [
         { key: 'draft_journal_entries', passed: BigInt(draftRows?.count ?? '0') === 0n, detail: `${draftRows?.count ?? '0'} draft journal entries in period` },
         { key: 'unposted_stock_receipts', passed: BigInt(receiptRows?.count ?? '0') === 0n, detail: `${receiptRows?.count ?? '0'} draft stock receipts in period` },

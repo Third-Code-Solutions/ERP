@@ -20,9 +20,13 @@ $$;
 grant usage on schema public to anon, authenticated, service_role;
 
 alter default privileges for role postgres in schema public
-  grant all on tables to anon, authenticated, service_role;
+  revoke insert, update, delete, truncate, references, trigger, maintain on tables from public, anon, authenticated;
 alter default privileges for role postgres in schema public
-  grant all on sequences to anon, authenticated, service_role;
+  revoke usage, update on sequences from public, anon, authenticated;
+alter default privileges for role postgres in schema public
+  grant all on tables to service_role;
+alter default privileges for role postgres in schema public
+  grant all on sequences to service_role;
 alter default privileges for role postgres in schema public
   grant execute on functions to anon, authenticated, service_role;
 
@@ -60,10 +64,7 @@ grant select, insert, update, delete, truncate on table public.documents,
 -- trusted-server access; artifact mutation and parent deletion denials stay put.
 grant select on table public.account_kyc_artifacts, public.accounts,
   public.opportunities to authenticated;
--- Account/opportunity INSERT and UPDATE were observed in the legacy baseline
--- and are explicitly outside this migration's deletion-only parent boundary.
-grant insert, update on table public.accounts, public.opportunities
-  to authenticated;
+-- ADR-044: account/opportunity mutations also use audited server commands.
 grant select, insert, update, delete, truncate on table
   public.account_kyc_artifacts, public.accounts, public.opportunities
   to service_role;

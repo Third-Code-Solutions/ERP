@@ -20,6 +20,7 @@ import {
   type DatabaseTransaction,
 } from '../src/database/database.service'
 import { DocumentIntakeService } from '../src/documents/document-intake.service'
+import { documentUploadFixture } from './document-upload.fixture'
 
 const integrationEnabled =
   Boolean(process.env.DATABASE_URL) &&
@@ -130,9 +131,11 @@ suite('Document intake database integration', () => {
         role: 'pm',
         email: `document-intake-a-${suffix}@integration.test`,
       }
+      const uploadFixture = documentUploadFixture(transactionBoundDatabase(transaction), 1_024)
       const service = new DocumentIntakeService(
         transactionBoundDatabase(transaction),
-        new AuditService()
+        new AuditService(),
+        uploadFixture.uploads
       )
       const command = {
         storagePath: `${tenantA}/${projectA}/drawing.pdf`,
@@ -142,6 +145,7 @@ suite('Document intake database integration', () => {
         sizeBytes: 1_024,
         description: 'Integration drawing',
       }
+      command.storagePath = await uploadFixture.prepare({ projectId: projectA, fileName: command.fileName, mimeType: command.mimeType, sizeBytes: command.sizeBytes }, principalA, 'prepare-intake')
 
       const first = await service.create(
         command,

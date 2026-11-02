@@ -23,7 +23,8 @@ export default function RootError({
       <p className="page-eyebrow">ABI OPS</p>
       <h1 className="page-title">This workspace view could not load</h1>
       <p className="page-subtitle">
-        No data was changed. Try again, or return to the public workspace entry.
+        Try loading the view again. If this happened after submitting, check
+        the record before repeating the action.
       </p>
       <div className="route-state-actions">
         <button type="button" className="button button-primary" onClick={reset}>

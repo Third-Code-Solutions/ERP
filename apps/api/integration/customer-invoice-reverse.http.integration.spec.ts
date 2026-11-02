@@ -96,11 +96,17 @@ suite('Customer invoice reverse protected HTTP canary', () => {
           id: tenantA,
           name: 'Customer invoice reverse HTTP tenant A',
           slug: `customer-invoice-reverse-http-a-${suffix}`,
+          legal_name: 'Customer Invoice Reverse Test Company A',
+          registered_address: 'Synthetic fixture address A',
+          bir_tin: 'TEST-TIN-REVA',
         },
         {
           id: tenantB,
           name: 'Customer invoice reverse HTTP tenant B',
           slug: `customer-invoice-reverse-http-b-${suffix}`,
+          legal_name: 'Customer Invoice Reverse Test Company B',
+          registered_address: 'Synthetic fixture address B',
+          bir_tin: 'TEST-TIN-REVB',
         },
       ])
       await transaction.insert(users).values([
@@ -198,6 +204,7 @@ suite('Customer invoice reverse protected HTTP canary', () => {
           created_by: financeA,
           invoice_number: `INV-REV-A-${suffix}`,
           status: 'draft',
+          pricing_basis: 'reconciled_v1',
           billing_percent_bps: 10000,
           retention_bps: 0,
           subtotal_cents: 100000,
@@ -214,6 +221,7 @@ suite('Customer invoice reverse protected HTTP canary', () => {
           created_by: financeB,
           invoice_number: `INV-REV-B-${suffix}`,
           status: 'draft',
+          pricing_basis: 'reconciled_v1',
           billing_percent_bps: 10000,
           retention_bps: 0,
           subtotal_cents: 100000,

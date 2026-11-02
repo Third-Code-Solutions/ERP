@@ -12,9 +12,14 @@
  */
 
 import { db } from '@third-code-erp/database'
-import { notifications, users } from '@third-code-erp/database/schema'
+import { notifications, tenants, users } from '@third-code-erp/database/schema'
 import { and, eq, inArray } from 'drizzle-orm'
-import { sendEmail, templates, type EmailTemplateId } from './integrations/resend'
+import {
+  renderEmailTemplate,
+  sendEmail,
+  type EmailTemplateId,
+  type EmailTemplateVariables,
+} from './integrations/resend'
 import { sendSms } from './integrations/semaphore'
 import type { AppRole } from '@third-code-erp/auth'
 
@@ -32,20 +37,20 @@ interface DispatchToUser extends BaseDispatch {
   alsoEmail?: boolean
   alsoSms?: boolean
   templateId?: EmailTemplateId
-  templateVars?: Record<string, string | number>
+  templateVars?: EmailTemplateVariables
 }
 
 interface DispatchToRole extends BaseDispatch {
   recipientRoles: AppRole[]
   alsoEmail?: boolean
   templateId?: EmailTemplateId
-  templateVars?: Record<string, string | number>
+  templateVars?: EmailTemplateVariables
 }
 
 interface DispatchToEmail extends BaseDispatch {
   recipientEmail: string
   templateId: EmailTemplateId
-  templateVars: Record<string, string | number>
+  templateVars: EmailTemplateVariables
 }
 
 export async function notifyUser(d: DispatchToUser): Promise<void> {
@@ -128,7 +133,8 @@ export async function notifyExternalEmail(
     delivery = await sendEmailFromTemplate(
       d.recipientEmail,
       d.templateId,
-      d.templateVars
+      d.templateVars,
+      d.tenantId
     )
   } catch (error) {
     logEmailDeliveryFailure(error, {
@@ -161,11 +167,11 @@ export async function notifyExternalEmail(
 async function attemptEmailDelivery(
   to: string,
   templateId: EmailTemplateId,
-  vars: Record<string, string | number>,
+  vars: EmailTemplateVariables,
   context: { tenant_id: string; recipient_user_id: string }
 ): Promise<boolean> {
   try {
-    const delivery = await sendEmailFromTemplate(to, templateId, vars)
+    const delivery = await sendEmailFromTemplate(to, templateId, vars, context.tenant_id)
     return !delivery.is_dev_stub
   } catch (error) {
     logEmailDeliveryFailure(error, {
@@ -231,17 +237,19 @@ function logEmailDeliveryFailure(
 async function sendEmailFromTemplate(
   to: string,
   templateId: EmailTemplateId,
-  vars: Record<string, string | number>
+  vars: EmailTemplateVariables,
+  tenantId: string
 ): Promise<{ id: string; is_dev_stub: boolean }> {
-  // Tiny narrowing: each template wants its own var shape. We trust the
-  // caller and cast — Zod-style runtime checks are unnecessary for an
-  // internal mapping.
-  const builder = templates[templateId] as (v: Record<string, string | number>) => {
-    subject: string
-    html: string
-    text: string
-  }
-  const { subject, html, text } = builder(vars)
+  const [tenant] = await db
+    .select({ legal_name: tenants.legal_name })
+    .from(tenants)
+    .where(eq(tenants.id, tenantId))
+    .limit(1)
+  const { subject, html, text } = renderEmailTemplate(
+    templateId,
+    vars,
+    tenant?.legal_name?.trim() || undefined
+  )
   return sendEmail({ to, subject, html, text })
 }
 

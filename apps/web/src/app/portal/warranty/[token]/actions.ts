@@ -15,9 +15,10 @@ import {
   warrantyPortalTokens,
   warrantyTickets,
   projects,
+  tenants,
 } from '@third-code-erp/database/schema'
-import { and, eq, max } from 'drizzle-orm'
-import { writeAuditLog } from '@/lib/audit'
+import { and, eq, max, sql } from 'drizzle-orm'
+import { writeAuditLogInTransaction } from '@/lib/audit'
 import { notifyExternalEmail, notifyRoles } from '@/lib/operations/notifications'
 import { startSlaClock } from '@/lib/operations/sla-clock'
 
@@ -51,8 +52,9 @@ const ALLOWED_CATEGORIES: TicketCategory[] = [
 export async function submitTicket(token: string, formData: FormData): Promise<void> {
   const tokenHash = hashToken(token)
 
-  // 1. Verify token, fetch tenant + project + account.
-  const [tokenRow] = await db
+  const result = await db.transaction(async (tx) => {
+  // Keep tenant suspension and token revocation serialized with ticket creation.
+  const [tokenRow] = await tx
     .select({
       tenant_id: warrantyPortalTokens.tenant_id,
       project_id: warrantyPortalTokens.project_id,
@@ -61,6 +63,7 @@ export async function submitTicket(token: string, formData: FormData): Promise<v
       account_id: projects.account_id,
     })
     .from(warrantyPortalTokens)
+    .innerJoin(tenants, eq(tenants.id, warrantyPortalTokens.tenant_id))
     .innerJoin(
       projects,
       and(
@@ -68,8 +71,9 @@ export async function submitTicket(token: string, formData: FormData): Promise<v
         eq(projects.tenant_id, warrantyPortalTokens.tenant_id)
       )
     )
-    .where(eq(warrantyPortalTokens.token_hash, tokenHash))
+    .where(and(eq(warrantyPortalTokens.token_hash, tokenHash), eq(tenants.status, 'active')))
     .limit(1)
+    .for('share')
 
   if (!tokenRow) {
     redirect(`/portal/warranty/${token}?error=expired`)
@@ -77,7 +81,7 @@ export async function submitTicket(token: string, formData: FormData): Promise<v
 
   const isExpired =
     !!tokenRow.revoked_at ||
-    (tokenRow.expires_at instanceof Date && tokenRow.expires_at.getTime() < Date.now())
+    (tokenRow.expires_at !== null && new Date(tokenRow.expires_at).getTime() <= Date.now())
   if (isExpired) {
     redirect(`/portal/warranty/${token}?error=expired`)
   }
@@ -97,7 +101,8 @@ export async function submitTicket(token: string, formData: FormData): Promise<v
   }
 
   // 3. Generate ticket_number = "WT-" + zero-padded next sequence per tenant.
-  const [maxRow] = await db
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${'warranty-ticket-number:' + tokenRow.tenant_id}, 0))`)
+  const [maxRow] = await tx
     .select({
       max_num: max(warrantyTickets.ticket_number),
     })
@@ -108,7 +113,7 @@ export async function submitTicket(token: string, formData: FormData): Promise<v
   const ticketNumber = `WT-${String(nextSeq).padStart(6, '0')}`
 
   // 4. Insert ticket.
-  const [inserted] = await db
+  const [inserted] = await tx
     .insert(warrantyTickets)
     .values({
       tenant_id: tokenRow.tenant_id,
@@ -127,6 +132,18 @@ export async function submitTicket(token: string, formData: FormData): Promise<v
   if (!inserted) {
     redirect(`/portal/warranty/${token}?error=failed`)
   }
+
+  await writeAuditLogInTransaction(tx, {
+    tenantId: tokenRow.tenant_id,
+    actorId: null,
+    entityType: 'warranty_ticket',
+    entityId: inserted.id,
+    action: 'create',
+    diff: { ticket_number: ticketNumber, category, submitted_by_email: email },
+  })
+  return { tokenRow, inserted, ticketNumber, category, description, email }
+  })
+  const { tokenRow, inserted, ticketNumber, category, description, email } = result
 
   // 5. Start SLA clock (24h to acknowledge).
   await startSlaClock({
@@ -156,21 +173,6 @@ export async function submitTicket(token: string, formData: FormData): Promise<v
       description,
     },
   })
-
-  // 8. Audit (no actor — public portal).
-  try {
-    const diff = { ticket_number: ticketNumber, category, submitted_by_email: email }
-    await writeAuditLog({
-      tenantId: tokenRow.tenant_id,
-      actorId: null,
-      entityType: 'warranty_ticket',
-      entityId: inserted.id,
-      action: 'create',
-      diff,
-    })
-  } catch {
-    // never let audit failures block ticket submission
-  }
 
   redirect(`/portal/warranty/${token}?ok=1&ticket=${encodeURIComponent(ticketNumber)}`)
 }

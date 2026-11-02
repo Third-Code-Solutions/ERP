@@ -11,10 +11,10 @@
     "databaseVersion": "17.6.1.121",
     "postgresMajor": 17,
     "appliedCount": 157,
-    "sourceCount": 177,
-    "pendingCount": 20,
+    "sourceCount": 188,
+    "pendingCount": 31,
     "appliedHead": "20260901141949",
-    "sourceHead": "20260921181036",
+    "sourceHead": "20261020190000",
     "ledgerStatus": "current_remote_ledger_matches_source",
     "purchaseOrderPreflight": {
       "duplicateGroups": 0,
@@ -121,6 +121,35 @@
       "hostedApplyApproved": false,
       "risk": "Adds tenant-scoped, RLS-protected procurement, inventory reservation, landed-cost, price-list, currency, tax/statutory, period-close, SAP outbox and provider-delivery foundations. The migration preserves existing ERP tables and keeps new workflows dark behind tenant feature flags; live provider behavior and hosted schema application remain unverified.",
       "recovery": "Require backup/PITR, isolated restore and migration rehearsal, exact-target lock/grant preflight, and provider/SAP credential verification before hosted application. The migration is transactional and aborts without data changes on failure. Keep roadmap flags and workers disabled until live replay and all-role E2E evidence are recorded; roll forward or use the reviewed migration recovery procedure rather than bypassing RLS or audit controls."
+    },
+    {
+      "id": "20261012-independent-abi-ops-integrity",
+      "migrations": [
+        "20261011151253_tender_core_write_authority.sql",
+        "20261011151255_independent_platform_owner_bootstrap.sql",
+        "20261011152153_exact_bom_pricing_and_quantity.sql",
+        "20261011153424_fractional_purchase_order_quantities.sql",
+        "20261011154118_reserved_stock_ledger_integrity.sql",
+        "20261011160000_tenant_legal_document_identity.sql",
+        "20261012044500_controlled_document_upload_quota.sql",
+        "20261012044700_purchase_order_core_write_authority.sql",
+        "20261012045753_bom_server_write_authority.sql",
+        "20261012050920_server_owned_table_write_boundary.sql"
+      ],
+      "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
+      "hostedApplyApproved": false,
+      "risk": "ADR-040 through ADR-044: buyer owner bootstrap, exact draft financial pricing, fractional quantities, reservation-aware stock, immutable issuer identity, controlled upload quota, and server-owned public-table writes. Requires compatible Web/Core together. Preserve historical issued amounts and identity gaps; do not silently reprice legacy financial documents. Inventory external Data API writers before revoke. Local 187-migration replay and catalog checks do not establish hosted state.",
+      "recovery": "No hosted mutation authorized. Before application require exact target, backup and isolated restore, financial review, lock/size impact checks and upload token cutover/reconciliation. Retain capability denials and issued snapshots on forward recovery. Do not downgrade to incompatible writers or restore broad client grants. Source count/head updated on 2026-10-12; original provider snapshot is unchanged and remains historical."
+    },
+    {
+      "id": "20261020-tenant-invite-provisioning",
+      "migrations": [
+        "20261020190000_tenant_invite_provisioning.sql"
+      ],
+      "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
+      "hostedApplyApproved": false,
+      "risk": "Replaces public.handle_new_user() and public.provision_platform_invited_user(): admin-invited users join the inviter tenant via a service-role-only erp_invite claim re-validated in the auth insert transaction, and an auth insert carrying erp_invite for an email with a pending platform invitation is rejected. Touches no table, column, index or row. Requires the compatible Web createUser action, which no longer inserts public.users.",
+      "recovery": "No hosted mutation authorized. Function-only change, re-applicable as written (create or replace). Forward recovery: re-apply the previous definitions of handle_new_user (20260729054456) and provision_platform_invited_user (20260904020000). Users already provisioned through the invite path remain valid rows and need no cleanup."
     }
   ]
 }

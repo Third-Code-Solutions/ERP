@@ -222,6 +222,7 @@ describe('runSignedBomAward hierarchy validation', () => {
           opportunityId: null,
           status: 'locked',
           tcvCents: 100_000,
+          pricingBasis: 'reconciled_v1', sellingExVatCents: 90000, vatCents: 10000,
         },
       ],
       [{ id: 'project-1', accountId: null, projectCode: 'PRJ-2026-0001' }],
@@ -264,6 +265,7 @@ describe('runSignedBomAward hierarchy validation', () => {
           opportunityId: null,
           status: 'locked',
           tcvCents: 100_000,
+          pricingBasis: 'reconciled_v1', sellingExVatCents: 90000, vatCents: 10000,
         },
       ],
       [{ id: 'project-1', accountId: null, projectCode: 'PRJ-2026-0001' }],
@@ -304,11 +306,11 @@ describe('runSignedBomAward hierarchy validation', () => {
         new WriteChain([], (values) => {
           insertedValues.push(values)
           const record = objectRecord(values)
-          if (record && 'source_bom_id' in record) {
-            return new WriteChain([{ id: 'budget-1' }])
-          }
           if (record && 'invoice_number' in record) {
             return new WriteChain([{ id: 'invoice-1' }])
+          }
+          if (record && 'source_bom_id' in record) {
+            return new WriteChain([{ id: 'budget-1' }])
           }
           if (record?.name === 'Project Tracker') {
             return new WriteChain([{ id: 'tracker-1' }])
@@ -344,6 +346,7 @@ describe('runSignedBomAward hierarchy validation', () => {
       return record?.invoice_number === 'AWD-DP-PRJ-2026-0001'
     })
     expect(result.budgetId).toBe('budget-1')
+    expect(result.dpInvoiceId).toBe('invoice-1')
     expect(budgetLineInsert).toEqual([
       expect.objectContaining({
         bom_line_item_id: 'parent',
@@ -352,8 +355,11 @@ describe('runSignedBomAward hierarchy validation', () => {
     ])
     expect(invoiceInsert).toEqual(
       expect.objectContaining({
-        subtotal_cents: 25_000,
+        subtotal_cents: 22_500,
+        vat_cents: 2_500,
         net_amount_cents: 25_000,
+        pricing_basis: 'reconciled_v1',
+        source_bom_id: 'bom-1',
       }),
     )
     expect(sharedTypesMock.createSlaClockSchedule).toHaveBeenCalled()

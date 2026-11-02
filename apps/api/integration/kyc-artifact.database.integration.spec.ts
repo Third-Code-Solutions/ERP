@@ -10,6 +10,7 @@ import type { ErpPrincipal } from '../src/auth/current-principal.decorator'
 import { DatabaseService } from '../src/database/database.service'
 import { KycArtifactService } from '../src/crm/kyc-artifact.service'
 import { DocumentDeleteService } from '../src/documents/document-delete.service'
+import { documentUploadFixture } from './document-upload.fixture'
 
 const expected = process.env.ERP_API_INTEGRATION_EXPECTED === '1'
 const suite = expected ? describe : describe.skip
@@ -272,6 +273,14 @@ suite('KYC artifact PostgreSQL authority', () => {
   }, 15000)
   it('rejects attachment after a concurrent deletion commits first without artifact or audit residue', async () => {
     const f = await fixture(), documentId = await document(f)
+    const upload = documentUploadFixture(new DatabaseService(), 1)
+    const input = { projectId: f.projectId, fileName: 'Evidence.pdf', mimeType: 'application/pdf', sizeBytes: 1 }
+    const storagePath = await upload.prepare(input, f.principal, randomUUID())
+    await db.transaction(async (tx) => {
+      await tx.update(documents).set({ storage_path: storagePath }).where(eq(documents.id, documentId))
+      const reservation = await upload.uploads.verifyCompletion(tx, { ...input, storagePath }, f.principal)
+      await upload.uploads.complete(tx, reservation, documentId)
+    })
     const entered = signal(), release = signal()
     let deletePid = 0
     const deletionAudit = new AuditService(), write = deletionAudit.writeSemantic.bind(deletionAudit)

@@ -20,7 +20,7 @@ permissions:
 jobs:
   actionlint:
     name: Actionlint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - name: Run actionlint
@@ -28,7 +28,7 @@ jobs:
 
   build-ops-invariants:
     name: BUILD OPS Invariants
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [actionlint]
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -70,7 +70,7 @@ jobs:
 
   typecheck:
     name: Type Check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [actionlint]
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -84,7 +84,7 @@ jobs:
 
   lint:
     name: Lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [actionlint]
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -98,7 +98,7 @@ jobs:
 
   test:
     name: Unit Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [actionlint]
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -143,6 +143,12 @@ jobs:
       - run: pnpm test:controlled-release-plan
       - run: pnpm test:release-identity-plan
       - run: pnpm test:web-db-boundary
+      - run: pnpm test:doc-authority
+      - run: pnpm test:roadmap-foundation
+      - run: pnpm test:type-safety
+      - run: pnpm test:app-router-boundaries
+      - run: pnpm test:abi-ops-brand
+      - run: pnpm test:production-surface
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
@@ -151,7 +157,7 @@ jobs:
 
   database-reproducibility:
     name: Database Reproducibility (Postgres 17)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [actionlint, build-ops-invariants]
     timeout-minutes: 30
     services:
@@ -177,9 +183,11 @@ jobs:
       DATABASE_INVENTORY_EXPECTED: "1"
       DATABASE_BUDGET_EXPECTED: "1"
       DATABASE_STOCK_MOVEMENT_EXPECTED: "1"
+      DATABASE_DOCUMENT_IDENTITY_EXPECTED: "1"
       ACCOUNT_ACTIONS_DATABASE_EXPECTED: "1"
       BUILD_OPS_DEMO_TENANT_SLUGS: abi-ops-local
       ERP_API_INTEGRATION_EXPECTED: "1"
+      PORTAL_DATABASE_EXPECTED: "1"
       ERP_REDIS_RESTART_EXPECTED: "1"
       REDIS_URL: redis://127.0.0.1:6379
     steps:
@@ -275,6 +283,8 @@ jobs:
         run: >-
           pnpm --filter @third-code-erp/web exec vitest run
           src/lib/management-dashboard.integration.test.ts
+          src/lib/operations/customer-portal.database.test.ts
+          'src/app/portal/cnps/[token]/actions.database.test.ts'
           'src/app/(dashboard)/crm/accounts/actions.database.integration.test.ts'
           'src/app/(dashboard)/crm/opportunities/[id]/proposal/change-request-workflow.integration.test.ts'
           --reporter=json
@@ -336,8 +346,8 @@ jobs:
 
   build:
     name: Build
-    runs-on: ubuntu-latest
-    needs: [typecheck, lint, test, build-ops-invariants, database-reproducibility, claim-document-browser]
+    runs-on: ubuntu-24.04
+    needs: [typecheck, lint, test, build-ops-invariants, database-reproducibility, claim-document-browser, python-workers, security]
     env:
       # Build-time envs. If a repo secret is set, it wins; otherwise placeholders
       # keep CI green. The artifact is just a buildability gate — Vercel runs its
@@ -392,7 +402,7 @@ jobs:
 
   claim-document-browser:
     name: Claim Document Browser Interaction
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [actionlint]
     timeout-minutes: 15
     steps:
@@ -466,7 +476,7 @@ jobs:
 
   e2e:
     name: E2E Tests (trusted PR)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [build]
     # Forked PRs cannot safely receive test credentials. Trusted PRs must
     # supply an isolated E2E target; absence is a failure, never a green skip.
@@ -526,9 +536,40 @@ jobs:
           path: tmp/e2e/
           retention-days: 7
 
+  python-workers:
+    name: Python worker tests and images
+    runs-on: ubuntu-24.04
+    needs: [actionlint]
+    strategy:
+      fail-fast: false
+      matrix:
+        worker: [dxf-parser, ai]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: Test locked Python 3.12 dependencies
+        env:
+          WORKER: ${{ matrix.worker }}
+        run: |
+          docker run --rm -v "$PWD:/repo:ro" -w "/repo/apps/workers/$WORKER" \
+            python:3.12-slim-trixie@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1 \
+            sh -ec 'pip install --require-hashes -r requirements-dev.lock && python -m pytest -q -p no:cacheprovider'
+      - name: Build worker runtime
+        env:
+          WORKER: ${{ matrix.worker }}
+        run: docker build --tag "abi-ops-worker:$WORKER" "apps/workers/$WORKER"
+      - name: Scan worker runtime vulnerabilities
+        env:
+          WORKER: ${{ matrix.worker }}
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$PWD/.trivyignore:/.trivyignore:ro" \
+            aquasec/trivy@sha256:af6acf9a6b85dfe389a1941505c0ce9efef52a4719635e1a962f022a3d855daa \
+            image --scanners vuln --severity HIGH,CRITICAL --exit-code 1 \
+            --ignorefile /.trivyignore "abi-ops-worker:$WORKER"
+
   security:
     name: Security Scan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [actionlint]
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -547,3 +588,7 @@ jobs:
         run: pnpm audit --audit-level low
       - name: Scan for secrets (gitleaks)
         run: node scripts/run-gitleaks.mjs
+      - name: Scan application trust boundaries
+        run: |
+          docker run --rm -v "$PWD:/src:ro" semgrep/semgrep@sha256:93963d9295a366f59e4850127b1550400ee7b388f04fe144e4a1f6325d96e01b \
+            semgrep scan --jobs 1 --max-memory 1024 --config /src/infra/security/semgrep.yml --metrics off --error /src/apps /src/packages

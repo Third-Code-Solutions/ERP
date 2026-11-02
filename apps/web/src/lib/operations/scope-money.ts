@@ -1,3 +1,5 @@
+import { manualLineTotal } from '@third-code-erp/shared-types/bom'
+
 /** Parse user-entered peso text without routing money through IEEE-754 floats. */
 export function parsePesosToCents(raw: string): number | undefined {
   const value = raw.trim()
@@ -16,12 +18,10 @@ export function multiplyCents(
   if (
     !Number.isSafeInteger(unitCostCents) ||
     unitCostCents < 0 ||
-    !Number.isSafeInteger(quantity) ||
     quantity < 0
   ) {
     return undefined
   }
 
-  const result = Number(BigInt(unitCostCents) * BigInt(quantity))
-  return Number.isSafeInteger(result) ? result : undefined
+  try { return manualLineTotal(unitCostCents, quantity) } catch { return undefined }
 }

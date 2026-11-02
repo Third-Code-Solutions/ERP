@@ -26,29 +26,35 @@ jobs:
   promote:
     name: Promote ABI OPS production
     if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     environment:
       name: production
-      url: https://thirdcode-erp.vercel.app
+      url: ${{ vars.PRODUCTION_URL }}
     env:
-      SUPABASE_PROJECT_REF: aqqrtkmtcsfkbyyqxowv
-      RAILWAY_PROJECT_ID: a21fd382-80b2-4218-8025-11f420a062e3
-      RAILWAY_API_SERVICE_ID: c45b3d01-036a-4663-a524-0713d782fce3
-      RAILWAY_CAD_SERVICE_ID: 328c6650-306e-4a3c-80dc-7566e80ba86a
+      SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+      RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }}
+      RAILWAY_ENVIRONMENT_ID: ${{ vars.RAILWAY_ENVIRONMENT_ID }}
+      RAILWAY_API_SERVICE_ID: ${{ vars.RAILWAY_API_SERVICE_ID }}
+      RAILWAY_CAD_SERVICE_ID: ${{ vars.RAILWAY_CAD_SERVICE_ID }}
       # The CLI's --scope parameter requires the team ID, not the dashboard
       # slug. The linked project records this value as orgId.
-      VERCEL_SCOPE: team_n60dl3ccO8BFGFeUKQdqPhp3
-      VERCEL_PROJECT_NAME: thirdcode-erp
-      NEXT_PUBLIC_SUPABASE_URL: https://aqqrtkmtcsfkbyyqxowv.supabase.co
+      VERCEL_SCOPE: ${{ vars.VERCEL_SCOPE }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      VERCEL_PROJECT_NAME: ${{ vars.VERCEL_PROJECT_NAME }}
+      PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+      ERP_CORE_API_URL: ${{ vars.ERP_CORE_API_URL }}
+      CAD_WORKER_URL: ${{ vars.CAD_WORKER_URL }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
       SUPABASE_MIGRATION_DATABASE_URL: ${{ secrets.SUPABASE_MIGRATION_DATABASE_URL }}
       PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
-      BUILD_OPS_DEMO_TENANT_SLUGS: buildops-e2e
-      E2E_DEMO_TENANT_SLUG: buildops-e2e
+      RUNTIME_DATABASE_URL: ${{ secrets.RUNTIME_DATABASE_URL }}
+      BUILD_OPS_DEMO_TENANT_SLUGS: ${{ vars.BUILD_OPS_DEMO_TENANT_SLUGS }}
+      E2E_DEMO_TENANT_SLUG: ${{ vars.E2E_DEMO_TENANT_SLUG }}
       # The stable preview uses a different database/project fixture.
       E2E_PROJECT_ID: ${{ vars.PRODUCTION_E2E_PROJECT_ID }}
       E2E_USER_EMAIL: ${{ secrets.E2E_USER_EMAIL }}
@@ -87,12 +93,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for name in VERCEL_TOKEN RAILWAY_API_TOKEN SUPABASE_MIGRATION_DATABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY PRODUCTION_DATABASE_URL E2E_PROJECT_ID E2E_USER_EMAIL E2E_USER_PASSWORD; do
+          for name in RUNTIME_DATABASE_URL VERCEL_TOKEN RAILWAY_API_TOKEN SUPABASE_MIGRATION_DATABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY PRODUCTION_DATABASE_URL E2E_PROJECT_ID E2E_USER_EMAIL E2E_USER_PASSWORD; do
             if [[ -z "${!name:-}" ]]; then
               echo "$name is required for production promotion" >&2
               exit 1
             fi
           done
+
+      - name: Verify explicit installation targets
+        run: node scripts/verify-installation-targets.mjs
 
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
@@ -124,32 +133,7 @@ jobs:
           pnpm build
 
       - name: Verify exact Supabase database targets
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          import os
-          from urllib.parse import urlsplit
-
-          project_ref = os.environ["SUPABASE_PROJECT_REF"]
-          expected_user = f"postgres.{os.environ['SUPABASE_PROJECT_REF']}"
-
-          def verify(name, allowed_ports):
-              target = urlsplit(os.environ[name])
-              hostname = (target.hostname or "").lower()
-              database = target.path.removeprefix("/")
-              if target.scheme not in {"postgres", "postgresql"}:
-                  raise SystemExit(f"{name} must use PostgreSQL")
-              if not hostname.endswith(".pooler.supabase.com"):
-                  raise SystemExit(f"{name} must target a Supabase pooler")
-              if target.username != expected_user:
-                  raise SystemExit(f"{name} must target the exact Supabase project")
-              if target.port not in allowed_ports or database != "postgres":
-                  raise SystemExit(f"{name} has an unexpected port or database")
-
-          verify("SUPABASE_MIGRATION_DATABASE_URL", {5432})
-          verify("PRODUCTION_DATABASE_URL", {5432, 6543})
-          PY
+        run: node scripts/verify-installation-targets.mjs
 
       - name: Require current production migration ledger
         env:
@@ -177,10 +161,11 @@ jobs:
         run: |
           set -euo pipefail
           pnpm dlx vercel@54.7.1 link --yes --project "$VERCEL_PROJECT_NAME" --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
+          node --input-type=module -e 'import fs from "node:fs"; const p=JSON.parse(fs.readFileSync(".vercel/project.json","utf8")); if(p.projectId!==process.env.VERCEL_PROJECT_ID || p.orgId!==process.env.VERCEL_SCOPE) throw new Error("Linked Vercel project differs from explicit installation target")'
           # Keep Vercel's runtime credential aligned with the protected release
           # secret. Vercel snapshots variables per deployment, so this must run
           # before creating the production deployment.
-          pnpm dlx vercel@54.7.1 env add DATABASE_URL production --force --value "$PRODUCTION_DATABASE_URL" --yes --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
+          pnpm dlx vercel@54.7.1 env add DATABASE_URL production --force --value "$RUNTIME_DATABASE_URL" --yes --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
           pnpm dlx vercel@54.7.1 env add APP_REVISION production --force --value "$GITHUB_SHA" --yes --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
           pnpm dlx vercel@54.7.1 deploy . --prod --force --with-cache --yes --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
 
@@ -188,14 +173,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          web_health="$(curl --fail --silent --show-error https://thirdcode-erp.vercel.app/api/health)"
-          web_ready="$(curl --fail --silent --show-error https://thirdcode-erp.vercel.app/api/ready)"
+          web_health="$(curl --fail --silent --show-error "$PRODUCTION_URL/api/health?deep=1")"
+          web_ready="$(curl --fail --silent --show-error "$PRODUCTION_URL/api/ready")"
           test "$(jq -r '.revision' <<<"$web_health")" = "${GITHUB_SHA:0:12}"
           test "$(jq -r '.revision' <<<"$web_ready")" = "${GITHUB_SHA:0:12}"
-          curl --fail --silent --show-error https://third-code-erp-api-production.up.railway.app/health
-          curl --fail --silent --show-error https://third-code-erp-api-production.up.railway.app/ready
-          curl --fail --silent --show-error https://abi-ops-cad-worker-production.up.railway.app/health
-          node scripts/verify-production-surface.mjs --url https://thirdcode-erp.vercel.app
+          curl --fail --silent --show-error "$ERP_CORE_API_URL/health"
+          curl --fail --silent --show-error "$ERP_CORE_API_URL/ready"
+          curl --fail --silent --show-error "$CAD_WORKER_URL/health"
+          node scripts/verify-production-surface.mjs --url "$PRODUCTION_URL"
 
       - name: Install Playwright Chromium
         working-directory: apps/web
@@ -226,7 +211,7 @@ jobs:
         working-directory: apps/web
         env:
           E2E_CROSS_TENANT_PROOF: "1"
-          PLAYWRIGHT_BASE_URL: https://thirdcode-erp.vercel.app
+          PLAYWRIGHT_BASE_URL: ${{ vars.PRODUCTION_URL }}
         shell: bash
         run: |
           set -euo pipefail
@@ -244,7 +229,7 @@ jobs:
           E2E_ROLE_MATRIX_AUTH: "1"
           E2E_SCHEDULE_AUTH: "1"
           E2E_REAL_PASSWORD_RECOVERY: "1"
-          PLAYWRIGHT_BASE_URL: https://thirdcode-erp.vercel.app
+          PLAYWRIGHT_BASE_URL: ${{ vars.PRODUCTION_URL }}
         shell: bash
         run: |
           set -euo pipefail
@@ -269,7 +254,7 @@ jobs:
         working-directory: apps/web
         env:
           E2E_REAL_PASSWORD_RECOVERY: "1"
-          PLAYWRIGHT_BASE_URL: https://thirdcode-erp.vercel.app
+          PLAYWRIGHT_BASE_URL: ${{ vars.PRODUCTION_URL }}
         run: >-
           pnpm exec playwright test e2e/production-password-recovery.spec.ts
           --project=chromium --workers=1 --retries=0 --reporter=line
@@ -280,7 +265,7 @@ jobs:
         env:
           E2E_LIVE_PASSWORD_ROTATION: "1"
           E2E_LIVE_PASSWORD_ROTATION_CONFIRM_EMAIL: ${{ secrets.E2E_USER_EMAIL }}
-          PLAYWRIGHT_BASE_URL: https://thirdcode-erp.vercel.app
+          PLAYWRIGHT_BASE_URL: ${{ vars.PRODUCTION_URL }}
         run: node e2e/live-password-rotation-harness.mjs
 
       - name: Record excluded password rotation verification

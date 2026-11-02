@@ -42,13 +42,25 @@ const CONFIRMATION_URL =
   'https://third-code-erp-api.example.test/v1/public/purchase-orders/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/confirmation'
 
 function service(
-  values: Record<string, string | undefined>
+  values: Record<string, string | undefined>,
+  companyLegalName: string | null = null
 ): NotificationEmailService {
   const config = {
     get: vi.fn((name: string) => values[name]),
   }
   return new NotificationEmailService(
-    config as unknown as ConfigService
+    config as unknown as ConfigService,
+    {
+      client: {
+        select: () => ({
+          from: () => ({
+            where: () => ({
+              limit: async () => [{ legalName: companyLegalName }],
+            }),
+          }),
+        }),
+      },
+    } as never
   )
 }
 
@@ -69,7 +81,7 @@ describe('NotificationEmailService', () => {
       RESEND_API_KEY: 're_test_key_long_enough',
       EMAIL_FROM: 'ABI OPS <erp@example.test>',
       ERP_WEB_BASE_URL: 'https://thirdcode-erp.example.test',
-    })
+    }, 'Example Builders Corporation')
 
     await expect(email.sendRfqCreated(INPUT)).resolves.toBe(
       'email-provider-id'
@@ -176,9 +188,9 @@ describe('NotificationEmailService', () => {
       RESEND_API_KEY: 're_test_key_long_enough',
       EMAIL_FROM: 'ABI OPS <erp@example.test>',
       ERP_WEB_BASE_URL: 'https://thirdcode-erp.example.test',
-    })
+    }, 'Example Builders Corporation')
 
-    await expect(email.sendPurchaseOrderSupplier(SUPPLIER_INPUT)).resolves.toBe(
+    await expect(email.sendPurchaseOrderSupplier({ ...SUPPLIER_INPUT, tenantId: 'tenant-a' })).resolves.toBe(
       'supplier-email-provider-id'
     )
     const [, request] = fetchMock.mock.calls[0] as [string, RequestInit]
@@ -194,9 +206,10 @@ describe('NotificationEmailService', () => {
     expect(body.html).toContain('Concrete &lt;Co&gt;')
     expect(body.html).toContain('PHP 1,234.05')
     expect(body.text).toBe(
-      'Purchase order PO-0042 issued\n\nHello Concrete <Co>, purchase order PO-0042 for HQ <Fit-out> has been issued. Total order value: PHP 1,234.05. Review the purchase order: https://thirdcode-erp.example.test/purchase-orders/33333333-3333-4333-8333-333333333333.\n\nABI OPS\nActuate Builders Inc.'
+      'Purchase order PO-0042 issued\n\nHello Concrete <Co>, purchase order PO-0042 for HQ <Fit-out> has been issued. Total order value: PHP 1,234.05. Review the purchase order: https://thirdcode-erp.example.test/purchase-orders/33333333-3333-4333-8333-333333333333.\n\nABI OPS\nExample Builders Corporation'
     )
-    expect(body.html).toContain('This message was sent by ABI OPS for Actuate Builders Inc.')
+    expect(body.html).toContain('This message was sent by ABI OPS for Example Builders Corporation.')
+    expect(body.html).not.toContain('Actuate Builders Inc.')
     expect(body.html).not.toMatch(/[—–→]/)
   })
 

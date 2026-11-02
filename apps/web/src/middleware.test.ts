@@ -1,5 +1,4 @@
 import { NextRequest } from 'next/server'
-import { PLATFORM_OWNER_EMAIL } from '@third-code-erp/shared-types/platform-administration'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -24,6 +23,7 @@ describe('middleware Supabase session recovery', () => {
     vi.clearAllMocks()
     vi.stubEnv('NODE_ENV', 'production')
     vi.stubEnv('ERP_DISTRIBUTED_RATE_LIMIT_ENABLED', 'false')
+    vi.stubEnv('ERP_CORE_API_URL', '')
     vi.stubEnv(
       'NEXT_PUBLIC_SUPABASE_URL',
       'https://example.supabase.co'
@@ -167,6 +167,7 @@ describe('middleware Supabase session recovery', () => {
   })
 
   it('denies tenant roles at the platform boundary before rendering', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: false, error: null })
     mocks.getUser.mockResolvedValue({
       data: {
         user: {
@@ -184,7 +185,7 @@ describe('middleware Supabase session recovery', () => {
 
     expect(response.status).toBe(403)
     expect(response.headers.get('cache-control')).toContain('no-store')
-    expect(mocks.rpc).not.toHaveBeenCalled()
+    expect(mocks.rpc).toHaveBeenCalledWith('is_platform_owner')
   })
 
   it('requires the database owner decision for the exact verified identity', async () => {
@@ -192,7 +193,7 @@ describe('middleware Supabase session recovery', () => {
       data: {
         user: {
           id: '11111111-1111-4111-8111-111111111111',
-          email: PLATFORM_OWNER_EMAIL,
+          email: 'owner@independent.example.invalid',
           email_confirmed_at: '2026-09-04T00:00:00.000Z',
         },
       },
@@ -212,6 +213,26 @@ describe('middleware Supabase session recovery', () => {
     expect(allowed.headers.get('cache-control')).toContain('no-store')
   })
 
+  it('denies unverified identities before checking the platform assignment', async () => {
+    mocks.getUser.mockResolvedValue({
+      data: { user: { id: '11111111-1111-4111-8111-111111111111', email: 'owner@independent.example.invalid', email_confirmed_at: null } },
+      error: null,
+    })
+    const response = await middleware(new NextRequest('https://erp.example/platform-admin'))
+    expect(response.status).toBe(403)
+    expect(mocks.rpc).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when the platform assignment provider is unavailable', async () => {
+    mocks.getUser.mockResolvedValue({
+      data: { user: { id: '11111111-1111-4111-8111-111111111111', email: 'owner@independent.example.invalid', email_confirmed_at: '2026-10-11T00:00:00.000Z' } },
+      error: null,
+    })
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'Unavailable' } })
+    const response = await middleware(new NextRequest('https://erp.example/platform-admin'))
+    expect(response.status).toBe(503)
+  })
+
   it('allows only loopback Supabase HTTP and WebSocket origins in development', async () => {
     vi.stubEnv('NODE_ENV', 'development')
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'http://127.0.0.1:4328')
@@ -227,6 +248,7 @@ describe('middleware Supabase session recovery', () => {
 
   it('does not add loopback sources to the production CSP', async () => {
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'http://127.0.0.1:4328')
+    vi.stubEnv('ERP_CORE_API_URL', 'http://127.0.0.1:3091')
     mocks.getUser.mockResolvedValue({ data: { user: null }, error: null })
     const request = new NextRequest('https://erp.example/auth/login')
 
@@ -235,6 +257,46 @@ describe('middleware Supabase session recovery', () => {
 
     expect(csp).not.toContain('http://127.0.0.1:4328')
     expect(csp).not.toContain('ws://127.0.0.1:4328')
+    expect(csp).not.toContain('http://127.0.0.1:3091')
+  })
+
+  async function connectSources() {
+    const response = await middleware(new NextRequest('https://erp.example/api/health'))
+    return response.headers.get('content-security-policy')?.split('; ').find(directive => directive.startsWith('connect-src '))
+  }
+
+  it('adds only the exact configured HTTPS Core origin for direct uploads', async () => {
+    const baseline = await connectSources()
+    vi.stubEnv('ERP_CORE_API_URL', 'https://core.example:8443/base/path?query=value#fragment')
+    expect(await connectSources()).toBe(`${baseline} https://core.example:8443`)
+  })
+
+  it.each([
+    '', 'not-a-url', 'http://core.example', 'http://localhost:3091',
+    'https://127.0.0.1:3091', 'ftp://core.example', 'file:///tmp/core',
+    'javascript:alert(1)', 'https://user:password@core.example',
+    'https://*.core.example', 'https://core.example;connect-src',
+    'https://core.example; connect-src *',
+  ])('does not widen production connections for missing or unsafe Core URL %s', async (url) => {
+    const baseline = await connectSources()
+    vi.stubEnv('ERP_CORE_API_URL', url)
+    expect(await connectSources()).toBe(baseline)
+  })
+
+  it.each(['localhost', '127.0.0.1', '[::1]'])('allows configured HTTP Core on %s only in development', async (host) => {
+    vi.stubEnv('NODE_ENV', 'development')
+    const baseline = await connectSources()
+    vi.stubEnv('ERP_CORE_API_URL', `http://${host}:3091`)
+    expect(await connectSources()).toBe(`${baseline} http://${host}:3091`)
+    vi.stubEnv('NODE_ENV', 'production')
+    expect(await connectSources()).toBe(baseline)
+  })
+
+  it('rejects non-loopback HTTP Core even in development', async () => {
+    vi.stubEnv('NODE_ENV', 'development')
+    const baseline = await connectSources()
+    vi.stubEnv('ERP_CORE_API_URL', 'http://core.example')
+    expect(await connectSources()).toBe(baseline)
   })
 
   it('fails closed when distributed rate limiting is selected without complete credentials', async () => {

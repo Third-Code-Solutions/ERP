@@ -4,8 +4,10 @@ Every variable consumed by ABI OPS, grouped by service. Variables
 marked `public` are exposed to the browser bundle (Next.js
 `NEXT_PUBLIC_` prefix). Everything else is server-only.
 
-Copy `.env.example` to `.env.local` for local development. In
-production, set these in Vercel (web), Railway (workers), and Supabase
+Copy `apps/web/.env.example` to `apps/web/.env.local` and
+`apps/api/.env.example` to `apps/api/.env` for local development. The root
+`.env.example` is the complete reference; a root `.env.local` is not automatically
+loaded by both services. In production, set these in Vercel (web), Railway (Core API and workers), and Supabase
 (edge functions) as appropriate.
 
 ---
@@ -25,7 +27,7 @@ production, set these in Vercel (web), Railway (workers), and Supabase
 
 | Variable | Required | Scope | Where to get | Controls |
 |---|---|---|---|---|
-| `NEXT_PUBLIC_SITE_URL` | yes | public | Your configured production domain | Used to build portal links in emails and signed share URLs |
+| `NEXT_PUBLIC_SITE_URL` | yes | public | Your configured production domain | Canonical browser origin for portal/email links and native administrative form CSRF checks/303 redirects. Include the exact scheme and port; proxy upstream hostnames are not the public origin. |
 | `AUTH_TRUSTED_HOSTS` | no | server | Comma-separated host list | Adds extra hostnames the redirect allowlist accepts |
 
 ---
@@ -39,8 +41,26 @@ are not Vercel client variables and must never be copied into `.env` files.
 |---|---|---|---|---|
 | `RAILWAY_API_TOKEN` | yes | GitHub Actions secret | Railway workspace API token with exact production project access | Authenticates the pinned API and CAD service deployments; never use a project token in this binding |
 | `PRODUCTION_DATABASE_URL` | yes | GitHub Actions secret | Approved read-only/session PostgreSQL connection | Read-only contamination gate; promotion fails closed when this is absent |
-| `SUPABASE_MIGRATION_DATABASE_URL` | yes | GitHub Actions secret | Approved write-scoped session pooler URL for the exact project | Ordered migration preview/apply; validated against the fixed project ref and port 5432 |
+| `RUNTIME_DATABASE_URL` | yes | GitHub Actions secret | Server runtime writer for this installation | Deployed as Web `DATABASE_URL`; must use a different database role from verification and migrations |
+| `SUPABASE_MIGRATION_DATABASE_URL` | yes | GitHub Actions secret | Approved migration session connection for the exact project | Code promotion only previews migrations; validated against the explicit project ref and port 5432 |
 | `BUILD_OPS_DEMO_TENANT_SLUGS` | yes | GitHub Actions variable | Exact dedicated demo tenant slug(s) | Allowlist used by the production data-boundary scan; never widen to hide customer contamination |
+
+Every independent repository's protected `production` environment must also set
+`SUPABASE_PROJECT_REF`, `NEXT_PUBLIC_SUPABASE_URL`, `RAILWAY_PROJECT_ID`,
+`RAILWAY_ENVIRONMENT_ID`, `RAILWAY_API_SERVICE_ID`, `RAILWAY_CAD_SERVICE_ID`,
+`VERCEL_SCOPE` (team ID), `VERCEL_PROJECT_ID`, `VERCEL_PROJECT_NAME`,
+`PRODUCTION_URL`, `ERP_CORE_API_URL` and `CAD_WORKER_URL`. URLs are HTTPS origins.
+No seller target is used as a fallback. Railway runtime variables must already
+belong to this installation. Vercel's linked project ID and team are checked
+before its runtime credential is changed. Configure `SELF_HOSTED_CI_ACTOR` only
+when using an explicitly authorized private-repository runner.
+
+Fresh platform ownership uses `scripts/bootstrap-platform-owner.mjs` with an
+explicit `MIGRATION_DATABASE_URL`, verified user UUID/email, reason, expected
+host/port and database. Preview is read-only; `--apply` is a deliberate once-only
+database-owner bootstrap. It cannot transfer an existing binding or grant
+ownership from a public signup field. Run `--help` for the exact command; never
+put this credential in Web public variables or application client code.
 
 ---
 
@@ -48,8 +68,7 @@ are not Vercel client variables and must never be copied into `.env` files.
 
 | Variable | Required | Scope | Where to get | Controls |
 |---|---|---|---|---|
-| `ERP_CORE_API_URL` | no | server | Railway/Nest ERP Core service URL | Server-to-server URL for typed process-health and migration-path commands; never exposed to the browser |
-| `ERP_PROJECT_WRITES_VIA_API` | no | server | `false` by default | Exact `true` plus `ERP_PROJECT_WRITES_VIA_API_TENANT_IDS` selects the Nest Project writer |
+| `ERP_CORE_API_URL` | yes | server | This installation's Railway/Nest ERP Core service URL | Required transaction authority for project and other migrated workflows; never exposed to the browser. Missing configuration fails closed. |
 | `ERP_RFQ_QUOTE_WRITES_VIA_API` | no | server | `false` by default | Exact `true` plus `ERP_RFQ_QUOTE_WRITES_VIA_API_TENANT_IDS` selects the Nest RFQ quote writer |
 | `ERP_RFQ_TRANSITION_WRITES_VIA_API` | no | server | `false` by default | Exact `true` plus `ERP_RFQ_TRANSITION_WRITES_VIA_API_TENANT_IDS` selects the Nest RFQ complete/cancel writer |
 | `ERP_RFQ_AWARD_WRITES_VIA_API` | no | server | `false` by default | Exact `true` plus `ERP_RFQ_AWARD_WRITES_VIA_API_TENANT_IDS` selects the Nest RFQ quote-award writer |
@@ -534,18 +553,36 @@ deployment, pagination, and rollback evidence are recorded.
 
 ## Local Development
 
-The minimum to boot `pnpm dev`:
+The minimum for the Web service (`apps/web/.env.local`):
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 SUPABASE_SERVICE_ROLE_KEY=...
-OPENAI_API_KEY=sk-...
+DATABASE_URL=postgresql://...
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
+ERP_CORE_API_URL=http://localhost:3001
 ```
 
-Everything else can be omitted; the corresponding feature will either
-no-op or log a stdout warning at first invocation.
+Core is required for current project and operational workflows. Its separate
+`apps/api/.env` must contain:
+
+```bash
+DATABASE_URL=postgresql://...
+SUPABASE_URL=...
+SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
+REDIS_URL=redis://127.0.0.1:6379
+ERP_API_CORS_ORIGINS=http://localhost:3000
+PORT=3001
+```
+
+Both services must point to the same installation. Start Redis and Supabase
+before `pnpm dev`; check Core `/ready`, Web `/api/ready` and `/api/health?deep=1`. Python
+workers are not included in the pnpm workspace and must be started separately.
+OpenAI and other providers are optional only when their features are not used.
+Unconfigured services and closed workflow gates are unavailable; startup does
+not establish that those integrations work.
 
 ## Project comment deletion authority (disabled by default)
 

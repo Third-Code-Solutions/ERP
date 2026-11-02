@@ -15,7 +15,7 @@ function pages(directory: string): string[] {
 
 async function login(page: Page) {
   await page.goto('/auth/login')
-  await page.getByLabel('Email', { exact: true }).fill('kurt@thirdcodesolutions.com')
+  await page.getByLabel('Email', { exact: true }).fill('owner@independent.example.invalid')
   await page.getByLabel('Password', { exact: true }).fill('fixture-password-only')
   await page.getByRole('button', { name: 'Sign in', exact: true }).click()
   await expect(page).toHaveURL(/\/dashboard$/, { timeout: 30_000 })
@@ -32,7 +32,7 @@ test('malformed route identifiers return not found instead of crashing', async (
       expect(response?.status(), route).toBeLessThan(500)
       await expect(page.getByText('Workspace paused before anything changed.', { exact: true }), route).toHaveCount(0)
       await expect(page.getByText(renderFailure), route).toHaveCount(0)
-      await expect(page.getByRole('heading', { name: /We could not find that workspace record|That record or view does not exist/ }), route).toBeVisible()
+      await expect(page.getByRole('heading', { name: /We could not find that (workspace record|weekly report)|That record or view does not exist/ }), route).toBeVisible()
     })
   }
 })

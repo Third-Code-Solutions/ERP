@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { pgTable, uuid, varchar, text, integer, bigint, timestamp, index, uniqueIndex, foreignKey, check } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, varchar, text, integer, numeric, bigint, timestamp, index, uniqueIndex, foreignKey, check } from 'drizzle-orm/pg-core'
 import { materialItems } from './bom-extras'
 import { bomLineItems } from './bom-line-items'
 import { costCodes } from './budgets'
@@ -22,7 +22,7 @@ export const poLineItems = pgTable(
     bom_line_item_id: uuid('bom_line_item_id'),
     cost_code_id: uuid('cost_code_id'),
     uom_id: uuid('uom_id'),
-    quantity: integer('quantity').notNull().default(0),
+    quantity: numeric('quantity', { mode: 'number' }).notNull().default(0),
     quantity_micros: bigint('quantity_micros', { mode: 'number' })
       .notNull()
       .default(0),
@@ -31,7 +31,7 @@ export const poLineItems = pgTable(
     notes: text('notes'),
     // Partial-receipt tracking. received_qty == quantity → fully received.
     // received_at/received_by are nullable until the first receive action.
-    received_qty: integer('received_qty').notNull().default(0),
+    received_qty: numeric('received_qty', { mode: 'number' }).notNull().default(0),
     received_quantity_micros: bigint('received_quantity_micros', {
       mode: 'number',
     })

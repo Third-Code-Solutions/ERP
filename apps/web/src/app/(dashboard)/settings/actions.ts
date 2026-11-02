@@ -1,7 +1,6 @@
-'use server'
+import 'server-only'
 
 import { randomUUID } from 'node:crypto'
-import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { getUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
@@ -13,6 +12,10 @@ const optionalField = (max: number) =>
   z.string().trim().max(max).transform((value) => value || null)
 const settingsSchema = z.object({
   name: z.string().trim().min(1).max(255),
+  legal_name: optionalField(255),
+  registered_address: optionalField(1000),
+  document_email: z.union([z.literal(''), z.string().trim().email().max(255)]).transform((value) => value || null),
+  document_phone: optionalField(64),
   bir_tin: optionalField(20),
   pcab_license: optionalField(50),
   dpo_contact: optionalField(255),
@@ -27,6 +30,10 @@ export async function updateTenantSettings(formData: FormData): Promise<{ error?
 
   const parsed = settingsSchema.safeParse({
     name: formData.get('name'),
+    legal_name: formData.get('legal_name') ?? '',
+    registered_address: formData.get('registered_address') ?? '',
+    document_email: formData.get('document_email') ?? '',
+    document_phone: formData.get('document_phone') ?? '',
     bir_tin: formData.get('bir_tin') ?? '',
     pcab_license: formData.get('pcab_license') ?? '',
     dpo_contact: formData.get('dpo_contact') ?? '',
@@ -40,6 +47,10 @@ export async function updateTenantSettings(formData: FormData): Promise<{ error?
       const [existing] = await tx
         .select({
           name: tenants.name,
+          legal_name: tenants.legal_name,
+          registered_address: tenants.registered_address,
+          document_email: tenants.document_email,
+          document_phone: tenants.document_phone,
           bir_tin: tenants.bir_tin,
           pcab_license: tenants.pcab_license,
           dpo_contact: tenants.dpo_contact,
@@ -62,9 +73,8 @@ export async function updateTenantSettings(formData: FormData): Promise<{ error?
     })
   } catch {
     console.error({ ...event, outcome: 'failed' })
-    return { error: 'Workspace settings could not be saved. No changes were committed.' }
+    return { error: 'Workspace settings could not be confirmed. Review current settings and audit evidence before retrying.' }
   }
   console.info({ ...event, outcome: result.error ? 'denied' : 'succeeded' })
-  if (!result.error) revalidatePath('/settings')
   return result
 }

@@ -147,8 +147,8 @@ async function seedReceivablesFixture(
   )[0]!.suffix as string
   const tenantId = (
     (await tx.unsafe(
-      `insert into tenants(name, slug)
-       values('Receivables probe', 'receivables-${suffix}')
+      `insert into tenants(name, slug, legal_name, registered_address, bir_tin)
+       values('Receivables probe', 'receivables-${suffix}', 'Receivables Probe Test Company', 'Synthetic fixture address', 'TEST-TIN-REC')
        returning id`
     )) as Rows
   )[0]!.id as string
@@ -251,7 +251,7 @@ async function seedReceivablesFixture(
          project_id,
          account_id,
          created_by,
-         invoice_number,
+         invoice_number, pricing_basis, withholding_bps,
          billing_percent_bps,
          retention_bps,
          subtotal_cents,
@@ -266,7 +266,7 @@ async function seedReceivablesFixture(
          '${projectId}',
          ${businessAccountId ? `'${businessAccountId}'` : 'null'},
          '${actorId}',
-         'INV-202607-001',
+         'INV-202607-001', 'reconciled_v1', 180,
          2500,
          1000,
          100000,

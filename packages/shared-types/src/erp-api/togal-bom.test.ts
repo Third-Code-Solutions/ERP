@@ -53,7 +53,7 @@ describe('Togal BOM commit API contracts', () => {
     expect(
       togalBomCommitCommandSchema.safeParse({
         ...base,
-        proposedLines: [{ ...base.proposedLines[0], qty: 1.5 }],
+        proposedLines: [{ ...base.proposedLines[0], qty: 1.12345 }],
       }).success
     ).toBe(false)
     expect(

@@ -1,7 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { PLATFORM_OWNER_EMAIL } from '@third-code-erp/shared-types/platform-administration'
 
 import {
   consumeRequestRateLimit as consumeLocalRequestRateLimit,
@@ -142,6 +141,20 @@ function buildCSP(nonce: string): string {
       // Invalid/missing local URL: retain the closed production-oriented CSP.
     }
   }
+  let coreConnectSrc = ''
+  try {
+    const coreUrl = new URL(process.env.ERP_CORE_API_URL ?? '')
+    const isLoopback = ['localhost', '127.0.0.1', '[::1]'].includes(coreUrl.hostname)
+    const allowedProtocol =
+      (coreUrl.protocol === 'https:' && (!isLoopback || isDev)) ||
+      (process.env.NODE_ENV === 'development' && isLoopback && coreUrl.protocol === 'http:')
+    if (allowedProtocol && !coreUrl.username && !coreUrl.password && !/[\s;*]/.test(coreUrl.origin)) {
+      // Uploads connect directly to Core; paths and credentials must never become CSP sources.
+      coreConnectSrc = ` ${coreUrl.origin}`
+    }
+  } catch {
+    // Missing/invalid installation configuration cannot widen browser connections.
+  }
 
   return [
     "default-src 'self'",
@@ -157,7 +170,7 @@ function buildCSP(nonce: string): string {
     "font-src 'self' data: https://fonts.gstatic.com https://cdn.fontshare.com",
     // No browser-side code calls OpenAI: model traffic is server-only. The
     // origin was allowlisted in error and widened the exfiltration surface.
-    `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.inngest.com https://vitals.vercel-insights.com${localSupabaseConnectSrc}`,
+    `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.inngest.com https://vitals.vercel-insights.com${localSupabaseConnectSrc}${coreConnectSrc}`,
     "frame-src 'none'",
     "object-src 'none'",
     "base-uri 'self'",
@@ -462,7 +475,7 @@ export async function middleware(request: NextRequest) {
 
   if (user && (pathname === '/platform-admin' || pathname.startsWith('/platform-admin/'))) {
     if (
-      user.email?.trim().toLowerCase() !== PLATFORM_OWNER_EMAIL ||
+      !user.email ||
       !user.email_confirmed_at
     ) {
       return platformAccessResponse(403, nonce, csp)

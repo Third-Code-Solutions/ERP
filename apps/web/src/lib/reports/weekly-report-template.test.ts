@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { buildWeeklyReportHtml } from './weekly-report-template'
 
-describe('weekly report ABI OPS lockup', () => {
-  it('uses ABI OPS fallback copy and A mark in generated reports', () => {
+describe('weekly report company lockup', () => {
+  it('uses configured legal identity and its derived mark', () => {
     const html = buildWeeklyReportHtml(
       {
         overall_pct: 42,
@@ -22,12 +22,11 @@ describe('weekly report ABI OPS lockup', () => {
       },
       { name: 'Project North' },
       null,
-      { week_ending: '2026-08-09T00:00:00.000Z' }
+      { week_ending: '2026-08-09T00:00:00.000Z', tenant_name: 'Example Builders Corporation' }
     )
 
-    expect(html).toContain('ABI OPS')
-    expect(html.match(/>A<\/div>/g)).toHaveLength(2)
-    expect(html).not.toContain('>TC<\/div>')
-    expect(html).not.toContain('Actuate Builders legacy')
+    expect(html).toContain('Example Builders Corporation')
+    expect(html.match(/>EBC<\/div>/g)).toHaveLength(2)
+    expect(html).not.toContain('>A</div>')
   })
 })

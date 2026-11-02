@@ -4,12 +4,14 @@ import {
   varchar,
   text,
   bigint,
+  jsonb,
   timestamp,
   index,
   uniqueIndex,
 } from 'drizzle-orm/pg-core'
 import { purchaseOrderStatusEnum } from './enums'
 import { tenants } from './tenants'
+import type { IssuerLegalProfileSnapshot } from './tenants'
 import { projects } from './projects'
 import { vendors } from './vendors'
 import { users } from './users'
@@ -40,6 +42,7 @@ export const purchaseOrders = pgTable(
     commercial_approved_by: uuid('commercial_approved_by').references(() => users.id, { onDelete: 'set null' }),
     scm_issued_at: timestamp('scm_issued_at', { withTimezone: true }),
     scm_issued_by: uuid('scm_issued_by').references(() => users.id, { onDelete: 'set null' }),
+    issuer_legal_profile: jsonb('issuer_legal_profile').$type<IssuerLegalProfileSnapshot>(),
     supplier_email_sent_at: timestamp('supplier_email_sent_at', { withTimezone: true }),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

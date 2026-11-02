@@ -27,5 +27,12 @@ export default defineConfig({
     // calls and turn valid contracts into 5-second harness timeouts.
     fileParallelism: false,
     maxWorkers: 1,
+    // Bootstrap budget, not product latency. Measured on an idle host, one
+    // HTTP-contract case (app.init() + supertest round trip) costs ~350ms;
+    // under a contended host (suite + web build + local database in flight) the
+    // same case has been observed past the 5s default, which is a harness
+    // timeout, not a regression. 20s keeps ~55x headroom over the measured cost
+    // while still failing a genuine hang.
+    testTimeout: 20_000,
   },
 })

@@ -30,8 +30,8 @@ export default function FinanceError({
           <p className="finance-eyebrow">Finance recovery</p>
           <h1 id="finance-route-error-title">Finance is temporarily unavailable.</h1>
           <p>
-            The view could not load. No accounting records were changed. Retry
-            the view or return to the Finance control center.
+            Retry the view or return to the Finance control center. If you just
+            submitted a transaction, check its status before submitting again.
           </p>
           <div className="dashboard-route-error-actions">
             <button

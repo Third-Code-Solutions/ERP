@@ -186,36 +186,35 @@ suite('Procurement API database integration', () => {
           tenant_id: tenantA,
           project_id: projectA,
           created_by: procurementA,
-          status: 'approved',
+          status: 'draft',
         },
         {
           id: bomB,
           tenant_id: tenantB,
           project_id: projectB,
           created_by: procurementB,
-          status: 'approved',
+          status: 'draft',
         },
         {
           id: bomCreateA,
           tenant_id: tenantA,
           project_id: projectA,
           created_by: procurementA,
-          status: 'approved',
-          total_cost_cents: 25_000,
+          status: 'draft',
         },
         {
           id: bomGroupedA,
           tenant_id: tenantA,
           project_id: projectA,
           created_by: procurementA,
-          status: 'approved',
+          status: 'draft',
         },
         {
           id: bomAutoA,
           tenant_id: tenantA,
           project_id: projectA,
           created_by: procurementA,
-          status: 'approved',
+          status: 'draft',
         },
         {
           id: bomDraftA,
@@ -278,6 +277,9 @@ suite('Procurement API database integration', () => {
           unit: 'pcs',
         },
       ])
+      for (const bomId of [bomA, bomB, bomCreateA, bomGroupedA, bomAutoA]) {
+        await transaction.update(boms).set({ status: 'approved' }).where(eq(boms.id, bomId))
+      }
       await transaction.insert(vendors).values([
         {
           id: vendorA,

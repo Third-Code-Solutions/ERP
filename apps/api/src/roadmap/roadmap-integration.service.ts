@@ -14,6 +14,17 @@ import { DatabaseService } from '../database/database.service'
 import { retryDelayMs } from '@third-code-erp/shared-types'
 
 const MAX_ATTEMPTS = 5
+const PROCESSING_LEASE_MS = 5 * 60_000
+const UNCERTAIN_OUTCOME = 'OUTCOME_UNKNOWN: processing lease expired; reconcile provider receipt before any retry'
+
+class RetryableProviderRejection extends Error {}
+
+function rejectHttp(provider: string, status: number): never {
+  // Only an explicit rate-limit rejection is safe to retry automatically.
+  // A timeout/5xx can arrive after the provider has accepted the operation.
+  if (status === 429) throw new RetryableProviderRejection(`${provider} returned HTTP 429`)
+  throw new Error(`${provider} returned HTTP ${status}; reconcile provider outcome before retry`)
+}
 
 export interface ProviderSendInput {
   channel: 'email' | 'sms'
@@ -89,7 +100,7 @@ export class ResendAndSemaphoreAdapter implements ProviderAdapter {
       }),
       signal: AbortSignal.timeout(10_000),
     })
-    if (!response.ok) throw new Error(`Resend returned HTTP ${response.status}`)
+    if (!response.ok) rejectHttp('Resend', response.status)
     const parsed = resendResponseSchema.safeParse(await response.json())
     if (!parsed.success) throw new Error('Resend returned an invalid message identifier')
     return { messageId: parsed.data.id, statusCode: response.status }
@@ -111,7 +122,7 @@ export class ResendAndSemaphoreAdapter implements ProviderAdapter {
       body: form,
       signal: AbortSignal.timeout(10_000),
     })
-    if (!response.ok) throw new Error(`Semaphore returned HTTP ${response.status}`)
+    if (!response.ok) rejectHttp('Semaphore', response.status)
     const parsed = semaphoreResponseSchema.safeParse(await response.json())
     if (!parsed.success) throw new Error('Semaphore returned an invalid message identifier')
     const first = Array.isArray(parsed.data) ? parsed.data[0] : parsed.data
@@ -143,7 +154,7 @@ export class SapHttpAdapter implements SapAdapter {
       }),
       signal: AbortSignal.timeout(15_000),
     })
-    if (!response.ok) throw new Error(`SAP returned HTTP ${response.status}`)
+    if (!response.ok) rejectHttp('SAP', response.status)
     const parsed = sapResponseSchema.safeParse(await response.json())
     if (!parsed.success) throw new Error('SAP returned an invalid posting identifier')
     return { documentId: parsed.data.documentId ?? parsed.data.id!, statusCode: response.status }
@@ -168,6 +179,7 @@ export class RoadmapIntegrationService {
   ) {}
 
   async sweepProviderDeliveries(limit = 50): Promise<number> {
+    await this.recoverExpiredProviderClaims()
     let processed = 0
     while (processed < limit) {
       const claimed = await this.claimProviderDelivery()
@@ -191,6 +203,7 @@ export class RoadmapIntegrationService {
   }
 
   async sweepSapPostings(limit = 50): Promise<number> {
+    await this.recoverExpiredSapClaims()
     let processed = 0
     while (processed < limit) {
       const claimed = await this.claimSapPosting()
@@ -212,6 +225,30 @@ export class RoadmapIntegrationService {
     return processed
   }
 
+  private async recoverExpiredProviderClaims(): Promise<void> {
+    await this.database.client.transaction(async (transaction) => {
+      const rows = await transaction.select().from(providerDeliveryOutbox)
+        .where(and(eq(providerDeliveryOutbox.status, 'processing'), lte(providerDeliveryOutbox.updated_at, new Date(Date.now() - PROCESSING_LEASE_MS))))
+        .limit(50).for('update', { skipLocked: true })
+      for (const row of rows) {
+        await transaction.update(providerDeliveryOutbox).set({ status: 'dead_letter', last_error: UNCERTAIN_OUTCOME, dead_lettered_at: new Date(), updated_at: new Date() }).where(and(eq(providerDeliveryOutbox.id, row.id), eq(providerDeliveryOutbox.tenant_id, row.tenant_id)))
+        if (row.attempt_count > 0) await transaction.insert(providerDeliveryAttempts).values({ tenant_id: row.tenant_id, delivery_id: row.id, attempt_number: row.attempt_count, outcome: 'rejected', error: UNCERTAIN_OUTCOME })
+      }
+    })
+  }
+
+  private async recoverExpiredSapClaims(): Promise<void> {
+    await this.database.client.transaction(async (transaction) => {
+      const rows = await transaction.select().from(sapPostingOutbox)
+        .where(and(eq(sapPostingOutbox.status, 'processing'), lte(sapPostingOutbox.updated_at, new Date(Date.now() - PROCESSING_LEASE_MS))))
+        .limit(50).for('update', { skipLocked: true })
+      for (const row of rows) {
+        await transaction.update(sapPostingOutbox).set({ status: 'dead_letter', last_error: UNCERTAIN_OUTCOME, updated_at: new Date() }).where(and(eq(sapPostingOutbox.id, row.id), eq(sapPostingOutbox.tenant_id, row.tenant_id)))
+        if (row.attempt_count > 0) await transaction.insert(sapPostingAttempts).values({ tenant_id: row.tenant_id, sap_posting_id: row.id, attempt_number: row.attempt_count, outcome: 'rejected', error: UNCERTAIN_OUTCOME })
+      }
+    })
+  }
+
   private async claimProviderDelivery() {
     return this.database.client.transaction(async (transaction) => {
       const [candidate] = await transaction
@@ -228,7 +265,7 @@ export class RoadmapIntegrationService {
         .where(and(eq(providerDeliveryOutbox.status, 'pending'), lte(providerDeliveryOutbox.next_attempt_at, new Date())))
         .orderBy(asc(providerDeliveryOutbox.next_attempt_at))
         .limit(1)
-        .for('update')
+        .for('update', { skipLocked: true })
       const row = candidate?.delivery
       if (!row) return null
       const [claimed] = await transaction.update(providerDeliveryOutbox).set({ status: 'processing', attempt_count: row.attempt_count + 1, updated_at: new Date() }).where(and(eq(providerDeliveryOutbox.id, row.id), eq(providerDeliveryOutbox.status, 'pending'))).returning()
@@ -239,16 +276,18 @@ export class RoadmapIntegrationService {
   private async completeProviderDelivery(id: string, tenantId: string, attempt: number, result: ProviderSendResult): Promise<void> {
     const responseHash = createHash('sha256').update(result.messageId).digest('hex')
     await this.database.client.transaction(async (transaction) => {
-      await transaction.update(providerDeliveryOutbox).set({ status: 'delivered', provider_message_id: result.messageId, provider_response_code: result.statusCode, provider_response_hash: responseHash, delivered_at: new Date(), updated_at: new Date() }).where(and(eq(providerDeliveryOutbox.id, id), eq(providerDeliveryOutbox.tenant_id, tenantId), eq(providerDeliveryOutbox.status, 'processing')))
+      const [updated] = await transaction.update(providerDeliveryOutbox).set({ status: 'delivered', provider_message_id: result.messageId, provider_response_code: result.statusCode, provider_response_hash: responseHash, delivered_at: new Date(), updated_at: new Date() }).where(and(eq(providerDeliveryOutbox.id, id), eq(providerDeliveryOutbox.tenant_id, tenantId), eq(providerDeliveryOutbox.status, 'processing'), eq(providerDeliveryOutbox.attempt_count, attempt))).returning({ id: providerDeliveryOutbox.id })
+      if (!updated) return
       await transaction.insert(providerDeliveryAttempts).values({ tenant_id: tenantId, delivery_id: id, attempt_number: attempt, outcome: 'accepted', provider_status: result.statusCode, response_hash: responseHash, error: null })
     })
   }
 
   private async failProviderDelivery(id: string, tenantId: string, attempt: number, error: unknown): Promise<void> {
     const message = errorMessage(error)
-    const terminal = attempt >= MAX_ATTEMPTS
+    const terminal = attempt >= MAX_ATTEMPTS || !(error instanceof RetryableProviderRejection)
     await this.database.client.transaction(async (transaction) => {
-      await transaction.update(providerDeliveryOutbox).set({ status: terminal ? 'dead_letter' : 'pending', next_attempt_at: new Date(Date.now() + retryDelayMs(attempt)), last_error: message, dead_lettered_at: terminal ? new Date() : null, updated_at: new Date() }).where(and(eq(providerDeliveryOutbox.id, id), eq(providerDeliveryOutbox.tenant_id, tenantId), eq(providerDeliveryOutbox.status, 'processing')))
+      const [updated] = await transaction.update(providerDeliveryOutbox).set({ status: terminal ? 'dead_letter' : 'pending', next_attempt_at: new Date(Date.now() + retryDelayMs(attempt)), last_error: message, dead_lettered_at: terminal ? new Date() : null, updated_at: new Date() }).where(and(eq(providerDeliveryOutbox.id, id), eq(providerDeliveryOutbox.tenant_id, tenantId), eq(providerDeliveryOutbox.status, 'processing'), eq(providerDeliveryOutbox.attempt_count, attempt))).returning({ id: providerDeliveryOutbox.id })
+      if (!updated) return
       await transaction.insert(providerDeliveryAttempts).values({ tenant_id: tenantId, delivery_id: id, attempt_number: attempt, outcome: terminal ? 'rejected' : 'retryable', provider_status: null, response_hash: null, error: message })
     })
   }
@@ -269,7 +308,7 @@ export class RoadmapIntegrationService {
         .where(and(eq(sapPostingOutbox.status, 'pending'), lte(sapPostingOutbox.next_attempt_at, new Date())))
         .orderBy(asc(sapPostingOutbox.next_attempt_at))
         .limit(1)
-        .for('update')
+        .for('update', { skipLocked: true })
       const row = candidate?.posting
       if (!row) return null
       const [claimed] = await transaction.update(sapPostingOutbox).set({ status: 'processing', attempt_count: row.attempt_count + 1, updated_at: new Date() }).where(and(eq(sapPostingOutbox.id, row.id), eq(sapPostingOutbox.status, 'pending'))).returning()
@@ -279,16 +318,18 @@ export class RoadmapIntegrationService {
 
   private async completeSapPosting(id: string, tenantId: string, attempt: number, result: SapPostResult): Promise<void> {
     await this.database.client.transaction(async (transaction) => {
-      await transaction.update(sapPostingOutbox).set({ status: 'succeeded', provider_document_id: result.documentId, posted_at: new Date(), updated_at: new Date() }).where(and(eq(sapPostingOutbox.id, id), eq(sapPostingOutbox.tenant_id, tenantId), eq(sapPostingOutbox.status, 'processing')))
+      const [updated] = await transaction.update(sapPostingOutbox).set({ status: 'succeeded', provider_document_id: result.documentId, posted_at: new Date(), updated_at: new Date() }).where(and(eq(sapPostingOutbox.id, id), eq(sapPostingOutbox.tenant_id, tenantId), eq(sapPostingOutbox.status, 'processing'), eq(sapPostingOutbox.attempt_count, attempt))).returning({ id: sapPostingOutbox.id })
+      if (!updated) return
       await transaction.insert(sapPostingAttempts).values({ tenant_id: tenantId, sap_posting_id: id, attempt_number: attempt, outcome: 'accepted', provider_status: result.statusCode, response: { documentId: result.documentId }, error: null })
     })
   }
 
   private async failSapPosting(id: string, tenantId: string, attempt: number, error: unknown): Promise<void> {
     const message = errorMessage(error)
-    const terminal = attempt >= MAX_ATTEMPTS
+    const terminal = attempt >= MAX_ATTEMPTS || !(error instanceof RetryableProviderRejection)
     await this.database.client.transaction(async (transaction) => {
-      await transaction.update(sapPostingOutbox).set({ status: terminal ? 'dead_letter' : 'pending', next_attempt_at: new Date(Date.now() + retryDelayMs(attempt)), last_error: message, updated_at: new Date() }).where(and(eq(sapPostingOutbox.id, id), eq(sapPostingOutbox.tenant_id, tenantId), eq(sapPostingOutbox.status, 'processing')))
+      const [updated] = await transaction.update(sapPostingOutbox).set({ status: terminal ? 'dead_letter' : 'pending', next_attempt_at: new Date(Date.now() + retryDelayMs(attempt)), last_error: message, updated_at: new Date() }).where(and(eq(sapPostingOutbox.id, id), eq(sapPostingOutbox.tenant_id, tenantId), eq(sapPostingOutbox.status, 'processing'), eq(sapPostingOutbox.attempt_count, attempt))).returning({ id: sapPostingOutbox.id })
+      if (!updated) return
       await transaction.insert(sapPostingAttempts).values({ tenant_id: tenantId, sap_posting_id: id, attempt_number: attempt, outcome: terminal ? 'rejected' : 'retryable', provider_status: null, response: null, error: message })
     })
   }

@@ -156,6 +156,14 @@ function renderRfiRow(rfi: InspectionRfiInput): string {
  */
 export function buildInspectionReportHtml(args: BuildInspectionReportArgs): string {
   const { inspection, photos, rfis, project, account, brand } = args
+  const configuredTenantName = brand.tenant_name?.trim() || null
+  const tenantName = configuredTenantName ?? 'LEGAL NAME NOT CONFIGURED'
+  const tenantMark = configuredTenantName
+    ?.split(/\s+/)
+    .map((word) => word.match(/[A-Za-z0-9]/)?.[0] ?? '')
+    .join('')
+    .slice(0, 3)
+    .toUpperCase() || 'CO'
 
   const inspectionDate = formatDate(inspection.submitted_at ?? inspection.created_at)
   const photosToRender = photos.slice(0, 30)
@@ -232,9 +240,9 @@ export function buildInspectionReportHtml(args: BuildInspectionReportArgs): stri
   <header style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid ${BRAND_NAVY};padding-bottom:16px;margin-bottom:24px;">
     <div>
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
-        <div style="width:36px;height:36px;border-radius:6px;background:${BRAND_NAVY};color:${BRAND_GOLD};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;letter-spacing:-0.02em;">A</div>
+        <div style="width:36px;height:36px;border-radius:6px;background:${BRAND_NAVY};color:${BRAND_GOLD};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;letter-spacing:-0.02em;">${esc(tenantMark)}</div>
         <div>
-          <div style="font-size:18px;font-weight:800;color:${BRAND_NAVY};letter-spacing:-0.02em;line-height:1.1;">${esc(brand.tenant_name ?? 'ABI OPS')}</div>
+          <div style="font-size:18px;font-weight:800;color:${BRAND_NAVY};letter-spacing:-0.02em;line-height:1.1;">${esc(tenantName)}</div>
           <div style="font-size:11px;color:${TEXT_MUTED};">Construction Operations Platform</div>
         </div>
       </div>

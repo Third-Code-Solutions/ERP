@@ -189,6 +189,7 @@ export const inventoryReservations = pgTable(
     released_by: uuid('released_by'),
     released_at: timestamp('released_at', { withTimezone: true }),
     consumed_at: timestamp('consumed_at', { withTimezone: true }),
+    consumption_movement_id: uuid('consumption_movement_id'),
     idempotency_key: varchar('idempotency_key', { length: 256 }).notNull(),
     created_at: createdAt,
     updated_at: updatedAt,

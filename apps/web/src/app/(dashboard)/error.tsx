@@ -29,12 +29,11 @@ export default function DashboardError({
         <div className="dashboard-route-error-copy">
           <p className="finance-eyebrow">Workspace recovery</p>
           <h1 id="dashboard-route-error-title">
-            Workspace paused before anything changed.
+            This workspace view could not load.
           </h1>
           <p>
-            ABI OPS could not render this view. Your records remain
-            unchanged. Retry the view or return to your dashboard while the
-            incident is investigated.
+            Retry the view or return to your dashboard. If this happened after
+            saving or submitting, check the record before repeating that action.
           </p>
           <div className="dashboard-route-error-actions">
             <button

@@ -79,6 +79,9 @@ suite('Purchase Order workflow database integration', () => {
           id: tenantId,
           name: 'PO workflow integration',
           slug: `po-workflow-${suffix}`,
+          legal_name: 'PO Workflow Test Company',
+          registered_address: 'Synthetic fixture address',
+          bir_tin: 'TEST-TIN-PO',
         })
         await transaction.insert(users).values([
           {

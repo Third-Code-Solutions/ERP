@@ -43,14 +43,12 @@ const hosted = {
   api: {
     releaseId: envValue('THIRD_CODE_API_RELEASE_ID'),
     sourceSha: envValue('THIRD_CODE_API_RELEASE_SHA'),
-    url:
-      envValue('THIRD_CODE_API_RELEASE_URL') ??
-      'https://third-code-erp-api-production.up.railway.app',
+    url: envValue('THIRD_CODE_API_RELEASE_URL'),
   },
   web: {
     releaseId: envValue('THIRD_CODE_WEB_RELEASE_ID'),
     sourceSha: envValue('THIRD_CODE_WEB_RELEASE_SHA'),
-    url: envValue('THIRD_CODE_WEB_RELEASE_URL') ?? 'https://thirdcode-erp.vercel.app',
+    url: envValue('THIRD_CODE_WEB_RELEASE_URL'),
   },
 }
 const rollback = {

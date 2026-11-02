@@ -12,18 +12,21 @@ overrides:
   "minimatch@10>brace-expansion": 5.0.12
   nanoid: 3.3.18
   postcss: 8.5.23
-  qs: 6.16.0
+  qs: 6.16.1
   sharp: 0.35.5
   proxy-addr: 2.0.8
   source-map-js: 1.2.2
-  multer: 2.4.0
+  multer: 2.5.0
+  body-parser: 2.4.0
+  systeminformation: 5.33.19
   "@ai-sdk/provider-utils@4": 4.0.33
   shell-quote: 1.11.0
   # ABI OPS calls Mammoth's library, never its optional command-line program.
   # Remove the CLI-only argparse -> unpatched sprintf-js advisory chain.
   "mammoth@1.12.0>argparse": "-"
   tmp: 0.2.7
-  fast-uri: 3.1.8
+  fast-uri: 3.1.9
+  "@nestjs/cli>glob": 14.0.3
   js-yaml: 4.3.2
   "vite>esbuild": 0.28.2
   "drizzle-kit>esbuild": 0.28.2
@@ -50,9 +53,29 @@ overrides:
 # and is absent from the production dependency graph, which `pnpm audit --prod`
 # verifies clean. This waiver names one advisory; the audit level is unchanged
 # and every other advisory still fails the gate.
+#
+# GHSA-gcqx-w48m-w2h4 (deepmerge, low) has no patched release at all. It is
+# reachable only from the Nest CLI build tool
+#   @nestjs/cli > fork-ts-checker-webpack-plugin > deepmerge
+# and is absent from the production graph. Trigger: a deepmerge patch.
+#
+# Two further waivers cover production-graph advisories with no compatible fix
+# published. Each is a recorded risk acceptance, to be removed when its trigger
+# is met (see docs/changesets/2026-11-02-production-readiness-audit.md):
+#   GHSA-mrhx-c7xc-m3w5 (zod DoS on oversized constrained collections) is fixed
+#     only in zod >= 4.6.6; the repo is on zod 3.25.76 (231 importing files), a
+#     major migration. Exposure is bounded by request-size caps (API JSON 4 MB,
+#     Server Actions 3 MB). Trigger: zod 4 migration.
+#   GHSA-g3hv-75wg-m249 (minimatch DoS via globparts amplification) is fixed
+#     only in minimatch >= 11.0.1, which is API-incompatible with the glob@7 that
+#     exceljs > archiver > archiver-utils requires. The patterns are archiver
+#     internals, never request input. Trigger: exceljs/archiver upgrade.
 auditConfig:
   ignoreGhsas:
     - GHSA-vfj7-8cjw-p6xm
+    - GHSA-gcqx-w48m-w2h4
+    - GHSA-mrhx-c7xc-m3w5
+    - GHSA-g3hv-75wg-m249
 
 peerDependencyRules:
   ignoreMissing:

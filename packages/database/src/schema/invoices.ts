@@ -4,6 +4,7 @@ import {
   foreignKey,
   index,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -15,8 +16,10 @@ import { accounts } from './accounts'
 import { journalEntries } from './accounting'
 import { invoiceStatusEnum } from './enums'
 import { tenants } from './tenants'
+import type { IssuerLegalProfileSnapshot } from './tenants'
 import { projects } from './projects'
 import { users } from './users'
+import { boms } from './boms'
 
 export const invoices = pgTable(
   'invoices',
@@ -28,6 +31,9 @@ export const invoices = pgTable(
     created_by: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     invoice_number: varchar('invoice_number', { length: 50 }).notNull(),
     status: invoiceStatusEnum('status').notNull().default('draft'),
+    pricing_basis: text('pricing_basis').notNull().default('legacy_unreviewed'),
+    source_bom_id: uuid('source_bom_id'),
+    withholding_bps: integer('withholding_bps').notNull().default(200),
     // Philippine billing fields
     // Progress billing % (basis points: 0-10000 = 0%-100%)
     billing_percent_bps: integer('billing_percent_bps').notNull().default(0),
@@ -45,6 +51,7 @@ export const invoices = pgTable(
     paid_at: timestamp('paid_at', { withTimezone: true }),
     issued_by: uuid('issued_by'),
     issued_at: timestamp('issued_at', { withTimezone: true }),
+    issuer_legal_profile: jsonb('issuer_legal_profile').$type<IssuerLegalProfileSnapshot>(),
     issuance_journal_entry_id: uuid('issuance_journal_entry_id'),
     reversed_by: uuid('reversed_by'),
     reversed_at: timestamp('reversed_at', { withTimezone: true }),
@@ -60,6 +67,8 @@ export const invoices = pgTable(
       table.id
     ),
     tenantIdx: index('idx_invoices_tenant_id').on(table.tenant_id),
+    sourceBomIdx: index('invoices_source_bom_idx').on(table.tenant_id, table.source_bom_id),
+    sourceBomFk: foreignKey({ name: 'invoices_source_bom_tenant_fk', columns: [table.tenant_id, table.source_bom_id], foreignColumns: [boms.tenant_id, boms.id] }),
     projectIdx: index('idx_invoices_project_id').on(table.project_id),
     tenantStatusIdx: index('idx_invoices_tenant_status').on(table.tenant_id, table.status),
     invoiceNumberIdx: index('idx_invoices_invoice_number').on(table.tenant_id, table.invoice_number),

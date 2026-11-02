@@ -19,9 +19,9 @@ import {
   vendors,
 } from '@third-code-erp/database/schema'
 import {
-  computeGP,
-  computeGPMargin,
   lineTotal,
+  manualLineTotal,
+  bomQuantitySchema,
 } from '@third-code-erp/shared-types/bom'
 import {
   togalBomCommitCommandSchema,
@@ -37,7 +37,6 @@ import { DatabaseService } from '../database/database.service'
 
 const MAX_SAFE_INTEGER_BIGINT = BigInt(Number.MAX_SAFE_INTEGER)
 const MAX_POSTGRES_BIGINT = 9_223_372_036_854_775_807n
-const MAX_BOM_QUANTITY = 2_147_483_647
 const DEFAULT_MARKUP_BPS = 3_000
 
 function canonicalJson(value: unknown): string {
@@ -262,31 +261,18 @@ export class TogalBomCommitService {
       }
 
       const projectMarkupBps = parsedCommand.markupBps ?? DEFAULT_MARKUP_BPS
-      let addedCostCents = 0
-      let addedTcvCents = 0
       const linesToInsert = parsedCommand.proposedLines.map((line, index) => {
         const markupBps = line.markupBps ?? projectMarkupBps
         const qtyInt = line.qty
-        if (!Number.isSafeInteger(qtyInt) || qtyInt < 0 || qtyInt > MAX_BOM_QUANTITY) {
+        if (!bomQuantitySchema.safeParse(qtyInt).success) {
           throw new ConflictException(
-            'Togal BOM quantity exceeds supported integer range'
+            'Togal BOM quantity requires at most four decimal places within the supported range'
           )
         }
-        const cost = safeCents(
-          line.unitCostCents * qtyInt,
-          'Togal BOM cost exceeds supported exact centavo range'
-        )
+        manualLineTotal(line.unitCostCents, qtyInt)
         const total = safeCents(
           lineTotal(line.unitCostCents, qtyInt, markupBps),
           'Togal BOM line total exceeds supported exact centavo range'
-        )
-        addedCostCents = safeCents(
-          addedCostCents + cost,
-          'Togal BOM cost exceeds supported exact centavo range'
-        )
-        addedTcvCents = safeCents(
-          addedTcvCents + total,
-          'Togal BOM contract value exceeds supported exact centavo range'
         )
 
         const notesParts: string[] = [
@@ -314,33 +300,13 @@ export class TogalBomCommitService {
         }
       })
 
-      const newTotalCostCents = safeCents(
-        bom.totalCostCents + addedCostCents,
-        'Togal BOM cost exceeds supported exact centavo range'
-      )
-      const newTcvCents = safeCents(
-        bom.tcvCents + addedTcvCents,
-        'Togal BOM contract value exceeds supported exact centavo range'
-      )
-      const newGpCents = computeGP(newTcvCents, newTotalCostCents)
-      const newGpMarginBps = computeGPMargin(newGpCents, newTcvCents)
-
       await transaction.insert(bomLineItems).values(linesToInsert)
-      await transaction
-        .update(boms)
-        .set({
-          total_cost_cents: newTotalCostCents,
-          tcv_cents: newTcvCents,
-          gp_cents: newGpCents,
-          gp_margin_bps: newGpMarginBps,
-          updated_at: new Date(),
-        })
-        .where(
-          and(
-            eq(boms.id, bom.id),
-            eq(boms.tenant_id, authorizedPrincipal.tenantId)
-          )
-        )
+      const [priced] = await transaction.select().from(boms).where(and(eq(boms.id, bom.id), eq(boms.tenant_id, authorizedPrincipal.tenantId))).limit(1).for('share')
+      if (!priced) throw new InternalServerErrorException('BOM pricing snapshot was not persisted')
+      const newTotalCostCents = priced.total_cost_cents
+      const newTcvCents = priced.tcv_cents
+      const newGpCents = priced.gp_cents
+      const newGpMarginBps = priced.gp_margin_bps
 
       const result = togalBomCommitResultSchema.parse({
         ok: true,

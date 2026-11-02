@@ -34,7 +34,8 @@ import {
   type DupaAssemblyOption,
 } from '@/components/bom/dupa-editor'
 import { groupBomLinesByDivision } from '@/lib/operations/bom-hierarchy'
-import { MAX_BOM_LINE_ITEM_QUANTITY } from '@third-code-erp/shared-types/bom'
+import { bomQuantitySchema } from '@third-code-erp/shared-types/bom'
+import { parsePesosToCents } from '@/lib/operations/scope-money'
 import workspaceStyles from './bom-workspace.module.css'
 
 interface BomLineItem {
@@ -391,6 +392,7 @@ export function BomBuilder({
     unit: 'pc',
     quantity: '1',
     unit_cost: '',
+    manual_vat_bps: '1200',
     location_id: '',
   })
   const [formError, setFormError] = useState('')
@@ -567,18 +569,16 @@ export function BomBuilder({
     if (!bom) return
     setFormError('')
 
-    const unitCostCents = Math.round(parseFloat(form.unit_cost) * 100)
+    const unitCostCents = parsePesosToCents(form.unit_cost)
     const quantity = Number(form.quantity)
     if (!form.description.trim()) return setFormError('Description is required')
-    if (isNaN(unitCostCents) || unitCostCents < 0)
+    if (unitCostCents === undefined)
       return setFormError('Invalid unit cost')
     if (
-      !Number.isSafeInteger(quantity) ||
-      quantity < 1 ||
-      quantity > MAX_BOM_LINE_ITEM_QUANTITY
+      !bomQuantitySchema.safeParse(quantity).success || quantity <= 0
     ) {
       return setFormError(
-        `Quantity must be a whole number from 1 to ${MAX_BOM_LINE_ITEM_QUANTITY.toLocaleString('en-PH')}`,
+        'Quantity must be positive with at most four decimal places',
       )
     }
 
@@ -588,6 +588,7 @@ export function BomBuilder({
         unit: form.unit,
         quantity,
         unit_cost_cents: unitCostCents,
+        manual_vat_bps: Number(form.manual_vat_bps),
         code: form.code || undefined,
         locationId: form.location_id || null,
       })
@@ -598,6 +599,7 @@ export function BomBuilder({
           unit: 'pc',
           quantity: '1',
           unit_cost: '',
+          manual_vat_bps: '1200',
           location_id: '',
         })
         setShowAddForm(false)
@@ -910,6 +912,7 @@ export function BomBuilder({
                 placeholder: '0.00',
                 type: 'number',
               },
+              { label: 'VAT basis points', key: 'manual_vat_bps', placeholder: '1200', type: 'number' },
             ].map(({ label, key, placeholder, type }) => (
               <div key={key}>
                 <label
@@ -934,7 +937,7 @@ export function BomBuilder({
                     setForm((f) => ({ ...f, [key]: e.target.value }))
                   }
                   min={type === 'number' ? '0' : undefined}
-                  step={key === 'unit_cost' ? '0.01' : undefined}
+                  step={key === 'unit_cost' ? '0.01' : key === 'quantity' ? '0.0001' : undefined}
                   style={{
                     width: '100%',
                     padding: '6px 8px',

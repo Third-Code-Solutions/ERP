@@ -9,7 +9,8 @@ const source = readFileSync(
 
 describe('dashboard route error boundary', () => {
   it('shows safe recovery actions and only exposes the digest reference', () => {
-    expect(source).toContain('Workspace paused before anything changed.')
+    expect(source).toContain('This workspace view could not load.')
+    expect(source).toContain('check the record before repeating that action.')
     expect(source).toContain('onClick={reset}')
     expect(source).toContain('href="/dashboard"')
     expect(source).toContain('error.digest')

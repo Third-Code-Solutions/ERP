@@ -34,6 +34,8 @@ import { DatabaseService } from '../src/database/database.service'
 import { POST } from '../../web/src/app/api/upload/complete/route'
 import { DocumentIntakeController } from '../src/documents/document-intake.controller'
 import { DocumentIntakeService } from '../src/documents/document-intake.service'
+import { documentUploadFixture } from './document-upload.fixture'
+import { documentUploadReservations } from '@third-code-erp/database/schema'
 
 const authMocks = vi.hoisted(() => ({
   can: vi.fn(),
@@ -160,9 +162,11 @@ suite('protected Web upload-complete disposable integration', () => {
         database,
         new AuditService()
       )
+      const uploadFixture = documentUploadFixture(database, 46_361)
       const documentIntakeService = new DocumentIntakeService(
         database,
-        new AuditService()
+        new AuditService(),
+        uploadFixture.uploads
       )
       const identity = {
         verifyAccessToken: vi.fn().mockResolvedValue({ userId }),
@@ -197,7 +201,7 @@ suite('protected Web upload-complete disposable integration', () => {
       vi.stubEnv('ERP_DOCUMENT_PROCESSING_VIA_API', 'false')
       vi.stubEnv('ERP_DOCUMENT_PROCESSING_TENANT_IDS', '')
 
-      const successStoragePath = `${tenantId}/${projectId}/success-plan.dxf`
+      const successStoragePath = await uploadFixture.prepare({ projectId, fileName: 'success-plan.dxf', mimeType: 'application/dxf', sizeBytes: 46_361 }, { tenantId, userId, role: 'pm', email: 'synthetic@test.invalid' }, 'prepare-web-complete')
       const successResponse = await POST(
         uploadRequest({
           storagePath: successStoragePath,
@@ -304,6 +308,7 @@ suite('protected Web upload-complete disposable integration', () => {
     } finally {
       await app?.close?.()
       await db.transaction(async (transaction) => {
+        await transaction.delete(documentUploadReservations).where(eq(documentUploadReservations.tenant_id, tenantId))
         await transaction
           .delete(documentIntakeRequests)
           .where(eq(documentIntakeRequests.tenant_id, tenantId))

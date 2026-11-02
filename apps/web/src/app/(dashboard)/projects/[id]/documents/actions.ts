@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { can, getUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
-import { accountKycArtifacts, documents, progressClaimDocuments, scopeItems, siteInspectionPhotos, siteInspections } from '@third-code-erp/database/schema'
+import { accountKycArtifacts, documents, documentUploadReservations, progressClaimDocuments, scopeItems, siteInspectionPhotos, siteInspections } from '@third-code-erp/database/schema'
 import { and, eq, like } from 'drizzle-orm'
 import { writeAuditLogInTransaction } from '@/lib/audit'
 import {
@@ -28,6 +28,7 @@ class DocumentNotFoundError extends Error {}
 class ClaimEvidenceRetainedError extends Error {}
 class KycEvidenceRetainedError extends Error {}
 class InspectionEvidenceRetainedError extends Error {}
+class LegacyStorageRetainedError extends Error {}
 
 export async function deleteDocument(formData: FormData): Promise<DeleteResult> {
   const parsed = DeleteDocumentSchema.safeParse({
@@ -144,6 +145,12 @@ export async function deleteDocument(formData: FormData): Promise<DeleteResult> 
         .limit(1)
       if (inspectionReport) throw new InspectionEvidenceRetainedError()
 
+      const [retainedCapacity] = await tx.select({ id: documentUploadReservations.id })
+        .from(documentUploadReservations)
+        .where(and(eq(documentUploadReservations.tenant_id, doc.tenant_id), eq(documentUploadReservations.project_id, doc.project_id), eq(documentUploadReservations.document_id, doc.id), eq(documentUploadReservations.state, 'completed')))
+        .limit(1)
+      if (!retainedCapacity) throw new LegacyStorageRetainedError()
+
       const removedScopeItems = await tx
         .delete(scopeItems)
         .where(
@@ -189,6 +196,9 @@ export async function deleteDocument(formData: FormData): Promise<DeleteResult> 
       }
     })
   } catch (error) {
+    if (error instanceof LegacyStorageRetainedError) {
+      return { ok: false, error: 'Legacy document requires verified Storage cleanup before deletion; no document was deleted' }
+    }
     if (error instanceof InspectionEvidenceRetainedError) {
       return { ok: false, error: 'Document is attached to an inspection and cannot be deleted' }
     }

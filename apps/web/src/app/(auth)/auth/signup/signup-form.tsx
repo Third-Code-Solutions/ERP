@@ -88,8 +88,9 @@ export function SignupForm() {
           lineHeight: 1.5,
         }}
       >
-        Account created. Check your email to confirm your address. Your guided
-        workspace setup continues after confirmation.
+        Account created. Check your email to confirm your address. An installation
+        operator must then verify administrator access and complete the readiness
+        checklist in Settings before operational use.
       </div>
     )
   }

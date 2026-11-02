@@ -2,6 +2,8 @@
 // All monetary values are in PHP centavos (integer).
 // Percentages/markups use basis points: 0-10000 = 0%-100%.
 
+import { BOM_QUANTITY_SCALE, scaledBomQuantity } from './quantity'
+
 export type BasisPoints = number
 
 const MAX_SAFE_INTEGER_BIGINT = BigInt(Number.MAX_SAFE_INTEGER)
@@ -85,11 +87,10 @@ export function lineTotal(
   markupBps: BasisPoints
 ): number {
   const unitCost = exactInteger(unitCostCents, 'unit cost')
-  const quantityBigInt = exactInteger(quantity, 'quantity')
+  const quantityBigInt = scaledBomQuantity(quantity)
   const markupRate = exactInteger(markupBps, 'markup basis points')
   const subtotal = unitCost * quantityBigInt
-  const markup = roundHalfUp(subtotal * markupRate, 10000n)
-  return safeNumber(subtotal + markup, 'line total')
+  return safeNumber(roundHalfUp(subtotal * (10000n + markupRate), BOM_QUANTITY_SCALE * 10000n), 'line total')
 }
 
 // Manual BOM lines do not accept an ad-hoc line-level markup. Client pricing
@@ -163,4 +164,28 @@ export function progressBillingAmount(
     10000,
     'progress billing amount'
   )
+}
+
+/** Allocate an explicit VAT-exclusive selling snapshot and its already-computed VAT. */
+export function allocateBomInvoice(input: {
+  pricingBasis: string
+  sellingExVatCents: number
+  vatCents: number
+  billingPercentBps: number
+  retentionBps: number
+  withholdingBps: number
+}): { subtotalCents: number; vatCents: number; retentionCents: number; withholdingTaxCents: number; netAmountCents: number } {
+  if (input.pricingBasis !== 'reconciled_v1') {
+    throw new Error('Legacy BOM pricing requires an explicitly reviewed revision before billing')
+  }
+  for (const rate of [input.billingPercentBps, input.retentionBps, input.withholdingBps]) {
+    if (!Number.isInteger(rate) || rate < 0 || rate > 10000) throw new RangeError('Billing rates must be from 0 to 10000 basis points')
+  }
+  const subtotalCents = progressBillingAmount(input.sellingExVatCents, input.billingPercentBps)
+  const vatCents = progressBillingAmount(input.vatCents, input.billingPercentBps)
+  const retentionCents = computeRetention(subtotalCents, input.retentionBps)
+  const withholdingTaxCents = computeRetention(subtotalCents, input.withholdingBps)
+  const netAmountCents = safeNumber(BigInt(subtotalCents) + BigInt(vatCents) - BigInt(retentionCents) - BigInt(withholdingTaxCents), 'invoice net amount')
+  if (netAmountCents < 0) throw new RangeError('Invoice deductions exceed its selling value and VAT')
+  return { subtotalCents, vatCents, retentionCents, withholdingTaxCents, netAmountCents }
 }

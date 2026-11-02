@@ -59,7 +59,19 @@ describe('platform HTTP response boundary', () => {
   })
   it('correlates writes and rejects an unconfirmed success body', async () => {
     mocks.fetch.mockResolvedValue(Response.json({ ok: false }))
-    expect(await sendPlatformPasswordReset('11111111-1111-4111-8111-111111111111')).toMatchObject({ ok: false, status: 502 })
+    expect(await sendPlatformPasswordReset('11111111-1111-4111-8111-111111111111')).toMatchObject({
+      ok: false,
+      status: 502,
+      error: expect.stringContaining('mutation outcome is uncertain'),
+    })
     expect(mocks.fetch).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ headers: expect.objectContaining({ 'x-request-id': expect.stringMatching(/^[0-9a-f-]{36}$/) }) }))
+  })
+  it('distinguishes uncertain mutation transport failures from failed reads', async () => {
+    mocks.fetch.mockRejectedValue(new DOMException('timed out', 'TimeoutError'))
+    expect(await getPlatformTenants()).toMatchObject({ ok: false, error: expect.stringContaining('Nothing was read') })
+    expect(await sendPlatformPasswordReset('11111111-1111-4111-8111-111111111111')).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('mutation outcome is uncertain'),
+    })
   })
 })

@@ -21,7 +21,6 @@ const mocks = vi.hoisted(() => ({
   lineLocationSafeParse: vi.fn(),
   computeDupa: vi.fn(),
   classifyBomLineKind: vi.fn(),
-  manualLineTotal: vi.fn(),
   inngestSend: vi.fn(),
   useCore: vi.fn(),
   dispatchCore: vi.fn(),
@@ -196,7 +195,8 @@ vi.mock('@/lib/erp-core-client', () => ({
   rfqAutoDispatchUsesCoreApi: mocks.useCore,
 }))
 
-vi.mock('@third-code-erp/shared-types/bom', () => ({
+vi.mock('@third-code-erp/shared-types/bom', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@third-code-erp/shared-types/bom')>(),
   MAX_BOM_LINE_ITEM_QUANTITY: 2_147_483_647,
   lineTotal: vi.fn(),
   bomTotalCost: vi.fn(() => 0),
@@ -210,7 +210,6 @@ vi.mock('@third-code-erp/shared-types/bom', () => ({
   projectLocationCreateSchema: { safeParse: mocks.locationCreateSafeParse },
   computeDupa: mocks.computeDupa,
   classifyBomLineKind: mocks.classifyBomLineKind,
-  manualLineTotal: mocks.manualLineTotal,
 }))
 
 import {
@@ -438,6 +437,7 @@ describe('upsertDupaForBomLine audit atomicity', () => {
     unit_rate_centavos: 0n,
   }
   const transaction = {
+    execute: vi.fn().mockResolvedValue([]),
     select: mocks.transactionSelect,
     insert: mocks.transactionInsert,
     delete: mocks.transactionDelete,
@@ -645,7 +645,6 @@ describe('BOM line mutation guardrails', () => {
     mocks.writeAuditLog.mockReset()
     mocks.writeAuditLogInTransaction.mockReset()
     mocks.classifyBomLineKind.mockReset()
-    mocks.manualLineTotal.mockReset()
     mocks.revalidatePath.mockReset()
     mocks.getUserProfile.mockResolvedValue({
       tenantId: TENANT_ID,
@@ -711,7 +710,6 @@ describe('BOM line mutation guardrails', () => {
       status: 'classified',
       reason: null,
     })
-    mocks.manualLineTotal.mockReturnValue(2_500)
     mocks.transactionInsert.mockReturnValue(insertReturningChain([{ id: LINE_ITEM_ID }]))
     mocks.transaction.mockImplementation(async (callback) => callback(mutationTransaction))
     mocks.transactionUpdate.mockReturnValue(updateChain())

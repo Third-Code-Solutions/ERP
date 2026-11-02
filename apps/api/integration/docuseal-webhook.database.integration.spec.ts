@@ -143,11 +143,7 @@ suite('DocuSeal webhook database authority', () => {
           tenant_id: tenantA,
           project_id: projectA,
           created_by: userA,
-          approved_by: userA,
-          approved_at: new Date('2026-09-01T00:00:00.000Z'),
-          status: 'approved',
-          total_cost_cents: 100_000,
-          tcv_cents: 125_000,
+          status: 'draft',
         },
         {
           id: bomB,
@@ -167,8 +163,14 @@ suite('DocuSeal webhook database authority', () => {
         unit: 'lot',
         quantity: 1,
         unit_cost_cents: 100_000,
-        line_total_cents: 100_000,
+        markup_bps: 2_500,
+        manual_vat_bps: 0,
       })
+      await transaction.update(boms).set({
+        status: 'approved',
+        approved_by: userA,
+        approved_at: new Date('2026-09-01T00:00:00.000Z'),
+      }).where(eq(boms.id, bomA))
       await transaction.insert(bomPortalTokens).values([
         {
           tenant_id: tenantA,

@@ -10,6 +10,7 @@ import { AuditService } from '../src/audit/audit.service'
 import type { ErpPrincipal } from '../src/auth/current-principal.decorator'
 import { DatabaseService, type DatabaseTransaction } from '../src/database/database.service'
 import { DocumentDeleteService } from '../src/documents/document-delete.service'
+import { documentUploadFixture } from './document-upload.fixture'
 
 const boundary = vi.hoisted(() => ({ profile: vi.fn(), can: vi.fn(), coreSelected: vi.fn(), coreDelete: vi.fn(), remove: vi.fn(), storage: vi.fn(), revalidate: vi.fn() }))
 vi.mock('@third-code-erp/auth', () => ({ getUserProfile: boundary.profile, can: boundary.can }))
@@ -35,10 +36,10 @@ beforeEach(() => {
   boundary.storage.mockReturnValue({ remove: boundary.remove })
 })
 
-async function fixture() {
+async function fixture(controlledUpload = false) {
   const tenantId = randomUUID(), userId = randomUUID(), accountId = randomUUID(), opportunityId = randomUUID(), projectId = randomUUID(), inspectionId = randomUUID(), documentId = randomUUID(), scopeId = randomUUID()
   const principal: ErpPrincipal = { tenantId, userId, role: 'admin', email: `${userId}@integration.test` }
-  const storagePath = `${tenantId}/${projectId}/${documentId}.jpg`
+  let storagePath = `${tenantId}/${projectId}/${documentId}.jpg`
   // Committed UUID-isolated synthetic fixtures enable independent connection races.
   // Historical audit rows and retained evidence are never cleaned up.
   await db.transaction(async tx => {
@@ -51,6 +52,16 @@ async function fixture() {
     await tx.insert(siteInspections).values({ id: inspectionId, tenant_id: tenantId, opportunity_id: opportunityId, payload: { site_address: 'Synthetic retained site' }, status: 'submitted', submitted_by: userId, submitted_at: new Date(), client_submission_id: randomUUID() })
     await tx.insert(scopeItems).values({ id: scopeId, tenant_id: tenantId, project_id: projectId, description: 'Evidence-derived scope', unit: 'unit', notes: `document:${documentId}`, created_by: userId })
   })
+  if (controlledUpload) {
+    const upload = documentUploadFixture(new DatabaseService(), 8)
+    const input = { projectId, fileName: 'Evidence.jpg', mimeType: 'image/jpeg', sizeBytes: 8 }
+    storagePath = await upload.prepare(input, principal, randomUUID())
+    await db.transaction(async tx => {
+      await tx.update(documents).set({ storage_path: storagePath }).where(eq(documents.id, documentId))
+      const reservation = await upload.uploads.verifyCompletion(tx, { ...input, storagePath }, principal)
+      await upload.uploads.complete(tx, reservation, documentId)
+    })
+  }
   boundary.profile.mockResolvedValue({ user: { id: userId }, tenantId, role: 'admin', email: principal.email })
   const core = new DocumentDeleteService(new ConfigService({ ERP_DOCUMENT_DELETE_WRITES_ENABLED: true, ERP_DOCUMENT_DELETE_WRITES_TENANT_IDS: [tenantId] }), new DatabaseService(), new AuditService())
   const form = new FormData(); form.set('document_id', documentId); form.set('project_id', projectId)
@@ -104,7 +115,7 @@ suite('Committed inspection evidence retention through actual deletion paths', (
     })
 
     it(`${path} still deletes an unreferenced document and its derived scope`, async () => {
-      const f = await fixture(), before = await snapshot(f)
+      const f = await fixture(true), before = await snapshot(f)
       const result = await remove(f, path)
       expect(result).toMatchObject(path === 'Core' ? { status: 'deleted', documentId: f.documentId } : { ok: true })
       const after = await snapshot(f)
@@ -122,6 +133,16 @@ suite('Committed inspection evidence retention through actual deletion paths', (
         diff: { derived_scope_items_removed: 1, storage_cleanup: 'retained_pending_generation_fencing' } })
       expect(boundary.remove).not.toHaveBeenCalled()
       // Unreferenced database deletion does not authorize physical object deletion.
+    })
+
+    it(`${path} retains legacy document and derived scope without a capacity reservation`, async () => {
+      const f = await fixture(), before = await snapshot(f)
+      const message = 'Legacy document requires verified Storage cleanup before deletion; no document was deleted'
+      if (path === 'Core') await expect(remove(f, path)).rejects.toMatchObject({ status: 409, message })
+      else await expect(remove(f, path)).resolves.toEqual({ ok: false, error: message })
+      expect(await snapshot(f)).toEqual(before)
+      expect(boundary.remove).not.toHaveBeenCalled()
+      expect(boundary.revalidate).not.toHaveBeenCalled()
     })
 
     it.each(['photo', 'report'] as const)(`${path} waits for a concurrent %s FK attachment and then retains it`, async kind => {

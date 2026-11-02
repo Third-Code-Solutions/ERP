@@ -25,10 +25,7 @@ import {
   type CustomerInvoiceDraftCreateResult,
 } from '@third-code-erp/shared-types'
 import {
-  computeEWT,
-  computeRetention,
-  computeVAT,
-  progressBillingAmount,
+  allocateBomInvoice,
 } from '@third-code-erp/shared-types/bom'
 import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import { roleHasCapability } from '../auth/capability.guard'
@@ -39,7 +36,6 @@ import {
   type DatabaseTransaction,
 } from '../database/database.service'
 
-const RETENTION_BPS = 1_000
 const MAX_SAFE_INTEGER_BIGINT = BigInt(Number.MAX_SAFE_INTEGER)
 
 type BillableBomStatus = 'approved' | 'locked'
@@ -49,6 +45,9 @@ type BillableBom = {
   projectId: string
   status: string
   tcvCents: string | number | bigint
+  pricingBasis: string
+  sellingExVatCents: string | number | bigint
+  vatCents: string | number | bigint
 }
 
 export function isBillableBomStatus(
@@ -57,7 +56,7 @@ export function isBillableBomStatus(
   return status === 'approved' || status === 'locked'
 }
 
-export function requireBillableBom<T extends BillableBom>(bom: T | undefined): T {
+export function requireBillableBom<T extends Pick<BillableBom, 'id' | 'projectId' | 'status' | 'tcvCents'>>(bom: T | undefined): T {
   if (!bom) {
     throw new ConflictException(
       'An approved BOM is required before billing'
@@ -208,6 +207,9 @@ export class CustomerInvoiceDraftCreateService {
             projectId: boms.project_id,
             status: boms.status,
             tcvCents: sql<string>`cast(${boms.tcv_cents} as text)`,
+            pricingBasis: boms.pricing_basis,
+            sellingExVatCents: sql<string>`cast(${boms.selling_ex_vat_cents} as text)`,
+            vatCents: sql<string>`cast(${boms.vat_cents} as text)`,
           })
           .from(boms)
           .where(
@@ -230,6 +232,9 @@ export class CustomerInvoiceDraftCreateService {
             projectId: boms.project_id,
             status: boms.status,
             tcvCents: sql<string>`cast(${boms.tcv_cents} as text)`,
+            pricingBasis: boms.pricing_basis,
+            sellingExVatCents: sql<string>`cast(${boms.selling_ex_vat_cents} as text)`,
+            vatCents: sql<string>`cast(${boms.vat_cents} as text)`,
           })
           .from(boms)
           .where(
@@ -245,16 +250,17 @@ export class CustomerInvoiceDraftCreateService {
         bom = requireBillableBom(latestBom)
       }
 
-      const subtotalCents = progressBillingAmount(
-        exactCentavoNumber(bom.tcvCents),
-        parsedBody.billingPercentBps
-      )
-      const retentionCents = computeRetention(subtotalCents, RETENTION_BPS)
-      const taxableBaseCents = subtotalCents - retentionCents
-      const vatCents = computeVAT(taxableBaseCents)
-      const withholdingTaxCents = computeEWT(taxableBaseCents)
-      const netAmountCents =
-        taxableBaseCents + vatCents - withholdingTaxCents
+      if (bom.pricingBasis !== 'reconciled_v1') throw new ConflictException('Legacy BOM pricing requires an explicitly reviewed revision before billing')
+      const retentionBps = parsedBody.retentionBps ?? 1000
+      const withholdingBps = parsedBody.withholdingBps ?? 200
+      const { subtotalCents, retentionCents, vatCents, withholdingTaxCents, netAmountCents } = allocateBomInvoice({
+        pricingBasis: bom.pricingBasis,
+        sellingExVatCents: exactCentavoNumber(bom.sellingExVatCents),
+        vatCents: exactCentavoNumber(bom.vatCents),
+        billingPercentBps: parsedBody.billingPercentBps,
+        retentionBps,
+        withholdingBps,
+      })
 
       const now = new Date()
       const prefix = `INV-${now.getUTCFullYear()}${String(
@@ -292,7 +298,10 @@ export class CustomerInvoiceDraftCreateService {
           invoice_number: invoiceNumber,
           status: 'draft',
           billing_percent_bps: parsedBody.billingPercentBps,
-          retention_bps: RETENTION_BPS,
+          retention_bps: retentionBps,
+          withholding_bps: withholdingBps,
+          pricing_basis: bom.pricingBasis,
+          source_bom_id: bom.id,
           subtotal_cents: subtotalCents,
           retention_cents: retentionCents,
           vat_cents: vatCents,

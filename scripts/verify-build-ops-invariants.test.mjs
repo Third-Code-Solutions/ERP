@@ -191,7 +191,7 @@ test('CI runs the full PR suite and keeps migration checks ahead of CI-only gran
   )
   assert.match(
     workflow,
-    /build:\s*\n[\s\S]*?needs: \[typecheck, lint, test, build-ops-invariants, database-reproducibility, claim-document-browser\]/
+    /build:\s*\n[\s\S]*?needs: \[typecheck, lint, test, build-ops-invariants, database-reproducibility, claim-document-browser, python-workers, security\]/
   )
 })
 
@@ -207,7 +207,7 @@ test('CI runs document, role and smoke readiness regressions without production 
   assert.match(job, /needs: \[actionlint\]/)
   assert.match(job, /timeout-minutes: 15/)
   assert.match(job, /pnpm install --frozen-lockfile/)
-  assert.match(job, /playwright test \\\n\s+e2e\/claim-document-attach\.spec\.ts/)
+  assert.match(job, /playwright test \\\r?\n\s+e2e\/claim-document-attach\.spec\.ts/)
   assert.match(job, /--workers=1/)
   assert.match(job, /--retries=0/)
   assert.match(job, /--global-timeout=300000/)

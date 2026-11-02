@@ -1,33 +1,24 @@
-'use server'
+import 'server-only'
 
 import {
-  createPlatformSupportSessionCommandSchema,
-  createPlatformTenantCommandSchema,
-  invitePlatformUserCommandSchema,
-  updatePlatformTenantStatusCommandSchema,
-  updatePlatformTenantCommandSchema,
-  updatePlatformUserRoleCommandSchema,
+  createPlatformSupportSessionCommandSchema, createPlatformTenantCommandSchema,
+  invitePlatformUserCommandSchema, updatePlatformTenantStatusCommandSchema,
+  updatePlatformTenantCommandSchema, updatePlatformUserRoleCommandSchema,
   updatePlatformUserStatusCommandSchema,
 } from '@third-code-erp/shared-types/platform-administration'
-import { revalidatePath } from 'next/cache'
-import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 
 import {
-  changePlatformTenantStatus,
-  changePlatformUserRole,
-  changePlatformUserStatus,
-  createPlatformTenant,
-  endPlatformSupportContext,
-  invitePlatformUser,
-  resendPlatformInvitation,
-  revokePlatformInvitation,
-  sendPlatformPasswordReset,
-  startPlatformSupportContext,
-  updatePlatformTenant,
-  PLATFORM_SUPPORT_COOKIE,
+  changePlatformTenantStatus, changePlatformUserRole, changePlatformUserStatus,
+  createPlatformTenant, endPlatformSupportContext, invitePlatformUser,
+  resendPlatformInvitation, revokePlatformInvitation, sendPlatformPasswordReset,
+  startPlatformSupportContext, updatePlatformTenant, PLATFORM_SUPPORT_COOKIE,
   type PlatformResult,
 } from '@/lib/platform-admin-client'
+import type { NativeFormDestination } from '@/lib/native-form-request'
+
+export type PlatformCommandOutcome = { destination: NativeFormDestination } &
+  ({ notice: string } | { error: string })
 
 function text(formData: FormData, key: string): string {
   const value = formData.get(key)
@@ -35,164 +26,95 @@ function text(formData: FormData, key: string): string {
 }
 
 function optionalText(formData: FormData, key: string): string | null {
-  const value = text(formData, key).trim()
-  return value || null
+  return text(formData, key).trim() || null
 }
 
-function finish(path: string, result: PlatformResult<unknown>, success: string): never {
-  revalidatePath('/platform-admin', 'layout')
-  const params = new URLSearchParams(
-    result.ok ? { notice: success } : { error: result.error }
-  )
-  redirect(`${path}?${params.toString()}`)
+function finish(destination: NativeFormDestination, result: PlatformResult<unknown>, success: string): PlatformCommandOutcome {
+  return result.ok ? { destination, notice: success } : { destination, error: result.error }
 }
 
-function invalid(path: string, message: string): never {
-  redirect(`${path}?${new URLSearchParams({ error: message }).toString()}`)
+function invalid(destination: NativeFormDestination, error: string): PlatformCommandOutcome {
+  return { destination, error }
 }
 
-export async function createTenantAction(formData: FormData): Promise<never> {
+async function createTenant(formData: FormData): Promise<PlatformCommandOutcome> {
   const parsed = createPlatformTenantCommandSchema.safeParse({
-    name: text(formData, 'name'),
-    slug: text(formData, 'slug'),
-    organizationType: text(formData, 'organizationType'),
-    pcabLicense: optionalText(formData, 'pcabLicense'),
-    birTin: optionalText(formData, 'birTin'),
-    dpoContact: optionalText(formData, 'dpoContact'),
+    name: text(formData, 'name'), slug: text(formData, 'slug'), organizationType: text(formData, 'organizationType'),
+    pcabLicense: optionalText(formData, 'pcabLicense'), birTin: optionalText(formData, 'birTin'), dpoContact: optionalText(formData, 'dpoContact'),
   })
   if (!parsed.success) return invalid('/platform-admin/tenants', 'Check the tenant details and try again.')
-  return finish(
-    '/platform-admin/tenants',
-    await createPlatformTenant(parsed.data),
-    'Tenant created.'
-  )
+  return finish('/platform-admin/tenants', await createPlatformTenant(parsed.data), 'Tenant created.')
 }
 
-export async function changeTenantStatusAction(formData: FormData): Promise<never> {
+async function changeTenantStatus(formData: FormData): Promise<PlatformCommandOutcome> {
   const tenantId = text(formData, 'tenantId')
-  const parsed = updatePlatformTenantStatusCommandSchema.safeParse({
-    status: text(formData, 'status'),
-    reason: optionalText(formData, 'reason'),
-  })
+  const parsed = updatePlatformTenantStatusCommandSchema.safeParse({ status: text(formData, 'status'), reason: optionalText(formData, 'reason') })
   if (!parsed.success || !tenantId) return invalid('/platform-admin/tenants', 'A valid lifecycle change is required.')
-  return finish(
-    '/platform-admin/tenants',
-    await changePlatformTenantStatus(tenantId, parsed.data),
-    'Tenant lifecycle updated.'
-  )
+  return finish('/platform-admin/tenants', await changePlatformTenantStatus(tenantId, parsed.data), 'Tenant lifecycle updated.')
 }
 
-export async function updateTenantAction(formData: FormData): Promise<never> {
+async function updateTenant(formData: FormData): Promise<PlatformCommandOutcome> {
   const tenantId = text(formData, 'tenantId')
-  const parsed = updatePlatformTenantCommandSchema.safeParse({
-    name: text(formData, 'name'),
-    organizationType: text(formData, 'organizationType'),
-  })
+  const parsed = updatePlatformTenantCommandSchema.safeParse({ name: text(formData, 'name'), organizationType: text(formData, 'organizationType') })
   if (!parsed.success || !tenantId) return invalid('/platform-admin/tenants', 'Check the tenant configuration and try again.')
   return finish('/platform-admin/tenants', await updatePlatformTenant(tenantId, parsed.data), 'Tenant configuration updated.')
 }
 
-export async function inviteUserAction(formData: FormData): Promise<never> {
-  const parsed = invitePlatformUserCommandSchema.safeParse({
-    tenantId: text(formData, 'tenantId'),
-    email: text(formData, 'email'),
-    fullName: text(formData, 'fullName'),
-    role: text(formData, 'role'),
-  })
+async function inviteUser(formData: FormData): Promise<PlatformCommandOutcome> {
+  const parsed = invitePlatformUserCommandSchema.safeParse({ tenantId: text(formData, 'tenantId'), email: text(formData, 'email'), fullName: text(formData, 'fullName'), role: text(formData, 'role') })
   if (!parsed.success) return invalid('/platform-admin/users', 'Check the invitation details and try again.')
-  return finish(
-    '/platform-admin/users',
-    await invitePlatformUser(parsed.data),
-    'Invitation sent.'
-  )
+  return finish('/platform-admin/users', await invitePlatformUser(parsed.data), 'Invitation sent.')
 }
 
-export async function changeUserRoleAction(formData: FormData): Promise<never> {
+async function changeUserRole(formData: FormData): Promise<PlatformCommandOutcome> {
   const userId = text(formData, 'userId')
-  const parsed = updatePlatformUserRoleCommandSchema.safeParse({
-    role: text(formData, 'role'),
-  })
+  const parsed = updatePlatformUserRoleCommandSchema.safeParse({ role: text(formData, 'role') })
   if (!parsed.success || !userId) return invalid('/platform-admin/users', 'A valid user role is required.')
-  return finish(
-    '/platform-admin/users',
-    await changePlatformUserRole(userId, parsed.data),
-    'User role updated.'
-  )
+  return finish('/platform-admin/users', await changePlatformUserRole(userId, parsed.data), 'User role updated.')
 }
 
-export async function changeUserStatusAction(formData: FormData): Promise<never> {
+async function changeUserStatus(formData: FormData): Promise<PlatformCommandOutcome> {
   const userId = text(formData, 'userId')
-  const parsed = updatePlatformUserStatusCommandSchema.safeParse({
-    status: text(formData, 'status'),
-    reason: optionalText(formData, 'reason'),
-  })
+  const parsed = updatePlatformUserStatusCommandSchema.safeParse({ status: text(formData, 'status'), reason: optionalText(formData, 'reason') })
   if (!parsed.success || !userId) return invalid('/platform-admin/users', 'A valid lifecycle change is required.')
-  return finish(
-    '/platform-admin/users',
-    await changePlatformUserStatus(userId, parsed.data),
-    'User lifecycle updated.'
-  )
+  return finish('/platform-admin/users', await changePlatformUserStatus(userId, parsed.data), 'User lifecycle updated.')
 }
 
-export async function resendInvitationAction(formData: FormData): Promise<never> {
-  return finish(
-    '/platform-admin/users',
-    await resendPlatformInvitation(text(formData, 'invitationId')),
-    'Invitation resent.'
-  )
-}
-
-export async function revokeInvitationAction(formData: FormData): Promise<never> {
-  return finish(
-    '/platform-admin/users',
-    await revokePlatformInvitation(text(formData, 'invitationId')),
-    'Invitation revoked.'
-  )
-}
-
-export async function sendPasswordResetAction(formData: FormData): Promise<never> {
-  return finish(
-    '/platform-admin/users',
-    await sendPlatformPasswordReset(text(formData, 'userId')),
-    'Password reset sent.'
-  )
-}
-
-export async function startSupportContextAction(formData: FormData): Promise<never> {
-  const parsed = createPlatformSupportSessionCommandSchema.safeParse({
-    tenantId: text(formData, 'tenantId'),
-    reason: text(formData, 'reason'),
-    durationMinutes: text(formData, 'durationMinutes'),
-  })
+async function startSupport(formData: FormData): Promise<PlatformCommandOutcome> {
+  const parsed = createPlatformSupportSessionCommandSchema.safeParse({ tenantId: text(formData, 'tenantId'), reason: text(formData, 'reason'), durationMinutes: text(formData, 'durationMinutes') })
   if (!parsed.success) return invalid('/platform-admin/tenants', 'A tenant, reason, and valid duration are required.')
   const result = await startPlatformSupportContext(parsed.data)
   if (result.ok) {
     ;(await cookies()).set(PLATFORM_SUPPORT_COOKIE, result.data.id, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      path: '/platform-admin',
-      expires: new Date(result.data.expiresAt),
+      httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict', path: '/platform-admin', expires: new Date(result.data.expiresAt),
     })
   }
-  return finish(
-    '/platform-admin/tenants',
-    result,
-    'Support context started.'
-  )
+  return finish('/platform-admin/tenants', result, 'Support context started.')
 }
 
-export async function endSupportContextAction(formData: FormData): Promise<never> {
+async function endSupport(formData: FormData): Promise<PlatformCommandOutcome> {
   const result = await endPlatformSupportContext(text(formData, 'sessionId'))
   if (result.ok) {
     ;(await cookies()).set(PLATFORM_SUPPORT_COOKIE, '', {
-      httpOnly: true, secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict', path: '/platform-admin', maxAge: 0,
+      httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict', path: '/platform-admin', maxAge: 0,
     })
   }
-  return finish(
-    '/platform-admin',
-    result,
-    'Support context ended.'
-  )
+  return finish('/platform-admin', result, 'Support context ended.')
+}
+
+export async function dispatchPlatformAdminCommand(formData: FormData): Promise<PlatformCommandOutcome | null> {
+  switch (text(formData, 'operation')) {
+    case 'create-tenant': return createTenant(formData)
+    case 'change-tenant-status': return changeTenantStatus(formData)
+    case 'update-tenant': return updateTenant(formData)
+    case 'invite-user': return inviteUser(formData)
+    case 'change-user-role': return changeUserRole(formData)
+    case 'change-user-status': return changeUserStatus(formData)
+    case 'resend-invitation': return finish('/platform-admin/users', await resendPlatformInvitation(text(formData, 'invitationId')), 'Invitation resent.')
+    case 'revoke-invitation': return finish('/platform-admin/users', await revokePlatformInvitation(text(formData, 'invitationId')), 'Invitation revoked.')
+    case 'send-password-reset': return finish('/platform-admin/users', await sendPlatformPasswordReset(text(formData, 'userId')), 'Password reset sent.')
+    case 'start-support': return startSupport(formData)
+    case 'end-support': return endSupport(formData)
+    default: return null
+  }
 }

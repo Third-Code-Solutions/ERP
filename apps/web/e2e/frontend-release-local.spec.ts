@@ -74,7 +74,7 @@ test('validates the consolidated public frontend candidate', async ({
   expect(await manifestResponse.json()).toMatchObject({
     name: 'ABI OPS',
     short_name: 'ABI OPS',
-    start_url: '/',
+    start_url: '/dashboard',
   })
 
   for (const path of ['/api/health', '/api/ready']) {

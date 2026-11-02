@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { takeoffCommitQuantity, validateTakeoffRows } from '../takeoff'
 
 describe('takeoff validation', () => {
-  it('queues fractional quantities instead of silently rounding them', () => {
+  it('preserves supported fractional quantities instead of rounding them', () => {
     const issues = validateTakeoffRows([
       {
         sourceRowKey: 'concrete-1',
@@ -18,13 +18,10 @@ describe('takeoff validation', () => {
       },
     ])
 
-    expect(issues).toContainEqual({
-      sourceRowKey: 'concrete-1',
-      code: 'INVALID_QUANTITY',
-      message:
-        'Fractional quantity requires decimal BOM precision before it can be committed.',
-    })
-    expect(takeoffCommitQuantity(0.1)).toBe(0)
+    expect(issues).toEqual([])
+    expect(takeoffCommitQuantity(0.1)).toBe(0.1)
+    expect(takeoffCommitQuantity(12.5)).toBe(12.5)
+    expect(takeoffCommitQuantity(0.12345)).toBe(0)
     expect(takeoffCommitQuantity(12)).toBe(12)
   })
 })

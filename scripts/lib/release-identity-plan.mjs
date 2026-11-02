@@ -5,6 +5,12 @@ function isSha(value) {
 }
 
 function checkHostedIdentity(name, identity, candidateSha, blockers) {
+  try {
+    const url = new URL(identity?.url)
+    if (url.protocol !== 'https:' || url.username || url.password) throw new Error('invalid')
+  } catch {
+    blockers.push(`${name}: explicit hosted HTTPS URL is missing or invalid`)
+  }
   if (!identity?.releaseId) {
     blockers.push(`${name}: hosted release identity is missing`)
   }
