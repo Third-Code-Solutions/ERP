@@ -20,7 +20,7 @@ permissions:
 jobs:
   actionlint:
     name: Actionlint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - name: Run actionlint
@@ -28,7 +28,7 @@ jobs:
 
   build-ops-invariants:
     name: BUILD OPS Invariants
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [actionlint]
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -70,7 +70,7 @@ jobs:
 
   typecheck:
     name: Type Check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [actionlint]
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -84,7 +84,7 @@ jobs:
 
   lint:
     name: Lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [actionlint]
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -98,7 +98,7 @@ jobs:
 
   test:
     name: Unit Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [actionlint]
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -157,7 +157,7 @@ jobs:
 
   database-reproducibility:
     name: Database Reproducibility (Postgres 17)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [actionlint, build-ops-invariants]
     timeout-minutes: 30
     services:
@@ -342,7 +342,7 @@ jobs:
 
   build:
     name: Build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [typecheck, lint, test, build-ops-invariants, database-reproducibility, claim-document-browser]
     env:
       # Build-time envs. If a repo secret is set, it wins; otherwise placeholders
@@ -398,7 +398,7 @@ jobs:
 
   claim-document-browser:
     name: Claim Document Browser Interaction
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [actionlint]
     timeout-minutes: 15
     steps:
@@ -472,7 +472,7 @@ jobs:
 
   e2e:
     name: E2E Tests (trusted PR)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [build]
     # Forked PRs cannot safely receive test credentials. Trusted PRs must
     # supply an isolated E2E target; absence is a failure, never a green skip.
@@ -534,7 +534,7 @@ jobs:
 
   security:
     name: Security Scan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [actionlint]
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
