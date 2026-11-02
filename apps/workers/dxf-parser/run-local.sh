@@ -4,9 +4,9 @@
 # Prereqs (one-time):
 #   1. libredwg (provides /usr/local/bin/dwg2dxf or equivalent)
 #      macOS:  brew install libredwg
-#      Debian: apt-get install libredwg-tools
-#   2. Python 3.11+ on PATH
-#   3. /Users/hoon/erp/apps/web/.env.local containing:
+#      Linux: use this directory's Dockerfile (pinned source build).
+#   2. Python 3.12 on PATH
+#   3. ../../web/.env.local containing:
 #        PARSER_SHARED_SECRET=...
 #
 # The worker listens on http://localhost:8000.
@@ -22,7 +22,7 @@ if ! command -v dwg2dxf >/dev/null 2>&1; then
   echo ""
   echo "Install libredwg first:"
   echo "  macOS:  brew install libredwg"
-  echo "  Debian: sudo apt-get install libredwg-tools"
+  echo "  Linux: build the worker Dockerfile (includes LibreDWG)"
   echo ""
   echo "Without libredwg the worker can still parse DXF, but DWG conversion will fail."
   echo "Continue anyway? (y/N)"
@@ -39,7 +39,7 @@ if ! command -v python3 >/dev/null 2>&1; then
 fi
 
 # Load env from apps/web/.env.local
-ENV_FILE="../../apps/web/.env.local"
+ENV_FILE="../../web/.env.local"
 if [[ -f "$ENV_FILE" ]]; then
   set -a
   # shellcheck disable=SC1090
@@ -58,12 +58,8 @@ fi
 # shellcheck disable=SC1091
 source "$VENV_DIR/bin/activate"
 
-if [[ ! -f "$VENV_DIR/.installed" ]]; then
-  echo "📦 Installing dependencies…"
-  pip install --upgrade pip --quiet
-  pip install --quiet -e .
-  touch "$VENV_DIR/.installed"
-fi
+echo "Installing locked dependencies…"
+pip install --quiet --require-hashes -r requirements.lock
 
 PORT="${PORT:-8000}"
 echo "🚀 Starting CAD parser on http://localhost:${PORT}"
