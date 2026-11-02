@@ -7,7 +7,7 @@
 
 import { createHash } from 'node:crypto'
 import { db } from '@third-code-erp/database'
-import { cnpsSurveys, warrantyTickets } from '@third-code-erp/database/schema'
+import { cnpsSurveys, tenants, warrantyTickets } from '@third-code-erp/database/schema'
 import { and, eq } from 'drizzle-orm'
 import { submitCnpsRating } from './actions'
 import type { Metadata } from 'next'
@@ -23,7 +23,7 @@ function hashToken(plain: string): string {
 
 interface PageProps {
   params: Promise<{ token: string }>
-  searchParams: Promise<{ ok?: string }>
+  searchParams: Promise<{ ok?: string; error?: string }>
 }
 
 export default async function CnpsPortalPage({ params, searchParams }: PageProps) {
@@ -39,8 +39,11 @@ export default async function CnpsPortalPage({ params, searchParams }: PageProps
       responded_at: cnpsSurveys.responded_at,
       score: cnpsSurveys.score,
       ticket_number: warrantyTickets.ticket_number,
+      legal_name: tenants.legal_name,
+      workspace_name: tenants.name,
     })
     .from(cnpsSurveys)
+    .innerJoin(tenants, eq(tenants.id, cnpsSurveys.tenant_id))
     .innerJoin(
       warrantyTickets,
       and(
@@ -48,7 +51,7 @@ export default async function CnpsPortalPage({ params, searchParams }: PageProps
         eq(warrantyTickets.tenant_id, cnpsSurveys.tenant_id)
       )
     )
-    .where(eq(cnpsSurveys.response_token_hash, tokenHash))
+    .where(and(eq(cnpsSurveys.response_token_hash, tokenHash), eq(tenants.status, 'active')))
     .limit(1)
 
   if (!row) {
@@ -63,7 +66,7 @@ export default async function CnpsPortalPage({ params, searchParams }: PageProps
     )
   }
 
-  if (row.responded_at || sp.ok === '1') {
+  if (row.responded_at) {
     return (
       <section className="cnps-card cnps-card-success">
         <p className="cnps-eyebrow-success">Thank you</p>
@@ -87,11 +90,14 @@ export default async function CnpsPortalPage({ params, searchParams }: PageProps
         How did we do?
       </h2>
       <p style={{ margin: '0 0 22px', color: '#525866' }}>
-        On a scale of 0–10, how likely are you to recommend Actuate Builders Inc.
+        On a scale of 0–10, how likely are you to recommend {row.legal_name?.trim() || row.workspace_name}
+        {' '}
         based on your experience with ticket <strong>{row.ticket_number}</strong>?
       </p>
 
       <form action={submit}>
+        {sp.error === 'invalid' && <p role="alert">Select a whole-number score from 0 to 10.</p>}
+        {sp.error === 'unavailable' && <p role="alert">This survey is unavailable. Contact your project team.</p>}
         <div className="cnps-scale" role="radiogroup" aria-label="Score from 0 to 10">
           {Array.from({ length: 11 }, (_, i) => (
             <label key={i} className="cnps-num">
@@ -186,6 +192,7 @@ const styles = `
   .cnps-num span:hover {
     border-color: #0F2D4A;
   }
+  .cnps-num input:focus-visible + span { outline: 2px solid #0F2D4A; outline-offset: 3px; }
   .cnps-scale-labels {
     display: flex;
     justify-content: space-between;

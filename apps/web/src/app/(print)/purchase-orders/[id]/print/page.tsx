@@ -2,11 +2,12 @@ import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getUserProfile } from '@third-code-erp/auth'
+import { requirePrintProfile } from '@/lib/operations/print-authorization'
 import { db } from '@third-code-erp/database'
 import { poLineItems, projects, purchaseOrders, tenants, vendors } from '@third-code-erp/database/schema'
 import { and, asc, eq } from 'drizzle-orm'
 import { PrintButton } from './print-button'
+import { companyDocumentIdentity, missingDocumentIdentityFields, resolveDocumentIdentity } from '@/lib/operations/company-document-identity'
 
 export const metadata: Metadata = { title: 'Purchase Order' }
 
@@ -21,14 +22,15 @@ function formatDate(d: Date | string | null): string {
 
 export default async function PoPrintPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await requireUuidRouteParams(params)
-  const profile = await getUserProfile()
-  if (!profile) return notFound()
+  const profile = await requirePrintProfile('purchase-order', id)
 
   const [po] = await db
     .select({
       id: purchaseOrders.id,
       po_number: purchaseOrders.po_number,
       status: purchaseOrders.status,
+      scm_issued_at: purchaseOrders.scm_issued_at,
+      issuer_legal_profile: purchaseOrders.issuer_legal_profile,
       subtotal_cents: purchaseOrders.subtotal_cents,
       vat_cents: purchaseOrders.vat_cents,
       withholding_tax_cents: purchaseOrders.withholding_tax_cents,
@@ -64,9 +66,14 @@ export default async function PoPrintPage({ params }: { params: Promise<{ id: st
     .orderBy(asc(poLineItems.sort_order))
 
   const [tenant] = await db
-    .select({ name: tenants.name, bir_tin: tenants.bir_tin, pcab_license: tenants.pcab_license })
+    .select({ name: tenants.name, legal_name: tenants.legal_name, registered_address: tenants.registered_address, document_email: tenants.document_email, document_phone: tenants.document_phone, bir_tin: tenants.bir_tin, pcab_license: tenants.pcab_license })
     .from(tenants)
     .where(eq(tenants.id, profile.tenantId))
+
+  const currentIdentity = tenant ? companyDocumentIdentity({ workspace_name: tenant.name, ...tenant }) : null
+  const previouslyIssued = Boolean(po.scm_issued_at) || ['issued', 'partial_delivery', 'delivered', 'partial_delivered', 'fully_delivered'].includes(po.status)
+  const { identity, legacyIdentityMissing } = resolveDocumentIdentity({ current: currentIdentity, snapshot: po.issuer_legal_profile, previouslyIssued })
+  const missingIdentity = identity ? missingDocumentIdentityFields(identity) : []
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '32px 16px', background: '#f3f4f6' }}>
@@ -105,20 +112,33 @@ export default async function PoPrintPage({ params }: { params: Promise<{ id: st
           lineHeight: 1.5,
         }}
       >
+        {(legacyIdentityMissing || missingIdentity.length > 0) && (
+          <div style={{ background: '#fef3c7', border: '1px solid #f59e0b', color: '#78350f', padding: '10px 12px', marginBottom: '18px', fontWeight: 700, textAlign: 'center' }}>
+            {legacyIdentityMissing
+              ? 'LEGACY ISSUED DOCUMENT — issuer legal identity snapshot unavailable. Do not substitute current settings.'
+              : `INCOMPLETE DRAFT — missing ${missingIdentity.join(', ')}. Verify before external issue.`}
+          </div>
+        )}
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px', borderBottom: '2px solid #1F3864', paddingBottom: '20px' }}>
           <div>
             <div style={{ fontSize: '20px', fontWeight: 800, color: '#1F3864', letterSpacing: '-0.02em', marginBottom: '4px' }}>
-              {tenant?.name ?? 'ABI OPS'}
+              {identity?.legal_name ?? 'LEGAL NAME NOT CONFIGURED'}
             </div>
-            {tenant?.bir_tin && (
+            {identity?.workspace_name && identity.workspace_name !== identity.legal_name && (
+              <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '2px' }}>Workspace: {identity.workspace_name}</div>
+            )}
+            {identity?.registered_address && <div style={{ fontSize: '12px', color: '#6b7280' }}>{identity.registered_address}</div>}
+            {identity?.document_email && <div style={{ fontSize: '12px', color: '#6b7280' }}>{identity.document_email}</div>}
+            {identity?.document_phone && <div style={{ fontSize: '12px', color: '#6b7280' }}>{identity.document_phone}</div>}
+            {identity?.bir_tin && (
               <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '2px' }}>
-                BIR TIN: <strong style={{ color: '#374151', fontFamily: 'monospace' }}>{tenant.bir_tin}</strong>
+                BIR TIN: <strong style={{ color: '#374151', fontFamily: 'monospace' }}>{identity.bir_tin}</strong>
               </div>
             )}
-            {tenant?.pcab_license && (
+            {identity?.pcab_license && (
               <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                PCAB License: <strong style={{ color: '#374151' }}>{tenant.pcab_license}</strong>
+                PCAB License: <strong style={{ color: '#374151' }}>{identity.pcab_license}</strong>
               </div>
             )}
           </div>
@@ -266,7 +286,7 @@ export default async function PoPrintPage({ params }: { params: Promise<{ id: st
 
         {/* Footer */}
         <div style={{ marginTop: '40px', paddingTop: '16px', borderTop: '1px solid #e5e7eb', textAlign: 'center', fontSize: '11px', color: '#9ca3af' }}>
-          This purchase order is system-generated by ABI OPS. PO {po.po_number} dated {formatDate(po.created_at)}.
+          System-generated by ABI OPS. PO {po.po_number} dated {formatDate(po.created_at)}. This document is not evidence of regulatory acceptance.
         </div>
       </div>
     </div>

@@ -1,9 +1,9 @@
 import React from 'react'
 
 const authBrand = {
-  mark: 'A',
+  mark: 'AO',
   name: 'ABI OPS',
-  organization: 'Actuate Builders Inc.',
+  organization: 'Independent company installation',
 } as const
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {

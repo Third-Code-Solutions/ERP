@@ -1,6 +1,5 @@
 import Link from 'next/link'
 import { getPlatformOverview } from '@/lib/platform-admin-client'
-import { endSupportContextAction } from './actions'
 import { PlatformSubmitButton } from './_submit-button'
 
 export async function PlatformSupportBanner() {
@@ -17,7 +16,8 @@ export async function PlatformSupportBanner() {
     </div>
     <div className="platform-row-actions">
       <Link href={`/platform-admin/tenants?q=${encodeURIComponent(session.tenantName)}`} className="button button-secondary">Selected tenant</Link>
-      <form action={endSupportContextAction}>
+      <form method="post" action="/platform-admin/submit">
+        <input type="hidden" name="operation" value="end-support" />
         <input type="hidden" name="sessionId" value={session.id} />
         <PlatformSubmitButton className="button button-secondary">End context</PlatformSubmitButton>
       </form>

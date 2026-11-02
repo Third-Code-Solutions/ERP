@@ -19,8 +19,8 @@
 
 import crypto from 'node:crypto'
 import { db } from '@third-code-erp/database'
-import { customerPortalSessions } from '@third-code-erp/database/schema'
-import { and, eq, sql } from 'drizzle-orm'
+import { customerPortalSessions, tenants } from '@third-code-erp/database/schema'
+import { and, eq, getTableColumns, sql } from 'drizzle-orm'
 
 /** Return value of mintCustomerPortalToken — plaintext shown once. */
 interface MintCustomerPortalTokenResult {
@@ -72,9 +72,10 @@ export async function findActiveCustomerSession(
   const tokenHash = hashCustomerPortalToken(token)
 
   const [row] = await db
-    .select()
+    .select(getTableColumns(customerPortalSessions))
     .from(customerPortalSessions)
-    .where(eq(customerPortalSessions.token_hash, tokenHash))
+    .innerJoin(tenants, eq(tenants.id, customerPortalSessions.tenant_id))
+    .where(and(eq(customerPortalSessions.token_hash, tokenHash), eq(tenants.status, 'active')))
     .limit(1)
 
   if (!row) return null
@@ -82,7 +83,7 @@ export async function findActiveCustomerSession(
 
   const expiresAt =
     row.expires_at instanceof Date ? row.expires_at : new Date(row.expires_at)
-  if (expiresAt.getTime() < Date.now()) return null
+  if (!Number.isFinite(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()) return null
 
   return row
 }

@@ -1,6 +1,5 @@
 import { z } from 'zod'
-
-const MAX_POSTGRES_INTEGER = 2_147_483_647
+import { purchaseOrderQuantitySchema } from '@third-code-erp/shared-types'
 const MAX_SAFE_CENTAVOS = Number.MAX_SAFE_INTEGER
 
 const uuidSchema = z.string().uuid()
@@ -19,11 +18,7 @@ const safeCentavoSchema = z
   .nonnegative()
   .max(MAX_SAFE_CENTAVOS)
 
-const quantitySchema = z
-  .number()
-  .int()
-  .positive()
-  .max(MAX_POSTGRES_INTEGER)
+const quantitySchema = purchaseOrderQuantitySchema
 
 export const createPoFromBomInputSchema = z.object({
   bomId: uuidSchema,

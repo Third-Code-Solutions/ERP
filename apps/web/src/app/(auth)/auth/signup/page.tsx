@@ -10,7 +10,7 @@ export default function SignupPage() {
       <header className="auth-form-header">
         <h1 className="auth-form-title">Create your account</h1>
         <p className="auth-form-sub">
-          Tell us who you are setting up. No card required.
+          Create the first account for an operator-managed company installation.
         </p>
       </header>
 

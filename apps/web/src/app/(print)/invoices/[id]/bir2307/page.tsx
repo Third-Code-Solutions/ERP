@@ -2,15 +2,14 @@ import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getUserProfile } from '@third-code-erp/auth'
+import { requirePrintProfile } from '@/lib/operations/print-authorization'
 import { db } from '@third-code-erp/database'
-import { invoices, projects, tenants } from '@third-code-erp/database/schema'
-import { and, eq } from 'drizzle-orm'
+import { accounts, invoices, projects, tenants } from '@third-code-erp/database/schema'
+import { and, eq, sql } from 'drizzle-orm'
 import { PrintButton } from './print-button'
+import { companyDocumentIdentity, missingDocumentIdentityFields, resolveDocumentIdentity } from '@/lib/operations/company-document-identity'
 
-export const metadata: Metadata = { title: 'BIR Form 2307' }
-
-const WITHHOLDING_RATE_LABEL = '2%'
+export const metadata: Metadata = { title: 'BIR 2307 Worksheet' }
 
 function formatPHP(cents: number): string {
   return `₱${(cents / 100).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -35,13 +34,19 @@ function periodCovered(d: Date | string | null): string {
 
 export default async function Bir2307PrintPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await requireUuidRouteParams(params)
-  const profile = await getUserProfile()
-  if (!profile) return notFound()
+  const profile = await requirePrintProfile('invoice', id)
 
   const [inv] = await db
     .select({
       id: invoices.id,
       invoice_number: invoices.invoice_number,
+      status: invoices.status,
+      issued_at: invoices.issued_at,
+      issuance_journal_entry_id: invoices.issuance_journal_entry_id,
+      reversed_at: invoices.reversed_at,
+      pricing_basis: invoices.pricing_basis,
+      withholding_bps: invoices.withholding_bps,
+      issuer_legal_profile: invoices.issuer_legal_profile,
       subtotal_cents: invoices.subtotal_cents,
       retention_cents: invoices.retention_cents,
       withholding_tax_cents: invoices.withholding_tax_cents,
@@ -49,24 +54,44 @@ export default async function Bir2307PrintPage({ params }: { params: Promise<{ i
       project_name: projects.name,
       project_client: projects.client,
       project_location: projects.location,
+      account_name: accounts.name,
+      account_address: accounts.billing_address,
     })
     .from(invoices)
     .leftJoin(
       projects,
       and(eq(invoices.project_id, projects.id), eq(projects.tenant_id, profile.tenantId)),
     )
+    .leftJoin(
+      accounts,
+      and(
+        sql`${accounts.id} = coalesce(${invoices.account_id}, ${projects.account_id})`,
+        eq(accounts.tenant_id, profile.tenantId),
+      ),
+    )
     .where(and(eq(invoices.id, id), eq(invoices.tenant_id, profile.tenantId)))
 
   if (!inv) return notFound()
 
   const [tenant] = await db
-    .select({ name: tenants.name, bir_tin: tenants.bir_tin, pcab_license: tenants.pcab_license })
+    .select({ name: tenants.name, legal_name: tenants.legal_name, registered_address: tenants.registered_address, document_email: tenants.document_email, document_phone: tenants.document_phone, bir_tin: tenants.bir_tin, pcab_license: tenants.pcab_license })
     .from(tenants)
     .where(eq(tenants.id, profile.tenantId))
 
-  // Tax base: gross billing minus retention. Retention is held by the
-  // client and is not yet income for the period — exclude from base.
-  const taxBaseCents = Math.max(0, inv.subtotal_cents - inv.retention_cents)
+  // Match the persisted ADR-041 allocation; do not reinterpret legacy records.
+  const taxBaseCents = inv.pricing_basis === 'reconciled_v1'
+    ? inv.subtotal_cents
+    : Math.max(0, inv.subtotal_cents - inv.retention_cents)
+  const withholdingRate = inv.pricing_basis === 'reconciled_v1' ? `${inv.withholding_bps / 100}%` : 'Legacy rate unverified'
+  const currentIdentity = tenant ? companyDocumentIdentity({ workspace_name: tenant.name, ...tenant }) : null
+  const previouslyIssued = Boolean(inv.issued_at || inv.issuance_journal_entry_id || inv.reversed_at) || ['issued', 'partial_payment', 'paid', 'overdue'].includes(inv.status)
+  const { identity } = resolveDocumentIdentity({ current: currentIdentity, snapshot: inv.issuer_legal_profile, previouslyIssued })
+  const missingFields = [
+    ...(identity ? missingDocumentIdentityFields(identity).map((field) => `payee ${field}`) : ['payee identity snapshot']),
+    ...(!inv.account_name ? ['payor registered name'] : []),
+    ...(!inv.account_address ? ['payor registered address'] : []),
+    'payor TIN',
+  ]
 
   return (
     <div
@@ -137,7 +162,7 @@ export default async function Bir2307PrintPage({ params }: { params: Promise<{ i
             letterSpacing: '0.04em',
           }}
         >
-          DRAFT — verify against official BIR template before issuing
+          WORKSHEET — NOT AN OFFICIAL BIR FORM. INCOMPLETE: {missingFields.join(', ')}. Verify all data against the current official BIR form before use.
         </div>
 
         {/* Title block */}
@@ -153,7 +178,7 @@ export default async function Bir2307PrintPage({ params }: { params: Promise<{ i
             Republic of the Philippines · Department of Finance · Bureau of Internal Revenue
           </div>
           <div style={{ fontSize: '16px', fontWeight: 800, letterSpacing: '0.02em' }}>
-            BIR FORM 2307
+            BIR 2307 WORKSHEET
           </div>
           <div style={{ fontSize: '12px', fontWeight: 600, marginTop: '2px' }}>
             Certificate of Creditable Tax Withheld at Source
@@ -193,7 +218,7 @@ export default async function Bir2307PrintPage({ params }: { params: Promise<{ i
                 letterSpacing: '0.06em',
               }}
             >
-              Date Issued
+              Date Prepared
             </div>
             <div style={{ fontWeight: 600, marginTop: '2px' }}>{formatDate(new Date())}</div>
           </div>
@@ -208,7 +233,7 @@ export default async function Bir2307PrintPage({ params }: { params: Promise<{ i
             marginBottom: '16px',
           }}
         >
-          {/* Part I — Payor (Withholding Agent) */}
+          {/* Part I — Payor (Withholding Agent / customer) */}
           <div style={{ borderRight: '1px solid #111827', padding: '12px 14px' }}>
             <div
               style={{
@@ -222,19 +247,12 @@ export default async function Bir2307PrintPage({ params }: { params: Promise<{ i
             >
               Part I — Payor (Withholding Agent)
             </div>
-            <FieldRow label="Registered Name" value={tenant?.name ?? '—'} />
-            <FieldRow
-              label="TIN"
-              value={tenant?.bir_tin ?? '—'}
-              mono
-            />
-            {tenant?.pcab_license && (
-              <FieldRow label="PCAB License" value={tenant.pcab_license} />
-            )}
-            <FieldRow label="Registered Address" value="—" />
+            <FieldRow label="Registered Name" value={inv.account_name ?? inv.project_client ?? '—'} />
+            <FieldRow label="TIN" value="—" mono />
+            <FieldRow label="Registered Address" value={inv.account_address ?? '—'} />
           </div>
 
-          {/* Part II — Payee */}
+          {/* Part II — Payee (contractor) */}
           <div style={{ padding: '12px 14px' }}>
             <div
               style={{
@@ -248,19 +266,9 @@ export default async function Bir2307PrintPage({ params }: { params: Promise<{ i
             >
               Part II — Payee
             </div>
-            <FieldRow label="Registered Name" value={inv.project_client ?? 'N/A'} />
-            <FieldRow label="TIN" value="N/A" mono />
-            <FieldRow label="Registered Address" value={inv.project_location ?? 'N/A'} />
-            <div
-              style={{
-                marginTop: '6px',
-                fontSize: '10px',
-                color: '#9ca3af',
-                fontStyle: 'italic',
-              }}
-            >
-              Vendor record not linked to this invoice — populate manually before issuing.
-            </div>
+            <FieldRow label="Registered Name" value={identity?.legal_name ?? '—'} />
+            <FieldRow label="TIN" value={identity?.bir_tin ?? '—'} mono />
+            <FieldRow label="Registered Address" value={identity?.registered_address ?? '—'} />
           </div>
         </div>
 
@@ -319,7 +327,7 @@ export default async function Bir2307PrintPage({ params }: { params: Promise<{ i
               <td style={cellRight}>{formatPHP(inv.subtotal_cents)}</td>
               <td style={cellRight}>({formatPHP(inv.retention_cents)})</td>
               <td style={cellRight}>{formatPHP(taxBaseCents)}</td>
-              <td style={cellRight}>{WITHHOLDING_RATE_LABEL}</td>
+              <td style={cellRight}>{withholdingRate}</td>
               <td style={cellRight}>{formatPHP(inv.withholding_tax_cents)}</td>
             </tr>
             <tr style={{ background: '#f9fafb' }}>
@@ -362,7 +370,7 @@ export default async function Bir2307PrintPage({ params }: { params: Promise<{ i
           </div>
         </div>
 
-        {/* Certification block */}
+        {/* Preparation note */}
         <div
           style={{
             fontSize: '11px',
@@ -371,10 +379,8 @@ export default async function Bir2307PrintPage({ params }: { params: Promise<{ i
             lineHeight: 1.55,
           }}
         >
-          We declare under the penalties of perjury that this certificate has been made in good
-          faith, verified by us, and to the best of our knowledge and belief, is true and correct,
-          pursuant to the provisions of the National Internal Revenue Code, as amended, and the
-          regulations issued under authority thereof.
+          ABI OPS prepared this worksheet from invoice and workspace data. It is incomplete while
+          any field above is missing and does not certify BIR registration, filing, or acceptance.
         </div>
 
         {/* Signature blocks */}
@@ -383,7 +389,7 @@ export default async function Bir2307PrintPage({ params }: { params: Promise<{ i
             <div style={{ borderTop: '1px solid #111827', paddingTop: '6px' }}>
               <div style={{ fontSize: '11px', fontWeight: 600 }}>Payor / Withholding Agent</div>
               <div style={{ fontSize: '10px', color: '#6b7280', marginTop: '2px' }}>
-                {tenant?.name ?? '—'}
+                {inv.account_name ?? inv.project_client ?? '—'}
               </div>
               <div style={{ fontSize: '10px', color: '#6b7280' }}>
                 Signature over Printed Name · Date
@@ -394,7 +400,7 @@ export default async function Bir2307PrintPage({ params }: { params: Promise<{ i
             <div style={{ borderTop: '1px solid #111827', paddingTop: '6px' }}>
               <div style={{ fontSize: '11px', fontWeight: 600 }}>Payee</div>
               <div style={{ fontSize: '10px', color: '#6b7280', marginTop: '2px' }}>
-                {inv.project_client ?? '—'}
+                {identity?.legal_name ?? '—'}
               </div>
               <div style={{ fontSize: '10px', color: '#6b7280' }}>
                 Signature over Printed Name · Date

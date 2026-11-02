@@ -41,7 +41,7 @@ describe('purchase-order input boundaries', () => {
         lineItems: [
           {
             description: 'Cable tray',
-            quantity: 1.5,
+            quantity: 1.1234567,
             unit_cost_cents: 100,
             costCodeId: tenantScopedIds.costCodeId,
           },

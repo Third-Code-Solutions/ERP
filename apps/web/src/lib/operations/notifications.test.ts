@@ -7,6 +7,11 @@ const mocks = vi.hoisted(() => ({
   update: vi.fn(),
   updateSet: vi.fn(),
   updateWhere: vi.fn(),
+  select: vi.fn(),
+  selectFrom: vi.fn(),
+  selectWhere: vi.fn(),
+  selectLimit: vi.fn(),
+  renderEmailTemplate: vi.fn(),
   sendEmail: vi.fn(),
 }))
 
@@ -14,18 +19,13 @@ vi.mock('@third-code-erp/database', () => ({
   db: {
     insert: mocks.insert,
     update: mocks.update,
+    select: mocks.select,
   },
 }))
 
 vi.mock('./integrations/resend', () => ({
   sendEmail: mocks.sendEmail,
-  templates: {
-    'bom-portal-link': () => ({
-      subject: 'BOM ready',
-      html: '<p>BOM ready</p>',
-      text: 'BOM ready',
-    }),
-  },
+  renderEmailTemplate: mocks.renderEmailTemplate,
 }))
 
 import { notifyExternalEmail } from './notifications'
@@ -39,6 +39,17 @@ describe('external email delivery evidence', () => {
     mocks.update.mockReturnValue({ set: mocks.updateSet })
     mocks.updateSet.mockReturnValue({ where: mocks.updateWhere })
     mocks.updateWhere.mockResolvedValue(undefined)
+    mocks.select.mockReturnValue({ from: mocks.selectFrom })
+    mocks.selectFrom.mockReturnValue({ where: mocks.selectWhere })
+    mocks.selectWhere.mockReturnValue({ limit: mocks.selectLimit })
+    mocks.selectLimit.mockResolvedValue([
+      { legal_name: 'Example Builders Corporation' },
+    ])
+    mocks.renderEmailTemplate.mockReturnValue({
+      subject: 'BOM ready',
+      html: '<p>BOM ready</p>',
+      text: 'BOM ready',
+    })
   })
 
   const input = {
@@ -62,6 +73,11 @@ describe('external email delivery evidence', () => {
       expect.objectContaining({ sent_at: null })
     )
     expect(mocks.updateSet).toHaveBeenCalledWith(expect.objectContaining({ sent_at: expect.any(Date) }))
+    expect(mocks.renderEmailTemplate).toHaveBeenCalledWith(
+      'bom-portal-link',
+      input.templateVars,
+      'Example Builders Corporation'
+    )
   })
 
   it('keeps development-stub delivery pending', async () => {

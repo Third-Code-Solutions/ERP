@@ -49,10 +49,7 @@ import {
   type PurchaseOrderWorkflowAction,
 } from '@third-code-erp/shared-types'
 import {
-  computeEWT,
-  computeRetention,
-  computeVAT,
-  progressBillingAmount,
+  allocateBomInvoice,
 } from '@third-code-erp/shared-types/bom'
 
 type CorePurchaseOrderWorkflowAction = PurchaseOrderWorkflowAction
@@ -300,7 +297,9 @@ export async function createPoFromBom(
 
       // Reserve the number and persist the PO graph in one transaction. A
       // failed line insert must not consume a visible Purchase Order number.
-      const totals = calculatePurchaseOrderTotals(lockedBom.total_cost_cents)
+      const subtotal = lines.reduce((sum, line) => sum + BigInt(calculateLineTotalCents(line.unit_cost_cents, line.quantity)), 0n)
+      if (subtotal > BigInt(Number.MAX_SAFE_INTEGER)) throw new RangeError('Purchase Order subtotal exceeds the supported centavo range')
+      const totals = calculatePurchaseOrderTotals(Number(subtotal))
       const reservedNumber = await allocateNextPurchaseOrderNumber(
         tx,
         userRow.tenant_id
@@ -412,6 +411,7 @@ const PO_BUDGET_ERRORS = [
   'Blocked budget requires a PO line joined to an approved budget line by bom_line_item_id and Cost Code',
   'Blocked budget does not contain PO BOM line budget evidence',
   'Purchase Order commitment exceeds approved budget line allowable',
+  'Company legal document identity is incomplete',
 ] as const
 
 function safePoBudgetError(error: unknown): string | null {
@@ -887,6 +887,9 @@ export async function createInvoice(
       tcv_cents: boms.tcv_cents,
       status: boms.status,
       project_id: boms.project_id,
+      pricing_basis: boms.pricing_basis,
+      selling_ex_vat_cents: boms.selling_ex_vat_cents,
+      vat_cents: boms.vat_cents,
     })
     .from(boms)
     .where(and(eq(boms.id, bomId), eq(boms.tenant_id, profile.tenantId)))
@@ -895,19 +898,18 @@ export async function createInvoice(
   if (bom.project_id !== projectId) {
     return { error: 'BOM belongs to a different project' }
   }
-  if (bom.status === 'draft') return { error: 'BOM must be approved before billing' }
+  if (bom.status !== 'approved' && bom.status !== 'locked') return { error: 'BOM must be approved before billing' }
+  if (bom.pricing_basis !== 'reconciled_v1') return { error: 'Legacy BOM pricing requires an explicitly reviewed revision before billing' }
 
   const retentionBps = 1_000
-  const subtotalCents = progressBillingAmount(
-    bom.tcv_cents,
-    billingPercentBps
-  )
-  const retentionCents = computeRetention(subtotalCents, retentionBps)
-  const taxableBaseCents = subtotalCents - retentionCents
-  const vatCents = computeVAT(taxableBaseCents)
-  const withholdingTaxCents = computeEWT(taxableBaseCents)
-  const netAmountCents =
-    taxableBaseCents + vatCents - withholdingTaxCents
+  const { subtotalCents, retentionCents, vatCents, withholdingTaxCents, netAmountCents } = allocateBomInvoice({
+    pricingBasis: bom.pricing_basis,
+    sellingExVatCents: bom.selling_ex_vat_cents,
+    vatCents: bom.vat_cents,
+    billingPercentBps,
+    retentionBps,
+    withholdingBps: 200,
+  })
   const now = new Date()
   const prefix = `INV-${now.getFullYear()}${String(
     now.getMonth() + 1
@@ -945,6 +947,9 @@ export async function createInvoice(
         status: 'draft',
         billing_percent_bps: billingPercentBps,
         retention_bps: retentionBps,
+        withholding_bps: 200,
+        pricing_basis: bom.pricing_basis,
+        source_bom_id: bomId,
         subtotal_cents: subtotalCents,
         retention_cents: retentionCents,
         vat_cents: vatCents,

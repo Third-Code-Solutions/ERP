@@ -8,10 +8,14 @@ import { EditTenantForm } from '@/components/settings/edit-tenant-form'
 import { getIntegrationStatus } from './integration-status'
 import { readNotificationPreferences } from './notification-preferences'
 import { NotificationPreferencesForm } from './notification-preferences-form'
+import { companyDocumentIdentity, missingDocumentIdentityFields } from '@/lib/operations/company-document-identity'
 
 export const metadata: Metadata = { title: 'Settings' }
 
-export default async function SettingsPage() {
+export default async function SettingsPage({ searchParams }: {
+  searchParams: Promise<{ notice?: string; error?: string }>
+}) {
+  const params = await searchParams
   const profile = await requireUserProfile()
   const canEditWorkspace = profile.role === 'owner' || profile.role === 'admin'
   const canReadTeam = can(profile.role, 'admin.users.read')
@@ -21,7 +25,7 @@ export default async function SettingsPage() {
   const canConfigureIntegrations = can(profile.role, 'admin.system_config')
   const integrations = canConfigureIntegrations ? getIntegrationStatus() : []
   let platformOwner = false
-  if (profile.user.email?.trim().toLowerCase() === 'kurt@thirdcodesolutions.com') {
+  if (profile.user.email) {
     try {
       const client = await createSupabaseServerClient()
       const decision = await client.rpc('is_platform_owner')
@@ -37,6 +41,17 @@ export default async function SettingsPage() {
     .from(tenants)
     .where(eq(tenants.id, profile.tenantId))
     .then((r) => r[0])
+  const missingIdentity = tenant
+    ? missingDocumentIdentityFields(companyDocumentIdentity({
+        workspace_name: tenant.name,
+        legal_name: tenant.legal_name,
+        registered_address: tenant.registered_address,
+        document_email: tenant.document_email,
+        document_phone: tenant.document_phone,
+        bir_tin: tenant.bir_tin,
+        pcab_license: tenant.pcab_license,
+      }))
+    : ['workspace']
 
   return (
     <div>
@@ -44,6 +59,12 @@ export default async function SettingsPage() {
         <h1 className="page-title">Settings</h1>
         <p className="page-subtitle">Workspace preferences and account management</p>
       </div>
+
+      {(params.notice || params.error) && (
+        <p role={params.error ? 'alert' : 'status'} className={`platform-flash ${params.error ? 'is-error' : 'is-success'}`}>
+          {params.error || params.notice}
+        </p>
+      )}
 
       <div
         style={{
@@ -80,7 +101,11 @@ export default async function SettingsPage() {
           {tenant ? (
             <dl style={{ margin: 0 }}>
               {[
-                { label: 'Name', value: tenant.name },
+                { label: 'Workspace Name', value: tenant.name },
+                { label: 'Registered Legal Name', value: tenant.legal_name ?? '—' },
+                { label: 'Registered Address', value: tenant.registered_address ?? '—' },
+                { label: 'Document Email', value: tenant.document_email ?? '—' },
+                { label: 'Document Phone', value: tenant.document_phone ?? '—' },
                 { label: 'BIR TIN', value: tenant.bir_tin ?? '—' },
                 { label: 'PCAB License', value: tenant.pcab_license ?? '—' },
                 { label: 'DPO Contact', value: tenant.dpo_contact ?? '—' },
@@ -196,6 +221,20 @@ export default async function SettingsPage() {
           </Link>
         </div>
       </div>
+
+      <section aria-labelledby="installation-readiness-heading" className="card mt-6 max-w-[860px]">
+        <div className="card-header"><h2 id="installation-readiness-heading" className="card-title">Operator-led installation readiness</h2></div>
+        <div className="space-y-4 p-6 text-sm">
+          <p>This checklist supports a local handover. It does not represent hosted deployment, automated onboarding, BIR certification, or buyer acceptance.</p>
+          <ul className="space-y-3">
+            <li><strong>Administrator access:</strong> signed in as {profile.role}. Installation operator must verify the first administrator and recovery path.</li>
+            <li><strong>Company document identity:</strong> {missingIdentity.length === 0 ? 'configured for document drafts.' : `incomplete — add ${missingIdentity.join(', ')} before issuing external documents.`}</li>
+            <li><strong>Users and roles:</strong> installation operator must review team access before handover.</li>
+            <li><strong>Finance and master data:</strong> customer must approve finance policy, opening balances, vendors, items, units, and warehouses.</li>
+            <li><strong>Integrations and acceptance:</strong> verify provider credentials, worker connectivity, backups, and opening acceptance in the target installation.</li>
+          </ul>
+        </div>
+      </section>
 
       <section aria-labelledby="settings-team-heading" className="card mt-6 max-w-[860px]">
         <div className="card-header">

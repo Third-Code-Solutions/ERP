@@ -114,6 +114,7 @@ export default async function InspectionPrintPage({
     db
       .select({
         name: tenants.name,
+        legal_name: tenants.legal_name,
         bir_tin: tenants.bir_tin,
         pcab_license: tenants.pcab_license,
       })
@@ -172,7 +173,7 @@ export default async function InspectionPrintPage({
     project: projectRow ?? null,
     account: accountRow ?? null,
     brand: {
-      tenant_name: tenant?.name ?? null,
+      tenant_name: tenant?.legal_name ?? null,
       bir_tin: tenant?.bir_tin ?? null,
       pcab_license: tenant?.pcab_license ?? null,
       inspector_name: inspector?.full_name ?? inspector?.email ?? null,

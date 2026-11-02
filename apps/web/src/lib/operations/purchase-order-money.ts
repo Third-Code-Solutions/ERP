@@ -1,3 +1,5 @@
+import { purchaseOrderLineTotal } from '@third-code-erp/shared-types'
+
 const BASIS_POINT_DENOMINATOR = 10_000n
 const VAT_BASIS_POINTS = 1_200n
 const WITHHOLDING_TAX_BASIS_POINTS = 200n
@@ -26,14 +28,7 @@ export function calculateLineTotalCents(
   unitCostCents: number,
   quantity: number
 ): number {
-  if (!Number.isSafeInteger(quantity) || quantity < 0) {
-    throw new RangeError('Line quantity must be a non-negative safe integer')
-  }
-
-  return toSafeInteger(
-    toCentavos(unitCostCents, 'Unit cost') * BigInt(quantity),
-    'Line total'
-  )
+  return purchaseOrderLineTotal(unitCostCents, quantity)
 }
 
 export function calculatePurchaseOrderTotals(subtotalCents: number): {

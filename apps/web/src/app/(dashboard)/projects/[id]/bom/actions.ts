@@ -41,16 +41,12 @@ import {
   classifyBomLineKind,
   computeDupa,
   dupaUpsertInputSchema,
-  MAX_BOM_LINE_ITEM_QUANTITY,
+  bomQuantitySchema,
   projectLocationCreateSchema,
   type BomLineItemKind,
 } from '@third-code-erp/shared-types/bom'
 import {
   manualLineTotal,
-  bomTotalCost,
-  topLevelBomLines,
-  computeGP,
-  computeGPMargin,
 } from '@third-code-erp/shared-types/bom'
 
 const bomLineItemReferenceSchema = z
@@ -77,15 +73,18 @@ const addBomLineItemActionSchema = z
       .object({
         description: z.string().trim().min(1).max(1_000),
         unit: z.string().trim().min(1).max(20),
-        quantity: z.number().int().min(0).max(MAX_BOM_LINE_ITEM_QUANTITY),
+        quantity: bomQuantitySchema,
         unit_cost_cents: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+        manual_vat_bps: z.number().int().min(0).max(10000).default(1200),
         code: z.string().trim().max(50).optional(),
         notes: z.string().max(2_000).optional(),
         locationId: z.string().uuid().nullable().optional(),
       })
       .strict()
       .superRefine((value, context) => {
-        if (!Number.isSafeInteger(value.unit_cost_cents * value.quantity)) {
+        try {
+          manualLineTotal(value.unit_cost_cents, value.quantity)
+        } catch {
           context.addIssue({
             code: z.ZodIssueCode.custom,
             path: ['unit_cost_cents'],
@@ -277,6 +276,7 @@ export async function addBomLineItem(
         unit: lineInput.unit,
         quantity: lineInput.quantity,
         unit_cost_cents: lineInput.unit_cost_cents,
+        manual_vat_bps: lineInput.manual_vat_bps,
         markup_bps: 0,
         line_total_cents,
         code: lineInput.code ?? null,
@@ -647,6 +647,7 @@ export async function upsertDupaForBomLine(
         )
       }
 
+      await tx.execute(sql`select public.recompute_dupa_totals(${dupaId}::uuid)`)
       const [result] = await tx
         .select({
           id: dupas.id,
@@ -1381,7 +1382,7 @@ export async function listBomLocationRollup(
       locationName: projectLocations.name,
       description: bomLineItems.description,
       unit: bomLineItems.unit,
-      quantity: sql<number>`sum(${bomLineItems.quantity})::int`,
+      quantity: sql<number>`sum(${bomLineItems.quantity})::numeric(18,4)`.mapWith(Number),
     })
     .from(bomLineItems)
     .innerJoin(
@@ -2083,31 +2084,9 @@ async function recalcBomTotalsInTransaction(
   bomId: string,
   tenantId: string,
 ) {
-  const lines = await tx
-    .select({
-      line_total_cents: bomLineItems.line_total_cents,
-      unit_cost_cents: bomLineItems.unit_cost_cents,
-      quantity: bomLineItems.quantity,
-      parent_line_item_id: bomLineItems.parent_line_item_id,
-    })
-    .from(bomLineItems)
-    .where(and(eq(bomLineItems.bom_id, bomId), eq(bomLineItems.tenant_id, tenantId)))
-
-  // total_cost = sum of raw costs (no markup)
-  // tcv        = sum of line totals (rate-source-adjusted, never UI markup)
-  // gp         = tcv - cost
-  // gp_margin  = gp / tcv (in basis points)
-  const commercialLines = topLevelBomLines(lines, (line) => line.parent_line_item_id)
-  const total_cost_cents = commercialLines.reduce(
-    (s, l) => s + l.unit_cost_cents * l.quantity,
-    0,
-  )
-  const tcv_cents = bomTotalCost(commercialLines)
-  const gp_cents = computeGP(tcv_cents, total_cost_cents)
-  const gp_margin_bps = computeGPMargin(gp_cents, tcv_cents)
-
+  // The database derives the same snapshots for every writer, including rate refreshes.
   await tx
     .update(boms)
-    .set({ total_cost_cents, tcv_cents, gp_cents, gp_margin_bps })
+    .set({ updated_at: new Date() })
     .where(and(eq(boms.id, bomId), eq(boms.tenant_id, tenantId)))
 }

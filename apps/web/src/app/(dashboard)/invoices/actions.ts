@@ -39,6 +39,8 @@ function safeInvoiceError(error: unknown): string {
     'Customer invoice requires a Business Account',
     'Customer invoice Business Account is invalid',
     'Customer invoice amounts do not reconcile',
+    'Legacy invoice pricing requires an explicitly reviewed replacement draft before issue',
+    'Company legal document identity is incomplete',
     'Active Accounts Receivable control account is required',
     'Active Revenue control account is required',
     'Active Retention Receivable control account is required',

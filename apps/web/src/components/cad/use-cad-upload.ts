@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState, useTransition } from 'react'
+import { useCallback, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@third-code-erp/auth/client'
 
@@ -55,8 +55,9 @@ export interface CompleteResponse {
 }
 
 interface SignResponse {
-  signedUrl: string
-  token: string
+  uploadUrl: string
+  reservationId: string
+  expiresAt: string
   storagePath: string
 }
 
@@ -70,11 +71,12 @@ async function signUpload(
   projectId: string,
   fileName: string,
   mimeType: string,
-  sizeBytes: number
+  sizeBytes: number,
+  idempotencyKey: string
 ): Promise<SignResponse> {
   const res = await fetch('/api/upload/sign', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
     body: JSON.stringify({ projectId, fileName, mimeType, sizeBytes }),
   })
   if (!res.ok) {
@@ -236,6 +238,7 @@ export function useCadUpload({
   const [progress, setProgress] = useState('')
   const [error, setError] = useState('')
   const [lastResult, setLastResult] = useState<CompleteResponse | null>(null)
+  const attempt = useRef<{ file: File; projectId: string; key: string; reservation?: SignResponse; uploaded: boolean } | null>(null)
 
   const reset = useCallback(() => {
     setPhase('idle')
@@ -264,24 +267,34 @@ export function useCadUpload({
 
       void (async () => {
         try {
-          const signed = await signUpload(
+          if (!attempt.current || attempt.current.file !== file || attempt.current.projectId !== projectId ||
+            (!attempt.current.uploaded && attempt.current.reservation && Date.parse(attempt.current.reservation.expiresAt) <= Date.now())) {
+            attempt.current = { file, projectId, key: crypto.randomUUID(), uploaded: false }
+          }
+          const current = attempt.current
+          const signed = current.reservation ?? await signUpload(
             projectId,
             file.name,
             file.type || 'application/octet-stream',
-            file.size
+            file.size,
+            current.key
           )
+          current.reservation = signed
 
           setPhase('uploading')
           setProgress(`Uploading ${(file.size / (1024 * 1024)).toFixed(1)} MB to storage…`)
-          const supabase = createSupabaseBrowserClient()
-          const { error: storageError } = await supabase.storage
-            .from('documents')
-            .uploadToSignedUrl(signed.storagePath, signed.token, file, {
-              contentType: file.type || 'application/octet-stream',
-              upsert: false,
+          if (!current.uploaded) {
+            const supabase = createSupabaseBrowserClient()
+            const { data: { session } } = await supabase.auth.getSession()
+            if (!session) throw new Error('Session expired. Sign in before uploading.')
+            const upload = await fetch(signed.uploadUrl, {
+              method: 'PUT',
+              headers: { authorization: `Bearer ${session.access_token}`, 'content-type': 'application/octet-stream' },
+              body: file,
+              signal: AbortSignal.timeout(300_000),
             })
-          if (storageError) {
-            throw new Error(`Storage upload failed: ${storageError.message}`)
+            if (!upload.ok) throw new Error('Upload could not be verified. Reserved capacity remains charged until safe cleanup; retry or contact your operator.')
+            current.uploaded = true
           }
 
           setPhase('finalizing')

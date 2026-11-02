@@ -7,6 +7,8 @@ import {
 describe('purchase-order centavo arithmetic', () => {
   it('calculates line totals without floating point arithmetic', () => {
     expect(calculateLineTotalCents(125_000, 3)).toBe(375_000)
+    expect(calculateLineTotalCents(105, 0.1)).toBe(11)
+    expect(calculateLineTotalCents(105, 12.5)).toBe(1313)
   })
 
   it('applies half-up basis-point tax calculations', () => {

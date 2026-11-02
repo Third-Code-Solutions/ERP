@@ -17,7 +17,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       <header className="portal-header">
         <div className="portal-header-inner">
           <div>
-            <p className="portal-eyebrow">Actuate Builders Inc.</p>
+            <p className="portal-eyebrow">ABI OPS</p>
             <h1 className="portal-brand">ABI OPS · Client Portal</h1>
           </div>
           <span className="portal-pill">Secure link</span>
@@ -27,7 +27,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       <footer className="portal-footer">
         <p>
           This portal is for the named recipient only. If you weren&apos;t expecting
-          a secure project link from Actuate Builders Inc., please
+          a secure project link from your project team, please
           ignore this link.
         </p>
       </footer>

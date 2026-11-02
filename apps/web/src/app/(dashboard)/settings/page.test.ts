@@ -26,7 +26,7 @@ describe('Settings team access', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.stubGlobal('React', React)
-    mocks.where.mockResolvedValue([{ name: 'Test workspace', created_at: '2026-01-01' }])
+    mocks.where.mockResolvedValue([{ name: 'Test workspace', created_at: '2026-01-01', updated_at: new Date('2026-01-01') }])
   })
   afterEach(() => vi.unstubAllGlobals())
 
@@ -37,7 +37,7 @@ describe('Settings team access', () => {
     mocks.profile.mockResolvedValue({
       role, tenantId: 'test-tenant', user: { id: 'test-user', email: 'user@example.test' },
     })
-    const markup = renderToStaticMarkup(await SettingsPage())
+    const markup = renderToStaticMarkup(await SettingsPage({ searchParams: Promise.resolve({}) }))
     const manages = role === 'owner' || role === 'admin'
     expect(markup.includes('href="/admin/users"')).toBe(manages || role === 'viewer')
     expect(markup.includes('href="/admin/users/new"')).toBe(manages)
@@ -52,7 +52,7 @@ describe('Settings team access', () => {
 
   it('does not fetch workspace details when authentication fails', async () => {
     mocks.profile.mockRejectedValueOnce(new Error('Authentication required'))
-    await expect(SettingsPage()).rejects.toThrow('Authentication required')
+    await expect(SettingsPage({ searchParams: Promise.resolve({}) })).rejects.toThrow('Authentication required')
     expect(mocks.where).not.toHaveBeenCalled()
   })
 
@@ -61,7 +61,7 @@ describe('Settings team access', () => {
       role: 'owner', tenantId: 'test-tenant', user: { id: 'test-user' },
     })
     mocks.where.mockResolvedValueOnce([])
-    const markup = renderToStaticMarkup(await SettingsPage())
+    const markup = renderToStaticMarkup(await SettingsPage({ searchParams: Promise.resolve({}) }))
     expect(markup).toContain('No workspace configured.')
     expect(markup).not.toContain('Edit workspace')
   })

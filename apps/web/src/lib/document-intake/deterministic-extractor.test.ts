@@ -175,6 +175,20 @@ function storageFor(
 describe('deterministic document extraction', () => {
   beforeEach(() => vi.clearAllMocks())
 
+  it('extracts a real DOCX after removing Mammoth CLI-only dependencies', async () => {
+    // Minimal synthetic OOXML ZIP: package metadata, relationship and one paragraph.
+    const source = Buffer.from('UEsDBBQAAAAIABm8S11Rl+gEsQAAABQBAAATAAAAW0NvbnRlbnRfVHlwZXNdLnhtbH2QvQ7CMAyEX6XKilpXDAyo7QKswMALWInbRjQ/StxS3p4UUAcGRvu7O59c3Z6eYjabwcZa9Mx+DxBlTwZj4TzZRFoXDHIaQwce5R07gm1Z7kA6y2Q55yVDNNWRWhwHzk5zWkftbC2SXWSHj245VQv0ftASOWFYKDTVZaIQtKLsioHPaJIKHi4oUE6OJjmL/zGTVT9dc9e2WtLqX9J8cJJi1LYzQ7ESg9puvj3g/YzmBVBLAwQUAAAACAAZvEtdYXsvQ4kAAADyAAAACwAAAF9yZWxzLy5yZWxzjc87DgIhEAbgqxAOsLNaWBigstnWeAECwyMujwwY9fZSWKzGwnLmn3x/Rpxx1T2W3EKsjT3Smpvkofd6BGgmYNJtKhXzSFyhpPsYyUPV5qo9wn6eD0BbgyuxNdliJafF7ji7PCv+YxfnosFTMbeEuf+o+LoYsiaPXfJ7IQv2vZ4Gy0EJ+HhRvQBQSwMEFAAAAAgAGbxLXYlF0diFAAAAqwAAABEAAAB3b3JkL2RvY3VtZW50LnhtbEXOQQrCMBAF0KuEHsApLlyEWtCdKwueICZjW2hmwmQ0enubunDzPsOHz3TFBvbPiKTmHRfKthybSTVZgOwnjC7vOCGt3YMlOl1PGaGwhCTsMeeZxrjAvm0PEN1MTd8Ve+fwqZkqUtH+dL6Y63AznknFeTX4mgOSxw5qXZXNtPmbgP97/RdQSwECFAAUAAAACAAZvEtdUZfoBLEAAAAUAQAAEwAAAAAAAAAAAAAAgAEAAAAAW0NvbnRlbnRfVHlwZXNdLnhtbFBLAQIUABQAAAAIABm8S11hey9DiQAAAPIAAAALAAAAAAAAAAAAAACAAeIAAABfcmVscy8ucmVsc1BLAQIUABQAAAAIABm8S12JRdHYhQAAAKsAAAARAAAAAAAAAAAAAACAAZQBAAB3b3JkL2RvY3VtZW50LnhtbFBLBQYAAAAAAwADALkAAABIAgAAAAA=', 'base64')
+    const storage = storageFor([
+      { data: blobFromBuffer(source), error: null },
+      { data: null, error: { message: 'Object not found' } },
+    ])
+    const result = await extractDeterministicDocument({ tenantId: TENANT_ID, storagePath: STORAGE_PATH.replace('schedule.csv', 'contract.docx'), fileName: 'contract.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', kind: 'docx' })
+    expect(result).toMatchObject({ status: 'extracted', extractedText: 'ABI OPS contract evidence', cacheHit: false })
+    expect(storage.upload).toHaveBeenCalledOnce()
+    // Real OOXML unzip + parse: give it the same headroom as the other
+    // extraction tests so a loaded CI box does not fail it on wall clock.
+  }, 30_000)
+
   it('normalizes UTF-8 CSV text without involving a model', () => {
     expect(csvToText(Buffer.from('\ufeffItem,Quantity\r\nConcrete,12\r\n'))).toEqual({
       text: 'Item,Quantity\nConcrete,12',

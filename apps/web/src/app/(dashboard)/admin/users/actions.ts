@@ -53,15 +53,20 @@ async function safe<T extends { error?: string }>(
 }
 
 /**
- * Create a workspace user.
+ * Invite a user into the caller's workspace.
  *
  * Steps:
- *   1. Supabase Auth admin API creates the auth.users row with the
- *      provided email + password. `email_confirm: true` skips the
- *      verification email so the admin can hand off credentials.
- *   2. INSERT into public.users and its audit entry in one transaction.
+ *   1. Supabase Auth admin API creates the auth.users row with the provided
+ *      email + password and a service-role-only `app_metadata.erp_invite`
+ *      claim. `email_confirm: true` skips the verification email so the admin
+ *      can hand off credentials.
+ *   2. The `handle_new_user()` trigger consumes that claim inside the same
+ *      transaction and creates the public.users row in the inviter's tenant
+ *      with the invited role. The action never inserts that row itself.
+ *   3. The action re-reads the provisioned row to prove the claim was honoured,
+ *      then writes the audit entry.
  *
- * Deletes the Auth user if the database transaction cannot commit.
+ * Deletes the Auth user if provisioning did not apply or the audit cannot commit.
  */
 export async function createUser(
   formData: FormData
@@ -103,12 +108,23 @@ export async function createUser(
 
     const admin = createSupabaseAdminClient()
 
-    // 1) Create the Supabase Auth user.
+    // 1) Create the Supabase Auth user. The `erp_invite` claim is what the
+    //    auth.users provisioning trigger reads to place the new identity in the
+    //    inviter's tenant, so it is built only from server-resolved values:
+    //    session tenant, session actor, and the validated role. Tenant or actor
+    //    fields submitted by the browser are never forwarded.
     const { data: created, error: authErr } = await admin.auth.admin.createUser({
       email: input.email,
       password: input.password,
       email_confirm: true,
-      user_metadata: { full_name: input.full_name, tenant_id: profile.tenantId },
+      user_metadata: { full_name: input.full_name },
+      app_metadata: {
+        erp_invite: {
+          tenant_id: profile.tenantId,
+          invited_by: profile.user.id,
+          role: input.role,
+        },
+      },
     })
     if (authErr || !created?.user) {
       return {
@@ -117,17 +133,46 @@ export async function createUser(
     }
     const authUserId = created.user.id
 
-    // 2) Mirror the identity and audit the grant in one database commit.
+    const compensateAuth = async (reason: string, err: unknown) => {
+      const cleanup = await admin.auth.admin.deleteUser(authUserId).catch((cleanupError: unknown) => ({
+        error: cleanupError,
+      }))
+      console.error(`[admin/users:createUser] ${reason}:`, err)
+      if (cleanup.error) {
+        console.error('[admin/users:createUser] Auth compensation failed:', cleanup.error)
+        return {
+          error: 'User creation could not be confirmed. Contact support to reconcile the Auth account.',
+        }
+      }
+      return { error: 'User creation failed before the workspace account was committed.' }
+    }
+
+    // 2) The trigger owns the public.users row. Confirm it applied exactly the
+    //    invited tenant and role before reporting success or writing audit; a
+    //    missing or mismatched row means the invite was not honoured.
+    try {
+      const [provisioned] = await db
+        .select({ tenantId: usersTable.tenant_id, role: usersTable.role })
+        .from(usersTable)
+        .where(eq(usersTable.id, authUserId))
+        .limit(1)
+      if (!provisioned) {
+        throw new Error('provisioning trigger produced no public user row')
+      }
+      if (provisioned.tenantId !== profile.tenantId || provisioned.role !== input.role) {
+        throw new Error(
+          `provisioning trigger applied tenant ${provisioned.tenantId} role ${provisioned.role}`
+        )
+      }
+    } catch (err) {
+      return compensateAuth('invite provisioning not applied', err)
+    }
+
+    // 3) Audit the grant. The public.users row already exists (created by the
+    //    trigger inside the Auth transaction), so audit is the write we own.
     try {
       await db.transaction(async (tx) => {
         await stampActorInTransaction(tx, profile.user.id)
-        await tx.insert(usersTable).values({
-          id: authUserId,
-          tenant_id: profile.tenantId,
-          email: input.email,
-          full_name: input.full_name,
-          role: input.role,
-        })
         await writeAuditLogInTransaction(tx, {
           tenantId: profile.tenantId,
           actorId: profile.user.id,

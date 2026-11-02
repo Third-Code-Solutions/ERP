@@ -235,12 +235,7 @@ function effectiveUnitRate(item: BomLineRowItem): number | string {
 }
 
 function effectiveLineTotal(item: BomLineRowItem): number | string {
-  if (item.unit_rate_source !== 'dupa' || !item.dupa) return item.line_total_cents
-  try {
-    return (BigInt(item.dupa.unit_rate_centavos) * BigInt(item.quantity)).toString()
-  } catch {
-    return item.line_total_cents
-  }
+  return item.line_total_cents
 }
 
 export function parseVendorFromNotes(notes: string | null | undefined): {

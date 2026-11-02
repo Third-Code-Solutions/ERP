@@ -1,248 +1,50 @@
 import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const mocks = vi.hoisted(() => ({
-  getUserProfile: vi.fn(),
-  can: vi.fn(),
-  select: vi.fn(),
-  from: vi.fn(),
-  where: vi.fn(),
-  getProject: vi.fn(),
-  createSupabaseAdminClient: vi.fn(),
-  storageFrom: vi.fn(),
-  createSignedUploadUrl: vi.fn(),
-  writeAuditLog: vi.fn(),
-}))
-
-vi.mock('@third-code-erp/auth', () => ({
-  AuthError: class AuthError extends Error {},
-  getUserProfile: mocks.getUserProfile,
-  can: mocks.can,
-}))
-
-vi.mock('@third-code-erp/auth/server', () => ({
-  createSupabaseAdminClient: mocks.createSupabaseAdminClient,
-}))
-
-vi.mock('@third-code-erp/database', () => ({
-  db: {
-    select: mocks.select,
-  },
-}))
-
-vi.mock('@/lib/project-queries', () => ({
-  getProject: mocks.getProject,
-}))
-
-vi.mock('@/lib/audit', () => ({
-  writeAuditLog: mocks.writeAuditLog,
-}))
-
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+const mocks = vi.hoisted(() => ({ getUserProfile: vi.fn(), can: vi.fn(), access: vi.fn() }))
+vi.mock('@third-code-erp/auth', () => ({ getUserProfile: mocks.getUserProfile, can: mocks.can }))
+vi.mock('@/lib/erp-core-client', () => ({ getCoreApiAccess: mocks.access }))
 import { POST } from './route'
-
-const USER_ID = '11111111-1111-4111-8111-111111111111'
-const TENANT_ID = '22222222-2222-4222-8222-222222222222'
-const OTHER_PROJECT_ID = '33333333-3333-4333-8333-333333333333'
-
-describe('signed document upload Project access', () => {
+const projectId = '33333333-3333-4333-8333-333333333333'
+const reservationId = '44444444-4444-4444-8444-444444444444'
+const input = { projectId, fileName: 'drawing.pdf', mimeType: 'application/pdf', sizeBytes: 1024 }
+function request(body: unknown = input, key = 'stable-upload-key') {
+  return new NextRequest('http://localhost/api/upload/sign', { method: 'POST', headers: { 'content-type': 'application/json', 'idempotency-key': key }, body: JSON.stringify(body) })
+}
+describe('Core document upload admission', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.getUserProfile.mockResolvedValue({
-      user: { id: USER_ID },
-      tenantId: TENANT_ID,
-      role: 'pm',
-      email: 'pm@example.com',
-      fullName: 'PM User',
-    })
+    mocks.getUserProfile.mockResolvedValue({ tenantId: 'tenant', role: 'pm' })
     mocks.can.mockReturnValue(true)
-    mocks.select.mockReturnValue({ from: mocks.from })
-    mocks.from.mockReturnValue({ where: mocks.where })
-    mocks.where.mockResolvedValue([{ total: '0' }])
-    mocks.getProject.mockResolvedValue(null)
-    mocks.storageFrom.mockReturnValue({
-      createSignedUploadUrl: mocks.createSignedUploadUrl,
-    })
-    mocks.createSupabaseAdminClient.mockReturnValue({
-      storage: { from: mocks.storageFrom },
-    })
-    mocks.writeAuditLog.mockResolvedValue(undefined)
+    mocks.access.mockResolvedValue({ ok: true, baseUrl: 'https://core.example.invalid', accessToken: 'synthetic-session' })
   })
-
-  it('rejects a role without document mutation capability before request work', async () => {
-    mocks.can.mockReturnValue(false)
-    const request = new NextRequest('http://localhost/api/upload/sign', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        projectId: OTHER_PROJECT_ID,
-        fileName: 'drawing.dwg',
-        mimeType: 'application/acad',
-        sizeBytes: 1_024,
-      }),
-    })
-
-    const response = await POST(request)
-
-    expect(response.status).toBe(403)
-    await expect(response.json()).resolves.toEqual({ error: 'Forbidden' })
-    expect(mocks.can).toHaveBeenCalledWith('pm', 'document.manage')
-    expect(mocks.getProject).not.toHaveBeenCalled()
-    expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
-    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
-  })
-
-  it('rejects an absent or cross-tenant Project before quota and Storage work', async () => {
-    const request = new NextRequest('http://localhost/api/upload/sign', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        projectId: OTHER_PROJECT_ID,
-        fileName: 'drawing.dwg',
-        mimeType: 'application/acad',
-        sizeBytes: 1_024,
-      }),
-    })
-
-    const response = await POST(request)
-
-    expect(response.status).toBe(404)
-    await expect(response.json()).resolves.toEqual({
-      error: 'Project not found',
-    })
-    expect(mocks.getProject).toHaveBeenCalledWith(
-      TENANT_ID,
-      OTHER_PROJECT_ID
-    )
-    expect(mocks.select).not.toHaveBeenCalled()
-    expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
-  })
-
-  it('preserves signed-upload behavior for a same-tenant Project', async () => {
-    mocks.where
-      .mockResolvedValueOnce([{ tenant_id: TENANT_ID }])
-      .mockResolvedValueOnce([{ total: '0' }])
-    mocks.getProject.mockResolvedValue({
-      id: OTHER_PROJECT_ID,
-      tenant_id: TENANT_ID,
-    })
-    mocks.createSignedUploadUrl.mockResolvedValue({
-      data: {
-        signedUrl: 'https://storage.example.test/upload',
-        token: 'signed-token',
-        path: `${TENANT_ID}/${OTHER_PROJECT_ID}/object-drawing.dwg`,
-      },
-      error: null,
-    })
-    const request = new NextRequest('http://localhost/api/upload/sign', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        projectId: OTHER_PROJECT_ID,
-        fileName: 'drawing.dwg',
-        mimeType: 'application/acad',
-        sizeBytes: 1_024,
-      }),
-    })
-
-    const response = await POST(request)
-
+  afterEach(() => vi.unstubAllGlobals())
+  it('returns only configured Core endpoint and reservation, never provider tokens', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ reservationId, storagePath: 'tenant/project/reservation-drawing', expiresAt: '2026-10-12T10:00:00.000Z' }), { status: 201 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const response = await POST(request())
     expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toMatchObject({
-      signedUrl: 'https://storage.example.test/upload',
-      token: 'signed-token',
-      originalFileName: 'drawing.dwg',
-    })
-    expect(mocks.getProject).toHaveBeenCalledWith(
-      TENANT_ID,
-      OTHER_PROJECT_ID
-    )
-    expect(mocks.createSignedUploadUrl).toHaveBeenCalledOnce()
-    expect(mocks.writeAuditLog).toHaveBeenCalledWith({
-      tenantId: TENANT_ID,
-      actorId: USER_ID,
-      entityType: 'document_upload',
-      entityId: OTHER_PROJECT_ID,
-      action: 'query',
-      diff: { operation: 'signed_upload_url_created' },
-    })
+    expect(await response.json()).toEqual({ reservationId, storagePath: 'tenant/project/reservation-drawing', expiresAt: '2026-10-12T10:00:00.000Z', originalFileName: 'drawing.pdf', uploadUrl: `https://core.example.invalid/v1/document-uploads/${reservationId}/content` })
+    expect(fetchMock).toHaveBeenCalledWith('https://core.example.invalid/v1/document-uploads', expect.objectContaining({ headers: expect.objectContaining({ 'idempotency-key': 'stable-upload-key', authorization: 'Bearer synthetic-session' }) }))
   })
-
-  it('does not return a signed URL when its audit entry cannot be appended', async () => {
-    const errorSpy = vi
-      .spyOn(console, 'error')
-      .mockImplementation(() => undefined)
-    mocks.where
-      .mockResolvedValueOnce([{ tenant_id: TENANT_ID, role: 'pm' }])
-      .mockResolvedValueOnce([{ total: '0' }])
-    mocks.getProject.mockResolvedValue({
-      id: OTHER_PROJECT_ID,
-      tenant_id: TENANT_ID,
-    })
-    mocks.createSignedUploadUrl.mockResolvedValue({
-      data: {
-        signedUrl: 'https://storage.example.test/upload',
-        token: 'signed-token',
-        path: `${TENANT_ID}/${OTHER_PROJECT_ID}/object-drawing.dwg`,
-      },
-      error: null,
-    })
-    mocks.writeAuditLog.mockRejectedValue(new Error('audit unavailable'))
-
-    const response = await POST(
-      new NextRequest('http://localhost/api/upload/sign', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          projectId: OTHER_PROJECT_ID,
-          fileName: 'drawing.dwg',
-          mimeType: 'application/acad',
-          sizeBytes: 1_024,
-        }),
-      })
-    )
-
-    expect(response.status).toBe(500)
-    await expect(response.json()).resolves.toEqual({
-      error: 'Failed to audit upload authorization',
-    })
-    expect(errorSpy).toHaveBeenCalledOnce()
-    errorSpy.mockRestore()
+  it.each([401, 403, 404, 409, 413, 503])('preserves Core denial %i without upload URL', async status => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status })))
+    const response = await POST(request())
+    expect(response.status).toBe(status)
+    expect(await response.json()).not.toHaveProperty('uploadUrl')
   })
-
-  it('does not expose Storage provider details when signing fails', async () => {
-    const errorSpy = vi
-      .spyOn(console, 'error')
-      .mockImplementation(() => undefined)
-    mocks.where
-      .mockResolvedValueOnce([{ tenant_id: TENANT_ID }])
-      .mockResolvedValueOnce([{ total: '0' }])
-    mocks.getProject.mockResolvedValue({ id: OTHER_PROJECT_ID, tenant_id: TENANT_ID })
-    mocks.createSignedUploadUrl.mockResolvedValue({
-      data: null,
-      error: new Error('secret storage endpoint and bucket internals'),
-    })
-
-    const response = await POST(
-      new NextRequest('http://localhost/api/upload/sign', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          projectId: OTHER_PROJECT_ID,
-          fileName: 'drawing.dwg',
-          mimeType: 'application/acad',
-          sizeBytes: 1_024,
-        }),
-      })
-    )
-
-    expect(response.status).toBe(500)
-    await expect(response.json()).resolves.toEqual({
-      error: 'Failed to create signed upload URL.',
-    })
-    expect(errorSpy).toHaveBeenCalledOnce()
-    expect(errorSpy.mock.calls[0]?.[1]).toEqual(
-      new Error('secret storage endpoint and bucket internals')
-    )
-    errorSpy.mockRestore()
+  it('denies unauthorized role before reserving', async () => {
+    mocks.can.mockReturnValue(false)
+    expect((await POST(request())).status).toBe(403)
+    expect(mocks.access).not.toHaveBeenCalled()
+  })
+  it('requires session and explicit idempotency identity', async () => {
+    expect((await POST(request(input, ''))).status).toBe(400)
+    mocks.getUserProfile.mockResolvedValue(null)
+    expect((await POST(request())).status).toBe(401)
+  })
+  it('rejects invalid size and malformed Core success', async () => {
+    expect((await POST(request({ ...input, sizeBytes: 104857601 }))).status).toBe(400)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 201 })))
+    expect((await POST(request())).status).toBe(502)
   })
 })

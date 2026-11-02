@@ -2,11 +2,12 @@ import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getUserProfile } from '@third-code-erp/auth'
+import { requirePrintProfile } from '@/lib/operations/print-authorization'
 import { db } from '@third-code-erp/database'
 import { invoices, projects, tenants } from '@third-code-erp/database/schema'
 import { and, eq } from 'drizzle-orm'
 import { PrintButton } from './print-button'
+import { companyDocumentIdentity, missingDocumentIdentityFields, resolveDocumentIdentity } from '@/lib/operations/company-document-identity'
 
 export const metadata: Metadata = { title: 'Invoice' }
 
@@ -21,14 +22,19 @@ function formatDate(d: Date | string | null): string {
 
 export default async function InvoicePrintPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await requireUuidRouteParams(params)
-  const profile = await getUserProfile()
-  if (!profile) return notFound()
+  const profile = await requirePrintProfile('invoice', id)
 
   const [inv] = await db
     .select({
       id: invoices.id,
       invoice_number: invoices.invoice_number,
       status: invoices.status,
+      issued_at: invoices.issued_at,
+      issuance_journal_entry_id: invoices.issuance_journal_entry_id,
+      reversed_at: invoices.reversed_at,
+      pricing_basis: invoices.pricing_basis,
+      withholding_bps: invoices.withholding_bps,
+      issuer_legal_profile: invoices.issuer_legal_profile,
       billing_percent_bps: invoices.billing_percent_bps,
       retention_bps: invoices.retention_bps,
       subtotal_cents: invoices.subtotal_cents,
@@ -55,12 +61,17 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
   if (!inv) return notFound()
 
   const [tenant] = await db
-    .select({ name: tenants.name, bir_tin: tenants.bir_tin, pcab_license: tenants.pcab_license })
+    .select({ name: tenants.name, legal_name: tenants.legal_name, registered_address: tenants.registered_address, document_email: tenants.document_email, document_phone: tenants.document_phone, bir_tin: tenants.bir_tin, pcab_license: tenants.pcab_license })
     .from(tenants)
     .where(eq(tenants.id, profile.tenantId))
 
   const billingPct = (inv.billing_percent_bps / 100).toFixed(0)
   const retentionPct = (inv.retention_bps / 100).toFixed(0)
+  const currentIdentity = tenant ? companyDocumentIdentity({ workspace_name: tenant.name, ...tenant }) : null
+  const previouslyIssued = Boolean(inv.issued_at || inv.issuance_journal_entry_id || inv.reversed_at) || ['issued', 'partial_payment', 'paid', 'overdue'].includes(inv.status)
+  const withholdingRate = inv.pricing_basis === 'reconciled_v1' ? `${inv.withholding_bps / 100}%` : 'legacy rate unverified'
+  const { identity, legacyIdentityMissing } = resolveDocumentIdentity({ current: currentIdentity, snapshot: inv.issuer_legal_profile, previouslyIssued })
+  const missingIdentity = identity ? missingDocumentIdentityFields(identity) : []
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '32px 16px', background: '#f3f4f6' }}>
@@ -106,20 +117,33 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
           lineHeight: 1.5,
         }}
       >
+        {(legacyIdentityMissing || missingIdentity.length > 0) && (
+          <div style={{ background: '#fef3c7', border: '1px solid #f59e0b', color: '#78350f', padding: '10px 12px', marginBottom: '18px', fontWeight: 700, textAlign: 'center' }}>
+            {legacyIdentityMissing
+              ? 'LEGACY ISSUED DOCUMENT — issuer legal identity snapshot unavailable. Do not substitute current settings.'
+              : `INCOMPLETE DRAFT — missing ${missingIdentity.join(', ')}. Verify before external issue.`}
+          </div>
+        )}
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px', borderBottom: '2px solid #1F3864', paddingBottom: '20px' }}>
           <div>
             <div style={{ fontSize: '20px', fontWeight: 800, color: '#1F3864', letterSpacing: '-0.02em', marginBottom: '4px' }}>
-              {tenant?.name ?? 'ABI OPS'}
+              {identity?.legal_name ?? 'LEGAL NAME NOT CONFIGURED'}
             </div>
-            {tenant?.bir_tin && (
+            {identity?.workspace_name && identity.workspace_name !== identity.legal_name && (
+              <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '2px' }}>Workspace: {identity.workspace_name}</div>
+            )}
+            {identity?.registered_address && <div style={{ fontSize: '12px', color: '#6b7280' }}>{identity.registered_address}</div>}
+            {identity?.document_email && <div style={{ fontSize: '12px', color: '#6b7280' }}>{identity.document_email}</div>}
+            {identity?.document_phone && <div style={{ fontSize: '12px', color: '#6b7280' }}>{identity.document_phone}</div>}
+            {identity?.bir_tin && (
               <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '2px' }}>
-                BIR TIN: <strong style={{ color: '#374151', fontFamily: 'monospace' }}>{tenant.bir_tin}</strong>
+                BIR TIN: <strong style={{ color: '#374151', fontFamily: 'monospace' }}>{identity.bir_tin}</strong>
               </div>
             )}
-            {tenant?.pcab_license && (
+            {identity?.pcab_license && (
               <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                PCAB License: <strong style={{ color: '#374151' }}>{tenant.pcab_license}</strong>
+                PCAB License: <strong style={{ color: '#374151' }}>{identity.pcab_license}</strong>
               </div>
             )}
           </div>
@@ -207,7 +231,7 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
             </tr>
             <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
               <td style={{ padding: '12px 16px', color: '#374151' }}>
-                Add: Value Added Tax (12% VAT)
+                Add: Value Added Tax
               </td>
               <td style={{ padding: '12px 16px', textAlign: 'right', fontFamily: 'monospace', color: '#111827' }}>
                 {formatPHP(inv.vat_cents)}
@@ -215,7 +239,7 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
             </tr>
             <tr style={{ borderBottom: '1px solid #e5e7eb', background: '#fef2f2' }}>
               <td style={{ padding: '12px 16px', color: '#7f1d1d' }}>
-                Less: Creditable Withholding Tax (2% — BIR Form 2307)
+                Less: Creditable Withholding Tax ({withholdingRate})
               </td>
               <td style={{ padding: '12px 16px', textAlign: 'right', fontFamily: 'monospace', color: '#7f1d1d' }}>
                 ({formatPHP(inv.withholding_tax_cents)})
@@ -246,7 +270,7 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
             color: '#0369a1',
           }}
         >
-          <strong>BIR 2307 Notice:</strong> The withheld amount of {formatPHP(inv.withholding_tax_cents)} (2% creditable withholding tax)
+          <strong>BIR 2307 Notice:</strong> The withheld amount of {formatPHP(inv.withholding_tax_cents)} ({withholdingRate} creditable withholding tax)
           shall be remitted to the BIR by the withholding agent. Certificate of Creditable Tax Withheld (BIR Form 2307)
           must be issued to the payee upon each payment.
         </div>
@@ -266,7 +290,7 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
           <div>
             <div style={{ borderTop: '1px solid #374151', paddingTop: '8px' }}>
               <div style={{ fontSize: '12px', color: '#6b7280' }}>Prepared and issued by</div>
-              <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>{tenant?.name ?? 'ABI OPS'}</div>
+              <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>{identity?.legal_name ?? 'Legal name not configured'}</div>
             </div>
           </div>
           <div>
@@ -279,7 +303,7 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
 
         {/* Footer */}
         <div style={{ marginTop: '40px', paddingTop: '16px', borderTop: '1px solid #e5e7eb', textAlign: 'center', fontSize: '11px', color: '#9ca3af' }}>
-          This invoice is system-generated by ABI OPS. Invoice {inv.invoice_number} is issued pursuant to applicable BIR regulations.
+          System-generated by ABI OPS. This document is not evidence of BIR certification or acceptance.
         </div>
       </div>
     </div>
