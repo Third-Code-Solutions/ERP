@@ -6,7 +6,7 @@ a working production stack. The reviewed deployment topology is:
 | Service | What it runs | Why |
 |---|---|---|
 | Vercel or owned Node host | `apps/web` (Next.js 15) | Dynamic SSR, Middleware, route handlers, server actions |
-| Supabase | Postgres, Storage, Auth, Realtime | Single multi-tenant data plane |
+| Supabase | Postgres, Storage, Auth, Realtime | Dedicated project and data plane for each independent company installation |
 | Inngest | Background jobs + crons | SLA, cadence, warranty automation |
 | Railway | `apps/api` (NestJS) and optional Python analysis | ERP transaction authority and bounded document-processing support |
 
@@ -24,25 +24,61 @@ provisioned when their feature is enabled.
    - `anon public` key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `service_role` key → `SUPABASE_SERVICE_ROLE_KEY` (server only)
 3. Enable the `pgvector` extension via `Database → Extensions`.
-4. Install the CLI and link locally:
+4. Use the repository-pinned CLI and link the buyer-owned project:
 
    ```bash
-   brew install supabase/tap/supabase
-   supabase login
-   supabase link --project-ref <ref>
+   pnpm dlx supabase@2.109.1 login
+   pnpm dlx supabase@2.109.1 link --project-ref <buyer-project-ref>
    ```
 
-5. Apply migrations in order (see [Migration Order](#migration-order)):
+5. For a verified empty project, preview then apply migrations in order (see
+   [Migration Order](#migration-order)). For an existing project, follow the
+   database release runbook and take a recoverable backup first:
 
    ```bash
-   supabase db push
+   pnpm dlx supabase@2.109.1 db push --dry-run
+   pnpm dlx supabase@2.109.1 db push
    ```
 
 6. Create the storage buckets referenced in
    `supabase/migrations/20260509173356_storage_buckets.sql`. The
    migration script creates them, but verify under
-   `Storage → Buckets` that `project-docs`, `bom-exports`,
-   `signatures`, and `turnover` exist and are private.
+   `Storage → Buckets` that `documents` exists and is private. The ordered
+   migrations are the authority for additional buckets, policies and limits;
+   do not substitute names from an older deployment guide.
+7. Create the company's verified owner identity and use the
+   [independent owner bootstrap](runbooks/security-independent-owner-bootstrap.md).
+   Do not copy the seller's Auth users, role assignments, documents or database
+   dump into a buyer installation. Keep synthetic demonstration data separate
+   from production opening balances and transactions.
+8. For an independent company, disable public signups in Supabase Auth after
+   provisioning the first verified administrator. Provision later staff through
+   the installation's invitation workflow. Verify an unauthenticated signup is
+   rejected by Auth itself; hiding a registration link is not this control.
+
+### ABI OPS demonstration and operating acceptance
+
+Complete Settings with the operating company's legal name, registered address,
+TIN and contact details before issuing purchase orders or invoices. Workspace
+display name and the ABI OPS product brand do not replace legal identity.
+Check one draft and one issued document; issued documents retain their captured
+issuer identity after later profile changes. Historical documents without a
+snapshot remain explicitly incomplete.
+
+Use separate synthetic demonstration records. Demonstrate administrator and
+restricted-role access, CRM → project → fractional BOM → approved purchase order,
+receipt/stock posting, invoice and payment allocation with reconciled amounts.
+Check exports, denied actions and the associated audit records. Record the exact
+revision, environment and results; a page rendering is not transaction acceptance.
+
+Keep unaccepted roadmap adapters and preview-only approval policy disabled.
+BIR 2307 output is an incomplete worksheet, not an accepted statutory certificate.
+Real email, signatures, AI/CAD providers, backups of Auth/Storage, alert delivery,
+and recovery time require installation-specific acceptance before operational use.
+For each eventual buyer, separately approve finance/approval policies, opening
+balances, repository licensing and third-party notices, support responsibilities,
+credential custody and a successful restore. Local synthetic checks do not replace
+those approvals.
 
 ---
 
@@ -57,10 +93,11 @@ provisioned when their feature is enabled.
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `SUPABASE_SERVICE_ROLE_KEY`
-   - `OPENAI_API_KEY`
+   - `DATABASE_URL` (dedicated application writer; never the read-only audit URL)
+   - `OPENAI_API_KEY` only when the corresponding AI feature is enabled
    - `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY`
    - `NEXT_PUBLIC_SITE_URL` (your production domain)
-   - `ERP_CORE_API_URL` (Railway/Nest Core API URL when Process Health is enabled)
+   - `ERP_CORE_API_URL` (required Railway/Nest Core API URL for ERP workflows)
    - `BUSINESS_CALENDAR_DB_ENABLED=1` only after the WO-02 calendar migration
      has passed staging replay, RLS/audit tests, rollback review, and the
      read-only database verifier. Leave it unset during the pre-migration
@@ -156,8 +193,13 @@ resources have no real cost.
 
 ## 4. Railway (CAD Evidence Worker)
 
-The production worker is `ABI OPS CAD Worker` at
-`https://abi-ops-cad-worker-production.up.railway.app`.
+Create separate Core API, Redis and CAD worker services in the company's own
+Railway project. Deploy Core using `apps/api/Dockerfile` from the repository
+root. Configure its own `SUPABASE_URL`, `SUPABASE_ANON_KEY`,
+`SUPABASE_SERVICE_ROLE_KEY`, application-writer `DATABASE_URL`, `REDIS_URL`,
+and exact Web `CORS_ORIGIN`; see `apps/api/.env.example`. Core `/ready` must
+pass before Web is opened to users. Each installation supplies its own worker
+URL; no seller endpoint is a default.
 
 1. Deploy `apps/workers/dxf-parser` with its bundled `Dockerfile` and
    `railway.toml`.
@@ -195,9 +237,10 @@ allowlist.
 `.github/workflows/deploy-production.yml` is the canonical repository-hosted
 promotion path. It is manual-only, restricted to `main`, protected by the
 GitHub `production` environment, and serialized so two releases cannot run at
-once. It runs static, type, unit, and build gates, previews and applies the
-ordered Supabase migrations through the exact production session pooler,
-deploys the pinned Railway API and CAD worker services, deploys the Vercel
+once. It runs static, type, unit, and build gates and verifies that the
+ordered Supabase migrations are already applied. This is a code-only
+promotion: apply reviewed pending migrations through the database release
+runbook first. It deploys the configured Railway API and CAD worker services, deploys the Vercel
 project, then checks web/API/worker health and the public surface contract.
 
 Configure these secrets on the `production` environment before dispatching:
@@ -211,14 +254,29 @@ Configure these secrets on the `production` environment before dispatching:
 - `SUPABASE_SERVICE_ROLE_KEY` (seeded production E2E harness; GitHub secret only)
 - `PRODUCTION_DATABASE_URL` (read-only/session PostgreSQL URL used by the
   production data-boundary gate; GitHub secret only)
+- `RUNTIME_DATABASE_URL` (separate application-writer identity used for Web
+  runtime; configure the corresponding writer on Core separately)
+- `E2E_USER_EMAIL` and `E2E_USER_PASSWORD` for a dedicated synthetic release
+  account, never a real employee's credentials
 
-The migration URL is separate from `PRODUCTION_DATABASE_URL`: the latter must
-remain read-only for the contamination scan. The workflow validates the
-migration URL username, project reference, and session-pooler port before any
-SQL is applied. A Supabase management PAT is not required by this path.
+The three database identities must be distinct. The audit identity must
+remain read-only; the runtime identity must have the reviewed application
+permissions. The workflow validates project references, hosts, ports and
+distinct usernames before deployment. This structural check does not grant
+database permissions: verify each role's effective privileges separately.
+A Supabase management PAT is not required by this path.
 
-The workflow currently allows only the exact dedicated `buildops-e2e` tenant
-through `BUILD_OPS_DEMO_TENANT_SLUGS`. Do not add a customer or foreign test
+Configure these production-environment variables explicitly:
+`SUPABASE_PROJECT_REF`, `NEXT_PUBLIC_SUPABASE_URL`, `PRODUCTION_URL`,
+`RAILWAY_PROJECT_ID`, `RAILWAY_ENVIRONMENT_ID`, `RAILWAY_API_SERVICE_ID`,
+`RAILWAY_CAD_SERVICE_ID`, `ERP_CORE_API_URL`, `CAD_WORKER_URL`, `VERCEL_SCOPE`
+(team ID), `VERCEL_PROJECT_ID`, `VERCEL_PROJECT_NAME`, `E2E_DEMO_TENANT_SLUG`,
+`PRODUCTION_E2E_PROJECT_ID` and `BUILD_OPS_DEMO_TENANT_SLUGS`. Missing or
+mismatched target identity fails closed. The linked Vercel project and team
+must match the configured IDs.
+
+Only explicitly designated synthetic tenants belong in
+`BUILD_OPS_DEMO_TENANT_SLUGS`. Do not add a customer or foreign test
 tenant to this allowlist to make a promotion pass. The gate is read-only and
 must report clear before migrations or provider deployment start.
 
@@ -251,8 +309,8 @@ envelope flow.
 
 1. Create a Railway service from the `docuseal/docuseal` Docker image.
 2. Mount a persistent volume for `/data/docuseal`.
-3. Set `DOCUSEAL_API_URL` (e.g. `https://docuseal.actuate.ph`) and
-   `DOCUSEAL_API_KEY` in Vercel.
+3. Set `DOCUSEAL_API_URL` (e.g. `https://signatures.example.com`) and
+   `DOCUSEAL_API_KEY` in Vercel. Use the company's own endpoint and credentials.
 4. Generate `DOCUSEAL_WEBHOOK_SECRET` (any 32-byte hex string) and set
    it in both Vercel and DocuSeal `Settings → Webhooks`.
 5. Point the DocuSeal webhook URL at
@@ -276,13 +334,14 @@ envelope flow.
    alone does not establish delivery. Do not open the reset link or change a
    password merely to verify the email path.
 
-On 2026-09-10, production was configured with the verified
+Historical seller-installation evidence only: on 2026-09-10, production was configured with the verified
 `thirdcodesolutions.com` domain and sender
 `ABI OPS <abi-ops@thirdcodesolutions.com>`. Supabase SMTP and both application
 services use the dedicated domain-scoped key. The one-shot ERP recovery test
 passed, and its matching Resend message
 `ca6ca9b9-ed64-4065-a219-26dd9f036742` was delivered. This verifies Auth recovery
-delivery; it does not prove every procurement or notification workflow.
+delivery; it does not prove every procurement or notification workflow, and
+must not be reused as acceptance evidence or sender configuration for a buyer.
 
 ---
 
@@ -293,7 +352,7 @@ or apply a second manual migration list. The PostgreSQL 17 reproducibility job
 rebuilds the database from zero, requires every database test to execute, and
 asserts an empty schema diff.
 
-The authorized Supabase target was rechecked read-only on 2026-08-16 with the
+Historical seller-installation evidence only: the Supabase target was checked read-only on 2026-08-16 with the
 provider-source planner against the session pooler. The current `main`
 migration tree (verified at the application-release checkpoint before the
 follow-up documentation-only commits) matches a PostgreSQL 17 target with
@@ -345,9 +404,9 @@ After every production deploy, hit these endpoints in order:
 | `GET /api/health` | Process liveness: `{"ok": true, "service": "abi-ops-web"}` |
 | `GET /api/ready` | Database readiness: `{"ok": true, "database": "up"}` |
 | `POST /api/webhooks/inngest` (from Inngest dashboard) | 200 with registered functions list |
-| `GET /(dashboard)/dashboard` | KPI cards load within 2s |
-| `GET /(dashboard)/process` | BU-level process health loads or shows an explicit unavailable state; no synthetic metrics |
-| `GET /(dashboard)/crm/accounts` | Accounts table renders |
+| `GET /dashboard` (authenticated) | KPI cards render with live authorized data |
+| `GET /process` (authorized) | BU-level process health loads or shows an explicit unavailable state; no synthetic metrics |
+| `GET /crm/accounts` (authorized) | Accounts table renders |
 | `GET /portal/bom/<token>` (with a seeded token) | Client BOM portal loads, no auth required |
 
 If any step fails, check the active frontend host logs first, then Supabase

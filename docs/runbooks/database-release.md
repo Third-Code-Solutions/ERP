@@ -270,6 +270,43 @@ mandatory.
 
 ## Closure evidence
 
+### ABI OPS local rehearsal — 12 October 2026
+
+The isolated `erp-abi-ops-remediation-db` PostgreSQL 17 container replayed all
+183 migrations then the repository's synthetic seed successfully. This included
+the independent owner, tender authority, exact pricing, fractional PO quantity,
+reserved-stock and company document-profile migrations. This count describes
+that checkpoint, not future migration additions.
+
+A repeatable-read exported snapshot of `erp_turnover_audit` was dumped with
+`pg_dump --format=custom --snapshot=<snapshot>` and restored into a new, empty
+`erp_readiness_restore_20261012b` database with `pg_restore --exit-on-error`.
+Verification matched all 218 table row counts and ordered row fingerprints
+(1,978 synthetic rows), all 530 RLS policies, and metadata for 1,711 constraints.
+The archive SHA-256 was
+`0d5bf2740803613f2b33e161a50c64e6c2075dec53ef2cf80a2e92cd453bb678`.
+
+An initial byte-for-byte constraint-text check failed: PostgreSQL reparsed 28
+CHECK expressions, distributing text-array casts or regrouping associative AND
+clauses. All 28 differences were inspected and retained in the local verification
+evidence; no logical predicate changed. Constraint identities, types, keys,
+validation and deferment matched. This is local database recovery evidence only.
+It does not establish hosted Supabase Auth recovery, Storage object recovery,
+buyer-owned retention/PITR, recovery time targets, or production acceptance.
+
+The final 12 October rehearsal used the full 187-migration database
+`erp_readiness_final_20261012` and a new empty restore target
+`erp_readiness_restore_final_20261012`. The same exported-snapshot procedure
+matched 218 tables and 47,874 synthetic test rows by count and ordered fingerprint,
+559 policies, 1,712 constraint metadata records, and every application/Auth/Storage
+table and sequence ACL. The 28 textual CHECK differences exactly matched the
+previously reviewed deparser differences. Archive SHA-256:
+`5d6a338366a95f2243cfac76827b0c73daea0158cf6ab0b3d2e44f127f7df833`.
+This extends the local proof to the final upload and server-write boundaries;
+the hosted Auth/Storage and buyer recovery limits above still apply.
+
+### Required release record
+
 - Target ledger exactly equals repository ledger.
 - Planner reports `current`.
 - Catalog verifier passes.

@@ -1,11 +1,11 @@
-# BUILD OPS PRD v1.5
+# BUILD OPS PRD v1.6
 
 > Repository execution authority, reconciled with current source and provider evidence on 2026-08-14.
 > Historical PDF exports remain reference material; they do not override this file, the current code,
 > migration ledger, or timestamped release evidence.
 BUILD OPS — Refactor PRD (Execution Edition)
-Construction ERP for Actuate Builders Inc. (ABI) · product brand ABI OPS.
-Version 1.5 · 28 September 2026 · Supersedes v1.0–v1.4
+Construction ERP · independent company installation and demonstration · product brand ABI OPS.
+Version 1.6 · 11 October 2026 · Supersedes v1.0–v1.5
 Execution: Codex desktop/CLI or any equivalent engineering agent. Tool-agnostic in substance.
 Companion files:
 In the repo Purpose
@@ -16,6 +16,13 @@ fixtures/abi/ (gitignored)Real ABI Excel templates and Togal exports
 BUILD_OPS_Blueprint.md — the why: evidence, audit, contradictions, reasoning record.
 Keep this out of the repo; it contains competitor analysis, an audit of the current build, and
 a named error in a client-facing document.
+What changed in v1.6: ABI OPS is the independent-system demonstration target,
+followed by five separately owned company installations, not white-label SaaS.
+ADR-040 defines verified installation ownership, company document identity,
+operator-led setup and release evidence. Existing tenant isolation remains required.
+The 2026-10-11 turnover audit is the remediation backlog; local implementation and
+synthetic-data verification do not establish hosted or buyer acceptance. Existing
+preview-only approvals and unconfigured adapters must remain truthfully gated.
 What changed in v1.5: authenticated tenant workspaces and Platform Control gain a
 user-selectable light/dark appearance. The selection persists in a browser cookie;
 public portals and print output retain their separately designed presentation. This
@@ -1158,18 +1165,21 @@ BUILD_OPS_Blueprint.md1.1
 Evidence and reasoning record — the why.
 Audit of the current build, AS-IS/TO-BE,
 contradictions, competitor analysis, AI map
-docs/PRD.md 1.5
+docs/PRD.md 1.6
 Implementation authority — the what and in
 what order. Where the two disagree, this
 document wins
 BUILD_OPS_Prompt_Pack.md
-→ docs/PROMPTS.md1.4
+→ docs/PROMPTS.md1.6
 Execution aid — copy-paste prompts, one per
 work order, plus drift-recovery and review
 prompts
 AGENTS.md 1.0 Codex instruction file, repo root. Auto-loaded
 each session. Lean by design
 Change log.
+v1.6 (11 Oct 2026) — independent ABI OPS demonstration and five separate company
+installations, ADR-040 ownership/document identity/setup boundaries, and audit
+remediation. White-label SaaS is deferred; external acceptance stays explicit.
 v1.0 (08 Aug 2026) — initial PRD following the refactor-vs-rebuild decision.
 v1.1 (12 Aug 2026) — work orders restructured as self-contained tickets; WO-00 (CI
 gate) added as a prerequisite; pre-flight checklist and drift-recovery protocol added
