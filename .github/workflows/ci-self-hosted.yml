@@ -13,7 +13,7 @@ permissions:
 jobs:
   verify:
     name: Full verification
-    if: github.actor == 'kurtgav'
+    if: vars.SELF_HOSTED_CI_ACTOR != '' && github.actor == vars.SELF_HOSTED_CI_ACTOR
     runs-on: [self-hosted, Windows, X64, third-code-erp-ci]
     timeout-minutes: 60
     env:

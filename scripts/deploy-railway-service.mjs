@@ -1,21 +1,16 @@
 import { execFileSync } from 'node:child_process'
 import { isDeepStrictEqual } from 'node:util'
 import { pathToFileURL } from 'node:url'
+import { installationTargets } from './lib/installation-targets.mjs'
 
 export const targets = {
   api: {
-    service: 'c45b3d01-036a-4663-a524-0713d782fce3',
     paths: ['apps/api', 'packages/ai', 'packages/config', 'packages/database', 'packages/operations', 'packages/shared-types', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'turbo.json', 'railway.toml', '.npmrc', '.dockerignore'],
-    health: 'https://third-code-erp-api-production.up.railway.app/ready',
   },
   cad: {
-    service: '328c6650-306e-4a3c-80dc-7566e80ba86a',
     paths: ['apps/workers/dxf-parser'],
-    health: 'https://abi-ops-cad-worker-production.up.railway.app/health',
   },
 }
-const project = 'a21fd382-80b2-4218-8025-11f420a062e3'
-const environment = 'ce3a09da-9334-4256-a0a6-85d69676cb89'
 const pending = new Set(['INITIALIZING', 'QUEUED', 'BUILDING', 'DEPLOYING', 'WAITING'])
 
 export function sourceSha(deployment) {
@@ -47,8 +42,11 @@ export function assessDeployment(deployment, active, unchanged) {
 }
 
 export async function deploy(component) {
-  const target = targets[component]
-  if (!target) throw new Error('Expected api or cad target')
+  if (!targets[component]) throw new Error('Expected api or cad target')
+  const installation = installationTargets(process.env)
+  const project = installation.railwayProject
+  const environment = installation.railwayEnvironment
+  const target = { ...targets[component], service: component === 'api' ? installation.apiService : installation.cadService, health: component === 'api' ? `${installation.apiOrigin}/ready` : `${installation.cadOrigin}/health` }
   const sha = process.env.GITHUB_SHA
   if (!/^[a-f0-9]{40}$/.test(sha ?? '')) throw new Error('GITHUB_SHA must identify the reviewed release')
   const git = (args) => execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()

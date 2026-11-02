@@ -1,0 +1,21 @@
+rules:
+  - id: javascript-dynamic-evaluation
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: Dynamic evaluation requires removal or an explicitly reviewed trust boundary.
+    patterns:
+      - pattern-either:
+          - pattern: eval($CODE)
+          - pattern: new Function(...)
+  - id: python-unsafe-deserialization
+    languages: [python]
+    severity: ERROR
+    message: Untrusted pickle deserialization is not permitted in workers.
+    pattern-either:
+      - pattern: pickle.loads(...)
+      - pattern: pickle.load(...)
+  - id: python-shell-execution
+    languages: [python]
+    severity: ERROR
+    message: Worker subprocesses must use an argument vector without shell=True.
+    pattern: subprocess.$METHOD(..., shell=True, ...)
