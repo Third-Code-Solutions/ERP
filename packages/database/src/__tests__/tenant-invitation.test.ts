@@ -313,6 +313,63 @@ describeDb('auth.users provisioning trigger', () => {
     })
   })
 
+  it('rejects an invite claim for an email holding a pending platform invitation', async () => {
+    await inRollback(sql!, async (tx) => {
+      const seed = await seedTwoTenants(tx)
+      const email = uniqueEmail()
+      await tx`
+        insert into public.platform_user_invitations
+          (tenant_id, normalized_email, full_name, role, invited_by)
+        values (${seed.tenantB}, ${email}, 'Pending Invitee', 'pm', ${seed.userB})
+      `
+
+      await expectRejected(
+        tx,
+        (sp) =>
+          createAuthUser(sp as Tx, {
+            email,
+            invite: { tenant_id: seed.tenantA, invited_by: seed.userA, role: 'pm' },
+          }),
+        /pending platform invitation/
+      )
+
+      const leaked = (await tx`
+        select 1 from public.users where email = ${email}
+      `) as unknown as Array<unknown>
+      expect(leaked).toHaveLength(0)
+
+      const invitation = (await tx`
+        select status::text as status, auth_user_id
+          from public.platform_user_invitations
+         where normalized_email = ${email}
+      `) as unknown as Array<{ status: string; auth_user_id: string | null }>
+      expect(invitation[0]).toMatchObject({ status: 'pending', auth_user_id: null })
+    })
+  })
+
+  it('still provisions a pending platform invitation on plain signup', async () => {
+    const result = await inRollback(sql!, async (tx) => {
+      const seed = await seedTwoTenants(tx)
+      const email = uniqueEmail()
+      await tx`
+        insert into public.platform_user_invitations
+          (tenant_id, normalized_email, full_name, role, invited_by)
+        values (${seed.tenantB}, ${email}, 'Pending Invitee', 'pm', ${seed.userB})
+      `
+      const id = await createAuthUser(tx, { email })
+      const invitation = (await tx`
+        select status::text as status, auth_user_id
+          from public.platform_user_invitations
+         where normalized_email = ${email}
+      `) as unknown as Array<{ status: string; auth_user_id: string | null }>
+      return { id, seed, user: await publicUser(tx, id), invitation: invitation[0] }
+    })
+
+    expect(result.user?.tenant_id).toBe(result.seed.tenantB)
+    expect(result.user?.role).toBe('pm')
+    expect(result.invitation).toMatchObject({ status: 'sent', auth_user_id: result.id })
+  })
+
   it('writes immutable audit evidence for a provisioned user', async () => {
     const result = await inRollback(sql!, async (tx) => {
       const seed = await seedTwoTenants(tx)

@@ -8,12 +8,15 @@
 -- Tenant and role authority therefore stays in the database: a browser-supplied
 -- tenant or role can never reach `public.users` through this trigger.
 --
--- Rollback: this migration only replaces `public.handle_new_user()`; it touches no
--- table, column, index or row, so there is nothing to un-migrate and no data
--- backfill to reverse. To revert, re-apply the prior definition from
--- `20260729054456_persist_signup_organization_type.sql` (the previous
--- `create or replace function`) before this file's run, which also removes the
--- non-object-metadata guard. Do that only if invite claims must stop provisioning;
+-- Rollback: this migration only replaces `public.handle_new_user()` and
+-- `public.provision_platform_invited_user()`; it touches no table, column, index
+-- or row, so there is nothing to un-migrate and no data backfill to reverse. To
+-- revert, re-apply the prior definitions: `handle_new_user()` from
+-- `20260729054456_persist_signup_organization_type.sql` and
+-- `provision_platform_invited_user()` from
+-- `20260904020000_platform_owner_administration_boundary.sql` (each is the
+-- previous `create or replace function`), which also removes the
+-- non-object-metadata guard and the pending-invitation conflict guard. Do that only if invite claims must stop provisioning;
 -- users already provisioned through the invite path remain valid rows and need no
 -- cleanup. Reverting is safe while mixed versions run: the trigger is replaced
 -- atomically, so in-flight auth inserts either see the old or the new definition,
@@ -235,3 +238,71 @@ revoke execute on function public.handle_new_user()
   from public, anon, authenticated;
 grant execute on function public.handle_new_user()
   to service_role;
+
+-- `a_platform_invited_user_provision` fires before `on_auth_user_created` and
+-- matches on email alone. Without this guard a tenant admin could create an
+-- auth user (known password, confirmed email) for an address that holds a
+-- pending platform invitation to ANOTHER tenant; the invitation trigger would
+-- then place that account in the invited tenant before the `erp_invite` claim
+-- above is ever evaluated. A service-role invite claim and a platform
+-- invitation are two different provisioning channels: an auth insert that
+-- carries both is rejected so no account is created. Body is otherwise the
+-- definition from 20260904020000_platform_owner_administration_boundary.sql;
+-- grants are unchanged by `create or replace`.
+create or replace function public.provision_platform_invited_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  invitation public.platform_user_invitations%rowtype;
+begin
+  select candidate.*
+    into invitation
+    from public.platform_user_invitations as candidate
+   where candidate.normalized_email = lower(btrim(new.email))
+     and candidate.status = 'pending'
+     and candidate.auth_user_id is null
+   order by candidate.created_at desc
+   limit 1
+   for update;
+
+  if not found then
+    return new;
+  end if;
+
+  if new.raw_app_meta_data is not null
+    and pg_catalog.jsonb_typeof(new.raw_app_meta_data) = 'object'
+    and pg_catalog.jsonb_exists(new.raw_app_meta_data, 'erp_invite') then
+    raise exception 'email has a pending platform invitation'
+      using errcode = '42501';
+  end if;
+
+  insert into public.users (
+    id,
+    tenant_id,
+    email,
+    full_name,
+    role,
+    account_status,
+    invited_at
+  ) values (
+    new.id,
+    invitation.tenant_id,
+    invitation.normalized_email,
+    invitation.full_name,
+    invitation.role,
+    'invited',
+    now()
+  );
+
+  update public.platform_user_invitations
+     set status = 'sent',
+         auth_user_id = new.id,
+         sent_at = now()
+   where id = invitation.id;
+
+  return new;
+end
+$$;
