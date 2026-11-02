@@ -99,7 +99,7 @@ function harness({
     return { onConflictDoNothing: vi.fn().mockResolvedValue(undefined) }
   })
   const insertLinesValues = vi.fn().mockResolvedValue(undefined)
-  const updateBomWhere = vi.fn().mockResolvedValue(undefined)
+  const pricedQuery = selectQuery([{ total_cost_cents: 1200, tcv_cents: 2531, gp_cents: 1060, gp_margin_bps: 4690 }])
   const updateRequestWhere = vi.fn().mockReturnValue({
     returning: vi.fn().mockResolvedValue([{ id: request.id }]),
   })
@@ -108,14 +108,14 @@ function harness({
       .fn()
       .mockReturnValueOnce({ from: membershipQuery.from })
       .mockReturnValueOnce({ from: bomQuery.from })
-      .mockReturnValueOnce({ from: requestQuery.from }),
+      .mockReturnValueOnce({ from: requestQuery.from })
+      .mockReturnValueOnce({ from: pricedQuery.from }),
     insert: vi
       .fn()
       .mockReturnValueOnce({ values: insertRequestValues })
       .mockReturnValueOnce({ values: insertLinesValues }),
     update: vi
       .fn()
-      .mockReturnValueOnce({ set: vi.fn().mockReturnValue({ where: updateBomWhere }) })
       .mockReturnValueOnce({ set: vi.fn().mockReturnValue({ where: updateRequestWhere }) }),
   }
   const transaction = vi.fn(async (callback: (tx: unknown) => unknown) =>
@@ -205,7 +205,7 @@ describe('Togal BOM commit authority', () => {
       bomId: COMMAND.bomId,
       tenantId: PRINCIPAL.tenantId,
       totalCostCents: 1_200,
-      tcvCents: 2_260,
+      tcvCents: 2_531,
       gpCents: 1_060,
       gpMarginBps: 4_690,
     })

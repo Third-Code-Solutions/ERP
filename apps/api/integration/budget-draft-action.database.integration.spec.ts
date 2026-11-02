@@ -124,13 +124,8 @@ async function seedFixture(
       tenant_id: tenantId,
       project_id: projectId,
       created_by: userId,
-      approved_by: userId,
-      approved_at: new Date('2026-09-13T00:00:00.000Z'),
       label: 'Synthetic approved BOQ source',
-      status: 'approved',
-      tcv_cents: 1_000_000,
-      gp_cents: 220_000,
-      gp_margin_bps: 2_200,
+      status: 'draft',
     })
     await tx.insert(bomLineItems).values({
       id: bomLineItemId,
@@ -140,7 +135,8 @@ async function seedFixture(
       unit: 'lot',
       quantity: 1,
       unit_cost_cents: 100_000,
-      line_total_cents: 100_000,
+      markup_bps: 2821,
+      manual_vat_bps: 0,
     })
     await tx.insert(bomLineItems).values({
       id: secondBomLineItemId,
@@ -150,8 +146,14 @@ async function seedFixture(
       unit: 'lot',
       quantity: 1,
       unit_cost_cents: 50_000,
-      line_total_cents: 50_000,
+      markup_bps: 2821,
+      manual_vat_bps: 0,
     })
+    await tx.update(boms).set({
+      status: 'approved',
+      approved_by: userId,
+      approved_at: new Date('2026-09-13T00:00:00.000Z'),
+    }).where(eq(boms.id, bomId))
     await tx.insert(costCodes).values([
       {
         id: costCodeId,

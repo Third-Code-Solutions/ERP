@@ -30,7 +30,7 @@ export class InspectionReportService {
           .where(and(eq(users.id, principal.userId), eq(users.tenant_id, principal.tenantId), eq(users.account_status, 'active'))).limit(1).for('share', { noWait: true })
         const role = z.enum(ERP_ROLES).safeParse(actor?.role)
         if (!actor || !role.success || !roleHasCapability(role.data, 'site_inspection.submit')) throw new ForbiddenException()
-        const [tenant] = await tx.select({ name: tenants.name, bir_tin: tenants.bir_tin, pcab_license: tenants.pcab_license }).from(tenants)
+        const [tenant] = await tx.select({ name: tenants.name, legalName: tenants.legal_name, bir_tin: tenants.bir_tin, pcab_license: tenants.pcab_license }).from(tenants)
           .where(and(eq(tenants.id, actor.tenantId), eq(tenants.status, 'active'))).limit(1).for('share', { noWait: true })
         if (!tenant) throw new ForbiddenException()
         const current = { ...principal, tenantId: actor.tenantId, role: role.data, email: actor.email }
@@ -61,7 +61,7 @@ export class InspectionReportService {
         const [account] = opportunity.accountId ? await tx.select({ id: accounts.id, name: accounts.name, billing_address: accounts.billing_address }).from(accounts)
           .where(and(eq(accounts.id, opportunity.accountId), eq(accounts.tenant_id, actor.tenantId))).limit(1) : []
         const bytes = Buffer.from(buildInspectionReportHtml({ inspection, photos, rfis: [], project: project ?? null, account: account ?? null,
-          brand: { tenant_name: tenant.name, bir_tin: tenant.bir_tin, pcab_license: tenant.pcab_license, inspector_name: inspector.full_name || inspector.email } }), 'utf8')
+          brand: { tenant_name: tenant.legalName, bir_tin: tenant.bir_tin, pcab_license: tenant.pcab_license, inspector_name: inspector.full_name || inspector.email } }), 'utf8')
         const sha256 = createHash('sha256').update(bytes).digest('hex')
         const storagePath = `${actor.tenantId}/opportunities/${opportunity.id}/inspections/${inspection.id}/report-${sha256}.html`
         await this.storage.ensure({ storagePath, bytes })

@@ -10,7 +10,7 @@ import request from 'supertest'
 import { describe, expect, it, vi } from 'vitest'
 
 import { CapabilityGuard } from '../src/auth/capability.guard'
-import { PlatformOwnerGuard, PLATFORM_OWNER_EMAIL } from '../src/auth/platform-owner.guard'
+import { PlatformOwnerGuard } from '../src/auth/platform-owner.guard'
 import { SupabaseIdentityService } from '../src/auth/supabase-identity.service'
 import { SupabaseJwtGuard } from '../src/auth/supabase-jwt.guard'
 import { DatabaseService } from '../src/database/database.service'
@@ -18,6 +18,7 @@ import { PlatformAdministrationController } from '../src/platform-admin/platform
 import { PlatformAdministrationService } from '../src/platform-admin/platform-administration.service'
 import { PlatformIdentityAdminService } from '../src/platform-admin/platform-identity-admin.service'
 
+const PLATFORM_OWNER_EMAIL = 'owner@independent.example.invalid'
 const suite = process.env.DATABASE_URL && process.env.ERP_API_INTEGRATION_EXPECTED === '1' ? describe : describe.skip
 
 suite('platform administration real database/HTTP boundary', () => {

@@ -72,7 +72,7 @@ function replayResult(value: unknown): CustomerInvoiceIssueResult {
   return parsed.data
 }
 
-function mapDatabaseFailure(error: unknown): never {
+export function mapCustomerInvoiceIssueDatabaseFailure(error: unknown): never {
   const message = databaseErrorMessage(error)
   if (message.includes('Customer invoice not found')) {
     throw new NotFoundException('Customer invoice not found')
@@ -85,6 +85,8 @@ function mapDatabaseFailure(error: unknown): never {
     message.includes('Customer invoice requires a Business Account') ||
     message.includes('Customer invoice Business Account is invalid') ||
     message.includes('Customer invoice amounts do not reconcile') ||
+    message.includes('Legacy invoice pricing requires an explicitly reviewed replacement draft before issue') ||
+    message.includes('Company legal document identity is incomplete') ||
     message.includes('Active Accounts Receivable control account is required') ||
     message.includes('Active Revenue control account is required') ||
     message.includes('Active Retention Receivable control account is required') ||
@@ -176,7 +178,7 @@ export class CustomerInvoiceIssueService {
           )
         `)
       } catch (error) {
-        mapDatabaseFailure(error)
+        mapCustomerInvoiceIssueDatabaseFailure(error)
       }
       const issuedJournal = rows[0]
       if (!issuedJournal) {

@@ -39,6 +39,7 @@ function enabledHarness() {
     },
   ]
   const requestRecord = {
+    createdBy: PRINCIPAL.userId,
     id: REQUEST_ID,
     requestHash: '',
     state: 'processing' as 'processing' | 'succeeded',
@@ -104,7 +105,10 @@ function enabledHarness() {
     writeSemantic: vi.fn().mockResolvedValue(undefined),
   } as unknown as AuditService
   return {
-    service: new DocumentIntakeService(database, audit),
+    service: new DocumentIntakeService(database, audit, {
+      verifyCompletion: vi.fn().mockResolvedValue({ id: 'reservation' }),
+      complete: vi.fn().mockResolvedValue(undefined),
+    } as unknown as import('./document-upload.service').DocumentUploadService),
     transaction,
     select,
     insert,

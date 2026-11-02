@@ -103,6 +103,9 @@ async function seedReceivables(
     id: tenantId,
     name: `Finance receivables HTTP tenant ${label}`,
     slug: `finance-receivables-http-${label}-${suffix}`,
+    legal_name: `Finance Receivables Test Company ${label}`,
+    registered_address: 'Synthetic fixture address',
+    bir_tin: `TEST-TIN-${label}`,
   })
   await transaction.insert(users).values([
     {
@@ -204,6 +207,8 @@ async function seedReceivables(
       account_id: accountId,
       created_by: financeId,
       invoice_number: `INV-${label.toUpperCase()}-OVERDUE-${suffix}`,
+      pricing_basis: 'reconciled_v1',
+      withholding_bps: 180,
       status: 'draft' as const,
       billing_percent_bps: 10000,
       retention_bps: 1000,
@@ -225,6 +230,8 @@ async function seedReceivables(
       account_id: accountId,
       created_by: financeId,
       invoice_number: `INV-${label.toUpperCase()}-CURRENT-${suffix}`,
+      pricing_basis: 'reconciled_v1',
+      withholding_bps: 180,
       status: 'draft' as const,
       billing_percent_bps: 10000,
       retention_bps: 1000,

@@ -3,11 +3,9 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type { DatabaseService } from '../database/database.service'
 import type { PlatformAuthenticatedRequest } from './platform-owner.guard'
-import {
-  PLATFORM_OWNER_EMAIL,
-  PlatformOwnerGuard,
-} from './platform-owner.guard'
+import { PlatformOwnerGuard } from './platform-owner.guard'
 
+const PLATFORM_OWNER_EMAIL = 'owner@independent.example.invalid'
 const OWNER_ID = '11111111-1111-4111-8111-111111111111'
 
 function contextFor(
@@ -103,7 +101,7 @@ describe('PlatformOwnerGuard', () => {
   it.each([
     ['missing identity', {}, PLATFORM_OWNER_EMAIL],
     ['unverified email', verifiedRequest({ emailConfirmedAt: null }), PLATFORM_OWNER_EMAIL],
-    ['request email mismatch', verifiedRequest({ email: 'attacker@example.test' }), PLATFORM_OWNER_EMAIL],
+    ['missing email', verifiedRequest({ email: null }), PLATFORM_OWNER_EMAIL],
   ])('denies %s before assignment lookup', async (_label, request) => {
     const database = databaseWith(undefined, 0)
     const guard = new PlatformOwnerGuard(database)
@@ -118,6 +116,16 @@ describe('PlatformOwnerGuard', () => {
 
   it.each([
     ['missing assignment', undefined, 0],
+    [
+      'verified email differs from stored binding',
+      {
+        userId: OWNER_ID,
+        email: 'other@example.invalid',
+        role: 'platform_owner',
+        accountStatus: 'active',
+      },
+      1,
+    ],
     [
       'different immutable id',
       {

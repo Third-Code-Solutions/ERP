@@ -19,14 +19,13 @@ import type { AuthenticatedRequest } from './current-principal.decorator'
 import { isRecentAuthentication } from './verified-authentication'
 
 export const PLATFORM_ROUTE = 'third-code-erp:platform-route'
-export const PLATFORM_OWNER_EMAIL = 'kurt@thirdcodesolutions.com' as const
 
 /** Marks a route as requiring PlatformOwnerGuard instead of a tenant capability. */
 export const PlatformRoute = () => SetMetadata(PLATFORM_ROUTE, true)
 
 export interface PlatformPrincipal {
   userId: string
-  email: typeof PLATFORM_OWNER_EMAIL
+  email: string
   traceId?: string
   supportSessionId?: string
 }
@@ -61,7 +60,7 @@ export class PlatformOwnerGuard implements CanActivate {
     if (
       !identity ||
       !identity.emailConfirmedAt ||
-      identity.email !== PLATFORM_OWNER_EMAIL
+      !identity.email
     ) {
       throw new ForbiddenException()
     }
@@ -92,7 +91,8 @@ export class PlatformOwnerGuard implements CanActivate {
     if (
       !assignment ||
       assignment.userId !== identity.userId ||
-      assignment.email !== PLATFORM_OWNER_EMAIL ||
+      assignment.email !== identity.email ||
+      assignment.role !== 'platform_owner' ||
       assignment.accountStatus !== 'active' ||
       activeCount?.value !== 1
     ) {
@@ -114,7 +114,7 @@ export class PlatformOwnerGuard implements CanActivate {
     }
     request.platformPrincipal = {
       userId: identity.userId,
-      email: PLATFORM_OWNER_EMAIL,
+      email: identity.email,
       ...(request.requestId ? { traceId: request.requestId } : {}),
       ...(supportSessionId.success ? { supportSessionId: supportSessionId.data } : {}),
     }

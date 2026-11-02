@@ -8,6 +8,7 @@ import type { ErpPrincipal } from '../src/auth/current-principal.decorator'
 import { AuditService } from '../src/audit/audit.service'
 import { DatabaseService } from '../src/database/database.service'
 import { ClaimDocumentService } from '../src/documents/claim-document.service'
+import { documentUploadFixture } from './document-upload.fixture'
 
 const boundary = vi.hoisted(() => ({
   profile: vi.fn(), can: vi.fn(), coreSelected: vi.fn(), coreDelete: vi.fn(),
@@ -40,10 +41,10 @@ beforeEach(() => {
   boundary.storage.mockReturnValue({ remove: boundary.remove })
 })
 
-async function fixture() {
+async function fixture(controlledUpload = false) {
   const tenantId = randomUUID(), userId = randomUUID(), projectId = randomUUID(), claimId = randomUUID(), documentId = randomUUID()
   const relatedScopeId = randomUUID(), unrelatedScopeId = randomUUID()
-  const storagePath = `${tenantId}/${projectId}/${documentId}.pdf`
+  let storagePath = `${tenantId}/${projectId}/${documentId}.pdf`
   const principal: ErpPrincipal = { tenantId, userId, role: 'admin', email: `${userId}@integration.test` }
   // Committed UUID-isolated synthetic fixtures permit independent connections.
   // No historical rows or append-only audit records are removed after testing.
@@ -58,6 +59,16 @@ async function fixture() {
       { id: unrelatedScopeId, tenant_id: tenantId, project_id: projectId, description: 'Unrelated scope', unit: 'unit', notes: 'Independent evidence', created_by: userId },
     ])
   })
+  if (controlledUpload) {
+    const upload = documentUploadFixture(new DatabaseService(), 10)
+    const input = { projectId, fileName: 'Evidence.pdf', mimeType: 'application/pdf', sizeBytes: 10 }
+    storagePath = await upload.prepare(input, principal, randomUUID())
+    await db.transaction(async tx => {
+      await tx.update(documents).set({ storage_path: storagePath }).where(eq(documents.id, documentId))
+      const reservation = await upload.uploads.verifyCompletion(tx, { ...input, storagePath }, principal)
+      await upload.uploads.complete(tx, reservation, documentId)
+    })
+  }
   boundary.profile.mockResolvedValue({ user: { id: userId }, tenantId, role: 'admin', email: principal.email })
   const audit = new AuditService()
   const service = new ClaimDocumentService(new DatabaseService(), audit)
@@ -102,7 +113,7 @@ suite('Actual legacy Web document deletion PostgreSQL retention', () => {
   })
 
   it('commits unreferenced document/derived-scope deletion and semantic audit while retaining Storage', async () => {
-    const f = await fixture()
+    const f = await fixture(true)
     expect(await deleteDocument(f.form)).toEqual({ ok: true })
     const after = await snapshot(f)
     expect(after.documents).toHaveLength(0)
@@ -111,6 +122,14 @@ suite('Actual legacy Web document deletion PostgreSQL retention', () => {
     expect(after.audit.filter((row) => row.entity_type === 'document' && row.entity_id === f.documentId && row.action === 'delete')).toHaveLength(1)
     expect(boundary.remove).not.toHaveBeenCalled()
     expect(boundary.revalidate).toHaveBeenCalledWith(`/projects/${f.projectId}/documents`)
+  })
+
+  it('retains legacy unreferenced document and scope until verified cleanup is available', async () => {
+    const f = await fixture(), before = await snapshot(f)
+    expect(await deleteDocument(f.form)).toEqual({ ok: false, error: 'Legacy document requires verified Storage cleanup before deletion; no document was deleted' })
+    expect(await snapshot(f)).toEqual(before)
+    expect(boundary.remove).not.toHaveBeenCalled()
+    expect(boundary.revalidate).not.toHaveBeenCalled()
   })
 
   it('waits for a concurrent Core attachment then rejects without cascading or cleaning Storage', async () => {

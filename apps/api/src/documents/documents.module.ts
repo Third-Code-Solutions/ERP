@@ -7,6 +7,9 @@ import { DocumentDeleteService } from './document-delete.service'
 import { DocumentIntakeController } from './document-intake.controller'
 import { DocumentIntakePipe } from './document-intake.pipe'
 import { DocumentIntakeService } from './document-intake.service'
+import { DocumentUploadController } from './document-upload.controller'
+import { DocumentUploadService } from './document-upload.service'
+import { DocumentUploadStorage } from './document-upload.storage'
 import { DocuSealWebhookController } from './docuseal-webhook.controller'
 import { DocuSealWebhookPipe } from './docuseal-webhook.pipe'
 import { DocuSealWebhookService } from './docuseal-webhook.service'
@@ -30,6 +33,7 @@ import { InspectionReportStorageService } from './inspection-report.storage'
 @Module({
   imports: [AuditModule],
   controllers: [
+    DocumentUploadController,
     ClaimDocumentController,
     DocumentDeleteController,
     DocumentIntakeController,
@@ -39,6 +43,8 @@ import { InspectionReportStorageService } from './inspection-report.storage'
     PublicSigningController,
   ],
   providers: [
+    DocumentUploadService,
+    DocumentUploadStorage,
     ClaimDocumentPipe,
     ClaimDocumentService,
     DocumentDeletePipe,
@@ -64,6 +70,7 @@ export class DocumentsModule implements NestModule {
     consumer
       .apply(RequestObservabilityMiddleware)
       .forRoutes(
+        DocumentUploadController,
         ClaimDocumentController,
         DocumentDeleteController,
         DocumentIntakeController,

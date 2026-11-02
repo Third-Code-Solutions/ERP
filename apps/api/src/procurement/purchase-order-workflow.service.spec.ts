@@ -1,13 +1,13 @@
 import 'reflect-metadata'
 
-import { ServiceUnavailableException } from '@nestjs/common'
+import { ConflictException, ServiceUnavailableException } from '@nestjs/common'
 import type { ConfigService } from '@nestjs/config'
 import type { PurchaseOrderWorkflowCommand } from '@third-code-erp/shared-types'
 import { describe, expect, it, vi } from 'vitest'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import type { AuditService } from '../audit/audit.service'
 import type { DatabaseService } from '../database/database.service'
-import { PurchaseOrderWorkflowService } from './purchase-order-workflow.service'
+import { PurchaseOrderWorkflowService, mapPurchaseOrderWorkflowDatabaseFailure } from './purchase-order-workflow.service'
 
 const PRINCIPAL: ErpPrincipal = {
   userId: '11111111-1111-4111-8111-111111111111',
@@ -47,6 +47,12 @@ function service(
 }
 
 describe('PurchaseOrderWorkflowService migration boundary', () => {
+  it('maps incomplete company identity to a conflict response', () => {
+    const message = 'Company legal document identity is incomplete'
+    expect(() => mapPurchaseOrderWorkflowDatabaseFailure(new Error(message))).toThrow(ConflictException)
+    expect(() => mapPurchaseOrderWorkflowDatabaseFailure(new Error(message))).toThrow(message)
+  })
+
   it('fails closed by default without touching the database', async () => {
     await expect(
       service().transition(

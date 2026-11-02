@@ -27,6 +27,8 @@ import {
 } from '../src/database/database.service'
 import { DocumentIntakeController } from '../src/documents/document-intake.controller'
 import { DocumentIntakeService } from '../src/documents/document-intake.service'
+import { DocumentUploadService } from '../src/documents/document-upload.service'
+import { documentUploadFixture } from './document-upload.fixture'
 
 const integrationEnabled =
   Boolean(process.env.DATABASE_URL) &&
@@ -145,9 +147,11 @@ suite('Document intake protected HTTP authority', () => {
           return userId ? { userId } : null
         }),
       }
+      const uploadFixture = documentUploadFixture(transactionBoundDatabase(transaction), 2_048)
       const moduleRef = await Test.createTestingModule({
         controllers: [DocumentIntakeController],
         providers: [
+          { provide: DocumentUploadService, useValue: uploadFixture.uploads },
           DocumentIntakeService,
           AuditService,
           {
@@ -188,6 +192,7 @@ suite('Document intake protected HTTP authority', () => {
           sizeBytes: 2_048,
           description: 'Approved construction plans',
         }
+        command.storagePath = await uploadFixture.prepare({ projectId: projectA, fileName: command.fileName, mimeType: command.mimeType, sizeBytes: command.sizeBytes }, { userId: adminA, tenantId: tenantA, role: 'admin', email: `admin-${suffix}@integration.test` }, 'prepare-intake-http')
 
         await request(app.getHttpServer())
           .post(route)

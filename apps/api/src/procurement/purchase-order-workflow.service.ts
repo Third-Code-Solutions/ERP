@@ -34,6 +34,7 @@ import { roleHasCapability } from '../auth/capability.guard'
 import type { ErpPrincipal, ErpRole } from '../auth/current-principal.decorator'
 import { AuditService } from '../audit/audit.service'
 import { DatabaseService } from '../database/database.service'
+import { databaseErrorMessage } from '../database/database-error'
 import {
   PURCHASE_ORDER_WORKFLOW_NOTIFICATION_EVENT,
   purchaseOrderWorkflowNotificationRoles,
@@ -54,6 +55,14 @@ type WorkflowStatus =
   | 'partial_delivery'
   | 'delivered'
   | 'cancelled'
+
+export function mapPurchaseOrderWorkflowDatabaseFailure(error: unknown): never {
+  const message = databaseErrorMessage(error)
+  if (message.includes('Company legal document identity is incomplete')) {
+    throw new ConflictException(message)
+  }
+  throw error
+}
 
 function canonicalJson(value: unknown): string {
   if (value === null || typeof value !== 'object') {
@@ -394,17 +403,23 @@ export class PurchaseOrderWorkflowService {
         update.scm_issued_by = authorizedPrincipal.userId
       }
 
-      const [updated] = await transaction
-        .update(purchaseOrders)
-        .set(update)
-        .where(
-          and(
-            eq(purchaseOrders.id, purchaseOrderId),
-            eq(purchaseOrders.tenant_id, authorizedPrincipal.tenantId),
-            eq(purchaseOrders.status, status)
+      let updated: { id: string } | undefined
+      try {
+        const rows = await transaction
+          .update(purchaseOrders)
+          .set(update)
+          .where(
+            and(
+              eq(purchaseOrders.id, purchaseOrderId),
+              eq(purchaseOrders.tenant_id, authorizedPrincipal.tenantId),
+              eq(purchaseOrders.status, status)
+            )
           )
-        )
-        .returning({ id: purchaseOrders.id })
+          .returning({ id: purchaseOrders.id })
+        updated = rows[0]
+      } catch (error) {
+        mapPurchaseOrderWorkflowDatabaseFailure(error)
+      }
       if (!updated) {
         throw new ConflictException(
           'Purchase Order changed before its workflow transition was committed'
