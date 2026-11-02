@@ -5,6 +5,7 @@ import {
   foreignKey,
   index,
   integer,
+  numeric,
   pgTable,
   text,
   timestamp,
@@ -47,7 +48,11 @@ export const bomLineItems = pgTable(
     code: varchar('code', { length: 50 }),
     description: text('description').notNull(),
     unit: varchar('unit', { length: 20 }),
-    quantity: integer('quantity').notNull().default(0),
+    quantity: numeric('quantity', { mode: 'number' }).notNull().default(0),
+    direct_cost_cents: bigint('direct_cost_cents', { mode: 'number' }).notNull().default(0),
+    selling_ex_vat_cents: bigint('selling_ex_vat_cents', { mode: 'number' }).notNull().default(0),
+    vat_cents: bigint('vat_cents', { mode: 'number' }).notNull().default(0),
+    manual_vat_bps: integer('manual_vat_bps').notNull().default(1200),
     // Unit cost in PHP centavos
     unit_cost_cents: bigint('unit_cost_cents', { mode: 'number' }).notNull().default(0),
     // Markup in basis points (0-10000 = 0%-100%)
@@ -59,6 +64,7 @@ export const bomLineItems = pgTable(
     updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
+    quantityExactCheck: check('bom_quantity_exact_range', sql`${table.quantity} >= 0 and ${table.quantity} <= 2147483647 and ${table.quantity} = trunc(${table.quantity},4)`),
     tenantIdx: index('idx_bom_line_items_tenant_id').on(table.tenant_id),
     tenantIdUniqueIdx: uniqueIndex('ux_bom_line_items_tenant_id_id').on(
       table.tenant_id,

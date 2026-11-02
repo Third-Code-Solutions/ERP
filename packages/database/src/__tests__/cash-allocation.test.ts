@@ -154,8 +154,8 @@ async function seedCashFixture(
   )[0]!.suffix as string
   const tenantId = (
     (await tx.unsafe(
-      `insert into tenants(name, slug)
-       values('Cash probe', 'cash-${suffix}')
+      `insert into tenants(name, slug, legal_name, registered_address, bir_tin)
+       values('Cash probe', 'cash-${suffix}', 'Cash Probe Test Company', 'Synthetic fixture address', 'TEST-TIN-CASH')
        returning id`
     )) as Rows
   )[0]!.id as string
@@ -268,7 +268,7 @@ async function seedCashFixture(
          project_id,
          account_id,
          created_by,
-         invoice_number,
+         invoice_number, pricing_basis, withholding_bps,
          billing_percent_bps,
          retention_bps,
          subtotal_cents,
@@ -283,7 +283,7 @@ async function seedCashFixture(
          '${projectId}',
          '${businessAccountId}',
          '${actorId}',
-         'INV-${suffix}',
+         'INV-${suffix}', 'reconciled_v1', 180,
          2500,
          1000,
          100000,

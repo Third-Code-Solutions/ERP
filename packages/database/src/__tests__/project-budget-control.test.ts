@@ -163,8 +163,9 @@ async function seedBudgetFixture(
   )[0]!.suffix as string
   const tenantId = (
     (await tx.unsafe(
-      `insert into tenants(name, slug)
-       values('Budget probe', 'budget-${suffix}')
+      `insert into tenants(name, slug, legal_name, registered_address, bir_tin)
+       values('Budget probe', 'budget-${suffix}', 'Synthetic Budget Company',
+         'Synthetic budget fixture address', 'TEST-BUDGET-TIN')
        returning id`
     )) as Rows
   )[0]!.id as string
@@ -212,12 +213,10 @@ async function seedBudgetFixture(
   const sourceBomId = (
     (await tx.unsafe(
       `insert into boms(
-         tenant_id, project_id, created_by, label, tcv_cents, gp_cents,
-         gp_margin_bps
+         tenant_id, project_id, created_by, label
        )
        values(
-         '${tenantId}', '${projectId}', '${creatorId}', 'Approved BOQ source',
-         1000000, 220000, 2200
+         '${tenantId}', '${projectId}', '${creatorId}', 'Approved BOQ source'
        )
        returning id`
     )) as Rows
@@ -231,7 +230,7 @@ async function seedBudgetFixture(
          unit,
          quantity,
          unit_cost_cents,
-         line_total_cents
+         markup_bps, manual_vat_bps
        )
        values(
          '${tenantId}',
@@ -240,11 +239,16 @@ async function seedBudgetFixture(
          'lot',
          1,
          ${amountCents},
-         ${amountCents}
+         2821, 0
        )
        returning id`
     )) as Rows
   )[0]!.id as string
+  // A 28.21% cost markup gives the asserted 22% selling margin after centavo rounding.
+  await tx.unsafe(
+    `update boms set status = 'approved', approved_by = '${commercialId}', approved_at = now()
+       where id = '${sourceBomId}'`
+  )
   const budgetId = (
     (await tx.unsafe(
       `insert into project_budgets(

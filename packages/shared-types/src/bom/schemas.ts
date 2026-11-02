@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { bomQuantitySchema } from './quantity'
 
 export const bomStatusValues = ['draft', 'approved', 'locked', 'archived'] as const
 export type BomStatus = typeof bomStatusValues[number]
@@ -18,7 +19,7 @@ export const createBomLineItemSchema = z.object({
   code: z.string().max(50).optional(),
   description: z.string().min(1).max(1000),
   unit: z.string().max(20).optional(),
-  quantity: z.number().int().min(0).default(0),
+  quantity: bomQuantitySchema.default(0),
   unit_cost_cents: z.number().int().min(0).default(0),
   markup_bps: z.number().int().min(0).max(10000).default(0),
   notes: z.string().max(2000).optional(),

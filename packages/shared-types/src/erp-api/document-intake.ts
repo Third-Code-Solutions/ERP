@@ -1,5 +1,16 @@
 import { z } from 'zod'
 
+export const documentUploadReserveSchema = z.object({
+  projectId: z.string().uuid(),
+  fileName: z.string().trim().min(1).max(255),
+  mimeType: z.string().trim().toLowerCase().max(127).regex(/^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/).default('application/octet-stream'),
+  sizeBytes: z.number().int().positive().max(100 * 1024 * 1024),
+}).strict()
+export const documentUploadReservationResultSchema = z.object({
+  reservationId: z.string().uuid(), storagePath: z.string().min(1), expiresAt: z.string().datetime(),
+}).strict()
+export type DocumentUploadReserve = z.infer<typeof documentUploadReserveSchema>
+
 /**
  * Server-authorized document intake. Storage objects are uploaded before this
  * command; Nest records the canonical document row and audit event.

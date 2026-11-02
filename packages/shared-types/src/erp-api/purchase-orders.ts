@@ -1,11 +1,27 @@
 import { z } from 'zod'
+import { quantityToMicros, MICRO_UNITS_PER_WHOLE } from './inventory'
+
+export const purchaseOrderQuantitySchema = z.number().refine((value) => {
+  if (!Number.isFinite(value) || value <= 0 || value > 2_147_483_647) return false
+  try { quantityToMicros(String(value)); return true } catch { return false }
+}, 'Quantity must be positive, at most 2147483647, with at most six decimal places')
+
+export function purchaseOrderLineTotal(unitCostCents: number, quantity: number): number {
+  purchaseOrderQuantitySchema.parse(quantity)
+  if (!Number.isSafeInteger(unitCostCents) || unitCostCents < 0) {
+    throw new RangeError('Unit cost must be a non-negative safe integer')
+  }
+  const total = (BigInt(unitCostCents) * quantityToMicros(String(quantity)) + MICRO_UNITS_PER_WHOLE / 2n) / MICRO_UNITS_PER_WHOLE
+  if (total > BigInt(Number.MAX_SAFE_INTEGER)) throw new RangeError('Line total exceeds the supported centavo range')
+  return Number(total)
+}
 
 const purchaseOrderLineSchema = z
   .object({
     code: z.string().trim().max(50).optional(),
     description: z.string().trim().min(1).max(2_000),
     unit: z.string().trim().max(20).optional(),
-    quantity: z.number().int().positive().max(2_147_483_647),
+    quantity: purchaseOrderQuantitySchema,
     unitCostCents: z.number().int().nonnegative().safe(),
     costCodeId: z.string().uuid(),
   })

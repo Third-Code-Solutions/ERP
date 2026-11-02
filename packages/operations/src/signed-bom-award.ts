@@ -19,7 +19,7 @@ import {
 } from '@third-code-erp/database/schema'
 import { and, asc, desc, eq, sql } from 'drizzle-orm'
 import { randomUUID } from 'node:crypto'
-import { topLevelBomLines } from '@third-code-erp/shared-types/bom'
+import { topLevelBomLines, allocateBomInvoice } from '@third-code-erp/shared-types/bom'
 import { writeAwardAuditInTransaction } from './audit'
 import { resolveAwardBusinessDayService } from './business-calendar'
 
@@ -512,7 +512,10 @@ async function ensureDraftInvoice(
     projectId: string
     accountId: string | null
     projectCode: string
-  tcvCents: bigint
+    bomId: string
+    pricingBasis: string
+    sellingExVatCents: number
+    vatCents: number
     downPaymentBps: number
     creatorId: string
     now: Date
@@ -529,8 +532,14 @@ async function ensureDraftInvoice(
     return existing.id
   }
 
-  const subtotalCentavos = (args.tcvCents * BigInt(args.downPaymentBps)) / 10_000n
-  const subtotalCents = safeCurrencyNumber(subtotalCentavos, 'Down-payment subtotal')
+  const amounts = allocateBomInvoice({
+    pricingBasis: args.pricingBasis,
+    sellingExVatCents: args.sellingExVatCents,
+    vatCents: args.vatCents,
+    billingPercentBps: args.downPaymentBps,
+    retentionBps: 0,
+    withholdingBps: 0,
+  })
   const [invoice] = await tx
     .insert(invoices)
     .values({
@@ -542,11 +551,14 @@ async function ensureDraftInvoice(
       status: 'draft',
       billing_percent_bps: args.downPaymentBps,
       retention_bps: 0,
-      subtotal_cents: subtotalCents,
+      withholding_bps: 0,
+      pricing_basis: args.pricingBasis,
+      source_bom_id: args.bomId,
+      subtotal_cents: amounts.subtotalCents,
       retention_cents: 0,
-      vat_cents: 0,
+      vat_cents: amounts.vatCents,
       withholding_tax_cents: 0,
-      net_amount_cents: subtotalCents,
+      net_amount_cents: amounts.netAmountCents,
       notes:
         args.downPaymentBps === 0
           ? 'WO-13 draft placeholder; commercial down-payment rate and tax treatment require Finance confirmation.'
@@ -751,12 +763,16 @@ export async function runSignedBomAward(
       opportunityId: boms.opportunity_id,
       status: boms.status,
       tcvCents: boms.tcv_cents,
+      pricingBasis: boms.pricing_basis,
+      sellingExVatCents: boms.selling_ex_vat_cents,
+      vatCents: boms.vat_cents,
     })
     .from(boms)
     .where(and(eq(boms.tenant_id, args.tenantId), eq(boms.id, args.bomId)))
     .limit(1)
   if (!bom || bom.tenantId !== args.tenantId) throw new Error('BOM not found in tenant scope')
   if (bom.status !== 'locked') throw new Error('Only a locked BOM can be awarded')
+  if (bom.pricingBasis !== 'reconciled_v1') throw new Error('Legacy BOM pricing requires an explicitly reviewed revision before award')
 
   const [project] = await tx
     .select({
@@ -819,7 +835,10 @@ export async function runSignedBomAward(
     projectId: bom.projectId,
     accountId: project.accountId,
     projectCode,
-    tcvCents: currencyBigInt(bom.tcvCents, 'BOM TCV'),
+    bomId: bom.id,
+    pricingBasis: bom.pricingBasis,
+    sellingExVatCents: bom.sellingExVatCents,
+    vatCents: bom.vatCents,
     downPaymentBps,
     creatorId,
     now,

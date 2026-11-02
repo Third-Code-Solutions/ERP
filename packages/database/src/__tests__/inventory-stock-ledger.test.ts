@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { quantityToMicros } from '@third-code-erp/shared-types'
 import {
   DATABASE_URL,
   becomeAuthenticated,
@@ -313,9 +314,10 @@ interface InventoryFixture {
 
 async function seedInventoryFixture(
   tx: postgres.TransactionSql,
-  options: { receiptMicros?: number } = {}
+  options: { receiptMicros?: number; bomQuantity?: number } = {}
 ): Promise<InventoryFixture> {
   const receiptMicros = options.receiptMicros ?? 4_000_000
+  const orderedSubtotal = quantityToMicros(String(options.bomQuantity ?? 10)) * 10000n / 1_000_000n
   const suffix = (
     (await tx.unsafe(
       `select substr(md5(random()::text), 1, 10) as suffix`
@@ -323,8 +325,8 @@ async function seedInventoryFixture(
   )[0]!.suffix as string
   const tenantId = (
     (await tx.unsafe(
-      `insert into tenants(name, slug)
-       values('Inventory probe', 'inventory-${suffix}')
+      `insert into tenants(name, slug, legal_name, registered_address, bir_tin)
+       values('Inventory probe', 'inventory-${suffix}', 'Inventory Probe Test Company', 'Synthetic fixture address', 'TEST-TIN-INV')
        returning id`
     )) as Rows
   )[0]!.id as string
@@ -410,7 +412,7 @@ async function seedInventoryFixture(
       `insert into units_of_measure(
          tenant_id, code, name, decimal_places, created_by
        )
-       values('${tenantId}', 'PCS', 'Pieces', 0, '${procurementId}')
+       values('${tenantId}', 'PCS', 'Pieces', ${options.bomQuantity === undefined ? 0 : 6}, '${procurementId}')
        returning id`
     )) as Rows
   )[0]!.id as string
@@ -468,12 +470,20 @@ async function seedInventoryFixture(
          '${procurementId}',
          'PO-${suffix}',
          'issued',
-         100000,
-         100000
+         ${orderedSubtotal},
+         ${orderedSubtotal}
        )
        returning id`
     )) as Rows
   )[0]!.id as string
+  let sourceLineId: string | null = null
+  if (options.bomQuantity !== undefined) {
+    const [bom] = await tx<{ id: string }[]>`insert into boms(tenant_id,project_id,created_by)
+      values(${tenantId},${projectId},${procurementId}) returning id`
+    const [line] = await tx<{ id: string }[]>`insert into bom_line_items(tenant_id,bom_id,description,quantity,unit_cost_cents)
+      values(${tenantId},${bom!.id},'Fractional procurement source',${options.bomQuantity},10000) returning id`
+    sourceLineId = line!.id
+  }
   const poLineId = (
     (await tx.unsafe(
       `insert into po_line_items(
@@ -486,7 +496,7 @@ async function seedInventoryFixture(
          material_item_id,
          cost_code_id,
          uom_id,
-         quantity,
+         bom_line_item_id, quantity,
          quantity_micros,
          unit_cost_cents,
          line_total_cents
@@ -501,10 +511,11 @@ async function seedInventoryFixture(
          '${itemId}',
          '${costCodeId}',
          '${uomId}',
-         10,
-         10000000,
+         ${sourceLineId ? `'${sourceLineId}'` : 'null'},
+         ${sourceLineId ? `(select quantity from bom_line_items where id='${sourceLineId}')` : 10},
+         0,
          10000,
-         100000
+         ${orderedSubtotal}
        )
        returning id`
     )) as Rows
@@ -794,7 +805,25 @@ runtimeSuite('inventory stock ledger runtime proof', () => {
     })
     expect(result.poLine).toMatchObject({
       received_quantity_micros: '4000000',
-      received_qty: 4,
+      received_qty: expect.stringMatching(/^4\.0+$/),
+    })
+  })
+
+  it.each([[0.1, 50_000], [12.5, 2_250_000]])('preserves BOM %s through PO and a partial stock receipt', async (quantity, receiptMicros) => {
+    await inRollback(sqlClient, async tx => {
+      const f = await seedInventoryFixture(tx, { bomQuantity: quantity, receiptMicros })
+      await tx`select * from post_stock_receipt(${f.receiptId},${f.financeId},'2026-07-27')`
+      const [line] = await tx`select quantity,quantity_micros,received_qty,received_quantity_micros from po_line_items where id=${f.poLineId}`
+      expect(Number(line!.quantity)).toBe(quantity)
+      expect(BigInt(line!.quantity_micros)).toBe(quantityToMicros(String(quantity)))
+      expect(Number(line!.received_qty)).toBe(receiptMicros / 1_000_000)
+      expect(BigInt(line!.received_quantity_micros)).toBe(BigInt(receiptMicros))
+      const [stock] = await tx`select sum(quantity_delta_micros)::text as quantity from stock_ledger_entries where stock_receipt_id=${f.receiptId}`
+      expect(stock!.quantity).toBe(String(receiptMicros))
+      await tx`select * from reverse_stock_receipt(${f.receiptId},${f.financeId},'Fractional receipt regression','2026-07-28')`
+      const [reversed] = await tx`select received_qty,received_quantity_micros from po_line_items where id=${f.poLineId}`
+      expect(Number(reversed!.received_qty)).toBe(0)
+      expect(BigInt(reversed!.received_quantity_micros)).toBe(0n)
     })
   })
 
@@ -951,7 +980,7 @@ runtimeSuite('inventory stock ledger runtime proof', () => {
     })
     expect(result.poLine).toMatchObject({
       received_quantity_micros: '0',
-      received_qty: 0,
+      received_qty: expect.stringMatching(/^0\.0+$/),
     })
   })
 

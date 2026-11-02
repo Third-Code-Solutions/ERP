@@ -344,6 +344,8 @@ export type CustomerInvoiceIssueResult = z.infer<
  */
 export const customerInvoiceDraftCreateBodySchema = z
   .object({
+    retentionBps: z.number().int().min(0).max(10000).optional(),
+    withholdingBps: z.number().int().min(0).max(10000).optional(),
     billingPercentBps: z.number().int().min(1).max(10_000),
     bomId: z.string().uuid().nullable().default(null),
     dueDate: z
@@ -357,6 +359,8 @@ export const customerInvoiceDraftCreateBodySchema = z
 
 export const customerInvoiceDraftCreateCommandSchema = z
   .object({
+    retentionBps: z.number().int().min(0).max(10000).optional(),
+    withholdingBps: z.number().int().min(0).max(10000).optional(),
     projectId: z.string().uuid(),
     billingPercentBps: z.number().int().min(1).max(10_000),
     bomId: z.string().uuid().nullable().default(null),

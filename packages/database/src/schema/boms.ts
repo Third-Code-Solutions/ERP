@@ -30,6 +30,9 @@ export const boms = pgTable(
     // Totals (in PHP centavos, computed from line items)
     total_cost_cents: bigint('total_cost_cents', { mode: 'number' }).notNull().default(0),
     tcv_cents: bigint('tcv_cents', { mode: 'number' }).notNull().default(0),
+    selling_ex_vat_cents: bigint('selling_ex_vat_cents', { mode: 'number' }).notNull().default(0),
+    vat_cents: bigint('vat_cents', { mode: 'number' }).notNull().default(0),
+    pricing_basis: text('pricing_basis').notNull().default('legacy_unreviewed'),
     gp_cents: bigint('gp_cents', { mode: 'number' }).notNull().default(0),
     // Margin in basis points (0-10000 = 0%-100%)
     gp_margin_bps: integer('gp_margin_bps').notNull().default(0),

@@ -3,6 +3,7 @@ import {
   check,
   index,
   pgTable,
+  text,
   timestamp,
   uniqueIndex,
   uuid,
@@ -22,6 +23,10 @@ export const tenants = pgTable(
     organization_type: varchar('organization_type', { length: 64 })
       .notNull()
       .default('other'),
+    legal_name: varchar('legal_name', { length: 255 }),
+    registered_address: text('registered_address'),
+    document_email: varchar('document_email', { length: 255 }),
+    document_phone: varchar('document_phone', { length: 64 }),
     pcab_license: varchar('pcab_license', { length: 50 }),
     bir_tin: varchar('bir_tin', { length: 20 }),
     dpo_contact: varchar('dpo_contact', { length: 255 }),
@@ -63,3 +68,14 @@ export const tenants = pgTable(
 
 export type Tenant = typeof tenants.$inferSelect
 export type TenantInsert = typeof tenants.$inferInsert
+
+export interface IssuerLegalProfileSnapshot {
+  schema_version: 1
+  workspace_name: string
+  legal_name: string | null
+  registered_address: string | null
+  document_email: string | null
+  document_phone: string | null
+  bir_tin: string | null
+  pcab_license: string | null
+}
