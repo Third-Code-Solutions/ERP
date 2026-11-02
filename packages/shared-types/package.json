@@ -27,6 +27,6 @@
   "devDependencies": {
     "@third-code-erp/config": "workspace:*",
     "typescript": "^5.7.2",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.12"
   }
 }

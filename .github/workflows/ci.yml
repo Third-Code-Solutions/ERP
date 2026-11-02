@@ -143,6 +143,12 @@ jobs:
       - run: pnpm test:controlled-release-plan
       - run: pnpm test:release-identity-plan
       - run: pnpm test:web-db-boundary
+      - run: pnpm test:doc-authority
+      - run: pnpm test:roadmap-foundation
+      - run: pnpm test:type-safety
+      - run: pnpm test:app-router-boundaries
+      - run: pnpm test:abi-ops-brand
+      - run: pnpm test:production-surface
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
