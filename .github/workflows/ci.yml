@@ -556,8 +556,10 @@ jobs:
           WORKER: ${{ matrix.worker }}
         run: |
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$PWD/.trivyignore:/.trivyignore:ro" \
             aquasec/trivy@sha256:af6acf9a6b85dfe389a1941505c0ce9efef52a4719635e1a962f022a3d855daa \
-            image --scanners vuln --severity HIGH,CRITICAL --exit-code 1 "abi-ops-worker:$WORKER"
+            image --scanners vuln --severity HIGH,CRITICAL --exit-code 1 \
+            --ignorefile /.trivyignore "abi-ops-worker:$WORKER"
 
   security:
     name: Security Scan

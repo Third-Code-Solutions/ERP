@@ -1,0 +1,9 @@
+# Scoped, expiring waivers for the worker image Trivy gate (HIGH,CRITICAL).
+# Each entry needs a reason and an expiry; delete it when a fix ships.
+
+# libsqlite3-0 3.46.1-7+deb13u2 (Debian 13 base). Status "affected": Debian has
+# published no fixed version, so a rebuild cannot clear it. The workers never open
+# an untrusted SQLite database or run caller-supplied SQL; sqlite3 is present only
+# as part of the CPython stdlib build. Waiver lapses on the expiry date so it
+# cannot outlive the next base-image refresh. Recorded 2026-11-02.
+CVE-2026-119373 exp:2026-12-02
