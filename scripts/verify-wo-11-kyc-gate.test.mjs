@@ -1138,8 +1138,15 @@ test('fails if an action reintroduces a post-commit SLA helper', () => {
 })
 
 test('fails if a mounted action adds a direct or aliased database writer', () => {
-  const direct = replaceTextOnce(
+  // The regression under test also brings back the table import it writes to.
+  const withTableImport = replaceTextOnce(
     read(pprfResubmissionActionPath),
+    "import { db } from '@third-code-erp/database'",
+    "import { db } from '@third-code-erp/database'\nimport { pprfSubmissions } from '@third-code-erp/database/schema'",
+    'writer fixtures must import the PPRF table'
+  )
+  const direct = replaceTextOnce(
+    withTableImport,
     'export async function submitPprf(opportunityId: string, formData: FormData) {',
     'export async function submitPprf(opportunityId: string, formData: FormData) {\n  await db.insert(pprfSubmissions).values({})',
     'direct writer fixture must modify submitPprf'
@@ -1150,7 +1157,7 @@ test('fails if a mounted action adds a direct or aliased database writer', () =>
   )
 
   const aliased = replaceTextOnce(
-    read(pprfResubmissionActionPath),
+    withTableImport,
     'export async function submitPprf(opportunityId: string, formData: FormData) {',
     'export async function submitPprf(opportunityId: string, formData: FormData) {\n  const submissionTable = pprfSubmissions\n  await db.insert(submissionTable).values({})',
     'aliased writer fixture must modify submitPprf'

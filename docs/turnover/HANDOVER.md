@@ -186,6 +186,7 @@ action.
 | 16 | Client portal BOM page now shows the recorded BOM total (TCV) only; it no longer recomputes VAT and retention, which are applied per progress billing | Client sees one figure matching the internal BOM, with a note that VAT/retention apply on each billing | Confirm with ABI that this is how they want the BOM presented to clients |
 | 17 | Asset service-log cost is now entered in pesos (e.g. `1500.00`) and stored in centavos; it was previously a raw centavo field | Older entries are unaffected; staff entering cost must use pesos | Mention in user training |
 | 18 | RFQ bid comparison for estimator/viewer roles is computed in the web app from the quote rows the page already shows; the Core read (`procurement.rfq_read`) is limited to owner/admin/commercial/finance/procurement | Same comparison either way; no API permission was widened | Decide whether to add estimator/viewer to `procurement.rfq_read` |
+| 19 | Dependency advisories waived in `pnpm-workspace.yaml` (each justified there): zod GHSA-mrhx-c7xc-m3w5 (fix only in zod 4), minimatch GHSA-g3hv-75wg-m249 (fix only in a breaking major; no user-supplied patterns), plus dev-only deepmerge and glob | zod: a very large array that fails validation can use a lot of memory; request bodies are capped (server actions 3 MB, API JSON 4 MB) | Schedule the zod 3 → 4 migration across all packages, then drop the zod waiver; re-check the others when patched releases ship |
 
 ## 9. Acceptance checklist (client sign-off)
 

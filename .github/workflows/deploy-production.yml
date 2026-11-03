@@ -26,7 +26,7 @@ jobs:
   promote:
     name: Promote ABI OPS production
     if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     environment:
       name: production

@@ -147,6 +147,20 @@ Copy and UX
   procurement, project and punchlist actions; `safeActionError` maps
   `AuthError` FORBIDDEN and `Forbidden:` messages to the same copy.
 
+## Fixed — CI and dependency security
+
+- Next.js 15.5.27 → 15.5.28 (critical GHSA-2464-fhr4-w9xw image-optimizer
+  RCE and the server-action DoS advisory); `eslint-config-next` to match.
+- vite 7.3.7, vitest 4.1.12; overrides for body-parser 2.4.0, multer 2.5.0,
+  qs 6.16.1, fast-uri 3.1.9, systeminformation 5.33.16.
+- Four advisories waived with written justification in `pnpm-workspace.yaml`
+  (HANDOVER §8 item 19).
+- Playwright jobs pinned to `ubuntu-24.04`: `ubuntu-latest` moved to 26.04,
+  which Playwright Chromium does not support yet.
+- WO-11 contract fixture now adds the table import its simulated writer
+  needs (the unused `getLatestPprf` helper and import were removed); the API
+  upload-complete integration spec expects the new "The ERP service" copy.
+
 ## Docs
 
 - `.env.example` now lists all 197 `ERP_*` routing flags used in code
