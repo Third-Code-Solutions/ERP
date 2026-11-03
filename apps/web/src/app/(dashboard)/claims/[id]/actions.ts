@@ -21,12 +21,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
-import {
-  requireUserProfile,
-  can,
-  type ErpCapability,
-  type AppRole,
-} from '@third-code-erp/auth'
+import { requireUserProfile, can } from '@third-code-erp/auth'
 import {
   claimDocumentAttachCommandSchema,
   claimTransitionPayload,
@@ -42,6 +37,7 @@ import {
   getProjectDocumentsThroughCoreApi,
 } from '@/lib/erp-core-client'
 import { transitionClaimThroughCoreApi } from '@/lib/claim-transition-core-client'
+import { claimActionPermissions } from './claim-permissions'
 
 type ClaimStatus =
   | 'draft'
@@ -54,16 +50,6 @@ type ClaimStatus =
   | 'rejected'
   | 'cancelled'
 
-const COMMERCIAL_ROLES: AppRole[] = ['admin', 'owner', 'commercial']
-const FINANCE_ROLES: AppRole[] = ['admin', 'owner', 'finance']
-
-function hasAnyCapability(role: AppRole, caps: ErpCapability[]): boolean {
-  return caps.some((c) => can(role, c))
-}
-
-function hasAnyRole(role: AppRole, allowed: AppRole[]): boolean {
-  return allowed.includes(role)
-}
 
 function revalidateClaim(claimId: string): void {
   revalidatePath('/claims')
@@ -119,7 +105,7 @@ async function executeCoreTransition(
     (result.data.changed && receipt.fromStatus !== claim.status)
   ) {
     return {
-      error: 'ERP Core API returned an invalid claim transition result.',
+      error: 'The ERP service returned an invalid claim transition result.',
       outcome: 'unknown',
     }
   }
@@ -137,10 +123,10 @@ export async function submitClaim(
   const profile = await requireUserProfile()
 
   if (
-    !hasAnyCapability(profile.role, ['precon.manage_checklist', 'po.create'])
+    !claimActionPermissions(profile.role).submit
   ) {
     return {
-      error: `Forbidden: role "${profile.role}" cannot submit progress claims`,
+      error: 'Your role cannot submit progress claims.',
     }
   }
 
@@ -178,9 +164,9 @@ export async function markCertificatePending(
 ): Promise<ClaimTransitionActionResult> {
   const profile = await requireUserProfile()
 
-  if (!hasAnyRole(profile.role, COMMERCIAL_ROLES)) {
+  if (!claimActionPermissions(profile.role).commercial) {
     return {
-      error: `Forbidden: only Commercial can mark a claim as awaiting certificate`,
+      error: 'Only Commercial can mark a claim as awaiting certificate.',
     }
   }
 
@@ -209,9 +195,9 @@ export async function recordCertification(
 ): Promise<ClaimTransitionActionResult> {
   const profile = await requireUserProfile()
 
-  if (!hasAnyRole(profile.role, COMMERCIAL_ROLES)) {
+  if (!claimActionPermissions(profile.role).commercial) {
     return {
-      error: `Forbidden: only Commercial can certify a progress claim`,
+      error: 'Only Commercial can certify a progress claim.',
     }
   }
 
@@ -258,9 +244,9 @@ export async function handoverToFinance(
 ): Promise<ClaimTransitionActionResult> {
   const profile = await requireUserProfile()
 
-  if (!hasAnyRole(profile.role, COMMERCIAL_ROLES)) {
+  if (!claimActionPermissions(profile.role).commercial) {
     return {
-      error: `Forbidden: only Commercial can hand over a claim to Finance`,
+      error: 'Only Commercial can hand over a claim to Finance.',
     }
   }
 
@@ -299,8 +285,8 @@ export async function linkInvoice(
 ): Promise<ClaimTransitionActionResult> {
   const profile = await requireUserProfile()
 
-  if (!hasAnyRole(profile.role, FINANCE_ROLES)) {
-    return { error: `Forbidden: only Finance can link an invoice to a claim` }
+  if (!claimActionPermissions(profile.role).finance) {
+    return { error: 'Only Finance can link an invoice to a claim.' }
   }
 
   const invoiceIdResult = z.string().uuid().safeParse(invoiceId)
@@ -334,8 +320,8 @@ export async function recordPayment(
 ): Promise<ClaimTransitionActionResult> {
   const profile = await requireUserProfile()
 
-  if (!hasAnyRole(profile.role, FINANCE_ROLES)) {
-    return { error: `Forbidden: only Finance can record a claim payment` }
+  if (!claimActionPermissions(profile.role).finance) {
+    return { error: 'Only Finance can record a claim payment.' }
   }
 
   const claim = await loadClaim(claimId, profile.tenantId)
@@ -374,14 +360,10 @@ export async function rejectClaim(
   const profile = await requireUserProfile()
 
   if (
-    !hasAnyCapability(profile.role, [
-      'po.create',
-      'precon.manage_checklist',
-      'finance.issue_invoice',
-    ])
+    !claimActionPermissions(profile.role).rejectOrCancel
   ) {
     return {
-      error: `Forbidden: role "${profile.role}" cannot reject progress claims`,
+      error: 'Your role cannot reject progress claims.',
     }
   }
 
@@ -421,14 +403,10 @@ export async function cancelClaim(
   const profile = await requireUserProfile()
 
   if (
-    !hasAnyCapability(profile.role, [
-      'po.create',
-      'precon.manage_checklist',
-      'finance.issue_invoice',
-    ])
+    !claimActionPermissions(profile.role).rejectOrCancel
   ) {
     return {
-      error: `Forbidden: role "${profile.role}" cannot cancel progress claims`,
+      error: 'Your role cannot cancel progress claims.',
     }
   }
 
@@ -474,7 +452,7 @@ export async function attachClaimDocument(
   const profile = await requireUserProfile()
   if (!can(profile.role, 'document.manage')) {
     return {
-      error: `Forbidden: role "${profile.role}" lacks document.manage`,
+      error: 'Your role does not have permission to do this.',
     }
   }
 
@@ -512,7 +490,7 @@ export async function attachClaimDocument(
   }
   if (!result.data) {
     return {
-      error: 'ERP Core API returned no attachment result.',
+      error: 'The ERP service returned no attachment result.',
       outcome: 'unknown',
     }
   }
@@ -525,7 +503,7 @@ export async function attachClaimDocument(
     result.data.documentId !== parsedCommand.data.documentId
   ) {
     return {
-      error: 'ERP Core API returned an invalid claim document result.',
+      error: 'The ERP service returned an invalid claim document result.',
       outcome: 'unknown',
     }
   }
@@ -548,7 +526,7 @@ export async function listClaimDocuments(
   if (!can(profile.role, 'document.manage')) {
     return {
       ok: false,
-      error: `Forbidden: role "${profile.role}" lacks document.manage permission`,
+      error: 'Your role does not have permission to do this.',
     }
   }
 
@@ -573,10 +551,10 @@ export async function listClaimDocuments(
     return { ok: false, error: result.error ?? 'Project documents were not loaded.' }
   }
   if (!result.data) {
-    return { ok: false, error: 'ERP Core API returned no project document list.' }
+    return { ok: false, error: 'The ERP service returned no project document list.' }
   }
   if (result.data.projectId !== claim.project_id) {
-    return { ok: false, error: 'ERP Core API returned an invalid project document scope.' }
+    return { ok: false, error: 'The ERP service returned an invalid project document scope.' }
   }
   return { ok: true, data: result.data }
 }

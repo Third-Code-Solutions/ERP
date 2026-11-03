@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
@@ -6,6 +7,11 @@ import { requireUserProfile, can } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { users as usersTable, auditLog } from '@third-code-erp/database/schema'
 import { ManageUserPanel } from '@/components/admin/manage-user-panel'
+import { adminUserRoleAssignmentWritesUseCoreApi } from '@/lib/erp-core-client'
+import { ACCOUNT_STATUS_LABEL, ACCOUNT_STATUS_TONE } from '../account-status'
+import { humanizeToken, summarizeAuditDiff } from '@/lib/operations/audit-diff-summary'
+
+export const metadata: Metadata = { title: 'User' }
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -142,6 +148,15 @@ export default async function UserDetailPage({ params, searchParams }: PageProps
                   <span className="stage-badge-dot" />
                   {ROLE_LABEL[user.role] ?? user.role}
                 </span>
+                {user.account_status !== 'active' && (
+                  <>
+                    {' '}
+                    <span className={ACCOUNT_STATUS_TONE[user.account_status] ?? 'stage-badge'}>
+                      <span className="stage-badge-dot" />
+                      {ACCOUNT_STATUS_LABEL[user.account_status] ?? user.account_status}
+                    </span>
+                  </>
+                )}
               </p>
             </div>
           </div>
@@ -181,6 +196,8 @@ export default async function UserDetailPage({ params, searchParams }: PageProps
                 currentRole={user.role}
                 email={user.email}
                 isSelf={isSelf}
+                accountStatus={user.account_status}
+                canChangeRole={adminUserRoleAssignmentWritesUseCoreApi(profile.tenantId)}
               />
             </div>
           </div>}
@@ -204,7 +221,7 @@ export default async function UserDetailPage({ params, searchParams }: PageProps
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <strong style={{ fontWeight: 500 }}>{e.action}</strong>
+                      <strong style={{ fontWeight: 500 }}>{humanizeToken(e.action)}</strong>
                       <span
                         style={{
                           color: 'var(--color-neutral-500)',
@@ -217,6 +234,15 @@ export default async function UserDetailPage({ params, searchParams }: PageProps
                       </span>
                     </div>
                     {canManage && e.diff !== null && (
+                      <p style={{ margin: '4px 0 0', color: 'var(--color-neutral-600)' }}>
+                        {summarizeAuditDiff(e.diff, 4)}
+                      </p>
+                    )}
+                    {canManage && e.diff !== null && (
+                      <details style={{ marginTop: 4 }}>
+                        <summary style={{ fontSize: 11.5, color: 'var(--color-neutral-500)', cursor: 'pointer' }}>
+                          Full change record
+                        </summary>
                       <pre
                         style={{
                           margin: '6px 0 0',
@@ -232,6 +258,7 @@ export default async function UserDetailPage({ params, searchParams }: PageProps
                       >
                         {safeStringify(e.diff)}
                       </pre>
+                      </details>
                     )}
                   </li>
                 ))}
@@ -258,6 +285,13 @@ export default async function UserDetailPage({ params, searchParams }: PageProps
               <Meta label="Email" value={user.email} />
               <Meta label="Full name" value={user.full_name} />
               <Meta label="Role" value={ROLE_LABEL[user.role] ?? user.role} />
+              <Meta
+                label="Status"
+                value={ACCOUNT_STATUS_LABEL[user.account_status] ?? user.account_status}
+              />
+              {user.account_status !== 'active' && user.status_reason && (
+                <Meta label="Status reason" value={user.status_reason} />
+              )}
               <Meta
                 label="Created"
                 value={new Date(user.created_at).toLocaleString('en-PH', {

@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { getUser } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { opportunities, projects, users } from '@third-code-erp/database/schema'
-import { and, eq, desc } from 'drizzle-orm'
+import { and, eq, desc, inArray } from 'drizzle-orm'
 import { formatCentsCompact } from '@third-code-erp/shared-types'
 import { AddOpportunityForm } from '@/components/pipeline/add-opportunity-form'
 
@@ -36,7 +36,8 @@ export default async function CoveragePage() {
       .where(
         and(
           eq(opportunities.tenant_id, userRow.tenant_id),
-          eq(opportunities.stage, 'opportunity_creation')
+          // 'lead' is the canonical first stage; 'opportunity_creation' is its legacy name.
+          inArray(opportunities.stage, ['lead', 'opportunity_creation'])
         )
       )
       .orderBy(desc(opportunities.created_at)),
@@ -95,7 +96,7 @@ export default async function CoveragePage() {
           <p style={{ fontSize: '0.875rem', margin: '0 0 16px' }}>No leads in coverage yet.</p>
         </div>
       ) : (
-        <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
+        <div className="data-table-wrap" tabIndex={0} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px' }}>
           <table className="data-table">
             <thead>
               <tr>
@@ -130,11 +131,11 @@ export default async function CoveragePage() {
                   <td className="currency">{opp.gp_cents > 0 ? formatCentsCompact(opp.gp_cents) : '—'}</td>
                   <td style={{ color: 'var(--color-neutral-500)', fontSize: '0.8125rem' }}>
                     {opp.closing_date
-                      ? new Date(opp.closing_date).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
+                      ? new Date(opp.closing_date).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' })
                       : '—'}
                   </td>
                   <td style={{ color: 'var(--color-neutral-400)', fontSize: '0.75rem' }}>
-                    {new Date(opp.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}
+                    {new Date(opp.created_at).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric' })}
                   </td>
                 </tr>
               ))}

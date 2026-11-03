@@ -12,6 +12,7 @@ import {
 } from '@third-code-erp/database/schema'
 import { and, eq, sql } from 'drizzle-orm'
 import { CashActions } from './cash-actions'
+import { manilaToday } from '@/lib/operations/manila-date'
 
 export const metadata: Metadata = { title: 'Cash transaction' }
 
@@ -311,7 +312,7 @@ export default async function CashTransactionPage({
           <CashActions
             transactionId={transaction.id}
             status={transaction.status}
-            defaultDate={new Date().toISOString().slice(0, 10)}
+            defaultDate={manilaToday()}
           />
         )}
         <div className="finance-record-list">

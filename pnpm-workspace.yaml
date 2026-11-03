@@ -12,18 +12,19 @@ overrides:
   "minimatch@10>brace-expansion": 5.0.12
   nanoid: 3.3.18
   postcss: 8.5.23
-  qs: 6.16.0
+  qs: 6.16.1
   sharp: 0.35.5
   proxy-addr: 2.0.8
   source-map-js: 1.2.2
-  multer: 2.4.0
+  multer: 2.5.0
+  body-parser: 2.4.0
   "@ai-sdk/provider-utils@4": 4.0.33
   shell-quote: 1.11.0
   # ABI OPS calls Mammoth's library, never its optional command-line program.
   # Remove the CLI-only argparse -> unpatched sprintf-js advisory chain.
   "mammoth@1.12.0>argparse": "-"
   tmp: 0.2.7
-  fast-uri: 3.1.8
+  fast-uri: 3.1.9
   js-yaml: 4.3.2
   "vite>esbuild": 0.28.2
   "drizzle-kit>esbuild": 0.28.2
@@ -41,18 +42,37 @@ overrides:
   "inngest>@opentelemetry/resources": 2.10.0
   "inngest>@opentelemetry/sdk-trace-base": 2.10.0
   "@traceloop/instrumentation-anthropic>@opentelemetry/core": 2.10.0
+  "@opentelemetry/instrumentation-host-metrics>systeminformation": 5.33.16
 
 # Scoped advisory waiver. `braces` GHSA-vfj7-8cjw-p6xm is flagged `<=3.0.3`
 # with no patched release published (3.0.3 is the newest version and has been
 # unchanged since 2024-09-18), so no override can resolve it. It is reachable
 # only from the root devDependency chain
 #   eslint-config-next > @next/eslint-plugin-next > fast-glob > micromatch > braces
-# and is absent from the production dependency graph, which `pnpm audit --prod`
-# verifies clean. This waiver names one advisory; the audit level is unchanged
+# and is absent from the production dependency graph. The waivers below were
+# added 2026-11-03 and each names one advisory; the audit level is unchanged
 # and every other advisory still fails the gate.
+#
+# - deepmerge GHSA-gcqx-w48m-w2h4: no patched release exists; reachable only
+#   from the `@nestjs/cli` devDependency chain (build tooling, never deployed).
+# - glob GHSA-3g3m-2fjr-6pw4: AbortSignal cancellation bypass; reachable only
+#   from `@nestjs/cli` (dev). The fix is only in the 14.x major.
+# - minimatch GHSA-g3hv-75wg-m249: needs an attacker-controlled glob pattern.
+#   ABI OPS passes no user input as a pattern (production path is
+#   exceljs > archiver > readdir-glob, unused by xlsx export). The fix is only
+#   in the 11.x major, which changes the export shape older consumers require.
+# - zod GHSA-mrhx-c7xc-m3w5: memory growth when a huge array fails validation.
+#   The fix is only in zod 4.6.6; ABI OPS uses the zod 3 API across every
+#   package, so the fix is a monorepo-wide migration (HANDOVER §8 item 19).
+#   Request bodies stay bounded meanwhile (Next server actions 3 MB, API JSON
+#   body 4 MB).
 auditConfig:
   ignoreGhsas:
     - GHSA-vfj7-8cjw-p6xm
+    - GHSA-gcqx-w48m-w2h4
+    - GHSA-3g3m-2fjr-6pw4
+    - GHSA-g3hv-75wg-m249
+    - GHSA-mrhx-c7xc-m3w5
 
 peerDependencyRules:
   ignoreMissing:

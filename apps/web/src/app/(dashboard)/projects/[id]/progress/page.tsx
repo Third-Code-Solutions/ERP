@@ -17,7 +17,7 @@ import {
   projectWeeklyProgressReadsUseCoreApi,
   projectWeeklyProgressWritesUseCoreApi,
 } from '@/lib/erp-core-client'
-import { loadProgressContext } from './actions'
+import { loadProgressContext } from './queries'
 
 export const metadata: Metadata = { title: 'Progress' }
 
@@ -178,7 +178,7 @@ export default async function ProjectProgressPage({
             rows={weeklyLedger?.ok && weeklyLedger.data ? weeklyLedger.data.rows : []}
             canLock={coreWritesEnabled && can(profile.role, 'precon.manage_checklist')}
             loadError={weeklyLedgerEnabled && (!weeklyLedger?.ok || !weeklyLedger.data)
-              ? 'Core weekly evidence is unavailable. Legacy progress history remains visible; no WAR state was assumed.'
+              ? 'Weekly progress records could not be loaded. Earlier progress history is still shown below.'
               : null}
           />
 
@@ -208,7 +208,7 @@ export default async function ProjectProgressPage({
                     return (
                       <tr key={u.id}>
                         <td>
-                          {new Date(u.week_ending).toLocaleDateString('en-PH', {
+                          {new Date(u.week_ending).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila',
                             year: 'numeric',
                             month: 'short',
                             day: 'numeric',

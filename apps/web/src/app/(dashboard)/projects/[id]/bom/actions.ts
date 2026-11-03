@@ -155,7 +155,7 @@ export async function createBom(projectId: string): Promise<{ id: string } | { e
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
   if (!can(profile.role, 'bom.edit')) {
-    return { error: `Forbidden: role "${profile.role}" lacks "bom.edit"` }
+    return { error: 'Your role does not have permission to do this.' }
   }
 
   const bomId = await db.transaction(async (tx) => {
@@ -211,7 +211,7 @@ export async function addBomLineItem(
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
   if (!can(profile.role, 'bom.edit')) {
-    return { error: `Forbidden: role "${profile.role}" lacks "bom.edit"` }
+    return { error: 'Your role does not have permission to do this.' }
   }
 
   const [bom] = await db
@@ -368,7 +368,7 @@ export async function upsertDupaForBomLine(
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
   if (!can(profile.role, 'bom.edit')) {
-    return { error: `Forbidden: role "${profile.role}" lacks "bom.edit"` }
+    return { error: 'Your role does not have permission to do this.' }
   }
 
   const ids = [z.string().uuid().safeParse(projectId), z.string().uuid().safeParse(bomId)]
@@ -726,7 +726,7 @@ export async function deleteBomLineItem(
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
   if (!can(profile.role, 'bom.edit')) {
-    return { error: `Forbidden: role "${profile.role}" lacks "bom.edit"` }
+    return { error: 'Your role does not have permission to do this.' }
   }
 
   const [bom] = await db
@@ -811,7 +811,7 @@ export async function approveBom(bomId: string, projectId: string): Promise<{ er
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
   if (!can(profile.role, 'bom.approve_internal')) {
-    return { error: `Forbidden: role "${profile.role}" lacks "bom.approve_internal"` }
+    return { error: 'Your role does not have permission to do this.' }
   }
 
   const approved = await db.transaction(async (tx) => {
@@ -1062,7 +1062,7 @@ export async function resolveBomGrainReview(input: unknown): Promise<{ error?: s
   const profile = await requireUserProfile().catch(() => null)
   if (!profile) return { error: 'Unauthorized' }
   if (!can(profile.role, 'bom.edit')) {
-    return { error: `Forbidden: role "${profile.role}" lacks "bom.edit"` }
+    return { error: 'Your role does not have permission to do this.' }
   }
 
   const [review] = await db
@@ -1427,7 +1427,7 @@ export async function createProjectLocation(
   const profile = await requireUserProfile().catch(() => null)
   if (!profile) return { error: 'Unauthorized' }
   if (!can(profile.role, 'bom.edit')) {
-    return { error: 'Forbidden: role "' + profile.role + '" lacks "bom.edit"' }
+    return { error: 'Your role does not have permission to do this.' }
   }
 
   const location = await db.transaction(async (tx) => {
@@ -1484,7 +1484,7 @@ export async function resolveBomLocationReview(input: unknown): Promise<{ error?
   const profile = await requireUserProfile().catch(() => null)
   if (!profile) return { error: 'Unauthorized' }
   if (!can(profile.role, 'bom.edit')) {
-    return { error: 'Forbidden: role "' + profile.role + '" lacks "bom.edit"' }
+    return { error: 'Your role does not have permission to do this.' }
   }
 
   const [review] = await db
@@ -1673,7 +1673,7 @@ export async function setBomLineLocation(input: unknown): Promise<{ error?: stri
   const profile = await requireUserProfile().catch(() => null)
   if (!profile) return { error: 'Unauthorized' }
   if (!can(profile.role, 'bom.edit')) {
-    return { error: 'Forbidden: role "' + profile.role + '" lacks "bom.edit"' }
+    return { error: 'Your role does not have permission to do this.' }
   }
 
   const [line] = await db
@@ -1989,7 +1989,7 @@ export async function setLineItemVendor(
   const profile = await requireUserProfile().catch(() => null)
   if (!profile) return { error: 'Unauthorized' }
   if (!can(profile.role, 'bom.edit')) {
-    return { error: `Forbidden: role "${profile.role}" lacks "bom.edit"` }
+    return { error: 'Your role does not have permission to do this.' }
   }
 
   const [line] = await db

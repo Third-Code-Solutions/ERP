@@ -114,9 +114,9 @@ describe('Project creation Core authority', () => {
       error: 'Project creation is not enabled for this tenant.',
     })
 
-    await expect(createProject(projectForm())).rejects.toThrow(
-      'Project creation is not enabled for this tenant.'
-    )
+    await expect(createProject(projectForm())).resolves.toEqual({
+      error: 'Project creation is not enabled for this tenant.',
+    })
     expect(mocks.redirect).not.toHaveBeenCalled()
   })
 
@@ -129,10 +129,20 @@ describe('Project creation Core authority', () => {
       },
     })
 
-    await expect(createProject(projectForm())).rejects.toThrow(
-      'Project creation returned an invalid tenant scope.'
-    )
+    await expect(createProject(projectForm())).resolves.toEqual({
+      error: 'Project creation returned an invalid tenant scope.',
+    })
     expect(mocks.redirect).not.toHaveBeenCalled()
+  })
+
+  it('returns a plain validation message instead of throwing', async () => {
+    const form = projectForm()
+    form.set('name', '')
+
+    await expect(createProject(form)).resolves.toEqual({
+      error: expect.stringContaining('project name and client are required'),
+    })
+    expect(mocks.createProjectThroughCoreApi).not.toHaveBeenCalled()
   })
 
   it('requires project.create before contacting Core', async () => {

@@ -37,7 +37,7 @@ const mintSchema = z.object({
 
 function ensureCanManageAccess(role: string): string | null {
   if (role !== 'admin' && role !== 'owner') {
-    return `Forbidden: role "${role}" cannot manage customer portal access`
+    return 'Your role cannot manage customer portal access.'
   }
   return null
 }

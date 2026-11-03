@@ -217,7 +217,7 @@ export default async function ProjectsPage({
                   </td>
                   <td>{project.total_sqm?.toLocaleString('en-PH') ?? '—'}</td>
                   <td>
-                    {new Date(project.created_at).toLocaleDateString('en-PH')}
+                    {new Date(project.created_at).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' })}
                   </td>
                 </tr>
               ))}
@@ -259,7 +259,7 @@ export default async function ProjectsPage({
                 <div>
                   <dt>Created</dt>
                   <dd>
-                    {new Date(project.created_at).toLocaleDateString('en-PH', {
+                    {new Date(project.created_at).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila',
                       month: 'short',
                       day: 'numeric',
                       year: 'numeric',

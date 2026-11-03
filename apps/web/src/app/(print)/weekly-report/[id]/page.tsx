@@ -1,6 +1,7 @@
 import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import type { Metadata } from 'next'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
+import { canViewPath } from '@/lib/operations/nav-config'
 import Link from 'next/link'
 import { and, eq } from 'drizzle-orm'
 import { requireUserProfile } from '@third-code-erp/auth'
@@ -58,6 +59,8 @@ export default async function WeeklyReportPrintPage({
     .limit(1)
 
   if (!report) return notFound()
+  // (print) sits outside the dashboard layout, so apply the parent page's route policy here.
+  if (!canViewPath(profile.role, `/projects/${report.project_id}/reports`)) redirect('/dashboard?error=forbidden')
 
   // Parallel small reads for the header — project, account, tenant brand.
   const [projectRow, tenantRow] = await Promise.all([
@@ -160,6 +163,7 @@ export default async function WeeklyReportPrintPage({
         URLs while still being treated as same-origin for auth cookies.
       */}
       <iframe
+        data-print-report
         title="Weekly Report"
         srcDoc={html}
         style={{

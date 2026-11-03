@@ -7,6 +7,7 @@ import {
   findActiveCustomerSession,
   logCustomerView,
 } from '@/lib/operations/customer-portal'
+import { PORTAL_FILE_LINK_SECONDS } from '@/lib/operations/portal-links'
 
 export const metadata: Metadata = {
   title: 'Project photos',
@@ -24,6 +25,7 @@ interface PhotoTile {
 
 function fmtDate(d: Date): string {
   return d.toLocaleString('en-PH', {
+    timeZone: 'Asia/Manila',
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -106,7 +108,7 @@ export default async function PortalProjectPhotosPage({
     try {
       const { data } = await supabase.storage
         .from('documents')
-        .createSignedUrl(r.storage_path, 60)
+        .createSignedUrl(r.storage_path, PORTAL_FILE_LINK_SECONDS)
       url = data?.signedUrl ?? null
     } catch {
       url = null
@@ -176,12 +178,13 @@ export default async function PortalProjectPhotosPage({
           {tiles.map((p) => (
             <a
               key={p.id}
-              href={p.signed_url ?? '#'}
+              // No href when the signed URL failed, so the tile is not a link. A
+              // Server Component cannot pass an onClick handler to block it.
+              href={p.signed_url ?? undefined}
               target="_blank"
               rel="noopener noreferrer"
               className="photo-tile"
               aria-disabled={!p.signed_url}
-              onClick={p.signed_url ? undefined : (e) => e.preventDefault()}
             >
               <div className="photo-thumb">
                 {p.signed_url ? (

@@ -5,6 +5,7 @@ import { db } from '@third-code-erp/database'
 import { ledgerAccounts, projects } from '@third-code-erp/database/schema'
 import { and, eq } from 'drizzle-orm'
 import { JournalForm } from './journal-form'
+import { manilaToday } from '@/lib/operations/manila-date'
 
 export const metadata: Metadata = { title: 'New journal' }
 
@@ -34,7 +35,7 @@ export default async function NewJournalPage() {
       .orderBy(projects.name),
   ])
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = manilaToday()
 
   return (
     <div>

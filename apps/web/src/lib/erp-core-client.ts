@@ -1491,7 +1491,7 @@ export async function getCoreApiAccess(): Promise<
     logCoreApiFailure('erp-core.access', 'not_configured')
     return {
       ok: false,
-      error: 'ERP Core API is not configured.',
+      error: 'The ERP service is not configured.',
     }
   }
 
@@ -1568,7 +1568,7 @@ export async function completeDailyTaskThroughCoreApi(
     if (!parsedResult.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid daily task completion result.',
+        error: 'The ERP service returned an invalid daily task completion result.',
         status: response.status,
       }
     }
@@ -1576,7 +1576,7 @@ export async function completeDailyTaskThroughCoreApi(
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. No daily task was completed.',
+      error: 'The ERP service is unavailable. No daily task was completed.',
       status: 503,
     }
   }
@@ -1614,14 +1614,14 @@ export async function getProcessHealthThroughCoreApi(): Promise<
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid process-health result.',
+        error: 'The ERP service returned an invalid process-health result.',
       }
     }
     return { ok: true, data: parsed.data }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. Process health was not loaded.',
+      error: 'The ERP service is unavailable. Process health was not loaded.',
     }
   }
 }
@@ -1769,7 +1769,7 @@ export async function getProcessTaskQueueThroughCoreApi(
       return {
         ok: false,
         status: 503,
-        error: 'ERP Core API returned an invalid process task queue result.',
+        error: 'The ERP service returned an invalid process task queue result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -1777,7 +1777,7 @@ export async function getProcessTaskQueueThroughCoreApi(
     return {
       ok: false,
       status: 503,
-      error: 'ERP Core API is unavailable. Process task queue was not loaded.',
+      error: 'The ERP service is unavailable. Process task queue was not loaded.',
     }
   }
 }
@@ -1848,7 +1848,7 @@ export async function updateProcessTaskStatusThroughCoreApi(
       return {
         ok: false,
         status: 503,
-        error: 'ERP Core API returned an invalid process task result.',
+        error: 'The ERP service returned an invalid process task result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -1857,7 +1857,7 @@ export async function updateProcessTaskStatusThroughCoreApi(
       ok: false,
       status: 503,
       error:
-        'ERP Core API is unavailable. Process task status outcome is unconfirmed; refresh Process Health before retrying.',
+        'The ERP service is unavailable. Process task status outcome is unconfirmed; refresh Process Health before retrying.',
     }
   }
 }
@@ -1918,7 +1918,7 @@ export async function getApprovalRoutePreviewThroughCoreApi(
       return {
         ok: false,
         status: 503,
-        error: 'ERP Core API returned an invalid approval route preview result.',
+        error: 'The ERP service returned an invalid approval route preview result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -1926,7 +1926,7 @@ export async function getApprovalRoutePreviewThroughCoreApi(
     return {
       ok: false,
       status: 503,
-      error: 'ERP Core API is unavailable. Approval route preview was not loaded.',
+      error: 'The ERP service is unavailable. Approval route preview was not loaded.',
     }
   }
 }
@@ -1974,7 +1974,7 @@ export async function searchCortexThroughCoreApi(
       return {
         ok: false,
         status: 503,
-        error: 'ERP Core API returned an invalid Cortex search result.',
+        error: 'The ERP service returned an invalid Cortex search result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -2029,7 +2029,7 @@ export async function searchUniversalThroughCoreApi(
       return {
         ok: false,
         status: 503,
-        error: 'ERP Core API returned an invalid universal search result.',
+        error: 'The ERP service returned an invalid universal search result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -2094,7 +2094,7 @@ export async function getCortexBriefThroughCoreApi(
       return {
         ok: false,
         status: 503,
-        error: 'ERP Core API returned an invalid Cortex brief result.',
+        error: 'The ERP service returned an invalid Cortex brief result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -2167,7 +2167,7 @@ export async function getCortexChatRetrievalThroughCoreApi(
       return {
         ok: false,
         status: 503,
-        error: 'ERP Core API returned an invalid Cortex chat retrieval result.',
+        error: 'The ERP service returned an invalid Cortex chat retrieval result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -2240,7 +2240,7 @@ export async function getCortexConversationContextThroughCoreApi(
         ok: false,
         status: 503,
         error:
-          'ERP Core API returned an invalid Cortex conversation context result.',
+          'The ERP service returned an invalid Cortex conversation context result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -2301,7 +2301,7 @@ export async function getCortexGraphThroughCoreApi(
       return {
         ok: false,
         status: 503,
-        error: 'ERP Core API returned an invalid Cortex graph result.',
+        error: 'The ERP service returned an invalid Cortex graph result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -2357,7 +2357,7 @@ export async function getCortexEntityThroughCoreApi(
       return {
         ok: false,
         status: 503,
-        error: 'ERP Core API returned an invalid Cortex entity result.',
+        error: 'The ERP service returned an invalid Cortex entity result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -2408,7 +2408,7 @@ export async function listCortexConversationsThroughCoreApi(): Promise<
       return {
         ok: false,
         status: 503,
-        error: 'ERP Core API returned an invalid Cortex conversation list.',
+        error: 'The ERP service returned an invalid Cortex conversation list.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -2458,7 +2458,7 @@ export async function getCortexConversationThroughCoreApi(
       return {
         ok: false,
         status: 503,
-        error: 'ERP Core API returned an invalid Cortex conversation.',
+        error: 'The ERP service returned an invalid Cortex conversation.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -2516,7 +2516,7 @@ export async function appendCortexConversationUserTurnThroughCoreApi(
       return {
         ok: false,
         status: 503,
-        error: 'ERP Core API returned an invalid Cortex user-turn result.',
+        error: 'The ERP service returned an invalid Cortex user-turn result.',
       }
     }
     return { ok: true, data: parsed.data, status: response.status }
@@ -2638,7 +2638,7 @@ export async function claimCortexConversationAssistantTurnThroughCoreApi(
       return {
         ok: false,
         status: 503,
-        error: 'ERP Core API returned an invalid assistant generation claim.',
+        error: 'The ERP service returned an invalid assistant generation claim.',
       }
     }
     return { ok: true, data: parsed.data, status: response.status }
@@ -2707,7 +2707,7 @@ export async function completeCortexConversationAssistantTurnThroughCoreApi(
       return {
         ok: false,
         status: 503,
-        error: 'ERP Core API returned an invalid assistant completion.',
+        error: 'The ERP service returned an invalid assistant completion.',
       }
     }
     return { ok: true, data: parsed.data, status: response.status }
@@ -2774,7 +2774,7 @@ export async function startCortexAssistantGenerationJobThroughCoreApi(
       return {
         ok: false,
         status: 503,
-        error: 'ERP Core API returned an invalid assistant generation job.',
+        error: 'The ERP service returned an invalid assistant generation job.',
       }
     }
     return { ok: true, data: parsed.data, status: response.status }
@@ -2818,7 +2818,7 @@ export async function getCortexAssistantGenerationJobThroughCoreApi(
       : {
           ok: false,
           status: 503,
-          error: 'ERP Core API returned an invalid assistant generation status.',
+          error: 'The ERP service returned an invalid assistant generation status.',
         }
   } catch {
     return {
@@ -2864,7 +2864,7 @@ export async function getCortexAssistantGenerationResultThroughCoreApi(
       : {
           ok: false,
           status: 503,
-          error: 'ERP Core API returned an invalid assistant generation result.',
+          error: 'The ERP service returned an invalid assistant generation result.',
         }
   } catch {
     return {
@@ -2956,7 +2956,7 @@ export async function createCortexSemanticIndexJobThroughCoreApi(
       return {
         ok: false,
         status: 503,
-        error: 'ERP Core API returned an invalid semantic index job.',
+        error: 'The ERP service returned an invalid semantic index job.',
       }
     }
     return { ok: true, data: status.data }
@@ -3005,7 +3005,7 @@ export async function getCortexSemanticIndexJobThroughCoreApi(
       return {
         ok: false,
         status: 503,
-        error: 'ERP Core API returned an invalid semantic index status.',
+        error: 'The ERP service returned an invalid semantic index status.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -3159,14 +3159,14 @@ export async function deleteDocumentThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid document deletion result.',
+        error: 'The ERP service returned an invalid document deletion result.',
       }
     }
     return { ok: true, data: parsed.data }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. No document was deleted.',
+      error: 'The ERP service is unavailable. No document was deleted.',
     }
   }
 }
@@ -3213,14 +3213,14 @@ export async function createDocumentThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid document intake result.',
+        error: 'The ERP service returned an invalid document intake result.',
       }
     }
     return { ok: true, data: parsed.data, status: response.status }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. No document was recorded.',
+      error: 'The ERP service is unavailable. No document was recorded.',
       status: 503,
     }
   }
@@ -3291,7 +3291,7 @@ export async function executeTakeoffImportThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid takeoff import result.',
+        error: 'The ERP service returned an invalid takeoff import result.',
         status: 502,
       }
     }
@@ -3302,7 +3302,7 @@ export async function executeTakeoffImportThroughCoreApi(
     ) {
       return {
         ok: false,
-        error: 'ERP Core API returned a mismatched takeoff import result.',
+        error: 'The ERP service returned a mismatched takeoff import result.',
         status: 502,
       }
     }
@@ -3310,7 +3310,7 @@ export async function executeTakeoffImportThroughCoreApi(
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. No takeoff data was committed.',
+      error: 'The ERP service is unavailable. No takeoff data was committed.',
       status: 503,
     }
   }
@@ -3337,7 +3337,7 @@ export async function archiveInspectionReportThroughCoreApi(
     if (!response.ok) return { ok: false, error: 'Inspection report archive was not confirmed. Retry the same inspection.', status: response.status }
     const parsed = inspectionReportArchiveResultSchema.safeParse(body)
     if (!parsed.success || parsed.data.opportunityId.toLowerCase() !== opportunityId.toLowerCase() || parsed.data.inspectionId.toLowerCase() !== inspectionId.toLowerCase()) {
-      return { ok: false, error: 'ERP Core API returned an invalid inspection archive result.', status: 502 }
+      return { ok: false, error: 'The ERP service returned an invalid inspection archive result.', status: 502 }
     }
     return { ok: true, data: parsed.data }
   } catch {
@@ -3402,8 +3402,8 @@ export async function createInspectionPhotoThroughCoreApi(
                 ? 'Opportunity not found.'
                 : 'Inspection photo request was rejected.'
           : response.status >= 500
-            ? 'ERP Core API returned a server error. Inspection photo outcome is unconfirmed; retry the same request.'
-            : 'ERP Core API returned an unconfirmed inspection photo outcome. Retry the same request.'
+            ? 'The ERP service returned a server error. Inspection photo outcome is unconfirmed; retry the same request.'
+            : 'The ERP service returned an unconfirmed inspection photo outcome. Retry the same request.'
       return { ok: false, error: message, status: response.status }
     }
 
@@ -3412,7 +3412,7 @@ export async function createInspectionPhotoThroughCoreApi(
       return {
         ok: false,
         error:
-          'ERP Core API returned an invalid inspection photo result. Outcome is unconfirmed; retry the same request.',
+          'The ERP service returned an invalid inspection photo result. Outcome is unconfirmed; retry the same request.',
         status: 502,
       }
     }
@@ -3427,7 +3427,7 @@ export async function createInspectionPhotoThroughCoreApi(
       return {
         ok: false,
         error:
-          'ERP Core API returned a mismatched inspection photo result. Outcome is unconfirmed; retry the same request.',
+          'The ERP service returned a mismatched inspection photo result. Outcome is unconfirmed; retry the same request.',
         status: 502,
       }
     }
@@ -3437,7 +3437,7 @@ export async function createInspectionPhotoThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. Inspection photo outcome is unconfirmed; retry the same request.',
+        'The ERP service is unavailable. Inspection photo outcome is unconfirmed; retry the same request.',
       status: 503,
     }
   }
@@ -3450,7 +3450,7 @@ export async function signPublicSignatureThroughCoreApi(
 ): Promise<CoreResult<PublicSigningResult>> {
   const baseUrl = getCoreApiBaseUrl()
   if (!baseUrl) {
-    return { ok: false, error: 'ERP Core API is not configured.' }
+    return { ok: false, error: 'The ERP service is not configured.' }
   }
 
   try {
@@ -3486,14 +3486,14 @@ export async function signPublicSignatureThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid signature result.',
+        error: 'The ERP service returned an invalid signature result.',
       }
     }
     return { ok: true, data: parsed.data }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. No signature was recorded.',
+      error: 'The ERP service is unavailable. No signature was recorded.',
     }
   }
 }
@@ -3538,14 +3538,14 @@ export async function updateProjectThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid Project result.',
+        error: 'The ERP service returned an invalid Project result.',
       }
     }
     return { ok: true, data: parsed.data }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. No Project change was committed.',
+      error: 'The ERP service is unavailable. No Project change was committed.',
     }
   }
 }
@@ -3665,14 +3665,14 @@ export async function getProjectThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid Project read result.',
+        error: 'The ERP service returned an invalid Project read result.',
       }
     }
     return { ok: true, data: parsed.data }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. Project data was not read.',
+      error: 'The ERP service is unavailable. Project data was not read.',
     }
   }
 }
@@ -3715,7 +3715,7 @@ export async function getProjectCommandCenterThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid project command center result.',
+        error: 'The ERP service returned an invalid project command center result.',
         status: response.status,
       }
     }
@@ -3723,7 +3723,7 @@ export async function getProjectCommandCenterThroughCoreApi(
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. Project signals were not read.',
+      error: 'The ERP service is unavailable. Project signals were not read.',
       status: 503,
     }
   }
@@ -3777,14 +3777,14 @@ export async function getAuditActivityThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid audit activity result.',
+        error: 'The ERP service returned an invalid audit activity result.',
       }
     }
     return { ok: true, data: parsed.data }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. Audit activity was not read.',
+      error: 'The ERP service is unavailable. Audit activity was not read.',
     }
   }
 }
@@ -3838,14 +3838,14 @@ export async function getFinanceLedgerThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid finance ledger result.',
+        error: 'The ERP service returned an invalid finance ledger result.',
       }
     }
     return { ok: true, data: parsed.data, status: response.status }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. Finance ledger was not read.',
+      error: 'The ERP service is unavailable. Finance ledger was not read.',
     }
   }
 }
@@ -3898,14 +3898,14 @@ export async function getFinanceReceivablesThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid customer receivables result.',
+        error: 'The ERP service returned an invalid customer receivables result.',
       }
     }
     return { ok: true, data: parsed.data, status: response.status }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. Customer receivables were not read.',
+      error: 'The ERP service is unavailable. Customer receivables were not read.',
     }
   }
 }
@@ -3958,14 +3958,14 @@ export async function getFinancePayablesThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid supplier payables result.',
+        error: 'The ERP service returned an invalid supplier payables result.',
       }
     }
     return { ok: true, data: parsed.data, status: response.status }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. Supplier payables were not read.',
+      error: 'The ERP service is unavailable. Supplier payables were not read.',
     }
   }
 }
@@ -4018,14 +4018,14 @@ export async function getFinanceCashThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid cash transaction result.',
+        error: 'The ERP service returned an invalid cash transaction result.',
       }
     }
     return { ok: true, data: parsed.data, status: response.status }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. Cash transactions were not read.',
+      error: 'The ERP service is unavailable. Cash transactions were not read.',
     }
   }
 }
@@ -4070,14 +4070,14 @@ export async function getFinanceReconciliationThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid bank reconciliation result.',
+        error: 'The ERP service returned an invalid bank reconciliation result.',
       }
     }
     return { ok: true, data: parsed.data, status: response.status }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. Bank reconciliation was not read.',
+      error: 'The ERP service is unavailable. Bank reconciliation was not read.',
     }
   }
 }
@@ -4123,7 +4123,7 @@ export async function getFinanceReconciliationDetailThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid bank statement detail result.',
+        error: 'The ERP service returned an invalid bank statement detail result.',
       }
     }
     return { ok: true, data: parsed.data, status: response.status }
@@ -4131,7 +4131,7 @@ export async function getFinanceReconciliationDetailThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. Bank statement detail was not read.',
+        'The ERP service is unavailable. Bank statement detail was not read.',
     }
   }
 }
@@ -4186,7 +4186,7 @@ export async function createBankStatementThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid bank statement import result.',
+        error: 'The ERP service returned an invalid bank statement import result.',
         status: 502,
       }
     }
@@ -4194,7 +4194,7 @@ export async function createBankStatementThroughCoreApi(
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. No bank statement was imported.',
+      error: 'The ERP service is unavailable. No bank statement was imported.',
       status: 503,
     }
   }
@@ -4245,7 +4245,7 @@ export async function signBankStatementStorageThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid bank statement upload result.',
+        error: 'The ERP service returned an invalid bank statement upload result.',
         status: 502,
       }
     }
@@ -4253,7 +4253,7 @@ export async function signBankStatementStorageThroughCoreApi(
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. Bank statement upload was not signed.',
+      error: 'The ERP service is unavailable. Bank statement upload was not signed.',
       status: 503,
     }
   }
@@ -4304,7 +4304,7 @@ export async function cleanupBankStatementStorageThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid bank statement cleanup result.',
+        error: 'The ERP service returned an invalid bank statement cleanup result.',
         status: 502,
       }
     }
@@ -4312,7 +4312,7 @@ export async function cleanupBankStatementStorageThroughCoreApi(
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. Source cleanup was not completed.',
+      error: 'The ERP service is unavailable. Source cleanup was not completed.',
       status: 503,
     }
   }
@@ -4371,7 +4371,7 @@ export async function autoMatchBankStatementThroughCoreApi(
       return {
         ok: false,
         error:
-          'ERP Core API returned an invalid bank statement auto-match result.',
+          'The ERP service returned an invalid bank statement auto-match result.',
         status: 502,
       }
     }
@@ -4380,7 +4380,7 @@ export async function autoMatchBankStatementThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. No bank statement was auto-matched.',
+        'The ERP service is unavailable. No bank statement was auto-matched.',
       status: 503,
     }
   }
@@ -4417,7 +4417,7 @@ export async function matchBankStatementLineThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. The bank statement line was not matched.',
+        'The ERP service is unavailable. The bank statement line was not matched.',
       status: 503,
     }
   }
@@ -4453,7 +4453,7 @@ export async function unmatchBankStatementLineThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. The bank statement line was not unmatched.',
+        'The ERP service is unavailable. The bank statement line was not unmatched.',
       status: 503,
     }
   }
@@ -4489,7 +4489,7 @@ async function parseBankStatementLineMatchResponse(
   if (!parsed.success) {
     return {
       ok: false,
-      error: 'ERP Core API returned an invalid bank statement line result.',
+      error: 'The ERP service returned an invalid bank statement line result.',
       status: 502,
     }
   }
@@ -4545,7 +4545,7 @@ export async function reconcileBankStatementThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid bank statement reconcile result.',
+        error: 'The ERP service returned an invalid bank statement reconcile result.',
         status: 502,
       }
     }
@@ -4554,7 +4554,7 @@ export async function reconcileBankStatementThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. The bank statement was not reconciled.',
+        'The ERP service is unavailable. The bank statement was not reconciled.',
       status: 503,
     }
   }
@@ -4610,7 +4610,7 @@ export async function voidBankStatementThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid bank statement void result.',
+        error: 'The ERP service returned an invalid bank statement void result.',
         status: 502,
       }
     }
@@ -4618,7 +4618,7 @@ export async function voidBankStatementThroughCoreApi(
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. The bank statement was not voided.',
+      error: 'The ERP service is unavailable. The bank statement was not voided.',
       status: 503,
     }
   }
@@ -4657,14 +4657,14 @@ export async function getNotificationsThroughCoreApi(): Promise<
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid notification result.',
+        error: 'The ERP service returned an invalid notification result.',
       }
     }
     return { ok: true, data: parsed.data, status: response.status }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. Notifications were not loaded.',
+      error: 'The ERP service is unavailable. Notifications were not loaded.',
     }
   }
 }
@@ -4779,7 +4779,7 @@ export async function markNotificationReadStateThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid notification update result.',
+        error: 'The ERP service returned an invalid notification update result.',
       }
     }
     return { ok: true, data: parsed.data, status: response.status }
@@ -4787,7 +4787,7 @@ export async function markNotificationReadStateThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. Notification read state was not updated.',
+        'The ERP service is unavailable. Notification read state was not updated.',
     }
   }
 }
@@ -4837,7 +4837,7 @@ export async function getProjectsThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid Project list result.',
+        error: 'The ERP service returned an invalid Project list result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -4845,7 +4845,7 @@ export async function getProjectsThroughCoreApi(
     logCoreApiFailure('projects.list', classifyCoreApiTransport(error), error)
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. Project list was not read.',
+      error: 'The ERP service is unavailable. Project list was not read.',
     }
   }
 }
@@ -4891,14 +4891,14 @@ export async function getTodayThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid Today result.',
+        error: 'The ERP service returned an invalid Today result.',
       }
     }
     return { ok: true, data: parsed.data, status: response.status }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. Today data was not read.',
+      error: 'The ERP service is unavailable. Today data was not read.',
     }
   }
 }
@@ -4948,14 +4948,14 @@ export async function getAccountsThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid Account list result.',
+        error: 'The ERP service returned an invalid Account list result.',
       }
     }
     return { ok: true, data: parsed.data }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. Account list was not read.',
+      error: 'The ERP service is unavailable. Account list was not read.',
     }
   }
 }
@@ -4994,14 +4994,14 @@ export async function getKycQueueThroughCoreApi(): Promise<
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid KYC queue result.',
+        error: 'The ERP service returned an invalid KYC queue result.',
       }
     }
     return { ok: true, data: parsed.data }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. KYC queue was not read.',
+      error: 'The ERP service is unavailable. KYC queue was not read.',
     }
   }
 }
@@ -5043,14 +5043,14 @@ export async function getAccountThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid Account detail result.',
+        error: 'The ERP service returned an invalid Account detail result.',
       }
     }
     return { ok: true, data: parsed.data }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. Account detail was not read.',
+      error: 'The ERP service is unavailable. Account detail was not read.',
     }
   }
 }
@@ -5102,7 +5102,7 @@ export async function getAssetsThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid asset register result.',
+        error: 'The ERP service returned an invalid asset register result.',
         status: 503,
       }
     }
@@ -5110,7 +5110,7 @@ export async function getAssetsThroughCoreApi(
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. Assets were not read.',
+      error: 'The ERP service is unavailable. Assets were not read.',
       status: 503,
     }
   }
@@ -5157,7 +5157,7 @@ export async function getAssetThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid asset detail result.',
+        error: 'The ERP service returned an invalid asset detail result.',
         status: 503,
       }
     }
@@ -5165,7 +5165,7 @@ export async function getAssetThroughCoreApi(
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. Asset detail was not read.',
+      error: 'The ERP service is unavailable. Asset detail was not read.',
       status: 503,
     }
   }
@@ -5217,7 +5217,7 @@ export async function getAssetMaintenanceThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid asset maintenance result.',
+        error: 'The ERP service returned an invalid asset maintenance result.',
         status: 503,
       }
     }
@@ -5225,7 +5225,7 @@ export async function getAssetMaintenanceThroughCoreApi(
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. Maintenance history was not read.',
+      error: 'The ERP service is unavailable. Maintenance history was not read.',
       status: 503,
     }
   }
@@ -5276,7 +5276,7 @@ export async function getAssetMaintenanceDueThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid maintenance due result.',
+        error: 'The ERP service returned an invalid maintenance due result.',
         status: 503,
       }
     }
@@ -5284,7 +5284,7 @@ export async function getAssetMaintenanceDueThroughCoreApi(
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. Maintenance due items were not read.',
+      error: 'The ERP service is unavailable. Maintenance due items were not read.',
       status: 503,
     }
   }
@@ -5333,7 +5333,7 @@ export async function createAssetMaintenanceThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid asset maintenance result.',
+        error: 'The ERP service returned an invalid asset maintenance result.',
         status: 503,
       }
     }
@@ -5341,7 +5341,7 @@ export async function createAssetMaintenanceThroughCoreApi(
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. No maintenance record was created.',
+      error: 'The ERP service is unavailable. No maintenance record was created.',
       status: 503,
     }
   }
@@ -5378,14 +5378,14 @@ export async function getInventorySummaryThroughCoreApi(): Promise<
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid inventory summary result.',
+        error: 'The ERP service returned an invalid inventory summary result.',
       }
     }
     return { ok: true, data: parsed.data }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. Inventory was not read.',
+      error: 'The ERP service is unavailable. Inventory was not read.',
     }
   }
 }
@@ -5429,7 +5429,7 @@ export async function getInventoryStockMovementsThroughCoreApi(
       return {
         ok: false,
         error:
-          'ERP Core API returned an invalid Stock Movement register result.',
+          'The ERP service returned an invalid Stock Movement register result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -5437,7 +5437,7 @@ export async function getInventoryStockMovementsThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. Stock Movement register was not read.',
+        'The ERP service is unavailable. Stock Movement register was not read.',
     }
   }
 }
@@ -5482,7 +5482,7 @@ export async function getInventoryStockMovementDetailThroughCoreApi(
         ok: false,
         status: response.status,
         error:
-          'ERP Core API returned an invalid Stock Movement detail result.',
+          'The ERP service returned an invalid Stock Movement detail result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -5490,7 +5490,7 @@ export async function getInventoryStockMovementDetailThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. Stock Movement detail was not read.',
+        'The ERP service is unavailable. Stock Movement detail was not read.',
     }
   }
 }
@@ -5534,7 +5534,7 @@ export async function createStockMovementThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid Stock Movement result.',
+        error: 'The ERP service returned an invalid Stock Movement result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -5542,7 +5542,7 @@ export async function createStockMovementThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. No Stock Movement was committed.',
+        'The ERP service is unavailable. No Stock Movement was committed.',
     }
   }
 }
@@ -5591,7 +5591,7 @@ export async function postStockMovementThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid Stock Movement posting result.',
+        error: 'The ERP service returned an invalid Stock Movement posting result.',
         status: response.status,
       }
     }
@@ -5599,7 +5599,7 @@ export async function postStockMovementThroughCoreApi(
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. No Stock Movement was posted.',
+      error: 'The ERP service is unavailable. No Stock Movement was posted.',
     }
   }
 }
@@ -5648,7 +5648,7 @@ export async function reverseStockMovementThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid Stock Movement reversal result.',
+        error: 'The ERP service returned an invalid Stock Movement reversal result.',
         status: response.status,
       }
     }
@@ -5656,7 +5656,7 @@ export async function reverseStockMovementThroughCoreApi(
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. No Stock Movement was reversed.',
+      error: 'The ERP service is unavailable. No Stock Movement was reversed.',
     }
   }
 }
@@ -5705,7 +5705,7 @@ export async function configureInventoryItemThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid inventory item configuration result.',
+        error: 'The ERP service returned an invalid inventory item configuration result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -5713,7 +5713,7 @@ export async function configureInventoryItemThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. No inventory item configuration was committed.',
+        'The ERP service is unavailable. No inventory item configuration was committed.',
     }
   }
 }
@@ -5754,14 +5754,14 @@ export async function createInventoryUomThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid inventory UOM result.',
+        error: 'The ERP service returned an invalid inventory UOM result.',
       }
     }
     return { ok: true, data: parsed.data }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. No inventory UOM was created.',
+      error: 'The ERP service is unavailable. No inventory UOM was created.',
     }
   }
 }
@@ -5806,14 +5806,14 @@ export async function updateInventoryUomThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid inventory UOM update result.',
+        error: 'The ERP service returned an invalid inventory UOM update result.',
       }
     }
     return { ok: true, data: parsed.data }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. No inventory UOM was updated.',
+      error: 'The ERP service is unavailable. No inventory UOM was updated.',
     }
   }
 }
@@ -5856,7 +5856,7 @@ export async function createInventoryWarehouseThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid inventory Warehouse result.',
+        error: 'The ERP service returned an invalid inventory Warehouse result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -5864,7 +5864,7 @@ export async function createInventoryWarehouseThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. No inventory Warehouse was created.',
+        'The ERP service is unavailable. No inventory Warehouse was created.',
     }
   }
 }
@@ -5911,7 +5911,7 @@ export async function updateInventoryWarehouseThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid inventory Warehouse update result.',
+        error: 'The ERP service returned an invalid inventory Warehouse update result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -5919,7 +5919,7 @@ export async function updateInventoryWarehouseThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. No inventory Warehouse was updated.',
+        'The ERP service is unavailable. No inventory Warehouse was updated.',
     }
   }
 }
@@ -5966,7 +5966,7 @@ export async function getInventoryWarehouseCloseoutThroughCoreApi(
       return {
         ok: false,
         error:
-          'ERP Core API returned an invalid inventory Warehouse closeout result.',
+          'The ERP service returned an invalid inventory Warehouse closeout result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -5974,7 +5974,7 @@ export async function getInventoryWarehouseCloseoutThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. Inventory Warehouse closeout was not read.',
+        'The ERP service is unavailable. Inventory Warehouse closeout was not read.',
     }
   }
 }
@@ -6018,14 +6018,14 @@ export async function getOpportunityThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid Opportunity detail result.',
+        error: 'The ERP service returned an invalid Opportunity detail result.',
       }
     }
     return { ok: true, data: parsed.data }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. Opportunity detail was not read.',
+      error: 'The ERP service is unavailable. Opportunity detail was not read.',
     }
   }
 }
@@ -6073,14 +6073,14 @@ export async function convertOpportunityToProjectThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid Project handoff result.',
+        error: 'The ERP service returned an invalid Project handoff result.',
       }
     }
     return { ok: true, data: parsed.data, status: response.status }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. No Project handoff was completed.',
+      error: 'The ERP service is unavailable. No Project handoff was completed.',
     }
   }
 }
@@ -6123,14 +6123,14 @@ export async function createOpportunityThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid Opportunity creation result.',
+        error: 'The ERP service returned an invalid Opportunity creation result.',
       }
     }
     return { ok: true, data: parsed.data, status: response.status }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. No Opportunity was created.',
+      error: 'The ERP service is unavailable. No Opportunity was created.',
     }
   }
 }
@@ -6179,7 +6179,7 @@ export async function transitionOpportunityStageThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid Opportunity stage transition result.',
+        error: 'The ERP service returned an invalid Opportunity stage transition result.',
       }
     }
     return { ok: true, data: parsed.data, status: response.status }
@@ -6187,7 +6187,7 @@ export async function transitionOpportunityStageThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. No Opportunity stage transition was committed.',
+        'The ERP service is unavailable. No Opportunity stage transition was committed.',
     }
   }
 }
@@ -6230,14 +6230,14 @@ export async function createProjectThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid Project creation result.',
+        error: 'The ERP service returned an invalid Project creation result.',
       }
     }
     return { ok: true, data: parsed.data }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. No Project was created.',
+      error: 'The ERP service is unavailable. No Project was created.',
     }
   }
 }
@@ -6288,14 +6288,14 @@ export async function retireProjectThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid project retirement result.',
+        error: 'The ERP service returned an invalid project retirement result.',
       }
     }
     return { ok: true, data: parsed.data, status: response.status }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. No project was retired.',
+      error: 'The ERP service is unavailable. No project was retired.',
       status: 503,
     }
   }
@@ -6348,7 +6348,7 @@ export async function createProjectCommentThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid project comment result.',
+        error: 'The ERP service returned an invalid project comment result.',
         status: response.status,
       }
     }
@@ -6356,7 +6356,7 @@ export async function createProjectCommentThroughCoreApi(
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. No project comment was created.',
+      error: 'The ERP service is unavailable. No project comment was created.',
       status: 503,
     }
   }
@@ -6406,7 +6406,7 @@ export async function getProjectCommentsThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid project comment list result.',
+        error: 'The ERP service returned an invalid project comment list result.',
         status: response.status,
       }
     }
@@ -6414,7 +6414,7 @@ export async function getProjectCommentsThroughCoreApi(
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. Project comments were not read.',
+      error: 'The ERP service is unavailable. Project comments were not read.',
       status: 503,
     }
   }
@@ -6466,7 +6466,7 @@ export async function deleteProjectCommentThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid project comment deletion result.',
+        error: 'The ERP service returned an invalid project comment deletion result.',
         status: response.status,
       }
     }
@@ -6474,7 +6474,7 @@ export async function deleteProjectCommentThroughCoreApi(
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. No project comment was deleted.',
+      error: 'The ERP service is unavailable. No project comment was deleted.',
       status: 503,
     }
   }
@@ -6531,7 +6531,7 @@ export async function createCostEntryThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid cost entry result.',
+        error: 'The ERP service returned an invalid cost entry result.',
         outcomeUnknown: true,
       }
     }
@@ -6582,7 +6582,7 @@ export async function deleteCostEntryThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid cost entry deletion result.',
+        error: 'The ERP service returned an invalid cost entry deletion result.',
         outcomeUnknown: true,
       }
     }
@@ -6638,14 +6638,14 @@ export async function createRfqThroughCoreApi(
       return {
         ok: false,
         error:
-          'ERP Core API returned an invalid RFQ creation result.',
+          'The ERP service returned an invalid RFQ creation result.',
       }
     }
     return { ok: true, data: parsed.data }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. No RFQ was created.',
+      error: 'The ERP service is unavailable. No RFQ was created.',
     }
   }
 }
@@ -6691,7 +6691,7 @@ export async function createPurchaseOrderThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid Purchase Order result.',
+        error: 'The ERP service returned an invalid Purchase Order result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -6699,7 +6699,7 @@ export async function createPurchaseOrderThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. No Purchase Order was committed.',
+        'The ERP service is unavailable. No Purchase Order was committed.',
     }
   }
 }
@@ -6748,7 +6748,7 @@ export async function createPurchaseOrderFromBomThroughCoreApi(
       return {
         ok: false,
         error:
-          'ERP Core API returned an invalid BOM Purchase Order result.',
+          'The ERP service returned an invalid BOM Purchase Order result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -6756,7 +6756,7 @@ export async function createPurchaseOrderFromBomThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. No BOM Purchase Order was committed.',
+        'The ERP service is unavailable. No BOM Purchase Order was committed.',
     }
   }
 }
@@ -6805,7 +6805,7 @@ export async function createPurchaseOrdersGroupedFromBomThroughCoreApi(
       return {
         ok: false,
         error:
-          'ERP Core API returned an invalid grouped BOM Purchase Order result.',
+          'The ERP service returned an invalid grouped BOM Purchase Order result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -6813,7 +6813,7 @@ export async function createPurchaseOrdersGroupedFromBomThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. No grouped BOM Purchase Orders were committed.',
+        'The ERP service is unavailable. No grouped BOM Purchase Orders were committed.',
     }
   }
 }
@@ -6862,7 +6862,7 @@ export async function commitTogalBomThroughCoreApi(
       return {
         ok: false,
         status: 503,
-        error: 'ERP Core API returned an invalid Togal BOM commit result.',
+        error: 'The ERP service returned an invalid Togal BOM commit result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -6870,7 +6870,7 @@ export async function commitTogalBomThroughCoreApi(
     return {
       ok: false,
       status: 503,
-      error: 'ERP Core API is unavailable. No Togal BOM lines were committed.',
+      error: 'The ERP service is unavailable. No Togal BOM lines were committed.',
     }
   }
 }
@@ -6916,7 +6916,7 @@ export async function createStockReceiptThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid Stock Receipt result.',
+        error: 'The ERP service returned an invalid Stock Receipt result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -6924,7 +6924,7 @@ export async function createStockReceiptThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. No Stock Receipt was committed.',
+        'The ERP service is unavailable. No Stock Receipt was committed.',
     }
   }
 }
@@ -6970,7 +6970,7 @@ export async function createDeliveryScheduleThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid delivery schedule result.',
+        error: 'The ERP service returned an invalid delivery schedule result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -6978,7 +6978,7 @@ export async function createDeliveryScheduleThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. No delivery schedule was committed.',
+        'The ERP service is unavailable. No delivery schedule was committed.',
     }
   }
 }
@@ -7027,7 +7027,7 @@ export async function markDeliveryInTransitThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid delivery in-transit result.',
+        error: 'The ERP service returned an invalid delivery in-transit result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -7035,7 +7035,7 @@ export async function markDeliveryInTransitThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. No delivery in-transit transition was committed.',
+        'The ERP service is unavailable. No delivery in-transit transition was committed.',
     }
   }
 }
@@ -7084,14 +7084,14 @@ export async function recordDeliveryReceiptThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid delivery receipt result.',
+        error: 'The ERP service returned an invalid delivery receipt result.',
       }
     }
     return { ok: true, data: parsed.data }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. No delivery receipt was committed.',
+      error: 'The ERP service is unavailable. No delivery receipt was committed.',
     }
   }
 }
@@ -7141,7 +7141,7 @@ export async function startDeliverySitePreparationThroughCoreApi(
       return {
         ok: false,
         error:
-          'ERP Core API returned an invalid delivery site-preparation result.',
+          'The ERP service returned an invalid delivery site-preparation result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -7149,7 +7149,7 @@ export async function startDeliverySitePreparationThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. No delivery site preparation was started.',
+        'The ERP service is unavailable. No delivery site preparation was started.',
     }
   }
 }
@@ -7199,7 +7199,7 @@ export async function completeDeliverySitePreparationThroughCoreApi(
       return {
         ok: false,
         error:
-          'ERP Core API returned an invalid site-preparation completion result.',
+          'The ERP service returned an invalid site-preparation completion result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -7207,7 +7207,7 @@ export async function completeDeliverySitePreparationThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. No site-preparation completion was committed.',
+        'The ERP service is unavailable. No site-preparation completion was committed.',
     }
   }
 }
@@ -7256,7 +7256,7 @@ export async function startDeliveryInspectionThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid delivery inspection result.',
+        error: 'The ERP service returned an invalid delivery inspection result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -7264,7 +7264,7 @@ export async function startDeliveryInspectionThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. No delivery inspection was started.',
+        'The ERP service is unavailable. No delivery inspection was started.',
     }
   }
 }
@@ -7314,7 +7314,7 @@ export async function completeDeliveryInspectionThroughCoreApi(
       return {
         ok: false,
         error:
-          'ERP Core API returned an invalid delivery inspection completion result.',
+          'The ERP service returned an invalid delivery inspection completion result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -7322,7 +7322,7 @@ export async function completeDeliveryInspectionThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. No delivery inspection was completed.',
+        'The ERP service is unavailable. No delivery inspection was completed.',
     }
   }
 }
@@ -7371,14 +7371,14 @@ export async function cancelDeliveryThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid delivery cancellation result.',
+        error: 'The ERP service returned an invalid delivery cancellation result.',
       }
     }
     return { ok: true, data: parsed.data }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. No delivery was cancelled.',
+      error: 'The ERP service is unavailable. No delivery was cancelled.',
     }
   }
 }
@@ -7427,14 +7427,14 @@ export async function postStockReceiptThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid Stock Receipt posting result.',
+        error: 'The ERP service returned an invalid Stock Receipt posting result.',
       }
     }
     return { ok: true, data: parsed.data }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. No Stock Receipt was posted.',
+      error: 'The ERP service is unavailable. No Stock Receipt was posted.',
     }
   }
 }
@@ -7483,14 +7483,14 @@ export async function reverseStockReceiptThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid Stock Receipt reversal result.',
+        error: 'The ERP service returned an invalid Stock Receipt reversal result.',
       }
     }
     return { ok: true, data: parsed.data }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. No Stock Receipt was reversed.',
+      error: 'The ERP service is unavailable. No Stock Receipt was reversed.',
     }
   }
 }
@@ -7545,7 +7545,7 @@ export async function transitionPurchaseOrderThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid Purchase Order workflow result.',
+        error: 'The ERP service returned an invalid Purchase Order workflow result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -7553,7 +7553,7 @@ export async function transitionPurchaseOrderThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. No Purchase Order workflow was committed.',
+        'The ERP service is unavailable. No Purchase Order workflow was committed.',
     }
   }
 }
@@ -7596,7 +7596,7 @@ export async function dispatchApprovedBomRfqThroughCoreApi(
       return {
         ok: false,
         error:
-          'ERP Core API returned an invalid RFQ dispatch result.',
+          'The ERP service returned an invalid RFQ dispatch result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -7604,7 +7604,7 @@ export async function dispatchApprovedBomRfqThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. RFQ dispatch was not queued.',
+        'The ERP service is unavailable. RFQ dispatch was not queued.',
     }
   }
 }
@@ -7651,14 +7651,14 @@ export async function logRfqQuoteThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid RFQ quote result.',
+        error: 'The ERP service returned an invalid RFQ quote result.',
       }
     }
     return { ok: true, data: parsed.data }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. No quote was committed.',
+      error: 'The ERP service is unavailable. No quote was committed.',
     }
   }
 }
@@ -7706,7 +7706,7 @@ export async function transitionRfqThroughCoreApi(
       return {
         ok: false,
         error:
-          'ERP Core API returned an invalid RFQ transition result.',
+          'The ERP service returned an invalid RFQ transition result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -7714,7 +7714,7 @@ export async function transitionRfqThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. No RFQ transition was committed.',
+        'The ERP service is unavailable. No RFQ transition was committed.',
     }
   }
 }
@@ -7770,7 +7770,7 @@ export async function createChangeRequestThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid Change Request result.',
+        error: 'The ERP service returned an invalid Change Request result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -7778,7 +7778,7 @@ export async function createChangeRequestThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. No Change Request was committed.',
+        'The ERP service is unavailable. No Change Request was committed.',
     }
   }
 }
@@ -7856,7 +7856,7 @@ export async function commitCadEvidenceThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid CAD evidence result.',
+        error: 'The ERP service returned an invalid CAD evidence result.',
         status: 502,
       }
     }
@@ -7867,7 +7867,7 @@ export async function commitCadEvidenceThroughCoreApi(
     ) {
       return {
         ok: false,
-        error: 'ERP Core API returned a mismatched CAD evidence result.',
+        error: 'The ERP service returned a mismatched CAD evidence result.',
         status: 502,
       }
     }
@@ -7875,7 +7875,7 @@ export async function commitCadEvidenceThroughCoreApi(
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. No CAD evidence was committed.',
+      error: 'The ERP service is unavailable. No CAD evidence was committed.',
       status: 503,
     }
   }
@@ -7937,7 +7937,7 @@ export async function enqueueDocumentProcessingThroughCoreApi(
     if (!parsed) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid document processing result.',
+        error: 'The ERP service returned an invalid document processing result.',
       }
     }
     return { ok: true, data: parsed }
@@ -7945,7 +7945,7 @@ export async function enqueueDocumentProcessingThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. No document processing job was created.',
+        'The ERP service is unavailable. No document processing job was created.',
     }
   }
 }
@@ -7988,14 +7988,14 @@ export async function getDocumentProcessingStatusThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid document processing status.',
+        error: 'The ERP service returned an invalid document processing status.',
       }
     }
     return { ok: true, data: parsed.data }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. Processing status is unavailable.',
+      error: 'The ERP service is unavailable. Processing status is unavailable.',
     }
   }
 }
@@ -8045,14 +8045,14 @@ export async function postJournalEntryThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid journal posting result.',
+        error: 'The ERP service returned an invalid journal posting result.',
       }
     }
     return { ok: true, data: parsed.data }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. No journal was posted.',
+      error: 'The ERP service is unavailable. No journal was posted.',
     }
   }
 }
@@ -8103,7 +8103,7 @@ export async function postSupplierBillThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid Supplier Bill posting result.',
+        error: 'The ERP service returned an invalid Supplier Bill posting result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -8111,7 +8111,7 @@ export async function postSupplierBillThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. No Supplier Bill posting was committed.',
+        'The ERP service is unavailable. No Supplier Bill posting was committed.',
     }
   }
 }
@@ -8162,7 +8162,7 @@ export async function reverseSupplierBillThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid Supplier Bill reversal result.',
+        error: 'The ERP service returned an invalid Supplier Bill reversal result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -8170,7 +8170,7 @@ export async function reverseSupplierBillThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. No Supplier Bill reversal was committed.',
+        'The ERP service is unavailable. No Supplier Bill reversal was committed.',
     }
   }
 }
@@ -8220,7 +8220,7 @@ export async function postCashTransactionThroughCoreApi(
       return {
         ok: false,
         error:
-          'ERP Core API returned an invalid cash transaction posting result.',
+          'The ERP service returned an invalid cash transaction posting result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -8228,7 +8228,7 @@ export async function postCashTransactionThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. No cash transaction was posted.',
+        'The ERP service is unavailable. No cash transaction was posted.',
     }
   }
 }
@@ -8272,14 +8272,14 @@ export async function saveCashDraftThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid cash draft result.',
+        error: 'The ERP service returned an invalid cash draft result.',
       }
     }
     return { ok: true, data: parsed.data }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. No cash draft was saved.',
+      error: 'The ERP service is unavailable. No cash draft was saved.',
     }
   }
 }
@@ -8325,14 +8325,14 @@ export async function deleteCashDraftThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid cash draft deletion result.',
+        error: 'The ERP service returned an invalid cash draft deletion result.',
       }
     }
     return { ok: true, data: parsed.data }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. No cash draft was deleted.',
+      error: 'The ERP service is unavailable. No cash draft was deleted.',
     }
   }
 }
@@ -8382,7 +8382,7 @@ export async function reverseCashTransactionThroughCoreApi(
       return {
         ok: false,
         error:
-          'ERP Core API returned an invalid cash transaction reversal result.',
+          'The ERP service returned an invalid cash transaction reversal result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -8390,7 +8390,7 @@ export async function reverseCashTransactionThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. No cash transaction was reversed.',
+        'The ERP service is unavailable. No cash transaction was reversed.',
     }
   }
 }
@@ -8442,7 +8442,7 @@ export async function issueCustomerInvoiceThroughCoreApi(
       return {
         ok: false,
         error:
-          'ERP Core API returned an invalid customer invoice issuance result.',
+          'The ERP service returned an invalid customer invoice issuance result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -8450,7 +8450,7 @@ export async function issueCustomerInvoiceThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. No customer invoice issuance was committed.',
+        'The ERP service is unavailable. No customer invoice issuance was committed.',
     }
   }
 }
@@ -8500,7 +8500,7 @@ export async function createCustomerInvoiceDraftThroughCoreApi(
       return {
         ok: false,
         error:
-          'ERP Core API returned an invalid customer invoice draft result.',
+          'The ERP service returned an invalid customer invoice draft result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -8508,7 +8508,7 @@ export async function createCustomerInvoiceDraftThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. No customer invoice draft was created.',
+        'The ERP service is unavailable. No customer invoice draft was created.',
     }
   }
 }
@@ -8560,7 +8560,7 @@ export async function reverseCustomerInvoiceThroughCoreApi(
       return {
         ok: false,
         error:
-          'ERP Core API returned an invalid customer invoice reversal result.',
+          'The ERP service returned an invalid customer invoice reversal result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -8568,7 +8568,7 @@ export async function reverseCustomerInvoiceThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. No customer invoice reversal was committed.',
+        'The ERP service is unavailable. No customer invoice reversal was committed.',
     }
   }
 }
@@ -8620,7 +8620,7 @@ export async function cancelCustomerInvoiceThroughCoreApi(
       return {
         ok: false,
         error:
-          'ERP Core API returned an invalid customer invoice cancellation result.',
+          'The ERP service returned an invalid customer invoice cancellation result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -8628,7 +8628,7 @@ export async function cancelCustomerInvoiceThroughCoreApi(
     return {
       ok: false,
       error:
-        'ERP Core API is unavailable. No customer invoice cancellation was committed.',
+        'The ERP service is unavailable. No customer invoice cancellation was committed.',
     }
   }
 }
@@ -8679,14 +8679,14 @@ export async function reverseJournalEntryThroughCoreApi(
     if (!parsed.success) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid journal reversal result.',
+        error: 'The ERP service returned an invalid journal reversal result.',
       }
     }
     return { ok: true, data: parsed.data }
   } catch {
     return {
       ok: false,
-      error: 'ERP Core API is unavailable. No journal was reversed.',
+      error: 'The ERP service is unavailable. No journal was reversed.',
     }
   }
 }
@@ -8759,7 +8759,7 @@ export async function getInspectionRfisThroughCoreApi(
       return {
         ok: false,
         status: 503,
-        error: 'ERP Core API returned an invalid inspection RFI register.',
+        error: 'The ERP service returned an invalid inspection RFI register.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -8767,7 +8767,7 @@ export async function getInspectionRfisThroughCoreApi(
     return {
       ok: false,
       status: 503,
-      error: 'ERP Core API is unavailable. Inspection RFIs were not loaded.',
+      error: 'The ERP service is unavailable. Inspection RFIs were not loaded.',
     }
   }
 }
@@ -8842,7 +8842,7 @@ export async function transitionInspectionRfiThroughCoreApi(
       return {
         ok: false,
         status: 503,
-        error: 'ERP Core API returned an invalid inspection RFI result.',
+        error: 'The ERP service returned an invalid inspection RFI result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -8851,7 +8851,7 @@ export async function transitionInspectionRfiThroughCoreApi(
       ok: false,
       status: 503,
       error:
-        'ERP Core API is unavailable. Inspection RFI transition outcome is unconfirmed; refresh before retrying.',
+        'The ERP service is unavailable. Inspection RFI transition outcome is unconfirmed; refresh before retrying.',
     }
   }
 }
@@ -8906,11 +8906,11 @@ export async function getProjectRfisThroughCoreApi(
     }
     const parsed = projectRfiListResultSchema.safeParse(rawBody)
     if (!parsed.success) {
-      return { ok: false, status: 503, error: 'ERP Core API returned an invalid project RFI register.' }
+      return { ok: false, status: 503, error: 'The ERP service returned an invalid project RFI register.' }
     }
     return { ok: true, data: parsed.data }
   } catch {
-    return { ok: false, status: 503, error: 'ERP Core API is unavailable. Project RFIs were not loaded.' }
+    return { ok: false, status: 503, error: 'The ERP service is unavailable. Project RFIs were not loaded.' }
   }
 }
 
@@ -8954,11 +8954,11 @@ export async function createProjectRfiThroughCoreApi(
     }
     const parsed = projectRfiCreateResultSchema.safeParse(rawBody)
     if (!parsed.success) {
-      return { ok: false, status: 503, error: 'ERP Core API returned an invalid project RFI result.' }
+      return { ok: false, status: 503, error: 'The ERP service returned an invalid project RFI result.' }
     }
     return { ok: true, data: parsed.data }
   } catch {
-    return { ok: false, status: 503, error: 'ERP Core API is unavailable. Project RFI creation outcome is unconfirmed; refresh before retrying.' }
+    return { ok: false, status: 503, error: 'The ERP service is unavailable. Project RFI creation outcome is unconfirmed; refresh before retrying.' }
   }
 }
 
@@ -9013,11 +9013,11 @@ export async function transitionProjectRfiThroughCoreApi(
     }
     const parsed = projectRfiTransitionResultSchema.safeParse(rawBody)
     if (!parsed.success) {
-      return { ok: false, status: 503, error: 'ERP Core API returned an invalid project RFI transition result.' }
+      return { ok: false, status: 503, error: 'The ERP service returned an invalid project RFI transition result.' }
     }
     return { ok: true, data: parsed.data }
   } catch {
-    return { ok: false, status: 503, error: 'ERP Core API is unavailable. Project RFI transition outcome is unconfirmed; refresh before retrying.' }
+    return { ok: false, status: 503, error: 'The ERP service is unavailable. Project RFI transition outcome is unconfirmed; refresh before retrying.' }
   }
 }
 
@@ -9066,11 +9066,11 @@ export async function getSiteDiaryThroughCoreApi(
     }
     const parsed = siteDiaryListResultSchema.safeParse(rawBody)
     if (!parsed.success) {
-      return { ok: false, status: 503, error: 'ERP Core API returned an invalid site diary.' }
+      return { ok: false, status: 503, error: 'The ERP service returned an invalid site diary.' }
     }
     return { ok: true, data: parsed.data }
   } catch {
-    return { ok: false, status: 503, error: 'ERP Core API is unavailable. Site diary was not loaded.' }
+    return { ok: false, status: 503, error: 'The ERP service is unavailable. Site diary was not loaded.' }
   }
 }
 
@@ -9114,11 +9114,11 @@ export async function createSiteDiaryThroughCoreApi(
     }
     const parsed = siteDiaryCreateResultSchema.safeParse(rawBody)
     if (!parsed.success) {
-      return { ok: false, status: 503, error: 'ERP Core API returned an invalid site diary result.' }
+      return { ok: false, status: 503, error: 'The ERP service returned an invalid site diary result.' }
     }
     return { ok: true, data: parsed.data }
   } catch {
-    return { ok: false, status: 503, error: 'ERP Core API is unavailable. Site diary creation outcome is unconfirmed; refresh before retrying.' }
+    return { ok: false, status: 503, error: 'The ERP service is unavailable. Site diary creation outcome is unconfirmed; refresh before retrying.' }
   }
 }
 
@@ -9175,11 +9175,11 @@ export async function mutateSiteDiaryThroughCoreApi(
     }
     const parsed = siteDiaryMutationResultSchema.safeParse(rawBody)
     if (!parsed.success) {
-      return { ok: false, status: 503, error: 'ERP Core API returned an invalid site diary mutation result.' }
+      return { ok: false, status: 503, error: 'The ERP service returned an invalid site diary mutation result.' }
     }
     return { ok: true, data: parsed.data }
   } catch {
-    return { ok: false, status: 503, error: 'ERP Core API is unavailable. Site diary mutation outcome is unconfirmed; refresh before retrying.' }
+    return { ok: false, status: 503, error: 'The ERP service is unavailable. Site diary mutation outcome is unconfirmed; refresh before retrying.' }
   }
 }
 
@@ -9217,9 +9217,9 @@ export async function getQualityHoldPointsThroughCoreApi(
     const parsed = qualityHoldPointListResultSchema.safeParse(rawBody)
     return parsed.success
       ? { ok: true, data: parsed.data }
-      : { ok: false, status: 503, error: 'ERP Core API returned an invalid quality register.' }
+      : { ok: false, status: 503, error: 'The ERP service returned an invalid quality register.' }
   } catch {
-    return { ok: false, status: 503, error: 'ERP Core API is unavailable. Quality records were not loaded.' }
+    return { ok: false, status: 503, error: 'The ERP service is unavailable. Quality records were not loaded.' }
   }
 }
 
@@ -9258,9 +9258,9 @@ export async function createQualityHoldPointThroughCoreApi(
     const parsed = qualityHoldPointCreateResultSchema.safeParse(rawBody)
     return parsed.success
       ? { ok: true, data: parsed.data }
-      : { ok: false, status: 503, error: 'ERP Core API returned an invalid quality request result.' }
+      : { ok: false, status: 503, error: 'The ERP service returned an invalid quality request result.' }
   } catch {
-    return { ok: false, status: 503, error: 'ERP Core API is unavailable. Quality request creation outcome is unconfirmed; refresh before retrying.' }
+    return { ok: false, status: 503, error: 'The ERP service is unavailable. Quality request creation outcome is unconfirmed; refresh before retrying.' }
   }
 }
 
@@ -9313,9 +9313,9 @@ export async function mutateQualityHoldPointThroughCoreApi(
     const parsed = qualityHoldPointMutationResultSchema.safeParse(rawBody)
     return parsed.success
       ? { ok: true, data: parsed.data }
-      : { ok: false, status: 503, error: 'ERP Core API returned an invalid quality mutation result.' }
+      : { ok: false, status: 503, error: 'The ERP service returned an invalid quality mutation result.' }
   } catch {
-    return { ok: false, status: 503, error: 'ERP Core API is unavailable. Quality mutation outcome is unconfirmed; refresh before retrying.' }
+    return { ok: false, status: 503, error: 'The ERP service is unavailable. Quality mutation outcome is unconfirmed; refresh before retrying.' }
   }
 }
 
@@ -9471,9 +9471,9 @@ export async function getProjectSubmittalsThroughCoreApi(
       return { ok: false, status: response.status, error: body.success ? body.data.message : 'Project submittals are unavailable.' }
     }
     const parsed = projectSubmittalListResultSchema.safeParse(rawBody)
-    return parsed.success ? { ok: true, data: parsed.data } : { ok: false, status: 503, error: 'ERP Core API returned an invalid submittal register.' }
+    return parsed.success ? { ok: true, data: parsed.data } : { ok: false, status: 503, error: 'The ERP service returned an invalid submittal register.' }
   } catch {
-    return { ok: false, status: 503, error: 'ERP Core API is unavailable. Project submittals were not loaded.' }
+    return { ok: false, status: 503, error: 'The ERP service is unavailable. Project submittals were not loaded.' }
   }
 }
 
@@ -9491,9 +9491,9 @@ export async function createProjectSubmittalThroughCoreApi(command: unknown): Pr
       return { ok: false, status: response.status, error: body.success ? body.data.message : response.status === 409 ? 'Submittal already exists with different data.' : 'Submittal was not created.' }
     }
     const parsed = projectSubmittalCreateResultSchema.safeParse(rawBody)
-    return parsed.success ? { ok: true, data: parsed.data } : { ok: false, status: 503, error: 'ERP Core API returned an invalid submittal result.' }
+    return parsed.success ? { ok: true, data: parsed.data } : { ok: false, status: 503, error: 'The ERP service returned an invalid submittal result.' }
   } catch {
-    return { ok: false, status: 503, error: 'ERP Core API is unavailable. Submittal creation outcome is unconfirmed; refresh before retrying.' }
+    return { ok: false, status: 503, error: 'The ERP service is unavailable. Submittal creation outcome is unconfirmed; refresh before retrying.' }
   }
 }
 
@@ -9518,9 +9518,9 @@ export async function mutateProjectSubmittalThroughCoreApi(projectId: unknown, s
       return { ok: false, status: response.status, error: body.success ? body.data.message : response.status === 409 ? 'Submittal changed; refresh before trying again.' : 'Submittal mutation was not committed.' }
     }
     const parsed = projectSubmittalMutationResultSchema.safeParse(rawBody)
-    return parsed.success ? { ok: true, data: parsed.data } : { ok: false, status: 503, error: 'ERP Core API returned an invalid submittal mutation result.' }
+    return parsed.success ? { ok: true, data: parsed.data } : { ok: false, status: 503, error: 'The ERP service returned an invalid submittal mutation result.' }
   } catch {
-    return { ok: false, status: 503, error: 'ERP Core API is unavailable. Submittal mutation outcome is unconfirmed; refresh before retrying.' }
+    return { ok: false, status: 503, error: 'The ERP service is unavailable. Submittal mutation outcome is unconfirmed; refresh before retrying.' }
   }
 }
 
@@ -9562,7 +9562,7 @@ export async function attachClaimDocumentThroughCoreApi(
     if (!response.ok) {
       const body = z.object({ message: z.string() }).safeParse(rawBody)
       const message = response.status >= 500
-        ? 'ERP Core API returned a server error. Attachment outcome is unconfirmed; retry with the same request.'
+        ? 'The ERP service returned a server error. Attachment outcome is unconfirmed; retry with the same request.'
         : body.success
           ? body.data.message
           : response.status === 403
@@ -9580,7 +9580,7 @@ export async function attachClaimDocumentThroughCoreApi(
       return {
         ok: false,
         status: 503,
-        error: 'ERP Core API returned an invalid claim document attachment result.',
+        error: 'The ERP service returned an invalid claim document attachment result.',
       }
     }
     return { ok: true, status: response.status, data: parsedResult.data }
@@ -9588,7 +9588,7 @@ export async function attachClaimDocumentThroughCoreApi(
     return {
       ok: false,
       status: 503,
-      error: 'ERP Core API is unavailable. Attachment outcome is unconfirmed; retry with the same request.',
+      error: 'The ERP service is unavailable. Attachment outcome is unconfirmed; retry with the same request.',
     }
   }
 }
@@ -9628,11 +9628,11 @@ export async function getProjectDocumentsThroughCoreApi(
       new Set(parsed.data.rows.map((row) => row.id.toLowerCase())).size !== parsed.data.rows.length ||
       (parsedQuery.data.documentType !== undefined && parsed.data.rows.some((row) => row.documentType !== parsedQuery.data.documentType))
     ) {
-      return { ok: false, status: 503, error: 'ERP Core API returned an invalid project document list.' }
+      return { ok: false, status: 503, error: 'The ERP service returned an invalid project document list.' }
     }
     return { ok: true, data: parsed.data }
   } catch {
-    return { ok: false, status: 503, error: 'ERP Core API is unavailable. Project documents were not loaded.' }
+    return { ok: false, status: 503, error: 'The ERP service is unavailable. Project documents were not loaded.' }
   }
 }
 
@@ -9694,7 +9694,7 @@ export async function getAccountKycDocumentsThroughCoreApi(
       return {
         ok: false,
         status: 502,
-        error: 'ERP Core API returned an invalid KYC document list.',
+        error: 'The ERP service returned an invalid KYC document list.',
       }
     }
     return { ok: true, status: response.status, data: parsedResult.data }
@@ -9702,7 +9702,7 @@ export async function getAccountKycDocumentsThroughCoreApi(
     return {
       ok: false,
       status: 503,
-      error: 'ERP Core API is unavailable. Account documents were not loaded.',
+      error: 'The ERP service is unavailable. Account documents were not loaded.',
     }
   }
 }
@@ -9749,7 +9749,7 @@ export async function createKycArtifactThroughCoreApi(
     if (!response.ok) {
       const body = z.object({ message: z.string() }).safeParse(rawBody)
       const message = response.status >= 500
-        ? 'ERP Core API returned a server error. KYC artifact outcome is unconfirmed; retry with the same request.'
+        ? 'The ERP service returned a server error. KYC artifact outcome is unconfirmed; retry with the same request.'
         : body.success
           ? body.data.message
           : response.status === 403
@@ -9767,7 +9767,7 @@ export async function createKycArtifactThroughCoreApi(
       return {
         ok: false,
         status: 502,
-        error: 'ERP Core API returned an invalid KYC artifact result. Outcome is unconfirmed; retry with the same request.',
+        error: 'The ERP service returned an invalid KYC artifact result. Outcome is unconfirmed; retry with the same request.',
       }
     }
     return { ok: true, status: response.status, data: parsedResult.data }
@@ -9775,7 +9775,7 @@ export async function createKycArtifactThroughCoreApi(
     return {
       ok: false,
       status: 503,
-      error: 'ERP Core API is unavailable. KYC artifact outcome is unconfirmed; retry with the same request.',
+      error: 'The ERP service is unavailable. KYC artifact outcome is unconfirmed; retry with the same request.',
     }
   }
 }
@@ -9798,9 +9798,9 @@ export async function getProjectSubmittalDocumentsThroughCoreApi(
       return { ok: false, status: response.status, error: body.success ? body.data.message : 'Submittal documents are unavailable.' }
     }
     const parsed = projectSubmittalDocumentListResultSchema.safeParse(rawBody)
-    return parsed.success ? { ok: true, data: parsed.data } : { ok: false, status: 503, error: 'ERP Core API returned an invalid submittal document list.' }
+    return parsed.success ? { ok: true, data: parsed.data } : { ok: false, status: 503, error: 'The ERP service returned an invalid submittal document list.' }
   } catch {
-    return { ok: false, status: 503, error: 'ERP Core API is unavailable. Submittal documents were not loaded.' }
+    return { ok: false, status: 503, error: 'The ERP service is unavailable. Submittal documents were not loaded.' }
   }
 }
 
@@ -9824,9 +9824,9 @@ export async function linkProjectSubmittalDocumentThroughCoreApi(
       return { ok: false, status: response.status, error: body.success ? body.data.message : response.status === 409 ? 'Submittal changed or document link already exists.' : 'Document was not linked to the submittal.' }
     }
     const parsed = projectSubmittalDocumentLinkResultSchema.safeParse(rawBody)
-    return parsed.success ? { ok: true, data: parsed.data } : { ok: false, status: 503, error: 'ERP Core API returned an invalid document link result.' }
+    return parsed.success ? { ok: true, data: parsed.data } : { ok: false, status: 503, error: 'The ERP service returned an invalid document link result.' }
   } catch {
-    return { ok: false, status: 503, error: 'ERP Core API is unavailable. Document link outcome is unconfirmed; refresh before retrying.' }
+    return { ok: false, status: 503, error: 'The ERP service is unavailable. Document link outcome is unconfirmed; refresh before retrying.' }
   }
 }
 
@@ -9852,9 +9852,9 @@ export async function unlinkProjectSubmittalDocumentThroughCoreApi(
       return { ok: false, status: response.status, error: body.success ? body.data.message : response.status === 409 ? 'Submittal changed; refresh before trying again.' : 'Document link was not removed.' }
     }
     const parsed = projectSubmittalDocumentUnlinkResultSchema.safeParse(rawBody)
-    return parsed.success ? { ok: true, data: parsed.data } : { ok: false, status: 503, error: 'ERP Core API returned an invalid document unlink result.' }
+    return parsed.success ? { ok: true, data: parsed.data } : { ok: false, status: 503, error: 'The ERP service returned an invalid document unlink result.' }
   } catch {
-    return { ok: false, status: 503, error: 'ERP Core API is unavailable. Document unlink outcome is unconfirmed; refresh before retrying.' }
+    return { ok: false, status: 503, error: 'The ERP service is unavailable. Document unlink outcome is unconfirmed; refresh before retrying.' }
   }
 }
 
@@ -9895,11 +9895,11 @@ export async function getProjectScheduleThroughCoreApi(
       !rowsMatchQuery ||
       parsed.data.rows.some((row) => !scheduleUuidMatches(row.projectId, parsedProjectId.data))
     ) {
-      return { ok: false, status: 503, error: 'ERP Core API returned an invalid schedule result.' }
+      return { ok: false, status: 503, error: 'The ERP service returned an invalid schedule result.' }
     }
     return { ok: true, data: parsed.data }
   } catch {
-    return { ok: false, status: 503, error: 'ERP Core API is unavailable. Project schedule was not loaded.' }
+    return { ok: false, status: 503, error: 'The ERP service is unavailable. Project schedule was not loaded.' }
   }
 }
 
@@ -9942,7 +9942,7 @@ export async function getProjectScheduleDependenciesThroughCoreApi(projectId: un
       !rowsMatchQuery ||
       !selectedMatchesQuery
     ) {
-      return { ok: false, status: 503, error: 'ERP Core API returned invalid schedule task choices.' }
+      return { ok: false, status: 503, error: 'The ERP service returned invalid schedule task choices.' }
     }
     return { ok: true, data: result.data }
   } catch {
@@ -10006,7 +10006,7 @@ export async function previewLegacyProjectScheduleThroughCoreApi(projectId: stri
     const body: unknown = await response.json()
     if (!response.ok) return { ok: false as const, error: z.object({ message: z.string() }).safeParse(body).data?.message ?? 'Legacy schedule preview is unavailable.' }
     const parsed = legacyProjectSchedulePreviewSchema.safeParse(body)
-    if (!parsed.success || parsed.data.projectId !== projectId) return { ok: false as const, error: 'ERP Core API returned an invalid schedule scope.' }
+    if (!parsed.success || parsed.data.projectId !== projectId) return { ok: false as const, error: 'The ERP service returned an invalid schedule scope.' }
     return { ok: true as const, data: parsed.data }
   } catch { return { ok: false as const, error: 'Legacy preview could not be loaded. Retry preview.' } }
 }
@@ -10021,7 +10021,7 @@ export async function importLegacyProjectScheduleThroughCoreApi(projectId: strin
     const body: unknown = await response.json()
     if (!response.ok) return { ok: false as const, error: z.object({ message: z.string() }).safeParse(body).data?.message ?? 'Schedule import failed.' }
     const parsed = importLegacyProjectScheduleResultSchema.safeParse(body)
-    if (!parsed.success || parsed.data.projectId !== projectId || parsed.data.sourceScheduleId !== input.data.sourceScheduleId || parsed.data.rows.some((row) => row.projectId !== projectId || row.source !== 'legacy_l1')) return { ok: false as const, error: 'ERP Core API returned an invalid schedule scope.' }
+    if (!parsed.success || parsed.data.projectId !== projectId || parsed.data.sourceScheduleId !== input.data.sourceScheduleId || parsed.data.rows.some((row) => row.projectId !== projectId || row.source !== 'legacy_l1')) return { ok: false as const, error: 'The ERP service returned an invalid schedule scope.' }
     return { ok: true as const, data: parsed.data }
   } catch { return { ok: false as const, error: 'Import outcome is unconfirmed. Retry this import safely to check whether it completed.' } }
 }
@@ -10040,9 +10040,9 @@ export async function createProjectScheduleTaskThroughCoreApi(command: unknown):
       return { ok: false, status: response.status, error: body.success ? body.data.message : response.status === 409 ? 'Task code or request already exists.' : 'Schedule task was not created.' }
     }
     const parsed = projectScheduleCreateResultSchema.safeParse(rawBody)
-    return parsed.success ? { ok: true, data: parsed.data } : { ok: false, status: 503, error: 'ERP Core API returned an invalid schedule create result.' }
+    return parsed.success ? { ok: true, data: parsed.data } : { ok: false, status: 503, error: 'The ERP service returned an invalid schedule create result.' }
   } catch {
-    return { ok: false, status: 503, error: 'ERP Core API is unavailable. Schedule task creation outcome is unconfirmed; refresh before retrying.' }
+    return { ok: false, status: 503, error: 'The ERP service is unavailable. Schedule task creation outcome is unconfirmed; refresh before retrying.' }
   }
 }
 
@@ -10066,9 +10066,9 @@ export async function mutateProjectScheduleTaskThroughCoreApi(projectId: unknown
       return { ok: false, status: response.status, error: body.success ? body.data.message : response.status === 409 ? 'Schedule task changed; refresh before trying again.' : 'Schedule mutation was not committed.' }
     }
     const parsed = projectScheduleMutationResultSchema.safeParse(rawBody)
-    return parsed.success ? { ok: true, data: parsed.data } : { ok: false, status: 503, error: 'ERP Core API returned an invalid schedule mutation result.' }
+    return parsed.success ? { ok: true, data: parsed.data } : { ok: false, status: 503, error: 'The ERP service returned an invalid schedule mutation result.' }
   } catch {
-    return { ok: false, status: 503, error: 'ERP Core API is unavailable. Schedule mutation outcome is unconfirmed; refresh before retrying.' }
+    return { ok: false, status: 503, error: 'The ERP service is unavailable. Schedule mutation outcome is unconfirmed; refresh before retrying.' }
   }
 }
 
@@ -10098,9 +10098,9 @@ export async function getProjectPerformanceThroughCoreApi(
     const parsed = projectPerformanceResultSchema.safeParse(rawBody)
     return parsed.success
       ? { ok: true, data: parsed.data }
-      : { ok: false, status: 503, error: 'ERP Core API returned an invalid performance result.' }
+      : { ok: false, status: 503, error: 'The ERP service returned an invalid performance result.' }
   } catch {
-    return { ok: false, status: 503, error: 'ERP Core API is unavailable. Project performance was not loaded.' }
+    return { ok: false, status: 503, error: 'The ERP service is unavailable. Project performance was not loaded.' }
   }
 }
 
@@ -10149,13 +10149,13 @@ export async function getProjectMaterialActualsThroughCoreApi(
       : {
           ok: false,
           status: 503,
-          error: 'ERP Core API returned an invalid project material actuals result.',
+          error: 'The ERP service returned an invalid project material actuals result.',
         }
   } catch {
     return {
       ok: false,
       status: 503,
-      error: 'ERP Core API is unavailable. Project material actuals were not loaded.',
+      error: 'The ERP service is unavailable. Project material actuals were not loaded.',
     }
   }
 }
@@ -10204,7 +10204,7 @@ export async function getProjectLabourReconciliationThroughCoreApi(
       return {
         ok: false,
         status: 503,
-        error: 'ERP Core API returned an invalid labour reconciliation result.',
+        error: 'The ERP service returned an invalid labour reconciliation result.',
       }
     }
     return { ok: true, data: parsed.data }
@@ -10212,7 +10212,7 @@ export async function getProjectLabourReconciliationThroughCoreApi(
     return {
       ok: false,
       status: 503,
-      error: 'ERP Core API is unavailable. Labour reconciliation was not loaded.',
+      error: 'The ERP service is unavailable. Labour reconciliation was not loaded.',
     }
   }
 }
@@ -10262,13 +10262,13 @@ export async function getProjectHandoverReadinessThroughCoreApi(
       : {
           ok: false,
           status: 503,
-          error: 'ERP Core API returned an invalid handover readiness result.',
+          error: 'The ERP service returned an invalid handover readiness result.',
         }
   } catch {
     return {
       ok: false,
       status: 503,
-      error: 'ERP Core API is unavailable. Handover readiness was not loaded.',
+      error: 'The ERP service is unavailable. Handover readiness was not loaded.',
     }
   }
 }
@@ -10311,12 +10311,12 @@ export async function getProjectCloseoutReadinessThroughCoreApi(
     const parsed = projectCloseoutReadinessResultSchema.safeParse(rawBody)
     return parsed.success
       ? { ok: true, data: parsed.data }
-      : { ok: false, status: 503, error: 'ERP Core API returned an invalid project close-out readiness result.' }
+      : { ok: false, status: 503, error: 'The ERP service returned an invalid project close-out readiness result.' }
   } catch {
     return {
       ok: false,
       status: 503,
-      error: 'ERP Core API is unavailable. Project close-out readiness was not loaded.',
+      error: 'The ERP service is unavailable. Project close-out readiness was not loaded.',
     }
   }
 }
@@ -10351,11 +10351,11 @@ export async function getProjectBillingMilestonesThroughCoreApi(
       parsed.data.rows.length > parsedQuery.data.limit ||
       new Set(parsed.data.rows.map(row => row.claimId)).size !== parsed.data.rows.length
     ) {
-      return { ok: false, status: 503, error: 'ERP Core API returned an invalid billing milestone result.' }
+      return { ok: false, status: 503, error: 'The ERP service returned an invalid billing milestone result.' }
     }
     return { ok: true, data: parsed.data }
   } catch {
-    return { ok: false, status: 503, error: 'ERP Core API is unavailable. Billing milestone traceability was not loaded.' }
+    return { ok: false, status: 503, error: 'The ERP service is unavailable. Billing milestone traceability was not loaded.' }
   }
 }
 
@@ -10384,9 +10384,9 @@ export async function getVendorPerformanceThroughCoreApi(
     const parsed = vendorPerformanceResultSchema.safeParse(rawBody)
     return parsed.success
       ? { ok: true, data: parsed.data }
-      : { ok: false, status: 503, error: 'ERP Core API returned an invalid vendor performance result.' }
+      : { ok: false, status: 503, error: 'The ERP service returned an invalid vendor performance result.' }
   } catch {
-    return { ok: false, status: 503, error: 'ERP Core API is unavailable. Vendor performance was not loaded.' }
+    return { ok: false, status: 503, error: 'The ERP service is unavailable. Vendor performance was not loaded.' }
   }
 }
 
@@ -10413,9 +10413,9 @@ export async function getRfqBidLevelingThroughCoreApi(
     const parsed = rfqBidLevelingResultSchema.safeParse(rawBody)
     return parsed.success
       ? { ok: true, data: parsed.data }
-      : { ok: false, status: 503, error: 'ERP Core API returned an invalid bid-leveling result.' }
+      : { ok: false, status: 503, error: 'The ERP service returned an invalid bid-leveling result.' }
   } catch {
-    return { ok: false, status: 503, error: 'ERP Core API is unavailable. RFQ bid-leveling was not loaded.' }
+    return { ok: false, status: 503, error: 'The ERP service is unavailable. RFQ bid-leveling was not loaded.' }
   }
 }
 
@@ -10444,9 +10444,9 @@ export async function getProjectWeeklyProgressThroughCoreApi(
       && parsed.data.totalPages === Math.max(1, Math.ceil(parsed.data.total / parsed.data.limit))
       && parsed.data.rows.every(row => row.projectId.toLowerCase() === parsedProjectId.data.toLowerCase())
       ? { ok: true, data: parsed.data }
-      : { ok: false, status: 503, error: 'ERP Core API returned an invalid weekly progress result.' }
+      : { ok: false, status: 503, error: 'The ERP service returned an invalid weekly progress result.' }
   } catch {
-    return { ok: false, status: 503, error: 'ERP Core API is unavailable. Weekly progress was not loaded.' }
+    return { ok: false, status: 503, error: 'The ERP service is unavailable. Weekly progress was not loaded.' }
   }
 }
 

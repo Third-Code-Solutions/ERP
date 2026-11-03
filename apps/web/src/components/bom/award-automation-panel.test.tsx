@@ -56,4 +56,16 @@ describe('AwardAutomationPanel', () => {
     expect(markup).toContain('value="Commercial award requires correction"')
     expect(markup).toContain('Reverse handoff')
   })
+
+  it('shows created records in plain language instead of raw ids', () => {
+    const markup = renderToStaticMarkup(
+      <AwardAutomationPanel {...PROPS} handoff={ACTIVE_HANDOFF} dpInvoiceHref="/invoices/invoice-1" budgetHref={null} />
+    )
+
+    expect(markup).toContain('href="/invoices/invoice-1"')
+    expect(markup).toContain('Task created')
+    for (const rawId of ['budget-1', 'tracker-1', 'task-ar', 'task-cx']) {
+      expect(markup).not.toContain(`>${rawId}<`)
+    }
+  })
 })

@@ -314,7 +314,7 @@ export async function recordCanvasSign(input: SignInput): Promise<SignResult> {
     ) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid signature context.',
+        error: 'The ERP service returned an invalid signature context.',
       }
     }
     return { ok: true }

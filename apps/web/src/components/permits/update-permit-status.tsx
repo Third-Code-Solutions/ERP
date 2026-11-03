@@ -87,6 +87,7 @@ export function UpdatePermitStatus({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '180px' }}>
       <select
+        aria-label="Permit status"
         value={value}
         disabled={pending || !canManage}
         onChange={(e) => handleChange(e.target.value as PermitStatus)}

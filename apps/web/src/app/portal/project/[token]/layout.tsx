@@ -83,8 +83,8 @@ export default async function PortalProjectLayout({
             lineHeight: 1.6,
           }}
         >
-          For a fresh link, please contact your project team. They can mint a
-          new portal token at any time.
+          For a fresh link, please contact your project team. They can send
+          you a new one at any time.
         </p>
       </section>
     )

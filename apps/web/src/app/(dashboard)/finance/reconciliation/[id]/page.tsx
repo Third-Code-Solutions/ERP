@@ -336,15 +336,14 @@ export default async function BankStatementDetailPage({
             manual.
           </p>
         </div>
-        {canManageCash && (
-          <BankStatementActions
-            statementId={statement.id}
-            status={statement.status}
-            currency={statement.currency}
-            lines={lines}
-            candidates={candidates}
-          />
-        )}
+        <BankStatementActions
+          statementId={statement.id}
+          status={statement.status}
+          currency={statement.currency}
+          lines={lines}
+          candidates={canManageCash ? candidates : []}
+          readOnly={!canManageCash}
+        />
       </section>
 
       {statement.status === 'voided' && (

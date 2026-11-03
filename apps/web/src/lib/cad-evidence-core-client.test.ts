@@ -153,7 +153,7 @@ describe('CAD evidence Core client', () => {
       )
     ).resolves.toEqual({
       ok: false,
-      error: 'ERP Core API returned a mismatched CAD evidence result.',
+      error: 'The ERP service returned a mismatched CAD evidence result.',
       status: 502,
     })
   })

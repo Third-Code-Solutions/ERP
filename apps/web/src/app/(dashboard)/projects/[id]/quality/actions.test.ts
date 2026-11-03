@@ -105,7 +105,7 @@ describe('quality hold point server actions', () => {
     await expect(createQualityHoldPoint({ ok: true }, createForm())).resolves.toEqual({ ok: false, error: 'You do not have permission to create quality requests.' })
     mocks.can.mockReturnValue(true)
     mocks.createQualityHoldPointThroughCoreApi.mockResolvedValueOnce({ ok: true, data: { projectId: PROJECT_ID, created: true, changed: true, entry: { ...entry(), projectId: '66666666-6666-4666-8666-666666666666' } } })
-    await expect(createQualityHoldPoint({ ok: true }, createForm())).resolves.toEqual({ ok: false, error: 'ERP Core API returned an invalid quality scope.' })
+    await expect(createQualityHoldPoint({ ok: true }, createForm())).resolves.toEqual({ ok: false, error: 'The ERP service returned an invalid quality scope.' })
   })
 
   it('creates one-or-more punchlist corrections through Core with stable replay identity', async () => {

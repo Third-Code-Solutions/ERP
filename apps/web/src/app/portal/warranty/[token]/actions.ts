@@ -96,33 +96,40 @@ export async function submitTicket(token: string, formData: FormData): Promise<v
     redirect(`/portal/warranty/${token}?error=invalid`)
   }
 
-  // 3. Generate ticket_number = "WT-" + zero-padded next sequence per tenant.
-  const [maxRow] = await db
-    .select({
-      max_num: max(warrantyTickets.ticket_number),
-    })
-    .from(warrantyTickets)
-    .where(eq(warrantyTickets.tenant_id, tokenRow.tenant_id))
+  // 3–4. Allocate the next "WT-" number per tenant and insert. Two submissions can
+  // read the same max; the unique (tenant, number) index rejects the loser, which
+  // retries with a fresh number.
+  let inserted: { id: string } | undefined
+  let ticketNumber = ''
+  for (let attempt = 0; attempt < 3 && !inserted; attempt++) {
+    const [maxRow] = await db
+      .select({
+        max_num: max(warrantyTickets.ticket_number),
+      })
+      .from(warrantyTickets)
+      .where(eq(warrantyTickets.tenant_id, tokenRow.tenant_id))
 
-  const nextSeq = extractNextSeq(maxRow?.max_num ?? null)
-  const ticketNumber = `WT-${String(nextSeq).padStart(6, '0')}`
-
-  // 4. Insert ticket.
-  const [inserted] = await db
-    .insert(warrantyTickets)
-    .values({
-      tenant_id: tokenRow.tenant_id,
-      project_id: tokenRow.project_id,
-      account_id: tokenRow.account_id ?? null,
-      ticket_number: ticketNumber,
-      category,
-      description,
-      location: location || null,
-      status: 'open',
-      submitted_by_name: name,
-      submitted_by_email: email,
-    })
-    .returning({ id: warrantyTickets.id })
+    ticketNumber = `WT-${String(extractNextSeq(maxRow?.max_num ?? null)).padStart(6, '0')}`
+    try {
+      ;[inserted] = await db
+        .insert(warrantyTickets)
+        .values({
+          tenant_id: tokenRow.tenant_id,
+          project_id: tokenRow.project_id,
+          account_id: tokenRow.account_id ?? null,
+          ticket_number: ticketNumber,
+          category,
+          description,
+          location: location || null,
+          status: 'open',
+          submitted_by_name: name,
+          submitted_by_email: email,
+        })
+        .returning({ id: warrantyTickets.id })
+    } catch (error) {
+      if (!isUniqueViolation(error)) throw error
+    }
+  }
 
   if (!inserted) {
     redirect(`/portal/warranty/${token}?error=failed`)
@@ -179,6 +186,17 @@ export async function submitTicket(token: string, formData: FormData): Promise<v
  * Given the previous max ticket_number for a tenant (e.g. "WT-000004"),
  * returns the next integer. Falls back to 1 when no rows exist.
  */
+function isUniqueViolation(error: unknown): boolean {
+  const seen = new Set<unknown>()
+  let cause = error
+  while (cause instanceof Object && !seen.has(cause)) {
+    seen.add(cause)
+    if ('code' in cause && cause.code === '23505') return true
+    cause = 'cause' in cause ? cause.cause : undefined
+  }
+  return false
+}
+
 function extractNextSeq(prevMax: string | null): number {
   if (!prevMax) return 1
   const m = prevMax.match(/(\d+)\s*$/)

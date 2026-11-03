@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { reviewKyc } from '@/app/(dashboard)/crm/accounts/actions'
+import { submitFormData } from '@/components/shared/submit-form-data'
 
 export function KycReviewForm({ accountId }: { accountId: string }) {
   const [error, setError] = useState<string | null>(null)
@@ -17,7 +18,7 @@ export function KycReviewForm({ accountId }: { accountId: string }) {
   }
 
   return (
-    <form action={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <form onSubmit={submitFormData(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <input type="hidden" name="account_id" value={accountId} />
       <input type="hidden" name="decision" value={decision} />
 

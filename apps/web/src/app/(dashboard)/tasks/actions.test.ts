@@ -245,7 +245,7 @@ describe('completeTask Core-only authority', () => {
     )
 
     await expect(completeTask(CONTEXT, form())).resolves.toEqual({
-      error: 'ERP Core API returned an invalid daily task completion result.',
+      error: 'The ERP service returned an invalid daily task completion result.',
     })
     expect(mocks.revalidatePath).not.toHaveBeenCalled()
   })

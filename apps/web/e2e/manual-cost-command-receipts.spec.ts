@@ -80,6 +80,11 @@ let vite: import('vite').ViteDevServer | undefined
 
 test.describe.configure({ mode: 'serial' })
 
+// Voiding asks for confirmation first; accept it so the void command runs.
+test.beforeEach(({ page }) => {
+  page.on('dialog', (dialog) => void dialog.accept())
+})
+
 const defaultFormProps: FormProps = {
   projectId: PROJECT_ID,
   tenantId: TENANT_ID,

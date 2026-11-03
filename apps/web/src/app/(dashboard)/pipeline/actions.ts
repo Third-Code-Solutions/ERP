@@ -31,7 +31,7 @@ export async function createOpportunity(formData: FormData): Promise<{ error?: s
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
   if (!can(profile.role, 'opportunity.create')) {
-    return { error: `Forbidden: role "${profile.role}" cannot create opportunities` }
+    return { error: 'Your role cannot create opportunities.' }
   }
 
   const projectId = formData.get('project_id')
@@ -103,7 +103,7 @@ export async function createOpportunityForAccount(formData: FormData): Promise<{
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
   if (!can(profile.role, 'opportunity.create')) {
-    return { error: `Forbidden: role "${profile.role}" cannot create opportunities` }
+    return { error: 'Your role cannot create opportunities.' }
   }
 
   const accountId = formData.get('account_id')
@@ -121,6 +121,11 @@ export async function createOpportunityForAccount(formData: FormData): Promise<{
     return { error: `Invalid stage: ${stageRaw}` }
   }
   const stage = stageRaw as PipelineStage
+  // Won/Lost carry side effects (project, checklist, lost reason) that only the
+  // stage-transition path performs, so a deal cannot be created already closed.
+  if (stage === 'won' || stage === 'lost') {
+    return { error: 'New opportunities cannot start as Won or Lost. Create it in an open stage, then move it.' }
+  }
 
   // KYC gate: only `lead` is permitted unless KYC is approved or not_required.
   const kycOk = account.kyc_status === 'approved' || account.kyc_status === 'not_required'
@@ -222,7 +227,7 @@ export async function advanceOpportunityStage(
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
   if (!can(profile.role, 'opportunity.advance_stage')) {
-    return { error: `Forbidden: role "${profile.role}" cannot advance opportunities` }
+    return { error: 'Your role cannot advance opportunities.' }
   }
 
   const nextStageTyped = nextStage as OpportunityStage
@@ -263,7 +268,7 @@ export async function advanceOpportunityStage(
   } catch {
     return {
       error:
-        'ERP Core API is unavailable. No Opportunity stage transition was committed.',
+        'The ERP service is unavailable. No Opportunity stage transition was committed.',
     }
   }
   if (!transition.ok) {
@@ -279,8 +284,8 @@ export async function advanceOpportunityStage(
   if (!data) {
     return {
       error: isWonTransition
-        ? 'ERP Core API returned an invalid Won-to-Project transition result.'
-        : 'ERP Core API returned an invalid Opportunity stage transition result.',
+        ? 'The ERP service returned an invalid Won-to-Project transition result.'
+        : 'The ERP service returned an invalid Opportunity stage transition result.',
     }
   }
   const coreIdentityIsValid =
@@ -296,7 +301,7 @@ export async function advanceOpportunityStage(
       !data.checklistId
     ) {
       return {
-        error: 'ERP Core API returned an invalid Won-to-Project transition result.',
+        error: 'The ERP service returned an invalid Won-to-Project transition result.',
       }
     }
 
@@ -317,7 +322,7 @@ export async function advanceOpportunityStage(
   ) {
     return {
       error:
-        'ERP Core API returned an invalid Opportunity stage transition result.',
+        'The ERP service returned an invalid Opportunity stage transition result.',
     }
   }
 

@@ -219,6 +219,7 @@ describe('project BOM mutation controls', () => {
     expect(getProjectBomControls('viewer')).toEqual({
       edit: false,
       review: false,
+      approve: false,
       importCad: false,
       award: false,
     })
@@ -251,4 +252,35 @@ describe('project BOM mutation controls', () => {
       expect(markup).not.toContain('Create Invoice')
     },
   )
+
+  it.each([
+    [false, false],
+    [true, true],
+  ])('renders internal approval on an editable draft only when canApprove is %s', (canApprove, shown) => {
+    const markup = renderToStaticMarkup(
+      <BomBuilder
+        projectId="project-1"
+        canApprove={canApprove}
+        bom={{
+          id: 'bom-1',
+          version: 1,
+          label: null,
+          status: 'draft',
+          total_cost_cents: 0,
+          tcv_cents: 0,
+          gp_cents: 0,
+          gp_margin_bps: 0,
+          lineItems: [],
+        }}
+      />,
+    )
+
+    expect(markup).toContain('+ Add Line')
+    expect(markup.includes('Submit for Client Approval')).toBe(shown)
+  })
+
+  it('lets commercial approve internally but not an estimator', () => {
+    expect(getProjectBomControls('commercial').approve).toBe(true)
+    expect(getProjectBomControls('estimator').approve).toBe(false)
+  })
 })

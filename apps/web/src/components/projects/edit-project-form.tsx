@@ -105,27 +105,27 @@ export function EditProjectForm({ project }: EditProjectFormProps) {
 
         <div style={{ display: 'grid', gap: '14px' }}>
           <div>
-            <label style={labelStyle}>Project Name *</label>
-            <input name="name" required defaultValue={project.name} style={inputStyle} />
+            <label style={labelStyle} htmlFor="edit-project-name">Project Name *</label>
+            <input id="edit-project-name" name="name" required defaultValue={project.name} style={inputStyle} />
           </div>
 
           <div>
-            <label style={labelStyle}>Client *</label>
-            <input name="client" required defaultValue={project.client} style={inputStyle} />
+            <label style={labelStyle} htmlFor="edit-project-client">Client *</label>
+            <input id="edit-project-client" name="client" required defaultValue={project.client} style={inputStyle} />
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             <div>
-              <label style={labelStyle}>Status</label>
-              <select name="status" defaultValue={project.status} style={inputStyle}>
+              <label style={labelStyle} htmlFor="edit-project-status">Status</label>
+              <select id="edit-project-status" name="status" defaultValue={project.status} style={inputStyle}>
                 {STATUS_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label style={labelStyle}>Project Type</label>
-              <select name="project_type" defaultValue={normalizeProjectType(project.project_type) ?? ''} style={inputStyle}>
+              <label style={labelStyle} htmlFor="edit-project-project-type">Project Type</label>
+              <select id="edit-project-project-type" name="project_type" defaultValue={normalizeProjectType(project.project_type) ?? ''} style={inputStyle}>
                 {TYPE_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
@@ -135,18 +135,18 @@ export function EditProjectForm({ project }: EditProjectFormProps) {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             <div>
-              <label style={labelStyle}>Location</label>
-              <input name="location" defaultValue={project.location ?? ''} placeholder="Makati, Metro Manila" style={inputStyle} />
+              <label style={labelStyle} htmlFor="edit-project-location">Location</label>
+              <input id="edit-project-location" name="location" defaultValue={project.location ?? ''} placeholder="Makati, Metro Manila" style={inputStyle} />
             </div>
             <div>
-              <label style={labelStyle}>Area (sqm)</label>
-              <input type="number" name="total_sqm" min="0" defaultValue={project.total_sqm ?? ''} placeholder="—" style={inputStyle} />
+              <label style={labelStyle} htmlFor="edit-project-total-sqm">Area (sqm)</label>
+              <input id="edit-project-total-sqm" type="number" name="total_sqm" min="0" defaultValue={project.total_sqm ?? ''} placeholder="—" style={inputStyle} />
             </div>
           </div>
 
           <div>
-            <label style={labelStyle}>Notes</label>
-            <textarea name="notes" rows={3} defaultValue={project.notes ?? ''} placeholder="Optional notes…" style={{ ...inputStyle, resize: 'vertical' }} />
+            <label style={labelStyle} htmlFor="edit-project-notes">Notes</label>
+            <textarea id="edit-project-notes" name="notes" rows={3} defaultValue={project.notes ?? ''} placeholder="Optional notes…" style={{ ...inputStyle, resize: 'vertical' }} />
           </div>
         </div>
 

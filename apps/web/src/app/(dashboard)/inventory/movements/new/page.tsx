@@ -7,6 +7,7 @@ import {
 import { db } from '@third-code-erp/database'
 import { sql } from 'drizzle-orm'
 import { StockMovementForm } from '../movement-form'
+import { manilaToday } from '@/lib/operations/manila-date'
 
 export const metadata: Metadata = { title: 'New Stock Movement' }
 
@@ -156,7 +157,7 @@ export default async function NewStockMovementPage() {
             quantityMicros: balance.quantity_micros,
             valueCents: balance.value_cents,
           }))}
-          today={new Date().toISOString().slice(0, 10)}
+          today={manilaToday()}
         />
       )}
     </div>

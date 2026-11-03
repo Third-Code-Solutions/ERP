@@ -40,11 +40,11 @@ export default async function DataQualityPage() {
     <div className={styles.page}>
       <header className={styles.header}>
         <div>
-          <p className={styles.eyebrow}>Release readiness</p>
+          <p className={styles.eyebrow}>Admin</p>
           <h1 className={styles.title}>Data quality</h1>
           <p className={styles.subtitle}>
-            Review tenant-scoped identifiers before a schema change reaches the
-            official record of truth.
+            Find purchase orders that share the same PO number so they can be
+            sorted out before PO numbers are made unique.
           </p>
         </div>
         <div className={`${styles.status} ${reviewRequired ? styles.statusReview : styles.statusClear}`}>
@@ -57,27 +57,27 @@ export default async function DataQualityPage() {
         <div className={styles.metric}>
           <span className={styles.metricLabel}>Duplicate groups</span>
           <strong>{groups.length}</strong>
-          <span>Tenant-scoped Purchase Order numbers</span>
+          <span>PO numbers used more than once</span>
         </div>
         <div className={styles.metric}>
           <span className={styles.metricLabel}>Affected records</span>
           <strong>{affectedRecords}</strong>
-          <span>Review before uniqueness is enforced</span>
+          <span>Purchase orders sharing a number</span>
         </div>
         <div className={styles.metric}>
-          <span className={styles.metricLabel}>Authority</span>
+          <span className={styles.metricLabel}>This page</span>
           <strong>Read-only</strong>
-          <span>No rename, delete, or repair action is available here</span>
+          <span>Nothing here renames, deletes, or merges records</span>
         </div>
       </section>
 
       <section className={styles.notice} aria-label="Release gate note">
         <span className={styles.noticeMark} aria-hidden="true">!</span>
         <div>
-          <strong>Protect the history first.</strong>
+          <strong>Keep the history.</strong>
           <p>
-            Export linked lines, documents, and audit evidence. Choose a
-            canonical record with the owner before running any repair migration.
+            Before anything is changed, export each PO&apos;s lines, documents, and
+            audit trail, and agree with the PO owner which record to keep.
           </p>
         </div>
       </section>
@@ -86,7 +86,7 @@ export default async function DataQualityPage() {
         <section className={styles.empty} aria-live="polite">
           <span className={styles.emptyIcon} aria-hidden="true">✓</span>
           <h2>No duplicate Purchase Order numbers found</h2>
-          <p>This tenant passes the identifier check used by the next migration gate.</p>
+          <p>Every purchase order in this workspace has its own PO number.</p>
         </section>
       ) : (
         <section className={styles.groups} aria-label="Duplicate Purchase Order groups">

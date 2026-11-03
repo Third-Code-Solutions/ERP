@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import { randomUUID } from 'node:crypto'
 
@@ -22,6 +23,8 @@ import { InspectionForm } from '@/components/proposal/inspection-form'
 import { InspectionReportRepair } from '@/components/proposal/inspection-report-repair'
 import { RfiForm } from '@/components/proposal/rfi-form'
 import { InspectionRfiRegister } from './inspection-rfi-register'
+
+export const metadata: Metadata = { title: 'Site Inspection' }
 
 type SearchParamValue = string | string[] | undefined
 
@@ -256,7 +259,7 @@ export default async function InspectionPage({ params, searchParams }: PageProps
                     {latest.submitted_at && (
                       <>
                         {' '}·{' '}
-                        {new Date(latest.submitted_at).toLocaleString('en-PH', {
+                        {new Date(latest.submitted_at).toLocaleString('en-PH', { timeZone: 'Asia/Manila',
                           year: 'numeric', month: 'short', day: 'numeric',
                           hour: '2-digit', minute: '2-digit',
                         })}

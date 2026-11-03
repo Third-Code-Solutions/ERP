@@ -35,6 +35,7 @@ import {
   type BudgetDraftCommandScope,
   type ConfirmedBudgetDraftReceipt,
 } from './budget-draft-receipts'
+import { manilaToday } from '@/lib/operations/manila-date'
 
 type DraftCommand = BudgetDraftCommandScope & {
   invoke: () => Promise<unknown>
@@ -165,7 +166,7 @@ const CATEGORIES = [
 ] as const
 
 function today(): string {
-  return new Date().toISOString().slice(0, 10)
+  return manilaToday()
 }
 
 function formatCents(cents: number | bigint, grouped = true): string {
@@ -1009,7 +1010,7 @@ function BudgetWorkspaceContent({
               <div key={code.id}>
                 <code>{code.code}</code>
                 <span>{code.name}</span>
-                <small>{code.category}</small>
+                <small>{CATEGORIES.find(([value]) => value === code.category)?.[1] ?? code.category}</small>
               </div>
             ))}
           </div>

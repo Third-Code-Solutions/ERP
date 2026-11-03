@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -9,6 +10,8 @@ import {
   opportunityTypeLabel,
   opportunityWorkspaceAccess,
 } from './opportunity-detail-presentation'
+
+export const metadata: Metadata = { title: 'Opportunity' }
 
 interface PageProps {
   params: Promise<{ id: string }>

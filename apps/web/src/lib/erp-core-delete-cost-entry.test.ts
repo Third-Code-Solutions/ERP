@@ -101,7 +101,7 @@ describe('deleteCostEntryThroughCoreApi', () => {
       deleteCostEntryThroughCoreApi(PROJECT_ID, ENTRY_ID, 'Manual correction', 'key-3')
     ).resolves.toEqual({
       ok: false,
-      error: 'ERP Core API returned an invalid cost entry deletion result.',
+      error: 'The ERP service returned an invalid cost entry deletion result.',
       outcomeUnknown: true,
     })
   })

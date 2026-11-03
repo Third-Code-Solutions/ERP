@@ -14,10 +14,16 @@ import {
 } from '@third-code-erp/database/schema'
 import { and, asc, eq, inArray } from 'drizzle-orm'
 import { StockReceiptForm } from '../../receipt-form'
+import { manilaToday } from '@/lib/operations/manila-date'
 
 export const metadata: Metadata = { title: 'New Stock Receipt' }
 
-export default async function NewStockReceiptPage() {
+export default async function NewStockReceiptPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ po?: string }>
+}) {
+  const { po: requestedPoId } = await searchParams
   const profile = await requireUserProfile()
   requireCapability(profile, 'inventory.manage')
 
@@ -27,7 +33,7 @@ export default async function NewStockReceiptPage() {
         id: purchaseOrders.id,
         number: purchaseOrders.po_number,
         projectId: purchaseOrders.project_id,
-        projectCode: projects.name,
+        projectCode: projects.project_code,
         projectName: projects.name,
         vendorName: vendors.name,
       })
@@ -177,7 +183,7 @@ export default async function NewStockReceiptPage() {
             id: po.id,
             number: po.number,
             projectId: po.projectId,
-            projectLabel: `${po.projectCode} / ${po.projectName}`,
+            projectLabel: po.projectCode ? `${po.projectCode} / ${po.projectName}` : po.projectName,
             vendorLabel: po.vendorName ?? 'Supplier not set',
           }))}
           lines={lineRows.map((line) => ({
@@ -200,9 +206,12 @@ export default async function NewStockReceiptPage() {
           warehouses={warehouseRows}
           deliveries={deliveryRows.map((delivery) => ({
             ...delivery,
-            scheduledDate: delivery.scheduledDate?.toISOString() ?? null,
+            scheduledDate: delivery.scheduledDate
+              ? delivery.scheduledDate.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', dateStyle: 'medium' })
+              : null,
           }))}
-          today={new Date().toISOString().slice(0, 10)}
+          today={manilaToday()}
+          initialPurchaseOrderId={requestedPoId}
         />
       )}
     </div>

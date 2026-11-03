@@ -279,7 +279,7 @@ export default async function CnpsDashboardPage() {
                   </td>
                   <td className="muted">
                     {r.responded_at
-                      ? new Date(r.responded_at).toLocaleDateString('en-PH', {
+                      ? new Date(r.responded_at).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila',
                           month: 'short',
                           day: 'numeric',
                         })

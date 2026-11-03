@@ -183,7 +183,7 @@ describe('supplier bill actions', () => {
     mocks.financeSupplierBillPostWritesUseCoreApi.mockReturnValue(true)
     mocks.postSupplierBillThroughCoreApi.mockResolvedValue({
       ok: false,
-      error: 'ERP Core API is unavailable. No Supplier Bill posting was committed.',
+      error: 'The ERP service is unavailable. No Supplier Bill posting was committed.',
     })
 
     await expect(
@@ -193,7 +193,7 @@ describe('supplier bill actions', () => {
       )
     ).resolves.toEqual({
       ok: false,
-      error: 'ERP Core API is unavailable. No Supplier Bill posting was committed.',
+      error: 'The ERP service is unavailable. No Supplier Bill posting was committed.',
     })
     expect(mocks.execute).not.toHaveBeenCalled()
   })

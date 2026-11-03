@@ -13,23 +13,11 @@ import { eq, desc, and, inArray } from 'drizzle-orm'
 import { CreatePoForm } from '@/components/procurement/create-po-form'
 import { GeneratePosTrigger } from '@/components/procurement/generate-pos-trigger'
 import { COMMITTED_PO_STATUSES } from '@/lib/po-status'
+import { PO_STATUS_LABELS } from '@/lib/operations/po-status'
 
 export const metadata: Metadata = { title: 'Purchase Orders' }
 
-const STATUS_LABELS: Record<string, string> = {
-  draft: 'Draft',
-  submitted: 'Submitted',
-  confirmed: 'Confirmed',
-  partial_delivery: 'Partial Delivery',
-  delivered: 'Delivered',
-  cancelled: 'Cancelled',
-  pending_pm_approval: 'Pending PM Approval',
-  pending_commercial_approval: 'Pending Commercial Approval',
-  pending_scm_issuance: 'Pending SCM Issuance',
-  issued: 'Issued',
-  partial_delivered: 'Partial Delivered',
-  fully_delivered: 'Fully Delivered',
-}
+const STATUS_LABELS = PO_STATUS_LABELS
 
 const STATUS_COLORS: Record<string, string> = {
   draft: '#9ca3af',
@@ -257,7 +245,7 @@ export default async function PurchaseOrdersPage() {
                   </td>
                   <td style={{ color: 'var(--color-neutral-500)', fontSize: '0.8125rem' }}>
                     {row.delivery_date
-                      ? new Date(row.delivery_date).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })
+                      ? new Date(row.delivery_date).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'short', day: 'numeric' })
                       : '—'}
                   </td>
                 </tr>

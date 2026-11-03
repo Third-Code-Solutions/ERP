@@ -33,7 +33,7 @@ export async function upsertRateCard(
 ): Promise<{ error?: string }> {
   const profile = await requireUserProfile()
   if (!can(profile.role, 'admin.rate_card')) {
-    return { error: `Forbidden: role "${profile.role}" lacks "admin.rate_card"` }
+    return { error: 'Your role does not have permission to do this.' }
   }
 
   const parsed = rateCardSchema.safeParse({
@@ -159,7 +159,7 @@ export async function deleteRateCard(
 ): Promise<{ error?: string }> {
   const profile = await requireUserProfile()
   if (!can(profile.role, 'admin.rate_card')) {
-    return { error: `Forbidden: role "${profile.role}" lacks "admin.rate_card"` }
+    return { error: 'Your role does not have permission to do this.' }
   }
   const id = formData.get('id')
   if (typeof id !== 'string') return { error: 'id required' }

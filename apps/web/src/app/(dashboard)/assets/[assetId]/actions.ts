@@ -9,6 +9,7 @@ import {
   assetMaintenanceCreateWritesUseCoreApi,
   createAssetMaintenanceThroughCoreApi,
 } from '@/lib/erp-core-client'
+import { parsePesosToCents } from '@/lib/operations/scope-money'
 import { z } from 'zod'
 
 const uuidSchema = z.string().uuid()
@@ -25,13 +26,17 @@ export async function createAssetMaintenance(
   // There is no direct browser/database fallback for this sensitive write.
   if (!assetMaintenanceCreateWritesUseCoreApi(profile.tenantId)) return
 
+  // The form takes pesos; Core stores centavos.
+  const costCents = parsePesosToCents(String(formData.get('cost') ?? '').trim() || '0')
+  if (costCents === undefined) throw new Error('Enter the cost in pesos, for example 1500.00.')
+
   const command = createAssetMaintenanceRecordCommandSchema.parse({
     maintenanceType: formData.get('maintenanceType'),
     summary: formData.get('summary'),
     performedOn: formData.get('performedOn'),
     nextDueOn: formData.get('nextDueOn') || null,
     vendorName: formData.get('vendorName') || null,
-    costCents: Number(formData.get('costCents') || 0),
+    costCents,
     notes: formData.get('notes') || null,
   })
   const idempotencyKey = z

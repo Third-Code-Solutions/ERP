@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { resolveChangeRequest } from '@/app/(dashboard)/crm/opportunities/[id]/proposal/actions'
+import { submitFormData } from '@/components/shared/submit-form-data'
 
 interface ResolveChangeRequestButtonProps {
   changeRequestId: string
@@ -20,7 +21,7 @@ export function ResolveChangeRequestButton({ changeRequestId }: ResolveChangeReq
   }
 
   return (
-    <form action={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 145 }}>
+    <form onSubmit={submitFormData(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 145 }}>
       <input type="hidden" name="change_request_id" value={changeRequestId} />
       <input
         name="resolution_note"

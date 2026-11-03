@@ -20,24 +20,11 @@ import { PoStatusActions } from './po-status-actions'
 import { ApprovalTimeline } from '@/components/procurement/approval-timeline'
 import { ReceiveLineForm } from '@/components/procurement/receive-line-form'
 import { CostCodeAssignment } from '@/components/procurement/cost-code-assignment'
+import { PO_STATUS_LABELS } from '@/lib/operations/po-status'
 
 export const metadata: Metadata = { title: 'Purchase Order' }
 
-const STATUS_LABELS: Record<string, string> = {
-  draft: 'Draft',
-  submitted: 'Submitted',
-  confirmed: 'Confirmed',
-  partial_delivery: 'Partial Delivery',
-  delivered: 'Delivered',
-  cancelled: 'Cancelled',
-  // Three-step approval flow
-  pending_pm_approval: 'Pending PM Approval',
-  pending_commercial_approval: 'Pending Commercial Approval',
-  pending_scm_issuance: 'Pending SCM Issuance',
-  issued: 'Issued',
-  partial_delivered: 'Partial Delivered',
-  fully_delivered: 'Fully Delivered',
-}
+const STATUS_LABELS = PO_STATUS_LABELS
 
 const STATUS_COLORS: Record<string, string> = {
   draft: '#9ca3af',
@@ -273,6 +260,10 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
       'delivered',
       'fully_delivered',
     ].includes(po.status)
+  // Matches the statuses the Stock Receipt form and its posting guard accept.
+  const canReceive =
+    can(profile.role, 'inventory.manage') &&
+    ['issued', 'confirmed', 'partial_delivery', 'delivered', 'fully_delivered'].includes(po.status)
 
   return (
     <div>
@@ -297,7 +288,7 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
                 {po.project_name}
               </Link>
             )}
-            <span>Created {new Date(po.created_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+            <span>Created {new Date(po.created_at).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'long', day: 'numeric' })}</span>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -392,7 +383,7 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
             <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--color-border)', fontSize: '0.875rem', color: 'var(--color-neutral-500)' }}>
               Delivery by{' '}
               <strong style={{ color: 'var(--color-neutral-800)' }}>
-                {new Date(po.delivery_date).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}
+                {new Date(po.delivery_date).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'long', day: 'numeric' })}
               </strong>
             </div>
           )}
@@ -708,9 +699,10 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
                   </td>
                   <td style={{ padding: '10px 16px', textAlign: 'right' }}>
                     <ReceiveLineForm
+                      poId={po.id}
                       quantity={line.quantity}
                       receivedQty={line.received_qty}
-                      disabled={po.status === 'cancelled'}
+                      disabled={!canReceive}
                     />
                   </td>
                 </tr>

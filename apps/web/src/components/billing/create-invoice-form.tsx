@@ -84,8 +84,8 @@ export function CreateInvoiceForm({ projectId, tcvCents }: CreateInvoiceFormProp
 
         <div style={{ display: 'grid', gap: '12px' }}>
           <div>
-            <label style={labelStyle}>Billing % of Contract Value *</label>
-            <input
+            <label style={labelStyle} htmlFor="create-invoice-billing-pct">Billing % of Contract Value *</label>
+            <input id="create-invoice-billing-pct"
               name="billing_pct"
               type="number"
               min="1"
@@ -100,13 +100,13 @@ export function CreateInvoiceForm({ projectId, tcvCents }: CreateInvoiceFormProp
           </div>
 
           <div>
-            <label style={labelStyle}>Due Date</label>
-            <input name="due_date" type="date" style={inputStyle} />
+            <label style={labelStyle} htmlFor="create-invoice-due-date">Due Date</label>
+            <input id="create-invoice-due-date" name="due_date" type="date" style={inputStyle} />
           </div>
 
           <div>
-            <label style={labelStyle}>Notes</label>
-            <input name="notes" placeholder="Optional" style={inputStyle} />
+            <label style={labelStyle} htmlFor="create-invoice-notes">Notes</label>
+            <input id="create-invoice-notes" name="notes" placeholder="Optional" style={inputStyle} />
           </div>
         </div>
 

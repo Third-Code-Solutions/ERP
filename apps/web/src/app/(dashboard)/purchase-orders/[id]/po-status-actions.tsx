@@ -14,7 +14,7 @@
  * action.
  */
 
-import { useRef, useTransition } from 'react'
+import React, { useRef, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   advancePoStatus,
@@ -73,7 +73,7 @@ const SCM_ISSUE_ROLES: AppRole[] = ['admin', 'owner', 'procurement']
 const PO_CREATE_ROLES: AppRole[] = ['admin', 'owner', 'commercial', 'sd_pm_pe', 'pm', 'procurement']
 
 function hasRole(role: AppRole | null | undefined, allowed: AppRole[]): boolean {
-  return role ? allowed.includes(role) : true // default permissive when role unknown — server still enforces
+  return role ? allowed.includes(role) : false
 }
 
 function buttonStyle(variant: 'primary' | 'danger' | 'secondary', pending: boolean): React.CSSProperties {
@@ -155,13 +155,16 @@ export function PoStatusActions({
         >
           {pending ? '…' : 'Submit for PM approval'}
         </button>
-        <button
-          disabled={pending}
-          onClick={() => run(() => advancePoStatus(poId, 'cancelled'))}
-          style={buttonStyle('danger', pending)}
-        >
-          Cancel
-        </button>
+        {/* advancePoStatus('cancelled') requires po.issue. */}
+        {hasRole(viewerRole, SCM_ISSUE_ROLES) ? (
+          <button
+            disabled={pending}
+            onClick={() => run(() => advancePoStatus(poId, 'cancelled'))}
+            style={buttonStyle('danger', pending)}
+          >
+            Cancel
+          </button>
+        ) : null}
       </div>
     )
   }
@@ -237,21 +240,30 @@ export function PoStatusActions({
   }
 
   if (currentStatus === 'issued' || currentStatus === 'partial_delivered') {
-    // SCM/PM mark deliveries. Reuse advancePoStatus for legacy continuity.
-    const next = currentStatus === 'issued' ? 'partial_delivered' : 'fully_delivered'
+    // Receipts drive partial progress and auto-close the PO when every line is
+    // received. A manual "partial" status would block further stock receipts
+    // and delivery scheduling, which only accept issued POs, so only offer the
+    // manual close-out.
+    if (!hasRole(viewerRole, SCM_ISSUE_ROLES)) return null
     return (
       <button
         disabled={pending}
-        onClick={() => run(() => advancePoStatus(poId, next))}
+        onClick={() => run(() => advancePoStatus(poId, 'fully_delivered'))}
         style={buttonStyle('primary', pending)}
       >
-        {pending ? '…' : currentStatus === 'issued' ? 'Mark Partial Delivery' : 'Mark Fully Delivered'}
+        {pending ? '…' : 'Mark Fully Delivered'}
       </button>
     )
   }
 
   // Legacy fall-through.
-  const transitions = LEGACY_TRANSITIONS[currentStatus] ?? []
+  // Mirrors advancePoStatus: submitted needs po.create, confirmed po.approve, the rest po.issue.
+  const transitions = (LEGACY_TRANSITIONS[currentStatus] ?? []).filter(({ status }) =>
+    hasRole(
+      viewerRole,
+      status === 'submitted' ? PO_CREATE_ROLES : status === 'confirmed' ? COMMERCIAL_APPROVE_ROLES : SCM_ISSUE_ROLES
+    )
+  )
   if (transitions.length === 0) return null
 
   return (

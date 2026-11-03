@@ -107,7 +107,7 @@ function SourceBadge({ item }: { item: BomLineItem }) {
       border: 'color-mix(in oklch, var(--color-info) 30%, transparent)',
     },
     rag: {
-      label: 'RAG',
+      label: 'PAST',
       bg: 'var(--color-success-soft)',
       fg: 'var(--color-success)',
       border: 'color-mix(in oklch, var(--color-success) 22%, transparent)',
@@ -356,6 +356,8 @@ interface BomBuilderProps {
   locations?: ProjectLocationOption[]
   assemblyOptions?: DupaAssemblyOption[]
   readOnly?: boolean
+  /** Internal approval needs bom.approve_internal, which estimators do not hold. */
+  canApprove?: boolean
 }
 
 function formatPHP(cents: number): string {
@@ -382,6 +384,7 @@ export function BomBuilder({
   locations = [],
   assemblyOptions = [],
   readOnly = false,
+  canApprove = false,
 }: BomBuilderProps) {
   const [isPending, startTransition] = useTransition()
   const [showAddForm, setShowAddForm] = useState(false)
@@ -394,6 +397,7 @@ export function BomBuilder({
     location_id: '',
   })
   const [formError, setFormError] = useState('')
+  const [actionError, setActionError] = useState('')
   const router = useRouter()
   const [showPoForm, setShowPoForm] = useState(false)
   const [poForm, setPoForm] = useState({ vendorId: '', deliveryDate: '' })
@@ -487,22 +491,28 @@ export function BomBuilder({
   }, [form.description, showAddForm, fetchSuggestions])
 
   function handleCreate() {
+    setActionError('')
     startTransition(async () => {
-      await createBom(projectId)
+      const result = await createBom(projectId)
+      if ('error' in result) setActionError(result.error)
     })
   }
 
   function handleApprove() {
     if (!bom) return
+    setActionError('')
     startTransition(async () => {
-      await approveBom(bom.id, projectId)
+      const result = await approveBom(bom.id, projectId)
+      if (result.error) setActionError(result.error)
     })
   }
 
   function handleDelete(itemId: string) {
     if (!bom) return
+    setActionError('')
     startTransition(async () => {
-      await deleteBomLineItem(itemId, bom.id, projectId)
+      const result = await deleteBomLineItem(itemId, bom.id, projectId)
+      if (result.error) setActionError(result.error)
     })
   }
 
@@ -514,7 +524,7 @@ export function BomBuilder({
         projectId,
         locationId,
       })
-      if (result.error) setFormError(result.error)
+      if (result.error) setActionError(result.error)
     })
   }
 
@@ -624,6 +634,11 @@ export function BomBuilder({
         >
           No BOM yet for this project.
         </p>
+        {actionError && (
+          <p role="alert" style={{ color: 'var(--color-danger, #b91c1c)', fontSize: '0.8125rem', margin: '0 0 12px' }}>
+            {actionError}
+          </p>
+        )}
         {!readOnly && (
           <button
             onClick={handleCreate}
@@ -661,6 +676,11 @@ export function BomBuilder({
       }}
     >
       <div style={{ flex: 1, minWidth: 0 }}>
+        {actionError && (
+          <p role="alert" style={{ color: 'var(--color-danger, #b91c1c)', fontSize: '0.8125rem', margin: '0 0 12px' }}>
+            {actionError}
+          </p>
+        )}
         {/* US-011: forecast vs BOM variance banner */}
         <VarianceBanner
           bomTcvCents={bom.tcv_cents}
@@ -722,6 +742,7 @@ export function BomBuilder({
                 >
                   + Add Line
                 </button>
+                {canApprove && (
                 <button
                   type="button"
                   onClick={handleApprove}
@@ -755,6 +776,7 @@ export function BomBuilder({
                 >
                   Submit for Client Approval
                 </button>
+                )}
               </>
             )}
             {!readOnly && !isEditable && bom.status !== 'archived' && (

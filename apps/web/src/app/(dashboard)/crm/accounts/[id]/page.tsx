@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -5,6 +6,8 @@ import { requireUserProfile, can } from '@third-code-erp/auth'
 import { KycReviewForm } from '@/components/accounts/kyc-review-form'
 import { AddKycArtifactForm } from '@/components/accounts/add-kyc-artifact-form'
 import { getAccountDetail } from '@/lib/account-queries'
+
+export const metadata: Metadata = { title: 'Account' }
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -83,7 +86,7 @@ export default async function AccountDetailPage({ params }: PageProps) {
                       <td>{ARTIFACT_LABEL[r.artifact_type] ?? r.artifact_type}</td>
                       <td className="muted">{r.file_name ?? '—'}</td>
                       <td className="muted">
-                        {new Date(r.uploaded_at).toLocaleDateString('en-PH', {
+                        {new Date(r.uploaded_at).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila',
                           year: 'numeric',
                           month: 'short',
                           day: 'numeric',

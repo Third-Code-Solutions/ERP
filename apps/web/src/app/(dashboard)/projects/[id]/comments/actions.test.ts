@@ -133,13 +133,13 @@ describe('createComment authority and tenant integrity', () => {
     mocks.projectCommentCreateWritesUseCoreApi.mockReturnValue(true)
     mocks.createProjectCommentThroughCoreApi.mockResolvedValue({
       ok: false,
-      error: 'ERP Core API is unavailable. No project comment was created.',
+      error: 'The ERP service is unavailable. No project comment was created.',
     })
 
     const result = await createComment(PROJECT_ID, form())
 
     expect(result).toEqual({
-      error: 'ERP Core API is unavailable. No project comment was created.',
+      error: 'The ERP service is unavailable. No project comment was created.',
     })
     expect(mocks.insert).not.toHaveBeenCalled()
   })
@@ -162,7 +162,7 @@ describe('createComment authority and tenant integrity', () => {
     const result = await createComment(PROJECT_ID, form())
 
     expect(result).toEqual({
-      error: 'ERP Core API returned an invalid project comment scope.',
+      error: 'The ERP service returned an invalid project comment scope.',
     })
     expect(mocks.insert).not.toHaveBeenCalled()
   })
@@ -251,13 +251,13 @@ describe('deleteComment authority and tenant integrity', () => {
     mocks.projectCommentDeleteWritesUseCoreApi.mockReturnValue(true)
     mocks.deleteProjectCommentThroughCoreApi.mockResolvedValue({
       ok: false,
-      error: 'ERP Core API is unavailable. No project comment was deleted.',
+      error: 'The ERP service is unavailable. No project comment was deleted.',
     })
 
     const result = await deleteComment(COMMENT_ID, PROJECT_ID)
 
     expect(result).toEqual({
-      error: 'ERP Core API is unavailable. No project comment was deleted.',
+      error: 'The ERP service is unavailable. No project comment was deleted.',
     })
     expect(mocks.delete).not.toHaveBeenCalled()
   })
@@ -277,7 +277,7 @@ describe('deleteComment authority and tenant integrity', () => {
     const result = await deleteComment(COMMENT_ID, PROJECT_ID)
 
     expect(result).toEqual({
-      error: 'ERP Core API returned an invalid project comment scope.',
+      error: 'The ERP service returned an invalid project comment scope.',
     })
     expect(mocks.delete).not.toHaveBeenCalled()
   })

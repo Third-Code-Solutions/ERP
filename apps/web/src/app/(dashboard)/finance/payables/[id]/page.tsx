@@ -17,6 +17,7 @@ import {
 } from '@third-code-erp/database/schema'
 import { and, asc, eq, sql } from 'drizzle-orm'
 import { PayableActions } from './payable-actions'
+import { manilaToday } from '@/lib/operations/manila-date'
 
 export const metadata: Metadata = { title: 'Supplier bill' }
 
@@ -345,14 +346,14 @@ export default async function SupplierBillPage({
             <PayableActions
               billId={bill.id}
               status={bill.status}
-              defaultDate={new Date().toISOString().slice(0, 10)}
+              defaultDate={manilaToday()}
             />
           )}
           {bill.postingJournalId && (
             <p className="finance-control-note">
               Posted by {bill.postedByName ?? 'Finance'}{' '}
               {bill.postedAt
-                ? `on ${new Date(bill.postedAt).toLocaleString('en-PH')}`
+                ? `on ${new Date(bill.postedAt).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })}`
                 : ''}
               .{' '}
               <Link href={`/finance/journals/${bill.postingJournalId}`}>
@@ -364,7 +365,7 @@ export default async function SupplierBillPage({
             <p className="finance-control-note">
               Reversed by {bill.reversedByName ?? 'Finance'}{' '}
               {bill.reversedAt
-                ? `on ${new Date(bill.reversedAt).toLocaleString('en-PH')}`
+                ? `on ${new Date(bill.reversedAt).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })}`
                 : ''}
               . Reason: {bill.reversalReason}.{' '}
               <Link href={`/finance/journals/${bill.reversalJournalId}`}>

@@ -26,7 +26,7 @@ import { writeAuditLog } from '@/lib/audit'
 
 function guard(role: AppRole, capability: ErpCapability): string | null {
   if (!can(role, capability)) {
-    return `Forbidden: role "${role}" lacks "${capability}"`
+    return 'Your role does not have permission to do this.'
   }
   return null
 }

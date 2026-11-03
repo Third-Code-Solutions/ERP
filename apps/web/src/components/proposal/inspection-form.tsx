@@ -18,6 +18,7 @@ import {
   type SiteInspectionDraftFields,
   type SiteInspectionDraftPhoto,
 } from '@/lib/operations/site-inspection-draft'
+import { submitFormData } from '@/components/shared/submit-form-data'
 
 const MAX_PHOTOS = 10
 const MAX_PHOTO_BYTES = 15 * 1024 * 1024
@@ -59,7 +60,7 @@ function initialFields(defaults?: InspectionDefaults): SiteInspectionDraftFields
 function describeDraftAge(updatedAt: string): string {
   const date = new Date(updatedAt)
   if (Number.isNaN(date.getTime())) return 'Saved draft restored.'
-  return `Saved draft restored from ${date.toLocaleString()}.`
+  return `Saved draft restored from ${date.toLocaleString('en-PH', { timeZone: 'Asia/Manila' })}.`
 }
 
 export function InspectionForm(props: InspectionFormProps) {
@@ -402,7 +403,7 @@ function InspectionFormSession({ actorId, tenantId, opportunityId, pprfSubmitted
 
   return (
     <form
-      action={onSubmit}
+      onSubmit={submitFormData(onSubmit)}
       className="inspection-form"
       aria-busy={pending || photoBusy}
       aria-describedby="inspection-form-status"

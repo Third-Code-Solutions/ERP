@@ -50,6 +50,7 @@ import {
   createUser,
   deleteUser,
   suspendUser,
+  reactivateUser,
   resetUserPassword,
   updateUserRole,
 } from './actions'
@@ -461,6 +462,88 @@ describe('admin user role authority', () => {
     })
     expect(updateUserById).toHaveBeenNthCalledWith(1, TARGET_ID, { ban_duration: '876000h' })
     expect(updateUserById).toHaveBeenNthCalledWith(2, TARGET_ID, { ban_duration: '876000h' })
+  })
+
+  it('reactivates a suspended user with an audited unban', async () => {
+    const query = userQuery([
+      { id: TARGET_ID, role: 'viewer', email: 'viewer@example.test', accountStatus: 'suspended' },
+    ])
+    mocks.select.mockReturnValue({ from: query.from })
+    const updateUserById = vi.fn().mockResolvedValue({ error: null })
+    mocks.createSupabaseAdminClient.mockReturnValue({ auth: { admin: { updateUserById } } })
+    const form = new FormData()
+    form.set('user_id', TARGET_ID)
+
+    await expect(reactivateUser(form)).resolves.toEqual({ ok: true, status: 'active' })
+    expect(updateUserById).toHaveBeenCalledWith(TARGET_ID, { ban_duration: 'none' })
+    expect(mocks.writeAuditLogInTransaction).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      action: 'status_change',
+      diff: expect.objectContaining({ from_status: 'suspended', to_status: 'active' }),
+    }))
+  })
+
+  it.each(['active', 'disabled'])('refuses to reactivate a %s user before Auth', async (accountStatus) => {
+    const query = userQuery([
+      { id: TARGET_ID, role: 'viewer', email: 'viewer@example.test', accountStatus },
+    ])
+    mocks.select.mockReturnValue({ from: query.from })
+    const form = new FormData()
+    form.set('user_id', TARGET_ID)
+
+    await expect(reactivateUser(form)).resolves.toEqual({ error: 'Only suspended users can be reactivated.' })
+    expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
+    expect(mocks.update).not.toHaveBeenCalled()
+  })
+
+  it('keeps the Auth ban when the reactivation audit cannot commit', async () => {
+    const query = userQuery([
+      { id: TARGET_ID, role: 'viewer', email: 'viewer@example.test', accountStatus: 'suspended' },
+    ])
+    mocks.select.mockReturnValue({ from: query.from })
+    const updateUserById = vi.fn().mockResolvedValue({ error: null })
+    mocks.createSupabaseAdminClient.mockReturnValue({ auth: { admin: { updateUserById } } })
+    mocks.writeAuditLogInTransaction.mockRejectedValueOnce(new Error('synthetic audit failure'))
+    const form = new FormData()
+    form.set('user_id', TARGET_ID)
+
+    await expect(reactivateUser(form)).resolves.toEqual({
+      error: 'User reactivation could not be confirmed. Retry or reconcile with support.',
+    })
+    expect(updateUserById).not.toHaveBeenCalled()
+  })
+
+  it('re-applies the durable ban when the Auth unban fails', async () => {
+    const query = userQuery([
+      { id: TARGET_ID, role: 'viewer', email: 'viewer@example.test', accountStatus: 'suspended' },
+    ])
+    mocks.select.mockReturnValue({ from: query.from })
+    const updateUserById = vi.fn()
+      .mockResolvedValueOnce({ error: { message: 'provider down' } })
+      .mockResolvedValueOnce({ error: null })
+    mocks.createSupabaseAdminClient.mockReturnValue({ auth: { admin: { updateUserById } } })
+    const form = new FormData()
+    form.set('user_id', TARGET_ID)
+
+    await expect(reactivateUser(form)).resolves.toEqual({
+      error: 'User reactivation could not be confirmed. Retry or reconcile with support.',
+    })
+    expect(updateUserById).toHaveBeenNthCalledWith(1, TARGET_ID, { ban_duration: 'none' })
+    expect(updateUserById).toHaveBeenNthCalledWith(2, TARGET_ID, { ban_duration: '876000h' })
+  })
+
+  it('reports out-of-sync sign-in access when the re-ban also fails', async () => {
+    const query = userQuery([
+      { id: TARGET_ID, role: 'viewer', email: 'viewer@example.test', accountStatus: 'suspended' },
+    ])
+    mocks.select.mockReturnValue({ from: query.from })
+    const updateUserById = vi.fn().mockResolvedValue({ error: { message: 'provider down' } })
+    mocks.createSupabaseAdminClient.mockReturnValue({ auth: { admin: { updateUserById } } })
+    const form = new FormData()
+    form.set('user_id', TARGET_ID)
+
+    await expect(reactivateUser(form)).resolves.toEqual({
+      error: 'Reactivation failed and sign-in access could not be re-confirmed. Contact support before retrying.',
+    })
   })
 
   it('rejects a target outside the tenant', async () => {

@@ -40,7 +40,8 @@ export function NewProjectForm() {
     const formData = new FormData(e.currentTarget)
     startTransition(async () => {
       try {
-        await createProject(formData)
+        const result = await createProject(formData)
+        if (result?.error) setError(result.error)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to create project')
       }

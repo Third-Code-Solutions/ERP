@@ -56,7 +56,10 @@ describe('ProjectAuditPage sensitive query planning', () => {
             where: async () => [{ id: PROJECT_ID, name: 'Visible project' }],
           }
         }
-        if (table === scopeItems || table === boms || table === invoices) {
+        if (table === scopeItems) {
+          return { where: () => ({ orderBy: async () => [] }) }
+        }
+        if (table === boms || table === invoices) {
           return { where: async () => [] }
         }
         throw new Error('Unexpected denied-domain query')

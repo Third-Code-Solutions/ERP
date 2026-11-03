@@ -33,7 +33,7 @@ const createUserSchema = z.object({
 })
 
 function guardAdmin(role: AppRole): string | null {
-  return can(role, 'admin.users') ? null : `Forbidden: role "${role}" lacks admin.users`
+  return can(role, 'admin.users') ? null : 'Your role does not have permission to do this.'
 }
 
 /** Wraps an action body so any uncaught throw becomes a returned error
@@ -471,6 +471,114 @@ export async function suspendUser(
     revalidatePath('/admin/users')
     revalidatePath(`/admin/users/${userId}`)
     return { ok: true, status: 'suspended' }
+  })
+}
+
+const reactivateUserSchema = z.object({
+  user_id: z.string().uuid().transform((value) => value.toLowerCase()),
+})
+
+/**
+ * Restore sign-in for a suspended user. Disabled accounts (revoked
+ * invitations) stay disabled; they need a new invitation instead.
+ * The Auth unban is compensated when the database/audit write cannot be confirmed.
+ */
+export async function reactivateUser(
+  formData: FormData
+): Promise<{ error?: string; ok?: boolean; status?: 'active' }> {
+  return safe('reactivateUser', async () => {
+    const profile = await requireUserProfile()
+    const forbid = guardAdmin(profile.role)
+    if (forbid) return { error: forbid }
+
+    const parsed = reactivateUserSchema.safeParse({ user_id: formData.get('user_id') })
+    if (!parsed.success) return { error: 'user_id: invalid user' }
+    const { user_id: userId } = parsed.data
+
+    let admin: ReturnType<typeof createSupabaseAdminClient> | undefined
+    let providerAttempted = false
+    const expectedMessages = new Set([
+      'User not found in this workspace.',
+      'Only suspended users can be reactivated.',
+      'Only an owner can reactivate another owner.',
+    ])
+    try {
+      await db.transaction(async (tx) => {
+        await tx.execute(
+          sql`select pg_advisory_xact_lock(hashtextextended(${profile.tenantId}, 0))`
+        )
+        const [target] = await tx
+          .select({
+            id: usersTable.id,
+            email: usersTable.email,
+            role: usersTable.role,
+            accountStatus: usersTable.account_status,
+          })
+          .from(usersTable)
+          .where(and(eq(usersTable.id, userId), eq(usersTable.tenant_id, profile.tenantId)))
+          .limit(1)
+          .for('update')
+        if (!target) throw new Error('User not found in this workspace.')
+        if (target.accountStatus !== 'suspended') {
+          throw new Error('Only suspended users can be reactivated.')
+        }
+        if (target.role === 'owner' && profile.role !== 'owner') {
+          throw new Error('Only an owner can reactivate another owner.')
+        }
+
+        // Unban last: the Auth ban is the only sign-in gate, so every database
+        // write must succeed before it is lifted (fail closed).
+        await stampActorInTransaction(tx, profile.user.id)
+        const [updated] = await tx
+          .update(usersTable)
+          .set({
+            account_status: 'active',
+            status_reason: null,
+            status_changed_at: new Date(),
+            status_changed_by: profile.user.id,
+            updated_at: new Date(),
+          })
+          .where(and(eq(usersTable.id, userId), eq(usersTable.tenant_id, profile.tenantId)))
+          .returning({ id: usersTable.id })
+        if (!updated) throw new Error('User changed before reactivation was committed')
+        await writeAuditLogInTransaction(tx, {
+          tenantId: profile.tenantId,
+          actorId: profile.user.id,
+          entityType: 'user',
+          entityId: userId,
+          action: 'status_change',
+          diff: {
+            email: target.email,
+            role: target.role,
+            from_status: target.accountStatus,
+            to_status: 'active',
+          },
+        })
+        admin = createSupabaseAdminClient()
+        providerAttempted = true
+        const { error: authErr } = await admin.auth.admin.updateUserById(userId, {
+          ban_duration: 'none',
+        })
+        if (authErr) throw new Error(authErr.message)
+      })
+    } catch (err) {
+      if (err instanceof Error && expectedMessages.has(err.message)) {
+        return { error: err.message }
+      }
+      if (providerAttempted && admin) {
+        console.warn('[admin/users:reactivateUser] reactivation compensation attempted:', err)
+        const reconciled = await reconcileSuspensionFromDurableState(admin, userId, profile.tenantId)
+          .then(() => true, () => false)
+        if (!reconciled) {
+          return { error: 'Reactivation failed and sign-in access could not be re-confirmed. Contact support before retrying.' }
+        }
+      }
+      return { error: 'User reactivation could not be confirmed. Retry or reconcile with support.' }
+    }
+
+    revalidatePath('/admin/users')
+    revalidatePath(`/admin/users/${userId}`)
+    return { ok: true, status: 'active' }
   })
 }
 

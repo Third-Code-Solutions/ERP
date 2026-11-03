@@ -347,6 +347,7 @@ export function CostTable({
     ) {
       return
     }
+    if (!window.confirm(`Void "${entry.description}"? It stays in the cost history marked as voided.`)) return
 
     const command: VoidCommand = {
       entryId: entry.id,

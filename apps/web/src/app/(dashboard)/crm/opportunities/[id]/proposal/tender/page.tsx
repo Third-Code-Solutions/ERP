@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { randomUUID } from 'node:crypto'
 import { notFound } from 'next/navigation'
@@ -26,6 +27,8 @@ import {
   transitionTender,
 } from '../tender-actions'
 import { TenderActionForm } from '../tender-action-form'
+
+export const metadata: Metadata = { title: 'Tender' }
 
 interface PageProps { params: Promise<{ id: string }> }
 
@@ -86,7 +89,7 @@ export default async function TenderPage({ params }: PageProps) {
       <ProposalSubNav opportunityId={id} />
       <section className="card tender-summary" aria-labelledby="tender-summary">
         <div><h2 id="tender-summary" className="card-title">Tender control</h2><p className="card-subtitle">Evidence is tenant-scoped and every review change is audited.</p></div>
-        <div className="tender-summary-grid"><Meta label="Status" value={badge(tender.status)} /><Meta label="Source" value={badge(tender.sourceMode)} /><Meta label="Closing" value={tender.closingAt ? new Date(tender.closingAt).toLocaleString('en-PH') : 'Not set'} /><Meta label="Criteria weight" value={`${totalWeight} bps / 10000`} /><Meta label="Deviations" value={String(deviations.length)} /><Meta label="Vendors" value={String(profiles.length)} /></div>
+        <div className="tender-summary-grid"><Meta label="Status" value={badge(tender.status)} /><Meta label="Source" value={badge(tender.sourceMode)} /><Meta label="Closing" value={tender.closingAt ? new Date(tender.closingAt).toLocaleString('en-PH', { timeZone: 'Asia/Manila', dateStyle: 'medium', timeStyle: 'short' }) : 'Not set'} /><Meta label="Criteria weight" value={`${totalWeight} bps / 10000`} /><Meta label="Deviations" value={String(deviations.length)} /><Meta label="Vendors" value={String(profiles.length)} /></div>
         {canManage || canEvaluate ? <TenderActionForm action={transitionTender} className="inline-form"><input type="hidden" name="opportunityId" value={id} /><input type="hidden" name="tenderId" value={tender.id} /><input type="hidden" name="expectedVersion" value={tender.version} /><label>Move to<select name="status" defaultValue={tender.status}>{canManage && <><option value="draft">Draft</option><option value="open">Open</option><option value="evaluating">Evaluating</option><option value="closed">Closed</option></>}{canEvaluate && <option value="submitted">Submitted</option>}</select></label><button className="button-secondary" type="submit">Save status</button></TenderActionForm> : null}
       </section>
 

@@ -81,7 +81,7 @@ describe('tender proposal actions', () => {
       title: 'MNHPI tender',
       reference: 'TOR-001',
       sourceMode: 'client_issued_boq',
-    }))).resolves.toEqual({ error: 'Forbidden: role "commercial" lacks "tender.manage"' })
+    }))).resolves.toEqual({ error: 'Your role does not have permission to do this.' })
 
     expect(mocks.db.transaction).not.toHaveBeenCalled()
   })
@@ -110,7 +110,7 @@ describe('tender proposal actions', () => {
       criterionId: TENDER_ID,
       scoreBps: '8500',
       notes: 'Strong technical submission',
-    }))).resolves.toEqual({ error: 'Forbidden: role "commercial" lacks "tender.evaluate"' })
+    }))).resolves.toEqual({ error: 'Your role does not have permission to do this.' })
 
     expect(mocks.db.transaction).not.toHaveBeenCalled()
   })

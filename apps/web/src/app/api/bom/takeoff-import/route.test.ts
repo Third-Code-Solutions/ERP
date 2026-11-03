@@ -177,7 +177,7 @@ describe('generic takeoff import Core authority', () => {
     mocks.executeTakeoffImportThroughCoreApi.mockResolvedValue({
       ok: false,
       status: 503,
-      error: 'ERP Core API is unavailable. No takeoff data was committed.',
+      error: 'The ERP service is unavailable. No takeoff data was committed.',
     })
 
     const response = await POST(
@@ -193,7 +193,7 @@ describe('generic takeoff import Core authority', () => {
       ok: false,
       error: {
         code: 'TAKEOFF_CORE_UNAVAILABLE',
-        message: 'ERP Core API is unavailable. No takeoff data was committed.',
+        message: 'The ERP service is unavailable. No takeoff data was committed.',
       },
     })
   })

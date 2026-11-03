@@ -286,7 +286,7 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ id
               </div>
             </div>
             <p className="muted" style={{ margin: '0 16px 16px' }}>
-              No inventory value or SAP posting has been fabricated.
+              No inventory cost is shown until verified figures are available.
             </p>
           </section>
         )

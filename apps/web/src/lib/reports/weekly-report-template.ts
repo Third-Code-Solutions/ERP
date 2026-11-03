@@ -39,7 +39,7 @@ function esc(value: unknown): string {
 function formatDate(d: Date | string | null | undefined): string {
   if (!d) return '—'
   try {
-    return new Date(d).toLocaleDateString('en-PH', {
+    return new Date(d).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila',
       year: 'numeric',
       month: 'long',
       day: 'numeric',
@@ -52,7 +52,7 @@ function formatDate(d: Date | string | null | undefined): string {
 function formatDateTime(d: Date | string | null | undefined): string {
   if (!d) return '—'
   try {
-    return new Date(d).toLocaleString('en-PH', {
+    return new Date(d).toLocaleString('en-PH', { timeZone: 'Asia/Manila',
       year: 'numeric',
       month: 'short',
       day: 'numeric',

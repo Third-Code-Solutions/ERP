@@ -34,8 +34,8 @@ export function WarrantyPortalLinkIssuer({ projects }: WarrantyPortalLinkIssuerP
           lineHeight: 1.5,
         }}
       >
-        Select a project, then issue a link for the client to submit and track warranty
-        requests.
+        Select a project, then issue a link the client can use to submit warranty requests.
+        Updates on each request reach the client by email.
       </p>
       <label style={{ display: 'grid', gap: 6, fontSize: 13, fontWeight: 600 }}>
         Project

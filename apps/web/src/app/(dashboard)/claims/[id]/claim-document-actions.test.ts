@@ -114,7 +114,7 @@ describe('claim document server actions', () => {
     mocks.attachClaimDocumentThroughCoreApi.mockResolvedValueOnce({
       ok: false,
       status: 503,
-      error: 'ERP Core API is unavailable. Attachment outcome is unconfirmed; retry with the same request.',
+      error: 'The ERP service is unavailable. Attachment outcome is unconfirmed; retry with the same request.',
     })
 
     await expect(
@@ -125,7 +125,7 @@ describe('claim document server actions', () => {
         caption: null,
       }),
     ).resolves.toEqual({
-      error: 'ERP Core API is unavailable. Attachment outcome is unconfirmed; retry with the same request.',
+      error: 'The ERP service is unavailable. Attachment outcome is unconfirmed; retry with the same request.',
       outcome: 'unknown',
     })
     expect(mocks.revalidatePath).not.toHaveBeenCalled()
@@ -173,7 +173,7 @@ describe('claim document server actions', () => {
         caption: null,
       }),
     ).resolves.toEqual({
-      error: 'ERP Core API returned an invalid claim document result.',
+      error: 'The ERP service returned an invalid claim document result.',
       outcome: 'unknown',
     })
     expect(mocks.revalidatePath).not.toHaveBeenCalled()

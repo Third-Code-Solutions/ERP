@@ -4,6 +4,7 @@ import React, { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { submitPprf } from '@/app/(dashboard)/crm/opportunities/[id]/proposal/actions'
 import { ActionFeedback } from '@/components/ui/action-feedback'
+import { submitFormData } from '@/components/shared/submit-form-data'
 
 interface PprfFormProps {
   opportunityId: string
@@ -66,7 +67,7 @@ export function PprfForm({ opportunityId, submissionId, defaults }: PprfFormProp
 
   return (
     <form
-      action={onSubmit}
+      onSubmit={submitFormData(onSubmit)}
       ref={formRef}
       className="pprf-form"
       aria-busy={pending}

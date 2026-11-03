@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import Link from 'next/link'
 import { randomUUID } from 'node:crypto'
@@ -15,6 +16,8 @@ import { ProposalSubNav } from '@/components/proposal/sub-nav'
 import { PprfForm } from '@/components/proposal/pprf-form'
 import { pprfPayloadSchema } from '@/app/(dashboard)/crm/opportunities/[id]/proposal/schemas'
 import { OpportunityKycTrackPanel } from '@/components/proposal/opportunity-kyc-track-panel'
+
+export const metadata: Metadata = { title: 'Project Pre-Requirements Form' }
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -192,7 +195,7 @@ export default async function PprfPage({ params }: PageProps) {
                       <td>v{h.version}</td>
                       <td className="muted">
                         {h.submitted_at
-                          ? new Date(h.submitted_at).toLocaleString('en-PH', {
+                          ? new Date(h.submitted_at).toLocaleString('en-PH', { timeZone: 'Asia/Manila',
                               year: 'numeric', month: 'short', day: 'numeric',
                               hour: '2-digit', minute: '2-digit',
                             })

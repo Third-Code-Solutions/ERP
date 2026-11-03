@@ -19,13 +19,16 @@ describe('safeActionError', () => {
     ).toBe('Cannot complete because related records exist.')
   })
 
-  it('preserves typed authorization copy and uses fallback for unknown errors', () => {
+  it('maps authorization failures to plain copy and uses fallback for unknown errors', () => {
     expect(
       safeActionError(
         new AuthError('FORBIDDEN', 'Forbidden: role "viewer" lacks admin.users'),
         'Could not save user.'
       )
-    ).toBe('Forbidden: role "viewer" lacks admin.users')
+    ).toBe('Your role does not have permission to do this.')
+    expect(safeActionError(new Error('Forbidden: internal detail'), 'Could not save user.')).toBe(
+      'Your role does not have permission to do this.'
+    )
     expect(safeActionError(new Error('secret provider payload'), 'Could not save user.')).toBe(
       'Could not save user.'
     )

@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, type ReactNode } from 'react'
+import React, { useState, useTransition, type FormEvent, type ReactNode } from 'react'
 
 interface TenderActionState {
   error?: string
@@ -14,16 +14,31 @@ interface TenderActionFormProps {
   className?: string
 }
 
+// Submitted via onSubmit (not `action=`) so React 19 does not clear typed
+// values when the action returns an error; fields reset only on success.
 export function TenderActionForm({ action, children, className }: TenderActionFormProps) {
-  const [state, formAction, pending] = useActionState<TenderActionState, FormData>(
-    async (_previous, formData) => action(formData),
-    {},
-  )
+  const [error, setError] = useState<string | undefined>()
+  const [pending, startTransition] = useTransition()
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (pending) return
+    const form = event.currentTarget
+    const formData = new FormData(form)
+    startTransition(async () => {
+      const result = await action(formData)
+      setError(result.error)
+      if (!result.error) form.reset()
+    })
+  }
 
   return (
-    <form action={formAction} className={className} aria-busy={pending}>
-      {children}
-      {state.error ? <p role="alert" aria-live="polite" className="tender-form-error">{state.error}</p> : null}
+    <form onSubmit={handleSubmit} className={className} aria-busy={pending}>
+      {/* Disabled while saving so a double click cannot submit twice. */}
+      <fieldset disabled={pending} style={{ display: 'contents' }}>
+        {children}
+      </fieldset>
+      {error ? <p role="alert" aria-live="polite" className="tender-form-error">{error}</p> : null}
       {pending ? <span role="status" aria-live="polite" className="tender-form-pending">Saving…</span> : null}
     </form>
   )

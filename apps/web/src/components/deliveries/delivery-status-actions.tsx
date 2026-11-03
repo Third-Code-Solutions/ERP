@@ -23,6 +23,7 @@ type DeliveryStatus =
 interface Props {
   scheduleId: string
   status: DeliveryStatus
+  readOnly?: boolean
 }
 
 const TERMINAL: ReadonlySet<DeliveryStatus> = new Set([
@@ -43,7 +44,7 @@ const NEXT_HINT: Record<DeliveryStatus, string> = {
   cancelled: 'Delivery cancelled.',
 }
 
-export function DeliveryStatusActions({ scheduleId, status }: Props) {
+export function DeliveryStatusActions({ scheduleId, status, readOnly = false }: Props) {
   const [error, setError] = useState('')
   const [reason, setReason] = useState('')
   const [showCancel, setShowCancel] = useState(false)
@@ -103,7 +104,7 @@ export function DeliveryStatusActions({ scheduleId, status }: Props) {
         {NEXT_HINT[status]}
       </p>
 
-      {!isTerminal && !showCancel ? (
+      {!isTerminal && !showCancel && !readOnly ? (
         <button
           type="button"
           onClick={() => setShowCancel(true)}

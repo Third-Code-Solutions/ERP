@@ -1066,7 +1066,7 @@ export async function pmApprovePo(
   // PM/SD-PM-PE approvers — either po.create OR precon.manage_checklist
   // grants PM-level approval per the spec.
   if (!can(profile.role, 'precon.manage_checklist') && !can(profile.role, 'po.create')) {
-    return { error: `Forbidden: role "${profile.role}" cannot approve as PM` }
+    return { error: 'Your role cannot approve as PM.' }
   }
 
   const [po] = await db
@@ -1357,7 +1357,7 @@ export async function rejectPoApproval(
   }
   const allowedRoles = canRejectByRole[po.status] ?? []
   if (!allowedRoles.includes(profile.role)) {
-    return { error: `Forbidden: role "${profile.role}" cannot reject at step "${po.status}"` }
+    return { error: 'Your role cannot reject at this approval step.' }
   }
 
   const coreResult = await transitionPurchaseOrderThroughCoreIfEnabled(

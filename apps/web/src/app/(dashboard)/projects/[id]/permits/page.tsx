@@ -9,6 +9,7 @@ import { mobilizationReadiness, permits, projects, users } from '@third-code-erp
 import { CreatePermitForm } from '@/components/permits/create-permit-form'
 import { UpdatePermitStatus } from '@/components/permits/update-permit-status'
 import { MobilizationReadinessPanel } from './mobilization-readiness-panel'
+import { isClosedPermitStatus, permitDaysOverdue } from '@/lib/operations/permit-risk'
 
 export const metadata: Metadata = { title: 'Permits' }
 
@@ -223,11 +224,10 @@ export default async function ProjectPermitsPage({
                 const daysSinceUpdate = Math.floor(
                   (Date.now() - new Date(p.last_status_change_at).getTime()) / 86_400_000
                 )
-                const isStale = daysSinceUpdate > 7 && !['approved', 'rejected', 'released', 'refunded', 'cancelled'].includes(p.status)
+                const isClosed = isClosedPermitStatus(p.status)
+                const isStale = daysSinceUpdate > 7 && !isClosed
                 const expectedReturn = p.expected_return_at ?? p.expected_approval_at
-                const daysAtRisk = expectedReturn
-                  ? Math.max(0, Math.ceil((Date.now() - new Date(expectedReturn).getTime()) / 86_400_000))
-                  : null
+                const daysAtRisk = permitDaysOverdue(p.status, expectedReturn)
                 return (
                   <tr key={p.id}>
                     <td style={{ fontWeight: 500 }}>{TYPE_LABEL[p.permit_type] ?? p.permit_type}</td>
@@ -246,7 +246,7 @@ export default async function ProjectPermitsPage({
                     <td className="muted">{p.responsible_name ?? 'Unassigned'}</td>
                     <td className="muted">
                       {p.submitted_at
-                        ? new Date(p.submitted_at).toLocaleDateString('en-PH', {
+                        ? new Date(p.submitted_at).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila',
                             month: 'short',
                             day: 'numeric',
                             year: 'numeric',
@@ -255,7 +255,7 @@ export default async function ProjectPermitsPage({
                     </td>
                     <td className="muted">
                       {expectedReturn
-                        ? new Date(expectedReturn).toLocaleDateString('en-PH', {
+                        ? new Date(expectedReturn).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila',
                             month: 'short',
                             day: 'numeric',
                             year: 'numeric',
@@ -268,7 +268,7 @@ export default async function ProjectPermitsPage({
                         fontWeight: daysAtRisk !== null && daysAtRisk > 0 ? 600 : 400,
                       }}
                     >
-                      {daysAtRisk === null ? 'No forecast' : daysAtRisk > 0 ? `${daysAtRisk}d overdue` : '0d'}
+                      {isClosed ? '—' : daysAtRisk === null ? 'No forecast' : daysAtRisk > 0 ? `${daysAtRisk}d overdue` : '0d'}
                       {p.escalated_at ? ' · escalated' : ''}
                     </td>
                     <td

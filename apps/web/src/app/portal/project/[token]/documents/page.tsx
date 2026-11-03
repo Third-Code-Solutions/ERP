@@ -7,6 +7,7 @@ import {
   findActiveCustomerSession,
   logCustomerView,
 } from '@/lib/operations/customer-portal'
+import { PORTAL_FILE_LINK_SECONDS } from '@/lib/operations/portal-links'
 
 export const metadata: Metadata = {
   title: 'Project documents',
@@ -16,23 +17,21 @@ export const metadata: Metadata = {
 // Tokens are per-link; never cache.
 export const dynamic = 'force-dynamic'
 
-const DOC_TYPES = ['contract', 'bom', 'invoice', 'po', 'other'] as const
+// Client-facing types only. Supplier POs carry our buy prices and 'other' is an
+// internal catch-all, so neither may reach the customer portal.
+const DOC_TYPES = ['contract', 'bom', 'invoice'] as const
 type DocType = (typeof DOC_TYPES)[number]
 
 const TYPE_LABELS: Record<DocType, string> = {
   contract: 'Contracts',
   bom: 'Bills of Materials',
   invoice: 'Invoices',
-  po: 'Purchase Orders',
-  other: 'Other',
 }
 
 const TYPE_BADGE_TONES: Record<DocType, string> = {
   contract: '#0F2D4A',
   bom: '#0d5c3a',
   invoice: '#7a4a00',
-  po: '#5b3a85',
-  other: '#4b5563',
 }
 
 interface DocRow {
@@ -47,6 +46,7 @@ interface DocRow {
 
 function fmtDate(d: Date): string {
   return d.toLocaleString('en-PH', {
+    timeZone: 'Asia/Manila',
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -141,7 +141,7 @@ export default async function PortalProjectDocumentsPage({
     try {
       const { data } = await supabase.storage
         .from('documents')
-        .createSignedUrl(r.storage_path, 60)
+        .createSignedUrl(r.storage_path, PORTAL_FILE_LINK_SECONDS)
       signedUrl = data?.signedUrl ?? null
     } catch {
       signedUrl = null
@@ -201,7 +201,7 @@ export default async function PortalProjectDocumentsPage({
           </p>
         )}
         <p style={{ margin: '10px 0 0', fontSize: 12.5, color: '#6b7280' }}>
-          {totalCount} document{totalCount === 1 ? '' : 's'} shared with you. Download links expire after 60 seconds — refresh the page to mint new ones.
+          {totalCount} document{totalCount === 1 ? '' : 's'} shared with you. Download links stay valid for 10 minutes — refresh the page for new ones.
         </p>
       </section>
 

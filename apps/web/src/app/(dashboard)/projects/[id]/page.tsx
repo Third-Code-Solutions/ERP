@@ -353,7 +353,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
               { label: 'Area', value: project.total_sqm ? `${project.total_sqm.toLocaleString()} sqm` : '—' },
               {
                 label: 'Created',
-                value: new Date(project.created_at).toLocaleDateString('en-PH', {
+                value: new Date(project.created_at).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila',
                   year: 'numeric', month: 'long', day: 'numeric',
                 }),
               },

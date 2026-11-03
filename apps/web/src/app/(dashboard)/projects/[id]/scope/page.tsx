@@ -221,7 +221,7 @@ export default async function ProjectScopePage({ params }: { params: Promise<{ i
           {orderedBuckets.map((bucket) => {
             const rows = bucket.rows
             const dateStr = bucket.docCreatedAt
-              ? new Date(bucket.docCreatedAt).toLocaleDateString('en-PH', {
+              ? new Date(bucket.docCreatedAt).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila',
                   year: 'numeric',
                   month: 'short',
                   day: 'numeric',

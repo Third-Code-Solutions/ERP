@@ -28,14 +28,24 @@ interface Props {
   scheduleId: string
   status: DeliveryStatus
   sitePreparationNotes: string
+  /** Roles without delivery-scheduling rights see the state, not the buttons. */
+  readOnly?: boolean
 }
 
 const TITLE = 'Site preparation & receipt'
+
+const READ_ONLY_HINT: Partial<Record<DeliveryStatus, string>> = {
+  scheduled: 'Site preparation has not started.',
+  site_preparing: 'Site is being prepared.',
+  site_ready: 'Site is ready; waiting on supplier dispatch.',
+  in_transit: 'Shipment is en route.',
+}
 
 export function SitePrepPanel({
   scheduleId,
   status,
   sitePreparationNotes,
+  readOnly = false,
 }: Props) {
   const [error, setError] = useState('')
   const [prepNotes, setPrepNotes] = useState(sitePreparationNotes)
@@ -87,7 +97,13 @@ export function SitePrepPanel({
       </div>
 
       <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {status === 'scheduled' ? (
+        {readOnly && ['scheduled', 'site_preparing', 'site_ready', 'in_transit'].includes(status) ? (
+          <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--color-neutral-600)' }}>
+            {READ_ONLY_HINT[status]} Procurement, project, or site leads update this delivery.
+          </p>
+        ) : null}
+
+        {!readOnly && status === 'scheduled' ? (
           <>
             <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--color-neutral-600)' }}>
               Kick off site preparation once the receiving team has been briefed.
@@ -111,7 +127,7 @@ export function SitePrepPanel({
           </>
         ) : null}
 
-        {status === 'site_preparing' ? (
+        {!readOnly && status === 'site_preparing' ? (
           <>
             <Label>Preparation notes</Label>
             <textarea
@@ -142,7 +158,7 @@ export function SitePrepPanel({
           </>
         ) : null}
 
-        {status === 'site_ready' ? (
+        {!readOnly && status === 'site_ready' ? (
           <>
             <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--color-neutral-600)' }}>
               Site is prepared. Flag the delivery as in-transit once the supplier
@@ -156,7 +172,7 @@ export function SitePrepPanel({
           </>
         ) : null}
 
-        {status === 'in_transit' ? (
+        {!readOnly && status === 'in_transit' ? (
           <>
             <Label>Receipt notes (optional)</Label>
             <textarea

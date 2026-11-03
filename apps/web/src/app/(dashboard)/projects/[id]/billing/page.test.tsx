@@ -169,7 +169,7 @@ describe('ProjectBillingPage milestone navigation', () => {
     mocks.readMilestones.mockResolvedValue({ ok: false, status: 503, error: 'Controlled outage' })
     const page = await ProjectBillingPage({ params: Promise.resolve({ id: PROJECT_ID }), searchParams: Promise.resolve({ milestonePage: '2' }) })
     const html = renderToStaticMarkup(page)
-    expect(html).toContain('Core could not verify')
+    expect(html).toContain('billing readiness check')
     expect(html).toContain('Retry milestone evidence')
     expect(html).toContain('milestonePage=2')
     expect(html).not.toContain('No progress claims')

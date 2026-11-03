@@ -9,6 +9,7 @@ import {
   getProjectThroughCoreApi,
 } from '@/lib/erp-core-client'
 import { projectRfiListQuerySchema } from '@third-code-erp/shared-types'
+import { withUserDisplayNames } from '@/lib/operations/user-display-names'
 import { ProjectRfiRegister } from './project-rfi-register'
 import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 
@@ -71,7 +72,9 @@ export default async function ProjectRfisPage({ params, searchParams }: PageProp
   }
 
   const rfiResponse = await getProjectRfisThroughCoreApi(id, query)
-  const result = rfiResponse.ok && rfiResponse.data ? rfiResponse.data : null
+  const result = rfiResponse.ok && rfiResponse.data
+    ? { ...rfiResponse.data, rows: await withUserDisplayNames(profile.tenantId, rfiResponse.data.rows, ['requestedBy', 'respondedBy']) }
+    : null
   const error = rfiResponse.ok
     ? null
     : rfiResponse.error ?? 'Project RFI register is unavailable.'

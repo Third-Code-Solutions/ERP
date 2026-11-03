@@ -55,7 +55,7 @@ export function VarianceBanner({
         ⚠
       </span>
       <span>
-        BOE total is <strong style={{ fontFamily: 'var(--font-mono)' }}>{formattedPct}%</strong>{' '}
+        This BOM total is <strong style={{ fontFamily: 'var(--font-mono)' }}>{formattedPct}%</strong>{' '}
         {above ? 'above' : 'below'} the forecast cost. Review before submitting.
       </span>
     </div>

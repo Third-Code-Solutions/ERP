@@ -24,7 +24,7 @@ interface PortalProgressSummaryProps {
 }
 
 function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-PH', {
+  return new Date(iso).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila',
     year: 'numeric',
     month: 'short',
     day: 'numeric',

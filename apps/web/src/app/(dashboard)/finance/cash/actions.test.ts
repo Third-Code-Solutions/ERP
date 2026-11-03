@@ -187,7 +187,7 @@ describe('cash actions', () => {
     mocks.financeCashWorkflowWritesUseCoreApi.mockReturnValue(true)
     mocks.reverseCashTransactionThroughCoreApi.mockResolvedValue({
       ok: false,
-      error: 'ERP Core API is unavailable. No cash transaction was reversed.',
+      error: 'The ERP service is unavailable. No cash transaction was reversed.',
     })
 
     const result = await reverseCashTransaction(
@@ -201,7 +201,7 @@ describe('cash actions', () => {
 
     expect(result).toEqual({
       ok: false,
-      error: 'ERP Core API is unavailable. No cash transaction was reversed.',
+      error: 'The ERP service is unavailable. No cash transaction was reversed.',
     })
     expect(mocks.reverseCashTransactionThroughCoreApi).toHaveBeenCalledWith(
       TRANSACTION_ID,

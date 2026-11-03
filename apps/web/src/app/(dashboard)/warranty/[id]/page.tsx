@@ -24,6 +24,7 @@ import {
 import { TicketMessageThread } from '@/components/warranty/ticket-message-thread'
 import { TicketStatusActions } from '@/components/warranty/ticket-status-actions'
 import { MintWarrantyPortalToken } from '@/components/warranty/mint-warranty-portal-token'
+import { WARRANTY_CATEGORY_LABELS } from '@/lib/operations/warranty-labels'
 
 export const metadata: Metadata = { title: 'Warranty Ticket' }
 
@@ -166,7 +167,7 @@ export default async function TicketDetailPage({ params }: PageProps) {
               <h2 className="card-title">Issue summary</h2>
             </div>
             <div style={{ padding: 16, display: 'grid', gap: 12 }}>
-              <FieldRow label="Category" value={ticket.category} />
+              <FieldRow label="Category" value={WARRANTY_CATEGORY_LABELS[ticket.category] ?? ticket.category} />
               <FieldRow label="Location" value={ticket.location ?? '—'} />
               <FieldRow
                 label="Submitted by"
@@ -178,7 +179,7 @@ export default async function TicketDetailPage({ params }: PageProps) {
               />
               <FieldRow
                 label="Created"
-                value={new Date(ticket.created_at).toLocaleString('en-PH')}
+                value={new Date(ticket.created_at).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })}
               />
               <div>
                 <div
@@ -287,7 +288,7 @@ function TimelineRow({ label, date }: { label: string; date: Date | null }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
       <span style={{ color: 'var(--color-neutral-600)' }}>{label}</span>
-      <span>{date ? new Date(date).toLocaleString('en-PH') : '—'}</span>
+      <span>{date ? new Date(date).toLocaleString('en-PH', { timeZone: 'Asia/Manila' }) : '—'}</span>
     </div>
   )
 }

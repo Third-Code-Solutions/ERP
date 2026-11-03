@@ -18,7 +18,7 @@ import {
   warrantyTickets,
   accounts,
 } from '@third-code-erp/database/schema'
-import { and, eq, isNotNull } from 'drizzle-orm'
+import { and, eq, isNotNull, isNull } from 'drizzle-orm'
 import { writeAuditLog } from '@/lib/audit'
 import { notifyRoles } from '@/lib/operations/notifications'
 
@@ -73,8 +73,9 @@ export async function submitCnpsRating(
 
   const now = new Date()
 
-  // 2. Record response.
-  await db
+  // 2. Record response once. The responded_at guard makes a double submit a no-op,
+  // so the account average and the low-score alert run only for the first response.
+  const [recorded] = await db
     .update(cnpsSurveys)
     .set({
       score: rawScore,
@@ -84,9 +85,15 @@ export async function submitCnpsRating(
     .where(
       and(
         eq(cnpsSurveys.id, row.survey_id),
-        eq(cnpsSurveys.tenant_id, row.tenant_id)
+        eq(cnpsSurveys.tenant_id, row.tenant_id),
+        isNull(cnpsSurveys.responded_at)
       )
     )
+    .returning({ id: cnpsSurveys.id })
+
+  if (!recorded) {
+    redirect(`/portal/cnps/${token}?ok=1`)
+  }
 
   // 3. Recompute rolling account CNPS (avg × 10).
   if (row.account_id) {

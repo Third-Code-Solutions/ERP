@@ -34,7 +34,7 @@ const DEFAULT_WARRANTY_DAYS = 365
 
 function guard(role: AppRole, capability: ErpCapability): string | null {
   if (!can(role, capability)) {
-    return `Forbidden: role "${role}" lacks "${capability}"`
+    return 'Your role does not have permission to do this.'
   }
   return null
 }
@@ -277,7 +277,7 @@ export async function recordCocSigned(
     tenantId: profile.tenantId,
     recipientRoles: ['cx'],
     subject: 'COC signed — start customer onboarding',
-    body: `Warranty window: ${signedAt.toLocaleDateString('en-PH')} → ${warrantyEndsAt.toLocaleDateString('en-PH')}`,
+    body: `Warranty window: ${signedAt.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' })} → ${warrantyEndsAt.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' })}`,
     linkUrl: `/projects/${coc.project_id}/coc`,
   })
 

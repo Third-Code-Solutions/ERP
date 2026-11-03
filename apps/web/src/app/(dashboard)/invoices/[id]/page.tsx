@@ -11,6 +11,8 @@ import {
 } from '@third-code-erp/database/schema'
 import { and, eq, sql } from 'drizzle-orm'
 import { InvoiceStatusActions } from './invoice-status-actions'
+import { manilaToday } from '@/lib/operations/manila-date'
+import { bpsToPercentLabel } from '@/lib/operations/percent'
 
 export const metadata: Metadata = { title: 'Invoice' }
 
@@ -176,7 +178,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                 {inv.account_name}
               </Link>
             )}
-            <span>Created {new Date(inv.created_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+            <span>Created {new Date(inv.created_at).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'long', day: 'numeric' })}</span>
           </div>
         </div>
         <div className="invoice-detail-actions">
@@ -197,7 +199,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             <InvoiceStatusActions
               invoiceId={id}
               currentStatus={inv.status}
-              defaultPostingDate={new Date().toISOString().slice(0, 10)}
+              defaultPostingDate={manilaToday()}
             />
           )}
           <Link
@@ -249,7 +251,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             <span>
               Issued{' '}
               {inv.issued_at
-                ? new Date(inv.issued_at).toLocaleDateString('en-PH', {
+                ? new Date(inv.issued_at).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila',
                     year: 'numeric',
                     month: 'long',
                     day: 'numeric',
@@ -270,7 +272,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             <strong>Invoice reversed</strong>
             <span>
               {inv.reversed_at
-                ? new Date(inv.reversed_at).toLocaleDateString('en-PH', {
+                ? new Date(inv.reversed_at).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila',
                     year: 'numeric',
                     month: 'long',
                     day: 'numeric',
@@ -302,8 +304,8 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
         </h3>
         <dl style={{ margin: 0 }}>
           {[
-            { label: `Billing (${(inv.billing_percent_bps / 100).toFixed(0)}% of TCV)`, value: formatPHP(inv.subtotal_cents) },
-            { label: `Retention (${(inv.retention_bps / 100).toFixed(0)}%)`, value: `(${formatPHP(inv.retention_cents)})`, color: '#f59e0b' },
+            { label: `Billing (${bpsToPercentLabel(inv.billing_percent_bps)}% of TCV)`, value: formatPHP(inv.subtotal_cents) },
+            { label: `Retention (${bpsToPercentLabel(inv.retention_bps)}%)`, value: `(${formatPHP(inv.retention_cents)})`, color: '#f59e0b' },
             { label: 'VAT (12%)', value: `+${formatPHP(inv.vat_cents)}` },
             { label: 'Withholding Tax (2%)', value: `−${formatPHP(inv.withholding_tax_cents)}` },
           ].map(({ label, value, color }) => (
@@ -326,13 +328,13 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             <div style={{ fontSize: '0.875rem', color: 'var(--color-neutral-500)', marginBottom: '6px' }}>
               Due{' '}
               <strong style={{ color: 'var(--color-neutral-800)' }}>
-                {new Date(inv.due_date).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}
+                {new Date(inv.due_date).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'long', day: 'numeric' })}
               </strong>
             </div>
           )}
           {inv.paid_at && (
             <div style={{ fontSize: '0.875rem', color: '#10b981' }}>
-              Paid {new Date(inv.paid_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}
+              Paid {new Date(inv.paid_at).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'long', day: 'numeric' })}
             </div>
           )}
         </div>

@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import { PlatformSubmitButton } from '../_submit-button'
 import { ORGANIZATION_TYPES } from '@third-code-erp/shared-types'
 
@@ -17,6 +18,8 @@ import {
   PlatformUnavailable,
   StatusPill,
 } from '../_components'
+
+export const metadata: Metadata = { title: 'Tenants · Platform' }
 
 export default async function PlatformTenantsPage({
   searchParams,
@@ -53,7 +56,7 @@ export default async function PlatformTenantsPage({
                   <td><StatusPill status={tenant.status} />{tenant.statusReason ? <small>{tenant.statusReason}</small> : null}</td>
                   <td>{tenant.activeUserCount} active / {tenant.userCount}</td>
                   <td>{tenant.projectCount}</td>
-                  <td>{tenant.lastActivityAt ? new Date(tenant.lastActivityAt).toLocaleString() : 'No recorded activity'}</td>
+                  <td>{tenant.lastActivityAt ? new Date(tenant.lastActivityAt).toLocaleString('en-PH', { timeZone: 'Asia/Manila' }) : 'No recorded activity'}</td>
                   <td>
                     <form action={startSupportContextAction} className="platform-inline-form">
                       <input type="hidden" name="tenantId" value={tenant.id} />

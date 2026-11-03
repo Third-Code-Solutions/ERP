@@ -951,6 +951,12 @@ body {
   overflow-x: auto;
 }
 
+/* Tables placed straight inside a card scroll sideways on narrow screens
+   instead of being clipped by the card's overflow: hidden. */
+.card:has(> table.data-table) {
+  overflow-x: auto;
+}
+
 .data-table-wrap:focus-visible {
   outline: 3px solid var(--color-gold-300);
   outline-offset: 2px;
@@ -7117,3 +7123,32 @@ body {
   background: var(--color-warning-soft);
   color: var(--color-warning);
 }
+
+/* Shown after a ?error=forbidden redirect (components/nav/forbidden-notice.tsx). */
+.access-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border: 1px solid var(--color-warning);
+  border-radius: 8px;
+  background: var(--color-warning-soft);
+  color: var(--color-neutral-900);
+  font-size: 0.8125rem;
+}
+.access-notice p { margin: 0; }
+.access-notice-dismiss {
+  flex-shrink: 0;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-neutral-700);
+  font: inherit;
+  cursor: pointer;
+}
+.access-notice-dismiss:hover { background: var(--color-neutral-50); }
+.access-notice-dismiss:focus-visible { outline: 2px solid var(--color-navy-700); outline-offset: 2px; }

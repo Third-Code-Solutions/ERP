@@ -4,6 +4,7 @@ import { requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { permits, projects, users } from '@third-code-erp/database/schema'
 import type { Metadata } from 'next'
+import { isClosedPermitStatus, permitDaysOverdue } from '@/lib/operations/permit-risk'
 
 export const metadata: Metadata = { title: 'Permits' }
 
@@ -93,11 +94,10 @@ export default async function PermitsPage() {
                 const daysSinceUpdate = Math.floor(
                   (Date.now() - new Date(p.last_status_change_at).getTime()) / 86_400_000
                 )
-                const isStale = daysSinceUpdate > 7 && !['approved', 'rejected', 'released', 'refunded', 'cancelled'].includes(p.status)
+                const isClosed = isClosedPermitStatus(p.status)
+                const isStale = daysSinceUpdate > 7 && !isClosed
                 const expectedReturn = p.expected_return_at ?? p.expected_approval_at
-                const daysAtRisk = expectedReturn
-                  ? Math.max(0, Math.ceil((Date.now() - new Date(expectedReturn).getTime()) / 86_400_000))
-                  : null
+                const daysAtRisk = permitDaysOverdue(p.status, expectedReturn)
                 return (
                   <tr key={p.id}>
                     <td>
@@ -114,17 +114,17 @@ export default async function PermitsPage() {
                     </td>
                     <td className="muted">
                       {p.submitted_at
-                        ? new Date(p.submitted_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })
+                        ? new Date(p.submitted_at).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric' })
                         : '—'}
                     </td>
                     <td className="muted">
                       {expectedReturn
-                        ? new Date(expectedReturn).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })
-                        : 'â€”'}
+                        ? new Date(expectedReturn).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric' })
+                        : '—'}
                     </td>
                     <td className="muted">{p.responsible_name ?? 'Unassigned'}</td>
                     <td style={daysAtRisk !== null && daysAtRisk > 0 ? { color: 'var(--color-danger)', fontWeight: 600 } : { color: 'var(--color-neutral-500)' }}>
-                      {daysAtRisk === null ? 'No forecast' : daysAtRisk > 0 ? `${daysAtRisk}d overdue` : '0d'}
+                      {isClosed ? '—' : daysAtRisk === null ? 'No forecast' : daysAtRisk > 0 ? `${daysAtRisk}d overdue` : '0d'}
                     </td>
                     <td style={isStale ? { color: 'var(--color-warning)', fontWeight: 500 } : { color: 'var(--color-neutral-500)' }}>
                       {daysSinceUpdate}d

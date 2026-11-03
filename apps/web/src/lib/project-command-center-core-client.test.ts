@@ -92,7 +92,7 @@ describe('project command center Core client', () => {
     ).resolves.toMatchObject({
       ok: false,
       status: 200,
-      error: 'ERP Core API returned an invalid project command center result.',
+      error: 'The ERP service returned an invalid project command center result.',
     })
   })
 })

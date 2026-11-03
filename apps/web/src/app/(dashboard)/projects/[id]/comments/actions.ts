@@ -90,7 +90,7 @@ export async function createComment(
       coreResult.data.authorId !== user.id ||
       coreResult.data.body !== body
     ) {
-      return { error: 'ERP Core API returned an invalid project comment scope.' }
+      return { error: 'The ERP service returned an invalid project comment scope.' }
     }
     revalidatePath(`/projects/${safeProjectId}/comments`)
     return {}
@@ -179,7 +179,7 @@ export async function deleteComment(
       coreResult.data.commentId !== parsedCommentId.data ||
       coreResult.data.deleted !== true
     ) {
-      return { error: 'ERP Core API returned an invalid project comment scope.' }
+      return { error: 'The ERP service returned an invalid project comment scope.' }
     }
     revalidatePath(`/projects/${parsedProjectId.data}/comments`)
     return {}

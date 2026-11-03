@@ -100,8 +100,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     timeZone: 'Asia/Manila',
   })
 
-  // Reference search params so a future stage-filter widget can drive the
-  // dashboard; for now they only flow into ExportCsvButton via the URL.
+  // since/until only scope the CSV export (ExportCsvButton reads them from the URL).
   void resolvedSearch
 
   if (dashboard.mode === 'my_work' || dashboard.mode === 'degraded') {

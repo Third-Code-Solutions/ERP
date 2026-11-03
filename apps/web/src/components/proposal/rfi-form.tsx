@@ -17,6 +17,7 @@ import {
   type RfiPendingEnvelope,
   type RfiScope,
 } from './rfi-offline-store'
+import { submitFormData } from '@/components/shared/submit-form-data'
 
 interface RfiFormProps {
   opportunityId: string
@@ -102,7 +103,7 @@ function pendingReadFailureMessage(): string {
 function draftRestoredMessage(updatedAt: number): string {
   const savedAt = new Date(updatedAt)
   if (Number.isNaN(savedAt.getTime())) return 'Saved draft restored on this device.'
-  return `Saved draft restored from ${savedAt.toLocaleString()}.`
+  return `Saved draft restored from ${savedAt.toLocaleString('en-PH', { timeZone: 'Asia/Manila' })}.`
 }
 
 export function RfiForm({
@@ -552,7 +553,7 @@ export function RfiForm({
 
   return (
     <form
-      action={onSubmit}
+      onSubmit={submitFormData(onSubmit)}
       aria-busy={submitting || syncState === 'syncing'}
       aria-describedby="rfi-form-status"
       style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}

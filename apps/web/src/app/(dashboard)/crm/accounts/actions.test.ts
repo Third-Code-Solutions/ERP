@@ -216,7 +216,7 @@ describe('KYC artifact server actions', () => {
       ok: false,
       status: 503,
       error:
-        'ERP Core API is unavailable. KYC artifact outcome is unconfirmed; retry with the same request.',
+        'The ERP service is unavailable. KYC artifact outcome is unconfirmed; retry with the same request.',
     })
 
     await expect(
@@ -228,7 +228,7 @@ describe('KYC artifact server actions', () => {
       }),
     ).resolves.toEqual({
       error:
-        'ERP Core API is unavailable. KYC artifact outcome is unconfirmed; retry with the same request.',
+        'The ERP service is unavailable. KYC artifact outcome is unconfirmed; retry with the same request.',
       outcome: 'unknown',
     })
     expect(mocks.revalidatePath).not.toHaveBeenCalled()
@@ -275,7 +275,7 @@ describe('KYC artifact server actions', () => {
         notes: null,
       }),
     ).resolves.toEqual({
-      error: 'ERP Core API returned an invalid KYC artifact result.',
+      error: 'The ERP service returned an invalid KYC artifact result.',
       outcome: 'unknown',
     })
     expect(mocks.revalidatePath).not.toHaveBeenCalled()
@@ -327,7 +327,7 @@ describe('KYC artifact server actions', () => {
       listAccountKycDocuments(ACCOUNT_ID, { page: 2, limit: 20 }),
     ).resolves.toEqual({
       ok: false,
-      error: 'ERP Core API returned an invalid account document scope.',
+      error: 'The ERP service returned an invalid account document scope.',
     })
   })
 
@@ -351,7 +351,7 @@ describe('KYC artifact server actions', () => {
       }),
     ).resolves.toEqual({
       ok: false,
-      error: 'ERP Core API returned an invalid account document scope.',
+      error: 'The ERP service returned an invalid account document scope.',
     })
   })
 
@@ -381,7 +381,7 @@ describe('KYC artifact server actions', () => {
       listAccountKycDocuments(ACCOUNT_ID, { page: 1, limit: 20 }),
     ).resolves.toMatchObject({
       ok: false,
-      error: expect.stringContaining('account.create'),
+      error: 'Your role does not have permission to do this.',
     })
     expect(mocks.getAccountKycDocumentsThroughCoreApi).not.toHaveBeenCalled()
   })

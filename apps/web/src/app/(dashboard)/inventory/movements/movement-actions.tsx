@@ -7,6 +7,7 @@ import {
   postStockMovement,
   reverseStockMovement,
 } from './actions'
+import { manilaToday } from '@/lib/operations/manila-date'
 
 export function StockMovementActions({
   movementId,
@@ -24,7 +25,7 @@ export function StockMovementActions({
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [reversalDate, setReversalDate] = useState(
-    [new Date().toISOString().slice(0, 10), movementDate].sort()[1]!
+    [manilaToday(), movementDate].sort()[1]!
   )
   const [reason, setReason] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -32,6 +33,8 @@ export function StockMovementActions({
   const reverseRetryKey = useRef<string | null>(null)
 
   if (status === 'reversed') return null
+  // Read-only roles get no panel: posted records need canPost to reverse; drafts need canPost or canManage.
+  if (status === 'posted' ? !canPost : !canPost && !canManage) return null
 
   return (
     <section className="finance-action-panel">

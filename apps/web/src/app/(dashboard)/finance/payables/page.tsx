@@ -13,6 +13,8 @@ import {
   financePayablesReadsUseCoreApi,
   getFinancePayablesThroughCoreApi,
 } from '@/lib/erp-core-client'
+import { manilaToday } from '@/lib/operations/manila-date'
+import { readAllCorePages } from '@/lib/operations/core-pages'
 
 export const metadata: Metadata = { title: 'Supplier payables' }
 
@@ -67,22 +69,20 @@ export default async function PayablesPage() {
 
   let rows: PayableRow[]
   if (financePayablesReadsUseCoreApi(profile.tenantId)) {
-    const result = await getFinancePayablesThroughCoreApi({
-      vendorId: undefined,
-      projectId: undefined,
-      status: undefined,
-      dueFrom: undefined,
-      dueTo: undefined,
-      page: 1,
-      limit: 500,
-    })
-    if (!result.ok || !result.data) {
-      throw new Error(result.error ?? 'Supplier payables were not read.')
-    }
-    if (result.data.total > result.data.rows.length) {
-      throw new Error('Supplier payables exceed the closed projection page limit.')
-    }
-    rows = result.data.rows.map((bill) => ({
+    const data = await readAllCorePages(
+      (page) =>
+        getFinancePayablesThroughCoreApi({
+          vendorId: undefined,
+          projectId: undefined,
+          status: undefined,
+          dueFrom: undefined,
+          dueTo: undefined,
+          page,
+          limit: 500,
+        }),
+      'Supplier payables were not read.'
+    )
+    rows = data.rows.map((bill) => ({
       id: bill.id,
       vendorBillNumber: bill.vendorBillNumber,
       internalNumber: bill.internalNumber,
@@ -177,7 +177,7 @@ export default async function PayablesPage() {
     }))
   }
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = manilaToday()
   const rowsWithBalance = rows.map((row) => ({
     ...row,
     openCents:

@@ -41,7 +41,7 @@ export async function mintBomPortalToken(
 ): Promise<MintResult> {
   const profile = await requireUserProfile()
   if (!can(profile.role, 'bom.approve_internal')) {
-    return { error: `Forbidden: role "${profile.role}" lacks "bom.approve_internal"` }
+    return { error: 'Your role does not have permission to do this.' }
   }
 
   const parsed = mintSchema.safeParse({ bom_id: bomId, client_email: clientEmail })
@@ -127,7 +127,7 @@ export async function mintBomPortalToken(
     templateVars: {
       project_name: row.project_name ?? 'your project',
       portal_url: portalUrl,
-      valid_until: expiresAt.toLocaleString('en-PH', {
+      valid_until: expiresAt.toLocaleString('en-PH', { timeZone: 'Asia/Manila',
         year: 'numeric',
         month: 'short',
         day: 'numeric',

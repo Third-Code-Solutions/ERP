@@ -36,7 +36,7 @@ export async function generateThisWeekReport(
 
   if (!can(profile.role, 'precon.manage_checklist')) {
     return {
-      error: `Forbidden: role "${profile.role}" lacks "precon.manage_checklist"`,
+      error: 'Your role does not have permission to do this.',
     }
   }
 
@@ -84,7 +84,7 @@ export async function regenerateWeeklyReport(
 
   if (!can(profile.role, 'precon.manage_checklist')) {
     return {
-      error: `Forbidden: role "${profile.role}" lacks "precon.manage_checklist"`,
+      error: 'Your role does not have permission to do this.',
     }
   }
 

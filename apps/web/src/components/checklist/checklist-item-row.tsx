@@ -18,6 +18,8 @@ export interface ChecklistItemRowProps {
   }
   /** Map of id → title for dependency labels. */
   dependencyTitle?: string | null
+  /** precon.manage_checklist; without it the row shows status only. */
+  canManage?: boolean
 }
 
 const STATUS_LABEL: Record<ChecklistItemRowProps['item']['status'], string> = {
@@ -44,7 +46,7 @@ const NEXT_STATUSES: Record<
   done: ['in_progress'],
 }
 
-export function ChecklistItemRow({ projectId, item, dependencyTitle }: ChecklistItemRowProps) {
+export function ChecklistItemRow({ projectId, item, dependencyTitle, canManage = false }: ChecklistItemRowProps) {
   const [pending, startTransition] = useTransition()
   const [blockerInput, setBlockerInput] = useState('')
   const [showBlocker, setShowBlocker] = useState(false)
@@ -203,7 +205,7 @@ export function ChecklistItemRow({ projectId, item, dependencyTitle }: Checklist
         >
           {STATUS_LABEL[item.status]}
         </span>
-        {NEXT_STATUSES[item.status].map((next) => {
+        {(canManage ? NEXT_STATUSES[item.status] : []).map((next) => {
           if (next === 'blocked') {
             return (
               <button

@@ -149,7 +149,7 @@ describe('pipeline action authorization', () => {
     const result = await createOpportunity(new FormData())
 
     expect(result).toEqual({
-      error: 'Forbidden: role "viewer" cannot create opportunities',
+      error: 'Your role cannot create opportunities.',
     })
     expect(mocks.can).toHaveBeenCalledWith(PROFILE.role, 'opportunity.create')
     expect(mocks.select).not.toHaveBeenCalled()
@@ -160,10 +160,26 @@ describe('pipeline action authorization', () => {
     const result = await createOpportunityForAccount(new FormData())
 
     expect(result).toEqual({
-      error: 'Forbidden: role "viewer" cannot create opportunities',
+      error: 'Your role cannot create opportunities.',
     })
     expect(mocks.can).toHaveBeenCalledWith(PROFILE.role, 'opportunity.create')
     expect(mocks.select).not.toHaveBeenCalled()
+    expect(mocks.insert).not.toHaveBeenCalled()
+  })
+
+  it.each(['won', 'lost'])('refuses to create an opportunity directly in %s', async (stage) => {
+    mocks.getUserProfile.mockResolvedValue(profileFor('sales'))
+    mocks.can.mockReturnValue(true)
+    mocks.select.mockReturnValue({
+      from: () => ({ where: async () => [{ id: OPPORTUNITY_ID, kyc_status: 'approved', name: 'Acme' }] }),
+    })
+    const form = new FormData()
+    form.set('account_id', OPPORTUNITY_ID)
+    form.set('stage', stage)
+
+    const result = await createOpportunityForAccount(form)
+
+    expect(result.error).toMatch(/cannot start as Won or Lost/)
     expect(mocks.insert).not.toHaveBeenCalled()
   })
 
@@ -171,7 +187,7 @@ describe('pipeline action authorization', () => {
     const result = await advanceOpportunityStage(OPPORTUNITY_ID, 'won')
 
     expect(result).toEqual({
-      error: 'Forbidden: role "viewer" cannot advance opportunities',
+      error: 'Your role cannot advance opportunities.',
     })
     expect(mocks.can).toHaveBeenCalledWith(
       PROFILE.role,
@@ -291,7 +307,7 @@ describe('atomic Won-to-Project pipeline handoff', () => {
       {
         ok: false as const,
         error:
-          'ERP Core API is unavailable. No Opportunity stage transition was committed.',
+          'The ERP service is unavailable. No Opportunity stage transition was committed.',
       },
     ],
     [
@@ -299,7 +315,7 @@ describe('atomic Won-to-Project pipeline handoff', () => {
       {
         ok: false as const,
         error:
-          'ERP Core API returned an invalid Opportunity stage transition result.',
+          'The ERP service returned an invalid Opportunity stage transition result.',
       },
     ],
   ])('preserves %s without local fallback effects', async (_label, failure) => {
@@ -323,7 +339,7 @@ describe('atomic Won-to-Project pipeline handoff', () => {
 
     expect(result).toEqual({
       error:
-        'ERP Core API is unavailable. No Opportunity stage transition was committed.',
+        'The ERP service is unavailable. No Opportunity stage transition was committed.',
     })
     expectNoLocalStageEffects()
     expect(mocks.revalidatePath).not.toHaveBeenCalled()
@@ -344,7 +360,7 @@ describe('atomic Won-to-Project pipeline handoff', () => {
     const result = await advanceOpportunityStage(OPPORTUNITY_ID, 'won')
 
     expect(result).toEqual({
-      error: 'ERP Core API returned an invalid Won-to-Project transition result.',
+      error: 'The ERP service returned an invalid Won-to-Project transition result.',
     })
     expectNoLocalStageEffects()
     expect(mocks.revalidatePath).not.toHaveBeenCalled()
@@ -439,7 +455,7 @@ describe('atomic Won-to-Project pipeline handoff', () => {
       {
         ok: false as const,
         error:
-          'ERP Core API is unavailable. No Opportunity stage transition was committed.',
+          'The ERP service is unavailable. No Opportunity stage transition was committed.',
       },
     ],
     [
@@ -447,7 +463,7 @@ describe('atomic Won-to-Project pipeline handoff', () => {
       {
         ok: false as const,
         error:
-          'ERP Core API returned an invalid Opportunity stage transition result.',
+          'The ERP service returned an invalid Opportunity stage transition result.',
       },
     ],
   ])('preserves non-Won %s without local effects or refresh', async (_label, failure) => {
@@ -477,7 +493,7 @@ describe('atomic Won-to-Project pipeline handoff', () => {
 
     expect(result).toEqual({
       error:
-        'ERP Core API is unavailable. No Opportunity stage transition was committed.',
+        'The ERP service is unavailable. No Opportunity stage transition was committed.',
     })
     expectNoLocalStageEffects()
     expect(mocks.revalidatePath).not.toHaveBeenCalled()
@@ -514,7 +530,7 @@ describe('atomic Won-to-Project pipeline handoff', () => {
 
     expect(result).toEqual({
       error:
-        'ERP Core API returned an invalid Opportunity stage transition result.',
+        'The ERP service returned an invalid Opportunity stage transition result.',
     })
     expectNoLocalStageEffects()
     expect(mocks.revalidatePath).not.toHaveBeenCalled()

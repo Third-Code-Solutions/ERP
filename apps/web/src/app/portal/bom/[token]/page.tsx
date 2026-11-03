@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import React from 'react'
 import { z } from 'zod'
 import { loadPortalBom, recordSign } from './sign-actions'
+import { BomSignButton, type BomSignState } from './sign-button'
 
 export const metadata: Metadata = {
   title: 'Review your BOM | ABI OPS',
@@ -12,8 +13,6 @@ export const metadata: Metadata = {
 // be cached/prerendered at build time.
 export const dynamic = 'force-dynamic'
 
-const VAT_BPS = 1200 // 12%
-const RETENTION_BPS = 1000 // 10%
 const signingUrlSchema = z.string().url().refine((value) => {
   if (!URL.canParse(value)) return false
   const url = new URL(value)
@@ -51,10 +50,10 @@ export default async function PortalBomPage({
   const bom = result.bom!
   // Historical rows also contain provider slugs; they are not application routes.
   const signingUrl = signingUrlSchema.safeParse(bom.docuseal_slug)
-  const subtotal = bom.tcv_cents
-  const vat = Math.round(subtotal * (VAT_BPS / 10000))
-  const retention = Math.round(subtotal * (RETENTION_BPS / 10000))
-  const payable = subtotal + vat - retention
+  // Show the BOM total exactly as recorded (the TCV used internally). DUPA unit
+  // rates already carry VAT, and retention is withheld per progress billing, so
+  // neither is recomputed on top here.
+  const total = bom.tcv_cents
 
   // Group lines by category.
   const grouped = new Map<string, typeof bom.lines>()
@@ -65,7 +64,7 @@ export default async function PortalBomPage({
   }
   const groups = Array.from(grouped.entries())
 
-  const validUntil = new Date(bom.valid_until).toLocaleString('en-PH', {
+  const validUntil = new Date(bom.valid_until).toLocaleString('en-PH', { timeZone: 'Asia/Manila',
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -73,9 +72,11 @@ export default async function PortalBomPage({
     minute: '2-digit',
   })
 
-  async function signAction(): Promise<void> {
+  async function signAction(): Promise<BomSignState> {
     'use server'
-    await recordSign(token)
+    const result = await recordSign(token)
+    // The notification warning is for staff; the client only needs the outcome.
+    return result.error ? { error: result.error } : { ok: true }
   }
 
   return (
@@ -201,19 +202,14 @@ export default async function PortalBomPage({
         }}
       >
         <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '8px 32px', fontSize: 14 }}>
-          <span style={{ color: '#4b5563' }}>Subtotal</span>
-          <span style={{ textAlign: 'right', fontFamily: 'var(--font-jetbrains), monospace' }}>{fmtPHP(subtotal)}</span>
-          <span style={{ color: '#4b5563' }}>VAT (12%)</span>
-          <span style={{ textAlign: 'right', fontFamily: 'var(--font-jetbrains), monospace' }}>{fmtPHP(vat)}</span>
-          <span style={{ color: '#4b5563' }}>Retention (10%)</span>
-          <span style={{ textAlign: 'right', fontFamily: 'var(--font-jetbrains), monospace' }}>− {fmtPHP(retention)}</span>
-          <span style={{ borderTop: '1px solid #d8dde6', paddingTop: 8, color: '#0F2D4A', fontWeight: 600, fontSize: 15 }}>
-            Total payable
-          </span>
-          <span style={{ borderTop: '1px solid #d8dde6', paddingTop: 8, textAlign: 'right', color: '#0F2D4A', fontWeight: 600, fontSize: 15, fontFamily: 'var(--font-jetbrains), monospace' }}>
-            {fmtPHP(payable)}
+          <span style={{ color: '#0F2D4A', fontWeight: 600, fontSize: 15 }}>BOM total</span>
+          <span style={{ textAlign: 'right', color: '#0F2D4A', fontWeight: 600, fontSize: 15, fontFamily: 'var(--font-jetbrains), monospace' }}>
+            {fmtPHP(total)}
           </span>
         </div>
+        <p style={{ margin: '10px 0 0', fontSize: 12.5, color: '#6b7280', lineHeight: 1.5 }}>
+          Amounts follow the agreed rates. VAT and retention are applied on each progress billing as set out in your contract.
+        </p>
       </section>
 
       {/* Signature area */}
@@ -262,25 +258,7 @@ export default async function PortalBomPage({
         )}
 
         {!bom.is_dev_stub && (
-          <form action={signAction}>
-            <button
-              type="submit"
-              style={{
-                background: '#E07B2A',
-                color: 'white',
-                border: 0,
-                padding: '12px 22px',
-                borderRadius: 8,
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: 'pointer',
-                letterSpacing: '0.01em',
-                boxShadow: '0 1px 3px rgba(224, 123, 42, 0.35)',
-              }}
-            >
-              I approve this BOM
-            </button>
-          </form>
+          <BomSignButton action={signAction} />
         )}
       </section>
     </div>

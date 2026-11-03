@@ -280,7 +280,7 @@ suite('protected Web upload-complete disposable integration', () => {
       const failedBody = (await failedResponse.json()) as {
         error: string
       }
-      expect(failedBody.error).toContain('ERP Core API is unavailable')
+      expect(failedBody.error).toContain('The ERP service is unavailable')
       const failedDocuments = await db
         .select()
         .from(documents)

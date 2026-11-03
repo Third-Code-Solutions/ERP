@@ -1,8 +1,9 @@
 import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import type { Metadata } from 'next'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
-import { getUserProfile } from '@third-code-erp/auth'
+import { requireUserProfile } from '@third-code-erp/auth'
+import { canViewPath } from '@/lib/operations/nav-config'
 import { db } from '@third-code-erp/database'
 import { poLineItems, projects, purchaseOrders, tenants, vendors } from '@third-code-erp/database/schema'
 import { and, asc, eq } from 'drizzle-orm'
@@ -16,13 +17,14 @@ function formatPHP(cents: number): string {
 
 function formatDate(d: Date | string | null): string {
   if (!d) return '—'
-  return new Date(d).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })
+  return new Date(d).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'long', day: 'numeric' })
 }
 
 export default async function PoPrintPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await requireUuidRouteParams(params)
-  const profile = await getUserProfile()
-  if (!profile) return notFound()
+  const profile = await requireUserProfile()
+  // (print) sits outside the dashboard layout, so apply the parent page's route policy here.
+  if (!canViewPath(profile.role, `/purchase-orders/${id}`)) redirect('/dashboard?error=forbidden')
 
   const [po] = await db
     .select({
@@ -68,6 +70,14 @@ export default async function PoPrintPage({ params }: { params: Promise<{ id: st
     .from(tenants)
     .where(eq(tenants.id, profile.tenantId))
 
+  // Only issued-or-later POs are valid supplier documents; mark everything else on the page itself.
+  const printNotice =
+    po.status === 'cancelled'
+      ? 'CANCELLED — NOT VALID FOR SUPPLY'
+      : ['draft', 'submitted', 'pending_pm_approval', 'pending_commercial_approval', 'pending_scm_issuance'].includes(po.status)
+        ? 'DRAFT — NOT YET ISSUED TO SUPPLIER'
+        : null
+
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '32px 16px', background: '#f3f4f6' }}>
       {/* Toolbar */}
@@ -105,6 +115,12 @@ export default async function PoPrintPage({ params }: { params: Promise<{ id: st
           lineHeight: 1.5,
         }}
       >
+        {printNotice && (
+          <div role="note" style={{ marginBottom: '20px', padding: '10px 14px', border: '2px solid #dc2626', borderRadius: '6px', color: '#b91c1c', fontWeight: 800, fontSize: '14px', letterSpacing: '0.04em', textAlign: 'center' }}>
+            {printNotice}
+          </div>
+        )}
+
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px', borderBottom: '2px solid #1F3864', paddingBottom: '20px' }}>
           <div>

@@ -114,6 +114,7 @@ test.beforeAll(async () => {
   const globalsPath = join(process.cwd(), 'src', 'app', 'globals.css')
   const actionsPath = join(harnessDirectory, 'award-actions.ts')
   const navigationPath = join(harnessDirectory, 'navigation.ts')
+  const linkPath = join(harnessDirectory, 'link.tsx')
   await writeFile(join(harnessDirectory, 'index.html'), '<!doctype html><html><body><main id="root"></main><script type="module" src="/harness.tsx"></script></body></html>')
   await writeFile(actionsPath, `
 type Pending = { resolve: (value: unknown) => void; reject: (error: unknown) => void }
@@ -159,6 +160,12 @@ export function useRouter() {
   } }
 }
 `)
+  await writeFile(linkPath, `
+import React from 'react'
+export default function Link({ href, children, ...rest }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) {
+  return <a href={href} {...rest}>{children}</a>
+}
+`)
   await writeFile(join(harnessDirectory, 'harness.tsx'), `
 import React from 'react'
 import { createRoot } from 'react-dom/client'
@@ -181,6 +188,7 @@ bridge.mount(${JSON.stringify(defaultProps)})
         { find: 'react', replacement: join(process.cwd(), 'node_modules', 'react') },
         { find: 'react-dom', replacement: join(process.cwd(), 'node_modules', 'react-dom') },
         { find: 'next/navigation', replacement: navigationPath },
+        { find: 'next/link', replacement: linkPath },
         { find: '@/app/(dashboard)/projects/[id]/bom/award-actions', replacement: actionsPath },
         { find: '@', replacement: join(process.cwd(), 'src') },
       ],

@@ -36,7 +36,7 @@ const PE_SIGNOFF_ROLES = ['sd_pm_pe', 'pm', 'admin', 'owner']
 
 function fmtDate(d: Date | null | undefined): string {
   if (!d) return '—'
-  return new Date(d).toLocaleDateString('en-PH', {
+  return new Date(d).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila',
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -52,7 +52,7 @@ function relativeTime(date: Date): string {
   if (hrs < 24) return `${hrs}h ago`
   const days = Math.floor(hrs / 24)
   if (days < 7) return `${days}d ago`
-  return date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
+  return date.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 export default async function PunchlistDetailPage({

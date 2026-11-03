@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 
 import { getPlatformOverview } from '@/lib/platform-admin-client'
@@ -9,6 +10,8 @@ import {
   PlatformUnavailable,
   StatusPill,
 } from './_components'
+
+export const metadata: Metadata = { title: 'Platform Overview' }
 
 export default async function PlatformOverviewPage({
   searchParams,
@@ -56,7 +59,7 @@ export default async function PlatformOverviewPage({
                 <tbody>
                   {result.data.recentAudit.map((event) => (
                     <tr key={event.id}>
-                      <td>{new Date(event.createdAt).toLocaleString()}</td>
+                      <td>{new Date(event.createdAt).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })}</td>
                       <td className="row-leader">{event.action}</td>
                       <td>{event.targetType}</td>
                       <td><StatusPill status={event.outcome} /></td>

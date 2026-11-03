@@ -29,7 +29,8 @@ describe('ProjectCommandCenter', () => {
     expect(markup).toContain('Work, decisions, evidence.')
     expect(markup).toContain('4')
     expect(markup).toContain('42% complete')
-    expect(markup).toContain(`href="/projects/${PROJECT_ID}/checklist"`)
+    expect(markup).toContain('Daily tasks')
+    expect(markup).not.toContain(`href="/projects/${PROJECT_ID}/checklist"`)
     expect(markup).toContain(
       `href="/cortex?refTable=projects&amp;refId=${PROJECT_ID}"`
     )

@@ -103,7 +103,6 @@ export async function acknowledgeTicket(ticketId: string): Promise<ActionResult>
       templateVars: {
         ticket_number: existing.ticket_number,
         scheduled_for: 'TBD — your project manager will confirm shortly',
-        confirm_url: `${siteBase()}/warranty/${ticketId}`,
       },
     })
   }
@@ -171,8 +170,11 @@ export async function scheduleTicketRepair(
       templateId: 'ticket-schedule',
       templateVars: {
         ticket_number: existing.ticket_number,
-        scheduled_for: scheduled.toLocaleString('en-PH'),
-        confirm_url: `${siteBase()}/warranty/${ticketId}`,
+        scheduled_for: scheduled.toLocaleString('en-PH', {
+          timeZone: 'Asia/Manila',
+          dateStyle: 'medium',
+          timeStyle: 'short',
+        }),
       },
     })
   }

@@ -31,7 +31,7 @@ import { startSlaClock } from '@/lib/operations/sla-clock'
 
 function guard(role: AppRole, capability: ErpCapability): string | null {
   if (!can(role, capability)) {
-    return `Forbidden: role "${role}" lacks "${capability}"`
+    return 'Your role does not have permission to do this.'
   }
   return null
 }
@@ -262,7 +262,7 @@ export async function signOffPunchlistItem(
   if (forbid) return { error: forbid }
   if (!PE_SIGNOFF_ROLES.includes(profile.role)) {
     return {
-      error: `Forbidden: PE sign-off requires role in ${PE_SIGNOFF_ROLES.join(', ')}`,
+      error: `PE sign-off requires one of these roles: ${PE_SIGNOFF_ROLES.join(', ')}.`,
     }
   }
 

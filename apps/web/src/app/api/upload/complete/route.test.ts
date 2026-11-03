@@ -363,7 +363,7 @@ describe('completed document upload Core authority', () => {
     mocks.commitCadEvidenceThroughCoreApi.mockResolvedValue({
       ok: false,
       status: 503,
-      error: 'ERP Core API is unavailable. No CAD evidence was committed.',
+      error: 'The ERP service is unavailable. No CAD evidence was committed.',
     })
 
     const response = await POST(
@@ -373,7 +373,7 @@ describe('completed document upload Core authority', () => {
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toMatchObject({
       cadParseWarning:
-        'ERP Core API is unavailable. No CAD evidence was committed.',
+        'The ERP service is unavailable. No CAD evidence was committed.',
       cadResult: { status: 'processing-unavailable', scopeItemsCreated: 0 },
     })
   })
@@ -382,7 +382,7 @@ describe('completed document upload Core authority', () => {
     mocks.createDocumentThroughCoreApi.mockResolvedValue({
       ok: false,
       status: 503,
-      error: 'ERP Core API is unavailable. No document was recorded.',
+      error: 'The ERP service is unavailable. No document was recorded.',
     })
 
     const response = await POST(
@@ -391,7 +391,7 @@ describe('completed document upload Core authority', () => {
 
     expect(response.status).toBe(503)
     await expect(response.json()).resolves.toEqual({
-      error: 'ERP Core API is unavailable. No document was recorded.',
+      error: 'The ERP service is unavailable. No document was recorded.',
     })
     expect(mocks.parseCadEvidence).not.toHaveBeenCalled()
     expect(mocks.enqueueDocumentProcessingThroughCoreApi).not.toHaveBeenCalled()

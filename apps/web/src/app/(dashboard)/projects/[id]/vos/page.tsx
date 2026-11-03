@@ -7,7 +7,7 @@ import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { projects } from '@third-code-erp/database/schema'
 import { VoCreateForm } from '@/components/vos/vo-create-form'
-import { listProjectVos } from './actions'
+import { listProjectVos } from './queries'
 
 export const metadata: Metadata = { title: 'Variation Orders' }
 
@@ -144,7 +144,7 @@ export default async function ProjectVosPage({ params }: PageProps) {
               <tfoot>
                 <tr>
                   <td colSpan={3} style={{ fontWeight: 600 }}>
-                    Cumulative
+                    Signed total
                   </td>
                   <td className="numeric currency" style={{ fontWeight: 600 }}>
                     {formatPhp(totals.cost_impact_cents)}

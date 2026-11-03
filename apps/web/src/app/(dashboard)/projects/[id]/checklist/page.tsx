@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { and, asc, eq } from 'drizzle-orm'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   preConChecklists,
@@ -30,6 +30,7 @@ export default async function ProjectChecklistPage({
 }) {
   const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
+  const canManage = can(profile.role, 'precon.manage_checklist')
 
   const [project] = await db
     .select({ id: projects.id, name: projects.name })
@@ -171,6 +172,7 @@ export default async function ProjectChecklistPage({
                   projectId={id}
                   item={it}
                   dependencyTitle={it.depends_on_item_id ? titleById.get(it.depends_on_item_id) ?? null : null}
+                  canManage={canManage}
                 />
               ))}
             </section>

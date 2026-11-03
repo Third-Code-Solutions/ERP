@@ -5,7 +5,7 @@
 > BOM → Pre-Construction → Construction → Billing → Post-Construction →
 > Warranty with tenant-scoped access, append-only audit, automation, and Cortex.
 
-![status](https://img.shields.io/badge/status-internal_alpha-orange) ![stack](https://img.shields.io/badge/stack-Next.js%2015%20%C2%B7%20NestJS%2011%20%C2%B7%20PostgreSQL-blue)
+![status](https://img.shields.io/badge/status-production-green) ![stack](https://img.shields.io/badge/stack-Next.js%2015%20%C2%B7%20NestJS%2011%20%C2%B7%20PostgreSQL-blue)
 
 ## Tech Stack
 
@@ -82,6 +82,7 @@ top-level route under `apps/web/src/app/(dashboard)`.
 
 ## Documentation
 
+- [docs/turnover/HANDOVER.md](docs/turnover/HANDOVER.md) — **start here**: client handover, account ownership, secret rotation, release/rollback, open items
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — system map, data model, auth/RLS, jobs
 - [docs/architecture/CURRENT_STATE.md](docs/architecture/CURRENT_STATE.md) — verified migration baseline
 - [docs/architecture/MIGRATION_PLAN.md](docs/architecture/MIGRATION_PLAN.md) — incremental NestJS transaction migration
@@ -98,9 +99,9 @@ top-level route under `apps/web/src/app/(dashboard)`.
 pnpm dev                # web + workers (turbo parallel)
 pnpm build              # production build
 pnpm typecheck          # strict tsc across all packages
-pnpm lint               # TypeScript checks; ESLint/Prettier are not configured yet
+pnpm lint               # ESLint across apps and packages, zero warnings allowed
 pnpm test               # vitest unit + integration
-pnpm audit --prod --audit-level moderate  # production dependency gate
+pnpm audit --prod --audit-level low       # production dependency gate (matches CI)
 ```
 
 ## License & Contributing

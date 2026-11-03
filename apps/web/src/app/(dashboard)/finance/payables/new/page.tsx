@@ -12,6 +12,7 @@ import {
 import { and, asc, eq, inArray, or, sql } from 'drizzle-orm'
 import { PayableForm } from '../payable-form'
 import { loadPayableEvidence } from '../payable-evidence'
+import { manilaToday } from '@/lib/operations/manila-date'
 
 export const metadata: Metadata = { title: 'New supplier bill' }
 
@@ -177,7 +178,7 @@ export default async function NewSupplierBillPage({
             id: account.id,
             label: `${account.code} · ${account.name}`,
           }))}
-          defaultDate={new Date().toISOString().slice(0, 10)}
+          defaultDate={manilaToday()}
           defaultPurchaseOrderId={defaultPurchaseOrderId}
         />
       )}

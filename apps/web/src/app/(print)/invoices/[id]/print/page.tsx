@@ -2,11 +2,12 @@ import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getUserProfile } from '@third-code-erp/auth'
+import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { invoices, projects, tenants } from '@third-code-erp/database/schema'
 import { and, eq } from 'drizzle-orm'
 import { PrintButton } from './print-button'
+import { bpsToPercentLabel } from '@/lib/operations/percent'
 
 export const metadata: Metadata = { title: 'Invoice' }
 
@@ -16,13 +17,13 @@ function formatPHP(cents: number): string {
 
 function formatDate(d: Date | string | null): string {
   if (!d) return '—'
-  return new Date(d).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })
+  return new Date(d).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'long', day: 'numeric' })
 }
 
 export default async function InvoicePrintPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await requireUuidRouteParams(params)
-  const profile = await getUserProfile()
-  if (!profile) return notFound()
+  const profile = await requireUserProfile()
+  requireCapability(profile, 'finance.read')
 
   const [inv] = await db
     .select({
@@ -59,8 +60,8 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
     .from(tenants)
     .where(eq(tenants.id, profile.tenantId))
 
-  const billingPct = (inv.billing_percent_bps / 100).toFixed(0)
-  const retentionPct = (inv.retention_bps / 100).toFixed(0)
+  const billingPct = bpsToPercentLabel(inv.billing_percent_bps)
+  const retentionPct = bpsToPercentLabel(inv.retention_bps)
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '32px 16px', background: '#f3f4f6' }}>
@@ -106,6 +107,12 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
           lineHeight: 1.5,
         }}
       >
+        {(inv.status === 'draft' || inv.status === 'cancelled') && (
+          <div role="note" style={{ marginBottom: '20px', padding: '10px 14px', border: '2px solid #dc2626', borderRadius: '6px', color: '#b91c1c', fontWeight: 800, fontSize: '14px', letterSpacing: '0.04em', textAlign: 'center' }}>
+            {inv.status === 'draft' ? 'DRAFT — NOT A VALID INVOICE' : 'CANCELLED — NOT VALID FOR PAYMENT'}
+          </div>
+        )}
+
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px', borderBottom: '2px solid #1F3864', paddingBottom: '20px' }}>
           <div>

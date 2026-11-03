@@ -2,7 +2,7 @@ import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getUserProfile } from '@third-code-erp/auth'
+import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { invoices, projects, tenants } from '@third-code-erp/database/schema'
 import { and, eq } from 'drizzle-orm'
@@ -18,25 +18,27 @@ function formatPHP(cents: number): string {
 
 function formatDate(d: Date | string | null): string {
   if (!d) return '—'
-  return new Date(d).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })
+  return new Date(d).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'long', day: 'numeric' })
 }
 
 function periodCovered(d: Date | string | null): string {
   if (!d) return '—'
-  const date = new Date(d)
-  const y = date.getFullYear()
-  const m = date.getMonth()
-  const start = new Date(y, m, 1)
-  const end = new Date(y, m + 1, 0)
+  // Month of the invoice in Philippine time; the server clock is UTC.
+  const [y = 1970, m = 1] = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit' })
+    .format(new Date(d))
+    .split('-')
+    .map(Number)
+  const start = new Date(Date.UTC(y, m - 1, 1, 12))
+  const end = new Date(Date.UTC(y, m, 0, 12))
   const fmt = (x: Date) =>
-    x.toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })
+    x.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'long', day: 'numeric' })
   return `${fmt(start)} – ${fmt(end)}`
 }
 
 export default async function Bir2307PrintPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await requireUuidRouteParams(params)
-  const profile = await getUserProfile()
-  if (!profile) return notFound()
+  const profile = await requireUserProfile()
+  requireCapability(profile, 'finance.read')
 
   const [inv] = await db
     .select({
@@ -208,7 +210,7 @@ export default async function Bir2307PrintPage({ params }: { params: Promise<{ i
             marginBottom: '16px',
           }}
         >
-          {/* Part I — Payor (Withholding Agent) */}
+          {/* Part I — Payee: this company, which issued the invoice and suffers the withholding */}
           <div style={{ borderRight: '1px solid #111827', padding: '12px 14px' }}>
             <div
               style={{
@@ -220,7 +222,7 @@ export default async function Bir2307PrintPage({ params }: { params: Promise<{ i
                 marginBottom: '6px',
               }}
             >
-              Part I — Payor (Withholding Agent)
+              Part I — Payee Information
             </div>
             <FieldRow label="Registered Name" value={tenant?.name ?? '—'} />
             <FieldRow
@@ -234,7 +236,7 @@ export default async function Bir2307PrintPage({ params }: { params: Promise<{ i
             <FieldRow label="Registered Address" value="—" />
           </div>
 
-          {/* Part II — Payee */}
+          {/* Part II — Payor: the client, which withholds the tax when it pays the invoice */}
           <div style={{ padding: '12px 14px' }}>
             <div
               style={{
@@ -246,10 +248,10 @@ export default async function Bir2307PrintPage({ params }: { params: Promise<{ i
                 marginBottom: '6px',
               }}
             >
-              Part II — Payee
+              Part II — Payor Information (Withholding Agent)
             </div>
             <FieldRow label="Registered Name" value={inv.project_client ?? 'N/A'} />
-            <FieldRow label="TIN" value="N/A" mono />
+            <FieldRow label="TIN" value="To be completed by the withholding agent" />
             <FieldRow label="Registered Address" value={inv.project_location ?? 'N/A'} />
             <div
               style={{
@@ -259,7 +261,7 @@ export default async function Bir2307PrintPage({ params }: { params: Promise<{ i
                 fontStyle: 'italic',
               }}
             >
-              Vendor record not linked to this invoice — populate manually before issuing.
+              The client, as withholding agent, completes its TIN, signs, and issues this certificate to the payee.
             </div>
           </div>
         </div>
@@ -383,7 +385,7 @@ export default async function Bir2307PrintPage({ params }: { params: Promise<{ i
             <div style={{ borderTop: '1px solid #111827', paddingTop: '6px' }}>
               <div style={{ fontSize: '11px', fontWeight: 600 }}>Payor / Withholding Agent</div>
               <div style={{ fontSize: '10px', color: '#6b7280', marginTop: '2px' }}>
-                {tenant?.name ?? '—'}
+                {inv.project_client ?? '—'}
               </div>
               <div style={{ fontSize: '10px', color: '#6b7280' }}>
                 Signature over Printed Name · Date
@@ -392,9 +394,9 @@ export default async function Bir2307PrintPage({ params }: { params: Promise<{ i
           </div>
           <div>
             <div style={{ borderTop: '1px solid #111827', paddingTop: '6px' }}>
-              <div style={{ fontSize: '11px', fontWeight: 600 }}>Payee</div>
+              <div style={{ fontSize: '11px', fontWeight: 600 }}>Conforme: Payee</div>
               <div style={{ fontSize: '10px', color: '#6b7280', marginTop: '2px' }}>
-                {inv.project_client ?? '—'}
+                {tenant?.name ?? '—'}
               </div>
               <div style={{ fontSize: '10px', color: '#6b7280' }}>
                 Signature over Printed Name · Date

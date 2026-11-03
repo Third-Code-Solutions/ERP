@@ -10,6 +10,7 @@ import {
   getSiteDiaryThroughCoreApi,
 } from '@/lib/erp-core-client'
 import { requireUuidRouteParams } from '@/lib/uuid-route-params'
+import { withUserDisplayNames } from '@/lib/operations/user-display-names'
 import { SiteDiaryRegister } from './site-diary-register'
 
 export const metadata: Metadata = { title: 'Daily Site Diary' }
@@ -52,7 +53,9 @@ export default async function SiteDiaryPage({
   }
 
   const diaryResponse = await getSiteDiaryThroughCoreApi(id, query)
-  const result = diaryResponse.ok && diaryResponse.data ? diaryResponse.data : null
+  const result = diaryResponse.ok && diaryResponse.data
+    ? { ...diaryResponse.data, rows: await withUserDisplayNames(profile.tenantId, diaryResponse.data.rows, ['createdBy', 'submittedBy']) }
+    : null
   const error = diaryResponse.ok ? null : diaryResponse.error ?? 'Daily site diary is unavailable.'
 
   return (

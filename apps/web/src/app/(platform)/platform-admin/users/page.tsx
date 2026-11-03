@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import { PlatformSubmitButton } from '../_submit-button'
 import { ERP_ROLES } from '@third-code-erp/shared-types/authorization'
 
@@ -23,6 +24,8 @@ import {
   PlatformUnavailable,
   StatusPill,
 } from '../_components'
+
+export const metadata: Metadata = { title: 'Users · Platform' }
 
 export default async function PlatformUsersPage({ searchParams }: { searchParams: Promise<{ q?: string; status?: string; page?: string; invitationPage?: string; tenantQuery?: string; notice?: string; error?: string }> }) {
   const params = await searchParams
@@ -59,7 +62,7 @@ export default async function PlatformUsersPage({ searchParams }: { searchParams
       </section>
 
       <section className="card"><div className="card-header"><div><h2 className="card-title">Invitations</h2><p className="card-subtitle">Provider-bound invitation state; failures remain visible.</p></div></div>
-        {invitations.data.rows.length === 0 ? <EmptyPlatformState>No invitations recorded.</EmptyPlatformState> : <div className="platform-table-wrap" tabIndex={0}><table className="data-table"><caption className="sr-only">Platform user invitations</caption><thead><tr><th scope="col">Invitee</th><th scope="col">Tenant</th><th scope="col">Role</th><th scope="col">Status</th><th scope="col">Sent</th><th scope="col">Actions</th></tr></thead><tbody>{invitations.data.rows.map((invitation) => <tr key={invitation.id}><td><strong>{invitation.fullName}</strong><small>{invitation.email}</small></td><td>{invitation.tenantName}</td><td>{invitation.role}</td><td><StatusPill status={invitation.status} />{invitation.failureReason ? <small>{invitation.failureReason}</small> : null}</td><td>{invitation.sentAt ? new Date(invitation.sentAt).toLocaleString() : 'Not sent'}</td><td><div className="platform-row-actions">{invitation.status === 'sent' ? <form action={resendInvitationAction}><input type="hidden" name="invitationId" value={invitation.id} /><PlatformSubmitButton className="button button-secondary" confirmation="Resend this user invitation?">Resend</PlatformSubmitButton></form> : null}{['pending', 'sent'].includes(invitation.status) ? <form action={revokeInvitationAction}><input type="hidden" name="invitationId" value={invitation.id} /><PlatformSubmitButton className="button button-danger" confirmation="Revoke this invitation and disable its pending account?">Revoke</PlatformSubmitButton></form> : null}</div></td></tr>)}</tbody></table></div>}
+        {invitations.data.rows.length === 0 ? <EmptyPlatformState>No invitations recorded.</EmptyPlatformState> : <div className="platform-table-wrap" tabIndex={0}><table className="data-table"><caption className="sr-only">Platform user invitations</caption><thead><tr><th scope="col">Invitee</th><th scope="col">Tenant</th><th scope="col">Role</th><th scope="col">Status</th><th scope="col">Sent</th><th scope="col">Actions</th></tr></thead><tbody>{invitations.data.rows.map((invitation) => <tr key={invitation.id}><td><strong>{invitation.fullName}</strong><small>{invitation.email}</small></td><td>{invitation.tenantName}</td><td>{invitation.role}</td><td><StatusPill status={invitation.status} />{invitation.failureReason ? <small>{invitation.failureReason}</small> : null}</td><td>{invitation.sentAt ? new Date(invitation.sentAt).toLocaleString('en-PH', { timeZone: 'Asia/Manila' }) : 'Not sent'}</td><td><div className="platform-row-actions">{invitation.status === 'sent' ? <form action={resendInvitationAction}><input type="hidden" name="invitationId" value={invitation.id} /><PlatformSubmitButton className="button button-secondary" confirmation="Resend this user invitation?">Resend</PlatformSubmitButton></form> : null}{['pending', 'sent'].includes(invitation.status) ? <form action={revokeInvitationAction}><input type="hidden" name="invitationId" value={invitation.id} /><PlatformSubmitButton className="button button-danger" confirmation="Revoke this invitation and disable its pending account?">Revoke</PlatformSubmitButton></form> : null}</div></td></tr>)}</tbody></table></div>}
       </section>
       <PlatformPagination path="/platform-admin/users" page={invitations.data.page} totalPages={invitations.data.totalPages} params={params} pageKey="invitationPage" />
     </div>}

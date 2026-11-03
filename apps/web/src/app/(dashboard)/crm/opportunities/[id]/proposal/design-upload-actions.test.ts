@@ -65,7 +65,7 @@ describe('design upload authorization and approved-version lock', () => {
 
   it('refuses roles without upload capability before accessing data', async () => {
     mocks.can.mockReturnValue(false)
-    expect((await uploadDesignFile(form())).error).toContain('Forbidden')
+    expect((await uploadDesignFile(form())).error).toBe('Your role does not have permission to do this.')
     expect(mocks.can).toHaveBeenCalledWith('design', 'design.upload')
     expect(mocks.select).not.toHaveBeenCalled()
     expectNoWrites()

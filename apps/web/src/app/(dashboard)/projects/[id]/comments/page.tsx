@@ -57,7 +57,7 @@ export default async function ProjectCommentsPage({
               comment.projectId !== id
           )
         ) {
-          throw new Error('ERP Core API returned an invalid comment scope')
+          throw new Error('The ERP service returned an invalid comment scope')
         }
         return result.data.items.map((comment) => ({
           id: comment.id,

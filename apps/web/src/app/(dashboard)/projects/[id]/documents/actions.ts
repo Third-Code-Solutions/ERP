@@ -64,7 +64,7 @@ export async function deleteDocument(formData: FormData): Promise<DeleteResult> 
     ) {
       return {
         ok: false,
-        error: 'ERP Core API returned an invalid document deletion result.',
+        error: 'The ERP service returned an invalid document deletion result.',
       }
     }
     // Never clean a receipt's object path: another document may now own it.

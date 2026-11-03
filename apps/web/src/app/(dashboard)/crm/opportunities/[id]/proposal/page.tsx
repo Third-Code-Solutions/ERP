@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -13,6 +14,8 @@ import {
   changeRequests,
 } from '@third-code-erp/database/schema'
 import { ProposalSubNav } from '@/components/proposal/sub-nav'
+
+export const metadata: Metadata = { title: 'Proposal Workspace' }
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -150,7 +153,7 @@ export default async function ProposalOverviewPage({ params }: PageProps) {
                     <td>v{r.version}</td>
                     <td className="muted">
                       {r.submitted_at
-                        ? new Date(r.submitted_at).toLocaleDateString('en-PH', {
+                        ? new Date(r.submitted_at).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila',
                             year: 'numeric', month: 'short', day: 'numeric',
                           })
                         : '—'}
@@ -178,7 +181,7 @@ export default async function ProposalOverviewPage({ params }: PageProps) {
               Status: <strong>{latestInspection.status}</strong>
               {latestInspection.submitted_at && (
                 <> · Submitted{' '}
-                  {new Date(latestInspection.submitted_at).toLocaleDateString('en-PH', {
+                  {new Date(latestInspection.submitted_at).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila',
                     year: 'numeric', month: 'short', day: 'numeric',
                   })}
                 </>

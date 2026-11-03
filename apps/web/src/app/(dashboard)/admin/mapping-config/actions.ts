@@ -21,7 +21,7 @@ export async function upsertMappingConfig(
 ): Promise<{ error?: string }> {
   const profile = await requireUserProfile()
   if (!can(profile.role, 'admin.system_config')) {
-    return { error: `Forbidden: role "${profile.role}" lacks "admin.system_config"` }
+    return { error: 'Your role does not have permission to do this.' }
   }
 
   const parsed = mappingSchema.safeParse({
@@ -124,7 +124,7 @@ export async function deleteMappingConfig(
 ): Promise<{ error?: string }> {
   const profile = await requireUserProfile()
   if (!can(profile.role, 'admin.system_config')) {
-    return { error: `Forbidden: role "${profile.role}" lacks "admin.system_config"` }
+    return { error: 'Your role does not have permission to do this.' }
   }
   const id = formData.get('id')
   if (typeof id !== 'string') return { error: 'id required' }

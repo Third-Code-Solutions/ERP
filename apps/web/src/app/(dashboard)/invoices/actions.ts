@@ -52,10 +52,10 @@ function safeInvoiceError(error: unknown): string {
     'Customer invoice reversal conflicts with its current state',
     'Customer invoice was not found',
     'Customer invoice was not reversed',
-    'ERP Core API is unavailable. No customer invoice reversal was committed.',
+    'The ERP service is unavailable. No customer invoice reversal was committed.',
     'Customer invoice cancellation conflicts with its current state',
     'Customer invoice was not cancelled',
-    'ERP Core API is unavailable. No customer invoice cancellation was committed.',
+    'The ERP service is unavailable. No customer invoice cancellation was committed.',
   ]
 
   return (

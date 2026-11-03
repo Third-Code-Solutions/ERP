@@ -73,7 +73,7 @@ describe('Today Core client', () => {
     )
     await expect(getTodayThroughCoreApi()).resolves.toMatchObject({
       ok: false,
-      error: 'ERP Core API returned an invalid Today result.',
+      error: 'The ERP service returned an invalid Today result.',
     })
   })
 })

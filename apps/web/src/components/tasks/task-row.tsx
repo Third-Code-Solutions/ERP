@@ -23,6 +23,7 @@ interface TaskRowProps {
   overdue?: boolean
   /** When true, do not render the completion control (e.g. completed view). */
   readOnly?: boolean
+  readOnlyReason?: string
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -53,7 +54,12 @@ function formatDue(value: Date | string): string {
   })
 }
 
-export function TaskRow({ task, overdue = false, readOnly = false }: TaskRowProps) {
+export function TaskRow({
+  task,
+  overdue = false,
+  readOnly = false,
+  readOnlyReason = 'Read-only: completion unavailable for your role.',
+}: TaskRowProps) {
   const roleLabel = task.role ? (ROLE_LABELS[task.role] ?? task.role) : null
   const requiresToolboxLog = task.title.trim().toLowerCase() === 'toolbox meeting log'
   const completeMountedTask = completeTask.bind(null, {
@@ -120,7 +126,7 @@ export function TaskRow({ task, overdue = false, readOnly = false }: TaskRowProp
                   day: 'numeric',
                 })}`
               : readOnly
-                ? 'Read-only: completion unavailable for your role.'
+                ? readOnlyReason
                 : task.status}
           </span>
         ) : (

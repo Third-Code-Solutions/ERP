@@ -89,37 +89,37 @@ export function AddScopeItemForm({ projectId }: { projectId: string }) {
         <div style={{ display: 'grid', gap: '12px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '10px' }}>
             <div>
-              <label style={labelStyle}>Code</label>
-              <input name="code" placeholder="FCU-01" style={inputStyle} />
+              <label style={labelStyle} htmlFor="add-scope-code">Code</label>
+              <input id="add-scope-code" name="code" placeholder="FCU-01" style={inputStyle} />
             </div>
             <div>
-              <label style={labelStyle}>Description *</label>
-              <input name="description" required placeholder="Fan Coil Unit, 2.5TR" style={inputStyle} />
+              <label style={labelStyle} htmlFor="add-scope-description">Description *</label>
+              <input id="add-scope-description" name="description" required placeholder="Fan Coil Unit, 2.5TR" style={inputStyle} />
             </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
             <div>
-              <label style={labelStyle}>Unit</label>
-              <select name="unit" defaultValue="pc" style={inputStyle}>
+              <label style={labelStyle} htmlFor="add-scope-unit">Unit</label>
+              <select id="add-scope-unit" name="unit" defaultValue="pc" style={inputStyle}>
                 {UNIT_OPTIONS.map((u) => (
                   <option key={u.value} value={u.value}>{u.label}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label style={labelStyle}>Quantity *</label>
-              <input type="number" name="quantity" required min="1" defaultValue="1" style={inputStyle} />
+              <label style={labelStyle} htmlFor="add-scope-quantity">Quantity *</label>
+              <input id="add-scope-quantity" type="number" name="quantity" required min="1" defaultValue="1" style={inputStyle} />
             </div>
             <div>
-              <label style={labelStyle}>Unit Cost (₱)</label>
-              <input type="number" name="unit_cost" min="0" step="0.01" placeholder="0.00" style={inputStyle} />
+              <label style={labelStyle} htmlFor="add-scope-unit-cost">Unit Cost (₱)</label>
+              <input id="add-scope-unit-cost" type="number" name="unit_cost" min="0" step="0.01" placeholder="0.00" style={inputStyle} />
             </div>
           </div>
 
           <div>
-            <label style={labelStyle}>Notes</label>
-            <input name="notes" placeholder="Optional" style={inputStyle} />
+            <label style={labelStyle} htmlFor="add-scope-notes">Notes</label>
+            <input id="add-scope-notes" name="notes" placeholder="Optional" style={inputStyle} />
           </div>
         </div>
 
@@ -225,6 +225,7 @@ export function EditableUnitCost({
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
         <span style={{ fontSize: '0.8125rem', color: 'var(--color-neutral-500)', marginRight: '2px' }}>₱</span>
         <input
+          aria-label="Unit cost (₱)"
           autoFocus
           type="number"
           min="0"

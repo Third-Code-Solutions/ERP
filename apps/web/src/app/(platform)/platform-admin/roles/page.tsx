@@ -1,5 +1,8 @@
+import type { Metadata } from 'next'
 import { getPlatformRoles } from '@/lib/platform-admin-client'
 import { EmptyPlatformState, PlatformPageHeader, PlatformUnavailable } from '../_components'
+
+export const metadata: Metadata = { title: 'Roles · Platform' }
 
 export default async function PlatformRolesPage() {
   const result = await getPlatformRoles()

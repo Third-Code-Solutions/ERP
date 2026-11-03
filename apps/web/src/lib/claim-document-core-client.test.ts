@@ -144,7 +144,7 @@ describe('claim document Core client', () => {
     ).resolves.toEqual({
       ok: false,
       status: 503,
-      error: 'ERP Core API is unavailable. Attachment outcome is unconfirmed; retry with the same request.',
+      error: 'The ERP service is unavailable. Attachment outcome is unconfirmed; retry with the same request.',
     })
   })
 
@@ -169,7 +169,7 @@ describe('claim document Core client', () => {
     ).resolves.toEqual({
       ok: false,
       status: 500,
-      error: 'ERP Core API returned a server error. Attachment outcome is unconfirmed; retry with the same request.',
+      error: 'The ERP service returned a server error. Attachment outcome is unconfirmed; retry with the same request.',
     })
   })
 

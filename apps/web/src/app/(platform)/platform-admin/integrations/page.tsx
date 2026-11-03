@@ -1,5 +1,8 @@
+import type { Metadata } from 'next'
 import { getPlatformIntegrations } from '@/lib/platform-admin-client'
 import { PlatformPageHeader, PlatformUnavailable, StatusPill } from '../_components'
+
+export const metadata: Metadata = { title: 'Integrations · Platform' }
 
 export default async function PlatformIntegrationsPage() {
   const result = await getPlatformIntegrations()

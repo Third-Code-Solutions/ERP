@@ -273,7 +273,7 @@ describe('inspection photo upload route', () => {
     })
     mocks.createInspectionPhotoThroughCoreApi.mockImplementation(async (command: { storagePath: string }) => {
       references.add(command.storagePath)
-      return { ok: false, status: 503, error: 'ERP Core API is unavailable. Inspection photo metadata was not recorded.' }
+      return { ok: false, status: 503, error: 'The ERP service is unavailable. Inspection photo metadata was not recorded.' }
     })
 
     const response = await POST(requestWithFile(jpeg(), 'site.jpg'), context(OPPORTUNITY_ID))

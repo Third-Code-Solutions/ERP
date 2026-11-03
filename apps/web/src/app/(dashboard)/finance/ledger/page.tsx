@@ -10,7 +10,7 @@ import {
   projects,
   vendors,
 } from '@third-code-erp/database/schema'
-import { and, desc, eq, gte, lte, type SQL } from 'drizzle-orm'
+import { and, desc, eq, gte, lte, sql, type SQL } from 'drizzle-orm'
 import {
   financeLedgerReadsUseCoreApi,
   getFinanceLedgerThroughCoreApi,
@@ -226,13 +226,28 @@ export default async function LedgerPage({
           journalLines.line_number
         )
         .limit(500),
+      // Totals cover every matching posted line, not just the 500 shown.
+      db
+        .select({
+          debit: sql<string>`coalesce(sum(${journalLines.debit_cents}), 0)`,
+          credit: sql<string>`coalesce(sum(${journalLines.credit_cents}), 0)`,
+        })
+        .from(journalLines)
+        .innerJoin(
+          journalEntries,
+          and(
+            eq(journalEntries.id, journalLines.journal_entry_id),
+            eq(journalEntries.tenant_id, journalLines.tenant_id)
+          )
+        )
+        .where(and(...conditions)),
     ])
     ledgerAccountRows = directResult[0]
     businessAccounts = directResult[1]
     vendorRows = directResult[2]
     rows = directResult[3]
-    totalDebit = rows.reduce((sum, row) => sum + row.debit_cents, 0)
-    totalCredit = rows.reduce((sum, row) => sum + row.credit_cents, 0)
+    totalDebit = Number(directResult[4][0]?.debit ?? 0)
+    totalCredit = Number(directResult[4][0]?.credit ?? 0)
   }
 
   return (
@@ -412,7 +427,8 @@ export default async function LedgerPage({
       </div>
       {rows.length === 500 && (
         <p className="finance-ledger-limit">
-          Showing the newest 500 lines. Narrow the period or ledger account.
+          Showing the newest 500 lines; the totals above include every matching
+          line. Narrow the period or ledger account to see the rest.
         </p>
       )}
     </div>

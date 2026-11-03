@@ -170,6 +170,9 @@ export async function deleteUser(): Promise<{ error?: string }> {
 export async function suspendUser(): Promise<{ error?: string }> {
   throw new Error('User suspension is outside this credential-free role harness')
 }
+export async function reactivateUser(): Promise<{ error?: string }> {
+  throw new Error('User reactivation is outside this credential-free role harness')
+}
 `,
   )
   await writeFile(
@@ -201,6 +204,8 @@ state.mount = (userId: string, currentRole: string) => root.render(
           currentRole={currentRole}
           email="credential-free@example.test"
           isSelf={false}
+          accountStatus="active"
+          canChangeRole
         />
       </div>
     </div>

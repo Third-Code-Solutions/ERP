@@ -29,6 +29,13 @@ interface PageProps {
   searchParams: Promise<{ ok?: string; ticket?: string; error?: string }>
 }
 
+// Only known codes are shown; the query string is user-controlled.
+const WARRANTY_ERROR_MESSAGES: Record<string, string> = {
+  invalid: 'Please fill in all required fields.',
+  expired: 'This warranty link has expired. Ask the project team for a new link.',
+  failed: 'Your request could not be saved. Please try again.',
+}
+
 export default async function WarrantyPortalPage({ params, searchParams }: PageProps) {
   const { token } = await params
   const sp = await searchParams
@@ -115,7 +122,7 @@ export default async function WarrantyPortalPage({ params, searchParams }: PageP
 
       {sp.error && (
         <div className="portal-alert">
-          {sp.error === 'invalid' ? 'Please fill in all required fields.' : sp.error}
+          {WARRANTY_ERROR_MESSAGES[sp.error] ?? 'Something went wrong. Please try again.'}
         </div>
       )}
 

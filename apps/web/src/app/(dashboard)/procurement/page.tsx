@@ -7,6 +7,7 @@ import { purchaseOrders, vendors } from '@third-code-erp/database/schema'
 import { eq, desc } from 'drizzle-orm'
 import { AddVendorForm } from '@/components/procurement/add-vendor-form'
 import styles from './procurement.module.css'
+import { PO_STATUS_LABELS } from '@/lib/operations/po-status'
 
 export const metadata: Metadata = { title: 'Procurement' }
 
@@ -136,9 +137,12 @@ export default async function ProcurementPage() {
           ) : (
             <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
               {recentPOs.map((po, i) => (
-                <div
+                <Link
                   key={po.id}
+                  href={`/purchase-orders/${po.id}`}
                   style={{
+                    color: 'inherit',
+                    textDecoration: 'none',
                     padding: '14px 20px',
                     borderBottom: i < recentPOs.length - 1 ? '1px solid var(--color-border)' : undefined,
                     display: 'flex',
@@ -151,13 +155,13 @@ export default async function ProcurementPage() {
                       {po.po_number}
                     </div>
                     <div style={{ fontSize: '0.8125rem', color: 'var(--color-neutral-500)', marginTop: '2px' }}>
-                      {po.vendor_name ?? 'No vendor'} · {po.status}
+                      {po.vendor_name ?? 'No vendor'} · {PO_STATUS_LABELS[po.status] ?? po.status}
                     </div>
                   </div>
                   <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-neutral-800)' }}>
                     {formatPHP(po.total_cents)}
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           )}

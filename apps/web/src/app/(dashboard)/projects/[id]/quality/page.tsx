@@ -7,6 +7,7 @@ import {
 } from '@third-code-erp/shared-types'
 import { getProjectThroughCoreApi, getQualityHoldPointsThroughCoreApi } from '@/lib/erp-core-client'
 import { requireUuidRouteParams } from '@/lib/uuid-route-params'
+import { withUserDisplayNames } from '@/lib/operations/user-display-names'
 import { QualityHoldPointRegister } from './quality-hold-point-register'
 
 export const metadata: Metadata = { title: 'QA/QC Hold Points' }
@@ -46,6 +47,9 @@ export default async function QualityHoldPointsPage({
     return <div className="card" role="alert"><div className="card-header"><h1 className="card-title">QA/QC hold points</h1></div><div className="card-empty">Quality data returned an invalid tenant or project scope.</div></div>
   }
   const qualityResponse = await getQualityHoldPointsThroughCoreApi(id, query)
+  const result = qualityResponse.ok && qualityResponse.data
+    ? { ...qualityResponse.data, rows: await withUserDisplayNames(profile.tenantId, qualityResponse.data.rows, ['requestedBy', 'punchlistHandoffBy']) }
+    : null
   return (
     <div>
       <div className="page-header">
@@ -55,7 +59,7 @@ export default async function QualityHoldPointsPage({
       <QualityHoldPointRegister
         projectId={id}
         owner={{ actorId: profile.user.id, tenantId: profile.tenantId }}
-        result={qualityResponse.ok && qualityResponse.data ? qualityResponse.data : null}
+        result={result}
         error={qualityResponse.ok ? null : qualityResponse.error ?? 'Quality register is unavailable.'}
         canManage={can(profile.role, 'project.quality.manage')}
         canApprove={can(profile.role, 'project.quality.approve')}

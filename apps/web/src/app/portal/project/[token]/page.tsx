@@ -29,7 +29,7 @@ import {
 } from '@third-code-erp/database/schema'
 import { findActiveCustomerSession } from '@/lib/operations/customer-portal'
 import { PortalEmpty } from '@/components/customer-portal/portal-empty'
-import { logView } from './actions'
+import { logCustomerView } from '@/lib/operations/customer-portal'
 
 export const metadata: Metadata = {
   title: 'Project overview · ABI OPS',
@@ -73,7 +73,7 @@ function fmtDate(value: Date | string | undefined): string {
   if (!value) return '—'
   const d = value instanceof Date ? value : new Date(value)
   if (Number.isNaN(d.getTime())) return '—'
-  return d.toLocaleDateString('en-PH', {
+  return d.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila',
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -88,7 +88,7 @@ export default async function PortalProjectOverviewPage({ params }: PageProps) {
   if (!session) return null
 
   // Stamp the view counter. Best-effort; never blocks rendering.
-  void logView(session.id, session.tenant_id)
+  void logCustomerView(session.id, session.tenant_id)
 
   const [
     projectRows,
