@@ -109,7 +109,7 @@ describe('project RFI Core client', () => {
     await expect(transitionProjectRfiThroughCoreApi(PROJECT_ID, RFI_ID, 'answer', { expectedVersion: 1, response: 'Answer' })).resolves.toEqual({
       ok: false,
       status: 503,
-      error: 'ERP Core API is unavailable. Project RFI transition outcome is unconfirmed; refresh before retrying.',
+      error: 'The ERP service is unavailable. Project RFI transition outcome is unconfirmed; refresh before retrying.',
     })
   })
 })

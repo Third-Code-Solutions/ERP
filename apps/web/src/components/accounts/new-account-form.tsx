@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { createAccount } from '@/app/(dashboard)/crm/accounts/actions'
 import { ActionFeedback } from '@/components/ui/action-feedback'
 import { accountIndustryValues } from '@third-code-erp/shared-types'
+import { submitFormData } from '@/components/shared/submit-form-data'
 
 const INDUSTRY_LABELS: Record<string, string> = {
   retail: 'Retail',
@@ -31,7 +32,7 @@ export function NewAccountForm() {
 
   return (
     <form
-      action={onSubmit}
+      onSubmit={submitFormData(onSubmit)}
       className="account-form"
       aria-busy={pending}
       aria-describedby="new-account-form-status"

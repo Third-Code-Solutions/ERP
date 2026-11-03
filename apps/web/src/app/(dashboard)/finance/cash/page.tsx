@@ -13,6 +13,7 @@ import {
   financeCashReadsUseCoreApi,
   getFinanceCashThroughCoreApi,
 } from '@/lib/erp-core-client'
+import { readAllCorePages } from '@/lib/operations/core-pages'
 
 export const metadata: Metadata = { title: 'Cash transactions' }
 
@@ -47,22 +48,20 @@ export default async function CashPage() {
 
   let rows: CashRow[]
   if (financeCashReadsUseCoreApi(profile.tenantId)) {
-    const result = await getFinanceCashThroughCoreApi({
-      cashAccountId: undefined,
-      direction: undefined,
-      status: undefined,
-      fromDate: undefined,
-      toDate: undefined,
-      page: 1,
-      limit: 500,
-    })
-    if (!result.ok || !result.data) {
-      throw new Error(result.error ?? 'Cash transactions were not read.')
-    }
-    if (result.data.total > result.data.rows.length) {
-      throw new Error('Cash transactions exceed the closed projection page limit.')
-    }
-    rows = result.data.rows.map((transaction) => ({
+    const data = await readAllCorePages(
+      (page) =>
+        getFinanceCashThroughCoreApi({
+          cashAccountId: undefined,
+          direction: undefined,
+          status: undefined,
+          fromDate: undefined,
+          toDate: undefined,
+          page,
+          limit: 500,
+        }),
+      'Cash transactions were not read.'
+    )
+    rows = data.rows.map((transaction) => ({
       id: transaction.id,
       internalNumber: transaction.internalNumber,
       referenceNumber: transaction.referenceNumber,

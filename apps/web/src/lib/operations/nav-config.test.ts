@@ -117,6 +117,7 @@ const RESTRICTED_NAV_HREFS_BY_ROLE = {
   ],
   finance: [
     '/crm/kyc-queue',
+    '/purchase-orders',
     '/inventory',
     '/invoices',
     '/claims',

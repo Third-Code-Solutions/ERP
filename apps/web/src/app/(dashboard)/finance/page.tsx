@@ -8,7 +8,7 @@ import {
   journalEntries,
   ledgerAccounts,
 } from '@third-code-erp/database/schema'
-import { desc, eq } from 'drizzle-orm'
+import { and, count, desc, eq } from 'drizzle-orm'
 import {
   ClosePeriodButton,
   CreateCashAccountForm,
@@ -35,7 +35,7 @@ export default async function FinancePage() {
   requireCapability(profile, 'finance.read')
   const canManage = can(profile.role, 'finance.manage')
 
-  const [periods, accounts, journals, cashAccountRows] = await Promise.all([
+  const [periods, accounts, journals, cashAccountRows, draftRows] = await Promise.all([
     db
       .select()
       .from(fiscalPeriods)
@@ -64,11 +64,15 @@ export default async function FinancePage() {
       .from(cashAccounts)
       .where(eq(cashAccounts.tenant_id, profile.tenantId))
       .orderBy(cashAccounts.name),
+    db
+      .select({ total: count() })
+      .from(journalEntries)
+      .where(and(eq(journalEntries.tenant_id, profile.tenantId), eq(journalEntries.status, 'draft'))),
   ])
 
   const openPeriods = periods.filter((period) => period.status === 'open')
   const activeAccounts = accounts.filter((account) => account.is_active)
-  const draftCount = journals.filter((entry) => entry.status === 'draft').length
+  const draftCount = draftRows[0]?.total ?? 0
   const currentSystemMappings = Object.fromEntries(
     accounts
       .filter((account) => account.system_key)

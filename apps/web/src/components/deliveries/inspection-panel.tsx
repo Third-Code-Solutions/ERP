@@ -40,6 +40,7 @@ interface Props {
   scheduleId: string
   status: DeliveryStatus
   inspections: InspectionRow[]
+  readOnly?: boolean
 }
 
 const RESULT_OPTIONS: { value: 'pass' | 'fail' | 'partial_pass'; label: string }[] = [
@@ -57,7 +58,7 @@ const RESULT_COLOR: Record<InspectionResult, string> = {
 
 function fmtDateTime(iso: string | null): string {
   if (!iso) return '—'
-  return new Date(iso).toLocaleString('en-PH', {
+  return new Date(iso).toLocaleString('en-PH', { timeZone: 'Asia/Manila',
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -66,7 +67,7 @@ function fmtDateTime(iso: string | null): string {
   })
 }
 
-export function InspectionPanel({ scheduleId, status, inspections }: Props) {
+export function InspectionPanel({ scheduleId, status, inspections, readOnly = false }: Props) {
   const [error, setError] = useState('')
   const [result, setResult] = useState<'pass' | 'fail' | 'partial_pass'>('pass')
   const [defectNotes, setDefectNotes] = useState('')
@@ -130,7 +131,13 @@ export function InspectionPanel({ scheduleId, status, inspections }: Props) {
       </div>
 
       <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {status === 'received' ? (
+        {readOnly && (status === 'received' || status === 'inspecting') ? (
+          <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--color-neutral-600)' }}>
+            {status === 'received' ? 'Goods are received; inspection has not started.' : 'Inspection in progress.'}
+          </p>
+        ) : null}
+
+        {!readOnly && status === 'received' ? (
           <>
             <p
               style={{
@@ -164,7 +171,7 @@ export function InspectionPanel({ scheduleId, status, inspections }: Props) {
           </>
         ) : null}
 
-        {status === 'inspecting' ? (
+        {!readOnly && status === 'inspecting' ? (
           <>
             <Label>Result</Label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

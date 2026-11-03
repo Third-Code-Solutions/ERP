@@ -13,7 +13,7 @@ export async function PlatformSupportBanner() {
       <p className="page-eyebrow">Platform Support Mode</p>
       <h2>{session.tenantName}</h2>
       <p>{session.reason}</p>
-      <span>Expires {new Date(session.expiresAt).toLocaleString()}. Actions retain your platform-owner identity; the tenant workspace is not impersonated.</span>
+      <span>Expires {new Date(session.expiresAt).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })}. Actions retain your platform-owner identity; the tenant workspace is not impersonated.</span>
     </div>
     <div className="platform-row-actions">
       <Link href={`/platform-admin/tenants?q=${encodeURIComponent(session.tenantName)}`} className="button button-secondary">Selected tenant</Link>

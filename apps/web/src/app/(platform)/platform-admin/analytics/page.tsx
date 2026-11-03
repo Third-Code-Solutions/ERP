@@ -1,5 +1,8 @@
+import type { Metadata } from 'next'
 import { getPlatformAnalytics, getPlatformOperationalAnalytics } from '@/lib/platform-admin-client'
 import { MetricCard, PlatformPageHeader, PlatformUnavailable } from '../_components'
+
+export const metadata: Metadata = { title: 'Analytics · Platform' }
 
 export default async function PlatformAnalyticsPage() {
   const [result, operations] = await Promise.all([

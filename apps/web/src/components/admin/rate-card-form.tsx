@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from 'react'
 import { upsertRateCard } from '@/app/(dashboard)/admin/rate-cards/actions'
+import { manilaToday } from '@/lib/operations/manila-date'
+import { submitFormData } from '@/components/shared/submit-form-data'
 
 interface MaterialItemOption {
   id: string
@@ -55,7 +57,7 @@ export function RateCardForm({ materialItems, vendors, initial, onDone }: Props)
   }
 
   return (
-    <form action={onSubmit} className="rc-form">
+    <form onSubmit={submitFormData(onSubmit)} className="rc-form">
       {initial?.id && <input type="hidden" name="id" value={initial.id} />}
 
       <div className="form-row">
@@ -132,7 +134,7 @@ export function RateCardForm({ materialItems, vendors, initial, onDone }: Props)
             id="rc-from"
             name="effective_from"
             type="date"
-            defaultValue={toDateInput(initial?.effective_from) || new Date().toISOString().slice(0, 10)}
+            defaultValue={toDateInput(initial?.effective_from) || manilaToday()}
             className="form-input"
           />
         </div>

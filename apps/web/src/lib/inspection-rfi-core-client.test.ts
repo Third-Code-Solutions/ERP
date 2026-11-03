@@ -151,7 +151,7 @@ describe('inspection RFI Core client', () => {
       ok: false,
       status: 503,
       error:
-        'ERP Core API is unavailable. Inspection RFI transition outcome is unconfirmed; refresh before retrying.',
+        'The ERP service is unavailable. Inspection RFI transition outcome is unconfirmed; refresh before retrying.',
     })
   })
 })

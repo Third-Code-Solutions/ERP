@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { and, desc, eq } from 'drizzle-orm'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   auditLog,
@@ -17,6 +17,7 @@ import {
 import { SitePrepPanel } from '@/components/deliveries/site-prep-panel'
 import { InspectionPanel } from '@/components/deliveries/inspection-panel'
 import { DeliveryStatusActions } from '@/components/deliveries/delivery-status-actions'
+import { humanizeToken, summarizeAuditDiff } from '@/lib/operations/audit-diff-summary'
 
 export const metadata: Metadata = { title: 'Delivery detail' }
 
@@ -47,7 +48,7 @@ const STATUS_BADGE: Record<string, string> = {
 
 function fmtDateTime(d: Date | null | undefined): string {
   if (!d) return '—'
-  return new Date(d).toLocaleString('en-PH', {
+  return new Date(d).toLocaleString('en-PH', { timeZone: 'Asia/Manila',
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -58,7 +59,7 @@ function fmtDateTime(d: Date | null | undefined): string {
 
 function fmtDate(d: Date | null | undefined): string {
   if (!d) return '—'
-  return new Date(d).toLocaleDateString('en-PH', {
+  return new Date(d).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila',
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -74,7 +75,7 @@ function relativeTime(date: Date): string {
   if (hrs < 24) return `${hrs}h ago`
   const days = Math.floor(hrs / 24)
   if (days < 7) return `${days}d ago`
-  return date.toLocaleDateString('en-PH', {
+  return date.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila',
     month: 'short',
     day: 'numeric',
     year: 'numeric',
@@ -88,6 +89,8 @@ export default async function DeliveryDetailPage({
 }) {
   const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
+  // Same rule as guardScheduling in ../actions.ts.
+  const canManage = can(profile.role, 'po.issue') || can(profile.role, 'precon.manage_checklist')
 
   const [row] = await db
     .select({
@@ -307,12 +310,14 @@ export default async function DeliveryDetailPage({
             scheduleId={row.id}
             status={status}
             sitePreparationNotes={row.site_preparation_notes ?? ''}
+            readOnly={!canManage}
           />
 
           {/* Section 3 — Inspection workflow */}
           <InspectionPanel
             scheduleId={row.id}
             status={status}
+            readOnly={!canManage}
             inspections={inspections.map((i) => ({
               id: i.id,
               inspector: i.inspector_id ? userById.get(i.inspector_id) ?? null : null,
@@ -378,21 +383,10 @@ export default async function DeliveryDetailPage({
                     <span
                       style={{ fontWeight: 500, color: 'var(--color-neutral-800)' }}
                     >
-                      {e.action}
+                      {humanizeToken(e.action)}
                     </span>
-                    <span
-                      style={{
-                        fontFamily: 'JetBrains Mono, monospace',
-                        fontSize: '0.75rem',
-                        color: 'var(--color-neutral-600)',
-                      }}
-                    >
-                      {e.diff
-                        ? Object.entries(e.diff as Record<string, unknown>)
-                            .slice(0, 2)
-                            .map(([k, v]) => `${k}: ${JSON.stringify(v)}`)
-                            .join(' · ')
-                        : '—'}
+                    <span style={{ fontSize: '0.75rem', color: 'var(--color-neutral-600)' }}>
+                      {summarizeAuditDiff(e.diff)}
                     </span>
                   </li>
                 ))}
@@ -403,7 +397,7 @@ export default async function DeliveryDetailPage({
 
         {/* Right rail */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <DeliveryStatusActions scheduleId={row.id} status={status} />
+          <DeliveryStatusActions scheduleId={row.id} status={status} readOnly={!canManage} />
         </div>
       </div>
     </div>

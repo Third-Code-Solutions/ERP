@@ -58,18 +58,22 @@ export function StockReceiptForm({
   warehouses,
   deliveries,
   today,
+  initialPurchaseOrderId,
 }: {
   purchaseOrders: PurchaseOrderOption[]
   lines: PurchaseOrderLineOption[]
   warehouses: WarehouseOption[]
   deliveries: DeliveryOption[]
   today: string
+  initialPurchaseOrderId?: string
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const retryKeyRef = useRef<string | null>(null)
   const [purchaseOrderId, setPurchaseOrderId] = useState(
-    purchaseOrders[0]?.id ?? ''
+    purchaseOrders.find((po) => po.id === initialPurchaseOrderId)?.id ??
+      purchaseOrders[0]?.id ??
+      ''
   )
   const [warehouseId, setWarehouseId] = useState('')
   const [deliveryScheduleId, setDeliveryScheduleId] = useState('')

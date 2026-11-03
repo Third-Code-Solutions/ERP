@@ -169,11 +169,12 @@ export const templates = {
       `<p>We received your warranty request. Our customer experience team will review it and reply within one business day.</p><p><strong>Reference:</strong> ${escapeHtml(vars.ticket_number)}</p><p><strong>Issue:</strong> ${escapeHtml(vars.description)}</p>`,
       `We received warranty request ${vars.ticket_number}. Our customer experience team will reply within one business day. Issue: ${vars.description}`
     ),
-  'ticket-schedule': (vars: { ticket_number: string; scheduled_for: string; confirm_url: string }) =>
+  // Clients have no login, so the email asks for a reply instead of linking to the staff ticket page.
+  'ticket-schedule': (vars: { ticket_number: string; scheduled_for: string }) =>
     wrap(
       `Repair appointment scheduled: ${vars.ticket_number}`,
-      `<p>Your repair is scheduled for <strong>${escapeHtml(vars.scheduled_for)}</strong>.</p><p style="margin:22px 0">${actionLink(vars.confirm_url, 'Confirm or request a change')}</p>`,
-      `Repair ticket ${vars.ticket_number} is scheduled for ${vars.scheduled_for}. Confirm or request a change: ${vars.confirm_url}`
+      `<p>Your repair for ticket <strong>${escapeHtml(vars.ticket_number)}</strong> is scheduled for <strong>${escapeHtml(vars.scheduled_for)}</strong>.</p><p>To confirm or request a change, reply to this email or contact your project team.</p>`,
+      `Repair ticket ${vars.ticket_number} is scheduled for ${vars.scheduled_for}. To confirm or request a change, reply to this email or contact your project team.`
     ),
   'cnps-survey': (vars: { ticket_number: string; survey_url: string }) =>
     wrap(

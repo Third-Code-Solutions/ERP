@@ -193,7 +193,7 @@ export default async function ProjectDocumentsPage({ params }: { params: Promise
                     {formatBytes(doc.size_bytes)}
                   </td>
                   <td style={{ color: 'var(--color-neutral-500)', fontSize: '0.8125rem' }}>
-                    {new Date(doc.created_at).toLocaleDateString('en-PH', {
+                    {new Date(doc.created_at).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila',
                       year: 'numeric',
                       month: 'short',
                       day: 'numeric',

@@ -265,16 +265,13 @@ export function AbiOpsLanding() {
         </div>
 
         <div className={styles.navActions}>
-          <Link className={styles.textLink} href="/auth/login">
-            Open workspace
-          </Link>
           <Link
             className={styles.navCta}
-            data-analytics="nav-guided-setup"
-            href="/auth/signup"
-            onClick={() => track('Guided Setup CTA', { placement: 'navigation' })}
+            data-analytics="nav-open-workspace"
+            href="/auth/login"
+            onClick={() => track('Workspace CTA', { placement: 'navigation' })}
           >
-            Start guided setup
+            Open workspace
           </Link>
         </div>
       </nav>
@@ -314,19 +311,12 @@ export function AbiOpsLanding() {
               <div className={styles.heroActions}>
                 <Link
                   className={styles.primaryButton}
-                  data-analytics="hero-guided-setup"
-                  href="/auth/signup"
-                  onClick={() => track('Guided Setup CTA', { placement: 'hero' })}
-                >
-                  Start guided setup
-                  <ProductGlyph name="arrow" />
-                </Link>
-                <Link
-                  className={styles.secondaryButton}
+                  data-analytics="hero-open-workspace"
                   href="/auth/login"
                   onClick={() => track('Workspace CTA', { placement: 'hero' })}
                 >
                   Open workspace
+                  <ProductGlyph name="arrow" />
                 </Link>
               </div>
             </div>
@@ -591,19 +581,12 @@ export function AbiOpsLanding() {
           <div className={styles.ctaActions}>
             <Link
               className={styles.ctaPrimary}
-              data-analytics="footer-guided-setup"
-              href="/auth/signup"
-              onClick={() => track('Guided Setup CTA', { placement: 'closing' })}
-            >
-              Start guided setup
-              <ProductGlyph name="arrow" />
-            </Link>
-            <Link
-              className={styles.ctaSecondary}
+              data-analytics="footer-open-workspace"
               href="/auth/login"
               onClick={() => track('Workspace CTA', { placement: 'closing' })}
             >
               Open workspace
+              <ProductGlyph name="arrow" />
             </Link>
           </div>
         </section>
@@ -633,7 +616,6 @@ export function AbiOpsLanding() {
             <div>
               <strong>Access</strong>
               <Link href="/auth/login">Open workspace</Link>
-              <Link href="/auth/signup">Start guided setup</Link>
             </div>
             <div>
               <strong>Trust</strong>

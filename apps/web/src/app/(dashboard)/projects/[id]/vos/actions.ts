@@ -14,7 +14,7 @@
  */
 
 import { revalidatePath } from 'next/cache'
-import { and, asc, count, eq } from 'drizzle-orm'
+import { and, count, eq } from 'drizzle-orm'
 import { can, getUserProfile, type AppRole } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
@@ -26,6 +26,7 @@ import {
 import { writeAuditLog } from '@/lib/audit'
 import { notifyRoles } from '@/lib/operations/notifications'
 import { createSigningSession } from '@/lib/operations/integrations/docuseal'
+import { getVoById } from './queries'
 
 export type VoChangeType = 'client_initiated' | 'site_condition' | 'design_error'
 export type VoStatus =
@@ -45,15 +46,6 @@ async function getTenantContext(): Promise<TenantCtx | { error: string }> {
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
   return { tenantId: profile.tenantId, userId: profile.user.id, role: profile.role }
-}
-
-async function loadVo(voId: string, tenantId: string) {
-  const [vo] = await db
-    .select()
-    .from(variationOrders)
-    .where(and(eq(variationOrders.id, voId), eq(variationOrders.tenant_id, tenantId)))
-    .limit(1)
-  return vo ?? null
 }
 
 async function nextVoNumber(projectId: string, tenantId: string): Promise<string> {
@@ -85,7 +77,7 @@ export async function createVo(
   const ctx = await getTenantContext()
   if ('error' in ctx) return { error: ctx.error }
   if (!can(ctx.role, 'variation_order.create')) {
-    return { error: 'Forbidden: your role cannot create variation orders.' }
+    return { error: 'Your role cannot create variation orders.' }
   }
 
   const [project] = await db
@@ -152,10 +144,10 @@ export async function submitVoForCommercialPricing(
   const ctx = await getTenantContext()
   if ('error' in ctx) return { error: ctx.error }
   if (!can(ctx.role, 'variation_order.submit_for_commercial_pricing')) {
-    return { error: 'Forbidden: your role cannot submit variation orders for commercial pricing.' }
+    return { error: 'Your role cannot submit variation orders for commercial pricing.' }
   }
 
-  const vo = await loadVo(voId, ctx.tenantId)
+  const vo = await getVoById(voId, ctx.tenantId)
   if (!vo) return { error: 'VO not found' }
   if (vo.status !== 'draft') return { error: 'VO is not in draft' }
 
@@ -199,10 +191,10 @@ export async function submitVoForClientSignature(
   const ctx = await getTenantContext()
   if ('error' in ctx) return { error: ctx.error }
   if (!can(ctx.role, 'variation_order.send_for_client_signature')) {
-    return { error: 'Forbidden: your role cannot send variation orders for client signature.' }
+    return { error: 'Your role cannot send variation orders for client signature.' }
   }
 
-  const vo = await loadVo(voId, ctx.tenantId)
+  const vo = await getVoById(voId, ctx.tenantId)
   if (!vo) return { error: 'VO not found' }
   if (vo.status !== 'pending_commercial_pricing') {
     return { error: 'VO must be priced by commercial first' }
@@ -264,10 +256,10 @@ export async function recordVoSigned(
   const ctx = await getTenantContext()
   if ('error' in ctx) return { error: ctx.error }
   if (!can(ctx.role, 'variation_order.send_for_client_signature')) {
-    return { error: 'Forbidden: your role cannot record a variation-order signature.' }
+    return { error: 'Your role cannot record a variation-order signature.' }
   }
 
-  const vo = await loadVo(voId, ctx.tenantId)
+  const vo = await getVoById(voId, ctx.tenantId)
   if (!vo) return { error: 'VO not found' }
   if (vo.status === 'signed') return {}
   if (vo.status !== 'pending_client_signature') {
@@ -317,10 +309,10 @@ export async function rejectVo(
   const ctx = await getTenantContext()
   if ('error' in ctx) return { error: ctx.error }
   if (!can(ctx.role, 'variation_order.reject')) {
-    return { error: 'Forbidden: your role cannot reject variation orders.' }
+    return { error: 'Your role cannot reject variation orders.' }
   }
 
-  const vo = await loadVo(voId, ctx.tenantId)
+  const vo = await getVoById(voId, ctx.tenantId)
   if (!vo) return { error: 'VO not found' }
   if (vo.status === 'signed' || vo.status === 'rejected') {
     return { error: 'VO is already finalized' }
@@ -348,30 +340,3 @@ export async function rejectVo(
   return {}
 }
 
-/** Loader used by the list page. Returns cumulative totals. */
-export async function listProjectVos(projectId: string, tenantId: string) {
-  const rows = await db
-    .select()
-    .from(variationOrders)
-    .where(
-      and(
-        eq(variationOrders.project_id, projectId),
-        eq(variationOrders.tenant_id, tenantId),
-      ),
-    )
-    .orderBy(asc(variationOrders.vo_number))
-
-  const totals = rows.reduce(
-    (acc, r) => ({
-      cost_impact_cents: acc.cost_impact_cents + r.cost_impact_cents,
-      time_impact_days: acc.time_impact_days + r.time_impact_days,
-    }),
-    { cost_impact_cents: 0, time_impact_days: 0 },
-  )
-
-  return { rows, totals }
-}
-
-export async function getVoById(voId: string, tenantId: string) {
-  return loadVo(voId, tenantId)
-}

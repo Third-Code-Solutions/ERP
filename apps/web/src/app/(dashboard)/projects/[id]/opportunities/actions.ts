@@ -111,7 +111,7 @@ export async function createOpportunity(
       !creationResultMatchesCommand(result.data, command, profile)
     ) {
       return finishAction(traceId, profile, 'create', 'invalid_core_result', {
-        error: 'ERP Core API returned an invalid Opportunity creation result.',
+        error: 'The ERP service returned an invalid Opportunity creation result.',
       })
     }
 
@@ -131,7 +131,7 @@ export async function createOpportunity(
       profile ? 'unavailable' : 'unauthorized',
       {
         error: profile
-          ? 'ERP Core API is unavailable. No Opportunity was created.'
+          ? 'The ERP service is unavailable. No Opportunity was created.'
           : 'Unauthorized',
       }
     )
@@ -215,8 +215,8 @@ export async function transitionStage(formData: FormData): Promise<ActionResult>
     if (!data || !identityIsValid || !edgeIsValid) {
       return finishAction(traceId, profile, 'transition', 'invalid_core_result', {
         error: wonTransition
-          ? 'ERP Core API returned an invalid Won-to-Project transition result.'
-          : 'ERP Core API returned an invalid Opportunity stage transition result.',
+          ? 'The ERP service returned an invalid Won-to-Project transition result.'
+          : 'The ERP service returned an invalid Opportunity stage transition result.',
       })
     }
 
@@ -229,7 +229,7 @@ export async function transitionStage(formData: FormData): Promise<ActionResult>
           'invalid_core_result',
           {
             error:
-              'ERP Core API returned an invalid Won-to-Project transition result.',
+              'The ERP service returned an invalid Won-to-Project transition result.',
           }
         )
       }
@@ -255,7 +255,7 @@ export async function transitionStage(formData: FormData): Promise<ActionResult>
     ) {
       return finishAction(traceId, profile, 'transition', 'invalid_core_result', {
         error:
-          'ERP Core API returned an invalid Opportunity stage transition result.',
+          'The ERP service returned an invalid Opportunity stage transition result.',
       })
     }
     const refreshed = tryRevalidateProjectOpportunityPaths(input.project_id)
@@ -274,7 +274,7 @@ export async function transitionStage(formData: FormData): Promise<ActionResult>
       profile ? 'unavailable' : 'unauthorized',
       {
         error: profile
-          ? 'ERP Core API is unavailable. No Opportunity stage transition was committed.'
+          ? 'The ERP service is unavailable. No Opportunity stage transition was committed.'
           : 'Unauthorized',
       }
     )

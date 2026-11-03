@@ -18,7 +18,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         <div className="portal-header-inner">
           <div>
             <p className="portal-eyebrow">Actuate Builders Inc.</p>
-            <h1 className="portal-brand">ABI OPS · Client Portal</h1>
+            <p className="portal-brand">ABI OPS · Client Portal</p>
           </div>
           <span className="portal-pill">Secure link</span>
         </div>

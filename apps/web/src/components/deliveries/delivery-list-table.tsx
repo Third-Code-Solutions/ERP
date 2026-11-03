@@ -31,7 +31,7 @@ const STATUS_BADGE: Record<string, string> = {
 
 function fmtDate(iso: string | null): string {
   if (!iso) return '—'
-  return new Date(iso).toLocaleDateString('en-PH', {
+  return new Date(iso).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila',
     year: 'numeric',
     month: 'short',
     day: 'numeric',

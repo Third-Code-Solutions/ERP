@@ -546,5 +546,5 @@ function relativeTime(iso: string): string {
   if (hr < 24) return `${hr}h ago`
   const day = Math.round(hr / 24)
   if (day < 7) return `${day}d ago`
-  return new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })
+  return new Date(iso).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric' })
 }

@@ -1,6 +1,7 @@
 import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import type { Metadata } from 'next'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
+import { canViewPath } from '@/lib/operations/nav-config'
 import Link from 'next/link'
 import { and, asc, eq } from 'drizzle-orm'
 import { requireUserProfile } from '@third-code-erp/auth'
@@ -64,6 +65,8 @@ export default async function InspectionPrintPage({
     .limit(1)
 
   if (!inspection) return notFound()
+  // (print) sits outside the dashboard layout, so apply the parent page's route policy here.
+  if (!canViewPath(profile.role, `/crm/opportunities/${inspection.opportunity_id}/proposal/inspection`)) redirect('/dashboard?error=forbidden')
 
   // Joined context — project + account + tenant brand + inspector name.
   // Each query is small and tenant-scoped; running them in parallel keeps
@@ -226,6 +229,7 @@ export default async function InspectionPrintPage({
         URLs while still being treated as same-origin for auth cookies.
       */}
       <iframe
+        data-print-report
         title="Site Inspection Report"
         srcDoc={html}
         style={{

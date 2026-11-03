@@ -140,7 +140,7 @@ describe('purchase-order list permissions and status display', () => {
     expect(html).toContain('Pending Commercial Approval')
     expect(html).toContain('Pending SCM Issuance')
     expect(html).toContain('Issued')
-    expect(html).toContain('Partial Delivered')
+    expect(html).toContain('Partially Delivered')
     expect(html).toContain('Fully Delivered')
     expect(html).toContain('Committed</div><div')
     expect(html).toContain('₱720.00')

@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -14,6 +15,8 @@ import {
 import { ProposalSubNav } from '@/components/proposal/sub-nav'
 import { DesignUploadForm } from '@/components/proposal/design-upload-form'
 import { DesignFileActions } from '@/components/proposal/design-file-actions'
+
+export const metadata: Metadata = { title: 'Design Files' }
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -271,7 +274,7 @@ export default async function DesignPage({ params }: PageProps) {
                                 <td>v{v.version}</td>
                                 <td className="muted">{v.file_name ?? '—'}</td>
                                 <td className="muted">
-                                  {new Date(v.uploaded_at).toLocaleDateString('en-PH', {
+                                  {new Date(v.uploaded_at).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila',
                                     year: 'numeric', month: 'short', day: 'numeric',
                                   })}
                                 </td>

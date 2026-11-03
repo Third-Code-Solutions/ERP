@@ -6,6 +6,7 @@ import { vendorPerformanceQuerySchema, type VendorPerformanceResult } from '@thi
 import { getVendorPerformanceThroughCoreApi, vendorPerformanceReadsUseCoreApi } from '@/lib/erp-core-client'
 import { readVendorPerformanceForTenant } from '@/lib/procurement/vendor-performance'
 import { VendorPerformanceTable } from '@/components/procurement/vendor-performance-table'
+import { canViewPath } from '@/lib/operations/nav-config'
 
 export const metadata: Metadata = { title: 'Vendor performance' }
 
@@ -43,7 +44,9 @@ export default async function VendorPerformancePage({ searchParams }: PageProps)
   return (
     <div>
       <div className="page-header">
-        <p className="page-eyebrow"><Link href="/procurement" style={{ color: 'inherit' }}>Procurement</Link> / Controls</p>
+        <p className="page-eyebrow">
+          {canViewPath(profile.role, '/procurement') ? <Link href="/procurement" style={{ color: 'inherit' }}>Procurement</Link> : 'Procurement'} / Controls
+        </p>
         <h1 className="page-title">Vendor performance</h1>
         <p className="page-subtitle">Evidence-based delivery, acceptance, commitment, and posted-spend signals for supplier conversations.</p>
       </div>
@@ -57,7 +60,7 @@ function Unavailable({ message }: { message: string }) {
     <div className="card" role="status">
       <h2 className="card-title">Vendor performance unavailable</h2>
       <p className="card-subtitle">{message}</p>
-      <p className="muted" style={{ marginTop: 8 }}>No score or spend estimate has been fabricated.</p>
+      <p className="muted" style={{ marginTop: 8 }}>No scores or spend figures are shown until the data loads.</p>
     </div>
   )
 }

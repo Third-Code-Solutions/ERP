@@ -170,7 +170,7 @@ describe('KYC artifact Core client', () => {
       ok: false,
       status: 503,
       error:
-        'ERP Core API is unavailable. KYC artifact outcome is unconfirmed; retry with the same request.',
+        'The ERP service is unavailable. KYC artifact outcome is unconfirmed; retry with the same request.',
     })
   })
 
@@ -196,7 +196,7 @@ describe('KYC artifact Core client', () => {
       ok: false,
       status: 500,
       error:
-        'ERP Core API returned a server error. KYC artifact outcome is unconfirmed; retry with the same request.',
+        'The ERP service returned a server error. KYC artifact outcome is unconfirmed; retry with the same request.',
     })
   })
 })

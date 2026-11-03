@@ -19,7 +19,13 @@ import {
 import { stampActorInTransaction, writeAuditLogInTransaction } from '@/lib/audit'
 
 function forbid(role: AppRole, capability: ErpCapability): string | null {
-  return can(role, capability) ? null : `Forbidden: role "${role}" lacks "${capability}"`
+  return can(role, capability) ? null : 'Your role does not have permission to do this.'
+}
+
+function actionError(error: unknown, fallback: string): string {
+  // ZodError.message is raw JSON; show a plain sentence instead.
+  if (error instanceof z.ZodError) return 'Some values are missing or out of range. Check the form and try again.'
+  return error instanceof Error ? error.message : fallback
 }
 
 function parseUuid(value: FormDataEntryValue | null, label: string): string {
@@ -66,7 +72,8 @@ export async function createTenderPackage(formData: FormData): Promise<{ error?:
     await assertOpportunityDocument(profile.tenantId, opportunityId, torDocumentId, 'TOR')
     await assertOpportunityDocument(profile.tenantId, opportunityId, boqDocumentId, 'BOQ')
     const closingRaw = formData.get('closingAt')?.toString().trim() ?? ''
-    const closingAt = closingRaw ? new Date(closingRaw) : null
+    // datetime-local carries no offset; the user entered Philippine time, not the server's UTC.
+    const closingAt = closingRaw ? new Date(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(closingRaw) ? `${closingRaw}:00+08:00` : closingRaw) : null
     if (closingAt && Number.isNaN(closingAt.getTime())) return { error: 'Closing date is invalid.' }
     const clientRequestId = formData.get('clientRequestId') ? parseUuid(formData.get('clientRequestId'), 'Request') : randomUUID()
     await db.transaction(async (tx) => {
@@ -100,7 +107,7 @@ export async function createTenderPackage(formData: FormData): Promise<{ error?:
     revalidatePath(tenderPath(opportunityId))
     return {}
   } catch (error) {
-    return { error: error instanceof Error ? error.message : 'Tender could not be created.' }
+    return { error: actionError(error, 'Tender could not be created.') }
   }
 }
 
@@ -141,7 +148,7 @@ export async function transitionTender(formData: FormData): Promise<{ error?: st
     revalidatePath(tenderPath(opportunityId))
     return {}
   } catch (error) {
-    return { error: error instanceof Error ? error.message : 'Tender status could not be changed.' }
+    return { error: actionError(error, 'Tender status could not be changed.') }
   }
 }
 
@@ -167,7 +174,7 @@ export async function addTenderDeviation(formData: FormData): Promise<{ error?: 
     revalidatePath(tenderPath(opportunityId))
     return {}
   } catch (error) {
-    return { error: error instanceof Error ? error.message : 'Deviation could not be added.' }
+    return { error: actionError(error, 'Deviation could not be added.') }
   }
 }
 
@@ -196,7 +203,7 @@ export async function addTenderCriterion(formData: FormData): Promise<{ error?: 
     revalidatePath(tenderPath(opportunityId))
     return {}
   } catch (error) {
-    return { error: error instanceof Error ? error.message : 'Criterion could not be added.' }
+    return { error: actionError(error, 'Criterion could not be added.') }
   }
 }
 
@@ -223,7 +230,7 @@ export async function addTenderVendorProfile(formData: FormData): Promise<{ erro
     revalidatePath(tenderPath(opportunityId))
     return {}
   } catch (error) {
-    return { error: error instanceof Error ? error.message : 'Vendor profile could not be added.' }
+    return { error: actionError(error, 'Vendor profile could not be added.') }
   }
 }
 
@@ -266,6 +273,6 @@ export async function scoreTender(formData: FormData): Promise<{ error?: string 
     revalidatePath(tenderPath(opportunityId))
     return {}
   } catch (error) {
-    return { error: error instanceof Error ? error.message : 'Score could not be saved.' }
+    return { error: actionError(error, 'Score could not be saved.') }
   }
 }

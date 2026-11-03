@@ -430,7 +430,7 @@ describe('project Opportunity stage action', () => {
       const result = await createOpportunity(createForm())
 
       expect(result).toEqual({
-        error: 'ERP Core API returned an invalid Opportunity creation result.',
+        error: 'The ERP service returned an invalid Opportunity creation result.',
       })
       expect(mocks.revalidatePath).not.toHaveBeenCalled()
       expectNoLocalStageWork()
@@ -733,7 +733,7 @@ describe('project Opportunity stage action', () => {
     const result = await transitionStage(transitionForm())
 
     expect(result).toEqual({
-      error: 'ERP Core API returned an invalid Opportunity stage transition result.',
+      error: 'The ERP service returned an invalid Opportunity stage transition result.',
     })
     expectNoLocalStageWork()
     expect(mocks.revalidatePath).not.toHaveBeenCalled()

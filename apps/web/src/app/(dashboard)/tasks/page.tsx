@@ -6,6 +6,7 @@ import { db } from '@third-code-erp/database'
 import { dailyTasks, projects } from '@third-code-erp/database/schema'
 import { TaskRow, type TaskRowData } from '@/components/tasks/task-row'
 import { manilaBoundaries } from '@/lib/operations/cadence-engine'
+import { dailyTaskCompletionWritesUseCoreApi } from '@/lib/erp-core-client'
 import { GenerationControl } from './generation-control'
 import styles from '../workspace-qa.module.css'
 
@@ -78,6 +79,7 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
   const rawSearch = searchParams ? await searchParams : {}
   const tab = parseTab(rawSearch.tab)
   const canCompleteTasks = can(profile.role, 'sd.daily_tasks')
+  const completionEnabled = dailyTaskCompletionWritesUseCoreApi(profile.tenantId)
 
   const now = new Date()
   const todayStart = manilaBoundaries.startOfDay(now)
@@ -273,7 +275,12 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
                     key={t.id}
                     task={t}
                     overdue={overdueInTab}
-                    readOnly={isReadOnly || !canCompleteTasks}
+                    readOnly={isReadOnly || !canCompleteTasks || !completionEnabled}
+                    readOnlyReason={
+                      canCompleteTasks && !completionEnabled
+                        ? 'Task completion is not enabled for this workspace yet.'
+                        : undefined
+                    }
                   />
                 ))}
               </tbody>

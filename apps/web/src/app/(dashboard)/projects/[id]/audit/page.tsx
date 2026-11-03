@@ -50,7 +50,7 @@ function relativeTime(date: Date): string {
   if (hrs < 24) return `${hrs}h ago`
   const days = Math.floor(hrs / 24)
   if (days < 7) return `${days}d ago`
-  return date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
+  return date.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 type AuditEntryView = {
@@ -65,6 +65,8 @@ type AuditEntryView = {
 }
 
 const AUDIT_PAGE_SIZE = 25
+// Core's activity read accepts at most this many entity ids per request.
+const CORE_AUDIT_SCOPE_LIMIT = 500
 
 export default async function ProjectAuditPage({
   params,
@@ -89,7 +91,8 @@ export default async function ProjectAuditPage({
   // Gather entity IDs for this project
   const [scopeIds, bomIds, invoiceIds] = await Promise.all([
     db.select({ id: scopeItems.id }).from(scopeItems)
-      .where(and(eq(scopeItems.project_id, id), eq(scopeItems.tenant_id, profile.tenantId))),
+      .where(and(eq(scopeItems.project_id, id), eq(scopeItems.tenant_id, profile.tenantId)))
+      .orderBy(desc(scopeItems.created_at)),
     access.bom
       ? db.select({ id: boms.id }).from(boms)
           .where(and(eq(boms.project_id, id), eq(boms.tenant_id, profile.tenantId)))
@@ -102,40 +105,41 @@ export default async function ProjectAuditPage({
 
   const relatedIds = [
     id,
-    ...scopeIds.map((r) => r.id),
     ...bomIds.map((r) => r.id),
     ...invoiceIds.map((r) => r.id),
+    ...scopeIds.map((r) => r.id),
   ]
 
-  let entries: AuditEntryView[]
+  let entries: AuditEntryView[] = []
   let total = 0
   let totalPages = 1
+  let loadError: string | null = null
+  // Project, BOM and invoice ids come first, so a large takeoff only drops the oldest scope items.
+  const isScopeLimited = relatedIds.length > CORE_AUDIT_SCOPE_LIMIT
   if (auditActivityReadsUseCoreApi(profile.tenantId)) {
-    if (relatedIds.length > 500) {
-      throw new Error('Project audit scope is too broad for the Core activity boundary.')
-    }
     const result = await getAuditActivityThroughCoreApi({
-      entityIds: relatedIds,
+      entityIds: relatedIds.slice(0, CORE_AUDIT_SCOPE_LIMIT),
       action: filters.action,
       entityType: filters.entityType,
       page: filters.page,
       limit: AUDIT_PAGE_SIZE,
     })
     if (!result.ok || !result.data) {
-      throw new Error(result.error ?? 'Audit activity was not read')
+      loadError = 'Audit activity could not be loaded right now. Refresh the page to try again.'
+    } else {
+      total = result.data.total
+      totalPages = result.data.totalPages
+      entries = result.data.rows.map((entry) => ({
+        id: entry.id,
+        action: entry.action,
+        entity_type: entry.entityType,
+        entity_id: entry.entityId,
+        diff: null,
+        hash: entry.hash,
+        created_at: new Date(entry.createdAt),
+        redacted: true,
+      }))
     }
-    total = result.data.total
-    totalPages = result.data.totalPages
-    entries = result.data.rows.map((entry) => ({
-      id: entry.id,
-      action: entry.action,
-      entity_type: entry.entityType,
-      entity_id: entry.entityId,
-      diff: null,
-      hash: entry.hash,
-      created_at: new Date(entry.createdAt),
-      redacted: true,
-    }))
   } else {
     const conditions = [
       eq(auditLog.tenant_id, profile.tenantId),
@@ -196,6 +200,19 @@ export default async function ProjectAuditPage({
           </p>
         </div>
       </div>
+
+      {loadError && (
+        <p role="alert" className="card-empty" style={{ marginBottom: '16px' }}>
+          {loadError}
+        </p>
+      )}
+      {isScopeLimited && auditActivityReadsUseCoreApi(profile.tenantId) && (
+        <p className="muted" style={{ fontSize: '0.8125rem', margin: '0 0 12px' }}>
+          This project has many scope items. Showing activity for the project, its BOMs and
+          invoices, and the {CORE_AUDIT_SCOPE_LIMIT - (relatedIds.length - scopeIds.length)} most
+          recent scope items.
+        </p>
+      )}
 
       <form
         method="get"
@@ -307,7 +324,7 @@ export default async function ProjectAuditPage({
                   style={{ borderBottom: idx < entries.length - 1 ? '1px solid var(--color-border)' : 'none' }}
                 >
                   <td style={{ padding: '10px 16px', color: 'var(--color-neutral-500)', whiteSpace: 'nowrap', fontSize: '0.8125rem' }}>
-                    <span title={new Date(entry.created_at).toLocaleString('en-PH')}>
+                    <span title={new Date(entry.created_at).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })}>
                       {relativeTime(new Date(entry.created_at))}
                     </span>
                   </td>
@@ -339,7 +356,7 @@ export default async function ProjectAuditPage({
                   </td>
                   <td style={{ padding: '10px 16px', color: 'var(--color-neutral-600)', fontSize: '0.75rem', fontFamily: 'JetBrains Mono, monospace', maxWidth: '320px' }}>
                     {entry.redacted
-                      ? 'Details redacted by the Core authority'
+                      ? 'Details hidden for your role'
                       : entry.diff
                       ? Object.entries(entry.diff as Record<string, unknown>)
                           .slice(0, 3)

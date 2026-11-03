@@ -5,6 +5,7 @@ import { db } from '@third-code-erp/database'
 import { warrantyTickets, projects, accounts } from '@third-code-erp/database/schema'
 import { WarrantyPortalLinkIssuer } from '@/components/warranty/warranty-portal-link-issuer'
 import type { Metadata } from 'next'
+import { WARRANTY_CATEGORY_LABELS } from '@/lib/operations/warranty-labels'
 
 export const metadata: Metadata = { title: 'Warranty Tickets' }
 
@@ -115,7 +116,7 @@ export default async function WarrantyTicketsPage() {
                         <div className="muted" style={{ fontSize: 11 }}>{r.account_name}</div>
                       )}
                     </td>
-                    <td className="muted">{r.category}</td>
+                    <td className="muted">{WARRANTY_CATEGORY_LABELS[r.category] ?? r.category}</td>
                     <td>
                       <span className={STATUS_BADGE[r.status] ?? 'stage-badge'}>
                         <span className="stage-badge-dot" />
@@ -130,7 +131,7 @@ export default async function WarrantyTicketsPage() {
                     <td className="muted">
                       {hoursSinceCreate < 24
                         ? `${hoursSinceCreate}h ago`
-                        : new Date(r.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}
+                        : new Date(r.created_at).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric' })}
                     </td>
                     <td>
                       <Link

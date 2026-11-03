@@ -6,6 +6,7 @@ import {
   updateUserRole,
   resetUserPassword,
   suspendUser,
+  reactivateUser,
 } from '@/app/(dashboard)/admin/users/actions'
 import {
   ASSIGNABLE_ROLES,
@@ -17,6 +18,8 @@ interface Props {
   currentRole: AssignableRole
   email: string
   isSelf: boolean
+  accountStatus: string
+  canChangeRole: boolean
 }
 
 const ROLE_LABEL: Record<string, string> = {
@@ -378,7 +381,14 @@ function RoleEditor({ userId, currentRole, isSelf }: RoleEditorProps) {
   )
 }
 
-export function ManageUserPanel({ userId, currentRole, email, isSelf }: Props) {
+export function ManageUserPanel({
+  userId,
+  currentRole,
+  email,
+  isSelf,
+  accountStatus,
+  canChangeRole,
+}: Props) {
   const router = useRouter()
   const [pwdError, setPwdError] = useState<string | null>(null)
   const [pwdOk, setPwdOk] = useState(false)
@@ -411,6 +421,28 @@ export function ManageUserPanel({ userId, currentRole, email, isSelf }: Props) {
     })
   }
 
+  function handleReactivate(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const formData = new FormData(e.currentTarget)
+    setSuspendError(null)
+    startTransition(async () => {
+      try {
+        const res = await reactivateUser(formData)
+        if (res?.error) {
+          setSuspendError(res.error)
+          return
+        }
+        router.refresh()
+      } catch (err) {
+        setSuspendError(
+          err instanceof Error
+            ? `Network error: ${err.message}`
+            : 'Could not reactivate user.'
+        )
+      }
+    })
+  }
+
   function handleSuspend(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const formData = new FormData(e.currentTarget)
@@ -436,12 +468,22 @@ export function ManageUserPanel({ userId, currentRole, email, isSelf }: Props) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      <RoleEditor
-        key={userId}
-        userId={userId}
-        currentRole={currentRole}
-        isSelf={isSelf}
-      />
+      {canChangeRole ? (
+        <RoleEditor
+          key={userId}
+          userId={userId}
+          currentRole={currentRole}
+          isSelf={isSelf}
+        />
+      ) : (
+        <section>
+          <h3 style={sectionHead}>Role</h3>
+          <p style={hint}>
+            Role changes are not enabled for this workspace yet. Contact your
+            system administrator to change this user&apos;s role.
+          </p>
+        </section>
+      )}
 
       <div style={{ borderTop: '1px solid var(--color-border)' }} />
 
@@ -486,7 +528,27 @@ export function ManageUserPanel({ userId, currentRole, email, isSelf }: Props) {
       {/* Retained-history access control */}
       <section>
         <h3 style={{ ...sectionHead, color: 'var(--color-danger)' }}>Access control</h3>
-        {!showSuspend ? (
+        {accountStatus === 'suspended' ? (
+          <form onSubmit={handleReactivate} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <input type="hidden" name="user_id" value={userId} />
+            <p style={{ fontSize: 13, color: 'var(--color-neutral-700)', margin: 0 }}>
+              This user is suspended and cannot sign in. Reactivating restores
+              sign-in with their current role.
+            </p>
+            <div>
+              <button type="submit" disabled={pending} style={primaryButton(pending)}>
+                {pending ? 'Reactivating…' : 'Reactivate user'}
+              </button>
+            </div>
+          </form>
+        ) : accountStatus === 'disabled' ? (
+          <p style={hint}>
+            This account is disabled because its invitation was revoked. Send a
+            new invitation to give this person access again.
+          </p>
+        ) : accountStatus === 'invited' ? (
+          <p style={hint}>This user has not accepted their invitation yet.</p>
+        ) : !showSuspend ? (
           <button
             type="button"
             onClick={() => setShowSuspend(true)}
@@ -511,9 +573,9 @@ export function ManageUserPanel({ userId, currentRole, email, isSelf }: Props) {
           <form onSubmit={handleSuspend} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <input type="hidden" name="user_id" value={userId} />
             <p style={{ fontSize: 13, color: 'var(--color-neutral-700)', margin: 0 }}>
-              Suspension blocks sign-in while retaining the workspace user, project
-              references, and immutable audit history. A workspace owner can restore
-              access later.
+              Suspension blocks sign-in while keeping this user&apos;s projects,
+              records, and audit history. An admin can reactivate the user later
+              from this page.
             </p>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600 }}>
               Reason
@@ -562,7 +624,7 @@ export function ManageUserPanel({ userId, currentRole, email, isSelf }: Props) {
             </div>
           </form>
         )}
-        {suspendError && <p style={errorText}>{suspendError}</p>}
+        {suspendError && <p role="alert" style={errorText}>{suspendError}</p>}
       </section>
     </div>
   )

@@ -1,15 +1,14 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
 import { LoginForm } from './login-form'
 
 export const metadata: Metadata = { title: 'Sign in' }
 
 type LoginPageProps = {
-  searchParams: Promise<{ password_updated?: string }>
+  searchParams: Promise<{ password_updated?: string; error?: string }>
 }
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
-  const { password_updated: passwordUpdated } = await searchParams
+  const { password_updated: passwordUpdated, error } = await searchParams
 
   return (
     <>
@@ -30,13 +29,17 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         </div>
       ) : null}
 
+      {error === 'auth_callback_failed' ? (
+        <div role="alert" className="auth-error">
+          That sign-in or reset link has expired or was already used. Sign in below, or use
+          &ldquo;Forgot password&rdquo; to get a new link.
+        </div>
+      ) : null}
+
       <LoginForm />
 
       <p className="auth-form-altline">
-        New to ABI OPS?{' '}
-        <Link href="/auth/signup" className="auth-link auth-link-strong">
-          Create an account
-        </Link>
+        New to ABI OPS? Ask your workspace administrator for an invitation.
       </p>
     </>
   )

@@ -317,6 +317,14 @@ const styles = `
   .vendor-confirmation-decision small { color: #6b7280; font-size: 11px; font-weight: 400; line-height: 1.4; }
   .vendor-confirmation-decision.is-selected { border-color: #0f2d4a; box-shadow: inset 3px 0 #e07b2a; background: #f7f9fb; }
   .vendor-confirmation-decision:disabled { cursor: wait; opacity: .6; }
+  .vendor-confirmation-submit {
+    width: 100%; min-height: 44px; border: 0; border-radius: 10px; background: #0f2d4a; color: #fff;
+    font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; transition: background-color .15s ease, transform .1s ease;
+  }
+  .vendor-confirmation-submit:hover { background: #14395e; }
+  .vendor-confirmation-submit:active { transform: scale(.98); }
+  .vendor-confirmation-submit:focus-visible { outline: 3px solid rgba(224,123,42,.35); outline-offset: 2px; }
+  .vendor-confirmation-submit:disabled { cursor: wait; opacity: .6; }
   .vendor-confirmation-error { margin: 0; border: 1px solid #efb6ae; border-radius: 9px; background: #fff5f3; color: #8a2222; padding: 10px 12px; font-size: 13px; line-height: 1.45; }
   .vendor-confirmation-submit-note { margin: 0; color: #6b7280; font-size: 11px; line-height: 1.5; }
   .vendor-confirmation-readonly,

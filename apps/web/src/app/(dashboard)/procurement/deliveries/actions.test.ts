@@ -270,7 +270,7 @@ describe('Delivery receipt compatibility seam', () => {
     mocks.deliveryScheduleCreateWritesUseCoreApi.mockReturnValue(true)
     mocks.createDeliveryScheduleThroughCoreApi.mockResolvedValue({
       ok: false,
-      error: 'ERP Core API is unavailable. No delivery schedule was committed.',
+      error: 'The ERP service is unavailable. No delivery schedule was committed.',
     })
     const form = new FormData()
     form.set('purchase_order_id', '44444444-4444-4444-8444-444444444444')
@@ -281,7 +281,7 @@ describe('Delivery receipt compatibility seam', () => {
     form.set('idempotency_key', 'delivery-schedule-2')
 
     await expect(scheduleDelivery(form)).resolves.toEqual({
-      error: 'ERP Core API is unavailable. No delivery schedule was committed.',
+      error: 'The ERP service is unavailable. No delivery schedule was committed.',
     })
     expect(mocks.insert).not.toHaveBeenCalled()
     expect(mocks.writeAuditLog).not.toHaveBeenCalled()
@@ -323,13 +323,13 @@ describe('Delivery receipt compatibility seam', () => {
     selectSchedule('in_transit')
     mocks.recordDeliveryReceiptThroughCoreApi.mockResolvedValue({
       ok: false,
-      error: 'ERP Core API is unavailable. No delivery receipt was committed.',
+      error: 'The ERP service is unavailable. No delivery receipt was committed.',
     })
 
     await expect(
       recordReceipt(SCHEDULE_ID, 'DR-42', 'delivery-receipt-2')
     ).resolves.toEqual({
-      error: 'ERP Core API is unavailable. No delivery receipt was committed.',
+      error: 'The ERP service is unavailable. No delivery receipt was committed.',
     })
     expect(mocks.update).not.toHaveBeenCalled()
     expect(mocks.writeAuditLog).not.toHaveBeenCalled()
@@ -396,7 +396,7 @@ describe('Delivery receipt compatibility seam', () => {
     mocks.markDeliveryInTransitThroughCoreApi.mockResolvedValue({
       ok: false,
       error:
-        'ERP Core API is unavailable. No delivery in-transit transition was committed.',
+        'The ERP service is unavailable. No delivery in-transit transition was committed.',
     })
     selectSchedule('site_ready')
 
@@ -404,7 +404,7 @@ describe('Delivery receipt compatibility seam', () => {
       markInTransit(SCHEDULE_ID, 'delivery-in-transit-2')
     ).resolves.toEqual({
       error:
-        'ERP Core API is unavailable. No delivery in-transit transition was committed.',
+        'The ERP service is unavailable. No delivery in-transit transition was committed.',
     })
     expect(mocks.update).not.toHaveBeenCalled()
     expect(mocks.writeAuditLog).not.toHaveBeenCalled()
@@ -429,7 +429,7 @@ describe('Delivery receipt compatibility seam', () => {
     mocks.startDeliverySitePreparationThroughCoreApi.mockResolvedValue({
       ok: false,
       error:
-        'ERP Core API is unavailable. No delivery site preparation was started.',
+        'The ERP service is unavailable. No delivery site preparation was started.',
     })
     selectSchedule('scheduled')
 
@@ -437,7 +437,7 @@ describe('Delivery receipt compatibility seam', () => {
       markSitePreparing(SCHEDULE_ID, 'delivery-site-preparation-2')
     ).resolves.toEqual({
       error:
-        'ERP Core API is unavailable. No delivery site preparation was started.',
+        'The ERP service is unavailable. No delivery site preparation was started.',
     })
     expect(mocks.update).not.toHaveBeenCalled()
     expect(mocks.writeAuditLog).not.toHaveBeenCalled()
@@ -489,7 +489,7 @@ describe('Delivery receipt compatibility seam', () => {
     mocks.completeDeliverySitePreparationThroughCoreApi.mockResolvedValue({
       ok: false,
       error:
-        'ERP Core API is unavailable. No site-preparation completion was committed.',
+        'The ERP service is unavailable. No site-preparation completion was committed.',
     })
     selectSchedule('site_preparing')
 
@@ -501,7 +501,7 @@ describe('Delivery receipt compatibility seam', () => {
       )
     ).resolves.toEqual({
       error:
-        'ERP Core API is unavailable. No site-preparation completion was committed.',
+        'The ERP service is unavailable. No site-preparation completion was committed.',
     })
     expect(mocks.update).not.toHaveBeenCalled()
     expect(mocks.writeAuditLog).not.toHaveBeenCalled()
@@ -524,14 +524,14 @@ describe('Delivery receipt compatibility seam', () => {
     mocks.deliveryInspectionStartWritesUseCoreApi.mockReturnValue(true)
     mocks.startDeliveryInspectionThroughCoreApi.mockResolvedValue({
       ok: false,
-      error: 'ERP Core API is unavailable. No delivery inspection was started.',
+      error: 'The ERP service is unavailable. No delivery inspection was started.',
     })
     selectSchedule('received')
 
     await expect(
       startInspection(SCHEDULE_ID, 'delivery-inspection-2')
     ).resolves.toEqual({
-      error: 'ERP Core API is unavailable. No delivery inspection was started.',
+      error: 'The ERP service is unavailable. No delivery inspection was started.',
     })
     expect(mocks.update).not.toHaveBeenCalled()
     expect(mocks.writeAuditLog).not.toHaveBeenCalled()
@@ -587,7 +587,7 @@ describe('Delivery receipt compatibility seam', () => {
     mocks.completeDeliveryInspectionThroughCoreApi.mockResolvedValue({
       ok: false,
       error:
-        'ERP Core API is unavailable. No delivery inspection was completed.',
+        'The ERP service is unavailable. No delivery inspection was completed.',
     })
     selectSchedule('inspecting')
 
@@ -601,7 +601,7 @@ describe('Delivery receipt compatibility seam', () => {
       )
     ).resolves.toEqual({
       error:
-        'ERP Core API is unavailable. No delivery inspection was completed.',
+        'The ERP service is unavailable. No delivery inspection was completed.',
     })
     expect(mocks.update).not.toHaveBeenCalled()
     expect(mocks.writeAuditLog).not.toHaveBeenCalled()
@@ -640,14 +640,14 @@ describe('Delivery receipt compatibility seam', () => {
     mocks.deliveryCancelWritesUseCoreApi.mockReturnValue(true)
     mocks.cancelDeliveryThroughCoreApi.mockResolvedValue({
       ok: false,
-      error: 'ERP Core API is unavailable. No delivery was cancelled.',
+      error: 'The ERP service is unavailable. No delivery was cancelled.',
     })
     selectSchedule('in_transit')
 
     await expect(
       cancelDelivery(SCHEDULE_ID, 'Supplier delay', 'delivery-cancel-2')
     ).resolves.toEqual({
-      error: 'ERP Core API is unavailable. No delivery was cancelled.',
+      error: 'The ERP service is unavailable. No delivery was cancelled.',
     })
     expect(mocks.update).not.toHaveBeenCalled()
     expect(mocks.writeAuditLog).not.toHaveBeenCalled()

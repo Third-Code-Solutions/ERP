@@ -98,7 +98,7 @@ export async function createProjectRfi(
   ) {
     return {
       ok: false,
-      error: 'ERP Core API returned an invalid project RFI scope.',
+      error: 'The ERP service returned an invalid project RFI scope.',
     }
   }
 
@@ -176,7 +176,7 @@ export async function transitionProjectRfi(
   ) {
     return {
       ok: false,
-      error: 'ERP Core API returned an invalid project RFI scope.',
+      error: 'The ERP service returned an invalid project RFI scope.',
     }
   }
 

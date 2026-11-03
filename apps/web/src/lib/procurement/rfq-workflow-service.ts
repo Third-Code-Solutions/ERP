@@ -12,6 +12,7 @@ import {
 } from '@third-code-erp/database/schema'
 import { writeAuditLogInTransaction } from '@/lib/audit'
 import { notifyRoles } from '@/lib/operations/notifications'
+import { manilaToday } from '@/lib/operations/manila-date'
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -252,7 +253,7 @@ async function ensureQuotePriceHistory(
   if (existingHistory) return existingHistory.id
 
   const priceLine = await resolvePriceLine(tx, input.line, input.tenantId)
-  const today = new Date().toISOString().slice(0, 10)
+  const today = manilaToday()
   const [catalog] = await tx
     .select({ id: materialCatalog.id })
     .from(materialCatalog)

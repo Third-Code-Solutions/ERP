@@ -88,6 +88,7 @@ function formatExpires(iso: string): string {
   const dt = new Date(iso)
   if (Number.isNaN(dt.getTime())) return iso
   return dt.toLocaleString('en-PH', {
+    timeZone: 'Asia/Manila',
     year: 'numeric',
     month: 'short',
     day: 'numeric',

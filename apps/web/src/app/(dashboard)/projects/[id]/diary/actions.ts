@@ -61,7 +61,7 @@ export async function createSiteDiary(
     result.data.projectId !== command.data.projectId ||
     result.data.entry.projectId !== command.data.projectId
   ) {
-    return { ok: false, error: 'ERP Core API returned an invalid site diary scope.' }
+    return { ok: false, error: 'The ERP service returned an invalid site diary scope.' }
   }
   refresh(command.data.projectId)
   return {
@@ -105,7 +105,7 @@ export async function updateSiteDiary(
     return { ok: false, error: result.error ?? 'Site diary was not updated.' }
   }
   if (result.data.projectId !== projectId.data || result.data.entry.projectId !== projectId.data || result.data.entry.id !== entryId.data) {
-    return { ok: false, error: 'ERP Core API returned an invalid site diary scope.' }
+    return { ok: false, error: 'The ERP service returned an invalid site diary scope.' }
   }
   refresh(projectId.data)
   return { ok: true, success: result.data.changed ? 'Diary updated.' : 'No changes to save.' }
@@ -139,7 +139,7 @@ export async function submitSiteDiary(
     return { ok: false, error: result.error ?? 'Site diary was not submitted.' }
   }
   if (result.data.projectId !== projectId.data || result.data.entry.projectId !== projectId.data || result.data.entry.id !== entryId.data) {
-    return { ok: false, error: 'ERP Core API returned an invalid site diary scope.' }
+    return { ok: false, error: 'The ERP service returned an invalid site diary scope.' }
   }
   refresh(projectId.data)
   return { ok: true, success: result.data.changed ? 'Diary submitted.' : 'Diary was already submitted.' }

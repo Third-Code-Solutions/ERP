@@ -38,14 +38,15 @@ export function ProjectCommandCenter({
     label: string
     value: number
     detail: string
-    href: string
+    href: string | null
     tone: 'alert' | 'normal'
   }> = [
     {
-      label: 'Work queue',
+      // Counts every assignee's open daily tasks; no project-wide task list exists to link to.
+      label: 'Daily tasks',
       value: data.pendingTasks,
-      detail: data.overdueTasks > 0 ? `${countLabel(data.overdueTasks, 'overdue task')}` : 'Nothing overdue',
-      href: `/projects/${projectId}/checklist`,
+      detail: data.overdueTasks > 0 ? `${countLabel(data.overdueTasks, 'overdue task')} · whole team` : 'Nothing overdue · whole team',
+      href: null,
       tone: data.overdueTasks > 0 ? 'alert' : 'normal',
     },
     {
@@ -102,17 +103,25 @@ export function ProjectCommandCenter({
       </header>
 
       <div className={styles.signalGrid}>
-        {signals.map((signal) => (
-          <Link
-            className={`${styles.signalCard} ${signal.tone === 'alert' ? styles.signalCardAlert : ''}`}
-            href={signal.href}
-            key={signal.label}
-          >
-            <span className={styles.signalLabel}>{signal.label}</span>
-            <strong className={styles.signalValue}>{signal.value.toLocaleString()}</strong>
-            <span className={styles.signalDetail}>{signal.detail}</span>
-          </Link>
-        ))}
+        {signals.map((signal) => {
+          const className = `${styles.signalCard} ${signal.tone === 'alert' ? styles.signalCardAlert : ''}`
+          const body = (
+            <>
+              <span className={styles.signalLabel}>{signal.label}</span>
+              <strong className={styles.signalValue}>{signal.value.toLocaleString()}</strong>
+              <span className={styles.signalDetail}>{signal.detail}</span>
+            </>
+          )
+          return signal.href ? (
+            <Link className={className} href={signal.href} key={signal.label}>
+              {body}
+            </Link>
+          ) : (
+            <div className={className} key={signal.label}>
+              {body}
+            </div>
+          )
+        })}
       </div>
 
       <div className={styles.detailGrid}>

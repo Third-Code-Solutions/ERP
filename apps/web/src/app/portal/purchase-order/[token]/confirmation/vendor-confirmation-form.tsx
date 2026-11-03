@@ -20,6 +20,10 @@ export function VendorConfirmationForm({ token }: { token: string }) {
   )
   const [decision, setDecision] = useState<VendorConfirmationDecision>('accepted')
   const [idempotencyKey] = useState(newIdempotencyKey)
+  // Controlled so a server error does not wipe what the supplier typed (React 19 resets form fields after an action).
+  const [responderName, setResponderName] = useState('')
+  const [responderEmail, setResponderEmail] = useState('')
+  const [note, setNote] = useState('')
 
   if (state.ok) {
     return (
@@ -37,6 +41,7 @@ export function VendorConfirmationForm({ token }: { token: string }) {
   return (
     <form action={formAction} className="vendor-confirmation-form">
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
+      <input type="hidden" name="decision" value={decision} />
 
       <div className="vendor-confirmation-field">
         <label htmlFor="vendor-responder-name">Your name</label>
@@ -47,6 +52,8 @@ export function VendorConfirmationForm({ token }: { token: string }) {
           maxLength={255}
           required
           placeholder="Name of person responding"
+          value={responderName}
+          onChange={(event) => setResponderName(event.target.value)}
         />
       </div>
 
@@ -59,6 +66,8 @@ export function VendorConfirmationForm({ token }: { token: string }) {
           autoComplete="email"
           maxLength={255}
           placeholder="you@company.com"
+          value={responderEmail}
+          onChange={(event) => setResponderEmail(event.target.value)}
         />
       </div>
 
@@ -74,9 +83,7 @@ export function VendorConfirmationForm({ token }: { token: string }) {
           ).map(([value, label, description]) => (
             <button
               key={value}
-              type="submit"
-              name="decision"
-              value={value}
+              type="button"
               aria-pressed={decision === value}
               className={`vendor-confirmation-decision ${decision === value ? 'is-selected' : ''} decision-${value}`}
               disabled={pending}
@@ -99,6 +106,8 @@ export function VendorConfirmationForm({ token }: { token: string }) {
           rows={4}
           maxLength={2_000}
           required={decision !== 'accepted'}
+          value={note}
+          onChange={(event) => setNote(event.target.value)}
           placeholder={
             decision === 'accepted'
               ? 'Add a delivery note or question, if useful.'
@@ -112,6 +121,16 @@ export function VendorConfirmationForm({ token }: { token: string }) {
           {state.message}
         </p>
       )}
+
+      <button type="submit" className="vendor-confirmation-submit" disabled={pending}>
+        {pending
+          ? 'Sending…'
+          : decision === 'accepted'
+            ? 'Send acceptance'
+            : decision === 'declined'
+              ? 'Send decline'
+              : 'Send change request'}
+      </button>
 
       <p className="vendor-confirmation-submit-note">
         Your response is committed once, then protected against duplicate retries.

@@ -8,6 +8,7 @@ import {
   opportunityExportCsvLine,
   parseOpportunityExportFilters,
 } from './opportunity-export'
+import { manilaToday } from '@/lib/operations/manila-date'
 
 const RESPONSE_HEADERS = {
   'Cache-Control': 'private, no-store, max-age=0',
@@ -67,7 +68,7 @@ export async function GET(req: NextRequest): Promise<Response> {
     },
   })
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = manilaToday()
   return new Response(stream, {
     status: 200,
     headers: {

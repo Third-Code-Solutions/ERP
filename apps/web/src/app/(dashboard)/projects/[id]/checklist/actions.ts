@@ -31,7 +31,7 @@ export async function updateChecklistItemStatus(
 ): Promise<{ error?: string }> {
   const profile = await requireUserProfile()
   if (!can(profile.role, 'precon.manage_checklist')) {
-    return { error: `Forbidden: role "${profile.role}" lacks "precon.manage_checklist"` }
+    return { error: 'Your role does not have permission to do this.' }
   }
   if (!STATUSES.includes(status)) {
     return { error: `Invalid status "${status}"` }

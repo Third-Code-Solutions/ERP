@@ -210,14 +210,14 @@ describe('Purchase Order workflow compatibility seam', () => {
     mocks.transitionPurchaseOrderThroughCoreApi.mockResolvedValue({
       ok: false,
       error:
-        'ERP Core API is unavailable. No Purchase Order workflow was committed.',
+        'The ERP service is unavailable. No Purchase Order workflow was committed.',
     })
 
     await expect(
       commercialApprovePo(PO_ID, 'po-workflow-unavailable')
     ).resolves.toEqual({
       error:
-        'ERP Core API is unavailable. No Purchase Order workflow was committed.',
+        'The ERP service is unavailable. No Purchase Order workflow was committed.',
     })
     expect(mocks.revalidatePath).not.toHaveBeenCalled()
   })

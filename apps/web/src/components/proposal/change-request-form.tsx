@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from 'react'
 import { logChangeRequest } from '@/app/(dashboard)/crm/opportunities/[id]/proposal/actions'
+import { submitFormData } from '@/components/shared/submit-form-data'
 
 interface DesignOption {
   id: string
@@ -44,7 +45,7 @@ export function ChangeRequestForm({ opportunityId, designOptions }: ChangeReques
   }
 
   return (
-    <form action={onSubmit} ref={formRef} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <form onSubmit={submitFormData(onSubmit)} ref={formRef} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <input type="hidden" name="opportunity_id" value={opportunityId} />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px', gap: 8 }}>

@@ -72,7 +72,7 @@ function guardScheduling(role: AppRole): string | null {
   if (can(role, 'po.issue') || can(role, 'precon.manage_checklist')) {
     return null
   }
-  return `Forbidden: role "${role}" lacks delivery scheduling capability`
+  return 'Your role does not have permission to do this.'
 }
 
 function assertTransition(
@@ -224,7 +224,7 @@ export async function scheduleDelivery(
     tenantId: profile.tenantId,
     recipientRoles: ['sd_pm_pe', 'procurement'],
     subject: `Delivery scheduled for PO ${po.po_number}`,
-    body: `Scheduled ${scheduledDate.toLocaleDateString('en-PH')} · ${input.site_address}`,
+    body: `Scheduled ${scheduledDate.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' })} · ${input.site_address}`,
     linkUrl: `/procurement/deliveries/${scheduleId}`,
   })
 

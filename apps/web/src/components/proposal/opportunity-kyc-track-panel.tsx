@@ -8,6 +8,7 @@ import {
   type OpportunityKycTrackType,
 } from '@third-code-erp/shared-types'
 import { updateOpportunityKycTrack } from '@/app/(dashboard)/crm/opportunities/[id]/proposal/kyc-actions'
+import { submitFormData } from '@/components/shared/submit-form-data'
 
 type TrackType = OpportunityKycTrackType
 
@@ -139,14 +140,14 @@ function TrackCard({
         <span className={`track-status ${track.status}`}>{status}</span>
       </div>
       <div className="track-meta">
-        <div><strong>Due:</strong> <span style={overdue ? { color: '#b91c1c' } : undefined}>{due.toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })}{overdue ? ' · overdue' : ''}</span></div>
+        <div><strong>Due:</strong> <span style={overdue ? { color: '#b91c1c' } : undefined}>{due.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'short', day: 'numeric' })}{overdue ? ' · overdue' : ''}</span></div>
         <div><strong>Prepared:</strong> {track.prepared_at ? 'complete' : 'pending'}</div>
         <div><strong>FC recommendation:</strong> {track.fc_recommended_at ? 'complete' : 'pending'}</div>
         <div><strong>President decision:</strong> {track.president_decided_at ? 'complete' : 'pending'}</div>
       </div>
       {track.decision_reason && <p className="track-reason">{track.decision_reason}</p>}
       {(canManage || canApprove) && track.status !== 'approved' && (
-        <form action={onSubmit} className="track-form">
+        <form onSubmit={submitFormData(onSubmit)} className="track-form">
           <input type="hidden" name="opportunity_id" value={opportunityId} />
           <input type="hidden" name="track_type" value={track.track_type} />
           <textarea name="notes" className="track-notes" placeholder="Decision notes; required for flag or reject." defaultValue={track.notes ?? track.decision_reason ?? ''} />

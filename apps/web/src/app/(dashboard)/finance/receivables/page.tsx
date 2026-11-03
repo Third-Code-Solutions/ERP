@@ -12,6 +12,7 @@ import {
   financeReceivablesReadsUseCoreApi,
   getFinanceReceivablesThroughCoreApi,
 } from '@/lib/erp-core-client'
+import { readAllCorePages } from '@/lib/operations/core-pages'
 
 export const metadata: Metadata = { title: 'Customer receivables' }
 
@@ -80,24 +81,20 @@ export default async function ReceivablesPage() {
   let openCount: number
 
   if (financeReceivablesReadsUseCoreApi(profile.tenantId)) {
-    const result = await getFinanceReceivablesThroughCoreApi({
-      accountId: undefined,
-      projectId: undefined,
-      status: undefined,
-      dueFrom: undefined,
-      dueTo: undefined,
-      page: 1,
-      limit: 500,
-    })
-    if (!result.ok || !result.data) {
-      throw new Error(result.error ?? 'Customer receivables were not read.')
-    }
-    if (result.data.total > result.data.rows.length) {
-      throw new Error(
-        'Customer receivables exceed the closed projection page limit.'
-      )
-    }
-    openRows = result.data.rows.map((invoice) => ({
+    const data = await readAllCorePages(
+      (page) =>
+        getFinanceReceivablesThroughCoreApi({
+          accountId: undefined,
+          projectId: undefined,
+          status: undefined,
+          dueFrom: undefined,
+          dueTo: undefined,
+          page,
+          limit: 500,
+        }),
+      'Customer receivables were not read.'
+    )
+    openRows = data.rows.map((invoice) => ({
       id: invoice.id,
       invoice_number: invoice.invoiceNumber,
       status: invoice.status,
@@ -116,12 +113,12 @@ export default async function ReceivablesPage() {
       account_id: invoice.accountId,
       account_name: invoice.accountName,
     }))
-    totalDue = result.data.totalDueCents
-    totalRetention = result.data.totalRetentionCents
-    totalWithheld = result.data.totalWithheldCents
-    overdueTotal = result.data.overdueTotalCents
-    overdueCount = result.data.overdueCount
-    openCount = result.data.total
+    totalDue = data.totalDueCents
+    totalRetention = data.totalRetentionCents
+    totalWithheld = data.totalWithheldCents
+    overdueTotal = data.overdueTotalCents
+    overdueCount = data.overdueCount
+    openCount = data.total
   } else {
     const rows = await db
       .select({
@@ -309,7 +306,7 @@ export default async function ReceivablesPage() {
                     </td>
                     <td>
                       {invoice.due_date
-                        ? invoice.due_date.toLocaleDateString('en-PH')
+                        ? invoice.due_date.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' })
                         : '—'}
                     </td>
                     <td>

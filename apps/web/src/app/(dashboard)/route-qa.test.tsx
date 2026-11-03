@@ -18,6 +18,7 @@ vi.mock('@third-code-erp/database', () => ({ db: { select: mocks.select } }))
 vi.mock('@/lib/erp-core-client', () => ({
   getProcessHealthThroughCoreApi: mocks.health,
   getProcessTaskQueueThroughCoreApi: mocks.taskQueue,
+  dailyTaskCompletionWritesUseCoreApi: () => true,
 }))
 vi.mock('@/lib/account-queries', () => ({ getKycQueue: mocks.queue }))
 vi.mock('./tasks/generation-control', () => ({ GenerationControl: () => <div>Daily task generation control</div> }))

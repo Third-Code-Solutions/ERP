@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import React, { useEffect, useRef, useState, type CSSProperties } from 'react'
 import {
@@ -22,6 +23,9 @@ export interface AwardAutomationPanelProps {
   bomId: string
   projectCode: string | null
   handoff: ExistingHandoff | null
+  /** Links only for roles that can open the target page; otherwise the record shows as created. */
+  budgetHref?: string | null
+  dpInvoiceHref?: string | null
 }
 
 type AwardResult = Awaited<ReturnType<typeof awardLockedBom>>
@@ -40,23 +44,11 @@ const taskLabels: Array<[string, string]> = [
   ['cxOnboarding', 'CX onboarding'],
 ]
 
-export function AwardAutomationPanel({
-  projectId,
-  bomId,
-  projectCode,
-  handoff,
-}: AwardAutomationPanelProps) {
+export function AwardAutomationPanel(props: AwardAutomationPanelProps) {
+  const { projectId, bomId, handoff } = props
   const scopeKey = `${projectId}:${bomId}:${handoff?.id ?? 'none'}:${handoff?.status ?? 'none'}`
 
-  return (
-    <AwardAutomationPanelContent
-      key={scopeKey}
-      projectId={projectId}
-      bomId={bomId}
-      projectCode={projectCode}
-      handoff={handoff}
-    />
-  )
+  return <AwardAutomationPanelContent key={scopeKey} {...props} />
 }
 
 function AwardAutomationPanelContent({
@@ -64,6 +56,8 @@ function AwardAutomationPanelContent({
   bomId,
   projectCode,
   handoff,
+  budgetHref,
+  dpInvoiceHref,
 }: AwardAutomationPanelProps) {
   const router = useRouter()
   const [operationState, setOperationState] = useState<OperationState | null>(null)
@@ -227,16 +221,16 @@ function AwardAutomationPanelContent({
           <div>
             <dl style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, margin: 0 }}>
               <Metric label="Project code" value={activeHandoff.projectCode} />
-              <Metric label="Budget baseline" value={activeHandoff.budgetId} mono />
-              <Metric label="DP invoice draft" value={activeHandoff.dpInvoiceId} mono />
-              <Metric label="Tracker" value={activeHandoff.projectTrackerId} mono />
+              <Metric label="Budget baseline" value={budgetHref ? <Link href={budgetHref}>Open budget</Link> : 'Created'} />
+              <Metric label="DP invoice draft" value={dpInvoiceHref ? <Link href={dpInvoiceHref}>Open draft invoice</Link> : 'Created'} />
+              <Metric label="Tracker" value="Created" />
             </dl>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8, marginTop: 18 }}>
               {taskLabels.map(([key, label]) => (
                 <div key={key} style={{ padding: '10px 12px', border: '1px solid var(--color-border)', borderRadius: 8, minWidth: 0 }}>
                   <div style={{ fontSize: 11, color: 'var(--color-neutral-500)' }}>{label}</div>
-                  <div style={{ marginTop: 4, fontSize: 11, color: 'var(--color-neutral-800)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', overflowWrap: 'anywhere' }}>
-                    {activeHandoff.taskIds[key] ?? '—'}
+                  <div style={{ marginTop: 4, fontSize: 12.5, color: 'var(--color-neutral-800)' }}>
+                    {activeHandoff.taskIds[key] ? 'Task created' : '—'}
                   </div>
                 </div>
               ))}
@@ -334,11 +328,11 @@ function getRefreshWarning(value: unknown): string | undefined {
   return warning.length > 0 ? warning : undefined
 }
 
-function Metric({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
+function Metric({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
       <dt style={{ fontSize: 11, color: 'var(--color-neutral-500)' }}>{label}</dt>
-      <dd style={{ margin: '4px 0 0', fontSize: 12.5, color: 'var(--color-neutral-900)', fontFamily: mono ? 'ui-monospace, SFMono-Regular, Menlo, monospace' : undefined, overflowWrap: 'anywhere' }}>{value}</dd>
+      <dd style={{ margin: '4px 0 0', fontSize: 12.5, color: 'var(--color-neutral-900)', overflowWrap: 'anywhere' }}>{value}</dd>
     </div>
   )
 }

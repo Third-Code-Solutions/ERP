@@ -130,7 +130,7 @@ function validateLockReceipt(
 }
 
 function dateLabel(value: string): string {
-  return new Date(value).toLocaleDateString('en-PH', {
+  return new Date(value).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila',
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -368,7 +368,7 @@ export function WeeklyWarLedger({
             Thursday 17:00 PHT locks the submitted evidence for the weekly work-accomplishment report.
           </p>
         </div>
-        <span className="weekly-war-ledger__badge">Core ledger</span>
+        <span className="weekly-war-ledger__badge">Weekly ledger</span>
       </div>
 
       {loadError && (
@@ -418,7 +418,7 @@ export function WeeklyWarLedger({
         <p className="card-empty">
           {activeCommand !== null || confirmedRows.size > 0
             ? 'Weekly evidence is known, but no rows were returned in this view. Refresh to reload the current ledger.'
-            : 'No Core weekly periods yet. Submit the first update to open a WAR period.'}
+            : 'No weekly periods yet. Submit the first update to open a WAR period.'}
         </p>
       ) : scopedRows.length > 0 ? (
         <div className="weekly-war-ledger__table-wrap" role="region" aria-label="Weekly WAR evidence">

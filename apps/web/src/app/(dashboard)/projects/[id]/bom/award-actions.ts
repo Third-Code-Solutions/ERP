@@ -115,7 +115,7 @@ export async function awardLockedBom(formData: FormData): Promise<AwardActionRes
     actorId = profile.user.id
     tenantId = profile.tenantId
     if (!can(profile.role, 'project.award')) {
-      return { ok: false, error: `Forbidden: role "${profile.role}" lacks "project.award"` }
+      return { ok: false, error: 'Your role does not have permission to do this.' }
     }
     const parsed = awardFormSchema.safeParse({
       projectId: formValue(formData, 'projectId'),
@@ -168,7 +168,7 @@ export async function reverseAwardHandoff(formData: FormData): Promise<{ ok: tru
     actorId = profile.user.id
     tenantId = profile.tenantId
     if (!can(profile.role, 'project.award')) {
-      return { ok: false, error: `Forbidden: role "${profile.role}" lacks "project.award"` }
+      return { ok: false, error: 'Your role does not have permission to do this.' }
     }
     const parsed = reverseFormSchema.safeParse({
       projectId: formValue(formData, 'projectId'),

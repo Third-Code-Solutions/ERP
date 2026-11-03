@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { upsertMaterialItem } from '@/app/(dashboard)/admin/material-items/actions'
+import { submitFormData } from '@/components/shared/submit-form-data'
 
 interface MaterialItemInitial {
   id?: string
@@ -35,7 +36,7 @@ export function MaterialItemForm({ initial, onDone }: Props) {
   }
 
   return (
-    <form action={onSubmit} className="mi-form">
+    <form onSubmit={submitFormData(onSubmit)} className="mi-form">
       {initial?.id && <input type="hidden" name="id" value={initial.id} />}
       <div className="form-row form-row-2col">
         <div>

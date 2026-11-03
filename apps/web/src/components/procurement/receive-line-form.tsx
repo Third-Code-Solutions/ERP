@@ -1,12 +1,14 @@
 import Link from 'next/link'
 
 interface ReceiveLineFormProps {
+  poId: string
   quantity: number
   receivedQty: number
   disabled?: boolean
 }
 
 export function ReceiveLineForm({
+  poId,
   quantity,
   receivedQty,
   disabled = false,
@@ -37,7 +39,7 @@ export function ReceiveLineForm({
       </span>
       {!fullyReceived && !disabled && (
         <Link
-          href="/inventory/receipts/new"
+          href={`/inventory/receipts/new?po=${poId}`}
           className="finance-text-button"
           title="Create controlled Stock Receipt"
         >

@@ -17,6 +17,7 @@ export interface ProjectDetailAccess {
 export interface ProjectBomControls {
   edit: boolean
   review: boolean
+  approve: boolean
   importCad: boolean
   award: boolean
 }
@@ -45,6 +46,7 @@ export function getProjectBomControls(role: AppRole): ProjectBomControls {
   return {
     edit,
     review: edit,
+    approve: can(role, 'bom.approve_internal'),
     importCad: can(role, 'bom.generate') && can(role, 'document.manage'),
     award: can(role, 'project.award'),
   }

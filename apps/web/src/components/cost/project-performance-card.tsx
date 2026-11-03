@@ -31,7 +31,7 @@ export function ProjectPerformanceCard({
         <div className="card-header">
           <div>
             <h3 id="project-performance-heading" className="card-title">Earned value / CVR</h3>
-            <p className="cost-section-sub">Core could not load the source-of-truth performance snapshot.</p>
+            <p className="cost-section-sub">Earned value figures could not be loaded right now. Refresh to try again.</p>
           </div>
         </div>
         <p className="card-empty" role="status">{error ?? 'Performance data is unavailable.'}</p>

@@ -97,10 +97,10 @@ describe('createInvoice', () => {
   it('fails closed when Core is unavailable or returns another tenant', async () => {
     mocks.createCustomerInvoiceDraftThroughCoreApi.mockResolvedValue({
       ok: false,
-      error: 'ERP Core API is unavailable.',
+      error: 'The ERP service is unavailable.',
     })
     await expect(createInvoice(PROJECT_ID, invoiceForm())).resolves.toEqual({
-      error: 'ERP Core API is unavailable.',
+      error: 'The ERP service is unavailable.',
     })
     expect(mocks.revalidatePath).not.toHaveBeenCalled()
 

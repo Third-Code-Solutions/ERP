@@ -39,6 +39,7 @@ import {
 } from './actions'
 import { summarizeBomPricing } from '@/lib/operations/bom-pricing-breakdown'
 import { AwardAutomationPanel } from '@/components/bom/award-automation-panel'
+import { canViewPath } from '@/lib/operations/nav-config'
 import { isPriceHistoryStale } from '@/lib/operations/bom-supplier-matching'
 import type { DupaAssemblyOption } from '@/components/bom/dupa-editor'
 import {
@@ -709,6 +710,7 @@ export default async function ProjectBomPage({
         locations={locations}
         assemblyOptions={assemblyOptions}
         readOnly={!controls.edit}
+        canApprove={controls.approve}
       />
 
       {controls.award && latestBom?.status === 'locked' && (
@@ -727,6 +729,12 @@ export default async function ProjectBomPage({
                   projectTrackerId: awardHandoff.projectTrackerId,
                   taskIds: awardHandoff.taskIds,
                 }
+              : null
+          }
+          budgetHref={canViewPath(profile.role, `/projects/${id}/cost/budget`) ? `/projects/${id}/cost/budget` : null}
+          dpInvoiceHref={
+            awardHandoff && canViewPath(profile.role, `/invoices/${awardHandoff.dpInvoiceId}`)
+              ? `/invoices/${awardHandoff.dpInvoiceId}`
               : null
           }
         />
@@ -794,14 +802,14 @@ export default async function ProjectBomPage({
                   label="DWG conversion"
                   status={dwgWorkerActive ? 'active' : 'pending'}
                   detail={
-                    dwgWorkerActive ? 'Worker online' : 'Set DXF_PARSER_URL'
+                    dwgWorkerActive ? 'Available' : 'Not set up — export drawings as DXF'
                   }
                 />
                 <StatusPill
                   label="AI unit costs"
                   status={ragActive ? 'active' : 'pending'}
                   detail={
-                    ragActive ? 'pgvector + OpenAI' : 'Set OPENAI_API_KEY'
+                    ragActive ? 'Suggested from past BOMs' : 'Not set up — enter costs manually'
                   }
                 />
               </div>
@@ -859,7 +867,7 @@ function PricingBreakdown({
   }> = [
     {
       key: 'rag',
-      label: 'RAG',
+      label: 'Past BOMs',
       count: rag,
       bg: 'var(--color-success-soft)',
       fg: 'var(--color-success)',

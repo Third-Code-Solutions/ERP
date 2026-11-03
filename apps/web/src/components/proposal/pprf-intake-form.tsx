@@ -4,6 +4,7 @@ import React, { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createPprfIntake } from '@/app/(dashboard)/crm/opportunities/new/pprf/actions'
 import { ActionFeedback } from '@/components/ui/action-feedback'
+import { submitFormData } from '@/components/shared/submit-form-data'
 
 const inputClass = 'form-input'
 
@@ -54,7 +55,7 @@ export function PprfIntakeForm({ submissionId }: PprfIntakeFormProps) {
 
   return (
     <form
-      action={submit}
+      onSubmit={submitFormData(submit)}
       className="pprf-intake-form"
       aria-busy={pending}
       aria-describedby="pprf-intake-form-status"

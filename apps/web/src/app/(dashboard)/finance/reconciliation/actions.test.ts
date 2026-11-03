@@ -147,7 +147,7 @@ describe('bank reconciliation actions', () => {
     mocks.financeReconciliationImportWritesUseCoreApi.mockReturnValue(true)
     mocks.createBankStatementThroughCoreApi.mockResolvedValue({
       ok: false,
-      error: 'ERP Core API is unavailable. No bank statement was imported.',
+      error: 'The ERP service is unavailable. No bank statement was imported.',
       status: 503,
     })
 
@@ -155,7 +155,7 @@ describe('bank reconciliation actions', () => {
 
     expect(result).toEqual({
       ok: false,
-      error: 'ERP Core API is unavailable. No bank statement was imported.',
+      error: 'The ERP service is unavailable. No bank statement was imported.',
     })
     expect(mocks.createBankStatementThroughCoreApi).toHaveBeenCalledOnce()
     expect(mocks.select).not.toHaveBeenCalled()

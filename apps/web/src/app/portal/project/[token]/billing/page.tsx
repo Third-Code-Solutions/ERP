@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, inArray, notInArray } from 'drizzle-orm'
 import { db } from '@third-code-erp/database'
 import {
   invoices,
@@ -7,6 +7,8 @@ import {
   projects,
   accounts,
 } from '@third-code-erp/database/schema'
+import { BILLED_INVOICE_STATUSES, invoiceCollectionTotals } from '@/lib/operations/invoice-collections'
+import { loadPostedReceiptsByInvoice } from '@/lib/operations/invoice-receipts'
 import {
   findActiveCustomerSession,
   logCustomerView,
@@ -75,7 +77,7 @@ function fmtDate(d: Date | null | undefined): string {
   if (!d) return '—'
   const dt = d instanceof Date ? d : new Date(d)
   if (Number.isNaN(dt.getTime())) return '—'
-  return dt.toLocaleDateString('en-PH', {
+  return dt.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila',
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -148,7 +150,8 @@ export default async function PortalProjectBillingPage({
     .where(
       and(
         eq(invoices.tenant_id, session.tenant_id),
-        eq(invoices.project_id, session.project_id)
+        eq(invoices.project_id, session.project_id),
+        inArray(invoices.status, [...BILLED_INVOICE_STATUSES])
       )
     )
     .orderBy(desc(invoices.created_at))
@@ -169,19 +172,23 @@ export default async function PortalProjectBillingPage({
     .where(
       and(
         eq(progressClaims.tenant_id, session.tenant_id),
-        eq(progressClaims.project_id, session.project_id)
+        eq(progressClaims.project_id, session.project_id),
+        notInArray(progressClaims.status, ['draft', 'cancelled'])
       )
     )
     .orderBy(desc(progressClaims.created_at))
 
+  const receivedByInvoice = await loadPostedReceiptsByInvoice(
+    session.tenant_id,
+    invoiceRows.map((i) => i.id)
+  )
+
   // KPIs: client-friendly aggregates.
-  const totalInvoiced = invoiceRows
-    .filter((i) => i.status === 'issued' || i.status === 'paid' || i.status === 'partial_payment' || i.status === 'overdue')
-    .reduce((s, i) => s + i.net_amount_cents, 0)
-  const totalPaid = invoiceRows
-    .filter((i) => i.status === 'paid')
-    .reduce((s, i) => s + i.net_amount_cents, 0)
-  const outstanding = Math.max(0, totalInvoiced - totalPaid)
+  const {
+    invoiced: totalInvoiced,
+    paid: totalPaid,
+    outstanding,
+  } = invoiceCollectionTotals(invoiceRows, receivedByInvoice)
 
   return (
     <div>

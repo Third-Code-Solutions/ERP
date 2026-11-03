@@ -36,6 +36,10 @@ function formatMoney(cents: number): string {
   }).format(cents / 100)
 }
 
+function titleCase(value: string): string {
+  return value ? value[0]!.toUpperCase() + value.slice(1).replace(/_/g, ' ') : value
+}
+
 function AssetState({ title, body }: { title: string; body: string }) {
   return (
     <section className="finance-section" aria-live="polite">
@@ -56,11 +60,11 @@ function AssetIdentity({ asset }: { asset: AssetReadResult }) {
           <p className="finance-eyebrow">Asset identity</p>
           <h2>{asset.assetTag} · {asset.name}</h2>
         </div>
-        <span className="finance-status finance-status-open">{asset.status}</span>
+        <span className={`finance-status ${asset.status === 'active' ? 'finance-status-open' : asset.status === 'retired' ? 'finance-status-closed' : 'finance-status-maintenance'}`}>{titleCase(asset.status)}</span>
       </div>
       <div className="finance-record-list">
         <div className="finance-record">
-          <div><strong>Kind</strong><span>{asset.kind}</span></div>
+          <div><strong>Kind</strong><span>{titleCase(asset.kind)}</span></div>
           <div><strong>Serial / model</strong><span>{[asset.serialNumber, asset.model].filter(Boolean).join(' · ') || '—'}</span></div>
           <div><strong>Custody</strong><span>{asset.assignedProjectName ?? 'Unassigned'} · {asset.location ?? 'No location'}</span></div>
           <div><strong>Commissioned</strong><span>{formatDate(asset.commissionedOn)}</span></div>
@@ -89,7 +93,7 @@ function MaintenanceHistory({ data }: { data: AssetMaintenanceListResult }) {
             <tbody>
               {data.rows.map((row) => (
                 <tr key={row.id}>
-                  <td><strong>{row.summary}</strong><span className="finance-cell-detail">{row.maintenanceType}</span></td>
+                  <td><strong>{row.summary}</strong><span className="finance-cell-detail">{titleCase(row.maintenanceType)}</span></td>
                   <td>{formatDate(row.performedOn)}</td>
                   <td>{formatDate(row.nextDueOn)}</td>
                   <td>{row.vendorName ?? '—'}</td>
@@ -108,15 +112,15 @@ function MaintenanceForm({ assetId }: { assetId: string }) {
   return (
     <section className="finance-section">
       <div className="finance-section-heading">
-        <div><p className="finance-eyebrow">Controlled command</p><h2>Record a service event</h2></div>
-        <p>Creates an audited, idempotent record through ERP Core.</p>
+        <div><p className="finance-eyebrow">Service log</p><h2>Record a service event</h2></div>
+        <p>Saved to this asset&apos;s service history.</p>
       </div>
       <form action={createAssetMaintenance.bind(null, assetId)} className="ledger-filters">
         <input type="hidden" name="idempotencyKey" value={randomUUID()} />
         <div className="finance-field">
           <label htmlFor="maintenance-type">Type</label>
           <select id="maintenance-type" name="maintenanceType" defaultValue="inspection" required>
-            {assetMaintenanceTypeValues.map((type) => <option key={type} value={type}>{type[0]!.toUpperCase() + type.slice(1)}</option>)}
+            {assetMaintenanceTypeValues.map((type) => <option key={type} value={type}>{titleCase(type)}</option>)}
           </select>
         </div>
         <div className="finance-field finance-field-grow">
@@ -136,8 +140,8 @@ function MaintenanceForm({ assetId }: { assetId: string }) {
           <input id="maintenance-vendor" name="vendorName" maxLength={160} />
         </div>
         <div className="finance-field">
-          <label htmlFor="maintenance-cost">Cost (centavos)</label>
-          <input id="maintenance-cost" type="number" name="costCents" min="0" max="100000000000" step="1" defaultValue="0" />
+          <label htmlFor="maintenance-cost">Cost (₱)</label>
+          <input id="maintenance-cost" type="number" name="cost" min="0" max="1000000000" step="0.01" defaultValue="0" inputMode="decimal" />
         </div>
         <div className="finance-field finance-field-grow">
           <label htmlFor="maintenance-notes">Notes</label>
@@ -159,12 +163,12 @@ export default async function AssetDetailPage({
   const { assetId } = await requireUuidRouteParams(params)
 
   if (!assetReadsUseCoreApi(profile.tenantId)) {
-    return <AssetState title="Asset detail staged" body="Core asset reads remain disabled until the protected tenant canary is approved." />
+    return <AssetState title="Asset detail staged" body="The asset register is not switched on for this workspace yet. Ask your administrator to enable it." />
   }
 
   const assetResult = await getAssetThroughCoreApi(assetId)
   if (!assetResult.ok || !assetResult.data) {
-    return <AssetState title="Asset detail unavailable" body={assetResult.error ?? 'Core returned no asset detail.'} />
+    return <AssetState title="Asset detail unavailable" body={assetResult.error ?? 'This asset could not be loaded right now. Retry in a moment.'} />
   }
 
   const historyEnabled = assetMaintenanceReadsUseCoreApi(profile.tenantId)
@@ -181,15 +185,15 @@ export default async function AssetDetailPage({
         <div>
           <p className="finance-eyebrow"><Link href="/assets">Operations</Link> · Asset detail</p>
           <h1 className="page-title">{assetResult.data.assetTag}</h1>
-          <p className="page-subtitle">Identity, custody, and service evidence for one tenant-scoped operational asset.</p>
+          <p className="page-subtitle">{assetResult.data.name} · custody and service history.</p>
         </div>
         <div className="finance-header-actions"><Link href="/assets" className="finance-secondary-link">Asset register</Link></div>
       </div>
       <AssetIdentity asset={assetResult.data} />
       {!historyEnabled ? (
-        <AssetState title="Maintenance history staged" body="Service history remains closed until the migration replay, audit/RLS review, and protected tenant canary are complete." />
+        <AssetState title="Maintenance history staged" body="Service history is not switched on for this workspace yet." />
       ) : !historyResult?.ok || !historyResult.data ? (
-        <AssetState title="Maintenance history unavailable" body={historyResult?.error ?? 'Core returned no maintenance history.'} />
+        <AssetState title="Maintenance history unavailable" body={historyResult?.error ?? 'Service history could not be loaded right now. Retry in a moment.'} />
       ) : (
         <>
           <MaintenanceHistory data={historyResult.data} />

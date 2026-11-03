@@ -35,7 +35,7 @@ interface PortalWeeklyListProps {
 }
 
 function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-PH', {
+  return new Date(iso).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila',
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -75,15 +75,48 @@ function PctBlock({ label, value }: { label: string; value: number | undefined }
   )
 }
 
-function renderSnapshotValue(value: unknown): string {
-  if (value === null || value === undefined) return '—'
-  if (typeof value === 'string') return value
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
-  try {
-    return JSON.stringify(value, null, 2)
-  } catch {
-    return String(value)
+const MANILA_DAY = new Intl.DateTimeFormat('en-PH', { timeZone: 'Asia/Manila', dateStyle: 'medium' })
+
+function num(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function day(value: unknown): string {
+  const date = typeof value === 'string' ? new Date(value) : null
+  return date && !Number.isNaN(date.getTime()) ? MANILA_DAY.format(date) : ''
+}
+
+/** Client-facing rows from a weekly report snapshot; internal keys and empty fields are left out. */
+export function weeklySnapshotRows(snapshot: Record<string, unknown>): Array<[string, string]> {
+  const rows: Array<[string, string]> = []
+  const overall = num(snapshot.overall_pct)
+  if (overall !== null) rows.push(['Overall progress', `${overall}%`])
+  const byCategory = (snapshot.by_category ?? {}) as Record<string, unknown>
+  const categories = ([['civil_pct', 'Civil'], ['electrical_pct', 'Electrical'], ['mep_pct', 'MEP'], ['finishes_pct', 'Finishes']] as const)
+    .map(([key, label]) => (num(byCategory[key]) === null ? null : `${label} ${num(byCategory[key])}%`))
+    .filter(Boolean)
+  if (categories.length) rows.push(['By trade', categories.join(' · ')])
+  const tasks = Array.isArray(snapshot.tasks_completed) ? (snapshot.tasks_completed as Array<Record<string, unknown>>) : []
+  if (tasks.length) {
+    rows.push(['Work completed', tasks.map((t) => [t.title, day(t.completed_at)].filter(Boolean).join(' — ')).join(`
+`)])
   }
+  const milestones = Array.isArray(snapshot.milestones_reached) ? (snapshot.milestones_reached as Array<Record<string, unknown>>) : []
+  if (milestones.length) {
+    rows.push(['Milestones', milestones.map((m) => [m.title, day(m.date)].filter(Boolean).join(' — ')).join(`
+`)])
+  }
+  const punchlist = num(snapshot.open_punchlist_count)
+  if (punchlist !== null) rows.push(['Open punchlist items', String(punchlist)])
+  const variance = num(snapshot.schedule_variance_days)
+  if (variance !== null) {
+    rows.push(['Schedule', variance === 0 ? 'On plan' : `${Math.abs(variance)} day${Math.abs(variance) === 1 ? '' : 's'} ${variance > 0 ? 'ahead' : 'behind'}`])
+  }
+  if (typeof snapshot.notes === 'string' && snapshot.notes.trim()) rows.push(['Notes', snapshot.notes.trim()])
+  if (typeof snapshot.next_week_focus === 'string' && snapshot.next_week_focus.trim()) {
+    rows.push(['Next week', snapshot.next_week_focus.trim()])
+  }
+  return rows
 }
 
 export function PortalWeeklyList({ entries }: PortalWeeklyListProps) {
@@ -234,7 +267,7 @@ export function PortalWeeklyList({ entries }: PortalWeeklyListProps) {
                       fontSize: 13,
                     }}
                   >
-                    {Object.entries(entry.report_snapshot ?? {}).map(([k, v]) => (
+                    {weeklySnapshotRows(entry.report_snapshot ?? {}).map(([k, v]) => (
                       <div
                         key={k}
                         style={{ display: 'contents' }}
@@ -249,7 +282,7 @@ export function PortalWeeklyList({ entries }: PortalWeeklyListProps) {
                             paddingTop: 2,
                           }}
                         >
-                          {k.replace(/_/g, ' ')}
+                          {k}
                         </dt>
                         <dd
                           style={{
@@ -259,7 +292,7 @@ export function PortalWeeklyList({ entries }: PortalWeeklyListProps) {
                             wordBreak: 'break-word',
                           }}
                         >
-                          {renderSnapshotValue(v)}
+                          {v}
                         </dd>
                       </div>
                     ))}

@@ -36,6 +36,7 @@ export function InvoiceStatusActions({
   if (!isDraft && !isReversible) return null
 
   function issue() {
+    if (!window.confirm('Issue and post this invoice? It is posted to the ledger and can only be corrected by a reversal.')) return
     setMessage(null)
     startTransition(async () => {
       const result = await issueCustomerInvoice(
@@ -67,6 +68,7 @@ export function InvoiceStatusActions({
   }
 
   function reverse() {
+    if (!window.confirm('Reverse this posted invoice? A correcting entry is posted and this cannot be undone.')) return
     setMessage(null)
     startTransition(async () => {
       const result = await reverseCustomerInvoice(

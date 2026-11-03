@@ -55,7 +55,7 @@ export async function createProjectScheduleTask(_previous: ProjectScheduleAction
   if (!command.success) return { ok: false, error: command.error.issues[0]?.message ?? 'Invalid schedule task.' }
   const result = await createProjectScheduleTaskThroughCoreApi(command.data)
   if (!result.ok || !result.data) return { ok: false, error: result.error ?? 'Schedule task was not created.' }
-  if (result.data.projectId !== command.data.projectId || result.data.task.projectId !== command.data.projectId) return { ok: false, error: 'ERP Core API returned an invalid schedule scope.' }
+  if (result.data.projectId !== command.data.projectId || result.data.task.projectId !== command.data.projectId) return { ok: false, error: 'The ERP service returned an invalid schedule scope.' }
   refresh(command.data.projectId)
   return { ok: true, success: result.data.created ? `${result.data.task.taskCode} created.` : `${result.data.task.taskCode} already exists for this request.` }
 }
@@ -81,7 +81,7 @@ export async function updateProjectScheduleTaskStatus(_previous: ProjectSchedule
 async function executeMutation(projectId: string, taskId: string, target: 'update' | 'status', command: unknown): Promise<ProjectScheduleActionState> {
   const result = await mutateProjectScheduleTaskThroughCoreApi(projectId, taskId, target, command)
   if (!result.ok || !result.data) return { ok: false, error: result.error ?? 'Schedule mutation was not committed.' }
-  if (result.data.projectId !== projectId || result.data.task.projectId !== projectId || result.data.task.id !== taskId) return { ok: false, error: 'ERP Core API returned an invalid schedule scope.' }
+  if (result.data.projectId !== projectId || result.data.task.projectId !== projectId || result.data.task.id !== taskId) return { ok: false, error: 'The ERP service returned an invalid schedule scope.' }
   refresh(projectId)
   return { ok: true, success: target === 'update' ? (result.data.changed ? 'Schedule task updated.' : 'No changes to save.') : (result.data.changed ? 'Schedule status updated.' : 'No changes to save.') }
 }

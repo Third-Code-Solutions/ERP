@@ -1200,7 +1200,7 @@ describe('ERP Core client', () => {
     ).resolves.toEqual({
       ok: false,
       status: 503,
-      error: 'ERP Core API returned an invalid process task queue result.',
+      error: 'The ERP service returned an invalid process task queue result.',
     })
   })
 
@@ -1276,7 +1276,7 @@ describe('ERP Core client', () => {
     ).resolves.toEqual({
       ok: false,
       status: 503,
-      error: 'ERP Core API returned an invalid process task result.',
+      error: 'The ERP service returned an invalid process task result.',
     })
   })
 
@@ -1295,7 +1295,7 @@ describe('ERP Core client', () => {
       ok: false,
       status: 503,
       error:
-        'ERP Core API is unavailable. Process task status outcome is unconfirmed; refresh Process Health before retrying.',
+        'The ERP service is unavailable. Process task status outcome is unconfirmed; refresh Process Health before retrying.',
     })
   })
 
@@ -1318,7 +1318,7 @@ describe('ERP Core client', () => {
     ).resolves.toEqual({
       ok: false,
       status: 503,
-      error: 'ERP Core API returned an invalid approval route preview result.',
+      error: 'The ERP service returned an invalid approval route preview result.',
     })
   })
 
@@ -2516,7 +2516,7 @@ describe('ERP Core client', () => {
     ).resolves.toEqual({
       ok: false,
       status: 503,
-      error: 'ERP Core API returned an invalid Cortex chat retrieval result.',
+      error: 'The ERP service returned an invalid Cortex chat retrieval result.',
     })
   })
 
@@ -2583,7 +2583,7 @@ describe('ERP Core client', () => {
       ok: false,
       status: 503,
       error:
-        'ERP Core API returned an invalid Cortex conversation context result.',
+        'The ERP service returned an invalid Cortex conversation context result.',
     })
   })
 
@@ -3892,7 +3892,7 @@ describe('ERP Core client', () => {
       )
     ).resolves.toEqual({
       ok: false,
-      error: 'ERP Core API returned an invalid Stock Receipt result.',
+      error: 'The ERP service returned an invalid Stock Receipt result.',
     })
   })
 
@@ -3958,7 +3958,7 @@ describe('ERP Core client', () => {
     ).resolves.toEqual({
       ok: false,
       status: 503,
-      error: 'ERP Core API returned an invalid Cortex graph result.',
+      error: 'The ERP service returned an invalid Cortex graph result.',
     })
   })
 
@@ -4074,7 +4074,7 @@ describe('ERP Core client', () => {
     await expect(listCortexConversationsThroughCoreApi()).resolves.toEqual({
       ok: false,
       status: 503,
-      error: 'ERP Core API returned an invalid Cortex conversation list.',
+      error: 'The ERP service returned an invalid Cortex conversation list.',
     })
   })
 
@@ -4103,7 +4103,7 @@ describe('ERP Core client', () => {
     ).resolves.toEqual({
       ok: false,
       status: 503,
-      error: 'ERP Core API returned an invalid Cortex entity result.',
+      error: 'The ERP service returned an invalid Cortex entity result.',
     })
   })
 
@@ -4204,7 +4204,7 @@ describe('ERP Core client', () => {
     ).resolves.toEqual({
       ok: false,
       status: 503,
-      error: 'ERP Core API returned an invalid semantic index status.',
+      error: 'The ERP service returned an invalid semantic index status.',
     })
   })
 
@@ -5535,7 +5535,7 @@ describe('ERP Core client', () => {
 
   it.each([
     ['typed failure', new Response(JSON.stringify({ message: 'Project not found.' }), { status: 404 }), 'Project not found.'],
-    ['malformed success', new Response(JSON.stringify({ ok: true }), { status: 201 }), 'ERP Core API returned an invalid Opportunity creation result.'],
+    ['malformed success', new Response(JSON.stringify({ ok: true }), { status: 201 }), 'The ERP service returned an invalid Opportunity creation result.'],
   ])('fails closed for Opportunity creation %s', async (_label, response, error) => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response))
 
@@ -6068,7 +6068,7 @@ describe('ERP Core client', () => {
     ).resolves.toEqual({
       ok: false,
       error:
-        'ERP Core API returned an invalid RFQ creation result.',
+        'The ERP service returned an invalid RFQ creation result.',
     })
   })
 
@@ -6125,7 +6125,7 @@ describe('ERP Core client', () => {
     ).resolves.toEqual({
       ok: false,
       error:
-        'ERP Core API returned an invalid RFQ dispatch result.',
+        'The ERP service returned an invalid RFQ dispatch result.',
     })
   })
 
@@ -6246,7 +6246,7 @@ describe('ERP Core client', () => {
     ).resolves.toEqual({
       ok: false,
       error:
-        'ERP Core API returned an invalid RFQ transition result.',
+        'The ERP service returned an invalid RFQ transition result.',
     })
   })
 

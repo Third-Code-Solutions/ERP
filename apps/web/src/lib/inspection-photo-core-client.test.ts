@@ -31,21 +31,21 @@ const result = {
 const unknownOutcome = {
   ok: false as const,
   error:
-    'ERP Core API is unavailable. Inspection photo outcome is unconfirmed; retry the same request.',
+    'The ERP service is unavailable. Inspection photo outcome is unconfirmed; retry the same request.',
   status: 503,
 }
 
 const serverErrorOutcome = {
   ok: false as const,
   error:
-    'ERP Core API returned a server error. Inspection photo outcome is unconfirmed; retry the same request.',
+    'The ERP service returned a server error. Inspection photo outcome is unconfirmed; retry the same request.',
   status: 503,
 }
 
 const uncertainStatusOutcome = {
   ok: false as const,
   error:
-    'ERP Core API returned an unconfirmed inspection photo outcome. Retry the same request.',
+    'The ERP service returned an unconfirmed inspection photo outcome. Retry the same request.',
   status: 408,
 }
 
@@ -137,7 +137,7 @@ describe('createInspectionPhotoThroughCoreApi', () => {
     await expect(createInspectionPhotoThroughCoreApi(command)).resolves.toEqual({
       ok: false,
       error:
-        'ERP Core API returned a mismatched inspection photo result. Outcome is unconfirmed; retry the same request.',
+        'The ERP service returned a mismatched inspection photo result. Outcome is unconfirmed; retry the same request.',
       status: 502,
     })
   })
@@ -156,7 +156,7 @@ describe('createInspectionPhotoThroughCoreApi', () => {
     await expect(createInspectionPhotoThroughCoreApi(command)).resolves.toEqual({
       ok: false,
       error:
-        'ERP Core API returned an invalid inspection photo result. Outcome is unconfirmed; retry the same request.',
+        'The ERP service returned an invalid inspection photo result. Outcome is unconfirmed; retry the same request.',
       status: 502,
     })
   })

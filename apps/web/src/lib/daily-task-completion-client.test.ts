@@ -114,7 +114,7 @@ describe('daily-task completion Core client', () => {
       completeDailyTaskThroughCoreApi(TASK_ID, {}, 'stable-key')
     ).resolves.toEqual({
       ok: false,
-      error: 'ERP Core API is unavailable. No daily task was completed.',
+      error: 'The ERP service is unavailable. No daily task was completed.',
       status: 503,
     })
 
@@ -130,7 +130,7 @@ describe('daily-task completion Core client', () => {
       completeDailyTaskThroughCoreApi(TASK_ID, {}, 'stable-key')
     ).resolves.toEqual({
       ok: false,
-      error: 'ERP Core API returned an invalid daily task completion result.',
+      error: 'The ERP service returned an invalid daily task completion result.',
       status: 200,
     })
   })

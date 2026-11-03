@@ -227,14 +227,14 @@ describe('deleteDocument authority and integrity', () => {
     mocks.documentDeleteWritesUseCoreApi.mockReturnValue(true)
     mocks.deleteDocumentThroughCoreApi.mockResolvedValue({
       ok: false,
-      error: 'ERP Core API is unavailable. No document was deleted.',
+      error: 'The ERP service is unavailable. No document was deleted.',
     })
 
     const result = await deleteDocument(requestForm())
 
     expect(result).toEqual({
       ok: false,
-      error: 'ERP Core API is unavailable. No document was deleted.',
+      error: 'The ERP service is unavailable. No document was deleted.',
     })
     expect(mocks.transaction).not.toHaveBeenCalled()
     expect(mocks.remove).not.toHaveBeenCalled()

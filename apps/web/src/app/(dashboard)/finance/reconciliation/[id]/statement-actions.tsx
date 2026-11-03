@@ -48,12 +48,14 @@ export function BankStatementActions({
   currency,
   lines,
   candidates,
+  readOnly = false,
 }: {
   statementId: string
   status: 'draft' | 'reconciled' | 'voided'
   currency: string
   lines: ReconciliationLine[]
   candidates: ReconciliationCandidate[]
+  readOnly?: boolean
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -75,6 +77,7 @@ export function BankStatementActions({
     delete lineRetryKeys.current[`${action}:${lineId}`]
   }
 
+  const editable = status === 'draft' && !readOnly
   const matchedCount = lines.filter(
     (line) => line.matched_cash_transaction_id
   ).length
@@ -122,7 +125,7 @@ export function BankStatementActions({
 
   return (
     <>
-      {status === 'draft' && (
+      {editable && (
         <div className="reconciliation-toolbar">
           <div>
             <strong>{unmatchedCount} exceptions</strong>
@@ -213,7 +216,7 @@ export function BankStatementActions({
                           </Link>
                           <span>{line.matched_transaction_date}</span>
                         </div>
-                        {status === 'draft' && (
+                        {editable && (
                           <button
                             type="button"
                             className="finance-text-button"
@@ -236,7 +239,7 @@ export function BankStatementActions({
                           </button>
                         )}
                       </div>
-                    ) : status === 'draft' ? (
+                    ) : editable ? (
                       <div className="reconciliation-manual-match">
                         <label className="sr-only" htmlFor={`match-${line.id}`}>
                           Cash transaction for line {line.line_number}
@@ -299,7 +302,7 @@ export function BankStatementActions({
         </table>
       </div>
 
-      {status === 'draft' && (
+      {editable && (
         <div className="reconciliation-finalize">
           <div>
             <strong>Finalize statement</strong>
@@ -359,7 +362,7 @@ export function BankStatementActions({
         </div>
       )}
 
-      {status === 'reconciled' && (
+      {status === 'reconciled' && !readOnly && (
         <div className="reconciliation-finalize">
           <div>
             <strong>Void reconciliation</strong>

@@ -17,11 +17,12 @@ const createProjectSchema = z.object({
   idempotency_key: z.string().min(1).max(256).optional(),
 })
 
-export async function createProject(formData: FormData) {
+// Failures are returned, not thrown: Next hides thrown messages in production.
+export async function createProject(formData: FormData): Promise<{ error: string } | undefined> {
   const profile = await requireUserProfile()
   requireCapability(profile, 'project.create')
 
-  const input = createProjectSchema.parse({
+  const parsed = createProjectSchema.safeParse({
     name: formData.get('name'),
     client: formData.get('client'),
     location: formData.get('location') || undefined,
@@ -30,6 +31,13 @@ export async function createProject(formData: FormData) {
     notes: formData.get('notes') || undefined,
     idempotency_key: formData.get('idempotency_key') || undefined,
   })
+  if (!parsed.success) {
+    return {
+      error:
+        'Check the form: project name and client are required, and floor area must be a whole number above 0.',
+    }
+  }
+  const input = parsed.data
 
   const result = await createProjectThroughCoreApi(
     {
@@ -44,10 +52,10 @@ export async function createProject(formData: FormData) {
     input.idempotency_key ?? randomUUID()
   )
   if (!result.ok || !result.data) {
-    throw new Error(result.error ?? 'Project was not created')
+    return { error: result.error ?? 'Project was not created. Please try again.' }
   }
   if (result.data.tenantId !== profile.tenantId) {
-    throw new Error('Project creation returned an invalid tenant scope.')
+    return { error: 'Project creation returned an invalid tenant scope.' }
   }
   redirect(`/projects/${result.data.id}`)
 }

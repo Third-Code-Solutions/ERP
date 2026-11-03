@@ -119,11 +119,8 @@ test('validates the consolidated public frontend candidate', async ({
     )
   ).toBeVisible()
 
-  const heroSetup = page.locator('[data-analytics="hero-guided-setup"]')
-  await expect(heroSetup).toHaveAttribute('href', '/auth/signup')
-  const workspaceLink = page
-    .locator('[data-hero]')
-    .getByRole('link', { name: 'Open workspace' })
+  const workspaceLink = page.locator('[data-analytics="hero-open-workspace"]')
+  await expect(workspaceLink).toHaveAttribute('href', '/auth/login')
 
   for (const viewport of [
     { name: 'desktop', width: 1440, height: 1000 },
@@ -142,7 +139,7 @@ test('validates the consolidated public frontend candidate', async ({
 
     if (viewport.name === 'mobile') {
       const targetHeights = await Promise.all(
-        [heroSetup, workspaceLink, nextPriority].map((target) =>
+        [workspaceLink, nextPriority].map((target) =>
           target.evaluate((element) =>
             Math.round(element.getBoundingClientRect().height)
           )

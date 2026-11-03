@@ -33,6 +33,7 @@ import { ClaimDetailHeader } from '@/components/claims/claim-detail-header'
 import { ClaimStepper } from '@/components/claims/claim-stepper'
 import { ClaimTransitionActions } from '@/components/claims/claim-transition-actions'
 import { ClaimDocumentAttach } from '@/components/claims/claim-document-attach'
+import { claimActionPermissions } from './claim-permissions'
 
 export const metadata: Metadata = { title: 'Progress Claim' }
 
@@ -53,7 +54,7 @@ function pesos(cents: number): string {
 
 function fmtDate(d: Date | null | undefined): string {
   if (!d) return '—'
-  return new Date(d).toLocaleString('en-PH', {
+  return new Date(d).toLocaleString('en-PH', { timeZone: 'Asia/Manila',
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -71,7 +72,7 @@ function relativeTime(date: Date): string {
   if (hrs < 24) return `${hrs}h ago`
   const days = Math.floor(hrs / 24)
   if (days < 7) return `${days}d ago`
-  return date.toLocaleDateString('en-PH', {
+  return date.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila',
     month: 'short',
     day: 'numeric',
     year: 'numeric',
@@ -92,10 +93,9 @@ interface PageProps {
 export default async function ClaimDetailPage({ params }: PageProps) {
   const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
+  const claimPermissions = claimActionPermissions(profile.role)
   const canManageClaim =
-    can(profile.role, 'po.create') ||
-    can(profile.role, 'precon.manage_checklist') ||
-    can(profile.role, 'finance.issue_invoice')
+    claimPermissions.rejectOrCancel || claimPermissions.commercial || claimPermissions.finance
   const canAttachDocument = can(profile.role, 'document.manage')
 
   // Claim + project join — bound by tenant.
@@ -606,6 +606,7 @@ export default async function ClaimDetailPage({ params }: PageProps) {
               id: d.id,
               file_name: d.file_name,
             }))}
+            permissions={claimPermissions}
             invoices={projectInvoices.map((i) => ({
               id: i.id,
               invoice_number: i.invoice_number,

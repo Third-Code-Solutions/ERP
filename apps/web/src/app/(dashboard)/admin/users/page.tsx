@@ -5,6 +5,7 @@ import { desc, eq } from 'drizzle-orm'
 import { requireUserProfile, can } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { users as usersTable } from '@third-code-erp/database/schema'
+import { ACCOUNT_STATUS_LABEL, ACCOUNT_STATUS_TONE } from './account-status'
 
 export const metadata: Metadata = { title: 'Users' }
 
@@ -56,6 +57,7 @@ export default async function UsersListPage({ searchParams }: UsersListProps) {
       email: usersTable.email,
       full_name: usersTable.full_name,
       role: usersTable.role,
+      account_status: usersTable.account_status,
       created_at: usersTable.created_at,
     })
     .from(usersTable)
@@ -128,6 +130,7 @@ export default async function UsersListPage({ searchParams }: UsersListProps) {
                 <th scope="col">Name</th>
                 <th scope="col">Email</th>
                 <th scope="col">Role</th>
+                <th scope="col">Status</th>
                 <th scope="col">Created</th>
                 <th scope="col"></th>
               </tr>
@@ -173,8 +176,14 @@ export default async function UsersListPage({ searchParams }: UsersListProps) {
                       {ROLE_LABEL[r.role] ?? r.role}
                     </span>
                   </td>
+                  <td>
+                    <span className={ACCOUNT_STATUS_TONE[r.account_status] ?? 'stage-badge'}>
+                      <span className="stage-badge-dot" />
+                      {ACCOUNT_STATUS_LABEL[r.account_status] ?? r.account_status}
+                    </span>
+                  </td>
                   <td className="muted">
-                    {new Date(r.created_at).toLocaleDateString('en-PH', {
+                    {new Date(r.created_at).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila',
                       year: 'numeric',
                       month: 'short',
                       day: 'numeric',

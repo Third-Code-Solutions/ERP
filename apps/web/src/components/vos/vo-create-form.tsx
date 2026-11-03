@@ -10,6 +10,7 @@
 
 import { useState, useTransition } from 'react'
 import { createVo, type VoChangeType } from '@/app/(dashboard)/projects/[id]/vos/actions'
+import { submitFormData } from '@/components/shared/submit-form-data'
 
 interface Props {
   projectId: string
@@ -61,7 +62,7 @@ export function VoCreateForm({ projectId, onCreated }: Props) {
   return (
     <form
       id={`vo-create-${projectId}`}
-      action={onSubmit}
+      onSubmit={submitFormData(onSubmit)}
       style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
     >
       <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>

@@ -150,7 +150,7 @@ describe('project RFI server actions', () => {
       transitionProjectRfi({ ok: true }, transitionForm('answer')),
     ).resolves.toEqual({
       ok: false,
-      error: 'ERP Core API returned an invalid project RFI scope.',
+      error: 'The ERP service returned an invalid project RFI scope.',
     })
   })
 })

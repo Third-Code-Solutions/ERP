@@ -41,6 +41,8 @@ type ClaimStatus =
   | 'rejected'
   | 'cancelled'
 
+import type { ClaimActionPermissions } from '@/app/(dashboard)/claims/[id]/claim-permissions'
+
 interface DocOption {
   id: string
   file_name: string
@@ -58,6 +60,7 @@ interface ClaimTransitionActionsProps {
   rejectedReason?: string | null
   certificateDocs: DocOption[]
   invoices: InvoiceOption[]
+  permissions: ClaimActionPermissions
 }
 
 export function ClaimTransitionActions({
@@ -66,6 +69,7 @@ export function ClaimTransitionActions({
   rejectedReason,
   certificateDocs,
   invoices,
+  permissions,
 }: ClaimTransitionActionsProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -137,6 +141,12 @@ export function ClaimTransitionActions({
 
   const isTerminal =
     status === 'paid' || status === 'rejected' || status === 'cancelled'
+  const canAdvance =
+    (status === 'draft' && permissions.submit) ||
+    ((status === 'submitted' || status === 'certificate_pending' || status === 'certified') &&
+      permissions.commercial) ||
+    ((status === 'handed_over_finance' || status === 'invoiced') && permissions.finance)
+  const hasNoActions = !isTerminal && !canAdvance && !permissions.rejectOrCancel
 
   return (
     <div
@@ -164,17 +174,26 @@ export function ClaimTransitionActions({
       </h3>
 
       {/* Per-status primary CTAs */}
+      {hasNoActions && (
+        <p style={hintStyle}>
+          Nothing for your role to do at this stage. The claim moves on when the
+          responsible team acts.
+        </p>
+      )}
+
       {status === 'draft' && (
         <>
-          <button
-            type="button"
-            className="claim-action claim-action-primary"
-            onClick={() => run('submit', (id) => submitClaim(claimId, id))}
-            disabled={isPending}
-          >
-            Submit for commercial review
-          </button>
-          {!showCancel ? (
+          {permissions.submit && (
+            <button
+              type="button"
+              className="claim-action claim-action-primary"
+              onClick={() => run('submit', (id) => submitClaim(claimId, id))}
+              disabled={isPending}
+            >
+              Submit for commercial review
+            </button>
+          )}
+          {!permissions.rejectOrCancel ? null : !showCancel ? (
             <button
               type="button"
               className="claim-action claim-action-danger-outline"
@@ -198,7 +217,7 @@ export function ClaimTransitionActions({
         </>
       )}
 
-      {status === 'submitted' && (
+      {status === 'submitted' && permissions.commercial && (
         <button
           type="button"
           className="claim-action claim-action-primary"
@@ -210,6 +229,7 @@ export function ClaimTransitionActions({
       )}
 
       {(status === 'submitted' || status === 'certificate_pending') &&
+        permissions.commercial &&
         (showCertify ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label style={labelStyle}>Certificate document</label>
@@ -269,7 +289,7 @@ export function ClaimTransitionActions({
           </button>
         ))}
 
-      {status === 'certified' && (
+      {status === 'certified' && permissions.commercial && (
         <button
           type="button"
           className="claim-action claim-action-primary"
@@ -281,6 +301,7 @@ export function ClaimTransitionActions({
       )}
 
       {status === 'handed_over_finance' &&
+        permissions.finance &&
         (showInvoice ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label style={labelStyle}>Invoice</label>
@@ -300,8 +321,8 @@ export function ClaimTransitionActions({
             </select>
             {invoices.length === 0 && (
               <p style={hintStyle}>
-                No invoices exist for this project yet. Create one in
-                /invoices.
+                No invoices exist for this project yet. Create one under
+                Invoices first.
               </p>
             )}
             <div style={{ display: 'flex', gap: 6 }}>
@@ -341,7 +362,7 @@ export function ClaimTransitionActions({
           </button>
         ))}
 
-      {status === 'invoiced' && (
+      {status === 'invoiced' && permissions.finance && (
         <button
           type="button"
           className="claim-action claim-action-success"
@@ -354,6 +375,7 @@ export function ClaimTransitionActions({
 
       {/* Reject is available on every non-terminal status */}
       {!isTerminal &&
+        permissions.rejectOrCancel &&
         (showReject ? (
           <RejectInline
             reason={rejectReason}

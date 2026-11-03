@@ -6,6 +6,8 @@ import { Topbar } from '@/components/nav/topbar'
 import { AccountNotProvisioned } from '@/components/auth/account-not-provisioned'
 import { CortexRouteContext } from '@/components/cortex/cortex-route-context'
 import { canViewPath } from '@/lib/operations/nav-config'
+import { ForbiddenNotice } from '@/components/nav/forbidden-notice'
+import { Suspense } from 'react'
 
 export default async function DashboardLayout({
   children,
@@ -54,6 +56,9 @@ export default async function DashboardLayout({
           initialTheme={theme}
         />
         <main id="main-content" className="app-content" tabIndex={-1}>
+          <Suspense fallback={null}>
+            <ForbiddenNotice />
+          </Suspense>
           {children}
           <CortexRouteContext pathname={pathname} />
         </main>

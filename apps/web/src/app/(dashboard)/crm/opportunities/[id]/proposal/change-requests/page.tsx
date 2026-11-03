@@ -1,8 +1,9 @@
+import type { Metadata } from 'next'
 import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { and, eq, desc } from 'drizzle-orm'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   opportunities,
@@ -12,6 +13,9 @@ import {
 } from '@third-code-erp/database/schema'
 import { ProposalSubNav } from '@/components/proposal/sub-nav'
 import { ChangeRequestForm } from '@/components/proposal/change-request-form'
+import { ResolveChangeRequestButton } from '@/components/proposal/resolve-change-request-button'
+
+export const metadata: Metadata = { title: 'Change Requests' }
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -79,6 +83,8 @@ export default async function ChangeRequestsPage({ params }: PageProps) {
   ])
 
   const openCount = crs.filter((c) => !c.resolved_at).length
+  const canResolve = can(profile.role, 'design.upload')
+  const canLog = can(profile.role, 'change_request.create')
 
   return (
     <div>
@@ -108,7 +114,9 @@ export default async function ChangeRequestsPage({ params }: PageProps) {
           {crs.length === 0 ? (
             <div className="card-empty">No change requests logged yet.</div>
           ) : (
+            <div className="data-table-wrap" tabIndex={0}>
             <table className="data-table">
+              <caption className="sr-only">Change requests for this proposal</caption>
               <thead>
                 <tr>
                   <th>Date</th>
@@ -123,7 +131,7 @@ export default async function ChangeRequestsPage({ params }: PageProps) {
                 {crs.map((c) => (
                   <tr key={c.id}>
                     <td className="muted">
-                      {new Date(c.created_at).toLocaleDateString('en-PH', {
+                      {new Date(c.created_at).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila',
                         year: 'numeric', month: 'short', day: 'numeric',
                       })}
                     </td>
@@ -141,11 +149,14 @@ export default async function ChangeRequestsPage({ params }: PageProps) {
                         <span className="stage-badge-dot" />{c.priority}
                       </span>
                     </td>
-                    <td className="muted">{c.resolved_at ? 'Resolved' : 'Open'}</td>
+                    <td className="muted">
+                      {c.resolved_at ? 'Resolved' : canResolve ? <ResolveChangeRequestButton changeRequestId={c.id} /> : 'Open'}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
 
@@ -155,13 +166,13 @@ export default async function ChangeRequestsPage({ params }: PageProps) {
               <h2 className="card-title">Log change request</h2>
             </div>
             <div style={{ padding: 16 }}>
-              <ChangeRequestForm
+              {canLog ? <ChangeRequestForm
                 opportunityId={id}
                 designOptions={designOptions.map((d) => ({
                   id: d.id,
                   name: `${d.name} (${d.file_type.replace(/_/g, ' ')})`,
                 }))}
-              />
+              /> : <p className="muted">Your role can view change requests but cannot log new ones.</p>}
             </div>
           </div>
         </aside>

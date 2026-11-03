@@ -142,7 +142,7 @@ describe('visual scope extraction Core authority', () => {
     mocks.executeTakeoffImportThroughCoreApi.mockResolvedValue({
       ok: false,
       status: 503,
-      error: 'ERP Core API is unavailable. No takeoff data was committed.',
+      error: 'The ERP service is unavailable. No takeoff data was committed.',
     })
 
     const result = await extractScopeFromVisual({
@@ -161,7 +161,7 @@ describe('visual scope extraction Core authority', () => {
       bom: null,
     })
     expect(result.warnings).toContain(
-      'ERP Core API is unavailable. No takeoff data was committed.'
+      'The ERP service is unavailable. No takeoff data was committed.'
     )
     expect(mocks.executeTakeoffImportThroughCoreApi).toHaveBeenCalledTimes(1)
   })

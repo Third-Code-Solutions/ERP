@@ -162,7 +162,7 @@ export async function completeTask(
       return finish(
         {
           error:
-            'ERP Core API returned an invalid daily task completion result.',
+            'The ERP service returned an invalid daily task completion result.',
         },
         'invalid_result'
       )

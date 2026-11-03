@@ -99,7 +99,7 @@ export function TicketMessageThread({ ticketId, messages, canManage }: Props) {
                   )}
                 </div>
                 <span style={{ fontSize: 11, color: 'var(--color-neutral-600)' }}>
-                  {new Date(m.created_at).toLocaleString('en-PH')}
+                  {new Date(m.created_at).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })}
                 </span>
               </div>
               <div style={{ whiteSpace: 'pre-wrap', fontSize: 13.5, lineHeight: 1.55 }}>

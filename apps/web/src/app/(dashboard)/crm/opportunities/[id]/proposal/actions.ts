@@ -2,7 +2,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
-import { and, eq, desc, or, sql } from 'drizzle-orm'
+import { and, eq, or, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import {
   requireUserProfile,
@@ -12,7 +12,6 @@ import {
 } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
-  pprfSubmissions,
   designFiles,
   designFileVersions,
   opportunities,
@@ -36,7 +35,7 @@ import { inngest } from '@/lib/inngest'
 
 function guard(role: AppRole, capability: ErpCapability) {
   if (!can(role, capability)) {
-    return `Forbidden: role "${role}" lacks "${capability}"` as const
+    return 'Your role does not have permission to do this.' as const
   }
   return null
 }
@@ -1075,21 +1074,5 @@ export async function approveWithoutChanges(designFileId: string): Promise<{ err
   return {}
 }
 
-// Read helper: latest PPRF row (for forms + summaries). Exported because the
-// PPRF page server component re-uses it.
-export async function getLatestPprf(tenantId: string, opportunityId: string) {
-  const [row] = await db
-    .select()
-    .from(pprfSubmissions)
-    .where(
-      and(
-        eq(pprfSubmissions.opportunity_id, opportunityId),
-        eq(pprfSubmissions.tenant_id, tenantId)
-      )
-    )
-    .orderBy(desc(pprfSubmissions.version))
-    .limit(1)
-  return row ?? null
-}
 
 // schema re-export removed — import directly from './schemas' instead.

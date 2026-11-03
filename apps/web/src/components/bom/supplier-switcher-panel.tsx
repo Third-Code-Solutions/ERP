@@ -476,7 +476,7 @@ function RateCardRow({
         >
           <span>₱{(rc.unit_price_cents / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
           {rc.lead_time_days != null && <span>{rc.lead_time_days}d lead</span>}
-          {rc.effective_from && <span>since {new Date(rc.effective_from).toLocaleDateString('en-PH')}</span>}
+          {rc.effective_from && <span>since {new Date(rc.effective_from).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' })}</span>}
           <span>{rc.source_type}</span>
           {rc.is_stale && (
             <span

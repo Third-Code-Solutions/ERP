@@ -541,7 +541,7 @@ export function PipelineBoard({
                     {items.length}
                   </span>
                 </div>
-                {canCreateOpportunity && (
+                {canCreateOpportunity && stage !== 'won' && stage !== 'lost' && (
                   <button
                     type="button"
                     onClick={() => setQuickAddStage(stage)}

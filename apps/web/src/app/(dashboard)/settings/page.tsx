@@ -86,7 +86,7 @@ export default async function SettingsPage() {
                 { label: 'DPO Contact', value: tenant.dpo_contact ?? '—' },
                 {
                   label: 'Created',
-                  value: new Date(tenant.created_at).toLocaleDateString('en-PH', {
+                  value: new Date(tenant.created_at).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila',
                     year: 'numeric',
                     month: 'long',
                     day: 'numeric',
@@ -148,7 +148,7 @@ export default async function SettingsPage() {
               {
                 label: 'Last sign-in',
                 value: profile.user.last_sign_in_at
-                  ? new Date(profile.user.last_sign_in_at).toLocaleString('en-PH', {
+                  ? new Date(profile.user.last_sign_in_at).toLocaleString('en-PH', { timeZone: 'Asia/Manila',
                       dateStyle: 'medium',
                       timeStyle: 'short',
                     })

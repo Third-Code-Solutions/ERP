@@ -174,14 +174,14 @@ describe('Stock Receipt creation compatibility seam', () => {
   it('fails closed when the selected core command cannot commit', async () => {
     mocks.createStockReceiptThroughCoreApi.mockResolvedValue({
       ok: false,
-      error: 'ERP Core API is unavailable. No Stock Receipt was committed.',
+      error: 'The ERP service is unavailable. No Stock Receipt was committed.',
     })
 
     await expect(
       createStockReceipt({ ...input, idempotencyKey: 'stock-receipt-2' })
     ).resolves.toEqual({
       ok: false,
-      error: 'ERP Core API is unavailable. No Stock Receipt was committed.',
+      error: 'The ERP service is unavailable. No Stock Receipt was committed.',
     })
 
     expect(mocks.transaction).not.toHaveBeenCalled()

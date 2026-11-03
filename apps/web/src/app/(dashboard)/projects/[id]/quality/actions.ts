@@ -100,7 +100,7 @@ export async function createQualityHoldPoint(
   const result = await createQualityHoldPointThroughCoreApi(command.data)
   if (!result.ok || !result.data) return { ok: false, error: result.error ?? 'Quality request was not created.' }
   if (result.data.projectId !== command.data.projectId || result.data.entry.projectId !== command.data.projectId) {
-    return { ok: false, error: 'ERP Core API returned an invalid quality scope.' }
+    return { ok: false, error: 'The ERP service returned an invalid quality scope.' }
   }
   refresh(command.data.projectId)
   return { ok: true, success: result.data.created ? `${result.data.entry.iwrNumber} created.` : `${result.data.entry.iwrNumber} was already created by this request.` }
@@ -203,7 +203,7 @@ export async function handoffQualityHoldPointToPunchlist(
   }
   if (!result.ok) return { ok: false, outcome: result.outcome, error: result.error }
   if (result.data.projectId.toLowerCase() !== projectId.data.toLowerCase() || result.data.qualityHoldPointId.toLowerCase() !== entryId.data.toLowerCase() || result.data.clientRequestId?.toLowerCase() !== command.data.clientRequestId.toLowerCase()) {
-    return { ok: false, outcome: 'unknown', error: 'ERP Core API returned an unconfirmed punchlist handoff scope.' }
+    return { ok: false, outcome: 'unknown', error: 'The ERP service returned an unconfirmed punchlist handoff scope.' }
   }
   let refreshWarning: string | undefined
   try {
@@ -238,7 +238,7 @@ async function executeMutation(
   const result = await mutateQualityHoldPointThroughCoreApi(projectId, entryId, target, command)
   if (!result.ok || !result.data) return { ok: false, error: result.error ?? 'Quality mutation was not committed.' }
   if (result.data.projectId !== projectId || result.data.entry.projectId !== projectId || result.data.entry.id !== entryId) {
-    return { ok: false, error: 'ERP Core API returned an invalid quality scope.' }
+    return { ok: false, error: 'The ERP service returned an invalid quality scope.' }
   }
   refresh(projectId)
   const messages: Record<typeof target, string> = {

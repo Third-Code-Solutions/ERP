@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import type { Metadata } from 'next'
 import { getAccountsFiltered } from '@/lib/account-queries'
 
@@ -13,12 +13,21 @@ const KYC_BADGE: Record<string, string> = {
   not_required: 'stage-badge stage-opportunity_creation',
 }
 
-export default async function AccountsListPage() {
+export default async function AccountsListPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ page?: string | string[] }>
+}) {
   const profile = await requireUserProfile()
+  const rawPage = (await searchParams)?.page
+  const requestedPage = Number.parseInt(Array.isArray(rawPage) ? rawPage[0] ?? '' : rawPage ?? '', 10)
+  const canCreateAccount = can(profile.role, 'account.create')
+  const canStartPprf = can(profile.role, 'pprf.submit')
 
-  const { rows } = await getAccountsFiltered(profile.tenantId, {
+  const { rows, total, page, totalPages } = await getAccountsFiltered(profile.tenantId, {
     sort: 'created_at',
     order: 'desc',
+    page: Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1,
     limit: 100,
   })
 
@@ -34,22 +43,28 @@ export default async function AccountsListPage() {
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <Link href="/crm/opportunities/new/pprf" className="user-chip" style={{ borderColor: 'var(--color-navy-700)' }}>
-              <span style={{ fontWeight: 600, color: 'var(--color-navy-text)' }}>+ New PPRF intake</span>
-            </Link>
-            <Link href="/crm/accounts/new" className="user-chip" style={{ borderColor: 'var(--color-border)' }}>
-              <span style={{ fontWeight: 600, color: 'var(--color-neutral-700)' }}>+ New account</span>
-            </Link>
+            {canStartPprf && (
+              <Link href="/crm/opportunities/new/pprf" className="user-chip" style={{ borderColor: 'var(--color-navy-700)' }}>
+                <span style={{ fontWeight: 600, color: 'var(--color-navy-text)' }}>+ New PPRF intake</span>
+              </Link>
+            )}
+            {canCreateAccount && (
+              <Link href="/crm/accounts/new" className="user-chip" style={{ borderColor: 'var(--color-border)' }}>
+                <span style={{ fontWeight: 600, color: 'var(--color-neutral-700)' }}>+ New account</span>
+              </Link>
+            )}
           </div>
         </div>
       </div>
 
       <div className="card">
         <div className="card-header">
-          <h2 className="card-title">{rows.length} account{rows.length === 1 ? '' : 's'}</h2>
+          <h2 className="card-title">{total} account{total === 1 ? '' : 's'}</h2>
         </div>
         {rows.length === 0 ? (
-          <div className="card-empty">No accounts yet. Create your first to start the pipeline.</div>
+          <div className="card-empty">
+            {total > 0 ? 'No accounts on this page.' : 'No accounts yet. Create your first to start the pipeline.'}
+          </div>
         ) : (
           <table className="data-table">
             <thead>
@@ -83,7 +98,7 @@ export default async function AccountsListPage() {
                     {r.primary_email || r.primary_phone || '—'}
                   </td>
                   <td className="muted">
-                    {new Date(r.created_at).toLocaleDateString('en-PH', {
+                    {new Date(r.created_at).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila',
                       year: 'numeric',
                       month: 'short',
                       day: 'numeric',
@@ -93,6 +108,13 @@ export default async function AccountsListPage() {
               ))}
             </tbody>
           </table>
+        )}
+        {totalPages > 1 && (
+          <nav aria-label="Account pages" style={{ display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'flex-end', padding: '10px 16px' }}>
+            <span className="muted">Page {page} of {totalPages}</span>
+            {page > 1 && <Link href={`/crm/accounts?page=${page - 1}`} className="user-chip">Previous</Link>}
+            {page < totalPages && <Link href={`/crm/accounts?page=${page + 1}`} className="user-chip">Next</Link>}
+          </nav>
         )}
       </div>
     </div>

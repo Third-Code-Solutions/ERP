@@ -5,6 +5,7 @@ import {
   upsertMappingConfig,
   deleteMappingConfig,
 } from '@/app/(dashboard)/admin/mapping-config/actions'
+import { submitFormData } from '@/components/shared/submit-form-data'
 
 interface MaterialItemOption {
   id: string
@@ -60,7 +61,7 @@ export function MappingConfigForm({
   }
 
   return (
-    <form action={onSubmit} className="mc-form">
+    <form onSubmit={submitFormData(onSubmit)} className="mc-form">
       {initial?.id && <input type="hidden" name="id" value={initial.id} />}
 
       <div className="form-row">

@@ -14,6 +14,7 @@ import { IconActivity, IconArrowUpRight, IconClock } from '@/components/ui/icons
 import { ProcessRetry } from './retry'
 import styles from './process.module.css'
 import { ProcessTaskActions } from './process-task-actions'
+import { withUserDisplayNames } from '@/lib/operations/user-display-names'
 
 export const metadata: Metadata = { title: 'Process Health' }
 
@@ -128,7 +129,7 @@ function ProcessTaskQueueClockCell({
       </div>
       <div>{clock.observeMode ? 'Observe mode' : 'Enforce mode'}</div>
       <div className="muted">
-        {label(clock.clockType)} · Core status: {label(clock.status)}
+        {label(clock.clockType)} · Status: {label(clock.status)}
       </div>
       <div className="muted">Due {dateTime(clock.dueAt)}</div>
     </div>
@@ -158,8 +159,7 @@ function ProcessTaskQueueSection({
             Process task queue
           </h2>
           <p className="muted" style={{ marginTop: 4 }}>
-            Core-owned process tasks. Subject references and assignee UUIDs
-            remain opaque; clock labels are displayed exactly from Core.
+            Open workflow tasks with their owner, status and any blocker.
           </p>
         </div>
         {data ? (
@@ -326,8 +326,8 @@ function ProcessTaskQueueSection({
               <div style={{ overflowX: 'auto', marginTop: 16 }}>
                 <table className="data-table">
                   <caption className="sr-only">
-                    Core process task queue with statuses, ownership, blocked
-                    reasons, and nullable SLA-clock evidence
+                    Process task queue with status, owner, blockers and
+                    service-level clocks
                   </caption>
                   <thead>
                     <tr>
@@ -358,9 +358,7 @@ function ProcessTaskQueueSection({
                         <td>{label(row.status)}</td>
                         <td>
                           {row.assignedTo ? (
-                            <code style={{ wordBreak: 'break-all' }}>
-                              {row.assignedTo}
-                            </code>
+                            row.assignedTo
                           ) : (
                             <span className="muted">Unassigned</span>
                           )}
@@ -473,7 +471,9 @@ export default async function ProcessHealthPage({
   const queueResult = canManageTaskQueue
     ? await getProcessTaskQueueThroughCoreApi(queueFilters)
     : null
-  const taskQueue = queueResult?.ok ? queueResult.data ?? null : null
+  const taskQueue = queueResult?.ok && queueResult.data
+    ? { ...queueResult.data, rows: await withUserDisplayNames(profile.tenantId, queueResult.data.rows, ['assignedTo']) }
+    : null
   const taskQueueError =
     queueResult && !queueResult.ok
       ? queueResult.error ?? 'Process task queue is unavailable.'

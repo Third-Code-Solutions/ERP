@@ -2,6 +2,7 @@
 
 import React, { useId, useRef, useState, useTransition } from 'react'
 import { uploadDesignFile } from '@/app/(dashboard)/crm/opportunities/[id]/proposal/actions'
+import { submitFormData } from '@/components/shared/submit-form-data'
 
 interface DesignDocumentOption {
   id: string
@@ -60,7 +61,7 @@ export function DesignUploadForm({
   }
 
   return (
-    <form action={onSubmit} ref={formRef} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <form onSubmit={submitFormData(onSubmit)} ref={formRef} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <input type="hidden" name="opportunity_id" value={opportunityId} />
       {designFileId && <input type="hidden" name="design_file_id" value={designFileId} />}
 
@@ -108,7 +109,7 @@ export function DesignUploadForm({
             <option value="" disabled>Select a document</option>
             {documents.map((document) => (
               <option key={document.id} value={document.id}>
-                {document.fileName} · {new Date(document.createdAt).toLocaleDateString('en-PH', {
+                {document.fileName} · {new Date(document.createdAt).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila',
                   year: 'numeric',
                   month: 'short',
                   day: 'numeric',
@@ -136,7 +137,10 @@ export function DesignUploadForm({
                 Upload a document in the project Documents workspace.
               </a>
             </>
-          ) : null}
+          ) : (
+            // shortcut: no opportunity-level upload exists yet; files attach through the project once the deal is Won.
+            ' Design files can be attached once the deal is won and its project workspace exists.'
+          )}
         </div>
       )}
 

@@ -35,7 +35,7 @@ function relativeTime(value: Date | string): string {
   if (hours < 24) return `${hours}h ago`
   const days = Math.round(hours / 24)
   if (days < 14) return `${days}d ago`
-  return d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
+  return d.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 export function ClaimListTable({ rows }: ClaimListTableProps) {

@@ -165,7 +165,7 @@ describe('RFQ Server Action authority', () => {
 
     await expect(createRfqFromBom(BOM_ID)).resolves.toEqual({
       error:
-        'Forbidden: role "procurement" lacks "rfq.dispatch"',
+        'Your role does not have permission to do this.',
     })
     expect(mocks.createRfqFromBomRecord).not.toHaveBeenCalled()
   })
@@ -197,11 +197,11 @@ describe('RFQ Server Action authority', () => {
     mocks.rfqCreateWritesUseCoreApi.mockReturnValue(true)
     mocks.createRfqThroughCoreApi.mockResolvedValue({
       ok: false,
-      error: 'ERP Core API is unavailable. No RFQ was created.',
+      error: 'The ERP service is unavailable. No RFQ was created.',
     })
 
     await expect(createRfqFromBom(BOM_ID)).resolves.toEqual({
-      error: 'ERP Core API is unavailable. No RFQ was created.',
+      error: 'The ERP service is unavailable. No RFQ was created.',
     })
     expect(mocks.createRfqFromBomRecord).not.toHaveBeenCalled()
     expect(mocks.notifyRfqCreated).not.toHaveBeenCalled()
@@ -315,7 +315,7 @@ describe('RFQ Server Action authority', () => {
     mocks.rfqQuoteWritesUseCoreApi.mockReturnValue(true)
     mocks.logRfqQuoteThroughCoreApi.mockResolvedValue({
       ok: false,
-      error: 'ERP Core API is unavailable. No quote was committed.',
+      error: 'The ERP service is unavailable. No quote was committed.',
     })
     const formData = new FormData()
     formData.set('rfq_id', RFQ_ID)
@@ -325,7 +325,7 @@ describe('RFQ Server Action authority', () => {
     formData.set('unit_price_cents', '100')
 
     await expect(logQuote(formData)).resolves.toEqual({
-      error: 'ERP Core API is unavailable. No quote was committed.',
+      error: 'The ERP service is unavailable. No quote was committed.',
     })
     expect(mocks.logRfqQuoteRecord).not.toHaveBeenCalled()
     expect(mocks.revalidatePath).not.toHaveBeenCalled()
@@ -403,14 +403,14 @@ describe('RFQ Server Action authority', () => {
     mocks.transitionRfqThroughCoreApi.mockResolvedValue({
       ok: false,
       error:
-        'ERP Core API is unavailable. No RFQ transition was committed.',
+        'The ERP service is unavailable. No RFQ transition was committed.',
     })
 
     await expect(
       cancelRfq(RFQ_ID, 'Supplier withdrew')
     ).resolves.toEqual({
       error:
-        'ERP Core API is unavailable. No RFQ transition was committed.',
+        'The ERP service is unavailable. No RFQ transition was committed.',
     })
     expect(mocks.transitionRfqRecord).not.toHaveBeenCalled()
     expect(mocks.revalidatePath).not.toHaveBeenCalled()

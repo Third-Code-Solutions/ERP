@@ -30,7 +30,7 @@ import { LogQuoteForm } from '@/components/rfq/log-quote-form'
 import { PriceComparisonTable } from '@/components/rfq/price-comparison-table'
 import { BidLevelingSummary } from '@/components/rfq/bid-leveling-summary'
 import { getRfqBidLevelingThroughCoreApi, rfqBidLevelingReadsUseCoreApi } from '@/lib/erp-core-client'
-import { completeRfq, cancelRfq } from '../actions'
+import { CancelRfqForm, CompleteRfqButton } from './rfq-close-actions'
 
 export const metadata: Metadata = { title: 'RFQ Detail' }
 
@@ -203,7 +203,9 @@ export default async function RfqDetailPage({ params }: PageProps) {
       isAwarded: awardedQuoteIds.has(quote.id),
     })),
   )
-  const bidLevelingResponse = rfqBidLevelingReadsUseCoreApi(profile.tenantId)
+  // Core bid-leveling needs procurement.rfq_read; other route roles get the local
+  // comparison built from the quote rows this page already shows them.
+  const bidLevelingResponse = rfqBidLevelingReadsUseCoreApi(profile.tenantId) && can(profile.role, 'procurement.rfq_read')
     ? await getRfqBidLevelingThroughCoreApi(rfq.id)
     : null
   const bidLeveling = bidLevelingResponse?.ok && bidLevelingResponse.data
@@ -353,7 +355,7 @@ export default async function RfqDetailPage({ params }: PageProps) {
           ) : (
             <div className="card" role="status">
               <h2 className="card-title">Bid-leveling unavailable</h2>
-              <p className="card-subtitle">Core did not return a verified comparison. Existing quote rows remain visible above.</p>
+              <p className="card-subtitle">The bid comparison could not be loaded right now. The quote rows above are unaffected; refresh to try again.</p>
             </div>
           )}
         </div>
@@ -385,7 +387,7 @@ export default async function RfqDetailPage({ params }: PageProps) {
               <h2 className="card-title">Summary</h2>
             </div>
             <div style={{ padding: 16, display: 'grid', gap: 10, fontSize: 13 }}>
-              <Row label="Created" value={new Date(rfq.created_at).toLocaleString('en-PH')} />
+              <Row label="Created" value={new Date(rfq.created_at).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })} />
               <Row label="Project" value={rfq.project_name} />
               <Row label="Line items" value={lineItems.length.toString()} />
               <Row label="Quotes" value={quotes.length.toString()} />
@@ -404,74 +406,5 @@ function Row({ label, value }: { label: string; value: string }) {
       <span style={{ color: 'var(--color-neutral-600)' }}>{label}</span>
       <span style={{ textAlign: 'right' }}>{value}</span>
     </div>
-  )
-}
-
-function CompleteRfqButton({ rfqId, enabled }: { rfqId: string; enabled: boolean }) {
-  // Plain server-action form — no JS needed.
-  const action = async () => {
-    'use server'
-    await completeRfq(rfqId)
-  }
-  return (
-    <form action={action}>
-      <button
-        type="submit"
-        disabled={!enabled}
-        style={{
-          background: enabled ? '#0F2D4A' : '#cbd5e1',
-          color: 'white',
-          border: 'none',
-          padding: '9px 14px',
-          borderRadius: 6,
-          fontSize: 13,
-          fontWeight: 500,
-          cursor: enabled ? 'pointer' : 'not-allowed',
-          width: '100%',
-        }}
-      >
-        Complete RFQ
-      </button>
-    </form>
-  )
-}
-
-function CancelRfqForm({ rfqId }: { rfqId: string }) {
-  const action = async (formData: FormData) => {
-    'use server'
-    const reason = String(formData.get('reason') ?? '')
-    await cancelRfq(rfqId, reason)
-  }
-  return (
-    <form action={action} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <input
-        name="reason"
-        placeholder="Cancellation reason"
-        required
-        style={{
-          width: '100%',
-          border: '1px solid #d0d5dd',
-          borderRadius: 6,
-          padding: '7px 10px',
-          fontSize: 13,
-          background: 'var(--color-surface)',
-        }}
-      />
-      <button
-        type="submit"
-        style={{
-          background: 'var(--color-surface)',
-          border: '1px solid #d0d5dd',
-          padding: '8px 14px',
-          borderRadius: 6,
-          fontSize: 13,
-          fontWeight: 500,
-          cursor: 'pointer',
-          color: '#b42318',
-        }}
-      >
-        Cancel RFQ
-      </button>
-    </form>
   )
 }

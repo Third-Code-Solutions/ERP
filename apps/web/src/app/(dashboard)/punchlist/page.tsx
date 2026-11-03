@@ -72,7 +72,7 @@ export default async function PunchlistPage() {
         {rows.length === 0 ? (
           <div className="card-empty">No punchlist items yet.</div>
         ) : (
-          <table className="data-table">
+          <div className="data-table-wrap" tabIndex={0}><table className="data-table">
             <thead>
               <tr>
                 <th>Description</th>
@@ -87,7 +87,9 @@ export default async function PunchlistPage() {
               {rows.map((r) => (
                 <tr key={r.id}>
                   <td>
-                    {r.description.slice(0, 80)}
+                    <Link href={`/punchlist/${r.id}`} style={{ color: 'var(--color-navy-text)', fontWeight: 500 }}>
+                      {r.description.slice(0, 80)}
+                    </Link>
                     {r.location && <span className="muted"> — {r.location}</span>}
                   </td>
                   <td>
@@ -105,13 +107,13 @@ export default async function PunchlistPage() {
                   </td>
                   <td className="muted">
                     {r.due_date
-                      ? new Date(r.due_date).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })
+                      ? new Date(r.due_date).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric' })
                       : '—'}
                   </td>
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
     </div>

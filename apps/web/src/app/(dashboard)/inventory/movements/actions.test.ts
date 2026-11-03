@@ -157,14 +157,14 @@ describe('Stock Movement creation compatibility seam', () => {
   it('does not fall back to a direct writer after a selected core failure', async () => {
     mocks.createStockMovementThroughCoreApi.mockResolvedValue({
       ok: false,
-      error: 'ERP Core API is unavailable. No Stock Movement was committed.',
+      error: 'The ERP service is unavailable. No Stock Movement was committed.',
     })
 
     await expect(
       createStockMovement({ ...input, idempotencyKey: 'movement-create-2' })
     ).resolves.toEqual({
       ok: false,
-      error: 'ERP Core API is unavailable. No Stock Movement was committed.',
+      error: 'The ERP service is unavailable. No Stock Movement was committed.',
     })
     expect(mocks.transaction).not.toHaveBeenCalled()
     expect(mocks.revalidatePath).not.toHaveBeenCalled()

@@ -154,7 +154,7 @@ describe('project comment Core client', () => {
     ).resolves.toMatchObject({
       ok: false,
       status: 201,
-      error: 'ERP Core API returned an invalid project comment result.',
+      error: 'The ERP service returned an invalid project comment result.',
     })
   })
 
@@ -221,7 +221,7 @@ describe('project comment Core client', () => {
     ).resolves.toMatchObject({
       ok: false,
       status: 200,
-      error: 'ERP Core API returned an invalid project comment list result.',
+      error: 'The ERP service returned an invalid project comment list result.',
     })
   })
 
@@ -246,7 +246,7 @@ describe('project comment Core client', () => {
     ).resolves.toMatchObject({
       ok: false,
       status: 200,
-      error: 'ERP Core API returned an invalid project comment deletion result.',
+      error: 'The ERP service returned an invalid project comment deletion result.',
     })
   })
 })

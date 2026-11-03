@@ -32,7 +32,6 @@ const PROJECT_TABS = [
 
 const PUBLIC_AND_TOP = [
   '/auth/login',
-  '/auth/signup',
   '/dashboard',
   '/projects',
   '/projects/new',

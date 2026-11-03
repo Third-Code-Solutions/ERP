@@ -21,6 +21,8 @@ import {
   projectBillingMilestoneReadsUseCoreApi,
 } from '@/lib/erp-core-client'
 
+import { invoiceCollectionTotals, isBilledInvoiceStatus } from '@/lib/operations/invoice-collections'
+import { loadPostedReceiptsByInvoice } from '@/lib/operations/invoice-receipts'
 export const metadata: Metadata = { title: 'Billing' }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -29,6 +31,7 @@ const STATUS_LABELS: Record<string, string> = {
   partial_payment: 'Partial',
   paid: 'Paid',
   overdue: 'Overdue',
+  cancelled: 'Cancelled',
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -37,6 +40,7 @@ const STATUS_COLORS: Record<string, string> = {
   partial_payment: '#f59e0b',
   paid: '#10b981',
   overdue: '#ef4444',
+  cancelled: '#6b7280',
 }
 
 function formatPHP(cents: number): string {
@@ -88,11 +92,17 @@ export default async function ProjectBillingPage({ params, searchParams }: {
 
   const baseHref = `/projects/${id}`
 
-  const totalBilled = projectInvoices.reduce((s, i) => s + i.subtotal_cents, 0)
-  const totalCollected = projectInvoices
-    .filter((i) => i.status === 'paid')
-    .reduce((s, i) => s + i.net_amount_cents, 0)
-  const totalRetention = projectInvoices.reduce((s, i) => s + i.retention_cents, 0)
+  // Drafts are not billed yet and cancelled invoices never were.
+  const billedInvoices = projectInvoices.filter((i) => isBilledInvoiceStatus(i.status))
+  const totalBilled = billedInvoices.reduce((s, i) => s + i.subtotal_cents, 0)
+  const { paid: totalCollected } = invoiceCollectionTotals(
+    billedInvoices,
+    await loadPostedReceiptsByInvoice(
+      profile.tenantId,
+      billedInvoices.map((i) => i.id)
+    )
+  )
+  const totalRetention = billedInvoices.reduce((s, i) => s + i.retention_cents, 0)
   const contractValue = latestBom?.tcv_cents ?? 0
 
   return (
@@ -124,8 +134,8 @@ export default async function ProjectBillingPage({ params, searchParams }: {
           ...(access.bom
             ? [{ label: 'Contract Value (BOM)', value: contractValue > 0 ? formatPHP(contractValue) : '—', note: latestBom ? `BOM ${latestBom.status}` : 'No BOM yet' }]
             : []),
-          { label: 'Total Billed', value: formatPHP(totalBilled), note: `${projectInvoices.length} invoice${projectInvoices.length !== 1 ? 's' : ''}` },
-          { label: 'Collected', value: formatPHP(totalCollected), note: 'Paid invoices net' },
+          { label: 'Total Billed', value: formatPHP(totalBilled), note: `${billedInvoices.length} billed invoice${billedInvoices.length !== 1 ? 's' : ''}` },
+          { label: 'Collected', value: formatPHP(totalCollected), note: 'Posted receipts, net' },
           { label: 'Retention Held', value: formatPHP(totalRetention), note: 'Standard 10%' },
         ].map(({ label, value, note }) => (
           <div
@@ -164,7 +174,7 @@ export default async function ProjectBillingPage({ params, searchParams }: {
       {billingMilestonesEnabled && billingMilestones && !billingMilestones.ok ? (
         <section className="card project-billing-milestones__unavailable" aria-labelledby="project-billing-milestones-heading">
           <div className="card-header"><h2 id="project-billing-milestones-heading" className="card-title">Milestone billing traceability</h2></div>
-          <p className="card-empty" role="alert">Core could not verify the WAR → COC → claim → invoice chain. Existing invoice records remain visible below; no readiness was inferred.</p>
+          <p className="card-empty" role="alert">The billing readiness check (WAR → COC → claim → invoice) could not be loaded. Invoice records below are unaffected; refresh to try again.</p>
           <div className="card-header"><a className="button-secondary" href={billingMilestonePageHref(id, query, milestonePage ?? 1)}>Retry milestone evidence</a></div>
         </section>
       ) : null}
@@ -272,7 +282,7 @@ export default async function ProjectBillingPage({ params, searchParams }: {
                   </td>
                   <td style={{ padding: '12px 16px', color: 'var(--color-neutral-500)', fontSize: '0.8125rem' }}>
                     {inv.due_date
-                      ? new Date(inv.due_date).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })
+                      ? new Date(inv.due_date).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'short', day: 'numeric' })
                       : '—'}
                   </td>
                   <td style={{ padding: '12px 16px' }}>

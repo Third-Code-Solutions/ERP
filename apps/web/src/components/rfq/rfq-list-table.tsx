@@ -129,7 +129,7 @@ export function RfqListTable({ rows, activeStatus }: Props) {
                   <td className="muted">
                     {hours < 24
                       ? `${hours}h ago`
-                      : created.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}
+                      : created.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric' })}
                   </td>
                   <td>
                     <Link

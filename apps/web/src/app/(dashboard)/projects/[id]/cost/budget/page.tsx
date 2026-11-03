@@ -445,7 +445,7 @@ export default async function ProjectBudgetPage({
                         <strong>{row.code}</strong>
                         <span className="finance-cell-detail">{row.name}</span>
                       </td>
-                      <td>{row.category}</td>
+                      <td style={{ textTransform: 'capitalize' }}>{row.category}</td>
                       <td className="num finance-money">
                         {money(currency, row.baseline_cents)}
                       </td>

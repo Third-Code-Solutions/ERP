@@ -9,6 +9,7 @@ import {
 import { and, asc, eq, inArray } from 'drizzle-orm'
 import { BankStatementImportForm } from '../statement-import-form'
 import { financeReconciliationStorageUploadsUseCoreApi } from '@/lib/erp-core-client'
+import { manilaToday } from '@/lib/operations/manila-date'
 
 export const metadata: Metadata = { title: 'Import bank statement' }
 
@@ -42,7 +43,7 @@ export default async function NewBankStatementPage() {
     )
     .orderBy(asc(cashAccounts.name))
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = manilaToday()
   const monthStart = `${today.slice(0, 8)}01`
 
   return (

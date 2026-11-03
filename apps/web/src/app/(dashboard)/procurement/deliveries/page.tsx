@@ -9,6 +9,7 @@ import {
   vendors,
 } from '@third-code-erp/database/schema'
 import { DeliveryListTable } from '@/components/deliveries/delivery-list-table'
+import { canViewPath } from '@/lib/operations/nav-config'
 
 export const metadata: Metadata = { title: 'Deliveries' }
 
@@ -104,6 +105,7 @@ export default async function DeliveriesPage({
             Schedule, receive, and inspect supplier deliveries.
           </p>
         </div>
+        {canViewPath(profile.role, '/procurement/deliveries/new') ? (
         <Link
           href="/procurement/deliveries/new"
           style={{
@@ -118,6 +120,7 @@ export default async function DeliveriesPage({
         >
           + Schedule delivery
         </Link>
+        ) : null}
       </div>
 
       <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginTop: 20 }}>

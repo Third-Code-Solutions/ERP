@@ -55,23 +55,23 @@ export function CloseDateFilter() {
       onSubmit={(e) => e.preventDefault()}
     >
       <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-        <span>From</span>
+        <span>Export closings from</span>
         <input
           type="date"
           value={since}
           onChange={(e) => commit({ since: e.target.value })}
           style={inputStyle}
-          aria-label="Closing date — from"
+          aria-label="CSV export: closing date from"
         />
       </label>
       <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-        <span>To</span>
+        <span>to</span>
         <input
           type="date"
           value={until}
           onChange={(e) => commit({ until: e.target.value })}
           style={inputStyle}
-          aria-label="Closing date — to"
+          aria-label="CSV export: closing date to"
         />
       </label>
       {(since || until) && (

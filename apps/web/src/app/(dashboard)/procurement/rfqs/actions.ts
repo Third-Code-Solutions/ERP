@@ -67,7 +67,7 @@ export async function createRfqFromBom(
   const profile = await requireUserProfile()
   if (!can(profile.role, 'rfq.dispatch')) {
     return {
-      error: `Forbidden: role "${profile.role}" lacks "rfq.dispatch"`,
+      error: 'Your role does not have permission to do this.',
     }
   }
 
@@ -120,7 +120,7 @@ export async function logQuote(
 ): Promise<{ error?: string }> {
   const profile = await requireUserProfile()
   if (!can(profile.role, 'rfq.dispatch')) {
-    return { error: `Forbidden: role "${profile.role}" lacks "rfq.dispatch"` }
+    return { error: 'Your role does not have permission to do this.' }
   }
 
   const leadRaw = formData.get('lead_time_days')
@@ -194,7 +194,7 @@ export async function awardRfqQuote(
 ): Promise<{ error?: string }> {
   const profile = await requireUserProfile()
   if (!can(profile.role, 'rfq.dispatch')) {
-    return { error: `Forbidden: role "${profile.role}" lacks "rfq.dispatch"` }
+    return { error: 'Your role does not have permission to do this.' }
   }
 
   if (!z.string().uuid().safeParse(rfqId).success || !z.string().uuid().safeParse(quoteId).success) {
@@ -225,7 +225,7 @@ export async function awardRfqQuote(
 export async function completeRfq(rfqId: string): Promise<{ error?: string }> {
   const profile = await requireUserProfile()
   if (!can(profile.role, 'rfq.dispatch')) {
-    return { error: `Forbidden: role "${profile.role}" lacks "rfq.dispatch"` }
+    return { error: 'Your role does not have permission to do this.' }
   }
 
   try {
@@ -277,7 +277,7 @@ export async function cancelRfq(
 ): Promise<{ error?: string }> {
   const profile = await requireUserProfile()
   if (!can(profile.role, 'rfq.dispatch')) {
-    return { error: `Forbidden: role "${profile.role}" lacks "rfq.dispatch"` }
+    return { error: 'Your role does not have permission to do this.' }
   }
 
   const parsed = cancelRfqSchema.safeParse({ rfqId, reason })

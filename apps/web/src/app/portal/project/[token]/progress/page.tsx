@@ -4,6 +4,7 @@ import { findActiveCustomerSession } from '@/lib/operations/customer-portal'
 import { SCurveChart } from '@/components/progress/s-curve-chart'
 import { PortalProgressSummary } from '@/components/customer-portal/portal-progress-summary'
 import { PortalWeeklyList } from '@/components/customer-portal/portal-weekly-list'
+import { computeScheduleVariance } from '@/lib/operations/schedule-variance'
 
 export const metadata: Metadata = {
   title: 'Project Progress',
@@ -82,28 +83,6 @@ function deriveProjectPlannedCurve(tasks: MasterTask[]): number[] {
     result.push(count > 0 ? Math.round((sum / count) * 10) / 10 : 0)
   }
   return result
-}
-
-/**
- * Compare the latest actual cumulative % against the planned curve to derive a
- * friendly variance label. Returns null when we can't make a meaningful claim.
- */
-function computeVariance(
-  planned: number[],
-  actual: number[],
-): { label: string; tone: 'success' | 'warning' | 'danger' } | null {
-  if (planned.length === 0 || actual.length === 0) return null
-  const currentActual = actual[actual.length - 1] ?? 0
-  const currentWeekIndex = actual.length - 1
-  const idx = planned.findIndex((p) => p >= currentActual)
-  if (idx === -1) {
-    return { label: 'Ahead of schedule', tone: 'success' }
-  }
-  const varianceWeeks = idx - currentWeekIndex
-  const days = varianceWeeks * 7
-  if (days === 0) return { label: 'On schedule', tone: 'success' }
-  if (days > 0) return { label: `${days} days ahead`, tone: 'success' }
-  return { label: `${Math.abs(days)} days behind`, tone: 'danger' }
 }
 
 function PortalStatus({
@@ -213,7 +192,7 @@ export default async function PortalProjectProgressPage({ params }: PageProps) {
     (u) => u.percent_by_category.overall_pct ?? 0,
   )
   const plannedCurve = deriveProjectPlannedCurve(scheduleRow?.tasks ?? [])
-  const variance = computeVariance(plannedCurve, actualCurve)
+  const variance = computeScheduleVariance(plannedCurve, actualCurve)
 
   // Latest snapshot drives the summary card.
   const latest = progressRows[0] ?? null

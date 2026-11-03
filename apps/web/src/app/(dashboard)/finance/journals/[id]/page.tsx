@@ -12,6 +12,7 @@ import {
 } from '@third-code-erp/database/schema'
 import { and, eq } from 'drizzle-orm'
 import { JournalActions } from './journal-actions'
+import { manilaToday } from '@/lib/operations/manila-date'
 
 export const metadata: Metadata = { title: 'Journal review' }
 
@@ -104,7 +105,7 @@ export default async function JournalPage({
 
   const totalDebit = lines.reduce((sum, line) => sum + line.debit_cents, 0)
   const totalCredit = lines.reduce((sum, line) => sum + line.credit_cents, 0)
-  const defaultDate = new Date().toISOString().slice(0, 10)
+  const defaultDate = manilaToday()
 
   return (
     <div>

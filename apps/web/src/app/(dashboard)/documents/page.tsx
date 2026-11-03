@@ -4,7 +4,7 @@ import { can, requireUserProfile } from '@third-code-erp/auth'
 import { redirect } from 'next/navigation'
 import { db } from '@third-code-erp/database'
 import { documents, projects } from '@third-code-erp/database/schema'
-import { and, eq, desc } from 'drizzle-orm'
+import { and, count, eq, desc } from 'drizzle-orm'
 import { IconDownload, IconExternalLink } from '@/components/ui/icons'
 
 export const metadata: Metadata = { title: 'Documents' }
@@ -37,34 +37,49 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-export default async function DocumentsPage() {
+const PAGE_SIZE = 100
+
+export default async function DocumentsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ page?: string | string[] }>
+}) {
   const profile = await requireUserProfile()
   if (!can(profile.role, 'document.read')) {
     redirect('/dashboard?error=forbidden')
   }
+  const rawPage = (await searchParams)?.page
+  const requestedPage = Number.parseInt(Array.isArray(rawPage) ? rawPage[0] ?? '' : rawPage ?? '', 10)
+  const page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1
 
-  const docs = await db
-    .select({
-      id: documents.id,
-      file_name: documents.file_name,
-      document_type: documents.document_type,
-      size_bytes: documents.size_bytes,
-      mime_type: documents.mime_type,
-      description: documents.description,
-      created_at: documents.created_at,
-      project_name: projects.name,
-      project_id: projects.id,
-    })
-    .from(documents)
-    .leftJoin(
-      projects,
-      and(
-        eq(documents.project_id, projects.id),
-        eq(projects.tenant_id, profile.tenantId)
+  const [[{ total } = { total: 0 }], docs] = await Promise.all([
+    db.select({ total: count() }).from(documents).where(eq(documents.tenant_id, profile.tenantId)),
+    db
+      .select({
+        id: documents.id,
+        file_name: documents.file_name,
+        document_type: documents.document_type,
+        size_bytes: documents.size_bytes,
+        mime_type: documents.mime_type,
+        description: documents.description,
+        created_at: documents.created_at,
+        project_name: projects.name,
+        project_id: projects.id,
+      })
+      .from(documents)
+      .leftJoin(
+        projects,
+        and(
+          eq(documents.project_id, projects.id),
+          eq(projects.tenant_id, profile.tenantId)
+        )
       )
-    )
-    .where(eq(documents.tenant_id, profile.tenantId))
-    .orderBy(desc(documents.created_at))
+      .where(eq(documents.tenant_id, profile.tenantId))
+      .orderBy(desc(documents.created_at))
+      .limit(PAGE_SIZE)
+      .offset((page - 1) * PAGE_SIZE),
+  ])
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   return (
     <div>
@@ -79,7 +94,7 @@ export default async function DocumentsPage() {
         <div className="page-header" style={{ marginBottom: 0 }}>
           <h1 className="page-title">Documents</h1>
           <p className="page-subtitle">
-            {docs.length} file{docs.length !== 1 ? 's' : ''} across all projects
+            {total} file{total !== 1 ? 's' : ''} across all projects
           </p>
         </div>
       </div>
@@ -189,7 +204,7 @@ export default async function DocumentsPage() {
                     {formatBytes(doc.size_bytes)}
                   </td>
                   <td style={{ color: 'var(--color-neutral-500)', fontSize: '0.8125rem' }}>
-                    {new Date(doc.created_at).toLocaleDateString('en-PH', {
+                    {new Date(doc.created_at).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila',
                       year: 'numeric',
                       month: 'short',
                       day: 'numeric',
@@ -238,6 +253,13 @@ export default async function DocumentsPage() {
             </tbody>
           </table>
         </div>
+      )}
+      {totalPages > 1 && (
+        <nav aria-label="Document pages" style={{ display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'flex-end', marginTop: 12 }}>
+          <span style={{ color: 'var(--color-neutral-500)' }}>Page {page} of {totalPages}</span>
+          {page > 1 && <Link href={`/documents?page=${page - 1}`} className="user-chip">Previous</Link>}
+          {page < totalPages && <Link href={`/documents?page=${page + 1}`} className="user-chip">Next</Link>}
+        </nav>
       )}
     </div>
   )

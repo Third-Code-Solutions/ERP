@@ -30,7 +30,7 @@ import { z } from 'zod'
 
 function guard(role: AppRole, capability: ErpCapability) {
   if (!can(role, capability)) {
-    return `Forbidden: role "${role}" lacks "${capability}"` as const
+    return 'Your role does not have permission to do this.' as const
   }
   return null
 }
@@ -281,7 +281,7 @@ export async function addKycArtifact(
   }
   if (!result.data) {
     return {
-      error: 'ERP Core API returned no KYC artifact result.',
+      error: 'The ERP service returned no KYC artifact result.',
       outcome: 'unknown',
     }
   }
@@ -293,7 +293,7 @@ export async function addKycArtifact(
     result.data.documentId === normalizedCommand.documentId
   if (!sameScope) {
     return {
-      error: 'ERP Core API returned an invalid KYC artifact result.',
+      error: 'The ERP service returned an invalid KYC artifact result.',
       outcome: 'unknown',
     }
   }
@@ -339,7 +339,7 @@ export async function listAccountKycDocuments(
     }
   }
   if (!result.data) {
-    return { ok: false, error: 'ERP Core API returned no account documents.' }
+    return { ok: false, error: 'The ERP service returned no account documents.' }
   }
 
   const expectedAccountId = parsedAccountId.data
@@ -370,7 +370,7 @@ export async function listAccountKycDocuments(
   ) {
     return {
       ok: false,
-      error: 'ERP Core API returned an invalid account document scope.',
+      error: 'The ERP service returned an invalid account document scope.',
     }
   }
   return { ok: true, data: result.data }

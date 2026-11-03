@@ -147,8 +147,8 @@ export function roleLabel(role: AppRole): string {
 //   /permits             → admin, estimator, pm, commercial, sd_pm_pe, safety, viewer
 //   /procurement/rfqs    → admin, estimator, procurement, commercial, viewer
 //   /procurement/deliveries → admin, pm, procurement, sd_pm_pe, viewer
-//   /purchase-orders     → admin, estimator, pm, commercial, sd_pm_pe,
-//                          procurement, viewer
+//   /purchase-orders     → admin, finance, estimator, pm, commercial, sd_pm_pe,
+//                          procurement, viewer (finance posts supplier bills here)
 //   /inventory           → admin, pm, commercial, sd_pm_pe, finance,
 //                          procurement, viewer
 //   /invoices            → admin, finance, viewer (read only)
@@ -281,6 +281,7 @@ export const NAV_SECTIONS: NavSection[] = [
         iconKey: 'PurchaseOrder',
         roles: [
           'admin',
+          'finance',
           'estimator',
           'pm',
           'commercial',
@@ -452,6 +453,7 @@ const PERMIT_ROUTE_ROLES = [
 ] as const
 const PURCHASE_ORDER_ROUTE_ROLES = [
   'admin',
+  'finance',
   'estimator',
   'pm',
   'commercial',
@@ -537,7 +539,6 @@ export const DASHBOARD_ROUTE_POLICIES: readonly DashboardRoutePolicy[] = [
     '/pipeline/conversion',
     '/pipeline/coverage',
     '/process',
-    '/roadmap',
     '/projects',
     '/projects/[id]',
     '/projects/[id]/checklist',

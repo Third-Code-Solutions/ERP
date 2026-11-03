@@ -109,7 +109,7 @@ describe('claim transition server actions', () => {
     mocks.can.mockReturnValue(false)
 
     await expect(rejectClaim(CLAIM_ID, 'Not enough evidence')).resolves.toEqual({
-      error: 'Forbidden: role "pm" cannot reject progress claims',
+      error: 'Your role cannot reject progress claims.',
     })
     expect(mocks.select).not.toHaveBeenCalled()
     expect(mocks.update).not.toHaveBeenCalled()
@@ -119,7 +119,7 @@ describe('claim transition server actions', () => {
     mocks.can.mockReturnValue(false)
 
     await expect(cancelClaim(CLAIM_ID, 'Duplicate draft')).resolves.toEqual({
-      error: 'Forbidden: role "pm" cannot cancel progress claims',
+      error: 'Your role cannot cancel progress claims.',
     })
     expect(mocks.select).not.toHaveBeenCalled()
     expect(mocks.update).not.toHaveBeenCalled()

@@ -140,7 +140,7 @@ export default async function RateCardsPage() {
                         )}
                       </td>
                       <td className="muted">
-                        {new Date(r.effective_from).toLocaleDateString('en-PH', {
+                        {new Date(r.effective_from).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila',
                           year: 'numeric',
                           month: 'short',
                           day: 'numeric',

@@ -13,13 +13,16 @@ import {
   getAssetMaintenanceDueThroughCoreApi,
   getAssetsThroughCoreApi,
 } from '@/lib/erp-core-client'
+import { canViewPath } from '@/lib/operations/nav-config'
 
 export const metadata: Metadata = { title: 'Asset register' }
 
 type AssetSearchParams = Record<string, string | string[] | undefined>
 
 function first(value: string | string[] | undefined): string | undefined {
-  return Array.isArray(value) ? value[0] : value
+  // "All kinds"/"All statuses" and pager links submit empty values; treat them as unset.
+  const v = Array.isArray(value) ? value[0] : value
+  return v === '' ? undefined : v
 }
 
 function parseQuery(searchParams: AssetSearchParams):
@@ -44,6 +47,10 @@ function formatDate(value: string | null): string {
     dateStyle: 'medium',
     timeZone: 'UTC',
   }).format(new Date(`${value}T00:00:00Z`))
+}
+
+function titleCase(value: string): string {
+  return value ? value[0]!.toUpperCase() + value.slice(1).replace(/_/g, ' ') : value
 }
 
 function statusClass(status: AssetListResult['rows'][number]['status']): string {
@@ -91,7 +98,7 @@ function AssetFilters({ query }: { query: AssetListQuery }) {
           <option value="">All kinds</option>
           {assetKindValues.map((kind) => (
             <option key={kind} value={kind}>
-              {kind[0]!.toUpperCase() + kind.slice(1)}
+              {titleCase(kind)}
             </option>
           ))}
         </select>
@@ -171,7 +178,7 @@ function MaintenanceDuePanel({
                   </td>
                   <td>
                     <strong>{row.summary}</strong>
-                    <span className="finance-cell-detail">{row.maintenanceType}</span>
+                    <span className="finance-cell-detail">{titleCase(row.maintenanceType)}</span>
                   </td>
                   <td>
                     <strong>{row.assignedProjectName ?? 'Unassigned'}</strong>
@@ -201,6 +208,8 @@ function AssetRegister({
   const activeCount = data.rows.filter((row) => row.status === 'active').length
   const maintenanceCount = data.rows.filter((row) => row.status === 'maintenance').length
   const assignedCount = data.rows.filter((row) => row.assignedProjectId).length
+  // Status counts come from the current page only; say so when there is more than one page.
+  const pageNote = data.totalPages > 1 ? ' (this page)' : ''
 
   return (
     <>
@@ -209,22 +218,22 @@ function AssetRegister({
         <div className="kpi-card">
           <p className="kpi-card-label">Records in view</p>
           <p className="kpi-card-value">{data.total}</p>
-          <p className="kpi-card-sub">Tenant-scoped register rows</p>
+          <p className="kpi-card-sub">Matching your filters</p>
         </div>
         <div className="kpi-card">
           <p className="kpi-card-label">Active</p>
           <p className="kpi-card-value">{activeCount}</p>
-          <p className="kpi-card-sub">Available for custody</p>
+          <p className="kpi-card-sub">Available for custody{pageNote}</p>
         </div>
         <div className="kpi-card">
           <p className="kpi-card-label">Maintenance</p>
           <p className="kpi-card-value">{maintenanceCount}</p>
-          <p className="kpi-card-sub">Needs service review</p>
+          <p className="kpi-card-sub">Needs service review{pageNote}</p>
         </div>
         <div className="kpi-card">
           <p className="kpi-card-label">Assigned</p>
           <p className="kpi-card-value">{assignedCount}</p>
-          <p className="kpi-card-sub">Linked to a project</p>
+          <p className="kpi-card-sub">Linked to a project{pageNote}</p>
         </div>
       </div>
 
@@ -236,7 +245,7 @@ function AssetRegister({
             <p className="finance-eyebrow">Custody and continuity</p>
             <h2>Equipment, vehicles, tools, and fixtures</h2>
           </div>
-          <p>Read-only source-backed register. Maintenance and accounting commands stay separate.</p>
+          <p>Open an asset to see its custody and service history.</p>
         </div>
         <div className="finance-table-shell">
           {data.rows.length === 0 ? (
@@ -265,10 +274,10 @@ function AssetRegister({
                       </Link>
                       <span className="finance-cell-detail">{row.name}</span>
                     </td>
-                    <td>{row.kind}</td>
+                    <td>{titleCase(row.kind)}</td>
                     <td>
                       <span className={`finance-status ${statusClass(row.status)}`}>
-                        {row.status}
+                        {titleCase(row.status)}
                       </span>
                     </td>
                     <td>
@@ -322,36 +331,39 @@ export default async function AssetsPage({
   requireCapability(profile, 'asset.read')
   const params = await searchParams
   const parsed = parseQuery(params)
+  const canOpenInventory = canViewPath(profile.role, '/inventory')
 
   return (
     <div>
       <div className="page-header finance-page-header">
         <div>
           <p className="finance-eyebrow">
-            <Link href="/inventory">Operations</Link> · Custody
+            {canOpenInventory ? <Link href="/inventory">Operations</Link> : 'Operations'} · Custody
           </p>
           <h1 className="page-title">Asset register</h1>
           <p className="page-subtitle">
-            Keep equipment identity, project custody, and service context searchable in one tenant-safe view.
+            Equipment, vehicles, tools, and fixtures, with project custody and service history in one place.
           </p>
         </div>
         <div className="finance-header-actions">
           <span className="finance-status finance-status-open">Read only</span>
-          <Link href="/inventory" className="finance-secondary-link">Inventory</Link>
+          {canOpenInventory ? (
+            <Link href="/inventory" className="finance-secondary-link">Inventory</Link>
+          ) : null}
         </div>
       </div>
 
       {!parsed.ok ? (
         <AssetState
           title="Filters need review"
-          body="Use supported asset filters and try again. No database query was issued."
+          body="One of the filters is not supported. Reset the filters and try again."
           link={<Link href="/assets">Reset filters</Link>}
         />
       ) : !assetReadsUseCoreApi(profile.tenantId) ? (
         <AssetState
-          title="Asset register staged for controlled rollout"
-          body="Core asset reads remain disabled until hosted schema parity, RLS/audit review, and a protected tenant canary are complete."
-          link={<Link href="/inventory">Open inventory controls</Link>}
+          title="Asset register not enabled yet"
+          body="The asset register is not switched on for this workspace yet. Ask your administrator to enable it."
+          link={canOpenInventory ? <Link href="/inventory">Open inventory</Link> : undefined}
         />
       ) : (
         <AssetData query={parsed.data} />
@@ -369,7 +381,7 @@ async function AssetData({ query }: { query: AssetListQuery }) {
     return (
       <AssetState
         title="Asset register unavailable"
-        body={result.error ?? 'Core returned no asset data. No direct database fallback was used.'}
+        body={result.error ?? 'Asset records could not be loaded right now. Retry in a moment.'}
         link={<Link href="/assets">Retry</Link>}
       />
     )
@@ -379,7 +391,7 @@ async function AssetData({ query }: { query: AssetListQuery }) {
       data={result.data}
       query={query}
       due={dueResult.ok && dueResult.data ? dueResult.data : null}
-      dueError={dueResult.ok ? null : dueResult.error ?? 'Core returned no due data.'}
+      dueError={dueResult.ok ? null : dueResult.error ?? 'Upcoming service dates could not be loaded right now.'}
     />
   )
 }

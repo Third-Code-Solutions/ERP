@@ -33,7 +33,7 @@ export async function createProjectSubmittal(_previous: ProjectSubmittalActionSt
   if (!command.success) return { ok: false, error: command.error.issues[0]?.message ?? 'Invalid submittal.' }
   const result = await createProjectSubmittalThroughCoreApi(command.data)
   if (!result.ok || !result.data) return { ok: false, error: result.error ?? 'Submittal was not created.' }
-  if (result.data.projectId !== command.data.projectId || result.data.submittal.projectId !== command.data.projectId) return { ok: false, error: 'ERP Core API returned an invalid submittal scope.' }
+  if (result.data.projectId !== command.data.projectId || result.data.submittal.projectId !== command.data.projectId) return { ok: false, error: 'The ERP service returned an invalid submittal scope.' }
   refresh(command.data.projectId)
   return { ok: true, success: result.data.created ? `${result.data.submittal.submittalNumber} created.` : `${result.data.submittal.submittalNumber} was already created by this request.` }
 }
@@ -69,7 +69,7 @@ export async function transitionProjectSubmittal(_previous: ProjectSubmittalActi
 async function executeMutation(projectId: string, submittalId: string, target: 'update' | 'submit' | 'start-review' | 'review', command: unknown): Promise<ProjectSubmittalActionState> {
   const result = await mutateProjectSubmittalThroughCoreApi(projectId, submittalId, target, command)
   if (!result.ok || !result.data) return { ok: false, error: result.error ?? 'Submittal mutation was not committed.' }
-  if (result.data.projectId !== projectId || result.data.submittal.projectId !== projectId || result.data.submittal.id !== submittalId) return { ok: false, error: 'ERP Core API returned an invalid submittal scope.' }
+  if (result.data.projectId !== projectId || result.data.submittal.projectId !== projectId || result.data.submittal.id !== submittalId) return { ok: false, error: 'The ERP service returned an invalid submittal scope.' }
   refresh(projectId)
   const status = result.data.submittal.status
   const success = target === 'update' ? result.data.changed ? 'Submittal updated.' : 'No changes to save.' : target === 'submit' ? 'Submittal submitted.' : target === 'start-review' ? 'Submittal is under review.' : status === 'approved' ? 'Submittal approved.' : 'Submittal rejected with a reason.'
@@ -85,7 +85,7 @@ export async function linkProjectSubmittalDocument(_previous: ProjectSubmittalAc
   if (!projectId.success || !submittalId.success || !command.success) return { ok: false, error: 'Invalid submittal document link.' }
   const result = await linkProjectSubmittalDocumentThroughCoreApi(projectId.data, submittalId.data, command.data)
   if (!result.ok || !result.data) return { ok: false, error: result.error ?? 'Document was not linked.' }
-  if (result.data.projectId !== projectId.data || result.data.submittalId !== submittalId.data) return { ok: false, error: 'ERP Core API returned an invalid document link scope.' }
+  if (result.data.projectId !== projectId.data || result.data.submittalId !== submittalId.data) return { ok: false, error: 'The ERP service returned an invalid document link scope.' }
   refresh(projectId.data)
   return { ok: true, success: result.data.changed ? 'Document linked to submittal.' : 'Document link already exists for this request.' }
 }
@@ -100,7 +100,7 @@ export async function unlinkProjectSubmittalDocument(_previous: ProjectSubmittal
   if (!projectId.success || !submittalId.success || !linkId.success || !command.success) return { ok: false, error: 'Invalid submittal document unlink.' }
   const result = await unlinkProjectSubmittalDocumentThroughCoreApi(projectId.data, submittalId.data, linkId.data, command.data)
   if (!result.ok || !result.data) return { ok: false, error: result.error ?? 'Document link was not removed.' }
-  if (result.data.projectId !== projectId.data || result.data.submittalId !== submittalId.data || result.data.linkId !== linkId.data) return { ok: false, error: 'ERP Core API returned an invalid document unlink scope.' }
+  if (result.data.projectId !== projectId.data || result.data.submittalId !== submittalId.data || result.data.linkId !== linkId.data) return { ok: false, error: 'The ERP service returned an invalid document unlink scope.' }
   refresh(projectId.data)
   return { ok: true, success: result.data.changed ? 'Document unlinked from submittal.' : 'Document link was already removed.' }
 }

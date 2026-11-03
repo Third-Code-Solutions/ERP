@@ -375,7 +375,7 @@ describe('approveBom automatic RFQ producer selection', () => {
     mocks.useCore.mockReturnValue(true)
     mocks.dispatchCore.mockResolvedValue({
       ok: false,
-      error: 'ERP Core API is unavailable.',
+      error: 'The ERP service is unavailable.',
     })
 
     await expect(
@@ -383,7 +383,7 @@ describe('approveBom automatic RFQ producer selection', () => {
     ).resolves.toEqual({})
     expect(mocks.inngestSend).not.toHaveBeenCalled()
     expect(mocks.warn).toHaveBeenCalledWith(
-      '[approveBom] Nest RFQ dispatch failed (approval still persisted): ERP Core API is unavailable.'
+      '[approveBom] Nest RFQ dispatch failed (approval still persisted): The ERP service is unavailable.'
     )
   })
 
@@ -391,7 +391,7 @@ describe('approveBom automatic RFQ producer selection', () => {
     mocks.can.mockReturnValue(false)
 
     await expect(approveBom(BOM_ID, PROJECT_ID)).resolves.toEqual({
-      error: 'Forbidden: role "commercial" lacks "bom.approve_internal"',
+      error: 'Your role does not have permission to do this.',
     })
     expect(mocks.select).not.toHaveBeenCalled()
     expect(mocks.transaction).not.toHaveBeenCalled()

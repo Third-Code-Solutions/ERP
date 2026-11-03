@@ -43,7 +43,7 @@ function timeAgo(d: Date | string): string {
 }
 
 function formatWeekEnding(d: Date | string): string {
-  return new Date(d).toLocaleDateString('en-PH', {
+  return new Date(d).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila',
     year: 'numeric',
     month: 'short',
     day: 'numeric',

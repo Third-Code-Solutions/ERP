@@ -140,7 +140,7 @@ describe('site diary server actions', () => {
     })
     await expect(createSiteDiary({ ok: true }, createForm())).resolves.toEqual({
       ok: false,
-      error: 'ERP Core API returned an invalid site diary scope.',
+      error: 'The ERP service returned an invalid site diary scope.',
     })
   })
 })
