@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import React from 'react'
 import { z } from 'zod'
+import { formatBoqQuantity } from '@third-code-erp/shared-types/bom'
 import { loadPortalBom, recordSign } from './sign-actions'
 
 export const metadata: Metadata = {
@@ -171,7 +172,7 @@ export default async function PortalBomPage({
                           {l.description}
                         </td>
                         <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'var(--font-jetbrains), monospace' }}>
-                          {l.quantity.toLocaleString('en-PH')}
+                          {formatBoqQuantity(l.quantity)}
                         </td>
                         <td style={{ padding: '10px 8px', color: '#6b7280' }}>{l.unit ?? '—'}</td>
                         <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'var(--font-jetbrains), monospace' }}>

@@ -388,6 +388,8 @@ export default async function ProjectBomPage({
   )
   const bomViewLineItems = lineItems.map((line) => ({
     ...line,
+    // D-5: the numeric(18,4) column is the quantity; the integer is a legacy mirror.
+    quantity: line.quantity_decimal,
     division_label: line.division_id
       ? (divisionLabelById.get(line.division_id) ?? null)
       : null,

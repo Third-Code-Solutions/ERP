@@ -215,7 +215,7 @@ describe('Togal BOM commit authority', () => {
       expect.objectContaining({
         tenant_id: PRINCIPAL.tenantId,
         bom_id: COMMAND.bomId,
-        quantity: 2,
+        quantity_decimal: '2',
         unit_cost_cents: 100,
         line_total_cents: 260,
       }),
@@ -230,6 +230,28 @@ describe('Togal BOM commit authority', () => {
     })
     expect(auditInput.diff).not.toHaveProperty('description')
     expect(auditInput.diff.idempotency_key_hash).toMatch(/^[a-f0-9]{64}$/)
+  })
+
+  // D-5: fractional takeoff quantities persist exactly and price half-up.
+  it('commits a fractional quantity exactly without rounding it', async () => {
+    const { candidate, insertLinesValues } = harness()
+    const command: TogalBomCommitCommand = {
+      ...COMMAND,
+      proposedLines: [{ ...COMMAND.proposedLines[0]!, qty: 2.5, unitCostCents: 101 }],
+    }
+    await expect(
+      candidate.commit(command, PRINCIPAL, 'togal-decimal')
+    ).resolves.toMatchObject({
+      totalCostCents: 1_253, // 1,000 + half-up(101 x 2.5 = 252.5)
+      tcvCents: 2_328, // 2,000 + half-up(101 x 2.5 x 1.3 = 328.25)
+    })
+    expect(insertLinesValues).toHaveBeenCalledWith([
+      expect.objectContaining({
+        quantity_decimal: '2.5',
+        unit_cost_cents: 101,
+        line_total_cents: 328,
+      }),
+    ])
   })
 
   it('replays the exact result without inserting lines or writing audit twice', async () => {

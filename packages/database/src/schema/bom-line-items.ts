@@ -5,6 +5,7 @@ import {
   foreignKey,
   index,
   integer,
+  numeric,
   pgTable,
   text,
   timestamp,
@@ -47,12 +48,20 @@ export const bomLineItems = pgTable(
     code: varchar('code', { length: 50 }),
     description: text('description').notNull(),
     unit: varchar('unit', { length: 20 }),
+    /**
+     * @deprecated D-5: legacy integer mirror. The `bom_line_items_sync_quantity`
+     * trigger keeps it equal to round(quantity_decimal); read and write
+     * `quantity_decimal`. Dropped in a later contract release.
+     */
     quantity: integer('quantity').notNull().default(0),
+    // D-5: BOQ quantity, numeric(18,4) decimal string. No default on purpose:
+    // the trigger fills it from `quantity` only for integer-only writers.
+    quantity_decimal: numeric('quantity_decimal', { precision: 18, scale: 4 }).notNull(),
     // Unit cost in PHP centavos
     unit_cost_cents: bigint('unit_cost_cents', { mode: 'number' }).notNull().default(0),
     // Markup in basis points (0-10000 = 0%-100%)
     markup_bps: integer('markup_bps').notNull().default(0),
-    // line_total = unit_cost_cents * quantity * (1 + markup_bps/10000)
+    // line_total = round_half_up(unit_cost_cents * quantity_decimal * (1 + markup_bps/10000))
     line_total_cents: bigint('line_total_cents', { mode: 'number' }).notNull().default(0),
     notes: text('notes'),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

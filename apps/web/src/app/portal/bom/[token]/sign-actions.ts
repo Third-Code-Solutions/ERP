@@ -208,7 +208,8 @@ interface PortalBomLine {
   code: string | null
   description: string
   unit: string | null
-  quantity: number
+  // D-5: numeric(18,4) decimal string.
+  quantity: string
   unit_cost_cents: number
   line_total_cents: number
   category: string
@@ -302,7 +303,7 @@ export async function loadPortalBom(token: string): Promise<PortalBomDetail> {
       code: bomLineItems.code,
       description: bomLineItems.description,
       unit: bomLineItems.unit,
-      quantity: bomLineItems.quantity,
+      quantity: bomLineItems.quantity_decimal,
       unit_cost_cents: bomLineItems.unit_cost_cents,
       line_total_cents: bomLineItems.line_total_cents,
       is_group: bomLineItems.is_group,

@@ -236,7 +236,8 @@ suite('generic takeoff import Web-to-Core disposable integration', () => {
         tenantId,
         bomId,
         rowCount: 3,
-        unresolvedCount: 3,
+        // D-5: A-003 (0.1 cu.m) is a valid BOQ quantity; only A-002 is unresolved.
+        unresolvedCount: 2,
       })
 
       const foreignPreview = await POST(
@@ -262,7 +263,8 @@ suite('generic takeoff import Web-to-Core disposable integration', () => {
         ok: true,
         mode: 'commit',
         linesUpserted: 3,
-        unresolvedCount: 3,
+        // D-5: A-003 (0.1 cu.m) is a valid BOQ quantity; only A-002 is unresolved.
+        unresolvedCount: 2,
         bomId,
       })
 
@@ -303,7 +305,8 @@ suite('generic takeoff import Web-to-Core disposable integration', () => {
       expect(secondPayload).toMatchObject({
         importId: firstPayload.importId,
         linesUpserted: 3,
-        unresolvedCount: 3,
+        // D-5: A-003 (0.1 cu.m) is a valid BOQ quantity; only A-002 is unresolved.
+        unresolvedCount: 2,
       })
 
       const [persisted] = await db
@@ -327,6 +330,7 @@ suite('generic takeoff import Web-to-Core disposable integration', () => {
         )
       const [fractionalLine] = await db
         .select({
+          quantityDecimal: bomLineItems.quantity_decimal,
           quantity: bomLineItems.quantity,
           classificationStatus: bomLineItems.classification_status,
         })
@@ -375,11 +379,13 @@ suite('generic takeoff import Web-to-Core disposable integration', () => {
       expect(persisted?.notes).toContain(
         'VENDOR:11111111-1111-1111-1111-111111111111'
       )
+      // D-5: stored exactly; the legacy integer mirror is round(0.1) = 0.
       expect(fractionalLine).toEqual({
+        quantityDecimal: '0.1000',
         quantity: 0,
-        classificationStatus: 'review',
+        classificationStatus: 'classified',
       })
-      expect(fractionalIssues).toEqual([{ reasonCode: 'INVALID_QUANTITY' }])
+      expect(fractionalIssues).toEqual([])
       expect(audit).toMatchObject({
         actorId: userId,
         entityId: firstPayload.importId,

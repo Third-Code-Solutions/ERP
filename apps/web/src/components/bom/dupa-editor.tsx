@@ -17,7 +17,8 @@ interface BomWorkItem {
   id: string
   description: string
   unit: string | null
-  quantity: number
+  // D-5: numeric(18,4) decimal string.
+  quantity: string
   dupa?: BomDupaDetail
 }
 
@@ -184,7 +185,7 @@ function sectionStyle(): React.CSSProperties {
 export function DupaEditor({ projectId, bomId, line, assemblyOptions, isEditable, onClose }: DupaEditorProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
-  const [draft, setDraft] = useState<DupaDraft>(() => (line ? draftFromLine(line) : draftFromLine({ id: '', description: '', unit: '', quantity: 1 })))
+  const [draft, setDraft] = useState<DupaDraft>(() => (line ? draftFromLine(line) : draftFromLine({ id: '', description: '', unit: '', quantity: '1' })))
   const [error, setError] = useState('')
   const [savedMessage, setSavedMessage] = useState('')
 

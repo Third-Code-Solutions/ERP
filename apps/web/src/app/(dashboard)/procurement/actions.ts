@@ -52,10 +52,12 @@ import {
   type PurchaseOrderWorkflowAction,
 } from '@third-code-erp/shared-types'
 import {
+  boqQuantityToMicros,
   computeEWT,
   computeRetention,
   computeVAT,
   cumulativeBillingCapError,
+  manualLineTotal,
   progressBillingAmount,
 } from '@third-code-erp/shared-types/bom'
 
@@ -295,7 +297,8 @@ export async function createPoFromBom(
       if (lines.length === 0) throw new Error('BOM_NO_LINES')
       const poLines = lines.map((line) => ({
         line,
-        lineTotalCents: calculateLineTotalCents(line.unit_cost_cents, line.quantity),
+        // D-5: half-up round(rate x quantity_decimal), exact.
+        lineTotalCents: manualLineTotal(line.unit_cost_cents, line.quantity_decimal),
       }))
 
       const budgetCodeByBomLine = await approvedBudgetCodesByBomLine(
@@ -341,7 +344,9 @@ export async function createPoFromBom(
           code: l.code ?? undefined,
           description: l.description,
           unit: l.unit ?? undefined,
+          // D-5: legacy integer mirror; the exact quantity is quantity_micros.
           quantity: l.quantity,
+          quantity_micros: boqQuantityToMicros(l.quantity_decimal),
           unit_cost_cents: l.unit_cost_cents,
           line_total_cents: lineTotalCents,
           bom_line_item_id: l.id,
@@ -1634,7 +1639,7 @@ export async function createPosFromBomGrouped(
       const bucketsToCreate: Array<{ bucket: Bucket; subtotalCents: number }> = []
       for (const [key, bucket] of buckets) {
         const subtotalCents = bucket.lines.reduce((sum, line) => {
-          const next = sum + calculateLineTotalCents(line.unit_cost_cents, line.quantity)
+          const next = sum + manualLineTotal(line.unit_cost_cents, line.quantity_decimal)
           if (!Number.isSafeInteger(next)) {
             throw new RangeError('Subtotal exceeds the supported centavo range')
           }
@@ -1695,12 +1700,11 @@ export async function createPosFromBomGrouped(
             code: l.code ?? undefined,
             description: l.description,
             unit: l.unit ?? undefined,
+            // D-5: legacy integer mirror; the exact quantity is quantity_micros.
             quantity: l.quantity,
+            quantity_micros: boqQuantityToMicros(l.quantity_decimal),
             unit_cost_cents: l.unit_cost_cents,
-            line_total_cents: calculateLineTotalCents(
-              l.unit_cost_cents,
-              l.quantity
-            ),
+            line_total_cents: manualLineTotal(l.unit_cost_cents, l.quantity_decimal),
             bom_line_item_id: l.id,
             cost_code_id: purchaseLineCostCode(budgetCodeByBomLine, l),
           }))

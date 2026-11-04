@@ -19,6 +19,7 @@ import {
 } from '@third-code-erp/shared-types'
 import {
   classifyBomLineKind,
+  takeoffCommitQuantity,
   validateTakeoffRows,
   type StructuredTakeoffRow,
   type TakeoffValidationIssue,
@@ -401,7 +402,8 @@ export class DocumentProcessingDraftBomService {
           code: row.itemNo,
           description: row.description || `Unresolved CAD row ${row.sourceRowKey}`,
           unit: row.unit || null,
-          quantity: row.quantity ?? 0,
+          // D-5: exact numeric(18,4); an invalid value commits as 0 in review.
+          quantity_decimal: takeoffCommitQuantity(row.quantity),
           drawing_revision_id: revision.id,
           takeoff_import_id: takeoffImport.id,
           source_row_key: row.sourceRowKey,
@@ -430,7 +432,7 @@ export class DocumentProcessingDraftBomService {
             code: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.code} else excluded.code end`,
             description: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.description} else excluded.description end`,
             unit: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.unit} else excluded.unit end`,
-            quantity: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.quantity} else excluded.quantity end`,
+            quantity_decimal: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.quantity_decimal} else excluded.quantity_decimal end`,
             drawing_revision_id: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.drawing_revision_id} else excluded.drawing_revision_id end`,
             ai_drafted: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.ai_drafted} else true end`,
             source_model: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.source_model} else excluded.source_model end`,

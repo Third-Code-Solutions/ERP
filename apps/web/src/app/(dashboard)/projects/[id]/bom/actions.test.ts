@@ -196,8 +196,9 @@ vi.mock('@/lib/erp-core-client', () => ({
   rfqAutoDispatchUsesCoreApi: mocks.useCore,
 }))
 
-vi.mock('@third-code-erp/shared-types/bom', () => ({
-  MAX_BOM_LINE_ITEM_QUANTITY: 2_147_483_647,
+vi.mock('@third-code-erp/shared-types/bom', async (importOriginal) => ({
+  parseBoqQuantity: (await importOriginal<typeof import('@third-code-erp/shared-types/bom')>())
+    .parseBoqQuantity,
   lineTotal: vi.fn(),
   bomTotalCost: vi.fn(() => 0),
   topLevelBomLines: vi.fn((lines: unknown[]) => lines),
@@ -622,7 +623,7 @@ describe('BOM line mutation guardrails', () => {
   const draftAddInput = {
     description: 'Concrete slab work',
     unit: 'm',
-    quantity: 1,
+    quantity: '1',
     unit_cost_cents: 2_500,
     locationId: LOCATION_ID,
   }
@@ -662,20 +663,25 @@ describe('BOM line mutation guardrails', () => {
   })
 
   it('rejects malformed or unsafe manual-line input before querying data', async () => {
-    await expect(
-      addBomLineItem(BOM_ID, PROJECT_ID, {
-        ...draftAddInput,
-        quantity: 2,
-        unit_cost_cents: Number.MAX_SAFE_INTEGER,
-      }),
-    ).resolves.toEqual({ error: 'Invalid BOM line item input' })
+    const actual = await vi.importActual<typeof import('@third-code-erp/shared-types/bom')>(
+      '@third-code-erp/shared-types/bom',
+    )
+    mocks.manualLineTotal.mockImplementation(actual.manualLineTotal)
 
     await expect(
       addBomLineItem(BOM_ID, PROJECT_ID, {
         ...draftAddInput,
-        quantity: 2_147_483_648,
+        quantity: '2',
+        unit_cost_cents: Number.MAX_SAFE_INTEGER,
       }),
     ).resolves.toEqual({ error: 'Invalid BOM line item input' })
+
+    // D-5: quantity is an exact decimal string with at most 4 decimal places.
+    for (const quantity of ['2147483648', '1.23456', '0.00001', '-1', '1e3', '', 1]) {
+      await expect(
+        addBomLineItem(BOM_ID, PROJECT_ID, { ...draftAddInput, quantity }),
+      ).resolves.toEqual({ error: 'Invalid BOM line item input' })
+    }
 
     expect(mocks.select).not.toHaveBeenCalled()
     expect(mocks.transaction).not.toHaveBeenCalled()
@@ -716,14 +722,28 @@ describe('BOM line mutation guardrails', () => {
     mocks.transaction.mockImplementation(async (callback) => callback(mutationTransaction))
     mocks.transactionUpdate.mockReturnValue(updateChain())
 
-    await expect(addBomLineItem(BOM_ID, PROJECT_ID, draftAddInput)).resolves.toEqual({})
+    const insertChain = insertReturningChain([{ id: LINE_ITEM_ID }])
+    mocks.transactionInsert.mockReturnValue(insertChain)
 
+    await expect(
+      addBomLineItem(BOM_ID, PROJECT_ID, { ...draftAddInput, quantity: '12.50' }),
+    ).resolves.toEqual({})
+
+    // D-5: the canonical decimal is priced and stored, never rounded to an integer.
+    expect(mocks.manualLineTotal).toHaveBeenCalledWith(2_500, '12.5')
+    expect(insertChain.values).toHaveBeenCalledWith(
+      expect.objectContaining({ quantity_decimal: '12.5', line_total_cents: 2_500 }),
+    )
+    expect(insertChain.values).not.toHaveBeenCalledWith(
+      expect.objectContaining({ quantity: expect.anything() }),
+    )
     expect(mocks.writeAuditLogInTransaction).toHaveBeenCalledWith(
       mutationTransaction,
       expect.objectContaining({
         entityType: 'bom_line_item',
         entityId: LINE_ITEM_ID,
         action: 'create',
+        diff: expect.objectContaining({ quantity: '12.5' }),
       }),
     )
     expect(mocks.writeAuditLog).not.toHaveBeenCalled()
@@ -811,7 +831,7 @@ describe('BOM draft-lock regression', () => {
   const manualLine = {
     description: 'Concrete slab work',
     unit: 'm',
-    quantity: 1,
+    quantity: '1',
     unit_cost_cents: 2_500,
     locationId: LOCATION_ID,
   }

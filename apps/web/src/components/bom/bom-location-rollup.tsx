@@ -1,4 +1,5 @@
 import type { BomLocationRollupRow } from '@/app/(dashboard)/projects/[id]/bom/actions'
+import { formatBoqQuantity } from '@third-code-erp/shared-types/bom'
 
 export function BomLocationRollup({ rows }: { rows: BomLocationRollupRow[] }) {
   if (rows.length === 0) return null
@@ -42,7 +43,7 @@ export function BomLocationRollup({ rows }: { rows: BomLocationRollupRow[] }) {
                 <td>{row.description}</td>
                 <td>{row.unit ?? '—'}</td>
                 <td className="numeric" style={{ fontFamily: 'var(--font-mono)' }}>
-                  {row.quantity.toLocaleString()}
+                  {formatBoqQuantity(row.quantity)}
                 </td>
               </tr>
             ))}

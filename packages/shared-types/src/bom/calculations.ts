@@ -2,6 +2,8 @@
 // All monetary values are in PHP centavos (integer).
 // Percentages/markups use basis points: 0-10000 = 0%-100%.
 
+import { scaledBoqQuantity } from './quantity'
+
 export type BasisPoints = number
 
 const MAX_SAFE_INTEGER_BIGINT = BigInt(Number.MAX_SAFE_INTEGER)
@@ -62,7 +64,8 @@ function roundedRatio(
 
 export interface BomLine {
   unit_cost_cents: number
-  quantity: number
+  // D-5: numeric(18,4) decimal string.
+  quantity: string
   markup_bps: BasisPoints
   line_total_cents: number
 }
@@ -179,23 +182,29 @@ export function rateCardPicker<TCard extends RateCardOffer>(
 }
 
 // line_total = unit_cost * quantity * (1 + markup_bps / 10000)
+// D-5: quantity is an exact decimal string (at most 4 dp), and the whole
+// product is rounded half-up once, to the centavo.
 export function lineTotal(
   unitCostCents: number,
-  quantity: number,
+  quantity: string,
   markupBps: BasisPoints
 ): number {
   const unitCost = exactInteger(unitCostCents, 'unit cost')
-  const quantityBigInt = exactInteger(quantity, 'quantity')
+  const scaledQuantity = scaledBoqQuantity(quantity)
   const markupRate = exactInteger(markupBps, 'markup basis points')
-  const subtotal = unitCost * quantityBigInt
-  const markup = roundHalfUp(subtotal * markupRate, 10000n)
-  return safeNumber(subtotal + markup, 'line total')
+  return safeNumber(
+    roundHalfUp(
+      unitCost * scaledQuantity * (10000n + markupRate),
+      10000n * 10000n
+    ),
+    'line total'
+  )
 }
 
 // Manual BOM lines do not accept an ad-hoc line-level markup. Client pricing
 // is supplied by the attached rate source and approved through the pricing
 // workflow, so manual input is always a flat cost calculation.
-export function manualLineTotal(unitCostCents: number, quantity: number): number {
+export function manualLineTotal(unitCostCents: number, quantity: string): number {
   return lineTotal(unitCostCents, quantity, 0)
 }
 

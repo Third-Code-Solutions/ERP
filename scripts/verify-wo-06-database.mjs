@@ -188,7 +188,8 @@ try {
       return (
         definition.includes('round(v_total / v_dupa.header_quantity)::bigint') &&
         definition.includes('v_unit_rate::numeric') &&
-        definition.includes('quantity::numeric') &&
+        // D-5 (20261104195001): the BOQ amount uses the exact decimal quantity.
+        definition.includes('v_unit_rate::numeric * quantity_decimal') &&
         definition.includes("unit_rate_source = 'dupa'") &&
         definition.includes('markup_bps = 0')
       )

@@ -19,6 +19,7 @@ import {
   vendors,
 } from '@third-code-erp/database/schema'
 import {
+  boqQuantityFromNumber,
   computeGP,
   computeGPMargin,
   lineTotal,
@@ -37,7 +38,6 @@ import { DatabaseService } from '../database/database.service'
 
 const MAX_SAFE_INTEGER_BIGINT = BigInt(Number.MAX_SAFE_INTEGER)
 const MAX_POSTGRES_BIGINT = 9_223_372_036_854_775_807n
-const MAX_BOM_QUANTITY = 2_147_483_647
 const DEFAULT_MARKUP_BPS = 3_000
 
 function canonicalJson(value: unknown): string {
@@ -78,6 +78,17 @@ function safeCents(value: number, message: string): number {
     throw new ConflictException(message)
   }
   return value
+}
+
+// lineTotal throws RangeError past the exact number range; safeCents then
+// maps the non-integer sentinel to the caller's ConflictException message.
+function exactCents(compute: () => number): number {
+  try {
+    return compute()
+  } catch (error) {
+    if (error instanceof RangeError) return Number.NaN
+    throw error
+  }
 }
 
 function validateIdempotencyKey(raw: string): string {
@@ -266,18 +277,19 @@ export class TogalBomCommitService {
       let addedTcvCents = 0
       const linesToInsert = parsedCommand.proposedLines.map((line, index) => {
         const markupBps = line.markupBps ?? projectMarkupBps
-        const qtyInt = line.qty
-        if (!Number.isSafeInteger(qtyInt) || qtyInt < 0 || qtyInt > MAX_BOM_QUANTITY) {
+        // D-5: exact numeric(18,4) quantity; amounts round half-up per line.
+        const quantity = boqQuantityFromNumber(line.qty)
+        if (quantity === null) {
           throw new ConflictException(
-            'Togal BOM quantity exceeds supported integer range'
+            'Togal BOM quantity must have at most 4 decimal places and fit the BOM range'
           )
         }
         const cost = safeCents(
-          line.unitCostCents * qtyInt,
+          exactCents(() => lineTotal(line.unitCostCents, quantity, 0)),
           'Togal BOM cost exceeds supported exact centavo range'
         )
         const total = safeCents(
-          lineTotal(line.unitCostCents, qtyInt, markupBps),
+          exactCents(() => lineTotal(line.unitCostCents, quantity, markupBps)),
           'Togal BOM line total exceeds supported exact centavo range'
         )
         addedCostCents = safeCents(
@@ -306,7 +318,7 @@ export class TogalBomCommitService {
           code: line.code ?? null,
           description: line.description,
           unit: line.unit ?? null,
-          quantity: qtyInt,
+          quantity_decimal: quantity,
           unit_cost_cents: line.unitCostCents,
           markup_bps: markupBps,
           line_total_cents: total,

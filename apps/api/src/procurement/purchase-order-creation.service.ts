@@ -42,6 +42,10 @@ import {
   type PurchaseOrdersGroupedFromBomResult,
 } from '@third-code-erp/shared-types'
 import {
+  boqQuantityToMicros,
+  deriveBoqLineAmount,
+} from '@third-code-erp/shared-types/bom'
+import {
   and,
   eq,
   gt,
@@ -323,6 +327,7 @@ export class PurchaseOrderCreationService {
           description: bomLineItems.description,
           unit: bomLineItems.unit,
           quantity: bomLineItems.quantity,
+          quantityDecimal: bomLineItems.quantity_decimal,
           unitCostCents: bomLineItems.unit_cost_cents,
           is_group: bomLineItems.is_group,
           parent_id: bomLineItems.parent_id,
@@ -453,7 +458,8 @@ export class PurchaseOrderCreationService {
       const groups = [...buckets.values()].map((bucket) => {
         const subtotal = bucket.lines.reduce(
           (sum, line) =>
-            sum + BigInt(line.unitCostCents) * BigInt(line.quantity),
+            sum +
+            deriveBoqLineAmount(BigInt(line.unitCostCents), line.quantityDecimal),
           0n
         )
         return {
@@ -539,10 +545,15 @@ export class PurchaseOrderCreationService {
             code: line.code ?? undefined,
             description: line.description,
             unit: line.unit ?? undefined,
+            // D-5: legacy integer mirror plus the exact quantity in micros.
             quantity: line.quantity,
+            quantity_micros: boqQuantityToMicros(line.quantityDecimal),
             unit_cost_cents: safeDatabaseCents(BigInt(line.unitCostCents)),
             line_total_cents: safeDatabaseCents(
-              BigInt(line.unitCostCents) * BigInt(line.quantity)
+              deriveBoqLineAmount(
+                BigInt(line.unitCostCents),
+                line.quantityDecimal
+              )
             ),
             bom_line_item_id: line.id,
             cost_code_id: purchaseLineCostCode(costCodeByBomLine, line),
@@ -807,6 +818,7 @@ export class PurchaseOrderCreationService {
           description: bomLineItems.description,
           unit: bomLineItems.unit,
           quantity: bomLineItems.quantity,
+          quantityDecimal: bomLineItems.quantity_decimal,
           unitCostCents: bomLineItems.unit_cost_cents,
           is_group: bomLineItems.is_group,
           parent_id: bomLineItems.parent_id,
@@ -861,7 +873,12 @@ export class PurchaseOrderCreationService {
 
       const lineValues = lines.map((line) => {
         const unitCost = BigInt(line.unitCostCents)
-        return { line, unitCost, lineTotal: unitCost * BigInt(line.quantity) }
+        // D-5: half-up round(rate x quantity_decimal), exact.
+        return {
+          line,
+          unitCost,
+          lineTotal: deriveBoqLineAmount(unitCost, line.quantityDecimal),
+        }
       })
       // D-4: the header foots to the PO lines created, not bom.total_cost_cents.
       const subtotalCents = lineValues.reduce(
@@ -928,7 +945,9 @@ export class PurchaseOrderCreationService {
           code: line.code ?? undefined,
           description: line.description,
           unit: line.unit ?? undefined,
+          // D-5: legacy integer mirror plus the exact quantity in micros.
           quantity: line.quantity,
+          quantity_micros: boqQuantityToMicros(line.quantityDecimal),
           unit_cost_cents: safeDatabaseCents(unitCost),
           line_total_cents: safeDatabaseCents(lineTotal),
           bom_line_item_id: line.id,

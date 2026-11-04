@@ -495,10 +495,13 @@ function bomLine(
     is_group: number
     parent_id: string | null
     parent_line_item_id: string | null
+    // D-5: the exact quantity; `quantity` is its round() legacy mirror.
+    quantityDecimal: string
   }> & { quantity: number; unitCostCents: number }
 ) {
   lineSeq += 1
   return {
+    quantityDecimal: String(values.quantity),
     id: `dddddddd-dddd-4ddd-8ddd-${String(lineSeq).padStart(12, '0')}`,
     code: null,
     description: `Line ${lineSeq}`,
@@ -672,6 +675,46 @@ describe('PO from BOM foots its header to its lines (D-4)', () => {
       vat_cents: 107_986,
       withholding_tax_cents: 17_998,
       total_cents: 989_871,
+    })
+    expect(po.header.subtotal_cents).toBe(sumLineTotals(po.lines))
+  })
+
+  it('foots fractional leaf quantities to Σ half-up decimal-priced lines (D-5)', async () => {
+    const header = bomLine({ is_group: 1, quantity: 1, unitCostCents: 999_999 })
+    const leaves = [
+      // 0.10 cu.m x 162,175.00 = 16,217.50 exactly.
+      bomLine({
+        parent_line_item_id: header.id,
+        quantity: 0,
+        quantityDecimal: '0.1000',
+        unitCostCents: 16_217_500,
+      }),
+      // 12.5 x 123.45 = 1,543.125 -> 1,543.13 (half-up tie).
+      bomLine({ quantity: 13, quantityDecimal: '12.5000', unitCostCents: 12_345 }),
+      // 0.0001 x 50.00 = 0.005 -> 0.01; 3.3333 x 0.03 = 0.099999 -> 0.10.
+      bomLine({ quantity: 0, quantityDecimal: '0.0001', unitCostCents: 5_000 }),
+      bomLine({ quantity: 3, quantityDecimal: '3.3333', unitCostCents: 3 }),
+    ]
+
+    const po = await createFromBomWith([header, ...leaves])
+
+    expect(po.lines.map((line) => line.bom_line_item_id)).toEqual(
+      leaves.map((line) => line.id)
+    )
+    expect(po.lines.map((line) => line.line_total_cents)).toEqual([
+      1_621_750, 154_313, 1, 10,
+    ])
+    // The exact quantity goes to micros; the integer stays the rounded copy.
+    expect(po.lines.map((line) => line.quantity_micros)).toEqual([
+      100_000, 12_500_000, 100, 3_333_300,
+    ])
+    expect(po.lines.map((line) => line.quantity)).toEqual([0, 13, 0, 3])
+    // Σ = 17,760.74. VAT 12% = 2,131.2888 -> 2,131.29. EWT 2% = 355.2148 -> 355.21.
+    expect(po.header).toMatchObject({
+      subtotal_cents: 1_776_074,
+      vat_cents: 213_129,
+      withholding_tax_cents: 35_521,
+      total_cents: 1_953_682,
     })
     expect(po.header.subtotal_cents).toBe(sumLineTotals(po.lines))
   })
