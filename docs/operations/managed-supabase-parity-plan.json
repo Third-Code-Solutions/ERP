@@ -11,10 +11,10 @@
     "databaseVersion": "17.6.1.121",
     "postgresMajor": 17,
     "appliedCount": 157,
-    "sourceCount": 177,
-    "pendingCount": 20,
+    "sourceCount": 178,
+    "pendingCount": 21,
     "appliedHead": "20260901141949",
-    "sourceHead": "20260921181036",
+    "sourceHead": "20261104100000",
     "ledgerStatus": "current_remote_ledger_matches_source",
     "purchaseOrderPreflight": {
       "duplicateGroups": 0,
@@ -121,6 +121,16 @@
       "hostedApplyApproved": false,
       "risk": "Adds tenant-scoped, RLS-protected procurement, inventory reservation, landed-cost, price-list, currency, tax/statutory, period-close, SAP outbox and provider-delivery foundations. The migration preserves existing ERP tables and keeps new workflows dark behind tenant feature flags; live provider behavior and hosted schema application remain unverified.",
       "recovery": "Require backup/PITR, isolated restore and migration rehearsal, exact-target lock/grant preflight, and provider/SAP credential verification before hosted application. The migration is transactional and aborts without data changes on failure. Keep roadmap flags and workers disabled until live replay and all-role E2E evidence are recorded; roll forward or use the reviewed migration recovery procedure rather than bypassing RLS or audit controls."
+    },
+    {
+      "id": "20261104-revoke-client-table-writes",
+      "migrations": [
+        "20261104100000_revoke_client_table_writes.sql"
+      ],
+      "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
+      "hostedApplyApproved": false,
+      "risk": "Privilege-only SEC-01/SEC-02 fix: revokes INSERT, UPDATE, DELETE and TRUNCATE on every public table from authenticated and anon, and removes the same privileges from the postgres default ACL in public. SELECT, service_role grants, RLS policies, data and schema are unchanged. Any remaining browser-JWT table writer would now receive 42501; the inventory found none (all writes run as postgres or through SECURITY DEFINER RPCs). GRANT/REVOKE briefly updates every public relation ACL under a 5-second lock timeout.",
+      "recovery": "Take an encrypted backup first. The migration is transactional and aborts without changes on failure. After commit, roll forward by moving any discovered browser writer to the Core API; a targeted re-GRANT on a single table is possible but must be a reviewed recovery action because it reopens the SEC-01 bypass. This source-only batch does not authorize hosted application."
     }
   ]
 }

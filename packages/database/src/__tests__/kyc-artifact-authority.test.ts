@@ -190,7 +190,7 @@ suite('KYC artifact direct database authority', () => {
     })
   })
 
-  it('preserves service-role audited artifact insertion and unrelated authenticated account updates', async () => {
+  it('preserves service-role audited artifact insertion while direct authenticated account/opportunity updates are denied', async () => {
     await inRollback(sql, async (tx) => {
       const f = await seedTwoTenants(tx), data = await seedArtifact(tx, f.tenantA, f.userA)
       const id = randomUUID()
@@ -198,9 +198,17 @@ suite('KYC artifact direct database authority', () => {
       expect(await tx`insert into account_kyc_artifacts(id,tenant_id,account_id,artifact_type) values(${id},${f.tenantA},${data.accountId},'other') returning id`).toEqual([{ id }])
       expect(await tx`select entity_id from audit_log where entity_type='account_kyc_artifacts' and entity_id=${id}`).toEqual([{ entity_id: id }])
       await tx.unsafe('reset role')
-      await assume(tx, f.userA, 'authenticated')
-      expect(await tx`update accounts set name='Still editable' where id=${data.accountId} returning name`).toEqual([{ name: 'Still editable' }])
-      expect(await tx`update opportunities set remarks='Still editable' where id=${data.opportunityId} returning remarks`).toEqual([{ remarks: 'Still editable' }])
+      const before = await evidence(tx, f.tenantA)
+      // 20261104100000 (SEC-01) retired the legacy browser account/opportunity DML grants.
+      await expect(tx.savepoint(async (probe) => {
+        await assume(probe, f.userA, 'authenticated')
+        await probe`update accounts set name='Direct write' where id=${data.accountId}`
+      })).rejects.toMatchObject({ code: '42501' })
+      await expect(tx.savepoint(async (probe) => {
+        await assume(probe, f.userA, 'authenticated')
+        await probe`update opportunities set remarks='Direct write' where id=${data.opportunityId}`
+      })).rejects.toMatchObject({ code: '42501' })
+      expect(await evidence(tx, f.tenantA)).toEqual(before)
     })
   })
 

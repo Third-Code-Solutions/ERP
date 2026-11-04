@@ -1,0 +1,178 @@
+/**
+ * SEC-01 / SEC-02: browser JWT roles hold no table DML in `public`.
+ *
+ * Every ERP write runs as `postgres` (Drizzle SSR, Nest Core API) or through
+ * SECURITY DEFINER RPCs, so `authenticated` and `anon` keep RLS-scoped reads
+ * only. A regrant (explicit or via the postgres default ACL) reopens the
+ * PostgREST write bypass, so both are asserted against the replayed catalog.
+ */
+import { readFileSync } from 'node:fs'
+
+import type postgres from 'postgres'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+
+import {
+  becomeAuthenticated,
+  DATABASE_URL,
+  inRollback,
+  makeSql,
+  seedTwoTenants,
+} from './_db-harness'
+
+const migration = readFileSync(
+  new URL(
+    '../../../../supabase/migrations/20261104100000_revoke_client_table_writes.sql',
+    import.meta.url
+  ),
+  'utf8'
+)
+const executable = migration.replace(/--[^\r\n]*/g, '').toLowerCase()
+
+const runtimeDescribe = DATABASE_URL ? describe : describe.skip
+
+describe('client table write revocation migration', () => {
+  it('revokes client DML on every public table and from the postgres default ACL', () => {
+    expect(executable).toMatch(
+      /revoke insert, update, delete, truncate\s+on all tables in schema public from authenticated, anon;/
+    )
+    expect(executable).toMatch(
+      /alter default privileges for role postgres in schema public\s+revoke insert, update, delete, truncate on tables from authenticated, anon;/
+    )
+  })
+
+  it('is transactional, bounded and privilege-only', () => {
+    expect(executable.match(/^begin;\s*$/gm)).toHaveLength(1)
+    expect(executable.trimEnd().endsWith('commit;')).toBe(true)
+    expect(executable).toContain("set local lock_timeout = '5s';")
+    expect(executable).not.toMatch(/\b(grant|drop|create|alter table|insert into|update \S+ set|delete from)\b/)
+    expect(executable).not.toMatch(/\bselect\b/)
+  })
+})
+
+async function failureCode(
+  tx: postgres.TransactionSql,
+  statement: string
+): Promise<string | undefined> {
+  await tx.unsafe('savepoint client_write_probe')
+  let code: string | undefined
+  try {
+    await tx.unsafe(statement)
+  } catch (error) {
+    if (typeof error === 'object' && error !== null && 'code' in error) {
+      const candidate = error.code
+      if (typeof candidate === 'string') code = candidate
+    }
+  }
+  await tx.unsafe('rollback to savepoint client_write_probe')
+  await tx.unsafe('release savepoint client_write_probe')
+  return code
+}
+
+// Permission checks run before row or constraint evaluation, so empty
+// targets and default rows are enough to prove the privilege boundary.
+const directWriteProbes = [
+  `update public.purchase_orders set status = 'issued'`,
+  `update public.progress_claims set status = status`,
+  `insert into public.customer_portal_sessions default values`,
+  `insert into public.tenant_feature_flags default values`,
+  `insert into public.provider_delivery_outbox default values`,
+  `delete from public.documents`,
+  `truncate table public.audit_log`,
+]
+
+runtimeDescribe('client table write privileges (database)', () => {
+  let sql: postgres.Sql
+
+  beforeAll(() => {
+    sql = makeSql()
+  })
+
+  afterAll(async () => {
+    await sql?.end({ timeout: 5 })
+  })
+
+  it('grants authenticated and anon no table or column DML on any public relation', async () => {
+    const leaks = await sql.unsafe<Array<{ grant: string }>>(`
+      select r.role_name || ':' || c.relname || ':' || p.privilege as grant
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+       cross join (values ('authenticated'), ('anon')) as r(role_name)
+       cross join unnest(array['INSERT', 'UPDATE', 'DELETE', 'TRUNCATE']) as p(privilege)
+       where n.nspname = 'public'
+         and c.relkind in ('r', 'p', 'v', 'm', 'f')
+         and case
+           when p.privilege in ('INSERT', 'UPDATE')
+             then has_any_column_privilege(r.role_name, c.oid, p.privilege)
+           else has_table_privilege(r.role_name, c.oid, p.privilege)
+         end
+       order by 1
+    `)
+    expect(leaks.map((row) => row.grant)).toEqual([])
+
+    const [counted] = await sql.unsafe<Array<{ tables: number }>>(`
+      select count(*)::int as tables
+        from pg_class c join pg_namespace n on n.oid = c.relnamespace
+       where n.nspname = 'public' and c.relkind in ('r', 'p')
+    `)
+    expect(counted!.tables).toBeGreaterThan(100)
+  })
+
+  it('keeps authenticated RLS-scoped SELECT grants', async () => {
+    const [row] = await sql.unsafe<Array<{ users: boolean; projects: boolean }>>(`
+      select has_table_privilege('authenticated', 'public.users', 'SELECT') as users,
+             has_table_privilege('authenticated', 'public.projects', 'SELECT') as projects
+    `)
+    expect(row).toEqual({ users: true, projects: true })
+  })
+
+  it('leaves no client DML in the postgres default ACL for public or global tables', async () => {
+    const defaults = await sql.unsafe<Array<{ entry: string }>>(`
+      select coalesce(nullif(d.defaclnamespace, 0)::regnamespace::text, '*')
+             || ':' || case when a.grantee = 0 then 'PUBLIC' else a.grantee::regrole::text end
+             || ':' || a.privilege_type as entry
+        from pg_default_acl d
+       cross join lateral aclexplode(d.defaclacl) as a
+       where d.defaclrole = 'postgres'::regrole
+         and d.defaclobjtype = 'r'
+         and d.defaclnamespace in (0, 'public'::regnamespace)
+         and (a.grantee = 0 or a.grantee in ('authenticated'::regrole, 'anon'::regrole))
+         and a.privilege_type in ('INSERT', 'UPDATE', 'DELETE', 'TRUNCATE')
+       order by 1
+    `)
+    expect(defaults.map((row) => row.entry)).toEqual([])
+
+    await inRollback(sql, async (tx) => {
+      await tx.unsafe('create table public.client_write_default_acl_probe (id integer)')
+      const [probe] = await tx.unsafe<Array<{ writable: boolean }>>(`
+        select has_table_privilege('authenticated', 'public.client_write_default_acl_probe', 'INSERT, UPDATE, DELETE, TRUNCATE')
+            or has_table_privilege('anon', 'public.client_write_default_acl_probe', 'INSERT, UPDATE, DELETE, TRUNCATE') as writable
+      `)
+      expect(probe!.writable).toBe(false)
+    })
+  })
+
+  it.each(['authenticated', 'anon'] as const)(
+    'rejects direct %s writes with 42501 while authenticated reads stay tenant-scoped',
+    async (role) => {
+      await inRollback(sql, async (tx) => {
+        const { userA, tenantA } = await seedTwoTenants(tx)
+        if (role === 'authenticated') {
+          await becomeAuthenticated(tx, userA)
+        } else {
+          await tx.unsafe(`select set_config('request.jwt.claims', '', true)`)
+          await tx.unsafe('set local role anon')
+        }
+        for (const statement of directWriteProbes) {
+          expect(await failureCode(tx, statement), statement).toBe('42501')
+        }
+        if (role === 'authenticated') {
+          const visible = await tx.unsafe<Array<{ tenant_id: string }>>(
+            'select distinct tenant_id from public.users'
+          )
+          expect(visible).toEqual([{ tenant_id: tenantA }])
+        }
+        await tx.unsafe('reset role')
+      })
+    }
+  )
+})

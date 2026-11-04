@@ -21,6 +21,10 @@ grant usage on schema public to anon, authenticated, service_role;
 
 alter default privileges for role postgres in schema public
   grant all on tables to anon, authenticated, service_role;
+-- Mirror 20261104100000_revoke_client_table_writes: client roles never get
+-- table DML by default, even in the disposable CI database.
+alter default privileges for role postgres in schema public
+  revoke insert, update, delete, truncate on tables from anon, authenticated;
 alter default privileges for role postgres in schema public
   grant all on sequences to anon, authenticated, service_role;
 alter default privileges for role postgres in schema public
@@ -60,10 +64,8 @@ grant select, insert, update, delete, truncate on table public.documents,
 -- trusted-server access; artifact mutation and parent deletion denials stay put.
 grant select on table public.account_kyc_artifacts, public.accounts,
   public.opportunities to authenticated;
--- Account/opportunity INSERT and UPDATE were observed in the legacy baseline
--- and are explicitly outside this migration's deletion-only parent boundary.
-grant insert, update on table public.accounts, public.opportunities
-  to authenticated;
+-- The legacy account/opportunity INSERT/UPDATE grants were retired by
+-- 20261104100000_revoke_client_table_writes; do not restore them here.
 grant select, insert, update, delete, truncate on table
   public.account_kyc_artifacts, public.accounts, public.opportunities
   to service_role;
