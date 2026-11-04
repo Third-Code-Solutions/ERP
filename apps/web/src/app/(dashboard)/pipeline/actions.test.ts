@@ -523,7 +523,8 @@ describe('atomic Won-to-Project pipeline handoff', () => {
 
 describe('opportunity money validation', () => {
   const INVALID_MONEY = {
-    error: 'TCV and GP must be peso amounts from 0 to 1,000,000,000 with at most 2 decimals.',
+    error:
+      'TCV must be a peso amount from 0 to 1,000,000,000 and GP from -1,000,000,000 to 1,000,000,000, with at most 2 decimals.',
   }
 
   function moneyForm(fields: Record<string, string>): FormData {
@@ -563,12 +564,23 @@ describe('opportunity money validation', () => {
     }
   )
 
-  it('rejects invalid GP on the account flow before database access', async () => {
+  it.each(['abc', '--5', '-1000000000.01', '1.234'])(
+    'rejects GP %s on the account flow before database access',
+    async (gp) => {
+      await expect(
+        createOpportunityForAccount(moneyForm({ tcv: '100', gp }))
+      ).resolves.toEqual(INVALID_MONEY)
+      expect(mocks.select).not.toHaveBeenCalled()
+      expect(mocks.insert).not.toHaveBeenCalled()
+    }
+  )
+
+  it('accepts a negative GP (loss-making deal)', async () => {
     await expect(
-      createOpportunityForAccount(moneyForm({ tcv: '100', gp: '-5' }))
-    ).resolves.toEqual(INVALID_MONEY)
-    expect(mocks.select).not.toHaveBeenCalled()
-    expect(mocks.insert).not.toHaveBeenCalled()
+      createOpportunity(moneyForm({ tcv: '100', gp: '-5.25' }))
+    ).resolves.toEqual({})
+
+    expect(insertedValues()).toMatchObject({ tcv_cents: 10_000, gp_cents: -525 })
   })
 
   it('stores exact cents and keeps blank amounts at zero', async () => {
