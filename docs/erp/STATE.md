@@ -37,15 +37,14 @@ Verdicts are posted as PR comments.
   `00-security-baseline.md`, `docs/erp/ARCHITECTURE.md`).
 - Build: pass (api 26 s, web 127 s) · Typecheck: 0 errors (13 tsconfigs) ·
   Lint: 0/0 (1,388 files) · Tests: 5,105 pass, 0 fail, 204 DB-backed skipped
-  locally (run in CI) · Audit: red on `main` (fixed by #129).
-- P0: 0 · P1: 4 code + 4 security High open · P2: 12 + 3 security Medium ·
-  P3: 10 + 9 security Low.
-- P1 queue (dependency order):
-  1. BL-01/02/03 + SEC-05/06 (Next RCE/DoS, body-parser crash, audit) → PR #129.
-  2. SEC-03 cross-tenant file read: signers must require `storage_path` to start
-     with `<tenantId>/` (code, no migration).
-  3. SEC-04 PO self-approval: distinct actors in `purchase-order-workflow.service`.
-  4. BL-04 opportunity money: zod non-negative decimal → cents in `pipeline/actions.ts`.
+  locally (run in CI) · Audit: green on `main` since #129.
+- P0: 0 · P2: 12 + 3 security Medium · P3: 10 + 9 security Low.
+- P1 at baseline: 4 code + 4 security High. Status now:
+  1. BL-01/02/03 + SEC-05/06 (Next RCE/DoS, body-parser crash, audit): **fixed**,
+     PR #129 merged.
+  2. SEC-03 cross-tenant file read (storage-path allow-list): PR #130.
+  3. SEC-04 PO self-approval (distinct actors): PR #130.
+  4. BL-04 opportunity money: PR #130.
   5. SEC-01 + SEC-02: revoke INSERT/UPDATE/DELETE from `authenticated` on legacy
      tenant tables and roadmap outbox/flag/reference tables. **Live in prod**
      (checked 2026-11-04: `authenticated` can INSERT/UPDATE `purchase_orders`,
@@ -66,6 +65,11 @@ Verdicts are posted as PR comments.
   - build, claim-document browser test, trusted-PR e2e
   - `pnpm audit` (prod + full), gitleaks
 - Deferred P1 items (with reason): —
+- Phase D (gap analysis) has not run. `BACKLOG.md` statuses are unreviewed seeds,
+  so `/erp-swarm next` must wait for Phase D, which in turn waits for the licensing
+  decision below.
+- Accepted risk: no environment protection or branch protection (plan blocks it);
+  see `docs/erp/RUNBOOK.md` section 5.
 
 ## Current
 Order: promote #129 → #128 (round 2) → #130 (P1 security) → baseline PR → #125 delta →
@@ -74,16 +78,22 @@ SEC-01/02 grant migration (needs `backup-production.yml` on `main` first).
 - **PR #129** merged 2026-11-04 as `a2313a47` (security PASS r2, review APPROVE r2,
   CI green). Next.js 15.5.28, body-parser/multer/qs overrides, zod waiver with
   compensating controls (Core API array budget, token-first DocuSeal webhook).
-  Production promotion pending main CI.
+  Main CI green after a rerun of one flaky claim-document browser test. Production
+  promotion run 41772426127 dispatched.
 - **PR #128** `fix/tasks-generation-and-erp-task-page` (worktree `D:\thirdcode\ERP`).
   Fix loop 1 done (`925685de`, `f2c0d351`), `main` merged in (`854ac6d0`), round 2
   fresh reviewers running.
 - **PR #130** `fix/p1-tenant-paths-po-sod-money` (worktree `D:\thirdcode\ERP-p1`):
   SEC-03, SEC-04, BL-04. Fresh reviewers running. Prod check: all 9 `documents`
   rows are tenant-prefixed, so the guard hides no existing file.
-- **Baseline PR** `chore/erp-baseline` (worktree `D:\thirdcode\ERP-baseline`): swarm
-  files, STATE, RUNBOOK, `smoke:prod` + workflow, encrypted backup workflow, audit
-  reports.
+- **Baseline PR #131** `chore/erp-baseline` (worktree `D:\thirdcode\ERP-baseline`):
+  swarm files, STATE, RUNBOOK, `smoke:prod` + workflow, encrypted backup workflow,
+  audit reports. Round 1: security 4 Medium, code REQUEST CHANGES (stale dashboard
+  heading in the smoke, rollback command without a deployment). Fix loop 1 pins the
+  smoke target and the backup key, fixes the RUNBOOK, widens the deny list.
+- Backup key: private key at `~/.erp-backup/operator.key` on the operator machine
+  (ACL: operator only); public key pinned as `production` variable
+  `PRODUCTION_BACKUP_PUBLIC_KEY`.
 
 ## Follow-ups (tracked)
 - **zod 4 migration:** removes waiver GHSA-mrhx-c7xc-m3w5. Due 2026-12-04, with the

@@ -258,7 +258,7 @@ Top findings: SEC-01, SEC-03, SEC-02, SEC-04, SEC-06, SEC-05.
 
 ## Rejected leads (verified false)
 - **Bank-statement source DELETE missing tenant prefix:** false. `apps/web/src/app/api/finance/reconciliation/import/sign/route.ts:146-152` enforces `startsWith(`${profile.tenantId}/bank-statements/`)` and rejects `..` before the service-role `remove`.
-- **CI build job leaking the service-role key and DB URL to PRs:** false. `gh secret list` shows no repo-level `SUPABASE_SERVICE_ROLE_KEY` or `DATABASE_URL`, so the build uses placeholders. Deploy secrets are environment-scoped, with `workflow_dispatch` on `main` only (`deploy-production.yml:3-31`).
+- **CI build job leaking the service-role key and DB URL to PRs:** false. `gh secret list` shows no repo-level `SUPABASE_SERVICE_ROLE_KEY` or `DATABASE_URL`, so the build uses placeholders. Deploy secrets are environment-scoped. The `main`-only condition is an `if:` in the workflow file (`deploy-production.yml:3-31`), not an access control: the `production` environment has no protection rules, because the GitHub plan blocks them (accepted risk, `docs/erp/RUNBOOK.md` section 5).
 
 ## Clean checks (evidence)
 - **Core API guards.** `SupabaseJwtGuard` and `CapabilityGuard` are global `APP_GUARD`s (`apps/api/src/app.module.ts:83-88`). A route with no capability metadata is rejected (`capability.guard.ts`). Tenant and role come from the `users` row of the verified JWT `sub`, with active account and tenant required (`supabase-jwt.guard.ts:51-89`). No body, query or header source was found.

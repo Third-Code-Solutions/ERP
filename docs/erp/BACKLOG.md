@@ -4,6 +4,8 @@ Seeded from OpenConstructionERP's public module map (v19, Nov 2026), ordered by 
 
 Status: `todo` · `exists` · `partial` · `in-progress` · `done` · `defer`
 
+**Statuses below are unreviewed seeds.** Many modules already exist in the app (tenancy, RBAC, audit log, projects, documents, procurement, inventory, …). Phase D gap analysis must set `exists`/`partial` before `/erp-swarm next` runs, or `next` would rebuild a shipped module.
+
 ## Wave 0 — Foundation (everything depends on this)
 | Slug | Module | Depends on | Status | Notes |
 |---|---|---|---|---|

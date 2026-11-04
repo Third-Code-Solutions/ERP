@@ -19,7 +19,7 @@ Mode requested: `$ARGUMENTS` (empty → `status`).
    - No OCE source code, SQL, schema/column names, UI copy, i18n strings, icons, screenshots or data rows (including the CWICR cost database) may enter this repo. If you spot verbatim OCE material in a diff, revert it and log it.
 2. **Evidence over claims.** A gate passes only when you ran the command and saw it pass. Paste the exact command and the last lines of output into the module report.
 3. **Main stays releasable.** Work on `feat/erp-<slug>` (or `chore/erp-baseline`). Never push to `main`, never force-push, never rewrite history.
-4. **No production side effects.** Never run migrations, seeds or SQL against a remote/production database. Never deploy. Never read, print or edit `.env*` files or secrets. Local DB / Supabase branch / Docker only.
+4. **No production side effects.** Never run migrations, seeds or SQL against a remote/production database. Never deploy. Never read, print or edit `.env*` files or secrets. Local DB / Supabase branch / Docker only. Exception: an owner mandate recorded under "Operating mandate" in `docs/erp/STATE.md` overrides the deploy and migration parts of this rule (never the secrets part) for as long as it stays recorded there.
 5. **One module per run, vertical slice.** DB → domain logic → API → UI → tests. Partial work ships behind a feature flag, off by default.
 6. **Money and quantities are never floats.** Decimal/numeric end to end (DB `numeric`, app decimal library or integer minor units). Rounding rule stated in the spec and tested.
 7. **Tenant isolation + server-side authorization on every read and write.** No exceptions for "internal" endpoints.

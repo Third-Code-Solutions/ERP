@@ -1,19 +1,22 @@
-// Production smoke: login, dashboard, and one read flow per shipped module,
-// run against the live deployment with the dedicated E2E tenant.
+// Production smoke: login, dashboard, and the read routes walked by
+// e2e/smoke-console.spec.ts (dashboard, projects and their tabs, pipeline,
+// procurement, purchase orders, inventory, invoices, finance, reports, tasks,
+// settings), run against the live deployment with the dedicated E2E tenant.
 //
 // Credentials come from the environment only (GitHub `production` environment
 // secrets in .github/workflows/smoke-prod.yml). This script never prints them;
 // it reports only the names of missing variables.
 import { spawnSync } from 'node:child_process'
 
-const DEFAULT_BASE_URL = 'https://thirdcode-erp.vercel.app'
-const DEFAULT_SUPABASE_URL = 'https://aqqrtkmtcsfkbyyqxowv.supabase.co'
+const PRODUCTION_BASE_URL = 'https://thirdcode-erp.vercel.app'
+const PRODUCTION_SUPABASE_URL = 'https://aqqrtkmtcsfkbyyqxowv.supabase.co'
 
+// The targets are pinned: the E2E user's password and session tokens must only
+// ever be sent to the production app and its Supabase project.
 const env = {
   ...process.env,
-  PLAYWRIGHT_BASE_URL: process.env.PLAYWRIGHT_BASE_URL?.trim() || DEFAULT_BASE_URL,
-  NEXT_PUBLIC_SUPABASE_URL:
-    process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || DEFAULT_SUPABASE_URL,
+  PLAYWRIGHT_BASE_URL: PRODUCTION_BASE_URL,
+  NEXT_PUBLIC_SUPABASE_URL: PRODUCTION_SUPABASE_URL,
 }
 
 const required = [
@@ -41,10 +44,6 @@ const result = spawnSync(
     'e2e/auth.spec.ts',
     'e2e/dashboard.spec.ts',
     'e2e/smoke-console.spec.ts',
-    // Password-recovery tests send real email and share Supabase's per-user
-    // cooldown with the release workflow; the promotion run covers them.
-    '--grep-invert',
-    'forgot-password',
     '--project=chromium',
     '--workers=1',
     '--retries=1',
