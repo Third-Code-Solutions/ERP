@@ -166,13 +166,18 @@ describe('DocumentIntakeService Core authority', () => {
     expect(probe.audit.writeSemantic).not.toHaveBeenCalled()
   })
 
-  it('rejects a traversal segment even when the raw prefix matches', async () => {
+  it.each([
+    '../other/drawing.dwg',
+    '%2e%2e/other/drawing.dwg',
+    '..\\other\\drawing.dwg',
+    '.\t./other/drawing.dwg',
+  ])('rejects traversal %j even when the raw prefix matches', async (suffix) => {
     const probe = enabledHarness()
     await expect(
       probe.service.create(
         {
           ...COMMAND,
-          storagePath: `${PRINCIPAL.tenantId}/${PROJECT_ID}/../other/drawing.dwg`,
+          storagePath: `${PRINCIPAL.tenantId}/${PROJECT_ID}/${suffix}`,
         },
         PRINCIPAL,
         'intake-3'
