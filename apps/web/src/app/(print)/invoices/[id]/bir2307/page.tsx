@@ -2,7 +2,7 @@ import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getUserProfile } from '@third-code-erp/auth'
+import { can, getUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { accounts, invoices, projects, tenants } from '@third-code-erp/database/schema'
 import { and, eq } from 'drizzle-orm'
@@ -36,7 +36,8 @@ function periodCovered(d: Date | string | null): string {
 export default async function Bir2307PrintPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await requireUuidRouteParams(params)
   const profile = await getUserProfile()
-  if (!profile) return notFound()
+  // Same finance.read gate as the dashboard invoice page.
+  if (!profile || !can(profile.role, 'finance.read')) return notFound()
 
   const [inv] = await db
     .select({

@@ -8,11 +8,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   getUserProfile: vi.fn(),
   select: vi.fn(),
+  notFound: vi.fn(() => {
+    throw new Error('NEXT_NOT_FOUND')
+  }),
 }))
 
-vi.mock('@third-code-erp/auth', () => ({
+vi.mock('@third-code-erp/auth', async () => ({
   getUserProfile: mocks.getUserProfile,
+  can: (await import('@third-code-erp/shared-types/authorization')).roleHasCapability,
 }))
+
+vi.mock('next/navigation', () => ({ notFound: mocks.notFound }))
 
 vi.mock('@third-code-erp/database', () => ({
   db: { select: mocks.select },
@@ -79,7 +85,19 @@ describe('BIR 2307 print parties (D-8)', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     vi.stubGlobal('React', React)
-    mocks.getUserProfile.mockResolvedValue({ tenantId: TENANT_ID })
+    mocks.getUserProfile.mockResolvedValue({ tenantId: TENANT_ID, role: 'finance' })
+    mocks.notFound.mockImplementation(() => {
+      throw new Error('NEXT_NOT_FOUND')
+    })
+  })
+
+  it('returns notFound before any query for a member without finance.read', async () => {
+    mocks.getUserProfile.mockResolvedValue({ tenantId: TENANT_ID, role: 'estimator' })
+
+    await expect(
+      Bir2307PrintPage({ params: Promise.resolve({ id: INVOICE_ID }) })
+    ).rejects.toThrow('NEXT_NOT_FOUND')
+    expect(mocks.select).not.toHaveBeenCalled()
   })
 
   it('prints the tenant as payee and the client account as payor (withholding agent)', async () => {
