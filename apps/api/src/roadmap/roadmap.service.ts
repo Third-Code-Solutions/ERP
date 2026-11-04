@@ -75,6 +75,7 @@ import {
   providerDeliveryResultSchema,
   procurementRequisitionResultSchema,
   procurementRequisitionWorkflowCommandSchema,
+  purchaseOrderTaxAudit,
   reserveInventoryCommandSchema,
   resolvePriceCandidate,
   sapPostingRequestSchema,
@@ -100,11 +101,13 @@ import {
   type ProcurementRequisitionWorkflowCommand,
   type ReserveInventoryCommand,
   type SapPostingRequest,
+  type EffectiveTaxRates,
 } from '@third-code-erp/shared-types'
 import { and, asc, desc, eq, gte, gt, inArray, isNull, lte, or, sql } from 'drizzle-orm'
 import { roleHasCapability } from '../auth/capability.guard'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import { AuditService } from '../audit/audit.service'
+import { resolveTaxRatesForWrite } from '../common/tax-rates'
 import { DatabaseService, type DatabaseTransaction } from '../database/database.service'
 
 const MAX_SAFE_INTEGER_BIGINT = BigInt(Number.MAX_SAFE_INTEGER)
@@ -424,9 +427,11 @@ export class RoadmapService {
       const next = this.nextRequisitionStatus(command.action, current)
       if (command.action === 'reject' && !(command.reason?.trim())) throw new BadRequestException('Rejection reason is required')
       let convertedPurchaseOrderId: string | null = null
+      let tax: EffectiveTaxRates | null = null
       if (command.action === 'convert_to_po') {
         if (!roleHasCapability(principal.role, 'po.create')) throw new ForbiddenException('PO creation capability is required')
-        convertedPurchaseOrderId = await this.convertRequisitionToPurchaseOrder(transaction, requisition, command.selectedQuoteIds ?? [], principal)
+        tax = await resolveTaxRatesForWrite(transaction, principal.tenantId, new Date())
+        convertedPurchaseOrderId = await this.convertRequisitionToPurchaseOrder(transaction, requisition, command.selectedQuoteIds ?? [], principal, tax)
       }
       const [updated] = await transaction
         .update(procurementRequisitions)
@@ -456,7 +461,7 @@ export class RoadmapService {
         entityType: 'procurement_requisition',
         entityId: requisition.id,
         action: command.action === 'approve' ? 'approve' : 'status_change',
-        diff: { from: current, to: next, reason: command.reason ?? null, purchaseOrderId: convertedPurchaseOrderId },
+        diff: { from: current, to: next, reason: command.reason ?? null, purchaseOrderId: convertedPurchaseOrderId, tax: tax ? purchaseOrderTaxAudit(tax) : null },
       })
       return this.requisitionResult(transaction, updated, true)
     })
@@ -555,6 +560,7 @@ export class RoadmapService {
     requisition: typeof procurementRequisitions.$inferSelect,
     selectedQuoteIds: readonly string[],
     principal: ErpPrincipal,
+    tax: Pick<EffectiveTaxRates, 'vatBps' | 'ewtBps'>,
   ): Promise<string> {
     const lines = await transaction
       .select()
@@ -584,8 +590,8 @@ export class RoadmapService {
       return { line, quote, quantity, unit, lineTotal }
     })
     const subtotal = totals.reduce((sum, value) => sum + value.lineTotal, 0n)
-    const vat = (subtotal * 1_200n + 5_000n) / 10_000n
-    const withholding = (subtotal * 200n + 5_000n) / 10_000n
+    const vat = (subtotal * BigInt(tax.vatBps) + 5_000n) / 10_000n
+    const withholding = (subtotal * BigInt(tax.ewtBps) + 5_000n) / 10_000n
     const [po] = await transaction.insert(purchaseOrders).values({
       tenant_id: principal.tenantId,
       project_id: requisition.project_id,
