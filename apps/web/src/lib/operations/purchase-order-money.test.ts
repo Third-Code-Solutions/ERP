@@ -1,3 +1,4 @@
+import { TAX_DEFAULTS } from '@third-code-erp/shared-types'
 import { describe, expect, it } from 'vitest'
 import {
   calculateLineTotalCents,
@@ -10,7 +11,7 @@ describe('purchase-order centavo arithmetic', () => {
   })
 
   it('applies half-up basis-point tax calculations', () => {
-    expect(calculatePurchaseOrderTotals(100_000)).toEqual({
+    expect(calculatePurchaseOrderTotals(100_000, TAX_DEFAULTS)).toEqual({
       subtotalCents: 100_000,
       vatCents: 12_000,
       withholdingTaxCents: 2_000,

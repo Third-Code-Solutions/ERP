@@ -1,6 +1,4 @@
 const BASIS_POINT_DENOMINATOR = 10_000n
-const VAT_BASIS_POINTS = 1_200n
-const WITHHOLDING_TAX_BASIS_POINTS = 200n
 
 function toSafeInteger(value: bigint, label: string): number {
   const asNumber = Number(value)
@@ -36,18 +34,20 @@ export function calculateLineTotalCents(
   )
 }
 
-export function calculatePurchaseOrderTotals(subtotalCents: number): {
+// Spec tenancy C-3. The rates type has no VAT-registered flag: PO input VAT
+// never follows the buyer's status (D-TEN-2).
+export function calculatePurchaseOrderTotals(
+  subtotalCents: number,
+  rates: { vatBps: number; ewtBps: number }
+): {
   subtotalCents: number
   vatCents: number
   withholdingTaxCents: number
   totalCents: number
 } {
   const subtotal = toCentavos(subtotalCents, 'Subtotal')
-  const vat = roundHalfUpBasisPoints(subtotal, VAT_BASIS_POINTS)
-  const withholdingTax = roundHalfUpBasisPoints(
-    subtotal,
-    WITHHOLDING_TAX_BASIS_POINTS
-  )
+  const vat = roundHalfUpBasisPoints(subtotal, BigInt(rates.vatBps))
+  const withholdingTax = roundHalfUpBasisPoints(subtotal, BigInt(rates.ewtBps))
   const total = subtotal + vat - withholdingTax
 
   return {

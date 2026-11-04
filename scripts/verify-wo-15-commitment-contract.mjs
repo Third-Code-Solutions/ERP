@@ -37,8 +37,13 @@ assertIncludes(migration, 'Purchase Order commitment exceeds approved budget lin
 assertIncludes(migration, 'using errcode = \'23514\'', 'constraint-classified commitment failures')
 
 const money = read('apps/web/src/lib/operations/purchase-order-money.ts')
-assertIncludes(money, 'VAT_BASIS_POINTS = 1_200n', 'unchanged 12% VAT calculation')
-assertIncludes(money, 'WITHHOLDING_TAX_BASIS_POINTS = 200n', 'unchanged 2% withholding calculation')
+// Tenancy: the 12% / 2% defaults live only in TAX_DEFAULTS; the PO helper
+// applies the resolved rates passed to it.
+const taxRates = read('packages/shared-types/src/tax-rates.ts')
+assertIncludes(taxRates, 'vatBps: 1200', 'unchanged 12% VAT default')
+assertIncludes(taxRates, 'ewtBps: 200', 'unchanged 2% withholding default')
+assertIncludes(money, 'BigInt(rates.vatBps)', 'PO VAT from the resolved rate')
+assertIncludes(money, 'BigInt(rates.ewtBps)', 'PO withholding from the resolved rate')
 assertIncludes(money, 'export function calculatePurchaseOrderTotals', 'existing PO tax helper retained')
 
 const poStatusEnum = read('packages/database/src/schema/enums.ts')

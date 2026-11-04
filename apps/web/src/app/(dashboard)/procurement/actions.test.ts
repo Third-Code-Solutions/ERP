@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   },
   writeAuditLogInTransaction: vi.fn(),
   revalidatePath: vi.fn(),
+  resolveTaxRates: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -19,7 +20,10 @@ vi.mock('@third-code-erp/auth', () => ({
   can: vi.fn(),
 }))
 
-vi.mock('@third-code-erp/database', () => ({ db: mocks.db }))
+vi.mock('@third-code-erp/database', () => ({
+  db: mocks.db,
+  resolveTaxRates: mocks.resolveTaxRates,
+}))
 
 vi.mock('next/cache', () => ({
   revalidatePath: mocks.revalidatePath,
@@ -43,11 +47,22 @@ vi.mock('@/lib/erp-core-client', async (importOriginal) => ({
 }))
 
 import {
+  TaxProfileOverlapError,
+  manilaCalendarDate,
+  pickEffectiveTaxRates,
+  type TaxProfileCandidate,
+} from '@third-code-erp/shared-types'
+import {
   createPoFromBom,
   createPosFromBomGrouped,
   createStandalonePo,
   createVendor,
 } from './actions'
+
+// No tax profile: the real picker returns TAX_DEFAULTS for the write's date.
+mocks.resolveTaxRates.mockImplementation(async (_tx: unknown, _tenantId: string, at: Date) =>
+  pickEffectiveTaxRates([], manilaCalendarDate(at))
+)
 
 const PROFILE = {
   user: { id: '11111111-1111-4111-8111-111111111111' },
@@ -585,5 +600,161 @@ describe('legacy PO from BOM foots its header to its lines (D-4)', () => {
         },
       ],
     })
+  })
+})
+
+describe('legacy PO paths use the effective tax rates (spec tenancy C-3)', () => {
+  const VENDOR_A = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeea'
+  const COST_CODE = 'ffffffff-ffff-4fff-8fff-fffffffffff2'
+  const PROFILE_ID = '99999999-9999-4999-8999-999999999999'
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.db.select.mockReset()
+    mocks.getUserProfile.mockResolvedValue(PROFILE)
+    mocks.requireCapability.mockImplementation(() => undefined)
+  })
+
+  function profileRates(overrides: Partial<TaxProfileCandidate>) {
+    mocks.resolveTaxRates.mockImplementationOnce(async (_tx: unknown, _tenantId: string, at: Date) =>
+      pickEffectiveTaxRates(
+        [
+          {
+            id: PROFILE_ID,
+            code: 'P-2026',
+            status: 'active',
+            valid_from: '2026-01-01',
+            valid_to: null,
+            vat_rate_bps: 1200,
+            withholding_rate_bps: 200,
+            retention_rate_bps: 1000,
+            vat_registered: true,
+            ...overrides,
+          },
+        ],
+        manilaCalendarDate(at)
+      )
+    )
+  }
+
+  function poAuditTax() {
+    const entry = mocks.writeAuditLogInTransaction.mock.calls
+      .map((call) => call[1] as { entityType: string; diff: { tax: unknown } })
+      .find((value) => value.entityType === 'purchase_order')
+    return entry?.diff.tax
+  }
+
+  const fromBom = () => {
+    const harness = legacyPoHarness(
+      [[APPROVED_BOM]],
+      [[APPROVED_BOM], [bomLine({ quantity: 1, unit_cost_cents: 899_883 })], []]
+    )
+    return { harness, run: () => createPoFromBom(BOM_ID, PROJECT_ID, null, null) }
+  }
+  const standalone = () => {
+    const harness = legacyPoHarness([[{ id: PROJECT_ID }], [{ id: COST_CODE }]], [])
+    const formData = new FormData()
+    formData.set('project_id', PROJECT_ID)
+    formData.set(
+      'line_items',
+      JSON.stringify([
+        { description: 'Messy line', quantity: 1, unit_cost_cents: 899_883, costCodeId: COST_CODE },
+      ])
+    )
+    return { harness, run: () => createStandalonePo(formData) }
+  }
+  const grouped = () => {
+    const harness = legacyPoHarness(
+      [[APPROVED_BOM]],
+      [
+        [APPROVED_BOM],
+        [bomLine({ code: 'MESSY', quantity: 1, unit_cost_cents: 999_999 })],
+        [],
+        [rateCard({ id: 'card-messy', code: 'MESSY', vendorId: VENDOR_A, unitPriceCents: 899_883 })],
+        [{ id: VENDOR_A, name: 'Vendor A' }],
+      ]
+    )
+    return { harness, run: () => createPosFromBomGrouped(BOM_ID) }
+  }
+  const PATHS = [
+    ['createPoFromBom', fromBom],
+    ['createStandalonePo', standalone],
+    ['createPosFromBomGrouped', grouped],
+  ] as const
+
+  it.each(PATHS)('%s: PO-1 defaults keep 989,871 and audit the default source', async (_name, build) => {
+    const { harness, run } = build()
+
+    await run()
+
+    expect(harness.poInserts).toHaveLength(1)
+    expect(harness.poInserts[0]).toMatchObject({
+      subtotal_cents: 899_883,
+      vat_cents: 107_986,
+      withholding_tax_cents: 17_998,
+      total_cents: 989_871,
+    })
+    expect(mocks.resolveTaxRates).toHaveBeenCalledWith(expect.anything(), PROFILE.tenantId, expect.any(Date))
+    expect(poAuditTax()).toEqual({
+      vatBps: 1200,
+      ewtBps: 200,
+      source: 'default',
+      profileId: null,
+      profileCode: null,
+      asOf: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+    })
+  })
+
+  it.each(PATHS)('%s: PO-7 profile EWT 1% gives 998,870 and audits the profile', async (_name, build) => {
+    const { harness, run } = build()
+    profileRates({ withholding_rate_bps: 100 })
+
+    await run()
+
+    expect(harness.poInserts[0]).toMatchObject({
+      vat_cents: 107_986,
+      withholding_tax_cents: 8_999,
+      total_cents: 998_870,
+    })
+    expect(poAuditTax()).toMatchObject({ ewtBps: 100, source: 'profile', profileId: PROFILE_ID })
+  })
+
+  it('PO-6: a non-VAT tenant profile does not touch PO VAT (D-TEN-2)', async () => {
+    const { harness, run } = standalone()
+    profileRates({ vat_registered: false })
+
+    await run()
+
+    expect(harness.poInserts[0]).toMatchObject({ vat_cents: 107_986, total_cents: 989_871 })
+  })
+
+  it.each(PATHS)('%s: AC-TEN-19 overlap returns the error and inserts nothing', async (_name, build) => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const { harness, run } = build()
+    mocks.resolveTaxRates.mockRejectedValueOnce(new TaxProfileOverlapError(['A', 'B'], '2026-11-05'))
+
+    await expect(run()).resolves.toEqual({
+      error: 'TAX_PROFILE_OVERLAP: active tax profiles A, B all cover 2026-11-05',
+    })
+    expect(harness.poInserts).toHaveLength(0)
+    expect(consoleError).toHaveBeenCalledWith('[tax-rates]', expect.stringContaining('TAX_PROFILE_OVERLAP'))
+    consoleError.mockRestore()
+  })
+
+  it('createStandalonePo keeps the range message for an unsafe subtotal', async () => {
+    legacyPoHarness([[{ id: PROJECT_ID }], [{ id: COST_CODE }]], [])
+    const formData = new FormData()
+    formData.set('project_id', PROJECT_ID)
+    formData.set(
+      'line_items',
+      JSON.stringify([
+        { description: 'A', quantity: 2, unit_cost_cents: Number.MAX_SAFE_INTEGER, costCodeId: COST_CODE },
+      ])
+    )
+
+    await expect(createStandalonePo(formData)).resolves.toEqual({
+      error: 'Purchase Order amount exceeds the supported centavo range',
+    })
+    expect(mocks.db.transaction).not.toHaveBeenCalled()
   })
 })

@@ -3,7 +3,12 @@
 import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { getUserProfile, requireCapability, can, type AppRole } from '@third-code-erp/auth'
-import { billedPercentBps, db, type Database } from '@third-code-erp/database'
+import {
+  billedPercentBps,
+  db,
+  resolveTaxRates,
+  type Database,
+} from '@third-code-erp/database'
 import {
   bomLineItems,
   boms,
@@ -45,23 +50,31 @@ import {
   transitionPurchaseOrderThroughCoreApi,
 } from '@/lib/erp-core-client'
 import {
+  TaxProfileOverlapError,
+  invoiceTaxAudit,
   nextInvoiceNumber,
   purchasableBomLines,
   purchaseLineCostCode,
+  purchaseOrderTaxAudit,
   rateCardPicker,
   type PurchaseOrderWorkflowAction,
 } from '@third-code-erp/shared-types'
 import {
   boqQuantityToMicros,
-  computeEWT,
-  computeRetention,
-  computeVAT,
+  computeProgressInvoice,
   cumulativeBillingCapError,
   manualLineTotal,
-  progressBillingAmount,
 } from '@third-code-erp/shared-types/bom'
 
 type CorePurchaseOrderWorkflowAction = PurchaseOrderWorkflowAction
+
+// Spec tenancy AC-TEN-19: overlapping active tax profiles fail the write
+// closed; the message names the profiles and the date.
+function taxOverlapError(error: unknown): { error: string } | null {
+  if (!(error instanceof TaxProfileOverlapError)) return null
+  console.error('[tax-rates]', error.message)
+  return { error: error.message }
+}
 
 async function transitionPurchaseOrderThroughCoreIfEnabled(
   profile: Awaited<ReturnType<typeof getUserProfile>>,
@@ -311,8 +324,10 @@ export async function createPoFromBom(
       // Reserve the number and persist the PO graph in one transaction. A
       // failed line insert must not consume a visible Purchase Order number.
       // D-4: the header foots to the PO lines created, not bom.total_cost_cents.
+      const tax = await resolveTaxRates(tx, userRow.tenant_id, new Date())
       const totals = calculatePurchaseOrderTotals(
-        poLines.reduce((sum, poLine) => sum + poLine.lineTotalCents, 0)
+        poLines.reduce((sum, poLine) => sum + poLine.lineTotalCents, 0),
+        tax
       )
       const reservedNumber = await allocateNextPurchaseOrderNumber(
         tx,
@@ -374,7 +389,12 @@ export async function createPoFromBom(
         entityType: 'purchase_order',
         entityId: po.id,
         action: 'create',
-        diff: { po_number: reservedNumber, bom_id: input.bomId, status: 'draft' },
+        diff: {
+          po_number: reservedNumber,
+          bom_id: input.bomId,
+          status: 'draft',
+          tax: purchaseOrderTaxAudit(tax),
+        },
       })
 
       return po.id
@@ -389,6 +409,8 @@ export async function createPoFromBom(
     if (error instanceof Error && error.message === 'BOM_NO_LINES') {
       return { error: 'BOM has no line items to purchase' }
     }
+    const overlap = taxOverlapError(error)
+    if (overlap) return overlap
     if (error instanceof RangeError) {
       return { error: 'Purchase Order amount exceeds the supported centavo range' }
     }
@@ -509,18 +531,18 @@ export async function createStandalonePo(
     return { error: 'Every Purchase Order line requires an active Cost Code' }
   }
 
-  let totals: ReturnType<typeof calculatePurchaseOrderTotals>
+  const rangeError = 'Purchase Order amount exceeds the supported centavo range'
+  let subtotalCents: number
   try {
-    const subtotalCents = lines.reduce((sum, line) => {
+    subtotalCents = lines.reduce((sum, line) => {
       const next = sum + calculateLineTotalCents(line.unit_cost_cents, line.quantity)
       if (!Number.isSafeInteger(next)) {
         throw new RangeError('Subtotal exceeds the supported centavo range')
       }
       return next
     }, 0)
-    totals = calculatePurchaseOrderTotals(subtotalCents)
   } catch {
-    return { error: 'Purchase Order amount exceeds the supported centavo range' }
+    return { error: rangeError }
   }
 
   let poId: string
@@ -531,6 +553,8 @@ export async function createStandalonePo(
           `po-number:${userRow.tenant_id}`
         }))`
       )
+      const tax = await resolveTaxRates(tx, userRow.tenant_id, new Date())
+      const totals = calculatePurchaseOrderTotals(subtotalCents, tax)
       const nextNum = await allocateNextPurchaseOrderNumber(
         tx,
         userRow.tenant_id
@@ -581,11 +605,15 @@ export async function createStandalonePo(
           project_id: input.projectId,
           vendor_id: input.vendorId,
           subtotal_cents: totals.subtotalCents,
+          tax: purchaseOrderTaxAudit(tax),
         },
       })
       return po.id
     })
   } catch (error) {
+    const overlap = taxOverlapError(error)
+    if (overlap) return overlap
+    if (error instanceof RangeError) return { error: rangeError }
     return {
       error:
         safePoBudgetError(error) ??
@@ -923,17 +951,6 @@ export async function createInvoice(
   }
   if (bom.status === 'draft') return { error: 'BOM must be approved before billing' }
 
-  const retentionBps = 1_000
-  const subtotalCents = progressBillingAmount(
-    bom.tcv_cents,
-    billingPercentBps
-  )
-  const retentionCents = computeRetention(subtotalCents, retentionBps)
-  const taxableBaseCents = subtotalCents - retentionCents
-  const vatCents = computeVAT(taxableBaseCents)
-  const withholdingTaxCents = computeEWT(taxableBaseCents)
-  const netAmountCents =
-    taxableBaseCents + vatCents - withholdingTaxCents
   const now = new Date()
   const prefix = `INV-${now.getFullYear()}${String(
     now.getMonth() + 1
@@ -959,6 +976,11 @@ export async function createInvoice(
       billingPercentBps
     )
     if (capError) return { error: capError }
+
+    // Spec tenancy C-1 / D-TEN-3: rates on the draft's Manila date, read
+    // under the project lock in this transaction.
+    const tax = await resolveTaxRates(tx, profile.tenantId, now)
+    const amounts = computeProgressInvoice(bom.tcv_cents, billingPercentBps, tax)
 
     await tx.execute(
       sql`select pg_advisory_xact_lock(hashtext(${allocationLockKey}))`
@@ -988,19 +1010,24 @@ export async function createInvoice(
         invoice_number: invoiceNumber,
         status: 'draft',
         billing_percent_bps: billingPercentBps,
-        retention_bps: retentionBps,
-        subtotal_cents: subtotalCents,
-        retention_cents: retentionCents,
-        vat_cents: vatCents,
-        withholding_tax_cents: withholdingTaxCents,
-        net_amount_cents: netAmountCents,
+        retention_bps: tax.retentionBps,
+        subtotal_cents: amounts.subtotal,
+        retention_cents: amounts.retention,
+        vat_cents: amounts.vat,
+        withholding_tax_cents: amounts.ewt,
+        net_amount_cents: amounts.net,
         due_date: dueDate ? new Date(dueDate) : undefined,
       })
       .returning({ id: invoices.id })
     if (!invoice) throw new Error('Failed to create invoice')
-    return { id: invoice.id, invoiceNumber }
+    return { id: invoice.id, invoiceNumber, amounts, tax }
+  }).catch((error: unknown) => {
+    const overlap = taxOverlapError(error)
+    if (overlap) return overlap
+    throw error
   })
   if ('error' in inserted) return inserted
+  const { amounts, tax } = inserted
 
   await writeAuditLog({
     tenantId: profile.tenantId,
@@ -1011,11 +1038,12 @@ export async function createInvoice(
     diff: {
       invoice_number: inserted.invoiceNumber,
       billing_percent_bps: billingPercentBps,
-      subtotal_cents: subtotalCents,
-      retention_cents: retentionCents,
-      vat_cents: vatCents,
-      withholding_tax_cents: withholdingTaxCents,
-      net_amount_cents: netAmountCents,
+      subtotal_cents: amounts.subtotal,
+      retention_cents: amounts.retention,
+      vat_cents: amounts.vat,
+      withholding_tax_cents: amounts.ewt,
+      net_amount_cents: amounts.net,
+      tax: invoiceTaxAudit(tax),
     },
   })
 
@@ -1667,9 +1695,10 @@ export async function createPosFromBomGrouped(
       }
       if (lockedBom.status !== 'approved') throw new Error('BOM_ALREADY_COMMITTED')
 
+      const tax = await resolveTaxRates(tx, profile.tenantId, now)
       const ids: string[] = []
       for (const { bucket, subtotalCents } of bucketsToCreate) {
-        const totals = calculatePurchaseOrderTotals(subtotalCents)
+        const totals = calculatePurchaseOrderTotals(subtotalCents, tax)
         const reservedNumber = await allocateNextPurchaseOrderNumber(
           tx,
           profile.tenantId
@@ -1722,6 +1751,7 @@ export async function createPosFromBomGrouped(
             vendor_id: bucket.vendorId,
             line_count: bucket.lines.length,
             source: 'group_by_supplier',
+            tax: purchaseOrderTaxAudit(tax),
           },
         })
 
@@ -1757,6 +1787,8 @@ export async function createPosFromBomGrouped(
     if (error instanceof Error && error.message === 'BOM_NO_LINES') {
       return { error: 'BOM has no line items' }
     }
+    const overlap = taxOverlapError(error)
+    if (overlap) return overlap
     if (error instanceof RangeError) {
       return { error: 'Purchase Order amount exceeds the supported centavo range' }
     }
