@@ -3,6 +3,7 @@
 import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { getUserProfile, requireCapability } from '@third-code-erp/auth'
+import { parsePercentToBps } from '@third-code-erp/shared-types/bom'
 import { createCustomerInvoiceDraftThroughCoreApi } from '@/lib/erp-core-client'
 
 export async function createInvoice(
@@ -19,8 +20,14 @@ export async function createInvoice(
     return { error: 'You do not have permission to create invoices.' }
   }
 
-  const billingPct = parseFloat(String(formData.get('billing_pct') ?? ''))
-  if (isNaN(billingPct) || billingPct <= 0 || billingPct > 100) {
+  const billingPercentBps = parsePercentToBps(
+    String(formData.get('billing_pct') ?? '')
+  )
+  if (
+    billingPercentBps === null ||
+    billingPercentBps <= 0 ||
+    billingPercentBps > 10_000
+  ) {
     return { error: 'Billing % must be between 1 and 100' }
   }
 
@@ -29,7 +36,7 @@ export async function createInvoice(
   const coreResult = await createCustomerInvoiceDraftThroughCoreApi(
     projectId,
     {
-      billingPercentBps: Math.round(billingPct * 100),
+      billingPercentBps,
       bomId: null,
       dueDate,
       notes,

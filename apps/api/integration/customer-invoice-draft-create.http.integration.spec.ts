@@ -187,22 +187,40 @@ suite('Customer invoice draft create protected HTTP canary', () => {
           gp_margin_bps: 1_818,
         },
       ])
-      await transaction.insert(invoices).values({
-        id: invoiceB,
-        tenant_id: tenantB,
-        project_id: projectB,
-        account_id: accountB,
-        created_by: financeB,
-        invoice_number: `INV-DRAFT-B-${suffix}`,
-        status: 'draft',
-        billing_percent_bps: 10000,
-        retention_bps: 0,
-        subtotal_cents: 100000,
-        retention_cents: 0,
-        vat_cents: 0,
-        withholding_tax_cents: 0,
-        net_amount_cents: 100000,
-      })
+      await transaction.insert(invoices).values([
+        {
+          id: invoiceB,
+          tenant_id: tenantB,
+          project_id: projectB,
+          account_id: accountB,
+          created_by: financeB,
+          invoice_number: `INV-DRAFT-B-${suffix}`,
+          status: 'draft',
+          billing_percent_bps: 10000,
+          retention_bps: 0,
+          subtotal_cents: 100000,
+          retention_cents: 0,
+          vat_cents: 0,
+          withholding_tax_cents: 0,
+          net_amount_cents: 100000,
+        },
+        {
+          // D-6: the award down-payment draft counts toward the 100% cap.
+          tenant_id: tenantA,
+          project_id: projectA,
+          account_id: accountA,
+          created_by: financeA,
+          invoice_number: `AWD-DP-${suffix}`,
+          status: 'draft',
+          billing_percent_bps: 2500,
+          retention_bps: 0,
+          subtotal_cents: 250000,
+          retention_cents: 0,
+          vat_cents: 0,
+          withholding_tax_cents: 0,
+          net_amount_cents: 250000,
+        },
+      ])
 
       const identities = new Map([
         ['customer-invoice-draft-http-finance-a-token', financeA],
@@ -438,6 +456,24 @@ suite('Customer invoice draft create protected HTTP canary', () => {
           .from(invoices)
           .where(eq(invoices.tenant_id, tenantB))
         expect(tenantBInvoiceCount?.count).toBe(1)
+
+        // D-6: project A carries the 25% DP draft + 25% + 25% = 75%;
+        // 25.01% more is over the cap, exactly 25% is accepted.
+        const overCap = await request(app.getHttpServer())
+          .post(route)
+          .set('Authorization', 'Bearer customer-invoice-draft-http-finance-a-token')
+          .set('Idempotency-Key', 'over-cumulative-cap')
+          .send({ ...command, billingPercentBps: 2501 })
+          .expect(409)
+        expect(overCap.body.message).toBe(
+          'Cumulative progress billing cannot exceed 100% of the contract: 75.00% already billed, 25.00% remaining.'
+        )
+        await request(app.getHttpServer())
+          .post(route)
+          .set('Authorization', 'Bearer customer-invoice-draft-http-finance-a-token')
+          .set('Idempotency-Key', 'at-cumulative-cap')
+          .send({ ...command, billingPercentBps: 2500 })
+          .expect(201)
       } finally {
         await app.close()
       }

@@ -3,7 +3,7 @@
 import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { getUserProfile, requireCapability, can, type AppRole } from '@third-code-erp/auth'
-import { db, type Database } from '@third-code-erp/database'
+import { billedPercentBps, db, type Database } from '@third-code-erp/database'
 import {
   bomLineItems,
   boms,
@@ -52,6 +52,7 @@ import {
   computeEWT,
   computeRetention,
   computeVAT,
+  cumulativeBillingCapError,
   progressBillingAmount,
 } from '@third-code-erp/shared-types/bom'
 
@@ -929,6 +930,24 @@ export async function createInvoice(
     `invoice-number:${profile.tenantId}:${prefix}`
 
   const inserted = await db.transaction(async (tx) => {
+    // D-6: same project row lock as the Core API path, so concurrent drafts
+    // serialize and cannot both pass the 100% cumulative cap.
+    await tx
+      .select({ id: projects.id })
+      .from(projects)
+      .where(
+        and(
+          eq(projects.id, projectId),
+          eq(projects.tenant_id, profile.tenantId)
+        )
+      )
+      .for('update')
+    const capError = cumulativeBillingCapError(
+      await billedPercentBps(tx, profile.tenantId, projectId),
+      billingPercentBps
+    )
+    if (capError) return { error: capError }
+
     await tx.execute(
       sql`select pg_advisory_xact_lock(hashtext(${allocationLockKey}))`
     )
@@ -969,6 +988,7 @@ export async function createInvoice(
     if (!invoice) throw new Error('Failed to create invoice')
     return { id: invoice.id, invoiceNumber }
   })
+  if ('error' in inserted) return inserted
 
   await writeAuditLog({
     tenantId: profile.tenantId,

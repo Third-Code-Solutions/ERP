@@ -34,7 +34,10 @@ import {
   type DupaAssemblyOption,
 } from '@/components/bom/dupa-editor'
 import { groupBomLinesByDivision } from '@/lib/operations/bom-hierarchy'
-import { MAX_BOM_LINE_ITEM_QUANTITY } from '@third-code-erp/shared-types/bom'
+import {
+  MAX_BOM_LINE_ITEM_QUANTITY,
+  parsePercentToBps,
+} from '@third-code-erp/shared-types/bom'
 import workspaceStyles from './bom-workspace.module.css'
 
 interface BomLineItem {
@@ -541,12 +544,15 @@ export function BomBuilder({
     e.preventDefault()
     if (!bom) return
     setProcurementError('')
-    const billingPercent = parseFloat(invoiceForm.billingPercent)
-    if (isNaN(billingPercent) || billingPercent <= 0 || billingPercent > 100) {
+    const billingPercentBps = parsePercentToBps(invoiceForm.billingPercent)
+    if (
+      billingPercentBps === null ||
+      billingPercentBps <= 0 ||
+      billingPercentBps > 10_000
+    ) {
       setProcurementError('Billing % must be between 1 and 100')
       return
     }
-    const billingPercentBps = Math.round(billingPercent * 100)
     startTransition(async () => {
       const result = await createInvoice(
         projectId,
