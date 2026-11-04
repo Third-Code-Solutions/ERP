@@ -11,8 +11,8 @@ on 2026-11-02:
 | `…/v1/projects` (unauthenticated) | 401 |
 | `https://thirdcode-erp.vercel.app/api/health` | 200 — `dependencies.coreApi.state = "ok"` |
 
-The historical record below is kept as written. Its domain
-(`thirdcode-erp-api-…`) was mistyped; the service domain is
+The historical record below keeps its findings, moved to the past tense. Its
+domain (`thirdcode-erp-api-…`) was mistyped and is corrected to
 `third-code-erp-api-production.up.railway.app`.
 
 ## What was happening
