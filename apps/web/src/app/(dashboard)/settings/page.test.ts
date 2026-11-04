@@ -50,6 +50,25 @@ describe('Settings team access', () => {
     expect(markup.includes('Transactional email')).toBe(manages)
   })
 
+  it.each(['owner', 'admin', 'finance', 'viewer', 'pm', 'estimator'])(
+    'links the tax rates view for %s only with finance.read and ERP_TENANCY_ENABLED',
+    async (role) => {
+      mocks.profile.mockResolvedValue({
+        role, tenantId: 'test-tenant', user: { id: 'test-user', email: 'user@example.test' },
+      })
+      try {
+        vi.stubEnv('ERP_TENANCY_ENABLED', 'true')
+        const enabled = renderToStaticMarkup(await SettingsPage())
+        expect(enabled.includes('href="/settings/tax"')).toBe(roleHasCapability(role as never, 'finance.read'))
+
+        vi.stubEnv('ERP_TENANCY_ENABLED', '')
+        expect(renderToStaticMarkup(await SettingsPage())).not.toContain('href="/settings/tax"')
+      } finally {
+        vi.unstubAllEnvs()
+      }
+    }
+  )
+
   it('does not fetch workspace details when authentication fails', async () => {
     mocks.profile.mockRejectedValueOnce(new Error('Authentication required'))
     await expect(SettingsPage()).rejects.toThrow('Authentication required')

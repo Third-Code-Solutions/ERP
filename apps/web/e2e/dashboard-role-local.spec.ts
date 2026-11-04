@@ -322,6 +322,8 @@ test.describe('permission-aware dashboard', () => {
         '/admin/mapping-config',
         '/admin/users',
         '/settings',
+        // The tax rates view exists only while ERP_TENANCY_ENABLED is on.
+        ...(process.env.ERP_TENANCY_ENABLED === 'true' ? ['/settings/tax'] : []),
       ]
       for (const path of viewerRenderablePaths) {
         const response = await page.goto(`${baseUrl}${path}`, {

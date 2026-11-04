@@ -68,6 +68,10 @@ provisioned when their feature is enabled.
    - `PROCESS_SLA_ENGINE_ENABLED=1` only after M-06 tables, audit triggers,
      tenant isolation, and authenticated process E2E pass. Leave it `0` until
      those gates pass; the registered Inngest function remains disabled.
+   - `ERP_TENANCY_ENABLED=true` shows the read-only `/settings/tax` view
+     (effective VAT, EWT and retention rates) to `finance.read` roles. Leave it
+     unset until the owner wants Finance to see the "rates are locked" page;
+     money paths do not read it. A flip needs a redeploy.
 5. Add the production domain in `Settings → Domains` and update
    `NEXT_PUBLIC_SITE_URL` to match. Portal share links and email CTAs
    use this value.
