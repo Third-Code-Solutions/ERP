@@ -12,18 +12,21 @@ overrides:
   "minimatch@10>brace-expansion": 5.0.12
   nanoid: 3.3.18
   postcss: 8.5.23
-  qs: 6.16.0
+  qs: 6.16.1
   sharp: 0.35.5
   proxy-addr: 2.0.8
   source-map-js: 1.2.2
-  multer: 2.4.0
+  multer: 2.5.0
+  body-parser: 2.4.0
+  systeminformation: 5.33.16
+  "@nestjs/cli>glob": 14.0.2
   "@ai-sdk/provider-utils@4": 4.0.33
   shell-quote: 1.11.0
   # ABI OPS calls Mammoth's library, never its optional command-line program.
   # Remove the CLI-only argparse -> unpatched sprintf-js advisory chain.
   "mammoth@1.12.0>argparse": "-"
   tmp: 0.2.7
-  fast-uri: 3.1.8
+  fast-uri: 3.1.9
   js-yaml: 4.3.2
   "vite>esbuild": 0.28.2
   "drizzle-kit>esbuild": 0.28.2
@@ -50,9 +53,29 @@ overrides:
 # and is absent from the production dependency graph, which `pnpm audit --prod`
 # verifies clean. This waiver names one advisory; the audit level is unchanged
 # and every other advisory still fails the gate.
+#
+# The following three waivers are time-boxed to 2026-12-04 (docs/erp/STATE.md).
+#
+# - zod GHSA-mrhx-c7xc-m3w5: only zod >=4.6.6 is patched (a major upgrade).
+#   The flaw is in the v4 core's `$ZodArray` issue accumulation. Application
+#   schemas import the v3 API from `zod` (no `zod/v4` or `zod/mini` imports),
+#   so request validation never runs `$ZodArray`. The v4 core is used only
+#   inside the AI SDK to parse first-party provider responses, and request
+#   bodies stay capped by the Next.js and Nest body limits. Remove the waiver
+#   with the zod 4 migration.
+# - minimatch GHSA-g3hv-75wg-m249: only 11.0.1 is patched. Production reaches
+#   minimatch 3.x/5.x through exceljs (archiver), with library-fixed
+#   patterns; a pattern-amplification attack needs attacker-controlled glob
+#   patterns, which no ABI OPS input provides. The 11.x API is incompatible
+#   with those consumers.
+# - deepmerge GHSA-gcqx-w48m-w2h4: no patched release exists. It is reachable
+#   only from the @nestjs/cli devDependency, which merges local build config.
 auditConfig:
   ignoreGhsas:
     - GHSA-vfj7-8cjw-p6xm
+    - GHSA-mrhx-c7xc-m3w5
+    - GHSA-g3hv-75wg-m249
+    - GHSA-gcqx-w48m-w2h4
 
 peerDependencyRules:
   ignoreMissing:
