@@ -95,6 +95,27 @@ function percentHalfUp(value: bigint, percent: bigint): bigint {
   return (value * percent + 50n) / 100n
 }
 
+interface BomLineHierarchy {
+  id: string
+  isGroup: number
+  parentId: string | null
+  parentLineItemId: string | null
+}
+
+/**
+ * D-4: a PO buys the BOM leaves. A row other rows hang under (a work item with
+ * material lines, or a section) is represented by its children, and group
+ * headers are never purchased, so no cost is counted twice.
+ */
+function purchasableBomLines<T extends BomLineHierarchy>(
+  rows: readonly T[]
+): T[] {
+  const parentIds = new Set(
+    rows.flatMap((row) => [row.parentId, row.parentLineItemId])
+  )
+  return rows.filter((row) => row.isGroup === 0 && !parentIds.has(row.id))
+}
+
 function safeDatabaseCents(value: bigint): number {
   if (value < 0n || value > MAX_POSTGRES_BIGINT) {
     throw new ConflictException(
@@ -313,7 +334,7 @@ export class PurchaseOrderCreationService {
       }
 
       const now = new Date()
-      const lines = await transaction
+      const rows = await transaction
         .select({
           id: bomLineItems.id,
           code: bomLineItems.code,
@@ -321,17 +342,20 @@ export class PurchaseOrderCreationService {
           unit: bomLineItems.unit,
           quantity: bomLineItems.quantity,
           unitCostCents: bomLineItems.unit_cost_cents,
+          isGroup: bomLineItems.is_group,
+          parentId: bomLineItems.parent_id,
+          parentLineItemId: bomLineItems.parent_line_item_id,
         })
         .from(bomLineItems)
         .where(
           and(
             eq(bomLineItems.bom_id, parsedCommand.bomId),
-            eq(bomLineItems.tenant_id, authorizedPrincipal.tenantId),
-            eq(bomLineItems.is_group, 0)
+            eq(bomLineItems.tenant_id, authorizedPrincipal.tenantId)
           )
         )
         .orderBy(bomLineItems.sort_order, bomLineItems.id)
         .for('share')
+      const lines = purchasableBomLines(rows)
       if (lines.length === 0) {
         throw new ConflictException('BOM has no line items')
       }
@@ -445,10 +469,15 @@ export class PurchaseOrderCreationService {
       for (const line of lines) {
         const best = line.code ? bestByCode.get(line.code) : undefined
         const vendorId = best?.vendorId ?? null
+        // D-4: the rate card that chose the vendor also prices the line.
+        const pricedLine =
+          best && vendorId
+            ? { ...line, unitCostCents: best.unitPriceCents }
+            : line
         const key = vendorId ?? 'unassigned'
         const bucket = buckets.get(key)
-        if (bucket) bucket.lines.push(line)
-        else buckets.set(key, { vendorId, lines: [line] })
+        if (bucket) bucket.lines.push(pricedLine)
+        else buckets.set(key, { vendorId, lines: [pricedLine] })
       }
 
       const groups = [...buckets.values()].map((bucket) => {
@@ -546,7 +575,12 @@ export class PurchaseOrderCreationService {
               BigInt(line.unitCostCents) * BigInt(line.quantity)
             ),
             bom_line_item_id: line.id,
-            cost_code_id: costCodeByBomLine.get(line.id),
+            // Material lines carry the cost code of their budgeted work item.
+            cost_code_id:
+              costCodeByBomLine.get(line.id) ??
+              (line.parentLineItemId
+                ? costCodeByBomLine.get(line.parentLineItemId)
+                : undefined),
           }))
         )
         await this.audit.writeSemantic(transaction, {
@@ -753,7 +787,6 @@ export class PurchaseOrderCreationService {
           id: boms.id,
           status: boms.status,
           projectId: boms.project_id,
-          totalCostCents: boms.total_cost_cents,
         })
         .from(boms)
         .where(
@@ -802,7 +835,7 @@ export class PurchaseOrderCreationService {
         if (!vendor) throw new NotFoundException('Vendor not found')
       }
 
-      const lines = await transaction
+      const rows = await transaction
         .select({
           id: bomLineItems.id,
           code: bomLineItems.code,
@@ -810,6 +843,9 @@ export class PurchaseOrderCreationService {
           unit: bomLineItems.unit,
           quantity: bomLineItems.quantity,
           unitCostCents: bomLineItems.unit_cost_cents,
+          isGroup: bomLineItems.is_group,
+          parentId: bomLineItems.parent_id,
+          parentLineItemId: bomLineItems.parent_line_item_id,
         })
         .from(bomLineItems)
         .where(
@@ -820,6 +856,7 @@ export class PurchaseOrderCreationService {
         )
         .orderBy(bomLineItems.sort_order, bomLineItems.id)
         .for('share')
+      const lines = purchasableBomLines(rows)
       if (lines.length === 0) {
         throw new ConflictException('BOM has no line items')
       }
@@ -857,7 +894,15 @@ export class PurchaseOrderCreationService {
         )
       )
 
-      const subtotalCents = BigInt(bom.totalCostCents)
+      const lineValues = lines.map((line) => {
+        const unitCost = BigInt(line.unitCostCents)
+        return { line, unitCost, lineTotal: unitCost * BigInt(line.quantity) }
+      })
+      // D-4: the header foots to the PO lines created, not bom.total_cost_cents.
+      const subtotalCents = lineValues.reduce(
+        (sum, value) => sum + value.lineTotal,
+        0n
+      )
       const vatCents = percentHalfUp(subtotalCents, 12n)
       const withholdingTaxCents = percentHalfUp(subtotalCents, 2n)
       const totalCents = subtotalCents + vatCents - withholdingTaxCents
@@ -911,25 +956,24 @@ export class PurchaseOrderCreationService {
       }
 
       await transaction.insert(poLineItems).values(
-        lines.map((line, index) => {
-          const unitCost = BigInt(line.unitCostCents)
-          const lineTotal = safeDatabaseCents(
-            unitCost * BigInt(line.quantity)
-          )
-          return {
-            tenant_id: authorizedPrincipal.tenantId,
-            po_id: created.id,
-            sort_order: index,
-            code: line.code ?? undefined,
-            description: line.description,
-            unit: line.unit ?? undefined,
-            quantity: line.quantity,
-            unit_cost_cents: safeDatabaseCents(unitCost),
-            line_total_cents: lineTotal,
-            bom_line_item_id: line.id,
-            cost_code_id: costCodeByBomLine.get(line.id),
-          }
-        })
+        lineValues.map(({ line, unitCost, lineTotal }, index) => ({
+          tenant_id: authorizedPrincipal.tenantId,
+          po_id: created.id,
+          sort_order: index,
+          code: line.code ?? undefined,
+          description: line.description,
+          unit: line.unit ?? undefined,
+          quantity: line.quantity,
+          unit_cost_cents: safeDatabaseCents(unitCost),
+          line_total_cents: safeDatabaseCents(lineTotal),
+          bom_line_item_id: line.id,
+          // Material lines carry the cost code of their budgeted work item.
+          cost_code_id:
+            costCodeByBomLine.get(line.id) ??
+            (line.parentLineItemId
+              ? costCodeByBomLine.get(line.parentLineItemId)
+              : undefined),
+        }))
       )
 
       const now = new Date()
