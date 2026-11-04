@@ -78,6 +78,106 @@ export function topLevelBomLines<TLine>(
   return lines.filter((line) => getParentLineItemId(line) === null)
 }
 
+export interface BomLineHierarchyRow {
+  id: string
+  is_group: number
+  parent_id: string | null
+  parent_line_item_id: string | null
+}
+
+/**
+ * Return the BOM rows a Purchase Order buys: the leaves. A row other rows hang
+ * under (a work item with material lines, or a section) is represented by its
+ * children, and group headers are never bought, so no cost is counted twice.
+ */
+export function purchasableBomLines<TLine extends BomLineHierarchyRow>(
+  lines: ReadonlyArray<TLine>,
+): TLine[] {
+  const parentIds = new Set(
+    lines.flatMap((line) => [line.parent_id, line.parent_line_item_id]),
+  )
+  return lines.filter((line) => line.is_group === 0 && !parentIds.has(line.id))
+}
+
+/**
+ * Cost code for a purchased BOM line. Material lines have no budget line of
+ * their own, so they carry the code of the budgeted work item they hang under.
+ *
+ * shortcut: only the cost code rolls up. The PO line keeps the material row's
+ * own bom_line_item_id, but budget lines exist only for top-level rows, so the
+ * WO-15 block-mode trigger and the cost-control per-line join do not roll the
+ * material line up to its parent. Follow-up: resolve them via
+ * parent_line_item_id.
+ */
+export function purchaseLineCostCode<TCode>(
+  costCodeByBomLine: ReadonlyMap<string, TCode>,
+  line: Pick<BomLineHierarchyRow, 'id' | 'parent_line_item_id'>,
+): TCode | undefined {
+  return (
+    costCodeByBomLine.get(line.id) ??
+    (line.parent_line_item_id
+      ? costCodeByBomLine.get(line.parent_line_item_id)
+      : undefined)
+  )
+}
+
+export interface RateCardOffer {
+  id: string
+  code: string | null
+  // Unit of the card's material item.
+  unit: string | null
+  vendorId: string | null
+  unitPriceCents: number
+  effectiveFrom: Date
+  effectiveTo: Date | null
+}
+
+/** Units match when equal after trimming, ignoring case. A blank unit never matches. */
+export function sameUnitOfMeasure(
+  left: string | null | undefined,
+  right: string | null | undefined,
+): boolean {
+  const normalized = left?.trim().toLowerCase() ?? ''
+  return normalized !== '' && normalized === (right?.trim().toLowerCase() ?? '')
+}
+
+/**
+ * Index rate cards for PO pricing. The returned function gives the cheapest
+ * usable card for a BOM line's material code and unit; ties go to the lowest
+ * card id. A card is usable only with a positive price, inside its effective
+ * window at `now`, and with a vendor that is null or listed in `vendorIds`.
+ */
+export function rateCardPicker<TCard extends RateCardOffer>(
+  cards: ReadonlyArray<TCard>,
+  vendorIds: ReadonlySet<string>,
+  now: Date,
+): (line: { code: string | null; unit: string | null }) => TCard | undefined {
+  const cardsByCode = new Map<string, TCard[]>()
+  for (const card of cards) {
+    if (!card.code || card.unitPriceCents <= 0) continue
+    if (card.effectiveFrom > now || (card.effectiveTo && card.effectiveTo <= now)) continue
+    if (card.vendorId && !vendorIds.has(card.vendorId)) continue
+    const sameCode = cardsByCode.get(card.code)
+    if (sameCode) sameCode.push(card)
+    else cardsByCode.set(card.code, [card])
+  }
+
+  return (line) => {
+    let best: TCard | undefined
+    for (const card of (line.code && cardsByCode.get(line.code)) || []) {
+      if (!sameUnitOfMeasure(card.unit, line.unit)) continue
+      if (
+        !best ||
+        card.unitPriceCents < best.unitPriceCents ||
+        (card.unitPriceCents === best.unitPriceCents && card.id < best.id)
+      ) {
+        best = card
+      }
+    }
+    return best
+  }
+}
+
 // line_total = unit_cost * quantity * (1 + markup_bps / 10000)
 export function lineTotal(
   unitCostCents: number,
