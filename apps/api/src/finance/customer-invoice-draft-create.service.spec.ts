@@ -198,7 +198,20 @@ describe('CustomerInvoiceDraftCreateService', () => {
       return { from, where }
     }
 
-    function draftHarness(billedPercentBps: string, tcvCents: string) {
+    function latestBomQuery(rows: unknown[]) {
+      const rowLock = vi.fn().mockResolvedValue(rows)
+      const limit = vi.fn().mockReturnValue({ for: rowLock })
+      const orderBy = vi.fn().mockReturnValue({ limit })
+      const where = vi.fn().mockReturnValue({ orderBy })
+      const from = vi.fn().mockReturnValue({ where })
+      return { from }
+    }
+
+    function draftHarness(
+      billedPercentBps: string,
+      tcvCents: string,
+      latestBomId = BOM_ID
+    ) {
       const membership = selectQuery([
         { tenantId: PRINCIPAL.tenantId, role: PRINCIPAL.role, email: PRINCIPAL.email },
       ])
@@ -215,6 +228,9 @@ describe('CustomerInvoiceDraftCreateService', () => {
       const requestQuery = selectQuery([request])
       const bom = selectQuery([
         { id: BOM_ID, projectId: PROJECT_ID, status: 'approved', tcvCents },
+      ])
+      const latestBom = latestBomQuery([
+        { id: latestBomId, projectId: PROJECT_ID, status: 'approved', tcvCents },
       ])
       const billed = aggregateQuery([{ percentBps: billedPercentBps }])
       const lastInvoice = aggregateQuery([{ highestSuffix: '0' }])
@@ -234,6 +250,7 @@ describe('CustomerInvoiceDraftCreateService', () => {
           .mockReturnValueOnce({ from: project.from })
           .mockReturnValueOnce({ from: requestQuery.from })
           .mockReturnValueOnce({ from: bom.from })
+          .mockReturnValueOnce({ from: latestBom.from })
           .mockReturnValueOnce({ from: billed.from })
           .mockReturnValueOnce({ from: lastInvoice.from }),
         insert: vi
@@ -256,6 +273,30 @@ describe('CustomerInvoiceDraftCreateService', () => {
       }
       return { transactionClient, billed, invoiceValues }
     }
+
+    it('rejects an explicit bomId that is not the latest approved BOM', async () => {
+      // A superseded approved BOM could carry a stale, higher TCV.
+      const { transactionClient, billed, invoiceValues } = draftHarness(
+        '0',
+        '100000000',
+        '99999999-9999-4999-8999-999999999999'
+      )
+      const { service } = enabledService(transactionClient)
+
+      const attempt = service.create(
+        PROJECT_ID,
+        { ...COMMAND, bomId: BOM_ID },
+        PRINCIPAL,
+        'invoice-draft-stale-bom'
+      )
+
+      await expect(attempt).rejects.toBeInstanceOf(ConflictException)
+      await expect(attempt).rejects.toThrow(
+        "Only the project's latest approved BOM can be billed"
+      )
+      expect(billed.from).not.toHaveBeenCalled()
+      expect(invoiceValues).not.toHaveBeenCalled()
+    })
 
     it('rejects 100.01% cumulative billing without inserting an invoice', async () => {
       // 75.00% already billed + 25.01% requested = 100.01%

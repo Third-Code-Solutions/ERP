@@ -202,7 +202,7 @@ export class CustomerInvoiceDraftCreateService {
         )
       }
 
-      let bom: BillableBom
+      let selectedBillableBom: BillableBom | null = null
       if (parsedBody.bomId) {
         const [selectedBom] = await transaction
           .select({
@@ -224,27 +224,33 @@ export class CustomerInvoiceDraftCreateService {
         if (selectedBom.projectId !== project.id) {
           throw new ConflictException('BOM belongs to a different project')
         }
-        bom = requireBillableBom(selectedBom)
-      } else {
-        const [latestBom] = await transaction
-          .select({
-            id: boms.id,
-            projectId: boms.project_id,
-            status: boms.status,
-            tcvCents: sql<string>`cast(${boms.tcv_cents} as text)`,
-          })
-          .from(boms)
-          .where(
-            and(
-              eq(boms.project_id, project.id),
-              eq(boms.tenant_id, authorizedPrincipal.tenantId),
-              inArray(boms.status, ['approved', 'locked'])
-            )
+        selectedBillableBom = requireBillableBom(selectedBom)
+      }
+      const [latestBom] = await transaction
+        .select({
+          id: boms.id,
+          projectId: boms.project_id,
+          status: boms.status,
+          tcvCents: sql<string>`cast(${boms.tcv_cents} as text)`,
+        })
+        .from(boms)
+        .where(
+          and(
+            eq(boms.project_id, project.id),
+            eq(boms.tenant_id, authorizedPrincipal.tenantId),
+            inArray(boms.status, ['approved', 'locked'])
           )
-          .orderBy(desc(boms.version))
-          .limit(1)
-          .for('update')
-        bom = requireBillableBom(latestBom)
+        )
+        .orderBy(desc(boms.version))
+        .limit(1)
+        .for('update')
+      const bom = requireBillableBom(latestBom)
+      // An explicit bomId may only name the BOM this project bills today; a
+      // superseded approved BOM could carry a stale, higher TCV.
+      if (selectedBillableBom && selectedBillableBom.id !== bom.id) {
+        throw new ConflictException(
+          "Only the project's latest approved BOM can be billed"
+        )
       }
 
       // D-6: the project row is locked FOR UPDATE above, so concurrent drafts
