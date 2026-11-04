@@ -39,7 +39,7 @@ Verdicts are posted as PR comments.
   Lint: 0/0 (1,388 files) · Tests: 5,105 pass, 0 fail, 204 DB-backed skipped
   locally (run in CI) · Audit: green on `main` since #129.
 - P0: 0 · P2: 12 + 3 security Medium · P3: 10 + 9 security Low.
-- P1 at baseline: 4 code + 4 security High. Status now:
+- P1 at baseline: 4 code + 6 security High (SEC-01..06, `00-security-baseline.md`). Status now:
   1. BL-01/02/03 + SEC-05/06 (Next RCE/DoS, body-parser crash, audit): **fixed**,
      PR #129 merged.
   2. SEC-03 cross-tenant file read (storage-path allow-list): **fixed**, PR #130
@@ -51,12 +51,17 @@ Verdicts are posted as PR comments.
      `5d56f63d`) revokes I/U/D/T/REFERENCES/TRIGGER/MAINTAIN from
      `authenticated`/`anon` on all public tables and in the postgres default ACL.
      Post-apply: 0 client write relations (was 119), SELECT kept on 142.
+     Evidence: the preflight and "Applied to production" comments on PR #134
+     (catalog queries run through Supabase MCP `execute_sql`).
 - PR #125 merged `2c2576cb`: 6 contract gates in CI, doc-authority v1.5, runners
   pinned to ubuntu-24.04.
 - Code that is live is not the same everywhere (2026-11-04):
   - **DB**: current (ledger 178, head `20261104055626`).
-  - **API + CAD worker (Railway)**: current. Railway auto-deploys `main`
-    (`e083c485`, healthy).
+  - **API (Railway)**: current. Railway's GitHub integration (configured in
+    Railway, not in this repo) auto-deploys `main`; deployment `edfd4065` serves
+    `5d56f63d` (SUCCESS 06:15Z). The promotion workflow's Railway step is the
+    gated path and is blocked (see Blockers). The CAD worker's watched paths
+    have not changed since its last release.
   - **Web (Vercel)**: still `04b3ac5a`. The Next RCE fix (#129), #128, #130 and
     later are **not live on web** until the promotion runs. See Blockers.
 - Tenancy model: shared schema + `tenant_id` + RLS.
@@ -77,10 +82,12 @@ Verdicts are posted as PR comments.
   see `docs/erp/RUNBOOK.md` section 5.
 
 ## Current
-Phase 1 (init) is done apart from the production promotion, which is blocked on the
+Owner mandate PHASE 1 (init: green baseline, CI merge gate, `smoke:prod`, STATE,
+RUNBOOK) is done apart from the production promotion, which is blocked on the
 Railway token (see Blockers). Next: rerun `deploy-production.yml` on `main` once
 the token is rotated, confirm web `/api/health` revision = `main` HEAD, then
-dispatch `smoke-prod.yml`.
+dispatch `smoke-prod.yml`. Mandate PHASE 2 (`next --auto`) waits for Phase D, which
+waits for the licensing decision.
 
 - Merged 2026-11-04 (all CI green, security PASS, review APPROVE posted on the PR):
   - #128 `c2d075ad`: tasks generation and task page.
@@ -93,6 +100,7 @@ dispatch `smoke-prod.yml`.
   failed at "Deploy Nest API to exact Railway service". The last says:
   `Railway deployment list failed: unauthorized (check the RAILWAY_API_TOKEN
   production secret)`.
+- Run links: `https://github.com/Third-Code-Solutions/ERP/actions/runs/<run-id>`.
 - `smoke-prod.yml` passed on 2026-11-04 (runs 41776991762 and, after the
   SEC-01/02 apply, 41782320759).
 - **Backups (`backup-production.yml`)**:
@@ -120,10 +128,16 @@ dispatch `smoke-prod.yml`.
   the business that loss-making deals are recorded as negative GP.
 - **SEC-01/02 residuals (accepted):**
   - `supabase_admin`'s default ACL in public still grants client DML on tables it
-    creates. No such table exists; the repro verifier flags one if it appears.
+    creates. No such table exists today. This is **unmonitored in production**:
+    the CI repro verifier checks only the postgres default ACL
+    (`scripts/verify-database-repro.mjs:1819`). Re-run the parity-plan preflight
+    query after any Supabase-side schema change.
   - Default sequence grants (`rwU`) to `authenticated` remain; not reachable
     through PostgREST.
-  - Tenant write RLS policies are now unreachable; drop them in a contract release.
+  - Tenant write RLS policies are now unreachable; drop them in a contract release,
+    keeping RLS enabled and the SELECT policies in place.
+  - Accepted by the agent under the 2026-11-04 owner mandate; re-check at that
+    contract release.
 - **Parity plan snapshot** (`docs/operations/managed-supabase-parity-plan.json`)
   dates from 2026-08-22; refresh it from the read-only ledger.
 - **#130 deferred nits:** optimistic-predicate assertion, `router.refresh` after a
@@ -149,8 +163,8 @@ dispatch `smoke-prod.yml`.
   - The agent may not set secrets.
   - A Railway account or team token with access to project
     `a21fd382-80b2-4218-8025-11f420a062e3` is needed.
-  - Web stays on `04b3ac5a`, which is exposed to the Next.js Image Optimization RCE
-    (GHSA-2464-fhr4-w9xw), until the promotion runs.
+  - Web stays on `04b3ac5a`, an affected Next.js version for GHSA-2464-fhr4-w9xw
+    (the security baseline rates it config-mitigated), until the promotion runs.
   - An out-of-band Vercel deploy was not attempted: the Vercel MCP account gets 403
     on project env, and bypassing the workflow would skip its release gates.
 - **Licensing (Phase 2 gate):** the module loop clean-room reverse-engineers
@@ -162,7 +176,7 @@ dispatch `smoke-prod.yml`.
 | Date | Mode | Result |
 |---|---|---|
 | 2026-11-04 | prod config | Set `ERP_DAILY_TASK_COMPLETION_WRITES_VIA_API=true` + `_TENANT_IDS=<buildops-e2e>` in Vercel production (owner approved); applies on the next prod deploy |
-| 2026-11-04 | baseline | Phase A: P0 0 · 4 P1 code + 4 security High. Security auditor verdict BLOCK (SEC-01..06) |
+| 2026-11-04 | baseline | Phase A: P0 0 · 4 P1 code + 6 security High. Security auditor verdict BLOCK (SEC-01..06) |
 | 2026-11-04 | merge | PR #129 squash-merged `a2313a47` (deps + Next RCE + zod compensating controls) |
 | 2026-11-04 | merge | #128 `c2d075ad`, #125 `2c2576cb`, #130 `198e026c`, #131 `e083c485`, #132 `a5c3cd6a` |
 | 2026-11-04 | incident | Promotion blocked: Railway token unauthorized (runs 41772426127, 41779917439). Owner rotation needed |
