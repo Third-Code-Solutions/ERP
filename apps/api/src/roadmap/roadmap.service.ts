@@ -67,6 +67,7 @@ import {
   fiscalPeriodCloseCommandSchema,
   inventoryReservationWorkflowCommandSchema,
   inventoryReservationResultSchema,
+  manilaCalendarDate,
   priceResolutionQuerySchema,
   priceResolutionResultSchema,
   priceListResultSchema,
@@ -1042,7 +1043,8 @@ export class RoadmapService {
       }
       const [existing] = await transaction.select().from(taxProfiles).where(and(eq(taxProfiles.tenant_id, principal.tenantId), eq(taxProfiles.code, command.code))).limit(1)
       if (existing) {
-        if (existing.name !== command.name || existing.vat_rate_bps !== command.vatRateBps || existing.withholding_rate_bps !== command.withholdingRateBps || existing.retention_rate_bps !== command.retentionRateBps) throw new ConflictException('Tax profile code is already used by a different definition')
+        // Spec tenancy G-7: every rate-bearing field must match the stored definition.
+        if (existing.name !== command.name || existing.vat_rate_bps !== command.vatRateBps || existing.withholding_rate_bps !== command.withholdingRateBps || existing.retention_rate_bps !== command.retentionRateBps || existing.vat_registered !== command.vatRegistered || existing.valid_from !== command.validFrom || existing.valid_to !== (command.validTo ?? null)) throw new ConflictException('Tax profile code is already used by a different definition')
         return taxProfileResultSchema.parse({ taxProfileId: existing.id, tenantId: existing.tenant_id, code: existing.code, status: existing.status, created: false })
       }
       const [created] = await transaction.insert(taxProfiles).values({ tenant_id: principal.tenantId, code: command.code, name: command.name, valid_from: command.validFrom, valid_to: command.validTo ?? null, vat_rate_bps: command.vatRateBps, withholding_rate_bps: command.withholdingRateBps, retention_rate_bps: command.retentionRateBps, vat_registered: command.vatRegistered, bir_form_version: command.birFormVersion ?? null, statutory_configuration: command.statutoryConfiguration, status: 'draft', created_by: principal.userId }).returning()
@@ -1089,8 +1091,11 @@ export class RoadmapService {
       if (command.action === 'activate' && profile.status !== 'draft') throw new ConflictException('Only a draft tax profile can be activated')
       if (command.action === 'retire' && profile.status !== 'active') throw new ConflictException('Only an active tax profile can be retired')
       if (command.action === 'activate') {
+        // Spec tenancy D-TEN-5 / D-TEN-1: maker-checker, then no backdating.
+        if (profile.created_by === principal.userId) throw new ForbiddenException('The tax profile preparer cannot activate it')
+        if (profile.valid_from < manilaCalendarDate(new Date())) throw new ConflictException('valid-from must be today or later')
         const [overlap] = await transaction
-          .select({ id: taxProfiles.id })
+          .select({ id: taxProfiles.id, code: taxProfiles.code })
           .from(taxProfiles)
           .where(
             and(
@@ -1102,7 +1107,7 @@ export class RoadmapService {
             ),
           )
           .limit(1)
-        if (overlap) throw new ConflictException('An active tax profile already covers this effective date range')
+        if (overlap) throw new ConflictException(`An active tax profile (${overlap.code}) already covers this effective date range`)
       }
       const status = command.action === 'activate' ? 'active' : 'retired'
       const [updated] = await transaction
