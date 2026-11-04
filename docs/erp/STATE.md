@@ -97,7 +97,7 @@ Verdicts are posted as PR comments.
   tenant. No real customer money is affected, so no data correction is needed.
   - **Hardening batch 2 (fix before modules; the rule is clear and consistent with the PRD).**
     Six defect IDs in five items. Items 2–5 are **live** (#138 `d2d3ce6f`, #139
-    `8293f798`); item 1 is in review on branch `fix/erp-h2-fractional-qty`:
+    `8293f798`); item 1 is being built on branch `fix/erp-h2-fractional-qty` (no PR yet):
     1. D-5: fractional BOQ quantity via expand/contract, per the additive-only policy
        above. Add a `numeric(18,4)` column, backfill it, then switch readers and writers.
        Drop the integer column in a later contract release.
@@ -134,6 +134,8 @@ Verdicts are posted as PR comments.
 ## Current
 Owner mandate PHASE 1 (init: green baseline, CI merge gate, `smoke:prod`, STATE,
 RUNBOOK) is **done**.
+- Latest promotion: [41820543052](https://github.com/Third-Code-Solutions/ERP/actions/runs/41820543052) put `8293f798` (#138, #139) live;
+  smoke 41823866906 passed. The bullet below is the earlier PHASE 1 promotion.
 - Promotion [41792158962](https://github.com/Third-Code-Solutions/ERP/actions/runs/41792158962) of `b9c9d9b4` succeeded after the owner
   rotated `RAILWAY_API_TOKEN` (2026-11-04 07:24Z). Its release gates and production
   E2E suites passed, and `smoke-prod.yml` [41796012425](https://github.com/Third-Code-Solutions/ERP/actions/runs/41796012425) passed
@@ -217,14 +219,20 @@ RUNBOOK) is **done**.
     are top-level only. The WO-15 block-mode trigger fails closed and cost-control CTEs
     misattribute those lines. Fix with `parent_line_item_id` at the budget grain.
   - Legacy web `createInvoice` still accepts a superseded approved BOM.
-  - `progressInvoiceAmounts` exists in three copies; consolidate.
+  - The progress-invoice amount chain (`progressBillingAmount` → `computeRetention` →
+    `computeVAT`/`computeEWT` → net) is duplicated in `customer-invoice-draft-create.service.ts`,
+    web `procurement/actions.ts` `createInvoice` and `invoice-preview.ts`; consolidate it.
   - Replace `parseDownPaymentBps` with `parsePercentToBps`.
   - Bound the rate-card `FOR SHARE` read with `inArray(code)`.
   - Web test mocks don't pin SQL predicates; add tests for `BOM_NO_LINES` and overflow.
   - A unit-vocabulary mismatch (`pc` vs `pcs`) skips the rate card with no message;
     the rate-card writer still accepts a price of 0.
-  - BIR 2307 print lacks client TIN, ATC and address, and shows the month, not the quarter.
-  - D-15 error text should say "between 1 and 100".
+  - BIR 2307 print lacks the client TIN, the ATC and the payee (tenant) address, and shows
+    the month, not the quarter. The client address is the billing address, not the
+    BIR-registered one.
+  - D-15 error text "Billing % must be between 1 and 100" (`billing/actions.ts`,
+    `bom-builder.tsx`) contradicts the accepted 0.01 minimum; align it with the legacy
+    "between 0.01% and 100%".
   - The DP award insert takes no project lock (Low).
 - **Tooling:** the `lint` script fails on a pnpm 11 vs 10.33 mismatch (run eslint
   directly); local runs need Node 22 (Node 24 fails the engines check).
