@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
-import { assessDeployment, canRetainIdentical, sourceSha, targets } from './deploy-railway-service.mjs'
+import { assessDeployment, canRetainIdentical, classifyCliFailure, sourceSha, targets } from './deploy-railway-service.mjs'
 
 const active = { status: 'SUCCESS', meta: { commitHash: 'a'.repeat(40), serviceManifest: { build: { builder: 'DOCKERFILE' } } } }
 const skipped = { status: 'SKIPPED', meta: { serviceManifest: active.meta.serviceManifest } }
@@ -64,4 +64,19 @@ test('API input comparison covers every Dockerfile copy source and CAD stays sep
       assert.ok(targets.api.paths.some((path) => source === path || source.startsWith(`${path}/`)), `Uncompared Dockerfile input: ${source}`)
     }
   }
+})
+
+test('CLI failures map to fixed labels without echoing output', () => {
+  const unauthorized = { status: 1, stderr: 'Unauthorized. Please check that your RAILWAY_TOKEN is valid' }
+  assert.equal(classifyCliFailure(unauthorized), 'unauthorized')
+  assert.equal(classifyCliFailure({ status: 1, stderr: 'Service not found' }), 'not-found')
+  assert.equal(classifyCliFailure({ code: 'ETIMEDOUT' }), 'timeout')
+  assert.equal(classifyCliFailure({ status: 1, stderr: 'Not Authorized' }), 'unauthorized')
+  assert.equal(classifyCliFailure({ code: 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER', signal: 'SIGTERM' }), 'output-too-large')
+  assert.equal(classifyCliFailure(new SyntaxError('Unexpected token')), 'unparseable-output')
+  assert.equal(classifyCliFailure({ status: 2, stderr: 'secret-looking-value' }), 'exit-2')
+  assert.equal(classifyCliFailure(undefined), 'unknown')
+  // A timeout with partial stdout mentioning login is still a timeout.
+  assert.equal(classifyCliFailure({ code: 'ETIMEDOUT', stdout: '[{"meta":{"commitMessage":"login redirect"}}' }), 'timeout')
+  assert.equal(classifyCliFailure({ status: 1, stdout: 'login page fix', stderr: '' }), 'exit-1')
 })
