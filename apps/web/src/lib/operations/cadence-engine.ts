@@ -6,7 +6,8 @@
  * and assign them to every user holding that role.
  *
  * Idempotent: re-running for the same date is a no-op because we skip rows
- * that already exist for (assignee, project, title, due-date::date).
+ * that already exist for (assignee, project, title, due-date::date). Only
+ * active accounts receive tasks.
  *
  * Configuration is hardcoded here for v1; a future iteration will move
  * templates into the database so admins can tune per-tenant.
@@ -15,7 +16,9 @@
 import { db } from '@third-code-erp/database'
 import { dailyTasks, projects, users } from '@third-code-erp/database/schema'
 import type { AppRole } from '@third-code-erp/auth'
-import { and, eq, gte, lte, sql } from 'drizzle-orm'
+import { and, eq, gte, isNotNull, lte } from 'drizzle-orm'
+
+const INSERT_CHUNK_SIZE = 250
 
 export interface CadenceTask {
   title: string
@@ -121,11 +124,11 @@ export async function generateTasksForDate(
     return { created: 0, skipped: 0, projectsConsidered: 0 }
   }
 
-  // Group users by role once — avoids N*M roundtrips when many projects exist.
+  // Group active users by role once — avoids N*M roundtrips when many projects exist.
   const allUsers = await db
     .select({ id: users.id, role: users.role })
     .from(users)
-    .where(eq(users.tenant_id, tenantId))
+    .where(and(eq(users.tenant_id, tenantId), eq(users.account_status, 'active')))
 
   const usersByRole = new Map<string, string[]>()
   for (const u of allUsers) {
@@ -137,41 +140,43 @@ export async function generateTasksForDate(
   const dayStart = manilaDayAt(date, 0)
   const dayEnd = manilaEndOfDay(date)
 
-  let created = 0
+  // Idempotency: one read of the day's cadence rows, keyed by (project, assignee, title).
+  // Manual tasks (role null) never stand in for a cadence row.
+  const existingRows = await db
+    .select({
+      project_id: dailyTasks.project_id,
+      assignee_id: dailyTasks.assignee_id,
+      title: dailyTasks.title,
+    })
+    .from(dailyTasks)
+    .where(
+      and(
+        eq(dailyTasks.tenant_id, tenantId),
+        isNotNull(dailyTasks.role),
+        gte(dailyTasks.due_date, dayStart),
+        lte(dailyTasks.due_date, dayEnd),
+      ),
+    )
+  const taskKey = (projectId: string, assigneeId: string | null, title: string) =>
+    `${projectId}\u0000${assigneeId ?? ''}\u0000${title}`
+  const seen = new Set(existingRows.map((r) => taskKey(r.project_id, r.assignee_id, r.title)))
+
+  const toInsert: (typeof dailyTasks.$inferInsert)[] = []
   let skipped = 0
 
   for (const project of activeProjects) {
     for (const template of templates) {
       const assignees = usersByRole.get(template.role) ?? []
-      if (assignees.length === 0) continue
-
       for (const task of template.tasks) {
         const due = task.hour !== undefined ? manilaDayAt(date, task.hour) : dayEnd
-
         for (const assigneeId of assignees) {
-          // Idempotency: look for an existing row for this (assignee, project, title)
-          // landing inside the Manila calendar day.
-          const existing = await db
-            .select({ id: dailyTasks.id })
-            .from(dailyTasks)
-            .where(
-              and(
-                eq(dailyTasks.tenant_id, tenantId),
-                eq(dailyTasks.project_id, project.id),
-                eq(dailyTasks.assignee_id, assigneeId),
-                eq(dailyTasks.title, task.title),
-                gte(dailyTasks.due_date, dayStart),
-                lte(dailyTasks.due_date, dayEnd),
-              ),
-            )
-            .limit(1)
-
-          if (existing.length > 0) {
+          const key = taskKey(project.id, assigneeId, task.title)
+          if (seen.has(key)) {
             skipped += 1
             continue
           }
-
-          await db.insert(dailyTasks).values({
+          seen.add(key)
+          toInsert.push({
             tenant_id: tenantId,
             project_id: project.id,
             assignee_id: assigneeId,
@@ -181,13 +186,18 @@ export async function generateTasksForDate(
             due_date: due,
             status: 'pending',
           })
-          created += 1
         }
       }
     }
   }
 
-  return { created, skipped, projectsConsidered: activeProjects.length }
+  // Chunked: stays far below the bind-parameter limit and keeps each statement's
+  // cortex mirror trigger (tenant advisory lock) short.
+  for (let i = 0; i < toInsert.length; i += INSERT_CHUNK_SIZE) {
+    await db.insert(dailyTasks).values(toInsert.slice(i, i + INSERT_CHUNK_SIZE))
+  }
+
+  return { created: toInsert.length, skipped, projectsConsidered: activeProjects.length }
 }
 
 // Read-side callers supply instants; generation above accepts a calendar date.
@@ -196,7 +206,3 @@ export const manilaBoundaries = {
   endOfDay: (date: Date) => manilaEndOfDay(manilaCalendarDate(date)),
   atHour: (date: Date, hour: number) => manilaDayAt(manilaCalendarDate(date), hour),
 }
-
-// Suppress unused warning — `sql` is reserved for a future ON CONFLICT path
-// once we add the partial unique index described in REFACTOR.md.
-void sql

@@ -1,29 +1,33 @@
 'use server'
 
 /**
- * Server actions for "My Tasks" surface (REFACTOR.md M5 US-Con-001).
+ * Server actions for the Tasks surface (REFACTOR.md M5 US-Con-001).
  *
  * - completeTask: delegates one tenant-selected authenticated command to Core,
  *                 which owns the task, audit, SLA, and replay transaction.
- * - triggerDailyGeneration: emits a `cadence/generate.requested` event for
- *                 the caller's tenant. Restricted to admin/owner.
+ * - createTask: creates one manually assigned task inside the caller's tenant.
+ * - triggerDailyGeneration: runs today's cadence generation for the caller's
+ *                 tenant and reports what it created. Restricted to admin/owner.
  */
 
 import { createHash, randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
+import { and, eq } from 'drizzle-orm'
 import { can, requireUserProfile } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
+import { dailyTasks, projects, users } from '@third-code-erp/database/schema'
 import {
   dailyTaskCompletionCommandSchema,
   dailyTaskCompletionResultSchema,
   type DailyTaskCompletionCommand,
 } from '@third-code-erp/shared-types'
 import { z } from 'zod'
-import { writeAuditLog } from '@/lib/audit'
+import { stampActorInTransaction, writeAuditLog, writeAuditLogInTransaction } from '@/lib/audit'
 import {
   completeDailyTaskThroughCoreApi,
   dailyTaskCompletionWritesUseCoreApi,
 } from '@/lib/erp-core-client'
-import { inngest } from '@/lib/inngest'
+import { generateTasksForDate, manilaCalendarDate } from '@/lib/operations/cadence-engine'
 
 export interface ActionResult {
   error?: string
@@ -181,6 +185,108 @@ export async function completeTask(
   }
 }
 
+const createTaskSchema = z
+  .object({
+    title: z
+      .string()
+      .trim()
+      .min(1, 'Enter a task title.')
+      .max(255, 'Keep the title under 255 characters.'),
+    description: z
+      .string()
+      .trim()
+      .max(2_000, 'Keep the description under 2,000 characters.')
+      .optional(),
+    project_id: z.string().uuid('Choose a project.'),
+    assignee_id: z.string().uuid('Choose who the task is assigned to.'),
+    // datetime-local value, read as Manila wall-clock time.
+    due_at: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, 'Enter a due date and time.'),
+  })
+  .strict()
+
+const CLOSED_PROJECT_STATUSES = new Set(['completed', 'cancelled'])
+
+export async function createTask(formData: FormData): Promise<ActionResult> {
+  const fields: Record<string, unknown> = {}
+  for (const [key, value] of formData.entries()) {
+    if (key in fields) return { error: 'Invalid task request.' }
+    fields[key] = value
+  }
+  const parsed = createTaskSchema.safeParse(fields)
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'Invalid task request.' }
+  }
+  const input = parsed.data
+  const dueDate = new Date(`${input.due_at}:00+08:00`)
+  if (Number.isNaN(dueDate.getTime())) return { error: 'Enter a due date and time.' }
+
+  const profile = await requireUserProfile().catch(() => null)
+  if (!profile) return { error: 'Unauthorized' }
+  if (!can(profile.role, 'sd.daily_tasks')) return { error: 'Forbidden' }
+
+  const [project] = await db
+    .select({ id: projects.id, status: projects.status })
+    .from(projects)
+    .where(and(eq(projects.id, input.project_id), eq(projects.tenant_id, profile.tenantId)))
+    .limit(1)
+  if (!project) return { error: 'Project not found.' }
+  if (CLOSED_PROJECT_STATUSES.has(project.status)) {
+    return { error: 'Tasks cannot be added to a completed or cancelled project.' }
+  }
+
+  const [assignee] = await db
+    .select({ id: users.id, role: users.role, status: users.account_status })
+    .from(users)
+    .where(and(eq(users.id, input.assignee_id), eq(users.tenant_id, profile.tenantId)))
+    .limit(1)
+  // Assignees must be able to complete the task under the sd.daily_tasks policy.
+  if (!assignee || assignee.status !== 'active' || !can(assignee.role, 'sd.daily_tasks')) {
+    return { error: 'Choose an active teammate who can complete tasks.' }
+  }
+
+  const description = input.description ? input.description : null
+  await db.transaction(async (tx) => {
+    await stampActorInTransaction(tx, profile.user.id)
+    const [row] = await tx
+      .insert(dailyTasks)
+      .values({
+        tenant_id: profile.tenantId,
+        project_id: project.id,
+        assignee_id: assignee.id,
+        title: input.title,
+        description,
+        role: null,
+        due_date: dueDate,
+        status: 'pending',
+      })
+      .returning({ id: dailyTasks.id })
+    if (!row) throw new Error('Task insert returned no row')
+    await writeAuditLogInTransaction(tx, {
+      tenantId: profile.tenantId,
+      actorId: profile.user.id,
+      entityType: 'daily_task',
+      entityId: row.id,
+      action: 'create',
+      diff: {
+        title: input.title,
+        project_id: project.id,
+        assignee_id: assignee.id,
+        due_date: dueDate.toISOString(),
+        source: 'manual',
+      },
+    })
+  })
+
+  revalidatePath('/tasks')
+  return { ok: true, message: 'Task created.' }
+}
+
+function plural(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? '' : 's'}`
+}
+
 export async function triggerDailyGeneration(): Promise<ActionResult> {
   const profile = await requireUserProfile().catch(() => null)
   if (!profile) return { error: 'Unauthorized' }
@@ -189,17 +295,12 @@ export async function triggerDailyGeneration(): Promise<ActionResult> {
     return { error: 'Forbidden' }
   }
 
+  let result: Awaited<ReturnType<typeof generateTasksForDate>>
   try {
-    await inngest.send({
-      name: 'cadence/generate.requested',
-      data: {
-        tenantId: profile.tenantId,
-        actorId: profile.user.id,
-      },
-    })
+    result = await generateTasksForDate(profile.tenantId, manilaCalendarDate(new Date()))
   } catch (err) {
-    console.warn('[triggerDailyGeneration] inngest.send failed:', err)
-    return { error: 'Could not enqueue generation' }
+    console.warn('[triggerDailyGeneration] generation failed:', err)
+    return { error: 'Task generation failed. Please try again.' }
   }
 
   await writeAuditLog({
@@ -208,9 +309,23 @@ export async function triggerDailyGeneration(): Promise<ActionResult> {
     entityType: 'cadence',
     entityId: profile.tenantId,
     action: 'create',
-    diff: { event: 'cadence/generate.requested' },
+    diff: { event: 'cadence.generate', ...result },
   })
 
   revalidatePath('/tasks')
-  return { ok: true }
+
+  const { created, skipped, projectsConsidered } = result
+  const projectsText = plural(projectsConsidered, 'active project')
+  let message: string
+  if (projectsConsidered === 0) {
+    message = 'There are no active projects, so no cadence tasks were generated.'
+  } else if (created === 0 && skipped === 0) {
+    message =
+      'No active teammates hold a cadence role (Service Delivery PM/PE, Safety, Commercial, Procurement), so no tasks were generated.'
+  } else if (created === 0) {
+    message = `Today’s cadence is already generated: ${plural(skipped, 'task')} across ${projectsText}. Nothing new was added.`
+  } else {
+    message = `Generated ${plural(created, 'task')} across ${projectsText}.${skipped > 0 ? ` ${skipped} already existed.` : ''}`
+  }
+  return { ok: true, message }
 }

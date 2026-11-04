@@ -1,6 +1,7 @@
 import React from 'react'
 import Link from 'next/link'
 import { completeTask } from '@/app/(dashboard)/tasks/actions'
+import styles from '@/app/(dashboard)/tasks/tasks.module.css'
 import { CompleteTaskButton } from './complete-task-button'
 
 export interface TaskRowData {
@@ -13,19 +14,24 @@ export interface TaskRowData {
   project_id: string
   project_name: string
   assignee_id: string | null
+  assignee_name?: string | null
   completion_notes?: string | null
   completed_at?: Date | string | null
 }
 
 interface TaskRowProps {
   task: TaskRowData
-  /** When true, show a destructive "Overdue" badge. */
-  overdue?: boolean
-  /** When true, do not render the completion control (e.g. completed view). */
+  /** Current instant (ms) used to classify overdue tasks. */
+  now: number
+  /** End of today in Manila (ms); pending tasks due before it are "Due today". */
+  todayEnd: number
+  /** Render the assignee column (team view). */
+  showAssignee?: boolean
+  /** When true, do not render the completion control. */
   readOnly?: boolean
 }
 
-const ROLE_LABELS: Record<string, string> = {
+export const ROLE_LABELS: Record<string, string> = {
   sd_pm_pe: 'SD / PM / PE',
   safety: 'Safety',
   commercial: 'Commercial',
@@ -41,9 +47,30 @@ const ROLE_LABELS: Record<string, string> = {
   viewer: 'Viewer',
 }
 
-function formatDue(value: Date | string): string {
-  const d = typeof value === 'string' ? new Date(value) : value
-  return d.toLocaleString('en-PH', {
+const DAY_MS = 86_400_000
+const MANILA_OFFSET_MS = 8 * 3_600_000
+
+/** Whole Manila calendar days since the epoch, for "N days late". */
+function manilaDayIndex(ms: number): number {
+  return Math.floor((ms + MANILA_OFFSET_MS) / DAY_MS)
+}
+
+type DisplayStatus = 'overdue' | 'today' | 'open' | 'done' | 'skipped'
+
+const STATUS_BADGE: Record<DisplayStatus, { label: string; className: string }> = {
+  overdue: { label: 'Overdue', className: 'stage-badge stage-closed_lost' },
+  today: { label: 'Due today', className: 'stage-badge stage-negotiation' },
+  open: { label: 'Open', className: 'stage-badge stage-scoping' },
+  done: { label: 'Done', className: 'stage-badge stage-closed_won' },
+  skipped: { label: 'Skipped', className: 'stage-badge stage-opportunity_creation' },
+}
+
+function toDate(value: Date | string): Date {
+  return typeof value === 'string' ? new Date(value) : value
+}
+
+function formatDue(value: Date): string {
+  return value.toLocaleString('en-PH', {
     timeZone: 'Asia/Manila',
     month: 'short',
     day: 'numeric',
@@ -53,35 +80,59 @@ function formatDue(value: Date | string): string {
   })
 }
 
-export function TaskRow({ task, overdue = false, readOnly = false }: TaskRowProps) {
-  const roleLabel = task.role ? (ROLE_LABELS[task.role] ?? task.role) : null
+function formatDay(value: Date): string {
+  return value.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric' })
+}
+
+export function displayStatus(task: Pick<TaskRowData, 'status' | 'due_date'>, now: number, todayEnd: number): DisplayStatus {
+  if (task.status === 'done') return 'done'
+  if (task.status === 'skipped') return 'skipped'
+  const due = toDate(task.due_date).getTime()
+  if (due < now) return 'overdue'
+  if (due <= todayEnd) return 'today'
+  return 'open'
+}
+
+export function TaskRow({ task, now, todayEnd, showAssignee = false, readOnly = false }: TaskRowProps) {
+  const due = toDate(task.due_date)
+  const status = displayStatus(task, now, todayEnd)
+  const badge = STATUS_BADGE[status]
+  const source = task.role ? `Daily cadence · ${ROLE_LABELS[task.role] ?? task.role}` : 'Manual task'
   const requiresToolboxLog = task.title.trim().toLowerCase() === 'toolbox meeting log'
-  const completeMountedTask = completeTask.bind(null, {
-    taskId: task.id,
-    projectId: task.project_id,
-    assigneeId: task.assignee_id,
-    requiresNotes: requiresToolboxLog,
-  })
+  const daysLate = manilaDayIndex(now) - manilaDayIndex(due.getTime())
+
+  let action: React.ReactNode = <span className="muted">—</span>
+  if (task.status === 'pending' && readOnly) {
+    action = (
+      <span className="muted" title="Your role can view this task but not complete it.">
+        View only
+      </span>
+    )
+  } else if (task.status === 'pending') {
+    const completeMountedTask = completeTask.bind(null, {
+      taskId: task.id,
+      projectId: task.project_id,
+      assigneeId: task.assignee_id,
+      requiresNotes: requiresToolboxLog,
+    })
+    action = (
+      <CompleteTaskButton
+        action={completeMountedTask}
+        taskId={task.id}
+        requiresNotes={requiresToolboxLog}
+        notePlaceholder={requiresToolboxLog ? 'Attendees, safety topic, hazards, and action items' : 'Optional completion notes'}
+      />
+    )
+  }
 
   return (
     <tr>
       <td>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <span style={{ fontWeight: 500 }}>{task.title}</span>
-          {task.description && (
-            <span className="muted" style={{ fontSize: '0.75rem' }}>{task.description}</span>
-          )}
-          {task.completion_notes && (
-            <span
-              style={{
-                fontSize: '0.75rem',
-                color: 'var(--color-neutral-600)',
-                fontStyle: 'italic',
-              }}
-            >
-              “{task.completion_notes}”
-            </span>
-          )}
+        <div className={styles.taskCell}>
+          <span className={styles.taskTitle}>{task.title}</span>
+          <span className={styles.taskMeta}>{source}</span>
+          {task.description && <span className={styles.taskDescription}>{task.description}</span>}
+          {task.completion_notes && <span className={styles.taskNote}>“{task.completion_notes}”</span>}
         </div>
       </td>
       <td>
@@ -89,49 +140,25 @@ export function TaskRow({ task, overdue = false, readOnly = false }: TaskRowProp
           {task.project_name}
         </Link>
       </td>
-      <td className="muted">{roleLabel ?? '—'}</td>
-      <td className="muted" style={{ whiteSpace: 'nowrap' }}>
-        {formatDue(task.due_date)}
-        {overdue && (
-          <span
-            style={{
-              marginLeft: 8,
-              padding: '2px 6px',
-              fontSize: '0.6875rem',
-              fontWeight: 600,
-              borderRadius: 4,
-              background: 'color-mix(in oklab, var(--color-danger) 12%, white)',
-              color: 'var(--color-danger)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.04em',
-            }}
-          >
-            Overdue
+      {showAssignee && <td className="muted">{task.assignee_name ?? 'Unassigned'}</td>}
+      <td className={styles.due}>
+        {formatDue(due)}
+        {status === 'overdue' && (
+          <span className={styles.dueLate}>
+            {daysLate >= 1 ? `${daysLate} day${daysLate === 1 ? '' : 's'} late` : 'Late today'}
           </span>
+        )}
+        {status === 'done' && task.completed_at && (
+          <span className={styles.dueSub}>Completed {formatDay(toDate(task.completed_at))}</span>
         )}
       </td>
       <td>
-        {readOnly || task.status === 'done' ? (
-          <span className="muted" style={{ fontSize: '0.75rem' }}>
-            {task.status === 'done' && task.completed_at
-              ? `Done ${new Date(task.completed_at).toLocaleDateString('en-PH', {
-                  timeZone: 'Asia/Manila',
-                  month: 'short',
-                  day: 'numeric',
-                })}`
-              : readOnly
-                ? 'Read-only: completion unavailable for your role.'
-                : task.status}
-          </span>
-        ) : (
-          <CompleteTaskButton
-            action={completeMountedTask}
-            taskId={task.id}
-            requiresNotes={requiresToolboxLog}
-            notePlaceholder="Attendees, safety topic, hazards, and action items"
-          />
-        )}
+        <span className={badge.className}>
+          <span className="stage-badge-dot" />
+          {badge.label}
+        </span>
       </td>
+      <td className={styles.actionCell}>{action}</td>
     </tr>
   )
 }
