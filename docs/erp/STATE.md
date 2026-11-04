@@ -68,29 +68,22 @@ Verdicts are posted as PR comments.
 - Deferred P1 items (with reason): —
 
 ## Current
-Order: #129 → deploy → #128 → deploy → baseline PR.
+Order: promote #129 → #128 (round 2) → #130 (P1 security) → baseline PR → #125 delta →
+SEC-01/02 grant migration (needs `backup-production.yml` on `main` first).
 
-- **PR #129** `fix/deps-audit-and-runner-pin` (worktree `D:\thirdcode\ERP-deps`), P0.
-  - Fixes the **critical Next.js RCE** (GHSA-2464-fhr4-w9xw, live in prod on 15.5.27).
-  - Patches the remaining audit advisories, adds 3 time-boxed waivers, and pins the
-    Playwright jobs to ubuntu-24.04.
-  - Status: CI and fresh reviewers running. Local: audits exit 0, tsc ok, nest build ok,
-    api 1565/1565, web 2652/2652.
-  - Merge first, then promote.
-- **PR #128** `fix/tasks-generation-and-erp-task-page` (main worktree `D:\thirdcode\ERP`).
-  - Round 1 verdicts:
-    - security PASS (1 Medium, 3 Low);
-    - review REQUEST CHANGES (B1: the daily-task contract verifier fails because of
-      team scope).
-  - Fix loop 1 in progress (builder agent). Decision: drop team scope; it becomes a
-    follow-up with an explicit contract change.
-  - After fixes: merge `main` (with #129) into the branch, then run round 2 with fresh
-    reviewers.
-- Baseline (`chore/erp-baseline`, worktree `D:\thirdcode\ERP-baseline`).
-  - Phase 1 commit `ebd5135a` is local, not pushed. It holds the swarm files, STATE,
-    RUNBOOK, smoke:prod and the smoke workflow.
-  - Init Phase A auditors (baseline + security) are writing `docs/erp/ARCHITECTURE.md`
-    and `docs/erp/reports/00-*.md`.
+- **PR #129** merged 2026-11-04 as `a2313a47` (security PASS r2, review APPROVE r2,
+  CI green). Next.js 15.5.28, body-parser/multer/qs overrides, zod waiver with
+  compensating controls (Core API array budget, token-first DocuSeal webhook).
+  Production promotion pending main CI.
+- **PR #128** `fix/tasks-generation-and-erp-task-page` (worktree `D:\thirdcode\ERP`).
+  Fix loop 1 done (`925685de`, `f2c0d351`), `main` merged in (`854ac6d0`), round 2
+  fresh reviewers running.
+- **PR #130** `fix/p1-tenant-paths-po-sod-money` (worktree `D:\thirdcode\ERP-p1`):
+  SEC-03, SEC-04, BL-04. Fresh reviewers running. Prod check: all 9 `documents`
+  rows are tenant-prefixed, so the guard hides no existing file.
+- **Baseline PR** `chore/erp-baseline` (worktree `D:\thirdcode\ERP-baseline`): swarm
+  files, STATE, RUNBOOK, `smoke:prod` + workflow, encrypted backup workflow, audit
+  reports.
 
 ## Follow-ups (tracked)
 - **zod 4 migration:** removes waiver GHSA-mrhx-c7xc-m3w5. Due 2026-12-04, with the
@@ -98,6 +91,11 @@ Order: #129 → deploy → #128 → deploy → baseline PR.
 - **daily_tasks generation:**
   - unique partial index + `onConflictDoNothing` (expand migration, needs a backup);
   - `(tenant_id, due_date)` index for cadence and count reads.
+- **Takeoff import `raw` record:** authenticated 2.4 MB body of failing keys costs
+  ~0.9 GB Core heap (zod 3 union issues). Pre-check key count + single-issue value
+  check, or the zod 4 migration.
+- **Opportunity GP sign:** web now allows negative GP to match Core; confirm with
+  the business that loss-making deals are recorded as negative GP.
 - **Owner/admin "Team tasks" view:** needs an explicit change to the daily-task contract
   verifier and its tests, and a `created_by` column so assignees see who assigned a task.
 
@@ -115,3 +113,5 @@ Order: #129 → deploy → #128 → deploy → baseline PR.
 | Date | Mode | Result |
 |---|---|---|
 | 2026-11-04 | prod config | Set `ERP_DAILY_TASK_COMPLETION_WRITES_VIA_API=true` + `_TENANT_IDS=<buildops-e2e>` in Vercel production (owner approved); applies on the next prod deploy |
+| 2026-11-04 | baseline | Phase A: P0 0 · 4 P1 code + 4 security High. Security auditor verdict BLOCK (SEC-01..06) |
+| 2026-11-04 | merge | PR #129 squash-merged `a2313a47` (deps + Next RCE + zod compensating controls) |
