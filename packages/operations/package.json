@@ -20,6 +20,6 @@
     "@third-code-erp/config": "workspace:*",
     "@types/node": "^22.0.0",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.12"
   }
 }
