@@ -457,6 +457,21 @@ suite('Bank statement matching protected HTTP canary', () => {
             referenceNumber: `ST-IMPORT-CROSS-${suffix}`,
           })
           .expect(403)
+        // Encoded dot segments and backslashes normalise to another tenant's key in
+        // the storage URL, so the allow-list must reject them before signing.
+        const encodedEscape = `${fixtureA.tenantId}/bank-statements/%2e%2e\\%2e%2e\\${fixtureB.tenantId}\\bank-statements\\${suffix}.csv`
+        await request(app.getHttpServer())
+          .post(importRoute)
+          .set('Authorization', 'Bearer auto-match-http-finance-a-token')
+          .set('Idempotency-Key', 'import-storage-encoded-escape')
+          .send({
+            ...importBody,
+            sourceBase64: undefined,
+            sourceStoragePath: encodedEscape,
+            referenceNumber: `ST-IMPORT-ESCAPE-${suffix}`,
+          })
+          .expect(403)
+        expect(importStorage.readCsv).not.toHaveBeenCalledWith(encodedEscape)
         const importedFromStorage = await request(app.getHttpServer())
           .post(importRoute)
           .set('Authorization', 'Bearer auto-match-http-finance-a-token')

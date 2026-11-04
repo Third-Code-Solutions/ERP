@@ -89,6 +89,8 @@ describe('isTenantScopedStoragePath', () => {
     `${TENANT_ID}/p/plan.dxf?x=1`,
     `${TENANT_ID}/p/plan#frag.dxf`,
     `${TENANT_ID}/p/plan%20a.dxf`,
+    `${TENANT_ID}/.. `,
+    `${TENANT_ID}/p/plan a.dxf`,
     `${TENANT_ID}/p/plan\u0000.dxf`,
     `${TENANT_ID}/p/plan\u007f.dxf`,
     `${TENANT_ID}//plan.dxf`,

@@ -26,10 +26,10 @@ export type DocumentDeleteCommand = z.infer<
 >
 export type DocumentDeleteResult = z.infer<typeof documentDeleteResultSchema>
 
-// WHATWG URL parsing strips tab/LF/CR (so `.<TAB>.` becomes `..`), treats `\` as
-// `/`, and `%`, `?`, `#` change how the key is decoded. Every first-party writer
+// WHATWG URL parsing strips tab/LF/CR (so `.<TAB>.` becomes `..`) and trailing
+// spaces, treats `\` as `/`, and `%`, `?`, `#` change how the key is decoded. Every first-party writer
 // limits file names to [a-zA-Z0-9._-], so rejecting these loses no real file.
-const UNSAFE_STORAGE_PATH_CHARACTER = /[\\%?#]/
+const UNSAFE_STORAGE_PATH_CHARACTER = /[\s\\%?#]/
 
 function hasControlCharacter(value: string): boolean {
   for (let index = 0; index < value.length; index += 1) {

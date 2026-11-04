@@ -34,6 +34,7 @@ import {
   bankStatementVoidResultSchema,
   bankStatementImportCommandSchema,
   bankStatementImportResultSchema,
+  isTenantScopedStoragePath,
   parseBankStatementCsv,
   type BankStatementAutoMatchBody,
   type BankStatementAutoMatchResult,
@@ -1017,7 +1018,7 @@ export class FinanceReconciliationWorkflowService {
       const expectedPrefix = `${tenantId}/bank-statements/`
       if (
         !command.sourceStoragePath.startsWith(expectedPrefix) ||
-        command.sourceStoragePath.includes('..')
+        !isTenantScopedStoragePath(command.sourceStoragePath, tenantId)
       ) {
         throw new ForbiddenException(
           'Bank statement source is outside the tenant storage scope'
