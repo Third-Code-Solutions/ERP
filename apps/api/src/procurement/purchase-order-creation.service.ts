@@ -32,6 +32,7 @@ import {
   purchaseOrderBomCreationResultSchema,
   purchaseOrdersGroupedFromBomResultSchema,
   purchaseOrderCreationResultSchema,
+  purchaseOrderTaxAudit,
   purchasableBomLines,
   purchaseLineCostCode,
   rateCardPicker,
@@ -58,6 +59,7 @@ import {
 import { roleHasCapability } from '../auth/capability.guard'
 import type { ErpPrincipal, ErpRole } from '../auth/current-principal.decorator'
 import { AuditService } from '../audit/audit.service'
+import { resolveTaxRatesForWrite } from '../common/tax-rates'
 import { DatabaseService } from '../database/database.service'
 
 const MAX_SAFE_INTEGER_BIGINT = BigInt(Number.MAX_SAFE_INTEGER)
@@ -98,8 +100,9 @@ function groupedBomCommandHash(
     .digest('hex')
 }
 
-function percentHalfUp(value: bigint, percent: bigint): bigint {
-  return (value * percent + 50n) / 100n
+// Spec tenancy C-0/C-3: half-up at an effective rate in basis points.
+export function bpsHalfUp(value: bigint, bps: number): bigint {
+  return (value * BigInt(bps) + 5_000n) / 10_000n
 }
 
 function safeDatabaseCents(value: bigint): number {
@@ -481,6 +484,12 @@ export class PurchaseOrderCreationService {
           'No BOM lines have a valid supplier rate card; choose a vendor before generating POs'
         )
       }
+      // Spec tenancy C-1: one rate set for every PO of this command.
+      const tax = await resolveTaxRatesForWrite(
+        transaction,
+        authorizedPrincipal.tenantId,
+        now
+      )
 
       await transaction.execute(
         sql`select pg_advisory_xact_lock(hashtextextended(${`purchase_order_number:${authorizedPrincipal.tenantId}`}, 0))`
@@ -504,8 +513,8 @@ export class PurchaseOrderCreationService {
         nextSuffix += 1n
         const poNumber = `PO-${nextSuffix.toString().padStart(4, '0')}`
         const subtotal = group.subtotal
-        const vat = percentHalfUp(subtotal, 12n)
-        const withholdingTax = percentHalfUp(subtotal, 2n)
+        const vat = bpsHalfUp(subtotal, tax.vatBps)
+        const withholdingTax = bpsHalfUp(subtotal, tax.ewtBps)
         const total = subtotal + vat - withholdingTax
         let created: { id: string; poNumber: string } | undefined
         try {
@@ -572,6 +581,7 @@ export class PurchaseOrderCreationService {
             line_count: group.bucket.lines.length,
             subtotal_cents: safeDatabaseCents(subtotal),
             source: 'group_by_supplier',
+            tax: purchaseOrderTaxAudit(tax),
           },
         })
       }
@@ -885,8 +895,14 @@ export class PurchaseOrderCreationService {
         (sum, value) => sum + value.lineTotal,
         0n
       )
-      const vatCents = percentHalfUp(subtotalCents, 12n)
-      const withholdingTaxCents = percentHalfUp(subtotalCents, 2n)
+      const now = new Date()
+      const tax = await resolveTaxRatesForWrite(
+        transaction,
+        authorizedPrincipal.tenantId,
+        now
+      )
+      const vatCents = bpsHalfUp(subtotalCents, tax.vatBps)
+      const withholdingTaxCents = bpsHalfUp(subtotalCents, tax.ewtBps)
       const totalCents = subtotalCents + vatCents - withholdingTaxCents
       const subtotal = safeDatabaseCents(subtotalCents)
       const vat = safeDatabaseCents(vatCents)
@@ -955,7 +971,6 @@ export class PurchaseOrderCreationService {
         }))
       )
 
-      const now = new Date()
       if (bom.status === 'approved') {
         await transaction
           .update(boms)
@@ -1019,6 +1034,7 @@ export class PurchaseOrderCreationService {
           line_count: lines.length,
           idempotency_key_hash: requestHash,
           source: 'bom',
+          tax: purchaseOrderTaxAudit(tax),
         },
       })
 
@@ -1215,8 +1231,13 @@ export class PurchaseOrderCreationService {
         (sum, line) => sum + line.lineTotal,
         0n
       )
-      const vat = percentHalfUp(subtotal, 12n)
-      const withholdingTax = percentHalfUp(subtotal, 2n)
+      const tax = await resolveTaxRatesForWrite(
+        transaction,
+        authorizedPrincipal.tenantId,
+        new Date()
+      )
+      const vat = bpsHalfUp(subtotal, tax.vatBps)
+      const withholdingTax = bpsHalfUp(subtotal, tax.ewtBps)
       const total = subtotal + vat - withholdingTax
       const subtotalCents = safeDatabaseCents(subtotal)
       const vatCents = safeDatabaseCents(vat)
@@ -1337,6 +1358,7 @@ export class PurchaseOrderCreationService {
           subtotal_cents: subtotalCents,
           line_count: lineValues.length,
           idempotency_key_hash: requestHash,
+          tax: purchaseOrderTaxAudit(tax),
         },
       })
 

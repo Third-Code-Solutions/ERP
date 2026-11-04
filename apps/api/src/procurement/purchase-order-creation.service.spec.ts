@@ -15,7 +15,10 @@ import { describe, expect, it, vi } from 'vitest'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import type { AuditService } from '../audit/audit.service'
 import type { DatabaseService } from '../database/database.service'
-import { PurchaseOrderCreationService } from './purchase-order-creation.service'
+import {
+  PurchaseOrderCreationService,
+  bpsHalfUp,
+} from './purchase-order-creation.service'
 
 const PRINCIPAL: ErpPrincipal = {
   userId: '11111111-1111-4111-8111-111111111111',
@@ -225,6 +228,9 @@ describe('PurchaseOrderCreationService migration boundary', () => {
     const requestQuery = selectQuery([request])
     const projectQuery = selectQuery([{ id: COMMAND.projectId }])
     const costCodesQuery = selectQuery([{ id: COMMAND.lines[0]!.costCodeId }])
+    const taxProfilesQuery = {
+      from: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) }),
+    }
     const numberQuery = {
       from: vi.fn().mockReturnValue({
         where: vi.fn().mockResolvedValue([{ maxNumericSuffix: '41' }]),
@@ -254,6 +260,7 @@ describe('PurchaseOrderCreationService migration boundary', () => {
         .mockReturnValueOnce({ from: requestQuery.from })
         .mockReturnValueOnce({ from: projectQuery.from })
         .mockReturnValueOnce({ from: costCodesQuery.from })
+        .mockReturnValueOnce({ from: taxProfilesQuery.from })
         .mockReturnValueOnce({ from: numberQuery.from }),
       insert: vi
         .fn()
@@ -371,6 +378,9 @@ describe('PurchaseOrderCreationService migration boundary', () => {
     const requestQuery = selectQuery([request])
     const projectQuery = selectQuery([{ id: COMMAND.projectId }])
     const costCodesQuery = selectQuery([{ id: COMMAND.lines[0]!.costCodeId }])
+    const taxProfilesQuery = {
+      from: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) }),
+    }
     const numberQuery = {
       from: vi.fn().mockReturnValue({
         where: vi.fn().mockResolvedValue([{ maxNumericSuffix: '41' }]),
@@ -393,6 +403,7 @@ describe('PurchaseOrderCreationService migration boundary', () => {
         .mockReturnValueOnce({ from: requestQuery.from })
         .mockReturnValueOnce({ from: projectQuery.from })
         .mockReturnValueOnce({ from: costCodesQuery.from })
+        .mockReturnValueOnce({ from: taxProfilesQuery.from })
         .mockReturnValueOnce({ from: numberQuery.from }),
       insert: vi
         .fn()
@@ -482,8 +493,8 @@ function bomHarness(queryRows: unknown[][]) {
     update: vi.fn(() => chain([{ id: request.id }])),
     execute: vi.fn().mockResolvedValue(undefined),
   }
-  const { candidate } = enabledHarness(transactionClient)
-  return { candidate, poInserts, lineInserts }
+  const { candidate, audit } = enabledHarness(transactionClient)
+  return { candidate, poInserts, lineInserts, audit }
 }
 
 let lineSeq = 0
@@ -541,6 +552,7 @@ async function createFromBomWith(rows: unknown[], budgetRows: unknown[] = []) {
     [{ id: BOM_COMMAND.projectId }],
     rows,
     budgetRows,
+    [],
     [{ maxNumericSuffix: '41' }],
   ])
   await harness.candidate.createFromBom(BOM_COMMAND, PRINCIPAL, 'bom-po-d4')
@@ -753,6 +765,7 @@ describe('PO from BOM foots its header to its lines (D-4)', () => {
         { id: vendorA, name: 'Vendor A' },
         { id: vendorB, name: 'Vendor B' },
       ],
+      [],
       [{ maxNumericSuffix: '7' }],
     ])
 
@@ -830,6 +843,7 @@ describe('PO from BOM foots its header to its lines (D-4)', () => {
         { id: vendorA, name: 'Vendor A' },
         { id: vendorB, name: 'Vendor B' },
       ],
+      [],
       [{ maxNumericSuffix: '7' }],
     ])
 
@@ -864,5 +878,153 @@ describe('PO from BOM foots its header to its lines (D-4)', () => {
         subtotalCents: 1_410_000,
       },
     ])
+  })
+})
+
+describe('PO effective tax rates (spec tenancy C-3)', () => {
+  const VENDOR_A = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeea'
+  const PROFILE_ID = '99999999-9999-4999-8999-999999999999'
+  const MESSY_COMMAND: CreatePurchaseOrderCommand = {
+    ...COMMAND,
+    lines: [{ ...COMMAND.lines[0]!, unitCostCents: 899_883 }],
+  }
+
+  function profileRow(overrides: Row = {}) {
+    return {
+      id: PROFILE_ID,
+      code: 'P-2026',
+      status: 'active',
+      valid_from: '2026-01-01',
+      valid_to: null,
+      vat_rate_bps: 1200,
+      withholding_rate_bps: 200,
+      retention_rate_bps: 1000,
+      vat_registered: true,
+      ...overrides,
+    }
+  }
+
+  function auditTax(audit: { writeSemantic: ReturnType<typeof vi.fn> }) {
+    const entry = audit.writeSemantic.mock.calls.find(
+      (call) => (call[1] as { entityType: string }).entityType === 'purchase_order'
+    )?.[1] as { diff: { tax: unknown } } | undefined
+    return entry?.diff.tax
+  }
+
+  // Select order per path, with the tax-profile read at the resolver's position.
+  function manualCreate(taxRows: unknown[]) {
+    return bomHarness([
+      [{ id: COMMAND.projectId }],
+      [{ id: COMMAND.lines[0]!.costCodeId }],
+      taxRows,
+      [{ maxNumericSuffix: '41' }],
+    ])
+  }
+
+  function fromBom(taxRows: unknown[]) {
+    return bomHarness([
+      [LOCKED_BOM],
+      [{ id: BOM_COMMAND.projectId }],
+      [bomLine({ quantity: 1, unitCostCents: 899_883 })],
+      [],
+      taxRows,
+      [{ maxNumericSuffix: '41' }],
+    ])
+  }
+
+  function groupedFromBom(taxRows: unknown[]) {
+    return bomHarness([
+      [LOCKED_BOM],
+      [bomLine({ code: 'MESSY', quantity: 1, unitCostCents: 999_999 })],
+      [],
+      [rateCard({ id: 'card-messy', code: 'MESSY', vendorId: VENDOR_A, unitPriceCents: 899_883 })],
+      [{ id: VENDOR_A, name: 'Vendor A' }],
+      taxRows,
+      [{ maxNumericSuffix: '7' }],
+    ])
+  }
+
+  const PATHS = [
+    ['manual create', manualCreate, (h: ReturnType<typeof bomHarness>) =>
+      h.candidate.create(MESSY_COMMAND, PRINCIPAL, 'po-tax-manual')],
+    ['from BOM', fromBom, (h: ReturnType<typeof bomHarness>) =>
+      h.candidate.createFromBom(BOM_COMMAND, PRINCIPAL, 'po-tax-bom')],
+    ['grouped from BOM', groupedFromBom, (h: ReturnType<typeof bomHarness>) =>
+      h.candidate.createGroupedFromBom(GROUPED_BOM_COMMAND, PRINCIPAL, 'po-tax-grouped')],
+  ] as const
+
+  it('keeps the old percent rounding at 12% / 2% for every subtotal 0..3,000,000', () => {
+    for (let value = 0n; value <= 3_000_000n; value += 1n) {
+      if (
+        bpsHalfUp(value, 1200) !== (value * 12n + 50n) / 100n ||
+        bpsHalfUp(value, 200) !== (value * 2n + 50n) / 100n
+      ) {
+        throw new Error(`bps/percent rounding mismatch at ${value}`)
+      }
+    }
+  }, 60_000)
+
+  it.each(PATHS)('%s: PO-1 defaults keep 989,871 and audit the default source', async (_name, build, run) => {
+    const harness = build([])
+    await run(harness)
+
+    expect(harness.poInserts).toHaveLength(1)
+    expect(harness.poInserts[0]).toMatchObject({
+      subtotal_cents: 899_883,
+      vat_cents: 107_986,
+      withholding_tax_cents: 17_998,
+      total_cents: 989_871,
+    })
+    expect(auditTax(harness.audit)).toEqual({
+      vatBps: 1200,
+      ewtBps: 200,
+      source: 'default',
+      profileId: null,
+      profileCode: null,
+      asOf: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+    })
+  })
+
+  it.each(PATHS)('%s: PO-7 profile EWT 1% gives 998,870 and audits the profile', async (_name, build, run) => {
+    const harness = build([profileRow({ withholding_rate_bps: 100 })])
+    await run(harness)
+
+    expect(harness.poInserts[0]).toMatchObject({
+      subtotal_cents: 899_883,
+      vat_cents: 107_986,
+      withholding_tax_cents: 8_999,
+      total_cents: 998_870,
+    })
+    expect(auditTax(harness.audit)).toMatchObject({
+      vatBps: 1200,
+      ewtBps: 100,
+      source: 'profile',
+      profileId: PROFILE_ID,
+      profileCode: 'P-2026',
+    })
+  })
+
+  it('PO-6: a non-VAT tenant profile does not touch PO VAT (D-TEN-2)', async () => {
+    const harness = manualCreate([profileRow({ vat_registered: false })])
+    await harness.candidate.create(MESSY_COMMAND, PRINCIPAL, 'po-tax-non-vat')
+
+    expect(harness.poInserts[0]).toMatchObject({ vat_cents: 107_986, total_cents: 989_871 })
+    expect(auditTax(harness.audit)).toMatchObject({ vatBps: 1200 })
+    expect(auditTax(harness.audit)).not.toHaveProperty('vatRegistered')
+  })
+
+  it('AC-TEN-19: overlapping active profiles refuse the PO with 409 and insert nothing', async () => {
+    const harness = manualCreate([profileRow({ code: 'B' }), profileRow({ code: 'A' })])
+
+    await expect(
+      harness.candidate.create(MESSY_COMMAND, PRINCIPAL, 'po-tax-overlap')
+    ).rejects.toEqual(
+      expect.objectContaining({
+        constructor: ConflictException,
+        message: expect.stringMatching(/^TAX_PROFILE_OVERLAP: active tax profiles A, B all cover/),
+      })
+    )
+    expect(harness.poInserts).toHaveLength(0)
+    expect(harness.audit.writeSemantic).not.toHaveBeenCalled()
   })
 })
