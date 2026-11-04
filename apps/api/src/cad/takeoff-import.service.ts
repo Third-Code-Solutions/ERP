@@ -569,7 +569,7 @@ export class TakeoffImportService {
             description:
               row.description || `Unresolved takeoff row ${row.sourceRowKey}`,
             unit: row.unit || null,
-            quantity,
+            quantity_decimal: quantity,
             unit_cost_cents: 0,
             markup_bps: 0,
             line_total_cents: 0,
@@ -586,7 +586,7 @@ export class TakeoffImportService {
             set: {
               description: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.description} else excluded.description end`,
               unit: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.unit} else excluded.unit end`,
-              quantity: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.quantity} else excluded.quantity end`,
+              quantity_decimal: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.quantity_decimal} else excluded.quantity_decimal end`,
               code: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.code} else excluded.code end`,
               location_id: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.location_id} else excluded.location_id end`,
               division_id: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.division_id} else excluded.division_id end`,

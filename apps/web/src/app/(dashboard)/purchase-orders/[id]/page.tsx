@@ -695,7 +695,8 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
                     />
                   </td>
                   <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: 'JetBrains Mono, monospace' }}>
-                    {line.quantity.toLocaleString()}
+                    {/* D-5: quantity_micros is exact; the integer quantity is a rounded legacy mirror. */}
+                    {(line.quantity_micros / 1_000_000).toLocaleString('en-PH', { maximumFractionDigits: 6 })}
                   </td>
                   <td style={{ padding: '10px 16px', textAlign: 'right', color: 'var(--color-neutral-500)' }}>
                     {line.unit ?? '—'}

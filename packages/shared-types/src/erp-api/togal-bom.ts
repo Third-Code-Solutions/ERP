@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { boqQuantityFromNumber, MAX_BOM_LINE_ITEM_QUANTITY } from '../bom/quantity'
 
 const togalBomCommitLineSchema = z
   .object({
@@ -6,10 +7,14 @@ const togalBomCommitLineSchema = z
     code: z.string().trim().max(50).nullable().optional(),
     description: z.string().trim().min(1).max(2_000),
     unit: z.string().trim().max(20).nullable().optional(),
-    // `bom_line_items.quantity` is an integer. Decimal source evidence must
-    // remain unresolved until the dedicated precision migration is approved;
-    // it must never be silently rounded into a priced BOM line.
-    qty: z.number().int().nonnegative().max(2_147_483_647),
+    // D-5: numeric(18,4). Up to 4 decimal places are accepted exactly; finer
+    // values are rejected, never rounded into a priced BOM line.
+    qty: z
+      .number()
+      .nonnegative()
+      .refine((qty) => boqQuantityFromNumber(qty) !== null, {
+        message: `qty must have at most 4 decimal places and not exceed ${MAX_BOM_LINE_ITEM_QUANTITY}`,
+      }),
     unitCostCents: z.number().int().nonnegative().safe(),
     markupBps: z.number().int().nonnegative().max(2_147_483_647).optional(),
     vendorId: z.string().uuid().nullable().optional(),

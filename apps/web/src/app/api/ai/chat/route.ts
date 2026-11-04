@@ -155,7 +155,7 @@ async function loadProjectContext(
       const lines = await db
         .select({
           description: bomLineItems.description,
-          quantity: bomLineItems.quantity,
+          quantity: bomLineItems.quantity_decimal,
           unit: bomLineItems.unit,
           unit_cost_cents: bomLineItems.unit_cost_cents,
           line_total_cents: bomLineItems.line_total_cents,

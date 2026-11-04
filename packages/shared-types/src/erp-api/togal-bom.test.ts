@@ -7,7 +7,7 @@ import {
 const UUID = '11111111-1111-4111-8111-111111111111'
 
 describe('Togal BOM commit API contracts', () => {
-  it('accepts strict tenant-free reviewed line commands with integer quantities', () => {
+  it('accepts strict tenant-free reviewed line commands with whole quantities', () => {
     const command = {
       bomId: UUID,
       proposedLines: [
@@ -53,7 +53,7 @@ describe('Togal BOM commit API contracts', () => {
     expect(
       togalBomCommitCommandSchema.safeParse({
         ...base,
-        proposedLines: [{ ...base.proposedLines[0], qty: 1.5 }],
+        proposedLines: [{ ...base.proposedLines[0], qty: -1 }],
       }).success
     ).toBe(false)
     expect(
@@ -64,6 +64,22 @@ describe('Togal BOM commit API contracts', () => {
         ],
       }).success
     ).toBe(false)
+  })
+
+  // D-5: BOQ quantity is numeric(18,4); fractional takeoff quantities are
+  // accepted exactly up to 4 decimal places and rejected beyond, never rounded.
+  it('accepts quantities with up to 4 decimal places and rejects finer or negative ones', () => {
+    const withQty = (qty: number) =>
+      togalBomCommitCommandSchema.safeParse({
+        bomId: UUID,
+        proposedLines: [{ description: 'Concrete', qty, unitCostCents: 100 }],
+      }).success
+    for (const qty of [0, 0.1, 12.5, 0.0001, 1.2345, 2_147_483_647]) {
+      expect(withQty(qty)).toBe(true)
+    }
+    for (const qty of [0.00001, 1.23456, -0.5, -1, 2_147_483_648, Number.POSITIVE_INFINITY]) {
+      expect(withQty(qty)).toBe(false)
+    }
   })
 
   it('requires server-derived tenant identity in result', () => {

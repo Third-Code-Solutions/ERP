@@ -19,33 +19,33 @@ import {
 describe('lineTotal', () => {
   it('calculates line total with zero markup', () => {
     // 100 units @ ₱500 each, no markup
-    expect(lineTotal(50000, 100, 0)).toBe(5000000)
+    expect(lineTotal(50000, '100', 0)).toBe(5000000)
   })
 
   it('applies markup in basis points', () => {
     // 10 units @ ₱10,000 each, 20% markup (2000 bps)
     // subtotal = 100,000; markup = 20,000; total = 120,000
-    expect(lineTotal(1000000, 10, 2000)).toBe(12000000)
+    expect(lineTotal(1000000, '10', 2000)).toBe(12000000)
   })
 
   it('rounds fractional centavos', () => {
     // 1 unit @ ₱1, 3333 bps (33.33%)
     // subtotal = 100; markup = round(100*3333/10000) = round(33.33) = 33
-    expect(lineTotal(100, 1, 3333)).toBe(133)
+    expect(lineTotal(100, '1', 3333)).toBe(133)
   })
 
   it('returns zero for zero unit cost', () => {
-    expect(lineTotal(0, 100, 2000)).toBe(0)
+    expect(lineTotal(0, '100', 2000)).toBe(0)
   })
 
   it('returns zero for zero quantity', () => {
-    expect(lineTotal(50000, 0, 2000)).toBe(0)
+    expect(lineTotal(50000, '0', 2000)).toBe(0)
   })
 })
 
 describe('manualLineTotal', () => {
   it('never applies a line-level markup', () => {
-    expect(manualLineTotal(12500, 4)).toBe(50000)
+    expect(manualLineTotal(12500, '4')).toBe(50000)
   })
 })
 
@@ -245,7 +245,7 @@ describe('end-to-end BOM scenario', () => {
     // Scenario: FCU supply + installation
     // 10 FCU units @ ₱45,000 each, 20% markup, 25% GP margin target
     const unitCostCents = 4500000 // ₱45,000 in centavos
-    const quantity = 10
+    const quantity = '10'
     const markupBps = 2000 // 20%
 
     const lt = lineTotal(unitCostCents, quantity, markupBps)

@@ -1,6 +1,7 @@
 'use client'
 
 import type { ProjectLocationOption } from '@/app/(dashboard)/projects/[id]/bom/actions'
+import { deriveBoqLineAmount, formatBoqQuantity } from '@third-code-erp/shared-types/bom'
 
 // US-011 — Extracted BOM line row. Keeps `bom-builder.tsx` lean by isolating
 // the per-row presentation including the new vendor cell. The vendor display
@@ -13,7 +14,8 @@ export interface BomLineRowItem {
   code: string | null
   description: string
   unit: string | null
-  quantity: number
+  // D-5: numeric(18,4) decimal string.
+  quantity: string
   unit_cost_cents: number
   unit_rate_source: 'dupa' | 'manual' | 'client_boq' | string
   line_total_cents: number
@@ -237,7 +239,7 @@ function effectiveUnitRate(item: BomLineRowItem): number | string {
 function effectiveLineTotal(item: BomLineRowItem): number | string {
   if (item.unit_rate_source !== 'dupa' || !item.dupa) return item.line_total_cents
   try {
-    return (BigInt(item.dupa.unit_rate_centavos) * BigInt(item.quantity)).toString()
+    return deriveBoqLineAmount(BigInt(item.dupa.unit_rate_centavos), item.quantity).toString()
   } catch {
     return item.line_total_cents
   }
@@ -428,7 +430,7 @@ export function BomLineRow({
         {item.unit ?? '—'}
       </td>
       <td className="numeric" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}>
-        {item.quantity.toLocaleString()}
+        {formatBoqQuantity(item.quantity)}
       </td>
       <td className="numeric" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}>
         {formatPHP(effectiveUnitRate(item))}

@@ -66,7 +66,8 @@ describe('generic takeoff import Core authority', () => {
   it('parses the file but delegates preview validation to Core', async () => {
     const csv = [
       'Row,Description,Qty,UOM,Division,Location',
-      'A-001,Suspended ceiling,12.5,sqm,Finishes,Level 2',
+      // D-5: 12.5 is a valid BOQ quantity; more than 4 decimal places is not.
+      'A-001,Suspended ceiling,12.34567,sqm,Finishes,Level 2',
       'A-002,Unmapped item,1,box,,Level 2',
     ].join('\n')
     mocks.executeTakeoffImportThroughCoreApi.mockImplementation(
@@ -104,7 +105,7 @@ describe('generic takeoff import Core authority', () => {
               sourceRowKey: 'A-001',
               code: 'INVALID_QUANTITY',
               message:
-                'Fractional quantity requires decimal BOM precision before it can be committed.',
+                'Quantity must have at most 4 decimal places and not exceed 2,147,483,647.',
             },
             {
               sourceRowKey: 'A-002',
@@ -166,7 +167,7 @@ describe('generic takeoff import Core authority', () => {
         fileName: 'takeoff.csv',
         contentSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
         rows: expect.arrayContaining([
-          expect.objectContaining({ sourceRowKey: 'A-001', quantity: 12.5 }),
+          expect.objectContaining({ sourceRowKey: 'A-001', quantity: 12.34567 }),
         ]),
       }),
       TENANT_ID

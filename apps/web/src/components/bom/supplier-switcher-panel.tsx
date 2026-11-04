@@ -20,13 +20,15 @@ import {
   type SupplierContext,
   type RateCardOption,
 } from '@/app/(dashboard)/projects/[id]/bom/actions'
+import { formatBoqQuantity } from '@third-code-erp/shared-types/bom'
 
 interface SelectedLine {
   id: string
   code: string | null
   description: string
   unit: string | null
-  quantity: number
+  // D-5: numeric(18,4) decimal string.
+  quantity: string
   unit_cost_cents: number
   notes: string | null
 }
@@ -179,7 +181,7 @@ export function SupplierSwitcherPanel({
           {selected.description}
         </div>
         <div style={{ fontSize: '0.75rem', color: 'var(--color-neutral-500)', fontFamily: 'var(--font-mono)' }}>
-          {selected.code ?? '—'} · {selected.quantity.toLocaleString()} {selected.unit ?? 'unit'} ·{' '}
+          {selected.code ?? '—'} · {formatBoqQuantity(selected.quantity)} {selected.unit ?? 'unit'} ·{' '}
           {formatPHP(selected.unit_cost_cents)}
         </div>
         <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>

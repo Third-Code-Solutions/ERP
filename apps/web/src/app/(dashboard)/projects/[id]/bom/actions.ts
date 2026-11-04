@@ -41,7 +41,7 @@ import {
   classifyBomLineKind,
   computeDupa,
   dupaUpsertInputSchema,
-  MAX_BOM_LINE_ITEM_QUANTITY,
+  parseBoqQuantity,
   projectLocationCreateSchema,
   type BomLineItemKind,
 } from '@third-code-erp/shared-types/bom'
@@ -77,7 +77,20 @@ const addBomLineItemActionSchema = z
       .object({
         description: z.string().trim().min(1).max(1_000),
         unit: z.string().trim().min(1).max(20),
-        quantity: z.number().int().min(0).max(MAX_BOM_LINE_ITEM_QUANTITY),
+        // D-5: numeric(18,4) decimal string, parsed exactly (never a float).
+        quantity: z
+          .string()
+          .transform((value, context) => {
+            const quantity = parseBoqQuantity(value)
+            if (quantity === null) {
+              context.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: 'Quantity must be a non-negative number with at most 4 decimal places',
+              })
+              return z.NEVER
+            }
+            return quantity
+          }),
         unit_cost_cents: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
         code: z.string().trim().max(50).optional(),
         notes: z.string().max(2_000).optional(),
@@ -85,7 +98,7 @@ const addBomLineItemActionSchema = z
       })
       .strict()
       .superRefine((value, context) => {
-        if (!Number.isSafeInteger(value.unit_cost_cents * value.quantity)) {
+        if (!isSafeManualLineTotal(value.unit_cost_cents, value.quantity)) {
           context.addIssue({
             code: z.ZodIssueCode.custom,
             path: ['unit_cost_cents'],
@@ -95,6 +108,15 @@ const addBomLineItemActionSchema = z
       }),
   })
   .strict()
+
+function isSafeManualLineTotal(unitCostCents: number, quantity: string): boolean {
+  try {
+    manualLineTotal(unitCostCents, quantity)
+    return true
+  } catch {
+    return false
+  }
+}
 
 type DatabaseTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
@@ -275,7 +297,7 @@ export async function addBomLineItem(
         sort_order,
         description: lineInput.description,
         unit: lineInput.unit,
-        quantity: lineInput.quantity,
+        quantity_decimal: lineInput.quantity,
         unit_cost_cents: lineInput.unit_cost_cents,
         markup_bps: 0,
         line_total_cents,
@@ -749,7 +771,7 @@ export async function deleteBomLineItem(
       code: bomLineItems.code,
       description: bomLineItems.description,
       unit: bomLineItems.unit,
-      quantity: bomLineItems.quantity,
+      quantity: bomLineItems.quantity_decimal,
       unitCostCents: bomLineItems.unit_cost_cents,
     })
     .from(bomLineItems)
@@ -1303,7 +1325,8 @@ export interface BomLocationRollupRow {
   locationName: string
   description: string
   unit: string | null
-  quantity: number
+  // D-5: numeric(18,4) sum as a decimal string.
+  quantity: string
 }
 
 export async function listProjectLocations(projectId: string): Promise<ProjectLocationOption[]> {
@@ -1381,7 +1404,7 @@ export async function listBomLocationRollup(
       locationName: projectLocations.name,
       description: bomLineItems.description,
       unit: bomLineItems.unit,
-      quantity: sql<number>`sum(${bomLineItems.quantity})::int`,
+      quantity: sql<string>`sum(${bomLineItems.quantity_decimal})::text`,
     })
     .from(bomLineItems)
     .innerJoin(
@@ -2087,7 +2110,7 @@ async function recalcBomTotalsInTransaction(
     .select({
       line_total_cents: bomLineItems.line_total_cents,
       unit_cost_cents: bomLineItems.unit_cost_cents,
-      quantity: bomLineItems.quantity,
+      quantity: bomLineItems.quantity_decimal,
       parent_line_item_id: bomLineItems.parent_line_item_id,
     })
     .from(bomLineItems)
@@ -2099,7 +2122,7 @@ async function recalcBomTotalsInTransaction(
   // gp_margin  = gp / tcv (in basis points)
   const commercialLines = topLevelBomLines(lines, (line) => line.parent_line_item_id)
   const total_cost_cents = commercialLines.reduce(
-    (s, l) => s + l.unit_cost_cents * l.quantity,
+    (s, l) => s + manualLineTotal(l.unit_cost_cents, l.quantity),
     0,
   )
   const tcv_cents = bomTotalCost(commercialLines)

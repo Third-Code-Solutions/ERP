@@ -298,7 +298,7 @@ export class ProcurementService {
           code: bomLineItems.code,
           description: bomLineItems.description,
           unit: bomLineItems.unit,
-          quantity: bomLineItems.quantity,
+          quantity: bomLineItems.quantity_decimal,
           is_group: bomLineItems.is_group,
         })
         .from(bomLineItems)
@@ -377,7 +377,9 @@ export class ProcurementService {
             : null,
           code: line.code ?? null,
           description: line.description,
-          qty: line.quantity,
+          // D-5: RFQ qty is display evidence (no money math). A 4-dp decimal
+          // round-trips exactly through a JSON number.
+          qty: Number(line.quantity),
           unit: line.unit ?? null,
         }))
 

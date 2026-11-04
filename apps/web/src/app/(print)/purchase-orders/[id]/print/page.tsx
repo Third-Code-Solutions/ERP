@@ -189,7 +189,10 @@ export default async function PoPrintPage({ params }: { params: Promise<{ id: st
                   </td>
                   <td style={{ padding: '9px 12px', color: '#374151' }}>{line.description}</td>
                   <td style={{ padding: '9px 12px', textAlign: 'center', color: '#6b7280' }}>{line.unit ?? '—'}</td>
-                  <td style={{ padding: '9px 12px', textAlign: 'right', fontFamily: 'monospace' }}>{line.quantity}</td>
+                  <td style={{ padding: '9px 12px', textAlign: 'right', fontFamily: 'monospace' }}>
+                    {/* D-5: quantity_micros is exact; the integer quantity is a rounded legacy mirror. */}
+                    {(line.quantity_micros / 1_000_000).toLocaleString('en-PH', { maximumFractionDigits: 6 })}
+                  </td>
                   <td style={{ padding: '9px 12px', textAlign: 'right', fontFamily: 'monospace' }}>
                     {formatPHP(line.unit_cost_cents)}
                   </td>

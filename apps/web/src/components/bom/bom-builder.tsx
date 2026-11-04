@@ -36,6 +36,7 @@ import {
 import { groupBomLinesByDivision } from '@/lib/operations/bom-hierarchy'
 import {
   MAX_BOM_LINE_ITEM_QUANTITY,
+  parseBoqQuantity,
   parsePercentToBps,
 } from '@third-code-erp/shared-types/bom'
 import workspaceStyles from './bom-workspace.module.css'
@@ -45,7 +46,8 @@ interface BomLineItem {
   code: string | null
   description: string
   unit: string | null
-  quantity: number
+  // D-5: numeric(18,4) decimal string.
+  quantity: string
   unit_cost_cents: number
   unit_rate_source: 'dupa' | 'manual' | 'client_boq' | string
   line_total_cents: number
@@ -574,17 +576,14 @@ export function BomBuilder({
     setFormError('')
 
     const unitCostCents = Math.round(parseFloat(form.unit_cost) * 100)
-    const quantity = Number(form.quantity)
+    // D-5: exact decimal string, never a float.
+    const quantity = parseBoqQuantity(form.quantity)
     if (!form.description.trim()) return setFormError('Description is required')
     if (isNaN(unitCostCents) || unitCostCents < 0)
       return setFormError('Invalid unit cost')
-    if (
-      !Number.isSafeInteger(quantity) ||
-      quantity < 1 ||
-      quantity > MAX_BOM_LINE_ITEM_QUANTITY
-    ) {
+    if (quantity === null || quantity === '0') {
       return setFormError(
-        `Quantity must be a whole number from 1 to ${MAX_BOM_LINE_ITEM_QUANTITY.toLocaleString('en-PH')}`,
+        `Quantity must be greater than 0 with at most 4 decimal places, up to ${MAX_BOM_LINE_ITEM_QUANTITY.toLocaleString('en-PH')}`,
       )
     }
 
@@ -940,7 +939,9 @@ export function BomBuilder({
                     setForm((f) => ({ ...f, [key]: e.target.value }))
                   }
                   min={type === 'number' ? '0' : undefined}
-                  step={key === 'unit_cost' ? '0.01' : undefined}
+                  step={
+                    key === 'unit_cost' ? '0.01' : key === 'quantity' ? '0.0001' : undefined
+                  }
                   style={{
                     width: '100%',
                     padding: '6px 8px',
