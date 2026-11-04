@@ -19,6 +19,8 @@ overrides:
   multer: 2.5.0
   body-parser: 2.4.0
   systeminformation: 5.33.16
+  # Build-time only. @nestjs/cli pins glob 13.0.6; GHSA-3g3m-2fjr-6pw4 covers
+  # glob >=9 <=14.0.1 and the first patch is 14.0.2 (same API for the CLI).
   "@nestjs/cli>glob": 14.0.2
   "@ai-sdk/provider-utils@4": 4.0.33
   shell-quote: 1.11.0
@@ -54,22 +56,33 @@ overrides:
 # verifies clean. This waiver names one advisory; the audit level is unchanged
 # and every other advisory still fails the gate.
 #
-# The following three waivers are time-boxed to 2026-12-04 (docs/erp/STATE.md).
+# The following three waivers are time-boxed to 2026-12-04
+# (docs/changesets/2026-11-04-dependency-audit-remediation.md).
 #
-# - zod GHSA-mrhx-c7xc-m3w5: only zod >=4.6.6 is patched (a major upgrade).
-#   The flaw is in the v4 core's `$ZodArray` issue accumulation. Application
-#   schemas import the v3 API from `zod` (no `zod/v4` or `zod/mini` imports),
-#   so request validation never runs `$ZodArray`. The v4 core is used only
-#   inside the AI SDK to parse first-party provider responses, and request
-#   bodies stay capped by the Next.js and Nest body limits. Remove the waiver
-#   with the zod 4 migration.
-# - minimatch GHSA-g3hv-75wg-m249: only 11.0.1 is patched. Production reaches
-#   minimatch 3.x/5.x through exceljs (archiver), with library-fixed
-#   patterns; a pattern-amplification attack needs attacker-controlled glob
-#   patterns, which no ABI OPS input provides. The 11.x API is incompatible
-#   with those consumers.
-# - deepmerge GHSA-gcqx-w48m-w2h4: no patched release exists. It is reachable
-#   only from the @nestjs/cli devDependency, which merges local build config.
+# - zod GHSA-mrhx-c7xc-m3w5 (direct prod dependency: api, operations,
+#   shared-types; also openai > zod): only zod >=4.6.6 is patched, a major
+#   upgrade across ~230 files. zod 3 is affected too: ZodArray records one
+#   issue per failing element and `.max()` does not stop early, so an
+#   oversized invalid array costs ~200 MB of heap per MB of body. Compensating
+#   controls until the migration:
+#     * Core API: `rejectOversizedJsonArrays` (apps/api/src/main.ts) rejects
+#       bodies with more than 20,000 array elements before guards and pipes.
+#     * Core API: every non-public route sits behind the global Supabase JWT
+#       guard, which runs before pipes; the DocuSeal webhook checks its token
+#       before validating; public signing and vendor confirmation bodies have
+#       no array or record fields.
+#     * Web: Server Action bodies are capped at 3 MB (next.config.ts).
+#   Residual risk: an authenticated user can still make one Server Action
+#   invocation allocate several hundred MB (3 MB body). Remove the waiver with
+#   the zod 4 migration.
+# - minimatch GHSA-g3hv-75wg-m249 (exceljs > archiver > glob@7 > minimatch@3,
+#   archiver-utils > glob@8 > minimatch@5): only 11.0.1 is patched. Patterns
+#   are library-fixed; an attack needs attacker-controlled glob patterns,
+#   which no ABI OPS input provides. The 11.x API is incompatible with those
+#   consumers.
+# - deepmerge GHSA-gcqx-w48m-w2h4 (@nestjs/cli > fork-ts-checker-webpack-plugin
+#   > deepmerge): no patched release exists. Build-time only; it merges local
+#   build config and is absent from the production graph.
 auditConfig:
   ignoreGhsas:
     - GHSA-vfj7-8cjw-p6xm
