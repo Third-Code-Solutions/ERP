@@ -34,9 +34,9 @@ const PROFILE = {
 const PROJECT_ID = '33333333-3333-4333-8333-333333333333'
 const INVOICE_ID = '44444444-4444-4444-8444-444444444444'
 
-function invoiceForm() {
+function invoiceForm(billingPct = '25') {
   const formData = new FormData()
-  formData.set('billing_pct', '25')
+  formData.set('billing_pct', billingPct)
   formData.set('due_date', '2026-08-15')
   formData.set('notes', 'Progress billing')
   return formData
@@ -117,4 +117,35 @@ describe('createInvoice', () => {
       error: 'Customer invoice draft returned an invalid tenant scope.',
     })
   })
+
+  it('converts the typed percent to exact half-up bps (D-15)', async () => {
+    mocks.createCustomerInvoiceDraftThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        invoiceId: INVOICE_ID,
+        tenantId: PROFILE.tenantId,
+        projectId: PROJECT_ID,
+        status: 'draft',
+      },
+    })
+
+    // Math.round(parseFloat('1.005') * 100) sent 100 bps
+    await createInvoice(PROJECT_ID, invoiceForm('1.005'))
+    await createInvoice(PROJECT_ID, invoiceForm('100'))
+
+    const sentBps = mocks.createCustomerInvoiceDraftThroughCoreApi.mock.calls.map(
+      ([, command]) => command.billingPercentBps
+    )
+    expect(sentBps).toEqual([101, 10_000])
+  })
+
+  it.each(['0', '0.004', '100.01', '1e2', '-5', '12,5', ''])(
+    'rejects billing %% %j before calling Core (D-15)',
+    async (billingPct) => {
+      await expect(createInvoice(PROJECT_ID, invoiceForm(billingPct))).resolves.toEqual({
+        error: 'Billing % must be between 1 and 100',
+      })
+      expect(mocks.createCustomerInvoiceDraftThroughCoreApi).not.toHaveBeenCalled()
+    }
+  )
 })

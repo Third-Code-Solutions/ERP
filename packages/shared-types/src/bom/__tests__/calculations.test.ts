@@ -13,6 +13,7 @@ import {
   computeRetention,
   progressBillingAmount,
   cumulativeBillingCapError,
+  parsePercentToBps,
 } from '../calculations'
 
 describe('lineTotal', () => {
@@ -297,5 +298,47 @@ describe('cumulativeBillingCapError (D-6)', () => {
 
   it('rejects non-integer basis points', () => {
     expect(() => cumulativeBillingCapError(0.5, 100)).toThrow(RangeError)
+  })
+})
+
+describe('parsePercentToBps (D-15)', () => {
+  it('parses whole and two-decimal percents exactly', () => {
+    expect(parsePercentToBps('25')).toBe(2500)
+    expect(parsePercentToBps('30.5')).toBe(3050)
+    expect(parsePercentToBps('0.01')).toBe(1)
+    expect(parsePercentToBps(' 100 ')).toBe(10000)
+  })
+
+  it('handles the 0 and 100% boundaries', () => {
+    expect(parsePercentToBps('0')).toBe(0)
+    expect(parsePercentToBps('0.004')).toBe(0)
+    expect(parsePercentToBps('100.00')).toBe(10000)
+    expect(parsePercentToBps('100.004')).toBe(10000)
+    expect(parsePercentToBps('100.005')).toBe(10001)
+  })
+
+  it('rounds a .5 bps tie up where parseFloat * 100 rounded it down', () => {
+    // 1.005 * 100 === 100.49999999999999 and 8.325 * 100 === 832.4999999999999
+    expect(Math.round(parseFloat('1.005') * 100)).toBe(100)
+    expect(parsePercentToBps('1.005')).toBe(101)
+    expect(Math.round(parseFloat('8.325') * 100)).toBe(832)
+    expect(parsePercentToBps('8.325')).toBe(833)
+    expect(parsePercentToBps('12.345')).toBe(1235)
+    expect(parsePercentToBps('12.3449999')).toBe(1234)
+    expect(parsePercentToBps('0.005')).toBe(1)
+  })
+
+  it('accepts messy but valid decimal forms', () => {
+    expect(parsePercentToBps('007.10')).toBe(710)
+    expect(parsePercentToBps('.5')).toBe(50)
+    expect(parsePercentToBps('33.')).toBe(3300)
+    expect(parsePercentToBps('33.3333333333333333')).toBe(3333)
+  })
+
+  it('rejects input that is not a plain non-negative decimal', () => {
+    for (const bad of ['', ' ', '.', 'abc', '-5', '+5', '1e2', '12,5', '1.2.3', 'NaN', 'Infinity', '0x10', '5%']) {
+      expect(parsePercentToBps(bad)).toBeNull()
+    }
+    expect(parsePercentToBps('9'.repeat(20))).toBeNull()
   })
 })

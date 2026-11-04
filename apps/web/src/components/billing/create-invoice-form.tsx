@@ -2,7 +2,10 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { formatBasisPoints } from '@third-code-erp/shared-types'
+import { parsePercentToBps } from '@third-code-erp/shared-types/bom'
 import { createInvoice } from '@/app/(dashboard)/projects/[id]/billing/actions'
+import { previewProgressInvoice } from './invoice-preview'
 
 interface CreateInvoiceFormProps {
   projectId: string
@@ -20,18 +23,14 @@ export function CreateInvoiceForm({ projectId, tcvCents }: CreateInvoiceFormProp
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
 
-  const pctNum = parseFloat(billingPct)
-  const validPct = !isNaN(pctNum) && pctNum > 0 && pctNum <= 100
+  const billingPercentBps = parsePercentToBps(billingPct) ?? 0
+  const validPct = billingPercentBps > 0 && billingPercentBps <= 10_000
 
-  // Live preview calculations (mirrors server logic)
-  const subtotal = validPct
-    ? Math.round(((tcvCents ?? 0) * pctNum * 100) / 10000)
-    : 0
-  const retention = Math.round(subtotal * 0.1)
-  const base = subtotal - retention
-  const vat = Math.round(base * 0.12)
-  const ewt = Math.round(base * 0.02)
-  const net = base + vat - ewt
+  // Live preview: same integer functions as the server draft
+  const { subtotal, retention, vat, ewt, net } = previewProgressInvoice(
+    tcvCents ?? 0,
+    validPct ? billingPercentBps : 0
+  )
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -117,7 +116,7 @@ export function CreateInvoiceForm({ projectId, tcvCents }: CreateInvoiceFormProp
               Billing Preview
             </div>
             {[
-              { label: `Gross (${pctNum}% of TCV)`, value: formatPHP(subtotal) },
+              { label: `Gross (${formatBasisPoints(billingPercentBps, 2)} of TCV)`, value: formatPHP(subtotal) },
               { label: 'Less: Retention (10%)', value: `(${formatPHP(retention)})`, muted: true },
               { label: 'Add: VAT (12%)', value: `+${formatPHP(vat)}` },
               { label: 'Less: EWT (2%)', value: `−${formatPHP(ewt)}`, muted: true },
