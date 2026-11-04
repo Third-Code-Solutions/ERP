@@ -18,7 +18,7 @@ import {
   rateCards,
   vendors,
 } from '@third-code-erp/database/schema'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, gt, inArray, isNull, lte, or, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { writeAuditLog, writeAuditLogInTransaction } from '@/lib/audit'
 import { notifyRoles, notifyExternalEmail } from '@/lib/operations/notifications'
@@ -46,6 +46,9 @@ import {
 } from '@/lib/erp-core-client'
 import {
   nextInvoiceNumber,
+  purchasableBomLines,
+  purchaseLineCostCode,
+  rateCardPicker,
   type PurchaseOrderWorkflowAction,
 } from '@third-code-erp/shared-types'
 import {
@@ -199,7 +202,6 @@ export async function createPoFromBom(
       id: boms.id,
       status: boms.status,
       project_id: boms.project_id,
-      total_cost_cents: boms.total_cost_cents,
     })
     .from(boms)
     .where(and(eq(boms.id, input.bomId), eq(boms.tenant_id, userRow.tenant_id)))
@@ -269,7 +271,6 @@ export async function createPoFromBom(
           id: boms.id,
           status: boms.status,
           project_id: boms.project_id,
-          total_cost_cents: boms.total_cost_cents,
         })
         .from(boms)
         .where(and(eq(boms.id, input.bomId), eq(boms.tenant_id, userRow.tenant_id)))
@@ -282,7 +283,7 @@ export async function createPoFromBom(
       // Read source lines only after acquiring the BOM lock. BOM edits that
       // do not lock the parent row must not race this graph copy and produce
       // a PO whose totals and provenance disagree with its source snapshot.
-      const lines = await tx
+      const rows = await tx
         .select()
         .from(bomLineItems)
         .where(
@@ -292,7 +293,13 @@ export async function createPoFromBom(
           )
         )
         .for('update')
+      const lines = purchasableBomLines(rows)
       if (lines.length === 0) throw new Error('BOM_NO_LINES')
+      const poLines = lines.map((line) => ({
+        line,
+        // D-5: half-up round(rate x quantity_decimal), exact.
+        lineTotalCents: manualLineTotal(line.unit_cost_cents, line.quantity_decimal),
+      }))
 
       const budgetCodeByBomLine = await approvedBudgetCodesByBomLine(
         tx,
@@ -303,7 +310,10 @@ export async function createPoFromBom(
 
       // Reserve the number and persist the PO graph in one transaction. A
       // failed line insert must not consume a visible Purchase Order number.
-      const totals = calculatePurchaseOrderTotals(lockedBom.total_cost_cents)
+      // D-4: the header foots to the PO lines created, not bom.total_cost_cents.
+      const totals = calculatePurchaseOrderTotals(
+        poLines.reduce((sum, poLine) => sum + poLine.lineTotalCents, 0)
+      )
       const reservedNumber = await allocateNextPurchaseOrderNumber(
         tx,
         userRow.tenant_id
@@ -326,25 +336,23 @@ export async function createPoFromBom(
         .returning({ id: purchaseOrders.id })
       if (!po) throw new Error('Failed to create Purchase Order')
 
-      if (lines.length > 0) {
-        await tx.insert(poLineItems).values(
-          lines.map((l, idx) => ({
-            tenant_id: userRow.tenant_id,
-            po_id: po.id,
-            sort_order: idx,
-            code: l.code ?? undefined,
-            description: l.description,
-            unit: l.unit ?? undefined,
-            // D-5: legacy integer mirror; the exact quantity is quantity_micros.
-            quantity: l.quantity,
-            quantity_micros: boqQuantityToMicros(l.quantity_decimal),
-            unit_cost_cents: l.unit_cost_cents,
-            line_total_cents: manualLineTotal(l.unit_cost_cents, l.quantity_decimal),
-            bom_line_item_id: l.id,
-            cost_code_id: budgetCodeByBomLine.get(l.id),
-          }))
-        )
-      }
+      await tx.insert(poLineItems).values(
+        poLines.map(({ line: l, lineTotalCents }, idx) => ({
+          tenant_id: userRow.tenant_id,
+          po_id: po.id,
+          sort_order: idx,
+          code: l.code ?? undefined,
+          description: l.description,
+          unit: l.unit ?? undefined,
+          // D-5: legacy integer mirror; the exact quantity is quantity_micros.
+          quantity: l.quantity,
+          quantity_micros: boqQuantityToMicros(l.quantity_decimal),
+          unit_cost_cents: l.unit_cost_cents,
+          line_total_cents: lineTotalCents,
+          bom_line_item_id: l.id,
+          cost_code_id: purchaseLineCostCode(budgetCodeByBomLine, l),
+        }))
+      )
 
       await tx
         .update(boms)
@@ -1523,113 +1531,11 @@ export async function createPosFromBomGrouped(
     }
   }
 
-  // Pull lines for this BOM (excluding group headers)
-  const lines = await db
-    .select()
-    .from(bomLineItems)
-    .where(and(eq(bomLineItems.bom_id, requestBomId), eq(bomLineItems.tenant_id, profile.tenantId)))
-
-  const itemLines = lines.filter((l) => l.is_group === 0)
-  if (itemLines.length === 0) return { error: 'BOM has no line items' }
-  const budgetCodeByBomLine = await approvedBudgetCodesByBomLine(
-    db,
-    profile.tenantId,
-    bom.project_id,
-    requestBomId
-  )
-
-  // Pull rate cards joined to material_items in this tenant. We pick the
-  // cheapest unit_price_cents per (material code, vendor_id) — best-rate
-  // vendor wins per code.
-  const cards = await db
-    .select({
-      code: materialItems.code,
-      vendor_id: rateCards.vendor_id,
-      unit_price_cents: rateCards.unit_price_cents,
-    })
-    .from(rateCards)
-    .innerJoin(materialItems, eq(rateCards.material_item_id, materialItems.id))
-    .where(eq(rateCards.tenant_id, profile.tenantId))
-
-  // Pick best (lowest-price) vendor per material code.
-  const bestByCode = new Map<string, { vendor_id: string | null; unit_price_cents: number }>()
-  for (const c of cards) {
-    if (!c.code) continue
-    const existing = bestByCode.get(c.code)
-    if (!existing || c.unit_price_cents < existing.unit_price_cents) {
-      bestByCode.set(c.code, { vendor_id: c.vendor_id, unit_price_cents: c.unit_price_cents })
-    }
-  }
-
-  // Vendor name lookup for preview rows.
-  const vendorRows = await db
-    .select({ id: vendors.id, name: vendors.name })
-    .from(vendors)
-    .where(eq(vendors.tenant_id, profile.tenantId))
-  const vendorNameById = new Map(vendorRows.map((v) => [v.id, v.name]))
-
-  // Group lines by best-rate vendor.
-  interface Bucket {
-    vendorId: string | null
-    lines: typeof itemLines
-  }
-  const buckets = new Map<string, Bucket>()
-  for (const line of itemLines) {
-    const best = line.code ? bestByCode.get(line.code) : undefined
-    const vendorKey = best?.vendor_id ?? 'unassigned'
-    const bucket = buckets.get(vendorKey)
-    if (bucket) {
-      bucket.lines.push(line)
-    } else {
-      buckets.set(vendorKey, { vendorId: best?.vendor_id ?? null, lines: [line] })
-    }
-  }
-
-  const groupPreviews: SupplierGroupPreview[] = []
-  const bucketsToCreate: Array<{
-    bucket: Bucket
-    subtotalCents: number
-  }> = []
-
-  for (const [key, bucket] of buckets) {
-    let subtotalCents: number
-    try {
-      subtotalCents = bucket.lines.reduce((sum, line) => {
-        const next =
-          sum + manualLineTotal(line.unit_cost_cents, line.quantity_decimal)
-        if (!Number.isSafeInteger(next)) {
-          throw new RangeError('Subtotal exceeds the supported centavo range')
-        }
-        return next
-      }, 0)
-    } catch {
-      return { error: 'Purchase Order amount exceeds the supported centavo range' }
-    }
-
-    const preview: SupplierGroupPreview = {
-      vendor_id: bucket.vendorId,
-      vendor_name:
-        bucket.vendorId === null
-          ? 'Unassigned (no rate card match)'
-          : vendorNameById.get(bucket.vendorId) ?? 'Unknown vendor',
-      line_count: bucket.lines.length,
-      subtotal_cents: subtotalCents,
-    }
-    groupPreviews.push(preview)
-
-    // Skip the unassigned bucket — surfaced in UI for manual triage.
-    if (key === 'unassigned' || bucket.vendorId === null) continue
-
-    bucketsToCreate.push({ bucket, subtotalCents })
-  }
-
-  if (bucketsToCreate.length === 0) {
-    return { created_po_ids: [], groups: groupPreviews }
-  }
-
-  let createdIds: string[]
+  let outcome: GroupedPoResult
   try {
-    createdIds = await db.transaction(async (tx) => {
+    outcome = await db.transaction(async (tx) => {
+      // Lock the BOM before reading its lines and rate cards, so the supplier
+      // grouping and the Purchase Orders come from one snapshot.
       const [lockedBom] = await tx
         .select({ id: boms.id, status: boms.status, project_id: boms.project_id })
         .from(boms)
@@ -1638,6 +1544,127 @@ export async function createPosFromBomGrouped(
         .for('update')
 
       if (!lockedBom) throw new Error('BOM_NOT_FOUND')
+
+      // Only the leaf rows are bought (D-4).
+      const lines = await tx
+        .select()
+        .from(bomLineItems)
+        .where(
+          and(
+            eq(bomLineItems.bom_id, requestBomId),
+            eq(bomLineItems.tenant_id, profile.tenantId)
+          )
+        )
+        .for('update')
+      const itemLines = purchasableBomLines(lines)
+      if (itemLines.length === 0) throw new Error('BOM_NO_LINES')
+      const budgetCodeByBomLine = await approvedBudgetCodesByBomLine(
+        tx,
+        profile.tenantId,
+        lockedBom.project_id,
+        requestBomId
+      )
+
+      // Current, positive-price rate cards on this tenant's material items.
+      const now = new Date()
+      const cards = await tx
+        .select({
+          id: rateCards.id,
+          code: materialItems.code,
+          unit: materialItems.unit,
+          vendorId: rateCards.vendor_id,
+          unitPriceCents: rateCards.unit_price_cents,
+          effectiveFrom: rateCards.effective_from,
+          effectiveTo: rateCards.effective_to,
+        })
+        .from(rateCards)
+        .innerJoin(
+          materialItems,
+          and(
+            eq(rateCards.material_item_id, materialItems.id),
+            eq(materialItems.tenant_id, profile.tenantId)
+          )
+        )
+        .where(
+          and(
+            eq(rateCards.tenant_id, profile.tenantId),
+            lte(rateCards.effective_from, now),
+            or(isNull(rateCards.effective_to), gt(rateCards.effective_to, now)),
+            gt(rateCards.unit_price_cents, 0)
+          )
+        )
+        .orderBy(rateCards.unit_price_cents, rateCards.id)
+        .for('share')
+
+      const candidateVendorIds = [
+        ...new Set(cards.flatMap((card) => (card.vendorId ? [card.vendorId] : []))),
+      ]
+      const vendorRows = candidateVendorIds.length
+        ? await tx
+            .select({ id: vendors.id, name: vendors.name })
+            .from(vendors)
+            .where(
+              and(
+                eq(vendors.tenant_id, profile.tenantId),
+                inArray(vendors.id, candidateVendorIds)
+              )
+            )
+            .for('share')
+        : []
+      const vendorNameById = new Map(vendorRows.map((v) => [v.id, v.name]))
+      const pickRateCard = rateCardPicker(cards, new Set(vendorNameById.keys()), now)
+
+      // Group lines by best-rate vendor.
+      interface Bucket {
+        vendorId: string | null
+        lines: typeof itemLines
+      }
+      const buckets = new Map<string, Bucket>()
+      for (const line of itemLines) {
+        const best = pickRateCard(line)
+        const vendorId = best?.vendorId ?? null
+        // D-4: the rate card that chose the vendor also prices the line.
+        const pricedLine =
+          best && vendorId ? { ...line, unit_cost_cents: best.unitPriceCents } : line
+        const vendorKey = vendorId ?? 'unassigned'
+        const bucket = buckets.get(vendorKey)
+        if (bucket) {
+          bucket.lines.push(pricedLine)
+        } else {
+          buckets.set(vendorKey, { vendorId, lines: [pricedLine] })
+        }
+      }
+
+      const groupPreviews: SupplierGroupPreview[] = []
+      const bucketsToCreate: Array<{ bucket: Bucket; subtotalCents: number }> = []
+      for (const [key, bucket] of buckets) {
+        const subtotalCents = bucket.lines.reduce((sum, line) => {
+          const next = sum + manualLineTotal(line.unit_cost_cents, line.quantity_decimal)
+          if (!Number.isSafeInteger(next)) {
+            throw new RangeError('Subtotal exceeds the supported centavo range')
+          }
+          return next
+        }, 0)
+
+        groupPreviews.push({
+          vendor_id: bucket.vendorId,
+          vendor_name:
+            bucket.vendorId === null
+              ? 'Unassigned (no rate card match)'
+              : vendorNameById.get(bucket.vendorId) ?? 'Unknown vendor',
+          line_count: bucket.lines.length,
+          subtotal_cents: subtotalCents,
+        })
+
+        // Skip the unassigned bucket — surfaced in UI for manual triage.
+        if (key === 'unassigned' || bucket.vendorId === null) continue
+
+        bucketsToCreate.push({ bucket, subtotalCents })
+      }
+
+      if (bucketsToCreate.length === 0) {
+        return { created_po_ids: [], groups: groupPreviews }
+      }
       if (lockedBom.status !== 'approved') throw new Error('BOM_ALREADY_COMMITTED')
 
       const ids: string[] = []
@@ -1679,7 +1706,7 @@ export async function createPosFromBomGrouped(
             unit_cost_cents: l.unit_cost_cents,
             line_total_cents: manualLineTotal(l.unit_cost_cents, l.quantity_decimal),
             bom_line_item_id: l.id,
-            cost_code_id: budgetCodeByBomLine.get(l.id),
+            cost_code_id: purchaseLineCostCode(budgetCodeByBomLine, l),
           }))
         )
 
@@ -1718,7 +1745,7 @@ export async function createPosFromBomGrouped(
         },
       })
 
-      return ids
+      return { created_po_ids: ids, groups: groupPreviews }
     })
   } catch (error) {
     if (error instanceof Error && error.message === 'BOM_NOT_FOUND') {
@@ -1727,16 +1754,24 @@ export async function createPosFromBomGrouped(
     if (error instanceof Error && error.message === 'BOM_ALREADY_COMMITTED') {
       return { error: 'BOM has already been committed to Purchase Orders' }
     }
+    if (error instanceof Error && error.message === 'BOM_NO_LINES') {
+      return { error: 'BOM has no line items' }
+    }
+    if (error instanceof RangeError) {
+      return { error: 'Purchase Order amount exceeds the supported centavo range' }
+    }
     return { error: 'Purchase Orders could not be created. Retry after reviewing the BOM.' }
   }
 
-  revalidatePath('/purchase-orders')
-  if (bom.project_id) {
-    revalidatePath(`/projects/${bom.project_id}`)
-    revalidatePath(`/projects/${bom.project_id}/bom`)
+  if (outcome.created_po_ids.length > 0) {
+    revalidatePath('/purchase-orders')
+    if (bom.project_id) {
+      revalidatePath(`/projects/${bom.project_id}`)
+      revalidatePath(`/projects/${bom.project_id}/bom`)
+    }
   }
 
-  return { created_po_ids: createdIds, groups: groupPreviews }
+  return outcome
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

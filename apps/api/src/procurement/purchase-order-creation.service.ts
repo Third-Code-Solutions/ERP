@@ -32,6 +32,9 @@ import {
   purchaseOrderBomCreationResultSchema,
   purchaseOrdersGroupedFromBomResultSchema,
   purchaseOrderCreationResultSchema,
+  purchasableBomLines,
+  purchaseLineCostCode,
+  rateCardPicker,
   type CreatePurchaseOrderFromBomCommand,
   type CreatePurchaseOrdersGroupedFromBomCommand,
   type CreatePurchaseOrderCommand,
@@ -317,7 +320,7 @@ export class PurchaseOrderCreationService {
       }
 
       const now = new Date()
-      const lines = await transaction
+      const rows = await transaction
         .select({
           id: bomLineItems.id,
           code: bomLineItems.code,
@@ -326,17 +329,20 @@ export class PurchaseOrderCreationService {
           quantity: bomLineItems.quantity,
           quantityDecimal: bomLineItems.quantity_decimal,
           unitCostCents: bomLineItems.unit_cost_cents,
+          is_group: bomLineItems.is_group,
+          parent_id: bomLineItems.parent_id,
+          parent_line_item_id: bomLineItems.parent_line_item_id,
         })
         .from(bomLineItems)
         .where(
           and(
             eq(bomLineItems.bom_id, parsedCommand.bomId),
-            eq(bomLineItems.tenant_id, authorizedPrincipal.tenantId),
-            eq(bomLineItems.is_group, 0)
+            eq(bomLineItems.tenant_id, authorizedPrincipal.tenantId)
           )
         )
         .orderBy(bomLineItems.sort_order, bomLineItems.id)
         .for('share')
+      const lines = purchasableBomLines(rows)
       if (lines.length === 0) {
         throw new ConflictException('BOM has no line items')
       }
@@ -378,8 +384,11 @@ export class PurchaseOrderCreationService {
         .select({
           id: rateCards.id,
           code: materialItems.code,
+          unit: materialItems.unit,
           vendorId: rateCards.vendor_id,
           unitPriceCents: rateCards.unit_price_cents,
+          effectiveFrom: rateCards.effective_from,
+          effectiveTo: rateCards.effective_to,
         })
         .from(rateCards)
         .innerJoin(
@@ -394,9 +403,10 @@ export class PurchaseOrderCreationService {
             eq(rateCards.tenant_id, authorizedPrincipal.tenantId),
             lte(rateCards.effective_from, now),
             or(isNull(rateCards.effective_to), gt(rateCards.effective_to, now)),
-            sql`${rateCards.unit_price_cents} >= 0`
+            gt(rateCards.unit_price_cents, 0)
           )
         )
+        .orderBy(rateCards.unit_price_cents, rateCards.id)
         .for('share')
 
       const candidateVendorIds = [
@@ -420,27 +430,11 @@ export class PurchaseOrderCreationService {
         vendorRows.map((vendor) => [vendor.id, vendor.name])
       )
 
-      const bestByCode = new Map<
-        string,
-        { vendorId: string | null; unitPriceCents: number; rateCardId: string }
-      >()
-      for (const card of cards) {
-        if (!card.code || card.unitPriceCents < 0) continue
-        if (card.vendorId && !vendorNameById.has(card.vendorId)) continue
-        const existing = bestByCode.get(card.code)
-        if (
-          !existing ||
-          card.unitPriceCents < existing.unitPriceCents ||
-          (card.unitPriceCents === existing.unitPriceCents &&
-            card.id < existing.rateCardId)
-        ) {
-          bestByCode.set(card.code, {
-            vendorId: card.vendorId,
-            unitPriceCents: card.unitPriceCents,
-            rateCardId: card.id,
-          })
-        }
-      }
+      const pickRateCard = rateCardPicker(
+        cards,
+        new Set(vendorNameById.keys()),
+        now
+      )
 
       interface Bucket {
         vendorId: string | null
@@ -448,12 +442,17 @@ export class PurchaseOrderCreationService {
       }
       const buckets = new Map<string, Bucket>()
       for (const line of lines) {
-        const best = line.code ? bestByCode.get(line.code) : undefined
+        const best = pickRateCard(line)
         const vendorId = best?.vendorId ?? null
+        // D-4: the rate card that chose the vendor also prices the line.
+        const pricedLine =
+          best && vendorId
+            ? { ...line, unitCostCents: best.unitPriceCents }
+            : line
         const key = vendorId ?? 'unassigned'
         const bucket = buckets.get(key)
-        if (bucket) bucket.lines.push(line)
-        else buckets.set(key, { vendorId, lines: [line] })
+        if (bucket) bucket.lines.push(pricedLine)
+        else buckets.set(key, { vendorId, lines: [pricedLine] })
       }
 
       const groups = [...buckets.values()].map((bucket) => {
@@ -557,7 +556,7 @@ export class PurchaseOrderCreationService {
               )
             ),
             bom_line_item_id: line.id,
-            cost_code_id: costCodeByBomLine.get(line.id),
+            cost_code_id: purchaseLineCostCode(costCodeByBomLine, line),
           }))
         )
         await this.audit.writeSemantic(transaction, {
@@ -764,7 +763,6 @@ export class PurchaseOrderCreationService {
           id: boms.id,
           status: boms.status,
           projectId: boms.project_id,
-          totalCostCents: boms.total_cost_cents,
         })
         .from(boms)
         .where(
@@ -813,7 +811,7 @@ export class PurchaseOrderCreationService {
         if (!vendor) throw new NotFoundException('Vendor not found')
       }
 
-      const lines = await transaction
+      const rows = await transaction
         .select({
           id: bomLineItems.id,
           code: bomLineItems.code,
@@ -822,6 +820,9 @@ export class PurchaseOrderCreationService {
           quantity: bomLineItems.quantity,
           quantityDecimal: bomLineItems.quantity_decimal,
           unitCostCents: bomLineItems.unit_cost_cents,
+          is_group: bomLineItems.is_group,
+          parent_id: bomLineItems.parent_id,
+          parent_line_item_id: bomLineItems.parent_line_item_id,
         })
         .from(bomLineItems)
         .where(
@@ -832,6 +833,7 @@ export class PurchaseOrderCreationService {
         )
         .orderBy(bomLineItems.sort_order, bomLineItems.id)
         .for('share')
+      const lines = purchasableBomLines(rows)
       if (lines.length === 0) {
         throw new ConflictException('BOM has no line items')
       }
@@ -869,7 +871,20 @@ export class PurchaseOrderCreationService {
         )
       )
 
-      const subtotalCents = BigInt(bom.totalCostCents)
+      const lineValues = lines.map((line) => {
+        const unitCost = BigInt(line.unitCostCents)
+        // D-5: half-up round(rate x quantity_decimal), exact.
+        return {
+          line,
+          unitCost,
+          lineTotal: deriveBoqLineAmount(unitCost, line.quantityDecimal),
+        }
+      })
+      // D-4: the header foots to the PO lines created, not bom.total_cost_cents.
+      const subtotalCents = lineValues.reduce(
+        (sum, value) => sum + value.lineTotal,
+        0n
+      )
       const vatCents = percentHalfUp(subtotalCents, 12n)
       const withholdingTaxCents = percentHalfUp(subtotalCents, 2n)
       const totalCents = subtotalCents + vatCents - withholdingTaxCents
@@ -923,27 +938,21 @@ export class PurchaseOrderCreationService {
       }
 
       await transaction.insert(poLineItems).values(
-        lines.map((line, index) => {
-          const unitCost = BigInt(line.unitCostCents)
-          const lineTotal = safeDatabaseCents(
-            deriveBoqLineAmount(unitCost, line.quantityDecimal)
-          )
-          return {
-            tenant_id: authorizedPrincipal.tenantId,
-            po_id: created.id,
-            sort_order: index,
-            code: line.code ?? undefined,
-            description: line.description,
-            unit: line.unit ?? undefined,
-            // D-5: legacy integer mirror plus the exact quantity in micros.
-            quantity: line.quantity,
-            quantity_micros: boqQuantityToMicros(line.quantityDecimal),
-            unit_cost_cents: safeDatabaseCents(unitCost),
-            line_total_cents: lineTotal,
-            bom_line_item_id: line.id,
-            cost_code_id: costCodeByBomLine.get(line.id),
-          }
-        })
+        lineValues.map(({ line, unitCost, lineTotal }, index) => ({
+          tenant_id: authorizedPrincipal.tenantId,
+          po_id: created.id,
+          sort_order: index,
+          code: line.code ?? undefined,
+          description: line.description,
+          unit: line.unit ?? undefined,
+          // D-5: legacy integer mirror plus the exact quantity in micros.
+          quantity: line.quantity,
+          quantity_micros: boqQuantityToMicros(line.quantityDecimal),
+          unit_cost_cents: safeDatabaseCents(unitCost),
+          line_total_cents: safeDatabaseCents(lineTotal),
+          bom_line_item_id: line.id,
+          cost_code_id: purchaseLineCostCode(costCodeByBomLine, line),
+        }))
       )
 
       const now = new Date()
