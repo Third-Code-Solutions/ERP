@@ -10,10 +10,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import type {
-  DocuSealWebhookCommand,
-  DocuSealWebhookResult,
-} from '@third-code-erp/shared-types'
+import type { DocuSealWebhookResult } from '@third-code-erp/shared-types'
 import { Public } from '../auth/supabase-jwt.guard'
 import { DocuSealWebhookPipe } from './docuseal-webhook.pipe'
 import { DocuSealWebhookService } from './docuseal-webhook.service'
@@ -39,13 +36,15 @@ export class DocuSealWebhookController {
   @Post()
   @HttpCode(HttpStatus.OK)
   receive(
-    @Body(DocuSealWebhookPipe) command: DocuSealWebhookCommand,
+    @Body() body: unknown,
     @Headers('x-erp-core-webhook-token') internalToken: string | undefined
   ): Promise<DocuSealWebhookResult> {
     const expected = this.config.get<string>('ERP_CORE_WEBHOOK_TOKEN', '')
     if (!matchesSecret(internalToken, expected)) {
       throw new UnauthorizedException()
     }
-    return this.webhook.handle(command)
+    // Validate only after the token check: an unauthenticated caller must not
+    // be able to make zod walk an attacker-sized payload.
+    return this.webhook.handle(new DocuSealWebhookPipe().transform(body))
   }
 }
