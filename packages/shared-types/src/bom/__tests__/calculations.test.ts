@@ -15,6 +15,8 @@ import {
   computeEWT,
   computeRetention,
   progressBillingAmount,
+  cumulativeBillingCapError,
+  parsePercentToBps,
 } from '../calculations'
 
 describe('lineTotal', () => {
@@ -394,5 +396,87 @@ describe('end-to-end BOM scenario', () => {
     expect(retention).toBeGreaterThan(0)
     expect(gp).toBeGreaterThan(0)
     expect(tcv).toBeGreaterThan(lt)
+  })
+})
+
+describe('cumulativeBillingCapError (D-6)', () => {
+  it('accepts a normal bill that stays under 100%', () => {
+    // 30% + 25% billed, 25% more -> 80%
+    expect(cumulativeBillingCapError(5500, 2500)).toBeNull()
+  })
+
+  it('accepts exactly 100% and rejects 100.01%', () => {
+    expect(cumulativeBillingCapError(7500, 2500)).toBeNull()
+    expect(cumulativeBillingCapError(7500, 2501)).toBe(
+      'Cumulative progress billing cannot exceed 100% of the contract: 75.00% already billed, 25.00% remaining.'
+    )
+  })
+
+  it('accepts a first bill of exactly 100% and rejects one of 100.01%', () => {
+    expect(cumulativeBillingCapError(0, 10000)).toBeNull()
+    expect(cumulativeBillingCapError(0, 10001)).toMatch('0.00% already billed, 100.00% remaining')
+  })
+
+  it('reports zero remaining once the contract is fully billed', () => {
+    expect(cumulativeBillingCapError(10000, 1)).toMatch('100.00% already billed, 0.00% remaining')
+  })
+
+  it('formats messy basis points without float error', () => {
+    // 33.33% + 33.33% + 33.33% = 99.99%; 0.02% more is too much
+    expect(cumulativeBillingCapError(9999, 1)).toBeNull()
+    expect(cumulativeBillingCapError(9999, 2)).toMatch('99.99% already billed, 0.01% remaining')
+  })
+
+  it('rejects non-integer basis points', () => {
+    expect(() => cumulativeBillingCapError(0.5, 100)).toThrow(RangeError)
+  })
+})
+
+describe('parsePercentToBps (D-15)', () => {
+  it('parses whole and two-decimal percents exactly', () => {
+    expect(parsePercentToBps('25')).toBe(2500)
+    expect(parsePercentToBps('30.5')).toBe(3050)
+    expect(parsePercentToBps('0.01')).toBe(1)
+    expect(parsePercentToBps(' 100 ')).toBe(10000)
+  })
+
+  it('handles the 0 and 100% boundaries', () => {
+    expect(parsePercentToBps('0')).toBe(0)
+    expect(parsePercentToBps('0.004')).toBe(0)
+    expect(parsePercentToBps('100.00')).toBe(10000)
+    expect(parsePercentToBps('100.004')).toBe(10000)
+    expect(parsePercentToBps('100.005')).toBe(10001)
+  })
+
+  it('rounds a .5 bps tie up where parseFloat * 100 rounded it down', () => {
+    // 1.005 * 100 === 100.49999999999999 and 8.325 * 100 === 832.4999999999999
+    expect(Math.round(parseFloat('1.005') * 100)).toBe(100)
+    expect(parsePercentToBps('1.005')).toBe(101)
+    expect(Math.round(parseFloat('8.325') * 100)).toBe(832)
+    expect(parsePercentToBps('8.325')).toBe(833)
+    expect(parsePercentToBps('12.345')).toBe(1235)
+    expect(parsePercentToBps('12.3449999')).toBe(1234)
+    expect(parsePercentToBps('0.005')).toBe(1)
+  })
+
+  it('accepts messy but valid decimal forms', () => {
+    expect(parsePercentToBps('007.10')).toBe(710)
+    expect(parsePercentToBps('.5')).toBe(50)
+    expect(parsePercentToBps('33.')).toBe(3300)
+    expect(parsePercentToBps('33.3333333333333333')).toBe(3333)
+  })
+
+  it('rejects input that is not a plain non-negative decimal', () => {
+    for (const bad of ['', ' ', '.', 'abc', '-5', '+5', '1e2', '12,5', '1.2.3', 'NaN', 'Infinity', '0x10', '5%']) {
+      expect(parsePercentToBps(bad)).toBeNull()
+    }
+    expect(parsePercentToBps('9'.repeat(20))).toBeNull()
+  })
+
+  it('rejects input longer than 32 characters before parsing', () => {
+    expect(parsePercentToBps(`25.${'0'.repeat(29)}`)).toBe(2500) // 32 chars
+    expect(parsePercentToBps(`25.${'0'.repeat(30)}`)).toBeNull() // 33 chars
+    expect(parsePercentToBps(' '.repeat(40) + '25')).toBeNull()
+    expect(parsePercentToBps('1'.repeat(100_000))).toBeNull()
   })
 })

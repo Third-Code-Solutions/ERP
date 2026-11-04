@@ -19,7 +19,7 @@ import {
 } from '@third-code-erp/database/schema'
 import { and, asc, desc, eq, sql } from 'drizzle-orm'
 import { randomUUID } from 'node:crypto'
-import { topLevelBomLines } from '@third-code-erp/shared-types/bom'
+import { progressBillingAmount, topLevelBomLines } from '@third-code-erp/shared-types/bom'
 import { writeAwardAuditInTransaction } from './audit'
 import { resolveAwardBusinessDayService } from './business-calendar'
 
@@ -529,8 +529,11 @@ async function ensureDraftInvoice(
     return existing.id
   }
 
-  const subtotalCentavos = (args.tcvCents * BigInt(args.downPaymentBps)) / 10_000n
-  const subtotalCents = safeCurrencyNumber(subtotalCentavos, 'Down-payment subtotal')
+  // D-14: half-up per PRD §4.4; bigint `/` floored the odd centavo.
+  const subtotalCents = progressBillingAmount(
+    safeCurrencyNumber(args.tcvCents, 'BOM TCV'),
+    args.downPaymentBps
+  )
   const [invoice] = await tx
     .insert(invoices)
     .values({

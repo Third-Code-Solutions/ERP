@@ -264,3 +264,41 @@ export function progressBillingAmount(
     'progress billing amount'
   )
 }
+
+const PERCENT_DECIMAL = /^(\d*)(?:\.(\d*))?$/
+const MAX_PERCENT_INPUT_LENGTH = 32
+
+// D-15: exact decimal-string percent -> basis points, half-up at the bps
+// level ("12.345" -> 1235). Returns null for anything that is not a plain
+// non-negative decimal (signs, exponents, separators, empty input).
+export function parsePercentToBps(input: string): BasisPoints | null {
+  if (input.length > MAX_PERCENT_INPUT_LENGTH) return null
+  const match = PERCENT_DECIMAL.exec(input.trim())
+  const whole = match?.[1] ?? ''
+  const fraction = match?.[2] ?? ''
+  if (!match || (whole === '' && fraction === '')) return null
+  const bps =
+    BigInt(whole || '0') * 100n +
+    BigInt(fraction.slice(0, 2).padEnd(2, '0')) +
+    (fraction.charAt(2) >= '5' ? 1n : 0n)
+  return bps > MAX_SAFE_INTEGER_BIGINT ? null : Number(bps)
+}
+
+const FULL_CONTRACT_BPS = 10_000n
+
+function formatBpsAsPercent(bps: bigint): string {
+  return `${bps / 100n}.${String(bps % 100n).padStart(2, '0')}%`
+}
+
+// D-6: the progress invoices of one contract may never bill more than 100%
+// of it. Returns the rejection message, or null when the new bill fits.
+export function cumulativeBillingCapError(
+  billedPercentBps: BasisPoints,
+  billingPercentBps: BasisPoints
+): string | null {
+  const billed = exactInteger(billedPercentBps, 'billed percent basis points')
+  const billing = exactInteger(billingPercentBps, 'billing percent basis points')
+  if (billed + billing <= FULL_CONTRACT_BPS) return null
+  const remaining = billed >= FULL_CONTRACT_BPS ? 0n : FULL_CONTRACT_BPS - billed
+  return `Cumulative progress billing cannot exceed 100% of the contract: ${formatBpsAsPercent(billed)} already billed, ${formatBpsAsPercent(remaining)} remaining.`
+}

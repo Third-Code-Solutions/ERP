@@ -10,6 +10,13 @@ no reading/printing secrets, no deleting production data, no disabling CI or ski
 tests. Stop for: destructive migration on production data, production broken after a
 rollback, a new paid service, a legal/licensing question.
 
+Licensing decision (owner, 2026-11-04: "continue to phase 2"): clean-room is approved in
+its strictest form. `oce-recon` reads only OCE's public descriptive material (site,
+playbooks, docs, release notes, repo README/changelog). It never opens OCE source code,
+and it copies no OCE names, strings or data. The CWICR cost data is CC BY-NC 4.0, so it
+is never imported (`docs/erp/oce/survey.md`). Not legal advice: get a lawyer's
+confirmation before selling.
+
 Merge gate (no GitHub branch protection: the private repo is on the free plan and the
 API returns 403, which counts as a paid service): merge only when `gh pr checks` is all
 green, AND the security verdict is PASS, AND the code-review verdict is APPROVE.
@@ -79,10 +86,43 @@ Verdicts are posted as PR comments.
   - DB reproducibility on Postgres 17 (integration)
   - build, claim-document browser test, trusted-PR e2e
   - `pnpm audit` (prod + full), gitleaks
-- Deferred P1 items (with reason): —
-- Phase D (gap analysis) has not run. `BACKLOG.md` statuses are unreviewed seeds,
-  so `/erp-swarm next` must wait for Phase D, which in turn waits for the licensing
-  decision below.
+- Phase D done 2026-11-04:
+  - Survey: `docs/erp/oce/survey.md` (63 rows, 18 new, including PH compliance).
+  - Gap analysis: `docs/erp/reports/01-gap-analysis.md` (15 exists, 19 partial,
+    3 missing, 8 defer).
+  - `BACKLOG.md` statuses are now set.
+- Phase D money defects D-1..D-15 (gap report section 2). Production exposure
+  (read-only count, 2026-11-04): 0 DUPAs, 3 BOMs, 3 invoices and 1 PO, all in one
+  tenant. No real customer money is affected, so no data correction is needed.
+  - **Hardening batch 2 (fix before modules; the rule is clear and consistent with the PRD).**
+    Six defect IDs in five items:
+    1. D-5: fractional BOQ quantity via expand/contract, per the additive-only policy
+       above. Add a `numeric(18,4)` column, backfill it, then switch readers and writers.
+       Drop the integer column in a later contract release.
+    2. D-8: BIR 2307 payor/payee reversed.
+    3. D-4 (part): PO header must foot to its lines; the rate-card path must price at the
+       rate card. The VAT-on-H part of D-4 shares D-2's root cause and is deferred with it (Q1).
+    4. D-6 guard: cumulative billing ≤ 100%. DP recoupment is deferred (Q4, below).
+    5. D-14 + D-15: half-up DP rounding; one decimal-string percent parser.
+- Deferred P1 items (with reason): waiting on the owner's money-policy answers (see
+  Blockers). The PRD makes these business policy, so the agent will not guess them:
+  - D-1 cost vs sell on DUPA lines (Q1, Q2);
+  - D-2 VAT inside H plus VAT on the invoice, and the same on PO lines (D-4 VAT-on-H part) (Q1);
+  - D-3 budget baseline basis (Q2);
+  - D-10 open-line forecast = max(budget, committed, actual). It must follow D-3: today's
+    budget baseline includes profit and VAT, so the new forecast would push projected GP
+    to zero or below (Q2). A builder was stopped for this reason in review round 2;
+  - D-6 DP recoupment only; the cap is in batch item 4 (Q4);
+  - D-7 VAT/EWT on retention (Q3; conflicts with PRD A13);
+  - D-9 PO EWT 1%/2% and non-VAT suppliers (Q7; PRD A13 and
+    WO-15 say carry forward);
+  - D-11 DP invoice tax (Q4);
+  - D-12 Togal 30% markup (Q9).
+- D-13 (hard-coded retention): the `tenancy` module only replaces the constant with the
+  tenant's `tax_profiles.retention_rate_bps`, defaulting to today's 10%. The rate is
+  read-only until Q3 is answered, so the tax rates cannot change before then. (Batch items
+  3 and 5 do change amounts: PO line prices, and DP and preview rounding by centavos.)
+  Contract-level retention waits for `contracts` and Q3.
 - Accepted risk: no environment protection or branch protection (plan blocks it);
   see `docs/erp/RUNBOOK.md` section 5.
 
@@ -95,8 +135,9 @@ RUNBOOK) is **done**.
   afterwards.
 - The daily-task completion flag (`ERP_DAILY_TASK_COMPLETION_WRITES_VIA_API`,
   `buildops-e2e` tenant only) went live with this deploy.
-- Mandate PHASE 2 (`next --auto`) waits for Phase D, which waits for the licensing
-  decision.
+- Mandate PHASE 2 (`next --auto` through Wave 2) **started 2026-11-04**. Phase D is
+  done. Next: hardening batch 2 (items 1–5 above), then modules in gap-report order:
+  `tenancy` → `approvals` → `contacts` → `cost-db` → `assemblies` → `boq` → `contracts`.
 
 - Merged 2026-11-04 (all CI green, security PASS, review APPROVE posted on the PR):
   - #128 `c2d075ad`: tasks generation and task page.
@@ -167,14 +208,27 @@ RUNBOOK) is **done**.
 |---|---|---|---|
 
 ## Blockers / decisions needed
-- **Licensing (gates Phase D and mandate PHASE 2):** the module loop clean-room reverse-engineers
-  OpenConstructionERP, which is AGPL-3.0, into closed SaaS. The package README says a
-  lawyer must confirm this. It falls under the owner's stop rule, so the owner must
-  confirm before `oce-recon` touches OCE.
+- **Money-policy answers (owner/Finance; non-blocking: affected items are deferred and
+  the loop continues).** Full text is in gap report section 4.
+  - Q1: Is the contract sum VAT-inclusive? (ABI's DUPA puts 12% VAT inside H.)
+  - Q2: Is the allowable budget D, D + OCM, or TCV − margin?
+  - Q3: When are VAT and EWT due on retention, and what are the release terms?
+  - Q4: What are the DP %, its VAT treatment and the recoupment method?
+  - Q5: Is billing by % per BOQ item or by milestone?
+  - Q6: Do we have government or zero-rated clients?
+  - Q7: Is ABI a Top Withholding Agent? Which suppliers are non-VAT?
+  - Q8: Does a signed VO revise the contract sum and budget?
+  - Q9: Can the Togal 30% markup be retired?
+  - Q10: Are a Filipino UI and a public API needed for MVP?
+- PH rates in the survey (2% EWT, 10% retention, 0.1%/day LDs, PCAB ranges) come from
+  secondary sources. Check them against primary BIR, GPPB and PCAB texts before they
+  become rules.
 
 ## Log
 | Date | Mode | Result |
 |---|---|---|
+| 2026-11-04 | decision | Owner: "continue to phase 2" → clean-room approved, strict mode (public material only) |
+| 2026-11-04 | phase D | Survey (63 rows) + gap analysis (15/19/3/8); 15 money defects: 6 IDs in 5 batch-2 items (D-4 part, D-6 cap only), the rest deferred to owner Q1–Q10 (D-10 behind D-3) |
 | 2026-11-04 | prod config | Set `ERP_DAILY_TASK_COMPLETION_WRITES_VIA_API=true` + `_TENANT_IDS=<buildops-e2e>` in Vercel production (owner approved); applies on the next prod deploy |
 | 2026-11-04 | baseline | Phase A: P0 0 · 4 P1 code + 6 security High. Security auditor verdict BLOCK (SEC-01..06) |
 | 2026-11-04 | merge | PR #129 squash-merged `a2313a47` (deps + Next RCE + zod compensating controls) |
