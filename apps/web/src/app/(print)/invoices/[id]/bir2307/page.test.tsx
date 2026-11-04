@@ -127,4 +127,14 @@ describe('BIR 2307 print parties (D-8)', () => {
     expect(payor).toContain('Project client label')
     expect(payor).toContain('Client TIN is not on record')
   })
+
+  it('labels the rate from the shared formatter and prints the stored amounts (AC-TEN-11, AC-TEN-12)', async () => {
+    mockRows(INVOICE_ROW)
+
+    const { markup } = await renderPage()
+
+    expect(markup).toContain('>2%</td>')
+    expect(markup).toContain('₱4,500.00')
+    expect(markup).toContain('₱250,000.00')
+  })
 })

@@ -6,11 +6,12 @@ import { can, getUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { accounts, invoices, projects, tenants } from '@third-code-erp/database/schema'
 import { and, eq } from 'drizzle-orm'
+import { TAX_DEFAULTS, formatBps } from '@third-code-erp/shared-types'
 import { PrintButton } from './print-button'
 
 export const metadata: Metadata = { title: 'BIR Form 2307' }
 
-const WITHHOLDING_RATE_LABEL = '2%'
+const WITHHOLDING_RATE_LABEL = formatBps(TAX_DEFAULTS.ewtBps)
 
 function formatPHP(cents: number): string {
   return `₱${(cents / 100).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`

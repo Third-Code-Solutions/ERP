@@ -10,6 +10,7 @@ import {
   projects,
 } from '@third-code-erp/database/schema'
 import { and, eq, sql } from 'drizzle-orm'
+import { TAX_DEFAULTS, formatBps } from '@third-code-erp/shared-types'
 import { InvoiceStatusActions } from './invoice-status-actions'
 
 export const metadata: Metadata = { title: 'Invoice' }
@@ -303,9 +304,9 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
         <dl style={{ margin: 0 }}>
           {[
             { label: `Billing (${(inv.billing_percent_bps / 100).toFixed(0)}% of TCV)`, value: formatPHP(inv.subtotal_cents) },
-            { label: `Retention (${(inv.retention_bps / 100).toFixed(0)}%)`, value: `(${formatPHP(inv.retention_cents)})`, color: '#f59e0b' },
-            { label: 'VAT (12%)', value: `+${formatPHP(inv.vat_cents)}` },
-            { label: 'Withholding Tax (2%)', value: `−${formatPHP(inv.withholding_tax_cents)}` },
+            { label: `Retention (${formatBps(inv.retention_bps)})`, value: `(${formatPHP(inv.retention_cents)})`, color: '#f59e0b' },
+            { label: `VAT (${formatBps(TAX_DEFAULTS.vatBps)})`, value: `+${formatPHP(inv.vat_cents)}` },
+            { label: `Withholding Tax (${formatBps(TAX_DEFAULTS.ewtBps)})`, value: `−${formatPHP(inv.withholding_tax_cents)}` },
           ].map(({ label, value, color }) => (
             <div key={label} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
               <dt style={{ fontSize: '0.875rem', color: 'var(--color-neutral-500)' }}>{label}</dt>

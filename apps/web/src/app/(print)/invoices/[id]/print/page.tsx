@@ -6,6 +6,7 @@ import { can, getUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { invoices, projects, tenants } from '@third-code-erp/database/schema'
 import { and, eq } from 'drizzle-orm'
+import { TAX_DEFAULTS, formatBps } from '@third-code-erp/shared-types'
 import { PrintButton } from './print-button'
 
 export const metadata: Metadata = { title: 'Invoice' }
@@ -61,7 +62,9 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
     .where(eq(tenants.id, profile.tenantId))
 
   const billingPct = (inv.billing_percent_bps / 100).toFixed(0)
-  const retentionPct = (inv.retention_bps / 100).toFixed(0)
+  const retentionPct = formatBps(inv.retention_bps)
+  const vatPct = formatBps(TAX_DEFAULTS.vatBps)
+  const ewtPct = formatBps(TAX_DEFAULTS.ewtBps)
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '32px 16px', background: '#f3f4f6' }}>
@@ -200,7 +203,7 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
             </tr>
             <tr style={{ borderBottom: '1px solid #e5e7eb', background: '#fffbeb' }}>
               <td style={{ padding: '12px 16px', color: '#92400e' }}>
-                Less: Retention ({retentionPct}%)
+                Less: Retention ({retentionPct})
               </td>
               <td style={{ padding: '12px 16px', textAlign: 'right', fontFamily: 'monospace', color: '#92400e' }}>
                 ({formatPHP(inv.retention_cents)})
@@ -208,7 +211,7 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
             </tr>
             <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
               <td style={{ padding: '12px 16px', color: '#374151' }}>
-                Add: Value Added Tax (12% VAT)
+                Add: Value Added Tax ({vatPct} VAT)
               </td>
               <td style={{ padding: '12px 16px', textAlign: 'right', fontFamily: 'monospace', color: '#111827' }}>
                 {formatPHP(inv.vat_cents)}
@@ -216,7 +219,7 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
             </tr>
             <tr style={{ borderBottom: '1px solid #e5e7eb', background: '#fef2f2' }}>
               <td style={{ padding: '12px 16px', color: '#7f1d1d' }}>
-                Less: Creditable Withholding Tax (2% — BIR Form 2307)
+                Less: Creditable Withholding Tax ({ewtPct} — BIR Form 2307)
               </td>
               <td style={{ padding: '12px 16px', textAlign: 'right', fontFamily: 'monospace', color: '#7f1d1d' }}>
                 ({formatPHP(inv.withholding_tax_cents)})
@@ -247,7 +250,7 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
             color: '#0369a1',
           }}
         >
-          <strong>BIR 2307 Notice:</strong> The withheld amount of {formatPHP(inv.withholding_tax_cents)} (2% creditable withholding tax)
+          <strong>BIR 2307 Notice:</strong> The withheld amount of {formatPHP(inv.withholding_tax_cents)} ({ewtPct} creditable withholding tax)
           shall be remitted to the BIR by the withholding agent. Certificate of Creditable Tax Withheld (BIR Form 2307)
           must be issued to the payee upon each payment.
         </div>
