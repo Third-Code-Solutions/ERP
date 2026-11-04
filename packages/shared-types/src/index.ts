@@ -1,4 +1,5 @@
 export * from './common'
+export * from './tax-rates'
 export * from './authorization'
 export * from './projects'
 export * from './opportunities'
@@ -106,5 +107,6 @@ export {
   computeVAT,
   computeEWT,
   computeRetention,
+  computeProgressInvoice,
   progressBillingAmount,
 } from './bom/calculations'
