@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
-import { invoices, projects, tenants } from '@third-code-erp/database/schema'
+import { accounts, invoices, projects, tenants } from '@third-code-erp/database/schema'
 import { and, eq } from 'drizzle-orm'
 import { PrintButton } from './print-button'
 
@@ -48,12 +48,17 @@ export default async function Bir2307PrintPage({ params }: { params: Promise<{ i
       created_at: invoices.created_at,
       project_name: projects.name,
       project_client: projects.client,
-      project_location: projects.location,
+      client_name: accounts.name,
+      client_address: accounts.billing_address,
     })
     .from(invoices)
     .leftJoin(
       projects,
       and(eq(invoices.project_id, projects.id), eq(projects.tenant_id, profile.tenantId)),
+    )
+    .leftJoin(
+      accounts,
+      and(eq(invoices.account_id, accounts.id), eq(accounts.tenant_id, profile.tenantId)),
     )
     .where(and(eq(invoices.id, id), eq(invoices.tenant_id, profile.tenantId)))
 
@@ -63,6 +68,10 @@ export default async function Bir2307PrintPage({ params }: { params: Promise<{ i
     .select({ name: tenants.name, bir_tin: tenants.bir_tin, pcab_license: tenants.pcab_license })
     .from(tenants)
     .where(eq(tenants.id, profile.tenantId))
+
+  // D-8: on a customer invoice the client withholds (payor) and the tenant
+  // contractor receives the income (payee).
+  const payorName = inv.client_name ?? inv.project_client ?? 'N/A'
 
   // Tax base: gross billing minus retention. Retention is held by the
   // client and is not yet income for the period — exclude from base.
@@ -199,7 +208,7 @@ export default async function Bir2307PrintPage({ params }: { params: Promise<{ i
           </div>
         </div>
 
-        {/* Two-column payor / payee header */}
+        {/* Two-column payee / payor header (BIR 2307 Part I / Part II) */}
         <div
           style={{
             display: 'grid',
@@ -208,7 +217,7 @@ export default async function Bir2307PrintPage({ params }: { params: Promise<{ i
             marginBottom: '16px',
           }}
         >
-          {/* Part I — Payor (Withholding Agent) */}
+          {/* Part I — Payee (the tenant contractor) */}
           <div style={{ borderRight: '1px solid #111827', padding: '12px 14px' }}>
             <div
               style={{
@@ -220,7 +229,7 @@ export default async function Bir2307PrintPage({ params }: { params: Promise<{ i
                 marginBottom: '6px',
               }}
             >
-              Part I — Payor (Withholding Agent)
+              Part I — Payee
             </div>
             <FieldRow label="Registered Name" value={tenant?.name ?? '—'} />
             <FieldRow
@@ -234,7 +243,7 @@ export default async function Bir2307PrintPage({ params }: { params: Promise<{ i
             <FieldRow label="Registered Address" value="—" />
           </div>
 
-          {/* Part II — Payee */}
+          {/* Part II — Payor (the client withholds the tax) */}
           <div style={{ padding: '12px 14px' }}>
             <div
               style={{
@@ -246,11 +255,11 @@ export default async function Bir2307PrintPage({ params }: { params: Promise<{ i
                 marginBottom: '6px',
               }}
             >
-              Part II — Payee
+              Part II — Payor (Withholding Agent)
             </div>
-            <FieldRow label="Registered Name" value={inv.project_client ?? 'N/A'} />
+            <FieldRow label="Registered Name" value={payorName} />
             <FieldRow label="TIN" value="N/A" mono />
-            <FieldRow label="Registered Address" value={inv.project_location ?? 'N/A'} />
+            <FieldRow label="Registered Address" value={inv.client_address ?? 'N/A'} />
             <div
               style={{
                 marginTop: '6px',
@@ -259,7 +268,7 @@ export default async function Bir2307PrintPage({ params }: { params: Promise<{ i
                 fontStyle: 'italic',
               }}
             >
-              Vendor record not linked to this invoice — populate manually before issuing.
+              Client TIN is not on record — populate manually before issuing.
             </div>
           </div>
         </div>
@@ -383,7 +392,7 @@ export default async function Bir2307PrintPage({ params }: { params: Promise<{ i
             <div style={{ borderTop: '1px solid #111827', paddingTop: '6px' }}>
               <div style={{ fontSize: '11px', fontWeight: 600 }}>Payor / Withholding Agent</div>
               <div style={{ fontSize: '10px', color: '#6b7280', marginTop: '2px' }}>
-                {tenant?.name ?? '—'}
+                {payorName}
               </div>
               <div style={{ fontSize: '10px', color: '#6b7280' }}>
                 Signature over Printed Name · Date
@@ -394,7 +403,7 @@ export default async function Bir2307PrintPage({ params }: { params: Promise<{ i
             <div style={{ borderTop: '1px solid #111827', paddingTop: '6px' }}>
               <div style={{ fontSize: '11px', fontWeight: 600 }}>Payee</div>
               <div style={{ fontSize: '10px', color: '#6b7280', marginTop: '2px' }}>
-                {inv.project_client ?? '—'}
+                {tenant?.name ?? '—'}
               </div>
               <div style={{ fontSize: '10px', color: '#6b7280' }}>
                 Signature over Printed Name · Date
