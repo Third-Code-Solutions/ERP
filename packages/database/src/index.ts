@@ -11,3 +11,5 @@ export * from './cortex/brief'
 export * from './cortex/chat-store'
 // Accounting draft validation (database posting remains authoritative)
 export * from './accounting/journal'
+// Invoicing: cumulative progress billing cap input (D-6)
+export * from './invoicing/billed-percent'

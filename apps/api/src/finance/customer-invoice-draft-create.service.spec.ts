@@ -311,6 +311,8 @@ describe('CustomerInvoiceDraftCreateService', () => {
       expect(query.sql).toContain('"invoices"."status" <> $3')
       expect(query.sql).toContain('"invoices"."reversed_at" is null')
       expect(query.params).toEqual([PRINCIPAL.tenantId, PROJECT_ID, 'cancelled'])
+      // The award down-payment draft is not filtered out: it counts toward the cap.
+      expect(query.sql).not.toContain('invoice_number')
     })
 
     it('accepts a first bill when nothing has been billed yet', async () => {

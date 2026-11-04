@@ -19,7 +19,10 @@ vi.mock('@third-code-erp/auth', () => ({
   can: vi.fn(),
 }))
 
-vi.mock('@third-code-erp/database', () => ({ db: mocks.db }))
+vi.mock('@third-code-erp/database', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@third-code-erp/database')>()),
+  db: mocks.db,
+}))
 
 vi.mock('next/cache', () => ({
   revalidatePath: mocks.revalidatePath,
@@ -64,7 +67,7 @@ function harness(billedPercentBps: string) {
     })
 
   const projectLock = vi.fn().mockResolvedValue([{ id: PROJECT_ID }])
-  const billedWhere = vi.fn().mockResolvedValue([{ percent_bps: billedPercentBps }])
+  const billedWhere = vi.fn().mockResolvedValue([{ percentBps: billedPercentBps }])
   const invoiceValues = vi.fn(() => ({
     returning: vi.fn().mockResolvedValue([{ id: INVOICE_ID }]),
   }))
@@ -127,5 +130,7 @@ describe('legacy createInvoice cumulative billing cap (D-6)', () => {
     expect(query.sql).toContain('"invoices"."tenant_id" = $1')
     expect(query.sql).toContain('"invoices"."reversed_at" is null')
     expect(query.params).toEqual([PROFILE.tenantId, PROJECT_ID, 'cancelled'])
+    // The award down-payment draft is not filtered out: it counts toward the cap.
+    expect(query.sql).not.toContain('invoice_number')
   })
 })

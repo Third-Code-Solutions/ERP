@@ -3,7 +3,7 @@
 import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { getUserProfile, requireCapability, can, type AppRole } from '@third-code-erp/auth'
-import { db, type Database } from '@third-code-erp/database'
+import { billedPercentBps, db, type Database } from '@third-code-erp/database'
 import {
   bomLineItems,
   boms,
@@ -18,7 +18,7 @@ import {
   rateCards,
   vendors,
 } from '@third-code-erp/database/schema'
-import { and, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { writeAuditLog, writeAuditLogInTransaction } from '@/lib/audit'
 import { notifyRoles, notifyExternalEmail } from '@/lib/operations/notifications'
@@ -942,21 +942,8 @@ export async function createInvoice(
         )
       )
       .for('update')
-    const [billed] = await tx
-      .select({
-        percent_bps: sql<string>`coalesce(sum(${invoices.billing_percent_bps}), 0)::text`,
-      })
-      .from(invoices)
-      .where(
-        and(
-          eq(invoices.tenant_id, profile.tenantId),
-          eq(invoices.project_id, projectId),
-          ne(invoices.status, 'cancelled'),
-          isNull(invoices.reversed_at)
-        )
-      )
     const capError = cumulativeBillingCapError(
-      Number(billed?.percent_bps ?? 0),
+      await billedPercentBps(tx, profile.tenantId, projectId),
       billingPercentBps
     )
     if (capError) return { error: capError }
