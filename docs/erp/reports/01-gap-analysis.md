@@ -217,11 +217,11 @@ answers Q1 and Q2 (section 4). Fix them as soon as those land.
 
 Dependency order through Wave 2. A dependency counts as satisfied only when it is `exists`.
 
-1. **tenancy (S).** It has no dependencies. Store and administer `tax_profiles` (VAT/EWT/retention
-   bps, VAT-registered, government final-VAT withholding) and read the rates from them. Defaults
-   equal today's constants (12% / 2% / 10%), so the math is unchanged until a tenant edits its
-   profile. Per-counterparty rules (D-9) and contract retention (D-13) wait for owner answers
-   Q7 and Q3.
+1. **tenancy (S).** It has no dependencies. Store `tax_profiles` (VAT/EWT/retention bps,
+   VAT-registered, government final-VAT withholding) and read the rates from them, with
+   defaults equal to today's constants (12% / 2% / 10%). The rates stay read-only until owner
+   answers Q3 and Q7 land, so the tax math cannot change before then. Per-counterparty rules
+   (D-9) and contract retention (D-13) wait for the same answers.
 2. **approvals (M).** Its dependencies (rbac, audit-log) exist. Drive PO, VO and budget approvals from
    `approval_rules` and turn on `approval_delegations`. Build it configurable now; ABI's matrix
    (O-03) fills the rules later.

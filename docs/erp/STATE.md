@@ -101,26 +101,27 @@ Verdicts are posted as PR comments.
        Drop the integer column in a later contract release.
     2. D-8: BIR 2307 payor/payee reversed.
     3. D-4 (part): PO header must foot to its lines; the rate-card path must price at the
-       rate card. The VAT-on-H part of D-4 is deferred with D-9 (Q7).
+       rate card. The VAT-on-H part of D-4 shares D-2's root cause and is deferred with it (Q1).
     4. D-6 guard: cumulative billing ≤ 100%. DP recoupment is deferred (Q4, below).
     5. D-14 + D-15: half-up DP rounding; one decimal-string percent parser.
 - Deferred P1 items (with reason): waiting on the owner's money-policy answers (see
   Blockers). The PRD makes these business policy, so the agent will not guess them:
   - D-1 cost vs sell on DUPA lines (Q1, Q2);
-  - D-2 VAT inside H plus VAT on the invoice (Q1);
+  - D-2 VAT inside H plus VAT on the invoice, and the same on PO lines (D-4 VAT-on-H part) (Q1);
   - D-3 budget baseline basis (Q2);
   - D-10 open-line forecast = max(budget, committed, actual). It must follow D-3: today's
     budget baseline includes profit and VAT, so the new forecast would push projected GP
     to zero or below (Q2). A builder was stopped for this reason in review round 2;
   - D-6 DP recoupment only; the cap is in batch item 4 (Q4);
   - D-7 VAT/EWT on retention (Q3; conflicts with PRD A13);
-  - D-9 PO EWT 1%/2% and non-VAT suppliers, plus the D-4 VAT-on-H part (Q7; PRD A13 and
+  - D-9 PO EWT 1%/2% and non-VAT suppliers (Q7; PRD A13 and
     WO-15 say carry forward);
   - D-11 DP invoice tax (Q4);
   - D-12 Togal 30% markup (Q9).
 - D-13 (hard-coded retention): the `tenancy` module only replaces the constant with the
-  tenant's `tax_profiles.retention_rate_bps`, defaulting to today's 10%, so behaviour is
-  unchanged until a tenant edits it. Contract-level retention waits for `contracts` and Q3.
+  tenant's `tax_profiles.retention_rate_bps`, defaulting to today's 10%. The rate is
+  read-only until Q3 is answered, so invoice math cannot change before then.
+  Contract-level retention waits for `contracts` and Q3.
 - Accepted risk: no environment protection or branch protection (plan blocks it);
   see `docs/erp/RUNBOOK.md` section 5.
 
