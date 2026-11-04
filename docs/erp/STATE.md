@@ -23,6 +23,12 @@ Verdicts are posted as PR comments.
   workflow (`workflow_dispatch` on `main`). The workflow re-verifies CI for the exact
   SHA, runs the release gates, deploys Railway + Vercel, and runs production E2E.
   Code-only: a pending migration fails its ledger gate (see `docs/erp/RUNBOOK.md`).
+- **Gate bypass:** Railway's GitHub integration (a Railway setting, not in this repo)
+  also deploys the API on every push to `main`, before `main` CI and the
+  promotion's gates run. PR CI and the merge gate still apply. Owner decision
+  pending: disable it so the promotion workflow is the only path (see Blockers).
+- Phase names: lettered phases (A–D) are the `erp-swarm` init steps; numbered
+  PHASE 1/2 are the owner mandate.
 - **Real users/data (checked 2026-11-04):**
   - No paying-customer tenant.
   - Active data is the `buildops-e2e` demo/release-E2E tenant: 11 users, 3 sign-ins
@@ -59,9 +65,11 @@ Verdicts are posted as PR comments.
   - **DB**: current (ledger 178, head `20261104055626`).
   - **API (Railway)**: current. Railway's GitHub integration (configured in
     Railway, not in this repo) auto-deploys `main`; deployment `edfd4065` serves
-    `5d56f63d` (SUCCESS 06:15Z). The promotion workflow's Railway step is the
-    gated path and is blocked (see Blockers). The CAD worker's watched paths
-    have not changed since its last release.
+    `5d56f63d` (SUCCESS 2026-11-04 06:15Z; source: Railway MCP `list-deployments`
+    for service `c45b3d01`). The promotion workflow's Railway step is the gated
+    path and is blocked (see Blockers). CAD worker: there are no commits to
+    `apps/workers/dxf-parser` in `04b3ac5a..5d56f63d`, so its watched inputs match
+    the last promoted release.
   - **Web (Vercel)**: still `04b3ac5a`. The Next RCE fix (#129), #128, #130 and
     later are **not live on web** until the promotion runs. See Blockers.
 - Tenancy model: shared schema + `tenant_id` + RLS.
@@ -100,12 +108,11 @@ waits for the licensing decision.
   failed at "Deploy Nest API to exact Railway service". The last says:
   `Railway deployment list failed: unauthorized (check the RAILWAY_API_TOKEN
   production secret)`.
-- Run links: `https://github.com/Third-Code-Solutions/ERP/actions/runs/<run-id>`.
 - `smoke-prod.yml` passed on 2026-11-04 (runs 41776991762 and, after the
-  SEC-01/02 apply, 41782320759).
+  SEC-01/02 apply, [41782320759](https://github.com/Third-Code-Solutions/ERP/actions/runs/41782320759)).
 - **Backups (`backup-production.yml`)**:
   - 41776995431: proof run, dump `20261104T050445Z`, SHA-256 OK.
-  - 41781901181: guarded `20261104055626_revoke_client_table_writes`, dump
+  - [41781901181](https://github.com/Third-Code-Solutions/ERP/actions/runs/41781901181): guarded `20261104055626_revoke_client_table_writes`, dump
     `20261104T055240Z`. `data.sql` 10,600,443 B, `schema.sql` 1,276,436 B,
     `roles.sql` 297 B, SHA-256 OK. `schema.sql` holds the pre-migration ACL
     snapshot (508 grants to `authenticated`, 214 column-level).
@@ -128,7 +135,8 @@ waits for the licensing decision.
   the business that loss-making deals are recorded as negative GP.
 - **SEC-01/02 residuals (accepted):**
   - `supabase_admin`'s default ACL in public still grants client DML on tables it
-    creates. No such table exists today. This is **unmonitored in production**:
+    creates. No such table exists today (PR #134 preflight comment: 0 public
+    relations not owned by postgres). This is **unmonitored in production**:
     the CI repro verifier checks only the postgres default ACL
     (`scripts/verify-database-repro.mjs:1819`). Re-run the parity-plan preflight
     query after any Supabase-side schema change.
@@ -163,11 +171,17 @@ waits for the licensing decision.
   - The agent may not set secrets.
   - A Railway account or team token with access to project
     `a21fd382-80b2-4218-8025-11f420a062e3` is needed.
-  - Web stays on `04b3ac5a`, an affected Next.js version for GHSA-2464-fhr4-w9xw
-    (the security baseline rates it config-mitigated), until the promotion runs.
+  - Web stays on `04b3ac5a` (Next.js 15.5.25 locked) until the promotion runs. That
+    version is affected by GHSA-2464-fhr4-w9xw (image optimizer SVG RCE) and
+    GHSA-p3m5-59mp-jv5r (Server Actions DoS). Its `next.config.ts` sets no
+    `dangerouslyAllowSVG` and no `remotePatterns`, the same mitigating setup the
+    security baseline found; the DoS has no config mitigation.
+- **Railway auto-deploy (owner decision):** keep or disable the GitHub integration
+  that deploys the API on push to `main` outside the promotion gates (see
+  Production facts).
   - An out-of-band Vercel deploy was not attempted: the Vercel MCP account gets 403
     on project env, and bypassing the workflow would skip its release gates.
-- **Licensing (Phase 2 gate):** the module loop clean-room reverse-engineers
+- **Licensing (gates Phase D and mandate PHASE 2):** the module loop clean-room reverse-engineers
   OpenConstructionERP, which is AGPL-3.0, into closed SaaS. The package README says a
   lawyer must confirm this. It falls under the owner's stop rule, so the owner must
   confirm before `oce-recon` touches OCE.
