@@ -159,7 +159,7 @@ Rows are listed in the proposed order within each wave. Seed wave assignment is 
 ### Modified seed rows (dependencies or notes; no wave moves)
 | slug | change | reason |
 |---|---|---|
-| approvals | Add dependency `notifications`. Order it after notifications. | Escalation and "your turn to approve" alerts need notifications. |
+| approvals | Add dependency `notifications`. Order it after notifications. | Escalation and approval-pending alerts need notifications. |
 | contracts | Change dependencies from `tendering` to `boq, contacts`, with tendering only for subcontract awards. Add down payment, LD rate and cap, and defects period to the notes. | The head contract comes from the won proposal, not from buy-side tendering. PH contract terms carry down payment, retention, LD and warranty ([S-ph4], [S-ph9]). |
 | procurement | Change dependencies from `contracts, approvals` to `boq, contacts, approvals`. | A supplier PO needs no contract record, while procuring from the BOQ needs the BOQ. PRD WO-15 commits POs against BOQ-derived budget lines. |
 | variations | Add dependency `approvals`. | Client and internal sign-off (PRD stage 3: site instruction, priced proposal, client sign-off). |

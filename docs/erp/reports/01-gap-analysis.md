@@ -211,8 +211,9 @@ Checked and correct:
 ## 3. Recommended next modules
 
 The P1 defects above sit in shipped code (boq, invoicing, procurement, cost-model). Fix them as
-defects now, before or alongside these builds. Fix D-1, D-2 and D-5 first: every BOQ, invoice and
-budget depends on them.
+defects now, before or alongside these builds. Fix D-5 first, since every BOQ amount depends on it.
+D-1 and D-2 also underlie every BOQ, invoice and budget, but the correct fix depends on owner
+answers Q1 and Q2 (section 4). Fix them as soon as those land.
 
 Dependency order through Wave 2. A dependency counts as satisfied only when it is `exists`.
 
@@ -230,8 +231,8 @@ Dependency order through Wave 2. A dependency counts as satisfied only when it i
    PRD's estimator-keystroke saving comes from.
 
 Next after these: **boq (M)** (fractional quantity, cost/sell split, provisional sums). Then
-**contracts (M)**, which is eligible now since tendering exists, and must be in place before
-payment-apps.
+**contracts (M)**, which becomes eligible once boq and contacts are done (it no longer depends on
+tendering), and must be in place before payment-apps.
 
 ## 4. Open questions for the business owner
 
