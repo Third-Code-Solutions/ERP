@@ -62,7 +62,7 @@
     "gsap": "^3.15.0",
     "inngest": "^4.18.1",
     "mammoth": "^1.12.0",
-    "next": "15.5.27",
+    "next": "15.5.28",
     "openai": "^6.37.0",
     "pdfjs-dist": "5.4.624",
     "postcss": "^8.5.23",
@@ -81,7 +81,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "typescript": "^5.7.2",
-    "vite": "7.3.5",
-    "vitest": "^4.1.11"
+    "vite": "7.3.7",
+    "vitest": "^4.1.12"
   }
 }

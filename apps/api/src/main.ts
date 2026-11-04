@@ -5,6 +5,7 @@ import { NestFactory } from '@nestjs/core'
 import { json } from 'express'
 import helmet from 'helmet'
 import { AppModule } from './app.module'
+import { rejectOversizedJsonArrays } from './common/json-array-budget'
 import { corsOrigins } from './config/environment'
 
 async function bootstrap(): Promise<void> {
@@ -19,6 +20,7 @@ async function bootstrap(): Promise<void> {
   const config = app.get(ConfigService)
 
   app.use(json({ limit: '4mb' }))
+  app.use(rejectOversizedJsonArrays())
 
   app.use(helmet())
   app.enableCors({
