@@ -25,8 +25,9 @@ Verdicts are posted as PR comments.
   Code-only: a pending migration fails its ledger gate (see `docs/erp/RUNBOOK.md`).
 - **Gate bypass:** Railway's GitHub integration (a Railway setting, not in this repo)
   also deploys the API on every push to `main`, before `main` CI and the
-  promotion's gates run. PR CI and the merge gate still apply. Owner decision
-  pending: disable it so the promotion workflow is the only path (see Blockers).
+  promotion's gates run. PR CI and the merge gate still apply. **Owner decision
+  (2026-11-04): keep it.** The promotion workflow remains the gated path for web
+  and the release E2E.
 - Phase names: lettered phases (A–D) are the `erp-swarm` init steps; numbered
   PHASE 1/2 are the owner mandate.
 - **Real users/data (checked 2026-11-04):**
@@ -61,17 +62,13 @@ Verdicts are posted as PR comments.
      (catalog queries run through Supabase MCP `execute_sql`).
 - PR #125 merged `2c2576cb`: 6 contract gates in CI, doc-authority v1.5, runners
   pinned to ubuntu-24.04.
-- Code that is live is not the same everywhere (2026-11-04):
-  - **DB**: current (ledger 178, head `20261104055626`).
-  - **API (Railway)**: current. Railway's GitHub integration (configured in
-    Railway, not in this repo) auto-deploys `main`; deployment `edfd4065` serves
-    `5d56f63d` (SUCCESS 2026-11-04 06:15Z; source: Railway MCP `list-deployments`
-    for service `c45b3d01`). The promotion workflow's Railway step is the gated
-    path and is blocked (see Blockers). CAD worker: there are no commits to
-    `apps/workers/dxf-parser` in `04b3ac5a..5d56f63d`, so its watched inputs match
-    the last promoted release.
-  - **Web (Vercel)**: still `04b3ac5a`. The Next RCE fix (#129), #128, #130 and
-    later are **not live on web** until the promotion runs. See Blockers.
+- Live code (2026-11-04, after promotion [41792158962](https://github.com/Third-Code-Solutions/ERP/actions/runs/41792158962)):
+  - **DB**: ledger 178, head `20261104055626`.
+  - **Web (Vercel)**: `b9c9d9b4` (`/api/health` and `/api/ready` revision
+    `b9c9d9b43220`). The Next.js 15.5.28 patch (#129), #128, #130 and #134 are live.
+  - **API and CAD worker (Railway)**: the same run verified both as
+    `retained-identical` (watched inputs unchanged; active deployments `edfd4065`
+    for the API at `5d56f63d` and `dcf4a7fa` for CAD); both health checks return 200.
 - Tenancy model: shared schema + `tenant_id` + RLS.
   - Drizzle server code bypasses RLS, so isolation relies on an explicit
     `tenant_id` WHERE clause on every query.
@@ -91,11 +88,15 @@ Verdicts are posted as PR comments.
 
 ## Current
 Owner mandate PHASE 1 (init: green baseline, CI merge gate, `smoke:prod`, STATE,
-RUNBOOK) is done apart from the production promotion, which is blocked on the
-Railway token (see Blockers). Next: rerun `deploy-production.yml` on `main` once
-the token is rotated, confirm web `/api/health` revision = `main` HEAD, then
-dispatch `smoke-prod.yml`. Mandate PHASE 2 (`next --auto`) waits for Phase D, which
-waits for the licensing decision.
+RUNBOOK) is **done**.
+- Promotion [41792158962](https://github.com/Third-Code-Solutions/ERP/actions/runs/41792158962) of `b9c9d9b4` succeeded after the owner
+  rotated `RAILWAY_API_TOKEN` (2026-11-04 07:24Z). Its release gates and production
+  E2E suites passed, and `smoke-prod.yml` [41796012425](https://github.com/Third-Code-Solutions/ERP/actions/runs/41796012425) passed
+  afterwards.
+- The daily-task completion flag (`ERP_DAILY_TASK_COMPLETION_WRITES_VIA_API`,
+  `buildops-e2e` tenant only) went live with this deploy.
+- Mandate PHASE 2 (`next --auto`) waits for Phase D, which waits for the licensing
+  decision.
 
 - Merged 2026-11-04 (all CI green, security PASS, review APPROVE posted on the PR):
   - #128 `c2d075ad`: tasks generation and task page.
@@ -104,8 +105,9 @@ waits for the licensing decision.
   - #131 `e083c485`: swarm, RUNBOOK, smoke, backup.
   - #132 `a5c3cd6a`: Railway CLI failure labels, fail fast on bad credentials.
   - #134 `5d56f63d`: SEC-01/02.
-- Promotion runs: 41772426127 (2 attempts, #129) and 41779917439 (`a5c3cd6a`)
-  failed at "Deploy Nest API to exact Railway service". The last says:
+- Earlier promotion runs 41772426127 (2 attempts, #129) and 41779917439 (`a5c3cd6a`)
+  failed at "Deploy Nest API to exact Railway service" (resolved by the token
+  rotation). The last says:
   `Railway deployment list failed: unauthorized (check the RAILWAY_API_TOKEN
   production secret)`.
 - `smoke-prod.yml` passed on 2026-11-04 (runs 41776991762 and, after the
@@ -165,25 +167,6 @@ waits for the licensing decision.
 |---|---|---|---|
 
 ## Blockers / decisions needed
-- **Production promotion: rotate `RAILWAY_API_TOKEN` (owner action).** The
-  `production` environment secret (last set 2026-08-15) is rejected by Railway CLI
-  5.28.0 as unauthorized.
-  - The agent may not set secrets.
-  - A Railway account or team token with access to project
-    `a21fd382-80b2-4218-8025-11f420a062e3` is needed.
-  - Web stays on `04b3ac5a` (Next.js 15.5.25 locked) until the promotion runs. That
-    version is affected by GHSA-2464-fhr4-w9xw (image optimizer SVG RCE) and
-    GHSA-p3m5-59mp-jv5r (Server Actions DoS). The security baseline's RCE
-    mitigation has two parts: sharp >= 0.35.5 and no SVG/remote image config.
-    At `04b3ac5a` only the config half holds: `next.config.ts` sets no
-    `dangerouslyAllowSVG` or `remotePatterns`, but the lockfile resolves sharp
-    0.35.4, below the floor. **The RCE mitigation is not fully in place on web until
-    the promotion runs**; the DoS has no config mitigation.
-  - An out-of-band Vercel deploy was not attempted: the Vercel MCP account gets 403
-    on project env, and bypassing the workflow would skip its release gates.
-- **Railway auto-deploy (owner decision):** keep or disable the GitHub integration
-  that deploys the API on push to `main` outside the promotion gates (see
-  Production facts).
 - **Licensing (gates Phase D and mandate PHASE 2):** the module loop clean-room reverse-engineers
   OpenConstructionERP, which is AGPL-3.0, into closed SaaS. The package README says a
   lawyer must confirm this. It falls under the owner's stop rule, so the owner must
@@ -197,4 +180,6 @@ waits for the licensing decision.
 | 2026-11-04 | merge | PR #129 squash-merged `a2313a47` (deps + Next RCE + zod compensating controls) |
 | 2026-11-04 | merge | #128 `c2d075ad`, #125 `2c2576cb`, #130 `198e026c`, #131 `e083c485`, #132 `a5c3cd6a` |
 | 2026-11-04 | incident | Promotion blocked: Railway token unauthorized (runs 41772426127, 41779917439). Owner rotation needed |
+| 2026-11-04 | decision | Owner keeps Railway GitHub auto-deploy; owner rotated `RAILWAY_API_TOKEN` |
+| 2026-11-04 | promote | `b9c9d9b4` live on web, API and CAD (run 41792158962); smoke 41796012425 green; incident closed |
 | 2026-11-04 | prod migration | `20261104055626_revoke_client_table_writes` applied after backup 41781901181; smoke 41782320759 green; PR #134 merged `5d56f63d` |
