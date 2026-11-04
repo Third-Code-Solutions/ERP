@@ -3,7 +3,9 @@
 import Link from 'next/link'
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { formatBps } from '@third-code-erp/shared-types'
 import { createStandalonePo } from '@/app/(dashboard)/procurement/actions'
+import { calculatePurchaseOrderTotals } from '@/lib/operations/purchase-order-money'
 
 interface Project {
   id: string
@@ -35,6 +37,7 @@ interface CreatePoFormProps {
   projects: Project[]
   vendors: Vendor[]
   costCodes: CostCode[]
+  taxRates: { vatBps: number; ewtBps: number }
 }
 
 function formatPHP(cents: number): string {
@@ -59,6 +62,7 @@ export function CreatePoForm({
   projects,
   vendors,
   costCodes,
+  taxRates,
 }: CreatePoFormProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [lines, setLines] = useState<LineItem[]>([
@@ -106,9 +110,13 @@ export function CreatePoForm({
     const cost = parseFloat(l.unit_cost) || 0
     return sum + Math.round(qty * cost * 100)
   }, 0)
-  const vat = Math.round(subtotal * 0.12)
-  const ewt = Math.round(subtotal * 0.02)
-  const total = subtotal + vat - ewt
+  // Spec tenancy C-5: the server's integer half-up formula at the tenant's rates.
+  let totals: ReturnType<typeof calculatePurchaseOrderTotals> | null = null
+  try {
+    totals = calculatePurchaseOrderTotals(subtotal, taxRates)
+  } catch {
+    // Out of the centavo range: show "—"; the server rejects it too.
+  }
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -362,8 +370,8 @@ export function CreatePoForm({
             <div style={{ background: 'var(--color-neutral-50)', border: '1px solid var(--color-border)', borderRadius: '6px', padding: '12px 16px', minWidth: '240px' }}>
               {[
                 { label: 'Subtotal', value: formatPHP(subtotal) },
-                { label: 'VAT (12%)', value: `+${formatPHP(vat)}` },
-                { label: 'EWT (2%)', value: `−${formatPHP(ewt)}` },
+                { label: `VAT (${formatBps(taxRates.vatBps)})`, value: totals ? `+${formatPHP(totals.vatCents)}` : '—' },
+                { label: `EWT (${formatBps(taxRates.ewtBps)})`, value: totals ? `−${formatPHP(totals.withholdingTaxCents)}` : '—' },
               ].map(({ label, value }) => (
                 <div key={label} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                   <span style={{ fontSize: '0.8125rem', color: 'var(--color-neutral-500)' }}>{label}</span>
@@ -372,7 +380,7 @@ export function CreatePoForm({
               ))}
               <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '6px', marginTop: '4px', display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--color-neutral-800)' }}>Total</span>
-                <span style={{ fontSize: '0.9rem', fontWeight: 700, fontFamily: 'JetBrains Mono, monospace', color: 'var(--color-navy-text)' }}>{formatPHP(total)}</span>
+                <span style={{ fontSize: '0.9rem', fontWeight: 700, fontFamily: 'JetBrains Mono, monospace', color: 'var(--color-navy-text)' }}>{totals ? formatPHP(totals.totalCents) : '—'}</span>
               </div>
             </div>
           </div>

@@ -4,7 +4,8 @@ import React from 'react'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { can, requireUserProfile } from '@third-code-erp/auth'
-import { db } from '@third-code-erp/database'
+import { db, resolveTaxRates } from '@third-code-erp/database'
+import { formatBps as formatRateBps } from '@third-code-erp/shared-types'
 import { boms, invoices, projects } from '@third-code-erp/database/schema'
 import { and, desc, eq } from 'drizzle-orm'
 import { CreateInvoiceForm } from '@/components/billing/create-invoice-form'
@@ -63,6 +64,9 @@ export default async function ProjectBillingPage({ params, searchParams }: {
     .where(and(eq(projects.id, id), eq(projects.tenant_id, profile.tenantId)))
 
   if (!project) return notFound()
+
+  // Spec tenancy: one read of today's rates for the note and the form preview.
+  const taxRates = await resolveTaxRates(db, profile.tenantId, new Date())
 
   const query = await searchParams ?? {}
   const milestonePage = parseBillingMilestonePage(query.milestonePage)
@@ -126,7 +130,7 @@ export default async function ProjectBillingPage({ params, searchParams }: {
             : []),
           { label: 'Total Billed', value: formatPHP(totalBilled), note: `${projectInvoices.length} invoice${projectInvoices.length !== 1 ? 's' : ''}` },
           { label: 'Collected', value: formatPHP(totalCollected), note: 'Paid invoices net' },
-          { label: 'Retention Held', value: formatPHP(totalRetention), note: 'Standard 10%' },
+          { label: 'Retention Held', value: formatPHP(totalRetention), note: `Standard ${formatRateBps(taxRates.retentionBps)}` },
         ].map(({ label, value, note }) => (
           <div
             key={label}
@@ -193,6 +197,7 @@ export default async function ProjectBillingPage({ params, searchParams }: {
           {canIssueInvoice && <CreateInvoiceForm
             projectId={id}
             tcvCents={access.bom ? contractValue : null}
+            taxRates={taxRates}
           />}
         </div>
 

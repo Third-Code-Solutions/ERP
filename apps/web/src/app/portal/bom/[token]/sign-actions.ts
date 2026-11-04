@@ -2,7 +2,7 @@
 
 import { createHash } from 'crypto'
 import { and, asc, eq } from 'drizzle-orm'
-import { db } from '@third-code-erp/database'
+import { db, resolveTaxRates } from '@third-code-erp/database'
 import {
   bomPortalTokens,
   boms,
@@ -235,6 +235,8 @@ interface PortalBomDetail {
     is_dev_stub: boolean
     lines: PortalBomLine[]
   }
+  // Spec tenancy C-5: the token row's tenant rates on today's Manila date.
+  taxRates?: { vatBps: number; retentionBps: number }
 }
 
 /**
@@ -335,6 +337,7 @@ export async function loadPortalBom(token: string): Promise<PortalBomDetail> {
     }))
 
   const isDevStub = isDevelopmentStubSubmissionId(row.docuseal_submission_id)
+  const { vatBps, retentionBps } = await resolveTaxRates(db, row.tenant_id, new Date())
 
   return {
     state: 'ok',
@@ -352,5 +355,6 @@ export async function loadPortalBom(token: string): Promise<PortalBomDetail> {
       is_dev_stub: isDevStub,
       lines: portalLines,
     },
+    taxRates: { vatBps, retentionBps },
   }
 }

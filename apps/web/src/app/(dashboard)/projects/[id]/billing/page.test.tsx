@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   from: vi.fn(),
   milestonesEnabled: vi.fn(),
   readMilestones: vi.fn(),
+  resolveTaxRates: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/auth', async () => ({
@@ -27,13 +28,28 @@ vi.mock('@/lib/erp-core-client', () => ({
 
 vi.mock('@third-code-erp/database', () => ({
   db: { select: mocks.select },
+  resolveTaxRates: mocks.resolveTaxRates,
 }))
 
 vi.mock('@/components/billing/create-invoice-form', () => ({
-  CreateInvoiceForm: () => <button>Issue invoice</button>,
+  CreateInvoiceForm: ({ taxRates }: { taxRates: { retentionBps: number } }) => (
+    <button data-retention-bps={taxRates.retentionBps}>Issue invoice</button>
+  ),
 }))
 
+import {
+  manilaCalendarDate,
+  pickEffectiveTaxRates,
+  type TaxProfileCandidate,
+} from '@third-code-erp/shared-types'
 import ProjectBillingPage from './page'
+
+// No tax profile: the real picker returns TAX_DEFAULTS.
+function useProfiles(rows: TaxProfileCandidate[]) {
+  mocks.resolveTaxRates.mockImplementation(async (_db: unknown, _tenantId: string, at: Date) =>
+    pickEffectiveTaxRates(rows, manilaCalendarDate(at))
+  )
+}
 
 const TENANT_ID = '22222222-2222-4222-8222-222222222222'
 const PROJECT_ID = '33333333-3333-4333-8333-333333333333'
@@ -53,6 +69,7 @@ describe('ProjectBillingPage authorization', () => {
     })
     mocks.select.mockReturnValue({ from: mocks.from })
     mocks.milestonesEnabled.mockReturnValue(false)
+    useProfiles([])
   })
 
   it('does not query BOM data when the billing reader lacks BOM access', async () => {
@@ -145,6 +162,7 @@ describe('ProjectBillingPage milestone navigation', () => {
     })
     mocks.milestonesEnabled.mockReturnValue(true)
     mocks.readMilestones.mockResolvedValue({ ok: true, data: result })
+    useProfiles([])
   })
 
   it('loads the requested page and preserves other query state in real rendered links', async () => {
@@ -189,5 +207,56 @@ describe('ProjectBillingPage milestone navigation', () => {
     const page = await ProjectBillingPage({ params: Promise.resolve({ id: PROJECT_ID }) })
     expect(renderToStaticMarkup(page)).toContain('Milestone billing traceability')
     expect(mocks.readMilestones).toHaveBeenCalledWith(PROJECT_ID, { page: 1, limit: 25 })
+  })
+})
+
+describe('ProjectBillingPage tax rates (spec tenancy AC-TEN-11)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.requireUserProfile.mockResolvedValue({ tenantId: TENANT_ID, role: 'finance' })
+    mocks.select.mockReturnValue({ from: mocks.from })
+    mocks.milestonesEnabled.mockReturnValue(false)
+    mocks.from.mockImplementation((table: unknown) => {
+      if (table === projects) return { where: async () => [{ id: PROJECT_ID, name: 'Visible project' }] }
+      if (table === invoices) return { where: () => ({ orderBy: async () => [] }) }
+      if (table === boms) return { where: () => ({ orderBy: () => ({ limit: async () => [] }) }) }
+      throw new Error('Unexpected billing query')
+    })
+  })
+
+  it('reads "Standard 10%" and hands the defaults to the form when the tenant has no profile', async () => {
+    useProfiles([])
+
+    const html = renderToStaticMarkup(
+      await ProjectBillingPage({ params: Promise.resolve({ id: PROJECT_ID }) })
+    )
+
+    expect(mocks.resolveTaxRates).toHaveBeenCalledTimes(1)
+    expect(mocks.resolveTaxRates).toHaveBeenCalledWith(expect.anything(), TENANT_ID, expect.any(Date))
+    expect(html).toContain('Standard 10%')
+    expect(html).toContain('data-retention-bps="1000"')
+  })
+
+  it("labels the note with the tenant profile's retention", async () => {
+    useProfiles([
+      {
+        id: '99999999-9999-4999-8999-999999999999',
+        code: 'P-2026',
+        status: 'active',
+        valid_from: '2026-01-01',
+        valid_to: null,
+        vat_rate_bps: 1200,
+        withholding_rate_bps: 200,
+        retention_rate_bps: 500,
+        vat_registered: true,
+      },
+    ])
+
+    const html = renderToStaticMarkup(
+      await ProjectBillingPage({ params: Promise.resolve({ id: PROJECT_ID }) })
+    )
+
+    expect(html).toContain('Standard 5%')
+    expect(html).toContain('data-retention-bps="500"')
   })
 })
