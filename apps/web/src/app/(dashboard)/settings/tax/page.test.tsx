@@ -185,6 +185,17 @@ describe('read-only tax settings view (spec tenancy AC-TEN-01..04, AC-TEN-19)', 
     expect(html).toMatch(/Retention<\/td><td[^>]*>10%</)
   })
 
+  it('names the most recently ended profile when several have ended', async () => {
+    mocks.profiles = [
+      profileRow({ code: 'OLD-H2', valid_from: '2026-07-01', valid_to: '2026-10-31' }),
+      profileRow({ id: '88888888-8888-4888-8888-888888888888', code: 'OLD-H1', valid_to: '2026-06-30' }),
+    ]
+
+    const html = await render()
+
+    expect(html).toContain('System default (profile OLD-H2 ended on 2026-10-31)')
+  })
+
   it('shows the conflict instead of rates when two active profiles overlap (AC-TEN-19)', async () => {
     mocks.profiles = [profileRow({ code: 'B' }), profileRow({ id: '77777777-7777-4777-8777-777777777777', code: 'A' })]
 

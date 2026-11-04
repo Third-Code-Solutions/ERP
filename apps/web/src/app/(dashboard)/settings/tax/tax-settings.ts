@@ -82,15 +82,17 @@ export async function loadTaxSettings(tenantId: string, at: Date): Promise<TaxSe
     approvedBy: row.approved_by ? nameOf(row.approved_by) : null,
     approvedAt: row.approved_at,
   }))
-  const ended = summaries
-    .filter((profile) => profile.validTo !== null && profile.validTo < rates.asOf)
-    .sort((a, b) => (a.validTo! < b.validTo! ? -1 : 1))
+  // Latest valid_to before today; ISO dates compare as strings.
+  const lastEnded = summaries.reduce<TaxProfileSummary | null>((latest, profile) => {
+    if (profile.validTo === null || profile.validTo >= rates.asOf) return latest
+    return latest?.validTo && latest.validTo >= profile.validTo ? latest : profile
+  }, null)
 
   return {
     state: 'ok',
     rates,
     inForce: summaries.find((profile) => profile.id === rates.profileId) ?? null,
     upcoming: summaries.filter((profile) => profile.validFrom > rates.asOf),
-    lastEnded: ended.at(-1) ?? null,
+    lastEnded,
   }
 }
