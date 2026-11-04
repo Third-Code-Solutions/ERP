@@ -20,7 +20,7 @@ $$;
 grant usage on schema public to anon, authenticated, service_role;
 
 -- Production's post-migration table default: service_role full, authenticated
--- SELECT only, anon nothing (20260806160000 + 20261104100000). Grant only that,
+-- SELECT only, anon nothing (20260806160000 + 20261104055626). Grant only that,
 -- so this script never revokes on the migration's behalf and cannot mask it.
 alter default privileges for role postgres in schema public
   grant all on tables to service_role;
@@ -66,7 +66,7 @@ grant select, insert, update, delete, truncate on table public.documents,
 grant select on table public.account_kyc_artifacts, public.accounts,
   public.opportunities to authenticated;
 -- The legacy account/opportunity INSERT/UPDATE grants were retired by
--- 20261104100000_revoke_client_table_writes; do not restore them here.
+-- 20261104055626_revoke_client_table_writes; do not restore them here.
 grant select, insert, update, delete, truncate on table
   public.account_kyc_artifacts, public.accounts, public.opportunities
   to service_role;

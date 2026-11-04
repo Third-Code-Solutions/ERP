@@ -1753,7 +1753,7 @@ try {
     (table) => !requiredDirectClientDenyTables.includes(table)
   )
 
-  // 20261104100000 (SEC-01/SEC-02) retired every browser-role table DML grant;
+  // 20261104055626 (SEC-01/SEC-02) retired every browser-role table DML grant;
   // the client roles keep only RLS-scoped reads.
   const minimumAuthenticatedTableGrants = authenticatedReadableTables.map(
     (table) => [table, 'SELECT']

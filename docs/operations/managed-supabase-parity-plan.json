@@ -14,7 +14,7 @@
     "sourceCount": 178,
     "pendingCount": 21,
     "appliedHead": "20260901141949",
-    "sourceHead": "20261104100000",
+    "sourceHead": "20261104055626",
     "ledgerStatus": "current_remote_ledger_matches_source",
     "purchaseOrderPreflight": {
       "duplicateGroups": 0,
@@ -69,7 +69,7 @@
       ],
       "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
       "hostedApplyApproved": false,
-      "risk": "Revokes direct client KYC artifact table and column mutations, account/opportunity DELETE and TRUNCATE, and remaining users TRUNCATE. Preserves SELECT, trusted server privileges, account/opportunity INSERT and UPDATE (retired later by 20261104100000_revoke_client_table_writes), existing data and foreign-key lifecycles. Requires integrated Core KYC creation and both document-retention paths. The tenant/document index requires hosted size and lock-impact preflight; migration uses 5-second lock and 60-second statement timeouts.",
+      "risk": "Revokes direct client KYC artifact table and column mutations, account/opportunity DELETE and TRUNCATE, and remaining users TRUNCATE. Preserves SELECT, trusted server privileges, account/opportunity INSERT and UPDATE (retired later by 20261104055626_revoke_client_table_writes), existing data and foreign-key lifecycles. Requires integrated Core KYC creation and both document-retention paths. The tenant/document index requires hosted size and lock-impact preflight; migration uses 5-second lock and 60-second statement timeouts.",
       "recovery": "Require database backup/PITR, separate Storage recovery and isolated restore/migration rehearsal before hosted application. Retain denials and index when rolling forward or disabling artifact submission; never automatically restore unsafe client grants. Controlled privileged user deletion retains its existing uploaded_by SET NULL lifecycle. This batch does not authorize hosted changes."
     },
     {
@@ -125,7 +125,7 @@
     {
       "id": "20261104-revoke-client-table-writes",
       "migrations": [
-        "20261104100000_revoke_client_table_writes.sql"
+        "20261104055626_revoke_client_table_writes.sql"
       ],
       "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
       "hostedApplyApproved": false,

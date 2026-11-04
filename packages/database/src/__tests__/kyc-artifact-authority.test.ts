@@ -199,7 +199,7 @@ suite('KYC artifact direct database authority', () => {
       expect(await tx`select entity_id from audit_log where entity_type='account_kyc_artifacts' and entity_id=${id}`).toEqual([{ entity_id: id }])
       await tx.unsafe('reset role')
       const before = await evidence(tx, f.tenantA)
-      // 20261104100000 (SEC-01) retired the legacy browser account/opportunity DML grants.
+      // 20261104055626 (SEC-01) retired the legacy browser account/opportunity DML grants.
       await expect(tx.savepoint(async (probe) => {
         await assume(probe, f.userA, 'authenticated')
         await probe`update accounts set name='Direct write' where id=${data.accountId}`

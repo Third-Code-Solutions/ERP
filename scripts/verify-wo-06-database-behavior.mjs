@@ -297,7 +297,7 @@ try {
           'lot', 1, 'manual'
         )
       `
-      // Browser-role table DML is revoked (20261104100000); seed the header as
+      // Browser-role table DML is revoked (20261104055626); seed the header as
       // the server role and prove the authenticated Data API role can only read.
       await tx`
         insert into public.dupas (

@@ -26,7 +26,7 @@ import {
 
 const migration = readFileSync(
   new URL(
-    '../../../../supabase/migrations/20261104100000_revoke_client_table_writes.sql',
+    '../../../../supabase/migrations/20261104055626_revoke_client_table_writes.sql',
     import.meta.url
   ),
   'utf8'

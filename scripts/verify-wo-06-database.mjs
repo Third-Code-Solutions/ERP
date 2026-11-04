@@ -212,7 +212,7 @@ try {
       rows[0].vat_locked === true &&
       rows[0].total_locked === true &&
       rows[0].unit_locked === true &&
-      // Header inputs are Core-owned since 20261104100000 revoked browser DML.
+      // Header inputs are Core-owned since 20261104055626 revoked browser DML.
       rows[0].input_locked === true,
     () => 'computed columns or header inputs remain writable by authenticated',
   )
