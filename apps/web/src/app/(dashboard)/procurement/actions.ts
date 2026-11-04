@@ -46,6 +46,8 @@ import {
 } from '@/lib/erp-core-client'
 import {
   nextInvoiceNumber,
+  purchasableBomLines,
+  purchaseLineCostCode,
   type PurchaseOrderWorkflowAction,
 } from '@third-code-erp/shared-types'
 import {
@@ -196,7 +198,6 @@ export async function createPoFromBom(
       id: boms.id,
       status: boms.status,
       project_id: boms.project_id,
-      total_cost_cents: boms.total_cost_cents,
     })
     .from(boms)
     .where(and(eq(boms.id, input.bomId), eq(boms.tenant_id, userRow.tenant_id)))
@@ -266,7 +267,6 @@ export async function createPoFromBom(
           id: boms.id,
           status: boms.status,
           project_id: boms.project_id,
-          total_cost_cents: boms.total_cost_cents,
         })
         .from(boms)
         .where(and(eq(boms.id, input.bomId), eq(boms.tenant_id, userRow.tenant_id)))
@@ -279,7 +279,7 @@ export async function createPoFromBom(
       // Read source lines only after acquiring the BOM lock. BOM edits that
       // do not lock the parent row must not race this graph copy and produce
       // a PO whose totals and provenance disagree with its source snapshot.
-      const lines = await tx
+      const rows = await tx
         .select()
         .from(bomLineItems)
         .where(
@@ -289,7 +289,12 @@ export async function createPoFromBom(
           )
         )
         .for('update')
+      const lines = purchasableBomLines(rows)
       if (lines.length === 0) throw new Error('BOM_NO_LINES')
+      const poLines = lines.map((line) => ({
+        line,
+        lineTotalCents: calculateLineTotalCents(line.unit_cost_cents, line.quantity),
+      }))
 
       const budgetCodeByBomLine = await approvedBudgetCodesByBomLine(
         tx,
@@ -300,7 +305,10 @@ export async function createPoFromBom(
 
       // Reserve the number and persist the PO graph in one transaction. A
       // failed line insert must not consume a visible Purchase Order number.
-      const totals = calculatePurchaseOrderTotals(lockedBom.total_cost_cents)
+      // D-4: the header foots to the PO lines created, not bom.total_cost_cents.
+      const totals = calculatePurchaseOrderTotals(
+        poLines.reduce((sum, poLine) => sum + poLine.lineTotalCents, 0)
+      )
       const reservedNumber = await allocateNextPurchaseOrderNumber(
         tx,
         userRow.tenant_id
@@ -323,23 +331,21 @@ export async function createPoFromBom(
         .returning({ id: purchaseOrders.id })
       if (!po) throw new Error('Failed to create Purchase Order')
 
-      if (lines.length > 0) {
-        await tx.insert(poLineItems).values(
-          lines.map((l, idx) => ({
-            tenant_id: userRow.tenant_id,
-            po_id: po.id,
-            sort_order: idx,
-            code: l.code ?? undefined,
-            description: l.description,
-            unit: l.unit ?? undefined,
-            quantity: l.quantity,
-            unit_cost_cents: l.unit_cost_cents,
-            line_total_cents: calculateLineTotalCents(l.unit_cost_cents, l.quantity),
-            bom_line_item_id: l.id,
-            cost_code_id: budgetCodeByBomLine.get(l.id),
-          }))
-        )
-      }
+      await tx.insert(poLineItems).values(
+        poLines.map(({ line: l, lineTotalCents }, idx) => ({
+          tenant_id: userRow.tenant_id,
+          po_id: po.id,
+          sort_order: idx,
+          code: l.code ?? undefined,
+          description: l.description,
+          unit: l.unit ?? undefined,
+          quantity: l.quantity,
+          unit_cost_cents: l.unit_cost_cents,
+          line_total_cents: lineTotalCents,
+          bom_line_item_id: l.id,
+          cost_code_id: purchaseLineCostCode(budgetCodeByBomLine, l),
+        }))
+      )
 
       await tx
         .update(boms)
@@ -1499,13 +1505,13 @@ export async function createPosFromBomGrouped(
     }
   }
 
-  // Pull lines for this BOM (excluding group headers)
+  // Pull lines for this BOM; only the leaf rows are bought (D-4).
   const lines = await db
     .select()
     .from(bomLineItems)
     .where(and(eq(bomLineItems.bom_id, requestBomId), eq(bomLineItems.tenant_id, profile.tenantId)))
 
-  const itemLines = lines.filter((l) => l.is_group === 0)
+  const itemLines = purchasableBomLines(lines)
   if (itemLines.length === 0) return { error: 'BOM has no line items' }
   const budgetCodeByBomLine = await approvedBudgetCodesByBomLine(
     db,
@@ -1553,11 +1559,16 @@ export async function createPosFromBomGrouped(
   for (const line of itemLines) {
     const best = line.code ? bestByCode.get(line.code) : undefined
     const vendorKey = best?.vendor_id ?? 'unassigned'
+    // D-4: the rate card that chose the vendor also prices the line.
+    const pricedLine =
+      best && best.vendor_id
+        ? { ...line, unit_cost_cents: best.unit_price_cents }
+        : line
     const bucket = buckets.get(vendorKey)
     if (bucket) {
-      bucket.lines.push(line)
+      bucket.lines.push(pricedLine)
     } else {
-      buckets.set(vendorKey, { vendorId: best?.vendor_id ?? null, lines: [line] })
+      buckets.set(vendorKey, { vendorId: best?.vendor_id ?? null, lines: [pricedLine] })
     }
   }
 
@@ -1656,7 +1667,7 @@ export async function createPosFromBomGrouped(
               l.quantity
             ),
             bom_line_item_id: l.id,
-            cost_code_id: budgetCodeByBomLine.get(l.id),
+            cost_code_id: purchaseLineCostCode(budgetCodeByBomLine, l),
           }))
         )
 

@@ -491,9 +491,9 @@ function bomLine(
   values: Partial<{
     id: string
     code: string | null
-    isGroup: number
-    parentId: string | null
-    parentLineItemId: string | null
+    is_group: number
+    parent_id: string | null
+    parent_line_item_id: string | null
   }> & { quantity: number; unitCostCents: number }
 ) {
   lineSeq += 1
@@ -502,9 +502,9 @@ function bomLine(
     code: null,
     description: `Line ${lineSeq}`,
     unit: 'pcs',
-    isGroup: 0,
-    parentId: null,
-    parentLineItemId: null,
+    is_group: 0,
+    parent_id: null,
+    parent_line_item_id: null,
     ...values,
   }
 }
@@ -540,11 +540,11 @@ async function createFromBomWith(rows: unknown[], budgetRows: unknown[] = []) {
 
 describe('PO from BOM foots its header to its lines (D-4)', () => {
   it('buys the two children of a group header once and foots the header to them', async () => {
-    const header = bomLine({ isGroup: 1, quantity: 1, unitCostCents: 125_000 })
+    const header = bomLine({ is_group: 1, quantity: 1, unitCostCents: 125_000 })
     const rows = [
       header,
-      bomLine({ parentLineItemId: header.id, quantity: 10, unitCostCents: 5_000 }),
-      bomLine({ parentLineItemId: header.id, quantity: 3, unitCostCents: 25_000 }),
+      bomLine({ parent_line_item_id: header.id, quantity: 10, unitCostCents: 5_000 }),
+      bomLine({ parent_line_item_id: header.id, quantity: 3, unitCostCents: 25_000 }),
     ]
 
     const po = await createFromBomWith(rows)
@@ -589,35 +589,35 @@ describe('PO from BOM foots its header to its lines (D-4)', () => {
   })
 
   it('foots a messy nested BOM with rounding to its eleven leaf lines', async () => {
-    const division = bomLine({ isGroup: 1, quantity: 0, unitCostCents: 0 })
+    const division = bomLine({ is_group: 1, quantity: 0, unitCostCents: 0 })
     const lighting = bomLine({
-      isGroup: 1,
-      parentId: division.id,
+      is_group: 1,
+      parent_id: division.id,
       quantity: 1,
       unitCostCents: 9_999_999,
     })
     const lightingWork = bomLine({
-      parentId: lighting.id,
+      parent_id: lighting.id,
       quantity: 5,
       unitCostCents: 333_333,
     })
     const power = bomLine({
-      isGroup: 1,
-      parentId: division.id,
+      is_group: 1,
+      parent_id: division.id,
       quantity: 2,
       unitCostCents: 500_001,
     })
     const powerWork = bomLine({
-      parentId: power.id,
+      parent_id: power.id,
       quantity: 4,
       unitCostCents: 88_888,
     })
     const leaves = [
-      bomLine({ parentLineItemId: lightingWork.id, quantity: 7, unitCostCents: 1_999 }),
-      bomLine({ parentLineItemId: lightingWork.id, quantity: 13, unitCostCents: 7_777 }),
-      bomLine({ parentId: lighting.id, quantity: 3, unitCostCents: 12_345 }),
-      bomLine({ parentLineItemId: powerWork.id, quantity: 11, unitCostCents: 3_333 }),
-      bomLine({ parentLineItemId: powerWork.id, quantity: 1, unitCostCents: 101 }),
+      bomLine({ parent_line_item_id: lightingWork.id, quantity: 7, unitCostCents: 1_999 }),
+      bomLine({ parent_line_item_id: lightingWork.id, quantity: 13, unitCostCents: 7_777 }),
+      bomLine({ parent_id: lighting.id, quantity: 3, unitCostCents: 12_345 }),
+      bomLine({ parent_line_item_id: powerWork.id, quantity: 11, unitCostCents: 3_333 }),
+      bomLine({ parent_line_item_id: powerWork.id, quantity: 1, unitCostCents: 101 }),
       bomLine({ quantity: 17, unitCostCents: 2_499 }),
       bomLine({ quantity: 9, unitCostCents: 6_667 }),
       bomLine({ quantity: 1, unitCostCents: 1 }),
@@ -625,7 +625,7 @@ describe('PO from BOM foots its header to its lines (D-4)', () => {
       bomLine({ quantity: 0, unitCostCents: 50_000 }),
       bomLine({ quantity: 33, unitCostCents: 9_091 }),
     ]
-    const emptyHeader = bomLine({ isGroup: 1, quantity: 3, unitCostCents: 1_000 })
+    const emptyHeader = bomLine({ is_group: 1, quantity: 3, unitCostCents: 1_000 })
     const rows = [
       division,
       lighting,
@@ -671,16 +671,16 @@ describe('PO from BOM foots its header to its lines (D-4)', () => {
   it('prices rate-card lines at the rate that chose the vendor, not the BOM cost', async () => {
     const vendorA = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeea'
     const vendorB = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeeb'
-    const header = bomLine({ isGroup: 1, quantity: 1, unitCostCents: 3_500_000 })
+    const header = bomLine({ is_group: 1, quantity: 1, unitCostCents: 3_500_000 })
     const cement = bomLine({
       code: 'CEM-40',
-      parentLineItemId: header.id,
+      parent_line_item_id: header.id,
       quantity: 100,
       unitCostCents: 26_000,
     })
     const rebar = bomLine({
       code: 'RBR-10',
-      parentLineItemId: header.id,
+      parent_line_item_id: header.id,
       quantity: 50,
       unitCostCents: 18_000,
     })

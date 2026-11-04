@@ -78,6 +78,43 @@ export function topLevelBomLines<TLine>(
   return lines.filter((line) => getParentLineItemId(line) === null)
 }
 
+export interface BomLineHierarchyRow {
+  id: string
+  is_group: number
+  parent_id: string | null
+  parent_line_item_id: string | null
+}
+
+/**
+ * Return the BOM rows a Purchase Order buys: the leaves. A row other rows hang
+ * under (a work item with material lines, or a section) is represented by its
+ * children, and group headers are never bought, so no cost is counted twice.
+ */
+export function purchasableBomLines<TLine extends BomLineHierarchyRow>(
+  lines: ReadonlyArray<TLine>,
+): TLine[] {
+  const parentIds = new Set(
+    lines.flatMap((line) => [line.parent_id, line.parent_line_item_id]),
+  )
+  return lines.filter((line) => line.is_group === 0 && !parentIds.has(line.id))
+}
+
+/**
+ * Cost code for a purchased BOM line. Material lines have no budget line of
+ * their own, so they carry the code of the budgeted work item they hang under.
+ */
+export function purchaseLineCostCode<TCode>(
+  costCodeByBomLine: ReadonlyMap<string, TCode>,
+  line: Pick<BomLineHierarchyRow, 'id' | 'parent_line_item_id'>,
+): TCode | undefined {
+  return (
+    costCodeByBomLine.get(line.id) ??
+    (line.parent_line_item_id
+      ? costCodeByBomLine.get(line.parent_line_item_id)
+      : undefined)
+  )
+}
+
 // line_total = unit_cost * quantity * (1 + markup_bps / 10000)
 export function lineTotal(
   unitCostCents: number,

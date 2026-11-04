@@ -4,6 +4,8 @@ import {
   manualLineTotal,
   bomTotalCost,
   topLevelBomLines,
+  purchasableBomLines,
+  purchaseLineCostCode,
   computeTCV,
   computeGP,
   computeGPMargin,
@@ -93,6 +95,42 @@ describe('topLevelBomLines', () => {
     expect(tcvCents).toBe(100000)
     expect(computeGP(tcvCents, totalCostCents)).toBe(0)
     expect(computeGPMargin(0, tcvCents)).toBe(0)
+  })
+})
+
+// D-4: a Purchase Order buys BOM leaves only, so nothing is bought twice.
+describe('purchasableBomLines', () => {
+  const row = (
+    id: string,
+    values: Partial<{ is_group: number; parent_id: string; parent_line_item_id: string }> = {},
+  ) => ({ id, is_group: 0, parent_id: null, parent_line_item_id: null, ...values })
+
+  it('keeps leaves and drops group headers, sections and work items with materials', () => {
+    const lines = [
+      row('division', { is_group: 1 }),
+      row('section', { parent_id: 'division' }),
+      row('work', { parent_id: 'section' }),
+      row('material-a', { parent_line_item_id: 'work' }),
+      row('material-b', { parent_line_item_id: 'work' }),
+      row('childless-work', { parent_id: 'section' }),
+      row('empty-header', { is_group: 1 }),
+      row('flat'),
+    ]
+
+    expect(purchasableBomLines(lines).map((line) => line.id)).toEqual([
+      'material-a',
+      'material-b',
+      'childless-work',
+      'flat',
+    ])
+  })
+
+  it('carries the work item cost code to its material lines', () => {
+    const codes = new Map([['work', 'code-work'], ['own', 'code-own']])
+
+    expect(purchaseLineCostCode(codes, { id: 'm', parent_line_item_id: 'work' })).toBe('code-work')
+    expect(purchaseLineCostCode(codes, { id: 'own', parent_line_item_id: 'work' })).toBe('code-own')
+    expect(purchaseLineCostCode(codes, { id: 'flat', parent_line_item_id: null })).toBeUndefined()
   })
 })
 

@@ -96,6 +96,8 @@ export {
   lineTotal,
   bomTotalCost,
   topLevelBomLines,
+  purchasableBomLines,
+  purchaseLineCostCode,
   computeTCV,
   computeGP,
   computeGPMargin,

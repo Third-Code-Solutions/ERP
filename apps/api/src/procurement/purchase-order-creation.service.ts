@@ -32,6 +32,8 @@ import {
   purchaseOrderBomCreationResultSchema,
   purchaseOrdersGroupedFromBomResultSchema,
   purchaseOrderCreationResultSchema,
+  purchasableBomLines,
+  purchaseLineCostCode,
   type CreatePurchaseOrderFromBomCommand,
   type CreatePurchaseOrdersGroupedFromBomCommand,
   type CreatePurchaseOrderCommand,
@@ -93,27 +95,6 @@ function groupedBomCommandHash(
 
 function percentHalfUp(value: bigint, percent: bigint): bigint {
   return (value * percent + 50n) / 100n
-}
-
-interface BomLineHierarchy {
-  id: string
-  isGroup: number
-  parentId: string | null
-  parentLineItemId: string | null
-}
-
-/**
- * D-4: a PO buys the BOM leaves. A row other rows hang under (a work item with
- * material lines, or a section) is represented by its children, and group
- * headers are never purchased, so no cost is counted twice.
- */
-function purchasableBomLines<T extends BomLineHierarchy>(
-  rows: readonly T[]
-): T[] {
-  const parentIds = new Set(
-    rows.flatMap((row) => [row.parentId, row.parentLineItemId])
-  )
-  return rows.filter((row) => row.isGroup === 0 && !parentIds.has(row.id))
 }
 
 function safeDatabaseCents(value: bigint): number {
@@ -342,9 +323,9 @@ export class PurchaseOrderCreationService {
           unit: bomLineItems.unit,
           quantity: bomLineItems.quantity,
           unitCostCents: bomLineItems.unit_cost_cents,
-          isGroup: bomLineItems.is_group,
-          parentId: bomLineItems.parent_id,
-          parentLineItemId: bomLineItems.parent_line_item_id,
+          is_group: bomLineItems.is_group,
+          parent_id: bomLineItems.parent_id,
+          parent_line_item_id: bomLineItems.parent_line_item_id,
         })
         .from(bomLineItems)
         .where(
@@ -575,12 +556,7 @@ export class PurchaseOrderCreationService {
               BigInt(line.unitCostCents) * BigInt(line.quantity)
             ),
             bom_line_item_id: line.id,
-            // Material lines carry the cost code of their budgeted work item.
-            cost_code_id:
-              costCodeByBomLine.get(line.id) ??
-              (line.parentLineItemId
-                ? costCodeByBomLine.get(line.parentLineItemId)
-                : undefined),
+            cost_code_id: purchaseLineCostCode(costCodeByBomLine, line),
           }))
         )
         await this.audit.writeSemantic(transaction, {
@@ -843,9 +819,9 @@ export class PurchaseOrderCreationService {
           unit: bomLineItems.unit,
           quantity: bomLineItems.quantity,
           unitCostCents: bomLineItems.unit_cost_cents,
-          isGroup: bomLineItems.is_group,
-          parentId: bomLineItems.parent_id,
-          parentLineItemId: bomLineItems.parent_line_item_id,
+          is_group: bomLineItems.is_group,
+          parent_id: bomLineItems.parent_id,
+          parent_line_item_id: bomLineItems.parent_line_item_id,
         })
         .from(bomLineItems)
         .where(
@@ -967,12 +943,7 @@ export class PurchaseOrderCreationService {
           unit_cost_cents: safeDatabaseCents(unitCost),
           line_total_cents: safeDatabaseCents(lineTotal),
           bom_line_item_id: line.id,
-          // Material lines carry the cost code of their budgeted work item.
-          cost_code_id:
-            costCodeByBomLine.get(line.id) ??
-            (line.parentLineItemId
-              ? costCodeByBomLine.get(line.parentLineItemId)
-              : undefined),
+          cost_code_id: purchaseLineCostCode(costCodeByBomLine, line),
         }))
       )
 
