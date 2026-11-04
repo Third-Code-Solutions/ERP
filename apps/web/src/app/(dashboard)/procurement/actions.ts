@@ -1070,12 +1070,15 @@ export async function pmApprovePo(
   }
 
   const [po] = await db
-    .select({ id: purchaseOrders.id, status: purchaseOrders.status, project_id: purchaseOrders.project_id, po_number: purchaseOrders.po_number })
+    .select({ id: purchaseOrders.id, status: purchaseOrders.status, project_id: purchaseOrders.project_id, po_number: purchaseOrders.po_number, created_by: purchaseOrders.created_by, pm_approved_by: purchaseOrders.pm_approved_by })
     .from(purchaseOrders)
     .where(and(eq(purchaseOrders.id, poId), eq(purchaseOrders.tenant_id, profile.tenantId)))
 
   if (!po) return { error: 'PO not found' }
   if (po.status !== 'pending_pm_approval') return { error: `PO not in PM approval state (${po.status})` }
+  if (po.created_by === profile.user.id) {
+    return { error: 'The Purchase Order creator cannot give its PM approval' }
+  }
 
   const coreResult = await transitionPurchaseOrderThroughCoreIfEnabled(
     profile,
@@ -1135,13 +1138,19 @@ export async function commercialApprovePo(
   }
 
   const [po] = await db
-    .select({ id: purchaseOrders.id, status: purchaseOrders.status, project_id: purchaseOrders.project_id, po_number: purchaseOrders.po_number })
+    .select({ id: purchaseOrders.id, status: purchaseOrders.status, project_id: purchaseOrders.project_id, po_number: purchaseOrders.po_number, created_by: purchaseOrders.created_by, pm_approved_by: purchaseOrders.pm_approved_by })
     .from(purchaseOrders)
     .where(and(eq(purchaseOrders.id, poId), eq(purchaseOrders.tenant_id, profile.tenantId)))
 
   if (!po) return { error: 'PO not found' }
   if (po.status !== 'pending_commercial_approval') {
     return { error: `PO not in Commercial approval state (${po.status})` }
+  }
+  if (po.created_by === profile.user.id || po.pm_approved_by === profile.user.id) {
+    return {
+      error:
+        'Commercial approval must come from someone other than the Purchase Order creator and PM approver',
+    }
   }
 
   const coreResult = await transitionPurchaseOrderThroughCoreIfEnabled(

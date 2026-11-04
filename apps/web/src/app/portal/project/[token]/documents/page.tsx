@@ -3,6 +3,7 @@ import { and, desc, eq, inArray } from 'drizzle-orm'
 import { db } from '@third-code-erp/database'
 import { documents, projects, accounts } from '@third-code-erp/database/schema'
 import { createSupabaseAdminClient } from '@third-code-erp/auth/server'
+import { isTenantScopedStoragePath } from '@third-code-erp/shared-types'
 import {
   findActiveCustomerSession,
   logCustomerView,
@@ -137,6 +138,8 @@ export default async function PortalProjectDocumentsPage({
   const supabase = createSupabaseAdminClient()
   const withUrls: DocRow[] = []
   for (const r of rows) {
+    // storage_path is tenant-writable; omit keys outside the project's tenant.
+    if (!isTenantScopedStoragePath(r.storage_path, session.tenant_id)) continue
     let signedUrl: string | null = null
     try {
       const { data } = await supabase.storage

@@ -14,6 +14,7 @@ import { getUserProfile } from '@third-code-erp/auth'
 import { createSupabaseAdminClient } from '@third-code-erp/auth/server'
 import { db } from '@third-code-erp/database'
 import { documents } from '@third-code-erp/database/schema'
+import { isTenantScopedStoragePath } from '@third-code-erp/shared-types'
 import { and, eq } from 'drizzle-orm'
 import { safeActionError } from '@/lib/safe-action-error'
 
@@ -50,7 +51,8 @@ export async function GET(
       )
     )
 
-  if (!doc) {
+  // storage_path is tenant-writable; never sign a key outside this tenant.
+  if (!doc || !isTenantScopedStoragePath(doc.storage_path, profile.tenantId)) {
     return NextResponse.json({ error: 'Document not found' }, { status: 404 })
   }
 

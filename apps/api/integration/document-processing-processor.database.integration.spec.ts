@@ -146,7 +146,7 @@ suite('document processing processor database integration', () => {
         uploaded_by: userId,
         document_type: 'dxf',
         file_name: 'canary-plan.dxf',
-        storage_path: `cad/${tenantId}/canary-plan.dxf`,
+        storage_path: `${tenantId}/${projectId}/canary-plan.dxf`,
         mime_type: 'application/dxf',
         size_bytes: 128,
       })
@@ -273,7 +273,7 @@ suite('document processing processor database integration', () => {
       })
       expect(fetchMock).toHaveBeenCalledTimes(1)
       expect(signedUrl).toHaveBeenCalledWith(
-        `cad/${tenantId}/canary-plan.dxf`
+        `${tenantId}/${projectId}/canary-plan.dxf`
       )
 
       const rows = await transaction

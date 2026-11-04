@@ -9,7 +9,10 @@ import {
   documentProcessingJobsUseCoreApi,
   enqueueDocumentProcessingThroughCoreApi,
 } from '@/lib/erp-core-client'
-import { documentUploadCompleteResultSchema } from '@third-code-erp/shared-types'
+import {
+  documentUploadCompleteResultSchema,
+  isTenantScopedStoragePath,
+} from '@third-code-erp/shared-types'
 import {
   extractDeterministicDocument,
 } from '@/lib/document-intake/deterministic-extractor'
@@ -124,7 +127,7 @@ export async function POST(req: NextRequest) {
   const expectedPrefix = `${profile.tenantId}/${projectId}/`
   if (
     !storagePath.startsWith(expectedPrefix) ||
-    storagePath.split('/').some((segment) => segment === '..')
+    !isTenantScopedStoragePath(storagePath, profile.tenantId)
   ) {
     return NextResponse.json({ error: 'Storage path not in tenant scope' }, { status: 403 })
   }

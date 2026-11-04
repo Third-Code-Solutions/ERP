@@ -331,6 +331,8 @@ export class PurchaseOrderWorkflowService {
           poNumber: purchaseOrders.po_number,
           totalCents: purchaseOrders.total_cents,
           vendorId: purchaseOrders.vendor_id,
+          createdBy: purchaseOrders.created_by,
+          pmApprovedBy: purchaseOrders.pm_approved_by,
           projectName: projects.name,
         })
         .from(purchaseOrders)
@@ -373,6 +375,21 @@ export class PurchaseOrderWorkflowService {
       if (!canPerform(parsedCommand.action, status, role)) {
         throw new ForbiddenException(
           `Role "${role}" cannot perform ${parsedCommand.action} from status ${status}`
+        )
+      }
+      // Two-lane approval: creator, PM approver and Commercial approver must differ.
+      const actorId = authorizedPrincipal.userId
+      if (parsedCommand.action === 'pm_approve' && actorId === po.createdBy) {
+        throw new ForbiddenException(
+          'The Purchase Order creator cannot give its PM approval'
+        )
+      }
+      if (
+        parsedCommand.action === 'commercial_approve' &&
+        (actorId === po.createdBy || actorId === po.pmApprovedBy)
+      ) {
+        throw new ForbiddenException(
+          'Commercial approval must come from someone other than the Purchase Order creator and PM approver'
         )
       }
       const statusAfter = nextStatus(parsedCommand.action, status)

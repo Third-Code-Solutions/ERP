@@ -11,6 +11,7 @@ import {
   opportunityStageWritesUseCoreApi,
   transitionOpportunityStageThroughCoreApi,
 } from '@/lib/erp-core-client'
+import { parsePesosToCents } from '@/lib/operations/scope-money'
 import { startSlaClock } from '@/lib/operations/sla-clock'
 import {
   PIPELINE_STAGES,
@@ -34,6 +35,10 @@ export async function createOpportunity(formData: FormData): Promise<{ error?: s
     return { error: `Forbidden: role "${profile.role}" cannot create opportunities` }
   }
 
+  const tcvCents = parseCents(formData.get('tcv'))
+  const gpCents = parseCents(formData.get('gp'))
+  if (tcvCents === undefined || gpCents === undefined) return { error: INVALID_MONEY_ERROR }
+
   const projectId = formData.get('project_id')
   if (typeof projectId !== 'string' || !projectId) return { error: 'Project is required' }
 
@@ -50,8 +55,6 @@ export async function createOpportunity(formData: FormData): Promise<{ error?: s
 
   if (!project) return { error: 'Project not found' }
 
-  const tcvCents = parseCents(formData.get('tcv'))
-  const gpCents = parseCents(formData.get('gp'))
   const probability = parseProb(formData.get('probability')) ?? STAGE_PROBABILITY.opportunity_creation
   const weightedTcvCents = Math.round(tcvCents * probability / 100)
 
@@ -106,6 +109,10 @@ export async function createOpportunityForAccount(formData: FormData): Promise<{
     return { error: `Forbidden: role "${profile.role}" cannot create opportunities` }
   }
 
+  const tcvCents = parseCents(formData.get('tcv'))
+  const gpCents = parseCents(formData.get('gp'))
+  if (tcvCents === undefined || gpCents === undefined) return { error: INVALID_MONEY_ERROR }
+
   const accountId = formData.get('account_id')
   if (typeof accountId !== 'string' || !accountId) return { error: 'Account is required' }
 
@@ -145,8 +152,6 @@ export async function createOpportunityForAccount(formData: FormData): Promise<{
     projectId = project.id
   }
 
-  const tcvCents = parseCents(formData.get('tcv'))
-  const gpCents = parseCents(formData.get('gp'))
   const probability = STAGE_PROBABILITY[stage] ?? 10
   const weightedTcvCents = Math.round((tcvCents * probability) / 100)
 
@@ -358,9 +363,18 @@ function revalidatePipelinePaths(): void {
   revalidatePath('/')
 }
 
-function parseCents(val: FormDataEntryValue | null): number {
-  const n = parseFloat(String(val ?? '0'))
-  return isNaN(n) ? 0 : Math.round(n * 100)
+// ₱1,000,000,000 — the same cap as budget lines and cost entries.
+const MAX_OPPORTUNITY_CENTS = 100_000_000_000
+const INVALID_MONEY_ERROR =
+  'TCV and GP must be peso amounts from 0 to 1,000,000,000 with at most 2 decimals.'
+
+/** Blank means 0; otherwise exact pesos (no float math), or undefined when invalid. */
+function parseCents(val: FormDataEntryValue | null): number | undefined {
+  if (val === null) return 0
+  if (typeof val !== 'string' || val.length > 32) return undefined
+  if (val.trim() === '') return 0
+  const cents = parsePesosToCents(val)
+  return cents !== undefined && cents <= MAX_OPPORTUNITY_CENTS ? cents : undefined
 }
 
 function parseProb(val: FormDataEntryValue | null): number | null {

@@ -20,7 +20,8 @@ const JOB: ClaimedDocumentProcessingJob = {
   email: 'pm@example.test',
   requestedFormat: 'auto',
   createDraftBom: false,
-  storagePath: 'cad/plan.dxf',
+  storagePath:
+    '22222222-2222-4222-8222-222222222222/44444444-4444-4444-8444-444444444444/plan.dxf',
   fileName: 'plan.dxf',
   attempt: 1,
 }
@@ -77,7 +78,7 @@ describe('DocumentProcessingWorkerClient', () => {
     )
 
     const result = await client.extract(JOB)
-    expect(createSignedUrl).toHaveBeenCalledWith('cad/plan.dxf')
+    expect(createSignedUrl).toHaveBeenCalledWith(JOB.storagePath)
     expect(result.response.document_id).toBe(JOB.documentId)
     expect(result.response.scope_items[0]?.quantity).toBe(2)
     expect(result.evidence.job_id).toBe(JOB.jobId)
@@ -124,5 +125,23 @@ describe('DocumentProcessingWorkerClient', () => {
     await expect(client.extract(JOB)).rejects.toMatchObject({
       code: 'worker_response_mismatched_job',
     } satisfies Partial<DocumentProcessingWorkerError>)
+  })
+
+  it.each([
+    '99999999-9999-4999-8999-999999999999/44444444-4444-4444-8444-444444444444/plan.dxf',
+    `${JOB.tenantId}/../99999999-9999-4999-8999-999999999999/plan.dxf`,
+  ])('refuses to sign a storage path outside the job tenant: %s', async (storagePath) => {
+    const createSignedUrl = vi.fn()
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const client = new DocumentProcessingWorkerClient(
+      config(),
+      { createSignedUrl } as unknown as DocumentProcessingStorageService
+    )
+    await expect(client.extract({ ...JOB, storagePath })).rejects.toMatchObject({
+      code: 'storage_path_out_of_scope',
+    } satisfies Partial<DocumentProcessingWorkerError>)
+    expect(createSignedUrl).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })

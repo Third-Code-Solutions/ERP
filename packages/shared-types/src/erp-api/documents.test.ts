@@ -3,6 +3,7 @@ import {
   documentDeleteBodySchema,
   documentDeleteCommandSchema,
   documentDeleteResultSchema,
+  isTenantScopedStoragePath,
 } from './documents'
 
 const DOCUMENT_ID = '44444444-4444-4444-8444-444444444444'
@@ -47,5 +48,38 @@ describe('document delete API contracts', () => {
         derivedScopeItemsRemoved: -1,
       }).success
     ).toBe(false)
+  })
+})
+
+describe('isTenantScopedStoragePath', () => {
+  const OTHER_TENANT = '99999999-9999-4999-8999-999999999999'
+
+  it('accepts an object key under the tenant prefix', () => {
+    expect(
+      isTenantScopedStoragePath(`${TENANT_ID}/${PROJECT_ID}/abc-plan.dxf`, TENANT_ID)
+    ).toBe(true)
+  })
+
+  it('rejects a foreign tenant prefix or a missing tenant', () => {
+    expect(
+      isTenantScopedStoragePath(`${OTHER_TENANT}/${PROJECT_ID}/plan.dxf`, TENANT_ID)
+    ).toBe(false)
+    expect(isTenantScopedStoragePath(`${TENANT_ID}x/plan.dxf`, TENANT_ID)).toBe(false)
+    expect(isTenantScopedStoragePath('/plan.dxf', '')).toBe(false)
+  })
+
+  it.each([
+    `${TENANT_ID}/../${OTHER_TENANT}/plan.dxf`,
+    `${TENANT_ID}/./plan.dxf`,
+    `${TENANT_ID}/..\\${OTHER_TENANT}/plan.dxf`,
+    `${TENANT_ID}/%2e%2e/${OTHER_TENANT}/plan.dxf`,
+    `${TENANT_ID}/.%2E/${OTHER_TENANT}/plan.dxf`,
+    `${TENANT_ID}/x/..%2f..%2f${OTHER_TENANT}/plan.dxf`,
+  ])('rejects dot-segment traversal %s', (path) => {
+    expect(isTenantScopedStoragePath(path, TENANT_ID)).toBe(false)
+  })
+
+  it('allows dots inside a file name', () => {
+    expect(isTenantScopedStoragePath(`${TENANT_ID}/p/a..b.dxf`, TENANT_ID)).toBe(true)
   })
 })
