@@ -18,7 +18,7 @@ import {
   rateCards,
   vendors,
 } from '@third-code-erp/database/schema'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { writeAuditLog, writeAuditLogInTransaction } from '@/lib/audit'
 import { notifyRoles, notifyExternalEmail } from '@/lib/operations/notifications'
@@ -52,6 +52,7 @@ import {
   computeEWT,
   computeRetention,
   computeVAT,
+  cumulativeBillingCapError,
   progressBillingAmount,
 } from '@third-code-erp/shared-types/bom'
 
@@ -929,6 +930,37 @@ export async function createInvoice(
     `invoice-number:${profile.tenantId}:${prefix}`
 
   const inserted = await db.transaction(async (tx) => {
+    // D-6: same project row lock as the Core API path, so concurrent drafts
+    // serialize and cannot both pass the 100% cumulative cap.
+    await tx
+      .select({ id: projects.id })
+      .from(projects)
+      .where(
+        and(
+          eq(projects.id, projectId),
+          eq(projects.tenant_id, profile.tenantId)
+        )
+      )
+      .for('update')
+    const [billed] = await tx
+      .select({
+        percent_bps: sql<string>`coalesce(sum(${invoices.billing_percent_bps}), 0)::text`,
+      })
+      .from(invoices)
+      .where(
+        and(
+          eq(invoices.tenant_id, profile.tenantId),
+          eq(invoices.project_id, projectId),
+          ne(invoices.status, 'cancelled'),
+          isNull(invoices.reversed_at)
+        )
+      )
+    const capError = cumulativeBillingCapError(
+      Number(billed?.percent_bps ?? 0),
+      billingPercentBps
+    )
+    if (capError) return { error: capError }
+
     await tx.execute(
       sql`select pg_advisory_xact_lock(hashtext(${allocationLockKey}))`
     )
@@ -969,6 +1001,7 @@ export async function createInvoice(
     if (!invoice) throw new Error('Failed to create invoice')
     return { id: invoice.id, invoiceNumber }
   })
+  if ('error' in inserted) return inserted
 
   await writeAuditLog({
     tenantId: profile.tenantId,

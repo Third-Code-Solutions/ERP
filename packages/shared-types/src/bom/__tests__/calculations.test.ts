@@ -12,6 +12,7 @@ import {
   computeEWT,
   computeRetention,
   progressBillingAmount,
+  cumulativeBillingCapError,
 } from '../calculations'
 
 describe('lineTotal', () => {
@@ -263,5 +264,38 @@ describe('end-to-end BOM scenario', () => {
     expect(retention).toBeGreaterThan(0)
     expect(gp).toBeGreaterThan(0)
     expect(tcv).toBeGreaterThan(lt)
+  })
+})
+
+describe('cumulativeBillingCapError (D-6)', () => {
+  it('accepts a normal bill that stays under 100%', () => {
+    // 30% + 25% billed, 25% more -> 80%
+    expect(cumulativeBillingCapError(5500, 2500)).toBeNull()
+  })
+
+  it('accepts exactly 100% and rejects 100.01%', () => {
+    expect(cumulativeBillingCapError(7500, 2500)).toBeNull()
+    expect(cumulativeBillingCapError(7500, 2501)).toBe(
+      'Cumulative progress billing cannot exceed 100% of the contract: 75.00% already billed, 25.00% remaining.'
+    )
+  })
+
+  it('accepts a first bill of exactly 100% and rejects one of 100.01%', () => {
+    expect(cumulativeBillingCapError(0, 10000)).toBeNull()
+    expect(cumulativeBillingCapError(0, 10001)).toMatch('0.00% already billed, 100.00% remaining')
+  })
+
+  it('reports zero remaining once the contract is fully billed', () => {
+    expect(cumulativeBillingCapError(10000, 1)).toMatch('100.00% already billed, 0.00% remaining')
+  })
+
+  it('formats messy basis points without float error', () => {
+    // 33.33% + 33.33% + 33.33% = 99.99%; 0.02% more is too much
+    expect(cumulativeBillingCapError(9999, 1)).toBeNull()
+    expect(cumulativeBillingCapError(9999, 2)).toMatch('99.99% already billed, 0.01% remaining')
+  })
+
+  it('rejects non-integer basis points', () => {
+    expect(() => cumulativeBillingCapError(0.5, 100)).toThrow(RangeError)
   })
 })

@@ -438,6 +438,23 @@ suite('Customer invoice draft create protected HTTP canary', () => {
           .from(invoices)
           .where(eq(invoices.tenant_id, tenantB))
         expect(tenantBInvoiceCount?.count).toBe(1)
+
+        // D-6: project A already carries 25% + 25%; 50.01% more is over the cap.
+        const overCap = await request(app.getHttpServer())
+          .post(route)
+          .set('Authorization', 'Bearer customer-invoice-draft-http-finance-a-token')
+          .set('Idempotency-Key', 'over-cumulative-cap')
+          .send({ ...command, billingPercentBps: 5001 })
+          .expect(409)
+        expect(overCap.body.message).toBe(
+          'Cumulative progress billing cannot exceed 100% of the contract: 50.00% already billed, 50.00% remaining.'
+        )
+        await request(app.getHttpServer())
+          .post(route)
+          .set('Authorization', 'Bearer customer-invoice-draft-http-finance-a-token')
+          .set('Idempotency-Key', 'at-cumulative-cap')
+          .send({ ...command, billingPercentBps: 5000 })
+          .expect(201)
       } finally {
         await app.close()
       }

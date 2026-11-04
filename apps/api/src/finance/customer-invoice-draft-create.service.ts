@@ -28,9 +28,10 @@ import {
   computeEWT,
   computeRetention,
   computeVAT,
+  cumulativeBillingCapError,
   progressBillingAmount,
 } from '@third-code-erp/shared-types/bom'
-import { and, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
 import { roleHasCapability } from '../auth/capability.guard'
 import type { ErpPrincipal, ErpRole } from '../auth/current-principal.decorator'
 import { AuditService } from '../audit/audit.service'
@@ -244,6 +245,27 @@ export class CustomerInvoiceDraftCreateService {
           .for('update')
         bom = requireBillableBom(latestBom)
       }
+
+      // D-6: the project row is locked FOR UPDATE above, so concurrent drafts
+      // for this project serialize and cannot both pass the cap.
+      const [billed] = await transaction
+        .select({
+          percentBps: sql<string>`coalesce(sum(${invoices.billing_percent_bps}), 0)::text`,
+        })
+        .from(invoices)
+        .where(
+          and(
+            eq(invoices.tenant_id, authorizedPrincipal.tenantId),
+            eq(invoices.project_id, project.id),
+            ne(invoices.status, 'cancelled'),
+            isNull(invoices.reversed_at)
+          )
+        )
+      const capError = cumulativeBillingCapError(
+        Number(billed?.percentBps ?? 0),
+        parsedBody.billingPercentBps
+      )
+      if (capError) throw new ConflictException(capError)
 
       const subtotalCents = progressBillingAmount(
         exactCentavoNumber(bom.tcvCents),

@@ -164,3 +164,22 @@ export function progressBillingAmount(
     'progress billing amount'
   )
 }
+
+const FULL_CONTRACT_BPS = 10_000n
+
+function formatBpsAsPercent(bps: bigint): string {
+  return `${bps / 100n}.${String(bps % 100n).padStart(2, '0')}%`
+}
+
+// D-6: the progress invoices of one contract may never bill more than 100%
+// of it. Returns the rejection message, or null when the new bill fits.
+export function cumulativeBillingCapError(
+  billedPercentBps: BasisPoints,
+  billingPercentBps: BasisPoints
+): string | null {
+  const billed = exactInteger(billedPercentBps, 'billed percent basis points')
+  const billing = exactInteger(billingPercentBps, 'billing percent basis points')
+  if (billed + billing <= FULL_CONTRACT_BPS) return null
+  const remaining = billed >= FULL_CONTRACT_BPS ? 0n : FULL_CONTRACT_BPS - billed
+  return `Cumulative progress billing cannot exceed 100% of the contract: ${formatBpsAsPercent(billed)} already billed, ${formatBpsAsPercent(remaining)} remaining.`
+}
