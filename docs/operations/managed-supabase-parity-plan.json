@@ -14,7 +14,7 @@
     "sourceCount": 180,
     "pendingCount": 23,
     "appliedHead": "20260901141949",
-    "sourceHead": "20261104110700",
+    "sourceHead": "20261104195001",
     "ledgerStatus": "current_remote_ledger_matches_source",
     "purchaseOrderPreflight": {
       "duplicateGroups": 0,
@@ -135,8 +135,8 @@
     {
       "id": "20261104-bom-line-quantity-decimal",
       "migrations": [
-        "20261104110600_bom_line_quantity_decimal.sql",
-        "20261104110700_dupa_bom_quantity_decimal.sql"
+        "20261104194934_bom_line_quantity_decimal.sql",
+        "20261104195001_dupa_bom_quantity_decimal.sql"
       ],
       "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
       "hostedApplyApproved": false,
