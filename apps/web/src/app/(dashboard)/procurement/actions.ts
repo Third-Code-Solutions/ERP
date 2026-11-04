@@ -686,7 +686,7 @@ export async function advancePoStatus(
   }
 
   const [po] = await db
-    .select({ id: purchaseOrders.id, status: purchaseOrders.status, project_id: purchaseOrders.project_id })
+    .select({ id: purchaseOrders.id, status: purchaseOrders.status, project_id: purchaseOrders.project_id, created_by: purchaseOrders.created_by })
     .from(purchaseOrders)
     .where(and(eq(purchaseOrders.id, poId), eq(purchaseOrders.tenant_id, profile.tenantId)))
 
@@ -696,12 +696,25 @@ export async function advancePoStatus(
   if (!allowed.includes(nextStatus)) {
     return { error: `Cannot transition from ${po.status} to ${nextStatus}` }
   }
+  // Legacy `confirmed` is the approval step: the creator cannot approve their own PO.
+  if (nextStatus === 'confirmed' && po.created_by === profile.user.id) {
+    return { error: 'The Purchase Order creator cannot confirm it' }
+  }
 
   try {
-    await db
+    // Conditional on the status read above, so a concurrent change cannot be overwritten.
+    const updated = await db
       .update(purchaseOrders)
       .set({ status: nextStatus as typeof purchaseOrders.$inferSelect.status, updated_at: new Date() })
-      .where(and(eq(purchaseOrders.id, poId), eq(purchaseOrders.tenant_id, profile.tenantId)))
+      .where(and(
+        eq(purchaseOrders.id, poId),
+        eq(purchaseOrders.tenant_id, profile.tenantId),
+        eq(purchaseOrders.status, po.status)
+      ))
+      .returning({ id: purchaseOrders.id })
+    if (updated.length === 0) {
+      return { error: 'Purchase Order status changed; reload and try again.' }
+    }
   } catch (error) {
     return {
       error:
