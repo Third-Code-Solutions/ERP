@@ -3,10 +3,7 @@ import {
   inngest,
   embedBomLineItems,
 } from '@/lib/inngest'
-import {
-  generateDailyCadenceTasks,
-  generateOnDemand,
-} from '@/lib/inngest-cadence'
+import { generateDailyCadenceTasks } from '@/lib/inngest-cadence'
 import {
   dispatchCnpsSurveys,
   onCnpsSurveyScheduled,
@@ -22,7 +19,6 @@ export const { GET, POST, PUT } = serve({
     embedBomLineItems,
     // ABI OPS M5 — daily cadence task generator
     generateDailyCadenceTasks,
-    generateOnDemand,
     // ABI OPS M7 — CNPS survey dispatch
     dispatchCnpsSurveys,
     onCnpsSurveyScheduled,

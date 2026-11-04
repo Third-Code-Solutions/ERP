@@ -1,13 +1,11 @@
 /**
  * Cadence engine Inngest wiring.
  *
- * Two surfaces:
- *   1. `generateDailyCadenceTasks` — cron at 23:00 UTC, which is 07:00 next
- *      day Manila time. For every tenant, generate the day's tasks. We
- *      target the current Manila calendar date so that by the time site teams
- *      log in at 07:00 Manila the tasks for that working day are queued.
- *   2. `generateOnDemand` — event-driven so an admin UI (or another job)
- *      can force a generation for `{ tenantId, date }`.
+ * `generateDailyCadenceTasks` — cron at 23:00 UTC, which is 07:00 next day
+ * Manila time. For every tenant, generate the day's tasks. We target the
+ * current Manila calendar date so that by the time site teams log in at 07:00
+ * Manila the tasks for that working day are queued. Admins generate on demand
+ * through the /tasks server action, which calls the engine directly.
  *
  * The functions live in their own file so this module can be registered
  * alongside the existing `inngest.ts` without colliding with the CAD/BOM
@@ -21,13 +19,6 @@ import { generateTasksForDate, manilaCalendarDate } from './operations/cadence-e
 
 type Step = {
   run: <T>(name: string, fn: () => Promise<T>) => Promise<T>
-}
-
-interface OnDemandEventData {
-  tenantId: string
-  /** ISO date string. Defaults to today (Manila) if missing. */
-  date?: string
-  actorId?: string
 }
 
 interface GenerationSummary {
@@ -67,36 +58,5 @@ export const generateDailyCadenceTasks = inngest.createFunction(
       totalCreated,
       summaries,
     }
-  },
-)
-
-export const generateOnDemand = inngest.createFunction(
-  {
-    id: 'generate-cadence-on-demand',
-    name: 'Generate Cadence Tasks On Demand',
-    triggers: [{ event: 'cadence/generate.requested' as const }],
-  },
-  async ({
-    event,
-    step,
-  }: {
-    event: { data: OnDemandEventData }
-    step: Step
-  }) => {
-    const { tenantId, date } = event.data
-    if (!tenantId) {
-      return { skipped: true, reason: 'tenantId missing' }
-    }
-
-    const targetDate = date ? new Date(date) : manilaCalendarDate(new Date())
-    if (Number.isNaN(targetDate.getTime())) {
-      return { skipped: true, reason: 'invalid date' }
-    }
-
-    const result = await step.run('generate', async () => {
-      return generateTasksForDate(tenantId, targetDate)
-    })
-
-    return { tenantId, date: targetDate.toISOString(), ...result }
   },
 )
