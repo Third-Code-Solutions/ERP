@@ -1,7 +1,11 @@
 # Production runbook — deploy, rollback, backup, restore
 
 Operator quick reference for the ERP program. These documents hold the detail
-and win if anything here disagrees:
+and win if anything here disagrees, with one recorded exception: production has
+no PITR, so the encrypted pre-migration dump in section 3 stands in for the
+PITR and restore-rehearsal preconditions in `database-release.md` (owner
+mandate in `docs/erp/STATE.md`). Commands assume a POSIX shell (Git Bash on
+Windows).
 - [`docs/DEPLOYMENT.md`](../DEPLOYMENT.md)
 - [`docs/runbooks/database-release.md`](../runbooks/database-release.md)
 - [`.github/workflows/deploy-production.yml`](../../.github/workflows/deploy-production.yml)
@@ -108,7 +112,8 @@ spike (`get_runtime_errors` or the Vercel dashboard).
       end to end, then run `smoke-prod.yml`.
    - This follows Vercel's documented rollback behaviour; it has not been
      exercised on this project yet.
-   - Record the rollback state in `docs/erp/STATE.md` until step 2 is done.
+   - Record the rollback state in `docs/erp/STATE.md` until the promote in
+     sub-step 2 is done.
 5. Open a fix PR. Log the incident in `docs/erp/STATE.md`:
    - time,
    - symptom,
@@ -191,9 +196,11 @@ encrypted to a key only the operator holds.
 
 Then apply the migration. The migration URL exists only in the GitHub
 `production` environment, so the owner-authorised agent applies it through the
-Supabase MCP `apply_migration` with the repo migration's exact version and name
-(the ledger must match the repo), then checks that `list_migrations` matches the
-repo before dispatching `deploy-production.yml`. A holder of the URL can instead
+Supabase MCP `apply_migration` with the repo migration's name, before the
+migration PR merges. That tool stamps the ledger with its own timestamp, so
+compare `list_migrations` with the repo and, if the version differs, rename the
+repo file to the stamped version in the PR before merging. The promotion's
+ledger gate then passes when `deploy-production.yml` runs. A holder of the URL can instead
 follow [`database-release.md`](../runbooks/database-release.md) (`supabase db push
 --db-url <migration url>` after a `--dry-run`). Rules:
 - Additive only: new tables, nullable or defaulted columns, new indexes created

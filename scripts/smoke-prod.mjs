@@ -47,6 +47,8 @@ const result = spawnSync(
     '--project=chromium',
     '--workers=1',
     '--retries=1',
+    // The default HTML reporter would block a failing local run serving its report.
+    '--reporter=list',
   ],
   { env, stdio: 'inherit', shell: process.platform === 'win32' },
 )
