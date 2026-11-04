@@ -120,7 +120,8 @@ Verdicts are posted as PR comments.
   - D-12 Togal 30% markup (Q9).
 - D-13 (hard-coded retention): the `tenancy` module only replaces the constant with the
   tenant's `tax_profiles.retention_rate_bps`, defaulting to today's 10%. The rate is
-  read-only until Q3 is answered, so invoice math cannot change before then.
+  read-only until Q3 is answered, so the tax rates cannot change before then. (Batch items
+  3 and 5 do change amounts: PO line prices, and DP and preview rounding by centavos.)
   Contract-level retention waits for `contracts` and Q3.
 - Accepted risk: no environment protection or branch protection (plan blocks it);
   see `docs/erp/RUNBOOK.md` section 5.

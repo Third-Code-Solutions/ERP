@@ -9,7 +9,7 @@ Paths use the gap report's prefixes: `S/` schema · `M/` migrations · `W/` dash
 ## Wave 0 — Foundation (everything depends on this)
 | Slug | Module | Depends on | Status | Notes |
 |---|---|---|---|---|
-| tenancy | Organisations / tenants, tenant settings (currency, tax rate, calendar) | — | partial | `tax_profiles` unused: invoices and POs hardcode 12% VAT / 2% EWT / 10% retention; wire the tenant/client profile into that math (S) |
+| tenancy | Organisations / tenants, tenant settings (currency, tax rate, calendar) | — | partial | `tax_profiles` unused: invoices and POs hardcode 12% VAT / 2% EWT / 10% retention; store `tax_profiles` and read rates from it at today's defaults, read-only until owner Q3 and Q7 (gap §3) (S) |
 | rbac | Users, invites, roles & permissions, SSO later | tenancy | exists | `T/authorization.ts`, `A/auth/capability.guard.ts`; SSO later |
 | audit-log | Immutable audit trail for financial actions | tenancy | exists | `S/audit-log.ts`; hash chain in `M/20260509164538_audit_triggers.sql` |
 | notifications | In-app + email notifications | rbac | exists | `S/notifications.ts` (outbox), `A/notifications/notification-email.service.ts` |

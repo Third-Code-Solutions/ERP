@@ -28,7 +28,7 @@ the legacy web path and the Core API. Both paths compute the same money. No flag
 
 | slug | wave | status | evidence (paths) | MVP gap (for partial) |
 |---|---|---|---|---|
-| tenancy | 0 | partial | `S/tenants.ts`, `S/business-calendar.ts`, `S/roadmap.ts` (`tax_profiles`, `tenant_currencies`); `(platform)/platform-admin/tenants`; `docs/runbooks/tenant-isolation.md` | Isolation and tenant admin work. The tax settings are not used: `tax_profiles` (VAT/EWT/retention bps, VAT-registered flag) is read only by `A/roadmap/roadmap.service.ts`, while invoices and POs hardcode 12% / 2% / 10%. Wire the tenant/client tax profile into the invoice and PO math. Needed for government clients (5% final VAT withholding) and non-VAT payees. **S** |
+| tenancy | 0 | partial | `S/tenants.ts`, `S/business-calendar.ts`, `S/roadmap.ts` (`tax_profiles`, `tenant_currencies`); `(platform)/platform-admin/tenants`; `docs/runbooks/tenant-isolation.md` | Isolation and tenant admin work. The tax settings are not used: `tax_profiles` (VAT/EWT/retention bps, VAT-registered flag) is read only by `A/roadmap/roadmap.service.ts`, while invoices and POs hardcode 12% / 2% / 10%. Store `tax_profiles` and read rates from it at today's defaults, read-only until owner Q3 and Q7 (§3). Per-counterparty rates are needed later for government clients (5% final VAT withholding) and non-VAT payees. **S** |
 | rbac | 0 | exists | `S/users.ts`, `T/authorization.ts` (13 roles, 91 capabilities); `A/auth/capability.guard.ts`; `W/admin/users`, `(auth)/auth/accept-invite` | — (SSO later) |
 | audit-log | 0 | exists | `S/audit-log.ts`; `M/20260509164538_audit_triggers.sql` (hash chain); `W/audit`, `W/projects/[id]/audit`; `A/audit/audit.service.ts` | — |
 | approvals | 0 | partial | `S/process-sla.ts` (`approval_rules` amount bands/sequence/escalation, `approvals`); `S/tenant-memberships.ts` (`approval_delegations`); `A/process/process.controller.ts` (`POST approvals`, `PATCH …/decision`, route preview); `W/process` | The engine exists in the API, but the web only previews a PO route (`L/erp-core-client.ts:1866-1880`). PO, VO, invoice and budget approvals each use their own hardcoded state machine. `approval_delegations` has no code reading it. Drive PO/VO/budget approvals from `approval_rules`, and add delegation. The matrix content is blocked by O-03. **M** |
@@ -117,7 +117,8 @@ a project cost for a VAT-registered contractor.
   not the rate-card `unit_price_cents` (`:454-458`, `:544-547`).
 
 *Correct rule:* PO line price = the supplier quote or rate-card price excluding VAT, for purchasable
-lines (material lines, not work items). Header subtotal = Σ PO lines.
+lines (material lines, not work items). Header subtotal = Σ PO lines. The VAT-on-H part waits on Q1
+(same root cause as D-2).
 
 **D-5 · P1 · BOQ quantity is an integer.** `M/20260509164536_initial_schema.sql:136`
 (`quantity integer`), `S/bom-line-items.ts:50`. `T/bom/calculations.ts:88` rejects fractional quantities
@@ -157,7 +158,7 @@ a customer invoice the client withholds, and ABI is the payee.
 contractor code) and the quarter.
 
 **D-9 · P1 (needs tax confirmation; PRD A13/WO-15 say to carry this forward unchanged) · Every PO gets
-a flat 12% VAT and 2% EWT.** `A/procurement/purchase-order-creation.service.ts:502-503, 861-862, 1195-1196`.
+a flat 12% VAT and 2% EWT.** `A/procurement/purchase-order-creation.service.ts:502-503, 1195-1196` (the `:861` VAT-on-H line belongs to D-4).
 Under RR 2-98 as amended by RR 11-2018, a Top Withholding Agent withholds 1% on goods and 2% on
 services. Non-VAT suppliers must not get 12% VAT added.
 *Correct rule:* VAT and EWT come from the payee's tax profile (VAT-registered flag, ATC). Construction
@@ -220,8 +221,8 @@ Dependency order through Wave 2. A dependency counts as satisfied only when it i
 1. **tenancy (S).** It has no dependencies. Store `tax_profiles` (VAT/EWT/retention bps,
    VAT-registered, government final-VAT withholding) and read the rates from them, with
    defaults equal to today's constants (12% / 2% / 10%). The rates stay read-only until owner
-   answers Q3 and Q7 land, so the tax math cannot change before then. Per-counterparty rules
-   (D-9) and contract retention (D-13) wait for the same answers.
+   answers Q3 and Q7 land, so the tax rates cannot change before then. Per-counterparty rules
+   (D-9) wait for Q7; contract retention (D-13) waits for Q3.
 2. **approvals (M).** Its dependencies (rbac, audit-log) exist. Drive PO, VO and budget approvals from
    `approval_rules` and turn on `approval_delegations`. Build it configurable now; ABI's matrix
    (O-03) fills the rules later.
@@ -240,7 +241,7 @@ tendering), and must be in place before payment-apps.
 
 1. **Contract sum and VAT:** ABI's DUPA puts 12% VAT inside every unit rate (H). Is the contract and BOQ
    sum VAT-inclusive, so invoices extract VAT at 12/112, or should BOQ rates be VAT-exclusive with VAT
-   added only on the invoice? (Decides the D-2 fix. Related to O-01.)
+   added only on the invoice? (Decides the D-2 fix and the VAT part of D-4. Related to O-01.)
 2. **Allowable budget:** is the cost baseline D only, D + OCM, or TCV minus the target margin? (D-3)
 3. **Retention:** VAT and EWT on the retained 10% at each billing, or when retention is released? Is 10%
    standard? Is it released in one go, or split (e.g. 5% at completion and 5% after the defects
