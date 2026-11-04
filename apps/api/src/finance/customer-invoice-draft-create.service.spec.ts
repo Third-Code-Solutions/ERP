@@ -233,6 +233,7 @@ describe('CustomerInvoiceDraftCreateService', () => {
         { id: latestBomId, projectId: PROJECT_ID, status: 'approved', tcvCents },
       ])
       const billed = aggregateQuery([{ percentBps: billedPercentBps }])
+      const taxProfiles = aggregateQuery([])
       const lastInvoice = aggregateQuery([{ highestSuffix: '0' }])
       const invoiceValues = vi.fn((values: Record<string, unknown>) => ({
         returning: vi.fn().mockResolvedValue([
@@ -252,6 +253,7 @@ describe('CustomerInvoiceDraftCreateService', () => {
           .mockReturnValueOnce({ from: bom.from })
           .mockReturnValueOnce({ from: latestBom.from })
           .mockReturnValueOnce({ from: billed.from })
+          .mockReturnValueOnce({ from: taxProfiles.from })
           .mockReturnValueOnce({ from: lastInvoice.from }),
         insert: vi
           .fn()
@@ -369,6 +371,194 @@ describe('CustomerInvoiceDraftCreateService', () => {
           'invoice-draft-first'
         )
       ).resolves.toMatchObject({ subtotalCents: 411_481 })
+    })
+  })
+
+  describe('effective tax rates (spec tenancy C-1, C-2)', () => {
+    const BOM_ID = '77777777-7777-4777-8777-777777777777'
+    const INVOICE_ID = '88888888-8888-4888-8888-888888888888'
+    const PROFILE_ID = '99999999-9999-4999-8999-999999999999'
+
+    function aggregateQuery(rows: unknown[]) {
+      const where = vi.fn().mockResolvedValue(rows)
+      const from = vi.fn().mockReturnValue({ where })
+      return { from, where }
+    }
+
+    function latestBomQuery(rows: unknown[]) {
+      const rowLock = vi.fn().mockResolvedValue(rows)
+      const limit = vi.fn().mockReturnValue({ for: rowLock })
+      const orderBy = vi.fn().mockReturnValue({ limit })
+      const where = vi.fn().mockReturnValue({ orderBy })
+      const from = vi.fn().mockReturnValue({ where })
+      return { from }
+    }
+
+    function profileRow(overrides: Record<string, unknown>) {
+      return {
+        id: PROFILE_ID,
+        code: 'P-2026',
+        status: 'active',
+        valid_from: '2026-01-01',
+        valid_to: null,
+        vat_rate_bps: 1200,
+        withholding_rate_bps: 200,
+        retention_rate_bps: 1000,
+        vat_registered: true,
+        ...overrides,
+      }
+    }
+
+    // Select order: membership, project, idempotency claim, latest BOM,
+    // billed percent, tax profiles (the real resolver), last invoice number.
+    function harness(taxProfileRows: unknown[]) {
+      const membership = selectQuery([
+        { tenantId: PRINCIPAL.tenantId, role: PRINCIPAL.role, email: PRINCIPAL.email },
+      ])
+      const project = selectQuery([
+        { id: PROJECT_ID, accountId: '66666666-6666-4666-8666-666666666666' },
+      ])
+      const request = {
+        id: '55555555-5555-4555-8555-555555555555',
+        requestHash: '',
+        projectId: PROJECT_ID,
+        state: 'processing' as const,
+        result: null,
+      }
+      const requestQuery = selectQuery([request])
+      const latestBom = latestBomQuery([
+        { id: BOM_ID, projectId: PROJECT_ID, status: 'approved', tcvCents: '100000000' },
+      ])
+      const billed = aggregateQuery([{ percentBps: '0' }])
+      const taxProfiles = aggregateQuery(taxProfileRows)
+      const lastInvoice = aggregateQuery([{ highestSuffix: '0' }])
+      const invoiceValues = vi.fn((values: Record<string, unknown>) => ({
+        returning: vi.fn().mockResolvedValue([
+          { ...values, id: INVOICE_ID, due_date: new Date('2026-08-15T00:00:00.000Z') },
+        ]),
+      }))
+      const transactionClient = {
+        select: vi
+          .fn()
+          .mockReturnValueOnce({ from: membership.from })
+          .mockReturnValueOnce({ from: project.from })
+          .mockReturnValueOnce({ from: requestQuery.from })
+          .mockReturnValueOnce({ from: latestBom.from })
+          .mockReturnValueOnce({ from: billed.from })
+          .mockReturnValueOnce({ from: taxProfiles.from })
+          .mockReturnValueOnce({ from: lastInvoice.from }),
+        insert: vi
+          .fn()
+          .mockReturnValueOnce({
+            values: vi.fn((values: Record<string, unknown>) => {
+              request.requestHash = String(values.request_hash)
+              return { onConflictDoNothing: vi.fn() }
+            }),
+          })
+          .mockReturnValueOnce({ values: invoiceValues }),
+        execute: vi.fn().mockResolvedValue([]),
+        update: vi.fn().mockReturnValue({
+          set: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              returning: vi.fn().mockResolvedValue([{ id: request.id }]),
+            }),
+          }),
+        }),
+      }
+      return { transactionClient, taxProfiles, invoiceValues }
+    }
+
+    function auditTax(audit: { writeSemantic: ReturnType<typeof vi.fn> }) {
+      const entry = audit.writeSemantic.mock.calls[0]?.[1] as
+        | { diff: { tax: unknown } }
+        | undefined
+      return entry?.diff.tax
+    }
+
+    it("AC-TEN-06 / I-1: no profile keeps today's amounts and audits the default source", async () => {
+      const { transactionClient, taxProfiles, invoiceValues } = harness([])
+      const { service, audit } = enabledService(transactionClient)
+
+      await expect(
+        service.create(PROJECT_ID, COMMAND, PRINCIPAL, 'invoice-draft-default-tax')
+      ).resolves.toMatchObject({
+        retentionBps: 1000,
+        subtotalCents: 25_000_000,
+        retentionCents: 2_500_000,
+        vatCents: 2_700_000,
+        withholdingTaxCents: 450_000,
+        netAmountCents: 24_750_000,
+      })
+      expect(invoiceValues.mock.calls[0]?.[0]).toMatchObject({ retention_bps: 1000 })
+      expect(auditTax(audit)).toEqual({
+        vatBps: 1200,
+        ewtBps: 200,
+        retentionBps: 1000,
+        vatRegistered: true,
+        source: 'default',
+        profileId: null,
+        profileCode: null,
+        asOf: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      })
+      const condition = taxProfiles.where.mock.calls[0]?.[0] as SQL | undefined
+      if (!condition) throw new Error('Missing tax profile filter')
+      expect(new PgDialect().sqlToQuery(condition).params[0]).toBe(PRINCIPAL.tenantId)
+    })
+
+    it('AC-TEN-07 / P-1: an active profile sets the rates, stored retention and audit source', async () => {
+      const { transactionClient, invoiceValues } = harness([
+        profileRow({ withholding_rate_bps: 100, retention_rate_bps: 500 }),
+      ])
+      const { service, audit } = enabledService(transactionClient)
+
+      await expect(
+        service.create(PROJECT_ID, COMMAND, PRINCIPAL, 'invoice-draft-profile-tax')
+      ).resolves.toMatchObject({
+        retentionBps: 500,
+        retentionCents: 1_250_000,
+        vatCents: 2_850_000,
+        withholdingTaxCents: 237_500,
+        netAmountCents: 26_362_500,
+      })
+      expect(invoiceValues.mock.calls[0]?.[0]).toMatchObject({ retention_bps: 500 })
+      expect(auditTax(audit)).toMatchObject({
+        source: 'profile',
+        profileId: PROFILE_ID,
+        profileCode: 'P-2026',
+        retentionBps: 500,
+        ewtBps: 100,
+      })
+    })
+
+    it('AC-TEN-08 / P-2: a non-VAT profile charges no VAT and audits vatBps 0', async () => {
+      const { transactionClient } = harness([profileRow({ vat_registered: false })])
+      const { service, audit } = enabledService(transactionClient)
+
+      await expect(
+        service.create(PROJECT_ID, COMMAND, PRINCIPAL, 'invoice-draft-non-vat')
+      ).resolves.toMatchObject({
+        vatCents: 0,
+        withholdingTaxCents: 450_000,
+        netAmountCents: 22_050_000,
+      })
+      expect(auditTax(audit)).toMatchObject({ vatBps: 0, vatRegistered: false })
+    })
+
+    it('AC-TEN-19: overlapping active profiles refuse the draft with 409 and insert nothing', async () => {
+      const { transactionClient, invoiceValues } = harness([
+        profileRow({ code: 'B' }),
+        profileRow({ id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', code: 'A' }),
+      ])
+      const { service, audit } = enabledService(transactionClient)
+
+      const attempt = service.create(PROJECT_ID, COMMAND, PRINCIPAL, 'invoice-draft-overlap')
+      await expect(attempt).rejects.toBeInstanceOf(ConflictException)
+      await expect(attempt).rejects.toThrow(
+        /^TAX_PROFILE_OVERLAP: active tax profiles A, B all cover/
+      )
+      expect(invoiceValues).not.toHaveBeenCalled()
+      expect(transactionClient.execute).not.toHaveBeenCalled()
+      expect(audit.writeSemantic).not.toHaveBeenCalled()
     })
   })
 })
