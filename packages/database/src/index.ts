@@ -13,3 +13,5 @@ export * from './cortex/chat-store'
 export * from './accounting/journal'
 // Invoicing: cumulative progress billing cap input (D-6)
 export * from './invoicing/billed-percent'
+// Tax: effective tenant tax rates (spec tenancy C-1)
+export * from './tax/effective-tax-rates'
