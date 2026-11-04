@@ -15,6 +15,7 @@ import {
 import {
   inspectionPhotoCommandSchema,
   inspectionPhotoResultSchema,
+  isTenantScopedStoragePath,
   type InspectionPhotoCommand,
   type InspectionPhotoResult,
 } from '@third-code-erp/shared-types'
@@ -92,7 +93,7 @@ export class InspectionPhotoService {
       )
       if (
         !command.storagePath.startsWith(prefix) ||
-        command.storagePath.includes('..')
+        !isTenantScopedStoragePath(command.storagePath, authorizedPrincipal.tenantId)
       ) {
         throw new ForbiddenException(
           'Inspection photo storage path is outside the tenant opportunity scope'

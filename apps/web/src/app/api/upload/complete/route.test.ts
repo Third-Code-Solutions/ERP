@@ -149,6 +149,19 @@ describe('completed document upload Core authority', () => {
     expect(mocks.extractDeterministicDocument).not.toHaveBeenCalled()
   })
 
+  it.each(['..\\..\\other-tenant/plan.dxf', '%2e%2e/%2e%2e/other-tenant/plan.dxf'])(
+    'rejects an encoded traversal out of the tenant scope: %s',
+    async (suffix) => {
+      const response = await POST(
+        uploadRequest({ storagePath: `${TENANT_ID}/${PROJECT_ID}/${suffix}` })
+      )
+
+      expect(response.status).toBe(403)
+      expect(mocks.createDocumentThroughCoreApi).not.toHaveBeenCalled()
+      expect(mocks.parseCadEvidence).not.toHaveBeenCalled()
+    }
+  )
+
   it('delegates project ownership to Core and does not process a denied upload', async () => {
     mocks.createDocumentThroughCoreApi.mockResolvedValue({
       ok: false,

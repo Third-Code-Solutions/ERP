@@ -17,6 +17,7 @@ import {
 import {
   documentIntakeRequestSchema,
   documentIntakeResultSchema,
+  isTenantScopedStoragePath,
   type DocumentIntakeDocumentType,
   type DocumentIntakeRequest,
   type DocumentIntakeResult,
@@ -127,7 +128,7 @@ export class DocumentIntakeService {
       const expectedPrefix = `${authorizedPrincipal.tenantId}/${project.id}/`
       if (
         !command.storagePath.startsWith(expectedPrefix) ||
-        command.storagePath.split('/').some((segment) => segment === '..')
+        !isTenantScopedStoragePath(command.storagePath, authorizedPrincipal.tenantId)
       ) {
         throw new ForbiddenException('Storage path is outside tenant project scope')
       }

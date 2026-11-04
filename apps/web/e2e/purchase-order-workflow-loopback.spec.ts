@@ -152,8 +152,12 @@ async function createDraftPo(page: import('@playwright/test').Page, initial: Har
   return (await readState(page)).purchaseOrders[0]!
 }
 
-test('drives Purchase Order approval and issuance through Core', async ({ page }) => {
-  const sessionResponse = await page.request.get(`${AUTH_ORIGIN}/__harness__/session`)
+type Persona = 'admin' | 'pm' | 'commercial'
+
+async function signIn(page: import('@playwright/test').Page, persona: Persona) {
+  const sessionResponse = await page.request.get(
+    `${AUTH_ORIGIN}/__harness__/session?as=${persona}`
+  )
   expect(sessionResponse.ok()).toBe(true)
   const session = (await sessionResponse.json()) as HarnessSession
   await page.context().addCookies([
@@ -176,7 +180,12 @@ test('drives Purchase Order approval and issuance through Core', async ({ page }
       expires: session.expiresAt,
     },
   ])
+}
 
+test('drives Purchase Order approval and issuance through Core', async ({ page }) => {
+  // Core enforces separation of duties: the creator (admin) cannot approve,
+  // so PM and Commercial approvals come from distinct fixture users.
+  await signIn(page, 'admin')
   const initial = await readState(page)
   const createdPo = await createDraftPo(page, initial)
   expect(createdPo).toMatchObject({
@@ -186,29 +195,43 @@ test('drives Purchase Order approval and issuance through Core', async ({ page }
     total_cents: 33_000,
   })
 
-  await page.goto(`/purchase-orders/${createdPo.id}`, { waitUntil: 'domcontentloaded' })
-  await expect(page.getByRole('heading', { name: 'PO-0001' })).toBeVisible()
-
   const transitions: Array<{
     button: string
     action: WorkflowAction
     status: string
+    persona: Persona
   }> = [
     {
       button: 'Submit for PM approval',
       action: 'submit_pm_approval',
       status: 'pending_pm_approval',
+      persona: 'admin',
     },
-    { button: 'Approve as PM', action: 'pm_approve', status: 'pending_commercial_approval' },
+    {
+      button: 'Approve as PM',
+      action: 'pm_approve',
+      status: 'pending_commercial_approval',
+      persona: 'pm',
+    },
     {
       button: 'Approve as Commercial',
       action: 'commercial_approve',
       status: 'pending_scm_issuance',
+      persona: 'commercial',
     },
-    { button: 'Issue PO to supplier', action: 'scm_issue', status: 'issued' },
+    { button: 'Issue PO to supplier', action: 'scm_issue', status: 'issued', persona: 'admin' },
   ]
+  const personaUserIds: Record<Persona, string> = {
+    admin: initial.userId,
+    pm: initial.workflowRecipientIds.pm,
+    commercial: initial.workflowRecipientIds.commercial,
+  }
 
   for (const transition of transitions) {
+    await signIn(page, transition.persona)
+    await page.goto(`/purchase-orders/${createdPo.id}`, { waitUntil: 'domcontentloaded' })
+    await expect(page.getByRole('heading', { name: 'PO-0001' })).toBeVisible()
+
     const actionResponsePromise = page.waitForResponse(
       (response) => Boolean(response.request().headers()['next-action']),
       { timeout: 20_000 }
@@ -295,7 +318,9 @@ test('drives Purchase Order approval and issuance through Core', async ({ page }
   )
   expect(finalState.notificationOutbox.filter((entry) => entry.event_type === 'purchase_order.supplier_issued')).toHaveLength(1)
 
-  expect(finalState.notificationDeliveries).toHaveLength(8)
+  // Admin is now a recipient of the PM and Commercial approval events.
+  expect(finalState.notificationDeliveries).toHaveLength(12)
+  expect(finalState.notificationDeliveries.filter((delivery) => delivery.recipient_user_id === initial.userId)).toHaveLength(4)
   expect(finalState.notificationDeliveries.filter((delivery) => delivery.recipient_user_id === initial.workflowRecipientIds.pm)).toHaveLength(2)
   expect(finalState.notificationDeliveries.filter((delivery) => delivery.recipient_user_id === initial.workflowRecipientIds.commercial)).toHaveLength(4)
   expect(finalState.notificationDeliveries.filter((delivery) => delivery.recipient_user_id === initial.workflowRecipientIds.procurement)).toHaveLength(2)
@@ -326,8 +351,10 @@ test('drives Purchase Order approval and issuance through Core', async ({ page }
   const workflowRequests = finalState.coreRequests.filter((request) => request.path.endsWith('/workflow'))
   expect(workflowRequests).toHaveLength(5)
   for (const request of workflowRequests) {
+    const action = (JSON.parse(request.body) as { action: WorkflowAction }).action
+    const persona = transitions.find((transition) => transition.action === action)!.persona
     expect(request.method).toBe('POST')
-    expect(request.authorization).toBe(`Bearer ${localAccessToken(initial.userId)}`)
+    expect(request.authorization).toBe(`Bearer ${localAccessToken(personaUserIds[persona])}`)
     expect(request.requestId).toMatch(/^[0-9a-f-]{36}$/i)
     expect(request.idempotencyKey.length).toBeGreaterThan(0)
     expect(JSON.parse(request.body)).toMatchObject({ action: expect.any(String) })

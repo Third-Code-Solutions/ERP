@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config'
 import {
   documentProcessingWorkerRequestSchema,
   documentProcessingWorkerResponseSchema,
+  isTenantScopedStoragePath,
   parseCadWorkerResponse,
   type CadWorkerResponse,
   type DocumentProcessingWorkerResponse,
@@ -94,6 +95,10 @@ export class DocumentProcessingWorkerClient {
     job: ClaimedDocumentProcessingJob
   ): Promise<DocumentProcessingWorkerResult> {
     const sourceFormat = formatFromJob(job.requestedFormat, job.fileName)
+    // storage_path is tenant-writable; never sign a key outside the job tenant.
+    if (!isTenantScopedStoragePath(job.storagePath, job.tenantId)) {
+      throw new DocumentProcessingWorkerError('storage_path_out_of_scope')
+    }
     const sourceUrl = await this.storage.createSignedUrl(job.storagePath)
     const payload = documentProcessingWorkerRequestSchema.parse({
       job_id: job.jobId,

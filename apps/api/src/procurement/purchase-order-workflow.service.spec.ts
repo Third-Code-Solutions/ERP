@@ -1,6 +1,9 @@
 import 'reflect-metadata'
 
-import { ServiceUnavailableException } from '@nestjs/common'
+import {
+  ForbiddenException,
+  ServiceUnavailableException,
+} from '@nestjs/common'
 import type { ConfigService } from '@nestjs/config'
 import type { PurchaseOrderWorkflowCommand } from '@third-code-erp/shared-types'
 import { describe, expect, it, vi } from 'vitest'
@@ -82,5 +85,100 @@ describe('PurchaseOrderWorkflowService migration boundary', () => {
     ).rejects.toThrow(
       'Purchase Order workflow notifications are not enabled for this tenant; no status change was committed.'
     )
+  })
+})
+
+const PO_ID = '33333333-3333-4333-8333-333333333333'
+const CREATOR_ID = PRINCIPAL.userId
+const PM_ID = '44444444-4444-4444-8444-444444444444'
+const COMMERCIAL_ID = '55555555-5555-4555-8555-555555555555'
+
+/** Minimal Drizzle transaction fake: selects resolve in call order. */
+function workflowService(po: {
+  status: string
+  createdBy: string | null
+  pmApprovedBy: string | null
+}) {
+  let requestHash = ''
+  const selects: Array<() => unknown[]> = [
+    () => [{ tenantId: PRINCIPAL.tenantId, role: 'commercial', email: PRINCIPAL.email }],
+    () => [{ id: 'request-1', requestHash, state: 'processing', result: null }],
+    () => [
+      {
+        id: PO_ID,
+        status: po.status,
+        poNumber: 'PO-0001',
+        totalCents: 100,
+        vendorId: null,
+        createdBy: po.createdBy,
+        pmApprovedBy: po.pmApprovedBy,
+        projectName: 'Fixture project',
+      },
+    ],
+    () => [],
+  ]
+  const chain = (resolve: () => unknown[]) => {
+    const query: Record<string, unknown> = {}
+    for (const method of ['from', 'innerJoin', 'where', 'limit', 'for', 'set', 'onConflictDoNothing']) {
+      query[method] = () => query
+    }
+    query.values = (values: { request_hash?: string }) => {
+      if (values.request_hash) requestHash = values.request_hash
+      return query
+    }
+    query.returning = () => query
+    query.then = (onFulfilled: (rows: unknown[]) => unknown) => Promise.resolve(resolve()).then(onFulfilled)
+    return query
+  }
+  const transaction = {
+    select: () => chain(selects.shift() ?? (() => [])),
+    insert: () => chain(() => []),
+    update: () => chain(() => [{ id: 'updated' }]),
+  }
+  return new PurchaseOrderWorkflowService(
+    {
+      get: vi.fn((key: string) =>
+        key.endsWith('_TENANT_IDS') ? [PRINCIPAL.tenantId] : true
+      ),
+    } as unknown as ConfigService,
+    {
+      client: { transaction: (callback: (tx: unknown) => unknown) => callback(transaction) },
+    } as unknown as DatabaseService,
+    { stampActor: vi.fn(), writeSemantic: vi.fn() } as unknown as AuditService
+  )
+}
+
+function as(userId: string): ErpPrincipal {
+  return { ...PRINCIPAL, userId }
+}
+
+describe('PurchaseOrderWorkflowService separation of duties', () => {
+  it('rejects PM approval by the Purchase Order creator', async () => {
+    await expect(
+      workflowService({ status: 'pending_pm_approval', createdBy: CREATOR_ID, pmApprovedBy: null })
+        .transition(PO_ID, { action: 'pm_approve' }, as(CREATOR_ID), 'po-sod-1')
+    ).rejects.toBeInstanceOf(ForbiddenException)
+  })
+
+  it('rejects Commercial approval by the creator or the PM approver', async () => {
+    await expect(
+      workflowService({ status: 'pending_commercial_approval', createdBy: CREATOR_ID, pmApprovedBy: PM_ID })
+        .transition(PO_ID, COMMAND, as(CREATOR_ID), 'po-sod-2')
+    ).rejects.toBeInstanceOf(ForbiddenException)
+    await expect(
+      workflowService({ status: 'pending_commercial_approval', createdBy: CREATOR_ID, pmApprovedBy: PM_ID })
+        .transition(PO_ID, COMMAND, as(PM_ID), 'po-sod-3')
+    ).rejects.toThrow('Commercial approval must come from someone other than')
+  })
+
+  it('lets three distinct users create, PM-approve and commercially approve', async () => {
+    await expect(
+      workflowService({ status: 'pending_pm_approval', createdBy: CREATOR_ID, pmApprovedBy: null })
+        .transition(PO_ID, { action: 'pm_approve' }, as(PM_ID), 'po-sod-4')
+    ).resolves.toMatchObject({ status: 'pending_commercial_approval' })
+    await expect(
+      workflowService({ status: 'pending_commercial_approval', createdBy: CREATOR_ID, pmApprovedBy: PM_ID })
+        .transition(PO_ID, COMMAND, as(COMMERCIAL_ID), 'po-sod-5')
+    ).resolves.toMatchObject({ status: 'pending_scm_issuance' })
   })
 })

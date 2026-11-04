@@ -100,13 +100,17 @@ const PROJECT_ID = '33333333-3333-4333-8333-333333333333'
 const PO_ID = '44444444-4444-4444-8444-444444444444'
 const BOM_ID = '55555555-5555-4555-8555-555555555555'
 
-function selectPurchaseOrder(status: string): void {
+function selectPurchaseOrder(
+  status: string,
+  approvers: { created_by?: string; pm_approved_by?: string } = {}
+): void {
   const where = vi.fn().mockResolvedValue([
     {
       id: PO_ID,
       status,
       project_id: PROJECT_ID,
       po_number: 'PO-0001',
+      ...approvers,
     },
   ])
   const from = vi.fn().mockReturnValue({ where })
@@ -177,6 +181,28 @@ describe('Purchase Order workflow compatibility seam', () => {
       `/purchase-orders/${PO_ID}`
     )
   })
+
+  it('refuses PM approval by the Purchase Order creator', async () => {
+    selectPurchaseOrder('pending_pm_approval', { created_by: ACTOR_ID })
+
+    await expect(pmApprovePo(PO_ID, 'po-workflow-sod-1')).resolves.toEqual({
+      error: 'The Purchase Order creator cannot give its PM approval',
+    })
+    expect(mocks.transitionPurchaseOrderThroughCoreApi).not.toHaveBeenCalled()
+  })
+
+  it.each([{ created_by: ACTOR_ID }, { pm_approved_by: ACTOR_ID }])(
+    'refuses Commercial approval by an earlier approver %o',
+    async (approvers) => {
+      selectPurchaseOrder('pending_commercial_approval', approvers)
+
+      await expect(commercialApprovePo(PO_ID, 'po-workflow-sod-2')).resolves.toEqual({
+        error:
+          'Commercial approval must come from someone other than the Purchase Order creator and PM approver',
+      })
+      expect(mocks.transitionPurchaseOrderThroughCoreApi).not.toHaveBeenCalled()
+    }
+  )
 
   it('generates a UUID retry key for older callers', async () => {
     selectPurchaseOrder('draft')

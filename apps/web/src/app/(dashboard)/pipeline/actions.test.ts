@@ -520,3 +520,89 @@ describe('atomic Won-to-Project pipeline handoff', () => {
     expect(mocks.revalidatePath).not.toHaveBeenCalled()
   })
 })
+
+describe('opportunity money validation', () => {
+  const INVALID_MONEY = {
+    error:
+      'TCV must be a peso amount from 0 to 1,000,000,000 and GP from -1,000,000,000 to 1,000,000,000, with at most 2 decimals.',
+  }
+
+  function moneyForm(fields: Record<string, string>): FormData {
+    const form = new FormData()
+    form.set('project_id', PROJECT_ID)
+    form.set('account_id', '66666666-6666-4666-8666-666666666666')
+    for (const [key, value] of Object.entries(fields)) form.set(key, value)
+    return form
+  }
+
+  function insertedValues(): Record<string, unknown> {
+    const values = vi.mocked(mocks.insert).mock.results[0]?.value.values
+    return values.mock.calls[0][0]
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.getUserProfile.mockResolvedValue(profileFor('sales'))
+    mocks.can.mockReturnValue(true)
+    mocks.writeAuditLog.mockResolvedValue(undefined)
+    mocks.select.mockReturnValue({
+      from: () => ({ where: vi.fn().mockResolvedValue([{ id: PROJECT_ID }]) }),
+    })
+    mocks.insert.mockImplementation(() => ({
+      values: vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([{ id: OPPORTUNITY_ID }]),
+      }),
+    }))
+  })
+
+  it.each(['-1', 'abc', '1.234', '1,234.56', '1e3', 'Infinity', '1000000000.01'])(
+    'rejects TCV %s before database access',
+    async (tcv) => {
+      await expect(createOpportunity(moneyForm({ tcv }))).resolves.toEqual(INVALID_MONEY)
+      expect(mocks.select).not.toHaveBeenCalled()
+      expect(mocks.insert).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['abc', '--5', '-1000000000.01', '1.234'])(
+    'rejects GP %s on the account flow before database access',
+    async (gp) => {
+      await expect(
+        createOpportunityForAccount(moneyForm({ tcv: '100', gp }))
+      ).resolves.toEqual(INVALID_MONEY)
+      expect(mocks.select).not.toHaveBeenCalled()
+      expect(mocks.insert).not.toHaveBeenCalled()
+    }
+  )
+
+  it('accepts a negative GP (loss-making deal)', async () => {
+    await expect(
+      createOpportunity(moneyForm({ tcv: '100', gp: '-5.25' }))
+    ).resolves.toEqual({})
+
+    expect(insertedValues()).toMatchObject({ tcv_cents: 10_000, gp_cents: -525 })
+  })
+
+  it('stores exact cents and keeps blank amounts at zero', async () => {
+    await expect(
+      createOpportunity(moneyForm({ tcv: '1234.56', gp: '', probability: '50' }))
+    ).resolves.toEqual({})
+
+    expect(insertedValues()).toMatchObject({
+      tcv_cents: 123_456,
+      gp_cents: 0,
+      weighted_tcv_cents: 61_728,
+    })
+  })
+
+  it('accepts the upper bound exactly', async () => {
+    await expect(
+      createOpportunity(moneyForm({ tcv: '1000000000', gp: '0.1' }))
+    ).resolves.toEqual({})
+
+    expect(insertedValues()).toMatchObject({
+      tcv_cents: 100_000_000_000,
+      gp_cents: 10,
+    })
+  })
+})

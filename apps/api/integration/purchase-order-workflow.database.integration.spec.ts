@@ -131,7 +131,7 @@ suite('Purchase Order workflow database integration', () => {
           tenant_id: tenantId,
           project_id: projectId,
           vendor_id: vendorId,
-          created_by: pmId,
+          created_by: adminId,
           po_number: 'PO-WORKFLOW-0001',
           status: 'draft',
           subtotal_cents: 100_000,

@@ -101,7 +101,7 @@ export function AddOpportunityForm({ projects }: AddOpportunityFormProps) {
             </div>
             <div>
               <label style={labelStyle}>Expected GP (₱)</label>
-              <input type="number" name="gp" min="0" step="0.01" placeholder="0.00" style={inputStyle} />
+              <input type="number" name="gp" step="0.01" placeholder="0.00" style={inputStyle} />
             </div>
           </div>
 

@@ -51,7 +51,9 @@ const PROFILE = {
   fullName: 'Procurement User',
 }
 
-function selectPurchaseOrder(status: string, found = true): void {
+const CREATOR_ID = '55555555-5555-4555-8555-555555555555'
+
+function selectPurchaseOrder(status: string, found = true, createdBy = CREATOR_ID): void {
   const where = vi.fn().mockResolvedValue(
     found
       ? [
@@ -59,6 +61,7 @@ function selectPurchaseOrder(status: string, found = true): void {
             id: PO_ID,
             status,
             project_id: PROJECT_ID,
+            created_by: createdBy,
           },
         ]
       : []
@@ -67,8 +70,9 @@ function selectPurchaseOrder(status: string, found = true): void {
   mocks.select.mockReturnValue({ from })
 }
 
-function mockSuccessfulUpdate(): void {
-  const where = vi.fn().mockResolvedValue([])
+function mockUpdate(rows: Array<{ id: string }> = [{ id: PO_ID }]): void {
+  const returning = vi.fn().mockResolvedValue(rows)
+  const where = vi.fn().mockReturnValue({ returning })
   const set = vi.fn().mockReturnValue({ where })
   mocks.update.mockReturnValue({ set })
 }
@@ -78,7 +82,7 @@ describe('advancePoStatus delivery transitions', () => {
     vi.clearAllMocks()
     mocks.getUserProfile.mockResolvedValue(PROFILE)
     mocks.requireCapability.mockReturnValue(undefined)
-    mockSuccessfulUpdate()
+    mockUpdate()
   })
 
   it('advances issued POs to canonical partial_delivered and audits the change', async () => {
@@ -112,6 +116,35 @@ describe('advancePoStatus delivery transitions', () => {
       action: 'status_change',
       diff: { from: 'partial_delivered', to: 'fully_delivered' },
     })
+  })
+
+  it('blocks the creator from confirming (approving) their own legacy PO', async () => {
+    selectPurchaseOrder('submitted', true, ACTOR_ID)
+
+    await expect(advancePoStatus(PO_ID, 'confirmed')).resolves.toEqual({
+      error: 'The Purchase Order creator cannot confirm it',
+    })
+    expect(mocks.update).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+  })
+
+  it('lets a different approver confirm a legacy PO', async () => {
+    selectPurchaseOrder('submitted')
+
+    await expect(advancePoStatus(PO_ID, 'confirmed')).resolves.toEqual({})
+    expect(mocks.writeAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ diff: { from: 'submitted', to: 'confirmed' } })
+    )
+  })
+
+  it('refuses to overwrite a status changed concurrently', async () => {
+    selectPurchaseOrder('issued')
+    mockUpdate([])
+
+    await expect(advancePoStatus(PO_ID, 'partial_delivered')).resolves.toEqual({
+      error: 'Purchase Order status changed; reload and try again.',
+    })
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
   })
 
   it('keeps the legacy confirmed to partial_delivery transition available', async () => {

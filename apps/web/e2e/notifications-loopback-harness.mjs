@@ -87,18 +87,21 @@ const WORKFLOW_FIXTURES_ENABLED =
   process.env.ERP_LOOPBACK_WORKFLOW_FIXTURES === 'true'
 const PO_BOM_FIXTURES_ENABLED =
   process.env.ERP_LOOPBACK_PO_BOM_FIXTURES === 'true'
-const ACCESS_TOKEN = [
-  Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url'),
-  Buffer.from(
-    JSON.stringify({
-      aud: 'authenticated',
-      exp: 4_102_444_800,
-      role: 'authenticated',
-      sub: USER_ID,
-    })
-  ).toString('base64url'),
-  'local-notification-signature',
-].join('.')
+function localAccessToken(userId) {
+  return [
+    Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url'),
+    Buffer.from(
+      JSON.stringify({
+        aud: 'authenticated',
+        exp: 4_102_444_800,
+        role: 'authenticated',
+        sub: userId,
+      })
+    ).toString('base64url'),
+    'local-notification-signature',
+  ].join('.')
+}
+const ACCESS_TOKEN = localAccessToken(USER_ID)
 
 const repositoryRoot = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -134,6 +137,33 @@ const profile = {
   role: 'admin',
   email: user.email,
   full_name: 'Local Notifications Admin',
+}
+
+// Browser personas. Workflow fixtures add distinct PM and Commercial approvers
+// because Core refuses a PO creator approving their own Purchase Order.
+function persona(id, email, fullName, role) {
+  return {
+    user: { ...user, id, email },
+    profile: { tenant_id: TENANT_ID, role, email, full_name: fullName },
+    accessToken: localAccessToken(id),
+  }
+}
+const personas = {
+  admin: { user, profile, accessToken: ACCESS_TOKEN },
+  ...(WORKFLOW_FIXTURES_ENABLED
+    ? {
+        pm: persona(WORKFLOW_PM_USER_ID, 'local-po-pm@thirdcode.invalid', 'Local PO PM', 'pm'),
+        commercial: persona(
+          WORKFLOW_COMMERCIAL_USER_ID,
+          'local-po-commercial@thirdcode.invalid',
+          'Local PO Commercial',
+          'commercial'
+        ),
+      }
+    : {}),
+}
+function personaForToken(token) {
+  return Object.values(personas).find((candidate) => candidate.accessToken === token)
 }
 
 const coreRequests = []
@@ -355,10 +385,12 @@ const authServer = createServer(async (request, response) => {
     return json(response, 200, { ready: true })
   }
   if (url.pathname === '/__harness__/session') {
+    const selected = personas[url.searchParams.get('as') ?? 'admin']
+    if (!selected) return json(response, 404, { error: 'Unknown harness persona' })
     return json(response, 200, {
-      accessToken: ACCESS_TOKEN,
+      accessToken: selected.accessToken,
       expiresAt: 4_102_444_800,
-      user,
+      user: selected.user,
     })
   }
   if (url.pathname === '/__harness__/state') {
@@ -533,16 +565,14 @@ const authServer = createServer(async (request, response) => {
   }
 
   if (request.method === 'GET' && url.pathname === '/auth/v1/user') {
-    if (
-      request.headers.apikey !== ANON_KEY ||
-      bearer(request) !== ACCESS_TOKEN
-    ) {
+    const caller = personaForToken(bearer(request))
+    if (request.headers.apikey !== ANON_KEY || !caller) {
       return json(response, 401, {
         code: 'bad_jwt',
         message: 'Invalid local notification credentials',
       })
     }
-    return json(response, 200, user)
+    return json(response, 200, caller.user)
   }
 
   if (request.method === 'PUT' && url.pathname === '/auth/v1/user') {
@@ -557,12 +587,13 @@ const authServer = createServer(async (request, response) => {
   }
 
   if (request.method === 'GET' && url.pathname === '/rest/v1/users') {
+    const caller = personaForToken(bearer(request))
     const exactProfileQuery =
       url.searchParams.get('select') === 'tenant_id,role,email,full_name' &&
-      url.searchParams.get('id') === `eq.${USER_ID}`
+      url.searchParams.get('id') === `eq.${caller?.user.id}`
     if (
       request.headers.apikey !== ANON_KEY ||
-      bearer(request) !== ACCESS_TOKEN ||
+      !caller ||
       !exactProfileQuery
     ) {
       return json(response, 400, {
@@ -570,7 +601,7 @@ const authServer = createServer(async (request, response) => {
         message: 'Unexpected local users profile query',
       })
     }
-    return json(response, 200, profile)
+    return json(response, 200, caller.profile)
   }
 
   return json(response, 404, {
