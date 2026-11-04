@@ -11,18 +11,20 @@
 -- Privilege-only and additive: no data, table, column, function or policy
 -- changes. SELECT grants, service_role grants and existing RLS policies stay.
 -- The tenant write policies left behind are now unreachable; dropping them is
--- deferred to a later contract release.
+-- deferred to a later contract release. REFERENCES, TRIGGER and MAINTAIN are
+-- revoked too for least privilege (20260912142153 precedent).
 begin;
 
 set local lock_timeout = '5s';
 set local statement_timeout = '60s';
 
 -- Table-level REVOKE also clears matching column-level grants.
-revoke insert, update, delete, truncate
+revoke insert, update, delete, truncate, references, trigger, maintain
   on all tables in schema public from authenticated, anon;
 
--- Tables created later by postgres in public must not regain client DML.
+-- Tables created later by postgres in public must not regain these privileges.
 alter default privileges for role postgres in schema public
-  revoke insert, update, delete, truncate on tables from authenticated, anon;
+  revoke insert, update, delete, truncate, references, trigger, maintain
+  on tables from authenticated, anon;
 
 commit;

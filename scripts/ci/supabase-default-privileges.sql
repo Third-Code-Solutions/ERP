@@ -19,12 +19,13 @@ $$;
 
 grant usage on schema public to anon, authenticated, service_role;
 
+-- Production's post-migration table default: service_role full, authenticated
+-- SELECT only, anon nothing (20260806160000 + 20261104100000). Grant only that,
+-- so this script never revokes on the migration's behalf and cannot mask it.
 alter default privileges for role postgres in schema public
-  grant all on tables to anon, authenticated, service_role;
--- Mirror 20261104100000_revoke_client_table_writes: client roles never get
--- table DML by default, even in the disposable CI database.
+  grant all on tables to service_role;
 alter default privileges for role postgres in schema public
-  revoke insert, update, delete, truncate on tables from anon, authenticated;
+  grant select on tables to authenticated;
 alter default privileges for role postgres in schema public
   grant all on sequences to anon, authenticated, service_role;
 alter default privileges for role postgres in schema public

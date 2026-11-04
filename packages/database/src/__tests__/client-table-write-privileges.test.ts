@@ -1,10 +1,15 @@
 /**
- * SEC-01 / SEC-02: browser JWT roles hold no table DML in `public`.
+ * SEC-01 / SEC-02: browser JWT roles hold no table write or maintenance
+ * privilege (INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER, MAINTAIN)
+ * in `public`.
  *
  * Every ERP write runs as `postgres` (Drizzle SSR, Nest Core API) or through
  * SECURITY DEFINER RPCs, so `authenticated` and `anon` keep RLS-scoped reads
  * only. A regrant (explicit or via the postgres default ACL) reopens the
  * PostgREST write bypass, so both are asserted against the replayed catalog.
+ * The replay tests re-create the legacy grants inside a rolled-back
+ * transaction and run the real migration body, so CI proves the migration
+ * itself rather than whatever the bootstrap script left behind.
  */
 import { readFileSync } from 'node:fs'
 
@@ -29,14 +34,26 @@ const migration = readFileSync(
 const executable = migration.replace(/--[^\r\n]*/g, '').toLowerCase()
 
 const runtimeDescribe = DATABASE_URL ? describe : describe.skip
+// Replays mutate grants and the default ACL inside a rollback; run them only
+// against the serialized disposable hardening database.
+const replayIt = process.env.DATABASE_HARDENING_EXPECTED === '1' ? it : it.skip
+
+const CLIENT_WRITE_PRIVILEGES = `'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER', 'MAINTAIN'`
+const CLIENT_WRITE_GRANT = 'insert, update, delete, truncate, references, trigger, maintain'
+
+function migrationBody(): string {
+  expect(migration.match(/^begin;\s*$/gim)).toHaveLength(1)
+  expect(migration.match(/^commit;\s*$/gim)).toHaveLength(1)
+  return migration.replace(/^begin;\s*$/gim, '').replace(/^commit;\s*$/gim, '')
+}
 
 describe('client table write revocation migration', () => {
-  it('revokes client DML on every public table and from the postgres default ACL', () => {
+  it('revokes client write privileges on every public table and from the postgres default ACL', () => {
     expect(executable).toMatch(
-      /revoke insert, update, delete, truncate\s+on all tables in schema public from authenticated, anon;/
+      /revoke insert, update, delete, truncate, references, trigger, maintain\s+on all tables in schema public from authenticated, anon;/
     )
     expect(executable).toMatch(
-      /alter default privileges for role postgres in schema public\s+revoke insert, update, delete, truncate on tables from authenticated, anon;/
+      /alter default privileges for role postgres in schema public\s+revoke insert, update, delete, truncate, references, trigger, maintain\s+on tables from authenticated, anon;/
     )
   })
 
@@ -48,6 +65,50 @@ describe('client table write revocation migration', () => {
     expect(executable).not.toMatch(/\bselect\b/)
   })
 })
+
+type Db = postgres.Sql | postgres.TransactionSql
+
+/** Client write privileges on public relations, optionally one relation. */
+async function clientWriteGrants(db: Db, relname: string | null = null): Promise<string[]> {
+  const rows = await db.unsafe<Array<{ grant: string }>>(
+    `
+      select r.role_name || ':' || c.relname || ':' || p.privilege as grant
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+       cross join (values ('authenticated'), ('anon')) as r(role_name)
+       cross join unnest(array[${CLIENT_WRITE_PRIVILEGES}]) as p(privilege)
+       where n.nspname = 'public'
+         and c.relkind in ('r', 'p', 'v', 'm', 'f')
+         and ($1::text is null or c.relname = $1::text)
+         and case
+           when p.privilege in ('INSERT', 'UPDATE', 'REFERENCES')
+             then has_any_column_privilege(r.role_name, c.oid, p.privilege)
+           else has_table_privilege(r.role_name, c.oid, p.privilege)
+         end
+       order by 1
+    `,
+    [relname]
+  )
+  return rows.map((row) => row.grant)
+}
+
+/** Client write privileges left in the postgres default ACL (public + global). */
+async function defaultAclClientWrites(db: Db): Promise<string[]> {
+  const rows = await db.unsafe<Array<{ entry: string }>>(`
+    select coalesce(nullif(d.defaclnamespace, 0)::regnamespace::text, '*')
+           || ':' || case when a.grantee = 0 then 'PUBLIC' else a.grantee::regrole::text end
+           || ':' || a.privilege_type as entry
+      from pg_default_acl d
+     cross join lateral aclexplode(d.defaclacl) as a
+     where d.defaclrole = 'postgres'::regrole
+       and d.defaclobjtype = 'r'
+       and d.defaclnamespace in (0, 'public'::regnamespace)
+       and (a.grantee = 0 or a.grantee in ('authenticated'::regrole, 'anon'::regrole))
+       and a.privilege_type in (${CLIENT_WRITE_PRIVILEGES})
+     order by 1
+  `)
+  return rows.map((row) => row.entry)
+}
 
 async function failureCode(
   tx: postgres.TransactionSql,
@@ -91,23 +152,8 @@ runtimeDescribe('client table write privileges (database)', () => {
     await sql?.end({ timeout: 5 })
   })
 
-  it('grants authenticated and anon no table or column DML on any public relation', async () => {
-    const leaks = await sql.unsafe<Array<{ grant: string }>>(`
-      select r.role_name || ':' || c.relname || ':' || p.privilege as grant
-        from pg_class c
-        join pg_namespace n on n.oid = c.relnamespace
-       cross join (values ('authenticated'), ('anon')) as r(role_name)
-       cross join unnest(array['INSERT', 'UPDATE', 'DELETE', 'TRUNCATE']) as p(privilege)
-       where n.nspname = 'public'
-         and c.relkind in ('r', 'p', 'v', 'm', 'f')
-         and case
-           when p.privilege in ('INSERT', 'UPDATE')
-             then has_any_column_privilege(r.role_name, c.oid, p.privilege)
-           else has_table_privilege(r.role_name, c.oid, p.privilege)
-         end
-       order by 1
-    `)
-    expect(leaks.map((row) => row.grant)).toEqual([])
+  it('grants authenticated and anon no table or column write privilege on any public relation', async () => {
+    expect(await clientWriteGrants(sql)).toEqual([])
 
     const [counted] = await sql.unsafe<Array<{ tables: number }>>(`
       select count(*)::int as tables
@@ -125,29 +171,48 @@ runtimeDescribe('client table write privileges (database)', () => {
     expect(row).toEqual({ users: true, projects: true })
   })
 
-  it('leaves no client DML in the postgres default ACL for public or global tables', async () => {
-    const defaults = await sql.unsafe<Array<{ entry: string }>>(`
-      select coalesce(nullif(d.defaclnamespace, 0)::regnamespace::text, '*')
-             || ':' || case when a.grantee = 0 then 'PUBLIC' else a.grantee::regrole::text end
-             || ':' || a.privilege_type as entry
-        from pg_default_acl d
-       cross join lateral aclexplode(d.defaclacl) as a
-       where d.defaclrole = 'postgres'::regrole
-         and d.defaclobjtype = 'r'
-         and d.defaclnamespace in (0, 'public'::regnamespace)
-         and (a.grantee = 0 or a.grantee in ('authenticated'::regrole, 'anon'::regrole))
-         and a.privilege_type in ('INSERT', 'UPDATE', 'DELETE', 'TRUNCATE')
-       order by 1
-    `)
-    expect(defaults.map((row) => row.entry)).toEqual([])
+  it('leaves no client write privilege in the postgres default ACL for public or global tables', async () => {
+    expect(await defaultAclClientWrites(sql)).toEqual([])
+  })
 
+  replayIt('real migration removes existing table and column write grants from client roles', async () => {
     await inRollback(sql, async (tx) => {
-      await tx.unsafe('create table public.client_write_default_acl_probe (id integer)')
-      const [probe] = await tx.unsafe<Array<{ writable: boolean }>>(`
-        select has_table_privilege('authenticated', 'public.client_write_default_acl_probe', 'INSERT, UPDATE, DELETE, TRUNCATE')
-            or has_table_privilege('anon', 'public.client_write_default_acl_probe', 'INSERT, UPDATE, DELETE, TRUNCATE') as writable
+      await tx.unsafe('create table public.client_write_existing_probe (id integer)')
+      await tx.unsafe(
+        `grant select, ${CLIENT_WRITE_GRANT} on public.client_write_existing_probe, public.purchase_orders to authenticated, anon, service_role`
+      )
+      await tx.unsafe(
+        'grant insert (status), update (status), references (status) on public.purchase_orders to authenticated, anon'
+      )
+      expect(await clientWriteGrants(tx, 'client_write_existing_probe')).toHaveLength(14)
+      expect(await clientWriteGrants(tx, 'purchase_orders')).toHaveLength(14)
+
+      await tx.unsafe(migrationBody())
+
+      expect(await clientWriteGrants(tx, 'client_write_existing_probe')).toEqual([])
+      expect(await clientWriteGrants(tx, 'purchase_orders')).toEqual([])
+      const [kept] = await tx.unsafe<Array<{ reads: boolean; server: boolean }>>(`
+        select has_table_privilege('authenticated', 'public.purchase_orders', 'SELECT') as reads,
+               has_table_privilege('service_role', 'public.purchase_orders', 'INSERT, UPDATE, DELETE') as server
       `)
-      expect(probe!.writable).toBe(false)
+      expect(kept).toEqual({ reads: true, server: true })
+    })
+  })
+
+  replayIt('real migration stops the postgres default ACL granting client writes on new tables', async () => {
+    await inRollback(sql, async (tx) => {
+      await tx.unsafe(
+        `alter default privileges for role postgres in schema public grant ${CLIENT_WRITE_GRANT} on tables to authenticated, anon`
+      )
+      expect(await defaultAclClientWrites(tx)).toHaveLength(14)
+      await tx.unsafe('create table public.client_write_default_acl_before (id integer)')
+      expect(await clientWriteGrants(tx, 'client_write_default_acl_before')).toHaveLength(14)
+
+      await tx.unsafe(migrationBody())
+
+      expect(await defaultAclClientWrites(tx)).toEqual([])
+      await tx.unsafe('create table public.client_write_default_acl_after (id integer)')
+      expect(await clientWriteGrants(tx, 'client_write_default_acl_after')).toEqual([])
     })
   })
 

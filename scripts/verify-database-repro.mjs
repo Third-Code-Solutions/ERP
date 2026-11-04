@@ -1787,19 +1787,20 @@ try {
     (rows) => rows.map((row) => `cost_entries:${row.privilege}`).join(', ')
   )
 
-  // SEC-01/SEC-02: client roles hold no table- or column-level DML anywhere in
-  // public. CASE keeps has_any_column_privilege to the column privileges.
+  // SEC-01/SEC-02: client roles hold no table- or column-level write or
+  // maintenance privilege anywhere in public. CASE keeps
+  // has_any_column_privilege to the column-grantable privileges.
   await query(
-    'authenticated and anon hold no table or column DML on public relations',
+    'authenticated and anon hold no table or column write privilege on public relations',
     `select c.relname as table_name, r.role_name, p.privilege
        from pg_class c
        join pg_namespace n on n.oid = c.relnamespace
       cross join (values ('authenticated'), ('anon')) as r(role_name)
-      cross join unnest(array['INSERT', 'UPDATE', 'DELETE', 'TRUNCATE']) as p(privilege)
+      cross join unnest(array['INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER', 'MAINTAIN']) as p(privilege)
       where n.nspname = 'public'
         and c.relkind in ('r', 'p', 'v', 'm', 'f')
         and case
-          when p.privilege in ('INSERT', 'UPDATE')
+          when p.privilege in ('INSERT', 'UPDATE', 'REFERENCES')
             then has_any_column_privilege(r.role_name, c.oid, p.privilege)
           else has_table_privilege(r.role_name, c.oid, p.privilege)
         end`,
@@ -1811,7 +1812,7 @@ try {
   )
 
   await query(
-    'postgres default ACL grants no table DML to client roles',
+    'postgres default ACL grants no table write privilege to client roles',
     `select coalesce(nullif(d.defaclnamespace, 0)::regnamespace::text, '*') as schema_name,
             case when a.grantee = 0 then 'PUBLIC' else a.grantee::regrole::text end as grantee,
             a.privilege_type
@@ -1821,7 +1822,7 @@ try {
         and d.defaclobjtype = 'r'
         and d.defaclnamespace in (0, 'public'::regnamespace)
         and (a.grantee = 0 or a.grantee in ('authenticated'::regrole, 'anon'::regrole))
-        and a.privilege_type in ('INSERT', 'UPDATE', 'DELETE', 'TRUNCATE')`,
+        and a.privilege_type in ('INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER', 'MAINTAIN')`,
     (rows) => rows.length === 0,
     (rows) =>
       rows
