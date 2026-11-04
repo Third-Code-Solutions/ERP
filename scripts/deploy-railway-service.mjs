@@ -26,11 +26,13 @@ export function sourceSha(deployment) {
 // Map a failed CLI call to a fixed label. Raw stderr and child-process objects
 // are never printed: they can carry environment or account data.
 export function classifyCliFailure(error) {
-  const output = `${error?.stderr ?? ''}\n${error?.stdout ?? ''}`
-  if (/unauthorized|invalid token|not logged in|login/i.test(output)) return 'unauthorized'
-  if (/not found|does not exist|no access/i.test(output)) return 'not-found'
+  if (error?.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') return 'output-too-large'
   if (error?.code === 'ETIMEDOUT' || error?.signal === 'SIGTERM') return 'timeout'
   if (error instanceof SyntaxError) return 'unparseable-output'
+  // stderr only: stdout can hold deployment JSON with arbitrary commit messages.
+  const stderr = String(error?.stderr ?? '')
+  if (/unauthorized|not authorized|invalid token|not logged in|railway login/i.test(stderr)) return 'unauthorized'
+  if (/not found|does not exist|no access/i.test(stderr)) return 'not-found'
   return typeof error?.status === 'number' ? `exit-${error.status}` : 'unknown'
 }
 
@@ -81,8 +83,11 @@ export async function deploy(component) {
       } catch (error) {
         const reason = classifyCliFailure(error)
         // Bad credentials or scope will not heal on retry.
-        if (reason === 'unauthorized' || reason === 'not-found') {
-          throw new Error(`Railway deployment list failed: ${reason} (check the RAILWAY_API_TOKEN production secret and its project access)`)
+        if (reason === 'unauthorized') {
+          throw new Error('Railway deployment list failed: unauthorized (check the RAILWAY_API_TOKEN production secret)')
+        }
+        if (reason === 'not-found') {
+          throw new Error('Railway deployment list failed: not-found (check the token\'s project access, the service IDs, or the pinned CLI package)')
         }
         if (attempt === retryDelays.length - 1) {
           throw new Error(`Railway deployment list unavailable after transient retries: ${reason}`)
@@ -142,7 +147,8 @@ export async function deploy(component) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   deploy(process.argv[2]).catch((error) => {
     // Do not print CLI child-process objects: they can retain environment data.
-    console.error(error.message)
+    // execFileSync puts child stderr into error.message; print only its label.
+    console.error(error?.stderr !== undefined ? `Child process failed: ${classifyCliFailure(error)}` : error.message)
     process.exitCode = 1
   })
 }

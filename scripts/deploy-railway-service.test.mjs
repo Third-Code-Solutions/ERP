@@ -71,7 +71,12 @@ test('CLI failures map to fixed labels without echoing output', () => {
   assert.equal(classifyCliFailure(unauthorized), 'unauthorized')
   assert.equal(classifyCliFailure({ status: 1, stderr: 'Service not found' }), 'not-found')
   assert.equal(classifyCliFailure({ code: 'ETIMEDOUT' }), 'timeout')
+  assert.equal(classifyCliFailure({ status: 1, stderr: 'Not Authorized' }), 'unauthorized')
+  assert.equal(classifyCliFailure({ code: 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER', signal: 'SIGTERM' }), 'output-too-large')
   assert.equal(classifyCliFailure(new SyntaxError('Unexpected token')), 'unparseable-output')
   assert.equal(classifyCliFailure({ status: 2, stderr: 'secret-looking-value' }), 'exit-2')
   assert.equal(classifyCliFailure(undefined), 'unknown')
+  // A timeout with partial stdout mentioning login is still a timeout.
+  assert.equal(classifyCliFailure({ code: 'ETIMEDOUT', stdout: '[{"meta":{"commitMessage":"login redirect"}}' }), 'timeout')
+  assert.equal(classifyCliFailure({ status: 1, stdout: 'login page fix', stderr: '' }), 'exit-1')
 })
