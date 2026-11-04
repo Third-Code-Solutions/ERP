@@ -1,0 +1,73 @@
+name: Production backup
+
+# Logical dump of the production database (roles, schema, data) taken before
+# every production migration (docs/erp/RUNBOOK.md, section 3). The dump is
+# encrypted on the runner to the operator's RSA public key, so the 1-day
+# artifact is unreadable without the private key, which never leaves the
+# operator's machine. The connection string stays in the `production`
+# environment and is never printed.
+on:
+  workflow_dispatch:
+    inputs:
+      public_key:
+        description: Operator RSA public key, PEM, base64-encoded on one line
+        required: true
+        type: string
+      reason:
+        description: Migration or change this backup guards
+        required: true
+        type: string
+
+concurrency:
+  group: production-backup
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    name: Encrypted production dump
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: production
+    env:
+      SUPABASE_MIGRATION_DATABASE_URL: ${{ secrets.SUPABASE_MIGRATION_DATABASE_URL }}
+    steps:
+      - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
+        with:
+          version: 2.109.1
+      - name: Dump and encrypt
+        shell: bash
+        env:
+          PUBLIC_KEY_B64: ${{ inputs.public_key }}
+          BACKUP_REASON: ${{ inputs.reason }}
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "$SUPABASE_MIGRATION_DATABASE_URL" || { echo "::error::SUPABASE_MIGRATION_DATABASE_URL is not set"; exit 1; }
+          work="$RUNNER_TEMP/backup"
+          mkdir -p "$work" out
+          printf '%s' "$PUBLIC_KEY_B64" | base64 -d > "$work/operator.pem"
+          openssl pkey -pubin -in "$work/operator.pem" -noout
+          ts="$(date -u +%Y%m%dT%H%M%SZ)"
+          supabase db dump --db-url "$SUPABASE_MIGRATION_DATABASE_URL" --role-only -f "$work/roles.sql"
+          supabase db dump --db-url "$SUPABASE_MIGRATION_DATABASE_URL" -f "$work/schema.sql"
+          supabase db dump --db-url "$SUPABASE_MIGRATION_DATABASE_URL" --data-only --use-copy -f "$work/data.sql"
+          (cd "$work" && sha256sum roles.sql schema.sql data.sql) > "out/$ts-SHA256SUMS.txt"
+          printf '%s\n' "$BACKUP_REASON" > "out/$ts-reason.txt"
+          tar -C "$work" -czf "$work/dump.tgz" roles.sql schema.sql data.sql
+          openssl rand -hex 32 > "$work/key.txt"
+          openssl enc -aes-256-cbc -pbkdf2 -salt -in "$work/dump.tgz" \
+            -out "out/$ts-dump.tgz.enc" -pass "file:$work/key.txt"
+          openssl pkeyutl -encrypt -pubin -inkey "$work/operator.pem" \
+            -pkeyopt rsa_padding_mode:oaep -in "$work/key.txt" -out "out/$ts-key.enc"
+          shred -u "$work/roles.sql" "$work/schema.sql" "$work/data.sql" "$work/dump.tgz" "$work/key.txt"
+          ls -l out
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: production-backup
+          path: out/
+          retention-days: 1
+          if-no-files-found: error

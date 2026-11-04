@@ -109,28 +109,42 @@ Production has real/demo data and no PITR. Take a logical dump into `backups/`
 before applying any migration. `backups/` is gitignored; never commit or upload a
 dump.
 
-1. Preflight, read-only:
+The database URL exists only as the `SUPABASE_MIGRATION_DATABASE_URL` secret of
+the GitHub `production` environment, so the dump runs on GitHub and comes back
+encrypted to a key only the operator holds.
+
+1. Once per operator machine, create the backup keypair. `backups/` is gitignored;
+   never commit or share the private key.
 
    ```
-   pnpm plan:database-export
+   mkdir -p backups/keys
+   openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 -out backups/keys/operator.key
+   openssl pkey -in backups/keys/operator.key -pubout -out backups/keys/operator.pub.pem
    ```
-
-   - It needs `DATABASE_EXPORT_URL` (session pooler `:5432`) and `PG_DUMP_PATH`,
-     injected by the secret manager.
-   - It must report `status: "ready"`.
-2. Dump roles, schema and data. The connection string comes from the injected env
-   var; never echo it.
+2. Dispatch the dump (roles, schema, data via `supabase db dump`):
 
    ```
-   supabase db dump --db-url "$DATABASE_EXPORT_URL" --role-only -f backups/<UTC-ts>-roles.sql
-   supabase db dump --db-url "$DATABASE_EXPORT_URL"             -f backups/<UTC-ts>-schema.sql
-   supabase db dump --db-url "$DATABASE_EXPORT_URL" --data-only --use-copy -f backups/<UTC-ts>-data.sql
+   gh workflow run backup-production.yml --ref main \
+     -f public_key="$(base64 -w0 backups/keys/operator.pub.pem)" \
+     -f reason="<migration file it guards>"
+   gh run watch <run-id> --exit-status
    ```
-3. Record in `docs/erp/STATE.md`:
-   - the dump timestamp,
-   - file sizes,
+3. Download, decrypt and verify locally:
+
+   ```
+   gh run download <run-id> -n production-backup -D backups/<UTC-ts>
+   cd backups/<UTC-ts>
+   openssl pkeyutl -decrypt -inkey ../keys/operator.key -pkeyopt rsa_padding_mode:oaep -in *-key.enc -out key.txt
+   openssl enc -d -aes-256-cbc -pbkdf2 -in *-dump.tgz.enc -pass file:key.txt | tar -xz
+   sha256sum -c *-SHA256SUMS.txt && rm key.txt
+   ```
+
+   The artifact expires after one day; the decrypted dump lives only in `backups/`.
+4. Record in `docs/erp/STATE.md`:
+   - the run id and dump timestamp,
+   - file sizes and the SHA-256 check result,
    - the migration it guards.
-4. Storage objects are **not** in the dump. Inventory buckets separately if the
+5. Storage objects are **not** in the dump. Inventory buckets separately if the
    migration touches storage.
 
 Then apply the migration with the reviewed path in
