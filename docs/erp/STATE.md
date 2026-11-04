@@ -69,13 +69,14 @@ Verdicts are posted as PR comments.
      (catalog queries run through Supabase MCP `execute_sql`).
 - PR #125 merged `2c2576cb`: 6 contract gates in CI, doc-authority v1.5, runners
   pinned to ubuntu-24.04.
-- Live code (2026-11-04, after promotion [41792158962](https://github.com/Third-Code-Solutions/ERP/actions/runs/41792158962)):
-  - **DB**: ledger 178, head `20261104055626`.
-  - **Web (Vercel)**: `b9c9d9b4` (`/api/health` and `/api/ready` revision
-    `b9c9d9b43220`). The Next.js 15.5.28 patch (#129), #128, #130 and #134 are live.
-  - **API and CAD worker (Railway)**: the same run verified both as
-    `retained-identical` (watched inputs unchanged; active deployments `edfd4065`
-    for the API at `5d56f63d` and `dcf4a7fa` for CAD); both health checks return 200.
+- Live code (2026-11-04, after promotion [41820543052](https://github.com/Third-Code-Solutions/ERP/actions/runs/41820543052)):
+  - **DB**: ledger 178, head `20261104055626` (#138 and #139 have no migrations).
+  - **Web (Vercel)**: `8293f798` (`/api/health` revision `8293f798cc1c`).
+    Everything through #139 is live.
+  - **API and CAD worker (Railway)**: the run verified both as `retained-identical`
+    (active deployments `471333fd` for the API, from Railway's auto-deploy of the
+    `main` push, and `dcf4a7fa` for CAD); both health checks return 200.
+  - `smoke-prod.yml` [41823866906](https://github.com/Third-Code-Solutions/ERP/actions/runs/41823866906) passed after the promotion.
 - Tenancy model: shared schema + `tenant_id` + RLS.
   - Drizzle server code bypasses RLS, so isolation relies on an explicit
     `tenant_id` WHERE clause on every query.
@@ -95,15 +96,19 @@ Verdicts are posted as PR comments.
   (read-only count, 2026-11-04): 0 DUPAs, 3 BOMs, 3 invoices and 1 PO, all in one
   tenant. No real customer money is affected, so no data correction is needed.
   - **Hardening batch 2 (fix before modules; the rule is clear and consistent with the PRD).**
-    Six defect IDs in five items:
+    Six defect IDs in five items. Items 2–5 are **live** (#138 `d2d3ce6f`, #139
+    `8293f798`); item 1 is in review on branch `fix/erp-h2-fractional-qty`:
     1. D-5: fractional BOQ quantity via expand/contract, per the additive-only policy
        above. Add a `numeric(18,4)` column, backfill it, then switch readers and writers.
        Drop the integer column in a later contract release.
-    2. D-8: BIR 2307 payor/payee reversed.
+    2. D-8: BIR 2307 payor/payee reversed. Fixed in #138.
     3. D-4 (part): PO header must foot to its lines; the rate-card path must price at the
        rate card. The VAT-on-H part of D-4 shares D-2's root cause and is deferred with it (Q1).
+       Fixed in #139 (leaf rows only, header = Σ lines created, rate-card picker checks
+       price > 0, dates, vendor, unit).
     4. D-6 guard: cumulative billing ≤ 100%. DP recoupment is deferred (Q4, below).
-    5. D-14 + D-15: half-up DP rounding; one decimal-string percent parser.
+       Fixed in #138 (cap checked under the project lock on the API and legacy web paths).
+    5. D-14 + D-15: half-up DP rounding; one decimal-string percent parser. Fixed in #138.
 - Deferred P1 items (with reason): waiting on the owner's money-policy answers (see
   Blockers). The PRD makes these business policy, so the agent will not guess them:
   - D-1 cost vs sell on DUPA lines (Q1, Q2);
@@ -136,7 +141,8 @@ RUNBOOK) is **done**.
 - The daily-task completion flag (`ERP_DAILY_TASK_COMPLETION_WRITES_VIA_API`,
   `buildops-e2e` tenant only) went live with this deploy.
 - Mandate PHASE 2 (`next --auto` through Wave 2) **started 2026-11-04**. Phase D is
-  done. Next: hardening batch 2 (items 1–5 above), then modules in gap-report order:
+  done. Batch 2 items 2–5 are live. Next: batch 2 item 1 (D-5, needs a backup and a
+  migration apply before merge), then modules in gap-report order:
   `tenancy` → `approvals` → `contacts` → `cost-db` → `assemblies` → `boq` → `contracts`.
 
 - Merged 2026-11-04 (all CI green, security PASS, review APPROVE posted on the PR):
@@ -146,6 +152,12 @@ RUNBOOK) is **done**.
   - #131 `e083c485`: swarm, RUNBOOK, smoke, backup.
   - #132 `a5c3cd6a`: Railway CLI failure labels, fail fast on bad credentials.
   - #134 `5d56f63d`: SEC-01/02.
+  - #135 `b9c9d9b4`, #136 `1e6fc387`, #137 `8ab55740`: docs (STATE, Phase D).
+    #137 needed 4 review fix loops (max is 3). This was accepted because it is docs
+    only and each round's findings were narrower; the PR comment says so.
+  - #138 `d2d3ce6f`: billing cap, BIR 2307 parties and print gate, half-up DP, exact
+    percent parsing (batch 2 items 2, 4, 5).
+  - #139 `8293f798`: PO-from-BOM footing and rate-card pricing (batch 2 item 3).
 - Earlier promotion runs 41772426127 (2 attempts, #129) and 41779917439 (`a5c3cd6a`)
   failed at "Deploy Nest API to exact Railway service" (resolved by the token
   rotation). The last says:
@@ -200,6 +212,22 @@ RUNBOOK) is **done**.
   - read-only backup DB role;
   - Windows credential paths in the deny list;
   - E2E secrets are repo-level.
+- **Batch 2 follow-ups (#138/#139 reviews, non-blocking):**
+  - Budget grain: material PO lines keep their own `bom_line_item_id`, but budget lines
+    are top-level only. The WO-15 block-mode trigger fails closed and cost-control CTEs
+    misattribute those lines. Fix with `parent_line_item_id` at the budget grain.
+  - Legacy web `createInvoice` still accepts a superseded approved BOM.
+  - `progressInvoiceAmounts` exists in three copies; consolidate.
+  - Replace `parseDownPaymentBps` with `parsePercentToBps`.
+  - Bound the rate-card `FOR SHARE` read with `inArray(code)`.
+  - Web test mocks don't pin SQL predicates; add tests for `BOM_NO_LINES` and overflow.
+  - A unit-vocabulary mismatch (`pc` vs `pcs`) skips the rate card with no message;
+    the rate-card writer still accepts a price of 0.
+  - BIR 2307 print lacks client TIN, ATC and address, and shows the month, not the quarter.
+  - D-15 error text should say "between 1 and 100".
+  - The DP award insert takes no project lock (Low).
+- **Tooling:** the `lint` script fails on a pnpm 11 vs 10.33 mismatch (run eslint
+  directly); local runs need Node 22 (Node 24 fails the engines check).
 - **Owner/admin "Team tasks" view:** needs an explicit change to the daily-task contract
   verifier and its tests, and a `created_by` column so assignees see who assigned a task.
 
@@ -227,6 +255,9 @@ RUNBOOK) is **done**.
 ## Log
 | Date | Mode | Result |
 |---|---|---|
+| 2026-11-04 | promote | `8293f798` web live (run 41820543052; API/CAD retained-identical); smoke 41823866906 green |
+| 2026-11-04 | merge | #138 `d2d3ce6f` (D-6 cap, D-8, D-14, D-15), #139 `8293f798` (D-4 part); D-10 builder stopped (needs D-3/Q2) |
+| 2026-11-04 | merge | #137 `8ab55740` Phase D docs (4 fix loops, accepted as docs-only) |
 | 2026-11-04 | decision | Owner: "continue to phase 2" → clean-room approved, strict mode (public material only) |
 | 2026-11-04 | phase D | Survey (63 rows) + gap analysis (15/19/3/8); 15 money defects: 6 IDs in 5 batch-2 items (D-4 part, D-6 cap only), the rest deferred to owner Q1–Q10 (D-10 behind D-3) |
 | 2026-11-04 | prod config | Set `ERP_DAILY_TASK_COMPLETION_WRITES_VIA_API=true` + `_TENANT_IDS=<buildops-e2e>` in Vercel production (owner approved); applies on the next prod deploy |
