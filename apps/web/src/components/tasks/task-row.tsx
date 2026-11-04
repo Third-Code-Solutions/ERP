@@ -2,6 +2,7 @@ import React from 'react'
 import Link from 'next/link'
 import { completeTask } from '@/app/(dashboard)/tasks/actions'
 import styles from '@/app/(dashboard)/tasks/tasks.module.css'
+import { manilaDaysBetween } from '@/lib/operations/cadence-engine'
 import { CompleteTaskButton } from './complete-task-button'
 
 export interface TaskRowData {
@@ -14,7 +15,6 @@ export interface TaskRowData {
   project_id: string
   project_name: string
   assignee_id: string | null
-  assignee_name?: string | null
   completion_notes?: string | null
   completed_at?: Date | string | null
 }
@@ -25,8 +25,6 @@ interface TaskRowProps {
   now: number
   /** End of today in Manila (ms); pending tasks due before it are "Due today". */
   todayEnd: number
-  /** Render the assignee column (team view). */
-  showAssignee?: boolean
   /** When true, do not render the completion control. */
   readOnly?: boolean
 }
@@ -45,14 +43,6 @@ export const ROLE_LABELS: Record<string, string> = {
   estimator: 'Estimator',
   owner: 'Owner',
   viewer: 'Viewer',
-}
-
-const DAY_MS = 86_400_000
-const MANILA_OFFSET_MS = 8 * 3_600_000
-
-/** Whole Manila calendar days since the epoch, for "N days late". */
-function manilaDayIndex(ms: number): number {
-  return Math.floor((ms + MANILA_OFFSET_MS) / DAY_MS)
 }
 
 type DisplayStatus = 'overdue' | 'today' | 'open' | 'done' | 'skipped'
@@ -93,37 +83,19 @@ export function displayStatus(task: Pick<TaskRowData, 'status' | 'due_date'>, no
   return 'open'
 }
 
-export function TaskRow({ task, now, todayEnd, showAssignee = false, readOnly = false }: TaskRowProps) {
+export function TaskRow({ task, now, todayEnd, readOnly = false }: TaskRowProps) {
   const due = toDate(task.due_date)
   const status = displayStatus(task, now, todayEnd)
   const badge = STATUS_BADGE[status]
   const source = task.role ? `Daily cadence · ${ROLE_LABELS[task.role] ?? task.role}` : 'Manual task'
   const requiresToolboxLog = task.title.trim().toLowerCase() === 'toolbox meeting log'
-  const daysLate = manilaDayIndex(now) - manilaDayIndex(due.getTime())
-
-  let action: React.ReactNode = <span className="muted">—</span>
-  if (task.status === 'pending' && readOnly) {
-    action = (
-      <span className="muted" title="Your role can view this task but not complete it.">
-        View only
-      </span>
-    )
-  } else if (task.status === 'pending') {
-    const completeMountedTask = completeTask.bind(null, {
-      taskId: task.id,
-      projectId: task.project_id,
-      assigneeId: task.assignee_id,
-      requiresNotes: requiresToolboxLog,
-    })
-    action = (
-      <CompleteTaskButton
-        action={completeMountedTask}
-        taskId={task.id}
-        requiresNotes={requiresToolboxLog}
-        notePlaceholder={requiresToolboxLog ? 'Attendees, safety topic, hazards, and action items' : 'Optional completion notes'}
-      />
-    )
-  }
+  const daysLate = manilaDaysBetween(new Date(now), due)
+  const completeMountedTask = completeTask.bind(null, {
+    taskId: task.id,
+    projectId: task.project_id,
+    assigneeId: task.assignee_id,
+    requiresNotes: requiresToolboxLog,
+  })
 
   return (
     <tr>
@@ -140,7 +112,6 @@ export function TaskRow({ task, now, todayEnd, showAssignee = false, readOnly = 
           {task.project_name}
         </Link>
       </td>
-      {showAssignee && <td className="muted">{task.assignee_name ?? 'Unassigned'}</td>}
       <td className={styles.due}>
         {formatDue(due)}
         {status === 'overdue' && (
@@ -158,7 +129,24 @@ export function TaskRow({ task, now, todayEnd, showAssignee = false, readOnly = 
           {badge.label}
         </span>
       </td>
-      <td className={styles.actionCell}>{action}</td>
+      <td className={styles.actionCell}>
+        {readOnly || task.status === 'done' ? (
+          task.status === 'pending' ? (
+            <span className="muted" title="Your role can view this task but not complete it.">
+              View only
+            </span>
+          ) : (
+            <span className="muted">—</span>
+          )
+        ) : (
+          <CompleteTaskButton
+            action={completeMountedTask}
+            taskId={task.id}
+            requiresNotes={requiresToolboxLog}
+            notePlaceholder={requiresToolboxLog ? 'Attendees, safety topic, hazards, and action items' : 'Optional completion notes'}
+          />
+        )}
+      </td>
     </tr>
   )
 }

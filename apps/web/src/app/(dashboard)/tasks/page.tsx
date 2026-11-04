@@ -6,7 +6,11 @@ import { db } from '@third-code-erp/database'
 import { dailyTasks, projects, users } from '@third-code-erp/database/schema'
 import { ERP_ROLES } from '@third-code-erp/shared-types'
 import { ROLE_LABELS, TaskRow } from '@/components/tasks/task-row'
-import { manilaBoundaries } from '@/lib/operations/cadence-engine'
+import {
+  CLOSED_PROJECT_STATUSES,
+  manilaBoundaries,
+  toManilaDateTimeLocal,
+} from '@/lib/operations/cadence-engine'
 import { GenerationControl } from './generation-control'
 import { NewTaskDialog } from './new-task-dialog'
 import qa from '../workspace-qa.module.css'
@@ -15,7 +19,6 @@ import styles from './tasks.module.css'
 export const metadata: Metadata = { title: 'Tasks' }
 
 type TabKey = 'today' | 'overdue' | 'week' | 'open' | 'completed'
-type Scope = 'mine' | 'team'
 
 const TAB_ORDER: TabKey[] = ['today', 'overdue', 'week', 'open', 'completed']
 const TAB_LABELS: Record<TabKey, string> = {
@@ -36,12 +39,9 @@ const EMPTY_COPY: Record<TabKey, { title: string; body: string }> = {
 const ROW_LIMIT = 200
 const SEARCH_MAX = 100
 const DUE_HOUR_DEFAULT = 17
-const HOUR_MS = 3_600_000
 const DAY_MS = 86_400_000
-const MANILA_OFFSET_MS = 8 * HOUR_MS
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const TASK_ASSIGNEE_ROLES = ERP_ROLES.filter((role) => can(role, 'sd.daily_tasks'))
-const CLOSED_PROJECT_STATUSES = new Set(['completed', 'cancelled'])
 
 type SearchParamValue = string | string[] | undefined
 interface TasksPageProps {
@@ -58,7 +58,6 @@ function parseTab(value: SearchParamValue): TabKey {
 }
 
 interface Filters {
-  scope: Scope
   project?: string
   q: string
 }
@@ -66,7 +65,6 @@ interface Filters {
 function tasksHref(tab: TabKey, filters: Filters): string {
   const params = new URLSearchParams()
   if (tab !== 'today') params.set('tab', tab)
-  if (filters.scope === 'team') params.set('scope', 'team')
   if (filters.project) params.set('project', filters.project)
   if (filters.q) params.set('q', filters.q)
   const query = params.toString()
@@ -77,10 +75,19 @@ function tasksHref(tab: TabKey, filters: Filters): string {
 function defaultDueAt(now: Date): string {
   let due = manilaBoundaries.atHour(now, DUE_HOUR_DEFAULT).getTime()
   if (due <= now.getTime()) due += DAY_MS
-  return new Date(due + MANILA_OFFSET_MS).toISOString().slice(0, 16)
+  return toManilaDateTimeLocal(new Date(due))
 }
 
-function countWhere(condition: SQL | undefined) {
+function taskCount(count: number): string {
+  return `${count.toLocaleString('en-PH')} task${count === 1 ? '' : 's'}`
+}
+
+/** AND of at least one condition, typed non-optional for count filters. */
+function allOf(first: SQL, ...rest: SQL[]): SQL {
+  return and(first, ...rest) ?? first
+}
+
+function countWhere(condition: SQL) {
   return sql<number>`cast(count(*) filter (where ${condition}) as int)`
 }
 
@@ -99,33 +106,37 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
   const tab = parseTab(raw.tab)
   const isManager = profile.role === 'owner' || profile.role === 'admin'
   const canCompleteTasks = can(profile.role, 'sd.daily_tasks')
+  const isReadOnly = tab === 'completed'
   const projectParam = pickFirst(raw.project)
   const filters: Filters = {
-    scope: isManager && pickFirst(raw.scope) === 'team' ? 'team' : 'mine',
     project: projectParam && UUID_PATTERN.test(projectParam) ? projectParam : undefined,
     q: (pickFirst(raw.q) ?? '').trim().slice(0, SEARCH_MAX),
   }
   const hasFilters = Boolean(filters.project || filters.q)
+  // Only owners and admins may assign work to an owner or admin (enforced again in createTask).
+  const assigneeRoles = isManager
+    ? TASK_ASSIGNEE_ROLES
+    : TASK_ASSIGNEE_ROLES.filter((role) => role !== 'owner' && role !== 'admin')
 
   const now = new Date()
   const todayStart = manilaBoundaries.startOfDay(now)
   const todayEnd = manilaBoundaries.endOfDay(now)
   const weekEnd = new Date(todayEnd.getTime() + 7 * DAY_MS)
 
-  const scoped: SQL[] = [eq(dailyTasks.tenant_id, profile.tenantId)]
-  if (filters.scope === 'mine') scoped.push(eq(dailyTasks.assignee_id, profile.user.id))
-  if (filters.project) scoped.push(eq(dailyTasks.project_id, filters.project))
+  // Optional narrowing only; tenant and assignee scope stay inline on every read below.
+  const filterWhere: SQL[] = []
+  if (filters.project) filterWhere.push(eq(dailyTasks.project_id, filters.project))
   if (filters.q) {
     const pattern = `%${filters.q.replace(/[\\%_]/g, '\\$&')}%`
     const match = or(ilike(dailyTasks.title, pattern), ilike(dailyTasks.description, pattern))
-    if (match) scoped.push(match)
+    if (match) filterWhere.push(match)
   }
 
   const pending = eq(dailyTasks.status, 'pending')
-  const tabWhere: Record<TabKey, SQL | undefined> = {
-    today: and(pending, gte(dailyTasks.due_date, todayStart), lte(dailyTasks.due_date, todayEnd)),
-    overdue: and(pending, lt(dailyTasks.due_date, now)),
-    week: and(pending, gt(dailyTasks.due_date, todayEnd), lte(dailyTasks.due_date, weekEnd)),
+  const tabWhere: Record<TabKey, SQL> = {
+    today: allOf(pending, gte(dailyTasks.due_date, todayStart), lte(dailyTasks.due_date, todayEnd)),
+    overdue: allOf(pending, lt(dailyTasks.due_date, now)),
+    week: allOf(pending, gt(dailyTasks.due_date, todayEnd), lte(dailyTasks.due_date, weekEnd)),
     open: pending,
     completed: eq(dailyTasks.status, 'done'),
   }
@@ -140,14 +151,19 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
         completed: countWhere(tabWhere.completed),
       })
       .from(dailyTasks)
-      .where(and(...scoped)),
+      .where(
+        and(
+          eq(dailyTasks.tenant_id, profile.tenantId),
+          eq(dailyTasks.assignee_id, profile.user.id),
+          ...filterWhere,
+        ),
+      ),
     db
       .select({
         id: dailyTasks.id,
         project_id: dailyTasks.project_id,
         project_name: projects.name,
         assignee_id: dailyTasks.assignee_id,
-        assignee_name: users.full_name,
         title: dailyTasks.title,
         description: dailyTasks.description,
         role: dailyTasks.role,
@@ -158,8 +174,14 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
       })
       .from(dailyTasks)
       .innerJoin(projects, and(eq(projects.id, dailyTasks.project_id), eq(projects.tenant_id, dailyTasks.tenant_id)))
-      .leftJoin(users, and(eq(users.id, dailyTasks.assignee_id), eq(users.tenant_id, dailyTasks.tenant_id)))
-      .where(and(...scoped, tabWhere[tab]))
+      .where(
+        and(
+          eq(dailyTasks.tenant_id, profile.tenantId),
+          eq(dailyTasks.assignee_id, profile.user.id),
+          ...filterWhere,
+          tabWhere[tab],
+        ),
+      )
       .orderBy(tab === 'completed' ? desc(dailyTasks.completed_at) : asc(dailyTasks.due_date))
       .limit(ROW_LIMIT),
     db
@@ -176,7 +198,7 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
             and(
               eq(users.tenant_id, profile.tenantId),
               eq(users.account_status, 'active'),
-              inArray(users.role, TASK_ASSIGNEE_ROLES),
+              inArray(users.role, assigneeRoles),
             ),
           )
           .orderBy(asc(users.full_name))
@@ -190,7 +212,6 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
     open: countRows[0]?.open ?? 0,
     completed: countRows[0]?.completed ?? 0,
   }
-  const showAssignee = filters.scope === 'team'
   const truncated = counts[tab] > rows.length && rows.length === ROW_LIMIT
   const openProjects = projectOptions.filter((p) => !CLOSED_PROJECT_STATUSES.has(p.status))
   const assignees = assigneeRows.map((a) => ({
@@ -198,10 +219,6 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
     fullName: a.fullName,
     roleLabel: ROLE_LABELS[a.role] ?? a.role,
   }))
-  const subtitle =
-    filters.scope === 'team'
-      ? 'Every task in this workspace, across active projects. Due times follow Manila time.'
-      : `Work assigned to ${profile.fullName || profile.email}. Due times follow Manila time.`
   const empty = hasFilters
     ? { title: 'No tasks match these filters', body: 'Try another project or search term, or clear the filters.' }
     : EMPTY_COPY[tab]
@@ -213,7 +230,9 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
           <div>
             <p className="page-eyebrow">Construction</p>
             <h1 className="page-title">Tasks</h1>
-            <p className="page-subtitle">{subtitle}</p>
+            <p className="page-subtitle">
+              Work assigned to {profile.fullName || profile.email}. Due times follow Manila time.
+            </p>
           </div>
           {(isManager || canCompleteTasks) && (
             <div className={styles.headerActions}>
@@ -239,6 +258,7 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
             href={tasksHref(key, filters)}
             className={styles.view}
             aria-current={key === tab ? 'page' : undefined}
+            aria-label={`${TAB_LABELS[key]}, ${taskCount(counts[key])}`}
             data-tone={key === 'overdue' && counts.overdue > 0 ? 'danger' : undefined}
           >
             <span className={styles.viewCount}>{counts[key].toLocaleString('en-PH')}</span>
@@ -250,21 +270,10 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
       <section className="card" aria-labelledby="task-list-title">
         <div className={`card-header ${styles.listHeader}`}>
           <h2 id="task-list-title" className="card-title">
-            {TAB_LABELS[tab]} · {counts[tab].toLocaleString('en-PH')} task{counts[tab] === 1 ? '' : 's'}
+            {TAB_LABELS[tab]} · {taskCount(counts[tab])}
           </h2>
           <form method="get" action="/tasks" role="search" aria-label="Filter tasks" className={styles.filters}>
             {tab !== 'today' && <input type="hidden" name="tab" value={tab} />}
-            {isManager && (
-              <select
-                name="scope"
-                defaultValue={filters.scope}
-                aria-label="Whose tasks"
-                className={`form-input ${styles.filterField}`}
-              >
-                <option value="mine">My tasks</option>
-                <option value="team">Team tasks</option>
-              </select>
-            )}
             <select
               name="project"
               defaultValue={filters.project ?? ''}
@@ -287,7 +296,7 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
             />
             <button type="submit" className="button-secondary">Apply</button>
             {hasFilters && (
-              <Link href={tasksHref(tab, { scope: filters.scope, q: '' })} className={styles.clearLink}>
+              <Link href={tasksHref(tab, { q: '' })} className={styles.clearLink}>
                 Clear
               </Link>
             )}
@@ -307,7 +316,6 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
                 <tr>
                   <th>Task</th>
                   <th>Project</th>
-                  {showAssignee && <th>Assignee</th>}
                   <th>Due</th>
                   <th>Status</th>
                   <th><span className="sr-only">Actions</span></th>
@@ -320,8 +328,7 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
                     task={task}
                     now={now.getTime()}
                     todayEnd={todayEnd.getTime()}
-                    showAssignee={showAssignee}
-                    readOnly={!canCompleteTasks}
+                    readOnly={isReadOnly || !canCompleteTasks}
                   />
                 ))}
               </tbody>

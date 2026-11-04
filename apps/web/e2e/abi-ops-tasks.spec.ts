@@ -18,14 +18,14 @@ test.describe('M-Tasks (daily cadence)', () => {
     const overlay = await page.locator('nextjs-portal').count()
     expect(overlay).toBe(0)
 
-    // The view nav exposes count-led links ("3 Due today", "0 Overdue", …).
+    // The view nav links are named "<view>, <n> tasks" ("Due today, 3 tasks", …).
     // We assert at least one of them is in the DOM — smoke-only.
     const tabLabels = ['Due today', 'Overdue', 'Next 7 days', 'All open', 'Completed']
     let found = 0
     const views = page.getByRole('navigation', { name: 'Task views' })
     for (const label of tabLabels) {
       const count = await views
-        .getByRole('link', { name: new RegExp(`${label}$`, 'i') })
+        .getByRole('link', { name: new RegExp(`^${label}, `, 'i') })
         .count()
       if (count > 0) found += 1
     }

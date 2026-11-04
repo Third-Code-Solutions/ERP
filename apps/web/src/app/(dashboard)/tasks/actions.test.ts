@@ -1,18 +1,33 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { SQL } from 'drizzle-orm'
+import { PgDialect } from 'drizzle-orm/pg-core'
 import { ERP_ROLES, type ErpRole } from '@third-code-erp/shared-types'
 
-const mocks = vi.hoisted(() => ({
-  requireUserProfile: vi.fn(),
-  revalidatePath: vi.fn(),
-  dailyTaskCompletionWritesUseCoreApi: vi.fn(),
-  completeDailyTaskThroughCoreApi: vi.fn(),
-  writeAuditLog: vi.fn(),
-  writeAuditLogInTransaction: vi.fn(),
-  generateTasksForDate: vi.fn(),
-  selectResults: [] as unknown[][],
-  insertedValues: [] as unknown[],
-  info: vi.fn(),
-}))
+const mocks = vi.hoisted(() => {
+  const insertedValues: unknown[] = []
+  const tx = {
+    insert: () => ({
+      values: (row: unknown) => {
+        insertedValues.push(row)
+        return { returning: () => Promise.resolve([{ id: 'new-task-id' }]) }
+      },
+    }),
+  }
+  return {
+    requireUserProfile: vi.fn(),
+    revalidatePath: vi.fn(),
+    dailyTaskCompletionWritesUseCoreApi: vi.fn(),
+    completeDailyTaskThroughCoreApi: vi.fn(),
+    writeAuditLog: vi.fn(),
+    writeAuditLogInTransaction: vi.fn(),
+    generateTasksForDate: vi.fn(),
+    selectResults: [] as unknown[][],
+    selectWheres: [] as unknown[],
+    insertedValues,
+    transaction: vi.fn((work: (t: typeof tx) => Promise<unknown>) => work(tx)),
+    info: vi.fn(),
+  }
+})
 
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }))
 
@@ -21,24 +36,19 @@ vi.mock('@third-code-erp/auth', async (importOriginal) => {
   return { ...actual, requireUserProfile: mocks.requireUserProfile }
 })
 
-vi.mock('@third-code-erp/database', () => {
-  const insert = () => ({
-    values: (row: unknown) => {
-      mocks.insertedValues.push(row)
-      return { returning: () => Promise.resolve([{ id: 'new-task-id' }]) }
-    },
-  })
-  return {
-    db: {
-      select: () => ({
-        from: () => ({
-          where: () => ({ limit: () => Promise.resolve(mocks.selectResults.shift() ?? []) }),
-        }),
+vi.mock('@third-code-erp/database', () => ({
+  db: {
+    select: () => ({
+      from: () => ({
+        where: (condition: unknown) => {
+          mocks.selectWheres.push(condition)
+          return { limit: () => Promise.resolve(mocks.selectResults.shift() ?? []) }
+        },
       }),
-      transaction: (fn: (tx: unknown) => Promise<unknown>) => fn({ insert }),
-    },
-  }
-})
+    }),
+    transaction: mocks.transaction,
+  },
+}))
 vi.mock('@/lib/audit', () => ({
   stampActorInTransaction: vi.fn(),
   writeAuditLog: mocks.writeAuditLog,
@@ -327,6 +337,10 @@ describe('completeTask Core-only authority', () => {
 })
 
 const ASSIGNEE_ID = '55555555-5555-4555-8555-555555555555'
+// 2026-11-04 10:00 Manila; due dates in the fixtures are relative to this instant.
+const CREATE_NOW = new Date('2026-11-04T02:00:00.000Z')
+const RANGE_ERROR = 'Choose a due date within the past 30 days or the next year.'
+const UPWARD_ERROR = 'Only an owner or admin can assign tasks to an owner or admin.'
 
 function taskForm(overrides: Record<string, string> = {}): FormData {
   const result = new FormData()
@@ -342,10 +356,18 @@ function taskForm(overrides: Record<string, string> = {}): FormData {
   return result
 }
 
+function renderedWhere(index: number) {
+  return new PgDialect().sqlToQuery(mocks.selectWheres[index] as SQL)
+}
+
 describe('createTask', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(CREATE_NOW)
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     mocks.selectResults.length = 0
+    mocks.selectWheres.length = 0
     mocks.insertedValues.length = 0
     mocks.requireUserProfile.mockResolvedValue({
       user: { id: USER_ID },
@@ -354,6 +376,10 @@ describe('createTask', () => {
       email: 'admin@example.test',
       fullName: 'Admin User',
     })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('creates a manual task in the caller tenant at Manila due time and audits it', async () => {
@@ -384,6 +410,22 @@ describe('createTask', () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/tasks')
   })
 
+  it('scopes the project and assignee lookups to the session tenant, never to form input', async () => {
+    mocks.selectResults.push(
+      [{ id: PROJECT_ID, status: 'active' }],
+      [{ id: ASSIGNEE_ID, role: 'safety', status: 'active' }]
+    )
+
+    await createTask(taskForm())
+
+    const project = renderedWhere(0)
+    expect(project.sql).toBe('("projects"."id" = $1 and "projects"."tenant_id" = $2)')
+    expect(project.params).toEqual([PROJECT_ID, TENANT_ID])
+    const assignee = renderedWhere(1)
+    expect(assignee.sql).toBe('("users"."id" = $1 and "users"."tenant_id" = $2)')
+    expect(assignee.params).toEqual([ASSIGNEE_ID, TENANT_ID])
+  })
+
   it.each(ERP_ROLES)('allows creation only for the daily-task capability (%s)', async (role: ErpRole) => {
     mocks.requireUserProfile.mockResolvedValue({ user: { id: USER_ID }, tenantId: TENANT_ID, role })
     mocks.selectResults.push(
@@ -402,14 +444,66 @@ describe('createTask', () => {
     ['missing title', { title: '   ' }, 'Enter a task title.'],
     ['bad project id', { project_id: 'nope' }, 'Choose a project.'],
     ['bad due value', { due_at: 'tomorrow' }, 'Enter a due date and time.'],
-    ['unknown field', { tenant_id: TENANT_ID }, undefined],
+    ['unknown field', { tenant_id: TENANT_ID }, 'Invalid task request.'],
+    ['inherited key name', { toString: 'x' }, 'Invalid task request.'],
   ])('rejects %s before any write', async (_label, overrides, message) => {
     const result = await createTask(taskForm(overrides as Record<string, string>))
 
-    expect(result.error).toBe(message ?? result.error)
-    expect(result.error).toBeTruthy()
+    expect(result).toEqual({ error: message })
     expect(mocks.requireUserProfile).not.toHaveBeenCalled()
     expect(mocks.insertedValues).toHaveLength(0)
+  })
+
+  it.each(['title', 'project_id', 'assignee_id', 'due_at'])(
+    'rejects a duplicated %s field before any lookup',
+    async (field) => {
+      const data = taskForm()
+      data.append(field, field === 'title' ? 'Second title' : (data.get(field) as string))
+
+      expect(await createTask(data)).toEqual({ error: 'Invalid task request.' })
+      expect(mocks.requireUserProfile).not.toHaveBeenCalled()
+      expect(mocks.selectWheres).toHaveLength(0)
+    }
+  )
+
+  it.each([
+    ['February 30', '2026-02-30T10:00'],
+    ['April 31', '2026-04-31T23:59'],
+    ['hour 24', '2026-11-05T24:00'],
+    ['minute 60', '2026-11-05T12:60'],
+    ['year 0000', '0000-01-01T00:00'],
+  ])('rejects an impossible due date (%s) instead of rolling it over', async (_label, dueAt) => {
+    expect(await createTask(taskForm({ due_at: dueAt }))).toEqual({
+      error: 'Enter a due date and time.',
+    })
+    expect(mocks.requireUserProfile).not.toHaveBeenCalled()
+    expect(mocks.insertedValues).toHaveLength(0)
+  })
+
+  it.each([
+    ['more than 30 days ago', '2026-10-04T09:00'],
+    ['more than a year ahead', '2027-11-05T09:00'],
+    ['in 1900', '1900-01-01T00:00'],
+    ['in 9999', '9999-12-31T23:59'],
+  ])('rejects a due date %s', async (_label, dueAt) => {
+    expect(await createTask(taskForm({ due_at: dueAt }))).toEqual({ error: RANGE_ERROR })
+    expect(mocks.requireUserProfile).not.toHaveBeenCalled()
+    expect(mocks.insertedValues).toHaveLength(0)
+  })
+
+  it('accepts a due date earlier today, inside the lookback window', async () => {
+    mocks.selectResults.push(
+      [{ id: PROJECT_ID, status: 'active' }],
+      [{ id: ASSIGNEE_ID, role: 'safety', status: 'active' }]
+    )
+
+    expect(await createTask(taskForm({ due_at: '2026-11-04T08:00' }))).toEqual({
+      ok: true,
+      message: 'Task created.',
+    })
+    expect(mocks.insertedValues).toEqual([
+      expect.objectContaining({ due_date: new Date('2026-11-04T00:00:00.000Z') }),
+    ])
   })
 
   it('rejects projects outside the tenant or already closed', async () => {
@@ -434,6 +528,61 @@ describe('createTask', () => {
       error: 'Choose an active teammate who can complete tasks.',
     })
     expect(mocks.insertedValues).toHaveLength(0)
+  })
+
+  it.each([
+    ['safety', 'owner'],
+    ['safety', 'admin'],
+    ['pm', 'owner'],
+    ['sd_pm_pe', 'admin'],
+  ] as const)('refuses a %s assigning a task upward to an %s', async (actorRole, assigneeRole) => {
+    mocks.requireUserProfile.mockResolvedValue({ user: { id: USER_ID }, tenantId: TENANT_ID, role: actorRole })
+    mocks.selectResults.push(
+      [{ id: PROJECT_ID, status: 'active' }],
+      [{ id: ASSIGNEE_ID, role: assigneeRole, status: 'active' }]
+    )
+
+    expect(await createTask(taskForm())).toEqual({ error: UPWARD_ERROR })
+    expect(mocks.transaction).not.toHaveBeenCalled()
+    expect(mocks.insertedValues).toHaveLength(0)
+  })
+
+  it.each([
+    ['admin', 'owner'],
+    ['owner', 'admin'],
+    ['safety', 'pm'],
+  ] as const)('lets a %s assign a task to an %s', async (actorRole, assigneeRole) => {
+    mocks.requireUserProfile.mockResolvedValue({ user: { id: USER_ID }, tenantId: TENANT_ID, role: actorRole })
+    mocks.selectResults.push(
+      [{ id: PROJECT_ID, status: 'active' }],
+      [{ id: ASSIGNEE_ID, role: assigneeRole, status: 'active' }]
+    )
+
+    expect(await createTask(taskForm())).toEqual({ ok: true, message: 'Task created.' })
+    expect(mocks.insertedValues).toHaveLength(1)
+  })
+
+  it('returns a safe error and a redacted trace when the write fails', async () => {
+    mocks.selectResults.push(
+      [{ id: PROJECT_ID, status: 'active' }],
+      [{ id: ASSIGNEE_ID, role: 'safety', status: 'active' }]
+    )
+    mocks.transaction.mockRejectedValueOnce(new Error('insert into daily_tasks ... Confirm ceiling board delivery'))
+
+    const result = await createTask(taskForm())
+
+    expect(result).toEqual({ error: 'The task could not be created. Please try again.' })
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+    const warn = vi.mocked(console.warn).mock.calls.at(-1)
+    expect(warn?.[0]).toBe('[daily-task-create]')
+    expect(warn?.[1]).toEqual({
+      trace_id: expect.stringMatching(/^[0-9a-f-]{36}$/i),
+      tenant_id: TENANT_ID,
+      actor_id: USER_ID,
+      action: 'daily_task.create',
+      outcome: 'exception',
+    })
+    expect(JSON.stringify(warn)).not.toContain('Confirm ceiling board delivery')
   })
 })
 
@@ -467,11 +616,26 @@ describe('triggerDailyGeneration', () => {
   it.each([
     [{ created: 0, skipped: 21, projectsConsidered: 3 }, 'Today’s cadence is already generated: 21 tasks across 3 active projects. Nothing new was added.'],
     [{ created: 0, skipped: 0, projectsConsidered: 0 }, 'There are no active projects, so no cadence tasks were generated.'],
-    [{ created: 0, skipped: 0, projectsConsidered: 2 }, expect.stringContaining('No active teammates hold a cadence role')],
+    [{ created: 0, skipped: 0, projectsConsidered: 2 }, 'No active teammates hold a cadence role (SD / PM / PE, Safety, Commercial, Procurement), so no tasks were generated.'],
   ])('explains a run that adds nothing (%o)', async (summary, message) => {
     mocks.generateTasksForDate.mockResolvedValue(summary)
 
     expect(await triggerDailyGeneration()).toEqual({ ok: true, message })
+  })
+
+  it('still reports committed tasks when only the run summary audit fails', async () => {
+    mocks.generateTasksForDate.mockResolvedValue({ created: 4, skipped: 0, projectsConsidered: 1 })
+    mocks.writeAuditLog.mockRejectedValueOnce(new Error('audit lock timeout'))
+
+    expect(await triggerDailyGeneration()).toEqual({
+      ok: true,
+      message: 'Generated 4 tasks across 1 active project.',
+    })
+    expect(console.warn).toHaveBeenCalledWith('[triggerDailyGeneration] run summary audit failed', {
+      tenant_id: TENANT_ID,
+      actor_id: USER_ID,
+    })
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/tasks')
   })
 
   it('denies non-admin roles and surfaces engine failures without auditing', async () => {

@@ -108,7 +108,9 @@ export function NewTaskDialog({
             className={styles.dialog}
             onSubmit={handleSubmit}
             onKeyDown={(event) => {
-              if (event.key === 'Escape') close()
+              if (event.key !== 'Escape') return
+              event.stopPropagation()
+              close()
             }}
           >
             <div>
