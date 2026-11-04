@@ -2,7 +2,7 @@
 
 Seeded from OpenConstructionERP's public module map (v19, Nov 2026), ordered by dependency for a contractor-focused MVP. Statuses were set by Phase D on 2026-11-04 from the gap analysis [`reports/01-gap-analysis.md`](reports/01-gap-analysis.md); new rows and dependency changes come from the survey [`oce/survey.md`](oce/survey.md). Rows with status `unrated` were added by the survey and have not been checked against the app yet. Rate them before `/erp-swarm next` picks them.
 
-Status: `todo` · `unrated` · `exists` · `partial` · `in-progress` · `done` · `defer` (`todo` = gap analysis `missing`; `unrated` = survey row not yet checked). "Later." in Notes marks survey not-MVP flags on rows whose Notes were edited; `oce/survey.md` has the full flag list.
+Status: `todo` · `unrated` · `exists` · `partial` · `in-progress` · `done` · `defer` (`todo` = gap analysis `missing`; `unrated` = survey row not yet checked). "Later." in Notes marks some survey not-MVP flags; `oce/survey.md` has the full list.
 
 Paths use the gap report's prefixes: `S/` schema · `M/` migrations · `W/` dashboard routes · `P/` portal · `L/` web lib · `C/` components · `A/` Core API · `T/` shared-types · `O/` operations. Sizes (S/M/L) and defects (D-n) are from the gap report.
 
@@ -18,12 +18,12 @@ Paths use the gap report's prefixes: `S/` schema · `M/` migrations · `W/` dash
 | tax-profile | Tax & registration profile per tenant and counterparty (TIN + branch, VAT status, certificates, withholding-agent class) plus a withholding-rate table | tenancy, contacts | unrated | Unused `tax_profiles` table already in `S/roadmap.ts`; overlaps the tenancy and contacts gaps |
 | projects | Projects & portfolio | tenancy, contacts | exists | `S/projects.ts`, `A/projects/projects.service.ts` |
 | documents | Document store with revisions, private storage, signed URLs | projects | exists | `S/documents.ts`, signed URL route `apps/web/src/app/api/documents/[id]/route.ts`; general docs have no supersede chain |
-| tasks | Tasks / action items: one owner and due-date list that meetings, RFIs, inspections, punch items and approvals feed | projects, rbac, notifications | partial | `W/tasks` task page + cadence generation exist (PR #128); not yet fed by RFIs, punch items or approvals |
+| tasks | Tasks / action items: one owner and due-date list that meetings, RFIs, inspections, punch items and approvals feed | projects, rbac, notifications | unrated | `W/tasks` task page + cadence generation exist (PR #128); rate scope vs row before building |
 
 ## Wave 1 — Estimate
 | Slug | Module | Depends on | Status | Notes |
 |---|---|---|---|---|
-| crm | Sales pipeline: leads and opportunities by bid stage with value, GP, probability and client KYC; a won deal becomes a project | contacts, projects | exists | Same as the shipped CRM (`W/crm`, `W/pipeline`; gap cites `W/crm/accounts`). Status inferred, not rated by the gap report |
+| crm | Sales pipeline: leads and opportunities by bid stage with value, GP, probability and client KYC; a won deal becomes a project | contacts, projects | unrated | Same as the shipped CRM (`W/crm`, `W/pipeline`; gap cites `W/crm/accounts`). App screens exist; rate before building |
 | cost-db | Cost database: labour, material, equipment, subcontract rates | tenancy | partial | Crew/equipment rates settable only by SQL; add rate upkeep with effective dates and a 90-day stale flag. Seed from own DUPAs, never CWICR (S) |
 | assemblies | Assemblies / composite rates built from resources, waste factors | cost-db | partial | Templates can be applied but not authored; add an assembly library editor (S) |
 | conceptual-estimate | Early estimate from floor area or unit counts using historical cost per m² | cost-db, crm | unrated | Later. |
@@ -49,7 +49,7 @@ Paths use the gap report's prefixes: `S/` schema · `M/` migrations · `W/` dash
 | Slug | Module | Depends on | Status | Notes |
 |---|---|---|---|---|
 | progress | Progress tracking / measurement to date | boq | partial | Category % only; add measured qty / % to date per BOQ line at the weekly cut-off (M) |
-| payables | Supplier & subcontractor bills: match to PO and receipt, withhold tax, approve, pay | procurement, tax-profile, approvals | exists | Same as shipped supplier bills (`S/supplier-bills.ts`, `W/finance/payables`, three-way match); flat EWT (D-9). Status inferred, not rated by the gap report |
+| payables | Supplier & subcontractor bills: match to PO and receipt, withhold tax, approve, pay | procurement, tax-profile, approvals | unrated | Same as shipped supplier bills (`S/supplier-bills.ts`, `W/finance/payables`, three-way match); flat EWT (D-9). App screens exist; rate before building |
 | cost-model | 5D cost: budget, committed, actual, forecast per cost head | boq, procurement, payables | exists | `L/operations/project-cost-control.ts`, `W/projects/[id]/cost`; baseline and forecast math wrong (D-3, D-10) |
 | payment-apps | Interim payment applications: work to date, retention, advance recoupment | progress, contracts | partial | Claim amount is typed, not contract-driven; add BOQ valuation less prior, DP recoupment, contract retention + release ledger, LD, both directions, IPC print (L) |
 | invoicing | Invoices, payments, cashflow curve | payment-apps, tax-profile | exists | `A/finance/customer-invoice-*.service.ts`, `W/invoices`; no cashflow curve; defects D-2, D-6–D-8; keep BIR series gapless, cancel not delete |
@@ -67,7 +67,7 @@ Paths use the gap report's prefixes: `S/` schema · `M/` migrations · `W/` dash
 | hse | Safety incidents, toolbox talks, observations | projects | todo | Needs a DOLE-approved safety programme before work starts, safety-officer staffing, toolbox talks |
 | permits | Regulatory permits register (building, fire, electrical, DOLE, occupancy) with countdown and a mobilisation gate | projects, documents | unrated | `W/permits` and `W/projects/[id]/permits` already exist; check before building |
 | handover | Handover & closeout: turnover package, completion certificates, defects period that gates final retention and bond refund | punch-list, documents, payment-apps | unrated | COC and turnover screens exist (`W/coc`, `W/turnover`); check before building |
-| warranty | Warranty tickets with acknowledge and schedule SLAs, tied to the defects period | handover, tasks | exists | Same as shipped warranty (`S/warranty.ts`, `W/warranty`, `P/warranty/[token]`). Status inferred, not rated by the gap report |
+| warranty | Warranty tickets with acknowledge and schedule SLAs, tied to the defects period | handover, tasks | unrated | Same as shipped warranty (`S/warranty.ts`, `W/warranty`, `P/warranty/[token]`). App screens exist; rate before building |
 | quality | Inspections, checklists, NCRs | projects | partial | Later. Hold points and checklists exist; no NCR register (raise, cause, disposition, close) (S) |
 | timesheets | Labour hours / crews | site-diary, cost-db | partial | Later. Only planned vs actual minutes on tasks; no daily crew timesheet, no hours × rate to labour cost codes (M) |
 | equipment | Equipment & fleet | projects | partial | Later. Register and maintenance exist; no usage log per project, no plant cost to cost codes (S) |
@@ -109,9 +109,9 @@ Paths use the gap report's prefixes: `S/` schema · `M/` migrations · `W/` dash
 - 2026-11-04: `approvals` now depends on `notifications` and sits after it.
 - 2026-11-04: `contracts` depends on `boq, contacts` instead of `tendering`; tendering only feeds subcontract awards.
 - 2026-11-04: Added survey dependency edges: `rfi` → variations, tasks; `submittals` → approvals; `meetings` → tasks.
-- 2026-11-04: New `unrated` status for survey-added rows; `tasks` rated `partial` (PR #128).
+- 2026-11-04: New `unrated` status for every survey-added row (incl. `tasks`, `crm`, `payables`, `warranty`, whose app screens exist but are not in the gap report).
 - 2026-11-04: `procurement` depends on `boq, contacts, approvals` instead of `contracts, approvals`.
 - 2026-11-04: Added dependencies: `variations` → approvals, `evm` → schedule, `cost-model` → payables, `invoicing` → tax-profile, `dashboards` → crm.
 - 2026-11-04: `progress` no longer depends on `schedule` and leads Wave 3; `schedule` moves after the money rows.
 - 2026-11-04: Rows reordered within waves to the survey's order (MVP rows first); no wave moves, no rows removed.
-- 2026-11-04: Notes extended per the survey for boq, boq-export, cost-db, contracts, tendering, payment-apps, invoicing and hse; survey "later" flags shown as "Later." on rows whose Notes changed (full list in `oce/survey.md`).
+- 2026-11-04: Notes extended per the survey for boq, boq-export, cost-db, contracts, tendering, payment-apps, invoicing and hse; some survey "later" flags shown as "Later." in Notes (full list in `oce/survey.md`).

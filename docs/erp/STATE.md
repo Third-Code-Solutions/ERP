@@ -95,27 +95,32 @@ Verdicts are posted as PR comments.
   (read-only count, 2026-11-04): 0 DUPAs, 3 BOMs, 3 invoices and 1 PO, all in one
   tenant. No real customer money is affected, so no data correction is needed.
   - **Hardening batch 2 (fix before modules; the rule is clear and consistent with the PRD).**
-    Seven defect IDs in six items:
+    Six defect IDs in five items:
     1. D-5: fractional BOQ quantity via expand/contract, per the additive-only policy
        above. Add a `numeric(18,4)` column, backfill it, then switch readers and writers.
        Drop the integer column in a later contract release.
     2. D-8: BIR 2307 payor/payee reversed.
-    3. D-4: PO header must foot to its lines; the rate-card path must price at the rate card.
+    3. D-4 (part): PO header must foot to its lines; the rate-card path must price at the
+       rate card. The VAT-on-H part of D-4 is deferred with D-9 (Q7).
     4. D-6 guard: cumulative billing ≤ 100%. DP recoupment is deferred (Q4, below).
     5. D-14 + D-15: half-up DP rounding; one decimal-string percent parser.
-    6. D-10: open-line forecast = max(budget, committed, actual).
 - Deferred P1 items (with reason): waiting on the owner's money-policy answers (see
   Blockers). The PRD makes these business policy, so the agent will not guess them:
   - D-1 cost vs sell on DUPA lines (Q1, Q2);
   - D-2 VAT inside H plus VAT on the invoice (Q1);
   - D-3 budget baseline basis (Q2);
+  - D-10 open-line forecast = max(budget, committed, actual). It must follow D-3: today's
+    budget baseline includes profit and VAT, so the new forecast would push projected GP
+    to zero or below (Q2). A builder was stopped for this reason in review round 2;
   - D-6 DP recoupment only; the cap is in batch item 4 (Q4);
   - D-7 VAT/EWT on retention (Q3; conflicts with PRD A13);
-  - D-9 PO EWT 1%/2% and non-VAT suppliers (Q7; PRD A13 and WO-15 say carry forward);
+  - D-9 PO EWT 1%/2% and non-VAT suppliers, plus the D-4 VAT-on-H part (Q7; PRD A13 and
+    WO-15 say carry forward);
   - D-11 DP invoice tax (Q4);
   - D-12 Togal 30% markup (Q9).
-- Not deferred and not in the batch: D-13 (hard-coded retention) is fixed by the
-  `tenancy` module (apply `tax_profiles`).
+- D-13 (hard-coded retention): the `tenancy` module only replaces the constant with the
+  tenant's `tax_profiles.retention_rate_bps`, defaulting to today's 10%, so behaviour is
+  unchanged until a tenant edits it. Contract-level retention waits for `contracts` and Q3.
 - Accepted risk: no environment protection or branch protection (plan blocks it);
   see `docs/erp/RUNBOOK.md` section 5.
 
@@ -129,7 +134,7 @@ RUNBOOK) is **done**.
 - The daily-task completion flag (`ERP_DAILY_TASK_COMPLETION_WRITES_VIA_API`,
   `buildops-e2e` tenant only) went live with this deploy.
 - Mandate PHASE 2 (`next --auto` through Wave 2) **started 2026-11-04**. Phase D is
-  done. Next: hardening batch 2 (items 1–6 above), then modules in gap-report order:
+  done. Next: hardening batch 2 (items 1–5 above), then modules in gap-report order:
   `tenancy` → `approvals` → `contacts` → `cost-db` → `assemblies` → `boq` → `contracts`.
 
 - Merged 2026-11-04 (all CI green, security PASS, review APPROVE posted on the PR):
@@ -221,7 +226,7 @@ RUNBOOK) is **done**.
 | Date | Mode | Result |
 |---|---|---|
 | 2026-11-04 | decision | Owner: "continue to phase 2" → clean-room approved, strict mode (public material only) |
-| 2026-11-04 | phase D | Survey (63 rows) + gap analysis (15/19/3/8); 15 money defects: 7 IDs in 6 batch-2 items (D-6 cap only), D-13 via tenancy, the rest deferred to owner Q1–Q10 |
+| 2026-11-04 | phase D | Survey (63 rows) + gap analysis (15/19/3/8); 15 money defects: 6 IDs in 5 batch-2 items (D-4 part, D-6 cap only), the rest deferred to owner Q1–Q10 (D-10 behind D-3) |
 | 2026-11-04 | prod config | Set `ERP_DAILY_TASK_COMPLETION_WRITES_VIA_API=true` + `_TENANT_IDS=<buildops-e2e>` in Vercel production (owner approved); applies on the next prod deploy |
 | 2026-11-04 | baseline | Phase A: P0 0 · 4 P1 code + 6 security High. Security auditor verdict BLOCK (SEC-01..06) |
 | 2026-11-04 | merge | PR #129 squash-merged `a2313a47` (deps + Next RCE + zod compensating controls) |
