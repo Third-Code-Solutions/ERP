@@ -185,7 +185,7 @@ function chain(rows: unknown[]) {
       reject: (reason: unknown) => unknown
     ) => Promise.resolve(rows).then(resolve, reject),
   }
-  for (const method of ['from', 'where', 'limit', 'for', 'innerJoin', 'set', 'returning']) {
+  for (const method of ['from', 'where', 'limit', 'for', 'orderBy', 'innerJoin', 'set', 'returning']) {
     node[method] = vi.fn(() => node)
   }
   return node
@@ -240,6 +240,7 @@ let lineSeq = 0
 function bomLine(
   values: Partial<{
     code: string | null
+    unit: string | null
     is_group: number
     parent_id: string | null
     parent_line_item_id: string | null
@@ -256,6 +257,13 @@ function bomLine(
     parent_line_item_id: null,
     ...values,
   }
+}
+
+function rateCard(
+  values: { id: string; code: string; vendorId: string | null; unitPriceCents: number } &
+    Partial<{ unit: string; effectiveFrom: Date; effectiveTo: Date | null }>
+) {
+  return { unit: 'pcs', effectiveFrom: new Date(0), effectiveTo: null, ...values }
 }
 
 function sumLineTotals(lines: Row[] | undefined) {
@@ -394,36 +402,40 @@ describe('legacy PO from BOM foots its header to its lines (D-4)', () => {
   it('prices rate-card lines at the rate that chose the vendor, not the BOM cost', async () => {
     const vendorA = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeea'
     const vendorB = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeeb'
-    const header = bomLine({ is_group: 1, quantity: 1, unit_cost_cents: 3_500_000 })
+    const workCostCode = 'ffffffff-ffff-4fff-8fff-fffffffffff1'
+    // A non-group section holds a work item whose material lines are bought.
+    const section = bomLine({ quantity: 0, unit_cost_cents: 0 })
+    const work = bomLine({ parent_id: section.id, quantity: 1, unit_cost_cents: 3_500_000 })
     const cement = bomLine({
       code: 'CEM-40',
-      parent_line_item_id: header.id,
+      unit: 'bag',
+      parent_line_item_id: work.id,
       quantity: 100,
       unit_cost_cents: 26_000,
     })
     const rebar = bomLine({
       code: 'RBR-10',
-      parent_line_item_id: header.id,
+      parent_line_item_id: work.id,
       quantity: 50,
       unit_cost_cents: 18_000,
     })
     const noCard = bomLine({ code: 'NO-CARD', quantity: 2, unit_cost_cents: 99_999 })
     const harness = legacyPoHarness(
+      [[APPROVED_BOM]],
       [
         [APPROVED_BOM],
-        [header, cement, rebar, noCard],
-        [],
+        [section, work, cement, rebar, noCard],
+        [{ bomLineItemId: work.id, costCodeId: workCostCode }],
         [
-          { code: 'CEM-40', vendor_id: vendorB, unit_price_cents: 25_000 },
-          { code: 'CEM-40', vendor_id: vendorA, unit_price_cents: 24_550 },
-          { code: 'RBR-10', vendor_id: vendorA, unit_price_cents: 17_325 },
+          rateCard({ id: 'card-1', code: 'CEM-40', unit: 'bag', vendorId: vendorB, unitPriceCents: 25_000 }),
+          rateCard({ id: 'card-2', code: 'CEM-40', unit: ' BAG ', vendorId: vendorA, unitPriceCents: 24_550 }),
+          rateCard({ id: 'card-3', code: 'RBR-10', vendorId: vendorA, unitPriceCents: 17_325 }),
         ],
         [
           { id: vendorA, name: 'Vendor A' },
           { id: vendorB, name: 'Vendor B' },
         ],
-      ],
-      [[APPROVED_BOM]]
+      ]
     )
 
     const result = await createPosFromBomGrouped(BOM_ID)
@@ -432,6 +444,8 @@ describe('legacy PO from BOM foots its header to its lines (D-4)', () => {
     // rates: 100 x 245.50 + 50 x 173.25 = 33,212.50.
     expect(harness.poInserts).toHaveLength(1)
     const lines = harness.lineInserts[0]!
+    expect(lines.map((line) => line.bom_line_item_id)).toEqual([cement.id, rebar.id])
+    expect(lines.map((line) => line.cost_code_id)).toEqual([workCostCode, workCostCode])
     expect(lines.map((line) => [line.unit_cost_cents, line.line_total_cents])).toEqual([
       [24_550, 2_455_000],
       [17_325, 866_250],
@@ -454,6 +468,81 @@ describe('legacy PO from BOM foots its header to its lines (D-4)', () => {
           vendor_name: 'Unassigned (no rate card match)',
           line_count: 1,
           subtotal_cents: 199_998,
+        },
+      ],
+    })
+  })
+
+  it('ignores zero-price, expired, wrong-unit, vendorless and foreign-vendor cards', async () => {
+    const vendorA = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeea'
+    const vendorB = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeeb'
+    const foreignVendor = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeec'
+    const sand = bomLine({ code: 'SAND', unit: 'cu.m', quantity: 10, unit_cost_cents: 150_000 })
+    const gravel = bomLine({ code: 'GRAVEL', unit: 'cu.m', quantity: 4, unit_cost_cents: 120_000 })
+    const tile = bomLine({ code: 'TILE', unit: 'sqm', quantity: 20, unit_cost_cents: 50_000 })
+    const paint = bomLine({ code: 'PAINT', unit: 'gal', quantity: 3, unit_cost_cents: 70_000 })
+    const wire = bomLine({ code: 'WIRE', unit: 'm', quantity: 100, unit_cost_cents: 2_000 })
+    const harness = legacyPoHarness(
+      [[APPROVED_BOM]],
+      [
+        [APPROVED_BOM],
+        [sand, gravel, tile, paint, wire],
+        [],
+        [
+          // A 0 card must not win the cheapest pick; vendor B's 1,400.00 does.
+          rateCard({ id: 'zero', code: 'SAND', unit: 'cu.m', vendorId: vendorA, unitPriceCents: 0 }),
+          rateCard({ id: 'sand-b', code: 'SAND', unit: 'cu.m', vendorId: vendorB, unitPriceCents: 140_000 }),
+          // An expired card is ignored even when cheaper.
+          rateCard({
+            id: 'expired',
+            code: 'GRAVEL',
+            unit: 'cu.m',
+            vendorId: vendorA,
+            unitPriceCents: 80_000,
+            effectiveTo: new Date(Date.now() - 86_400_000),
+          }),
+          rateCard({ id: 'gravel-b', code: 'GRAVEL', unit: 'cu.m', vendorId: vendorB, unitPriceCents: 110_000 }),
+          // Priced per piece, but the BOM buys tile per sqm.
+          rateCard({ id: 'tile-pcs', code: 'TILE', unit: 'pcs', vendorId: vendorA, unitPriceCents: 30_000 }),
+          // No vendor: the line stays at the BOM price, unassigned.
+          rateCard({ id: 'paint-null', code: 'PAINT', unit: 'gal', vendorId: null, unitPriceCents: 60_000 }),
+          // The vendor is not one of this tenant's vendors.
+          rateCard({ id: 'wire-x', code: 'WIRE', unit: 'm', vendorId: foreignVendor, unitPriceCents: 1_500 }),
+        ],
+        [
+          { id: vendorA, name: 'Vendor A' },
+          { id: vendorB, name: 'Vendor B' },
+        ],
+      ]
+    )
+
+    const result = await createPosFromBomGrouped(BOM_ID)
+
+    // Vendor B: 10 x 1,400.00 + 4 x 1,100.00 = 18,400.00.
+    expect(harness.poInserts).toHaveLength(1)
+    const lines = harness.lineInserts[0]!
+    expect(lines.map((line) => [line.bom_line_item_id, line.unit_cost_cents])).toEqual([
+      [sand.id, 140_000],
+      [gravel.id, 110_000],
+    ])
+    expect(harness.poInserts[0]).toMatchObject({
+      vendor_id: vendorB,
+      subtotal_cents: 1_840_000,
+      vat_cents: 220_800,
+      withholding_tax_cents: 36_800,
+      total_cents: 2_024_000,
+    })
+    expect(harness.poInserts[0]!.subtotal_cents).toBe(sumLineTotals(lines))
+    // Tile, paint and wire stay unassigned at BOM cost: 10,000 + 2,100 + 2,000.
+    expect(result).toEqual({
+      created_po_ids: ['po-1'],
+      groups: [
+        { vendor_id: vendorB, vendor_name: 'Vendor B', line_count: 2, subtotal_cents: 1_840_000 },
+        {
+          vendor_id: null,
+          vendor_name: 'Unassigned (no rate card match)',
+          line_count: 3,
+          subtotal_cents: 1_410_000,
         },
       ],
     })

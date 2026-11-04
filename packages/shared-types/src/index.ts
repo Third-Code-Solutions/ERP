@@ -98,6 +98,7 @@ export {
   topLevelBomLines,
   purchasableBomLines,
   purchaseLineCostCode,
+  rateCardPicker,
   computeTCV,
   computeGP,
   computeGPMargin,

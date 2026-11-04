@@ -6,6 +6,7 @@ import {
   topLevelBomLines,
   purchasableBomLines,
   purchaseLineCostCode,
+  rateCardPicker,
   computeTCV,
   computeGP,
   computeGPMargin,
@@ -125,12 +126,104 @@ describe('purchasableBomLines', () => {
     ])
   })
 
+  it('buys an orphan row whose parent is missing as a leaf', () => {
+    const lines = [row('orphan', { parent_id: 'missing' }), row('flat')]
+
+    expect(purchasableBomLines(lines).map((line) => line.id)).toEqual(['orphan', 'flat'])
+  })
+
   it('carries the work item cost code to its material lines', () => {
     const codes = new Map([['work', 'code-work'], ['own', 'code-own']])
 
     expect(purchaseLineCostCode(codes, { id: 'm', parent_line_item_id: 'work' })).toBe('code-work')
     expect(purchaseLineCostCode(codes, { id: 'own', parent_line_item_id: 'work' })).toBe('code-own')
     expect(purchaseLineCostCode(codes, { id: 'flat', parent_line_item_id: null })).toBeUndefined()
+  })
+})
+
+describe('rateCardPicker', () => {
+  const now = new Date('2026-11-04T00:00:00.000Z')
+  const card = (
+    id: string,
+    values: Partial<{
+      code: string | null
+      unit: string | null
+      vendorId: string | null
+      unitPriceCents: number
+      effectiveFrom: Date
+      effectiveTo: Date | null
+    }> = {},
+  ) => ({
+    id,
+    code: 'CEM-40',
+    unit: 'bag',
+    vendorId: 'vendor-a',
+    unitPriceCents: 24_550,
+    effectiveFrom: new Date('2026-01-01T00:00:00.000Z'),
+    effectiveTo: null,
+    ...values,
+  })
+  const vendors = new Set(['vendor-a', 'vendor-b'])
+  const cement = { code: 'CEM-40', unit: 'bag' }
+
+  it('picks the cheapest card and breaks price ties by the lowest id', () => {
+    const pick = rateCardPicker(
+      [card('c3', { unitPriceCents: 25_000 }), card('c2'), card('c1', { vendorId: 'vendor-b' })],
+      vendors,
+      now,
+    )
+
+    expect(pick(cement)?.id).toBe('c1')
+  })
+
+  it('ignores zero and negative prices, so a 0 card never wins the cheapest pick', () => {
+    const pick = rateCardPicker(
+      [card('zero', { unitPriceCents: 0 }), card('negative', { unitPriceCents: -1 }), card('valid')],
+      vendors,
+      now,
+    )
+
+    expect(pick(cement)?.id).toBe('valid')
+    expect(rateCardPicker([card('zero', { unitPriceCents: 0 })], vendors, now)(cement)).toBeUndefined()
+  })
+
+  it('ignores expired and not-yet-effective cards', () => {
+    const pick = rateCardPicker(
+      [
+        card('expired', { unitPriceCents: 1, effectiveTo: new Date('2026-11-03T23:59:59.000Z') }),
+        card('ends-now', { unitPriceCents: 2, effectiveTo: now }),
+        card('future', { unitPriceCents: 3, effectiveFrom: new Date('2026-11-05T00:00:00.000Z') }),
+        card('current', { effectiveTo: new Date('2026-12-31T00:00:00.000Z') }),
+      ],
+      vendors,
+      now,
+    )
+
+    expect(pick(cement)?.id).toBe('current')
+  })
+
+  it('ignores a card whose unit does not match the BOM line unit', () => {
+    const pick = rateCardPicker(
+      [card('kg', { unit: 'kg', unitPriceCents: 1 }), card('bag', { unit: '  BAG ' })],
+      vendors,
+      now,
+    )
+
+    expect(pick(cement)?.id).toBe('bag')
+    expect(pick({ code: 'CEM-40', unit: 'sqm' })).toBeUndefined()
+    expect(pick({ code: 'CEM-40', unit: null })).toBeUndefined()
+  })
+
+  it('ignores cards of unknown vendors but keeps vendorless cards', () => {
+    const pick = rateCardPicker(
+      [card('other-tenant', { vendorId: 'vendor-x', unitPriceCents: 1 }), card('vendorless', { vendorId: null })],
+      vendors,
+      now,
+    )
+
+    expect(pick(cement)?.id).toBe('vendorless')
+    expect(pick({ code: 'NO-CARD', unit: 'bag' })).toBeUndefined()
+    expect(pick({ code: null, unit: 'bag' })).toBeUndefined()
   })
 })
 

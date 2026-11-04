@@ -34,6 +34,7 @@ import {
   purchaseOrderCreationResultSchema,
   purchasableBomLines,
   purchaseLineCostCode,
+  rateCardPicker,
   type CreatePurchaseOrderFromBomCommand,
   type CreatePurchaseOrdersGroupedFromBomCommand,
   type CreatePurchaseOrderCommand,
@@ -378,8 +379,11 @@ export class PurchaseOrderCreationService {
         .select({
           id: rateCards.id,
           code: materialItems.code,
+          unit: materialItems.unit,
           vendorId: rateCards.vendor_id,
           unitPriceCents: rateCards.unit_price_cents,
+          effectiveFrom: rateCards.effective_from,
+          effectiveTo: rateCards.effective_to,
         })
         .from(rateCards)
         .innerJoin(
@@ -394,9 +398,10 @@ export class PurchaseOrderCreationService {
             eq(rateCards.tenant_id, authorizedPrincipal.tenantId),
             lte(rateCards.effective_from, now),
             or(isNull(rateCards.effective_to), gt(rateCards.effective_to, now)),
-            sql`${rateCards.unit_price_cents} >= 0`
+            gt(rateCards.unit_price_cents, 0)
           )
         )
+        .orderBy(rateCards.unit_price_cents, rateCards.id)
         .for('share')
 
       const candidateVendorIds = [
@@ -420,27 +425,11 @@ export class PurchaseOrderCreationService {
         vendorRows.map((vendor) => [vendor.id, vendor.name])
       )
 
-      const bestByCode = new Map<
-        string,
-        { vendorId: string | null; unitPriceCents: number; rateCardId: string }
-      >()
-      for (const card of cards) {
-        if (!card.code || card.unitPriceCents < 0) continue
-        if (card.vendorId && !vendorNameById.has(card.vendorId)) continue
-        const existing = bestByCode.get(card.code)
-        if (
-          !existing ||
-          card.unitPriceCents < existing.unitPriceCents ||
-          (card.unitPriceCents === existing.unitPriceCents &&
-            card.id < existing.rateCardId)
-        ) {
-          bestByCode.set(card.code, {
-            vendorId: card.vendorId,
-            unitPriceCents: card.unitPriceCents,
-            rateCardId: card.id,
-          })
-        }
-      }
+      const pickRateCard = rateCardPicker(
+        cards,
+        new Set(vendorNameById.keys()),
+        now
+      )
 
       interface Bucket {
         vendorId: string | null
@@ -448,7 +437,7 @@ export class PurchaseOrderCreationService {
       }
       const buckets = new Map<string, Bucket>()
       for (const line of lines) {
-        const best = line.code ? bestByCode.get(line.code) : undefined
+        const best = pickRateCard(line)
         const vendorId = best?.vendorId ?? null
         // D-4: the rate card that chose the vendor also prices the line.
         const pricedLine =
