@@ -54,6 +54,7 @@ function routesForProject(projectId: string) {
     '/finance/payables',
     '/finance/reconciliation',
     '/reports',
+    '/tasks',
     '/settings',
   ] as const
 }

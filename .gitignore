@@ -168,3 +168,6 @@ output/playwright/
 
 # Local agent workspace state
 .serena/
+
+# Local production database dumps (never commit)
+backups/
