@@ -18,7 +18,10 @@ overrides:
   source-map-js: 1.2.2
   multer: 2.5.0
   body-parser: 2.4.0
-  systeminformation: 5.33.19
+  systeminformation: 5.33.16
+  # Build-time only. @nestjs/cli pins glob 13.0.6; GHSA-3g3m-2fjr-6pw4 covers
+  # glob >=9 <=14.0.1 and the first patch is 14.0.2 (same API for the CLI).
+  "@nestjs/cli>glob": 14.0.2
   "@ai-sdk/provider-utils@4": 4.0.33
   shell-quote: 1.11.0
   # ABI OPS calls Mammoth's library, never its optional command-line program.
@@ -26,7 +29,6 @@ overrides:
   "mammoth@1.12.0>argparse": "-"
   tmp: 0.2.7
   fast-uri: 3.1.9
-  "@nestjs/cli>glob": 14.0.3
   js-yaml: 4.3.2
   "vite>esbuild": 0.28.2
   "drizzle-kit>esbuild": 0.28.2
@@ -54,28 +56,47 @@ overrides:
 # verifies clean. This waiver names one advisory; the audit level is unchanged
 # and every other advisory still fails the gate.
 #
-# GHSA-gcqx-w48m-w2h4 (deepmerge, low) has no patched release at all. It is
-# reachable only from the Nest CLI build tool
-#   @nestjs/cli > fork-ts-checker-webpack-plugin > deepmerge
-# and is absent from the production graph. Trigger: a deepmerge patch.
+# The following three waivers are time-boxed to 2026-12-04
+# (docs/changesets/2026-11-04-dependency-audit-remediation.md).
 #
-# Two further waivers cover production-graph advisories with no compatible fix
-# published. Each is a recorded risk acceptance, to be removed when its trigger
-# is met (see docs/changesets/2026-11-02-production-readiness-audit.md):
-#   GHSA-mrhx-c7xc-m3w5 (zod DoS on oversized constrained collections) is fixed
-#     only in zod >= 4.6.6; the repo is on zod 3.25.76 (231 importing files), a
-#     major migration. Exposure is bounded by request-size caps (API JSON 4 MB,
-#     Server Actions 3 MB). Trigger: zod 4 migration.
-#   GHSA-g3hv-75wg-m249 (minimatch DoS via globparts amplification) is fixed
-#     only in minimatch >= 11.0.1, which is API-incompatible with the glob@7 that
-#     exceljs > archiver > archiver-utils requires. The patterns are archiver
-#     internals, never request input. Trigger: exceljs/archiver upgrade.
+# - zod GHSA-mrhx-c7xc-m3w5 (direct prod dependency: api, web, operations,
+#   shared-types; also openai > zod): only zod >=4.6.6 is patched, a major
+#   upgrade across ~230 files. zod 3 is affected too: ZodArray records one
+#   issue per failing element and `.max()` does not stop early, so an
+#   oversized invalid array costs ~200 MB of heap per MB of body. Compensating
+#   controls until the migration:
+#     * Core API: `rejectOversizedJsonArrays` (apps/api/src/main.ts) rejects
+#       bodies with more than 20,000 array elements before guards and pipes.
+#     * Core API: every non-public route sits behind the global Supabase JWT
+#       guard, which runs before pipes; the DocuSeal webhook checks its token
+#       before validating; public signing and vendor confirmation bodies have
+#       no array or record fields.
+#     * Web: Server Action bodies are capped at 3 MB (next.config.ts).
+#     * Web: Route Handlers that call `request.json()` have no app-level cap;
+#       Vercel's ~4.5 MB request limit applies.
+#   Residual risk, authenticated callers only:
+#     * Core API array-shaped bodies: ~0.2 s and ~76 MB heap per request
+#       under the budget (was ~4.5 s and ~1 GB).
+#     * Core API takeoff import: `raw` is a record of a 3-way union, so a
+#       2.4 MB body of failing keys still costs ~0.9 GB (follow-up in
+#       docs/changesets/2026-11-04-dependency-audit-remediation.md).
+#     * Web: one Server Action or Route Handler invocation can allocate
+#       several hundred MB.
+#   Remove the waiver with the zod 4 migration.
+# - minimatch GHSA-g3hv-75wg-m249 (exceljs > archiver > glob@7 > minimatch@3,
+#   archiver-utils > glob@8 > minimatch@5): only 11.0.1 is patched. Patterns
+#   are library-fixed; an attack needs attacker-controlled glob patterns,
+#   which no ABI OPS input provides. The 11.x API is incompatible with those
+#   consumers.
+# - deepmerge GHSA-gcqx-w48m-w2h4 (@nestjs/cli > fork-ts-checker-webpack-plugin
+#   > deepmerge): no patched release exists. Build-time only; it merges local
+#   build config and is absent from the production graph.
 auditConfig:
   ignoreGhsas:
     - GHSA-vfj7-8cjw-p6xm
-    - GHSA-gcqx-w48m-w2h4
     - GHSA-mrhx-c7xc-m3w5
     - GHSA-g3hv-75wg-m249
+    - GHSA-gcqx-w48m-w2h4
 
 peerDependencyRules:
   ignoreMissing:

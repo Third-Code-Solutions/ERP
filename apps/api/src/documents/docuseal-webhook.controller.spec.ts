@@ -27,6 +27,27 @@ describe('DocuSeal webhook HTTP contract', () => {
 
     expect(() => controller.receive(COMMAND, undefined)).toThrow('Unauthorized')
     expect(() => controller.receive(COMMAND, 'wrong')).toThrow('Unauthorized')
+    // The token is checked before the payload is validated.
+    expect(() => controller.receive({ documents: [1] }, 'wrong')).toThrow('Unauthorized')
+    expect(service.handle).not.toHaveBeenCalled()
+    await moduleRef.close()
+  })
+
+  it('rejects an invalid payload only after the token matches', async () => {
+    const service = { handle: vi.fn() }
+    const token = 'x'.repeat(32)
+    const moduleRef = await Test.createTestingModule({
+      controllers: [DocuSealWebhookController],
+      providers: [
+        { provide: DocuSealWebhookService, useValue: service },
+        { provide: ConfigService, useValue: { get: () => token } },
+      ],
+    }).compile()
+    const controller = moduleRef.get(DocuSealWebhookController)
+
+    expect(() => controller.receive({ documents: [1] }, token)).toThrow(
+      'Invalid DocuSeal webhook payload'
+    )
     expect(service.handle).not.toHaveBeenCalled()
     await moduleRef.close()
   })
