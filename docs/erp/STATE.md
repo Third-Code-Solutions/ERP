@@ -173,14 +173,17 @@ waits for the licensing decision.
     `a21fd382-80b2-4218-8025-11f420a062e3` is needed.
   - Web stays on `04b3ac5a` (Next.js 15.5.25 locked) until the promotion runs. That
     version is affected by GHSA-2464-fhr4-w9xw (image optimizer SVG RCE) and
-    GHSA-p3m5-59mp-jv5r (Server Actions DoS). Its `next.config.ts` sets no
-    `dangerouslyAllowSVG` and no `remotePatterns`, the same mitigating setup the
-    security baseline found; the DoS has no config mitigation.
+    GHSA-p3m5-59mp-jv5r (Server Actions DoS). The security baseline's RCE
+    mitigation has two parts: sharp >= 0.35.5 and no SVG/remote image config.
+    At `04b3ac5a` only the config half holds: `next.config.ts` sets no
+    `dangerouslyAllowSVG` or `remotePatterns`, but the lockfile resolves sharp
+    0.35.4, below the floor. **The RCE mitigation is not fully in place on web until
+    the promotion runs**; the DoS has no config mitigation.
+  - An out-of-band Vercel deploy was not attempted: the Vercel MCP account gets 403
+    on project env, and bypassing the workflow would skip its release gates.
 - **Railway auto-deploy (owner decision):** keep or disable the GitHub integration
   that deploys the API on push to `main` outside the promotion gates (see
   Production facts).
-  - An out-of-band Vercel deploy was not attempted: the Vercel MCP account gets 403
-    on project env, and bypassing the workflow would skip its release gates.
 - **Licensing (gates Phase D and mandate PHASE 2):** the module loop clean-room reverse-engineers
   OpenConstructionERP, which is AGPL-3.0, into closed SaaS. The package README says a
   lawyer must confirm this. It falls under the owner's stop rule, so the owner must
