@@ -206,6 +206,88 @@ function objectRecord(value: unknown): Record<string, unknown> | null {
     : null
 }
 
+async function runAwardScenario(tcvCents: number, downPaymentBps: number) {
+  const selectResults: SelectResult[] = [
+    [],
+    [
+      {
+        id: 'bom-1',
+        tenantId: 'tenant-1',
+        projectId: 'project-1',
+        opportunityId: null,
+        status: 'locked',
+        tcvCents,
+      },
+    ],
+    [{ id: 'project-1', accountId: null, projectCode: 'PRJ-2026-0001' }],
+    [],
+    [
+      line({ id: 'parent', lineTotalCents: 10_000 }),
+      line({
+        id: 'material-child',
+        kind: 'material_line',
+        description: 'Cement',
+        lineTotalCents: 4_000,
+        parentLineItemId: 'parent',
+      }),
+    ],
+    [{ id: 'creator-1' }],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+  ]
+  const select = vi.fn(() => {
+    const result = selectResults.shift()
+    if (!result) throw new Error('unexpected select')
+    return new SelectChain(result)
+  })
+  const execute = vi.fn(async () => [])
+  const insertedValues: unknown[] = []
+  const insert = vi.fn(
+    () =>
+      new WriteChain([], (values) => {
+        insertedValues.push(values)
+        const record = objectRecord(values)
+        if (record && 'source_bom_id' in record) {
+          return new WriteChain([{ id: 'budget-1' }])
+        }
+        if (record && 'invoice_number' in record) {
+          return new WriteChain([{ id: 'invoice-1' }])
+        }
+        if (record?.name === 'Project Tracker') {
+          return new WriteChain([{ id: 'tracker-1' }])
+        }
+        if (typeof record?.code === 'string' && record.code.startsWith('AWD-')) {
+          return new WriteChain([{ id: 'cost-code-1' }])
+        }
+        if (typeof record?.code === 'string' && record.code.startsWith('AWARD.')) {
+          return new WriteChain([{ id: record.code, slaDays: 2 }])
+        }
+        return new WriteChain()
+      }),
+  )
+  const update = vi.fn(() => new WriteChain())
+
+  const result = await runSignedBomAward(
+    asAwardTransaction({ execute, select, update, insert }),
+    { tenantId: 'tenant-1', bomId: 'bom-1', actorId: null, downPaymentBps },
+  )
+  const invoiceInsert = insertedValues.find((values) => {
+    const record = objectRecord(values)
+    return record?.invoice_number === 'AWD-DP-PRJ-2026-0001'
+  })
+  return { result, insertedValues, invoiceInsert }
+}
+
 describe('runSignedBomAward hierarchy validation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -254,80 +336,7 @@ describe('runSignedBomAward hierarchy validation', () => {
   })
 
   it('creates one budget line for the parent amount, not the attached material amount', async () => {
-    const selectResults: SelectResult[] = [
-      [],
-      [
-        {
-          id: 'bom-1',
-          tenantId: 'tenant-1',
-          projectId: 'project-1',
-          opportunityId: null,
-          status: 'locked',
-          tcvCents: 100_000,
-        },
-      ],
-      [{ id: 'project-1', accountId: null, projectCode: 'PRJ-2026-0001' }],
-      [],
-      [
-        line({ id: 'parent', lineTotalCents: 10_000 }),
-        line({
-          id: 'material-child',
-          kind: 'material_line',
-          description: 'Cement',
-          lineTotalCents: 4_000,
-          parentLineItemId: 'parent',
-        }),
-      ],
-      [{ id: 'creator-1' }],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-    ]
-    const select = vi.fn(() => {
-      const result = selectResults.shift()
-      if (!result) throw new Error('unexpected select')
-      return new SelectChain(result)
-    })
-    const execute = vi.fn(async () => [])
-    const insertedValues: unknown[] = []
-    const insert = vi.fn(
-      () =>
-        new WriteChain([], (values) => {
-          insertedValues.push(values)
-          const record = objectRecord(values)
-          if (record && 'source_bom_id' in record) {
-            return new WriteChain([{ id: 'budget-1' }])
-          }
-          if (record && 'invoice_number' in record) {
-            return new WriteChain([{ id: 'invoice-1' }])
-          }
-          if (record?.name === 'Project Tracker') {
-            return new WriteChain([{ id: 'tracker-1' }])
-          }
-          if (typeof record?.code === 'string' && record.code.startsWith('AWD-')) {
-            return new WriteChain([{ id: 'cost-code-1' }])
-          }
-          if (typeof record?.code === 'string' && record.code.startsWith('AWARD.')) {
-            return new WriteChain([{ id: record.code, slaDays: 2 }])
-          }
-          return new WriteChain()
-        }),
-    )
-    const update = vi.fn(() => new WriteChain())
-
-    const result = await runSignedBomAward(
-      asAwardTransaction({ execute, select, update, insert }),
-      { tenantId: 'tenant-1', bomId: 'bom-1', actorId: null, downPaymentBps: 2_500 },
-    )
+    const { result, insertedValues, invoiceInsert } = await runAwardScenario(100_000, 2_500)
 
     const budgetLineInsert = insertedValues.find(
       (values) =>
@@ -339,10 +348,6 @@ describe('runSignedBomAward hierarchy validation', () => {
             'bom_line_item_id' in value,
         ),
     )
-    const invoiceInsert = insertedValues.find((values) => {
-      const record = objectRecord(values)
-      return record?.invoice_number === 'AWD-DP-PRJ-2026-0001'
-    })
     expect(result.budgetId).toBe('budget-1')
     expect(budgetLineInsert).toEqual([
       expect.objectContaining({
@@ -365,6 +370,31 @@ describe('runSignedBomAward hierarchy validation', () => {
         entityType: 'award_handoff',
         action: 'create',
       })
+    )
+  })
+})
+
+describe('down-payment invoice subtotal rounding (D-14)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it.each([
+    // [label, TCV centavos, DP bps, expected subtotal centavos]
+    ['normal: 25% of PHP 1,000.00', 100_000, 2_500, 25_000],
+    ['zero down payment', 100_000, 0, 0],
+    ['.5 tie rounds up: 15% of PHP 1,234,567.90 = 18,518,518.5', 123_456_790, 1_500, 18_518_519],
+    ['messy, rounds down: 12.34% of 987,654,321 = 121,876,543.2114', 987_654_321, 1_234, 121_876_543],
+    ['messy, rounds up: 33.33% of 999,999,999 = 333,299,999.6667', 999_999_999, 3_333, 333_300_000],
+  ])('%s', async (_label, tcvCents, downPaymentBps, expected) => {
+    const { invoiceInsert } = await runAwardScenario(tcvCents, downPaymentBps)
+
+    expect(invoiceInsert).toEqual(
+      expect.objectContaining({
+        billing_percent_bps: downPaymentBps,
+        subtotal_cents: expected,
+        net_amount_cents: expected,
+      }),
     )
   })
 })
