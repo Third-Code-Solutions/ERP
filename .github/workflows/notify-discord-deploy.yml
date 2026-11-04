@@ -17,7 +17,7 @@ jobs:
       github.event.deployment_status.state == 'success' ||
       github.event.deployment_status.state == 'failure' ||
       github.event.deployment_status.state == 'error'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       DISCORD_WEBHOOK: ${{ secrets.DISCORD_DEPLOY_WEBHOOK }}
       STATE: ${{ github.event.deployment_status.state }}

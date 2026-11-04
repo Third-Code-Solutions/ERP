@@ -1,11 +1,23 @@
 # Blocker — Core API `/ready` never answers in production; Core-backed screens fail closed
 
-Status: **code fixed, deploy outstanding.** Production is still degraded until
-the Core API is redeployed.
+Status: **RESOLVED (verified 2026-11-02).** The fix was deployed to Railway
+(`Third Code ERP API`, deployment `4a2409d1`, SUCCESS, 2026-10-13). Live probes
+on 2026-11-02:
 
-## What is happening
+| Probe | Result |
+|---|---|
+| `https://third-code-erp-api-production.up.railway.app/ready` | 200 in 0.19s — `{"status":"ready","database":"ok","redis":"ok"}` |
+| `…/health` | 200 — `{"status":"ok","service":"abi-ops-api"}` |
+| `…/v1/projects` (unauthenticated) | 401 |
+| `https://thirdcode-erp.vercel.app/api/health` | 200 — `dependencies.coreApi.state = "ok"` |
 
-`https://thirdcode-erp-api-production.up.railway.app/ready` does not respond.
+The historical record below keeps its findings, moved to the past tense. Its
+domain (`thirdcode-erp-api-…`) was mistyped and is corrected to
+`third-code-erp-api-production.up.railway.app`.
+
+## What was happening
+
+`https://third-code-erp-api-production.up.railway.app/ready` did not respond.
 Measured from outside Railway:
 
 | Probe | Result |
