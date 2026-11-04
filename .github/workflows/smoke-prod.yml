@@ -1,0 +1,52 @@
+name: Production smoke
+
+# Read-only smoke against the live deployment with the dedicated E2E tenant
+# (`pnpm smoke:prod`; covered routes are listed in scripts/smoke-prod.mjs).
+# Run after every production deploy; a failure means roll back
+# (docs/erp/RUNBOOK.md). The target URL is pinned in the script so the E2E
+# credentials can never be sent to another host.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: production-smoke
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Production smoke
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04 # Playwright chromium does not support ubuntu-26.04 yet
+    timeout-minutes: 20
+    environment:
+      name: production
+      url: https://thirdcode-erp.vercel.app
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@a15d269cd4658e1107c09f1fabf4cbd7bd1f308a # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install Playwright browsers
+        working-directory: apps/web
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list \
+            /etc/apt/sources.list.d/google-chrome.sources
+          pnpm exec playwright install --with-deps chromium
+      # Secrets are scoped to this step only, not to install lifecycle scripts.
+      - name: Run production smoke
+        env:
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          E2E_USER_EMAIL: ${{ secrets.E2E_USER_EMAIL }}
+          E2E_USER_PASSWORD: ${{ secrets.E2E_USER_PASSWORD }}
+          E2E_PROJECT_ID: ${{ vars.PRODUCTION_E2E_PROJECT_ID }}
+        run: pnpm smoke:prod

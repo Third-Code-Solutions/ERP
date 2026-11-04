@@ -1,0 +1,77 @@
+name: Production backup
+
+# Logical dump of the production database (roles, schema, data) taken before
+# every production migration (docs/erp/RUNBOOK.md, section 3). The dump is
+# encrypted on the runner to the operator RSA public key pinned in the
+# `production` environment variable PRODUCTION_BACKUP_PUBLIC_KEY, so the 1-day
+# artifact is unreadable without the private key, which never leaves the
+# operator's machine. The key is not a dispatch input: a caller must not be able
+# to choose who can read the dump. The connection string stays in the
+# `production` environment and is never printed.
+#
+# This job must stay on a GitHub-hosted runner: plaintext dumps touch its disk.
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: Migration or change this backup guards
+        required: true
+        type: string
+
+concurrency:
+  group: production-backup
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    name: Encrypted production dump
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: production
+    steps:
+      - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
+        with:
+          version: 2.109.1
+      - name: Dump and encrypt
+        shell: bash
+        env:
+          SUPABASE_MIGRATION_DATABASE_URL: ${{ secrets.SUPABASE_MIGRATION_DATABASE_URL }}
+          PUBLIC_KEY_B64: ${{ vars.PRODUCTION_BACKUP_PUBLIC_KEY }}
+          BACKUP_REASON: ${{ inputs.reason }}
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "$SUPABASE_MIGRATION_DATABASE_URL" || { echo "::error::SUPABASE_MIGRATION_DATABASE_URL is not set"; exit 1; }
+          test -n "$PUBLIC_KEY_B64" || { echo "::error::PRODUCTION_BACKUP_PUBLIC_KEY is not set"; exit 1; }
+          work="$RUNNER_TEMP/backup"
+          mkdir -p "$work" out
+          trap 'shred -u "$work"/*.sql "$work"/dump.tgz "$work"/key.txt 2>/dev/null || true' EXIT
+          printf '%s' "$PUBLIC_KEY_B64" | base64 -d > "$work/operator.pem"
+          key_text="$(openssl pkey -pubin -in "$work/operator.pem" -noout -text)"
+          grep -q '^Public-Key: (4096 bit)$' <<<"$key_text" || { echo "::error::Backup key must be RSA 4096"; exit 1; }
+          grep -q '^Modulus:' <<<"$key_text" || { echo "::error::Backup key must be RSA"; exit 1; }
+          ts="$(date -u +%Y%m%dT%H%M%SZ)"
+          supabase db dump --db-url "$SUPABASE_MIGRATION_DATABASE_URL" --role-only -f "$work/roles.sql"
+          supabase db dump --db-url "$SUPABASE_MIGRATION_DATABASE_URL" -f "$work/schema.sql"
+          supabase db dump --db-url "$SUPABASE_MIGRATION_DATABASE_URL" --data-only --use-copy -f "$work/data.sql"
+          for f in roles schema data; do test -s "$work/$f.sql" || { echo "::error::$f.sql is empty"; exit 1; }; done
+          (cd "$work" && sha256sum roles.sql schema.sql data.sql) > "$work/SHA256SUMS.txt"
+          printf '%s\n' "$BACKUP_REASON" > "out/$ts-reason.txt"
+          tar -C "$work" -czf "$work/dump.tgz" roles.sql schema.sql data.sql SHA256SUMS.txt
+          openssl rand -hex 32 > "$work/key.txt"
+          openssl enc -aes-256-cbc -pbkdf2 -salt -in "$work/dump.tgz" \
+            -out "out/$ts-dump.tgz.enc" -pass "file:$work/key.txt"
+          openssl pkeyutl -encrypt -pubin -inkey "$work/operator.pem" \
+            -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 -pkeyopt rsa_mgf1_md:sha256 \
+            -in "$work/key.txt" -out "out/$ts-key.enc"
+          ls -l out
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: production-backup
+          path: out/
+          retention-days: 1
+          if-no-files-found: error

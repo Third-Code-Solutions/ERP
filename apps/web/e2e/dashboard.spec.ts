@@ -8,7 +8,8 @@ test.describe('Executive Dashboard', () => {
 
   test('dashboard loads with KPI cards', async ({ page }) => {
     await page.goto('/dashboard')
-    await expect(page.locator('h1')).toContainText('Dashboard')
+    // Executive view renders "Workspace overview"; other roles get "My work".
+    await expect(page.locator('h1')).toContainText(/Workspace overview|My work/)
     // KPI cards should be present
     await expect(page.locator('.page-title')).toBeVisible()
   })
@@ -22,7 +23,7 @@ test.describe('Executive Dashboard', () => {
 
   test('navigating to projects from dashboard works', async ({ page }) => {
     await page.goto('/dashboard')
-    await page.getByRole('link', { name: /^projects$/i }).click()
+    await page.getByRole('link', { name: /^projects$/i }).first().click()
     await expect(page).toHaveURL(/projects/)
   })
 })

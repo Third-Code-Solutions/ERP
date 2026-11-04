@@ -8,6 +8,7 @@ export const REFS = [
   ["pnpm/action-setup", "refs/tags/v4.4.0"],
   ["actions/setup-node", "refs/tags/v4.4.0"],
   ["actions/upload-artifact", "refs/tags/v4.6.2"],
+  ["supabase/setup-cli", "refs/tags/v3.0.0"],
 ];
 
 export function getStatus(

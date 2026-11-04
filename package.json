@@ -19,6 +19,7 @@
     "test:production-auth-proof": "node --test scripts/verify-production-auth-proof.test.mjs",
     "test:production-ci": "node --test scripts/verify-production-ci.test.mjs",
     "test:production-surface": "node --test scripts/verify-production-surface.test.mjs",
+    "smoke:prod": "node scripts/smoke-prod.mjs",
     "test:demo-tenant": "node --test scripts/lib/demo-tenant.test.mjs",
     "test:process-sla-sql": "node --test scripts/verify-process-sla-migration.test.mjs",
     "test:wo-04-migration": "node --test scripts/verify-wo-04-migration.test.mjs",

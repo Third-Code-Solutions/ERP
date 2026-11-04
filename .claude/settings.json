@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./**/.env)",
+      "Read(./**/.env.*)",
+      "Edit(./**/.env*)",
+      "Write(./**/.env*)",
+      "Read(./backups/**)",
+      "Read(./**/*.pem)",
+      "Read(./**/*.key)",
+      "Read(~/.erp-backup/**)",
+      "Read(~/.config/gh/**)",
+      "Read(~/.railway/**)",
+      "Read(~/.supabase/**)",
+      "Bash(git push -u origin main:*)",
+      "Bash(git push origin HEAD:main:*)",
+      "Bash(git push origin +main:*)",
+      "Bash(git push --delete:*)",
+      "Bash(git push origin --delete:*)",
+      "Bash(supabase db reset:*)",
+      "Bash(supabase db push:*)",
+      "Bash(supabase link:*)",
+      "Bash(gh pr merge --admin:*)",
+      "Bash(gh secret set:*)",
+      "Bash(gh secret delete:*)",
+      "Bash(vercel env pull:*)",
+      "Bash(vercel env rm:*)",
+      "Bash(railway variables:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git push --force-with-lease:*)",
+      "Bash(git push origin main:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git clean -fd:*)",
+      "Bash(drizzle-kit push:*)",
+      "Bash(npx drizzle-kit push:*)"
+    ]
+  }
+}
