@@ -166,11 +166,13 @@ export function progressBillingAmount(
 }
 
 const PERCENT_DECIMAL = /^(\d*)(?:\.(\d*))?$/
+const MAX_PERCENT_INPUT_LENGTH = 32
 
 // D-15: exact decimal-string percent -> basis points, half-up at the bps
 // level ("12.345" -> 1235). Returns null for anything that is not a plain
 // non-negative decimal (signs, exponents, separators, empty input).
 export function parsePercentToBps(input: string): BasisPoints | null {
+  if (input.length > MAX_PERCENT_INPUT_LENGTH) return null
   const match = PERCENT_DECIMAL.exec(input.trim())
   const whole = match?.[1] ?? ''
   const fraction = match?.[2] ?? ''

@@ -341,4 +341,11 @@ describe('parsePercentToBps (D-15)', () => {
     }
     expect(parsePercentToBps('9'.repeat(20))).toBeNull()
   })
+
+  it('rejects input longer than 32 characters before parsing', () => {
+    expect(parsePercentToBps(`25.${'0'.repeat(29)}`)).toBe(2500) // 32 chars
+    expect(parsePercentToBps(`25.${'0'.repeat(30)}`)).toBeNull() // 33 chars
+    expect(parsePercentToBps(' '.repeat(40) + '25')).toBeNull()
+    expect(parsePercentToBps('1'.repeat(100_000))).toBeNull()
+  })
 })
