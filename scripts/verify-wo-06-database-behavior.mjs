@@ -297,14 +297,8 @@ try {
           'lot', 1, 'manual'
         )
       `
-      await tx`
-        select set_config(
-          'request.jwt.claims',
-          ${JSON.stringify({ sub: authenticatedUserId, role: 'authenticated' })},
-          true
-        )
-      `
-      await tx.unsafe('set local role authenticated')
+      // Browser-role table DML is revoked (20261104055626); seed the header as
+      // the server role and prove the authenticated Data API role can only read.
       await tx`
         insert into public.dupas (
           id, tenant_id, bom_line_item_id, header_quantity, uom, created_by
@@ -313,6 +307,32 @@ try {
           ${authenticatedUserId}
         )
       `
+      await tx`
+        select set_config(
+          'request.jwt.claims',
+          ${JSON.stringify({ sub: authenticatedUserId, role: 'authenticated' })},
+          true
+        )
+      `
+      await tx.unsafe('set local role authenticated')
+      await expectRejected(
+        tx,
+        'dupa_header_insert',
+        () => tx`
+          insert into public.dupas (
+            tenant_id, bom_line_item_id, header_quantity, uom, created_by
+          ) values (
+            ${tenantId}, ${authenticatedLineId}, 2, 'lot', ${authenticatedUserId}
+          )
+        `,
+        'permission denied',
+      )
+      await expectRejected(
+        tx,
+        'dupa_header_update',
+        () => tx`update public.dupas set header_quantity = 2 where id = ${authenticatedDupaId}`,
+        'permission denied',
+      )
       const [authenticatedRead] = await tx`
         select total_cost_centavos, unit_rate_centavos
           from public.dupas

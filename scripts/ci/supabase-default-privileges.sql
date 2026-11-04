@@ -19,8 +19,13 @@ $$;
 
 grant usage on schema public to anon, authenticated, service_role;
 
+-- Production's post-migration table default: service_role full, authenticated
+-- SELECT only, anon nothing (20260806160000 + 20261104055626). Grant only that,
+-- so this script never revokes on the migration's behalf and cannot mask it.
 alter default privileges for role postgres in schema public
-  grant all on tables to anon, authenticated, service_role;
+  grant all on tables to service_role;
+alter default privileges for role postgres in schema public
+  grant select on tables to authenticated;
 alter default privileges for role postgres in schema public
   grant all on sequences to anon, authenticated, service_role;
 alter default privileges for role postgres in schema public
@@ -60,10 +65,8 @@ grant select, insert, update, delete, truncate on table public.documents,
 -- trusted-server access; artifact mutation and parent deletion denials stay put.
 grant select on table public.account_kyc_artifacts, public.accounts,
   public.opportunities to authenticated;
--- Account/opportunity INSERT and UPDATE were observed in the legacy baseline
--- and are explicitly outside this migration's deletion-only parent boundary.
-grant insert, update on table public.accounts, public.opportunities
-  to authenticated;
+-- The legacy account/opportunity INSERT/UPDATE grants were retired by
+-- 20261104055626_revoke_client_table_writes; do not restore them here.
 grant select, insert, update, delete, truncate on table
   public.account_kyc_artifacts, public.accounts, public.opportunities
   to service_role;

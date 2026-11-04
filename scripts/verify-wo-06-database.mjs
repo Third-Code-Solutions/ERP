@@ -204,7 +204,7 @@ try {
             not has_column_privilege('authenticated', 'public.dupas', 'vat_centavos', 'update') as vat_locked,
             not has_column_privilege('authenticated', 'public.dupas', 'total_cost_centavos', 'update') as total_locked,
             not has_column_privilege('authenticated', 'public.dupas', 'unit_rate_centavos', 'update') as unit_locked,
-            has_column_privilege('authenticated', 'public.dupas', 'header_quantity', 'update') as input_open`,
+            not has_any_column_privilege('authenticated', 'public.dupas', 'insert, update') as input_locked`,
     (rows) =>
       rows.length === 1 &&
       rows[0].direct_locked === true &&
@@ -212,8 +212,9 @@ try {
       rows[0].vat_locked === true &&
       rows[0].total_locked === true &&
       rows[0].unit_locked === true &&
-      rows[0].input_open === true,
-    () => 'computed columns remain writable or header input was closed',
+      // Header inputs are Core-owned since 20261104055626 revoked browser DML.
+      rows[0].input_locked === true,
+    () => 'computed columns or header inputs remain writable by authenticated',
   )
 
   await check(
