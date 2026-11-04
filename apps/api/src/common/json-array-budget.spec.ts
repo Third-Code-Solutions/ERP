@@ -27,6 +27,12 @@ describe('JSON array budget', () => {
     expect(res.status).not.toHaveBeenCalled()
   })
 
+  it('accepts exactly the budget', () => {
+    const { res, next } = run({ documents: Array(MAX_JSON_ARRAY_ELEMENTS).fill(1) })
+    expect(next).toHaveBeenCalledOnce()
+    expect(res.status).not.toHaveBeenCalled()
+  })
+
   it('rejects a flat oversized array with 413 before any schema runs', () => {
     const { res, next } = run({ documents: Array(MAX_JSON_ARRAY_ELEMENTS + 1).fill(1) })
     expect(next).not.toHaveBeenCalled()
