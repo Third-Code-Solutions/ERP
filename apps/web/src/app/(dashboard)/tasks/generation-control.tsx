@@ -1,42 +1,52 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { ActionFeedback } from '@/components/ui/action-feedback'
 import { triggerDailyGeneration } from './actions'
-import styles from '../workspace-qa.module.css'
+import styles from './tasks.module.css'
+
+const FEEDBACK_ID = 'task-generation-feedback'
 
 export function GenerationControl() {
-  const [pending, startTransition] = useTransition()
-  const [message, setMessage] = useState('')
-  const [error, setError] = useState('')
-  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
+  const [message, setMessage] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
-  function generate() {
-    setError('')
-    setMessage('')
+  function handleGenerate() {
+    setError(null)
+    setMessage(null)
     startTransition(async () => {
       try {
         const result = await triggerDailyGeneration()
         if (result.error) setError(result.error)
-        else setMessage('Generation requested. Tasks will appear in each assigned teammate’s queue when processing finishes. Refresh to check for updates.')
+        else setMessage(result.message ?? 'Today’s cadence tasks are generated.')
       } catch {
-        setError('Could not request task generation. Please try again.')
+        setError('Task generation failed. Please try again.')
       }
     })
   }
 
+  const hasFeedback = isPending || Boolean(message || error)
+
   return (
-    <section className={styles.notice} aria-labelledby="daily-generation-title">
-      <h2 id="daily-generation-title" className="card-title">Daily task generation</h2>
-      <p>Generate today’s configured cadence for active projects. Tasks go to the assigned project roles; they do not automatically appear in an admin’s personal queue.</p>
-      <div className={styles.actions}>
-        <button type="button" className="button-primary" disabled={pending} onClick={generate}>
-          {pending ? 'Requesting…' : 'Generate today’s tasks'}
-        </button>
-        <button type="button" className="button-secondary" onClick={() => router.refresh()}>Refresh tasks</button>
-      </div>
-      {message && <p role="status">{message}</p>}
-      {error && <p role="alert">{error}</p>}
-    </section>
+    <div className={styles.headerAction}>
+      <button
+        type="button"
+        className="button-secondary"
+        disabled={isPending}
+        onClick={handleGenerate}
+        aria-describedby={hasFeedback ? FEEDBACK_ID : undefined}
+        title="Create today’s cadence tasks for every active project. Safe to run again."
+      >
+        {isPending ? 'Generating…' : 'Generate today’s tasks'}
+      </button>
+      <ActionFeedback
+        id={FEEDBACK_ID}
+        pending={isPending}
+        pendingMessage="Generating today’s cadence tasks…"
+        error={error}
+        success={message}
+      />
+    </div>
   )
 }

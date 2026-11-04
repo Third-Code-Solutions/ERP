@@ -483,7 +483,7 @@ function verifyPageAndMountedControl(graph) {
         (argument) => ts.isIdentifier(unwrap(argument)) && unwrap(argument).text === 'dailyTasks'
       )
   )
-  invariant(dailyTaskReads.length === 5, 'all five mounted daily-task reads are inventoried')
+  invariant(dailyTaskReads.length === 2, 'both mounted daily-task reads are inventoried')
   for (const read of dailyTaskReads) {
     let outer = read
     while (outer.parent && ts.isPropertyAccessExpression(outer.parent)) {

@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 type Handler = (input: {
   step: { run: <T>(name: string, work: () => Promise<T>) => Promise<T> }
-  event: { data: { tenantId: string; date?: string } }
 }) => Promise<unknown>
 
 const mocks = vi.hoisted(() => ({
@@ -29,18 +28,13 @@ afterEach(() => { vi.useRealTimers(); vi.clearAllMocks() })
 describe('Daily cadence generation date', () => {
   const step = { run: async <T>(_name: string, work: () => Promise<T>) => work() }
 
-  it.each(['generate-daily-cadence-tasks', 'generate-cadence-on-demand'])(
-    '%s creates the current Manila day at the scheduled 07:00 run', async (id) => {
-      vi.useFakeTimers().setSystemTime(new Date('2026-09-06T23:00:00Z'))
-      await mocks.handlers.get(id)!({ step, event: { data: { tenantId: 'tenant-one' } } })
-      expect(mocks.generate).toHaveBeenCalledWith('tenant-one', new Date('2026-09-07T00:00:00Z'))
-    }
-  )
+  it('creates the current Manila day at the scheduled 07:00 run', async () => {
+    vi.useFakeTimers().setSystemTime(new Date('2026-09-06T23:00:00Z'))
+    await mocks.handlers.get('generate-daily-cadence-tasks')!({ step })
+    expect(mocks.generate).toHaveBeenCalledWith('tenant-one', new Date('2026-09-07T00:00:00Z'))
+  })
 
-  it('preserves an explicitly requested calendar date', async () => {
-    await mocks.handlers.get('generate-cadence-on-demand')!({
-      step, event: { data: { tenantId: 'tenant-one', date: '2026-09-09' } },
-    })
-    expect(mocks.generate).toHaveBeenCalledWith('tenant-one', new Date('2026-09-09T00:00:00Z'))
+  it('registers only the scheduled generator (no event-driven on-demand surface)', () => {
+    expect([...mocks.handlers.keys()]).toEqual(['generate-daily-cadence-tasks'])
   })
 })

@@ -6,7 +6,9 @@
  * and assign them to every user holding that role.
  *
  * Idempotent: re-running for the same date is a no-op because we skip rows
- * that already exist for (assignee, project, title, due-date::date).
+ * that already exist for (assignee, project, title, due-date::date). Runs for
+ * one tenant-day are serialized by a transaction-scoped advisory lock and
+ * commit all-or-nothing. Only active accounts receive tasks.
  *
  * Configuration is hardcoded here for v1; a future iteration will move
  * templates into the database so admins can tune per-tenant.
@@ -15,7 +17,12 @@
 import { db } from '@third-code-erp/database'
 import { dailyTasks, projects, users } from '@third-code-erp/database/schema'
 import type { AppRole } from '@third-code-erp/auth'
-import { and, eq, gte, lte, sql } from 'drizzle-orm'
+import { and, eq, gte, isNotNull, lte, sql } from 'drizzle-orm'
+
+const INSERT_CHUNK_SIZE = 250
+
+/** Project statuses that no longer accept new tasks. */
+export const CLOSED_PROJECT_STATUSES: ReadonlySet<string> = new Set(['completed', 'cancelled'])
 
 export interface CadenceTask {
   title: string
@@ -62,10 +69,13 @@ export const DEFAULT_CADENCE_TEMPLATES: CadenceTemplate[] = [
 
 // Manila is UTC+8 with no DST.
 const MANILA_OFFSET_HOURS = 8
+const MANILA_OFFSET_MS = MANILA_OFFSET_HOURS * 3600 * 1000
+const DAY_MS = 86_400_000
+const DATETIME_LOCAL_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/
 
 /** UTC fields encode the Manila calendar date, for date-only generation inputs. */
 export function manilaCalendarDate(instant: Date): Date {
-  const local = new Date(instant.getTime() + MANILA_OFFSET_HOURS * 3600 * 1000)
+  const local = new Date(instant.getTime() + MANILA_OFFSET_MS)
   return new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()))
 }
 
@@ -121,11 +131,11 @@ export async function generateTasksForDate(
     return { created: 0, skipped: 0, projectsConsidered: 0 }
   }
 
-  // Group users by role once — avoids N*M roundtrips when many projects exist.
+  // Group active users by role once — avoids N*M roundtrips when many projects exist.
   const allUsers = await db
     .select({ id: users.id, role: users.role })
     .from(users)
-    .where(eq(users.tenant_id, tenantId))
+    .where(and(eq(users.tenant_id, tenantId), eq(users.account_status, 'active')))
 
   const usersByRole = new Map<string, string[]>()
   for (const u of allUsers) {
@@ -136,58 +146,74 @@ export async function generateTasksForDate(
 
   const dayStart = manilaDayAt(date, 0)
   const dayEnd = manilaEndOfDay(date)
+  const dayKey = date.toISOString().slice(0, 10)
 
-  let created = 0
-  let skipped = 0
+  return db.transaction(async (tx) => {
+    // Overlapping runs (cron, admins, tabs) for one tenant-day queue here, so the
+    // existing-rows snapshot below cannot go stale before these inserts commit.
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended('cadence:' || ${tenantId}::text || ':' || ${dayKey}::text, 0))`,
+    )
 
-  for (const project of activeProjects) {
-    for (const template of templates) {
-      const assignees = usersByRole.get(template.role) ?? []
-      if (assignees.length === 0) continue
+    // Idempotency: one read of the day's cadence rows, keyed by (project, assignee, title).
+    // Manual tasks (role null) never stand in for a cadence row.
+    const existingRows = await tx
+      .select({
+        project_id: dailyTasks.project_id,
+        assignee_id: dailyTasks.assignee_id,
+        title: dailyTasks.title,
+      })
+      .from(dailyTasks)
+      .where(
+        and(
+          eq(dailyTasks.tenant_id, tenantId),
+          isNotNull(dailyTasks.role),
+          gte(dailyTasks.due_date, dayStart),
+          lte(dailyTasks.due_date, dayEnd),
+        ),
+      )
+    const taskKey = (projectId: string, assigneeId: string | null, title: string) =>
+      `${projectId}\u0000${assigneeId ?? ''}\u0000${title}`
+    const seen = new Set(existingRows.map((r) => taskKey(r.project_id, r.assignee_id, r.title)))
 
-      for (const task of template.tasks) {
-        const due = task.hour !== undefined ? manilaDayAt(date, task.hour) : dayEnd
+    const toInsert: (typeof dailyTasks.$inferInsert)[] = []
+    let skipped = 0
 
-        for (const assigneeId of assignees) {
-          // Idempotency: look for an existing row for this (assignee, project, title)
-          // landing inside the Manila calendar day.
-          const existing = await db
-            .select({ id: dailyTasks.id })
-            .from(dailyTasks)
-            .where(
-              and(
-                eq(dailyTasks.tenant_id, tenantId),
-                eq(dailyTasks.project_id, project.id),
-                eq(dailyTasks.assignee_id, assigneeId),
-                eq(dailyTasks.title, task.title),
-                gte(dailyTasks.due_date, dayStart),
-                lte(dailyTasks.due_date, dayEnd),
-              ),
-            )
-            .limit(1)
-
-          if (existing.length > 0) {
-            skipped += 1
-            continue
+    for (const project of activeProjects) {
+      for (const template of templates) {
+        const assignees = usersByRole.get(template.role) ?? []
+        for (const task of template.tasks) {
+          const due = task.hour !== undefined ? manilaDayAt(date, task.hour) : dayEnd
+          for (const assigneeId of assignees) {
+            const key = taskKey(project.id, assigneeId, task.title)
+            if (seen.has(key)) {
+              skipped += 1
+              continue
+            }
+            seen.add(key)
+            toInsert.push({
+              tenant_id: tenantId,
+              project_id: project.id,
+              assignee_id: assigneeId,
+              title: task.title,
+              description: task.description,
+              role: template.role,
+              due_date: due,
+              status: 'pending',
+            })
           }
-
-          await db.insert(dailyTasks).values({
-            tenant_id: tenantId,
-            project_id: project.id,
-            assignee_id: assigneeId,
-            title: task.title,
-            description: task.description,
-            role: template.role,
-            due_date: due,
-            status: 'pending',
-          })
-          created += 1
         }
       }
     }
-  }
 
-  return { created, skipped, projectsConsidered: activeProjects.length }
+    // Chunked: stays far below the bind-parameter limit. One transaction keeps the
+    // run all-or-nothing, so a failed chunk leaves no partial day behind.
+    for (let i = 0; i < toInsert.length; i += INSERT_CHUNK_SIZE) {
+      await tx.insert(dailyTasks).values(toInsert.slice(i, i + INSERT_CHUNK_SIZE))
+    }
+
+    return { created: toInsert.length, skipped, projectsConsidered: activeProjects.length }
+  })
 }
 
 // Read-side callers supply instants; generation above accepts a calendar date.
@@ -197,6 +223,33 @@ export const manilaBoundaries = {
   atHour: (date: Date, hour: number) => manilaDayAt(manilaCalendarDate(date), hour),
 }
 
-// Suppress unused warning — `sql` is reserved for a future ON CONFLICT path
-// once we add the partial unique index described in REFACTOR.md.
-void sql
+/** Manila wall-clock time of an instant as a datetime-local value (YYYY-MM-DDTHH:MM). */
+export function toManilaDateTimeLocal(instant: Date): string {
+  return new Date(instant.getTime() + MANILA_OFFSET_MS).toISOString().slice(0, 16)
+}
+
+/**
+ * Parse a datetime-local value as Manila wall-clock time. Returns null for
+ * malformed or impossible values (Feb 30, 24:00, minute 60): the parsed instant
+ * must format back to the exact input. Date.UTC maps years 0-99 to 1900-1999,
+ * so the same round trip rejects those years too.
+ */
+export function parseManilaDateTimeLocal(value: string): Date | null {
+  const match = DATETIME_LOCAL_PATTERN.exec(value)
+  if (!match) return null
+  const instant = new Date(
+    Date.UTC(
+      Number(match[1]),
+      Number(match[2]) - 1,
+      Number(match[3]),
+      Number(match[4]) - MANILA_OFFSET_HOURS,
+      Number(match[5]),
+    ),
+  )
+  return toManilaDateTimeLocal(instant) === value ? instant : null
+}
+
+/** Manila calendar days from `b` to `a` (positive when `a` is on a later day). */
+export function manilaDaysBetween(a: Date, b: Date): number {
+  return (manilaCalendarDate(a).getTime() - manilaCalendarDate(b).getTime()) / DAY_MS
+}

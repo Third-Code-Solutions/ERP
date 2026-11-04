@@ -17,6 +17,10 @@ import {
 } from './complete-task-button'
 import { TaskRow } from './task-row'
 
+// Clock pinned to 2026-09-07 10:00 Manila for row status classification.
+const NOW = Date.parse('2026-09-07T02:00:00.000Z')
+const TODAY_END = Date.parse('2026-09-07T15:59:59.999Z')
+
 const INITIAL: CompletionUiState = {
   open: true,
   notes: 'Keep this note',
@@ -27,7 +31,7 @@ const INITIAL: CompletionUiState = {
 describe('daily-task completion experience', () => {
   it('shows due and completion dates in Manila time across the UTC day boundary', () => {
     const markup = renderToStaticMarkup(
-      <table><tbody><TaskRow readOnly task={{
+      <table><tbody><TaskRow readOnly now={NOW} todayEnd={TODAY_END} task={{
         id: '11111111-1111-4111-8111-111111111111',
         project_id: '22222222-2222-4222-8222-222222222222',
         project_name: 'Site A',
@@ -41,7 +45,8 @@ describe('daily-task completion experience', () => {
       }} /></tbody></table>
     )
     expect(markup).toContain('Sep 7, 7:00 AM')
-    expect(markup).toContain('Done Sep 7')
+    expect(markup).toContain('Completed Sep 7')
+    expect(markup).toContain('>Done<')
     expect(markup).not.toContain('Sep 6')
   })
 
@@ -132,6 +137,8 @@ describe('daily-task completion experience', () => {
     const markup = renderToStaticMarkup(
       <table><tbody><TaskRow
         readOnly
+        now={NOW}
+        todayEnd={TODAY_END}
         task={{
           id: '11111111-1111-4111-8111-111111111111',
           project_id: '22222222-2222-4222-8222-222222222222',
@@ -145,13 +152,16 @@ describe('daily-task completion experience', () => {
         }}
       /></tbody></table>
     )
-    expect(markup).toContain('Read-only: completion unavailable for your role.')
+    expect(markup).toContain('View only')
+    expect(markup).toContain('title="Your role can view this task but not complete it."')
     expect(markup).not.toContain('Mark task complete')
   })
 
   it('mounts the named completion control only when the row is writable', () => {
     const markup = renderToStaticMarkup(
       <table><tbody><TaskRow
+        now={NOW}
+        todayEnd={TODAY_END}
         task={{
           id: '11111111-1111-4111-8111-111111111111',
           project_id: '22222222-2222-4222-8222-222222222222',
@@ -166,6 +176,36 @@ describe('daily-task completion experience', () => {
       /></tbody></table>
     )
     expect(markup).toContain('aria-label="Mark task complete"')
-    expect(markup).not.toContain('Read-only: completion unavailable for your role.')
+    expect(markup).not.toContain('View only')
+  })
+
+  it.each([
+    ['2026-09-03T04:00:00.000Z', 'Overdue', '4 days late'],
+    ['2026-09-07T01:30:00.000Z', 'Overdue', 'Late today'],
+    ['2026-09-07T09:00:00.000Z', 'Due today', null],
+    ['2026-09-09T09:00:00.000Z', 'Open', null],
+  ])('labels a pending task due %s as %s', (dueDate, label, lateText) => {
+    const markup = renderToStaticMarkup(
+      <table><tbody><TaskRow
+        readOnly
+        now={NOW}
+        todayEnd={TODAY_END}
+        task={{
+          id: '11111111-1111-4111-8111-111111111111',
+          project_id: '22222222-2222-4222-8222-222222222222',
+          project_name: 'Site A',
+          assignee_id: null,
+          title: 'Confirm deliveries',
+          description: null,
+          role: null,
+          due_date: dueDate,
+          status: 'pending',
+        }}
+      /></tbody></table>
+    )
+    expect(markup).toContain(`<span class="stage-badge-dot"></span>${label}</span>`)
+    expect(markup).toContain('Manual task')
+    if (lateText) expect(markup).toContain(lateText)
+    else expect(markup).not.toContain('late')
   })
 })

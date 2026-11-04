@@ -592,7 +592,7 @@ export default async function ProcessHealthPage({
                     <h3>No open workflow tasks</h3>
                     <p>
                       Workflow deadlines appear here by business unit.
-                      Daily site tasks are available in My Tasks.
+                      Daily site tasks are available in Tasks.
                     </p>
                     <div className={styles.actions}>
                       <Link className="button-primary" href="/tasks">
