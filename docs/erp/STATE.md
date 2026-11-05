@@ -69,14 +69,28 @@ Verdicts are posted as PR comments.
      (catalog queries run through Supabase MCP `execute_sql`).
 - PR #125 merged `2c2576cb`: 6 contract gates in CI, doc-authority v1.5, runners
   pinned to ubuntu-24.04.
-- Live code (2026-11-04, after promotion [41820543052](https://github.com/Third-Code-Solutions/ERP/actions/runs/41820543052)):
-  - **DB**: ledger 178, head `20261104055626` (#138 and #139 have no migrations).
-  - **Web (Vercel)**: `8293f798` (`/api/health` revision `8293f798cc1c`).
-    Everything through #139 is live.
-  - **API and CAD worker (Railway)**: the run verified both as `retained-identical`
-    (active deployments `471333fd` for the API, from Railway's auto-deploy of the
-    `main` push, and `dcf4a7fa` for CAD); both health checks return 200.
-  - `smoke-prod.yml` [41823866906](https://github.com/Third-Code-Solutions/ERP/actions/runs/41823866906) passed after the promotion.
+- Live code (2026-11-05, manual promotion; GitHub Actions is blocked by the org's spending limit):
+  - **DB**: ledger 180, head `20261104195001`. The two D-5 migrations were applied
+    on 2026-11-04 through Supabase MCP `apply_migration` (stamps `20261104194934`,
+    `20261104195001`) after an encrypted targeted snapshot in
+    `backups/20261104T194753Z` (decrypt verified). Post-apply: 0 null
+    `quantity_decimal`, BOM line totals unchanged at 2,609,885,000 centavos, and the
+    repo and production version sets match. #142 has no migration.
+  - **Web (Vercel)**: `f212c9df` (`/api/health` and `/api/ready` revision
+    `f212c9dffb47`). The steps were the same as `deploy-production.yml`: Vercel CLI
+    54.7.1 run from a clean checkout of `main`, `APP_REVISION` set to the SHA, then
+    `deploy --prod` (deployment `thirdcode-31jl07njo`). Rollback target:
+    `thirdcode-e38eo3kec` (`8293f798`). Everything through #142 is live.
+  - **API (Railway)**: Railway's auto-deploy `e2acdd8f` at `f212c9df` is SUCCESS
+    (`aa79f2b7` at `c45bc64c` before it). **CAD**: no change since `8293f798`
+    (`apps/workers/dxf-parser` untouched). API `/health`, API `/ready` and CAD
+    `/health` return 200.
+  - Checks run instead of the workflow: `verify-production-surface.mjs` PASS; an
+    unauthenticated route sweep (protected routes redirect to `/auth/login`); no
+    Vercel runtime errors after the deploy; API logs show only the known `punycode`
+    warning; 0 `tax_profiles` rows (default rates, no amount moves).
+  - **Not run:** `smoke-prod.yml` and the release E2E suites. Their credentials are
+    GitHub secrets only. Run both as soon as Actions is unblocked.
 - Tenancy model: shared schema + `tenant_id` + RLS.
   - Drizzle server code bypasses RLS, so isolation relies on an explicit
     `tenant_id` WHERE clause on every query.
@@ -96,11 +110,12 @@ Verdicts are posted as PR comments.
   (read-only count, 2026-11-04): 0 DUPAs, 3 BOMs, 3 invoices and 1 PO, all in one
   tenant. No real customer money is affected, so no data correction is needed.
   - **Hardening batch 2 (fix before modules; the rule is clear and consistent with the PRD).**
-    Six defect IDs in five items. Items 2–5 are **live** (#138 `d2d3ce6f`, #139
-    `8293f798`); item 1 is being built on branch `fix/erp-h2-fractional-qty` (no PR yet):
+    Six defect IDs in five items, **all live** (#138 `d2d3ce6f`, #139 `8293f798`,
+    #141 `c45bc64c`):
     1. D-5: fractional BOQ quantity via expand/contract, per the additive-only policy
        above. Add a `numeric(18,4)` column, backfill it, then switch readers and writers.
-       Drop the integer column in a later contract release.
+       Drop the integer column in a later contract release. Fixed in #141 (expand step;
+       a sync trigger keeps the legacy integer `quantity` mirrored).
     2. D-8: BIR 2307 payor/payee reversed. Fixed in #138.
     3. D-4 (part): PO header must foot to its lines; the rate-card path must price at the
        rate card. The VAT-on-H part of D-4 shares D-2's root cause and is deferred with it (Q1).
@@ -128,16 +143,19 @@ Verdicts are posted as PR comments.
   read-only until Q3 is answered, so the tax rates cannot change before then. (Batch items
   3 and 5 do change amounts: PO line prices, and DP and preview rounding by centavos.)
   Contract-level retention waits for `contracts` and Q3.
-  Built on `feat/erp-tenancy` (2026-11-05, not merged); evidence in
-  [`reports/tenancy.md`](reports/tenancy.md).
+  Merged in #142 `f212c9df` and live on 2026-11-05; evidence in
+  [`reports/tenancy.md`](reports/tenancy.md). `ERP_TENANCY_ENABLED` stays **off**:
+  flags go on only after smoke passes, and smoke cannot run yet.
 - Accepted risk: no environment protection or branch protection (plan blocks it);
   see `docs/erp/RUNBOOK.md` section 5.
 
 ## Current
 Owner mandate PHASE 1 (init: green baseline, CI merge gate, `smoke:prod`, STATE,
 RUNBOOK) is **done**.
-- Latest promotion: [41820543052](https://github.com/Third-Code-Solutions/ERP/actions/runs/41820543052) put `8293f798` (#138, #139) live;
-  smoke 41823866906 passed. The bullet below is the earlier PHASE 1 promotion.
+- Latest promotion (2026-11-05, manual, owner order "MERGE EVERYTHING AND DEPLOY ON
+  LIVE PRODUCTION"): `f212c9df` (#141 D-5, #142 tenancy) is live; see Live code above.
+  The promotion before it, [41820543052](https://github.com/Third-Code-Solutions/ERP/actions/runs/41820543052), put `8293f798` (#138, #139) live,
+  and smoke 41823866906 passed. The next bullet is the earlier PHASE 1 promotion.
 - Promotion [41792158962](https://github.com/Third-Code-Solutions/ERP/actions/runs/41792158962) of `b9c9d9b4` succeeded after the owner
   rotated `RAILWAY_API_TOKEN` (2026-11-04 07:24Z). Its release gates and production
   E2E suites passed, and `smoke-prod.yml` [41796012425](https://github.com/Third-Code-Solutions/ERP/actions/runs/41796012425) passed
@@ -145,16 +163,17 @@ RUNBOOK) is **done**.
 - The daily-task completion flag (`ERP_DAILY_TASK_COMPLETION_WRITES_VIA_API`,
   `buildops-e2e` tenant only) went live with this deploy.
 - Mandate PHASE 2 (`next --auto` through Wave 2) **started 2026-11-04**. Phase D is
-  done. Batch 2 items 2–5 are live. Next: batch 2 item 1 (D-5, needs a backup and a
-  migration apply before merge), then modules in gap-report order:
-  `tenancy` → `approvals` → `contacts` → `cost-db` → `assemblies` → `boq` → `contracts`.
-- `tenancy` (D-13) built on `feat/erp-tenancy` on top of `149d3ad3` (2026-11-05), not
-  pushed or merged. No amount moves for any tenant without a `tax_profiles` row (all of
-  them today). The read-only `/settings/tax` view ships behind `ERP_TENANCY_ENABLED`
-  (default off). Next: review, push, CI (`database-reproducibility` runs the new HTTP
-  integration spec), merge. Ship check Q-TEN-6: re-confirm 0 `tax_profiles` rows and
-  `tax_statutory_outputs` off for every tenant in production at release. New defect
-  D-16 is in `BACKLOG.md`.
+  done. Hardening batch 2 is live, and so is `tenancy`. Next modules in gap-report order:
+  `approvals` → `contacts` → `cost-db` → `assemblies` → `boq` → `contracts`.
+- `tenancy` (D-13) is live (#142). Ship check Q-TEN-6 passed in production at release:
+  0 `tax_profiles` rows and 0 `tax_statutory_outputs` gate rows. `/settings/tax` stays
+  behind `ERP_TENANCY_ENABLED` (off). New defect D-16 is in `BACKLOG.md`.
+- **CI not run on #141, #142 or `main` since `5d223726`.** The org's Actions spending
+  limit blocks every workflow (CI, backup, promotion, smoke). The owner overrode the
+  CI-green gate ("MERGE EVERYTHING AND DEPLOY ON LIVE PRODUCTION"), so local gates
+  stood in. On the final tree: typecheck clean (api, web, shared-types, database);
+  unit tests api 1624, web 2876 (6 skipped), shared-types 729, database 333; the
+  reviewers' container runs were DB 544/544 and integration 6/6.
 
 - Merged 2026-11-04 (all CI green, security PASS, review APPROVE posted on the PR):
   - #128 `c2d075ad`: tasks generation and task page.
@@ -169,6 +188,15 @@ RUNBOOK) is **done**.
   - #138 `d2d3ce6f`: billing cap, BIR 2307 parties and print gate, half-up DP, exact
     percent parsing (batch 2 items 2, 4, 5).
   - #139 `8293f798`: PO-from-BOM footing and rate-card pricing (batch 2 item 3).
+- Merged 2026-11-04/05 under the owner override (CI red only from the Actions billing
+  block; security PASS, review APPROVE and a local-gate evidence comment on each PR):
+  - #140 `5d223726`: docs (batch 2 STATE); CI green.
+  - #141 `c45bc64c`: D-5 fractional BOQ quantity (batch 2 item 1).
+  - #142 `f212c9df`: `tenancy` (D-13), tax rates from the tenant tax profile.
+  - Incident (closed): deleting #141's head branch after its merge **closed** #142,
+    which was stacked on it (GitHub does not retarget). It was fixed by re-pushing the
+    branch, reopening #142 and retargeting it to `main`. Rule: retarget stacked PRs
+    before deleting their base branch.
 - Earlier promotion runs 41772426127 (2 attempts, #129) and 41779917439 (`a5c3cd6a`)
   failed at "Deploy Nest API to exact Railway service" (resolved by the token
   rotation). The last says:
@@ -243,6 +271,23 @@ RUNBOOK) is **done**.
     `bom-builder.tsx`) contradicts the accepted 0.01 minimum; align it with the legacy
     "between 0.01% and 100%".
   - The DP award insert takes no project lock (Low).
+- **Release gaps from the manual promotion (do first once Actions is unblocked):**
+  re-run CI on `main` (`f212c9df`), run `smoke-prod.yml` and the release E2E suites,
+  then decide on `ERP_TENANCY_ENABLED`. Also take a full `backup-production.yml`
+  dump: D-5 had only the targeted snapshot. After the Team upgrade, turn on branch
+  protection.
+- **#141 review follow-ups (Low / display):**
+  - No DB CHECK keeps `quantity_decimal` non-negative (the app layer enforces it).
+  - The backfill held an exclusive lock and wrote one audit row per line (8 rows in
+    production, so no impact).
+  - The RFQ quantity uses `toLocaleString('en-PH')` (max 3 dp): 0.0001 shows as "0" and
+    12.3456 as "12.346". Use `formatBoqQuantity`.
+- **#142 review follow-ups (Low):**
+  - The billing page, the PO list and the portal call `resolveTaxRates` without catching
+    `TaxProfileOverlapError`, so an overlap from legacy data would take the whole page
+    down. Catch it and show the conflict notice.
+  - `formatBps(retention_bps)` throws outside 0..10000, and `invoices.retention_bps`
+    has no CHECK. Add the CHECK, or fall back in the label.
 - **Tooling:** the `lint` script fails on a pnpm 11 vs 10.33 mismatch (run eslint
   directly); local runs need Node 22 (Node 24 fails the engines check).
 - **Owner/admin "Team tasks" view:** needs an explicit change to the daily-task contract
@@ -265,6 +310,13 @@ RUNBOOK) is **done**.
   - Q8: Does a signed VO revise the contract sum and budget?
   - Q9: Can the Togal 30% markup be retired?
   - Q10: Are a Filipino UI and a public API needed for MVP?
+  - Q-TEN-8 (advisory, ties to Q1): the portal BOM summary shows TCV + VAT on full
+    TCV − retention on full TCV, with no EWT. Keep it, or align it with the invoice
+    formula once Q1 and Q3 are answered?
+- **GitHub Actions blocked (owner):** the Third-Code-Solutions org is on the free plan
+  and hit its Actions spending limit. The owner chose the Team upgrade, but it is not
+  applied yet. Until then, CI, backups, promotion and smoke cannot run, and releases
+  need the owner override.
 - PH rates in the survey (2% EWT, 10% retention, 0.1%/day LDs, PCAB ranges) come from
   secondary sources. Check them against primary BIR, GPPB and PCAB texts before they
   become rules.
@@ -272,6 +324,12 @@ RUNBOOK) is **done**.
 ## Log
 | Date | Mode | Result |
 |---|---|---|
+| 2026-11-05 | promote | Manual (Actions blocked): web `f212c9df` via Vercel CLI, API auto-deploy `e2acdd8f`; health, revision, surface PASS; smoke not run (secrets in GitHub only) |
+| 2026-11-05 | merge | #142 `f212c9df` tenancy (D-13), owner override of the CI gate; Q-TEN-6 re-checked (0 profiles, 0 gates) |
+| 2026-11-05 | incident | Deleting #141's branch closed stacked #142; reopened and retargeted to `main`. No code impact |
+| 2026-11-04 | merge | #141 `c45bc64c` D-5, owner override of the CI gate (Actions spending limit) |
+| 2026-11-04 | prod migration | D-5 `20261104194934`, `20261104195001` applied (ledger 180) after targeted encrypted snapshot `20261104T194753Z` |
+| 2026-11-04 | blocker | GitHub Actions blocked by the org spending limit; owner chose the Team upgrade (not applied yet) |
 | 2026-11-05 | build | `tenancy` (D-13) on `feat/erp-tenancy`: 13 commits, no amount moved, gates in `reports/tenancy.md`; not merged |
 | 2026-11-04 | promote | `8293f798` web live (run 41820543052; API/CAD retained-identical); smoke 41823866906 green |
 | 2026-11-04 | merge | #138 `d2d3ce6f` (D-6 cap, D-8, D-14, D-15), #139 `8293f798` (D-4 part); D-10 builder stopped (needs D-3/Q2) |
