@@ -9,7 +9,7 @@ Paths use the gap report's prefixes: `S/` schema · `M/` migrations · `W/` dash
 ## Wave 0 — Foundation (everything depends on this)
 | Slug | Module | Depends on | Status | Notes |
 |---|---|---|---|---|
-| tenancy | Organisations / tenants, tenant settings (currency, tax rate, calendar) | — | in-progress | D-13 built on `feat/erp-tenancy` (not merged): invoices, POs, previews and the portal read the tenant's active `tax_profiles` row for the Manila date, else 12% VAT / 2% EWT / 10% retention; no tenant has a row, so no amount moves. Read-only `/settings/tax` behind `ERP_TENANCY_ENABLED`; profile writes stay gated until owner Q3 and Q7. Evidence: [`reports/tenancy.md`](reports/tenancy.md) (S) |
+| tenancy | Organisations / tenants, tenant settings (currency, tax rate, calendar) | — | done | D-13 live in #142 `f212c9df` (2026-11-05): invoices, POs, previews and the portal read the tenant's active `tax_profiles` row for the Manila date, else 12% VAT / 2% EWT / 10% retention; no tenant has a row, so no amount moves. Read-only `/settings/tax` behind `ERP_TENANCY_ENABLED`; profile writes stay gated until owner Q3 and Q7. Evidence: [`reports/tenancy.md`](reports/tenancy.md) (S) |
 | rbac | Users, invites, roles & permissions, SSO later | tenancy | exists | `T/authorization.ts`, `A/auth/capability.guard.ts`; SSO later |
 | audit-log | Immutable audit trail for financial actions | tenancy | exists | `S/audit-log.ts`; hash chain in `M/20260509164538_audit_triggers.sql` |
 | notifications | In-app + email notifications | rbac | exists | `S/notifications.ts` (outbox), `A/notifications/notification-email.service.ts` |
@@ -27,7 +27,7 @@ Paths use the gap report's prefixes: `S/` schema · `M/` migrations · `W/` dash
 | cost-db | Cost database: labour, material, equipment, subcontract rates | tenancy | partial | Crew/equipment rates settable only by SQL; add rate upkeep with effective dates and a 90-day stale flag. Seed from own DUPAs, never CWICR (S) |
 | assemblies | Assemblies / composite rates built from resources, waste factors | cost-db | partial | Templates can be applied but not authored; add an assembly library editor (S) |
 | conceptual-estimate | Early estimate from floor area or unit counts using historical cost per m² | cost-db, crm | unrated | Later. |
-| boq | Bill of quantities: sections, items, quantities, rates, markups, allowances, provisional sums, revisions | projects, assemblies, approvals | partial | Integer qty must become numeric (D-5); split cost from sell (D-1); add provisional/PC sums, allowances, preliminaries; revision diff (M) |
+| boq | Bill of quantities: sections, items, quantities, rates, markups, allowances, provisional sums, revisions | projects, assemblies, approvals | partial | Fractional qty `numeric(18,4)` live (D-5, #141); drop the legacy integer column in a contract release; split cost from sell (D-1); add provisional/PC sums, allowances, preliminaries; revision diff (M) |
 | boq-validation | Validation rules (missing rates, zero qty, outliers) with traffic-light report | boq | partial | Only an unpriced count and approval gates; add zero-qty, missing/outlier/stale-rate rules and the traffic-light report (S) |
 | boq-export | Excel/CSV/PDF export and Excel import | boq | partial | Takeoff import exists (Togal/CSV, lands as draft lines); no BOQ Excel/CSV/PDF export or print route. Guard CSV formula injection (S) |
 | proposal | Client proposal generated from the BOQ: inclusions, exclusions, assumptions, validity, payment terms; versioned, sent/accepted tracked | boq, boq-export, crm | unrated | Proposal pages already under `W/crm/opportunities/[id]/proposal`; check before building |
@@ -117,3 +117,4 @@ Paths use the gap report's prefixes: `S/` schema · `M/` migrations · `W/` dash
 - 2026-11-04: Notes extended per the survey for boq, boq-export, cost-db, contracts, tendering, payment-apps, invoicing and hse; some survey "later" flags shown as "Later." in Notes (full list in `oce/survey.md`).
 - 2026-11-04: `procurement`, `invoicing`, `withholding-tax` notes updated for batch 2 fixes #138 and #139.
 - 2026-11-05: `tenancy` set to `in-progress` (D-13 built on `feat/erp-tenancy`); `procurement` notes gain new defect D-16 (requisition-to-PO line flooring).
+- 2026-11-05: `tenancy` set to `done` (#142 live); `boq` notes record D-5 live (#141).

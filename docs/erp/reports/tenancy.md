@@ -32,7 +32,7 @@
 | Unit: api (`vitest run src test`) | PASS | 269 files, 1,624 tests |
 | Unit: web | PASS | 323 files / 2,876 tests passed; 3 files / 6 tests skipped |
 | DB suite: `packages/database` with all `*_EXPECTED=1` | PASS | 111 files, 544 tests, 0 skipped |
-| API integration (`vitest run integration`, `ERP_API_INTEGRATION_EXPECTED=1`, `--maxWorkers=1`) | 1 FAIL, outside this builder's files | 516 passed, 1 failed, 11 skipped (no Redis). The failure is in the spec engineer's file, see "Open items" |
+| API integration (`vitest run integration`, `ERP_API_INTEGRATION_EXPECTED=1`, `--maxWorkers=1`) | 1 FAIL at build time, outside this builder's files (resolved before merge) | 516 passed, 1 failed, 11 skipped (no Redis). The failure was in the spec engineer's file and is fixed; see "Open items" |
 | `node scripts/verify-wo-15-commitment-contract.mjs` | PASS | Its `node --test` file: 1 pass, 0 fail |
 | Zero-literal grep (plan T8) | PASS | No money or label hits in `apps/web/src` or `apps/api/src` outside tests; the only hits are CSS `rgba(…, 0.12)` |
 | AC-12 grep | PASS | `customer-invoice-issue.service.ts` imports no resolver |
@@ -111,7 +111,8 @@ Unit test paths are relative to each package. "HTTP" means `apps/api/integration
 
 ## Open items and risks
 
-- **Integration fixture failure, outside this builder's files.** The test
+- **Resolved before merge (spec fixture now sets `enabled_by` and `enabled_at`;
+  integration 6/6 in review).** Original note: **Integration fixture failure, outside this builder's files.** The test
   `integration/tax-rates.tenancy-spec.http.integration.spec.ts` › "gated tax-profile
   write API and activation guards" fails at line 587. It inserts a
   `tenant_feature_flags` row with `enabled: true` but without `enabled_by` /
