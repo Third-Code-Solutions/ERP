@@ -67,6 +67,7 @@ import {
   fiscalPeriodCloseCommandSchema,
   inventoryReservationWorkflowCommandSchema,
   inventoryReservationResultSchema,
+  manilaCalendarDate,
   priceResolutionQuerySchema,
   priceResolutionResultSchema,
   priceListResultSchema,
@@ -75,6 +76,7 @@ import {
   providerDeliveryResultSchema,
   procurementRequisitionResultSchema,
   procurementRequisitionWorkflowCommandSchema,
+  purchaseOrderTaxAudit,
   reserveInventoryCommandSchema,
   resolvePriceCandidate,
   sapPostingRequestSchema,
@@ -100,11 +102,13 @@ import {
   type ProcurementRequisitionWorkflowCommand,
   type ReserveInventoryCommand,
   type SapPostingRequest,
+  type EffectiveTaxRates,
 } from '@third-code-erp/shared-types'
 import { and, asc, desc, eq, gte, gt, inArray, isNull, lte, or, sql } from 'drizzle-orm'
 import { roleHasCapability } from '../auth/capability.guard'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import { AuditService } from '../audit/audit.service'
+import { resolveTaxRatesForWrite } from '../common/tax-rates'
 import { DatabaseService, type DatabaseTransaction } from '../database/database.service'
 
 const MAX_SAFE_INTEGER_BIGINT = BigInt(Number.MAX_SAFE_INTEGER)
@@ -424,9 +428,11 @@ export class RoadmapService {
       const next = this.nextRequisitionStatus(command.action, current)
       if (command.action === 'reject' && !(command.reason?.trim())) throw new BadRequestException('Rejection reason is required')
       let convertedPurchaseOrderId: string | null = null
+      let tax: EffectiveTaxRates | null = null
       if (command.action === 'convert_to_po') {
         if (!roleHasCapability(principal.role, 'po.create')) throw new ForbiddenException('PO creation capability is required')
-        convertedPurchaseOrderId = await this.convertRequisitionToPurchaseOrder(transaction, requisition, command.selectedQuoteIds ?? [], principal)
+        tax = await resolveTaxRatesForWrite(transaction, principal.tenantId, new Date())
+        convertedPurchaseOrderId = await this.convertRequisitionToPurchaseOrder(transaction, requisition, command.selectedQuoteIds ?? [], principal, tax)
       }
       const [updated] = await transaction
         .update(procurementRequisitions)
@@ -456,7 +462,7 @@ export class RoadmapService {
         entityType: 'procurement_requisition',
         entityId: requisition.id,
         action: command.action === 'approve' ? 'approve' : 'status_change',
-        diff: { from: current, to: next, reason: command.reason ?? null, purchaseOrderId: convertedPurchaseOrderId },
+        diff: { from: current, to: next, reason: command.reason ?? null, purchaseOrderId: convertedPurchaseOrderId, tax: tax ? purchaseOrderTaxAudit(tax) : null },
       })
       return this.requisitionResult(transaction, updated, true)
     })
@@ -555,6 +561,7 @@ export class RoadmapService {
     requisition: typeof procurementRequisitions.$inferSelect,
     selectedQuoteIds: readonly string[],
     principal: ErpPrincipal,
+    tax: Pick<EffectiveTaxRates, 'vatBps' | 'ewtBps'>,
   ): Promise<string> {
     const lines = await transaction
       .select()
@@ -584,8 +591,8 @@ export class RoadmapService {
       return { line, quote, quantity, unit, lineTotal }
     })
     const subtotal = totals.reduce((sum, value) => sum + value.lineTotal, 0n)
-    const vat = (subtotal * 1_200n + 5_000n) / 10_000n
-    const withholding = (subtotal * 200n + 5_000n) / 10_000n
+    const vat = (subtotal * BigInt(tax.vatBps) + 5_000n) / 10_000n
+    const withholding = (subtotal * BigInt(tax.ewtBps) + 5_000n) / 10_000n
     const [po] = await transaction.insert(purchaseOrders).values({
       tenant_id: principal.tenantId,
       project_id: requisition.project_id,
@@ -1036,7 +1043,8 @@ export class RoadmapService {
       }
       const [existing] = await transaction.select().from(taxProfiles).where(and(eq(taxProfiles.tenant_id, principal.tenantId), eq(taxProfiles.code, command.code))).limit(1)
       if (existing) {
-        if (existing.name !== command.name || existing.vat_rate_bps !== command.vatRateBps || existing.withholding_rate_bps !== command.withholdingRateBps || existing.retention_rate_bps !== command.retentionRateBps) throw new ConflictException('Tax profile code is already used by a different definition')
+        // Spec tenancy G-7: every rate-bearing field must match the stored definition.
+        if (existing.name !== command.name || existing.vat_rate_bps !== command.vatRateBps || existing.withholding_rate_bps !== command.withholdingRateBps || existing.retention_rate_bps !== command.retentionRateBps || existing.vat_registered !== command.vatRegistered || existing.valid_from !== command.validFrom || existing.valid_to !== (command.validTo ?? null)) throw new ConflictException('Tax profile code is already used by a different definition')
         return taxProfileResultSchema.parse({ taxProfileId: existing.id, tenantId: existing.tenant_id, code: existing.code, status: existing.status, created: false })
       }
       const [created] = await transaction.insert(taxProfiles).values({ tenant_id: principal.tenantId, code: command.code, name: command.name, valid_from: command.validFrom, valid_to: command.validTo ?? null, vat_rate_bps: command.vatRateBps, withholding_rate_bps: command.withholdingRateBps, retention_rate_bps: command.retentionRateBps, vat_registered: command.vatRegistered, bir_form_version: command.birFormVersion ?? null, statutory_configuration: command.statutoryConfiguration, status: 'draft', created_by: principal.userId }).returning()
@@ -1083,8 +1091,11 @@ export class RoadmapService {
       if (command.action === 'activate' && profile.status !== 'draft') throw new ConflictException('Only a draft tax profile can be activated')
       if (command.action === 'retire' && profile.status !== 'active') throw new ConflictException('Only an active tax profile can be retired')
       if (command.action === 'activate') {
+        // Spec tenancy D-TEN-5 / D-TEN-1: maker-checker, then no backdating.
+        if (profile.created_by === principal.userId) throw new ForbiddenException('The tax profile preparer cannot activate it')
+        if (profile.valid_from < manilaCalendarDate(new Date())) throw new ConflictException('valid-from must be today or later')
         const [overlap] = await transaction
-          .select({ id: taxProfiles.id })
+          .select({ id: taxProfiles.id, code: taxProfiles.code })
           .from(taxProfiles)
           .where(
             and(
@@ -1096,7 +1107,7 @@ export class RoadmapService {
             ),
           )
           .limit(1)
-        if (overlap) throw new ConflictException('An active tax profile already covers this effective date range')
+        if (overlap) throw new ConflictException(`An active tax profile (${overlap.code}) already covers this effective date range`)
       }
       const status = command.action === 'activate' ? 'active' : 'retired'
       const [updated] = await transaction

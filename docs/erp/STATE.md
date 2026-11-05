@@ -128,6 +128,8 @@ Verdicts are posted as PR comments.
   read-only until Q3 is answered, so the tax rates cannot change before then. (Batch items
   3 and 5 do change amounts: PO line prices, and DP and preview rounding by centavos.)
   Contract-level retention waits for `contracts` and Q3.
+  Built on `feat/erp-tenancy` (2026-11-05, not merged); evidence in
+  [`reports/tenancy.md`](reports/tenancy.md).
 - Accepted risk: no environment protection or branch protection (plan blocks it);
   see `docs/erp/RUNBOOK.md` section 5.
 
@@ -146,6 +148,13 @@ RUNBOOK) is **done**.
   done. Batch 2 items 2–5 are live. Next: batch 2 item 1 (D-5, needs a backup and a
   migration apply before merge), then modules in gap-report order:
   `tenancy` → `approvals` → `contacts` → `cost-db` → `assemblies` → `boq` → `contracts`.
+- `tenancy` (D-13) built on `feat/erp-tenancy` on top of `149d3ad3` (2026-11-05), not
+  pushed or merged. No amount moves for any tenant without a `tax_profiles` row (all of
+  them today). The read-only `/settings/tax` view ships behind `ERP_TENANCY_ENABLED`
+  (default off). Next: review, push, CI (`database-reproducibility` runs the new HTTP
+  integration spec), merge. Ship check Q-TEN-6: re-confirm 0 `tax_profiles` rows and
+  `tax_statutory_outputs` off for every tenant in production at release. New defect
+  D-16 is in `BACKLOG.md`.
 
 - Merged 2026-11-04 (all CI green, security PASS, review APPROVE posted on the PR):
   - #128 `c2d075ad`: tasks generation and task page.
@@ -263,6 +272,7 @@ RUNBOOK) is **done**.
 ## Log
 | Date | Mode | Result |
 |---|---|---|
+| 2026-11-05 | build | `tenancy` (D-13) on `feat/erp-tenancy`: 13 commits, no amount moved, gates in `reports/tenancy.md`; not merged |
 | 2026-11-04 | promote | `8293f798` web live (run 41820543052; API/CAD retained-identical); smoke 41823866906 green |
 | 2026-11-04 | merge | #138 `d2d3ce6f` (D-6 cap, D-8, D-14, D-15), #139 `8293f798` (D-4 part); D-10 builder stopped (needs D-3/Q2) |
 | 2026-11-04 | merge | #137 `8ab55740` Phase D docs (4 fix loops, accepted as docs-only) |

@@ -1,7 +1,8 @@
 import type { Metadata } from 'next'
 import React from 'react'
 import { z } from 'zod'
-import { formatBoqQuantity } from '@third-code-erp/shared-types/bom'
+import { formatBps } from '@third-code-erp/shared-types'
+import { computeRetention, computeVAT, formatBoqQuantity } from '@third-code-erp/shared-types/bom'
 import { loadPortalBom, recordSign } from './sign-actions'
 
 export const metadata: Metadata = {
@@ -13,8 +14,6 @@ export const metadata: Metadata = {
 // be cached/prerendered at build time.
 export const dynamic = 'force-dynamic'
 
-const VAT_BPS = 1200 // 12%
-const RETENTION_BPS = 1000 // 10%
 const signingUrlSchema = z.string().url().refine((value) => {
   if (!URL.canParse(value)) return false
   const url = new URL(value)
@@ -50,11 +49,12 @@ export default async function PortalBomPage({
   }
 
   const bom = result.bom!
+  const taxRates = result.taxRates!
   // Historical rows also contain provider slugs; they are not application routes.
   const signingUrl = signingUrlSchema.safeParse(bom.docuseal_slug)
   const subtotal = bom.tcv_cents
-  const vat = Math.round(subtotal * (VAT_BPS / 10000))
-  const retention = Math.round(subtotal * (RETENTION_BPS / 10000))
+  const vat = computeVAT(subtotal, taxRates.vatBps)
+  const retention = computeRetention(subtotal, taxRates.retentionBps)
   const payable = subtotal + vat - retention
 
   // Group lines by category.
@@ -204,9 +204,9 @@ export default async function PortalBomPage({
         <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '8px 32px', fontSize: 14 }}>
           <span style={{ color: '#4b5563' }}>Subtotal</span>
           <span style={{ textAlign: 'right', fontFamily: 'var(--font-jetbrains), monospace' }}>{fmtPHP(subtotal)}</span>
-          <span style={{ color: '#4b5563' }}>VAT (12%)</span>
+          <span style={{ color: '#4b5563' }}>VAT ({formatBps(taxRates.vatBps)})</span>
           <span style={{ textAlign: 'right', fontFamily: 'var(--font-jetbrains), monospace' }}>{fmtPHP(vat)}</span>
-          <span style={{ color: '#4b5563' }}>Retention (10%)</span>
+          <span style={{ color: '#4b5563' }}>Retention ({formatBps(taxRates.retentionBps)})</span>
           <span style={{ textAlign: 'right', fontFamily: 'var(--font-jetbrains), monospace' }}>− {fmtPHP(retention)}</span>
           <span style={{ borderTop: '1px solid #d8dde6', paddingTop: 8, color: '#0F2D4A', fontWeight: 600, fontSize: 15 }}>
             Total payable

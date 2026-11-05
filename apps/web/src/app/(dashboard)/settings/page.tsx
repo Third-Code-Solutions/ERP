@@ -6,6 +6,7 @@ import { tenants } from '@third-code-erp/database/schema'
 import { eq } from 'drizzle-orm'
 import { EditTenantForm } from '@/components/settings/edit-tenant-form'
 import { getIntegrationStatus } from './integration-status'
+import { taxSettingsEnabled } from './tax/tax-settings'
 import { readNotificationPreferences } from './notification-preferences'
 import { NotificationPreferencesForm } from './notification-preferences-form'
 
@@ -242,6 +243,7 @@ export default async function SettingsPage() {
               <Link href="/finance/receivables" className="underline underline-offset-4">Outstanding receivables</Link>
               <Link href="/finance/cash" className="underline underline-offset-4">Payment records</Link>
               {canManageCash && <Link href="/finance/cash/new" className="underline underline-offset-4">Record a payment</Link>}
+              {taxSettingsEnabled() && <Link href="/settings/tax" className="underline underline-offset-4">Tax rates</Link>}
             </div>
           ) : <p>Ask your finance team or workspace administrator for invoice and payment access.</p>}
         </div>

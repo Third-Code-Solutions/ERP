@@ -5,20 +5,27 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   profile: vi.fn(),
   select: vi.fn(),
+  resolveTaxRates: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/auth', async (original) => ({
   ...(await original<typeof import('@third-code-erp/auth')>()),
   requireUserProfile: mocks.profile,
 }))
-vi.mock('@third-code-erp/database', () => ({ db: { select: mocks.select } }))
+vi.mock('@third-code-erp/database', () => ({
+  db: { select: mocks.select },
+  resolveTaxRates: mocks.resolveTaxRates,
+}))
 vi.mock('@/components/procurement/create-po-form', () => ({
-  CreatePoForm: () => <button>+ Create PO</button>,
+  CreatePoForm: ({ taxRates }: { taxRates: { vatBps: number; ewtBps: number } }) => (
+    <button data-vat-bps={taxRates.vatBps} data-ewt-bps={taxRates.ewtBps}>+ Create PO</button>
+  ),
 }))
 vi.mock('@/components/procurement/generate-pos-trigger', () => ({
   GeneratePosTrigger: () => <button>Generate POs from BOM</button>,
 }))
 
+import { manilaCalendarDate, pickEffectiveTaxRates } from '@third-code-erp/shared-types'
 import PurchaseOrdersPage from './page'
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111'
@@ -86,6 +93,9 @@ describe('purchase-order list permissions and status display', () => {
     vi.clearAllMocks()
     vi.stubGlobal('React', React)
     mocks.profile.mockResolvedValue({ role: 'admin', tenantId: TENANT_ID })
+    mocks.resolveTaxRates.mockImplementation(async (_db: unknown, _tenantId: string, at: Date) =>
+      pickEffectiveTaxRates([], manilaCalendarDate(at))
+    )
   })
 
   it.each(['admin', 'procurement', 'commercial'] as const)(
@@ -100,6 +110,9 @@ describe('purchase-order list permissions and status display', () => {
       expect(html).toContain('+ Create PO')
       expect(html).toContain('Create a PO directly')
       expect(mocks.select).toHaveBeenCalledTimes(5)
+      expect(mocks.resolveTaxRates).toHaveBeenCalledWith(expect.anything(), TENANT_ID, expect.any(Date))
+      expect(html).toContain('data-vat-bps="1200"')
+      expect(html).toContain('data-ewt-bps="200"')
     }
   )
 
@@ -115,6 +128,7 @@ describe('purchase-order list permissions and status display', () => {
       expect(html).not.toContain('+ Create PO')
       expect(html).toContain('Purchase orders will appear here when they are created.')
       expect(mocks.select).toHaveBeenCalledTimes(1)
+      expect(mocks.resolveTaxRates).not.toHaveBeenCalled()
     }
   )
 

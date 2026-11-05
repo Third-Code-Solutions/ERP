@@ -3,6 +3,7 @@
 // Percentages/markups use basis points: 0-10000 = 0%-100%.
 
 import { scaledBoqQuantity } from './quantity'
+import { TAX_DEFAULTS, type EffectiveTaxRates } from '../tax-rates'
 
 export type BasisPoints = number
 
@@ -246,19 +247,47 @@ export function weightedTCV(tcvCents: number, probabilityPercent: number): numbe
   return roundedRatio(tcvCents, probabilityPercent, 100, 'weighted TCV')
 }
 
-// 12% VAT (Philippine standard)
-export function computeVAT(amountCents: number): number {
-  return roundedRatio(amountCents, 1200, 10000, 'VAT')
+// VAT at the tenant's effective rate (default: TAX_DEFAULTS)
+export function computeVAT(
+  amountCents: number,
+  vatBps: BasisPoints = TAX_DEFAULTS.vatBps
+): number {
+  return roundedRatio(amountCents, vatBps, 10000, 'VAT')
 }
 
-// 2% expanded withholding tax (BIR EWT)
-export function computeEWT(amountCents: number): number {
-  return roundedRatio(amountCents, 200, 10000, 'EWT')
+// Expanded withholding tax (BIR EWT) at the effective rate
+export function computeEWT(
+  amountCents: number,
+  ewtBps: BasisPoints = TAX_DEFAULTS.ewtBps
+): number {
+  return roundedRatio(amountCents, ewtBps, 10000, 'EWT')
 }
 
-// 10% retention (standard Philippine construction billing)
-export function computeRetention(amountCents: number, retentionBps = 1000): number {
+// Retention at the effective rate (standard Philippine construction billing)
+export function computeRetention(
+  amountCents: number,
+  retentionBps: BasisPoints = TAX_DEFAULTS.retentionBps
+): number {
   return roundedRatio(amountCents, retentionBps, 10000, 'retention')
+}
+
+/**
+ * Spec tenancy C-2, the one progress-invoice formula used by the Core API
+ * draft, the legacy web draft and the invoice form preview. VAT and EWT are
+ * taken on (subtotal - retention); a non-VAT tenant charges no output VAT.
+ */
+export function computeProgressInvoice(
+  tcvCents: number,
+  billingPercentBps: BasisPoints,
+  rates: Pick<EffectiveTaxRates, 'vatBps' | 'ewtBps' | 'retentionBps' | 'vatRegistered'>
+) {
+  const subtotal = progressBillingAmount(tcvCents, billingPercentBps)
+  const retention = computeRetention(subtotal, rates.retentionBps)
+  const base = subtotal - retention
+  const vatBps = rates.vatRegistered ? rates.vatBps : 0
+  const vat = computeVAT(base, vatBps)
+  const ewt = computeEWT(base, rates.ewtBps)
+  return { subtotal, retention, base, vat, ewt, net: base + vat - ewt, vatBps }
 }
 
 // Progress billing amount for a given billing percent

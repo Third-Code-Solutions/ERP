@@ -6,6 +6,7 @@ import { getUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { poLineItems, projects, purchaseOrders, tenants, vendors } from '@third-code-erp/database/schema'
 import { and, asc, eq } from 'drizzle-orm'
+import { TAX_DEFAULTS, formatBps } from '@third-code-erp/shared-types'
 import { PrintButton } from './print-button'
 
 export const metadata: Metadata = { title: 'Purchase Order' }
@@ -208,13 +209,13 @@ export default async function PoPrintPage({ params }: { params: Promise<{ id: st
                 <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'monospace', color: '#111827' }}>{formatPHP(po.subtotal_cents)}</td>
               </tr>
               <tr style={{ background: '#f9fafb' }}>
-                <td colSpan={5} style={{ padding: '10px 12px', textAlign: 'right', color: '#6b7280', fontSize: '12px' }}>VAT (12%)</td>
+                <td colSpan={5} style={{ padding: '10px 12px', textAlign: 'right', color: '#6b7280', fontSize: '12px' }}>VAT ({formatBps(TAX_DEFAULTS.vatBps)})</td>
                 <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'monospace', color: '#111827' }}>{formatPHP(po.vat_cents)}</td>
               </tr>
               {po.withholding_tax_cents > 0 && (
                 <tr style={{ background: '#fef2f2' }}>
                   <td colSpan={5} style={{ padding: '10px 12px', textAlign: 'right', color: '#7f1d1d', fontSize: '12px' }}>
-                    Less: Withholding Tax (2%)
+                    Less: Withholding Tax ({formatBps(TAX_DEFAULTS.ewtBps)})
                   </td>
                   <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'monospace', color: '#7f1d1d' }}>
                     ({formatPHP(po.withholding_tax_cents)})
@@ -248,7 +249,7 @@ export default async function PoPrintPage({ params }: { params: Promise<{ id: st
         {/* Terms */}
         <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '6px', padding: '14px 16px', marginBottom: '32px', fontSize: '12px', color: '#374151' }}>
           <strong>Terms &amp; Conditions:</strong> All items must be delivered in accordance with the specifications stated herein.
-          Payment is subject to 2% creditable withholding tax per BIR regulations. Please attach BIR Form 2307 upon billing.
+          Payment is subject to {formatBps(TAX_DEFAULTS.ewtBps)} creditable withholding tax per BIR regulations. Please attach BIR Form 2307 upon billing.
         </div>
 
         {/* Signature block */}

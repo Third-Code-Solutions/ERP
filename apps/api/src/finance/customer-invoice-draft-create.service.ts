@@ -21,27 +21,25 @@ import {
 import {
   customerInvoiceDraftCreateBodySchema,
   customerInvoiceDraftCreateResultSchema,
+  invoiceTaxAudit,
   nextInvoiceNumber,
   type CustomerInvoiceDraftCreateBody,
   type CustomerInvoiceDraftCreateResult,
 } from '@third-code-erp/shared-types'
 import {
-  computeEWT,
-  computeRetention,
-  computeVAT,
+  computeProgressInvoice,
   cumulativeBillingCapError,
-  progressBillingAmount,
 } from '@third-code-erp/shared-types/bom'
 import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import { roleHasCapability } from '../auth/capability.guard'
 import type { ErpPrincipal, ErpRole } from '../auth/current-principal.decorator'
 import { AuditService } from '../audit/audit.service'
+import { resolveTaxRatesForWrite } from '../common/tax-rates'
 import {
   DatabaseService,
   type DatabaseTransaction,
 } from '../database/database.service'
 
-const RETENTION_BPS = 1_000
 const MAX_SAFE_INTEGER_BIGINT = BigInt(Number.MAX_SAFE_INTEGER)
 
 type BillableBomStatus = 'approved' | 'locked'
@@ -265,18 +263,20 @@ export class CustomerInvoiceDraftCreateService {
       )
       if (capError) throw new ConflictException(capError)
 
-      const subtotalCents = progressBillingAmount(
-        exactCentavoNumber(bom.tcvCents),
-        parsedBody.billingPercentBps
-      )
-      const retentionCents = computeRetention(subtotalCents, RETENTION_BPS)
-      const taxableBaseCents = subtotalCents - retentionCents
-      const vatCents = computeVAT(taxableBaseCents)
-      const withholdingTaxCents = computeEWT(taxableBaseCents)
-      const netAmountCents =
-        taxableBaseCents + vatCents - withholdingTaxCents
-
+      // Spec tenancy C-1 / D-TEN-3: rates on the draft's Manila date, read
+      // under the project lock in this transaction.
       const now = new Date()
+      const tax = await resolveTaxRatesForWrite(
+        transaction,
+        authorizedPrincipal.tenantId,
+        now
+      )
+      const amounts = computeProgressInvoice(
+        exactCentavoNumber(bom.tcvCents),
+        parsedBody.billingPercentBps,
+        tax
+      )
+
       const prefix = `INV-${now.getUTCFullYear()}${String(
         now.getUTCMonth() + 1
       ).padStart(2, '0')}-`
@@ -312,12 +312,12 @@ export class CustomerInvoiceDraftCreateService {
           invoice_number: invoiceNumber,
           status: 'draft',
           billing_percent_bps: parsedBody.billingPercentBps,
-          retention_bps: RETENTION_BPS,
-          subtotal_cents: subtotalCents,
-          retention_cents: retentionCents,
-          vat_cents: vatCents,
-          withholding_tax_cents: withholdingTaxCents,
-          net_amount_cents: netAmountCents,
+          retention_bps: tax.retentionBps,
+          subtotal_cents: amounts.subtotal,
+          retention_cents: amounts.retention,
+          vat_cents: amounts.vat,
+          withholding_tax_cents: amounts.ewt,
+          net_amount_cents: amounts.net,
           due_date: dueDate,
           notes: parsedBody.notes,
         })
@@ -360,6 +360,7 @@ export class CustomerInvoiceDraftCreateService {
           withholding_tax_cents: created.withholding_tax_cents,
           net_amount_cents: created.net_amount_cents,
           idempotency_key_hash: requestHash,
+          tax: invoiceTaxAudit(tax),
         },
       })
       return result

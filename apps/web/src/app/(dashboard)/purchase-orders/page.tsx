@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { can, requireUserProfile } from '@third-code-erp/auth'
-import { db } from '@third-code-erp/database'
+import { db, resolveTaxRates } from '@third-code-erp/database'
 import {
   boms,
   costCodes,
@@ -83,12 +83,15 @@ export default async function PurchaseOrdersPage() {
         )
       )
       .orderBy(costCodes.code),
+    // Spec tenancy C-5: the create form previews at the tenant's rates.
+    resolveTaxRates(db, profile.tenantId, new Date()),
   ]) : null
 
   const projectList = creationPrerequisites?.[0] ?? []
   const vendorList = creationPrerequisites?.[1] ?? []
   const eligibleBomRows = creationPrerequisites?.[2] ?? []
   const costCodeRows = creationPrerequisites?.[3] ?? []
+  const taxRates = creationPrerequisites?.[4] ?? null
 
   const eligibleBoms = eligibleBomRows.map((b) => ({
     id: b.id,
@@ -137,13 +140,14 @@ export default async function PurchaseOrdersPage() {
           <h1 className="page-title">Purchase Orders</h1>
           <p className="page-subtitle">{rows.length} PO{rows.length !== 1 ? 's' : ''} across all projects</p>
         </div>
-        {canCreate ? (
+        {canCreate && taxRates ? (
           <div style={{ display: 'flex', gap: 8 }}>
             <GeneratePosTrigger boms={eligibleBoms} />
             <CreatePoForm
               projects={projectList}
               vendors={vendorList}
               costCodes={costCodeRows}
+              taxRates={taxRates}
             />
           </div>
         ) : null}

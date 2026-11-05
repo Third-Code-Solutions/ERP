@@ -9,7 +9,7 @@ Paths use the gap report's prefixes: `S/` schema · `M/` migrations · `W/` dash
 ## Wave 0 — Foundation (everything depends on this)
 | Slug | Module | Depends on | Status | Notes |
 |---|---|---|---|---|
-| tenancy | Organisations / tenants, tenant settings (currency, tax rate, calendar) | — | partial | `tax_profiles` unused: invoices and POs hardcode 12% VAT / 2% EWT / 10% retention; store `tax_profiles` and read rates from it at today's defaults, read-only until owner Q3 and Q7 (gap §3) (S) |
+| tenancy | Organisations / tenants, tenant settings (currency, tax rate, calendar) | — | in-progress | D-13 built on `feat/erp-tenancy` (not merged): invoices, POs, previews and the portal read the tenant's active `tax_profiles` row for the Manila date, else 12% VAT / 2% EWT / 10% retention; no tenant has a row, so no amount moves. Read-only `/settings/tax` behind `ERP_TENANCY_ENABLED`; profile writes stay gated until owner Q3 and Q7. Evidence: [`reports/tenancy.md`](reports/tenancy.md) (S) |
 | rbac | Users, invites, roles & permissions, SSO later | tenancy | exists | `T/authorization.ts`, `A/auth/capability.guard.ts`; SSO later |
 | audit-log | Immutable audit trail for financial actions | tenancy | exists | `S/audit-log.ts`; hash chain in `M/20260509164538_audit_triggers.sql` |
 | notifications | In-app + email notifications | rbac | exists | `S/notifications.ts` (outbox), `A/notifications/notification-email.service.ts` |
@@ -39,7 +39,7 @@ Paths use the gap report's prefixes: `S/` schema · `M/` migrations · `W/` dash
 | licences | Licences & accreditations for tenant and counterparties (PCAB category and range, PhilGEPS, insurance) with expiry alerts and over-range warnings | contacts, documents | unrated | — |
 | contracts | Contracts & awards, contract sum, retention terms | boq, contacts (tendering for subcontract awards) | partial | Only an e-signature record; add contract sum (VAT flag), retention %, down payment + recoupment, LD rate and cap, payment terms, defects period, subcontracts (M) |
 | subcontractors | Subcontractor management: prequalify (licence, tax, insurance), onboard, track scope, performance and payment status | contacts, tax-profile, licences | unrated | — |
-| procurement | Purchase requests, POs, approvals, deliveries | boq, contacts, approvals | partial | No purchase-requisition screen (table sits behind the roadmap service only); PO-from-BOM footing and rate-card pricing fixed in #139; the VAT-on-H part of D-4 waits on owner Q1 (S) |
+| procurement | Purchase requests, POs, approvals, deliveries | boq, contacts, approvals | partial | No purchase-requisition screen (table sits behind the roadmap service only); PO-from-BOM footing and rate-card pricing fixed in #139; the VAT-on-H part of D-4 waits on owner Q1. New D-16 (P3, changes amounts): the requisition-to-PO line total `(quantity_micros × unit) / 1,000,000` floors instead of rounding half-up for fractional quantities (`A/roadmap/roadmap.service.ts:590`, spec tenancy §15) (S) |
 | variations | Variations / change orders: scope + cost + time impact | contracts, boq, approvals | partial | A signed VO only changes its own status; feed revised contract sum to billing, revise budget, split sell/cost, link VO lines to BOQ (M) |
 | bonds | Bonds & guarantees per contract (performance, surety, down payment, retention, warranty) tracked through release | contracts, documents | unrated | — |
 | rfi | Requests for information, due dates, cost-bearing answers → variation | projects, variations, tasks | exists | `S/project-rfis.ts`, `W/projects/[id]/rfis`; no cost-impact link to VOs |
@@ -116,3 +116,4 @@ Paths use the gap report's prefixes: `S/` schema · `M/` migrations · `W/` dash
 - 2026-11-04: Rows reordered within waves to the survey's order (MVP rows first); no wave moves, no rows removed.
 - 2026-11-04: Notes extended per the survey for boq, boq-export, cost-db, contracts, tendering, payment-apps, invoicing and hse; some survey "later" flags shown as "Later." in Notes (full list in `oce/survey.md`).
 - 2026-11-04: `procurement`, `invoicing`, `withholding-tax` notes updated for batch 2 fixes #138 and #139.
+- 2026-11-05: `tenancy` set to `in-progress` (D-13 built on `feat/erp-tenancy`); `procurement` notes gain new defect D-16 (requisition-to-PO line flooring).

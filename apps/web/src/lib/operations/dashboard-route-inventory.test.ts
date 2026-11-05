@@ -273,6 +273,7 @@ const EXPECTED_ROLES_BY_TEMPLATE: Readonly<
   '/reports': ['owner', 'admin', 'sales', 'finance', 'viewer'],
   '/settings': ALL_ROLES,
   '/settings/profile': ALL_ROLES,
+  '/settings/tax': FINANCE_READ,
   '/tasks': ALL_ROLES,
   '/warranty': WARRANTY_READ,
   '/warranty/[id]': WARRANTY_READ,
@@ -303,7 +304,7 @@ describe('dashboard route authorization inventory', () => {
       (policy) => policy.template
     ).sort()
 
-    expect(routeTemplates).toHaveLength(120)
+    expect(routeTemplates).toHaveLength(121)
     expect(new Set(registeredTemplates).size).toBe(registeredTemplates.length)
     expect(registeredTemplates).toEqual(routeTemplates)
     expect(Object.keys(EXPECTED_ROLES_BY_TEMPLATE).sort()).toEqual(

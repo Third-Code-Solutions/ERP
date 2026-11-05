@@ -2,21 +2,25 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { formatBasisPoints } from '@third-code-erp/shared-types'
-import { parsePercentToBps } from '@third-code-erp/shared-types/bom'
+import {
+  formatBasisPoints,
+  formatBps,
+  type EffectiveTaxRates,
+} from '@third-code-erp/shared-types'
+import { computeProgressInvoice, parsePercentToBps } from '@third-code-erp/shared-types/bom'
 import { createInvoice } from '@/app/(dashboard)/projects/[id]/billing/actions'
-import { previewProgressInvoice } from './invoice-preview'
 
 interface CreateInvoiceFormProps {
   projectId: string
   tcvCents: number | null
+  taxRates: EffectiveTaxRates
 }
 
 function formatPHP(cents: number) {
   return `₱${(cents / 100).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
-export function CreateInvoiceForm({ projectId, tcvCents }: CreateInvoiceFormProps) {
+export function CreateInvoiceForm({ projectId, tcvCents, taxRates }: CreateInvoiceFormProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [billingPct, setBillingPct] = useState('')
   const [error, setError] = useState('')
@@ -26,10 +30,11 @@ export function CreateInvoiceForm({ projectId, tcvCents }: CreateInvoiceFormProp
   const billingPercentBps = parsePercentToBps(billingPct) ?? 0
   const validPct = billingPercentBps > 0 && billingPercentBps <= 10_000
 
-  // Live preview: same integer functions as the server draft
-  const { subtotal, retention, vat, ewt, net } = previewProgressInvoice(
+  // Live preview: the same formula and tenant rates as the server draft.
+  const { subtotal, retention, vat, ewt, net, vatBps } = computeProgressInvoice(
     tcvCents ?? 0,
-    validPct ? billingPercentBps : 0
+    validPct ? billingPercentBps : 0,
+    taxRates
   )
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -117,9 +122,9 @@ export function CreateInvoiceForm({ projectId, tcvCents }: CreateInvoiceFormProp
             </div>
             {[
               { label: `Gross (${formatBasisPoints(billingPercentBps, 2)} of TCV)`, value: formatPHP(subtotal) },
-              { label: 'Less: Retention (10%)', value: `(${formatPHP(retention)})`, muted: true },
-              { label: 'Add: VAT (12%)', value: `+${formatPHP(vat)}` },
-              { label: 'Less: EWT (2%)', value: `−${formatPHP(ewt)}`, muted: true },
+              { label: `Less: Retention (${formatBps(taxRates.retentionBps)})`, value: `(${formatPHP(retention)})`, muted: true },
+              { label: `Add: VAT (${formatBps(vatBps)})`, value: `+${formatPHP(vat)}` },
+              { label: `Less: EWT (${formatBps(taxRates.ewtBps)})`, value: `−${formatPHP(ewt)}`, muted: true },
             ].map(({ label, value, muted }) => (
               <div key={label} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                 <span style={{ fontSize: '0.8125rem', color: muted ? 'var(--color-neutral-400)' : 'var(--color-neutral-600)' }}>{label}</span>
