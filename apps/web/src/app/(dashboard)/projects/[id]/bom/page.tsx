@@ -655,16 +655,36 @@ export default async function ProjectBomPage({
           {' / '}
           <span style={{ color: 'var(--color-neutral-700)' }}>BOM</span>
         </div>
-        <h1
+        <div
           style={{
-            fontSize: '1.25rem',
-            fontWeight: 700,
-            color: 'var(--color-neutral-900)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            flexWrap: 'wrap',
             margin: '0 0 16px',
           }}
         >
-          {project.name}
-        </h1>
+          <h1
+            style={{
+              fontSize: '1.25rem',
+              fontWeight: 700,
+              color: 'var(--color-neutral-900)',
+              margin: 0,
+            }}
+          >
+            {project.name}
+          </h1>
+          {latestBom && access.bom && (
+            <a
+              href={`/api/bom/${latestBom.id}/export`}
+              download
+              className="button button-secondary"
+            >
+              Export to Excel
+            </a>
+          )}
+        </div>
       </div>
 
       {lineItems.length > 0 && (
