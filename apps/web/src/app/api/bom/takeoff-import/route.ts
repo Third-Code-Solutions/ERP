@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { can, requireUserProfile } from '@third-code-erp/auth'
+import { TAKEOFF_IMPORT_MAX_ROWS } from '@third-code-erp/shared-types'
 import { executeTakeoffImportThroughCoreApi } from '@/lib/erp-core-client'
 import { safeActionError } from '@/lib/safe-action-error'
 import {
   parseStructuredTakeoff,
   sha256Digest,
+  TAKEOFF_MAX_HEADER_ROW,
   type TakeoffColumnMapping,
 } from '@/lib/operations/integrations/takeoff'
 
@@ -20,7 +22,11 @@ const mappingSchema = z.object({
   location: z.string().trim().min(1).optional(),
   itemNo: z.string().trim().min(1).optional(),
   notes: z.string().trim().min(1).optional(),
+  unitRate: z.string().trim().min(1).optional(),
+  amount: z.string().trim().min(1).optional(),
 })
+
+const headerRowSchema = z.coerce.number().int().min(1).max(TAKEOFF_MAX_HEADER_ROW)
 
 const DEFAULT_MAPPING: TakeoffColumnMapping = {
   sourceRowKey: 'row',
@@ -31,6 +37,8 @@ const DEFAULT_MAPPING: TakeoffColumnMapping = {
   location: 'location',
   itemNo: 'item no',
   notes: 'notes',
+  unitRate: 'unit rate',
+  amount: 'amount',
 }
 
 function errorResponse(
@@ -148,13 +156,28 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return errorResponse(422, 'INVALID_MAPPING', parsedMapping.error)
   }
 
+  const headerRowText = getFormString(form, 'header_row')
+  const headerRow = headerRowText ? headerRowSchema.safeParse(headerRowText) : null
+  if (headerRow && !headerRow.success) {
+    return errorResponse(
+      422,
+      'INVALID_HEADER_ROW',
+      `header_row must be a whole number from 1 to ${TAKEOFF_MAX_HEADER_ROW}.`
+    )
+  }
+
   const buffer = Buffer.from(await file.arrayBuffer())
   let parsed
   try {
     parsed = await parseStructuredTakeoff(
       buffer,
       file.name,
-      parsedMapping.mapping
+      parsedMapping.mapping,
+      {
+        sheet: getFormString(form, 'sheet') ?? undefined,
+        headerRow: headerRow?.data,
+        sectionHeaders: getFormString(form, 'section_headers') !== 'off',
+      }
     )
   } catch (error) {
     console.error('[takeoff-import] parse failed', error)
@@ -162,6 +185,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       422,
       'TAKEOFF_PARSE_FAILED',
       safeActionError(error, 'The takeoff could not be parsed.')
+    )
+  }
+
+  if (parsed.rows.length > TAKEOFF_IMPORT_MAX_ROWS) {
+    return errorResponse(
+      413,
+      'TAKEOFF_TOO_LARGE',
+      `The sheet has more than ${TAKEOFF_IMPORT_MAX_ROWS.toLocaleString('en-PH')} rows. Split it and import each part.`
     )
   }
 
@@ -192,5 +223,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     )
   }
 
-  return NextResponse.json(coreResult.data)
+  // Spreadsheet facts only Web knows (sheets, skipped rows, amount checks)
+  // ride along with Core's preview; Core never sees or trusts them.
+  return NextResponse.json({
+    ...coreResult.data,
+    headerRow: parsed.headerRow,
+    skippedRows: parsed.skippedRows,
+    sectionRows: parsed.sectionRows,
+    warnings: parsed.warnings,
+    ...(parsed.workbook ? { workbook: parsed.workbook } : {}),
+  })
 }

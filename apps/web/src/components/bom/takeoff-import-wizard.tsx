@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { formatCentavos } from '@/lib/operations/boq-excel/cells'
 
 type TakeoffRow = {
   sourceRowKey: string
@@ -11,6 +12,7 @@ type TakeoffRow = {
   division: string | null
   location: string | null
   itemNo: string | null
+  unitRateCentavos?: number | null
 }
 
 type ValidationIssue = {
@@ -26,6 +28,11 @@ type Preview = {
   rows: TakeoffRow[]
   validationIssues: ValidationIssue[]
   missingColumns: string[]
+  headerRow?: number
+  skippedRows?: number
+  sectionRows?: number
+  warnings?: ValidationIssue[]
+  workbook?: { sheets: string[]; sheet: string }
 }
 
 type TakeoffImportWizardProps = {
@@ -44,6 +51,8 @@ const DEFAULT_MAPPING = {
   location: 'Location',
   itemNo: 'Item No',
   notes: 'Notes',
+  unitRate: 'Unit Rate (PHP)',
+  amount: 'Amount (PHP)',
 }
 
 export function TakeoffImportWizard({
@@ -57,6 +66,10 @@ export function TakeoffImportWizard({
   const [file, setFile] = useState<File | null>(null)
   const [source, setSource] = useState('generic')
   const [mapping, setMapping] = useState(DEFAULT_MAPPING)
+  const [sheets, setSheets] = useState<string[]>([])
+  const [sheet, setSheet] = useState('')
+  const [headerRow, setHeaderRow] = useState('')
+  const [sectionHeaders, setSectionHeaders] = useState(true)
   const [preview, setPreview] = useState<Preview | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -78,6 +91,9 @@ export function TakeoffImportWizard({
       form.set('source', source.trim() || 'generic')
       form.set('mode', mode)
       form.set('drawing_revision_key', file.name)
+      if (sheet) form.set('sheet', sheet)
+      if (headerRow.trim()) form.set('header_row', headerRow.trim())
+      form.set('section_headers', sectionHeaders ? 'on' : 'off')
       form.set(
         'mapping',
         JSON.stringify(
@@ -96,6 +112,10 @@ export function TakeoffImportWizard({
 
       if (mode === 'preview') {
         setPreview(payload)
+        if (payload.workbook) {
+          setSheets(payload.workbook.sheets)
+          setSheet(payload.workbook.sheet)
+        }
       } else {
         router.push(`/projects/${projectId}/bom`)
         router.refresh()
@@ -105,12 +125,14 @@ export function TakeoffImportWizard({
     } finally {
       setBusy(false)
     }
-  }, [bomId, file, isEditable, mapping, projectId, router, source])
+  }, [bomId, file, headerRow, isEditable, mapping, projectId, router, sectionHeaders, sheet, source])
 
   const reset = useCallback(() => {
     setFile(null)
     setPreview(null)
     setError(null)
+    setSheets([])
+    setSheet('')
     if (fileInputRef.current) fileInputRef.current.value = ''
   }, [])
 
@@ -132,14 +154,29 @@ export function TakeoffImportWizard({
             <Field label="UOM column" value={mapping.unit} onChange={(value) => setMapping((current) => ({ ...current, unit: value }))} />
             <Field label="Division column" value={mapping.division} onChange={(value) => setMapping((current) => ({ ...current, division: value }))} optional />
             <Field label="Location column" value={mapping.location} onChange={(value) => setMapping((current) => ({ ...current, location: value }))} optional />
+            <Field label="Unit rate column" value={mapping.unitRate} onChange={(value) => setMapping((current) => ({ ...current, unitRate: value }))} optional />
+            <Field label="Amount column" value={mapping.amount} onChange={(value) => setMapping((current) => ({ ...current, amount: value }))} optional />
+            <Field label="Header row" value={headerRow} onChange={setHeaderRow} optional placeholder="Auto (1-50)" inputMode="numeric" />
+            {sheets.length > 0 && (
+              <label style={{ display: 'grid', gap: 6, fontSize: 12, color: 'var(--color-neutral-600)' }}>
+                Worksheet
+                <select value={sheet} onChange={(event) => { setSheet(event.target.value); setPreview(null) }} disabled={busy}>
+                  {sheets.map((name) => <option key={name} value={name}>{name}</option>)}
+                </select>
+              </label>
+            )}
           </div>
+          <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: 'var(--color-neutral-700)' }}>
+            <input type="checkbox" checked={sectionHeaders} onChange={(event) => { setSectionHeaders(event.target.checked); setPreview(null) }} />
+            Rows with no quantity and no unit are section headers (they set the division below)
+          </label>
           <label style={{ display: 'grid', gap: 6, fontSize: 12, color: 'var(--color-neutral-600)' }}>
             Takeoff CSV or XLSX
             <input
               ref={fileInputRef}
               type="file"
               accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-              onChange={(event) => { setFile(event.target.files?.[0] ?? null); setPreview(null); setError(null) }}
+              onChange={(event) => { setFile(event.target.files?.[0] ?? null); setPreview(null); setError(null); setSheets([]); setSheet('') }}
               disabled={busy || !isEditable}
             />
           </label>
@@ -158,6 +195,9 @@ export function TakeoffImportWizard({
             <div>
               <h2 id="takeoff-review-title" className="card-title">Review before import</h2>
               <p className="card-subtitle">{preview.rowCount} rows · {preview.validCount} ready · {preview.unresolvedCount} unresolved</p>
+              <p className="card-subtitle">
+                {preview.workbook ? `Sheet "${preview.workbook.sheet}" · ` : ''}header row {preview.headerRow ?? 1} · {preview.sectionRows ?? 0} section headers · {preview.skippedRows ?? 0} blank or total rows skipped
+              </p>
             </div>
             <button type="button" className="button button-primary" onClick={() => void run('commit')} disabled={busy || !isEditable || preview.rows.length === 0}>Import rows</button>
           </div>
@@ -168,7 +208,7 @@ export function TakeoffImportWizard({
           )}
           <div style={{ overflowX: 'auto', padding: '0 18px 18px' }}>
             <table className="data-table">
-              <thead><tr><th>Source row</th><th>Description</th><th className="numeric">Qty</th><th>UOM</th><th>Division</th><th>Status</th></tr></thead>
+              <thead><tr><th>Source row</th><th>Description</th><th className="numeric">Qty</th><th>UOM</th><th className="numeric">Unit rate (PHP)</th><th>Division</th><th>Status</th></tr></thead>
               <tbody>
                 {preview.rows.map((row) => (
                   <tr key={row.sourceRowKey}>
@@ -176,6 +216,7 @@ export function TakeoffImportWizard({
                     <td>{row.description || '—'}</td>
                     <td className="numeric">{row.quantity ?? '—'}</td>
                     <td>{row.unit || '—'}</td>
+                    <td className="numeric">{typeof row.unitRateCentavos === 'number' ? formatCentavos(row.unitRateCentavos) : '—'}</td>
                     <td>{row.division ?? '—'}</td>
                     <td>{issueRows.has(row.sourceRowKey) ? 'Unresolved' : 'Ready'}</td>
                   </tr>
@@ -183,6 +224,12 @@ export function TakeoffImportWizard({
               </tbody>
             </table>
           </div>
+          {(preview.warnings?.length ?? 0) > 0 && (
+            <div role="status" style={{ display: 'grid', gap: 6, margin: '0 18px 18px', padding: 12, border: '1px solid var(--color-warning)', background: 'var(--color-warning-soft)', borderRadius: 8, fontSize: 12, color: 'var(--color-neutral-700)' }}>
+              <strong>{preview.warnings!.length} spreadsheet warning{preview.warnings!.length === 1 ? '' : 's'}</strong>
+              {preview.warnings!.slice(0, 12).map((warning, index) => <div key={`${warning.sourceRowKey}-${warning.code}-${index}`}>{warning.sourceRowKey}: {warning.message}</div>)}
+            </div>
+          )}
           {preview.validationIssues.length > 0 && (
             <div style={{ display: 'grid', gap: 6, padding: '0 18px 18px', fontSize: 12, color: 'var(--color-neutral-600)' }}>
               {preview.validationIssues.slice(0, 12).map((issue, index) => <div key={`${issue.sourceRowKey}-${issue.code}-${index}`}>{issue.sourceRowKey}: {issue.message}</div>)}
@@ -194,11 +241,11 @@ export function TakeoffImportWizard({
   )
 }
 
-function Field({ label, value, onChange, optional = false }: { label: string; value: string; onChange: (value: string) => void; optional?: boolean }) {
+function Field({ label, value, onChange, optional = false, placeholder, inputMode }: { label: string; value: string; onChange: (value: string) => void; optional?: boolean; placeholder?: string; inputMode?: 'numeric' }) {
   return (
     <label style={{ display: 'grid', gap: 6, fontSize: 12, color: 'var(--color-neutral-600)' }}>
       {label}{optional ? ' (optional)' : ''}
-      <input value={value} onChange={(event) => onChange(event.target.value)} aria-label={label} />
+      <input value={value} onChange={(event) => onChange(event.target.value)} aria-label={label} placeholder={placeholder} inputMode={inputMode} />
     </label>
   )
 }

@@ -66,7 +66,7 @@ describe('generic takeoff import Core authority', () => {
   it('parses the file but delegates preview validation to Core', async () => {
     const csv = [
       'Row,Description,Qty,UOM,Division,Location',
-      // D-5: 12.5 is a valid BOQ quantity; more than 4 decimal places is not.
+      // boq-export A.3: Web rounds a spreadsheet quantity half-up to 4 dp.
       'A-001,Suspended ceiling,12.34567,sqm,Finishes,Level 2',
       'A-002,Unmapped item,1,box,,Level 2',
     ].join('\n')
@@ -167,12 +167,103 @@ describe('generic takeoff import Core authority', () => {
         fileName: 'takeoff.csv',
         contentSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
         rows: expect.arrayContaining([
-          expect.objectContaining({ sourceRowKey: 'A-001', quantity: 12.34567 }),
+          expect.objectContaining({ sourceRowKey: 'A-001', quantity: 12.3457 }),
         ]),
       }),
       TENANT_ID
     )
   })
+
+  it('reads the chosen sheet and header row, sends rates, and returns sheet facts', async () => {
+    const ExcelJS = await import('exceljs')
+    const workbook = new ExcelJS.Workbook()
+    workbook.addWorksheet('Notes').addRow(['ignore me'])
+    const sheet = workbook.addWorksheet('Estimate')
+    sheet.addRow(['Client estimate'])
+    sheet.addRow(['Description', 'Qty', 'Unit', 'Unit Rate', 'Amount', 'Division'])
+    sheet.addRow(['Paint', 10, 'sqm', '₱ 150.00', '1,600.00', 'Finishes'])
+    sheet.addRow(['Total', '', '', '', '1,600.00', ''])
+    const file = new File(
+      [Buffer.from(await workbook.xlsx.writeBuffer())],
+      'estimate.xlsx'
+    )
+    mocks.executeTakeoffImportThroughCoreApi.mockImplementation(
+      async (command: { bomId: string; rows: unknown[] }) => ({
+        ok: true,
+        data: {
+          ok: true,
+          mode: 'preview',
+          tenantId: TENANT_ID,
+          bomId: command.bomId,
+          rowCount: command.rows.length,
+        },
+      })
+    )
+
+    const response = await POST(
+      requestWithForm({
+        file,
+        bom_id: BOM_ID,
+        mode: 'preview',
+        sheet: 'Estimate',
+        header_row: '2',
+        mapping: JSON.stringify({
+          description: 'Description',
+          quantity: 'Qty',
+          unit: 'Unit',
+          unitRate: 'Unit Rate',
+          amount: 'Amount',
+          division: 'Division',
+        }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      rowCount: 1,
+      headerRow: 2,
+      skippedRows: 1,
+      sectionRows: 0,
+      workbook: { sheets: ['Notes', 'Estimate'], sheet: 'Estimate' },
+      warnings: [
+        expect.objectContaining({ sourceRowKey: 'row-3', code: 'AMOUNT_MISMATCH' }),
+      ],
+    })
+    expect(mocks.executeTakeoffImportThroughCoreApi).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rows: [
+          expect.objectContaining({
+            description: 'Paint',
+            quantity: 10,
+            unit: 'sqm',
+            division: 'Finishes',
+            unitRateCentavos: 15_000,
+          }),
+        ],
+      }),
+      TENANT_ID
+    )
+  })
+
+  it.each(['0', '51', '2.5', 'two'])(
+    'rejects header row %s before parsing',
+    async (headerRow) => {
+      const response = await POST(
+        requestWithForm({
+          file: new File(['Description,Qty,UOM\nCeiling,1,sqm'], 'takeoff.csv'),
+          bom_id: BOM_ID,
+          mode: 'preview',
+          header_row: headerRow,
+        })
+      )
+
+      expect(response.status).toBe(422)
+      await expect(response.json()).resolves.toMatchObject({
+        error: { code: 'INVALID_HEADER_ROW' },
+      })
+      expect(mocks.executeTakeoffImportThroughCoreApi).not.toHaveBeenCalled()
+    }
+  )
 
   it('returns a terminal Core failure without a Web transaction fallback', async () => {
     mocks.executeTakeoffImportThroughCoreApi.mockResolvedValue({
