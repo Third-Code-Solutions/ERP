@@ -165,8 +165,10 @@ RUNBOOK) is **done**.
 - Mandate PHASE 2 (`next --auto` through Wave 2) **started 2026-11-04**. Phase D is
   done. Hardening batch 2 is live, and so is `tenancy`. Next modules in gap-report order:
   `approvals` → `contacts` → `cost-db` → `assemblies` → `boq` → `contracts`.
-- `tenancy` (D-13) is live (#142). Ship check Q-TEN-6 passed in production at release:
-  0 `tax_profiles` rows and 0 `tax_statutory_outputs` gate rows. `/settings/tax` stays
+- `tenancy` (D-13) is live (#142). Ship check Q-TEN-6, re-run in production at release:
+  0 `tax_profiles` rows and 0 `tax_statutory_outputs` tenant flag rows. Its third part is
+  still open: check, by name only, that `ERP_ROADMAP_TAX_STATUTORY_OUTPUTS_ENABLED` is not
+  set on the Railway API. `/settings/tax` stays
   behind `ERP_TENANCY_ENABLED` (off). New defect D-16 is in `BACKLOG.md`.
 - **CI not run on #141, #142 or `main` since `5d223726`.** The org's Actions spending
   limit blocks every workflow (CI, backup, promotion, smoke). The owner overrode the
@@ -188,9 +190,9 @@ RUNBOOK) is **done**.
   - #138 `d2d3ce6f`: billing cap, BIR 2307 parties and print gate, half-up DP, exact
     percent parsing (batch 2 items 2, 4, 5).
   - #139 `8293f798`: PO-from-BOM footing and rate-card pricing (batch 2 item 3).
+  - #140 `5d223726`: docs (batch 2 STATE).
 - Merged 2026-11-04/05 under the owner override (CI red only from the Actions billing
   block; security PASS, review APPROVE and a local-gate evidence comment on each PR):
-  - #140 `5d223726`: docs (batch 2 STATE); CI green.
   - #141 `c45bc64c`: D-5 fractional BOQ quantity (batch 2 item 1).
   - #142 `f212c9df`: `tenancy` (D-13), tax rates from the tenant tax profile.
   - Incident (closed): deleting #141's head branch after its merge **closed** #142,
@@ -282,6 +284,9 @@ RUNBOOK) is **done**.
     production, so no impact).
   - The RFQ quantity uses `toLocaleString('en-PH')` (max 3 dp): 0.0001 shows as "0" and
     12.3456 as "12.346". Use `formatBoqQuantity`.
+  - The sync trigger takes the integer branch when an UPDATE changes `quantity` and
+    sets `quantity_decimal` to its current value, so the decimal is overwritten. No caller
+    does this today. Note it in the function comment and the contract-release plan.
 - **#142 review follow-ups (Low):**
   - The billing page, the PO list and the portal call `resolveTaxRates` without catching
     `TaxProfileOverlapError`, so an overlap from legacy data would take the whole page
@@ -327,10 +332,10 @@ RUNBOOK) is **done**.
 | 2026-11-05 | promote | Manual (Actions blocked): web `f212c9df` via Vercel CLI, API auto-deploy `e2acdd8f`; health, revision, surface PASS; smoke not run (secrets in GitHub only) |
 | 2026-11-05 | merge | #142 `f212c9df` tenancy (D-13), owner override of the CI gate; Q-TEN-6 re-checked (0 profiles, 0 gates) |
 | 2026-11-05 | incident | Deleting #141's branch closed stacked #142; reopened and retargeted to `main`. No code impact |
+| 2026-11-05 | build | `tenancy` (D-13) on `feat/erp-tenancy`: 13 commits, no amount moved, gates in `reports/tenancy.md`; not merged |
 | 2026-11-04 | merge | #141 `c45bc64c` D-5, owner override of the CI gate (Actions spending limit) |
 | 2026-11-04 | prod migration | D-5 `20261104194934`, `20261104195001` applied (ledger 180) after targeted encrypted snapshot `20261104T194753Z` |
 | 2026-11-04 | blocker | GitHub Actions blocked by the org spending limit; owner chose the Team upgrade (not applied yet) |
-| 2026-11-05 | build | `tenancy` (D-13) on `feat/erp-tenancy`: 13 commits, no amount moved, gates in `reports/tenancy.md`; not merged |
 | 2026-11-04 | promote | `8293f798` web live (run 41820543052; API/CAD retained-identical); smoke 41823866906 green |
 | 2026-11-04 | merge | #138 `d2d3ce6f` (D-6 cap, D-8, D-14, D-15), #139 `8293f798` (D-4 part); D-10 builder stopped (needs D-3/Q2) |
 | 2026-11-04 | merge | #137 `8ab55740` Phase D docs (4 fix loops, accepted as docs-only) |

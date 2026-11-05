@@ -111,7 +111,8 @@ Unit test paths are relative to each package. "HTTP" means `apps/api/integration
 
 ## Open items and risks
 
-- **Integration fixture failure, outside this builder's files.** The test
+- **Resolved before merge (spec fixture now sets `enabled_by` and `enabled_at`;
+  integration 6/6 in review).** Original note: **Integration fixture failure, outside this builder's files.** The test
   `integration/tax-rates.tenancy-spec.http.integration.spec.ts` › "gated tax-profile
   write API and activation guards" fails at line 587. It inserts a
   `tenant_feature_flags` row with `enabled: true` but without `enabled_by` /
