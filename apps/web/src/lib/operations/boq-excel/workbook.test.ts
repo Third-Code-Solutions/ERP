@@ -1,15 +1,18 @@
+import { createRequire } from 'node:module'
 import * as ExcelJS from 'exceljs'
-import { computeBomTotals } from '@third-code-erp/shared-types/bom'
 import { describe, expect, it } from 'vitest'
 import { parseStructuredTakeoff } from '@/lib/operations/integrations/takeoff'
 import { cellCentavos } from './cells'
 import {
   BOQ_EXPORT_HEADERS,
   boqExportFileName,
-  buildBoqWorkbook,
+  writeBoqWorkbook,
   type BoqExportData,
+  type BoqExportDupa,
   type BoqExportLine,
 } from './workbook'
+
+const require = createRequire(import.meta.url)
 
 const EXPORTED_AT = new Date('2026-11-05T16:30:00.000Z') // 2026-11-06 00:30 Manila
 
@@ -88,12 +91,21 @@ const LINES: BoqExportLine[] = [
   line({ id: 'g', description: 'General requirements', is_group: 1, quantity: '0', unit: null }),
 ]
 
-function exportData(lines = LINES): BoqExportData {
-  const totals = computeBomTotals(lines)
+// Stored totals worked by hand, independent of computeBomTotals:
+// cost = 5,561.69 + 16,250.03 + 3,333.00 (the cement is inside line b);
+// TCV = the stored line totals 5,561.66 + 16,250.03 + 3,333.00.
+const BOM_TOTALS = {
+  total_cost_cents: 2_514_472,
+  tcv_cents: 2_514_469,
+  gp_cents: -3,
+  gp_margin_bps: 0,
+}
+
+function exportData(): BoqExportData {
   return {
     project: { name: 'Clinic fit-out', code: 'PRJ/001', client: 'Somnus Studios' },
-    bom: { version: 3, status: 'draft', label: null, ...totals },
-    lines,
+    bom: { version: 3, status: 'draft', label: null, ...BOM_TOTALS },
+    lines: LINES,
     dupas: [
       {
         bom_line_item_id: 'b',
@@ -125,7 +137,7 @@ function exportData(lines = LINES): BoqExportData {
 }
 
 async function roundTrip(data: BoqExportData): Promise<{ buffer: Buffer; workbook: ExcelJS.Workbook }> {
-  const buffer = Buffer.from(await buildBoqWorkbook(data, EXPORTED_AT).xlsx.writeBuffer())
+  const buffer = await writeBoqWorkbook(data, EXPORTED_AT)
   const workbook = new ExcelJS.Workbook()
   await workbook.xlsx.load(buffer as unknown as ArrayBuffer)
   return { buffer, workbook }
@@ -188,6 +200,23 @@ describe('BOQ workbook export', () => {
     expect(injected.getCell(11).value).toBe('+cmd|calc')
   })
 
+  it('sets quotePrefix only on text that starts like a formula', async () => {
+    const { buffer } = await roundTrip(exportData())
+    const { CFB } = require('xlsx') as typeof import('xlsx')
+    const zip = CFB.read(buffer, { type: 'buffer' })
+    const part = (path: string) => Buffer.from(CFB.find(zip, path).content).toString('utf8')
+    const xfs = [...part('/xl/styles.xml').match(/<cellXfs[^>]*>([\s\S]*?)<\/cellXfs>/)![1]!.matchAll(/<xf\b[^>]*>/g)]
+      .map((match) => match[0])
+    const sheet = part('/xl/worksheets/sheet1.xml')
+    const styleOf = (ref: string) => xfs[Number(new RegExp(`<c r="${ref}"[^>]*\\bs="(\\d+)"`).exec(sheet)?.[1] ?? 0)]!
+
+    // Row 10 is the "=HYPERLINK" line: description C10 and notes K10 ("+cmd|calc").
+    expect(styleOf('C10')).toContain('quotePrefix="1"')
+    expect(styleOf('K10')).toContain('quotePrefix="1"')
+    expect(styleOf('C9')).not.toContain('quotePrefix')
+    expect(styleOf('A9')).not.toContain('quotePrefix')
+  })
+
   it('renders group lines as bold section rows', async () => {
     const { workbook } = await roundTrip(exportData())
     const sheet = workbook.getWorksheet('BOQ')!
@@ -219,7 +248,8 @@ describe('BOQ workbook export', () => {
       if (amount.ok) amountCentavos += amount.value
     })
 
-    expect(data.bom.total_cost_cents).toBe(556_169 + 1_625_003 + 333_300)
+    // 12.3456 x 450.50, 2.5 x 6,500.01 and 0.3333 x 10,000.00, each half-up.
+    expect(amountCentavos).toBe(556_169 + 1_625_003 + 333_300)
     expect(amountCentavos).toBe(data.bom.total_cost_cents)
     expect(totals.get('Total cost')).toBe(25144.72)
     expect(totals.get('Total contract value (TCV)')).toBe(25144.69)
@@ -242,6 +272,29 @@ describe('BOQ workbook export', () => {
 
     const noDupa = await roundTrip({ ...exportData(), dupas: [] })
     expect(noDupa.workbook.getWorksheet('DUPA')).toBeUndefined()
+  })
+
+  it('notes under each DUPA subtotal that rounded lines may not add up to it', async () => {
+    const sand = { description: 'Sand', quantity: '0.3333', uom: 'cu.m', unit_rate_centavos: 100n }
+    const [base] = exportData().dupas as [BoqExportDupa]
+    const { workbook } = await roundTrip({
+      ...exportData(),
+      dupas: [{ ...base, materials: [sand, sand, sand] }],
+    })
+    const rows: Array<[unknown, unknown]> = []
+    workbook.getWorksheet('DUPA')!.eachRow((row) => rows.push([row.getCell(1).value, row.getCell(5).value]))
+
+    // Each line is 0.3333 x 1.00 = 0.3333 -> 0.33; the exact sum 0.9999 -> 1.00.
+    expect(rows.filter(([label]) => label === 'Sand')).toEqual([
+      ['Sand', 0.33],
+      ['Sand', 0.33],
+      ['Sand', 0.33],
+    ])
+    const subtotalA = rows.findIndex(([label]) => label === 'Subtotal A')
+    expect(rows[subtotalA]).toEqual(['Subtotal A', 1])
+    const note = 'Lines are shown rounded; the subtotal is computed before rounding.'
+    expect(rows[subtotalA + 1]).toEqual([note, null])
+    expect(rows.filter(([label]) => label === note)).toHaveLength(3)
   })
 
   it('round-trips quantities, units, rates and divisions through the import', async () => {

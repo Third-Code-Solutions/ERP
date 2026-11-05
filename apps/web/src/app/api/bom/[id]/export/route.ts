@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { z } from 'zod'
 import { getUserProfile } from '@third-code-erp/auth'
 import { getProjectDetailAccess } from '@/app/(dashboard)/projects/[id]/project-detail-access'
-import { boqExportFileName, buildBoqWorkbook } from '@/lib/operations/boq-excel/workbook'
+import { boqExportFileName, writeBoqWorkbook } from '@/lib/operations/boq-excel/workbook'
 import { loadBoqExport } from './bom-export-data'
 
 export const runtime = 'nodejs'
@@ -38,22 +38,23 @@ export async function GET(
   const { id } = await params
   if (!z.string().uuid().safeParse(id).success) return jsonError('Not found', 404)
 
-  let data: Awaited<ReturnType<typeof loadBoqExport>>
   try {
-    data = await loadBoqExport(profile.tenantId, id)
-  } catch {
+    const data = await loadBoqExport(profile.tenantId, id)
+    if (!data) return jsonError('Not found', 404)
+
+    const exportedAt = new Date()
+    // Bad stored data (e.g. an unparseable quantity) fails here, inside the catch.
+    const buffer = await writeBoqWorkbook(data, exportedAt)
+    return new Response(new Uint8Array(buffer), {
+      status: 200,
+      headers: {
+        ...RESPONSE_HEADERS,
+        'Content-Type': XLSX_CONTENT_TYPE,
+        'Content-Disposition': `attachment; filename="${boqExportFileName(data, exportedAt)}"`,
+      },
+    })
+  } catch (error) {
+    console.error('[bom-export] export failed', error)
     return jsonError('Export unavailable', 500)
   }
-  if (!data) return jsonError('Not found', 404)
-
-  const exportedAt = new Date()
-  const buffer = await buildBoqWorkbook(data, exportedAt).xlsx.writeBuffer()
-  return new Response(buffer, {
-    status: 200,
-    headers: {
-      ...RESPONSE_HEADERS,
-      'Content-Type': XLSX_CONTENT_TYPE,
-      'Content-Disposition': `attachment; filename="${boqExportFileName(data, exportedAt)}"`,
-    },
-  })
 }

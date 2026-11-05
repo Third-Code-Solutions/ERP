@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module'
 import * as ExcelJS from 'exceljs'
 import {
   computeDupa,
@@ -6,7 +7,10 @@ import {
   type DupaInput,
 } from '@third-code-erp/shared-types/bom'
 import { groupBomLinesByDivision } from '@/lib/operations/bom-hierarchy'
-import { centavosDecimal, excelText } from './cells'
+import { toManilaDateTimeLocal } from '@/lib/operations/cadence-engine'
+import { centavosDecimal, excelText, looksLikeFormula } from './cells'
+
+const require = createRequire(import.meta.url)
 
 export interface BoqExportLine {
   id: string
@@ -94,31 +98,17 @@ const RATE_SOURCE_LABELS: Record<string, string> = {
 
 type Cell = string | { quantity: string } | { centavos: number | bigint } | { fraction: number } | null
 
-function manilaParts(date: Date): Record<string, string> {
-  return Object.fromEntries(
-    new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Asia/Manila',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hourCycle: 'h23',
-    })
-      .formatToParts(date)
-      .map((part) => [part.type, part.value]),
-  )
-}
+const DUPA_ROUNDING_NOTE = 'Lines are shown rounded; the subtotal is computed before rounding.'
 
 /** BOQ-<project code or name>-v<version>-<yyyymmdd>.xlsx, filesystem safe. */
 export function boqExportFileName(data: BoqExportData, exportedAt: Date): string {
-  const { year, month, day } = manilaParts(exportedAt)
+  const yyyymmdd = toManilaDateTimeLocal(exportedAt).slice(0, 10).replaceAll('-', '')
   const project =
     (data.project.code?.trim() || data.project.name)
       .replace(/[^A-Za-z0-9._-]+/g, '-')
       .replace(/^[-.]+|[-.]+$/g, '')
       .slice(0, 60) || 'project'
-  return `BOQ-${project}-v${data.bom.version}-${year}${month}${day}.xlsx`
+  return `BOQ-${project}-v${data.bom.version}-${yyyymmdd}.xlsx`
 }
 
 /** Basis points -> fraction for a percent-formatted cell (2273 -> 0.2273). */
@@ -135,7 +125,11 @@ function writeRow(sheet: ExcelJS.Worksheet, values: Cell[], bold = false): Excel
     if (value === null) return
     const cell = row.getCell(index + 1)
     if (typeof value === 'string') {
-      cell.value = excelText(value)
+      const text = excelText(value)
+      cell.value = text
+      // Marker style that writeBoqWorkbook turns into quotePrefix (ExcelJS
+      // cannot write it), so editing the cell keeps it text.
+      if (looksLikeFormula(text)) cell.protection = { locked: true }
     } else if ('quantity' in value) {
       cell.value = Number(value.quantity)
       cell.numFmt = QUANTITY_FORMAT
@@ -166,7 +160,7 @@ export function boqLineAmountCents(line: Pick<BoqExportLine, 'unit_cost_cents' |
 
 function addBoqSheet(workbook: ExcelJS.Workbook, data: BoqExportData, exportedAt: Date) {
   const sheet = workbook.addWorksheet('BOQ')
-  const { year, month, day, hour, minute } = manilaParts(exportedAt)
+  const [date, time] = toManilaDateTimeLocal(exportedAt).split('T')
   writeRow(sheet, ['Bill of Quantities'], true).font = { bold: true, size: 14 }
   const projectName = data.project.code
     ? `${data.project.name} (${data.project.code})`
@@ -177,7 +171,7 @@ function addBoqSheet(workbook: ExcelJS.Workbook, data: BoqExportData, exportedAt
     'BOM',
     `v${data.bom.version} · ${data.bom.status}${data.bom.label ? ` · ${data.bom.label}` : ''}`,
   ])
-  writeRow(sheet, ['Exported', `${year}-${month}-${day} ${hour}:${minute} (Asia/Manila)`])
+  writeRow(sheet, ['Exported', `${date} ${time} (Asia/Manila)`])
   writeRow(sheet, ['Currency', 'PHP'])
   sheet.addRow([])
 
@@ -228,18 +222,78 @@ function addBoqSheet(workbook: ExcelJS.Workbook, data: BoqExportData, exportedAt
   }
 }
 
-function dupaAmount(
-  input: Omit<DupaInput, 'headerQuantity'>,
-  part: 'material' | 'labour' | 'equipment',
-) {
-  const result = computeDupa({ headerQuantity: '1', ...input })
-  if (part === 'material') return result.materialSubtotalCentavos
-  return part === 'labour' ? result.labourSubtotalCentavos : result.equipmentSubtotalCentavos
-}
-
 // Basis points have the same scale as centavos: 1250 bps -> "12.50%".
 function percent(bps: number): string {
   return `${centavosDecimal(bps)}%`
+}
+
+interface DupaPart {
+  heading: Cell[]
+  lines: Cell[][]
+  subtotalLabel: string
+  subtotal: bigint
+}
+
+/** DUPA parts A-C: each line rounded on its own, subtotals exact (computeDupa). */
+function dupaParts(dupa: BoqExportDupa): DupaPart[] {
+  const materials = dupa.materials.map((m) => ({ quantity: m.quantity, unitRateCentavos: m.unit_rate_centavos }))
+  const labour = dupa.labour.map((l) => ({
+    noOfPersons: l.no_of_persons,
+    hourlyRateCentavos: l.hourly_rate_centavos,
+    productivityPerHour: l.productivity_per_hour,
+  }))
+  const equipment = dupa.equipment.map((e) => ({
+    noOfUnits: e.no_of_units,
+    hourlyRateCentavos: e.hourly_rate_centavos,
+    productivityPerHour: e.productivity_per_hour,
+  }))
+  const subtotals = computeDupa({ headerQuantity: '1', materials, labour, equipment })
+  // A single line's only non-zero subtotal is that line's amount.
+  const amount = (input: Omit<DupaInput, 'headerQuantity'>): Cell => {
+    const one = computeDupa({ headerQuantity: '1', ...input })
+    return { centavos: one.materialSubtotalCentavos + one.labourSubtotalCentavos + one.equipmentSubtotalCentavos }
+  }
+  const crewHeading = (title: string, count: string): Cell[] =>
+    [title, count, 'Hourly Rate (PHP)', 'Output / hour', 'Amount (PHP)']
+
+  return [
+    {
+      heading: ['A. Materials', 'Quantity', 'UOM', 'Unit Rate (PHP)', 'Amount (PHP)'],
+      lines: dupa.materials.map((m, index) => [
+        m.description,
+        { quantity: m.quantity },
+        m.uom,
+        { centavos: m.unit_rate_centavos },
+        amount({ materials: [materials[index]!] }),
+      ]),
+      subtotalLabel: 'Subtotal A',
+      subtotal: subtotals.materialSubtotalCentavos,
+    },
+    {
+      heading: crewHeading('B. Labour', 'Persons'),
+      lines: dupa.labour.map((l, index) => [
+        l.description,
+        { quantity: l.no_of_persons },
+        { centavos: l.hourly_rate_centavos },
+        { quantity: l.productivity_per_hour },
+        amount({ labour: [labour[index]!] }),
+      ]),
+      subtotalLabel: 'Subtotal B',
+      subtotal: subtotals.labourSubtotalCentavos,
+    },
+    {
+      heading: crewHeading('C. Equipment', 'Units'),
+      lines: dupa.equipment.map((e, index) => [
+        e.description,
+        { quantity: e.no_of_units },
+        { centavos: e.hourly_rate_centavos },
+        { quantity: e.productivity_per_hour },
+        amount({ equipment: [equipment[index]!] }),
+      ]),
+      subtotalLabel: 'Subtotal C',
+      subtotal: subtotals.equipmentSubtotalCentavos,
+    },
+  ]
 }
 
 function addDupaSheet(workbook: ExcelJS.Workbook, lines: BoqExportLine[], dupas: BoqExportDupa[]) {
@@ -253,57 +307,15 @@ function addDupaSheet(workbook: ExcelJS.Workbook, lines: BoqExportLine[], dupas:
   })
   for (const line of priced) {
     const dupa = dupaByLine.get(line.id)!
-    const materials = dupa.materials.map((m) => ({ quantity: m.quantity, unitRateCentavos: m.unit_rate_centavos }))
-    const labour = dupa.labour.map((l) => ({
-      noOfPersons: l.no_of_persons,
-      hourlyRateCentavos: l.hourly_rate_centavos,
-      productivityPerHour: l.productivity_per_hour,
-    }))
-    const equipment = dupa.equipment.map((e) => ({
-      noOfUnits: e.no_of_units,
-      hourlyRateCentavos: e.hourly_rate_centavos,
-      productivityPerHour: e.productivity_per_hour,
-    }))
-    const subtotals = computeDupa({ headerQuantity: '1', materials, labour, equipment })
-
     writeRow(sheet, [`${line.item_no ? `${line.item_no} ` : ''}${line.description}`], true)
     writeRow(sheet, ['Output quantity', { quantity: dupa.header_quantity }, dupa.uom])
 
-    writeRow(sheet, ['A. Materials', 'Quantity', 'UOM', 'Unit Rate (PHP)', 'Amount (PHP)'], true)
-    dupa.materials.forEach((m, index) => {
-      writeRow(sheet, [
-        m.description,
-        { quantity: m.quantity },
-        m.uom,
-        { centavos: m.unit_rate_centavos },
-        { centavos: dupaAmount({ materials: [materials[index]!] }, 'material') },
-      ])
-    })
-    writeRow(sheet, ['Subtotal A', null, null, null, { centavos: subtotals.materialSubtotalCentavos }], true)
-
-    writeRow(sheet, ['B. Labour', 'Persons', 'Hourly Rate (PHP)', 'Output / hour', 'Amount (PHP)'], true)
-    dupa.labour.forEach((l, index) => {
-      writeRow(sheet, [
-        l.description,
-        { quantity: l.no_of_persons },
-        { centavos: l.hourly_rate_centavos },
-        { quantity: l.productivity_per_hour },
-        { centavos: dupaAmount({ labour: [labour[index]!] }, 'labour') },
-      ])
-    })
-    writeRow(sheet, ['Subtotal B', null, null, null, { centavos: subtotals.labourSubtotalCentavos }], true)
-
-    writeRow(sheet, ['C. Equipment', 'Units', 'Hourly Rate (PHP)', 'Output / hour', 'Amount (PHP)'], true)
-    dupa.equipment.forEach((e, index) => {
-      writeRow(sheet, [
-        e.description,
-        { quantity: e.no_of_units },
-        { centavos: e.hourly_rate_centavos },
-        { quantity: e.productivity_per_hour },
-        { centavos: dupaAmount({ equipment: [equipment[index]!] }, 'equipment') },
-      ])
-    })
-    writeRow(sheet, ['Subtotal C', null, null, null, { centavos: subtotals.equipmentSubtotalCentavos }], true)
+    for (const part of dupaParts(dupa)) {
+      writeRow(sheet, part.heading, true)
+      for (const cells of part.lines) writeRow(sheet, cells)
+      writeRow(sheet, [part.subtotalLabel, null, null, null, { centavos: part.subtotal }], true)
+      writeRow(sheet, [DUPA_ROUNDING_NOTE]).font = { italic: true }
+    }
 
     const stored: Array<[string, bigint]> = [
       ['D. Direct cost (A + B + C)', dupa.direct_cost_centavos],
@@ -326,4 +338,22 @@ export function buildBoqWorkbook(data: BoqExportData, exportedAt: Date): ExcelJS
   addBoqSheet(workbook, data, exportedAt)
   addDupaSheet(workbook, boqExportLines(data.lines), data.dupas)
   return workbook
+}
+
+/**
+ * The .xlsx bytes. ExcelJS 4 has no quotePrefix, so the marker style from
+ * writeRow (the only cells with applyProtection) gets it in styles.xml.
+ */
+export async function writeBoqWorkbook(data: BoqExportData, exportedAt: Date): Promise<Buffer> {
+  const written = Buffer.from(await buildBoqWorkbook(data, exportedAt).xlsx.writeBuffer())
+  // SheetJS through CommonJS, as document-intake loads it; only its zip codec is used.
+  const { CFB } = require('xlsx') as typeof import('xlsx')
+  const zip = CFB.read(written, { type: 'buffer' })
+  const styles = CFB.find(zip, '/xl/styles.xml')
+  if (!styles) throw new Error('BOQ workbook has no styles part')
+  const xml = Buffer.from(styles.content).toString('utf8')
+  styles.content = Buffer.from(
+    xml.replaceAll(' applyProtection="1"', ' applyProtection="1" quotePrefix="1"'),
+  )
+  return Buffer.from(CFB.write(zip, { fileType: 'zip', type: 'buffer', compression: true }))
 }

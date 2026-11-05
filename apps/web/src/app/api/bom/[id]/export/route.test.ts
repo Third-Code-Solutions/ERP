@@ -110,6 +110,86 @@ describe('BOQ Excel export route', () => {
     expect([bytes[0], bytes[1]]).toEqual([0x50, 0x4b])
   })
 
+  it('exports a groups-only BOM as section rows with zero totals and no DUPA sheet', async () => {
+    mocks.getUserProfile.mockResolvedValue(profile())
+    const group = (id: string, description: string, sort: string) => ({
+      id,
+      item_no: sort,
+      code: null,
+      description,
+      division_id: null,
+      division: null,
+      location: null,
+      unit: null,
+      quantity: '0',
+      unit_cost_cents: 0,
+      line_total_cents: 0,
+      unit_rate_source: 'manual',
+      notes: null,
+      is_group: 1,
+      parent_line_item_id: null,
+    })
+    mocks.loadBoqExport.mockResolvedValue({
+      ...DATA,
+      bom: { ...DATA.bom, total_cost_cents: 0, tcv_cents: 0 },
+      lines: [group('g1', 'General requirements', 'A'), group('g2', 'Earthworks', 'B')],
+    })
+
+    const response = await request()
+
+    expect(response.status).toBe(200)
+    const ExcelJS = await import('exceljs')
+    const workbook = new ExcelJS.Workbook()
+    await workbook.xlsx.load(await response.arrayBuffer())
+    const sheet = workbook.getWorksheet('BOQ')!
+    const rows: unknown[][] = []
+    sheet.eachRow((row) => rows.push([1, 3, 7, 8, 9].map((column) => row.getCell(column).value ?? null)))
+    const header = rows.findIndex((row) => row[0] === 'Item No')
+
+    expect(rows.slice(header + 1)).toEqual([
+      ['A', 'General requirements', null, null, null],
+      ['B', 'Earthworks', null, null, null],
+      [null, 'Total cost', null, null, 0],
+      [null, 'Total contract value (TCV)', null, null, 0],
+      [null, 'Total gross profit (GP)', null, null, 0],
+      [null, 'Total GP margin', null, null, 0],
+    ])
+    expect(workbook.getWorksheet('DUPA')).toBeUndefined()
+  })
+
+  it('maps bad stored data to the generic 500 instead of throwing', async () => {
+    mocks.getUserProfile.mockResolvedValue(profile())
+    mocks.loadBoqExport.mockResolvedValue({
+      ...DATA,
+      lines: [
+        {
+          id: 'bad',
+          item_no: '1',
+          code: null,
+          description: 'Corrupt quantity',
+          division_id: null,
+          division: null,
+          location: null,
+          unit: 'lot',
+          quantity: 'not-a-number',
+          unit_cost_cents: 100,
+          line_total_cents: 100,
+          unit_rate_source: 'manual',
+          notes: null,
+          is_group: 0,
+          parent_line_item_id: null,
+        },
+      ],
+    })
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const response = await request()
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toEqual({ error: 'Export unavailable' })
+    error.mockRestore()
+  })
+
   it('maps a load failure to a generic 500', async () => {
     mocks.getUserProfile.mockResolvedValue(profile())
     mocks.loadBoqExport.mockRejectedValue(new Error('sensitive diagnostics'))
