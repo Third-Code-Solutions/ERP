@@ -8,22 +8,29 @@ import {
   parseStructuredTakeoff,
   sha256Digest,
   TAKEOFF_MAX_HEADER_ROW,
+  TAKEOFF_TOO_MANY_ROWS_MESSAGE,
+  TakeoffTooLargeError,
   type TakeoffColumnMapping,
 } from '@/lib/operations/integrations/takeoff'
 
 const MAX_FILE_BYTES = 25 * 1024 * 1024
+// Room for the multipart boundaries and the small text fields beside the file.
+const MAX_BODY_BYTES = MAX_FILE_BYTES + 64 * 1024
+
+// An optional column sent blank means the user turned it off (no alias fallback).
+const optionalColumn = z.string().trim().optional()
 
 const mappingSchema = z.object({
-  sourceRowKey: z.string().trim().min(1).optional(),
+  sourceRowKey: optionalColumn,
   description: z.string().trim().min(1),
   quantity: z.string().trim().min(1),
   unit: z.string().trim().min(1),
-  division: z.string().trim().min(1).optional(),
-  location: z.string().trim().min(1).optional(),
-  itemNo: z.string().trim().min(1).optional(),
-  notes: z.string().trim().min(1).optional(),
-  unitRate: z.string().trim().min(1).optional(),
-  amount: z.string().trim().min(1).optional(),
+  division: optionalColumn,
+  location: optionalColumn,
+  itemNo: optionalColumn,
+  notes: optionalColumn,
+  unitRate: optionalColumn,
+  amount: optionalColumn,
 })
 
 const headerRowSchema = z.coerce.number().int().min(1).max(TAKEOFF_MAX_HEADER_ROW)
@@ -115,6 +122,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     )
   }
 
+  // Refuse a declared oversize body before buffering it; a chunked upload
+  // without Content-Length still meets the file size check below.
+  if (Number(req.headers.get('content-length') ?? 0) > MAX_BODY_BYTES) {
+    return errorResponse(
+      413,
+      'FILE_TOO_LARGE',
+      `file must be <= ${MAX_FILE_BYTES} bytes.`
+    )
+  }
+
   let form: FormData
   try {
     form = await req.formData()
@@ -180,6 +197,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       }
     )
   } catch (error) {
+    if (error instanceof TakeoffTooLargeError) {
+      return errorResponse(413, 'TAKEOFF_TOO_LARGE', error.message)
+    }
     console.error('[takeoff-import] parse failed', error)
     return errorResponse(
       422,
@@ -189,15 +209,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   if (parsed.rows.length > TAKEOFF_IMPORT_MAX_ROWS) {
-    return errorResponse(
-      413,
-      'TAKEOFF_TOO_LARGE',
-      `The sheet has more than ${TAKEOFF_IMPORT_MAX_ROWS.toLocaleString('en-PH')} rows. Split it and import each part.`
-    )
+    return errorResponse(413, 'TAKEOFF_TOO_LARGE', TAKEOFF_TOO_MANY_ROWS_MESSAGE)
   }
 
   const mapping = Object.fromEntries(
-    Object.entries(parsedMapping.mapping).filter(([, value]) => value !== undefined)
+    Object.entries(parsedMapping.mapping).filter(([, value]) => value)
   ) as Record<string, string>
   const coreResult = await executeTakeoffImportThroughCoreApi(
     {

@@ -94,11 +94,10 @@ export function TakeoffImportWizard({
       if (sheet) form.set('sheet', sheet)
       if (headerRow.trim()) form.set('header_row', headerRow.trim())
       form.set('section_headers', sectionHeaders ? 'on' : 'off')
+      // A blanked optional column is sent as "" so the server does not guess it.
       form.set(
         'mapping',
-        JSON.stringify(
-          Object.fromEntries(Object.entries(mapping).filter(([, value]) => value.trim())),
-        ),
+        JSON.stringify(Object.fromEntries(Object.entries(mapping).map(([key, value]) => [key, value.trim()]))),
       )
 
       const response = await fetch('/api/bom/takeoff-import', { method: 'POST', body: form })
@@ -156,7 +155,7 @@ export function TakeoffImportWizard({
             <Field label="Location column" value={mapping.location} onChange={(value) => setMapping((current) => ({ ...current, location: value }))} optional />
             <Field label="Unit rate column" value={mapping.unitRate} onChange={(value) => setMapping((current) => ({ ...current, unitRate: value }))} optional />
             <Field label="Amount column" value={mapping.amount} onChange={(value) => setMapping((current) => ({ ...current, amount: value }))} optional />
-            <Field label="Header row" value={headerRow} onChange={setHeaderRow} optional placeholder="Auto (1-50)" inputMode="numeric" />
+            <Field label="Header row" value={headerRow} onChange={(value) => { setHeaderRow(value); setPreview(null) }} optional placeholder="Auto (1-50)" inputMode="numeric" />
             {sheets.length > 0 && (
               <label style={{ display: 'grid', gap: 6, fontSize: 12, color: 'var(--color-neutral-600)' }}>
                 Worksheet
@@ -168,7 +167,7 @@ export function TakeoffImportWizard({
           </div>
           <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: 'var(--color-neutral-700)' }}>
             <input type="checkbox" checked={sectionHeaders} onChange={(event) => { setSectionHeaders(event.target.checked); setPreview(null) }} />
-            Rows with no quantity and no unit are section headers (they set the division below)
+            Rows with no quantity, unit, rate or amount are section headers (they set the division below)
           </label>
           <label style={{ display: 'grid', gap: 6, fontSize: 12, color: 'var(--color-neutral-600)' }}>
             Takeoff CSV or XLSX

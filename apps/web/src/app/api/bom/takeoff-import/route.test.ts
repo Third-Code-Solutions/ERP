@@ -290,6 +290,96 @@ describe('generic takeoff import Core authority', () => {
     })
   })
 
+  it('returns 413 for an oversize Content-Length without reading the body', async () => {
+    const request = requestWithForm({
+      file: new File(['Description,Qty,UOM\nCeiling,1,sqm'], 'takeoff.csv'),
+      bom_id: BOM_ID,
+    })
+    request.headers.set('content-length', String(26 * 1024 * 1024))
+    const formData = vi.spyOn(request, 'formData')
+
+    const response = await POST(request)
+
+    expect(response.status).toBe(413)
+    await expect(response.json()).resolves.toMatchObject({ error: { code: 'FILE_TOO_LARGE' } })
+    expect(formData).not.toHaveBeenCalled()
+  })
+
+  it('imports 5,000 rows and rejects 5,001 with 413', async () => {
+    mocks.executeTakeoffImportThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: { ok: true, mode: 'preview' },
+    })
+    const csv = (rows: number) =>
+      ['Description,Qty,UOM', ...Array.from({ length: rows }, (_, index) => `Item ${index},1,sqm`)].join('\n')
+    const post = (rows: number) =>
+      POST(
+        requestWithForm({
+          file: new File([csv(rows)], 'takeoff.csv'),
+          bom_id: BOM_ID,
+          mode: 'preview',
+        })
+      )
+
+    expect((await post(5_000)).status).toBe(200)
+    expect(mocks.executeTakeoffImportThroughCoreApi.mock.calls[0]?.[0].rows).toHaveLength(5_000)
+
+    const tooMany = await post(5_001)
+    expect(tooMany.status).toBe(413)
+    await expect(tooMany.json()).resolves.toMatchObject({
+      error: { code: 'TAKEOFF_TOO_LARGE', message: expect.stringContaining('5,000 rows') },
+    })
+    expect(mocks.executeTakeoffImportThroughCoreApi).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns 413 for a sparse workbook whose used range reaches column XFD', async () => {
+    const ExcelJS = await import('exceljs')
+    const workbook = new ExcelJS.Workbook()
+    const sheet = workbook.addWorksheet('BOQ')
+    sheet.addRow(['Description', 'Qty', 'UOM'])
+    for (let row = 2; row <= 50; row += 1) sheet.getCell(row, 16_384).value = 1
+
+    const response = await POST(
+      requestWithForm({
+        file: new File([Buffer.from(await workbook.xlsx.writeBuffer())], 'sparse.xlsx'),
+        bom_id: BOM_ID,
+        mode: 'preview',
+      })
+    )
+
+    expect(response.status).toBe(413)
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'TAKEOFF_TOO_LARGE', message: expect.stringContaining('16,384 columns') },
+    })
+    expect(mocks.executeTakeoffImportThroughCoreApi).not.toHaveBeenCalled()
+  })
+
+  it('accepts a blanked optional column and does not forward it to Core', async () => {
+    mocks.executeTakeoffImportThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: { ok: true, mode: 'preview' },
+    })
+
+    const response = await POST(
+      requestWithForm({
+        file: new File(['Description,Qty,UOM,Rate\nCeiling,1,sqm,150'], 'takeoff.csv'),
+        bom_id: BOM_ID,
+        mode: 'preview',
+        mapping: JSON.stringify({
+          description: 'Description',
+          quantity: 'Qty',
+          unit: 'UOM',
+          unitRate: '',
+        }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    const command = mocks.executeTakeoffImportThroughCoreApi.mock.calls[0]?.[0]
+    expect(command.mapping).toEqual({ description: 'Description', quantity: 'Qty', unit: 'UOM' })
+    expect(command.rows[0]).not.toHaveProperty('unitRateCentavos')
+  })
+
   it('rejects a malformed mapping before calling Core', async () => {
     const response = await POST(
       requestWithForm({

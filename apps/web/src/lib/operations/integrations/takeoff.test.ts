@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+  assertXlsxWithinLimits,
   buildTakeoffImportKey,
   parseStructuredTakeoff,
+  TakeoffTooLargeError,
   validateTakeoffRows,
+  XLSX_LIMITS,
 } from './takeoff'
 
 const MAPPING = { description: 'Description', quantity: 'Quantity', unit: 'UOM' }
@@ -216,6 +219,12 @@ describe('structured takeoff importer', () => {
       [2, null],
     ])
     expect(result.warnings).toEqual([
+      // 0.1 + 0.2 is float noise (no warning); 12.34565 really loses a digit.
+      {
+        sourceRowKey: 'row-3',
+        code: 'QUANTITY_ROUNDED',
+        message: 'Quantity 12.34565 was rounded to 12.3457.',
+      },
       {
         sourceRowKey: 'row-3',
         code: 'AMOUNT_MISMATCH',
@@ -238,6 +247,105 @@ describe('structured takeoff importer', () => {
         ['row-5', 'INVALID_UNIT_RATE'],
       ]),
     )
+  })
+
+  it('imports a lump sum (rate or amount, no quantity or unit) instead of making it a header', async () => {
+    const csv = [
+      'Description,Qty,UOM,Unit Rate,Amount',
+      'GENERAL REQUIREMENTS,,,,',
+      'Mobilization,,,"50,000.00",',
+      'Permits,,,,"12,000.00"',
+    ].join('\n')
+
+    const result = await parseStructuredTakeoff(Buffer.from(csv), 'takeoff.csv', MAPPING)
+
+    expect(result.sectionRows).toBe(1)
+    expect(result.rows.map((row) => [row.description, row.quantity, row.division])).toEqual([
+      ['Mobilization', null, 'GENERAL REQUIREMENTS'],
+      ['Permits', null, 'GENERAL REQUIREMENTS'],
+    ])
+    expect(
+      validateTakeoffRows(result.rows)
+        .filter((issue) => issue.code === 'INVALID_QUANTITY')
+        .map((issue) => issue.sourceRowKey),
+    ).toEqual(['row-3', 'row-4'])
+  })
+
+  it('does not fall back to rate aliases when the rate mapping is blanked', async () => {
+    const csv = 'Description,Qty,UOM,Rate\nPaint,4,sqm,150'
+
+    const auto = await parseStructuredTakeoff(Buffer.from(csv), 'takeoff.csv', MAPPING)
+    const off = await parseStructuredTakeoff(Buffer.from(csv), 'takeoff.csv', {
+      ...MAPPING,
+      unitRate: '',
+    })
+
+    expect(auto.rows[0]?.unitRateCentavos).toBe(15_000)
+    expect(off.rows[0]).not.toHaveProperty('unitRateCentavos')
+  })
+
+  it('maps a header cell merged across two columns to its first column', async () => {
+    const ExcelJS = await import('exceljs')
+    const workbook = new ExcelJS.Workbook()
+    const sheet = workbook.addWorksheet('BOQ')
+    sheet.addRow(['Item', 'Description', '', 'Qty', 'Unit'])
+    sheet.mergeCells('B1:C1')
+    sheet.addRow(['1', 'Excavation', 'see note', 3, 'cu.m'])
+    sheet.addRow(['2', 'Backfill', '', 2, 'cu.m'])
+    sheet.mergeCells('B3:C3')
+    const buffer = Buffer.from(await workbook.xlsx.writeBuffer())
+
+    const result = await parseStructuredTakeoff(buffer, 'boq.xlsx', MAPPING)
+
+    expect(result.missingColumns).toEqual([])
+    expect(result.rows.map((row) => [row.itemNo, row.description, row.quantity, row.unit])).toEqual([
+      ['1', 'Excavation', 3, 'cu.m'],
+      ['2', 'Backfill', 2, 'cu.m'],
+    ])
+  })
+
+  it('rejects a sheet whose used range reaches a far column before building rows', async () => {
+    const ExcelJS = await import('exceljs')
+    const workbook = new ExcelJS.Workbook()
+    const sheet = workbook.addWorksheet('BOQ')
+    sheet.addRow(['Description', 'Quantity', 'UOM'])
+    for (let row = 2; row <= 50; row += 1) sheet.getCell(row, 16_384).value = 1
+    const buffer = Buffer.from(await workbook.xlsx.writeBuffer())
+
+    await expect(parseStructuredTakeoff(buffer, 'boq.xlsx', MAPPING)).rejects.toThrow(
+      TakeoffTooLargeError,
+    )
+  })
+
+  it('rejects a workbook over the uncompressed budget or with a lying size header', async () => {
+    const ExcelJS = await import('exceljs')
+    const workbook = new ExcelJS.Workbook()
+    workbook.addWorksheet('BOQ').addRow(['Description', 'Quantity', 'UOM'])
+    const buffer = Buffer.from(await workbook.xlsx.writeBuffer())
+
+    expect(() => assertXlsxWithinLimits(buffer)).not.toThrow()
+    expect(() => assertXlsxWithinLimits(buffer, { ...XLSX_LIMITS, uncompressedBytes: 1_000 })).toThrow(
+      TakeoffTooLargeError,
+    )
+
+    // First central-directory entry claims 1 byte uncompressed.
+    const lying = Buffer.from(buffer)
+    const entry = lying.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]))
+    lying.writeUInt32LE(1, entry + 24)
+    expect(() => assertXlsxWithinLimits(lying)).toThrow()
+  })
+
+  it('rejects a CSV with content past the read window and caps its columns', async () => {
+    const header = 'Description,Qty,UOM'
+    const tooLong = [header, ...Array.from({ length: 5_100 }, () => ''), 'Paint,1,sqm'].join('\n')
+    await expect(parseStructuredTakeoff(Buffer.from(tooLong), 'takeoff.csv', MAPPING)).rejects.toThrow(
+      TakeoffTooLargeError,
+    )
+
+    const wide = `${header}${',x'.repeat(100)}\nPaint,1,sqm`
+    const result = await parseStructuredTakeoff(Buffer.from(wide), 'takeoff.csv', MAPPING)
+    expect(result.headers).toHaveLength(64)
+    expect(result.rows).toHaveLength(1)
   })
 
   it('leaves the rate off rows when no rate column exists', async () => {

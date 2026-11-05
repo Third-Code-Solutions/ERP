@@ -23,6 +23,9 @@ const NO_RESULT = Symbol('formula without cached result')
 const EXCEL_PRECISION = 15
 const QUANTITY_SCALE = 10_000n
 const MAX_SCALED_QUANTITY = BigInt(MAX_BOM_LINE_ITEM_QUANTITY) * QUANTITY_SCALE
+// Longer cell text is cut (description) or not a number: BigInt parsing of a
+// huge digit string is quadratic, and Core keeps raw cells to 1,000 chars.
+export const MAX_CELL_TEXT = 1_000
 const TEXT_NUMBER = /^(\d{1,3}(?:,\d{3})+|\d+)?(?:\.(\d*))?$/
 const CURRENCY_PREFIX = /^(?:₱|php)\s*/i
 
@@ -51,7 +54,7 @@ export function cellText(value: unknown): string {
   if (unwrapped == null || unwrapped === NO_RESULT || isRecord(unwrapped)) return ''
   if (unwrapped instanceof Date) return unwrapped.toISOString().slice(0, 10)
   if (typeof unwrapped === 'number') return plainDecimal(unwrapped.toPrecision(EXCEL_PRECISION))
-  return String(unwrapped)
+  return String(unwrapped).slice(0, MAX_CELL_TEXT)
 }
 
 /** "1.50000000000000e-7" -> "0.00000015"; trims insignificant zeros. */
@@ -80,7 +83,9 @@ export function cellDecimal(value: unknown): CellNumber<string> {
       ? { ok: true, value: plainDecimal(unwrapped.toPrecision(EXCEL_PRECISION)) }
       : { ok: false, problem: 'NOT_A_NUMBER' }
   }
-  if (typeof unwrapped !== 'string') return { ok: false, problem: 'NOT_A_NUMBER' }
+  if (typeof unwrapped !== 'string' || unwrapped.length > MAX_CELL_TEXT) {
+    return { ok: false, problem: 'NOT_A_NUMBER' }
+  }
 
   let text = unwrapped.trim()
   if (!text) return { ok: false, problem: 'BLANK' }
@@ -149,9 +154,17 @@ export function formatCentavos(centavos: number | bigint): string {
   return `${negative ? '-' : ''}${grouped}.${fraction}`
 }
 
-const CONTROL_CHARACTERS = /[\u0000-\u0008\u000B-\u001F\u007F]/g
+// Control characters other than tab/newline, U+FFFE/U+FFFF and lone surrogates
+// are not valid XML text, so Excel would refuse the file.
+const INVALID_TEXT =
+  /[\u0000-\u0008\u000B-\u001F\u007F￾￿]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g
 
-/** Text for an exported cell: control characters other than tab/newline removed. */
+/** Text for an exported cell: characters XML cannot carry are removed. */
 export function excelText(value: string | null | undefined): string {
-  return (value ?? '').replace(CONTROL_CHARACTERS, '')
+  return (value ?? '').replace(INVALID_TEXT, '')
+}
+
+/** Text Excel would turn into a formula when the cell is edited. */
+export function looksLikeFormula(value: string): boolean {
+  return /^[=+\-@]/.test(value)
 }

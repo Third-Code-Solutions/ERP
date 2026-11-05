@@ -7,6 +7,7 @@ import {
   centavosDecimal,
   excelText,
   formatCentavos,
+  MAX_CELL_TEXT,
 } from './cells'
 
 const MAX = 1_000_000_000_000
@@ -70,6 +71,16 @@ describe('BOQ cell text', () => {
   it('strips control characters except tab and newline from exported text', () => {
     expect(excelText('a\u0000b\u0007c\td\ne\rf\u001Fg\u007F')).toBe('abc\td\nefg')
     expect(excelText(null)).toBe('')
+  })
+
+  it('strips lone surrogates and U+FFFE/U+FFFF but keeps real astral characters', () => {
+    expect(excelText('a\uD800b\uDC00c￾d￿e')).toBe('abcde')
+    expect(excelText('tile 🧱 ok')).toBe('tile 🧱 ok')
+  })
+
+  it('caps cell text and refuses an over-long number', () => {
+    expect(cellText('x'.repeat(5_000))).toHaveLength(MAX_CELL_TEXT)
+    expect(cellQuantity('1'.repeat(MAX_CELL_TEXT + 1))).toEqual({ ok: false, problem: 'NOT_A_NUMBER' })
   })
 
   it('formats centavos exactly', () => {
