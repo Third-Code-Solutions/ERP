@@ -275,7 +275,8 @@ RUNBOOK) is **done**.
   - The DP award insert takes no project lock (Low).
 - **Release gaps from the manual promotion (do first once Actions is unblocked):**
   re-run CI on `main` (`f212c9df`), run `smoke-prod.yml` and the release E2E suites,
-  then decide on `ERP_TENANCY_ENABLED`. Also take a full `backup-production.yml`
+  then decide on `ERP_TENANCY_ENABLED`. Finish Q-TEN-6: confirm, by name only, that
+  `ERP_ROADMAP_TAX_STATUTORY_OUTPUTS_ENABLED` is not set on the Railway API. Also take a full `backup-production.yml`
   dump: D-5 had only the targeted snapshot. After the Team upgrade, turn on branch
   protection.
 - **#141 review follow-ups (Low / display):**
