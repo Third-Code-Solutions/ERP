@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  TAKEOFF_MAX_LINE_TOTAL_CENTAVOS,
   takeoffCommitPricing,
   takeoffCommitQuantity,
   validateTakeoffRows,
@@ -86,6 +87,21 @@ describe('takeoff unit rate', () => {
       message: 'Unit rate could not be read as a non-negative peso amount.',
     })
     expect(takeoffCommitPricing(priced(null)).unitRateSource).toBe('manual')
+  })
+
+  it('caps one imported line at PHP 10 billion so BOM totals stay exact', () => {
+    // 1,000,000,000.00 x 10 = exactly the cap: still priced.
+    expect(takeoffCommitPricing(priced(100_000_000_000, 10)).lineTotalCents).toBe(
+      TAKEOFF_MAX_LINE_TOTAL_CENTAVOS,
+    )
+    expect(validateTakeoffRows([priced(100_000_000_000, 10)])).toEqual([])
+    // One centavo over the cap queues the row and commits it unpriced.
+    const over = priced(100_000_000_000, 10.0001)
+    expect(validateTakeoffRows([over])).toContainEqual(
+      expect.objectContaining({ code: 'INVALID_UNIT_RATE' }),
+    )
+    expect(takeoffCommitPricing(over).unitRateSource).toBe('manual')
+    expect(5_000 * TAKEOFF_MAX_LINE_TOTAL_CENTAVOS).toBeLessThan(Number.MAX_SAFE_INTEGER)
   })
 
   it('queues a rate whose amount leaves the exact centavo range', () => {

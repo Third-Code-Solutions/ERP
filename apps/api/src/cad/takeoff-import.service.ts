@@ -606,10 +606,18 @@ export class TakeoffImportService {
               extraction_timestamp: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.extraction_timestamp} else excluded.extraction_timestamp end`,
               classification_status: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.classification_status} else excluded.classification_status end`,
               classification_reason: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.classification_reason} else excluded.classification_reason end`,
-              unit_rate_source: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.unit_rate_source} else excluded.unit_rate_source end`,
-              unit_cost_cents: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.unit_cost_cents} else excluded.unit_cost_cents end`,
+              ...(pricing.unitRateSource === 'client_boq'
+                ? {
+                    unit_rate_source: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.unit_rate_source} else excluded.unit_rate_source end`,
+                    unit_cost_cents: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.unit_cost_cents} else excluded.unit_cost_cents end`,
+                    line_total_cents: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.line_total_cents} else excluded.line_total_cents end`,
+                  }
+                : {
+                    // No usable rate in this row: the line keeps its own rate
+                    // and source, priced for the new quantity (half-up).
+                    line_total_cents: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.line_total_cents} else round(${bomLineItems.unit_cost_cents} * excluded.quantity_decimal)::bigint end`,
+                  }),
               markup_bps: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.markup_bps} else 0 end`,
-              line_total_cents: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.line_total_cents} else excluded.line_total_cents end`,
               updated_at: now,
             },
           })
@@ -699,7 +707,26 @@ export class TakeoffImportService {
             eq(bomLineItems.tenant_id, authorizedPrincipal.tenantId)
           )
         )
-      const totals = computeBomTotals(bomLines)
+      let totals: ReturnType<typeof computeBomTotals>
+      try {
+        totals = computeBomTotals(bomLines)
+      } catch (error) {
+        if (!(error instanceof RangeError)) throw error
+        throw new UnprocessableEntityException(
+          'The BOM total would exceed the supported amount range. Lower the imported rates or quantities.'
+        )
+      }
+      const [previousTotals] = await transaction
+        .select({
+          total_cost_cents: boms.total_cost_cents,
+          tcv_cents: boms.tcv_cents,
+          gp_cents: boms.gp_cents,
+          gp_margin_bps: boms.gp_margin_bps,
+        })
+        .from(boms)
+        .where(
+          and(eq(boms.id, bomId), eq(boms.tenant_id, authorizedPrincipal.tenantId))
+        )
       await transaction
         .update(boms)
         .set({ ...totals, updated_at: now })
@@ -725,6 +752,7 @@ export class TakeoffImportService {
             : {}),
           rows: linesUpserted,
           unresolved_count: unresolvedCount,
+          previous_bom_totals: previousTotals ?? null,
           bom_totals: totals,
           authority: 'erp_core',
         },

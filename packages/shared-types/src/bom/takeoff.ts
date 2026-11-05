@@ -51,9 +51,14 @@ const UNPRICED: TakeoffCommitPricing = {
   unitRateSource: 'manual',
 }
 
+// PHP 10 billion per imported line: a full 5,000-row import at the cap still
+// sums below 2^53, so computeBomTotals stays exact for the rows it commits.
+export const TAKEOFF_MAX_LINE_TOTAL_CENTAVOS = 1_000_000_000_000
+
 function pricedLineTotal(unitRateCentavos: number, quantity: number | null): number | null {
   try {
-    return lineTotal(unitRateCentavos, takeoffCommitQuantity(quantity), 0)
+    const total = lineTotal(unitRateCentavos, takeoffCommitQuantity(quantity), 0)
+    return total > TAKEOFF_MAX_LINE_TOTAL_CENTAVOS ? null : total
   } catch {
     return null
   }

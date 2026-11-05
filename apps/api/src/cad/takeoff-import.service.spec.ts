@@ -1,7 +1,10 @@
 import 'reflect-metadata'
 
-import { bomLineItems, boms } from '@third-code-erp/database/schema'
+import { UnprocessableEntityException } from '@nestjs/common'
+import { bomLineItems, boms, users } from '@third-code-erp/database/schema'
 import type { TakeoffImportCommand, TakeoffImportRow } from '@third-code-erp/shared-types'
+import type { SQL } from 'drizzle-orm'
+import { PgDialect } from 'drizzle-orm/pg-core'
 import { describe, expect, it, vi } from 'vitest'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import type { AuditService } from '../audit/audit.service'
@@ -16,6 +19,12 @@ const PRINCIPAL: ErpPrincipal = {
 }
 const BOM_ID = '33333333-3333-4333-8333-333333333333'
 const ROW_ID = '44444444-4444-4444-8444-444444444444'
+const PREVIOUS_TOTALS = {
+  total_cost_cents: 50_000,
+  tcv_cents: 50_000,
+  gp_cents: 0,
+  gp_margin_bps: 0,
+}
 
 function row(overrides: Partial<TakeoffImportRow> = {}): TakeoffImportRow {
   return {
@@ -48,14 +57,14 @@ function command(rows: TakeoffImportRow[]): TakeoffImportCommand {
 }
 
 /** Awaitable drizzle-style chain: every builder call returns the chain. */
-function chain(result: unknown, onCall?: (method: string, args: unknown[]) => void) {
+function chain(result: () => unknown, onCall?: (method: string, args: unknown[]) => void) {
   const proxy: unknown = new Proxy(
     {},
     {
       get(_target, property) {
         if (property === 'then') {
           return (resolve: (value: unknown) => void, reject: (error: unknown) => void) =>
-            Promise.resolve(result).then(resolve, reject)
+            Promise.resolve().then(result).then(resolve, reject)
         }
         return (...args: unknown[]) => {
           onCall?.(String(property), args)
@@ -67,30 +76,87 @@ function chain(result: unknown, onCall?: (method: string, args: unknown[]) => vo
   return proxy
 }
 
-function harness(storedLines: unknown[]) {
-  const selects = [
-    [{ tenantId: PRINCIPAL.tenantId, role: PRINCIPAL.role, email: PRINCIPAL.email }],
-    [{ id: BOM_ID, projectId: '55555555-5555-4555-8555-555555555555', status: 'draft' }],
-    [{ count: 0 }],
-    storedLines,
-  ]
+const dialect = new PgDialect()
+const renderSql = (value: unknown) => dialect.sqlToQuery(value as SQL).sql
+
+type StoredLine = {
+  unit_cost_cents: number
+  quantity: string
+  line_total_cents: number
+  parent_line_item_id: string | null
+}
+
+/**
+ * Selects answer by table. The BOM line read returns the lines this commit
+ * inserted (plus `otherLines` already on the BOM), so the totals follow the
+ * upserted rows rather than a fixture fed by call order.
+ */
+function harness(otherLines: StoredLine[] = []) {
   const inserted: Array<{ table: unknown; values: Record<string, unknown> }> = []
+  const conflicts: Array<{ table: unknown; set: Record<string, unknown> }> = []
   const updates: Array<{ table: unknown; set: Record<string, unknown> }> = []
+  const lineValues = () =>
+    inserted.filter((entry) => entry.table === bomLineItems).map((entry) => entry.values)
+  const selectResult = (table: unknown) => {
+    if (table === users) {
+      return [{ tenantId: PRINCIPAL.tenantId, role: PRINCIPAL.role, email: PRINCIPAL.email }]
+    }
+    if (table === boms) {
+      return [
+        {
+          id: BOM_ID,
+          projectId: '55555555-5555-4555-8555-555555555555',
+          status: 'draft',
+          ...PREVIOUS_TOTALS,
+        },
+      ]
+    }
+    if (table === bomLineItems) {
+      return [
+        ...otherLines,
+        ...lineValues().map((line) => ({
+          unit_cost_cents: line.unit_cost_cents,
+          quantity: line.quantity_decimal,
+          line_total_cents: line.line_total_cents,
+          parent_line_item_id: null,
+        })),
+      ]
+    }
+    return [{ count: 0 }]
+  }
   const transactionClient = {
-    select: vi.fn(() => chain(selects.shift() ?? [])),
-    insert: vi.fn((table: unknown) =>
-      chain([{ id: ROW_ID }], (method, args) => {
-        if (method === 'values') {
-          inserted.push({ table, values: args[0] as Record<string, unknown> })
+    select: vi.fn(() => {
+      let table: unknown
+      return chain(
+        () => selectResult(table),
+        (method, args) => {
+          if (method === 'from') table = args[0]
         }
-      })
+      )
+    }),
+    insert: vi.fn((table: unknown) =>
+      chain(
+        () => [{ id: ROW_ID }],
+        (method, args) => {
+          if (method === 'values') {
+            inserted.push({ table, values: args[0] as Record<string, unknown> })
+          }
+          if (method === 'onConflictDoUpdate') {
+            conflicts.push({ table, set: (args[0] as { set: Record<string, unknown> }).set })
+          }
+        }
+      )
     ),
     update: vi.fn((table: unknown) =>
-      chain(undefined, (method, args) => {
-        if (method === 'set') updates.push({ table, set: args[0] as Record<string, unknown> })
-      })
+      chain(
+        () => undefined,
+        (method, args) => {
+          if (method === 'set') updates.push({ table, set: args[0] as Record<string, unknown> })
+        }
+      )
     ),
   }
+  const writeSemantic = vi.fn()
   const service = new TakeoffImportService(
     {
       client: {
@@ -99,21 +165,26 @@ function harness(storedLines: unknown[]) {
         ),
       },
     } as unknown as DatabaseService,
-    { stampActor: vi.fn(), writeSemantic: vi.fn() } as unknown as AuditService
+    { stampActor: vi.fn(), writeSemantic } as unknown as AuditService
   )
-  const lineValues = () =>
-    inserted.filter((entry) => entry.table === bomLineItems).map((entry) => entry.values)
   const bomTotals = () => updates.find((entry) => entry.table === boms)?.set
-  return { service, lineValues, bomTotals }
+  const lineConflictSet = () => conflicts.find((entry) => entry.table === bomLineItems)?.set
+  const auditDiff = () =>
+    (writeSemantic.mock.calls[0]?.[1] as { diff: Record<string, unknown> } | undefined)?.diff
+  return { service, lineValues, bomTotals, lineConflictSet, auditDiff }
 }
 
 describe('TakeoffImportService client BOQ rates', () => {
   it('writes the rate as client_boq with the half-up line total and recalculates totals', async () => {
-    const { service, lineValues, bomTotals } = harness([
-      { unit_cost_cents: 450_005, quantity: '2.5', line_total_cents: 1_125_013, parent_line_item_id: null },
-    ])
+    const { service, lineValues, bomTotals, auditDiff } = harness()
 
-    await service.execute(command([row({ unitRateCentavos: 450_005 })]), PRINCIPAL)
+    await service.execute(
+      command([
+        row({ unitRateCentavos: 450_005 }),
+        row({ sourceRowKey: 'row-3', quantity: 4, unitRateCentavos: 10_000 }),
+      ]),
+      PRINCIPAL
+    )
 
     expect(lineValues()).toEqual([
       expect.objectContaining({
@@ -124,19 +195,25 @@ describe('TakeoffImportService client BOQ rates', () => {
         line_total_cents: 1_125_013,
         quantity_decimal: '2.5',
       }),
+      expect.objectContaining({ unit_cost_cents: 10_000, line_total_cents: 40_000 }),
     ])
-    expect(bomTotals()).toEqual(
+    const expected = {
+      total_cost_cents: 1_165_013,
+      tcv_cents: 1_165_013,
+      gp_cents: 0,
+      gp_margin_bps: 0,
+    }
+    expect(bomTotals()).toEqual(expect.objectContaining(expected))
+    expect(auditDiff()).toEqual(
       expect.objectContaining({
-        total_cost_cents: 1_125_013,
-        tcv_cents: 1_125_013,
-        gp_cents: 0,
-        gp_margin_bps: 0,
+        previous_bom_totals: expect.objectContaining(PREVIOUS_TOTALS),
+        bom_totals: expected,
       })
     )
   })
 
   it('keeps the unpriced manual line without a rate', async () => {
-    const { service, lineValues } = harness([])
+    const { service, lineValues } = harness()
 
     await service.execute(command([row()]), PRINCIPAL)
 
@@ -150,12 +227,56 @@ describe('TakeoffImportService client BOQ rates', () => {
   })
 
   it('commits an unreadable rate unpriced', async () => {
-    const { service, lineValues } = harness([])
+    const { service, lineValues } = harness()
 
     await service.execute(command([row({ unitRateCentavos: null })]), PRINCIPAL)
 
     expect(lineValues()).toEqual([
       expect.objectContaining({ unit_rate_source: 'manual', unit_cost_cents: 0 }),
     ])
+  })
+
+  it('re-import without a rate keeps the line rate and source and reprices the new quantity', async () => {
+    const { service, lineConflictSet } = harness()
+
+    await service.execute(command([row()]), PRINCIPAL)
+
+    const set = lineConflictSet()!
+    expect(set).not.toHaveProperty('unit_cost_cents')
+    expect(set).not.toHaveProperty('unit_rate_source')
+    expect(renderSql(set.line_total_cents)).toBe(
+      `case when "bom_line_items"."unit_rate_source" = 'dupa' then "bom_line_items"."line_total_cents" else round("bom_line_items"."unit_cost_cents" * excluded.quantity_decimal)::bigint end`
+    )
+  })
+
+  it('re-import with a rate overwrites only non-DUPA lines', async () => {
+    const { service, lineConflictSet } = harness()
+
+    await service.execute(command([row({ unitRateCentavos: 12_500 })]), PRINCIPAL)
+
+    const set = lineConflictSet()!
+    for (const column of ['unit_rate_source', 'unit_cost_cents', 'line_total_cents']) {
+      expect(renderSql(set[column])).toBe(
+        `case when "bom_line_items"."unit_rate_source" = 'dupa' then "bom_line_items"."${column}" else excluded.${column} end`
+      )
+    }
+    expect(renderSql(set.markup_bps)).toBe(
+      `case when "bom_line_items"."unit_rate_source" = 'dupa' then "bom_line_items"."markup_bps" else 0 end`
+    )
+  })
+
+  it('rejects a commit whose BOM total leaves the exact number range', async () => {
+    const huge: StoredLine = {
+      unit_cost_cents: 5_000_000_000_000_000,
+      quantity: '1',
+      line_total_cents: 5_000_000_000_000_000,
+      parent_line_item_id: null,
+    }
+    const { service, bomTotals } = harness([huge, huge])
+
+    await expect(
+      service.execute(command([row({ unitRateCentavos: 100 })]), PRINCIPAL)
+    ).rejects.toBeInstanceOf(UnprocessableEntityException)
+    expect(bomTotals()).toBeUndefined()
   })
 })
