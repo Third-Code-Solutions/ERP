@@ -200,10 +200,12 @@ vi.mock('@third-code-erp/shared-types/bom', async (importOriginal) => ({
   parseBoqQuantity: (await importOriginal<typeof import('@third-code-erp/shared-types/bom')>())
     .parseBoqQuantity,
   lineTotal: vi.fn(),
-  bomTotalCost: vi.fn(() => 0),
-  topLevelBomLines: vi.fn((lines: unknown[]) => lines),
-  computeGP: vi.fn(() => 0),
-  computeGPMargin: vi.fn(() => 0),
+  computeBomTotals: vi.fn(() => ({
+    total_cost_cents: 0,
+    tcv_cents: 0,
+    gp_cents: 0,
+    gp_margin_bps: 0,
+  })),
   dupaUpsertInputSchema: { safeParse: mocks.dupaSafeParse },
   bomGrainReviewResolutionSchema: { safeParse: mocks.grainReviewSafeParse },
   bomLocationReviewResolutionSchema: { safeParse: mocks.locationReviewSafeParse },
