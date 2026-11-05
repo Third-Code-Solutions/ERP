@@ -9,10 +9,10 @@
 
 ## 0. Decisions in one screen
 
-1. **Coverage.** There are 210 tenant-scoped tables. 43 are mirrored today. The other 167 are classified below:
+1. **Coverage.** There are 211 tenant-scoped tables. 43 are mirrored today. The other 168 are classified below:
    - **(a)** 36 get their own node, plus the 2 planned catalogue tables, so 38 in total;
    - **(b)** 41 fold into a parent node or become an edge;
-   - **(c)** 90 are never mirrored, each with a reason.
+   - **(c)** 91 are never mirrored, each with a reason.
 
    A coverage test fails CI when someone adds a table without classifying it.
 2. **One data-driven mirror.** All new (a) and (b) tables use one SQL registry (`cortex_mirror_registry`) and one apply function. Attributes are an allowlist frozen at migration time, never a denylist. The 23 tables on the current generic mirror move to the registry, which closes the existing PII leaks (§2).
@@ -77,7 +77,7 @@
 
 ### 3.1 New SQL objects
 
-Both new tables are global, have RLS enabled with no policies, and have `revoke all ... from anon, authenticated, public`.
+Both new tables are global, have RLS enabled and forced, `revoke all ... from anon, authenticated, public`, and an explicit `deny_direct_client_access` policy (`for all to anon, authenticated using (false) with check (false)`), the server-only pattern of 20260817110000 (advisor lint 0008 flags RLS without policies).
 
 **`cortex_mirror_registry`**, keyed on `ref_table`. Columns:
 - `node_type`
@@ -96,17 +96,18 @@ Both new tables are global, have RLS enabled with no policies, and have `revoke 
 
 | Function | Job |
 |---|---|
-| `cortex_apply_row(p_table text, p_row jsonb, p_op text)` | Core. Builds the title, summary and allowlisted attributes, then runs a no-change short-circuit (skips the node update and provenance when title, summary and attributes are identical). Then `cortex_upsert_node` and the edges from the `edges` spec (`dir` out or in; `many` for `uuid[]`; `via` for a one-hop lookup; `poly` for type/id pairs with a value map). On UPDATE it calls `cortex_close_stale_edges`. On DELETE it closes the node and its current canonical edges. |
+| `cortex_apply_row(p_table text, p_row jsonb, p_op text)` | Core. Builds the title, summary and allowlisted attributes. Then `cortex_upsert_node` (which owns the no-change short-circuit, see below) and the edges from the `edges` spec (`dir` out or in; `many` for `uuid[]`; `via` for a one-hop lookup; `poly` for type/id pairs with a value map). On UPDATE and BACKFILL it calls `cortex_close_stale_edges` once per (edge type, other table, direction) group, keeping every id the row still points at. On DELETE it closes the node and its current canonical edges. |
 | `cortex_mirror_row()` | Per-row AFTER I/U/D trigger. Calls `cortex_apply_row(TG_TABLE_NAME, to_jsonb(NEW or OLD), TG_OP)` inside the defensive `exception when others then raise warning` wrapper. |
 | `cortex_fold_children()` | Statement-level AFTER trigger. There are 3 per child table (insert, update, delete), because Postgres rejects transition tables on multi-event triggers. It computes the distinct parent ids from the transition tables and, for each parent, writes `{count, sum, items[≤limit]}` with `cortex_set_fold`. Defensive. |
 | `cortex_set_fold(p_tenant, p_parent_table, p_parent_id, p_key, p_value)` | `jsonb_set` on the parent node at `attributes.folds.<key>`, plus provenance. |
 | `cortex_mirror_link()` | Per-row trigger for join tables. Upserts or closes one edge between two existing nodes. |
 | `cortex_redact_text(t text, n int)` | Masks emails and phone-like digit runs and truncates to n characters. Applied to the title and summary (300 characters) and to every string attribute longer than 120 characters (500). |
-| `cortex_close_stale_edges(src, edge_type, dst_ref_table, keep_dst)` | Sets `valid_to` on the src node's other current canonical edges of that type that point to that ref_table. |
-| `cortex_backfill(p_table text, p_mode text default 'missing', p_limit int default 2000) returns int` | Mirrors rows that have no current node (`missing`), or re-applies every row through the short-circuit (`all`). Also recomputes folds for the parent tables of folded children. Returns the rows processed, and 0 when done. |
+| `cortex_close_stale_edges(p_node, p_edge_type, p_other_ref_table, p_keep uuid[], p_out boolean default true)` | Sets `valid_to` on the node's other current canonical edges of that type to (`p_out`) or from (`not p_out`) that ref_table, except `p_keep`. The direction flag is needed because `owns` and `supplies` point into the row; the array covers `many` edges. Edges written by `cortex_mirror_link` carry `attributes = {"link": <table>}` and are never closed here, so a link table and an FK with the same (type, table) cannot close each other's edges. |
+| `cortex_backfill(p_table text, p_mode text default 'missing', p_limit int default 2000, p_after uuid default null, out processed int, out last_id uuid)` | Mirrors rows that have no current node (`missing`), or re-applies every row through the short-circuit (`all`), keyset-paged by `id > p_after`. Also recomputes folds for the parent tables of folded children. Call until `processed = 0`, passing back `last_id`. (A plain `returns int` cannot page `all` mode: every call would re-read the same first page.) |
 | `cortex_apply_{account,user,opportunity,document}(row jsonb, op text)` | The bodies of the 4 hand-written mirrors that change, split out so backfill can call them. Their trigger wrappers keep their names. |
+| helpers | `cortex_redact_attrs` (the >120-character rule), `cortex_render_tpl` (`{col}` templates; null when a placeholder is empty, so the `"<Type> <id8>"` fallback applies), `cortex_edge_targets` (resolves one edge spec), `cortex_refresh_fold` (recomputes one parent's fold), `cortex_link_edge` (one link row), `cortex_kyc_redact` (trigger on `account_kyc_artifacts`). |
 
-**`cortex_upsert_node` (one change).** It preserves `attributes->'folds'` when `p_attributes` has no `folds` key, so a parent's own upsert never wipes its folds. This also covers the finance, inventory and hand-written parents without touching their mirrors.
+**`cortex_upsert_node` (two changes).** It preserves `attributes->'folds'` when `p_attributes` has no `folds` key, so a parent's own upsert never wipes its folds. And it returns early, with no update and no provenance, when the current node is `fresh` and title, summary and attributes (folds included) are unchanged. Both live here rather than in `cortex_apply_row`, so they also cover the split account/user/opportunity/document mirrors and the finance, inventory and hand-written parents without touching their mirrors; the backfill idempotency test (§8.8) needs the split mirrors to short-circuit too.
 
 ### 3.2 Attribute rule (applies to every registry table, including the 23 migrated ones)
 
@@ -114,7 +115,9 @@ Both new tables are global, have RLS enabled with no policies, and have `revoke 
 - `tenant_id`;
 - any column matching the global exclusion regex (case-insensitive): `token|_hash$|password|secret|email|phone|address|contact_name|_ip$|user_agent|signer_|responder_|submitted_by_name|sender_name|bir_tin|(^|_)tin$|docuseal_|idempotency_key|request_hash|storage_path|sha256`;
 - `jsonb`, `json`, array, `bytea` and `vector` columns;
-- the per-table exclusions listed in §4.
+- the per-table exclusions listed in §4. For the 23 migrated tables that is every `notes` or `*_notes` column (free text shorter than 120 characters is not redacted, and vendors' `notes` is part of S1) and `*_by_name` (`change_requests.requested_by_name`, a free-text person name).
+
+Edge columns (`project_id`, `created_by`, …) are used only when their type is `uuid`; a failed cast would raise inside the defensive wrapper and silently drop the whole row.
 
 It then adds any per-table inclusions. The result is stored. A column added later stays out until a migration adds it, so the list fails closed.
 
@@ -238,7 +241,7 @@ Fold limits: at most 50 items per key (20 for maintenance, 5 for processing jobs
 | assets | a | `asset` "{asset_tag} {name}" | → project part_of (assigned_project_id) | keeps kind, status, make/model/serial, location, dates | tenant |
 | progress_updates | b | weekly_progress lookup | n/a | percent_by_category (inclusion) | n/a |
 | project_submittal_documents, permit_documents, punchlist_photos, site_inspection_photos, progress_claim_documents | b | link | parent → references_doc → document | caption excluded | n/a |
-| quality_hold_point_punchlist_handoffs | b | edge on punchlist (via `source_handoff_id`) | punchlist → derived_from → hold_point | n/a | n/a |
+| quality_hold_point_punchlist_handoffs | b | edge on punchlist (via `source_handoff_id` → `quality_hold_point_id`) | punchlist → derived_from → hold_point | n/a | n/a |
 | pre_con_checklists | b | edge on checklist item (via `checklist_id`) | item → part_of → project (fixes the orphans) | n/a | n/a |
 | permit_duration_profiles | b | none needed | n/a | the app already copies min/expected/max days onto `permits` | n/a |
 | site_inspection_rfis | b | inspection `folds.rfis` | n/a | description redacted, priority, resolved_at | n/a |
@@ -258,12 +261,12 @@ Fold limits: at most 50 items per key (20 for maintenance, 5 for processing jobs
 | catalogue_items | a | `catalogue_item` "{code} {name}"; summary "Trade: {trade}" | n/a | trade, specification redacted, unit, active | catalogue |
 | catalogue_prices | a | `catalogue_price` "{item} ({region}, {checked_on})" | → catalogue_item part_of; vendor supplies → | low/avg/high centavos, basis, source kind/name/url, checked_on, flag, notes redacted | catalogue |
 
-### 4.7 Never mirrored (c): 90 tables
+### 4.7 Never mirrored (c): 91 tables
 
 | Reason | Tables |
 |---|---|
 | Secrets, tokens and sessions (bearer credentials or signer PII) | bom_portal_tokens, customer_portal_sessions, signature_sessions, warranty_portal_tokens, vendor_confirmation_sessions, platform_support_sessions |
-| Command and idempotency receipts (the outcome is already on the mirrored parent; history is in `audit_log`) | journal_post_requests, journal_reverse_requests, customer_invoice_{cancel,draft_create,issue,reverse}_requests, supplier_bill_{post,reverse}_requests, cash_transaction_{draft,workflow}_requests, bank_statement_{auto_match,import,line_match,reconcile,void}_requests, cost_entry_{create,delete,restore}_requests, stock_movement_{create,workflow}_requests, stock_receipt_{create,workflow}_requests, purchase_order_{create,workflow}_requests, delivery_schedule_create_requests, delivery_workflow_requests, change_request_create_requests, project_comment_{create,delete}_requests, project_create_requests, project_retirement_requests, user_role_assignment_requests, asset_maintenance_create_requests, document_{delete,intake}_requests, cad_evidence_commit_requests, togal_bom_commit_requests, opportunity_project_conversion_requests (the outcome is `opportunity.project_id` and `award_handoff`), public_signing_requests, vendor_confirmation_requests (40) |
+| Command and idempotency receipts (the outcome is already on the mirrored parent; history is in `audit_log`) | journal_post_requests, journal_reverse_requests, customer_invoice_{cancel,draft_create,issue,reverse}_requests, supplier_bill_{post,reverse}_requests, cash_transaction_{draft,workflow}_requests, bank_statement_{auto_match,import,line_match,reconcile,void}_requests, cost_entry_{create,delete,restore}_requests, stock_movement_{create,workflow}_requests, stock_receipt_{create,workflow}_requests, purchase_order_{create,workflow}_requests, delivery_schedule_create_requests, delivery_workflow_requests, change_request_create_requests, project_comment_{create,delete}_requests, project_create_requests, project_retirement_requests, user_role_assignment_requests, asset_maintenance_create_requests, document_{delete,intake}_requests, document_upload_reservations (upload reservation receipt, 20260824110438; added in Batch 1, the first draft missed it), cad_evidence_commit_requests, togal_bom_commit_requests, opportunity_project_conversion_requests (the outcome is `opportunity.project_id` and `award_handoff`), public_signing_requests, vendor_confirmation_requests (41) |
 | Outbox, delivery, attempt and event logs (delivery logs carry recipient emails; current state lives on the parent) | notification_outbox, notification_deliveries, notifications, purchase_order_supplier_email_deliveries, provider_delivery_outbox, provider_delivery_attempts, sap_posting_outbox, sap_posting_attempts, sla_logs, roadmap_workflow_events, procurement_requisition_events, inventory_reservation_events, document_processing_evidence (parser payload; the outcome is mirrored as scope_items) |
 | Pure config, sequences and lookups | financial_sequences, tax_profiles, tenant_currencies, exchange_rates, units_of_measure, mapping_config, takeoff_mapping_profiles, pre_con_checklist_templates, process_steps (its name is used only as a task-title lookup), approval_rules, approval_delegations, business_calendar_holidays, tenant_feature_flags |
 | Raw PII and authorization data | account_kyc_artifacts (KYC files; status lives on accounts and kyc_track), statutory_outputs (BIR payloads carry TINs), platform_user_invitations (emails), tenant_memberships (authority data; the employee node carries the role) |
@@ -285,7 +288,7 @@ Three existing values are reused: `bom_line`, `po_line` and `task`. **No new edg
 | Group | Roles | Capability source | Node types |
 |---|---|---|---|
 | tenant | all 13 | `project.read`, `opportunity.read`, `tender.read`, `asset.read` (ALL_ROLES) | every existing type not listed below; plus award_handoff, pprf, tender*, drawing_revision, location, the execution types, task, approval, asset |
-| finance | owner, admin, finance | `finance.read` minus viewer (existing, S5) | existing finance types, landed_cost |
+| finance | owner, admin, finance | `finance.read` minus viewer (existing, S5) | existing finance types (including `invoice_line`, which has no mirror and whose app path is `/invoices`), landed_cost |
 | inventory | `auth_can_read_inventory()` | `inventory.read` minus viewer (existing) | warehouse, stock_receipt, stock_ledger_entry, **stock_movement (S2 fix)**, reservation |
 | budget | `auth_can_read_budgets()` | `budget.read` minus viewer (existing function) | **cost_code, project_budget (S2 fix)** |
 | kyc | owner, admin, finance, viewer | `account.kyc.read` | kyc_track |
@@ -353,37 +356,38 @@ Production volume is small today; I did not measure production row counts. Two g
 4. `auth_can_read_cortex_node_type` keeps `revoke ... from public, anon` and `grant ... to authenticated, service_role`;
 5. `commit;`.
 
-`create trigger` takes a short SHARE ROW EXCLUSIVE lock and fails fast under `lock_timeout`, so retry off-peak. Enum values are added in their own file before first use, as the precedent does (242000 → 243000). Migrations are authoritative: add only a header pointer in `cortex-substrate.sql`, and update the runbook.
+`create trigger` takes SHARE ROW EXCLUSIVE, but `drop trigger` takes **ACCESS EXCLUSIVE**, which also blocks reads. Batch 1 drops a trigger on each of 23 tables in one transaction, so it holds 23 ACCESS EXCLUSIVE locks until commit (plus SHARE ROW EXCLUSIVE on `account_kyc_artifacts`). `lock_timeout` makes it fail fast behind a long transaction; check `pg_stat_activity` first and retry off-peak. Enum values are added in their own file before first use, as the precedent does (242000 → 243000). Migrations are authoritative: add only a header pointer in `cortex-substrate.sql`, and update the runbook.
 
 | # | File (`supabase/migrations/`) | Contents |
 |---|---|---|
 | 0 | `20261106100000_cortex_coverage_types.sql` | the 35 enum values; the two registry tables; access rows for the existing types (§5 groups) |
-| 1 | `…101000_cortex_coverage_core.sql` | §3.1 functions and the `cortex_upsert_node` folds-preservation; read-check rewrite (**S2 fix**); split and edited account, user, opportunity and document mirrors (**S3 fix**); registry rows for the 23 generic tables; **drop `cortex_mirror_g` and create `cortex_mirror_r`** on each (**S1 fix**). The old `cortex_mirror_generic()` function is left in place. |
+| 1 | `…101000_cortex_coverage_core.sql` | §3.1 functions and the `cortex_upsert_node` folds-preservation; read-check rewrite (**S2 fix**); split and edited account, user, opportunity and document mirrors (**S3 fix**); registry rows for the 23 generic tables; **drop the old generic trigger and create `cortex_mirror_r`** on each (**S1 fix**). Three of the 23 do not use the name `cortex_mirror_g`: `cost_codes` (`cortex_mirror_budget_cost_code`), `project_budgets` (`cortex_mirror_project_budget`) and `stock_movements` (`cortex_mirror_stock_movement`). Dropping only `cortex_mirror_g` would leave the leaking generic trigger running next to the new one. The old `cortex_mirror_generic()` function is left in place. |
 | 2 | `…102000_cortex_coverage_sales.sql` | §4.1 |
 | 3 | `…103000_cortex_coverage_estimating.sql` | §4.2 |
 | 4 | `…104000_cortex_coverage_procurement_finance.sql` | §4.3 and §4.4 |
 | 5 | `…105000_cortex_coverage_execution.sql` | §4.5 |
 | 6 | the catalogue migration (or the next file after it) | §4.6 |
 
-**Backfill.** `scripts/cortex-backfill.mjs --batch <n> [--mode missing|all] [--dry-run]` reads `DATABASE_URL` from the environment only. For each table in `backfill_order` (parents first), it calls `select cortex_backfill($1,$2,2000)` in its own transaction until it returns 0.
-- After Batch 1: run `--mode all` on the 23 migrated tables. This rewrites their attributes without the S1 keys and builds the opportunity stage history.
+**Backfill.** `scripts/cortex-backfill.mjs --batch <n> [--mode missing|all] [--dry-run]` reads `DATABASE_URL` from the environment only. For each table of the batch, in a fixed order with endpoints first (users, accounts, vendors before the rows that point at them), it calls `select * from cortex_backfill($1,$2,2000,$3)` in its own transaction until `processed = 0`, passing back `last_id`. `--dry-run` only counts the rows each table would process: a rolled-back real run would hold the per-tenant provenance lock for the whole run and block every mirrored write in that tenant.
+- After Batch 1: run `--batch 1 --mode all`. It covers the 23 migrated tables (attributes rewritten without the S1 keys) **and** users, accounts, opportunities and documents (emails removed, KYC titles redacted, stage history built), which is the S3 data fix.
 - **Idempotency:** a second run of either mode writes 0 provenance rows (tested). Edges whose parent arrived later are filled by the `all` pass.
 - No self-update backfill is ever used.
 
 **Rollback** (`packages/database/src/sql/cortex-coverage-rollback.sql`, run by hand under the same timeouts):
-1. Drop `cortex_mirror_r`, `cortex_fold_{ins,upd,del}`, `cortex_link` and `cortex_kyc_redact` on every table listed in the registry.
-2. Re-create `cortex_mirror_g` on the 23 tables with their original arguments (20260614052136, 063911, 243000, 245000).
+Run as `psql "$DATABASE_URL" --single-transaction -v ON_ERROR_STOP=1 -f …`; the file sets the same local timeouts.
+1. Drop `cortex_mirror_r`, `cortex_fold_{ins,upd,del}` and `cortex_link` on every table listed in the registry, and `cortex_kyc_redact` on `account_kyc_artifacts`.
+2. Re-create the generic triggers on the 23 tables with their original names and arguments (`cortex_mirror_g` on 20; `cortex_mirror_budget_cost_code`, `cortex_mirror_project_budget` and `cortex_mirror_stock_movement` on the other 3; 20260614052136, 063911, 243000, 245000).
 3. Restore the previous bodies, copied verbatim:
    - account, user, opportunity and document mirrors: cortex-substrate.sql:264–302 and 376–443;
    - `cortex_upsert_node`: :174–196;
    - `auth_can_read_cortex_node_type`: 20260726234000:1146–1176.
 4. Drop the new `cortex_*` functions.
 
-The rollback **keeps all data**: enum values (which cannot be dropped), both registry tables, and every cortex node, edge and provenance row. Mirrored nodes go stale. If they must disappear, closing them (`valid_to`) is a separate data change. Step 3 re-opens S2.
+The rollback **keeps all data**: enum values (which cannot be dropped), both registry tables, and every cortex node, edge and provenance row. Mirrored nodes go stale. If they must disappear, closing them (`valid_to`) is a separate data change. Step 3 re-opens S2, and step 2 re-opens S1 and S3 for rows written after the rollback.
 
 ## 8. Test plan (`packages/database/src/__tests__/cortex-substrate.test.ts`, rollback-only)
 
-The tests are table-driven from the registry, with one minimal fixture factory per (a) and (b) table in a new `__tests__/cortex-fixtures.ts`. Add `seedUserWithRole(tx, tenant, role)` to `_db-harness.ts`.
+The tests are table-driven from the registry, with one minimal fixture factory per (a) and (b) table in a new `__tests__/cortex-fixtures.ts` (from Batch 2; Batch 1 has no new types, so its tests use inline fixtures and synthetic fold/link tables inside the rollback transaction). Add `seedUserWithRole(tx, tenant, role)` to `_db-harness.ts`.
 
 1. **Mirror (per (a) type).** An insert creates one current node with the right `node_type`. Its attribute keys are a subset of `attr_cols ∪ attr_paths ∪ {folds}`, and no key matches the §3.2 regex. Expected edges exist. An update that changes an FK closes the old edge and makes the new one current. A delete closes the node and its edges.
 2. **Fold and link (per (b) table).** A child insert, update or delete updates `folds.<key>` (`count`, `sum`, capped items), and no child node exists. A link row creates or closes exactly one edge. A parent's own update preserves its folds.
@@ -398,7 +402,7 @@ The tests are table-driven from the registry, with one minimal fixture factory p
    - A KYC-linked document's title is redacted.
    - Account and user nodes carry no email.
 8. **Backfill idempotency.** Run `cortex_backfill` twice: the second run returns 0 and appends 0 provenance rows. No self-update path exists.
-9. **Coverage guard.** Every `information_schema` table with `tenant_id` must be in exactly one of: the registry, the hand-written and domain mirror list, or a `CORTEX_NEVER_MIRROR` constant with a reason in the test. A new table fails CI until it is classified.
+9. **Coverage guard.** Every `information_schema` table with `tenant_id` must be in exactly one of: the registry, the hand-written and domain mirror list, the Batch 1 `via` support tables, a `CORTEX_PLANNED[batch]` list (until that batch ships and moves the table to the registry), or a `CORTEX_NEVER_MIRROR` constant with a reason. The lists live in `__tests__/_cortex-coverage-classes.ts`. A new table fails CI until it is classified; a listed table that no longer exists fails too (except the planned catalogue tables).
 10. **Parity guard.** Every registry `node_type` must be in the Drizzle enum, `cortex_node_type_access`, `CORTEX_GRAPH_REF_TABLE_NODE_TYPES` and `CORTEX_ENTITY_REGISTRY` (§3.4).
 11. **Volume gate** (integration, not unit CI). Run the 5,000-line takeoff import with mirroring on against the 60 s budget (§6).
 
