@@ -31,6 +31,8 @@ import {
 } from '@third-code-erp/shared-types'
 import {
   classifyBomLineKind,
+  computeBomTotals,
+  takeoffCommitPricing,
   takeoffCommitQuantity,
   validateTakeoffRows,
   type TakeoffValidationIssue,
@@ -322,6 +324,9 @@ export class TakeoffImportService {
             division: row.division,
             location: row.location,
             itemNo: row.itemNo,
+            ...(row.unitRateCentavos === undefined
+              ? {}
+              : { unitRateCentavos: row.unitRateCentavos }),
           })),
         })
       }
@@ -537,6 +542,10 @@ export class TakeoffImportService {
         const classification = classifyBomLineKind(row.unit)
         const rowValidationIssues = rowIssues.get(row.sourceRowKey) ?? []
         const quantity = takeoffCommitQuantity(row.quantity)
+        // AI candidates stay unpriced until a human attaches a DUPA.
+        const pricing = takeoffCommitPricing(
+          isAiDocumentCandidate ? { quantity: row.quantity } : row
+        )
         const [line] = await transaction
           .insert(bomLineItems)
           .values({
@@ -554,7 +563,7 @@ export class TakeoffImportService {
               ? parsedCommand.sourceModel
               : source,
             extraction_timestamp: now,
-            unit_rate_source: 'manual',
+            unit_rate_source: pricing.unitRateSource,
             classification_status:
               rowValidationIssues.length > 0
                 ? 'review'
@@ -570,9 +579,9 @@ export class TakeoffImportService {
               row.description || `Unresolved takeoff row ${row.sourceRowKey}`,
             unit: row.unit || null,
             quantity_decimal: quantity,
-            unit_cost_cents: 0,
+            unit_cost_cents: pricing.unitCostCents,
             markup_bps: 0,
-            line_total_cents: 0,
+            line_total_cents: pricing.lineTotalCents,
             notes: isAiDocumentCandidate
               ? `AI-extracted scope candidate; document:${parsedCommand.documentId}; model:${parsedCommand.sourceModel}; pricing requires DUPA before approval.`
               : `Takeoff source: ${source}`,
@@ -597,10 +606,10 @@ export class TakeoffImportService {
               extraction_timestamp: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.extraction_timestamp} else excluded.extraction_timestamp end`,
               classification_status: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.classification_status} else excluded.classification_status end`,
               classification_reason: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.classification_reason} else excluded.classification_reason end`,
-              unit_rate_source: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.unit_rate_source} else 'manual' end`,
-              unit_cost_cents: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.unit_cost_cents} else 0 end`,
+              unit_rate_source: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.unit_rate_source} else excluded.unit_rate_source end`,
+              unit_cost_cents: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.unit_cost_cents} else excluded.unit_cost_cents end`,
               markup_bps: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.markup_bps} else 0 end`,
-              line_total_cents: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.line_total_cents} else 0 end`,
+              line_total_cents: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.line_total_cents} else excluded.line_total_cents end`,
               updated_at: now,
             },
           })
@@ -674,6 +683,30 @@ export class TakeoffImportService {
           )
         )
 
+      // Imported rates change the BOM, so its stored totals are recomputed
+      // here with the same formula Web uses after any line edit.
+      const bomLines = await transaction
+        .select({
+          unit_cost_cents: bomLineItems.unit_cost_cents,
+          quantity: bomLineItems.quantity_decimal,
+          line_total_cents: bomLineItems.line_total_cents,
+          parent_line_item_id: bomLineItems.parent_line_item_id,
+        })
+        .from(bomLineItems)
+        .where(
+          and(
+            eq(bomLineItems.bom_id, bomId),
+            eq(bomLineItems.tenant_id, authorizedPrincipal.tenantId)
+          )
+        )
+      const totals = computeBomTotals(bomLines)
+      await transaction
+        .update(boms)
+        .set({ ...totals, updated_at: now })
+        .where(
+          and(eq(boms.id, bomId), eq(boms.tenant_id, authorizedPrincipal.tenantId))
+        )
+
       await this.audit.writeSemantic(transaction, {
         tenantId: authorizedPrincipal.tenantId,
         actorId: authorizedPrincipal.userId,
@@ -692,6 +725,7 @@ export class TakeoffImportService {
             : {}),
           rows: linesUpserted,
           unresolved_count: unresolvedCount,
+          bom_totals: totals,
           authority: 'erp_core',
         },
       })

@@ -1,3 +1,4 @@
+import { lineTotal } from './calculations'
 import { boqQuantityFromNumber, MAX_BOM_LINE_ITEM_QUANTITY } from './quantity'
 
 export interface StructuredTakeoffRow {
@@ -9,6 +10,8 @@ export interface StructuredTakeoffRow {
   location: string | null
   itemNo: string | null
   notes: string | null
+  // Client BOQ rate in centavos. Absent: no rate; null: the cell was unreadable.
+  unitRateCentavos?: number | null
   raw: Record<string, string | number | null>
 }
 
@@ -20,6 +23,7 @@ export type TakeoffValidationCode =
   | 'MISSING_DIVISION'
   | 'NO_CATALOG_MATCH'
   | 'MATERIAL_PARENT_REQUIRED'
+  | 'INVALID_UNIT_RATE'
 
 export interface TakeoffValidationIssue {
   sourceRowKey: string
@@ -33,6 +37,38 @@ export interface TakeoffValidationIssue {
 export function takeoffCommitQuantity(quantity: number | null): string {
   if (quantity === null || quantity <= 0) return '0'
   return boqQuantityFromNumber(quantity) ?? '0'
+}
+
+export interface TakeoffCommitPricing {
+  unitCostCents: number
+  lineTotalCents: number
+  unitRateSource: 'manual' | 'client_boq'
+}
+
+const UNPRICED: TakeoffCommitPricing = {
+  unitCostCents: 0,
+  lineTotalCents: 0,
+  unitRateSource: 'manual',
+}
+
+function pricedLineTotal(unitRateCentavos: number, quantity: number | null): number | null {
+  try {
+    return lineTotal(unitRateCentavos, takeoffCommitQuantity(quantity), 0)
+  } catch {
+    return null
+  }
+}
+
+// boq-export A.4: a readable client rate prices the line; anything else stays
+// unpriced (and validateTakeoffRows queues an unreadable or overflowing rate).
+export function takeoffCommitPricing(
+  row: Pick<StructuredTakeoffRow, 'quantity' | 'unitRateCentavos'>,
+): TakeoffCommitPricing {
+  if (row.unitRateCentavos == null) return UNPRICED
+  const lineTotalCents = pricedLineTotal(row.unitRateCentavos, row.quantity)
+  return lineTotalCents === null
+    ? UNPRICED
+    : { unitCostCents: row.unitRateCentavos, lineTotalCents, unitRateSource: 'client_boq' }
 }
 
 const RECOGNIZED_UOMS = new Set([
@@ -102,6 +138,22 @@ export function validateTakeoffRows(
         sourceRowKey: row.sourceRowKey,
         code: 'INVALID_UOM',
         message: `UOM "${row.unit}" is not recognized.`,
+      })
+    }
+    if (row.unitRateCentavos === null) {
+      issues.push({
+        sourceRowKey: row.sourceRowKey,
+        code: 'INVALID_UNIT_RATE',
+        message: 'Unit rate could not be read as a non-negative peso amount.',
+      })
+    } else if (
+      row.unitRateCentavos !== undefined &&
+      pricedLineTotal(row.unitRateCentavos, row.quantity) === null
+    ) {
+      issues.push({
+        sourceRowKey: row.sourceRowKey,
+        code: 'INVALID_UNIT_RATE',
+        message: 'Quantity x unit rate exceeds the supported amount range.',
       })
     }
     if (!row.division) {

@@ -3,6 +3,7 @@ import {
   lineTotal,
   manualLineTotal,
   bomTotalCost,
+  computeBomTotals,
   topLevelBomLines,
   purchasableBomLines,
   purchaseLineCostCode,
@@ -478,5 +479,33 @@ describe('parsePercentToBps (D-15)', () => {
     expect(parsePercentToBps(`25.${'0'.repeat(30)}`)).toBeNull() // 33 chars
     expect(parsePercentToBps(' '.repeat(40) + '25')).toBeNull()
     expect(parsePercentToBps('1'.repeat(100_000))).toBeNull()
+  })
+})
+
+// boq-export A.6: the totals formula Core and Web save after a BOM write.
+describe('computeBomTotals', () => {
+  it('counts top-level lines: cost without markup, TCV from line totals', () => {
+    expect(
+      computeBomTotals([
+        { unit_cost_cents: 10_000, quantity: '2.5', line_total_cents: 32_500, parent_line_item_id: null },
+        { unit_cost_cents: 333, quantity: '1.5', line_total_cents: 500, parent_line_item_id: null },
+        { unit_cost_cents: 99_999, quantity: '1', line_total_cents: 99_999, parent_line_item_id: 'parent' },
+      ]),
+    ).toEqual({
+      // 25,000 + round_half_up(499.5) = 25,500
+      total_cost_cents: 25_500,
+      tcv_cents: 33_000,
+      gp_cents: 7_500,
+      gp_margin_bps: 2_273,
+    })
+  })
+
+  it('returns zeros for an empty BOM', () => {
+    expect(computeBomTotals([])).toEqual({
+      total_cost_cents: 0,
+      tcv_cents: 0,
+      gp_cents: 0,
+      gp_margin_bps: 0,
+    })
   })
 })

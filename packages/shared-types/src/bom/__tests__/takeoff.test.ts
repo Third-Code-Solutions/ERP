@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { takeoffCommitQuantity, validateTakeoffRows } from '../takeoff'
+import {
+  takeoffCommitPricing,
+  takeoffCommitQuantity,
+  validateTakeoffRows,
+} from '../takeoff'
 
 const row = (quantity: number | null) => ({
   sourceRowKey: 'concrete-1',
@@ -47,5 +51,52 @@ describe('takeoff validation', () => {
     }
     expect(validateTakeoffRows([row(2_147_483_648)])[0]?.code).toBe('INVALID_QUANTITY')
     expect(takeoffCommitQuantity(2_147_483_648)).toBe('0')
+  })
+})
+
+// boq-export A.4: a client BOQ rate travels as integer centavos per row.
+describe('takeoff unit rate', () => {
+  const priced = (unitRateCentavos: number | null | undefined, quantity: number | null = 2.5) => ({
+    ...row(quantity),
+    unitRateCentavos,
+  })
+
+  it('prices a row with a rate as client_boq, half-up to the centavo', () => {
+    expect(validateTakeoffRows([priced(12_345)])).toEqual([])
+    // 2.5 x 123.45 = 308.625 -> 308.63
+    expect(takeoffCommitPricing(priced(12_345))).toEqual({
+      unitCostCents: 12_345,
+      lineTotalCents: 30_863,
+      unitRateSource: 'client_boq',
+    })
+  })
+
+  it('keeps the unpriced manual behaviour without a rate', () => {
+    expect(takeoffCommitPricing(priced(undefined))).toEqual({
+      unitCostCents: 0,
+      lineTotalCents: 0,
+      unitRateSource: 'manual',
+    })
+  })
+
+  it('queues an unreadable rate and commits it unpriced', () => {
+    expect(validateTakeoffRows([priced(null)])).toContainEqual({
+      sourceRowKey: 'concrete-1',
+      code: 'INVALID_UNIT_RATE',
+      message: 'Unit rate could not be read as a non-negative peso amount.',
+    })
+    expect(takeoffCommitPricing(priced(null)).unitRateSource).toBe('manual')
+  })
+
+  it('queues a rate whose amount leaves the exact centavo range', () => {
+    const huge = priced(1_000_000_000_000, 2_000_000_000)
+    expect(validateTakeoffRows([huge])).toContainEqual(
+      expect.objectContaining({ code: 'INVALID_UNIT_RATE' }),
+    )
+    expect(takeoffCommitPricing(huge)).toEqual({
+      unitCostCents: 0,
+      lineTotalCents: 0,
+      unitRateSource: 'manual',
+    })
   })
 })

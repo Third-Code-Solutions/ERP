@@ -218,6 +218,35 @@ export function bomTotalCost(lines: { line_total_cents: number }[]): number {
   return safeNumber(total, 'BOM total cost')
 }
 
+export interface BomTotalsLine {
+  unit_cost_cents: number
+  // D-5: numeric(18,4) decimal string.
+  quantity: string
+  line_total_cents: number
+  parent_line_item_id: string | null
+}
+
+/**
+ * The stored BOM totals: top-level lines only, cost without markup, TCV as
+ * the sum of line totals. Same formula as Web recalcBomTotalsInTransaction.
+ */
+export function computeBomTotals(lines: ReadonlyArray<BomTotalsLine>) {
+  const commercialLines = topLevelBomLines(lines, (line) => line.parent_line_item_id)
+  const total_cost_cents = bomTotalCost(
+    commercialLines.map((line) => ({
+      line_total_cents: manualLineTotal(line.unit_cost_cents, line.quantity),
+    }))
+  )
+  const tcv_cents = bomTotalCost(commercialLines)
+  const gp_cents = computeGP(tcv_cents, total_cost_cents)
+  return {
+    total_cost_cents,
+    tcv_cents,
+    gp_cents,
+    gp_margin_bps: computeGPMargin(gp_cents, tcv_cents),
+  }
+}
+
 // TCV = cost / (1 - margin)
 // marginBps: gross profit margin as basis points (e.g. 2000 = 20%)
 export function computeTCV(costCents: number, marginBps: BasisPoints): number {
