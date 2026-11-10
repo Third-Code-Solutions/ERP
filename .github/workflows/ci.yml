@@ -145,6 +145,7 @@ jobs:
       - run: pnpm test:web-db-boundary
       - run: pnpm test:doc-authority
       - run: pnpm test:roadmap-foundation
+      - run: pnpm test:catalogue-seed
       - run: pnpm test:type-safety
       - run: pnpm test:app-router-boundaries
       - run: pnpm test:abi-ops-brand
