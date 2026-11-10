@@ -248,6 +248,19 @@ const capabilityRoles = {
   // Administration and notifications
   'admin.rate_card.read': ['owner', 'admin', 'commercial', 'viewer'],
   'admin.rate_card': ['owner', 'admin', 'commercial'],
+  // Master price catalogue. Read: every role holding bom.generate,
+  // procurement.read or admin.rate_card.read. Manage: as admin.rate_card.
+  'catalogue.read': [
+    'owner',
+    'admin',
+    'commercial',
+    'estimator',
+    'sd_pm_pe',
+    'pm',
+    'procurement',
+    'viewer',
+  ],
+  'catalogue.manage': ['owner', 'admin', 'commercial'],
   'admin.users.read': ['owner', 'admin', 'viewer'],
   'admin.users': ['owner', 'admin'],
   'admin.system_config.read': ['owner', 'admin', 'viewer'],
@@ -306,6 +319,7 @@ export const ERP_READ_CAPABILITIES = [
   'inventory.read',
   'inventory.closeout.read',
   'admin.rate_card.read',
+  'catalogue.read',
   'admin.users.read',
   'admin.system_config.read',
   'notification.read',
