@@ -136,3 +136,5 @@ export * from './tenders'
 // landed cost, pricing, currency/tax configuration, period close, SAP and
 // provider outbox evidence.
 export * from './roadmap'
+// Master construction price catalogue: reference items and append-only prices.
+export * from './catalogue'
