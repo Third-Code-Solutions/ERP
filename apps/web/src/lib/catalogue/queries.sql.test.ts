@@ -1,0 +1,107 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+/**
+ * The real Drizzle builder against a fake postgres.js client: checks the SQL
+ * the catalogue reads send (tenant predicates above all) without a database.
+ */
+const fake = vi.hoisted(() => {
+  const statements: Array<{ sql: string; params: unknown[] }> = []
+  const client = {
+    options: { parsers: {}, serializers: {} },
+    unsafe(sql: string, params: unknown[] = []) {
+      statements.push({ sql, params })
+      const rows = Promise.resolve([])
+      return Object.assign(rows, { values: () => Promise.resolve([]) })
+    },
+  }
+  return { statements, client }
+})
+
+vi.mock('@third-code-erp/database', async () => {
+  const { drizzle } = await import('drizzle-orm/postgres-js')
+  return { db: drizzle({ client: fake.client as never }) }
+})
+
+import { getCatalogueItemDetail, listCatalogueItems } from './queries'
+
+const TENANT = '22222222-2222-4222-8222-222222222222'
+const ITEM = '44444444-4444-4444-8444-444444444444'
+const ACTOR = { tenantId: TENANT, role: 'estimator' } as const
+
+beforeEach(() => {
+  fake.statements.length = 0
+  vi.stubEnv('ERP_CATALOGUE_ENABLED', 'true')
+})
+
+describe('catalogue read SQL', () => {
+  it('lists with a tenant predicate on the items, on the current-price subquery and on the join', async () => {
+    const result = await listCatalogueItems(ACTOR, {
+      q: '100%_pure',
+      trade: 'paint',
+      region: 'NCR',
+      status: 'stale',
+      page: '2',
+    })
+
+    expect(result.ok).toBe(true)
+    expect(fake.statements).toHaveLength(2)
+    const [list, count] = fake.statements as [
+      { sql: string; params: unknown[] },
+      { sql: string; params: unknown[] },
+    ]
+    for (const statement of [list, count]) {
+      // Newest observation per item and region, inside the caller's tenant.
+      expect(statement.sql).toMatch(
+        /select distinct on \("catalogue_prices"\."item_id", "catalogue_prices"\."region"\)/,
+      )
+      expect(statement.sql).toMatch(
+        /from "catalogue_prices" where \("catalogue_prices"\."tenant_id" = \$\d+ and "catalogue_prices"\."region" = \$\d+\) order by "catalogue_prices"\."item_id", "catalogue_prices"\."region", "catalogue_prices"\."checked_on" desc, "catalogue_prices"\."created_at" desc\) "current_price"/,
+      )
+      expect(statement.sql).toMatch(
+        /on \("current_price"\."item_id" = "catalogue_items"\."id" and "current_price"\."tenant_id" = "catalogue_items"\."tenant_id"\)/,
+      )
+      expect(statement.sql).toMatch(/where \("catalogue_items"\."tenant_id" = \$\d+ and /)
+      expect(statement.sql).toMatch(/"current_price"\."flag" ~ \$\d+/)
+      expect(statement.params.slice(0, 7)).toEqual([
+        TENANT,
+        'NCR',
+        TENANT,
+        '%100\\%\\_pure%',
+        '%100\\%\\_pure%',
+        'paint',
+        '(^|;)STALE_[0-9]{4}(;|$)',
+      ])
+    }
+    expect(list.sql).toMatch(/order by "catalogue_items"\."code" asc, "current_price"\."region" asc limit \$\d+ offset \$\d+$/)
+    expect(list.params.slice(7)).toEqual([50, 50])
+    expect(count.sql).toMatch(/^select count\(\*\)::int from "catalogue_items" left join/)
+  })
+
+  it.each([
+    ['priced', /"current_price"\."price_avg_centavos" is not null/],
+    ['no_source', /"current_price"\."price_avg_centavos" is null/],
+    ['low_authority', /"current_price"\."flag" ~ \$\d+/],
+  ])('filters the %s status on the current price', async (status, condition) => {
+    await listCatalogueItems(ACTOR, { status })
+
+    expect(fake.statements[0]?.sql).toMatch(condition)
+    // No region filter: the subquery is still tenant-scoped.
+    expect(fake.statements[0]?.sql).toMatch(
+      /from "catalogue_prices" where "catalogue_prices"\."tenant_id" = \$1 order by/,
+    )
+    expect(fake.statements[0]?.params[0]).toBe(TENANT)
+  })
+
+  it('reads an item and its history by id and tenant, newest first', async () => {
+    const result = await getCatalogueItemDetail(ACTOR, ITEM)
+
+    // The fake database holds nothing, so the item is not found and the
+    // history is never requested.
+    expect(result).toMatchObject({ ok: false, status: 404 })
+    expect(fake.statements).toHaveLength(1)
+    expect(fake.statements[0]?.sql).toMatch(
+      /from "catalogue_items" where \("catalogue_items"\."id" = \$1 and "catalogue_items"\."tenant_id" = \$2\) limit \$3$/,
+    )
+    expect(fake.statements[0]?.params).toEqual([ITEM, TENANT, 1])
+  })
+})
