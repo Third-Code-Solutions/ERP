@@ -20,7 +20,9 @@ Out of scope here:
 
 - linking catalogue items to `material_items` or `material_catalog`;
 - feeding catalogue prices into DUPA or BOQ rates automatically;
-- regions other than NCR in the seed;
+- researching regions other than NCR. The seed loads every row with the region
+  its source gave: NCR where one was found, otherwise `National` or the region's
+  name with the `NON_NCR` flag;
 - the Cortex mirror, which the Cortex coverage spec owns.
 
 ## 2. Data model (one additive migration)
@@ -215,7 +217,11 @@ Trade slugs and code prefixes:
 | ceiling-drywall | CD | labor | LB |
 | floor-wall-finishes | FF | equipment | EQ |
 
-Flag tokens: `NO_SOURCE`, `SINGLE_SOURCE`, `STALE_<yyyy>`, `NON_NCR`, `LOW_AUTHORITY`.
+Flag tokens: `NO_SOURCE`, `SINGLE_SOURCE`, `STALE_<yyyy>`, `NON_NCR`,
+`LOW_AUTHORITY`, `SNIPPET_ONLY` (the price was read from a search engine's excerpt
+of the page, not the page). The meanings are in `data/catalogue/README.md`.
+
+Codes are not reused, so a file can have gaps in its numbering.
 
 ## 8. Tests
 
