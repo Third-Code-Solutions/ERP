@@ -20,7 +20,9 @@ Out of scope here:
 
 - linking catalogue items to `material_items` or `material_catalog`;
 - feeding catalogue prices into DUPA or BOQ rates automatically;
-- regions other than NCR in the seed;
+- researching regions other than NCR. The seed loads every row with the region
+  its source gave: NCR where one was found, otherwise `National` or the region's
+  name with the `NON_NCR` flag;
 - the Cortex mirror, which the Cortex coverage spec owns.
 
 ## 2. Data model (one additive migration)
@@ -61,9 +63,9 @@ Indexes:
 | price_basis | text | ≤ 60 chars, for example `material_supply;incl_VAT` |
 | source_kind | text not null | `research` \| `supplier` \| `manual` |
 | source_name | text | ≤ 200 chars (supplier or publisher name) |
-| source_url | text | null, or `^https?://`, ≤ 2,000 chars |
+| source_url | text | null, or `^https?://`, ≤ 2,000 chars; the app also parses it (see Security) |
 | vendor_id | uuid | optional tenant-scoped fk to `vendors`, for supplier imports |
-| checked_on | date not null | |
+| checked_on | date not null | not after today's date in Manila: `checked_on <= (now() at time zone 'Asia/Manila')::date` |
 | flag | text | ≤ 200 chars, `;`-separated tokens |
 | notes | text | ≤ 2,000 chars |
 | created_at | timestamptz not null | default now() |
@@ -72,15 +74,34 @@ Indexes:
 - Index: `(tenant_id, item_id, region, checked_on desc, created_at desc)`.
 - **Current price** of an item in a region is the newest row by
   `(checked_on desc, created_at desc)`.
-- Rows are never updated or deleted by the app. A correction is a new `manual` row.
+- Rows are never updated or deleted. A trigger rejects UPDATE and DELETE, the way
+  `audit_log` is protected. A correction is a new `manual` row: with the same or a
+  later `checked_on` it becomes the current price.
+- A future `checked_on` is refused, because the newest date wins and such a row
+  could never be outvoted.
 
 ### Security
 
-- RLS is enabled on both tables, with SELECT `tenant_id = auth_tenant_id()`.
+Added after the security review of PR #146 (2026-11-10).
+
+- **No client access at all.** RLS is enabled on both tables with a tenant SELECT
+  policy (`tenant_id = auth_tenant_id()`) as a second layer, but SELECT is revoked
+  from `anon` and `authenticated` along with the writes. The browser never reads
+  these tables. With a client SELECT grant, any tenant role could read supplier
+  prices through the Supabase client whatever `catalogue.read` says.
 - There are no client INSERT/UPDATE/DELETE grants or policies, in line with the
   2026-11-04 SEC-01/02 policy that revoked client table writes.
-- Every write goes through server actions (Drizzle as postgres) with an explicit
-  `tenant_id` predicate and a capability check.
+- Every read and write goes through server code (Drizzle as postgres) with an
+  explicit `tenant_id` predicate.
+- **Every server action and the import check the flag and the capability
+  themselves.** Hiding the page is not a gate.
+- **Text:** control characters are stripped and text is trimmed when it is written
+  (seed, edit, record price, import). Text is never written to a spreadsheet as a
+  formula: exports use the quote-prefix utility from the `boq-excel` module.
+- **Source links:** a URL is accepted only if it parses, its protocol is `http:` or
+  `https:`, it carries no user name or password and it has no whitespace. The page
+  renders the parsed `href` with `rel="noopener noreferrer"`. The server never
+  fetches it.
 - The migration is additive and runs under `lock_timeout 5s` and
   `statement_timeout 60s`. Rollback drops only the two new tables, which hold only
   catalogue data.
@@ -102,12 +123,15 @@ Indexes:
   row. An invalid row stops the run with its file:line, so a partial load is
   impossible.
 - Runs in one transaction:
-  - upsert items by `(tenant_id, code)`, which updates name, spec, unit and trade;
+  - upsert items by `(tenant_id, code)`, which updates name, spec, unit and trade
+    **only on rows no person has edited** (`updated_by` is null). Rows an admin
+    changed are left alone, counted and printed;
   - insert a `research` price row for each priced row unless an identical row
     exists for `(item, region, checked_on, source_url, low, avg, high)`;
   - unpriced (`NO_SOURCE`) rows create the item with no price row.
 - It is idempotent: a second run inserts 0 rows.
 - Its dry run prints per-trade counts.
+- Each real run writes one `audit_log` entry with its counts.
 - `DATABASE_URL` comes from the environment only.
 
 ## 5. Catalogue page (`/catalogue`)
@@ -118,6 +142,8 @@ Indexes:
 - Search matches code or name (`ilike`, trigram-backed). The filters are trade,
   region and price status (priced / no source / stale / low authority, read from
   the flag tokens). 50 rows per page; the URL holds the search state.
+- The search term is capped at 100 characters, and `%`, `_` and `\` in it are
+  escaped before the `ilike` pattern is built. The page number is capped.
 - Columns:
   - code, name, trade, specification (truncated, with the full text on hover or
     expand) and unit;
@@ -158,6 +184,18 @@ Indexes:
     carries the counts.
   - Limits: 25 MB, 5,000 rows.
   - Text is never written back as a formula.
+  - **The commit does not trust the preview.** The file is sent again with the
+    commit and parsed again on the server; matched rows from the browser are never
+    written as they stand. This is how the takeoff import already works.
+  - The file passes the same guards as the takeoff import before it is opened:
+    file type by content, the zip and merged-range limits, and the sheet size
+    limits. The route sits in the same rate-limit bucket as the takeoff import.
+  - The `audit_log` entry carries the file's SHA-256, name and size.
+  - **A repeated commit writes nothing.** The commit carries an idempotency key,
+    and a second commit of the same file for the same supplier and date inserts
+    no duplicate price rows.
+  - New `SUP-<n>` codes are allocated inside the commit transaction under a
+    per-tenant lock, so two imports cannot take the same code.
 
 ## 7. CSV contract (`data/catalogue/NN-<trade>.csv`)
 
@@ -179,7 +217,11 @@ Trade slugs and code prefixes:
 | ceiling-drywall | CD | labor | LB |
 | floor-wall-finishes | FF | equipment | EQ |
 
-Flag tokens: `NO_SOURCE`, `SINGLE_SOURCE`, `STALE_<yyyy>`, `NON_NCR`, `LOW_AUTHORITY`.
+Flag tokens: `NO_SOURCE`, `SINGLE_SOURCE`, `STALE_<yyyy>`, `NON_NCR`,
+`LOW_AUTHORITY`, `SNIPPET_ONLY` (the price was read from a search engine's excerpt
+of the page, not the page). The meanings are in `data/catalogue/README.md`.
+
+Codes are not reused, so a file can have gaps in its numbering.
 
 ## 8. Tests
 
