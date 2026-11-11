@@ -169,7 +169,8 @@ Added after the security review of PR #146 (2026-11-10).
     **only on rows no person has edited** (`updated_by` is null). Rows an admin
     changed are left alone, counted and printed;
   - insert a `research` price row for each priced row unless an identical row
-    exists for `(item, region, checked_on, source_url, low, avg, high)`;
+    exists for `(item, region, checked_on, source_url, low, avg, high)`; the
+    region compares as `lower(trim(region))`, as everywhere in the app;
   - an unpriced (`NO_SOURCE`) row creates the item and one observation whose three
     prices are null. That keeps its region, the `NO_SOURCE` flag, the note that
     says why nothing was found, and any link, so the page can show them.

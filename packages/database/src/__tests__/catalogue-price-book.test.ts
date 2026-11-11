@@ -480,6 +480,39 @@ runtimeDescribe('catalogue price book (database)', () => {
     })
   })
 
+  it('finds an observation already there whatever the letter case of its region', async () => {
+    const seedModule = new URL('../../../../scripts/lib/catalogue-seed.mjs', import.meta.url).href
+    const { seedCatalogue } = (await import(/* @vite-ignore */ seedModule)) as {
+      seedCatalogue: SeedCatalogue
+    }
+    const price = { low: 24000, avg: 26500, high: 28000 }
+    const rows = [seedRow('CN-0001', 'Cement 40 kg', price), seedRow('CN-0003', 'Holcim 40 kg', null)]
+
+    await inRollback(sql, async (tx) => {
+      const { tenantA } = await seedTwoTenants(tx)
+      expect(await seedCatalogue(tx, { tenantId: tenantA, rows })).toMatchObject({
+        pricesInserted: 2,
+      })
+      // "NCR" and " ncr " are one region, as in the app: nothing new.
+      const respelled = rows.map((row) => ({ ...row, region: ' ncr ' }))
+      expect(await seedCatalogue(tx, { tenantId: tenantA, rows: respelled })).toMatchObject({
+        pricesInserted: 0,
+        pricesAlreadyPresent: 2,
+      })
+      // Another region is another observation.
+      const elsewhere = rows.map((row) => ({ ...row, region: 'Cebu' }))
+      expect(await seedCatalogue(tx, { tenantId: tenantA, rows: elsewhere })).toMatchObject({
+        pricesInserted: 2,
+        pricesAlreadyPresent: 0,
+      })
+      const regions = await tx.unsafe<Array<{ region: string }>>(
+        `select region from public.catalogue_prices where tenant_id = $1::uuid order by region`,
+        [tenantA]
+      )
+      expect(regions.map((row) => row.region)).toEqual(['Cebu', 'Cebu', 'NCR', 'NCR'])
+    })
+  })
+
   it('seeds idempotently, never overwrites an item a person edited, and audits each run', async () => {
     // The seed's database half is plain JavaScript shared with the script.
     const seedModule = new URL('../../../../scripts/lib/catalogue-seed.mjs', import.meta.url).href

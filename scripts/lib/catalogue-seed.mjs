@@ -43,7 +43,9 @@ const COUNT_EDITED_ITEMS = `
 `
 
 // One research observation per row, unless the identical observation (item,
-// region, checked_on, source_url, low, avg, high) is already there. A row
+// region, checked_on, source_url, low, avg, high) is already there. Regions
+// compare as the app compares them, lower(trim(region)): "NCR" and "ncr" are
+// one region, so a respelled region does not add a second observation. A row
 // without a price (NO_SOURCE) is an observation too: its three prices are null
 // and it keeps the region, the flag, the note that says why and any link.
 // `is not distinct from` makes null prices compare equal, so a second run
@@ -67,7 +69,7 @@ const INSERT_PRICES = `
        from public.catalogue_prices existing
       where existing.tenant_id = $1::uuid
         and existing.item_id = item.id
-        and existing.region = r.region
+        and lower(trim(existing.region)) = lower(trim(r.region))
         and existing.checked_on = r.checked_on
         and existing.source_url is not distinct from r.source_url
         and existing.price_low_centavos is not distinct from r.low

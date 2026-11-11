@@ -190,6 +190,9 @@ test('the seed writes items, then one observation per row, then one audit entry,
   assert.match(prices.query, /existing\.price_avg_centavos is not distinct from r\.avg\b/)
   assert.match(prices.query, /existing\.price_high_centavos is not distinct from r\.high\b/)
   assert.doesNotMatch(prices.query, /_centavos = r\./)
+  // The region matches as the app matches it: "NCR" and "ncr" are one region.
+  assert.match(prices.query, /lower\(trim\(existing\.region\)\) = lower\(trim\(r\.region\)\)/)
+  assert.doesNotMatch(prices.query, /existing\.region = r\.region/)
   assert.deepEqual(JSON.parse(prices.parameters[1]), [
     {
       code: 'CN-0001',
