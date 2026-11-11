@@ -1,14 +1,51 @@
+import { createRequire } from 'node:module'
 import { describe, expect, it } from 'vitest'
 import {
   assertXlsxWithinLimits,
   buildTakeoffImportKey,
   parseStructuredTakeoff,
+  TAKEOFF_TOO_MUCH_DATA_MESSAGE,
   TakeoffTooLargeError,
   validateTakeoffRows,
   XLSX_LIMITS,
+  type TakeoffColumnMapping,
 } from './takeoff'
 
 const MAPPING = { description: 'Description', quantity: 'Quantity', unit: 'UOM' }
+
+const require = createRequire(import.meta.url)
+const { CFB } = require('xlsx') as typeof import('xlsx')
+// The zip reader inside ExcelJS: an attack file only counts if it still reads it.
+const JSZip = createRequire(require.resolve('exceljs'))('jszip') as {
+  loadAsync(data: Buffer): Promise<{ files: Record<string, unknown> }>
+}
+const ZIP_END = Buffer.from([0x50, 0x4b, 0x05, 0x06])
+
+async function boqWorkbook(dataRows = 1): Promise<Buffer> {
+  const ExcelJS = await import('exceljs')
+  const workbook = new ExcelJS.Workbook()
+  const sheet = workbook.addWorksheet('BOQ')
+  sheet.addRow(['Description', 'Quantity', 'UOM'])
+  for (let row = 0; row < dataRows; row += 1) sheet.addRow(['Paint', 1, 'sqm'])
+  return Buffer.from(await workbook.xlsx.writeBuffer())
+}
+
+/** Rewrites parts of an .xlsx, or adds them, with the SheetJS zip codec. */
+function patchXlsx(buffer: Buffer, edits: Record<string, (xml: string) => string>): Buffer {
+  const zip = CFB.read(buffer, { type: 'buffer' })
+  for (const [path, edit] of Object.entries(edits)) {
+    const part = CFB.find(zip, path)
+    const content = Buffer.from(edit(part ? Buffer.from(part.content).toString('utf8') : ''))
+    if (part) part.content = content
+    else CFB.utils.cfb_add(zip, path, content)
+  }
+  return Buffer.from(CFB.write(zip, { fileType: 'zip', type: 'buffer', compression: true }))
+}
+
+const SHEET = '/xl/worksheets/sheet1.xml'
+const afterSheetData = (xml: string) => (sheet: string) => sheet.replace('</sheetData>', `</sheetData>${xml}`)
+const parseCsv = (lines: string[], mapping: TakeoffColumnMapping = MAPPING) =>
+  parseStructuredTakeoff(Buffer.from(lines.join('\n')), 'takeoff.csv', mapping)
 
 describe('structured takeoff importer', () => {
   it('parses an XLSX workbook through the production ExcelJS dependency', async () => {
@@ -333,6 +370,192 @@ describe('structured takeoff importer', () => {
     const entry = lying.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]))
     lying.writeUInt32LE(1, entry + 24)
     expect(() => assertXlsxWithinLimits(lying)).toThrow()
+  })
+
+  it('refuses a zip whose directory hides a part from the guard but not from the reader', async () => {
+    const hidden = 'xl/worksheets/sheet9.xml'
+    const honest = patchXlsx(await boqWorkbook(), { [`/${hidden}`]: () => ' '.repeat(200_000) })
+    const limits = { ...XLSX_LIMITS, uncompressedBytes: 100_000 }
+    expect(() => assertXlsxWithinLimits(honest, limits)).toThrow(TakeoffTooLargeError)
+
+    // The end record declares one entry; JSZip reads every record that is there.
+    const underDeclared = Buffer.from(honest)
+    const end = underDeclared.lastIndexOf(ZIP_END)
+    underDeclared.writeUInt16LE(1, end + 8)
+    underDeclared.writeUInt16LE(1, end + 10)
+    // One byte before the zip; JSZip re-bases every offset.
+    const prepended = Buffer.concat([Buffer.from([0]), honest])
+
+    for (const attack of [underDeclared, prepended]) {
+      expect(Object.keys((await JSZip.loadAsync(attack)).files)).toContain(hidden)
+      expect(() => assertXlsxWithinLimits(attack, limits)).toThrow()
+      await expect(parseStructuredTakeoff(attack, 'boq.xlsx', MAPPING)).rejects.toThrow()
+    }
+  })
+
+  it('refuses a zip it cannot fully account for instead of passing it on', async () => {
+    const buffer = await boqWorkbook()
+    const end = buffer.lastIndexOf(ZIP_END)
+    const edited = (edit: (copy: Buffer) => void) => {
+      const copy = Buffer.from(buffer)
+      edit(copy)
+      return copy
+    }
+    const directory = buffer.readUInt32LE(end + 16)
+
+    expect(() => assertXlsxWithinLimits(buffer)).not.toThrow()
+    expect(() => assertXlsxWithinLimits(Buffer.from('not a zip'))).toThrow()
+    // Directory offset that does not lead to the directory.
+    expect(() => assertXlsxWithinLimits(edited((copy) => copy.writeUInt32LE(0, end + 16)))).toThrow()
+    // First entry: data outside the file, then an unknown compression method.
+    expect(() =>
+      assertXlsxWithinLimits(edited((copy) => copy.writeUInt32LE(0x7fffffff, directory + 42))),
+    ).toThrow()
+    expect(() => assertXlsxWithinLimits(edited((copy) => copy.writeUInt16LE(12, directory + 10)))).toThrow()
+    expect(() => assertXlsxWithinLimits(buffer, { ...XLSX_LIMITS, entries: 2 })).toThrow(TakeoffTooLargeError)
+  })
+
+  it('refuses merged ranges that would expand past the cell budget', async () => {
+    const merged = (ref: string) => async () =>
+      parseStructuredTakeoff(
+        patchXlsx(await boqWorkbook(), {
+          [SHEET]: afterSheetData(`<mergeCells count="1"><mergeCell ref="${ref}"/></mergeCells>`),
+        }),
+        'boq.xlsx',
+        MAPPING,
+      )
+
+    // 6 KB on disk; ExcelJS would build one object for each of the 980,000 cells.
+    await expect(merged('D1:AZ20000')()).rejects.toThrow(TakeoffTooLargeError)
+    await expect(merged('A1:XFD1048576')()).rejects.toThrow(TakeoffTooLargeError)
+    // A range the guard cannot read exactly as ExcelJS would is refused too.
+    await expect(merged('A1:XFD&#49;048576')()).rejects.toThrow()
+    await expect(merged('D5:E6')()).resolves.toMatchObject({ rows: [{ description: 'Paint' }] })
+
+    // ExcelJS compares every merged range with every other one on the sheet.
+    const twoRanges = patchXlsx(await boqWorkbook(), {
+      [SHEET]: afterSheetData('<mergeCells count="2"><mergeCell ref="D5:E6"/><mergeCell ref="D8:E9"/></mergeCells>'),
+    })
+    expect(() => assertXlsxWithinLimits(twoRanges)).not.toThrow()
+    expect(() => assertXlsxWithinLimits(twoRanges, { ...XLSX_LIMITS, mergedRangesPerSheet: 1 })).toThrow(
+      TakeoffTooLargeError,
+    )
+  })
+
+  it('counts rows and cells instead of trusting the declared dimension', async () => {
+    // 31 rows and 93 cells behind a dimension that claims one cell.
+    const lying = patchXlsx(await boqWorkbook(30), {
+      [SHEET]: (sheet) => sheet.replace(/<dimension[^>]*>/, '<dimension ref="A1"/>'),
+    })
+
+    expect(() => assertXlsxWithinLimits(lying, { ...XLSX_LIMITS, cells: 124 })).not.toThrow()
+    expect(() => assertXlsxWithinLimits(lying, { ...XLSX_LIMITS, cells: 123 })).toThrow(TakeoffTooLargeError)
+  })
+
+  it('reads a workbook whose validations, column spans and names cover the whole sheet', async () => {
+    // ExcelJS would expand each of these into one object per cell or column.
+    const hostile = patchXlsx(await boqWorkbook(), {
+      [SHEET]: (sheet) =>
+        afterSheetData(
+          '<dataValidations count="1"><dataValidation type="list" sqref="A1:XFD1048576"><formula1>"a,b"</formula1></dataValidation></dataValidations>',
+        )(sheet.replace('<sheetData>', '<cols><col min="1" max="999999999" width="9"/></cols><sheetData>')),
+      '/xl/workbook.xml': (book) =>
+        book.replace(
+          '</sheets>',
+          '</sheets><definedNames><definedName name="all">BOQ!$A$1:$XFD$1048576</definedName></definedNames>',
+        ),
+    })
+
+    const result = await parseStructuredTakeoff(hostile, 'boq.xlsx', MAPPING)
+
+    expect(result.rows).toEqual([expect.objectContaining({ description: 'Paint', quantity: 1 })])
+  })
+
+  it('stops building rows once they pass the command byte budget', async () => {
+    const header = ['Description', 'Quantity', 'UOM', ...Array.from({ length: 61 }, (_, index) => `C${index}`)]
+    const wide = ['Paint', '1', 'sqm', ...Array.from({ length: 61 }, () => 'x'.repeat(1_000))].join(',')
+    const rows = (count: number) => [header.join(','), ...Array.from({ length: count }, () => wide)]
+
+    // 61 KB a row: 20 rows fit in the 2 MB command, 40 do not.
+    expect((await parseCsv(rows(20))).rows).toHaveLength(20)
+    await expect(parseCsv(rows(40))).rejects.toThrow(new TakeoffTooLargeError(TAKEOFF_TOO_MUCH_DATA_MESSAGE))
+  })
+
+  it('warns when an amount has no unit rate to price the line', async () => {
+    const message = (amount: string) =>
+      `Amount PHP ${amount} has no unit rate, so the line is imported without a price. Map a unit rate column or price the line after import.`
+
+    const noRateColumn = await parseCsv([
+      'Description,Quantity,UOM,Amount',
+      'Permits,1,lot,"12,000.00"',
+      'Signage,2,lot,0',
+    ])
+    expect(noRateColumn.rows[0]).not.toHaveProperty('unitRateCentavos')
+    expect(noRateColumn.warnings).toEqual([
+      { sourceRowKey: 'row-2', code: 'AMOUNT_IGNORED', message: message('12,000.00') },
+    ])
+
+    const blankRate = await parseCsv(['Description,Quantity,UOM,Unit Rate,Amount', 'Permits,1,lot,,500'])
+    expect(blankRate.warnings).toEqual([
+      { sourceRowKey: 'row-2', code: 'AMOUNT_IGNORED', message: message('500.00') },
+    ])
+  })
+
+  it('imports a line that starts with "Total" when it has a unit', async () => {
+    const result = await parseCsv([
+      'Description,Quantity,UOM,Unit Rate,Amount',
+      'Total station survey,1,lot,"85,000.00","85,000.00"',
+      'Subtotal,,,,"85,000.00"',
+      'TOTAL,34,,,',
+    ])
+
+    expect(result.rows.map((row) => [row.description, row.quantity, row.unitRateCentavos])).toEqual([
+      ['Total station survey', 1, 8_500_000],
+    ])
+    expect(result.skippedRows).toBe(2)
+    // The total row that carries a quantity is reported, not dropped silently.
+    expect(result.warnings).toEqual([
+      {
+        sourceRowKey: 'row-4',
+        code: 'TOTAL_ROW_SKIPPED',
+        message: '"TOTAL" has a quantity but no unit; it was read as a total row and not imported.',
+      },
+    ])
+  })
+
+  it('keeps a quoted multi-line CSV cell in one record and a later quote as text', async () => {
+    const result = await parseCsv(
+      [
+        'Description,Quantity,UOM,Division',
+        '"Concrete footing',
+        'incl. formwork, 2"" rebar",3,cu.m,Concrete',
+        '2" PVC pipe,5,lm,Plumbing',
+      ],
+      { ...MAPPING, division: 'Division' },
+    )
+
+    expect(result.sectionRows).toBe(0)
+    expect(result.rows.map((row) => [row.sourceRowKey, row.description, row.quantity, row.division])).toEqual([
+      ['row-2', 'Concrete footing\nincl. formwork, 2" rebar', 3, 'Concrete'],
+      ['row-3', '2" PVC pipe', 5, 'Plumbing'],
+    ])
+  })
+
+  it('warns when a description is cut at 1,000 characters', async () => {
+    const result = await parseCsv([
+      'Description,Quantity,UOM',
+      `${'x'.repeat(1_200)},1,sqm`,
+      `${'y'.repeat(1_000)},1,sqm`,
+    ])
+
+    expect(result.rows.map((row) => row.description.length)).toEqual([1_000, 1_000])
+    expect(result.warnings).toEqual([
+      {
+        sourceRowKey: 'row-2',
+        code: 'TEXT_TRUNCATED',
+        message: 'Description is longer than 1,000 characters and was cut.',
+      },
+    ])
   })
 
   it('rejects a CSV with content past the read window and caps its columns', async () => {

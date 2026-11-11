@@ -7,6 +7,7 @@ import {
   centavosDecimal,
   excelText,
   formatCentavos,
+  looksLikeFormula,
   MAX_CELL_TEXT,
 } from './cells'
 
@@ -78,8 +79,14 @@ describe('BOQ cell text', () => {
     expect(excelText('tile 🧱 ok')).toBe('tile 🧱 ok')
   })
 
+  it('treats a leading tab like the formula characters it can hide', () => {
+    for (const text of ['=1+1', '+1', '-1', '@SUM(A1)', '\t=1+1']) expect(looksLikeFormula(text)).toBe(true)
+    for (const text of ['Paint', '1 + 1', ' =1+1', '']) expect(looksLikeFormula(text)).toBe(false)
+  })
+
   it('caps cell text and refuses an over-long number', () => {
     expect(cellText('x'.repeat(5_000))).toHaveLength(MAX_CELL_TEXT)
+    expect(cellText('x'.repeat(5_000), MAX_CELL_TEXT + 1)).toHaveLength(MAX_CELL_TEXT + 1)
     expect(cellQuantity('1'.repeat(MAX_CELL_TEXT + 1))).toEqual({ ok: false, problem: 'NOT_A_NUMBER' })
   })
 

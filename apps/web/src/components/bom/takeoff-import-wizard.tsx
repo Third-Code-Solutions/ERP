@@ -126,6 +126,13 @@ export function TakeoffImportWizard({
     }
   }, [bomId, file, headerRow, isEditable, mapping, projectId, router, sectionHeaders, sheet, source])
 
+  // Commit re-parses with the current mapping, so a preview made with the old
+  // one must not stay on screen.
+  const mapColumn = (key: keyof typeof DEFAULT_MAPPING) => (value: string) => {
+    setMapping((current) => ({ ...current, [key]: value }))
+    setPreview(null)
+  }
+
   const reset = useCallback(() => {
     setFile(null)
     setPreview(null)
@@ -148,13 +155,13 @@ export function TakeoffImportWizard({
           {!isEditable && <div role="alert" className="card-empty">This BOM is {bomStatus} and cannot accept a takeoff.</div>}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
             <Field label="Source" value={source} onChange={setSource} />
-            <Field label="Description column" value={mapping.description} onChange={(value) => setMapping((current) => ({ ...current, description: value }))} />
-            <Field label="Quantity column" value={mapping.quantity} onChange={(value) => setMapping((current) => ({ ...current, quantity: value }))} />
-            <Field label="UOM column" value={mapping.unit} onChange={(value) => setMapping((current) => ({ ...current, unit: value }))} />
-            <Field label="Division column" value={mapping.division} onChange={(value) => setMapping((current) => ({ ...current, division: value }))} optional />
-            <Field label="Location column" value={mapping.location} onChange={(value) => setMapping((current) => ({ ...current, location: value }))} optional />
-            <Field label="Unit rate column" value={mapping.unitRate} onChange={(value) => setMapping((current) => ({ ...current, unitRate: value }))} optional />
-            <Field label="Amount column" value={mapping.amount} onChange={(value) => setMapping((current) => ({ ...current, amount: value }))} optional />
+            <Field label="Description column" value={mapping.description} onChange={mapColumn('description')} />
+            <Field label="Quantity column" value={mapping.quantity} onChange={mapColumn('quantity')} />
+            <Field label="UOM column" value={mapping.unit} onChange={mapColumn('unit')} />
+            <Field label="Division column" value={mapping.division} onChange={mapColumn('division')} optional />
+            <Field label="Location column" value={mapping.location} onChange={mapColumn('location')} optional />
+            <Field label="Unit rate column" value={mapping.unitRate} onChange={mapColumn('unitRate')} optional />
+            <Field label="Amount column" value={mapping.amount} onChange={mapColumn('amount')} optional />
             <Field label="Header row" value={headerRow} onChange={(value) => { setHeaderRow(value); setPreview(null) }} optional placeholder="Auto (1-50)" inputMode="numeric" />
             {sheets.length > 0 && (
               <label style={{ display: 'grid', gap: 6, fontSize: 12, color: 'var(--color-neutral-600)' }}>
