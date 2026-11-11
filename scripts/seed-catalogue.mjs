@@ -54,22 +54,24 @@ export function parseCliArguments(argv) {
 
 /**
  * Validate every catalogue file in a directory. Throws an Error whose message
- * starts with `file:line:` on the first invalid row.
+ * starts with `file:line:` on the first invalid row. Each file is read once:
+ * `files` holds the SHA-256 of the very bytes that were parsed into `rows`,
+ * so the run's audit entry names exactly what was loaded.
  */
-export function loadCatalogueRows(directory, today) {
-  const files = readdirSync(directory).filter((name) => FILE_NAME.test(name)).sort()
-  if (files.length === 0) throw new Error(`No NN-<trade>.csv files in ${directory}`)
+export function loadCatalogue(directory, today) {
+  const names = readdirSync(directory).filter((name) => FILE_NAME.test(name)).sort()
+  if (names.length === 0) throw new Error(`No NN-<trade>.csv files in ${directory}`)
 
   const firstSeen = new Map()
   const rows = []
-  for (const file of files) {
+  const files = []
+  for (const file of names) {
     const expectedTrade = FILE_NAME.exec(file)[1]
+    const bytes = readFileSync(join(directory, file))
+    files.push({ name: file, sha256: createHash('sha256').update(bytes).digest('hex') })
     let fileRows
     try {
-      fileRows = parseCatalogueCsv(readFileSync(join(directory, file), 'utf8'), {
-        today,
-        expectedTrade,
-      })
+      fileRows = parseCatalogueCsv(bytes.toString('utf8'), { today, expectedTrade })
     } catch (error) {
       if (error?.name !== 'CatalogueCsvError') throw error
       throw new Error(`${file}:${error.line}: ${error.message}`, { cause: error })
@@ -85,7 +87,7 @@ export function loadCatalogueRows(directory, today) {
       rows.push(row)
     }
   }
-  return rows
+  return { rows, files }
 }
 
 /** The value `read` returns, or null when it throws or returns nothing. */
@@ -100,9 +102,10 @@ function orNull(read) {
 /**
  * Who ran the seed and from which files, for the run's audit entry: the OS
  * user, the data directory (relative to the repository), each CSV's SHA-256
- * and the git commit when there is one. Never the DATABASE_URL.
+ * (`files`, from loadCatalogue) and the git commit when there is one. Never
+ * the DATABASE_URL.
  */
-export function describeSeedRun(directory) {
+export function describeSeedRun(directory, files) {
   const gitCommit = orNull(() =>
     execFileSync('git', ['rev-parse', 'HEAD'], {
       cwd: repoRoot,
@@ -113,13 +116,7 @@ export function describeSeedRun(directory) {
   return {
     operator: orNull(() => userInfo().username),
     dataDirectory: relative(repoRoot, directory).split(sep).join('/') || '.',
-    files: readdirSync(directory)
-      .filter((name) => FILE_NAME.test(name))
-      .sort()
-      .map((name) => ({
-        name,
-        sha256: createHash('sha256').update(readFileSync(join(directory, name))).digest('hex'),
-      })),
+    files,
     gitCommit: /^[0-9a-f]{40}$/.test(gitCommit ?? '') ? gitCommit : null,
   }
 }
@@ -156,7 +153,7 @@ function printTradeCounts(rows) {
 
 async function main() {
   const { tenantId, dryRun, directory } = parseCliArguments(process.argv.slice(2))
-  const rows = loadCatalogueRows(directory)
+  const { rows, files } = loadCatalogue(directory)
   printTradeCounts(rows)
 
   if (dryRun) {
@@ -171,7 +168,7 @@ async function main() {
   )
   const sql = postgres(databaseUrl, { prepare: false, max: 1, connect_timeout: 10, idle_timeout: 5 })
   try {
-    const source = describeSeedRun(directory)
+    const source = describeSeedRun(directory, files)
     const counts = await sql.begin((transaction) =>
       seedCatalogue(transaction, { tenantId, rows, source })
     )

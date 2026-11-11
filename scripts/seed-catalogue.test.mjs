@@ -10,7 +10,7 @@ import { analyzeCatalogue, seedCatalogue } from './lib/catalogue-seed.mjs'
 import {
   countByTrade,
   describeSeedRun,
-  loadCatalogueRows,
+  loadCatalogue,
   parseCliArguments,
 } from './seed-catalogue.mjs'
 
@@ -43,7 +43,7 @@ test('every row of the research files is valid, and the counts come from the fil
     readFileSync(join(dataDirectory, name), 'utf8').match(/^[A-Z]{2}-\d{4},/gm) ?? []
   )
 
-  const rows = loadCatalogueRows(dataDirectory)
+  const { rows } = loadCatalogue(dataDirectory)
   const perTrade = countByTrade(rows)
 
   assert.equal(files.length, 20)
@@ -66,7 +66,7 @@ test('an invalid row stops the load with its file and line', () => {
     { '01-earthworks.csv': [], '02-concrete.csv': [PRICED, PRICED.replace('CN-0001', 'CN-0003').replace(',265,', ',2x5,')] },
     (directory) => {
       assert.throws(
-        () => loadCatalogueRows(directory),
+        () => loadCatalogue(directory),
         /^Error: 02-concrete\.csv:3: price_avg_php "2x5" is not a valid peso amount/
       )
     }
@@ -75,20 +75,20 @@ test('an invalid row stops the load with its file and line', () => {
 
 test('a row in the wrong trade file, a repeated code and a future date are rejected', () => {
   withFiles({ '11-paint.csv': [PRICED] }, (directory) => {
-    assert.throws(() => loadCatalogueRows(directory), /11-paint\.csv:2: trade "concrete" does not belong/)
+    assert.throws(() => loadCatalogue(directory), /11-paint\.csv:2: trade "concrete" does not belong/)
   })
   withFiles({ '02-concrete.csv': [PRICED], '03-concrete.csv': [UNPRICED, PRICED] }, (directory) => {
     assert.throws(
-      () => loadCatalogueRows(directory),
+      () => loadCatalogue(directory),
       /03-concrete\.csv:3: code "CN-0001" already appears at 02-concrete\.csv:2/
     )
   })
   withFiles({ '02-concrete.csv': [PRICED] }, (directory) => {
-    assert.throws(() => loadCatalogueRows(directory, '2026-11-04'), /02-concrete\.csv:2: .*after today/)
-    assert.equal(loadCatalogueRows(directory, '2026-11-05').length, 1)
+    assert.throws(() => loadCatalogue(directory, '2026-11-04'), /02-concrete\.csv:2: .*after today/)
+    assert.equal(loadCatalogue(directory, '2026-11-05').rows.length, 1)
   })
   withFiles({ 'notes.txt': [] }, (directory) => {
-    assert.throws(() => loadCatalogueRows(directory), /No NN-<trade>\.csv files/)
+    assert.throws(() => loadCatalogue(directory), /No NN-<trade>\.csv files/)
   })
 })
 
@@ -128,7 +128,7 @@ test('a real run refuses to start without DATABASE_URL in the environment', () =
 
 test('the seed writes items, then one observation per row, then one audit entry, and reports what it left alone', async () => {
   const rows = withFiles({ '02-concrete.csv': [PRICED, UNPRICED] }, (directory) =>
-    loadCatalogueRows(directory, '2026-11-10')
+    loadCatalogue(directory, '2026-11-10').rows
   )
   const statements = []
   const replies = [
@@ -224,7 +224,9 @@ test('the seed writes items, then one observation per row, then one audit entry,
 
 test('a run is described by its operator, data directory, file hashes and commit, never the database', () => {
   const lines = { '02-concrete.csv': [PRICED], '01-earthworks.csv': [] }
-  const described = withFiles({ ...lines, 'notes.txt': [] }, (directory) => describeSeedRun(directory))
+  const described = withFiles({ ...lines, 'notes.txt': [] }, (directory) =>
+    describeSeedRun(directory, loadCatalogue(directory).files)
+  )
 
   assert.deepEqual(
     described.files,
@@ -237,9 +239,25 @@ test('a run is described by its operator, data directory, file hashes and commit
   )
   assert.ok(described.operator === null || typeof described.operator === 'string')
   assert.ok(described.gitCommit === null || /^[0-9a-f]{40}$/.test(described.gitCommit))
-  assert.equal(describeSeedRun(dataDirectory).dataDirectory, 'data/catalogue')
+  assert.equal(describeSeedRun(dataDirectory, []).dataDirectory, 'data/catalogue')
   assert.deepEqual(Object.keys(described).sort(), ['dataDirectory', 'files', 'gitCommit', 'operator'])
   assert.doesNotMatch(JSON.stringify(described), /postgres(ql)?:\/\/|DATABASE_URL/)
+})
+
+test('the audit entry hashes the very bytes the parser read, not a later read of the file', () => {
+  withFiles({ '02-concrete.csv': [PRICED] }, (directory) => {
+    const path = join(directory, '02-concrete.csv')
+    const loadedBytes = readFileSync(path)
+    const { rows, files } = loadCatalogue(directory)
+
+    // The file changes after the load and before the audit entry is written.
+    writeFileSync(path, [HEADER, UNPRICED].join('\n'))
+
+    assert.deepEqual(rows.map((row) => row.code), ['CN-0001'])
+    assert.deepEqual(describeSeedRun(directory, files).files, [
+      { name: '02-concrete.csv', sha256: createHash('sha256').update(loadedBytes).digest('hex') },
+    ])
+  })
 })
 
 test('after the load, both catalogue tables are analysed, one statement each', async () => {
