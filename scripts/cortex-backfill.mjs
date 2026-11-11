@@ -15,7 +15,8 @@
  * --page-size (default 200, at most 2000) rows per call. Each call is its own
  *   short transaction over ONE tenant, so it holds one tenant's provenance and
  *   audit locks at a time.
- * --resume continues from the point a stopped run printed (RESUME line).
+ * --resume continues from the last RESUME line printed: one follows every
+ *   committed page, and a failed run prints the page it stopped at.
  * --dry-run only counts the rows each table would process. It is read-only and
  *   takes no provenance lock.
  *
@@ -132,14 +133,19 @@ async function backfillTable(sql, table, options, tenants, state) {
     let after = start && tenant === start.tenant ? start.after : null
     for (;;) {
       state.cursor = { table, tenant, after }
-      const [page] =
-        options.mode === 'scrub'
-          ? await sql`
+      // One short transaction per page. The timeouts are set inside it, so they
+      // hold through a transaction pooler that drops startup parameters.
+      const [page] = await sql.begin(async (tx) => {
+        await tx`set local lock_timeout = '5s'`
+        await tx`set local statement_timeout = '60s'`
+        return options.mode === 'scrub'
+          ? tx`
               select processed, changed as applied, skipped, failures, last_id
                 from public.cortex_scrub_nodes(${table}, ${tenant}::uuid, ${options.pageSize}, ${after}::uuid)`
-          : await sql`
+          : tx`
               select processed, applied, skipped, failures, last_id
                 from public.cortex_backfill(${table}, ${tenant}::uuid, ${options.mode}, ${options.pageSize}, ${after}::uuid)`
+      })
       if (!page || page.processed === 0) break
       totals.processed += page.processed
       totals.applied += page.applied
@@ -149,6 +155,8 @@ async function backfillTable(sql, table, options, tenants, state) {
         console.error(`FAILED-ROW ${failure.table} ${failure.id} ${failure.error}`)
       }
       after = page.last_id
+      // Printed after every committed page, so a killed run can resume here.
+      console.log(`RESUME ${resumeArg({ table, tenant, after })}`)
     }
   }
   return totals

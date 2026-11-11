@@ -60,8 +60,12 @@ commit per page, endpoints first. `--page-size` defaults to 200 (at most 2000).
 Unchanged nodes write no provenance, so a re-run is cheap and safe.
 - A failing row prints `FAILED-ROW <table> <id> <error>`; the run goes on and
   exits 1. Fix the row, then re-run.
-- A stopped run prints `RESUME --resume <table>:<tenant>:<id>`; pass it to the
-  same command to continue.
+- Every committed page prints `RESUME --resume <table>:<tenant>:<id>`, and a
+  failed run prints the page it stopped at. Pass the last one to the same
+  command to continue, even after a killed run.
+- Each page sets `lock_timeout = 5s` and `statement_timeout = 60s` inside its
+  own transaction, and the two functions carry their own `lock_timeout`, so
+  the limits hold through a transaction pooler.
 - Rows and nodes a live writer holds are reported as skipped; re-run to pick
   them up.
 

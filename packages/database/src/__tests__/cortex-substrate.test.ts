@@ -1338,6 +1338,19 @@ suite('Cortex coverage (Batches 0-1)', () => {
     })
   })
 
+  it('backfill and scrub set their own lock_timeout, whatever the session or a pooler set', async () => {
+    const rows = (await sql.unsafe(
+      `select p.proname::text as name, p.proconfig as config
+         from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname = 'public' and p.proname in ('cortex_backfill', 'cortex_scrub_nodes')
+        order by 1`
+    )) as Rows
+    expect(rows.map((row: Rows) => [row.name, (row.config as string[]).includes('lock_timeout=5s')])).toEqual([
+      ['cortex_backfill', true],
+      ['cortex_scrub_nodes', true],
+    ])
+  })
+
   it('a re-titled node loses its embedding; a node whose title and summary stay keeps it', async () => {
     const r = await inRollback(sql, async (tx) => {
       const { tenantA: t } = await seedTwoTenants(tx)

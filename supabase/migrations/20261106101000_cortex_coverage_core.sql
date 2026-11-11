@@ -668,7 +668,10 @@ create or replace function public.cortex_backfill(
   p_after uuid default null,
   out processed integer, out applied integer, out skipped integer, out failures jsonb, out last_id uuid
 )
-language plpgsql security definer set search_path = '' as $$
+-- Its own lock_timeout, whatever the session (or a pooler) set. A
+-- statement_timeout set here would not re-arm the calling statement's timer,
+-- so the caller sets that one (scripts/cortex-backfill.mjs: 60s).
+language plpgsql security definer set search_path = '' set lock_timeout = '5s' as $$
 declare
   r public.cortex_mirror_registry; v_apply text; v_row jsonb; v_parents jsonb := '{}'::jsonb;
   v_key text; v_missing text := ''; v_id uuid;
@@ -753,7 +756,10 @@ create or replace function public.cortex_scrub_nodes(
   p_table text, p_tenant uuid, p_limit integer default 200, p_after uuid default null,
   out processed integer, out changed integer, out skipped integer, out failures jsonb, out last_id uuid
 )
-language plpgsql security definer set search_path = '' as $$
+-- Its own lock_timeout, whatever the session (or a pooler) set. A
+-- statement_timeout set here would not re-arm the calling statement's timer,
+-- so the caller sets that one (scripts/cortex-backfill.mjs: 60s).
+language plpgsql security definer set search_path = '' set lock_timeout = '5s' as $$
 declare
   r public.cortex_mirror_registry; n record; v_id uuid; v_keep text[];
   v_attrs jsonb; v_title text; v_summary text; v_kyc text;
