@@ -954,7 +954,9 @@ try {
             coalesce(with_check, '') as check_expression
        from pg_policies
       where schemaname = 'public'
-        and tablename in (${requiredTables.map((name) => `'${name}'`).join(', ')})`,
+        and tablename in (${[...new Set([...requiredTables, ...requiredDirectClientDenyTables])]
+          .map((name) => `'${name}'`)
+          .join(', ')})`,
     (rows) =>
       evaluateRlsPolicyCatalog(rows, {
         tenantPolicies: requiredPolicies,

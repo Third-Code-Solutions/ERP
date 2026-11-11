@@ -70,7 +70,8 @@ They get the same server-only controls as the platform tables:
 
 - Row-level security is enabled and forced.
 - `anon`, `authenticated` and `public` hold no privileges, and the
-  `deny_direct_client_access` policy rejects direct browser access.
+  `deny_direct_client_access` policy rejects direct browser access. The
+  database verifier requires that policy on both tables.
 - `service_role` holds SELECT only; no role but the migration owner can write
   them.
 - They are read only inside `security definer` Cortex functions with an empty

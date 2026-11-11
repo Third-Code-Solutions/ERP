@@ -1,6 +1,9 @@
 export const requiredDirectClientDenyTables = [
   // 20261106102000: full row images, read only by the server behind audit.read.
   'audit_log',
+  // 20261106100000: migration-owned Cortex configuration (ADR-027 amendment).
+  'cortex_mirror_registry',
+  'cortex_node_type_access',
   'financial_sequences',
   'notification_outbox',
   'notification_deliveries',
