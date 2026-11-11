@@ -61,8 +61,8 @@ begin
 end $$;
 
 -- 3. Drop the registry engine. The hand-written mirrors keep their apply
---    functions, cortex_close_stale_edges and the redaction helpers; the scrub
---    keeps cortex_render_tpl.
+--    functions, cortex_close_stale_edges (tenant-scoped: p_tenant first) and
+--    the redaction helpers; the scrub keeps cortex_render_tpl.
 drop function if exists public.cortex_backfill;
 drop function if exists public.cortex_mirror_link();
 drop function if exists public.cortex_link_edge(text, jsonb, boolean);

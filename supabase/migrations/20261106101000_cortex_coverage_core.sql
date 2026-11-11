@@ -133,10 +133,10 @@ end $$;
 -- 3. Edge maintenance.
 -- ---------------------------------------------------------------------------
 -- Close p_node's current canonical edges of one type to/from p_other_ref_table
--- except p_keep. Link-table edges (attributes.link) are owned by
--- cortex_mirror_link and never closed here.
+-- except p_keep, within p_tenant only. Link-table edges (attributes.link) are
+-- owned by cortex_mirror_link and never closed here.
 create or replace function public.cortex_close_stale_edges(
-  p_node uuid, p_edge_type public.cortex_edge_type, p_other_ref_table text,
+  p_tenant uuid, p_node uuid, p_edge_type public.cortex_edge_type, p_other_ref_table text,
   p_keep uuid[], p_out boolean default true
 ) returns integer
 language plpgsql security definer set search_path = '' as $$
@@ -145,7 +145,9 @@ begin
   update public.cortex_edges e
      set valid_to = now(), recorded_at = now()
     from public.cortex_nodes o
-   where e.valid_to is null
+   where e.tenant_id = p_tenant
+     and o.tenant_id = p_tenant
+     and e.valid_to is null
      and e.origin = 'canonical'
      and e.edge_type = p_edge_type
      and not coalesce(e.attributes ? 'link', false)
@@ -287,7 +289,7 @@ begin
     for v_group in select jsonb_object_keys(v_keep) loop
       v_parts := string_to_array(v_group, '|');
       perform public.cortex_close_stale_edges(
-        v_node, v_parts[1]::public.cortex_edge_type, v_parts[2],
+        v_tenant, v_node, v_parts[1]::public.cortex_edge_type, v_parts[2],
         array(select jsonb_array_elements_text(v_keep -> v_group)::uuid),
         v_parts[3] = 'out');
     end loop;
@@ -543,9 +545,9 @@ begin
   perform public.cortex_upsert_edge(v_tenant, v_node, v_proj, 'part_of', 'canonical', 1, auth.uid());
   perform public.cortex_upsert_edge(v_tenant, v_rep, v_node, 'owns', 'canonical', 1, auth.uid());
   if p_op <> 'INSERT' then
-    perform public.cortex_close_stale_edges(v_node, 'part_of', 'accounts', array[v_acct], true);
-    perform public.cortex_close_stale_edges(v_node, 'part_of', 'projects', array[v_proj], true);
-    perform public.cortex_close_stale_edges(v_node, 'owns', 'users', array[v_rep], false);
+    perform public.cortex_close_stale_edges(v_tenant, v_node, 'part_of', 'accounts', array[v_acct], true);
+    perform public.cortex_close_stale_edges(v_tenant, v_node, 'part_of', 'projects', array[v_proj], true);
+    perform public.cortex_close_stale_edges(v_tenant, v_node, 'owns', 'users', array[v_rep], false);
   end if;
   return v_node;
 end $$;
@@ -590,8 +592,8 @@ begin
   perform public.cortex_upsert_edge(v_tenant, v_node, v_proj, 'part_of', 'canonical', 1, auth.uid());
   perform public.cortex_upsert_edge(v_tenant, v_user, v_node, 'owns', 'canonical', 1, auth.uid());
   if p_op <> 'INSERT' then
-    perform public.cortex_close_stale_edges(v_node, 'part_of', 'projects', array[v_proj], true);
-    perform public.cortex_close_stale_edges(v_node, 'owns', 'users', array[v_user], false);
+    perform public.cortex_close_stale_edges(v_tenant, v_node, 'part_of', 'projects', array[v_proj], true);
+    perform public.cortex_close_stale_edges(v_tenant, v_node, 'owns', 'users', array[v_user], false);
   end if;
   return v_node;
 end $$;

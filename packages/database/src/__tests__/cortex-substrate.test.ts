@@ -1191,6 +1191,26 @@ suite('Cortex coverage (Batches 0-1)', () => {
     expect(r.breaks).toBe(0)
   })
 
+  it('cortex_close_stale_edges closes only the given tenant\'s edges', async () => {
+    const r = await inRollback(sql, async (tx) => {
+      const { tenantA: a, tenantB: b, userB } = await seedTwoTenants(tx)
+      const project = await insertId(tx, `insert into projects(tenant_id, name, client) values('${b}', 'B Proj', 'C')`)
+      const doc = await insertId(
+        tx,
+        `insert into documents(tenant_id, project_id, uploaded_by, document_type, file_name, storage_path, mime_type, size_bytes)
+         values('${b}', '${project}', '${userB}', 'pdf', 'b.pdf', 't/b.pdf', 'application/pdf', 1)`
+      )
+      const docNode = (await node(tx, b, 'documents', doc)).id as string
+      const close = async (tenant: string) =>
+        (await first(
+          tx,
+          `select public.cortex_close_stale_edges('${tenant}', '${docNode}', 'part_of', 'projects', '{}'::uuid[], true) as n`
+        )).n as number
+      return { otherTenant: await close(a), ownTenant: await close(b) }
+    })
+    expect(r).toEqual({ otherTenant: 0, ownTenant: 1 })
+  })
+
   it('fold refresh locks the parent FOR NO KEY UPDATE, so an edge insert (KEY SHARE) is not blocked (two connections)', async () => {
     const holder = makeSql()
     const probe = makeSql()
