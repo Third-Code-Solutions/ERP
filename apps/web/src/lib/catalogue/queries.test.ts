@@ -304,7 +304,8 @@ describe('getCatalogueItemDetail', () => {
     expect(render(argsOf(currentPrices.calls, 'where')[0]).params).toEqual([ITEM, TENANT])
     expect(renderList(argsOf(currentPrices.calls, 'orderBy'))).toBe(
       'lower(trim("catalogue_prices"."region")), "catalogue_prices"."price_avg_centavos" is null, ' +
-        '"catalogue_prices"."checked_on" desc, "catalogue_prices"."created_at" desc',
+        '"catalogue_prices"."checked_on" desc, "catalogue_prices"."created_at" desc, ' +
+        '"catalogue_prices"."id" desc',
     )
   })
 

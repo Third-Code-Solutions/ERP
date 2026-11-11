@@ -55,12 +55,13 @@ describe('catalogue read SQL', () => {
     ]
     for (const statement of [list, count]) {
       // One observation per item and region inside the caller's tenant: priced
-      // ones first (`is null` sorts false before true), then the newest.
+      // ones first (`is null` sorts false before true), then the newest, then
+      // the highest id, so a tie on both timestamps still picks one row.
       expect(statement.sql).toMatch(
         /select distinct on \("catalogue_prices"\."item_id", lower\(trim\("catalogue_prices"\."region"\)\)\)/,
       )
       expect(statement.sql).toMatch(
-        /from "catalogue_prices" where \("catalogue_prices"\."tenant_id" = \$\d+ and lower\(trim\("catalogue_prices"\."region"\)\) = lower\(trim\(\$\d+\)\)\) order by "catalogue_prices"\."item_id", lower\(trim\("catalogue_prices"\."region"\)\), "catalogue_prices"\."price_avg_centavos" is null, "catalogue_prices"\."checked_on" desc, "catalogue_prices"\."created_at" desc\) "current_price"/,
+        /from "catalogue_prices" where \("catalogue_prices"\."tenant_id" = \$\d+ and lower\(trim\("catalogue_prices"\."region"\)\) = lower\(trim\(\$\d+\)\)\) order by "catalogue_prices"\."item_id", lower\(trim\("catalogue_prices"\."region"\)\), "catalogue_prices"\."price_avg_centavos" is null, "catalogue_prices"\."checked_on" desc, "catalogue_prices"\."created_at" desc, "catalogue_prices"\."id" desc\) "current_price"/,
       )
       expect(statement.sql).toMatch(
         /on \("current_price"\."item_id" = "catalogue_items"\."id" and "current_price"\."tenant_id" = "catalogue_items"\."tenant_id"\)/,
@@ -142,9 +143,9 @@ describe('catalogue read SQL', () => {
     expect(history?.sql).toMatch(/limit \$3$/)
     expect(history?.params).toEqual([ITEM, TENANT, 501])
     // One row per region in any letter case, priced before unpriced, then the
-    // newest; scoped to the item and the tenant, and never capped.
+    // newest (id breaks a tie); scoped to the item and the tenant, and never capped.
     expect(current?.sql).toMatch(
-      /^select distinct on \(lower\(trim\("catalogue_prices"\."region"\)\)\) .* from "catalogue_prices" where \("catalogue_prices"\."item_id" = \$1 and "catalogue_prices"\."tenant_id" = \$2\) order by lower\(trim\("catalogue_prices"\."region"\)\), "catalogue_prices"\."price_avg_centavos" is null, "catalogue_prices"\."checked_on" desc, "catalogue_prices"\."created_at" desc$/,
+      /^select distinct on \(lower\(trim\("catalogue_prices"\."region"\)\)\) .* from "catalogue_prices" where \("catalogue_prices"\."item_id" = \$1 and "catalogue_prices"\."tenant_id" = \$2\) order by lower\(trim\("catalogue_prices"\."region"\)\), "catalogue_prices"\."price_avg_centavos" is null, "catalogue_prices"\."checked_on" desc, "catalogue_prices"\."created_at" desc, "catalogue_prices"\."id" desc$/,
     )
     expect(current?.params).toEqual([ITEM, TENANT])
   })

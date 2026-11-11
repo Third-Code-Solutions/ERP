@@ -192,14 +192,16 @@ export async function listCatalogueItems(
       ),
     )
     // The current-price order: priced before unpriced (`is null` sorts false
-    // before true), then checked_on desc, then created_at desc. The item
-    // page's current query in getCatalogueItemDetail uses the same order.
+    // before true), then checked_on desc, created_at desc, and id desc so two
+    // rows written at the same instant still pick one. The item page's current
+    // query in getCatalogueItemDetail uses the same order.
     .orderBy(
       cataloguePrices.item_id,
       regionKey,
       isNull(cataloguePrices.price_avg_centavos),
       desc(cataloguePrices.checked_on),
       desc(cataloguePrices.created_at),
+      desc(cataloguePrices.id),
     )
     .as('current_price')
 
@@ -356,6 +358,7 @@ export async function getCatalogueItemDetail(
         isNull(cataloguePrices.price_avg_centavos),
         desc(cataloguePrices.checked_on),
         desc(cataloguePrices.created_at),
+        desc(cataloguePrices.id),
       ),
   ])
 

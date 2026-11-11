@@ -74,7 +74,8 @@ Indexes:
 
 - Index: `(tenant_id, item_id, region, checked_on desc, created_at desc)`.
 - **Current price** of an item in a region is its newest **priced** row by
-  `(checked_on desc, created_at desc)`.
+  `(checked_on desc, created_at desc, id desc)`; the id only settles two rows
+  written at the same instant.
 - **A region is its text trimmed and in lower case** (`lower(trim(region))`):
   "NCR", "ncr" and " Ncr " are one region in the list, the region filter, the
   item page's Current chip and the record-price "current" check.
@@ -85,7 +86,7 @@ Indexes:
   person recorded a price must not hide that price.
 - The list, the item detail and the price-status filter all read this one
   current observation. The order is
-  `(price_avg_centavos is null, checked_on desc, created_at desc)`.
+  `(price_avg_centavos is null, checked_on desc, created_at desc, id desc)`.
 - Rows are never updated or deleted. A row trigger rejects UPDATE and DELETE, the
   way `audit_log` is protected, and a statement trigger rejects TRUNCATE (also
   when it cascades from `catalogue_items`). A correction is a new `manual` row: with the same or a
