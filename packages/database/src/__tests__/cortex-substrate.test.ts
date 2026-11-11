@@ -1404,9 +1404,12 @@ suite('Cortex coverage (Batches 0-1)', () => {
     expect(r.live).toEqual([...r.built, ['bom_submission', 'negotiation']])
   })
 
-  it('rollback SQL restores the generic triggers and old bodies, keeps data and the chain', async () => {
+  // The rollback switches the registry engine off without re-opening S1-S3:
+  // no generic trigger comes back, the read check stays deny-by-default and
+  // the hand-written mirrors stay email-free.
+  it('rollback SQL switches the registry engine off, keeps S1-S3 closed, data and the chain', async () => {
     const r = await inRollback(sql, async (tx) => {
-      const { tenantA: t } = await seedTwoTenants(tx)
+      const { tenantA: t, userA } = await seedTwoTenants(tx)
       await tx.unsafe(`insert into vendors(tenant_id, name) values('${t}', 'Before Rollback')`)
       await tx.unsafe(`insert into accounts(tenant_id, name) values('${t}', 'Before Rollback')`)
       const nodesBefore = (await first(tx, `select count(*)::int as n from cortex_nodes`)).n as number
@@ -1418,12 +1421,13 @@ suite('Cortex coverage (Batches 0-1)', () => {
                  or tgname in ('cortex_mirror_r', 'cortex_kyc_redact'))
           order by 1`
       )) as Rows
-      const leftovers = (await first(
-        tx,
-        `select count(*)::int as n from pg_proc p join pg_namespace s on s.oid = p.pronamespace
-          where s.nspname = 'public' and p.proname in ('cortex_apply_row', 'cortex_backfill', 'cortex_mirror_row',
-            'cortex_apply_account', 'cortex_fold_children', 'cortex_mirror_link', 'cortex_kyc_redact')`
-      )).n as number
+      const functions = (await tx.unsafe(
+        `select p.proname::text as name from pg_proc p join pg_namespace s on s.oid = p.pronamespace
+          where s.nspname = 'public' and p.proname in ('cortex_apply_row', 'cortex_backfill', 'cortex_scrub_nodes',
+            'cortex_mirror_row', 'cortex_fold_children', 'cortex_mirror_link', 'cortex_apply_account',
+            'cortex_apply_document', 'cortex_kyc_redact', 'cortex_redact_text')
+          order by 1`
+      )) as Rows
       const kept = await first(
         tx,
         `select (select count(*) from cortex_nodes)::int as nodes,
@@ -1434,24 +1438,31 @@ suite('Cortex coverage (Batches 0-1)', () => {
         tx,
         `insert into vendors(tenant_id, name, email) values('${t}', 'After Rollback', 'old@path.test')`
       )
+      await tx.unsafe(`update users set full_name = full_name || ' ' where id = '${userA}'`)
+      const deny = await first(
+        tx,
+        `select public.auth_can_read_cortex_node_type('kyc_track') as unmapped,
+                public.auth_can_read_cortex_node_type('opportunity') as tenant_type`
+      )
       return {
-        nodesBefore, triggers, leftovers, kept,
-        oldPath: await node(tx, t, 'vendors', vendor),
+        nodesBefore, triggers, functions: functions.map((row: Rows) => row.name), kept, deny,
+        vendorNode: await node(tx, t, 'vendors', vendor),
+        user: await node(tx, t, 'users', userA),
         breaks: (await first(tx, CHAIN_BREAKS(t))).n as number,
       }
     })
-    const byTable = Object.fromEntries(r.triggers.map((row: Rows) => [row.tbl, row.tgname]))
-    expect(Object.keys(byTable).sort()).toEqual([...CORTEX_BATCH1_REGISTRY].sort())
-    expect(byTable.vendors).toBe('cortex_mirror_g')
-    expect(byTable.cost_codes).toBe('cortex_mirror_budget_cost_code')
-    expect(byTable.project_budgets).toBe('cortex_mirror_project_budget')
-    expect(byTable.stock_movements).toBe('cortex_mirror_stock_movement')
-    expect(r.leftovers).toBe(0)
+    expect(r.triggers).toEqual([{ tbl: 'account_kyc_artifacts', tgname: 'cortex_kyc_redact' }])
+    expect(r.functions).toEqual([
+      'cortex_apply_account', 'cortex_apply_document', 'cortex_kyc_redact', 'cortex_redact_text',
+    ])
     expect(r.kept.nodes).toBe(r.nodesBefore)
     expect(r.kept.registry).toBe(CORTEX_BATCH1_REGISTRY.length)
     expect(r.kept.access).toBeGreaterThan(0)
-    // The restored generic mirror is the pre-Batch-1 (leaky) path.
-    expect(r.oldPath.attributes).toHaveProperty('email')
+    // Registry tables are no longer mirrored, so nothing can leak through them.
+    expect(r.vendorNode).toBeUndefined()
+    expect(r.user).toBeTruthy()
+    expect(r.user.attributes).not.toHaveProperty('email')
+    expect(r.deny).toEqual({ unmapped: false, tenant_type: true })
     expect(r.breaks).toBe(0)
   })
 
