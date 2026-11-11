@@ -1376,7 +1376,7 @@ suite('Cortex coverage (Batches 0-1)', () => {
     ])
   })
 
-  it('a re-titled node loses its embedding; a node whose title and summary stay keeps it', async () => {
+  it('a node whose title or summary changes loses its embedding; one whose title and summary stay keeps it', async () => {
     const r = await inRollback(sql, async (tx) => {
       const { tenantA: t } = await seedTwoTenants(tx)
       const keep = await insertId(tx, `insert into vendors(tenant_id, name) values('${t}', 'Keep Supply')`)
@@ -1398,11 +1398,20 @@ suite('Cortex coverage (Batches 0-1)', () => {
           `select title, attributes ? 'phone' as legacy, embedding is not null as embedded
              from cortex_nodes where tenant_id = '${t}' and ref_table = 'vendors' and ref_id = '${id}' and valid_to is null`
         )
-      return { page, keep: await state(keep), retitle: await state(retitle) }
+      const keepAfterBackfill = await state(keep)
+      // Summary only: same title and attributes, new summary.
+      await tx.unsafe(
+        `select public.cortex_upsert_node(n.tenant_id, n.node_type, n.ref_table, n.ref_id, n.title,
+                  'A new summary', n.attributes, null, 'vendors:test')
+           from cortex_nodes n
+          where n.tenant_id = '${t}' and n.ref_table = 'vendors' and n.ref_id = '${keep}' and n.valid_to is null`
+      )
+      return { page, keep: keepAfterBackfill, resummarized: await state(keep), retitle: await state(retitle) }
     })
     expect(r.page).toEqual({ applied: 2, failures: [] })
     expect(r.keep).toEqual({ title: 'Keep Supply', legacy: false, embedded: true })
     expect(r.retitle).toEqual({ title: 'Retitle Supply', legacy: false, embedded: false })
+    expect(r.resummarized).toEqual({ title: 'Keep Supply', legacy: false, embedded: false })
   })
 
   it('backfill --mode all strips legacy attributes; a second run writes no provenance', async () => {
@@ -1988,9 +1997,60 @@ suite('Cortex coverage (Batches 0-1)', () => {
     expect(pairs).toEqual([])
   })
 
-  it('SEC-M7: the denylist finance, cash, bank and inventory mirrors copy exactly the decided keys', async () => {
-    const tables = Object.keys(CORTEX_DENYLIST_MIRRORS)
+  it('SEC-M7: each denylist finance, cash, bank and inventory mirror writes exactly the decided keys for a full row', async () => {
+    const tables = Object.keys(CORTEX_DENYLIST_MIRRORS).sort()
     expect(tables).toHaveLength(11)
+    // Run the real mirror on a full synthetic row of each table: a copy of the
+    // table (LIKE copies columns and NOT NULL, no checks or foreign keys) with
+    // the same name in a probe schema, so TG_TABLE_NAME matches.
+    const written = await inRollback(sql, async (tx) => {
+      const { tenantA: t } = await seedTwoTenants(tx)
+      await tx.unsafe(`create schema cortex_m7_probe`)
+      const out: Array<{ table: string; keys: string[] | null }> = []
+      for (const table of tables) {
+        const columns = (await tx.unsafe(
+          `select a.attname::text as col,
+                  case
+                    when a.attname = 'id' then 'gen_random_uuid()'
+                    when a.attname = 'tenant_id' then quote_literal('${t}') || '::uuid'
+                    when ty.typtype = 'e' then format('(enum_range(null::%s))[1]', format_type(a.atttypid, null))
+                    when ty.typcategory = 'A' or ty.typname in ('json', 'jsonb') then quote_literal('{}')
+                    when ty.typname = 'uuid' then 'gen_random_uuid()'
+                    when ty.typcategory = 'S' then quote_literal(
+                      left('LEAK<' || a.attname || '>', case when a.atttypmod > 4 then a.atttypmod - 4 else 200 end))
+                    when ty.typcategory = 'N' then '1'
+                    when ty.typcategory = 'B' then 'true'
+                    when ty.typcategory = 'D' then 'now()'
+                    when ty.typcategory = 'T' then quote_literal('1 day')
+                  end as expr
+             from pg_attribute a join pg_type ty on ty.oid = a.atttypid
+            where a.attrelid = 'public.${table}'::regclass and a.attnum > 0 and not a.attisdropped
+            order by a.attnum`
+        )) as Rows
+        const untyped = columns.filter((c: Rows) => c.expr === null).map((c: Rows) => c.col as string)
+        if (untyped.length > 0) throw new Error(`${table}: no probe value for ${untyped.join(', ')}`)
+        await tx.unsafe(`create table cortex_m7_probe.${table} (like public.${table})`)
+        await tx.unsafe(
+          `create trigger m7_probe after insert on cortex_m7_probe.${table}
+             for each row execute function public.${CORTEX_DENYLIST_MIRRORS[table]!.mirror}()`
+        )
+        const id = await insertId(
+          tx,
+          `insert into cortex_m7_probe.${table}(${columns.map((c: Rows) => `"${c.col}"`).join(', ')})
+           values (${columns.map((c: Rows) => c.expr).join(', ')})`
+        )
+        const n = await first(
+          tx,
+          `select attributes from cortex_nodes
+            where tenant_id = '${t}' and ref_table = '${table}' and ref_id = '${id}' and valid_to is null`
+        )
+        out.push({ table, keys: n ? Object.keys(n.attributes ?? {}).sort() : null })
+      }
+      return out
+    })
+    expect(written).toEqual(
+      tables.map((table) => ({ table, keys: [...CORTEX_DENYLIST_MIRRORS[table]!.copied].sort() }))
+    )
     const rows = (await sql.unsafe(
       `select c.relname::text as tbl,
               array(select a.attname::text from pg_attribute a
@@ -2002,27 +2062,20 @@ suite('Cortex coverage (Batches 0-1)', () => {
         order by 1`,
       [tables]
     )) as Rows
-    const defs = new Map<string, string>()
-    for (const mirror of new Set(Object.values(CORTEX_DENYLIST_MIRRORS).map((m) => m.mirror))) {
-      const [row] = (await sql.unsafe(`select pg_get_functiondef('public.${mirror}()'::regprocedure) as def`)) as Rows
-      defs.set(mirror, row.def as string)
-    }
+    // The real tables still run that mirror, and the snapshot still covers
+    // every live column (a new column fails here until it is decided).
     const actual = rows.map((row: Rows) => {
       const decision = CORTEX_DENYLIST_MIRRORS[row.tbl as string]!
-      const def = defs.get(decision.mirror) ?? ''
       return {
         table: row.tbl,
         mirrored: (row.mirrors as string[]).includes(decision.mirror),
-        // The mirror copies the row minus these keys; each must still be removed in its body.
-        removedInBody: decision.removed.filter((key) => !new RegExp(`-\\s*'${key}'`).test(def)),
         copied: (row.cols as string[]).filter((col) => !decision.removed.includes(col)).sort(),
       }
     })
     expect(actual).toEqual(
-      tables.sort().map((table) => ({
+      tables.map((table) => ({
         table,
         mirrored: true,
-        removedInBody: [],
         copied: [...CORTEX_DENYLIST_MIRRORS[table]!.copied].sort(),
       }))
     )
