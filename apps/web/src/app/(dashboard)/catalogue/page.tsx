@@ -158,7 +158,8 @@ function CatalogueRegister({ data }: { data: CatalogueListResult }) {
                     </td>
                     <td>{formatDate(price?.checked_on ?? null)}</td>
                     <td>
-                      <FlagChips flags={price?.flags ?? []} />
+                      {/* No observation (in the filtered region) counts as no source. */}
+                      <FlagChips flags={price?.flags ?? ['NO_SOURCE']} />
                       {item.is_active ? null : (
                         <span className="finance-status finance-status-closed">Inactive</span>
                       )}

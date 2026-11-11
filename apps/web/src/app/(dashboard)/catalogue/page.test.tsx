@@ -199,14 +199,14 @@ describe('CataloguePage', () => {
     expect(html).toContain('<span class="finance-status finance-status-closed">Inactive</span>')
   })
 
-  it('claims no flag for an item nothing was ever recorded for', async () => {
+  it('says "No source" in words for an item nothing was recorded for', async () => {
     listed([UNOBSERVED_ROW])
 
     const html = await render()
 
     expect(html).toContain('<strong>SUP-12</strong>')
     expect(html).toContain('<td colSpan="3">—</td>')
-    expect(html).not.toContain('>No source</span>')
+    expect(html).toContain('<span class="finance-status finance-status-draft">No source</span>')
   })
 
   it('does not link a stored source that is not a plain web address', async () => {
