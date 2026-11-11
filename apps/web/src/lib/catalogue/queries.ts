@@ -191,8 +191,9 @@ export async function listCatalogueItems(
         filters.region ? inRegion(filters.region) : undefined,
       ),
     )
-    // The same order as compareCurrentFirst in rules.ts: priced before unpriced
-    // (false sorts before true), then newest first.
+    // The current-price order: priced before unpriced (`is null` sorts false
+    // before true), then checked_on desc, then created_at desc. The item
+    // page's current query in getCatalogueItemDetail uses the same order.
     .orderBy(
       cataloguePrices.item_id,
       regionKey,
