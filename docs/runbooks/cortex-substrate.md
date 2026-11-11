@@ -223,8 +223,8 @@ search via an HNSW index (`idx_cortex_nodes_embedding`, `vector_cosine_ops`).
   tenant's un-embedded nodes via `@third-code-erp/ai` `embedBatch`. Call until
   `remaining` is 0 (drive from a cron/Inngest job). Returns 503 if no embedding
   provider key is configured — the rest of the app is unaffected. New nodes land
-  with `embedding = NULL`, so re-run periodically. An updated node keeps its old
-  embedding (only a KYC re-title clears it).
+  with `embedding = NULL`, so re-run periodically. A node whose title or
+  summary changes loses its embedding; the embed job refills it.
 
 ## Security invariants (do not regress)
 
