@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { seedCatalogue } from './lib/catalogue-seed.mjs'
+import { analyzeCatalogue, seedCatalogue } from './lib/catalogue-seed.mjs'
 import { countByTrade, loadCatalogueRows, parseCliArguments } from './seed-catalogue.mjs'
 
 const repoRoot = resolve(fileURLToPath(new URL('..', import.meta.url)))
@@ -207,6 +207,13 @@ test('the seed writes items, then one observation per row, then one audit entry,
   assert.match(lock.query, /pg_advisory_xact_lock\(hashtextextended\('audit_log:'/)
   assert.match(audit.query, /insert into public\.audit_log/)
   assert.deepEqual(JSON.parse(audit.parameters[1]), counts)
+})
+
+test('after the load, both catalogue tables are analysed, one statement each', async () => {
+  const statements = []
+  await analyzeCatalogue({ unsafe: async (query) => statements.push(query) })
+
+  assert.deepEqual(statements, ['analyze public.catalogue_items', 'analyze public.catalogue_prices'])
 })
 
 test('the seed stops before writing when the tenant does not exist', async () => {

@@ -12,14 +12,15 @@
  * a person has edited is never overwritten. A row without a price still
  * records one observation, with null prices, that keeps its flag and note. `--dry-run` validates and prints
  * per-trade counts without opening a database connection (and needs no
- * tenant). DATABASE_URL is read from the environment only.
+ * tenant). After a real run commits, it runs ANALYZE on both catalogue tables.
+ * DATABASE_URL is read from the environment only.
  */
 import { readdirSync, readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
-import { seedCatalogue } from './lib/catalogue-seed.mjs'
+import { ANALYZED_TABLES, analyzeCatalogue, seedCatalogue } from './lib/catalogue-seed.mjs'
 import { importTypeScript } from './lib/import-typescript.mjs'
 
 const repoRoot = resolve(fileURLToPath(new URL('..', import.meta.url)))
@@ -143,6 +144,17 @@ async function main() {
         `(${counts.unpricedRows} of the ${counts.items} rows record that no price was found).`
     )
     console.log('One audit_log entry (catalogue_seed) records these counts.')
+    try {
+      await analyzeCatalogue(sql)
+    } catch (error) {
+      process.exitCode = 1
+      console.error(
+        `The load is committed, but ANALYZE failed (${error instanceof Error ? error.message : String(error)}). ` +
+          `Run it by hand: analyze ${ANALYZED_TABLES.join('; analyze ')};`
+      )
+      return
+    }
+    console.log(`Ran ANALYZE on ${ANALYZED_TABLES.join(' and ')}.`)
   } finally {
     await sql.end({ timeout: 5 })
   }

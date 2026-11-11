@@ -78,7 +78,11 @@ provisioned when their feature is enabled.
      answers not-found while it is unset. Leave it unset until migration
      `20261110100000_catalogue_price_book` is applied, the tenant is seeded
      with `node scripts/seed-catalogue.mjs --tenant <uuid>` and `smoke:prod`
-     passes. A flip needs a redeploy.
+     passes. After it commits, the seed runs `ANALYZE` on
+     `public.catalogue_items` and `public.catalogue_prices` and prints that it
+     did; if it prints that ANALYZE failed, run both by hand before the flag
+     goes on, or the list page joins row by row and gets slow. A flip needs a
+     redeploy.
 5. Add the production domain in `Settings → Domains` and update
    `NEXT_PUBLIC_SITE_URL` to match. Portal share links and email CTAs
    use this value.

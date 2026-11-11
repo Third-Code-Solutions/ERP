@@ -106,6 +106,20 @@ const INSERT_AUDIT_ENTRY = `
           ) as hash) previous
 `
 
+export const ANALYZED_TABLES = ['public.catalogue_items', 'public.catalogue_prices']
+
+/**
+ * Fresh planner statistics after a committed load. Without them the list query
+ * joins the current-price subquery to the items row by row (spec section 4).
+ * The caller runs it after the commit, so the statistics describe the rows
+ * the load committed.
+ *
+ * @param {{ unsafe: (query: string) => Promise<unknown> }} sql
+ */
+export async function analyzeCatalogue(sql) {
+  for (const table of ANALYZED_TABLES) await sql.unsafe(`analyze ${table}`)
+}
+
 /**
  * @param {{ unsafe: (query: string, parameters?: unknown[]) => Promise<any[]> }} sql
  * @param {{ tenantId: string, rows: Array<Record<string, any>> }} input
