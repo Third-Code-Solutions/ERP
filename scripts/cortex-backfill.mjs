@@ -123,9 +123,10 @@ async function countRows(sql, table, mode) {
   return row.n
 }
 
-// Pages one table, tenant by tenant. `state.cursor` always holds the point a
+// Pages one table, tenant by tenant, through any postgres.js-shaped client
+// (`sql.begin` and tagged queries). `state.cursor` always holds the point a
 // re-run can resume from.
-async function backfillTable(sql, table, options, tenants, state) {
+export async function backfillTable(sql, table, options, tenants, state) {
   const totals = { processed: 0, applied: 0, skipped: 0, failed: 0 }
   const start = options.resume?.table === table ? options.resume : null
   for (const tenant of tenants) {

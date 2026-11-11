@@ -10,7 +10,7 @@
  */
 import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import postgres from 'postgres'
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { CORTEX_GRAPH_REF_TABLE_NODE_TYPES } from '@third-code-erp/shared-types'
@@ -1963,6 +1963,20 @@ suite('Cortex coverage (Batches 0-1)', () => {
         removedInBody: [],
         copied: [...CORTEX_DENYLIST_MIRRORS[table]!.copied].sort(),
       }))
+    )
+  })
+
+  it('the backfill script pages the 4 split mirrors and every registry table, nothing else', async () => {
+    // A computed URL: the script is plain ESM outside this package's types.
+    const script = pathToFileURL(
+      resolve(dirname(fileURLToPath(import.meta.url)), '../../../../scripts/cortex-backfill.mjs')
+    ).href
+    const { BATCH_TABLES } = (await import(script)) as { BATCH_TABLES: Record<string, readonly string[]> }
+    const registry = ((await sql.unsafe(`select ref_table from cortex_mirror_registry`)) as Rows).map(
+      (row: Rows) => row.ref_table as string
+    )
+    expect([...(BATCH_TABLES['1'] ?? [])].sort()).toEqual(
+      ['accounts', 'documents', 'opportunities', 'users', ...registry].sort()
     )
   })
 
