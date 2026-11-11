@@ -112,20 +112,26 @@ const LINE_BREAKS_AND_TABS = /[\t\n\r\u2028\u2029]+/g
 const LINE_BREAKS = /\r\n?|[\u2028\u2029]/g
 // Characters that are invisible or reorder text, so stored text could read
 // differently from what it holds: C0 controls except tab, line feed and
-// carriage return; DEL and the C1 controls; the Arabic letter mark (U+061C);
-// the Mongolian vowel separator (U+180E); zero-width spaces, joiners and
-// direction marks (U+200B-U+200F); bidirectional embeddings and overrides
-// (U+202A-U+202E); the word joiner and the invisible operators
-// (U+2060-U+2064); bidirectional isolates and the deprecated format controls
-// (U+2066-U+206F); the Hangul fillers (U+3164, U+FFA0); the byte order mark;
-// tag characters (U+E0000-U+E007F); and lone surrogates, which are not text at
-// all (the same check as boq-excel's INVALID_TEXT). The u flag reads a
-// surrogate pair as one character, so U+D800-U+DFFF matches only a lone one.
+// carriage return; DEL and the C1 controls; the soft hyphen (U+00AD); the
+// combining grapheme joiner (U+034F); the Arabic letter mark (U+061C); the
+// Hangul fillers (U+115F, U+1160, U+3164, U+FFA0); the Khmer inherent vowels
+// (U+17B4, U+17B5); the Mongolian variation selectors and vowel separator
+// (U+180B-U+180F); zero-width spaces, joiners and direction marks
+// (U+200B-U+200F); bidirectional embeddings and overrides (U+202A-U+202E); the
+// word joiner, the invisible operators, the bidirectional isolates and the
+// deprecated format controls (U+2060-U+206F); the blank braille pattern
+// (U+2800); the byte order mark; the interlinear annotation marks and the
+// object replacement character (U+FFF9-U+FFFC); tag characters
+// (U+E0000-U+E007F); the supplementary variation selectors (U+E0100-U+E01EF);
+// and lone surrogates, which are not text at all (the same check as
+// boq-excel's INVALID_TEXT). The u flag reads a surrogate pair as one
+// character, so U+D800-U+DFFF matches only a lone one.
+// The variation selectors U+FE00-U+FE0F stay: emoji use them.
 // Emoji kept except ZWJ sequences: the zero-width joiner goes, so a
 // multi-person emoji such as a man mechanic falls apart into its parts, and
 // a subdivision flag (England, Scotland, Wales) loses its tag characters.
 const HIDDEN_OR_CONTROL =
-  /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u061C\u180E\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u206F\u3164\uFEFF\uFFA0\u{E0000}-\u{E007F}\uD800-\uDFFF]/gu
+  /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u00AD\u034F\u061C\u115F\u1160\u17B4\u17B5\u180B-\u180F\u200B-\u200F\u202A-\u202E\u2060-\u206F\u2800\u3164\uFEFF\uFFA0\uFFF9-\uFFFC\u{E0000}-\u{E007F}\u{E0100}-\u{E01EF}\uD800-\uDFFF]/gu
 
 /** One-line field: tabs and line breaks become a space, hidden characters go. */
 export function cleanSingleLine(value: string): string {

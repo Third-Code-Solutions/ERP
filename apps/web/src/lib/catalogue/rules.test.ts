@@ -142,6 +142,22 @@ describe('text hygiene', () => {
     ['cancel tag', '\u{E007F}'],
     ['lone high surrogate', '\uD800'],
     ['lone low surrogate', '\uDC00'],
+    ['soft hyphen', '\u00AD'],
+    ['combining grapheme joiner', '\u034F'],
+    ['Hangul choseong filler', '\u115F'],
+    ['Hangul jungseong filler', '\u1160'],
+    ['Khmer inherent vowel aq', '\u17B4'],
+    ['Khmer inherent vowel aa', '\u17B5'],
+    ['first Mongolian free variation selector', '\u180B'],
+    ['third Mongolian free variation selector', '\u180D'],
+    ['fourth Mongolian free variation selector', '\u180F'],
+    ['unassigned format control between the operators and the isolates', '\u2065'],
+    ['blank braille pattern', '\u2800'],
+    ['interlinear annotation anchor', '\uFFF9'],
+    ['interlinear annotation terminator', '\uFFFB'],
+    ['object replacement character', '\uFFFC'],
+    ['first supplementary variation selector', '\u{E0100}'],
+    ['last supplementary variation selector', '\u{E01EF}'],
   ] as const
 
   it.each(hidden)('drops a %s (%j) from one-line and multi-line fields', (_name, character) => {
@@ -156,6 +172,12 @@ describe('text hygiene', () => {
     expect(cleanMultiLine('\uDBFF\uD83D\uDE00')).toBe('😀')
     // "invoice\u202Efdp.exe" would display reversed; stripped, it reads as stored.
     expect(cleanSingleLine('invoice\u202Efdp.exe')).toBe('invoicefdp.exe')
+  })
+
+  it('keeps the variation selectors U+FE00-U+FE0F that emoji use', () => {
+    expect(cleanSingleLine('Heart \u2764\uFE0F red')).toBe('Heart \u2764\uFE0F red')
+    expect(cleanMultiLine('\u{1F6E0}\uFE0F tools')).toBe('\u{1F6E0}\uFE0F tools')
+    expect(cleanSingleLine('Fork\uFE00')).toBe('Fork\uFE00')
   })
 
   it('treats the Unicode line and paragraph separators as line breaks', () => {
