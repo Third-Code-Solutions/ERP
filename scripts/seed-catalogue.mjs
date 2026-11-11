@@ -20,7 +20,7 @@ import { createHash } from 'node:crypto'
 import { readdirSync, readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { userInfo } from 'node:os'
-import { join, relative, resolve, sep } from 'node:path'
+import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 import { ANALYZED_TABLES, analyzeCatalogue, seedCatalogue } from './lib/catalogue-seed.mjs'
@@ -101,7 +101,8 @@ function orNull(read) {
 
 /**
  * Who ran the seed and from which files, for the run's audit entry: the OS
- * user, the data directory (relative to the repository), each CSV's SHA-256
+ * user, the data directory (its path in the repository, or only its own name
+ * when it is outside, so no home or temp path is recorded), each CSV's SHA-256
  * (`files`, from loadCatalogue) and the git commit when there is one. Never
  * the DATABASE_URL.
  */
@@ -113,9 +114,11 @@ export function describeSeedRun(directory, files) {
       stdio: ['ignore', 'pipe', 'ignore'],
     }).trim()
   )
+  const fromRepo = relative(repoRoot, directory)
+  const insideRepo = !isAbsolute(fromRepo) && fromRepo.split(sep)[0] !== '..'
   return {
     operator: orNull(() => userInfo().username),
-    dataDirectory: relative(repoRoot, directory).split(sep).join('/') || '.',
+    dataDirectory: insideRepo ? fromRepo.split(sep).join('/') || '.' : basename(directory),
     files,
     gitCommit: /^[0-9a-f]{40}$/.test(gitCommit ?? '') ? gitCommit : null,
   }

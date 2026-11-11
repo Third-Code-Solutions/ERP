@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { analyzeCatalogue, seedCatalogue } from './lib/catalogue-seed.mjs'
@@ -242,6 +242,19 @@ test('a run is described by its operator, data directory, file hashes and commit
   assert.equal(describeSeedRun(dataDirectory, []).dataDirectory, 'data/catalogue')
   assert.deepEqual(Object.keys(described).sort(), ['dataDirectory', 'files', 'gitCommit', 'operator'])
   assert.doesNotMatch(JSON.stringify(described), /postgres(ql)?:\/\/|DATABASE_URL/)
+})
+
+test('the audit entry names a data directory by its repository path, or by its name when outside', () => {
+  const named = (directory) => describeSeedRun(directory, []).dataDirectory
+
+  assert.equal(named(dataDirectory), 'data/catalogue')
+  assert.equal(named(repoRoot), '.')
+  // Outside the repository: neither "../.." nor an absolute path.
+  assert.equal(named(resolve(repoRoot, '..', 'price-research')), 'price-research')
+  withFiles({}, (directory) => {
+    assert.equal(named(directory), basename(directory))
+    assert.doesNotMatch(named(directory), /[\\/:]|\.\./)
+  })
 })
 
 test('the audit entry hashes the very bytes the parser read, not a later read of the file', () => {
