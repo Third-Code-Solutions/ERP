@@ -67,7 +67,7 @@ describe('catalogue admin forms', () => {
     it('takes pesos, a region that defaults to NCR and a date no later than today', () => {
       const html = renderToStaticMarkup(element)
 
-      expect(html).toContain('<form class="ledger-filters finance-setup-form"')
+      expect(html).toContain('<form class="finance-setup-form"')
       for (const name of ['price_php', 'price_low_php', 'price_avg_php', 'price_high_php']) {
         expect(html).toContain(
           `<input id="price-${name}" type="number" min="0" max="99999999999.99" step="0.01" aria-describedby="price-hint" name="${name}" value=""/>`,
@@ -81,7 +81,7 @@ describe('catalogue admin forms', () => {
         '<input id="price-checked" type="date" max="2026-11-11" required="" name="checked_on" value="2026-11-11"/>',
       )
       expect(html).toContain(
-        '<button type="submit" class="finance-primary-link">Record price</button>',
+        '<button type="submit" class="finance-primary-button">Record price</button>',
       )
       expect(html).not.toContain('role="alert"')
       expect(html).not.toContain('role="status"')
@@ -91,7 +91,7 @@ describe('catalogue admin forms', () => {
       mocks.record.mockResolvedValue({
         ok: false,
         status: 400,
-        error: 'price: low price must not be above the average price',
+        error: 'Low price must not be above the average price.',
       })
       const sent = form({ price_low_php: '120.50', price_avg_php: '100', region: 'Cebu' })
 
@@ -99,7 +99,7 @@ describe('catalogue admin forms', () => {
 
       expect(mocks.record).toHaveBeenCalledWith(sent)
       expect(html).toContain(
-        '<p role="alert" class="finance-form-error">price: low price must not be above the average price</p>',
+        '<p role="alert" class="finance-form-error">Low price must not be above the average price.</p>',
       )
       expect(html).not.toContain('role="status"')
       expect(html).toMatch(/name="price_low_php"[^>]*value="120.50"/)
@@ -121,7 +121,7 @@ describe('catalogue admin forms', () => {
       mocks.pending = true
 
       expect(renderToStaticMarkup(element)).toContain(
-        '<button type="submit" class="finance-primary-link" disabled="">Recording…</button>',
+        '<button type="submit" class="finance-primary-button" disabled="">Recording…</button>',
       )
     })
   })
@@ -132,7 +132,7 @@ describe('catalogue admin forms', () => {
     it('starts from the saved item with the catalogue limits on its fields', () => {
       const html = renderToStaticMarkup(element)
 
-      expect(html).toContain('<form class="ledger-filters finance-setup-form"')
+      expect(html).toContain('<form class="finance-setup-form"')
       expect(html).toContain(
         '<input id="item-name" maxLength="300" required="" name="name" value="Portland cement, 40 kg bag"/>',
       )
@@ -140,18 +140,18 @@ describe('catalogue admin forms', () => {
       expect(html).toContain('<option value="concrete" selected="">Concrete</option>')
       expect(html).toContain('<option value="true" selected="">Active</option>')
       expect(html).toContain('maxLength="2000" rows="3">Type 1, ASTM C150</textarea>')
-      expect(html).toContain('<button type="submit" class="finance-primary-link">Save item</button>')
+      expect(html).toContain('<button type="submit" class="finance-primary-button">Save item</button>')
       expect(html).not.toContain('role="alert"')
     })
 
     it('shows the error the action returned and keeps what was typed', async () => {
-      mocks.edit.mockResolvedValue({ ok: false, status: 400, error: 'name: required' })
+      mocks.edit.mockResolvedValue({ ok: false, status: 400, error: 'Enter a name.' })
       const sent = form({ id: ITEM.id, name: '', unit: 'sack', trade: 'masonry', is_active: 'false' })
 
       const html = await submitted(element, sent)
 
       expect(mocks.edit).toHaveBeenCalledWith(sent)
-      expect(html).toContain('<p role="alert" class="finance-form-error">name: required</p>')
+      expect(html).toContain('<p role="alert" class="finance-form-error">Enter a name.</p>')
       expect(html).not.toContain('role="status"')
       expect(html).toMatch(/name="unit"[^>]*value="sack"/)
       expect(html).toContain('<option value="masonry" selected="">Masonry</option>')
@@ -171,7 +171,7 @@ describe('catalogue admin forms', () => {
       mocks.pending = true
 
       expect(renderToStaticMarkup(element)).toContain(
-        '<button type="submit" class="finance-primary-link" disabled="">Saving…</button>',
+        '<button type="submit" class="finance-primary-button" disabled="">Saving…</button>',
       )
     })
   })

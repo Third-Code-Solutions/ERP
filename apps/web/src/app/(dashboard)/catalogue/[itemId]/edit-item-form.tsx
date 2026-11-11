@@ -36,9 +36,7 @@ export function EditItemForm({
   const active = typed('is_active', String(item.is_active))
 
   return (
-    // finance-setup-form adds only the line wrap here: ledger-filters comes
-    // later in globals.css and keeps its own box.
-    <form action={save} className="ledger-filters finance-setup-form">
+    <form action={save} className="finance-setup-form">
       <input type="hidden" name="id" value={item.id} />
       <div className="finance-field finance-field-grow">
         <label htmlFor="item-name">Name</label>
@@ -88,7 +86,7 @@ export function EditItemForm({
           rows={3}
         />
       </div>
-      <button type="submit" className="finance-primary-link" disabled={pending}>
+      <button type="submit" className="finance-primary-button" disabled={pending}>
         {pending ? 'Saving…' : 'Save item'}
       </button>
       {state && 'error' in state ? (

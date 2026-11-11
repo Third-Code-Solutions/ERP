@@ -36,34 +36,47 @@ function text(formData: FormData, name: string): string {
   return typeof value === 'string' ? value : ''
 }
 
+// The form shows this text as it is: every rule below carries a sentence the
+// user can act on, never a field path.
 function invalid(error: z.ZodError): CatalogueDenied {
-  const issue = error.errors[0]
   return {
     ok: false,
     status: 400,
-    error: `${issue?.path.join('.') || 'form'}: ${issue?.message ?? 'invalid input'}`,
+    error: error.issues[0]?.message ?? 'Check the form and try again.',
   }
 }
 
-const requiredLine = (max: number) =>
-  z.string().transform(cleanSingleLine).pipe(z.string().min(1, 'required').max(max))
-const optionalLine = (max: number) =>
+const UNKNOWN_ITEM = 'This item could not be identified. Reload the page and try again.'
+const tooLong = (field: string, max: number) => `The ${field} must be ${max} characters or fewer.`
+/** A shared rule's wording as a sentence: "low price must not..." reads "Low price must not...". */
+const sentence = (text: string) => `${text.charAt(0).toUpperCase()}${text.slice(1)}.`
+
+const requiredLine = (field: string, max: number) =>
   z
     .string()
     .transform(cleanSingleLine)
-    .pipe(z.string().max(max))
+    .pipe(z.string().min(1, `Enter a ${field}.`).max(max, tooLong(field, max)))
+const optionalLine = (field: string, max: number) =>
+  z
+    .string()
+    .transform(cleanSingleLine)
+    .pipe(z.string().max(max, tooLong(field, max)))
     .transform((value) => value || null)
 
 const editItemSchema = z.object({
-  id: z.string().uuid(),
-  name: requiredLine(CATALOGUE_LIMITS.name),
+  id: z.string().uuid(UNKNOWN_ITEM),
+  name: requiredLine('name', CATALOGUE_LIMITS.name),
   specification: z
     .string()
     .transform(cleanMultiLine)
-    .pipe(z.string().max(CATALOGUE_LIMITS.specification))
+    .pipe(
+      z
+        .string()
+        .max(CATALOGUE_LIMITS.specification, tooLong('specification', CATALOGUE_LIMITS.specification)),
+    )
     .transform((value) => value || null),
-  unit: requiredLine(CATALOGUE_LIMITS.unit),
-  trade: z.enum(CATALOGUE_TRADE_SLUGS),
+  unit: requiredLine('unit', CATALOGUE_LIMITS.unit),
+  trade: z.enum(CATALOGUE_TRADE_SLUGS, { message: 'Choose a trade from the list.' }),
   is_active: z.boolean(),
 })
 
@@ -129,12 +142,13 @@ export async function editCatalogueItem(
   }
 
   revalidatePath('/catalogue')
+  revalidatePath(`/catalogue/${id}`)
   return { ok: true, data: { id } }
 }
 
 const recordPriceSchema = z
   .object({
-    item_id: z.string().uuid(),
+    item_id: z.string().uuid(UNKNOWN_ITEM),
     price_php: z.string().trim(),
     price_low_php: z.string().trim(),
     price_avg_php: z.string().trim(),
@@ -142,20 +156,22 @@ const recordPriceSchema = z
     region: z
       .string()
       .transform((value) => cleanSingleLine(value) || 'NCR')
-      .pipe(z.string().max(CATALOGUE_LIMITS.region)),
-    price_basis: optionalLine(CATALOGUE_LIMITS.priceBasis),
-    source_name: optionalLine(CATALOGUE_LIMITS.sourceName),
+      .pipe(z.string().max(CATALOGUE_LIMITS.region, tooLong('region', CATALOGUE_LIMITS.region))),
+    price_basis: optionalLine('price basis', CATALOGUE_LIMITS.priceBasis),
+    source_name: optionalLine('source name', CATALOGUE_LIMITS.sourceName),
     source_url: z.string().transform(cleanSingleLine),
     checked_on: z.string().trim(),
   })
   .superRefine((input, context) => {
     const dateProblem = checkedOnProblem(input.checked_on)
-    if (dateProblem) context.addIssue({ code: 'custom', path: ['checked_on'], message: dateProblem })
+    if (dateProblem) {
+      context.addIssue({ code: 'custom', path: ['checked_on'], message: sentence(dateProblem) })
+    }
     if (!input.source_name && !input.source_url) {
       context.addIssue({
         code: 'custom',
         path: ['source_name'],
-        message: 'give a source name or a source URL',
+        message: 'Give a source name or a source URL.',
       })
     }
   })
@@ -170,18 +186,19 @@ function readPriceRange(input: PriceTexts): CataloguePriceRange | string {
   const range = [input.price_low_php, input.price_avg_php, input.price_high_php]
   const texts = input.price_php ? [input.price_php, input.price_php, input.price_php] : range
   if (input.price_php && range.some(Boolean)) {
-    return 'give either a single price or low, average and high, not both'
+    return 'Give either a single price or low, average and high, not both.'
   }
-  if (!texts.every(Boolean)) return 'give a single price, or all of low, average and high'
+  if (!texts.every(Boolean)) return 'Give a single price, or all of low, average and high.'
 
   const centavos: number[] = []
   for (const value of texts) {
     const parsed = phpToCentavos(value)
-    if (!parsed.ok) return `"${value}" is not a valid peso amount`
+    if (!parsed.ok) return `"${value}" is not a valid peso amount.`
     centavos.push(parsed.centavos)
   }
   const result = { low: centavos[0]!, avg: centavos[1]!, high: centavos[2]! }
-  return priceRangeProblem(result) ?? result
+  const problem = priceRangeProblem(result)
+  return problem ? sentence(problem) : result
 }
 
 /** Record price: appends a `manual` observation; nothing is ever overwritten. */
@@ -208,9 +225,11 @@ export async function recordCataloguePrice(
   const input = parsed.data
 
   const range = readPriceRange(input)
-  if (typeof range === 'string') return { ok: false, status: 400, error: `price: ${range}` }
+  if (typeof range === 'string') return { ok: false, status: 400, error: range }
   const sourceUrl = input.source_url ? parseSourceUrl(input.source_url) : null
-  if (sourceUrl && !sourceUrl.ok) return { ok: false, status: 400, error: sourceUrl.error }
+  if (sourceUrl && !sourceUrl.ok) {
+    return { ok: false, status: 400, error: sentence(sourceUrl.error) }
+  }
 
   const observation = {
     item_id: input.item_id,
@@ -267,5 +286,6 @@ export async function recordCataloguePrice(
   if (!priceId) return NOT_FOUND
 
   revalidatePath('/catalogue')
+  revalidatePath(`/catalogue/${input.item_id}`)
   return { ok: true, data: { id: priceId } }
 }

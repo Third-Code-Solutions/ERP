@@ -33,9 +33,7 @@ export function RecordPriceForm({ itemId, today }: { itemId: string; today: stri
   })
 
   return (
-    // finance-setup-form adds only the line wrap here: ledger-filters comes
-    // later in globals.css and keeps its own box.
-    <form action={record} className="ledger-filters finance-setup-form">
+    <form action={record} className="finance-setup-form">
       <input type="hidden" name="item_id" value={itemId} />
       <div className="finance-field">
         <label htmlFor="price-price_php">Single price (₱)</label>
@@ -64,7 +62,7 @@ export function RecordPriceForm({ itemId, today }: { itemId: string; today: stri
         />
       </div>
       <div className="finance-field">
-        <label htmlFor="price-checked">Checked on</label>
+        <label htmlFor="price-checked">Checked date</label>
         <input
           id="price-checked"
           name="checked_on"
@@ -95,7 +93,7 @@ export function RecordPriceForm({ itemId, today }: { itemId: string; today: stri
         />
       </div>
       <div className="finance-field finance-field-grow">
-        <label htmlFor="price-source-url">Source link</label>
+        <label htmlFor="price-source-url">Source URL</label>
         <input
           id="price-source-url"
           name="source_url"
@@ -106,11 +104,11 @@ export function RecordPriceForm({ itemId, today }: { itemId: string; today: stri
           aria-describedby="price-hint"
         />
       </div>
-      <button type="submit" className="finance-primary-link" disabled={pending}>
+      <button type="submit" className="finance-primary-button" disabled={pending}>
         {pending ? 'Recording…' : 'Record price'}
       </button>
       <p id="price-hint" className="finance-form-hint">
-        Give a single price, or low, average and high. Name the source or give its link.
+        Give a single price, or low, average and high. Give a source name or a source URL.
       </p>
       {state && 'error' in state ? (
         <p role="alert" className="finance-form-error">

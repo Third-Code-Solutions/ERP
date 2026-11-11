@@ -194,7 +194,7 @@ describe('editCatalogueItem', () => {
         specification: { before: null, after: 'Type 1P\nbagged' },
       },
     })
-    expect(mocks.revalidatePath).toHaveBeenCalledWith('/catalogue')
+    expect(mocks.revalidatePath.mock.calls).toEqual([['/catalogue'], [`/catalogue/${ITEM}`]])
   })
 
   it('keeps text that merely looks like a formula and can deactivate an item', async () => {
@@ -209,18 +209,19 @@ describe('editCatalogueItem', () => {
     })
   })
 
+  // The form shows the error as it is, so each is a sentence, not a field path.
   it.each([
-    [{ id: 'not-a-uuid' }, /id/],
-    [{ name: ' \t ' }, /name/],
-    [{ name: 'x'.repeat(301) }, /name/],
-    [{ unit: 'x'.repeat(21) }, /unit/],
-    [{ trade: 'carpentry' }, /trade/],
-    [{ specification: 'x'.repeat(2_001) }, /specification/],
-  ])('rejects %j before opening a transaction', async (override, field) => {
+    [{ id: 'not-a-uuid' }, 'This item could not be identified. Reload the page and try again.'],
+    [{ name: ' \t ' }, 'Enter a name.'],
+    [{ name: 'x'.repeat(301) }, 'The name must be 300 characters or fewer.'],
+    [{ unit: '' }, 'Enter a unit.'],
+    [{ unit: 'x'.repeat(21) }, 'The unit must be 20 characters or fewer.'],
+    [{ trade: 'carpentry' }, 'Choose a trade from the list.'],
+    [{ specification: 'x'.repeat(2_001) }, 'The specification must be 2000 characters or fewer.'],
+  ])('rejects %j before opening a transaction', async (override, message) => {
     const result = await editCatalogueItem(form({ ...EDIT, ...override }))
 
-    expect(result).toMatchObject({ ok: false, status: 400 })
-    expect(result.ok ? '' : result.error).toMatch(field)
+    expect(result).toEqual({ ok: false, status: 400, error: message })
     expect(mocks.db.transaction).not.toHaveBeenCalled()
   })
 })
@@ -265,7 +266,7 @@ describe('recordCataloguePrice', () => {
       price_avg_centavos: { after: 26_501 },
       source_kind: { after: 'manual' },
     })
-    expect(mocks.revalidatePath).toHaveBeenCalledWith('/catalogue')
+    expect(mocks.revalidatePath.mock.calls).toEqual([['/catalogue'], [`/catalogue/${ITEM}`]])
   })
 
   it('accepts low, average and high, cleans text and stores the parsed URL', async () => {
@@ -296,26 +297,37 @@ describe('recordCataloguePrice', () => {
     })
   })
 
+  // The form shows the error as it is, so each is a sentence, not a field path.
   it.each([
-    [{ checked_on: '2999-01-01' }, /after today/],
-    [{ checked_on: '05/11/2026' }, /real date/],
-    [{ price_php: '' }, /single price, or all of low/],
-    [{ price_low_php: '200' }, /not both/],
-    [{ price_php: 'two hundred' }, /not a valid peso amount/],
-    [{ price_php: '-5' }, /not a valid peso amount/],
-    [{ price_php: '', price_low_php: '300', price_avg_php: '250', price_high_php: '400' }, /low price/],
-    [{ price_php: '', price_low_php: '100', price_avg_php: '500', price_high_php: '400' }, /average price/],
-    [{ source_name: '', source_url: '' }, /source name or a source URL/],
-    [{ source_url: 'javascript:alert(1)' }, /http/],
-    [{ source_url: 'https://user:pw@example.com/' }, /username or password/],
-    [{ source_url: 'https://example.com/a b' }, /whitespace/],
-    [{ item_id: 'CN-0001' }, /item_id/],
-    [{ region: 'x'.repeat(41) }, /region/],
-  ])('rejects %j before opening a transaction', async (override, reason) => {
+    [{ checked_on: '2999-01-01' }, `Checked date 2999-01-01 is after today (${manilaToday()}, Manila).`],
+    [{ checked_on: '05/11/2026' }, 'Checked date must be a real date in YYYY-MM-DD form.'],
+    [{ price_php: '' }, 'Give a single price, or all of low, average and high.'],
+    [{ price_low_php: '200' }, 'Give either a single price or low, average and high, not both.'],
+    [{ price_php: 'two hundred' }, '"two hundred" is not a valid peso amount.'],
+    [{ price_php: '-5' }, '"-5" is not a valid peso amount.'],
+    [
+      { price_php: '', price_low_php: '300', price_avg_php: '250', price_high_php: '400' },
+      'Low price must not be above the average price.',
+    ],
+    [
+      { price_php: '', price_low_php: '100', price_avg_php: '500', price_high_php: '400' },
+      'Average price must not be above the high price.',
+    ],
+    [{ source_name: '', source_url: '' }, 'Give a source name or a source URL.'],
+    [{ source_url: 'javascript:alert(1)' }, 'Source URL must start with http:// or https://.'],
+    [
+      { source_url: 'https://user:pw@example.com/' },
+      'Source URL must not contain a username or password.',
+    ],
+    [{ source_url: 'https://example.com/a b' }, 'Source URL must not contain whitespace.'],
+    [{ item_id: 'CN-0001' }, 'This item could not be identified. Reload the page and try again.'],
+    [{ region: 'x'.repeat(41) }, 'The region must be 40 characters or fewer.'],
+    [{ price_basis: 'x'.repeat(61) }, 'The price basis must be 60 characters or fewer.'],
+    [{ source_name: 'x'.repeat(201) }, 'The source name must be 200 characters or fewer.'],
+  ])('rejects %j before opening a transaction', async (override, message) => {
     const result = await recordCataloguePrice(form({ ...PRICE_FORM, ...override }))
 
-    expect(result).toMatchObject({ ok: false, status: 400 })
-    expect(result.ok ? '' : result.error).toMatch(reason)
+    expect(result).toEqual({ ok: false, status: 400, error: message })
     expect(mocks.db.transaction).not.toHaveBeenCalled()
   })
 })
