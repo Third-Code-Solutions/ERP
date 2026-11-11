@@ -1,4 +1,6 @@
 export const requiredDirectClientDenyTables = [
+  // 20261106102000: full row images, read only by the server behind audit.read.
+  'audit_log',
   'financial_sequences',
   'notification_outbox',
   'notification_deliveries',

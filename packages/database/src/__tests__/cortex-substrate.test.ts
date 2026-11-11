@@ -862,9 +862,24 @@ suite('Cortex coverage (Batches 0-1)', () => {
       await tx.unsafe('set local role service_role')
       const server = await first(tx, `select count(*)::int as n from audit_log where tenant_id = '${t}'`)
       await tx.unsafe('reset role')
-      return { authenticated, anon, serverRows: (server.n as number) > 0 }
+      const policies = ((await tx.unsafe(
+        `select policyname from pg_policies where schemaname = 'public' and tablename = 'audit_log'`
+      )) as Rows).map((row: Rows) => row.policyname as string)
+      // A later re-grant of SELECT still shows a tenant user nothing.
+      await tx.unsafe('grant select on audit_log to authenticated')
+      const regranted = await tx.savepoint(async (sp) => {
+        await becomeAuthenticated(sp, userA)
+        return ((await sp.unsafe('select count(*)::int as n from audit_log')) as Rows)[0].n as number
+      })
+      return { authenticated, anon, serverRows: (server.n as number) > 0, policies, regranted }
     })
-    expect(r).toEqual({ authenticated: '42501', anon: '42501', serverRows: true })
+    expect(r).toEqual({
+      authenticated: '42501',
+      anon: '42501',
+      serverRows: true,
+      policies: ['deny_direct_client_access'],
+      regranted: 0,
+    })
   })
 
   it('read check: each read group admits exactly its roles; an unmapped type admits nobody', async () => {

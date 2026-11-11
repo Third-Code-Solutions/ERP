@@ -161,7 +161,9 @@ search via an HNSW index (`idx_cortex_nodes_embedding`, `vector_cosine_ops`).
   forced, `deny_direct_client_access`, no client grants; `service_role` may only
   read them, because rows change only by migration; the verifier fails on any
   write privilege).
-- `audit_log` is server-only: no SELECT for `authenticated` or `anon`.
+- `audit_log` is server-only: no SELECT for `authenticated` or `anon` (table or
+  column level; the verifier checks both), and its only policy is
+  `deny_direct_client_access`, so a re-grant still shows clients nothing.
 - `cortex_*` functions have `EXECUTE` revoked from `anon/authenticated/public`.
   New `cortex_*` functions MUST be revoked too (the `7b` `DO` block re-revokes
   all `cortex\_%` functions — re-run after adding any).

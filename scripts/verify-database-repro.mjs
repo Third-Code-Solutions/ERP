@@ -140,7 +140,6 @@ const requiredPolicies = [
   ['cortex_provenance', 'cortex_provenance_tenant_read'],
   ['cortex_conversations', 'cortex_conversations_owner_read'],
   ['cortex_messages', 'cortex_messages_parent_owner_read'],
-  ['audit_log', 'audit_log_tenant_read'],
   ['cost_entries', 'cost_entries_tenant_read'],
   ['cost_entries', 'cost_entries_tenant_insert'],
   ['cost_entries', 'cost_entries_tenant_update'],
@@ -1768,6 +1767,16 @@ try {
       )`,
     (rows) => rows.length === 0,
     (rows) => rows.map((row) => `${row.table_name}:${row.privilege}`).join(', ')
+  )
+
+  await query(
+    'client roles hold no SELECT on audit_log, at table or column level',
+    `select role
+       from unnest(array['anon', 'authenticated']) as role
+      where has_table_privilege(role, 'public.audit_log', 'SELECT')
+         or has_any_column_privilege(role, 'public.audit_log', 'SELECT')`,
+    (rows) => rows.length === 0,
+    (rows) => rows.map((row) => row.role).join(', ')
   )
 
   await query(
