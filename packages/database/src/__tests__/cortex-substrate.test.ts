@@ -29,6 +29,7 @@ import {
   CORTEX_HANDWRITTEN_MIRRORS,
   CORTEX_NEVER_MIRROR,
   CORTEX_PLANNED,
+  CORTEX_REGISTRY_COLUMNS,
 } from './_cortex-coverage-classes'
 import { cortexNodeTypeEnum } from '../schema/cortex'
 import {
@@ -557,7 +558,7 @@ const BATCH1_BACKFILL_TABLES = [
   'documents',
   ...CORTEX_BATCH1_REGISTRY,
 ]
-const FREE_TEXT_EXCLUDE = /(^|_)notes$|_by_name$/i
+const FREE_TEXT_EXCLUDE = /(^|_)notes$|_by_name$|description|location|remarks|_reason$|reference_number|assigned_to_text|submission_id/i
 const CHAIN_BREAKS = (tenant: string) => `
   with chain as (
     select prev_hash, lag(hash) over (order by id) as prior_hash,
@@ -606,9 +607,12 @@ suite('Cortex coverage (Batches 0-1)', () => {
     }
   }
 
-  it('S1: registry allowlists are frozen without contact, provider or free-text columns', async () => {
+  it('S1: registry allowlists match the committed column snapshot and every live column has a decision', async () => {
     const rows = (await sql.unsafe(
       `select r.ref_table, r.attr_cols,
+              (select array_agg(c.column_name::text order by c.column_name)
+                 from information_schema.columns c
+                where c.table_schema = 'public' and c.table_name = r.ref_table) as live,
               exists (select 1 from pg_trigger t
                        where t.tgrelid = ('public.' || quote_ident(r.ref_table))::regclass
                          and t.tgname = 'cortex_mirror_r' and not t.tgisinternal) as has_new,
@@ -619,11 +623,23 @@ suite('Cortex coverage (Batches 0-1)', () => {
     )) as Rows
     expect(rows.map((row: Rows) => row.ref_table).sort()).toEqual([...CORTEX_BATCH1_REGISTRY].sort())
     for (const row of rows) {
-      const leaked = (row.attr_cols as string[]).filter(
-        (col) => col === 'tenant_id' || CORTEX_ATTR_EXCLUDE.test(col) || FREE_TEXT_EXCLUDE.test(col)
-      )
-      expect({ table: row.ref_table, leaked, hasNew: row.has_new, hasGeneric: row.has_generic }).toEqual({
+      const decision = CORTEX_REGISTRY_COLUMNS[row.ref_table as keyof typeof CORTEX_REGISTRY_COLUMNS]
+      const decided = [...decision.copy, ...decision.omit]
+      expect({
         table: row.ref_table,
+        attrCols: row.attr_cols,
+        live: [...(row.live as string[])].sort(),
+        twice: decision.copy.filter((col) => decision.omit.includes(col)),
+        leaked: (row.attr_cols as string[]).filter(
+          (col) => col === 'tenant_id' || CORTEX_ATTR_EXCLUDE.test(col) || FREE_TEXT_EXCLUDE.test(col)
+        ),
+        hasNew: row.has_new,
+        hasGeneric: row.has_generic,
+      }).toEqual({
+        table: row.ref_table,
+        attrCols: [...decision.copy],
+        live: [...decided].sort(),
+        twice: [],
         leaked: [],
         hasNew: true,
         hasGeneric: false,
@@ -697,6 +713,7 @@ suite('Cortex coverage (Batches 0-1)', () => {
       // One row per table with a marker in every column, straight through the engine.
       const applied = (await tx.unsafe(
         `select r.ref_table, r.node_type::text as node_type, r.attr_cols, x.excluded,
+                r.title_tpl || ' ' || r.summary_tpl as templates,
                 public.cortex_apply_row(r.ref_table, x.row, 'INSERT') as node_id
            from cortex_mirror_registry r
            cross join lateral (
@@ -726,7 +743,10 @@ suite('Cortex coverage (Batches 0-1)', () => {
         table: row.ref_table,
         nodeType: n?.node_type,
         extraKeys: Object.keys(n?.attributes ?? {}).filter((key) => !row.attr_cols.includes(key)),
-        leaked: (row.excluded as string[]).filter((col) => text.includes(`LEAK<${col}>`)),
+        // A template may name its record by an omitted column (title only).
+        leaked: (row.excluded as string[]).filter(
+          (col) => !(row.templates as string).includes(`{${col}}`) && text.includes(`LEAK<${col}>`)
+        ),
       }).toEqual({ table: row.ref_table, nodeType: row.node_type, extraKeys: [], leaked: [] })
       expect(row.excluded).toContain('tenant_id')
     }

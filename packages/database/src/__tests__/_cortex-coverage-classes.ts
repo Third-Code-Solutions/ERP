@@ -266,6 +266,171 @@ export const CORTEX_NEVER_MIRROR: Record<string, string> = {
   ...reason('audit chain (already hash-chained)', ['audit_log']),
 }
 
+/**
+ * Registry column decisions for the Batch 1 tables, a snapshot of
+ * 20261106101000 step 9. `copy` must equal the migration's attr_cols (same
+ * order); `omit` names every other live column. A column added to one of these
+ * tables fails the snapshot test until it is placed in one list here and, if
+ * copied, in a migration. Title and summary templates may read an omitted
+ * column (the record's own name), always redacted.
+ */
+export const CORTEX_REGISTRY_COLUMNS: Record<
+  (typeof CORTEX_BATCH1_REGISTRY)[number],
+  { copy: readonly string[]; omit: readonly string[] }
+> = {
+  vendors: {
+    copy: ['created_at'],
+    omit: ['id', 'tenant_id', 'name', 'contact_name', 'email', 'phone', 'address', 'bir_tin', 'notes', 'updated_at'],
+  },
+  cost_codes: {
+    copy: ['parent_id', 'code', 'category', 'is_active', 'created_at'],
+    omit: ['id', 'tenant_id', 'name', 'created_by', 'updated_at'],
+  },
+  material_items: {
+    copy: ['code', 'category', 'unit', 'base_uom_id', 'inventory_tracked', 'wastage_bps', 'is_active', 'created_at'],
+    omit: ['id', 'tenant_id', 'description', 'created_by', 'updated_at'],
+  },
+  contacts: {
+    copy: ['account_id', 'role_title', 'is_primary', 'created_at'],
+    omit: ['id', 'tenant_id', 'full_name', 'email', 'phone', 'updated_at'],
+  },
+  scope_items: {
+    copy: ['project_id', 'code', 'unit', 'quantity', 'unit_cost_cents', 'line_total_cents', 'sort_order', 'created_at'],
+    omit: ['id', 'tenant_id', 'created_by', 'description', 'notes', 'updated_at'],
+  },
+  permits: {
+    copy: [
+      'project_id', 'permit_type', 'status', 'submitted_at', 'expected_approval_at', 'expected_return_at',
+      'approved_at', 'actual_return_at', 'refunded_at', 'lgu_name', 'duration_profile_id', 'min_duration_days',
+      'expected_duration_days', 'max_duration_days', 'escalation_at', 'escalated_at', 'last_status_change_at',
+      'created_at',
+    ],
+    omit: [
+      'id', 'tenant_id', 'responsible_user_id', 'escalation_reason', 'created_by', 'updated_by', 'notes',
+      'updated_at',
+    ],
+  },
+  variation_orders: {
+    copy: [
+      'project_id', 'vo_number', 'change_type', 'cost_impact_cents', 'time_impact_days', 'status', 'signed_at',
+      'created_at',
+    ],
+    omit: ['id', 'tenant_id', 'description', 'docuseal_submission_id', 'signed_document_id', 'created_by'],
+  },
+  progress_claims: {
+    copy: [
+      'project_id', 'claim_number', 'milestone_pct', 'amount_cents', 'status', 'submitted_at', 'certified_at',
+      'handed_over_to_finance_at', 'invoice_id', 'paid_at', 'rejected_at', 'created_at',
+    ],
+    omit: [
+      'id', 'tenant_id', 'description', 'submitted_by', 'certified_by', 'certificate_document_id',
+      'handed_over_to_finance_by', 'rejected_reason', 'updated_at', 'created_by',
+    ],
+  },
+  warranty_tickets: {
+    copy: [
+      'project_id', 'account_id', 'ticket_number', 'category', 'status', 'acknowledged_at', 'scheduled_at',
+      'closed_at', 'sla_breached_ack', 'sla_breached_schedule', 'created_at',
+    ],
+    omit: [
+      'id', 'tenant_id', 'description', 'location', 'submitted_by_name', 'submitted_by_email',
+      'service_report_document_id', 'updated_at',
+    ],
+  },
+  delivery_schedules: {
+    copy: [
+      'purchase_order_id', 'status', 'scheduled_date', 'site_prepared_at', 'received_at', 'rejected_at',
+      'cancelled_at', 'accepted_at', 'created_at',
+    ],
+    omit: [
+      'id', 'tenant_id', 'site_address', 'site_contact_name', 'site_contact_phone', 'site_preparation_notes',
+      'site_prepared_by', 'received_by', 'received_notes', 'rejected_reason', 'cancelled_by', 'cancellation_reason',
+      'accepted_by', 'updated_at', 'created_by',
+    ],
+  },
+  rfqs: {
+    copy: ['bom_id', 'status', 'created_at'],
+    omit: ['id', 'tenant_id', 'line_items', 'updated_at'],
+  },
+  contracts: {
+    copy: ['project_id', 'bom_id', 'status', 'signed_at', 'created_at'],
+    omit: ['id', 'tenant_id', 'docuseal_submission_id', 'docuseal_slug', 'signed_document_id', 'updated_at'],
+  },
+  certificates_of_completion: {
+    copy: ['project_id', 'status', 'signed_at', 'warranty_period_starts_at', 'warranty_period_ends_at', 'created_at'],
+    omit: ['id', 'tenant_id', 'docuseal_submission_id', 'signed_document_id'],
+  },
+  punchlist_items: {
+    copy: [
+      'project_id', 'trade', 'priority', 'status', 'due_date', 'pe_signed_off_at', 'closed_at', 'created_at',
+      'source_handoff_id',
+    ],
+    omit: [
+      'id', 'tenant_id', 'description', 'location', 'assigned_to_user_id', 'assigned_to_text', 'pe_signed_off_by',
+      'created_by',
+    ],
+  },
+  site_inspections: {
+    copy: ['opportunity_id', 'status', 'submitted_at', 'created_at'],
+    omit: ['id', 'tenant_id', 'client_submission_id', 'payload', 'pdf_document_id', 'submitted_by', 'updated_at'],
+  },
+  design_files: {
+    copy: [
+      'opportunity_id', 'file_type', 'is_ready_for_presentation', 'is_client_approved', 'client_approved_at',
+      'created_at',
+    ],
+    omit: ['id', 'tenant_id', 'name', 'updated_at'],
+  },
+  change_requests: {
+    copy: ['opportunity_id', 'priority', 'affected_design_file_id', 'resolved_at', 'created_at'],
+    omit: ['id', 'tenant_id', 'requested_by_name', 'description', 'resolved_by'],
+  },
+  master_schedules: {
+    copy: ['project_id', 'imported_at'],
+    omit: ['id', 'tenant_id', 'name', 'tasks', 'imported_by'],
+  },
+  weekly_reports: {
+    copy: ['project_id', 'week_ending', 'generated_at', 'created_at'],
+    omit: ['id', 'tenant_id', 'snapshot', 'report_document_id', 'generated_by'],
+  },
+  pre_con_checklist_items: {
+    copy: [
+      'checklist_id', 'owner_role', 'sla_days', 'status', 'depends_on_item_id', 'completed_at',
+      'sla_clock_started_at', 'sla_breached_at', 'sort_order', 'created_at',
+    ],
+    omit: ['id', 'tenant_id', 'title', 'blocker_reason', 'completed_by', 'attachment_document_id', 'updated_at'],
+  },
+  cost_entries: {
+    copy: [
+      'project_id', 'bom_line_item_id', 'po_line_item_id', 'cost_code_id', 'voided_at', 'cost_category',
+      'cost_source', 'amount_cents', 'quantity', 'unit', 'incurred_at', 'created_at',
+    ],
+    omit: [
+      'id', 'tenant_id', 'created_by', 'voided_by', 'void_reason', 'description', 'reference_number', 'notes',
+      'updated_at',
+    ],
+  },
+  project_budgets: {
+    copy: [
+      'project_id', 'source_bom_id', 'supersedes_budget_id', 'revision', 'status', 'control_mode',
+      'commitment_tolerance_bps', 'currency', 'effective_from', 'total_budget_cents', 'original_gp_margin_bps',
+      'submitted_at', 'commercial_approved_at', 'finance_approved_at', 'rejected_at', 'created_at',
+    ],
+    omit: [
+      'id', 'tenant_id', 'revision_reason', 'submitted_by', 'commercial_approved_by', 'finance_approved_by',
+      'rejected_by', 'rejection_reason', 'created_by', 'updated_at',
+    ],
+  },
+  stock_movements: {
+    copy: [
+      'movement_type', 'status', 'internal_number', 'source_warehouse_id', 'target_warehouse_id', 'project_id',
+      'movement_date', 'currency', 'posting_journal_entry_id', 'reversal_journal_entry_id', 'posted_at',
+      'reversed_at', 'created_at',
+    ],
+    omit: ['id', 'tenant_id', 'reason', 'posted_by', 'reversed_by', 'reversal_reason', 'created_by', 'updated_at'],
+  },
+}
+
 /** Spec §3.2 global exclusion regex (case-insensitive). */
 export const CORTEX_ATTR_EXCLUDE =
   /token|_hash$|password|secret|email|phone|address|contact_name|_ip$|user_agent|signer_|responder_|submitted_by_name|sender_name|bir_tin|(^|_)tin$|docuseal_|idempotency_key|request_hash|storage_path|sha256/i

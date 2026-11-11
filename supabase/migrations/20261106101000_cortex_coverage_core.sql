@@ -7,14 +7,14 @@
 -- * S2: auth_can_read_cortex_node_type is deny-by-default by read group.
 -- * S3: account/user/opportunity/document mirrors drop emails; KYC-linked
 --   documents never use the file name as title.
--- * S1: the 23 generic-mirror tables move to frozen allowlists; their old
---   cortex_mirror_generic triggers are replaced by cortex_mirror_r.
+-- * S1: the 23 generic-mirror tables move to literal per-table allowlists;
+--   their old cortex_mirror_generic triggers are replaced by cortex_mirror_r.
 --
--- Lock profile: DROP TRIGGER takes ACCESS EXCLUSIVE on each of the 23 tables
--- (CREATE TRIGGER takes SHARE ROW EXCLUSIVE on them and on
--- account_kyc_artifacts); all are held until COMMIT. lock_timeout fails fast;
--- retry off-peak. Existing nodes keep their old attributes until
--- `node scripts/cortex-backfill.mjs --batch 1 --mode all` runs.
+-- Lock profile: functions and registry rows are written first. The trigger
+-- swap (step 9b) runs last: DROP TRIGGER takes ACCESS EXCLUSIVE on each of the
+-- 23 tables and on account_kyc_artifacts, held until COMMIT. lock_timeout
+-- fails fast; retry off-peak. Existing nodes keep their old attributes until
+-- the backfill (--mode all) and the scrub run (docs/runbooks/cortex-substrate.md).
 -- Rollback: packages/database/src/sql/cortex-coverage-rollback.sql.
 begin;
 set local lock_timeout = '5s';
@@ -631,12 +631,6 @@ begin
   return null;
 end $$;
 
-drop trigger if exists cortex_kyc_redact on public.account_kyc_artifacts;
-create trigger cortex_kyc_redact
-after insert or update of document_id on public.account_kyc_artifacts
-for each row when (new.document_id is not null)
-execute function public.cortex_kyc_redact();
-
 -- ---------------------------------------------------------------------------
 -- 7. Backfill: keyset-chunked and idempotent. Call until processed = 0,
 --    passing back last_id. Run by scripts/cortex-backfill.mjs.
@@ -733,43 +727,84 @@ grant execute on function public.auth_can_read_cortex_node_type(public.cortex_no
   to authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
--- 9. S1: registry rows (frozen allowlists, spec §3.2) for the 23 generic-mirror
---    tables, then swap each old cortex_mirror_generic trigger for cortex_mirror_r.
+-- 9. S1: registry rows for the 23 generic-mirror tables (spec §3.2). Each
+--    attr_cols list is literal: a column is copied only when it is named here.
+--    Left out: personal names, contact details, ids of people or submissions,
+--    free text (description, location, notes, remarks, *_reason) and
+--    reference numbers. Titles use the record's own name or code column,
+--    redacted. Every named column must exist, or the migration fails.
+--    Registry rows are written first; the trigger swap runs last (step 9b).
 -- ---------------------------------------------------------------------------
+create temporary table cortex_coverage_batch1 on commit drop as
+select * from (values
+  ('vendors', 'vendor', 'cortex_mirror_g', '{name}', '',
+    array['created_at'], 10),
+  ('cost_codes', 'cost_code', 'cortex_mirror_budget_cost_code', '{name}', 'Category: {category}',
+    array['parent_id', 'code', 'category', 'is_active', 'created_at'], 10),
+  ('material_items', 'material', 'cortex_mirror_g', '{description}', 'Category: {category}',
+    array['code', 'category', 'unit', 'base_uom_id', 'inventory_tracked', 'wastage_bps', 'is_active', 'created_at'], 10),
+  ('contacts', 'contact', 'cortex_mirror_g', '{full_name}', 'Role Title: {role_title}',
+    array['account_id', 'role_title', 'is_primary', 'created_at'], 20),
+  ('scope_items', 'scope_item', 'cortex_mirror_g', '{description}', '',
+    array['project_id', 'code', 'unit', 'quantity', 'unit_cost_cents', 'line_total_cents', 'sort_order', 'created_at'], 20),
+  ('permits', 'permit', 'cortex_mirror_g', '{permit_type}', 'Status: {status}',
+    array['project_id', 'permit_type', 'status', 'submitted_at', 'expected_approval_at', 'expected_return_at',
+          'approved_at', 'actual_return_at', 'refunded_at', 'lgu_name', 'duration_profile_id', 'min_duration_days',
+          'expected_duration_days', 'max_duration_days', 'escalation_at', 'escalated_at', 'last_status_change_at',
+          'created_at'], 20),
+  ('variation_orders', 'change_order', 'cortex_mirror_g', '{vo_number}', 'Status: {status}',
+    array['project_id', 'vo_number', 'change_type', 'cost_impact_cents', 'time_impact_days', 'status', 'signed_at',
+          'created_at'], 20),
+  ('progress_claims', 'claim', 'cortex_mirror_g', '{claim_number}', 'Status: {status}',
+    array['project_id', 'claim_number', 'milestone_pct', 'amount_cents', 'status', 'submitted_at', 'certified_at',
+          'handed_over_to_finance_at', 'invoice_id', 'paid_at', 'rejected_at', 'created_at'], 20),
+  ('warranty_tickets', 'ticket', 'cortex_mirror_g', '{ticket_number}', 'Status: {status}',
+    array['project_id', 'account_id', 'ticket_number', 'category', 'status', 'acknowledged_at', 'scheduled_at',
+          'closed_at', 'sla_breached_ack', 'sla_breached_schedule', 'created_at'], 20),
+  ('delivery_schedules', 'delivery', 'cortex_mirror_g', '', 'Status: {status}',
+    array['purchase_order_id', 'status', 'scheduled_date', 'site_prepared_at', 'received_at', 'rejected_at',
+          'cancelled_at', 'accepted_at', 'created_at'], 20),
+  ('rfqs', 'rfq', 'cortex_mirror_g', '', 'Status: {status}',
+    array['bom_id', 'status', 'created_at'], 20),
+  ('contracts', 'contract', 'cortex_mirror_g', '', 'Status: {status}',
+    array['project_id', 'bom_id', 'status', 'signed_at', 'created_at'], 20),
+  ('certificates_of_completion', 'certificate', 'cortex_mirror_g', '', 'Status: {status}',
+    array['project_id', 'status', 'signed_at', 'warranty_period_starts_at', 'warranty_period_ends_at', 'created_at'], 20),
+  ('punchlist_items', 'punchlist', 'cortex_mirror_g', '{description}', 'Status: {status}',
+    array['project_id', 'trade', 'priority', 'status', 'due_date', 'pe_signed_off_at', 'closed_at', 'created_at',
+          'source_handoff_id'], 20),
+  ('site_inspections', 'inspection', 'cortex_mirror_g', '', 'Status: {status}',
+    array['opportunity_id', 'status', 'submitted_at', 'created_at'], 20),
+  ('design_files', 'design', 'cortex_mirror_g', '{name}', 'File Type: {file_type}',
+    array['opportunity_id', 'file_type', 'is_ready_for_presentation', 'is_client_approved', 'client_approved_at',
+          'created_at'], 20),
+  ('change_requests', 'change_request', 'cortex_mirror_g', '{description}', 'Priority: {priority}',
+    array['opportunity_id', 'priority', 'affected_design_file_id', 'resolved_at', 'created_at'], 20),
+  ('master_schedules', 'schedule_event', 'cortex_mirror_g', '{name}', '',
+    array['project_id', 'imported_at'], 20),
+  ('weekly_reports', 'weekly_report', 'cortex_mirror_g', '', '',
+    array['project_id', 'week_ending', 'generated_at', 'created_at'], 20),
+  ('pre_con_checklist_items', 'task', 'cortex_mirror_g', '{title}', 'Status: {status}',
+    array['checklist_id', 'owner_role', 'sla_days', 'status', 'depends_on_item_id', 'completed_at',
+          'sla_clock_started_at', 'sla_breached_at', 'sort_order', 'created_at'], 20),
+  ('cost_entries', 'cost_line', 'cortex_mirror_g', '{description}', 'Cost Category: {cost_category}',
+    array['project_id', 'bom_line_item_id', 'po_line_item_id', 'cost_code_id', 'voided_at', 'cost_category',
+          'cost_source', 'amount_cents', 'quantity', 'unit', 'incurred_at', 'created_at'], 20),
+  ('project_budgets', 'project_budget', 'cortex_mirror_project_budget', 'Budget revision {revision}', 'Status: {status}',
+    array['project_id', 'source_bom_id', 'supersedes_budget_id', 'revision', 'status', 'control_mode',
+          'commitment_tolerance_bps', 'currency', 'effective_from', 'total_budget_cents', 'original_gp_margin_bps',
+          'submitted_at', 'commercial_approved_at', 'finance_approved_at', 'rejected_at', 'created_at'], 20),
+  ('stock_movements', 'stock_movement', 'cortex_mirror_stock_movement', '{internal_number}', 'Status: {status}',
+    array['movement_type', 'status', 'internal_number', 'source_warehouse_id', 'target_warehouse_id', 'project_id',
+          'movement_date', 'currency', 'posting_journal_entry_id', 'reversal_journal_entry_id', 'posted_at',
+          'reversed_at', 'created_at'], 20)
+) as t(tbl, node_type, old_trigger, title_tpl, summary_tpl, attr_cols, ord);
+
 do $$
 declare
-  r record; v_has text[]; v_cols text[]; v_edges jsonb; v_owner jsonb; v_trigger name;
-  c_exclude constant text :=
-    'token|_hash$|password|secret|email|phone|address|contact_name|_ip$|user_agent|signer_|responder_|submitted_by_name|sender_name|bir_tin|(^|_)tin$|docuseal_|idempotency_key|request_hash|storage_path|sha256';
+  r record; v_has text[]; v_edges jsonb; v_owner jsonb; v_missing text[];
 begin
-  for r in
-    select * from (values
-      -- table, node_type, old trigger, title col, summary col, backfill order
-      ('vendors', 'vendor', 'cortex_mirror_g', 'name', '', 10),
-      ('cost_codes', 'cost_code', 'cortex_mirror_budget_cost_code', 'name', 'category', 10),
-      ('material_items', 'material', 'cortex_mirror_g', 'description', 'category', 10),
-      ('contacts', 'contact', 'cortex_mirror_g', 'full_name', 'role_title', 20),
-      ('scope_items', 'scope_item', 'cortex_mirror_g', 'description', '', 20),
-      ('permits', 'permit', 'cortex_mirror_g', 'permit_type', 'status', 20),
-      ('variation_orders', 'change_order', 'cortex_mirror_g', 'vo_number', 'status', 20),
-      ('progress_claims', 'claim', 'cortex_mirror_g', 'claim_number', 'status', 20),
-      ('warranty_tickets', 'ticket', 'cortex_mirror_g', 'ticket_number', 'status', 20),
-      ('delivery_schedules', 'delivery', 'cortex_mirror_g', '', 'status', 20),
-      ('rfqs', 'rfq', 'cortex_mirror_g', '', 'status', 20),
-      ('contracts', 'contract', 'cortex_mirror_g', '', 'status', 20),
-      ('certificates_of_completion', 'certificate', 'cortex_mirror_g', '', 'status', 20),
-      ('punchlist_items', 'punchlist', 'cortex_mirror_g', 'description', 'status', 20),
-      ('site_inspections', 'inspection', 'cortex_mirror_g', '', 'status', 20),
-      ('design_files', 'design', 'cortex_mirror_g', 'name', 'file_type', 20),
-      ('change_requests', 'change_request', 'cortex_mirror_g', 'description', 'priority', 20),
-      ('master_schedules', 'schedule_event', 'cortex_mirror_g', 'name', '', 20),
-      ('weekly_reports', 'weekly_report', 'cortex_mirror_g', '', '', 20),
-      ('pre_con_checklist_items', 'task', 'cortex_mirror_g', 'title', 'status', 20),
-      ('cost_entries', 'cost_line', 'cortex_mirror_g', 'description', 'cost_category', 20),
-      ('project_budgets', 'project_budget', 'cortex_mirror_project_budget', 'revision_reason', 'status', 20),
-      ('stock_movements', 'stock_movement', 'cortex_mirror_stock_movement', 'reason', 'status', 20)
-    ) as t(tbl, node_type, old_trigger, title_col, summary_col, ord)
-  loop
+  for r in select * from pg_temp.cortex_coverage_batch1 loop
     if to_regclass(format('public.%I', r.tbl)) is null then
       raise exception 'cortex coverage: expected table public.%', r.tbl;
     end if;
@@ -777,17 +812,6 @@ begin
     select coalesce(array_agg(column_name::text), '{}') into v_has
       from information_schema.columns
      where table_schema = 'public' and table_name = r.tbl and data_type = 'uuid';
-
-    -- Frozen allowlist: §3.2 exclusions, plus (these 23 tables) free-text
-    -- notes columns and free-text person names (requested_by_name).
-    select coalesce(array_agg(c.column_name::text order by c.ordinal_position), '{}') into v_cols
-      from information_schema.columns c
-     where c.table_schema = 'public' and c.table_name = r.tbl
-       and c.column_name <> 'tenant_id'
-       and c.column_name !~* c_exclude
-       and c.column_name !~* '(^|_)notes$|_by_name$'
-       and c.data_type not in ('json', 'jsonb', 'ARRAY', 'bytea')
-       and c.udt_name <> 'vector';
 
     v_edges := '[]'::jsonb;
     if 'project_id' = any(v_has) then
@@ -824,19 +848,42 @@ begin
         'table', 'projects', 'type', 'part_of', 'dir', 'out');
     end if;
 
+    -- Every column the row names (attributes, templates, edges) must exist.
+    select coalesce(array_agg(distinct c), '{}') into v_missing
+      from (
+        select unnest(r.attr_cols) as c
+        union all
+        select (regexp_matches(r.title_tpl || ' ' || r.summary_tpl, '\{([a-z0-9_]+)\}', 'g'))[1]
+        union all
+        select jsonb_array_elements_text(e -> 'cols') from jsonb_array_elements(v_edges) e
+      ) named
+     where not exists (
+       select 1 from information_schema.columns ic
+        where ic.table_schema = 'public' and ic.table_name = r.tbl and ic.column_name = named.c);
+    if cardinality(v_missing) > 0 then
+      raise exception 'cortex coverage: public.% has no column(s) %', r.tbl, v_missing;
+    end if;
+
     insert into public.cortex_mirror_registry(
       ref_table, node_type, title_tpl, summary_tpl, attr_cols, edges, backfill_order)
     values (
-      r.tbl, r.node_type::public.cortex_node_type,
-      case when r.title_col = '' then '' else '{' || r.title_col || '}' end,
-      case when r.summary_col = '' then ''
-        else initcap(replace(r.summary_col, '_', ' ')) || ': {' || r.summary_col || '}' end,
-      v_cols, v_edges, r.ord)
+      r.tbl, r.node_type::public.cortex_node_type, r.title_tpl, r.summary_tpl, r.attr_cols, v_edges, r.ord)
     on conflict (ref_table) do update
       set node_type = excluded.node_type, title_tpl = excluded.title_tpl,
           summary_tpl = excluded.summary_tpl, attr_cols = excluded.attr_cols,
           edges = excluded.edges, backfill_order = excluded.backfill_order;
+  end loop;
+end
+$$;
 
+-- ---------------------------------------------------------------------------
+-- 9b. Trigger swap, last: each DROP TRIGGER takes ACCESS EXCLUSIVE on its
+--     table until COMMIT, so no catalog work runs after the first one.
+-- ---------------------------------------------------------------------------
+do $$
+declare r record; v_trigger name;
+begin
+  for r in select tbl, old_trigger from pg_temp.cortex_coverage_batch1 order by tbl loop
     execute format('drop trigger if exists %I on public.%I', r.old_trigger, r.tbl);
     -- Also under any other name: a leftover generic trigger would keep leaking.
     for v_trigger in
@@ -853,6 +900,12 @@ begin
   end loop;
 end
 $$;
+
+drop trigger if exists cortex_kyc_redact on public.account_kyc_artifacts;
+create trigger cortex_kyc_redact
+after insert or update of document_id on public.account_kyc_artifacts
+for each row when (new.document_id is not null)
+execute function public.cortex_kyc_redact();
 
 -- ---------------------------------------------------------------------------
 -- 10. Re-lock the RPC surface for every cortex_* function (20260726192929).
