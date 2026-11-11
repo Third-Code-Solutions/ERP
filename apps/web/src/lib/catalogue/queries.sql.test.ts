@@ -6,15 +6,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  */
 const fake = vi.hoisted(() => {
   const statements: Array<{ sql: string; params: unknown[] }> = []
+  /** Raw rows (arrays of column values) for the next statements, in order. */
+  const replies: unknown[][][] = []
   const client = {
     options: { parsers: {}, serializers: {} },
     unsafe(sql: string, params: unknown[] = []) {
       statements.push({ sql, params })
+      const reply = replies.shift() ?? []
       const rows = Promise.resolve([])
-      return Object.assign(rows, { values: () => Promise.resolve([]) })
+      return Object.assign(rows, { values: () => Promise.resolve(reply) })
     },
   }
-  return { statements, client }
+  return { statements, replies, client }
 })
 
 vi.mock('@third-code-erp/database', async () => {
@@ -30,6 +33,7 @@ const ACTOR = { tenantId: TENANT, role: 'estimator' } as const
 
 beforeEach(() => {
   fake.statements.length = 0
+  fake.replies.length = 0
   vi.stubEnv('ERP_CATALOGUE_ENABLED', 'true')
 })
 
@@ -122,5 +126,26 @@ describe('catalogue read SQL', () => {
       /from "catalogue_items" where \("catalogue_items"\."id" = \$1 and "catalogue_items"\."tenant_id" = \$2\) limit \$3$/,
     )
     expect(fake.statements[0]?.params).toEqual([ITEM, TENANT, 1])
+  })
+
+  it('reads the current entry per region from every observation, apart from the capped history', async () => {
+    fake.replies.push([[ITEM, TENANT, 'CN-0001']])
+
+    const result = await getCatalogueItemDetail(ACTOR, ITEM)
+
+    expect(result.ok).toBe(true)
+    expect(fake.statements).toHaveLength(3)
+    // After the item: the history and the current entries, read side by side.
+    const prices = fake.statements.slice(1)
+    const history = prices.find((statement) => !statement.sql.includes('distinct on'))
+    const current = prices.find((statement) => statement.sql.includes('distinct on'))
+    expect(history?.sql).toMatch(/limit \$3$/)
+    expect(history?.params).toEqual([ITEM, TENANT, 501])
+    // One row per region in any letter case, priced before unpriced, then the
+    // newest; scoped to the item and the tenant, and never capped.
+    expect(current?.sql).toMatch(
+      /^select distinct on \(lower\(trim\("catalogue_prices"\."region"\)\)\) .* from "catalogue_prices" where \("catalogue_prices"\."item_id" = \$1 and "catalogue_prices"\."tenant_id" = \$2\) order by lower\(trim\("catalogue_prices"\."region"\)\), "catalogue_prices"\."price_avg_centavos" is null, "catalogue_prices"\."checked_on" desc, "catalogue_prices"\."created_at" desc$/,
+    )
+    expect(current?.params).toEqual([ITEM, TENANT])
   })
 })

@@ -25,7 +25,6 @@ import {
   CATALOGUE_PRICE_STATUSES,
   CATALOGUE_TRADE_SLUGS,
   cleanSingleLine,
-  currentPriceByRegion,
   splitCatalogueFlags,
   type CataloguePriceStatus,
   type CatalogueTrade,
@@ -307,7 +306,10 @@ export interface CatalogueItemDetail {
   history: CataloguePrice[]
   /** True when older observations exist beyond `history`. */
   historyCapped: boolean
-  /** The current observation in each region the item has one in. */
+  /**
+   * The current observation in each region the item has one in, from all of
+   * its observations: one may be older than the newest CATALOGUE_HISTORY_LIMIT.
+   */
   current: CataloguePrice[]
 }
 
@@ -329,25 +331,40 @@ export async function getCatalogueItemDetail(
     .limit(1)
   if (!item) return { ok: false, status: 404, error: 'Catalogue item not found' }
 
-  // shortcut: newest 500 observations only, add paging when an item outgrows it.
-  // One more is read so the page can say when older ones were left out.
-  const newest = await db
-    .select()
-    .from(cataloguePrices)
-    .where(
-      and(eq(cataloguePrices.item_id, itemId), eq(cataloguePrices.tenant_id, actor.tenantId)),
-    )
-    .orderBy(desc(cataloguePrices.checked_on), desc(cataloguePrices.created_at))
-    .limit(CATALOGUE_HISTORY_LIMIT + 1)
-  const history = newest.slice(0, CATALOGUE_HISTORY_LIMIT)
+  const itemPrices = and(
+    eq(cataloguePrices.item_id, itemId),
+    eq(cataloguePrices.tenant_id, actor.tenantId),
+  )
+  const [newest, current] = await Promise.all([
+    // shortcut: newest 500 observations only, add paging when an item outgrows it.
+    // One more is read so the page can say when older ones were left out.
+    db
+      .select()
+      .from(cataloguePrices)
+      .where(itemPrices)
+      .orderBy(desc(cataloguePrices.checked_on), desc(cataloguePrices.created_at))
+      .limit(CATALOGUE_HISTORY_LIMIT + 1),
+    // The current entry of each region, read from every observation rather
+    // than from the capped history: the same rule and order as the list.
+    db
+      .selectDistinctOn([regionKey])
+      .from(cataloguePrices)
+      .where(itemPrices)
+      .orderBy(
+        regionKey,
+        isNull(cataloguePrices.price_avg_centavos),
+        desc(cataloguePrices.checked_on),
+        desc(cataloguePrices.created_at),
+      ),
+  ])
 
   return {
     ok: true,
     data: {
       item,
-      history,
+      history: newest.slice(0, CATALOGUE_HISTORY_LIMIT),
       historyCapped: newest.length > CATALOGUE_HISTORY_LIMIT,
-      current: [...currentPriceByRegion(history).values()],
+      current,
     },
   }
 }

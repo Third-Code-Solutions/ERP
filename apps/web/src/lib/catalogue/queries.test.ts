@@ -1,5 +1,5 @@
 import { PgDialect } from 'drizzle-orm/pg-core'
-import type { SQL } from 'drizzle-orm'
+import { sql, type SQL, type SQLWrapper } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -54,6 +54,21 @@ function argsOf(calls: Call[], method: string): unknown[] {
 
 function render(where: unknown): { sql: string; params: unknown[] } {
   return new PgDialect().sqlToQuery(where as SQL)
+}
+
+/** Columns and SQL pieces (DISTINCT ON or ORDER BY terms) as one SQL list. */
+function renderList(terms: unknown[]): string {
+  return render(sql.join(terms as SQLWrapper[], sql`, `)).sql
+}
+
+/** The item, its newest prices and the current entry per region, in that order. */
+function queueDetail(history: unknown[], current: unknown[]) {
+  const item = chain([{ id: ITEM, tenant_id: TENANT, code: 'CN-0001' }])
+  const prices = chain(history)
+  const currentPrices = chain(current)
+  mocks.db.select.mockReturnValueOnce(item.builder).mockReturnValueOnce(prices.builder)
+  mocks.db.selectDistinctOn.mockReturnValueOnce(currentPrices.builder)
+  return { prices, currentPrices }
 }
 
 function queueList(rows: unknown[], total: number) {
@@ -252,6 +267,7 @@ describe('getCatalogueItemDetail', () => {
     expect(result).toEqual({ ok: false, status: 404, error: 'Catalogue item not found' })
     expect(render(argsOf(item.calls, 'where')[0]).params).toEqual([ITEM, OTHER_TENANT])
     expect(mocks.db.select).toHaveBeenCalledTimes(1)
+    expect(mocks.db.selectDistinctOn).not.toHaveBeenCalled()
   })
 
   it('treats a malformed id as not found without querying', async () => {
@@ -259,7 +275,7 @@ describe('getCatalogueItemDetail', () => {
     expect(mocks.db.select).not.toHaveBeenCalled()
   })
 
-  it('returns the history newest first with the current price per region', async () => {
+  it('returns the history newest first and the current entry per region from its own query', async () => {
     const observation = (id: string, region: string, checked_on: string) => ({
       id,
       region,
@@ -271,16 +287,25 @@ describe('getCatalogueItemDetail', () => {
       observation('cebu', 'Region VII', '2026-06-01'),
       observation('ncr-old', 'NCR', '2026-01-10'),
     ]
-    const item = chain([{ id: ITEM, tenant_id: TENANT, code: 'CN-0001' }])
-    const prices = chain(history)
-    mocks.db.select.mockReturnValueOnce(item.builder).mockReturnValueOnce(prices.builder)
+    const current = [history[0], history[1]]
+    const { prices, currentPrices } = queueDetail(history, current)
 
     const result = await getCatalogueItemDetail(ESTIMATOR, ITEM)
 
     expect(result.ok && result.data.history).toEqual(history)
     expect(result.ok && result.data.historyCapped).toBe(false)
-    expect(result.ok && result.data.current.map((price) => price.id)).toEqual(['ncr-new', 'cebu'])
+    expect(result.ok && result.data.current).toEqual(current)
     expect(render(argsOf(prices.calls, 'where')[0]).params).toEqual([ITEM, TENANT])
+    // One entry per region (any letter case) of this item in this tenant:
+    // priced before unpriced, then the newest, as the list orders it.
+    expect(renderList(mocks.db.selectDistinctOn.mock.calls[0]?.[0] as unknown[])).toBe(
+      'lower(trim("catalogue_prices"."region"))',
+    )
+    expect(render(argsOf(currentPrices.calls, 'where')[0]).params).toEqual([ITEM, TENANT])
+    expect(renderList(argsOf(currentPrices.calls, 'orderBy'))).toBe(
+      'lower(trim("catalogue_prices"."region")), "catalogue_prices"."price_avg_centavos" is null, ' +
+        '"catalogue_prices"."checked_on" desc, "catalogue_prices"."created_at" desc',
+    )
   })
 
   it('keeps the newest observations up to the cap and says when older ones were left out', async () => {
@@ -290,14 +315,22 @@ describe('getCatalogueItemDetail', () => {
       checked_on: '2026-11-05',
       created_at: new Date(Date.UTC(2026, 10, 5) - index),
     }))
-    const item = chain([{ id: ITEM, tenant_id: TENANT, code: 'CN-0001' }])
-    const prices = chain(stored)
-    mocks.db.select.mockReturnValueOnce(item.builder).mockReturnValueOnce(prices.builder)
+    // The only price is older than every entry the history keeps.
+    const oldestPrice = {
+      id: 'oldest-price',
+      region: 'NCR',
+      checked_on: '2020-01-02',
+      created_at: new Date(Date.UTC(2020, 0, 2)),
+    }
+    const { prices, currentPrices } = queueDetail(stored, [oldestPrice])
 
     const result = await getCatalogueItemDetail(ESTIMATOR, ITEM)
 
     expect(argsOf(prices.calls, 'limit')).toEqual([CATALOGUE_HISTORY_LIMIT + 1])
     expect(result.ok && result.data.history).toEqual(stored.slice(0, CATALOGUE_HISTORY_LIMIT))
     expect(result.ok && result.data.historyCapped).toBe(true)
+    // Current is read from every observation, so the cap cannot hide it.
+    expect(currentPrices.calls.map((call) => call.method)).not.toContain('limit')
+    expect(result.ok && result.data.current).toEqual([oldestPrice])
   })
 })

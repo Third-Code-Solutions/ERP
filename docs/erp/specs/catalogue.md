@@ -189,8 +189,11 @@ Added after the security review of PR #146 (2026-11-10).
   - source, as an external link with `rel="noopener noreferrer"`;
   - checked date;
   - flags, as labelled chips that do not rely on colour alone.
-- An item detail view shows the price history: every observation, newest first.
+- An item detail view shows the price history: every observation, newest first,
+  up to the newest 500 (the page says when older ones are left out).
   The entry that is current in its region carries a "Current" chip, in words.
+  Which entry is current is read from all of the item's observations, not only
+  the 500 shown, by the same `DISTINCT ON` rule as the list.
 - Gate: `catalogue.read`. The page returns not-found while `ERP_CATALOGUE_ENABLED`
   is not `true` (default off). Flags go on only after `smoke:prod` passes.
 
