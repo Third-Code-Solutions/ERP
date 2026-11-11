@@ -113,6 +113,7 @@ function lineRow(id: string, overrides: Row = {}): Row {
     quantity_decimal: '1.0000',
     unit_cost_cents: 100,
     line_total_cents: 100,
+    markup_bps: 0,
     unit_rate_source: 'manual',
     notes: null,
     is_group: 0,

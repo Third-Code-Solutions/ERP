@@ -26,6 +26,7 @@ export interface BoqExportLine {
   quantity: string
   unit_cost_cents: number
   line_total_cents: number
+  markup_bps: number
   unit_rate_source: string
   notes: string | null
   is_group: number
@@ -97,11 +98,16 @@ export const BOQ_EXPORT_HEADERS = [
   'Quantity',
   'Unit Rate (PHP)',
   'Amount (PHP)',
+  'Markup %',
+  'Line Total (PHP)',
   'Rate Source',
   'Notes',
 ] as const
 
-const COLUMN_WIDTHS = [10, 12, 48, 20, 18, 8, 14, 16, 18, 12, 32]
+// 1-based columns the totals sit under: cost under Amount, contract value under Line Total.
+const AMOUNT_COLUMN = BOQ_EXPORT_HEADERS.indexOf('Amount (PHP)') + 1
+const LINE_TOTAL_COLUMN = BOQ_EXPORT_HEADERS.indexOf('Line Total (PHP)') + 1
+const COLUMN_WIDTHS = [10, 12, 48, 20, 18, 8, 14, 16, 18, 10, 18, 12, 32]
 const QUANTITY_FORMAT = '#,##0.0000'
 const MONEY_FORMAT = '#,##0.00'
 const RATE_SOURCE_LABELS: Record<string, string> = {
@@ -202,7 +208,7 @@ function addBoqSheet(workbook: ExcelJS.Workbook, data: BoqExportData, exportedAt
     const amount = boqLineAmountCents(line)
     const isGroup = line.is_group !== 0
     // A section row shows numbers only when it carries cost the totals count.
-    const priced = !isGroup || amount !== 0
+    const priced = !isGroup || amount !== 0 || line.line_total_cents !== 0
     const row = writeRow(
       sheet,
       [
@@ -215,6 +221,8 @@ function addBoqSheet(workbook: ExcelJS.Workbook, data: BoqExportData, exportedAt
         priced ? { quantity: line.quantity } : null,
         priced ? { centavos: line.unit_cost_cents } : null,
         priced ? { centavos: amount } : null,
+        priced ? { fraction: bpsFraction(line.markup_bps) } : null,
+        priced ? { centavos: line.line_total_cents } : null,
         priced ? (RATE_SOURCE_LABELS[line.unit_rate_source] ?? line.unit_rate_source) : '',
         line.notes ?? '',
       ],
@@ -229,18 +237,24 @@ function addBoqSheet(workbook: ExcelJS.Workbook, data: BoqExportData, exportedAt
   // behind its lines is printed beside the computed one, not instead of it.
   // Labels start with "Total" so a re-import skips these rows.
   const computed = computeBomTotals(data.lines)
-  const stale = (label: string, stored: number, current: number): Array<[string, Cell]> =>
-    stored === current ? [] : [[`${label} stored on the BOM (out of date)`, { centavos: stored }]]
-  const totals: Array<[string, Cell]> = [
-    ['Total cost', { centavos: computed.total_cost_cents }],
-    ['Total contract value (TCV)', { centavos: computed.tcv_cents }],
-    ['Total gross profit (GP)', { centavos: computed.gp_cents }],
-    ['Total GP margin', { fraction: bpsFraction(computed.gp_margin_bps) }],
-    ...stale('Total cost', data.bom.total_cost_cents, computed.total_cost_cents),
-    ...stale('Total contract value (TCV)', data.bom.tcv_cents, computed.tcv_cents),
+  type Total = [label: string, column: number, value: Cell]
+  const stale = (label: string, column: number, stored: number, current: number): Total[] =>
+    stored === current ? [] : [[`${label} stored on the BOM (out of date)`, column, { centavos: stored }]]
+  // Each total sits under the column that adds up to it: the Amount column
+  // (cost, no markup) to Total cost, the Line Total column to TCV.
+  const totals: Total[] = [
+    ['Total cost', AMOUNT_COLUMN, { centavos: computed.total_cost_cents }],
+    ['Total contract value (TCV)', LINE_TOTAL_COLUMN, { centavos: computed.tcv_cents }],
+    ['Total gross profit (GP)', LINE_TOTAL_COLUMN, { centavos: computed.gp_cents }],
+    ['Total GP margin', LINE_TOTAL_COLUMN, { fraction: bpsFraction(computed.gp_margin_bps) }],
+    ...stale('Total cost', AMOUNT_COLUMN, data.bom.total_cost_cents, computed.total_cost_cents),
+    ...stale('Total contract value (TCV)', LINE_TOTAL_COLUMN, data.bom.tcv_cents, computed.tcv_cents),
   ]
-  for (const [label, value] of totals) {
-    writeRow(sheet, [null, null, label, null, null, null, null, null, value], true)
+  for (const [label, column, value] of totals) {
+    const cells: Cell[] = Array.from({ length: column }, () => null)
+    cells[2] = label
+    cells[column - 1] = value
+    writeRow(sheet, cells, true)
   }
 }
 

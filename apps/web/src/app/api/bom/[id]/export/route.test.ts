@@ -153,6 +153,7 @@ describe('BOQ Excel export route', () => {
       quantity: '0',
       unit_cost_cents: 0,
       line_total_cents: 0,
+      markup_bps: 0,
       unit_rate_source: 'manual',
       notes: null,
       is_group: 1,
@@ -172,16 +173,17 @@ describe('BOQ Excel export route', () => {
     await workbook.xlsx.load(await response.arrayBuffer())
     const sheet = workbook.getWorksheet('BOQ')!
     const rows: unknown[][] = []
-    sheet.eachRow((row) => rows.push([1, 3, 7, 8, 9].map((column) => row.getCell(column).value ?? null)))
+    sheet.eachRow((row) => rows.push([1, 3, 7, 8, 9, 11].map((column) => row.getCell(column).value ?? null)))
     const header = rows.findIndex((row) => row[0] === 'Item No')
 
     expect(rows.slice(header + 1)).toEqual([
-      ['A', 'General requirements', null, null, null],
-      ['B', 'Earthworks', null, null, null],
-      [null, 'Total cost', null, null, 0],
-      [null, 'Total contract value (TCV)', null, null, 0],
-      [null, 'Total gross profit (GP)', null, null, 0],
-      [null, 'Total GP margin', null, null, 0],
+      ['A', 'General requirements', null, null, null, null],
+      ['B', 'Earthworks', null, null, null, null],
+      // Cost under Amount (column 9); contract value, GP and margin under Line Total (11).
+      [null, 'Total cost', null, null, 0, null],
+      [null, 'Total contract value (TCV)', null, null, null, 0],
+      [null, 'Total gross profit (GP)', null, null, null, 0],
+      [null, 'Total GP margin', null, null, null, 0],
     ])
     expect(workbook.getWorksheet('DUPA')).toBeUndefined()
   })
@@ -203,6 +205,7 @@ describe('BOQ Excel export route', () => {
           quantity: 'not-a-number',
           unit_cost_cents: 100,
           line_total_cents: 100,
+          markup_bps: 0,
           unit_rate_source: 'manual',
           notes: null,
           is_group: 0,

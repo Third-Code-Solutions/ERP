@@ -90,15 +90,20 @@ type StoredLine = {
  * Selects answer by table. The BOM line read returns the lines this commit
  * inserted (plus `otherLines` already on the BOM), so the totals follow the
  * upserted rows rather than a fixture fed by call order.
- * `upserted` is what the line upsert returns beside its id.
+ * `upserted` is what the line upsert returns beside its id; `onBom` is what a
+ * preview reads: the BOM's line count and the row keys this import wrote before.
  */
-function harness(otherLines: StoredLine[] = [], upserted: Record<string, unknown> = {}) {
+function harness(
+  otherLines: StoredLine[] = [],
+  upserted: Record<string, unknown> = {},
+  onBom: { lines: number; importedKeys: string[] } = { lines: 0, importedKeys: [] }
+) {
   const inserted: Array<{ table: unknown; values: Record<string, unknown> }> = []
   const conflicts: Array<{ table: unknown; set: Record<string, unknown> }> = []
   const updates: Array<{ table: unknown; set: Record<string, unknown> }> = []
   const lineValues = () =>
     inserted.filter((entry) => entry.table === bomLineItems).map((entry) => entry.values)
-  const selectResult = (table: unknown) => {
+  const selectResult = (table: unknown, fields?: Record<string, unknown>) => {
     if (table === users) {
       return [{ tenantId: PRINCIPAL.tenantId, role: PRINCIPAL.role, email: PRINCIPAL.email }]
     }
@@ -111,6 +116,10 @@ function harness(otherLines: StoredLine[] = [], upserted: Record<string, unknown
           ...PREVIOUS_TOTALS,
         },
       ]
+    }
+    if (table === bomLineItems && fields && 'count' in fields) return [{ count: onBom.lines }]
+    if (table === bomLineItems && fields && 'sourceRowKey' in fields) {
+      return onBom.importedKeys.map((sourceRowKey) => ({ sourceRowKey }))
     }
     if (table === bomLineItems) {
       return [
@@ -126,10 +135,10 @@ function harness(otherLines: StoredLine[] = [], upserted: Record<string, unknown
     return [{ count: 0 }]
   }
   const transactionClient = {
-    select: vi.fn(() => {
+    select: vi.fn((fields?: Record<string, unknown>) => {
       let table: unknown
       return chain(
-        () => selectResult(table),
+        () => selectResult(table, fields),
         (method, args) => {
           if (method === 'from') table = args[0]
         }
@@ -175,6 +184,24 @@ function harness(otherLines: StoredLine[] = [], upserted: Record<string, unknown
   return { service, lineValues, bomTotals, lineConflictSet, auditDiff }
 }
 
+describe('TakeoffImportService preview', () => {
+  it('says how many rows update lines of the same import and how many are added to the BOM', async () => {
+    // The BOM holds 5 lines; an earlier import of this file wrote row-2 and row-9.
+    const { service, lineValues } = harness([], {}, { lines: 5, importedKeys: ['row-2', 'row-9'] })
+
+    const preview = await service.execute(
+      {
+        ...command([row(), row({ sourceRowKey: 'row-3' }), row({ sourceRowKey: 'row-4' })]),
+        mode: 'preview',
+      },
+      PRINCIPAL
+    )
+
+    expect(preview).toMatchObject({ mode: 'preview', rowCount: 3, existingLineCount: 5, matchedLineCount: 1 })
+    expect(lineValues()).toEqual([])
+  })
+})
+
 describe('TakeoffImportService client BOQ rates', () => {
   it('writes the rate as client_boq with the half-up line total and recalculates totals', async () => {
     const { service, lineValues, bomTotals, auditDiff } = harness()
@@ -211,6 +238,30 @@ describe('TakeoffImportService client BOQ rates', () => {
         bom_totals: expected,
       })
     )
+  })
+
+  it('keeps the notes and code from the file on a new line, without a planted vendor token', async () => {
+    const { service, lineValues } = harness()
+
+    await service.execute(
+      command([
+        row({
+          itemNo: '1.1',
+          code: 'EW-01',
+          notes: 'Hand excavation only [VENDOR:99999999-9999-4999-8999-999999999999:Planted Supplier]',
+        }),
+        row({ sourceRowKey: 'row-3', notes: '[vendor:99999999-9999-4999-8999-999999999999:x]' }),
+        row({ sourceRowKey: 'row-4' }),
+      ]),
+      PRINCIPAL
+    )
+
+    expect(lineValues()).toEqual([
+      expect.objectContaining({ item_no: '1.1', code: 'EW-01', notes: 'Hand excavation only' }),
+      // Nothing left of the note, and no Code column: the old defaults apply.
+      expect.objectContaining({ item_no: '1', code: '1', notes: 'Takeoff source: generic' }),
+      expect.objectContaining({ item_no: '1', code: '1', notes: 'Takeoff source: generic' }),
+    ])
   })
 
   it('keeps the unpriced manual line without a rate', async () => {

@@ -68,7 +68,7 @@ describe('generic takeoff import Core authority', () => {
       'Row,Description,Qty,UOM,Division,Location',
       // boq-export A.3: Web rounds a spreadsheet quantity half-up to 4 dp.
       'A-001,Suspended ceiling,12.34567,sqm,Finishes,Level 2',
-      'A-002,Unmapped item,1,box,,Level 2',
+      'A-002,Unmapped item,1,crate,,Level 2',
     ].join('\n')
     mocks.executeTakeoffImportThroughCoreApi.mockImplementation(
       async (command: {
@@ -110,7 +110,7 @@ describe('generic takeoff import Core authority', () => {
             {
               sourceRowKey: 'A-002',
               code: 'INVALID_UOM',
-              message: 'UOM "box" is not recognized.',
+              message: 'UOM "crate" is not recognized.',
             },
             {
               sourceRowKey: 'A-002',
@@ -303,6 +303,36 @@ describe('generic takeoff import Core authority', () => {
     expect(response.status).toBe(413)
     await expect(response.json()).resolves.toMatchObject({ error: { code: 'FILE_TOO_LARGE' } })
     expect(formData).not.toHaveBeenCalled()
+  })
+
+  it('stops reading a body that declares no length once it is over the limit (S3-M4)', async () => {
+    // A chunked upload: 1 MB at a time, for as long as the route keeps pulling.
+    let pulled = 0
+    let cancelled = false
+    const endless = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled += 1
+        controller.enqueue(new Uint8Array(1024 * 1024))
+      },
+      cancel() {
+        cancelled = true
+      },
+    })
+    const request = new NextRequest('http://localhost/api/bom/takeoff-import', {
+      method: 'POST',
+      headers: { 'content-type': 'multipart/form-data; boundary=x' },
+      body: endless,
+      duplex: 'half',
+    } as RequestInit & { duplex: 'half' })
+
+    const response = await POST(request)
+
+    expect(response.status).toBe(413)
+    await expect(response.json()).resolves.toMatchObject({ error: { code: 'FILE_TOO_LARGE' } })
+    expect(cancelled).toBe(true)
+    // 25 MB is the limit: the route stopped just past it instead of buffering on.
+    expect(pulled).toBeLessThan(40)
+    expect(mocks.executeTakeoffImportThroughCoreApi).not.toHaveBeenCalled()
   })
 
   it('imports 5,000 rows and rejects 5,001 with 413', async () => {

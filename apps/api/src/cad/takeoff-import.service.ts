@@ -83,6 +83,15 @@ function buildIssues(
   return issues
 }
 
+/**
+ * Notes from the file, kept on a new line. `[VENDOR:<id>:<name>]` in a line's
+ * notes is the system's own record of the line's supplier, so a file may not
+ * bring one in.
+ */
+function importedNotes(notes: string | null): string | null {
+  return notes?.replace(/\[VENDOR:[^\]]*\]/gi, '').trim() || null
+}
+
 function issuesByRow(
   issues: ReadonlyArray<TakeoffValidationIssue>
 ): Map<string, TakeoffValidationIssue[]> {
@@ -296,7 +305,48 @@ export class TakeoffImportService {
       }
 
       if (parsedCommand.mode === 'preview') {
+        // A commit updates only the lines an earlier import of the same
+        // source and file wrote under the same row keys; every other row is
+        // added. The preview says how many of each, so the user can see that
+        // an import into a BOM that already has lines adds to them.
+        const [existingLines] = await transaction
+          .select({ count: sql<number>`count(*)::int` })
+          .from(bomLineItems)
+          .where(
+            and(
+              eq(bomLineItems.bom_id, bomId),
+              eq(bomLineItems.tenant_id, authorizedPrincipal.tenantId)
+            )
+          )
+        const importedKeys = await transaction
+          .select({ sourceRowKey: bomLineItems.source_row_key })
+          .from(bomLineItems)
+          .innerJoin(
+            takeoffImports,
+            and(
+              eq(takeoffImports.id, bomLineItems.takeoff_import_id),
+              eq(takeoffImports.tenant_id, authorizedPrincipal.tenantId)
+            )
+          )
+          .where(
+            and(
+              eq(bomLineItems.bom_id, bomId),
+              eq(bomLineItems.tenant_id, authorizedPrincipal.tenantId),
+              eq(takeoffImports.bom_id, bomId),
+              eq(takeoffImports.source, source),
+              eq(takeoffImports.source_key, sourceKey)
+            )
+          )
+        const knownKeys = new Set(importedKeys.map((line) => line.sourceRowKey))
+        const matchedLineCount = new Set(
+          parsedCommand.rows
+            .map((row) => row.sourceRowKey)
+            .filter((key) => knownKeys.has(key))
+        ).size
+
         return takeoffImportPreviewResultSchema.parse({
+          existingLineCount: existingLines?.count ?? 0,
+          matchedLineCount,
           ok: true,
           mode: 'preview',
           tenantId: authorizedPrincipal.tenantId,
@@ -575,7 +625,7 @@ export class TakeoffImportService {
                 : classification.reason,
             sort_order: index,
             is_group: 0,
-            code: row.itemNo,
+            code: row.code ?? row.itemNo,
             description:
               row.description || `Unresolved takeoff row ${row.sourceRowKey}`,
             unit: row.unit || null,
@@ -585,7 +635,7 @@ export class TakeoffImportService {
             line_total_cents: pricing.lineTotalCents,
             notes: isAiDocumentCandidate
               ? `AI-extracted scope candidate; document:${parsedCommand.documentId}; model:${parsedCommand.sourceModel}; pricing requires DUPA before approval.`
-              : `Takeoff source: ${source}`,
+              : importedNotes(row.notes) ?? `Takeoff source: ${source}`,
           })
           .onConflictDoUpdate({
             target: [

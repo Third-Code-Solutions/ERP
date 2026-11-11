@@ -40,9 +40,14 @@ function unwrapCell(value: unknown): unknown {
     return value.result === undefined ? NO_RESULT : unwrapCell(value.result)
   }
   if (Array.isArray(value.richText)) {
-    return value.richText
-      .map((part) => (isRecord(part) && typeof part.text === 'string' ? part.text : ''))
-      .join('')
+    // Joined only as far as any reader looks (the cut plus one): a shared
+    // string can hold millions of runs and is read for every cell that uses it.
+    let text = ''
+    for (const part of value.richText) {
+      if (isRecord(part) && typeof part.text === 'string') text += part.text
+      if (text.length > MAX_CELL_TEXT) break
+    }
+    return text
   }
   if (typeof value.text === 'string') return value.text
   return value

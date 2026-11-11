@@ -69,6 +69,23 @@ describe('BOQ cell text', () => {
     expect(cellText({ formula: 'A1' })).toBe('')
   })
 
+  it('joins a rich-text cell only as far as it is read (S3-H2)', () => {
+    // A shared string of 100,000 runs: every read used to join all of them.
+    let reads = 0
+    const run = {
+      get text() {
+        reads += 1
+        return 'aaaaaaaaaa'
+      },
+    }
+    const cell = { richText: Array.from({ length: 100_000 }, () => run) }
+
+    expect(cellText(cell)).toBe('a'.repeat(MAX_CELL_TEXT))
+    expect(cellText(cell, MAX_CELL_TEXT + 1)).toHaveLength(MAX_CELL_TEXT + 1)
+    expect(cellQuantity(cell)).toEqual({ ok: false, problem: 'NOT_A_NUMBER' })
+    expect(reads).toBeLessThan(1_000)
+  })
+
   it('strips control characters except tab and newline from exported text', () => {
     expect(excelText('a\u0000b\u0007c\td\ne\rf\u001Fg\u007F')).toBe('abc\td\nefg')
     expect(excelText(null)).toBe('')

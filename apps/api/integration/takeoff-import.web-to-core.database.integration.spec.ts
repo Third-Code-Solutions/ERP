@@ -198,7 +198,7 @@ suite('generic takeoff import Web-to-Core disposable integration', () => {
       const csv = [
         'Row,Description,Qty,UOM,Division,Location',
         'A-001,Suspended ceiling,12,sqm,Finishes,Level 2',
-        'A-002,Unresolved item,1,box,,Level 2',
+        'A-002,Unresolved item,1,crate,,Level 2',
         'A-003,Fractional concrete,0.1,cu.m,Concrete,Level 2',
       ].join('\n')
       const mapping = JSON.stringify({
@@ -294,7 +294,7 @@ suite('generic takeoff import Web-to-Core disposable integration', () => {
       const changedCsv = [
         'Row,Description,Qty,UOM,Division,Location',
         'A-001,Changed ceiling,18,sqm,Finishes,Level 2',
-        'A-002,Unresolved item,1,box,,Level 2',
+        'A-002,Unresolved item,1,crate,,Level 2',
         'A-003,Fractional concrete,0.1,cu.m,Concrete,Level 2',
       ].join('\n')
       const secondCommit = await POST(makeRequest('commit', changedCsv))
@@ -419,7 +419,7 @@ suite('generic takeoff import Web-to-Core disposable integration', () => {
         [
           'Row,Description,Qty,UOM,Division,Location',
           'A-001,Changed ceiling,18,sqm,Finishes,Level 2',
-          'A-002,Unresolved item,1,box,,Level 2',
+          'A-002,Unresolved item,1,crate,,Level 2',
           `A-003,Fractional concrete,${quantity},cu.m,Concrete,Level 2`,
         ].join('\n')
       await db

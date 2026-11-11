@@ -9,6 +9,8 @@ export interface StructuredTakeoffRow {
   division: string | null
   location: string | null
   itemNo: string | null
+  // The line's code when the file has a Code column; absent: the item number is used.
+  code?: string | null
   notes: string | null
   // Client BOQ rate in centavos. Absent: no rate; null: the cell was unreadable.
   unitRateCentavos?: number | null
@@ -85,10 +87,23 @@ const RECOGNIZED_UOMS = new Set([
   'm3',
   'm³',
   'lm',
+  'm',
   'lot',
+  'ls',
+  'l.s.',
   'pc',
   'pcs',
+  'ea',
+  'each',
+  'no.',
+  'no',
+  'nos',
+  'unit',
+  'units',
   'kg',
+  'bag',
+  'bags',
+  'box',
   'liter',
   'liters',
   'l',

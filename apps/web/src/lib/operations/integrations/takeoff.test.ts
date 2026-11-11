@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module'
+import { lineTotal } from '@third-code-erp/shared-types/bom'
 import { describe, expect, it } from 'vitest'
 import {
   assertXlsxWithinLimits,
@@ -17,6 +18,10 @@ const require = createRequire(import.meta.url)
 const { CFB } = require('xlsx') as typeof import('xlsx')
 // The zip reader inside ExcelJS: an attack file only counts if it still reads it.
 const JSZip = createRequire(require.resolve('exceljs'))('jszip') as {
+  new (): {
+    file(name: string, content: string): void
+    generateAsync(options: { type: 'nodebuffer'; compression: 'DEFLATE' }): Promise<Buffer>
+  }
   loadAsync(data: Buffer): Promise<{ files: Record<string, unknown> }>
 }
 const ZIP_END = Buffer.from([0x50, 0x4b, 0x05, 0x06])
@@ -129,7 +134,7 @@ describe('structured takeoff importer', () => {
       Buffer.from([
         'Row,Description,Qty,UOM,Division',
         'A-001,Ceiling,1,sqm,Finishes',
-        'A-001,Ceiling duplicate,2,box,',
+        'A-001,Ceiling duplicate,2,crate,',
       ].join('\n')),
       'takeoff.csv',
       {
@@ -145,7 +150,7 @@ describe('structured takeoff importer', () => {
 
     expect(validation).toEqual([
       { sourceRowKey: 'A-001', code: 'DUPLICATE_SOURCE_ROW_KEY', message: 'Source row key is duplicated in this import.' },
-      { sourceRowKey: 'A-001', code: 'INVALID_UOM', message: 'UOM "box" is not recognized.' },
+      { sourceRowKey: 'A-001', code: 'INVALID_UOM', message: 'UOM "crate" is not recognized.' },
       { sourceRowKey: 'A-001', code: 'MISSING_DIVISION', message: 'Division is required before import.' },
     ])
   })
@@ -297,15 +302,26 @@ describe('structured takeoff importer', () => {
     const result = await parseStructuredTakeoff(Buffer.from(csv), 'takeoff.csv', MAPPING)
 
     expect(result.sectionRows).toBe(1)
-    expect(result.rows.map((row) => [row.description, row.quantity, row.division])).toEqual([
-      ['Mobilization', null, 'GENERAL REQUIREMENTS'],
-      ['Permits', null, 'GENERAL REQUIREMENTS'],
+    // A rate with no quantity stays for review; an amount with no quantity is
+    // a lump sum of quantity 1 at that amount (round 3, C3-3).
+    expect(
+      result.rows.map((row) => [row.description, row.quantity, row.unitRateCentavos, row.division]),
+    ).toEqual([
+      ['Mobilization', null, 5_000_000, 'GENERAL REQUIREMENTS'],
+      ['Permits', 1, 1_200_000, 'GENERAL REQUIREMENTS'],
     ])
     expect(
       validateTakeoffRows(result.rows)
         .filter((issue) => issue.code === 'INVALID_QUANTITY')
         .map((issue) => issue.sourceRowKey),
-    ).toEqual(['row-3', 'row-4'])
+    ).toEqual(['row-3'])
+    expect(result.warnings).toEqual([
+      {
+        sourceRowKey: 'row-4',
+        code: 'LUMP_SUM',
+        message: 'No quantity: imported as a lump sum, quantity 1 at PHP 12,000.00.',
+      },
+    ])
   })
 
   it('does not fall back to rate aliases when the rate mapping is blanked', async () => {
@@ -437,7 +453,7 @@ describe('structured takeoff importer', () => {
       [SHEET]: afterSheetData('<mergeCells count="2"><mergeCell ref="D5:E6"/><mergeCell ref="D8:E9"/></mergeCells>'),
     })
     expect(() => assertXlsxWithinLimits(twoRanges)).not.toThrow()
-    expect(() => assertXlsxWithinLimits(twoRanges, { ...XLSX_LIMITS, mergedRangesPerSheet: 1 })).toThrow(
+    expect(() => assertXlsxWithinLimits(twoRanges, { ...XLSX_LIMITS, mergedRanges: 1 })).toThrow(
       TakeoffTooLargeError,
     )
   })
@@ -481,38 +497,87 @@ describe('structured takeoff importer', () => {
     await expect(parseCsv(rows(40))).rejects.toThrow(new TakeoffTooLargeError(TAKEOFF_TOO_MUCH_DATA_MESSAGE))
   })
 
-  it('warns when an amount has no unit rate to price the line', async () => {
-    const message = (amount: string) =>
-      `Amount PHP ${amount} has no unit rate, so the line is imported without a price. Map a unit rate column or price the line after import.`
-
-    const noRateColumn = await parseCsv([
-      'Description,Quantity,UOM,Amount',
-      'Permits,1,lot,"12,000.00"',
+  it('derives the unit rate from an amount only when it is exact to the centavo', async () => {
+    const result = await parseCsv([
+      'Description,Quantity,UOM,Total Amount',
+      'Excavation,10,cu.m,"1,000.00"',
+      'Tiles,0.3333,sqm,33.33',
+      'Rebar,3,kg,100',
       'Signage,2,lot,0',
-    ])
-    expect(noRateColumn.rows[0]).not.toHaveProperty('unitRateCentavos')
-    expect(noRateColumn.warnings).toEqual([
-      { sourceRowKey: 'row-2', code: 'AMOUNT_IGNORED', message: message('12,000.00') },
+      'Mobilization,,LS,"150,000.00"',
+      'Paint,TBD,sqm,100',
     ])
 
-    const blankRate = await parseCsv(['Description,Quantity,UOM,Unit Rate,Amount', 'Permits,1,lot,,500'])
-    expect(blankRate.warnings).toEqual([
-      { sourceRowKey: 'row-2', code: 'AMOUNT_IGNORED', message: message('500.00') },
+    expect(result.rows.map((row) => [row.description, row.quantity, row.unitRateCentavos])).toEqual([
+      ['Excavation', 10, 10_000],
+      // 0.3333 x 100.00 = 33.33 exactly as the shared lineTotal rounds it.
+      ['Tiles', 0.3333, 10_000],
+      // 100.00 / 3 = 33.33..., and 3 x 33.33 is 99.99: no rate, left for review.
+      ['Rebar', 3, null],
+      ['Signage', 2, undefined],
+      ['Mobilization', 1, 15_000_000],
+      ['Paint', null, undefined],
     ])
+    for (const row of result.rows) {
+      if (typeof row.unitRateCentavos !== 'number' || row.quantity === null) continue
+      expect(lineTotal(row.unitRateCentavos, String(row.quantity), 0)).toBe(
+        { Excavation: 100_000, Tiles: 3_333, Mobilization: 15_000_000 }[row.description],
+      )
+    }
+    expect(result.warnings).toEqual([
+      {
+        sourceRowKey: 'row-4',
+        code: 'AMOUNT_NOT_EXACT',
+        message:
+          'Amount PHP 100.00 divided by quantity 3 is not a whole-centavo unit rate, so no rate was derived and the line is left for review. Add a unit rate column or price the line after import.',
+      },
+      {
+        sourceRowKey: 'row-6',
+        code: 'LUMP_SUM',
+        message: 'No quantity: imported as a lump sum, quantity 1 at PHP 150,000.00.',
+      },
+      { sourceRowKey: 'row-7', code: 'UNREADABLE_QUANTITY', message: 'Quantity is not a number.' },
+      {
+        sourceRowKey: 'row-7',
+        code: 'AMOUNT_IGNORED',
+        message: 'Amount PHP 100.00 is not imported because the quantity could not be read.',
+      },
+    ])
+    // The inexact row is queued by Core; the lump sum's unit is one Core accepts.
+    expect(validateTakeoffRows(result.rows).map((issue) => [issue.sourceRowKey, issue.code])).toEqual([
+      ['row-2', 'MISSING_DIVISION'],
+      ['row-3', 'MISSING_DIVISION'],
+      ['row-4', 'INVALID_UNIT_RATE'],
+      ['row-4', 'MISSING_DIVISION'],
+      ['row-5', 'MISSING_DIVISION'],
+      ['row-6', 'MISSING_DIVISION'],
+      ['row-7', 'INVALID_QUANTITY'],
+      ['row-7', 'MISSING_DIVISION'],
+    ])
+
+    // A rate column that is there but blank on the row behaves the same.
+    const blankRate = await parseCsv(['Description,Quantity,UOM,Unit Rate,Amount', 'Permits,1,lot,,500'])
+    expect(blankRate.rows[0]?.unitRateCentavos).toBe(50_000)
+    expect(blankRate.warnings).toEqual([])
   })
 
-  it('imports a line that starts with "Total" when it has a unit', async () => {
+  it('skips sub-total and grand-total spellings and keeps a "Total" line that has a unit', async () => {
     const result = await parseCsv([
       'Description,Quantity,UOM,Unit Rate,Amount',
       'Total station survey,1,lot,"85,000.00","85,000.00"',
       'Subtotal,,,,"85,000.00"',
       'TOTAL,34,,,',
+      'SUB-TOTAL,,,,"85,000.00"',
+      'Sub Total,,,,"85,000.00"',
+      'GRAND TOTAL,,,,"85,000.00"',
+      'Subtotal A,,,,"85,000.00"',
+      'TOTAL COST,,,,"85,000.00"',
     ])
 
     expect(result.rows.map((row) => [row.description, row.quantity, row.unitRateCentavos])).toEqual([
       ['Total station survey', 1, 8_500_000],
     ])
-    expect(result.skippedRows).toBe(2)
+    expect(result.skippedRows).toBe(7)
     // The total row that carries a quantity is reported, not dropped silently.
     expect(result.warnings).toEqual([
       {

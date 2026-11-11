@@ -9,6 +9,7 @@ import {
   sha256Digest,
   TAKEOFF_MAX_HEADER_ROW,
   TAKEOFF_TOO_MANY_ROWS_MESSAGE,
+  TakeoffBusyError,
   TakeoffTooLargeError,
   type TakeoffColumnMapping,
 } from '@/lib/operations/integrations/takeoff'
@@ -28,6 +29,7 @@ const mappingSchema = z.object({
   division: optionalColumn,
   location: optionalColumn,
   itemNo: optionalColumn,
+  code: optionalColumn,
   notes: optionalColumn,
   unitRate: optionalColumn,
   amount: optionalColumn,
@@ -43,6 +45,7 @@ const DEFAULT_MAPPING: TakeoffColumnMapping = {
   division: 'division',
   location: 'location',
   itemNo: 'item no',
+  code: 'code',
   notes: 'notes',
   unitRate: 'unit rate',
   amount: 'amount',
@@ -90,6 +93,30 @@ function parseMapping(
     : { error: 'mapping is invalid' }
 }
 
+/** The request body, or null once it is longer than the limit (the rest is not read). */
+async function readBodyWithin(req: NextRequest, limit: number): Promise<ArrayBuffer | null> {
+  const reader = req.body?.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  for (;;) {
+    const { done, value } = reader ? await reader.read() : { done: true, value: undefined }
+    if (done || !value) break
+    total += value.byteLength
+    if (total > limit) {
+      await reader?.cancel()
+      return null
+    }
+    chunks.push(value)
+  }
+  const bytes = new Uint8Array(total)
+  let offset = 0
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return bytes.buffer
+}
+
 function coreErrorCode(status: number): string {
   if (status === 400) return 'INVALID_TAKEOFF_COMMAND'
   if (status === 403) return 'FORBIDDEN'
@@ -122,19 +149,20 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     )
   }
 
-  // Refuse a declared oversize body before buffering it; a chunked upload
-  // without Content-Length still meets the file size check below.
-  if (Number(req.headers.get('content-length') ?? 0) > MAX_BODY_BYTES) {
-    return errorResponse(
-      413,
-      'FILE_TOO_LARGE',
-      `file must be <= ${MAX_FILE_BYTES} bytes.`
-    )
-  }
+  // Refuse a declared oversize body before reading it, and count the bytes of
+  // one that declares nothing (a chunked upload) instead of buffering it whole:
+  // off Vercel no platform limit stands in front of this route.
+  const tooLarge = () =>
+    errorResponse(413, 'FILE_TOO_LARGE', `file must be <= ${MAX_FILE_BYTES} bytes.`)
+  if (Number(req.headers.get('content-length') ?? 0) > MAX_BODY_BYTES) return tooLarge()
+  const body = await readBodyWithin(req, MAX_BODY_BYTES)
+  if (!body) return tooLarge()
 
   let form: FormData
   try {
-    form = await req.formData()
+    form = await new Response(body, {
+      headers: { 'content-type': req.headers.get('content-type') ?? '' },
+    }).formData()
   } catch {
     return errorResponse(
       400,
@@ -199,6 +227,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   } catch (error) {
     if (error instanceof TakeoffTooLargeError) {
       return errorResponse(413, 'TAKEOFF_TOO_LARGE', error.message)
+    }
+    if (error instanceof TakeoffBusyError) {
+      const response = errorResponse(503, 'TAKEOFF_BUSY', error.message)
+      response.headers.set('Retry-After', '10')
+      return response
     }
     console.error('[takeoff-import] parse failed', error)
     return errorResponse(

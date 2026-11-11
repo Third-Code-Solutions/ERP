@@ -73,6 +73,7 @@ export async function loadBoqExport(tenantId: string, bomId: string): Promise<Bo
       quantity: bomLineItems.quantity_decimal,
       unit_cost_cents: bomLineItems.unit_cost_cents,
       line_total_cents: bomLineItems.line_total_cents,
+      markup_bps: bomLineItems.markup_bps,
       unit_rate_source: bomLineItems.unit_rate_source,
       notes: bomLineItems.notes,
       is_group: bomLineItems.is_group,
