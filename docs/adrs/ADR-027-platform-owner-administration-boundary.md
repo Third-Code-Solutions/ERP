@@ -45,9 +45,36 @@ Both tables remain server-owned control-plane data:
   invitations, remains tenant-scoped and must declare `tenant_id NOT NULL`.
 
 The build-ops migration invariant scanner mirrors this decision with an
-explicit allowlist containing `tenants`, `platform_role_assignments`, and
-`platform_audit_events`. A new global table requires a new ADR and an explicit
-allowlist change; it may not be added by changing the scanner rule generally.
+explicit allowlist containing `tenants`, `platform_role_assignments`,
+`platform_audit_events` and the two Cortex registries admitted by the
+amendment below. A new global table requires a new ADR (or an amendment to
+this one) and an explicit allowlist change; it may not be added by changing
+the scanner rule generally.
+
+## Amendment (2026-11-06): Cortex mirror configuration tables
+
+`20261106100000_cortex_coverage_types.sql` adds two more global tables
+(`docs/erp/specs/cortex-coverage.md` §3.1):
+
+1. `cortex_mirror_registry` has one row per mirrored ERP table: which columns
+   become node attributes, the title and summary templates and the edges. It
+   describes how every tenant's rows become graph nodes, so it holds no tenant
+   data.
+2. `cortex_node_type_access` maps each Cortex node type to the read group
+   that may read it. The read check applies the same row to every tenant.
+
+Both are configuration that only migrations change, the same for every
+tenant. A `tenant_id` would have to copy every row once per tenant, and a
+new tenant would read no node type until someone copied the rows for it.
+They get the same server-only controls as the platform tables:
+
+- Row-level security is enabled and forced.
+- `anon`, `authenticated` and `public` hold no privileges, and the
+  `deny_direct_client_access` policy rejects direct browser access.
+- `service_role` holds SELECT only; no role but the migration owner can write
+  them.
+- They are read only inside `security definer` Cortex functions with an empty
+  `search_path`.
 
 ## Consequences
 

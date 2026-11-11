@@ -25,6 +25,9 @@ const globalTableNames = new Set([
   'tenants',
   'platform_role_assignments',
   'platform_audit_events',
+  // ADR-027 amendment (2026-11-06): migration-owned Cortex mirror configuration.
+  'cortex_mirror_registry',
+  'cortex_node_type_access',
 ])
 
 function maskSql(source) {

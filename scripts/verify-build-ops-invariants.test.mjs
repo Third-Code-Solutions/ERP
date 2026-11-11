@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { spawnSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
@@ -49,6 +50,30 @@ test('allows only the ADR-027 platform control-plane globals', () => {
     'create table public.unapproved_global_control (id uuid primary key);'
   assert.deepEqual(
     scanMigrationSource(unapproved, 'unapproved-global.sql').map(({ rule }) => rule),
+    ['tenant-id-not-null']
+  )
+})
+
+test('allows the ADR-027 amendment Cortex registries and passes the coverage migrations', () => {
+  const approved = `
+    create table if not exists public.cortex_mirror_registry (ref_table text primary key);
+    create table if not exists public.cortex_node_type_access (node_type text primary key);
+  `
+  assert.deepEqual(scanMigrationSource(approved, 'cortex-registries.sql'), [])
+
+  for (const file of [
+    'supabase/migrations/20261106100000_cortex_coverage_types.sql',
+    'supabase/migrations/20261106101000_cortex_coverage_core.sql',
+    'supabase/migrations/20261106102000_audit_log_server_only.sql',
+  ]) {
+    const source = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8')
+    assert.deepEqual(scanMigrationSource(source, file), [], file)
+  }
+
+  // Only the two named tables: another cortex_* global still fails.
+  assert.deepEqual(
+    scanMigrationSource('create table public.cortex_other_config (id uuid primary key);', 'x.sql')
+      .map(({ rule }) => rule),
     ['tenant-id-not-null']
   )
 })
