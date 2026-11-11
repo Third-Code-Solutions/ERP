@@ -137,6 +137,7 @@ jobs:
       - run: pnpm test:wo-16-contract
       - run: pnpm test:wo-17-contract
       - run: pnpm test:wo-18-contract
+      - run: pnpm test:cortex-backfill
       - run: pnpm test
       - run: pnpm test:database-release-plan
       - run: pnpm test:project-cutover-plan

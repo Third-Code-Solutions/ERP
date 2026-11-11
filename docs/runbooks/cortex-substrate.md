@@ -67,7 +67,8 @@ Unchanged nodes write no provenance, so a re-run is cheap and safe.
 
 **Batch 1 rollout order:** apply the three migrations (types, core,
 `audit_log` server-only), then `--batch 1 --mode all`, then `--batch 1 --mode
-scrub` repeated until it reports `changed 0` on every table, then the chain
+scrub` repeated until it reports `changed 0` and `skipped 0` on every table
+(a skipped node was held by a live writer and is not yet scrubbed), then the chain
 query below. The scrub is the only pass that reaches closed nodes and nodes
 whose source row is gone. Never backfill with `update <t> set tenant_id = tenant_id`: it fires the
 audit triggers and the posted-row guards.

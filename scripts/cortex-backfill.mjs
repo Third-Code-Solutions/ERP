@@ -11,7 +11,7 @@
  *   attributes; unchanged nodes write no provenance (cortex_upsert_node).
  * --mode scrub rewrites EVERY node of each table, closed and orphaned nodes
  *   included, to the current allowlist (cortex_scrub_nodes). Run it after
- *   --mode all, and again until it reports 0 changed.
+ *   --mode all, and again until every table reports changed 0 and skipped 0.
  * --page-size (default 200, at most 2000) rows per call. Each call is its own
  *   short transaction over ONE tenant, so it holds one tenant's provenance and
  *   audit locks at a time.

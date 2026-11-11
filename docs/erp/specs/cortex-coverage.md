@@ -415,7 +415,7 @@ Production volume is small today; I did not measure production row counts. Two g
 **Rollout order (Batch 1):**
 1. Apply `20261106100000_cortex_coverage_types.sql`, `…101000_cortex_coverage_core.sql` and `…102000_audit_log_server_only.sql`.
 2. Run `--batch 1 --mode all`. It re-applies the 23 migrated tables (attributes rewritten to the literal lists) **and** users, accounts, opportunities and documents (emails removed, KYC titles redacted, stage history built), which is the S3 data fix for live rows.
-3. Run `--batch 1 --mode scrub`, and repeat it until it reports 0 changed. It reaches what the backfill cannot, because the backfill walks live source rows only: closed nodes and nodes whose source row is gone. Nodes whose title or summary changes lose their embedding, and the embed job refills them from the new text.
+3. Run `--batch 1 --mode scrub`, and repeat it until it reports 0 changed and 0 skipped on every table (a skipped node was held by a live writer and is not yet scrubbed). It reaches what the backfill cannot, because the backfill walks live source rows only: closed nodes and nodes whose source row is gone. Nodes whose title or summary changes lose their embedding, and the embed job refills them from the new text.
 4. Run the provenance chain query in the runbook: 0 rows.
 
 **Rollback** (`packages/database/src/sql/cortex-coverage-rollback.sql`, run by hand under the same timeouts):
