@@ -72,7 +72,9 @@ Indexes:
 | created_at | timestamptz not null | default now() |
 | created_by | uuid | fk `users`, null for seed rows |
 
-- Index: `(tenant_id, item_id, region, checked_on desc, created_at desc)`.
+- Index `idx_catalogue_prices_current`, in the order of the current-price
+  reads: `(tenant_id, item_id, lower(trim(region)), (price_avg_centavos is
+  null), checked_on desc, created_at desc, id desc)`.
 - **Current price** of an item in a region is its newest **priced** row by
   `(checked_on desc, created_at desc, id desc)`; the id only settles two rows
   written at the same instant.

@@ -90,9 +90,11 @@ export const cataloguePrices = pgTable(
     currentIdx: index('idx_catalogue_prices_current').on(
       table.tenant_id,
       table.item_id,
-      table.region,
+      sql`lower(trim(${table.region}))`,
+      sql`(${table.price_avg_centavos} is null)`,
       table.checked_on.desc(),
       table.created_at.desc(),
+      table.id.desc(),
     ),
     priceRange: check(
       'catalogue_prices_price_range',

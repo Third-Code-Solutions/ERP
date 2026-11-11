@@ -59,8 +59,9 @@ describe('catalogue price book migration', () => {
     expect(executable).toContain(
       'on public.catalogue_items using gin (name extensions.gin_trgm_ops);'
     )
+    // The current-price index follows the DISTINCT ON order of the reads.
     expect(executable).toContain(
-      'on public.catalogue_prices (tenant_id, item_id, region, checked_on desc, created_at desc);'
+      'create index if not exists idx_catalogue_prices_current on public.catalogue_prices ( tenant_id, item_id, lower(trim(region)), (price_avg_centavos is null), checked_on desc, created_at desc, id desc );'
     )
   })
 
