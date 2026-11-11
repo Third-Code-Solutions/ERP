@@ -53,7 +53,8 @@ Every file has the same 14 columns:
    source's midpoint. The note says which.
 3. **One source with a range:** the average is the midpoint.
 4. **Sale and regular prices:** where a store shows both, low is the sale price
-   and high is the regular price.
+   and high is the regular price. Where only one of the two was recorded, the note
+   says so.
 5. **Daily wages are listed once, in `19-labor.csv`.** The other files keep only
    labour priced per unit of work (per sq.m, per kg, per point). No Metro Manila
    daily wage is below the ₱755 legal minimum (Wage Order NCR-28, in force since
