@@ -88,7 +88,6 @@ Both new tables are global, have RLS enabled and forced, `revoke all privileges 
 - `lookups jsonb`
 - `fold jsonb`
 - `links jsonb`
-- `backfill_order int`
 
 **`cortex_node_type_access`**: `node_type` (pk) and `read_group`.
 

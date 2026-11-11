@@ -11,7 +11,6 @@ import {
   real,
   index,
   customType,
-  integer,
 } from 'drizzle-orm/pg-core'
 import { tenants } from './tenants'
 import { users } from './users'
@@ -303,7 +302,6 @@ export const cortexMirrorRegistry = pgTable('cortex_mirror_registry', {
   lookups: jsonb('lookups').notNull().default({}),
   fold: jsonb('fold'),
   links: jsonb('links'),
-  backfill_order: integer('backfill_order').notNull().default(100),
 })
 
 export const cortexNodeTypeAccess = pgTable('cortex_node_type_access', {

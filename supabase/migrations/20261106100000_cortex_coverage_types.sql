@@ -64,7 +64,6 @@ create table if not exists public.cortex_mirror_registry (
   lookups        jsonb not null default '{}'::jsonb,
   fold           jsonb,
   links          jsonb,
-  backfill_order integer not null default 100,
   constraint cortex_mirror_registry_kind check (
     (node_type is not null)::int + (fold is not null)::int + (links is not null)::int = 1
   ),
