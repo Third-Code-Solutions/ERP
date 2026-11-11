@@ -1,6 +1,7 @@
 import { createRequire } from 'node:module'
 import * as ExcelJS from 'exceljs'
 import {
+  computeBomTotals,
   computeDupa,
   lineTotal,
   topLevelBomLines,
@@ -25,6 +26,7 @@ export interface BoqExportLine {
   quantity: string
   unit_cost_cents: number
   line_total_cents: number
+  markup_bps: number
   unit_rate_source: string
   notes: string | null
   is_group: number
@@ -73,6 +75,19 @@ export interface BoqExportData {
   dupas: BoqExportDupa[]
 }
 
+// One workbook carries at most this many BOM lines; it also keeps the id lists
+// the loader binds well under the 65,535 parameters a statement can take.
+export const BOQ_EXPORT_MAX_LINES = 20_000
+
+/** A BOM with more lines than one export carries; the message is safe to show. */
+export class BoqExportTooLargeError extends Error {
+  constructor() {
+    super(
+      `This BOM has more than ${BOQ_EXPORT_MAX_LINES.toLocaleString('en-PH')} lines and cannot be exported to one workbook.`,
+    )
+  }
+}
+
 export const BOQ_EXPORT_HEADERS = [
   'Item No',
   'Code',
@@ -83,11 +98,16 @@ export const BOQ_EXPORT_HEADERS = [
   'Quantity',
   'Unit Rate (PHP)',
   'Amount (PHP)',
+  'Markup %',
+  'Line Total (PHP)',
   'Rate Source',
   'Notes',
 ] as const
 
-const COLUMN_WIDTHS = [10, 12, 48, 20, 18, 8, 14, 16, 18, 12, 32]
+// 1-based columns the totals sit under: cost under Amount, contract value under Line Total.
+const AMOUNT_COLUMN = BOQ_EXPORT_HEADERS.indexOf('Amount (PHP)') + 1
+const LINE_TOTAL_COLUMN = BOQ_EXPORT_HEADERS.indexOf('Line Total (PHP)') + 1
+const COLUMN_WIDTHS = [10, 12, 48, 20, 18, 8, 14, 16, 18, 10, 18, 12, 32]
 const QUANTITY_FORMAT = '#,##0.0000'
 const MONEY_FORMAT = '#,##0.00'
 const RATE_SOURCE_LABELS: Record<string, string> = {
@@ -145,7 +165,7 @@ function writeRow(sheet: ExcelJS.Worksheet, values: Cell[], bold = false): Excel
   return row
 }
 
-/** The lines the BOQ lists: those the stored totals count, in BOM page order. */
+/** The lines the BOQ lists: those the BOM totals count, in BOM page order. */
 export function boqExportLines(lines: ReadonlyArray<BoqExportLine>): BoqExportLine[] {
   const commercial = topLevelBomLines(lines, (line) => line.parent_line_item_id)
   return groupBomLinesByDivision(
@@ -188,7 +208,7 @@ function addBoqSheet(workbook: ExcelJS.Workbook, data: BoqExportData, exportedAt
     const amount = boqLineAmountCents(line)
     const isGroup = line.is_group !== 0
     // A section row shows numbers only when it carries cost the totals count.
-    const priced = !isGroup || amount !== 0
+    const priced = !isGroup || amount !== 0 || line.line_total_cents !== 0
     const row = writeRow(
       sheet,
       [
@@ -201,6 +221,8 @@ function addBoqSheet(workbook: ExcelJS.Workbook, data: BoqExportData, exportedAt
         priced ? { quantity: line.quantity } : null,
         priced ? { centavos: line.unit_cost_cents } : null,
         priced ? { centavos: amount } : null,
+        priced ? { fraction: bpsFraction(line.markup_bps) } : null,
+        priced ? { centavos: line.line_total_cents } : null,
         priced ? (RATE_SOURCE_LABELS[line.unit_rate_source] ?? line.unit_rate_source) : '',
         line.notes ?? '',
       ],
@@ -210,15 +232,29 @@ function addBoqSheet(workbook: ExcelJS.Workbook, data: BoqExportData, exportedAt
   }
 
   sheet.addRow([])
+  // Computed from the lines printed above with the formula of the stored BOM
+  // totals, so the workbook always adds up. A stored total that has fallen
+  // behind its lines is printed beside the computed one, not instead of it.
   // Labels start with "Total" so a re-import skips these rows.
-  const totals: Array<[string, Cell]> = [
-    ['Total cost', { centavos: data.bom.total_cost_cents }],
-    ['Total contract value (TCV)', { centavos: data.bom.tcv_cents }],
-    ['Total gross profit (GP)', { centavos: data.bom.gp_cents }],
-    ['Total GP margin', { fraction: bpsFraction(data.bom.gp_margin_bps) }],
+  const computed = computeBomTotals(data.lines)
+  type Total = [label: string, column: number, value: Cell]
+  const stale = (label: string, column: number, stored: number, current: number): Total[] =>
+    stored === current ? [] : [[`${label} stored on the BOM (out of date)`, column, { centavos: stored }]]
+  // Each total sits under the column that adds up to it: the Amount column
+  // (cost, no markup) to Total cost, the Line Total column to TCV.
+  const totals: Total[] = [
+    ['Total cost', AMOUNT_COLUMN, { centavos: computed.total_cost_cents }],
+    ['Total contract value (TCV)', LINE_TOTAL_COLUMN, { centavos: computed.tcv_cents }],
+    ['Total gross profit (GP)', LINE_TOTAL_COLUMN, { centavos: computed.gp_cents }],
+    ['Total GP margin', LINE_TOTAL_COLUMN, { fraction: bpsFraction(computed.gp_margin_bps) }],
+    ...stale('Total cost', AMOUNT_COLUMN, data.bom.total_cost_cents, computed.total_cost_cents),
+    ...stale('Total contract value (TCV)', LINE_TOTAL_COLUMN, data.bom.tcv_cents, computed.tcv_cents),
   ]
-  for (const [label, value] of totals) {
-    writeRow(sheet, [null, null, label, null, null, null, null, null, value], true)
+  for (const [label, column, value] of totals) {
+    const cells: Cell[] = Array.from({ length: column }, () => null)
+    cells[2] = label
+    cells[column - 1] = value
+    writeRow(sheet, cells, true)
   }
 }
 
@@ -333,7 +369,7 @@ function addDupaSheet(workbook: ExcelJS.Workbook, lines: BoqExportLine[], dupas:
 
 export function buildBoqWorkbook(data: BoqExportData, exportedAt: Date): ExcelJS.Workbook {
   const workbook = new ExcelJS.Workbook()
-  workbook.creator = 'Third Code ERP'
+  workbook.creator = 'ABI OPS'
   workbook.created = exportedAt
   addBoqSheet(workbook, data, exportedAt)
   addDupaSheet(workbook, boqExportLines(data.lines), data.dupas)

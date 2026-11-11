@@ -228,6 +228,8 @@ import {
   setLineItemVendor,
   upsertDupaForBomLine,
 } from './actions'
+// The mocked function above; the totals tests set what it returns.
+import { computeBomTotals } from '@third-code-erp/shared-types/bom'
 
 const USER_ID = '11111111-1111-4111-8111-111111111111'
 const TENANT_ID = '22222222-2222-4222-8222-222222222222'
@@ -1158,9 +1160,11 @@ describe('BOM review resolution concurrency guards', () => {
           },
         ]),
       )
+      .mockReturnValueOnce(selectResult([]))
     mocks.transactionUpdate
       .mockReturnValueOnce(returningUpdateChain([{ id: LINE_ITEM_ID }]))
       .mockReturnValueOnce(returningUpdateChain([{ id: GRAIN_REVIEW_ID }]))
+      .mockReturnValueOnce(updateChain())
 
     await expect(resolveBomGrainReview(input)).resolves.toEqual({})
     expect(mocks.writeAuditLogInTransaction).toHaveBeenCalledWith(
@@ -1176,6 +1180,70 @@ describe('BOM review resolution concurrency guards', () => {
       }),
     )
     expect(mocks.revalidatePath).toHaveBeenCalledWith(`/projects/${PROJECT_ID}/bom`)
+  })
+
+  it('recalculates the stored BOM totals when a grain review nests a line under a work item', async () => {
+    const PARENT_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
+    const input = {
+      reviewId: GRAIN_REVIEW_ID,
+      projectId: PROJECT_ID,
+      kind: 'material_line' as const,
+      parentLineItemId: PARENT_ID,
+    }
+    // The lines as the transaction reads them after the update: the P50,000
+    // line is now nested, so only the work item counts.
+    const lines = [
+      { line_total_cents: 100_000, unit_cost_cents: 100_000, quantity: '1', parent_line_item_id: null },
+      { line_total_cents: 5_000_000, unit_cost_cents: 5_000_000, quantity: '1', parent_line_item_id: PARENT_ID },
+    ]
+    const totals = { total_cost_cents: 100_000, tcv_cents: 100_000, gp_cents: 0, gp_margin_bps: 0 }
+    vi.mocked(computeBomTotals).mockReturnValueOnce(totals)
+    mocks.grainReviewSafeParse.mockReturnValue({ success: true, data: input })
+    mocks.select
+      .mockReturnValueOnce(
+        selectResult([
+          {
+            reviewId: GRAIN_REVIEW_ID,
+            lineItemId: LINE_ITEM_ID,
+            bomId: BOM_ID,
+            projectId: PROJECT_ID,
+            bomStatus: 'draft',
+            previousKind: 'material_line',
+            previousParentLineItemId: null,
+          },
+        ]),
+      )
+      .mockReturnValueOnce(selectResult([{ id: PARENT_ID }]))
+    mocks.transactionSelect
+      .mockReturnValueOnce(selectResult([{ id: BOM_ID, status: 'draft' }]))
+      .mockReturnValueOnce(
+        selectResult([{ reviewId: GRAIN_REVIEW_ID, lineItemId: LINE_ITEM_ID, bomId: BOM_ID }]),
+      )
+      .mockReturnValueOnce(
+        selectResult([
+          {
+            id: LINE_ITEM_ID,
+            bomId: BOM_ID,
+            tenantId: TENANT_ID,
+            previousKind: 'material_line',
+            previousParentLineItemId: null,
+          },
+        ]),
+      )
+      .mockReturnValueOnce(selectResult([{ id: PARENT_ID }]))
+      .mockReturnValueOnce(selectResult(lines))
+    const totalsUpdate = updateChain()
+    mocks.transactionUpdate
+      .mockReturnValueOnce(returningUpdateChain([{ id: LINE_ITEM_ID }]))
+      .mockReturnValueOnce(returningUpdateChain([{ id: GRAIN_REVIEW_ID }]))
+      .mockReturnValueOnce(totalsUpdate)
+
+    await expect(resolveBomGrainReview(input)).resolves.toEqual({})
+
+    expect(computeBomTotals).toHaveBeenCalledWith(lines)
+    expect(mocks.transactionUpdate).toHaveBeenCalledTimes(3)
+    expect(totalsUpdate.set).toHaveBeenCalledWith(totals)
+    expect(totalsUpdate.where).toHaveBeenCalledOnce()
   })
 
   it('does not update or audit when the grain review CAS loses', async () => {

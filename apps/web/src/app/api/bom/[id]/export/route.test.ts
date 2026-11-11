@@ -3,16 +3,22 @@ import type { AppRole } from '@third-code-erp/auth'
 import { ERP_ROLES } from '@third-code-erp/shared-types/authorization'
 import { canUniversalSearchEntity } from '@third-code-erp/shared-types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { BoqExportData } from '@/lib/operations/boq-excel/workbook'
+import { BoqExportTooLargeError, type BoqExportData } from '@/lib/operations/boq-excel/workbook'
 
 const mocks = vi.hoisted(() => ({
   getUserProfile: vi.fn(),
   loadBoqExport: vi.fn(),
+  deniedCapability: null as string | null,
 }))
 
 vi.mock('@third-code-erp/auth', async () => {
   const { roleHasCapability } = await import('@third-code-erp/shared-types/authorization')
-  return { can: roleHasCapability, getUserProfile: mocks.getUserProfile }
+  return {
+    // The real capability registry, minus one capability a test takes away.
+    can: (role: AppRole, capability: Parameters<typeof roleHasCapability>[1]) =>
+      capability !== mocks.deniedCapability && roleHasCapability(role, capability),
+    getUserProfile: mocks.getUserProfile,
+  }
 })
 
 vi.mock('./bom-export-data', () => ({ loadBoqExport: mocks.loadBoqExport }))
@@ -52,6 +58,7 @@ describe('BOQ Excel export route', () => {
     mocks.getUserProfile.mockReset()
     mocks.loadBoqExport.mockReset()
     mocks.loadBoqExport.mockResolvedValue(DATA)
+    mocks.deniedCapability = null
   })
 
   it('returns 401 before loading anything without a session', async () => {
@@ -71,6 +78,28 @@ describe('BOQ Excel export route', () => {
     const allowed = canUniversalSearchEntity(role, 'bom')
     expect(response.status).toBe(allowed ? 200 : 403)
     expect(mocks.loadBoqExport).toHaveBeenCalledTimes(allowed ? 1 : 0)
+  })
+
+  it('requires project.read as the project layout around the BOM page does', async () => {
+    mocks.getUserProfile.mockResolvedValue(profile('admin'))
+    mocks.deniedCapability = 'project.read'
+
+    const response = await request()
+
+    expect(response.status).toBe(403)
+    expect(mocks.loadBoqExport).not.toHaveBeenCalled()
+  })
+
+  it('answers 422 with the reason when the BOM has too many lines to export', async () => {
+    mocks.getUserProfile.mockResolvedValue(profile())
+    mocks.loadBoqExport.mockRejectedValue(new BoqExportTooLargeError())
+
+    const response = await request()
+
+    expect(response.status).toBe(422)
+    await expect(response.json()).resolves.toEqual({
+      error: 'This BOM has more than 20,000 lines and cannot be exported to one workbook.',
+    })
   })
 
   it('returns 404 for a BOM outside the caller tenant', async () => {
@@ -124,6 +153,7 @@ describe('BOQ Excel export route', () => {
       quantity: '0',
       unit_cost_cents: 0,
       line_total_cents: 0,
+      markup_bps: 0,
       unit_rate_source: 'manual',
       notes: null,
       is_group: 1,
@@ -143,16 +173,17 @@ describe('BOQ Excel export route', () => {
     await workbook.xlsx.load(await response.arrayBuffer())
     const sheet = workbook.getWorksheet('BOQ')!
     const rows: unknown[][] = []
-    sheet.eachRow((row) => rows.push([1, 3, 7, 8, 9].map((column) => row.getCell(column).value ?? null)))
+    sheet.eachRow((row) => rows.push([1, 3, 7, 8, 9, 11].map((column) => row.getCell(column).value ?? null)))
     const header = rows.findIndex((row) => row[0] === 'Item No')
 
     expect(rows.slice(header + 1)).toEqual([
-      ['A', 'General requirements', null, null, null],
-      ['B', 'Earthworks', null, null, null],
-      [null, 'Total cost', null, null, 0],
-      [null, 'Total contract value (TCV)', null, null, 0],
-      [null, 'Total gross profit (GP)', null, null, 0],
-      [null, 'Total GP margin', null, null, 0],
+      ['A', 'General requirements', null, null, null, null],
+      ['B', 'Earthworks', null, null, null, null],
+      // Cost under Amount (column 9); contract value, GP and margin under Line Total (11).
+      [null, 'Total cost', null, null, 0, null],
+      [null, 'Total contract value (TCV)', null, null, null, 0],
+      [null, 'Total gross profit (GP)', null, null, null, 0],
+      [null, 'Total GP margin', null, null, null, 0],
     ])
     expect(workbook.getWorksheet('DUPA')).toBeUndefined()
   })
@@ -174,6 +205,7 @@ describe('BOQ Excel export route', () => {
           quantity: 'not-a-number',
           unit_cost_cents: 100,
           line_total_cents: 100,
+          markup_bps: 0,
           unit_rate_source: 'manual',
           notes: null,
           is_group: 0,

@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto'
 import { inflateRawSync } from 'node:zlib'
-import * as ExcelJS from 'exceljs'
 import {
   lineTotal,
   validateTakeoffRows,
@@ -8,6 +7,7 @@ import {
   type TakeoffValidationIssue,
 } from '@third-code-erp/shared-types/bom'
 import {
+  TAKEOFF_IMPORT_MAX_COMMAND_BYTES,
   TAKEOFF_IMPORT_MAX_ROWS,
   TAKEOFF_MAX_UNIT_RATE_CENTAVOS,
 } from '@third-code-erp/shared-types'
@@ -17,11 +17,14 @@ import {
   cellQuantity,
   cellText,
   formatCentavos,
+  MAX_CELL_TEXT,
   type CellNumber,
   type CellNumberProblem,
 } from '@/lib/operations/boq-excel/cells'
+import { readXlsxSheet, TakeoffTooLargeError } from './takeoff-xlsx-reader'
 
 export { validateTakeoffRows }
+export { TakeoffBusyError, TakeoffTooLargeError } from './takeoff-xlsx-reader'
 export type { StructuredTakeoffRow, TakeoffValidationIssue }
 
 export interface TakeoffColumnMapping {
@@ -32,6 +35,7 @@ export interface TakeoffColumnMapping {
   division?: string
   location?: string
   itemNo?: string
+  code?: string
   notes?: string
   unitRate?: string
   amount?: string
@@ -48,6 +52,12 @@ export interface TakeoffParseOptions {
 
 export type TakeoffRowWarningCode =
   | 'AMOUNT_MISMATCH'
+  | 'AMOUNT_IGNORED'
+  | 'AMOUNT_NOT_EXACT'
+  | 'LUMP_SUM'
+  | 'HIDDEN_ROW'
+  | 'TEXT_TRUNCATED'
+  | 'TOTAL_ROW_SKIPPED'
   | 'QUANTITY_ROUNDED'
   | 'UNREADABLE_QUANTITY'
   | 'UNREADABLE_UNIT_RATE'
@@ -73,18 +83,64 @@ export interface StructuredTakeoffResult {
   workbook?: { sheets: string[]; sheet: string }
 }
 
-/** A file over the parser's size limits; the message is safe to show. */
-export class TakeoffTooLargeError extends Error {}
-
 export const TAKEOFF_MAX_HEADER_ROW = 50
 export const TAKEOFF_MAX_COLUMNS = 64
 export const TAKEOFF_TOO_MANY_ROWS_MESSAGE = `The sheet has more than ${TAKEOFF_IMPORT_MAX_ROWS.toLocaleString('en-PH')} rows. Split it and import each part.`
 
+// Core refuses a command over TAKEOFF_IMPORT_MAX_COMMAND_BYTES. Rows are
+// counted as they are built, so the size is known before the whole command is
+// in memory; the margin covers the fields around the rows.
+const ROWS_BYTE_BUDGET = TAKEOFF_IMPORT_MAX_COMMAND_BYTES - 64 * 1024
+export const TAKEOFF_TOO_MUCH_DATA_MESSAGE = `The rows on this sheet hold more than ${TAKEOFF_IMPORT_MAX_COMMAND_BYTES / 1_000_000} MB of data. Split the sheet and import each part.`
+
+// The rows read from the chosen sheet cross from the reader's worker to the
+// request thread as text. Rows over the command budget are refused anyway, so
+// twice that budget is room for the rows above the header and the skipped ones.
+const GRID_TEXT_BUDGET = 2 * TAKEOFF_IMPORT_MAX_COMMAND_BYTES
+
+// Whole-workbook limits of the first filter. They say nothing about the sheet
+// being imported (the reader checks that sheet): ExcelJS loads every sheet, so
+// these only turn away a workbook the reader could not hold or finish.
 export const XLSX_LIMITS = {
   uncompressedBytes: 100 * 1024 * 1024,
-  rows: 20_000,
-  columns: TAKEOFF_MAX_COLUMNS,
+  // Workbook parts (zip entries); a real estimate has a few hundred.
+  entries: 5_000,
+  // Rows, cells and merged cells over every sheet: ExcelJS keeps about 500
+  // bytes for each (measured), which is about half of the reader's heap cap.
+  cells: 500_000,
+  // ExcelJS checks each merged range against every other one on its sheet;
+  // 10,000 on one sheet took about 9 seconds.
+  mergedRanges: 5_000,
+  // XML over every part (sheets, shared strings, styles, comments, drawings):
+  // ExcelJS holds about 12 bytes for each, so this keeps a read near 400 MB.
+  // Images are not XML and only count toward uncompressedBytes.
+  xmlBytes: 32 * 1024 * 1024,
 }
+
+// Worksheet nodes the import never reads. ExcelJS expands column spans and
+// data-validation ranges into one object per column or cell on load, so they
+// are not parsed at all; only sheetData and mergeCells are.
+const IGNORED_SHEET_NODES = [
+  'sheetPr',
+  'dimension',
+  'sheetViews',
+  'sheetFormatPr',
+  'cols',
+  'autoFilter',
+  'rowBreaks',
+  'hyperlinks',
+  'pageMargins',
+  'dataValidations',
+  'pageSetup',
+  'headerFooter',
+  'printOptions',
+  'picture',
+  'drawing',
+  'sheetProtection',
+  'tableParts',
+  'conditionalFormatting',
+  'extLst',
+]
 
 type MappedField = Exclude<keyof TakeoffColumnMapping, 'sourceRowKey'>
 type ColumnIndexes = Record<keyof TakeoffColumnMapping, number>
@@ -99,6 +155,7 @@ const HEADER_ALIASES: Record<MappedField, readonly string[]> = {
   division: ['division'],
   location: ['location'],
   itemNo: ['item no', 'item no.', 'item'],
+  code: ['code'],
   notes: ['notes', 'remarks'],
   unitRate: ['unit rate (php)', 'unit rate', 'rate', 'unit cost', 'unit price'],
   amount: ['amount (php)', 'amount', 'total amount'],
@@ -110,7 +167,8 @@ const REQUIRED_FIELDS = [
   ['unit', 'UOM'],
 ] as const
 
-const TOTAL_ROW = /^(sub)?total\b/i
+// "Total", "Subtotal", "Sub-total", "Sub Total", "Grand total".
+const TOTAL_ROW = /^(grand\s+|sub[\s-]*)?total\b/i
 
 const PROBLEM_TEXT: Record<CellNumberProblem, string> = {
   BLANK: 'is blank',
@@ -166,120 +224,278 @@ function lastReadRow(options: TakeoffParseOptions): number {
   return (options.headerRow ?? TAKEOFF_MAX_HEADER_ROW) + TAKEOFF_IMPORT_MAX_ROWS + 1
 }
 
-function splitCsvLine(line: string): string[] {
-  const cells: string[] = []
-  let current = ''
-  let quoted = false
-
-  for (let index = 0; index < line.length; index += 1) {
-    const character = line[index]!
-    const next = line[index + 1]
-    if (character === '"' && quoted && next === '"') {
-      current += '"'
-      index += 1
-      continue
-    }
-    if (character === '"') {
-      quoted = !quoted
-      continue
-    }
-    if (character === ',' && !quoted) {
-      cells.push(current.trim())
-      if (cells.length === TAKEOFF_MAX_COLUMNS) return cells
-      current = ''
-      continue
-    }
-    current += character
-  }
-  cells.push(current.trim())
-  return cells
-}
-
 function columnNumber(letters: string): number {
   return [...letters.toUpperCase()].reduce((total, letter) => total * 26 + letter.charCodeAt(0) - 64, 0)
 }
 
-/** Rejects a worksheet whose declared used range is over the limits. */
-function checkDimension(xml: Buffer, limits: typeof XLSX_LIMITS): void {
-  // <dimension> sits near the top of the sheet XML.
-  const head = xml.toString('utf8', 0, Math.min(xml.length, 64 * 1024))
-  const ref = /<(?:\w+:)?dimension\b[^>]*\bref="([^"]*)"/.exec(head)?.[1]
-  const last = /\$?([A-Za-z]{1,3})\$?(\d+)$/.exec(ref?.split(':').pop() ?? '')
-  if (!last) return
-  const columns = columnNumber(last[1]!)
-  const rows = Number(last[2])
-  if (rows > limits.rows || columns > limits.columns) {
-    throw new TakeoffTooLargeError(
-      `A sheet in this workbook uses ${rows.toLocaleString('en-PH')} rows and ${columns.toLocaleString('en-PH')} columns; the import reads at most ${limits.rows.toLocaleString('en-PH')} rows and ${limits.columns} columns. Delete the unused rows and columns (or copy the BOQ to a new workbook) and try again.`,
-    )
+const ZIP_END = Buffer.from([0x50, 0x4b, 0x05, 0x06])
+const ZIP_DIRECTORY_ENTRY = 0x02014b50
+const ZIP_LOCAL_ENTRY = 0x04034b50
+// Every scan of a part is linear: patterns either match one tag name or look
+// at a bounded window, and <mergeCell> tags are found by position. A tag that
+// does not fit its window is left to the reader's heap and time limits.
+const ROW_OR_CELL_TAG = /<(?:\w+:)?(?:c|row)[\s/>]/g
+const ROW_INDEX = /<(?:\w+:)?row\s[^>]{0,512}?\br\s*=\s*["']([^"']{0,32})["']/g
+const SHEET_ID = /\bsheetId\s*=\s*["']([^"']{0,32})["']/g
+const MERGE_TAG_START = /<(?:\w{1,32}:)?$/
+const MERGE_TAG_MAX_LENGTH = 256
+const REF_ATTRIBUTE = /\sref\s*=\s*(?:"([^"]*)"|'([^']*)')/g
+const CELL_RANGE = /^\$?([A-Z]{1,3})\$?(\d{1,7})(?::\$?([A-Z]{1,3})\$?(\d{1,7}))?$/
+// ExcelJS keeps sheets and rows in arrays indexed by these numbers and walks
+// the whole index range, so one absurd index is minutes of CPU.
+const MAX_SHEET_ID = 65_535
+const MAX_SHEET_ROW = 1_048_576
+
+/** A zip or sheet the guard cannot fully account for is refused, never passed on. */
+function unreadable(reason: string): Error {
+  return new Error(`Not a readable .xlsx workbook: ${reason}.`)
+}
+
+/** One entry's bytes, inflated once with its declared size as the output cap. */
+function zipEntryContent(method: number, data: Buffer, size: number): Buffer {
+  if (method !== 0 && method !== 8) throw unreadable('unsupported compression')
+  let content = data
+  if (method === 8 && data.length > 0) {
+    try {
+      content = inflateRawSync(data, { maxOutputLength: Math.max(size, 1) })
+    } catch {
+      throw unreadable('a part does not match its declared size')
+    }
   }
+  if (content.length !== size) throw unreadable('a part does not match its declared size')
+  return content
 }
 
 /**
- * Zip-bomb and size guard, run before ExcelJS inflates the workbook. Walks the
- * zip central directory and inflates each entry once with its declared size as
- * the output cap, so a lying size header fails here instead of filling memory.
- * A buffer that is not a zip is left to ExcelJS to reject.
+ * Whether ExcelJS will parse a part as XML. By content, as the other checks:
+ * a part's name can also come from a zip extra field.
+ */
+function isXmlPart(content: Buffer): boolean {
+  let at = content[0] === 0xef && content[1] === 0xbb && content[2] === 0xbf ? 3 : 0
+  while (at < content.length && (content[at] === 0x20 || content[at] === 0x09 || content[at] === 0x0a || content[at] === 0x0d)) {
+    at += 1
+  }
+  return content[at] === 0x3c
+}
+
+/** Rows, cells and merged cells, and merged ranges, counted over the workbook so far. */
+interface WorkbookCounts {
+  cells: number
+  mergedRanges: number
+}
+
+/**
+ * Adds what ExcelJS turns into one object each in a sheet part: rows, cells
+ * and every cell a merged range covers. Stops counting cells once past the
+ * limit; refuses a row index outside a sheet and too many merged ranges.
+ */
+function countSheetPart(xml: string, limits: typeof XLSX_LIMITS, counted: WorkbookCounts): WorkbookCounts {
+  let { cells, mergedRanges } = counted
+  for (const _tag of xml.matchAll(ROW_OR_CELL_TAG)) {
+    cells += 1
+    if (cells > limits.cells) return { cells, mergedRanges }
+  }
+  for (const [, row = ''] of xml.matchAll(ROW_INDEX)) {
+    if (!/^\d{1,7}$/.test(row) || Number(row) > MAX_SHEET_ROW) {
+      throw unreadable('a row number is outside the sheet')
+    }
+  }
+  for (let at = xml.indexOf('mergeCell'); at >= 0; at = xml.indexOf('mergeCell', at + 9)) {
+    // An opening <mergeCell> tag only: not <mergeCells>, a closing tag or text.
+    const isTag =
+      /[\s/>]/.test(xml[at + 9] ?? '') && MERGE_TAG_START.test(xml.slice(Math.max(0, at - 34), at))
+    if (!isTag) continue
+    mergedRanges += 1
+    if (mergedRanges > limits.mergedRanges) {
+      throw new TakeoffTooLargeError(
+        `The workbook has more than ${limits.mergedRanges.toLocaleString('en-PH')} merged ranges. Unmerge the cells (or copy the BOQ to a new workbook) and try again.`,
+      )
+    }
+    // Exactly one plain ref ("A1:B2") in a short tag: anything ExcelJS might
+    // read differently is refused.
+    const close = xml.indexOf('>', at)
+    const attributes = close < 0 || close - at > MERGE_TAG_MAX_LENGTH ? '' : xml.slice(at + 9, close)
+    const refs = [...attributes.matchAll(REF_ATTRIBUTE)]
+    const range = refs.length === 1 ? CELL_RANGE.exec(refs[0]![1] ?? refs[0]![2] ?? '') : null
+    if (!range) throw unreadable('a merged range is not a plain cell range')
+    const [, startColumn = '', startRow, endColumn = startColumn, endRow = startRow] = range
+    cells +=
+      (Math.abs(columnNumber(endColumn) - columnNumber(startColumn)) + 1) *
+      (Math.abs(Number(endRow) - Number(startRow)) + 1)
+    if (cells > limits.cells) break
+  }
+  return { cells, mergedRanges }
+}
+
+/**
+ * Zip-bomb and size guard: a cheap, linear first filter in front of the
+ * workbook reader (ExcelJS, which reads the zip with JSZip, in a worker with
+ * its own heap and time limits). It fails closed on the zip: it must be
+ * exactly what JSZip will read (one directory that ends where its end record
+ * starts, the declared number of entries, stored or deflated data inside the
+ * file), and each entry is inflated once with its declared size as the output
+ * cap. It also refuses what is cheap to see in the XML: too much XML, too
+ * many rows, cells or merged ranges over the workbook, and a sheet id or row number that would
+ * make ExcelJS walk a huge index range. It does not try to model everything
+ * ExcelJS expands; the reader's limits cover the rest.
  */
 export function assertXlsxWithinLimits(buffer: Buffer, limits = XLSX_LIMITS): void {
-  const end = buffer.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]))
-  if (end < 0 || end + 22 > buffer.length) return
+  const end = buffer.lastIndexOf(ZIP_END)
+  if (end < 0 || end + 22 > buffer.length) throw unreadable('no zip directory')
   const entries = buffer.readUInt16LE(end + 10)
-  let offset = buffer.readUInt32LE(end + 16)
-  const tooLarge = () =>
-    new TakeoffTooLargeError(
-      `The workbook expands to more than ${limits.uncompressedBytes / 1024 / 1024} MB. Remove unused sheets, images or formatting and try again.`,
+  const directoryStart = buffer.readUInt32LE(end + 16)
+  // One disk, no zip64, and no bytes before or between the parts: JSZip
+  // re-bases every offset when the directory is not where its end record says.
+  if (
+    buffer.readUInt32LE(end + 4) !== 0 ||
+    buffer.readUInt16LE(end + 8) !== entries ||
+    entries === 0xffff ||
+    directoryStart + buffer.readUInt32LE(end + 12) !== end
+  ) {
+    throw unreadable('unsupported zip layout')
+  }
+  if (entries > limits.entries) {
+    throw new TakeoffTooLargeError(
+      `The workbook has more than ${limits.entries.toLocaleString('en-PH')} parts. Copy the BOQ to a new workbook and try again.`,
     )
-  // Zip64 markers only appear past 4 GB or 65,535 entries.
-  if (entries === 0xffff || offset === 0xffffffff) throw tooLarge()
+  }
 
+  let offset = directoryStart
   let total = 0
+  let xmlBytes = 0
+  let counted: WorkbookCounts = { cells: 0, mergedRanges: 0 }
   for (let entry = 0; entry < entries; entry += 1) {
-    if (offset + 46 > buffer.length || buffer.readUInt32LE(offset) !== 0x02014b50) return
+    if (offset + 46 > end || buffer.readUInt32LE(offset) !== ZIP_DIRECTORY_ENTRY) {
+      throw unreadable('the zip directory does not match its entry count')
+    }
     const method = buffer.readUInt16LE(offset + 10)
     const compressedSize = buffer.readUInt32LE(offset + 20)
     const size = buffer.readUInt32LE(offset + 24)
-    const nameLength = buffer.readUInt16LE(offset + 28)
     const localHeader = buffer.readUInt32LE(offset + 42)
-    const name = buffer.toString('utf8', offset + 46, offset + 46 + nameLength)
-    offset += 46 + nameLength + buffer.readUInt16LE(offset + 30) + buffer.readUInt16LE(offset + 32)
+    offset +=
+      46 + buffer.readUInt16LE(offset + 28) + buffer.readUInt16LE(offset + 30) + buffer.readUInt16LE(offset + 32)
 
     total += size
-    if (size === 0xffffffff || total > limits.uncompressedBytes) throw tooLarge()
-    if (localHeader + 30 > buffer.length) return
+    if (total > limits.uncompressedBytes) {
+      throw new TakeoffTooLargeError(
+        `The workbook expands to more than ${limits.uncompressedBytes / 1024 / 1024} MB. Remove unused sheets, images or formatting and try again.`,
+      )
+    }
+    if (localHeader + 30 > directoryStart || buffer.readUInt32LE(localHeader) !== ZIP_LOCAL_ENTRY) {
+      throw unreadable('a part is outside the file')
+    }
     const dataStart =
       localHeader + 30 + buffer.readUInt16LE(localHeader + 26) + buffer.readUInt16LE(localHeader + 28)
-    const data = buffer.subarray(dataStart, dataStart + compressedSize)
-    const content = method === 8 ? inflateRawSync(data, { maxOutputLength: Math.max(size, 1) }) : data
-    if (/^xl\/worksheets\/[^/]+\.xml$/i.test(name)) checkDimension(content, limits)
+    if (dataStart + compressedSize > directoryStart) throw unreadable('a part is outside the file')
+    const content = zipEntryContent(method, buffer.subarray(dataStart, dataStart + compressedSize), size)
+    if (isXmlPart(content)) {
+      xmlBytes += content.length
+      if (xmlBytes > limits.xmlBytes) {
+        throw new TakeoffTooLargeError(
+          `The workbook holds more than ${limits.xmlBytes / 1024 / 1024} MB of sheet data, text and formatting. Copy the BOQ sheet to a new workbook and try again.`,
+        )
+      }
+    }
+
+    // By content, not by name: JSZip names parts from their local headers.
+    const isSheet = content.includes('sheetData') || content.includes('mergeCell')
+    if (!isSheet && !content.includes('sheetId')) continue
+    const xml = content.toString('latin1')
+    for (const [, id = ''] of xml.matchAll(SHEET_ID)) {
+      if (!/^\d{1,5}$/.test(id) || Number(id) > MAX_SHEET_ID) throw unreadable('a sheet id is out of range')
+    }
+    if (!isSheet) continue
+    counted = countSheetPart(xml, limits, counted)
+    if (counted.cells > limits.cells) {
+      throw new TakeoffTooLargeError(
+        `The workbook holds more than ${limits.cells.toLocaleString('en-PH')} rows and cells over all its sheets (a merged range counts every cell it covers). Copy the BOQ sheet to a new workbook and try again.`,
+      )
+    }
+  }
+  if (offset !== end) throw unreadable('the zip directory does not match its entry count')
+}
+
+/**
+ * The chosen sheet's rows 1..lastRow as plain values, read by ExcelJS in a
+ * worker under the reader's heap and time limits. The sheet's own limits are
+ * checked there, on that sheet only: at most TAKEOFF_MAX_COLUMNS columns,
+ * nothing below lastRow, and a bounded amount of text. Null when the workbook
+ * has no such sheet.
+ */
+async function readWorksheet(
+  buffer: Buffer,
+  options: TakeoffParseOptions,
+): Promise<{ sheets: string[]; sheet: string | null; grid: unknown[][]; hiddenRows: number[] }> {
+  const read = await readXlsxSheet(buffer, {
+    sheet: options.sheet,
+    lastRow: lastReadRow(options),
+    maxColumns: TAKEOFF_MAX_COLUMNS,
+    // One past the cut, so a cut cell can be told from one that just fits.
+    maxText: MAX_CELL_TEXT + 1,
+    maxGridText: GRID_TEXT_BUDGET,
+    ignoreNodes: IGNORED_SHEET_NODES,
+  })
+  if (read.sheet === null) return { sheets: read.sheets, sheet: null, grid: [], hiddenRows: [] }
+  if ('refused' in read) {
+    if (read.refused === 'TOO_WIDE') {
+      throw new TakeoffTooLargeError(
+        `The sheet "${read.sheet}" uses ${read.columns.toLocaleString('en-PH')} columns; the import reads at most ${TAKEOFF_MAX_COLUMNS}. Delete the unused columns (or copy the BOQ to a new sheet) and try again.`,
+      )
+    }
+    throw new TakeoffTooLargeError(
+      read.refused === 'TOO_MANY_ROWS' ? TAKEOFF_TOO_MANY_ROWS_MESSAGE : TAKEOFF_TOO_MUCH_DATA_MESSAGE,
+    )
+  }
+  return {
+    sheets: read.sheets,
+    sheet: read.sheet,
+    grid: Array.from(read.grid, (cells) => cells ?? []),
+    hiddenRows: read.hiddenRows,
   }
 }
 
 /**
- * Sheet rows 1..lastRow as raw values, at most TAKEOFF_MAX_COLUMNS wide (a
- * far-right stray cell must not widen every row). Merged-range followers read
- * as blank. Content below lastRow means the sheet is over the row cap.
+ * CSV records 1..lastRow, each at most TAKEOFF_MAX_COLUMNS trimmed cells. A
+ * cell that starts with a quote may hold commas, doubled quotes and line
+ * breaks, so a record is not always one line; a quote later in a cell is plain
+ * text (2" pipe). Content after lastRow means the file is over the row cap.
  */
-function worksheetGrid(worksheet: ExcelJS.Worksheet, lastRow: number): unknown[][] {
-  const grid: unknown[][] = []
-  worksheet.eachRow((row, rowNumber) => {
-    if (rowNumber > lastRow) throw new TakeoffTooLargeError(TAKEOFF_TOO_MANY_ROWS_MESSAGE)
-    const cells: unknown[] = []
-    row.eachCell((cell, column) => {
-      if (column > TAKEOFF_MAX_COLUMNS) return
-      cells[column - 1] = cell.isMerged && cell.master.address !== cell.address ? null : cell.value
-    })
-    grid[rowNumber - 1] = Array.from(cells)
-  })
-  return Array.from(grid, (cells) => cells ?? [])
-}
-
 function csvGrid(text: string, lastRow: number): unknown[][] {
-  const lines = text.split(/\r?\n/)
-  if (lines.slice(lastRow).some((line) => line.trim())) {
-    throw new TakeoffTooLargeError(TAKEOFF_TOO_MANY_ROWS_MESSAGE)
+  const rows: string[][] = []
+  let cells: string[] = []
+  let current = ''
+  let quoted = false
+  const endCell = () => {
+    if (cells.length < TAKEOFF_MAX_COLUMNS) cells.push(current.trim())
+    current = ''
   }
-  return lines.slice(0, lastRow).map(splitCsvLine)
+
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index]!
+    if (character === '"' && (quoted || current.trim() === '')) {
+      if (quoted && text[index + 1] === '"') {
+        current += '"'
+        index += 1
+      } else {
+        quoted = !quoted
+      }
+    } else if (character === ',' && !quoted) {
+      endCell()
+    } else if (character === '\n' && !quoted) {
+      endCell()
+      rows.push(cells)
+      cells = []
+      if (rows.length === lastRow) {
+        if (/\S/.test(text.slice(index + 1))) throw new TakeoffTooLargeError(TAKEOFF_TOO_MANY_ROWS_MESSAGE)
+        return rows
+      }
+    } else {
+      current += character
+    }
+  }
+  endCell()
+  rows.push(cells)
+  return rows
 }
 
 function emptyResult(missingColumns: string[], headerRow = 1): StructuredTakeoffResult {
@@ -304,6 +520,7 @@ function columnIndexes(headers: string[], mapping: TakeoffColumnMapping): Column
     division: column('division'),
     location: column('location'),
     itemNo: column('itemNo'),
+    code: column('code'),
     notes: column('notes'),
     unitRate: column('unitRate'),
     amount: column('amount'),
@@ -316,7 +533,9 @@ function classifyRow(
   description: string,
   sectionHeaders: boolean,
 ): 'skip' | 'section' | 'item' {
-  if (isBlankRow(cells) || TOTAL_ROW.test(description)) return 'skip'
+  // A total row has no unit; "Total station survey | 1 | lot" is a real line.
+  const isTotal = TOTAL_ROW.test(description) && isBlankCell(cells[indexes.unit])
+  if (isBlankRow(cells) || isTotal) return 'skip'
   // A lump sum (rate or amount, no quantity) is an item Core queues, not a header.
   const isHeader = [indexes.quantity, indexes.unit, indexes.unitRate, indexes.amount].every(
     (index) => index < 0 || isBlankCell(cells[index]),
@@ -349,50 +568,124 @@ function readRate(cell: unknown, warn: Warn): number | null | undefined {
   return null
 }
 
-function checkAmount(
-  cell: unknown,
-  quantity: CellNumber<string>,
-  unitRateCentavos: number | null | undefined,
-  warn: Warn,
-): void {
+/**
+ * The whole-centavo unit rate whose line total (the shared lineTotal, half-up)
+ * is exactly the amount, or null when there is none. Integer arithmetic only.
+ */
+function exactUnitRate(amountCentavos: number, quantity: string): number | null {
+  const [whole = '0', fraction = ''] = quantity.split('.')
+  const scaledQuantity = BigInt(whole + fraction.padEnd(4, '0').slice(0, 4))
+  if (scaledQuantity <= 0n) return null
+  // round_half_up(amount / quantity), with quantity scaled by 10^4.
+  const rate = (BigInt(amountCentavos) * 20_000n + scaledQuantity) / (2n * scaledQuantity)
+  if (rate > BigInt(TAKEOFF_MAX_UNIT_RATE_CENTAVOS)) return null
+  try {
+    return lineTotal(Number(rate), quantity, 0) === amountCentavos ? Number(rate) : null
+  } catch {
+    return null
+  }
+}
+
+interface RowPrice {
+  quantity: CellNumber<string>
+  /** Centavos; null: unreadable or not exact (Core queues it); undefined: the row has no price. */
+  unitRateCentavos: number | null | undefined
+}
+
+/**
+ * Prices a row from its mapped amount. With a rate the amount is only checked.
+ * Without one the amount is the row's only price, so the rate is derived when
+ * that is exact to the centavo, and a row with no quantity is a lump sum of
+ * quantity 1. Nothing is rounded to make an amount fit.
+ */
+function priceFromAmount(cell: unknown, price: RowPrice, warn: Warn): RowPrice {
+  const { quantity, unitRateCentavos } = price
   const amount = cellCentavos(cell, Number.MAX_SAFE_INTEGER)
   if (!amount.ok) {
     if (amount.problem !== 'BLANK') warn('UNREADABLE_AMOUNT', `Amount ${PROBLEM_TEXT[amount.problem]}.`)
-    return
+    return price
   }
-  if (!quantity.ok || typeof unitRateCentavos !== 'number') return
-  let expected: number
-  try {
-    expected = lineTotal(unitRateCentavos, quantity.value, 0)
-  } catch {
-    return // Out of range: validateTakeoffRows queues the rate in Core.
+  const shown = `Amount PHP ${formatCentavos(amount.value)}`
+  if (typeof unitRateCentavos === 'number') {
+    if (!quantity.ok) return price
+    let expected: number
+    try {
+      expected = lineTotal(unitRateCentavos, quantity.value, 0)
+    } catch {
+      return price // Out of range: validateTakeoffRows queues the rate in Core.
+    }
+    if (Math.abs(expected - amount.value) > 1) {
+      warn(
+        'AMOUNT_MISMATCH',
+        `${shown} differs from quantity x unit rate PHP ${formatCentavos(expected)}; the system amount is used.`,
+      )
+    }
+    return price
   }
-  if (Math.abs(expected - amount.value) > 1) {
+  // An unreadable rate is already reported; a zero amount prices nothing.
+  if (unitRateCentavos === null || amount.value === 0) return price
+
+  if (!quantity.ok && quantity.problem === 'BLANK') {
+    if (amount.value > TAKEOFF_MAX_UNIT_RATE_CENTAVOS) {
+      warn('AMOUNT_IGNORED', `${shown} is over the supported rate range, so the line is imported without a price.`)
+      return price
+    }
+    warn('LUMP_SUM', `No quantity: imported as a lump sum, quantity 1 at PHP ${formatCentavos(amount.value)}.`)
+    return { quantity: { ok: true, value: '1' }, unitRateCentavos: amount.value }
+  }
+  if (!quantity.ok) {
+    warn('AMOUNT_IGNORED', `${shown} is not imported because the quantity could not be read.`)
+    return price
+  }
+  const derived = exactUnitRate(amount.value, quantity.value)
+  if (derived === null) {
     warn(
-      'AMOUNT_MISMATCH',
-      `Amount PHP ${formatCentavos(amount.value)} differs from quantity x unit rate PHP ${formatCentavos(expected)}; the system amount is used.`,
+      'AMOUNT_NOT_EXACT',
+      `${shown} divided by quantity ${quantity.value} is not a whole-centavo unit rate, so no rate was derived and the line is left for review. Add a unit rate column or price the line after import.`,
     )
+    return { quantity, unitRateCentavos: null }
   }
+  return { quantity, unitRateCentavos: derived }
 }
 
 interface RowContext {
   headers: string[]
   indexes: ColumnIndexes
   warnings: TakeoffRowWarning[]
+  /** Sheet rows hidden in the workbook. */
+  hiddenRows: ReadonlySet<number>
 }
 
 function buildRow(
   cells: unknown[],
   rowNumber: number,
   section: string | null,
-  { headers, indexes, warnings }: RowContext,
+  { headers, indexes, warnings, hiddenRows }: RowContext,
 ): StructuredTakeoffRow {
   const text = (index: number) => (index >= 0 ? cellText(cells[index]).trim() : '')
   const sourceRowKey = text(indexes.sourceRowKey) || `row-${rowNumber}`
   const warn: Warn = (code, message) => warnings.push({ sourceRowKey, code, message })
-  const quantity = readQuantity(cells[indexes.quantity], warn)
-  const unitRateCentavos = indexes.unitRate >= 0 ? readRate(cells[indexes.unitRate], warn) : undefined
-  if (indexes.amount >= 0) checkAmount(cells[indexes.amount], quantity, unitRateCentavos, warn)
+  if (hiddenRows.has(rowNumber)) {
+    warn('HIDDEN_ROW', 'This row is hidden in the sheet and was imported. Delete it from the file if it should not count.')
+  }
+  const read: RowPrice = {
+    quantity: readQuantity(cells[indexes.quantity], warn),
+    unitRateCentavos: indexes.unitRate >= 0 ? readRate(cells[indexes.unitRate], warn) : undefined,
+  }
+  const { quantity, unitRateCentavos } =
+    indexes.amount >= 0 ? priceFromAmount(cells[indexes.amount], read, warn) : read
+  const code = text(indexes.code).slice(0, 255)
+  for (const [label, index] of [
+    ['Description', indexes.description],
+    ['Notes', indexes.notes],
+  ] as const) {
+    if (index >= 0 && cellText(cells[index], MAX_CELL_TEXT + 1).length > MAX_CELL_TEXT) {
+      warn(
+        'TEXT_TRUNCATED',
+        `${label} is longer than ${MAX_CELL_TEXT.toLocaleString('en-PH')} characters and was cut.`,
+      )
+    }
+  }
 
   return {
     sourceRowKey,
@@ -402,6 +695,7 @@ function buildRow(
     division: text(indexes.division) || section,
     location: text(indexes.location) || null,
     itemNo: text(indexes.itemNo) || null,
+    ...(code ? { code } : {}),
     notes: text(indexes.notes) || null,
     ...(unitRateCentavos === undefined ? {} : { unitRateCentavos }),
     raw: Object.fromEntries(headers.map((header, index) => [header, cellText(cells[index])])),
@@ -412,6 +706,7 @@ function buildRows(
   grid: unknown[][],
   mapping: TakeoffColumnMapping,
   options: TakeoffParseOptions,
+  hiddenRows: ReadonlySet<number> = new Set(),
 ): StructuredTakeoffResult {
   const headerRow = options.headerRow ?? detectHeaderRow(grid, mapping)
   const headers = (grid[headerRow - 1] ?? []).map((cell) => normalizeHeader(cellText(cell)))
@@ -420,11 +715,12 @@ function buildRows(
   if (missingColumns.length > 0) return { ...emptyResult(missingColumns, headerRow), headers }
 
   const result: StructuredTakeoffResult = { ...emptyResult([], headerRow), headers }
-  const context: RowContext = { headers, indexes, warnings: result.warnings }
+  const context: RowContext = { headers, indexes, warnings: result.warnings, hiddenRows }
   const sectionHeaders = options.sectionHeaders ?? true
   let lastRow = grid.length
   while (lastRow > headerRow && isBlankRow(grid[lastRow - 1] ?? [])) lastRow -= 1
   let section: string | null = null
+  let rowBytes = 0
 
   // One row past the limit is enough for the caller to reject the file.
   for (
@@ -437,12 +733,23 @@ function buildRows(
     const kind = classifyRow(cells, indexes, description, sectionHeaders)
     if (kind === 'skip') {
       result.skippedRows += 1
+      // Not blank, so a total row; with a quantity it may be a line missing its unit.
+      if (description && !isBlankCell(cells[indexes.quantity])) {
+        result.warnings.push({
+          sourceRowKey: `row-${rowNumber}`,
+          code: 'TOTAL_ROW_SKIPPED',
+          message: `"${description.slice(0, 80)}" has a quantity but no unit; it was read as a total row and not imported.`,
+        })
+      }
     } else if (kind === 'section') {
       // A header merged from an earlier column has its text outside Description.
       section = description || cells.map((cell) => cellText(cell).trim()).find(Boolean) || null
       result.sectionRows += 1
     } else {
-      result.rows.push(buildRow(cells, rowNumber, section, context))
+      const row = buildRow(cells, rowNumber, section, context)
+      rowBytes += Buffer.byteLength(JSON.stringify(row))
+      if (rowBytes > ROWS_BYTE_BUDGET) throw new TakeoffTooLargeError(TAKEOFF_TOO_MUCH_DATA_MESSAGE)
+      result.rows.push(row)
     }
   }
   return result
@@ -463,20 +770,13 @@ export async function parseStructuredTakeoff(
 
   if (lowerName.endsWith('.xlsx')) {
     assertXlsxWithinLimits(buffer)
-    const workbook = new ExcelJS.Workbook()
-    // ExcelJS' runtime accepts Node Buffers, while its declaration is typed
-    // as an ArrayBuffer in this version of the package.
-    await workbook.xlsx.load(buffer as unknown as ArrayBuffer)
-    const sheets = workbook.worksheets.map((sheet) => sheet.name)
-    const worksheet = options.sheet
-      ? workbook.getWorksheet(options.sheet)
-      : workbook.worksheets[0]
-    if (!worksheet) {
+    const { sheets, sheet, grid, hiddenRows } = await readWorksheet(buffer, options)
+    if (sheet === null) {
       return { ...emptyResult(['worksheet']), workbook: { sheets, sheet: options.sheet ?? '' } }
     }
     return {
-      ...buildRows(worksheetGrid(worksheet, lastReadRow(options)), mapping, options),
-      workbook: { sheets, sheet: worksheet.name },
+      ...buildRows(grid, mapping, options, new Set(hiddenRows)),
+      workbook: { sheets, sheet },
     }
   }
 

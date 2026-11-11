@@ -40,21 +40,26 @@ function unwrapCell(value: unknown): unknown {
     return value.result === undefined ? NO_RESULT : unwrapCell(value.result)
   }
   if (Array.isArray(value.richText)) {
-    return value.richText
-      .map((part) => (isRecord(part) && typeof part.text === 'string' ? part.text : ''))
-      .join('')
+    // Joined only as far as any reader looks (the cut plus one): a shared
+    // string can hold millions of runs and is read for every cell that uses it.
+    let text = ''
+    for (const part of value.richText) {
+      if (isRecord(part) && typeof part.text === 'string') text += part.text
+      if (text.length > MAX_CELL_TEXT) break
+    }
+    return text
   }
   if (typeof value.text === 'string') return value.text
   return value
 }
 
-/** Display text of a cell; formula errors and missing results are blank. */
-export function cellText(value: unknown): string {
+/** Display text of a cell, cut at maxLength; formula errors and missing results are blank. */
+export function cellText(value: unknown, maxLength = MAX_CELL_TEXT): string {
   const unwrapped = unwrapCell(value)
   if (unwrapped == null || unwrapped === NO_RESULT || isRecord(unwrapped)) return ''
   if (unwrapped instanceof Date) return unwrapped.toISOString().slice(0, 10)
   if (typeof unwrapped === 'number') return plainDecimal(unwrapped.toPrecision(EXCEL_PRECISION))
-  return String(unwrapped).slice(0, MAX_CELL_TEXT)
+  return String(unwrapped).slice(0, maxLength)
 }
 
 /** "1.50000000000000e-7" -> "0.00000015"; trims insignificant zeros. */
@@ -164,7 +169,7 @@ export function excelText(value: string | null | undefined): string {
   return (value ?? '').replace(INVALID_TEXT, '')
 }
 
-/** Text Excel would turn into a formula when the cell is edited. */
+/** Text Excel (or a CSV re-save) would turn into a formula; a leading tab hides the trigger. */
 export function looksLikeFormula(value: string): boolean {
-  return /^[=+\-@]/.test(value)
+  return /^[=+\-@\t]/.test(value)
 }

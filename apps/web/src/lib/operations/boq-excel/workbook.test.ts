@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module'
+import { computeBomTotals } from '@third-code-erp/shared-types/bom'
 import * as ExcelJS from 'exceljs'
 import { describe, expect, it } from 'vitest'
 import { parseStructuredTakeoff } from '@/lib/operations/integrations/takeoff'
@@ -29,6 +30,7 @@ function line(overrides: Partial<BoqExportLine>): BoqExportLine {
     quantity: '1',
     unit_cost_cents: 0,
     line_total_cents: 0,
+    markup_bps: 0,
     unit_rate_source: 'manual',
     notes: null,
     is_group: 0,
@@ -151,6 +153,33 @@ function headerRowNumber(sheet: ExcelJS.Worksheet): number {
   return found
 }
 
+/** The Amount cells of the line rows, summed in centavos, and the totals rows by label. */
+function readBoqTotals(workbook: ExcelJS.Workbook): {
+  amountCentavos: number
+  lineTotalCentavos: number
+  totals: Map<string, unknown>
+} {
+  const sheet = workbook.getWorksheet('BOQ')!
+  const header = headerRowNumber(sheet)
+  let amountCentavos = 0
+  let lineTotalCentavos = 0
+  const totals = new Map<string, unknown>()
+  sheet.eachRow((row, number) => {
+    if (number <= header) return
+    const label = String(row.getCell(3).value ?? '')
+    if (label.startsWith('Total')) {
+      // Total cost sits under Amount (9); TCV, GP and margin under Line Total (11).
+      totals.set(label, row.getCell(9).value ?? row.getCell(11).value)
+      return
+    }
+    const amount = cellCentavos(row.getCell(9).value, Number.MAX_SAFE_INTEGER)
+    if (amount.ok) amountCentavos += amount.value
+    const lineTotal = cellCentavos(row.getCell(11).value, Number.MAX_SAFE_INTEGER)
+    if (lineTotal.ok) lineTotalCentavos += lineTotal.value
+  })
+  return { amountCentavos, lineTotalCentavos, totals }
+}
+
 describe('BOQ workbook export', () => {
   it('writes the header block, headers, typed cells and number formats', async () => {
     const { workbook } = await roundTrip(exportData())
@@ -179,7 +208,11 @@ describe('BOQ workbook export', () => {
     expect(first.getCell(8).numFmt).toBe('#,##0.00')
     // 12.3456 x 450.50 = 5,561.6928 -> 5,561.69
     expect(first.getCell(9).value).toBe(5561.69)
-    expect(first.getCell(10).value).toBe('Client BOQ')
+    // No markup on a client BOQ line: the stored line total is the same amount.
+    expect(first.getCell(10).value).toBe(0)
+    expect(first.getCell(10).numFmt).toBe('0.00%')
+    expect(first.getCell(11).value).toBe(5561.66)
+    expect(first.getCell(12).value).toBe('Client BOQ')
 
     const descriptions: unknown[] = []
     sheet.eachRow((row, number) => {
@@ -196,8 +229,8 @@ describe('BOQ workbook export', () => {
 
     expect(injected.getCell(3).type).toBe(ExcelJS.ValueType.String)
     expect(injected.getCell(3).value).toBe('=HYPERLINK("x")')
-    expect(injected.getCell(11).type).toBe(ExcelJS.ValueType.String)
-    expect(injected.getCell(11).value).toBe('+cmd|calc')
+    expect(injected.getCell(13).type).toBe(ExcelJS.ValueType.String)
+    expect(injected.getCell(13).value).toBe('+cmd|calc')
   })
 
   it('sets quotePrefix only on text that starts like a formula', async () => {
@@ -210,9 +243,9 @@ describe('BOQ workbook export', () => {
     const sheet = part('/xl/worksheets/sheet1.xml')
     const styleOf = (ref: string) => xfs[Number(new RegExp(`<c r="${ref}"[^>]*\\bs="(\\d+)"`).exec(sheet)?.[1] ?? 0)]!
 
-    // Row 10 is the "=HYPERLINK" line: description C10 and notes K10 ("+cmd|calc").
+    // Row 10 is the "=HYPERLINK" line: description C10 and notes M10 ("+cmd|calc").
     expect(styleOf('C10')).toContain('quotePrefix="1"')
-    expect(styleOf('K10')).toContain('quotePrefix="1"')
+    expect(styleOf('M10')).toContain('quotePrefix="1"')
     expect(styleOf('C9')).not.toContain('quotePrefix')
     expect(styleOf('A9')).not.toContain('quotePrefix')
   })
@@ -229,25 +262,96 @@ describe('BOQ workbook export', () => {
     expect(group?.getCell(7).value ?? null).toBeNull()
   })
 
-  it('sums exported amounts to the stored total cost and writes stored totals', async () => {
+  it('prints totals that are the sum of the printed lines when the stored totals are stale', async () => {
+    // The cement was nested under line b (a resolved grain review) and the
+    // BOM record still counts it: P6,000.00 more than its lines add up to.
+    const current = computeBomTotals(LINES)
+    const stored = {
+      ...current,
+      total_cost_cents: current.total_cost_cents + 600_000,
+      tcv_cents: current.tcv_cents + 600_000,
+    }
+    const { buffer, workbook } = await roundTrip({ ...exportData(), bom: { ...exportData().bom, ...stored } })
+    const { amountCentavos, totals } = readBoqTotals(workbook)
+    const printed = (label: string) => {
+      const value = cellCentavos(totals.get(label), Number.MAX_SAFE_INTEGER)
+      return value.ok ? value.value : Number.NaN
+    }
+    const topLevelTcv = LINES.filter((line) => line.parent_line_item_id === null).reduce(
+      (sum, line) => sum + line.line_total_cents,
+      0,
+    )
+
+    expect(printed('Total cost')).toBe(amountCentavos)
+    expect(printed('Total cost')).toBe(current.total_cost_cents)
+    expect(printed('Total contract value (TCV)')).toBe(topLevelTcv)
+    expect(totals.get('Total gross profit (GP)')).toBe((topLevelTcv - amountCentavos) / 100)
+    // The out-of-date record is shown beside the computed totals, never instead of them.
+    expect(printed('Total cost stored on the BOM (out of date)')).toBe(stored.total_cost_cents)
+    expect(printed('Total contract value (TCV) stored on the BOM (out of date)')).toBe(stored.tcv_cents)
+
+    const imported = await parseStructuredTakeoff(buffer, 'BOQ.xlsx', {
+      description: 'Description',
+      quantity: 'Quantity',
+      unit: 'UOM',
+    })
+    expect(imported.rows).toHaveLength(3)
+    expect(imported.warnings).toEqual([])
+  })
+
+  it('shows cost, markup and line total side by side so each total adds up on the sheet', async () => {
+    // A Togal line: 10 x 100.00 at 30% markup is 1,000.00 of cost and 1,300.00 on the contract.
+    const lines = [
+      line({
+        id: 't',
+        description: 'Togal tile',
+        unit: 'sqm',
+        quantity: '10',
+        unit_cost_cents: 10_000,
+        markup_bps: 3_000,
+        line_total_cents: 130_000,
+      }),
+      line({ id: 'p', description: 'Plain line', quantity: '2', unit_cost_cents: 5_000, line_total_cents: 10_000 }),
+    ]
+    const current = computeBomTotals(lines)
+    const { workbook } = await roundTrip({
+      ...exportData(),
+      bom: { ...exportData().bom, ...current },
+      lines,
+      dupas: [],
+    })
+    const sheet = workbook.getWorksheet('BOQ')!
+    const togal = sheet.getRow(headerRowNumber(sheet) + 1)
+    const { amountCentavos, lineTotalCentavos, totals } = readBoqTotals(workbook)
+    const totalRow = (label: string) => {
+      let found: ExcelJS.Row | undefined
+      sheet.eachRow((row) => {
+        if (row.getCell(3).value === label) found = row
+      })
+      return [9, 11].map((column) => found?.getCell(column).value ?? null)
+    }
+
+    expect([9, 10, 11].map((column) => togal.getCell(column).value)).toEqual([1000, 0.3, 1300])
+    // The Amount column is cost and sums to Total cost; the Line Total column sums to TCV.
+    expect(amountCentavos).toBe(current.total_cost_cents)
+    expect(lineTotalCentavos).toBe(current.tcv_cents)
+    expect(current).toMatchObject({ total_cost_cents: 110_000, tcv_cents: 140_000 })
+    expect(totalRow('Total cost')).toEqual([amountCentavos / 100, null])
+    expect(totalRow('Total contract value (TCV)')).toEqual([null, lineTotalCentavos / 100])
+    expect(totals.get('Total gross profit (GP)')).toBe((lineTotalCentavos - amountCentavos) / 100)
+  })
+
+  it('sums exported amounts to the total cost and prints no stored totals when they are current', async () => {
     const data = exportData()
     const { workbook } = await roundTrip(data)
-    const sheet = workbook.getWorksheet('BOQ')!
-    const header = headerRowNumber(sheet)
+    const { amountCentavos, totals } = readBoqTotals(workbook)
 
-    let amountCentavos = 0
-    const totals = new Map<string, unknown>()
-    sheet.eachRow((row, number) => {
-      if (number <= header) return
-      const label = String(row.getCell(3).value ?? '')
-      if (label.startsWith('Total')) {
-        totals.set(label, row.getCell(9).value)
-        return
-      }
-      const amount = cellCentavos(row.getCell(9).value, Number.MAX_SAFE_INTEGER)
-      if (amount.ok) amountCentavos += amount.value
-    })
-
+    expect([...totals.keys()]).toEqual([
+      'Total cost',
+      'Total contract value (TCV)',
+      'Total gross profit (GP)',
+      'Total GP margin',
+    ])
     // 12.3456 x 450.50, 2.5 x 6,500.01 and 0.3333 x 10,000.00, each half-up.
     expect(amountCentavos).toBe(556_169 + 1_625_003 + 333_300)
     expect(amountCentavos).toBe(data.bom.total_cost_cents)

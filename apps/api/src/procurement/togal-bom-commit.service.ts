@@ -20,8 +20,7 @@ import {
 } from '@third-code-erp/database/schema'
 import {
   boqQuantityFromNumber,
-  computeGP,
-  computeGPMargin,
+  computeBomTotals,
   lineTotal,
 } from '@third-code-erp/shared-types/bom'
 import {
@@ -273,8 +272,6 @@ export class TogalBomCommitService {
       }
 
       const projectMarkupBps = parsedCommand.markupBps ?? DEFAULT_MARKUP_BPS
-      let addedCostCents = 0
-      let addedTcvCents = 0
       const linesToInsert = parsedCommand.proposedLines.map((line, index) => {
         const markupBps = line.markupBps ?? projectMarkupBps
         // D-5: exact numeric(18,4) quantity; amounts round half-up per line.
@@ -284,21 +281,9 @@ export class TogalBomCommitService {
             'Togal BOM quantity must have at most 4 decimal places and fit the BOM range'
           )
         }
-        const cost = safeCents(
-          exactCents(() => lineTotal(line.unitCostCents, quantity, 0)),
-          'Togal BOM cost exceeds supported exact centavo range'
-        )
         const total = safeCents(
           exactCents(() => lineTotal(line.unitCostCents, quantity, markupBps)),
           'Togal BOM line total exceeds supported exact centavo range'
-        )
-        addedCostCents = safeCents(
-          addedCostCents + cost,
-          'Togal BOM cost exceeds supported exact centavo range'
-        )
-        addedTcvCents = safeCents(
-          addedTcvCents + total,
-          'Togal BOM contract value exceeds supported exact centavo range'
         )
 
         const notesParts: string[] = [
@@ -326,27 +311,37 @@ export class TogalBomCommitService {
         }
       })
 
-      const newTotalCostCents = safeCents(
-        bom.totalCostCents + addedCostCents,
-        'Togal BOM cost exceeds supported exact centavo range'
-      )
-      const newTcvCents = safeCents(
-        bom.tcvCents + addedTcvCents,
-        'Togal BOM contract value exceeds supported exact centavo range'
-      )
-      const newGpCents = computeGP(newTcvCents, newTotalCostCents)
-      const newGpMarginBps = computeGPMargin(newGpCents, newTcvCents)
-
       await transaction.insert(bomLineItems).values(linesToInsert)
+
+      // Stored totals have one formula (computeBomTotals) over every line of
+      // the BOM. Adding to the stored figures would carry a stale total on.
+      const bomLines = await transaction
+        .select({
+          unit_cost_cents: bomLineItems.unit_cost_cents,
+          quantity: bomLineItems.quantity_decimal,
+          line_total_cents: bomLineItems.line_total_cents,
+          parent_line_item_id: bomLineItems.parent_line_item_id,
+        })
+        .from(bomLineItems)
+        .where(
+          and(
+            eq(bomLineItems.bom_id, bom.id),
+            eq(bomLineItems.tenant_id, authorizedPrincipal.tenantId)
+          )
+        )
+      let totals: ReturnType<typeof computeBomTotals>
+      try {
+        totals = computeBomTotals(bomLines)
+      } catch (error) {
+        if (!(error instanceof RangeError)) throw error
+        throw new ConflictException(
+          'Togal BOM totals exceed supported exact centavo range'
+        )
+      }
+
       await transaction
         .update(boms)
-        .set({
-          total_cost_cents: newTotalCostCents,
-          tcv_cents: newTcvCents,
-          gp_cents: newGpCents,
-          gp_margin_bps: newGpMarginBps,
-          updated_at: new Date(),
-        })
+        .set({ ...totals, updated_at: new Date() })
         .where(
           and(
             eq(boms.id, bom.id),
@@ -359,10 +354,10 @@ export class TogalBomCommitService {
         linesCreated: linesToInsert.length,
         bomId: bom.id,
         tenantId: authorizedPrincipal.tenantId,
-        totalCostCents: newTotalCostCents,
-        tcvCents: newTcvCents,
-        gpCents: newGpCents,
-        gpMarginBps: newGpMarginBps,
+        totalCostCents: totals.total_cost_cents,
+        tcvCents: totals.tcv_cents,
+        gpCents: totals.gp_cents,
+        gpMarginBps: totals.gp_margin_bps,
       })
       const [completed] = await transaction
         .update(togalBomCommitRequests)
@@ -395,9 +390,9 @@ export class TogalBomCommitService {
           source: 'togal_commit_nest_authority',
           total_cost_cents: {
             before: bom.totalCostCents,
-            after: newTotalCostCents,
+            after: totals.total_cost_cents,
           },
-          tcv_cents: { before: bom.tcvCents, after: newTcvCents },
+          tcv_cents: { before: bom.tcvCents, after: totals.tcv_cents },
           idempotency_key_hash: requestHash,
         },
       })

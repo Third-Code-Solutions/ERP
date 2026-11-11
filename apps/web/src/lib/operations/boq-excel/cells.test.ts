@@ -7,6 +7,7 @@ import {
   centavosDecimal,
   excelText,
   formatCentavos,
+  looksLikeFormula,
   MAX_CELL_TEXT,
 } from './cells'
 
@@ -68,6 +69,23 @@ describe('BOQ cell text', () => {
     expect(cellText({ formula: 'A1' })).toBe('')
   })
 
+  it('joins a rich-text cell only as far as it is read (S3-H2)', () => {
+    // A shared string of 100,000 runs: every read used to join all of them.
+    let reads = 0
+    const run = {
+      get text() {
+        reads += 1
+        return 'aaaaaaaaaa'
+      },
+    }
+    const cell = { richText: Array.from({ length: 100_000 }, () => run) }
+
+    expect(cellText(cell)).toBe('a'.repeat(MAX_CELL_TEXT))
+    expect(cellText(cell, MAX_CELL_TEXT + 1)).toHaveLength(MAX_CELL_TEXT + 1)
+    expect(cellQuantity(cell)).toEqual({ ok: false, problem: 'NOT_A_NUMBER' })
+    expect(reads).toBeLessThan(1_000)
+  })
+
   it('strips control characters except tab and newline from exported text', () => {
     expect(excelText('a\u0000b\u0007c\td\ne\rf\u001Fg\u007F')).toBe('abc\td\nefg')
     expect(excelText(null)).toBe('')
@@ -78,8 +96,14 @@ describe('BOQ cell text', () => {
     expect(excelText('tile 🧱 ok')).toBe('tile 🧱 ok')
   })
 
+  it('treats a leading tab like the formula characters it can hide', () => {
+    for (const text of ['=1+1', '+1', '-1', '@SUM(A1)', '\t=1+1']) expect(looksLikeFormula(text)).toBe(true)
+    for (const text of ['Paint', '1 + 1', ' =1+1', '']) expect(looksLikeFormula(text)).toBe(false)
+  })
+
   it('caps cell text and refuses an over-long number', () => {
     expect(cellText('x'.repeat(5_000))).toHaveLength(MAX_CELL_TEXT)
+    expect(cellText('x'.repeat(5_000), MAX_CELL_TEXT + 1)).toHaveLength(MAX_CELL_TEXT + 1)
     expect(cellQuantity('1'.repeat(MAX_CELL_TEXT + 1))).toEqual({ ok: false, problem: 'NOT_A_NUMBER' })
   })
 

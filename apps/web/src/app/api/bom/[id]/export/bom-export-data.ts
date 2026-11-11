@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, ne } from 'drizzle-orm'
 import { db } from '@third-code-erp/database'
 import {
   bomLineItems,
@@ -11,7 +11,12 @@ import {
   projectLocations,
   projects,
 } from '@third-code-erp/database/schema'
-import type { BoqExportData, BoqExportDupa } from '@/lib/operations/boq-excel/workbook'
+import {
+  BOQ_EXPORT_MAX_LINES,
+  BoqExportTooLargeError,
+  type BoqExportData,
+  type BoqExportDupa,
+} from '@/lib/operations/boq-excel/workbook'
 
 function groupBy<T>(rows: T[], key: (row: T) => string): Map<string, T[]> {
   const groups = new Map<string, T[]>()
@@ -26,7 +31,8 @@ function groupBy<T>(rows: T[], key: (row: T) => string): Map<string, T[]> {
 /**
  * Everything the BOQ workbook prints, read with an explicit tenant predicate
  * on every table (Drizzle runs as postgres and bypasses RLS). Null when the
- * BOM is not this tenant's or its project is deleted.
+ * BOM is not this tenant's, is archived (the BOM page never shows one) or its
+ * project is deleted. Throws BoqExportTooLargeError past BOQ_EXPORT_MAX_LINES.
  */
 export async function loadBoqExport(tenantId: string, bomId: string): Promise<BoqExportData | null> {
   const [header] = await db
@@ -44,7 +50,14 @@ export async function loadBoqExport(tenantId: string, bomId: string): Promise<Bo
     })
     .from(boms)
     .innerJoin(projects, and(eq(projects.id, boms.project_id), eq(projects.tenant_id, tenantId)))
-    .where(and(eq(boms.id, bomId), eq(boms.tenant_id, tenantId), isNull(projects.deleted_at)))
+    .where(
+      and(
+        eq(boms.id, bomId),
+        eq(boms.tenant_id, tenantId),
+        isNull(projects.deleted_at),
+        ne(boms.status, 'archived'),
+      ),
+    )
     .limit(1)
   if (!header) return null
 
@@ -60,6 +73,7 @@ export async function loadBoqExport(tenantId: string, bomId: string): Promise<Bo
       quantity: bomLineItems.quantity_decimal,
       unit_cost_cents: bomLineItems.unit_cost_cents,
       line_total_cents: bomLineItems.line_total_cents,
+      markup_bps: bomLineItems.markup_bps,
       unit_rate_source: bomLineItems.unit_rate_source,
       notes: bomLineItems.notes,
       is_group: bomLineItems.is_group,
@@ -68,6 +82,8 @@ export async function loadBoqExport(tenantId: string, bomId: string): Promise<Bo
     .from(bomLineItems)
     .where(and(eq(bomLineItems.bom_id, bomId), eq(bomLineItems.tenant_id, tenantId)))
     .orderBy(asc(bomLineItems.sort_order), asc(bomLineItems.id))
+    .limit(BOQ_EXPORT_MAX_LINES + 1)
+  if (lines.length > BOQ_EXPORT_MAX_LINES) throw new BoqExportTooLargeError()
 
   const ids = (pick: (line: (typeof lines)[number]) => string | null) => [
     ...new Set(lines.flatMap((line) => (pick(line) ? [pick(line)!] : []))),

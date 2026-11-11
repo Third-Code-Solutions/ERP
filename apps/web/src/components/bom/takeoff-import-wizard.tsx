@@ -33,6 +33,9 @@ type Preview = {
   sectionRows?: number
   warnings?: ValidationIssue[]
   workbook?: { sheets: string[]; sheet: string }
+  /** Lines already on the BOM, and rows that update a line of an earlier import of this file. */
+  existingLineCount?: number
+  matchedLineCount?: number
 }
 
 type TakeoffImportWizardProps = {
@@ -50,6 +53,7 @@ const DEFAULT_MAPPING = {
   division: 'Division',
   location: 'Location',
   itemNo: 'Item No',
+  code: 'Code',
   notes: 'Notes',
   unitRate: 'Unit Rate (PHP)',
   amount: 'Amount (PHP)',
@@ -71,6 +75,7 @@ export function TakeoffImportWizard({
   const [headerRow, setHeaderRow] = useState('')
   const [sectionHeaders, setSectionHeaders] = useState(true)
   const [preview, setPreview] = useState<Preview | null>(null)
+  const [confirmedAdd, setConfirmedAdd] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -111,6 +116,7 @@ export function TakeoffImportWizard({
 
       if (mode === 'preview') {
         setPreview(payload)
+        setConfirmedAdd(false)
         if (payload.workbook) {
           setSheets(payload.workbook.sheets)
           setSheet(payload.workbook.sheet)
@@ -125,6 +131,19 @@ export function TakeoffImportWizard({
       setBusy(false)
     }
   }, [bomId, file, headerRow, isEditable, mapping, projectId, router, sectionHeaders, sheet, source])
+
+  // Commit re-parses with the current mapping, so a preview made with the old
+  // one must not stay on screen.
+  const mapColumn = (key: keyof typeof DEFAULT_MAPPING) => (value: string) => {
+    setMapping((current) => ({ ...current, [key]: value }))
+    setPreview(null)
+  }
+
+  // Rows that match no line of an earlier import of this file become new
+  // lines; on a BOM that already has lines the user has to confirm that.
+  const existingLines = preview?.existingLineCount ?? 0
+  const matchedLines = preview?.matchedLineCount ?? 0
+  const addedLines = preview && existingLines > 0 ? preview.rowCount - matchedLines : 0
 
   const reset = useCallback(() => {
     setFile(null)
@@ -148,13 +167,15 @@ export function TakeoffImportWizard({
           {!isEditable && <div role="alert" className="card-empty">This BOM is {bomStatus} and cannot accept a takeoff.</div>}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
             <Field label="Source" value={source} onChange={setSource} />
-            <Field label="Description column" value={mapping.description} onChange={(value) => setMapping((current) => ({ ...current, description: value }))} />
-            <Field label="Quantity column" value={mapping.quantity} onChange={(value) => setMapping((current) => ({ ...current, quantity: value }))} />
-            <Field label="UOM column" value={mapping.unit} onChange={(value) => setMapping((current) => ({ ...current, unit: value }))} />
-            <Field label="Division column" value={mapping.division} onChange={(value) => setMapping((current) => ({ ...current, division: value }))} optional />
-            <Field label="Location column" value={mapping.location} onChange={(value) => setMapping((current) => ({ ...current, location: value }))} optional />
-            <Field label="Unit rate column" value={mapping.unitRate} onChange={(value) => setMapping((current) => ({ ...current, unitRate: value }))} optional />
-            <Field label="Amount column" value={mapping.amount} onChange={(value) => setMapping((current) => ({ ...current, amount: value }))} optional />
+            <Field label="Description column" value={mapping.description} onChange={mapColumn('description')} />
+            <Field label="Quantity column" value={mapping.quantity} onChange={mapColumn('quantity')} />
+            <Field label="UOM column" value={mapping.unit} onChange={mapColumn('unit')} />
+            <Field label="Division column" value={mapping.division} onChange={mapColumn('division')} optional />
+            <Field label="Location column" value={mapping.location} onChange={mapColumn('location')} optional />
+            <Field label="Code column" value={mapping.code} onChange={mapColumn('code')} optional />
+            <Field label="Notes column" value={mapping.notes} onChange={mapColumn('notes')} optional />
+            <Field label="Unit rate column" value={mapping.unitRate} onChange={mapColumn('unitRate')} optional />
+            <Field label="Amount column" value={mapping.amount} onChange={mapColumn('amount')} optional />
             <Field label="Header row" value={headerRow} onChange={(value) => { setHeaderRow(value); setPreview(null) }} optional placeholder="Auto (1-50)" inputMode="numeric" />
             {sheets.length > 0 && (
               <label style={{ display: 'grid', gap: 6, fontSize: 12, color: 'var(--color-neutral-600)' }}>
@@ -198,8 +219,19 @@ export function TakeoffImportWizard({
                 {preview.workbook ? `Sheet "${preview.workbook.sheet}" · ` : ''}header row {preview.headerRow ?? 1} · {preview.sectionRows ?? 0} section headers · {preview.skippedRows ?? 0} blank or total rows skipped
               </p>
             </div>
-            <button type="button" className="button button-primary" onClick={() => void run('commit')} disabled={busy || !isEditable || preview.rows.length === 0}>Import rows</button>
+            <button type="button" className="button button-primary" onClick={() => void run('commit')} disabled={busy || !isEditable || preview.rows.length === 0 || (addedLines > 0 && !confirmedAdd)}>Import rows</button>
           </div>
+          {addedLines > 0 && (
+            <div role="alert" style={{ display: 'grid', gap: 8, margin: 18, padding: 12, border: '1px solid var(--color-warning)', color: 'var(--color-neutral-700)', background: 'var(--color-warning-soft)', borderRadius: 8, fontSize: 13 }}>
+              <span>
+                This BOM already has {existingLines} line{existingLines === 1 ? '' : 's'}. Importing this file adds {addedLines} new line{addedLines === 1 ? '' : 's'} to {existingLines === 1 ? 'it' : 'them'}{matchedLines > 0 ? ` and updates ${matchedLines}` : ''}. It does not replace or remove any line, so importing lines that are already on the BOM under another file name duplicates them.
+              </span>
+              <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input type="checkbox" checked={confirmedAdd} onChange={(event) => setConfirmedAdd(event.target.checked)} />
+                Add {addedLines} line{addedLines === 1 ? '' : 's'} to this BOM
+              </label>
+            </div>
+          )}
           {preview.unresolvedCount > 0 && (
             <div role="status" style={{ margin: 18, padding: 12, border: '1px solid var(--color-warning)', color: 'var(--color-neutral-700)', background: 'var(--color-warning-soft)', borderRadius: 8, fontSize: 13 }}>
               Unresolved rows will be imported as draft scope and listed in the review queue. Client approval remains blocked until they are resolved.

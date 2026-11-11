@@ -79,7 +79,13 @@ export function requestRateLimitPolicy(
 
   // Upload completion performs bounded local parsing/OCR work. It is not a
   // provider route, but it needs a lower CPU-bound burst than general reads.
-  if (pathname === '/api/upload/complete') {
+  // The BOQ spreadsheet import (parse) and export (build) are the same kind
+  // of work and share its counter.
+  if (
+    pathname === '/api/upload/complete' ||
+    pathname === '/api/bom/takeoff-import' ||
+    /^\/api\/bom\/[^/]+\/export$/.test(pathname)
+  ) {
     return {
       bucket: 'document-intake',
       limit: authenticated ? 10 : 2,
