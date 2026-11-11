@@ -1325,6 +1325,11 @@ suite('Cortex coverage (Batches 0-1)', () => {
       `select length(public.cortex_redact_text(repeat('x', 400), 300))::int as n`
     )) as Rows
     expect(cut[0].n).toBe(300)
+    // A huge value is cut to 4 x max before the patterns run; what is kept is still masked.
+    const huge = (await sql.unsafe(
+      `select public.cortex_redact_text('mail ana@x.ph or 0917 555 0101 ' || repeat('y', 1000000), 40) as out`
+    )) as Rows
+    expect(huge[0].out).toBe(`mail [email] or [phone] ${'y'.repeat(16)}`)
     // Every string attribute is masked, however short; numbers and booleans pass.
     const attrs = (await sql.unsafe(
       `select public.cortex_redact_attrs('{"rejected_reason": "call Pedro 0917 555 0101", "n": 12, "ok": true,

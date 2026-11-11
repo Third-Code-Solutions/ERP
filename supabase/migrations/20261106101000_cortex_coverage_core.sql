@@ -81,6 +81,8 @@ end $$;
 -- Same patterns as packages/shared-types/src/cortex-redaction.ts (\y is the
 -- PostgreSQL word boundary). Tax ids run before phones: a 12-digit TIN
 -- would otherwise read as a phone number.
+-- The input is cut to 4 x p_max first, so a huge value never runs the
+-- patterns over its full length; the result is cut to p_max at the end.
 create or replace function public.cortex_redact_text(p_text text, p_max integer)
 returns text
 language sql immutable set search_path = '' as $$
@@ -88,7 +90,7 @@ language sql immutable set search_path = '' as $$
     regexp_replace(
       regexp_replace(
         regexp_replace(
-          regexp_replace(p_text, '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}', '[email]', 'g'),
+          regexp_replace(left(p_text, 4 * p_max), '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}', '[email]', 'g'),
           '\y(?:TIN|tax identification number)\s*[:#-]?\s*\d{3}[- ]?\d{3}[- ]?\d{3}(?:[- ]?\d{3})?\y',
           '[tax id]', 'gi'),
         '\y\d{3}[- ]\d{3}[- ]\d{3}(?:[- ]\d{3})?\y', '[tax id]', 'g'),
