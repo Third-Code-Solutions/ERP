@@ -12,6 +12,7 @@ import {
   type CatalogueDenied,
   type CatalogueResult,
 } from '@/lib/catalogue/access'
+import { inRegion } from '@/lib/catalogue/queries'
 import {
   CATALOGUE_LIMITS,
   CATALOGUE_TRADE_SLUGS,
@@ -288,7 +289,8 @@ export async function recordCataloguePrice(
         action: 'create',
         diff: computeDiff({}, observation),
       })
-      // The current price is the priced row with the latest checked date.
+      // The current price is the priced row with the latest checked date, in
+      // the region as the list groups it ("NCR" and "ncr" are one region).
       const [later] = await tx
         .select({ id: cataloguePrices.id })
         .from(cataloguePrices)
@@ -296,7 +298,7 @@ export async function recordCataloguePrice(
           and(
             eq(cataloguePrices.tenant_id, profile.tenantId),
             eq(cataloguePrices.item_id, input.item_id),
-            eq(cataloguePrices.region, input.region),
+            inRegion(input.region),
             isNotNull(cataloguePrices.price_avg_centavos),
             gt(cataloguePrices.checked_on, input.checked_on),
           ),

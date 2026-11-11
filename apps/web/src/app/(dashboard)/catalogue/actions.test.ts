@@ -319,12 +319,12 @@ describe('recordCataloguePrice', () => {
 
     expect(result).toEqual({ ok: true, data: { id: PRICE, region: 'NCR', current: false } })
     // A priced row of the same tenant, item and region, checked after this one.
-    expect(paramsOf(argOf(laterSelect.calls, 'where'))).toEqual([
-      TENANT,
-      ITEM,
-      'NCR',
-      '2026-11-05',
-    ])
+    const later = new PgDialect().sqlToQuery(argOf(laterSelect.calls, 'where') as SQL)
+    expect(later.params).toEqual([TENANT, ITEM, 'NCR', '2026-11-05'])
+    // The region in any letter case: "ncr" is the same region as "NCR".
+    expect(later.sql).toContain(
+      'lower(trim("catalogue_prices"."region")) = lower(trim($3))',
+    )
   })
 
   it('accepts low, average and high, cleans text and stores the parsed URL', async () => {

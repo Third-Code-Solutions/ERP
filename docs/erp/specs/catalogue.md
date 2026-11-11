@@ -74,6 +74,9 @@ Indexes:
 - Index: `(tenant_id, item_id, region, checked_on desc, created_at desc)`.
 - **Current price** of an item in a region is its newest **priced** row by
   `(checked_on desc, created_at desc)`.
+- **A region is its text trimmed and in lower case** (`lower(trim(region))`):
+  "NCR", "ncr" and " Ncr " are one region in the list, the region filter, the
+  item page's Current chip and the record-price "current" check.
 - **A price always beats a "no price found" row.** A row whose three prices are
   null is the current observation only where the item has no priced row in that
   region at all (then the newest such row, which carries the flag and the note).
@@ -173,7 +176,7 @@ Added after the security review of PR #146 (2026-11-10).
 - Search matches code or name (`ilike`, trigram-backed). The filters are trade,
   region and price status (priced / no source / stale / low authority, read from
   the flag tokens of the current observation; an item with no observation at all
-  counts as no source). The region filter ignores letter case and keeps only
+  counts as no source). The region filter ignores letter case and surrounding spaces, and keeps only
   items with an observation in that region; with "no source" it also lists the
   items never observed there. 50 rows per page; the URL holds the search state.
 - The search term is capped at 100 characters, and `%`, `_` and `\` in it are

@@ -221,8 +221,8 @@ describe('current price selection', () => {
       observation('cebu', 'Region VII', '2025-06-01', '2025-06-01T00:00:00Z'),
     ])
 
-    expect(current.get('NCR')?.id).toBe('correction')
-    expect(current.get('Region VII')?.id).toBe('cebu')
+    expect(current.get('ncr')?.id).toBe('correction')
+    expect(current.get('region vii')?.id).toBe('cebu')
     expect(current.size).toBe(2)
   })
 
@@ -239,8 +239,8 @@ describe('current price selection', () => {
       priced('same-day-recorded-earlier', '2026-11-05', '2026-11-05T01:00:00Z'),
     ]) {
       // Whichever way the observations arrive.
-      expect(currentPriceByRegion([noSource, price]).get('NCR')).toBe(price)
-      expect(currentPriceByRegion([price, noSource]).get('NCR')).toBe(price)
+      expect(currentPriceByRegion([noSource, price]).get('ncr')).toBe(price)
+      expect(currentPriceByRegion([price, noSource]).get('ncr')).toBe(price)
     }
   })
 
@@ -251,7 +251,7 @@ describe('current price selection', () => {
       observation('new-price', 'NCR', '2026-06-01', '2026-06-01T00:00:00Z'),
     ])
 
-    expect(current.get('NCR')?.id).toBe('new-price')
+    expect(current.get('ncr')?.id).toBe('new-price')
   })
 
   it('makes an observation without a price current only where nothing was ever priced', () => {
@@ -262,8 +262,19 @@ describe('current price selection', () => {
       observation('cebu-no-source', 'Region VII', '2026-11-05', '2026-11-05T00:00:00Z', null),
     ])
 
-    expect(current.get('NCR')?.id).toBe('ncr-no-source-new')
-    expect(current.get('Region VII')?.id).toBe('cebu-price')
+    expect(current.get('ncr')?.id).toBe('ncr-no-source-new')
+    expect(current.get('region vii')?.id).toBe('cebu-price')
+  })
+
+  it('treats regions that differ only in letter case or spaces as one region', () => {
+    const current = currentPriceByRegion([
+      observation('upper', 'NCR', '2026-01-10', '2026-01-10T00:00:00Z'),
+      observation('lower', 'ncr', '2026-11-05', '2026-11-05T00:00:00Z'),
+      observation('spaced', ' Ncr ', '2026-06-01', '2026-06-01T00:00:00Z'),
+    ])
+
+    expect([...current.keys()]).toEqual(['ncr'])
+    expect(current.get('ncr')?.id).toBe('lower')
   })
 
   it('returns nothing for an item without observations and does not reorder its input', () => {
@@ -272,7 +283,7 @@ describe('current price selection', () => {
       observation('b', 'NCR', '2026-02-01', '2026-02-01T00:00:00Z'),
     ]
     expect(currentPriceByRegion([]).size).toBe(0)
-    expect(currentPriceByRegion(history).get('NCR')?.id).toBe('b')
+    expect(currentPriceByRegion(history).get('ncr')?.id).toBe('b')
     expect(history.map((entry) => entry.id)).toEqual(['a', 'b'])
   })
 })

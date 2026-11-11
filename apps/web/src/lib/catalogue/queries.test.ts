@@ -226,9 +226,9 @@ describe('listCatalogueItems', () => {
     expect(result.ok && result.data.totalPages).toBe(1)
     const prices = render(argsOf(current.calls, 'where')[0])
     expect(prices.sql).toContain('"catalogue_prices"."tenant_id" =')
-    // The region is compared lower-cased on both sides.
-    expect(prices.sql).toContain('lower("catalogue_prices"."region") =')
-    expect(prices.params).toEqual([TENANT, 'ncr'])
+    // The region is compared trimmed and lower-cased on both sides, by Postgres.
+    expect(prices.sql).toContain('lower(trim("catalogue_prices"."region")) = lower(trim(')
+    expect(prices.params).toEqual([TENANT, 'NCR'])
 
     const items = render(argsOf(list.calls, 'where')[0])
     expect(items.sql).toContain('"catalogue_items"."tenant_id" =')

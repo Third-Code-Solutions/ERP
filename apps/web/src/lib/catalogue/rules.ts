@@ -255,13 +255,16 @@ export function compareCurrentFirst(a: DatedObservation, b: DatedObservation): n
 /**
  * The current observation of an item in each region: the newest one with a
  * price, or the newest one of all where no price was ever recorded there.
+ * Keyed by the region trimmed and in lower case, so "NCR" and "ncr" are one
+ * region, as in the SQL (`regionKey` in queries.ts).
  */
 export function currentPriceByRegion<T extends DatedObservation>(
   observations: readonly T[],
 ): Map<string, T> {
   const current = new Map<string, T>()
   for (const observation of [...observations].sort(compareCurrentFirst)) {
-    if (!current.has(observation.region)) current.set(observation.region, observation)
+    const region = observation.region.trim().toLowerCase()
+    if (!current.has(region)) current.set(region, observation)
   }
   return current
 }

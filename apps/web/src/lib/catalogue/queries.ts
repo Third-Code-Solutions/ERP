@@ -118,6 +118,18 @@ export interface CatalogueListResult {
   filters: CatalogueListFilters
 }
 
+/**
+ * A price's region as one region is told from another: "NCR", "ncr" and " Ncr "
+ * are the same region. Postgres lower-cases both sides, so the database's own
+ * case rules apply everywhere a region is grouped or compared.
+ */
+export const regionKey = sql`lower(trim(${cataloguePrices.region}))`
+
+/** True for a price in `region`, compared as `regionKey` compares it. */
+export function inRegion(region: string): SQL {
+  return sql`${regionKey} = lower(trim(${region}))`
+}
+
 /** `%`, `_` and `\` are literals in a search term, not ILIKE wildcards. */
 export function escapeLikePattern(term: string): string {
   return term.replace(/[\\%_]/g, '\\$&')
@@ -132,6 +144,7 @@ function flagHasToken(flag: SQLWrapper, pattern: string): SQL {
  * newest one with a price (by checked date, then creation time). A "no price
  * found" observation is current only where no price was ever recorded, however
  * new it is. An item without any observation appears once with `price: null`.
+ * Regions are told apart by `regionKey`, so "NCR" and "ncr" give one row.
  * A region filter (any letter case) keeps only items observed in that region,
  * except with the "no source" status, which also lists the items with no
  * observation there. The price-status filters read this current observation,
@@ -156,7 +169,7 @@ export async function listCatalogueItems(
   const filters: CatalogueListFilters = parsed.data
 
   const current = db
-    .selectDistinctOn([cataloguePrices.item_id, cataloguePrices.region], {
+    .selectDistinctOn([cataloguePrices.item_id, regionKey], {
       price_id: cataloguePrices.id,
       tenant_id: cataloguePrices.tenant_id,
       item_id: cataloguePrices.item_id,
@@ -176,16 +189,14 @@ export async function listCatalogueItems(
     .where(
       and(
         eq(cataloguePrices.tenant_id, actor.tenantId),
-        filters.region
-          ? sql`lower(${cataloguePrices.region}) = ${filters.region.toLowerCase()}`
-          : undefined,
+        filters.region ? inRegion(filters.region) : undefined,
       ),
     )
     // The same order as compareCurrentFirst in rules.ts: priced before unpriced
     // (false sorts before true), then newest first.
     .orderBy(
       cataloguePrices.item_id,
-      cataloguePrices.region,
+      regionKey,
       isNull(cataloguePrices.price_avg_centavos),
       desc(cataloguePrices.checked_on),
       desc(cataloguePrices.created_at),

@@ -275,6 +275,48 @@ suite('catalogue reads against the seeded research files (database)', { timeout:
     })
   })
 
+  it('treats "NCR" and "ncr" as one region in the list, the item page and a recorded price', async () => {
+    await seeded(async ({ actor, userId }) => {
+      const wanted = priced.find((row) => row.region === 'NCR')
+      expect(wanted).toBeDefined()
+      const { item } = await detailOf(actor, wanted!.code)
+      state.profile = { user: { id: userId }, tenantId: actor.tenantId, role: 'admin' }
+      const recordInLowerCase = (checked_on: string) =>
+        recordCataloguePrice(
+          formOf({
+            item_id: item.id,
+            price_php: '100',
+            region: 'ncr',
+            source_name: 'Supplier quotation',
+            checked_on,
+          }),
+        )
+
+      // Older than the research price recorded as "NCR": the same region, so not current.
+      expect(await recordInLowerCase('2020-01-02')).toMatchObject({
+        ok: true,
+        data: { region: 'ncr', current: false },
+      })
+      // Dated today: the newest priced entry of the region, so current.
+      const newest = await recordInLowerCase(manilaToday())
+      expect(newest).toMatchObject({ ok: true, data: { current: true } })
+      const newestId = newest.ok ? newest.data.id : ''
+
+      // One row for the item, not one per spelling of the region.
+      for (const filters of [{ q: wanted!.code, region: 'ncr' }, { q: wanted!.code }]) {
+        const found = await listed(actor, filters)
+        expect(found.total, JSON.stringify(filters)).toBe(1)
+        expect(found.rows, JSON.stringify(filters)).toHaveLength(1)
+        expect(found.rows[0]?.price).toMatchObject({ id: newestId, region: 'ncr' })
+      }
+
+      // The item page marks one entry Current for "NCR" and "ncr" together.
+      const detail = await detailOf(actor, wanted!.code)
+      expect(detail.history.map((price) => price.region).sort()).toEqual(['NCR', 'ncr', 'ncr'])
+      expect(detail.current.map((price) => price.id)).toEqual([newestId])
+    })
+  })
+
   it('returns a priced item in centavos and an unpriced item with its note and no price', async () => {
     await seeded(async ({ actor }) => {
       const wanted = priced.find((row) => row.price!.low !== row.price!.high) ?? priced[0]!

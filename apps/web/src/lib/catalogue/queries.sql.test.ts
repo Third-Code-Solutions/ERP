@@ -53,10 +53,10 @@ describe('catalogue read SQL', () => {
       // One observation per item and region inside the caller's tenant: priced
       // ones first (`is null` sorts false before true), then the newest.
       expect(statement.sql).toMatch(
-        /select distinct on \("catalogue_prices"\."item_id", "catalogue_prices"\."region"\)/,
+        /select distinct on \("catalogue_prices"\."item_id", lower\(trim\("catalogue_prices"\."region"\)\)\)/,
       )
       expect(statement.sql).toMatch(
-        /from "catalogue_prices" where \("catalogue_prices"\."tenant_id" = \$\d+ and lower\("catalogue_prices"\."region"\) = \$\d+\) order by "catalogue_prices"\."item_id", "catalogue_prices"\."region", "catalogue_prices"\."price_avg_centavos" is null, "catalogue_prices"\."checked_on" desc, "catalogue_prices"\."created_at" desc\) "current_price"/,
+        /from "catalogue_prices" where \("catalogue_prices"\."tenant_id" = \$\d+ and lower\(trim\("catalogue_prices"\."region"\)\) = lower\(trim\(\$\d+\)\)\) order by "catalogue_prices"\."item_id", lower\(trim\("catalogue_prices"\."region"\)\), "catalogue_prices"\."price_avg_centavos" is null, "catalogue_prices"\."checked_on" desc, "catalogue_prices"\."created_at" desc\) "current_price"/,
       )
       expect(statement.sql).toMatch(
         /on \("current_price"\."item_id" = "catalogue_items"\."id" and "current_price"\."tenant_id" = "catalogue_items"\."tenant_id"\)/,
@@ -67,8 +67,8 @@ describe('catalogue read SQL', () => {
       expect(statement.sql).toMatch(/"current_price"\."id" is not null/)
       expect(statement.params.slice(0, 7)).toEqual([
         TENANT,
-        // Trimmed and lower-cased, compared with the lower-cased stored region.
-        'ncr',
+        // Cleaned; Postgres lower-cases and trims both sides.
+        'Ncr',
         TENANT,
         '%100\\%\\_pure%',
         '%100\\%\\_pure%',
@@ -104,8 +104,8 @@ describe('catalogue read SQL', () => {
     await listCatalogueItems(ACTOR, { region: 'Cebu', status: 'no_source' })
 
     const [list] = fake.statements
-    expect(list?.sql).toMatch(/lower\("catalogue_prices"\."region"\) = \$2/)
-    expect(list?.params.slice(0, 2)).toEqual([TENANT, 'cebu'])
+    expect(list?.sql).toMatch(/lower\(trim\("catalogue_prices"\."region"\)\) = lower\(trim\(\$2\)\)/)
+    expect(list?.params.slice(0, 2)).toEqual([TENANT, 'Cebu'])
     // No observation there leaves a null price: the left join keeps the item.
     expect(list?.sql).toMatch(/"current_price"\."price_avg_centavos" is null/)
     expect(list?.sql).not.toContain('"current_price"."id" is not null')
