@@ -1642,6 +1642,91 @@ suite('Cortex coverage (Batches 0-1)', () => {
     }
   })
 
+  it('backfill and scrub take the tenant audit lock, then the provenance lock, before any row lock', async () => {
+    const rows = (await sql.unsafe(
+      `select p.proname::text as name, pg_get_functiondef(p.oid) as def
+         from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname = 'public' and p.proname in ('cortex_backfill', 'cortex_scrub_nodes')
+        order by 1`
+    )) as Rows
+    const order = rows.map((row: Rows) => {
+      const def = row.def as string
+      const audit = def.indexOf(`hashtextextended('audit_log:' || p_tenant::text, 0)`)
+      const provenance = def.indexOf(`hashtextextended('cortex_provenance:' || p_tenant::text, 0)`)
+      return [row.name, audit > 0 && audit < provenance && provenance < def.indexOf(' skip locked')]
+    })
+    expect(order).toEqual([
+      ['cortex_backfill', true],
+      ['cortex_scrub_nodes', true],
+    ])
+  })
+
+  it('backfill waits on a live writer\'s audit lock before locking a row, so that writer is never blocked (two connections)', async () => {
+    const writer = makeSql()
+    const backfiller = makeSql()
+    let locked!: (row: Rows) => void
+    const lockedRow = new Promise<Rows>((resolve) => (locked = resolve))
+    let seenWaiting!: () => void
+    const backfillWaiting = new Promise<void>((resolve) => (seenWaiting = resolve))
+    // Connection 1 stands in for an audited ERP write: it holds the tenant's
+    // audit lock, then updates the first row the backfill will read.
+    const writing = inRollback(writer, async (tx) => {
+      const row = await first(
+        tx,
+        `select tenant_id, id from users where tenant_id = '${DEMO_TENANT}' order by id limit 1`
+      )
+      if (!row) throw new Error('no committed user row')
+      await tx.unsafe(`select pg_advisory_xact_lock(hashtextextended('audit_log:' || '${DEMO_TENANT}', 0))`)
+      locked(row)
+      await backfillWaiting
+      await tx.unsafe(`set local lock_timeout = '2s'`)
+      try {
+        await tx.unsafe(`update users set full_name = full_name where id = '${row.id}'`)
+        return 'updated'
+      } catch (error) {
+        return (error as { code?: string }).code ?? 'error'
+      }
+    })
+    const endedEarly = writing.then(() => {
+      throw new Error('writer finished before locking')
+    })
+    endedEarly.catch(() => undefined) // settles after release; only the race reads it
+    let paging: Promise<Rows> | undefined
+    try {
+      const row = await Promise.race([lockedRow, endedEarly])
+      let backendPid!: (pid: number) => void
+      const pid = new Promise<number>((resolve) => (backendPid = resolve))
+      paging = inRollback(backfiller, async (tx) => {
+        backendPid((await first(tx, `select pg_backend_pid() as pid`)).pid as number)
+        return first(
+          tx,
+          `select processed, applied, skipped, failures
+             from cortex_backfill('users', '${row.tenant_id}', 'all', 1, null)`
+        )
+      })
+      // The backfill must be parked on an advisory lock before the writer moves.
+      const waiting = await pid
+      let waitEvent: string | null = null
+      for (let attempt = 0; attempt < 100 && waitEvent !== 'advisory'; attempt += 1) {
+        if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 50))
+        const [activity] = (await sql.unsafe(
+          `select wait_event from pg_stat_activity where pid = ${waiting}`
+        )) as Rows
+        waitEvent = activity?.wait_event ?? null
+      }
+      expect(waitEvent).toBe('advisory')
+      seenWaiting()
+      expect(await writing).toBe('updated')
+      expect(await paging).toEqual({ processed: 1, applied: 1, skipped: 0, failures: [] })
+    } finally {
+      seenWaiting()
+      await writing.catch(() => undefined)
+      await paging?.catch(() => undefined)
+      await writer.end({ timeout: 5 })
+      await backfiller.end({ timeout: 5 })
+    }
+  })
+
   it('backfill builds stage history from succeeded transition receipts; a live change then appends', async () => {
     const r = await inRollback(sql, async (tx) => {
       const { tenantA: t, userA } = await seedTwoTenants(tx)

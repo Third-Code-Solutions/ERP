@@ -657,7 +657,11 @@ end $$;
 
 -- ---------------------------------------------------------------------------
 -- 7. Backfill (DB-1): one tenant per call, keyset by id within it, so a call
---    holds only that tenant's provenance and audit locks. Each row is re-read
+--    holds only that tenant's provenance and audit locks. It takes both
+--    before any row lock, in the order every mirrored write takes them (audit,
+--    then provenance): a writer that holds the audit lock and then updates a
+--    row this call holds would otherwise wait on it while this call waits on
+--    the audit lock, a deadlock. Each row is re-read
 --    under FOR SHARE when it is applied, so a live update cannot be
 --    overwritten by an older image; a row a live transaction holds is skipped
 --    (SKIP LOCKED) and left to that transaction's own mirror trigger. A row
@@ -696,6 +700,10 @@ begin
       'and not exists (select 1 from public.cortex_nodes n where n.tenant_id = t.tenant_id and n.ref_table = %L and n.ref_id = t.id and n.valid_to is null)',
       p_table);
   end if;
+  -- Before any row lock: same keys and order as audit_log_trigger and
+  -- cortex_provenance_append (20260726192929, 20260812155000).
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('audit_log:' || p_tenant::text, 0));
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('cortex_provenance:' || p_tenant::text, 0));
   processed := 0; applied := 0; skipped := 0; failures := '[]'::jsonb;
   last_id := p_after;
   for v_id in execute format(
@@ -750,9 +758,12 @@ end $$;
 --       file-name title.
 --     * Every string is redacted; a node whose title or summary changes loses
 --       its embedding (the embed job refills it from the new text).
---     One tenant per call, keyset by node id. Each node is re-read FOR UPDATE
---     SKIP LOCKED: a node a live mirror holds is skipped (that mirror rewrites
---     it) and a re-run picks up anything left. Call until processed = 0.
+--     One tenant per call, keyset by node id. The tenant's audit and
+--     provenance locks come first, as in the backfill, so a live mirror that
+--     holds the audit lock never waits on a node this call holds. Each node is
+--     re-read FOR UPDATE SKIP LOCKED: a node a live mirror holds is skipped
+--     (that mirror rewrites it) and a re-run picks up anything left. Call
+--     until processed = 0.
 -- ---------------------------------------------------------------------------
 create or replace function public.cortex_scrub_nodes(
   p_table text, p_tenant uuid, p_limit integer default 200, p_after uuid default null,
@@ -775,6 +786,10 @@ begin
   end if;
   v_keep := coalesce(r.attr_cols, '{}')
     || array(select regexp_replace(p, '^.*\.', '') from unnest(coalesce(r.attr_paths, '{}')) p);
+  -- Before any row lock: same keys and order as audit_log_trigger and
+  -- cortex_provenance_append (20260726192929, 20260812155000).
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('audit_log:' || p_tenant::text, 0));
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('cortex_provenance:' || p_tenant::text, 0));
   processed := 0; changed := 0; skipped := 0; failures := '[]'::jsonb;
   last_id := p_after;
   for v_id in
