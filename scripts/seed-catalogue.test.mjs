@@ -156,7 +156,16 @@ test('the seed writes items, then one observation per row, then one audit entry,
   assert.equal(statements.length, 6)
   for (const { parameters } of statements) assert.equal(parameters[0], TENANT)
 
+  // This fake cannot tell text from jsonb; the real driver can, and encodes a
+  // jsonb parameter a second time. Every JSON parameter must be sent as text.
+  for (const { query } of statements) {
+    assert.doesNotMatch(query, /\$\d+::jsonb/)
+  }
+
   const [, , upsert, prices, lock, audit] = statements
+  assert.match(upsert.query, /jsonb_to_recordset\(\$2::text::jsonb\)/)
+  assert.match(prices.query, /jsonb_to_recordset\(\$2::text::jsonb\)/)
+  assert.match(audit.query, /\$2::text::jsonb/)
   assert.match(upsert.query, /on conflict \(tenant_id, code\) do update/)
   assert.match(upsert.query, /where catalogue_items\.updated_by is null/)
   assert.deepEqual(JSON.parse(upsert.parameters[1]).map((item) => item.code), ['CN-0001', 'CN-0002'])

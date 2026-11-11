@@ -4,6 +4,11 @@
  * leaves nothing behind (and a test can roll the whole run back).
  *
  * `rows` are already validated by apps/web/src/lib/catalogue/csv.ts.
+ *
+ * JSON goes in as `$n::text::jsonb`, never `$n::jsonb`. postgres.js encodes a
+ * parameter by the type the server reports for it, so a jsonb parameter is run
+ * through JSON.stringify again: the JSON text sent here would arrive as one
+ * JSON string, not an array ("cannot call jsonb_to_recordset on a non-array").
  */
 
 // Insert new items; refresh an existing one only when no person has edited it
@@ -11,7 +16,7 @@
 const UPSERT_ITEMS = `
   insert into public.catalogue_items (tenant_id, code, name, trade, specification, unit)
   select $1::uuid, r.code, r.name, r.trade, r.specification, r.unit
-    from jsonb_to_recordset($2::jsonb)
+    from jsonb_to_recordset($2::text::jsonb)
       as r(code text, name text, trade text, specification text, unit text)
   on conflict (tenant_id, code) do update
      set name = excluded.name,
@@ -33,7 +38,7 @@ const COUNT_EDITED_ITEMS = `
    where item.tenant_id = $1::uuid
      and item.updated_by is not null
      and item.code in (
-       select r.code from jsonb_to_recordset($2::jsonb) as r(code text)
+       select r.code from jsonb_to_recordset($2::text::jsonb) as r(code text)
      )
 `
 
@@ -51,7 +56,7 @@ const INSERT_PRICES = `
   )
   select $1::uuid, item.id, r.region, r.low, r.avg, r.high,
          r.price_basis, 'research', r.source_url, r.checked_on, r.flag, r.notes
-    from jsonb_to_recordset($2::jsonb)
+    from jsonb_to_recordset($2::text::jsonb)
       as r(code text, region text, low bigint, avg bigint, high bigint,
            price_basis text, source_url text, checked_on date, flag text, notes text)
     join public.catalogue_items item
@@ -83,7 +88,7 @@ const INSERT_AUDIT_ENTRY = `
     action, diff, prev_hash, hash, created_at
   )
   select $1::uuid, null, 'catalogue_seed', entry.id, entry.id::text,
-         'create', $2::jsonb, previous.hash,
+         'create', $2::text::jsonb, previous.hash,
          encode(
            sha256(convert_to(
              previous.hash || 'catalogue_seed' || entry.id::text || 'create'
