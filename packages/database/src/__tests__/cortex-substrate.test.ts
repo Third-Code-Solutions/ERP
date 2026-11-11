@@ -1659,6 +1659,8 @@ suite('Cortex coverage (Batches 0-1)', () => {
       ['cortex_backfill', true],
       ['cortex_scrub_nodes', true],
     ])
+    // The scrub's node lock lets edge inserts (KEY SHARE) through, as cortex_refresh_fold does.
+    expect(rows[1].def).toContain('for no key update skip locked')
   })
 
   it('backfill waits on a live writer\'s audit lock before locking a row, so that writer is never blocked (two connections)', async () => {

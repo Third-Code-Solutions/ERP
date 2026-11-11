@@ -761,7 +761,8 @@ end $$;
 --     One tenant per call, keyset by node id. The tenant's audit and
 --     provenance locks come first, as in the backfill, so a live mirror that
 --     holds the audit lock never waits on a node this call holds. Each node is
---     re-read FOR UPDATE SKIP LOCKED: a node a live mirror holds is skipped
+--     re-read FOR NO KEY UPDATE SKIP LOCKED (as cortex_refresh_fold, so edge
+--     inserts are not blocked): a node a live mirror holds is skipped
 --     (that mirror rewrites it) and a re-run picks up anything left. Call
 --     until processed = 0.
 -- ---------------------------------------------------------------------------
@@ -802,7 +803,7 @@ begin
     begin
       select c.ref_id, c.title, c.summary, coalesce(c.attributes, '{}'::jsonb) as attributes into n
         from public.cortex_nodes c where c.id = v_id
-        for update skip locked;
+        for no key update skip locked;
       if not found then
         skipped := skipped + 1;
         continue;
