@@ -49,7 +49,8 @@ Every file has the same 14 columns:
    flagged `SNIPPET_ONLY`. Where nothing was found the price is blank and flagged
    `NO_SOURCE`.
 2. **Several sources:** low is the lowest, high is the highest, and the average
-   is the mean of what was observed.
+   is the mean of what was observed: the ends of each source's range, or each
+   source's midpoint. The note says which.
 3. **One source with a range:** the average is the midpoint.
 4. **Sale and regular prices:** where a store shows both, low is the sale price
    and high is the regular price.
@@ -64,6 +65,9 @@ Every file has the same 14 columns:
 7. **One item, one code.** No two rows share a name and a unit. Where two trades
    need the same material under different names (washed sand, 3/4 in gravel),
    both rows carry the same price and each names the other.
+8. **Budget ceilings stand alone.** A government budget for a purchase is never
+   averaged with shop prices. It has a row of its own marked `;budget_ceiling`,
+   or it is named in a shop-price row's notes as not combined.
 
 ### Sources that were not used
 
@@ -107,12 +111,12 @@ Cost blogs and lead-generation sites on free hosting **are** used, among them
 | `13-electrical.csv` | 65 | 63 | 2 | 5 | 6 | 8 |
 | `14-fire-protection.csv` | 51 | 37 | 14 | 22 | 26 | 31 |
 | `15-mechanical-hvac.csv` | 58 | 48 | 10 | 7 | 18 | 19 |
-| `16-road-bridge-works.csv` | 60 | 36 | 24 | 29 | 19 | 35 |
+| `16-road-bridge-works.csv` | 59 | 35 | 24 | 28 | 18 | 34 |
 | `17-drainage.csv` | 50 | 26 | 24 | 23 | 26 | 25 |
 | `18-site-safety.csv` | 57 | 40 | 17 | 3 | 3 | 35 |
 | `19-labor.csv` | 37 | 24 | 13 | 7 | 9 | 4 |
 | `20-equipment.csv` | 52 | 12 | 40 | 12 | 0 | 12 |
-| **Total** | **1,009** | **709** | **300** | **170** | **308** | **388** |
+| **Total** | **1,008** | **708** | **300** | **169** | **307** | **387** |
 
 ## Where the data is weak
 
@@ -132,15 +136,20 @@ supplier price-list import.
   pay item. Fifteen rows come from a 2013 JICA study.
 - **Earthworks (01):** no heavy equipment rental rate.
 - **Concrete pumping (CN-0037 to CN-0040):** no price.
+- **Units the source leaves unclear:** door prices per unit (DW-0001, DW-0002,
+  DW-0005, DW-0006, DW-0016, DW-0030), concrete pipe per piece (DR-0001 to
+  DR-0014) and EL-0016 per metre are read that way from a page that does not
+  say so plainly. Their notes say so.
 
 Retail store prices (Wilcon, Electx, Buildmate, Anson's and others) are shelf
 prices for single pieces. A contractor buying in volume should expect less.
 
 ## Retired codes
 
-These codes were used and then removed, as duplicates of another row. Do not
+These codes were used and then removed, as duplicates of another row or of a
+newer price for the same item. Do not
 reuse them.
 
 `EW-0013` `EW-0024` `EW-0043` `EW-0044` `EW-0045` `CN-0009` `FW-0047` `MS-0033`
 `MS-0034` `MS-0035` `MS-0044` `MS-0045` `CD-0045` `CD-0046` `FF-0045` `FF-0046`
-`FF-0052` `PT-0050` `PL-0060` `EL-0060` `FP-0052`
+`FF-0052` `PT-0050` `PL-0060` `EL-0060` `FP-0052` `RB-0059`

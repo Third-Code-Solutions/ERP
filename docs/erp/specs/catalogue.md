@@ -128,7 +128,9 @@ Added after the security review of PR #146 (2026-11-10).
     changed are left alone, counted and printed;
   - insert a `research` price row for each priced row unless an identical row
     exists for `(item, region, checked_on, source_url, low, avg, high)`;
-  - unpriced (`NO_SOURCE`) rows create the item with no price row.
+  - an unpriced (`NO_SOURCE`) row creates the item and one observation whose three
+    prices are null. That keeps its region, the `NO_SOURCE` flag, the note that
+    says why nothing was found, and any link, so the page can show them.
 - It is idempotent: a second run inserts 0 rows.
 - Its dry run prints per-trade counts.
 - Each real run writes one `audit_log` entry with its counts.
@@ -141,7 +143,8 @@ Added after the security review of PR #146 (2026-11-10).
   `app/(dashboard)/assets/page.tsx` (a GET filter form and previous/next links).
 - Search matches code or name (`ilike`, trigram-backed). The filters are trade,
   region and price status (priced / no source / stale / low authority, read from
-  the flag tokens). 50 rows per page; the URL holds the search state.
+  the flag tokens of the current observation; an item with no observation at all
+  counts as no source). 50 rows per page; the URL holds the search state.
 - The search term is capped at 100 characters, and `%`, `_` and `\` in it are
   escaped before the `ilike` pattern is built. The page number is capped.
 - Columns:
