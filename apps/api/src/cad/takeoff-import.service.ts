@@ -32,6 +32,7 @@ import {
 import {
   classifyBomLineKind,
   computeBomTotals,
+  TAKEOFF_MAX_LINE_TOTAL_CENTAVOS,
   takeoffCommitPricing,
   takeoffCommitQuantity,
   validateTakeoffRows,
@@ -614,17 +615,34 @@ export class TakeoffImportService {
                   }
                 : {
                     // No usable rate in this row: the line keeps its own rate
-                    // and source, priced for the new quantity (half-up).
-                    line_total_cents: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.line_total_cents} else round(${bomLineItems.unit_cost_cents} * excluded.quantity_decimal)::bigint end`,
+                    // and source, priced for the new quantity (half-up). A
+                    // total past the per-line cap becomes cap + 1, so the
+                    // bigint cast cannot overflow and the check below fails
+                    // the commit instead of Postgres.
+                    line_total_cents: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.line_total_cents} else least(round(${bomLineItems.unit_cost_cents} * excluded.quantity_decimal), ${sql.raw(String(TAKEOFF_MAX_LINE_TOTAL_CENTAVOS + 1))})::bigint end`,
                   }),
               markup_bps: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.markup_bps} else 0 end`,
               updated_at: now,
             },
           })
-          .returning({ id: bomLineItems.id })
+          .returning({
+            id: bomLineItems.id,
+            unitRateSource: bomLineItems.unit_rate_source,
+            lineTotalCents: bomLineItems.line_total_cents,
+          })
         if (!line) {
           throw new InternalServerErrorException(
             `Takeoff line ${row.sourceRowKey} was not persisted.`
+          )
+        }
+        // Imported totals are capped before the upsert, so only a re-priced
+        // line (its own rate x the new quantity) can be over the cap here.
+        if (
+          line.unitRateSource !== 'dupa' &&
+          line.lineTotalCents > TAKEOFF_MAX_LINE_TOTAL_CENTAVOS
+        ) {
+          throw new UnprocessableEntityException(
+            `Row ${row.sourceRowKey}: the line's rate times the new quantity exceeds the supported amount range. Lower the quantity or the line's rate.`
           )
         }
         linesUpserted += 1

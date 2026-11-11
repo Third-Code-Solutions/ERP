@@ -90,8 +90,9 @@ type StoredLine = {
  * Selects answer by table. The BOM line read returns the lines this commit
  * inserted (plus `otherLines` already on the BOM), so the totals follow the
  * upserted rows rather than a fixture fed by call order.
+ * `upserted` is what the line upsert returns beside its id.
  */
-function harness(otherLines: StoredLine[] = []) {
+function harness(otherLines: StoredLine[] = [], upserted: Record<string, unknown> = {}) {
   const inserted: Array<{ table: unknown; values: Record<string, unknown> }> = []
   const conflicts: Array<{ table: unknown; set: Record<string, unknown> }> = []
   const updates: Array<{ table: unknown; set: Record<string, unknown> }> = []
@@ -136,7 +137,7 @@ function harness(otherLines: StoredLine[] = []) {
     }),
     insert: vi.fn((table: unknown) =>
       chain(
-        () => [{ id: ROW_ID }],
+        () => [{ id: ROW_ID, ...upserted }],
         (method, args) => {
           if (method === 'values') {
             inserted.push({ table, values: args[0] as Record<string, unknown> })
@@ -245,8 +246,31 @@ describe('TakeoffImportService client BOQ rates', () => {
     expect(set).not.toHaveProperty('unit_cost_cents')
     expect(set).not.toHaveProperty('unit_rate_source')
     expect(renderSql(set.line_total_cents)).toBe(
-      `case when "bom_line_items"."unit_rate_source" = 'dupa' then "bom_line_items"."line_total_cents" else round("bom_line_items"."unit_cost_cents" * excluded.quantity_decimal)::bigint end`
+      `case when "bom_line_items"."unit_rate_source" = 'dupa' then "bom_line_items"."line_total_cents" else least(round("bom_line_items"."unit_cost_cents" * excluded.quantity_decimal), 1000000000001)::bigint end`
     )
+  })
+
+  it('rejects a re-import whose re-priced line total is over the per-line cap', async () => {
+    // What the upsert returns when the line rate x the new quantity is past
+    // the cap: the SQL stores cap + 1 instead of overflowing the bigint cast.
+    const overCap = { unitRateSource: 'manual', lineTotalCents: 1_000_000_000_001 }
+    const { service, bomTotals } = harness([], overCap)
+
+    await expect(service.execute(command([row()]), PRINCIPAL)).rejects.toBeInstanceOf(
+      UnprocessableEntityException
+    )
+    expect(bomTotals()).toBeUndefined()
+
+    // A DUPA-priced line keeps its own total, whatever its size.
+    const dupa = harness([], { unitRateSource: 'dupa', lineTotalCents: 1_000_000_000_001 })
+    await expect(dupa.service.execute(command([row()]), PRINCIPAL)).resolves.toMatchObject({
+      linesUpserted: 1,
+    })
+    // At the cap exactly the commit goes through.
+    const atCap = harness([], { unitRateSource: 'manual', lineTotalCents: 1_000_000_000_000 })
+    await expect(atCap.service.execute(command([row()]), PRINCIPAL)).resolves.toMatchObject({
+      linesUpserted: 1,
+    })
   })
 
   it('re-import with a rate overwrites only non-DUPA lines', async () => {

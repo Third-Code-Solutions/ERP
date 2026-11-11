@@ -8,6 +8,8 @@ import {
 } from '@nestjs/common'
 import type { ConfigService } from '@nestjs/config'
 import type { TogalBomCommitCommand } from '@third-code-erp/shared-types'
+import type { SQL } from 'drizzle-orm'
+import { PgDialect } from 'drizzle-orm/pg-core'
 import { describe, expect, it, vi } from 'vitest'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import type { AuditService } from '../audit/audit.service'
@@ -64,9 +66,25 @@ function selectQuery(rows: unknown[]) {
   return { from }
 }
 
+type StoredLine = {
+  unit_cost_cents: number
+  quantity: string
+  line_total_cents: number
+  parent_line_item_id: string | null
+}
+
+// The line already on the BOM: cost 1,000 and contract value 2,000.
+const EXISTING_LINE: StoredLine = {
+  unit_cost_cents: 1_000,
+  quantity: '1',
+  line_total_cents: 2_000,
+  parent_line_item_id: null,
+}
+
 function harness({
   membership = [{ tenantId: PRINCIPAL.tenantId, role: PRINCIPAL.role, email: PRINCIPAL.email }],
   bom = [{ id: COMMAND.bomId, status: 'draft', totalCostCents: 1_000, tcvCents: 2_000 }],
+  existingLines = [EXISTING_LINE],
   request = {
     id: '44444444-4444-4444-8444-444444444444',
     requestHash: '',
@@ -78,6 +96,7 @@ function harness({
 }: {
   membership?: unknown[]
   bom?: unknown[]
+  existingLines?: StoredLine[]
   request?: { id: string; requestHash: string; state: string; result: unknown }
   enabled?: boolean
   tenantIds?: string[]
@@ -99,6 +118,19 @@ function harness({
     return { onConflictDoNothing: vi.fn().mockResolvedValue(undefined) }
   })
   const insertLinesValues = vi.fn().mockResolvedValue(undefined)
+  // The totals read returns the lines already on the BOM plus the ones this
+  // commit inserted, so the totals follow the rows rather than a fixture.
+  const linesWhere = vi.fn(async (_condition: unknown) => [
+    ...existingLines,
+    ...insertLinesValues.mock.calls.flatMap(([values]) =>
+      (values as Array<Record<string, unknown>>).map((line) => ({
+        unit_cost_cents: line.unit_cost_cents,
+        quantity: line.quantity_decimal,
+        line_total_cents: line.line_total_cents,
+        parent_line_item_id: null,
+      }))
+    ),
+  ])
   const updateBomWhere = vi.fn().mockResolvedValue(undefined)
   const updateRequestWhere = vi.fn().mockReturnValue({
     returning: vi.fn().mockResolvedValue([{ id: request.id }]),
@@ -108,7 +140,8 @@ function harness({
       .fn()
       .mockReturnValueOnce({ from: membershipQuery.from })
       .mockReturnValueOnce({ from: bomQuery.from })
-      .mockReturnValueOnce({ from: requestQuery.from }),
+      .mockReturnValueOnce({ from: requestQuery.from })
+      .mockReturnValueOnce({ from: vi.fn().mockReturnValue({ where: linesWhere }) }),
     insert: vi
       .fn()
       .mockReturnValueOnce({ values: insertRequestValues })
@@ -138,6 +171,7 @@ function harness({
     audit: auditMock,
     request,
     insertLinesValues,
+    linesWhere,
   }
 }
 
@@ -230,6 +264,39 @@ describe('Togal BOM commit authority', () => {
     })
     expect(auditInput.diff).not.toHaveProperty('description')
     expect(auditInput.diff.idempotency_key_hash).toMatch(/^[a-f0-9]{64}$/)
+  })
+
+  it('computes totals from the BOM lines, not from a stale stored total', async () => {
+    const nestedMaterial: StoredLine = {
+      unit_cost_cents: 50_000,
+      quantity: '1',
+      line_total_cents: 50_000,
+      parent_line_item_id: '77777777-7777-4777-8777-777777777777',
+    }
+    const { candidate, audit, linesWhere } = harness({
+      // The record still counts the material line that was nested later.
+      bom: [{ id: COMMAND.bomId, status: 'draft', totalCostCents: 51_000, tcvCents: 52_000 }],
+      existingLines: [EXISTING_LINE, nestedMaterial],
+    })
+
+    await expect(candidate.commit(COMMAND, PRINCIPAL, 'togal-stale')).resolves.toMatchObject({
+      totalCostCents: 1_200,
+      tcvCents: 2_260,
+      gpCents: 1_060,
+      gpMarginBps: 4_690,
+    })
+    const where = new PgDialect().sqlToQuery(linesWhere.mock.calls[0]?.[0] as SQL)
+    expect(where.sql).toBe(
+      '("bom_line_items"."bom_id" = $1 and "bom_line_items"."tenant_id" = $2)'
+    )
+    expect(where.params).toEqual([COMMAND.bomId, PRINCIPAL.tenantId])
+    const auditInput = audit.writeSemantic.mock.calls[0]?.[1] as {
+      diff: Record<string, unknown>
+    }
+    expect(auditInput.diff).toMatchObject({
+      total_cost_cents: { before: 51_000, after: 1_200 },
+      tcv_cents: { before: 52_000, after: 2_260 },
+    })
   })
 
   // D-5: fractional takeoff quantities persist exactly and price half-up.

@@ -21,7 +21,8 @@ import {
   tenants,
   users,
 } from '@third-code-erp/database'
-import { and, eq } from 'drizzle-orm'
+import { computeBomTotals } from '@third-code-erp/shared-types/bom'
+import { and, asc, eq } from 'drizzle-orm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { NextRequest } from 'next/server'
 import { CapabilityGuard } from '../src/auth/capability.guard'
@@ -31,6 +32,7 @@ import { AuditService } from '../src/audit/audit.service'
 import { TakeoffImportController } from '../src/cad/takeoff-import.controller'
 import { TakeoffImportService } from '../src/cad/takeoff-import.service'
 import { DatabaseService } from '../src/database/database.service'
+import { loadBoqExport } from '../../web/src/app/api/bom/[id]/export/bom-export-data'
 import { POST } from '../../web/src/app/api/bom/takeoff-import/route'
 
 const authMocks = vi.hoisted(() => ({
@@ -392,6 +394,106 @@ suite('generic takeoff import Web-to-Core disposable integration', () => {
         entityType: 'takeoff_import',
         diff: expect.objectContaining({ authority: 'erp_core' }),
       })
+
+      // boq-excel: a re-import with no rate column keeps the rate an
+      // estimator set on the line and prices the new quantity half-up
+      // (12,345 x 0.5 = 6,172.5 -> 6,173). This runs the upsert SQL.
+      const fractionalLineWhere = and(
+        eq(bomLineItems.tenant_id, tenantId),
+        eq(bomLineItems.takeoff_import_id, firstPayload.importId),
+        eq(bomLineItems.source_row_key, 'A-003')
+      )
+      const readFractionalLine = async () => {
+        const [stored] = await db
+          .select({
+            quantityDecimal: bomLineItems.quantity_decimal,
+            unitCostCents: bomLineItems.unit_cost_cents,
+            lineTotalCents: bomLineItems.line_total_cents,
+            unitRateSource: bomLineItems.unit_rate_source,
+          })
+          .from(bomLineItems)
+          .where(fractionalLineWhere)
+        return stored
+      }
+      const csvWithFractionalQuantity = (quantity: string) =>
+        [
+          'Row,Description,Qty,UOM,Division,Location',
+          'A-001,Changed ceiling,18,sqm,Finishes,Level 2',
+          'A-002,Unresolved item,1,box,,Level 2',
+          `A-003,Fractional concrete,${quantity},cu.m,Concrete,Level 2`,
+        ].join('\n')
+      await db
+        .update(bomLineItems)
+        .set({ unit_cost_cents: 12_345 })
+        .where(fractionalLineWhere)
+      const repriced = await POST(makeRequest('commit', csvWithFractionalQuantity('0.5')))
+      expect(repriced.status).toBe(200)
+      const repricedLine = {
+        quantityDecimal: '0.5000',
+        unitCostCents: 12_345,
+        lineTotalCents: 6_173,
+        unitRateSource: 'manual',
+      }
+      await expect(readFractionalLine()).resolves.toEqual(repricedLine)
+
+      // The commit recalculates the stored totals from the stored lines.
+      const storedLines = await db
+        .select({
+          unit_cost_cents: bomLineItems.unit_cost_cents,
+          quantity: bomLineItems.quantity_decimal,
+          line_total_cents: bomLineItems.line_total_cents,
+          parent_line_item_id: bomLineItems.parent_line_item_id,
+        })
+        .from(bomLineItems)
+        .where(and(eq(bomLineItems.tenant_id, tenantId), eq(bomLineItems.bom_id, bomId)))
+        .orderBy(asc(bomLineItems.sort_order))
+      const [storedTotals] = await db
+        .select({
+          total_cost_cents: boms.total_cost_cents,
+          tcv_cents: boms.tcv_cents,
+          gp_cents: boms.gp_cents,
+          gp_margin_bps: boms.gp_margin_bps,
+        })
+        .from(boms)
+        .where(and(eq(boms.id, bomId), eq(boms.tenant_id, tenantId)))
+      expect(storedTotals).toEqual(computeBomTotals(storedLines))
+
+      // The Web export loader reads the same BOM with real SQL: page order,
+      // names resolved, and nothing across the tenant boundary.
+      const exported = await loadBoqExport(tenantId, bomId)
+      expect(exported?.bom).toMatchObject(storedTotals!)
+      expect(
+        exported?.lines.map((exportedLine) => [
+          exportedLine.description,
+          exportedLine.quantity,
+          exportedLine.unit_cost_cents,
+          exportedLine.division,
+          exportedLine.location,
+        ])
+      ).toEqual([
+        ['Suspended ceiling', '12.0000', 777, 'Finishes', 'Level 2'],
+        ['Unresolved item', '1.0000', 0, null, 'Level 2'],
+        ['Fractional concrete', '0.5000', 12_345, 'Concrete', 'Level 2'],
+      ])
+      await expect(loadBoqExport(foreignTenantId, bomId)).resolves.toBeNull()
+      await expect(loadBoqExport(tenantId, foreignBomId)).resolves.toBeNull()
+
+      // A line rate times the new quantity past the per-line cap (here past
+      // bigint itself) fails the commit with 422 and changes nothing.
+      await db
+        .update(bomLineItems)
+        .set({ unit_cost_cents: 9_000_000_000_000_000 })
+        .where(fractionalLineWhere)
+      const overRange = await POST(makeRequest('commit', csvWithFractionalQuantity('5000')))
+      expect(overRange.status).toBe(422)
+      await expect(readFractionalLine()).resolves.toEqual({
+        ...repricedLine,
+        unitCostCents: 9_000_000_000_000_000,
+      })
+      await db
+        .update(bomLineItems)
+        .set({ unit_cost_cents: 12_345 })
+        .where(fractionalLineWhere)
 
       await db
         .update(boms)
