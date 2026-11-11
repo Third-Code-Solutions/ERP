@@ -72,11 +72,19 @@ Indexes:
 | created_by | uuid | fk `users`, null for seed rows |
 
 - Index: `(tenant_id, item_id, region, checked_on desc, created_at desc)`.
-- **Current price** of an item in a region is the newest row by
+- **Current price** of an item in a region is its newest **priced** row by
   `(checked_on desc, created_at desc)`.
+- **A price always beats a "no price found" row.** A row whose three prices are
+  null is the current observation only where the item has no priced row in that
+  region at all (then the newest such row, which carries the flag and the note).
+  However new it is, it never replaces a price: re-running the seed after a
+  person recorded a price must not hide that price.
+- The list, the item detail and the price-status filter all read this one
+  current observation. The order is
+  `(price_avg_centavos is null, checked_on desc, created_at desc)`.
 - Rows are never updated or deleted. A trigger rejects UPDATE and DELETE, the way
   `audit_log` is protected. A correction is a new `manual` row: with the same or a
-  later `checked_on` it becomes the current price.
+  later `checked_on` than the other priced rows it becomes the current price.
 - A future `checked_on` is refused, because the newest date wins and such a row
   could never be outvoted.
 

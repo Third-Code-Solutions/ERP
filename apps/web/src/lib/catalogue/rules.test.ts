@@ -172,12 +172,13 @@ describe('checked date', () => {
 })
 
 describe('current price selection', () => {
-  const observation = (id: string, region: string, checked_on: string, created: string) => ({
-    id,
-    region,
-    checked_on,
-    created_at: new Date(created),
-  })
+  const observation = (
+    id: string,
+    region: string,
+    checked_on: string,
+    created: string,
+    price_avg_centavos: number | null = 26_500,
+  ) => ({ id, region, checked_on, created_at: new Date(created), price_avg_centavos })
 
   it('picks the newest checked date in each region, then the newest recorded row', () => {
     const current = currentPriceByRegion([
@@ -193,24 +194,44 @@ describe('current price selection', () => {
     expect(current.size).toBe(2)
   })
 
-  it('lets a price of the same or a later checked date replace an observation that found none', () => {
-    const noSource = {
-      ...observation('no-source', 'NCR', '2026-11-05', '2026-11-05T02:00:00Z'),
-      price_avg_centavos: null,
-    }
-    const priced = (id: string, checked_on: string) => ({
-      ...observation(id, 'NCR', checked_on, '2026-11-11T03:00:00Z'),
-      price_avg_centavos: 26_500,
-    })
+  it('lets a price beat an observation that found none, whichever is newer', () => {
+    const noSource = observation('no-source', 'NCR', '2026-11-05', '2026-11-05T02:00:00Z', null)
+    const priced = (id: string, checked_on: string, created: string) =>
+      observation(id, 'NCR', checked_on, created)
 
-    for (const later of [priced('same-day', '2026-11-05'), priced('later-day', '2026-11-12')]) {
+    for (const price of [
+      priced('same-day-recorded-later', '2026-11-05', '2026-11-11T03:00:00Z'),
+      priced('later-day', '2026-11-12', '2026-11-12T03:00:00Z'),
+      // The case a re-seed creates: the price is older than the "no source" row.
+      priced('earlier-day', '2026-11-01', '2026-11-01T03:00:00Z'),
+      priced('same-day-recorded-earlier', '2026-11-05', '2026-11-05T01:00:00Z'),
+    ]) {
       // Whichever way the observations arrive.
-      expect(currentPriceByRegion([noSource, later]).get('NCR')).toBe(later)
-      expect(currentPriceByRegion([later, noSource]).get('NCR')).toBe(later)
+      expect(currentPriceByRegion([noSource, price]).get('NCR')).toBe(price)
+      expect(currentPriceByRegion([price, noSource]).get('NCR')).toBe(price)
     }
-    // A price checked before the search that found nothing stays history.
-    const earlier = priced('earlier-day', '2026-11-04')
-    expect(currentPriceByRegion([earlier, noSource]).get('NCR')).toBe(noSource)
+  })
+
+  it('still takes the newest of several prices, ignoring a newer observation without one', () => {
+    const current = currentPriceByRegion([
+      observation('no-source-newest', 'NCR', '2026-11-10', '2026-11-10T00:00:00Z', null),
+      observation('old-price', 'NCR', '2026-01-10', '2026-01-10T00:00:00Z'),
+      observation('new-price', 'NCR', '2026-06-01', '2026-06-01T00:00:00Z'),
+    ])
+
+    expect(current.get('NCR')?.id).toBe('new-price')
+  })
+
+  it('makes an observation without a price current only where nothing was ever priced', () => {
+    const current = currentPriceByRegion([
+      observation('ncr-no-source-old', 'NCR', '2026-01-10', '2026-01-10T00:00:00Z', null),
+      observation('ncr-no-source-new', 'NCR', '2026-11-05', '2026-11-05T00:00:00Z', null),
+      observation('cebu-price', 'Region VII', '2025-06-01', '2025-06-01T00:00:00Z'),
+      observation('cebu-no-source', 'Region VII', '2026-11-05', '2026-11-05T00:00:00Z', null),
+    ])
+
+    expect(current.get('NCR')?.id).toBe('ncr-no-source-new')
+    expect(current.get('Region VII')?.id).toBe('cebu-price')
   })
 
   it('returns nothing for an item without observations and does not reorder its input', () => {

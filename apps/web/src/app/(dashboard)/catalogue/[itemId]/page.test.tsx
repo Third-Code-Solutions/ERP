@@ -165,7 +165,9 @@ describe('CatalogueItemPage', () => {
     expect(html).toContain('<strong>Trade</strong><span>Concrete</span>')
     expect(html).toContain('<strong>Unit</strong><span>bag</span>')
     expect(html).toContain('<strong>Specification</strong><span>Type 1, ASTM C150</span>')
-    expect(html).toContain('3 entries. The newest entry in a region is the current one.')
+    expect(html).toContain(
+      '3 entries. The newest entry with a price is the current price in its region.',
+    )
 
     expect(html.indexOf('Nov 10, 2026')).toBeGreaterThan(-1)
     expect(html.indexOf('Nov 10, 2026')).toBeLessThan(html.indexOf('Nov 5, 2026'))

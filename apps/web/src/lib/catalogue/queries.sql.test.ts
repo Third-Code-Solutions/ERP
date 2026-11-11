@@ -50,12 +50,13 @@ describe('catalogue read SQL', () => {
       { sql: string; params: unknown[] },
     ]
     for (const statement of [list, count]) {
-      // Newest observation per item and region, inside the caller's tenant.
+      // One observation per item and region inside the caller's tenant: priced
+      // ones first (`is null` sorts false before true), then the newest.
       expect(statement.sql).toMatch(
         /select distinct on \("catalogue_prices"\."item_id", "catalogue_prices"\."region"\)/,
       )
       expect(statement.sql).toMatch(
-        /from "catalogue_prices" where \("catalogue_prices"\."tenant_id" = \$\d+ and "catalogue_prices"\."region" = \$\d+\) order by "catalogue_prices"\."item_id", "catalogue_prices"\."region", "catalogue_prices"\."checked_on" desc, "catalogue_prices"\."created_at" desc\) "current_price"/,
+        /from "catalogue_prices" where \("catalogue_prices"\."tenant_id" = \$\d+ and "catalogue_prices"\."region" = \$\d+\) order by "catalogue_prices"\."item_id", "catalogue_prices"\."region", "catalogue_prices"\."price_avg_centavos" is null, "catalogue_prices"\."checked_on" desc, "catalogue_prices"\."created_at" desc\) "current_price"/,
       )
       expect(statement.sql).toMatch(
         /on \("current_price"\."item_id" = "catalogue_items"\."id" and "current_price"\."tenant_id" = "catalogue_items"\."tenant_id"\)/,

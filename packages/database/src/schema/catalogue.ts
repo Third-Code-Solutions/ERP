@@ -61,7 +61,8 @@ export const catalogueItems = pgTable(
 )
 
 // Append-only price observations. The current price of an item in a region is
-// the newest row by (checked_on desc, created_at desc).
+// its newest priced row by (checked_on desc, created_at desc); a row without a
+// price is current only where the item has no priced row in that region.
 export const cataloguePrices = pgTable(
   'catalogue_prices',
   {

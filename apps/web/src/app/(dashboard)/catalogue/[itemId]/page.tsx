@@ -88,7 +88,7 @@ function PriceHistory({ history, capped }: { history: CataloguePrice[]; capped: 
           {capped
             ? `Only the newest ${history.length} entries are shown; older ones are not listed here.`
             : `${history.length} ${history.length === 1 ? 'entry' : 'entries'}.`}{' '}
-          The newest entry in a region is the current one.
+          The newest entry with a price is the current price in its region.
         </p>
       </div>
       <div className="finance-table-shell">

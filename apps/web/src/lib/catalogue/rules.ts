@@ -228,6 +228,8 @@ export interface DatedObservation {
   /** "YYYY-MM-DD" */
   checked_on: string
   created_at: Date
+  /** Null when the observation found no price. */
+  price_avg_centavos: number | null
 }
 
 /** Newest first: by checked date, then by when the row was recorded. */
@@ -236,12 +238,26 @@ export function compareNewestFirst(a: DatedObservation, b: DatedObservation): nu
   return b.created_at.getTime() - a.created_at.getTime()
 }
 
-/** The current price of an item in each region: its newest observation there. */
+/**
+ * The order the current observation is taken from: priced ones first, each
+ * group newest first. A price always beats a "no price found" entry, however
+ * new that entry is, so re-seeding the research files can never hide a price a
+ * person recorded. The list query orders its rows the same way in SQL.
+ */
+export function compareCurrentFirst(a: DatedObservation, b: DatedObservation): number {
+  const unpriced = Number(a.price_avg_centavos === null) - Number(b.price_avg_centavos === null)
+  return unpriced || compareNewestFirst(a, b)
+}
+
+/**
+ * The current observation of an item in each region: the newest one with a
+ * price, or the newest one of all where no price was ever recorded there.
+ */
 export function currentPriceByRegion<T extends DatedObservation>(
   observations: readonly T[],
 ): Map<string, T> {
   const current = new Map<string, T>()
-  for (const observation of [...observations].sort(compareNewestFirst)) {
+  for (const observation of [...observations].sort(compareCurrentFirst)) {
     if (!current.has(observation.region)) current.set(observation.region, observation)
   }
   return current
