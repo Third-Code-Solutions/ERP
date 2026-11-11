@@ -143,6 +143,11 @@ async function main() {
       `Observations: ${counts.pricesInserted} inserted, ${counts.pricesAlreadyPresent} already present ` +
         `(${counts.unpricedRows} of the ${counts.items} rows record that no price was found).`
     )
+    console.log(
+      'A row whose only change is its flag, notes or price basis is not applied: an observation ' +
+        'is matched on item, region, date, link and prices, and is never updated. Give such a row ' +
+        'a new date_checked to record it.'
+    )
     console.log('One audit_log entry (catalogue_seed) records these counts.')
     try {
       await analyzeCatalogue(sql)

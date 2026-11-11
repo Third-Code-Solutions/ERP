@@ -140,6 +140,10 @@ Added after the security review of PR #146 (2026-11-10).
     prices are null. That keeps its region, the `NO_SOURCE` flag, the note that
     says why nothing was found, and any link, so the page can show them.
 - It is idempotent: a second run inserts 0 rows.
+- A CSV change to a row's flag, notes or price basis alone is not applied: the
+  observation already matches on item, region, date, link and prices, and
+  observations are never updated. The script says so after each run; the row
+  needs a new `date_checked` to be recorded.
 - Its dry run prints per-trade counts.
 - Each real run writes one `audit_log` entry with its counts.
 - `DATABASE_URL` comes from the environment only.

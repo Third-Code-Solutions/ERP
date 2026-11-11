@@ -30,6 +30,14 @@ Every file has the same 14 columns:
 - **date_checked**: the day the source was read.
 - **notes**: which source gave which number, or why the price is blank.
 
+Changing a row after it has been seeded: the item's name, trade, specification
+and unit are refreshed on the next seed run unless a person has edited the item
+in the app. A row's price observation is never changed, because the history is
+append-only. A new observation is recorded only when the region, the date
+checked, the link or a price differs; a change to the flag, the notes or the
+price basis alone is not applied. To record it, read the source again and give
+the row the new `date_checked`.
+
 ### Flags
 
 | Flag | Meaning |
