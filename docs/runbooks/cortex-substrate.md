@@ -2,8 +2,10 @@
 
 **Owner:** Platform / AI
 **Tables:** `cortex_nodes`, `cortex_edges`, `cortex_provenance`
-**Source of record:** `packages/database/src/schema/cortex.ts` (Drizzle) +
-`packages/database/src/sql/cortex-substrate.sql` (RLS, functions, triggers, backfill).
+**Source of record:** `supabase/migrations/` (authoritative; latest: the cortex
+coverage batches `20261106100000` and `20261106101000`), typed by
+`packages/database/src/schema/cortex.ts`. `cortex-substrate.sql` is the original
+substrate and is historical. Coverage plan: `docs/erp/specs/cortex-coverage.md`.
 
 ---
 
@@ -12,19 +14,25 @@
 A derived, RLS-scoped, hash-chained projection of the ERP. Canonical data stays
 in the ERP tables; the graph mirrors them via `ref_table`/`ref_id`. Kept live by `AFTER` triggers — **whole-ERP coverage**:
 - Curated mirrors (`cortex_mirror_{project,account,user,opportunity,document,bom,purchase_order,invoice,daily_task}`).
-- **Generic mirror** (`cortex_mirror_generic()` trigger `cortex_mirror_g`) on every
-  other top-level business table: vendors, scope_items, contacts, permits,
-  variation_orders, progress_claims, warranty_tickets, delivery_schedules, rfqs,
-  contracts, certificates, punchlist_items, site_inspections, design_files,
-  change_requests, master_schedules, material_items, weekly_reports,
-  pre_con_checklist_items. The trigger takes args `(node_type, title_col,
-  summary_col)`, stores the **full row** in `attributes`, and derives edges from
-  any `project_id / account_id / opportunity_id / bom_id / vendor_id / created_by`.
-  Adding a new table = one `create trigger … execute function
-  cortex_mirror_generic('type','title_col','status_col')` + (if new) an enum value.
-  Backfill = `update <table> set tenant_id = tenant_id` (no-op fires the trigger).
-- Excluded by design (reachable via parent): line-items, *_photos, *_documents
-  joins, *_tokens/sessions, *_messages, *_versions, sla_logs, notifications.
+  Account, user, opportunity and document delegate to `cortex_apply_*(row, op)`
+  so backfill can call them: no emails, KYC-linked documents titled
+  `KYC artifact: <type>` (trigger `cortex_kyc_redact` on `account_kyc_artifacts`),
+  opportunity stage history in `attributes.folds.stage_history`.
+- Domain mirrors (finance, payables, cash, bank, inventory).
+- **Registry mirror** (`cortex_mirror_row()`, trigger `cortex_mirror_r`) driven by
+  `cortex_mirror_registry`: the 23 former generic tables (vendors, cost_codes,
+  material_items, contacts, scope_items, permits, variation_orders,
+  progress_claims, warranty_tickets, delivery_schedules, rfqs, contracts,
+  certificates_of_completion, punchlist_items, site_inspections, design_files,
+  change_requests, master_schedules, weekly_reports, pre_con_checklist_items,
+  cost_entries, project_budgets, stock_movements). `attr_cols` is a **frozen
+  allowlist** computed by the migration; a column added later stays out until a
+  migration adds it. The registry also supports child folds
+  (`cortex_fold_children`) and link tables (`cortex_mirror_link`) for later
+  batches. `cortex_mirror_generic()` remains defined but is attached nowhere.
+- Every tenant table is classified (mirrored, planned batch, or never mirrored
+  with a reason) in `packages/database/src/__tests__/_cortex-coverage-classes.ts`;
+  the coverage test fails on an unclassified table.
 
 The agent reads `cortex_nodes` across ALL node types, so it fetches the whole DB.
 See ADR-007.
@@ -39,9 +47,21 @@ ERP write.
 ## Operations
 
 **Rebuild / reconcile the graph (idempotent, additive):**
-Re-run the backfill section of `cortex-substrate.sql` (the three `DO` blocks).
-`cortex_upsert_*` updates existing current nodes and inserts missing ones; it
-never deletes. Safe to run anytime.
+```bash
+DATABASE_URL=... node scripts/cortex-backfill.mjs --batch 1 --dry-run        # counts only
+DATABASE_URL=... node scripts/cortex-backfill.mjs --batch 1 --mode missing   # rows without a node
+DATABASE_URL=... node scripts/cortex-backfill.mjs --batch 1 --mode all       # re-apply every row
+```
+It pages `cortex_backfill(table, mode, 2000, after)` with one commit per page,
+endpoints first. Unchanged nodes write no provenance, so a re-run is cheap and
+safe. Never backfill with `update <t> set tenant_id = tenant_id`: it fires the
+audit triggers and the posted-row guards.
+
+**Roll back Batch 1 (keeps all data, re-opens S1/S2/S3):**
+```bash
+psql "$DATABASE_URL" --single-transaction -v ON_ERROR_STOP=1 \
+  -f packages/database/src/sql/cortex-coverage-rollback.sql
+```
 
 **Verify provenance chain integrity (per tenant):**
 ```sql
@@ -62,9 +82,10 @@ Zero rows = intact. Any row = tampering/gap → SEV-1, investigate.
 Grep Postgres logs. A graph row count far below the ERP row count for a type
 signals systematic mirror failure → reconcile + investigate the trigger.
 
-**Run the proof suite:**
+**Run the proof suite** (rollback-only probes; local or disposable DB only):
 ```bash
-corepack pnpm --filter @third-code-erp/database test
+DATABASE_URL=postgresql://... DATABASE_HARDENING_EXPECTED=1 \
+  corepack pnpm --filter @third-code-erp/database test
 ```
 
 ## Dashboard surface (where users find it)
@@ -107,12 +128,20 @@ search via an HNSW index (`idx_cortex_nodes_embedding`, `vector_cosine_ops`).
 - Population: `POST /api/cortex/embed` (admin-only) embeds a batch of the
   tenant's un-embedded nodes via `@third-code-erp/ai` `embedBatch`. Call until
   `remaining` is 0 (drive from a cron/Inngest job). Returns 503 if no embedding
-  provider key is configured — the rest of the app is unaffected. New/updated
-  nodes land with `embedding = NULL`, so re-run periodically to keep fresh.
+  provider key is configured — the rest of the app is unaffected. New nodes land
+  with `embedding = NULL`, so re-run periodically. An updated node keeps its old
+  embedding (only a KYC re-title clears it).
 
 ## Security invariants (do not regress)
 
 - RLS on all three tables (`auth_tenant_id()`); `anon` sees nothing.
+- `auth_can_read_cortex_node_type` is **deny-by-default**: a type reads only
+  through its `cortex_node_type_access.read_group` (tenant, finance, inventory,
+  budget, kyc, estimating, rfq, rate_card, procurement, catalogue). A type with no
+  row is denied to every authenticated user.
+- `cortex_mirror_registry` and `cortex_node_type_access` are server-only (RLS
+  forced, `deny_direct_client_access`, no client grants; `service_role` may only
+  read them, because rows change only by migration).
 - `cortex_*` functions have `EXECUTE` revoked from `anon/authenticated/public`.
   New `cortex_*` functions MUST be revoked too (the `7b` `DO` block re-revokes
   all `cortex\_%` functions — re-run after adding any).
@@ -120,13 +149,29 @@ search via an HNSW index (`idx_cortex_nodes_embedding`, `vector_cosine_ops`).
 
 ## Adding a new entity to the graph
 
-1. Add the node type to `cortex_node_type` (enum) if missing.
-2. Write `cortex_mirror_<entity>()` (copy an existing one; keep the defensive
-   `EXCEPTION` wrapper) + `AFTER INSERT/UPDATE/DELETE` trigger.
-3. Add derived edges from its FKs via `cortex_upsert_edge(... 'canonical' ...)`.
-4. Add a backfill `DO` block.
-5. Re-run the `7b` revoke block.
-6. Extend `cortex-substrate.test.ts`.
+Follow the parity checklist in `docs/erp/specs/cortex-coverage.md` §3.4:
+1. Enum value in a migration and in `schema/cortex.ts`.
+2. A `cortex_node_type_access` row (without it the type is unreadable).
+3. `CORTEX_GRAPH_REF_TABLE_NODE_TYPES` (shared-types) and
+   `CORTEX_ENTITY_REGISTRY` (web) entries.
+4. A `cortex_mirror_registry` row with a frozen `attr_cols` allowlist, plus the
+   `cortex_mirror_r` trigger (or fold / link triggers for child tables).
+5. Re-run the `cortex\_%` revoke loop in the same migration.
+6. Move the table out of `CORTEX_PLANNED` in `_cortex-coverage-classes.ts`, then
+   backfill with `scripts/cortex-backfill.mjs`.
+
+## Known limits of the coverage Batch 1 privacy fixes
+
+- Nodes written before Batch 1 keep their old attributes (vendor contact data,
+  emails) until `scripts/cortex-backfill.mjs --batch 1 --mode all` has run.
+- A document is mirrored under its file name until a KYC artifact links it.
+  From then on the title is `KYC artifact: <type>` and the node's embedding is
+  cleared so it is rebuilt from the new title. The earlier title stays in
+  `audit_log` (append-only), and it may already have been sent to the embedding
+  provider.
+- An allowlisted text attribute of up to 120 characters is copied as written.
+  Longer ones have emails and phone-like digit runs masked and are cut to 500
+  characters; registry titles and summaries are always masked and cut to 300.
 
 ## Known follow-ups (pre-existing, not from this slice)
 
