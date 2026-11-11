@@ -12,6 +12,7 @@ import {
   SourceLink,
   TRADE_OPTIONS,
   formatDate,
+  ownLabel,
   pesos,
   tradeLabel,
 } from '../catalogue-display'
@@ -84,7 +85,7 @@ function PriceRow({
       <td>
         <strong>{formatDate(price.checked_on)}</strong>
         <span className="finance-cell-detail">
-          {SOURCE_KIND_LABELS[price.source_kind] ?? price.source_kind}
+          {ownLabel(SOURCE_KIND_LABELS, price.source_kind) ?? price.source_kind}
         </span>
         {pinned ? (
           <span className="finance-cell-detail">Older than the entries listed below</span>

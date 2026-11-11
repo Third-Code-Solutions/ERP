@@ -10,6 +10,14 @@ import {
 // What the catalogue list and the item page show the same way: trade names,
 // peso amounts, long text, flag chips and the source link.
 
+/**
+ * `labels[key]` only for a key the map itself holds: a stored value such as
+ * "constructor" or "__proto__" must not read a property of Object.prototype.
+ */
+export function ownLabel<T>(labels: Readonly<Record<string, T>>, key: string): T | undefined {
+  return Object.hasOwn(labels, key) ? labels[key] : undefined
+}
+
 const TRADE_LABELS: Record<CatalogueTrade, string> = {
   earthworks: 'Earthworks',
   concrete: 'Concrete',
@@ -39,7 +47,7 @@ export const TRADE_OPTIONS = CATALOGUE_TRADES.map(({ slug }) => ({
 }))
 
 export function tradeLabel(trade: string): string {
-  return (TRADE_LABELS as Record<string, string>)[trade] ?? trade
+  return ownLabel(TRADE_LABELS, trade) ?? trade
 }
 
 export const PRICE_STATUS_LABELS: Record<CataloguePriceStatus, string> = {
@@ -92,7 +100,7 @@ export function FlagChips({ flags }: { flags: string[] }) {
         const staleYear = /^STALE_(\d{4})$/.exec(flag)?.[1]
         const chip = staleYear
           ? { label: 'Before 2026', variant: CAUTION }
-          : (FLAG_CHIPS[flag] ?? { label: flag, variant: NEUTRAL })
+          : (ownLabel(FLAG_CHIPS, flag) ?? { label: flag, variant: NEUTRAL })
         return (
           <Fragment key={flag}>
             <span

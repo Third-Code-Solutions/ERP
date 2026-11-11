@@ -228,6 +228,29 @@ describe('CatalogueItemPage', () => {
     expect(html).not.toContain('pinned at the top')
   })
 
+  it('shows an unknown trade, flag or source kind as stored, even one named like an Object property', async () => {
+    const odd = observation({ source_kind: 'constructor', flag: 'constructor;__proto__;toString' })
+    mocks.detail.mockResolvedValue({
+      ok: true,
+      data: {
+        item: { ...ITEM, trade: 'constructor' },
+        history: [odd],
+        historyCapped: false,
+        current: [odd],
+      },
+    })
+
+    const html = await render()
+
+    expect(html).toContain('<strong>Trade</strong><span>constructor</span>')
+    expect(html).toContain('<span class="finance-cell-detail">constructor</span>')
+    for (const flag of ['constructor', '__proto__', 'toString']) {
+      expect(html).toContain(`<span class="finance-status finance-status-draft">${flag}</span>`)
+    }
+    expect(html).not.toContain('function')
+    expect(html).not.toContain('[object Object]')
+  })
+
   it('pins a current entry older than the entries shown above them, marked Current', async () => {
     // NO_SOURCE is the current entry of "National" but fell outside the cap.
     mocks.detail.mockResolvedValue({
