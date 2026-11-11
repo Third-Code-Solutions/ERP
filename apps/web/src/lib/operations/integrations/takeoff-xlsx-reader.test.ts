@@ -133,7 +133,10 @@ async function estimateWorkbook(options: EstimateOptions = {}): Promise<Buffer> 
   }
   boq.getCell(`B${rowNumber}`).value = 'GRAND TOTAL'
   boq.getCell(`F${rowNumber}`).value = { formula: `SUM(F7:F${rowNumber - 1})`, result: 999 }
-  boq.dataValidations.add(`D7:D${rowNumber}`, { type: 'list', allowBlank: true, formulae: ['"sqm,lm,pcs,lot"'] })
+  // Real at runtime, missing from ExcelJS's type declarations.
+  const validations = (boq as unknown as { dataValidations: { add(range: string, rule: object): void } })
+    .dataValidations
+  validations.add(`D7:D${rowNumber}`, { type: 'list', allowBlank: true, formulae: ['"sqm,lm,pcs,lot"'] })
   boq.autoFilter = 'A6:G6'
   boq.pageSetup.printArea = `A1:G${rowNumber}`
   workbook.definedNames.add('BOQ!$A$6:$G$6', 'HeaderRow')

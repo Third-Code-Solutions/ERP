@@ -323,7 +323,7 @@ describe('generic takeoff import Core authority', () => {
       headers: { 'content-type': 'multipart/form-data; boundary=x' },
       body: endless,
       duplex: 'half',
-    } as RequestInit & { duplex: 'half' })
+    } as ConstructorParameters<typeof NextRequest>[1])
 
     const response = await POST(request)
 
