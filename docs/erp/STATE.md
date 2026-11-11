@@ -150,6 +150,40 @@ Verdicts are posted as PR comments.
   see `docs/erp/RUNBOOK.md` section 5.
 
 ## Current
+### In flight (2026-11-11)
+Owner order of 2026-11-05: import and export estimates in Excel, mirror every piece of
+ERP data into Cortex, deal management, and a master construction price catalogue.
+Owner order of 2026-11-11: deploy only what is green on CI and proven working.
+**Nothing below is merged or live.** CI cannot run (Actions billing, see Blockers), so
+no PR here can pass the merge gate yet.
+
+| Work | Branch / PR | State |
+|---|---|---|
+| BOQ Excel import and export (`boq-export`) | `feat/erp-boq-excel`, #144 | Review round 3: security FAIL (the zip guard is itself quadratic; ExcelJS CPU and memory bombs pass it), code REQUEST_CHANGES (7 should-fix). Final fix pass in progress: parse in a `worker_threads` worker with heap and time limits, tighter guard, 7 import/export fixes. This is the third loop; if it still fails, the PR goes to the owner. Spec `docs/erp/specs/boq-excel.md` |
+| Catalogue research data, 20 trades | `feat/erp-catalogue-data`, #146 | 1,008 items: 708 priced, 300 blank and flagged `NO_SOURCE`. Security PASS; data review not approved after 3 loops (open list on the PR). Waits on the owner's licensing answers |
+| Catalogue table, seed, page, admin edit (`cost-db` extension) | `feat/erp-catalogue`, stacked on `feat/erp-boq-excel`, not pushed | Proven on a local Postgres 17: migration, verifier, 13 DB and 6 query tests, seed idempotent, counts and centavos match the CSVs. Page render test in progress. Supplier Excel import not started (it reuses #144's guards). Flag `ERP_CATALOGUE_ENABLED`, default off. Spec `docs/erp/specs/catalogue.md` |
+| Cortex coverage, batches 0-1 | `feat/erp-cortex-coverage`, #147 | Review round 1: security FAIL, database review APPROVE to apply. Fix pass in progress (findings on the PR). Spec `docs/erp/specs/cortex-coverage.md` |
+
+Rules decided for this work:
+- Catalogue current price: the newest priced observation for the item and region. An
+  observation with no price is shown only when the item has no priced one there.
+- **Do not seed the production catalogue before the owner answers the #146 licensing
+  questions.** Price rows are append-only by design and cannot be deleted once loaded.
+- After seeding a tenant, run `ANALYZE` on both catalogue tables (the list query takes
+  1-2 s on fresh statistics, 19 ms after).
+
+Live exposures found during this work. Each fix is in a PR above; none is live:
+1. **`audit_log` is readable by every signed-in user of a tenant through the Supabase
+   client.** Its only SELECT policy checks the tenant, `authenticated` holds SELECT, and
+   the `audit.read` capability is enforced only in server code. Audit rows hold full
+   row images (vendor contacts, budgets, stock movements). No browser code reads
+   `audit_log`, so the fix is to revoke SELECT from `authenticated` and `anon` (#147).
+2. **Spreadsheet parsing on `main` is unguarded beyond the 25 MB cap.** Any user with
+   `bom.generate` can upload a small crafted `.xlsx` to the takeoff import that holds
+   the Node event loop or exhausts its heap (#144).
+3. **Cortex nodes of deleted rows keep their old attributes**, including vendor email,
+   phone and address that every tenant role can query (#147).
+
 Owner mandate PHASE 1 (init: green baseline, CI merge gate, `smoke:prod`, STATE,
 RUNBOOK) is **done**.
 - Latest promotion (2026-11-05, manual, owner order "MERGE EVERYTHING AND DEPLOY ON
@@ -319,6 +353,10 @@ RUNBOOK) is **done**.
   - Q-TEN-8 (advisory, ties to Q1): the portal BOM summary shows TCV + VAT on full
     TCV − retention on full TCV, with no EWT. Keep it, or align it with the invoice
     formula once Q1 and Q3 are answered?
+- **Catalogue data (#146), owner:** keep or remove about 100 rows priced from
+  theprojectestimate.com purchase lists? May 165 rows read from Wilcon's online store
+  be used (its terms of use are unchecked)? Is it acceptable that 133 rows rest on AEDO
+  cost guides, 21 of them on one labour article? The data-quality open list is on the PR.
 - **GitHub Actions blocked (owner):** the Third-Code-Solutions org is on the free plan
   and hit its Actions spending limit. The owner chose the Team upgrade, but it is not
   applied yet. Until then, CI, backups, promotion and smoke cannot run, and releases
@@ -330,6 +368,8 @@ RUNBOOK) is **done**.
 ## Log
 | Date | Mode | Result |
 |---|---|---|
+| 2026-11-11 | build | #144 round 3 FAIL, final fix pass; #147 round 1 security FAIL / DB APPROVE, fix pass; catalogue DB layer proven locally (not pushed). Nothing deployed: Actions still blocked |
+| 2026-11-10 | build | #146 catalogue data: 3 review loops, to owner; #147 opened |
 | 2026-11-05 | promote | Manual (Actions blocked): web `f212c9df` via Vercel CLI, API auto-deploy `e2acdd8f`; health, revision, surface PASS; smoke not run (secrets in GitHub only) |
 | 2026-11-05 | merge | #142 `f212c9df` tenancy (D-13), owner override of the CI gate; Q-TEN-6 re-checked (0 profiles, 0 gates) |
 | 2026-11-05 | incident | Deleting #141's branch closed stacked #142; reopened and retargeted to `main`. No code impact |
