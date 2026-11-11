@@ -148,6 +148,36 @@ Added after the security review of PR #146 (2026-11-10).
   `statement_timeout 60s`. Rollback drops only the two new tables, which hold only
   catalogue data.
 
+### Offboarding
+
+Price rows are append-only and their foreign keys restrict, so two clean-ups
+fail on purpose:
+
+- **Deleting a tenant that has catalogue prices fails.** The cascade from
+  `tenants` reaches `catalogue_prices`, and the append-only trigger refuses
+  the DELETE.
+- **Deleting a user who recorded a price, or created or edited an item,
+  fails** on the `(tenant_id, created_by)` or `(tenant_id, updated_by)`
+  foreign key.
+
+What an operator does instead (no app code does this):
+
+- For a person who leaves, set the account to `suspended` or `disabled`
+  rather than deleting the user row. Their prices and edits keep their name.
+- To remove a tenant's catalogue for good, make it a reviewed change. Take an
+  encrypted backup first. Then, in one transaction, as the table owner:
+  1. `alter table public.catalogue_prices disable trigger
+     catalogue_prices_append_only`;
+  2. delete the tenant's rows from `catalogue_prices`, then from
+     `catalogue_items` (the audit trigger records each delete);
+  3. `alter table public.catalogue_prices enable trigger
+     catalogue_prices_append_only`;
+  4. commit.
+
+  Re-enabling the trigger before the commit means no other session ever sees
+  it off. This only clears the catalogue's part: other tables may still block
+  deleting the tenant.
+
 ## 3. Money
 
 - CSV and Excel prices are PHP decimal strings. They are converted to centavos

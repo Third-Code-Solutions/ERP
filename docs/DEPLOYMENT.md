@@ -83,6 +83,13 @@ provisioned when their feature is enabled.
      did; if it prints that ANALYZE failed, run both by hand before the flag
      goes on, or the list page joins row by row and gets slow. A flip needs a
      redeploy.
+     Offboarding: catalogue prices are append-only, so deleting a tenant that
+     has them, or a user who recorded a price or created or edited an item,
+     fails. Suspend or disable a leaver's account instead of deleting it. To
+     remove a tenant's catalogue, follow "Offboarding" in
+     `docs/erp/specs/catalogue.md`: a reviewed, backed-up transaction that
+     disables `catalogue_prices_append_only`, deletes the tenant's prices and
+     items, and enables the trigger again before it commits.
 5. Add the production domain in `Settings → Domains` and update
    `NEXT_PUBLIC_SITE_URL` to match. Portal share links and email CTAs
    use this value.
