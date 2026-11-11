@@ -147,19 +147,25 @@ function CatalogueRegister({ data }: { data: CatalogueListResult }) {
                       <Truncated text={item.specification} />
                     </td>
                     <td>{item.unit}</td>
-                    <td className="currency">{pesos(price?.price_low_centavos ?? null)}</td>
-                    <td className="currency">{pesos(price?.price_avg_centavos ?? null)}</td>
-                    <td className="currency">{pesos(price?.price_high_centavos ?? null)}</td>
+                    {price?.price_avg_centavos != null ? (
+                      <>
+                        <td className="currency">{pesos(price.price_low_centavos)}</td>
+                        <td className="currency">{pesos(price.price_avg_centavos)}</td>
+                        <td className="currency">{pesos(price.price_high_centavos)}</td>
+                      </>
+                    ) : (
+                      // No price: the note that says why takes the place of the amounts.
+                      <td colSpan={3}>
+                        <Truncated text={price?.notes ?? null} />
+                      </td>
+                    )}
                     <td>{price?.region ?? '—'}</td>
                     <td>
                       <SourceLink url={price?.source_url ?? null} name={price?.source_name ?? null} />
                     </td>
                     <td>{formatDate(price?.checked_on ?? null)}</td>
                     <td>
-                      <FlagChips
-                        flags={price?.flags ?? []}
-                        priced={price?.price_avg_centavos != null}
-                      />
+                      <FlagChips flags={price?.flags ?? []} />
                       {item.is_active ? null : (
                         <span className="finance-status finance-status-closed">Inactive</span>
                       )}

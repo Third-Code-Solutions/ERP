@@ -11,7 +11,6 @@ import {
   FlagChips,
   SourceLink,
   TRADE_OPTIONS,
-  Truncated,
   pesos,
   tradeLabel,
 } from '../catalogue-display'
@@ -77,17 +76,19 @@ function ItemIdentity({ item }: { item: CatalogueItem }) {
   )
 }
 
-function PriceHistory({ history }: { history: CataloguePrice[] }) {
+function PriceHistory({ history, capped }: { history: CataloguePrice[]; capped: boolean }) {
   return (
     <section className="finance-section">
       <div className="finance-section-heading">
         <div>
           <p className="finance-eyebrow">Price history</p>
-          <h2>Every recorded price, newest first</h2>
+          <h2>Recorded entries, newest first</h2>
         </div>
         <p>
-          {history.length} recorded price{history.length === 1 ? '' : 's'}. The newest in a region
-          is its current price.
+          {capped
+            ? `Only the newest ${history.length} entries are shown; older ones are not listed here.`
+            : `${history.length} ${history.length === 1 ? 'entry' : 'entries'}.`}{' '}
+          The newest entry in a region is the current one.
         </p>
       </div>
       <div className="finance-table-shell">
@@ -131,14 +132,9 @@ function PriceHistory({ history }: { history: CataloguePrice[] }) {
                     ) : null}
                   </td>
                   <td>
-                    <FlagChips
-                      flags={splitCatalogueFlags(price.flag)}
-                      priced={price.price_avg_centavos !== null}
-                    />
+                    <FlagChips flags={splitCatalogueFlags(price.flag)} />
                   </td>
-                  <td>
-                    <Truncated text={price.notes} />
-                  </td>
+                  <td>{price.notes ?? '—'}</td>
                 </tr>
               ))}
             </tbody>
@@ -165,7 +161,7 @@ export default async function CatalogueItemPage({
     if (result.status === 404) notFound()
     throw new Error(result.error)
   }
-  const { item, history } = result.data
+  const { item, history, historyCapped } = result.data
 
   return (
     <div>
@@ -176,7 +172,7 @@ export default async function CatalogueItemPage({
           </p>
           <h1 className="page-title">{item.code}</h1>
           <p className="page-subtitle">
-            The item as catalogued and every price recorded for it, with its source.
+            The item as catalogued and the prices recorded for it, each with its source.
           </p>
         </div>
         <div className="finance-header-actions">
@@ -187,7 +183,7 @@ export default async function CatalogueItemPage({
       </div>
 
       <ItemIdentity item={item} />
-      <PriceHistory history={history} />
+      <PriceHistory history={history} capped={historyCapped} />
 
       {can(profile.role, 'catalogue.manage') ? (
         <>

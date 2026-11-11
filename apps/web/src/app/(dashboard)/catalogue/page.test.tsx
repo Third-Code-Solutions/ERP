@@ -76,9 +76,13 @@ const PRICED_ROW = {
     source_url: 'https://www.example.com/cement?size=40',
     checked_on: '2026-11-05',
     flags: ['SINGLE_SOURCE', 'STALE_2024'],
+    notes: null,
   },
 }
-const UNPRICED_ROW = {
+const NO_PRICE_NOTE =
+  'No dated public rate was found: the only tables seen carry no date of their own and may copy a paid guide.'
+// Its newest observation found no price: the region, flag, note and date are real.
+const NO_SOURCE_ROW = {
   id: UNPRICED_ID,
   code: 'EQ-0007',
   name: 'Tower crane rental',
@@ -86,6 +90,24 @@ const UNPRICED_ROW = {
   specification: null,
   unit: 'month',
   is_active: false,
+  price: {
+    ...PRICED_ROW.price,
+    id: '55555555-5555-4555-8555-555555555555',
+    region: 'National',
+    price_low_centavos: null,
+    price_avg_centavos: null,
+    price_high_centavos: null,
+    source_url: null,
+    checked_on: '2026-11-10',
+    flags: ['NO_SOURCE'],
+    notes: NO_PRICE_NOTE,
+  },
+}
+// Nothing was ever recorded for this one.
+const UNOBSERVED_ROW = {
+  ...NO_SOURCE_ROW,
+  id: '66666666-6666-4666-8666-666666666666',
+  code: 'SUP-12',
   price: null,
 }
 
@@ -139,7 +161,7 @@ describe('CataloguePage', () => {
   })
 
   it('lists each item with its current price, source link and worded flags', async () => {
-    listed([PRICED_ROW, UNPRICED_ROW])
+    listed([PRICED_ROW])
 
     const html = await render()
 
@@ -159,11 +181,32 @@ describe('CataloguePage', () => {
     expect(html).toContain(
       '<span class="finance-status finance-status-maintenance" title="Newest figure found is from 2024">Before 2026</span>',
     )
-    // The unpriced item: dashes for the amounts, and the flag in words.
-    expect(html).toContain('<td class="currency">—</td>')
+    expect(html).not.toContain('>No source</span>')
+    expect(html).not.toContain('style=')
+  })
+
+  it('shows why an item has no price where the amounts would be, with its real flag', async () => {
+    listed([NO_SOURCE_ROW])
+
+    const html = await render()
+
+    // The note is cut for the table; the item page, one click away, has it in full.
+    expect(html).toContain(`<td colSpan="3"><span title="${NO_PRICE_NOTE}">No dated public rate`)
+    expect(html).not.toContain('class="currency"')
+    expect(html).toContain('<td>National</td>')
+    expect(html).toContain('<td>Nov 10, 2026</td>')
     expect(html).toContain('<span class="finance-status finance-status-draft">No source</span>')
     expect(html).toContain('<span class="finance-status finance-status-closed">Inactive</span>')
-    expect(html).not.toContain('style=')
+  })
+
+  it('claims no flag for an item nothing was ever recorded for', async () => {
+    listed([UNOBSERVED_ROW])
+
+    const html = await render()
+
+    expect(html).toContain('<strong>SUP-12</strong>')
+    expect(html).toContain('<td colSpan="3">—</td>')
+    expect(html).not.toContain('>No source</span>')
   })
 
   it('does not link a stored source that is not a plain web address', async () => {

@@ -82,6 +82,20 @@ const NEWER = observation({
   notes: null,
 })
 const OLDER = observation({})
+const NO_PRICE_NOTE =
+  'No dated public rate was found: the only tables seen carry no date of their own and may copy a paid guide.'
+// The research found no price: the observation has no amounts, but a flag and a note.
+const NO_SOURCE = observation({
+  id: '66666666-6666-4666-8666-666666666666',
+  region: 'National',
+  price_low_centavos: null,
+  price_avg_centavos: null,
+  price_high_centavos: null,
+  source_url: null,
+  checked_on: '2026-11-01',
+  flag: 'NO_SOURCE',
+  notes: NO_PRICE_NOTE,
+})
 
 function signIn(role: string) {
   mocks.profile.mockResolvedValue({ user: { id: 'user-1' }, tenantId: TENANT_ID, role })
@@ -99,7 +113,12 @@ describe('CatalogueItemPage', () => {
     signIn('viewer')
     mocks.detail.mockResolvedValue({
       ok: true,
-      data: { item: ITEM, history: [NEWER, OLDER], current: [NEWER] },
+      data: {
+        item: ITEM,
+        history: [NEWER, OLDER, NO_SOURCE],
+        historyCapped: false,
+        current: [NEWER, NO_SOURCE],
+      },
     })
   })
 
@@ -146,7 +165,7 @@ describe('CatalogueItemPage', () => {
     expect(html).toContain('<strong>Trade</strong><span>Concrete</span>')
     expect(html).toContain('<strong>Unit</strong><span>bag</span>')
     expect(html).toContain('<strong>Specification</strong><span>Type 1, ASTM C150</span>')
-    expect(html).toContain('2 recorded prices')
+    expect(html).toContain('3 entries. The newest entry in a region is the current one.')
 
     expect(html.indexOf('Nov 10, 2026')).toBeGreaterThan(-1)
     expect(html.indexOf('Nov 10, 2026')).toBeLessThan(html.indexOf('Nov 5, 2026'))
@@ -162,6 +181,30 @@ describe('CatalogueItemPage', () => {
       '<span class="finance-status finance-status-maintenance">Low authority</span>',
     )
     expect(html).not.toContain('style=')
+  })
+
+  it('keeps an observation that found no price in the history, with its flag and its note in full', async () => {
+    const html = await render()
+
+    expect(NO_PRICE_NOTE.length).toBeGreaterThan(80)
+    expect(html).toContain('<td>National</td>')
+    expect(html.match(/<td class="currency">—<\/td>/g)).toHaveLength(3)
+    expect(html).toContain('<span class="finance-status finance-status-draft">No source</span>')
+    // In the cell itself, not in a hover title.
+    expect(html).toContain(`<td>${NO_PRICE_NOTE}</td>`)
+    expect(html).not.toContain(`title="${NO_PRICE_NOTE}"`)
+  })
+
+  it('says so when only the newest entries are shown', async () => {
+    mocks.detail.mockResolvedValue({
+      ok: true,
+      data: { item: ITEM, history: [NEWER, OLDER], historyCapped: true, current: [NEWER] },
+    })
+
+    const html = await render()
+
+    expect(html).toContain('Only the newest 2 entries are shown; older ones are not listed here.')
+    expect(html).not.toContain('2 entries.')
   })
 
   it('offers no form to a reader without catalogue.manage', async () => {

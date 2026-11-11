@@ -55,7 +55,10 @@ export function pesos(centavos: number | null): string {
 
 const CELL_TEXT_LENGTH = 80
 
-/** Long text cut for a table cell, with the full text on hover. */
+/**
+ * Long text cut for a cell of the list table. The hover title is a
+ * convenience only: the item page shows the same text in full.
+ */
 export function Truncated({ text }: { text: string | null }) {
   if (!text) return <>—</>
   if (text.length <= CELL_TEXT_LENGTH) return <>{text}</>
@@ -72,15 +75,11 @@ const FLAG_CHIPS: Record<string, { label: string; variant: string }> = {
   SNIPPET_ONLY: { label: 'Search excerpt only', variant: CAUTION },
 }
 
-/**
- * Flags as worded chips. A row without a price reads "No source" even when no
- * flag says so: unpriced items are seeded with no price row to carry the flag.
- */
-export function FlagChips({ flags, priced }: { flags: string[]; priced: boolean }) {
-  const shown = priced || flags.includes('NO_SOURCE') ? flags : ['NO_SOURCE', ...flags]
+/** The flags of an observation as worded chips. */
+export function FlagChips({ flags }: { flags: string[] }) {
   return (
     <>
-      {shown.map((flag) => {
+      {flags.map((flag) => {
         const staleYear = /^STALE_(\d{4})$/.exec(flag)?.[1]
         const chip = staleYear
           ? { label: 'Before 2026', variant: CAUTION }
