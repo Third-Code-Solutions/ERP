@@ -112,13 +112,25 @@ confirm a fresh restore point first):
   On `canceling statement due to lock timeout` (55P03) that file is rolled back
   whole: rerun the long-transaction check and retry the same file.
 
-**Batch 1 rollout order:** apply the three migrations (types, core,
-`audit_log` server-only), then `--batch 1 --mode all`, then `--batch 1 --mode
-scrub` repeated until it reports `changed 0` and `skipped 0` on every table
-(a skipped node was held by a live writer and is not yet scrubbed), then the chain
-query below. The scrub is the only pass that reaches closed nodes and nodes
-whose source row is gone. Never backfill with `update <t> set tenant_id = tenant_id`: it fires the
-audit triggers and the posted-row guards.
+**Batch 1 rollout order** (off-peak, after the preflight above):
+1. Apply the three migrations: types, core, `audit_log` server-only.
+2. Run each pass with `--dry-run` first to see how many rows (scrub: nodes)
+   each table holds, then for real with `--page-size 50`. Small pages keep
+   each transaction, and the tenant locks it holds, short while users work.
+   ```bash
+   DATABASE_URL=... node scripts/cortex-backfill.mjs --batch 1 --mode all --dry-run
+   DATABASE_URL=... node scripts/cortex-backfill.mjs --batch 1 --mode all --page-size 50
+   DATABASE_URL=... node scripts/cortex-backfill.mjs --batch 1 --mode scrub --dry-run
+   DATABASE_URL=... node scripts/cortex-backfill.mjs --batch 1 --mode scrub --page-size 50
+   ```
+3. Repeat the scrub until it reports `changed 0` and `skipped 0` on every
+   table (a skipped node was held by a live writer and is not yet scrubbed).
+   The scrub is the only pass that reaches closed nodes and nodes whose source
+   row is gone.
+4. Run the chain query below: 0 rows.
+
+Never backfill with `update <t> set tenant_id = tenant_id`: it fires the audit
+triggers and the posted-row guards.
 
 **Roll back Batch 1** (keeps all data; drops the registry triggers and engine
 functions; keeps the read check, the email-free mirrors, the KYC re-title and
