@@ -1782,7 +1782,7 @@ suite('Cortex coverage (Batches 0-1)', () => {
   it('rollback SQL switches the registry engine off, keeps S1-S3 closed, data and the chain', async () => {
     const r = await inRollback(sql, async (tx) => {
       const { tenantA: t, userA } = await seedTwoTenants(tx)
-      await tx.unsafe(`insert into vendors(tenant_id, name) values('${t}', 'Before Rollback')`)
+      const before = await insertId(tx, `insert into vendors(tenant_id, name) values('${t}', 'Before Rollback')`)
       await tx.unsafe(`insert into accounts(tenant_id, name) values('${t}', 'Before Rollback')`)
       const nodesBefore = (await first(tx, `select count(*)::int as n from cortex_nodes`)).n as number
       await tx.unsafe(ROLLBACK_SQL)
@@ -1816,7 +1816,14 @@ suite('Cortex coverage (Batches 0-1)', () => {
         `select public.auth_can_read_cortex_node_type('kyc_track') as unmapped,
                 public.auth_can_read_cortex_node_type('opportunity') as tenant_type`
       )
+      // A scrub left unfinished before the rollback can still finish after it.
+      await tx.unsafe(
+        `update cortex_nodes set attributes = attributes || '{"phone": "0917 555 0101"}'::jsonb
+          where tenant_id = '${t}' and ref_table = 'vendors' and ref_id = '${before}' and valid_to is null`
+      )
+      const scrub = await first(tx, `select changed, skipped, failures from cortex_scrub_nodes('vendors', '${t}', 50, null)`)
       return {
+        scrub, scrubbed: await node(tx, t, 'vendors', before),
         nodesBefore, triggers, functions: functions.map((row: Rows) => row.name), kept, deny,
         vendorNode: await node(tx, t, 'vendors', vendor),
         user: await node(tx, t, 'users', userA),
@@ -1825,8 +1832,11 @@ suite('Cortex coverage (Batches 0-1)', () => {
     })
     expect(r.triggers).toEqual([{ tbl: 'account_kyc_artifacts', tgname: 'cortex_kyc_redact' }])
     expect(r.functions).toEqual([
-      'cortex_apply_account', 'cortex_apply_document', 'cortex_kyc_redact', 'cortex_redact_text',
+      'cortex_apply_account', 'cortex_apply_document', 'cortex_kyc_redact', 'cortex_redact_text', 'cortex_scrub_nodes',
     ])
+    expect(r.scrub).toEqual({ changed: 1, skipped: 0, failures: [] })
+    expect(r.scrubbed.title).toBe('Before Rollback')
+    expect(r.scrubbed.attributes).not.toHaveProperty('phone')
     expect(r.kept.nodes).toBe(r.nodesBefore)
     expect(r.kept.registry).toBe(CORTEX_BATCH1_REGISTRY.length)
     expect(r.kept.access).toBeGreaterThan(0)

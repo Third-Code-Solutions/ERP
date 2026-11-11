@@ -422,7 +422,7 @@ Production volume is small today; I did not measure production row counts. Two g
 Run as `psql "$DATABASE_URL" --single-transaction -v ON_ERROR_STOP=1 -f …`; the file sets the same local timeouts.
 1. Drop `cortex_mirror_r`, `cortex_fold_{ins,upd,del}` and `cortex_link` on every table listed in the registry.
 2. Restore the previous `cortex_upsert_node` body (20260613192346: no fold merge, no unchanged-node skip).
-3. Drop the registry engine: `cortex_scrub_nodes`, `cortex_backfill`, `cortex_mirror_link`, `cortex_link_edge`, `cortex_fold_children`, `cortex_refresh_fold`, `cortex_set_fold`, `cortex_mirror_row`, `cortex_apply_row`, `cortex_edge_targets` and `cortex_render_tpl`.
+3. Drop the registry engine: `cortex_backfill`, `cortex_mirror_link`, `cortex_link_edge`, `cortex_fold_children`, `cortex_refresh_fold`, `cortex_set_fold`, `cortex_mirror_row`, `cortex_apply_row` and `cortex_edge_targets`. `cortex_scrub_nodes` and `cortex_render_tpl` (which it calls) stay, so a scrub that has not yet reached 0 changed and 0 skipped can still be finished after a rollback.
 
 It does **not** re-attach `cortex_mirror_generic()` to the 23 tables, which would re-open S1. It keeps the deny-by-default read check (S2), the split account, user, opportunity and document mirrors with their `cortex_apply_*` functions, `cortex_kyc_redact` (S3), `cortex_close_stale_edges`, the redaction helpers and the server-only `audit_log`. After a rollback the 23 tables are not mirrored: their nodes keep their allowlisted attributes and go stale until step 10 (the trigger swap) of the core migration is re-applied.
 

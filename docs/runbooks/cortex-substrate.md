@@ -135,7 +135,9 @@ triggers and the posted-row guards.
 **Roll back Batch 1** (keeps all data; drops the registry triggers and engine
 functions; keeps the read check, the email-free mirrors, the KYC re-title and
 the server-only `audit_log`; the 23 registry tables stop mirroring and their
-nodes go stale):
+nodes go stale). It keeps `cortex_scrub_nodes`: if the scrub had not reached
+`changed 0` and `skipped 0`, finish it afterwards with `--mode scrub` (the
+other modes need the dropped engine):
 ```bash
 psql "$DATABASE_URL" --single-transaction -v ON_ERROR_STOP=1 \
   -f packages/database/src/sql/cortex-coverage-rollback.sql

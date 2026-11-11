@@ -10,6 +10,8 @@
 -- Batch 1 step 10 is re-applied. It does NOT re-attach cortex_mirror_generic,
 -- and it keeps every S1/S2/S3 fix: the deny-by-default read check, the
 -- email-free account/user/opportunity/document mirrors and the KYC re-title.
+-- It keeps cortex_scrub_nodes (and cortex_render_tpl, which it calls), so a
+-- scrub that had not reached changed 0 and skipped 0 can still finish.
 -- Keeps ALL data: enum values, cortex_mirror_registry, cortex_node_type_access,
 -- and every cortex node, edge and provenance row.
 -- =============================================================================
@@ -59,8 +61,8 @@ begin
 end $$;
 
 -- 3. Drop the registry engine. The hand-written mirrors keep their apply
---    functions, cortex_close_stale_edges and the redaction helpers.
-drop function if exists public.cortex_scrub_nodes;
+--    functions, cortex_close_stale_edges and the redaction helpers; the scrub
+--    keeps cortex_render_tpl.
 drop function if exists public.cortex_backfill;
 drop function if exists public.cortex_mirror_link();
 drop function if exists public.cortex_link_edge(text, jsonb, boolean);
@@ -70,4 +72,3 @@ drop function if exists public.cortex_set_fold(uuid, text, uuid, text, jsonb);
 drop function if exists public.cortex_mirror_row();
 drop function if exists public.cortex_apply_row(text, jsonb, text);
 drop function if exists public.cortex_edge_targets(uuid, jsonb, jsonb);
-drop function if exists public.cortex_render_tpl(text, jsonb);
