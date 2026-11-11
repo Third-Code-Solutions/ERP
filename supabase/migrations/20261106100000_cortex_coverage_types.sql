@@ -89,10 +89,11 @@ alter table public.cortex_mirror_registry force row level security;
 alter table public.cortex_node_type_access enable row level security;
 alter table public.cortex_node_type_access force row level security;
 
+-- service_role too: Supabase default privileges grant it full DML on new tables.
 revoke all privileges on table
   public.cortex_mirror_registry,
   public.cortex_node_type_access
-from public, anon, authenticated;
+from public, anon, authenticated, service_role;
 -- Read-only for the server role: rows change only by migration.
 grant select on table
   public.cortex_mirror_registry,

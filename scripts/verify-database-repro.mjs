@@ -1348,6 +1348,39 @@ try {
     (rows) => rows.map((row) => `${row.relation}.${row.tgname}`).join(', ')
   )
 
+  // Each privilege is checked on its own: has_table_privilege with a list is
+  // true when ANY one is held.
+  await query(
+    'Cortex registry tables are SELECT-only for service_role and closed to clients',
+    `select c.relname,
+            has_table_privilege('service_role', c.oid, 'SELECT') as sr_select,
+            ${['INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER']
+              .map((privilege) => `has_table_privilege('service_role', c.oid, '${privilege}') as sr_${privilege.toLowerCase()}`)
+              .join(',\n            ')},
+            ${['anon', 'authenticated']
+              .map((role) => `has_table_privilege('${role}', c.oid, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') as ${role}_any`)
+              .join(',\n            ')}
+       from pg_class c
+       join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public'
+        and c.relname in ('cortex_mirror_registry', 'cortex_node_type_access')`,
+    (rows) =>
+      rows.length === 2 &&
+      rows.every(
+        (row) =>
+          row.sr_select === true &&
+          row.sr_insert === false &&
+          row.sr_update === false &&
+          row.sr_delete === false &&
+          row.sr_truncate === false &&
+          row.sr_references === false &&
+          row.sr_trigger === false &&
+          row.anon_any === false &&
+          row.authenticated_any === false
+      ),
+    (rows) => JSON.stringify(rows)
+  )
+
   await query(
     'required June functions are SECURITY DEFINER with fixed search_path',
     `select p.proname,
