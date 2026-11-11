@@ -166,7 +166,7 @@ describe('CatalogueItemPage', () => {
     expect(html).toContain('<strong>Unit</strong><span>bag</span>')
     expect(html).toContain('<strong>Specification</strong><span>Type 1, ASTM C150</span>')
     expect(html).toContain(
-      '3 entries. The newest entry with a price is the current price in its region, marked Current.',
+      '3 entries. In each region the current entry, marked Current, is the newest one with a price, or the newest one where no price was ever found there.',
     )
 
     // Same name as the record-price form's field.

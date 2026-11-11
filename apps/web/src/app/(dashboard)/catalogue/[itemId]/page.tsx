@@ -90,7 +90,8 @@ function PriceHistory({
           {capped
             ? `Only the newest ${history.length} entries are shown; older ones are not listed here.`
             : `${history.length} ${history.length === 1 ? 'entry' : 'entries'}.`}{' '}
-          The newest entry with a price is the current price in its region, marked Current.
+          In each region the current entry, marked Current, is the newest one with a price, or
+          the newest one where no price was ever found there.
         </p>
       </div>
       <div className="finance-table-shell">
