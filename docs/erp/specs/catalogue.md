@@ -105,8 +105,12 @@ Added after the security review of PR #146 (2026-11-10).
   explicit `tenant_id` predicate.
 - **Every server action and the import check the flag and the capability
   themselves.** Hiding the page is not a gate.
-- **Text:** control characters are stripped and text is trimmed when it is written
-  (seed, edit, record price, import). Text is never written to a spreadsheet as a
+- **Text:** control characters (C0 except tab and line breaks, DEL, C1),
+  zero-width and direction marks (U+200B to U+200F), bidirectional embeddings,
+  overrides and isolates (U+202A to U+202E, U+2066 to U+2069), the byte order
+  mark and lone surrogates are stripped, and text is trimmed, when it is written
+  (seed, edit, record price, import). U+2028 and U+2029 count as line breaks: a
+  space in a one-line field, a line feed in a multi-line one. Text is never written to a spreadsheet as a
   formula: exports use the quote-prefix utility from the `boq-excel` module.
 - **Source links:** a URL is accepted only if it parses, its protocol is `http:` or
   `https:`, it carries no user name or password and it has no whitespace. The page

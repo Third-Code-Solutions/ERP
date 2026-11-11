@@ -110,24 +110,30 @@ export type CataloguePriceStatus = (typeof CATALOGUE_PRICE_STATUSES)[number]
 // here and neutralised at export time)
 // ---------------------------------------------------------------------------
 
-const LINE_BREAKS_AND_TABS = /[\t\n\r]+/g
-// C0 controls and DEL, except tab, line feed and carriage return.
-const CONTROLS_EXCEPT_TAB_AND_NEWLINE = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g
+// Tabs and every line break, the Unicode line and paragraph separators included.
+const LINE_BREAKS_AND_TABS = /[\t\n\r\u2028\u2029]+/g
+const LINE_BREAKS = /\r\n?|[\u2028\u2029]/g
+// Characters that are invisible or reorder text, so stored text could read
+// differently from what it holds: C0 controls except tab, line feed and
+// carriage return; DEL and the C1 controls; zero-width spaces, joiners and
+// direction marks (U+200B-U+200F); bidirectional embeddings, overrides and
+// isolates (U+202A-U+202E, U+2066-U+2069); the byte order mark; and lone
+// surrogates, which are not text at all (the same check as boq-excel's
+// INVALID_TEXT).
+const HIDDEN_OR_CONTROL =
+  /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g
 
-/** One-line field: tabs and line breaks become a space, other controls go. */
+/** One-line field: tabs and line breaks become a space, hidden characters go. */
 export function cleanSingleLine(value: string): string {
-  return value
-    .replace(LINE_BREAKS_AND_TABS, ' ')
-    .replace(CONTROLS_EXCEPT_TAB_AND_NEWLINE, '')
-    .trim()
+  return value.replace(LINE_BREAKS_AND_TABS, ' ').replace(HIDDEN_OR_CONTROL, '').trim()
 }
 
-/** Multi-line field: keeps tabs and line feeds, CR LF becomes LF. */
+/**
+ * Multi-line field: keeps tabs, and keeps line breaks as line feeds only (CR LF,
+ * CR, U+2028 and U+2029 become LF); hidden characters go.
+ */
 export function cleanMultiLine(value: string): string {
-  return value
-    .replace(/\r\n?/g, '\n')
-    .replace(CONTROLS_EXCEPT_TAB_AND_NEWLINE, '')
-    .trim()
+  return value.replace(LINE_BREAKS, '\n').replace(HIDDEN_OR_CONTROL, '').trim()
 }
 
 // ---------------------------------------------------------------------------

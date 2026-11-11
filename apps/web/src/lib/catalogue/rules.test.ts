@@ -119,6 +119,38 @@ describe('text hygiene', () => {
     )
   })
 
+  // Each would let stored text read differently from what it holds.
+  const hidden = [
+    ['C1 control', '\u0085'],
+    ['C1 control', '\u009B'],
+    ['zero-width space', '\u200B'],
+    ['zero-width joiner', '\u200D'],
+    ['right-to-left mark', '\u200F'],
+    ['left-to-right embedding', '\u202A'],
+    ['right-to-left override', '\u202E'],
+    ['left-to-right isolate', '\u2066'],
+    ['pop directional isolate', '\u2069'],
+    ['byte order mark', '\uFEFF'],
+    ['lone high surrogate', '\uD800'],
+    ['lone low surrogate', '\uDC00'],
+  ] as const
+
+  it.each(hidden)('drops a %s (%j) from one-line and multi-line fields', (_name, character) => {
+    expect(cleanSingleLine(`Cement${character} 40 kg`)).toBe('Cement 40 kg')
+    expect(cleanMultiLine(`Cement${character}\n40 kg`)).toBe('Cement\n40 kg')
+  })
+
+  it('keeps a whole surrogate pair and the text around a stripped override', () => {
+    expect(cleanSingleLine('Tiles 😀 grade A')).toBe('Tiles 😀 grade A')
+    // "invoice\u202Efdp.exe" would display reversed; stripped, it reads as stored.
+    expect(cleanSingleLine('invoice\u202Efdp.exe')).toBe('invoicefdp.exe')
+  })
+
+  it('treats the Unicode line and paragraph separators as line breaks', () => {
+    expect(cleanSingleLine('line 1\u2028line 2\u2029line 3')).toBe('line 1 line 2 line 3')
+    expect(cleanMultiLine('line 1\u2028line 2\u2029line 3')).toBe('line 1\nline 2\nline 3')
+  })
+
   it('leaves formula-like text alone (handled at export time)', () => {
     for (const value of ['=SUM(A1)', '+63 917', '-5 mm', '@home']) {
       expect(cleanSingleLine(value)).toBe(value)
