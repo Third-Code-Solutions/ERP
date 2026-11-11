@@ -237,7 +237,7 @@ describe('editCatalogueItem', () => {
 
   // The form shows the error as it is, so each is a sentence, not a field path.
   it.each([
-    [{ id: 'not-a-uuid' },'This item could not be identified. Reload the page and try again.'],
+    [{ id: 'not-a-uuid' }, 'This item could not be identified. Reload the page and try again.'],
     [{ name: ' \t ' }, 'Enter a name.'],
     [{ name: 'x'.repeat(301) }, 'The name must be 300 characters or fewer.'],
     [{ unit: '' }, 'Enter a unit.'],
