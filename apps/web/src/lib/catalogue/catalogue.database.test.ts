@@ -303,7 +303,8 @@ suite('catalogue reads against the seeded research files (database)', { timeout:
       const newestId = newest.ok ? newest.data.id : ''
 
       // One row for the item, not one per spelling of the region.
-      for (const filters of [{ q: wanted!.code, region: 'ncr' }, { q: wanted!.code }]) {
+      const byCode: Record<string, string> = { q: wanted!.code }
+      for (const filters of [{ ...byCode, region: 'ncr' }, byCode]) {
         const found = await listed(actor, filters)
         expect(found.total, JSON.stringify(filters)).toBe(1)
         expect(found.rows, JSON.stringify(filters)).toHaveLength(1)
