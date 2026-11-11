@@ -1012,20 +1012,11 @@ suite('Cortex coverage (Batches 0-1)', () => {
       await tx.unsafe(
         `update opportunities set stage = 'bom_submission', prospective_project_name = 'Tower B fit-out' where id = '${opp}'`
       )
-      const after = await node(tx, t, 'opportunities', opp)
-      // A node written before the change still holds both keys until the scrub.
-      await tx.unsafe(
-        `update cortex_nodes set attributes = attributes || '{"remarks": "Call Ana", "lost_reason": "x"}'::jsonb
-          where id = '${after.id}'`
-      )
-      const scrub = await first(tx, `select changed from cortex_scrub_nodes('opportunities', '${t}', 50, null)`)
-      return { titleBefore, after, scrub, scrubbed: await node(tx, t, 'opportunities', opp) }
+      return { titleBefore, after: await node(tx, t, 'opportunities', opp) }
     })
     expect(r.titleBefore).toBe('Stage Client')
     expect(r.after.attributes).not.toHaveProperty('remarks')
     expect(r.after.attributes).not.toHaveProperty('lost_reason')
-    expect(r.scrub.changed).toBe(1)
-    expect(r.scrubbed.attributes).toEqual(r.after.attributes)
     expect(r.after.title).toBe('Tower B fit-out')
     const history = r.after.attributes.folds.stage_history as Array<Record<string, string>>
     expect(history.map((h) => [h.from ?? null, h.to])).toEqual([

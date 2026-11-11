@@ -757,8 +757,7 @@ end $$;
 --     * Registry tables keep only attr_cols (and attr_paths) plus folds;
 --       titles and summaries re-render from the kept attributes, or stay
 --       redacted.
---     * users, accounts, opportunities drop email and primary_email;
---       opportunities also drop the free-text lost_reason and remarks.
+--     * users, accounts, opportunities drop email and primary_email.
 --     * documents linked to a KYC artifact, or whose row is gone, lose their
 --       file-name title.
 --     * Every string is redacted; a node whose title or summary changes loses
@@ -819,9 +818,6 @@ begin
          where key = any(v_keep) and jsonb_typeof(value) not in ('object', 'array');
       else
         v_attrs := n.attributes - 'email' - 'primary_email' - 'folds';
-        if p_table = 'opportunities' then
-          v_attrs := v_attrs - 'lost_reason' - 'remarks';
-        end if;
       end if;
       v_attrs := public.cortex_redact_attrs(v_attrs)
         || case when n.attributes ? 'folds' then jsonb_build_object('folds', n.attributes -> 'folds')
