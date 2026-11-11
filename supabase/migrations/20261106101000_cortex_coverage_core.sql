@@ -647,20 +647,30 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------------
--- 7. Backfill: keyset-chunked and idempotent. Call until processed = 0,
---    passing back last_id. Run by scripts/cortex-backfill.mjs.
+-- 7. Backfill (DB-1): one tenant per call, keyset by id within it, so a call
+--    holds only that tenant's provenance and audit locks. Each row is re-read
+--    under FOR SHARE when it is applied, so a live update cannot be
+--    overwritten by an older image; a row a live transaction holds is skipped
+--    (SKIP LOCKED) and left to that transaction's own mirror trigger. A row
+--    that fails is reported in failures and does not stop the call. Call
+--    until processed = 0, passing back last_id. Run by
+--    scripts/cortex-backfill.mjs.
 -- ---------------------------------------------------------------------------
 create or replace function public.cortex_backfill(
-  p_table text, p_mode text default 'missing', p_limit integer default 2000, p_after uuid default null,
-  out processed integer, out last_id uuid
+  p_table text, p_tenant uuid, p_mode text default 'missing', p_limit integer default 200,
+  p_after uuid default null,
+  out processed integer, out applied integer, out skipped integer, out failures jsonb, out last_id uuid
 )
 language plpgsql security definer set search_path = '' as $$
 declare
   r public.cortex_mirror_registry; v_apply text; v_row jsonb; v_parents jsonb := '{}'::jsonb;
-  v_key text; v_missing text := '';
+  v_key text; v_missing text := ''; v_id uuid;
 begin
   if p_mode not in ('missing', 'all') then
     raise exception 'cortex_backfill: mode must be missing or all, got %', p_mode;
+  end if;
+  if p_tenant is null or p_limit is null or p_limit not between 1 and 2000 then
+    raise exception 'cortex_backfill: tenant is required and limit must be 1 to 2000';
   end if;
   v_apply := case p_table
     when 'accounts' then 'cortex_apply_account' when 'users' then 'cortex_apply_user'
@@ -674,27 +684,44 @@ begin
       'and not exists (select 1 from public.cortex_nodes n where n.tenant_id = t.tenant_id and n.ref_table = %L and n.ref_id = t.id and n.valid_to is null)',
       p_table);
   end if;
-  processed := 0;
+  processed := 0; applied := 0; skipped := 0; failures := '[]'::jsonb;
   last_id := p_after;
-  for v_row in execute format(
-    'select to_jsonb(t) from public.%I t where t.tenant_id is not null and ($1::uuid is null or t.id > $1) %s order by t.id limit $2',
-    p_table, v_missing) using p_after, p_limit
+  for v_id in execute format(
+    'select t.id from public.%I t where t.tenant_id = $1 and ($2::uuid is null or t.id > $2) %s order by t.id limit $3',
+    p_table, v_missing) using p_tenant, p_after, p_limit
   loop
     processed := processed + 1;
-    last_id := (v_row ->> 'id')::uuid;
-    if v_apply is not null then
-      execute format('select public.%I($1, ''BACKFILL'')', v_apply) using v_row;
-    elsif r.node_type is not null then
-      perform public.cortex_apply_row(p_table, v_row, 'BACKFILL');
-    elsif r.links is not null then
-      perform public.cortex_link_edge(p_table, v_row, true);
-    elsif v_row ->> (r.fold ->> 'fk') is not null then
-      v_parents := v_parents || jsonb_build_object(
-        (v_row ->> 'tenant_id') || '|' || (v_row ->> (r.fold ->> 'fk')), true);
-    end if;
+    last_id := v_id;
+    begin
+      execute format(
+        'select to_jsonb(t) from public.%I t where t.tenant_id = $1 and t.id = $2 for share skip locked',
+        p_table) into v_row using p_tenant, v_id;
+      if v_row is null then
+        skipped := skipped + 1;
+        continue;
+      end if;
+      if v_apply is not null then
+        execute format('select public.%I($1, ''BACKFILL'')', v_apply) using v_row;
+      elsif r.node_type is not null then
+        perform public.cortex_apply_row(p_table, v_row, 'BACKFILL');
+      elsif r.links is not null then
+        perform public.cortex_link_edge(p_table, v_row, true);
+      elsif v_row ->> (r.fold ->> 'fk') is not null then
+        v_parents := v_parents || jsonb_build_object(v_row ->> (r.fold ->> 'fk'), true);
+      end if;
+      applied := applied + 1;
+    exception when others then
+      failures := failures || jsonb_build_object('table', p_table, 'id', v_id, 'error', sqlerrm);
+      raise warning 'cortex_backfill: public.% id % failed: %', p_table, v_id, sqlerrm;
+    end;
   end loop;
   for v_key in select jsonb_object_keys(v_parents) loop
-    perform public.cortex_refresh_fold(p_table, split_part(v_key, '|', 1)::uuid, split_part(v_key, '|', 2)::uuid);
+    begin
+      perform public.cortex_refresh_fold(p_table, p_tenant, v_key::uuid);
+    exception when others then
+      failures := failures || jsonb_build_object('table', p_table, 'id', v_key, 'error', 'fold: ' || sqlerrm);
+      raise warning 'cortex_backfill: public.% fold parent % failed: %', p_table, v_key, sqlerrm;
+    end;
   end loop;
 end $$;
 

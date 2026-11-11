@@ -3,17 +3,22 @@
 /**
  * Cortex coverage backfill (docs/erp/specs/cortex-coverage.md §7).
  *
- *   DATABASE_URL=... node scripts/cortex-backfill.mjs --batch 1 [--mode missing|all] [--dry-run]
+ *   DATABASE_URL=... node scripts/cortex-backfill.mjs --batch 1
+ *     [--mode missing|all] [--page-size N] [--resume table:tenant[:id]] [--dry-run]
  *
  * --mode missing (default) mirrors rows that have no current node.
  * --mode all re-applies every row, so existing nodes get the new allowlisted
  *   attributes; unchanged nodes write no provenance (cortex_upsert_node).
+ * --page-size (default 200, at most 2000) rows per call. Each call is its own
+ *   short transaction over ONE tenant, so it holds one tenant's provenance and
+ *   audit locks at a time.
+ * --resume continues from the point a stopped run printed (RESUME line).
  * --dry-run only counts the rows each table would process. It is read-only and
  *   takes no provenance lock.
  *
- * Each page of 2000 rows commits on its own, so the per-tenant provenance lock
- * is held for one page at a time. Re-running is safe. DATABASE_URL comes from
- * the environment only.
+ * A row that fails is printed (FAILED-ROW table id error) and the run goes on;
+ * the exit code is 1 when any row failed. Re-running is safe. DATABASE_URL
+ * comes from the environment only.
  */
 import { createRequire } from 'node:module'
 import { dirname, join, resolve } from 'node:path'
@@ -54,15 +59,31 @@ export const BATCH_TABLES = Object.freeze({
   ]),
 })
 
-export const PAGE_SIZE = 2000
+export const DEFAULT_PAGE_SIZE = 200
+export const MAX_PAGE_SIZE = 2000
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+
+export function parseResume(value) {
+  const [table, tenant, after, extra] = String(value ?? '').toLowerCase().split(':')
+  if (!table || !UUID.test(tenant ?? '') || (after && !UUID.test(after)) || extra !== undefined) {
+    throw new Error('--resume must be table:tenant-uuid[:row-uuid]')
+  }
+  return { table, tenant, after: after || null }
+}
+
+export function resumeArg({ table, tenant, after }) {
+  return `--resume ${table}:${tenant}${after ? `:${after}` : ''}`
+}
 
 export function parseArgs(argv) {
-  const options = { batch: null, mode: 'missing', dryRun: false }
+  const options = { batch: null, mode: 'missing', dryRun: false, pageSize: DEFAULT_PAGE_SIZE, resume: null }
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index]
     if (arg === '--dry-run') options.dryRun = true
     else if (arg === '--batch') options.batch = argv[++index]
     else if (arg === '--mode') options.mode = argv[++index]
+    else if (arg === '--page-size') options.pageSize = Number(argv[++index])
+    else if (arg === '--resume') options.resume = parseResume(argv[++index])
     else throw new Error(`unknown argument: ${arg}`)
   }
   if (!Object.hasOwn(BATCH_TABLES, options.batch ?? '')) {
@@ -71,7 +92,14 @@ export function parseArgs(argv) {
   if (options.mode !== 'missing' && options.mode !== 'all') {
     throw new Error('--mode must be missing or all')
   }
-  return { ...options, tables: BATCH_TABLES[options.batch] }
+  if (!Number.isInteger(options.pageSize) || options.pageSize < 1 || options.pageSize > MAX_PAGE_SIZE) {
+    throw new Error(`--page-size must be an integer from 1 to ${MAX_PAGE_SIZE}`)
+  }
+  const tables = BATCH_TABLES[options.batch]
+  if (options.resume && !tables.includes(options.resume.table)) {
+    throw new Error(`--resume table ${options.resume.table} is not in batch ${options.batch}`)
+  }
+  return { ...options, tables }
 }
 
 async function countRows(sql, table, mode) {
@@ -87,17 +115,31 @@ async function countRows(sql, table, mode) {
   return row.n
 }
 
-async function backfillTable(sql, table, mode) {
-  let after = null
-  let total = 0
-  for (;;) {
-    const [page] = await sql`
-      select processed, last_id
-        from public.cortex_backfill(${table}, ${mode}, ${PAGE_SIZE}, ${after}::uuid)`
-    if (!page || page.processed === 0) return total
-    total += page.processed
-    after = page.last_id
+// Pages one table, tenant by tenant. `state.cursor` always holds the point a
+// re-run can resume from.
+async function backfillTable(sql, table, options, tenants, state) {
+  const totals = { processed: 0, applied: 0, skipped: 0, failed: 0 }
+  const start = options.resume?.table === table ? options.resume : null
+  for (const tenant of tenants) {
+    if (start && tenant < start.tenant) continue
+    let after = start && tenant === start.tenant ? start.after : null
+    for (;;) {
+      state.cursor = { table, tenant, after }
+      const [page] = await sql`
+        select processed, applied, skipped, failures, last_id
+          from public.cortex_backfill(${table}, ${tenant}::uuid, ${options.mode}, ${options.pageSize}, ${after}::uuid)`
+      if (!page || page.processed === 0) break
+      totals.processed += page.processed
+      totals.applied += page.applied
+      totals.skipped += page.skipped
+      for (const failure of page.failures ?? []) {
+        totals.failed += 1
+        console.error(`FAILED-ROW ${failure.table} ${failure.id} ${failure.error}`)
+      }
+      after = page.last_id
+    }
   }
+  return totals
 }
 
 async function main() {
@@ -131,23 +173,38 @@ async function main() {
   })
 
   const started = Date.now()
+  const state = { cursor: null }
   let grandTotal = 0
+  let failedRows = 0
   try {
-    for (const table of options.tables) {
+    const tables = options.resume
+      ? options.tables.slice(options.tables.indexOf(options.resume.table))
+      : options.tables
+    const tenants = options.dryRun
+      ? []
+      : (await sql`select id from public.tenants order by id`).map((row) => row.id)
+    for (const table of tables) {
       const tableStarted = Date.now()
-      const count = options.dryRun
-        ? await countRows(sql, table, options.mode)
-        : await backfillTable(sql, table, options.mode)
-      grandTotal += count
+      if (options.dryRun) {
+        const count = await countRows(sql, table, options.mode)
+        grandTotal += count
+        console.log(`would process ${String(count).padStart(7)} ${table} (${Date.now() - tableStarted} ms)`)
+        continue
+      }
+      const totals = await backfillTable(sql, table, options, tenants, state)
+      grandTotal += totals.processed
+      failedRows += totals.failed
       console.log(
-        `${options.dryRun ? 'would process' : 'processed'} ${String(count).padStart(7)} ${table} (${Date.now() - tableStarted} ms)`
+        `processed ${String(totals.processed).padStart(7)} ${table}: applied ${totals.applied}, skipped ${totals.skipped} (held by a live writer), failed ${totals.failed} (${Date.now() - tableStarted} ms)`
       )
     }
     console.log(
-      `OK batch ${options.batch} mode ${options.mode}${options.dryRun ? ' dry-run' : ''}: ${grandTotal} rows in ${Date.now() - started} ms`
+      `${failedRows > 0 ? 'DONE WITH FAILURES' : 'OK'} batch ${options.batch} mode ${options.mode}${options.dryRun ? ' dry-run' : ''}: ${grandTotal} rows, ${failedRows} failed, in ${Date.now() - started} ms`
     )
+    if (failedRows > 0) process.exitCode = 1
   } catch (error) {
     console.error(`FAILED ${error.message}`)
+    if (state.cursor) console.error(`RESUME ${resumeArg(state.cursor)}`)
     process.exitCode = 1
   } finally {
     await sql.end({ timeout: 5 })

@@ -593,18 +593,25 @@ suite('Cortex coverage (Batches 0-1)', () => {
         where tenant_id = '${tenant}' and ref_table = '${table}' and ref_id = '${id}' and valid_to is null`
     )
 
-  const backfillAll = async (tx: postgres.TransactionSql, table: string, mode: string) => {
-    let after: string | null = null
+  // Same paging as scripts/cortex-backfill.mjs: tenant by tenant, by id.
+  const backfillAll = async (tx: postgres.TransactionSql, table: string, mode: string, pageSize = 50) => {
     let total = 0
-    for (;;) {
-      const page: Rows = await first(
-        tx,
-        `select processed, last_id from cortex_backfill('${table}', '${mode}', 2000, ${after ? `'${after}'` : 'null'})`
-      )
-      if (!page || page.processed === 0) return total
-      total += page.processed as number
-      after = page.last_id as string
+    const tenants = (await tx.unsafe(`select id from tenants order by id`)) as Rows
+    for (const { id: tenant } of tenants) {
+      let after: string | null = null
+      for (;;) {
+        const page: Rows = await first(
+          tx,
+          `select processed, failures, last_id
+             from cortex_backfill('${table}', '${tenant}', '${mode}', ${pageSize}, ${after ? `'${after}'` : 'null'})`
+        )
+        if (!page || page.processed === 0) break
+        expect({ table, failures: page.failures }).toEqual({ table, failures: [] })
+        total += page.processed as number
+        after = page.last_id as string
+      }
     }
+    return total
   }
 
   it('S1: registry allowlists match the committed column snapshot and every live column has a decision', async () => {
@@ -1355,6 +1362,78 @@ suite('Cortex coverage (Batches 0-1)', () => {
     expect(r.processedSecond).toBeGreaterThanOrEqual(5)
     expect(r.afterSecond).toEqual(r.afterFirst)
     expect(r.breaks).toBe(0)
+  })
+
+  it('backfill reports a failing row by table and id and carries on with the page', async () => {
+    const r = await inRollback(sql, async (tx) => {
+      const { tenantA: t } = await seedTwoTenants(tx)
+      await tx.unsafe(`alter table vendors disable trigger cortex_mirror_r`)
+      const fineA = await insertId(tx, `insert into vendors(tenant_id, name) values('${t}', 'Fine A')`)
+      const boom = await insertId(tx, `insert into vendors(tenant_id, name) values('${t}', 'Boom')`)
+      const fineB = await insertId(tx, `insert into vendors(tenant_id, name) values('${t}', 'Fine B')`)
+      await tx.unsafe(`alter table vendors enable trigger cortex_mirror_r`)
+      await tx.unsafe(`
+        alter function public.cortex_apply_row(text, jsonb, text) rename to cortex_apply_row_real;
+        create function public.cortex_apply_row(p_table text, p_row jsonb, p_op text)
+        returns uuid language plpgsql set search_path = '' as $
+        begin
+          if p_row ->> 'name' = 'Boom' then raise exception 'probe row failure'; end if;
+          return public.cortex_apply_row_real(p_table, p_row, p_op);
+        end $`)
+      const page = await first(
+        tx,
+        `select processed, applied, skipped, failures from cortex_backfill('vendors', '${t}', 'missing', 10, null)`
+      )
+      const nodes = (await tx.unsafe(
+        `select ref_id from cortex_nodes where tenant_id = '${t}' and ref_table = 'vendors' and valid_to is null`
+      )) as Rows
+      return { page, boom, mirrored: nodes.map((row: Rows) => row.ref_id).sort(), fine: [fineA, fineB].sort() }
+    })
+    expect(r.page).toMatchObject({ processed: 3, applied: 2, skipped: 0 })
+    expect(r.page.failures).toEqual([{ table: 'vendors', id: r.boom, error: 'probe row failure' }])
+    expect(r.mirrored).toEqual(r.fine)
+  })
+
+  it('backfill skips a row a live transaction holds instead of waiting or overwriting it (two connections)', async () => {
+    const holder = makeSql()
+    const probe = makeSql()
+    let release!: () => void
+    const released = new Promise<void>((resolve) => (release = resolve))
+    let locked!: (row: Rows) => void
+    const lockedRow = new Promise<Rows>((resolve) => (locked = resolve))
+    // Connection 1 stands in for a live writer: it holds a committed user row.
+    const holding = inRollback(holder, async (tx) => {
+      const row = await first(
+        tx,
+        `select tenant_id, id from users where tenant_id = '${DEMO_TENANT}' order by id limit 1 for no key update`
+      )
+      if (!row) throw new Error('no committed user row to hold')
+      locked(row)
+      await released
+    })
+    const endedEarly = holding.then(() => {
+      throw new Error('holder finished before locking')
+    })
+    endedEarly.catch(() => undefined) // settles after release; only the race reads it
+    try {
+      const row = await Promise.race([lockedRow, endedEarly])
+      const page = await inRollback(probe, async (tx) => {
+        await tx.unsafe(`set local lock_timeout = '2s'`)
+        return first(
+          tx,
+          `select processed, applied, skipped, failures
+             from cortex_backfill('users', '${row.tenant_id}', 'all', 2000, null)`
+        )
+      })
+      expect(page.failures).toEqual([])
+      expect(page.skipped).toBe(1)
+      expect(page.applied).toBe((page.processed as number) - 1)
+    } finally {
+      release()
+      await holding.catch(() => undefined)
+      await holder.end({ timeout: 5 })
+      await probe.end({ timeout: 5 })
+    }
   })
 
   it('backfill builds stage history from succeeded transition receipts; a live change then appends', async () => {
