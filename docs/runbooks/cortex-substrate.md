@@ -56,7 +56,7 @@ DATABASE_URL=... node scripts/cortex-backfill.mjs --batch 1 --mode scrub     # r
 ```
 It pages `cortex_backfill(table, tenant, mode, page_size, after)` (scrub:
 `cortex_scrub_nodes(table, tenant, page_size, after)`), one tenant and one
-commit per page, endpoints first. `--page-size` defaults to 200 (at most 2000).
+commit per page, endpoints first. `--page-size` defaults to 50 (at most 2000).
 Unchanged nodes write no provenance, so a re-run is cheap and safe.
 - A failing row prints `FAILED-ROW <table> <id> <error>`; the run goes on and
   exits 1. Fix the row, then re-run.

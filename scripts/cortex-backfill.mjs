@@ -12,7 +12,7 @@
  * --mode scrub rewrites EVERY node of each table, closed and orphaned nodes
  *   included, to the current allowlist (cortex_scrub_nodes). Run it after
  *   --mode all, and again until every table reports changed 0 and skipped 0.
- * --page-size (default 200, at most 2000) rows per call. Each call is its own
+ * --page-size (default 50, at most 2000) rows per call. Each call is its own
  *   short transaction over ONE tenant, so it holds one tenant's provenance and
  *   audit locks at a time.
  * --resume continues from the last RESUME line printed: one follows every
@@ -63,7 +63,7 @@ export const BATCH_TABLES = Object.freeze({
   ]),
 })
 
-export const DEFAULT_PAGE_SIZE = 200
+export const DEFAULT_PAGE_SIZE = 50
 export const MAX_PAGE_SIZE = 2000
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 

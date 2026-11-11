@@ -20,7 +20,8 @@ test('defaults to missing mode and a small page, and accepts all and dry-run', (
     resume: null,
     tables: BATCH_TABLES[1],
   })
-  assert.ok(DEFAULT_PAGE_SIZE <= 500)
+  // The runbook's off-peak page: short transactions, short tenant locks.
+  assert.equal(DEFAULT_PAGE_SIZE, 50)
   const options = parseArgs(['--batch', '1', '--mode', 'all', '--dry-run'])
   assert.equal(options.mode, 'all')
   assert.equal(options.dryRun, true)
