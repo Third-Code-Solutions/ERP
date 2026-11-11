@@ -12,9 +12,10 @@
 -- * S1: the 23 generic-mirror tables move to literal per-table allowlists;
 --   their old cortex_mirror_generic triggers are replaced by cortex_mirror_r.
 --
--- Lock profile: functions and registry rows are written first. The trigger
--- swap (step 9b) runs last: DROP TRIGGER takes ACCESS EXCLUSIVE on each of the
--- 23 tables and on account_kyc_artifacts, held until COMMIT. lock_timeout
+-- Lock profile: functions, registry rows and the EXECUTE re-lock (step 9b)
+-- come first. The trigger swap (step 10) runs last and alone: DROP TRIGGER
+-- takes ACCESS EXCLUSIVE on each of the 23 tables and on
+-- account_kyc_artifacts, held until COMMIT. lock_timeout
 -- fails fast; retry off-peak. Existing nodes keep their old attributes until
 -- the backfill (--mode all) and the scrub run (docs/runbooks/cortex-substrate.md).
 -- Rollback: packages/database/src/sql/cortex-coverage-rollback.sql.
@@ -888,7 +889,7 @@ grant execute on function public.auth_can_read_cortex_node_type(public.cortex_no
 --    reference numbers. Titles use the record's own name or code column,
 --    redacted, and only NOT NULL columns, so a title never falls back to an
 --    older one. Every named column must exist, or the migration fails.
---    Registry rows are written first; the trigger swap runs last (step 9b).
+--    Registry rows are written first; the trigger swap runs last (step 10).
 -- ---------------------------------------------------------------------------
 create temporary table cortex_coverage_batch1 on commit drop as
 select * from (values
@@ -1034,7 +1035,26 @@ end
 $$;
 
 -- ---------------------------------------------------------------------------
--- 9b. Trigger swap, last: each DROP TRIGGER takes ACCESS EXCLUSIVE on its
+-- 9b. Re-lock the RPC surface for every cortex_* function (20260726192929),
+--     before the trigger swap, so nothing but the swap runs under its locks.
+-- ---------------------------------------------------------------------------
+do $$
+declare f record;
+begin
+  for f in
+    select p.oid::regprocedure as sig
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public' and p.proname like 'cortex\_%'
+  loop
+    execute format('revoke execute on function %s from public, anon, authenticated', f.sig);
+    execute format('grant execute on function %s to service_role', f.sig);
+  end loop;
+end
+$$;
+
+-- ---------------------------------------------------------------------------
+-- 10. Trigger swap, last: each DROP TRIGGER takes ACCESS EXCLUSIVE on its
 --     table until COMMIT, so no catalog work runs after the first one.
 -- ---------------------------------------------------------------------------
 do $$
@@ -1063,23 +1083,5 @@ create trigger cortex_kyc_redact
 after insert or update of document_id on public.account_kyc_artifacts
 for each row when (new.document_id is not null)
 execute function public.cortex_kyc_redact();
-
--- ---------------------------------------------------------------------------
--- 10. Re-lock the RPC surface for every cortex_* function (20260726192929).
--- ---------------------------------------------------------------------------
-do $$
-declare f record;
-begin
-  for f in
-    select p.oid::regprocedure as sig
-      from pg_proc p
-      join pg_namespace n on n.oid = p.pronamespace
-     where n.nspname = 'public' and p.proname like 'cortex\_%'
-  loop
-    execute format('revoke execute on function %s from public, anon, authenticated', f.sig);
-    execute format('grant execute on function %s to service_role', f.sig);
-  end loop;
-end
-$$;
 
 commit;

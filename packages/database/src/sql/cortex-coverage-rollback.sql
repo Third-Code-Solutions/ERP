@@ -7,7 +7,7 @@
 --
 -- Switches the registry engine off. The 23 registry tables stop mirroring:
 -- their nodes keep their current (allowlisted) attributes and go stale until
--- Batch 1 step 9b is re-applied. It does NOT re-attach cortex_mirror_generic,
+-- Batch 1 step 10 is re-applied. It does NOT re-attach cortex_mirror_generic,
 -- and it keeps every S1/S2/S3 fix: the deny-by-default read check, the
 -- email-free account/user/opportunity/document mirrors and the KYC re-title.
 -- Keeps ALL data: enum values, cortex_mirror_registry, cortex_node_type_access,
