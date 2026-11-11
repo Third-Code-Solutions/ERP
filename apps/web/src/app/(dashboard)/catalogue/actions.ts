@@ -77,7 +77,11 @@ const editItemSchema = z.object({
     .transform((value) => value || null),
   unit: requiredLine('unit', CATALOGUE_LIMITS.unit),
   trade: z.enum(CATALOGUE_TRADE_SLUGS, { message: 'Choose a trade from the list.' }),
-  is_active: z.boolean(),
+  // Sent as "true" or "false" by the form's select: a missing or malformed
+  // value is refused, never read as "inactive".
+  is_active: z
+    .enum(['true', 'false'], { message: 'Choose whether the item is active.' })
+    .transform((value) => value === 'true'),
 })
 
 /** Edit item: name, specification, unit, trade and active. */
@@ -94,7 +98,7 @@ export async function editCatalogueItem(
     specification: text(formData, 'specification'),
     unit: text(formData, 'unit'),
     trade: text(formData, 'trade'),
-    is_active: ['on', 'true'].includes(text(formData, 'is_active')),
+    is_active: text(formData, 'is_active'),
   })
   if (!parsed.success) return invalid(parsed.error)
   const { id, ...changes } = parsed.data

@@ -90,7 +90,7 @@ const EDIT = {
   specification: 'Type 1P',
   unit: 'bag',
   trade: 'concrete',
-  is_active: 'on',
+  is_active: 'true',
 }
 const BEFORE = {
   name: 'Cement',
@@ -200,7 +200,7 @@ describe('editCatalogueItem', () => {
   it('keeps text that merely looks like a formula and can deactivate an item', async () => {
     const { update } = useTransaction({ selected: [BEFORE] })
 
-    await editCatalogueItem(form({ ...EDIT, name: '=Cement', specification: '', is_active: '' }))
+    await editCatalogueItem(form({ ...EDIT, name: '=Cement', specification: '', is_active: 'false' }))
 
     expect(argOf(update.calls, 'set')).toMatchObject({
       name: '=Cement',
@@ -218,10 +218,23 @@ describe('editCatalogueItem', () => {
     [{ unit: 'x'.repeat(21) }, 'The unit must be 20 characters or fewer.'],
     [{ trade: 'carpentry' }, 'Choose a trade from the list.'],
     [{ specification: 'x'.repeat(2_001) }, 'The specification must be 2000 characters or fewer.'],
+    // A lost or garbled status must not switch the item off.
+    [{ is_active: '' }, 'Choose whether the item is active.'],
+    [{ is_active: 'on' }, 'Choose whether the item is active.'],
+    [{ is_active: 'FALSE' }, 'Choose whether the item is active.'],
   ])('rejects %j before opening a transaction', async (override, message) => {
     const result = await editCatalogueItem(form({ ...EDIT, ...override }))
 
     expect(result).toEqual({ ok: false, status: 400, error: message })
+    expect(mocks.db.transaction).not.toHaveBeenCalled()
+  })
+
+  it('refuses a form without the status field rather than deactivating the item', async () => {
+    const { is_active: _omitted, ...withoutStatus } = EDIT
+
+    const result = await editCatalogueItem(form(withoutStatus))
+
+    expect(result).toEqual({ ok: false, status: 400, error: 'Choose whether the item is active.' })
     expect(mocks.db.transaction).not.toHaveBeenCalled()
   })
 })
