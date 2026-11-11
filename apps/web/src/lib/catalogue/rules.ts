@@ -121,6 +121,9 @@ const LINE_BREAKS = /\r\n?|[\u2028\u2029]/g
 // tag characters (U+E0000-U+E007F); and lone surrogates, which are not text at
 // all (the same check as boq-excel's INVALID_TEXT). The u flag reads a
 // surrogate pair as one character, so U+D800-U+DFFF matches only a lone one.
+// Emoji kept except ZWJ sequences: the zero-width joiner goes, so a
+// multi-person emoji such as a man mechanic falls apart into its parts, and
+// a subdivision flag (England, Scotland, Wales) loses its tag characters.
 const HIDDEN_OR_CONTROL =
   /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u061C\u180E\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u206F\u3164\uFEFF\uFFA0\u{E0000}-\u{E007F}\uD800-\uDFFF]/gu
 

@@ -116,7 +116,10 @@ Added after the security review of PR #146 (2026-11-10).
   (U+206A to U+206F), the Hangul fillers (U+3164, U+FFA0), tag characters
   (U+E0000 to U+E007F), the byte order
   mark and lone surrogates are stripped, and text is trimmed, when it is written
-  (seed, edit, record price, import). U+2028 and U+2029 count as line breaks: a
+  (seed, edit, record price, import). Emoji kept except ZWJ sequences: with the
+  zero-width joiner gone, a multi-person emoji such as the man mechanic (man,
+  ZWJ, wrench) falls apart into 👨 and 🔧, and a subdivision flag loses its tag
+  characters. U+2028 and U+2029 count as line breaks: a
   space in a one-line field, a line feed in a multi-line one. Text is never written to a spreadsheet as a
   formula: exports use the quote-prefix utility from the `boq-excel` module.
 - **Source links:** a URL is accepted only if it parses, its protocol is `http:` or
