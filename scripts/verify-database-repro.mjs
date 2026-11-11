@@ -1400,8 +1400,7 @@ try {
         const fn = byName.get(name)
         const hasExpectedSearchPath =
           requiredEmptySearchPathFunctions.has(name)
-            ? fn?.config === 'search_path=""' ||
-              fn?.config === 'search_path='
+            ? /(?:^|,)search_path=(?:"")?(?:,|$)/.test(fn?.config ?? '')
             : /(?:^|,)search_path=public(?:,|$)/.test(
                 fn?.config ?? ''
               )
@@ -1415,8 +1414,7 @@ try {
           const fn = byName.get(name)
           const hasExpectedSearchPath =
             requiredEmptySearchPathFunctions.has(name)
-              ? fn?.config === 'search_path=""' ||
-                fn?.config === 'search_path='
+              ? /(?:^|,)search_path=(?:"")?(?:,|$)/.test(fn?.config ?? '')
               : /(?:^|,)search_path=public(?:,|$)/.test(
                   fn?.config ?? ''
                 )
