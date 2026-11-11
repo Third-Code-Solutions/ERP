@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed. No code written. |
+| Status | Batches 0 and 1 implemented (`20261106100000`, `20261106101000`). Batches 2 to 6 proposed. |
 | Basis | `main` at `b8ff3a70` (2026-11-05), read from `D:/thirdcode/ERP-catalogue` |
 | Goal | The owner wants "every piece of data inside the system" in Cortex, including sales and deal management. |
 | Authority | ADR-007, `docs/runbooks/cortex-substrate.md`, `packages/shared-types/src/authorization.ts` |
@@ -96,7 +96,7 @@ Both new tables are global, have RLS enabled and forced, `revoke all ... from an
 
 | Function | Job |
 |---|---|
-| `cortex_apply_row(p_table text, p_row jsonb, p_op text)` | Core. Builds the title, summary and allowlisted attributes. Then `cortex_upsert_node` (which owns the no-change short-circuit, see below) and the edges from the `edges` spec (`dir` out or in; `many` for `uuid[]`; `via` for a one-hop lookup; `poly` for type/id pairs with a value map). On UPDATE and BACKFILL it calls `cortex_close_stale_edges` once per (edge type, other table, direction) group, keeping every id the row still points at. On DELETE it closes the node and its current canonical edges. |
+| `cortex_apply_row(p_table text, p_row jsonb, p_op text)` | Core. Builds the title, summary and allowlisted attributes. Then `cortex_upsert_node` (which owns the no-change short-circuit, see below) and the edges from the `edges` spec (`dir` out or in; `many` for `uuid[]`; `via` for a one-hop lookup; `poly` for type/id pairs with a value map). On UPDATE and BACKFILL it calls `cortex_close_stale_edges` once per (edge type, other table, direction) group, keeping every id the row still points at. A `poly` edge is checked against every table in its value map, so the edge to the previous table closes when the type changes. On DELETE it closes the node and its current canonical edges. |
 | `cortex_mirror_row()` | Per-row AFTER I/U/D trigger. Calls `cortex_apply_row(TG_TABLE_NAME, to_jsonb(NEW or OLD), TG_OP)` inside the defensive `exception when others then raise warning` wrapper. |
 | `cortex_fold_children()` | Statement-level AFTER trigger. There are 3 per child table (insert, update, delete), because Postgres rejects transition tables on multi-event triggers. It computes the distinct parent ids from the transition tables and, for each parent, writes `{count, sum, items[≤limit]}` with `cortex_set_fold`. Defensive. |
 | `cortex_set_fold(p_tenant, p_parent_table, p_parent_id, p_key, p_value)` | `jsonb_set` on the parent node at `attributes.folds.<key>`, plus provenance. |
@@ -105,7 +105,7 @@ Both new tables are global, have RLS enabled and forced, `revoke all ... from an
 | `cortex_close_stale_edges(p_node, p_edge_type, p_other_ref_table, p_keep uuid[], p_out boolean default true)` | Sets `valid_to` on the node's other current canonical edges of that type to (`p_out`) or from (`not p_out`) that ref_table, except `p_keep`. The direction flag is needed because `owns` and `supplies` point into the row; the array covers `many` edges. Edges written by `cortex_mirror_link` carry `attributes = {"link": <table>}` and are never closed here, so a link table and an FK with the same (type, table) cannot close each other's edges. |
 | `cortex_backfill(p_table text, p_mode text default 'missing', p_limit int default 2000, p_after uuid default null, out processed int, out last_id uuid)` | Mirrors rows that have no current node (`missing`), or re-applies every row through the short-circuit (`all`), keyset-paged by `id > p_after`. Also recomputes folds for the parent tables of folded children. Call until `processed = 0`, passing back `last_id`. (A plain `returns int` cannot page `all` mode: every call would re-read the same first page.) |
 | `cortex_apply_{account,user,opportunity,document}(row jsonb, op text)` | The bodies of the 4 hand-written mirrors that change, split out so backfill can call them. Their trigger wrappers keep their names. |
-| helpers | `cortex_redact_attrs` (the >120-character rule), `cortex_render_tpl` (`{col}` templates; null when a placeholder is empty, so the `"<Type> <id8>"` fallback applies), `cortex_edge_targets` (resolves one edge spec), `cortex_refresh_fold` (recomputes one parent's fold), `cortex_link_edge` (one link row), `cortex_kyc_redact` (trigger on `account_kyc_artifacts`). |
+| helpers | `cortex_redact_attrs` (the >120-character rule), `cortex_render_tpl` (`{col}` templates; null when a placeholder is empty, so the `"<Type> <id8>"` fallback applies), `cortex_edge_targets` (resolves one edge spec), `cortex_refresh_fold` (recomputes one parent's fold; it locks the parent node first, so two concurrent child writes cannot overwrite each other's count), `cortex_link_edge` (one link row), `cortex_kyc_redact` (trigger on `account_kyc_artifacts`). |
 
 **`cortex_upsert_node` (two changes).** It preserves `attributes->'folds'` when `p_attributes` has no `folds` key, so a parent's own upsert never wipes its folds. And it returns early, with no update and no provenance, when the current node is `fresh` and title, summary and attributes (folds included) are unchanged. Both live here rather than in `cortex_apply_row`, so they also cover the split account/user/opportunity/document mirrors and the finance, inventory and hand-written parents without touching their mirrors; the backfill idempotency test (§8.8) needs the split mirrors to short-circuit too.
 
@@ -138,11 +138,11 @@ Free text is redacted and truncated.
 - **Stage history** lives in `attributes.folds.stage_history`, capped at the last 50 entries:
   - on INSERT it is `[{to, at}]`;
   - on UPDATE with `OLD.stage IS DISTINCT FROM NEW.stage` it appends `{from, to, at, by: auth.uid()}`;
-  - the backfill builds it from `opportunity_stage_transition_requests` where `state = 'succeeded'`, ordered by `completed_at`.
+  - the backfill builds it from `opportunity_stage_transition_requests` where `state = 'succeeded'`, ordered by `completed_at`. The first live write to a node that has no history yet does the same. With no receipts, history starts at the stage the node last held.
 
 **KYC.**
 - Status is on the account node (`kyc_status`) and on the new `kyc_track` nodes, which are in the kyc group.
-- `account_kyc_artifacts` is never mirrored. A small trigger on it (`cortex_kyc_redact`, which mirrors nothing) and a check in `cortex_apply_document` set any referenced document's node title to `KYC artifact: <artifact_type>`. That node carries no `file_name`.
+- `account_kyc_artifacts` is never mirrored. A small trigger on it (`cortex_kyc_redact`, which mirrors nothing) and a check in `cortex_apply_document` set any referenced document's node title to `KYC artifact: <artifact_type>`. That node carries no `file_name`. When the title changes this way the node's `embedding` is set to null once, so a vector computed from the file name does not outlive it; the embed job refills it from the new title.
 
 **Account and user.** `primary_email` and `email` are dropped from the props.
 
@@ -361,7 +361,7 @@ Production volume is small today; I did not measure production row counts. Two g
 | # | File (`supabase/migrations/`) | Contents |
 |---|---|---|
 | 0 | `20261106100000_cortex_coverage_types.sql` | the 35 enum values; the two registry tables; access rows for the existing types (§5 groups) |
-| 1 | `…101000_cortex_coverage_core.sql` | §3.1 functions and the `cortex_upsert_node` folds-preservation; read-check rewrite (**S2 fix**); split and edited account, user, opportunity and document mirrors (**S3 fix**); registry rows for the 23 generic tables; **drop the old generic trigger and create `cortex_mirror_r`** on each (**S1 fix**). Three of the 23 do not use the name `cortex_mirror_g`: `cost_codes` (`cortex_mirror_budget_cost_code`), `project_budgets` (`cortex_mirror_project_budget`) and `stock_movements` (`cortex_mirror_stock_movement`). Dropping only `cortex_mirror_g` would leave the leaking generic trigger running next to the new one. The old `cortex_mirror_generic()` function is left in place. |
+| 1 | `…101000_cortex_coverage_core.sql` | §3.1 functions and the `cortex_upsert_node` folds-preservation; read-check rewrite (**S2 fix**); split and edited account, user, opportunity and document mirrors (**S3 fix**); registry rows for the 23 generic tables; **drop the old generic trigger and create `cortex_mirror_r`** on each (**S1 fix**); any other trigger on these tables that still runs `cortex_mirror_generic()` is dropped too, whatever its name. Three of the 23 do not use the name `cortex_mirror_g`: `cost_codes` (`cortex_mirror_budget_cost_code`), `project_budgets` (`cortex_mirror_project_budget`) and `stock_movements` (`cortex_mirror_stock_movement`). Dropping only `cortex_mirror_g` would leave the leaking generic trigger running next to the new one. The old `cortex_mirror_generic()` function is left in place. |
 | 2 | `…102000_cortex_coverage_sales.sql` | §4.1 |
 | 3 | `…103000_cortex_coverage_estimating.sql` | §4.2 |
 | 4 | `…104000_cortex_coverage_procurement_finance.sql` | §4.3 and §4.4 |
@@ -416,5 +416,5 @@ The tests are table-driven from the registry, with one minimal fixture factory p
 
 - Purging historical `audit_log` diffs (S4); the chain is append-only.
 - Changing what the finance, cash and inventory mirrors copy; they are in restricted groups.
-- Re-embedding stale vectors.
+- Re-embedding stale vectors. The one exception is a KYC-linked document, whose embedding is cleared with its re-title (§3.3).
 - UI work beyond the parity entries.

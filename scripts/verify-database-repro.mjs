@@ -424,27 +424,28 @@ const requiredTriggers = [
   ['public.purchase_orders', 'cortex_mirror_purchase_orders'],
   ['public.invoices', 'cortex_mirror_invoices'],
   ['public.daily_tasks', 'cortex_mirror_daily_tasks'],
-  ['public.vendors', 'cortex_mirror_g'],
-  ['public.scope_items', 'cortex_mirror_g'],
-  ['public.contacts', 'cortex_mirror_g'],
-  ['public.permits', 'cortex_mirror_g'],
-  ['public.variation_orders', 'cortex_mirror_g'],
-  ['public.progress_claims', 'cortex_mirror_g'],
-  ['public.warranty_tickets', 'cortex_mirror_g'],
-  ['public.delivery_schedules', 'cortex_mirror_g'],
-  ['public.rfqs', 'cortex_mirror_g'],
-  ['public.contracts', 'cortex_mirror_g'],
-  ['public.certificates_of_completion', 'cortex_mirror_g'],
-  ['public.punchlist_items', 'cortex_mirror_g'],
-  ['public.site_inspections', 'cortex_mirror_g'],
-  ['public.design_files', 'cortex_mirror_g'],
-  ['public.change_requests', 'cortex_mirror_g'],
-  ['public.master_schedules', 'cortex_mirror_g'],
-  ['public.material_items', 'cortex_mirror_g'],
-  ['public.weekly_reports', 'cortex_mirror_g'],
-  ['public.pre_con_checklist_items', 'cortex_mirror_g'],
+  ['public.account_kyc_artifacts', 'cortex_kyc_redact'],
+  ['public.vendors', 'cortex_mirror_r'],
+  ['public.scope_items', 'cortex_mirror_r'],
+  ['public.contacts', 'cortex_mirror_r'],
+  ['public.permits', 'cortex_mirror_r'],
+  ['public.variation_orders', 'cortex_mirror_r'],
+  ['public.progress_claims', 'cortex_mirror_r'],
+  ['public.warranty_tickets', 'cortex_mirror_r'],
+  ['public.delivery_schedules', 'cortex_mirror_r'],
+  ['public.rfqs', 'cortex_mirror_r'],
+  ['public.contracts', 'cortex_mirror_r'],
+  ['public.certificates_of_completion', 'cortex_mirror_r'],
+  ['public.punchlist_items', 'cortex_mirror_r'],
+  ['public.site_inspections', 'cortex_mirror_r'],
+  ['public.design_files', 'cortex_mirror_r'],
+  ['public.change_requests', 'cortex_mirror_r'],
+  ['public.master_schedules', 'cortex_mirror_r'],
+  ['public.material_items', 'cortex_mirror_r'],
+  ['public.weekly_reports', 'cortex_mirror_r'],
+  ['public.pre_con_checklist_items', 'cortex_mirror_r'],
   ['public.cost_entries', 'audit_cost_entries'],
-  ['public.cost_entries', 'cortex_mirror_g'],
+  ['public.cost_entries', 'cortex_mirror_r'],
   ['public.fiscal_periods', 'guard_fiscal_period_row'],
   ['public.fiscal_periods', 'audit_fiscal_periods'],
   ['public.ledger_accounts', 'audit_ledger_accounts'],
@@ -507,16 +508,35 @@ const requiredTriggers = [
   ['public.cost_codes', 'audit_cost_codes'],
   ['public.project_budgets', 'audit_project_budgets'],
   ['public.project_budget_lines', 'audit_project_budget_lines'],
-  ['public.cost_codes', 'cortex_mirror_budget_cost_code'],
-  ['public.project_budgets', 'cortex_mirror_project_budget'],
+  ['public.cost_codes', 'cortex_mirror_r'],
+  ['public.project_budgets', 'cortex_mirror_r'],
   ['public.stock_movements', 'guard_stock_movement'],
   ['public.stock_movement_lines', 'guard_stock_movement_line'],
   ['public.units_of_measure', 'guard_inventory_movement_uom'],
   ['public.warehouses', 'guard_inventory_movement_warehouse'],
   ['public.stock_movements', 'audit_stock_movements'],
   ['public.stock_movement_lines', 'audit_stock_movement_lines'],
-  ['public.stock_movements', 'cortex_mirror_stock_movement'],
+  ['public.stock_movements', 'cortex_mirror_r'],
   ['public.assets', 'audit_assets'],
+]
+
+// Cortex coverage Batch 1 (20261106101000): search_path = '' and qualified names.
+const cortexCoverageFunctions = [
+  'cortex_apply_row',
+  'cortex_mirror_row',
+  'cortex_apply_account',
+  'cortex_apply_user',
+  'cortex_apply_opportunity',
+  'cortex_apply_document',
+  'cortex_kyc_redact',
+  'cortex_close_stale_edges',
+  'cortex_edge_targets',
+  'cortex_fold_children',
+  'cortex_set_fold',
+  'cortex_refresh_fold',
+  'cortex_mirror_link',
+  'cortex_link_edge',
+  'cortex_backfill',
 ]
 
 const requiredSecurityDefinerFunctions = [
@@ -538,7 +558,14 @@ const requiredSecurityDefinerFunctions = [
   'cortex_mirror_invoice',
   'cortex_mirror_daily_task',
   'cortex_mirror_generic',
+  ...cortexCoverageFunctions,
 ]
+
+const requiredEmptySearchPathFunctions = new Set([
+  'handle_new_user',
+  'auth_tenant_id',
+  ...cortexCoverageFunctions,
+])
 
 const requiredTrustedOnlyFunctions = requiredSecurityDefinerFunctions.filter(
   (name) => name !== 'auth_tenant_id'
@@ -1312,6 +1339,16 @@ try {
   )
 
   await query(
+    'no table still uses the denylist generic Cortex mirror (cortex coverage S1)',
+    `select t.tgrelid::regclass::text as relation, t.tgname
+       from pg_trigger t
+      where not t.tgisinternal
+        and t.tgfoid = 'public.cortex_mirror_generic'::regproc`,
+    (rows) => rows.length === 0,
+    (rows) => rows.map((row) => `${row.relation}.${row.tgname}`).join(', ')
+  )
+
+  await query(
     'required June functions are SECURITY DEFINER with fixed search_path',
     `select p.proname,
             p.prosecdef,
@@ -1327,7 +1364,7 @@ try {
       return requiredSecurityDefinerFunctions.every((name) => {
         const fn = byName.get(name)
         const hasExpectedSearchPath =
-          name === 'handle_new_user' || name === 'auth_tenant_id'
+          requiredEmptySearchPathFunctions.has(name)
             ? fn?.config === 'search_path=""' ||
               fn?.config === 'search_path='
             : /(?:^|,)search_path=public(?:,|$)/.test(
@@ -1342,7 +1379,7 @@ try {
         .filter((name) => {
           const fn = byName.get(name)
           const hasExpectedSearchPath =
-            name === 'handle_new_user' || name === 'auth_tenant_id'
+            requiredEmptySearchPathFunctions.has(name)
               ? fn?.config === 'search_path=""' ||
                 fn?.config === 'search_path='
               : /(?:^|,)search_path=public(?:,|$)/.test(
