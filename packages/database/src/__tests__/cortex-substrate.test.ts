@@ -1037,11 +1037,11 @@ suite('Cortex coverage (Batches 0-1)', () => {
       const account = await insertId(tx, `insert into accounts(tenant_id, name) values('${t}', 'Delete Me')`)
       await tx.unsafe(`
         create or replace function public.cortex_apply_row(p_table text, p_row jsonb, p_op text)
-        returns uuid language plpgsql set search_path = '' as $
-        begin raise exception 'cortex probe failure'; end $;
+        returns uuid language plpgsql set search_path = '' as $$
+        begin raise exception 'cortex probe failure'; end $$;
         create or replace function public.cortex_apply_account(p_row jsonb, p_op text)
-        returns uuid language plpgsql set search_path = '' as $
-        begin raise exception 'cortex probe failure'; end $`)
+        returns uuid language plpgsql set search_path = '' as $$
+        begin raise exception 'cortex probe failure'; end $$`)
       await tx.unsafe(`delete from vendors where id = '${vendor}'`)
       await tx.unsafe(`delete from accounts where id = '${account}'`)
       return first(
@@ -1465,11 +1465,11 @@ suite('Cortex coverage (Batches 0-1)', () => {
       await tx.unsafe(`
         alter function public.cortex_apply_row(text, jsonb, text) rename to cortex_apply_row_real;
         create function public.cortex_apply_row(p_table text, p_row jsonb, p_op text)
-        returns uuid language plpgsql set search_path = '' as $
+        returns uuid language plpgsql set search_path = '' as $$
         begin
           if p_row ->> 'name' = 'Boom' then raise exception 'probe row failure'; end if;
           return public.cortex_apply_row_real(p_table, p_row, p_op);
-        end $`)
+        end $$`)
       const page = await first(
         tx,
         `select processed, applied, skipped, failures from cortex_backfill('vendors', '${t}', 'missing', 10, null)`
@@ -1633,6 +1633,48 @@ suite('Cortex coverage (Batches 0-1)', () => {
     expect(r.user.attributes).not.toHaveProperty('email')
     expect(r.deny).toEqual({ unmapped: false, tenant_type: true })
     expect(r.breaks).toBe(0)
+  })
+
+  it('registry guard: every named column exists, and cortex_mirror_r and registry rows match one to one', async () => {
+    const missing = (await sql.unsafe(
+      `with named as (
+         select r.ref_table as tbl, unnest(r.attr_cols) as col, 'attr_cols' as source from cortex_mirror_registry r
+         union all
+         select r.ref_table, split_part(p, '.', 1), 'attr_paths' from cortex_mirror_registry r, unnest(r.attr_paths) p
+         union all
+         select r.ref_table, (regexp_matches(r.title_tpl || ' ' || r.summary_tpl, '\\{([a-z0-9_]+)\\}', 'g'))[1], 'template'
+           from cortex_mirror_registry r
+         union all
+         select r.ref_table, c, 'edge' from cortex_mirror_registry r,
+                jsonb_array_elements(r.edges) e, jsonb_array_elements_text(e -> 'cols') c
+         union all
+         select e -> 'via' ->> 'table', e -> 'via' ->> 'col', 'edge via' from cortex_mirror_registry r,
+                jsonb_array_elements(r.edges) e where e ? 'via'
+         union all
+         select r.ref_table, e -> 'poly' ->> 'type_col', 'edge poly' from cortex_mirror_registry r,
+                jsonb_array_elements(r.edges) e where e ? 'poly'
+         union all
+         select r.ref_table, l.value ->> 'key', 'lookup key' from cortex_mirror_registry r, jsonb_each(r.lookups) l
+         union all
+         select l.value ->> 'table', l.value ->> 'col', 'lookup' from cortex_mirror_registry r, jsonb_each(r.lookups) l
+         union all
+         select r.ref_table, r.fold ->> 'fk', 'fold fk' from cortex_mirror_registry r where r.fold is not null
+       )
+       select tbl, col, source from named n
+        where not exists (select 1 from information_schema.columns c
+                           where c.table_schema = 'public' and c.table_name = n.tbl and c.column_name = n.col)
+        order by 1, 2`
+    )) as Rows
+    expect(missing).toEqual([])
+
+    const pairs = (await sql.unsafe(
+      `select coalesce(t.tbl, r.ref_table) as tbl, t.tbl is not null as has_trigger, r.ref_table is not null as has_row
+         from (select c.relname::text as tbl from pg_trigger g join pg_class c on c.oid = g.tgrelid
+                where g.tgname = 'cortex_mirror_r' and not g.tgisinternal) t
+         full join (select ref_table from cortex_mirror_registry where node_type is not null) r on r.ref_table = t.tbl
+        where t.tbl is null or r.ref_table is null`
+    )) as Rows
+    expect(pairs).toEqual([])
   })
 
   it('coverage guard: every tenant table is classified exactly once', async () => {
