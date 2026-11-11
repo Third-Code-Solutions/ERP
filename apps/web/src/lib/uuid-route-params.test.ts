@@ -12,7 +12,7 @@ describe('UUID route boundary', () => {
     await expect(requireUuidRouteParams(Promise.resolve({ id, voId: id.toUpperCase() }))).resolves.toEqual({ id, voId: id.toUpperCase() })
   })
 
-  for (const key of ['id', 'assetId', 'voId']) {
+  for (const key of ['id', 'assetId', 'voId', 'itemId']) {
     it.each(['invalid-id', '', '../admin', '%2F', '123', id + '-extra'])(`rejects malformed ${key}: %s`, async (value) => {
       await expect(requireUuidRouteParams(Promise.resolve({ id, [key]: value }))).rejects.toThrow('NEXT_HTTP_ERROR_FALLBACK;404')
     })
@@ -26,7 +26,7 @@ describe('UUID route boundary', () => {
     function files(directory: string): string[] {
       return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
         const path = join(directory, entry.name)
-        return entry.isDirectory() ? files(path) : /^(page|layout)\.tsx$/.test(entry.name) && /\[(id|assetId|voId)\]/.test(path) ? [path] : []
+        return entry.isDirectory() ? files(path) : /^(page|layout)\.tsx$/.test(entry.name) && /\[(id|assetId|voId|itemId)\]/.test(path) ? [path] : []
       })
     }
     const routes = files(resolve('src/app'))
