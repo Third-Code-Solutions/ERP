@@ -159,7 +159,9 @@ Added after the security review of PR #146 (2026-11-10).
 - Search matches code or name (`ilike`, trigram-backed). The filters are trade,
   region and price status (priced / no source / stale / low authority, read from
   the flag tokens of the current observation; an item with no observation at all
-  counts as no source). 50 rows per page; the URL holds the search state.
+  counts as no source). The region filter ignores letter case and keeps only
+  items with an observation in that region; with "no source" it also lists the
+  items never observed there. 50 rows per page; the URL holds the search state.
 - The search term is capped at 100 characters, and `%`, `_` and `\` in it are
   escaped before the `ilike` pattern is built. The page number is capped.
 - Columns:

@@ -226,12 +226,17 @@ describe('listCatalogueItems', () => {
     expect(result.ok && result.data.totalPages).toBe(1)
     const prices = render(argsOf(current.calls, 'where')[0])
     expect(prices.sql).toContain('"catalogue_prices"."tenant_id" =')
-    expect(prices.params).toEqual([TENANT, 'NCR'])
+    // The region is compared lower-cased on both sides.
+    expect(prices.sql).toContain('lower("catalogue_prices"."region") =')
+    expect(prices.params).toEqual([TENANT, 'ncr'])
 
     const items = render(argsOf(list.calls, 'where')[0])
     expect(items.sql).toContain('"catalogue_items"."tenant_id" =')
     expect(items.sql).toMatch(/"code" ilike \$\d+ or .*"name" ilike \$\d+/)
-    expect(items.params).toEqual([TENANT, '%50\\%\\_off%', '%50\\%\\_off%', 'concrete'])
+    expect(items.params.slice(0, 4)).toEqual([TENANT, '%50\\%\\_off%', '%50\\%\\_off%', 'concrete'])
+    // The region filter also requires an observation in that region (on the
+    // fake subquery its column renders as a parameter).
+    expect(items.sql).toMatch(/ is not null\)$/)
     expect(items.params).not.toContain(OTHER_TENANT)
     expect(argsOf(count.calls, 'where')[0]).toBe(argsOf(list.calls, 'where')[0])
   })

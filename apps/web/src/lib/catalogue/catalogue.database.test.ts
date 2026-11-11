@@ -242,6 +242,28 @@ suite('catalogue reads against the seeded research files (database)', { timeout:
     })
   })
 
+  it('filters by region in any letter case, and counts an item never observed there as no source', async () => {
+    await seeded(async ({ actor }) => {
+      const inNcr = rows.filter((row) => row.region.toLowerCase() === 'ncr')
+      const elsewhere = rows.length - inNcr.length
+      expect(inNcr.length).toBeGreaterThan(0)
+      expect(elsewhere).toBeGreaterThan(0)
+
+      for (const region of ['NCR', 'ncr', ' nCr ']) {
+        const found = await listed(actor, { region })
+        expect(found.total, region).toBe(inNcr.length)
+        for (const row of found.rows) expect(row.price?.region.toLowerCase(), row.code).toBe('ncr')
+      }
+      expect((await listed(actor, { region: 'ncr', status: 'priced' })).total).toBe(
+        inNcr.filter((row) => row.price).length,
+      )
+      // No source in NCR: no price found there, or never observed there at all.
+      const noSource = await listed(actor, { region: 'ncr', status: 'no_source' })
+      expect(noSource.total).toBe(inNcr.filter((row) => !row.price).length + elsewhere)
+      expect((await listed(actor, { region: 'Atlantis' })).total).toBe(0)
+    })
+  })
+
   it('returns a priced item in centavos and an unpriced item with its note and no price', async () => {
     await seeded(async ({ actor }) => {
       const wanted = priced.find((row) => row.price!.low !== row.price!.high) ?? priced[0]!

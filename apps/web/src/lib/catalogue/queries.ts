@@ -132,9 +132,10 @@ function flagHasToken(flag: SQLWrapper, pattern: string): SQL {
  * newest one with a price (by checked date, then creation time). A "no price
  * found" observation is current only where no price was ever recorded, however
  * new it is. An item without any observation appears once with `price: null`.
- * With a region filter every item appears once, observed or not in that
- * region. The price-status filters read this current observation, so "no
- * source" means: no price in any observation, or no observation at all.
+ * A region filter (any letter case) keeps only items observed in that region,
+ * except with the "no source" status, which also lists the items with no
+ * observation there. The price-status filters read this current observation,
+ * so "no source" means: no price in any observation, or no observation at all.
  */
 export async function listCatalogueItems(
   actor: CatalogueActor,
@@ -175,7 +176,9 @@ export async function listCatalogueItems(
     .where(
       and(
         eq(cataloguePrices.tenant_id, actor.tenantId),
-        filters.region ? eq(cataloguePrices.region, filters.region) : undefined,
+        filters.region
+          ? sql`lower(${cataloguePrices.region}) = ${filters.region.toLowerCase()}`
+          : undefined,
       ),
     )
     // The same order as compareCurrentFirst in rules.ts: priced before unpriced
@@ -196,6 +199,9 @@ export async function listCatalogueItems(
     if (search) conditions.push(search)
   }
   if (filters.trade) conditions.push(eq(catalogueItems.trade, filters.trade))
+  if (filters.region && filters.status !== 'no_source') {
+    conditions.push(isNotNull(current.price_id))
+  }
   if (filters.status === 'priced') conditions.push(isNotNull(current.price_avg_centavos))
   if (filters.status === 'no_source') conditions.push(isNull(current.price_avg_centavos))
   if (filters.status === 'stale') conditions.push(flagHasToken(current.flag, 'STALE_[0-9]{4}'))

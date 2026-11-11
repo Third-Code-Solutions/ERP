@@ -38,7 +38,7 @@ describe('catalogue read SQL', () => {
     const result = await listCatalogueItems(ACTOR, {
       q: '100%_pure',
       trade: 'paint',
-      region: 'NCR',
+      region: ' Ncr ',
       status: 'stale',
       page: '2',
     })
@@ -56,16 +56,19 @@ describe('catalogue read SQL', () => {
         /select distinct on \("catalogue_prices"\."item_id", "catalogue_prices"\."region"\)/,
       )
       expect(statement.sql).toMatch(
-        /from "catalogue_prices" where \("catalogue_prices"\."tenant_id" = \$\d+ and "catalogue_prices"\."region" = \$\d+\) order by "catalogue_prices"\."item_id", "catalogue_prices"\."region", "catalogue_prices"\."price_avg_centavos" is null, "catalogue_prices"\."checked_on" desc, "catalogue_prices"\."created_at" desc\) "current_price"/,
+        /from "catalogue_prices" where \("catalogue_prices"\."tenant_id" = \$\d+ and lower\("catalogue_prices"\."region"\) = \$\d+\) order by "catalogue_prices"\."item_id", "catalogue_prices"\."region", "catalogue_prices"\."price_avg_centavos" is null, "catalogue_prices"\."checked_on" desc, "catalogue_prices"\."created_at" desc\) "current_price"/,
       )
       expect(statement.sql).toMatch(
         /on \("current_price"\."item_id" = "catalogue_items"\."id" and "current_price"\."tenant_id" = "catalogue_items"\."tenant_id"\)/,
       )
       expect(statement.sql).toMatch(/where \("catalogue_items"\."tenant_id" = \$\d+ and /)
       expect(statement.sql).toMatch(/"current_price"\."flag" ~ \$\d+/)
+      // A region filter keeps only the items observed in that region.
+      expect(statement.sql).toMatch(/"current_price"\."id" is not null/)
       expect(statement.params.slice(0, 7)).toEqual([
         TENANT,
-        'NCR',
+        // Trimmed and lower-cased, compared with the lower-cased stored region.
+        'ncr',
         TENANT,
         '%100\\%\\_pure%',
         '%100\\%\\_pure%',
@@ -94,6 +97,18 @@ describe('catalogue read SQL', () => {
       /from "catalogue_prices" where "catalogue_prices"\."tenant_id" = \$1 order by/,
     )
     expect(fake.statements[0]?.params[0]).toBe(TENANT)
+    expect(fake.statements[0]?.sql).not.toContain('"current_price"."id" is not null')
+  })
+
+  it('lists the items not observed in a region as "no source" there', async () => {
+    await listCatalogueItems(ACTOR, { region: 'Cebu', status: 'no_source' })
+
+    const [list] = fake.statements
+    expect(list?.sql).toMatch(/lower\("catalogue_prices"\."region"\) = \$2/)
+    expect(list?.params.slice(0, 2)).toEqual([TENANT, 'cebu'])
+    // No observation there leaves a null price: the left join keeps the item.
+    expect(list?.sql).toMatch(/"current_price"\."price_avg_centavos" is null/)
+    expect(list?.sql).not.toContain('"current_price"."id" is not null')
   })
 
   it('reads an item and its history by id and tenant, newest first', async () => {
