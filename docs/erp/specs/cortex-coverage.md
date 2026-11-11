@@ -169,7 +169,7 @@ Every string that is stored (title, summary, attribute) is redacted and truncate
 
 **Opportunity** (`cortex_apply_opportunity`).
 - The title becomes `coalesce(prospective_project_name, <account name>, opportunity_type, 'Opportunity')`. The column exists in the database (20260825100000) but not in the Drizzle schema; the trigger reads it from the jsonb row.
-- Props add `closing_date`, `area_sqm`, `opportunity_type`, and `lost_reason` and `remarks` redacted.
+- Props add `closing_date`, `area_sqm` and `opportunity_type`. The free-text `lost_reason` and `remarks` are not copied (§3.2), and the scrub removes them from older opportunity nodes.
 - **Stage history** lives in `attributes.folds.stage_history`, capped at the last 50 entries:
   - on INSERT it is `[{to, at}]`;
   - on UPDATE with `OLD.stage IS DISTINCT FROM NEW.stage` it appends `{from, to, at, by: auth.uid()}`;

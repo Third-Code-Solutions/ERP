@@ -982,14 +982,14 @@ suite('Cortex coverage (Batches 0-1)', () => {
     expect(r.breaks).toBe(0)
   })
 
-  it('opportunity nodes gain a prospect title and append stage history in order', async () => {
+  it('opportunity nodes gain a prospect title and append stage history in order, and copy no free text', async () => {
     const r = await inRollback(sql, async (tx) => {
       const { tenantA: t, userA } = await seedTwoTenants(tx)
       const account = await insertId(tx, `insert into accounts(tenant_id, name) values('${t}', 'Stage Client')`)
       const opp = await insertId(
         tx,
-        `insert into opportunities(tenant_id, account_id, rep_id, opportunity_type, stage)
-         values('${t}', '${account}', '${userA}', 'Fit-out', 'opportunity_creation')`
+        `insert into opportunities(tenant_id, account_id, rep_id, opportunity_type, stage, remarks, lost_reason)
+         values('${t}', '${account}', '${userA}', 'Fit-out', 'opportunity_creation', 'Call Ana first', 'Budget cut')`
       )
       const titleBefore = (await node(tx, t, 'opportunities', opp)).title
       await tx.unsafe(`update opportunities set stage = 'scoping' where id = '${opp}'`)
@@ -997,9 +997,20 @@ suite('Cortex coverage (Batches 0-1)', () => {
       await tx.unsafe(
         `update opportunities set stage = 'bom_submission', prospective_project_name = 'Tower B fit-out' where id = '${opp}'`
       )
-      return { titleBefore, after: await node(tx, t, 'opportunities', opp) }
+      const after = await node(tx, t, 'opportunities', opp)
+      // A node written before the change still holds both keys until the scrub.
+      await tx.unsafe(
+        `update cortex_nodes set attributes = attributes || '{"remarks": "Call Ana", "lost_reason": "x"}'::jsonb
+          where id = '${after.id}'`
+      )
+      const scrub = await first(tx, `select changed from cortex_scrub_nodes('opportunities', '${t}', 50, null)`)
+      return { titleBefore, after, scrub, scrubbed: await node(tx, t, 'opportunities', opp) }
     })
     expect(r.titleBefore).toBe('Stage Client')
+    expect(r.after.attributes).not.toHaveProperty('remarks')
+    expect(r.after.attributes).not.toHaveProperty('lost_reason')
+    expect(r.scrub.changed).toBe(1)
+    expect(r.scrubbed.attributes).toEqual(r.after.attributes)
     expect(r.after.title).toBe('Tower B fit-out')
     const history = r.after.attributes.folds.stage_history as Array<Record<string, string>>
     expect(history.map((h) => [h.from ?? null, h.to])).toEqual([

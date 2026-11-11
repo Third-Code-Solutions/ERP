@@ -521,9 +521,8 @@ begin
       'probability', p_row -> 'probability', 'weighted_tcv_cents', p_row -> 'weighted_tcv_cents',
       'account_id', p_row -> 'account_id', 'project_id', p_row -> 'project_id', 'rep_id', p_row -> 'rep_id',
       'closing_date', p_row -> 'closing_date', 'area_sqm', p_row -> 'area_sqm',
-      'opportunity_type', p_row -> 'opportunity_type',
-      'lost_reason', to_jsonb(public.cortex_redact_text(p_row ->> 'lost_reason', 500)),
-      'remarks', to_jsonb(public.cortex_redact_text(p_row ->> 'remarks', 500))))
+      -- No free text: remarks and lost_reason stay in the ERP row.
+      'opportunity_type', p_row -> 'opportunity_type'))
     || jsonb_build_object('folds',
          coalesce(v_attrs -> 'folds', '{}'::jsonb) || jsonb_build_object('stage_history', v_hist)),
     auth.uid(), 'opportunities:' || lower(p_op));
@@ -733,7 +732,8 @@ end $$;
 --     * Registry tables keep only attr_cols (and attr_paths) plus folds;
 --       titles and summaries re-render from the kept attributes, or stay
 --       redacted.
---     * users, accounts, opportunities drop email and primary_email.
+--     * users, accounts, opportunities drop email and primary_email;
+--       opportunities also drop the free-text lost_reason and remarks.
 --     * documents linked to a KYC artifact, or whose row is gone, lose their
 --       file-name title.
 --     * Every string is redacted; a node whose title or summary changes loses
@@ -782,6 +782,9 @@ begin
           from jsonb_each(n.attributes) where key = any(v_keep);
       else
         v_attrs := n.attributes - 'email' - 'primary_email' - 'folds';
+        if p_table = 'opportunities' then
+          v_attrs := v_attrs - 'lost_reason' - 'remarks';
+        end if;
       end if;
       v_attrs := public.cortex_redact_attrs(v_attrs)
         || case when n.attributes ? 'folds' then jsonb_build_object('folds', n.attributes -> 'folds')
