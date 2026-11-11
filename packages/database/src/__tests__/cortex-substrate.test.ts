@@ -1783,8 +1783,14 @@ suite('Cortex coverage (Batches 0-1)', () => {
     const r = await inRollback(sql, async (tx) => {
       const { tenantA: t, userA } = await seedTwoTenants(tx)
       const before = await insertId(tx, `insert into vendors(tenant_id, name) values('${t}', 'Before Rollback')`)
-      await tx.unsafe(`insert into accounts(tenant_id, name) values('${t}', 'Before Rollback')`)
+      const account = await insertId(tx, `insert into accounts(tenant_id, name) values('${t}', 'Before Rollback')`)
       const nodesBefore = (await first(tx, `select count(*)::int as n from cortex_nodes`)).n as number
+      const cortexFunctions = async () =>
+        ((await tx.unsafe(
+          `select distinct p.proname::text as name from pg_proc p join pg_namespace s on s.oid = p.pronamespace
+            where s.nspname = 'public' and p.proname like 'cortex\\_%' order by 1`
+        )) as Rows).map((row: Rows) => row.name as string)
+      const functionsBefore = await cortexFunctions()
       await tx.unsafe(ROLLBACK_SQL)
       const triggers = (await tx.unsafe(
         `select tgrelid::regclass::text as tbl, tgname from pg_trigger
@@ -1793,18 +1799,38 @@ suite('Cortex coverage (Batches 0-1)', () => {
                  or tgname in ('cortex_mirror_r', 'cortex_kyc_redact'))
           order by 1`
       )) as Rows
-      const functions = (await tx.unsafe(
-        `select p.proname::text as name from pg_proc p join pg_namespace s on s.oid = p.pronamespace
-          where s.nspname = 'public' and p.proname in ('cortex_apply_row', 'cortex_backfill', 'cortex_scrub_nodes',
-            'cortex_mirror_row', 'cortex_fold_children', 'cortex_mirror_link', 'cortex_apply_account',
-            'cortex_apply_document', 'cortex_kyc_redact', 'cortex_redact_text')
-          order by 1`
-      )) as Rows
+      const functionsAfter = await cortexFunctions()
       const kept = await first(
         tx,
         `select (select count(*) from cortex_nodes)::int as nodes,
                 (select count(*) from cortex_mirror_registry)::int as registry,
                 (select count(*) from cortex_node_type_access)::int as access`
+      )
+      const upsert = await first(
+        tx,
+        `select p.prosrc as src from pg_proc p join pg_namespace s on s.oid = p.pronamespace
+          where s.nspname = 'public' and p.proname = 'cortex_upsert_node'`
+      )
+      // N5: the restored upsert no longer clears embeddings, so the KYC
+      // re-title must still drop the file-name vector on its own.
+      const project = await insertId(tx, `insert into projects(tenant_id, name, client) values('${t}', 'RB Proj', 'C')`)
+      const doc = await insertId(
+        tx,
+        `insert into documents(tenant_id, project_id, uploaded_by, document_type, file_name, storage_path, mime_type, size_bytes)
+         values('${t}', '${project}', '${userA}', 'pdf', 'Passport-Ana.pdf', 't/rb.pdf', 'application/pdf', 10)`
+      )
+      await tx.unsafe(
+        `update cortex_nodes set embedding = '${oneHotVector(3)}'::vector
+          where tenant_id = '${t}' and ref_table = 'documents' and ref_id = '${doc}' and valid_to is null`
+      )
+      await tx.unsafe(
+        `insert into account_kyc_artifacts(tenant_id, account_id, artifact_type, document_id)
+         values('${t}', '${account}', 'bir_2303', '${doc}')`
+      )
+      const kycDoc = await first(
+        tx,
+        `select title, embedding is not null as embedded from cortex_nodes
+          where tenant_id = '${t}' and ref_table = 'documents' and ref_id = '${doc}' and valid_to is null`
       )
       const vendor = await insertId(
         tx,
@@ -1823,17 +1849,33 @@ suite('Cortex coverage (Batches 0-1)', () => {
       )
       const scrub = await first(tx, `select changed, skipped, failures from cortex_scrub_nodes('vendors', '${t}', 50, null)`)
       return {
-        scrub, scrubbed: await node(tx, t, 'vendors', before),
-        nodesBefore, triggers, functions: functions.map((row: Rows) => row.name), kept, deny,
+        scrub, scrubbed: await node(tx, t, 'vendors', before), functionsBefore, functionsAfter, upsert, kycDoc,
+        nodesBefore, triggers, kept, deny,
         vendorNode: await node(tx, t, 'vendors', vendor),
         user: await node(tx, t, 'users', userA),
         breaks: (await first(tx, CHAIN_BREAKS(t))).n as number,
       }
     })
     expect(r.triggers).toEqual([{ tbl: 'account_kyc_artifacts', tgname: 'cortex_kyc_redact' }])
-    expect(r.functions).toEqual([
-      'cortex_apply_account', 'cortex_apply_document', 'cortex_kyc_redact', 'cortex_redact_text', 'cortex_scrub_nodes',
-    ])
+    // Exactly the registry engine goes; every other cortex_* function stays
+    // (the scrub, the render helper, the split mirrors, redaction, edges).
+    const dropped = [
+      'cortex_apply_row', 'cortex_backfill', 'cortex_edge_targets', 'cortex_fold_children', 'cortex_link_edge',
+      'cortex_mirror_link', 'cortex_mirror_row', 'cortex_refresh_fold', 'cortex_set_fold',
+    ]
+    expect(r.functionsBefore).toEqual(expect.arrayContaining(dropped))
+    expect(r.functionsAfter).toEqual(r.functionsBefore.filter((name: string) => !dropped.includes(name)))
+    expect(r.functionsAfter).toEqual(
+      expect.arrayContaining([
+        'cortex_apply_account', 'cortex_apply_document', 'cortex_apply_opportunity', 'cortex_apply_user',
+        'cortex_close_stale_edges', 'cortex_kyc_redact', 'cortex_redact_attrs', 'cortex_redact_text',
+        'cortex_render_tpl', 'cortex_scrub_nodes', 'cortex_upsert_node',
+      ])
+    )
+    // The 20260613192346 body: no folds merge, no embedding clear.
+    expect(r.upsert.src).not.toContain('folds')
+    expect(r.upsert.src).not.toContain('embedding')
+    expect(r.kycDoc).toEqual({ title: 'KYC artifact: bir_2303', embedded: false })
     expect(r.scrub).toEqual({ changed: 1, skipped: 0, failures: [] })
     expect(r.scrubbed.title).toBe('Before Rollback')
     expect(r.scrubbed.attributes).not.toHaveProperty('phone')

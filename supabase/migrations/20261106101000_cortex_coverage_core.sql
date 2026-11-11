@@ -571,6 +571,9 @@ begin
   if v_kyc is not null then
     -- A vector computed from the old file name must not outlive the re-title;
     -- the embed job refills a null embedding from the new title.
+    -- cortex_upsert_node (step 1) clears it as well. This clear stays because
+    -- the coverage rollback restores the older upsert, which does not, and the
+    -- KYC re-title (S3) must hold after a rollback too.
     update public.cortex_nodes
        set embedding = null
      where tenant_id = v_tenant and ref_table = 'documents' and ref_id = v_id and valid_to is null
