@@ -24,12 +24,17 @@ create policy deny_direct_client_access on public.audit_log
 -- Forced RLS binds the table owner too. The audit triggers (SECURITY
 -- DEFINER) read and insert audit_log as their owner, and only a superuser or
 -- BYPASSRLS role gets past the deny policy: stop rather than break every
--- audited write.
+-- audited write. The API's direct insert runs as the runtime role, which
+-- this migration cannot see: the runbook preflight checks that one.
 do $$
 declare v_role name;
 begin
   for v_role in
     select current_user
+    union
+    select pg_catalog.pg_get_userbyid(c.relowner)
+      from pg_catalog.pg_class c
+     where c.oid = 'public.audit_log'::regclass
     union
     select pg_catalog.pg_get_userbyid(p.proowner)
       from pg_catalog.pg_proc p

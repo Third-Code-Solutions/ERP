@@ -95,18 +95,32 @@ confirm a fresh restore point first):
             'cost_entries', 'project_budgets', 'stock_movements']))
    order by age desc;
   ```
-- The migrating role and the owner of `audit_log_trigger` must each be
-  superuser or BYPASSRLS, because forced RLS binds the owner too and the audit
-  triggers write as their owner. Every row must show `true` in one column
-  (`20261106102000` raises an exception otherwise):
-  ```sql
-  select r.rolname, r.rolsuper, r.rolbypassrls
-    from pg_roles r
-   where r.rolname = current_user
-      or r.oid = (select p.proowner from pg_proc p
-                   join pg_namespace n on n.oid = p.pronamespace
-                  where n.nspname = 'public' and p.proname = 'audit_log_trigger');
-  ```
+- `20261106102000` forces RLS on `audit_log`, whose only policy then denies
+  `anon` and `authenticated`. Every role that writes it must be superuser or
+  BYPASSRLS, or every audited write fails:
+  - the migrating role, the `audit_log` table owner (forced RLS binds the
+    owner too) and the owner of `audit_log_trigger` (the audit triggers
+    write as their owner). The migration raises an exception unless each
+    passes. Run as the migrating role; every row must show `true` in one
+    column:
+    ```sql
+    select r.rolname, r.rolsuper, r.rolbypassrls
+      from pg_roles r
+     where r.rolname = current_user
+        or r.oid = (select c.relowner from pg_class c where c.oid = 'public.audit_log'::regclass)
+        or r.oid = (select p.proowner from pg_proc p
+                     join pg_namespace n on n.oid = p.pronamespace
+                    where n.nspname = 'public' and p.proname = 'audit_log_trigger');
+    ```
+  - the API and web runtime role: `apps/api/src/audit/audit.service.ts`
+    inserts into `audit_log` directly as that role, and the migration cannot
+    see it. Connect with the `DATABASE_URL` the API and web use and run the
+    query below; it must show `true` in one column. If it does not, stop:
+    applying `20261106102000` would make every API audit insert fail.
+    ```sql
+    select current_user, r.rolsuper, r.rolbypassrls
+      from pg_roles r where r.rolname = current_user;
+    ```
 - Apply in order: types (`20261106100000`), core (`20261106101000`), audit
   (`20261106102000`). Each file is one transaction under `lock_timeout = 5s`.
   On `canceling statement due to lock timeout` (55P03) that file is rolled back
