@@ -149,6 +149,8 @@ export function roleLabel(role: AppRole): string {
 //   /procurement/deliveries → admin, pm, procurement, sd_pm_pe, viewer
 //   /purchase-orders     → admin, estimator, pm, commercial, sd_pm_pe,
 //                          procurement, viewer
+//   /catalogue           → admin, estimator, pm, commercial, sd_pm_pe,
+//                          procurement, viewer (read; hidden while flagged off)
 //   /inventory           → admin, pm, commercial, sd_pm_pe, finance,
 //                          procurement, viewer
 //   /invoices            → admin, finance, viewer (read only)
@@ -290,6 +292,23 @@ export const NAV_SECTIONS: NavSection[] = [
         ],
       },
       {
+        href: '/catalogue',
+        label: 'Price Catalogue',
+        iconKey: 'Receipt',
+        // Ships dark: the page is not-found until ERP_CATALOGUE_ENABLED is on.
+        visible: false,
+        roles: [
+          'admin',
+          'estimator',
+          'pm',
+          'commercial',
+          'sd_pm_pe',
+          'procurement',
+          'viewer',
+        ],
+        description: 'Reference prices by trade, region, and source',
+      },
+      {
         href: '/inventory',
         label: 'Inventory',
         iconKey: 'Layers',
@@ -420,6 +439,17 @@ const ADMIN_ROUTE_ROLES = ['admin', 'commercial', 'viewer'] as const
 const ADMIN_READ_ROUTE_ROLES = ['admin', 'viewer'] as const
 const ADMIN_ONLY_ROUTE_ROLES = ['admin'] as const
 const BOM_ROUTE_ROLES = ['admin', 'estimator', 'commercial', 'viewer'] as const
+// catalogue.read: the roles holding bom.generate, procurement.read or
+// admin.rate_card.read (owner arrives as admin).
+const CATALOGUE_ROUTE_ROLES = [
+  'admin',
+  'estimator',
+  'pm',
+  'commercial',
+  'sd_pm_pe',
+  'procurement',
+  'viewer',
+] as const
 const CLAIM_ROUTE_ROLES = [
   'admin',
   'finance',
@@ -575,6 +605,10 @@ export const DASHBOARD_ROUTE_POLICIES: readonly DashboardRoutePolicy[] = [
   ),
   ...registerDashboardRoutes(['/admin/users/new'], ADMIN_ONLY_ROUTE_ROLES),
   ...registerDashboardRoutes(['/bom'], BOM_ROUTE_ROLES),
+  ...registerDashboardRoutes(
+    ['/catalogue', '/catalogue/[itemId]'],
+    CATALOGUE_ROUTE_ROLES
+  ),
   ...registerDashboardRoutes(['/claims', '/claims/[id]'], CLAIM_ROUTE_ROLES),
   ...registerDashboardRoutes(['/claims/new'], [
     'admin',

@@ -128,6 +128,9 @@ const requiredServerOnlyTables = [
   'document_intake_requests',
   'project_comment_create_requests',
   'project_comment_delete_requests',
+  // Price catalogue: server-read only, no browser grant (not even SELECT).
+  'catalogue_items',
+  'catalogue_prices',
 ]
 
 const requiredPolicies = [

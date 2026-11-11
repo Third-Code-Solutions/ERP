@@ -94,6 +94,29 @@ describe('middleware Supabase session recovery', () => {
     }
   })
 
+  it.each(['true', ''])(
+    'sends an anonymous request for the price catalogue to sign-in (flag %j)',
+    async (flag) => {
+      // The flag is read by the page, which a signed-out request never reaches.
+      vi.stubEnv('ERP_CATALOGUE_ENABLED', flag)
+      mocks.getUser.mockResolvedValue({ data: { user: null }, error: null })
+
+      for (const path of [
+        '/catalogue',
+        '/catalogue/11111111-1111-4111-8111-111111111111',
+      ]) {
+        const response = await middleware(
+          new NextRequest(`https://erp.example${path}`)
+        )
+
+        expect(response.status, path).toBe(307)
+        expect(response.headers.get('location'), path).toBe(
+          'https://erp.example/auth/login'
+        )
+      }
+    }
+  )
+
   it('allows only callback-marked authenticated recovery sessions on the update page', async () => {
     const userId = '11111111-1111-4111-8111-111111111111'
     const sessionId = '22222222-2222-4222-8222-222222222222'

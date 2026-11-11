@@ -72,6 +72,24 @@ provisioned when their feature is enabled.
      (effective VAT, EWT and retention rates) to `finance.read` roles. Leave it
      unset until the owner wants Finance to see the "rates are locked" page;
      money paths do not read it. A flip needs a redeploy.
+   - `ERP_CATALOGUE_ENABLED=true` opens the master price catalogue to
+     `catalogue.read` roles and its edit-item and record-price actions to
+     `catalogue.manage` roles. Every catalogue read and write checks it and
+     answers not-found while it is unset. Leave it unset until migration
+     `20261110100000_catalogue_price_book` is applied, the tenant is seeded
+     with `node scripts/seed-catalogue.mjs --tenant <uuid>` and `smoke:prod`
+     passes. After it commits, the seed runs `ANALYZE` on
+     `public.catalogue_items` and `public.catalogue_prices` and prints that it
+     did; if it prints that ANALYZE failed, run both by hand before the flag
+     goes on, or the list page joins row by row and gets slow. A flip needs a
+     redeploy.
+     Offboarding: catalogue prices are append-only, so deleting a tenant that
+     has them, or a user who recorded a price or created or edited an item,
+     fails. Suspend or disable a leaver's account instead of deleting it. To
+     remove a tenant's catalogue, follow "Offboarding" in
+     `docs/erp/specs/catalogue.md`: a reviewed, backed-up transaction that
+     disables `catalogue_prices_append_only`, deletes the tenant's prices and
+     items, and enables the trigger again before it commits.
 5. Add the production domain in `Settings → Domains` and update
    `NEXT_PUBLIC_SITE_URL` to match. Portal share links and email CTAs
    use this value.
