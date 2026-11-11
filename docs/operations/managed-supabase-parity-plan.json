@@ -11,10 +11,10 @@
     "databaseVersion": "17.6.1.121",
     "postgresMajor": 17,
     "appliedCount": 157,
-    "sourceCount": 180,
-    "pendingCount": 23,
+    "sourceCount": 183,
+    "pendingCount": 26,
     "appliedHead": "20260901141949",
-    "sourceHead": "20261104195001",
+    "sourceHead": "20261106102000",
     "ledgerStatus": "current_remote_ledger_matches_source",
     "purchaseOrderPreflight": {
       "duplicateGroups": 0,
@@ -142,6 +142,18 @@
       "hostedApplyApproved": false,
       "risk": "D-5 expand/contract, additive only. Adds bom_line_items.quantity_decimal numeric(18,4) with no default, a BEFORE INSERT/UPDATE trigger that keeps it and the legacy integer quantity in step (decimal write sets quantity = round(quantity_decimal); integer-only write sets quantity_decimal = quantity), an exact backfill from quantity, then SET NOT NULL; replaces recompute_dupa_totals() so DUPA BOQ amounts use round(H x quantity_decimal). Nothing is dropped, renamed or retyped and no persisted amount changes, because every existing quantity is whole. ADD COLUMN, the backfill UPDATE and SET NOT NULL take an ACCESS EXCLUSIVE lock on bom_line_items under a 5-second lock and 60-second statement timeout; the backfill writes one audit row per existing line through audit_bom_line_items. Preflight: select count(*), count(*) filter (where quantity < 0) from public.bom_line_items.",
       "recovery": "Take an encrypted backup first. Both migrations are transactional and abort without changes on failure. After commit, rolling the app back is safe: older code writes only the integer quantity and the trigger mirrors it into quantity_decimal; a fractional quantity then reads as round(quantity_decimal) in that older code. Roll forward rather than dropping the column; the integer column and the trigger are removed only in a later reviewed contract release. This source-only batch does not authorize hosted application."
+    },
+    {
+      "id": "20261106-cortex-coverage-batch-1",
+      "migrations": [
+        "20261106100000_cortex_coverage_types.sql",
+        "20261106101000_cortex_coverage_core.sql",
+        "20261106102000_audit_log_server_only.sql"
+      ],
+      "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
+      "hostedApplyApproved": false,
+      "risk": "Cortex coverage Batch 1 (docs/erp/specs/cortex-coverage.md), additive only: nothing is dropped, renamed or retyped and no ERP row changes. 100000 adds 35 cortex_node_type enum values and the server-only global tables cortex_mirror_registry and cortex_node_type_access (ADR-027 amendment: forced RLS, deny_direct_client_access, no client privileges, service_role SELECT only). 101000 replaces the generic Cortex mirror on 23 tables with literal attribute allowlists (S1), makes auth_can_read_cortex_node_type deny-by-default by read group (S2), drops emails and KYC file names from the account, user, opportunity and document mirrors (S3), and adds the paged cortex_backfill and cortex_scrub_nodes functions; its trigger swap takes ACCESS EXCLUSIVE on the 23 tables and on account_kyc_artifacts until COMMIT. 102000 makes audit_log server-only (revokes client SELECT, replaces the tenant read policy with the deny policy, forces RLS) under ACCESS EXCLUSIVE on audit_log, and raises an exception unless the migrating role and the audit_log_trigger owner are superuser or BYPASSRLS. All three run under 5-second lock and 60-second statement timeouts. Existing nodes keep their old attributes until scripts/cortex-backfill.mjs --batch 1 runs --mode all and then --mode scrub to changed 0 and skipped 0. Preflight (docs/runbooks/cortex-substrate.md, Batch 1 preflight): the long-transaction query over the 25 locked tables returns no rows, and the migrating role and the audit_log_trigger owner are each superuser or BYPASSRLS.",
+      "recovery": "Take an encrypted backup first. Each migration is transactional and aborts without changes on failure; on lock timeout (55P03) retry the same file off-peak. After commit, packages/database/src/sql/cortex-coverage-rollback.sql switches the registry engine off and keeps every node, edge, provenance and audit row; it does not re-attach the generic mirror, restore client audit_log reads or relax the read check. Enum values cannot be dropped. This source-only batch does not authorize hosted application."
     }
   ]
 }
