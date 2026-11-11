@@ -87,12 +87,13 @@ Indexes:
   However new it is, it never replaces a price: re-running the seed after a
   person recorded a price must not hide that price.
 - The list, the item detail and the price-status filter all read this one
-  current observation. The order is
+  current observation, in this order:
   `(price_avg_centavos is null, checked_on desc, created_at desc, id desc)`.
-- Rows are never updated or deleted. A row trigger rejects UPDATE and DELETE, the
-  way `audit_log` is protected, and a statement trigger rejects TRUNCATE (also
-  when it cascades from `catalogue_items`). A correction is a new `manual` row: with the same or a
-  later `checked_on` than the other priced rows it becomes the current price.
+- Rows are never updated or deleted. A row trigger rejects UPDATE and DELETE,
+  the way `audit_log` is protected, and a statement trigger rejects TRUNCATE
+  (also when it cascades from `catalogue_items`). A correction is a new
+  `manual` row: with the same or a later `checked_on` than the other priced
+  rows it becomes the current price.
 - A future `checked_on` is refused, because the newest date wins and such a row
   could never be outvoted.
 
@@ -219,11 +220,10 @@ What an operator does instead (no app code does this):
   and `catalogue_prices`** and prints that it did (or, if it failed, the
   statements to run by hand). Until the planner has statistics for the seeded
   tenant it joins the current-observation subquery to the items row by row.
-  Measured on the local
-  database with the 1,008 seeded items: a list page took 73 ms straight after
-  seeding and 5 ms after `ANALYZE`. For a tenant the statistics did not
-  describe at all (a test tenant seeded inside a transaction), each list
-  request took 1 to 2 s.
+  Measured on the local database with the 1,008 seeded items: a list page took
+  73 ms straight after seeding and 5 ms after `ANALYZE`. For a tenant the
+  statistics did not describe at all (a test tenant seeded inside a
+  transaction), each list request took 1 to 2 s.
 
 ## 5. Catalogue page (`/catalogue`)
 
@@ -233,9 +233,10 @@ What an operator does instead (no app code does this):
 - Search matches code or name (`ilike`, trigram-backed). The filters are trade,
   region and price status (priced / no source / stale / low authority, read from
   the flag tokens of the current observation; an item with no observation at all
-  counts as no source). The region filter ignores letter case and surrounding spaces, and keeps only
-  items with an observation in that region; with "no source" it also lists the
-  items never observed there. 50 rows per page; the URL holds the search state.
+  counts as no source). The region filter ignores letter case and surrounding
+  spaces, and keeps only items with an observation in that region; with "no
+  source" it also lists the items never observed there. 50 rows per page; the
+  URL holds the search state.
 - The search term is capped at 100 characters, and `%`, `_` and `\` in it are
   escaped before the `ilike` pattern is built. The page number is capped.
 - Columns:

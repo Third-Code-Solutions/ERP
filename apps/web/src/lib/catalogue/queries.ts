@@ -124,7 +124,7 @@ export interface CatalogueListResult {
  * are the same region. Postgres lower-cases both sides, so the database's own
  * case rules apply everywhere a region is grouped or compared.
  */
-export const regionKey = sql`lower(trim(${cataloguePrices.region}))`
+const regionKey = sql`lower(trim(${cataloguePrices.region}))`
 
 /** True for a price in `region`, compared as `regionKey` compares it. */
 export function inRegion(region: string): SQL {

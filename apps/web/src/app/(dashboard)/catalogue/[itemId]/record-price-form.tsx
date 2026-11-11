@@ -1,7 +1,7 @@
 'use client'
 
 import { useActionState } from 'react'
-import { CATALOGUE_LIMITS } from '@/lib/catalogue/rules'
+import { CATALOGUE_LIMITS, MAX_CATALOGUE_PRICE_CENTAVOS } from '@/lib/catalogue/rules'
 import { recordCataloguePrice } from '../actions'
 
 type RecordState =
@@ -16,9 +16,6 @@ async function recordPrice(_previous: RecordState, formData: FormData): Promise<
     : { error: result.error, sent: formData }
 }
 
-// PHP 99,999,999,999.99, the most the catalogue stores.
-const MAX_PESOS = '99999999999.99'
-
 /** `today` is today's date in Manila ("YYYY-MM-DD"): a price cannot be dated later. */
 export function RecordPriceForm({ itemId, today }: { itemId: string; today: string }) {
   const [state, record, pending] = useActionState(recordPrice, null)
@@ -31,7 +28,8 @@ export function RecordPriceForm({ itemId, today }: { itemId: string; today: stri
     name,
     type: 'number',
     min: 0,
-    max: MAX_PESOS,
+    // The most the catalogue stores, in pesos: 99999999999.99.
+    max: MAX_CATALOGUE_PRICE_CENTAVOS / 100,
     step: '0.01',
     defaultValue: typed(name),
     'aria-describedby': 'price-hint',

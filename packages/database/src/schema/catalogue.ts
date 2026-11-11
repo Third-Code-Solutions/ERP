@@ -114,6 +114,4 @@ export const cataloguePrices = pgTable(
 )
 
 export type CatalogueItem = typeof catalogueItems.$inferSelect
-export type CatalogueItemInsert = typeof catalogueItems.$inferInsert
 export type CataloguePrice = typeof cataloguePrices.$inferSelect
-export type CataloguePriceInsert = typeof cataloguePrices.$inferInsert
