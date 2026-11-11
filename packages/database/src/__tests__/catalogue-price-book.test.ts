@@ -103,20 +103,28 @@ const runtimeDescribe = DATABASE_URL ? describe : describe.skip
 
 type Tx = postgres.TransactionSql
 
-async function failureCode(tx: Tx, statement: string, parameters: string[] = []) {
+/** How the database refused a statement; both fields are undefined when it ran. */
+async function failure(tx: Tx, statement: string, parameters: string[] = []) {
   await tx.unsafe('savepoint catalogue_probe')
   let code: string | undefined
+  let constraint: string | undefined
   try {
     await tx.unsafe(statement, parameters)
   } catch (error) {
-    if (typeof error === 'object' && error !== null && 'code' in error) {
-      const candidate = error.code
-      if (typeof candidate === 'string') code = candidate
+    if (typeof error === 'object' && error !== null) {
+      if ('code' in error && typeof error.code === 'string') code = error.code
+      if ('constraint_name' in error && typeof error.constraint_name === 'string') {
+        constraint = error.constraint_name
+      }
     }
   }
   await tx.unsafe('rollback to savepoint catalogue_probe')
   await tx.unsafe('release savepoint catalogue_probe')
-  return code
+  return { code, constraint }
+}
+
+async function failureCode(tx: Tx, statement: string, parameters: string[] = []) {
+  return (await failure(tx, statement, parameters)).code
 }
 
 async function insertItem(tx: Tx, tenantId: string, code = 'CN-0001'): Promise<string> {
@@ -187,27 +195,42 @@ runtimeDescribe('catalogue price book (database)', () => {
   it('enforces the item rules', async () => {
     await inRollback(sql, async (tx) => {
       const { tenantA, tenantB } = await seedTwoTenants(tx)
+      // `values` is the list after the tenant, without the closing parenthesis.
       const item = (values: string) =>
-        failureCode(tx, `insert into public.catalogue_items ${ITEM_COLUMNS} values ($1::uuid, ${values})`, [tenantA])
+        failure(tx, `insert into public.catalogue_items ${ITEM_COLUMNS} values ($1::uuid, ${values})`, [tenantA])
 
-      expect(await item(`'CN-0001', 'Cement', 'concrete', 'bag', null)`)).toBeUndefined()
-      expect(await item(`'SUP-12', 'Supplier item', 'paint', 'pc/month', repeat('x', 2000))`)).toBeUndefined()
-      for (const invalid of [
-        `'cn-0001', 'Cement', 'concrete', 'bag', null`,
-        `'CN-001', 'Cement', 'concrete', 'bag', null`,
-        `'CN-0001', ' Cement ', 'concrete', 'bag', null`,
-        `'CN-0001', '', 'concrete', 'bag', null`,
-        `'CN-0001', repeat('x', 301), 'concrete', 'bag', null`,
-        `'CN-0001', 'Cement', 'carpentry', 'bag', null`,
-        `'CN-0001', 'Cement', 'concrete', '', null`,
-        `'CN-0001', 'Cement', 'concrete', repeat('x', 21), null`,
-        `'CN-0001', 'Cement', 'concrete', 'bag', repeat('x', 2001)`,
+      // Rows at the limits are accepted: the refusals below are not syntax errors.
+      for (const valid of [
+        `'CN-0001', 'Cement', 'concrete', 'bag', null`,
+        `'SUP-12', 'Supplier item', 'paint', 'pc/month', repeat('x', 2000)`,
+        `'SUP-123456789012', repeat('x', 300), 'equipment', repeat('x', 20), null`,
       ]) {
-        expect(await item(invalid), invalid).toBe('23514')
+        expect(await item(valid), valid).toEqual({ code: undefined, constraint: undefined })
+      }
+      // Each bad row is refused by the one check written for it.
+      for (const [invalid, constraint] of [
+        [`'cn-0001', 'Cement', 'concrete', 'bag', null`, 'catalogue_items_code_format'],
+        [`'CN-001', 'Cement', 'concrete', 'bag', null`, 'catalogue_items_code_format'],
+        [`'SUP-', 'Cement', 'concrete', 'bag', null`, 'catalogue_items_code_format'],
+        [`'CN-0001', ' Cement ', 'concrete', 'bag', null`, 'catalogue_items_name_check'],
+        [`'CN-0001', '', 'concrete', 'bag', null`, 'catalogue_items_name_check'],
+        [`'CN-0001', repeat('x', 301), 'concrete', 'bag', null`, 'catalogue_items_name_check'],
+        [`'CN-0001', 'Cement', 'carpentry', 'bag', null`, 'catalogue_items_trade_check'],
+        [`'CN-0001', 'Cement', 'concrete', '', null`, 'catalogue_items_unit_length'],
+        [`'CN-0001', 'Cement', 'concrete', repeat('x', 21), null`, 'catalogue_items_unit_length'],
+        [
+          `'CN-0001', 'Cement', 'concrete', 'bag', repeat('x', 2001)`,
+          'catalogue_items_specification_length',
+        ],
+      ] as const) {
+        expect(await item(invalid), invalid).toEqual({ code: '23514', constraint })
       }
 
       await insertItem(tx, tenantA, 'CN-0002')
-      expect(await item(`'CN-0002', 'Again', 'concrete', 'bag', null`)).toBe('23505')
+      expect(await item(`'CN-0002', 'Again', 'concrete', 'bag', null`)).toEqual({
+        code: '23505',
+        constraint: 'ux_catalogue_items_tenant_code',
+      })
       // The same code is free in another tenant.
       await insertItem(tx, tenantB, 'CN-0002')
     })
@@ -218,7 +241,7 @@ runtimeDescribe('catalogue price book (database)', () => {
       const { tenantA } = await seedTwoTenants(tx)
       const itemId = await insertItem(tx, tenantA)
       const price = (values: string) =>
-        failureCode(
+        failure(
           tx,
           `insert into public.catalogue_prices ${PRICE_COLUMNS} values ($1::uuid, $2::uuid, ${values})`,
           [tenantA, itemId]
@@ -232,28 +255,44 @@ runtimeDescribe('catalogue price book (database)', () => {
         return `${row.low}, ${row.avg}, ${row.high}, ${row.kind}, ${row.checked}, ${row.region}, ${row.url}, ${row.basis}, ${row.source}, ${row.flag}, ${row.notes}`
       }
 
-      expect(await price(ok())).toBeUndefined()
-      expect(await price(ok({ low: 'null', avg: 'null', high: 'null', url: 'null' }))).toBeUndefined()
-      expect(await price(ok({ low: '0', avg: '0', high: '0', url: `'http://example.com'` }))).toBeUndefined()
-      for (const invalid of [
-        { avg: 'null' },
-        { low: 'null' },
-        { low: '151' },
-        { avg: '201' },
-        { low: '-1' },
-        { kind: `'guess'` },
-        { region: `''` },
-        { region: `repeat('x', 41)` },
-        { url: `'ftp://example.com/a'` },
-        { url: `'javascript:alert(1)'` },
-        { url: `'https://example.com/' || repeat('a', 2000)` },
-        { basis: `repeat('x', 61)` },
-        { source: `repeat('x', 201)` },
-        { flag: `repeat('x', 201)` },
-        { notes: `repeat('x', 2001)` },
-        { checked: `${MANILA_TODAY} + 1` },
+      // Rows at the limits are accepted: the refusals below are not syntax errors.
+      for (const valid of [
+        {},
+        { low: 'null', avg: 'null', high: 'null', url: 'null' },
+        { low: '0', avg: '0', high: '0', url: `'http://example.com'` },
+        {
+          region: `repeat('x', 40)`, basis: `repeat('x', 60)`, source: `repeat('x', 200)`,
+          flag: `repeat('x', 200)`, notes: `repeat('x', 2000)`,
+        },
       ]) {
-        expect(await price(ok(invalid)), JSON.stringify(invalid)).toBe('23514')
+        expect(await price(ok(valid)), JSON.stringify(valid)).toEqual({
+          code: undefined,
+          constraint: undefined,
+        })
+      }
+      // Each bad row is refused by the one check written for it.
+      for (const [invalid, constraint] of [
+        [{ avg: 'null' }, 'catalogue_prices_price_range'],
+        [{ low: 'null' }, 'catalogue_prices_price_range'],
+        [{ low: '151' }, 'catalogue_prices_price_range'],
+        [{ avg: '201' }, 'catalogue_prices_price_range'],
+        [{ low: '-1' }, 'catalogue_prices_price_range'],
+        [{ kind: `'guess'` }, 'catalogue_prices_source_kind_check'],
+        [{ region: `''` }, 'catalogue_prices_region_length'],
+        [{ region: `repeat('x', 41)` }, 'catalogue_prices_region_length'],
+        [{ url: `'ftp://example.com/a'` }, 'catalogue_prices_source_url_check'],
+        [{ url: `'javascript:alert(1)'` }, 'catalogue_prices_source_url_check'],
+        [{ url: `'https://example.com/' || repeat('a', 2000)` }, 'catalogue_prices_source_url_check'],
+        [{ basis: `repeat('x', 61)` }, 'catalogue_prices_basis_length'],
+        [{ source: `repeat('x', 201)` }, 'catalogue_prices_source_name_length'],
+        [{ flag: `repeat('x', 201)` }, 'catalogue_prices_flag_length'],
+        [{ notes: `repeat('x', 2001)` }, 'catalogue_prices_notes_length'],
+        [{ checked: `${MANILA_TODAY} + 1` }, 'catalogue_prices_checked_on_not_future'],
+      ] as const) {
+        expect(await price(ok(invalid)), JSON.stringify(invalid)).toEqual({
+          code: '23514',
+          constraint,
+        })
       }
     })
   })
