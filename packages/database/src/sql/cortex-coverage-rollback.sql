@@ -2,7 +2,8 @@
 -- Cortex coverage rollback (Batches 0-1). docs/erp/specs/cortex-coverage.md §7.
 --
 -- Run by hand, as one transaction, under the migration timeouts:
---   psql "$DATABASE_URL" --single-transaction -v ON_ERROR_STOP=1 --     -f packages/database/src/sql/cortex-coverage-rollback.sql
+--   psql "$DATABASE_URL" --single-transaction -v ON_ERROR_STOP=1 \
+--     -f packages/database/src/sql/cortex-coverage-rollback.sql
 --
 -- Switches the registry engine off. The 23 registry tables stop mirroring:
 -- their nodes keep their current (allowlisted) attributes and go stale until
