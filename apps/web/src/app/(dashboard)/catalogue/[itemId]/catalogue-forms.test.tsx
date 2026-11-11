@@ -107,7 +107,10 @@ describe('catalogue admin forms', () => {
     })
 
     it('confirms a recorded price and clears the form for the next one', async () => {
-      mocks.record.mockResolvedValue({ ok: true, data: { id: 'price-1' } })
+      mocks.record.mockResolvedValue({
+        ok: true,
+        data: { id: 'price-1', region: 'Cebu', current: true },
+      })
 
       const html = await submitted(element, form({ price_php: '250', region: 'Cebu' }))
 
@@ -115,6 +118,19 @@ describe('catalogue admin forms', () => {
       expect(html).not.toContain('role="alert"')
       expect(html).toMatch(/name="price_php"[^>]*value=""/)
       expect(html).toMatch(/name="region"[^>]*value="NCR"/)
+    })
+
+    it('says when the recorded price is not the current one', async () => {
+      mocks.record.mockResolvedValue({
+        ok: true,
+        data: { id: 'price-1', region: 'Cebu', current: false },
+      })
+
+      const html = await submitted(element, form({ price_php: '250', region: 'Cebu' }))
+
+      expect(html).toContain(
+        '<p role="status" class="finance-form-hint">Price recorded. It is not the current price in Cebu: a price checked on a later date is already recorded there.</p>',
+      )
     })
 
     it('disables the button while the price is being recorded', () => {

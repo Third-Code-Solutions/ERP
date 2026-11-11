@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, gt, isNotNull } from 'drizzle-orm'
 import { z } from 'zod'
 import { requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
@@ -212,10 +212,14 @@ function readPriceRange(input: PriceTexts): CataloguePriceRange | string {
   return problem ? sentence(problem) : result
 }
 
-/** Record price: appends a `manual` observation; nothing is ever overwritten. */
+/**
+ * Record price: appends a `manual` observation; nothing is ever overwritten.
+ * `current` is false when a price checked on a later date is already recorded
+ * for the region, so the new one does not become the current price.
+ */
 export async function recordCataloguePrice(
   formData: FormData,
-): Promise<CatalogueResult<{ id: string }>> {
+): Promise<CatalogueResult<{ id: string; region: string; current: boolean }>> {
   const profile = await requireUserProfile()
   const denied = catalogueAccessDenial(profile.role, 'catalogue.manage')
   if (denied) return denied
@@ -255,9 +259,9 @@ export async function recordCataloguePrice(
     checked_on: input.checked_on,
   }
 
-  let priceId: string | null
+  let recorded: { id: string; current: boolean } | null
   try {
-    priceId = await db.transaction(async (tx) => {
+    recorded = await db.transaction(async (tx) => {
       await stampActorInTransaction(tx, profile.user.id)
       const [item] = await tx
         .select({ id: catalogueItems.id })
@@ -284,7 +288,21 @@ export async function recordCataloguePrice(
         action: 'create',
         diff: computeDiff({}, observation),
       })
-      return created.id
+      // The current price is the priced row with the latest checked date.
+      const [later] = await tx
+        .select({ id: cataloguePrices.id })
+        .from(cataloguePrices)
+        .where(
+          and(
+            eq(cataloguePrices.tenant_id, profile.tenantId),
+            eq(cataloguePrices.item_id, input.item_id),
+            eq(cataloguePrices.region, input.region),
+            isNotNull(cataloguePrices.price_avg_centavos),
+            gt(cataloguePrices.checked_on, input.checked_on),
+          ),
+        )
+        .limit(1)
+      return { id: created.id, current: !later }
     })
   } catch (error) {
     console.error('[catalogue:recordCataloguePrice] failed', error)
@@ -294,9 +312,9 @@ export async function recordCataloguePrice(
       error: safeActionError(error, 'Could not record the price.'),
     }
   }
-  if (!priceId) return NOT_FOUND
+  if (!recorded) return NOT_FOUND
 
   revalidatePath('/catalogue')
   revalidatePath(`/catalogue/${input.item_id}`)
-  return { ok: true, data: { id: priceId } }
+  return { ok: true, data: { ...recorded, region: input.region } }
 }

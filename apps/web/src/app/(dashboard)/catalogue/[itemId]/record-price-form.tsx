@@ -4,11 +4,16 @@ import { useActionState } from 'react'
 import { CATALOGUE_LIMITS } from '@/lib/catalogue/rules'
 import { recordCataloguePrice } from '../actions'
 
-type RecordState = { recorded: true } | { error: string; sent: FormData } | null
+type RecordState =
+  | { recorded: true; current: boolean; region: string }
+  | { error: string; sent: FormData }
+  | null
 
 async function recordPrice(_previous: RecordState, formData: FormData): Promise<RecordState> {
   const result = await recordCataloguePrice(formData)
-  return result.ok ? { recorded: true } : { error: result.error, sent: formData }
+  return result.ok
+    ? { recorded: true, current: result.data.current, region: result.data.region }
+    : { error: result.error, sent: formData }
 }
 
 // PHP 99,999,999,999.99, the most the catalogue stores.
@@ -117,7 +122,9 @@ export function RecordPriceForm({ itemId, today }: { itemId: string; today: stri
       ) : null}
       {state && 'recorded' in state ? (
         <p role="status" className="finance-form-hint">
-          Price recorded.
+          {state.current
+            ? 'Price recorded.'
+            : `Price recorded. It is not the current price in ${state.region}: a price checked on a later date is already recorded there.`}
         </p>
       ) : null}
     </form>

@@ -64,18 +64,31 @@ function argOf(calls: Call[], method: string): unknown {
 
 const paramsOf = (where: unknown) => new PgDialect().sqlToQuery(where as SQL).params
 
-/** Runs the action's transaction against a fake `tx`. */
-function useTransaction({ selected, inserted = [] }: { selected: unknown[]; inserted?: unknown[] }) {
+/**
+ * Runs the action's transaction against a fake `tx`. The first select reads
+ * `selected`; any later one (record price looking for a later-dated price)
+ * reads `later`.
+ */
+function useTransaction({
+  selected,
+  inserted = [],
+  later = [],
+}: {
+  selected: unknown[]
+  inserted?: unknown[]
+  later?: unknown[]
+}) {
   const select = chain(selected)
+  const laterSelect = chain(later)
   const update = chain(undefined)
   const insert = chain(inserted)
   const tx = {
-    select: vi.fn(() => select.builder),
+    select: vi.fn().mockReturnValueOnce(select.builder).mockReturnValue(laterSelect.builder),
     update: vi.fn(() => update.builder),
     insert: vi.fn(() => insert.builder),
   }
   mocks.db.transaction.mockImplementation((run: (handle: typeof tx) => unknown) => run(tx))
-  return { tx, select, update, insert }
+  return { tx, select, laterSelect, update, insert }
 }
 
 function form(fields: Record<string, string>): FormData {
@@ -271,7 +284,7 @@ describe('recordCataloguePrice', () => {
       source_url: null,
       checked_on: '2026-11-05',
     }
-    expect(result).toEqual({ ok: true, data: { id: PRICE } })
+    expect(result).toEqual({ ok: true, data: { id: PRICE, region: 'NCR', current: true } })
     expect(argOf(insert.calls, 'values')).toEqual({
       ...observation,
       tenant_id: TENANT,
@@ -293,6 +306,25 @@ describe('recordCataloguePrice', () => {
       source_kind: { after: 'manual' },
     })
     expect(mocks.revalidatePath.mock.calls).toEqual([['/catalogue'], [`/catalogue/${ITEM}`]])
+  })
+
+  it('says the price is not current when a later-dated price is recorded for the region', async () => {
+    const { laterSelect } = useTransaction({
+      selected: [{ id: ITEM }],
+      inserted: [{ id: PRICE }],
+      later: [{ id: '66666666-6666-4666-8666-666666666666' }],
+    })
+
+    const result = await recordCataloguePrice(form(PRICE_FORM))
+
+    expect(result).toEqual({ ok: true, data: { id: PRICE, region: 'NCR', current: false } })
+    // A priced row of the same tenant, item and region, checked after this one.
+    expect(paramsOf(argOf(laterSelect.calls, 'where'))).toEqual([
+      TENANT,
+      ITEM,
+      'NCR',
+      '2026-11-05',
+    ])
   })
 
   it('accepts low, average and high, cleans text and stores the parsed URL', async () => {
