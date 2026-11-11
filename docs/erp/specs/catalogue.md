@@ -85,8 +85,9 @@ Indexes:
 - The list, the item detail and the price-status filter all read this one
   current observation. The order is
   `(price_avg_centavos is null, checked_on desc, created_at desc)`.
-- Rows are never updated or deleted. A trigger rejects UPDATE and DELETE, the way
-  `audit_log` is protected. A correction is a new `manual` row: with the same or a
+- Rows are never updated or deleted. A row trigger rejects UPDATE and DELETE, the
+  way `audit_log` is protected, and a statement trigger rejects TRUNCATE (also
+  when it cascades from `catalogue_items`). A correction is a new `manual` row: with the same or a
   later `checked_on` than the other priced rows it becomes the current price.
 - A future `checked_on` is refused, because the newest date wins and such a row
   could never be outvoted.

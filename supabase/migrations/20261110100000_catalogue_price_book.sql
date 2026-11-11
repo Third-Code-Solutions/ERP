@@ -180,6 +180,23 @@ do $$ begin
   end if;
 end $$;
 
+-- TRUNCATE fires no row triggers, so a statement trigger refuses it as well,
+-- including a TRUNCATE of catalogue_items ... CASCADE. Items are not
+-- append-only (a person edits them), so they get no such trigger.
+do $$ begin
+  if not exists (
+    select 1
+      from pg_trigger
+     where tgname = 'catalogue_prices_no_truncate'
+       and tgrelid = 'public.catalogue_prices'::regclass
+       and not tgisinternal
+  ) then
+    create trigger catalogue_prices_no_truncate
+      before truncate on public.catalogue_prices
+      for each statement execute function public.prevent_catalogue_price_mutation();
+  end if;
+end $$;
+
 do $$
 declare
   table_name text;

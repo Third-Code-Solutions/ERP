@@ -42,8 +42,9 @@ describe('catalogue price book migration', () => {
     expect(executable.endsWith('commit;')).toBe(true)
     expect(executable).toContain("set local lock_timeout = '5s';")
     expect(executable).toContain("set local statement_timeout = '60s';")
+    // "before truncate on" is the trigger that refuses a TRUNCATE, not one.
     expect(executable).not.toMatch(
-      /\bdrop\b|\brename\b|\btruncate\b|delete from|alter column|alter type|update public\./
+      /\bdrop\b|\brename\b|(?<!before )\btruncate\b|delete from|alter column|alter type|update public\./
     )
   })
 
@@ -95,6 +96,13 @@ describe('catalogue price book migration', () => {
   it('makes prices append-only, audited and never future-dated', () => {
     expect(executable).toContain(
       'create trigger catalogue_prices_append_only before update or delete on public.catalogue_prices'
+    )
+    // TRUNCATE fires no row trigger: a statement trigger refuses it.
+    expect(executable).toContain(
+      'create trigger catalogue_prices_no_truncate before truncate on public.catalogue_prices for each statement execute function public.prevent_catalogue_price_mutation();'
+    )
+    expect(executable).toContain(
+      "where tgname = 'catalogue_prices_no_truncate' and tgrelid = 'public.catalogue_prices'::regclass"
     )
     expect(executable).toContain(
       'revoke execute on function public.prevent_catalogue_price_mutation() from public, anon, authenticated;'
@@ -409,7 +417,7 @@ runtimeDescribe('catalogue price book (database)', () => {
     })
   })
 
-  it('rejects UPDATE and DELETE of a price observation, and audits inserts', async () => {
+  it('rejects UPDATE, DELETE and TRUNCATE of price observations, and audits inserts', async () => {
     await inRollback(sql, async (tx) => {
       const { tenantA } = await seedTwoTenants(tx)
       const itemId = await insertItem(tx, tenantA)
@@ -421,6 +429,9 @@ runtimeDescribe('catalogue price book (database)', () => {
       expect(
         await failureCode(tx, `delete from public.catalogue_prices where id = $1::uuid`, [priceId])
       ).toBe('55000')
+      // Nor TRUNCATE, even by the owner, directly or cascading from the items.
+      expect(await failureCode(tx, 'truncate table public.catalogue_prices')).toBe('55000')
+      expect(await failureCode(tx, 'truncate table public.catalogue_items cascade')).toBe('55000')
       // The item cannot be removed from under its history either.
       expect(
         await failureCode(tx, `delete from public.catalogue_items where id = $1::uuid`, [itemId])
