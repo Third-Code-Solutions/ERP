@@ -1131,6 +1131,59 @@ suite('Cortex coverage (Batches 0-1)', () => {
     expect(r.breaks).toBe(0)
   })
 
+  it('fold refresh locks the parent FOR NO KEY UPDATE, so an edge insert (KEY SHARE) is not blocked (two connections)', async () => {
+    const holder = makeSql()
+    const probe = makeSql()
+    let release!: () => void
+    const released = new Promise<void>((resolve) => (release = resolve))
+    let locked!: (id: string) => void
+    const lockedId = new Promise<string>((resolve) => (locked = resolve))
+    // Connection 1 holds the lock cortex_refresh_fold takes on a committed node.
+    const holding = inRollback(holder, async (tx) => {
+      const x = await first(
+        tx,
+        `select id, tenant_id, ref_table, ref_id from cortex_nodes
+          where tenant_id = '${DEMO_TENANT}' and valid_to is null order by id limit 1`
+      )
+      if (!x) throw new Error('no committed node to lock')
+      await tx.unsafe(`
+        create table public.cortex_probe_lock(
+          id uuid primary key default gen_random_uuid(), tenant_id uuid not null, parent_id uuid);
+        insert into public.cortex_mirror_registry(ref_table, fold) values ('cortex_probe_lock',
+          jsonb_build_object('parent_table', '${x.ref_table}', 'fk', 'parent_id', 'key', 'probe', 'items', '[]'::jsonb))`)
+      await tx.unsafe(`select public.cortex_refresh_fold('cortex_probe_lock', '${x.tenant_id}', '${x.ref_id}')`)
+      locked(x.id as string)
+      await released
+    })
+    const endedEarly = holding.then(() => {
+      throw new Error('holder finished before locking')
+    })
+    endedEarly.catch(() => undefined) // settles after release; only the race reads it
+    try {
+      const id = await Promise.race([lockedId, endedEarly])
+      // Connection 2: KEY SHARE (what an edge insert's foreign key takes) is
+      // granted; a second NO KEY UPDATE is refused.
+      const seen = await inRollback(probe, async (tx) => {
+        const keyShare = (await tx.unsafe(
+          `select id from cortex_nodes where id = '${id}' for key share nowait`
+        )) as Rows
+        let noKeyUpdate = 'acquired'
+        try {
+          await tx.unsafe(`select id from cortex_nodes where id = '${id}' for no key update nowait`)
+        } catch (error) {
+          noKeyUpdate = (error as { code?: string }).code ?? 'error'
+        }
+        return { keyShare: keyShare.length, noKeyUpdate }
+      })
+      expect(seen).toEqual({ keyShare: 1, noKeyUpdate: '55P03' })
+    } finally {
+      release()
+      await holding.catch(() => undefined)
+      await holder.end({ timeout: 5 })
+      await probe.end({ timeout: 5 })
+    }
+  })
+
   it('registry engine: lookups, JSON paths, poly and array edges; a moved poly edge closes (synthetic table)', async () => {
     const r = await inRollback(sql, async (tx) => {
       const { tenantA: t, userA } = await seedTwoTenants(tx)

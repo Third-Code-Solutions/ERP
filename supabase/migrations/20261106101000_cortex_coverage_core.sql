@@ -53,10 +53,16 @@ begin
        and v_attrs is not distinct from v_new then
       return v_id;
     end if;
-    update cortex_nodes
-       set title = p_title, summary = p_summary, attributes = v_new,
+    -- Folds come from the row being updated, not the unlocked read above: a
+    -- child fold committed meanwhile is kept (UPDATE re-reads the newest row).
+    update cortex_nodes n
+       set title = p_title, summary = p_summary,
+           attributes = case
+             when coalesce(n.attributes ? 'folds', false) and not coalesce(p_attributes ? 'folds', false)
+               then coalesce(p_attributes, '{}'::jsonb) || jsonb_build_object('folds', n.attributes -> 'folds')
+             else p_attributes end,
            last_verified_at = now(), recorded_at = now(), freshness = 'fresh'
-     where id = v_id;
+     where n.id = v_id;
   end if;
   perform cortex_provenance_append(p_tenant, 'node', v_id, 'mutation', p_origin_ref, p_actor);
   return v_id;
@@ -327,11 +333,12 @@ begin
   select fold into f from public.cortex_mirror_registry where ref_table = p_child_table;
   if f is null or p_parent_id is null then return; end if;
   -- Lock the parent node before counting: a concurrent child write then waits
-  -- and recounts after this one commits, instead of overwriting it.
+  -- and recounts after this one commits, instead of overwriting it. NO KEY
+  -- UPDATE leaves the KEY SHARE an edge insert takes on the node free.
   perform 1 from public.cortex_nodes n
     where n.tenant_id = p_tenant and n.ref_table = f ->> 'parent_table'
       and n.ref_id = p_parent_id and n.valid_to is null
-    for update;
+    for no key update;
   if not found then return; end if;
   select coalesce(string_agg(format('%L, c.%I', col, col), ', '), '') into v_items
     from jsonb_array_elements_text(f -> 'items') col;
