@@ -789,7 +789,15 @@ begin
       v_title := public.cortex_redact_text(n.title, 300);
       v_summary := public.cortex_redact_text(n.summary, 300);
       if r.node_type is not null then
-        v_title := coalesce(public.cortex_redact_text(public.cortex_render_tpl(r.title_tpl, v_attrs), 300), v_title);
+        -- No template: the same fallback as cortex_apply_row. A template column
+        -- the attributes do not keep (name, description) cannot re-render
+        -- here; the old title came from that same column (the legacy mirror,
+        -- 20260614052136, used it too), so it stays, redacted.
+        v_title := coalesce(
+          public.cortex_redact_text(public.cortex_render_tpl(r.title_tpl, v_attrs), 300),
+          case when coalesce(r.title_tpl, '') = ''
+               then initcap(replace(r.node_type::text, '_', ' ')) || ' ' || left(n.ref_id::text, 8) end,
+          v_title);
         v_summary := coalesce(public.cortex_redact_text(public.cortex_render_tpl(r.summary_tpl, v_attrs), 300), v_summary);
       elsif p_table = 'documents' then
         select min(a.artifact_type::text) into v_kyc
@@ -868,7 +876,8 @@ grant execute on function public.auth_can_read_cortex_node_type(public.cortex_no
 --    Left out: personal names, contact details, ids of people or submissions,
 --    free text (description, location, notes, remarks, *_reason) and
 --    reference numbers. Titles use the record's own name or code column,
---    redacted. Every named column must exist, or the migration fails.
+--    redacted, and only NOT NULL columns, so a title never falls back to an
+--    older one. Every named column must exist, or the migration fails.
 --    Registry rows are written first; the trigger swap runs last (step 9b).
 -- ---------------------------------------------------------------------------
 create temporary table cortex_coverage_batch1 on commit drop as
@@ -930,7 +939,9 @@ select * from (values
     array['project_id', 'source_bom_id', 'supersedes_budget_id', 'revision', 'status', 'control_mode',
           'commitment_tolerance_bps', 'currency', 'effective_from', 'total_budget_cents', 'original_gp_margin_bps',
           'submitted_at', 'commercial_approved_at', 'finance_approved_at', 'rejected_at', 'created_at'], 20),
-  ('stock_movements', 'stock_movement', 'cortex_mirror_stock_movement', '{internal_number}', 'Status: {status}',
+  -- internal_number is null until posting, and only drafts can be deleted.
+  ('stock_movements', 'stock_movement', 'cortex_mirror_stock_movement', 'Stock movement {movement_type} {movement_date}',
+    'Status: {status}',
     array['movement_type', 'status', 'internal_number', 'source_warehouse_id', 'target_warehouse_id', 'project_id',
           'movement_date', 'currency', 'posting_journal_entry_id', 'reversal_journal_entry_id', 'posted_at',
           'reversed_at', 'created_at'], 20)

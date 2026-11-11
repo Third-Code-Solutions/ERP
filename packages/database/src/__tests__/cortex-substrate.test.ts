@@ -1454,6 +1454,47 @@ suite('Cortex coverage (Batches 0-1)', () => {
     expect(r.breaks).toBe(0)
   })
 
+  it('SEC-H1: scrub re-titles a deleted draft stock movement from kept columns, never its legacy reason', async () => {
+    const r = await inRollback(sql, async (tx) => {
+      const { tenantA: t, userA } = await seedTwoTenants(tx)
+      const warehouse = await insertId(
+        tx,
+        `insert into warehouses(tenant_id, code, name, created_by) values('${t}', 'SCRUB', 'Scrub WH', '${userA}')`
+      )
+      const movement = await insertId(
+        tx,
+        `insert into stock_movements(tenant_id, movement_type, source_warehouse_id, movement_date, reason, created_by)
+         values('${t}', 'adjustment', '${warehouse}', '2026-07-27', 'Damaged, ask Juan 0917 555 0101', '${userA}')`
+      )
+      const live = await first(
+        tx,
+        `select title from cortex_nodes where ref_table = 'stock_movements' and ref_id = '${movement}' and valid_to is null`
+      )
+      // The pre-Batch-1 generic mirror titled the node with the free-text reason.
+      await tx.unsafe(
+        `update cortex_nodes set title = 'Damaged, ask Juan 0917 555 0101',
+                attributes = attributes || '{"reason": "Damaged, ask Juan"}'::jsonb
+          where ref_table = 'stock_movements' and ref_id = '${movement}'`
+      )
+      await tx.unsafe(`delete from stock_movements where id = '${movement}'`)
+      const page = await first(
+        tx,
+        `select changed, failures from cortex_scrub_nodes('stock_movements', '${t}', 50, null)`
+      )
+      const node = await first(
+        tx,
+        `select title, attributes, valid_to is not null as closed
+           from cortex_nodes where ref_table = 'stock_movements' and ref_id = '${movement}'`
+      )
+      return { live: live.title, page, node }
+    })
+    expect(r.live).toBe('Stock movement adjustment 2026-07-27')
+    expect(r.page).toEqual({ changed: 1, failures: [] })
+    expect(r.node).toMatchObject({ title: 'Stock movement adjustment 2026-07-27', closed: true })
+    expect(r.node.attributes).not.toHaveProperty('reason')
+    expect(JSON.stringify(r.node)).not.toMatch(/Juan|0917|Damaged/)
+  })
+
   it('backfill reports a failing row by table and id and carries on with the page', async () => {
     const r = await inRollback(sql, async (tx) => {
       const { tenantA: t } = await seedTwoTenants(tx)
@@ -1635,7 +1676,7 @@ suite('Cortex coverage (Batches 0-1)', () => {
     expect(r.breaks).toBe(0)
   })
 
-  it('registry guard: every named column exists, and cortex_mirror_r and registry rows match one to one', async () => {
+  it('registry guard: every named column exists, title columns are NOT NULL, and cortex_mirror_r and registry rows match one to one', async () => {
     const missing = (await sql.unsafe(
       `with named as (
          select r.ref_table as tbl, unnest(r.attr_cols) as col, 'attr_cols' as source from cortex_mirror_registry r
@@ -1666,6 +1707,18 @@ suite('Cortex coverage (Batches 0-1)', () => {
         order by 1, 2`
     )) as Rows
     expect(missing).toEqual([])
+
+    // A title placeholder that can be null would fall back to an older title in the scrub.
+    const nullableTitleCols = (await sql.unsafe(
+      `select r.ref_table as tbl, m.col
+         from cortex_mirror_registry r
+         cross join lateral (select (regexp_matches(r.title_tpl, '\\{([a-z0-9_]+)\\}', 'g'))[1] as col) m
+         join information_schema.columns c
+           on c.table_schema = 'public' and c.table_name = r.ref_table and c.column_name = m.col
+        where c.is_nullable = 'YES'
+        order by 1, 2`
+    )) as Rows
+    expect(nullableTitleCols).toEqual([])
 
     const pairs = (await sql.unsafe(
       `select coalesce(t.tbl, r.ref_table) as tbl, t.tbl is not null as has_trigger, r.ref_table is not null as has_row

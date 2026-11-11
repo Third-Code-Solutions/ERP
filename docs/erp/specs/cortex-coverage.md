@@ -119,7 +119,7 @@ Both new tables are global, have RLS enabled and forced, `revoke all privileges 
 - free text (`description`, `location`, `remarks`, `notes`, `*_notes`, `*_reason`) and `cost_entries.reference_number`;
 - tokens, hashes, storage paths, and `jsonb`, `json`, array, `bytea` and `vector` columns.
 
-A title or summary template may still render one of the table's columns (for example `{description}` on scope items or `{full_name}` on contacts). It is redacted and cut to 300 characters, and it is not copied into `attributes`.
+A title or summary template may still render one of the table's columns (for example `{description}` on scope items or `{full_name}` on contacts). It is redacted and cut to 300 characters, and it is not copied into `attributes`. Every title placeholder is a NOT NULL column (guard test), so no title falls back to an older one: stock movements are titled `Stock movement {movement_type} {movement_date}`, because `internal_number` is null on drafts, the only movements that can be deleted. A table with no title template gets `<Type> <id8>`, in the mirror and in the scrub.
 
 Edge columns (`project_id`, `created_by`, …) are used only when their type is `uuid`; a failed cast would raise inside the defensive wrapper and silently drop the whole row.
 
