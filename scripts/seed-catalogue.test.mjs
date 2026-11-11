@@ -12,6 +12,7 @@ import {
   describeSeedRun,
   loadCatalogue,
   parseCliArguments,
+  runSeed,
 } from './seed-catalogue.mjs'
 
 const repoRoot = resolve(fileURLToPath(new URL('..', import.meta.url)))
@@ -278,6 +279,60 @@ test('after the load, both catalogue tables are analysed, one statement each', a
   await analyzeCatalogue({ unsafe: async (query) => statements.push(query) })
 
   assert.deepEqual(statements, ['analyze public.catalogue_items', 'analyze public.catalogue_prices'])
+})
+
+/** A postgres.js stand-in for runSeed: the load replies as an empty seed, ANALYZE runs `analyze`. */
+function seedConnection(analyze) {
+  const calls = []
+  const replies = [[{ id: TENANT }], [{ count: 0 }], [], [], [{}], []]
+  return {
+    calls,
+    sql: {
+      begin: async (work) => work({ unsafe: async () => replies.shift() }),
+      unsafe: async (query) => {
+        calls.push(query)
+        return analyze(query)
+      },
+      end: async () => {
+        calls.push('end')
+      },
+    },
+  }
+}
+
+test('a run that loads and analyses closes the connection and reports the ANALYZE', async (t) => {
+  const log = t.mock.method(console, 'log', () => {})
+  const { calls, sql } = seedConnection(async () => [])
+
+  await runSeed(sql, { tenantId: TENANT, rows: [] })
+
+  assert.deepEqual(calls, ['analyze public.catalogue_items', 'analyze public.catalogue_prices', 'end'])
+  assert.match(log.mock.calls.at(-1).arguments[0], /^Ran ANALYZE on public\.catalogue_items and public\.catalogue_prices\.$/)
+})
+
+test('a failed ANALYZE keeps the load, exits 1, prints the statements to run and still closes the connection', async (t) => {
+  const log = t.mock.method(console, 'log', () => {})
+  const error = t.mock.method(console, 'error', () => {})
+  const { calls, sql } = seedConnection(async () => {
+    throw new Error('permission denied for table catalogue_items')
+  })
+  const exitCode = process.exitCode
+
+  try {
+    await runSeed(sql, { tenantId: TENANT, rows: [] })
+    assert.equal(process.exitCode, 1)
+  } finally {
+    process.exitCode = exitCode
+  }
+
+  assert.deepEqual(calls, ['analyze public.catalogue_items', 'end'])
+  assert.equal(error.mock.callCount(), 1)
+  assert.equal(
+    error.mock.calls[0].arguments[0],
+    'The load is committed, but ANALYZE failed (permission denied for table catalogue_items). ' +
+      'Run it by hand: analyze public.catalogue_items; analyze public.catalogue_prices;'
+  )
+  assert.ok(log.mock.calls.every((call) => !/Ran ANALYZE/.test(call.arguments[0])))
 })
 
 test('the seed stops before writing when the tenant does not exist', async () => {

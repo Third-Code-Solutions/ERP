@@ -154,24 +154,13 @@ function printTradeCounts(rows) {
   }
 }
 
-async function main() {
-  const { tenantId, dryRun, directory } = parseCliArguments(process.argv.slice(2))
-  const { rows, files } = loadCatalogue(directory)
-  printTradeCounts(rows)
-
-  if (dryRun) {
-    console.log('Dry run: every row is valid; nothing was written.')
-    return
-  }
-
-  const databaseUrl = process.env.DATABASE_URL?.trim()
-  if (!databaseUrl) throw new Error('DATABASE_URL must be set in the environment')
-  const postgres = createRequire(join(repoRoot, 'packages', 'database', 'package.json'))(
-    'postgres'
-  )
-  const sql = postgres(databaseUrl, { prepare: false, max: 1, connect_timeout: 10, idle_timeout: 5 })
+/**
+ * Loads `rows` into the tenant in one transaction on `sql`, then runs ANALYZE,
+ * and always closes `sql`. A failed ANALYZE leaves the committed load in place,
+ * sets exit code 1 and prints the statements to run by hand.
+ */
+export async function runSeed(sql, { tenantId, rows, source }) {
   try {
-    const source = describeSeedRun(directory, files)
     const counts = await sql.begin((transaction) =>
       seedCatalogue(transaction, { tenantId, rows, source })
     )
@@ -206,6 +195,26 @@ async function main() {
   } finally {
     await sql.end({ timeout: 5 })
   }
+}
+
+async function main() {
+  const { tenantId, dryRun, directory } = parseCliArguments(process.argv.slice(2))
+  const { rows, files } = loadCatalogue(directory)
+  printTradeCounts(rows)
+
+  if (dryRun) {
+    console.log('Dry run: every row is valid; nothing was written.')
+    return
+  }
+
+  const databaseUrl = process.env.DATABASE_URL?.trim()
+  if (!databaseUrl) throw new Error('DATABASE_URL must be set in the environment')
+  const source = describeSeedRun(directory, files)
+  const postgres = createRequire(join(repoRoot, 'packages', 'database', 'package.json'))(
+    'postgres'
+  )
+  const sql = postgres(databaseUrl, { prepare: false, max: 1, connect_timeout: 10, idle_timeout: 5 })
+  await runSeed(sql, { tenantId, rows, source })
 }
 
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
