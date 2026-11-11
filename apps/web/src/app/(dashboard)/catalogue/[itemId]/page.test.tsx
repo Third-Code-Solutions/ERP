@@ -225,6 +225,39 @@ describe('CatalogueItemPage', () => {
 
     expect(html).toContain('Only the newest 2 entries are shown; older ones are not listed here.')
     expect(html).not.toContain('2 entries.')
+    expect(html).not.toContain('pinned at the top')
+  })
+
+  it('pins a current entry older than the entries shown above them, marked Current', async () => {
+    // NO_SOURCE is the current entry of "National" but fell outside the cap.
+    mocks.detail.mockResolvedValue({
+      ok: true,
+      data: {
+        item: ITEM,
+        history: [NEWER, OLDER],
+        historyCapped: true,
+        current: [NEWER, NO_SOURCE],
+      },
+    })
+
+    const html = await render()
+    const rows = (html.split('<tbody>')[1] ?? '').split('<tr>').slice(1)
+    const current = '<span class="finance-status finance-status-open">Current</span>'
+
+    expect(html).toContain(
+      'Only the newest 2 entries are shown; older ones are not listed here, except the current entry of a region, which is pinned at the top.',
+    )
+    // The pinned entry first, then the history newest first; nothing twice.
+    expect(rows).toHaveLength(3)
+    expect(rows[0]).toContain(`<td>National ${current}</td>`)
+    expect(rows[0]).toContain(
+      '<span class="finance-cell-detail">Older than the entries listed below</span>',
+    )
+    expect(rows[0]).toContain(`<td>${NO_PRICE_NOTE}</td>`)
+    expect(rows[1]).toContain(`<td>NCR ${current}</td>`)
+    expect(rows[1]).not.toContain('Older than the entries listed below')
+    expect(rows[2]).toContain('<td>NCR</td>')
+    expect(html.match(/Older than the entries listed below/g)).toHaveLength(1)
   })
 
   it('offers no form to a reader without catalogue.manage', async () => {

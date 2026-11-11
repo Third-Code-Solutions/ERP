@@ -69,16 +69,68 @@ function ItemIdentity({ item }: { item: CatalogueItem }) {
   )
 }
 
+function PriceRow({
+  price,
+  isCurrent,
+  pinned = false,
+}: {
+  price: CataloguePrice
+  isCurrent: boolean
+  /** A current entry older than the history shown, pinned above it. */
+  pinned?: boolean
+}) {
+  return (
+    <tr>
+      <td>
+        <strong>{formatDate(price.checked_on)}</strong>
+        <span className="finance-cell-detail">
+          {SOURCE_KIND_LABELS[price.source_kind] ?? price.source_kind}
+        </span>
+        {pinned ? (
+          <span className="finance-cell-detail">Older than the entries listed below</span>
+        ) : null}
+      </td>
+      <td>
+        {price.region}
+        {isCurrent ? (
+          <>
+            {' '}
+            <span className="finance-status finance-status-open">Current</span>
+          </>
+        ) : null}
+      </td>
+      <td className="currency">{pesos(price.price_low_centavos)}</td>
+      <td className="currency">{pesos(price.price_avg_centavos)}</td>
+      <td className="currency">{pesos(price.price_high_centavos)}</td>
+      <td>{basisText(price.price_basis)}</td>
+      <td>
+        <SourceLink url={price.source_url} name={price.source_name} />
+        {price.source_url && price.source_name ? (
+          <span className="finance-cell-detail">{price.source_name}</span>
+        ) : null}
+      </td>
+      <td>
+        <FlagChips flags={splitCatalogueFlags(price.flag)} />
+      </td>
+      <td>{price.notes ?? '—'}</td>
+    </tr>
+  )
+}
+
 function PriceHistory({
   history,
   capped,
-  currentIds,
+  current,
 }: {
   history: CataloguePrice[]
   capped: boolean
-  /** The entries that are the current price in their region. */
-  currentIds: ReadonlySet<string>
+  /** The current entry of each region, read from every observation. */
+  current: CataloguePrice[]
 }) {
+  const currentIds = new Set(current.map((price) => price.id))
+  const shownIds = new Set(history.map((price) => price.id))
+  // A region's current entry can be older than the capped history: pin it on top.
+  const pinned = current.filter((price) => !shownIds.has(price.id))
   return (
     <section className="finance-section">
       <div className="finance-section-heading">
@@ -88,7 +140,11 @@ function PriceHistory({
         </div>
         <p>
           {capped
-            ? `Only the newest ${history.length} entries are shown; older ones are not listed here.`
+            ? `Only the newest ${history.length} entries are shown; older ones are not listed here${
+                pinned.length > 0
+                  ? ', except the current entry of a region, which is pinned at the top.'
+                  : '.'
+              }`
             : `${history.length} ${history.length === 1 ? 'entry' : 'entries'}.`}{' '}
           In each region the current entry, marked Current, is the newest one with a price, or
           the newest one where no price was ever found there.
@@ -115,38 +171,11 @@ function PriceHistory({
               </tr>
             </thead>
             <tbody>
+              {pinned.map((price) => (
+                <PriceRow key={price.id} price={price} isCurrent pinned />
+              ))}
               {history.map((price) => (
-                <tr key={price.id}>
-                  <td>
-                    <strong>{formatDate(price.checked_on)}</strong>
-                    <span className="finance-cell-detail">
-                      {SOURCE_KIND_LABELS[price.source_kind] ?? price.source_kind}
-                    </span>
-                  </td>
-                  <td>
-                    {price.region}
-                    {currentIds.has(price.id) ? (
-                      <>
-                        {' '}
-                        <span className="finance-status finance-status-open">Current</span>
-                      </>
-                    ) : null}
-                  </td>
-                  <td className="currency">{pesos(price.price_low_centavos)}</td>
-                  <td className="currency">{pesos(price.price_avg_centavos)}</td>
-                  <td className="currency">{pesos(price.price_high_centavos)}</td>
-                  <td>{basisText(price.price_basis)}</td>
-                  <td>
-                    <SourceLink url={price.source_url} name={price.source_name} />
-                    {price.source_url && price.source_name ? (
-                      <span className="finance-cell-detail">{price.source_name}</span>
-                    ) : null}
-                  </td>
-                  <td>
-                    <FlagChips flags={splitCatalogueFlags(price.flag)} />
-                  </td>
-                  <td>{price.notes ?? '—'}</td>
-                </tr>
+                <PriceRow key={price.id} price={price} isCurrent={currentIds.has(price.id)} />
               ))}
             </tbody>
           </table>
@@ -194,11 +223,7 @@ export default async function CatalogueItemPage({
       </div>
 
       <ItemIdentity item={item} />
-      <PriceHistory
-        history={history}
-        capped={historyCapped}
-        currentIds={new Set(current.map((price) => price.id))}
-      />
+      <PriceHistory history={history} capped={historyCapped} current={current} />
 
       {can(profile.role, 'catalogue.manage') ? (
         <>

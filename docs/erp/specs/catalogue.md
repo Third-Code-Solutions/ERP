@@ -204,7 +204,9 @@ Added after the security review of PR #146 (2026-11-10).
   up to the newest 500 (the page says when older ones are left out).
   The entry that is current in its region carries a "Current" chip, in words.
   Which entry is current is read from all of the item's observations, not only
-  the 500 shown, by the same `DISTINCT ON` rule as the list.
+  the 500 shown, by the same `DISTINCT ON` rule as the list. A current entry
+  older than the 500 shown is pinned above them, marked Current, and the cap
+  note says so.
 - Gate: `catalogue.read`. The page returns not-found while `ERP_CATALOGUE_ENABLED`
   is not `true` (default off). Flags go on only after `smoke:prod` passes.
 
