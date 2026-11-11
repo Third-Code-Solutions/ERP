@@ -8,8 +8,9 @@
 --
 -- SELECT is revoked from the client roles, and the tenant read policy is
 -- replaced by the server-only deny policy (20260817110000), so a later
--- re-grant cannot quietly re-open tenant reads. RLS stays forced and the
--- no-update/no-delete rules stay.
+-- re-grant cannot quietly re-open tenant reads. RLS, already enabled, is
+-- now forced too (it binds the table owner); the no-update/no-delete rules
+-- stay.
 begin;
 set local lock_timeout = '5s';
 set local statement_timeout = '60s';

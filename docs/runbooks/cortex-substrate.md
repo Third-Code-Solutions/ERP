@@ -3,7 +3,8 @@
 **Owner:** Platform / AI
 **Tables:** `cortex_nodes`, `cortex_edges`, `cortex_provenance`
 **Source of record:** `supabase/migrations/` (authoritative; latest: the cortex
-coverage batches `20261106100000` and `20261106101000`), typed by
+coverage Batch 1 files `20261106100000`, `20261106101000` and
+`20261106102000` (audit_log server-only)), typed by
 `packages/database/src/schema/cortex.ts`. `cortex-substrate.sql` is the original
 substrate and is historical. Coverage plan: `docs/erp/specs/cortex-coverage.md`.
 
