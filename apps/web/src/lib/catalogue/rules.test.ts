@@ -131,6 +131,16 @@ describe('text hygiene', () => {
     ['left-to-right isolate', '\u2066'],
     ['pop directional isolate', '\u2069'],
     ['byte order mark', '\uFEFF'],
+    ['Arabic letter mark', '\u061C'],
+    ['Mongolian vowel separator', '\u180E'],
+    ['word joiner', '\u2060'],
+    ['invisible plus', '\u2064'],
+    ['inhibit symmetric swapping control', '\u206A'],
+    ['nominal digit shapes control', '\u206F'],
+    ['Hangul filler', '\u3164'],
+    ['halfwidth Hangul filler', '\uFFA0'],
+    ['first tag character', '\u{E0000}'],
+    ['cancel tag', '\u{E007F}'],
     ['lone high surrogate', '\uD800'],
     ['lone low surrogate', '\uDC00'],
   ] as const
@@ -142,6 +152,9 @@ describe('text hygiene', () => {
 
   it('keeps a whole surrogate pair and the text around a stripped override', () => {
     expect(cleanSingleLine('Tiles 😀 grade A')).toBe('Tiles 😀 grade A')
+    // A lone surrogate right beside a whole pair goes; the pair stays.
+    expect(cleanSingleLine('Tiles \uD800😀\uDC00 grade A')).toBe('Tiles 😀 grade A')
+    expect(cleanMultiLine('\uDBFF\uD83D\uDE00')).toBe('😀')
     // "invoice\u202Efdp.exe" would display reversed; stripped, it reads as stored.
     expect(cleanSingleLine('invoice\u202Efdp.exe')).toBe('invoicefdp.exe')
   })

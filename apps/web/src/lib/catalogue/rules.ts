@@ -112,13 +112,17 @@ const LINE_BREAKS_AND_TABS = /[\t\n\r\u2028\u2029]+/g
 const LINE_BREAKS = /\r\n?|[\u2028\u2029]/g
 // Characters that are invisible or reorder text, so stored text could read
 // differently from what it holds: C0 controls except tab, line feed and
-// carriage return; DEL and the C1 controls; zero-width spaces, joiners and
-// direction marks (U+200B-U+200F); bidirectional embeddings, overrides and
-// isolates (U+202A-U+202E, U+2066-U+2069); the byte order mark; and lone
-// surrogates, which are not text at all (the same check as boq-excel's
-// INVALID_TEXT).
+// carriage return; DEL and the C1 controls; the Arabic letter mark (U+061C);
+// the Mongolian vowel separator (U+180E); zero-width spaces, joiners and
+// direction marks (U+200B-U+200F); bidirectional embeddings and overrides
+// (U+202A-U+202E); the word joiner and the invisible operators
+// (U+2060-U+2064); bidirectional isolates and the deprecated format controls
+// (U+2066-U+206F); the Hangul fillers (U+3164, U+FFA0); the byte order mark;
+// tag characters (U+E0000-U+E007F); and lone surrogates, which are not text at
+// all (the same check as boq-excel's INVALID_TEXT). The u flag reads a
+// surrogate pair as one character, so U+D800-U+DFFF matches only a lone one.
 const HIDDEN_OR_CONTROL =
-  /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g
+  /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u061C\u180E\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u206F\u3164\uFEFF\uFFA0\u{E0000}-\u{E007F}\uD800-\uDFFF]/gu
 
 /** One-line field: tabs and line breaks become a space, hidden characters go. */
 export function cleanSingleLine(value: string): string {

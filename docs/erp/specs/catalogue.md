@@ -110,7 +110,11 @@ Added after the security review of PR #146 (2026-11-10).
   themselves.** Hiding the page is not a gate.
 - **Text:** control characters (C0 except tab and line breaks, DEL, C1),
   zero-width and direction marks (U+200B to U+200F), bidirectional embeddings,
-  overrides and isolates (U+202A to U+202E, U+2066 to U+2069), the byte order
+  overrides and isolates (U+202A to U+202E, U+2066 to U+2069), the Arabic letter
+  mark (U+061C), the Mongolian vowel separator (U+180E), the word joiner and
+  invisible operators (U+2060 to U+2064), the deprecated format controls
+  (U+206A to U+206F), the Hangul fillers (U+3164, U+FFA0), tag characters
+  (U+E0000 to U+E007F), the byte order
   mark and lone surrogates are stripped, and text is trimmed, when it is written
   (seed, edit, record price, import). U+2028 and U+2029 count as line breaks: a
   space in a one-line field, a line feed in a multi-line one. Text is never written to a spreadsheet as a
