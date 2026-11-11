@@ -53,6 +53,15 @@ export function pesos(centavos: number | null): string {
   return centavos === null ? '—' : formatCents(centavos)
 }
 
+/** A checked date ("2026-11-05") as "Nov 5, 2026"; read in UTC so no time zone shifts the day. */
+export function formatDate(value: string | null): string {
+  if (!value) return '—'
+  return new Intl.DateTimeFormat('en-PH', {
+    dateStyle: 'medium',
+    timeZone: 'UTC',
+  }).format(new Date(`${value}T00:00:00Z`))
+}
+
 const CELL_TEXT_LENGTH = 80
 
 /**

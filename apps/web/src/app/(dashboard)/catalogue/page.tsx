@@ -17,6 +17,7 @@ import {
   SourceLink,
   TRADE_OPTIONS,
   Truncated,
+  formatDate,
   pesos,
   tradeLabel,
 } from './catalogue-display'
@@ -27,14 +28,6 @@ type CatalogueSearchParams = Record<string, string | string[] | undefined>
 
 function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value
-}
-
-function formatDate(value: string | null): string {
-  if (!value) return '—'
-  return new Intl.DateTimeFormat('en-PH', {
-    dateStyle: 'medium',
-    timeZone: 'UTC',
-  }).format(new Date(`${value}T00:00:00Z`))
 }
 
 /** The current search state with another page number, without blank filters. */

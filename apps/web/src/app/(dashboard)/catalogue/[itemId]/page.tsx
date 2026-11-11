@@ -11,6 +11,7 @@ import {
   FlagChips,
   SourceLink,
   TRADE_OPTIONS,
+  formatDate,
   pesos,
   tradeLabel,
 } from '../catalogue-display'
@@ -18,14 +19,6 @@ import { EditItemForm } from './edit-item-form'
 import { RecordPriceForm } from './record-price-form'
 
 export const metadata: Metadata = { title: 'Catalogue item' }
-
-function formatDate(value: string | null): string {
-  if (!value) return '—'
-  return new Intl.DateTimeFormat('en-PH', {
-    dateStyle: 'medium',
-    timeZone: 'UTC',
-  }).format(new Date(`${value}T00:00:00Z`))
-}
 
 const SOURCE_KIND_LABELS: Record<string, string> = {
   research: 'Research',
