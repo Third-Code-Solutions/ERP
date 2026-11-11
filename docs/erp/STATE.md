@@ -152,42 +152,49 @@ Verdicts are posted as PR comments.
 ## Current
 ### In flight (2026-11-11)
 Owner order of 2026-11-05: import and export estimates in Excel, mirror every piece of
-ERP data into Cortex (deal management is part of the Cortex coverage spec and not
-started; batches 0-1 are), and a master construction price catalogue.
+ERP data into Cortex, and a master construction price catalogue. Cortex coverage ships
+in batches: batches 0-1 are #147; deal management (sales) is batch 2 and not started.
 Owner order of 2026-11-11: deploy only what is green on CI and proven working.
 **Nothing below is merged or live.** CI cannot run (Actions billing, see Blockers), so
 no PR here can pass the merge gate yet.
 
 | Work | Branch / PR | State |
 |---|---|---|
-| BOQ Excel import and export (`boq-export`) | `feat/erp-boq-excel`, #144 | Review round 3: security FAIL (the zip guard is itself quadratic; ExcelJS CPU and memory bombs pass it), code REQUEST_CHANGES (7 should-fix). Final fix pass in progress: parse in a `worker_threads` worker with heap and time limits, tighter guard, 7 import/export fixes. This is the third loop; if it still fails, the PR goes to the owner. Spec `docs/erp/specs/boq-excel.md` |
+| BOQ Excel import and export (`boq-export`) | `feat/erp-boq-excel`, #144 | **With the owner: three fix loops used.** Round 4: security FAIL, code REQUEST_CHANGES. A crafted sheet slips past the guard and sends ExcelJS into a builtin loop that `Worker.terminate()` cannot stop. This was reproduced on Node 22.23.2: the thread kept a full core after `terminate()`, and `process.exit` hung. Also open: a concurrency-slot leak when a worker fails to start, TOTAL and VAT rows priced as lump sums, untested units, a nested `[VENDOR:` forgery, and three failing CI gates (`test:type-safety`, `test:wo-08-contract`, `test:wo-08a-contract`). The proposed 5th loop is on the PR: parse in a child process killed with SIGKILL, scan row attributes linearly, and audit every index ExcelJS allocates from. Spec `docs/erp/specs/boq-excel.md` |
 | Catalogue research data, 20 trades | `feat/erp-catalogue-data`, #146 | 1,008 items: 708 priced, 300 blank and flagged `NO_SOURCE`. Security PASS; data review not approved after 3 loops (open list on the PR). Waits on the owner's licensing answers |
-| Catalogue table, seed, page, admin edit (`cost-db` extension) | `feat/erp-catalogue`, stacked on #144 at `c420024e` (rebase after #144's fix pass), not pushed | Proven on a local Postgres 17: migration, verifier, 13 DB and 6 query tests, seed idempotent, counts and centavos match the CSVs. Page render test in progress. Supplier Excel import not started (it reuses #144's guards). Flag `ERP_CATALOGUE_ENABLED`, default off. Spec `docs/erp/specs/catalogue.md` |
-| Cortex coverage, batches 0-1 | `feat/erp-cortex-coverage`, #147 | Review round 1: security FAIL, database review APPROVE to apply. Fix pass in progress (findings on the PR). Spec `docs/erp/specs/cortex-coverage.md` |
+| Catalogue table, seed, pages, admin edit (`cost-db` extension) | `feat/erp-catalogue`, #149 (base `feat/erp-boq-excel`; carries #146's data) | Round 4: security PASS, code APPROVE, UI check pass. Three fix loops used; low follow-ups are on the PR. Proven on a local Postgres rebuilt from `ac252c52`: verifier 181 migrations; seed 1,008 items, then 0 on a rerun; catalogue DB tests 10/10, 15/15 and 8/8; database suite 112 files / 559 tests. Lands after #144 and #146, with a rebase and a fresh review then. The supplier Excel import is not built (spec §6 says so). Flag `ERP_CATALOGUE_ENABLED`, default off. Spec `docs/erp/specs/catalogue.md` |
+| Cortex coverage, batches 0-1 | `feat/erp-cortex-coverage`, #147 | Round 4: security PASS, code APPROVE. Three fix loops used; one should-fix test gap and the lows are on the PR. Rerun by the orchestrator on a rebuilt database: verifier 183 migrations, database suite 111 files / 576 tests, API integration 94 files / 526 tests, web DB workflows pass. The mirror adds about 1.4 ms per audited write. Ready to merge once CI runs. Spec `docs/erp/specs/cortex-coverage.md`, runbook `docs/runbooks/cortex-substrate.md` |
 
 Rules decided for this work:
-- Catalogue current price: the newest priced observation for the item and region. An
-  observation with no price is shown only when the item has no priced one there.
+- Catalogue current price: the newest priced observation for the item and region
+  (regions compare as `lower(trim(region))`; ties go to the newer `created_at`, then
+  the higher `id`). An observation with no price is shown only when the item has no
+  priced one there.
 - **Do not seed the production catalogue before the owner answers the #146 licensing
   questions.** Price rows are append-only by design and cannot be deleted once loaded.
 - After seeding a tenant, run `ANALYZE` on both catalogue tables. Locally a list page took
   73 ms right after seeding and 5 ms after `ANALYZE`; for a tenant the statistics did
   not describe at all, 1 to 2 s per request.
+- Cortex rollout follows the runbook: a production backup, the migrations, a backfill
+  dry-run, then page size 50 off-peak, then the scrub until every table reports changed 0
+  and skipped 0. Pause the embed jobs during the backfill and scrub (#147 security LOW-1).
 
-Live exposures found during this work. Each fix is being built for a PR above and is
-not pushed yet; none is deployed:
+Live exposures found during this work. None is fixed in production:
 1. **`audit_log` is readable by every signed-in user of a tenant through the Supabase
    client.** Its only SELECT policy checks the tenant, `authenticated` holds SELECT, and
    the `audit.read` capability is enforced only in server code. Insert and delete
    audit rows hold full row images and update rows a column diff (vendor contacts,
-   budgets, stock movements). No browser code reads
-   `audit_log`, so the fix is to revoke SELECT from `authenticated` (#147); `anon`
-   already has no access.
-2. **Spreadsheet parsing on `main` is unguarded beyond the 25 MB cap.** Any user with
-   `bom.generate` can upload a small crafted `.xlsx` to the takeoff import that holds
-   the Node event loop or exhausts its heap (#144).
+   budgets, stock movements). No browser code reads `audit_log`. The fix revokes
+   client SELECT, adds a deny policy and forces RLS behind a BYPASSRLS guard. It is in
+   #147, reviewed and waiting on CI.
+2. **Spreadsheet parsing on `main` runs ExcelJS on the request thread with no guard
+   beyond the 25 MB cap.** Any user with `bom.generate` can upload a small crafted
+   `.xlsx` to the takeoff import that holds a web function at full CPU until the
+   platform timeout, or exhausts its heap. There is no switch to turn the import off. The fix is #144, now with the
+   owner.
 3. **Cortex nodes of deleted rows keep their old attributes**, including vendor email,
-   phone and address that every tenant role can query (#147).
+   phone and address that every tenant role can query. The scrub in #147 fixes this once
+   it is run.
 
 Owner mandate PHASE 1 (init: green baseline, CI merge gate, `smoke:prod`, STATE,
 RUNBOOK) is **done**.
@@ -338,6 +345,17 @@ RUNBOOK) is **done**.
 - **Owner/admin "Team tasks" view:** needs an explicit change to the daily-task contract
   verifier and its tests, and a `created_by` column so assignees see who assigned a task.
 
+- **Cortex embed race (predates #147):** the embed job checks only that the embedding is
+  null, so a vector computed from an old title can land after a re-title or scrub. Make
+  `succeed()` and `setCortexNodeEmbedding` compare `recorded_at` or a title hash.
+- **Catalogue follow-ups (#149, apply at the rebase):** the literal offboarding SQL
+  block, a cap on regions per item, the history `id` tiebreak, and the wording of the
+  pinned row.
+- **Cortex follow-ups (#147):** a scrub test on opportunities and folds, a test that each
+  `audit_*` trigger sorts before `cortex_mirror_r`, an exact empty-`search_path`
+  check, tenant predicates on the scrub's re-read, SQL page-size defaults of 50, and a
+  `MAX_PAGE_SIZE` of 500.
+
 ## Done modules
 | Slug | PR/branch | Flag | Date |
 |---|---|---|---|
@@ -358,6 +376,13 @@ RUNBOOK) is **done**.
   - Q-TEN-8 (advisory, ties to Q1): the portal BOM summary shows TCV + VAT on full
     TCV − retention on full TCV, with no EWT. Keep it, or align it with the invoice
     formula once Q1 and Q3 are answered?
+- **#144, owner:** approve a 5th fix loop (the plan is on the PR) or take the PR
+  over. Until it lands, #149 cannot merge and exposure 2 above stays live.
+- **`audit_log` early apply, owner:** apply #147's `audit_log` migration
+  (`20261106102000`) to production before CI is restored, under the owner override,
+  or wait for CI?
+- **SEC-M7, owner:** the 11 finance, cash, bank and inventory Cortex mirrors still copy
+  rows by denylist, without redaction. This needs an owner and a date.
 - **Catalogue data (#146), owner:** keep or remove about 100 rows priced from
   theprojectestimate.com purchase lists? May 165 rows read from Wilcon's online store
   be used (its terms of use are unchecked)? Is it acceptable that 121 rows rest on AEDO
@@ -373,7 +398,7 @@ RUNBOOK) is **done**.
 ## Log
 | Date | Mode | Result |
 |---|---|---|
-| 2026-11-11 | build | #146 data review rounds 3-4, to owner (3-loop limit); #147 opened. #144 round 3 FAIL, final fix pass; #147 round 1 security FAIL / DB APPROVE, fix pass; catalogue DB layer proven locally (not pushed). Nothing deployed: Actions still blocked |
+| 2026-11-11 | build | #146 data review rounds 3-4, to the owner (3-loop limit). #144 round 4: security FAIL (a worker that cannot be terminated) and code REQUEST_CHANGES, to the owner. #147 rounds 2-4 and fix loops 2-3: security PASS, code APPROVE. #149 opened; rounds 2-4 and fix loops 2-3: security PASS, code APPROVE, UI pass. All checks rerun on rebuilt local databases. A machine shutdown at 16:26 stopped two agents; work resumed from their commits. Nothing deployed: Actions still blocked |
 | 2026-11-10 | build | #146 catalogue data opened; data review rounds 1-2 and fixes |
 | 2026-11-05 | promote | Manual (Actions blocked): web `f212c9df` via Vercel CLI, API auto-deploy `e2acdd8f`; health, revision, surface PASS; smoke not run (secrets in GitHub only) |
 | 2026-11-05 | merge | #142 `f212c9df` tenancy (D-13), owner override of the CI gate; Q-TEN-6 re-checked (0 profiles, 0 gates) |
