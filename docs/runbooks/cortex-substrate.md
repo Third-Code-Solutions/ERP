@@ -25,9 +25,10 @@ in the ERP tables; the graph mirrors them via `ref_table`/`ref_id`. Kept live by
   progress_claims, warranty_tickets, delivery_schedules, rfqs, contracts,
   certificates_of_completion, punchlist_items, site_inspections, design_files,
   change_requests, master_schedules, weekly_reports, pre_con_checklist_items,
-  cost_entries, project_budgets, stock_movements). `attr_cols` is a **frozen
-  allowlist** computed by the migration; a column added later stays out until a
-  migration adds it. The registry also supports child folds
+  cost_entries, project_budgets, stock_movements). `attr_cols` is a **literal
+  allowlist** per table, written in the migration; a column added later stays out
+  until a migration adds it. Every stored string is redacted (emails, tax ids,
+  phone-like runs). The registry also supports child folds
   (`cortex_fold_children`) and link tables (`cortex_mirror_link`) for later
   batches. `cortex_mirror_generic()` remains defined but is attached nowhere.
 - Every tenant table is classified (mirrored, planned batch, or never mirrored
@@ -42,7 +43,7 @@ See ADR-007.
 ERP mutation → mirror trigger → `cortex_upsert_node()` (+ derived
 `cortex_upsert_edge()`) → `cortex_provenance_append()` (hash-chained).
 Mirror triggers are **defensive**: a failure logs `WARNING` and never breaks the
-ERP write.
+ERP write, deletes included.
 
 ## Operations
 
@@ -51,13 +52,30 @@ ERP write.
 DATABASE_URL=... node scripts/cortex-backfill.mjs --batch 1 --dry-run        # counts only
 DATABASE_URL=... node scripts/cortex-backfill.mjs --batch 1 --mode missing   # rows without a node
 DATABASE_URL=... node scripts/cortex-backfill.mjs --batch 1 --mode all       # re-apply every row
+DATABASE_URL=... node scripts/cortex-backfill.mjs --batch 1 --mode scrub     # rewrite every stored node
 ```
-It pages `cortex_backfill(table, mode, 2000, after)` with one commit per page,
-endpoints first. Unchanged nodes write no provenance, so a re-run is cheap and
-safe. Never backfill with `update <t> set tenant_id = tenant_id`: it fires the
+It pages `cortex_backfill(table, tenant, mode, page_size, after)` (scrub:
+`cortex_scrub_nodes(table, tenant, page_size, after)`), one tenant and one
+commit per page, endpoints first. `--page-size` defaults to 200 (at most 2000).
+Unchanged nodes write no provenance, so a re-run is cheap and safe.
+- A failing row prints `FAILED-ROW <table> <id> <error>`; the run goes on and
+  exits 1. Fix the row, then re-run.
+- A stopped run prints `RESUME --resume <table>:<tenant>:<id>`; pass it to the
+  same command to continue.
+- Rows and nodes a live writer holds are reported as skipped; re-run to pick
+  them up.
+
+**Batch 1 rollout order:** apply the three migrations (types, core,
+`audit_log` server-only), then `--batch 1 --mode all`, then `--batch 1 --mode
+scrub` repeated until it reports `changed 0` on every table, then the chain
+query below. The scrub is the only pass that reaches closed nodes and nodes
+whose source row is gone. Never backfill with `update <t> set tenant_id = tenant_id`: it fires the
 audit triggers and the posted-row guards.
 
-**Roll back Batch 1 (keeps all data, re-opens S1/S2/S3):**
+**Roll back Batch 1** (keeps all data; drops the registry triggers and engine
+functions; keeps the read check, the email-free mirrors, the KYC re-title and
+the server-only `audit_log`; the 23 registry tables stop mirroring and their
+nodes go stale):
 ```bash
 psql "$DATABASE_URL" --single-transaction -v ON_ERROR_STOP=1 \
   -f packages/database/src/sql/cortex-coverage-rollback.sql
@@ -141,7 +159,9 @@ search via an HNSW index (`idx_cortex_nodes_embedding`, `vector_cosine_ops`).
   row is denied to every authenticated user.
 - `cortex_mirror_registry` and `cortex_node_type_access` are server-only (RLS
   forced, `deny_direct_client_access`, no client grants; `service_role` may only
-  read them, because rows change only by migration).
+  read them, because rows change only by migration; the verifier fails on any
+  write privilege).
+- `audit_log` is server-only: no SELECT for `authenticated` or `anon`.
 - `cortex_*` functions have `EXECUTE` revoked from `anon/authenticated/public`.
   New `cortex_*` functions MUST be revoked too (the `7b` `DO` block re-revokes
   all `cortex\_%` functions — re-run after adding any).
@@ -154,7 +174,7 @@ Follow the parity checklist in `docs/erp/specs/cortex-coverage.md` §3.4:
 2. A `cortex_node_type_access` row (without it the type is unreadable).
 3. `CORTEX_GRAPH_REF_TABLE_NODE_TYPES` (shared-types) and
    `CORTEX_ENTITY_REGISTRY` (web) entries.
-4. A `cortex_mirror_registry` row with a frozen `attr_cols` allowlist, plus the
+4. A `cortex_mirror_registry` row with a literal `attr_cols` allowlist, plus the
    `cortex_mirror_r` trigger (or fold / link triggers for child tables).
 5. Re-run the `cortex\_%` revoke loop in the same migration.
 6. Move the table out of `CORTEX_PLANNED` in `_cortex-coverage-classes.ts`, then
@@ -163,15 +183,18 @@ Follow the parity checklist in `docs/erp/specs/cortex-coverage.md` §3.4:
 ## Known limits of the coverage Batch 1 privacy fixes
 
 - Nodes written before Batch 1 keep their old attributes (vendor contact data,
-  emails) until `scripts/cortex-backfill.mjs --batch 1 --mode all` has run.
+  emails) until `--batch 1 --mode all` and then `--mode scrub` have run.
 - A document is mirrored under its file name until a KYC artifact links it.
   From then on the title is `KYC artifact: <type>` and the node's embedding is
   cleared so it is rebuilt from the new title. The earlier title stays in
   `audit_log` (append-only), and it may already have been sent to the embedding
   provider.
-- An allowlisted text attribute of up to 120 characters is copied as written.
-  Longer ones have emails and phone-like digit runs masked and are cut to 500
-  characters; registry titles and summaries are always masked and cut to 300.
+- Redaction is pattern-based and top-level only: every string attribute has
+  emails, tax ids and phone-like digit runs masked and is cut to 500 characters;
+  titles and summaries are cut to 300. A name in a title (contacts, design
+  files) or free text in a description-based title is kept, masked.
+- The finance, cash, bank and inventory mirrors (11 tables) still copy by
+  denylist; see the spec, §10.
 
 ## Known follow-ups (pre-existing, not from this slice)
 
