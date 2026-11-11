@@ -2,8 +2,11 @@
  * The two catalogue pages rendered on the server from real rows: the page
  * components, the real query module and a real database, nothing in between.
  *
- * Needs DATABASE_URL and skips itself without it. It only reads. The database
- * must hold the research files for the local tenant:
+ * Local only: CI does not run it, because it needs the abi-ops-local tenant
+ * with the research files committed to it, which a fresh CI database does not
+ * have (catalogue.database.test.ts, which seeds its own rolled-back tenant,
+ * runs in CI instead). Needs DATABASE_URL and skips itself without it. It only
+ * reads. Seed the local tenant first:
  *
  *   node scripts/seed-catalogue.mjs --tenant <id of the abi-ops-local tenant>
  *

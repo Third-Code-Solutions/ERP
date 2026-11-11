@@ -284,6 +284,7 @@ jobs:
           src/lib/management-dashboard.integration.test.ts
           'src/app/(dashboard)/crm/accounts/actions.database.integration.test.ts'
           'src/app/(dashboard)/crm/opportunities/[id]/proposal/change-request-workflow.integration.test.ts'
+          src/lib/catalogue/catalogue.database.test.ts
           --reporter=json
           --outputFile="$GITHUB_WORKSPACE/tmp/database-reproducibility/web-integration-vitest.json"
       - name: Assert every Web database workflow executed
