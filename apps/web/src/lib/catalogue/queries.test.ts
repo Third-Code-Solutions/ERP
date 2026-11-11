@@ -92,7 +92,7 @@ describe('catalogue list filters', () => {
     expect(escapeLikePattern('CN-0001')).toBe('CN-0001')
   })
 
-  it('caps the term at 100 characters, cleans it and caps the page', () => {
+  it('cuts the term to 100 characters, then cleans it, and caps the page', () => {
     const parsed = catalogueListFiltersSchema.parse({
       q: ` cement\t${'x'.repeat(200)} `,
       trade: '',
@@ -101,11 +101,23 @@ describe('catalogue list filters', () => {
       page: '999999',
     })
 
-    expect(parsed.q).toHaveLength(100)
-    expect(parsed.q?.startsWith('cement x')).toBe(true)
+    // The first 100 characters (" cement", a tab and 92 x), the tab a space, trimmed.
+    expect(parsed.q).toBe(`cement ${'x'.repeat(92)}`)
     expect(parsed).toMatchObject({ region: 'NCR', status: 'stale', page: CATALOGUE_MAX_PAGE })
     expect(parsed.trade).toBeUndefined()
     expect(catalogueListFiltersSchema.parse({}).page).toBe(1)
+  })
+
+  it('never leaves half an emoji when the cut falls inside one', () => {
+    const lone = /[\uD800-\uDFFF]/u
+    // The emoji's first half is the 100th UTF-16 unit: the cut splits it.
+    const split = catalogueListFiltersSchema.parse({ q: `${'a'.repeat(99)}\u{1F600}tail` }).q
+    expect(split).toBe('a'.repeat(99))
+    expect(split).not.toMatch(lone)
+    // Its second half is the 100th unit: the whole emoji stays.
+    const whole = catalogueListFiltersSchema.parse({ q: `${'a'.repeat(98)}\u{1F600}tail` }).q
+    expect(whole).toBe(`${'a'.repeat(98)}\u{1F600}`)
+    expect(whole).not.toMatch(lone)
   })
 
   it.each([

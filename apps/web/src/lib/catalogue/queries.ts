@@ -50,7 +50,9 @@ export const catalogueListFiltersSchema = z.object({
     blankToUndefined,
     z
       .string()
-      .transform((term) => cleanSingleLine(term).slice(0, CATALOGUE_MAX_SEARCH_LENGTH))
+      // Cut first, then clean: a pair split by the cut leaves a lone surrogate,
+      // which cleaning drops, so the term never ends in half an emoji.
+      .transform((term) => cleanSingleLine(term.slice(0, CATALOGUE_MAX_SEARCH_LENGTH)))
       .optional(),
   ),
   trade: z.preprocess(blankToUndefined, z.enum(CATALOGUE_TRADE_SLUGS).optional()),
