@@ -187,6 +187,7 @@ Added after the security review of PR #146 (2026-11-10).
   - checked date;
   - flags, as labelled chips that do not rely on colour alone.
 - An item detail view shows the price history: every observation, newest first.
+  The entry that is current in its region carries a "Current" chip, in words.
 - Gate: `catalogue.read`. The page returns not-found while `ERP_CATALOGUE_ENABLED`
   is not `true` (default off). Flags go on only after `smoke:prod` passes.
 

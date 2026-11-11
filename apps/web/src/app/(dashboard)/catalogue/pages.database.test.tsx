@@ -43,6 +43,7 @@ const SEEDED_TENANT = 'abi-ops-local'
 // What Next's notFound() throws.
 const NOT_FOUND = 'NEXT_HTTP_ERROR_FALLBACK;404'
 const PAGE_SIZE = 50
+const CURRENT_CHIP = '<span class="finance-status finance-status-open">Current</span>'
 
 const rows = readResearchFiles()
 const rowOf = (code: string) => {
@@ -218,6 +219,7 @@ suite('catalogue pages rendered from the seeded database', { timeout: 60_000 }, 
       )
       expect(html).toContain('<span class="finance-status finance-status-draft">One source</span>')
       expect(html).toContain(`<td>${escaped(tube.notes ?? '')}</td>`)
+      expect(html).toContain(`<td>${escaped(tube.region)} ${CURRENT_CHIP}</td>`)
       expect(html).toContain('1 entry.')
     })
 
@@ -231,7 +233,8 @@ suite('catalogue pages rendered from the seeded database', { timeout: 60_000 }, 
       expect((pump.notes ?? '').length).toBeGreaterThan(80)
       expect(html).toContain('<h1 class="page-title">CN-0037</h1>')
       expect(history).toHaveLength(1)
-      expect(history[0]).toContain(`<td>${escaped(pump.region)}</td>`)
+      // Its only entry, so the current one in its region.
+      expect(history[0]).toContain(`<td>${escaped(pump.region)} ${CURRENT_CHIP}</td>`)
       expect(history[0]).toContain(amountCells([null, null, null]))
       expect(history[0]).toContain(
         '<span class="finance-status finance-status-draft">No source</span>',

@@ -69,7 +69,16 @@ function ItemIdentity({ item }: { item: CatalogueItem }) {
   )
 }
 
-function PriceHistory({ history, capped }: { history: CataloguePrice[]; capped: boolean }) {
+function PriceHistory({
+  history,
+  capped,
+  currentIds,
+}: {
+  history: CataloguePrice[]
+  capped: boolean
+  /** The entries that are the current price in their region. */
+  currentIds: ReadonlySet<string>
+}) {
   return (
     <section className="finance-section">
       <div className="finance-section-heading">
@@ -81,7 +90,7 @@ function PriceHistory({ history, capped }: { history: CataloguePrice[]; capped: 
           {capped
             ? `Only the newest ${history.length} entries are shown; older ones are not listed here.`
             : `${history.length} ${history.length === 1 ? 'entry' : 'entries'}.`}{' '}
-          The newest entry with a price is the current price in its region.
+          The newest entry with a price is the current price in its region, marked Current.
         </p>
       </div>
       <div className="finance-table-shell">
@@ -113,7 +122,15 @@ function PriceHistory({ history, capped }: { history: CataloguePrice[]; capped: 
                       {SOURCE_KIND_LABELS[price.source_kind] ?? price.source_kind}
                     </span>
                   </td>
-                  <td>{price.region}</td>
+                  <td>
+                    {price.region}
+                    {currentIds.has(price.id) ? (
+                      <>
+                        {' '}
+                        <span className="finance-status finance-status-open">Current</span>
+                      </>
+                    ) : null}
+                  </td>
                   <td className="currency">{pesos(price.price_low_centavos)}</td>
                   <td className="currency">{pesos(price.price_avg_centavos)}</td>
                   <td className="currency">{pesos(price.price_high_centavos)}</td>
@@ -154,7 +171,7 @@ export default async function CatalogueItemPage({
     if (result.status === 404) notFound()
     throw new Error(result.error)
   }
-  const { item, history, historyCapped } = result.data
+  const { item, history, historyCapped, current } = result.data
 
   return (
     <div>
@@ -176,7 +193,11 @@ export default async function CatalogueItemPage({
       </div>
 
       <ItemIdentity item={item} />
-      <PriceHistory history={history} capped={historyCapped} />
+      <PriceHistory
+        history={history}
+        capped={historyCapped}
+        currentIds={new Set(current.map((price) => price.id))}
+      />
 
       {can(profile.role, 'catalogue.manage') ? (
         <>

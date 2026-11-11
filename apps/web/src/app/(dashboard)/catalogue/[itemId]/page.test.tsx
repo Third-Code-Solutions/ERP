@@ -166,7 +166,7 @@ describe('CatalogueItemPage', () => {
     expect(html).toContain('<strong>Unit</strong><span>bag</span>')
     expect(html).toContain('<strong>Specification</strong><span>Type 1, ASTM C150</span>')
     expect(html).toContain(
-      '3 entries. The newest entry with a price is the current price in its region.',
+      '3 entries. The newest entry with a price is the current price in its region, marked Current.',
     )
 
     expect(html.indexOf('Nov 10, 2026')).toBeGreaterThan(-1)
@@ -189,12 +189,28 @@ describe('CatalogueItemPage', () => {
     const html = await render()
 
     expect(NO_PRICE_NOTE.length).toBeGreaterThan(80)
-    expect(html).toContain('<td>National</td>')
+    // The only entry in its region, so it is the current one there.
+    expect(html).toContain(
+      '<td>National <span class="finance-status finance-status-open">Current</span></td>',
+    )
     expect(html.match(/<td class="currency">—<\/td>/g)).toHaveLength(3)
     expect(html).toContain('<span class="finance-status finance-status-draft">No source</span>')
     // In the cell itself, not in a hover title.
     expect(html).toContain(`<td>${NO_PRICE_NOTE}</td>`)
     expect(html).not.toContain(`title="${NO_PRICE_NOTE}"`)
+  })
+
+  it('marks in words the entry that is current in each region, and only that one', async () => {
+    const html = await render()
+    const rows = (html.split('<tbody>')[1] ?? '').split('<tr>').slice(1)
+    const current = '<span class="finance-status finance-status-open">Current</span>'
+
+    // NEWER, OLDER and NO_SOURCE in that order; NEWER and NO_SOURCE are current.
+    expect(rows).toHaveLength(3)
+    expect(rows[0]).toContain(`<td>NCR ${current}</td>`)
+    expect(rows[1]).toContain('<td>NCR</td>')
+    expect(rows[1]).not.toContain('>Current<')
+    expect(rows[2]).toContain(`<td>National ${current}</td>`)
   })
 
   it('says so when only the newest entries are shown', async () => {
