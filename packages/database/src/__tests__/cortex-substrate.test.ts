@@ -8,15 +8,29 @@
  *   3. Provenance integrity: the per-tenant hash chain is gapless.
  *   4. Write isolation: an authenticated user cannot plant a node in another tenant.
  */
+import { readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import postgres from 'postgres'
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { CORTEX_GRAPH_REF_TABLE_NODE_TYPES } from '@third-code-erp/shared-types'
 import {
   DATABASE_URL,
   makeSql,
   inRollback,
   becomeAuthenticated,
   seedTwoTenants,
+  seedUserWithRole,
 } from './_db-harness'
+import {
+  CORTEX_ATTR_EXCLUDE,
+  CORTEX_BATCH1_REGISTRY,
+  CORTEX_BATCH1_SUPPORT,
+  CORTEX_HANDWRITTEN_MIRRORS,
+  CORTEX_NEVER_MIRROR,
+  CORTEX_PLANNED,
+} from './_cortex-coverage-classes'
+import { cortexNodeTypeEnum } from '../schema/cortex'
 import {
   getCortexNodeByRef,
   searchCortexNodes,
@@ -523,5 +537,850 @@ suite('Cortex substrate', () => {
     })
     expect(Array.isArray(hits)).toBe(true)
     expect(hits.every((h) => h.node.tenant_id === DEMO_TENANT)).toBe(true)
+  })
+})
+
+// -----------------------------------------------------------------------------
+// Cortex coverage, Batches 0-1 (docs/erp/specs/cortex-coverage.md §8).
+// -----------------------------------------------------------------------------
+const ROLLBACK_SQL = readFileSync(
+  resolve(
+    dirname(fileURLToPath(import.meta.url)),
+    '../sql/cortex-coverage-rollback.sql'
+  ),
+  'utf8'
+)
+const BATCH1_BACKFILL_TABLES = [
+  'users',
+  'accounts',
+  'opportunities',
+  'documents',
+  ...CORTEX_BATCH1_REGISTRY,
+]
+const FREE_TEXT_EXCLUDE = /(^|_)notes$|_by_name$/i
+const CHAIN_BREAKS = (tenant: string) => `
+  with chain as (
+    select prev_hash, lag(hash) over (order by id) as prior_hash,
+           row_number() over (order by id) as rn
+      from cortex_provenance where tenant_id = '${tenant}'
+  )
+  select count(*)::int as n from chain
+   where (rn = 1 and prev_hash <> 'genesis')
+      or (rn > 1 and prev_hash is distinct from prior_hash)`
+
+suite('Cortex coverage (Batches 0-1)', () => {
+  let sql: postgres.Sql
+
+  beforeAll(() => {
+    sql = makeSql()
+  })
+  afterAll(async () => {
+    await sql?.end({ timeout: 5 })
+  })
+
+  const first = async (tx: postgres.TransactionSql, query: string): Promise<Rows> =>
+    ((await tx.unsafe(query)) as Rows)[0]
+
+  const insertId = async (tx: postgres.TransactionSql, query: string): Promise<string> =>
+    (await first(tx, `${query} returning id`)).id as string
+
+  const node = (tx: postgres.TransactionSql, tenant: string, table: string, id: string) =>
+    first(
+      tx,
+      `select id, node_type::text as node_type, title, summary, attributes
+         from cortex_nodes
+        where tenant_id = '${tenant}' and ref_table = '${table}' and ref_id = '${id}' and valid_to is null`
+    )
+
+  const backfillAll = async (tx: postgres.TransactionSql, table: string, mode: string) => {
+    let after: string | null = null
+    let total = 0
+    for (;;) {
+      const page: Rows = await first(
+        tx,
+        `select processed, last_id from cortex_backfill('${table}', '${mode}', 2000, ${after ? `'${after}'` : 'null'})`
+      )
+      if (!page || page.processed === 0) return total
+      total += page.processed as number
+      after = page.last_id as string
+    }
+  }
+
+  it('S1: registry allowlists are frozen without contact, provider or free-text columns', async () => {
+    const rows = (await sql.unsafe(
+      `select r.ref_table, r.attr_cols,
+              exists (select 1 from pg_trigger t
+                       where t.tgrelid = ('public.' || quote_ident(r.ref_table))::regclass
+                         and t.tgname = 'cortex_mirror_r' and not t.tgisinternal) as has_new,
+              exists (select 1 from pg_trigger t
+                       where t.tgrelid = ('public.' || quote_ident(r.ref_table))::regclass
+                         and t.tgfoid = 'public.cortex_mirror_generic'::regproc) as has_generic
+         from cortex_mirror_registry r order by r.ref_table`
+    )) as Rows
+    expect(rows.map((row: Rows) => row.ref_table).sort()).toEqual([...CORTEX_BATCH1_REGISTRY].sort())
+    for (const row of rows) {
+      const leaked = (row.attr_cols as string[]).filter(
+        (col) => col === 'tenant_id' || CORTEX_ATTR_EXCLUDE.test(col) || FREE_TEXT_EXCLUDE.test(col)
+      )
+      expect({ table: row.ref_table, leaked, hasNew: row.has_new, hasGeneric: row.has_generic }).toEqual({
+        table: row.ref_table,
+        leaked: [],
+        hasNew: true,
+        hasGeneric: false,
+      })
+    }
+  })
+
+  it('S1: vendor, contact, warranty, delivery and contract nodes hold no contact data or provider ids', async () => {
+    const nodes = await inRollback(sql, async (tx) => {
+      const { tenantA: t, userA } = await seedTwoTenants(tx)
+      const vendor = await insertId(
+        tx,
+        `insert into vendors(tenant_id, name, contact_name, email, phone, address, notes)
+         values('${t}', 'S1 Supply', 'Juan Cruz', 'sales@s1.test', '+63 917 555 0101', '12 Ayala Ave', 'call Juan 09175550101')`
+      )
+      const account = await insertId(tx, `insert into accounts(tenant_id, name) values('${t}', 'S1 Client')`)
+      const contact = await insertId(
+        tx,
+        `insert into contacts(tenant_id, account_id, full_name, email, phone)
+         values('${t}', '${account}', 'Maria Santos', 'maria@s1.test', '09175550102')`
+      )
+      const project = await insertId(
+        tx,
+        `insert into projects(tenant_id, name, client, created_by) values('${t}', 'S1 Proj', 'C', '${userA}')`
+      )
+      const ticket = await insertId(
+        tx,
+        `insert into warranty_tickets(tenant_id, project_id, ticket_number, description, submitted_by_name, submitted_by_email)
+         values('${t}', '${project}', 'WT-1', 'Leak', 'Pedro Reyes', 'pedro@s1.test')`
+      )
+      const po = await insertId(
+        tx,
+        `insert into purchase_orders(tenant_id, project_id, po_number) values('${t}', '${project}', 'PO-S1')`
+      )
+      const delivery = await insertId(
+        tx,
+        `insert into delivery_schedules(tenant_id, purchase_order_id, site_address, site_contact_name, site_contact_phone, site_preparation_notes)
+         values('${t}', '${po}', '5 Site Rd', 'Ana Lim', '09175550103', 'gate code 4411')`
+      )
+      const contract = await insertId(
+        tx,
+        `insert into contracts(tenant_id, project_id, docuseal_submission_id, docuseal_slug)
+         values('${t}', '${project}', 'ds-sub-123', 'ds-slug-secret')`
+      )
+      return [
+        await node(tx, t, 'vendors', vendor),
+        await node(tx, t, 'contacts', contact),
+        await node(tx, t, 'warranty_tickets', ticket),
+        await node(tx, t, 'delivery_schedules', delivery),
+        await node(tx, t, 'contracts', contract),
+      ]
+    })
+    const forbidden = [
+      'email', 'phone', 'address', 'contact_name', 'notes', 'submitted_by_name', 'submitted_by_email',
+      'site_address', 'site_contact_name', 'site_contact_phone', 'site_preparation_notes',
+      'docuseal_submission_id', 'docuseal_slug',
+    ]
+    for (const n of nodes) {
+      expect(n).toBeTruthy()
+      const keys = Object.keys(n.attributes ?? {})
+      expect(keys.filter((k) => forbidden.includes(k) || CORTEX_ATTR_EXCLUDE.test(k))).toEqual([])
+      expect(JSON.stringify([n.title, n.summary, n.attributes])).not.toMatch(
+        /@s1\.test|0917|555|Ayala|Site Rd|gate code|ds-sub|ds-slug|Pedro|Ana Lim/
+      )
+    }
+  })
+
+  it('S1: every registry table mirrors only its frozen allowlist (synthetic full rows)', async () => {
+    const r = await inRollback(sql, async (tx) => {
+      const { tenantA: t } = await seedTwoTenants(tx)
+      // One row per table with a marker in every column, straight through the engine.
+      const applied = (await tx.unsafe(
+        `select r.ref_table, r.node_type::text as node_type, r.attr_cols, x.excluded,
+                public.cortex_apply_row(r.ref_table, x.row, 'INSERT') as node_id
+           from cortex_mirror_registry r
+           cross join lateral (
+             select jsonb_object_agg(c.column_name, case
+                      when c.column_name = 'id' then to_jsonb(gen_random_uuid())
+                      when c.column_name = 'tenant_id' then to_jsonb('${t}'::uuid)
+                      when c.data_type = 'uuid' then 'null'::jsonb
+                      else to_jsonb('LEAK<' || c.column_name || '>') end) as row,
+                    coalesce(array_agg(c.column_name::text)
+                      filter (where c.column_name::text <> all (r.attr_cols)), '{}') as excluded
+               from information_schema.columns c
+              where c.table_schema = 'public' and c.table_name = r.ref_table
+           ) x
+          where r.node_type is not null`
+      )) as Rows
+      const nodes = (await tx.unsafe(
+        `select id, node_type::text as node_type, title, summary, attributes
+           from cortex_nodes where tenant_id = '${t}' and valid_to is null`
+      )) as Rows
+      return { applied, nodes }
+    })
+    expect(r.applied).toHaveLength(CORTEX_BATCH1_REGISTRY.length)
+    for (const row of r.applied) {
+      const n = r.nodes.find((candidate: Rows) => candidate.id === row.node_id)
+      const text = JSON.stringify([n?.title, n?.summary, n?.attributes])
+      expect({
+        table: row.ref_table,
+        nodeType: n?.node_type,
+        extraKeys: Object.keys(n?.attributes ?? {}).filter((key) => !row.attr_cols.includes(key)),
+        leaked: (row.excluded as string[]).filter((col) => text.includes(`LEAK<${col}>`)),
+      }).toEqual({ table: row.ref_table, nodeType: row.node_type, extraKeys: [], leaked: [] })
+      expect(row.excluded).toContain('tenant_id')
+    }
+  })
+
+  it('checklist items join their project through the checklist and follow it when it moves', async () => {
+    const r = await inRollback(sql, async (tx) => {
+      const { tenantA: t } = await seedTwoTenants(tx)
+      const p1 = await insertId(tx, `insert into projects(tenant_id, name, client) values('${t}', 'Via P1', 'C')`)
+      const p2 = await insertId(tx, `insert into projects(tenant_id, name, client) values('${t}', 'Via P2', 'C')`)
+      const c1 = await insertId(tx, `insert into pre_con_checklists(tenant_id, project_id) values('${t}', '${p1}')`)
+      const c2 = await insertId(tx, `insert into pre_con_checklists(tenant_id, project_id) values('${t}', '${p2}')`)
+      const item = await insertId(
+        tx,
+        `insert into pre_con_checklist_items(tenant_id, checklist_id, title) values('${t}', '${c1}', 'Permit pack')`
+      )
+      const partOf = async () =>
+        (await tx.unsafe(
+          `select d.ref_id::text as project, e.valid_to is null as open
+             from cortex_edges e join cortex_nodes s on s.id = e.src_id join cortex_nodes d on d.id = e.dst_id
+            where e.tenant_id = '${t}' and e.edge_type = 'part_of' and s.ref_id = '${item}' and d.ref_table = 'projects'
+            order by e.valid_to is null, e.id`
+        )) as Rows
+      const before = await partOf()
+      await tx.unsafe(`update pre_con_checklist_items set checklist_id = '${c2}' where id = '${item}'`)
+      return { before, after: await partOf(), p1, p2, node: await node(tx, t, 'pre_con_checklist_items', item) }
+    })
+    expect(r.node.node_type).toBe('task')
+    expect(r.before).toEqual([{ project: r.p1, open: true }])
+    expect(r.after).toEqual([
+      { project: r.p1, open: false },
+      { project: r.p2, open: true },
+    ])
+  })
+
+  it('S2: sales and viewer cannot read budget or stock-movement nodes or their edges; unknown types are denied', async () => {
+    const seen = await inRollback(sql, async (tx) => {
+      const { tenantA, userB } = await seedTwoTenants(tx)
+      const roles = {
+        sales: await seedUserWithRole(tx, tenantA, 'sales'),
+        viewer: await seedUserWithRole(tx, tenantA, 'viewer'),
+        finance: await seedUserWithRole(tx, tenantA, 'finance'),
+      }
+      const ids: Record<string, string> = {}
+      for (const type of ['cost_code', 'project_budget', 'stock_movement', 'project']) {
+        ids[type] = await insertId(
+          tx,
+          `insert into cortex_nodes(tenant_id, node_type, ref_table, ref_id, title)
+           values('${tenantA}', '${type}', 's2_probe', gen_random_uuid(), 'S2 ${type}')`
+        )
+      }
+      await tx.unsafe(
+        `insert into cortex_edges(tenant_id, src_id, dst_id, edge_type)
+         values('${tenantA}', '${ids.project_budget}', '${ids.project}', 'part_of')`
+      )
+      const out: Record<string, unknown> = {}
+      for (const [role, user] of Object.entries({ ...roles, otherTenant: userB })) {
+        await becomeAuthenticated(tx, user)
+        const rows = (await tx.unsafe(
+          `select node_type::text as t from cortex_nodes where ref_table = 's2_probe' order by 1`
+        )) as Rows
+        out[role] = rows.map((row: Rows) => row.t)
+        out[`${role}Edges`] = (
+          await first(tx, `select count(*)::int as n from cortex_edges where src_id = '${ids.project_budget}'`)
+        ).n
+        if (role === 'sales') {
+          out.checks = await first(
+            tx,
+            `select public.auth_can_read_cortex_node_type('kyc_track') as unmapped,
+                    public.auth_can_read_cortex_node_type('opportunity') as tenant_type`
+          )
+        }
+        await tx.unsafe(`reset role`)
+      }
+      return out
+    })
+    expect(seen.sales).toEqual(['project'])
+    expect(seen.viewer).toEqual(['project'])
+    expect(seen.finance).toEqual(['cost_code', 'project', 'project_budget', 'stock_movement'])
+    // An edge is visible only when both endpoints are readable.
+    expect([seen.salesEdges, seen.viewerEdges, seen.financeEdges]).toEqual([0, 0, 1])
+    // The admin of another tenant sees none of it.
+    expect([seen.otherTenant, seen.otherTenantEdges]).toEqual([[], 0])
+    expect(seen.checks).toEqual({ unmapped: false, tenant_type: true })
+  })
+
+  it('read check: each read group admits exactly its roles; an unmapped type admits nobody', async () => {
+    const ALL = [
+      'owner', 'admin', 'estimator', 'sales', 'pm', 'viewer', 'commercial',
+      'design', 'sd_pm_pe', 'finance', 'procurement', 'safety', 'cx',
+    ]
+    // One node type per read group (spec §5).
+    const GROUPS: Record<string, { type: string; roles: string[] }> = {
+      tenant: { type: 'project', roles: ALL },
+      finance: { type: 'invoice', roles: ['owner', 'admin', 'finance'] },
+      inventory: {
+        type: 'warehouse',
+        roles: ['owner', 'admin', 'finance', 'procurement', 'sd_pm_pe', 'pm', 'commercial'],
+      },
+      budget: {
+        type: 'cost_code',
+        roles: ['owner', 'admin', 'finance', 'commercial', 'procurement', 'sd_pm_pe', 'pm', 'estimator'],
+      },
+      estimating: { type: 'bom_line', roles: ['owner', 'admin', 'commercial', 'estimator', 'viewer'] },
+      procurement: {
+        type: 'po_line',
+        roles: ['owner', 'admin', 'commercial', 'sd_pm_pe', 'pm', 'procurement', 'viewer'],
+      },
+      kyc: { type: 'kyc_track', roles: ['owner', 'admin', 'finance', 'viewer'] },
+      rfq: { type: 'quote', roles: ['owner', 'admin', 'commercial', 'finance', 'procurement'] },
+      rate_card: { type: 'rate_card', roles: ['owner', 'admin', 'commercial', 'viewer'] },
+      catalogue: {
+        type: 'catalogue_item',
+        roles: ['owner', 'admin', 'commercial', 'estimator', 'sd_pm_pe', 'pm', 'procurement', 'viewer'],
+      },
+    }
+    const types = [...Object.values(GROUPS).map((group) => group.type), 'dupa']
+    const actual = await inRollback(sql, async (tx) => {
+      const { tenantA } = await seedTwoTenants(tx)
+      // These four groups get their first access row in a later batch.
+      await tx.unsafe(
+        `insert into cortex_node_type_access(node_type, read_group) values
+           ('kyc_track', 'kyc'), ('quote', 'rfq'), ('rate_card', 'rate_card'), ('catalogue_item', 'catalogue')`
+      )
+      const out: Record<string, string[]> = Object.fromEntries(types.map((type) => [type, []]))
+      for (const role of ALL) {
+        await becomeAuthenticated(tx, await seedUserWithRole(tx, tenantA, role))
+        const rows = (await tx.unsafe(
+          `select t, public.auth_can_read_cortex_node_type(t::public.cortex_node_type) as ok
+             from unnest(array[${types.map((type) => `'${type}'`).join(', ')}]) as t`
+        )) as Rows
+        await tx.unsafe(`reset role`)
+        for (const row of rows) if (row.ok) out[row.t as string]!.push(role)
+      }
+      return out
+    })
+    for (const [group, { type, roles }] of Object.entries(GROUPS)) {
+      expect({ group, roles: [...actual[type]!].sort() }).toEqual({ group, roles: [...roles].sort() })
+    }
+    expect(actual.dupa).toEqual([])
+  })
+
+  it('S3: user and account nodes hold no email; KYC-linked documents drop the file name and its embedding', async () => {
+    const r = await inRollback(sql, async (tx) => {
+      const { tenantA: t, userA } = await seedTwoTenants(tx)
+      const account = await insertId(
+        tx,
+        `insert into accounts(tenant_id, name, primary_email) values('${t}', 'S3 Client', 'owner@s3.test')`
+      )
+      const project = await insertId(tx, `insert into projects(tenant_id, name, client) values('${t}', 'S3 Proj', 'C')`)
+      const doc = await insertId(
+        tx,
+        `insert into documents(tenant_id, project_id, uploaded_by, document_type, file_name, storage_path, mime_type, size_bytes)
+         values('${t}', '${project}', '${userA}', 'pdf', 'Passport-Juan-Dela-Cruz.pdf', 't/k.pdf', 'application/pdf', 10)`
+      )
+      const before = await node(tx, t, 'documents', doc)
+      // The file name was already embedded before the document became a KYC artifact.
+      const embed = () =>
+        tx.unsafe(
+          `update cortex_nodes set embedding = '${oneHotVector(0)}'::vector
+            where tenant_id = '${t}' and ref_id = '${doc}' and valid_to is null`
+        )
+      const embedded = async () =>
+        (await first(
+          tx,
+          `select embedding is not null as yes from cortex_nodes
+            where tenant_id = '${t}' and ref_id = '${doc}' and valid_to is null`
+        )).yes as boolean
+      await embed()
+      await tx.unsafe(
+        `insert into account_kyc_artifacts(tenant_id, account_id, artifact_type, document_id)
+         values('${t}', '${account}', 'bir_2303', '${doc}')`
+      )
+      const afterLink = await node(tx, t, 'documents', doc)
+      const embeddedAfterLink = await embedded()
+      // Re-embedded from the redacted title: a later write must not clear it again.
+      await embed()
+      await tx.unsafe(`update documents set size_bytes = 11 where id = '${doc}'`)
+      return {
+        embeddedAfterLink,
+        embeddedAfterUpdate: await embedded(),
+        user: await node(tx, t, 'users', userA),
+        account: await node(tx, t, 'accounts', account),
+        before,
+        afterLink,
+        afterUpdate: await node(tx, t, 'documents', doc),
+        breaks: (await first(tx, CHAIN_BREAKS(t))).n as number,
+      }
+    })
+    expect(r.user.attributes).toEqual({ role: 'admin' })
+    expect(r.account.attributes).not.toHaveProperty('primary_email')
+    expect(JSON.stringify([r.user, r.account])).not.toMatch(/@/)
+    expect(r.before.title).toBe('Passport-Juan-Dela-Cruz.pdf')
+    expect(r.afterLink.title).toBe('KYC artifact: bir_2303')
+    expect(r.afterUpdate.title).toBe('KYC artifact: bir_2303')
+    expect(JSON.stringify([r.afterUpdate.summary, r.afterUpdate.attributes])).not.toMatch(/Passport|Juan/)
+    // The vector computed from the file name is dropped with the old title, once.
+    expect([r.embeddedAfterLink, r.embeddedAfterUpdate]).toEqual([false, true])
+    expect(r.breaks).toBe(0)
+  })
+
+  it('opportunity nodes gain a prospect title and append stage history in order', async () => {
+    const r = await inRollback(sql, async (tx) => {
+      const { tenantA: t, userA } = await seedTwoTenants(tx)
+      const account = await insertId(tx, `insert into accounts(tenant_id, name) values('${t}', 'Stage Client')`)
+      const opp = await insertId(
+        tx,
+        `insert into opportunities(tenant_id, account_id, rep_id, opportunity_type, stage)
+         values('${t}', '${account}', '${userA}', 'Fit-out', 'opportunity_creation')`
+      )
+      const titleBefore = (await node(tx, t, 'opportunities', opp)).title
+      await tx.unsafe(`update opportunities set stage = 'scoping' where id = '${opp}'`)
+      await tx.unsafe(`update opportunities set probability = 40 where id = '${opp}'`)
+      await tx.unsafe(
+        `update opportunities set stage = 'bom_submission', prospective_project_name = 'Tower B fit-out' where id = '${opp}'`
+      )
+      return { titleBefore, after: await node(tx, t, 'opportunities', opp) }
+    })
+    expect(r.titleBefore).toBe('Stage Client')
+    expect(r.after.title).toBe('Tower B fit-out')
+    const history = r.after.attributes.folds.stage_history as Array<Record<string, string>>
+    expect(history.map((h) => [h.from ?? null, h.to])).toEqual([
+      [null, 'opportunity_creation'],
+      ['opportunity_creation', 'scoping'],
+      ['scoping', 'bom_submission'],
+    ])
+  })
+
+  it('a failing mirror never breaks the ERP write', async () => {
+    const r = await inRollback(sql, async (tx) => {
+      const { tenantA: t } = await seedTwoTenants(tx)
+      await tx.unsafe(`
+        create or replace function public.cortex_upsert_node(
+          p_tenant uuid, p_node_type cortex_node_type, p_ref_table text, p_ref_id uuid,
+          p_title text, p_summary text, p_attributes jsonb, p_actor uuid, p_origin_ref text
+        ) returns uuid language plpgsql set search_path = public as $$
+        begin raise exception 'cortex probe failure'; end $$`)
+      const vendor = await insertId(tx, `insert into vendors(tenant_id, name) values('${t}', 'Still Saved')`)
+      const account = await insertId(tx, `insert into accounts(tenant_id, name) values('${t}', 'Still Saved')`)
+      await tx.unsafe(`update vendors set name = 'Still Saved 2' where id = '${vendor}'`)
+      return first(
+        tx,
+        `select (select count(*) from vendors where id = '${vendor}' and name = 'Still Saved 2')::int
+              + (select count(*) from accounts where id = '${account}')::int as rows,
+                (select count(*) from cortex_nodes where ref_id in ('${vendor}', '${account}'))::int as nodes`
+      )
+    })
+    expect(r).toEqual({ rows: 2, nodes: 0 })
+  })
+
+  it('registry engine: folds, link edges, stale edges and deletes (synthetic tables)', async () => {
+    const r = await inRollback(sql, async (tx) => {
+      const { tenantA: t, userA } = await seedTwoTenants(tx)
+      await tx.unsafe(`
+        create table public.cortex_probe_child(
+          id uuid primary key default gen_random_uuid(), tenant_id uuid not null,
+          vendor_id uuid, amount integer, notes text);
+        create table public.cortex_probe_link(
+          id uuid primary key default gen_random_uuid(), tenant_id uuid not null,
+          vendor_id uuid, project_id uuid);
+        insert into public.cortex_mirror_registry(ref_table, fold) values ('cortex_probe_child',
+          '{"parent_table": "vendors", "fk": "vendor_id", "key": "probe", "sum_col": "amount", "items": ["amount"], "order_col": "amount", "limit": 2}');
+        insert into public.cortex_mirror_registry(ref_table, links) values ('cortex_probe_link',
+          '{"src": {"table": "vendors", "col": "vendor_id"}, "dst": {"table": "projects", "col": "project_id"}, "type": "supplies"}');
+        create trigger cortex_fold_ins after insert on public.cortex_probe_child
+          referencing new table as cortex_new for each statement execute function public.cortex_fold_children();
+        create trigger cortex_fold_upd after update on public.cortex_probe_child
+          referencing new table as cortex_new old table as cortex_old for each statement execute function public.cortex_fold_children();
+        create trigger cortex_fold_del after delete on public.cortex_probe_child
+          referencing old table as cortex_old for each statement execute function public.cortex_fold_children();
+        create trigger cortex_link after insert or update or delete on public.cortex_probe_link
+          for each row execute function public.cortex_mirror_link();`)
+      const vendor = await insertId(tx, `insert into vendors(tenant_id, name) values('${t}', 'Fold Vendor')`)
+      const p1 = await insertId(tx, `insert into projects(tenant_id, name, client) values('${t}', 'Edge P1', 'C')`)
+      const p2 = await insertId(tx, `insert into projects(tenant_id, name, client) values('${t}', 'Edge P2', 'C')`)
+      const folds = async () => (await node(tx, t, 'vendors', vendor)).attributes.folds?.probe
+
+      await tx.unsafe(
+        `insert into cortex_probe_child(tenant_id, vendor_id, amount, notes)
+         values('${t}', '${vendor}', 10, 'n'), ('${t}', '${vendor}', 20, 'n'), ('${t}', '${vendor}', 30, 'n')`
+      )
+      const folded = await folds()
+      await tx.unsafe(`update vendors set name = 'Fold Vendor 2' where id = '${vendor}'`)
+      const keptAfterParentWrite = await folds()
+      await tx.unsafe(`delete from cortex_probe_child where amount = 30`)
+      const afterDelete = await folds()
+
+      const linkEdges = async () =>
+        (await tx.unsafe(
+          `select e.valid_to is null as open, e.attributes
+             from cortex_edges e join cortex_nodes s on s.id = e.src_id join cortex_nodes d on d.id = e.dst_id
+            where e.tenant_id = '${t}' and e.edge_type = 'supplies'
+              and s.ref_id = '${vendor}' and d.ref_id = '${p1}'`
+        )) as Rows
+      const link = await insertId(
+        tx,
+        `insert into cortex_probe_link(tenant_id, vendor_id, project_id) values('${t}', '${vendor}', '${p1}')`
+      )
+      const linkOpen = await linkEdges()
+      await tx.unsafe(`delete from cortex_probe_link where id = '${link}'`)
+      const linkClosed = await linkEdges()
+
+      const scope = await insertId(
+        tx,
+        `insert into scope_items(tenant_id, project_id, created_by, description, unit, quantity, unit_cost_cents, line_total_cents)
+         values('${t}', '${p1}', '${userA}', 'Edge scope', 'm', 1, 0, 0)`
+      )
+      await tx.unsafe(`update scope_items set project_id = '${p2}' where id = '${scope}'`)
+      const partOf = (await tx.unsafe(
+        `select d.ref_id::text as project, e.valid_to is null as open
+           from cortex_edges e join cortex_nodes s on s.id = e.src_id join cortex_nodes d on d.id = e.dst_id
+          where e.tenant_id = '${t}' and e.edge_type = 'part_of' and s.ref_id = '${scope}'
+          order by e.valid_to is null, e.id`
+      )) as Rows
+      await tx.unsafe(`delete from scope_items where id = '${scope}'`)
+      const afterScopeDelete = await first(
+        tx,
+        `select (select count(*) from cortex_nodes where ref_id = '${scope}' and valid_to is null)::int as nodes,
+                (select count(*) from cortex_edges e join cortex_nodes n on n.id in (e.src_id, e.dst_id)
+                  where n.ref_id = '${scope}' and e.valid_to is null)::int as edges`
+      )
+
+      await tx.unsafe(`
+        create or replace function public.cortex_set_fold(
+          p_tenant uuid, p_parent_table text, p_parent_id uuid, p_key text, p_value jsonb) returns void
+        language plpgsql as $$ begin raise exception 'fold probe failure'; end $$;
+        create or replace function public.cortex_link_edge(p_table text, p_row jsonb, p_open boolean) returns void
+        language plpgsql as $$ begin raise exception 'link probe failure'; end $$;`)
+      await tx.unsafe(`insert into cortex_probe_child(tenant_id, vendor_id, amount) values('${t}', '${vendor}', 5)`)
+      await tx.unsafe(
+        `insert into cortex_probe_link(tenant_id, vendor_id, project_id) values('${t}', '${vendor}', '${p2}')`
+      )
+      const survived = (await first(
+        tx,
+        `select (select count(*) from cortex_probe_child where amount = 5)::int
+              + (select count(*) from cortex_probe_link where project_id = '${p2}')::int as n`
+      )).n as number
+
+      return {
+        folded, keptAfterParentWrite, afterDelete, linkOpen, linkClosed, partOf, afterScopeDelete, survived,
+        breaks: (await first(tx, CHAIN_BREAKS(t))).n as number,
+        p1, p2,
+      }
+    })
+    expect(r.folded).toEqual({ count: 3, sum: 60, items: [{ amount: 30 }, { amount: 20 }] })
+    expect(r.keptAfterParentWrite).toEqual(r.folded)
+    expect(r.afterDelete).toEqual({ count: 2, sum: 30, items: [{ amount: 20 }, { amount: 10 }] })
+    expect(r.linkOpen).toEqual([{ open: true, attributes: { link: 'cortex_probe_link' } }])
+    expect(r.linkClosed).toEqual([{ open: false, attributes: { link: 'cortex_probe_link' } }])
+    expect(r.partOf).toEqual([
+      { project: r.p1, open: false },
+      { project: r.p2, open: true },
+    ])
+    expect(r.afterScopeDelete).toEqual({ nodes: 0, edges: 0 })
+    expect(r.survived).toBe(2)
+    expect(r.breaks).toBe(0)
+  })
+
+  it('registry engine: lookups, JSON paths, poly and array edges; a moved poly edge closes (synthetic table)', async () => {
+    const r = await inRollback(sql, async (tx) => {
+      const { tenantA: t, userA } = await seedTwoTenants(tx)
+      const other = await seedUserWithRole(tx, t, 'sales')
+      const project = await insertId(tx, `insert into projects(tenant_id, name, client) values('${t}', 'Poly P', 'C')`)
+      const vendor = await insertId(tx, `insert into vendors(tenant_id, name) values('${t}', 'Poly V')`)
+      await tx.unsafe(`
+        create table public.cortex_probe_rich(
+          id uuid primary key default gen_random_uuid(), tenant_id uuid not null,
+          subject_type text, subject_id uuid, mentioned uuid[], vendor_id uuid,
+          payload jsonb, label text, secret_token text);
+        insert into public.cortex_mirror_registry(
+          ref_table, node_type, title_tpl, summary_tpl, attr_cols, attr_paths, edges, lookups)
+        values ('cortex_probe_rich', 'task', '{vendor_name}: {label}', 'Label: {label}',
+          '{label,subject_type}', '{payload.floor_area_sqm}',
+          '[{"cols": ["subject_id"], "type": "part_of", "dir": "out",
+             "poly": {"type_col": "subject_type", "map": {"project": "projects", "vendor": "vendors"}}},
+            {"cols": ["mentioned"], "many": true, "table": "users", "type": "mentions", "dir": "out"}]',
+          '{"vendor_name": {"table": "vendors", "col": "name", "key": "vendor_id"}}');
+        create trigger cortex_mirror_r after insert or update or delete on public.cortex_probe_rich
+          for each row execute function public.cortex_mirror_row();`)
+      const row = await insertId(
+        tx,
+        `insert into cortex_probe_rich(tenant_id, subject_type, subject_id, mentioned, vendor_id, payload, label, secret_token)
+         values('${t}', 'project', '${project}', array['${userA}', '${other}']::uuid[], '${vendor}',
+                '{"floor_area_sqm": 120, "site_address": "5 Secret St"}', 'L1', 'tok-secret')`
+      )
+      const openEdges = async () =>
+        ((await tx.unsafe(
+          `select e.edge_type::text || ':' || d.ref_table || ':' || d.ref_id::text as edge
+             from cortex_edges e join cortex_nodes s on s.id = e.src_id join cortex_nodes d on d.id = e.dst_id
+            where s.ref_id = '${row}' and e.valid_to is null order by 1`
+        )) as Rows).map((edge: Rows) => edge.edge as string)
+      const created = { node: await node(tx, t, 'cortex_probe_rich', row), edges: await openEdges() }
+      await tx.unsafe(
+        `update cortex_probe_rich
+            set subject_type = 'vendor', subject_id = '${vendor}', mentioned = array['${other}']::uuid[], label = null
+          where id = '${row}'`
+      )
+      const moved = { node: await node(tx, t, 'cortex_probe_rich', row), edges: await openEdges() }
+      return { created, moved, row, project, vendor, userA, other }
+    })
+    expect(r.created.node.title).toBe('Poly V: L1')
+    expect(r.created.node.summary).toBe('Label: L1')
+    expect(r.created.node.attributes).toEqual({ label: 'L1', subject_type: 'project', floor_area_sqm: 120 })
+    expect(r.created.edges).toEqual(
+      [`part_of:projects:${r.project}`, `mentions:users:${r.userA}`, `mentions:users:${r.other}`].sort()
+    )
+    // An empty placeholder falls back to "<Type> <id8>" and drops the summary.
+    expect(r.moved.node.title).toBe(`Task ${r.row.slice(0, 8)}`)
+    expect(r.moved.node.summary).toBeNull()
+    expect(r.moved.edges).toEqual([`part_of:vendors:${r.vendor}`, `mentions:users:${r.other}`].sort())
+  })
+
+  it('cortex_redact_text masks emails and phone-like digit runs, keeps codes, and truncates', async () => {
+    const cases: Array<[string, string]> = [
+      ['mail juan.cruz+x@s1-test.com.ph now', 'mail [email] now'],
+      ['call +63 917 555 0101 ok', 'call [phone] ok'],
+      ['0917-555-0102', '[phone]'],
+      ['tel (02) 8123-4567', 'tel [phone]'],
+      ['PO-2026-000123 rev 2', 'PO-2026-000123 rev 2'],
+      ['Room 301, 12mm at 600V', 'Room 301, 12mm at 600V'],
+    ]
+    const rows = (await sql.unsafe(
+      `select public.cortex_redact_text(x, 300) as out
+         from unnest(array[${cases.map(([input]) => `'${input}'`).join(', ')}]) with ordinality as v(x, n)
+        order by n`
+    )) as Rows
+    expect(rows.map((row: Rows) => row.out)).toEqual(cases.map(([, expected]) => expected))
+    const cut = (await sql.unsafe(
+      `select length(public.cortex_redact_text(repeat('x', 400), 300))::int as n`
+    )) as Rows
+    expect(cut[0].n).toBe(300)
+  })
+
+  it('backfill --mode all strips legacy attributes; a second run writes no provenance', async () => {
+    const r = await inRollback(sql, async (tx) => {
+      const { tenantA: t } = await seedTwoTenants(tx)
+      const vendor = await insertId(
+        tx,
+        `insert into vendors(tenant_id, name, email) values('${t}', 'Legacy', 'old@legacy.test')`
+      )
+      const account = await insertId(tx, `insert into accounts(tenant_id, name) values('${t}', 'Legacy Acct')`)
+      await tx.unsafe(
+        `update cortex_nodes set attributes = attributes || '{"email": "old@legacy.test", "notes": "x"}'
+          where tenant_id = '${t}' and ref_id = '${vendor}' and valid_to is null`
+      )
+      await tx.unsafe(
+        `update cortex_nodes set attributes = attributes || '{"primary_email": "old@legacy.test"}'
+          where tenant_id = '${t}' and ref_id = '${account}' and valid_to is null`
+      )
+      // A row written while its trigger was off is picked up by --mode missing.
+      await tx.unsafe(`alter table vendors disable trigger cortex_mirror_r`)
+      const unmirrored = await insertId(tx, `insert into vendors(tenant_id, name) values('${t}', 'Unmirrored')`)
+      await tx.unsafe(`alter table vendors enable trigger cortex_mirror_r`)
+
+      const counts = () =>
+        first(
+          tx,
+          `select (select count(*) from cortex_provenance)::int as prov,
+                  (select count(*) from cortex_nodes where valid_to is null)::int as nodes,
+                  (select count(*) from cortex_edges where valid_to is null)::int as edges`
+        )
+      const missingFirst = await backfillAll(tx, 'vendors', 'missing')
+      const missingSecond = await backfillAll(tx, 'vendors', 'missing')
+      for (const table of BATCH1_BACKFILL_TABLES) await backfillAll(tx, table, 'all')
+      const afterFirst = await counts()
+      let processedSecond = 0
+      for (const table of BATCH1_BACKFILL_TABLES) processedSecond += await backfillAll(tx, table, 'all')
+      const afterSecond = await counts()
+      return {
+        missingFirst, missingSecond, processedSecond, afterFirst, afterSecond,
+        vendor: await node(tx, t, 'vendors', vendor),
+        account: await node(tx, t, 'accounts', account),
+        unmirrored: await node(tx, t, 'vendors', unmirrored),
+        breaks: (await first(tx, CHAIN_BREAKS(t))).n as number,
+      }
+    })
+    expect(r.missingFirst).toBeGreaterThanOrEqual(1)
+    expect(r.missingSecond).toBe(0)
+    expect(r.unmirrored?.title).toBe('Unmirrored')
+    expect(r.vendor.attributes).not.toHaveProperty('email')
+    expect(r.vendor.attributes).not.toHaveProperty('notes')
+    expect(r.account.attributes).not.toHaveProperty('primary_email')
+    expect(r.processedSecond).toBeGreaterThanOrEqual(5)
+    expect(r.afterSecond).toEqual(r.afterFirst)
+    expect(r.breaks).toBe(0)
+  })
+
+  it('backfill builds stage history from succeeded transition receipts; a live change then appends', async () => {
+    const r = await inRollback(sql, async (tx) => {
+      const { tenantA: t, userA } = await seedTwoTenants(tx)
+      const account = await insertId(tx, `insert into accounts(tenant_id, name) values('${t}', 'History Client')`)
+      const opp = await insertId(
+        tx,
+        `insert into opportunities(tenant_id, account_id, rep_id, opportunity_type, stage)
+         values('${t}', '${account}', '${userA}', 'Fit-out', 'bom_submission')`
+      )
+      // A node mirrored before Batch 1 has no folds.
+      await tx.unsafe(
+        `update cortex_nodes set attributes = attributes - 'folds'
+          where tenant_id = '${t}' and ref_id = '${opp}' and valid_to is null`
+      )
+      await tx.unsafe(
+        `insert into opportunity_stage_transition_requests(
+           tenant_id, opportunity_id, idempotency_key, request_hash, state, from_stage, to_stage,
+           created_by, created_at, completed_at, result)
+         values
+           ('${t}', '${opp}', 'k2', repeat('b', 64), 'succeeded', 'scoping', 'bom_submission',
+            '${userA}', now() - interval '1 hour', now() - interval '1 hour', '{}'),
+           ('${t}', '${opp}', 'k1', repeat('a', 64), 'succeeded', 'opportunity_creation', 'scoping',
+            '${userA}', now() - interval '2 hours', now() - interval '2 hours', '{}'),
+           ('${t}', '${opp}', 'k3', repeat('c', 64), 'processing', 'bom_submission', 'negotiation',
+            '${userA}', now(), null, null)`
+      )
+      const history = async () =>
+        ((await node(tx, t, 'opportunities', opp)).attributes.folds?.stage_history ?? []).map(
+          (entry: Rows) => [entry.from ?? null, entry.to]
+        )
+      const provenance = async () => (await first(tx, `select count(*)::int as n from cortex_provenance`)).n as number
+      await backfillAll(tx, 'opportunities', 'all')
+      const built = await history()
+      const provBefore = await provenance()
+      await backfillAll(tx, 'opportunities', 'all')
+      const provAfter = await provenance()
+      await tx.unsafe(`update opportunities set stage = 'negotiation' where id = '${opp}'`)
+      return { built, provBefore, provAfter, live: await history() }
+    })
+    expect(r.built).toEqual([
+      ['opportunity_creation', 'scoping'],
+      ['scoping', 'bom_submission'],
+    ])
+    expect(r.provAfter).toBe(r.provBefore)
+    expect(r.live).toEqual([...r.built, ['bom_submission', 'negotiation']])
+  })
+
+  it('rollback SQL restores the generic triggers and old bodies, keeps data and the chain', async () => {
+    const r = await inRollback(sql, async (tx) => {
+      const { tenantA: t } = await seedTwoTenants(tx)
+      await tx.unsafe(`insert into vendors(tenant_id, name) values('${t}', 'Before Rollback')`)
+      await tx.unsafe(`insert into accounts(tenant_id, name) values('${t}', 'Before Rollback')`)
+      const nodesBefore = (await first(tx, `select count(*)::int as n from cortex_nodes`)).n as number
+      await tx.unsafe(ROLLBACK_SQL)
+      const triggers = (await tx.unsafe(
+        `select tgrelid::regclass::text as tbl, tgname from pg_trigger
+          where not tgisinternal
+            and (tgfoid = 'public.cortex_mirror_generic'::regproc
+                 or tgname in ('cortex_mirror_r', 'cortex_kyc_redact'))
+          order by 1`
+      )) as Rows
+      const leftovers = (await first(
+        tx,
+        `select count(*)::int as n from pg_proc p join pg_namespace s on s.oid = p.pronamespace
+          where s.nspname = 'public' and p.proname in ('cortex_apply_row', 'cortex_backfill', 'cortex_mirror_row',
+            'cortex_apply_account', 'cortex_fold_children', 'cortex_mirror_link', 'cortex_kyc_redact')`
+      )).n as number
+      const kept = await first(
+        tx,
+        `select (select count(*) from cortex_nodes)::int as nodes,
+                (select count(*) from cortex_mirror_registry)::int as registry,
+                (select count(*) from cortex_node_type_access)::int as access`
+      )
+      const vendor = await insertId(
+        tx,
+        `insert into vendors(tenant_id, name, email) values('${t}', 'After Rollback', 'old@path.test')`
+      )
+      return {
+        nodesBefore, triggers, leftovers, kept,
+        oldPath: await node(tx, t, 'vendors', vendor),
+        breaks: (await first(tx, CHAIN_BREAKS(t))).n as number,
+      }
+    })
+    const byTable = Object.fromEntries(r.triggers.map((row: Rows) => [row.tbl, row.tgname]))
+    expect(Object.keys(byTable).sort()).toEqual([...CORTEX_BATCH1_REGISTRY].sort())
+    expect(byTable.vendors).toBe('cortex_mirror_g')
+    expect(byTable.cost_codes).toBe('cortex_mirror_budget_cost_code')
+    expect(byTable.project_budgets).toBe('cortex_mirror_project_budget')
+    expect(byTable.stock_movements).toBe('cortex_mirror_stock_movement')
+    expect(r.leftovers).toBe(0)
+    expect(r.kept.nodes).toBe(r.nodesBefore)
+    expect(r.kept.registry).toBe(CORTEX_BATCH1_REGISTRY.length)
+    expect(r.kept.access).toBeGreaterThan(0)
+    // The restored generic mirror is the pre-Batch-1 (leaky) path.
+    expect(r.oldPath.attributes).toHaveProperty('email')
+    expect(r.breaks).toBe(0)
+  })
+
+  it('coverage guard: every tenant table is classified exactly once', async () => {
+    const names = async (query: string): Promise<string[]> =>
+      ((await sql.unsafe(query)) as Rows).map((row: Rows) => row.name as string)
+    const tables = await names(
+      `select distinct c.table_name::text as name
+         from information_schema.columns c
+         join information_schema.tables t on t.table_schema = c.table_schema and t.table_name = c.table_name
+        where c.table_schema = 'public' and c.column_name = 'tenant_id' and t.table_type = 'BASE TABLE'`
+    )
+    const mirrored = await names(
+      `select distinct c.relname::text as name
+         from pg_trigger t join pg_class c on c.oid = t.tgrelid
+        where not t.tgisinternal and t.tgfoid::regproc::text like 'cortex_mirror_%'`
+    )
+    const registry = await names(`select ref_table as name from cortex_mirror_registry`)
+
+    const classes: Array<[string, readonly string[]]> = [
+      ['handwritten', CORTEX_HANDWRITTEN_MIRRORS],
+      ['registry', registry],
+      ['batch1-support', Object.keys(CORTEX_BATCH1_SUPPORT)],
+      ...Object.entries(CORTEX_PLANNED).map(
+        ([batch, list]): [string, readonly string[]] => [`planned-${batch}`, list]
+      ),
+      ['never', Object.keys(CORTEX_NEVER_MIRROR)],
+    ]
+    const owners = new Map<string, string[]>()
+    for (const [name, list] of classes) {
+      for (const table of list) owners.set(table, [...(owners.get(table) ?? []), name])
+    }
+    const plannedCatalogue: readonly string[] = CORTEX_PLANNED[6]
+    const unclassified = tables.filter((table) => !owners.has(table)).sort()
+    const duplicated = [...owners].filter(([, list]) => list.length > 1).map(([table]) => table)
+    const stale = [...owners.keys()].filter(
+      (table) => !tables.includes(table) && !plannedCatalogue.includes(table)
+    )
+    expect({ unclassified, duplicated, stale }).toEqual({ unclassified: [], duplicated: [], stale: [] })
+
+    // Batches 0-1 are fully live: every hand-written and registry table has its mirror trigger.
+    const notMirrored = [...CORTEX_HANDWRITTEN_MIRRORS, ...CORTEX_BATCH1_REGISTRY].filter(
+      (table) => !mirrored.includes(table)
+    )
+    expect(notMirrored).toEqual([])
+    expect([...registry].sort()).toEqual([...CORTEX_BATCH1_REGISTRY].sort())
+    expect(Object.values(CORTEX_NEVER_MIRROR).every((why) => why.length > 0)).toBe(true)
+  })
+
+  it('parity guard: registry node types are in the enum, the access table and the graph contract', async () => {
+    const dbEnum = ((await sql.unsafe(
+      `select unnest(enum_range(null::cortex_node_type))::text as v`
+    )) as Rows).map((row: Rows) => row.v as string)
+    expect([...dbEnum].sort()).toEqual([...cortexNodeTypeEnum.enumValues].sort())
+
+    const rows = (await sql.unsafe(
+      `select r.ref_table, r.node_type::text as node_type, a.read_group
+         from cortex_mirror_registry r
+         left join cortex_node_type_access a on a.node_type = r.node_type
+        where r.node_type is not null`
+    )) as Rows
+    const graphContract = CORTEX_GRAPH_REF_TABLE_NODE_TYPES as Record<string, string>
+    const gaps = rows
+      .filter((row: Rows) => !row.read_group || graphContract[row.ref_table] !== row.node_type)
+      .map((row: Rows) => row.ref_table)
+    expect(gaps).toEqual([])
+
+    // Deny-by-default: types nothing mirrors yet have no access row.
+    const early = (await sql.unsafe(
+      `select node_type::text as t from cortex_node_type_access
+        where node_type::text in ('kyc_track', 'tender', 'quote', 'catalogue_item')`
+    )) as Rows
+    expect(early).toEqual([])
   })
 })
