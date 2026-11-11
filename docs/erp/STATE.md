@@ -387,8 +387,8 @@ RUNBOOK) is **done**.
   (`20261106102000`) to production before CI is restored, under the owner override,
   or wait for CI? It is the third of #147's three migrations; the question is whether
   to apply it alone. Applied alone, production history goes out of order, and the
-  release planner then reports a non-linear history (`scripts/plan-database-release.mjs`),
-  which CI checks. Applying needs a backup and the runbook preflight first: if the API
+  release planner (`scripts/plan-database-release.mjs`) then fails the production
+  promotion's ledger gate (`deploy-production.yml`). Applying needs a backup and the runbook preflight first: if the API
   or web runtime role is neither superuser nor BYPASSRLS, every direct audit insert would
   fail. It takes an ACCESS EXCLUSIVE lock on `audit_log` briefly. Waiting keeps
   exposure 1 live.
@@ -409,7 +409,7 @@ RUNBOOK) is **done**.
 ## Log
 | Date | Mode | Result |
 |---|---|---|
-| 2026-11-11 | build | #146 data review rounds 3-4, to the owner (3-loop limit). #144 rounds 2-4 and fix loop 3; round 4: security FAIL (a worker that cannot be terminated) and code REQUEST_CHANGES, to the owner. #147 rounds 1-4 and fix loops 1-3, final round: security PASS, code APPROVE. #149 opened; rounds 1-4 and fix loops 2-3, final round: security PASS, code APPROVE, UI pass. Database suites rerun on rebuilt local databases; actionlint fails only on local Windows; `supabase db diff` was not run. A machine shutdown (Windows event 1074, 16:26 local time) stopped two agents; work resumed from their commits. Nothing deployed: Actions still blocked |
+| 2026-11-11 | build | #146 data review rounds 3-4, to the owner (3-loop limit). #144 rounds 2-4 and fix loops 2-3; round 4: security FAIL (a worker that cannot be terminated) and code REQUEST_CHANGES, to the owner. #147 rounds 1-4 and fix loops 1-3, final round: security PASS, code APPROVE. #149 opened; rounds 1-4 and fix loops 1-3, final round: security PASS, code APPROVE, UI pass. Database suites rerun on rebuilt local databases; actionlint fails only on local Windows; `supabase db diff` was not run. A machine shutdown (Windows event 1074, 16:26 local time) stopped two agents; work resumed from their commits. Nothing deployed: Actions still blocked |
 | 2026-11-10 | build | #146 catalogue data opened; data review rounds 1-2 and fixes |
 | 2026-11-05 | promote | Manual (Actions blocked): web `f212c9df` via Vercel CLI, API auto-deploy `e2acdd8f`; health, revision, surface PASS; smoke not run (secrets in GitHub only) |
 | 2026-11-05 | merge | #142 `f212c9df` tenancy (D-13), owner override of the CI gate; Q-TEN-6 re-checked (0 profiles, 0 gates) |
