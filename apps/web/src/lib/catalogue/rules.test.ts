@@ -174,6 +174,17 @@ describe('text hygiene', () => {
     expect(cleanSingleLine('invoice\u202Efdp.exe')).toBe('invoicefdp.exe')
   })
 
+  it('splits a ZWJ emoji into its parts and strips a subdivision flag to its black flag', () => {
+    // Man mechanic: man, zero-width joiner, wrench.
+    const manMechanic = '\u{1F468}‍\u{1F527}'
+    expect(cleanSingleLine(`Fitter ${manMechanic}`)).toBe('Fitter \u{1F468}\u{1F527}')
+    expect(cleanMultiLine(manMechanic)).toBe('\u{1F468}\u{1F527}')
+    // England: black flag, the tags g b e n g, cancel tag.
+    const england = '\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}'
+    expect(cleanSingleLine(`Supplier ${england} UK`)).toBe('Supplier \u{1F3F4} UK')
+    expect(cleanMultiLine(england)).toBe('\u{1F3F4}')
+  })
+
   it('keeps the variation selectors U+FE00-U+FE0F that emoji use', () => {
     expect(cleanSingleLine('Heart \u2764\uFE0F red')).toBe('Heart \u2764\uFE0F red')
     expect(cleanMultiLine('\u{1F6E0}\uFE0F tools')).toBe('\u{1F6E0}\uFE0F tools')
