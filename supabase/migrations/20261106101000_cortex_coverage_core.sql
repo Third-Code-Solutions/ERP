@@ -584,7 +584,7 @@ begin
   begin
     perform public.cortex_apply_account(case when tg_op = 'DELETE' then to_jsonb(old) else to_jsonb(new) end, tg_op);
   exception when others then
-    raise warning 'cortex_mirror_account failed for %: %', coalesce(new.id, old.id), sqlerrm;
+    raise warning 'cortex_mirror_account failed for %: %', case when tg_op = 'DELETE' then old.id else new.id end, sqlerrm;
   end;
   return coalesce(new, old);
 end $$;
@@ -595,7 +595,7 @@ begin
   begin
     perform public.cortex_apply_user(case when tg_op = 'DELETE' then to_jsonb(old) else to_jsonb(new) end, tg_op);
   exception when others then
-    raise warning 'cortex_mirror_user failed for %: %', coalesce(new.id, old.id), sqlerrm;
+    raise warning 'cortex_mirror_user failed for %: %', case when tg_op = 'DELETE' then old.id else new.id end, sqlerrm;
   end;
   return coalesce(new, old);
 end $$;
@@ -606,7 +606,7 @@ begin
   begin
     perform public.cortex_apply_opportunity(case when tg_op = 'DELETE' then to_jsonb(old) else to_jsonb(new) end, tg_op);
   exception when others then
-    raise warning 'cortex_mirror_opportunity failed for %: %', coalesce(new.id, old.id), sqlerrm;
+    raise warning 'cortex_mirror_opportunity failed for %: %', case when tg_op = 'DELETE' then old.id else new.id end, sqlerrm;
   end;
   return coalesce(new, old);
 end $$;
@@ -617,7 +617,7 @@ begin
   begin
     perform public.cortex_apply_document(case when tg_op = 'DELETE' then to_jsonb(old) else to_jsonb(new) end, tg_op);
   exception when others then
-    raise warning 'cortex_mirror_document failed for %: %', coalesce(new.id, old.id), sqlerrm;
+    raise warning 'cortex_mirror_document failed for %: %', case when tg_op = 'DELETE' then old.id else new.id end, sqlerrm;
   end;
   return coalesce(new, old);
 end $$;

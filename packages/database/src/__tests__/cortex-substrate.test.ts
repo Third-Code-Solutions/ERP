@@ -997,6 +997,32 @@ suite('Cortex coverage (Batches 0-1)', () => {
     expect(r).toEqual({ rows: 2, nodes: 0 })
   })
 
+  it('a failing mirror never breaks an ERP delete (registry and hand-written triggers)', async () => {
+    const r = await inRollback(sql, async (tx) => {
+      const { tenantA: t } = await seedTwoTenants(tx)
+      const vendor = await insertId(tx, `insert into vendors(tenant_id, name) values('${t}', 'Delete Me')`)
+      const account = await insertId(tx, `insert into accounts(tenant_id, name) values('${t}', 'Delete Me')`)
+      await tx.unsafe(`
+        create or replace function public.cortex_apply_row(p_table text, p_row jsonb, p_op text)
+        returns uuid language plpgsql set search_path = '' as $
+        begin raise exception 'cortex probe failure'; end $;
+        create or replace function public.cortex_apply_account(p_row jsonb, p_op text)
+        returns uuid language plpgsql set search_path = '' as $
+        begin raise exception 'cortex probe failure'; end $`)
+      await tx.unsafe(`delete from vendors where id = '${vendor}'`)
+      await tx.unsafe(`delete from accounts where id = '${account}'`)
+      return first(
+        tx,
+        `select (select count(*) from vendors where id = '${vendor}')::int
+              + (select count(*) from accounts where id = '${account}')::int as rows,
+                (select count(*) from cortex_nodes
+                  where ref_id in ('${vendor}', '${account}') and valid_to is null)::int as open_nodes`
+      )
+    })
+    // Rows are gone; the nodes stay open because the mirror failed (warning only).
+    expect(r).toEqual({ rows: 0, open_nodes: 2 })
+  })
+
   it('registry engine: folds, link edges, stale edges and deletes (synthetic tables)', async () => {
     const r = await inRollback(sql, async (tx) => {
       const { tenantA: t, userA } = await seedTwoTenants(tx)
