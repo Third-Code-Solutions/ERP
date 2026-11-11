@@ -29,6 +29,7 @@ import {
   CORTEX_HANDWRITTEN_MIRRORS,
   CORTEX_NEVER_MIRROR,
   CORTEX_PLANNED,
+  CORTEX_DENYLIST_MIRRORS,
   CORTEX_REGISTRY_COLUMNS,
 } from './_cortex-coverage-classes'
 import { cortexNodeTypeEnum } from '../schema/cortex'
@@ -1728,6 +1729,46 @@ suite('Cortex coverage (Batches 0-1)', () => {
         where t.tbl is null or r.ref_table is null`
     )) as Rows
     expect(pairs).toEqual([])
+  })
+
+  it('SEC-M7: the denylist finance, cash, bank and inventory mirrors copy exactly the decided keys', async () => {
+    const tables = Object.keys(CORTEX_DENYLIST_MIRRORS)
+    expect(tables).toHaveLength(11)
+    const rows = (await sql.unsafe(
+      `select c.relname::text as tbl,
+              array(select a.attname::text from pg_attribute a
+                     where a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped order by 1) as cols,
+              array(select p.proname::text from pg_trigger g join pg_proc p on p.oid = g.tgfoid
+                     where g.tgrelid = c.oid and not g.tgisinternal) as mirrors
+         from pg_class c join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'public' and c.relname = any($1)
+        order by 1`,
+      [tables]
+    )) as Rows
+    const defs = new Map<string, string>()
+    for (const mirror of new Set(Object.values(CORTEX_DENYLIST_MIRRORS).map((m) => m.mirror))) {
+      const [row] = (await sql.unsafe(`select pg_get_functiondef('public.${mirror}()'::regprocedure) as def`)) as Rows
+      defs.set(mirror, row.def as string)
+    }
+    const actual = rows.map((row: Rows) => {
+      const decision = CORTEX_DENYLIST_MIRRORS[row.tbl as string]
+      const def = defs.get(decision.mirror) ?? ''
+      return {
+        table: row.tbl,
+        mirrored: (row.mirrors as string[]).includes(decision.mirror),
+        // The mirror copies the row minus these keys; each must still be removed in its body.
+        removedInBody: decision.removed.filter((key) => !new RegExp(`-\\s*'${key}'`).test(def)),
+        copied: (row.cols as string[]).filter((col) => !decision.removed.includes(col)).sort(),
+      }
+    })
+    expect(actual).toEqual(
+      tables.sort().map((table) => ({
+        table,
+        mirrored: true,
+        removedInBody: [],
+        copied: [...CORTEX_DENYLIST_MIRRORS[table].copied].sort(),
+      }))
+    )
   })
 
   it('coverage guard: every tenant table is classified exactly once', async () => {

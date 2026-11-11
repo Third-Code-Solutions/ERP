@@ -476,5 +476,7 @@ The tests are table-driven from the registry, with one minimal fixture factory p
   | `cortex_mirror_inventory_record` (20260726234000) | warehouses, stock_receipts, stock_ledger_entries | inventory (`auth_can_read_inventory()`) |
 
   `cortex_mirror_receivable_dimensions` (on invoices and journal_lines) only writes edges and copies no attributes.
+
+  **Owner:** owner to assign. **Target:** next Cortex batch. Until then a snapshot test (SEC-M7, `CORTEX_DENYLIST_MIRRORS` in `__tests__/_cortex-coverage-classes.ts`) pins the attribute keys each of the 11 tables produces and checks that each mirror still removes its keys, so a new source column fails CI until someone decides whether it may be copied.
 - Re-embedding stale vectors. The exceptions are a KYC-linked document, whose embedding is cleared with its re-title (§3.3), and any node whose title or summary the scrub changes.
 - UI work beyond the parity entries.

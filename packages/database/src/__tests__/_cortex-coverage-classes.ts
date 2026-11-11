@@ -434,3 +434,104 @@ export const CORTEX_REGISTRY_COLUMNS: Record<
 /** Spec §3.2 global exclusion regex (case-insensitive). */
 export const CORTEX_ATTR_EXCLUDE =
   /token|_hash$|password|secret|email|phone|address|contact_name|_ip$|user_agent|signer_|responder_|submitted_by_name|sender_name|bir_tin|(^|_)tin$|docuseal_|idempotency_key|request_hash|storage_path|sha256/i
+
+/**
+ * SEC-M7 compensating control (spec §10): the pre-Batch-1 finance, cash, bank
+ * and inventory mirrors still copy `row - removed`, so every source column
+ * not removed reaches `attributes`. `copied` is the decided key set; a new
+ * column fails the snapshot test until someone decides. Converting these
+ * mirrors to literal lists is planned for the next Cortex batch.
+ */
+export const CORTEX_DENYLIST_MIRRORS: Record<string, { mirror: string; removed: string[]; copied: string[] }> = {
+  fiscal_periods: {
+    mirror: 'cortex_mirror_finance',
+    removed: ['created_by', 'posted_by', 'closed_by'],
+    copied: ['closed_at', 'created_at', 'ends_on', 'id', 'name', 'starts_on', 'status', 'tenant_id', 'updated_at'],
+  },
+  ledger_accounts: {
+    mirror: 'cortex_mirror_finance',
+    removed: ['created_by', 'posted_by', 'closed_by'],
+    copied: [
+      'account_type', 'code', 'created_at', 'id', 'is_active', 'name', 'normal_balance', 'parent_id', 'system_key',
+      'tenant_id', 'updated_at',
+    ],
+  },
+  journal_entries: {
+    mirror: 'cortex_mirror_finance',
+    removed: ['created_by', 'posted_by', 'closed_by'],
+    copied: [
+      'created_at', 'currency', 'description', 'entry_number', 'fiscal_period_id', 'id', 'posted_at', 'posting_date',
+      'reference_id', 'reference_type', 'reverses_entry_id', 'source_type', 'status', 'tenant_id', 'updated_at',
+    ],
+  },
+  journal_lines: {
+    mirror: 'cortex_mirror_finance',
+    removed: ['created_by', 'posted_by', 'closed_by'],
+    copied: [
+      'business_account_id', 'created_at', 'credit_cents', 'debit_cents', 'description', 'id', 'journal_entry_id',
+      'ledger_account_id', 'line_number', 'project_id', 'tenant_id', 'vendor_id',
+    ],
+  },
+  supplier_bills: {
+    mirror: 'cortex_mirror_payables',
+    removed: ['created_by', 'posted_by', 'reversed_by'],
+    copied: [
+      'bill_date', 'created_at', 'currency', 'due_date', 'id', 'input_vat_cents', 'internal_number', 'notes',
+      'posted_at', 'posting_journal_entry_id', 'project_id', 'purchase_order_id', 'reversal_journal_entry_id',
+      'reversal_reason', 'reversed_at', 'status', 'subtotal_cents', 'tenant_id', 'total_payable_cents', 'updated_at',
+      'vendor_bill_number', 'vendor_id', 'withholding_tax_cents',
+    ],
+  },
+  cash_accounts: {
+    mirror: 'cortex_mirror_cash',
+    removed: ['created_by', 'account_identifier_last4'],
+    copied: [
+      'account_kind', 'bank_name', 'created_at', 'currency', 'id', 'is_active', 'ledger_account_id', 'name',
+      'tenant_id', 'updated_at',
+    ],
+  },
+  cash_transactions: {
+    mirror: 'cortex_mirror_cash',
+    removed: ['created_by', 'posted_by', 'reversed_by'],
+    copied: [
+      'amount_cents', 'business_account_id', 'cash_account_id', 'created_at', 'currency', 'direction', 'id',
+      'internal_number', 'notes', 'posted_at', 'posting_journal_entry_id', 'reference_number',
+      'reversal_journal_entry_id', 'reversal_reason', 'reversed_at', 'status', 'tenant_id', 'transaction_date',
+      'updated_at', 'vendor_id',
+    ],
+  },
+  bank_statements: {
+    mirror: 'cortex_mirror_bank_statement',
+    removed: ['created_by', 'reconciled_by', 'voided_by'],
+    copied: [
+      'cash_account_id', 'closing_balance_cents', 'created_at', 'currency', 'id', 'opening_balance_cents',
+      'reconciled_at', 'reference_number', 'source_file_name', 'source_sha256', 'source_storage_path',
+      'statement_end', 'statement_start', 'status', 'tenant_id', 'updated_at', 'void_reason', 'voided_at',
+    ],
+  },
+  warehouses: {
+    mirror: 'cortex_mirror_inventory_record',
+    removed: ['created_by', 'posted_by', 'reversed_by'],
+    copied: ['code', 'created_at', 'id', 'is_active', 'name', 'project_id', 'tenant_id', 'updated_at'],
+  },
+  stock_receipts: {
+    mirror: 'cortex_mirror_inventory_record',
+    removed: ['created_by', 'posted_by', 'reversed_by'],
+    copied: [
+      'created_at', 'currency', 'delivery_schedule_id', 'id', 'internal_number', 'notes', 'posted_at',
+      'posting_journal_entry_id', 'purchase_order_id', 'received_date', 'reversal_journal_entry_id',
+      'reversal_reason', 'reversed_at', 'status', 'supplier_delivery_reference', 'tenant_id', 'updated_at',
+      'warehouse_id',
+    ],
+  },
+  stock_ledger_entries: {
+    mirror: 'cortex_mirror_inventory_record',
+    removed: ['created_by', 'posted_by', 'reversed_by'],
+    copied: [
+      'created_at', 'event_type', 'id', 'landed_cost_allocation_id', 'landed_cost_document_id', 'material_item_id',
+      'occurred_on', 'quantity_delta_micros', 'reverses_stock_ledger_entry_id', 'stock_movement_id',
+      'stock_movement_line_id', 'stock_receipt_id', 'stock_receipt_line_id', 'tenant_id', 'uom_id',
+      'value_delta_cents', 'warehouse_id',
+    ],
+  },
+}
