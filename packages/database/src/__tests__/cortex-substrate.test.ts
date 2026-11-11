@@ -1849,7 +1849,7 @@ suite('Cortex coverage (Batches 0-1)', () => {
       defs.set(mirror, row.def as string)
     }
     const actual = rows.map((row: Rows) => {
-      const decision = CORTEX_DENYLIST_MIRRORS[row.tbl as string]
+      const decision = CORTEX_DENYLIST_MIRRORS[row.tbl as string]!
       const def = defs.get(decision.mirror) ?? ''
       return {
         table: row.tbl,
@@ -1864,7 +1864,7 @@ suite('Cortex coverage (Batches 0-1)', () => {
         table,
         mirrored: true,
         removedInBody: [],
-        copied: [...CORTEX_DENYLIST_MIRRORS[table].copied].sort(),
+        copied: [...CORTEX_DENYLIST_MIRRORS[table]!.copied].sort(),
       }))
     )
   })
