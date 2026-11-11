@@ -143,6 +143,13 @@ Added after the security review of PR #146 (2026-11-10).
 - Its dry run prints per-trade counts.
 - Each real run writes one `audit_log` entry with its counts.
 - `DATABASE_URL` comes from the environment only.
+- **Rollout: run `ANALYZE` on `catalogue_items` and `catalogue_prices` after a
+  real run.** Until the planner has statistics for the seeded tenant it joins the
+  current-observation subquery to the items row by row. Measured on the local
+  database with the 1,008 seeded items: a list page took 73 ms straight after
+  seeding and 5 ms after `ANALYZE`. For a tenant the statistics did not
+  describe at all (a test tenant seeded inside a transaction), each list
+  request took 1 to 2 s.
 
 ## 5. Catalogue page (`/catalogue`)
 

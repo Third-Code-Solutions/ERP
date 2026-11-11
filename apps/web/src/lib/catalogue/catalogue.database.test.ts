@@ -9,7 +9,6 @@
  * removed. The app's `db` is pointed at that transaction for the test.
  */
 import { randomUUID } from 'node:crypto'
-import { readdirSync, readFileSync } from 'node:fs'
 import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
@@ -27,8 +26,9 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
 import { cataloguePrices } from '@third-code-erp/database/schema'
 import { recordCataloguePrice } from '@/app/(dashboard)/catalogue/actions'
-import { parseCatalogueCsv, type CatalogueCsvRow } from './csv'
+import type { CatalogueCsvRow } from './csv'
 import { CATALOGUE_PAGE_SIZE, getCatalogueItemDetail, listCatalogueItems } from './queries'
+import { readResearchFiles } from './research-files'
 import { manilaToday, splitCatalogueFlags } from './rules'
 
 const DATABASE_URL = process.env.DATABASE_URL?.trim()
@@ -44,16 +44,7 @@ type SeedCatalogue = (
   input: { tenantId: string; rows: CatalogueCsvRow[] },
 ) => Promise<{ pricesInserted: number; pricesAlreadyPresent: number }>
 
-const FILE_NAME = /^\d{2}-([a-z-]+)\.csv$/
-const dataDirectory = new URL('../../../../../data/catalogue/', import.meta.url)
-const rows: CatalogueCsvRow[] = readdirSync(dataDirectory)
-  .filter((name) => FILE_NAME.test(name))
-  .sort()
-  .flatMap((name) =>
-    parseCatalogueCsv(readFileSync(new URL(name, dataDirectory), 'utf8'), {
-      expectedTrade: FILE_NAME.exec(name)?.[1],
-    }),
-  )
+const rows = readResearchFiles()
 const priced = rows.filter((row) => row.price)
 const unpriced = rows.filter((row) => !row.price)
 

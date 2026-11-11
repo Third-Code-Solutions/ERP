@@ -144,7 +144,9 @@ create table if not exists public.catalogue_prices (
     references public.users (tenant_id, id) on delete restrict
 );
 
--- Current price = first row per (tenant, item, region) in this order.
+-- The history of an item in a region, newest first. The current price is the
+-- first PRICED row in this order: a row without a price is current only where
+-- the item has no priced row in that region, however new it is.
 create index if not exists idx_catalogue_prices_current
   on public.catalogue_prices (tenant_id, item_id, region, checked_on desc, created_at desc);
 
