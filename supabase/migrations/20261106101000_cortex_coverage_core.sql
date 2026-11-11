@@ -2,7 +2,8 @@
 --
 -- * §3.1 registry engine: cortex_apply_row, cortex_mirror_row,
 --   cortex_fold_children, cortex_set_fold, cortex_mirror_link,
---   cortex_redact_text, cortex_close_stale_edges, cortex_backfill.
+--   cortex_redact_text, cortex_close_stale_edges, cortex_backfill,
+--   cortex_scrub_nodes (rewrites closed and orphaned nodes too).
 -- * cortex_upsert_node keeps attributes.folds and skips no-change writes.
 -- * S2: auth_can_read_cortex_node_type is deny-by-default by read group.
 -- * S3: account/user/opportunity/document mirrors drop emails; KYC-linked
@@ -721,6 +722,99 @@ begin
     exception when others then
       failures := failures || jsonb_build_object('table', p_table, 'id', v_key, 'error', 'fold: ' || sqlerrm);
       raise warning 'cortex_backfill: public.% fold parent % failed: %', p_table, v_key, sqlerrm;
+    end;
+  end loop;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- 7b. Scrub (SEC-H1): rewrite EVERY node of a mirrored table, closed nodes and
+--     nodes whose source row is gone included, to what the current mirror
+--     keeps. The backfill cannot: it walks live source rows only.
+--     * Registry tables keep only attr_cols (and attr_paths) plus folds;
+--       titles and summaries re-render from the kept attributes, or stay
+--       redacted.
+--     * users, accounts, opportunities drop email and primary_email.
+--     * documents linked to a KYC artifact, or whose row is gone, lose their
+--       file-name title.
+--     * Every string is redacted; a node whose title or summary changes loses
+--       its embedding (the embed job refills it from the new text).
+--     One tenant per call, keyset by node id. Each node is re-read FOR UPDATE
+--     SKIP LOCKED: a node a live mirror holds is skipped (that mirror rewrites
+--     it) and a re-run picks up anything left. Call until processed = 0.
+-- ---------------------------------------------------------------------------
+create or replace function public.cortex_scrub_nodes(
+  p_table text, p_tenant uuid, p_limit integer default 200, p_after uuid default null,
+  out processed integer, out changed integer, out skipped integer, out failures jsonb, out last_id uuid
+)
+language plpgsql security definer set search_path = '' as $$
+declare
+  r public.cortex_mirror_registry; n record; v_id uuid; v_keep text[];
+  v_attrs jsonb; v_title text; v_summary text; v_kyc text;
+begin
+  if p_tenant is null or p_limit is null or p_limit not between 1 and 2000 then
+    raise exception 'cortex_scrub_nodes: tenant is required and limit must be 1 to 2000';
+  end if;
+  select * into r from public.cortex_mirror_registry where ref_table = p_table;
+  if r.node_type is null and p_table not in ('users', 'accounts', 'opportunities', 'documents') then
+    raise exception 'cortex_scrub_nodes: % has no node mirror', p_table;
+  end if;
+  v_keep := coalesce(r.attr_cols, '{}')
+    || array(select regexp_replace(p, '^.*\.', '') from unnest(coalesce(r.attr_paths, '{}')) p);
+  processed := 0; changed := 0; skipped := 0; failures := '[]'::jsonb;
+  last_id := p_after;
+  for v_id in
+    select c.id from public.cortex_nodes c
+     where c.tenant_id = p_tenant and c.ref_table = p_table and (p_after is null or c.id > p_after)
+     order by c.id limit p_limit
+  loop
+    processed := processed + 1;
+    last_id := v_id;
+    begin
+      select c.ref_id, c.title, c.summary, coalesce(c.attributes, '{}'::jsonb) as attributes into n
+        from public.cortex_nodes c where c.id = v_id
+        for update skip locked;
+      if not found then
+        skipped := skipped + 1;
+        continue;
+      end if;
+      if r.node_type is not null then
+        select coalesce(jsonb_object_agg(key, value), '{}'::jsonb) into v_attrs
+          from jsonb_each(n.attributes) where key = any(v_keep);
+      else
+        v_attrs := n.attributes - 'email' - 'primary_email' - 'folds';
+      end if;
+      v_attrs := public.cortex_redact_attrs(v_attrs)
+        || case when n.attributes ? 'folds' then jsonb_build_object('folds', n.attributes -> 'folds')
+                else '{}'::jsonb end;
+      v_title := public.cortex_redact_text(n.title, 300);
+      v_summary := public.cortex_redact_text(n.summary, 300);
+      if r.node_type is not null then
+        v_title := coalesce(public.cortex_redact_text(public.cortex_render_tpl(r.title_tpl, v_attrs), 300), v_title);
+        v_summary := coalesce(public.cortex_redact_text(public.cortex_render_tpl(r.summary_tpl, v_attrs), 300), v_summary);
+      elsif p_table = 'documents' then
+        select min(a.artifact_type::text) into v_kyc
+          from public.account_kyc_artifacts a
+         where a.tenant_id = p_tenant and a.document_id = n.ref_id;
+        if v_kyc is not null then
+          v_title := 'KYC artifact: ' || v_kyc;
+        elsif not exists (select 1 from public.documents d where d.tenant_id = p_tenant and d.id = n.ref_id) then
+          -- The row (and any KYC link) is gone; its file name may have been KYC.
+          v_title := 'Deleted document';
+        end if;
+      end if;
+      if v_title is distinct from n.title or v_summary is distinct from n.summary
+         or v_attrs is distinct from n.attributes then
+        update public.cortex_nodes c
+           set title = v_title, summary = v_summary, attributes = v_attrs, recorded_at = now(),
+               embedding = case when v_title is distinct from n.title or v_summary is distinct from n.summary
+                                then null else c.embedding end
+         where c.id = v_id;
+        perform public.cortex_provenance_append(p_tenant, 'node', v_id, 'mutation', p_table || ':scrub', null);
+        changed := changed + 1;
+      end if;
+    exception when others then
+      failures := failures || jsonb_build_object('table', p_table, 'id', v_id, 'error', sqlerrm);
+      raise warning 'cortex_scrub_nodes: node % of public.% failed: %', v_id, p_table, sqlerrm;
     end;
   end loop;
 end $$;

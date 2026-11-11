@@ -1364,6 +1364,96 @@ suite('Cortex coverage (Batches 0-1)', () => {
     expect(r.breaks).toBe(0)
   })
 
+  it('SEC-H1: scrub rewrites closed and orphaned nodes to the allowlist, drops emails and deleted file names', async () => {
+    const r = await inRollback(sql, async (tx) => {
+      const { tenantA: t, userA } = await seedTwoTenants(tx)
+      const scrub = async (table: string) => {
+        let after: string | null = null
+        let changed = 0
+        for (;;) {
+          const page: Rows = await first(
+            tx,
+            `select processed, changed, skipped, failures, last_id
+               from cortex_scrub_nodes('${table}', '${t}', 2, ${after ? `'${after}'` : 'null'})`
+          )
+          if (page.processed === 0) return changed
+          expect({ table, failures: page.failures, skipped: page.skipped }).toEqual({ table, failures: [], skipped: 0 })
+          changed += page.changed as number
+          after = page.last_id as string
+        }
+      }
+      const legacy = (table: string, id: string, extra: string) =>
+        tx.unsafe(
+          `update cortex_nodes set attributes = attributes || '${extra}'::jsonb,
+                  embedding = '${oneHotVector(1)}'::vector
+            where tenant_id = '${t}' and ref_table = '${table}' and ref_id = '${id}'`
+        )
+      // A vendor whose node carries the pre-Batch-1 image, then is deleted (node closed).
+      const vendor = await insertId(tx, `insert into vendors(tenant_id, name) values('${t}', 'Gone Supply')`)
+      await legacy('vendors', vendor, '{"email": "old@legacy.test", "phone": "0917 555 0101", "notes": "call Juan"}')
+      await tx.unsafe(`delete from vendors where id = '${vendor}'`)
+      // An orphaned open node: no source row at all.
+      const orphan = await insertId(
+        tx,
+        `insert into cortex_nodes(tenant_id, node_type, ref_table, ref_id, title, attributes)
+         values('${t}', 'project_budget', 'project_budgets', gen_random_uuid(), 'Overrun: call Pedro 0917 555 0101',
+                '{"revision": 2, "status": "draft", "revision_reason": "Pedro asked", "submitted_by": "x"}')`
+      )
+      const orphanRef = (await first(tx, `select ref_id from cortex_nodes where id = '${orphan}'`)).ref_id as string
+      await legacy('users', userA, '{"email": "u@legacy.test"}')
+      const account = await insertId(tx, `insert into accounts(tenant_id, name) values('${t}', 'Scrub Client')`)
+      await legacy('accounts', account, '{"primary_email": "a@legacy.test"}')
+      // A document deleted after its file name was embedded.
+      const project = await insertId(tx, `insert into projects(tenant_id, name, client) values('${t}', 'Scrub Proj', 'C')`)
+      const doc = await insertId(
+        tx,
+        `insert into documents(tenant_id, project_id, uploaded_by, document_type, file_name, storage_path, mime_type, size_bytes)
+         values('${t}', '${project}', '${userA}', 'pdf', 'Passport-Juan-Dela-Cruz.pdf', 't/s.pdf', 'application/pdf', 10)`
+      )
+      await legacy('documents', doc, '{}')
+      await tx.unsafe(`delete from documents where id = '${doc}'`)
+
+      const changed: Record<string, number> = {}
+      for (const table of ['vendors', 'project_budgets', 'users', 'accounts', 'documents']) {
+        changed[table] = await scrub(table)
+      }
+      const again: Record<string, number> = {}
+      for (const table of Object.keys(changed)) again[table] = await scrub(table)
+      const snapshot = (table: string, id: string) =>
+        first(
+          tx,
+          `select title, summary, attributes, embedding is not null as embedded, valid_to is not null as closed
+             from cortex_nodes where tenant_id = '${t}' and ref_table = '${table}' and ref_id = '${id}'
+            order by recorded_at desc limit 1`
+        )
+      return {
+        changed, again,
+        vendor: await snapshot('vendors', vendor),
+        orphan: await snapshot('project_budgets', orphanRef),
+        user: await snapshot('users', userA),
+        account: await snapshot('accounts', account),
+        doc: await snapshot('documents', doc),
+        breaks: (await first(tx, CHAIN_BREAKS(t))).n as number,
+      }
+    })
+    expect(Object.values(r.again)).toEqual([0, 0, 0, 0, 0])
+    expect(r.vendor.closed).toBe(true)
+    expect(Object.keys(r.vendor.attributes).sort()).toEqual(['created_at'])
+    expect(r.orphan).toMatchObject({
+      title: 'Budget revision 2',
+      summary: 'Status: draft',
+      attributes: { revision: 2, status: 'draft' },
+      embedded: false,
+    })
+    expect(r.user.attributes).not.toHaveProperty('email')
+    expect(r.account.attributes).not.toHaveProperty('primary_email')
+    expect(r.doc).toMatchObject({ title: 'Deleted document', embedded: false, closed: true })
+    expect(JSON.stringify([r.vendor, r.orphan, r.user, r.account, r.doc])).not.toMatch(
+      /@legacy|0917|Juan|Pedro|Passport/
+    )
+    expect(r.breaks).toBe(0)
+  })
+
   it('backfill reports a failing row by table and id and carries on with the page', async () => {
     const r = await inRollback(sql, async (tx) => {
       const { tenantA: t } = await seedTwoTenants(tx)

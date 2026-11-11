@@ -24,6 +24,7 @@ test('defaults to missing mode and a small page, and accepts all and dry-run', (
   const options = parseArgs(['--batch', '1', '--mode', 'all', '--dry-run'])
   assert.equal(options.mode, 'all')
   assert.equal(options.dryRun, true)
+  assert.equal(parseArgs(['--batch', '1', '--mode', 'scrub']).mode, 'scrub')
 })
 
 test('rejects unknown modes and arguments', () => {

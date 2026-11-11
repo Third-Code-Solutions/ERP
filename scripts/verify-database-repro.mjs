@@ -539,6 +539,7 @@ const cortexCoverageFunctions = [
   'cortex_mirror_link',
   'cortex_link_edge',
   'cortex_backfill',
+  'cortex_scrub_nodes',
 ]
 
 const requiredSecurityDefinerFunctions = [

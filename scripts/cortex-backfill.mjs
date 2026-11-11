@@ -4,11 +4,14 @@
  * Cortex coverage backfill (docs/erp/specs/cortex-coverage.md §7).
  *
  *   DATABASE_URL=... node scripts/cortex-backfill.mjs --batch 1
- *     [--mode missing|all] [--page-size N] [--resume table:tenant[:id]] [--dry-run]
+ *     [--mode missing|all|scrub] [--page-size N] [--resume table:tenant[:id]] [--dry-run]
  *
  * --mode missing (default) mirrors rows that have no current node.
  * --mode all re-applies every row, so existing nodes get the new allowlisted
  *   attributes; unchanged nodes write no provenance (cortex_upsert_node).
+ * --mode scrub rewrites EVERY node of each table, closed and orphaned nodes
+ *   included, to the current allowlist (cortex_scrub_nodes). Run it after
+ *   --mode all, and again until it reports 0 changed.
  * --page-size (default 200, at most 2000) rows per call. Each call is its own
  *   short transaction over ONE tenant, so it holds one tenant's provenance and
  *   audit locks at a time.
@@ -89,8 +92,8 @@ export function parseArgs(argv) {
   if (!Object.hasOwn(BATCH_TABLES, options.batch ?? '')) {
     throw new Error(`--batch must be one of: ${Object.keys(BATCH_TABLES).join(', ')}`)
   }
-  if (options.mode !== 'missing' && options.mode !== 'all') {
-    throw new Error('--mode must be missing or all')
+  if (!['missing', 'all', 'scrub'].includes(options.mode)) {
+    throw new Error('--mode must be missing, all or scrub')
   }
   if (!Number.isInteger(options.pageSize) || options.pageSize < 1 || options.pageSize > MAX_PAGE_SIZE) {
     throw new Error(`--page-size must be an integer from 1 to ${MAX_PAGE_SIZE}`)
@@ -103,6 +106,10 @@ export function parseArgs(argv) {
 }
 
 async function countRows(sql, table, mode) {
+  if (mode === 'scrub') {
+    const [nodes] = await sql`select count(*)::int as n from public.cortex_nodes where ref_table = ${table}`
+    return nodes.n
+  }
   const missing =
     mode === 'missing'
       ? `where not exists (select 1 from public.cortex_nodes n
@@ -125,9 +132,14 @@ async function backfillTable(sql, table, options, tenants, state) {
     let after = start && tenant === start.tenant ? start.after : null
     for (;;) {
       state.cursor = { table, tenant, after }
-      const [page] = await sql`
-        select processed, applied, skipped, failures, last_id
-          from public.cortex_backfill(${table}, ${tenant}::uuid, ${options.mode}, ${options.pageSize}, ${after}::uuid)`
+      const [page] =
+        options.mode === 'scrub'
+          ? await sql`
+              select processed, changed as applied, skipped, failures, last_id
+                from public.cortex_scrub_nodes(${table}, ${tenant}::uuid, ${options.pageSize}, ${after}::uuid)`
+          : await sql`
+              select processed, applied, skipped, failures, last_id
+                from public.cortex_backfill(${table}, ${tenant}::uuid, ${options.mode}, ${options.pageSize}, ${after}::uuid)`
       if (!page || page.processed === 0) break
       totals.processed += page.processed
       totals.applied += page.applied
@@ -195,7 +207,7 @@ async function main() {
       grandTotal += totals.processed
       failedRows += totals.failed
       console.log(
-        `processed ${String(totals.processed).padStart(7)} ${table}: applied ${totals.applied}, skipped ${totals.skipped} (held by a live writer), failed ${totals.failed} (${Date.now() - tableStarted} ms)`
+        `processed ${String(totals.processed).padStart(7)} ${table}: ${options.mode === 'scrub' ? 'changed' : 'applied'} ${totals.applied}, skipped ${totals.skipped} (held by a live writer), failed ${totals.failed} (${Date.now() - tableStarted} ms)`
       )
     }
     console.log(
