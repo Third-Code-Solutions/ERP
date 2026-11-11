@@ -172,12 +172,14 @@ Rules decided for this work:
 - After seeding a tenant, run `ANALYZE` on both catalogue tables (the list query takes
   1-2 s on fresh statistics, 19 ms after).
 
-Live exposures found during this work. Each fix is in a PR above; none is live:
+Live exposures found during this work. Each fix is in a PR above; none of the fixes is
+deployed:
 1. **`audit_log` is readable by every signed-in user of a tenant through the Supabase
    client.** Its only SELECT policy checks the tenant, `authenticated` holds SELECT, and
    the `audit.read` capability is enforced only in server code. Audit rows hold full
    row images (vendor contacts, budgets, stock movements). No browser code reads
-   `audit_log`, so the fix is to revoke SELECT from `authenticated` and `anon` (#147).
+   `audit_log`, so the fix is to revoke SELECT from `authenticated` (#147); `anon`
+   already has no access.
 2. **Spreadsheet parsing on `main` is unguarded beyond the 25 MB cap.** Any user with
    `bom.generate` can upload a small crafted `.xlsx` to the takeoff import that holds
    the Node event loop or exhausts its heap (#144).
