@@ -99,6 +99,8 @@ Added after the security review of PR #146 (2026-11-10).
   prices through the Supabase client whatever `catalogue.read` says.
 - There are no client INSERT/UPDATE/DELETE grants or policies, in line with the
   2026-11-04 SEC-01/02 policy that revoked client table writes.
+- `service_role` has every privilege on `catalogue_items` but only SELECT and
+  INSERT on `catalogue_prices`, which is append-only.
 - Every read and write goes through server code (Drizzle as postgres) with an
   explicit `tenant_id` predicate.
 - **Every server action and the import check the flag and the capability

@@ -84,6 +84,11 @@ describe('catalogue price book migration', () => {
       'revoke all privileges on table public.catalogue_items, public.catalogue_prices from public, anon, authenticated;'
     )
     expect(executable).not.toMatch(/grant [^;]* to [^;]*\b(anon|authenticated|public)\b/)
+    // Append-only prices: service_role reads and inserts, never updates or deletes.
+    expect(executable).toContain(
+      'revoke all privileges on table public.catalogue_prices from service_role; grant select, insert on table public.catalogue_prices to service_role;'
+    )
+    expect(executable).not.toMatch(/grant all privileges on table [^;]*catalogue_prices/)
     expect(executable).not.toMatch(/for (insert|update|delete|all) to/)
   })
 
@@ -380,6 +385,27 @@ runtimeDescribe('catalogue price book (database)', () => {
 
       expect(await visible(tenants.userB)).toEqual({ items: 0, prices: 0 })
       expect(await visible(tenants.userA)).toEqual({ items: 1, prices: 1 })
+    })
+  })
+
+  it('lets service_role only read and add price observations', async () => {
+    const [privileges] = await sql.unsafe<Array<Record<string, boolean>>>(
+      `select ${['select', 'insert', 'update', 'delete', 'truncate']
+        .map(
+          (privilege) =>
+            `has_table_privilege('service_role', 'public.catalogue_prices', '${privilege}') as prices_${privilege}`
+        )
+        .join(', ')},
+              has_table_privilege('service_role', 'public.catalogue_items', 'update') as items_update`
+    )
+
+    expect(privileges).toEqual({
+      prices_select: true,
+      prices_insert: true,
+      prices_update: false,
+      prices_delete: false,
+      prices_truncate: false,
+      items_update: true,
     })
   })
 

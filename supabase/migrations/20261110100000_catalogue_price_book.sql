@@ -224,7 +224,10 @@ $$;
 -- the default ACL would otherwise hand `authenticated` a SELECT grant.
 revoke all privileges on table public.catalogue_items, public.catalogue_prices
   from public, anon, authenticated;
-grant all privileges on table public.catalogue_items, public.catalogue_prices
-  to service_role;
+grant all privileges on table public.catalogue_items to service_role;
+-- Prices are append-only: service_role may read and add them, nothing more.
+-- The default ACL hands it every privilege, so take them away first.
+revoke all privileges on table public.catalogue_prices from service_role;
+grant select, insert on table public.catalogue_prices to service_role;
 
 commit;
