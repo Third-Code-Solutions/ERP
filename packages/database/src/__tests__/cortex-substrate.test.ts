@@ -833,6 +833,32 @@ suite('Cortex coverage (Batches 0-1)', () => {
     expect(seen.checks).toEqual({ unmapped: false, tenant_type: true })
   })
 
+  it('SEC-H2: audit_log is server-only: authenticated and anon cannot select it, the server role still can', async () => {
+    const r = await inRollback(sql, async (tx) => {
+      const { tenantA: t, userA } = await seedTwoTenants(tx)
+      // The vendor mirror writes a cortex node, whose audit trigger writes audit_log.
+      await tx.unsafe(`insert into vendors(tenant_id, name) values('${t}', 'Audit Probe')`)
+      const denied = async (role: 'authenticated' | 'anon') =>
+        tx
+          .savepoint(async (sp) => {
+            if (role === 'authenticated') await becomeAuthenticated(sp, userA)
+            else await sp.unsafe('set local role anon')
+            await sp.unsafe('select count(*) from audit_log')
+          })
+          .then(
+            () => 'read',
+            (error: { code?: string }) => error.code ?? 'error'
+          )
+      const authenticated = await denied('authenticated')
+      const anon = await denied('anon')
+      await tx.unsafe('set local role service_role')
+      const server = await first(tx, `select count(*)::int as n from audit_log where tenant_id = '${t}'`)
+      await tx.unsafe('reset role')
+      return { authenticated, anon, serverRows: (server.n as number) > 0 }
+    })
+    expect(r).toEqual({ authenticated: '42501', anon: '42501', serverRows: true })
+  })
+
   it('read check: each read group admits exactly its roles; an unmapped type admits nobody', async () => {
     const ALL = [
       'owner', 'admin', 'estimator', 'sales', 'pm', 'viewer', 'commercial',

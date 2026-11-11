@@ -130,6 +130,8 @@ const requiredServerOnlyTables = [
   'project_comment_delete_requests',
   'cortex_mirror_registry',
   'cortex_node_type_access',
+  // 20261106102000: full row images, read only by the server behind audit.read.
+  'audit_log',
 ]
 
 const requiredPolicies = [
@@ -1822,7 +1824,9 @@ try {
   )
 
   const authenticatedReadableTables = requiredTables.filter(
-    (table) => !requiredDirectClientDenyTables.includes(table)
+    (table) =>
+      !requiredDirectClientDenyTables.includes(table)
+      && !requiredServerOnlyTables.includes(table)
   )
 
   // 20261104055626 (SEC-01/SEC-02) retired every browser-role table DML grant;
