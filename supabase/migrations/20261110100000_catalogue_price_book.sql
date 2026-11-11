@@ -96,7 +96,7 @@ create table if not exists public.catalogue_prices (
   constraint catalogue_prices_region_length check (
     char_length(region) between 1 and 40
   ),
-  -- All three prices or none; the average is stored as observed.
+  -- All three prices or none, in order; the average is stored as observed.
   constraint catalogue_prices_price_range check (
     (
       price_low_centavos is null
@@ -107,10 +107,16 @@ create table if not exists public.catalogue_prices (
       price_low_centavos is not null
       and price_avg_centavos is not null
       and price_high_centavos is not null
-      and price_low_centavos >= 0
       and price_low_centavos <= price_avg_centavos
       and price_avg_centavos <= price_high_centavos
     )
+  ),
+  -- Each price is between 0 and the most the app accepts
+  -- (MAX_CATALOGUE_PRICE_CENTAVOS, PHP 99,999,999,999.99), far below 2^53.
+  constraint catalogue_prices_price_cap check (
+    (price_low_centavos is null or price_low_centavos between 0 and 9999999999999)
+    and (price_avg_centavos is null or price_avg_centavos between 0 and 9999999999999)
+    and (price_high_centavos is null or price_high_centavos between 0 and 9999999999999)
   ),
   constraint catalogue_prices_basis_length check (
     price_basis is null or char_length(price_basis) <= 60

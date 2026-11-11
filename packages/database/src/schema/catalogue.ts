@@ -71,7 +71,8 @@ export const cataloguePrices = pgTable(
     tenant_id: tenantId(),
     item_id: uuid('item_id').notNull(),
     region: text('region').notNull().default('NCR'),
-    // Integer centavos; the application caps them far below 2^53.
+    // Integer centavos, 0 to 9,999,999,999,999 (catalogue_prices_price_cap): far
+    // below 2^53, so mode 'number' is exact.
     price_low_centavos: bigint('price_low_centavos', { mode: 'number' }),
     price_avg_centavos: bigint('price_avg_centavos', { mode: 'number' }),
     price_high_centavos: bigint('price_high_centavos', { mode: 'number' }),
@@ -98,7 +99,12 @@ export const cataloguePrices = pgTable(
     ),
     priceRange: check(
       'catalogue_prices_price_range',
-      sql`(${table.price_low_centavos} is null and ${table.price_avg_centavos} is null and ${table.price_high_centavos} is null) or (${table.price_low_centavos} is not null and ${table.price_avg_centavos} is not null and ${table.price_high_centavos} is not null and ${table.price_low_centavos} >= 0 and ${table.price_low_centavos} <= ${table.price_avg_centavos} and ${table.price_avg_centavos} <= ${table.price_high_centavos})`,
+      sql`(${table.price_low_centavos} is null and ${table.price_avg_centavos} is null and ${table.price_high_centavos} is null) or (${table.price_low_centavos} is not null and ${table.price_avg_centavos} is not null and ${table.price_high_centavos} is not null and ${table.price_low_centavos} <= ${table.price_avg_centavos} and ${table.price_avg_centavos} <= ${table.price_high_centavos})`,
+    ),
+    // MAX_CATALOGUE_PRICE_CENTAVOS in apps/web/src/lib/catalogue/rules.ts.
+    priceCap: check(
+      'catalogue_prices_price_cap',
+      sql`(${table.price_low_centavos} is null or ${table.price_low_centavos} between 0 and 9999999999999) and (${table.price_avg_centavos} is null or ${table.price_avg_centavos} between 0 and 9999999999999) and (${table.price_high_centavos} is null or ${table.price_high_centavos} between 0 and 9999999999999)`,
     ),
     sourceKind: check(
       'catalogue_prices_source_kind_check',

@@ -94,7 +94,7 @@ describe('catalogue price book migration', () => {
     expect(executable).not.toMatch(/for (insert|update|delete|all) to/)
   })
 
-  it('makes prices append-only, audited and never future-dated', () => {
+  it('makes prices append-only, audited, capped and never future-dated', () => {
     expect(executable).toContain(
       'create trigger catalogue_prices_append_only before update or delete on public.catalogue_prices'
     )
@@ -109,6 +109,18 @@ describe('catalogue price book migration', () => {
       'revoke execute on function public.prevent_catalogue_price_mutation() from public, anon, authenticated;'
     )
     expect(executable).toContain("checked_on <= (now() at time zone 'asia/manila')::date")
+    // Every price between 0 and the app's MAX_CATALOGUE_PRICE_CENTAVOS.
+    const rules = readFileSync(
+      new URL('../../../../apps/web/src/lib/catalogue/rules.ts', import.meta.url),
+      'utf8'
+    )
+    const appMax = /export const MAX_CATALOGUE_PRICE_CENTAVOS = ([\d_]+)\b/
+      .exec(rules)?.[1]
+      ?.replaceAll('_', '')
+    expect(appMax).toBe('9999999999999')
+    for (const column of ['price_low_centavos', 'price_avg_centavos', 'price_high_centavos']) {
+      expect(executable).toContain(`(${column} is null or ${column} between 0 and ${appMax})`)
+    }
     expect(executable).toContain('execute function public.audit_log_trigger()')
   })
 })
@@ -274,6 +286,8 @@ runtimeDescribe('catalogue price book (database)', () => {
         {},
         { low: 'null', avg: 'null', high: 'null', url: 'null' },
         { low: '0', avg: '0', high: '0', url: `'http://example.com'` },
+        // The most the app accepts: MAX_CATALOGUE_PRICE_CENTAVOS.
+        { low: '9999999999999', avg: '9999999999999', high: '9999999999999' },
         {
           region: `repeat('x', 40)`, basis: `repeat('x', 60)`, source: `repeat('x', 200)`,
           flag: `repeat('x', 200)`, notes: `repeat('x', 2000)`,
@@ -290,7 +304,13 @@ runtimeDescribe('catalogue price book (database)', () => {
         [{ low: 'null' }, 'catalogue_prices_price_range'],
         [{ low: '151' }, 'catalogue_prices_price_range'],
         [{ avg: '201' }, 'catalogue_prices_price_range'],
-        [{ low: '-1' }, 'catalogue_prices_price_range'],
+        [{ low: '-1' }, 'catalogue_prices_price_cap'],
+        [{ low: '-3', avg: '-2', high: '-1' }, 'catalogue_prices_price_cap'],
+        [{ high: '10000000000000' }, 'catalogue_prices_price_cap'],
+        [
+          { low: '10000000000000', avg: '10000000000000', high: '10000000000000' },
+          'catalogue_prices_price_cap',
+        ],
         [{ kind: `'guess'` }, 'catalogue_prices_source_kind_check'],
         [{ region: `''` }, 'catalogue_prices_region_length'],
         [{ region: `repeat('x', 41)` }, 'catalogue_prices_region_length'],

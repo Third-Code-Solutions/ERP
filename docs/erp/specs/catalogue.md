@@ -60,7 +60,7 @@ Indexes:
 | tenant_id | uuid not null | |
 | item_id | uuid not null | tenant-scoped fk `(tenant_id, item_id)` → `catalogue_items (tenant_id, id)` |
 | region | text not null | default `'NCR'`, 1–40 chars |
-| price_low_centavos, price_avg_centavos, price_high_centavos | bigint | either all null or all set; `0 ≤ low ≤ avg ≤ high` |
+| price_low_centavos, price_avg_centavos, price_high_centavos | bigint | either all null or all set; `low ≤ avg ≤ high`; each between 0 and 9,999,999,999,999 (`MAX_CATALOGUE_PRICE_CENTAVOS`, PHP 99,999,999,999.99) |
 | price_basis | text | ≤ 60 chars, for example `material_supply;incl_VAT` |
 | source_kind | text not null | `research` \| `supplier` \| `manual`; `supplier` is reserved for the supplier import (section 6, not in PR #149) |
 | source_name | text | ≤ 200 chars (supplier or publisher name) |
