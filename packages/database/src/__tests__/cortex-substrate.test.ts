@@ -1338,6 +1338,35 @@ suite('Cortex coverage (Batches 0-1)', () => {
     })
   })
 
+  it('a re-titled node loses its embedding; a node whose title and summary stay keeps it', async () => {
+    const r = await inRollback(sql, async (tx) => {
+      const { tenantA: t } = await seedTwoTenants(tx)
+      const keep = await insertId(tx, `insert into vendors(tenant_id, name) values('${t}', 'Keep Supply')`)
+      const retitle = await insertId(tx, `insert into vendors(tenant_id, name) values('${t}', 'Retitle Supply')`)
+      // Both nodes carry a vector and a legacy key; one also has a legacy title.
+      await tx.unsafe(
+        `update cortex_nodes set embedding = '${oneHotVector(2)}'::vector,
+                attributes = attributes || '{"phone": "0917 555 0101"}'::jsonb
+          where tenant_id = '${t}' and ref_table = 'vendors' and ref_id in ('${keep}', '${retitle}')`
+      )
+      await tx.unsafe(
+        `update cortex_nodes set title = 'Legacy contact: call Ana'
+          where tenant_id = '${t}' and ref_table = 'vendors' and ref_id = '${retitle}'`
+      )
+      const page = await first(tx, `select applied, failures from cortex_backfill('vendors', '${t}', 'all', 50, null)`)
+      const state = async (id: string) =>
+        first(
+          tx,
+          `select title, attributes ? 'phone' as legacy, embedding is not null as embedded
+             from cortex_nodes where tenant_id = '${t}' and ref_table = 'vendors' and ref_id = '${id}' and valid_to is null`
+        )
+      return { page, keep: await state(keep), retitle: await state(retitle) }
+    })
+    expect(r.page).toEqual({ applied: 2, failures: [] })
+    expect(r.keep).toEqual({ title: 'Keep Supply', legacy: false, embedded: true })
+    expect(r.retitle).toEqual({ title: 'Retitle Supply', legacy: false, embedded: false })
+  })
+
   it('backfill --mode all strips legacy attributes; a second run writes no provenance', async () => {
     const r = await inRollback(sql, async (tx) => {
       const { tenantA: t } = await seedTwoTenants(tx)

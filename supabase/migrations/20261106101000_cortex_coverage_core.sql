@@ -4,7 +4,8 @@
 --   cortex_fold_children, cortex_set_fold, cortex_mirror_link,
 --   cortex_redact_text, cortex_close_stale_edges, cortex_backfill,
 --   cortex_scrub_nodes (rewrites closed and orphaned nodes too).
--- * cortex_upsert_node keeps attributes.folds and skips no-change writes.
+-- * cortex_upsert_node keeps attributes.folds, skips no-change writes and
+--   clears the embedding when the title or summary changes.
 -- * S2: auth_can_read_cortex_node_type is deny-by-default by read group.
 -- * S3: account/user/opportunity/document mirrors drop emails; KYC-linked
 --   documents never use the file name as title.
@@ -62,6 +63,10 @@ begin
              when coalesce(n.attributes ? 'folds', false) and not coalesce(p_attributes ? 'folds', false)
                then coalesce(p_attributes, '{}'::jsonb) || jsonb_build_object('folds', n.attributes -> 'folds')
              else p_attributes end,
+           -- A new title or summary invalidates the vector; the embed job
+           -- refills a null embedding from the new text.
+           embedding = case when n.title is distinct from p_title or n.summary is distinct from p_summary
+                            then null else n.embedding end,
            last_verified_at = now(), recorded_at = now(), freshness = 'fresh'
      where n.id = v_id;
   end if;
