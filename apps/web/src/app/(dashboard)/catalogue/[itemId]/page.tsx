@@ -102,7 +102,7 @@ function PriceHistory({
           <table className="data-table">
             <thead>
               <tr>
-                <th>Checked</th>
+                <th>Checked date</th>
                 <th>Region</th>
                 <th className="numeric">Low</th>
                 <th className="numeric">Average</th>

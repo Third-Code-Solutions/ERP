@@ -122,7 +122,7 @@ function CatalogueRegister({ data }: { data: CatalogueListResult }) {
                   <th className="numeric">High</th>
                   <th>Region</th>
                   <th>Source</th>
-                  <th>Checked</th>
+                  <th>Checked date</th>
                   <th>Flags</th>
                 </tr>
               </thead>

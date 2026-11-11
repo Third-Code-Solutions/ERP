@@ -176,6 +176,8 @@ describe('CataloguePage', () => {
     expect(html).toContain(
       '<a href="https://www.example.com/cement?size=40" target="_blank" rel="noopener noreferrer">example.com',
     )
+    // Same name as the record-price form's field.
+    expect(html).toContain('<th>Checked date</th>')
     expect(html).toContain('<td>Nov 5, 2026</td>')
     expect(html).toContain('<span class="finance-status finance-status-draft">One source</span>')
     expect(html).toContain(

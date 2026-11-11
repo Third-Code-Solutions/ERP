@@ -169,6 +169,8 @@ describe('CatalogueItemPage', () => {
       '3 entries. The newest entry with a price is the current price in its region, marked Current.',
     )
 
+    // Same name as the record-price form's field.
+    expect(html).toContain('<th>Checked date</th>')
     expect(html.indexOf('Nov 10, 2026')).toBeGreaterThan(-1)
     expect(html.indexOf('Nov 10, 2026')).toBeLessThan(html.indexOf('Nov 5, 2026'))
     expect(html).toContain('<span class="finance-cell-detail">Entered by hand</span>')
