@@ -128,6 +128,8 @@ const requiredServerOnlyTables = [
   'document_intake_requests',
   'project_comment_create_requests',
   'project_comment_delete_requests',
+  'cortex_mirror_registry',
+  'cortex_node_type_access',
 ]
 
 const requiredPolicies = [

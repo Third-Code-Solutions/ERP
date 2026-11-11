@@ -77,7 +77,7 @@
 
 ### 3.1 New SQL objects
 
-Both new tables are global, have RLS enabled and forced, `revoke all ... from anon, authenticated, public`, and an explicit `deny_direct_client_access` policy (`for all to anon, authenticated using (false) with check (false)`), the server-only pattern of 20260817110000 (advisor lint 0008 flags RLS without policies).
+Both new tables are global, have RLS enabled and forced, `revoke all ... from anon, authenticated, public`, `grant select ... to service_role` (read-only: rows change only by migration; `scripts/verify-database-repro.mjs` requires server-only tables to stay reachable by `service_role`), and an explicit `deny_direct_client_access` policy (`for all to anon, authenticated using (false) with check (false)`), the server-only pattern of 20260817110000 (advisor lint 0008 flags RLS without policies).
 
 **`cortex_mirror_registry`**, keyed on `ref_table`. Columns:
 - `node_type`
