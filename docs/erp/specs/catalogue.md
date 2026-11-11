@@ -3,7 +3,8 @@
 Owner request (2026-11-05): build a master construction materials and price
 catalogue for ABI OPS. It needs a Supabase table, a seed script, indexes on name,
 trade and code, a catalogue page with search, filters and pagination, admin price
-editing, and supplier price-list import from Excel.
+editing, and supplier price-list import from Excel. The supplier import is not
+in PR #149 (section 6).
 
 ## 1. Scope
 
@@ -36,7 +37,7 @@ production but not installed.
 |---|---|---|
 | id | uuid pk | default `gen_random_uuid()` |
 | tenant_id | uuid not null | fk `tenants` |
-| code | text not null | `^[A-Z]{2}-[0-9]{4}$` for seeded rows; supplier-created rows use `SUP-<n>`; unique `(tenant_id, code)` |
+| code | text not null | `^[A-Z]{2}-[0-9]{4}$` for seeded rows; `SUP-<n>` is reserved for the supplier import (section 6, not in PR #149); unique `(tenant_id, code)` |
 | name | text not null | 1–300 chars, trimmed |
 | trade | text not null | one of the 20 trade slugs (section 7), as a CHECK |
 | specification | text | ≤ 2,000 chars |
@@ -61,10 +62,10 @@ Indexes:
 | region | text not null | default `'NCR'`, 1–40 chars |
 | price_low_centavos, price_avg_centavos, price_high_centavos | bigint | either all null or all set; `0 ≤ low ≤ avg ≤ high` |
 | price_basis | text | ≤ 60 chars, for example `material_supply;incl_VAT` |
-| source_kind | text not null | `research` \| `supplier` \| `manual` |
+| source_kind | text not null | `research` \| `supplier` \| `manual`; `supplier` is reserved for the supplier import (section 6, not in PR #149) |
 | source_name | text | ≤ 200 chars (supplier or publisher name) |
 | source_url | text | null, or `^https?://`, ≤ 2,000 chars; the app also parses it (see Security) |
-| vendor_id | uuid | optional tenant-scoped fk to `vendors`, for supplier imports |
+| vendor_id | uuid | optional tenant-scoped fk to `vendors`; reserved for the supplier import (section 6, not in PR #149) |
 | checked_on | date not null | not after today's date in Manila: `checked_on <= (now() at time zone 'Asia/Manila')::date` |
 | flag | text | ≤ 200 chars, `;`-separated tokens |
 | notes | text | ≤ 2,000 chars |
@@ -107,8 +108,8 @@ Added after the security review of PR #146 (2026-11-10).
   INSERT on `catalogue_prices`, which is append-only.
 - Every read and write goes through server code (Drizzle as postgres) with an
   explicit `tenant_id` predicate.
-- **Every server action and the import check the flag and the capability
-  themselves.** Hiding the page is not a gate.
+- **Every server action checks the flag and the capability itself** (and so
+  must the supplier import, when it is built). Hiding the page is not a gate.
 - **Text:** control characters (C0 except tab and line breaks, DEL, C1),
   zero-width and direction marks (U+200B to U+200F), bidirectional embeddings,
   overrides and isolates (U+202A to U+202E, U+2066 to U+2069), the Arabic letter
@@ -218,34 +219,46 @@ Added after the security review of PR #146 (2026-11-10).
 - **Record price:** a server action inserts a `manual` price row (low/avg/high or
   a single price, region, basis, source name or URL, checked date) and writes
   `audit_log`.
-- **Supplier price-list import (Excel or CSV):**
-  - Reuse the spreadsheet utilities from the `boq-excel` module (sheet picker,
-    header row, decimal-safe number parsing). Do not copy them.
-  - Mapped columns: code (optional), name, unit, price, or low and high; plus
-    supplier (an existing vendor or a free-text name), price-list date and region.
-  - Matching:
-    - an exact code within the tenant;
-    - otherwise normalised name (lower-case, collapsed spaces) plus unit, exact;
-    - otherwise unmatched.
-  - The preview shows matched, new and unmatched rows. On commit, the user picks
-    one trade for new items (or skips them).
-  - The commit inserts `supplier` price rows (low = avg = high when the file has
-    one price) in one transaction, with one `audit_log` entry per import that
-    carries the counts.
-  - Limits: 25 MB, 5,000 rows.
-  - Text is never written back as a formula.
-  - **The commit does not trust the preview.** The file is sent again with the
-    commit and parsed again on the server; matched rows from the browser are never
-    written as they stand. This is how the takeoff import already works.
-  - The file passes the same guards as the takeoff import before it is opened:
-    file type by content, the zip and merged-range limits, and the sheet size
-    limits. The route sits in the same rate-limit bucket as the takeoff import.
-  - The `audit_log` entry carries the file's SHA-256, name and size.
-  - **A repeated commit writes nothing.** The commit carries an idempotency key,
-    and a second commit of the same file for the same supplier and date inserts
-    no duplicate price rows.
-  - New `SUP-<n>` codes are allocated inside the commit transaction under a
-    per-tenant lock, so two imports cannot take the same code.
+
+### Supplier price-list import: Not in PR #149
+
+Nothing below is built yet. PR #149 ships the tables, the seed, the catalogue
+pages, item editing and recording a price by hand. Reserved for this import, and
+written by nothing in PR #149:
+
+- the `supplier` value of `catalogue_prices.source_kind`;
+- the `catalogue_prices.vendor_id` column;
+- the `SUP-<n>` item code format.
+
+The planned import (Excel or CSV):
+
+- Reuse the spreadsheet utilities from the `boq-excel` module (sheet picker,
+  header row, decimal-safe number parsing). Do not copy them.
+- Mapped columns: code (optional), name, unit, price, or low and high; plus
+  supplier (an existing vendor or a free-text name), price-list date and region.
+- Matching:
+  - an exact code within the tenant;
+  - otherwise normalised name (lower-case, collapsed spaces) plus unit, exact;
+  - otherwise unmatched.
+- The preview shows matched, new and unmatched rows. On commit, the user picks
+  one trade for new items (or skips them).
+- The commit inserts `supplier` price rows (low = avg = high when the file has
+  one price) in one transaction, with one `audit_log` entry per import that
+  carries the counts.
+- Limits: 25 MB, 5,000 rows.
+- Text is never written back as a formula.
+- **The commit does not trust the preview.** The file is sent again with the
+  commit and parsed again on the server; matched rows from the browser are never
+  written as they stand. This is how the takeoff import already works.
+- The file passes the same guards as the takeoff import before it is opened:
+  file type by content, the zip and merged-range limits, and the sheet size
+  limits. The route sits in the same rate-limit bucket as the takeoff import.
+- The `audit_log` entry carries the file's SHA-256, name and size.
+- **A repeated commit writes nothing.** The commit carries an idempotency key,
+  and a second commit of the same file for the same supplier and date inserts
+  no duplicate price rows.
+- New `SUP-<n>` codes are allocated inside the commit transaction under a
+  per-tenant lock, so two imports cannot take the same code.
 
 ## 7. CSV contract (`data/catalogue/NN-<trade>.csv`)
 
@@ -275,18 +288,37 @@ Codes are not reused, so a file can have gaps in its numbering.
 
 ## 8. Tests
 
-- **Unit:**
-  - the CSV parser (quoting, the column count, the trade/prefix match, flag tokens);
-  - the PHP → centavos conversion (half-up, commas, ₱, no float noise);
+- **Rules and CSV (`apps/web/src/lib/catalogue/rules.test.ts`, `csv.test.ts`):**
+  - the trades and their code prefixes;
+  - the PHP → centavos conversion (half-up, commas, ₱, no float noise, the
+    ceiling);
   - the low ≤ avg ≤ high check;
-  - supplier matching (code, name+unit, unmatched);
-  - current-price selection.
-- **DB (gated like the other DB tests):**
-  - the constraints;
-  - the composite fk blocks cross-tenant links;
-  - RLS: tenant B sees no rows of tenant A;
-  - clients cannot write;
-  - the seed runs twice and inserts 0 rows the second time.
+  - flag tokens;
+  - text hygiene (controls, hidden characters, separators);
+  - the source URL and the checked date;
+  - the CSV records (quoting, line breaks, the line a record starts on) and the
+    contract (the header, the column count, the trade/prefix match, flags and
+    prices, repeated codes).
+- **SQL shape (`queries.sql.test.ts`):** the real Drizzle builder against a fake
+  client. It checks the tenant predicate on every read, the `DISTINCT ON` and
+  `ORDER BY` of the current price in the list and on the item page, the region
+  match and the history cap. `queries.test.ts` covers the filters, the gate and
+  the row mapping with a mocked builder.
+- **Seed (`scripts/seed-catalogue.test.mjs`):** the research files load, a bad
+  row stops the load, the command line, the statements a run sends, the audit
+  entry and the ANALYZE that follows the load.
+- **DB (gated on `DATABASE_URL` like the other DB tests):**
+  - `packages/database/src/__tests__/catalogue-price-book.test.ts` reads the
+    migration and, on a database, checks the item and price constraints, the
+    tenant-scoped foreign keys, RLS between tenants, that browser roles cannot
+    read or write, that `service_role` can only read and add prices, that
+    prices cannot be updated, deleted or truncated, and that the seed runs
+    twice with 0 rows the second time;
+  - `apps/web/src/lib/catalogue/catalogue.database.test.ts` (in CI) runs the
+    list and item reads and the two actions against the seeded tables, including
+    which observation is current;
+  - `apps/web/src/app/(dashboard)/catalogue/pages.database.test.tsx` (local
+    only, see e2e below) renders both pages.
 - **Route and action:**
   - without the capability → 403;
   - the flag off → 404;

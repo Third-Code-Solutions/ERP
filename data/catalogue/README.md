@@ -129,8 +129,8 @@ Cost blogs and lead-generation sites on free hosting **are** used, among them
 
 ## Where the data is weak
 
-Do not price these from the catalogue. Get a quotation and load it through the
-supplier price-list import.
+Do not price these from the catalogue. Get a quotation and record it on the
+item page (Record a price). A supplier price-list import is planned, not built.
 
 - **Equipment rental (20):** 12 of 52 items have a price, and none is from Metro
   Manila. Rental firms quote on request, and DPWH does not post its rate tables.
