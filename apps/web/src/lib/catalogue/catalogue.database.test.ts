@@ -435,6 +435,44 @@ suite('catalogue reads against the seeded research files (database)', { timeout:
     })
   })
 
+  it('takes a correction recorded later on the same checked date as the current price', async () => {
+    await seeded(async ({ tx, actor }) => {
+      const wanted = priced[0]!
+      const before = await detailOf(actor, wanted.code)
+      const original = before.current[0]!
+      expect(original.price_avg_centavos).toBe(wanted.price!.avg)
+
+      // Same item, region and checked date as the research price; written later.
+      const [correction] = await tx
+        .insert(cataloguePrices)
+        .values({
+          tenant_id: actor.tenantId,
+          item_id: before.item.id,
+          region: original.region,
+          price_low_centavos: 100,
+          price_avg_centavos: 200,
+          price_high_centavos: 300,
+          source_kind: 'manual',
+          source_name: 'Corrected quotation',
+          checked_on: original.checked_on,
+          created_at: sql`clock_timestamp()`,
+        })
+        .returning({ id: cataloguePrices.id })
+
+      const { rows: found, total } = await listed(actor, { q: wanted.code })
+      expect(total).toBe(1)
+      expect(found[0]?.price).toMatchObject({
+        id: correction!.id,
+        checked_on: original.checked_on,
+        price_avg_centavos: 200,
+      })
+
+      const after = await detailOf(actor, wanted.code)
+      expect(after.history.map((price) => price.id)).toEqual([correction!.id, original.id])
+      expect(after.current.map((price) => price.id)).toEqual([correction!.id])
+    })
+  })
+
   it('audits an edit and a recorded price, writes nothing for an unchanged save, and the seed keeps the edit', async () => {
     await seeded(async ({ tx, actor, userId, seed }) => {
       const wanted = priced[0]!
