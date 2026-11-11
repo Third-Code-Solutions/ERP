@@ -1258,6 +1258,9 @@ export async function resolveBomGrainReview(input: unknown): Promise<{ error?: s
         .returning({ id: bomLineItemGrainReviews.id })
       if (updatedReviews.length !== 1) throw new BomReviewResolutionConflict()
 
+      // Totals count top-level lines only, so nesting or un-nesting a line changes them.
+      await recalcBomTotalsInTransaction(tx, currentLine.bomId, profile.tenantId)
+
       await writeAuditLogInTransaction(tx, {
         tenantId: profile.tenantId,
         actorId: profile.user.id,

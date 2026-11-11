@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module'
+import { computeBomTotals } from '@third-code-erp/shared-types/bom'
 import * as ExcelJS from 'exceljs'
 import { describe, expect, it } from 'vitest'
 import { parseStructuredTakeoff } from '@/lib/operations/integrations/takeoff'
@@ -151,6 +152,25 @@ function headerRowNumber(sheet: ExcelJS.Worksheet): number {
   return found
 }
 
+/** The Amount cells of the line rows, summed in centavos, and the totals rows by label. */
+function readBoqTotals(workbook: ExcelJS.Workbook): { amountCentavos: number; totals: Map<string, unknown> } {
+  const sheet = workbook.getWorksheet('BOQ')!
+  const header = headerRowNumber(sheet)
+  let amountCentavos = 0
+  const totals = new Map<string, unknown>()
+  sheet.eachRow((row, number) => {
+    if (number <= header) return
+    const label = String(row.getCell(3).value ?? '')
+    if (label.startsWith('Total')) {
+      totals.set(label, row.getCell(9).value)
+      return
+    }
+    const amount = cellCentavos(row.getCell(9).value, Number.MAX_SAFE_INTEGER)
+    if (amount.ok) amountCentavos += amount.value
+  })
+  return { amountCentavos, totals }
+}
+
 describe('BOQ workbook export', () => {
   it('writes the header block, headers, typed cells and number formats', async () => {
     const { workbook } = await roundTrip(exportData())
@@ -229,25 +249,54 @@ describe('BOQ workbook export', () => {
     expect(group?.getCell(7).value ?? null).toBeNull()
   })
 
-  it('sums exported amounts to the stored total cost and writes stored totals', async () => {
+  it('prints totals that are the sum of the printed lines when the stored totals are stale', async () => {
+    // The cement was nested under line b (a resolved grain review) and the
+    // BOM record still counts it: P6,000.00 more than its lines add up to.
+    const current = computeBomTotals(LINES)
+    const stored = {
+      ...current,
+      total_cost_cents: current.total_cost_cents + 600_000,
+      tcv_cents: current.tcv_cents + 600_000,
+    }
+    const { buffer, workbook } = await roundTrip({ ...exportData(), bom: { ...exportData().bom, ...stored } })
+    const { amountCentavos, totals } = readBoqTotals(workbook)
+    const printed = (label: string) => {
+      const value = cellCentavos(totals.get(label), Number.MAX_SAFE_INTEGER)
+      return value.ok ? value.value : Number.NaN
+    }
+    const topLevelTcv = LINES.filter((line) => line.parent_line_item_id === null).reduce(
+      (sum, line) => sum + line.line_total_cents,
+      0,
+    )
+
+    expect(printed('Total cost')).toBe(amountCentavos)
+    expect(printed('Total cost')).toBe(current.total_cost_cents)
+    expect(printed('Total contract value (TCV)')).toBe(topLevelTcv)
+    expect(totals.get('Total gross profit (GP)')).toBe((topLevelTcv - amountCentavos) / 100)
+    // The out-of-date record is shown beside the computed totals, never instead of them.
+    expect(printed('Total cost stored on the BOM (out of date)')).toBe(stored.total_cost_cents)
+    expect(printed('Total contract value (TCV) stored on the BOM (out of date)')).toBe(stored.tcv_cents)
+
+    const imported = await parseStructuredTakeoff(buffer, 'BOQ.xlsx', {
+      description: 'Description',
+      quantity: 'Quantity',
+      unit: 'UOM',
+    })
+    expect(imported.rows).toHaveLength(3)
+    expect(imported.warnings).toEqual([])
+  })
+
+  it('sums exported amounts to the total cost and prints no stored totals when they are current', async () => {
     const data = exportData()
     const { workbook } = await roundTrip(data)
-    const sheet = workbook.getWorksheet('BOQ')!
-    const header = headerRowNumber(sheet)
+    const { amountCentavos, totals } = readBoqTotals(workbook)
 
-    let amountCentavos = 0
-    const totals = new Map<string, unknown>()
-    sheet.eachRow((row, number) => {
-      if (number <= header) return
-      const label = String(row.getCell(3).value ?? '')
-      if (label.startsWith('Total')) {
-        totals.set(label, row.getCell(9).value)
-        return
-      }
-      const amount = cellCentavos(row.getCell(9).value, Number.MAX_SAFE_INTEGER)
-      if (amount.ok) amountCentavos += amount.value
-    })
-
+    expect([...totals.keys()]).toEqual([
+      'Total cost',
+      'Total contract value (TCV)',
+      'Total gross profit (GP)',
+      'Total GP margin',
+    ])
     // 12.3456 x 450.50, 2.5 x 6,500.01 and 0.3333 x 10,000.00, each half-up.
     expect(amountCentavos).toBe(556_169 + 1_625_003 + 333_300)
     expect(amountCentavos).toBe(data.bom.total_cost_cents)

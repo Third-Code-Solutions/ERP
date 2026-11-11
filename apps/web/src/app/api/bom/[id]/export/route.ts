@@ -2,7 +2,11 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { z } from 'zod'
 import { getUserProfile } from '@third-code-erp/auth'
 import { getProjectDetailAccess } from '@/app/(dashboard)/projects/[id]/project-detail-access'
-import { boqExportFileName, writeBoqWorkbook } from '@/lib/operations/boq-excel/workbook'
+import {
+  BoqExportTooLargeError,
+  boqExportFileName,
+  writeBoqWorkbook,
+} from '@/lib/operations/boq-excel/workbook'
 import { loadBoqExport } from './bom-export-data'
 
 export const runtime = 'nodejs'
@@ -33,7 +37,9 @@ export async function GET(
   }
 
   if (!profile) return jsonError('Unauthorized', 401)
-  if (!getProjectDetailAccess(profile.role).bom) return jsonError('Forbidden', 403)
+  // The BOM page sits under the project layout, which requires project.read.
+  const access = getProjectDetailAccess(profile.role)
+  if (!access.project || !access.bom) return jsonError('Forbidden', 403)
 
   const { id } = await params
   if (!z.string().uuid().safeParse(id).success) return jsonError('Not found', 404)
@@ -54,6 +60,7 @@ export async function GET(
       },
     })
   } catch (error) {
+    if (error instanceof BoqExportTooLargeError) return jsonError(error.message, 422)
     console.error('[bom-export] export failed', error)
     return jsonError('Export unavailable', 500)
   }
