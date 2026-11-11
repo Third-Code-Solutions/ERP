@@ -15,7 +15,8 @@ const TENANT = '22222222-2222-4222-8222-222222222222'
 const HEADER =
   'code,name,trade,specification,unit,price_low_php,price_avg_php,price_high_php,region,price_basis,source_url,date_checked,flag,notes'
 const PRICED = 'CN-0001,Cement 40 kg,concrete,,bag,240,265,280,NCR,material_supply,https://example.com/a,2026-11-05,,'
-const UNPRICED = 'CN-0002,Cement 50 kg,concrete,,bag,,,,NCR,material_supply,,2026-11-05,NO_SOURCE,'
+const UNPRICED =
+  'CN-0002,Cement 50 kg,concrete,,bag,,,,National,material_supply,https://example.com/none,2026-11-05,NO_SOURCE,No retailer lists a 50 kg bag'
 
 function withFiles(files, run) {
   const directory = mkdtempSync(join(tmpdir(), 'catalogue-seed-'))
@@ -119,7 +120,7 @@ test('a real run refuses to start without DATABASE_URL in the environment', () =
   assert.match(result.stderr, /DATABASE_URL must be set in the environment/)
 })
 
-test('the seed writes items, then prices, then one audit entry, and reports what it left alone', async () => {
+test('the seed writes items, then one observation per row, then one audit entry, and reports what it left alone', async () => {
   const rows = withFiles({ '02-concrete.csv': [PRICED, UNPRICED] }, (directory) =>
     loadCatalogueRows(directory, '2026-11-10')
   )
@@ -128,7 +129,7 @@ test('the seed writes items, then prices, then one audit entry, and reports what
     [{ id: TENANT }], // tenant exists
     [{ count: 1 }], // one seeded code was edited by a person
     [{ inserted: true }], // upsert: one new item, the edited one untouched
-    [], // the only priced observation is already there
+    [], // both observations, the priced one and the one without a price, are already there
     [{}], // audit chain lock
     [],
   ]
@@ -148,8 +149,9 @@ test('the seed writes items, then prices, then one audit entry, and reports what
     itemsKeptEdited: 1,
     itemsUnchanged: 0,
     pricedRows: 1,
+    unpricedRows: 1,
     pricesInserted: 0,
-    pricesAlreadyPresent: 1,
+    pricesAlreadyPresent: 2,
   })
   assert.equal(statements.length, 6)
   for (const { parameters } of statements) assert.equal(parameters[0], TENANT)
@@ -160,6 +162,12 @@ test('the seed writes items, then prices, then one audit entry, and reports what
   assert.deepEqual(JSON.parse(upsert.parameters[1]).map((item) => item.code), ['CN-0001', 'CN-0002'])
   assert.match(prices.query, /'research'/)
   assert.match(prices.query, /where not exists/)
+  // Null prices must compare equal, or every run would insert the unpriced
+  // observation again.
+  assert.match(prices.query, /existing\.price_low_centavos is not distinct from r\.low\b/)
+  assert.match(prices.query, /existing\.price_avg_centavos is not distinct from r\.avg\b/)
+  assert.match(prices.query, /existing\.price_high_centavos is not distinct from r\.high\b/)
+  assert.doesNotMatch(prices.query, /_centavos = r\./)
   assert.deepEqual(JSON.parse(prices.parameters[1]), [
     {
       code: 'CN-0001',
@@ -172,6 +180,19 @@ test('the seed writes items, then prices, then one audit entry, and reports what
       checked_on: '2026-11-05',
       flag: null,
       notes: null,
+    },
+    // The row without a price: no amounts, but its region, link, flag and note.
+    {
+      code: 'CN-0002',
+      region: 'National',
+      low: null,
+      avg: null,
+      high: null,
+      price_basis: 'material_supply',
+      source_url: 'https://example.com/none',
+      checked_on: '2026-11-05',
+      flag: 'NO_SOURCE',
+      notes: 'No retailer lists a 50 kg bag',
     },
   ])
   assert.match(lock.query, /pg_advisory_xact_lock\(hashtextextended\('audit_log:'/)

@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@third-code-erp/database', () => ({ db: mocks.db }))
 
 import {
+  CATALOGUE_HISTORY_LIMIT,
   CATALOGUE_MAX_PAGE,
   CATALOGUE_PAGE_SIZE,
   catalogueListFiltersSchema,
@@ -148,7 +149,22 @@ describe('listCatalogueItems', () => {
     source_url: 'https://example.com/prices',
     checked_on: '2026-11-05',
     flag: 'SINGLE_SOURCE;STALE_2024',
+    notes: null,
   }
+  // The newest observation found no price: it still has a region, a flag and a note.
+  const NO_SOURCE_ROW = {
+    ...PRICED_ROW,
+    code: 'CN-0002',
+    price_id: '66666666-6666-4666-8666-666666666666',
+    region: 'National',
+    price_low_centavos: null,
+    price_avg_centavos: null,
+    price_high_centavos: null,
+    source_url: null,
+    flag: 'NO_SOURCE',
+    notes: 'No retailer lists this size.',
+  }
+  // No observation at all.
   const UNPRICED_ROW = {
     ...PRICED_ROW,
     code: 'CN-0003',
@@ -162,10 +178,11 @@ describe('listCatalogueItems', () => {
     source_url: null,
     checked_on: null,
     flag: null,
+    notes: null,
   }
 
   it('pages 50 at a time and maps the current price and its flags', async () => {
-    const { list } = queueList([PRICED_ROW, UNPRICED_ROW], 120)
+    const { list } = queueList([PRICED_ROW, UNPRICED_ROW, NO_SOURCE_ROW], 120)
 
     const result = await listCatalogueItems(ESTIMATOR, { page: '3' })
 
@@ -185,6 +202,20 @@ describe('listCatalogueItems', () => {
       flags: ['SINGLE_SOURCE', 'STALE_2024'],
     })
     expect(rows[1]?.price).toBeNull()
+    expect(rows[2]?.price).toEqual({
+      id: NO_SOURCE_ROW.price_id,
+      region: 'National',
+      price_low_centavos: null,
+      price_avg_centavos: null,
+      price_high_centavos: null,
+      price_basis: 'material_supply',
+      source_kind: 'research',
+      source_name: null,
+      source_url: null,
+      checked_on: '2026-11-05',
+      flags: ['NO_SOURCE'],
+      notes: 'No retailer lists this size.',
+    })
   })
 
   it('scopes the items, the current-price subquery and the count to the caller tenant', async () => {
@@ -242,7 +273,26 @@ describe('getCatalogueItemDetail', () => {
     const result = await getCatalogueItemDetail(ESTIMATOR, ITEM)
 
     expect(result.ok && result.data.history).toEqual(history)
+    expect(result.ok && result.data.historyCapped).toBe(false)
     expect(result.ok && result.data.current.map((price) => price.id)).toEqual(['ncr-new', 'cebu'])
     expect(render(argsOf(prices.calls, 'where')[0]).params).toEqual([ITEM, TENANT])
+  })
+
+  it('keeps the newest observations up to the cap and says when older ones were left out', async () => {
+    const stored = Array.from({ length: CATALOGUE_HISTORY_LIMIT + 1 }, (_, index) => ({
+      id: `price-${index}`,
+      region: 'NCR',
+      checked_on: '2026-11-05',
+      created_at: new Date(Date.UTC(2026, 10, 5) - index),
+    }))
+    const item = chain([{ id: ITEM, tenant_id: TENANT, code: 'CN-0001' }])
+    const prices = chain(stored)
+    mocks.db.select.mockReturnValueOnce(item.builder).mockReturnValueOnce(prices.builder)
+
+    const result = await getCatalogueItemDetail(ESTIMATOR, ITEM)
+
+    expect(argsOf(prices.calls, 'limit')).toEqual([CATALOGUE_HISTORY_LIMIT + 1])
+    expect(result.ok && result.data.history).toEqual(stored.slice(0, CATALOGUE_HISTORY_LIMIT))
+    expect(result.ok && result.data.historyCapped).toBe(true)
   })
 })

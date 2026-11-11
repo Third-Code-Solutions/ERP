@@ -72,6 +72,9 @@ describe('catalogue read SQL', () => {
         '(^|;)STALE_[0-9]{4}(;|$)',
       ])
     }
+    // An observation without a price is still current: its flag and note are read.
+    expect(list.sql).toContain('"current_price"."flag"')
+    expect(list.sql).toContain('"current_price"."notes"')
     expect(list.sql).toMatch(/order by "catalogue_items"\."code" asc, "current_price"\."region" asc limit \$\d+ offset \$\d+$/)
     expect(list.params.slice(7)).toEqual([50, 50])
     expect(count.sql).toMatch(/^select count\(\*\)::int from "catalogue_items" left join/)

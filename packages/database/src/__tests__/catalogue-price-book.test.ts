@@ -407,18 +407,32 @@ runtimeDescribe('catalogue price book (database)', () => {
         return row
       }
 
+      // Every row leaves one observation, the unpriced CN-0003 included.
       expect(await seedCatalogue(tx, { tenantId: tenantA, rows })).toMatchObject({
         itemsInserted: 3, itemsUpdated: 0, itemsKeptEdited: 0, itemsUnchanged: 0,
-        pricesInserted: 2, pricesAlreadyPresent: 0,
+        pricesInserted: 3, pricesAlreadyPresent: 0,
       })
-      expect(await totals()).toEqual({ items: 3, prices: 2 })
+      expect(await totals()).toEqual({ items: 3, prices: 3 })
 
-      // Second run: nothing new.
+      // Second run: nothing new, not even for the observation with null prices.
       expect(await seedCatalogue(tx, { tenantId: tenantA, rows })).toMatchObject({
         itemsInserted: 0, itemsUpdated: 0, itemsKeptEdited: 0, itemsUnchanged: 3,
-        pricesInserted: 0, pricesAlreadyPresent: 2,
+        pricesInserted: 0, pricesAlreadyPresent: 3,
       })
-      expect(await totals()).toEqual({ items: 3, prices: 2 })
+      expect(await totals()).toEqual({ items: 3, prices: 3 })
+      const [unpriced] = await tx.unsafe<Array<{ observations: number }>>(
+        `select count(*)::int as observations
+           from public.catalogue_prices price
+           join public.catalogue_items item on item.id = price.item_id
+          where price.tenant_id = $1::uuid
+            and item.code = 'CN-0003'
+            and price.price_low_centavos is null
+            and price.price_avg_centavos is null
+            and price.price_high_centavos is null
+            and price.flag = 'NO_SOURCE'`,
+        [tenantA]
+      )
+      expect(unpriced).toEqual({ observations: 1 })
 
       // A person edits CN-0001; the research text of both priced items changes.
       await tx.unsafe(
@@ -433,7 +447,7 @@ runtimeDescribe('catalogue price book (database)', () => {
       ]
       expect(await seedCatalogue(tx, { tenantId: tenantA, rows: revised })).toMatchObject({
         itemsInserted: 0, itemsUpdated: 1, itemsKeptEdited: 1, itemsUnchanged: 1,
-        pricesInserted: 0, pricesAlreadyPresent: 2,
+        pricesInserted: 0, pricesAlreadyPresent: 3,
       })
       const names = await tx.unsafe<Array<{ code: string; name: string }>>(
         `select code, name from public.catalogue_items where tenant_id = $1::uuid order by code`,

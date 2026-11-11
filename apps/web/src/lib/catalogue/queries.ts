@@ -40,7 +40,7 @@ import {
 export const CATALOGUE_PAGE_SIZE = 50
 export const CATALOGUE_MAX_PAGE = 10_000
 export const CATALOGUE_MAX_SEARCH_LENGTH = 100
-const CATALOGUE_HISTORY_LIMIT = 500
+export const CATALOGUE_HISTORY_LIMIT = 500
 
 const blankToUndefined = (value: unknown) =>
   typeof value === 'string' && value.trim() === '' ? undefined : value
@@ -89,6 +89,8 @@ export interface CatalogueCurrentPrice {
   source_url: string | null
   checked_on: string
   flags: string[]
+  /** For an observation without a price, why none was found. */
+  notes: string | null
 }
 
 export interface CatalogueListRow {
@@ -99,7 +101,11 @@ export interface CatalogueListRow {
   specification: string | null
   unit: string
   is_active: boolean
-  /** Current price in one region; null when the item has no price there. */
+  /**
+   * The current observation in one region; null when the item has none there.
+   * Its three prices are null when no price was found (`NO_SOURCE`): the flag
+   * and the note still say why.
+   */
   price: CatalogueCurrentPrice | null
 }
 
@@ -122,10 +128,12 @@ function flagHasToken(flag: SQLWrapper, pattern: string): SQL {
 }
 
 /**
- * One row per item and region with that region's current price (the newest
- * observation by checked date, then creation time). An item without a price
- * appears once with `price: null`. With a region filter every item appears
- * once, priced or not in that region.
+ * One row per item and region with that region's current observation (the
+ * newest by checked date, then creation time), so a priced observation of the
+ * same or a later date replaces one that found no price. An item without any
+ * observation appears once with `price: null`. With a region filter every item
+ * appears once, observed or not in that region. The "no source" status means
+ * no current price: an observation without one, or no observation at all.
  */
 export async function listCatalogueItems(
   actor: CatalogueActor,
@@ -160,6 +168,7 @@ export async function listCatalogueItems(
       source_url: cataloguePrices.source_url,
       checked_on: cataloguePrices.checked_on,
       flag: cataloguePrices.flag,
+      notes: cataloguePrices.notes,
     })
     .from(cataloguePrices)
     .where(
@@ -217,6 +226,7 @@ export async function listCatalogueItems(
         source_url: current.source_url,
         checked_on: current.checked_on,
         flag: current.flag,
+        notes: current.notes,
       })
       .from(catalogueItems)
       .leftJoin(current, joinCurrent)
@@ -257,6 +267,7 @@ export async function listCatalogueItems(
                 source_url: row.source_url,
                 checked_on: row.checked_on,
                 flags: splitCatalogueFlags(row.flag),
+                notes: row.notes,
               }
             : null,
       })),
@@ -271,9 +282,11 @@ export async function listCatalogueItems(
 
 export interface CatalogueItemDetail {
   item: CatalogueItem
-  /** Every price observation, newest first. */
+  /** The price observations, newest first: at most CATALOGUE_HISTORY_LIMIT of them. */
   history: CataloguePrice[]
-  /** The current price in each region the item has been priced in. */
+  /** True when older observations exist beyond `history`. */
+  historyCapped: boolean
+  /** The current observation in each region the item has one in. */
   current: CataloguePrice[]
 }
 
@@ -295,18 +308,25 @@ export async function getCatalogueItemDetail(
     .limit(1)
   if (!item) return { ok: false, status: 404, error: 'Catalogue item not found' }
 
-  // shortcut: newest 500 observations only, add paging when an item outgrows it
-  const history = await db
+  // shortcut: newest 500 observations only, add paging when an item outgrows it.
+  // One more is read so the page can say when older ones were left out.
+  const newest = await db
     .select()
     .from(cataloguePrices)
     .where(
       and(eq(cataloguePrices.item_id, itemId), eq(cataloguePrices.tenant_id, actor.tenantId)),
     )
     .orderBy(desc(cataloguePrices.checked_on), desc(cataloguePrices.created_at))
-    .limit(CATALOGUE_HISTORY_LIMIT)
+    .limit(CATALOGUE_HISTORY_LIMIT + 1)
+  const history = newest.slice(0, CATALOGUE_HISTORY_LIMIT)
 
   return {
     ok: true,
-    data: { item, history, current: [...currentPriceByRegion(history).values()] },
+    data: {
+      item,
+      history,
+      historyCapped: newest.length > CATALOGUE_HISTORY_LIMIT,
+      current: [...currentPriceByRegion(history).values()],
+    },
   }
 }

@@ -193,6 +193,26 @@ describe('current price selection', () => {
     expect(current.size).toBe(2)
   })
 
+  it('lets a price of the same or a later checked date replace an observation that found none', () => {
+    const noSource = {
+      ...observation('no-source', 'NCR', '2026-11-05', '2026-11-05T02:00:00Z'),
+      price_avg_centavos: null,
+    }
+    const priced = (id: string, checked_on: string) => ({
+      ...observation(id, 'NCR', checked_on, '2026-11-11T03:00:00Z'),
+      price_avg_centavos: 26_500,
+    })
+
+    for (const later of [priced('same-day', '2026-11-05'), priced('later-day', '2026-11-12')]) {
+      // Whichever way the observations arrive.
+      expect(currentPriceByRegion([noSource, later]).get('NCR')).toBe(later)
+      expect(currentPriceByRegion([later, noSource]).get('NCR')).toBe(later)
+    }
+    // A price checked before the search that found nothing stays history.
+    const earlier = priced('earlier-day', '2026-11-04')
+    expect(currentPriceByRegion([earlier, noSource]).get('NCR')).toBe(noSource)
+  })
+
   it('returns nothing for an item without observations and does not reorder its input', () => {
     const history = [
       observation('a', 'NCR', '2026-01-01', '2026-01-01T00:00:00Z'),

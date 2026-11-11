@@ -9,7 +9,8 @@
  * Every row of every `NN-<trade>.csv` is validated before anything is
  * written; an invalid row stops the run with its file:line. The load is one
  * transaction and idempotent: a second run inserts no catalogue rows. An item
- * a person has edited is never overwritten. `--dry-run` validates and prints
+ * a person has edited is never overwritten. A row without a price still
+ * records one observation, with null prices, that keeps its flag and note. `--dry-run` validates and prints
  * per-trade counts without opening a database connection (and needs no
  * tenant). DATABASE_URL is read from the environment only.
  */
@@ -138,7 +139,8 @@ async function main() {
         `${counts.itemsUnchanged} unchanged, ${counts.itemsKeptEdited} left alone (edited by a person).`
     )
     console.log(
-      `Prices: ${counts.pricesInserted} inserted, ${counts.pricesAlreadyPresent} already present.`
+      `Observations: ${counts.pricesInserted} inserted, ${counts.pricesAlreadyPresent} already present ` +
+        `(${counts.unpricedRows} of the ${counts.items} rows record that no price was found).`
     )
     console.log('One audit_log entry (catalogue_seed) records these counts.')
   } finally {

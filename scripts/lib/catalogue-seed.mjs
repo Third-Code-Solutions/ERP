@@ -37,8 +37,12 @@ const COUNT_EDITED_ITEMS = `
      )
 `
 
-// One research observation per priced row, unless the identical observation
-// (item, region, checked_on, source_url, low, avg, high) is already there.
+// One research observation per row, unless the identical observation (item,
+// region, checked_on, source_url, low, avg, high) is already there. A row
+// without a price (NO_SOURCE) is an observation too: its three prices are null
+// and it keeps the region, the flag, the note that says why and any link.
+// `is not distinct from` makes null prices compare equal, so a second run
+// finds that observation and inserts nothing.
 const INSERT_PRICES = `
   insert into public.catalogue_prices (
     tenant_id, item_id, region,
@@ -61,9 +65,9 @@ const INSERT_PRICES = `
         and existing.region = r.region
         and existing.checked_on = r.checked_on
         and existing.source_url is not distinct from r.source_url
-        and existing.price_low_centavos = r.low
-        and existing.price_avg_centavos = r.avg
-        and existing.price_high_centavos = r.high
+        and existing.price_low_centavos is not distinct from r.low
+        and existing.price_avg_centavos is not distinct from r.avg
+        and existing.price_high_centavos is not distinct from r.high
    )
   returning id
 `
@@ -115,12 +119,12 @@ export async function seedCatalogue(sql, { tenantId, rows }) {
   )
   const priced = rows.filter((row) => row.price)
   const prices = JSON.stringify(
-    priced.map((row) => ({
+    rows.map((row) => ({
       code: row.code,
       region: row.region,
-      low: row.price.low,
-      avg: row.price.avg,
-      high: row.price.high,
+      low: row.price?.low ?? null,
+      avg: row.price?.avg ?? null,
+      high: row.price?.high ?? null,
       price_basis: row.price_basis,
       source_url: row.source_url,
       checked_on: row.checked_on,
@@ -143,8 +147,10 @@ export async function seedCatalogue(sql, { tenantId, rows }) {
     itemsKeptEdited: edited.count,
     itemsUnchanged: rows.length - itemsInserted - itemsUpdated - edited.count,
     pricedRows: priced.length,
+    unpricedRows: rows.length - priced.length,
+    // Observations, priced or not: every row has exactly one.
     pricesInserted: insertedPrices.length,
-    pricesAlreadyPresent: priced.length - insertedPrices.length,
+    pricesAlreadyPresent: rows.length - insertedPrices.length,
   }
 
   await sql.unsafe(LOCK_AUDIT_CHAIN, [tenantId])
