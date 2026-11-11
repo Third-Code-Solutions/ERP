@@ -84,10 +84,13 @@ const editItemSchema = z.object({
     .transform((value) => value === 'true'),
 })
 
-/** Edit item: name, specification, unit, trade and active. */
+/**
+ * Edit item: name, specification, unit, trade and active. A save that changes
+ * nothing writes nothing, not even an audit entry; `changed` says which it was.
+ */
 export async function editCatalogueItem(
   formData: FormData,
-): Promise<CatalogueResult<{ id: string }>> {
+): Promise<CatalogueResult<{ id: string; changed: boolean }>> {
   const profile = await requireUserProfile()
   const denied = catalogueAccessDenial(profile.role, 'catalogue.manage')
   if (denied) return denied
@@ -104,8 +107,9 @@ export async function editCatalogueItem(
   const { id, ...changes } = parsed.data
   const ownItem = and(eq(catalogueItems.id, id), eq(catalogueItems.tenant_id, profile.tenantId))
 
+  let outcome: 'missing' | 'unchanged' | 'saved'
   try {
-    const found = await db.transaction(async (tx) => {
+    outcome = await db.transaction(async (tx) => {
       await stampActorInTransaction(tx, profile.user.id)
       const [before] = await tx
         .select({
@@ -119,7 +123,9 @@ export async function editCatalogueItem(
         .where(ownItem)
         .limit(1)
         .for('update')
-      if (!before) return false
+      if (!before) return 'missing'
+      const diff = computeDiff(before, changes)
+      if (Object.keys(diff).length === 0) return 'unchanged'
 
       await tx
         .update(catalogueItems)
@@ -131,11 +137,10 @@ export async function editCatalogueItem(
         entityType: 'catalogue_item',
         entityId: id,
         action: 'update',
-        diff: computeDiff(before, changes),
+        diff,
       })
-      return true
+      return 'saved'
     })
-    if (!found) return NOT_FOUND
   } catch (error) {
     console.error('[catalogue:editCatalogueItem] failed', error)
     return {
@@ -144,10 +149,12 @@ export async function editCatalogueItem(
       error: safeActionError(error, 'Could not save the catalogue item.'),
     }
   }
+  if (outcome === 'missing') return NOT_FOUND
+  if (outcome === 'unchanged') return { ok: true, data: { id, changed: false } }
 
   revalidatePath('/catalogue')
   revalidatePath(`/catalogue/${id}`)
-  return { ok: true, data: { id } }
+  return { ok: true, data: { id, changed: true } }
 }
 
 const recordPriceSchema = z

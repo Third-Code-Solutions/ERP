@@ -159,12 +159,23 @@ describe('catalogue admin forms', () => {
     })
 
     it('confirms a saved item', async () => {
-      mocks.edit.mockResolvedValue({ ok: true, data: { id: ITEM.id } })
+      mocks.edit.mockResolvedValue({ ok: true, data: { id: ITEM.id, changed: true } })
 
       const html = await submitted(element, form({ id: ITEM.id, name: 'Cement' }))
 
       expect(html).toContain('<p role="status" class="finance-form-hint">Item saved.</p>')
       expect(html).not.toContain('role="alert"')
+    })
+
+    it('says so when a save changed nothing', async () => {
+      mocks.edit.mockResolvedValue({ ok: true, data: { id: ITEM.id, changed: false } })
+
+      const html = await submitted(element, form({ id: ITEM.id, name: ITEM.name }))
+
+      expect(html).toContain(
+        '<p role="status" class="finance-form-hint">Nothing was changed, so nothing was saved.</p>',
+      )
+      expect(html).not.toContain('Item saved.')
     })
 
     it('disables the button while saving', () => {

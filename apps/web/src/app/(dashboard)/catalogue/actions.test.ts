@@ -172,7 +172,7 @@ describe('editCatalogueItem', () => {
       form({ ...EDIT, name: '  Cement\t40 kg\u0000 ', specification: ' Type 1P\r\nbagged ' }),
     )
 
-    expect(result).toEqual({ ok: true, data: { id: ITEM } })
+    expect(result).toEqual({ ok: true, data: { id: ITEM, changed: true } })
     expect(argOf(update.calls, 'set')).toMatchObject({
       name: 'Cement 40 kg',
       specification: 'Type 1P\nbagged',
@@ -209,9 +209,22 @@ describe('editCatalogueItem', () => {
     })
   })
 
+  it('writes nothing, not even an audit entry, when the save changes nothing', async () => {
+    const { tx } = useTransaction({ selected: [BEFORE] })
+
+    const result = await editCatalogueItem(
+      form({ ...EDIT, name: ' Cement ', specification: '', unit: 'bag', is_active: 'true' }),
+    )
+
+    expect(result).toEqual({ ok: true, data: { id: ITEM, changed: false } })
+    expect(tx.update).not.toHaveBeenCalled()
+    expect(mocks.writeAudit).not.toHaveBeenCalled()
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
   // The form shows the error as it is, so each is a sentence, not a field path.
   it.each([
-    [{ id: 'not-a-uuid' }, 'This item could not be identified. Reload the page and try again.'],
+    [{ id: 'not-a-uuid' },'This item could not be identified. Reload the page and try again.'],
     [{ name: ' \t ' }, 'Enter a name.'],
     [{ name: 'x'.repeat(301) }, 'The name must be 300 characters or fewer.'],
     [{ unit: '' }, 'Enter a unit.'],

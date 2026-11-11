@@ -13,11 +13,13 @@ export interface EditableCatalogueItem {
   is_active: boolean
 }
 
-type SaveState = { saved: true } | { error: string; sent: FormData } | null
+type SaveState = { saved: true; changed: boolean } | { error: string; sent: FormData } | null
 
 async function saveItem(_previous: SaveState, formData: FormData): Promise<SaveState> {
   const result = await editCatalogueItem(formData)
-  return result.ok ? { saved: true } : { error: result.error, sent: formData }
+  return result.ok
+    ? { saved: true, changed: result.data.changed }
+    : { error: result.error, sent: formData }
 }
 
 export function EditItemForm({
@@ -96,7 +98,7 @@ export function EditItemForm({
       ) : null}
       {state && 'saved' in state ? (
         <p role="status" className="finance-form-hint">
-          Item saved.
+          {state.changed ? 'Item saved.' : 'Nothing was changed, so nothing was saved.'}
         </p>
       ) : null}
     </form>
