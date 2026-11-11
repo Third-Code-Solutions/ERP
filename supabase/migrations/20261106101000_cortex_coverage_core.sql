@@ -239,8 +239,9 @@ begin
   foreach v_key in array r.attr_cols loop
     if p_row ? v_key then v_attrs := v_attrs || jsonb_build_object(v_key, p_row -> v_key); end if;
   end loop;
+  -- Scalars only: redaction masks top-level strings, never nested ones.
   foreach v_key in array r.attr_paths loop
-    if p_row #> string_to_array(v_key, '.') is not null then
+    if jsonb_typeof(p_row #> string_to_array(v_key, '.')) in ('string', 'number', 'boolean') then
       v_attrs := v_attrs || jsonb_build_object(
         regexp_replace(v_key, '^.*\.', ''), p_row #> string_to_array(v_key, '.'));
     end if;
@@ -779,7 +780,8 @@ begin
       end if;
       if r.node_type is not null then
         select coalesce(jsonb_object_agg(key, value), '{}'::jsonb) into v_attrs
-          from jsonb_each(n.attributes) where key = any(v_keep);
+          from jsonb_each(n.attributes)
+         where key = any(v_keep) and jsonb_typeof(value) not in ('object', 'array');
       else
         v_attrs := n.attributes - 'email' - 'primary_email' - 'folds';
         if p_table = 'opportunities' then

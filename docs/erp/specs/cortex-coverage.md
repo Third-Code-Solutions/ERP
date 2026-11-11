@@ -125,6 +125,7 @@ Edge columns (`project_id`, `created_by`, …) are used only when their type is 
 
 A column added later stays out until a migration adds it, so the list fails closed. Guard tests hold the lists to the live schema:
 - every column a registry row names (`attr_cols`, edges, folds, template placeholders) exists;
+- every copied column is a scalar type (no json, jsonb, array, composite, bytea or vector), and every `attr_paths` entry reads into a json column; the engine copies only a string, number or boolean found at a path, because redaction masks top-level strings only;
 - `CORTEX_REGISTRY_COLUMNS` in `__tests__/_cortex-coverage-classes.ts` splits every live column of the 23 tables into `copy` or `omit`, and `copy` must equal `attr_cols`, so a new column fails CI until it is classified;
 - every table with a `cortex_mirror_r` trigger has a registry row, and the reverse.
 

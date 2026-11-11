@@ -1243,7 +1243,7 @@ suite('Cortex coverage (Batches 0-1)', () => {
         insert into public.cortex_mirror_registry(
           ref_table, node_type, title_tpl, summary_tpl, attr_cols, attr_paths, edges, lookups)
         values ('cortex_probe_rich', 'task', '{vendor_name}: {label}', 'Label: {label}',
-          '{label,subject_type}', '{payload.floor_area_sqm}',
+          '{label,subject_type}', '{payload.floor_area_sqm,payload.site}',
           '[{"cols": ["subject_id"], "type": "part_of", "dir": "out",
              "poly": {"type_col": "subject_type", "map": {"project": "projects", "vendor": "vendors"}}},
             {"cols": ["mentioned"], "many": true, "table": "users", "type": "mentions", "dir": "out"}]',
@@ -1254,7 +1254,7 @@ suite('Cortex coverage (Batches 0-1)', () => {
         tx,
         `insert into cortex_probe_rich(tenant_id, subject_type, subject_id, mentioned, vendor_id, payload, label, secret_token)
          values('${t}', 'project', '${project}', array['${userA}', '${other}']::uuid[], '${vendor}',
-                '{"floor_area_sqm": 120, "site_address": "5 Secret St"}', 'L1', 'tok-secret')`
+                '{"floor_area_sqm": 120, "site": {"address": "5 Secret St"}}', 'L1', 'tok-secret')`
       )
       const openEdges = async () =>
         ((await tx.unsafe(
@@ -1273,6 +1273,7 @@ suite('Cortex coverage (Batches 0-1)', () => {
     })
     expect(r.created.node.title).toBe('Poly V: L1')
     expect(r.created.node.summary).toBe('Label: L1')
+    // payload.site is an object: nested strings would skip redaction, so it is not copied.
     expect(r.created.node.attributes).toEqual({ label: 'L1', subject_type: 'project', floor_area_sqm: 120 })
     expect(r.created.edges).toEqual(
       [`part_of:projects:${r.project}`, `mentions:users:${r.userA}`, `mentions:users:${r.other}`].sort()
@@ -1688,7 +1689,7 @@ suite('Cortex coverage (Batches 0-1)', () => {
     expect(r.breaks).toBe(0)
   })
 
-  it('registry guard: every named column exists, title columns are NOT NULL, and cortex_mirror_r and registry rows match one to one', async () => {
+  it('registry guard: every named column exists, title columns are NOT NULL, copied columns are scalar, and cortex_mirror_r and registry rows match one to one', async () => {
     const missing = (await sql.unsafe(
       `with named as (
          select r.ref_table as tbl, unnest(r.attr_cols) as col, 'attr_cols' as source from cortex_mirror_registry r
@@ -1731,6 +1732,30 @@ suite('Cortex coverage (Batches 0-1)', () => {
         order by 1, 2`
     )) as Rows
     expect(nullableTitleCols).toEqual([])
+
+    // Redaction masks top-level strings only: a copied column must be a scalar,
+    // and an attr_paths entry must read into a json column (the engine copies
+    // only a scalar found there).
+    const nonScalar = (await sql.unsafe(
+      `select r.ref_table as tbl, a.col, format_type(att.atttypid, att.atttypmod) as type, 'attr_cols' as source
+         from cortex_mirror_registry r
+         cross join lateral unnest(r.attr_cols) as a(col)
+         join pg_attribute att
+           on att.attrelid = format('public.%I', r.ref_table)::regclass and att.attname = a.col and not att.attisdropped
+         join pg_type ty on ty.oid = att.atttypid
+        where ty.typcategory = 'A' or ty.typtype = 'c' or ty.typname in ('json', 'jsonb', 'bytea', 'vector')
+       union all
+       select r.ref_table, split_part(p.path, '.', 1), format_type(att.atttypid, att.atttypmod), 'attr_paths'
+         from cortex_mirror_registry r
+         cross join lateral unnest(r.attr_paths) as p(path)
+         join pg_attribute att
+           on att.attrelid = format('public.%I', r.ref_table)::regclass
+          and att.attname = split_part(p.path, '.', 1) and not att.attisdropped
+         join pg_type ty on ty.oid = att.atttypid
+        where ty.typname not in ('json', 'jsonb')
+        order by 1, 2`
+    )) as Rows
+    expect(nonScalar).toEqual([])
 
     const pairs = (await sql.unsafe(
       `select coalesce(t.tbl, r.ref_table) as tbl, t.tbl is not null as has_trigger, r.ref_table is not null as has_row
