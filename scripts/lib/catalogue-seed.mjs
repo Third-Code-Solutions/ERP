@@ -121,10 +121,13 @@ export async function analyzeCatalogue(sql) {
 }
 
 /**
+ * `source` (who ran it, from which files; see describeSeedRun) goes into the
+ * run's audit entry next to the counts. It must never carry the DATABASE_URL.
+ *
  * @param {{ unsafe: (query: string, parameters?: unknown[]) => Promise<any[]> }} sql
- * @param {{ tenantId: string, rows: Array<Record<string, any>> }} input
+ * @param {{ tenantId: string, rows: Array<Record<string, any>>, source?: object }} input
  */
-export async function seedCatalogue(sql, { tenantId, rows }) {
+export async function seedCatalogue(sql, { tenantId, rows, source }) {
   const [tenant] = await sql.unsafe(
     'select id from public.tenants where id = $1::uuid',
     [tenantId]
@@ -173,6 +176,9 @@ export async function seedCatalogue(sql, { tenantId, rows }) {
   }
 
   await sql.unsafe(LOCK_AUDIT_CHAIN, [tenantId])
-  await sql.unsafe(INSERT_AUDIT_ENTRY, [tenantId, JSON.stringify(counts)])
+  await sql.unsafe(INSERT_AUDIT_ENTRY, [
+    tenantId,
+    JSON.stringify(source ? { ...counts, source } : counts),
+  ])
   return counts
 }

@@ -15,9 +15,12 @@
  * tenant). After a real run commits, it runs ANALYZE on both catalogue tables.
  * DATABASE_URL is read from the environment only.
  */
+import { execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { readdirSync, readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { join, resolve } from 'node:path'
+import { userInfo } from 'node:os'
+import { join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 import { ANALYZED_TABLES, analyzeCatalogue, seedCatalogue } from './lib/catalogue-seed.mjs'
@@ -85,6 +88,42 @@ export function loadCatalogueRows(directory, today) {
   return rows
 }
 
+/** The value `read` returns, or null when it throws or returns nothing. */
+function orNull(read) {
+  try {
+    return read() || null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Who ran the seed and from which files, for the run's audit entry: the OS
+ * user, the data directory (relative to the repository), each CSV's SHA-256
+ * and the git commit when there is one. Never the DATABASE_URL.
+ */
+export function describeSeedRun(directory) {
+  const gitCommit = orNull(() =>
+    execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim()
+  )
+  return {
+    operator: orNull(() => userInfo().username),
+    dataDirectory: relative(repoRoot, directory).split(sep).join('/') || '.',
+    files: readdirSync(directory)
+      .filter((name) => FILE_NAME.test(name))
+      .sort()
+      .map((name) => ({
+        name,
+        sha256: createHash('sha256').update(readFileSync(join(directory, name))).digest('hex'),
+      })),
+    gitCommit: /^[0-9a-f]{40}$/.test(gitCommit ?? '') ? gitCommit : null,
+  }
+}
+
 export function countByTrade(rows) {
   const counts = new Map()
   for (const row of rows) {
@@ -132,8 +171,9 @@ async function main() {
   )
   const sql = postgres(databaseUrl, { prepare: false, max: 1, connect_timeout: 10, idle_timeout: 5 })
   try {
+    const source = describeSeedRun(directory)
     const counts = await sql.begin((transaction) =>
-      seedCatalogue(transaction, { tenantId, rows })
+      seedCatalogue(transaction, { tenantId, rows, source })
     )
     console.log(
       `Items: ${counts.itemsInserted} inserted, ${counts.itemsUpdated} updated, ` +
@@ -148,7 +188,10 @@ async function main() {
         'is matched on item, region, date, link and prices, and is never updated. Give such a row ' +
         'a new date_checked to record it.'
     )
-    console.log('One audit_log entry (catalogue_seed) records these counts.')
+    console.log(
+      'One audit_log entry (catalogue_seed) records these counts, the operator, the data ' +
+        'directory, the SHA-256 of each file and the git commit.'
+    )
     try {
       await analyzeCatalogue(sql)
     } catch (error) {

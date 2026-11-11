@@ -1,12 +1,18 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { analyzeCatalogue, seedCatalogue } from './lib/catalogue-seed.mjs'
-import { countByTrade, loadCatalogueRows, parseCliArguments } from './seed-catalogue.mjs'
+import {
+  countByTrade,
+  describeSeedRun,
+  loadCatalogueRows,
+  parseCliArguments,
+} from './seed-catalogue.mjs'
 
 const repoRoot = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const dataDirectory = join(repoRoot, 'data', 'catalogue')
@@ -140,7 +146,13 @@ test('the seed writes items, then one observation per row, then one audit entry,
     },
   }
 
-  const counts = await seedCatalogue(sql, { tenantId: TENANT, rows })
+  const source = {
+    operator: 'estimator1',
+    dataDirectory: 'data/catalogue',
+    files: [{ name: '02-concrete.csv', sha256: 'a'.repeat(64) }],
+    gitCommit: 'b'.repeat(40),
+  }
+  const counts = await seedCatalogue(sql, { tenantId: TENANT, rows, source })
 
   assert.deepEqual(counts, {
     items: 2,
@@ -206,7 +218,28 @@ test('the seed writes items, then one observation per row, then one audit entry,
   ])
   assert.match(lock.query, /pg_advisory_xact_lock\(hashtextextended\('audit_log:'/)
   assert.match(audit.query, /insert into public\.audit_log/)
-  assert.deepEqual(JSON.parse(audit.parameters[1]), counts)
+  // The run's audit entry: the counts, and who ran it from which files.
+  assert.deepEqual(JSON.parse(audit.parameters[1]), { ...counts, source })
+})
+
+test('a run is described by its operator, data directory, file hashes and commit, never the database', () => {
+  const lines = { '02-concrete.csv': [PRICED], '01-earthworks.csv': [] }
+  const described = withFiles({ ...lines, 'notes.txt': [] }, (directory) => describeSeedRun(directory))
+
+  assert.deepEqual(
+    described.files,
+    Object.keys(lines)
+      .sort()
+      .map((name) => ({
+        name,
+        sha256: createHash('sha256').update([HEADER, ...lines[name]].join('\n')).digest('hex'),
+      }))
+  )
+  assert.ok(described.operator === null || typeof described.operator === 'string')
+  assert.ok(described.gitCommit === null || /^[0-9a-f]{40}$/.test(described.gitCommit))
+  assert.equal(describeSeedRun(dataDirectory).dataDirectory, 'data/catalogue')
+  assert.deepEqual(Object.keys(described).sort(), ['dataDirectory', 'files', 'gitCommit', 'operator'])
+  assert.doesNotMatch(JSON.stringify(described), /postgres(ql)?:\/\/|DATABASE_URL/)
 })
 
 test('after the load, both catalogue tables are analysed, one statement each', async () => {

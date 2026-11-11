@@ -145,7 +145,9 @@ Added after the security review of PR #146 (2026-11-10).
   observations are never updated. The script says so after each run; the row
   needs a new `date_checked` to be recorded.
 - Its dry run prints per-trade counts.
-- Each real run writes one `audit_log` entry with its counts.
+- Each real run writes one `audit_log` entry with its counts and its source: the
+  OS user who ran it, the data directory, the SHA-256 of each CSV and the git
+  commit when there is one. Never the `DATABASE_URL`.
 - `DATABASE_URL` comes from the environment only.
 - **After a real run commits, the script runs `ANALYZE` on `catalogue_items`
   and `catalogue_prices`** and prints that it did (or, if it failed, the
