@@ -111,6 +111,10 @@ export const XLSX_LIMITS = {
   // ExcelJS checks each merged range against every other one on its sheet;
   // 10,000 on one sheet took about 9 seconds.
   mergedRanges: 5_000,
+  // XML over every part (sheets, shared strings, styles, comments, drawings):
+  // ExcelJS holds about 12 bytes for each, so this keeps a read near 400 MB.
+  // Images are not XML and only count toward uncompressedBytes.
+  xmlBytes: 32 * 1024 * 1024,
 }
 
 // Worksheet nodes the import never reads. ExcelJS expands column spans and
@@ -262,6 +266,18 @@ function zipEntryContent(method: number, data: Buffer, size: number): Buffer {
   return content
 }
 
+/**
+ * Whether ExcelJS will parse a part as XML. By content, as the other checks:
+ * a part's name can also come from a zip extra field.
+ */
+function isXmlPart(content: Buffer): boolean {
+  let at = content[0] === 0xef && content[1] === 0xbb && content[2] === 0xbf ? 3 : 0
+  while (at < content.length && (content[at] === 0x20 || content[at] === 0x09 || content[at] === 0x0a || content[at] === 0x0d)) {
+    at += 1
+  }
+  return content[at] === 0x3c
+}
+
 /** Rows, cells and merged cells, and merged ranges, counted over the workbook so far. */
 interface WorkbookCounts {
   cells: number
@@ -318,8 +334,8 @@ function countSheetPart(xml: string, limits: typeof XLSX_LIMITS, counted: Workbo
  * exactly what JSZip will read (one directory that ends where its end record
  * starts, the declared number of entries, stored or deflated data inside the
  * file), and each entry is inflated once with its declared size as the output
- * cap. It also refuses what is cheap to see in the XML: too many rows, cells
- * or merged ranges over the workbook, and a sheet id or row number that would
+ * cap. It also refuses what is cheap to see in the XML: too much XML, too
+ * many rows, cells or merged ranges over the workbook, and a sheet id or row number that would
  * make ExcelJS walk a huge index range. It does not try to model everything
  * ExcelJS expands; the reader's limits cover the rest.
  */
@@ -346,6 +362,7 @@ export function assertXlsxWithinLimits(buffer: Buffer, limits = XLSX_LIMITS): vo
 
   let offset = directoryStart
   let total = 0
+  let xmlBytes = 0
   let counted: WorkbookCounts = { cells: 0, mergedRanges: 0 }
   for (let entry = 0; entry < entries; entry += 1) {
     if (offset + 46 > end || buffer.readUInt32LE(offset) !== ZIP_DIRECTORY_ENTRY) {
@@ -371,6 +388,14 @@ export function assertXlsxWithinLimits(buffer: Buffer, limits = XLSX_LIMITS): vo
       localHeader + 30 + buffer.readUInt16LE(localHeader + 26) + buffer.readUInt16LE(localHeader + 28)
     if (dataStart + compressedSize > directoryStart) throw unreadable('a part is outside the file')
     const content = zipEntryContent(method, buffer.subarray(dataStart, dataStart + compressedSize), size)
+    if (isXmlPart(content)) {
+      xmlBytes += content.length
+      if (xmlBytes > limits.xmlBytes) {
+        throw new TakeoffTooLargeError(
+          `The workbook holds more than ${limits.xmlBytes / 1024 / 1024} MB of sheet data, text and formatting. Copy the BOQ sheet to a new workbook and try again.`,
+        )
+      }
+    }
 
     // By content, not by name: JSZip names parts from their local headers.
     const isSheet = content.includes('sheetData') || content.includes('mergeCell')

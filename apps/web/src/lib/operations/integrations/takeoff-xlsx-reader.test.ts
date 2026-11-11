@@ -284,6 +284,24 @@ describe('xlsx first filter (round 3 attack files)', () => {
       rows: [{ description: 'Pipe' }],
     })
   }, SLOW)
+
+  it('caps the XML ExcelJS expands, in any part, but not images (S3-H3)', async () => {
+    // The reviewers' 185 KB file: 60 MB of rich shared strings took a 512 MB heap down.
+    const strings = '<si><r><rPr><b/></rPr><t>a</t></r></si>'
+    const hungry = await xlsx([{ xml: sheetXml(HEADER + PIPE) }], {
+      'xl/sharedStrings.xml': `﻿  <sst ${NS}>${strings.repeat(Math.ceil((60 * 1024 * 1024) / strings.length))}</sst>`,
+    })
+    const photos = await xlsx([{ xml: sheetXml(HEADER + PIPE) }], {
+      'xl/media/image1.png': `\u0089PNG${'\u0000'.repeat(40 * 1024 * 1024)}`,
+    })
+
+    expect(() => assertXlsxWithinLimits(hungry)).toThrow(
+      new TakeoffTooLargeError(
+        'The workbook holds more than 32 MB of sheet data, text and formatting. Copy the BOQ sheet to a new workbook and try again.',
+      ),
+    )
+    expect(() => assertXlsxWithinLimits(photos)).not.toThrow()
+  }, SLOW)
 })
 
 describe('xlsx reader worker', () => {
