@@ -65,12 +65,20 @@ end $$;
 -- ---------------------------------------------------------------------------
 -- 2. Redaction helpers (pure).
 -- ---------------------------------------------------------------------------
+-- Same patterns as packages/shared-types/src/cortex-redaction.ts (\y is the
+-- PostgreSQL word boundary). Tax ids run before phones: a 12-digit TIN
+-- would otherwise read as a phone number.
 create or replace function public.cortex_redact_text(p_text text, p_max integer)
 returns text
 language sql immutable set search_path = '' as $$
   select left(
     regexp_replace(
-      regexp_replace(p_text, '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}', '[email]', 'g'),
+      regexp_replace(
+        regexp_replace(
+          regexp_replace(p_text, '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}', '[email]', 'g'),
+          '\y(?:TIN|tax identification number)\s*[:#-]?\s*\d{3}[- ]?\d{3}[- ]?\d{3}(?:[- ]?\d{3})?\y',
+          '[tax id]', 'gi'),
+        '\y\d{3}[- ]\d{3}[- ]\d{3}(?:[- ]\d{3})?\y', '[tax id]', 'g'),
       -- 10 to 13 digits, up to two separators between digits: "(02) 8123-4567".
       '(?<![[:alnum:]_-])[+(]?[0-9](?:[ .()-]{0,2}[0-9]){9,12}(?![[:alnum:]_-])', '[phone]', 'g'
     ),
@@ -78,13 +86,13 @@ language sql immutable set search_path = '' as $$
   )
 $$;
 
--- String values longer than 120 characters are masked and cut to 500.
+-- Every string value is masked and cut to 500 characters; other values pass.
 create or replace function public.cortex_redact_attrs(p_attrs jsonb)
 returns jsonb
 language sql immutable set search_path = '' as $$
   select coalesce(jsonb_object_agg(
     key,
-    case when jsonb_typeof(value) = 'string' and length(value #>> '{}') > 120
+    case when jsonb_typeof(value) = 'string'
       then to_jsonb(public.cortex_redact_text(value #>> '{}', 500))
       else value end
   ), '{}'::jsonb)

@@ -1159,7 +1159,7 @@ suite('Cortex coverage (Batches 0-1)', () => {
     expect(r.moved.edges).toEqual([`part_of:vendors:${r.vendor}`, `mentions:users:${r.other}`].sort())
   })
 
-  it('cortex_redact_text masks emails and phone-like digit runs, keeps codes, and truncates', async () => {
+  it('cortex_redact_text masks emails, tax ids and phone-like digit runs, keeps codes, ids and dates, and truncates', async () => {
     const cases: Array<[string, string]> = [
       ['mail juan.cruz+x@s1-test.com.ph now', 'mail [email] now'],
       ['call +63 917 555 0101 ok', 'call [phone] ok'],
@@ -1167,6 +1167,13 @@ suite('Cortex coverage (Batches 0-1)', () => {
       ['tel (02) 8123-4567', 'tel [phone]'],
       ['PO-2026-000123 rev 2', 'PO-2026-000123 rev 2'],
       ['Room 301, 12mm at 600V', 'Room 301, 12mm at 600V'],
+      ['TIN: 123-456-789 on file', '[tax id] on file'],
+      ['tax identification number 123456789000', '[tax id]'],
+      ['vendor 123-456-789-000 ok', 'vendor [tax id] ok'],
+      ['call Pedro 0917 555 0101', 'call Pedro [phone]'],
+      ['12345678-1234-1234-1234-123456789012', '12345678-1234-1234-1234-123456789012'],
+      ['2026-11-06T10:00:00.123456+00:00', '2026-11-06T10:00:00.123456+00:00'],
+      ['2026-11-06', '2026-11-06'],
     ]
     const rows = (await sql.unsafe(
       `select public.cortex_redact_text(x, 300) as out
@@ -1178,6 +1185,17 @@ suite('Cortex coverage (Batches 0-1)', () => {
       `select length(public.cortex_redact_text(repeat('x', 400), 300))::int as n`
     )) as Rows
     expect(cut[0].n).toBe(300)
+    // Every string attribute is masked, however short; numbers and booleans pass.
+    const attrs = (await sql.unsafe(
+      `select public.cortex_redact_attrs('{"rejected_reason": "call Pedro 0917 555 0101", "n": 12, "ok": true,
+                                            "id": "12345678-1234-1234-1234-123456789012"}'::jsonb) as a`
+    )) as Rows
+    expect(attrs[0].a).toEqual({
+      rejected_reason: 'call Pedro [phone]',
+      n: 12,
+      ok: true,
+      id: '12345678-1234-1234-1234-123456789012',
+    })
   })
 
   it('backfill --mode all strips legacy attributes; a second run writes no provenance', async () => {
