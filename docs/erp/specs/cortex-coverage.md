@@ -397,10 +397,11 @@ Production volume is small today; I did not measure production row counts. Two g
 |---|---|---|
 | 0 | `20261106100000_cortex_coverage_types.sql` | the 35 enum values; the two registry tables; access rows for the existing types (§5 groups) |
 | 1 | `…101000_cortex_coverage_core.sql` | §3.1 functions and the `cortex_upsert_node` folds-preservation; read-check rewrite (**S2 fix**); split and edited account, user, opportunity and document mirrors (**S3 fix**); registry rows for the 23 generic tables; **drop the old generic trigger and create `cortex_mirror_r`** on each (**S1 fix**); any other trigger on these tables that still runs `cortex_mirror_generic()` is dropped too, whatever its name. Three of the 23 do not use the name `cortex_mirror_g`: `cost_codes` (`cortex_mirror_budget_cost_code`), `project_budgets` (`cortex_mirror_project_budget`) and `stock_movements` (`cortex_mirror_stock_movement`). Dropping only `cortex_mirror_g` would leave the leaking generic trigger running next to the new one. The old `cortex_mirror_generic()` function is left in place. |
-| 2 | `…102000_cortex_coverage_sales.sql` | §4.1 |
-| 3 | `…103000_cortex_coverage_estimating.sql` | §4.2 |
-| 4 | `…104000_cortex_coverage_procurement_finance.sql` | §4.3 and §4.4 |
-| 5 | `…105000_cortex_coverage_execution.sql` | §4.5 |
+| 1 | `…102000_audit_log_server_only.sql` | S4: `audit_log` server-only (deny policy, forced RLS) |
+| 2 | `…103000_cortex_coverage_sales.sql` | §4.1 |
+| 3 | `…104000_cortex_coverage_estimating.sql` | §4.2 |
+| 4 | `…105000_cortex_coverage_procurement_finance.sql` | §4.3 and §4.4 |
+| 5 | `…106000_cortex_coverage_execution.sql` | §4.5 |
 | 6 | the catalogue migration (or the next file after it) | §4.6 |
 
 **Backfill.** `scripts/cortex-backfill.mjs --batch <n> [--mode missing|all|scrub] [--page-size N] [--resume table:tenant[:id]] [--dry-run]` reads `DATABASE_URL` from the environment only. For each table of the batch, in a fixed order with endpoints first (users, accounts, vendors before the rows that point at them), and for each tenant, it calls `cortex_backfill(table, tenant, mode, page_size, after)` (scrub mode: `cortex_scrub_nodes(table, tenant, page_size, after)`) until `processed = 0`, passing back `last_id`.
