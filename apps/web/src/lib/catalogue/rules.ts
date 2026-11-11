@@ -52,9 +52,6 @@ export function codeMatchesTrade(code: string, trade: CatalogueTrade): boolean {
   return CATALOGUE_SEED_CODE.test(code) && code.slice(0, 2) === prefix
 }
 
-export const CATALOGUE_SOURCE_KINDS = ['research', 'supplier', 'manual'] as const
-export type CatalogueSourceKind = (typeof CATALOGUE_SOURCE_KINDS)[number]
-
 export const CATALOGUE_LIMITS = {
   name: 300,
   specification: 2_000,
