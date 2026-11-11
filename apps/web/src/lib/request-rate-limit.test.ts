@@ -77,6 +77,24 @@ describe('request rate-limit identity', () => {
     })
   })
 
+  it('puts the BOQ spreadsheet import and export in the document-intake burst', () => {
+    for (const pathname of [
+      '/api/bom/takeoff-import',
+      '/api/bom/33333333-3333-4333-8333-333333333333/export',
+    ]) {
+      expect(requestRateLimitPolicy(pathname, true)).toEqual({
+        bucket: 'document-intake',
+        limit: 10,
+        windowMs: 60_000,
+      })
+    }
+    // Other BOM routes keep the general limit.
+    expect(requestRateLimitPolicy('/api/bom/33333333-3333-4333-8333-333333333333', true).bucket).toBe(
+      'general',
+    )
+    expect(requestRateLimitPolicy('/api/bom/a/b/export', true).bucket).toBe('general')
+  })
+
   it('rejects only after policy limit and resets after window expiry', () => {
     const policy = requestRateLimitPolicy('/api/cortex/chat', true)
     let entry: { count: number; windowStart: number } | undefined
