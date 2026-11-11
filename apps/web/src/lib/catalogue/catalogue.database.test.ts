@@ -1,5 +1,5 @@
 /**
- * The catalogue reads, and the record-price action, against a real database
+ * The catalogue reads, and the edit and record-price actions, against a real database
  * holding the real research files (docs/erp/specs/catalogue.md, section 8).
  *
  * Needs DATABASE_URL (a local, disposable database) and skips itself without
@@ -25,7 +25,7 @@ vi.mock('@third-code-erp/auth', () => ({
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
 import { cataloguePrices } from '@third-code-erp/database/schema'
-import { recordCataloguePrice } from '@/app/(dashboard)/catalogue/actions'
+import { editCatalogueItem, recordCataloguePrice } from '@/app/(dashboard)/catalogue/actions'
 import type { CatalogueCsvRow } from './csv'
 import { CATALOGUE_PAGE_SIZE, getCatalogueItemDetail, listCatalogueItems } from './queries'
 import { readResearchFiles } from './research-files'
@@ -39,10 +39,15 @@ const suite = DATABASE_URL ? describe : describe.skip
 
 type RealDatabase = (typeof import('@third-code-erp/database'))['db']
 type Tx = Parameters<Parameters<RealDatabase['transaction']>[0]>[0]
+interface SeedCounts {
+  itemsKeptEdited: number
+  pricesInserted: number
+  pricesAlreadyPresent: number
+}
 type SeedCatalogue = (
   handle: { unsafe: (query: string, parameters?: unknown[]) => Promise<unknown> },
   input: { tenantId: string; rows: CatalogueCsvRow[] },
-) => Promise<{ pricesInserted: number; pricesAlreadyPresent: number }>
+) => Promise<SeedCounts>
 
 const rows = readResearchFiles()
 const priced = rows.filter((row) => row.price)
@@ -68,7 +73,7 @@ interface Seeded {
   tx: Tx
   actor: { tenantId: string; role: 'estimator' }
   userId: string
-  seed: () => Promise<{ pricesInserted: number; pricesAlreadyPresent: number }>
+  seed: () => Promise<SeedCounts>
 }
 
 const ROLLBACK = Symbol('rollback')
@@ -104,6 +109,12 @@ async function seeded(probe: (context: Seeded) => Promise<void>): Promise<void> 
   } catch (error) {
     if (error !== ROLLBACK) throw error
   }
+}
+
+function formOf(fields: Record<string, string>): FormData {
+  const form = new FormData()
+  for (const [name, value] of Object.entries(fields)) form.set(name, value)
+  return form
 }
 
 async function listed(actor: Seeded['actor'], filters: Record<string, string>) {
@@ -328,18 +339,17 @@ suite('catalogue reads against the seeded research files (database)', { timeout:
 
       // A person records a price that was checked before the research ran.
       state.profile = { user: { id: userId }, tenantId: actor.tenantId, role: 'admin' }
-      const form = new FormData()
-      for (const [name, value] of Object.entries({
-        item_id: before.item.id,
-        price_php: '1,234.50',
-        region: item.region,
-        source_name: 'Supplier quotation',
-        checked_on: '2026-01-15',
-      })) {
-        form.set(name, value)
-      }
-      const recorded = await recordCataloguePrice(form)
-      expect(recorded).toMatchObject({ ok: true })
+      const recorded = await recordCataloguePrice(
+        formOf({
+          item_id: before.item.id,
+          price_php: '1,234.50',
+          region: item.region,
+          source_name: 'Supplier quotation',
+          checked_on: '2026-01-15',
+        }),
+      )
+      // Only "no price" rows are dated later, so this price becomes current.
+      expect(recorded).toMatchObject({ ok: true, data: { current: true } })
 
       // Then newer "no price found" rows arrive: a re-run of the seed, and a
       // fresh research pass dated today.
@@ -379,6 +389,86 @@ suite('catalogue reads against the seeded research files (database)', { timeout:
       expect(after.history[0]?.checked_on).toBe(manilaToday())
       expect(after.current).toHaveLength(1)
       expect(after.current[0]).toMatchObject({ source_kind: 'manual', price_avg_centavos: 123_450 })
+    })
+  })
+
+  it('audits an edit and a recorded price, writes nothing for an unchanged save, and the seed keeps the edit', async () => {
+    await seeded(async ({ tx, actor, userId, seed }) => {
+      const wanted = priced[0]!
+      const { item } = await detailOf(actor, wanted.code)
+      state.profile = { user: { id: userId }, tenantId: actor.tenantId, role: 'admin' }
+      const itemRow = async () => {
+        const [row] = await tx.execute<{ name: string; updated_by: string | null }>(
+          sql`select name, updated_by::text as updated_by from catalogue_items where id = ${item.id}`,
+        )
+        return row
+      }
+
+      const fields = {
+        id: item.id,
+        name: `${wanted.name} (checked by hand)`,
+        specification: wanted.specification ?? '',
+        unit: wanted.unit,
+        trade: wanted.trade,
+        is_active: 'true',
+      }
+      expect(await editCatalogueItem(formOf(fields))).toEqual({
+        ok: true,
+        data: { id: item.id, changed: true },
+      })
+      // Saving the same values again changes nothing and writes nothing.
+      expect(await editCatalogueItem(formOf(fields))).toEqual({
+        ok: true,
+        data: { id: item.id, changed: false },
+      })
+      expect(await itemRow()).toEqual({ name: fields.name, updated_by: userId })
+
+      // Dated before the research observation: recorded, but not current.
+      const older = await recordCataloguePrice(
+        formOf({
+          item_id: item.id,
+          price_php: '100',
+          region: wanted.region,
+          source_name: 'Old quotation',
+          checked_on: '2020-01-02',
+        }),
+      )
+      expect(older).toMatchObject({ ok: true, data: { region: wanted.region, current: false } })
+
+      const audited = await tx.execute<{
+        entity_type: string
+        entity_id: string
+        action: string
+        actor_id: string
+        diff: string
+      }>(sql`
+        select entity_type, entity_id::text as entity_id, action, actor_id::text as actor_id,
+               diff::text as diff
+          from audit_log
+         where tenant_id = ${actor.tenantId}
+           and entity_type in ('catalogue_item', 'catalogue_price')
+         order by id`)
+      expect(audited.map(({ diff: _diff, ...entry }) => entry)).toEqual([
+        { entity_type: 'catalogue_item', entity_id: item.id, action: 'update', actor_id: userId },
+        {
+          entity_type: 'catalogue_price',
+          entity_id: older.ok ? older.data.id : '',
+          action: 'create',
+          actor_id: userId,
+        },
+      ])
+      expect(JSON.parse(audited[0]!.diff)).toEqual({
+        name: { before: wanted.name, after: fields.name },
+      })
+      expect(JSON.parse(audited[1]!.diff)).toMatchObject({
+        price_avg_centavos: { after: 10_000 },
+        source_kind: { after: 'manual' },
+        checked_on: { after: '2020-01-02' },
+      })
+
+      // A re-run of the seed leaves the item as the person left it.
+      expect(await seed()).toMatchObject({ itemsKeptEdited: 1, pricesInserted: 0 })
+      expect(await itemRow()).toEqual({ name: fields.name, updated_by: userId })
     })
   })
 })

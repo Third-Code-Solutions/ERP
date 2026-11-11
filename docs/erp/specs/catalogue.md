@@ -261,5 +261,12 @@ Codes are not reused, so a file can have gaps in its numbering.
   - without the capability → 403;
   - the flag off → 404;
   - another tenant's item → 404;
-  - edit and record-price write `audit_log`.
-- **e2e (gated):** search and filter on the page, and pagination.
+  - edit and record-price write `audit_log`: proven on a real database in
+    `apps/web/src/lib/catalogue/catalogue.database.test.ts` (the item row and
+    its `updated_by`, one `catalogue_item` and one `catalogue_price` entry, no
+    entry for a save that changes nothing, and a later seed run keeps the edit).
+- **e2e (gated): deferred.** Search, filter and paging on the page need a
+  signed-in Supabase stack with the catalogue seeded and `ERP_CATALOGUE_ENABLED`
+  on in the server; the e2e setup has no such fixture yet. Until it does, the
+  page is rendered on the server against the seeded local tenant by
+  `apps/web/src/app/(dashboard)/catalogue/pages.database.test.tsx` (local only).
