@@ -5,6 +5,7 @@
 // so the reader gives it a heap cap and a wall-clock limit and terminates it at
 // either. Plain CommonJS on purpose: the same file runs under vitest, `next
 // dev` and a production build, where next.config.ts ships it with the route.
+/* eslint-disable @typescript-eslint/no-require-imports -- a CommonJS file the reader starts by path */
 const { parentPort, workerData } = require('node:worker_threads')
 const ExcelJS = require('exceljs')
 

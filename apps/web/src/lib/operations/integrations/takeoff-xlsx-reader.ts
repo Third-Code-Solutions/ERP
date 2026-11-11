@@ -81,7 +81,7 @@ export function readXlsxSheet(
       resourceLimits: { maxOldGenerationSizeMb: limits.heapMb },
     })
     let settled = false
-    let timer: ReturnType<typeof setTimeout> | undefined
+    // settle only runs from the timer or a worker event, after timer is set.
     const settle = (finish: () => void) => {
       if (settled) return
       settled = true
@@ -90,7 +90,7 @@ export function readXlsxSheet(
       void worker.terminate()
       finish()
     }
-    timer = setTimeout(() => {
+    const timer = setTimeout(() => {
       settle(() =>
         reject(
           new TakeoffTooLargeError(
