@@ -65,6 +65,49 @@ Unchanged nodes write no provenance, so a re-run is cheap and safe.
 - Rows and nodes a live writer holds are reported as skipped; re-run to pick
   them up.
 
+**Batch 1 preflight** (before the migrations; off-peak; take a backup or
+confirm a fresh restore point first):
+- `20261106101000` takes ACCESS EXCLUSIVE on the 23 registry tables and on
+  `account_kyc_artifacts` (trigger swap), and `20261106102000` takes ACCESS
+  EXCLUSIVE on `audit_log` (policy swap, FORCE RLS), each until its COMMIT.
+  While `audit_log` is locked, every audited write waits.
+- No long transaction may hold a lock on those tables. This must return no
+  rows:
+  ```sql
+  select a.pid, now() - a.xact_start as age, a.state, left(a.query, 80) as query
+    from pg_stat_activity a
+   where a.pid <> pg_backend_pid()
+     and a.xact_start < now() - interval '30 seconds'
+     and exists (
+       select 1 from pg_locks l join pg_class c on c.oid = l.relation
+        where l.pid = a.pid
+          and c.relname = any (array[
+            'audit_log', 'account_kyc_artifacts',
+            'vendors', 'cost_codes', 'material_items', 'contacts', 'scope_items',
+            'permits', 'variation_orders', 'progress_claims', 'warranty_tickets',
+            'delivery_schedules', 'rfqs', 'contracts', 'certificates_of_completion',
+            'punchlist_items', 'site_inspections', 'design_files', 'change_requests',
+            'master_schedules', 'weekly_reports', 'pre_con_checklist_items',
+            'cost_entries', 'project_budgets', 'stock_movements']))
+   order by age desc;
+  ```
+- The migrating role and the owner of `audit_log_trigger` must each be
+  superuser or BYPASSRLS, because forced RLS binds the owner too and the audit
+  triggers write as their owner. Every row must show `true` in one column
+  (`20261106102000` raises an exception otherwise):
+  ```sql
+  select r.rolname, r.rolsuper, r.rolbypassrls
+    from pg_roles r
+   where r.rolname = current_user
+      or r.oid = (select p.proowner from pg_proc p
+                   join pg_namespace n on n.oid = p.pronamespace
+                  where n.nspname = 'public' and p.proname = 'audit_log_trigger');
+  ```
+- Apply in order: types (`20261106100000`), core (`20261106101000`), audit
+  (`20261106102000`). Each file is one transaction under `lock_timeout = 5s`.
+  On `canceling statement due to lock timeout` (55P03) that file is rolled back
+  whole: rerun the long-transaction check and retry the same file.
+
 **Batch 1 rollout order:** apply the three migrations (types, core,
 `audit_log` server-only), then `--batch 1 --mode all`, then `--batch 1 --mode
 scrub` repeated until it reports `changed 0` and `skipped 0` on every table

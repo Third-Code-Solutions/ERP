@@ -21,6 +21,30 @@ drop policy if exists deny_direct_client_access on public.audit_log;
 create policy deny_direct_client_access on public.audit_log
   for all to anon, authenticated using (false) with check (false);
 
+-- Forced RLS binds the table owner too. The audit triggers (SECURITY
+-- DEFINER) read and insert audit_log as their owner, and only a superuser or
+-- BYPASSRLS role gets past the deny policy: stop rather than break every
+-- audited write.
+do $$
+declare v_role name;
+begin
+  for v_role in
+    select current_user
+    union
+    select pg_catalog.pg_get_userbyid(p.proowner)
+      from pg_catalog.pg_proc p
+      join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public' and p.proname = 'audit_log_trigger'
+  loop
+    if not exists (
+      select 1 from pg_catalog.pg_roles r where r.rolname = v_role and (r.rolsuper or r.rolbypassrls)
+    ) then
+      raise exception 'audit_log_server_only: role % is neither superuser nor BYPASSRLS; audited writes would fail under forced RLS', v_role;
+    end if;
+  end loop;
+end
+$$;
+
 alter table public.audit_log force row level security;
 
 commit;
