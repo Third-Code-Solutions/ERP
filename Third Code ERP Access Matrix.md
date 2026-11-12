@@ -1,5 +1,9 @@
 # Third Code ERP Access Matrix
 
+> **Superseded on 2026-11-12. Last updated 2026-09-11.** Current state, live revisions,
+> open work and owner decisions are in [`docs/erp/STATE.md`](docs/erp/STATE.md).
+> This file is kept as history only. Do not act on it.
+
 ## Cortex UI verification — 2026-09-05
 
 No authorization or mutation capability changed. Final loopback browser verified
