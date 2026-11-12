@@ -231,23 +231,21 @@ function columnNumber(letters: string): number {
 const ZIP_END = Buffer.from([0x50, 0x4b, 0x05, 0x06])
 const ZIP_DIRECTORY_ENTRY = 0x02014b50
 const ZIP_LOCAL_ENTRY = 0x04034b50
-// Every scan of a part is linear and has no character window. A tag is matched
-// from its name to the next `>` (or the end of the part) in one pass, so an
-// unclosed tag is one match, never a rescan; <mergeCell> tags are found by
-// position and must be short. Whatever a scan cannot read is refused.
-const tagPattern = (name: string) => new RegExp(`<(?:\\w{1,32}:)?${name}(?=[\\s/>])[^>]*>?`, 'g')
-const attributePattern = (name: string) => new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, 'g')
-const ROW_TAG = tagPattern('row')
-const CELL_TAG = tagPattern('c')
-const COLUMN_TAG = tagPattern('col')
-const DIMENSION_TAG = tagPattern('dimension')
-const R_ATTRIBUTE = attributePattern('r')
-const REF_ATTRIBUTE = attributePattern('ref')
-const MIN_ATTRIBUTE = attributePattern('min')
-const MAX_ATTRIBUTE = attributePattern('max')
+// Every scan of a part is linear and has no character window. A tag is read
+// from its name one attribute at a time, in order, to its `>`, and refused
+// unless that consumes it exactly. A value may not hold `<` or `>`: XML
+// forbids the first, Excel escapes the second, and a `>` inside a value let a
+// decoy attribute stand in for the real one (S5-2). So a read never passes the
+// next `<`, and the tags of a part are read in one pass between them.
+const tagStart = (name: string) => new RegExp(`<(?:\\w{1,32}:)?${name}(?=[\\s/>])`, 'g')
+const TAG_ATTRIBUTE = /[ \t\r\n]+([^ \t\r\n=/<>"']+)[ \t\r\n]*=[ \t\r\n]*(?:"([^"<>]*)"|'([^'<>]*)')/y
+const TAG_END = /[ \t\r\n]*\/?>/y
+const ROW_TAG = tagStart('row')
+const CELL_TAG = tagStart('c')
+const COLUMN_TAG = tagStart('col')
+const DIMENSION_TAG = tagStart('dimension')
+const MERGE_TAG = tagStart('mergeCell')
 const SHEET_ID = /\bsheetId\s*=\s*(?:"([^"]*)"|'([^']*)')/g
-const MERGE_TAG_START = /<(?:\w{1,32}:)?$/
-const MERGE_TAG_MAX_LENGTH = 256
 const CELL_ADDRESS = /^\$?([A-Z]{1,3})\$?(\d{1,7})$/
 // ExcelJS keeps sheets, rows and columns in arrays indexed by these numbers
 // and walks or fills the whole index range, so one absurd index is minutes of
@@ -260,6 +258,12 @@ const MAX_SHEET_COLUMN = 16_384
 function unreadable(reason: string): Error {
   return new Error(`Not a readable .xlsx workbook: ${reason}.`)
 }
+
+const ROW_UNREADABLE = 'a row number is missing or outside the sheet'
+const CELL_UNREADABLE = 'a cell reference is outside the sheet'
+const COLUMN_UNREADABLE = 'a column range is outside the sheet'
+const DIMENSION_UNREADABLE = 'the sheet dimension is outside the sheet'
+const MERGE_UNREADABLE = 'a merged range is not a plain cell range inside the sheet'
 
 /** One entry's bytes, inflated once with its declared size as the output cap. */
 function zipEntryContent(method: number, data: Buffer, size: number): Buffer {
@@ -294,9 +298,37 @@ interface WorkbookCounts {
   mergedRanges: number
 }
 
-/** Each value an attribute is given in one tag, as written (entities are not decoded). */
-function attributeValues(tag: string, pattern: RegExp): string[] {
-  return Array.from(tag.matchAll(pattern), ([, double, single]) => double ?? single ?? '')
+type TagAttributes = ReadonlyArray<readonly [name: string, value: string]>
+
+/**
+ * The attributes of the tag whose name ends at `from`, in order and as written
+ * (entities are not decoded); null unless the rest of the tag is exactly
+ * `name="value"` or `name='value'` pairs and its `>`.
+ */
+function tagAttributes(xml: string, from: number): TagAttributes | null {
+  const attributes: Array<readonly [string, string]> = []
+  for (let at = from; ; at = TAG_ATTRIBUTE.lastIndex) {
+    TAG_END.lastIndex = at
+    if (TAG_END.test(xml)) return attributes
+    TAG_ATTRIBUTE.lastIndex = at
+    const match = TAG_ATTRIBUTE.exec(xml)
+    if (!match) return null
+    attributes.push([match[1] ?? '', match[2] ?? match[3] ?? ''])
+  }
+}
+
+/** The attributes of every tag the pattern finds; a tag that cannot be read exactly refuses the file. */
+function* readTags(xml: string, pattern: RegExp, reason: string): Generator<TagAttributes> {
+  for (const match of xml.matchAll(pattern)) {
+    const attributes = tagAttributes(xml, match.index + match[0].length)
+    if (!attributes) throw unreadable(reason)
+    yield attributes
+  }
+}
+
+/** Each value one attribute is given in a tag. */
+function valuesOf(attributes: TagAttributes, name: string): string[] {
+  return attributes.filter(([key]) => key === name).map(([, value]) => value)
 }
 
 function isSheetRow(value: string): boolean {
@@ -335,63 +367,50 @@ function rangeCells(ref: string): number | null {
  */
 function countSheetPart(xml: string, limits: typeof XLSX_LIMITS, counted: WorkbookCounts): WorkbookCounts {
   let { cells, mergedRanges } = counted
-  for (const [tag] of xml.matchAll(ROW_TAG)) {
+  for (const attributes of readTags(xml, ROW_TAG, ROW_UNREADABLE)) {
     cells += 1
     if (cells > limits.cells) return { cells, mergedRanges }
     // ExcelJS indexes its rows by r, read with parseInt (which drops trailing junk).
-    const numbers = attributeValues(tag, R_ATTRIBUTE)
-    if (!tag.endsWith('>') || numbers.length !== 1 || !isSheetRow(numbers[0] ?? '')) {
-      throw unreadable('a row number is missing or outside the sheet')
-    }
+    const numbers = valuesOf(attributes, 'r')
+    if (numbers.length !== 1 || !isSheetRow(numbers[0] ?? '')) throw unreadable(ROW_UNREADABLE)
   }
   let lastColumn = 0
-  for (const [tag] of xml.matchAll(CELL_TAG)) {
+  for (const attributes of readTags(xml, CELL_TAG, CELL_UNREADABLE)) {
     cells += 1
     if (cells > limits.cells) return { cells, mergedRanges }
     // A cell without r is the column after the one before it (ExcelJS stops past XFD).
-    const refs = attributeValues(tag, R_ATTRIBUTE)
+    const refs = valuesOf(attributes, 'r')
     const cell = refs.length === 1 ? cellIndex(refs[0] ?? '') : null
-    if (!tag.endsWith('>') || refs.length > 1 || (refs.length === 1 && !cell)) {
-      throw unreadable('a cell reference is outside the sheet')
-    }
+    if (refs.length > 1 || (refs.length === 1 && !cell)) throw unreadable(CELL_UNREADABLE)
     lastColumn = Math.max(lastColumn, cell?.column ?? 0)
   }
   // ExcelJS creates every column up to the last one a cell is in.
   cells += lastColumn
   // Column definitions and the dimension are not parsed (IGNORED_SHEET_NODES);
   // they are checked anyway, so no future parse can walk an absurd range.
-  for (const [tag] of xml.matchAll(COLUMN_TAG)) {
-    const min = attributeValues(tag, MIN_ATTRIBUTE)
-    const max = attributeValues(tag, MAX_ATTRIBUTE)
-    if (!tag.endsWith('>') || min.length !== 1 || max.length !== 1 || ![...min, ...max].every(isSheetColumn)) {
-      throw unreadable('a column range is outside the sheet')
+  for (const attributes of readTags(xml, COLUMN_TAG, COLUMN_UNREADABLE)) {
+    const min = valuesOf(attributes, 'min')
+    const max = valuesOf(attributes, 'max')
+    if (min.length !== 1 || max.length !== 1 || ![...min, ...max].every(isSheetColumn)) {
+      throw unreadable(COLUMN_UNREADABLE)
     }
   }
-  for (const [tag] of xml.matchAll(DIMENSION_TAG)) {
-    const refs = attributeValues(tag, REF_ATTRIBUTE)
-    if (!tag.endsWith('>') || refs.length !== 1 || rangeCells(refs[0] ?? '') === null) {
-      throw unreadable('the sheet dimension is outside the sheet')
-    }
+  for (const attributes of readTags(xml, DIMENSION_TAG, DIMENSION_UNREADABLE)) {
+    const refs = valuesOf(attributes, 'ref')
+    if (refs.length !== 1 || rangeCells(refs[0] ?? '') === null) throw unreadable(DIMENSION_UNREADABLE)
   }
   if (cells > limits.cells) return { cells, mergedRanges }
-  for (let at = xml.indexOf('mergeCell'); at >= 0; at = xml.indexOf('mergeCell', at + 9)) {
-    // An opening <mergeCell> tag only: not <mergeCells>, a closing tag or text.
-    const isTag =
-      /[\s/>]/.test(xml[at + 9] ?? '') && MERGE_TAG_START.test(xml.slice(Math.max(0, at - 34), at))
-    if (!isTag) continue
+  for (const attributes of readTags(xml, MERGE_TAG, MERGE_UNREADABLE)) {
     mergedRanges += 1
     if (mergedRanges > limits.mergedRanges) {
       throw new TakeoffTooLargeError(
         `The workbook has more than ${limits.mergedRanges.toLocaleString('en-PH')} merged ranges. Unmerge the cells (or copy the BOQ to a new workbook) and try again.`,
       )
     }
-    // Exactly one plain ref ("A1:B2") in a short tag: anything ExcelJS might
-    // read differently is refused.
-    const close = xml.indexOf('>', at)
-    const attributes = close < 0 || close - at > MERGE_TAG_MAX_LENGTH ? '' : xml.slice(at + 9, close)
-    const refs = attributeValues(attributes, REF_ATTRIBUTE)
+    // Exactly one plain ref ("A1:B2"): anything ExcelJS might read differently is refused.
+    const refs = valuesOf(attributes, 'ref')
     const area = refs.length === 1 ? rangeCells(refs[0] ?? '') : null
-    if (area === null) throw unreadable('a merged range is not a plain cell range inside the sheet')
+    if (area === null) throw unreadable(MERGE_UNREADABLE)
     cells += area
     if (cells > limits.cells) break
   }

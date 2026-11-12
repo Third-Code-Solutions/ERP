@@ -400,6 +400,37 @@ describe('xlsx first filter (round 4: every index ExcelJS allocates from)', () =
     expect(() => assertXlsxWithinLimits(padded)).toThrow('sheet id')
   })
 
+  it('reads every attribute of a tag, so a decoy inside a value cannot hide the real one (S5-2)', async () => {
+    // saxes reads x=" r='3' >" and then r="4000000000"; the scan used to stop at
+    // the > inside x and read the decoy r instead.
+    const refused: Array<[string, Promise<Buffer>]> = [
+      ['row number', sheetWith(`<row x=" r='2' >" r="4000000000"><c r="A2"><v>1</v></c></row>`)],
+      ['row number', sheetWith(`<row x=" r='3' >" r="4000000000"><c r="A3" t="inlineStr"><is><t>x</t></is></c></row>`)],
+      ['merged range', sheetWith(PIPE, `<mergeCells count="1"><mergeCell x=" ref='A1:A2' >" ref="A1:XFD1048576"/></mergeCells>`)],
+      ['cell reference', sheetWith(`<row r="2"><c x="a>" r="XFD2"><v>1</v></c></row>`)],
+      ['cell reference', sheetWith(`<row r="2"><c x=">" r="XFD2"><v>1</v></c></row>`)],
+      ['column range', xlsx([{ xml: `<worksheet ${NS}><cols><col x=" min='1' max='2' >" min="1" max="4000000000"/></cols><sheetData>${HEADER}</sheetData></worksheet>` }])],
+      ['sheet dimension', xlsx([{ xml: `<worksheet ${NS}><dimension x=" ref='A1' >" ref="A1:A4000000000"/><sheetData>${HEADER}</sheetData></worksheet>` }])],
+      // A tag not consumed exactly: a stray quote, text between attributes, a missing =.
+      ['row number', sheetWith(`<row r="2" x="a></row>`)],
+      ['row number', sheetWith(`<row r="2" junk></row>`)],
+      ['row number', sheetWith(`<row r="2"x="1"></row>`)],
+      ['cell reference', sheetWith(`<row r="2"><c r="A2" '><v>1</v></c></row>`)],
+    ]
+    for (const [reason, file] of refused) {
+      const buffer = await file
+      expect(() => assertXlsxWithinLimits(buffer), reason).toThrow(reason)
+    }
+
+    // An escaped > is an ordinary value, and the row imports.
+    const escaped = await sheetWith(
+      `<row x="a&gt;b" r="2" spans="1:3" x14ac:dyDescent="0.25"><c r="A2" s="1" t="inlineStr"><is><t>Pipe</t></is></c><c r="B2"><v>3</v></c><c r="C2" t="inlineStr"><is><t>m</t></is></c></row>`,
+    )
+    await expect(parseStructuredTakeoff(escaped, 'a.xlsx', MAPPING)).resolves.toMatchObject({
+      rows: [{ description: 'Pipe', quantity: 3, unit: 'm' }],
+    })
+  }, SLOW)
+
   it('scans unclosed row and cell tags in linear time and refuses them', async () => {
     const rows = await xlsx([{ xml: `<worksheet ${NS}><sheetData>${'<row r="1" '.repeat(200_000)}` }])
     const cells = await xlsx([{ xml: `<worksheet ${NS}><sheetData><row r="1">${'<c r="A1" '.repeat(200_000)}` }])

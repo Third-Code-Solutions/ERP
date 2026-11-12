@@ -43,20 +43,23 @@ that says what to do; a file the guard cannot fully account for is 422
   in the sheet XML over all sheets (a merged range counts every cell it
   covers, and each sheet counts the columns up to the last one a cell is in,
   since ExcelJS creates every one of them); 5,000 merged ranges over the
-  workbook. A merged range must be one plain `A1:B2` reference in a tag of
-  at most 256 characters; the scan uses `indexOf`, so an unclosed tag cannot
-  make it quadratic.
+  workbook. A merged range must be one plain `A1:B2` reference.
 - **Every index ExcelJS allocates from is read in full and must lie inside a
   sheet**, or the file is refused: a `sheetId` is digits up to 65,535; every
   `<row>` has exactly one `r` of digits from 1 to 1,048,576; a `<c r>` (when
   present) is one reference no further than column XFD and row 1,048,576;
   a `<col>` has one `min` and one `max` from 1 to 16,384; the `<dimension>`
-  and every merged range are plain references inside those bounds. Tags are
-  scanned from their name to the next `>` with no character window (an
-  attribute 2 KB into a tag is still read) in one linear pass; a tag that is
-  not closed, or holds a value the scan cannot read (an entity, trailing
-  text, a second `r`), is refused. `<col>` and `<dimension>` are not parsed
-  by ExcelJS (below) and are checked anyway.
+  and every merged range are plain references inside those bounds. Each of
+  these tags is read from its name one attribute at a time, in order, with
+  no character window (an attribute 2 KB into a tag is still read): only
+  `name="value"` or `name='value'` pairs separated by spaces and then `>` or
+  `/>`. A tag this does not consume exactly (not closed, a stray quote, text
+  between attributes) is refused, and so is a value the scan cannot read (an
+  entity in a number, trailing text, a second `r`) or one holding a raw `<`
+  or `>` (XML forbids the first and Excel writes the second as `&gt;`; a `>`
+  inside a value is how a decoy attribute once hid the real one). A read
+  never passes the next `<`, so the scan is linear. `<col>` and
+  `<dimension>` are not parsed by ExcelJS (below) and are checked anyway.
 - **Reader (.xlsx), in a child process.** ExcelJS runs in a child process
   (`child_process.fork` of `takeoff-xlsx-worker.cjs`, started with
   `--max-old-space-size=512` and none of the server's environment) with a
