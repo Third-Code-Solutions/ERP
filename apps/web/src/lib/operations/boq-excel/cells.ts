@@ -40,7 +40,7 @@ function unwrapCell(value: unknown): unknown {
     return value.result === undefined ? NO_RESULT : unwrapCell(value.result)
   }
   if (Array.isArray(value.richText)) {
-    // Joined only as far as any reader looks (the cut plus one): a shared
+    // Joined only as far as a caller ever looks (the cut plus one): a shared
     // string can hold millions of runs and is read for every cell that uses it.
     let text = ''
     for (const part of value.richText) {
