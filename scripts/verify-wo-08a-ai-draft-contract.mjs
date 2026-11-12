@@ -76,7 +76,11 @@ for (const fragment of [
   requireText('coreTakeoffImport', fragment)
 }
 const coreLineStart = source.coreTakeoffImport.indexOf('.insert(bomLineItems)')
-const coreLineEnd = source.coreTakeoffImport.indexOf('.returning({ id: bomLineItems.id })', coreLineStart)
+// The statement ends at its returning clause, which starts with the line id
+// (Core may also return the stored rate source and total for the cap check).
+const coreReturning = /\.returning\(\{\s*id: bomLineItems\.id\b/g
+coreReturning.lastIndex = Math.max(coreLineStart, 0)
+const coreLineEnd = coreReturning.exec(source.coreTakeoffImport)?.index ?? -1
 if (coreLineStart < 0 || coreLineEnd < 0) {
   throw new Error('ERP Core AI-document BOM line insert could not be located')
 }

@@ -115,10 +115,11 @@ const lineConflictStart = source.coreService.lastIndexOf(
   '.onConflictDoUpdate({',
   lineConflictTarget
 )
-const lineConflictEnd = source.coreService.indexOf(
-  'returning({ id: bomLineItems.id })',
-  lineConflictStart
-)
+// The upsert ends at its returning clause, which starts with the line id (it
+// may also return the stored rate source and total for the cap check).
+const lineReturning = /returning\(\{\s*id: bomLineItems\.id\b/g
+lineReturning.lastIndex = Math.max(lineConflictStart, 0)
+const lineConflictEnd = lineReturning.exec(source.coreService)?.index ?? -1
 if (lineConflictStart < 0 || lineConflictEnd < 0) {
   throw new Error('WO-08 importer line upsert region could not be located')
 }

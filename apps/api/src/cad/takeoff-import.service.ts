@@ -620,7 +620,14 @@ export class TakeoffImportService {
               ? parsedCommand.sourceModel
               : source,
             extraction_timestamp: now,
-            unit_rate_source: pricing.unitRateSource,
+            // WO-08A: an AI candidate is unpriced until a human attaches a DUPA.
+            ...(isAiDocumentCandidate
+              ? { unit_rate_source: 'manual', unit_cost_cents: 0, line_total_cents: 0 }
+              : {
+                  unit_rate_source: pricing.unitRateSource,
+                  unit_cost_cents: pricing.unitCostCents,
+                  line_total_cents: pricing.lineTotalCents,
+                }),
             classification_status:
               rowValidationIssues.length > 0
                 ? 'review'
@@ -636,9 +643,7 @@ export class TakeoffImportService {
               row.description || `Unresolved takeoff row ${row.sourceRowKey}`,
             unit: row.unit || null,
             quantity_decimal: quantity,
-            unit_cost_cents: pricing.unitCostCents,
             markup_bps: 0,
-            line_total_cents: pricing.lineTotalCents,
             notes: isAiDocumentCandidate
               ? `AI-extracted scope candidate; document:${parsedCommand.documentId}; model:${parsedCommand.sourceModel}; pricing requires DUPA before approval.`
               : importedNotes(row.notes) ?? `Takeoff source: ${source}`,
