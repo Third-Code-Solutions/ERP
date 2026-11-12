@@ -173,7 +173,9 @@ that says what to do; a file the guard cannot fully account for is 422
    Item No, as before). Notes from the file are kept on a line the import
    creates, with every `[VENDOR:...]` token removed until none is left, so
    one hidden inside another cannot reappear (that token marks a vendor
-   elsewhere in the system); without notes the line gets `Takeoff source:
+   elsewhere in the system). An opener with no closing `]` is removed with
+   the rest of the notes, because the token a later supplier pick appends
+   would close it; without notes the line gets `Takeoff source:
    <source>` as before.
 8. **Units.** Besides the existing list, `m`, `ls`, `l.s.`, `ea`, `each`,
    `no.`, `no`, `nos`, `unit`, `units`, `bag`, `bags` and `box` are units, so

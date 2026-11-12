@@ -282,6 +282,27 @@ describe('TakeoffImportService client BOQ rates', () => {
     for (const note of notes) expect(String(note)).not.toMatch(/\[VENDOR:/i)
   })
 
+  it('strips an unclosed vendor token, so a later supplier pick cannot close it', async () => {
+    const { service, lineValues } = harness()
+    const plantedId = '99999999-9999-4999-8999-999999999999'
+    const realId = '66666666-6666-4666-8666-666666666666'
+
+    await service.execute(
+      command([
+        row({ notes: `Rebar [VENDOR:${plantedId}:Planted` }),
+        row({ sourceRowKey: 'row-3', notes: `Rebar [vendor:${plantedId}:a [VENDOR:${plantedId}:b` }),
+      ]),
+      PRINCIPAL
+    )
+
+    const notes = lineValues().map((values) => String(values.notes))
+    expect(notes).toEqual(['Rebar', 'Rebar'])
+    // What a supplier pick does next (Web attachVendorToken), read back the way
+    // the BOM page and the supplier panel read it.
+    const picked = `${notes[0]} [VENDOR:${realId}:Real Supplier]`
+    expect(picked.match(/\[VENDOR:([0-9a-f-]+):([^\]]+)\]/i)?.slice(1)).toEqual([realId, 'Real Supplier'])
+  })
+
   it('keeps the unpriced manual line without a rate', async () => {
     const { service, lineValues } = harness()
 
