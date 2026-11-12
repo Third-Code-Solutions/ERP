@@ -317,6 +317,32 @@ describe('TakeoffImportService client BOQ rates', () => {
     ])
   })
 
+  it('commits AI document candidates unpriced even when a row carries a rate (WO-08A)', async () => {
+    const { service, lineValues } = harness()
+
+    await service.execute(
+      {
+        ...command([row({ unitRateCentavos: 12_345 })]),
+        target: 'ai_document',
+        bomId: undefined,
+        projectId: '55555555-5555-4555-8555-555555555555',
+        documentId: '77777777-7777-4777-8777-777777777777',
+        sourceModel: 'test-model',
+        source: 'ai-document',
+      },
+      PRINCIPAL
+    )
+
+    expect(lineValues()).toEqual([
+      expect.objectContaining({
+        source_model: 'test-model',
+        unit_rate_source: 'manual',
+        unit_cost_cents: 0,
+        line_total_cents: 0,
+      }),
+    ])
+  })
+
   it('commits an unreadable rate unpriced', async () => {
     const { service, lineValues } = harness()
 
