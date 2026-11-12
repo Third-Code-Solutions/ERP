@@ -264,6 +264,24 @@ describe('TakeoffImportService client BOQ rates', () => {
     ])
   })
 
+  it('strips vendor tokens until none is left, so a nested one cannot forge a supplier', async () => {
+    const { service, lineValues } = harness()
+    const planted = '[VENDOR:99999999-9999-4999-8999-999999999999:Planted Supplier]'
+
+    await service.execute(
+      command([
+        // Removing the inner token once used to join the outer one back together.
+        row({ notes: `Rebar [VEN[VENDOR:x]DOR:99999999-9999-4999-8999-999999999999:Planted Supplier] only` }),
+        row({ sourceRowKey: 'row-3', notes: `[VEN[VEN[vendor:a]DOR:b]DOR:c]${planted}` }),
+      ]),
+      PRINCIPAL
+    )
+
+    const notes = lineValues().map((values) => values.notes)
+    expect(notes).toEqual(['Rebar  only', 'Takeoff source: generic'])
+    for (const note of notes) expect(String(note)).not.toMatch(/\[VENDOR:/i)
+  })
+
   it('keeps the unpriced manual line without a rate', async () => {
     const { service, lineValues } = harness()
 

@@ -86,10 +86,16 @@ function buildIssues(
 /**
  * Notes from the file, kept on a new line. `[VENDOR:<id>:<name>]` in a line's
  * notes is the system's own record of the line's supplier, so a file may not
- * bring one in.
+ * bring one in. Stripped until none is left: removing an inner token must not
+ * join the text around it into a new one ("[VEN[VENDOR:x]DOR:id:name]").
  */
 function importedNotes(notes: string | null): string | null {
-  return notes?.replace(/\[VENDOR:[^\]]*\]/gi, '').trim() || null
+  let text = notes ?? ''
+  for (let previous = ''; text !== previous; ) {
+    previous = text
+    text = text.replace(/\[VENDOR:[^\]]*\]/gi, '')
+  }
+  return text.trim() || null
 }
 
 function issuesByRow(
