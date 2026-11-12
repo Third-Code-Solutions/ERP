@@ -150,6 +150,55 @@ Verdicts are posted as PR comments.
   see `docs/erp/RUNBOOK.md` section 5.
 
 ## Current
+### In flight (2026-11-11)
+Owner order of 2026-11-05: import and export estimates in Excel, mirror every piece of
+ERP data into Cortex, and a master construction price catalogue. Cortex coverage ships
+in batches: batches 0-1 are #147; deal management (sales) is batch 2 and not started.
+Owner order of 2026-11-11: deploy only what is green on CI and proven working.
+**Nothing below is merged or live.** CI cannot run (Actions billing, see Blockers), so
+no PR here can pass the merge gate yet.
+
+| Work | Branch / PR | State |
+|---|---|---|
+| BOQ Excel import and export (`boq-export`) | `feat/erp-boq-excel`, #144 | **With the owner: three fix loops used.** Round 4: security FAIL, code REQUEST_CHANGES. The security reviewer found a crafted sheet that slips past the guard and sends ExcelJS into a builtin loop that `Worker.terminate()` cannot stop. The `terminate()` behaviour was reproduced with a minimal worker on Node 22.23.2: the thread kept a full core after `terminate()`, and `process.exit` hung. The crafted-sheet path itself is the reviewer's finding. Also open: a concurrency-slot leak when a worker fails to start, TOTAL and VAT rows priced as lump sums, untested units, a nested `[VENDOR:` forgery, and three repo gates that fail when run locally (`test:type-safety`, `test:wo-08-contract`, `test:wo-08a-contract`). The PR proposes another fix loop (its comment calls it the 5th): parse in a child process killed with SIGKILL, scan row attributes linearly, and audit every index ExcelJS allocates from. Spec `docs/erp/specs/boq-excel.md` |
+| Catalogue research data, 20 trades | `feat/erp-catalogue-data`, #146 | 1,008 items: 708 priced, 300 blank and flagged `NO_SOURCE`. Security PASS; data review not approved after 3 loops (open list on the PR). Waits on the owner's licensing answers |
+| Catalogue table, seed, pages, admin edit (`cost-db` extension) | `feat/erp-catalogue`, #149 (base `feat/erp-boq-excel`; carries #146's data) | Round 4: security PASS, code APPROVE, UI check pass. Three fix loops used; low follow-ups are on the PR. Proven on a local Postgres rebuilt from `ac252c52`: verifier 181 migrations; seed 1,008 items, then 0 on a rerun; catalogue DB tests 10/10, 15/15 and 8/8; database suite 112 files / 559 tests. Lands after #144 and #146, with a rebase and a fresh review then. The supplier Excel import is not built (spec §6 says so). Flag `ERP_CATALOGUE_ENABLED`, default off. Spec `docs/erp/specs/catalogue.md` |
+| Cortex coverage, batches 0-1 | `feat/erp-cortex-coverage`, #147 | Round 4: security PASS, code APPROVE. Three fix loops used; one should-fix test gap and the lows are on the PR. Rerun by the orchestrator on a rebuilt database: verifier 183 migrations, database suite 111 files / 576 tests, API integration 94 files / 526 passed / 2 skipped (one failure in the first run was not captured; two reruns were clean), web DB workflows pass (the account-actions test only on a disposable copy, which its guard requires). In one local measurement a `cost_codes` update took 1.64 ms with the mirror against 0.28 ms without it. Ready to merge once CI runs green. Spec `docs/erp/specs/cortex-coverage.md`, runbook `docs/runbooks/cortex-substrate.md` |
+
+Rules decided for this work:
+- Catalogue current price: the newest priced observation for the item and region
+  (regions compare as `lower(trim(region))`; ties go to the newer `created_at`, then
+  the higher `id`). An observation with no price is shown only when the item has no
+  priced one there.
+- **Do not seed the production catalogue before the owner answers the #146 licensing
+  questions.** Price rows are append-only by design and cannot be deleted once loaded.
+- After seeding a tenant, run `ANALYZE` on both catalogue tables. Locally a list page took
+  73 ms right after seeding and 5 ms after `ANALYZE`; for a tenant the statistics did
+  not describe at all, 1 to 2 s per request.
+- Cortex rollout follows the runbook: a production backup, the migrations, a backfill
+  dry-run, then page size 50 off-peak, then the scrub until every table reports changed 0
+  and skipped 0. The runbook does not yet cover #147 security LOW-1: pause the embed jobs
+  during the backfill and scrub, or null those nodes' embeddings after the last scrub.
+
+Live exposures found during this work. None is fixed in production:
+1. **`audit_log` is readable by every signed-in user of a tenant through the Supabase
+   client.** Its only SELECT policy checks the tenant, `authenticated` holds SELECT, and
+   the `audit.read` capability is enforced only in server code. Insert and delete
+   audit rows hold full row images and update rows a column diff (vendor contacts,
+   budgets, stock movements). No browser code reads `audit_log`; `anon` already has no
+   access. The fix revokes
+   client SELECT, adds a deny policy and forces RLS behind a BYPASSRLS guard. It is in
+   #147, reviewed and waiting on CI.
+2. **Spreadsheet parsing on `main` runs ExcelJS on the request thread with no guard
+   beyond the 25 MB cap.** Any user with `bom.generate` can upload a small crafted
+   `.xlsx` to the takeoff import that holds a web function at full CPU until the
+   platform timeout, or exhausts its heap. This is the #144 security reviews' finding
+   and was not reproduced against `main`. There is no switch to turn the import off.
+   #144 as pushed does not close it; the planned next fix loop is meant to.
+3. **Cortex nodes of deleted rows keep their old attributes**, including vendor email,
+   phone and address that every tenant role can query. The scrub in #147 fixes this once
+   it is run.
+
 Owner mandate PHASE 1 (init: green baseline, CI merge gate, `smoke:prod`, STATE,
 RUNBOOK) is **done**.
 - Latest promotion (2026-11-05, manual, owner order "MERGE EVERYTHING AND DEPLOY ON
@@ -298,6 +347,18 @@ RUNBOOK) is **done**.
   directly); local runs need Node 22 (Node 24 fails the engines check).
 - **Owner/admin "Team tasks" view:** needs an explicit change to the daily-task contract
   verifier and its tests, and a `created_by` column so assignees see who assigned a task.
+- **Cortex embed race (predates #147):** the API embed job's `succeed()` checks only that
+  the node is open and its embedding is null, and `setCortexNodeEmbedding` (behind
+  `/api/cortex/embed`) overwrites with no check. Either way a vector computed from an old
+  title can land after a re-title or scrub. Make both compare `recorded_at` or a title
+  hash.
+- **Catalogue follow-ups (#149, apply at the rebase):** the literal offboarding SQL
+  block, a cap on regions per item, the history `id` tiebreak, and the wording of the
+  pinned row.
+- **Cortex follow-ups (#147):** a scrub test on opportunities and folds, a test that each
+  `audit_*` trigger sorts before `cortex_mirror_r`, an exact empty-`search_path`
+  check, tenant predicates on the scrub's re-read, SQL page-size defaults of 50, and a
+  lower `MAX_PAGE_SIZE` (now 2000; the round 4 security review suggests 500).
 
 ## Done modules
 | Slug | PR/branch | Flag | Date |
@@ -319,6 +380,24 @@ RUNBOOK) is **done**.
   - Q-TEN-8 (advisory, ties to Q1): the portal BOM summary shows TCV + VAT on full
     TCV − retention on full TCV, with no EWT. Keep it, or align it with the invoice
     formula once Q1 and Q3 are answered?
+- **#144, owner:** approve another fix loop (the plan is on the PR) or take the PR
+  over. A stop-gap on `main` for exposure 2 (for example, refusing `.xlsx` at the takeoff
+  route until #144 lands) is a third option. Until #144 lands, #149 cannot merge.
+- **`audit_log` early apply, owner:** apply #147's `audit_log` migration
+  (`20261106102000`) to production before CI is restored, under the owner override,
+  or wait for CI? It is the third of #147's three migrations; the question is whether
+  to apply it alone. Applied alone, production history goes out of order, and the
+  release planner (`scripts/plan-database-release.mjs`) then fails the production
+  promotion's ledger gate (`deploy-production.yml`). Applying needs a backup and the runbook preflight first: if the API
+  or web runtime role is neither superuser nor BYPASSRLS, every direct audit insert would
+  fail. It takes an ACCESS EXCLUSIVE lock on `audit_log` briefly. Waiting keeps
+  exposure 1 live.
+- **SEC-M7, owner:** five Cortex mirror functions covering 11 finance, cash, bank and
+  inventory tables still copy rows by denylist, without redaction. This needs an owner and a date.
+- **Catalogue data (#146), owner:** keep or remove about 100 rows priced from
+  theprojectestimate.com purchase lists? May 165 rows read from Wilcon's online store
+  be used (its terms of use are unchecked)? Is it acceptable that 121 rows rest on AEDO
+  cost guides, 13 of them on one labour article? The data-quality open list is on the PR.
 - **GitHub Actions blocked (owner):** the Third-Code-Solutions org is on the free plan
   and hit its Actions spending limit. The owner chose the Team upgrade, but it is not
   applied yet. Until then, CI, backups, promotion and smoke cannot run, and releases
@@ -330,6 +409,8 @@ RUNBOOK) is **done**.
 ## Log
 | Date | Mode | Result |
 |---|---|---|
+| 2026-11-11 | build | #146 data review rounds 3-4, to the owner (3-loop limit). #144 rounds 2-4 and fix loops 2-3; round 4: security FAIL (a worker that cannot be terminated) and code REQUEST_CHANGES, to the owner. #147 rounds 1-4 and fix loops 1-3, final round: security PASS, code APPROVE. #149 opened; rounds 1-4 and fix loops 1-3, final round: security PASS, code APPROVE, UI pass. Database suites rerun on rebuilt local databases; actionlint fails only on local Windows; `supabase db diff` was not run. A machine shutdown (Windows event 1074, 16:26 local time) stopped two agents; work resumed from their commits. Nothing deployed: Actions still blocked |
+| 2026-11-10 | build | #146 catalogue data opened; data review rounds 1-2 and fixes |
 | 2026-11-05 | promote | Manual (Actions blocked): web `f212c9df` via Vercel CLI, API auto-deploy `e2acdd8f`; health, revision, surface PASS; smoke not run (secrets in GitHub only) |
 | 2026-11-05 | merge | #142 `f212c9df` tenancy (D-13), owner override of the CI gate; Q-TEN-6 re-checked (0 profiles, 0 gates) |
 | 2026-11-05 | incident | Deleting #141's branch closed stacked #142; reopened and retargeted to `main`. No code impact |
