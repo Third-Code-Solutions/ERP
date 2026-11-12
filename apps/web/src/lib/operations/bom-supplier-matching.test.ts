@@ -43,7 +43,8 @@ describe('selectCanonicalSupplierOptions', () => {
         source_type: 'manual',
         occurred_at: '2026-08-10',
       },
-    ])
+      // Fixed clock: the fixture dates must not age past the 90-day stale cutoff.
+    ], new Date('2026-08-15T00:00:00.000Z'))
 
     expect(options).toHaveLength(2)
     expect(options[0]).toMatchObject({
