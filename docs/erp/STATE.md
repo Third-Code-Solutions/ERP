@@ -155,7 +155,7 @@ Owner order of 2026-11-05: import and export estimates in Excel, mirror every pi
 ERP data into Cortex, and a master construction price catalogue. Cortex coverage ships
 in batches: batches 0-1 are #147; deal management (sales) is batch 2 and not started.
 Owner order of 2026-11-11: deploy only what is green on CI and proven working.
-**Nothing below is merged or live.** CI cannot run (Actions billing, see Blockers), so
+**Nothing below is merged or live** (checked 2026-11-12). CI cannot run (Actions billing, see Blockers), so
 no PR here can pass the merge gate yet.
 
 | Work | Branch / PR | State |
@@ -401,7 +401,32 @@ RUNBOOK) is **done**.
 - **GitHub Actions blocked (owner):** the Third-Code-Solutions org is on the free plan
   and hit its Actions spending limit. The owner chose the Team upgrade, but it is not
   applied yet. Until then, CI, backups, promotion and smoke cannot run, and releases
-  need the owner override.
+  need the owner override. Still blocked on 2026-11-12: every job is refused with
+  "recent account payments have failed or your spending limit needs to be increased"
+  (main CI run 41972390770; the Actionlint jobs on #144-#148).
+- **Stale open PRs (owner, found 2026-11-12):** 34 open PRs predate this program and
+  are tracked nowhere else. None should merge as is: all but #34 conflict with `main`,
+  and every migration they add is stamped before the production head `20261104195001`,
+  so it would land out of order and fail the promotion ledger gate. Decide per group:
+  close as superseded, or re-port onto `main` as a new reviewed PR.
+  - Codex stack #67-#93 (26 PRs, 2026-09-12/13): one chain, each PR contains the one
+    before it; 16-39 conflicts each; up to 5 migrations and 89 API files. Main already
+    has migrations for most of the base features (site diary, RFI, submittals,
+    schedule tasks, weekly progress, hold points, claim documents, KYC artifacts,
+    mobilization); the receipt and authority follow-ups may not be.
+  - #13, #14, #32, #34, #51 (2026-08-25 to 09-10): 0-76 conflicts, 112-262 commits
+    behind. #34 is a docs-only blocker record.
+  - #121 award task role scope (2 conflicts, 3 migrations), #126 trial hardening
+    (35 conflicts, 11 migrations, 54 API files), #127 client turnover polish
+    (13 conflicts). CI was green on each before the billing block.
+  - **#126 matters before any client onboarding.** Its description reports
+    trial-readiness blocker B1 (`docs/qa/2026-10-20-trial-readiness-verdict.md`): an
+    invited colleague is provisioned into a new empty tenant instead of the inviter's,
+    and `public.users` is inserted twice. Main has no `tenant_invite_provisioning`
+    migration. Whether B1 still reproduces on `main` is not verified; check it before
+    inviting a client's users.
+  - #145 (Dependabot, GitHub Actions versions) is clean but unreviewed and cannot be
+    verified until CI runs.
 - PH rates in the survey (2% EWT, 10% retention, 0.1%/day LDs, PCAB ranges) come from
   secondary sources. Check them against primary BIR, GPPB and PCAB texts before they
   become rules.
@@ -409,6 +434,7 @@ RUNBOOK) is **done**.
 ## Log
 | Date | Mode | Result |
 |---|---|---|
+| 2026-11-12 | merge | #148 `999d558c` (docs only; security PASS, code APPROVE, fact-check APPROVE), owner override of the CI gate. Production checked: web `/api/ready` revision `f212c9dffb47` database up, API `/ready` database ok and redis ok, CAD `/health` 200. Actions still refused for billing. 34 stale open PRs triaged into Blockers. Legacy root status files marked superseded. Nothing deployed |
 | 2026-11-11 | build | #146 data review rounds 3-4, to the owner (3-loop limit). #144 rounds 2-4 and fix loops 2-3; round 4: security FAIL (a worker that cannot be terminated) and code REQUEST_CHANGES, to the owner. #147 rounds 1-4 and fix loops 1-3, final round: security PASS, code APPROVE. #149 opened; rounds 1-4 and fix loops 1-3, final round: security PASS, code APPROVE, UI pass. Database suites rerun on rebuilt local databases; actionlint fails only on local Windows; `supabase db diff` was not run. A machine shutdown (Windows event 1074, 16:26 local time) stopped two agents; work resumed from their commits. Nothing deployed: Actions still blocked |
 | 2026-11-10 | build | #146 catalogue data opened; data review rounds 1-2 and fixes |
 | 2026-11-05 | promote | Manual (Actions blocked): web `f212c9df` via Vercel CLI, API auto-deploy `e2acdd8f`; health, revision, surface PASS; smoke not run (secrets in GitHub only) |

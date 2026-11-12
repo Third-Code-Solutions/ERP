@@ -1,5 +1,9 @@
 # Third Code ERP Control Center
 
+> **Superseded on 2026-11-12. Last updated 2026-09-11.** Current state, live revisions,
+> open work and owner decisions are in [`docs/erp/STATE.md`](docs/erp/STATE.md).
+> This file is kept as history only. Do not act on it.
+
 ## Latest Cortex deployment — 2026-09-05 21:14 +08:00
 
 PR41 merged and deployed at614395fc3b963f23d0acf141ff7b16916db4f703.
