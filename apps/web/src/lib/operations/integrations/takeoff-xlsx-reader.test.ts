@@ -9,6 +9,7 @@ import {
   parseStructuredTakeoff,
   TakeoffBusyError,
   TakeoffTooLargeError,
+  XLSX_LIMITS,
 } from './takeoff'
 import { readXlsxSheet, XLSX_READER_LIMITS, type XlsxSheetRequest } from './takeoff-xlsx-reader'
 
@@ -325,6 +326,16 @@ describe('xlsx first filter (round 3 attack files)', () => {
     )
     expect(() => assertXlsxWithinLimits(photos)).not.toThrow()
   }, SLOW)
+
+  it('counts a scanned part toward the XML budget even when it does not start like XML (S5-3)', async () => {
+    // The reviewers' part: text first, then sheet content the tag scans read.
+    const part = `x sheetData ${`<${'a'.repeat(32)} `.repeat(100)}`
+    const file = await xlsx([{ xml: sheetXml(HEADER + PIPE) }], { 'xl/worksheets/sheet9.xml': part })
+    // Room for every other part, but not for this one as well.
+    const xmlBytes = Buffer.byteLength(sheetXml(HEADER + PIPE)) + part.length
+
+    expect(() => assertXlsxWithinLimits(file, { ...XLSX_LIMITS, xmlBytes })).toThrow(TakeoffTooLargeError)
+  })
 })
 
 describe('xlsx first filter (round 4: every index ExcelJS allocates from)', () => {

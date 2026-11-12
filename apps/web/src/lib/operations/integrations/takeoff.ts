@@ -479,7 +479,12 @@ export function assertXlsxWithinLimits(buffer: Buffer, limits = XLSX_LIMITS): vo
       localHeader + 30 + buffer.readUInt16LE(localHeader + 26) + buffer.readUInt16LE(localHeader + 28)
     if (dataStart + compressedSize > directoryStart) throw unreadable('a part is outside the file')
     const content = zipEntryContent(method, buffer.subarray(dataStart, dataStart + compressedSize), size)
-    if (isXmlPart(content)) {
+    // By content, not by name: JSZip names parts from their local headers.
+    const isSheet = content.includes('sheetData') || content.includes('mergeCell')
+    const isScanned = isSheet || content.includes('sheetId')
+    // A part scanned below counts even when it does not start like XML, so the
+    // scans never read more than the XML budget (S5-3).
+    if (isScanned || isXmlPart(content)) {
       xmlBytes += content.length
       if (xmlBytes > limits.xmlBytes) {
         throw new TakeoffTooLargeError(
@@ -487,10 +492,7 @@ export function assertXlsxWithinLimits(buffer: Buffer, limits = XLSX_LIMITS): vo
         )
       }
     }
-
-    // By content, not by name: JSZip names parts from their local headers.
-    const isSheet = content.includes('sheetData') || content.includes('mergeCell')
-    if (!isSheet && !content.includes('sheetId')) continue
+    if (!isScanned) continue
     const xml = content.toString('latin1')
     for (const [, double, single] of xml.matchAll(SHEET_ID)) {
       const id = double ?? single ?? ''

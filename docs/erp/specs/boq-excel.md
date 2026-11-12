@@ -39,7 +39,8 @@ that says what to do; a file the guard cannot fully account for is 422
 - Whole-workbook limits of the first filter (they say nothing about the sheet
   being imported): 100 MB inflated; 5,000 parts; 32 MB of XML over all parts,
   judged by content (shared strings, styles, comments and drawings expand
-  about 12x in ExcelJS; images do not count); 500,000 rows and cells counted
+  about 12x in ExcelJS; images do not count, but any part the sheet scans
+  below read counts, whatever its first byte); 500,000 rows and cells counted
   in the sheet XML over all sheets (a merged range counts every cell it
   covers, and each sheet counts the columns up to the last one a cell is in,
   since ExcelJS creates every one of them); 5,000 merged ranges over the
