@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { PgDialect } from 'drizzle-orm/pg-core'
+import type { SQL } from 'drizzle-orm'
 
 const mocks = vi.hoisted(() => ({
   requireUserProfile: vi.fn(),
@@ -61,6 +63,7 @@ const TARGET_ID = '33333333-3333-4333-8333-333333333333'
 const REQUEST_ID = '44444444-4444-4444-8444-444444444444'
 const INVITATION_ID = '55555555-5555-4555-8555-555555555555'
 const OTHER_TENANT_ID = '66666666-6666-4666-8666-666666666666'
+const RACER_ID = '77777777-7777-4777-8777-777777777777'
 const PROFILE = {
   user: { id: USER_ID },
   tenantId: TENANT_ID,
@@ -112,34 +115,66 @@ function userQuery(
   return { from }
 }
 
+type InvitationState = { status: string; authUserId: string | null }
+
 /**
- * Database for createUser: the duplicate check finds nothing, the invitation
- * insert returns `invitation`, and the post-Auth binding check returns `bound`
- * (the trigger placed the user in the admin's tenant with the granted role).
+ * Database for createUser, dispatched by table so every predicate is captured:
+ * the duplicate check finds nothing, the invitation insert returns
+ * `invitation`, the post-Auth binding check returns `bound`, the failure close
+ * returns `closed` (then a re-read returns `current`), and the ghost-row
+ * cleanup disables `disabled` users.
  */
 function createUserDatabase(options: {
   invitation?: Array<{ id: string }>
   bound?: Array<{ id: string }>
+  closed?: InvitationState[]
+  current?: InvitationState[]
+  disabled?: Array<{ id: string }>
 } = {}) {
+  const noDuplicate = Promise.resolve([])
+  // `limit()` is awaited by the duplicate check and row-locked by suspendUser.
+  const userWhere = vi.fn().mockReturnValue({
+    limit: vi.fn().mockReturnValue({
+      then: noDuplicate.then.bind(noDuplicate),
+      for: vi.fn().mockResolvedValue([
+        { id: RACER_ID, role: 'viewer', email: 'new-owner@example.test', accountStatus: 'active', activeAdministratorCount: 1 },
+      ]),
+    }),
+  })
   const bindingWhere = vi.fn().mockReturnValue({
     limit: vi.fn().mockResolvedValue(options.bound ?? [{ id: TARGET_ID }]),
   })
-  mocks.select
-    .mockReturnValueOnce({ from: userQuery([]).from })
-    .mockReturnValueOnce({
-      from: vi.fn().mockReturnValue({
-        innerJoin: vi.fn().mockReturnValue({ where: bindingWhere }),
-      }),
-    })
+  const invitationWhere = vi.fn().mockReturnValue({
+    limit: vi.fn().mockResolvedValue(options.current ?? []),
+  })
+  mocks.select.mockImplementation(() => ({
+    from: (table: unknown) => table === platformUserInvitations
+      ? { innerJoin: () => ({ where: bindingWhere }), where: invitationWhere }
+      : { where: userWhere },
+  }))
   const values = vi.fn().mockReturnValue({
     onConflictDoNothing: vi.fn().mockReturnValue({
       returning: vi.fn().mockResolvedValue(options.invitation ?? [{ id: INVITATION_ID }]),
     }),
   })
   mocks.insert.mockReturnValue({ values })
-  const set = vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) })
+  const closeReturning = vi.fn().mockResolvedValue(
+    options.closed ?? [{ status: 'failed', authUserId: null }]
+  )
+  const closeWhere = vi.fn().mockReturnValue({ returning: closeReturning })
+  const disableWhere = vi.fn().mockReturnValue({
+    returning: vi.fn().mockResolvedValue(options.disabled ?? [{ id: TARGET_ID }]),
+  })
+  const suspendWhere = vi.fn().mockReturnValue({
+    returning: vi.fn().mockResolvedValue([{ id: RACER_ID }]),
+  })
+  const set = vi.fn((changes: Record<string, unknown>) => ({
+    where: changes.account_status === 'disabled'
+      ? disableWhere
+      : changes.account_status === 'suspended' ? suspendWhere : closeWhere,
+  }))
   mocks.update.mockReturnValue({ set })
-  return { values, set }
+  return { values, set, bindingWhere, closeWhere, closeReturning, invitationWhere, disableWhere }
 }
 
 function authAdmin(overrides: {
@@ -149,13 +184,32 @@ function authAdmin(overrides: {
   const createAuthUser = overrides.createUser
     ?? vi.fn().mockResolvedValue({ data: { user: { id: TARGET_ID } }, error: null })
   const deleteAuthUser = overrides.deleteUser ?? vi.fn().mockResolvedValue({ error: null })
+  const updateUserById = vi.fn().mockResolvedValue({ error: null })
   mocks.createSupabaseAdminClient.mockReturnValue({
-    auth: { admin: { createUser: createAuthUser, deleteUser: deleteAuthUser } },
+    auth: { admin: { createUser: createAuthUser, deleteUser: deleteAuthUser, updateUserById } },
   })
-  return { createAuthUser, deleteAuthUser }
+  return { createAuthUser, deleteAuthUser, updateUserById }
+}
+
+/** Maps each `"table"."column"` compared in a captured drizzle predicate to its bound value(s). */
+function predicate(where: ReturnType<typeof vi.fn>): Record<string, unknown> {
+  const condition = where.mock.calls[0]?.[0] as SQL
+  const { sql, params } = new PgDialect().sqlToQuery(condition)
+  const bound: Record<string, unknown> = {}
+  for (const [, column, operator, refs] of sql.matchAll(/("\w+"\."\w+") (=|in) \(?([$\d, ]+)\)?/g)) {
+    const values = refs!.split(',').map((ref) => params[Number(ref.trim().slice(1)) - 1])
+    bound[column!] = operator === 'in' ? values : values[0]
+  }
+  return bound
 }
 
 const INVITATION_FAILED = expect.objectContaining({ status: 'failed' })
+const RECONCILE = {
+  error: 'User creation could not be confirmed. Contact support to reconcile the Auth account.',
+}
+const DISABLED = {
+  error: 'User creation failed. The partial account was disabled; contact support before inviting this email again.',
+}
 
 describe('admin user role authority', () => {
   beforeEach(() => {
@@ -267,7 +321,7 @@ describe('admin user role authority', () => {
   })
 
   it('provisions through an invitation for the admin tenant and never inserts public.users itself', async () => {
-    const { values, set } = createUserDatabase()
+    const { values, set, bindingWhere } = createUserDatabase()
     const { createAuthUser, deleteAuthUser } = authAdmin()
 
     await expect(createUser(createUserForm('viewer'))).resolves.toEqual({ userId: TARGET_ID })
@@ -291,6 +345,15 @@ describe('admin user role authority', () => {
       password: 'long-enough-password',
       email_confirm: true,
       user_metadata: { full_name: 'New Owner' },
+    })
+    // The binding is confirmed only for this invitation, still `sent`, bound to
+    // the new identity in the admin's tenant with the granted role.
+    expect(predicate(bindingWhere)).toEqual({
+      '"platform_user_invitations"."id"': INVITATION_ID,
+      '"platform_user_invitations"."status"': 'sent',
+      '"users"."id"': TARGET_ID,
+      '"users"."tenant_id"': TENANT_ID,
+      '"users"."role"': 'viewer',
     })
     expect(mocks.writeAuditLogInTransaction).toHaveBeenCalledWith(
       expect.anything(),
@@ -350,8 +413,8 @@ describe('admin user role authority', () => {
   })
 
   it('closes the invitation when Auth rejects the user', async () => {
-    const { set } = createUserDatabase()
-    const { deleteAuthUser } = authAdmin({
+    const { set, closeWhere, invitationWhere } = createUserDatabase()
+    const { deleteAuthUser, updateUserById } = authAdmin({
       createUser: vi.fn().mockResolvedValue({
         data: { user: null },
         error: new Error('A user with this email address has already been registered'),
@@ -362,8 +425,71 @@ describe('admin user role authority', () => {
       error: 'A user with this email address has already been registered',
     })
     expect(set).toHaveBeenCalledWith(INVITATION_FAILED)
+    // Only this tenant's invitation, and only while it is still open.
+    expect(predicate(closeWhere)).toEqual({
+      '"platform_user_invitations"."id"': INVITATION_ID,
+      '"platform_user_invitations"."tenant_id"': TENANT_ID,
+      '"platform_user_invitations"."status"': ['pending', 'sent'],
+    })
+    expect(invitationWhere).not.toHaveBeenCalled()
+    expect(updateUserById).not.toHaveBeenCalled()
     expect(deleteAuthUser).not.toHaveBeenCalled()
     expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
+  })
+
+  it('suspends a racing sign-up that already accepted the invitation and reports reconciliation', async () => {
+    const { set, invitationWhere } = createUserDatabase({
+      closed: [],
+      current: [{ status: 'accepted', authUserId: RACER_ID }],
+    })
+    const { deleteAuthUser, updateUserById } = authAdmin({
+      createUser: vi.fn().mockResolvedValue({
+        data: { user: null },
+        error: new Error('A user with this email address has already been registered'),
+      }),
+    })
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      await expect(createUser(createUserForm('viewer'))).resolves.toEqual(RECONCILE)
+      expect(predicate(invitationWhere)).toEqual({
+        '"platform_user_invitations"."id"': INVITATION_ID,
+        '"platform_user_invitations"."tenant_id"': TENANT_ID,
+      })
+      expect(updateUserById).toHaveBeenCalledWith(RACER_ID, { ban_duration: '876000h' })
+      expect(set).toHaveBeenCalledWith(expect.objectContaining({ account_status: 'suspended' }))
+      expect(mocks.writeAuditLogInTransaction).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+        tenantId: TENANT_ID,
+        entityId: RACER_ID,
+        action: 'status_change',
+        diff: expect.objectContaining({ to_status: 'suspended' }),
+      }))
+      expect(deleteAuthUser).not.toHaveBeenCalled()
+    } finally {
+      errorSpy.mockRestore()
+    }
+  })
+
+  it('suspends a racing sign-up that bound the open invitation first', async () => {
+    const { invitationWhere } = createUserDatabase({
+      closed: [{ status: 'failed', authUserId: RACER_ID }],
+    })
+    const { updateUserById } = authAdmin({
+      createUser: vi.fn().mockResolvedValue({ data: { user: null }, error: new Error('email_exists') }),
+    })
+
+    await expect(createUser(createUserForm('viewer'))).resolves.toEqual(RECONCILE)
+    expect(invitationWhere).not.toHaveBeenCalled()
+    expect(updateUserById).toHaveBeenCalledWith(RACER_ID, { ban_duration: '876000h' })
+  })
+
+  it('reports reconciliation when the close matched no open invitation', async () => {
+    createUserDatabase({ closed: [], current: [{ status: 'revoked', authUserId: null }] })
+    const { updateUserById } = authAdmin({
+      createUser: vi.fn().mockResolvedValue({ data: { user: null }, error: new Error('rejected') }),
+    })
+
+    await expect(createUser(createUserForm('viewer'))).resolves.toEqual(RECONCILE)
+    expect(updateUserById).not.toHaveBeenCalled()
   })
 
   it('closes the invitation and reports reconciliation when the Auth request throws', async () => {
@@ -384,13 +510,12 @@ describe('admin user role authority', () => {
   })
 
   it('deletes the Auth user and closes the invitation when it was not bound to the admin tenant', async () => {
-    const { set } = createUserDatabase({ bound: [] })
+    // Unbound: the identity's row landed outside this tenant, so nothing here can be disabled.
+    const { set } = createUserDatabase({ bound: [], disabled: [] })
     const { deleteAuthUser } = authAdmin()
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     try {
-      await expect(createUser(createUserForm('viewer'))).resolves.toEqual({
-        error: 'User creation failed before the workspace account was committed.',
-      })
+      await expect(createUser(createUserForm('viewer'))).resolves.toEqual(RECONCILE)
       expect(deleteAuthUser).toHaveBeenCalledWith(TARGET_ID)
       expect(set).toHaveBeenCalledWith(INVITATION_FAILED)
       // Closing the invitation first blocks activation even if Auth cleanup fails.
@@ -404,25 +529,70 @@ describe('admin user role authority', () => {
     }
   })
 
-  it('compensates Auth when the user audit cannot commit', async () => {
-    const { set } = createUserDatabase()
+  it('compensates Auth and disables the provisional row when the user audit cannot commit', async () => {
+    const { set, disableWhere } = createUserDatabase({
+      closed: [{ status: 'failed', authUserId: TARGET_ID }],
+    })
     mocks.writeAuditLogInTransaction.mockRejectedValueOnce(new Error('synthetic audit failure'))
-    const { deleteAuthUser } = authAdmin()
+    const { deleteAuthUser, updateUserById } = authAdmin()
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     try {
-      await expect(createUser(createUserForm('viewer'))).resolves.toEqual({
-        error: 'User creation failed before the workspace account was committed.',
-      })
+      await expect(createUser(createUserForm('viewer'))).resolves.toEqual(DISABLED)
       expect(deleteAuthUser).toHaveBeenCalledWith(TARGET_ID)
       expect(set).toHaveBeenCalledWith(INVITATION_FAILED)
+      // Own binding: nothing to suspend.
+      expect(updateUserById).not.toHaveBeenCalled()
+      // public.users rows cannot be deleted; the trigger-written row is disabled.
+      expect(mocks.update).toHaveBeenCalledWith(users)
+      expect(set).toHaveBeenCalledWith(expect.objectContaining({
+        account_status: 'disabled',
+        status_changed_by: USER_ID,
+      }))
+      expect(predicate(disableWhere)).toEqual({
+        '"users"."id"': TARGET_ID,
+        '"users"."tenant_id"': TENANT_ID,
+        '"users"."account_status"': 'invited',
+      })
+      expect(deleteAuthUser.mock.invocationCallOrder[0]!).toBeLessThan(
+        disableWhere.mock.invocationCallOrder[0]!
+      )
       expect(mocks.revalidatePath).not.toHaveBeenCalled()
     } finally {
       errorSpy.mockRestore()
     }
   })
 
+  it('reports reconciliation when the provisional row cannot be disabled', async () => {
+    createUserDatabase({ closed: [{ status: 'failed', authUserId: TARGET_ID }], disabled: [] })
+    mocks.writeAuditLogInTransaction.mockRejectedValueOnce(new Error('synthetic audit failure'))
+    const { deleteAuthUser } = authAdmin()
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      await expect(createUser(createUserForm('viewer'))).resolves.toEqual(RECONCILE)
+      expect(deleteAuthUser).toHaveBeenCalledWith(TARGET_ID)
+    } finally {
+      errorSpy.mockRestore()
+    }
+  })
+
+  it('reports reconciliation when the invitation close fails but Auth deletion succeeds', async () => {
+    const { closeReturning, disableWhere } = createUserDatabase()
+    closeReturning.mockRejectedValueOnce(new Error('synthetic database outage'))
+    mocks.writeAuditLogInTransaction.mockRejectedValueOnce(new Error('synthetic audit failure'))
+    const { deleteAuthUser } = authAdmin()
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      await expect(createUser(createUserForm('viewer'))).resolves.toEqual(RECONCILE)
+      await expect(deleteAuthUser.mock.results[0]?.value).resolves.toEqual({ error: null })
+      expect(deleteAuthUser).toHaveBeenCalledWith(TARGET_ID)
+      expect(disableWhere).not.toHaveBeenCalled()
+    } finally {
+      errorSpy.mockRestore()
+    }
+  })
+
   it('reports reconciliation when Auth compensation also fails', async () => {
-    const { set } = createUserDatabase({ bound: [] })
+    const { set, disableWhere } = createUserDatabase({ bound: [] })
     authAdmin({
       deleteUser: vi.fn().mockResolvedValue({ error: new Error('synthetic cleanup failure') }),
     })
@@ -434,6 +604,8 @@ describe('admin user role authority', () => {
       expect(set).toHaveBeenCalledWith(INVITATION_FAILED)
       expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
       expect(mocks.revalidatePath).not.toHaveBeenCalled()
+      // The row stays behind an identity that still exists; support reconciles both.
+      expect(disableWhere).not.toHaveBeenCalled()
     } finally {
       errorSpy.mockRestore()
     }

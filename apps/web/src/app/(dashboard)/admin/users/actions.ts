@@ -58,16 +58,27 @@ async function safe<T extends { error?: string }>(
 const RECONCILE_AUTH_ACCOUNT =
   'User creation could not be confirmed. Contact support to reconcile the Auth account.'
 
-/** Closes a workspace invitation so it can neither bind nor activate, and the email can be re-invited. */
+/**
+ * Closes a workspace invitation so it can neither bind nor activate, and the
+ * email can be re-invited. Returns false (support must reconcile) when no open
+ * invitation was closed, or when an identity other than `ownAuthUserId` holds
+ * it (SEC-11: a racing self-signup bound it first); that identity's membership
+ * is suspended through the existing `suspendUser` path.
+ */
 async function closeFailedInvitation(
   invitationId: string,
   tenantId: string,
   actorId: string,
+  ownAuthUserId?: string,
 ): Promise<boolean> {
   try {
-    await db.transaction(async (tx) => {
+    const invitationColumns = {
+      status: platformUserInvitations.status,
+      authUserId: platformUserInvitations.auth_user_id,
+    }
+    const [closed] = await db.transaction(async (tx) => {
       await stampActorInTransaction(tx, actorId)
-      await tx
+      return tx
         .update(platformUserInvitations)
         .set({ status: 'failed', failure_reason: 'Workspace user creation failed' })
         .where(
@@ -77,10 +88,74 @@ async function closeFailedInvitation(
             inArray(platformUserInvitations.status, ['pending', 'sent']),
           )
         )
+        .returning(invitationColumns)
     })
-    return true
+    const [state] = closed
+      ? [closed]
+      : await db
+          .select(invitationColumns)
+          .from(platformUserInvitations)
+          .where(
+            and(
+              eq(platformUserInvitations.id, invitationId),
+              eq(platformUserInvitations.tenant_id, tenantId),
+            )
+          )
+          .limit(1)
+    const holder = state?.authUserId
+    if (holder && (holder !== ownAuthUserId || state?.status === 'accepted')) {
+      const form = new FormData()
+      form.set('user_id', holder)
+      form.set('reason', 'Workspace invitation was claimed by another sign-up; reconcile with support.')
+      const suspended = await suspendUser(form)
+      if (suspended.error) {
+        console.error('[admin/users:createUser] invitation holder could not be suspended:', suspended.error)
+      }
+      return false
+    }
+    return Boolean(closed)
   } catch (err) {
     console.error('[admin/users:createUser] invitation could not be closed:', err)
+    return false
+  }
+}
+
+/**
+ * After Auth deleted the identity, disables the `invited` row its insert
+ * trigger wrote in this tenant, as platform invitation revocation does.
+ * `public.users` rows cannot be deleted: audit_log's no-update rule rejects
+ * the `actor_id ON DELETE SET NULL` action. Returns false unless exactly that
+ * one row was disabled.
+ */
+async function disableProvisionalUser(
+  userId: string,
+  tenantId: string,
+  actorId: string,
+): Promise<boolean> {
+  try {
+    const disabled = await db.transaction(async (tx) => {
+      await stampActorInTransaction(tx, actorId)
+      return tx
+        .update(usersTable)
+        .set({
+          account_status: 'disabled',
+          status_reason: 'Workspace user creation failed',
+          status_changed_at: new Date(),
+          status_changed_by: actorId,
+          updated_at: new Date(),
+        })
+        .where(
+          and(
+            eq(usersTable.id, userId),
+            eq(usersTable.tenant_id, tenantId),
+            eq(usersTable.account_status, 'invited'),
+          )
+        )
+        .returning({ id: usersTable.id })
+    })
+    return disabled.length === 1
+  } catch (err) {
+    console.error('[admin/users:createUser] provisional user could not be disabled:', err)
     return false
   }
 }
@@ -100,7 +175,7 @@ async function closeFailedInvitation(
  *   3. Confirm the binding and write the audit entry in one transaction.
  *
  * Any failure closes the invitation; once Auth created the identity, it is
- * deleted as well.
+ * deleted as well and the `invited` row its trigger wrote is disabled.
  */
 export async function createUser(
   formData: FormData
@@ -212,7 +287,12 @@ export async function createUser(
     } catch (err) {
       console.error('[admin/users:createUser] user provisioning failed:', err)
       // Close first: a closed invitation cannot activate even if Auth cleanup fails.
-      const closed = await closeFailedInvitation(invitation.id, profile.tenantId, profile.user.id)
+      const closed = await closeFailedInvitation(
+        invitation.id,
+        profile.tenantId,
+        profile.user.id,
+        authUserId,
+      )
       if (!authUserId) return { error: RECONCILE_AUTH_ACCOUNT }
       const cleanup = await admin.auth.admin.deleteUser(authUserId).catch((cleanupError: unknown) => ({
         error: cleanupError,
@@ -221,8 +301,10 @@ export async function createUser(
         console.error('[admin/users:createUser] Auth compensation failed:', cleanup.error)
       }
       if (cleanup.error || !closed) return { error: RECONCILE_AUTH_ACCOUNT }
+      const disabled = await disableProvisionalUser(authUserId, profile.tenantId, profile.user.id)
+      if (!disabled) return { error: RECONCILE_AUTH_ACCOUNT }
       return {
-        error: 'User creation failed before the workspace account was committed.',
+        error: 'User creation failed. The partial account was disabled; contact support before inviting this email again.',
       }
     }
 
