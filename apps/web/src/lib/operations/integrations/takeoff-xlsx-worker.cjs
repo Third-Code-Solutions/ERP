@@ -1,15 +1,14 @@
 'use strict'
-// Reads one sheet of an .xlsx with ExcelJS inside a worker_threads worker (see
-// takeoff-xlsx-reader.ts), never on the request thread. A tiny file can make
+// Reads one sheet of an .xlsx with ExcelJS in a child process (see
+// takeoff-xlsx-reader.ts), never in the server process. A tiny file can make
 // ExcelJS burn CPU or memory in ways no check in front of it has kept up with,
-// so the reader gives it a heap cap and a wall-clock limit and terminates it at
-// either. Plain CommonJS on purpose: the same file runs under vitest, `next
+// so the reader caps the process heap and kills the process at a wall-clock
+// limit. Plain CommonJS on purpose: the same file runs under vitest, `next
 // dev` and a production build, where next.config.ts ships it with the route.
 /* eslint-disable @typescript-eslint/no-require-imports -- a CommonJS file the reader starts by path */
-const { parentPort, workerData } = require('node:worker_threads')
 const ExcelJS = require('exceljs')
 
-/** A cell value the request thread can use as is: small, plain and bounded. */
+/** A cell value the server process can use as is: small, plain and bounded. */
 function plainValue(value, maxText) {
   if (value == null) return null
   if (typeof value === 'string') return value.length > maxText ? value.slice(0, maxText) : value
@@ -82,7 +81,10 @@ async function readSheet({ bytes, sheet, lastRow, maxColumns, maxText, maxGridTe
   return refused ? { sheets, sheet: name, refused } : { sheets, sheet: name, grid, hiddenRows }
 }
 
-readSheet(workerData).then(
-  (result) => parentPort.postMessage(result),
-  (error) => parentPort.postMessage({ error: String((error && error.message) || error).slice(0, 500) }),
-)
+// One request per process; the reader kills the process once it has the reply.
+process.once('message', (request) => {
+  readSheet(request).then(
+    (result) => process.send(result),
+    (error) => process.send({ error: String((error && error.message) || error).slice(0, 500) }),
+  )
+})

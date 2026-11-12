@@ -459,22 +459,24 @@ describe('structured takeoff importer', () => {
   })
 
   it('counts rows and cells instead of trusting the declared dimension', async () => {
-    // 31 rows and 93 cells behind a dimension that claims one cell.
+    // 31 rows, 93 cells and the 3 columns ExcelJS creates for them, behind a
+    // dimension that claims one cell.
     const lying = patchXlsx(await boqWorkbook(30), {
       [SHEET]: (sheet) => sheet.replace(/<dimension[^>]*>/, '<dimension ref="A1"/>'),
     })
 
-    expect(() => assertXlsxWithinLimits(lying, { ...XLSX_LIMITS, cells: 124 })).not.toThrow()
-    expect(() => assertXlsxWithinLimits(lying, { ...XLSX_LIMITS, cells: 123 })).toThrow(TakeoffTooLargeError)
+    expect(() => assertXlsxWithinLimits(lying, { ...XLSX_LIMITS, cells: 127 })).not.toThrow()
+    expect(() => assertXlsxWithinLimits(lying, { ...XLSX_LIMITS, cells: 126 })).toThrow(TakeoffTooLargeError)
   })
 
   it('reads a workbook whose validations, column spans and names cover the whole sheet', async () => {
-    // ExcelJS would expand each of these into one object per cell or column.
+    // ExcelJS would expand each of these into one object per cell or column
+    // (a column span past XFD is refused instead; see takeoff-xlsx-reader.test.ts).
     const hostile = patchXlsx(await boqWorkbook(), {
       [SHEET]: (sheet) =>
         afterSheetData(
           '<dataValidations count="1"><dataValidation type="list" sqref="A1:XFD1048576"><formula1>"a,b"</formula1></dataValidation></dataValidations>',
-        )(sheet.replace('<sheetData>', '<cols><col min="1" max="999999999" width="9"/></cols><sheetData>')),
+        )(sheet.replace('<sheetData>', '<cols><col min="1" max="16384" width="9"/></cols><sheetData>')),
       '/xl/workbook.xml': (book) =>
         book.replace(
           '</sheets>',

@@ -93,8 +93,8 @@ export const TAKEOFF_TOO_MANY_ROWS_MESSAGE = `The sheet has more than ${TAKEOFF_
 const ROWS_BYTE_BUDGET = TAKEOFF_IMPORT_MAX_COMMAND_BYTES - 64 * 1024
 export const TAKEOFF_TOO_MUCH_DATA_MESSAGE = `The rows on this sheet hold more than ${TAKEOFF_IMPORT_MAX_COMMAND_BYTES / 1_000_000} MB of data. Split the sheet and import each part.`
 
-// The rows read from the chosen sheet cross from the reader's worker to the
-// request thread as text. Rows over the command budget are refused anyway, so
+// The rows read from the chosen sheet cross from the reader's child process to the
+// server process as text. Rows over the command budget are refused anyway, so
 // twice that budget is room for the rows above the header and the skipped ones.
 const GRID_TEXT_BUDGET = 2 * TAKEOFF_IMPORT_MAX_COMMAND_BYTES
 
@@ -231,20 +231,30 @@ function columnNumber(letters: string): number {
 const ZIP_END = Buffer.from([0x50, 0x4b, 0x05, 0x06])
 const ZIP_DIRECTORY_ENTRY = 0x02014b50
 const ZIP_LOCAL_ENTRY = 0x04034b50
-// Every scan of a part is linear: patterns either match one tag name or look
-// at a bounded window, and <mergeCell> tags are found by position. A tag that
-// does not fit its window is left to the reader's heap and time limits.
-const ROW_OR_CELL_TAG = /<(?:\w+:)?(?:c|row)[\s/>]/g
-const ROW_INDEX = /<(?:\w+:)?row\s[^>]{0,512}?\br\s*=\s*["']([^"']{0,32})["']/g
-const SHEET_ID = /\bsheetId\s*=\s*["']([^"']{0,32})["']/g
+// Every scan of a part is linear and has no character window. A tag is matched
+// from its name to the next `>` (or the end of the part) in one pass, so an
+// unclosed tag is one match, never a rescan; <mergeCell> tags are found by
+// position and must be short. Whatever a scan cannot read is refused.
+const tagPattern = (name: string) => new RegExp(`<(?:\\w{1,32}:)?${name}(?=[\\s/>])[^>]*>?`, 'g')
+const attributePattern = (name: string) => new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, 'g')
+const ROW_TAG = tagPattern('row')
+const CELL_TAG = tagPattern('c')
+const COLUMN_TAG = tagPattern('col')
+const DIMENSION_TAG = tagPattern('dimension')
+const R_ATTRIBUTE = attributePattern('r')
+const REF_ATTRIBUTE = attributePattern('ref')
+const MIN_ATTRIBUTE = attributePattern('min')
+const MAX_ATTRIBUTE = attributePattern('max')
+const SHEET_ID = /\bsheetId\s*=\s*(?:"([^"]*)"|'([^']*)')/g
 const MERGE_TAG_START = /<(?:\w{1,32}:)?$/
 const MERGE_TAG_MAX_LENGTH = 256
-const REF_ATTRIBUTE = /\sref\s*=\s*(?:"([^"]*)"|'([^']*)')/g
-const CELL_RANGE = /^\$?([A-Z]{1,3})\$?(\d{1,7})(?::\$?([A-Z]{1,3})\$?(\d{1,7}))?$/
-// ExcelJS keeps sheets and rows in arrays indexed by these numbers and walks
-// the whole index range, so one absurd index is minutes of CPU.
+const CELL_ADDRESS = /^\$?([A-Z]{1,3})\$?(\d{1,7})$/
+// ExcelJS keeps sheets, rows and columns in arrays indexed by these numbers
+// and walks or fills the whole index range, so one absurd index is minutes of
+// CPU or gigabytes of memory.
 const MAX_SHEET_ID = 65_535
 const MAX_SHEET_ROW = 1_048_576
+const MAX_SHEET_COLUMN = 16_384
 
 /** A zip or sheet the guard cannot fully account for is refused, never passed on. */
 function unreadable(reason: string): Error {
@@ -284,22 +294,86 @@ interface WorkbookCounts {
   mergedRanges: number
 }
 
+/** Each value an attribute is given in one tag, as written (entities are not decoded). */
+function attributeValues(tag: string, pattern: RegExp): string[] {
+  return Array.from(tag.matchAll(pattern), ([, double, single]) => double ?? single ?? '')
+}
+
+function isSheetRow(value: string): boolean {
+  return /^\d{1,7}$/.test(value) && Number(value) >= 1 && Number(value) <= MAX_SHEET_ROW
+}
+
+function isSheetColumn(value: string): boolean {
+  return /^\d{1,5}$/.test(value) && Number(value) >= 1 && Number(value) <= MAX_SHEET_COLUMN
+}
+
+/** "B7" inside the sheet -> its column and row; null for anything else. */
+function cellIndex(address: string): { column: number; row: number } | null {
+  const match = CELL_ADDRESS.exec(address)
+  if (!match) return null
+  const [, letters = '', row = ''] = match
+  const column = columnNumber(letters)
+  return column <= MAX_SHEET_COLUMN && isSheetRow(row) ? { column, row: Number(row) } : null
+}
+
+/** "A1" or "A1:B2" inside the sheet -> the cells it covers; null for anything else. */
+function rangeCells(ref: string): number | null {
+  const [first = '', last = first, ...extra] = ref.split(':')
+  const start = cellIndex(first)
+  const end = cellIndex(last)
+  if (!start || !end || extra.length > 0) return null
+  return (Math.abs(end.column - start.column) + 1) * (Math.abs(end.row - start.row) + 1)
+}
+
 /**
- * Adds what ExcelJS turns into one object each in a sheet part: rows, cells
- * and every cell a merged range covers. Stops counting cells once past the
- * limit; refuses a row index outside a sheet and too many merged ranges.
+ * Adds what ExcelJS turns into one object each in a sheet part: rows, cells,
+ * the columns up to the last one a cell is in, and every cell a merged range
+ * covers. Stops counting cells once past the limit. Refuses every index
+ * ExcelJS allocates from that it cannot read or that lies outside a sheet
+ * (row numbers, cell references, column ranges, the dimension, merged ranges)
+ * and too many merged ranges.
  */
 function countSheetPart(xml: string, limits: typeof XLSX_LIMITS, counted: WorkbookCounts): WorkbookCounts {
   let { cells, mergedRanges } = counted
-  for (const _tag of xml.matchAll(ROW_OR_CELL_TAG)) {
+  for (const [tag] of xml.matchAll(ROW_TAG)) {
     cells += 1
     if (cells > limits.cells) return { cells, mergedRanges }
-  }
-  for (const [, row = ''] of xml.matchAll(ROW_INDEX)) {
-    if (!/^\d{1,7}$/.test(row) || Number(row) > MAX_SHEET_ROW) {
-      throw unreadable('a row number is outside the sheet')
+    // ExcelJS indexes its rows by r, read with parseInt (which drops trailing junk).
+    const numbers = attributeValues(tag, R_ATTRIBUTE)
+    if (!tag.endsWith('>') || numbers.length !== 1 || !isSheetRow(numbers[0] ?? '')) {
+      throw unreadable('a row number is missing or outside the sheet')
     }
   }
+  let lastColumn = 0
+  for (const [tag] of xml.matchAll(CELL_TAG)) {
+    cells += 1
+    if (cells > limits.cells) return { cells, mergedRanges }
+    // A cell without r is the column after the one before it (ExcelJS stops past XFD).
+    const refs = attributeValues(tag, R_ATTRIBUTE)
+    const cell = refs.length === 1 ? cellIndex(refs[0] ?? '') : null
+    if (!tag.endsWith('>') || refs.length > 1 || (refs.length === 1 && !cell)) {
+      throw unreadable('a cell reference is outside the sheet')
+    }
+    lastColumn = Math.max(lastColumn, cell?.column ?? 0)
+  }
+  // ExcelJS creates every column up to the last one a cell is in.
+  cells += lastColumn
+  // Column definitions and the dimension are not parsed (IGNORED_SHEET_NODES);
+  // they are checked anyway, so no future parse can walk an absurd range.
+  for (const [tag] of xml.matchAll(COLUMN_TAG)) {
+    const min = attributeValues(tag, MIN_ATTRIBUTE)
+    const max = attributeValues(tag, MAX_ATTRIBUTE)
+    if (!tag.endsWith('>') || min.length !== 1 || max.length !== 1 || ![...min, ...max].every(isSheetColumn)) {
+      throw unreadable('a column range is outside the sheet')
+    }
+  }
+  for (const [tag] of xml.matchAll(DIMENSION_TAG)) {
+    const refs = attributeValues(tag, REF_ATTRIBUTE)
+    if (!tag.endsWith('>') || refs.length !== 1 || rangeCells(refs[0] ?? '') === null) {
+      throw unreadable('the sheet dimension is outside the sheet')
+    }
+  }
+  if (cells > limits.cells) return { cells, mergedRanges }
   for (let at = xml.indexOf('mergeCell'); at >= 0; at = xml.indexOf('mergeCell', at + 9)) {
     // An opening <mergeCell> tag only: not <mergeCells>, a closing tag or text.
     const isTag =
@@ -315,13 +389,10 @@ function countSheetPart(xml: string, limits: typeof XLSX_LIMITS, counted: Workbo
     // read differently is refused.
     const close = xml.indexOf('>', at)
     const attributes = close < 0 || close - at > MERGE_TAG_MAX_LENGTH ? '' : xml.slice(at + 9, close)
-    const refs = [...attributes.matchAll(REF_ATTRIBUTE)]
-    const range = refs.length === 1 ? CELL_RANGE.exec(refs[0]![1] ?? refs[0]![2] ?? '') : null
-    if (!range) throw unreadable('a merged range is not a plain cell range')
-    const [, startColumn = '', startRow, endColumn = startColumn, endRow = startRow] = range
-    cells +=
-      (Math.abs(columnNumber(endColumn) - columnNumber(startColumn)) + 1) *
-      (Math.abs(Number(endRow) - Number(startRow)) + 1)
+    const refs = attributeValues(attributes, REF_ATTRIBUTE)
+    const area = refs.length === 1 ? rangeCells(refs[0] ?? '') : null
+    if (area === null) throw unreadable('a merged range is not a plain cell range inside the sheet')
+    cells += area
     if (cells > limits.cells) break
   }
   return { cells, mergedRanges }
@@ -329,15 +400,16 @@ function countSheetPart(xml: string, limits: typeof XLSX_LIMITS, counted: Workbo
 
 /**
  * Zip-bomb and size guard: a cheap, linear first filter in front of the
- * workbook reader (ExcelJS, which reads the zip with JSZip, in a worker with
+ * workbook reader (ExcelJS, which reads the zip with JSZip, in a child process with
  * its own heap and time limits). It fails closed on the zip: it must be
  * exactly what JSZip will read (one directory that ends where its end record
  * starts, the declared number of entries, stored or deflated data inside the
  * file), and each entry is inflated once with its declared size as the output
  * cap. It also refuses what is cheap to see in the XML: too much XML, too
- * many rows, cells or merged ranges over the workbook, and a sheet id or row number that would
- * make ExcelJS walk a huge index range. It does not try to model everything
- * ExcelJS expands; the reader's limits cover the rest.
+ * many rows, cells or merged ranges over the workbook, and any sheet id, row
+ * number, cell reference, column range, dimension or merged range it cannot
+ * read or that would make ExcelJS walk or fill a huge index range. It does not
+ * try to model everything ExcelJS expands; the reader's limits cover the rest.
  */
 export function assertXlsxWithinLimits(buffer: Buffer, limits = XLSX_LIMITS): void {
   const end = buffer.lastIndexOf(ZIP_END)
@@ -401,7 +473,8 @@ export function assertXlsxWithinLimits(buffer: Buffer, limits = XLSX_LIMITS): vo
     const isSheet = content.includes('sheetData') || content.includes('mergeCell')
     if (!isSheet && !content.includes('sheetId')) continue
     const xml = content.toString('latin1')
-    for (const [, id = ''] of xml.matchAll(SHEET_ID)) {
+    for (const [, double, single] of xml.matchAll(SHEET_ID)) {
+      const id = double ?? single ?? ''
       if (!/^\d{1,5}$/.test(id) || Number(id) > MAX_SHEET_ID) throw unreadable('a sheet id is out of range')
     }
     if (!isSheet) continue
@@ -417,7 +490,7 @@ export function assertXlsxWithinLimits(buffer: Buffer, limits = XLSX_LIMITS): vo
 
 /**
  * The chosen sheet's rows 1..lastRow as plain values, read by ExcelJS in a
- * worker under the reader's heap and time limits. The sheet's own limits are
+ * child process under the reader's heap and time limits. The sheet's own limits are
  * checked there, on that sheet only: at most TAKEOFF_MAX_COLUMNS columns,
  * nothing below lastRow, and a bounded amount of text. Null when the workbook
  * has no such sheet.

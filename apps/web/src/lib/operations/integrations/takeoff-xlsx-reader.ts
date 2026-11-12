@@ -1,9 +1,9 @@
+import { fork } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
-import { Worker } from 'node:worker_threads'
-// The worker thread requires exceljs at run time. This import keeps the
+// The child process requires exceljs at run time. This import keeps the
 // package (an external, see next.config.ts) in the files traced for every
-// route that reads a workbook; nothing on this thread calls it.
+// route that reads a workbook; nothing in this process calls it.
 import 'exceljs'
 
 /** A file over the parser's size limits; the message is safe to show. */
@@ -16,14 +16,14 @@ export class TakeoffBusyError extends Error {
   }
 }
 
-// One workbook is read in one worker under these limits. The heap cap is what
-// ExcelJS may hold (about 500 bytes for each row or cell of every sheet); the
-// wall clock covers anything that makes it spin. A normal estimate needs a few
-// megabytes and well under a second.
+// One workbook is read in one child process under these limits. The heap cap
+// is what ExcelJS may hold (about 500 bytes for each row or cell of every
+// sheet); the wall clock covers anything that makes it spin. A normal estimate
+// needs a few megabytes and well under a second.
 export const XLSX_READER_LIMITS = {
   heapMb: 512,
   wallClockMs: 15_000,
-  // Workers at once in this process: bounds memory at concurrent x heapMb.
+  // Reads at once in this process: bounds memory at concurrent x heapMb.
   concurrent: 2,
 }
 
@@ -31,6 +31,9 @@ export const XLSX_READER_LIMITS = {
 // `next start`, the standalone server and vitest. next.config.ts lists the
 // same path in outputFileTracingIncludes so a deployed function has the file.
 const WORKER_FILE = 'src/lib/operations/integrations/takeoff-xlsx-worker.cjs'
+// The end of the child's stderr kept to tell a heap-limit crash from others.
+const STDERR_TAIL = 4_096
+const OUT_OF_MEMORY = /heap out of memory|Reached heap limit/i
 
 export interface XlsxSheetRequest {
   /** Worksheet name; the first sheet when absent. */
@@ -53,15 +56,19 @@ export type XlsxSheetRead =
   | { sheets: string[]; sheet: string; grid: unknown[][]; hiddenRows: number[] }
 
 type WorkerReply = XlsxSheetRead | { error: string }
+type Outcome = { ok: true; read: XlsxSheetRead } | { ok: false; error: Error }
 
+// Each slot is one child process that may still be running.
 let activeReads = 0
 
 /**
- * Reads one sheet in a worker thread and resolves with plain values. Rejects
- * with TakeoffTooLargeError when the worker hits the heap cap or the wall
- * clock (it is terminated either way, and the request thread never blocks),
+ * Reads one sheet in a child process and resolves with plain values. A thread
+ * cannot be stopped while V8 runs a builtin loop, so the reader is a process
+ * that is killed (SIGKILL) at the wall clock; its heap is capped with
+ * --max-old-space-size. Rejects with TakeoffTooLargeError at either limit,
  * with TakeoffBusyError when too many reads are running, and with a plain
- * Error when ExcelJS cannot read the workbook.
+ * Error when ExcelJS cannot read the workbook or the process cannot start.
+ * The promise settles, and the slot is released, only once the child is gone.
  */
 export function readXlsxSheet(
   bytes: Uint8Array,
@@ -76,50 +83,90 @@ export function readXlsxSheet(
 
   activeReads += 1
   return new Promise<XlsxSheetRead>((resolve, reject) => {
-    const worker = new Worker(workerFile, {
-      workerData: { ...request, bytes },
-      resourceLimits: { maxOldGenerationSizeMb: limits.heapMb },
-    })
-    let settled = false
-    // settle only runs from the timer or a worker event, after timer is set.
-    const settle = (finish: () => void) => {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
+    let released = false
+    const release = (outcome: Outcome) => {
+      if (released) return
+      released = true
       activeReads -= 1
-      void worker.terminate()
-      finish()
+      if (outcome.ok) resolve(outcome.read)
+      else reject(outcome.error)
+    }
+
+    let child: ReturnType<typeof fork>
+    try {
+      child = fork(workerFile, [], {
+        execArgv: [`--max-old-space-size=${limits.heapMb}`],
+        // Structured clone, so dates and buffers cross as they are.
+        serialization: 'advanced',
+        // The parser of an untrusted file gets none of this server's secrets.
+        env: { NODE_ENV: process.env.NODE_ENV },
+        stdio: ['ignore', 'ignore', 'pipe', 'ipc'],
+      })
+    } catch (error) {
+      release({ ok: false, error: error instanceof Error ? error : new Error(String(error)) })
+      return
+    }
+
+    // The first reason the read ended; the child is killed at once either way.
+    let outcome: Outcome | undefined
+    const stop = (reason: Outcome) => {
+      outcome ??= reason
+      child.kill('SIGKILL')
     }
     const timer = setTimeout(() => {
-      settle(() =>
-        reject(
-          new TakeoffTooLargeError(
-            `The workbook took longer than ${Math.round(limits.wallClockMs / 1000)} seconds to read. Copy the BOQ sheet to a new workbook and try again.`,
-          ),
+      stop({
+        ok: false,
+        error: new TakeoffTooLargeError(
+          `The workbook took longer than ${Math.round(limits.wallClockMs / 1000)} seconds to read. Copy the BOQ sheet to a new workbook and try again.`,
         ),
-      )
+      })
     }, limits.wallClockMs)
 
-    worker.once('message', (reply: WorkerReply) => {
-      settle(() =>
+    let stderr = ''
+    child.stderr?.on('data', (chunk: Buffer) => {
+      stderr = (stderr + chunk.toString('utf8')).slice(-STDERR_TAIL)
+    })
+    child.once('message', (reply: WorkerReply) => {
+      stop(
         'error' in reply
-          ? reject(new Error(`The workbook could not be read: ${reply.error}`))
-          : resolve(reply),
+          ? { ok: false, error: new Error(`The workbook could not be read: ${reply.error}`) }
+          : { ok: true, read: reply },
       )
     })
-    worker.once('error', (error: NodeJS.ErrnoException) => {
-      settle(() =>
-        reject(
-          error.code === 'ERR_WORKER_OUT_OF_MEMORY'
-            ? new TakeoffTooLargeError(
-                `The workbook needs more than ${limits.heapMb} MB of memory to read. Copy the BOQ sheet to a new workbook and try again.`,
-              )
-            : error,
-        ),
+    // A process that never started emits 'error' and no exit; one that did
+    // start always ends in 'close', after its stderr is drained.
+    child.once('error', (error) => {
+      if (child.pid === undefined) {
+        clearTimeout(timer)
+        release({ ok: false, error })
+      } else {
+        stop({ ok: false, error })
+      }
+    })
+    child.once('close', (code, signal) => {
+      clearTimeout(timer)
+      release(
+        outcome ??
+          (OUT_OF_MEMORY.test(stderr)
+            ? {
+                ok: false,
+                error: new TakeoffTooLargeError(
+                  `The workbook needs more than ${limits.heapMb} MB of memory to read. Copy the BOQ sheet to a new workbook and try again.`,
+                ),
+              }
+            : {
+                ok: false,
+                error: new Error(`The workbook reader stopped unexpectedly (exit ${code ?? signal}).`),
+              }),
       )
     })
-    worker.once('exit', (code) => {
-      settle(() => reject(new Error(`The workbook reader stopped unexpectedly (exit ${code}).`)))
-    })
+
+    try {
+      child.send({ ...request, bytes }, (error) => {
+        if (error) stop({ ok: false, error })
+      })
+    } catch (error) {
+      stop({ ok: false, error: error instanceof Error ? error : new Error(String(error)) })
+    }
   })
 }

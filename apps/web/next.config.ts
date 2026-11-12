@@ -30,7 +30,7 @@ const config: NextConfig = {
     process.env.NEXT_OUTPUT_MODE === 'standalone' ? 'standalone' : undefined,
   transpilePackages: ['@third-code-erp/auth', '@third-code-erp/database', '@third-code-erp/shared-types'],
   outputFileTracingRoot: path.join(__dirname, '../../'),
-  // The workbook reader starts this file as a worker thread by path
+  // The workbook reader starts this file as a child process by path
   // (src/lib/operations/integrations/takeoff-xlsx-reader.ts). No module
   // imports it, so the tracer must be told to ship it with the import route.
   outputFileTracingIncludes: {

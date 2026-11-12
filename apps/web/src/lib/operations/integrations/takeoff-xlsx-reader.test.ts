@@ -1,8 +1,9 @@
-// Round 3 security review: every attack file the reviewers ran is built here
-// and must be refused by the first filter or stopped by the reader's limits,
-// with the request thread still responsive. Real workbooks must still import.
+// Round 3 and 4 security reviews: every attack file the reviewers ran is built
+// here and must be refused by the first filter or stopped by the reader's
+// limits, with the server process still responsive. Real workbooks must still import.
+import type { ChildProcess } from 'node:child_process'
 import { createRequire } from 'node:module'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   assertXlsxWithinLimits,
   parseStructuredTakeoff,
@@ -10,6 +11,25 @@ import {
   TakeoffTooLargeError,
 } from './takeoff'
 import { readXlsxSheet, XLSX_READER_LIMITS, type XlsxSheetRequest } from './takeoff-xlsx-reader'
+
+// fork as the reader calls it, except that a test can make the next calls
+// throw (a spawn that fails synchronously) and see each child it started.
+const spawn = vi.hoisted(() => ({ failNext: 0, children: [] as ChildProcess[] }))
+vi.mock('node:child_process', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:child_process')>()
+  return {
+    ...actual,
+    fork: (...args: Parameters<typeof actual.fork>) => {
+      if (spawn.failNext > 0) {
+        spawn.failNext -= 1
+        throw new Error('spawn EAGAIN')
+      }
+      const child = actual.fork(...args)
+      spawn.children.push(child)
+      return child
+    },
+  }
+})
 
 const require = createRequire(import.meta.url)
 const JSZip = createRequire(require.resolve('exceljs'))('jszip') as {
@@ -307,7 +327,91 @@ describe('xlsx first filter (round 3 attack files)', () => {
   }, SLOW)
 })
 
-describe('xlsx reader worker', () => {
+describe('xlsx first filter (round 4: every index ExcelJS allocates from)', () => {
+  // Distinct attributes, so the tag is well-formed XML: about 2 KB before r.
+  const padding = Array.from({ length: 100 }, (_, index) => `a${index}="${'0'.repeat(10)}"`).join(' ')
+  const sheetWith = (rows: string, after = '') => xlsx([{ xml: sheetXml(HEADER + rows, after) }])
+
+  it('reads a row number however far into the tag it is (S4-1)', async () => {
+    // The old scan looked 512 characters into a <row> tag; this r was never checked.
+    const padded = await sheetWith(`<row ${padding} r="4000000000"><c r="A3"><v>1</v></c></row>`)
+    expect(() => assertXlsxWithinLimits(padded)).toThrow('row number')
+    await expect(parseStructuredTakeoff(padded, 'a.xlsx', MAPPING)).rejects.toThrow('row number')
+
+    // The same padding on a row inside the sheet is an ordinary row.
+    const ordinary = await sheetWith(`<row ${padding} r="2"><c r="A2" t="inlineStr"><is><t>Pipe</t></is></c><c r="B2"><v>3</v></c><c r="C2" t="inlineStr"><is><t>m</t></is></c></row>`)
+    await expect(parseStructuredTakeoff(ordinary, 'a.xlsx', MAPPING)).resolves.toMatchObject({
+      rows: [{ description: 'Pipe', quantity: 3, unit: 'm' }],
+    })
+  }, SLOW)
+
+  it('refuses a row whose number it cannot read', async () => {
+    for (const row of [
+      '<row><c r="A2"><v>1</v></c></row>', // ExcelJS cannot place it either
+      '<row r="2" r="4000000000"></row>',
+      '<row r="2abc"></row>', // parseInt would read 2
+      '<row r="&#52;000000000"></row>', // an entity decodes to digits
+      '<row r="0"></row>',
+      `<row a="x>" r="4000000000"></row>`, // the > ends what the scan can read
+    ]) {
+      const file = await sheetWith(row)
+      expect(() => assertXlsxWithinLimits(file), row).toThrow('row number')
+    }
+  })
+
+  it('refuses a cell reference, column range, dimension or merged range outside the sheet (S4-1)', async () => {
+    const refused: Array<[string, Promise<Buffer>]> = [
+      ['cell reference', sheetWith('<row r="2"><c r="A2000000"><v>1</v></c></row>')],
+      ['cell reference', sheetWith('<row r="2"><c r="XFE2"><v>1</v></c></row>')],
+      ['cell reference', sheetWith(`<row r="2"><c ${padding} r="a2"><v>1</v></c></row>`)],
+      ['column range', xlsx([{ xml: `<worksheet ${NS}><cols><col min="1" max="4000000000"/></cols><sheetData>${HEADER}</sheetData></worksheet>` }])],
+      ['column range', xlsx([{ xml: `<worksheet ${NS}><cols><col min="1"/></cols><sheetData>${HEADER}</sheetData></worksheet>` }])],
+      ['sheet dimension', xlsx([{ xml: `<worksheet ${NS}><dimension ref="A1:A4000000000"/><sheetData>${HEADER}</sheetData></worksheet>` }])],
+      ['sheet dimension', xlsx([{ xml: `<worksheet ${NS}><dimension ${padding} ref="A1:ZZZ1"/><sheetData>${HEADER}</sheetData></worksheet>` }])],
+      ['merged range', sheetWith(PIPE, '<mergeCells count="1"><mergeCell ref="A2:A2000000"/></mergeCells>')],
+      ['merged range', sheetWith(PIPE, '<mergeCells count="1"><mergeCell ref="XFE1:XFE1"/></mergeCells>')],
+    ]
+    for (const [reason, file] of refused) {
+      const buffer = await file
+      expect(() => assertXlsxWithinLimits(buffer), reason).toThrow(reason)
+    }
+
+    // What Excel writes is inside the sheet, up to its last row and column.
+    const edges = await xlsx([
+      {
+        xml: `<worksheet ${NS}><dimension ref="A1:XFD1048576"/><cols><col min="1" max="16384" width="9"/></cols><sheetData>${HEADER}${PIPE}<row r="1048576"><c r="XFD1048576"><v>1</v></c></row></sheetData></worksheet>`,
+      },
+    ])
+    expect(() => assertXlsxWithinLimits(edges)).not.toThrow()
+  })
+
+  it('counts the columns ExcelJS creates up to the last cell of a sheet', async () => {
+    // 50 sheets with one cell in column XFD: 16,384 columns each, 819,200 in all.
+    const far = { xml: sheetXml(HEADER + '<row r="2"><c r="XFD2"><v>1</v></c></row>') }
+    const wide = await xlsx(Array.from({ length: 50 }, () => far))
+    expect(() => assertXlsxWithinLimits(wide)).toThrow(TakeoffTooLargeError)
+  })
+
+  it('reads a sheet id however long its value is (S4-1)', async () => {
+    // 40 characters: the old 32-character window skipped the check.
+    const padded = await xlsx([{ xml: sheetXml(HEADER + PIPE) }], {
+      'xl/other.xml': `<sheet name="x" sheetId="${'0'.repeat(31)}100000000"/>`,
+    })
+    expect(() => assertXlsxWithinLimits(padded)).toThrow('sheet id')
+  })
+
+  it('scans unclosed row and cell tags in linear time and refuses them', async () => {
+    const rows = await xlsx([{ xml: `<worksheet ${NS}><sheetData>${'<row r="1" '.repeat(200_000)}` }])
+    const cells = await xlsx([{ xml: `<worksheet ${NS}><sheetData><row r="1">${'<c r="A1" '.repeat(200_000)}` }])
+
+    const started = Date.now()
+    expect(() => assertXlsxWithinLimits(rows)).toThrow('row number')
+    expect(() => assertXlsxWithinLimits(cells)).toThrow('cell reference')
+    expect(Date.now() - started).toBeLessThan(2_000)
+  }, SLOW)
+})
+
+describe('xlsx reader process', () => {
   it('reads a rich-text shared string used by every row without rejoining it (S3-H2)', async () => {
     // One shared string of 100,000 runs: the old code joined all of them about
     // 35 times a row (16 s for an 11 KB file).
@@ -379,5 +483,38 @@ describe('xlsx reader worker', () => {
     const broken = await xlsx([{ xml: '<worksheet><sheetData><row r="1"><c r="A1"><v>1</v></row>' }])
 
     await expect(readXlsxSheet(broken, REQUEST)).rejects.toThrow('The workbook could not be read')
+  }, SLOW)
+
+  it('kills a spinning reader at the wall clock and frees its slot once it is gone (S4-1)', async () => {
+    // The reviewers' file, past the first filter on purpose: ExcelJS walks a
+    // sparse array of 4,000,000,000 rows inside a V8 builtin no thread can stop.
+    const limits = { ...XLSX_READER_LIMITS, concurrent: 1, wallClockMs: 2_000 }
+    const spinning = await xlsx([
+      { xml: sheetXml(`${HEADER}<row r="4000000000"><c r="A4"><v>1</v></c></row>`) },
+    ])
+    const ordinary = await xlsx([{ xml: sheetXml(HEADER + PIPE) }])
+
+    const read = readXlsxSheet(spinning, REQUEST, limits)
+    const child = spawn.children.at(-1)
+    await expect(read).rejects.toThrow(
+      new TakeoffTooLargeError(
+        'The workbook took longer than 2 seconds to read. Copy the BOQ sheet to a new workbook and try again.',
+      ),
+    )
+    // Settled only after the process ended on SIGKILL, so no core is left spinning.
+    expect(child?.signalCode).toBe('SIGKILL')
+    expect(child?.exitCode).toBeNull()
+    await expect(readXlsxSheet(ordinary, REQUEST, limits)).resolves.toMatchObject({ sheet: 'S1' })
+  }, SLOW)
+
+  it('frees the slot when the reader process fails to start (S4-1)', async () => {
+    // Three spawns that throw used to leave the next valid read answered 503.
+    const ordinary = await xlsx([{ xml: sheetXml(HEADER + PIPE) }])
+    spawn.failNext = 3
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await expect(readXlsxSheet(ordinary, REQUEST)).rejects.toThrow('spawn EAGAIN')
+    }
+
+    await expect(readXlsxSheet(ordinary, REQUEST)).resolves.toMatchObject({ sheets: ['S1'], sheet: 'S1' })
   }, SLOW)
 })
