@@ -258,20 +258,15 @@ function columnNumber(letters: string): number {
 const ZIP_END = Buffer.from([0x50, 0x4b, 0x05, 0x06])
 const ZIP_DIRECTORY_ENTRY = 0x02014b50
 const ZIP_LOCAL_ENTRY = 0x04034b50
-// Every scan of a part is linear and has no character window. A tag is read
-// from its name one attribute at a time, in order, to its `>`, and refused
-// unless that consumes it exactly. A value may not hold `<` or `>`: XML
-// forbids the first, Excel escapes the second, and a `>` inside a value let a
-// decoy attribute stand in for the real one (S5-2). So a read never passes the
-// next `<`, and the tags of a part are read in one pass between them.
-const tagStart = (name: string) => new RegExp(`<(?:\\w{1,32}:)?${name}(?=[\\s/>])`, 'g')
+// A sheet part is scanned once, linearly and with no character window, for
+// every tag that carries an index. A tag is read from its name one attribute
+// at a time, in order, to its `>`, and refused unless that consumes it
+// exactly. A value may not hold `<` or `>`: XML forbids the first, Excel
+// escapes the second, and a `>` inside a value let a decoy attribute stand in
+// for the real one (S5-2). So a read never passes the next `<`.
+const SHEET_TAG = /<(?:\w{1,32}:)?(row|c|col|dimension|mergeCell)(?=[\s/>])/g
 const TAG_ATTRIBUTE = /[ \t\r\n]+([^ \t\r\n=/<>"']+)[ \t\r\n]*=[ \t\r\n]*(?:"([^"<>]*)"|'([^'<>]*)')/y
 const TAG_END = /[ \t\r\n]*\/?>/y
-const ROW_TAG = tagStart('row')
-const CELL_TAG = tagStart('c')
-const COLUMN_TAG = tagStart('col')
-const DIMENSION_TAG = tagStart('dimension')
-const MERGE_TAG = tagStart('mergeCell')
 const SHEET_ID = /\bsheetId\s*=\s*(?:"([^"]*)"|'([^']*)')/g
 const CELL_ADDRESS = /^\$?([A-Z]{1,3})\$?(\d{1,7})$/
 // ExcelJS keeps sheets, rows and columns in arrays indexed by these numbers
@@ -285,12 +280,6 @@ const MAX_SHEET_COLUMN = 16_384
 function unreadable(reason: string): Error {
   return new Error(`Not a readable .xlsx workbook: ${reason}.`)
 }
-
-const ROW_UNREADABLE = 'a row number is missing or outside the sheet'
-const CELL_UNREADABLE = 'a cell reference is outside the sheet'
-const COLUMN_UNREADABLE = 'a column range is outside the sheet'
-const DIMENSION_UNREADABLE = 'the sheet dimension is outside the sheet'
-const MERGE_UNREADABLE = 'a merged range is not a plain cell range inside the sheet'
 
 /** One entry's bytes, inflated once with its declared size as the output cap. */
 function zipEntryContent(method: number, data: Buffer, size: number): Buffer {
@@ -344,15 +333,6 @@ function tagAttributes(xml: string, from: number): TagAttributes | null {
   }
 }
 
-/** The attributes of every tag the pattern finds; a tag that cannot be read exactly refuses the file. */
-function* readTags(xml: string, pattern: RegExp, reason: string): Generator<TagAttributes> {
-  for (const match of xml.matchAll(pattern)) {
-    const attributes = tagAttributes(xml, match.index + match[0].length)
-    if (!attributes) throw unreadable(reason)
-    yield attributes
-  }
-}
-
 /** Each value one attribute is given in a tag. */
 function valuesOf(attributes: TagAttributes, name: string): string[] {
   return attributes.filter(([key]) => key === name).map(([, value]) => value)
@@ -384,64 +364,82 @@ function rangeCells(ref: string): number | null {
   return (Math.abs(end.column - start.column) + 1) * (Math.abs(end.row - start.row) + 1)
 }
 
+/** Why a tag of this name is refused. */
+function unreadableTag(name: string): Error {
+  switch (name) {
+    case 'row':
+      return unreadable('a row number is missing or outside the sheet')
+    case 'c':
+      return unreadable('a cell reference is outside the sheet')
+    case 'col':
+      return unreadable('a column range is outside the sheet')
+    case 'dimension':
+      return unreadable('the sheet dimension is outside the sheet')
+    default:
+      return unreadable('a merged range is not a plain cell range inside the sheet')
+  }
+}
+
+/**
+ * What one index tag makes ExcelJS build: its objects (a row, a cell, every
+ * cell a merged range covers) and the column it reaches. Null when an index
+ * is missing, repeated, unreadable or outside the sheet.
+ */
+function tagObjects(name: string, attributes: TagAttributes): { objects: number; column: number } | null {
+  if (name === 'row') {
+    // ExcelJS indexes its rows by r, read with parseInt (which drops trailing junk).
+    const numbers = valuesOf(attributes, 'r')
+    return numbers.length === 1 && isSheetRow(numbers[0] ?? '') ? { objects: 1, column: 0 } : null
+  }
+  if (name === 'c') {
+    // A cell without r is the column after the one before it (ExcelJS stops past XFD).
+    const refs = valuesOf(attributes, 'r')
+    if (refs.length === 0) return { objects: 1, column: 0 }
+    const cell = refs.length === 1 ? cellIndex(refs[0] ?? '') : null
+    return cell ? { objects: 1, column: cell.column } : null
+  }
+  if (name === 'col') {
+    // Not parsed (IGNORED_SHEET_NODES); checked so no future parse walks an absurd range.
+    const min = valuesOf(attributes, 'min')
+    const max = valuesOf(attributes, 'max')
+    return min.length === 1 && max.length === 1 && [...min, ...max].every(isSheetColumn)
+      ? { objects: 0, column: 0 }
+      : null
+  }
+  // <dimension> (not parsed, checked as <col>) and <mergeCell>: one plain range inside the sheet.
+  const refs = valuesOf(attributes, 'ref')
+  const area = refs.length === 1 ? rangeCells(refs[0] ?? '') : null
+  return area === null ? null : { objects: name === 'mergeCell' ? area : 0, column: 0 }
+}
+
 /**
  * Adds what ExcelJS turns into one object each in a sheet part: rows, cells,
  * the columns up to the last one a cell is in, and every cell a merged range
  * covers. Stops counting cells once past the limit. Refuses every index
  * ExcelJS allocates from that it cannot read or that lies outside a sheet
  * (row numbers, cell references, column ranges, the dimension, merged ranges)
- * and too many merged ranges.
+ * and too many merged ranges. One pass over the part.
  */
 function countSheetPart(xml: string, limits: typeof XLSX_LIMITS, counted: WorkbookCounts): WorkbookCounts {
   let { cells, mergedRanges } = counted
-  for (const attributes of readTags(xml, ROW_TAG, ROW_UNREADABLE)) {
-    cells += 1
-    if (cells > limits.cells) return { cells, mergedRanges }
-    // ExcelJS indexes its rows by r, read with parseInt (which drops trailing junk).
-    const numbers = valuesOf(attributes, 'r')
-    if (numbers.length !== 1 || !isSheetRow(numbers[0] ?? '')) throw unreadable(ROW_UNREADABLE)
-  }
   let lastColumn = 0
-  for (const attributes of readTags(xml, CELL_TAG, CELL_UNREADABLE)) {
-    cells += 1
-    if (cells > limits.cells) return { cells, mergedRanges }
-    // A cell without r is the column after the one before it (ExcelJS stops past XFD).
-    const refs = valuesOf(attributes, 'r')
-    const cell = refs.length === 1 ? cellIndex(refs[0] ?? '') : null
-    if (refs.length > 1 || (refs.length === 1 && !cell)) throw unreadable(CELL_UNREADABLE)
-    lastColumn = Math.max(lastColumn, cell?.column ?? 0)
-  }
-  // ExcelJS creates every column up to the last one a cell is in.
-  cells += lastColumn
-  // Column definitions and the dimension are not parsed (IGNORED_SHEET_NODES);
-  // they are checked anyway, so no future parse can walk an absurd range.
-  for (const attributes of readTags(xml, COLUMN_TAG, COLUMN_UNREADABLE)) {
-    const min = valuesOf(attributes, 'min')
-    const max = valuesOf(attributes, 'max')
-    if (min.length !== 1 || max.length !== 1 || ![...min, ...max].every(isSheetColumn)) {
-      throw unreadable(COLUMN_UNREADABLE)
-    }
-  }
-  for (const attributes of readTags(xml, DIMENSION_TAG, DIMENSION_UNREADABLE)) {
-    const refs = valuesOf(attributes, 'ref')
-    if (refs.length !== 1 || rangeCells(refs[0] ?? '') === null) throw unreadable(DIMENSION_UNREADABLE)
-  }
-  if (cells > limits.cells) return { cells, mergedRanges }
-  for (const attributes of readTags(xml, MERGE_TAG, MERGE_UNREADABLE)) {
-    mergedRanges += 1
+  for (const match of xml.matchAll(SHEET_TAG)) {
+    const name = match[1] ?? ''
+    const attributes = tagAttributes(xml, match.index + match[0].length)
+    const built = attributes ? tagObjects(name, attributes) : null
+    if (!built) throw unreadableTag(name)
+    if (name === 'mergeCell') mergedRanges += 1
     if (mergedRanges > limits.mergedRanges) {
       throw new TakeoffTooLargeError(
         `The workbook has more than ${limits.mergedRanges.toLocaleString('en-PH')} merged ranges. Unmerge the cells (or copy the BOQ to a new workbook) and try again.`,
       )
     }
-    // Exactly one plain ref ("A1:B2"): anything ExcelJS might read differently is refused.
-    const refs = valuesOf(attributes, 'ref')
-    const area = refs.length === 1 ? rangeCells(refs[0] ?? '') : null
-    if (area === null) throw unreadable(MERGE_UNREADABLE)
-    cells += area
+    cells += built.objects
+    lastColumn = Math.max(lastColumn, built.column)
     if (cells > limits.cells) break
   }
-  return { cells, mergedRanges }
+  // ExcelJS creates every column up to the last one a cell is in.
+  return { cells: cells + lastColumn, mergedRanges }
 }
 
 /**
