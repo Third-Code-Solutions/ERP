@@ -223,6 +223,16 @@ describe('generic takeoff import Core authority', () => {
       rowCount: 1,
       headerRow: 2,
       skippedRows: 1,
+      // The Total row is not imported, and the user sees which amount was left out.
+      skippedAmountRows: [
+        {
+          sheet: 'Estimate',
+          row: 4,
+          label: 'Total',
+          amount: '1,600.00',
+          reason: expect.stringContaining('Total row'),
+        },
+      ],
       sectionRows: 0,
       workbook: { sheets: ['Notes', 'Estimate'], sheet: 'Estimate' },
       warnings: [

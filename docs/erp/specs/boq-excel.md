@@ -1,6 +1,7 @@
 # Spec: BOQ Excel import and export (`boq-export`)
 
-Status: building (2026-11-05; review fixes 2026-11-10, 2026-11-11 and 2026-11-12)
+Status: building (2026-11-05; review fixes 2026-11-10, 2026-11-11, 2026-11-12
+and 2026-11-13)
 Depends on: takeoff import (WO-08), D-5 exact quantities, DUPA (WO-07).
 Feature flag: none. Import extends an existing path; export is read-only.
 **No migration.** Every column used already exists (`unit_rate_source` already
@@ -105,13 +106,23 @@ that says what to do; a file the guard cannot fully account for is 422
 3. **Rows.** Fully blank rows are skipped. A total row is skipped: its
    description matches `^(grand\s+|sub[\s-]*)?total\b` (case-insensitive:
    Total, Subtotal, Sub-total, Sub Total, Grand Total, Total Cost) **and its
-   unit is blank**, so "Total station survey | 1 | lot" imports as a line. Skipped
-   rows are counted (`skippedRows`); a skipped total row that carries a
-   quantity is also listed in the preview (`TOTAL_ROW_SKIPPED`), because it
-   may be a real line with its unit missing. With `section_headers` on
+   unit is blank**, so "Total station survey | 1 | lot" imports as a line.
+   An amount-only row (an amount above zero, a blank quantity and no rate)
+   is skipped too unless its unit is a lump-sum unit (A.5): TOTALS, VAT 12%,
+   Overall Total, Contract Price, or a total label in another column with a
+   blank description, never become priced lines (owner decision 2026-11-13).
+   Skipped rows are counted (`skippedRows`). Every skipped row that carries
+   an amount above zero is listed in the preview (`skippedAmountRows`: sheet,
+   or null for CSV; row number; label, the description or else the row's
+   first text, cut at 80 characters; the amount as an exact peso decimal such
+   as `85,000.00`; the reason), and the wizard shows each one, so no total
+   leaves the import unseen. A skipped total row that carries a quantity and
+   no amount is listed as a warning (`TOTAL_ROW_SKIPPED`), because it may be
+   a real line with its unit missing. With `section_headers` on
    (default), a row with no quantity, no unit and blank mapped rate and amount
-   cells is a section header (a row with a rate or an amount is a line, see
-   A.5): it is not imported and its
+   cells is a section header (a row with a rate or an amount is not: it is a
+   line, or an amount-only row skipped as above, see A.5): it is not imported
+   and its
    description (or, when merged from an earlier column, its first text)
    becomes the division of the rows below it until the next header. A
    non-blank division cell wins over the section. A text value merged down
@@ -157,10 +168,35 @@ that says what to do; a file the guard cannot fully account for is 422
      if** `lineTotal(rate, qty, 0)` gives back the amount exactly; otherwise
      the rate is sent as `null`, Core queues `INVALID_UNIT_RATE` for review,
      and the preview says why (`AMOUNT_NOT_EXACT`);
-   - quantity blank: a lump sum, quantity 1 at the amount (`LUMP_SUM`
-     warning); over the rate cap it imports unpriced (`AMOUNT_IGNORED`);
+   - quantity blank and the unit is `ls`, `l.s.` or `lot` (case-insensitive,
+     trimmed): a lump sum, quantity 1 at the amount, the rate being the
+     amount exactly (`LUMP_SUM` warning); over the rate cap it imports
+     unpriced (`AMOUNT_IGNORED`);
+   - quantity blank and any other unit, or none: not a line. The row is
+     skipped and listed in `skippedAmountRows` (A.3), so a summary row never
+     adds to the BOM total;
    - quantity unreadable: unpriced (`AMOUNT_IGNORED`).
    A rate with no quantity is still a line Core queues as `INVALID_QUANTITY`.
+   This rule is applied once, in the Web parser (`classifyRow`); Core never
+   sees the amount, only the rate and quantity Web derived from it.
+
+   *Worked example* (columns Item, Description, Quantity, UOM, Unit Rate,
+   Amount; no rate except on the first row):
+
+   | Row | Sheet row | Result |
+   |---|---|---|
+   | `1, Excavation, 10, cu.m, 1,000.00, 10,000.00` | 2 | line: 10 x 1,000.00 = 10,000.00 |
+   | `2, Mobilization, , ls, , 50,000.00` | 3 | lump sum: 1 x 50,000.00 |
+   | `3, Permits, , LOT, , 12,000.00` | 4 | lump sum: 1 x 12,000.00 |
+   | `4, Bonds, , L.S., , 3,000.50` | 5 | lump sum: 1 x 3,000.50 |
+   | `5, Formwork, , m2, , 8,000.00` | 6 | skipped, listed: amount with no quantity |
+   | `, SUBTOTAL, , , , 83,000.50` | 7 | skipped, listed: total row |
+   | `, VAT 12%, , , , 9,960.06` | 8 | skipped, listed: amount with no quantity |
+   | `, TOTAL, , , , 92,960.56` | 9 | skipped, listed: total row |
+   | `GRAND TOTAL, , , , , 92,960.56` | 10 | skipped, listed: amount with no quantity (label from the Item column) |
+
+   The BOM receives 10,000.00 + 50,000.00 + 12,000.00 + 3,000.50 =
+   75,000.50; none of the five listed amounts is added to it.
 6. **Totals.** Stored BOM totals have one formula, the shared
    `computeBomTotals` (top-level lines, cost without markup, TCV = sum of
    line totals), always computed over every line of the BOM. It runs in the

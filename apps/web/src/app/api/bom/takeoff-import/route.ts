@@ -278,6 +278,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     ...coreResult.data,
     headerRow: parsed.headerRow,
     skippedRows: parsed.skippedRows,
+    skippedAmountRows: parsed.skippedAmountRows,
     sectionRows: parsed.sectionRows,
     warnings: parsed.warnings,
     ...(parsed.workbook ? { workbook: parsed.workbook } : {}),

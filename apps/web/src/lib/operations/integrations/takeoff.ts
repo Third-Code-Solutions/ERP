@@ -69,13 +69,28 @@ export interface TakeoffRowWarning {
   message: string
 }
 
+/** A row with an amount that was skipped instead of becoming a priced line (A.3, A.5). */
+export interface SkippedAmountRow {
+  /** The sheet read (.xlsx); null for CSV. */
+  sheet: string | null
+  /** Sheet row number (CSV: record number). */
+  row: number
+  /** Its description, or its first text when the description is blank. */
+  label: string
+  /** The amount in pesos as an exact decimal, e.g. "85,000.00". */
+  amount: string
+  reason: string
+}
+
 export interface StructuredTakeoffResult {
   rows: StructuredTakeoffRow[]
   missingColumns: string[]
   headers: string[]
   headerRow: number
-  /** Blank and total/subtotal rows below the header. */
+  /** Blank, total/subtotal and amount-only rows below the header. */
   skippedRows: number
+  /** Each skipped row that carries an amount, so no total is dropped unseen. */
+  skippedAmountRows: SkippedAmountRow[]
   /** Section header rows that set a division instead of importing. */
   sectionRows: number
   warnings: TakeoffRowWarning[]
@@ -169,6 +184,13 @@ const REQUIRED_FIELDS = [
 
 // "Total", "Subtotal", "Sub-total", "Sub Total", "Grand total".
 const TOTAL_ROW = /^(grand\s+|sub[\s-]*)?total\b/i
+// boq-excel A.5 (owner decision 2026-11-13): an amount with no quantity is a
+// lump sum only when the unit says so. Any other such row (TOTAL, VAT, a
+// subtotal under another name) is skipped and listed, never priced.
+const LUMP_SUM_UNITS = new Set(['ls', 'l.s.', 'lot'])
+const TOTAL_ROW_REASON = 'Total row (its description starts with Total, Subtotal or Grand total and it has no unit).'
+const AMOUNT_ONLY_REASON =
+  'Amount with no quantity: only a row whose unit is ls, l.s. or lot is imported as a lump sum.'
 
 const PROBLEM_TEXT: Record<CellNumberProblem, string> = {
   BLANK: 'is blank',
@@ -199,6 +221,11 @@ function findColumn(headers: string[], field: MappedField, configured: string | 
 
 function isBlankRow(cells: readonly unknown[]): boolean {
   return cells.every((cell) => cellText(cell).trim() === '')
+}
+
+/** The first non-blank text of a row, for a label merged from an earlier column. */
+function firstText(cells: readonly unknown[]): string {
+  return cells.map((cell) => cellText(cell).trim()).find(Boolean) ?? ''
 }
 
 function isBlankCell(cell: unknown): boolean {
@@ -605,6 +632,7 @@ function emptyResult(missingColumns: string[], headerRow = 1): StructuredTakeoff
     headers: [],
     headerRow,
     skippedRows: 0,
+    skippedAmountRows: [],
     sectionRows: 0,
     warnings: [],
   }
@@ -627,16 +655,32 @@ function columnIndexes(headers: string[], mapping: TakeoffColumnMapping): Column
   }
 }
 
+/** The mapped amount in centavos when it is above zero; null otherwise. */
+function positiveAmount(cells: unknown[], indexes: ColumnIndexes): number | null {
+  if (indexes.amount < 0) return null
+  const amount = cellCentavos(cells[indexes.amount], Number.MAX_SAFE_INTEGER)
+  return amount.ok && amount.value > 0 ? amount.value : null
+}
+
+type RowKind = 'blank' | 'total' | 'amountOnly' | 'section' | 'item'
+
 function classifyRow(
   cells: unknown[],
   indexes: ColumnIndexes,
   description: string,
   sectionHeaders: boolean,
-): 'skip' | 'section' | 'item' {
+): RowKind {
+  if (isBlankRow(cells)) return 'blank'
   // A total row has no unit; "Total station survey | 1 | lot" is a real line.
-  const isTotal = TOTAL_ROW.test(description) && isBlankCell(cells[indexes.unit])
-  if (isBlankRow(cells) || isTotal) return 'skip'
-  // A lump sum (rate or amount, no quantity) is an item Core queues, not a header.
+  if (TOTAL_ROW.test(description) && isBlankCell(cells[indexes.unit])) return 'total'
+  // An amount with no quantity and no rate is a lump sum only with a lump-sum
+  // unit; any other such row (VAT, a subtotal by another name) is not a line.
+  const isAmountOnly =
+    positiveAmount(cells, indexes) !== null &&
+    isBlankCell(cells[indexes.quantity]) &&
+    (indexes.unitRate < 0 || isBlankCell(cells[indexes.unitRate]))
+  if (isAmountOnly && !LUMP_SUM_UNITS.has(normalizeUnit(cellText(cells[indexes.unit])))) return 'amountOnly'
+  // A rate or a lump sum with no quantity is an item, not a header.
   const isHeader = [indexes.quantity, indexes.unit, indexes.unitRate, indexes.amount].every(
     (index) => index < 0 || isBlankCell(cells[index]),
   )
@@ -696,7 +740,8 @@ interface RowPrice {
  * Prices a row from its mapped amount. With a rate the amount is only checked.
  * Without one the amount is the row's only price, so the rate is derived when
  * that is exact to the centavo, and a row with no quantity is a lump sum of
- * quantity 1. Nothing is rounded to make an amount fit.
+ * quantity 1 (classifyRow lets only a lump-sum unit through). Nothing is
+ * rounded to make an amount fit.
  */
 function priceFromAmount(cell: unknown, price: RowPrice, warn: Warn): RowPrice {
   const { quantity, unitRateCentavos } = price
@@ -807,6 +852,7 @@ function buildRows(
   mapping: TakeoffColumnMapping,
   options: TakeoffParseOptions,
   hiddenRows: ReadonlySet<number> = new Set(),
+  sheet: string | null = null,
 ): StructuredTakeoffResult {
   const headerRow = options.headerRow ?? detectHeaderRow(grid, mapping)
   const headers = (grid[headerRow - 1] ?? []).map((cell) => normalizeHeader(cellText(cell)))
@@ -831,10 +877,19 @@ function buildRows(
     const cells = grid[rowNumber - 1] ?? []
     const description = cellText(cells[indexes.description]).trim()
     const kind = classifyRow(cells, indexes, description, sectionHeaders)
-    if (kind === 'skip') {
+    if (kind === 'blank' || kind === 'total' || kind === 'amountOnly') {
       result.skippedRows += 1
-      // Not blank, so a total row; with a quantity it may be a line missing its unit.
-      if (description && !isBlankCell(cells[indexes.quantity])) {
+      const amount = positiveAmount(cells, indexes)
+      if (amount !== null) {
+        result.skippedAmountRows.push({
+          sheet,
+          row: rowNumber,
+          label: (description || firstText(cells)).slice(0, 80),
+          amount: formatCentavos(amount),
+          reason: kind === 'total' ? TOTAL_ROW_REASON : AMOUNT_ONLY_REASON,
+        })
+      } else if (kind === 'total' && !isBlankCell(cells[indexes.quantity])) {
+        // With a quantity it may be a line missing its unit.
         result.warnings.push({
           sourceRowKey: `row-${rowNumber}`,
           code: 'TOTAL_ROW_SKIPPED',
@@ -843,7 +898,7 @@ function buildRows(
       }
     } else if (kind === 'section') {
       // A header merged from an earlier column has its text outside Description.
-      section = description || cells.map((cell) => cellText(cell).trim()).find(Boolean) || null
+      section = description || firstText(cells) || null
       result.sectionRows += 1
     } else {
       const row = buildRow(cells, rowNumber, section, context)
@@ -875,7 +930,7 @@ export async function parseStructuredTakeoff(
       return { ...emptyResult(['worksheet']), workbook: { sheets, sheet: options.sheet ?? '' } }
     }
     return {
-      ...buildRows(grid, mapping, options, new Set(hiddenRows)),
+      ...buildRows(grid, mapping, options, new Set(hiddenRows), sheet),
       workbook: { sheets, sheet },
     }
   }

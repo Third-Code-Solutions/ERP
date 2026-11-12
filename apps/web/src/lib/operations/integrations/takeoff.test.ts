@@ -291,19 +291,20 @@ describe('structured takeoff importer', () => {
     )
   })
 
-  it('imports a lump sum (rate or amount, no quantity or unit) instead of making it a header', async () => {
+  it('imports a rate or a lump-sum amount with no quantity instead of making it a header', async () => {
     const csv = [
       'Description,Qty,UOM,Unit Rate,Amount',
       'GENERAL REQUIREMENTS,,,,',
       'Mobilization,,,"50,000.00",',
-      'Permits,,,,"12,000.00"',
+      'Permits,,lot,,"12,000.00"',
     ].join('\n')
 
     const result = await parseStructuredTakeoff(Buffer.from(csv), 'takeoff.csv', MAPPING)
 
     expect(result.sectionRows).toBe(1)
-    // A rate with no quantity stays for review; an amount with no quantity is
-    // a lump sum of quantity 1 at that amount (round 3, C3-3).
+    // A rate with no quantity stays for review; an amount with no quantity and
+    // a lump-sum unit is quantity 1 at that amount (round 3, C3-3; owner
+    // decision 2026-11-13: without that unit it is skipped, see below).
     expect(
       result.rows.map((row) => [row.description, row.quantity, row.unitRateCentavos, row.division]),
     ).toEqual([
@@ -322,6 +323,51 @@ describe('structured takeoff importer', () => {
         message: 'No quantity: imported as a lump sum, quantity 1 at PHP 12,000.00.',
       },
     ])
+  })
+
+  it('skips and lists amount-only rows unless the unit is ls, l.s. or lot (owner decision, A.5)', async () => {
+    const result = await parseCsv([
+      'Item,Description,Quantity,UOM,Unit Rate,Amount',
+      '1,Excavation,10,cu.m,"1,000.00","10,000.00"',
+      '2,Mobilization,,ls,,"50,000.00"',
+      '3,Permits,,LOT,,"12,000.00"',
+      '4,Bonds,, L.S. ,,"3,000.50"',
+      '5,Formwork,,m2,,"8,000.00"',
+      ',SUBTOTAL,,,,"83,000.50"',
+      ',VAT 12%,,,,"9,960.06"',
+      ',TOTAL,,,,"92,960.56"',
+      'GRAND TOTAL,,,,,"92,960.56"',
+    ])
+
+    expect(result.rows.map((row) => [row.description, row.quantity, row.unit, row.unitRateCentavos])).toEqual([
+      ['Excavation', 10, 'cu.m', 100_000],
+      ['Mobilization', 1, 'ls', 5_000_000],
+      ['Permits', 1, 'lot', 1_200_000],
+      ['Bonds', 1, 'l.s.', 300_050],
+    ])
+    const totalRow = 'Total row (its description starts with Total, Subtotal or Grand total and it has no unit).'
+    const amountOnly = 'Amount with no quantity: only a row whose unit is ls, l.s. or lot is imported as a lump sum.'
+    expect(result.skippedRows).toBe(5)
+    expect(result.skippedAmountRows).toEqual([
+      { sheet: null, row: 6, label: 'Formwork', amount: '8,000.00', reason: amountOnly },
+      { sheet: null, row: 7, label: 'SUBTOTAL', amount: '83,000.50', reason: totalRow },
+      { sheet: null, row: 8, label: 'VAT 12%', amount: '9,960.06', reason: amountOnly },
+      { sheet: null, row: 9, label: 'TOTAL', amount: '92,960.56', reason: totalRow },
+      // A total label in the Item column, Description blank.
+      { sheet: null, row: 10, label: 'GRAND TOTAL', amount: '92,960.56', reason: amountOnly },
+    ])
+    expect(result.warnings.map((warning) => [warning.sourceRowKey, warning.code])).toEqual([
+      ['row-3', 'LUMP_SUM'],
+      ['row-4', 'LUMP_SUM'],
+      ['row-5', 'LUMP_SUM'],
+    ])
+    // The BOM gets the lines, never the subtotal, VAT or total on top of them.
+    const imported = result.rows.reduce(
+      (sum, row) => sum + lineTotal(row.unitRateCentavos ?? 0, String(row.quantity), 0),
+      0,
+    )
+    expect(imported).toBe(7_500_050)
+    expect(validateTakeoffRows(result.rows).filter((issue) => issue.code !== 'MISSING_DIVISION')).toEqual([])
   })
 
   it('does not fall back to rate aliases when the rate mapping is blanked', async () => {

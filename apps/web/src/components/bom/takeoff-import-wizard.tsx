@@ -30,6 +30,8 @@ type Preview = {
   missingColumns: string[]
   headerRow?: number
   skippedRows?: number
+  /** Rows with an amount that were not imported (totals, VAT, amounts with no quantity). */
+  skippedAmountRows?: Array<{ sheet: string | null; row: number; label: string; amount: string; reason: string }>
   sectionRows?: number
   warnings?: ValidationIssue[]
   workbook?: { sheets: string[]; sheet: string }
@@ -216,7 +218,7 @@ export function TakeoffImportWizard({
               <h2 id="takeoff-review-title" className="card-title">Review before import</h2>
               <p className="card-subtitle">{preview.rowCount} rows · {preview.validCount} ready · {preview.unresolvedCount} unresolved</p>
               <p className="card-subtitle">
-                {preview.workbook ? `Sheet "${preview.workbook.sheet}" · ` : ''}header row {preview.headerRow ?? 1} · {preview.sectionRows ?? 0} section headers · {preview.skippedRows ?? 0} blank or total rows skipped
+                {preview.workbook ? `Sheet "${preview.workbook.sheet}" · ` : ''}header row {preview.headerRow ?? 1} · {preview.sectionRows ?? 0} section headers · {preview.skippedRows ?? 0} blank, total or amount-only rows skipped
               </p>
             </div>
             <button type="button" className="button button-primary" onClick={() => void run('commit')} disabled={busy || !isEditable || preview.rows.length === 0 || (addedLines > 0 && !confirmedAdd)}>Import rows</button>
@@ -255,6 +257,12 @@ export function TakeoffImportWizard({
               </tbody>
             </table>
           </div>
+          {preview.skippedAmountRows && preview.skippedAmountRows.length > 0 && (
+            <div role="status" style={{ display: 'grid', gap: 6, margin: '0 18px 18px', padding: 12, border: '1px solid var(--color-warning)', background: 'var(--color-warning-soft)', borderRadius: 8, fontSize: 12, color: 'var(--color-neutral-700)' }}>
+              <strong>{preview.skippedAmountRows.length} row{preview.skippedAmountRows.length === 1 ? '' : 's'} with an amount not imported</strong>
+              {preview.skippedAmountRows.map((skipped) => <div key={`${skipped.sheet ?? ''}-${skipped.row}`}>{skipped.sheet ? `Sheet "${skipped.sheet}" ` : ''}row {skipped.row}: {skipped.label || '(no label)'} · PHP {skipped.amount} · {skipped.reason}</div>)}
+            </div>
+          )}
           {(preview.warnings?.length ?? 0) > 0 && (
             <div role="status" style={{ display: 'grid', gap: 6, margin: '0 18px 18px', padding: 12, border: '1px solid var(--color-warning)', background: 'var(--color-warning-soft)', borderRadius: 8, fontSize: 12, color: 'var(--color-neutral-700)' }}>
               <strong>{preview.warnings!.length} spreadsheet warning{preview.warnings!.length === 1 ? '' : 's'}</strong>
