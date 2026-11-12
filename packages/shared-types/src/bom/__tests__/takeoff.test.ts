@@ -55,6 +55,27 @@ describe('takeoff validation', () => {
   })
 })
 
+// boq-export A.8: the units the app's forms offer and the export writes re-import.
+describe('takeoff units', () => {
+  const withUnit = (unit: string) => ({ ...row(1), unit })
+  const NEW_UNITS = ['m', 'ls', 'l.s.', 'ea', 'each', 'no.', 'no', 'nos', 'unit', 'units', 'bag', 'bags', 'box']
+
+  it('accepts each added unit, in any case and spacing', () => {
+    for (const unit of NEW_UNITS) {
+      expect(validateTakeoffRows([withUnit(unit)]), unit).toEqual([])
+      expect(validateTakeoffRows([withUnit(` ${unit.toUpperCase()} `)]), unit).toEqual([])
+    }
+  })
+
+  it('still queues a unit that is not on the list', () => {
+    for (const unit of ['', 'bundle', 'l.s', 'm 2', 'mm']) {
+      expect(validateTakeoffRows([withUnit(unit)]), unit).toEqual([
+        { sourceRowKey: 'concrete-1', code: 'INVALID_UOM', message: `UOM "${unit}" is not recognized.` },
+      ])
+    }
+  })
+})
+
 // boq-export A.4: a client BOQ rate travels as integer centavos per row.
 describe('takeoff unit rate', () => {
   const priced = (unitRateCentavos: number | null | undefined, quantity: number | null = 2.5) => ({
