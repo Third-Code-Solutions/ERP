@@ -133,9 +133,11 @@ export function readXlsxSheet(
           : { ok: true, read: reply },
       )
     })
-    // A process that never started emits 'error' and no exit; one that did
-    // start always ends in 'close', after its stderr is drained.
-    child.once('error', (error) => {
+    // A process that never started emits 'error' with no pid, and may never
+    // emit 'close'; one that did start always ends in 'close', after its stderr
+    // is drained. Every 'error' is handled (a failed kill can emit a second
+    // one); release and stop take effect once.
+    child.on('error', (error) => {
       if (child.pid === undefined) {
         clearTimeout(timer)
         release({ ok: false, error })

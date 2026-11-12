@@ -14,16 +14,25 @@ import {
 import { readXlsxSheet, XLSX_READER_LIMITS, type XlsxSheetRequest } from './takeoff-xlsx-reader'
 
 // fork as the reader calls it, except that a test can make the next calls
-// throw (a spawn that fails synchronously) and see each child it started.
-const spawn = vi.hoisted(() => ({ failNext: 0, children: [] as ChildProcess[] }))
+// throw (a spawn that fails synchronously) or return a child that only emits
+// 'error' (a spawn that fails after fork returned), and see each child it started.
+const spawn = vi.hoisted(() => ({ failNext: 0, failAsyncNext: 0, children: [] as ChildProcess[] }))
 vi.mock('node:child_process', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:child_process')>()
+  const { EventEmitter } = await import('node:events')
   return {
     ...actual,
     fork: (...args: Parameters<typeof actual.fork>) => {
       if (spawn.failNext > 0) {
         spawn.failNext -= 1
         throw new Error('spawn EAGAIN')
+      }
+      if (spawn.failAsyncNext > 0) {
+        spawn.failAsyncNext -= 1
+        // No pid, and no 'close' after the 'error': only the error handler can free the slot.
+        const child = Object.assign(new EventEmitter(), { pid: undefined, stderr: null, kill: () => false, send: () => true })
+        process.nextTick(() => child.emit('error', new Error('spawn ENOENT')))
+        return child as unknown as ChildProcess
       }
       const child = actual.fork(...args)
       spawn.children.push(child)
@@ -518,7 +527,11 @@ describe('xlsx reader process', () => {
     const first = readXlsxSheet(spinning, REQUEST, limits)
     await expect(readXlsxSheet(ordinary, REQUEST, limits)).rejects.toBeInstanceOf(TakeoffBusyError)
     await expect(first).rejects.toBeInstanceOf(TakeoffTooLargeError)
-    await expect(readXlsxSheet(ordinary, REQUEST, limits)).resolves.toMatchObject({ sheets: ['S1'], sheet: 'S1' })
+    // The slot is free: a read with its own (default) wall clock, still one at a time.
+    await expect(readXlsxSheet(ordinary, REQUEST, { ...XLSX_READER_LIMITS, concurrent: 1 })).resolves.toMatchObject({
+      sheets: ['S1'],
+      sheet: 'S1',
+    })
   }, SLOW)
 
   it('reports a workbook ExcelJS cannot read as an error, not a hang', async () => {
@@ -546,7 +559,9 @@ describe('xlsx reader process', () => {
     // Settled only after the process ended on SIGKILL, so no core is left spinning.
     expect(child?.signalCode).toBe('SIGKILL')
     expect(child?.exitCode).toBeNull()
-    await expect(readXlsxSheet(ordinary, REQUEST, limits)).resolves.toMatchObject({ sheet: 'S1' })
+    await expect(readXlsxSheet(ordinary, REQUEST, { ...XLSX_READER_LIMITS, concurrent: 1 })).resolves.toMatchObject({
+      sheet: 'S1',
+    })
   }, SLOW)
 
   it('frees the slot when the reader process fails to start (S4-1)', async () => {
@@ -558,5 +573,15 @@ describe('xlsx reader process', () => {
     }
 
     await expect(readXlsxSheet(ordinary, REQUEST)).resolves.toMatchObject({ sheets: ['S1'], sheet: 'S1' })
+  }, SLOW)
+
+  it('frees the slot when the reader process fails after fork returned (N3)', async () => {
+    // An async spawn error: 'error' with no pid, and here no 'close' to fall back on.
+    const limits = { ...XLSX_READER_LIMITS, concurrent: 1 }
+    const ordinary = await xlsx([{ xml: sheetXml(HEADER + PIPE) }])
+    spawn.failAsyncNext = 1
+
+    await expect(readXlsxSheet(ordinary, REQUEST, limits)).rejects.toThrow('spawn ENOENT')
+    await expect(readXlsxSheet(ordinary, REQUEST, limits)).resolves.toMatchObject({ sheets: ['S1'], sheet: 'S1' })
   }, SLOW)
 })
