@@ -46,6 +46,7 @@ vi.mock('next/cache', () => ({
   revalidatePath: mocks.revalidatePath,
 }))
 
+import { platformUserInvitations, users } from '@third-code-erp/database/schema'
 import {
   createUser,
   deleteUser,
@@ -58,6 +59,8 @@ const USER_ID = '11111111-1111-4111-8111-111111111111'
 const TENANT_ID = '22222222-2222-4222-8222-222222222222'
 const TARGET_ID = '33333333-3333-4333-8333-333333333333'
 const REQUEST_ID = '44444444-4444-4444-8444-444444444444'
+const INVITATION_ID = '55555555-5555-4555-8555-555555555555'
+const OTHER_TENANT_ID = '66666666-6666-4666-8666-666666666666'
 const PROFILE = {
   user: { id: USER_ID },
   tenantId: TENANT_ID,
@@ -109,9 +112,56 @@ function userQuery(
   return { from }
 }
 
+/**
+ * Database for createUser: the duplicate check finds nothing, the invitation
+ * insert returns `invitation`, and the post-Auth binding check returns `bound`
+ * (the trigger placed the user in the admin's tenant with the granted role).
+ */
+function createUserDatabase(options: {
+  invitation?: Array<{ id: string }>
+  bound?: Array<{ id: string }>
+} = {}) {
+  const bindingWhere = vi.fn().mockReturnValue({
+    limit: vi.fn().mockResolvedValue(options.bound ?? [{ id: TARGET_ID }]),
+  })
+  mocks.select
+    .mockReturnValueOnce({ from: userQuery([]).from })
+    .mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({
+        innerJoin: vi.fn().mockReturnValue({ where: bindingWhere }),
+      }),
+    })
+  const values = vi.fn().mockReturnValue({
+    onConflictDoNothing: vi.fn().mockReturnValue({
+      returning: vi.fn().mockResolvedValue(options.invitation ?? [{ id: INVITATION_ID }]),
+    }),
+  })
+  mocks.insert.mockReturnValue({ values })
+  const set = vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) })
+  mocks.update.mockReturnValue({ set })
+  return { values, set }
+}
+
+function authAdmin(overrides: {
+  createUser?: ReturnType<typeof vi.fn>
+  deleteUser?: ReturnType<typeof vi.fn>
+} = {}) {
+  const createAuthUser = overrides.createUser
+    ?? vi.fn().mockResolvedValue({ data: { user: { id: TARGET_ID } }, error: null })
+  const deleteAuthUser = overrides.deleteUser ?? vi.fn().mockResolvedValue({ error: null })
+  mocks.createSupabaseAdminClient.mockReturnValue({
+    auth: { admin: { createUser: createAuthUser, deleteUser: deleteAuthUser } },
+  })
+  return { createAuthUser, deleteAuthUser }
+}
+
+const INVITATION_FAILED = expect.objectContaining({ status: 'failed' })
+
 describe('admin user role authority', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // createUser tests queue one-shot select results; never leak them.
+    mocks.select.mockReset()
     mocks.requireUserProfile.mockResolvedValue(PROFILE)
     mocks.can.mockReturnValue(true)
     mocks.adminUserRoleAssignmentWritesUseCoreApi.mockReturnValue(true)
@@ -204,23 +254,44 @@ describe('admin user role authority', () => {
     expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
   })
 
-  it('commits a new workspace user only with its audit entry', async () => {
-    mocks.select.mockReturnValue({ from: userQuery([]).from })
-    const values = vi.fn().mockResolvedValue(undefined)
-    mocks.insert.mockReturnValue({ values })
-    const createAuthUser = vi.fn().mockResolvedValue({ data: { user: { id: TARGET_ID } }, error: null })
-    const deleteAuthUser = vi.fn()
-    mocks.createSupabaseAdminClient.mockReturnValue({
-      auth: { admin: { createUser: createAuthUser, deleteUser: deleteAuthUser } },
+  it('refuses a role without admin.users before any invitation or Auth call', async () => {
+    mocks.can.mockReturnValue(false)
+    mocks.requireUserProfile.mockResolvedValue({ ...PROFILE, role: 'pm' })
+
+    await expect(createUser(createUserForm('viewer'))).resolves.toEqual({
+      error: 'Forbidden: role "pm" lacks admin.users',
     })
+    expect(mocks.transaction).not.toHaveBeenCalled()
+    expect(mocks.insert).not.toHaveBeenCalled()
+    expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
+  })
+
+  it('provisions through an invitation for the admin tenant and never inserts public.users itself', async () => {
+    const { values, set } = createUserDatabase()
+    const { createAuthUser, deleteAuthUser } = authAdmin()
 
     await expect(createUser(createUserForm('viewer'))).resolves.toEqual({ userId: TARGET_ID })
 
-    expect(values).toHaveBeenCalledWith(expect.objectContaining({
-      id: TARGET_ID,
+    // The Auth insert trigger writes the only public.users row.
+    expect(mocks.insert).toHaveBeenCalledTimes(1)
+    expect(mocks.insert).toHaveBeenCalledWith(platformUserInvitations)
+    expect(mocks.insert).not.toHaveBeenCalledWith(users)
+    expect(values).toHaveBeenCalledWith({
       tenant_id: TENANT_ID,
+      normalized_email: 'new-owner@example.test',
+      full_name: 'New Owner',
       role: 'viewer',
-    }))
+      invited_by: USER_ID,
+    })
+    expect(values.mock.invocationCallOrder[0]!).toBeLessThan(
+      createAuthUser.mock.invocationCallOrder[0]!
+    )
+    expect(createAuthUser).toHaveBeenCalledWith({
+      email: 'new-owner@example.test',
+      password: 'long-enough-password',
+      email_confirm: true,
+      user_metadata: { full_name: 'New Owner' },
+    })
     expect(mocks.writeAuditLogInTransaction).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
@@ -230,25 +301,120 @@ describe('admin user role authority', () => {
         action: 'create',
       }),
     )
+    expect(set).not.toHaveBeenCalled()
     expect(deleteAuthUser).not.toHaveBeenCalled()
     expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin/users')
   })
 
-  it('compensates Auth when the user audit cannot commit', async () => {
-    mocks.select.mockReturnValue({ from: userQuery([]).from })
-    mocks.insert.mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) })
-    mocks.writeAuditLogInTransaction.mockRejectedValueOnce(new Error('synthetic audit failure'))
-    const createAuthUser = vi.fn().mockResolvedValue({ data: { user: { id: TARGET_ID } }, error: null })
-    const deleteAuthUser = vi.fn().mockResolvedValue({ error: null })
-    mocks.createSupabaseAdminClient.mockReturnValue({
-      auth: { admin: { createUser: createAuthUser, deleteUser: deleteAuthUser } },
+  it('normalizes the invitation email the way the Auth trigger matches it', async () => {
+    const { values } = createUserDatabase()
+    const { createAuthUser } = authAdmin()
+    const form = createUserForm('viewer')
+    form.set('email', '  New.Owner@Example.TEST ')
+
+    await expect(createUser(form)).resolves.toEqual({ userId: TARGET_ID })
+    expect(values).toHaveBeenCalledWith(expect.objectContaining({
+      normalized_email: 'new.owner@example.test',
+    }))
+    expect(createAuthUser).toHaveBeenCalledWith(expect.objectContaining({
+      email: 'new.owner@example.test',
+    }))
+  })
+
+  it('ignores browser-supplied tenant, inviter and status fields', async () => {
+    const { values } = createUserDatabase()
+    const { createAuthUser } = authAdmin()
+    const form = createUserForm('viewer')
+    form.set('tenant_id', OTHER_TENANT_ID)
+    form.set('invited_by', TARGET_ID)
+    form.set('status', 'accepted')
+
+    await expect(createUser(form)).resolves.toEqual({ userId: TARGET_ID })
+    expect(values).toHaveBeenCalledWith(expect.objectContaining({
+      tenant_id: TENANT_ID,
+      invited_by: USER_ID,
+    }))
+    expect(JSON.stringify(values.mock.calls)).not.toContain(OTHER_TENANT_ID)
+    expect(JSON.stringify(createAuthUser.mock.calls)).not.toContain(OTHER_TENANT_ID)
+  })
+
+  it('refuses an email that already has an open invitation without calling Auth', async () => {
+    createUserDatabase({ invitation: [] })
+    const { createAuthUser } = authAdmin()
+
+    await expect(createUser(createUserForm('viewer'))).resolves.toEqual({
+      error: 'This email already has an open invitation.',
     })
+    expect(createAuthUser).not.toHaveBeenCalled()
+  })
+
+  it('closes the invitation when Auth rejects the user', async () => {
+    const { set } = createUserDatabase()
+    const { deleteAuthUser } = authAdmin({
+      createUser: vi.fn().mockResolvedValue({
+        data: { user: null },
+        error: new Error('A user with this email address has already been registered'),
+      }),
+    })
+
+    await expect(createUser(createUserForm('viewer'))).resolves.toEqual({
+      error: 'A user with this email address has already been registered',
+    })
+    expect(set).toHaveBeenCalledWith(INVITATION_FAILED)
+    expect(deleteAuthUser).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
+  })
+
+  it('closes the invitation and reports reconciliation when the Auth request throws', async () => {
+    const { set } = createUserDatabase()
+    const { deleteAuthUser } = authAdmin({
+      createUser: vi.fn().mockRejectedValue(new Error('synthetic timeout')),
+    })
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      await expect(createUser(createUserForm('viewer'))).resolves.toEqual({
+        error: 'User creation could not be confirmed. Contact support to reconcile the Auth account.',
+      })
+      expect(set).toHaveBeenCalledWith(INVITATION_FAILED)
+      expect(deleteAuthUser).not.toHaveBeenCalled()
+    } finally {
+      errorSpy.mockRestore()
+    }
+  })
+
+  it('deletes the Auth user and closes the invitation when it was not bound to the admin tenant', async () => {
+    const { set } = createUserDatabase({ bound: [] })
+    const { deleteAuthUser } = authAdmin()
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     try {
       await expect(createUser(createUserForm('viewer'))).resolves.toEqual({
         error: 'User creation failed before the workspace account was committed.',
       })
       expect(deleteAuthUser).toHaveBeenCalledWith(TARGET_ID)
+      expect(set).toHaveBeenCalledWith(INVITATION_FAILED)
+      // Closing the invitation first blocks activation even if Auth cleanup fails.
+      expect(set.mock.invocationCallOrder[0]!).toBeLessThan(
+        deleteAuthUser.mock.invocationCallOrder[0]!
+      )
+      expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
+      expect(mocks.revalidatePath).not.toHaveBeenCalled()
+    } finally {
+      errorSpy.mockRestore()
+    }
+  })
+
+  it('compensates Auth when the user audit cannot commit', async () => {
+    const { set } = createUserDatabase()
+    mocks.writeAuditLogInTransaction.mockRejectedValueOnce(new Error('synthetic audit failure'))
+    const { deleteAuthUser } = authAdmin()
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      await expect(createUser(createUserForm('viewer'))).resolves.toEqual({
+        error: 'User creation failed before the workspace account was committed.',
+      })
+      expect(deleteAuthUser).toHaveBeenCalledWith(TARGET_ID)
+      expect(set).toHaveBeenCalledWith(INVITATION_FAILED)
       expect(mocks.revalidatePath).not.toHaveBeenCalled()
     } finally {
       errorSpy.mockRestore()
@@ -256,20 +422,36 @@ describe('admin user role authority', () => {
   })
 
   it('reports reconciliation when Auth compensation also fails', async () => {
-    mocks.select.mockReturnValue({ from: userQuery([]).from })
-    mocks.insert.mockReturnValue({ values: vi.fn().mockRejectedValue(new Error('synthetic insert failure')) })
-    const createAuthUser = vi.fn().mockResolvedValue({ data: { user: { id: TARGET_ID } }, error: null })
-    const deleteAuthUser = vi.fn().mockResolvedValue({ error: new Error('synthetic cleanup failure') })
-    mocks.createSupabaseAdminClient.mockReturnValue({
-      auth: { admin: { createUser: createAuthUser, deleteUser: deleteAuthUser } },
+    const { set } = createUserDatabase({ bound: [] })
+    authAdmin({
+      deleteUser: vi.fn().mockResolvedValue({ error: new Error('synthetic cleanup failure') }),
     })
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     try {
       await expect(createUser(createUserForm('viewer'))).resolves.toEqual({
         error: 'User creation could not be confirmed. Contact support to reconcile the Auth account.',
       })
+      expect(set).toHaveBeenCalledWith(INVITATION_FAILED)
       expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
       expect(mocks.revalidatePath).not.toHaveBeenCalled()
+    } finally {
+      errorSpy.mockRestore()
+    }
+  })
+
+  it('reports reconciliation when the failed invitation cannot be closed', async () => {
+    createUserDatabase()
+    mocks.update.mockImplementation(() => {
+      throw new Error('synthetic database outage')
+    })
+    authAdmin({
+      createUser: vi.fn().mockResolvedValue({ data: { user: null }, error: new Error('rejected') }),
+    })
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      await expect(createUser(createUserForm('viewer'))).resolves.toEqual({
+        error: 'User creation could not be confirmed. Contact support to reconcile the Auth account.',
+      })
     } finally {
       errorSpy.mockRestore()
     }
