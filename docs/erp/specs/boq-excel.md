@@ -1,6 +1,6 @@
 # Spec: BOQ Excel import and export (`boq-export`)
 
-Status: building (2026-11-05; review fixes 2026-11-10 and 2026-11-11)
+Status: building (2026-11-05; review fixes 2026-11-10, 2026-11-11 and 2026-11-12)
 Depends on: takeoff import (WO-08), D-5 exact quantities, DUPA (WO-07).
 Feature flag: none. Import extends an existing path; export is read-only.
 **No migration.** Every column used already exists (`unit_rate_source` already
@@ -41,27 +41,42 @@ that says what to do; a file the guard cannot fully account for is 422
   judged by content (shared strings, styles, comments and drawings expand
   about 12x in ExcelJS; images do not count); 500,000 rows and cells counted
   in the sheet XML over all sheets (a merged range counts every cell it
-  covers); 5,000 merged ranges over the workbook. A merged range must be one
-  plain `A1:B2` reference in a tag of at most 256 characters; the scan uses
-  `indexOf`, so an unclosed tag cannot make it quadratic. A `sheetId` must be
-  digits up to 65,535 and a row number digits up to 1,048,576 (ExcelJS walks
-  either as an index range).
-- **Reader (.xlsx), in a worker thread.** ExcelJS runs in a `worker_threads`
-  worker (`takeoff-xlsx-worker.cjs`) with a 512 MB old-generation heap cap and
-  a 15 second wall clock, after which the worker is terminated; at most 2
-  reads run at once per server instance. Over the heap cap or the clock is
+  covers, and each sheet counts the columns up to the last one a cell is in,
+  since ExcelJS creates every one of them); 5,000 merged ranges over the
+  workbook. A merged range must be one plain `A1:B2` reference in a tag of
+  at most 256 characters; the scan uses `indexOf`, so an unclosed tag cannot
+  make it quadratic.
+- **Every index ExcelJS allocates from is read in full and must lie inside a
+  sheet**, or the file is refused: a `sheetId` is digits up to 65,535; every
+  `<row>` has exactly one `r` of digits from 1 to 1,048,576; a `<c r>` (when
+  present) is one reference no further than column XFD and row 1,048,576;
+  a `<col>` has one `min` and one `max` from 1 to 16,384; the `<dimension>`
+  and every merged range are plain references inside those bounds. Tags are
+  scanned from their name to the next `>` with no character window (an
+  attribute 2 KB into a tag is still read) in one linear pass; a tag that is
+  not closed, or holds a value the scan cannot read (an entity, trailing
+  text, a second `r`), is refused. `<col>` and `<dimension>` are not parsed
+  by ExcelJS (below) and are checked anyway.
+- **Reader (.xlsx), in a child process.** ExcelJS runs in a child process
+  (`child_process.fork` of `takeoff-xlsx-worker.cjs`, started with
+  `--max-old-space-size=512` and none of the server's environment) with a
+  15 second wall clock, after which the process is killed (SIGKILL): a thread
+  cannot be stopped while V8 runs a builtin loop, a process can. At most 2
+  reads run at once per server instance; a read's slot is released only once
+  its process is gone, and also when the process fails to start. Over the
+  heap cap or the clock is
   413 `TAKEOFF_TOO_LARGE` ("The workbook needs more than 512 MB of memory to
   read." / "The workbook took longer than 15 seconds to read.", each followed
   by "Copy the BOQ sheet to a new workbook and try again."). A third
   concurrent read is 503 `TAKEOFF_BUSY` with `Retry-After: 10` ("Other
   spreadsheets are being read right now. Try again in a few seconds."). A
-  worker that fails otherwise is 422 "The workbook could not be read: ...".
-  The request thread stays responsive while a worker runs.
+  read that fails otherwise is 422 "The workbook could not be read: ...".
+  The server stays responsive while a read runs.
 - ExcelJS parses only the cell data and merged ranges of each sheet. Column
   definitions, data validations, hyperlinks, conditional formats and the other
   sheet nodes are not parsed, and workbook defined names are not expanded
   (ExcelJS builds one object per cell or column for these).
-- **Per-sheet limits**, checked in the worker on the chosen sheet only, so an
+- **Per-sheet limits**, checked in the child process on the chosen sheet only, so an
   unrelated wide or long sheet (a cash-flow sheet, a price list) does not
   refuse the workbook: at most 64 columns ("The sheet "X" uses N columns; the
   import reads at most 64. ..."); rows up to header row + 5,001, content below
@@ -152,7 +167,8 @@ that says what to do; a file the guard cannot fully account for is 422
    un-nesting it, changes what counts).
 7. **Code and notes.** A mapped Code becomes the line's `code` (else the
    Item No, as before). Notes from the file are kept on a line the import
-   creates, with any `[VENDOR:...]` token removed (that token marks a vendor
+   creates, with every `[VENDOR:...]` token removed until none is left, so
+   one hidden inside another cannot reappear (that token marks a vendor
    elsewhere in the system); without notes the line gets `Takeoff source:
    <source>` as before.
 8. **Units.** Besides the existing list, `m`, `ls`, `l.s.`, `ea`, `each`,
@@ -248,9 +264,10 @@ CSV or PDF export, `.xls`, DUPA import, catalogue matching, migrations.
    "about 250 MB" was wrong: shared strings and similar parts expand about
    12x, and a 185 KB file with 60 MB of rich shared strings exhausted a
    512 MB heap. The 32 MB XML budget now refuses that file up front, and
-   whatever passes is bounded by the worker: 512 MB of old-generation heap
-   and 15 seconds per read, at most 2 reads at once, so about 1 GB of worker
-   heap per server instance at worst, plus request buffers. `resourceLimits`
+   whatever passes is bounded by the reader process: 512 MB of old-generation heap
+   and 15 seconds per read, at most 2 reads at once, so about 1 GB of reader
+   heap per server instance at worst, plus request buffers and each child's own
+   Node.js baseline (tens of MB). `--max-old-space-size`
    does not cap the young generation or buffers outside the heap.
 5. **Stale stored totals.** BOMs whose lines were nested before the
    grain-review fix keep their old stored totals until the next of the
@@ -266,13 +283,16 @@ CSV or PDF export, `.xls`, DUPA import, catalogue matching, migrations.
    and the export loader run for real only in the Core takeoff integration
    spec, which needs the disposable database lane
    (`ERP_API_INTEGRATION_EXPECTED=1`).
-9. **Worker file location.** The reader starts the worker from
+9. **Reader file location.** The reader starts its child process from
    `<process.cwd()>/src/lib/operations/integrations/takeoff-xlsx-worker.cjs`;
    `next.config.ts` adds that file to the import route's output trace
    (`outputFileTracingIncludes`). A local production `next build` was
-   checked (the route's trace lists the file, and the built route reads a
-   workbook through the worker, also from a copy holding only the traced
-   files); a Vercel deployment and the standalone Docker output were not. If
+   checked on 2026-11-12: the route's trace lists the file and `exceljs`,
+   the built route forks it with `--max-old-space-size`, and the reader
+   process started from a copy holding only the traced files reads a
+   workbook. The built route itself was last run end to end with the
+   earlier thread reader; a Vercel deployment and the standalone Docker
+   output were not checked. If
    the file is missing the import answers 422 "Workbook reader is not
    installed".
 10. **Smaller known gaps.** The export writes no audit entry (as
