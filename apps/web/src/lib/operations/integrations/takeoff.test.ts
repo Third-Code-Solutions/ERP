@@ -608,6 +608,19 @@ describe('structured takeoff importer', () => {
     ])
   })
 
+  it('parses a CSV cell of 300,000 quotes in linear time (S5-1)', async () => {
+    // The reviewers' file: each quote after text used to re-trim the whole cell (19 s at 300 KB).
+    const csv = Buffer.from(`Description,Quantity,UOM\nPipe${'"'.repeat(300_000)},3,m\n`)
+
+    const started = performance.now()
+    const result = await parseStructuredTakeoff(csv, 'boq.csv', MAPPING)
+
+    expect(performance.now() - started).toBeLessThan(1_000)
+    expect(result.rows).toEqual([
+      expect.objectContaining({ description: `Pipe${'"'.repeat(996)}`, quantity: 3, unit: 'm' }),
+    ])
+  })
+
   it('warns when a description is cut at 1,000 characters', async () => {
     const result = await parseCsv([
       'Description,Quantity,UOM',

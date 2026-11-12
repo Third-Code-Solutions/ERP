@@ -537,17 +537,22 @@ function csvGrid(text: string, lastRow: number): unknown[][] {
   const rows: string[][] = []
   let cells: string[] = []
   let current = ''
+  // Whether `current` holds non-blank text, kept as characters are added: trimming
+  // `current` at every quote made one cell of quotes quadratic (S5-1).
+  let hasText = false
   let quoted = false
   const endCell = () => {
     if (cells.length < TAKEOFF_MAX_COLUMNS) cells.push(current.trim())
     current = ''
+    hasText = false
   }
 
   for (let index = 0; index < text.length; index += 1) {
     const character = text[index]!
-    if (character === '"' && (quoted || current.trim() === '')) {
+    if (character === '"' && (quoted || !hasText)) {
       if (quoted && text[index + 1] === '"') {
         current += '"'
+        hasText = true
         index += 1
       } else {
         quoted = !quoted
@@ -564,6 +569,7 @@ function csvGrid(text: string, lastRow: number): unknown[][] {
       }
     } else {
       current += character
+      hasText ||= /\S/.test(character)
     }
   }
   endCell()
