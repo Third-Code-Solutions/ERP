@@ -36,6 +36,8 @@ function bindingNames(name: ts.BindingName): string[] {
 
 // Returns null for modules that are not 'use server', so callers can count what was scanned.
 function findIdentityParams(fileName: string, sourceText: string): string[] | null {
+  // Cheap text check first: parsing every source file made a cold run take ~50 s.
+  if (!sourceText.includes('use server')) return null
   const sourceFile = ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, true)
   if (!isUseServerModule(sourceFile)) return null
 
@@ -119,5 +121,5 @@ describe('server action identity (SEC-10)', () => {
     expect(actionModules.map((m) => m.name)).toContain('app/(dashboard)/projects/[id]/vos/actions.ts')
     expect(actionModules.length).toBeGreaterThan(50)
     expect(actionModules.flatMap((m) => m.findings)).toEqual([])
-  })
+  }, 30_000)
 })
