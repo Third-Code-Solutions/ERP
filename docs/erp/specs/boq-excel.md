@@ -69,6 +69,10 @@ that says what to do; a file the guard cannot fully account for is 422
   inside a value is how a decoy attribute once hid the real one). A read
   never passes the next `<`, so the scan is linear. `<col>` and
   `<dimension>` are not parsed by ExcelJS (below) and are checked anyway.
+  Only these five unprefixed names are index tags: ExcelJS matches a tag by
+  its literal name, so a prefixed tag (`<xdr:row>`, `<xdr:col>`: the anchor
+  Excel writes in the sheet part for a form control or an embedded object)
+  is not read by it and not checked here, and such a sheet imports.
 - **The scans read XML 1.0.** The parser ExcelJS uses reads U+0085 and
   U+2028 as white space once a part declares XML 1.1, which is how an index
   was once hidden behind one of them. So every XML declaration in a scanned

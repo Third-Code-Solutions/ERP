@@ -562,6 +562,61 @@ describe('xlsx first filter (round 6: XML 1.1 white space)', () => {
   }, SLOW)
 })
 
+describe('xlsx first filter (round 6: only the tags ExcelJS acts on)', () => {
+  const R = 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
+  const XDR = 'xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"'
+  const X = 'xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main"'
+  const anchor = (from: string, to: string) =>
+    `<anchor moveWithCells="1"><from>${from}</from><to>${to}</to></anchor>`
+  const corner = (column: number, row: number) =>
+    `<xdr:col>${column}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>${row}</xdr:row><xdr:rowOff>0</xdr:rowOff>`
+
+  it('imports a sheet with a form control or an embedded object (S2)', async () => {
+    // Excel writes the anchor of a check box or an embedded PDF inside the sheet
+    // part, as <xdr:col> and <xdr:row>; the scan read both as index tags.
+    const controls = `<controls><control shapeId="1025" r:id="rId3" name="Check Box 1"><controlPr defaultSize="0" autoFill="0" autoLine="0" autoPict="0">${anchor(corner(4, 1), corner(5, 2))}</controlPr></control></controls>`
+    const objects = `<oleObjects><oleObject progId="Acrobat.Document.DC" shapeId="1026" r:id="rId4"><objectPr defaultSize="0" r:id="rId5">${anchor(corner(6, 3), corner(7, 6))}</objectPr></oleObject></oleObjects>`
+    const file = await xlsx([
+      {
+        xml: `<?xml version="1.0" encoding="UTF-8"?><worksheet ${NS} ${R} ${XDR}><sheetData>${HEADER}${PIPE}</sheetData>${objects}${controls}</worksheet>`,
+      },
+    ])
+
+    await expect(parseStructuredTakeoff(file, 'a.xlsx', MAPPING)).resolves.toMatchObject({
+      rows: [{ description: 'Pipe', quantity: 3, unit: 'm' }],
+    })
+  }, SLOW)
+
+  it('leaves prefixed tags to a reader that does not act on them (S2)', async () => {
+    // The indexes that made ExcelJS spin or fill memory, on prefixed tags beside
+    // two real rows. ExcelJS matches the unprefixed name only, so through the
+    // real reader process nothing here is walked: it answers well inside 5 s
+    // with the real rows and no others.
+    const file = await xlsx([
+      {
+        xml: `<?xml version="1.0"?><worksheet ${NS} ${X} ${XDR}><sheetData>${HEADER}${PIPE}<x:row r="4000000000"><x:c r="XFD4000000000"/></x:row></sheetData><xdr:row r="4000000000"/><x:mergeCells><x:mergeCell ref="A1:XFD1048576"/></x:mergeCells><x:cols><x:col min="1" max="4000000000"/></x:cols></worksheet>`,
+      },
+    ])
+
+    await expect(readXlsxSheet(file, REQUEST, { ...XLSX_READER_LIMITS, wallClockMs: 5_000 })).resolves.toEqual({
+      sheets: ['S1'],
+      sheet: 'S1',
+      grid: [
+        ['Description', 'Quantity', 'UOM'],
+        ['Pipe', '3', 'm'],
+      ],
+      hiddenRows: [],
+    })
+    expect(() => assertXlsxWithinLimits(file)).not.toThrow()
+    await expect(parseStructuredTakeoff(file, 'a.xlsx', MAPPING)).resolves.toMatchObject({
+      rows: [{ description: 'Pipe', quantity: 3, unit: 'm' }],
+    })
+    // The unprefixed tags, which ExcelJS does act on, are still read and refused.
+    const unprefixed = await xlsx([{ xml: sheetXml(`${HEADER}<row r="4000000000"><c r="A4"><v>1</v></c></row>`) }])
+    expect(() => assertXlsxWithinLimits(unprefixed)).toThrow('row number')
+  }, SLOW)
+})
+
 describe('xlsx reader process', () => {
   it('reads a rich-text shared string used by every row without rejoining it (S3-H2)', async () => {
     // One shared string of 100,000 runs: the old code joined all of them about

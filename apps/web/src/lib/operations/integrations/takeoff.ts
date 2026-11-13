@@ -268,7 +268,10 @@ const ZIP_LOCAL_ENTRY = 0x04034b50
 // character, so whatever follows a name is read here and refused unless it is
 // XML 1.0 white space: an XML 1.1 line break (U+0085, U+2028) after a name is
 // white space to saxes and hid the index behind it from this scan (S6-1).
-const SHEET_TAG = /<(?:\w{1,32}:)?(row|c|col|dimension|mergeCell)(?![\w.:-])/g
+// Only the unprefixed names: ExcelJS matches a tag by its literal name, so
+// <xdr:row> and <xdr:col> (the anchor of a form control or an embedded
+// object, which Excel writes inside the sheet part) are not index tags.
+const SHEET_TAG = /<(row|c|col|dimension|mergeCell)(?![\w.:-])/g
 const TAG_ATTRIBUTE = /[ \t\r\n]+([\w.:-]+)[ \t\r\n]*=[ \t\r\n]*(?:"([^"<>]*)"|'([^'<>]*)')/y
 const TAG_END = /[ \t\r\n]*\/?>/y
 // Every sheetId in a scanned part, whatever follows it: it must be an
