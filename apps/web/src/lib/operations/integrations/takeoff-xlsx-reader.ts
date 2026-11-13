@@ -136,12 +136,16 @@ export function readXlsxSheet(
     child.stderr?.on('data', (chunk: Buffer) => {
       stderr = (stderr + chunk.toString('utf8')).slice(-STDERR_TAIL)
     })
-    child.once('message', (reply: WorkerReply) => {
-      stop(
-        'error' in reply
-          ? { ok: false, error: new Error(`The workbook could not be read: ${reply.error}`) }
-          : { ok: true, read: reply },
-      )
+    // The reply comes from the process that parsed an untrusted file, so its
+    // shape is checked before it is read: `in` throws on anything but an object.
+    child.once('message', (reply: WorkerReply | null | undefined) => {
+      if (typeof reply !== 'object' || reply === null) {
+        stop({ ok: false, error: new Error('The workbook reader sent a reply that could not be read.') })
+      } else if ('error' in reply) {
+        stop({ ok: false, error: new Error(`The workbook could not be read: ${String(reply.error)}`) })
+      } else {
+        stop({ ok: true, read: reply })
+      }
     })
     // A process that never started emits 'error' with no pid, and may never
     // emit 'close'; one that did start always ends in 'close', after its stderr

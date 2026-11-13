@@ -14,9 +14,18 @@ import {
 import { readXlsxSheet, XLSX_READER_LIMITS, type XlsxSheetRequest } from './takeoff-xlsx-reader'
 
 // fork as the reader calls it, except that a test can make the next calls
-// throw (a spawn that fails synchronously) or return a child that only emits
-// 'error' (a spawn that fails after fork returned), and see each child it started.
-const spawn = vi.hoisted(() => ({ failNext: 0, failAsyncNext: 0, children: [] as ChildProcess[] }))
+// throw (a spawn that fails synchronously), return a child that only emits
+// 'error' (a spawn that fails after fork returned) or return a child that
+// answers with a queued reply, and see each child it started.
+const spawn = vi.hoisted(() => ({
+  failNext: 0,
+  failAsyncNext: 0,
+  /** 'error' events of a fake child that no listener was left to take. */
+  unhandledErrors: [] as unknown[],
+  /** Each entry is the whole reply of the next fake child. */
+  replies: [] as unknown[][],
+  children: [] as ChildProcess[],
+}))
 vi.mock('node:child_process', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:child_process')>()
   const { EventEmitter } = await import('node:events')
@@ -31,7 +40,31 @@ vi.mock('node:child_process', async (importOriginal) => {
         spawn.failAsyncNext -= 1
         // No pid, and no 'close' after the 'error': only the error handler can free the slot.
         const child = Object.assign(new EventEmitter(), { pid: undefined, stderr: null, kill: () => false, send: () => true })
-        process.nextTick(() => child.emit('error', new Error('spawn ENOENT')))
+        process.nextTick(() => {
+          child.emit('error', new Error('spawn ENOENT'))
+          // A second 'error' (a failed kill emits one): an emitter with no
+          // listener left for it throws instead.
+          try {
+            child.emit('error', new Error('kill EPERM'))
+          } catch (error) {
+            spawn.unhandledErrors.push(error)
+          }
+        })
+        return child as unknown as ChildProcess
+      }
+      const reply = spawn.replies.shift()
+      if (reply) {
+        // A started process that answers with this reply and ends when it is killed.
+        const child = Object.assign(new EventEmitter(), {
+          pid: 1,
+          stderr: null,
+          send: () => true,
+          kill: () => {
+            process.nextTick(() => child.emit('close', null, 'SIGKILL'))
+            return true
+          },
+        })
+        process.nextTick(() => child.emit('message', ...reply))
         return child as unknown as ChildProcess
       }
       const child = actual.fork(...args)
@@ -882,6 +915,39 @@ describe('xlsx reader process', () => {
     spawn.failAsyncNext = 1
 
     await expect(readXlsxSheet(ordinary, REQUEST, limits)).rejects.toThrow('spawn ENOENT')
+    await expect(readXlsxSheet(ordinary, REQUEST, limits)).resolves.toMatchObject({ sheets: ['S1'], sheet: 'S1' })
+  }, SLOW)
+
+  it("takes every 'error' of a reader process, not only the first (N1)", async () => {
+    // The fake child emits 'error' twice. A handler registered with once would
+    // be gone for the second, and an 'error' nobody listens for is thrown.
+    const ordinary = await xlsx([{ xml: sheetXml(HEADER + PIPE) }])
+    spawn.unhandledErrors.length = 0
+    spawn.failAsyncNext = 1
+
+    await expect(readXlsxSheet(ordinary, REQUEST)).rejects.toThrow('spawn ENOENT')
+    // Past the tick in which the fake child emitted both.
+    await new Promise((resolve) => setImmediate(resolve))
+
+    expect(spawn.unhandledErrors).toEqual([])
+  })
+
+  it('rejects a reply that is not an object instead of throwing in the listener (I-1)', async () => {
+    // Only a compromised reader process could send these; `'error' in reply`
+    // threw a TypeError inside the message listener for each of them.
+    const ordinary = await xlsx([{ xml: sheetXml(HEADER + PIPE) }])
+    const limits = { ...XLSX_READER_LIMITS, concurrent: 1 }
+
+    for (const reply of [['not an object'], [null], [7], []]) {
+      spawn.replies.push(reply)
+      await expect(readXlsxSheet(ordinary, REQUEST, limits), JSON.stringify(reply)).rejects.toThrow(
+        'The workbook reader sent a reply that could not be read.',
+      )
+    }
+    // An object is still read as before, and each slot was released.
+    spawn.replies.push([{ error: 'bad zip' }], [{ sheets: ['S1'], sheet: null }])
+    await expect(readXlsxSheet(ordinary, REQUEST, limits)).rejects.toThrow('The workbook could not be read: bad zip')
+    await expect(readXlsxSheet(ordinary, REQUEST, limits)).resolves.toEqual({ sheets: ['S1'], sheet: null })
     await expect(readXlsxSheet(ordinary, REQUEST, limits)).resolves.toMatchObject({ sheets: ['S1'], sheet: 'S1' })
   }, SLOW)
 })
