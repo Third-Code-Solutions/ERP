@@ -20,11 +20,8 @@ function isUseServerModule(sourceFile: ts.SourceFile): boolean {
   return false
 }
 
-function isExported(node: ts.Node): boolean {
-  return (
-    ts.canHaveModifiers(node) &&
-    (ts.getModifiers(node) ?? []).some((m) => m.kind === ts.SyntaxKind.ExportKeyword)
-  )
+function hasModifier(node: ts.Node, kind: ts.SyntaxKind): boolean {
+  return ts.canHaveModifiers(node) && (ts.getModifiers(node) ?? []).some((m) => m.kind === kind)
 }
 
 function bindingNames(name: ts.BindingName): string[] {
@@ -75,7 +72,7 @@ function findIdentityParams(fileName: string, sourceText: string): string[] | nu
       findings.push(`${fileName}: ${statement.getText(sourceFile)}`)
       continue
     }
-    if (!isExported(statement)) continue
+    if (!hasModifier(statement, ts.SyntaxKind.ExportKeyword)) continue
     if (ts.isFunctionDeclaration(statement)) {
       check(statement.name?.text ?? 'default', statement.parameters)
     } else if (ts.isVariableStatement(statement)) {
@@ -89,6 +86,13 @@ function findIdentityParams(fileName: string, sourceText: string): string[] | nu
           findings.push(`${fileName}: ${name} is not a function literal`)
         }
       }
+    } else if (
+      !ts.isInterfaceDeclaration(statement) &&
+      !ts.isTypeAliasDeclaration(statement) &&
+      !hasModifier(statement, ts.SyntaxKind.DeclareKeyword)
+    ) {
+      // Allowlist: `export import x = Q.reader` and other forms also become actions.
+      findings.push(`${fileName}: export ${ts.SyntaxKind[statement.kind]}`)
     }
   }
   return findings
@@ -114,6 +118,9 @@ describe('server action identity (SEC-10)', () => {
       'export const alias = internal',
       'export { internal }',
       'export default internal',
+      'export import aliased = Q.loadVo',
+      'export interface Shape { tenantId: string }',
+      'export type Scope = { tenantId: string }',
       'export type { Row } from "./types"',
       'export { type Col } from "./types"',
       'export {}',
@@ -129,6 +136,7 @@ describe('server action identity (SEC-10)', () => {
       'fixture.ts: alias is not a function literal',
       'fixture.ts: export { internal }',
       'fixture.ts: export default internal',
+      'fixture.ts: export ImportEqualsDeclaration',
     ])
     // Passes the token check but is an expression, not a directive.
     expect(
