@@ -165,8 +165,14 @@ ready for company trial phase." Decision record:
 - **Company trial: GO, conditional.** A supervised ABI pilot (one tenant, up to 10 named users) starts
   only after Day-0 items D0-1..D0-8 are done:
   1. the SEC-10 fix (#156, merged as `e708ba2f`), promoted to web on its own so that, from D0-3 on,
-     the web rollback target never predates it;
-  2. #147 rebased, with full gates on the combined tree;
+     the web rollback target never predates it. **Done 2026-11-13:** `main` `80a397f0` on
+     `thirdcode-h9ks0jxwc` (`dpl_DeBH8PRoz6zjENMT6T3AytGgPZ65`). Web rollback target until D0-3:
+     `thirdcode-jzhgfv5c9` (`ddacfb1b`). Deployment Protection: Vercel Authentication, "all except
+     custom domains", so every per-deployment URL, the pre-fix ones included, answers 302 to the
+     Vercel login, and only `thirdcode-erp.vercel.app` is public;
+  2. #147 rebased, with full gates on the combined tree. **Partial 2026-11-13** (see the Log): the
+     web build, the image-optimizer check, the credential-free Playwright job, the account-actions
+     database file on a disposable copy and a renewed #147 review are still owed;
   3. the #147 rollout (closes exposures 1 and 3);
   4. authenticated smoke plus the production cross-tenant spec, which must report passed, not skipped;
   5. the ABI tenant, with public sign-up off, "Confirm email" on, the Auth URL configuration checked and
@@ -188,7 +194,7 @@ Owner order of 2026-11-05: import and export estimates in Excel, mirror every pi
 ERP data into Cortex, and a master construction price catalogue. Cortex coverage ships
 in batches: batches 0-1 are #147; deal management (sales) is batch 2 and not started.
 Owner order of 2026-11-11: deploy only what is green on CI and proven working.
-**#151 (invite fix) and #152 (test only) are merged and live on web since 2026-11-13 (`ddacfb1b`). Nothing else below is live.** The API still runs `f212c9df`; #151 changes no API code. CI cannot run (Actions billing, see Blockers), so
+**Web serves `main` at `80a397f0` since 2026-11-13 (D0-1, deployment `dpl_DeBH8PRoz6zjENMT6T3AytGgPZ65`). It holds #151 and #152, the SEC-10 fix (#156) and its guard (#157). Nothing else below is live.** The API still runs `f212c9df`; #151 changes no API code. CI cannot run (Actions billing, see Blockers), so
 no PR here can pass the merge gate yet.
 
 | Work | Branch / PR | State |
@@ -303,6 +309,14 @@ RUNBOOK) is **done**.
   public key pinned as `production` variable `PRODUCTION_BACKUP_PUBLIC_KEY`.
 
 ## Follow-ups (tracked)
+- **WO11-01 (Medium, #158 security review, read from code, not run):** the WO-11 writer check
+  (`scripts/verify-wo-11-kyc-gate.mjs:273-302`) counts only `.insert`/`.update` on tables
+  named-imported from `@third-code-erp/database/schema`. A mounted PPRF or Opportunity action
+  could still write through a package-root import (`@third-code-erp/database` re-exports the
+  schema), a namespace import, `.delete`, `db.execute(sql...)`, a destructured alias, a helper or
+  a callback. No current entry module does. Fix: reject any reachable insert, update, delete,
+  execute or transaction call in those actions, with one test-35 fixture per pattern. Until CI
+  runs again, add `pnpm test:wo-11-contract` to the local checks before owner-override merges.
 - **zod 4 migration:** removes waiver GHSA-mrhx-c7xc-m3w5. Due 2026-12-04, with the
   minimatch and deepmerge waivers re-checked the same day.
 - **daily_tasks generation:**
@@ -401,6 +415,17 @@ RUNBOOK) is **done**.
 |---|---|---|---|
 
 ## Blockers / decisions needed
+- **D0-6 full backup, owner (blocks D0-3, the #147 rollout).** The agent has no route to the
+  production database URL: the Vercel production variables were refused to it, and the
+  GitHub secret is reachable only through `backup-production.yml`, which Actions will not start
+  ("recent account payments have failed"). Either: (a) fix GitHub billing, then dispatch
+  `Production backup` on `main` and download the encrypted artifact within its 1-day retention;
+  or (b) on this workstation, with the session-pooler URL (`:5432`) from the secret manager in
+  `DATABASE_EXPORT_URL` and `PG_DUMP_PATH=D:/thirdcode/tools-pg17/pgsql/bin/pg_dump.exe`
+  (PostgreSQL 17.12 portable client), run `pnpm plan:database-export` until it reports
+  `ready`, then the three dumps and the RSA-OAEP encryption exactly as `backup-production.yml`
+  does. Record time, sizes and SHA-256 in the Log. Docker is also available here, so
+  `supabase db dump` (the workflow's own tool) works too.
 - **Money-policy answers (owner/Finance; non-blocking: affected items are deferred and
   the loop continues).** Full text is in gap report section 4.
   - Q1: Is the contract sum VAT-inclusive? (ABI's DUPA puts 12% VAT inside H.)
@@ -502,6 +527,8 @@ RUNBOOK) is **done**.
 ## Log
 | Date | Mode | Result |
 |---|---|---|
+| 2026-11-13 | gates | D0-2 partial on the #147 + `main` tree `a94745d5` (Node 22.23.2, one process at a time). Pass: lint; typecheck in every package; the CI unit-job gates except wo-11 (below); unit suites shared-types, operations, API and web; `pnpm audit --prod`; local `supabase_db_erp` (port 54342) rebuilt from zero with `supabase@2.109.1 db reset` (183 migrations, head `20261106102000`); `verify:build-ops-data`; policy-contract, repro and release-planner (`--require-current`) checks; empty public schema diff; CI-only grants applied and asserted; database suite with no skips; API integration with no skips (Redis on 56379); the API container built and smoked (health and ready 200, unauthenticated PATCH 401). Fail: (1) `test:wo-11-contract` 58/59, also on `main`: #156 removed the import its fixture relied on; fixed by #158, merged as `93492bda` (security PASS with two pre-existing Mediums, WO11-01 in Follow-ups and WO11-02 = CI not running; code APPROVE), then merged into #147 as `cae8c63b`, where it passes 59/59; (2) actionlint: the local Windows `tar` reads `C:` as a host, so the pinned binary cannot unpack; (3) web DB workflows: two of three pass, and the account-actions file refuses a database that is not a disposable loopback copy, by design (round 4 ran it on a copy). The `db reset` step itself finished; only the run's own ledger query had a quoting error, and a separate query read 183. Not reached: Claude Code stopped the run for low workstation memory at the web `next build` (exit `0xC0000142`), so the build, the image-optimizer check and the credential-free Playwright job are still owed, as are the account-actions file on a disposable copy and a renewed review of #147 on its current head. `v1.0.0-rc.1` waits on them |
+| 2026-11-13 | deploy | D0-1 done: web promoted to `main` `80a397f0` by the manual path of `deploy-production.yml` (Vercel CLI 54.7.1 as `kurtgav`: link, `APP_REVISION` override, `deploy --prod`), because Actions is still refused for billing. The workflow's `DATABASE_URL` rewrite was skipped: it needs the GitHub secret, and the production value was left as it was. Pre-checks on a clean checkout of `80a397f0` (Node 22.23.2): lint 0, web typecheck 0, web unit suite 324 files passed and 3 skipped (DB-backed, no `DATABASE_URL`), 2,891 tests. Deployment `dpl_DeBH8PRoz6zjENMT6T3AytGgPZ65` (`thirdcode-h9ks0jxwc`, region `icn1`), aliased to `thirdcode-erp.vercel.app`. Verified: `/api/health` and `/api/ready` report `80a397f089bc`, database up, core API 200; API `/health` and `/ready` and CAD `/health` 200; `verify-production-surface.mjs` PASS; no runtime errors in the first hour. Previous production `thirdcode-jzhgfv5c9` (`ddacfb1b`) is the web rollback target until D0-3. Deployment Protection is Vercel Authentication on all deployment URLs except the production domain; the old URLs answer 302. The production release E2E (demo boundary, cross-tenant, authenticated) was not run: it needs the `buildops-e2e` credentials (D0-4). D0-6 is blocked: the agent was refused the production database URL, and `backup-production.yml` cannot start while Actions billing fails, so D0-3 waits |
 | 2026-11-13 | merge | D0-1: #156 (SEC-10) merged as `e708ba2f` under the owner override (Actions blocked). Five `'use server'` functions (four readers and the portal view counter) moved to `server-only` modules or deleted; a guard test fails on identity parameters, re-exports or a vacuous scan. Security PASS (F1 closed in the PR; F2 and the same-tenant BOM reader role gap moved to G4) and code APPROVE, both on `d7771c90`; the two later test-only commits in the merged head `cb23e4bc` were not re-reviewed. Local: web typecheck, lint on the changed files, and the guard plus the progress, vos, portal and proposal suites (155 passed). Web not yet promoted, so production still serves the readers. #155 round 2: security PASS (N1–N5) and fact-check REQUEST_CHANGES (S1–S5, nits), folded in: D0-6 now precedes D0-3, D0-6 names a runnable procedure, and the cross-tenant spec must not skip. Round 3 fact-check (§8 web row, backup form, nits) folded in. Left: fact-check round-2 N8 (CI wording in an older STATE section) |
 | 2026-11-13 | release | Owner order: end implementation and mark trial-ready. v1 feature freeze. Report `reports/02-trial-readiness.md` (#155): company trial GO conditional on D0-1..D0-8, GA NO-GO (G1–G6). Release-candidate gates on `db4887c0` (Node 22.23.2) partial: typecheck 6/6; unit shared-types 729, operations 14, database 333 pass; lint not concluded (plugin load, path case); api suite interrupted; the rest not reached. The session stopped the run for low workstation memory (rerun in D0-2). Production read-only: all health 200, ledger 180, no ABI client tenant yet, 0 ERROR advisors, leaked-password protection off. #155 round 1: fact-check REQUEST_CHANGES, security PASS with M1–M4 (SEC-10 re-raised as D0-1, public sign-up, cross-tenant spec, intake SheetJS path), all folded in. Actions still refused for billing |
 | 2026-11-13 | promote | Manual (Actions blocked): web `ddacfb1b` via Vercel CLI from a clean checkout of `main` (deployment `thirdcode-jzhgfv5c9`). Before: lint, web typecheck and the web unit suite (2,889 passed, 6 skipped) on that checkout. After: `/api/health` and `/api/ready` report `ddacfb1b8f63`, the surface check passes, API and CAD health answer 200, and Vercel showed no runtime errors in a check a few minutes after the deploy. Smoke not run (secrets in GitHub only); the invite path was not exercised. API and database unchanged |
