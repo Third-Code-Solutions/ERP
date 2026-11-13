@@ -6,7 +6,8 @@ import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { projects, users } from '@third-code-erp/database/schema'
 import { VoApprovalActions } from '@/components/vos/vo-approval-actions'
-import { getVoById, type VoStatus } from '../actions'
+import type { VoStatus } from '../actions'
+import { getVoById } from '../queries'
 
 interface PageProps {
   params: Promise<{ id: string; voId: string }>
