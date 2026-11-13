@@ -49,14 +49,23 @@ function findIdentityParams(fileName: string, sourceText: string): string[] | nu
   }
 
   for (const statement of sourceFile.statements) {
+    // Re-exports and default expressions hide the signature from this scan, so ban them here.
+    if ((ts.isExportDeclaration(statement) && !statement.isTypeOnly) || ts.isExportAssignment(statement)) {
+      findings.push(`${fileName}: ${statement.getText(sourceFile)}`)
+      continue
+    }
     if (!isExported(statement)) continue
-    if (ts.isFunctionDeclaration(statement) && statement.name) {
-      check(statement.name.text, statement.parameters)
+    if (ts.isFunctionDeclaration(statement)) {
+      check(statement.name?.text ?? 'default', statement.parameters)
     } else if (ts.isVariableStatement(statement)) {
       for (const declaration of statement.declarationList.declarations) {
         const init = declaration.initializer
-        if (init && (ts.isArrowFunction(init) || ts.isFunctionExpression(init))) {
-          check(declaration.name.getText(sourceFile), init.parameters)
+        // Also look inside wrappers such as withTrace(async (tenantId) => ...).
+        const fns = init && ts.isCallExpression(init) ? init.arguments : init ? [init] : []
+        for (const fn of fns) {
+          if (ts.isArrowFunction(fn) || ts.isFunctionExpression(fn)) {
+            check(declaration.name.getText(sourceFile), fn.parameters)
+          }
         }
       }
     }
@@ -79,7 +88,10 @@ describe('server action identity (SEC-10)', () => {
       'export async function listRows(projectId: string, tenantId: string) {}',
       'export const load = async ({ userId }: { userId: string }) => {}',
       'export const remove = function (id: string, [actorId, role]: string[]) {}',
+      'export const traced = withTrace(async (tenantId: string) => {})',
       'async function internal(tenantId: string) {}',
+      'export { internal }',
+      'export type { Row } from "./types"',
       'export async function safe(formData: FormData): Promise<{ tenantId?: string }> { return {} }',
     ].join('\n')
 
@@ -88,6 +100,8 @@ describe('server action identity (SEC-10)', () => {
       'fixture.ts: load(userId)',
       'fixture.ts: remove(actorId)',
       'fixture.ts: remove(role)',
+      'fixture.ts: traced(tenantId)',
+      'fixture.ts: export { internal }',
     ])
     expect(
       findIdentityParams('plain.ts', 'export async function read(tenantId: string) {}')
