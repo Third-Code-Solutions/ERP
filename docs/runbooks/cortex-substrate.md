@@ -2,8 +2,11 @@
 
 **Owner:** Platform / AI
 **Tables:** `cortex_nodes`, `cortex_edges`, `cortex_provenance`
-**Source of record:** `packages/database/src/schema/cortex.ts` (Drizzle) +
-`packages/database/src/sql/cortex-substrate.sql` (RLS, functions, triggers, backfill).
+**Source of record:** `supabase/migrations/` (authoritative; latest: the cortex
+coverage Batch 1 files `20261106100000`, `20261106101000` and
+`20261106102000` (audit_log server-only)), typed by
+`packages/database/src/schema/cortex.ts`. `cortex-substrate.sql` is the original
+substrate and is historical. Coverage plan: `docs/erp/specs/cortex-coverage.md`.
 
 ---
 
@@ -12,19 +15,26 @@
 A derived, RLS-scoped, hash-chained projection of the ERP. Canonical data stays
 in the ERP tables; the graph mirrors them via `ref_table`/`ref_id`. Kept live by `AFTER` triggers — **whole-ERP coverage**:
 - Curated mirrors (`cortex_mirror_{project,account,user,opportunity,document,bom,purchase_order,invoice,daily_task}`).
-- **Generic mirror** (`cortex_mirror_generic()` trigger `cortex_mirror_g`) on every
-  other top-level business table: vendors, scope_items, contacts, permits,
-  variation_orders, progress_claims, warranty_tickets, delivery_schedules, rfqs,
-  contracts, certificates, punchlist_items, site_inspections, design_files,
-  change_requests, master_schedules, material_items, weekly_reports,
-  pre_con_checklist_items. The trigger takes args `(node_type, title_col,
-  summary_col)`, stores the **full row** in `attributes`, and derives edges from
-  any `project_id / account_id / opportunity_id / bom_id / vendor_id / created_by`.
-  Adding a new table = one `create trigger … execute function
-  cortex_mirror_generic('type','title_col','status_col')` + (if new) an enum value.
-  Backfill = `update <table> set tenant_id = tenant_id` (no-op fires the trigger).
-- Excluded by design (reachable via parent): line-items, *_photos, *_documents
-  joins, *_tokens/sessions, *_messages, *_versions, sla_logs, notifications.
+  Account, user, opportunity and document delegate to `cortex_apply_*(row, op)`
+  so backfill can call them: no emails, KYC-linked documents titled
+  `KYC artifact: <type>` (trigger `cortex_kyc_redact` on `account_kyc_artifacts`),
+  opportunity stage history in `attributes.folds.stage_history`.
+- Domain mirrors (finance, payables, cash, bank, inventory).
+- **Registry mirror** (`cortex_mirror_row()`, trigger `cortex_mirror_r`) driven by
+  `cortex_mirror_registry`: the 23 former generic tables (vendors, cost_codes,
+  material_items, contacts, scope_items, permits, variation_orders,
+  progress_claims, warranty_tickets, delivery_schedules, rfqs, contracts,
+  certificates_of_completion, punchlist_items, site_inspections, design_files,
+  change_requests, master_schedules, weekly_reports, pre_con_checklist_items,
+  cost_entries, project_budgets, stock_movements). `attr_cols` is a **literal
+  allowlist** per table, written in the migration; a column added later stays out
+  until a migration adds it. Every stored string is redacted (emails, tax ids,
+  phone-like runs). The registry also supports child folds
+  (`cortex_fold_children`) and link tables (`cortex_mirror_link`) for later
+  batches. `cortex_mirror_generic()` remains defined but is attached nowhere.
+- Every tenant table is classified (mirrored, planned batch, or never mirrored
+  with a reason) in `packages/database/src/__tests__/_cortex-coverage-classes.ts`;
+  the coverage test fails on an unclassified table.
 
 The agent reads `cortex_nodes` across ALL node types, so it fetches the whole DB.
 See ADR-007.
@@ -34,14 +44,134 @@ See ADR-007.
 ERP mutation → mirror trigger → `cortex_upsert_node()` (+ derived
 `cortex_upsert_edge()`) → `cortex_provenance_append()` (hash-chained).
 Mirror triggers are **defensive**: a failure logs `WARNING` and never breaks the
-ERP write.
+ERP write, deletes included.
 
 ## Operations
 
 **Rebuild / reconcile the graph (idempotent, additive):**
-Re-run the backfill section of `cortex-substrate.sql` (the three `DO` blocks).
-`cortex_upsert_*` updates existing current nodes and inserts missing ones; it
-never deletes. Safe to run anytime.
+```bash
+DATABASE_URL=... node scripts/cortex-backfill.mjs --batch 1 --dry-run        # counts only
+DATABASE_URL=... node scripts/cortex-backfill.mjs --batch 1 --mode missing   # rows without a node
+DATABASE_URL=... node scripts/cortex-backfill.mjs --batch 1 --mode all       # re-apply every row
+DATABASE_URL=... node scripts/cortex-backfill.mjs --batch 1 --mode scrub     # rewrite every stored node
+```
+It pages `cortex_backfill(table, tenant, mode, page_size, after)` (scrub:
+`cortex_scrub_nodes(table, tenant, page_size, after)`), one tenant and one
+commit per page, endpoints first. `--page-size` defaults to 50 (at most 2000).
+Unchanged nodes write no provenance, so a re-run is cheap and safe.
+- A failing row prints `FAILED-ROW <table> <id> <error>`; the run goes on and
+  exits 1. Fix the row, then re-run.
+- Every committed page prints `RESUME --resume <table>:<tenant>:<id>`, and a
+  failed run prints the page it stopped at. Pass the last one to the same
+  command to continue, even after a killed run.
+- Each page sets `lock_timeout = 5s` and `statement_timeout = 60s` inside its
+  own transaction, and the two functions carry their own `lock_timeout`, so
+  the limits hold through a transaction pooler.
+- Rows and nodes a live writer holds are reported as skipped; re-run to pick
+  them up.
+
+**Batch 1 preflight** (before the migrations; off-peak; take a backup or
+confirm a fresh restore point first):
+- `20261106101000` takes ACCESS EXCLUSIVE on the 23 registry tables and on
+  `account_kyc_artifacts` (trigger swap), and `20261106102000` takes ACCESS
+  EXCLUSIVE on `audit_log` (policy swap, FORCE RLS), each until its COMMIT.
+  While `audit_log` is locked, every audited write waits.
+- No long transaction may hold a lock on those tables. This must return no
+  rows:
+  ```sql
+  select a.pid, now() - a.xact_start as age, a.state, left(a.query, 80) as query
+    from pg_stat_activity a
+   where a.pid <> pg_backend_pid()
+     and a.xact_start < now() - interval '30 seconds'
+     and exists (
+       select 1 from pg_locks l join pg_class c on c.oid = l.relation
+        where l.pid = a.pid
+          and c.relname = any (array[
+            'audit_log', 'account_kyc_artifacts',
+            'vendors', 'cost_codes', 'material_items', 'contacts', 'scope_items',
+            'permits', 'variation_orders', 'progress_claims', 'warranty_tickets',
+            'delivery_schedules', 'rfqs', 'contracts', 'certificates_of_completion',
+            'punchlist_items', 'site_inspections', 'design_files', 'change_requests',
+            'master_schedules', 'weekly_reports', 'pre_con_checklist_items',
+            'cost_entries', 'project_budgets', 'stock_movements']))
+   order by age desc;
+  ```
+- `20261106102000` forces RLS on `audit_log`, whose only policy then denies
+  `anon` and `authenticated`. Every role that writes it must be superuser or
+  BYPASSRLS, or every audited write fails:
+  - the migrating role, the `audit_log` table owner (forced RLS binds the
+    owner too) and the owner of `audit_log_trigger` (the audit triggers
+    write as their owner). The migration raises an exception unless each
+    passes. Run as the migrating role; every row must show `true` in one
+    column:
+    ```sql
+    select r.rolname, r.rolsuper, r.rolbypassrls
+      from pg_roles r
+     where r.rolname = current_user
+        or r.oid = (select c.relowner from pg_class c where c.oid = 'public.audit_log'::regclass)
+        or r.oid = (select p.proowner from pg_proc p
+                     join pg_namespace n on n.oid = p.pronamespace
+                    where n.nspname = 'public' and p.proname = 'audit_log_trigger');
+    ```
+  - the API and web runtime roles: `apps/api/src/audit/audit.service.ts`
+    and `apps/web/src/lib/audit.ts` (tenant-admin invites among its callers)
+    insert into `audit_log` directly as their app's role, and the migration
+    cannot see either. Connect with the `DATABASE_URL` each app uses (both, if
+    they differ) and run the query below; it must show `true` in one column.
+    If it does not, stop: applying `20261106102000` would make that app's audit
+    inserts fail.
+    ```sql
+    select current_user, r.rolsuper, r.rolbypassrls
+      from pg_roles r where r.rolname = current_user;
+    ```
+- Apply in order: types (`20261106100000`), core (`20261106101000`), audit
+  (`20261106102000`). Each file is one transaction under `lock_timeout = 5s`.
+  On `canceling statement due to lock timeout` (55P03) that file is rolled back
+  whole: rerun the long-transaction check and retry the same file.
+
+**Batch 1 rollout order** (off-peak, after the preflight above; the full
+Day-0 sequence and acceptance are D0-3 in `docs/erp/reports/02-trial-readiness.md`):
+0. Take the full encrypted backup (D0-6) and a fresh backup of the Cortex
+   tables and `audit_log`. Pause the embed job (`POST /api/cortex/embed`
+   callers) until step 4 is done, so no pre-scrub title or summary is sent
+   for embedding.
+1. Apply the three migrations: types, core, `audit_log` server-only. Merge
+   #147 into `main` directly after: until `main` holds the three files, the
+   `Require current production migration ledger` gate in
+   `deploy-production.yml` fails every promotion.
+2. Run each pass with `--dry-run` first to see how many rows (scrub: nodes)
+   each table holds, then for real with `--page-size 50`. Small pages keep
+   each transaction, and the tenant locks it holds, short while users work.
+   ```bash
+   DATABASE_URL=... node scripts/cortex-backfill.mjs --batch 1 --mode all --dry-run
+   DATABASE_URL=... node scripts/cortex-backfill.mjs --batch 1 --mode all --page-size 50
+   DATABASE_URL=... node scripts/cortex-backfill.mjs --batch 1 --mode scrub --dry-run
+   DATABASE_URL=... node scripts/cortex-backfill.mjs --batch 1 --mode scrub --page-size 50
+   ```
+3. Repeat the scrub until it reports `changed 0` and `skipped 0` on every
+   table (a skipped node was held by a live writer and is not yet scrubbed).
+   The scrub is the only pass that reaches closed nodes and nodes whose source
+   row is gone.
+4. Run the chain query below: 0 rows. Resume the embed job.
+5. Deploy web and API from the `main` commit that holds #147 (web: the manual
+   or workflow promotion; API: approve the Railway deployment for that
+   commit). Check `/api/health` reports it. From here on, never roll web
+   back to a deployment older than the D0-1 promotion (`80a397f0`, which
+   holds the SEC-10 fix `e708ba2f`), and never to `f212c9df`.
+
+Never backfill with `update <t> set tenant_id = tenant_id`: it fires the audit
+triggers and the posted-row guards.
+
+**Roll back Batch 1** (keeps all data; drops the registry triggers and engine
+functions; keeps the read check, the email-free mirrors, the KYC re-title and
+the server-only `audit_log`; the 23 registry tables stop mirroring and their
+nodes go stale). It keeps `cortex_scrub_nodes`: if the scrub had not reached
+`changed 0` and `skipped 0`, finish it afterwards with `--mode scrub` (the
+other modes need the dropped engine):
+```bash
+psql "$DATABASE_URL" --single-transaction -v ON_ERROR_STOP=1 \
+  -f packages/database/src/sql/cortex-coverage-rollback.sql
+```
 
 **Verify provenance chain integrity (per tenant):**
 ```sql
@@ -62,9 +192,10 @@ Zero rows = intact. Any row = tampering/gap → SEV-1, investigate.
 Grep Postgres logs. A graph row count far below the ERP row count for a type
 signals systematic mirror failure → reconcile + investigate the trigger.
 
-**Run the proof suite:**
+**Run the proof suite** (rollback-only probes; local or disposable DB only):
 ```bash
-corepack pnpm --filter @third-code-erp/database test
+DATABASE_URL=postgresql://... DATABASE_HARDENING_EXPECTED=1 \
+  corepack pnpm --filter @third-code-erp/database test
 ```
 
 ## Dashboard surface (where users find it)
@@ -107,12 +238,24 @@ search via an HNSW index (`idx_cortex_nodes_embedding`, `vector_cosine_ops`).
 - Population: `POST /api/cortex/embed` (admin-only) embeds a batch of the
   tenant's un-embedded nodes via `@third-code-erp/ai` `embedBatch`. Call until
   `remaining` is 0 (drive from a cron/Inngest job). Returns 503 if no embedding
-  provider key is configured — the rest of the app is unaffected. New/updated
-  nodes land with `embedding = NULL`, so re-run periodically to keep fresh.
+  provider key is configured — the rest of the app is unaffected. New nodes land
+  with `embedding = NULL`, so re-run periodically. A node whose title or
+  summary changes loses its embedding; the embed job refills it.
 
 ## Security invariants (do not regress)
 
 - RLS on all three tables (`auth_tenant_id()`); `anon` sees nothing.
+- `auth_can_read_cortex_node_type` is **deny-by-default**: a type reads only
+  through its `cortex_node_type_access.read_group` (tenant, finance, inventory,
+  budget, kyc, estimating, rfq, rate_card, procurement, catalogue). A type with no
+  row is denied to every authenticated user.
+- `cortex_mirror_registry` and `cortex_node_type_access` are server-only (RLS
+  forced, `deny_direct_client_access`, no client grants; `service_role` may only
+  read them, because rows change only by migration; the verifier fails on any
+  write privilege).
+- `audit_log` is server-only: no SELECT for `authenticated` or `anon` (table or
+  column level; the verifier checks both), and its only policy is
+  `deny_direct_client_access`, so a re-grant still shows clients nothing.
 - `cortex_*` functions have `EXECUTE` revoked from `anon/authenticated/public`.
   New `cortex_*` functions MUST be revoked too (the `7b` `DO` block re-revokes
   all `cortex\_%` functions — re-run after adding any).
@@ -120,13 +263,32 @@ search via an HNSW index (`idx_cortex_nodes_embedding`, `vector_cosine_ops`).
 
 ## Adding a new entity to the graph
 
-1. Add the node type to `cortex_node_type` (enum) if missing.
-2. Write `cortex_mirror_<entity>()` (copy an existing one; keep the defensive
-   `EXCEPTION` wrapper) + `AFTER INSERT/UPDATE/DELETE` trigger.
-3. Add derived edges from its FKs via `cortex_upsert_edge(... 'canonical' ...)`.
-4. Add a backfill `DO` block.
-5. Re-run the `7b` revoke block.
-6. Extend `cortex-substrate.test.ts`.
+Follow the parity checklist in `docs/erp/specs/cortex-coverage.md` §3.4:
+1. Enum value in a migration and in `schema/cortex.ts`.
+2. A `cortex_node_type_access` row (without it the type is unreadable).
+3. `CORTEX_GRAPH_REF_TABLE_NODE_TYPES` (shared-types) and
+   `CORTEX_ENTITY_REGISTRY` (web) entries.
+4. A `cortex_mirror_registry` row with a literal `attr_cols` allowlist, plus the
+   `cortex_mirror_r` trigger (or fold / link triggers for child tables).
+5. Re-run the `cortex\_%` revoke loop in the same migration.
+6. Move the table out of `CORTEX_PLANNED` in `_cortex-coverage-classes.ts`, then
+   backfill with `scripts/cortex-backfill.mjs`.
+
+## Known limits of the coverage Batch 1 privacy fixes
+
+- Nodes written before Batch 1 keep their old attributes (vendor contact data,
+  emails) until `--batch 1 --mode all` and then `--mode scrub` have run.
+- A document is mirrored under its file name until a KYC artifact links it.
+  From then on the title is `KYC artifact: <type>` and the node's embedding is
+  cleared so it is rebuilt from the new title. The earlier title stays in
+  `audit_log` (append-only), and it may already have been sent to the embedding
+  provider.
+- Redaction is pattern-based and top-level only: every string attribute has
+  emails, tax ids and phone-like digit runs masked and is cut to 500 characters;
+  titles and summaries are cut to 300. A name in a title (contacts, design
+  files) or free text in a description-based title is kept, masked.
+- The finance, cash, bank and inventory mirrors (11 tables) still copy by
+  denylist; see the spec, §10.
 
 ## Known follow-ups (pre-existing, not from this slice)
 

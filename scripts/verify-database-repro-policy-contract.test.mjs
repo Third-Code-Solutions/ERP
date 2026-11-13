@@ -124,3 +124,35 @@ test('rejects an unexpected policy on a direct-client-deny table', () => {
     'notification_outbox.notification_outbox_tenant_read',
   ])
 })
+
+test('the Cortex registries require their deny policy: dropping one fails', () => {
+  const registries = ['cortex_mirror_registry', 'cortex_node_type_access']
+  assert.ok(registries.every((table) => requiredDirectClientDenyTables.includes(table)))
+  const result = evaluate([
+    {
+      tablename: 'projects',
+      policyname: 'projects_tenant_read',
+      roles: 'authenticated',
+      using_expression: '(tenant_id = auth_tenant_id())',
+      check_expression: '',
+    },
+    {
+      tablename: 'cortex_conversations',
+      policyname: 'cortex_conversations_owner_read',
+      roles: 'authenticated',
+      using_expression: '(tenant_id = auth_tenant_id() and user_id = auth.uid())',
+      check_expression: '',
+    },
+    ...requiredDirectClientDenyTables
+      .filter((tablename) => tablename !== 'cortex_mirror_registry')
+      .map((tablename) => ({
+        tablename,
+        policyname: 'deny_direct_client_access',
+        roles: 'anon,authenticated',
+        using_expression: 'false',
+        check_expression: 'false',
+      })),
+  ])
+  assert.equal(result.ok, false)
+  assert.deepEqual(result.missing, ['cortex_mirror_registry.deny_direct_client_access'])
+})

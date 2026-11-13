@@ -7,6 +7,16 @@
 --
 -- Idempotent: safe to re-run. Apply AFTER Drizzle schema + RLS base policies
 -- (depends on auth_tenant_id() from rls-policies.sql and pgcrypto for digest()).
+--
+-- HISTORICAL. supabase/migrations/ is authoritative. Cortex coverage
+-- (docs/erp/specs/cortex-coverage.md) replaced parts of this file:
+--   20261106100000_cortex_coverage_types.sql (enum values, registry tables),
+--   20261106101000_cortex_coverage_core.sql (registry mirror cortex_mirror_r on
+--   the generic tables, split account/user/opportunity/document mirrors,
+--   deny-by-default auth_can_read_cortex_node_type). Do not re-run the generic
+--   trigger or backfill sections below: they would re-attach the leaky mirror.
+--   Backfill: scripts/cortex-backfill.mjs. Rollback:
+--   packages/database/src/sql/cortex-coverage-rollback.sql.
 -- =============================================================================
 
 -- --- 1. Enums -----------------------------------------------------------------

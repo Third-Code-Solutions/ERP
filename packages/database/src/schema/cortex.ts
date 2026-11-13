@@ -93,6 +93,43 @@ export const cortexNodeTypeEnum = pgEnum('cortex_node_type', [
   'cost_code',
   'project_budget',
   'stock_movement',
+  // Full coverage (docs/erp/specs/cortex-coverage.md). Added in Batch 0;
+  // each type is mirrored and readable only from the batch that ships it.
+  'kyc_track',
+  'award_handoff',
+  'pprf',
+  'tender',
+  'tender_deviation',
+  'tender_bid',
+  'dupa',
+  'library_material',
+  'crew_role',
+  'library_equipment',
+  'assembly',
+  'price_record',
+  'takeoff_import',
+  'drawing_revision',
+  'location',
+  'quote',
+  'rate_card',
+  'requisition',
+  'price_list',
+  'price_list_item',
+  'landed_cost',
+  'reservation',
+  'schedule_task',
+  'rfi',
+  'submittal',
+  'diary_entry',
+  'comment',
+  'hold_point',
+  'weekly_progress',
+  'mobilization',
+  'turnover_package',
+  'approval',
+  'asset',
+  'catalogue_item',
+  'catalogue_price',
 ])
 
 // Edge type catalog — Appendix B.
@@ -248,9 +285,36 @@ export const cortexProvenance = pgTable(
   })
 )
 
+// -----------------------------------------------------------------------------
+// Mirror registry + node-type read groups (cortex-coverage spec §3.2, §5).
+// Global config, not tenant data; server-only (RLS on, clients denied).
+// -----------------------------------------------------------------------------
+export const cortexMirrorRegistry = pgTable('cortex_mirror_registry', {
+  ref_table: text('ref_table').primaryKey(),
+  // Exactly one of node_type (node mirror), fold or links is set.
+  node_type: cortexNodeTypeEnum('node_type'),
+  title_tpl: text('title_tpl').notNull().default(''),
+  summary_tpl: text('summary_tpl').notNull().default(''),
+  // Frozen attribute allowlist; a new source column stays out until a migration adds it.
+  attr_cols: text('attr_cols').array().notNull().default([]),
+  attr_paths: text('attr_paths').array().notNull().default([]),
+  edges: jsonb('edges').notNull().default([]),
+  lookups: jsonb('lookups').notNull().default({}),
+  fold: jsonb('fold'),
+  links: jsonb('links'),
+})
+
+export const cortexNodeTypeAccess = pgTable('cortex_node_type_access', {
+  node_type: cortexNodeTypeEnum('node_type').primaryKey(),
+  // tenant | finance | inventory | budget | kyc | estimating | rfq | rate_card | procurement | catalogue
+  read_group: text('read_group').notNull(),
+})
+
 export type CortexNode = typeof cortexNodes.$inferSelect
 export type CortexNodeInsert = typeof cortexNodes.$inferInsert
 export type CortexEdge = typeof cortexEdges.$inferSelect
 export type CortexEdgeInsert = typeof cortexEdges.$inferInsert
 export type CortexProvenance = typeof cortexProvenance.$inferSelect
 export type CortexProvenanceInsert = typeof cortexProvenance.$inferInsert
+export type CortexMirrorRegistryRow = typeof cortexMirrorRegistry.$inferSelect
+export type CortexNodeTypeAccessRow = typeof cortexNodeTypeAccess.$inferSelect

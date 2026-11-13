@@ -16,7 +16,7 @@ describe('Cortex entity registry', () => {
     expect([...CORTEX_ENTITY_TYPES].sort()).toEqual(
       [...cortexNodeTypeEnum.enumValues].sort()
     )
-    expect(CORTEX_ENTITY_TYPES).toHaveLength(48)
+    expect(CORTEX_ENTITY_TYPES).toHaveLength(83)
   })
 
   it('provides navigation, access, display, and reference metadata', () => {

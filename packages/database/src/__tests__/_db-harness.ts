@@ -80,3 +80,18 @@ export async function seedTwoTenants(tx: postgres.TransactionSql): Promise<TwoTe
   )) as unknown as Array<{ id: string }>)[0]!.id
   return { tenantA: a, tenantB: b, userA: ua, userB: ub }
 }
+
+/** Insert one user with `role` into `tenantId` (as the `postgres` role). */
+export async function seedUserWithRole(
+  tx: postgres.TransactionSql,
+  tenantId: string,
+  role: string
+): Promise<string> {
+  const rows = (await tx.unsafe(
+    `insert into users(id, tenant_id, email, full_name, role)
+     values(gen_random_uuid(), $1, 'role-' || substr(md5(random()::text), 1, 10) || '@probe.test', 'Probe ' || $2::text, $2::text::role)
+     returning id`,
+    [tenantId, role]
+  )) as unknown as Array<{ id: string }>
+  return rows[0]!.id
+}
