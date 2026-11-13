@@ -146,6 +146,7 @@ export function TakeoffImportWizard({
   const existingLines = preview?.existingLineCount ?? 0
   const matchedLines = preview?.matchedLineCount ?? 0
   const addedLines = preview && existingLines > 0 ? preview.rowCount - matchedLines : 0
+  const warnings = preview?.warnings ?? []
 
   const reset = useCallback(() => {
     setFile(null)
@@ -263,10 +264,10 @@ export function TakeoffImportWizard({
               {preview.skippedAmountRows.map((skipped) => <div key={`${skipped.sheet ?? ''}-${skipped.row}`}>{skipped.sheet ? `Sheet "${skipped.sheet}" ` : ''}row {skipped.row}: {skipped.label || '(no label)'} · PHP {skipped.amount} · {skipped.reason}</div>)}
             </div>
           )}
-          {(preview.warnings?.length ?? 0) > 0 && (
+          {warnings.length > 0 && (
             <div role="status" style={{ display: 'grid', gap: 6, margin: '0 18px 18px', padding: 12, border: '1px solid var(--color-warning)', background: 'var(--color-warning-soft)', borderRadius: 8, fontSize: 12, color: 'var(--color-neutral-700)' }}>
-              <strong>{preview.warnings!.length} spreadsheet warning{preview.warnings!.length === 1 ? '' : 's'}</strong>
-              {preview.warnings!.map((warning, index) => <div key={`${warning.sourceRowKey}-${warning.code}-${index}`}>{warning.sourceRowKey}: {warning.message}</div>)}
+              <strong>{warnings.length} spreadsheet warning{warnings.length === 1 ? '' : 's'}</strong>
+              {warnings.map((warning, index) => <div key={`${warning.sourceRowKey}-${warning.code}-${index}`}>{warning.sourceRowKey}: {warning.message}</div>)}
             </div>
           )}
           {preview.validationIssues.length > 0 && (
