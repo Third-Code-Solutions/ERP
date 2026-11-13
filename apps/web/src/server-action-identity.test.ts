@@ -34,9 +34,10 @@ function bindingNames(name: ts.BindingName): string[] {
   )
 }
 
-function findIdentityParams(fileName: string, sourceText: string): string[] {
+// Returns null for modules that are not 'use server', so callers can count what was scanned.
+function findIdentityParams(fileName: string, sourceText: string): string[] | null {
   const sourceFile = ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, true)
-  if (!isUseServerModule(sourceFile)) return []
+  if (!isUseServerModule(sourceFile)) return null
 
   const findings: string[] = []
   const check = (exportName: string, params: ts.NodeArray<ts.ParameterDeclaration>) => {
@@ -77,6 +78,7 @@ describe('server action identity (SEC-10)', () => {
       "'use server'",
       'export async function listRows(projectId: string, tenantId: string) {}',
       'export const load = async ({ userId }: { userId: string }) => {}',
+      'export const remove = function (id: string, [actorId, role]: string[]) {}',
       'async function internal(tenantId: string) {}',
       'export async function safe(formData: FormData): Promise<{ tenantId?: string }> { return {} }',
     ].join('\n')
@@ -84,19 +86,24 @@ describe('server action identity (SEC-10)', () => {
     expect(findIdentityParams('fixture.ts', source)).toEqual([
       'fixture.ts: listRows(tenantId)',
       'fixture.ts: load(userId)',
+      'fixture.ts: remove(actorId)',
+      'fixture.ts: remove(role)',
     ])
     expect(
       findIdentityParams('plain.ts', 'export async function read(tenantId: string) {}')
-    ).toEqual([])
+    ).toBeNull()
   })
 
   it('finds no use-server export that takes identity from the caller', () => {
-    const findings = sourceFiles(SRC_DIR).flatMap((path) =>
-      findIdentityParams(
-        relative(SRC_DIR, path).split('\\').join('/'),
-        readFileSync(path, 'utf8')
-      )
-    )
-    expect(findings).toEqual([])
+    const actionModules = sourceFiles(SRC_DIR).flatMap((path) => {
+      const name = relative(SRC_DIR, path).split('\\').join('/')
+      const findings = findIdentityParams(name, readFileSync(path, 'utf8'))
+      return findings === null ? [] : [{ name, findings }]
+    })
+
+    // Guard against a vacuous pass if the walk or the directive check breaks.
+    expect(actionModules.map((m) => m.name)).toContain('app/(dashboard)/projects/[id]/vos/actions.ts')
+    expect(actionModules.length).toBeGreaterThan(50)
+    expect(actionModules.flatMap((m) => m.findings)).toEqual([])
   })
 })
