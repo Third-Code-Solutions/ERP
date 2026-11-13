@@ -1,5 +1,9 @@
 # Third Code ERP Verification Ledger
 
+> **Superseded on 2026-11-12. Last updated 2026-09-11.** Current state, live revisions,
+> open work and owner decisions are in [`docs/erp/STATE.md`](docs/erp/STATE.md).
+> This file is kept as history only. Do not act on it.
+
 ## Cortex LIVE614395fc3b96 — 2026-09-05 21:14 +08:00
 
 PASS mainCI33967263248; production release gates, current migration ledger,

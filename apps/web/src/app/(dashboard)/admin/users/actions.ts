@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import {
   requireUserProfile,
   can,
@@ -10,7 +10,10 @@ import {
   type AppRole,
 } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
-import { users as usersTable } from '@third-code-erp/database/schema'
+import {
+  platformUserInvitations,
+  users as usersTable,
+} from '@third-code-erp/database/schema'
 import {
   stampActorInTransaction,
   writeAuditLog,
@@ -52,16 +55,127 @@ async function safe<T extends { error?: string }>(
   }
 }
 
+const RECONCILE_AUTH_ACCOUNT =
+  'User creation could not be confirmed. Contact support to reconcile the Auth account.'
+
 /**
- * Create a workspace user.
+ * Closes a workspace invitation so it can neither bind nor activate, and the
+ * email can be re-invited. Returns false (support must reconcile) when no open
+ * invitation was closed, or when an identity other than `ownAuthUserId` holds
+ * it (SEC-11: a racing self-signup bound it first); that identity's membership
+ * is suspended through the existing `suspendUser` path.
+ */
+async function closeFailedInvitation(
+  invitationId: string,
+  tenantId: string,
+  actorId: string,
+  ownAuthUserId?: string,
+): Promise<boolean> {
+  try {
+    const invitationColumns = {
+      status: platformUserInvitations.status,
+      authUserId: platformUserInvitations.auth_user_id,
+    }
+    const [closed] = await db.transaction(async (tx) => {
+      await stampActorInTransaction(tx, actorId)
+      return tx
+        .update(platformUserInvitations)
+        .set({ status: 'failed', failure_reason: 'Workspace user creation failed' })
+        .where(
+          and(
+            eq(platformUserInvitations.id, invitationId),
+            eq(platformUserInvitations.tenant_id, tenantId),
+            inArray(platformUserInvitations.status, ['pending', 'sent']),
+          )
+        )
+        .returning(invitationColumns)
+    })
+    const [state] = closed
+      ? [closed]
+      : await db
+          .select(invitationColumns)
+          .from(platformUserInvitations)
+          .where(
+            and(
+              eq(platformUserInvitations.id, invitationId),
+              eq(platformUserInvitations.tenant_id, tenantId),
+            )
+          )
+          .limit(1)
+    const holder = state?.authUserId
+    if (holder && (holder !== ownAuthUserId || state?.status === 'accepted')) {
+      const form = new FormData()
+      form.set('user_id', holder)
+      form.set('reason', 'Workspace invitation was claimed by another sign-up; reconcile with support.')
+      const suspended = await suspendUser(form)
+      if (suspended.error) {
+        console.error('[admin/users:createUser] invitation holder could not be suspended:', suspended.error)
+      }
+      return false
+    }
+    return Boolean(closed)
+  } catch (err) {
+    console.error('[admin/users:createUser] invitation could not be closed:', err)
+    return false
+  }
+}
+
+/**
+ * After Auth deleted the identity, disables the `invited` row its insert
+ * trigger wrote in this tenant, as platform invitation revocation does.
+ * `public.users` rows cannot be deleted: audit_log's no-update rule rejects
+ * the `actor_id ON DELETE SET NULL` action. Returns false unless exactly that
+ * one row was disabled.
+ */
+async function disableProvisionalUser(
+  userId: string,
+  tenantId: string,
+  actorId: string,
+): Promise<boolean> {
+  try {
+    const disabled = await db.transaction(async (tx) => {
+      await stampActorInTransaction(tx, actorId)
+      return tx
+        .update(usersTable)
+        .set({
+          account_status: 'disabled',
+          status_reason: 'Workspace user creation failed',
+          status_changed_at: new Date(),
+          status_changed_by: actorId,
+          updated_at: new Date(),
+        })
+        .where(
+          and(
+            eq(usersTable.id, userId),
+            eq(usersTable.tenant_id, tenantId),
+            eq(usersTable.account_status, 'invited'),
+          )
+        )
+        .returning({ id: usersTable.id })
+    })
+    return disabled.length === 1
+  } catch (err) {
+    console.error('[admin/users:createUser] provisional user could not be disabled:', err)
+    return false
+  }
+}
+
+/**
+ * Create a workspace user in the caller's tenant.
  *
  * Steps:
- *   1. Supabase Auth admin API creates the auth.users row with the
- *      provided email + password. `email_confirm: true` skips the
- *      verification email so the admin can hand off credentials.
- *   2. INSERT into public.users and its audit entry in one transaction.
+ *   1. Record a server-side invitation for the caller's tenant and the
+ *      validated role. The `auth.users` insert trigger
+ *      `provision_platform_invited_user` binds the new identity to it and
+ *      writes its only `public.users` row (status `invited`), so the
+ *      self-signup trigger does not create a new tenant.
+ *   2. Supabase Auth admin API creates the identity with the provided
+ *      password. `email_confirm: true` skips the verification email so the
+ *      user is activated on first sign-in (`activate_current_invited_user`).
+ *   3. Confirm the binding and write the audit entry in one transaction.
  *
- * Deletes the Auth user if the database transaction cannot commit.
+ * Any failure closes the invitation; once Auth created the identity, it is
+ * deleted as well and the `invited` row its trigger wrote is disabled.
  */
 export async function createUser(
   formData: FormData
@@ -103,51 +217,94 @@ export async function createUser(
 
     const admin = createSupabaseAdminClient()
 
-    // 1) Create the Supabase Auth user.
-    const { data: created, error: authErr } = await admin.auth.admin.createUser({
-      email: input.email,
-      password: input.password,
-      email_confirm: true,
-      user_metadata: { full_name: input.full_name, tenant_id: profile.tenantId },
-    })
-    if (authErr || !created?.user) {
-      return {
-        error: authErr?.message ?? 'Could not create the Supabase Auth user.',
-      }
-    }
-    const authUserId = created.user.id
-
-    // 2) Mirror the identity and audit the grant in one database commit.
-    try {
-      await db.transaction(async (tx) => {
-        await stampActorInTransaction(tx, profile.user.id)
-        await tx.insert(usersTable).values({
-          id: authUserId,
+    // 1) Record the invitation the Auth insert trigger binds to. Tenant,
+    // role and inviter come from the server session, never the form.
+    const [invitation] = await db.transaction(async (tx) => {
+      await stampActorInTransaction(tx, profile.user.id)
+      return tx
+        .insert(platformUserInvitations)
+        .values({
           tenant_id: profile.tenantId,
-          email: input.email,
+          normalized_email: input.email,
           full_name: input.full_name,
           role: input.role,
+          invited_by: profile.user.id,
         })
+        .onConflictDoNothing()
+        .returning({ id: platformUserInvitations.id })
+    })
+    if (!invitation) {
+      return { error: 'This email already has an open invitation.' }
+    }
+
+    // 2) Create the Supabase Auth user; its insert trigger provisions public.users.
+    let authUserId: string | undefined
+    try {
+      const { data: created, error: authErr } = await admin.auth.admin.createUser({
+        email: input.email,
+        password: input.password,
+        email_confirm: true,
+        user_metadata: { full_name: input.full_name },
+      })
+      if (authErr || !created?.user) {
+        const closed = await closeFailedInvitation(invitation.id, profile.tenantId, profile.user.id)
+        if (!closed) return { error: RECONCILE_AUTH_ACCOUNT }
+        return {
+          error: authErr?.message ?? 'Could not create the Supabase Auth user.',
+        }
+      }
+      const createdUserId = created.user.id
+      authUserId = createdUserId
+
+      // 3) Confirm the trigger placed this identity in the caller's tenant
+      // with the granted role, and audit the grant in the same commit.
+      await db.transaction(async (tx) => {
+        await stampActorInTransaction(tx, profile.user.id)
+        const [bound] = await tx
+          .select({ id: usersTable.id })
+          .from(platformUserInvitations)
+          .innerJoin(usersTable, eq(usersTable.id, platformUserInvitations.auth_user_id))
+          .where(
+            and(
+              eq(platformUserInvitations.id, invitation.id),
+              eq(platformUserInvitations.status, 'sent'),
+              eq(usersTable.id, createdUserId),
+              eq(usersTable.tenant_id, profile.tenantId),
+              eq(usersTable.role, input.role),
+            )
+          )
+          .limit(1)
+        if (!bound) throw new Error('Auth did not bind the new user to this workspace invitation')
         await writeAuditLogInTransaction(tx, {
           tenantId: profile.tenantId,
           actorId: profile.user.id,
           entityType: 'user',
-          entityId: authUserId,
+          entityId: createdUserId,
           action: 'create',
           diff: { email: input.email, full_name: input.full_name, role: input.role },
         })
       })
     } catch (err) {
+      console.error('[admin/users:createUser] user provisioning failed:', err)
+      // Close first: a closed invitation cannot activate even if Auth cleanup fails.
+      const closed = await closeFailedInvitation(
+        invitation.id,
+        profile.tenantId,
+        profile.user.id,
+        authUserId,
+      )
+      if (!authUserId) return { error: RECONCILE_AUTH_ACCOUNT }
       const cleanup = await admin.auth.admin.deleteUser(authUserId).catch((cleanupError: unknown) => ({
         error: cleanupError,
       }))
-      console.error('[admin/users:createUser] database transaction failed:', err)
       if (cleanup.error) {
         console.error('[admin/users:createUser] Auth compensation failed:', cleanup.error)
-        return { error: 'User creation could not be confirmed. Contact support to reconcile the Auth account.' }
       }
+      if (cleanup.error || !closed) return { error: RECONCILE_AUTH_ACCOUNT }
+      const disabled = await disableProvisionalUser(authUserId, profile.tenantId, profile.user.id)
+      if (!disabled) return { error: RECONCILE_AUTH_ACCOUNT }
       return {
-        error: 'User creation failed before the workspace account was committed.',
+        error: 'User creation failed. The partial account was disabled; contact support before inviting this email again.',
       }
     }
 

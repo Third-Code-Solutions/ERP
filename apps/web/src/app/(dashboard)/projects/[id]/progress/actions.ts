@@ -16,7 +16,7 @@
  */
 
 import { revalidatePath } from 'next/cache'
-import { and, asc, desc, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq, isNull } from 'drizzle-orm'
 import { can, getUserProfile, type AppRole } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
@@ -286,32 +286,4 @@ export async function lockWeeklyProgress(
     return { error: 'WAR locking is available only after the Core weekly-progress canary is enabled.' }
   }
   return { error: 'Refresh the project page to use the confirmed WAR command flow.' }
-}
-
-/** Helper used by the page to load the latest schedule + ordered updates. */
-export async function loadProgressContext(projectId: string, tenantId: string) {
-  const [schedule] = await db
-    .select()
-    .from(masterSchedules)
-    .where(
-      and(
-        eq(masterSchedules.project_id, projectId),
-        eq(masterSchedules.tenant_id, tenantId),
-      ),
-    )
-    .orderBy(desc(masterSchedules.imported_at))
-    .limit(1)
-
-  const updates = await db
-    .select()
-    .from(progressUpdates)
-    .where(
-      and(
-        eq(progressUpdates.project_id, projectId),
-        eq(progressUpdates.tenant_id, tenantId),
-      ),
-    )
-    .orderBy(asc(progressUpdates.week_ending))
-
-  return { schedule: schedule ?? null, updates }
 }

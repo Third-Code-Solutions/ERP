@@ -14,7 +14,7 @@
  */
 
 import { revalidatePath } from 'next/cache'
-import { and, asc, count, eq } from 'drizzle-orm'
+import { and, count, eq } from 'drizzle-orm'
 import { can, getUserProfile, type AppRole } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
@@ -26,6 +26,7 @@ import {
 import { writeAuditLog } from '@/lib/audit'
 import { notifyRoles } from '@/lib/operations/notifications'
 import { createSigningSession } from '@/lib/operations/integrations/docuseal'
+import { loadVo } from './queries'
 
 export type VoChangeType = 'client_initiated' | 'site_condition' | 'design_error'
 export type VoStatus =
@@ -45,15 +46,6 @@ async function getTenantContext(): Promise<TenantCtx | { error: string }> {
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
   return { tenantId: profile.tenantId, userId: profile.user.id, role: profile.role }
-}
-
-async function loadVo(voId: string, tenantId: string) {
-  const [vo] = await db
-    .select()
-    .from(variationOrders)
-    .where(and(eq(variationOrders.id, voId), eq(variationOrders.tenant_id, tenantId)))
-    .limit(1)
-  return vo ?? null
 }
 
 async function nextVoNumber(projectId: string, tenantId: string): Promise<string> {
@@ -346,32 +338,4 @@ export async function rejectVo(
   revalidatePath(`/projects/${vo.project_id}/vos`)
   revalidatePath(`/projects/${vo.project_id}/vos/${voId}`)
   return {}
-}
-
-/** Loader used by the list page. Returns cumulative totals. */
-export async function listProjectVos(projectId: string, tenantId: string) {
-  const rows = await db
-    .select()
-    .from(variationOrders)
-    .where(
-      and(
-        eq(variationOrders.project_id, projectId),
-        eq(variationOrders.tenant_id, tenantId),
-      ),
-    )
-    .orderBy(asc(variationOrders.vo_number))
-
-  const totals = rows.reduce(
-    (acc, r) => ({
-      cost_impact_cents: acc.cost_impact_cents + r.cost_impact_cents,
-      time_impact_days: acc.time_impact_days + r.time_impact_days,
-    }),
-    { cost_impact_cents: 0, time_impact_days: 0 },
-  )
-
-  return { rows, totals }
-}
-
-export async function getVoById(voId: string, tenantId: string) {
-  return loadVo(voId, tenantId)
 }
