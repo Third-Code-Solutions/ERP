@@ -113,11 +113,13 @@ confirm a fresh restore point first):
                      join pg_namespace n on n.oid = p.pronamespace
                     where n.nspname = 'public' and p.proname = 'audit_log_trigger');
     ```
-  - the API and web runtime role: `apps/api/src/audit/audit.service.ts`
-    inserts into `audit_log` directly as that role, and the migration cannot
-    see it. Connect with the `DATABASE_URL` the API and web use and run the
-    query below; it must show `true` in one column. If it does not, stop:
-    applying `20261106102000` would make every API audit insert fail.
+  - the API and web runtime roles: `apps/api/src/audit/audit.service.ts`
+    and `apps/web/src/lib/audit.ts` (tenant-admin invites among its callers)
+    insert into `audit_log` directly as their app's role, and the migration
+    cannot see either. Connect with the `DATABASE_URL` each app uses (both, if
+    they differ) and run the query below; it must show `true` in one column.
+    If it does not, stop: applying `20261106102000` would make that app's audit
+    inserts fail.
     ```sql
     select current_user, r.rolsuper, r.rolbypassrls
       from pg_roles r where r.rolname = current_user;
@@ -127,8 +129,16 @@ confirm a fresh restore point first):
   On `canceling statement due to lock timeout` (55P03) that file is rolled back
   whole: rerun the long-transaction check and retry the same file.
 
-**Batch 1 rollout order** (off-peak, after the preflight above):
-1. Apply the three migrations: types, core, `audit_log` server-only.
+**Batch 1 rollout order** (off-peak, after the preflight above; the full
+Day-0 sequence and acceptance are D0-3 in `docs/erp/reports/02-trial-readiness.md`):
+0. Take the full encrypted backup (D0-6) and a fresh backup of the Cortex
+   tables and `audit_log`. Pause the embed job (`POST /api/cortex/embed`
+   callers) until step 4 is done, so no pre-scrub title or summary is sent
+   for embedding.
+1. Apply the three migrations: types, core, `audit_log` server-only. Merge
+   #147 into `main` directly after: until `main` holds the three files, the
+   `Require current production migration ledger` gate in
+   `deploy-production.yml` fails every promotion.
 2. Run each pass with `--dry-run` first to see how many rows (scrub: nodes)
    each table holds, then for real with `--page-size 50`. Small pages keep
    each transaction, and the tenant locks it holds, short while users work.
@@ -142,7 +152,12 @@ confirm a fresh restore point first):
    table (a skipped node was held by a live writer and is not yet scrubbed).
    The scrub is the only pass that reaches closed nodes and nodes whose source
    row is gone.
-4. Run the chain query below: 0 rows.
+4. Run the chain query below: 0 rows. Resume the embed job.
+5. Deploy web and API from the `main` commit that holds #147 (web: the manual
+   or workflow promotion; API: approve the Railway deployment for that
+   commit). Check `/api/health` reports it. From here on, never roll web
+   back to a deployment older than the D0-1 promotion (`80a397f0`, which
+   holds the SEC-10 fix `e708ba2f`), and never to `f212c9df`.
 
 Never backfill with `update <t> set tenant_id = tenant_id`: it fires the audit
 triggers and the posted-row guards.
