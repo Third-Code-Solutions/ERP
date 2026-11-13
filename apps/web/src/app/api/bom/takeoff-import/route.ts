@@ -222,6 +222,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         sheet: getFormString(form, 'sheet') ?? undefined,
         headerRow: headerRow?.data,
         sectionHeaders: getFormString(form, 'section_headers') !== 'off',
+        // From the session: one tenant reads one workbook at a time.
+        tenantId: profile.tenantId,
       }
     )
   } catch (error) {

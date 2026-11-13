@@ -595,6 +595,46 @@ describe('xlsx first filter (round 6: work on the request thread)', () => {
   }, SLOW)
 })
 
+describe('xlsx first filter (round 6: a sheet list ExcelJS searches for every part, S6-2)', () => {
+  const R = 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
+  const listing = (sheets: number, parts: Record<string, string> = {}) =>
+    xlsx([{ xml: sheetXml(HEADER + PIPE) }], {
+      ...parts,
+      'xl/workbook.xml': `<?xml version="1.0"?><workbook ${NS} ${R}><sheets><sheet name="S1" sheetId="1" r:id="rId1"/>${'<sheet name="s" sheetId="2" r:id="x"/>'.repeat(sheets - 1)}</sheets></workbook>`,
+    })
+  const tooManySheets = new TakeoffTooLargeError(
+    'The workbook lists more than 1,000 sheets, counting those of linked workbooks. Copy the BOQ sheet to a new workbook and try again.',
+  )
+
+  it('refuses a workbook that lists more than 1,000 sheets or holds more than 1,000 parts', async () => {
+    // The reviewers' file: 800,000 sheet entries and 4,900 empty worksheet parts,
+    // 1.1 MB on disk, inside every earlier limit. ExcelJS searched the list once
+    // for each part and the reader ran to its 15 s kill.
+    const emptySheets = Object.fromEntries(
+      Array.from({ length: 4_899 }, (_, index) => [`xl/worksheets/sheet${index + 2}.xml`, `<worksheet ${NS}><sheetData/></worksheet>`]),
+    )
+    const storm = await listing(800_000, emptySheets)
+    expect(() => assertXlsxWithinLimits(storm)).toThrow(
+      new TakeoffTooLargeError('The workbook has more than 1,000 parts. Copy the BOQ to a new workbook and try again.'),
+    )
+
+    // The list alone, with few parts: the scan stops at entry 1,001.
+    const longList = await listing(800_000)
+    const started = performance.now()
+    expect(() => assertXlsxWithinLimits(longList)).toThrow(tooManySheets)
+    expect(performance.now() - started).toBeLessThan(1_000)
+
+    expect(() => assertXlsxWithinLimits(longList, { ...XLSX_LIMITS, sheetIds: 800_000 })).not.toThrow()
+    const oneOver = await listing(1_001)
+    const atTheLimit = await listing(1_000)
+    expect(() => assertXlsxWithinLimits(oneOver)).toThrow(tooManySheets)
+    expect(() => assertXlsxWithinLimits(atTheLimit)).not.toThrow()
+    await expect(parseStructuredTakeoff(atTheLimit, 'a.xlsx', MAPPING)).resolves.toMatchObject({
+      rows: [{ description: 'Pipe', quantity: 3, unit: 'm' }],
+    })
+  }, SLOW)
+})
+
 describe('xlsx first filter (round 6: only the tags ExcelJS acts on)', () => {
   const R = 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
   const XDR = 'xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"'
@@ -670,6 +710,30 @@ describe('xlsx reader process', () => {
     expect(result.warnings.filter((warning) => warning.code === 'TEXT_TRUNCATED')).toHaveLength(300)
   }, SLOW)
 
+  it('stops at 1,001 runs of a rich-text string whose runs are all empty (S6-2)', async () => {
+    // The reviewers' 44 KB file: one shared string of 1,000,000 empty runs, used
+    // by 6,000 cells. Empty runs never reach the text cut, so every cell walked
+    // all of them and the reader ran to its 15 s kill.
+    const rows = Array.from({ length: 2_000 }, (_, index) => {
+      const row = index + 2
+      return `<row r="${row}"><c r="A${row}" t="s"><v>0</v></c><c r="B${row}" t="s"><v>0</v></c><c r="C${row}" t="s"><v>0</v></c></row>`
+    })
+    const buffer = await xlsx([{ xml: sheetXml(HEADER + rows.join('') + textRow(2_002, ['Pipe', '3', 'm'])) }], {
+      'xl/sharedStrings.xml': `<?xml version="1.0"?><sst ${NS}><si>${'<r><t/></r>'.repeat(1_000_000)}</si></sst>`,
+    })
+    expect(buffer.length).toBeLessThan(100_000)
+    expect(() => assertXlsxWithinLimits(buffer)).not.toThrow()
+
+    // Inside a 5 second clock, not the 15 seconds a read may take.
+    const read = await readXlsxSheet(buffer, REQUEST, { ...XLSX_READER_LIMITS, wallClockMs: 5_000 })
+
+    expect(read).toMatchObject({ sheet: 'S1', hiddenRows: [] })
+    const grid = 'grid' in read ? read.grid : []
+    expect(grid).toHaveLength(2_002)
+    expect(grid[1]).toEqual(['', '', ''])
+    expect(grid[2_001]).toEqual(['Pipe', '3', 'm'])
+  }, SLOW)
+
   it('stops a read at the wall clock and keeps this thread responsive (S3-H2)', async () => {
     // Past the first filter on purpose: whatever it misses must still stop.
     const spinning = await xlsx([{ id: 100_000_000, xml: sheetXml(HEADER + PIPE) }])
@@ -718,6 +782,31 @@ describe('xlsx reader process', () => {
     // The slot is free: a read with its own (default) wall clock, still one at a time.
     await expect(readXlsxSheet(ordinary, REQUEST, { ...XLSX_READER_LIMITS, concurrent: 1 })).resolves.toMatchObject({
       sheets: ['S1'],
+      sheet: 'S1',
+    })
+  }, SLOW)
+
+  it('runs one read at a time for a tenant and leaves the other slot to another tenant (S6-2)', async () => {
+    // Past the first filter on purpose: whatever shape keeps a reader busy for
+    // its whole clock, one tenant holds one slot with it, not both.
+    const limits = { ...XLSX_READER_LIMITS, wallClockMs: 3_000 }
+    const spinning = await xlsx([
+      { xml: sheetXml(`${HEADER}<row r="4000000000"><c r="A4"><v>1</v></c></row>`) },
+    ])
+    const ordinary = await xlsx([{ xml: sheetXml(HEADER + PIPE) }])
+
+    const first = readXlsxSheet(spinning, REQUEST, limits, 'tenant-a')
+    // One slot of the two is still free, but not for the tenant that holds the other.
+    await expect(readXlsxSheet(spinning, REQUEST, limits, 'tenant-a')).rejects.toBeInstanceOf(TakeoffBusyError)
+    await expect(readXlsxSheet(ordinary, REQUEST, limits, 'tenant-a')).rejects.toBeInstanceOf(TakeoffBusyError)
+    const other = readXlsxSheet(ordinary, REQUEST, XLSX_READER_LIMITS, 'tenant-b')
+    // Both slots are taken now, whoever asks.
+    await expect(readXlsxSheet(ordinary, REQUEST, limits, 'tenant-c')).rejects.toBeInstanceOf(TakeoffBusyError)
+
+    await expect(other).resolves.toMatchObject({ sheets: ['S1'], sheet: 'S1' })
+    await expect(first).rejects.toBeInstanceOf(TakeoffTooLargeError)
+    // Its read is over, so the first tenant may read again.
+    await expect(readXlsxSheet(ordinary, REQUEST, XLSX_READER_LIMITS, 'tenant-a')).resolves.toMatchObject({
       sheet: 'S1',
     })
   }, SLOW)

@@ -21,7 +21,7 @@ import {
   type CellNumber,
   type CellNumberProblem,
 } from '@/lib/operations/boq-excel/cells'
-import { readXlsxSheet, TakeoffTooLargeError } from './takeoff-xlsx-reader'
+import { readXlsxSheet, TakeoffTooLargeError, XLSX_READER_LIMITS } from './takeoff-xlsx-reader'
 
 export { validateTakeoffRows }
 export { TakeoffBusyError, TakeoffTooLargeError } from './takeoff-xlsx-reader'
@@ -48,6 +48,8 @@ export interface TakeoffParseOptions {
   headerRow?: number
   /** Rows with no quantity, unit, rate or amount become the division below. Default on. */
   sectionHeaders?: boolean
+  /** Whose read this is: the reader runs one .xlsx read at a time for each tenant. */
+  tenantId?: string
 }
 
 export type TakeoffRowWarningCode =
@@ -119,7 +121,11 @@ const GRID_TEXT_BUDGET = 2 * TAKEOFF_IMPORT_MAX_COMMAND_BYTES
 export const XLSX_LIMITS = {
   uncompressedBytes: 100 * 1024 * 1024,
   // Workbook parts (zip entries); a real estimate has a few hundred.
-  entries: 5_000,
+  entries: 1_000,
+  // sheetId attributes over every scanned part, which bounds the sheets listed
+  // in the workbook: ExcelJS searches that list once for each worksheet part,
+  // so 800,000 entries beside 4,900 parts held a reader for its whole clock.
+  sheetIds: 1_000,
   // Rows, cells and merged cells over every sheet: ExcelJS keeps about 500
   // bytes for each (measured), which is about half of the reader's heap cap.
   cells: 500_000,
@@ -499,6 +505,7 @@ export function assertXlsxWithinLimits(buffer: Buffer, limits = XLSX_LIMITS): vo
   let offset = directoryStart
   let total = 0
   let xmlBytes = 0
+  let sheetIds = 0
   let counted: WorkbookCounts = { cells: 0, mergedRanges: 0 }
   for (let entry = 0; entry < entries; entry += 1) {
     if (offset + 46 > end || buffer.readUInt32LE(offset) !== ZIP_DIRECTORY_ENTRY) {
@@ -544,6 +551,12 @@ export function assertXlsxWithinLimits(buffer: Buffer, limits = XLSX_LIMITS): vo
       if (!XML_DECLARATION_1_0.test(xml)) throw unreadable('a part is not plain XML 1.0')
     }
     for (const match of xml.matchAll(SHEET_ID)) {
+      sheetIds += 1
+      if (sheetIds > limits.sheetIds) {
+        throw new TakeoffTooLargeError(
+          `The workbook lists more than ${limits.sheetIds.toLocaleString('en-PH')} sheets, counting those of linked workbooks. Copy the BOQ sheet to a new workbook and try again.`,
+        )
+      }
       SHEET_ID_VALUE.lastIndex = match.index + match[0].length
       const [, double, single] = SHEET_ID_VALUE.exec(xml) ?? []
       const id = double ?? single
@@ -573,15 +586,20 @@ async function readWorksheet(
   buffer: Buffer,
   options: TakeoffParseOptions,
 ): Promise<{ sheets: string[]; sheet: string | null; grid: unknown[][]; hiddenRows: number[] }> {
-  const read = await readXlsxSheet(buffer, {
-    sheet: options.sheet,
-    lastRow: lastReadRow(options),
-    maxColumns: TAKEOFF_MAX_COLUMNS,
-    // One past the cut, so a cut cell can be told from one that just fits.
-    maxText: MAX_CELL_TEXT + 1,
-    maxGridText: GRID_TEXT_BUDGET,
-    ignoreNodes: IGNORED_SHEET_NODES,
-  })
+  const read = await readXlsxSheet(
+    buffer,
+    {
+      sheet: options.sheet,
+      lastRow: lastReadRow(options),
+      maxColumns: TAKEOFF_MAX_COLUMNS,
+      // One past the cut, so a cut cell can be told from one that just fits.
+      maxText: MAX_CELL_TEXT + 1,
+      maxGridText: GRID_TEXT_BUDGET,
+      ignoreNodes: IGNORED_SHEET_NODES,
+    },
+    XLSX_READER_LIMITS,
+    options.tenantId,
+  )
   if (read.sheet === null) return { sheets: read.sheets, sheet: null, grid: [], hiddenRows: [] }
   if ('refused' in read) {
     if (read.refused === 'TOO_WIDE') {

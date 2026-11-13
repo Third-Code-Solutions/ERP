@@ -21,6 +21,7 @@ import { POST } from './route'
 
 const BOM_ID = '11111111-1111-4111-8111-111111111111'
 const TENANT_ID = '22222222-2222-4222-8222-222222222222'
+const OTHER_TENANT_ID = '44444444-4444-4444-8444-444444444444'
 const USER_ID = '33333333-3333-4333-8333-333333333333'
 const SOURCE_KEY = 'a'.repeat(64)
 
@@ -392,6 +393,52 @@ describe('generic takeoff import Core authority', () => {
       error: { code: 'TAKEOFF_TOO_LARGE', message: expect.stringContaining('16,384 columns') },
     })
     expect(mocks.executeTakeoffImportThroughCoreApi).not.toHaveBeenCalled()
+  })
+
+  it('reads one workbook at a time for a tenant and gives another tenant the other slot (S6-2)', async () => {
+    mocks.executeTakeoffImportThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: { ok: true, mode: 'preview' },
+    })
+    const ExcelJS = await import('exceljs')
+    const workbook = new ExcelJS.Workbook()
+    workbook.addWorksheet('BOQ').addRows([
+      ['Description', 'Qty', 'UOM'],
+      ['Paint', 1, 'sqm'],
+    ])
+    const bytes = Buffer.from(await workbook.xlsx.writeBuffer())
+    // The tenant comes from the session, never from the form.
+    const post = (tenantId: string) => {
+      mocks.requireUserProfile.mockResolvedValueOnce({
+        user: { id: USER_ID },
+        tenantId,
+        role: 'commercial',
+        email: 'commercial@example.com',
+        fullName: 'Commercial',
+      })
+      return POST(
+        requestWithForm({
+          file: new File([bytes], 'boq.xlsx'),
+          bom_id: BOM_ID,
+          mode: 'preview',
+        })
+      )
+    }
+
+    // Two uploads of one tenant in flight: one is read, the other is told to retry.
+    const sameTenant = await Promise.all([post(TENANT_ID), post(TENANT_ID)])
+    expect(sameTenant.map((response) => response.status).sort()).toEqual([200, 503])
+    const busy = sameTenant.find((response) => response.status === 503)
+    expect(busy?.headers.get('Retry-After')).toBe('10')
+    await expect(busy?.json()).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'TAKEOFF_BUSY' },
+    })
+    expect(mocks.executeTakeoffImportThroughCoreApi).toHaveBeenCalledTimes(1)
+
+    // Two tenants in flight: each has a slot.
+    const twoTenants = await Promise.all([post(TENANT_ID), post(OTHER_TENANT_ID)])
+    expect(twoTenants.map((response) => response.status)).toEqual([200, 200])
   })
 
   it('accepts a blanked optional column and does not forward it to Core', async () => {

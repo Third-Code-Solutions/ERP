@@ -20,11 +20,15 @@ function plainValue(value, maxText) {
       : { formula: true, result: plainValue(value.result, maxText) }
   }
   if (Array.isArray(value.richText)) {
-    // A shared string can hold millions of runs; join only what is read.
+    // A shared string can hold millions of runs; join only what is read. The
+    // runs are counted as well as the characters: empty runs never add up to
+    // maxText, and every cell that uses the string would walk all of them.
     let text = ''
+    let runs = 0
     for (const part of value.richText) {
       if (part && typeof part.text === 'string') text += part.text
-      if (text.length >= maxText) break
+      runs += 1
+      if (text.length >= maxText || runs >= maxText) break
     }
     return text.slice(0, maxText)
   }

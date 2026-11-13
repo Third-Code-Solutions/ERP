@@ -60,34 +60,44 @@ type Outcome = { ok: true; read: XlsxSheetRead } | { ok: false; error: Error }
 
 // Each slot is one child process that may still be running.
 let activeReads = 0
+// The tenants with a read in flight. One each: whatever keeps a reader busy
+// for its whole clock, one tenant holds one slot and the others keep the rest.
+const readingTenants = new Set<string>()
 
 /**
  * Reads one sheet in a child process and resolves with plain values. A thread
  * cannot be stopped while V8 runs a builtin loop, so the reader is a process
  * that is killed (SIGKILL) at the wall clock; its heap is capped with
  * --max-old-space-size. Rejects with TakeoffTooLargeError at either limit,
- * with TakeoffBusyError when too many reads are running, and with a plain
- * Error when ExcelJS cannot read the workbook or the process cannot start.
- * The promise settles, and the slot is released, only once the child is gone.
+ * with TakeoffBusyError when too many reads are running or this tenant
+ * already has one, and with a plain Error when ExcelJS cannot read the
+ * workbook or the process cannot start. Callers that pass no tenant share one
+ * key. The promise settles, and the slots are released, only once the child
+ * is gone.
  */
 export function readXlsxSheet(
   bytes: Uint8Array,
   request: XlsxSheetRequest,
   limits = XLSX_READER_LIMITS,
+  tenantId = '',
 ): Promise<XlsxSheetRead> {
   const workerFile = path.join(process.cwd(), WORKER_FILE)
   if (!existsSync(workerFile)) {
     return Promise.reject(new Error(`Workbook reader is not installed: ${WORKER_FILE} is missing.`))
   }
-  if (activeReads >= limits.concurrent) return Promise.reject(new TakeoffBusyError())
+  if (activeReads >= limits.concurrent || readingTenants.has(tenantId)) {
+    return Promise.reject(new TakeoffBusyError())
+  }
 
   activeReads += 1
+  readingTenants.add(tenantId)
   return new Promise<XlsxSheetRead>((resolve, reject) => {
     let released = false
     const release = (outcome: Outcome) => {
       if (released) return
       released = true
       activeReads -= 1
+      readingTenants.delete(tenantId)
       if (outcome.ok) resolve(outcome.read)
       else reject(outcome.error)
     }

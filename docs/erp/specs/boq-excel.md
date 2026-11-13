@@ -38,7 +38,12 @@ that says what to do; a file the guard cannot fully account for is 422
   inflated once with its declared size as the output cap and must come out at
   exactly that size. Anything else is refused.
 - Whole-workbook limits of the first filter (they say nothing about the sheet
-  being imported): 100 MB inflated; 5,000 parts; 32 MB of XML over all parts,
+  being imported): 100 MB inflated; 1,000 parts; 1,000 `sheetId` attributes
+  over the scanned parts, which bounds the workbook's list of sheets (and
+  those of linked workbooks; ExcelJS searches that list once for every
+  worksheet part, so 800,000 entries beside 4,900 parts once held a reader
+  for its whole clock), 413 "The workbook lists more than 1,000 sheets,
+  counting those of linked workbooks. ..."; 32 MB of XML over all parts,
   judged by content (shared strings, styles, comments and drawings expand
   about 12x in ExcelJS; images do not count, but any part the sheet scans
   below read counts, whatever its first byte); 500,000 rows and cells counted
@@ -87,13 +92,17 @@ that says what to do; a file the guard cannot fully account for is 422
   `--max-old-space-size=512` and none of the server's environment) with a
   15 second wall clock, after which the process is killed (SIGKILL): a thread
   cannot be stopped while V8 runs a builtin loop, a process can. At most 2
-  reads run at once per server instance; a read's slot is released only once
+  reads run at once per server instance and at most 1 for each tenant (the
+  tenant of the session), so whatever keeps a reader busy for its whole
+  clock, one tenant holds one slot and another tenant still gets the other;
+  a read's slot is released only once
   its process is gone, and also when the process fails to start. Over the
   heap cap or the clock is
   413 `TAKEOFF_TOO_LARGE` ("The workbook needs more than 512 MB of memory to
   read." / "The workbook took longer than 15 seconds to read.", each followed
   by "Copy the BOQ sheet to a new workbook and try again."). A third
-  concurrent read is 503 `TAKEOFF_BUSY` with `Retry-After: 10` ("Other
+  concurrent read, or a tenant's second, is 503 `TAKEOFF_BUSY` with
+  `Retry-After: 10` ("Other
   spreadsheets are being read right now. Try again in a few seconds."). A
   read that fails otherwise is 422 "The workbook could not be read: ...".
   The server stays responsive while a read runs.
@@ -109,6 +118,9 @@ that says what to do; a file the guard cannot fully account for is 422
   their first 64 cells.
 - Cell text is cut at 1,000 characters (a longer number is not a number). A
   cut Description or Notes cell is reported in the preview (`TEXT_TRUNCATED`).
+  A rich-text cell is read up to its first 1,001 runs as well as its first
+  1,001 characters: a shared string of a million empty runs never reaches the
+  character cut, and every cell that used it walked all of them.
 - Rows are counted in bytes as they are built; past the 2 MB command budget
   the parse stops with 413 instead of building the whole command first.
 
