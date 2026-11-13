@@ -303,8 +303,8 @@ describe('structured takeoff importer', () => {
 
     expect(result.sectionRows).toBe(1)
     // A rate with no quantity stays for review; an amount with no quantity and
-    // a lump-sum unit is quantity 1 at that amount (round 3, C3-3; owner
-    // decision 2026-11-13: without that unit it is skipped, see below).
+    // a lump-sum unit is quantity 1 at that amount (round 3, C3-3; by the
+    // default applied on 2026-11-13, without that unit it is skipped, see below).
     expect(
       result.rows.map((row) => [row.description, row.quantity, row.unitRateCentavos, row.division]),
     ).toEqual([
@@ -325,7 +325,7 @@ describe('structured takeoff importer', () => {
     ])
   })
 
-  it('skips and lists amount-only rows unless the unit is ls, l.s. or lot (owner decision, A.5)', async () => {
+  it('skips and lists amount-only rows unless the unit is ls, l.s. or lot (A.5 default)', async () => {
     const result = await parseCsv([
       'Item,Description,Quantity,UOM,Unit Rate,Amount',
       '1,Excavation,10,cu.m,"1,000.00","10,000.00"',
@@ -368,6 +368,62 @@ describe('structured takeoff importer', () => {
     )
     expect(imported).toBe(7_500_050)
     expect(validateTakeoffRows(result.rows).filter((issue) => issue.code !== 'MISSING_DIVISION')).toEqual([])
+  })
+
+  it('never derives a rate from the amount of a row with no unit, whatever its quantity (A.5)', async () => {
+    const result = await parseCsv([
+      'Item,Description,Quantity,UOM,Unit Rate,Amount',
+      '1,Excavation,10,cu.m,"1,000.00","10,000.00"',
+      '2,Backfill,4,cu.m,,"2,000.00"',
+      // The reviewers' row: 12% typed under Quantity. It used to become 0.12 at 77,625.50.
+      ',VAT,0.12,,,"9,315.06"',
+      ',Retention 10%,0.1,,,"9,296.06"',
+      ',Retention 10%,10%,,,"9,296.06"',
+      '3,Survey,1,,"5,000.00","5,000.00"',
+    ])
+
+    // A unit and a rate, a unit and no rate (derived as before), a rate and no unit: all unchanged.
+    expect(result.rows.map((row) => [row.description, row.quantity, row.unit, row.unitRateCentavos])).toEqual([
+      ['Excavation', 10, 'cu.m', 100_000],
+      ['Backfill', 4, 'cu.m', 50_000],
+      ['Survey', 1, '', 500_000],
+    ])
+    const withoutUnit = 'Amount with no unit and no unit rate: a line has a unit, so no rate is derived from this amount.'
+    expect(result.skippedRows).toBe(3)
+    expect(result.skippedAmountRows).toEqual([
+      { sheet: null, row: 4, label: 'VAT', amount: '9,315.06', reason: withoutUnit },
+      { sheet: null, row: 5, label: 'Retention 10%', amount: '9,296.06', reason: withoutUnit },
+      { sheet: null, row: 6, label: 'Retention 10%', amount: '9,296.06', reason: withoutUnit },
+    ])
+    expect(result.warnings).toEqual([])
+    // None of the three amounts reaches the BOM total.
+    const imported = result.rows.reduce(
+      (sum, row) => sum + lineTotal(row.unitRateCentavos ?? 0, String(row.quantity), 0),
+      0,
+    )
+    expect(imported).toBe(1_700_000)
+
+    // The same with no rate column at all.
+    const noRateColumn = await parseCsv(['Description,Quantity,UOM,Amount', 'VAT,0.12,,"9,315.06"', 'Paint,2,sqm,300'])
+    expect(noRateColumn.rows.map((row) => [row.description, row.unitRateCentavos])).toEqual([['Paint', 15_000]])
+    expect(noRateColumn.skippedAmountRows).toEqual([
+      { sheet: null, row: 2, label: 'VAT', amount: '9,315.06', reason: withoutUnit },
+    ])
+
+    // And as the reviewers' workbook had it: number cells, not text.
+    const ExcelJS = await import('exceljs')
+    const workbook = new ExcelJS.Workbook()
+    const sheet = workbook.addWorksheet('BOQ')
+    sheet.addRow(['Description', 'Quantity', 'UOM', 'Unit Rate', 'Amount'])
+    sheet.addRow(['Excavation', 10.125, 'cu.m', 1000, { formula: 'B2*D2', result: 10125 }])
+    sheet.addRow(['VAT (as a quantity)', 0.12, null, null, 9315.06])
+    const fromWorkbook = await parseStructuredTakeoff(Buffer.from(await workbook.xlsx.writeBuffer()), 'boq.xlsx', MAPPING)
+    expect(fromWorkbook.rows.map((row) => [row.description, row.quantity, row.unitRateCentavos])).toEqual([
+      ['Excavation', 10.125, 100_000],
+    ])
+    expect(fromWorkbook.skippedAmountRows).toEqual([
+      { sheet: 'BOQ', row: 3, label: 'VAT (as a quantity)', amount: '9,315.06', reason: withoutUnit },
+    ])
   })
 
   it('does not fall back to rate aliases when the rate mapping is blanked', async () => {

@@ -197,13 +197,16 @@ const REQUIRED_FIELDS = [
 
 // "Total", "Subtotal", "Sub-total", "Sub Total", "Grand total".
 const TOTAL_ROW = /^(grand\s+|sub[\s-]*)?total\b/i
-// boq-excel A.5 (owner decision 2026-11-13): an amount with no quantity is a
-// lump sum only when the unit says so. Any other such row (TOTAL, VAT, a
-// subtotal under another name) is skipped and listed, never priced.
+// boq-excel A.5 (the default applied on 2026-11-13, pending the owner's
+// confirmation): an amount with no quantity is a lump sum only when the unit
+// says so, and an amount on a row with no unit never prices it. Any such row
+// (TOTAL, VAT, a subtotal under another name) is skipped and listed.
 const LUMP_SUM_UNITS = new Set(['ls', 'l.s.', 'lot'])
 const TOTAL_ROW_REASON = 'Total row (its description starts with Total, Subtotal or Grand total and it has no unit).'
 const AMOUNT_ONLY_REASON =
   'Amount with no quantity: only a row whose unit is ls, l.s. or lot is imported as a lump sum.'
+const AMOUNT_WITHOUT_UNIT_REASON =
+  'Amount with no unit and no unit rate: a line has a unit, so no rate is derived from this amount.'
 
 const PROBLEM_TEXT: Record<CellNumberProblem, string> = {
   BLANK: 'is blank',
@@ -716,7 +719,15 @@ function positiveAmount(cells: unknown[], indexes: ColumnIndexes): number | null
   return amount.ok && amount.value > 0 ? amount.value : null
 }
 
-type RowKind = 'blank' | 'total' | 'amountOnly' | 'section' | 'item'
+type SkippedRowKind = 'blank' | 'total' | 'amountOnly' | 'amountWithoutUnit'
+type RowKind = SkippedRowKind | 'section' | 'item'
+
+// Why a skipped row that carries an amount was not imported (a blank row carries none).
+const SKIPPED_AMOUNT_REASON: Record<Exclude<SkippedRowKind, 'blank'>, string> = {
+  total: TOTAL_ROW_REASON,
+  amountOnly: AMOUNT_ONLY_REASON,
+  amountWithoutUnit: AMOUNT_WITHOUT_UNIT_REASON,
+}
 
 function classifyRow(
   cells: unknown[],
@@ -727,13 +738,20 @@ function classifyRow(
   if (isBlankRow(cells)) return 'blank'
   // A total row has no unit; "Total station survey | 1 | lot" is a real line.
   if (TOTAL_ROW.test(description) && isBlankCell(cells[indexes.unit])) return 'total'
-  // An amount with no quantity and no rate is a lump sum only with a lump-sum
-  // unit; any other such row (VAT, a subtotal by another name) is not a line.
-  const isAmountOnly =
-    positiveAmount(cells, indexes) !== null &&
-    isBlankCell(cells[indexes.quantity]) &&
-    (indexes.unitRate < 0 || isBlankCell(cells[indexes.unitRate]))
-  if (isAmountOnly && !LUMP_SUM_UNITS.has(normalizeUnit(cellText(cells[indexes.unit])))) return 'amountOnly'
+  // An amount with no rate would be the row's only price. Without a quantity
+  // it is a lump sum, and only with a lump-sum unit. Without a unit it prices
+  // nothing, whatever Quantity holds: "VAT | 0.12 | | | 9,315.06" is a summary
+  // row with 12% typed under Quantity, not 0.12 of something at 77,625.50.
+  const isAmountTheOnlyPrice =
+    positiveAmount(cells, indexes) !== null && (indexes.unitRate < 0 || isBlankCell(cells[indexes.unitRate]))
+  if (isAmountTheOnlyPrice) {
+    const unit = normalizeUnit(cellText(cells[indexes.unit]))
+    if (isBlankCell(cells[indexes.quantity])) {
+      if (!LUMP_SUM_UNITS.has(unit)) return 'amountOnly'
+    } else if (unit === '') {
+      return 'amountWithoutUnit'
+    }
+  }
   // A rate or a lump sum with no quantity is an item, not a header.
   const isHeader = [indexes.quantity, indexes.unit, indexes.unitRate, indexes.amount].every(
     (index) => index < 0 || isBlankCell(cells[index]),
@@ -794,8 +812,8 @@ interface RowPrice {
  * Prices a row from its mapped amount. With a rate the amount is only checked.
  * Without one the amount is the row's only price, so the rate is derived when
  * that is exact to the centavo, and a row with no quantity is a lump sum of
- * quantity 1 (classifyRow lets only a lump-sum unit through). Nothing is
- * rounded to make an amount fit.
+ * quantity 1 (classifyRow lets through only a row that has a unit, and with
+ * no quantity only a lump-sum unit). Nothing is rounded to make an amount fit.
  */
 function priceFromAmount(cell: unknown, price: RowPrice, warn: Warn): RowPrice {
   const { quantity, unitRateCentavos } = price
@@ -931,16 +949,16 @@ function buildRows(
     const cells = grid[rowNumber - 1] ?? []
     const description = cellText(cells[indexes.description]).trim()
     const kind = classifyRow(cells, indexes, description, sectionHeaders)
-    if (kind === 'blank' || kind === 'total' || kind === 'amountOnly') {
+    if (kind !== 'section' && kind !== 'item') {
       result.skippedRows += 1
       const amount = positiveAmount(cells, indexes)
-      if (amount !== null) {
+      if (amount !== null && kind !== 'blank') {
         result.skippedAmountRows.push({
           sheet,
           row: rowNumber,
           label: (description || firstText(cells)).slice(0, 80),
           amount: formatCentavos(amount),
-          reason: kind === 'total' ? TOTAL_ROW_REASON : AMOUNT_ONLY_REASON,
+          reason: SKIPPED_AMOUNT_REASON[kind],
         })
       } else if (kind === 'total' && !isBlankCell(cells[indexes.quantity])) {
         // With a quantity it may be a line missing its unit.

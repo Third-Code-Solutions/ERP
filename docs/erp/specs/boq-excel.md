@@ -151,7 +151,12 @@ that says what to do; a file the guard cannot fully account for is 422
    An amount-only row (an amount above zero, a blank quantity and no rate)
    is skipped too unless its unit is a lump-sum unit (A.5): TOTALS, VAT 12%,
    Overall Total, Contract Price, or a total label in another column with a
-   blank description, never become priced lines (owner decision 2026-11-13).
+   blank description, never become priced lines. So is a row with an amount
+   above zero, no rate and a blank unit, whatever its Quantity cell holds
+   (`VAT | 0.12 | | | 9,315.06`, with 12% typed under Quantity): no rate is
+   derived from the amount of a row that has no unit (A.5). Both rules are
+   the default applied on 2026-11-13, pending the owner's confirmation; no
+   owner decision on them is recorded yet.
    Skipped rows are counted (`skippedRows`). Every skipped row that carries
    an amount above zero is listed in the preview (`skippedAmountRows`: sheet,
    or null for CSV; row number; label, the description or else the row's
@@ -205,7 +210,17 @@ that says what to do; a file the guard cannot fully account for is 422
    and its total comes from `lineTotal`. With an amount above zero and no
    rate (no rate column, or a blank rate cell) the amount prices the row, in
    integer centavos and never rounded to fit:
-   - quantity read: the rate is `round_half_up(amount / qty)` (BigInt) **only
+   - unit blank and a quantity cell that is not blank (a number or text):
+     not a line. No rate is ever derived from the amount of a row with no
+     unit: the row is skipped and listed in `skippedAmountRows` (A.3,
+     "Amount with no unit and no unit rate: ..."), so `VAT | 0.12 | | |
+     9,315.06` (it used to import as 0.12 at 77,625.50) or a "Retention 10%"
+     row with 0.1 under Quantity adds nothing to the BOM total. A real line
+     has a unit. **This is the default applied on 2026-11-13, pending the
+     owner's confirmation: it stands until the owner decides otherwise.** A
+     row with a rate is not affected, with or without a unit;
+   - quantity read (and a unit): the rate is `round_half_up(amount / qty)`
+     (BigInt) **only
      if** `lineTotal(rate, qty, 0)` gives back the amount exactly; otherwise
      the rate is sent as `null`, Core queues `INVALID_UNIT_RATE` for review,
      and the preview says why (`AMOUNT_NOT_EXACT`);
@@ -215,8 +230,9 @@ that says what to do; a file the guard cannot fully account for is 422
      unpriced (`AMOUNT_IGNORED`);
    - quantity blank and any other unit, or none: not a line. The row is
      skipped and listed in `skippedAmountRows` (A.3), so a summary row never
-     adds to the BOM total;
-   - quantity unreadable: unpriced (`AMOUNT_IGNORED`).
+     adds to the BOM total (the same default, pending the owner's
+     confirmation);
+   - quantity unreadable (and a unit): unpriced (`AMOUNT_IGNORED`).
    A rate with no quantity is still a line Core queues as `INVALID_QUANTITY`.
    This rule is applied once, in the Web parser (`classifyRow`); Core never
    sees the amount, only the rate and quantity Web derived from it.
