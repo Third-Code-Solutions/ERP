@@ -462,6 +462,106 @@ describe('xlsx first filter (round 4: every index ExcelJS allocates from)', () =
   }, SLOW)
 })
 
+describe('xlsx first filter (round 6: XML 1.1 white space)', () => {
+  // saxes reads these two as white space once a part declares XML 1.1.
+  const NEL = '\u0085'
+  const LS = ' '
+  const V11 = '<?xml version="1.1" encoding="UTF-8"?>'
+  const R = 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
+  const sheetPart = (declaration: string, rows: string, after = '') =>
+    xlsx([{ xml: `${declaration}<worksheet ${NS}><sheetData>${rows}</sheetData>${after}</worksheet>` }])
+  const workbookPart = (declaration: string, sheet: string) =>
+    xlsx([{ xml: sheetXml(HEADER + PIPE) }], {
+      'xl/workbook.xml': `${declaration}<workbook ${NS} ${R}><sheets>${sheet}</sheets></workbook>`,
+    })
+  const merge = (tag: string) => `<mergeCells count="1">${tag}</mergeCells>`
+  // The reviewers' files: [what the tag reader must say, the part given its XML declaration].
+  const hidden: Array<[string, (declaration: string) => Promise<Buffer>]> = [
+    ['row number', (xml) => sheetPart(xml, `${HEADER}<row${NEL}r="4000000000"><c r="A1"/></row>`)],
+    ['row number', (xml) => sheetPart(xml, `${HEADER}<row${LS}r="4000000000"><c r="A1"/></row>`)],
+    ['merged range', (xml) => sheetPart(xml, HEADER + PIPE, merge(`<mergeCell${NEL}ref="A1:XFD1048576"/>`))],
+    ['merged range', (xml) => sheetPart(xml, HEADER + PIPE, merge(`<mergeCell${LS}ref="A1:XFD1048576"/>`))],
+    ['cell reference', (xml) => sheetPart(xml, `${HEADER}<row r="2"><c${NEL}r="XFD2"><v>1</v></c></row>`)],
+    ['cell reference', (xml) => sheetPart(xml, `${HEADER}<row r="2"><c ${NEL}r="XFD2"><v>1</v></c></row>`)],
+    ['cell reference', (xml) => sheetPart(xml, `${HEADER}<row r="2"><c\r${NEL}r="XFD2"><v>1</v></c></row>`)],
+    ['cell reference', (xml) => sheetPart(xml, `${HEADER}<row r="2"><c ${LS}r="XFD2"><v>1</v></c></row>`)],
+    ['sheet id', (xml) => workbookPart(xml, `<sheet name="S1" sheetId${NEL}="4000000000" r:id="rId1"/>`)],
+    ['sheet id', (xml) => workbookPart(xml, `<sheet name="S1" sheetId${LS}="4000000000" r:id="rId1"/>`)],
+    ['sheet id', (xml) => workbookPart(xml, `<sheet name="S1" sheetId=${NEL}"4000000000" r:id="rId1"/>`)],
+  ]
+
+  it('refuses a part that declares any XML version but 1.0 (B1)', async () => {
+    for (const [reason, file] of hidden) {
+      const buffer = await file(V11)
+      expect(() => assertXlsxWithinLimits(buffer), reason).toThrow('not plain XML 1.0')
+    }
+    const refused = [
+      // No hidden index at all: the version alone is refused.
+      await sheetPart(V11, HEADER + PIPE),
+      await sheetPart('<?xml version="1.2"?>', HEADER + PIPE),
+      await sheetPart('<?xml version="1.00"?>', HEADER + PIPE),
+      // saxes takes the last version it reads, wherever the declaration is.
+      await sheetPart('<?xml version="1.0" version="1.1"?>', HEADER + PIPE),
+      await sheetPart('<?xml version="1.0"?>', `${HEADER}<?xml version="1.1"?>${PIPE}`),
+      await sheetPart(`<?xml${NEL}version="1.1"?>`, HEADER + PIPE),
+      await workbookPart(V11, '<sheet name="S1" sheetId="1" r:id="rId1"/>'),
+    ]
+    for (const [index, buffer] of refused.entries()) {
+      expect(() => assertXlsxWithinLimits(buffer), `file ${index}`).toThrow('not plain XML 1.0')
+    }
+    await expect(parseStructuredTakeoff(await sheetPart(V11, HEADER + PIPE), 'a.xlsx', MAPPING)).rejects.toThrow(
+      'not plain XML 1.0',
+    )
+
+    // What spreadsheet writers emit, in either quote style, is XML 1.0.
+    for (const declaration of [
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
+      "<?xml version='1.0' encoding='utf-8' standalone='no' ?>",
+      '<?xml version="1.0"?>',
+      '',
+    ]) {
+      const buffer = await sheetPart(declaration, HEADER + PIPE)
+      expect(() => assertXlsxWithinLimits(buffer), declaration).not.toThrow()
+    }
+  })
+
+  it('reads a name to its last ASCII character, so nothing after it hides an index (S6-1)', async () => {
+    // The same tags with no XML 1.1 declaration: the tag reader refuses each on
+    // its own, whatever a parser makes of the character after the name.
+    for (const [reason, file] of hidden) {
+      for (const declaration of ['', '<?xml version="1.0"?>']) {
+        const buffer = await file(declaration)
+        expect(() => assertXlsxWithinLimits(buffer), reason).toThrow(reason)
+      }
+    }
+    // A sheetId is read wherever it stands and must be an attribute with a quoted number.
+    for (const sheet of [
+      '<sheet name="S1" sheetId=4000000000 r:id="rId1"/>',
+      '<sheet name="S1" sheetId \n=\t "4000000000" r:id="rId1"/>',
+      `<sheet name="sheetId='" sheetId="4000000000" r:id="rId1" x="'"/>`,
+      '<sheet name="S1" sheetId r:id="rId1"/>',
+    ]) {
+      const buffer = await workbookPart('<?xml version="1.0"?>', sheet)
+      expect(() => assertXlsxWithinLimits(buffer), sheet).toThrow('sheet id')
+    }
+    const spaced = await workbookPart('<?xml version="1.0"?>', `<sheet name="S1" sheetId \n=\t '65535' r:id="rId1"/>`)
+    expect(() => assertXlsxWithinLimits(spaced)).not.toThrow()
+  })
+
+  it('imports an XML 1.0 sheet whose cell text holds U+0085 or U+2028', async () => {
+    // In text the two characters are ordinary; Excel's own attribute names stay readable.
+    const row = textRow(2, [`Pipe${NEL}2 in${LS}PVC`, '3', 'm']).replace(
+      '<row r="2">',
+      '<row r="2" spans="1:3" x14ac:dyDescent="0.25" xr:uid="{00000000-0001-0000-0000-000000000000}">',
+    )
+    const sheet = await sheetPart('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', HEADER + row)
+
+    await expect(parseStructuredTakeoff(sheet, 'a.xlsx', MAPPING)).resolves.toMatchObject({
+      rows: [{ description: `Pipe${NEL}2 in${LS}PVC`, quantity: 3, unit: 'm' }],
+    })
+  }, SLOW)
+})
+
 describe('xlsx reader process', () => {
   it('reads a rich-text shared string used by every row without rejoining it (S3-H2)', async () => {
     // One shared string of 100,000 runs: the old code joined all of them about

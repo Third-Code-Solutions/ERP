@@ -264,10 +264,23 @@ const ZIP_LOCAL_ENTRY = 0x04034b50
 // exactly. A value may not hold `<` or `>`: XML forbids the first, Excel
 // escapes the second, and a `>` inside a value let a decoy attribute stand in
 // for the real one (S5-2). So a read never passes the next `<`.
-const SHEET_TAG = /<(?:\w{1,32}:)?(row|c|col|dimension|mergeCell)(?=[\s/>])/g
-const TAG_ATTRIBUTE = /[ \t\r\n]+([^ \t\r\n=/<>"']+)[ \t\r\n]*=[ \t\r\n]*(?:"([^"<>]*)"|'([^'<>]*)')/y
+// Names are ASCII and end at the first character that is not an ASCII name
+// character, so whatever follows a name is read here and refused unless it is
+// XML 1.0 white space: an XML 1.1 line break (U+0085, U+2028) after a name is
+// white space to saxes and hid the index behind it from this scan (S6-1).
+const SHEET_TAG = /<(?:\w{1,32}:)?(row|c|col|dimension|mergeCell)(?![\w.:-])/g
+const TAG_ATTRIBUTE = /[ \t\r\n]+([\w.:-]+)[ \t\r\n]*=[ \t\r\n]*(?:"([^"<>]*)"|'([^'<>]*)')/y
 const TAG_END = /[ \t\r\n]*\/?>/y
-const SHEET_ID = /\bsheetId\s*=\s*(?:"([^"]*)"|'([^']*)')/g
+// Every sheetId in a scanned part, whatever follows it: it must be an
+// attribute with a quoted number, read in full.
+const SHEET_ID = /\bsheetId(?![\w.:-])/g
+const SHEET_ID_VALUE = /[ \t\r\n]*=[ \t\r\n]*(?:"(\d{1,5})"|'(\d{1,5})')/y
+// The scans know XML 1.0 white space only, and saxes switches to XML 1.1
+// rules on any other declared version. Every XML declaration in a scanned part
+// must be a whole, plain 1.0 one.
+const XML_DECLARATION = /<\?xml(?![\w.:-])/gi
+const XML_DECLARATION_1_0 =
+  /[ \t\r\n]+version[ \t\r\n]*=[ \t\r\n]*(?:"1\.0"|'1\.0')(?:[ \t\r\n]+encoding[ \t\r\n]*=[ \t\r\n]*(?:"[\w.-]+"|'[\w.-]+'))?(?:[ \t\r\n]+standalone[ \t\r\n]*=[ \t\r\n]*(?:"(?:yes|no)"|'(?:yes|no)'))?[ \t\r\n]*\?>/y
 const CELL_ADDRESS = /^\$?([A-Z]{1,3})\$?(\d{1,7})$/
 // ExcelJS keeps sheets, rows and columns in arrays indexed by these numbers
 // and walks or fills the whole index range, so one absurd index is minutes of
@@ -519,9 +532,17 @@ export function assertXlsxWithinLimits(buffer: Buffer, limits = XLSX_LIMITS): vo
     }
     if (!isScanned) continue
     const xml = content.toString('latin1')
-    for (const [, double, single] of xml.matchAll(SHEET_ID)) {
-      const id = double ?? single ?? ''
-      if (!/^\d{1,5}$/.test(id) || Number(id) > MAX_SHEET_ID) throw unreadable('a sheet id is out of range')
+    for (const declaration of xml.matchAll(XML_DECLARATION)) {
+      XML_DECLARATION_1_0.lastIndex = declaration.index + declaration[0].length
+      if (!XML_DECLARATION_1_0.test(xml)) throw unreadable('a part is not plain XML 1.0')
+    }
+    for (const match of xml.matchAll(SHEET_ID)) {
+      SHEET_ID_VALUE.lastIndex = match.index + match[0].length
+      const [, double, single] = SHEET_ID_VALUE.exec(xml) ?? []
+      const id = double ?? single
+      if (id === undefined || Number(id) > MAX_SHEET_ID) {
+        throw unreadable('a sheet id is unreadable or out of range')
+      }
     }
     if (!isSheet) continue
     counted = countSheetPart(xml, limits, counted)

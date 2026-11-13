@@ -47,7 +47,10 @@ that says what to do; a file the guard cannot fully account for is 422
   since ExcelJS creates every one of them); 5,000 merged ranges over the
   workbook. A merged range must be one plain `A1:B2` reference.
 - **Every index ExcelJS allocates from is read in full and must lie inside a
-  sheet**, or the file is refused: a `sheetId` is digits up to 65,535; every
+  sheet**, or the file is refused: every `sheetId` in a scanned part (a sheet
+  part, or any part that holds the word) is an attribute with a quoted
+  number of digits up to 65,535, and a part that holds the word any other way
+  is refused (see D.10); every
   `<row>` has exactly one `r` of digits from 1 to 1,048,576; a `<c r>` (when
   present) is one reference no further than column XFD and row 1,048,576;
   a `<col>` has one `min` and one `max` from 1 to 16,384; the `<dimension>`
@@ -55,13 +58,24 @@ that says what to do; a file the guard cannot fully account for is 422
   these tags is read from its name one attribute at a time, in order, with
   no character window (an attribute 2 KB into a tag is still read): only
   `name="value"` or `name='value'` pairs separated by spaces and then `>` or
-  `/>`. A tag this does not consume exactly (not closed, a stray quote, text
-  between attributes) is refused, and so is a value the scan cannot read (an
+  `/>`. A tag name ends at the first character that is not an ASCII name
+  character (a letter, a digit, `_`, `.`, `:` or `-`) and an attribute name
+  is ASCII, so whatever follows a name is read by the scan, never skipped.
+  A tag this does not consume exactly (not closed, a stray quote, text
+  between attributes, any character after a name that is not a space, tab or
+  line break) is refused, and so is a value the scan cannot read (an
   entity in a number, trailing text, a second `r`) or one holding a raw `<`
   or `>` (XML forbids the first and Excel writes the second as `&gt;`; a `>`
   inside a value is how a decoy attribute once hid the real one). A read
   never passes the next `<`, so the scan is linear. `<col>` and
   `<dimension>` are not parsed by ExcelJS (below) and are checked anyway.
+- **The scans read XML 1.0.** The parser ExcelJS uses reads U+0085 and
+  U+2028 as white space once a part declares XML 1.1, which is how an index
+  was once hidden behind one of them. So every XML declaration in a scanned
+  part must be a whole, plain version 1.0 declaration (`version`, then an
+  optional `encoding` and `standalone`); any other version, or a declaration
+  the scan cannot read exactly, is 422 "... a part is not plain XML 1.0."
+  Excel writes 1.0. In cell text the two characters are ordinary and import.
 - **Reader (.xlsx), in a child process.** ExcelJS runs in a child process
   (`child_process.fork` of `takeoff-xlsx-worker.cjs`, started with
   `--max-old-space-size=512` and none of the server's environment) with a
@@ -344,4 +358,10 @@ CSV or PDF export, `.xls`, DUPA import, catalogue matching, migrations.
     `m²` as U+FFFD. The `_definedNames` stub relies on an ExcelJS private
     field. Togal answers 409 on a total overflow where the takeoff import
     answers 422. A password-protected or `.xls` file gets a generic "could
-    not be read" message.
+    not be read" message. A part that holds the word `sheetId` other than as
+    an attribute with a quoted number is refused (422, "a sheet id is
+    unreadable or out of range"): that refuses a cell whose text holds that
+    word and, by the file format (not checked against a file saved by
+    Excel), the change log of a legacy shared workbook, which lists its
+    sheets as `<sheetId val="1"/>`. Copying the BOQ sheet to a new workbook
+    imports it.
