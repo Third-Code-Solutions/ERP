@@ -164,8 +164,8 @@ ready for company trial phase." Decision record:
   during the trial follow rule R2: trial defects, Day-0 items and GA-gate work.
 - **Company trial: GO, conditional.** A supervised ABI pilot (one tenant, up to 10 named users) starts
   only after Day-0 items D0-1..D0-8 are done:
-  1. the SEC-10 fix (#156, merged as `e708ba2f`), promoted to web on its own so that the web rollback
-     target never predates it;
+  1. the SEC-10 fix (#156, merged as `e708ba2f`), promoted to web on its own so that, from D0-3 on,
+     the web rollback target never predates it;
   2. #147 rebased, with full gates on the combined tree;
   3. the #147 rollout (closes exposures 1 and 3);
   4. authenticated smoke plus the production cross-tenant spec, which must report passed, not skipped;
