@@ -61,7 +61,9 @@ that says what to do; a file the guard cannot fully account for is 422
   `/>`. A tag name ends at the first character that is not an ASCII name
   character (a letter, a digit, `_`, `.`, `:` or `-`) and an attribute name
   is ASCII, so whatever follows a name is read by the scan, never skipped.
-  A tag this does not consume exactly (not closed, a stray quote, text
+  A tag with more than 64 attributes is refused (Excel's widest index tag,
+  `<row>`, carries about a dozen), so one tag of millions is not held in
+  memory. A tag this does not consume exactly (not closed, a stray quote, text
   between attributes, any character after a name that is not a space, tab or
   line break) is refused, and so is a value the scan cannot read (an
   entity in a number, trailing text, a second `r`) or one holding a raw `<`

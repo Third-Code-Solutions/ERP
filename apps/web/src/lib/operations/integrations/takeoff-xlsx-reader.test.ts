@@ -348,8 +348,9 @@ describe('xlsx first filter (round 3 attack files)', () => {
 })
 
 describe('xlsx first filter (round 4: every index ExcelJS allocates from)', () => {
-  // Distinct attributes, so the tag is well-formed XML: about 2 KB before r.
-  const padding = Array.from({ length: 100 }, (_, index) => `a${index}="${'0'.repeat(10)}"`).join(' ')
+  // Distinct attributes, so the tag is well-formed XML: about 2 KB before r
+  // (50 of them: a tag past 64 attributes is refused, see S1 below).
+  const padding = Array.from({ length: 50 }, (_, index) => `a${index}="${'0'.repeat(32)}"`).join(' ')
   const sheetWith = (rows: string, after = '') => xlsx([{ xml: sheetXml(HEADER + rows, after) }])
 
   it('reads a row number however far into the tag it is (S4-1)', async () => {
@@ -559,6 +560,38 @@ describe('xlsx first filter (round 6: XML 1.1 white space)', () => {
     await expect(parseStructuredTakeoff(sheet, 'a.xlsx', MAPPING)).resolves.toMatchObject({
       rows: [{ description: `Pipe${NEL}2 in${LS}PVC`, quantity: 3, unit: 'm' }],
     })
+  }, SLOW)
+})
+
+describe('xlsx first filter (round 6: work on the request thread)', () => {
+  it('refuses a tag past 64 attributes instead of holding every one of them (S1)', async () => {
+    // The reviewers' part: one <row> tag of 3.9 million attributes, 30 MB that
+    // deflate to under 50 KB. Reading them all took 1.5 s and 420 MB of heap.
+    const attribute = ' ab="12"'
+    const endless = await xlsx([
+      {
+        xml: `<?xml version="1.0"?><worksheet ${NS}><sheetData><row r="1"${attribute.repeat((30 * 1024 * 1024) / attribute.length)}/></sheetData></worksheet>`,
+      },
+    ])
+    expect(endless.length).toBeLessThan(100_000)
+
+    const started = performance.now()
+    expect(() => assertXlsxWithinLimits(endless)).toThrow('row number')
+    expect(performance.now() - started).toBeLessThan(1_000)
+
+    // 64 attributes, the row number last, are still read; the 65th refuses the tag.
+    const rowOf = (extra: number) =>
+      xlsx([
+        {
+          xml: sheetXml(
+            `${HEADER}<row${Array.from({ length: extra }, (_, index) => ` a${index}="1"`).join('')} r="2"><c r="A2"><v>1</v></c></row>`,
+          ),
+        },
+      ])
+    const widest = await rowOf(63)
+    const tooWide = await rowOf(64)
+    expect(() => assertXlsxWithinLimits(widest)).not.toThrow()
+    expect(() => assertXlsxWithinLimits(tooWide)).toThrow('row number')
   }, SLOW)
 })
 

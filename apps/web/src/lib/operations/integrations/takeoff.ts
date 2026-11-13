@@ -284,6 +284,9 @@ const SHEET_ID_VALUE = /[ \t\r\n]*=[ \t\r\n]*(?:"(\d{1,5})"|'(\d{1,5})')/y
 const XML_DECLARATION = /<\?xml(?![\w.:-])/gi
 const XML_DECLARATION_1_0 =
   /[ \t\r\n]+version[ \t\r\n]*=[ \t\r\n]*(?:"1\.0"|'1\.0')(?:[ \t\r\n]+encoding[ \t\r\n]*=[ \t\r\n]*(?:"[\w.-]+"|'[\w.-]+'))?(?:[ \t\r\n]+standalone[ \t\r\n]*=[ \t\r\n]*(?:"(?:yes|no)"|'(?:yes|no)'))?[ \t\r\n]*\?>/y
+// Excel's widest index tag, <row>, carries about a dozen attributes. A tag past
+// this many is refused, so a tag of millions is never held in memory (S1).
+const MAX_TAG_ATTRIBUTES = 64
 const CELL_ADDRESS = /^\$?([A-Z]{1,3})\$?(\d{1,7})$/
 // ExcelJS keeps sheets, rows and columns in arrays indexed by these numbers
 // and walks or fills the whole index range, so one absurd index is minutes of
@@ -335,7 +338,8 @@ type TagAttributes = ReadonlyArray<readonly [name: string, value: string]>
 /**
  * The attributes of the tag whose name ends at `from`, in order and as written
  * (entities are not decoded); null unless the rest of the tag is exactly
- * `name="value"` or `name='value'` pairs and its `>`.
+ * `name="value"` or `name='value'` pairs, at most MAX_TAG_ATTRIBUTES of them,
+ * and its `>`.
  */
 function tagAttributes(xml: string, from: number): TagAttributes | null {
   const attributes: Array<readonly [string, string]> = []
@@ -344,7 +348,7 @@ function tagAttributes(xml: string, from: number): TagAttributes | null {
     if (TAG_END.test(xml)) return attributes
     TAG_ATTRIBUTE.lastIndex = at
     const match = TAG_ATTRIBUTE.exec(xml)
-    if (!match) return null
+    if (!match || attributes.length === MAX_TAG_ATTRIBUTES) return null
     attributes.push([match[1] ?? '', match[2] ?? match[3] ?? ''])
   }
 }
