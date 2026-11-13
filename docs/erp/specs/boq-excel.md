@@ -224,8 +224,10 @@ that says what to do; a file the guard cannot fully account for is 422
      if** `lineTotal(rate, qty, 0)` gives back the amount exactly; otherwise
      the rate is sent as `null`, Core queues `INVALID_UNIT_RATE` for review,
      and the preview says why (`AMOUNT_NOT_EXACT`);
-   - quantity blank and the unit is `ls`, `l.s.` or `lot` (case-insensitive,
-     trimmed): a lump sum, quantity 1 at the amount, the rate being the
+   - quantity blank and the unit is `ls`, `l.s.`, `l.s`, `lump sum`,
+     `lumpsum` or `lot` (case-insensitive, trimmed, inner spaces collapsed,
+     so "Lump Sum" is one of them): a lump sum, quantity 1 at the amount, the
+     rate being the
      amount exactly (`LUMP_SUM` warning); over the rate cap it imports
      unpriced (`AMOUNT_IGNORED`);
    - quantity blank and any other unit, or none: not a line. The row is
@@ -275,7 +277,11 @@ that says what to do; a file the guard cannot fully account for is 422
    file name such as `estimate [rev 2].xlsx`).
 8. **Units.** Besides the existing list, `m`, `ls`, `l.s.`, `ea`, `each`,
    `no.`, `no`, `nos`, `unit`, `units`, `bag`, `bags` and `box` are units, so
-   the units the app's own forms offer and the export writes re-import.
+   the units the app's own forms offer and the export writes re-import. So
+   are `l.s`, `lump sum` and `lumpsum`, the other common ways a lump sum is
+   written: every lump-sum unit of A.5 is a unit Core accepts, so such a
+   line is not queued for its unit. A unit is kept as written (lower case),
+   not rewritten to `ls`.
 9. **Importing into a BOM that has lines.** The preview reports
    `existingLineCount` (lines on the BOM) and `matchedLineCount` (rows of this
    file whose key matches a line from an earlier import of the same source

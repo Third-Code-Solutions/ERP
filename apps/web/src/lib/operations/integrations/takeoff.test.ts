@@ -346,7 +346,8 @@ describe('structured takeoff importer', () => {
       ['Bonds', 1, 'l.s.', 300_050],
     ])
     const totalRow = 'Total row (its description starts with Total, Subtotal or Grand total and it has no unit).'
-    const amountOnly = 'Amount with no quantity: only a row whose unit is ls, l.s. or lot is imported as a lump sum.'
+    const amountOnly =
+      'Amount with no quantity: only a row whose unit is ls, l.s., lump sum or lot is imported as a lump sum.'
     expect(result.skippedRows).toBe(5)
     expect(result.skippedAmountRows).toEqual([
       { sheet: null, row: 6, label: 'Formwork', amount: '8,000.00', reason: amountOnly },
@@ -367,6 +368,42 @@ describe('structured takeoff importer', () => {
       0,
     )
     expect(imported).toBe(7_500_050)
+    expect(validateTakeoffRows(result.rows).filter((issue) => issue.code !== 'MISSING_DIVISION')).toEqual([])
+  })
+
+  it('reads Lump Sum, lumpsum and l.s as lump-sum units, like ls and l.s. (A.5)', async () => {
+    const result = await parseCsv([
+      'Item,Description,Quantity,UOM,Unit Rate,Amount',
+      '1,Bonds,,Lump Sum,,"3,000.50"',
+      '2,Testing,,l.s,,"2,500.00"',
+      '3,Insurance,, LUMPSUM ,,"1,000.00"',
+      '4,Survey,,lump  sum,,"400.00"',
+      '5,Permits,,L/S,,"500.00"',
+    ])
+
+    expect(result.rows.map((row) => [row.description, row.quantity, row.unit, row.unitRateCentavos])).toEqual([
+      ['Bonds', 1, 'lump sum', 300_050],
+      ['Testing', 1, 'l.s', 250_000],
+      ['Insurance', 1, 'lumpsum', 100_000],
+      ['Survey', 1, 'lump sum', 40_000],
+    ])
+    expect(result.warnings.map((warning) => [warning.sourceRowKey, warning.code])).toEqual([
+      ['row-2', 'LUMP_SUM'],
+      ['row-3', 'LUMP_SUM'],
+      ['row-4', 'LUMP_SUM'],
+      ['row-5', 'LUMP_SUM'],
+    ])
+    // A spelling the import does not know is still skipped and listed, not priced.
+    expect(result.skippedAmountRows).toEqual([
+      {
+        sheet: null,
+        row: 6,
+        label: 'Permits',
+        amount: '500.00',
+        reason: 'Amount with no quantity: only a row whose unit is ls, l.s., lump sum or lot is imported as a lump sum.',
+      },
+    ])
+    // Core accepts each of these units, so the lines are not queued for their unit.
     expect(validateTakeoffRows(result.rows).filter((issue) => issue.code !== 'MISSING_DIVISION')).toEqual([])
   })
 

@@ -59,16 +59,19 @@ describe('takeoff validation', () => {
 describe('takeoff units', () => {
   const withUnit = (unit: string) => ({ ...row(1), unit })
   const NEW_UNITS = ['m', 'ls', 'l.s.', 'ea', 'each', 'no.', 'no', 'nos', 'unit', 'units', 'bag', 'bags', 'box']
+  // The other ways a lump sum is written; the Web parser reads each as one (boq-excel A.5).
+  const LUMP_SUM_SPELLINGS = ['l.s', 'lump sum', 'lumpsum']
 
   it('accepts each added unit, in any case and spacing', () => {
-    for (const unit of NEW_UNITS) {
+    for (const unit of [...NEW_UNITS, ...LUMP_SUM_SPELLINGS]) {
       expect(validateTakeoffRows([withUnit(unit)]), unit).toEqual([])
       expect(validateTakeoffRows([withUnit(` ${unit.toUpperCase()} `)]), unit).toEqual([])
     }
+    expect(validateTakeoffRows([withUnit('Lump  Sum')])).toEqual([])
   })
 
   it('still queues a unit that is not on the list', () => {
-    for (const unit of ['', 'bundle', 'l.s', 'm 2', 'mm']) {
+    for (const unit of ['', 'bundle', 'l/s', 'lump-sum', 'm 2', 'mm']) {
       expect(validateTakeoffRows([withUnit(unit)]), unit).toEqual([
         { sourceRowKey: 'concrete-1', code: 'INVALID_UOM', message: `UOM "${unit}" is not recognized.` },
       ])

@@ -201,10 +201,11 @@ const TOTAL_ROW = /^(grand\s+|sub[\s-]*)?total\b/i
 // confirmation): an amount with no quantity is a lump sum only when the unit
 // says so, and an amount on a row with no unit never prices it. Any such row
 // (TOTAL, VAT, a subtotal under another name) is skipped and listed.
-const LUMP_SUM_UNITS = new Set(['ls', 'l.s.', 'lot'])
+// Each is also a unit Core accepts (RECOGNIZED_UOMS in shared-types).
+const LUMP_SUM_UNITS = new Set(['ls', 'l.s.', 'l.s', 'lump sum', 'lumpsum', 'lot'])
 const TOTAL_ROW_REASON = 'Total row (its description starts with Total, Subtotal or Grand total and it has no unit).'
 const AMOUNT_ONLY_REASON =
-  'Amount with no quantity: only a row whose unit is ls, l.s. or lot is imported as a lump sum.'
+  'Amount with no quantity: only a row whose unit is ls, l.s., lump sum or lot is imported as a lump sum.'
 const AMOUNT_WITHOUT_UNIT_REASON =
   'Amount with no unit and no unit rate: a line has a unit, so no rate is derived from this amount.'
 
