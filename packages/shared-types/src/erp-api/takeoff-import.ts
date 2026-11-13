@@ -7,6 +7,9 @@ export const TAKEOFF_IMPORT_MAX_ROWS = 5_000
 // rejection.
 export const TAKEOFF_IMPORT_MAX_COMMAND_BYTES = 2_000_000
 
+// boq-export: a client BOQ unit rate up to PHP 10 billion, in centavos.
+export const TAKEOFF_MAX_UNIT_RATE_CENTAVOS = 1_000_000_000_000
+
 export function takeoffImportCommandByteLength(command: unknown): number {
   return new TextEncoder().encode(JSON.stringify(command) ?? '').byteLength
 }
@@ -28,6 +31,12 @@ const takeoffRawPayloadSchema = z
     }
   })
 
+const unitRateCentavosSchema = z
+  .number()
+  .int()
+  .min(0)
+  .max(TAKEOFF_MAX_UNIT_RATE_CENTAVOS)
+
 export const takeoffImportRowSchema = z
   .object({
     sourceRowKey: z.string().trim().min(1).max(255),
@@ -37,7 +46,11 @@ export const takeoffImportRowSchema = z
     division: z.string().trim().max(255).nullable(),
     location: z.string().trim().max(255).nullable(),
     itemNo: z.string().trim().max(255).nullable(),
+    // Absent: no Code column; the line's code is then its item number.
+    code: z.string().trim().max(255).nullable().optional(),
     notes: z.string().trim().max(4_000).nullable(),
+    // Absent: no rate column; null: the mapped rate cell was unreadable.
+    unitRateCentavos: unitRateCentavosSchema.nullable().optional(),
     raw: takeoffRawPayloadSchema,
   })
   .strict()
@@ -204,6 +217,7 @@ export const takeoffImportValidationIssueSchema = z
       'MISSING_DIVISION',
       'NO_CATALOG_MATCH',
       'MATERIAL_PARENT_REQUIRED',
+      'INVALID_UNIT_RATE',
     ]),
     message: z.string().trim().min(1).max(1_000),
   })
@@ -218,6 +232,7 @@ const takeoffImportPreviewRowSchema = z
     division: z.string().trim().max(255).nullable(),
     location: z.string().trim().max(255).nullable(),
     itemNo: z.string().trim().max(255).nullable(),
+    unitRateCentavos: unitRateCentavosSchema.nullable().optional(),
   })
   .strict()
 
@@ -237,6 +252,16 @@ export const takeoffImportPreviewResultSchema = z
     missingColumns: z.array(z.string().trim().min(1).max(128)).max(32),
     validationIssues: z.array(takeoffImportValidationIssueSchema),
     rows: z.array(takeoffImportPreviewRowSchema).max(TAKEOFF_IMPORT_MAX_ROWS),
+    // Lines already on the BOM, and how many rows of this file match a line a
+    // previous import of the same source and file name wrote (those are
+    // updated; every other row is added as a new line).
+    existingLineCount: z.number().int().nonnegative().optional(),
+    matchedLineCount: z
+      .number()
+      .int()
+      .nonnegative()
+      .max(TAKEOFF_IMPORT_MAX_ROWS)
+      .optional(),
   })
   .strict()
 

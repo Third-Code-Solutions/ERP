@@ -1,0 +1,67 @@
+import { NextResponse, type NextRequest } from 'next/server'
+import { z } from 'zod'
+import { getUserProfile } from '@third-code-erp/auth'
+import { getProjectDetailAccess } from '@/app/(dashboard)/projects/[id]/project-detail-access'
+import {
+  BoqExportTooLargeError,
+  boqExportFileName,
+  writeBoqWorkbook,
+} from '@/lib/operations/boq-excel/workbook'
+import { loadBoqExport } from './bom-export-data'
+
+export const runtime = 'nodejs'
+
+const XLSX_CONTENT_TYPE =
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+
+const RESPONSE_HEADERS = {
+  'Cache-Control': 'private, no-store, max-age=0',
+  Vary: 'Cookie',
+  'X-Content-Type-Options': 'nosniff',
+} as const
+
+function jsonError(error: string, status: number): NextResponse {
+  return NextResponse.json({ error }, { status, headers: RESPONSE_HEADERS })
+}
+
+/** BOQ workbook for one BOM, for anyone allowed to view that BOM page. */
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+): Promise<Response> {
+  let profile: Awaited<ReturnType<typeof getUserProfile>>
+  try {
+    profile = await getUserProfile()
+  } catch {
+    return jsonError('Export unavailable', 500)
+  }
+
+  if (!profile) return jsonError('Unauthorized', 401)
+  // The BOM page sits under the project layout, which requires project.read.
+  const access = getProjectDetailAccess(profile.role)
+  if (!access.project || !access.bom) return jsonError('Forbidden', 403)
+
+  const { id } = await params
+  if (!z.string().uuid().safeParse(id).success) return jsonError('Not found', 404)
+
+  try {
+    const data = await loadBoqExport(profile.tenantId, id)
+    if (!data) return jsonError('Not found', 404)
+
+    const exportedAt = new Date()
+    // Bad stored data (e.g. an unparseable quantity) fails here, inside the catch.
+    const buffer = await writeBoqWorkbook(data, exportedAt)
+    return new Response(new Uint8Array(buffer), {
+      status: 200,
+      headers: {
+        ...RESPONSE_HEADERS,
+        'Content-Type': XLSX_CONTENT_TYPE,
+        'Content-Disposition': `attachment; filename="${boqExportFileName(data, exportedAt)}"`,
+      },
+    })
+  } catch (error) {
+    if (error instanceof BoqExportTooLargeError) return jsonError(error.message, 422)
+    console.error('[bom-export] export failed', error)
+    return jsonError('Export unavailable', 500)
+  }
+}

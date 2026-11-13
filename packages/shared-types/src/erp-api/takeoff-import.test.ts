@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   TAKEOFF_IMPORT_MAX_COMMAND_BYTES,
   TAKEOFF_IMPORT_MAX_ROWS,
+  TAKEOFF_MAX_UNIT_RATE_CENTAVOS,
   takeoffImportCommandByteLength,
   takeoffImportCommandSchema,
   takeoffImportResultSchema,
@@ -131,6 +132,23 @@ describe('takeoff import Core API contracts', () => {
         ),
       }).success
     ).toBe(false)
+  })
+
+  it('accepts an optional bounded client BOQ rate in integer centavos', () => {
+    const withRate = (unitRateCentavos: unknown) => ({
+      ...command,
+      rows: [{ ...command.rows[0], unitRateCentavos }],
+    })
+
+    expect(takeoffImportCommandSchema.safeParse(withRate(12_345)).success).toBe(true)
+    // null = the mapped rate cell could not be read; Core queues the row.
+    expect(takeoffImportCommandSchema.safeParse(withRate(null)).success).toBe(true)
+    expect(
+      takeoffImportCommandSchema.safeParse(withRate(TAKEOFF_MAX_UNIT_RATE_CENTAVOS)).success
+    ).toBe(true)
+    for (const invalid of [-1, 1.5, TAKEOFF_MAX_UNIT_RATE_CENTAVOS + 1, '100']) {
+      expect(takeoffImportCommandSchema.safeParse(withRate(invalid)).success).toBe(false)
+    }
   })
 
   it('requires Core-derived tenant identity in results', () => {

@@ -45,13 +45,7 @@ import {
   projectLocationCreateSchema,
   type BomLineItemKind,
 } from '@third-code-erp/shared-types/bom'
-import {
-  manualLineTotal,
-  bomTotalCost,
-  topLevelBomLines,
-  computeGP,
-  computeGPMargin,
-} from '@third-code-erp/shared-types/bom'
+import { manualLineTotal, computeBomTotals } from '@third-code-erp/shared-types/bom'
 
 const bomLineItemReferenceSchema = z
   .object({
@@ -1264,6 +1258,9 @@ export async function resolveBomGrainReview(input: unknown): Promise<{ error?: s
         .returning({ id: bomLineItemGrainReviews.id })
       if (updatedReviews.length !== 1) throw new BomReviewResolutionConflict()
 
+      // Totals count top-level lines only, so nesting or un-nesting a line changes them.
+      await recalcBomTotalsInTransaction(tx, currentLine.bomId, profile.tenantId)
+
       await writeAuditLogInTransaction(tx, {
         tenantId: profile.tenantId,
         actorId: profile.user.id,
@@ -2116,21 +2113,9 @@ async function recalcBomTotalsInTransaction(
     .from(bomLineItems)
     .where(and(eq(bomLineItems.bom_id, bomId), eq(bomLineItems.tenant_id, tenantId)))
 
-  // total_cost = sum of raw costs (no markup)
-  // tcv        = sum of line totals (rate-source-adjusted, never UI markup)
-  // gp         = tcv - cost
-  // gp_margin  = gp / tcv (in basis points)
-  const commercialLines = topLevelBomLines(lines, (line) => line.parent_line_item_id)
-  const total_cost_cents = commercialLines.reduce(
-    (s, l) => s + manualLineTotal(l.unit_cost_cents, l.quantity),
-    0,
-  )
-  const tcv_cents = bomTotalCost(commercialLines)
-  const gp_cents = computeGP(tcv_cents, total_cost_cents)
-  const gp_margin_bps = computeGPMargin(gp_cents, tcv_cents)
-
+  // Top-level lines only; cost without markup, TCV = sum of line totals.
   await tx
     .update(boms)
-    .set({ total_cost_cents, tcv_cents, gp_cents, gp_margin_bps })
+    .set(computeBomTotals(lines))
     .where(and(eq(boms.id, bomId), eq(boms.tenant_id, tenantId)))
 }

@@ -31,6 +31,9 @@ import {
 } from '@third-code-erp/shared-types'
 import {
   classifyBomLineKind,
+  computeBomTotals,
+  TAKEOFF_MAX_LINE_TOTAL_CENTAVOS,
+  takeoffCommitPricing,
   takeoffCommitQuantity,
   validateTakeoffRows,
   type TakeoffValidationIssue,
@@ -78,6 +81,24 @@ function buildIssues(
     }
   }
   return issues
+}
+
+/**
+ * Notes from the file, kept on a new line. `[VENDOR:<id>:<name>]` in a line's
+ * notes is the system's own record of the line's supplier, so a file may not
+ * bring one in. Stripped until none is left: removing an inner token must not
+ * join the text around it into a new one ("[VEN[VENDOR:x]DOR:id:name]"). An
+ * opener never closed goes too, with the rest of the text: the token the app
+ * appends on a supplier pick would close it. The note built from `source`
+ * when a row has none goes through here too: `source` is the caller's text.
+ */
+function importedNotes(notes: string | null): string | null {
+  let text = notes ?? ''
+  for (let previous = ''; text !== previous; ) {
+    previous = text
+    text = text.replace(/\[VENDOR:[^\]]*(?:\]|$)/gi, '')
+  }
+  return text.trim() || null
 }
 
 function issuesByRow(
@@ -293,7 +314,48 @@ export class TakeoffImportService {
       }
 
       if (parsedCommand.mode === 'preview') {
+        // A commit updates only the lines an earlier import of the same
+        // source and file wrote under the same row keys; every other row is
+        // added. The preview says how many of each, so the user can see that
+        // an import into a BOM that already has lines adds to them.
+        const [existingLines] = await transaction
+          .select({ count: sql<number>`count(*)::int` })
+          .from(bomLineItems)
+          .where(
+            and(
+              eq(bomLineItems.bom_id, bomId),
+              eq(bomLineItems.tenant_id, authorizedPrincipal.tenantId)
+            )
+          )
+        const importedKeys = await transaction
+          .select({ sourceRowKey: bomLineItems.source_row_key })
+          .from(bomLineItems)
+          .innerJoin(
+            takeoffImports,
+            and(
+              eq(takeoffImports.id, bomLineItems.takeoff_import_id),
+              eq(takeoffImports.tenant_id, authorizedPrincipal.tenantId)
+            )
+          )
+          .where(
+            and(
+              eq(bomLineItems.bom_id, bomId),
+              eq(bomLineItems.tenant_id, authorizedPrincipal.tenantId),
+              eq(takeoffImports.bom_id, bomId),
+              eq(takeoffImports.source, source),
+              eq(takeoffImports.source_key, sourceKey)
+            )
+          )
+        const knownKeys = new Set(importedKeys.map((line) => line.sourceRowKey))
+        const matchedLineCount = new Set(
+          parsedCommand.rows
+            .map((row) => row.sourceRowKey)
+            .filter((key) => knownKeys.has(key))
+        ).size
+
         return takeoffImportPreviewResultSchema.parse({
+          existingLineCount: existingLines?.count ?? 0,
+          matchedLineCount,
           ok: true,
           mode: 'preview',
           tenantId: authorizedPrincipal.tenantId,
@@ -322,6 +384,9 @@ export class TakeoffImportService {
             division: row.division,
             location: row.location,
             itemNo: row.itemNo,
+            ...(row.unitRateCentavos === undefined
+              ? {}
+              : { unitRateCentavos: row.unitRateCentavos }),
           })),
         })
       }
@@ -537,6 +602,10 @@ export class TakeoffImportService {
         const classification = classifyBomLineKind(row.unit)
         const rowValidationIssues = rowIssues.get(row.sourceRowKey) ?? []
         const quantity = takeoffCommitQuantity(row.quantity)
+        // AI candidates stay unpriced until a human attaches a DUPA.
+        const pricing = takeoffCommitPricing(
+          isAiDocumentCandidate ? { quantity: row.quantity } : row
+        )
         const [line] = await transaction
           .insert(bomLineItems)
           .values({
@@ -554,7 +623,14 @@ export class TakeoffImportService {
               ? parsedCommand.sourceModel
               : source,
             extraction_timestamp: now,
-            unit_rate_source: 'manual',
+            // WO-08A: an AI candidate is unpriced until a human attaches a DUPA.
+            ...(isAiDocumentCandidate
+              ? { unit_rate_source: 'manual', unit_cost_cents: 0, line_total_cents: 0 }
+              : {
+                  unit_rate_source: pricing.unitRateSource,
+                  unit_cost_cents: pricing.unitCostCents,
+                  line_total_cents: pricing.lineTotalCents,
+                }),
             classification_status:
               rowValidationIssues.length > 0
                 ? 'review'
@@ -565,17 +641,15 @@ export class TakeoffImportService {
                 : classification.reason,
             sort_order: index,
             is_group: 0,
-            code: row.itemNo,
+            code: row.code ?? row.itemNo,
             description:
               row.description || `Unresolved takeoff row ${row.sourceRowKey}`,
             unit: row.unit || null,
             quantity_decimal: quantity,
-            unit_cost_cents: 0,
             markup_bps: 0,
-            line_total_cents: 0,
             notes: isAiDocumentCandidate
               ? `AI-extracted scope candidate; document:${parsedCommand.documentId}; model:${parsedCommand.sourceModel}; pricing requires DUPA before approval.`
-              : `Takeoff source: ${source}`,
+              : importedNotes(row.notes) ?? importedNotes(`Takeoff source: ${source}`),
           })
           .onConflictDoUpdate({
             target: [
@@ -597,17 +671,42 @@ export class TakeoffImportService {
               extraction_timestamp: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.extraction_timestamp} else excluded.extraction_timestamp end`,
               classification_status: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.classification_status} else excluded.classification_status end`,
               classification_reason: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.classification_reason} else excluded.classification_reason end`,
-              unit_rate_source: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.unit_rate_source} else 'manual' end`,
-              unit_cost_cents: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.unit_cost_cents} else 0 end`,
+              ...(pricing.unitRateSource === 'client_boq'
+                ? {
+                    unit_rate_source: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.unit_rate_source} else excluded.unit_rate_source end`,
+                    unit_cost_cents: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.unit_cost_cents} else excluded.unit_cost_cents end`,
+                    line_total_cents: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.line_total_cents} else excluded.line_total_cents end`,
+                  }
+                : {
+                    // No usable rate in this row: the line keeps its own rate
+                    // and source, priced for the new quantity (half-up). A
+                    // total past the per-line cap becomes cap + 1, so the
+                    // bigint cast cannot overflow and the check below fails
+                    // the commit instead of Postgres.
+                    line_total_cents: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.line_total_cents} else least(round(${bomLineItems.unit_cost_cents} * excluded.quantity_decimal), ${sql.raw(String(TAKEOFF_MAX_LINE_TOTAL_CENTAVOS + 1))})::bigint end`,
+                  }),
               markup_bps: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.markup_bps} else 0 end`,
-              line_total_cents: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.line_total_cents} else 0 end`,
               updated_at: now,
             },
           })
-          .returning({ id: bomLineItems.id })
+          .returning({
+            id: bomLineItems.id,
+            unitRateSource: bomLineItems.unit_rate_source,
+            lineTotalCents: bomLineItems.line_total_cents,
+          })
         if (!line) {
           throw new InternalServerErrorException(
             `Takeoff line ${row.sourceRowKey} was not persisted.`
+          )
+        }
+        // Imported totals are capped before the upsert, so only a re-priced
+        // line (its own rate x the new quantity) can be over the cap here.
+        if (
+          line.unitRateSource !== 'dupa' &&
+          line.lineTotalCents > TAKEOFF_MAX_LINE_TOTAL_CENTAVOS
+        ) {
+          throw new UnprocessableEntityException(
+            `Row ${row.sourceRowKey}: the line's rate times the new quantity exceeds the supported amount range. Lower the quantity or the line's rate.`
           )
         }
         linesUpserted += 1
@@ -674,6 +773,49 @@ export class TakeoffImportService {
           )
         )
 
+      // Imported rates change the BOM, so its stored totals are recomputed
+      // here with the same formula Web uses after any line edit.
+      const bomLines = await transaction
+        .select({
+          unit_cost_cents: bomLineItems.unit_cost_cents,
+          quantity: bomLineItems.quantity_decimal,
+          line_total_cents: bomLineItems.line_total_cents,
+          parent_line_item_id: bomLineItems.parent_line_item_id,
+        })
+        .from(bomLineItems)
+        .where(
+          and(
+            eq(bomLineItems.bom_id, bomId),
+            eq(bomLineItems.tenant_id, authorizedPrincipal.tenantId)
+          )
+        )
+      let totals: ReturnType<typeof computeBomTotals>
+      try {
+        totals = computeBomTotals(bomLines)
+      } catch (error) {
+        if (!(error instanceof RangeError)) throw error
+        throw new UnprocessableEntityException(
+          'The BOM total would exceed the supported amount range. Lower the imported rates or quantities.'
+        )
+      }
+      const [previousTotals] = await transaction
+        .select({
+          total_cost_cents: boms.total_cost_cents,
+          tcv_cents: boms.tcv_cents,
+          gp_cents: boms.gp_cents,
+          gp_margin_bps: boms.gp_margin_bps,
+        })
+        .from(boms)
+        .where(
+          and(eq(boms.id, bomId), eq(boms.tenant_id, authorizedPrincipal.tenantId))
+        )
+      await transaction
+        .update(boms)
+        .set({ ...totals, updated_at: now })
+        .where(
+          and(eq(boms.id, bomId), eq(boms.tenant_id, authorizedPrincipal.tenantId))
+        )
+
       await this.audit.writeSemantic(transaction, {
         tenantId: authorizedPrincipal.tenantId,
         actorId: authorizedPrincipal.userId,
@@ -692,6 +834,8 @@ export class TakeoffImportService {
             : {}),
           rows: linesUpserted,
           unresolved_count: unresolvedCount,
+          previous_bom_totals: previousTotals ?? null,
+          bom_totals: totals,
           authority: 'erp_core',
         },
       })

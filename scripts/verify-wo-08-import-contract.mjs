@@ -115,10 +115,11 @@ const lineConflictStart = source.coreService.lastIndexOf(
   '.onConflictDoUpdate({',
   lineConflictTarget
 )
-const lineConflictEnd = source.coreService.indexOf(
-  'returning({ id: bomLineItems.id })',
-  lineConflictStart
-)
+// The upsert ends at its returning clause, which starts with the line id (it
+// may also return the stored rate source and total for the cap check).
+const lineReturning = /returning\(\{\s*id: bomLineItems\.id\b/g
+lineReturning.lastIndex = Math.max(lineConflictStart, 0)
+const lineConflictEnd = lineReturning.exec(source.coreService)?.index ?? -1
 if (lineConflictStart < 0 || lineConflictEnd < 0) {
   throw new Error('WO-08 importer line upsert region could not be located')
 }
@@ -147,6 +148,14 @@ for (const fragment of [
 ]) {
   requireText('wizard', fragment)
 }
+// A money warning (amount mismatch, hidden row, skipped total) may come after
+// a dozen lump-sum ones; the review lists every warning, as it lists every
+// skipped amount row.
+forbid(
+  'wizard',
+  /\bwarnings\b!?\s*\.slice\(/,
+  'WO-08 review must show every spreadsheet warning, not the first few'
+)
 
 console.log(
   'PASS WO-08 importer contract: generic CSV/XLSX preview, mapping/validation, drawing binding, source-row upsert, vendor/DUPA preservation, and unresolved review flow',
