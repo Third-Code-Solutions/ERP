@@ -506,13 +506,23 @@ describe('structured takeoff importer', () => {
 
   it('counts rows and cells instead of trusting the declared dimension', async () => {
     // 31 rows, 93 cells and the 3 columns ExcelJS creates for them, behind a
-    // dimension that claims one cell.
+    // dimension that claims one cell. The dimension tag counts as one itself
+    // (each <dimension> and <col> tag read does, so a part full of them ends
+    // the scan at the limit).
     const lying = patchXlsx(await boqWorkbook(30), {
       [SHEET]: (sheet) => sheet.replace(/<dimension[^>]*>/, '<dimension ref="A1"/>'),
     })
 
-    expect(() => assertXlsxWithinLimits(lying, { ...XLSX_LIMITS, cells: 127 })).not.toThrow()
-    expect(() => assertXlsxWithinLimits(lying, { ...XLSX_LIMITS, cells: 126 })).toThrow(TakeoffTooLargeError)
+    expect(() => assertXlsxWithinLimits(lying, { ...XLSX_LIMITS, cells: 128 })).not.toThrow()
+    expect(() => assertXlsxWithinLimits(lying, { ...XLSX_LIMITS, cells: 127 })).toThrow(TakeoffTooLargeError)
+
+    // Two <col> tags add two.
+    const withColumns = patchXlsx(lying, {
+      [SHEET]: (sheet) =>
+        sheet.replace('<sheetData>', '<cols><col min="1" max="1" width="9"/><col min="2" max="3" width="9"/></cols><sheetData>'),
+    })
+    expect(() => assertXlsxWithinLimits(withColumns, { ...XLSX_LIMITS, cells: 130 })).not.toThrow()
+    expect(() => assertXlsxWithinLimits(withColumns, { ...XLSX_LIMITS, cells: 129 })).toThrow(TakeoffTooLargeError)
   })
 
   it('reads a workbook whose validations, column spans and names cover the whole sheet', async () => {
@@ -695,6 +705,22 @@ describe('structured takeoff importer', () => {
     const result = await parseStructuredTakeoff(Buffer.from(wide), 'takeoff.csv', MAPPING)
     expect(result.headers).toHaveLength(64)
     expect(result.rows).toHaveLength(1)
+  })
+
+  it('refuses a CSV over 5 MB before parsing it (S5, S6-4)', async () => {
+    const limit = 5 * 1024 * 1024
+    const rows = 'Description,Qty,UOM\nPaint,4,sqm\n'
+    // Blank lines after the rows are not content; they only make the file this size.
+    const atTheLimit = Buffer.from(rows + '\n'.repeat(limit - rows.length))
+    // The reviewers' shape, one cell of plain text, just past the limit.
+    const oneCell = Buffer.from(`Description,Qty,UOM\n${'a'.repeat(limit)},4,sqm\n`)
+
+    expect((await parseStructuredTakeoff(atTheLimit, 'takeoff.csv', MAPPING)).rows).toHaveLength(1)
+    const started = performance.now()
+    await expect(parseStructuredTakeoff(oneCell, 'TAKEOFF.CSV', MAPPING)).rejects.toThrow(
+      new TakeoffTooLargeError('The CSV file is larger than 5 MB. Split it and import each part.'),
+    )
+    expect(performance.now() - started).toBeLessThan(100)
   })
 
   it('leaves the rate off rows when no rate column exists', async () => {

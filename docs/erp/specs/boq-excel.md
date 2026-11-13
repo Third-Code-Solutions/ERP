@@ -16,10 +16,10 @@ Path stays: wizard -> `POST /api/bom/takeoff-import` (Web parses) -> Core
 `POST v1/boms/takeoff-import` (validates, commits). Only the chosen sheet is
 read into rows.
 
-**Limits.** 25 MB file; 5,000 rows; about 2 MB of row data, whichever comes
-first (see D.3). The import and export routes share the `document-intake`
-rate-limit burst with upload completion: 10 requests a minute for a signed-in
-user (2 without a session), counted together.
+**Limits.** 25 MB file (5 MB for a `.csv`); 5,000 rows; about 2 MB of row
+data, whichever comes first (see D.3). The import and export routes share
+the `document-intake` rate-limit burst with upload completion: 10 requests a
+minute for a signed-in user (2 without a session), counted together.
 
 **Parser guards.** Over a size limit is 413 `TAKEOFF_TOO_LARGE` with a message
 that says what to do; a file the guard cannot fully account for is 422
@@ -29,6 +29,13 @@ that says what to do; a file the guard cannot fully account for is 422
   overhead the stream is cancelled and the answer is 413 `FILE_TOO_LARGE`,
   with or without a declared `Content-Length` (a declared length over the
   limit is refused before reading).
+- **CSV size.** A `.csv` over 5 MB is 413 `TAKEOFF_TOO_LARGE` ("The CSV file
+  is larger than 5 MB. Split it and import each part.") before any of it is
+  parsed. A CSV is parsed in the request thread one character at a time, and
+  the rows it may hold (5,000, inside the 2 MB row budget of D.3) are about
+  2 MB of CSV, so the limit refuses no file the row limits accept with
+  ordinary cells; a file past it is mostly columns after the 64th or text
+  after a cell's 1,000th character, which the import drops anyway.
 - **First filter (.xlsx), in the request thread.** A cheap, linear check
   before the workbook reader, and it fails closed. The zip must be exactly
   what the reader (JSZip) will read: one end record, one
@@ -48,8 +55,10 @@ that says what to do; a file the guard cannot fully account for is 422
   about 12x in ExcelJS; images do not count, but any part the sheet scans
   below read counts, whatever its first byte); 500,000 rows and cells counted
   in the sheet XML over all sheets (a merged range counts every cell it
-  covers, and each sheet counts the columns up to the last one a cell is in,
-  since ExcelJS creates every one of them); 5,000 merged ranges over the
+  covers, each sheet counts the columns up to the last one a cell is in,
+  since ExcelJS creates every one of them, and each `<col>` and `<dimension>`
+  tag counts as one, so a part full of them ends the scan at the limit
+  instead of being read to its end); 5,000 merged ranges over the
   workbook. A merged range must be one plain `A1:B2` reference.
 - **Every index ExcelJS allocates from is read in full and must lie inside a
   sheet**, or the file is refused: every `sheetId` in a scanned part (a sheet

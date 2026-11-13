@@ -373,6 +373,26 @@ describe('generic takeoff import Core authority', () => {
     expect(mocks.executeTakeoffImportThroughCoreApi).toHaveBeenCalledTimes(1)
   })
 
+  it('returns 413 for a .csv over 5 MB without parsing it (S6-4)', async () => {
+    const response = await POST(
+      requestWithForm({
+        file: new File([`Description,Qty,UOM\n${'a'.repeat(6 * 1024 * 1024)},1,sqm\n`], 'takeoff.csv'),
+        bom_id: BOM_ID,
+        mode: 'preview',
+      })
+    )
+
+    expect(response.status).toBe(413)
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: {
+        code: 'TAKEOFF_TOO_LARGE',
+        message: 'The CSV file is larger than 5 MB. Split it and import each part.',
+      },
+    })
+    expect(mocks.executeTakeoffImportThroughCoreApi).not.toHaveBeenCalled()
+  })
+
   it('returns 413 for a sparse workbook whose used range reaches column XFD', async () => {
     const ExcelJS = await import('exceljs')
     const workbook = new ExcelJS.Workbook()

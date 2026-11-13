@@ -593,6 +593,29 @@ describe('xlsx first filter (round 6: work on the request thread)', () => {
     expect(() => assertXlsxWithinLimits(widest)).not.toThrow()
     expect(() => assertXlsxWithinLimits(tooWide)).toThrow('row number')
   }, SLOW)
+
+  it('counts <col> and <dimension> tags, so a part full of them ends the scan at the limit (S6-4)', async () => {
+    // The reviewers' parts: 31.5 MB of one tag in an 80 KB upload. Each tag
+    // counted as nothing, so all 1.5 million were read (1.3 s and 1.7 s).
+    const full = (tag: string) =>
+      xlsx([
+        {
+          xml: `<?xml version="1.0"?><worksheet ${NS}><sheetData/>${tag.repeat(Math.floor((31.5 * 1024 * 1024) / tag.length))}</worksheet>`,
+        },
+      ])
+    const tooMany = new TakeoffTooLargeError(
+      'The workbook holds more than 500,000 rows and cells over all its sheets (a merged range counts every cell it covers). Copy the BOQ sheet to a new workbook and try again.',
+    )
+
+    for (const tag of ['<col min="1" max="1"/>', '<dimension ref="A1"/>']) {
+      const file = await full(tag)
+      expect(file.length).toBeLessThan(200_000)
+      const started = performance.now()
+      // Refused at tag 500,001 of 1.5 million, so about a third of the part is read.
+      expect(() => assertXlsxWithinLimits(file), tag).toThrow(tooMany)
+      expect(performance.now() - started, tag).toBeLessThan(2_000)
+    }
+  }, SLOW)
 })
 
 describe('xlsx first filter (round 6: a sheet list ExcelJS searches for every part, S6-2)', () => {

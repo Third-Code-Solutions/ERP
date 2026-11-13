@@ -110,6 +110,13 @@ export const TAKEOFF_TOO_MANY_ROWS_MESSAGE = `The sheet has more than ${TAKEOFF_
 const ROWS_BYTE_BUDGET = TAKEOFF_IMPORT_MAX_COMMAND_BYTES - 64 * 1024
 export const TAKEOFF_TOO_MUCH_DATA_MESSAGE = `The rows on this sheet hold more than ${TAKEOFF_IMPORT_MAX_COMMAND_BYTES / 1_000_000} MB of data. Split the sheet and import each part.`
 
+// A CSV is parsed on the request thread, one character at a time. 5,000 rows
+// inside the command budget are about 2 MB of CSV, and one 24 MB cell cost
+// 2.5 s and several hundred MB of heap, so a .csv is capped well below the
+// 25 MB the route accepts for a workbook.
+const CSV_MAX_BYTES = 5 * 1024 * 1024
+const CSV_TOO_LARGE_MESSAGE = `The CSV file is larger than ${CSV_MAX_BYTES / 1024 / 1024} MB. Split it and import each part.`
+
 // The rows read from the chosen sheet cross from the reader's child process to the
 // server process as text. Rows over the command budget are refused anyway, so
 // twice that budget is room for the rows above the header and the skipped ones.
@@ -408,8 +415,10 @@ function unreadableTag(name: string): Error {
 
 /**
  * What one index tag makes ExcelJS build: its objects (a row, a cell, every
- * cell a merged range covers) and the column it reaches. Null when an index
- * is missing, repeated, unreadable or outside the sheet.
+ * cell a merged range covers) and the column it reaches. A <col> and a
+ * <dimension> count as one each although ExcelJS builds nothing for them, so
+ * the cell limit also ends a scan of millions of them. Null when an index is
+ * missing, repeated, unreadable or outside the sheet.
  */
 function tagObjects(name: string, attributes: TagAttributes): { objects: number; column: number } | null {
   if (name === 'row') {
@@ -429,19 +438,20 @@ function tagObjects(name: string, attributes: TagAttributes): { objects: number;
     const min = valuesOf(attributes, 'min')
     const max = valuesOf(attributes, 'max')
     return min.length === 1 && max.length === 1 && [...min, ...max].every(isSheetColumn)
-      ? { objects: 0, column: 0 }
+      ? { objects: 1, column: 0 }
       : null
   }
   // <dimension> (not parsed, checked as <col>) and <mergeCell>: one plain range inside the sheet.
   const refs = valuesOf(attributes, 'ref')
   const area = refs.length === 1 ? rangeCells(refs[0] ?? '') : null
-  return area === null ? null : { objects: name === 'mergeCell' ? area : 0, column: 0 }
+  return area === null ? null : { objects: name === 'mergeCell' ? area : 1, column: 0 }
 }
 
 /**
  * Adds what ExcelJS turns into one object each in a sheet part: rows, cells,
  * the columns up to the last one a cell is in, and every cell a merged range
- * covers. Stops counting cells once past the limit. Refuses every index
+ * covers, plus one for each <col> and <dimension> tag read. Stops counting
+ * once past the limit. Refuses every index
  * ExcelJS allocates from that it cannot read or that lies outside a sheet
  * (row numbers, cell references, column ranges, the dimension, merged ranges)
  * and too many merged ranges. One pass over the part.
@@ -962,6 +972,7 @@ export async function parseStructuredTakeoff(
 ): Promise<StructuredTakeoffResult> {
   const lowerName = fileName.toLowerCase()
   if (lowerName.endsWith('.csv')) {
+    if (buffer.length > CSV_MAX_BYTES) throw new TakeoffTooLargeError(CSV_TOO_LARGE_MESSAGE)
     const text = buffer.toString('utf8')
     if (text.trim().length === 0) return emptyResult(['file'])
     return buildRows(csvGrid(text, lastReadRow(options)), mapping, options)
