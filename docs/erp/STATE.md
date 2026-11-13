@@ -395,7 +395,8 @@ RUNBOOK) is **done**.
 - **#147 apply, owner at the screen:** the owner ordered the #147 merge and the runbook
   rollout (2026-11-12). A backup of the Cortex tables is in `erp_backup_20261112`, taken
   2026-11-12. Take a fresh backup, or confirm a fresh restore point, right before the
-  apply, as the runbook requires. The three migrations go
+  apply, as the runbook on the #147 branch requires
+  (`docs/runbooks/cortex-substrate.md`). The three migrations go
   through the Supabase connector, whose confirmation prompts expired twice with nobody
   there to approve them. Nothing is applied and #147 is not merged. This replaces the
   earlier question of applying the `audit_log` migration alone. The cautions stand: the
@@ -434,9 +435,11 @@ RUNBOOK) is **done**.
   verified until CI runs.
 - **Adding a client's users (until #151 is live):** do not use Admin → Users → New
   (B1). #151 is merged (`2822c6ab`) but not deployed (2026-11-13). Before any invite on
-  either path, the owner checks that Supabase Auth has "Confirm email" on: the trigger
-  that binds an invitation is already in production, so with confirmation off the open
-  #151 Medium and the any-age `pending` Low apply to the platform-owner path too. The
+  either path, the owner checks that Supabase Auth has "Confirm email" on. The trigger
+  that binds an invitation is on `main` in a migration older than the production ledger
+  head, and it binds on any sign-up with the invited email; only activation needs a
+  confirmed email. So the setting is necessary, not sufficient: the open #151 Medium and
+  the any-age `pending` Low apply to the platform-owner path too. The
   production setting is not recorded here; the local `supabase/config.toml` has
   `enable_confirmations = false`. Production on 2026-11-12: 12 Auth users, all confirmed; 0
   `platform_user_invitations` rows ever; 1 platform role assignment. The platform-owner
