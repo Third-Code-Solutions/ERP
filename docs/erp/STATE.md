@@ -42,7 +42,8 @@ Verdicts are posted as PR comments.
   - Active data is the `buildops-e2e` demo/release-E2E tenant: 11 users, 3 sign-ins
     in the last 30 days, 5 projects, 6 opportunities, 1,092 daily tasks.
   - The `third-code-solutions-inc` internal tenant has 1 user and no projects.
-  - 12 empty `abi-ops-demo-*` tenants and 1 isolation-QA tenant.
+  - 12 empty `abi-ops-demo-*` tenants and 1 isolation-QA tenant. (Recount 2026-11-13: 11 `abi-ops-demo-*`,
+    14 tenants in all; see `reports/02-trial-readiness.md` §2.1.)
   - **Policy: treat production as live.** Every migration must be additive
     (expand/contract): never drop, rename or retype in the same release.
 
@@ -157,18 +158,28 @@ Verdicts are posted as PR comments.
 Owner order of 2026-11-13: "end the Construction ERP implementation and mark it as ready to launch and
 ready for company trial phase." Decision record:
 [`reports/02-trial-readiness.md`](reports/02-trial-readiness.md).
-- **Implementation is closed.** v1 feature freeze from 2026-11-13; the trial scope is `main` at
-  `db4887c0`. The mandate PHASE 2 module queue (`approvals` → `contracts`) and Cortex batch 2 are parked
-  until the trial exits. Only fixes for defects found in the trial merge (rule R2).
+- **Implementation is closed.** v1 feature freeze from 2026-11-13. The trial runs `main` at `db4887c0`
+  plus two security fixes: SEC-10 (D0-1) and #147 rebased onto `main` (D0-2, D0-3). The mandate PHASE 2
+  module queue (`approvals` → `contracts`) and Cortex batch 2 are parked until the trial exits. Merges
+  during the trial follow rule R2: trial defects, Day-0 items and GA-gate work.
 - **Company trial: GO, conditional.** A supervised ABI pilot (one tenant, up to 10 named users) starts
-  only after Day-0 items D0-0..D0-6 are done. They are: finishing the release-candidate gates, the #147 rollout (closes exposures 1 and 3), an
-  authenticated production smoke, client tenant provisioning with a supervised first invite, a fresh
-  backup, uptime alerts, and signed operating rules. Money outputs run in parallel with ABI's current
-  process (rule R1) until Q1–Q10 are answered.
+  only after Day-0 items D0-1..D0-8 are done:
+  1. the SEC-10 fix;
+  2. #147 rebased, with full gates on the combined tree;
+  3. the #147 rollout (closes exposures 1 and 3);
+  4. authenticated smoke plus the production cross-tenant spec;
+  5. the ABI tenant, with public sign-up off, "Confirm email" on and a supervised first invite;
+  6. a fresh backup;
+  7. uptime alerts;
+  8. signed operating rules.
+
+  Money outputs run in parallel with ABI's current process (rule R1) until Q1–Q10 are answered.
 - **Commercial launch (GA): NO-GO** until gates G1–G6 in the report are met.
-- Exposure 2 is accepted for the pilot, time-boxed to whichever comes first: the #144 merge or 2026-12-15.
-- Release candidate tag: `v1.0.0-rc.1` on this record's merge commit. The tag `v1.0.0-trial` follows
-  once D0-0..D0-6 are recorded here.
+- Exposure 2 now covers two routes: the takeoff import (ExcelJS) and document intake (SheetJS parses the
+  whole workbook). It is accepted for the pilot only once public sign-up is off. Time box: 2026-12-15; if
+  a route is still open then, deploy the `.xlsx` stop-gap there.
+- Tags: `v1.0.0-rc.1` on the `main` commit that holds D0-1 and #147, once D0-2 passes. `v1.0.0-trial`
+  once D0-1..D0-8 are recorded here.
 
 ### In flight (2026-11-13)
 Owner order of 2026-11-05: import and export estimates in Excel, mirror every piece of
@@ -489,7 +500,7 @@ RUNBOOK) is **done**.
 ## Log
 | Date | Mode | Result |
 |---|---|---|
-| 2026-11-13 | release | Owner order: end implementation and mark trial-ready. v1 feature freeze. Report `reports/02-trial-readiness.md`: company trial GO conditional on D0-0..D0-6, GA NO-GO (G1–G6). Release-candidate gates on `db4887c0` (Node 22.23.2) partial: typecheck 6/6, unit shared-types 729, operations 14, database 333 pass; lint not concluded (path-case plugin load), api suite interrupted, rest not reached: the session stopped the run for low workstation memory (D0-0). Production read-only: all health 200, ledger 180, no ABI tenant yet, 0 ERROR advisors, leaked-password protection off. Actions still refused for billing |
+| 2026-11-13 | release | Owner order: end implementation and mark trial-ready. v1 feature freeze. Report `reports/02-trial-readiness.md` (#155): company trial GO conditional on D0-1..D0-8, GA NO-GO (G1–G6). Release-candidate gates on `db4887c0` (Node 22.23.2) partial: typecheck 6/6; unit shared-types 729, operations 14, database 333 pass; lint not concluded (plugin load, path case); api suite interrupted; the rest not reached. The session stopped the run for low workstation memory (rerun in D0-2). Production read-only: all health 200, ledger 180, no ABI client tenant yet, 0 ERROR advisors, leaked-password protection off. #155 round 1: fact-check REQUEST_CHANGES, security PASS with M1–M4 (SEC-10 re-raised as D0-1, public sign-up, cross-tenant spec, intake SheetJS path), all folded in. Actions still refused for billing |
 | 2026-11-13 | promote | Manual (Actions blocked): web `ddacfb1b` via Vercel CLI from a clean checkout of `main` (deployment `thirdcode-jzhgfv5c9`). Before: lint, web typecheck and the web unit suite (2,889 passed, 6 skipped) on that checkout. After: `/api/health` and `/api/ready` report `ddacfb1b8f63`, the surface check passes, API and CAD health answer 200, and Vercel showed no runtime errors in a check a few minutes after the deploy. Smoke not run (secrets in GitHub only); the invite path was not exercised. API and database unchanged |
 | 2026-11-13 | build | #153 `ddacfb1b` merged (docs only, owner override). The fact-check APPROVE covers `18a83a2b` and the security PASS `10f0c5cd`; the merged head `de8acfc0` is one commit later, the two wording fixes the security recheck asked for. #144 fix loop 7 pushed as `f45a0a0a`; round 7: security FAIL (1 High, in the export), code REQUEST_CHANGES (a missing ADR); fix loop 8 started |
 | 2026-11-13 | build | #151 round 2 on `a0bcdea1`: security PASS, code APPROVE; merged `2822c6ab` under the owner override. Not deployed: web and API both at `f212c9df`, the Railway deployment for `2822c6ab` waits at NEEDS_APPROVAL, and the Vercel CLI cannot reach the production project. #144 round 5 on `db98b8f7`: security FAIL, code REQUEST_CHANGES; fix loop 6 to `2a79cf7b`; round 6: security PASS, code REQUEST_CHANGES; `main` merged into the branch locally; fix loop 7 started. Nothing deployed: Actions still refused |
