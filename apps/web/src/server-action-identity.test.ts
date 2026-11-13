@@ -20,11 +20,8 @@ function isUseServerModule(sourceFile: ts.SourceFile): boolean {
   return false
 }
 
-function isExported(node: ts.Node): boolean {
-  return (
-    ts.canHaveModifiers(node) &&
-    (ts.getModifiers(node) ?? []).some((m) => m.kind === ts.SyntaxKind.ExportKeyword)
-  )
+function hasModifier(node: ts.Node, kind: ts.SyntaxKind): boolean {
+  return ts.canHaveModifiers(node) && (ts.getModifiers(node) ?? []).some((m) => m.kind === kind)
 }
 
 function bindingNames(name: ts.BindingName): string[] {
@@ -34,8 +31,29 @@ function bindingNames(name: ts.BindingName): string[] {
   )
 }
 
+// `export type { … }`, `export { type A }` and `export {}` expose no runtime value.
+function exportsValues(statement: ts.ExportDeclaration): boolean {
+  const clause = statement.exportClause
+  if (statement.isTypeOnly) return false
+  return !(clause && ts.isNamedExports(clause) && clause.elements.every((e) => e.isTypeOnly))
+}
+
+// Reads the leading string tokens unescaped, so 'use\x20server' is still found.
+function hasLeadingUseServer(sourceText: string): boolean {
+  const scanner = ts.createScanner(ts.ScriptTarget.Latest, true, ts.LanguageVariant.Standard, sourceText)
+  let token = scanner.scan()
+  while (token === ts.SyntaxKind.StringLiteral) {
+    if (scanner.getTokenValue() === 'use server') return true
+    token = scanner.scan()
+    if (token === ts.SyntaxKind.SemicolonToken) token = scanner.scan()
+  }
+  return false
+}
+
 // Returns null for modules that are not 'use server', so callers can count what was scanned.
 function findIdentityParams(fileName: string, sourceText: string): string[] | null {
+  // Cheap token check first: parsing every source file made a cold run take ~50 s.
+  if (!hasLeadingUseServer(sourceText)) return null
   const sourceFile = ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, true)
   if (!isUseServerModule(sourceFile)) return null
 
@@ -50,24 +68,31 @@ function findIdentityParams(fileName: string, sourceText: string): string[] | nu
 
   for (const statement of sourceFile.statements) {
     // Re-exports and default expressions hide the signature from this scan, so ban them here.
-    if ((ts.isExportDeclaration(statement) && !statement.isTypeOnly) || ts.isExportAssignment(statement)) {
+    if ((ts.isExportDeclaration(statement) && exportsValues(statement)) || ts.isExportAssignment(statement)) {
       findings.push(`${fileName}: ${statement.getText(sourceFile)}`)
       continue
     }
-    if (!isExported(statement)) continue
+    if (!hasModifier(statement, ts.SyntaxKind.ExportKeyword)) continue
     if (ts.isFunctionDeclaration(statement)) {
       check(statement.name?.text ?? 'default', statement.parameters)
     } else if (ts.isVariableStatement(statement)) {
       for (const declaration of statement.declarationList.declarations) {
+        const name = declaration.name.getText(sourceFile)
         const init = declaration.initializer
-        // Also look inside wrappers such as withTrace(async (tenantId) => ...).
-        const fns = init && ts.isCallExpression(init) ? init.arguments : init ? [init] : []
-        for (const fn of fns) {
-          if (ts.isArrowFunction(fn) || ts.isFunctionExpression(fn)) {
-            check(declaration.name.getText(sourceFile), fn.parameters)
-          }
+        if (init && (ts.isArrowFunction(init) || ts.isFunctionExpression(init))) {
+          check(name, init.parameters)
+        } else {
+          // An alias or wrapper (`= loadVo`, `= withTrace(fn)`) hides the signature from this scan.
+          findings.push(`${fileName}: ${name} is not a function literal`)
         }
       }
+    } else if (
+      !ts.isInterfaceDeclaration(statement) &&
+      !ts.isTypeAliasDeclaration(statement) &&
+      !hasModifier(statement, ts.SyntaxKind.DeclareKeyword)
+    ) {
+      // Allowlist: `export import x = Q.reader` and other forms also become actions.
+      findings.push(`${fileName}: export ${ts.SyntaxKind[statement.kind]}`)
     }
   }
   return findings
@@ -90,8 +115,15 @@ describe('server action identity (SEC-10)', () => {
       'export const remove = function (id: string, [actorId, role]: string[]) {}',
       'export const traced = withTrace(async (tenantId: string) => {})',
       'async function internal(tenantId: string) {}',
+      'export const alias = internal',
       'export { internal }',
+      'export default internal',
+      'export import aliased = Q.loadVo',
+      'export interface Shape { tenantId: string }',
+      'export type Scope = { tenantId: string }',
       'export type { Row } from "./types"',
+      'export { type Col } from "./types"',
+      'export {}',
       'export async function safe(formData: FormData): Promise<{ tenantId?: string }> { return {} }',
     ].join('\n')
 
@@ -100,12 +132,23 @@ describe('server action identity (SEC-10)', () => {
       'fixture.ts: load(userId)',
       'fixture.ts: remove(actorId)',
       'fixture.ts: remove(role)',
-      'fixture.ts: traced(tenantId)',
+      'fixture.ts: traced is not a function literal',
+      'fixture.ts: alias is not a function literal',
       'fixture.ts: export { internal }',
+      'fixture.ts: export default internal',
+      'fixture.ts: export ImportEqualsDeclaration',
     ])
+    // Passes the token check but is an expression, not a directive.
+    expect(
+      findIdentityParams('expr.ts', "'use server' + suffix\nexport async function read(tenantId: string) {}")
+    ).toBeNull()
     expect(
       findIdentityParams('plain.ts', 'export async function read(tenantId: string) {}')
     ).toBeNull()
+    // An escaped directive is still a directive to Next.js.
+    expect(
+      findIdentityParams('escaped.ts', "// note\n'use\\x20server';\nexport async function read(tenantId: string) {}")
+    ).toEqual(['escaped.ts: read(tenantId)'])
   })
 
   it('finds no use-server export that takes identity from the caller', () => {
@@ -119,5 +162,5 @@ describe('server action identity (SEC-10)', () => {
     expect(actionModules.map((m) => m.name)).toContain('app/(dashboard)/projects/[id]/vos/actions.ts')
     expect(actionModules.length).toBeGreaterThan(50)
     expect(actionModules.flatMap((m) => m.findings)).toEqual([])
-  })
+  }, 30_000)
 })
