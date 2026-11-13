@@ -322,7 +322,10 @@ that says what to do; a file the guard cannot fully account for is 422
    access; the wizard gains sheet, header row, rate/amount mapping and the
    section-header toggle, Code and Notes columns, and the confirmation in
    A.9. Changing any mapping field clears the preview, because commit
-   re-parses the file with the current mapping.
+   re-parses the file with the current mapping. The review lists every
+   spreadsheet warning of the preview, as it lists every skipped amount row:
+   none is cut off, so a money warning (`AMOUNT_MISMATCH`, `AMOUNT_NOT_EXACT`,
+   `HIDDEN_ROW`, `TOTAL_ROW_SKIPPED`) after a dozen `LUMP_SUM` ones is seen.
 
 ## C. Out of scope
 

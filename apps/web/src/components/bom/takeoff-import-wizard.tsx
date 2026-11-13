@@ -266,7 +266,7 @@ export function TakeoffImportWizard({
           {(preview.warnings?.length ?? 0) > 0 && (
             <div role="status" style={{ display: 'grid', gap: 6, margin: '0 18px 18px', padding: 12, border: '1px solid var(--color-warning)', background: 'var(--color-warning-soft)', borderRadius: 8, fontSize: 12, color: 'var(--color-neutral-700)' }}>
               <strong>{preview.warnings!.length} spreadsheet warning{preview.warnings!.length === 1 ? '' : 's'}</strong>
-              {preview.warnings!.slice(0, 12).map((warning, index) => <div key={`${warning.sourceRowKey}-${warning.code}-${index}`}>{warning.sourceRowKey}: {warning.message}</div>)}
+              {preview.warnings!.map((warning, index) => <div key={`${warning.sourceRowKey}-${warning.code}-${index}`}>{warning.sourceRowKey}: {warning.message}</div>)}
             </div>
           )}
           {preview.validationIssues.length > 0 && (

@@ -148,6 +148,14 @@ for (const fragment of [
 ]) {
   requireText('wizard', fragment)
 }
+// A money warning (amount mismatch, hidden row, skipped total) may come after
+// a dozen lump-sum ones; the review lists every warning, as it lists every
+// skipped amount row.
+forbid(
+  'wizard',
+  /\bwarnings\b!?\s*\.slice\(/,
+  'WO-08 review must show every spreadsheet warning, not the first few'
+)
 
 console.log(
   'PASS WO-08 importer contract: generic CSV/XLSX preview, mapping/validation, drawing binding, source-row upsert, vendor/DUPA preservation, and unresolved review flow',
