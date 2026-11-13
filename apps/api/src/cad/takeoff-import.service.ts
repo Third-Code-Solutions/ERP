@@ -89,7 +89,8 @@ function buildIssues(
  * bring one in. Stripped until none is left: removing an inner token must not
  * join the text around it into a new one ("[VEN[VENDOR:x]DOR:id:name]"). An
  * opener never closed goes too, with the rest of the text: the token the app
- * appends on a supplier pick would close it.
+ * appends on a supplier pick would close it. The note built from `source`
+ * when a row has none goes through here too: `source` is the caller's text.
  */
 function importedNotes(notes: string | null): string | null {
   let text = notes ?? ''
@@ -648,7 +649,7 @@ export class TakeoffImportService {
             markup_bps: 0,
             notes: isAiDocumentCandidate
               ? `AI-extracted scope candidate; document:${parsedCommand.documentId}; model:${parsedCommand.sourceModel}; pricing requires DUPA before approval.`
-              : importedNotes(row.notes) ?? `Takeoff source: ${source}`,
+              : importedNotes(row.notes) ?? importedNotes(`Takeoff source: ${source}`),
           })
           .onConflictDoUpdate({
             target: [

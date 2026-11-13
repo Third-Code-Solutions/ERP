@@ -253,7 +253,10 @@ that says what to do; a file the guard cannot fully account for is 422
    elsewhere in the system). An opener with no closing `]` is removed with
    the rest of the notes, because the token a later supplier pick appends
    would close it; without notes the line gets `Takeoff source:
-   <source>` as before.
+   <source>` as before, with the same tokens removed from the source first:
+   `source` is free text from the form, so it could carry a token past the
+   strip. Square brackets that are no vendor token stay (a source can be a
+   file name such as `estimate [rev 2].xlsx`).
 8. **Units.** Besides the existing list, `m`, `ls`, `l.s.`, `ea`, `each`,
    `no.`, `no`, `nos`, `unit`, `units`, `bag`, `bags` and `box` are units, so
    the units the app's own forms offer and the export writes re-import.

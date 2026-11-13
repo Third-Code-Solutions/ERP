@@ -303,6 +303,28 @@ describe('TakeoffImportService client BOQ rates', () => {
     expect(picked.match(/\[VENDOR:([0-9a-f-]+):([^\]]+)\]/i)?.slice(1)).toEqual([realId, 'Real Supplier'])
   })
 
+  it('strips a vendor token from the source field before it becomes a line note (S6-3)', async () => {
+    const plantedId = '99999999-9999-4999-8999-999999999999'
+    const notesFor = async (source: string) => {
+      const { service, lineValues } = harness()
+      // No notes on the row: the note is built from the source the caller sent.
+      await service.execute({ ...command([row()]), source }, PRINCIPAL)
+      return lineValues().map((values) => values.notes)
+    }
+
+    for (const source of [
+      `[vendor:${plantedId}:planted]`,
+      // Two tokens fit the 100 characters; the app's own strip removes only one.
+      `[vendor:${plantedId}:a][VENDOR:88888888-8888-4888-8888-888888888888:b]`,
+      `[VEN[vendor:x]DOR:${plantedId}:nested]`,
+      `[VENDOR:${plantedId}:unclosed`,
+    ]) {
+      expect(await notesFor(source), source).toEqual(['Takeoff source:'])
+    }
+    // A source can be a real file name: brackets that are no vendor token stay.
+    expect(await notesFor('Estimate [rev 2].xlsx')).toEqual(['Takeoff source: estimate [rev 2].xlsx'])
+  })
+
   it('keeps the unpriced manual line without a rate', async () => {
     const { service, lineValues } = harness()
 
