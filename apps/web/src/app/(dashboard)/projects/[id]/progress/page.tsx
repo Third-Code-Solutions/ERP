@@ -17,7 +17,7 @@ import {
   projectWeeklyProgressReadsUseCoreApi,
   projectWeeklyProgressWritesUseCoreApi,
 } from '@/lib/erp-core-client'
-import { loadProgressContext } from './actions'
+import { loadProgressContext } from './queries'
 
 export const metadata: Metadata = { title: 'Progress' }
 

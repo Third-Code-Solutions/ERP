@@ -27,9 +27,8 @@ import {
   masterSchedules,
   weeklyReports,
 } from '@third-code-erp/database/schema'
-import { findActiveCustomerSession } from '@/lib/operations/customer-portal'
+import { findActiveCustomerSession, logCustomerView } from '@/lib/operations/customer-portal'
 import { PortalEmpty } from '@/components/customer-portal/portal-empty'
-import { logView } from './actions'
 
 export const metadata: Metadata = {
   title: 'Project overview · ABI OPS',
@@ -88,7 +87,7 @@ export default async function PortalProjectOverviewPage({ params }: PageProps) {
   if (!session) return null
 
   // Stamp the view counter. Best-effort; never blocks rendering.
-  void logView(session.id, session.tenant_id)
+  void logCustomerView(session.id, session.tenant_id)
 
   const [
     projectRows,

@@ -7,7 +7,7 @@ vi.mock('@third-code-erp/auth', async () => {
   return { requireUserProfile: mocks.profile, can: roleHasCapability }
 })
 vi.mock('@third-code-erp/database', () => ({ db: { select: mocks.select } }))
-vi.mock('./actions', () => ({ loadProgressContext: mocks.context }))
+vi.mock('./queries', () => ({ loadProgressContext: mocks.context }))
 vi.mock('@/lib/erp-core-client', () => ({ getProjectWeeklyProgressThroughCoreApi: mocks.ledger, projectWeeklyProgressReadsUseCoreApi: mocks.readEnabled, projectWeeklyProgressWritesUseCoreApi: mocks.writeEnabled }))
 vi.mock('@/components/progress/weekly-update-form', () => ({ WeeklyUpdateForm: () => null }))
 vi.mock('@/components/progress/weekly-war-ledger', () => ({ WeeklyWarLedger: () => null }))
