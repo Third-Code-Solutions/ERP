@@ -1138,8 +1138,15 @@ test('fails if an action reintroduces a post-commit SLA helper', () => {
 })
 
 test('fails if a mounted action adds a direct or aliased database writer', () => {
-  const direct = replaceTextOnce(
+  // #156 dropped this module's pprfSubmissions import; a real writer has to bring it back.
+  const source = replaceTextOnce(
     read(pprfResubmissionActionPath),
+    '  designFiles,',
+    '  pprfSubmissions,\n  designFiles,',
+    'writer fixtures must import pprfSubmissions'
+  )
+  const direct = replaceTextOnce(
+    source,
     'export async function submitPprf(opportunityId: string, formData: FormData) {',
     'export async function submitPprf(opportunityId: string, formData: FormData) {\n  await db.insert(pprfSubmissions).values({})',
     'direct writer fixture must modify submitPprf'
@@ -1150,7 +1157,7 @@ test('fails if a mounted action adds a direct or aliased database writer', () =>
   )
 
   const aliased = replaceTextOnce(
-    read(pprfResubmissionActionPath),
+    source,
     'export async function submitPprf(opportunityId: string, formData: FormData) {',
     'export async function submitPprf(opportunityId: string, formData: FormData) {\n  const submissionTable = pprfSubmissions\n  await db.insert(submissionTable).values({})',
     'aliased writer fixture must modify submitPprf'
