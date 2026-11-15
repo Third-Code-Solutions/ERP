@@ -17,6 +17,16 @@ import { StockReceiptForm } from '../../receipt-form'
 
 export const metadata: Metadata = { title: 'New Stock Receipt' }
 
+// The PO statuses post_stock_receipt() accepts (20261116120000).
+const RECEIVABLE_PO_STATUSES = [
+  'issued',
+  'confirmed',
+  'partial_delivery',
+  'partial_delivered',
+  'delivered',
+  'fully_delivered',
+] as const
+
 export default async function NewStockReceiptPage() {
   const profile = await requireUserProfile()
   requireCapability(profile, 'inventory.manage')
@@ -49,13 +59,7 @@ export default async function NewStockReceiptPage() {
       .where(
         and(
           eq(purchaseOrders.tenant_id, profile.tenantId),
-          inArray(purchaseOrders.status, [
-            'issued',
-            'confirmed',
-            'partial_delivery',
-            'delivered',
-            'fully_delivered',
-          ])
+          inArray(purchaseOrders.status, RECEIVABLE_PO_STATUSES)
         )
       )
       .orderBy(asc(purchaseOrders.po_number))
@@ -101,13 +105,7 @@ export default async function NewStockReceiptPage() {
       .where(
         and(
           eq(poLineItems.tenant_id, profile.tenantId),
-          inArray(purchaseOrders.status, [
-            'issued',
-            'confirmed',
-            'partial_delivery',
-            'delivered',
-            'fully_delivered',
-          ])
+          inArray(purchaseOrders.status, RECEIVABLE_PO_STATUSES)
         )
       )
       .orderBy(asc(poLineItems.po_id), asc(poLineItems.sort_order))

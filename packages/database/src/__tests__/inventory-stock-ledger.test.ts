@@ -9,6 +9,7 @@ import {
   inRollback,
   makeSql,
 } from './_db-harness'
+import { purchaseOrderStatusEnum } from '../schema/enums'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const schemaSql = readFileSync(
@@ -198,6 +199,33 @@ describe('inventory stock ledger migration contract', () => {
   })
 })
 
+describe('Stock Receipt posting status migration contract', () => {
+  it('accepts the current-flow and legacy receivable PO statuses', () => {
+    const postingSql = readFileSync(
+      resolve(
+        __dirname,
+        '../../../../supabase/migrations/20261116120000_stock_receipt_posting_accepts_partial_delivered.sql'
+      ),
+      'utf8'
+    ).toLowerCase()
+    expect(postingSql).toContain('create or replace function public.post_stock_receipt(')
+    expect(postingSql).toMatch(/security definer\s+set search_path = ''/)
+    for (const status of [
+      'issued',
+      'confirmed',
+      'partial_delivery',
+      'partial_delivered',
+      'delivered',
+      'fully_delivered',
+    ]) {
+      expect(postingSql).toContain(`'${status}'`)
+    }
+    expect(postingSql).toMatch(
+      /grant execute on function public\.post_stock_receipt\(uuid, uuid, date\)\s+to service_role/
+    )
+  })
+})
+
 describe('Warehouse deactivation integrity migration contract', () => {
   it('blocks nonzero Warehouse balances before deactivation', () => {
     expect(warehouseDeactivationGuardSql).toContain(
@@ -313,9 +341,13 @@ interface InventoryFixture {
 
 async function seedInventoryFixture(
   tx: postgres.TransactionSql,
-  options: { receiptMicros?: number } = {}
+  options: {
+    receiptMicros?: number
+    poStatus?: (typeof purchaseOrderStatusEnum.enumValues)[number]
+  } = {}
 ): Promise<InventoryFixture> {
   const receiptMicros = options.receiptMicros ?? 4_000_000
+  const poStatus = options.poStatus ?? 'issued'
   const suffix = (
     (await tx.unsafe(
       `select substr(md5(random()::text), 1, 10) as suffix`
@@ -467,7 +499,7 @@ async function seedInventoryFixture(
          '${vendorId}',
          '${procurementId}',
          'PO-${suffix}',
-         'issued',
+         '${poStatus}',
          100000,
          100000
        )
@@ -796,6 +828,40 @@ runtimeSuite('inventory stock ledger runtime proof', () => {
       received_quantity_micros: '4000000',
       received_qty: 4,
     })
+  })
+
+  it('posts a receipt on a PO marked partially delivered', async () => {
+    const result = await inRollback(sqlClient, async (tx) => {
+      const fixture = await seedInventoryFixture(tx, { poStatus: 'partial_delivered' })
+      await tx.unsafe(
+        `select * from post_stock_receipt(
+          '${fixture.receiptId}', '${fixture.financeId}', '2026-07-27'
+        )`
+      )
+      return (await tx.unsafe(
+        `select status from stock_receipts where id = '${fixture.receiptId}'`
+      )) as Rows
+    })
+
+    expect(result[0]).toMatchObject({ status: 'posted' })
+  })
+
+  it('still refuses a receipt on a cancelled PO', async () => {
+    const message = await inRollback(sqlClient, async (tx) => {
+      const fixture = await seedInventoryFixture(tx, { poStatus: 'cancelled' })
+      try {
+        await tx.unsafe(
+          `select * from post_stock_receipt(
+            '${fixture.receiptId}', '${fixture.financeId}', '2026-07-27'
+          )`
+        )
+        return 'posted'
+      } catch (error) {
+        return (error as Error).message
+      }
+    })
+
+    expect(message).toBe('Stock Receipt requires an issued Purchase Order')
   })
 
   it('rejects cumulative quantity above the ordered PO line', async () => {
