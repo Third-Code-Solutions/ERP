@@ -99,10 +99,11 @@ function workflowService(po: {
   createdBy: string | null
   pmApprovedBy: string | null
   projectDeletedAt?: Date | null
+  role?: string
 }) {
   let requestHash = ''
   const selects: Array<() => unknown[]> = [
-    () => [{ tenantId: PRINCIPAL.tenantId, role: 'commercial', email: PRINCIPAL.email }],
+    () => [{ tenantId: PRINCIPAL.tenantId, role: po.role ?? 'commercial', email: PRINCIPAL.email }],
     () => [{ id: 'request-1', requestHash, state: 'processing', result: null }],
     () => [
       {
@@ -186,6 +187,23 @@ describe('PurchaseOrderWorkflowService separation of duties', () => {
           .transition(PO_ID, { action }, as(actor), `po-retired-${action}`)
       ).rejects.toThrow('The project of this Purchase Order is retired')
     }
+  })
+
+  it.each(['pm', 'sd_pm_pe'])(
+    'refuses a %s rejecting at SCM issuance (only the issuer or commercial approver may)',
+    async (role) => {
+      await expect(
+        workflowService({ status: 'pending_scm_issuance', createdBy: CREATOR_ID, pmApprovedBy: PM_ID, role })
+          .transition(PO_ID, { action: 'reject', reason: 'Not yet' }, as(PM_ID), `po-scm-reject-${role}`)
+      ).rejects.toBeInstanceOf(ForbiddenException)
+    }
+  )
+
+  it.each(['commercial', 'procurement'])('lets a %s reject at SCM issuance', async (role) => {
+    await expect(
+      workflowService({ status: 'pending_scm_issuance', createdBy: CREATOR_ID, pmApprovedBy: PM_ID, role })
+        .transition(PO_ID, { action: 'reject', reason: 'Price changed' }, as(COMMERCIAL_ID), `po-scm-reject-ok-${role}`)
+    ).resolves.toMatchObject({ status: 'draft' })
   })
 
   it('still lets a PO of a retired project be rejected', async () => {
