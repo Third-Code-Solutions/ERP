@@ -38,12 +38,15 @@ export async function createInvoiceDraft(
   const parsed = customerInvoiceDraftCreateBodySchema.safeParse(input)
   if (!parsed.success) {
     const issue = parsed.error.issues[0]
-    return {
-      error:
-        issue?.path[0] === 'billingPercentBps'
-          ? 'Billing % must be between 0.01% and 100%'
-          : `Invoice draft is invalid: ${issue?.message ?? 'unknown field'}`,
+    if (issue?.path[0] === 'billingPercentBps') {
+      return { error: 'Billing % must be between 0.01% and 100%' }
     }
+    // An unknown key's name is caller-controlled, so it is not echoed back.
+    const detail =
+      !issue || issue.code === 'unrecognized_keys'
+        ? 'unexpected field'
+        : `${issue.path.join('.') || 'body'}: ${issue.message}`
+    return { error: `Invoice draft is invalid: ${detail}` }
   }
 
   const coreResult = await createCustomerInvoiceDraftThroughCoreApi(

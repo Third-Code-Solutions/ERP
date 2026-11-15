@@ -211,16 +211,43 @@ describe('createInvoiceDraft (BOM builder billing)', () => {
   )
 
   it.each([
-    ['a non-ISO due date', { dueDate: '15/08/2026' }, 'Due date requires YYYY-MM-DD'],
-    ['a malformed BOM id', { bomId: 'not-a-uuid' }, 'Invalid uuid'],
-    ['notes over 2,000 characters', { notes: 'x'.repeat(2_001) }, '2000'],
-    ['an unknown field', { tenantId: PROFILE.tenantId }, 'tenantId'],
-  ])('rejects %s before calling Core', async (_name, override, message) => {
+    ['a non-ISO due date', { dueDate: '15/08/2026' }, 'dueDate: '],
+    ['a malformed BOM id', { bomId: 'not-a-uuid' }, 'bomId: '],
+    ['notes over 2,000 characters', { notes: 'x'.repeat(2_001) }, 'notes: '],
+    ['an unknown field', { tenantId: PROFILE.tenantId }, 'unexpected field'],
+  ])('rejects %s before calling Core', async (_name, override, field) => {
     const result = await createInvoiceDraft(PROJECT_ID, { ...draft(2500), ...override })
 
-    expect(result.error).toContain('Invoice draft is invalid')
-    expect(result.error).toContain(message)
+    expect(result.error).toMatch(/^Invoice draft is invalid: /)
+    expect(result.error).toContain(field)
     expect(mocks.createCustomerInvoiceDraftThroughCoreApi).not.toHaveBeenCalled()
+  })
+
+  it('does not echo the name of an unknown field', async () => {
+    const key = `<img src=x onerror=alert(1)>${'k'.repeat(10_000)}`
+    const result = await createInvoiceDraft(PROJECT_ID, { ...draft(2500), [key]: 1 })
+
+    expect(result).toEqual({ error: 'Invoice draft is invalid: unexpected field' })
+  })
+
+  it('sends Core the parsed body, not the raw input', async () => {
+    mocks.createCustomerInvoiceDraftThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        invoiceId: INVOICE_ID,
+        tenantId: PROFILE.tenantId,
+        projectId: PROJECT_ID,
+        status: 'draft',
+      },
+    })
+
+    await createInvoiceDraft(PROJECT_ID, { ...draft(2500), notes: '  Progress billing  ' })
+
+    expect(mocks.createCustomerInvoiceDraftThroughCoreApi).toHaveBeenCalledWith(
+      PROJECT_ID,
+      { billingPercentBps: 2500, bomId: BOM_ID, dueDate: '2026-08-15', notes: 'Progress billing' },
+      expect.any(String)
+    )
   })
 
   it('requires the finance capability before opening the Core boundary', async () => {
