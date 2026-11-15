@@ -562,6 +562,19 @@ export async function createStandalonePo(
           `po-number:${userRow.tenant_id}`
         }))`
       )
+      // Re-check after the PO-number wait; the pre-check ran outside this transaction.
+      const [liveProject] = await tx
+        .select({ id: projects.id })
+        .from(projects)
+        .where(
+          and(
+            eq(projects.id, input.projectId),
+            eq(projects.tenant_id, userRow.tenant_id),
+            isNull(projects.deleted_at)
+          )
+        )
+        .limit(1)
+      if (!liveProject) throw new Error('PROJECT_NOT_FOUND')
       const tax = await resolveTaxRates(tx, userRow.tenant_id, new Date())
       const totals = calculatePurchaseOrderTotals(subtotalCents, tax)
       const nextNum = await allocateNextPurchaseOrderNumber(
@@ -620,6 +633,9 @@ export async function createStandalonePo(
       return po.id
     })
   } catch (error) {
+    if (error instanceof Error && error.message === 'PROJECT_NOT_FOUND') {
+      return { error: 'Project not found' }
+    }
     const overlap = taxOverlapError(error)
     if (overlap) return overlap
     if (error instanceof RangeError) return { error: rangeError }

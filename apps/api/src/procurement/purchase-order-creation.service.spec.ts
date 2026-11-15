@@ -1059,6 +1059,9 @@ describe('PO creation refuses a retired project', () => {
       harness.candidate.createFromBom(BOM_COMMAND, PRINCIPAL, 'bom-po-retired')
     ).rejects.toThrow('Project not found')
 
+    expect(whereSql(harness.select, 2)).toContain(
+      'exists (select "id" from "projects" where ("projects"."id" = "boms"."project_id" and "projects"."tenant_id" = $'
+    )
     expect(whereSql(harness.select, 3)).toContain('"projects"."deleted_at" is null')
     expect(harness.poInserts).toHaveLength(0)
   })

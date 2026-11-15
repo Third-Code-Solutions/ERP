@@ -659,7 +659,10 @@ describe('legacy PO paths use the effective tax rates (spec tenancy C-3)', () =>
     return { harness, run: () => createPoFromBom(BOM_ID, PROJECT_ID, null, null) }
   }
   const standalone = () => {
-    const harness = legacyPoHarness([[{ id: PROJECT_ID }], [{ id: COST_CODE }]], [])
+    const harness = legacyPoHarness(
+      [[{ id: PROJECT_ID }], [{ id: COST_CODE }]],
+      [[{ id: PROJECT_ID }]]
+    )
     const formData = new FormData()
     formData.set('project_id', PROJECT_ID)
     formData.set(
@@ -829,5 +832,22 @@ describe('PO creation refuses a retired project', () => {
 
     expect(whereSql(mocks.db.select, 0)).toContain('"projects"."deleted_at" is null')
     expect(mocks.db.transaction).not.toHaveBeenCalled()
+  })
+
+  it('stops a standalone PO when the project is retired after the pre-check', async () => {
+    const costCode = 'ffffffff-ffff-4fff-8fff-fffffffffff2'
+    const harness = legacyPoHarness([[{ id: PROJECT_ID }], [{ id: costCode }]], [[]])
+    const formData = new FormData()
+    formData.set('project_id', PROJECT_ID)
+    formData.set(
+      'line_items',
+      JSON.stringify([{ description: 'A', quantity: 1, unit_cost_cents: 100, costCodeId: costCode }])
+    )
+
+    await expect(createStandalonePo(formData)).resolves.toEqual({ error: 'Project not found' })
+
+    expect(whereSql(harness.txSelect, 0)).toContain('"projects"."deleted_at" is null')
+    expect(harness.poInserts).toHaveLength(0)
+    expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
   })
 })

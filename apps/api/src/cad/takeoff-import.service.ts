@@ -35,7 +35,8 @@ import {
   validateTakeoffRows,
   type TakeoffValidationIssue,
 } from '@third-code-erp/shared-types/bom'
-import { and, desc, eq, max, sql } from 'drizzle-orm'
+import { liveProjectCondition } from '@third-code-erp/database'
+import { and, desc, eq, isNull, max, sql } from 'drizzle-orm'
 import { roleHasCapability } from '../auth/capability.guard'
 import type { ErpPrincipal, ErpRole } from '../auth/current-principal.decorator'
 import { AuditService } from '../audit/audit.service'
@@ -170,7 +171,8 @@ export class TakeoffImportService {
           .where(
             and(
               eq(projects.id, parsedCommand.projectId),
-              eq(projects.tenant_id, authorizedPrincipal.tenantId)
+              eq(projects.tenant_id, authorizedPrincipal.tenantId),
+              isNull(projects.deleted_at)
             )
           )
           .limit(1)
@@ -275,7 +277,8 @@ export class TakeoffImportService {
           .where(
             and(
               eq(boms.id, parsedCommand.bomId),
-              eq(boms.tenant_id, authorizedPrincipal.tenantId)
+              eq(boms.tenant_id, authorizedPrincipal.tenantId),
+              liveProjectCondition(boms.project_id, authorizedPrincipal.tenantId)
             )
           )
           .limit(1)

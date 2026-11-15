@@ -779,7 +779,8 @@ export class PurchaseOrderCreationService {
         .where(
           and(
             eq(boms.id, parsedCommand.bomId),
-            eq(boms.tenant_id, authorizedPrincipal.tenantId)
+            eq(boms.tenant_id, authorizedPrincipal.tenantId),
+            liveProjectCondition(boms.project_id, authorizedPrincipal.tenantId)
           )
         )
         .limit(1)
