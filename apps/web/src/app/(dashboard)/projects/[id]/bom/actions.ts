@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { getUserProfile, requireUserProfile, can, type AppRole } from '@third-code-erp/auth'
-import { db } from '@third-code-erp/database'
+import { db, liveProjectCondition } from '@third-code-erp/database'
 import {
   boms,
   bomLineItems,
@@ -26,7 +26,6 @@ import {
 } from '@third-code-erp/database/schema'
 import { eq, and, max, desc, asc, isNotNull, isNull, inArray, ne } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
-import { liveProjectCondition } from '@/lib/live-project'
 import { writeAuditLogInTransaction } from '@/lib/audit'
 import { safeActionError } from '@/lib/safe-action-error'
 import { getProjectDetailAccess } from '../project-detail-access'

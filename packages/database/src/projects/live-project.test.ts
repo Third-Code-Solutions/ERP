@@ -1,5 +1,5 @@
 import { PgDialect } from 'drizzle-orm/pg-core'
-import { boms } from '@third-code-erp/database/schema'
+import { boms } from '../schema'
 import { describe, expect, it } from 'vitest'
 import { liveProjectCondition } from './live-project'
 

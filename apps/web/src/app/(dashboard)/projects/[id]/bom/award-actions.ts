@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { can, requireUserProfile } from '@third-code-erp/auth'
-import { db } from '@third-code-erp/database'
+import { db, liveProjectCondition } from '@third-code-erp/database'
 import {
   awardHandoffs,
   boms,
@@ -134,7 +134,8 @@ export async function awardLockedBom(formData: FormData): Promise<AwardActionRes
           and(
             eq(boms.tenant_id, profile.tenantId),
             eq(boms.id, parsed.data.bomId),
-            eq(boms.project_id, parsed.data.projectId)
+            eq(boms.project_id, parsed.data.projectId),
+            liveProjectCondition(parsed.data.projectId, profile.tenantId)
           )
         )
         .limit(1).for('share', { noWait: true })

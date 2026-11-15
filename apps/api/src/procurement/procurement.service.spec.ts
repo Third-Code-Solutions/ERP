@@ -229,6 +229,25 @@ describe('ProcurementService RFQ creation command', () => {
     expect(probe.insert).not.toHaveBeenCalled()
   })
 
+  it('treats a BOM of a retired project as not found', async () => {
+    const probe = harness([[]])
+
+    await expect(
+      probe.service.create({ bomId: BOM_ID }, PRINCIPAL)
+    ).rejects.toBeInstanceOf(NotFoundException)
+
+    const bomChain = probe.transactionClient.select.mock.results[0]
+      ?.value as { where: { mock: { calls: unknown[][] } } }
+    const bomWhere = new PgDialect().sqlToQuery(
+      bomChain.where.mock.calls[0]?.[0] as SQL
+    ).sql
+    expect(bomWhere).toContain(
+      'exists (select "id" from "projects" where ("projects"."id" = "boms"."project_id" and "projects"."tenant_id" = $'
+    )
+    expect(bomWhere).toContain('"projects"."deleted_at" is null')
+    expect(probe.transactionClient.select).toHaveBeenCalledOnce()
+  })
+
   it('rejects a BOM without item lines', async () => {
     const probe = harness([
       [{ id: BOM_ID, project_id: PROJECT_ID }],

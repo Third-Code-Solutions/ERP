@@ -17,7 +17,7 @@ import {
   users,
   vendors,
 } from '@third-code-erp/database/schema'
-import { loadRateCardCoverage } from '@third-code-erp/database'
+import { liveProjectCondition, loadRateCardCoverage } from '@third-code-erp/database'
 import type {
   CreateRfqCommand,
   LogRfqQuoteCommand,
@@ -225,7 +225,8 @@ export class ProcurementService {
         .where(
           and(
             eq(boms.id, command.bomId),
-            eq(boms.tenant_id, principal.tenantId)
+            eq(boms.tenant_id, principal.tenantId),
+            liveProjectCondition(boms.project_id, principal.tenantId)
           )
         )
         .limit(1)

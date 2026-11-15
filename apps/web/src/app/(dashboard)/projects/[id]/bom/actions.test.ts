@@ -52,6 +52,7 @@ vi.mock('@third-code-erp/database', () => ({
     insert: mocks.insert,
     transaction: mocks.transaction,
   },
+  liveProjectCondition: mocks.liveProjectCondition,
 }))
 
 vi.mock('@third-code-erp/database/schema', () => {
@@ -189,10 +190,6 @@ vi.mock('drizzle-orm', () => ({
   asc: vi.fn(() => ({})),
   isNotNull: vi.fn(() => ({})),
   inArray: vi.fn(() => ({})),
-}))
-
-vi.mock('@/lib/live-project', () => ({
-  liveProjectCondition: mocks.liveProjectCondition,
 }))
 
 vi.mock('@/lib/audit', () => ({

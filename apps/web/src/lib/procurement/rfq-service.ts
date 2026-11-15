@@ -1,7 +1,7 @@
 import 'server-only'
 
 import { and, eq, inArray } from 'drizzle-orm'
-import { db, loadRateCardCoverage } from '@third-code-erp/database'
+import { db, liveProjectCondition, loadRateCardCoverage } from '@third-code-erp/database'
 import {
   boms,
   bomLineItems,
@@ -83,7 +83,8 @@ export async function createRfqFromBomRecord(
       .where(
         and(
           eq(boms.id, params.bomId),
-          eq(boms.tenant_id, params.tenantId)
+          eq(boms.tenant_id, params.tenantId),
+          liveProjectCondition(boms.project_id, params.tenantId)
         )
       )
       .limit(1)
