@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   update: vi.fn(),
   writeAuditLog: vi.fn(),
   notifyRoles: vi.fn(),
+  notifyExternalEmail: vi.fn(),
   liveProjectCondition: vi.fn((column: unknown, tenantId: unknown) => ({
     live: [column, tenantId],
     mapWith: vi.fn(() => ({})),
@@ -65,7 +66,7 @@ vi.mock('@/lib/audit', () => ({
 
 vi.mock('@/lib/operations/notifications', () => ({
   notifyRoles: mocks.notifyRoles,
-  notifyExternalEmail: vi.fn(),
+  notifyExternalEmail: mocks.notifyExternalEmail,
 }))
 
 vi.mock('@/lib/erp-core-client', () => ({
@@ -114,7 +115,13 @@ const BOM_ID = '55555555-5555-4555-8555-555555555555'
 
 function selectPurchaseOrder(
   status: string,
-  approvers: { created_by?: string; pm_approved_by?: string; project_live?: boolean } = {}
+  approvers: {
+    created_by?: string
+    pm_approved_by?: string
+    project_live?: boolean
+    supplier_email?: string
+    supplier_name?: string
+  } = {}
 ): void {
   const where = vi.fn().mockResolvedValue([
     {
@@ -296,6 +303,7 @@ describe('Purchase Order workflow compatibility seam', () => {
         'ERP Core API is unavailable. No Purchase Order workflow was committed.',
     })
     expect(mocks.revalidatePath).not.toHaveBeenCalled()
+    expect(mocks.update).not.toHaveBeenCalled()
   })
 
   it('routes BOM-to-PO creation through Nest with stable retry key', async () => {
@@ -460,7 +468,13 @@ describe('Purchase Order workflow without Core (direct writes)', () => {
       live: true,
       invoke: () => commercialApprovePo(PO_ID),
     },
-    { name: 'SCM issue', status: 'pending_scm_issuance', live: true, invoke: () => scmIssuePo(PO_ID) },
+    {
+      name: 'SCM issue',
+      status: 'pending_scm_issuance',
+      live: true,
+      supplier: { supplier_email: 'supplier@example.com', supplier_name: 'Supplier' },
+      invoke: () => scmIssuePo(PO_ID),
+    },
     {
       name: 'reject',
       status: 'pending_scm_issuance',
@@ -472,20 +486,24 @@ describe('Purchase Order workflow without Core (direct writes)', () => {
   it.each(steps)('$name writes only from the status it read', async ({ status, live, invoke }) => {
     selectPurchaseOrder(status)
     const conditions = updatePurchaseOrder([{ id: PO_ID }])
+    const liveCondition = expect.objectContaining({
+      live: ['purchase_orders.project_id', TENANT_ID],
+    })
 
     await expect(invoke()).resolves.toEqual({})
 
     expect(mocks.transitionPurchaseOrderThroughCoreApi).not.toHaveBeenCalled()
     expect(conditions()).toContainEqual({ eq: ['purchase_orders.status', status] })
     // A forward step also needs the project live when it writes; reject does not.
-    expect(conditions()?.some((condition) => condition !== null && typeof condition === 'object' && 'live' in condition)).toBe(live)
+    if (live) expect(conditions()).toContainEqual(liveCondition)
+    else expect(conditions()).not.toContainEqual(liveCondition)
     expect(mocks.writeAuditLog).toHaveBeenCalledOnce()
   })
 
   it.each(steps)(
     '$name records nothing when the PO changed or its project was retired meanwhile',
-    async ({ status, invoke }) => {
-      selectPurchaseOrder(status)
+    async ({ status, invoke, ...step }) => {
+      selectPurchaseOrder(status, 'supplier' in step ? step.supplier : {})
       updatePurchaseOrder([])
 
       await expect(invoke()).resolves.toEqual({
@@ -493,6 +511,7 @@ describe('Purchase Order workflow without Core (direct writes)', () => {
       })
       expect(mocks.writeAuditLog).not.toHaveBeenCalled()
       expect(mocks.notifyRoles).not.toHaveBeenCalled()
+      expect(mocks.notifyExternalEmail).not.toHaveBeenCalled()
       expect(mocks.revalidatePath).not.toHaveBeenCalled()
     }
   )
