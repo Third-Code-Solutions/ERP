@@ -4,14 +4,14 @@ import {
   Processor,
   WorkerHost,
 } from '@nestjs/bullmq'
-import { Inject, Logger } from '@nestjs/common'
+import { HttpException, HttpStatus, Inject, Logger } from '@nestjs/common'
 import {
   rfqDispatchDeadLetterSchema,
   rfqDispatchJobSchema,
   type RfqCreationResult,
   type RfqDispatchDeadLetter,
 } from '@third-code-erp/shared-types'
-import type { Job, Queue } from 'bullmq'
+import { UnrecoverableError, type Job, type Queue } from 'bullmq'
 import {
   RFQ_DISPATCH_DEAD_LETTER_JOB,
   RFQ_DISPATCH_DEAD_LETTER_QUEUE,
@@ -50,9 +50,23 @@ export class RfqDispatchProcessor extends WorkerHost {
     if (!parsed.success) {
       throw new Error('Invalid RFQ dispatch job data')
     }
-    const result = await this.procurement.createFromApprovedBom(
-      parsed.data
-    )
+    const result = await this.procurement
+      .createFromApprovedBom(parsed.data)
+      .catch((error: unknown) => {
+        // A 4xx is the BOM's or actor's settled state (gone, retired, no longer
+        // approved, no lines, no role); retrying cannot change it.
+        // shortcut: every 4xx but 408/429 counts as settled; if createRecord ever
+        // maps a lock timeout to 409 (as claim services do), exempt it here.
+        if (
+          error instanceof HttpException &&
+          error.getStatus() < 500 &&
+          error.getStatus() !== HttpStatus.REQUEST_TIMEOUT &&
+          error.getStatus() !== HttpStatus.TOO_MANY_REQUESTS
+        ) {
+          throw new UnrecoverableError(`${error.name}: ${error.message}`)
+        }
+        throw error
+      })
     if (result.notificationOutboxId) {
       await this.notificationQueue.enqueueOutbox(
         parsed.data.tenantId,
@@ -78,7 +92,11 @@ export class RfqDispatchProcessor extends WorkerHost {
       typeof job.opts.attempts === 'number'
         ? job.opts.attempts
         : 1
-    if (job.attemptsMade < attempts) return
+    const unrecoverable =
+      error instanceof UnrecoverableError || error.name === 'UnrecoverableError'
+    if (job.attemptsMade < attempts && !unrecoverable) {
+      return
+    }
 
     const deadLetter = rfqDispatchDeadLetterSchema.parse({
       schemaVersion: 1,
@@ -97,7 +115,8 @@ export class RfqDispatchProcessor extends WorkerHost {
       RFQ_DISPATCH_DEAD_LETTER_JOB,
       deadLetter,
       {
-        jobId: `${job.id}-dead-letter`,
+        // One per run: a re-dispatch re-adds the job with a new timestamp.
+        jobId: `${job.id}-dead-letter-${job.timestamp}`,
         attempts: 1,
         removeOnComplete: 5_000,
         removeOnFail: false,

@@ -436,8 +436,15 @@ RUNBOOK) is **done**.
     order, project row vs the tenant audit advisory lock. Core PO `create`/`createFromBom`
     and the takeoff import already lock the project before the audit lock, a pre-existing
     deadlock risk against signing, award and opportunity conversion; settle both together.
-  - Core RFQ dispatch: a retired project's BOM fails as not found and goes through 5
-    retries before the dead-letter queue. Map it to `UnrecoverableError` or skip.
+  - Core RFQ dispatch: done in #179. A 4xx refusal (but 408/429) fails as
+    `UnrecoverableError` and is dead-lettered on its first attempt; outages still retry; a
+    new request replaces a failed job instead of being deduplicated into it. Left: "every
+    line already contracted" (`procurement.service.ts` ~376) is a normal outcome but still
+    dead-letters; `NotificationDeliveryProcessor` throws plain `Error` for settled states
+    (`notification-delivery.service.ts` ~253, 388, 493, 613, 769, 1101), so each retries 5
+    times, and its `onFailed` would skip `markDeadLetter` on an early `UnrecoverableError`.
+    `apps/api/tsconfig.json` does not include `integration/`, so those specs are not
+    type-checked.
   - PO steps after creation (submit, approve, issue, receive) don't check retirement.
   - Replays after retirement now return 404 instead of the stored result (Togal commit,
     document processing).

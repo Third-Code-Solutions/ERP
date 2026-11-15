@@ -36,7 +36,17 @@ export class RfqDispatchQueue {
       command.bomId
     )
     const existing = await this.queue.getJob(jobId)
-    if (existing) return { jobId, enqueued: false }
+    if (existing) {
+      if (!(await existing.isFailed())) return { jobId, enqueued: false }
+      // A failed dispatch is kept for inspection (removeOnFail: false) and in its
+      // dead letter; a new request, e.g. once the BOM is approved, replaces it.
+      const removed = await existing.remove().then(
+        () => true,
+        () => false
+      )
+      // remove() refuses a job that is running: a concurrent request replaced it.
+      if (!removed) return { jobId, enqueued: false }
+    }
 
     const data: RfqDispatchJob = {
       schemaVersion: 1,

@@ -1,4 +1,12 @@
-import type { Job, Queue } from 'bullmq'
+import {
+  ConflictException,
+  ForbiddenException,
+  HttpException,
+  HttpStatus,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common'
+import { UnrecoverableError, type Job, type Queue } from 'bullmq'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   RFQ_DISPATCH_DEAD_LETTER_JOB,
@@ -26,6 +34,7 @@ function job(
     name: RFQ_DISPATCH_JOB,
     data: DATA,
     attemptsMade: 0,
+    timestamp: 1_700_000_000_000,
     opts: { attempts: 5 },
     ...overrides,
   } as Job
@@ -112,11 +121,72 @@ describe('RfqDispatchProcessor', () => {
         errorMessage: 'database unavailable',
       }),
       {
-        jobId: `${JOB_ID}-dead-letter`,
+        jobId: `${JOB_ID}-dead-letter-1700000000000`,
         attempts: 1,
         removeOnComplete: 5_000,
         removeOnFail: false,
       }
     )
+  })
+
+  it('fails a refusal of the BOM or actor at once instead of retrying it', async () => {
+    for (const refusal of [
+      new NotFoundException('BOM not found'),
+      new ConflictException('BOM must be approved before automatic RFQ dispatch'),
+      new ForbiddenException(),
+    ]) {
+      const probe = harness()
+      probe.createFromApprovedBom.mockRejectedValueOnce(refusal)
+
+      const failure = await probe.processor.process(job()).catch((error: unknown) => error)
+
+      expect(failure).toBeInstanceOf(UnrecoverableError)
+      expect((failure as Error).message).toBe(`${refusal.name}: ${refusal.message}`)
+      expect(probe.enqueueOutbox).not.toHaveBeenCalled()
+    }
+  })
+
+  it('keeps retrying an outage', async () => {
+    for (const outage of [
+      new ServiceUnavailableException('RFQ dispatch is not enabled'),
+      new HttpException('Request timeout', HttpStatus.REQUEST_TIMEOUT),
+      new HttpException('Too many requests', HttpStatus.TOO_MANY_REQUESTS),
+      new Error('database unavailable'),
+    ]) {
+      const probe = harness()
+      probe.createFromApprovedBom.mockRejectedValueOnce(outage)
+
+      await expect(probe.processor.process(job())).rejects.toBe(outage)
+    }
+  })
+
+  it('dead-letters an unrecoverable failure on its first attempt', async () => {
+    const probe = harness()
+
+    await probe.processor.onFailed(
+      job({ attemptsMade: 1 }),
+      new UnrecoverableError('NotFoundException: BOM not found')
+    )
+
+    expect(probe.deadLetterAdd).toHaveBeenCalledWith(
+      RFQ_DISPATCH_DEAD_LETTER_JOB,
+      expect.objectContaining({
+        attemptsMade: 1,
+        errorName: 'UnrecoverableError',
+        errorMessage: 'NotFoundException: BOM not found',
+      }),
+      expect.objectContaining({ jobId: `${JOB_ID}-dead-letter-1700000000000` })
+    )
+  })
+
+  it('dead-letters an UnrecoverableError raised by BullMQ itself on its first attempt', async () => {
+    const probe = harness()
+    const stalled = Object.assign(new Error('job stalled more than allowable limit'), {
+      name: 'UnrecoverableError',
+    })
+
+    await probe.processor.onFailed(job({ attemptsMade: 1 }), stalled)
+
+    expect(probe.deadLetterAdd).toHaveBeenCalledTimes(1)
   })
 })

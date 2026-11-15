@@ -66,7 +66,36 @@ describe('RfqDispatchQueue', () => {
   })
 
   it('deduplicates an existing tenant/BOM job', async () => {
-    const probe = harness({ id: JOB_ID })
+    const probe = harness({ id: JOB_ID, isFailed: vi.fn().mockResolvedValue(false) })
+
+    await expect(
+      probe.queue.enqueue({ bomId: BOM_ID }, PRINCIPAL)
+    ).resolves.toEqual({
+      jobId: JOB_ID,
+      enqueued: false,
+    })
+    expect(probe.add).not.toHaveBeenCalled()
+  })
+
+  it('replaces a failed dispatch so a later request can still create the RFQ', async () => {
+    const remove = vi.fn().mockResolvedValue(undefined)
+    const probe = harness({ id: JOB_ID, isFailed: vi.fn().mockResolvedValue(true), remove })
+
+    await expect(
+      probe.queue.enqueue({ bomId: BOM_ID }, PRINCIPAL)
+    ).resolves.toEqual({
+      jobId: JOB_ID,
+      enqueued: true,
+    })
+    expect(remove).toHaveBeenCalledTimes(1)
+    expect(remove.mock.invocationCallOrder[0]).toBeLessThan(
+      probe.add.mock.invocationCallOrder[0] ?? 0
+    )
+  })
+
+  it('deduplicates when a concurrent request already replaced the failed job', async () => {
+    const remove = vi.fn().mockRejectedValue(new Error('locked by another worker'))
+    const probe = harness({ id: JOB_ID, isFailed: vi.fn().mockResolvedValue(true), remove })
 
     await expect(
       probe.queue.enqueue({ bomId: BOM_ID }, PRINCIPAL)
