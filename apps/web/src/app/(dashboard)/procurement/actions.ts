@@ -886,8 +886,9 @@ export async function submitPoForPmApproval(
     .where(and(eq(purchaseOrders.id, poId), eq(purchaseOrders.tenant_id, profile.tenantId)))
 
   if (!po) return { error: 'PO not found' }
-  if (!po.project_live) return { error: RETIRED_PROJECT_PO_ERROR }
   if (po.status !== 'draft') return { error: `Cannot submit a PO in status "${po.status}"` }
+  // Checked after status and approvers, as in Core.
+  if (!po.project_live) return { error: RETIRED_PROJECT_PO_ERROR }
 
   const coreResult = await transitionPurchaseOrderThroughCoreIfEnabled(
     profile,
@@ -962,11 +963,12 @@ export async function pmApprovePo(
     .where(and(eq(purchaseOrders.id, poId), eq(purchaseOrders.tenant_id, profile.tenantId)))
 
   if (!po) return { error: 'PO not found' }
-  if (!po.project_live) return { error: RETIRED_PROJECT_PO_ERROR }
   if (po.status !== 'pending_pm_approval') return { error: `PO not in PM approval state (${po.status})` }
   if (po.created_by === profile.user.id) {
     return { error: 'The Purchase Order creator cannot give its PM approval' }
   }
+  // Checked after status and approvers, as in Core.
+  if (!po.project_live) return { error: RETIRED_PROJECT_PO_ERROR }
 
   const coreResult = await transitionPurchaseOrderThroughCoreIfEnabled(
     profile,
@@ -1046,7 +1048,6 @@ export async function commercialApprovePo(
     .where(and(eq(purchaseOrders.id, poId), eq(purchaseOrders.tenant_id, profile.tenantId)))
 
   if (!po) return { error: 'PO not found' }
-  if (!po.project_live) return { error: RETIRED_PROJECT_PO_ERROR }
   if (po.status !== 'pending_commercial_approval') {
     return { error: `PO not in Commercial approval state (${po.status})` }
   }
@@ -1056,6 +1057,8 @@ export async function commercialApprovePo(
         'Commercial approval must come from someone other than the Purchase Order creator and PM approver',
     }
   }
+  // Checked after status and approvers, as in Core.
+  if (!po.project_live) return { error: RETIRED_PROJECT_PO_ERROR }
 
   const coreResult = await transitionPurchaseOrderThroughCoreIfEnabled(
     profile,
@@ -1141,10 +1144,11 @@ export async function scmIssuePo(
     .where(and(eq(purchaseOrders.id, poId), eq(purchaseOrders.tenant_id, profile.tenantId)))
 
   if (!po) return { error: 'PO not found' }
-  if (!po.project_live) return { error: RETIRED_PROJECT_PO_ERROR }
   if (po.status !== 'pending_scm_issuance') {
     return { error: `PO not in SCM issuance state (${po.status})` }
   }
+  // Checked after status and approvers, as in Core.
+  if (!po.project_live) return { error: RETIRED_PROJECT_PO_ERROR }
 
   const coreResult = await transitionPurchaseOrderThroughCoreIfEnabled(
     profile,

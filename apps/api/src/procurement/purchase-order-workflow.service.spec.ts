@@ -195,12 +195,17 @@ describe('PurchaseOrderWorkflowService separation of duties', () => {
     await expect(
       workflowService({ status: 'pending_scm_issuance', createdBy: CREATOR_ID, pmApprovedBy: PM_ID, projectDeletedAt: retired, role: 'pm' })
         .transition(PO_ID, { action: 'scm_issue' }, as(COMMERCIAL_ID), 'po-retired-role')
-    ).rejects.toBeInstanceOf(ForbiddenException)
+    ).rejects.toThrow('Role "pm" cannot perform scm_issue from status pending_scm_issuance')
     // The creator cannot give the PM approval.
     await expect(
       workflowService({ status: 'pending_pm_approval', createdBy: CREATOR_ID, pmApprovedBy: null, projectDeletedAt: retired, role: 'pm' })
         .transition(PO_ID, { action: 'pm_approve' }, as(CREATOR_ID), 'po-retired-sod')
-    ).rejects.toBeInstanceOf(ForbiddenException)
+    ).rejects.toThrow('The Purchase Order creator cannot give its PM approval')
+    // The PM approver cannot give the Commercial approval.
+    await expect(
+      workflowService({ status: 'pending_commercial_approval', createdBy: CREATOR_ID, pmApprovedBy: PM_ID, projectDeletedAt: retired })
+        .transition(PO_ID, COMMAND, as(PM_ID), 'po-retired-sod-commercial')
+    ).rejects.toThrow('Commercial approval must come from someone other than')
   })
 
   it.each(['pm', 'sd_pm_pe'])(

@@ -248,6 +248,45 @@ describe('Purchase Order workflow compatibility seam', () => {
     )
   })
 
+  // As in Core: a caller refused by status or the approver rules learns nothing
+  // about the project.
+  it.each([
+    {
+      name: 'the creator giving the PM approval',
+      status: 'pending_pm_approval',
+      approvers: { created_by: ACTOR_ID },
+      invoke: () => pmApprovePo(PO_ID, 'po-retired-order-1'),
+      error: 'The Purchase Order creator cannot give its PM approval',
+    },
+    {
+      name: 'the PM approver giving the Commercial approval',
+      status: 'pending_commercial_approval',
+      approvers: { pm_approved_by: ACTOR_ID },
+      invoke: () => commercialApprovePo(PO_ID, 'po-retired-order-2'),
+      error:
+        'Commercial approval must come from someone other than the Purchase Order creator and PM approver',
+    },
+    {
+      name: 'issuing a PO not yet approved',
+      status: 'pending_commercial_approval',
+      approvers: {},
+      invoke: () => scmIssuePo(PO_ID, 'po-retired-order-3'),
+      error: 'PO not in SCM issuance state (pending_commercial_approval)',
+    },
+    {
+      name: 'submitting a PO already submitted',
+      status: 'pending_pm_approval',
+      approvers: {},
+      invoke: () => submitPoForPmApproval(PO_ID, 'po-retired-order-4'),
+      error: 'Cannot submit a PO in status "pending_pm_approval"',
+    },
+  ])('on a retired project, refuses $name with that error, not the retirement', async ({ status, approvers, invoke, error }) => {
+    selectPurchaseOrder(status, { ...approvers, project_live: false })
+
+    await expect(invoke()).resolves.toEqual({ error })
+    expect(mocks.transitionPurchaseOrderThroughCoreApi).not.toHaveBeenCalled()
+  })
+
   it('still lets a PO of a retired project be rejected', async () => {
     selectPurchaseOrder('pending_scm_issuance', { project_live: false })
 
