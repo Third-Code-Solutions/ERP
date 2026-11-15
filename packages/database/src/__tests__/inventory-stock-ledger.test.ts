@@ -848,6 +848,7 @@ runtimeSuite('inventory stock ledger runtime proof', () => {
     ['received_quantity_micros', '1000000'],
     ['legacy_received_quantity_micros', '1000000'],
     ['received_at', 'now()'],
+    ['received_by', 'gen_random_uuid()'],
   ])(
     'refuses a direct %s write outside Stock Receipt posting',
     async (column, value) => {
