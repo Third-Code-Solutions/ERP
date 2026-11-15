@@ -442,8 +442,10 @@ const RETIRED_PROJECT_PO_ERROR =
 const PO_CHANGED_ERROR = 'Purchase Order status changed; reload and try again.'
 
 const VALID_PO_TRANSITIONS: Record<string, string[]> = {
-  // Legacy flow — preserved for back-compat.
-  draft: ['submitted', 'cancelled'],
+  // Legacy flow — preserved only so existing legacy POs can finish. A draft
+  // goes through the approval chain (submit/pm/commercial/scm); starting the
+  // legacy route from it would reach `confirmed` without PM or SCM approval.
+  draft: ['cancelled'],
   submitted: ['confirmed', 'cancelled'],
   confirmed: ['partial_delivery', 'delivered', 'cancelled'],
   partial_delivery: ['delivered', 'cancelled'],
@@ -749,9 +751,7 @@ export async function advancePoStatus(
   if (!profile) return { error: 'Unauthorized' }
 
   try {
-    if (nextStatus === 'submitted') {
-      requireCapability(profile, 'po.create')
-    } else if (nextStatus === 'confirmed') {
+    if (nextStatus === 'confirmed') {
       requireCapability(profile, 'po.approve')
     } else {
       requireCapability(profile, 'po.issue')
@@ -772,7 +772,7 @@ export async function advancePoStatus(
     .where(and(eq(purchaseOrders.id, poId), eq(purchaseOrders.tenant_id, profile.tenantId)))
 
   if (!po) return { error: 'PO not found' }
-  if ((nextStatus === 'submitted' || nextStatus === 'confirmed') && !po.project_live) {
+  if (nextStatus === 'confirmed' && !po.project_live) {
     return { error: RETIRED_PROJECT_PO_ERROR }
   }
 
@@ -794,7 +794,7 @@ export async function advancePoStatus(
         eq(purchaseOrders.id, poId),
         eq(purchaseOrders.tenant_id, profile.tenantId),
         eq(purchaseOrders.status, po.status),
-        nextStatus === 'submitted' || nextStatus === 'confirmed'
+        nextStatus === 'confirmed'
           ? liveProjectCondition(purchaseOrders.project_id, profile.tenantId)
           : undefined
       ))
