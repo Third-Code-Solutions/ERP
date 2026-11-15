@@ -180,6 +180,9 @@ vi.mock('drizzle-orm', () => ({
   gt: vi.fn(() => ({})),
   ne: vi.fn(() => ({})),
   sql: vi.fn(() => ({})),
+  asc: vi.fn(() => ({})),
+  isNotNull: vi.fn(() => ({})),
+  inArray: vi.fn(() => ({})),
 }))
 
 vi.mock('@/lib/audit', () => ({
@@ -220,6 +223,12 @@ import {
   createBom,
   createProjectLocation,
   deleteBomLineItem,
+  fetchLineSupplierContext,
+  fetchProjectForecastTcv,
+  listBomLocationRollup,
+  listPendingBomGrainReviews,
+  listPendingBomLocationReviews,
+  listProjectLocations,
   resolveBomGrainReview,
   resolveBomLocationReview,
   setBomLineLocation,
@@ -1431,5 +1440,65 @@ describe('BOM review resolution concurrency guards', () => {
     expect(mocks.transactionUpdate).not.toHaveBeenCalled()
     expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
     expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+})
+
+describe('BOM read actions enforce the BOM page read policy', () => {
+  const BOM_READ_ROLES = ['owner', 'admin', 'commercial', 'estimator', 'viewer'] as const
+  const NO_BOM_READ_ROLES = [
+    'pm',
+    'sd_pm_pe',
+    'sales',
+    'design',
+    'finance',
+    'procurement',
+    'safety',
+    'cx',
+  ] as const
+
+  function signInAs(role: string) {
+    mocks.getUserProfile.mockResolvedValue({
+      tenantId: TENANT_ID,
+      user: { id: USER_ID },
+      role,
+    })
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.select.mockReset()
+    mocks.can.mockReturnValue(true)
+  })
+
+  it.each(NO_BOM_READ_ROLES)('gives %s nothing and never queries BOM data', async (role) => {
+    signInAs(role)
+
+    await expect(listPendingBomGrainReviews(PROJECT_ID, BOM_ID)).resolves.toEqual([])
+    await expect(listProjectLocations(PROJECT_ID)).resolves.toEqual([])
+    await expect(listPendingBomLocationReviews(PROJECT_ID, BOM_ID)).resolves.toEqual([])
+    await expect(listBomLocationRollup(PROJECT_ID, BOM_ID)).resolves.toEqual([])
+    await expect(fetchProjectForecastTcv(PROJECT_ID)).resolves.toEqual({ tcvCents: null })
+    await expect(fetchLineSupplierContext(LINE_ITEM_ID)).resolves.toEqual({ error: 'Forbidden' })
+    expect(mocks.select).not.toHaveBeenCalled()
+  })
+
+  it.each(BOM_READ_ROLES)('lets %s read project locations and the forecast TCV', async (role) => {
+    signInAs(role)
+    const location = { id: 'loc-1', name: 'Level 1', level: 1 }
+    mocks.select
+      .mockReturnValueOnce(selectResult([location]))
+      .mockReturnValueOnce(selectResult([{ tcv_cents: 125_000_00 }]))
+
+    await expect(listProjectLocations(PROJECT_ID)).resolves.toEqual([location])
+    await expect(fetchProjectForecastTcv(PROJECT_ID)).resolves.toEqual({ tcvCents: 125_000_00 })
+    expect(mocks.select).toHaveBeenCalledTimes(2)
+  })
+
+  it('still answers Unauthorized when there is no session', async () => {
+    mocks.getUserProfile.mockResolvedValue(null)
+
+    await expect(fetchLineSupplierContext(LINE_ITEM_ID)).resolves.toEqual({ error: 'Unauthorized' })
+    await expect(listProjectLocations(PROJECT_ID)).resolves.toEqual([])
+    expect(mocks.select).not.toHaveBeenCalled()
   })
 })
