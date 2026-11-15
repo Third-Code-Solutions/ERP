@@ -176,17 +176,31 @@ describe('PurchaseOrderWorkflowService separation of duties', () => {
 
   it('refuses every forward step on a PO of a retired project', async () => {
     const retired = new Date('2026-11-01T00:00:00Z')
-    for (const [status, action, actor] of [
-      ['draft', 'submit_pm_approval', CREATOR_ID],
-      ['pending_pm_approval', 'pm_approve', PM_ID],
-      ['pending_commercial_approval', 'commercial_approve', COMMERCIAL_ID],
-      ['pending_scm_issuance', 'scm_issue', COMMERCIAL_ID],
+    for (const [status, action, actor, role] of [
+      ['draft', 'submit_pm_approval', CREATOR_ID, 'commercial'],
+      ['pending_pm_approval', 'pm_approve', PM_ID, 'pm'],
+      ['pending_commercial_approval', 'commercial_approve', COMMERCIAL_ID, 'commercial'],
+      ['pending_scm_issuance', 'scm_issue', COMMERCIAL_ID, 'procurement'],
     ] as const) {
       await expect(
-        workflowService({ status, createdBy: CREATOR_ID, pmApprovedBy: PM_ID, projectDeletedAt: retired })
+        workflowService({ status, createdBy: CREATOR_ID, pmApprovedBy: PM_ID, projectDeletedAt: retired, role })
           .transition(PO_ID, { action }, as(actor), `po-retired-${action}`)
       ).rejects.toThrow('The project of this Purchase Order is retired')
     }
+  })
+
+  it('checks the role and approvers before the project, so a refused caller learns nothing of it', async () => {
+    const retired = new Date('2026-11-01T00:00:00Z')
+    // pm cannot issue.
+    await expect(
+      workflowService({ status: 'pending_scm_issuance', createdBy: CREATOR_ID, pmApprovedBy: PM_ID, projectDeletedAt: retired, role: 'pm' })
+        .transition(PO_ID, { action: 'scm_issue' }, as(COMMERCIAL_ID), 'po-retired-role')
+    ).rejects.toBeInstanceOf(ForbiddenException)
+    // The creator cannot give the PM approval.
+    await expect(
+      workflowService({ status: 'pending_pm_approval', createdBy: CREATOR_ID, pmApprovedBy: null, projectDeletedAt: retired, role: 'pm' })
+        .transition(PO_ID, { action: 'pm_approve' }, as(CREATOR_ID), 'po-retired-sod')
+    ).rejects.toBeInstanceOf(ForbiddenException)
   })
 
   it.each(['pm', 'sd_pm_pe'])(
