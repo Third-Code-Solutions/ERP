@@ -7,6 +7,7 @@ import {
   type QueueOptions,
   type WorkerOptions,
 } from 'bullmq'
+import { NotFoundException } from '@nestjs/common'
 import type { ConfigService } from '@nestjs/config'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -250,6 +251,67 @@ suite('RFQ BullMQ disposable Redis integration', () => {
       sourceJobId: jobId,
       attemptsMade: 3,
       errorMessage: 'database unavailable',
+    })
+  }, 20_000)
+
+  it('dead-letters a refused BOM on the first attempt without retrying', async () => {
+    const name = queueName('refused')
+    const deadLetterName = queueName('refused-dead-letter')
+    const queue = new Queue<RfqDispatchJob, RfqCreationResult, string>(
+      name,
+      { connection: connection() }
+    )
+    const deadLetterQueue = new Queue<
+      RfqDispatchDeadLetter,
+      void,
+      string
+    >(deadLetterName, { connection: connection() })
+    queues.push(queue, deadLetterQueue)
+    const createFromApprovedBom = vi
+      .fn()
+      .mockRejectedValue(new NotFoundException('BOM not found'))
+    const processor = new RfqDispatchProcessor(
+      { createFromApprovedBom } as unknown as ProcurementService,
+      deadLetterQueue,
+      {
+        enqueueOutbox: vi.fn(),
+      } as unknown as NotificationDeliveryQueue
+    )
+    const worker = new Worker<RfqDispatchJob, RfqCreationResult, string>(
+      name,
+      async (job) => processor.process(job),
+      { connection: connection() }
+    )
+    worker.on('failed', (job, error) => {
+      void processor.onFailed(job, error)
+    })
+    workers.push(worker)
+
+    const jobId = `refused-${randomUUID()}`
+    await queue.add(RFQ_DISPATCH_JOB, {
+      schemaVersion: 1,
+      tenantId: PRINCIPAL.tenantId,
+      actorId: PRINCIPAL.userId,
+      bomId: BOM_ID,
+      source: 'bom_approved',
+    }, {
+      jobId,
+      attempts: 3,
+      backoff: { type: 'fixed', delay: 50 },
+      removeOnFail: false,
+    })
+    await waitForState(queue, jobId, 'failed')
+
+    const deadLetter = await waitForJob(
+      deadLetterQueue,
+      `${jobId}-dead-letter`
+    )
+    expect(createFromApprovedBom).toHaveBeenCalledTimes(1)
+    expect(deadLetter.data).toMatchObject({
+      sourceJobId: jobId,
+      attemptsMade: 1,
+      errorName: 'UnrecoverableError',
+      errorMessage: 'NotFoundException: BOM not found',
     })
   }, 20_000)
 

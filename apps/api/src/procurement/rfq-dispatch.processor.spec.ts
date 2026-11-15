@@ -1,4 +1,10 @@
-import type { Job, Queue } from 'bullmq'
+import {
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common'
+import { UnrecoverableError, type Job, type Queue } from 'bullmq'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   RFQ_DISPATCH_DEAD_LETTER_JOB,
@@ -117,6 +123,54 @@ describe('RfqDispatchProcessor', () => {
         removeOnComplete: 5_000,
         removeOnFail: false,
       }
+    )
+  })
+
+  it('fails a refusal of the BOM or actor at once instead of retrying it', async () => {
+    for (const refusal of [
+      new NotFoundException('BOM not found'),
+      new ConflictException('BOM must be approved before automatic RFQ dispatch'),
+      new ForbiddenException(),
+    ]) {
+      const probe = harness()
+      probe.createFromApprovedBom.mockRejectedValueOnce(refusal)
+
+      const failure = await probe.processor.process(job()).catch((error: unknown) => error)
+
+      expect(failure).toBeInstanceOf(UnrecoverableError)
+      expect((failure as Error).message).toBe(`${refusal.name}: ${refusal.message}`)
+      expect(probe.enqueueOutbox).not.toHaveBeenCalled()
+    }
+  })
+
+  it('keeps retrying an outage', async () => {
+    for (const outage of [
+      new ServiceUnavailableException('RFQ dispatch is not enabled'),
+      new Error('database unavailable'),
+    ]) {
+      const probe = harness()
+      probe.createFromApprovedBom.mockRejectedValueOnce(outage)
+
+      await expect(probe.processor.process(job())).rejects.toBe(outage)
+    }
+  })
+
+  it('dead-letters an unrecoverable failure on its first attempt', async () => {
+    const probe = harness()
+
+    await probe.processor.onFailed(
+      job({ attemptsMade: 1 }),
+      new UnrecoverableError('NotFoundException: BOM not found')
+    )
+
+    expect(probe.deadLetterAdd).toHaveBeenCalledWith(
+      RFQ_DISPATCH_DEAD_LETTER_JOB,
+      expect.objectContaining({
+        attemptsMade: 1,
+        errorName: 'UnrecoverableError',
+        errorMessage: 'NotFoundException: BOM not found',
+      }),
+      expect.objectContaining({ jobId: `${JOB_ID}-dead-letter` })
     )
   })
 })

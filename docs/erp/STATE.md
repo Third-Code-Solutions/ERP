@@ -436,8 +436,8 @@ RUNBOOK) is **done**.
     order, project row vs the tenant audit advisory lock. Core PO `create`/`createFromBom`
     and the takeoff import already lock the project before the audit lock, a pre-existing
     deadlock risk against signing, award and opportunity conversion; settle both together.
-  - Core RFQ dispatch: a retired project's BOM fails as not found and goes through 5
-    retries before the dead-letter queue. Map it to `UnrecoverableError` or skip.
+  - Core RFQ dispatch: done in #179 (a 4xx refusal fails as `UnrecoverableError` and is
+    dead-lettered on its first attempt; outages still retry).
   - PO steps after creation (submit, approve, issue, receive) don't check retirement.
   - Replays after retirement now return 404 instead of the stored result (Togal commit,
     document processing).

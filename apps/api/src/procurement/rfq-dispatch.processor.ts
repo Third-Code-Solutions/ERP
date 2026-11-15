@@ -4,14 +4,14 @@ import {
   Processor,
   WorkerHost,
 } from '@nestjs/bullmq'
-import { Inject, Logger } from '@nestjs/common'
+import { HttpException, Inject, Logger } from '@nestjs/common'
 import {
   rfqDispatchDeadLetterSchema,
   rfqDispatchJobSchema,
   type RfqCreationResult,
   type RfqDispatchDeadLetter,
 } from '@third-code-erp/shared-types'
-import type { Job, Queue } from 'bullmq'
+import { UnrecoverableError, type Job, type Queue } from 'bullmq'
 import {
   RFQ_DISPATCH_DEAD_LETTER_JOB,
   RFQ_DISPATCH_DEAD_LETTER_QUEUE,
@@ -50,9 +50,16 @@ export class RfqDispatchProcessor extends WorkerHost {
     if (!parsed.success) {
       throw new Error('Invalid RFQ dispatch job data')
     }
-    const result = await this.procurement.createFromApprovedBom(
-      parsed.data
-    )
+    const result = await this.procurement
+      .createFromApprovedBom(parsed.data)
+      .catch((error: unknown) => {
+        // A 4xx is the BOM's or actor's settled state (gone, retired, no longer
+        // approved, no lines, no role); retrying cannot change it.
+        if (error instanceof HttpException && error.getStatus() < 500) {
+          throw new UnrecoverableError(`${error.name}: ${error.message}`)
+        }
+        throw error
+      })
     if (result.notificationOutboxId) {
       await this.notificationQueue.enqueueOutbox(
         parsed.data.tenantId,
@@ -78,7 +85,9 @@ export class RfqDispatchProcessor extends WorkerHost {
       typeof job.opts.attempts === 'number'
         ? job.opts.attempts
         : 1
-    if (job.attemptsMade < attempts) return
+    if (job.attemptsMade < attempts && !(error instanceof UnrecoverableError)) {
+      return
+    }
 
     const deadLetter = rfqDispatchDeadLetterSchema.parse({
       schemaVersion: 1,
