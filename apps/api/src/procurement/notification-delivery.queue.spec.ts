@@ -127,25 +127,20 @@ describe('NotificationDeliveryQueue', () => {
   it('does not add a duplicate job while deterministic state exists', async () => {
     const probe = harness({
       id: 'existing',
-      isCompleted: vi.fn().mockResolvedValue(false),
-      isFailed: vi.fn().mockResolvedValue(false),
+      getState: vi.fn().mockResolvedValue('active'),
     })
     await expect(probe.queue.enqueuePending()).resolves.toBe(0)
     await expect(probe.queue.enqueuePendingSupplier()).resolves.toBe(0)
     expect(probe.add).not.toHaveBeenCalled()
   })
 
-  it.each([
-    ['completed', true, false],
-    ['failed', false, true],
-  ])(
+  it.each(['completed', 'failed'])(
     'replaces a %s job whose delivery is still pending',
-    async (_state, completed, failed) => {
+    async (state) => {
       const remove = vi.fn().mockResolvedValue(undefined)
       const probe = harness({
         id: 'existing',
-        isCompleted: vi.fn().mockResolvedValue(completed),
-        isFailed: vi.fn().mockResolvedValue(failed),
+        getState: vi.fn().mockResolvedValue(state),
         remove,
       })
 
@@ -175,12 +170,12 @@ describe('NotificationDeliveryQueue', () => {
   it('does not add a job when a concurrent request already replaced the finished one', async () => {
     const probe = harness({
       id: 'existing',
-      isCompleted: vi.fn().mockResolvedValue(true),
-      isFailed: vi.fn().mockResolvedValue(false),
+      getState: vi.fn().mockResolvedValue('completed'),
       remove: vi.fn().mockRejectedValue(new Error('locked by another worker')),
     })
 
     await expect(probe.queue.enqueuePending()).resolves.toBe(0)
+    await expect(probe.queue.enqueuePendingSupplier()).resolves.toBe(0)
     expect(probe.add).not.toHaveBeenCalled()
   })
 

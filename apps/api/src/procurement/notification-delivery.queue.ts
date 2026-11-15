@@ -101,18 +101,21 @@ export class NotificationDeliveryQueue
   }
 
   /**
-   * The delivery's job may be added: none exists, or a finished one left the row
-   * pending or stale processing. A failure after the claim leaves the row
-   * processing, so the retries come back `already_processing` and the job
-   * completes without delivering; only a new job can run it again.
+   * The delivery's job may be added: none exists, or a finished (completed or
+   * failed) one exists while the row is still undelivered. A failure after the
+   * claim leaves the row processing, so the retries come back
+   * `already_processing` and the job completes without delivering; only a new
+   * job can run it again. The sweep selects pending and stale processing rows;
+   * `enqueueOutbox` also selects fresh processing ones, whose new job just
+   * returns `already_processing` again.
    */
   private async canAdd(jobId: string): Promise<boolean> {
     const existing = await this.queue.getJob(jobId)
     if (!existing) return true
-    if (!(await existing.isCompleted()) && !(await existing.isFailed())) {
-      return false
-    }
-    // remove() refuses a job that is running: a concurrent request replaced it.
+    const state = await existing.getState()
+    if (state !== 'completed' && state !== 'failed') return false
+    // remove() refuses a running job (a concurrent request replaced it); on any
+    // refusal the next sweep tries again.
     return existing.remove().then(
       () => true,
       () => false

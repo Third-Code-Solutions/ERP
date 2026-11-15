@@ -528,10 +528,12 @@ suite('RFQ BullMQ disposable Redis integration', () => {
     await waitForState(queue, jobId, 'completed')
     // The sweep still finds the row (stale processing) and runs it again.
     await expect(producer.enqueuePending()).resolves.toBe(1)
-    const again = await waitForState(queue, jobId, 'completed')
+    await waitForState(queue, jobId, 'completed')
+    // waitForState may return a job read before it completed: read it again.
+    const again = await queue.getJob(jobId)
 
     expect(deliver).toHaveBeenCalledTimes(2)
-    expect(again.returnvalue).toEqual({
+    expect(again?.returnvalue).toEqual({
       deliveryId: NOTIFICATION_DELIVERY.deliveryId,
       status: 'delivered',
     })

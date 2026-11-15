@@ -1,4 +1,5 @@
 import { UnrecoverableError, type Job } from 'bullmq'
+import { Logger } from '@nestjs/common'
 import { describe, expect, it, vi } from 'vitest'
 import {
   NOTIFICATION_DELIVERY_JOB,
@@ -131,6 +132,46 @@ describe('NotificationDeliveryProcessor', () => {
       error
     )
     expect(probe.markSupplierDeadLetter).toHaveBeenCalledWith(DATA, error)
+  })
+
+  it('logs an attempt that will be retried', async () => {
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined)
+    const probe = harness()
+
+    await probe.processor.onFailed(
+      job({ attemptsMade: 2 }),
+      new Error('provider unavailable')
+    )
+
+    expect(probe.markDeadLetter).not.toHaveBeenCalled()
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('attempt 2 failed: provider unavailable')
+    )
+    warn.mockRestore()
+  })
+
+  it('logs instead of rejecting when the dead letter cannot be written', async () => {
+    const error = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined)
+    const probe = harness()
+    probe.markDeadLetter.mockRejectedValueOnce(new Error('database unavailable'))
+    probe.markSupplierDeadLetter.mockRejectedValueOnce(
+      new Error('database unavailable')
+    )
+
+    await expect(
+      probe.processor.onFailed(job({ attemptsMade: 5 }), new Error('provider unavailable'))
+    ).resolves.toBeUndefined()
+    await expect(
+      probe.processor.onFailed(
+        job({ name: NOTIFICATION_SUPPLIER_DELIVERY_JOB, attemptsMade: 5 }),
+        new Error('provider unavailable')
+      )
+    ).resolves.toBeUndefined()
+
+    expect(error).toHaveBeenCalledWith(
+      expect.stringContaining('could not be dead-lettered: database unavailable')
+    )
+    error.mockRestore()
   })
 
   it('marks durable dead letter on the first attempt for an unrecoverable failure', async () => {
