@@ -1,10 +1,12 @@
 import 'reflect-metadata'
 
-import { ForbiddenException } from '@nestjs/common'
+import { ForbiddenException, NotFoundException } from '@nestjs/common'
 import {
   documentIntakeRequests,
   documents,
 } from '@third-code-erp/database/schema'
+import { PgDialect } from 'drizzle-orm/pg-core'
+import type { SQL } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import type { AuditService } from '../audit/audit.service'
@@ -30,7 +32,7 @@ const COMMAND = {
   description: 'Approved drawing',
 }
 
-function enabledHarness() {
+function enabledHarness({ projectRows = [{ id: PROJECT_ID }] as unknown[] } = {}) {
   const membershipRows = [
     {
       tenantId: PRINCIPAL.tenantId,
@@ -49,11 +51,11 @@ function enabledHarness() {
     const limit = vi.fn().mockReturnValue({ for: lock })
     const where = vi.fn().mockReturnValue({ limit })
     const from = vi.fn().mockReturnValue({ where })
-    return { from, lock }
+    return { from, lock, where }
   }
   const membershipQuery = query(membershipRows)
   const requestQuery = query([requestRecord])
-  const projectQuery = query([{ id: PROJECT_ID }])
+  const projectQuery = query(projectRows)
   let selectCalls = 0
   const select = vi.fn(() => {
     // Scope must be validated before the idempotency ledger is claimed.
@@ -111,6 +113,8 @@ function enabledHarness() {
     update,
     audit,
     requestRecord,
+    projectWhere: () =>
+      new PgDialect().sqlToQuery(projectQuery.where.mock.calls[0]![0] as SQL).sql,
   }
 }
 
@@ -151,6 +155,16 @@ describe('DocumentIntakeService Core authority', () => {
       probe.insert.mock.calls.filter(([table]) => table === documents)
     ).toHaveLength(1)
     expect(probe.audit.writeSemantic).toHaveBeenCalledTimes(1)
+  })
+
+  it('treats a retired project as not found before claiming the request', async () => {
+    const probe = enabledHarness({ projectRows: [] })
+    await expect(
+      probe.service.create(COMMAND, PRINCIPAL, 'intake-retired')
+    ).rejects.toBeInstanceOf(NotFoundException)
+    expect(probe.projectWhere()).toContain('"projects"."deleted_at" is null')
+    expect(probe.insert).not.toHaveBeenCalled()
+    expect(probe.audit.writeSemantic).not.toHaveBeenCalled()
   })
 
   it('rejects a storage path outside the verified tenant/project scope', async () => {
