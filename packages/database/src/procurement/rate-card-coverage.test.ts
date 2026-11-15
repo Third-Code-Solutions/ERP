@@ -33,12 +33,16 @@ function card(overrides: Partial<Card>): Card {
 
 function executorReturning(cards: Card[], vendorIds: string[]) {
   const wheres: SQL[] = []
+  const joins: SQL[] = []
   const results: unknown[][] = [cards, vendorIds.map((id) => ({ id }))]
   const select = vi.fn(() => {
     const result = results.shift()
     const chain = {
       from: () => chain,
-      innerJoin: () => chain,
+      innerJoin: (_table: unknown, condition: SQL) => {
+        joins.push(condition)
+        return chain
+      },
       where: (condition: SQL) => {
         wheres.push(condition)
         return Promise.resolve(result)
@@ -46,12 +50,12 @@ function executorReturning(cards: Card[], vendorIds: string[]) {
     }
     return chain
   })
-  return { executor: { select } as unknown as Pick<Database, 'select'>, select, wheres }
+  return { executor: { select } as unknown as Pick<Database, 'select'>, select, wheres, joins }
 }
 
 describe('RFQ rate-card coverage', () => {
   it('covers a line only when the picked card names a known vendor and matches its unit', async () => {
-    const { executor, wheres } = executorReturning([card({})], [VENDOR_ID])
+    const { executor, wheres, joins } = executorReturning([card({})], [VENDOR_ID])
     const isContracted = await loadRateCardCoverage(executor, TENANT_ID, ['MAT-001'], NOW)
 
     expect(isContracted({ code: 'MAT-001', unit: 'PCS ' })).toBe(true)
@@ -64,6 +68,9 @@ describe('RFQ rate-card coverage', () => {
     expect(cardsWhere).toContain('"rate_cards"."tenant_id" = $1')
     expect(cardsWhere).toContain('"rate_cards"."unit_price_cents" >')
     expect(cardsWhere).toContain('"rate_cards"."effective_from" <=')
+    // rate_cards.material_item_id has no tenant-scoped FK, so the join must scope it.
+    const materialJoin = new PgDialect().sqlToQuery(joins[0]!).sql
+    expect(materialJoin).toContain('"material_items"."tenant_id" = $')
     const vendorsWhere = new PgDialect().sqlToQuery(wheres[1]!).sql
     expect(vendorsWhere).toContain('"vendors"."tenant_id" = $1')
   })
