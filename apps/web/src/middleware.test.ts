@@ -74,9 +74,47 @@ describe('middleware Supabase session recovery', () => {
         cookie.includes('Expires=Thu, 01 Jan 1970 00:00:00 GMT')
       )
     ).toBe(true)
+    // The removals carry the same attributes as the cookies they replace (SEC-14).
+    for (const cookie of staleCookies) {
+      expect(cookie).toContain('Path=/')
+      expect(cookie).toContain('Secure')
+      expect(cookie.toLowerCase()).toContain('samesite=lax')
+    }
+    expect(mocks.createServerClient).toHaveBeenCalledWith(
+      'https://example.supabase.co',
+      'anon-key',
+      expect.objectContaining({
+        cookieOptions: { path: '/', sameSite: 'lax', secure: true },
+      })
+    )
     expect(setCookies.some((cookie) => cookie.startsWith('analytics'))).toBe(
       false
     )
+  })
+
+  it('clears stale auth cookies with their attributes on a public route it serves', async () => {
+    mocks.getUser.mockRejectedValue({
+      __isAuthError: true,
+      code: 'refresh_token_not_found',
+      message: 'Invalid Refresh Token: Refresh Token Not Found',
+      status: 400,
+    })
+    const response = await middleware(
+      new NextRequest('https://erp.example/auth/login', {
+        headers: { cookie: 'sb-example-auth-token=stale; sb-example-auth-token.0=chunk' },
+      })
+    )
+
+    expect(response.status).toBe(200)
+    const removals = response.headers
+      .getSetCookie()
+      .filter((cookie) => cookie.startsWith('sb-example-auth-token'))
+    expect(removals).toHaveLength(2)
+    for (const cookie of removals) {
+      expect(cookie).toContain('Expires=Thu, 01 Jan 1970 00:00:00 GMT')
+      expect(cookie).toContain('Secure')
+      expect(cookie.toLowerCase()).toContain('samesite=lax')
+    }
   })
 
   it('protects profile settings and the password recovery form from anonymous requests', async () => {
