@@ -502,6 +502,20 @@ export const stockReceiptLineCommandSchema = z
   })
   .strict()
 
+// The Purchase Order statuses post_stock_receipt() accepts (20261116120000).
+export const STOCK_RECEIPT_RECEIVABLE_PO_STATUSES = [
+  'issued',
+  'confirmed',
+  'partial_delivery',
+  'partial_delivered',
+  'delivered',
+  'fully_delivered',
+] as const
+
+export function isStockReceiptReceivablePoStatus(status: string): boolean {
+  return (STOCK_RECEIPT_RECEIVABLE_PO_STATUSES as readonly string[]).includes(status)
+}
+
 export const createStockReceiptCommandSchema = z
   .object({
     warehouseId: z.string().uuid(),

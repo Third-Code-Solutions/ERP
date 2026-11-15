@@ -13,19 +13,10 @@ import {
   warehouses,
 } from '@third-code-erp/database/schema'
 import { and, asc, eq, inArray } from 'drizzle-orm'
+import { STOCK_RECEIPT_RECEIVABLE_PO_STATUSES } from '@third-code-erp/shared-types'
 import { StockReceiptForm } from '../../receipt-form'
 
 export const metadata: Metadata = { title: 'New Stock Receipt' }
-
-// The PO statuses post_stock_receipt() accepts (20261116120000).
-const RECEIVABLE_PO_STATUSES = [
-  'issued',
-  'confirmed',
-  'partial_delivery',
-  'partial_delivered',
-  'delivered',
-  'fully_delivered',
-] as const
 
 export default async function NewStockReceiptPage() {
   const profile = await requireUserProfile()
@@ -59,7 +50,7 @@ export default async function NewStockReceiptPage() {
       .where(
         and(
           eq(purchaseOrders.tenant_id, profile.tenantId),
-          inArray(purchaseOrders.status, RECEIVABLE_PO_STATUSES)
+          inArray(purchaseOrders.status, STOCK_RECEIPT_RECEIVABLE_PO_STATUSES)
         )
       )
       .orderBy(asc(purchaseOrders.po_number))
@@ -105,7 +96,7 @@ export default async function NewStockReceiptPage() {
       .where(
         and(
           eq(poLineItems.tenant_id, profile.tenantId),
-          inArray(purchaseOrders.status, RECEIVABLE_PO_STATUSES)
+          inArray(purchaseOrders.status, STOCK_RECEIPT_RECEIVABLE_PO_STATUSES)
         )
       )
       .orderBy(asc(poLineItems.po_id), asc(poLineItems.sort_order))

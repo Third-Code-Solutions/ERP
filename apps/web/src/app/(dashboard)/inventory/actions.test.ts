@@ -42,6 +42,7 @@ vi.mock('@third-code-erp/database', () => ({
 vi.mock('@third-code-erp/database/schema', () => ({
   materialItems: {},
   poLineItems: {},
+  purchaseOrders: {},
   stockReceiptLines: {},
   stockReceipts: {},
   unitsOfMeasure: {},
@@ -87,6 +88,7 @@ vi.mock('next/cache', () => ({
   revalidatePath: mocks.revalidatePath,
 }))
 
+import { db } from '@third-code-erp/database'
 import {
   configureInventoryItem,
   createUnitOfMeasure,
@@ -115,6 +117,16 @@ const input = {
   receivedDate: '2026-08-02',
   notes: '',
   lines: [{ poLineItemId: PO_LINE_ID, quantity: '12.5' }],
+}
+
+function selectReturning(rows: unknown[]) {
+  const query: Record<string, unknown> = {
+    then: (resolve: (value: unknown[]) => unknown) => Promise.resolve(resolve(rows)),
+  }
+  for (const method of ['from', 'where', 'limit']) {
+    query[method] = vi.fn(() => query)
+  }
+  return query as never
 }
 
 describe('Stock Receipt creation compatibility seam', () => {
@@ -186,6 +198,43 @@ describe('Stock Receipt creation compatibility seam', () => {
 
     expect(mocks.transaction).not.toHaveBeenCalled()
     expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('refuses a Stock Receipt on a PO posting would refuse, before any write (direct path)', async () => {
+    mocks.stockReceiptCreateWritesUseCoreApi.mockReturnValue(false)
+    vi.mocked(db.select).mockReturnValueOnce(selectReturning([{ status: 'draft' }]))
+
+    await expect(createStockReceipt(input)).resolves.toEqual({
+      ok: false,
+      error: 'Stock Receipt requires an issued Purchase Order',
+    })
+    expect(db.select).toHaveBeenCalledTimes(1)
+    expect(mocks.transaction).not.toHaveBeenCalled()
+  })
+
+  it('refuses a Stock Receipt on a PO outside the tenant (direct path)', async () => {
+    mocks.stockReceiptCreateWritesUseCoreApi.mockReturnValue(false)
+    vi.mocked(db.select).mockReturnValueOnce(selectReturning([]))
+
+    await expect(createStockReceipt(input)).resolves.toEqual({
+      ok: false,
+      error: 'Stock Receipt requires a valid PO and active Warehouse',
+    })
+    expect(mocks.transaction).not.toHaveBeenCalled()
+  })
+
+  it('lets a partially delivered PO through to the line checks (direct path)', async () => {
+    mocks.stockReceiptCreateWritesUseCoreApi.mockReturnValue(false)
+    vi.mocked(db.select)
+      .mockReturnValueOnce(selectReturning([{ status: 'partial_delivered' }]))
+      .mockReturnValueOnce(selectReturning([]))
+
+    await expect(createStockReceipt(input)).resolves.toEqual({
+      ok: false,
+      error: 'Receipt line must match a tracked PO Item, UOM, and cost',
+    })
+    expect(db.select).toHaveBeenCalledTimes(2)
+    expect(mocks.transaction).not.toHaveBeenCalled()
   })
 
   it('requires a retry key on the selected core path', async () => {
