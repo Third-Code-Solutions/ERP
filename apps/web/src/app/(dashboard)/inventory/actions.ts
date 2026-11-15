@@ -449,6 +449,8 @@ export async function createStockReceipt(
       return { ok: true, id: result.data.stockReceiptId }
     }
 
+    // shortcut: unlocked read outside the insert transaction, so a PO cancelled in
+    // between can still get a draft; posting re-checks under lock. Core locks it.
     const [purchaseOrder] = await db
       .select({ status: purchaseOrders.status })
       .from(purchaseOrders)

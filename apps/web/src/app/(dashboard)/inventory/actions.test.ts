@@ -212,7 +212,7 @@ describe('Stock Receipt creation compatibility seam', () => {
     expect(mocks.transaction).not.toHaveBeenCalled()
   })
 
-  it('refuses a Stock Receipt on a PO outside the tenant (direct path)', async () => {
+  it('refuses a Stock Receipt on a PO the tenant read does not find (direct path)', async () => {
     mocks.stockReceiptCreateWritesUseCoreApi.mockReturnValue(false)
     vi.mocked(db.select).mockReturnValueOnce(selectReturning([]))
 

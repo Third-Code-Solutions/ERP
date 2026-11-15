@@ -339,6 +339,16 @@ suite('Stock Receipt protected HTTP canary', () => {
           .from(stockReceipts)
           .where(eq(stockReceipts.purchase_order_id, draftPurchaseOrderA))
         expect(draftReceiptCount?.count).toBe(0)
+        const [draftRequestCount] = await transaction
+          .select({ count: sql<number>`count(*)::int` })
+          .from(stockReceiptCreateRequests)
+          .where(
+            and(
+              eq(stockReceiptCreateRequests.tenant_id, tenantA),
+              eq(stockReceiptCreateRequests.idempotency_key, 'draft-po-refused')
+            )
+          )
+        expect(draftRequestCount?.count).toBe(0)
 
         const first = await request(app.getHttpServer())
           .post('/v1/inventory/stock-receipts')

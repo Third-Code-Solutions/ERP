@@ -9,6 +9,7 @@ import {
   inRollback,
   makeSql,
 } from './_db-harness'
+import { STOCK_RECEIPT_RECEIVABLE_PO_STATUSES } from '@third-code-erp/shared-types'
 import { purchaseOrderStatusEnum } from '../schema/enums'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -210,16 +211,12 @@ describe('Stock Receipt posting status migration contract', () => {
     ).toLowerCase()
     expect(postingSql).toContain('create or replace function public.post_stock_receipt(')
     expect(postingSql).toMatch(/security definer\s+set search_path = ''/)
-    for (const status of [
-      'issued',
-      'confirmed',
-      'partial_delivery',
-      'partial_delivered',
-      'delivered',
-      'fully_delivered',
-    ]) {
-      expect(postingSql).toContain(`'${status}'`)
-    }
+    // The app's receivable list (receipt picker, creation checks) is exactly this one.
+    const sqlStatuses = postingSql
+      .match(/v_po\.status::text not in \(([^)]*)\)/)?.[1]
+      ?.match(/'([a-z_]+)'/g)
+      ?.map((quoted) => quoted.slice(1, -1))
+    expect(sqlStatuses?.sort()).toEqual([...STOCK_RECEIPT_RECEIVABLE_PO_STATUSES].sort())
     expect(postingSql).toMatch(
       /grant execute on function public\.post_stock_receipt\(uuid, uuid, date\)\s+to service_role/
     )

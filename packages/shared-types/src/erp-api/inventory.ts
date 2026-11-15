@@ -512,7 +512,12 @@ export const STOCK_RECEIPT_RECEIVABLE_PO_STATUSES = [
   'fully_delivered',
 ] as const
 
-export function isStockReceiptReceivablePoStatus(status: string): boolean {
+export type StockReceiptReceivablePoStatus =
+  (typeof STOCK_RECEIPT_RECEIVABLE_PO_STATUSES)[number]
+
+export function isStockReceiptReceivablePoStatus(
+  status: string
+): status is StockReceiptReceivablePoStatus {
   return (STOCK_RECEIPT_RECEIVABLE_PO_STATUSES as readonly string[]).includes(status)
 }
 
