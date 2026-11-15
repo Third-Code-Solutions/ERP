@@ -205,6 +205,16 @@ describe('advancePoStatus delivery transitions', () => {
     expect(mocks.writeAuditLog).not.toHaveBeenCalled()
   })
 
+  it('refuses to move an issued PO onto the legacy partial_delivery status', async () => {
+    selectPurchaseOrder('issued')
+
+    await expect(advancePoStatus(PO_ID, 'partial_delivery')).resolves.toEqual({
+      error: 'Cannot transition from issued to partial_delivery',
+    })
+    expect(mocks.update).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+  })
+
   it('keeps the legacy confirmed to partial_delivery transition available', async () => {
     selectPurchaseOrder('confirmed')
 

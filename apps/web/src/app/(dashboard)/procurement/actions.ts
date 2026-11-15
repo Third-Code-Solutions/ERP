@@ -453,8 +453,9 @@ const VALID_PO_TRANSITIONS: Record<string, string[]> = {
   cancelled: [],
   // Three-step delivery tail (REFACTOR.md US-Pre-003). Approval steps
   // themselves use dedicated server actions (submit/pm/commercial/scm),
-  // but delivery transitions can go through advancePoStatus.
-  issued: ['partial_delivery', 'partial_delivered', 'fully_delivered', 'cancelled'],
+  // but delivery transitions can go through advancePoStatus. `issued` does not
+  // offer the legacy `partial_delivery`: a PO there cannot schedule a delivery (#195).
+  issued: ['partial_delivered', 'fully_delivered', 'cancelled'],
   partial_delivered: ['fully_delivered', 'cancelled'],
   fully_delivered: [],
 }
