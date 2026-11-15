@@ -3,11 +3,13 @@ import 'reflect-metadata'
 import { randomUUID } from 'node:crypto'
 import {
   db,
+  accounts,
   bomLineItems,
   boms,
   documentProcessingEvidence,
   documentProcessingJobs,
   documents,
+  opportunities,
   projects,
   tenants,
   users,
@@ -507,6 +509,45 @@ suite('document processing job database integration', () => {
           'processing-integration-retired'
         )
       ).rejects.toMatchObject({ status: 404 })
+      // A document not attached to a project (an opportunity's) keeps its 409.
+      const accountA = randomUUID()
+      const opportunityA = randomUUID()
+      const unattachedDocument = randomUUID()
+      await transaction.insert(accounts).values({
+        id: accountA,
+        tenant_id: tenantA,
+        name: `Processing Account A ${suffix}`,
+        created_by: userA,
+      })
+      await transaction.insert(opportunities).values({
+        id: opportunityA,
+        tenant_id: tenantA,
+        account_id: accountA,
+        rep_id: userA,
+      })
+      await transaction.insert(documents).values({
+        id: unattachedDocument,
+        tenant_id: tenantA,
+        project_id: null,
+        opportunity_id: opportunityA,
+        uploaded_by: userA,
+        document_type: 'dxf',
+        file_name: 'unattached.dxf',
+        storage_path: `cad/${tenantA}/unattached.dxf`,
+        mime_type: 'application/dxf',
+        size_bytes: 10,
+      })
+      await expect(
+        service.create(
+          unattachedDocument,
+          request,
+          principalA,
+          'processing-integration-unattached'
+        )
+      ).rejects.toMatchObject({
+        status: 409,
+        message: 'Document must be attached to a project before processing',
+      })
       await expect(
         commitService.commit(
           documentA,
