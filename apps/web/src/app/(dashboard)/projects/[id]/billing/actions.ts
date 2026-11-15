@@ -6,9 +6,22 @@ import { getUserProfile, requireCapability } from '@third-code-erp/auth'
 import { parsePercentToBps } from '@third-code-erp/shared-types/bom'
 import { createCustomerInvoiceDraftThroughCoreApi } from '@/lib/erp-core-client'
 
-export async function createInvoice(
+export interface InvoiceDraftInput {
+  billingPercentBps: number
+  /** The BOM the user is billing from; Core refuses any but the project's latest approved one. */
+  bomId: string | null
+  dueDate: string | null
+  notes: string | null
+}
+
+/**
+ * The only web path that creates a customer invoice draft. Core owns the
+ * money: it bills only the project's latest approved BOM, applies the D-6
+ * cumulative cap and the tax rules, numbers the invoice and writes the audit.
+ */
+export async function createInvoiceDraft(
   projectId: string,
-  formData: FormData
+  input: InvoiceDraftInput
 ): Promise<{ error?: string; invoiceId?: string }> {
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
@@ -20,26 +33,22 @@ export async function createInvoice(
     return { error: 'You do not have permission to create invoices.' }
   }
 
-  const billingPercentBps = parsePercentToBps(
-    String(formData.get('billing_pct') ?? '')
-  )
+  const { billingPercentBps } = input
   if (
-    billingPercentBps === null ||
+    !Number.isInteger(billingPercentBps) ||
     billingPercentBps <= 0 ||
     billingPercentBps > 10_000
   ) {
-    return { error: 'Billing % must be between 1 and 100' }
+    return { error: 'Billing % must be between 0.01% and 100%' }
   }
 
-  const dueDate = String(formData.get('due_date') ?? '').trim() || null
-  const notes = String(formData.get('notes') ?? '').trim() || null
   const coreResult = await createCustomerInvoiceDraftThroughCoreApi(
     projectId,
     {
       billingPercentBps,
-      bomId: null,
-      dueDate,
-      notes,
+      bomId: input.bomId,
+      dueDate: input.dueDate,
+      notes: input.notes,
     },
     randomUUID()
   )
@@ -62,4 +71,18 @@ export async function createInvoice(
   revalidatePath('/invoices')
 
   return { invoiceId: coreResult.data.invoiceId }
+}
+
+export async function createInvoice(
+  projectId: string,
+  formData: FormData
+): Promise<{ error?: string; invoiceId?: string }> {
+  return createInvoiceDraft(projectId, {
+    // An unparseable percent becomes 0, which the range check refuses.
+    billingPercentBps:
+      parsePercentToBps(String(formData.get('billing_pct') ?? '')) ?? 0,
+    bomId: null,
+    dueDate: String(formData.get('due_date') ?? '').trim() || null,
+    notes: String(formData.get('notes') ?? '').trim() || null,
+  })
 }

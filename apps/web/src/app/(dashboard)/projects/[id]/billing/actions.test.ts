@@ -21,7 +21,7 @@ vi.mock('next/cache', () => ({
   revalidatePath: mocks.revalidatePath,
 }))
 
-import { createInvoice } from './actions'
+import { createInvoice, createInvoiceDraft } from './actions'
 
 const PROFILE = {
   user: { id: '11111111-1111-4111-8111-111111111111' },
@@ -143,9 +143,79 @@ describe('createInvoice', () => {
     'rejects billing %% %j before calling Core (D-15)',
     async (billingPct) => {
       await expect(createInvoice(PROJECT_ID, invoiceForm(billingPct))).resolves.toEqual({
-        error: 'Billing % must be between 1 and 100',
+        error: 'Billing % must be between 0.01% and 100%',
       })
       expect(mocks.createCustomerInvoiceDraftThroughCoreApi).not.toHaveBeenCalled()
     }
   )
+})
+
+describe('createInvoiceDraft (BOM builder billing)', () => {
+  const BOM_ID = '55555555-5555-4555-8555-555555555555'
+  const draft = (billingPercentBps: number) => ({
+    billingPercentBps,
+    bomId: BOM_ID,
+    dueDate: '2026-08-15',
+    notes: null,
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.getUserProfile.mockResolvedValue(PROFILE)
+    mocks.requireCapability.mockImplementation(() => undefined)
+  })
+
+  it('bills the selected BOM through Core, which refuses a superseded or archived one', async () => {
+    mocks.createCustomerInvoiceDraftThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        invoiceId: INVOICE_ID,
+        tenantId: PROFILE.tenantId,
+        projectId: PROJECT_ID,
+        status: 'draft',
+      },
+    })
+
+    await expect(createInvoiceDraft(PROJECT_ID, draft(2500))).resolves.toEqual({
+      invoiceId: INVOICE_ID,
+    })
+    expect(mocks.createCustomerInvoiceDraftThroughCoreApi).toHaveBeenCalledWith(
+      PROJECT_ID,
+      { billingPercentBps: 2500, bomId: BOM_ID, dueDate: '2026-08-15', notes: null },
+      expect.any(String)
+    )
+  })
+
+  it("relays Core's refusal of a BOM that is not the project's latest approved one", async () => {
+    mocks.createCustomerInvoiceDraftThroughCoreApi.mockResolvedValue({
+      ok: false,
+      error: "Only the project's latest approved BOM can be billed",
+    })
+
+    await expect(createInvoiceDraft(PROJECT_ID, draft(2500))).resolves.toEqual({
+      error: "Only the project's latest approved BOM can be billed",
+    })
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it.each([0, -1, 10_001, 12.5, Number.NaN])(
+    'rejects a client-sent %j bps before calling Core',
+    async (billingPercentBps) => {
+      await expect(createInvoiceDraft(PROJECT_ID, draft(billingPercentBps))).resolves.toEqual({
+        error: 'Billing % must be between 0.01% and 100%',
+      })
+      expect(mocks.createCustomerInvoiceDraftThroughCoreApi).not.toHaveBeenCalled()
+    }
+  )
+
+  it('requires the finance capability before opening the Core boundary', async () => {
+    mocks.requireCapability.mockImplementation(() => {
+      throw new Error('Forbidden: finance capability required')
+    })
+
+    await expect(createInvoiceDraft(PROJECT_ID, draft(2500))).resolves.toEqual({
+      error: 'You do not have permission to create invoices.',
+    })
+    expect(mocks.createCustomerInvoiceDraftThroughCoreApi).not.toHaveBeenCalled()
+  })
 })
