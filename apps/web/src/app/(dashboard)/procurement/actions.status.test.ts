@@ -39,6 +39,7 @@ vi.mock('@/lib/operations/notifications', () => ({
 }))
 
 import { purchaseOrders } from '@third-code-erp/database/schema'
+import * as procurementActions from './actions'
 import { advancePoStatus } from './actions'
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111'
@@ -262,5 +263,13 @@ describe('advancePoStatus delivery transitions', () => {
 
     expect(mocks.update).not.toHaveBeenCalled()
     expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+  })
+})
+
+describe('Purchase Order receipts', () => {
+  it('has no direct line receipt action; receipts go through controlled Stock Receipts', () => {
+    // The removed receivePoLineItem wrote received quantities on any PO but a
+    // cancelled one (drafts included) and flipped its status with no condition.
+    expect(Object.keys(procurementActions)).not.toContain('receivePoLineItem')
   })
 })
