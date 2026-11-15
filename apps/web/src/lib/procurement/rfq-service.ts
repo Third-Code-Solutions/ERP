@@ -1,7 +1,7 @@
 import 'server-only'
 
 import { and, eq, inArray } from 'drizzle-orm'
-import { db } from '@third-code-erp/database'
+import { db, rateCardInEffectCondition } from '@third-code-erp/database'
 import {
   boms,
   bomLineItems,
@@ -180,7 +180,9 @@ export async function createRfqFromBomRecord(
                 eq(
                   rateCards.tenant_id,
                   params.tenantId
-                )
+                ),
+                // Only a card PO pricing can use makes a line "contracted".
+                rateCardInEffectCondition(new Date())
               )
             )
             .where(

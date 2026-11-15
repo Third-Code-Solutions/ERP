@@ -10,6 +10,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
+import { rateCardInEffectCondition } from '@third-code-erp/database'
 import {
   bomLineItems,
   boms,
@@ -49,11 +50,7 @@ import {
 import {
   and,
   eq,
-  gt,
   inArray,
-  isNull,
-  lte,
-  or,
   sql,
 } from 'drizzle-orm'
 import { roleHasCapability } from '../auth/capability.guard'
@@ -404,9 +401,7 @@ export class PurchaseOrderCreationService {
         .where(
           and(
             eq(rateCards.tenant_id, authorizedPrincipal.tenantId),
-            lte(rateCards.effective_from, now),
-            or(isNull(rateCards.effective_to), gt(rateCards.effective_to, now)),
-            gt(rateCards.unit_price_cents, 0)
+            rateCardInEffectCondition(now)
           )
         )
         .orderBy(rateCards.unit_price_cents, rateCards.id)

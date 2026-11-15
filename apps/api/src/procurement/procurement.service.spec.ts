@@ -9,6 +9,8 @@ import type {
   LogRfqQuoteCommand,
   TransitionRfqCommand,
 } from '@third-code-erp/shared-types'
+import type { SQL } from 'drizzle-orm'
+import { PgDialect } from 'drizzle-orm/pg-core'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import type { AuditService } from '../audit/audit.service'
@@ -265,6 +267,17 @@ describe('ProcurementService RFQ creation command', () => {
       probe.service.create({ bomId: BOM_ID }, PRINCIPAL)
     ).rejects.toBeInstanceOf(ConflictException)
     expect(probe.insert).not.toHaveBeenCalled()
+
+    // A line counts as contracted only through a card PO pricing can use.
+    const catalogChain = probe.transactionClient.select.mock.results[3]
+      ?.value as { leftJoin: { mock: { calls: unknown[][] } } }
+    const joinCondition = catalogChain.leftJoin.mock.calls[0]?.[1] as SQL
+    const joinSql = new PgDialect().sqlToQuery(joinCondition).sql
+    expect(joinSql).toContain('"rate_cards"."effective_from" <=')
+    expect(joinSql).toContain(
+      '("rate_cards"."effective_to" is null or "rate_cards"."effective_to" >'
+    )
+    expect(joinSql).toContain('"rate_cards"."unit_price_cents" >')
   })
 
   it('rejects audit failure so the creation transaction can roll back', async () => {

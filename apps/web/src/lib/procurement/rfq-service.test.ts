@@ -1,3 +1,5 @@
+import type { SQL } from 'drizzle-orm'
+import { PgDialect } from 'drizzle-orm/pg-core'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -6,10 +8,12 @@ const mocks = vi.hoisted(() => ({
   notifyRoles: vi.fn(),
 }))
 
-vi.mock('@third-code-erp/database', () => ({
+vi.mock('@third-code-erp/database', async (importOriginal) => ({
   db: {
     transaction: mocks.transaction,
   },
+  rateCardInEffectCondition: (await importOriginal<typeof import('@third-code-erp/database')>())
+    .rateCardInEffectCondition,
 }))
 
 vi.mock('@/lib/audit', () => ({
@@ -152,6 +156,16 @@ describe('RFQ transaction service', () => {
     for (const condition of harness.joins) {
       expect(collectColumnNames(condition)).toContain('tenant_id')
     }
+    // A line counts as contracted only through a card PO pricing can use.
+    const rateCardJoin = harness.joins.find((condition) =>
+      collectColumnNames(condition).includes('material_item_id')
+    )
+    const joinSql = new PgDialect().sqlToQuery(rateCardJoin as SQL).sql
+    expect(joinSql).toContain('"rate_cards"."effective_from" <=')
+    expect(joinSql).toContain(
+      '("rate_cards"."effective_to" is null or "rate_cards"."effective_to" >'
+    )
+    expect(joinSql).toContain('"rate_cards"."unit_price_cents" >')
 
     expect(mocks.writeAuditLogInTransaction).toHaveBeenCalledWith(
       harness.tx,

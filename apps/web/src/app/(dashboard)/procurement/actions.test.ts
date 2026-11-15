@@ -20,9 +20,11 @@ vi.mock('@third-code-erp/auth', () => ({
   can: vi.fn(),
 }))
 
-vi.mock('@third-code-erp/database', () => ({
+vi.mock('@third-code-erp/database', async (importOriginal) => ({
   db: mocks.db,
   resolveTaxRates: mocks.resolveTaxRates,
+  rateCardInEffectCondition: (await importOriginal<typeof import('@third-code-erp/database')>())
+    .rateCardInEffectCondition,
 }))
 
 vi.mock('next/cache', () => ({
