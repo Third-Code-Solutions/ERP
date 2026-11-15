@@ -9,6 +9,7 @@ import {
   inRollback,
   makeSql,
 } from './_db-harness'
+import { purchaseOrderStatusEnum } from '../schema/enums'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const schemaSql = readFileSync(
@@ -199,7 +200,7 @@ describe('inventory stock ledger migration contract', () => {
 })
 
 describe('Stock Receipt posting status migration contract', () => {
-  it('accepts every PO status supplier bill posting accepts', () => {
+  it('accepts the current-flow and legacy receivable PO statuses', () => {
     const postingSql = readFileSync(
       resolve(
         __dirname,
@@ -208,6 +209,7 @@ describe('Stock Receipt posting status migration contract', () => {
       'utf8'
     ).toLowerCase()
     expect(postingSql).toContain('create or replace function public.post_stock_receipt(')
+    expect(postingSql).toMatch(/security definer\s+set search_path = ''/)
     for (const status of [
       'issued',
       'confirmed',
@@ -339,7 +341,10 @@ interface InventoryFixture {
 
 async function seedInventoryFixture(
   tx: postgres.TransactionSql,
-  options: { receiptMicros?: number; poStatus?: string } = {}
+  options: {
+    receiptMicros?: number
+    poStatus?: (typeof purchaseOrderStatusEnum.enumValues)[number]
+  } = {}
 ): Promise<InventoryFixture> {
   const receiptMicros = options.receiptMicros ?? 4_000_000
   const poStatus = options.poStatus ?? 'issued'
@@ -839,6 +844,24 @@ runtimeSuite('inventory stock ledger runtime proof', () => {
     })
 
     expect(result[0]).toMatchObject({ status: 'posted' })
+  })
+
+  it('still refuses a receipt on a cancelled PO', async () => {
+    const message = await inRollback(sqlClient, async (tx) => {
+      const fixture = await seedInventoryFixture(tx, { poStatus: 'cancelled' })
+      try {
+        await tx.unsafe(
+          `select * from post_stock_receipt(
+            '${fixture.receiptId}', '${fixture.financeId}', '2026-07-27'
+          )`
+        )
+        return 'posted'
+      } catch (error) {
+        return (error as Error).message
+      }
+    })
+
+    expect(message).toBe('Stock Receipt requires an issued Purchase Order')
   })
 
   it('rejects cumulative quantity above the ordered PO line', async () => {
