@@ -165,14 +165,15 @@ describe('advancePoStatus delivery transitions', () => {
 
     await expect(advancePoStatus(PO_ID, 'cancelled')).resolves.toEqual({})
     expect(mocks.update).toHaveBeenCalledOnce()
+    expect(mocks.writeAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ diff: { from: 'draft', to: 'cancelled' } })
+    )
   })
 
-  it.each([
-    ['submitted', 'confirmed'],
-  ])('refuses %s to %s on a PO of a retired project', async (from, to) => {
-    selectPurchaseOrder(from, true, CREATOR_ID, false)
+  it('refuses submitted to confirmed on a PO of a retired project', async () => {
+    selectPurchaseOrder('submitted', true, CREATOR_ID, false)
 
-    await expect(advancePoStatus(PO_ID, to)).resolves.toEqual({
+    await expect(advancePoStatus(PO_ID, 'confirmed')).resolves.toEqual({
       error: 'This Purchase Order belongs to a retired project; it can only be rejected, cancelled or received.',
     })
     expect(mocks.update).not.toHaveBeenCalled()
