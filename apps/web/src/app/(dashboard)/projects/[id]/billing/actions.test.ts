@@ -210,6 +210,19 @@ describe('createInvoiceDraft (BOM builder billing)', () => {
     }
   )
 
+  it.each([
+    ['a non-ISO due date', { dueDate: '15/08/2026' }, 'Due date requires YYYY-MM-DD'],
+    ['a malformed BOM id', { bomId: 'not-a-uuid' }, 'Invalid uuid'],
+    ['notes over 2,000 characters', { notes: 'x'.repeat(2_001) }, '2000'],
+    ['an unknown field', { tenantId: PROFILE.tenantId }, 'tenantId'],
+  ])('rejects %s before calling Core', async (_name, override, message) => {
+    const result = await createInvoiceDraft(PROJECT_ID, { ...draft(2500), ...override })
+
+    expect(result.error).toContain('Invoice draft is invalid')
+    expect(result.error).toContain(message)
+    expect(mocks.createCustomerInvoiceDraftThroughCoreApi).not.toHaveBeenCalled()
+  })
+
   it('requires the finance capability before opening the Core boundary', async () => {
     mocks.requireCapability.mockImplementation(() => {
       throw new Error('Forbidden: finance capability required')

@@ -3,6 +3,7 @@
 import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { getUserProfile, requireCapability } from '@third-code-erp/auth'
+import { customerInvoiceDraftCreateBodySchema } from '@third-code-erp/shared-types'
 import { parsePercentToBps } from '@third-code-erp/shared-types/bom'
 import { createCustomerInvoiceDraftThroughCoreApi } from '@/lib/erp-core-client'
 
@@ -33,23 +34,21 @@ export async function createInvoiceDraft(
     return { error: 'You do not have permission to create invoices.' }
   }
 
-  const { billingPercentBps } = input
-  if (
-    !Number.isInteger(billingPercentBps) ||
-    billingPercentBps <= 0 ||
-    billingPercentBps > 10_000
-  ) {
-    return { error: 'Billing % must be between 0.01% and 100%' }
+  // The body Core accepts, checked here so a bad field never opens the Core boundary.
+  const parsed = customerInvoiceDraftCreateBodySchema.safeParse(input)
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0]
+    return {
+      error:
+        issue?.path[0] === 'billingPercentBps'
+          ? 'Billing % must be between 0.01% and 100%'
+          : `Invoice draft is invalid: ${issue?.message ?? 'unknown field'}`,
+    }
   }
 
   const coreResult = await createCustomerInvoiceDraftThroughCoreApi(
     projectId,
-    {
-      billingPercentBps,
-      bomId: input.bomId,
-      dueDate: input.dueDate,
-      notes: input.notes,
-    },
+    parsed.data,
     randomUUID()
   )
   if (!coreResult.ok || !coreResult.data) {
