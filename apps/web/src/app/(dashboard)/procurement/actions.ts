@@ -703,10 +703,10 @@ export async function assignPoLineCostCode(
     )
     .limit(1)
   if (!line) return { error: 'Purchase Order line not found.' }
-  if (!line.projectLive) return { error: RETIRED_PROJECT_PO_ERROR }
   if (line.status !== 'draft') {
     return { error: 'Cost Code can change only while the Purchase Order is draft.' }
   }
+  if (!line.projectLive) return { error: RETIRED_PROJECT_PO_ERROR }
 
   const [code] = await db
     .select({ id: costCodes.id })
