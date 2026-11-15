@@ -16,13 +16,14 @@ import {
   users,
   type DocumentProcessingJob,
 } from '@third-code-erp/database/schema'
+import { liveProjectCondition } from '@third-code-erp/database'
 import {
   documentProcessingRequestSchema,
   documentProcessingStatusSchema,
   type DocumentProcessingRequest,
   type DocumentProcessingStatus,
 } from '@third-code-erp/shared-types'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull, or } from 'drizzle-orm'
 import { z } from 'zod'
 import { roleHasCapability } from '../auth/capability.guard'
 import type {
@@ -218,7 +219,15 @@ export class DocumentProcessingService {
         .where(
           and(
             eq(documents.id, parsedDocumentId),
-            eq(documents.tenant_id, authorizedPrincipal.tenantId)
+            eq(documents.tenant_id, authorizedPrincipal.tenantId),
+            // An unattached document still gets its 409 below; a retired project's reads as not found.
+            or(
+              isNull(documents.project_id),
+              liveProjectCondition(
+                documents.project_id,
+                authorizedPrincipal.tenantId
+              )
+            )
           )
         )
         .limit(1)
