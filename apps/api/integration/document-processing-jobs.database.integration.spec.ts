@@ -471,6 +471,50 @@ suite('document processing job database integration', () => {
       expect(bomLines[0]?.unit_rate_source).toBe('manual')
       expect(bomLines[0]?.unit_cost_cents).toBe(0)
       expect(bomLines[0]?.line_total_cents).toBe(0)
+
+      // Retirement stops processing: a queued job fails without reaching the
+      // worker, and neither a new job nor an evidence commit is accepted.
+      const queuedBeforeRetirement = await service.create(
+        documentA,
+        { ...request, createDraftBom: false },
+        principalA,
+        'processing-integration-retired-queued'
+      )
+      await transaction
+        .update(projects)
+        .set({
+          deleted_at: new Date(),
+          deleted_by: userA,
+          deletion_reason: 'Synthetic retirement proof',
+        })
+        .where(eq(projects.id, projectA))
+
+      await expect(
+        state.claim(queuedBeforeRetirement.status.jobId)
+      ).resolves.toBeNull()
+      await expect(
+        service.status(queuedBeforeRetirement.status.jobId, principalA)
+      ).resolves.toMatchObject({
+        status: 'failed',
+        attempts: 0,
+        failureCode: 'project_retired',
+      })
+      await expect(
+        service.create(
+          documentA,
+          request,
+          principalA,
+          'processing-integration-retired'
+        )
+      ).rejects.toMatchObject({ status: 404 })
+      await expect(
+        commitService.commit(
+          documentA,
+          { projectId: projectA, workerResponse: workerResult.response },
+          principalA,
+          'processing-integration-retired-commit'
+        )
+      ).rejects.toMatchObject({ status: 404 })
     })
 
     const leaked = await db

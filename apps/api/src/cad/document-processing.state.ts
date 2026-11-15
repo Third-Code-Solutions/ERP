@@ -4,6 +4,7 @@ import {
   documents,
   users,
 } from '@third-code-erp/database/schema'
+import { liveProjectCondition } from '@third-code-erp/database'
 import { and, eq, inArray, lt, or } from 'drizzle-orm'
 import {
   DOCUMENT_PROCESSING_MAX_ATTEMPTS,
@@ -68,6 +69,10 @@ export class DocumentProcessingStateService {
           fileName: documents.file_name,
           role: users.role,
           email: users.email,
+          projectLive: liveProjectCondition(
+            documentProcessingJobs.project_id,
+            documentProcessingJobs.tenant_id
+          ).mapWith(Boolean),
         })
         .from(documentProcessingJobs)
         .innerJoin(
@@ -91,12 +96,17 @@ export class DocumentProcessingStateService {
       if (!row) return null
       if (row.status === 'succeeded' || row.status === 'failed') return null
 
-      if (row.attemptCount >= DOCUMENT_PROCESSING_MAX_ATTEMPTS) {
+      const terminalFailure = !row.projectLive
+        ? 'project_retired'
+        : row.attemptCount >= DOCUMENT_PROCESSING_MAX_ATTEMPTS
+          ? 'attempt_limit'
+          : null
+      if (terminalFailure) {
         await transaction
           .update(documentProcessingJobs)
           .set({
             status: 'failed',
-            failure_code: 'attempt_limit',
+            failure_code: terminalFailure,
             completed_at: new Date(),
             updated_at: new Date(),
           })

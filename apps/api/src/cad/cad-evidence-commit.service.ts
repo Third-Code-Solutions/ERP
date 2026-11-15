@@ -17,6 +17,7 @@ import {
   scopeItems,
   users,
 } from '@third-code-erp/database/schema'
+import { liveProjectCondition } from '@third-code-erp/database'
 import {
   CAD_SCOPE_BATCH_SIZE,
   cadEvidenceCommitCommandSchema,
@@ -178,7 +179,11 @@ export class CadEvidenceCommitService {
           and(
             eq(documents.id, parsed.documentId),
             eq(documents.tenant_id, authorizedPrincipal.tenantId),
-            eq(documents.project_id, parsed.command.projectId)
+            eq(documents.project_id, parsed.command.projectId),
+            liveProjectCondition(
+              parsed.command.projectId,
+              authorizedPrincipal.tenantId
+            )
           )
         )
         .limit(1)

@@ -16,7 +16,7 @@ import { projects } from '../schema'
  */
 export function liveProjectCondition(
   projectId: string | SQLWrapper,
-  tenantId: string
+  tenantId: string | SQLWrapper
 ): SQL {
   return exists(
     new QueryBuilder()
