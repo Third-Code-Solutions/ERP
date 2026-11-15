@@ -197,7 +197,7 @@ Top findings: SEC-01, SEC-03, SEC-02, SEC-04, SEC-06, SEC-05.
 - **Test:** declare a small size, upload a larger object, call `complete`: expect 413 and no document row.
 
 ### SEC-14 — Auth cookies rewritten without `Secure`
-- **Status:** confirmed
+- **Status:** confirmed; **fixed** 2026-11-15 by branch `fix/web-auth-cookie-secure` (both call sites pass `cookieOptions` with `secure`; contract test `apps/web/src/supabase-ssr-cookie-contract.test.ts`). Not live until the next web promotion.
 - **Where:** `apps/web/src/middleware.ts:287-306` (every token refresh) and `apps/web/src/app/api/auth/callback/route.ts:40-54` call `createServerClient` without `cookieOptions`. The `@supabase/ssr@0.6.1` defaults have no `secure`. Only `packages/auth/src/server.ts:34` and `client.ts:18-22` set it. Mitigated by HSTS `includeSubDomains`, which is not preloaded.
 - **Fix:** pass `{ path: '/', sameSite: 'lax', secure: NODE_ENV === 'production' }` in both places.
 - **Test:** a middleware test asserting that refreshed `Set-Cookie` headers include `Secure` in production.
