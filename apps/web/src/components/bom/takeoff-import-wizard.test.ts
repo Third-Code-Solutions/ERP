@@ -17,5 +17,7 @@ describe('formatTakeoffQuantity', () => {
     expect(formatTakeoffQuantity(null)).toBe('—')
     expect(formatTakeoffQuantity(1.23456)).toBe('1.23456')
     expect(formatTakeoffQuantity(-2)).toBe('-2')
+    expect(formatTakeoffQuantity(1e-7)).toBe('1e-7')
+    expect(formatTakeoffQuantity(2147483647.0001)).toBe('2147483647.0001')
   })
 })
