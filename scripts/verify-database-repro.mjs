@@ -480,6 +480,7 @@ const requiredTriggers = [
   ['public.warehouses', 'guard_warehouses'],
   ['public.material_items', 'guard_inventory_item'],
   ['public.po_line_items', 'guard_po_line_stock_fields'],
+  ['public.po_line_items', 'reset_stock_receipt_projection'],
   ['public.stock_receipts', 'guard_stock_receipt'],
   ['public.stock_receipt_lines', 'guard_stock_receipt_line'],
   ['public.stock_ledger_entries', 'guard_stock_ledger_entry'],

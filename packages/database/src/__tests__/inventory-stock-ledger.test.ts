@@ -876,6 +876,77 @@ runtimeSuite('inventory stock ledger runtime proof', () => {
     }
   )
 
+  // Each row is valid under the table's own constraints, so only the guard refuses it.
+  it.each([
+    ['received_qty', '1'],
+    ['received_quantity_micros', '1000000'],
+    ['legacy_received_quantity_micros, received_quantity_micros', '1000000, 1000000'],
+    ['received_at', 'now()'],
+    ['received_by', '(select id from users where tenant_id = po_line_items.tenant_id limit 1)'],
+  ])('refuses a PO line inserted with %s already set', async (column, value) => {
+    const failure = await inRollback(sqlClient, async (tx) => {
+      const fixture = await seedInventoryFixture(tx)
+      try {
+        await tx.unsafe(
+          `insert into po_line_items(
+             tenant_id, po_id, sort_order, description, quantity, quantity_micros,
+             unit_cost_cents, line_total_cents, cost_code_id, ${column}
+           )
+           select tenant_id, po_id, 2, 'Installation labour', 1, 1000000, 50000, 50000,
+                  cost_code_id, ${value}
+             from po_line_items where id = '${fixture.poLineId}'`
+        )
+        return null
+      } catch (error) {
+        const { code, message } = error as { code?: string; message: string }
+        return { code, message }
+      }
+    })
+
+    expect(failure).toEqual({
+      code: '55000',
+      message: 'Received quantity is derived from posted Stock Receipts',
+    })
+  })
+
+  it.each(['post', 'reverse'])(
+    'refuses a direct received write later in the transaction that ran %s',
+    async (step) => {
+      const failure = await inRollback(sqlClient, async (tx) => {
+        const fixture = await seedInventoryFixture(tx)
+        await tx.unsafe(
+          `select * from post_stock_receipt(
+            '${fixture.receiptId}', '${fixture.financeId}', '2026-07-27'
+          )`
+        )
+        if (step === 'reverse') {
+          await tx.unsafe(
+            `select * from reverse_stock_receipt(
+              '${fixture.receiptId}', '${fixture.financeId}',
+              'Supplier delivery rejected after review', '2026-07-28'
+            )`
+          )
+        }
+        try {
+          // 4 after posting and 0 after reversal, so 3 is always a change.
+          await tx.unsafe(
+            `update po_line_items set received_qty = 3
+             where id = '${fixture.poLineId}'`
+          )
+          return null
+        } catch (error) {
+          const { code, message } = error as { code?: string; message: string }
+          return { code, message }
+        }
+      })
+
+      expect(failure).toEqual({
+        code: '55000',
+        message: 'Received quantity is derived from posted Stock Receipts',
+      })
+    }
+  )
+
   it('still refuses a receipt on a cancelled PO', async () => {
     const message = await inRollback(sqlClient, async (tx) => {
       const fixture = await seedInventoryFixture(tx, { poStatus: 'cancelled' })
