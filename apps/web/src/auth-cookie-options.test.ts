@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   createServerClient: vi.fn(() => ({})),
@@ -20,6 +20,10 @@ import { createSupabaseServerClient } from '@third-code-erp/auth/server'
 const SECURE = { path: '/', sameSite: 'lax', secure: true }
 
 describe('Supabase auth cookie options (SEC-14)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   afterEach(() => {
     vi.unstubAllEnvs()
   })

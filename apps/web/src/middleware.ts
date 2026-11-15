@@ -223,7 +223,7 @@ function redirectToLogin(
     new URL('/auth/login', request.url)
   )
   for (const name of staleAuthCookieNames) {
-    redirect.cookies.delete({ name, ...supabaseAuthCookieOptions() })
+    redirect.cookies.delete({ ...supabaseAuthCookieOptions(), name })
   }
   return applySecurityHeaders(redirect, nonce, csp)
 }
@@ -329,7 +329,7 @@ export async function middleware(request: NextRequest) {
     requestHeaders.set('cookie', request.cookies.toString())
     supabaseResponse = buildSupabaseResponse(requestHeaders)
     for (const name of staleAuthCookieNames) {
-      supabaseResponse.cookies.delete({ name, ...supabaseAuthCookieOptions() })
+      supabaseResponse.cookies.delete({ ...supabaseAuthCookieOptions(), name })
     }
   }
 
@@ -354,14 +354,7 @@ export async function middleware(request: NextRequest) {
       .getAll()
       .map(({ name }) => name)
       .filter(isSupabaseAuthCookieName)
-    for (const name of expiredSessionCookieNames) {
-      request.cookies.delete(name)
-    }
-    requestHeaders.set('cookie', request.cookies.toString())
-    supabaseResponse = buildSupabaseResponse(requestHeaders)
-    for (const name of expiredSessionCookieNames) {
-      supabaseResponse.cookies.delete(name)
-    }
+    // The redirect carries the removals; nothing else of this request is served.
     return redirectToLogin(
       request,
       [
