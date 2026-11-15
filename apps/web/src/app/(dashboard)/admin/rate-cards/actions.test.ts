@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   requireUserProfile: vi.fn(),
   can: vi.fn(),
   select: vi.fn(),
+  insert: vi.fn(),
   writeAuditLog: vi.fn(),
   revalidatePath: vi.fn(),
 }))
@@ -14,7 +15,7 @@ vi.mock('@third-code-erp/auth', () => ({
 }))
 
 vi.mock('@third-code-erp/database', () => ({
-  db: { select: mocks.select },
+  db: { select: mocks.select, insert: mocks.insert },
 }))
 
 vi.mock('@/lib/audit', () => ({
@@ -69,5 +70,25 @@ describe('upsertRateCard price validation', () => {
       error: 'Material item not found',
     })
     expect(mocks.select).toHaveBeenCalledTimes(1)
+  })
+
+  it('stores ₱0.005 as 1 centavo', async () => {
+    mocks.select.mockReturnValue({
+      from: () => ({ where: () => ({ limit: () => Promise.resolve([{ id: MATERIAL_ID }]) }) }),
+    })
+    const values = vi.fn(() => ({
+      returning: () => Promise.resolve([{ id: '44444444-4444-4444-8444-444444444444' }]),
+    }))
+    mocks.insert.mockReturnValue({ values })
+
+    await expect(upsertRateCard(rateCardForm('0.005'))).resolves.toEqual({})
+    expect(values).toHaveBeenCalledWith(expect.objectContaining({ unit_price_cents: 1 }))
+  })
+
+  it('rejects a price whose centavos exceed the safe integer range', async () => {
+    await expect(upsertRateCard(rateCardForm('1e14'))).resolves.toEqual({
+      error: 'unit_price_php: price is too large',
+    })
+    expect(mocks.select).not.toHaveBeenCalled()
   })
 })
