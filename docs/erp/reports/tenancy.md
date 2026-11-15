@@ -58,9 +58,9 @@ Unit test paths are relative to each package. "HTTP" means `apps/api/integration
 | 03 Denied role | page test: pm, estimator, sd_pm_pe and procurement are rejected before any read; `dashboard-route-inventory.test.ts` (`/settings/tax` = finance.read) |
 | 04 No edit controls | page test: no `form`, `input`, `select`, `textarea` or `button`; locked note; e2e asserts the same |
 | 05 API writes gated | `api roadmap/roadmap.tax-profile.service.spec.ts` (503 and no writes, for both create and activate); HTTP (401, 403, 503 with no row change, 404 cross-tenant) |
-| 06 Invoice defaults unchanged | `shared-types progress-invoice.test.ts` (I-1..I-8, PB-1..PB-4); `api customer-invoice-draft-create.service.spec.ts` (24,750,000, `retention_bps 1000`, audit default); `web procurement/actions.invoice.test.ts`; HTTP tenant T |
+| 06 Invoice defaults unchanged | `shared-types progress-invoice.test.ts` (I-1..I-8, PB-1..PB-4); `api customer-invoice-draft-create.service.spec.ts` (24,750,000, `retention_bps 1000`, audit default); `web procurement/actions.invoice.test.ts` (deleted in #165 with the procurement `createInvoice`); HTTP tenant T |
 | 07 Invoice with a profile | shared-types P-1, P-3, P-4; API draft spec (profile row; audit `profileId`/`profileCode`); HTTP tenant U |
-| 08 Non-VAT invoice | shared-types P-2; API and web draft specs (`vat 0`, audit `vatBps 0`) |
+| 08 Non-VAT invoice | shared-types P-2; API and web draft specs (`vat 0`, audit `vatBps 0`) (web test deleted in #165 with the procurement `createInvoice`) |
 | 09 PO on every path | `web lib/operations/purchase-order-money.test.ts` (PO-1..PO-7, PV-2, property tests); `api purchase-order-creation.service.spec.ts` (3 paths keep 989,871; bps vs percent property check); `api roadmap.requisition-po.service.spec.ts`; `web procurement/actions.test.ts` (3 legacy paths); HTTP manual PO |
 | 10 VAT status does not touch PO VAT | PO-6 in `purchase-order-money.test.ts`; `purchaseOrderTaxAudit` unit test |
 | 11 Labels from one formatter | `shared-types tax-rates.test.ts` (`formatBps`, all C-4 cases); print invoice, BIR 2307 and billing page tests; the form markup tests |
@@ -71,7 +71,7 @@ Unit test paths are relative to each package. "HTTP" means `apps/api/integration
 | 16 Preparer cannot approve | guard spec G-1 (403, no write or audit); G-2 (`approved_by`); HTTP |
 | 17 Ignored profiles | shared-types R-3, R-5, R-6 via `pickEffectiveTaxRates`; `database tax/effective-tax-rates.test.ts` SQL condition |
 | 18 Tenant isolation | `database effective-tax-rates.test.ts` (tenant predicate and params); page test (`tax_profiles` and `users` reads filter on the tenant); HTTP two tenants |
-| 19 Overlap at write time | shared-types R-7; `api common/tax-rates` → 409; API draft spec (no insert); web legacy `{ error }`, no insert; page conflict state; HTTP tenant V |
+| 19 Overlap at write time | shared-types R-7; `api common/tax-rates` → 409; API draft spec (no insert); web legacy `{ error }`, no insert (web test deleted in #165 with the procurement `createInvoice`); page conflict state; HTTP tenant V |
 | R-8 | resolver unit test: `2026-12-31T16:30Z` → `asOf 2027-01-01` in the SQL params |
 | G-7 | guard spec: create replay with a changed `vatRegistered`, `validFrom` or `validTo` → conflict, no write |
 

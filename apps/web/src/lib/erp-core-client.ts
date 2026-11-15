@@ -1256,16 +1256,6 @@ export function financeCustomerInvoiceIssueWritesUseCoreApi(
   )
 }
 
-export function financeCustomerInvoiceDraftCreateWritesUseCoreApi(
-  tenantId: string
-): boolean {
-  return tenantEnabledForCoreApi(
-    tenantId,
-    process.env.ERP_FINANCE_CUSTOMER_INVOICE_DRAFT_CREATE_WRITES_VIA_API,
-    process.env.ERP_FINANCE_CUSTOMER_INVOICE_DRAFT_CREATE_WRITES_VIA_API_TENANT_IDS
-  )
-}
-
 export function financeCustomerInvoiceReverseWritesUseCoreApi(
   tenantId: string
 ): boolean {
