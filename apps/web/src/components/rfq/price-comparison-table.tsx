@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
+import { formatBoqQuantity } from '@third-code-erp/shared-types/bom'
 import { awardRfqQuote } from '@/app/(dashboard)/procurement/rfqs/actions'
 
 /**
@@ -111,7 +112,7 @@ export function PriceComparisonTable({ rfqId, canAward, lineItems, quotes }: Pro
                   )}
                 </td>
                 <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>
-                  {l.qty.toLocaleString('en-PH', { maximumFractionDigits: 4 })}
+                  {formatBoqQuantity(String(l.qty))}
                   {l.unit ? <span className="muted"> {l.unit}</span> : null}
                 </td>
                 {vendorList.map((v) => {
