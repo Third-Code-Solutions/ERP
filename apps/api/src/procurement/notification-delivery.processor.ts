@@ -10,7 +10,7 @@ import {
   purchaseOrderSupplierEmailDeliveryJobSchema,
   type NotificationDeliveryResult,
 } from '@third-code-erp/shared-types'
-import type { Job } from 'bullmq'
+import { UnrecoverableError, type Job } from 'bullmq'
 import {
   NOTIFICATION_DELIVERY_JOB,
   NOTIFICATION_DELIVERY_QUEUE,
@@ -82,7 +82,10 @@ export class NotificationDeliveryProcessor extends WorkerHost {
       typeof job.opts.attempts === 'number'
         ? job.opts.attempts
         : 1
-    if (job.attemptsMade < attempts) return
+    // BullMQ skips the remaining attempts of an UnrecoverableError.
+    const unrecoverable =
+      error instanceof UnrecoverableError || error.name === 'UnrecoverableError'
+    if (job.attemptsMade < attempts && !unrecoverable) return
     if (job.name === NOTIFICATION_SUPPLIER_DELIVERY_JOB) {
       const parsed = purchaseOrderSupplierEmailDeliveryJobSchema.safeParse(
         job.data

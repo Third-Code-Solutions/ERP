@@ -1,4 +1,4 @@
-import type { Job } from 'bullmq'
+import { UnrecoverableError, type Job } from 'bullmq'
 import { describe, expect, it, vi } from 'vitest'
 import {
   NOTIFICATION_DELIVERY_JOB,
@@ -128,6 +128,33 @@ describe('NotificationDeliveryProcessor', () => {
         name: NOTIFICATION_SUPPLIER_DELIVERY_JOB,
         attemptsMade: 5,
       }),
+      error
+    )
+    expect(probe.markSupplierDeadLetter).toHaveBeenCalledWith(DATA, error)
+  })
+
+  it('marks durable dead letter on the first attempt for an unrecoverable failure', async () => {
+    const probe = harness()
+    const error = new UnrecoverableError('Notification delivery not found')
+
+    await probe.processor.onFailed(job({ attemptsMade: 1 }), error)
+    expect(probe.markDeadLetter).toHaveBeenCalledWith(DATA, error)
+
+    await probe.processor.onFailed(
+      job({ name: NOTIFICATION_SUPPLIER_DELIVERY_JOB, attemptsMade: 1 }),
+      error
+    )
+    expect(probe.markSupplierDeadLetter).toHaveBeenCalledWith(DATA, error)
+  })
+
+  it('treats an error named UnrecoverableError as final', async () => {
+    const probe = harness()
+    const error = Object.assign(new Error('Supplier email delivery not found'), {
+      name: 'UnrecoverableError',
+    })
+
+    await probe.processor.onFailed(
+      job({ name: NOTIFICATION_SUPPLIER_DELIVERY_JOB, attemptsMade: 1 }),
       error
     )
     expect(probe.markSupplierDeadLetter).toHaveBeenCalledWith(DATA, error)
