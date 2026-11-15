@@ -9,6 +9,7 @@ import {
   rfqs,
   users,
 } from '@third-code-erp/database/schema'
+import { purchasableBomLines } from '@third-code-erp/shared-types'
 import { writeAuditLogInTransaction } from '@/lib/audit'
 import { notifyRoles } from '@/lib/operations/notifications'
 
@@ -139,6 +140,8 @@ export async function createRfqFromBomRecord(
         unit: bomLineItems.unit,
         quantity: bomLineItems.quantity_decimal,
         is_group: bomLineItems.is_group,
+        parent_id: bomLineItems.parent_id,
+        parent_line_item_id: bomLineItems.parent_line_item_id,
       })
       .from(bomLineItems)
       .where(
@@ -148,7 +151,8 @@ export async function createRfqFromBomRecord(
         )
       )
 
-    const itemLines = lines.filter((line) => line.is_group === 0)
+    // Quote the lines a Purchase Order buys; a work item with material lines is bought through them.
+    const itemLines = purchasableBomLines(lines)
     if (itemLines.length === 0) {
       return { error: 'BOM has no line items to RFQ' }
     }

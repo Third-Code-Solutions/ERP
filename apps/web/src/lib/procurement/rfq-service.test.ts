@@ -239,6 +239,31 @@ describe('RFQ transaction service', () => {
     expect(lineItems.map((item) => item.code)).toEqual(['MAT-002', 'MAT-003'])
   })
 
+  it('quotes the lines a Purchase Order buys, not a work item that has material lines', async () => {
+    const harness = transactionHarness([
+      [{ id: BOM_ID, project_id: PROJECT_ID }],
+      [],
+      [
+        { id: 'section', code: null, description: 'Section', unit: null, quantity: 0, is_group: 1, parent_id: null, parent_line_item_id: null },
+        { id: 'work-item', code: null, description: 'Ceiling works', unit: 'sqm', quantity: 40, is_group: 0, parent_id: 'section', parent_line_item_id: null },
+        { id: 'board', code: null, description: 'Gypsum board', unit: 'pc', quantity: 12, is_group: 0, parent_id: null, parent_line_item_id: 'work-item' },
+        { id: 'plain', code: null, description: 'Paint', unit: 'L', quantity: 8, is_group: 0, parent_id: 'section', parent_line_item_id: null },
+      ],
+    ])
+
+    await createRfqFromBomRecord({
+      bomId: BOM_ID,
+      tenantId: TENANT_ID,
+      actorId: null,
+      source: 'manual',
+    })
+
+    const [{ line_items: lineItems }] = harness.values.mock.calls[0] as unknown as [
+      { line_items: { bom_line_item_id: string }[] },
+    ]
+    expect(lineItems.map((item) => item.bom_line_item_id)).toEqual(['board', 'plain'])
+  })
+
   it('returns the existing RFQ on retry without another insert or audit', async () => {
     const harness = transactionHarness([
       [{ id: BOM_ID, project_id: PROJECT_ID }],
@@ -310,6 +335,7 @@ describe('RFQ transaction service', () => {
       [],
       [
         {
+          id: '66666666-6666-4666-8666-666666666666',
           code: null,
           description: 'Site mobilization',
           unit: 'lot',
@@ -340,6 +366,7 @@ describe('RFQ transaction service', () => {
       [],
       [
         {
+          id: '66666666-6666-4666-8666-666666666666',
           code: null,
           description: 'Site mobilization',
           unit: 'lot',
