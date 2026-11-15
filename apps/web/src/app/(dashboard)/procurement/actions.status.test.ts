@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   writeAuditLogInTransaction: vi.fn(),
   transaction: vi.fn(),
   revalidatePath: vi.fn(),
-  liveProjectCondition: vi.fn(() => ({ mapWith: vi.fn(() => ({})) })),
+  liveProjectCondition: vi.fn(),
   unreceivedStockLineCondition: vi.fn(),
 }))
 
@@ -21,6 +21,7 @@ vi.mock('@third-code-erp/auth', () => ({
 
 vi.mock('@third-code-erp/database', async () => {
   const { sql } = await import('drizzle-orm')
+  mocks.liveProjectCondition.mockImplementation(() => sql`LIVE_PROJECT`)
   mocks.unreceivedStockLineCondition.mockImplementation(() => sql`UNRECEIVED_STOCK_LINE`)
   return {
   db: {
@@ -207,6 +208,19 @@ describe('advancePoStatus delivery transitions', () => {
     )
     // Once in the read and once in the write: the project must still be live then.
     expect(mocks.liveProjectCondition).toHaveBeenCalledTimes(2)
+    const set = mocks.update.mock.results[0]!.value.set
+    const condition = set.mock.results[0]!.value.where.mock.calls[0]![0]
+    expect(new PgDialect().sqlToQuery(condition).sql).toContain('LIVE_PROJECT')
+  })
+
+  it('refuses a legacy confirm when the project is retired between the read and the write', async () => {
+    selectPurchaseOrder('submitted')
+    mockUpdate([])
+
+    await expect(advancePoStatus(PO_ID, 'confirmed')).resolves.toEqual({
+      error: 'Purchase Order status changed; reload and try again.',
+    })
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
   })
 
   it('refuses to start the legacy route from a draft, which would skip PM and SCM approval', async () => {
@@ -241,6 +255,17 @@ describe('advancePoStatus delivery transitions', () => {
       purchaseOrders.project_id,
       TENANT_ID
     )
+  })
+
+  it.each([
+    ['draft', 'Cannot transition from draft to confirmed'],
+    ['submitted', 'The Purchase Order creator cannot confirm it'],
+  ])('on a retired project, confirming a %s PO of its own creator gives "%s" first', async (status, error) => {
+    selectPurchaseOrder(status, true, ACTOR_ID, false)
+
+    await expect(advancePoStatus(PO_ID, 'confirmed')).resolves.toEqual({ error })
+    expect(mocks.update).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -371,6 +396,16 @@ describe('assignPoLineCostCode', () => {
     expect(mocks.update).not.toHaveBeenCalled()
     expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
     expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('gives a submitted PO line of a retired project the draft-only error first', async () => {
+    selectLine(false, 'submitted')
+    mockUpdate()
+
+    await expect(assignPoLineCostCode(LINE_ID, COST_CODE_ID)).resolves.toEqual({
+      error: 'Cost Code can change only while the Purchase Order is draft.',
+    })
+    expect(mocks.update).not.toHaveBeenCalled()
   })
 
   it('refuses when the project is retired between the read and the write', async () => {
