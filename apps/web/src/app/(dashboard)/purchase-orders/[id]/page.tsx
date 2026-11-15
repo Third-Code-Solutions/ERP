@@ -295,10 +295,13 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
             {po.po_number}
           </h1>
           <div style={{ display: 'flex', gap: '16px', fontSize: '0.875rem', color: 'var(--color-neutral-500)' }}>
-            {po.project_id && (
+            {po.project_live ? (
               <Link href={`/projects/${po.project_id}`} style={{ color: 'var(--color-navy-text)', textDecoration: 'none' }}>
                 {po.project_name}
               </Link>
+            ) : (
+              // A retired project's pages are not found, so no link; approvals and issue are closed.
+              <span>{po.project_name} · Project retired</span>
             )}
             <span>Created {new Date(po.created_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
           </div>
@@ -317,11 +320,6 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
           >
             {STATUS_LABELS[po.status] ?? po.status}
           </span>
-          {!po.project_live && (
-            <span style={{ fontSize: '0.75rem', color: 'var(--color-neutral-600)' }}>
-              Project retired: this PO can only be rejected, cancelled or received.
-            </span>
-          )}
           <PoStatusActions
             poId={id}
             currentStatus={po.status}
