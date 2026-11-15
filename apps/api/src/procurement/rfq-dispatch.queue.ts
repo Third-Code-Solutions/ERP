@@ -22,7 +22,7 @@ export class RfqDispatchQueue {
     @InjectQueue(RFQ_DISPATCH_QUEUE)
     private readonly queue: Queue<
       RfqDispatchJob,
-      RfqCreationResult,
+      RfqCreationResult | null,
       string
     >
   ) {}

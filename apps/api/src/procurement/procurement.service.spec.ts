@@ -15,7 +15,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import type { AuditService } from '../audit/audit.service'
 import type { DatabaseService } from '../database/database.service'
-import { ProcurementService } from './procurement.service'
+import { ProcurementService, RfqNotNeededException } from './procurement.service'
 
 const PRINCIPAL: ErpPrincipal = {
   userId: '11111111-1111-4111-8111-111111111111',
@@ -297,7 +297,7 @@ describe('ProcurementService RFQ creation command', () => {
 
     await expect(
       probe.service.create({ bomId: BOM_ID }, PRINCIPAL)
-    ).rejects.toBeInstanceOf(ConflictException)
+    ).rejects.toBeInstanceOf(RfqNotNeededException)
     expect(probe.insert).not.toHaveBeenCalled()
 
     // A line counts as contracted only through a card PO pricing can use.

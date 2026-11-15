@@ -66,6 +66,13 @@ export interface AutomaticRfqCreationResult
   notificationOutboxId: string | null
 }
 
+/** Every line is priced from a rate card, so there is nothing to quote. */
+export class RfqNotNeededException extends ConflictException {
+  constructor() {
+    super('All BOM lines already have contracted rates — no RFQ needed')
+  }
+}
+
 interface RfqCreationRecordResult extends RfqCreationResult {
   notificationOutboxId: string | null
 }
@@ -373,9 +380,7 @@ export class ProcurementService {
         }))
 
       if (rfqLines.length === 0) {
-        throw new ConflictException(
-          'All BOM lines already have contracted rates — no RFQ needed'
-        )
+        throw new RfqNotNeededException()
       }
 
       const [created] = await transaction

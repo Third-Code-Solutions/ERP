@@ -13,7 +13,7 @@ import {
   RFQ_DISPATCH_JOB,
 } from './rfq-dispatch.constants'
 import { RfqDispatchProcessor } from './rfq-dispatch.processor'
-import type { ProcurementService } from './procurement.service'
+import { RfqNotNeededException, type ProcurementService } from './procurement.service'
 import type { NotificationDeliveryQueue } from './notification-delivery.queue'
 
 const JOB_ID =
@@ -144,6 +144,15 @@ describe('RfqDispatchProcessor', () => {
       expect((failure as Error).message).toBe(`${refusal.name}: ${refusal.message}`)
       expect(probe.enqueueOutbox).not.toHaveBeenCalled()
     }
+  })
+
+  it('completes without an RFQ when every BOM line has a contracted rate', async () => {
+    const probe = harness()
+    probe.createFromApprovedBom.mockRejectedValueOnce(new RfqNotNeededException())
+
+    await expect(probe.processor.process(job())).resolves.toBeNull()
+    expect(probe.enqueueOutbox).not.toHaveBeenCalled()
+    expect(probe.deadLetterAdd).not.toHaveBeenCalled()
   })
 
   it('keeps retrying an outage', async () => {

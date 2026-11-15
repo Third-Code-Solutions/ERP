@@ -159,13 +159,13 @@ afterEach(async () => {
 suite('RFQ BullMQ disposable Redis integration', () => {
   it('deduplicates tenant/BOM delivery and processes one job', async () => {
     const name = queueName('dedupe')
-    const queue = new Queue<RfqDispatchJob, RfqCreationResult, string>(
+    const queue = new Queue<RfqDispatchJob, RfqCreationResult | null, string>(
       name,
       { connection: connection() }
     )
     queues.push(queue)
     const createFromApprovedBom = vi.fn().mockResolvedValue(RESULT)
-    const worker = new Worker<RfqDispatchJob, RfqCreationResult, string>(
+    const worker = new Worker<RfqDispatchJob, RfqCreationResult | null, string>(
       name,
       async (job) =>
         createFromApprovedBom(job.data),
@@ -195,7 +195,7 @@ suite('RFQ BullMQ disposable Redis integration', () => {
   it('bounds retries and writes one explicit dead letter', async () => {
     const name = queueName('retry')
     const deadLetterName = queueName('dead-letter')
-    const queue = new Queue<RfqDispatchJob, RfqCreationResult, string>(
+    const queue = new Queue<RfqDispatchJob, RfqCreationResult | null, string>(
       name,
       { connection: connection() }
     )
@@ -215,7 +215,7 @@ suite('RFQ BullMQ disposable Redis integration', () => {
         enqueueOutbox: vi.fn(),
       } as unknown as NotificationDeliveryQueue
     )
-    const worker = new Worker<RfqDispatchJob, RfqCreationResult, string>(
+    const worker = new Worker<RfqDispatchJob, RfqCreationResult | null, string>(
       name,
       async (job) => processor.process(job),
       { connection: connection() }
@@ -259,7 +259,7 @@ suite('RFQ BullMQ disposable Redis integration', () => {
   it('dead-letters a refused BOM on the first attempt without retrying', async () => {
     const name = queueName('refused')
     const deadLetterName = queueName('refused-dead-letter')
-    const queue = new Queue<RfqDispatchJob, RfqCreationResult, string>(
+    const queue = new Queue<RfqDispatchJob, RfqCreationResult | null, string>(
       name,
       { connection: connection() }
     )
@@ -279,7 +279,7 @@ suite('RFQ BullMQ disposable Redis integration', () => {
         enqueueOutbox: vi.fn(),
       } as unknown as NotificationDeliveryQueue
     )
-    const worker = new Worker<RfqDispatchJob, RfqCreationResult, string>(
+    const worker = new Worker<RfqDispatchJob, RfqCreationResult | null, string>(
       name,
       async (job) => processor.process(job),
       { connection: connection() }
@@ -321,7 +321,7 @@ suite('RFQ BullMQ disposable Redis integration', () => {
   it('runs a refused dispatch again and keeps a dead letter for each refusal', async () => {
     const name = queueName('redispatch')
     const deadLetterName = queueName('redispatch-dead-letter')
-    const queue = new Queue<RfqDispatchJob, RfqCreationResult, string>(
+    const queue = new Queue<RfqDispatchJob, RfqCreationResult | null, string>(
       name,
       { connection: connection() }
     )
@@ -345,7 +345,7 @@ suite('RFQ BullMQ disposable Redis integration', () => {
         enqueueOutbox: vi.fn(),
       } as unknown as NotificationDeliveryQueue
     )
-    const worker = new Worker<RfqDispatchJob, RfqCreationResult, string>(
+    const worker = new Worker<RfqDispatchJob, RfqCreationResult | null, string>(
       name,
       async (job) => processor.process(job),
       { connection: connection() }
@@ -381,12 +381,12 @@ suite('RFQ BullMQ disposable Redis integration', () => {
 
   restartTest('reconnects and processes after disposable Redis restarts', async () => {
     const name = queueName('restart')
-    const queue = new Queue<RfqDispatchJob, RfqCreationResult, string>(
+    const queue = new Queue<RfqDispatchJob, RfqCreationResult | null, string>(
       name,
       { connection: connection() }
     )
     queues.push(queue)
-    const worker = new Worker<RfqDispatchJob, RfqCreationResult, string>(
+    const worker = new Worker<RfqDispatchJob, RfqCreationResult | null, string>(
       name,
       async () => RESULT,
       { connection: connection() }
