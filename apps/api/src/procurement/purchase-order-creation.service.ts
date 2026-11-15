@@ -10,7 +10,10 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { rateCardInEffectCondition } from '@third-code-erp/database'
+import {
+  liveProjectCondition,
+  rateCardInEffectCondition,
+} from '@third-code-erp/database'
 import {
   bomLineItems,
   boms,
@@ -51,6 +54,7 @@ import {
   and,
   eq,
   inArray,
+  isNull,
   sql,
 } from 'drizzle-orm'
 import { roleHasCapability } from '../auth/capability.guard'
@@ -307,7 +311,8 @@ export class PurchaseOrderCreationService {
         .where(
           and(
             eq(boms.id, parsedCommand.bomId),
-            eq(boms.tenant_id, authorizedPrincipal.tenantId)
+            eq(boms.tenant_id, authorizedPrincipal.tenantId),
+            liveProjectCondition(boms.project_id, authorizedPrincipal.tenantId)
           )
         )
         .limit(1)
@@ -795,7 +800,8 @@ export class PurchaseOrderCreationService {
         .where(
           and(
             eq(projects.id, parsedCommand.projectId),
-            eq(projects.tenant_id, authorizedPrincipal.tenantId)
+            eq(projects.tenant_id, authorizedPrincipal.tenantId),
+            isNull(projects.deleted_at)
           )
         )
         .limit(1)
@@ -1160,7 +1166,8 @@ export class PurchaseOrderCreationService {
         .where(
           and(
             eq(projects.id, parsedCommand.projectId),
-            eq(projects.tenant_id, authorizedPrincipal.tenantId)
+            eq(projects.tenant_id, authorizedPrincipal.tenantId),
+            isNull(projects.deleted_at)
           )
         )
         .limit(1)

@@ -11,6 +11,8 @@ import type {
   CreatePurchaseOrderFromBomCommand,
   CreatePurchaseOrdersGroupedFromBomCommand,
 } from '@third-code-erp/shared-types'
+import type { SQL } from 'drizzle-orm'
+import { PgDialect } from 'drizzle-orm/pg-core'
 import { describe, expect, it, vi } from 'vitest'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import type { AuditService } from '../audit/audit.service'
@@ -494,7 +496,15 @@ function bomHarness(queryRows: unknown[][]) {
     execute: vi.fn().mockResolvedValue(undefined),
   }
   const { candidate, audit } = enabledHarness(transactionClient)
-  return { candidate, poInserts, lineInserts, audit }
+  return { candidate, poInserts, lineInserts, audit, select }
+}
+
+// The SQL of the where clause given to the n-th select of a bomHarness run.
+function whereSql(select: ReturnType<typeof vi.fn>, index: number): string {
+  const node = select.mock.results[index]?.value as {
+    where: { mock: { calls: unknown[][] } }
+  }
+  return new PgDialect().sqlToQuery(node.where.mock.calls[0]?.[0] as SQL).sql
 }
 
 let lineSeq = 0
@@ -1026,5 +1036,45 @@ describe('PO effective tax rates (spec tenancy C-3)', () => {
     )
     expect(harness.poInserts).toHaveLength(0)
     expect(harness.audit.writeSemantic).not.toHaveBeenCalled()
+  })
+})
+
+describe('PO creation refuses a retired project', () => {
+  it('treats the project of a standalone PO as not found once retired', async () => {
+    const harness = bomHarness([[]])
+
+    await expect(
+      harness.candidate.create(COMMAND, PRINCIPAL, 'po-retired-project')
+    ).rejects.toThrow('Project not found')
+
+    expect(whereSql(harness.select, 2)).toContain('"projects"."deleted_at" is null')
+    expect(harness.poInserts).toHaveLength(0)
+    expect(harness.audit.writeSemantic).not.toHaveBeenCalled()
+  })
+
+  it('treats the project of a BOM PO as not found once retired', async () => {
+    const harness = bomHarness([[LOCKED_BOM], []])
+
+    await expect(
+      harness.candidate.createFromBom(BOM_COMMAND, PRINCIPAL, 'bom-po-retired')
+    ).rejects.toThrow('Project not found')
+
+    expect(whereSql(harness.select, 3)).toContain('"projects"."deleted_at" is null')
+    expect(harness.poInserts).toHaveLength(0)
+  })
+
+  it('treats a BOM of a retired project as not found for grouped POs', async () => {
+    const harness = bomHarness([[]])
+
+    await expect(
+      harness.candidate.createGroupedFromBom(GROUPED_BOM_COMMAND, PRINCIPAL, 'grouped-retired')
+    ).rejects.toThrow('BOM not found')
+
+    const bomWhere = whereSql(harness.select, 2)
+    expect(bomWhere).toContain(
+      'exists (select "id" from "projects" where ("projects"."id" = "boms"."project_id" and "projects"."tenant_id" = $'
+    )
+    expect(bomWhere).toContain('"projects"."deleted_at" is null')
+    expect(harness.poInserts).toHaveLength(0)
   })
 })

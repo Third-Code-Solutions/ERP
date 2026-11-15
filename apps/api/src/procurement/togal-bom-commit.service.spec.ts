@@ -4,10 +4,13 @@ import { createHash } from 'node:crypto'
 import {
   ConflictException,
   ForbiddenException,
+  NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common'
 import type { ConfigService } from '@nestjs/config'
 import type { TogalBomCommitCommand } from '@third-code-erp/shared-types'
+import type { SQL } from 'drizzle-orm'
+import { PgDialect } from 'drizzle-orm/pg-core'
 import { describe, expect, it, vi } from 'vitest'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import type { AuditService } from '../audit/audit.service'
@@ -61,7 +64,7 @@ function selectQuery(rows: unknown[]) {
   const limit = vi.fn().mockReturnValue({ for: rowLock })
   const where = vi.fn().mockReturnValue({ limit })
   const from = vi.fn().mockReturnValue({ where })
-  return { from }
+  return { from, where }
 }
 
 function harness({
@@ -138,6 +141,7 @@ function harness({
     audit: auditMock,
     request,
     insertLinesValues,
+    bomWhere: bomQuery.where,
   }
 }
 
@@ -165,6 +169,22 @@ describe('Togal BOM commit authority', () => {
     ).rejects.toBeInstanceOf(ForbiddenException)
     expect(transactionClient.insert).not.toHaveBeenCalled()
     expect(audit.stampActor).not.toHaveBeenCalled()
+  })
+
+  it('treats a BOM of a retired project as not found', async () => {
+    const { candidate, transactionClient, audit, bomWhere } = harness({ bom: [] })
+
+    await expect(
+      candidate.commit(COMMAND, PRINCIPAL, 'togal-retired-project')
+    ).rejects.toBeInstanceOf(NotFoundException)
+
+    const sql = new PgDialect().sqlToQuery(bomWhere.mock.calls[0]?.[0] as SQL).sql
+    expect(sql).toContain(
+      'exists (select "id" from "projects" where ("projects"."id" = "boms"."project_id" and "projects"."tenant_id" = $'
+    )
+    expect(sql).toContain('"projects"."deleted_at" is null')
+    expect(transactionClient.insert).not.toHaveBeenCalled()
+    expect(audit.writeSemantic).not.toHaveBeenCalled()
   })
 
   it('does not write lines to an approved BOM', async () => {
