@@ -156,7 +156,8 @@ async function lockBomForMutation(
         eq(boms.tenant_id, scope.tenantId),
         // shortcut: a write already past this check can commit just after a concurrent
         // retirement (its data is kept and audited); locking the project here would
-        // deadlock with signing/award, which take the audit lock first.
+        // deadlock with signing/award, which take the audit lock first. Revisit if the
+        // repo settles on one audit-lock/project-lock order.
         liveProjectCondition(scope.projectId, scope.tenantId),
       ),
     )
