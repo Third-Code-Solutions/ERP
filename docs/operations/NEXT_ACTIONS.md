@@ -2441,7 +2441,7 @@ migration batch or one-tenant canary be proposed.
 ## Exact next action after M3.146 Core-only customer invoice draft creation
 
 Keep `ERP_FINANCE_CUSTOMER_INVOICE_DRAFT_CREATE_WRITES_ENABLED=false`,
-`ERP_FINANCE_CUSTOMER_INVOICE_DRAFT_CREATE_WRITES_VIA_API=false`, and both
+`ERP_FINANCE_CUSTOMER_INVOICE_DRAFT_CREATE_WRITES_VIA_API=false` (selector removed in #178), and both
 invoice tenant allowlists empty. Source checkpoint
 `473eaf1d6a9ec468165520685e2718eeefea5124` is pushed to
 `origin/agent-02/third-code-erp-landing`; remote SHA and clean worktree are
