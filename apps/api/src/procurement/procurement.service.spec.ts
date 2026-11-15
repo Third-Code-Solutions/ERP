@@ -64,6 +64,7 @@ function harness(selectResults: unknown[][]) {
     chain.innerJoin = vi.fn(() => chain)
     chain.where = vi.fn(() => chain)
     chain.limit = vi.fn(() => chain)
+    chain.orderBy = vi.fn(() => chain)
     chain.for = vi.fn(async () => result)
     chain.then = (
       resolve: (value: unknown[]) => unknown,

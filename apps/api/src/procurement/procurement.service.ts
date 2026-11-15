@@ -312,6 +312,7 @@ export class ProcurementService {
             eq(bomLineItems.tenant_id, principal.tenantId)
           )
         )
+        .orderBy(bomLineItems.sort_order, bomLineItems.id)
 
       // Quote the lines a Purchase Order buys; a work item with material lines is bought through them.
       const itemLines = purchasableBomLines(lines)

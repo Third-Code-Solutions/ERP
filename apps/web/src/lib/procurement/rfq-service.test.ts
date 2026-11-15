@@ -85,6 +85,7 @@ function transactionHarness(
       return chain
     })
     chain.limit = vi.fn(() => chain)
+    chain.orderBy = vi.fn(() => chain)
     chain.for = vi.fn(async () => result)
     chain.then = (
       resolve: (value: unknown[]) => unknown,
