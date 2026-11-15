@@ -22,6 +22,7 @@ import {
 } from '@third-code-erp/database/schema'
 import {
   createStockReceiptCommandSchema,
+  isStockReceiptReceivablePoStatus,
   quantityToMicros,
   receiptLineTotal,
   stockReceiptCreationResultSchema,
@@ -209,6 +210,7 @@ export class StockReceiptCreationService {
         .select({
           id: purchaseOrders.id,
           projectId: purchaseOrders.project_id,
+          status: purchaseOrders.status,
         })
         .from(purchaseOrders)
         .where(
@@ -221,6 +223,11 @@ export class StockReceiptCreationService {
         .for('share')
       if (!purchaseOrder) {
         throw new NotFoundException('Purchase Order not found')
+      }
+      if (!isStockReceiptReceivablePoStatus(purchaseOrder.status)) {
+        throw new ConflictException(
+          'Stock Receipt requires an issued Purchase Order'
+        )
       }
 
       const [warehouse] = await transaction

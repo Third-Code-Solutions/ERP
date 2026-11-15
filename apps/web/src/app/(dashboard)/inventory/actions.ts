@@ -6,12 +6,14 @@ import { db } from '@third-code-erp/database'
 import {
   materialItems,
   poLineItems,
+  purchaseOrders,
   stockReceiptLines,
   stockReceipts,
   unitsOfMeasure,
   warehouses,
 } from '@third-code-erp/database/schema'
 import { and, eq, inArray, sql } from 'drizzle-orm'
+import { isStockReceiptReceivablePoStatus } from '@third-code-erp/shared-types'
 import { z } from 'zod'
 import {
   configureInventoryItemThroughCoreApi,
@@ -445,6 +447,25 @@ export async function createStockReceipt(
       }
       revalidateInventory(result.data.stockReceiptId)
       return { ok: true, id: result.data.stockReceiptId }
+    }
+
+    // shortcut: unlocked read outside the insert transaction, so a PO cancelled in
+    // between can still get a draft; posting re-checks under lock. Core locks it.
+    const [purchaseOrder] = await db
+      .select({ status: purchaseOrders.status })
+      .from(purchaseOrders)
+      .where(
+        and(
+          eq(purchaseOrders.id, parsed.purchaseOrderId),
+          eq(purchaseOrders.tenant_id, profile.tenantId)
+        )
+      )
+      .limit(1)
+    if (!purchaseOrder) {
+      throw new Error('Stock Receipt requires a valid PO and active Warehouse')
+    }
+    if (!isStockReceiptReceivablePoStatus(purchaseOrder.status)) {
+      throw new Error('Stock Receipt requires an issued Purchase Order')
     }
 
     const sourceLines = await db

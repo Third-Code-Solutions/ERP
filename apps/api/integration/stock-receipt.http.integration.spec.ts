@@ -88,6 +88,7 @@ suite('Stock Receipt protected HTTP canary', () => {
     const uomA = randomUUID()
     const materialItemA = randomUUID()
     const purchaseOrderA = randomUUID()
+    const draftPurchaseOrderA = randomUUID()
     const poLineItemA = randomUUID()
     const warehouseA = randomUUID()
     const suffix = randomUUID().slice(0, 12)
@@ -163,6 +164,16 @@ suite('Stock Receipt protected HTTP canary', () => {
         status: 'issued',
         subtotal_cents: 100_000,
         total_cents: 100_000,
+      })
+      await transaction.insert(purchaseOrders).values({
+        id: draftPurchaseOrderA,
+        tenant_id: tenantA,
+        project_id: projectA,
+        created_by: adminA,
+        po_number: `PO-DRAFT-${suffix}`,
+        status: 'draft',
+        subtotal_cents: 0,
+        total_cents: 0,
       })
       await transaction.insert(poLineItems).values({
         id: poLineItemA,
@@ -313,6 +324,31 @@ suite('Stock Receipt protected HTTP canary', () => {
           .set('Idempotency-Key', 'cross-tenant')
           .send(command)
           .expect(404)
+
+        const draftRefused = await request(app.getHttpServer())
+          .post('/v1/inventory/stock-receipts')
+          .set('Authorization', 'Bearer stock-receipt-http-admin-a-token')
+          .set('Idempotency-Key', 'draft-po-refused')
+          .send({ ...command, purchaseOrderId: draftPurchaseOrderA })
+          .expect(409)
+        expect(draftRefused.body.message).toBe(
+          'Stock Receipt requires an issued Purchase Order'
+        )
+        const [draftReceiptCount] = await transaction
+          .select({ count: sql<number>`count(*)::int` })
+          .from(stockReceipts)
+          .where(eq(stockReceipts.purchase_order_id, draftPurchaseOrderA))
+        expect(draftReceiptCount?.count).toBe(0)
+        const [draftRequestCount] = await transaction
+          .select({ count: sql<number>`count(*)::int` })
+          .from(stockReceiptCreateRequests)
+          .where(
+            and(
+              eq(stockReceiptCreateRequests.tenant_id, tenantA),
+              eq(stockReceiptCreateRequests.idempotency_key, 'draft-po-refused')
+            )
+          )
+        expect(draftRequestCount?.count).toBe(0)
 
         const first = await request(app.getHttpServer())
           .post('/v1/inventory/stock-receipts')
