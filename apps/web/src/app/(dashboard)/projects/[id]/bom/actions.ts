@@ -184,6 +184,7 @@ export async function createBom(projectId: string): Promise<{ id: string } | { e
   if (!can(profile.role, 'bom.edit')) {
     return { error: `Forbidden: role "${profile.role}" lacks "bom.edit"` }
   }
+  if (!isUuid(projectId)) return { error: 'Project not found' }
 
   const bomId = await db.transaction(async (tx) => {
     const project = await lockProjectForMutation(tx, projectId, profile.tenantId)
@@ -840,6 +841,7 @@ export async function approveBom(bomId: string, projectId: string): Promise<{ er
   if (!can(profile.role, 'bom.approve_internal')) {
     return { error: `Forbidden: role "${profile.role}" lacks "bom.approve_internal"` }
   }
+  if (!isUuid(bomId) || !isUuid(projectId)) return { error: 'BOM not found' }
 
   const approved = await db.transaction(async (tx) => {
     const [bom] = await tx

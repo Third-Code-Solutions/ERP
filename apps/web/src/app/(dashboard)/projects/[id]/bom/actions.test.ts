@@ -1623,8 +1623,12 @@ describe('BOM actions treat a retired project as not found', () => {
     await expect(listProjectLocations('x')).resolves.toEqual([])
     await expect(fetchProjectForecastTcv('x')).resolves.toEqual({ tcvCents: null })
     await expect(fetchLineSupplierContext('x')).resolves.toEqual({ error: 'Line item not found' })
+    await expect(createBom('x')).resolves.toEqual({ error: 'Project not found' })
+    await expect(approveBom('x', PROJECT_ID)).resolves.toEqual({ error: 'BOM not found' })
+    await expect(approveBom(BOM_ID, 'x')).resolves.toEqual({ error: 'BOM not found' })
 
     expect(mocks.select).not.toHaveBeenCalled()
+    expect(mocks.transaction).not.toHaveBeenCalled()
   })
 
   it('locks a BOM for a write only while its project is live', async () => {
