@@ -18,10 +18,8 @@ import {
   setBomLineLocation,
   type ProjectLocationOption,
 } from '@/app/(dashboard)/projects/[id]/bom/actions'
-import {
-  createPoFromBom,
-  createInvoice,
-} from '@/app/(dashboard)/procurement/actions'
+import { createPoFromBom } from '@/app/(dashboard)/procurement/actions'
+import { createInvoiceDraft } from '@/app/(dashboard)/projects/[id]/billing/actions'
 import { SupplierSwitcherPanel } from '@/components/bom/supplier-switcher-panel'
 import { VarianceBanner } from '@/components/bom/variance-banner'
 import {
@@ -552,20 +550,20 @@ export function BomBuilder({
       billingPercentBps <= 0 ||
       billingPercentBps > 10_000
     ) {
-      setProcurementError('Billing % must be between 1 and 100')
+      setProcurementError('Billing % must be between 0.01% and 100%')
       return
     }
     startTransition(async () => {
-      const result = await createInvoice(
-        projectId,
-        bom.id,
+      const result = await createInvoiceDraft(projectId, {
         billingPercentBps,
-        invoiceForm.dueDate || null,
-      )
-      if ('error' in result) {
-        setProcurementError(result.error)
+        bomId: bom.id,
+        dueDate: invoiceForm.dueDate || null,
+        notes: null,
+      })
+      if (result.invoiceId) {
+        router.push(`/invoices/${result.invoiceId}`)
       } else {
-        router.push(`/invoices/${result.id}`)
+        setProcurementError(result.error ?? 'Invoice draft was not created.')
       }
     })
   }

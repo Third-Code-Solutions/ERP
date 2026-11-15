@@ -4,7 +4,6 @@ import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { getUserProfile, requireCapability, can, type AppRole } from '@third-code-erp/auth'
 import {
-  billedPercentBps,
   db,
   resolveTaxRates,
   type Database,
@@ -13,7 +12,6 @@ import {
   bomLineItems,
   boms,
   costCodes,
-  invoices,
   materialItems,
   poLineItems,
   projectBudgetLines,
@@ -51,8 +49,6 @@ import {
 } from '@/lib/erp-core-client'
 import {
   TaxProfileOverlapError,
-  invoiceTaxAudit,
-  nextInvoiceNumber,
   purchasableBomLines,
   purchaseLineCostCode,
   purchaseOrderTaxAudit,
@@ -61,8 +57,6 @@ import {
 } from '@third-code-erp/shared-types'
 import {
   boqQuantityToMicros,
-  computeProgressInvoice,
-  cumulativeBillingCapError,
   manualLineTotal,
 } from '@third-code-erp/shared-types/bom'
 
@@ -899,157 +893,6 @@ export async function receivePoLineItem(
   revalidatePath('/purchase-orders')
   if (po.project_id) revalidatePath(`/projects/${po.project_id}`)
   return {}
-}
-
-// ── Invoice creation ──────────────────────────────────────────────────────────
-
-export async function createInvoice(
-  projectId: string,
-  bomId: string,
-  billingPercentBps: number,
-  dueDate: string | null
-): Promise<{ id: string } | { error: string }> {
-  const profile = await getUserProfile()
-  if (!profile) return { error: 'Unauthorized' }
-  try {
-    requireCapability(profile, 'finance.issue_invoice')
-  } catch {
-    return { error: 'You do not have permission to create invoices.' }
-  }
-  if (
-    !Number.isInteger(billingPercentBps) ||
-    billingPercentBps <= 0 ||
-    billingPercentBps > 10_000
-  ) {
-    return { error: 'Billing percentage must be between 0.01% and 100%' }
-  }
-
-  const [project] = await db
-    .select({ id: projects.id, account_id: projects.account_id })
-    .from(projects)
-    .where(
-      and(
-        eq(projects.id, projectId),
-        eq(projects.tenant_id, profile.tenantId)
-      )
-    )
-    .limit(1)
-  if (!project) return { error: 'Project not found' }
-
-  const [bom] = await db
-    .select({
-      tcv_cents: boms.tcv_cents,
-      status: boms.status,
-      project_id: boms.project_id,
-    })
-    .from(boms)
-    .where(and(eq(boms.id, bomId), eq(boms.tenant_id, profile.tenantId)))
-
-  if (!bom) return { error: 'BOM not found' }
-  if (bom.project_id !== projectId) {
-    return { error: 'BOM belongs to a different project' }
-  }
-  if (bom.status === 'draft') return { error: 'BOM must be approved before billing' }
-
-  const now = new Date()
-  const prefix = `INV-${now.getFullYear()}${String(
-    now.getMonth() + 1
-  ).padStart(2, '0')}-`
-  const allocationLockKey =
-    `invoice-number:${profile.tenantId}:${prefix}`
-
-  const inserted = await db.transaction(async (tx) => {
-    // D-6: same project row lock as the Core API path, so concurrent drafts
-    // serialize and cannot both pass the 100% cumulative cap.
-    await tx
-      .select({ id: projects.id })
-      .from(projects)
-      .where(
-        and(
-          eq(projects.id, projectId),
-          eq(projects.tenant_id, profile.tenantId)
-        )
-      )
-      .for('update')
-    const capError = cumulativeBillingCapError(
-      await billedPercentBps(tx, profile.tenantId, projectId),
-      billingPercentBps
-    )
-    if (capError) return { error: capError }
-
-    // Spec tenancy C-1 / D-TEN-3: rates on the draft's Manila date, read
-    // under the project lock in this transaction.
-    const tax = await resolveTaxRates(tx, profile.tenantId, now)
-    const amounts = computeProgressInvoice(bom.tcv_cents, billingPercentBps, tax)
-
-    await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtext(${allocationLockKey}))`
-    )
-    const [lastInvoice] = await tx
-      .select({
-        highest_suffix: sql<string>`coalesce(
-          max(nullif(substring(${invoices.invoice_number} from ${`^${prefix}([0-9]+)$`}), '')::numeric),
-          0
-        )::text`,
-      })
-      .from(invoices)
-      .where(
-        and(
-          eq(invoices.tenant_id, profile.tenantId),
-          sql`${invoices.invoice_number} like ${prefix + '%'}`
-        )
-      )
-    const invoiceNumber = nextInvoiceNumber(prefix, lastInvoice?.highest_suffix)
-    const [invoice] = await tx
-      .insert(invoices)
-      .values({
-        tenant_id: profile.tenantId,
-        project_id: projectId,
-        account_id: project.account_id,
-        created_by: profile.user.id,
-        invoice_number: invoiceNumber,
-        status: 'draft',
-        billing_percent_bps: billingPercentBps,
-        retention_bps: tax.retentionBps,
-        subtotal_cents: amounts.subtotal,
-        retention_cents: amounts.retention,
-        vat_cents: amounts.vat,
-        withholding_tax_cents: amounts.ewt,
-        net_amount_cents: amounts.net,
-        due_date: dueDate ? new Date(dueDate) : undefined,
-      })
-      .returning({ id: invoices.id })
-    if (!invoice) throw new Error('Failed to create invoice')
-    return { id: invoice.id, invoiceNumber, amounts, tax }
-  }).catch((error: unknown) => {
-    const overlap = taxOverlapError(error)
-    if (overlap) return overlap
-    throw error
-  })
-  if ('error' in inserted) return inserted
-  const { amounts, tax } = inserted
-
-  await writeAuditLog({
-    tenantId: profile.tenantId,
-    actorId: profile.user.id,
-    entityType: 'invoice',
-    entityId: inserted.id,
-    action: 'create',
-    diff: {
-      invoice_number: inserted.invoiceNumber,
-      billing_percent_bps: billingPercentBps,
-      subtotal_cents: amounts.subtotal,
-      retention_cents: amounts.retention,
-      vat_cents: amounts.vat,
-      withholding_tax_cents: amounts.ewt,
-      net_amount_cents: amounts.net,
-      tax: invoiceTaxAudit(tax),
-    },
-  })
-
-  revalidatePath(`/projects/${projectId}/billing`)
-  revalidatePath('/invoices')
-  return { id: inserted.id }
 }
 
 // ── Three-step PO approval (REFACTOR.md US-Pre-003) ──────────────────────────
