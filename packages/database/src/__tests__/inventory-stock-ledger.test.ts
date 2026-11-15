@@ -843,6 +843,36 @@ runtimeSuite('inventory stock ledger runtime proof', () => {
     expect(result[0]).toMatchObject({ status: 'posted' })
   })
 
+  it.each([
+    ['received_qty', '1'],
+    ['received_quantity_micros', '1000000'],
+    ['legacy_received_quantity_micros', '1000000'],
+    ['received_at', 'now()'],
+    ['received_by', 'gen_random_uuid()'],
+  ])(
+    'refuses a direct %s write outside Stock Receipt posting',
+    async (column, value) => {
+      const failure = await inRollback(sqlClient, async (tx) => {
+        const fixture = await seedInventoryFixture(tx)
+        try {
+          await tx.unsafe(
+            `update po_line_items set ${column} = ${value}
+             where id = '${fixture.poLineId}'`
+          )
+          return null
+        } catch (error) {
+          const { code, message } = error as { code?: string; message: string }
+          return { code, message }
+        }
+      })
+
+      expect(failure).toEqual({
+        code: '55000',
+        message: 'Received quantity is derived from posted Stock Receipts',
+      })
+    }
+  )
+
   it('still refuses a receipt on a cancelled PO', async () => {
     const message = await inRollback(sqlClient, async (tx) => {
       const fixture = await seedInventoryFixture(tx, { poStatus: 'cancelled' })
