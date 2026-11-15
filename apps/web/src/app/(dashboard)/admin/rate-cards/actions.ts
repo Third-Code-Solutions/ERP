@@ -17,7 +17,12 @@ const rateCardSchema = z.object({
     .uuid()
     .optional()
     .or(z.literal('').transform(() => undefined)),
-  unit_price_php: z.coerce.number().nonnegative('price must be >= 0'),
+  // The BOM rate-card picker skips cards priced at 0, so a 0-centavo card would never apply.
+  unit_price_php: z.coerce
+    .number()
+    .finite()
+    .refine((php) => toCents(php) >= 1, 'price must be at least ₱0.01')
+    .refine((php) => Number.isSafeInteger(toCents(php)), 'price is too large'),
   lead_time_days: z.coerce.number().int().min(0).max(3650).optional(),
   is_preferred: z.coerce.boolean().optional(),
   effective_from: z.string().optional(),

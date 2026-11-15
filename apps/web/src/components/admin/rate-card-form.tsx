@@ -98,7 +98,7 @@ export function RateCardForm({ materialItems, vendors, initial, onDone }: Props)
             id="rc-price"
             name="unit_price_php"
             type="number"
-            min={0}
+            min={0.01}
             step="0.01"
             defaultValue={
               initial?.unit_price_cents != null
