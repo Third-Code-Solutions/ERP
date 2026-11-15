@@ -100,6 +100,8 @@ describe('advancePoStatus delivery transitions', () => {
     await expect(advancePoStatus(PO_ID, 'partial_delivered')).resolves.toEqual({})
 
     expect(mocks.update).toHaveBeenCalledOnce()
+    // A delivery step does not need a live project when it writes.
+    expect(mocks.liveProjectCondition).toHaveBeenCalledOnce()
     expect(mocks.writeAuditLog).toHaveBeenCalledWith({
       tenantId: TENANT_ID,
       actorId: ACTOR_ID,
@@ -144,6 +146,8 @@ describe('advancePoStatus delivery transitions', () => {
     expect(mocks.writeAuditLog).toHaveBeenCalledWith(
       expect.objectContaining({ diff: { from: 'submitted', to: 'confirmed' } })
     )
+    // Once in the read and once in the write: the project must still be live then.
+    expect(mocks.liveProjectCondition).toHaveBeenCalledTimes(2)
   })
 
   it.each([
