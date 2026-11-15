@@ -244,6 +244,17 @@ describe('advancePoStatus delivery transitions', () => {
   })
 
   it.each([
+    ['draft', 'Cannot transition from draft to confirmed'],
+    ['submitted', 'The Purchase Order creator cannot confirm it'],
+  ])('on a retired project, confirming a %s PO of its own creator gives "%s" first', async (status, error) => {
+    selectPurchaseOrder(status, true, ACTOR_ID, false)
+
+    await expect(advancePoStatus(PO_ID, 'confirmed')).resolves.toEqual({ error })
+    expect(mocks.update).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+  })
+
+  it.each([
     ['issued', 'partial_delivered'],
     ['submitted', 'cancelled'],
   ])('still records %s to %s on a PO of a retired project', async (from, to) => {

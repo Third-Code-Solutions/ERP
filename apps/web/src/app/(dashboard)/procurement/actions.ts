@@ -803,9 +803,6 @@ export async function advancePoStatus(
 
   if (!po) return { error: 'PO not found' }
   const marksDelivered = DELIVERED_PO_STATUSES.includes(nextStatus)
-  if (nextStatus === 'confirmed' && !po.project_live) {
-    return { error: RETIRED_PROJECT_PO_ERROR }
-  }
 
   const allowed = VALID_PO_TRANSITIONS[po.status] ?? []
   if (!allowed.includes(nextStatus)) {
@@ -814,6 +811,10 @@ export async function advancePoStatus(
   // Legacy `confirmed` is the approval step: the creator cannot approve their own PO.
   if (nextStatus === 'confirmed' && po.created_by === profile.user.id) {
     return { error: 'The Purchase Order creator cannot confirm it' }
+  }
+  // Checked after status and approvers, as in Core.
+  if (nextStatus === 'confirmed' && !po.project_live) {
+    return { error: RETIRED_PROJECT_PO_ERROR }
   }
   if (marksDelivered && po.has_unreceived_stock_line) {
     return { error: UNRECEIVED_PO_ERROR }
