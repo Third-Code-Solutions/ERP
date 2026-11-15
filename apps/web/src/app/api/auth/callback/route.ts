@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { cookies } from 'next/headers'
+import { supabaseAuthCookieOptions } from '@third-code-erp/auth/cookie-options'
 import { z } from 'zod'
 
 import {
@@ -42,11 +43,7 @@ export async function GET(request: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         // Merged by @supabase/ssr into the session cookies it writes (SEC-14).
-        cookieOptions: {
-          path: '/',
-          sameSite: 'lax',
-          secure: process.env.NODE_ENV === 'production',
-        },
+        cookieOptions: supabaseAuthCookieOptions(),
         cookies: {
           getAll() {
             return cookieStore.getAll()

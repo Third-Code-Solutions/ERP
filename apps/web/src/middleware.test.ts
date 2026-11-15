@@ -74,6 +74,19 @@ describe('middleware Supabase session recovery', () => {
         cookie.includes('Expires=Thu, 01 Jan 1970 00:00:00 GMT')
       )
     ).toBe(true)
+    // The removals carry the same attributes as the cookies they replace (SEC-14).
+    for (const cookie of staleCookies) {
+      expect(cookie).toContain('Path=/')
+      expect(cookie).toContain('Secure')
+      expect(cookie.toLowerCase()).toContain('samesite=lax')
+    }
+    expect(mocks.createServerClient).toHaveBeenCalledWith(
+      'https://example.supabase.co',
+      'anon-key',
+      expect.objectContaining({
+        cookieOptions: { path: '/', sameSite: 'lax', secure: true },
+      })
+    )
     expect(setCookies.some((cookie) => cookie.startsWith('analytics'))).toBe(
       false
     )

@@ -5,7 +5,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./server": "./src/server.ts",
-    "./client": "./src/client.ts"
+    "./client": "./src/client.ts",
+    "./cookie-options": "./src/cookie-options.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
