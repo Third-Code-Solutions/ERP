@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   createPurchaseOrdersGroupedFromBomThroughCoreApi: vi.fn(),
   transitionPurchaseOrderThroughCoreApi: vi.fn(),
   revalidatePath: vi.fn(),
+  liveProjectCondition: vi.fn(() => ({ mapWith: vi.fn(() => ({})) })),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -22,7 +23,7 @@ vi.mock('@third-code-erp/auth', () => ({
 
 vi.mock('@third-code-erp/database', () => ({
   db: { select: mocks.select },
-  liveProjectCondition: vi.fn(() => ({})),
+  liveProjectCondition: mocks.liveProjectCondition,
 }))
 
 vi.mock('@third-code-erp/database/schema', () => ({
@@ -35,7 +36,7 @@ vi.mock('@third-code-erp/database/schema', () => ({
   projectBudgetLines: {},
   projectBudgets: {},
   projects: {},
-  purchaseOrders: {},
+  purchaseOrders: { project_id: 'purchase_orders.project_id' },
   rateCards: {},
   vendors: {},
 }))
@@ -92,6 +93,7 @@ import {
   commercialApprovePo,
   pmApprovePo,
   rejectPoApproval,
+  scmIssuePo,
   submitPoForPmApproval,
 } from './actions'
 
@@ -103,7 +105,7 @@ const BOM_ID = '55555555-5555-4555-8555-555555555555'
 
 function selectPurchaseOrder(
   status: string,
-  approvers: { created_by?: string; pm_approved_by?: string } = {}
+  approvers: { created_by?: string; pm_approved_by?: string; project_live?: boolean } = {}
 ): void {
   const where = vi.fn().mockResolvedValue([
     {
@@ -111,10 +113,12 @@ function selectPurchaseOrder(
       status,
       project_id: PROJECT_ID,
       po_number: 'PO-0001',
+      project_live: true,
       ...approvers,
     },
   ])
-  const from = vi.fn().mockReturnValue({ where })
+  const leftJoin = vi.fn().mockReturnValue({ where })
+  const from = vi.fn().mockReturnValue({ where, leftJoin })
   mocks.select.mockReturnValue({ from })
 }
 
@@ -204,6 +208,42 @@ describe('Purchase Order workflow compatibility seam', () => {
       expect(mocks.transitionPurchaseOrderThroughCoreApi).not.toHaveBeenCalled()
     }
   )
+
+  it.each([
+    { name: 'submit', status: 'draft', invoke: () => submitPoForPmApproval(PO_ID, 'po-retired-1') },
+    { name: 'PM approval', status: 'pending_pm_approval', invoke: () => pmApprovePo(PO_ID, 'po-retired-2') },
+    {
+      name: 'Commercial approval',
+      status: 'pending_commercial_approval',
+      invoke: () => commercialApprovePo(PO_ID, 'po-retired-3'),
+    },
+    { name: 'SCM issue', status: 'pending_scm_issuance', invoke: () => scmIssuePo(PO_ID, 'po-retired-4') },
+  ])('refuses $name on a PO of a retired project', async ({ status, invoke }) => {
+    selectPurchaseOrder(status, { project_live: false })
+
+    await expect(invoke()).resolves.toEqual({
+      error: 'This Purchase Order belongs to a retired project; it can only be rejected, cancelled or received.',
+    })
+    expect(mocks.transitionPurchaseOrderThroughCoreApi).not.toHaveBeenCalled()
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+    expect(mocks.liveProjectCondition).toHaveBeenCalledWith(
+      'purchase_orders.project_id',
+      TENANT_ID
+    )
+  })
+
+  it('still lets a PO of a retired project be rejected', async () => {
+    selectPurchaseOrder('pending_scm_issuance', { project_live: false })
+
+    await expect(
+      rejectPoApproval(PO_ID, 'Project retired', 'po-retired-reject')
+    ).resolves.toEqual({})
+    expect(mocks.transitionPurchaseOrderThroughCoreApi).toHaveBeenCalledWith(
+      PO_ID,
+      { action: 'reject', reason: 'Project retired' },
+      'po-retired-reject'
+    )
+  })
 
   it('generates a UUID retry key for older callers', async () => {
     selectPurchaseOrder('draft')

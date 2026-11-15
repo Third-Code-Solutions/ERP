@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   update: vi.fn(),
   writeAuditLog: vi.fn(),
   revalidatePath: vi.fn(),
+  liveProjectCondition: vi.fn(() => ({ mapWith: vi.fn(() => ({})) })),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -20,6 +21,7 @@ vi.mock('@third-code-erp/database', () => ({
     select: mocks.select,
     update: mocks.update,
   },
+  liveProjectCondition: mocks.liveProjectCondition,
 }))
 
 vi.mock('next/cache', () => ({
@@ -36,6 +38,7 @@ vi.mock('@/lib/operations/notifications', () => ({
   notifyExternalEmail: vi.fn(),
 }))
 
+import { purchaseOrders } from '@third-code-erp/database/schema'
 import { advancePoStatus } from './actions'
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111'
@@ -53,7 +56,12 @@ const PROFILE = {
 
 const CREATOR_ID = '55555555-5555-4555-8555-555555555555'
 
-function selectPurchaseOrder(status: string, found = true, createdBy = CREATOR_ID): void {
+function selectPurchaseOrder(
+  status: string,
+  found = true,
+  createdBy = CREATOR_ID,
+  projectLive = true
+): void {
   const where = vi.fn().mockResolvedValue(
     found
       ? [
@@ -62,6 +70,7 @@ function selectPurchaseOrder(status: string, found = true, createdBy = CREATOR_I
             status,
             project_id: PROJECT_ID,
             created_by: createdBy,
+            project_live: projectLive,
           },
         ]
       : []
@@ -135,6 +144,33 @@ describe('advancePoStatus delivery transitions', () => {
     expect(mocks.writeAuditLog).toHaveBeenCalledWith(
       expect.objectContaining({ diff: { from: 'submitted', to: 'confirmed' } })
     )
+  })
+
+  it.each([
+    ['draft', 'submitted'],
+    ['submitted', 'confirmed'],
+  ])('refuses %s to %s on a PO of a retired project', async (from, to) => {
+    selectPurchaseOrder(from, true, CREATOR_ID, false)
+
+    await expect(advancePoStatus(PO_ID, to)).resolves.toEqual({
+      error: 'This Purchase Order belongs to a retired project; it can only be rejected, cancelled or received.',
+    })
+    expect(mocks.update).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+    expect(mocks.liveProjectCondition).toHaveBeenCalledWith(
+      purchaseOrders.project_id,
+      TENANT_ID
+    )
+  })
+
+  it.each([
+    ['issued', 'partial_delivered'],
+    ['submitted', 'cancelled'],
+  ])('still records %s to %s on a PO of a retired project', async (from, to) => {
+    selectPurchaseOrder(from, true, CREATOR_ID, false)
+
+    await expect(advancePoStatus(PO_ID, to)).resolves.toEqual({})
+    expect(mocks.update).toHaveBeenCalledOnce()
   })
 
   it('refuses to overwrite a status changed concurrently', async () => {

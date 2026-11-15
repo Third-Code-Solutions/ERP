@@ -432,6 +432,11 @@ export async function createPoFromBom(
 
 // ── PO status advance ─────────────────────────────────────────────────────────
 
+// Retiring a project does not close its POs: goods already ordered can still be
+// received, and a PO can still be rejected or cancelled, but not committed further.
+const RETIRED_PROJECT_PO_ERROR =
+  'This Purchase Order belongs to a retired project; it can only be rejected, cancelled or received.'
+
 const VALID_PO_TRANSITIONS: Record<string, string[]> = {
   // Legacy flow — preserved for back-compat.
   draft: ['submitted', 'cancelled'],
@@ -752,11 +757,20 @@ export async function advancePoStatus(
   }
 
   const [po] = await db
-    .select({ id: purchaseOrders.id, status: purchaseOrders.status, project_id: purchaseOrders.project_id, created_by: purchaseOrders.created_by })
+    .select({
+      id: purchaseOrders.id,
+      status: purchaseOrders.status,
+      project_id: purchaseOrders.project_id,
+      created_by: purchaseOrders.created_by,
+      project_live: liveProjectCondition(purchaseOrders.project_id, profile.tenantId).mapWith(Boolean),
+    })
     .from(purchaseOrders)
     .where(and(eq(purchaseOrders.id, poId), eq(purchaseOrders.tenant_id, profile.tenantId)))
 
   if (!po) return { error: 'PO not found' }
+  if ((nextStatus === 'submitted' || nextStatus === 'confirmed') && !po.project_live) {
+    return { error: RETIRED_PROJECT_PO_ERROR }
+  }
 
   const allowed = VALID_PO_TRANSITIONS[po.status] ?? []
   if (!allowed.includes(nextStatus)) {
@@ -957,11 +971,18 @@ export async function submitPoForPmApproval(
   }
 
   const [po] = await db
-    .select({ id: purchaseOrders.id, status: purchaseOrders.status, project_id: purchaseOrders.project_id, po_number: purchaseOrders.po_number })
+    .select({
+      id: purchaseOrders.id,
+      status: purchaseOrders.status,
+      project_id: purchaseOrders.project_id,
+      po_number: purchaseOrders.po_number,
+      project_live: liveProjectCondition(purchaseOrders.project_id, profile.tenantId).mapWith(Boolean),
+    })
     .from(purchaseOrders)
     .where(and(eq(purchaseOrders.id, poId), eq(purchaseOrders.tenant_id, profile.tenantId)))
 
   if (!po) return { error: 'PO not found' }
+  if (!po.project_live) return { error: RETIRED_PROJECT_PO_ERROR }
   if (po.status !== 'draft') return { error: `Cannot submit a PO in status "${po.status}"` }
 
   const coreResult = await transitionPurchaseOrderThroughCoreIfEnabled(
@@ -1017,11 +1038,20 @@ export async function pmApprovePo(
   }
 
   const [po] = await db
-    .select({ id: purchaseOrders.id, status: purchaseOrders.status, project_id: purchaseOrders.project_id, po_number: purchaseOrders.po_number, created_by: purchaseOrders.created_by, pm_approved_by: purchaseOrders.pm_approved_by })
+    .select({
+      id: purchaseOrders.id,
+      status: purchaseOrders.status,
+      project_id: purchaseOrders.project_id,
+      po_number: purchaseOrders.po_number,
+      created_by: purchaseOrders.created_by,
+      pm_approved_by: purchaseOrders.pm_approved_by,
+      project_live: liveProjectCondition(purchaseOrders.project_id, profile.tenantId).mapWith(Boolean),
+    })
     .from(purchaseOrders)
     .where(and(eq(purchaseOrders.id, poId), eq(purchaseOrders.tenant_id, profile.tenantId)))
 
   if (!po) return { error: 'PO not found' }
+  if (!po.project_live) return { error: RETIRED_PROJECT_PO_ERROR }
   if (po.status !== 'pending_pm_approval') return { error: `PO not in PM approval state (${po.status})` }
   if (po.created_by === profile.user.id) {
     return { error: 'The Purchase Order creator cannot give its PM approval' }
@@ -1085,11 +1115,20 @@ export async function commercialApprovePo(
   }
 
   const [po] = await db
-    .select({ id: purchaseOrders.id, status: purchaseOrders.status, project_id: purchaseOrders.project_id, po_number: purchaseOrders.po_number, created_by: purchaseOrders.created_by, pm_approved_by: purchaseOrders.pm_approved_by })
+    .select({
+      id: purchaseOrders.id,
+      status: purchaseOrders.status,
+      project_id: purchaseOrders.project_id,
+      po_number: purchaseOrders.po_number,
+      created_by: purchaseOrders.created_by,
+      pm_approved_by: purchaseOrders.pm_approved_by,
+      project_live: liveProjectCondition(purchaseOrders.project_id, profile.tenantId).mapWith(Boolean),
+    })
     .from(purchaseOrders)
     .where(and(eq(purchaseOrders.id, poId), eq(purchaseOrders.tenant_id, profile.tenantId)))
 
   if (!po) return { error: 'PO not found' }
+  if (!po.project_live) return { error: RETIRED_PROJECT_PO_ERROR }
   if (po.status !== 'pending_commercial_approval') {
     return { error: `PO not in Commercial approval state (${po.status})` }
   }
@@ -1167,6 +1206,7 @@ export async function scmIssuePo(
       vendor_id: purchaseOrders.vendor_id,
       supplier_name: vendors.name,
       supplier_email: vendors.email,
+      project_live: liveProjectCondition(purchaseOrders.project_id, profile.tenantId).mapWith(Boolean),
     })
     .from(purchaseOrders)
     .leftJoin(
@@ -1176,6 +1216,7 @@ export async function scmIssuePo(
     .where(and(eq(purchaseOrders.id, poId), eq(purchaseOrders.tenant_id, profile.tenantId)))
 
   if (!po) return { error: 'PO not found' }
+  if (!po.project_live) return { error: RETIRED_PROJECT_PO_ERROR }
   if (po.status !== 'pending_scm_issuance') {
     return { error: `PO not in SCM issuance state (${po.status})` }
   }

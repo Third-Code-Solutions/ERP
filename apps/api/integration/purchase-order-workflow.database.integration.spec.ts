@@ -176,6 +176,47 @@ suite('Purchase Order workflow database integration', () => {
           email: `procurement-${suffix}@integration.test`,
         }
 
+        // A PO of a retired project cannot be committed further; restore the
+        // project to run the workflow below.
+        await transaction
+          .update(projects)
+          .set({
+            deleted_at: new Date(),
+            deleted_by: pmId,
+            deletion_reason: 'Synthetic retirement proof',
+          })
+          .where(eq(projects.id, projectId))
+        await expect(
+          service.transition(
+            purchaseOrderId,
+            { action: 'submit_pm_approval' },
+            pmPrincipal,
+            'workflow-submit-retired'
+          )
+        ).rejects.toThrow('The project of this Purchase Order is retired')
+        const [stillDraft] = await transaction
+          .select({ status: purchaseOrders.status })
+          .from(purchaseOrders)
+          .where(eq(purchaseOrders.id, purchaseOrderId))
+        expect(stillDraft?.status).toBe('draft')
+        // The bound test transaction does not roll the refused call back as
+        // production would, so drop its request row before counting below.
+        await transaction
+          .delete(purchaseOrderWorkflowRequests)
+          .where(
+            and(
+              eq(purchaseOrderWorkflowRequests.tenant_id, tenantId),
+              eq(
+                purchaseOrderWorkflowRequests.idempotency_key,
+                'workflow-submit-retired'
+              )
+            )
+          )
+        await transaction
+          .update(projects)
+          .set({ deleted_at: null, deleted_by: null, deletion_reason: null })
+          .where(eq(projects.id, projectId))
+
         await expect(
           service.transition(
             purchaseOrderId,
