@@ -115,8 +115,8 @@ BEGIN
     -- Received quantities come only from posted Stock Receipts; a line starts unreceived.
     INSERT INTO po_line_items (tenant_id, po_id, sort_order, code, description, unit, quantity, unit_cost_cents, line_total_cents, notes)
     VALUES
-      (v_tenant, v_po1, 0, 'M-100', 'Fan Coil Unit, 2HP ceiling-cassette', 'pcs', 24, 8500000, 204000000, '18 of 24 on site, Stock Receipt to post; 6 backordered to next week'),
-      (v_tenant, v_po1, 1, 'M-110', 'Air Handling Unit, 5TR',              'pcs',  4, 35000000, 140000000, 'All 4 on site and inspected, Stock Receipt to post');
+      (v_tenant, v_po1, 0, 'M-100', 'Fan Coil Unit, 2HP ceiling-cassette', 'pcs', 24, 8500000, 204000000, '18 of 24 on site; 6 backordered to next week'),
+      (v_tenant, v_po1, 1, 'M-110', 'Air Handling Unit, 5TR',              'pcs',  4, 35000000, 140000000, 'All 4 on site and inspected');
   END IF;
 
   -- ------------------------------------------------------------ comments on Somnus

@@ -876,12 +876,13 @@ runtimeSuite('inventory stock ledger runtime proof', () => {
     }
   )
 
+  // Each row is valid under the table's own constraints, so only the guard refuses it.
   it.each([
     ['received_qty', '1'],
     ['received_quantity_micros', '1000000'],
-    ['legacy_received_quantity_micros', '1000000'],
+    ['legacy_received_quantity_micros, received_quantity_micros', '1000000, 1000000'],
     ['received_at', 'now()'],
-    ['received_by', 'gen_random_uuid()'],
+    ['received_by', '(select id from users where tenant_id = po_line_items.tenant_id limit 1)'],
   ])('refuses a PO line inserted with %s already set', async (column, value) => {
     const failure = await inRollback(sqlClient, async (tx) => {
       const fixture = await seedInventoryFixture(tx)

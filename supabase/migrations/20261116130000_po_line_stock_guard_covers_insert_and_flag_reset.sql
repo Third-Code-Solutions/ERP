@@ -11,7 +11,9 @@
 -- The INSERT branch now refuses any received value, and a statement-level
 -- trigger resets the flag after every UPDATE of po_line_items, so it covers
 -- only the projection UPDATE that set it. The UPDATE branch is unchanged; no
--- persisted row changes.
+-- persisted row changes. A caller that sets the flag must run its projection
+-- as the next UPDATE of po_line_items; any UPDATE in between clears the flag
+-- and the projection is refused (fails closed).
 begin;
 
 set local lock_timeout = '5s';
