@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import { getUserProfile, requireUserProfile, can } from '@third-code-erp/auth'
+import { getUserProfile, requireUserProfile, can, type AppRole } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   boms,
@@ -28,6 +28,7 @@ import { eq, and, max, desc, asc, isNotNull, inArray, ne } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
 import { writeAuditLogInTransaction } from '@/lib/audit'
 import { safeActionError } from '@/lib/safe-action-error'
+import { getProjectDetailAccess } from '../project-detail-access'
 import { inngest } from '@/lib/inngest'
 import {
   dispatchApprovedBomRfqThroughCoreApi,
@@ -1026,12 +1027,18 @@ export interface PendingBomGrainReview {
   reason: string
 }
 
+// Readers below are callable server actions, so they enforce the BOM page's own
+// read policy rather than relying on the page gate.
+function canReadBom(role: AppRole): boolean {
+  return getProjectDetailAccess(role).bom
+}
+
 export async function listPendingBomGrainReviews(
   projectId: string,
   bomId: string | null,
 ): Promise<PendingBomGrainReview[]> {
   const profile = await getUserProfile()
-  if (!profile || !bomId) return []
+  if (!profile || !bomId || !canReadBom(profile.role)) return []
 
   const rows = await db
     .select({
@@ -1331,7 +1338,7 @@ export interface BomLocationRollupRow {
 
 export async function listProjectLocations(projectId: string): Promise<ProjectLocationOption[]> {
   const profile = await getUserProfile()
-  if (!profile) return []
+  if (!profile || !canReadBom(profile.role)) return []
 
   return db
     .select({
@@ -1354,7 +1361,7 @@ export async function listPendingBomLocationReviews(
   bomId: string | null,
 ): Promise<PendingBomLocationReview[]> {
   const profile = await getUserProfile()
-  if (!profile || !bomId) return []
+  if (!profile || !bomId || !canReadBom(profile.role)) return []
 
   return db
     .select({
@@ -1396,7 +1403,7 @@ export async function listBomLocationRollup(
   bomId: string | null,
 ): Promise<BomLocationRollupRow[]> {
   const profile = await getUserProfile()
-  if (!profile || !bomId) return []
+  if (!profile || !bomId || !canReadBom(profile.role)) return []
 
   return db
     .select({
@@ -1903,7 +1910,7 @@ export async function fetchProjectForecastTcv(
   projectId: string,
 ): Promise<{ tcvCents: number | null }> {
   const profile = await getUserProfile()
-  if (!profile) return { tcvCents: null }
+  if (!profile || !canReadBom(profile.role)) return { tcvCents: null }
 
   // A project can be linked to multiple opportunities (legacy + Won). Pick
   // the highest TCV — if anything, that's the most aggressive forecast and
@@ -1928,6 +1935,9 @@ export async function fetchLineSupplierContext(
 ): Promise<{ data: SupplierContext } | { error: string }> {
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
+  if (!canReadBom(profile.role)) {
+    return { error: `Forbidden: role "${profile.role}" cannot read BOMs` }
+  }
 
   const [line] = await db
     .select({ id: bomLineItems.id })
