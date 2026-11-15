@@ -268,8 +268,10 @@ describe('advancePoStatus delivery transitions', () => {
 
 describe('Purchase Order receipts', () => {
   it('has no direct line receipt action; receipts go through controlled Stock Receipts', () => {
-    // The removed receivePoLineItem wrote received quantities on any PO but a
-    // cancelled one (drafts included) and flipped its status with no condition.
+    // The removed receivePoLineItem wrote received_qty directly on any PO but a
+    // cancelled one and flipped its status with no condition. The database trigger
+    // guard_po_line_stock_fields refuses such writes (55000) unless post_stock_receipt
+    // makes them, so it could only fail; this keeps it from coming back.
     expect(Object.keys(procurementActions)).not.toContain('receivePoLineItem')
   })
 })
