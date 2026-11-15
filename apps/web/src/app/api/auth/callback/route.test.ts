@@ -178,4 +178,36 @@ describe('auth callback redirect safety', () => {
     )
     expect(response.cookies.get('abi-ops-password-recovery')).toBeUndefined()
   })
+
+  it('marks the session cookies it writes Secure in production (SEC-14)', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    // Stand in for @supabase/ssr, which merges the caller's cookieOptions into each write.
+    mocks.createServerClient.mockImplementation((_url, _key, config) => ({
+      auth: {
+        exchangeCodeForSession: async () => {
+          config.cookies.setAll([
+            {
+              name: 'sb-example-auth-token',
+              value: 'session',
+              options: { ...config.cookieOptions, maxAge: 34_560_000 },
+            },
+          ])
+          return { data: { session: null, user: null }, error: null }
+        },
+        verifyOtp: mocks.verifyOtp,
+        getClaims: mocks.getClaims,
+      },
+    }))
+
+    const response = await GET(
+      new NextRequest('https://erp.example/api/auth/callback?code=ordinary-code&next=%2Fdashboard')
+    )
+
+    expect(response.headers.get('location')).toBe('https://erp.example/dashboard')
+    expect(mocks.cookieStore.set).toHaveBeenCalledWith(
+      'sb-example-auth-token',
+      'session',
+      expect.objectContaining({ path: '/', sameSite: 'lax', secure: true })
+    )
+  })
 })
