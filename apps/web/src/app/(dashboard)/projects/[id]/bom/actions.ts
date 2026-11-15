@@ -154,8 +154,10 @@ async function lockBomForMutation(
         eq(boms.id, scope.bomId),
         eq(boms.project_id, scope.projectId),
         eq(boms.tenant_id, scope.tenantId),
-        // Share-locks the project row so a concurrent retirement cannot slip in.
-        liveProjectCondition(scope.projectId, scope.tenantId, { lock: 'share' }),
+        // shortcut: a write already past this check can commit just after a concurrent
+        // retirement (its data is kept and audited); locking the project here would
+        // deadlock with signing/award, which take the audit lock first.
+        liveProjectCondition(scope.projectId, scope.tenantId),
       ),
     )
     .for('update')
@@ -860,8 +862,9 @@ export async function approveBom(bomId: string, projectId: string): Promise<{ er
           eq(boms.id, bomId),
           eq(boms.project_id, projectId),
           eq(boms.tenant_id, profile.tenantId),
-          // Share-locks the project row: approval dispatches RFQs, never for a retired project.
-          liveProjectCondition(projectId, profile.tenantId, { lock: 'share' }),
+          // shortcut: unlocked, like lockBomForMutation; an approval racing a retirement
+          // can still dispatch an RFQ until RFQ creation itself refuses a retired project.
+          liveProjectCondition(projectId, profile.tenantId),
         ),
       )
       .for('update')

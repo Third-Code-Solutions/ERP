@@ -1633,18 +1633,16 @@ describe('BOM actions treat a retired project as not found', () => {
     expect(mocks.transaction).not.toHaveBeenCalled()
   })
 
-  it('approves only a BOM whose project is live, share-locking the project', async () => {
+  it('approves only a BOM whose project is live', async () => {
     mocks.transactionSelect.mockImplementation(() => selectResult([]))
 
     await expect(approveBom(BOM_ID, PROJECT_ID)).resolves.toEqual({ error: 'BOM not found' })
 
-    expect(mocks.liveProjectCondition.mock.calls).toEqual([
-      [PROJECT_ID, TENANT_ID, { lock: 'share' }],
-    ])
+    expect(mocks.liveProjectCondition.mock.calls).toEqual([[PROJECT_ID, TENANT_ID]])
     expectEveryLiveProjectConditionPassedToAnd()
   })
 
-  it('writes a draft line only through a BOM lock that share-locks a live project', async () => {
+  it('writes a draft line only through a BOM lock that requires a live project', async () => {
     mocks.select
       .mockReturnValueOnce(selectResult([{ id: BOM_ID, status: 'draft' }]))
       .mockReturnValueOnce(
@@ -1668,7 +1666,7 @@ describe('BOM actions treat a retired project as not found', () => {
 
     expect(mocks.liveProjectCondition.mock.calls).toEqual([
       [PROJECT_ID, TENANT_ID],
-      [PROJECT_ID, TENANT_ID, { lock: 'share' }],
+      [PROJECT_ID, TENANT_ID],
     ])
     expectEveryLiveProjectConditionPassedToAnd()
     expect(mocks.transactionDelete).not.toHaveBeenCalled()

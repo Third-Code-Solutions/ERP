@@ -16,16 +16,6 @@ describe('liveProjectCondition', () => {
     expect(query.params).toEqual([PROJECT_ID, TENANT_ID])
   })
 
-  it('can share-lock the live project row for a write', () => {
-    const query = new PgDialect().sqlToQuery(
-      liveProjectCondition(PROJECT_ID, TENANT_ID, { lock: 'share' })
-    )
-
-    expect(query.sql).toBe(
-      'exists (select "id" from "projects" where ("projects"."id" = $1 and "projects"."tenant_id" = $2 and "projects"."deleted_at" is null) for share)'
-    )
-  })
-
   it('can correlate with the outer row', () => {
     const query = new PgDialect().sqlToQuery(liveProjectCondition(boms.project_id, TENANT_ID))
 

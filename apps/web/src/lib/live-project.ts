@@ -8,24 +8,24 @@ import { projects } from '@third-code-erp/database/schema'
  * operation, so callable server actions treat a retired project as not found,
  * as its pages already do.
  *
- * `lock: 'share'` share-locks the live project row for the rest of the
- * transaction. Retirement updates that row, so a write holding the lock
- * finishes first, and a write that waits on a retirement then sees it retired.
+ * It does not lock the project row. Writers that take the tenant audit lock
+ * before updating a project (signing, award, opportunity conversion) would
+ * deadlock against a BOM write holding a project lock while it audits.
  */
 export function liveProjectCondition(
   projectId: string | SQLWrapper,
-  tenantId: string,
-  options: { lock?: 'share' } = {}
+  tenantId: string
 ): SQL {
-  const live = new QueryBuilder()
-    .select({ id: projects.id })
-    .from(projects)
-    .where(
-      and(
-        eq(projects.id, projectId),
-        eq(projects.tenant_id, tenantId),
-        isNull(projects.deleted_at)
+  return exists(
+    new QueryBuilder()
+      .select({ id: projects.id })
+      .from(projects)
+      .where(
+        and(
+          eq(projects.id, projectId),
+          eq(projects.tenant_id, tenantId),
+          isNull(projects.deleted_at)
+        )
       )
-    )
-  return exists(options.lock ? live.for(options.lock) : live)
+  )
 }
