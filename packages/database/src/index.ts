@@ -15,3 +15,5 @@ export * from './accounting/journal'
 export * from './invoicing/billed-percent'
 // Tax: effective tenant tax rates (spec tenancy C-1)
 export * from './tax/effective-tax-rates'
+// Procurement: rate card that can price a line now (PO pricing, RFQ coverage)
+export * from './procurement/rate-card-in-effect'

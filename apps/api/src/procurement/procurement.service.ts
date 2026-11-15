@@ -18,6 +18,7 @@ import {
   users,
   vendors,
 } from '@third-code-erp/database/schema'
+import { rateCardInEffectCondition } from '@third-code-erp/database'
 import type {
   CreateRfqCommand,
   LogRfqQuoteCommand,
@@ -341,7 +342,9 @@ export class ProcurementService {
                   eq(
                     rateCards.tenant_id,
                     principal.tenantId
-                  )
+                  ),
+                  // Only a card PO pricing can use makes a line "contracted".
+                  rateCardInEffectCondition(new Date())
                 )
               )
               .where(

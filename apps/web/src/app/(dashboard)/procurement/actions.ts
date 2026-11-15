@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { getUserProfile, requireCapability, can, type AppRole } from '@third-code-erp/auth'
 import {
   db,
+  rateCardInEffectCondition,
   resolveTaxRates,
   type Database,
 } from '@third-code-erp/database'
@@ -21,7 +22,7 @@ import {
   rateCards,
   vendors,
 } from '@third-code-erp/database/schema'
-import { and, eq, gt, inArray, isNull, lte, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { writeAuditLog, writeAuditLogInTransaction } from '@/lib/audit'
 import { notifyRoles, notifyExternalEmail } from '@/lib/operations/notifications'
@@ -1459,9 +1460,7 @@ export async function createPosFromBomGrouped(
         .where(
           and(
             eq(rateCards.tenant_id, profile.tenantId),
-            lte(rateCards.effective_from, now),
-            or(isNull(rateCards.effective_to), gt(rateCards.effective_to, now)),
-            gt(rateCards.unit_price_cents, 0)
+            rateCardInEffectCondition(now)
           )
         )
         .orderBy(rateCards.unit_price_cents, rateCards.id)
