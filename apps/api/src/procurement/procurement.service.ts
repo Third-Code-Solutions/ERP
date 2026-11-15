@@ -67,6 +67,12 @@ export interface AutomaticRfqCreationResult
   notificationOutboxId: string | null
 }
 
+/**
+ * The BOM has nothing to quote: no line a Purchase Order would buy, or every
+ * such line priced from a rate card. Still a 409 for a manual create.
+ */
+export class RfqNotNeededException extends ConflictException {}
+
 interface RfqCreationRecordResult extends RfqCreationResult {
   notificationOutboxId: string | null
 }
@@ -317,7 +323,7 @@ export class ProcurementService {
       // Quote the lines a Purchase Order buys; a work item with material lines is bought through them.
       const itemLines = purchasableBomLines(lines)
       if (itemLines.length === 0) {
-        throw new ConflictException('BOM has no line items to RFQ')
+        throw new RfqNotNeededException('BOM has no line items to RFQ')
       }
 
       const itemCodes = [
@@ -378,7 +384,7 @@ export class ProcurementService {
         }))
 
       if (rfqLines.length === 0) {
-        throw new ConflictException(
+        throw new RfqNotNeededException(
           'All BOM lines already have contracted rates — no RFQ needed'
         )
       }

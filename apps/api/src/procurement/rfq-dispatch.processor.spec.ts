@@ -13,7 +13,7 @@ import {
   RFQ_DISPATCH_JOB,
 } from './rfq-dispatch.constants'
 import { RfqDispatchProcessor } from './rfq-dispatch.processor'
-import type { ProcurementService } from './procurement.service'
+import { RfqNotNeededException, type ProcurementService } from './procurement.service'
 import type { NotificationDeliveryQueue } from './notification-delivery.queue'
 
 const JOB_ID =
@@ -144,6 +144,26 @@ describe('RfqDispatchProcessor', () => {
       expect((failure as Error).message).toBe(`${refusal.name}: ${refusal.message}`)
       expect(probe.enqueueOutbox).not.toHaveBeenCalled()
     }
+  })
+
+  it.each([
+    'All BOM lines already have contracted rates — no RFQ needed',
+    'BOM has no line items to RFQ',
+  ])('completes without an RFQ when the BOM has nothing to quote (%s)', async (message) => {
+    const probe = harness()
+    probe.createFromApprovedBom.mockRejectedValueOnce(new RfqNotNeededException(message))
+
+    await expect(probe.processor.process(job())).resolves.toBeNull()
+    expect(probe.enqueueOutbox).not.toHaveBeenCalled()
+  })
+
+  it('still fails another 409 at once, even with the same message', async () => {
+    const probe = harness()
+    probe.createFromApprovedBom.mockRejectedValueOnce(
+      new ConflictException('All BOM lines already have contracted rates — no RFQ needed')
+    )
+
+    await expect(probe.processor.process(job())).rejects.toBeInstanceOf(UnrecoverableError)
   })
 
   it('keeps retrying an outage', async () => {

@@ -18,7 +18,7 @@ import {
   RFQ_DISPATCH_JOB,
   RFQ_DISPATCH_QUEUE,
 } from './rfq-dispatch.constants'
-import { ProcurementService } from './procurement.service'
+import { ProcurementService, RfqNotNeededException } from './procurement.service'
 import { NotificationDeliveryQueue } from './notification-delivery.queue'
 
 @Processor(RFQ_DISPATCH_QUEUE)
@@ -41,8 +41,8 @@ export class RfqDispatchProcessor extends WorkerHost {
   }
 
   async process(
-    job: Job<unknown, RfqCreationResult, string>
-  ): Promise<RfqCreationResult> {
+    job: Job<unknown, RfqCreationResult | null, string>
+  ): Promise<RfqCreationResult | null> {
     if (job.name !== RFQ_DISPATCH_JOB) {
       throw new Error(`Unsupported RFQ dispatch job: ${job.name}`)
     }
@@ -53,6 +53,8 @@ export class RfqDispatchProcessor extends WorkerHost {
     const result = await this.procurement
       .createFromApprovedBom(parsed.data)
       .catch((error: unknown) => {
+        // Nothing to quote (no buyable line, or all contracted): the job is done.
+        if (error instanceof RfqNotNeededException) return null
         // A 4xx is the BOM's or actor's settled state (gone, retired, no longer
         // approved, no lines, no role); retrying cannot change it.
         // shortcut: every 4xx but 408/429 counts as settled; if createRecord ever
@@ -67,6 +69,10 @@ export class RfqDispatchProcessor extends WorkerHost {
         }
         throw error
       })
+    if (!result) {
+      this.logger.log(`RFQ dispatch ${job.id}: nothing to quote, no RFQ needed`)
+      return null
+    }
     if (result.notificationOutboxId) {
       await this.notificationQueue.enqueueOutbox(
         parsed.data.tenantId,
@@ -84,7 +90,7 @@ export class RfqDispatchProcessor extends WorkerHost {
 
   @OnWorkerEvent('failed')
   async onFailed(
-    job: Job<unknown, RfqCreationResult, string> | undefined,
+    job: Job<unknown, RfqCreationResult | null, string> | undefined,
     error: Error
   ): Promise<void> {
     if (!job?.id) return
