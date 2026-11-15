@@ -3,6 +3,7 @@
 import { createHash } from 'crypto'
 import { and, asc, eq } from 'drizzle-orm'
 import { db, resolveTaxRates } from '@third-code-erp/database'
+import { topLevelBomLines } from '@third-code-erp/shared-types/bom'
 import {
   bomPortalTokens,
   boms,
@@ -309,6 +310,7 @@ export async function loadPortalBom(token: string): Promise<PortalBomDetail> {
       unit_cost_cents: bomLineItems.unit_cost_cents,
       line_total_cents: bomLineItems.line_total_cents,
       is_group: bomLineItems.is_group,
+      parent_line_item_id: bomLineItems.parent_line_item_id,
     })
     .from(bomLineItems)
     .where(
@@ -321,7 +323,9 @@ export async function loadPortalBom(token: string): Promise<PortalBomDetail> {
 
   // For the public view, hide group rows (no quantity / cost) Ã¢â‚¬â€ the client
   // sees the actual costed lines grouped by code prefix later.
-  const portalLines: PortalBomLine[] = lines
+  // Material lines are priced inside their work item, so only top-level lines
+  // count, as in the signed-award baseline; otherwise a category total doubles.
+  const portalLines: PortalBomLine[] = topLevelBomLines(lines, (l) => l.parent_line_item_id)
     .filter((l) => l.is_group === 0)
     .map((l) => ({
       id: l.id,
