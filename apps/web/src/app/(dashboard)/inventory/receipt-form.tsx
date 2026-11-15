@@ -58,18 +58,23 @@ export function StockReceiptForm({
   warehouses,
   deliveries,
   today,
+  defaultPurchaseOrderId,
 }: {
   purchaseOrders: PurchaseOrderOption[]
   lines: PurchaseOrderLineOption[]
   warehouses: WarehouseOption[]
   deliveries: DeliveryOption[]
   today: string
+  defaultPurchaseOrderId?: string
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const retryKeyRef = useRef<string | null>(null)
+  // An id not among the offered POs (stale link, not receivable) falls back to the first.
   const [purchaseOrderId, setPurchaseOrderId] = useState(
-    purchaseOrders[0]?.id ?? ''
+    purchaseOrders.find((row) => row.id === defaultPurchaseOrderId)?.id ??
+      purchaseOrders[0]?.id ??
+      ''
   )
   const [warehouseId, setWarehouseId] = useState('')
   const [deliveryScheduleId, setDeliveryScheduleId] = useState('')

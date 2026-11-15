@@ -18,9 +18,14 @@ import { StockReceiptForm } from '../../receipt-form'
 
 export const metadata: Metadata = { title: 'New Stock Receipt' }
 
-export default async function NewStockReceiptPage() {
+export default async function NewStockReceiptPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ po?: string }>
+}) {
   const profile = await requireUserProfile()
   requireCapability(profile, 'inventory.manage')
+  const { po: defaultPoId } = await searchParams
 
   const [poRows, lineRows, warehouseRows, deliveryRows] = await Promise.all([
     db
@@ -192,6 +197,7 @@ export default async function NewStockReceiptPage() {
             scheduledDate: delivery.scheduledDate?.toISOString() ?? null,
           }))}
           today={new Date().toISOString().slice(0, 10)}
+          defaultPurchaseOrderId={defaultPoId}
         />
       )}
     </div>

@@ -22,8 +22,14 @@ vi.mock('drizzle-orm', async (original) => {
   return { ...actual, inArray: mocks.inArray }
 })
 vi.mock('../../receipt-form', () => ({
-  StockReceiptForm: ({ purchaseOrders }: { purchaseOrders: { number: string }[] }) => (
-    <ul>
+  StockReceiptForm: ({
+    purchaseOrders,
+    defaultPurchaseOrderId,
+  }: {
+    purchaseOrders: { number: string }[]
+    defaultPurchaseOrderId?: string
+  }) => (
+    <ul data-default-po={defaultPurchaseOrderId ?? ''}>
       {purchaseOrders.map((po) => (
         <li key={po.number}>{po.number}</li>
       ))}
@@ -54,6 +60,23 @@ describe('New Stock Receipt page', () => {
     mocks.profile.mockResolvedValue({ tenantId: TENANT_ID, role: 'scm' })
   })
 
+  it('hands the PO from the PO page link to the form', async () => {
+    for (const rows of [
+      [{ id: 'po-1', number: 'PO-1', projectId: 'p-1', projectCode: 'P', projectName: 'P', vendorName: 'V' }],
+      [],
+      [{ id: 'w-1', code: 'W1', name: 'Main', projectId: 'p-1' }],
+      [],
+    ]) {
+      mocks.select.mockReturnValueOnce(queryReturning(rows))
+    }
+
+    const html = renderToStaticMarkup(
+      await NewStockReceiptPage({ searchParams: Promise.resolve({ po: 'po-1' }) })
+    )
+
+    expect(html).toContain('data-default-po="po-1"')
+  })
+
   it('offers every PO status receipt posting accepts, partially delivered included', async () => {
     for (const rows of [
       [{ id: 'po-1', number: 'PO-PARTIAL', projectId: 'p-1', projectCode: 'P', projectName: 'P', vendorName: 'V' }],
@@ -64,7 +87,9 @@ describe('New Stock Receipt page', () => {
       mocks.select.mockReturnValueOnce(queryReturning(rows))
     }
 
-    const html = renderToStaticMarkup(await NewStockReceiptPage())
+    const html = renderToStaticMarkup(
+      await NewStockReceiptPage({ searchParams: Promise.resolve({}) })
+    )
 
     expect(html).toContain('PO-PARTIAL')
     const statusFilters = mocks.inArray.mock.calls.filter(

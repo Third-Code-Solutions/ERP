@@ -1,17 +1,27 @@
 import Link from 'next/link'
+import { isStockReceiptReceivablePoStatus } from '@third-code-erp/shared-types'
 
 interface ReceiveLineFormProps {
+  purchaseOrderId: string
+  purchaseOrderStatus: string
+  /** The viewer holds `inventory.manage`, which the receipt page requires. */
+  canReceive: boolean
   quantity: number
   receivedQty: number
-  disabled?: boolean
 }
 
 export function ReceiveLineForm({
+  purchaseOrderId,
+  purchaseOrderStatus,
+  canReceive,
   quantity,
   receivedQty,
-  disabled = false,
 }: ReceiveLineFormProps) {
   const fullyReceived = receivedQty >= quantity
+  const showReceive =
+    !fullyReceived &&
+    canReceive &&
+    isStockReceiptReceivablePoStatus(purchaseOrderStatus)
 
   return (
     <div
@@ -35,9 +45,9 @@ export function ReceiveLineForm({
       >
         {receivedQty} / {quantity}
       </span>
-      {!fullyReceived && !disabled && (
+      {showReceive && (
         <Link
-          href="/inventory/receipts/new"
+          href={`/inventory/receipts/new?po=${encodeURIComponent(purchaseOrderId)}`}
           className="finance-text-button"
           title="Create controlled Stock Receipt"
         >
