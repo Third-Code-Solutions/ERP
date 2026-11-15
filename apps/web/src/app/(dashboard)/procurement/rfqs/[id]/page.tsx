@@ -280,7 +280,7 @@ export default async function RfqDetailPage({ params }: PageProps) {
                         </td>
                         <td>{l.description}</td>
                         <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>
-                          {l.qty.toLocaleString('en-PH')}
+                          {l.qty.toLocaleString('en-PH', { maximumFractionDigits: 4 })}
                         </td>
                         <td className="muted">{l.unit ?? '—'}</td>
                         <td>

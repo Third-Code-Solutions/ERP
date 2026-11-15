@@ -389,7 +389,7 @@ function PreviewBody({
                   <td>{line.code ?? '—'}</td>
                   <td>{line.description}</td>
                   <td className="numeric">
-                    {line.effective_quantity.toFixed(2)}
+                    {line.effective_quantity.toLocaleString('en-PH', { maximumFractionDigits: 4 })}
                   </td>
                   <td>{line.unit}</td>
                   <td className="numeric currency">
