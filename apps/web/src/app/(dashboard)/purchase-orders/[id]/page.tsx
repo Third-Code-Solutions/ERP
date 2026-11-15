@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { alias } from 'drizzle-orm/pg-core'
 import { can, requireUserProfile } from '@third-code-erp/auth'
-import { db } from '@third-code-erp/database'
+import { db, liveProjectCondition } from '@third-code-erp/database'
 import {
   costCodes,
   poLineItems,
@@ -94,6 +94,7 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
       created_at: purchaseOrders.created_at,
       project_name: projects.name,
       project_id: purchaseOrders.project_id,
+      project_live: liveProjectCondition(purchaseOrders.project_id, profile.tenantId).mapWith(Boolean),
       vendor_name: vendors.name,
       vendor_id: purchaseOrders.vendor_id,
       vendor_contact: vendors.contact_name,
@@ -316,9 +317,15 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
           >
             {STATUS_LABELS[po.status] ?? po.status}
           </span>
+          {!po.project_live && (
+            <span style={{ fontSize: '0.75rem', color: 'var(--color-neutral-600)' }}>
+              Project retired: this PO can only be rejected, cancelled or received.
+            </span>
+          )}
           <PoStatusActions
             poId={id}
             currentStatus={po.status}
+            projectLive={po.project_live}
             viewerRole={profile?.role ?? null}
             budgetWarning={budgetWarning}
           />

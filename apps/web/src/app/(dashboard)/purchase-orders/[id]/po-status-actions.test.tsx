@@ -15,9 +15,18 @@ vi.mock('@/app/(dashboard)/procurement/actions', () => ({
 
 import { PoStatusActions } from './po-status-actions'
 
-function buttons(currentStatus: string, viewerRole: ErpRole | null): string[] {
+function buttons(
+  currentStatus: string,
+  viewerRole: ErpRole | null,
+  projectLive = true
+): string[] {
   const html = renderToStaticMarkup(
-    <PoStatusActions poId="po-1" currentStatus={currentStatus} viewerRole={viewerRole} />
+    <PoStatusActions
+      poId="po-1"
+      currentStatus={currentStatus}
+      viewerRole={viewerRole}
+      projectLive={projectLive}
+    />
   )
   const labels = [...html.matchAll(/<button[^>]*>([^<]*)<\/button>/g)].map((match) => match[1]!)
   // Every button is plain text, so none can slip past the label match.
@@ -68,5 +77,19 @@ describe('PoStatusActions', () => {
     expect(buttons('pending_scm_issuance', 'commercial')).toEqual(['Reject'])
     expect(buttons('pending_scm_issuance', 'pm')).toEqual([])
     expect(buttons('pending_scm_issuance', null)).toEqual(['Issue PO to supplier', 'Reject'])
+  })
+
+  // The server refuses submit, both approvals, issue and legacy confirm on a
+  // retired project's PO, and still accepts reject, cancel and delivery marks.
+  it.each([
+    ['draft', ['Cancel']],
+    ['pending_pm_approval', ['Reject']],
+    ['pending_commercial_approval', ['Reject']],
+    ['pending_scm_issuance', ['Reject']],
+    ['issued', ['Mark Partial Delivery']],
+    ['submitted', ['Cancel']],
+    ['confirmed', ['Mark Partial Delivery', 'Mark Delivered', 'Cancel']],
+  ] as const)('on a retired project, a %s PO offers owner only %j', (status, expected) => {
+    expect(buttons(status, 'owner', false)).toEqual(expected)
   })
 })

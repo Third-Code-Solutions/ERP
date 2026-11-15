@@ -33,6 +33,8 @@ import {
 interface Props {
   poId: string
   currentStatus: string
+  /** False when the PO's project is retired: only reject, cancel and delivery remain. */
+  projectLive: boolean
   viewerRole?: ErpRole | null
   budgetWarning?: string | null
 }
@@ -93,6 +95,7 @@ function buttonStyle(variant: 'primary' | 'danger' | 'secondary', pending: boole
 export function PoStatusActions({
   poId,
   currentStatus,
+  projectLive,
   viewerRole,
   budgetWarning,
 }: Props) {
@@ -148,7 +151,7 @@ export function PoStatusActions({
 
   // Current flow first.
   if (currentStatus === 'draft') {
-    const canSubmit = hasRole(viewerRole, PO_CREATE_ROLES)
+    const canSubmit = projectLive && hasRole(viewerRole, PO_CREATE_ROLES)
     const canCancel = hasRole(viewerRole, SCM_ISSUE_ROLES)
     if (!canSubmit && !canCancel) return null
     return (
@@ -176,7 +179,7 @@ export function PoStatusActions({
   }
 
   if (currentStatus === 'pending_pm_approval') {
-    const canApprove = hasRole(viewerRole, PM_APPROVE_ROLES)
+    const canApprove = projectLive && hasRole(viewerRole, PM_APPROVE_ROLES)
     if (!canApprove && !rejectButton) return null
     return (
       <div style={{ display: 'flex', gap: 8 }}>
@@ -200,7 +203,7 @@ export function PoStatusActions({
   }
 
   if (currentStatus === 'pending_commercial_approval') {
-    const canApprove = hasRole(viewerRole, COMMERCIAL_APPROVE_ROLES)
+    const canApprove = projectLive && hasRole(viewerRole, COMMERCIAL_APPROVE_ROLES)
     if (!canApprove && !rejectButton) return null
     return (
       <div style={{ display: 'flex', gap: 8 }}>
@@ -225,7 +228,7 @@ export function PoStatusActions({
   }
 
   if (currentStatus === 'pending_scm_issuance') {
-    const canIssue = hasRole(viewerRole, SCM_ISSUE_ROLES)
+    const canIssue = projectLive && hasRole(viewerRole, SCM_ISSUE_ROLES)
     // The commercial approver can still pull the PO back before issuance.
     if (!canIssue && !rejectButton) return null
     return (
@@ -266,7 +269,9 @@ export function PoStatusActions({
 
   // Legacy fall-through.
   const transitions = (LEGACY_TRANSITIONS[currentStatus] ?? []).filter(({ status }) =>
-    hasRole(viewerRole, status === 'confirmed' ? COMMERCIAL_APPROVE_ROLES : SCM_ISSUE_ROLES)
+    status === 'confirmed'
+      ? projectLive && hasRole(viewerRole, COMMERCIAL_APPROVE_ROLES)
+      : hasRole(viewerRole, SCM_ISSUE_ROLES)
   )
   if (transitions.length === 0) return null
 
