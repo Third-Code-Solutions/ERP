@@ -251,8 +251,7 @@ export class NotificationDeliveryService {
           .for('update')
 
         if (!record) {
-          // Settled states (missing row, unsupported channel, ineligible recipient)
-          // are unrecoverable: a retry reads the same rows, so dead-letter at once.
+          // Settled: no retry can change it, so it is dead-lettered on this attempt.
           throw new UnrecoverableError('Notification delivery not found')
         }
         if (record.status === 'delivered') {
