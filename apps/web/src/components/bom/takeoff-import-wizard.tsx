@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { formatBoqQuantity } from '@third-code-erp/shared-types/bom'
 
 type TakeoffRow = {
   sourceRowKey: string
@@ -44,6 +45,11 @@ const DEFAULT_MAPPING = {
   location: 'Location',
   itemNo: 'Item No',
   notes: 'Notes',
+}
+
+/** A preview quantity in BOQ display form; a value BOQ rejects is shown as received. */
+export function formatTakeoffQuantity(quantity: number | null): string {
+  return quantity === null ? '—' : formatBoqQuantity(String(quantity))
 }
 
 export function TakeoffImportWizard({
@@ -174,7 +180,7 @@ export function TakeoffImportWizard({
                   <tr key={row.sourceRowKey}>
                     <td>{row.sourceRowKey}</td>
                     <td>{row.description || '—'}</td>
-                    <td className="numeric">{row.quantity ?? '—'}</td>
+                    <td className="numeric">{formatTakeoffQuantity(row.quantity)}</td>
                     <td>{row.unit || '—'}</td>
                     <td>{row.division ?? '—'}</td>
                     <td>{issueRows.has(row.sourceRowKey) ? 'Unresolved' : 'Ready'}</td>
