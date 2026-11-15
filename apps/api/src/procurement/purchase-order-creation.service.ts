@@ -380,6 +380,7 @@ export class PurchaseOrderCreationService {
         )
       )
 
+      // Card choice must stay in step with RFQ coverage (`loadRateCardCoverage`).
       const cards = await transaction
         .select({
           id: rateCards.id,

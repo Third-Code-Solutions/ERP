@@ -328,6 +328,14 @@ describe('ProcurementService RFQ creation command', () => {
     await expect(
       probe.service.create({ bomId: BOM_ID }, PRINCIPAL)
     ).resolves.toMatchObject({ lineCount: 2, created: true })
+    expect(probe.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        line_items: [
+          expect.objectContaining({ code: 'VENDORLESS' }),
+          expect.objectContaining({ code: 'OTHER-UNIT' }),
+        ],
+      })
+    )
   })
 
   it('rejects audit failure so the creation transaction can roll back', async () => {
