@@ -18,4 +18,5 @@ export * from './tax/effective-tax-rates'
 // Procurement: rate card that can price a line now (PO pricing, RFQ coverage)
 export * from './procurement/rate-card-in-effect'
 export * from './procurement/rate-card-coverage'
+// Projects: live (not retired) project predicate
 export * from './projects/live-project'

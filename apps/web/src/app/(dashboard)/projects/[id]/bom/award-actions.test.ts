@@ -85,7 +85,10 @@ describe('awardLockedBom', () => {
       error: 'BOM not found in this project.',
     })
 
-    const bomWhere = new PgDialect().sqlToQuery(conditions[2] as SQL)
+    const bomWhere = conditions
+      .map((condition) => new PgDialect().sqlToQuery(condition as SQL))
+      .find((query) => query.sql.includes('"boms"."id" ='))
+    if (!bomWhere) throw new Error('BOM read not found')
     expect(bomWhere.sql).toContain(
       'exists (select "id" from "projects" where ("projects"."id" = $4 and "projects"."tenant_id" = $5 and "projects"."deleted_at" is null))'
     )
