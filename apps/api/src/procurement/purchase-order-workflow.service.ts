@@ -345,6 +345,30 @@ export class PurchaseOrderWorkflowService {
         .limit(1)
         .for('update')
       if (!po) throw new NotFoundException('Purchase Order not found')
+
+      // Authorization comes first, so a role that may not act learns nothing
+      // about the project's state.
+      const status = po.status as WorkflowStatus
+      if (!canPerform(parsedCommand.action, status, role)) {
+        throw new ForbiddenException(
+          `Role "${role}" cannot perform ${parsedCommand.action} from status ${status}`
+        )
+      }
+      // Two-lane approval: creator, PM approver and Commercial approver must differ.
+      const actorId = authorizedPrincipal.userId
+      if (parsedCommand.action === 'pm_approve' && actorId === po.createdBy) {
+        throw new ForbiddenException(
+          'The Purchase Order creator cannot give its PM approval'
+        )
+      }
+      if (
+        parsedCommand.action === 'commercial_approve' &&
+        (actorId === po.createdBy || actorId === po.pmApprovedBy)
+      ) {
+        throw new ForbiddenException(
+          'Commercial approval must come from someone other than the Purchase Order creator and PM approver'
+        )
+      }
       // Retiring a project does not close its POs; a PO of a retired project can
       // still be rejected back to draft, but not submitted, approved or issued.
       // The project row is locked with the PO above, so retirement cannot race this.
@@ -372,27 +396,6 @@ export class PurchaseOrderWorkflowService {
         supplierName = vendor?.name ?? null
       }
 
-      const status = po.status as WorkflowStatus
-      if (!canPerform(parsedCommand.action, status, role)) {
-        throw new ForbiddenException(
-          `Role "${role}" cannot perform ${parsedCommand.action} from status ${status}`
-        )
-      }
-      // Two-lane approval: creator, PM approver and Commercial approver must differ.
-      const actorId = authorizedPrincipal.userId
-      if (parsedCommand.action === 'pm_approve' && actorId === po.createdBy) {
-        throw new ForbiddenException(
-          'The Purchase Order creator cannot give its PM approval'
-        )
-      }
-      if (
-        parsedCommand.action === 'commercial_approve' &&
-        (actorId === po.createdBy || actorId === po.pmApprovedBy)
-      ) {
-        throw new ForbiddenException(
-          'Commercial approval must come from someone other than the Purchase Order creator and PM approver'
-        )
-      }
       const statusAfter = nextStatus(parsedCommand.action, status)
       const now = new Date()
       const update: Partial<typeof purchaseOrders.$inferInsert> = {
