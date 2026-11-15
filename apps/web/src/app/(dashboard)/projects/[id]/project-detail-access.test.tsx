@@ -27,8 +27,11 @@ vi.mock('@/app/(dashboard)/projects/[id]/bom/actions', () => ({
 }))
 
 vi.mock('@/app/(dashboard)/procurement/actions', () => ({
-  createInvoice: vi.fn(),
   createPoFromBom: vi.fn(),
+}))
+
+vi.mock('@/app/(dashboard)/projects/[id]/billing/actions', () => ({
+  createInvoiceDraft: vi.fn(),
 }))
 
 vi.mock('@/components/bom/supplier-switcher-panel', () => ({

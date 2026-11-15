@@ -165,7 +165,7 @@ describe('createInvoiceDraft (BOM builder billing)', () => {
     mocks.requireCapability.mockImplementation(() => undefined)
   })
 
-  it('bills the selected BOM through Core, which refuses a superseded or archived one', async () => {
+  it("forwards the builder's BOM id to Core and revalidates the billing views", async () => {
     mocks.createCustomerInvoiceDraftThroughCoreApi.mockResolvedValue({
       ok: true,
       data: {
@@ -184,6 +184,8 @@ describe('createInvoiceDraft (BOM builder billing)', () => {
       { billingPercentBps: 2500, bomId: BOM_ID, dueDate: '2026-08-15', notes: null },
       expect.any(String)
     )
+    expect(mocks.revalidatePath).toHaveBeenCalledWith(`/projects/${PROJECT_ID}/billing`)
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/invoices')
   })
 
   it("relays Core's refusal of a BOM that is not the project's latest approved one", async () => {
