@@ -37,9 +37,14 @@ export class RfqDispatchQueue {
     )
     const existing = await this.queue.getJob(jobId)
     if (existing) {
-      if (!(await existing.isFailed())) return { jobId, enqueued: false }
       // A failed dispatch is kept for inspection (removeOnFail: false) and in its
       // dead letter; a new request, e.g. once the BOM is approved, replaces it.
+      // So does a finished one that found every line contracted (null result):
+      // a rate card may have lapsed since. (A job's returnvalue is null until done.)
+      const replaceable =
+        (await existing.isFailed()) ||
+        (existing.returnvalue === null && (await existing.isCompleted()))
+      if (!replaceable) return { jobId, enqueued: false }
       const removed = await existing.remove().then(
         () => true,
         () => false

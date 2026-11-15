@@ -66,7 +66,12 @@ describe('RfqDispatchQueue', () => {
   })
 
   it('deduplicates an existing tenant/BOM job', async () => {
-    const probe = harness({ id: JOB_ID, isFailed: vi.fn().mockResolvedValue(false) })
+    const probe = harness({
+      id: JOB_ID,
+      returnvalue: null,
+      isFailed: vi.fn().mockResolvedValue(false),
+      isCompleted: vi.fn().mockResolvedValue(false),
+    })
 
     await expect(
       probe.queue.enqueue({ bomId: BOM_ID }, PRINCIPAL)
@@ -91,6 +96,36 @@ describe('RfqDispatchQueue', () => {
     expect(remove.mock.invocationCallOrder[0]).toBeLessThan(
       probe.add.mock.invocationCallOrder[0] ?? 0
     )
+  })
+
+  it('replaces a finished dispatch that found every line contracted', async () => {
+    const remove = vi.fn().mockResolvedValue(undefined)
+    const probe = harness({
+      id: JOB_ID,
+      returnvalue: null,
+      isFailed: vi.fn().mockResolvedValue(false),
+      isCompleted: vi.fn().mockResolvedValue(true),
+      remove,
+    })
+
+    await expect(
+      probe.queue.enqueue({ bomId: BOM_ID }, PRINCIPAL)
+    ).resolves.toEqual({ jobId: JOB_ID, enqueued: true })
+    expect(remove).toHaveBeenCalledTimes(1)
+  })
+
+  it('deduplicates a finished dispatch that created an RFQ', async () => {
+    const probe = harness({
+      id: JOB_ID,
+      returnvalue: { rfqId: 'rfq', created: true },
+      isFailed: vi.fn().mockResolvedValue(false),
+      isCompleted: vi.fn().mockResolvedValue(true),
+    })
+
+    await expect(
+      probe.queue.enqueue({ bomId: BOM_ID }, PRINCIPAL)
+    ).resolves.toEqual({ jobId: JOB_ID, enqueued: false })
+    expect(probe.add).not.toHaveBeenCalled()
   })
 
   it('deduplicates when a concurrent request already replaced the failed job', async () => {

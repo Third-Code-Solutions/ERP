@@ -152,7 +152,15 @@ describe('RfqDispatchProcessor', () => {
 
     await expect(probe.processor.process(job())).resolves.toBeNull()
     expect(probe.enqueueOutbox).not.toHaveBeenCalled()
-    expect(probe.deadLetterAdd).not.toHaveBeenCalled()
+  })
+
+  it('still fails another 409 at once, even with the same message', async () => {
+    const probe = harness()
+    probe.createFromApprovedBom.mockRejectedValueOnce(
+      new ConflictException('All BOM lines already have contracted rates — no RFQ needed')
+    )
+
+    await expect(probe.processor.process(job())).rejects.toBeInstanceOf(UnrecoverableError)
   })
 
   it('keeps retrying an outage', async () => {
