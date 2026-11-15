@@ -12,7 +12,14 @@ const mocks = vi.hoisted(() => ({
   createPurchaseOrdersGroupedFromBomThroughCoreApi: vi.fn(),
   transitionPurchaseOrderThroughCoreApi: vi.fn(),
   revalidatePath: vi.fn(),
-  liveProjectCondition: vi.fn(() => ({ mapWith: vi.fn(() => ({})) })),
+  update: vi.fn(),
+  writeAuditLog: vi.fn(),
+  notifyRoles: vi.fn(),
+  notifyExternalEmail: vi.fn(),
+  liveProjectCondition: vi.fn((column: unknown, tenantId: unknown) => ({
+    live: [column, tenantId],
+    mapWith: vi.fn(() => ({})),
+  })),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -22,7 +29,7 @@ vi.mock('@third-code-erp/auth', () => ({
 }))
 
 vi.mock('@third-code-erp/database', () => ({
-  db: { select: mocks.select },
+  db: { select: mocks.select, update: mocks.update },
   liveProjectCondition: mocks.liveProjectCondition,
 }))
 
@@ -36,27 +43,30 @@ vi.mock('@third-code-erp/database/schema', () => ({
   projectBudgetLines: {},
   projectBudgets: {},
   projects: {},
-  purchaseOrders: { project_id: 'purchase_orders.project_id' },
+  purchaseOrders: {
+    project_id: 'purchase_orders.project_id',
+    status: 'purchase_orders.status',
+  },
   rateCards: {},
   vendors: {},
 }))
 
 vi.mock('drizzle-orm', () => ({
-  and: vi.fn(),
+  and: vi.fn((...conditions: unknown[]) => ({ and: conditions })),
   desc: vi.fn(),
-  eq: vi.fn(),
+  eq: vi.fn((column: unknown, value: unknown) => ({ eq: [column, value] })),
   inArray: vi.fn(),
   max: vi.fn(),
   sql: vi.fn(),
 }))
 
 vi.mock('@/lib/audit', () => ({
-  writeAuditLog: vi.fn(),
+  writeAuditLog: mocks.writeAuditLog,
 }))
 
 vi.mock('@/lib/operations/notifications', () => ({
-  notifyRoles: vi.fn(),
-  notifyExternalEmail: vi.fn(),
+  notifyRoles: mocks.notifyRoles,
+  notifyExternalEmail: mocks.notifyExternalEmail,
 }))
 
 vi.mock('@/lib/erp-core-client', () => ({
@@ -105,7 +115,13 @@ const BOM_ID = '55555555-5555-4555-8555-555555555555'
 
 function selectPurchaseOrder(
   status: string,
-  approvers: { created_by?: string; pm_approved_by?: string; project_live?: boolean } = {}
+  approvers: {
+    created_by?: string
+    pm_approved_by?: string
+    project_live?: boolean
+    supplier_email?: string
+    supplier_name?: string
+  } = {}
 ): void {
   const where = vi.fn().mockResolvedValue([
     {
@@ -287,6 +303,7 @@ describe('Purchase Order workflow compatibility seam', () => {
         'ERP Core API is unavailable. No Purchase Order workflow was committed.',
     })
     expect(mocks.revalidatePath).not.toHaveBeenCalled()
+    expect(mocks.update).not.toHaveBeenCalled()
   })
 
   it('routes BOM-to-PO creation through Nest with stable retry key', async () => {
@@ -419,4 +436,83 @@ describe('Purchase Order workflow compatibility seam', () => {
       mocks.createPurchaseOrdersGroupedFromBomThroughCoreApi
     ).not.toHaveBeenCalled()
   })
+})
+
+describe('Purchase Order workflow without Core (direct writes)', () => {
+  /** The WHERE the direct update was given; null until it is called. */
+  function updatePurchaseOrder(rows: Array<{ id: string }>) {
+    const returning = vi.fn().mockResolvedValue(rows)
+    const where = vi.fn().mockReturnValue({ returning })
+    mocks.update.mockReturnValue({ set: vi.fn().mockReturnValue({ where }) })
+    return () => (where.mock.calls[0]?.[0] as { and: unknown[] } | undefined)?.and ?? null
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.getUserProfile.mockResolvedValue({
+      tenantId: TENANT_ID,
+      role: 'commercial',
+      user: { id: ACTOR_ID },
+    })
+    mocks.requireCapability.mockReturnValue(undefined)
+    mocks.can.mockReturnValue(true)
+    mocks.purchaseOrderWorkflowWritesUseCoreApi.mockReturnValue(false)
+  })
+
+  const steps = [
+    { name: 'submit', status: 'draft', live: true, invoke: () => submitPoForPmApproval(PO_ID) },
+    { name: 'PM approval', status: 'pending_pm_approval', live: true, invoke: () => pmApprovePo(PO_ID) },
+    {
+      name: 'Commercial approval',
+      status: 'pending_commercial_approval',
+      live: true,
+      invoke: () => commercialApprovePo(PO_ID),
+    },
+    {
+      name: 'SCM issue',
+      status: 'pending_scm_issuance',
+      live: true,
+      supplier: { supplier_email: 'supplier@example.com', supplier_name: 'Supplier' },
+      invoke: () => scmIssuePo(PO_ID),
+    },
+    {
+      name: 'reject',
+      status: 'pending_scm_issuance',
+      live: false,
+      invoke: () => rejectPoApproval(PO_ID, 'No budget'),
+    },
+  ]
+
+  it.each(steps)('$name writes only from the status it read', async ({ status, live, invoke }) => {
+    selectPurchaseOrder(status)
+    const conditions = updatePurchaseOrder([{ id: PO_ID }])
+    const liveCondition = expect.objectContaining({
+      live: ['purchase_orders.project_id', TENANT_ID],
+    })
+
+    await expect(invoke()).resolves.toEqual({})
+
+    expect(mocks.transitionPurchaseOrderThroughCoreApi).not.toHaveBeenCalled()
+    expect(conditions()).toContainEqual({ eq: ['purchase_orders.status', status] })
+    // A forward step also needs the project live when it writes; reject does not.
+    if (live) expect(conditions()).toContainEqual(liveCondition)
+    else expect(conditions()).not.toContainEqual(liveCondition)
+    expect(mocks.writeAuditLog).toHaveBeenCalledOnce()
+  })
+
+  it.each(steps)(
+    '$name records nothing when the PO changed or its project was retired meanwhile',
+    async ({ status, invoke, ...step }) => {
+      selectPurchaseOrder(status, 'supplier' in step ? step.supplier : {})
+      updatePurchaseOrder([])
+
+      await expect(invoke()).resolves.toEqual({
+        error: 'Purchase Order status changed; reload and try again.',
+      })
+      expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+      expect(mocks.notifyRoles).not.toHaveBeenCalled()
+      expect(mocks.notifyExternalEmail).not.toHaveBeenCalled()
+      expect(mocks.revalidatePath).not.toHaveBeenCalled()
+    }
+  )
 })

@@ -436,6 +436,10 @@ export async function createPoFromBom(
 // received, and a PO can still be rejected or cancelled, but not committed further.
 const RETIRED_PROJECT_PO_ERROR =
   'This Purchase Order belongs to a retired project; it can only be rejected, cancelled or received.'
+// The direct (non-Core) writes change a PO only from the status they read, and the
+// forward steps only while its project is live, so a concurrent change or a
+// retirement is not overwritten.
+const PO_CHANGED_ERROR = 'Purchase Order status changed; reload and try again.'
 
 const VALID_PO_TRANSITIONS: Record<string, string[]> = {
   // Legacy flow — preserved for back-compat.
@@ -789,11 +793,14 @@ export async function advancePoStatus(
       .where(and(
         eq(purchaseOrders.id, poId),
         eq(purchaseOrders.tenant_id, profile.tenantId),
-        eq(purchaseOrders.status, po.status)
+        eq(purchaseOrders.status, po.status),
+        nextStatus === 'submitted' || nextStatus === 'confirmed'
+          ? liveProjectCondition(purchaseOrders.project_id, profile.tenantId)
+          : undefined
       ))
       .returning({ id: purchaseOrders.id })
     if (updated.length === 0) {
-      return { error: 'Purchase Order status changed; reload and try again.' }
+      return { error: PO_CHANGED_ERROR }
     }
   } catch (error) {
     return {
@@ -995,10 +1002,17 @@ export async function submitPoForPmApproval(
   if (coreResult) return coreResult
 
   const now = new Date()
-  await db
+  const submitted = await db
     .update(purchaseOrders)
     .set({ status: 'pending_pm_approval', updated_at: now })
-    .where(and(eq(purchaseOrders.id, poId), eq(purchaseOrders.tenant_id, profile.tenantId)))
+    .where(and(
+      eq(purchaseOrders.id, poId),
+      eq(purchaseOrders.tenant_id, profile.tenantId),
+      eq(purchaseOrders.status, po.status),
+      liveProjectCondition(purchaseOrders.project_id, profile.tenantId)
+    ))
+    .returning({ id: purchaseOrders.id })
+  if (submitted.length === 0) return { error: PO_CHANGED_ERROR }
 
   await writeAuditLog({
     tenantId: profile.tenantId,
@@ -1067,7 +1081,7 @@ export async function pmApprovePo(
   if (coreResult) return coreResult
 
   const now = new Date()
-  await db
+  const pmApproved = await db
     .update(purchaseOrders)
     .set({
       status: 'pending_commercial_approval',
@@ -1075,7 +1089,14 @@ export async function pmApprovePo(
       pm_approved_by: profile.user.id,
       updated_at: now,
     })
-    .where(and(eq(purchaseOrders.id, poId), eq(purchaseOrders.tenant_id, profile.tenantId)))
+    .where(and(
+      eq(purchaseOrders.id, poId),
+      eq(purchaseOrders.tenant_id, profile.tenantId),
+      eq(purchaseOrders.status, po.status),
+      liveProjectCondition(purchaseOrders.project_id, profile.tenantId)
+    ))
+    .returning({ id: purchaseOrders.id })
+  if (pmApproved.length === 0) return { error: PO_CHANGED_ERROR }
 
   await writeAuditLog({
     tenantId: profile.tenantId,
@@ -1149,7 +1170,7 @@ export async function commercialApprovePo(
   if (coreResult) return coreResult
 
   const now = new Date()
-  await db
+  const commercialApproved = await db
     .update(purchaseOrders)
     .set({
       status: 'pending_scm_issuance',
@@ -1157,7 +1178,14 @@ export async function commercialApprovePo(
       commercial_approved_by: profile.user.id,
       updated_at: now,
     })
-    .where(and(eq(purchaseOrders.id, poId), eq(purchaseOrders.tenant_id, profile.tenantId)))
+    .where(and(
+      eq(purchaseOrders.id, poId),
+      eq(purchaseOrders.tenant_id, profile.tenantId),
+      eq(purchaseOrders.status, po.status),
+      liveProjectCondition(purchaseOrders.project_id, profile.tenantId)
+    ))
+    .returning({ id: purchaseOrders.id })
+  if (commercialApproved.length === 0) return { error: PO_CHANGED_ERROR }
 
   await writeAuditLog({
     tenantId: profile.tenantId,
@@ -1233,8 +1261,9 @@ export async function scmIssuePo(
   const now = new Date()
   let supplierEmailSent = false
 
+  let issued: { id: string }[]
   try {
-    await db
+    issued = await db
       .update(purchaseOrders)
       .set({
         status: 'issued',
@@ -1242,7 +1271,13 @@ export async function scmIssuePo(
         scm_issued_by: profile.user.id,
         updated_at: now,
       })
-      .where(and(eq(purchaseOrders.id, poId), eq(purchaseOrders.tenant_id, profile.tenantId)))
+      .where(and(
+        eq(purchaseOrders.id, poId),
+        eq(purchaseOrders.tenant_id, profile.tenantId),
+        eq(purchaseOrders.status, po.status),
+        liveProjectCondition(purchaseOrders.project_id, profile.tenantId)
+      ))
+      .returning({ id: purchaseOrders.id })
   } catch (error) {
     return {
       error:
@@ -1250,6 +1285,7 @@ export async function scmIssuePo(
         'Purchase Order could not be issued.',
     }
   }
+  if (issued.length === 0) return { error: PO_CHANGED_ERROR }
 
   // Dispatch supplier email if we have an address on file. We stamp
   // supplier_email_sent_at only on success so retries are possible.
@@ -1368,10 +1404,16 @@ export async function rejectPoApproval(
   if (coreResult) return coreResult
 
   const now = new Date()
-  await db
+  const rejected = await db
     .update(purchaseOrders)
     .set({ status: 'draft', updated_at: now })
-    .where(and(eq(purchaseOrders.id, poId), eq(purchaseOrders.tenant_id, profile.tenantId)))
+    .where(and(
+      eq(purchaseOrders.id, poId),
+      eq(purchaseOrders.tenant_id, profile.tenantId),
+      eq(purchaseOrders.status, po.status)
+    ))
+    .returning({ id: purchaseOrders.id })
+  if (rejected.length === 0) return { error: PO_CHANGED_ERROR }
 
   await writeAuditLog({
     tenantId: profile.tenantId,
