@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   transaction: vi.fn(),
   revalidatePath: vi.fn(),
   liveProjectCondition: vi.fn(() => ({ mapWith: vi.fn(() => ({})) })),
+  unreceivedStockLineCondition: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -18,14 +19,19 @@ vi.mock('@third-code-erp/auth', () => ({
   can: vi.fn(),
 }))
 
-vi.mock('@third-code-erp/database', () => ({
+vi.mock('@third-code-erp/database', async () => {
+  const { sql } = await import('drizzle-orm')
+  mocks.unreceivedStockLineCondition.mockImplementation(() => sql`UNRECEIVED_STOCK_LINE`)
+  return {
   db: {
     select: mocks.select,
     update: mocks.update,
     transaction: mocks.transaction,
   },
   liveProjectCondition: mocks.liveProjectCondition,
-}))
+  unreceivedStockLineCondition: mocks.unreceivedStockLineCondition,
+  }
+})
 
 vi.mock('next/cache', () => ({
   revalidatePath: mocks.revalidatePath,
@@ -42,6 +48,7 @@ vi.mock('@/lib/operations/notifications', () => ({
 }))
 
 import { purchaseOrders } from '@third-code-erp/database/schema'
+import { PgDialect } from 'drizzle-orm/pg-core'
 import * as procurementActions from './actions'
 import { advancePoStatus, assignPoLineCostCode } from './actions'
 
@@ -64,7 +71,8 @@ function selectPurchaseOrder(
   status: string,
   found = true,
   createdBy = CREATOR_ID,
-  projectLive = true
+  projectLive = true,
+  hasUnreceivedLine = false
 ): void {
   const where = vi.fn().mockResolvedValue(
     found
@@ -75,6 +83,7 @@ function selectPurchaseOrder(
             project_id: PROJECT_ID,
             created_by: createdBy,
             project_live: projectLive,
+            has_unreceived_stock_line: hasUnreceivedLine,
           },
         ]
       : []
@@ -131,6 +140,52 @@ describe('advancePoStatus delivery transitions', () => {
       action: 'status_change',
       diff: { from: 'partial_delivered', to: 'fully_delivered' },
     })
+  })
+
+  it.each([
+    ['partial_delivered', 'fully_delivered'],
+    ['issued', 'fully_delivered'],
+    ['confirmed', 'delivered'],
+    ['partial_delivery', 'delivered'],
+  ])('refuses %s to %s while a line is not received in full', async (from, to) => {
+    selectPurchaseOrder(from, true, CREATOR_ID, true, true)
+
+    await expect(advancePoStatus(PO_ID, to)).resolves.toEqual({
+      error:
+        'Every stock-tracked line must be received in full through Stock Receipts before the Purchase Order is marked delivered.',
+    })
+    expect(mocks.update).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+  })
+
+  it('repeats the full-receipt condition in the write, so a change after the read is not overwritten', async () => {
+    selectPurchaseOrder('partial_delivered')
+
+    await expect(advancePoStatus(PO_ID, 'fully_delivered')).resolves.toEqual({})
+    const set = mocks.update.mock.results[0]!.value.set
+    const condition = set.mock.results[0]!.value.where.mock.calls[0]![0]
+    expect(new PgDialect().sqlToQuery(condition).sql).toContain('not UNRECEIVED_STOCK_LINE')
+    // Once in the read and once in the write, for this PO in this tenant.
+    expect(mocks.unreceivedStockLineCondition).toHaveBeenCalledTimes(2)
+    expect(mocks.unreceivedStockLineCondition).toHaveBeenCalledWith(purchaseOrders.id, TENANT_ID)
+  })
+
+  it('repeats the full-receipt condition in a legacy delivered write too', async () => {
+    selectPurchaseOrder('confirmed')
+
+    await expect(advancePoStatus(PO_ID, 'delivered')).resolves.toEqual({})
+    const set = mocks.update.mock.results[0]!.value.set
+    const condition = set.mock.results[0]!.value.where.mock.calls[0]![0]
+    expect(new PgDialect().sqlToQuery(condition).sql).toContain('not UNRECEIVED_STOCK_LINE')
+  })
+
+  it('does not add the full-receipt condition to other steps', async () => {
+    selectPurchaseOrder('issued')
+
+    await expect(advancePoStatus(PO_ID, 'partial_delivered')).resolves.toEqual({})
+    const set = mocks.update.mock.results[0]!.value.set
+    const condition = set.mock.results[0]!.value.where.mock.calls[0]![0]
+    expect(new PgDialect().sqlToQuery(condition).sql).not.toContain('UNRECEIVED_STOCK_LINE')
   })
 
   it('blocks the creator from confirming (approving) their own legacy PO', async () => {

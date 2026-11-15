@@ -35,6 +35,8 @@ interface Props {
   currentStatus: string
   /** False when the PO's project is retired: only reject, cancel and delivery remain. */
   projectLive: boolean
+  /** Every stock-tracked line received in full; marking the PO delivered requires it. */
+  allStockReceived: boolean
   viewerRole?: ErpRole | null
   budgetWarning?: string | null
 }
@@ -96,6 +98,7 @@ export function PoStatusActions({
   poId,
   currentStatus,
   projectLive,
+  allStockReceived,
   viewerRole,
   budgetWarning,
 }: Props) {
@@ -256,6 +259,7 @@ export function PoStatusActions({
     // Reuse advancePoStatus for legacy continuity; it requires po.issue.
     if (!hasRole(viewerRole, SCM_ISSUE_ROLES)) return null
     const next = currentStatus === 'issued' ? 'partial_delivered' : 'fully_delivered'
+    if (next === 'fully_delivered' && !allStockReceived) return null
     return (
       <button
         disabled={pending}
@@ -271,7 +275,7 @@ export function PoStatusActions({
   const transitions = (LEGACY_TRANSITIONS[currentStatus] ?? []).filter(({ status }) =>
     status === 'confirmed'
       ? projectLive && hasRole(viewerRole, COMMERCIAL_APPROVE_ROLES)
-      : hasRole(viewerRole, SCM_ISSUE_ROLES)
+      : hasRole(viewerRole, SCM_ISSUE_ROLES) && (status !== 'delivered' || allStockReceived)
   )
   if (transitions.length === 0) return null
 

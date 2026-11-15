@@ -8,6 +8,7 @@ import {
   liveProjectCondition,
   rateCardInEffectCondition,
   resolveTaxRates,
+  unreceivedStockLineCondition,
   type Database,
 } from '@third-code-erp/database'
 import {
@@ -23,7 +24,7 @@ import {
   rateCards,
   vendors,
 } from '@third-code-erp/database/schema'
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, not, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { writeAuditLog, writeAuditLogInTransaction } from '@/lib/audit'
 import { notifyRoles, notifyExternalEmail } from '@/lib/operations/notifications'
@@ -441,6 +442,8 @@ const RETIRED_PROJECT_PO_ERROR =
 // forward steps only while its project is live, so a concurrent change or a
 // retirement is not overwritten.
 const PO_CHANGED_ERROR = 'Purchase Order status changed; reload and try again.'
+const UNRECEIVED_PO_ERROR =
+  'Every stock-tracked line must be received in full through Stock Receipts before the Purchase Order is marked delivered.'
 
 const VALID_PO_TRANSITIONS: Record<string, string[]> = {
   // Legacy flow — preserved only so existing legacy POs can finish. A draft
@@ -763,6 +766,9 @@ export async function assignPoLineCostCode(
   return {}
 }
 
+// A PO marked delivered must have received every stock-tracked line in full.
+const DELIVERED_PO_STATUSES = ['fully_delivered', 'delivered']
+
 export async function advancePoStatus(
   poId: string,
   nextStatus = 'cancelled'
@@ -787,11 +793,16 @@ export async function advancePoStatus(
       project_id: purchaseOrders.project_id,
       created_by: purchaseOrders.created_by,
       project_live: liveProjectCondition(purchaseOrders.project_id, profile.tenantId).mapWith(Boolean),
+      has_unreceived_stock_line: unreceivedStockLineCondition(
+        purchaseOrders.id,
+        profile.tenantId
+      ).mapWith(Boolean),
     })
     .from(purchaseOrders)
     .where(and(eq(purchaseOrders.id, poId), eq(purchaseOrders.tenant_id, profile.tenantId)))
 
   if (!po) return { error: 'PO not found' }
+  const marksDelivered = DELIVERED_PO_STATUSES.includes(nextStatus)
   if (nextStatus === 'confirmed' && !po.project_live) {
     return { error: RETIRED_PROJECT_PO_ERROR }
   }
@@ -803,6 +814,9 @@ export async function advancePoStatus(
   // Legacy `confirmed` is the approval step: the creator cannot approve their own PO.
   if (nextStatus === 'confirmed' && po.created_by === profile.user.id) {
     return { error: 'The Purchase Order creator cannot confirm it' }
+  }
+  if (marksDelivered && po.has_unreceived_stock_line) {
+    return { error: UNRECEIVED_PO_ERROR }
   }
 
   try {
@@ -816,6 +830,9 @@ export async function advancePoStatus(
         eq(purchaseOrders.status, po.status),
         nextStatus === 'confirmed'
           ? liveProjectCondition(purchaseOrders.project_id, profile.tenantId)
+          : undefined,
+        marksDelivered
+          ? not(unreceivedStockLineCondition(purchaseOrders.id, profile.tenantId))
           : undefined
       ))
       .returning({ id: purchaseOrders.id })

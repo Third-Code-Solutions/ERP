@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { alias } from 'drizzle-orm/pg-core'
 import { can, requireUserProfile } from '@third-code-erp/auth'
-import { db, liveProjectCondition } from '@third-code-erp/database'
+import { db, liveProjectCondition, unreceivedStockLineCondition } from '@third-code-erp/database'
 import {
   costCodes,
   poLineItems,
@@ -95,6 +95,7 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
       project_name: projects.name,
       project_id: purchaseOrders.project_id,
       project_live: liveProjectCondition(purchaseOrders.project_id, profile.tenantId).mapWith(Boolean),
+      has_unreceived_stock_line: unreceivedStockLineCondition(purchaseOrders.id, profile.tenantId).mapWith(Boolean),
       vendor_name: vendors.name,
       vendor_id: purchaseOrders.vendor_id,
       vendor_contact: vendors.contact_name,
@@ -325,6 +326,7 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
             poId={id}
             currentStatus={po.status}
             projectLive={po.project_live}
+            allStockReceived={!po.has_unreceived_stock_line}
             viewerRole={profile?.role ?? null}
             budgetWarning={budgetWarning}
           />
