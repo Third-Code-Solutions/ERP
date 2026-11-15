@@ -19,7 +19,7 @@ function buttons(
   currentStatus: string,
   viewerRole: ErpRole | null,
   projectLive = true,
-  allLinesReceived = true
+  allStockReceived = true
 ): string[] {
   const html = renderToStaticMarkup(
     <PoStatusActions
@@ -27,7 +27,7 @@ function buttons(
       currentStatus={currentStatus}
       viewerRole={viewerRole}
       projectLive={projectLive}
-      allLinesReceived={allLinesReceived}
+      allStockReceived={allStockReceived}
     />
   )
   const labels = [...html.matchAll(/<button[^>]*>([^<]*)<\/button>/g)].map((match) => match[1]!)
@@ -87,7 +87,7 @@ describe('PoStatusActions', () => {
     ['confirmed', 'procurement', ['Mark Partial Delivery', 'Cancel']],
     ['partial_delivery', 'procurement', ['Cancel']],
     ['issued', 'procurement', ['Mark Partial Delivery']],
-  ] as const)('with a line still to receive, a %s PO offers %s only %j', (status, role, expected) => {
+  ] as const)('%s PO with a line to receive, %s sees %j', (status, role, expected) => {
     expect(buttons(status, role, true, false)).toEqual(expected)
   })
 

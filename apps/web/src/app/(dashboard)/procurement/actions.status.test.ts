@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   transaction: vi.fn(),
   revalidatePath: vi.fn(),
   liveProjectCondition: vi.fn(() => ({ mapWith: vi.fn(() => ({})) })),
+  unreceivedStockLineCondition: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -18,14 +19,19 @@ vi.mock('@third-code-erp/auth', () => ({
   can: vi.fn(),
 }))
 
-vi.mock('@third-code-erp/database', () => ({
+vi.mock('@third-code-erp/database', async () => {
+  const { sql } = await import('drizzle-orm')
+  mocks.unreceivedStockLineCondition.mockImplementation(() => sql`UNRECEIVED_STOCK_LINE`)
+  return {
   db: {
     select: mocks.select,
     update: mocks.update,
     transaction: mocks.transaction,
   },
   liveProjectCondition: mocks.liveProjectCondition,
-}))
+  unreceivedStockLineCondition: mocks.unreceivedStockLineCondition,
+  }
+})
 
 vi.mock('next/cache', () => ({
   revalidatePath: mocks.revalidatePath,
@@ -77,7 +83,7 @@ function selectPurchaseOrder(
             project_id: PROJECT_ID,
             created_by: createdBy,
             project_live: projectLive,
-            has_unreceived_line: hasUnreceivedLine,
+            has_unreceived_stock_line: hasUnreceivedLine,
           },
         ]
       : []
@@ -146,7 +152,7 @@ describe('advancePoStatus delivery transitions', () => {
 
     await expect(advancePoStatus(PO_ID, to)).resolves.toEqual({
       error:
-        'Every line must be received in full through Stock Receipts before the Purchase Order is marked delivered.',
+        'Every stock-tracked line must be received in full through Stock Receipts before the Purchase Order is marked delivered.',
     })
     expect(mocks.update).not.toHaveBeenCalled()
     expect(mocks.writeAuditLog).not.toHaveBeenCalled()
@@ -158,10 +164,19 @@ describe('advancePoStatus delivery transitions', () => {
     await expect(advancePoStatus(PO_ID, 'fully_delivered')).resolves.toEqual({})
     const set = mocks.update.mock.results[0]!.value.set
     const condition = set.mock.results[0]!.value.where.mock.calls[0]![0]
-    const { sql } = new PgDialect().sqlToQuery(condition)
-    expect(sql.replace(/\s+/g, ' ')).toContain(
-      'not exists ( select 1 from "po_line_items" where "po_line_items"."po_id" = "purchase_orders"."id" and "po_line_items"."tenant_id" = "purchase_orders"."tenant_id" and "po_line_items"."received_quantity_micros" < "po_line_items"."quantity_micros" )'
-    )
+    expect(new PgDialect().sqlToQuery(condition).sql).toContain('not UNRECEIVED_STOCK_LINE')
+    // Once in the read and once in the write, for this PO in this tenant.
+    expect(mocks.unreceivedStockLineCondition).toHaveBeenCalledTimes(2)
+    expect(mocks.unreceivedStockLineCondition).toHaveBeenCalledWith(purchaseOrders.id, TENANT_ID)
+  })
+
+  it('repeats the full-receipt condition in a legacy delivered write too', async () => {
+    selectPurchaseOrder('confirmed')
+
+    await expect(advancePoStatus(PO_ID, 'delivered')).resolves.toEqual({})
+    const set = mocks.update.mock.results[0]!.value.set
+    const condition = set.mock.results[0]!.value.where.mock.calls[0]![0]
+    expect(new PgDialect().sqlToQuery(condition).sql).toContain('not UNRECEIVED_STOCK_LINE')
   })
 
   it('does not add the full-receipt condition to other steps', async () => {
@@ -170,7 +185,7 @@ describe('advancePoStatus delivery transitions', () => {
     await expect(advancePoStatus(PO_ID, 'partial_delivered')).resolves.toEqual({})
     const set = mocks.update.mock.results[0]!.value.set
     const condition = set.mock.results[0]!.value.where.mock.calls[0]![0]
-    expect(new PgDialect().sqlToQuery(condition).sql).not.toContain('po_line_items')
+    expect(new PgDialect().sqlToQuery(condition).sql).not.toContain('UNRECEIVED_STOCK_LINE')
   })
 
   it('blocks the creator from confirming (approving) their own legacy PO', async () => {

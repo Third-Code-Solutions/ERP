@@ -11,6 +11,9 @@ import {
 } from './_db-harness'
 import { STOCK_RECEIPT_RECEIVABLE_PO_STATUSES } from '@third-code-erp/shared-types'
 import { purchaseOrderStatusEnum } from '../schema/enums'
+import { PgDialect } from 'drizzle-orm/pg-core'
+import { unreceivedStockLineCondition } from '../procurement/unreceived-stock-line'
+import { purchaseOrders } from '../schema'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const schemaSql = readFileSync(
@@ -1358,5 +1361,80 @@ runtimeSuite('inventory stock ledger runtime proof', () => {
       )) as Rows
     })
     expect(visible[0]?.count).toBe(0)
+  })
+})
+
+runtimeSuite('PO delivered needs every stock line received (#208)', () => {
+  let sqlClient: postgres.Sql
+
+  beforeAll(() => {
+    sqlClient = makeSql()
+  })
+
+  afterAll(async () => {
+    await sqlClient?.end({ timeout: 5 })
+  })
+
+  async function unreceived(
+    tx: postgres.TransactionSql,
+    fixture: InventoryFixture
+  ): Promise<boolean> {
+    const query = new PgDialect().sqlToQuery(
+      unreceivedStockLineCondition(purchaseOrders.id, fixture.tenantId)
+    )
+    const rows = (await tx.unsafe(
+      `select ${query.sql} as unreceived from purchase_orders where id = '${fixture.purchaseOrderId}'`,
+      query.params as never[]
+    )) as Rows
+    return rows[0]!.unreceived as boolean
+  }
+
+  it('counts a tracked line until a posted receipt covers it in full', async () => {
+    const result = await inRollback(sqlClient, async (tx) => {
+      const fixture = await seedInventoryFixture(tx, { receiptMicros: 10_000_000 })
+      const before = await unreceived(tx, fixture)
+      await tx.unsafe(
+        `select * from post_stock_receipt('${fixture.receiptId}', '${fixture.financeId}', '2026-07-27')`
+      )
+      return { before, after: await unreceived(tx, fixture) }
+    })
+    expect(result).toEqual({ before: true, after: false })
+  })
+
+  it('still counts a tracked line received only in part', async () => {
+    const result = await inRollback(sqlClient, async (tx) => {
+      const fixture = await seedInventoryFixture(tx, { receiptMicros: 4_000_000 })
+      await tx.unsafe(
+        `select * from post_stock_receipt('${fixture.receiptId}', '${fixture.financeId}', '2026-07-27')`
+      )
+      return unreceived(tx, fixture)
+    })
+    expect(result).toBe(true)
+  })
+
+  it('ignores a line that cannot take a Stock Receipt', async () => {
+    const result = await inRollback(sqlClient, async (tx) => {
+      const untrackedFixture = await seedInventoryFixture(tx)
+      await tx.unsafe(
+        `update material_items set inventory_tracked = false where id = '${untrackedFixture.itemId}'`
+      )
+      const untracked = await unreceived(tx, untrackedFixture)
+
+      // A service line with no Item, beside a tracked line received in full.
+      const fixture = await seedInventoryFixture(tx, { receiptMicros: 10_000_000 })
+      await tx.unsafe(
+        `insert into po_line_items(
+           tenant_id, po_id, sort_order, description, quantity, quantity_micros,
+           unit_cost_cents, line_total_cents, cost_code_id
+         )
+         select tenant_id, po_id, 2, 'Installation labour', 1, 1000000, 50000, 50000, cost_code_id
+           from po_line_items where id = '${fixture.poLineId}'`
+      )
+      await tx.unsafe(
+        `select * from post_stock_receipt('${fixture.receiptId}', '${fixture.financeId}', '2026-07-27')`
+      )
+      return { untracked, serviceLine: await unreceived(tx, fixture) }
+    })
+    expect(result).toEqual({ untracked: false, serviceLine: false })
   })
 })

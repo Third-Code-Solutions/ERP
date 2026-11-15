@@ -8,6 +8,7 @@ import {
   liveProjectCondition,
   rateCardInEffectCondition,
   resolveTaxRates,
+  unreceivedStockLineCondition,
   type Database,
 } from '@third-code-erp/database'
 import {
@@ -23,7 +24,7 @@ import {
   rateCards,
   vendors,
 } from '@third-code-erp/database/schema'
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, not, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { writeAuditLog, writeAuditLogInTransaction } from '@/lib/audit'
 import { notifyRoles, notifyExternalEmail } from '@/lib/operations/notifications'
@@ -442,7 +443,7 @@ const RETIRED_PROJECT_PO_ERROR =
 // retirement is not overwritten.
 const PO_CHANGED_ERROR = 'Purchase Order status changed; reload and try again.'
 const UNRECEIVED_PO_ERROR =
-  'Every line must be received in full through Stock Receipts before the Purchase Order is marked delivered.'
+  'Every stock-tracked line must be received in full through Stock Receipts before the Purchase Order is marked delivered.'
 
 const VALID_PO_TRANSITIONS: Record<string, string[]> = {
   // Legacy flow — preserved only so existing legacy POs can finish. A draft
@@ -765,18 +766,8 @@ export async function assignPoLineCostCode(
   return {}
 }
 
-// Stock Receipt posting never moves PO status, so a PO marked delivered must have
-// every line already received in full, or its status and quantities disagree.
+// A PO marked delivered must have received every stock-tracked line in full.
 const DELIVERED_PO_STATUSES = ['fully_delivered', 'delivered']
-
-function unreceivedPoLineExists() {
-  return sql<boolean>`exists (
-    select 1 from ${poLineItems}
-     where ${poLineItems.po_id} = ${purchaseOrders.id}
-       and ${poLineItems.tenant_id} = ${purchaseOrders.tenant_id}
-       and ${poLineItems.received_quantity_micros} < ${poLineItems.quantity_micros}
-  )`
-}
 
 export async function advancePoStatus(
   poId: string,
@@ -802,7 +793,10 @@ export async function advancePoStatus(
       project_id: purchaseOrders.project_id,
       created_by: purchaseOrders.created_by,
       project_live: liveProjectCondition(purchaseOrders.project_id, profile.tenantId).mapWith(Boolean),
-      has_unreceived_line: unreceivedPoLineExists().mapWith(Boolean),
+      has_unreceived_stock_line: unreceivedStockLineCondition(
+        purchaseOrders.id,
+        profile.tenantId
+      ).mapWith(Boolean),
     })
     .from(purchaseOrders)
     .where(and(eq(purchaseOrders.id, poId), eq(purchaseOrders.tenant_id, profile.tenantId)))
@@ -821,7 +815,7 @@ export async function advancePoStatus(
   if (nextStatus === 'confirmed' && po.created_by === profile.user.id) {
     return { error: 'The Purchase Order creator cannot confirm it' }
   }
-  if (marksDelivered && po.has_unreceived_line) {
+  if (marksDelivered && po.has_unreceived_stock_line) {
     return { error: UNRECEIVED_PO_ERROR }
   }
 
@@ -837,7 +831,9 @@ export async function advancePoStatus(
         nextStatus === 'confirmed'
           ? liveProjectCondition(purchaseOrders.project_id, profile.tenantId)
           : undefined,
-        marksDelivered ? sql`not ${unreceivedPoLineExists()}` : undefined
+        marksDelivered
+          ? not(unreceivedStockLineCondition(purchaseOrders.id, profile.tenantId))
+          : undefined
       ))
       .returning({ id: purchaseOrders.id })
     if (updated.length === 0) {
