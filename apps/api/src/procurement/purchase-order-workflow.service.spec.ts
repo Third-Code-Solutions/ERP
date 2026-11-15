@@ -98,6 +98,7 @@ function workflowService(po: {
   status: string
   createdBy: string | null
   pmApprovedBy: string | null
+  projectDeletedAt?: Date | null
 }) {
   let requestHash = ''
   const selects: Array<() => unknown[]> = [
@@ -113,6 +114,7 @@ function workflowService(po: {
         createdBy: po.createdBy,
         pmApprovedBy: po.pmApprovedBy,
         projectName: 'Fixture project',
+        projectDeletedAt: po.projectDeletedAt ?? null,
       },
     ],
     () => [],
@@ -169,6 +171,37 @@ describe('PurchaseOrderWorkflowService separation of duties', () => {
       workflowService({ status: 'pending_commercial_approval', createdBy: CREATOR_ID, pmApprovedBy: PM_ID })
         .transition(PO_ID, COMMAND, as(PM_ID), 'po-sod-3')
     ).rejects.toThrow('Commercial approval must come from someone other than')
+  })
+
+  it('refuses every forward step on a PO of a retired project', async () => {
+    const retired = new Date('2026-11-01T00:00:00Z')
+    for (const [status, action, actor] of [
+      ['draft', 'submit_pm_approval', CREATOR_ID],
+      ['pending_pm_approval', 'pm_approve', PM_ID],
+      ['pending_commercial_approval', 'commercial_approve', COMMERCIAL_ID],
+      ['pending_scm_issuance', 'scm_issue', COMMERCIAL_ID],
+    ] as const) {
+      await expect(
+        workflowService({ status, createdBy: CREATOR_ID, pmApprovedBy: PM_ID, projectDeletedAt: retired })
+          .transition(PO_ID, { action }, as(actor), `po-retired-${action}`)
+      ).rejects.toThrow('The project of this Purchase Order is retired')
+    }
+  })
+
+  it('still lets a PO of a retired project be rejected', async () => {
+    await expect(
+      workflowService({
+        status: 'pending_commercial_approval',
+        createdBy: CREATOR_ID,
+        pmApprovedBy: PM_ID,
+        projectDeletedAt: new Date('2026-11-01T00:00:00Z'),
+      }).transition(
+        PO_ID,
+        { action: 'reject', reason: 'Project retired' },
+        as(COMMERCIAL_ID),
+        'po-retired-reject'
+      )
+    ).resolves.toMatchObject({ status: 'draft' })
   })
 
   it('lets three distinct users create, PM-approve and commercially approve', async () => {

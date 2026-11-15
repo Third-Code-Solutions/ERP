@@ -334,6 +334,7 @@ export class PurchaseOrderWorkflowService {
           createdBy: purchaseOrders.created_by,
           pmApprovedBy: purchaseOrders.pm_approved_by,
           projectName: projects.name,
+          projectDeletedAt: projects.deleted_at,
         })
         .from(purchaseOrders)
         .innerJoin(
@@ -352,6 +353,14 @@ export class PurchaseOrderWorkflowService {
         .limit(1)
         .for('update')
       if (!po) throw new NotFoundException('Purchase Order not found')
+      // Retiring a project does not close its POs; a PO of a retired project can
+      // still be rejected back to draft, but not submitted, approved or issued.
+      // The project row is locked with the PO above, so retirement cannot race this.
+      if (po.projectDeletedAt && parsedCommand.action !== 'reject') {
+        throw new ConflictException(
+          'The project of this Purchase Order is retired; it can only be rejected.'
+        )
+      }
 
       let supplierEmail: string | null = null
       let supplierName: string | null = null
