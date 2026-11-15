@@ -22,7 +22,7 @@ import {
   type DocumentIntakeRequest,
   type DocumentIntakeResult,
 } from '@third-code-erp/shared-types'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { roleHasCapability } from '../auth/capability.guard'
 import type {
   ErpPrincipal,
@@ -118,7 +118,9 @@ export class DocumentIntakeService {
         .where(
           and(
             eq(projects.id, command.projectId),
-            eq(projects.tenant_id, authorizedPrincipal.tenantId)
+            eq(projects.tenant_id, authorizedPrincipal.tenantId),
+            // A retired project is not found, as in the other Core commands.
+            isNull(projects.deleted_at)
           )
         )
         .limit(1)
