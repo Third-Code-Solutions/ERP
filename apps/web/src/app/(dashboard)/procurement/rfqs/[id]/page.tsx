@@ -16,6 +16,7 @@ import type { Metadata } from 'next'
 import { and, eq } from 'drizzle-orm'
 import { requireUserProfile, can } from '@third-code-erp/auth'
 import { buildRfqBidLevelingResult } from '@third-code-erp/shared-types'
+import { formatBoqQuantity } from '@third-code-erp/shared-types/bom'
 import { db } from '@third-code-erp/database'
 import {
   rfqs,
@@ -280,7 +281,7 @@ export default async function RfqDetailPage({ params }: PageProps) {
                         </td>
                         <td>{l.description}</td>
                         <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>
-                          {l.qty.toLocaleString('en-PH')}
+                          {formatBoqQuantity(String(l.qty))}
                         </td>
                         <td className="muted">{l.unit ?? '—'}</td>
                         <td>
