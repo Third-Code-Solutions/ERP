@@ -12,8 +12,8 @@ vi.mock('@third-code-erp/database', async (importOriginal) => ({
   db: {
     transaction: mocks.transaction,
   },
-  rateCardInEffectCondition: (await importOriginal<typeof import('@third-code-erp/database')>())
-    .rateCardInEffectCondition,
+  loadRateCardCoverage: (await importOriginal<typeof import('@third-code-erp/database')>())
+    .loadRateCardCoverage,
 }))
 
 vi.mock('@/lib/audit', () => ({
@@ -34,6 +34,7 @@ const ACTOR_ID = '22222222-2222-4222-8222-222222222222'
 const BOM_ID = '33333333-3333-4333-8333-333333333333'
 const PROJECT_ID = '44444444-4444-4444-8444-444444444444'
 const RFQ_ID = '55555555-5555-4555-8555-555555555555'
+const VENDOR_ID = '77777777-7777-4777-8777-777777777777'
 
 function collectColumnNames(
   value: unknown,
@@ -131,6 +132,7 @@ describe('RFQ transaction service', () => {
         },
       ],
       [],
+      [],
     ])
 
     const result = await createRfqFromBomRecord({
@@ -157,15 +159,14 @@ describe('RFQ transaction service', () => {
       expect(collectColumnNames(condition)).toContain('tenant_id')
     }
     // A line counts as contracted only through a card PO pricing can use.
-    const rateCardJoin = harness.joins.find((condition) =>
-      collectColumnNames(condition).includes('material_item_id')
-    )
-    const joinSql = new PgDialect().sqlToQuery(rateCardJoin as SQL).sql
-    expect(joinSql).toContain('"rate_cards"."effective_from" <=')
-    expect(joinSql).toContain(
+    const cardsWhere = harness.conditions
+      .map((condition) => new PgDialect().sqlToQuery(condition as SQL).sql)
+      .find((sql) => sql.includes('"rate_cards"."tenant_id"'))
+    expect(cardsWhere).toContain('"rate_cards"."effective_from" <=')
+    expect(cardsWhere).toContain(
       '("rate_cards"."effective_to" is null or "rate_cards"."effective_to" >'
     )
-    expect(joinSql).toContain('"rate_cards"."unit_price_cents" >')
+    expect(cardsWhere).toContain('"rate_cards"."unit_price_cents" >')
 
     expect(mocks.writeAuditLogInTransaction).toHaveBeenCalledWith(
       harness.tx,
@@ -187,6 +188,52 @@ describe('RFQ transaction service', () => {
     ).toBeLessThan(
       mocks.writeAuditLogInTransaction.mock.invocationCallOrder[0]!
     )
+  })
+
+  it('leaves out only lines PO creation would price from a vendor rate card', async () => {
+    const card = (code: string, vendorId: string | null) => ({
+      id: `card-${code}`,
+      code,
+      unit: 'pc',
+      vendorId,
+      unitPriceCents: 10_000,
+      effectiveFrom: new Date('2026-01-01T00:00:00.000Z'),
+      effectiveTo: null,
+    })
+    const line = (id: string, code: string, unit: string) => ({
+      id,
+      code,
+      description: code,
+      unit,
+      quantity: 1,
+      is_group: 0,
+    })
+    const harness = transactionHarness([
+      [{ id: BOM_ID, project_id: PROJECT_ID }],
+      [],
+      [
+        line('66666666-6666-4666-8666-666666666661', 'MAT-001', 'PC'),
+        line('66666666-6666-4666-8666-666666666662', 'MAT-002', 'pc'),
+        line('66666666-6666-4666-8666-666666666663', 'MAT-003', 'm'),
+      ],
+      [],
+      [card('MAT-001', VENDOR_ID), card('MAT-002', null), card('MAT-003', VENDOR_ID)],
+      [{ id: VENDOR_ID }],
+    ])
+
+    await createRfqFromBomRecord({
+      bomId: BOM_ID,
+      tenantId: TENANT_ID,
+      actorId: null,
+      source: 'manual',
+    })
+
+    // MAT-001: known vendor, same unit → contracted. MAT-002: vendorless card
+    // (PO skips it). MAT-003: card unit differs from the line → still quoted.
+    const [{ line_items: lineItems }] = harness.values.mock.calls[0] as unknown as [
+      { line_items: { code: string }[] },
+    ]
+    expect(lineItems.map((item) => item.code)).toEqual(['MAT-002', 'MAT-003'])
   })
 
   it('returns the existing RFQ on retry without another insert or audit', async () => {

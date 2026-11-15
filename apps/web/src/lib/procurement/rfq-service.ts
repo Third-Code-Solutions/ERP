@@ -1,12 +1,11 @@
 import 'server-only'
 
 import { and, eq, inArray } from 'drizzle-orm'
-import { db, rateCardInEffectCondition } from '@third-code-erp/database'
+import { db, loadRateCardCoverage } from '@third-code-erp/database'
 import {
   boms,
   bomLineItems,
   materialItems,
-  rateCards,
   rfqs,
   users,
 } from '@third-code-erp/database/schema'
@@ -167,24 +166,8 @@ export async function createRfqFromBomRecord(
             .select({
               code: materialItems.code,
               material_item_id: materialItems.id,
-              rate_card_id: rateCards.id,
             })
             .from(materialItems)
-            .leftJoin(
-              rateCards,
-              and(
-                eq(
-                  rateCards.material_item_id,
-                  materialItems.id
-                ),
-                eq(
-                  rateCards.tenant_id,
-                  params.tenantId
-                ),
-                // Only a card PO pricing can use makes a line "contracted".
-                rateCardInEffectCondition(new Date())
-              )
-            )
             .where(
               and(
                 eq(
@@ -194,22 +177,23 @@ export async function createRfqFromBomRecord(
                 inArray(materialItems.code, itemCodes)
               )
             )
+    // A line is "contracted" only when PO creation would price it from a rate card.
+    const isContracted = await loadRateCardCoverage(
+      tx,
+      params.tenantId,
+      itemCodes,
+      new Date()
+    )
 
-    const contractedCodes = new Set<string>()
     const materialItemIdByCode = new Map<string, string>()
     for (const item of catalog) {
       if (item.code) {
         materialItemIdByCode.set(item.code, item.material_item_id)
-        if (item.rate_card_id) {
-          contractedCodes.add(item.code)
-        }
       }
     }
 
     const rfqLines: RfqLineItemJson[] = itemLines
-      .filter(
-        (line) => !(line.code && contractedCodes.has(line.code))
-      )
+      .filter((line) => !isContracted(line))
       .map((line) => ({
         bom_line_item_id: line.id,
         material_item_id: line.code

@@ -41,6 +41,18 @@ const COMMAND: LogRfqQuoteCommand = {
   notes: 'Delivered',
 }
 
+function contractedCard(overrides: { code: string; unit?: string; vendorId?: string | null }) {
+  return {
+    id: `card-${overrides.code}`,
+    unit: 'pcs',
+    vendorId: VENDOR_ID,
+    unitPriceCents: 10_000,
+    effectiveFrom: new Date('2026-01-01T00:00:00.000Z'),
+    effectiveTo: null,
+    ...overrides,
+  }
+}
+
 function harness(selectResults: unknown[][]) {
   const execute = vi.fn().mockResolvedValue([])
   const select = vi.fn(() => {
@@ -49,6 +61,7 @@ function harness(selectResults: unknown[][]) {
     const chain: Record<string, unknown> = {}
     chain.from = vi.fn(() => chain)
     chain.leftJoin = vi.fn(() => chain)
+    chain.innerJoin = vi.fn(() => chain)
     chain.where = vi.fn(() => chain)
     chain.limit = vi.fn(() => chain)
     chain.for = vi.fn(async () => result)
@@ -130,10 +143,10 @@ describe('ProcurementService RFQ creation command', () => {
           code: 'CONTRACTED',
           material_item_id:
             'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-          rate_card_id:
-            'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
         },
       ],
+      [contractedCard({ code: 'CONTRACTED' })],
+      [{ id: VENDOR_ID }],
     ])
 
     await expect(
@@ -257,10 +270,10 @@ describe('ProcurementService RFQ creation command', () => {
           code: 'CONTRACTED',
           material_item_id:
             'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-          rate_card_id:
-            'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
         },
       ],
+      [contractedCard({ code: 'CONTRACTED' })],
+      [{ id: VENDOR_ID }],
     ])
 
     await expect(
@@ -269,15 +282,52 @@ describe('ProcurementService RFQ creation command', () => {
     expect(probe.insert).not.toHaveBeenCalled()
 
     // A line counts as contracted only through a card PO pricing can use.
-    const catalogChain = probe.transactionClient.select.mock.results[3]
-      ?.value as { leftJoin: { mock: { calls: unknown[][] } } }
-    const joinCondition = catalogChain.leftJoin.mock.calls[0]?.[1] as SQL
-    const joinSql = new PgDialect().sqlToQuery(joinCondition).sql
-    expect(joinSql).toContain('"rate_cards"."effective_from" <=')
-    expect(joinSql).toContain(
+    const cardsChain = probe.transactionClient.select.mock.results[4]
+      ?.value as { where: { mock: { calls: unknown[][] } } }
+    const cardsWhere = new PgDialect().sqlToQuery(
+      cardsChain.where.mock.calls[0]?.[0] as SQL
+    ).sql
+    expect(cardsWhere).toContain('"rate_cards"."tenant_id" =')
+    expect(cardsWhere).toContain('"rate_cards"."effective_from" <=')
+    expect(cardsWhere).toContain(
       '("rate_cards"."effective_to" is null or "rate_cards"."effective_to" >'
     )
-    expect(joinSql).toContain('"rate_cards"."unit_price_cents" >')
+    expect(cardsWhere).toContain('"rate_cards"."unit_price_cents" >')
+  })
+
+  it('still quotes a line whose card has no vendor or another unit', async () => {
+    const probe = harness([
+      [{ id: BOM_ID, project_id: PROJECT_ID }],
+      [],
+      [
+        {
+          id: LINE_ID,
+          code: 'VENDORLESS',
+          description: 'Vendorless card line',
+          unit: 'pcs',
+          quantity: 1,
+          is_group: 0,
+        },
+        {
+          id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          code: 'OTHER-UNIT',
+          description: 'Unit mismatch line',
+          unit: 'pc',
+          quantity: 2,
+          is_group: 0,
+        },
+      ],
+      [],
+      [
+        contractedCard({ code: 'VENDORLESS', vendorId: null }),
+        contractedCard({ code: 'OTHER-UNIT' }),
+      ],
+      [{ id: VENDOR_ID }],
+    ])
+
+    await expect(
+      probe.service.create({ bomId: BOM_ID }, PRINCIPAL)
+    ).resolves.toMatchObject({ lineCount: 2, created: true })
   })
 
   it('rejects audit failure so the creation transaction can roll back', async () => {
