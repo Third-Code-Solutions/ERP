@@ -441,6 +441,8 @@ const RETIRED_PROJECT_PO_ERROR =
 // forward steps only while its project is live, so a concurrent change or a
 // retirement is not overwritten.
 const PO_CHANGED_ERROR = 'Purchase Order status changed; reload and try again.'
+const UNRECEIVED_PO_ERROR =
+  'Every line must be received in full through Stock Receipts before the Purchase Order is marked delivered.'
 
 const VALID_PO_TRANSITIONS: Record<string, string[]> = {
   // Legacy flow — preserved only so existing legacy POs can finish. A draft
@@ -763,6 +765,19 @@ export async function assignPoLineCostCode(
   return {}
 }
 
+// Stock Receipt posting never moves PO status, so a PO marked delivered must have
+// every line already received in full, or its status and quantities disagree.
+const DELIVERED_PO_STATUSES = ['fully_delivered', 'delivered']
+
+function unreceivedPoLineExists() {
+  return sql<boolean>`exists (
+    select 1 from ${poLineItems}
+     where ${poLineItems.po_id} = ${purchaseOrders.id}
+       and ${poLineItems.tenant_id} = ${purchaseOrders.tenant_id}
+       and ${poLineItems.received_quantity_micros} < ${poLineItems.quantity_micros}
+  )`
+}
+
 export async function advancePoStatus(
   poId: string,
   nextStatus = 'cancelled'
@@ -787,11 +802,13 @@ export async function advancePoStatus(
       project_id: purchaseOrders.project_id,
       created_by: purchaseOrders.created_by,
       project_live: liveProjectCondition(purchaseOrders.project_id, profile.tenantId).mapWith(Boolean),
+      has_unreceived_line: unreceivedPoLineExists().mapWith(Boolean),
     })
     .from(purchaseOrders)
     .where(and(eq(purchaseOrders.id, poId), eq(purchaseOrders.tenant_id, profile.tenantId)))
 
   if (!po) return { error: 'PO not found' }
+  const marksDelivered = DELIVERED_PO_STATUSES.includes(nextStatus)
   if (nextStatus === 'confirmed' && !po.project_live) {
     return { error: RETIRED_PROJECT_PO_ERROR }
   }
@@ -803,6 +820,9 @@ export async function advancePoStatus(
   // Legacy `confirmed` is the approval step: the creator cannot approve their own PO.
   if (nextStatus === 'confirmed' && po.created_by === profile.user.id) {
     return { error: 'The Purchase Order creator cannot confirm it' }
+  }
+  if (marksDelivered && po.has_unreceived_line) {
+    return { error: UNRECEIVED_PO_ERROR }
   }
 
   try {
@@ -816,7 +836,8 @@ export async function advancePoStatus(
         eq(purchaseOrders.status, po.status),
         nextStatus === 'confirmed'
           ? liveProjectCondition(purchaseOrders.project_id, profile.tenantId)
-          : undefined
+          : undefined,
+        marksDelivered ? sql`not ${unreceivedPoLineExists()}` : undefined
       ))
       .returning({ id: purchaseOrders.id })
     if (updated.length === 0) {

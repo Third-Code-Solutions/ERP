@@ -325,6 +325,9 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
             poId={id}
             currentStatus={po.status}
             projectLive={po.project_live}
+            allLinesReceived={lines.every(
+              (line) => line.received_quantity_micros >= line.quantity_micros
+            )}
             viewerRole={profile?.role ?? null}
             budgetWarning={budgetWarning}
           />

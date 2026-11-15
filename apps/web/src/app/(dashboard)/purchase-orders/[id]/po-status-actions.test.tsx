@@ -18,7 +18,8 @@ import { PoStatusActions } from './po-status-actions'
 function buttons(
   currentStatus: string,
   viewerRole: ErpRole | null,
-  projectLive = true
+  projectLive = true,
+  allLinesReceived = true
 ): string[] {
   const html = renderToStaticMarkup(
     <PoStatusActions
@@ -26,6 +27,7 @@ function buttons(
       currentStatus={currentStatus}
       viewerRole={viewerRole}
       projectLive={projectLive}
+      allLinesReceived={allLinesReceived}
     />
   )
   const labels = [...html.matchAll(/<button[^>]*>([^<]*)<\/button>/g)].map((match) => match[1]!)
@@ -77,6 +79,16 @@ describe('PoStatusActions', () => {
     expect(buttons('pending_scm_issuance', 'commercial')).toEqual(['Reject'])
     expect(buttons('pending_scm_issuance', 'pm')).toEqual([])
     expect(buttons('pending_scm_issuance', null)).toEqual(['Issue PO to supplier', 'Reject'])
+  })
+
+  // advancePoStatus refuses a delivered mark while any line is not received in full.
+  it.each([
+    ['partial_delivered', 'admin', []],
+    ['confirmed', 'procurement', ['Mark Partial Delivery', 'Cancel']],
+    ['partial_delivery', 'procurement', ['Cancel']],
+    ['issued', 'procurement', ['Mark Partial Delivery']],
+  ] as const)('with a line still to receive, a %s PO offers %s only %j', (status, role, expected) => {
+    expect(buttons(status, role, true, false)).toEqual(expected)
   })
 
   // The server refuses submit, both approvals, issue and legacy confirm on a
