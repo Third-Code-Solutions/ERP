@@ -143,6 +143,7 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
 
   const canManagePayables = can(profile.role, 'finance.post_supplier_bill')
   const canManageInventory = can(profile.role, 'inventory.manage')
+  const canEditPoLines = can(profile.role, 'po.create')
   const payableRows = canManagePayables
     ? await db
         .select({
@@ -697,7 +698,7 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
                     <CostCodeAssignment
                       lineId={line.id}
                       currentId={line.cost_code_id}
-                      editable={po.status === 'draft' && po.project_live}
+                      editable={po.status === 'draft' && po.project_live && canEditPoLines}
                       codes={costCodeRows}
                     />
                   </td>

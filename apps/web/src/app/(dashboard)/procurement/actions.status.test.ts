@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
   select: vi.fn(),
   update: vi.fn(),
   writeAuditLog: vi.fn(),
+  writeAuditLogInTransaction: vi.fn(),
+  transaction: vi.fn(),
   revalidatePath: vi.fn(),
   liveProjectCondition: vi.fn(() => ({ mapWith: vi.fn(() => ({})) })),
 }))
@@ -20,6 +22,7 @@ vi.mock('@third-code-erp/database', () => ({
   db: {
     select: mocks.select,
     update: mocks.update,
+    transaction: mocks.transaction,
   },
   liveProjectCondition: mocks.liveProjectCondition,
 }))
@@ -30,7 +33,7 @@ vi.mock('next/cache', () => ({
 
 vi.mock('@/lib/audit', () => ({
   writeAuditLog: mocks.writeAuditLog,
-  writeAuditLogInTransaction: vi.fn(),
+  writeAuditLogInTransaction: mocks.writeAuditLogInTransaction,
 }))
 
 vi.mock('@/lib/operations/notifications', () => ({
@@ -297,30 +300,57 @@ describe('assignPoLineCostCode', () => {
     mocks.select.mockReset()
     mocks.getUserProfile.mockResolvedValue(PROFILE)
     mocks.requireCapability.mockReturnValue(undefined)
+    mocks.transaction.mockImplementation((callback: (tx: unknown) => unknown) =>
+      callback({ update: mocks.update })
+    )
   })
+
+  const RETIRED =
+    'This Purchase Order belongs to a retired project; it can only be rejected, cancelled or received.'
 
   it('refuses to recode a draft PO line of a retired project, without a write or audit', async () => {
     selectLine(false)
     mockUpdate()
 
-    await expect(assignPoLineCostCode(LINE_ID, COST_CODE_ID)).resolves.toEqual({
-      error:
-        'This Purchase Order belongs to a retired project; it can only be rejected, cancelled or received.',
-    })
+    await expect(assignPoLineCostCode(LINE_ID, COST_CODE_ID)).resolves.toEqual({ error: RETIRED })
     expect(mocks.update).not.toHaveBeenCalled()
-    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
   })
 
   it('refuses when the project is retired between the read and the write', async () => {
     selectLine(true)
     mockUpdate([])
 
-    await expect(assignPoLineCostCode(LINE_ID, COST_CODE_ID)).resolves.toEqual({
-      error:
-        'This Purchase Order belongs to a retired project; it can only be rejected, cancelled or received.',
-    })
+    await expect(assignPoLineCostCode(LINE_ID, COST_CODE_ID)).resolves.toEqual({ error: RETIRED })
     expect(mocks.liveProjectCondition).toHaveBeenCalledWith(PROJECT_ID, TENANT_ID)
-    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('reports an unsaved code when the line guard refuses the write, without an audit', async () => {
+    selectLine(true)
+    const returning = vi.fn().mockRejectedValue(new Error('Issued Purchase Order Cost Code is immutable'))
+    mocks.update.mockReturnValue({ set: () => ({ where: () => ({ returning }) }) })
+
+    await expect(assignPoLineCostCode(LINE_ID, COST_CODE_ID)).resolves.toEqual({
+      error: 'Cost Code was not saved; reload and try again.',
+    })
+    expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('reports a failed audit instead of keeping an unaudited change', async () => {
+    selectLine(true)
+    mockUpdate([{ id: LINE_ID }])
+    mocks.writeAuditLogInTransaction.mockRejectedValueOnce(new Error('audit insert failed'))
+
+    await expect(assignPoLineCostCode(LINE_ID, COST_CODE_ID)).resolves.toEqual({
+      error: 'Cost Code was not saved; reload and try again.',
+    })
+    // The update and the audit share one transaction, so the failure rolls both back.
+    expect(mocks.transaction).toHaveBeenCalledTimes(1)
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
   })
 
   it('recodes a draft PO line of a live project and audits it', async () => {
@@ -328,13 +358,19 @@ describe('assignPoLineCostCode', () => {
     mockUpdate([{ id: LINE_ID }])
 
     await expect(assignPoLineCostCode(LINE_ID, COST_CODE_ID)).resolves.toEqual({})
-    expect(mocks.writeAuditLog).toHaveBeenCalledWith(
+    expect(mocks.writeAuditLogInTransaction).toHaveBeenCalledWith(
+      expect.anything(),
       expect.objectContaining({
         entityType: 'po_line_item',
         entityId: LINE_ID,
         diff: { from: null, to: COST_CODE_ID, po_id: PO_ID },
       })
     )
+    expect(mocks.revalidatePath.mock.calls.map(([path]) => path)).toEqual([
+      `/purchase-orders/${PO_ID}`,
+      `/projects/${PROJECT_ID}/cost`,
+      `/projects/${PROJECT_ID}/cost/budget`,
+    ])
   })
 })
 

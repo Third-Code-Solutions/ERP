@@ -43,7 +43,10 @@ export function CostCodeAssignment({
           startTransition(async () => {
             const result = await assignPoLineCostCode(lineId, nextValue)
             if (result.error) {
+              // Show the saved code again; the refresh also locks a PO that changed.
+              setValue(currentId ?? '')
               setError(result.error)
+              router.refresh()
               return
             }
             router.refresh()
