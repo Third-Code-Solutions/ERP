@@ -697,7 +697,7 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
                     <CostCodeAssignment
                       lineId={line.id}
                       currentId={line.cost_code_id}
-                      editable={po.status === 'draft'}
+                      editable={po.status === 'draft' && po.project_live}
                       codes={costCodeRows}
                     />
                   </td>
