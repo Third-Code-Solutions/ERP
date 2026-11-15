@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   createPurchaseOrdersGroupedFromBomThroughCoreApi: vi.fn(),
   transitionPurchaseOrderThroughCoreApi: vi.fn(),
   revalidatePath: vi.fn(),
+  liveProjectCondition: vi.fn(() => ({ mapWith: vi.fn(() => ({})) })),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -22,7 +23,7 @@ vi.mock('@third-code-erp/auth', () => ({
 
 vi.mock('@third-code-erp/database', () => ({
   db: { select: mocks.select },
-  liveProjectCondition: vi.fn(() => ({ mapWith: vi.fn(() => ({})) })),
+  liveProjectCondition: mocks.liveProjectCondition,
 }))
 
 vi.mock('@third-code-erp/database/schema', () => ({
@@ -35,7 +36,7 @@ vi.mock('@third-code-erp/database/schema', () => ({
   projectBudgetLines: {},
   projectBudgets: {},
   projects: {},
-  purchaseOrders: {},
+  purchaseOrders: { project_id: 'purchase_orders.project_id' },
   rateCards: {},
   vendors: {},
 }))
@@ -225,6 +226,10 @@ describe('Purchase Order workflow compatibility seam', () => {
     })
     expect(mocks.transitionPurchaseOrderThroughCoreApi).not.toHaveBeenCalled()
     expect(mocks.revalidatePath).not.toHaveBeenCalled()
+    expect(mocks.liveProjectCondition).toHaveBeenCalledWith(
+      'purchase_orders.project_id',
+      TENANT_ID
+    )
   })
 
   it('still lets a PO of a retired project be rejected', async () => {

@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   update: vi.fn(),
   writeAuditLog: vi.fn(),
   revalidatePath: vi.fn(),
+  liveProjectCondition: vi.fn(() => ({ mapWith: vi.fn(() => ({})) })),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -20,7 +21,7 @@ vi.mock('@third-code-erp/database', () => ({
     select: mocks.select,
     update: mocks.update,
   },
-  liveProjectCondition: vi.fn(() => ({ mapWith: vi.fn(() => ({})) })),
+  liveProjectCondition: mocks.liveProjectCondition,
 }))
 
 vi.mock('next/cache', () => ({
@@ -37,6 +38,7 @@ vi.mock('@/lib/operations/notifications', () => ({
   notifyExternalEmail: vi.fn(),
 }))
 
+import { purchaseOrders } from '@third-code-erp/database/schema'
 import { advancePoStatus } from './actions'
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111'
@@ -155,6 +157,10 @@ describe('advancePoStatus delivery transitions', () => {
     })
     expect(mocks.update).not.toHaveBeenCalled()
     expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+    expect(mocks.liveProjectCondition).toHaveBeenCalledWith(
+      purchaseOrders.project_id,
+      TENANT_ID
+    )
   })
 
   it.each([
