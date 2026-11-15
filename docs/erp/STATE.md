@@ -200,7 +200,7 @@ Owner order of 2026-11-05: import and export estimates in Excel, mirror every pi
 ERP data into Cortex, and a master construction price catalogue. Cortex coverage ships
 in batches: batches 0-1 are #147; deal management (sales) is batch 2 and not started.
 Owner order of 2026-11-11: deploy only what is green on CI and proven working.
-**Web serves `main` at `ad342498` since 2026-11-15 (#161 landing page, deployment `dpl_Fj7jCsucLEkWqFpjYeU23k5Sa6f2`; D0-1 `80a397f0` before it). It holds #151 and #152, the SEC-10 fix (#156), its guard (#157) and the landing page (#161). Nothing else below is live.** The API runs `ad342498` (Railway auto-deploy), with the same runtime code as `f212c9df`. CI cannot run (Actions billing, see Blockers), so
+**Web serves `main` at `ad342498` since 2026-11-15 (#161 landing page, deployment `dpl_Fj7jCsucLEkWqFpjYeU23k5Sa6f2`; D0-1 `80a397f0` before it). It holds #151 and #152, the SEC-10 fix (#156), its guard (#157) and the landing page (#161). Nothing else below is live.** Merged to `main` since, **not live**: the 2026-11-15 trial-defect batch #163–#169 (see the Log; #165 has a deploy precondition in Follow-ups). The API runs `ad342498` (Railway auto-deploy), with the same runtime code as `f212c9df`. CI cannot run (Actions billing, see Blockers), so
 no PR here can pass the merge gate yet.
 
 | Work | Branch / PR | State |
@@ -361,21 +361,19 @@ RUNBOOK) is **done**.
   - Budget grain: material PO lines keep their own `bom_line_item_id`, but budget lines
     are top-level only. The WO-15 block-mode trigger fails closed and cost-control CTEs
     misattribute those lines. Fix with `parent_line_item_id` at the budget grain.
-  - Legacy web `createInvoice` still accepts a superseded approved BOM.
   - The progress-invoice amount chain (`progressBillingAmount` → `computeRetention` →
-    `computeVAT`/`computeEWT` → net) is duplicated in `customer-invoice-draft-create.service.ts`,
-    web `procurement/actions.ts` `createInvoice` and `invoice-preview.ts`; consolidate it.
+    `computeVAT`/`computeEWT` → net) is duplicated in `customer-invoice-draft-create.service.ts`
+    and `invoice-preview.ts`; consolidate it. (The legacy web `createInvoice` copy, which
+    also billed a superseded BOM, was deleted in #165.)
   - Replace `parseDownPaymentBps` with `parsePercentToBps`.
   - Bound the rate-card `FOR SHARE` read with `inArray(code)`.
   - Web test mocks don't pin SQL predicates; add tests for `BOM_NO_LINES` and overflow.
-  - A unit-vocabulary mismatch (`pc` vs `pcs`) skips the rate card with no message;
-    the rate-card writer still accepts a price of 0.
+  - A unit-vocabulary mismatch (`pc` vs `pcs`) skips the rate card with no message.
+    Which units are equivalent is an owner/domain decision; not guessed in code. (The
+    0-price writer half was fixed in #166.)
   - BIR 2307 print lacks the client TIN, the ATC and the payee (tenant) address, and shows
     the month, not the quarter. The client address is the billing address, not the
     BIR-registered one.
-  - D-15 error text "Billing % must be between 1 and 100" (`billing/actions.ts`,
-    `bom-builder.tsx`) contradicts the accepted 0.01 minimum; align it with the legacy
-    "between 0.01% and 100%".
   - The DP award insert takes no project lock (Low).
 - **Release gaps from the manual promotion (do first once Actions is unblocked):**
   re-run CI on `main` (now `ddacfb1b`; the 2026-11-13 web promotion has the same gaps),
@@ -388,8 +386,6 @@ RUNBOOK) is **done**.
   - No DB CHECK keeps `quantity_decimal` non-negative (the app layer enforces it).
   - The backfill held an exclusive lock and wrote one audit row per line (8 rows in
     production, so no impact).
-  - The RFQ quantity uses `toLocaleString('en-PH')` (max 3 dp): 0.0001 shows as "0" and
-    12.3456 as "12.346". Use `formatBoqQuantity`.
   - The sync trigger takes the integer branch when an UPDATE changes `quantity` and
     sets `quantity_decimal` to its current value, so the decimal is overwritten. No caller
     does this today. Note it in the function comment and the contract-release plan.
@@ -399,6 +395,34 @@ RUNBOOK) is **done**.
     down. Catch it and show the conflict notice.
   - `formatBps(retention_bps)` throws outside 0..10000, and `invoices.retention_bps`
     has no CHECK. Add the CHECK, or fall back in the label.
+  - Re-checked 2026-11-15: neither is reachable today (0 `tax_profiles` rows, tax-profile
+    writes gated, every invoice writer takes retention from CHECKed 0..10000 rates).
+    Deferred behind the trial-defect queue.
+- **2026-11-15 trial-defect batch follow-ups (#163–#169, reviews non-blocking):**
+  - #165 **deploy precondition**: the BOM builder now bills through Core, behind
+    `ERP_FINANCE_CUSTOMER_INVOICE_DRAFT_CREATE_WRITES_ENABLED` and its tenant allowlist,
+    exactly like the billing page already did. Before promoting, confirm both cover the
+    live tenants, or builder invoicing returns 503 "not enabled for this tenant".
+  - #165: `award-actions.ts` and `packages/operations/src/signed-bom-award.ts` still write
+    invoices directly (predate the batch). `financeCustomerInvoiceDraftCreateWritesUseCoreApi`
+    and its `_VIA_API` env vars have no caller. `createInvoiceDraft` hand-checks the bps
+    instead of `customerInvoiceDraftCreateBodySchema.safeParse`. `plans/tenancy.md:358,397`
+    and `reports/tenancy.md:61` cite the deleted `procurement/actions.invoice.test.ts`.
+  - #163: the BOM readers don't filter `projects.deleted_at`, and ids aren't UUID-checked.
+  - #164: `project-material-actuals-card.tsx:27` still shows PO quantities at most 3 dp;
+    `takeoff-import-wizard.tsx:177` shows the raw number (no grouping);
+    `togal-import-wizard.tsx` has no importer (its route returns 410).
+  - #166: legacy 0-centavo rate cards may already exist. Clean them up, then add
+    `CHECK (unit_price_cents > 0)` (RLS checks only the tenant).
+  - #167: the cookie-options literal lives in four places (middleware, callback,
+    `packages/auth` server and client); the middleware stale-cookie deletes don't pass
+    `secure` (harmless over HTTPS).
+  - #169: RFQ coverage (`packages/database/src/procurement/rate-card-coverage.ts`) and the
+    two PO card queries (`purchase-order-creation.service.ts`, web `procurement/actions.ts`)
+    are three copies of one card query, cross-referenced by comment; extract one loader.
+    RFQ quotes `is_group === 0` lines while PO prices `purchasableBomLines`, so a parent
+    work item with material children is quoted but never PO'd. An RFQ is built once: a
+    card that expires between RFQ and PO creation leaves that line with neither.
 - **Tooling:** the `lint` script fails on a pnpm 11 vs 10.33 mismatch (run eslint
   directly); local runs need Node 22 (Node 24 fails the engines check).
 - **Owner/admin "Team tasks" view:** needs an explicit change to the daily-task contract
@@ -533,6 +557,7 @@ RUNBOOK) is **done**.
 ## Log
 | Date | Mode | Result |
 |---|---|---|
+| 2026-11-15 | fix | Owner order "start fixing the features of ERP system one by one" (rule R2 trial defects). Seven PRs, each with its own branch, tests that fail on the old code, local gates (web/API `tsc` 0, eslint 0, affected suites green), a security review (PASS) and a code review (APPROVE) posted as PR comments, then squash-merged under the owner override (Actions blocked by billing): #163 `925849b0` the six BOM reader server actions enforce the BOM page read policy (8 roles leaked same-tenant reads); #164 `05bd53ee` RFQ quantities through `formatBoqQuantity` (4 dp); #165 `2529c350` the BOM builder bills through Core, which refuses a superseded BOM; the legacy web `createInvoice` money path is deleted; #166 `cea261e9` rate-card prices must be at least 1 centavo and a safe integer (the picker silently skipped 0-price cards); #167 `e688b2e1` SEC-14, refreshed and callback auth cookies are `Secure` in production, pinned by a contract test on the real `@supabase/ssr`; #168 `2b97a2c4` RFQ "contracted" lines use the PO rate-card filter (`rateCardInEffectCondition`); #169 `e5bdc3bf` RFQ coverage is decided by the PO `rateCardPicker` through `loadRateCardCoverage`, so a vendorless cheapest card, an unknown vendor or a unit mismatch keeps the line quoted. Nothing deployed: web stays `ad342498`, API `ad342498`. Before the next promotion, check the #165 Core invoice flag precondition. Follow-ups are listed under Follow-ups |
 | 2026-11-15 | deploy | Owner order: ship the landing page changes to production. This is outside the v1 freeze rule R2. #161 (`feat/web-abi-ops-landing-3d`) was merged as `ad342498` under the owner override (Actions refused for billing; no security or code-review round ran), then web was promoted by the manual path of `deploy-production.yml` (Vercel CLI 54.7.1 as `kurtgav`: link, `APP_REVISION` override, `deploy --prod`; `DATABASE_URL` step skipped). Pre-checks on Node 22.23.2: web typecheck 0, eslint 0, web unit suite 324 files passed and 3 skipped, 2,919 tests passed, `next build` pass, `pnpm audit --prod` one moderate (GHSA-3v2p-hm54-8qcq, `inngest` > `@opentelemetry/instrumentation-http`, already on `main`). `test:e2e:landing-local`: the page, robots, sitemap and manifest-name assertions pass. The `start_url` assertion fails because the spec expects `/`, while `manifest.ts` has had `/dashboard` since `dfcd049e`. `/api/ready` fails on a local server with no database. Deployment `dpl_Fj7jCsucLEkWqFpjYeU23k5Sa6f2` aliased to `thirdcode-erp.vercel.app`. Verified: `/api/health` and `/api/ready` report `ad342498b722`, database up, core API 200; `/`, the GLB models and the still image return 200; `verify-production-surface.mjs` PASS; API `/health` and `/ready` 200. Railway also auto-deployed the API at `ad342498` (`6540ce9a`, SUCCESS), with no API runtime change since `f212c9df`. Web rollback target: `thirdcode-h9ks0jxwc` (`80a397f0`). Not run: the production release E2E (D0-4 credentials) |
 | 2026-11-13 | gates | D0-2 done on #147 `cae8c63b` (= `a94745d5` + #158; Node 22.23.2, one process at a time). The steps the first run did not reach now pass: web `next build` (CI placeholder env, heap capped at 3 GB); the image-optimizer check (built server, `/api/health` 200, `/_next/image` 200 `image/webp`, valid WebP); the credential-free Playwright job (15 specs, 153/153, 0 skipped, 0 flaky, asserted no skips). `test:wo-11-contract` 59/59. Renewed #147 review (round 5): security PASS and code APPROVE on the interaction with `main` since `67163c62`; the PR's own patch-id is unchanged since round 4. Runbook should-fix folded in as `b92f35fa` (docs only: back up and pause the embed job first, merge #147 straight after the migrations, deploy web and API from that commit, no web rollback older than D0-1). Local exceptions, accepted: actionlint (Windows `tar`), and the account-actions database file, which refuses a non-disposable database; the copy for it could not be made this round (a `pg_dump` restore was stopped for low workstation memory and the copy dropped), and its round-4 run on a disposable copy stands because neither the file nor any migration or schema changed since `67163c62` |
 | 2026-11-13 | gates | D0-2 partial on the #147 + `main` tree `a94745d5` (Node 22.23.2, one process at a time). Pass: lint; typecheck in every package; the CI unit-job gates except wo-11 (below); unit suites shared-types, operations, API and web; `pnpm audit --prod`; local `supabase_db_erp` (port 54342) rebuilt from zero with `supabase@2.109.1 db reset` (183 migrations, head `20261106102000`); `verify:build-ops-data`; policy-contract, repro and release-planner (`--require-current`) checks; empty public schema diff; CI-only grants applied and asserted; database suite with no skips; API integration with no skips (Redis on 56379); the API container built and smoked (health and ready 200, unauthenticated PATCH 401). Fail: (1) `test:wo-11-contract` 58/59, also on `main`: #156 removed the import its fixture relied on; fixed by #158, merged as `93492bda` (security PASS with two pre-existing Mediums, WO11-01 in Follow-ups and WO11-02 = CI not running; code APPROVE), then merged into #147 as `cae8c63b`, where it passes 59/59; (2) actionlint: the local Windows `tar` reads `C:` as a host, so the pinned binary cannot unpack; (3) web DB workflows: two of three pass, and the account-actions file refuses a database that is not a disposable loopback copy, by design (round 4 ran it on a copy). The `db reset` step itself finished; only the run's own ledger query had a quoting error, and a separate query read 183. Not reached: Claude Code stopped the run for low workstation memory at the web `next build` (exit `0xC0000142`), so the build, the image-optimizer check and the credential-free Playwright job are still owed, as are the account-actions file on a disposable copy and a renewed review of #147 on its current head. `v1.0.0-rc.1` waits on them |
