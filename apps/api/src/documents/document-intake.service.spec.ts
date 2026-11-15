@@ -113,8 +113,10 @@ function enabledHarness({ projectRows = [{ id: PROJECT_ID }] as unknown[] } = {}
     update,
     audit,
     requestRecord,
-    projectWhere: () =>
-      new PgDialect().sqlToQuery(projectQuery.where.mock.calls[0]![0] as SQL).sql,
+    projectWhere: () => {
+      expect(projectQuery.where).toHaveBeenCalledTimes(1)
+      return new PgDialect().sqlToQuery(projectQuery.where.mock.calls[0]![0] as SQL).sql
+    },
   }
 }
 
@@ -162,7 +164,9 @@ describe('DocumentIntakeService Core authority', () => {
     await expect(
       probe.service.create(COMMAND, PRINCIPAL, 'intake-retired')
     ).rejects.toBeInstanceOf(NotFoundException)
-    expect(probe.projectWhere()).toContain('"projects"."deleted_at" is null')
+    expect(probe.projectWhere()).toBe(
+      '("projects"."id" = $1 and "projects"."tenant_id" = $2 and "projects"."deleted_at" is null)'
+    )
     expect(probe.insert).not.toHaveBeenCalled()
     expect(probe.audit.writeSemantic).not.toHaveBeenCalled()
   })
