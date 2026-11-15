@@ -1,0 +1,183 @@
+.host {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.still {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 900ms var(--ease);
+}
+
+.still[data-hidden='true'] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.stillImage {
+  width: 100%;
+  height: auto;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  opacity: 0;
+  touch-action: pan-y;
+  transition: opacity 900ms var(--ease);
+}
+
+.canvas:active {
+  cursor: grabbing;
+}
+
+.canvas[data-ready='true'] {
+  opacity: 1;
+}
+
+/* Callouts pinned to nodes of the memory network; the scene moves them. */
+.label {
+  --tone: #8fb8ff;
+
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 3;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 450ms var(--ease);
+  will-change: transform;
+}
+
+.label[data-tone='gold'] {
+  --tone: #ffb347;
+}
+
+.label[data-tone='red'] {
+  --tone: #ff8a8a;
+}
+
+.label[data-tone='green'] {
+  --tone: #5ee6a8;
+}
+
+.label[data-on='true'] {
+  opacity: 1;
+}
+
+.dot {
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid #fff;
+  border-radius: 50%;
+  background: var(--tone);
+  box-shadow: 0 0 12px var(--tone);
+}
+
+.card {
+  position: absolute;
+  top: -22px;
+  left: 20px;
+  transform: translateY(var(--dy, 0px));
+  transition: transform 350ms var(--ease);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 11px;
+  border: 1px solid color-mix(in srgb, var(--tone) 55%, transparent);
+  border-radius: 6px;
+  background: rgba(6, 20, 33, 0.82);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  white-space: nowrap;
+}
+
+.card::before {
+  position: absolute;
+  top: 22px;
+  left: -16px;
+  width: 16px;
+  height: 1px;
+  background: var(--tone);
+  content: '';
+}
+
+.card strong {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.card span {
+  color: rgba(255, 255, 255, 0.68);
+  font-family: var(--font-code);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.hint,
+.notice {
+  position: absolute;
+  bottom: 12px;
+  left: 16px;
+  z-index: 3;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.55);
+  font-family: var(--font-code);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.notice {
+  max-width: 340px;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.82);
+  background: rgba(6, 20, 33, 0.7);
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+  text-transform: none;
+}
+
+/* Small stages show the record's name only; the detail is in the text beside it. */
+@media (max-width: 959px) {
+  .card {
+    padding: 4px 8px;
+  }
+
+  .card span {
+    display: none;
+  }
+
+  .card strong {
+    font-size: 12px;
+  }
+
+  .card::before {
+    top: 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .still,
+  .canvas,
+  .label,
+  .card {
+    transition: none;
+  }
+}

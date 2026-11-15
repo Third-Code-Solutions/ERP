@@ -1,0 +1,204 @@
+/* Stroke-draw mechanics for the building elevations. Every stroke carries
+   pathLength="1", so a dash of 1 with a gap of 2 lets one offset value hide or
+   reveal any stroke regardless of its real length. */
+.dw {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.st {
+  fill: none;
+  stroke: currentColor;
+  stroke-dasharray: 1 2;
+  stroke-dashoffset: 0;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: stroke-dashoffset var(--dur, 900ms) cubic-bezier(0.6, 0.05, 0.3, 1)
+    calc(var(--bd, 0ms) + var(--d, 0ms));
+}
+
+.dw[data-state='pending'] .st {
+  stroke-dashoffset: 1.02px;
+}
+
+.dw[data-instant='true'] .st {
+  transition: none;
+}
+
+.o {
+  stroke-width: calc(1.35px * var(--k, 1));
+}
+
+.l {
+  stroke-width: calc(1px * var(--k, 1));
+}
+
+.d {
+  stroke-opacity: 0.85;
+  stroke-width: calc(0.75px * var(--k, 1));
+}
+
+.g {
+  stroke-opacity: 0.6;
+  stroke-width: calc(0.6px * var(--k, 1));
+}
+
+.h {
+  stroke-opacity: 0.5;
+  stroke-width: calc(0.5px * var(--k, 1));
+}
+
+.u {
+  stroke-opacity: 0.32;
+  stroke-width: calc(0.5px * var(--k, 1));
+}
+
+.t {
+  stroke-opacity: 0.6;
+  stroke-width: calc(0.7px * var(--k, 1));
+}
+
+.m {
+  stroke-opacity: 0.9;
+  stroke-width: calc(0.6px * var(--k, 1));
+}
+
+.lbl {
+  fill: currentColor;
+  font-family: var(--font-code);
+  font-size: calc(9px * var(--k, 1));
+  letter-spacing: 0.06em;
+  transition: opacity 600ms ease var(--sd, 0ms);
+}
+
+.dw[data-instant='true'] .lbl {
+  transition: none;
+}
+
+.fill {
+  fill: var(--hl);
+  fill-opacity: 0;
+  transition: fill-opacity 400ms;
+}
+
+.hatchFill {
+  opacity: 0;
+  transition: opacity 400ms;
+}
+
+.hatchLine {
+  stroke: var(--hl);
+  stroke-opacity: 0.32;
+  stroke-width: 0.9;
+}
+
+/* Stage mode: strokes belong to a stage and draw on, or erase, as the stage
+   changes. The finished stage recolours the drawing and fills it. */
+.dw[data-mode='stage'] {
+  color: var(--color-neutral-800);
+  transition: color 700ms;
+}
+
+.dw[data-mode='stage'] .st {
+  transition-delay: var(--sd, 0ms);
+}
+
+.dw[data-mode='stage'] .st[data-off='true'] {
+  stroke-dashoffset: 1.02px;
+  transition-delay: 0s;
+  transition-duration: 450ms;
+}
+
+.dw[data-mode='stage'] .lbl[data-off='true'] {
+  opacity: 0;
+  transition-delay: 0s;
+}
+
+.dw[data-complete='true'] {
+  color: var(--hl);
+}
+
+.dw[data-complete='true'] .fill {
+  fill-opacity: 0.06;
+}
+
+.dw[data-complete='true'] .hatchFill {
+  opacity: 1;
+}
+
+/* One building: lifts and takes the highlight when active, dims while another
+   is hovered, and erases itself when a filter excludes it. */
+.bldg {
+  color: var(--color-neutral-800);
+  cursor: pointer;
+  outline: none;
+  transition:
+    color 350ms,
+    opacity 450ms;
+}
+
+.lift {
+  transition: transform 500ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.bldg[data-active='true'] {
+  color: var(--hl);
+}
+
+.bldg[data-active='true'] .lift {
+  transform: translateY(-6px);
+}
+
+.bldg[data-active='true'] .fill {
+  fill-opacity: 0.07;
+}
+
+.bldg[data-active='true'] .hatchFill {
+  opacity: 1;
+}
+
+.bldg[data-muted='true'] {
+  opacity: 0.38;
+}
+
+.bldg[data-off='true'] {
+  opacity: 0.2;
+  pointer-events: none;
+}
+
+.bldg[data-off='true'] .st {
+  stroke-dashoffset: 1.02px;
+  transition-delay: 0s;
+  transition-duration: 550ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .st,
+  .dw[data-state='pending'] .st,
+  .bldg[data-off='true'] .st {
+    stroke-dashoffset: 0;
+    transition: none;
+  }
+
+  .dw[data-mode='stage'] .st[data-off='true'] {
+    stroke-dashoffset: 1.02px;
+  }
+
+  .lbl,
+  .dw[data-mode='stage'] {
+    transition: none;
+  }
+
+  .bldg[data-off='true'] .st {
+    opacity: 0;
+  }
+
+  .lift,
+  .bldg,
+  .fill,
+  .hatchFill {
+    transition: none;
+  }
+}

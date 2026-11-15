@@ -39,8 +39,8 @@
     "test:e2e:report": "playwright show-report"
   },
   "dependencies": {
-    "@napi-rs/canvas": "1.0.6",
     "@gsap/react": "^2.1.2",
+    "@napi-rs/canvas": "1.0.6",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.48.1",
     "@tailwindcss/postcss": "^4.3.0",
@@ -70,6 +70,7 @@
     "react-dom": "^19.0.0",
     "tailwindcss": "^4.3.0",
     "tesseract.js": "7.0.0",
+    "three": "^0.187.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^3.24.1"
   },
@@ -80,6 +81,7 @@
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@types/three": "^0.187.0",
     "typescript": "^5.7.2",
     "vite": "7.3.7",
     "vitest": "^4.1.12"
