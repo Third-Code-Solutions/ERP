@@ -25,6 +25,7 @@ import {
   vendors,
   type Database,
 } from '@third-code-erp/database'
+import { UnrecoverableError } from 'bullmq'
 import { and, eq } from 'drizzle-orm'
 import request from 'supertest'
 import { describe, expect, it, vi } from 'vitest'
@@ -782,6 +783,14 @@ suite('Procurement API database integration', () => {
           status: 'dead_letter',
         })
         expect(sendRfqCreated).toHaveBeenCalledTimes(1)
+        for (const settled of [
+          { ...emailJob, tenantId: tenantB },
+          { ...emailJob, deliveryId: randomUUID() },
+        ]) {
+          await expect(
+            notificationDelivery.deliver(settled)
+          ).rejects.toBeInstanceOf(UnrecoverableError)
+        }
 
         await request(app.getHttpServer())
           .post('/v1/procurement/rfqs/dispatch')

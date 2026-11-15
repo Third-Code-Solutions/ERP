@@ -16,6 +16,7 @@ import {
   vendors,
   type Database,
 } from '@third-code-erp/database'
+import { UnrecoverableError } from 'bullmq'
 import { and, eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
 import type { ConfigService } from '@nestjs/config'
@@ -392,6 +393,18 @@ suite('Purchase Order workflow database integration', () => {
             totalCents: 110_000,
           })
         )
+        for (const settled of [
+          { tenantId: randomUUID(), deliveryId: supplierDelivery!.id },
+          { tenantId, deliveryId: randomUUID() },
+        ]) {
+          await expect(
+            notificationDelivery.deliverSupplierEmail({
+              schemaVersion: 1,
+              outboxId: supplierOutbox!.id,
+              ...settled,
+            })
+          ).rejects.toBeInstanceOf(UnrecoverableError)
+        }
         const [stampedPo] = await transaction
           .select({ supplierEmailSentAt: purchaseOrders.supplier_email_sent_at })
           .from(purchaseOrders)

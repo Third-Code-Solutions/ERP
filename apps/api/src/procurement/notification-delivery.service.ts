@@ -1,4 +1,5 @@
 import { Inject, Injectable, Optional } from '@nestjs/common'
+import { UnrecoverableError } from 'bullmq'
 import {
   boms,
   notificationDeliveries,
@@ -250,7 +251,8 @@ export class NotificationDeliveryService {
           .for('update')
 
         if (!record) {
-          throw new Error('Notification delivery not found')
+          // Settled: no retry can change it, so it is dead-lettered on this attempt.
+          throw new UnrecoverableError('Notification delivery not found')
         }
         if (record.status === 'delivered') {
           return {
@@ -385,7 +387,7 @@ export class NotificationDeliveryService {
           }
         }
         if (record.channel !== 'email') {
-          throw new Error('Unsupported notification channel')
+          throw new UnrecoverableError('Unsupported notification channel')
         }
         return {
           kind: 'email' as const,
@@ -490,7 +492,7 @@ export class NotificationDeliveryService {
           .limit(1)
           .for('update')
 
-        if (!record) throw new Error('Notification delivery not found')
+        if (!record) throw new UnrecoverableError('Notification delivery not found')
         if (record.status === 'delivered') {
           return {
             kind: 'result' as const,
@@ -610,7 +612,7 @@ export class NotificationDeliveryService {
           }
         }
         if (record.channel !== 'email') {
-          throw new Error('Unsupported notification channel')
+          throw new UnrecoverableError('Unsupported notification channel')
         }
         return {
           kind: 'email' as const,
@@ -766,7 +768,7 @@ export class NotificationDeliveryService {
           .limit(1)
           .for('update')
 
-        if (!record) throw new Error('Supplier email delivery not found')
+        if (!record) throw new UnrecoverableError('Supplier email delivery not found')
         if (record.status === 'delivered') {
           return {
             kind: 'result' as const,
@@ -1098,7 +1100,7 @@ export class NotificationDeliveryService {
       .limit(1)
       .for('share')
     if (!delivery) {
-      throw new Error('Notification recipient is no longer eligible')
+      throw new UnrecoverableError('Notification recipient is no longer eligible')
     }
     return delivery.recipientUserId
   }

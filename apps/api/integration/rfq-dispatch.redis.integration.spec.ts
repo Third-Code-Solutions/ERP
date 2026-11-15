@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import {
   Queue,
+  UnrecoverableError,
   Worker,
   type Job,
   type QueueOptions,
@@ -416,35 +417,30 @@ suite('RFQ BullMQ disposable Redis integration', () => {
     await waitForState(queue, secondId, 'completed', 20_000)
   }, 30_000)
 
-  it('bounds notification retries and persists final dead-letter intent', async () => {
-    const name = queueName('notification-retry')
+  async function failNotification(name: string, failure: Error) {
     const queue = new Queue<
       NotificationDeliveryJob,
       NotificationDeliveryResult,
       string
     >(name, { connection: connection() })
     queues.push(queue)
-    const deliver = vi
-      .fn()
-      .mockRejectedValue(new Error('email provider unavailable'))
+    const deliver = vi.fn().mockRejectedValue(failure)
     const markDeadLetter = vi.fn().mockResolvedValue(undefined)
-    const processor = new NotificationDeliveryProcessor({
-      deliver,
-      markDeadLetter,
-    } as unknown as NotificationDeliveryService)
-    const worker = new Worker<
-      NotificationDeliveryJob,
-      NotificationDeliveryResult,
-      string
-    >(name, async (job) => processor.process(job), {
-      connection: connection(),
-    })
+    const processor = new NotificationDeliveryProcessor(
+      { deliver, markDeadLetter } as unknown as NotificationDeliveryService,
+      {} as NotificationDeliveryQueue
+    )
+    const worker = new Worker<NotificationDeliveryJob, unknown, string>(
+      name,
+      async (job) => processor.process(job),
+      { connection: connection() }
+    )
     worker.on('failed', (job, error) => {
       void processor.onFailed(job, error)
     })
     workers.push(worker)
 
-    const jobId = `notification-retry-${randomUUID()}`
+    const jobId = `${name}-${randomUUID()}`
     const data: NotificationDeliveryJob = {
       schemaVersion: 1,
       ...NOTIFICATION_DELIVERY,
@@ -463,13 +459,39 @@ suite('RFQ BullMQ disposable Redis integration', () => {
     ) {
       await new Promise((resolve) => setTimeout(resolve, 25))
     }
+    const failed = await queue.getJob(jobId)
+    return { data, deliver, markDeadLetter, attemptsMade: failed?.attemptsMade }
+  }
 
-    expect(deliver).toHaveBeenCalledTimes(3)
-    expect(markDeadLetter).toHaveBeenCalledOnce()
-    expect(markDeadLetter).toHaveBeenCalledWith(
-      data,
+  it('bounds notification retries and persists final dead-letter intent', async () => {
+    const run = await failNotification(
+      queueName('notification-retry'),
+      new Error('email provider unavailable')
+    )
+
+    expect(run.deliver).toHaveBeenCalledTimes(3)
+    expect(run.markDeadLetter).toHaveBeenCalledOnce()
+    expect(run.markDeadLetter).toHaveBeenCalledWith(
+      run.data,
       expect.objectContaining({
         message: 'email provider unavailable',
+      })
+    )
+  }, 20_000)
+
+  it('dead-letters a settled notification failure on the first attempt', async () => {
+    const run = await failNotification(
+      queueName('notification-settled'),
+      new UnrecoverableError('Notification delivery not found')
+    )
+
+    expect(run.deliver).toHaveBeenCalledOnce()
+    expect(run.attemptsMade).toBe(1)
+    expect(run.markDeadLetter).toHaveBeenCalledOnce()
+    expect(run.markDeadLetter).toHaveBeenCalledWith(
+      run.data,
+      expect.objectContaining({
+        message: 'Notification delivery not found',
       })
     )
   }, 20_000)
