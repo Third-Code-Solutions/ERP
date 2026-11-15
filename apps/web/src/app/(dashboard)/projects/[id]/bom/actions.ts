@@ -26,7 +26,7 @@ import {
 } from '@third-code-erp/database/schema'
 import { eq, and, max, desc, asc, isNotNull, isNull, inArray, ne } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
-import { activeProjectCondition } from '@/lib/active-project'
+import { liveProjectCondition } from '@/lib/live-project'
 import { writeAuditLogInTransaction } from '@/lib/audit'
 import { safeActionError } from '@/lib/safe-action-error'
 import { getProjectDetailAccess } from '../project-detail-access'
@@ -154,12 +154,18 @@ async function lockBomForMutation(
         eq(boms.id, scope.bomId),
         eq(boms.project_id, scope.projectId),
         eq(boms.tenant_id, scope.tenantId),
-        activeProjectCondition(scope.projectId, scope.tenantId),
+        // Share-locks the project row so a concurrent retirement cannot slip in.
+        liveProjectCondition(scope.projectId, scope.tenantId, { lock: 'share' }),
       ),
     )
     .for('update')
 
   return bom ?? null
+}
+
+// A malformed id would otherwise reach Postgres and throw instead of answering empty.
+function isUuid(value: string | null): value is string {
+  return z.string().uuid().safeParse(value).success
 }
 
 async function lockProjectForMutation(
@@ -250,6 +256,7 @@ export async function addBomLineItem(
         eq(boms.id, bomId),
         eq(boms.project_id, projectId),
         eq(boms.tenant_id, profile.tenantId),
+        liveProjectCondition(projectId, profile.tenantId),
       ),
     )
   if (!bom) return { error: 'BOM not found' }
@@ -399,8 +406,7 @@ export async function upsertDupaForBomLine(
     return { error: `Forbidden: role "${profile.role}" lacks "bom.edit"` }
   }
 
-  const ids = [z.string().uuid().safeParse(projectId), z.string().uuid().safeParse(bomId)]
-  if (ids.some((result) => !result.success)) return { error: 'Invalid project or BOM id' }
+  if (!isUuid(projectId) || !isUuid(bomId)) return { error: 'Invalid project or BOM id' }
 
   const parsed = dupaUpsertInputSchema.safeParse(input)
   if (!parsed.success) {
@@ -417,6 +423,7 @@ export async function upsertDupaForBomLine(
         eq(boms.id, bomId),
         eq(boms.project_id, projectId),
         eq(boms.tenant_id, profile.tenantId),
+        liveProjectCondition(projectId, profile.tenantId),
       ),
     )
     .limit(1)
@@ -765,6 +772,7 @@ export async function deleteBomLineItem(
         eq(boms.id, bomId),
         eq(boms.project_id, projectId),
         eq(boms.tenant_id, profile.tenantId),
+        liveProjectCondition(projectId, profile.tenantId),
       ),
     )
     .limit(1)
@@ -852,7 +860,8 @@ export async function approveBom(bomId: string, projectId: string): Promise<{ er
           eq(boms.id, bomId),
           eq(boms.project_id, projectId),
           eq(boms.tenant_id, profile.tenantId),
-          activeProjectCondition(projectId, profile.tenantId),
+          // Share-locks the project row: approval dispatches RFQs, never for a retired project.
+          liveProjectCondition(projectId, profile.tenantId, { lock: 'share' }),
         ),
       )
       .for('update')
@@ -1040,11 +1049,6 @@ function canReadBom(role: AppRole): boolean {
   return getProjectDetailAccess(role).bom
 }
 
-// A malformed id would otherwise reach Postgres and throw instead of answering empty.
-function isUuid(value: string | null): value is string {
-  return z.string().uuid().safeParse(value).success
-}
-
 export async function listPendingBomGrainReviews(
   projectId: string,
   bomId: string | null,
@@ -1083,7 +1087,7 @@ export async function listPendingBomGrainReviews(
         eq(boms.project_id, projectId),
         eq(boms.id, bomId),
         eq(boms.tenant_id, profile.tenantId),
-        activeProjectCondition(projectId, profile.tenantId),
+        liveProjectCondition(projectId, profile.tenantId),
       ),
     )
     .orderBy(asc(bomLineItems.sort_order), asc(bomLineItemGrainReviews.created_at))
@@ -1138,6 +1142,7 @@ export async function resolveBomGrainReview(input: unknown): Promise<{ error?: s
         eq(bomLineItemGrainReviews.tenant_id, profile.tenantId),
         eq(bomLineItemGrainReviews.status, 'pending'),
         eq(boms.project_id, parsed.data.projectId),
+        liveProjectCondition(boms.project_id, profile.tenantId),
         eq(boms.tenant_id, profile.tenantId),
       ),
     )
@@ -1364,7 +1369,7 @@ export async function listProjectLocations(projectId: string): Promise<ProjectLo
       and(
         eq(projectLocations.project_id, projectId),
         eq(projectLocations.tenant_id, profile.tenantId),
-        activeProjectCondition(projectId, profile.tenantId),
+        liveProjectCondition(projectId, profile.tenantId),
       ),
     )
     .orderBy(asc(projectLocations.sort_order), asc(projectLocations.name))
@@ -1407,7 +1412,7 @@ export async function listPendingBomLocationReviews(
         eq(boms.project_id, projectId),
         eq(boms.id, bomId),
         eq(boms.tenant_id, profile.tenantId),
-        activeProjectCondition(projectId, profile.tenantId),
+        liveProjectCondition(projectId, profile.tenantId),
       ),
     )
     .orderBy(asc(bomLineItems.sort_order), asc(bomLineItemLocationReviews.created_at))
@@ -1449,7 +1454,7 @@ export async function listBomLocationRollup(
         eq(boms.project_id, projectId),
         eq(boms.id, bomId),
         isNotNull(bomLineItems.location_id),
-        activeProjectCondition(projectId, profile.tenantId),
+        liveProjectCondition(projectId, profile.tenantId),
       ),
     )
     .groupBy(
@@ -1564,6 +1569,7 @@ export async function resolveBomLocationReview(input: unknown): Promise<{ error?
         eq(bomLineItemLocationReviews.tenant_id, profile.tenantId),
         eq(bomLineItemLocationReviews.status, 'pending'),
         eq(boms.project_id, parsed.data.projectId),
+        liveProjectCondition(boms.project_id, profile.tenantId),
         eq(boms.tenant_id, profile.tenantId),
       ),
     )
@@ -1745,6 +1751,7 @@ export async function setBomLineLocation(input: unknown): Promise<{ error?: stri
         eq(bomLineItems.id, parsed.data.lineItemId),
         eq(bomLineItems.tenant_id, profile.tenantId),
         eq(boms.project_id, parsed.data.projectId),
+        liveProjectCondition(boms.project_id, profile.tenantId),
       ),
     )
   if (!line) return { error: 'Line item not found' }
@@ -1938,7 +1945,7 @@ export async function fetchProjectForecastTcv(
       and(
         eq(opportunities.project_id, projectId),
         eq(opportunities.tenant_id, profile.tenantId),
-        activeProjectCondition(projectId, profile.tenantId),
+        liveProjectCondition(projectId, profile.tenantId),
       ),
     )
     .orderBy(desc(opportunities.tcv_cents))
@@ -1969,7 +1976,7 @@ export async function fetchLineSupplierContext(
       and(
         eq(bomLineItems.id, lineItemId),
         eq(bomLineItems.tenant_id, profile.tenantId),
-        activeProjectCondition(boms.project_id, profile.tenantId),
+        liveProjectCondition(boms.project_id, profile.tenantId),
       ),
     )
 
@@ -2072,6 +2079,7 @@ export async function setLineItemVendor(
         eq(bomLineItems.id, parsed.data.lineItemId),
         eq(bomLineItems.tenant_id, profile.tenantId),
         eq(boms.project_id, parsed.data.projectId),
+        liveProjectCondition(boms.project_id, profile.tenantId),
         eq(boms.tenant_id, profile.tenantId),
       ),
     )
