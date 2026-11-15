@@ -108,4 +108,39 @@ describe('middleware "keep me signed in" enforcement', () => {
     expect(response.status).toBe(200)
     expect(response.headers.get('location')).toBeNull()
   })
+
+  it.each([
+    ['production', true],
+    ['development', false],
+  ])('writes refreshed auth cookies with secure in %s set to %s (SEC-14)', async (env, secure) => {
+    vi.stubEnv('NODE_ENV', env)
+    // Stand in for @supabase/ssr: a token refresh writes the auth cookie
+    // through setAll with the caller's cookieOptions merged in.
+    mocks.createServerClient.mockImplementation((_url, _key, config) => ({
+      auth: {
+        getUser: async () => {
+          config.cookies.setAll([
+            {
+              name: AUTH_COOKIE,
+              value: 'refreshed',
+              options: { ...config.cookieOptions, maxAge: 34_560_000 },
+            },
+          ])
+          return mocks.getUser()
+        },
+        getSession: mocks.getSession,
+        getClaims: mocks.getClaims,
+      },
+      rpc: mocks.rpc,
+    }))
+
+    const response = await middleware(authenticatedRequest(`${AUTH_COOKIE}=token`))
+
+    expect(response.cookies.get(AUTH_COOKIE)).toMatchObject({
+      value: 'refreshed',
+      path: '/',
+      sameSite: 'lax',
+      secure,
+    })
+  })
 })

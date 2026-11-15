@@ -288,6 +288,13 @@ export async function middleware(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      // @supabase/ssr merges these into every refreshed auth cookie; its own
+      // defaults leave `secure` unset (SEC-14).
+      cookieOptions: {
+        path: '/',
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+      },
       cookies: {
         getAll() {
           return request.cookies.getAll()
