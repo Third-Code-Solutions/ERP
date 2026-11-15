@@ -112,10 +112,11 @@ BEGIN
     INSERT INTO purchase_orders (id, tenant_id, project_id, vendor_id, created_by, po_number, status, subtotal_cents, vat_cents, withholding_tax_cents, total_cents, delivery_date, notes)
     VALUES (v_po1, v_tenant, v_proj_somnus, v_vendor1, v_user, 'PO-2026-0001', 'partial_delivery', 344000000, 41280000, 6880000, 378400000, NOW() + interval '14 days', 'HVAC equipment package — partial delivery in progress');
 
-    INSERT INTO po_line_items (tenant_id, po_id, sort_order, code, description, unit, quantity, unit_cost_cents, line_total_cents, received_qty, received_at, received_by, notes)
+    -- Received quantities come only from posted Stock Receipts; a line starts unreceived.
+    INSERT INTO po_line_items (tenant_id, po_id, sort_order, code, description, unit, quantity, unit_cost_cents, line_total_cents, notes)
     VALUES
-      (v_tenant, v_po1, 0, 'M-100', 'Fan Coil Unit, 2HP ceiling-cassette', 'pcs', 24, 8500000, 204000000, 18, NOW() - interval '2 days', v_user, '18 of 24 received; 6 backordered to next week'),
-      (v_tenant, v_po1, 1, 'M-110', 'Air Handling Unit, 5TR',              'pcs',  4, 35000000, 140000000,  4, NOW() - interval '5 days', v_user, 'All 4 received and inspected');
+      (v_tenant, v_po1, 0, 'M-100', 'Fan Coil Unit, 2HP ceiling-cassette', 'pcs', 24, 8500000, 204000000, '18 of 24 on site, Stock Receipt to post; 6 backordered to next week'),
+      (v_tenant, v_po1, 1, 'M-110', 'Air Handling Unit, 5TR',              'pcs',  4, 35000000, 140000000, 'All 4 on site and inspected, Stock Receipt to post');
   END IF;
 
   -- ------------------------------------------------------------ comments on Somnus
