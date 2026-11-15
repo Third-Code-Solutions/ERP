@@ -4,7 +4,7 @@ import {
   Processor,
   WorkerHost,
 } from '@nestjs/bullmq'
-import { HttpException, Inject, Logger } from '@nestjs/common'
+import { HttpException, HttpStatus, Inject, Logger } from '@nestjs/common'
 import {
   rfqDispatchDeadLetterSchema,
   rfqDispatchJobSchema,
@@ -55,7 +55,14 @@ export class RfqDispatchProcessor extends WorkerHost {
       .catch((error: unknown) => {
         // A 4xx is the BOM's or actor's settled state (gone, retired, no longer
         // approved, no lines, no role); retrying cannot change it.
-        if (error instanceof HttpException && error.getStatus() < 500) {
+        // shortcut: every 4xx but 408/429 counts as settled; if createRecord ever
+        // maps a lock timeout to 409 (as claim services do), exempt it here.
+        if (
+          error instanceof HttpException &&
+          error.getStatus() < 500 &&
+          error.getStatus() !== HttpStatus.REQUEST_TIMEOUT &&
+          error.getStatus() !== HttpStatus.TOO_MANY_REQUESTS
+        ) {
           throw new UnrecoverableError(`${error.name}: ${error.message}`)
         }
         throw error
@@ -85,7 +92,9 @@ export class RfqDispatchProcessor extends WorkerHost {
       typeof job.opts.attempts === 'number'
         ? job.opts.attempts
         : 1
-    if (job.attemptsMade < attempts && !(error instanceof UnrecoverableError)) {
+    const unrecoverable =
+      error instanceof UnrecoverableError || error.name === 'UnrecoverableError'
+    if (job.attemptsMade < attempts && !unrecoverable) {
       return
     }
 

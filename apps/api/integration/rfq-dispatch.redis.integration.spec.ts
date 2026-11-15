@@ -7,7 +7,7 @@ import {
   type QueueOptions,
   type WorkerOptions,
 } from 'bullmq'
-import { NotFoundException } from '@nestjs/common'
+import { ConflictException, NotFoundException } from '@nestjs/common'
 import type { ConfigService } from '@nestjs/config'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -313,6 +313,52 @@ suite('RFQ BullMQ disposable Redis integration', () => {
       errorName: 'UnrecoverableError',
       errorMessage: 'NotFoundException: BOM not found',
     })
+  }, 20_000)
+
+  it('runs a refused dispatch again when it is requested again', async () => {
+    const name = queueName('redispatch')
+    const deadLetterName = queueName('redispatch-dead-letter')
+    const queue = new Queue<RfqDispatchJob, RfqCreationResult, string>(
+      name,
+      { connection: connection() }
+    )
+    const deadLetterQueue = new Queue<
+      RfqDispatchDeadLetter,
+      void,
+      string
+    >(deadLetterName, { connection: connection() })
+    queues.push(queue, deadLetterQueue)
+    const createFromApprovedBom = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new ConflictException('BOM must be approved before automatic RFQ dispatch')
+      )
+      .mockResolvedValue(RESULT)
+    const processor = new RfqDispatchProcessor(
+      { createFromApprovedBom } as unknown as ProcurementService,
+      deadLetterQueue,
+      {
+        enqueueOutbox: vi.fn(),
+      } as unknown as NotificationDeliveryQueue
+    )
+    const worker = new Worker<RfqDispatchJob, RfqCreationResult, string>(
+      name,
+      async (job) => processor.process(job),
+      { connection: connection() }
+    )
+    worker.on('failed', (job, error) => {
+      void processor.onFailed(job, error)
+    })
+    workers.push(worker)
+    const producer = new RfqDispatchQueue(queue)
+
+    const refused = await producer.enqueue({ bomId: BOM_ID }, PRINCIPAL)
+    await waitForState(queue, refused.jobId, 'failed')
+    const again = await producer.enqueue({ bomId: BOM_ID }, PRINCIPAL)
+    await waitForState(queue, again.jobId, 'completed')
+
+    expect(again).toEqual({ jobId: refused.jobId, enqueued: true })
+    expect(createFromApprovedBom).toHaveBeenCalledTimes(2)
   }, 20_000)
 
   restartTest('reconnects and processes after disposable Redis restarts', async () => {

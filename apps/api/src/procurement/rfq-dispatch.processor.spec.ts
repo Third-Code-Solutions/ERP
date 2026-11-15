@@ -1,6 +1,8 @@
 import {
   ConflictException,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common'
@@ -146,6 +148,8 @@ describe('RfqDispatchProcessor', () => {
   it('keeps retrying an outage', async () => {
     for (const outage of [
       new ServiceUnavailableException('RFQ dispatch is not enabled'),
+      new HttpException('Request timeout', HttpStatus.REQUEST_TIMEOUT),
+      new HttpException('Too many requests', HttpStatus.TOO_MANY_REQUESTS),
       new Error('database unavailable'),
     ]) {
       const probe = harness()
@@ -172,5 +176,16 @@ describe('RfqDispatchProcessor', () => {
       }),
       expect.objectContaining({ jobId: `${JOB_ID}-dead-letter` })
     )
+  })
+
+  it('dead-letters an UnrecoverableError raised by BullMQ itself on its first attempt', async () => {
+    const probe = harness()
+    const stalled = Object.assign(new Error('job stalled more than allowable limit'), {
+      name: 'UnrecoverableError',
+    })
+
+    await probe.processor.onFailed(job({ attemptsMade: 1 }), stalled)
+
+    expect(probe.deadLetterAdd).toHaveBeenCalledTimes(1)
   })
 })
