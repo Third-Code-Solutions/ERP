@@ -39,6 +39,7 @@ vi.mock('@/lib/operations/notifications', () => ({
 }))
 
 import { purchaseOrders } from '@third-code-erp/database/schema'
+import * as procurementActions from './actions'
 import { advancePoStatus } from './actions'
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111'
@@ -262,5 +263,15 @@ describe('advancePoStatus delivery transitions', () => {
 
     expect(mocks.update).not.toHaveBeenCalled()
     expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+  })
+})
+
+describe('Purchase Order receipts', () => {
+  it('has no direct line receipt action; receipts go through controlled Stock Receipts', () => {
+    // The removed receivePoLineItem wrote received_qty directly on any PO but a
+    // cancelled one and flipped its status with no condition. The database trigger
+    // guard_po_line_stock_fields refuses such writes (55000) unless post_stock_receipt
+    // makes them, so it could only fail; this keeps it from coming back.
+    expect(Object.keys(procurementActions)).not.toContain('receivePoLineItem')
   })
 })
