@@ -6,8 +6,8 @@
  *
  * Legacy statuses (submitted/confirmed/partial_delivery/delivered) keep
  * their original "Advance status" buttons via `advancePoStatus` so old
- * data doesn't get stuck. Current statuses route to the role-gated
- * approval/issuance/rejection actions.
+ * data doesn't get stuck. Current statuses route to the approval/issuance/
+ * rejection actions. Every button shows only to the roles its action accepts.
  *
  * `viewerRole` is the caller's role — the parent server component
  * looks it up and passes it in so we can hide buttons the viewer can't

@@ -19,7 +19,10 @@ function buttons(currentStatus: string, viewerRole: ErpRole | null): string[] {
   const html = renderToStaticMarkup(
     <PoStatusActions poId="po-1" currentStatus={currentStatus} viewerRole={viewerRole} />
   )
-  return [...html.matchAll(/<button[^>]*>([^<]*)<\/button>/g)].map((match) => match[1]!)
+  const labels = [...html.matchAll(/<button[^>]*>([^<]*)<\/button>/g)].map((match) => match[1]!)
+  // Every button is plain text, so none can slip past the label match.
+  expect(html.match(/<button/g)?.length ?? 0).toBe(labels.length)
+  return labels
 }
 
 describe('PoStatusActions', () => {
@@ -45,6 +48,11 @@ describe('PoStatusActions', () => {
     ['confirmed', 'procurement', ['Mark Partial Delivery', 'Mark Delivered', 'Cancel']],
   ] as const)('%s PO, %s sees %j', (status, role, expected) => {
     expect(buttons(status, role)).toEqual(expected)
+  })
+
+  it('shows every button when the role is unknown (the server still enforces)', () => {
+    expect(buttons('draft', null)).toEqual(['Submit for PM approval', 'Cancel'])
+    expect(buttons('submitted', null)).toEqual(['Confirm PO', 'Cancel'])
   })
 
   it('keeps the approval steps on their own roles', () => {
