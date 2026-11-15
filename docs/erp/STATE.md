@@ -70,23 +70,27 @@ Verdicts are posted as PR comments.
      (catalog queries run through Supabase MCP `execute_sql`).
 - PR #125 merged `2c2576cb`: 6 contract gates in CI, doc-authority v1.5, runners
   pinned to ubuntu-24.04.
-- Live code (web 2026-11-13, database 2026-11-04, API 2026-11-05; manual promotions; GitHub Actions is blocked by the org's spending limit):
+- Live code (web and API 2026-11-15, database 2026-11-04; manual promotions; GitHub Actions is blocked by the org's spending limit):
   - **DB**: ledger 180, head `20261104195001`. The two D-5 migrations were applied
     on 2026-11-04 through Supabase MCP `apply_migration` (stamps `20261104194934`,
     `20261104195001`) after an encrypted targeted snapshot in
     `backups/20261104T194753Z` (decrypt verified). Post-apply: 0 null
     `quantity_decimal`, BOM line totals unchanged at 2,609,885,000 centavos, and the
     repo and production version sets match. #142 has no migration.
-  - **Web (Vercel)**: `ddacfb1b` since 2026-11-13 (`/api/health` and `/api/ready` revision
-    `ddacfb1b8f63`; deployment `thirdcode-jzhgfv5c9`). The steps were those of
-    `deploy-production.yml` without its `DATABASE_URL` step: Vercel CLI 54.7.1 run from a
-    clean checkout of `main`, `APP_REVISION` set to the SHA, then `deploy --prod`.
-    Rollback target: `thirdcode-31jl07njo` (`f212c9df`, the 2026-11-05 deployment). A
-    rollback brings the invite defect B1 back: after one, do not use Admin → Users → New.
-    Everything through #153 is live on web. Since `f212c9df` the only runtime change is
-    #151 (`admin/users/actions.ts`); there is no new migration.
-  - **API (Railway)**: Railway's auto-deploy `e2acdd8f` at `f212c9df` is SUCCESS
-    (`aa79f2b7` at `c45bc64c` before it). **CAD**: no change since `8293f798`
+  - **Web (Vercel)**: `ad342498` (#161, landing page) since 2026-11-15 (`/api/health` and
+    `/api/ready` revision `ad342498b722`; deployment `dpl_Fj7jCsucLEkWqFpjYeU23k5Sa6f2`,
+    `thirdcode-modo4bef6`). The steps were those of `deploy-production.yml` without its
+    `DATABASE_URL` step: Vercel CLI 54.7.1 run from a clean checkout of `main`,
+    `APP_REVISION` set to the SHA, then `deploy --prod`. Rollback target:
+    `thirdcode-h9ks0jxwc` (`80a397f0`, D0-1). Never roll web back past D0-1. Everything
+    through #161 is live on web. Since `80a397f0` the only runtime change is #161 (the
+    public landing page, `three`, and a dev-only `Cache-Control` change in
+    `next.config.ts`); there is no new migration.
+  - **API (Railway)**: Railway's auto-deploy `6540ce9a` at `ad342498` is SUCCESS
+    (2026-11-15; #161's lockfile change triggered it, where the earlier docs and test merges
+    were SKIPPED). Since `f212c9df`, `apps/api` and `packages` add only one database test
+    file and no migration, so the API runtime code is unchanged. `e2acdd8f` at `f212c9df` was
+    the previous one. **CAD**: no change since `8293f798`
     (`apps/workers/dxf-parser` untouched). API `/health`, API `/ready` and CAD
     `/health` return 200.
   - Checks run instead of the workflow: `verify-production-surface.mjs` PASS; an
@@ -196,7 +200,7 @@ Owner order of 2026-11-05: import and export estimates in Excel, mirror every pi
 ERP data into Cortex, and a master construction price catalogue. Cortex coverage ships
 in batches: batches 0-1 are #147; deal management (sales) is batch 2 and not started.
 Owner order of 2026-11-11: deploy only what is green on CI and proven working.
-**Web serves `main` at `80a397f0` since 2026-11-13 (D0-1, deployment `dpl_DeBH8PRoz6zjENMT6T3AytGgPZ65`). It holds #151 and #152, the SEC-10 fix (#156) and its guard (#157). Nothing else below is live.** The API still runs `f212c9df`; #151 changes no API code. CI cannot run (Actions billing, see Blockers), so
+**Web serves `main` at `ad342498` since 2026-11-15 (#161 landing page, deployment `dpl_Fj7jCsucLEkWqFpjYeU23k5Sa6f2`; D0-1 `80a397f0` before it). It holds #151 and #152, the SEC-10 fix (#156), its guard (#157) and the landing page (#161). Nothing else below is live.** The API runs `ad342498` (Railway auto-deploy), with the same runtime code as `f212c9df`. CI cannot run (Actions billing, see Blockers), so
 no PR here can pass the merge gate yet.
 
 | Work | Branch / PR | State |
@@ -529,6 +533,7 @@ RUNBOOK) is **done**.
 ## Log
 | Date | Mode | Result |
 |---|---|---|
+| 2026-11-15 | deploy | Owner order: ship the landing page changes to production. This is outside the v1 freeze rule R2. #161 (`feat/web-abi-ops-landing-3d`) was merged as `ad342498` under the owner override (Actions refused for billing; no security or code-review round ran), then web was promoted by the manual path of `deploy-production.yml` (Vercel CLI 54.7.1 as `kurtgav`: link, `APP_REVISION` override, `deploy --prod`; `DATABASE_URL` step skipped). Pre-checks on Node 22.23.2: web typecheck 0, eslint 0, web unit suite 324 files passed and 3 skipped, 2,919 tests passed, `next build` pass, `pnpm audit --prod` one moderate (GHSA-3v2p-hm54-8qcq, `inngest` > `@opentelemetry/instrumentation-http`, already on `main`). `test:e2e:landing-local`: the page, robots, sitemap and manifest-name assertions pass. The `start_url` assertion fails because the spec expects `/`, while `manifest.ts` has had `/dashboard` since `dfcd049e`. `/api/ready` fails on a local server with no database. Deployment `dpl_Fj7jCsucLEkWqFpjYeU23k5Sa6f2` aliased to `thirdcode-erp.vercel.app`. Verified: `/api/health` and `/api/ready` report `ad342498b722`, database up, core API 200; `/`, the GLB models and the still image return 200; `verify-production-surface.mjs` PASS; API `/health` and `/ready` 200. Railway also auto-deployed the API at `ad342498` (`6540ce9a`, SUCCESS), with no API runtime change since `f212c9df`. Web rollback target: `thirdcode-h9ks0jxwc` (`80a397f0`). Not run: the production release E2E (D0-4 credentials) |
 | 2026-11-13 | gates | D0-2 done on #147 `cae8c63b` (= `a94745d5` + #158; Node 22.23.2, one process at a time). The steps the first run did not reach now pass: web `next build` (CI placeholder env, heap capped at 3 GB); the image-optimizer check (built server, `/api/health` 200, `/_next/image` 200 `image/webp`, valid WebP); the credential-free Playwright job (15 specs, 153/153, 0 skipped, 0 flaky, asserted no skips). `test:wo-11-contract` 59/59. Renewed #147 review (round 5): security PASS and code APPROVE on the interaction with `main` since `67163c62`; the PR's own patch-id is unchanged since round 4. Runbook should-fix folded in as `b92f35fa` (docs only: back up and pause the embed job first, merge #147 straight after the migrations, deploy web and API from that commit, no web rollback older than D0-1). Local exceptions, accepted: actionlint (Windows `tar`), and the account-actions database file, which refuses a non-disposable database; the copy for it could not be made this round (a `pg_dump` restore was stopped for low workstation memory and the copy dropped), and its round-4 run on a disposable copy stands because neither the file nor any migration or schema changed since `67163c62` |
 | 2026-11-13 | gates | D0-2 partial on the #147 + `main` tree `a94745d5` (Node 22.23.2, one process at a time). Pass: lint; typecheck in every package; the CI unit-job gates except wo-11 (below); unit suites shared-types, operations, API and web; `pnpm audit --prod`; local `supabase_db_erp` (port 54342) rebuilt from zero with `supabase@2.109.1 db reset` (183 migrations, head `20261106102000`); `verify:build-ops-data`; policy-contract, repro and release-planner (`--require-current`) checks; empty public schema diff; CI-only grants applied and asserted; database suite with no skips; API integration with no skips (Redis on 56379); the API container built and smoked (health and ready 200, unauthenticated PATCH 401). Fail: (1) `test:wo-11-contract` 58/59, also on `main`: #156 removed the import its fixture relied on; fixed by #158, merged as `93492bda` (security PASS with two pre-existing Mediums, WO11-01 in Follow-ups and WO11-02 = CI not running; code APPROVE), then merged into #147 as `cae8c63b`, where it passes 59/59; (2) actionlint: the local Windows `tar` reads `C:` as a host, so the pinned binary cannot unpack; (3) web DB workflows: two of three pass, and the account-actions file refuses a database that is not a disposable loopback copy, by design (round 4 ran it on a copy). The `db reset` step itself finished; only the run's own ledger query had a quoting error, and a separate query read 183. Not reached: Claude Code stopped the run for low workstation memory at the web `next build` (exit `0xC0000142`), so the build, the image-optimizer check and the credential-free Playwright job are still owed, as are the account-actions file on a disposable copy and a renewed review of #147 on its current head. `v1.0.0-rc.1` waits on them |
 | 2026-11-13 | deploy | D0-1 done: web promoted to `main` `80a397f0` by the manual path of `deploy-production.yml` (Vercel CLI 54.7.1 as `kurtgav`: link, `APP_REVISION` override, `deploy --prod`), because Actions is still refused for billing. The workflow's `DATABASE_URL` rewrite was skipped: it needs the GitHub secret, and the production value was left as it was. Pre-checks on a clean checkout of `80a397f0` (Node 22.23.2): lint 0, web typecheck 0, web unit suite 324 files passed and 3 skipped (DB-backed, no `DATABASE_URL`), 2,891 tests. Deployment `dpl_DeBH8PRoz6zjENMT6T3AytGgPZ65` (`thirdcode-h9ks0jxwc`, region `icn1`), aliased to `thirdcode-erp.vercel.app`. Verified: `/api/health` and `/api/ready` report `80a397f089bc`, database up, core API 200; API `/health` and `/ready` and CAD `/health` 200; `verify-production-surface.mjs` PASS; no runtime errors in the first hour. Previous production `thirdcode-jzhgfv5c9` (`ddacfb1b`) is the web rollback target until D0-3. Deployment Protection is Vercel Authentication on all deployment URLs except the production domain; the old URLs answer 302. The production release E2E (demo boundary, cross-tenant, authenticated) was not run: it needs the `buildops-e2e` credentials (D0-4). D0-6 is blocked: the agent was refused the production database URL, and `backup-production.yml` cannot start while Actions billing fails, so D0-3 waits |
