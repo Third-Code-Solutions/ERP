@@ -53,7 +53,7 @@ export class RfqDispatchProcessor extends WorkerHost {
     const result = await this.procurement
       .createFromApprovedBom(parsed.data)
       .catch((error: unknown) => {
-        // Every line has a contracted rate: a normal outcome, so the job is done.
+        // Nothing to quote (no buyable line, or all contracted): the job is done.
         if (error instanceof RfqNotNeededException) return null
         // A 4xx is the BOM's or actor's settled state (gone, retired, no longer
         // approved, no lines, no role); retrying cannot change it.
@@ -70,7 +70,7 @@ export class RfqDispatchProcessor extends WorkerHost {
         throw error
       })
     if (!result) {
-      this.logger.log(`RFQ dispatch ${job.id}: every BOM line has a contracted rate`)
+      this.logger.log(`RFQ dispatch ${job.id}: nothing to quote, no RFQ needed`)
       return null
     }
     if (result.notificationOutboxId) {

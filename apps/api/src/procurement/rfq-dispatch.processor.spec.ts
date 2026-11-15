@@ -146,9 +146,12 @@ describe('RfqDispatchProcessor', () => {
     }
   })
 
-  it('completes without an RFQ when every BOM line has a contracted rate', async () => {
+  it.each([
+    'All BOM lines already have contracted rates — no RFQ needed',
+    'BOM has no line items to RFQ',
+  ])('completes without an RFQ when the BOM has nothing to quote (%s)', async (message) => {
     const probe = harness()
-    probe.createFromApprovedBom.mockRejectedValueOnce(new RfqNotNeededException())
+    probe.createFromApprovedBom.mockRejectedValueOnce(new RfqNotNeededException(message))
 
     await expect(probe.processor.process(job())).resolves.toBeNull()
     expect(probe.enqueueOutbox).not.toHaveBeenCalled()

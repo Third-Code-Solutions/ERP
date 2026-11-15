@@ -264,9 +264,11 @@ describe('ProcurementService RFQ creation command', () => {
       ],
     ])
 
-    await expect(
-      probe.service.create({ bomId: BOM_ID }, PRINCIPAL)
-    ).rejects.toThrow('BOM has no line items to RFQ')
+    const failure = await probe.service
+      .create({ bomId: BOM_ID }, PRINCIPAL)
+      .catch((error: unknown) => error)
+    expect(failure).toBeInstanceOf(RfqNotNeededException)
+    expect((failure as Error).message).toBe('BOM has no line items to RFQ')
     expect(probe.insert).not.toHaveBeenCalled()
   })
 
