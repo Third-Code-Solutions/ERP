@@ -1,0 +1,285 @@
+/* Hero level plan: the outline drawing, plus a masked layer that reveals the
+   draft bill of materials under a lens that follows the pointer. */
+@property --lx {
+  syntax: '<percentage>';
+  inherits: true;
+  initial-value: 38%;
+}
+
+@property --ly {
+  syntax: '<percentage>';
+  inherits: true;
+  initial-value: 52%;
+}
+
+.figure {
+  --lens-radius: clamp(150px, 20vw, 280px);
+  --k: 1;
+
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1200 / 590;
+  color: var(--color-neutral-800);
+  cursor: crosshair;
+  touch-action: pan-y;
+  user-select: none;
+}
+
+.figure[data-drift='true'] {
+  animation:
+    drift-x 14s ease-in-out infinite alternate,
+    drift-y 9.5s ease-in-out infinite alternate;
+}
+
+@keyframes drift-x {
+  from {
+    --lx: 20%;
+  }
+
+  to {
+    --lx: 80%;
+  }
+}
+
+@keyframes drift-y {
+  from {
+    --ly: 38%;
+  }
+
+  to {
+    --ly: 68%;
+  }
+}
+
+.layer {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.layer path,
+.layer rect,
+.layer circle {
+  vector-effect: non-scaling-stroke;
+}
+
+.base {
+  animation: draw-in 2.4s cubic-bezier(0.65, 0.05, 0.25, 1) 0.1s both;
+}
+
+.lens {
+  color: var(--color-navy-600);
+  animation: lens-in 900ms ease 1.5s both;
+  -webkit-mask-image: radial-gradient(
+    circle var(--lens-radius) at var(--lx) var(--ly),
+    #000 0 52%,
+    transparent 100%
+  );
+  mask-image: radial-gradient(
+    circle var(--lens-radius) at var(--lx) var(--ly),
+    #000 0 52%,
+    transparent 100%
+  );
+}
+
+@keyframes draw-in {
+  from {
+    clip-path: inset(100% 0 0 0);
+  }
+
+  to {
+    clip-path: inset(0);
+  }
+}
+
+@keyframes lens-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+/* Linework */
+.wallOuter {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.6px;
+  stroke-linecap: square;
+}
+
+.wallInner {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6px;
+  stroke-linecap: square;
+}
+
+.detail {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1px;
+  stroke-opacity: 0.85;
+}
+
+.window {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 0.8px;
+  stroke-opacity: 0.7;
+}
+
+.desk {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 0.7px;
+  stroke-opacity: 0.45;
+}
+
+.guide {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 0.6px;
+  stroke-opacity: 0.35;
+  stroke-dasharray: 6 5;
+}
+
+.dim {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 0.8px;
+  stroke-opacity: 0.8;
+}
+
+.column {
+  fill: currentColor;
+  stroke: none;
+}
+
+.fcu rect,
+.fcu path {
+  fill: var(--color-neutral-50);
+  stroke: currentColor;
+  stroke-width: 1px;
+}
+
+.fcu path {
+  fill: none;
+}
+
+.fcuLens rect {
+  fill: var(--color-gold-500);
+  stroke: var(--color-navy-700);
+  stroke-width: 1.2px;
+}
+
+.fcuLens path {
+  fill: none;
+  stroke: var(--color-navy-700);
+  stroke-width: 1.2px;
+}
+
+/* Text */
+.lbl,
+.lblRoom,
+.lblMinor {
+  fill: currentColor;
+  font-family: var(--font-jetbrains, ui-monospace, monospace);
+  letter-spacing: 0.06em;
+}
+
+.lbl {
+  font-size: calc(10px * var(--k));
+}
+
+.lblRoom {
+  font-size: calc(11px * var(--k));
+  font-weight: 500;
+  letter-spacing: 0.1em;
+}
+
+.lblMinor {
+  font-size: calc(9.5px * var(--k));
+  fill-opacity: 0.75;
+}
+
+/* Lens-only layers */
+.roomFill {
+  fill: var(--color-gold-500);
+  fill-opacity: 0.14;
+  stroke: none;
+}
+
+.ceilingGrid {
+  fill: none;
+  stroke: var(--color-navy-500);
+  stroke-opacity: 0.3;
+  stroke-width: 0.5px;
+}
+
+.tag {
+  transform: scale(var(--k));
+}
+
+.tag circle {
+  fill: var(--color-gold-500);
+  stroke: var(--color-navy-700);
+  stroke-width: 1px;
+}
+
+.tag path {
+  fill: none;
+  stroke: var(--color-navy-700);
+  stroke-width: 1px;
+}
+
+.tag rect {
+  fill: var(--color-navy-700);
+  stroke: none;
+}
+
+.tag text {
+  fill: #fff;
+  font-family: var(--font-jetbrains, ui-monospace, monospace);
+  font-size: 10px;
+  letter-spacing: 0.02em;
+}
+
+.tagChip rect {
+  fill: var(--color-gold-500);
+}
+
+.tagChip text {
+  fill: var(--color-navy-950);
+  font-weight: 600;
+}
+
+@media (max-width: 960px) {
+  .figure {
+    --k: 1.5;
+  }
+}
+
+@media (max-width: 640px) {
+  .figure {
+    --k: 2.3;
+
+    aspect-ratio: 4 / 3;
+  }
+
+  .lblMinor {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .figure[data-drift='true'],
+  .base,
+  .lens {
+    animation: none;
+  }
+}

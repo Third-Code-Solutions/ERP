@@ -1,0 +1,244 @@
+/* Shared tokens and primitives for the public landing. Colour, radius, type
+   and motion come from the ABI OPS design tokens in globals.css; the layout
+   language (dot-grid ground, light display type, mono "( label )" markers)
+   follows the reference architecture template. */
+.page {
+  --paper: var(--color-canvas);
+  --surface: #fff;
+  --ink: var(--color-neutral-900);
+  --ink-soft: var(--color-neutral-600);
+  --muted: var(--color-neutral-500);
+  --rule: #d9d9d9;
+  --dot: #cfcfcf;
+  --action: var(--color-navy-700);
+  --action-hover: var(--color-navy-500);
+  --hl: var(--color-gold-500);
+  --hl-text: var(--color-gold-700);
+  --tone-ok: var(--color-success);
+  --tone-watch: var(--color-gold-700);
+  --tone-alert: var(--color-danger);
+  --page-max: 1320px;
+  --gutter: clamp(20px, 4.4vw, 56px);
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --font-ui: var(--font-inter);
+  --font-code: var(--font-jetbrains);
+
+  min-height: 100dvh;
+  overflow-x: clip;
+  color: var(--ink);
+  background: var(--paper);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.page *,
+.page *::before,
+.page *::after {
+  box-sizing: border-box;
+}
+
+/* :where() keeps these at zero specificity so any component class can set its
+   own link colour without fighting this reset. */
+:where(.page) a {
+  color: inherit;
+  text-decoration: none;
+}
+
+:where(.page) :focus-visible {
+  outline: 2px solid var(--hl);
+  outline-offset: 3px;
+}
+
+.page section[id] {
+  scroll-margin-top: 80px;
+}
+
+.container {
+  width: 100%;
+  max-width: var(--page-max);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+.dots {
+  background-image: radial-gradient(circle at 1px 1px, var(--dot) 1px, transparent 0);
+  background-size: 18px 18px;
+}
+
+.logoFrame {
+  position: relative;
+  display: block;
+  flex: 0 0 auto;
+  width: 52px;
+  height: 29px;
+  overflow: hidden;
+}
+
+.logoFrame img {
+  object-fit: contain;
+  object-position: left center;
+}
+
+/* ( Section label ) */
+.label {
+  margin: 0;
+  color: var(--ink-soft);
+  font-family: var(--font-code);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.label span {
+  padding-inline: 0.55em;
+  color: var(--muted);
+}
+
+.h2 {
+  margin: 20px 0 0;
+  color: var(--ink);
+  font-size: clamp(2.25rem, 5vw, 4.25rem);
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+
+.lead {
+  margin: 20px 0 0;
+  max-width: 520px;
+  color: var(--ink-soft);
+  font-size: 17px;
+  line-height: 1.625;
+}
+
+.mono {
+  font-family: var(--font-code);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Buttons */
+.button {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding-inline: 22px;
+  border: 0;
+  border-radius: 6px;
+  color: #fff;
+  background: var(--action);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background-color 200ms var(--ease),
+    transform 200ms var(--ease);
+}
+
+.button:hover {
+  background: var(--action-hover);
+}
+
+.button:active {
+  transform: scale(0.97);
+}
+
+.buttonLight {
+  color: var(--color-navy-950);
+  background: #fff;
+}
+
+.buttonLight:hover {
+  color: var(--color-navy-950);
+  background: var(--hl);
+}
+
+.textLink {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-soft);
+  font-size: 15px;
+  font-weight: 500;
+  text-underline-offset: 4px;
+  transition: color 200ms var(--ease);
+}
+
+.textLink:hover {
+  color: var(--action);
+  text-decoration: underline;
+}
+
+.roundButton {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  color: var(--ink);
+  background: transparent;
+  font: inherit;
+  font-size: 16px;
+  cursor: pointer;
+  transition:
+    border-color 200ms var(--ease),
+    background-color 200ms var(--ease),
+    transform 200ms var(--ease);
+}
+
+.roundButton:hover {
+  border-color: var(--ink);
+}
+
+.roundButton:active {
+  transform: scale(0.94);
+}
+
+/* Status: tone plus a glyph and a word, so it reads without colour. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  color: var(--ink-soft);
+  font-family: var(--font-code);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.toneOk {
+  color: var(--tone-ok);
+}
+
+.toneWatch {
+  color: var(--tone-watch);
+}
+
+.toneAlert {
+  color: var(--tone-alert);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button,
+  .textLink,
+  .roundButton {
+    transition: none;
+  }
+
+  .button:active,
+  .roundButton:active {
+    transform: none;
+  }
+}

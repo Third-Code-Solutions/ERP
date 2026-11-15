@@ -62,7 +62,13 @@ const config: NextConfig = {
       {
         source: '/_next/static/(.*)',
         headers: [
-          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+          // Production chunks are content-hashed, so a year is safe. In
+          // `next dev` the same files (main-app.js, app/page.js) keep one URL
+          // while their content changes; caching them as immutable freezes
+          // the browser on old client code and breaks hydration after edits.
+          ...(process.env.NODE_ENV === 'production'
+            ? [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }]
+            : []),
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           // Middleware does not run for these paths, so without these the
           // transport and framing policy was silently dropped on asset

@@ -1,0 +1,210 @@
+.host {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: inherit;
+}
+
+.fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 900ms var(--ease);
+}
+
+.fallback > * {
+  width: 100%;
+}
+
+.fallback[data-hidden='true'] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  opacity: 0;
+  touch-action: pan-y;
+  transition: opacity 900ms var(--ease);
+}
+
+.canvas:active {
+  cursor: grabbing;
+}
+
+.canvas[data-ready='true'] {
+  opacity: 1;
+}
+
+/* Callouts pinned to points on the model: the scene moves them each frame. */
+.label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 3;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 500ms var(--ease);
+  will-change: transform;
+}
+
+.label[data-on='true'] {
+  opacity: 1;
+}
+
+.dot {
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--color-navy-700);
+  border-radius: 50%;
+  background: var(--hl);
+}
+
+.card {
+  position: absolute;
+  top: -24px;
+  left: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 11px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  box-shadow: var(--shadow-sm);
+  white-space: nowrap;
+}
+
+.card::before {
+  position: absolute;
+  top: 24px;
+  left: -18px;
+  width: 18px;
+  height: 1px;
+  background: var(--color-navy-700);
+  content: '';
+}
+
+.card strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.card span {
+  color: var(--ink-soft);
+  font-family: var(--font-code);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.tip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  color: #fff;
+  background: var(--color-navy-700);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.tip strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tip span {
+  color: rgba(255, 255, 255, 0.75);
+  font-family: var(--font-code);
+  font-size: 11px;
+}
+
+.notice {
+  position: absolute;
+  bottom: calc(clamp(20px, 3.6vw, 52px) + 12px);
+  left: 16px;
+  z-index: 3;
+  max-width: 340px;
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  color: var(--ink-soft);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  font-family: var(--font-code);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+}
+
+.caption {
+  position: absolute;
+  bottom: calc(clamp(20px, 3.6vw, 52px) + 14px);
+  left: 16px;
+  z-index: 3;
+  margin: 0;
+  color: var(--ink-soft);
+  font-family: var(--font-code);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.replay {
+  position: absolute;
+  right: 12px;
+  bottom: calc(clamp(20px, 3.6vw, 52px) + 8px);
+  z-index: 5;
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  color: var(--ink);
+  background: var(--surface);
+  font-size: 18px;
+  cursor: pointer;
+  transition:
+    border-color 200ms var(--ease),
+    transform 200ms var(--ease);
+}
+
+.replay:hover {
+  border-color: var(--ink);
+}
+
+.replay:active {
+  transform: scale(0.94);
+}
+
+@media (max-width: 700px) {
+  .card {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fallback,
+  .canvas,
+  .label,
+  .replay {
+    transition: none;
+  }
+}

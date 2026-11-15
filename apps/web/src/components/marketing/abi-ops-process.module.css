@@ -1,0 +1,319 @@
+.section {
+  padding-block: clamp(88px, 10vw, 140px);
+  border-block: 1px solid var(--rule);
+  background: var(--surface);
+}
+
+/* Narrow screens: a block layout so the drawing can stick above the steps. */
+.layout {
+  margin-top: clamp(32px, 6vw, 88px);
+}
+
+.panel {
+  position: sticky;
+  top: 72px;
+  z-index: 5;
+  margin-inline: calc(-1 * var(--gutter));
+  padding: 12px var(--gutter);
+  background: var(--surface);
+}
+
+.frame {
+  position: relative;
+  display: flex;
+  height: clamp(210px, 32svh, 320px);
+  flex-direction: column;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background-color: var(--paper);
+}
+
+.frameHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--surface);
+  border-radius: 8px 8px 0 0;
+}
+
+.stageCount,
+.stageName {
+  margin: 0;
+  color: var(--ink-soft);
+  font-family: var(--font-code);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.stageCount b {
+  color: var(--hl-text);
+  font-weight: 600;
+}
+
+.stageName {
+  color: var(--ink);
+}
+
+.frameBody {
+  flex: 1;
+  min-height: 0;
+  padding: 8px 12px;
+}
+
+.frameBody .house {
+  width: 100%;
+  height: 100%;
+}
+
+.ticks {
+  display: none;
+  gap: 6px;
+  margin: 0;
+  padding: 10px 20px 14px;
+  list-style: none;
+}
+
+.ticks li {
+  flex: 1;
+}
+
+.tick {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  color: var(--muted);
+  background: transparent;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: color 200ms var(--ease);
+}
+
+.tick::before {
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--rule);
+  content: '';
+  transition: background-color 300ms var(--ease);
+}
+
+.tick:hover {
+  color: var(--ink);
+}
+
+.tickOn {
+  color: var(--hl-text);
+  font-weight: 600;
+}
+
+.tickOn::before {
+  background: var(--hl);
+}
+
+/* ---- Record fragment ----------------------------------------------------- */
+.record {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 32px;
+}
+
+.recordCaption {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.tableWrap {
+  overflow-x: auto;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table th,
+.table td {
+  padding: 10px 12px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.table th {
+  color: var(--ink-soft);
+  background: var(--color-neutral-75);
+  font-family: var(--font-code);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.table td {
+  border-top: 1px solid var(--color-border);
+}
+
+.table .numeric {
+  text-align: right;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+}
+
+.totals {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.totals div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 13px;
+}
+
+.totals dt {
+  color: var(--ink-soft);
+}
+
+.totals dd {
+  margin: 0;
+  text-align: right;
+}
+
+.totalStrong {
+  padding-top: 10px;
+  border-top: 1px solid var(--ink);
+}
+
+.totalStrong dt {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.totalStrong dd {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.sample {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+/* ---- Steps ---------------------------------------------------------------- */
+.steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  padding-block: 40px;
+  border-top: 1px solid var(--rule);
+}
+
+.stepNumber {
+  margin: 0;
+  color: var(--hl-text);
+  font-size: 13px;
+}
+
+.stepTitle {
+  max-width: 22ch;
+  margin: 14px 0 0;
+  color: var(--ink-soft);
+  font-size: clamp(1.75rem, 2.8vw, 2.5rem);
+  font-weight: 400;
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+  transition: color 400ms var(--ease);
+}
+
+.step[data-active='true'] .stepTitle {
+  color: var(--ink);
+}
+
+.stepBody {
+  max-width: 460px;
+  margin: 18px 0 24px;
+  color: var(--ink-soft);
+  font-size: 17px;
+  line-height: 1.625;
+}
+
+@media (min-width: 960px) {
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+    gap: clamp(32px, 5vw, 80px);
+    align-items: start;
+  }
+
+  .panel {
+    top: 104px;
+    margin-inline: 0;
+    padding: 0;
+    background: none;
+  }
+
+  .frame {
+    height: min(580px, calc(100svh - 136px));
+  }
+
+  .frameBody {
+    padding: 12px 20px;
+  }
+
+  .ticks {
+    display: flex;
+  }
+
+  .step {
+    display: flex;
+    min-height: 78svh;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    padding-block: 56px;
+  }
+
+  .step:first-child {
+    border-top: 0;
+  }
+
+  .record {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stepTitle,
+  .tick,
+  .tick::before {
+    transition: none;
+  }
+}

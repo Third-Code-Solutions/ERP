@@ -1,0 +1,408 @@
+.section {
+  padding-block: clamp(96px, 11vw, 150px) clamp(72px, 9vw, 128px);
+}
+
+.head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 32px;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.filter {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 10px;
+  padding-inline: 18px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  color: var(--ink-soft);
+  background: var(--surface);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition:
+    border-color 200ms var(--ease),
+    background-color 200ms var(--ease),
+    color 200ms var(--ease),
+    transform 200ms var(--ease);
+}
+
+.filter:hover {
+  border-color: var(--ink);
+}
+
+.filter:active {
+  transform: scale(0.97);
+}
+
+.filter span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.filterOn {
+  border-color: var(--action);
+  color: #fff;
+  background: var(--action);
+}
+
+.filterOn span {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.swipeHint {
+  margin: 28px 0 0;
+  padding-inline: var(--gutter);
+  color: var(--ink-soft);
+  font-family: var(--font-code);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* ---- Skyline ------------------------------------------------------------- */
+/* The scroller clips on both axes, so it carries top padding for the name tag
+   that rises above the tallest building. */
+.scroller {
+  padding: 56px var(--gutter) 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.scroller::-webkit-scrollbar {
+  display: none;
+}
+
+.rail {
+  position: relative;
+  min-width: 900px;
+  max-width: calc(var(--page-max) - var(--gutter) * 2);
+  margin-inline: auto;
+}
+
+.skyline {
+  position: relative;
+  width: 100%;
+}
+
+/* Name tag: glides between buildings and keeps inside the rail at either end. */
+.tag {
+  --glide: 500ms cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  position: absolute;
+  z-index: 10;
+  top: var(--top);
+  left: clamp(
+    calc(var(--half) - var(--gutter) + 8px),
+    var(--cx),
+    calc(100% - var(--half) + var(--gutter) - 8px)
+  );
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - 12px));
+  transition:
+    left var(--glide),
+    top var(--glide);
+}
+
+.tagPill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 6px 12px;
+  border-radius: 999px;
+  color: var(--color-navy-950);
+  background: var(--hl);
+  box-shadow: 0 8px 24px -10px color-mix(in srgb, var(--hl) 80%, transparent);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  animation: pill-in 300ms var(--ease) both;
+}
+
+.tagPill span:first-child {
+  font-family: var(--font-code);
+  font-size: 11px;
+  opacity: 0.75;
+}
+
+@keyframes pill-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.tagTick {
+  position: absolute;
+  z-index: 10;
+  top: var(--top);
+  left: var(--cx);
+  width: 1px;
+  height: 12px;
+  background: var(--hl);
+  pointer-events: none;
+  transform: translate(-50%, -12px);
+  transition:
+    left 500ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    top 500ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.numbers {
+  position: relative;
+  height: 52px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.numbers li {
+  position: absolute;
+  top: 4px;
+  transform: translateX(-50%);
+}
+
+.number {
+  display: flex;
+  min-width: 44px;
+  min-height: 44px;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  border: 0;
+  color: var(--ink-soft);
+  background: transparent;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition:
+    color 300ms,
+    opacity 300ms;
+}
+
+.number:hover {
+  color: var(--ink);
+}
+
+.number[aria-pressed='true'] {
+  color: var(--hl-text);
+  font-weight: 600;
+}
+
+.number[data-off='true'] {
+  opacity: 0.28;
+  cursor: default;
+}
+
+.numberTick {
+  width: 1px;
+  height: 8px;
+  background: currentColor;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---- Detail card --------------------------------------------------------- */
+.detailCard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  margin-top: 8px;
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--surface);
+  animation: card-in 420ms var(--ease) both;
+}
+
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.drawingWrap {
+  position: relative;
+  min-height: 300px;
+  border-bottom: 1px solid var(--rule);
+  background-color: var(--paper);
+  background-image: radial-gradient(circle at 1px 1px, var(--dot) 1px, transparent 0);
+  background-size: 18px 18px;
+}
+
+/* Corner marks, as on the reference drawing frame. */
+.drawingWrap::before,
+.drawingWrap::after {
+  position: absolute;
+  top: 16px;
+  width: 18px;
+  height: 18px;
+  border-top: 1px solid var(--hl);
+  content: '';
+}
+
+.drawingWrap::before {
+  left: 16px;
+  border-left: 1px solid var(--hl);
+}
+
+.drawingWrap::after {
+  right: 16px;
+  border-right: 1px solid var(--hl);
+}
+
+.drawingWrap .drawingSvg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 40px 28px 28px;
+}
+
+.info {
+  display: flex;
+  flex-direction: column;
+  padding: clamp(24px, 3.4vw, 48px);
+}
+
+.infoTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.number2 {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.name {
+  margin: 24px 0 0;
+  font-size: clamp(1.9rem, 3.2vw, 2.75rem);
+  font-weight: 400;
+  line-height: 1.04;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+
+.where {
+  margin: 12px 0 0;
+  color: var(--ink-soft);
+  font-size: 15px;
+}
+
+.summary {
+  margin: 20px 0 0;
+  color: var(--ink);
+  font-size: 17px;
+  line-height: 1.6;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px 24px;
+  margin: 28px 0 0;
+  padding-top: 24px;
+  border-top: 1px solid var(--rule);
+}
+
+.facts dt {
+  color: var(--ink-soft);
+  font-family: var(--font-code);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.facts dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin: 6px 0 0;
+  font-size: 15px;
+}
+
+.signal {
+  font-size: 11px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: auto;
+  padding-top: 32px;
+}
+
+.stepper {
+  display: flex;
+  gap: 8px;
+}
+
+@media (min-width: 960px) {
+  .head {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+  }
+
+  .swipeHint {
+    display: none;
+  }
+}
+
+@media (min-width: 900px) {
+  .detailCard {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  }
+
+  .drawingWrap {
+    min-height: 440px;
+    border-right: 1px solid var(--rule);
+    border-bottom: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .detailCard,
+  .tagPill {
+    animation: none;
+  }
+
+  .tag,
+  .tagTick,
+  .number,
+  .filter {
+    transition: none;
+  }
+}
