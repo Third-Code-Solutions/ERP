@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { AppRole } from '@third-code-erp/auth'
 
 const mocks = vi.hoisted(() => ({
   getUserProfile: vi.fn(),
@@ -248,10 +249,12 @@ function selectResult(value: unknown[]) {
     limit: ReturnType<typeof vi.fn>
     for: ReturnType<typeof vi.fn>
     orderBy: ReturnType<typeof vi.fn>
+    groupBy: ReturnType<typeof vi.fn>
   }
   result.limit = vi.fn(() => Promise.resolve(value))
   result.for = vi.fn(() => Promise.resolve(value))
   result.orderBy = vi.fn(() => result)
+  result.groupBy = vi.fn(() => result)
 
   const chain: Record<string, unknown> = {}
   chain.from = vi.fn(() => chain)
@@ -1456,7 +1459,7 @@ describe('BOM read actions enforce the BOM page read policy', () => {
     'cx',
   ] as const
 
-  function signInAs(role: string) {
+  function signInAs(role: AppRole) {
     mocks.getUserProfile.mockResolvedValue({
       tenantId: TENANT_ID,
       user: { id: USER_ID },
@@ -1478,8 +1481,54 @@ describe('BOM read actions enforce the BOM page read policy', () => {
     await expect(listPendingBomLocationReviews(PROJECT_ID, BOM_ID)).resolves.toEqual([])
     await expect(listBomLocationRollup(PROJECT_ID, BOM_ID)).resolves.toEqual([])
     await expect(fetchProjectForecastTcv(PROJECT_ID)).resolves.toEqual({ tcvCents: null })
-    await expect(fetchLineSupplierContext(LINE_ITEM_ID)).resolves.toEqual({ error: 'Forbidden' })
+    await expect(fetchLineSupplierContext(LINE_ITEM_ID)).resolves.toEqual({
+      error: `Forbidden: role "${role}" cannot read BOMs`,
+    })
     expect(mocks.select).not.toHaveBeenCalled()
+  })
+
+  it.each(BOM_READ_ROLES)('lets %s read the review queues, rollup and supplier context', async (role) => {
+    signInAs(role)
+    const grainReview = {
+      reviewId: 'gr-1',
+      lineItemId: LINE_ITEM_ID,
+      description: 'Ceiling board',
+      unit: 'pcs',
+      proposedKind: 'work_item',
+      reason: 'lump sum',
+    }
+    const locationReview = {
+      reviewId: 'lr-1',
+      lineItemId: LINE_ITEM_ID,
+      description: 'Ceiling board',
+      descriptionOriginal: 'Ceiling board L1',
+      reason: 'location in text',
+    }
+    const rollupRow = {
+      locationId: 'loc-1',
+      locationName: 'Level 1',
+      description: 'Ceiling board',
+      unit: 'pcs',
+      quantity: '12',
+    }
+    const vendor = { id: 'vendor-1', name: 'Supplier A' }
+    mocks.select
+      .mockReturnValueOnce(selectResult([grainReview]))
+      .mockReturnValueOnce(selectResult([locationReview]))
+      .mockReturnValueOnce(selectResult([rollupRow]))
+      .mockReturnValueOnce(selectResult([{ id: LINE_ITEM_ID }]))
+      .mockReturnValueOnce(selectResult([]))
+      .mockReturnValueOnce(selectResult([vendor]))
+
+    await expect(listPendingBomGrainReviews(PROJECT_ID, BOM_ID)).resolves.toEqual([grainReview])
+    await expect(listPendingBomLocationReviews(PROJECT_ID, BOM_ID)).resolves.toEqual([
+      locationReview,
+    ])
+    await expect(listBomLocationRollup(PROJECT_ID, BOM_ID)).resolves.toEqual([rollupRow])
+    await expect(fetchLineSupplierContext(LINE_ITEM_ID)).resolves.toEqual({
+      data: { rateCards: [], vendors: [vendor] },
+    })
+    expect(mocks.select).toHaveBeenCalledTimes(6)
   })
 
   it.each(BOM_READ_ROLES)('lets %s read project locations and the forecast TCV', async (role) => {

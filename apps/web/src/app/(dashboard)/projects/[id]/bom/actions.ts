@@ -1935,7 +1935,9 @@ export async function fetchLineSupplierContext(
 ): Promise<{ data: SupplierContext } | { error: string }> {
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
-  if (!canReadBom(profile.role)) return { error: 'Forbidden' }
+  if (!canReadBom(profile.role)) {
+    return { error: `Forbidden: role "${profile.role}" cannot read BOMs` }
+  }
 
   const [line] = await db
     .select({ id: bomLineItems.id })
