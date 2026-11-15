@@ -239,7 +239,8 @@ suite('RFQ BullMQ disposable Redis integration', () => {
     })
     await waitForState(queue, jobId, 'failed')
 
-    const deadLetterId = `${jobId}-dead-letter`
+    const failed = await queue.getJob(jobId)
+    const deadLetterId = `${jobId}-dead-letter-${failed?.timestamp}`
     const deadLetter = await waitForJob(
       deadLetterQueue,
       deadLetterId
@@ -302,9 +303,10 @@ suite('RFQ BullMQ disposable Redis integration', () => {
     })
     await waitForState(queue, jobId, 'failed')
 
+    const refused = await queue.getJob(jobId)
     const deadLetter = await waitForJob(
       deadLetterQueue,
-      `${jobId}-dead-letter`
+      `${jobId}-dead-letter-${refused?.timestamp}`
     )
     expect(createFromApprovedBom).toHaveBeenCalledTimes(1)
     expect(deadLetter.data).toMatchObject({
@@ -315,7 +317,7 @@ suite('RFQ BullMQ disposable Redis integration', () => {
     })
   }, 20_000)
 
-  it('runs a refused dispatch again when it is requested again', async () => {
+  it('runs a refused dispatch again and keeps a dead letter for each refusal', async () => {
     const name = queueName('redispatch')
     const deadLetterName = queueName('redispatch-dead-letter')
     const queue = new Queue<RfqDispatchJob, RfqCreationResult, string>(
@@ -333,6 +335,7 @@ suite('RFQ BullMQ disposable Redis integration', () => {
       .mockRejectedValueOnce(
         new ConflictException('BOM must be approved before automatic RFQ dispatch')
       )
+      .mockRejectedValueOnce(new NotFoundException('BOM not found'))
       .mockResolvedValue(RESULT)
     const processor = new RfqDispatchProcessor(
       { createFromApprovedBom } as unknown as ProcurementService,
@@ -352,13 +355,27 @@ suite('RFQ BullMQ disposable Redis integration', () => {
     workers.push(worker)
     const producer = new RfqDispatchQueue(queue)
 
+    const deadLetterFor = async (jobId: string) => {
+      const failed = await queue.getJob(jobId)
+      return waitForJob(deadLetterQueue, `${jobId}-dead-letter-${failed?.timestamp}`)
+    }
     const refused = await producer.enqueue({ bomId: BOM_ID }, PRINCIPAL)
     await waitForState(queue, refused.jobId, 'failed')
+    const first = await deadLetterFor(refused.jobId)
+    // Re-adding the same job id in the same millisecond would reuse the timestamp.
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    await producer.enqueue({ bomId: BOM_ID }, PRINCIPAL)
+    await waitForState(queue, refused.jobId, 'failed')
+    const second = await deadLetterFor(refused.jobId)
+    await new Promise((resolve) => setTimeout(resolve, 5))
     const again = await producer.enqueue({ bomId: BOM_ID }, PRINCIPAL)
     await waitForState(queue, again.jobId, 'completed')
 
     expect(again).toEqual({ jobId: refused.jobId, enqueued: true })
-    expect(createFromApprovedBom).toHaveBeenCalledTimes(2)
+    expect(createFromApprovedBom).toHaveBeenCalledTimes(3)
+    expect(first.id).not.toBe(second.id)
+    expect(first.data.errorMessage).toContain('ConflictException')
+    expect(second.data.errorMessage).toContain('NotFoundException')
   }, 20_000)
 
   restartTest('reconnects and processes after disposable Redis restarts', async () => {

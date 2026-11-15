@@ -34,6 +34,7 @@ function job(
     name: RFQ_DISPATCH_JOB,
     data: DATA,
     attemptsMade: 0,
+    timestamp: 1_700_000_000_000,
     opts: { attempts: 5 },
     ...overrides,
   } as Job
@@ -120,7 +121,7 @@ describe('RfqDispatchProcessor', () => {
         errorMessage: 'database unavailable',
       }),
       {
-        jobId: `${JOB_ID}-dead-letter`,
+        jobId: `${JOB_ID}-dead-letter-1700000000000`,
         attempts: 1,
         removeOnComplete: 5_000,
         removeOnFail: false,
@@ -174,7 +175,7 @@ describe('RfqDispatchProcessor', () => {
         errorName: 'UnrecoverableError',
         errorMessage: 'NotFoundException: BOM not found',
       }),
-      expect.objectContaining({ jobId: `${JOB_ID}-dead-letter` })
+      expect.objectContaining({ jobId: `${JOB_ID}-dead-letter-1700000000000` })
     )
   })
 

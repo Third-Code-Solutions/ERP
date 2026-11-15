@@ -92,4 +92,17 @@ describe('RfqDispatchQueue', () => {
       probe.add.mock.invocationCallOrder[0] ?? 0
     )
   })
+
+  it('deduplicates when a concurrent request already replaced the failed job', async () => {
+    const remove = vi.fn().mockRejectedValue(new Error('locked by another worker'))
+    const probe = harness({ id: JOB_ID, isFailed: vi.fn().mockResolvedValue(true), remove })
+
+    await expect(
+      probe.queue.enqueue({ bomId: BOM_ID }, PRINCIPAL)
+    ).resolves.toEqual({
+      jobId: JOB_ID,
+      enqueued: false,
+    })
+    expect(probe.add).not.toHaveBeenCalled()
+  })
 })

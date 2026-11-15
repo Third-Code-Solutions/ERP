@@ -115,7 +115,8 @@ export class RfqDispatchProcessor extends WorkerHost {
       RFQ_DISPATCH_DEAD_LETTER_JOB,
       deadLetter,
       {
-        jobId: `${job.id}-dead-letter`,
+        // One per run: a re-dispatch re-adds the job with a new timestamp.
+        jobId: `${job.id}-dead-letter-${job.timestamp}`,
         attempts: 1,
         removeOnComplete: 5_000,
         removeOnFail: false,
