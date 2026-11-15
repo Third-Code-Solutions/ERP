@@ -49,4 +49,24 @@ describe('ProjectMaterialActualsCard', () => {
     expect(markup).toContain('₱1,000.00')
     expect(markup).toContain('Operational evidence only')
   })
+
+  it('shows posted quantities at full micro precision, like the inventory pages', () => {
+    const [row] = result.rows
+    const markup = renderToStaticMarkup(
+      <ProjectMaterialActualsCard
+        result={{
+          ...result,
+          rows: [
+            {
+              ...row!,
+              receivedQuantityMicros: 12_345_678_901,
+              issuedQuantityMicros: 1,
+            },
+          ],
+        }}
+      />
+    )
+    expect(markup).toContain('12,345.678901 m3')
+    expect(markup).toContain('0.000001 m3')
+  })
 })

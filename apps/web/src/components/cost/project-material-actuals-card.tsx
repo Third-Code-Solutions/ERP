@@ -25,7 +25,7 @@ function formatPhp(cents: number): string {
 
 function formatQuantity(micros: number): string {
   return (micros / 1_000_000).toLocaleString('en-PH', {
-    maximumFractionDigits: 3,
+    maximumFractionDigits: 6,
   })
 }
 
