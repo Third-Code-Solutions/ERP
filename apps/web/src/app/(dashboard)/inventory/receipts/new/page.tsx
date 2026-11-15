@@ -12,7 +12,8 @@ import {
   vendors,
   warehouses,
 } from '@third-code-erp/database/schema'
-import { and, asc, eq, inArray } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
+import { z } from 'zod'
 import { STOCK_RECEIPT_RECEIVABLE_PO_STATUSES } from '@third-code-erp/shared-types'
 import { StockReceiptForm } from '../../receipt-form'
 
@@ -21,11 +22,15 @@ export const metadata: Metadata = { title: 'New Stock Receipt' }
 export default async function NewStockReceiptPage({
   searchParams,
 }: {
-  searchParams: Promise<{ po?: string }>
+  searchParams: Promise<{ po?: string | string[] }>
 }) {
   const profile = await requireUserProfile()
   requireCapability(profile, 'inventory.manage')
-  const { po: defaultPoId } = await searchParams
+  const { po } = await searchParams
+  // The PO page's Receive link. Sorted first so the picker and line caps keep it.
+  const defaultPoId = z.string().uuid().safeParse(po).success
+    ? (po as string)
+    : undefined
 
   const [poRows, lineRows, warehouseRows, deliveryRows] = await Promise.all([
     db
@@ -58,7 +63,10 @@ export default async function NewStockReceiptPage({
           inArray(purchaseOrders.status, STOCK_RECEIPT_RECEIVABLE_PO_STATUSES)
         )
       )
-      .orderBy(asc(purchaseOrders.po_number))
+      .orderBy(
+        ...(defaultPoId ? [desc(sql`${purchaseOrders.id} = ${defaultPoId}`)] : []),
+        asc(purchaseOrders.po_number)
+      )
       .limit(250),
     db
       .select({
@@ -104,7 +112,11 @@ export default async function NewStockReceiptPage({
           inArray(purchaseOrders.status, STOCK_RECEIPT_RECEIVABLE_PO_STATUSES)
         )
       )
-      .orderBy(asc(poLineItems.po_id), asc(poLineItems.sort_order))
+      .orderBy(
+        ...(defaultPoId ? [desc(sql`${poLineItems.po_id} = ${defaultPoId}`)] : []),
+        asc(poLineItems.po_id),
+        asc(poLineItems.sort_order)
+      )
       .limit(2_000),
     db
       .select({

@@ -6,18 +6,23 @@ interface ReceiveLineFormProps {
   purchaseOrderStatus: string
   /** The viewer holds `inventory.manage`, which the receipt page requires. */
   canReceive: boolean
-  quantity: number
-  receivedQty: number
+  orderedMicros: number
+  receivedMicros: number
+}
+
+function formatQuantity(micros: number): string {
+  return (micros / 1_000_000).toLocaleString('en-PH', { maximumFractionDigits: 6 })
 }
 
 export function ReceiveLineForm({
   purchaseOrderId,
   purchaseOrderStatus,
   canReceive,
-  quantity,
-  receivedQty,
+  orderedMicros,
+  receivedMicros,
 }: ReceiveLineFormProps) {
-  const fullyReceived = receivedQty >= quantity
+  // Exact micros: the integer quantity/received_qty mirrors round differently.
+  const fullyReceived = receivedMicros >= orderedMicros
   const showReceive =
     !fullyReceived &&
     canReceive &&
@@ -43,7 +48,7 @@ export function ReceiveLineForm({
           fontWeight: 650,
         }}
       >
-        {receivedQty} / {quantity}
+        {formatQuantity(receivedMicros)} / {formatQuantity(orderedMicros)}
       </span>
       {showReceive && (
         <Link

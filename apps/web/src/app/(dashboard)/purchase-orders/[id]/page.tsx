@@ -714,8 +714,8 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
                       purchaseOrderId={po.id}
                       purchaseOrderStatus={po.status}
                       canReceive={canManageInventory}
-                      quantity={line.quantity}
-                      receivedQty={line.received_qty}
+                      orderedMicros={line.quantity_micros}
+                      receivedMicros={line.received_quantity_micros}
                     />
                   </td>
                 </tr>

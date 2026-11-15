@@ -38,9 +38,12 @@ vi.mock('../../receipt-form', () => ({
 }))
 
 import { purchaseOrders } from '@third-code-erp/database/schema'
+import type { SQL } from 'drizzle-orm'
+import { PgDialect } from 'drizzle-orm/pg-core'
 import NewStockReceiptPage from './page'
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111'
+const LINKED_PO_ID = '44444444-4444-4444-8444-444444444444'
 
 function queryReturning(rows: unknown[]) {
   const query: Record<string, unknown> = {
@@ -60,22 +63,55 @@ describe('New Stock Receipt page', () => {
     mocks.profile.mockResolvedValue({ tenantId: TENANT_ID, role: 'scm' })
   })
 
-  it('hands the PO from the PO page link to the form', async () => {
+  function seedRows(poId: string): void {
     for (const rows of [
-      [{ id: 'po-1', number: 'PO-1', projectId: 'p-1', projectCode: 'P', projectName: 'P', vendorName: 'V' }],
+      [{ id: poId, number: 'PO-1', projectId: 'p-1', projectCode: 'P', projectName: 'P', vendorName: 'V' }],
       [],
       [{ id: 'w-1', code: 'W1', name: 'Main', projectId: 'p-1' }],
       [],
     ]) {
       mocks.select.mockReturnValueOnce(queryReturning(rows))
     }
+  }
+
+  /** The first ORDER BY term of the n-th query, rendered to SQL. */
+  function firstOrderTerm(query: number) {
+    const orderBy = mocks.select.mock.results[query]!.value.orderBy as ReturnType<typeof vi.fn>
+    return new PgDialect().sqlToQuery(orderBy.mock.calls[0]![0] as SQL)
+  }
+
+  it('hands the linked PO to the form and sorts it and its lines ahead of the caps', async () => {
+    seedRows(LINKED_PO_ID)
 
     const html = renderToStaticMarkup(
-      await NewStockReceiptPage({ searchParams: Promise.resolve({ po: 'po-1' }) })
+      await NewStockReceiptPage({ searchParams: Promise.resolve({ po: LINKED_PO_ID }) })
     )
 
-    expect(html).toContain('data-default-po="po-1"')
+    expect(html).toContain(`data-default-po="${LINKED_PO_ID}"`)
+    // The PO picker (limit 250) and the line query (limit 2,000).
+    for (const [query, column] of [
+      [0, '"purchase_orders"."id"'],
+      [1, '"po_line_items"."po_id"'],
+    ] as const) {
+      const term = firstOrderTerm(query)
+      expect(term.sql).toBe(`${column} = $1 desc`)
+      expect(term.params).toEqual([LINKED_PO_ID])
+    }
   })
+
+  it.each([['not-a-uuid'], [[LINKED_PO_ID, LINKED_PO_ID]]])(
+    'ignores a po param that is not one uuid (%j)',
+    async (po) => {
+      seedRows(LINKED_PO_ID)
+
+      const html = renderToStaticMarkup(
+        await NewStockReceiptPage({ searchParams: Promise.resolve({ po }) })
+      )
+
+      expect(html).toContain('data-default-po=""')
+      expect(firstOrderTerm(0).sql).toBe('"purchase_orders"."po_number" asc')
+    }
+  )
 
   it('offers every PO status receipt posting accepts, partially delivered included', async () => {
     for (const rows of [
