@@ -125,7 +125,61 @@ describe('NotificationDeliveryQueue', () => {
   })
 
   it('does not add a duplicate job while deterministic state exists', async () => {
-    const probe = harness({ id: 'existing' })
+    const probe = harness({
+      id: 'existing',
+      isCompleted: vi.fn().mockResolvedValue(false),
+      isFailed: vi.fn().mockResolvedValue(false),
+    })
+    await expect(probe.queue.enqueuePending()).resolves.toBe(0)
+    await expect(probe.queue.enqueuePendingSupplier()).resolves.toBe(0)
+    expect(probe.add).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['completed', true, false],
+    ['failed', false, true],
+  ])(
+    'replaces a %s job whose delivery is still pending',
+    async (_state, completed, failed) => {
+      const remove = vi.fn().mockResolvedValue(undefined)
+      const probe = harness({
+        id: 'existing',
+        isCompleted: vi.fn().mockResolvedValue(completed),
+        isFailed: vi.fn().mockResolvedValue(failed),
+        remove,
+      })
+
+      await expect(probe.queue.enqueuePending()).resolves.toBe(1)
+      await expect(probe.queue.enqueuePendingSupplier()).resolves.toBe(1)
+      expect(remove).toHaveBeenCalledTimes(2)
+      expect(remove.mock.invocationCallOrder[0]).toBeLessThan(
+        probe.add.mock.invocationCallOrder[0] ?? 0
+      )
+      expect(probe.add).toHaveBeenCalledWith(
+        NOTIFICATION_DELIVERY_JOB,
+        expect.anything(),
+        expect.objectContaining({
+          jobId: `notification1-${DELIVERY.deliveryId}`,
+        })
+      )
+      expect(probe.add).toHaveBeenCalledWith(
+        NOTIFICATION_SUPPLIER_DELIVERY_JOB,
+        expect.anything(),
+        expect.objectContaining({
+          jobId: `notification-supplier1-${DELIVERY.deliveryId}`,
+        })
+      )
+    }
+  )
+
+  it('does not add a job when a concurrent request already replaced the finished one', async () => {
+    const probe = harness({
+      id: 'existing',
+      isCompleted: vi.fn().mockResolvedValue(true),
+      isFailed: vi.fn().mockResolvedValue(false),
+      remove: vi.fn().mockRejectedValue(new Error('locked by another worker')),
+    })
+
     await expect(probe.queue.enqueuePending()).resolves.toBe(0)
     expect(probe.add).not.toHaveBeenCalled()
   })
