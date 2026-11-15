@@ -1,5 +1,17 @@
 import { z } from 'zod'
 
+// An issued PO, or one whose first delivery already arrived, can take a delivery.
+export const DELIVERY_SCHEDULABLE_PO_STATUSES = ['issued', 'partial_delivered'] as const
+
+export type DeliverySchedulablePoStatus =
+  (typeof DELIVERY_SCHEDULABLE_PO_STATUSES)[number]
+
+export function isDeliverySchedulablePoStatus(
+  status: string
+): status is DeliverySchedulablePoStatus {
+  return (DELIVERY_SCHEDULABLE_PO_STATUSES as readonly string[]).includes(status)
+}
+
 export const createDeliveryScheduleCommandSchema = z
   .object({
     purchaseOrderId: z.string().uuid(),

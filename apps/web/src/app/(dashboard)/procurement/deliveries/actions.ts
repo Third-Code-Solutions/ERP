@@ -14,6 +14,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { and, desc, eq } from 'drizzle-orm'
+import { isDeliverySchedulablePoStatus } from '@third-code-erp/shared-types'
 import { z } from 'zod'
 import {
   requireUserProfile,
@@ -178,7 +179,11 @@ export async function scheduleDelivery(
 
   // Tenant ownership: PO must live in this tenant.
   const [po] = await db
-    .select({ id: purchaseOrders.id, po_number: purchaseOrders.po_number })
+    .select({
+      id: purchaseOrders.id,
+      po_number: purchaseOrders.po_number,
+      status: purchaseOrders.status,
+    })
     .from(purchaseOrders)
     .where(
       and(
@@ -188,6 +193,9 @@ export async function scheduleDelivery(
     )
     .limit(1)
   if (!po) return { error: 'Purchase order not found' }
+  if (!isDeliverySchedulablePoStatus(po.status)) {
+    return { error: 'Purchase order must be issued before scheduling a delivery' }
+  }
 
   const [created] = await db
     .insert(deliverySchedules)

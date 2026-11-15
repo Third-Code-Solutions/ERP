@@ -28,6 +28,7 @@ import {
   deliveryInspectionCompleteResultSchema,
   deliveryReceiptCommandSchema,
   deliveryReceiptResultSchema,
+  isDeliverySchedulablePoStatus,
   deliveryMarkInTransitCommandSchema,
   deliveryMarkInTransitResultSchema,
   deliveryStartSitePreparationCommandSchema,
@@ -420,7 +421,7 @@ export class DeliveryWorkflowService {
       if (!purchaseOrder) {
         throw new NotFoundException('Purchase order not found')
       }
-      if (purchaseOrder.status !== 'issued') {
+      if (!isDeliverySchedulablePoStatus(purchaseOrder.status)) {
         throw new ConflictException(
           'Purchase order must be issued before scheduling a delivery'
         )
