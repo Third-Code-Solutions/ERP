@@ -24,8 +24,9 @@ import {
   opportunities,
   takeoffUnresolvedItems,
 } from '@third-code-erp/database/schema'
-import { eq, and, max, desc, asc, isNotNull, inArray, ne } from 'drizzle-orm'
+import { eq, and, max, desc, asc, isNotNull, isNull, inArray, ne } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
+import { activeProjectCondition } from '@/lib/active-project'
 import { writeAuditLogInTransaction } from '@/lib/audit'
 import { safeActionError } from '@/lib/safe-action-error'
 import { getProjectDetailAccess } from '../project-detail-access'
@@ -153,6 +154,7 @@ async function lockBomForMutation(
         eq(boms.id, scope.bomId),
         eq(boms.project_id, scope.projectId),
         eq(boms.tenant_id, scope.tenantId),
+        activeProjectCondition(scope.projectId, scope.tenantId),
       ),
     )
     .for('update')
@@ -168,7 +170,9 @@ async function lockProjectForMutation(
   const [project] = await tx
     .select({ id: projects.id })
     .from(projects)
-    .where(and(eq(projects.id, projectId), eq(projects.tenant_id, tenantId)))
+    .where(
+      and(eq(projects.id, projectId), eq(projects.tenant_id, tenantId), isNull(projects.deleted_at)),
+    )
     .for('update')
 
   return project ?? null
@@ -846,6 +850,7 @@ export async function approveBom(bomId: string, projectId: string): Promise<{ er
           eq(boms.id, bomId),
           eq(boms.project_id, projectId),
           eq(boms.tenant_id, profile.tenantId),
+          activeProjectCondition(projectId, profile.tenantId),
         ),
       )
       .for('update')
@@ -1033,12 +1038,17 @@ function canReadBom(role: AppRole): boolean {
   return getProjectDetailAccess(role).bom
 }
 
+// A malformed id would otherwise reach Postgres and throw instead of answering empty.
+function isUuid(value: string | null): value is string {
+  return z.string().uuid().safeParse(value).success
+}
+
 export async function listPendingBomGrainReviews(
   projectId: string,
   bomId: string | null,
 ): Promise<PendingBomGrainReview[]> {
   const profile = await getUserProfile()
-  if (!profile || !bomId || !canReadBom(profile.role)) return []
+  if (!profile || !canReadBom(profile.role) || !isUuid(projectId) || !isUuid(bomId)) return []
 
   const rows = await db
     .select({
@@ -1071,6 +1081,7 @@ export async function listPendingBomGrainReviews(
         eq(boms.project_id, projectId),
         eq(boms.id, bomId),
         eq(boms.tenant_id, profile.tenantId),
+        activeProjectCondition(projectId, profile.tenantId),
       ),
     )
     .orderBy(asc(bomLineItems.sort_order), asc(bomLineItemGrainReviews.created_at))
@@ -1338,7 +1349,7 @@ export interface BomLocationRollupRow {
 
 export async function listProjectLocations(projectId: string): Promise<ProjectLocationOption[]> {
   const profile = await getUserProfile()
-  if (!profile || !canReadBom(profile.role)) return []
+  if (!profile || !canReadBom(profile.role) || !isUuid(projectId)) return []
 
   return db
     .select({
@@ -1351,6 +1362,7 @@ export async function listProjectLocations(projectId: string): Promise<ProjectLo
       and(
         eq(projectLocations.project_id, projectId),
         eq(projectLocations.tenant_id, profile.tenantId),
+        activeProjectCondition(projectId, profile.tenantId),
       ),
     )
     .orderBy(asc(projectLocations.sort_order), asc(projectLocations.name))
@@ -1361,7 +1373,7 @@ export async function listPendingBomLocationReviews(
   bomId: string | null,
 ): Promise<PendingBomLocationReview[]> {
   const profile = await getUserProfile()
-  if (!profile || !bomId || !canReadBom(profile.role)) return []
+  if (!profile || !canReadBom(profile.role) || !isUuid(projectId) || !isUuid(bomId)) return []
 
   return db
     .select({
@@ -1393,6 +1405,7 @@ export async function listPendingBomLocationReviews(
         eq(boms.project_id, projectId),
         eq(boms.id, bomId),
         eq(boms.tenant_id, profile.tenantId),
+        activeProjectCondition(projectId, profile.tenantId),
       ),
     )
     .orderBy(asc(bomLineItems.sort_order), asc(bomLineItemLocationReviews.created_at))
@@ -1403,7 +1416,7 @@ export async function listBomLocationRollup(
   bomId: string | null,
 ): Promise<BomLocationRollupRow[]> {
   const profile = await getUserProfile()
-  if (!profile || !bomId || !canReadBom(profile.role)) return []
+  if (!profile || !canReadBom(profile.role) || !isUuid(projectId) || !isUuid(bomId)) return []
 
   return db
     .select({
@@ -1434,6 +1447,7 @@ export async function listBomLocationRollup(
         eq(boms.project_id, projectId),
         eq(boms.id, bomId),
         isNotNull(bomLineItems.location_id),
+        activeProjectCondition(projectId, profile.tenantId),
       ),
     )
     .groupBy(
@@ -1910,7 +1924,7 @@ export async function fetchProjectForecastTcv(
   projectId: string,
 ): Promise<{ tcvCents: number | null }> {
   const profile = await getUserProfile()
-  if (!profile || !canReadBom(profile.role)) return { tcvCents: null }
+  if (!profile || !canReadBom(profile.role) || !isUuid(projectId)) return { tcvCents: null }
 
   // A project can be linked to multiple opportunities (legacy + Won). Pick
   // the highest TCV — if anything, that's the most aggressive forecast and
@@ -1922,6 +1936,7 @@ export async function fetchProjectForecastTcv(
       and(
         eq(opportunities.project_id, projectId),
         eq(opportunities.tenant_id, profile.tenantId),
+        activeProjectCondition(projectId, profile.tenantId),
       ),
     )
     .orderBy(desc(opportunities.tcv_cents))
@@ -1939,11 +1954,21 @@ export async function fetchLineSupplierContext(
     return { error: `Forbidden: role "${profile.role}" cannot read BOMs` }
   }
 
+  if (!isUuid(lineItemId)) return { error: 'Line item not found' }
+
   const [line] = await db
     .select({ id: bomLineItems.id })
     .from(bomLineItems)
+    .innerJoin(
+      boms,
+      and(eq(bomLineItems.bom_id, boms.id), eq(bomLineItems.tenant_id, boms.tenant_id)),
+    )
     .where(
-      and(eq(bomLineItems.id, lineItemId), eq(bomLineItems.tenant_id, profile.tenantId)),
+      and(
+        eq(bomLineItems.id, lineItemId),
+        eq(bomLineItems.tenant_id, profile.tenantId),
+        activeProjectCondition(boms.project_id, profile.tenantId),
+      ),
     )
 
   if (!line) return { error: 'Line item not found' }

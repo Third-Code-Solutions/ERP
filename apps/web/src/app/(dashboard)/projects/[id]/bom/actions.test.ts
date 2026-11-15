@@ -27,6 +27,10 @@ const mocks = vi.hoisted(() => ({
   useCore: vi.fn(),
   dispatchCore: vi.fn(),
   revalidatePath: vi.fn(),
+  activeProjectCondition: vi.fn((projectId: unknown, tenantId: unknown) => ({
+    liveProject: projectId,
+    tenantId,
+  })),
   warn: vi.spyOn(console, 'warn').mockImplementation(() => undefined),
 }))
 
@@ -56,7 +60,7 @@ vi.mock('@third-code-erp/database/schema', () => {
     boms: {
       id: field,
       tenant_id: field,
-      project_id: field,
+      project_id: { column: 'boms.project_id' },
       status: field,
       version: field,
       created_by: field,
@@ -135,6 +139,7 @@ vi.mock('@third-code-erp/database/schema', () => {
     projects: {
       id: field,
       tenant_id: field,
+      deleted_at: { column: 'projects.deleted_at' },
     },
     dupas: {
       id: field,
@@ -184,6 +189,10 @@ vi.mock('drizzle-orm', () => ({
   asc: vi.fn(() => ({})),
   isNotNull: vi.fn(() => ({})),
   inArray: vi.fn(() => ({})),
+}))
+
+vi.mock('@/lib/active-project', () => ({
+  activeProjectCondition: mocks.activeProjectCondition,
 }))
 
 vi.mock('@/lib/audit', () => ({
@@ -236,6 +245,8 @@ import {
   setLineItemVendor,
   upsertDupaForBomLine,
 } from './actions'
+import { and, isNull } from 'drizzle-orm'
+import { boms, projects } from '@third-code-erp/database/schema'
 
 const USER_ID = '11111111-1111-4111-8111-111111111111'
 const TENANT_ID = '22222222-2222-4222-8222-222222222222'
@@ -1549,5 +1560,88 @@ describe('BOM read actions enforce the BOM page read policy', () => {
     await expect(fetchLineSupplierContext(LINE_ITEM_ID)).resolves.toEqual({ error: 'Unauthorized' })
     await expect(listProjectLocations(PROJECT_ID)).resolves.toEqual([])
     expect(mocks.select).not.toHaveBeenCalled()
+  })
+})
+
+describe('BOM actions treat a retired project as not found', () => {
+  const transaction = {
+    select: mocks.transactionSelect,
+    insert: mocks.transactionInsert,
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.select.mockReset()
+    mocks.transaction.mockReset()
+    mocks.transactionSelect.mockReset()
+    mocks.transactionInsert.mockReset()
+    mocks.getUserProfile.mockResolvedValue({
+      tenantId: TENANT_ID,
+      user: { id: USER_ID },
+      role: 'owner',
+    })
+    mocks.can.mockReturnValue(true)
+    mocks.transaction.mockImplementation(async (callback) => callback(transaction))
+  })
+
+  function expectEveryLiveProjectConditionInAWhere() {
+    const conditions = mocks.activeProjectCondition.mock.results.map((result) => result.value)
+    expect(conditions.length).toBeGreaterThan(0)
+    for (const condition of conditions) {
+      expect(vi.mocked(and).mock.calls.some((args) => args.includes(condition))).toBe(true)
+    }
+  }
+
+  it('scopes every reader query to a live project of the tenant', async () => {
+    mocks.select.mockImplementation(() => selectResult([]))
+
+    await listPendingBomGrainReviews(PROJECT_ID, BOM_ID)
+    await listPendingBomLocationReviews(PROJECT_ID, BOM_ID)
+    await listBomLocationRollup(PROJECT_ID, BOM_ID)
+    await listProjectLocations(PROJECT_ID)
+    await fetchProjectForecastTcv(PROJECT_ID)
+    await expect(fetchLineSupplierContext(LINE_ITEM_ID)).resolves.toEqual({
+      error: 'Line item not found',
+    })
+
+    expect(mocks.activeProjectCondition.mock.calls).toEqual([
+      [PROJECT_ID, TENANT_ID],
+      [PROJECT_ID, TENANT_ID],
+      [PROJECT_ID, TENANT_ID],
+      [PROJECT_ID, TENANT_ID],
+      [PROJECT_ID, TENANT_ID],
+      [boms.project_id, TENANT_ID],
+    ])
+    expectEveryLiveProjectConditionInAWhere()
+  })
+
+  it('answers a malformed id empty instead of querying', async () => {
+    await expect(listPendingBomGrainReviews('not-a-uuid', BOM_ID)).resolves.toEqual([])
+    await expect(listPendingBomGrainReviews(PROJECT_ID, 'not-a-uuid')).resolves.toEqual([])
+    await expect(listPendingBomLocationReviews(PROJECT_ID, 'x')).resolves.toEqual([])
+    await expect(listBomLocationRollup('x', BOM_ID)).resolves.toEqual([])
+    await expect(listProjectLocations('x')).resolves.toEqual([])
+    await expect(fetchProjectForecastTcv('x')).resolves.toEqual({ tcvCents: null })
+    await expect(fetchLineSupplierContext('x')).resolves.toEqual({ error: 'Line item not found' })
+
+    expect(mocks.select).not.toHaveBeenCalled()
+  })
+
+  it('locks a BOM for a write only while its project is live', async () => {
+    mocks.transactionSelect.mockImplementation(() => selectResult([]))
+
+    await expect(approveBom(BOM_ID, PROJECT_ID)).resolves.toEqual({ error: 'BOM not found' })
+
+    expect(mocks.activeProjectCondition).toHaveBeenCalledWith(PROJECT_ID, TENANT_ID)
+    expectEveryLiveProjectConditionInAWhere()
+  })
+
+  it('refuses a new BOM version on a retired project', async () => {
+    mocks.transactionSelect.mockImplementation(() => selectResult([]))
+
+    await expect(createBom(PROJECT_ID)).resolves.toEqual({ error: 'Project not found' })
+
+    expect(vi.mocked(isNull)).toHaveBeenCalledWith(projects.deleted_at)
+    expect(mocks.transactionInsert).not.toHaveBeenCalled()
   })
 })
