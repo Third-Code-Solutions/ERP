@@ -1438,6 +1438,7 @@ export async function createPosFromBomGrouped(
       )
 
       // Current, positive-price rate cards on this tenant's material items.
+      // Card choice must stay in step with RFQ coverage (`loadRateCardCoverage`).
       const now = new Date()
       const cards = await tx
         .select({
