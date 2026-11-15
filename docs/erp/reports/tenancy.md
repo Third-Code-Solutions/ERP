@@ -58,7 +58,7 @@ Unit test paths are relative to each package. "HTTP" means `apps/api/integration
 | 03 Denied role | page test: pm, estimator, sd_pm_pe and procurement are rejected before any read; `dashboard-route-inventory.test.ts` (`/settings/tax` = finance.read) |
 | 04 No edit controls | page test: no `form`, `input`, `select`, `textarea` or `button`; locked note; e2e asserts the same |
 | 05 API writes gated | `api roadmap/roadmap.tax-profile.service.spec.ts` (503 and no writes, for both create and activate); HTTP (401, 403, 503 with no row change, 404 cross-tenant) |
-| 06 Invoice defaults unchanged | `shared-types progress-invoice.test.ts` (I-1..I-8, PB-1..PB-4); `api customer-invoice-draft-create.service.spec.ts` (24,750,000, `retention_bps 1000`, audit default); `web procurement/actions.invoice.test.ts`; HTTP tenant T |
+| 06 Invoice defaults unchanged | `shared-types progress-invoice.test.ts` (I-1..I-8, PB-1..PB-4); `api customer-invoice-draft-create.service.spec.ts` (24,750,000, `retention_bps 1000`, audit default); `web procurement/actions.invoice.test.ts` (deleted in #165 with the legacy `createInvoice`); HTTP tenant T |
 | 07 Invoice with a profile | shared-types P-1, P-3, P-4; API draft spec (profile row; audit `profileId`/`profileCode`); HTTP tenant U |
 | 08 Non-VAT invoice | shared-types P-2; API and web draft specs (`vat 0`, audit `vatBps 0`) |
 | 09 PO on every path | `web lib/operations/purchase-order-money.test.ts` (PO-1..PO-7, PV-2, property tests); `api purchase-order-creation.service.spec.ts` (3 paths keep 989,871; bps vs percent property check); `api roadmap.requisition-po.service.spec.ts`; `web procurement/actions.test.ts` (3 legacy paths); HTTP manual PO |

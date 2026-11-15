@@ -404,10 +404,11 @@ RUNBOOK) is **done**.
     exactly like the billing page already did. Before promoting, confirm both cover the
     live tenants, or builder invoicing returns 503 "not enabled for this tenant".
   - #165: `award-actions.ts` and `packages/operations/src/signed-bom-award.ts` still write
-    invoices directly (predate the batch). `financeCustomerInvoiceDraftCreateWritesUseCoreApi`
-    and its `_VIA_API` env vars have no caller. `createInvoiceDraft` hand-checks the bps
-    instead of `customerInvoiceDraftCreateBodySchema.safeParse`. `plans/tenancy.md:358,397`
-    and `reports/tenancy.md:61` cite the deleted `procurement/actions.invoice.test.ts`.
+    invoices directly (predate the batch). `createInvoiceDraft` hand-checks the bps
+    instead of `customerInvoiceDraftCreateBodySchema.safeParse`. The dead
+    `financeCustomerInvoiceDraftCreateWritesUseCoreApi` and its env-doc rows went in #178;
+    `apps/web/.env.example` (lines 102, 189) still lists the two `..._DRAFT_CREATE_WRITES_VIA_API`
+    vars (left for the owner: env files are outside the agent's permissions).
   - #163: done in #172 (the BOM readers require a live project and answer empty for a
     malformed id).
   - #164: `takeoff-import-wizard.tsx:177` shows the raw number (no grouping);
