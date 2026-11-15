@@ -2,6 +2,7 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import { requireUserProfile } from '@third-code-erp/auth'
+import { DELIVERY_SCHEDULABLE_PO_STATUSES } from '@third-code-erp/shared-types'
 import { db } from '@third-code-erp/database'
 import {
   purchaseOrders,
@@ -24,8 +25,6 @@ export default async function NewDeliveryPage({
   const profile = await requireUserProfile()
   const { po: defaultPoId } = await searchParams
 
-  // Match Core's scheduling guard: approval-pending POs cannot be delivered.
-  const eligibleStatuses = ['issued'] as const
   const poRows = await db
     .select({
       id: purchaseOrders.id,
@@ -40,7 +39,7 @@ export default async function NewDeliveryPage({
     .where(
       and(
         eq(purchaseOrders.tenant_id, profile.tenantId),
-        inArray(purchaseOrders.status, [...eligibleStatuses])
+        inArray(purchaseOrders.status, DELIVERY_SCHEDULABLE_PO_STATUSES)
       )
     )
     .orderBy(desc(purchaseOrders.created_at))
@@ -48,7 +47,7 @@ export default async function NewDeliveryPage({
 
   const poOptions = poRows.map((r) => ({
     id: r.id,
-    label: `${r.po_number} · ${r.vendor_name ?? 'No vendor'} · ${r.project_name ?? 'No project'}`,
+    label: `${r.po_number} · ${r.vendor_name ?? 'No vendor'} · ${r.project_name ?? 'No project'}${r.status === 'partial_delivered' ? ' · Partially delivered' : ''}`,
   }))
 
   return (
@@ -74,8 +73,8 @@ export default async function NewDeliveryPage({
         <p className="page-eyebrow">Procurement</p>
         <h1 className="page-title">Schedule delivery</h1>
         <p className="page-subtitle">
-          Pick the issued PO and capture site access details so the receiving
-          team knows where to direct the truck.
+          Pick an issued or partially delivered PO and capture site access
+          details so the receiving team knows where to direct the truck.
         </p>
       </div>
 

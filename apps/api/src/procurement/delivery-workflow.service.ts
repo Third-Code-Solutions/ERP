@@ -28,6 +28,8 @@ import {
   deliveryInspectionCompleteResultSchema,
   deliveryReceiptCommandSchema,
   deliveryReceiptResultSchema,
+  DELIVERY_SCHEDULE_PO_STATUS_ERROR,
+  isDeliverySchedulablePoStatus,
   deliveryMarkInTransitCommandSchema,
   deliveryMarkInTransitResultSchema,
   deliveryStartSitePreparationCommandSchema,
@@ -420,10 +422,8 @@ export class DeliveryWorkflowService {
       if (!purchaseOrder) {
         throw new NotFoundException('Purchase order not found')
       }
-      if (purchaseOrder.status !== 'issued') {
-        throw new ConflictException(
-          'Purchase order must be issued before scheduling a delivery'
-        )
+      if (!isDeliverySchedulablePoStatus(purchaseOrder.status)) {
+        throw new ConflictException(DELIVERY_SCHEDULE_PO_STATUS_ERROR)
       }
 
       const scheduledDate = new Date(parsedCommand.scheduledDate)

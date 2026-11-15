@@ -72,6 +72,7 @@ suite('delivery schedule creation database integration', () => {
       const otherProjectId = randomUUID()
       const purchaseOrderId = randomUUID()
       const draftPurchaseOrderId = randomUUID()
+      const partialPurchaseOrderId = randomUUID()
       const otherPurchaseOrderId = randomUUID()
       const suffix = randomUUID().slice(0, 12)
 
@@ -152,6 +153,18 @@ suite('delivery schedule creation database integration', () => {
           total_cents: 11_000,
         },
         {
+          id: partialPurchaseOrderId,
+          tenant_id: tenantId,
+          project_id: projectId,
+          created_by: actorId,
+          po_number: `PO-SCHEDULE-PARTIAL-${suffix}`,
+          status: 'partial_delivered',
+          subtotal_cents: 10_000,
+          vat_cents: 1_200,
+          withholding_tax_cents: 200,
+          total_cents: 11_000,
+        },
+        {
           id: otherPurchaseOrderId,
           tenant_id: otherTenantId,
           project_id: otherProjectId,
@@ -221,6 +234,16 @@ suite('delivery schedule creation database integration', () => {
           'delivery-schedule-create-draft'
         )
       ).rejects.toThrow('Purchase order must be issued')
+      // The rest of a partly delivered PO can still be scheduled.
+      const partial = await service.createSchedule(
+        { ...command, purchaseOrderId: partialPurchaseOrderId },
+        principal,
+        'delivery-schedule-create-partial'
+      )
+      expect(partial).toMatchObject({
+        purchaseOrderId: partialPurchaseOrderId,
+        status: 'scheduled',
+      })
       await expect(
         service.createSchedule(
           { ...command, purchaseOrderId: otherPurchaseOrderId },

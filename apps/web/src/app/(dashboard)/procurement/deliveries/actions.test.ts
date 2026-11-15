@@ -119,6 +119,26 @@ function selectSchedule(status: string): void {
   mocks.select.mockReturnValue({ from })
 }
 
+function selectPurchaseOrder(status: string): void {
+  const limit = vi.fn().mockResolvedValue([
+    { id: '44444444-4444-4444-8444-444444444444', po_number: 'PO-1', status },
+  ])
+  const where = vi.fn().mockReturnValue({ limit })
+  const from = vi.fn().mockReturnValue({ where })
+  mocks.select.mockReturnValueOnce({ from })
+}
+
+function scheduleForm(): FormData {
+  const form = new FormData()
+  form.set('purchase_order_id', '44444444-4444-4444-8444-444444444444')
+  form.set('scheduled_date', '2026-08-06T09:00:00.000Z')
+  form.set('site_address', '6F, ABI OPS Building')
+  form.set('site_contact_name', 'Site lead')
+  form.set('site_contact_phone', '+63 900 000 0000')
+  form.set('site_preparation_notes', '')
+  return form
+}
+
 describe('Delivery receipt compatibility seam', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -229,6 +249,25 @@ describe('Delivery receipt compatibility seam', () => {
         updatedAt: '2026-08-06T09:00:00.000Z',
       },
     })
+  })
+
+  it('refuses to schedule a delivery on a PO that is not issued (direct path)', async () => {
+    selectPurchaseOrder('draft')
+
+    await expect(scheduleDelivery(scheduleForm())).resolves.toEqual({
+      error: 'Purchase order must be issued or partially delivered to schedule a delivery',
+    })
+    expect(mocks.insert).not.toHaveBeenCalled()
+    expect(mocks.createDeliveryScheduleThroughCoreApi).not.toHaveBeenCalled()
+  })
+
+  it('schedules the rest of a partially delivered PO (direct path)', async () => {
+    selectPurchaseOrder('partial_delivered')
+    mocks.insert.mockImplementationOnce(() => {
+      throw new Error('INSERT_REACHED')
+    })
+
+    await expect(scheduleDelivery(scheduleForm())).rejects.toThrow('INSERT_REACHED')
   })
 
   it('routes schedule creation through Nest without a direct browser write', async () => {

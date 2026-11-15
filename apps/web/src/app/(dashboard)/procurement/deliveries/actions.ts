@@ -14,6 +14,10 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { and, desc, eq } from 'drizzle-orm'
+import {
+  DELIVERY_SCHEDULE_PO_STATUS_ERROR,
+  isDeliverySchedulablePoStatus,
+} from '@third-code-erp/shared-types'
 import { z } from 'zod'
 import {
   requireUserProfile,
@@ -177,8 +181,14 @@ export async function scheduleDelivery(
   }
 
   // Tenant ownership: PO must live in this tenant.
+  // shortcut: unlocked read before the insert, so a PO cancelled in between can
+  // still get a schedule; Core reads it FOR UPDATE.
   const [po] = await db
-    .select({ id: purchaseOrders.id, po_number: purchaseOrders.po_number })
+    .select({
+      id: purchaseOrders.id,
+      po_number: purchaseOrders.po_number,
+      status: purchaseOrders.status,
+    })
     .from(purchaseOrders)
     .where(
       and(
@@ -188,6 +198,9 @@ export async function scheduleDelivery(
     )
     .limit(1)
   if (!po) return { error: 'Purchase order not found' }
+  if (!isDeliverySchedulablePoStatus(po.status)) {
+    return { error: DELIVERY_SCHEDULE_PO_STATUS_ERROR }
+  }
 
   const [created] = await db
     .insert(deliverySchedules)
