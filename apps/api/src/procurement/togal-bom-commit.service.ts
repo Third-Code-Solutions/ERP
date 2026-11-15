@@ -30,6 +30,7 @@ import {
   type TogalBomCommitCommand,
   type TogalBomCommitResult,
 } from '@third-code-erp/shared-types'
+import { liveProjectCondition } from '@third-code-erp/database'
 import { and, eq, inArray } from 'drizzle-orm'
 import { roleHasCapability } from '../auth/capability.guard'
 import type { ErpPrincipal, ErpRole } from '../auth/current-principal.decorator'
@@ -169,7 +170,8 @@ export class TogalBomCommitService {
         .where(
           and(
             eq(boms.id, parsedCommand.bomId),
-            eq(boms.tenant_id, authorizedPrincipal.tenantId)
+            eq(boms.tenant_id, authorizedPrincipal.tenantId),
+            liveProjectCondition(boms.project_id, authorizedPrincipal.tenantId)
           )
         )
         .limit(1)

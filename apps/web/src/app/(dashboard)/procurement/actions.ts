@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { getUserProfile, requireCapability, can, type AppRole } from '@third-code-erp/auth'
 import {
   db,
+  liveProjectCondition,
   rateCardInEffectCondition,
   resolveTaxRates,
   type Database,
@@ -22,7 +23,7 @@ import {
   rateCards,
   vendors,
 } from '@third-code-erp/database/schema'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { writeAuditLog, writeAuditLogInTransaction } from '@/lib/audit'
 import { notifyRoles, notifyExternalEmail } from '@/lib/operations/notifications'
@@ -212,7 +213,13 @@ export async function createPoFromBom(
       project_id: boms.project_id,
     })
     .from(boms)
-    .where(and(eq(boms.id, input.bomId), eq(boms.tenant_id, userRow.tenant_id)))
+    .where(
+      and(
+        eq(boms.id, input.bomId),
+        eq(boms.tenant_id, userRow.tenant_id),
+        liveProjectCondition(boms.project_id, userRow.tenant_id)
+      )
+    )
 
   if (!bom) return { error: 'BOM not found' }
   if (bom.status === 'draft') return { error: 'BOM must be approved before generating a PO' }
@@ -281,7 +288,13 @@ export async function createPoFromBom(
           project_id: boms.project_id,
         })
         .from(boms)
-        .where(and(eq(boms.id, input.bomId), eq(boms.tenant_id, userRow.tenant_id)))
+        .where(
+          and(
+            eq(boms.id, input.bomId),
+            eq(boms.tenant_id, userRow.tenant_id),
+            liveProjectCondition(boms.project_id, userRow.tenant_id)
+          )
+        )
         .limit(1)
         .for('update')
 
@@ -491,7 +504,8 @@ export async function createStandalonePo(
     .where(
       and(
         eq(projects.id, input.projectId),
-        eq(projects.tenant_id, userRow.tenant_id)
+        eq(projects.tenant_id, userRow.tenant_id),
+        isNull(projects.deleted_at)
       )
     )
     .limit(1)
@@ -548,6 +562,19 @@ export async function createStandalonePo(
           `po-number:${userRow.tenant_id}`
         }))`
       )
+      // Re-check after the PO-number wait; the pre-check ran outside this transaction.
+      const [liveProject] = await tx
+        .select({ id: projects.id })
+        .from(projects)
+        .where(
+          and(
+            eq(projects.id, input.projectId),
+            eq(projects.tenant_id, userRow.tenant_id),
+            isNull(projects.deleted_at)
+          )
+        )
+        .limit(1)
+      if (!liveProject) throw new Error('PROJECT_NOT_FOUND')
       const tax = await resolveTaxRates(tx, userRow.tenant_id, new Date())
       const totals = calculatePurchaseOrderTotals(subtotalCents, tax)
       const nextNum = await allocateNextPurchaseOrderNumber(
@@ -606,6 +633,9 @@ export async function createStandalonePo(
       return po.id
     })
   } catch (error) {
+    if (error instanceof Error && error.message === 'PROJECT_NOT_FOUND') {
+      return { error: 'Project not found' }
+    }
     const overlap = taxOverlapError(error)
     if (overlap) return overlap
     if (error instanceof RangeError) return { error: rangeError }
@@ -1361,7 +1391,13 @@ export async function createPosFromBomGrouped(
       project_id: boms.project_id,
     })
     .from(boms)
-    .where(and(eq(boms.id, requestBomId), eq(boms.tenant_id, profile.tenantId)))
+    .where(
+      and(
+        eq(boms.id, requestBomId),
+        eq(boms.tenant_id, profile.tenantId),
+        liveProjectCondition(boms.project_id, profile.tenantId)
+      )
+    )
 
   if (!bom) return { error: 'BOM not found' }
   if (bom.status === 'draft') {
@@ -1411,7 +1447,13 @@ export async function createPosFromBomGrouped(
       const [lockedBom] = await tx
         .select({ id: boms.id, status: boms.status, project_id: boms.project_id })
         .from(boms)
-        .where(and(eq(boms.id, requestBomId), eq(boms.tenant_id, profile.tenantId)))
+        .where(
+          and(
+            eq(boms.id, requestBomId),
+            eq(boms.tenant_id, profile.tenantId),
+            liveProjectCondition(boms.project_id, profile.tenantId)
+          )
+        )
         .limit(1)
         .for('update')
 

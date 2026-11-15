@@ -2,6 +2,8 @@ import 'reflect-metadata'
 
 import { ConflictException } from '@nestjs/common'
 import type { ConfigService } from '@nestjs/config'
+import type { SQL } from 'drizzle-orm'
+import { PgDialect } from 'drizzle-orm/pg-core'
 import { describe, expect, it, vi } from 'vitest'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import type { AuditService } from '../audit/audit.service'
@@ -140,7 +142,7 @@ function harness(lines: Row[], quotes: Row[], taxRows: unknown[]) {
       PRINCIPAL,
       key,
     )
-  return { convert, poInserts, lineInserts, audit }
+  return { convert, poInserts, lineInserts, audit, select }
 }
 
 function auditTax(audit: { writeSemantic: ReturnType<typeof vi.fn> }) {
@@ -204,5 +206,22 @@ describe('requisition-to-PO effective tax rates (spec tenancy C-3)', () => {
     await expect(h.convert('req-po-overlap')).rejects.toBeInstanceOf(ConflictException)
     expect(h.poInserts).toHaveLength(0)
     expect(h.audit.writeSemantic).not.toHaveBeenCalled()
+  })
+})
+
+describe('requisition-to-PO refuses a retired project', () => {
+  it('locks the requisition for conversion only while its project is live', async () => {
+    const h = harness([line(1, 1)], [quote(1, 100)], [])
+
+    await h.convert('req-po-live-project')
+
+    const requisitionRead = h.select.mock.results[2]?.value as {
+      where: { mock: { calls: unknown[][] } }
+    }
+    const where = new PgDialect().sqlToQuery(requisitionRead.where.mock.calls[0]?.[0] as SQL).sql
+    expect(where).toContain(
+      'exists (select "id" from "projects" where ("projects"."id" = "procurement_requisitions"."project_id" and "projects"."tenant_id" = $'
+    )
+    expect(where).toContain('"projects"."deleted_at" is null')
   })
 })

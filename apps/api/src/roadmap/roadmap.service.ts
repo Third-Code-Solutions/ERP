@@ -47,6 +47,7 @@ import {
   users,
   warehouses,
 } from '@third-code-erp/database/schema'
+import { liveProjectCondition } from '@third-code-erp/database'
 import {
   allocateProRata,
   availableInventory,
@@ -420,7 +421,16 @@ export class RoadmapService {
       const [requisition] = await transaction
         .select()
         .from(procurementRequisitions)
-        .where(and(eq(procurementRequisitions.id, requisitionId), eq(procurementRequisitions.tenant_id, principal.tenantId)))
+        .where(
+          and(
+            eq(procurementRequisitions.id, requisitionId),
+            eq(procurementRequisitions.tenant_id, principal.tenantId),
+            // A PO commits spend: never for a project retired after the requisition was raised.
+            command.action === 'convert_to_po'
+              ? liveProjectCondition(procurementRequisitions.project_id, principal.tenantId)
+              : undefined,
+          ),
+        )
         .limit(1)
         .for('update')
       if (!requisition) throw new NotFoundException('Requisition not found')

@@ -1,3 +1,5 @@
+import type { SQL } from 'drizzle-orm'
+import { PgDialect } from 'drizzle-orm/pg-core'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -20,12 +22,15 @@ vi.mock('@third-code-erp/auth', () => ({
   can: vi.fn(),
 }))
 
-vi.mock('@third-code-erp/database', async (importOriginal) => ({
-  db: mocks.db,
-  resolveTaxRates: mocks.resolveTaxRates,
-  rateCardInEffectCondition: (await importOriginal<typeof import('@third-code-erp/database')>())
-    .rateCardInEffectCondition,
-}))
+vi.mock('@third-code-erp/database', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@third-code-erp/database')>()
+  return {
+    db: mocks.db,
+    resolveTaxRates: mocks.resolveTaxRates,
+    rateCardInEffectCondition: actual.rateCardInEffectCondition,
+    liveProjectCondition: actual.liveProjectCondition,
+  }
+})
 
 vi.mock('next/cache', () => ({
   revalidatePath: mocks.revalidatePath,
@@ -250,7 +255,7 @@ function legacyPoHarness(outerRows: unknown[][], txRows: unknown[][]) {
   mocks.db.transaction.mockImplementation(
     async (callback: (client: unknown) => Promise<unknown>) => callback(tx)
   )
-  return { poInserts, lineInserts }
+  return { poInserts, lineInserts, txSelect }
 }
 
 let lineSeq = 0
@@ -654,7 +659,10 @@ describe('legacy PO paths use the effective tax rates (spec tenancy C-3)', () =>
     return { harness, run: () => createPoFromBom(BOM_ID, PROJECT_ID, null, null) }
   }
   const standalone = () => {
-    const harness = legacyPoHarness([[{ id: PROJECT_ID }], [{ id: COST_CODE }]], [])
+    const harness = legacyPoHarness(
+      [[{ id: PROJECT_ID }], [{ id: COST_CODE }]],
+      [[{ id: PROJECT_ID }]]
+    )
     const formData = new FormData()
     formData.set('project_id', PROJECT_ID)
     formData.set(
@@ -758,5 +766,88 @@ describe('legacy PO paths use the effective tax rates (spec tenancy C-3)', () =>
       error: 'Purchase Order amount exceeds the supported centavo range',
     })
     expect(mocks.db.transaction).not.toHaveBeenCalled()
+  })
+})
+
+describe('PO creation refuses a retired project', () => {
+  const LIVE_BOM_PROJECT =
+    'exists (select "id" from "projects" where ("projects"."id" = "boms"."project_id" and "projects"."tenant_id" = $'
+
+  function whereSql(select: ReturnType<typeof vi.fn>, index: number): string {
+    const node = select.mock.results[index]?.value as {
+      where: { mock: { calls: unknown[][] } }
+    }
+    return new PgDialect().sqlToQuery(node.where.mock.calls[0]?.[0] as SQL).sql
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.db.select.mockReset()
+    mocks.getUserProfile.mockResolvedValue(PROFILE)
+    mocks.requireCapability.mockImplementation(() => undefined)
+  })
+
+  it('reads the BOM of a PO only while its project is live', async () => {
+    legacyPoHarness([[]], [])
+
+    await expect(createPoFromBom(BOM_ID, PROJECT_ID, null, null)).resolves.toEqual({
+      error: 'BOM not found',
+    })
+
+    expect(whereSql(mocks.db.select, 0)).toContain(LIVE_BOM_PROJECT)
+    expect(mocks.db.transaction).not.toHaveBeenCalled()
+  })
+
+  it('stops a BOM PO when the project is retired after the pre-check', async () => {
+    const harness = legacyPoHarness([[APPROVED_BOM]], [[]])
+
+    await expect(createPoFromBom(BOM_ID, PROJECT_ID, null, null)).resolves.toEqual({
+      error: 'BOM not found',
+    })
+
+    expect(whereSql(harness.txSelect, 0)).toContain(LIVE_BOM_PROJECT)
+    expect(harness.poInserts).toHaveLength(0)
+  })
+
+  it('reads the BOM of grouped POs only while its project is live', async () => {
+    const harness = legacyPoHarness([[APPROVED_BOM]], [[]])
+
+    await expect(createPosFromBomGrouped(BOM_ID)).resolves.toEqual({ error: 'BOM not found' })
+
+    expect(whereSql(mocks.db.select, 0)).toContain(LIVE_BOM_PROJECT)
+    expect(whereSql(harness.txSelect, 0)).toContain(LIVE_BOM_PROJECT)
+    expect(harness.poInserts).toHaveLength(0)
+  })
+
+  it('treats a retired project as not found for a standalone PO', async () => {
+    legacyPoHarness([[]], [])
+    const formData = new FormData()
+    formData.set('project_id', PROJECT_ID)
+    formData.set(
+      'line_items',
+      JSON.stringify([{ description: 'A', quantity: 1, unit_cost_cents: 100, costCodeId: 'ffffffff-ffff-4fff-8fff-fffffffffff2' }])
+    )
+
+    await expect(createStandalonePo(formData)).resolves.toEqual({ error: 'Project not found' })
+
+    expect(whereSql(mocks.db.select, 0)).toContain('"projects"."deleted_at" is null')
+    expect(mocks.db.transaction).not.toHaveBeenCalled()
+  })
+
+  it('stops a standalone PO when the project is retired after the pre-check', async () => {
+    const costCode = 'ffffffff-ffff-4fff-8fff-fffffffffff2'
+    const harness = legacyPoHarness([[{ id: PROJECT_ID }], [{ id: costCode }]], [[]])
+    const formData = new FormData()
+    formData.set('project_id', PROJECT_ID)
+    formData.set(
+      'line_items',
+      JSON.stringify([{ description: 'A', quantity: 1, unit_cost_cents: 100, costCodeId: costCode }])
+    )
+
+    await expect(createStandalonePo(formData)).resolves.toEqual({ error: 'Project not found' })
+
+    expect(whereSql(harness.txSelect, 0)).toContain('"projects"."deleted_at" is null')
+    expect(harness.poInserts).toHaveLength(0)
+    expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
   })
 })

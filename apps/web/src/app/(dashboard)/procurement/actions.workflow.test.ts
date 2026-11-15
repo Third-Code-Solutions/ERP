@@ -22,6 +22,7 @@ vi.mock('@third-code-erp/auth', () => ({
 
 vi.mock('@third-code-erp/database', () => ({
   db: { select: mocks.select },
+  liveProjectCondition: vi.fn(() => ({})),
 }))
 
 vi.mock('@third-code-erp/database/schema', () => ({
