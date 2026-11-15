@@ -9,7 +9,7 @@
  * data doesn't get stuck. Current statuses route to the role-gated
  * approval/issuance/rejection actions.
  *
- * `viewerRole` is the caller's AppRole — the parent server component
+ * `viewerRole` is the caller's role — the parent server component
  * looks it up and passes it in so we can hide buttons the viewer can't
  * action.
  */
@@ -24,30 +24,17 @@ import {
   scmIssuePo,
   rejectPoApproval,
 } from '@/app/(dashboard)/procurement/actions'
-
-type AppRole =
-  | 'owner'
-  | 'estimator'
-  | 'pm'
-  | 'admin'
-  | 'sales'
-  | 'commercial'
-  | 'design'
-  | 'sd_pm_pe'
-  | 'finance'
-  | 'procurement'
-  | 'safety'
-  | 'cx'
-  | 'viewer'
+import { ERP_CAPABILITY_ROLES, type ErpRole } from '@third-code-erp/shared-types'
 
 interface Props {
   poId: string
   currentStatus: string
-  viewerRole?: AppRole | null
+  viewerRole?: ErpRole | null
   budgetWarning?: string | null
 }
 
 // Legacy advance map — preserved so back-compat statuses still flow.
+// advancePoStatus needs po.approve for `confirmed` and po.issue for every other step.
 const LEGACY_TRANSITIONS: Record<
   string,
   { label: string; status: string; variant: 'primary' | 'danger' }[]
@@ -67,12 +54,16 @@ const LEGACY_TRANSITIONS: Record<
   ],
 }
 
-const PM_APPROVE_ROLES: AppRole[] = ['admin', 'owner', 'sd_pm_pe', 'pm', 'commercial', 'procurement']
-const COMMERCIAL_APPROVE_ROLES: AppRole[] = ['admin', 'owner', 'commercial']
-const SCM_ISSUE_ROLES: AppRole[] = ['admin', 'owner', 'procurement']
-const PO_CREATE_ROLES: AppRole[] = ['admin', 'owner', 'commercial', 'sd_pm_pe', 'pm', 'procurement']
+// The capabilities each server action checks.
+const PM_APPROVE_ROLES = [
+  ...ERP_CAPABILITY_ROLES['precon.manage_checklist'],
+  ...ERP_CAPABILITY_ROLES['po.create'],
+]
+const COMMERCIAL_APPROVE_ROLES = ERP_CAPABILITY_ROLES['po.approve']
+const SCM_ISSUE_ROLES = ERP_CAPABILITY_ROLES['po.issue']
+const PO_CREATE_ROLES = ERP_CAPABILITY_ROLES['po.create']
 
-function hasRole(role: AppRole | null | undefined, allowed: AppRole[]): boolean {
+function hasRole(role: ErpRole | null | undefined, allowed: readonly ErpRole[]): boolean {
   return role ? allowed.includes(role) : true // default permissive when role unknown — server still enforces
 }
 
@@ -145,23 +136,29 @@ export function PoStatusActions({
 
   // Current flow first.
   if (currentStatus === 'draft') {
-    if (!hasRole(viewerRole, PO_CREATE_ROLES)) return null
+    const canSubmit = hasRole(viewerRole, PO_CREATE_ROLES)
+    const canCancel = hasRole(viewerRole, SCM_ISSUE_ROLES)
+    if (!canSubmit && !canCancel) return null
     return (
       <div style={{ display: 'flex', gap: 8 }}>
-        <button
-          disabled={pending}
-          onClick={submitForPmApproval}
-          style={buttonStyle('primary', pending)}
-        >
-          {pending ? '…' : 'Submit for PM approval'}
-        </button>
-        <button
-          disabled={pending}
-          onClick={() => run(() => advancePoStatus(poId, 'cancelled'))}
-          style={buttonStyle('danger', pending)}
-        >
-          Cancel
-        </button>
+        {canSubmit && (
+          <button
+            disabled={pending}
+            onClick={submitForPmApproval}
+            style={buttonStyle('primary', pending)}
+          >
+            {pending ? '…' : 'Submit for PM approval'}
+          </button>
+        )}
+        {canCancel && (
+          <button
+            disabled={pending}
+            onClick={() => run(() => advancePoStatus(poId, 'cancelled'))}
+            style={buttonStyle('danger', pending)}
+          >
+            Cancel
+          </button>
+        )}
       </div>
     )
   }
@@ -237,7 +234,8 @@ export function PoStatusActions({
   }
 
   if (currentStatus === 'issued' || currentStatus === 'partial_delivered') {
-    // SCM/PM mark deliveries. Reuse advancePoStatus for legacy continuity.
+    // Reuse advancePoStatus for legacy continuity; it requires po.issue.
+    if (!hasRole(viewerRole, SCM_ISSUE_ROLES)) return null
     const next = currentStatus === 'issued' ? 'partial_delivered' : 'fully_delivered'
     return (
       <button
@@ -251,7 +249,9 @@ export function PoStatusActions({
   }
 
   // Legacy fall-through.
-  const transitions = LEGACY_TRANSITIONS[currentStatus] ?? []
+  const transitions = (LEGACY_TRANSITIONS[currentStatus] ?? []).filter(({ status }) =>
+    hasRole(viewerRole, status === 'confirmed' ? COMMERCIAL_APPROVE_ROLES : SCM_ISSUE_ROLES)
+  )
   if (transitions.length === 0) return null
 
   return (
