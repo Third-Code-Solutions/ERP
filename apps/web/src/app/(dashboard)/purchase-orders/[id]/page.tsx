@@ -141,6 +141,7 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
   ])
 
   const canManagePayables = can(profile.role, 'finance.post_supplier_bill')
+  const canManageInventory = can(profile.role, 'inventory.manage')
   const payableRows = canManagePayables
     ? await db
         .select({
@@ -710,9 +711,11 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
                   </td>
                   <td style={{ padding: '10px 16px', textAlign: 'right' }}>
                     <ReceiveLineForm
-                      quantity={line.quantity}
-                      receivedQty={line.received_qty}
-                      disabled={po.status === 'cancelled'}
+                      purchaseOrderId={po.id}
+                      purchaseOrderStatus={po.status}
+                      canReceive={canManageInventory}
+                      orderedMicros={line.quantity_micros}
+                      receivedMicros={line.received_quantity_micros}
                     />
                   </td>
                 </tr>
