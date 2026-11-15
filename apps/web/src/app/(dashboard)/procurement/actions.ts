@@ -682,6 +682,7 @@ export async function assignPoLineCostCode(
       currentCostCodeId: poLineItems.cost_code_id,
       status: purchaseOrders.status,
       projectId: purchaseOrders.project_id,
+      projectLive: liveProjectCondition(purchaseOrders.project_id, profile.tenantId).mapWith(Boolean),
     })
     .from(poLineItems)
     .innerJoin(
@@ -699,6 +700,7 @@ export async function assignPoLineCostCode(
     )
     .limit(1)
   if (!line) return { error: 'Purchase Order line not found.' }
+  if (!line.projectLive) return { error: RETIRED_PROJECT_PO_ERROR }
   if (line.status !== 'draft') {
     return { error: 'Cost Code can change only while the Purchase Order is draft.' }
   }
@@ -716,27 +718,43 @@ export async function assignPoLineCostCode(
     .limit(1)
   if (!code) return { error: 'Select an active Cost Code.' }
 
-  await db
-    .update(poLineItems)
-    .set({ cost_code_id: code.id })
-    .where(
-      and(
-        eq(poLineItems.id, line.id),
-        eq(poLineItems.tenant_id, profile.tenantId)
-      )
-    )
-  await writeAuditLog({
-    tenantId: profile.tenantId,
-    actorId: profile.user.id,
-    entityType: 'po_line_item',
-    entityId: line.id,
-    action: 'update',
-    diff: {
-      from: line.currentCostCodeId,
-      to: code.id,
-      po_id: line.poId,
-    },
-  })
+  let saved: boolean
+  try {
+    saved = await db.transaction(async (tx) => {
+      const updated = await tx
+        .update(poLineItems)
+        .set({ cost_code_id: code.id })
+        .where(
+          and(
+            eq(poLineItems.id, line.id),
+            eq(poLineItems.tenant_id, profile.tenantId),
+            liveProjectCondition(line.projectId, profile.tenantId)
+          )
+        )
+        .returning({ id: poLineItems.id })
+      if (updated.length === 0) return false
+      await writeAuditLogInTransaction(tx, {
+        tenantId: profile.tenantId,
+        actorId: profile.user.id,
+        entityType: 'po_line_item',
+        entityId: line.id,
+        action: 'update',
+        diff: {
+          from: line.currentCostCodeId,
+          to: code.id,
+          po_id: line.poId,
+        },
+      })
+      return true
+    })
+  } catch {
+    // The line guard trigger refuses a PO that left draft, or a Cost Code
+    // deactivated, since the reads above; a failed audit rolls the change back.
+    return { error: 'Cost Code was not saved; reload and try again.' }
+  }
+  // Nothing deletes a PO line, so an empty update means the project was retired
+  // after the read.
+  if (!saved) return { error: RETIRED_PROJECT_PO_ERROR }
   revalidatePath(`/purchase-orders/${line.poId}`)
   if (line.projectId) {
     revalidatePath(`/projects/${line.projectId}/cost`)
