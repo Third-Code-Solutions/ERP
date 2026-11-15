@@ -138,6 +138,14 @@ export function PoStatusActions({
     )
   }
 
+  const rejectButton = (viewerRole
+    ? canRejectPurchaseOrderApproval(currentStatus, viewerRole)
+    : true) && (
+    <button disabled={pending} onClick={reject} style={buttonStyle('danger', pending)}>
+      Reject
+    </button>
+  )
+
   // Current flow first.
   if (currentStatus === 'draft') {
     const canSubmit = hasRole(viewerRole, PO_CREATE_ROLES)
@@ -168,48 +176,50 @@ export function PoStatusActions({
   }
 
   if (currentStatus === 'pending_pm_approval') {
-    if (!hasRole(viewerRole, PM_APPROVE_ROLES)) return null
+    const canApprove = hasRole(viewerRole, PM_APPROVE_ROLES)
+    if (!canApprove && !rejectButton) return null
     return (
       <div style={{ display: 'flex', gap: 8 }}>
-        <button
-          disabled={pending}
-          onClick={() =>
-            run(
-              () => pmApprovePo(poId, workflowKey('pm_approve')),
-              'pm_approve'
-            )
-          }
-          style={buttonStyle('primary', pending)}
-        >
-          {pending ? '…' : 'Approve as PM'}
-        </button>
-        <button disabled={pending} onClick={reject} style={buttonStyle('danger', pending)}>
-          Reject
-        </button>
+        {canApprove && (
+          <button
+            disabled={pending}
+            onClick={() =>
+              run(
+                () => pmApprovePo(poId, workflowKey('pm_approve')),
+                'pm_approve'
+              )
+            }
+            style={buttonStyle('primary', pending)}
+          >
+            {pending ? '…' : 'Approve as PM'}
+          </button>
+        )}
+        {rejectButton}
       </div>
     )
   }
 
   if (currentStatus === 'pending_commercial_approval') {
-    if (!hasRole(viewerRole, COMMERCIAL_APPROVE_ROLES)) return null
+    const canApprove = hasRole(viewerRole, COMMERCIAL_APPROVE_ROLES)
+    if (!canApprove && !rejectButton) return null
     return (
       <div style={{ display: 'flex', gap: 8 }}>
-        <button
-          disabled={pending}
-          onClick={() =>
-            run(
-              () =>
-                commercialApprovePo(poId, workflowKey('commercial_approve')),
-              'commercial_approve'
-            )
-          }
-          style={buttonStyle('primary', pending)}
-        >
-          {pending ? '…' : 'Approve as Commercial'}
-        </button>
-        <button disabled={pending} onClick={reject} style={buttonStyle('danger', pending)}>
-          Reject
-        </button>
+        {canApprove && (
+          <button
+            disabled={pending}
+            onClick={() =>
+              run(
+                () =>
+                  commercialApprovePo(poId, workflowKey('commercial_approve')),
+                'commercial_approve'
+              )
+            }
+            style={buttonStyle('primary', pending)}
+          >
+            {pending ? '…' : 'Approve as Commercial'}
+          </button>
+        )}
+        {rejectButton}
       </div>
     )
   }
@@ -217,10 +227,7 @@ export function PoStatusActions({
   if (currentStatus === 'pending_scm_issuance') {
     const canIssue = hasRole(viewerRole, SCM_ISSUE_ROLES)
     // The commercial approver can still pull the PO back before issuance.
-    const canReject = viewerRole
-      ? canRejectPurchaseOrderApproval(currentStatus, viewerRole)
-      : true
-    if (!canIssue && !canReject) return null
+    if (!canIssue && !rejectButton) return null
     return (
       <div style={{ display: 'flex', gap: 8 }}>
         {canIssue && (
@@ -237,11 +244,7 @@ export function PoStatusActions({
             {pending ? '…' : 'Issue PO to supplier'}
           </button>
         )}
-        {canReject && (
-          <button disabled={pending} onClick={reject} style={buttonStyle('danger', pending)}>
-            Reject
-          </button>
-        )}
+        {rejectButton}
       </div>
     )
   }
