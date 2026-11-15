@@ -8,13 +8,16 @@ const mocks = vi.hoisted(() => ({
   notifyRoles: vi.fn(),
 }))
 
-vi.mock('@third-code-erp/database', async (importOriginal) => ({
-  db: {
-    transaction: mocks.transaction,
-  },
-  loadRateCardCoverage: (await importOriginal<typeof import('@third-code-erp/database')>())
-    .loadRateCardCoverage,
-}))
+vi.mock('@third-code-erp/database', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@third-code-erp/database')>()
+  return {
+    db: {
+      transaction: mocks.transaction,
+    },
+    loadRateCardCoverage: actual.loadRateCardCoverage,
+    liveProjectCondition: actual.liveProjectCondition,
+  }
+})
 
 vi.mock('@/lib/audit', () => ({
   writeAuditLogInTransaction: mocks.writeAuditLogInTransaction,
@@ -277,6 +280,27 @@ describe('RFQ transaction service', () => {
     expect(harness.tx.select).toHaveBeenCalledOnce()
     expect(harness.insert).not.toHaveBeenCalled()
     expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
+  })
+
+  it('treats a BOM of a retired project as not found', async () => {
+    const harness = transactionHarness([[]])
+
+    await expect(
+      createRfqFromBomRecord({
+        bomId: BOM_ID,
+        tenantId: TENANT_ID,
+        actorId: null,
+        source: 'bom_approved_event',
+      })
+    ).resolves.toEqual({ error: 'BOM not found' })
+
+    const bomWhere = new PgDialect().sqlToQuery(harness.conditions[0] as SQL)
+    expect(bomWhere.sql).toContain(
+      'exists (select "id" from "projects" where ("projects"."id" = "boms"."project_id" and "projects"."tenant_id" = $'
+    )
+    expect(bomWhere.sql).toContain('"projects"."deleted_at" is null')
+    expect(bomWhere.params).toEqual([BOM_ID, TENANT_ID, TENANT_ID])
+    expect(harness.insert).not.toHaveBeenCalled()
   })
 
   it('downgrades a stale or cross-tenant event actor to system attribution', async () => {
