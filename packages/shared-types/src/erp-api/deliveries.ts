@@ -3,6 +3,9 @@ import { z } from 'zod'
 // An issued PO, or one whose first delivery already arrived, can take a delivery.
 export const DELIVERY_SCHEDULABLE_PO_STATUSES = ['issued', 'partial_delivered'] as const
 
+export const DELIVERY_SCHEDULE_PO_STATUS_ERROR =
+  'Purchase order must be issued or partially delivered to schedule a delivery'
+
 export type DeliverySchedulablePoStatus =
   (typeof DELIVERY_SCHEDULABLE_PO_STATUSES)[number]
 

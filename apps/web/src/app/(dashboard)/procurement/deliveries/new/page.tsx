@@ -47,7 +47,7 @@ export default async function NewDeliveryPage({
 
   const poOptions = poRows.map((r) => ({
     id: r.id,
-    label: `${r.po_number} · ${r.vendor_name ?? 'No vendor'} · ${r.project_name ?? 'No project'}`,
+    label: `${r.po_number} · ${r.vendor_name ?? 'No vendor'} · ${r.project_name ?? 'No project'}${r.status === 'partial_delivered' ? ' · Partially delivered' : ''}`,
   }))
 
   return (
@@ -73,8 +73,8 @@ export default async function NewDeliveryPage({
         <p className="page-eyebrow">Procurement</p>
         <h1 className="page-title">Schedule delivery</h1>
         <p className="page-subtitle">
-          Pick the issued PO and capture site access details so the receiving
-          team knows where to direct the truck.
+          Pick an issued or partially delivered PO and capture site access
+          details so the receiving team knows where to direct the truck.
         </p>
       </div>
 

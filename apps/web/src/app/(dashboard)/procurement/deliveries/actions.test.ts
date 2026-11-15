@@ -255,7 +255,7 @@ describe('Delivery receipt compatibility seam', () => {
     selectPurchaseOrder('draft')
 
     await expect(scheduleDelivery(scheduleForm())).resolves.toEqual({
-      error: 'Purchase order must be issued before scheduling a delivery',
+      error: 'Purchase order must be issued or partially delivered to schedule a delivery',
     })
     expect(mocks.insert).not.toHaveBeenCalled()
     expect(mocks.createDeliveryScheduleThroughCoreApi).not.toHaveBeenCalled()

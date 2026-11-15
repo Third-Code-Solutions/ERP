@@ -79,7 +79,7 @@ export function ScheduleDeliveryForm({
           defaultValue={defaultPurchaseOrderId ?? ''}
           style={inputStyle}
         >
-          <option value="">Select an issued PO…</option>
+          <option value="">Select a PO…</option>
           {purchaseOrders.map((po) => (
             <option key={po.id} value={po.id}>
               {po.label}
@@ -94,7 +94,7 @@ export function ScheduleDeliveryForm({
               margin: '6px 0 0',
             }}
           >
-            No issued POs available. Approve and issue a PO before scheduling its
+            No POs ready for delivery. Approve and issue a PO before scheduling its
             delivery. <Link href="/purchase-orders">Open purchase orders</Link>
           </p>
         ) : null}

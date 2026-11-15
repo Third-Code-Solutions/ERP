@@ -75,7 +75,7 @@ describe('Schedule delivery page', () => {
       await NewDeliveryPage({ searchParams: Promise.resolve({}) })
     )
 
-    expect(html).toContain('PO-PARTIAL')
+    expect(html).toContain('PO-PARTIAL · V · P · Partially delivered')
     const statusFilters = mocks.inArray.mock.calls.filter(
       ([column]) => column === purchaseOrders.status
     )
