@@ -64,6 +64,7 @@ function harness(selectResults: unknown[][]) {
     chain.innerJoin = vi.fn(() => chain)
     chain.where = vi.fn(() => chain)
     chain.limit = vi.fn(() => chain)
+    chain.orderBy = vi.fn(() => chain)
     chain.for = vi.fn(async () => result)
     chain.then = (
       resolve: (value: unknown[]) => unknown,
@@ -246,6 +247,31 @@ describe('ProcurementService RFQ creation command', () => {
     )
     expect(bomWhere).toContain('"projects"."deleted_at" is null')
     expect(probe.transactionClient.select).toHaveBeenCalledOnce()
+  })
+
+  it('quotes the lines a Purchase Order buys, not a work item that has material lines', async () => {
+    const probe = harness([
+      [{ id: BOM_ID, project_id: PROJECT_ID }],
+      [],
+      [
+        { id: 'section', code: null, description: 'Section', unit: null, quantity: 0, is_group: 1, parent_id: null, parent_line_item_id: null },
+        { id: 'work-item', code: null, description: 'Ceiling works', unit: 'sqm', quantity: 40, is_group: 0, parent_id: 'section', parent_line_item_id: null },
+        { id: 'board', code: null, description: 'Gypsum board', unit: 'pc', quantity: 12, is_group: 0, parent_id: null, parent_line_item_id: 'work-item' },
+        { id: 'plain', code: null, description: 'Paint', unit: 'L', quantity: 8, is_group: 0, parent_id: 'section', parent_line_item_id: null },
+      ],
+    ])
+
+    await expect(
+      probe.service.create({ bomId: BOM_ID }, PRINCIPAL)
+    ).resolves.toMatchObject({ lineCount: 2, created: true })
+    expect(probe.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        line_items: [
+          expect.objectContaining({ bom_line_item_id: 'board', qty: 12 }),
+          expect.objectContaining({ bom_line_item_id: 'plain', qty: 8 }),
+        ],
+      })
+    )
   })
 
   it('rejects a BOM without item lines', async () => {
