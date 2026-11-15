@@ -100,6 +100,28 @@ export class NotificationDeliveryQueue
     return this.enqueueSupplier(await this.deliveries.pendingSupplier())
   }
 
+  /**
+   * The delivery's job may be added: none exists, or a finished (completed or
+   * failed) one exists while the row is still undelivered. A failure after the
+   * claim leaves the row processing, so the retries come back
+   * `already_processing` and the job completes without delivering; only a new
+   * job can run it again. The sweep selects pending and stale processing rows;
+   * `enqueueOutbox` also selects fresh processing ones, whose new job just
+   * returns `already_processing` again.
+   */
+  private async canAdd(jobId: string): Promise<boolean> {
+    const existing = await this.queue.getJob(jobId)
+    if (!existing) return true
+    const state = await existing.getState()
+    if (state !== 'completed' && state !== 'failed') return false
+    // remove() refuses a running job (a concurrent request replaced it); on any
+    // refusal the next sweep tries again.
+    return existing.remove().then(
+      () => true,
+      () => false
+    )
+  }
+
   private async enqueue(
     pending: Array<{
       deliveryId: string
@@ -112,7 +134,7 @@ export class NotificationDeliveryQueue
       const jobId = notificationDeliveryJobId(
         delivery.deliveryId
       )
-      if (await this.queue.getJob(jobId)) continue
+      if (!(await this.canAdd(jobId))) continue
       await this.queue.add(
         NOTIFICATION_DELIVERY_JOB,
         {
@@ -149,7 +171,7 @@ export class NotificationDeliveryQueue
       const jobId = supplierNotificationDeliveryJobId(
         delivery.deliveryId
       )
-      if (await this.queue.getJob(jobId)) continue
+      if (!(await this.canAdd(jobId))) continue
       await this.queue.add(
         NOTIFICATION_SUPPLIER_DELIVERY_JOB,
         {

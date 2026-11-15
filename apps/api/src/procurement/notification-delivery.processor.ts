@@ -85,7 +85,28 @@ export class NotificationDeliveryProcessor extends WorkerHost {
     // BullMQ skips the remaining attempts of an UnrecoverableError.
     const unrecoverable =
       error instanceof UnrecoverableError || error.name === 'UnrecoverableError'
-    if (job.attemptsMade < attempts && !unrecoverable) return
+    if (job.attemptsMade < attempts && !unrecoverable) {
+      // The claim clears last_error and a replaced job loses its failedReason.
+      this.logger.warn(
+        `Notification delivery job ${job.id} attempt ${job.attemptsMade} failed: ${error.message}`
+      )
+      return
+    }
+    // Nest binds this handler without a catch: a throw would be an unhandled
+    // rejection. The row stays undelivered, so the next sweep runs it again.
+    await this.deadLetter(job, error).catch((failure: unknown) => {
+      this.logger.error(
+        `Notification delivery job ${job.id} could not be dead-lettered: ${
+          failure instanceof Error ? failure.message : String(failure)
+        }`
+      )
+    })
+  }
+
+  private async deadLetter(
+    job: Job<unknown, unknown, string>,
+    error: Error
+  ): Promise<void> {
     if (job.name === NOTIFICATION_SUPPLIER_DELIVERY_JOB) {
       const parsed = purchaseOrderSupplierEmailDeliveryJobSchema.safeParse(
         job.data

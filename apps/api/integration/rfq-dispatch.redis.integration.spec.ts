@@ -496,6 +496,49 @@ suite('RFQ BullMQ disposable Redis integration', () => {
     )
   }, 20_000)
 
+  it('runs a delivery again when its finished job left the row undelivered', async () => {
+    const name = queueName('notification-stuck')
+    const queue = new Queue(name, { connection: connection() })
+    queues.push(queue)
+    // A failure after the claim leaves the row processing: the retry finds it
+    // already processing and the job completes without delivering.
+    const deliver = vi
+      .fn()
+      .mockResolvedValueOnce({
+        deliveryId: NOTIFICATION_DELIVERY.deliveryId,
+        status: 'already_processing',
+      })
+      .mockResolvedValue({
+        deliveryId: NOTIFICATION_DELIVERY.deliveryId,
+        status: 'delivered',
+      })
+    const worker = new Worker(name, async (job) => deliver(job.data), {
+      connection: connection(),
+    })
+    workers.push(worker)
+    const pending = vi.fn().mockResolvedValue([NOTIFICATION_DELIVERY])
+    const producer = new NotificationDeliveryQueue(
+      queue,
+      { pending, pendingForOutbox: vi.fn() } as unknown as NotificationDeliveryService,
+      { get: vi.fn().mockReturnValue(false) } as unknown as ConfigService
+    )
+    const jobId = notificationDeliveryJobId(NOTIFICATION_DELIVERY.deliveryId)
+
+    await expect(producer.enqueuePending()).resolves.toBe(1)
+    await waitForState(queue, jobId, 'completed')
+    // The sweep still finds the row (stale processing) and runs it again.
+    await expect(producer.enqueuePending()).resolves.toBe(1)
+    await waitForState(queue, jobId, 'completed')
+    // waitForState may return a job read before it completed: read it again.
+    const again = await queue.getJob(jobId)
+
+    expect(deliver).toHaveBeenCalledTimes(2)
+    expect(again?.returnvalue).toEqual({
+      deliveryId: NOTIFICATION_DELIVERY.deliveryId,
+      status: 'delivered',
+    })
+  }, 20_000)
+
   restartTest('recovers a database-pending notification after Redis data loss', async () => {
     const name = queueName('notification-recovery')
     const queue = new Queue<
