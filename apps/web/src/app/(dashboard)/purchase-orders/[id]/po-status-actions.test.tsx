@@ -63,4 +63,10 @@ describe('PoStatusActions', () => {
       'Reject',
     ])
   })
+
+  it('lets the commercial approver reject at SCM issuance, and nobody else outside po.issue', () => {
+    expect(buttons('pending_scm_issuance', 'commercial')).toEqual(['Reject'])
+    expect(buttons('pending_scm_issuance', 'pm')).toEqual([])
+    expect(buttons('pending_scm_issuance', null)).toEqual(['Issue PO to supplier', 'Reject'])
+  })
 })

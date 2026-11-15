@@ -24,7 +24,11 @@ import {
   scmIssuePo,
   rejectPoApproval,
 } from '@/app/(dashboard)/procurement/actions'
-import { ERP_CAPABILITY_ROLES, type ErpRole } from '@third-code-erp/shared-types'
+import {
+  ERP_CAPABILITY_ROLES,
+  canRejectPurchaseOrderApproval,
+  type ErpRole,
+} from '@third-code-erp/shared-types'
 
 interface Props {
   poId: string
@@ -211,24 +215,33 @@ export function PoStatusActions({
   }
 
   if (currentStatus === 'pending_scm_issuance') {
-    if (!hasRole(viewerRole, SCM_ISSUE_ROLES)) return null
+    const canIssue = hasRole(viewerRole, SCM_ISSUE_ROLES)
+    // The commercial approver can still pull the PO back before issuance.
+    const canReject = viewerRole
+      ? canRejectPurchaseOrderApproval(currentStatus, viewerRole)
+      : true
+    if (!canIssue && !canReject) return null
     return (
       <div style={{ display: 'flex', gap: 8 }}>
-        <button
-          disabled={pending}
-          onClick={() =>
-            run(
-              () => scmIssuePo(poId, workflowKey('scm_issue')),
-              'scm_issue'
-            )
-          }
-          style={buttonStyle('primary', pending)}
-        >
-          {pending ? '…' : 'Issue PO to supplier'}
-        </button>
-        <button disabled={pending} onClick={reject} style={buttonStyle('danger', pending)}>
-          Reject
-        </button>
+        {canIssue && (
+          <button
+            disabled={pending}
+            onClick={() =>
+              run(
+                () => scmIssuePo(poId, workflowKey('scm_issue')),
+                'scm_issue'
+              )
+            }
+            style={buttonStyle('primary', pending)}
+          >
+            {pending ? '…' : 'Issue PO to supplier'}
+          </button>
+        )}
+        {canReject && (
+          <button disabled={pending} onClick={reject} style={buttonStyle('danger', pending)}>
+            Reject
+          </button>
+        )}
       </div>
     )
   }

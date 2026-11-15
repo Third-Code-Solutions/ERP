@@ -22,6 +22,7 @@ import {
   vendors,
 } from '@third-code-erp/database/schema'
 import {
+  canRejectPurchaseOrderApproval,
   purchaseOrderWorkflowCommandSchema,
   purchaseOrderWorkflowNotificationPayloadSchema,
   purchaseOrderWorkflowResultSchema,
@@ -126,16 +127,7 @@ function canPerform(
       roleHasCapability(role, 'po.issue')
     )
   }
-  return (
-    (status === 'pending_pm_approval' ||
-      status === 'pending_commercial_approval' ||
-      status === 'pending_scm_issuance') &&
-    (status === 'pending_pm_approval'
-      ? roleHasCapability(role, 'po.create')
-      : status === 'pending_commercial_approval'
-        ? roleHasCapability(role, 'po.approve')
-        : roleHasCapability(role, 'po.create'))
-  )
+  return canRejectPurchaseOrderApproval(status, role)
 }
 
 function nextStatus(

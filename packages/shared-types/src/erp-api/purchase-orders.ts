@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { roleHasCapability, type ErpRole } from '../authorization'
 
 const purchaseOrderLineSchema = z
   .object({
@@ -175,3 +176,22 @@ export type PurchaseOrderWorkflowResult = z.infer<
 export type PurchaseOrderSupplierIssuedPayload = z.infer<
   typeof purchaseOrderSupplierIssuedPayloadSchema
 >
+
+/**
+ * Who may send a pending Purchase Order back to draft: the roles that own the
+ * current step, and at SCM issuance also the commercial approver. Web and Core
+ * share this rule.
+ */
+export function canRejectPurchaseOrderApproval(
+  status: string,
+  role: ErpRole
+): boolean {
+  if (status === 'pending_pm_approval') return roleHasCapability(role, 'po.create')
+  if (status === 'pending_commercial_approval') {
+    return roleHasCapability(role, 'po.approve')
+  }
+  if (status === 'pending_scm_issuance') {
+    return roleHasCapability(role, 'po.issue') || roleHasCapability(role, 'po.approve')
+  }
+  return false
+}

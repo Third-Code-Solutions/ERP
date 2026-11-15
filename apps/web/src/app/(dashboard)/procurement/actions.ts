@@ -2,7 +2,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
-import { getUserProfile, requireCapability, can, type AppRole } from '@third-code-erp/auth'
+import { getUserProfile, requireCapability, can } from '@third-code-erp/auth'
 import {
   db,
   liveProjectCondition,
@@ -51,6 +51,7 @@ import {
 } from '@/lib/erp-core-client'
 import {
   TaxProfileOverlapError,
+  canRejectPurchaseOrderApproval,
   purchasableBomLines,
   purchaseLineCostCode,
   purchaseOrderTaxAudit,
@@ -1260,14 +1261,7 @@ export async function rejectPoApproval(
     return { error: `Cannot reject from status "${po.status}"` }
   }
 
-  // Reject permission mirrors the role that owns the current step.
-  const canRejectByRole: Record<string, AppRole[]> = {
-    pending_pm_approval: ['admin', 'owner', 'sd_pm_pe', 'pm', 'commercial', 'procurement'],
-    pending_commercial_approval: ['admin', 'owner', 'commercial'],
-    pending_scm_issuance: ['admin', 'owner', 'procurement', 'commercial'],
-  }
-  const allowedRoles = canRejectByRole[po.status] ?? []
-  if (!allowedRoles.includes(profile.role)) {
+  if (!canRejectPurchaseOrderApproval(po.status, profile.role)) {
     return { error: `Forbidden: role "${profile.role}" cannot reject at step "${po.status}"` }
   }
 
