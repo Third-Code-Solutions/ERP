@@ -71,7 +71,8 @@ describe('loadPortalBom', () => {
         // The work item's total already includes its material line.
         line(WORK_ITEM_ID, { unit_cost_cents: 10000, line_total_cents: 10000 }),
         line(MATERIAL_ID, {
-          unit_cost_cents: 4000, line_total_cents: 4000, parent_line_item_id: WORK_ITEM_ID,
+          code: 'ELEC-02', unit_cost_cents: 4000, line_total_cents: 4000,
+          parent_line_item_id: WORK_ITEM_ID,
         }),
         line(PLAIN_ID, { unit_cost_cents: 2000, line_total_cents: 2000 }),
       ],
@@ -85,7 +86,13 @@ describe('loadPortalBom', () => {
 
     expect(result.state).toBe('ok')
     expect(result.bom?.lines.map((l) => l.id)).toEqual([WORK_ITEM_ID, PLAIN_ID])
-    // The category total the page sums now matches the BOM's commercial lines.
-    expect(result.bom?.lines.reduce((sum, l) => sum + l.line_total_cents, 0)).toBe(12000)
+    // No extra category heading for the material line's own code prefix.
+    expect(new Set(result.bom?.lines.map((l) => l.category))).toEqual(new Set(['HVAC']))
+    // The category totals the page sums now add up to the BOM subtotal.
+    expect(result.bom?.lines.reduce((sum, l) => sum + l.line_total_cents, 0)).toBe(
+      result.bom?.tcv_cents
+    )
+    // The hierarchy column stays server-side.
+    expect(result.bom?.lines[0]).not.toHaveProperty('parent_line_item_id')
   })
 })

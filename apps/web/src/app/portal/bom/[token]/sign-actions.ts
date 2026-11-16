@@ -23,7 +23,7 @@ interface SignResult {
   error?: string
 }
 /**
- * Mark a portal token as used (signed) and lock the BOM. Public action Ã¢â‚¬â€
+ * Mark a portal token as used (signed) and lock the BOM. Public action —
  * the only auth is possession of the URL token, which we re-hash + look up.
  */
 export async function recordSign(token: string): Promise<SignResult> {
@@ -241,7 +241,7 @@ interface PortalBomDetail {
 }
 
 /**
- * Resolve a portal token to a renderable BOM payload. Public Ã¢â‚¬â€ never
+ * Resolve a portal token to a renderable BOM payload. Public — never
  * trusts URL params for tenant scope, resolves tenant_id from the token row.
  */
 export async function loadPortalBom(token: string): Promise<PortalBomDetail> {
@@ -321,7 +321,7 @@ export async function loadPortalBom(token: string): Promise<PortalBomDetail> {
     )
     .orderBy(asc(bomLineItems.sort_order))
 
-  // For the public view, hide group rows (no quantity / cost) Ã¢â‚¬â€ the client
+  // For the public view, hide group rows (no quantity / cost) — the client
   // sees the actual costed lines grouped by code prefix later.
   // Material lines are priced inside their work item, so only top-level lines
   // count, as in the signed-award baseline; otherwise a category total doubles.
