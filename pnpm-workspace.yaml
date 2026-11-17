@@ -45,6 +45,9 @@ overrides:
   "inngest>@opentelemetry/instrumentation": 0.221.0
   "inngest>@opentelemetry/resources": 2.10.0
   "inngest>@opentelemetry/sdk-trace-base": 2.10.0
+  # GHSA-3v2p-hm54-8qcq: instrumentation-http >=0.204.0 <0.222.0 logs sensitive
+  # request data. Reached only through inngest > auto-instrumentations-node.
+  "@opentelemetry/instrumentation-http": 0.222.0
   "@traceloop/instrumentation-anthropic>@opentelemetry/core": 2.10.0
 
 # Scoped advisory waiver. `braces` GHSA-vfj7-8cjw-p6xm is flagged `<=3.0.3`
