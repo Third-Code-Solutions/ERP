@@ -128,6 +128,31 @@ describe('RfqDispatchQueue', () => {
     expect(probe.add).not.toHaveBeenCalled()
   })
 
+  it('deduplicates a dispatch that finished after it was first fetched', async () => {
+    const remove = vi.fn().mockResolvedValue(undefined)
+    const probe = harness()
+    // The first fetch predates completion (returnvalue is null until done);
+    // the job has created an RFQ by the time completion is confirmed.
+    probe.getJob
+      .mockResolvedValueOnce({
+        id: JOB_ID,
+        returnvalue: null,
+        isFailed: vi.fn().mockResolvedValue(false),
+        isCompleted: vi.fn().mockResolvedValue(true),
+        remove,
+      })
+      .mockResolvedValueOnce({
+        id: JOB_ID,
+        returnvalue: { rfqId: 'rfq', created: true },
+      })
+
+    await expect(
+      probe.queue.enqueue({ bomId: BOM_ID }, PRINCIPAL)
+    ).resolves.toEqual({ jobId: JOB_ID, enqueued: false })
+    expect(remove).not.toHaveBeenCalled()
+    expect(probe.add).not.toHaveBeenCalled()
+  })
+
   it('deduplicates when a concurrent request already replaced the failed job', async () => {
     const remove = vi.fn().mockRejectedValue(new Error('locked by another worker'))
     const probe = harness({ id: JOB_ID, isFailed: vi.fn().mockResolvedValue(true), remove })

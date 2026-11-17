@@ -39,6 +39,7 @@ overrides:
   inngest>@opentelemetry/instrumentation: 0.221.0
   inngest>@opentelemetry/resources: 2.10.0
   inngest>@opentelemetry/sdk-trace-base: 2.10.0
+  '@opentelemetry/instrumentation-http': 0.222.0
   '@traceloop/instrumentation-anthropic>@opentelemetry/core': 2.10.0
 
 importers:
@@ -162,7 +163,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.12
-        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@22.19.18)(vite@7.3.7(@types/node@22.19.18)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.8.4))
+        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@22.19.18)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.8.4)
       webpack-node-externals:
         specifier: ^3.0.0
         version: 3.0.0
@@ -234,7 +235,7 @@ importers:
         version: 3.15.0
       inngest:
         specifier: ^4.18.1
-        version: 4.18.1(@opentelemetry/core@2.10.0(@opentelemetry/api@1.9.1))(express@5.2.1)(next@15.5.28(@opentelemetry/api@1.9.1)(@playwright/test@1.59.1)(@types/node@22.19.18)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(typescript@5.9.3)(zod@3.25.76)
+        version: 4.18.1(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1))(express@5.2.1)(next@15.5.28(@opentelemetry/api@1.9.1)(@playwright/test@1.59.1)(@types/node@22.19.18)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(typescript@5.9.3)(zod@3.25.76)
       mammoth:
         specifier: ^1.12.0
         version: 1.12.0
@@ -301,7 +302,7 @@ importers:
         version: 7.3.7(@types/node@22.19.18)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.8.4)
       vitest:
         specifier: ^4.1.12
-        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@22.19.18)(vite@7.3.7(@types/node@22.19.18)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.8.4))
+        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@22.19.18)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.8.4)
 
   packages/ai:
     dependencies:
@@ -363,7 +364,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.12
-        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@22.19.18)(vite@7.3.7(@types/node@22.19.18)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.8.4))
+        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@22.19.18)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.8.4)
 
   packages/operations:
     dependencies:
@@ -391,7 +392,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.12
-        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@22.19.18)(vite@7.3.7(@types/node@22.19.18)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.8.4))
+        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@22.19.18)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.8.4)
 
   packages/shared-types:
     dependencies:
@@ -407,7 +408,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.12
-        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@22.19.18)(vite@7.3.7(@types/node@22.19.18)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.8.4))
+        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@22.19.18)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.8.4)
 
 packages:
 
@@ -1452,6 +1453,10 @@ packages:
     resolution: {integrity: sha512-OlanaW1vv7ufTqQ3/fPLI4arGt5ZoM+P8abOMki6uEYnpRazepSWDwDnnw+la7kE26SHVC18//SMccrDvLKOXQ==}
     engines: {node: '>=8.0.0'}
 
+  '@opentelemetry/api-logs@0.222.0':
+    resolution: {integrity: sha512-9mb1If+IF6u0ZVXkHQ6ogEae5HwA6ajIVUgpSDQyRASxft6BSXHvBvPooRle3yFN/fKnCdSOnuu0OC3PLcF6+g==}
+    engines: {node: '>=8.0.0'}
+
   '@opentelemetry/api@1.9.0':
     resolution: {integrity: sha512-3giAOQvZiH5F9bMlMiv8+GSPMeqg0dbaeo58/0SlA9sxSqZhnUtxzX9/2FzyhS9sWQf5S0GJE0AKBrFqjpeYcg==}
     engines: {node: '>=8.0.0'}
@@ -1481,6 +1486,12 @@ packages:
 
   '@opentelemetry/core@2.10.0':
     resolution: {integrity: sha512-/wNZ8twnEQQA4HoHu22+vcsdru6pWPWxW+7w+FlxT6Id7PE/WIbZmVKkte+PF72e0F2dnImFeHD2syyE1Mw6MQ==}
+    engines: {node: ^18.19.0 || >=20.6.0}
+    peerDependencies:
+      '@opentelemetry/api': '>=1.0.0 <1.10.0'
+
+  '@opentelemetry/core@2.11.0':
+    resolution: {integrity: sha512-7YP44XH0tV6+Mb54x2YGf84i7yi+31MBZlE8JwvozkxyTvXbSp10X7cI7YE49ChJ3shMJoBmCJF3+1QFBJctGA==}
     engines: {node: ^18.19.0 || >=20.6.0}
     peerDependencies:
       '@opentelemetry/api': '>=1.0.0 <1.10.0'
@@ -1647,8 +1658,8 @@ packages:
     peerDependencies:
       '@opentelemetry/api': ^1.3.0
 
-  '@opentelemetry/instrumentation-http@0.221.0':
-    resolution: {integrity: sha512-oIP91CPIANuYr09tGFElPFKAh6JUar+awJf1kBRYlaeo9b0gDwZHEB2zBfFlvdNFHm0wAVutMZODVi5smKT30g==}
+  '@opentelemetry/instrumentation-http@0.222.0':
+    resolution: {integrity: sha512-HhMHW32LyGzIJEmUElxaML4oUe6JiCq0Hvjt/Awxb60SlMsSFetFLFjed45g/0wrPr1n7z+xW+x1B/584WBAkg==}
     engines: {node: ^18.19.0 || >=20.6.0}
     peerDependencies:
       '@opentelemetry/api': ^1.3.0
@@ -1805,6 +1816,12 @@ packages:
 
   '@opentelemetry/instrumentation@0.221.0':
     resolution: {integrity: sha512-cCk80Z/iRDf/5gfsKMB4f74LqVA5yKETB/9ojPzVW/6/f70iu89nJvGxsFCxx4XfSohaOofkU19kiYm84AiAlw==}
+    engines: {node: ^18.19.0 || >=20.6.0}
+    peerDependencies:
+      '@opentelemetry/api': ^1.3.0
+
+  '@opentelemetry/instrumentation@0.222.0':
+    resolution: {integrity: sha512-fhbRDuAgzPKpq1k5+hX3uS+3QAYNca0on0Ngot/R8dDsQtuFaADeZnG2uSgxABuvcI7S2phAaRhbct9jieeKZw==}
     engines: {node: ^18.19.0 || >=20.6.0}
     peerDependencies:
       '@opentelemetry/api': ^1.3.0
@@ -5586,7 +5603,6 @@ packages:
       '@vitest/ui': 4.1.12
       happy-dom: '*'
       jsdom: '*'
-      vite: ^6.0.0 || ^7.0.0 || ^8.0.0
     peerDependenciesMeta:
       '@edge-runtime/vm':
         optional: true
@@ -6634,14 +6650,18 @@ snapshots:
     dependencies:
       '@opentelemetry/api': 1.9.1
 
+  '@opentelemetry/api-logs@0.222.0':
+    dependencies:
+      '@opentelemetry/api': 1.9.1
+
   '@opentelemetry/api@1.9.0': {}
 
   '@opentelemetry/api@1.9.1': {}
 
-  '@opentelemetry/auto-instrumentations-node@0.79.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.10.0(@opentelemetry/api@1.9.1))':
+  '@opentelemetry/auto-instrumentations-node@0.79.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1))':
     dependencies:
       '@opentelemetry/api': 1.9.1
-      '@opentelemetry/core': 2.10.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/core': 2.11.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/instrumentation': 0.221.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/instrumentation-amqplib': 0.68.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/instrumentation-aws-lambda': 0.73.0(@opentelemetry/api@1.9.1)
@@ -6659,7 +6679,7 @@ snapshots:
       '@opentelemetry/instrumentation-grpc': 0.221.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/instrumentation-hapi': 0.67.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/instrumentation-host-metrics': 0.4.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/instrumentation-http': 0.221.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/instrumentation-http': 0.222.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/instrumentation-ioredis': 0.69.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/instrumentation-kafkajs': 0.30.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/instrumentation-knex': 0.65.0(@opentelemetry/api@1.9.1)
@@ -6705,6 +6725,11 @@ snapshots:
       '@opentelemetry/api': 1.9.1
 
   '@opentelemetry/core@2.10.0(@opentelemetry/api@1.9.1)':
+    dependencies:
+      '@opentelemetry/api': 1.9.1
+      '@opentelemetry/semantic-conventions': 1.43.0
+
+  '@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/semantic-conventions': 1.43.0
@@ -6926,11 +6951,11 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@opentelemetry/instrumentation-http@0.221.0(@opentelemetry/api@1.9.1)':
+  '@opentelemetry/instrumentation-http@0.222.0(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
-      '@opentelemetry/core': 2.10.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/instrumentation': 0.221.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/core': 2.11.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/instrumentation': 0.222.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/semantic-conventions': 1.43.0
       forwarded-parse: 2.1.2
     transitivePeerDependencies:
@@ -7158,6 +7183,15 @@ snapshots:
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/api-logs': 0.221.0
+      import-in-the-middle: 3.0.1
+      require-in-the-middle: 8.0.1
+    transitivePeerDependencies:
+      - supports-color
+
+  '@opentelemetry/instrumentation@0.222.0(@opentelemetry/api@1.9.1)':
+    dependencies:
+      '@opentelemetry/api': 1.9.1
+      '@opentelemetry/api-logs': 0.222.0
       import-in-the-middle: 3.0.1
       require-in-the-middle: 8.0.1
     transitivePeerDependencies:
@@ -9475,13 +9509,13 @@ snapshots:
 
   inherits@2.0.4: {}
 
-  inngest@4.18.1(@opentelemetry/core@2.10.0(@opentelemetry/api@1.9.1))(express@5.2.1)(next@15.5.28(@opentelemetry/api@1.9.1)(@playwright/test@1.59.1)(@types/node@22.19.18)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(typescript@5.9.3)(zod@3.25.76):
+  inngest@4.18.1(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1))(express@5.2.1)(next@15.5.28(@opentelemetry/api@1.9.1)(@playwright/test@1.59.1)(@types/node@22.19.18)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(typescript@5.9.3)(zod@3.25.76):
     dependencies:
       '@bufbuild/protobuf': 2.12.0
       '@inngest/ai': 0.1.7
       '@jpwilliams/waitgroup': 2.1.1
       '@opentelemetry/api': 1.9.1
-      '@opentelemetry/auto-instrumentations-node': 0.79.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.10.0(@opentelemetry/api@1.9.1))
+      '@opentelemetry/auto-instrumentations-node': 0.79.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1))
       '@opentelemetry/context-async-hooks': 2.10.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/exporter-trace-otlp-http': 0.221.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/instrumentation': 0.221.0(@opentelemetry/api@1.9.1)
@@ -11085,7 +11119,7 @@ snapshots:
       terser: 5.49.0
       yaml: 2.8.4
 
-  vitest@4.1.12(@opentelemetry/api@1.9.1)(@types/node@22.19.18)(vite@7.3.7(@types/node@22.19.18)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.8.4)):
+  vitest@4.1.12(@opentelemetry/api@1.9.1)(@types/node@22.19.18)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.8.4):
     dependencies:
       '@vitest/expect': 4.1.12
       '@vitest/mocker': 4.1.12(vite@7.3.7(@types/node@22.19.18)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.8.4))
@@ -11111,7 +11145,17 @@ snapshots:
       '@opentelemetry/api': 1.9.1
       '@types/node': 22.19.18
     transitivePeerDependencies:
+      - jiti
+      - less
+      - lightningcss
       - msw
+      - sass
+      - sass-embedded
+      - stylus
+      - sugarss
+      - terser
+      - tsx
+      - yaml
 
   wasm-feature-detect@1.9.0: {}
 
