@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { and, desc, eq } from 'drizzle-orm'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   auditLog,
@@ -114,6 +114,7 @@ export default async function PunchlistDetailPage({
       is_before: punchlistPhotos.is_before,
       created_at: punchlistPhotos.created_at,
       file_name: documents.file_name,
+      mime_type: documents.mime_type,
     })
     .from(punchlistPhotos)
     .innerJoin(documents, eq(documents.id, punchlistPhotos.document_id))
@@ -165,6 +166,8 @@ export default async function PunchlistDetailPage({
     .orderBy(desc(auditLog.created_at))
     .limit(20)
 
+  // Same capability the punchlist status and photo actions enforce.
+  const canManage = can(profile.role, 'punchlist.manage')
   const canSignOff = PE_SIGNOFF_ROLES.includes(profile.role)
   const assigneeLabel = item.assigned_to_user_id
     ? userById.get(item.assigned_to_user_id) ?? '—'
@@ -275,12 +278,13 @@ export default async function PunchlistDetailPage({
               id: p.id,
               document_id: p.document_id,
               file_name: p.file_name,
+              mime_type: p.mime_type,
               caption: p.caption,
               is_before: p.is_before,
               created_at: p.created_at,
             }))}
             availableDocs={availableDocs}
-            canEdit={item.status !== 'closed'}
+            canEdit={canManage && item.status !== 'closed'}
           />
 
           {/* Audit trail */}
@@ -362,6 +366,7 @@ export default async function PunchlistDetailPage({
             itemId={item.id}
             currentStatus={item.status as 'open' | 'in_progress' | 'for_inspection' | 'closed'}
             isSignedOff={!!item.pe_signed_off_at}
+            canManage={canManage}
             canSignOff={canSignOff}
           />
         </div>

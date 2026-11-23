@@ -5,7 +5,7 @@
 // state, and whether the viewer is allowed to sign — so this component
 // stays dumb about role logic.
 
-import { useState, useTransition } from 'react'
+import React, { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   updatePunchlistStatus,
@@ -18,6 +18,8 @@ interface Props {
   itemId: string
   currentStatus: PunchlistStatus
   isSignedOff: boolean
+  /** Mirrors the punchlist.manage capability the server actions enforce. */
+  canManage: boolean
   canSignOff: boolean
 }
 
@@ -39,6 +41,7 @@ export function PunchlistStatusActions({
   itemId,
   currentStatus,
   isSignedOff,
+  canManage,
   canSignOff,
 }: Props) {
   const [error, setError] = useState('')
@@ -74,12 +77,12 @@ export function PunchlistStatusActions({
     })
   }
 
-  const transitions = NEXT_STATUS[currentStatus]
+  const transitions = canManage ? NEXT_STATUS[currentStatus] : []
   // Sign-off is offered when status is for_inspection (so the same click
   // closes it) OR if for some reason status='closed' but no sign-off yet
   // (data drift / migration backfill safety net).
   const showSignOff =
-    canSignOff && !isSignedOff && (currentStatus === 'for_inspection' || currentStatus === 'closed')
+    canManage && canSignOff && !isSignedOff && (currentStatus === 'for_inspection' || currentStatus === 'closed')
 
   return (
     <div
@@ -106,7 +109,11 @@ export function PunchlistStatusActions({
         Status actions
       </h3>
 
-      {transitions.length === 0 ? (
+      {!canManage ? (
+        <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--color-neutral-500)' }}>
+          View only. Admin, SD / PM / PE, PM and CX can change the status of this item.
+        </p>
+      ) : transitions.length === 0 ? (
         <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--color-neutral-500)' }}>
           This item is closed. No further transitions available.
         </p>

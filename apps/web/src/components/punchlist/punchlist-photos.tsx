@@ -5,7 +5,7 @@
 // Documents tab first, then pastes (or chooses) the document_id here.
 // Once Track 4 ships a generic doc-picker we can swap that in.
 
-import { useState, useTransition } from 'react'
+import React, { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { addPunchlistPhoto } from '@/app/(dashboard)/punchlist/actions'
@@ -14,10 +14,14 @@ interface PhotoRow {
   id: string
   document_id: string
   file_name: string
+  mime_type: string
   caption: string | null
   is_before: boolean
   created_at: Date
 }
+
+// Formats every browser can draw; HEIC and the like fall back to a plain link.
+const THUMBNAIL_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
 
 interface AvailableDoc {
   id: string
@@ -248,18 +252,60 @@ function PhotoColumn({ title, photos }: { title: string; photos: PhotoRow[] }) {
               style={{
                 border: '1px solid var(--color-border)',
                 borderRadius: 6,
-                padding: '8px 10px',
                 fontSize: '0.8125rem',
               }}
             >
-              <div style={{ fontWeight: 500, color: 'var(--color-neutral-800)' }}>
-                {p.file_name}
-              </div>
-              {p.caption ? (
-                <div style={{ fontSize: '0.75rem', color: 'var(--color-neutral-500)' }}>
-                  {p.caption}
-                </div>
-              ) : null}
+              {/* Authenticated, tenant-scoped route that redirects to a short-lived signed URL. */}
+              <a
+                href={`/api/documents/${p.document_id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '8px 10px',
+                  color: 'inherit',
+                  textDecoration: 'none',
+                }}
+              >
+                {THUMBNAIL_MIME_TYPES.has(p.mime_type) ? (
+                  // The src is the authenticated documents route (a redirect to a signed URL),
+                  // which next/image cannot optimise.
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={`/api/documents/${p.document_id}`}
+                    alt={p.caption ?? p.file_name}
+                    loading="lazy"
+                    width={56}
+                    height={56}
+                    style={{ objectFit: 'cover', borderRadius: 4, flexShrink: 0 }}
+                  />
+                ) : null}
+                <span style={{ minWidth: 0 }}>
+                  <span
+                    style={{
+                      display: 'block',
+                      fontWeight: 500,
+                      color: 'var(--color-navy-text)',
+                      overflowWrap: 'anywhere',
+                    }}
+                  >
+                    {p.file_name}
+                  </span>
+                  {p.caption ? (
+                    <span
+                      style={{
+                        display: 'block',
+                        fontSize: '0.75rem',
+                        color: 'var(--color-neutral-500)',
+                      }}
+                    >
+                      {p.caption}
+                    </span>
+                  ) : null}
+                </span>
+              </a>
             </li>
           ))}
         </ul>

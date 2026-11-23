@@ -87,7 +87,9 @@ export default async function PunchlistPage() {
               {rows.map((r) => (
                 <tr key={r.id}>
                   <td>
-                    {r.description.slice(0, 80)}
+                    <Link href={`/punchlist/${r.id}`} style={{ color: 'inherit' }}>
+                      {r.description.slice(0, 80)}
+                    </Link>
                     {r.location && <span className="muted"> — {r.location}</span>}
                   </td>
                   <td>
