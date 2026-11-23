@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { isPublicSignupEnabled } from '../signup/signup-validation'
 import { LoginForm } from './login-form'
 
 export const metadata: Metadata = { title: 'Sign in' }
@@ -10,6 +11,7 @@ type LoginPageProps = {
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const { password_updated: passwordUpdated } = await searchParams
+  const publicSignupEnabled = isPublicSignupEnabled()
 
   return (
     <>
@@ -33,10 +35,16 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
       <LoginForm />
 
       <p className="auth-form-altline">
-        New to ABI OPS?{' '}
-        <Link href="/auth/signup" className="auth-link auth-link-strong">
-          Create an account
-        </Link>
+        {publicSignupEnabled ? (
+          <>
+            New to ABI OPS?{' '}
+            <Link href="/auth/signup" className="auth-link auth-link-strong">
+              Create an account
+            </Link>
+          </>
+        ) : (
+          'New here? Ask your administrator to invite you.'
+        )}
       </p>
     </>
   )

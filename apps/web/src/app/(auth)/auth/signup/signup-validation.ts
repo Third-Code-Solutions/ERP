@@ -50,3 +50,32 @@ export function validateSignupInput(
   }
   return null
 }
+
+// Self sign-up creates a brand-new workspace, so a deployment that only onboards
+// by invitation turns it off. Anything but exactly 'false' keeps it on.
+export function isPublicSignupEnabled(
+  value: string | undefined = process.env.NEXT_PUBLIC_PUBLIC_SIGNUP_ENABLED
+): boolean {
+  return value !== 'false'
+}
+
+export const SIGNUP_BY_INVITATION_MESSAGE =
+  'Sign-up is by invitation. Ask your administrator to invite you.'
+
+const SIGNUP_DISABLED_CODES: ReadonlySet<string> = new Set([
+  'signup_disabled',
+  'email_provider_disabled',
+])
+// Older Supabase releases return only the message text, with no error code.
+const SIGNUP_DISABLED_MESSAGE = /sign-?ups?\b.*\b(not allowed|disabled)/i
+
+/** Plain text for a failed sign-up; the provider's own wording is shown otherwise. */
+export function signupErrorMessage(error: {
+  code?: string | undefined
+  message: string
+}): string {
+  const disabled =
+    (error.code !== undefined && SIGNUP_DISABLED_CODES.has(error.code)) ||
+    SIGNUP_DISABLED_MESSAGE.test(error.message)
+  return disabled ? SIGNUP_BY_INVITATION_MESSAGE : error.message
+}

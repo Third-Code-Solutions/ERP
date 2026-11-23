@@ -4,7 +4,11 @@ import { useState, useTransition } from 'react'
 import { createSupabaseBrowserClient } from '@third-code-erp/auth/client'
 import { useRouter } from 'next/navigation'
 import { ORGANIZATION_TYPE_OPTIONS } from './signup-options'
-import { validateSignupInput, type SignupField } from './signup-validation'
+import {
+  signupErrorMessage,
+  validateSignupInput,
+  type SignupField,
+} from './signup-validation'
 
 export function SignupForm() {
   const supabase = createSupabaseBrowserClient()
@@ -62,7 +66,7 @@ export function SignupForm() {
       })
 
       if (signUpError) {
-        setError(signUpError.message)
+        setError(signupErrorMessage(signUpError))
         setErrorField(null)
       } else if (data.session) {
         router.replace('/dashboard')

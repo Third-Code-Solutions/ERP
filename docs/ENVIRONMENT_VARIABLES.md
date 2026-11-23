@@ -27,6 +27,7 @@ production, set these in Vercel (web), Railway (workers), and Supabase
 |---|---|---|---|---|
 | `NEXT_PUBLIC_SITE_URL` | yes | public | Your configured production domain | Used to build portal links in emails and signed share URLs |
 | `AUTH_TRUSTED_HOSTS` | no | server | Comma-separated host list | Adds extra hostnames the redirect allowlist accepts |
+| `NEXT_PUBLIC_PUBLIC_SIGNUP_ENABLED` | no | public | `true` by default; set exactly `false` for invitation-only deployments | Shows or hides the "Create an account" link on the sign-in page. It does not block `/auth/signup`; turn off sign-ups in Supabase Auth to enforce invitation-only. Build-time value: redeploy after changing it |
 
 ---
 
