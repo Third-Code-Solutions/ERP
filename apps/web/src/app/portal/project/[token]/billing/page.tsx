@@ -1,7 +1,10 @@
 import type { Metadata } from 'next'
-import { and, desc, eq } from 'drizzle-orm'
+import React from 'react'
+import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { db } from '@third-code-erp/database'
 import {
+  cashAllocations,
+  cashTransactions,
   invoices,
   progressClaims,
   projects,
@@ -11,6 +14,11 @@ import {
   findActiveCustomerSession,
   logCustomerView,
 } from '@/lib/operations/customer-portal'
+import {
+  PORTAL_CLAIM_STATUSES,
+  PORTAL_INVOICE_STATUSES,
+  portalBillingTotals,
+} from './billing-view'
 
 export const metadata: Metadata = {
   title: 'Project billing',
@@ -148,7 +156,11 @@ export default async function PortalProjectBillingPage({
     .where(
       and(
         eq(invoices.tenant_id, session.tenant_id),
-        eq(invoices.project_id, session.project_id)
+        eq(invoices.project_id, session.project_id),
+        // Only invoices the contractor has issued: no drafts or cancelled ones,
+        // and a reversed invoice keeps its status, so it is excluded by reversal.
+        inArray(invoices.status, PORTAL_INVOICE_STATUSES),
+        isNull(invoices.reversed_at)
       )
     )
     .orderBy(desc(invoices.created_at))
@@ -169,19 +181,53 @@ export default async function PortalProjectBillingPage({
     .where(
       and(
         eq(progressClaims.tenant_id, session.tenant_id),
-        eq(progressClaims.project_id, session.project_id)
+        eq(progressClaims.project_id, session.project_id),
+        // Internal drafts, rejected and cancelled claims are not for the client.
+        inArray(progressClaims.status, PORTAL_CLAIM_STATUSES)
       )
     )
     .orderBy(desc(progressClaims.created_at))
 
+  // Posted receipts against the current amount due, so a part-paid invoice
+  // shows its unpaid balance (the same allocations the invoice screen nets).
+  const receivedRows =
+    invoiceRows.length === 0
+      ? []
+      : await db
+          .select({
+            invoice_id: cashAllocations.invoice_id,
+            received_cents: sql<string>`coalesce(sum(${cashAllocations.amount_cents}), 0)::text`,
+          })
+          .from(cashAllocations)
+          .innerJoin(
+            cashTransactions,
+            and(
+              eq(cashTransactions.id, cashAllocations.cash_transaction_id),
+              eq(cashTransactions.tenant_id, cashAllocations.tenant_id)
+            )
+          )
+          .where(
+            and(
+              eq(cashAllocations.tenant_id, session.tenant_id),
+              inArray(
+                cashAllocations.invoice_id,
+                invoiceRows.map((invoice) => invoice.id)
+              ),
+              eq(cashAllocations.allocation_type, 'customer_current_due'),
+              eq(cashTransactions.status, 'posted')
+            )
+          )
+          .groupBy(cashAllocations.invoice_id)
+  const receivedByInvoice = new Map<string, number>()
+  for (const row of receivedRows) {
+    if (row.invoice_id) receivedByInvoice.set(row.invoice_id, Number(row.received_cents))
+  }
+
   // KPIs: client-friendly aggregates.
-  const totalInvoiced = invoiceRows
-    .filter((i) => i.status === 'issued' || i.status === 'paid' || i.status === 'partial_payment' || i.status === 'overdue')
-    .reduce((s, i) => s + i.net_amount_cents, 0)
-  const totalPaid = invoiceRows
-    .filter((i) => i.status === 'paid')
-    .reduce((s, i) => s + i.net_amount_cents, 0)
-  const outstanding = Math.max(0, totalInvoiced - totalPaid)
+  const totals = portalBillingTotals(invoiceRows, receivedByInvoice)
+  const totalInvoiced = totals.invoicedCents
+  const totalPaid = totals.paidCents
+  const outstanding = totals.outstandingCents
 
   return (
     <div>
@@ -222,7 +268,7 @@ export default async function PortalProjectBillingPage({
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
           gap: 16,
           marginBottom: 20,
         }}
@@ -263,7 +309,8 @@ export default async function PortalProjectBillingPage({
             No invoices have been issued yet.
           </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', minWidth: 640, borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: '1px solid #e5e7eb', background: '#fafbfc' }}>
                 <th style={th('left')}>Invoice #</th>
@@ -307,6 +354,7 @@ export default async function PortalProjectBillingPage({
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </section>
 
@@ -340,7 +388,8 @@ export default async function PortalProjectBillingPage({
             No progress claims have been filed yet.
           </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', minWidth: 560, borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: '1px solid #e5e7eb', background: '#fafbfc' }}>
                 <th style={th('left')}>Claim #</th>
@@ -380,6 +429,7 @@ export default async function PortalProjectBillingPage({
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </section>
     </div>
