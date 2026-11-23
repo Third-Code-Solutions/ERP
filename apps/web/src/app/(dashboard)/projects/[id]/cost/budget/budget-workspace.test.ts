@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { normalizeBudgetWorkflowUuid } from './budget-workflow-receipts'
 import {
+  hasUnsavedDraftEdits,
   mergeBudgetEditorLines,
   reconcileSavedLineIdentities,
   validateBudgetWorkflowReceipt,
@@ -81,6 +82,101 @@ describe('BudgetWorkspace saved-line reconciliation', () => {
     )
 
     expect(reconciled[0]?.persistedId).toBeNull()
+  })
+})
+
+describe('BudgetWorkspace unsaved-edit detection after a save', () => {
+  const savedDraft = {
+    version: 'v1',
+    id: BUDGET_ID,
+    revision: 1,
+    sourceBomId: null,
+    controlMode: 'warn' as const,
+    toleranceBps: 50,
+    currency: 'PHP',
+    effectiveFrom: '2026-11-01',
+    reason: 'Initial baseline',
+    lines: [
+      {
+        id: SERVER_ID,
+        costCodeId: COST_CODE_ID,
+        bomLineItemId: null,
+        description: 'Saved scope',
+        amountCents: 150_000,
+      },
+    ],
+  }
+  const savedSettings = {
+    controlMode: 'warn' as const,
+    toleranceBps: '50',
+    currency: 'PHP',
+    effectiveFrom: '2026-11-01',
+    reason: 'Initial baseline',
+  }
+  const savedLine = {
+    key: CLIENT_KEY,
+    persistedId: SERVER_ID,
+    costCodeId: COST_CODE_ID,
+    bomLineItemId: '',
+    description: 'Saved scope',
+    amountPhp: '1500.00',
+  }
+
+  it('treats the freshly loaded draft as saved', () => {
+    expect(hasUnsavedDraftEdits(savedDraft, [savedLine], '', savedSettings)).toBe(false)
+  })
+
+  it.each(['1500', '1500.0', '01500.00', ' 1500 '])(
+    'treats amount %s as the same saved amount as 1500.00',
+    (amountPhp) => {
+      expect(
+        hasUnsavedDraftEdits(savedDraft, [{ ...savedLine, amountPhp }], '', savedSettings)
+      ).toBe(false)
+    }
+  )
+
+  it.each(['1500.01', '1499', '1,500', '', 'abc'])(
+    'still reports amount %s as an unsaved change',
+    (amountPhp) => {
+      expect(
+        hasUnsavedDraftEdits(savedDraft, [{ ...savedLine, amountPhp }], '', savedSettings)
+      ).toBe(true)
+    }
+  )
+
+  it('ignores whitespace, currency case and tolerance padding the server normalises', () => {
+    expect(
+      hasUnsavedDraftEdits(
+        savedDraft,
+        [{ ...savedLine, description: '  Saved scope ' }],
+        '',
+        {
+          ...savedSettings,
+          toleranceBps: '050',
+          currency: ' php ',
+          reason: ' Initial baseline  ',
+        }
+      )
+    ).toBe(false)
+  })
+
+  it('still reports real text, setting, line-count and source changes', () => {
+    expect(
+      hasUnsavedDraftEdits(savedDraft, [{ ...savedLine, description: 'Other scope' }], '', savedSettings)
+    ).toBe(true)
+    expect(
+      hasUnsavedDraftEdits(savedDraft, [savedLine], '', { ...savedSettings, reason: 'Changed reason' })
+    ).toBe(true)
+    expect(
+      hasUnsavedDraftEdits(savedDraft, [savedLine], '', { ...savedSettings, toleranceBps: '75' })
+    ).toBe(true)
+    expect(hasUnsavedDraftEdits(savedDraft, [savedLine, { ...savedLine, key: SERVER_ID, persistedId: null }], '', savedSettings)).toBe(true)
+    expect(hasUnsavedDraftEdits(savedDraft, [savedLine], REVISION_ID, savedSettings)).toBe(true)
+  })
+
+  it('does not keep a typed-but-equal line when the server removed it', () => {
+    const typed = { ...savedLine, amountPhp: '1500' }
+    expect(mergeBudgetEditorLines([typed], [savedLine], [])).toEqual([])
   })
 })
 
