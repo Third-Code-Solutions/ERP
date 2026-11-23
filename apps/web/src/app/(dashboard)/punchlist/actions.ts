@@ -27,11 +27,11 @@ import {
 } from '@third-code-erp/database/schema'
 import { writeAuditLog } from '@/lib/audit'
 import { notifyUser, notifyRoles } from '@/lib/operations/notifications'
-import { startSlaClock } from '@/lib/operations/sla-clock'
+import { startSlaClock, stopSlaClock } from '@/lib/operations/sla-clock'
 
 function guard(role: AppRole, capability: ErpCapability): string | null {
   if (!can(role, capability)) {
-    return `Forbidden: role "${role}" lacks "${capability}"`
+    return 'You do not have permission to change punchlist items.'
   }
   return null
 }
@@ -245,6 +245,7 @@ export async function updatePunchlistStatus(
   })
 
   if (newStatus === 'closed') {
+    await stopPunchlistClock(profile.tenantId, itemId)
     await checkProjectCompletion(profile.tenantId, item.project_id)
   }
 
@@ -252,6 +253,31 @@ export async function updatePunchlistStatus(
   revalidatePath(`/punchlist/${itemId}`)
   revalidatePath(`/projects/${item.project_id}`)
   return {}
+}
+
+/**
+ * A closed item must stop its due-date clock, otherwise the deadlines panel
+ * and the SLA checker report a breach for work that is finished. Non-fatal:
+ * the close has already been committed and audited.
+ */
+async function stopPunchlistClock(tenantId: string, itemId: string): Promise<void> {
+  try {
+    await stopSlaClock({
+      tenantId,
+      entityType: 'punchlist_item',
+      entityId: itemId,
+      label: 'punchlist.due_date',
+    })
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        event: 'punchlist_sla_clock_stop_failed',
+        tenant_id: tenantId,
+        item_id: itemId,
+        error: error instanceof Error ? error.message : 'unknown',
+      })
+    )
+  }
 }
 
 export async function signOffPunchlistItem(
@@ -314,6 +340,7 @@ export async function signOffPunchlistItem(
   })
 
   if (willClose) {
+    await stopPunchlistClock(profile.tenantId, itemId)
     await checkProjectCompletion(profile.tenantId, item.project_id)
   }
 
