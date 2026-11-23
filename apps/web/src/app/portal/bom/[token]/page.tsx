@@ -3,10 +3,11 @@ import React from 'react'
 import { z } from 'zod'
 import { formatBps } from '@third-code-erp/shared-types'
 import { computeRetention, computeVAT, formatBoqQuantity } from '@third-code-erp/shared-types/bom'
-import { loadPortalBom, recordSign } from './sign-actions'
+import { PortalSignForm } from './portal-sign-form'
+import { loadPortalBom } from './sign-actions'
 
 export const metadata: Metadata = {
-  title: 'Review your BOM | ABI OPS',
+  title: 'Review your BOM',
   robots: { index: false, follow: false },
 }
 
@@ -49,6 +50,18 @@ export default async function PortalBomPage({
   }
 
   const bom = result.bom!
+  // A link outlives the BOM's state: only an approved BOM can be signed.
+  if (bom.status === 'locked') {
+    return <PortalStatus title="Already approved" body="This BOM has already been approved and locked." tone="positive" />
+  }
+  if (bom.status !== 'approved') {
+    return (
+      <PortalStatus
+        title="Not open for approval"
+        body="This BOM is not open for client approval right now. Please ask your project contact for a new link."
+      />
+    )
+  }
   const taxRates = result.taxRates!
   // Historical rows also contain provider slugs; they are not application routes.
   const signingUrl = signingUrlSchema.safeParse(bom.docuseal_slug)
@@ -73,11 +86,6 @@ export default async function PortalBomPage({
     hour: '2-digit',
     minute: '2-digit',
   })
-
-  async function signAction(): Promise<void> {
-    'use server'
-    await recordSign(token)
-  }
 
   return (
     <div>
@@ -152,13 +160,13 @@ export default async function PortalBomPage({
                   <span>{cat}</span>
                   <span style={{ fontFamily: 'var(--font-jetbrains), monospace' }}>{fmtPHP(groupTotal)}</span>
                 </div>
+                <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid #e5e7eb', background: '#fafbfc' }}>
                       <th style={{ textAlign: 'left', padding: '8px 18px', fontSize: 11, color: '#6b7280' }}>Description</th>
                       <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 11, color: '#6b7280' }}>Qty</th>
                       <th style={{ textAlign: 'left', padding: '8px 8px', fontSize: 11, color: '#6b7280' }}>Unit</th>
-                      <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 11, color: '#6b7280' }}>Unit cost</th>
                       <th style={{ textAlign: 'right', padding: '8px 18px', fontSize: 11, color: '#6b7280' }}>Line total</th>
                     </tr>
                   </thead>
@@ -175,9 +183,6 @@ export default async function PortalBomPage({
                           {formatBoqQuantity(l.quantity)}
                         </td>
                         <td style={{ padding: '10px 8px', color: '#6b7280' }}>{l.unit ?? '—'}</td>
-                        <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'var(--font-jetbrains), monospace' }}>
-                          {fmtPHP(l.unit_cost_cents)}
-                        </td>
                         <td style={{ padding: '10px 18px', textAlign: 'right', fontWeight: 500, fontFamily: 'var(--font-jetbrains), monospace' }}>
                           {fmtPHP(l.line_total_cents)}
                         </td>
@@ -185,6 +190,7 @@ export default async function PortalBomPage({
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
             )
           })
@@ -262,27 +268,7 @@ export default async function PortalBomPage({
           <p>Ask the project team for a current secure signing link if you need the external signing page.</p>
         )}
 
-        {!bom.is_dev_stub && (
-          <form action={signAction}>
-            <button
-              type="submit"
-              style={{
-                background: '#E07B2A',
-                color: 'white',
-                border: 0,
-                padding: '12px 22px',
-                borderRadius: 8,
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: 'pointer',
-                letterSpacing: '0.01em',
-                boxShadow: '0 1px 3px rgba(224, 123, 42, 0.35)',
-              }}
-            >
-              I approve this BOM
-            </button>
-          </form>
-        )}
+        {!bom.is_dev_stub && <PortalSignForm token={token} />}
       </section>
     </div>
   )
