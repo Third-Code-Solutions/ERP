@@ -7,6 +7,7 @@ import {
 } from '@third-code-erp/shared-types'
 
 import { getStageTransitionReasonKind } from '@/components/pipeline/stage-transition-action'
+import { parsePesosToCents } from '@/lib/operations/scope-money'
 
 export type OpportunityPanelDestinationKind =
   | 'submit'
@@ -88,6 +89,51 @@ function copyCanonicalCentavosString(
     )
   }
   destination.set(name, value)
+}
+
+/** Exact peso text for an input, e.g. 1500000 centavos becomes "15000.00". */
+export function centavosToPesoInput(cents: number): string {
+  if (!Number.isSafeInteger(cents)) return ''
+  const absolute = BigInt(Math.abs(cents))
+  const sign = cents < 0 ? '-' : ''
+  return `${sign}${absolute / 100n}.${String(absolute % 100n).padStart(2, '0')}`
+}
+
+/**
+ * The panel asks for pesos; the shared builders and Core take centavos. This
+ * converts `tcv_pesos` / `gp_pesos` into `tcv_cents` / `gp_cents` without float
+ * math. Blank stays blank, and invalid text throws a message the form can show.
+ */
+export function pesoControlsToCentavos(controls: FormData): FormData {
+  const converted = new FormData()
+  for (const [name, value] of controls.entries()) {
+    if (name !== 'tcv_pesos' && name !== 'gp_pesos') converted.append(name, value)
+  }
+
+  const tcv = controls.get('tcv_pesos')
+  if (tcv !== null && !(typeof tcv === 'string' && tcv.trim() === '')) {
+    const cents = typeof tcv === 'string' ? parsePesosToCents(tcv) : undefined
+    if (cents === undefined) {
+      throw new Error(
+        'TCV must be an amount in pesos with at most two decimals, for example 5000000.00.'
+      )
+    }
+    converted.set('tcv_cents', String(cents))
+  }
+
+  const gp = controls.get('gp_pesos')
+  if (gp !== null && !(typeof gp === 'string' && gp.trim() === '')) {
+    const text = typeof gp === 'string' ? gp.trim() : ''
+    const negative = text.startsWith('-')
+    const cents = parsePesosToCents(negative ? text.slice(1) : text)
+    if (cents === undefined) {
+      throw new Error(
+        'GP must be an amount in pesos with at most two decimals, for example 750000.00. A loss may be negative.'
+      )
+    }
+    converted.set('gp_cents', negative && cents > 0 ? `-${cents}` : String(cents))
+  }
+  return converted
 }
 
 export function getOpportunityPanelDestinations(
