@@ -40,8 +40,14 @@ Set secrets once per project:
 supabase secrets set \
   RESEND_API_KEY=re_... \
   RESEND_FROM_EMAIL='ABI OPS <notifications@your-verified-domain.example>' \
-  PUBLIC_CNPS_BASE_URL=https://your-production-origin.example
+  PUBLIC_CNPS_BASE_URL=https://your-production-origin.example   CRON_SECRET=<long random value>
 ```
+
+Every function refuses a call unless it carries the header
+`x-cron-secret: <CRON_SECRET>`: 503 when `CRON_SECRET` is unset, 401 when the
+header is missing or wrong. The functions run with the service role across all
+tenants and the gateway accepts the public anon key, so the anon key alone must
+never be enough to trigger them.
 
 ## Cron setup
 
@@ -56,7 +62,7 @@ SELECT cron.schedule(
   '*/30 * * * *',
   $$ SELECT net.http_post(
        url := 'https://<ref>.functions.supabase.co/sla-checker',
-       headers := jsonb_build_object('Authorization', 'Bearer <anon>')
+       headers := jsonb_build_object('Authorization', 'Bearer <anon>', 'x-cron-secret', '<CRON_SECRET>')
      ) $$
 );
 
@@ -66,7 +72,7 @@ SELECT cron.schedule(
   '0 0 * * *',
   $$ SELECT net.http_post(
        url := 'https://<ref>.functions.supabase.co/permit-staleness-checker',
-       headers := jsonb_build_object('Authorization', 'Bearer <anon>')
+       headers := jsonb_build_object('Authorization', 'Bearer <anon>', 'x-cron-secret', '<CRON_SECRET>')
      ) $$
 );
 
@@ -76,7 +82,7 @@ SELECT cron.schedule(
   '0 * * * *',
   $$ SELECT net.http_post(
        url := 'https://<ref>.functions.supabase.co/cnps-survey-sender',
-       headers := jsonb_build_object('Authorization', 'Bearer <anon>')
+       headers := jsonb_build_object('Authorization', 'Bearer <anon>', 'x-cron-secret', '<CRON_SECRET>')
      ) $$
 );
 ```

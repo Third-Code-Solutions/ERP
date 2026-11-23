@@ -9,6 +9,7 @@
 // All Postgres access happens via PostgREST + service-role key.
 
 import { handleOptions, jsonResponse } from "../_shared/cors.ts";
+import { rejectUnlessCronCaller } from "../_shared/cron-auth.ts";
 import {
   fetchUsersByRoles,
   pgInsert,
@@ -304,6 +305,8 @@ async function processRow(
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return handleOptions();
+  const refused = rejectUnlessCronCaller(req);
+  if (refused) return refused;
 
   const summary: RunSummary = {
     processed: 0,

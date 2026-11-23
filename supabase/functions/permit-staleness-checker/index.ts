@@ -4,6 +4,7 @@
 // than 7 days and notifies PM + GM (admin) for that tenant.
 
 import { handleOptions, jsonResponse } from '../_shared/cors.ts'
+import { rejectUnlessCronCaller } from '../_shared/cron-auth.ts'
 import {
   fetchUsersByRoles,
   pgInsert,
@@ -66,6 +67,8 @@ function buildBody(args: {
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return handleOptions()
+  const refused = rejectUnlessCronCaller(req)
+  if (refused) return refused
 
   const summary: RunSummary = { processed: 0, notified: 0, errors: [] }
   const nowMs = Date.now()
