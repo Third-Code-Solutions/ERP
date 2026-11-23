@@ -96,6 +96,7 @@ Live revision everywhere: `385bcc92`. Web deployment `dpl_HtEF9XSHoNa6zxmiX5S82G
 | Web waste: middleware calls Supabase Auth on static assets; 3 Auth calls per dashboard render; robots/sitemap per request; default prefetch on ~400 links | **NOT STARTED** (performance, not cost-critical at trial volume). |
 | Spend today | Vercel $21.58 / 30 days (Pro seat), Railway ≈ $2–5/month (estimate), Supabase Pro. No hard spend limit visible via API on Vercel or Railway. |
 | Secrets in repo/history | None found (masked regex scan of 3,824 files and 2,588 commits). gitleaks binary not run locally. |
+| Dependabot: 5 high, 1 moderate open on `main` | **BLOCKED** by a recorded waiver. The 5 highs are one advisory, zod < 4.6.6 (GHSA-mrhx-c7xc-m3w5, memory exhaustion on oversized constrained collections), in web, API and shared packages; the fix is the zod 4 major (~230 files), due **2026-12-04** (STATE follow-up). Compensating controls since 2026-11-04: Core API array budget, JWT guard before pipes, token-first webhook, 3 MB Server Action cap. Moderate: minimatch (dev, build-time). |
 
 ## 6. Trial onboarding — top 10 inputs per company
 
