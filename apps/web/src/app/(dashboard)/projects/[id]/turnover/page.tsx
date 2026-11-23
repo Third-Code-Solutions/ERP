@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { and, desc, eq } from 'drizzle-orm'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   documents,
@@ -11,11 +11,7 @@ import {
   turnoverPackages,
   certificatesOfCompletion,
 } from '@third-code-erp/database/schema'
-import {
-  attachTurnoverDocument,
-  markTurnoverCompiled,
-  type TurnoverSlot,
-} from './actions'
+import type { TurnoverSlot } from './actions'
 import type {
   ProjectCloseoutReadinessResult,
   ProjectHandoverReadinessResult,
@@ -30,6 +26,7 @@ import { readProjectCloseoutReadinessForTenant } from '@/lib/operations/project-
 import { readProjectHandoverReadinessForTenant } from '@/lib/operations/project-handover-readiness'
 import { ProjectCloseoutReadinessCard } from '@/components/turnover/project-closeout-readiness-card'
 import { ProjectHandoverReadinessCard } from '@/components/turnover/project-handover-readiness-card'
+import { MarkCompiledButton, TurnoverSlotPicker } from '@/components/turnover/turnover-controls'
 
 export const metadata: Metadata = { title: 'Turnover Package' }
 
@@ -70,6 +67,8 @@ export default async function TurnoverPage({
 }) {
   const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
+  // Same capability the turnover server actions enforce.
+  const canManage = can(profile.role, 'punchlist.manage')
 
   const [project] = await db
     .select({ id: projects.id, name: projects.name })
@@ -254,30 +253,13 @@ export default async function TurnoverPage({
           </div>
         </div>
         {!isCompiled ? (
-          <form
-            action={async () => {
-              'use server'
-              await markTurnoverCompiled(id)
-            }}
-          >
-            <button
-              type="submit"
-              disabled={!allAttached}
-              title={!allAttached ? 'Attach all four documents first' : undefined}
-              style={{
-                background: allAttached ? 'var(--color-navy-700)' : 'var(--color-neutral-200)',
-                color: allAttached ? 'white' : 'var(--color-neutral-500)',
-                border: 'none',
-                borderRadius: 6,
-                padding: '9px 16px',
-                fontSize: '0.8125rem',
-                fontWeight: 600,
-                cursor: allAttached ? 'pointer' : 'not-allowed',
-              }}
-            >
-              Mark as compiled
-            </button>
-          </form>
+          canManage ? (
+            <MarkCompiledButton projectId={id} allAttached={allAttached} />
+          ) : (
+            <span style={{ fontSize: '0.75rem', color: 'var(--color-neutral-500)' }}>
+              View only. Admin, SD / PM / PE, PM and CX can attach documents and compile.
+            </span>
+          )
         ) : (
           <Link
             href={`${baseHref}/coc`}
@@ -379,10 +361,11 @@ export default async function TurnoverPage({
                   </div>
                 )}
               </div>
-              {!isCompiled ? (
-                <SlotPicker
+              {!isCompiled && canManage ? (
+                <TurnoverSlotPicker
                   projectId={id}
                   slot={slot.key}
+                  slotLabel={slot.label}
                   currentDocId={attachedDocId}
                   options={projectDocs.map((d) => ({ id: d.id, file_name: d.file_name }))}
                 />
@@ -408,72 +391,5 @@ export default async function TurnoverPage({
         </p>
       ) : null}
     </div>
-  )
-}
-
-// Inline server-action form per slot. Submits the chosen document id back
-// to attachTurnoverDocument.
-function SlotPicker({
-  projectId,
-  slot,
-  currentDocId,
-  options,
-}: {
-  projectId: string
-  slot: TurnoverSlot
-  currentDocId: string | null
-  options: { id: string; file_name: string }[]
-}) {
-  async function action(formData: FormData) {
-    'use server'
-    const docId = formData.get('document_id') as string
-    if (!docId) return
-    await attachTurnoverDocument(projectId, slot, docId)
-  }
-
-  if (options.length === 0) {
-    return (
-      <span style={{ fontSize: '0.75rem', color: 'var(--color-neutral-400)' }}>
-        No docs yet
-      </span>
-    )
-  }
-
-  return (
-    <form action={action} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-      <select
-        name="document_id"
-        defaultValue={currentDocId ?? ''}
-        style={{
-          padding: '6px 8px',
-          fontSize: '0.75rem',
-          border: '1px solid var(--color-border)',
-          borderRadius: 6,
-          background: 'var(--color-surface)',
-          minWidth: 180,
-        }}
-      >
-        <option value="">— Choose document —</option>
-        {options.map((o) => (
-          <option key={o.id} value={o.id}>
-            {o.file_name}
-          </option>
-        ))}
-      </select>
-      <button
-        type="submit"
-        style={{
-          padding: '6px 10px',
-          fontSize: '0.75rem',
-          background: 'var(--color-neutral-100)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 6,
-          fontWeight: 500,
-          cursor: 'pointer',
-        }}
-      >
-        {currentDocId ? 'Replace' : 'Attach'}
-      </button>
-    </form>
   )
 }
