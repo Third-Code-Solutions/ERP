@@ -145,6 +145,9 @@ export default async function ProjectVosPage({ params }: PageProps) {
                 <tr>
                   <td colSpan={3} style={{ fontWeight: 600 }}>
                     Cumulative
+                    <span style={{ fontWeight: 400, marginLeft: 6, color: 'var(--color-neutral-500)' }}>
+                      (excludes draft and rejected)
+                    </span>
                   </td>
                   <td className="numeric currency" style={{ fontWeight: 600 }}>
                     {formatPhp(totals.cost_impact_cents)}
