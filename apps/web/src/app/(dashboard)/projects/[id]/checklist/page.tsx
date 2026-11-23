@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { and, asc, eq } from 'drizzle-orm'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   preConChecklists,
@@ -30,6 +30,8 @@ export default async function ProjectChecklistPage({
 }) {
   const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
+  // Same capability the status action enforces; the row only mirrors it.
+  const canManage = can(profile.role, 'precon.manage_checklist')
 
   const [project] = await db
     .select({ id: projects.id, name: projects.name })
@@ -133,6 +135,12 @@ export default async function ProjectChecklistPage({
         )}
       </div>
 
+      {checklist && !canManage ? (
+        <p style={{ margin: '0 0 16px', fontSize: '0.8125rem', color: 'var(--color-neutral-500)' }}>
+          View only. Admin, Commercial, SD / PM / PE and PM can update checklist items.
+        </p>
+      ) : null}
+
       {!checklist ? (
         <div
           style={{
@@ -169,6 +177,7 @@ export default async function ProjectChecklistPage({
                 <ChecklistItemRow
                   key={it.id}
                   projectId={id}
+                  canManage={canManage}
                   item={it}
                   dependencyTitle={it.depends_on_item_id ? titleById.get(it.depends_on_item_id) ?? null : null}
                 />

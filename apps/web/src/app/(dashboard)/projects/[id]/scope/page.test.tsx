@@ -72,4 +72,19 @@ describe('project scope read-only rendering', () => {
     expect(html).toMatch(/EDIT_SCOPE_COST_CONTROL/)
     expect(html).toMatch(/UPLOAD_CAD_CONTROL/)
   })
+
+  it('offers the BOM link only to roles the BOM route admits', async () => {
+    mocks.can.mockReturnValue(false)
+    const viewerHtml = renderToStaticMarkup(await ProjectScopePage({ params: Promise.resolve({ id: projectId }) }))
+    expect(viewerHtml).toContain('View BOM')
+
+    mocks.select
+      .mockReturnValueOnce(selectResult([{ id: projectId, name: 'Demo project' }]))
+      .mockReturnValueOnce(selectResult([ITEM]))
+      .mockReturnValueOnce(selectResult([]))
+    mocks.requireUserProfile.mockResolvedValue({ tenantId: 'tenant-1', role: 'pm', user: { id: 'user-1' } })
+    mocks.can.mockReturnValue(true)
+    const pmHtml = renderToStaticMarkup(await ProjectScopePage({ params: Promise.resolve({ id: projectId }) }))
+    expect(pmHtml).not.toContain('View BOM')
+  })
 })

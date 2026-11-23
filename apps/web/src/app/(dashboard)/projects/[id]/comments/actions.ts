@@ -65,7 +65,9 @@ export async function createComment(
     .from(users)
     .where(eq(users.id, user.id))
   if (!userRow?.tenant_id) return { error: 'No tenant' }
-  if (!can(userRow.role, 'project.update')) return { error: 'Forbidden' }
+  if (!can(userRow.role, 'project.update')) {
+    return { error: 'Your role can read comments but cannot post them.' }
+  }
 
   const rawBody = formData.get('body')
   const body = typeof rawBody === 'string' ? rawBody.trim() : ''

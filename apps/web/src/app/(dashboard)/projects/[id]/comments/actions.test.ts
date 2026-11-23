@@ -95,7 +95,9 @@ describe('createComment authority and tenant integrity', () => {
 
     const result = await createComment(PROJECT_ID, form())
 
-    expect(result).toEqual({ error: 'Forbidden' })
+    expect(result).toEqual({
+      error: 'Your role can read comments but cannot post them.',
+    })
     expect(mocks.can).toHaveBeenCalledWith('pm', 'project.update')
     expect(mocks.insert).not.toHaveBeenCalled()
   })
