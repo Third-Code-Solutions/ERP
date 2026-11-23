@@ -49,6 +49,7 @@ vi.mock('next/cache', () => ({
 }))
 
 import { platformUserInvitations, users } from '@third-code-erp/database/schema'
+import { PLATFORM_OWNER_EMAIL } from '@third-code-erp/shared-types/platform-administration'
 import {
   createUser,
   deleteUser,
@@ -104,6 +105,7 @@ function userQuery(
     email: string
     accountStatus?: string
     activeAdministratorCount?: number
+    platformIdentity?: boolean
   }>
 ) {
   const rowLock = vi.fn().mockResolvedValue(rows)
@@ -644,6 +646,38 @@ describe('admin user role authority', () => {
     expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
   })
 
+  it.each(['admin', 'owner'])(
+    'refuses a %s resetting a platform identity before any audit or Auth call',
+    async (actorRole) => {
+      mocks.requireUserProfile.mockResolvedValue({ ...PROFILE, role: actorRole })
+      const query = userQuery([
+        { id: TARGET_ID, role: 'viewer', email: 'platform@example.test', platformIdentity: true },
+      ])
+      mocks.select.mockReturnValue({ from: query.from })
+
+      await expect(resetUserPassword(resetPasswordForm())).resolves.toEqual({
+        error: 'Platform administration credentials cannot be changed from a workspace.',
+      })
+      expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+      expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
+    },
+  )
+
+  it('flags a platform identity by live role assignment or the pinned owner email', async () => {
+    const query = userQuery([
+      { id: TARGET_ID, role: 'viewer', email: PLATFORM_OWNER_EMAIL, platformIdentity: true },
+    ])
+    mocks.select.mockReturnValue({ from: query.from })
+
+    await resetUserPassword(resetPasswordForm())
+
+    const fields = mocks.select.mock.calls[0]?.[0] as { platformIdentity: SQL }
+    const { sql, params } = new PgDialect().sqlToQuery(fields.platformIdentity)
+    expect(sql).toContain('public.platform_role_assignments')
+    expect(sql).toContain('platform_role.revoked_at is null')
+    expect(params).toContain(PLATFORM_OWNER_EMAIL)
+  })
+
   it('does not submit a password reset when authorization audit fails', async () => {
     mocks.writeAuditLog.mockRejectedValueOnce(new Error('synthetic audit failure'))
 
@@ -768,6 +802,27 @@ describe('admin user role authority', () => {
 
     await expect(suspendUser(form)).resolves.toEqual({
       error: 'Cannot suspend the last active admin/owner in this workspace.',
+    })
+    expect(updateUserById).not.toHaveBeenCalled()
+    expect(mocks.update).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['an active platform role holder', 'platform@example.test'],
+    ['the platform-owner email', PLATFORM_OWNER_EMAIL],
+  ])('refuses to suspend %s before the platform-wide Auth ban', async (_label, email) => {
+    const query = userQuery([
+      { id: TARGET_ID, role: 'viewer', email, accountStatus: 'active', activeAdministratorCount: 1, platformIdentity: true },
+    ])
+    mocks.select.mockReturnValue({ from: query.from })
+    const updateUserById = vi.fn()
+    mocks.createSupabaseAdminClient.mockReturnValue({ auth: { admin: { updateUserById } } })
+    const form = new FormData()
+    form.set('user_id', TARGET_ID)
+    form.set('reason', 'Retain history during review')
+
+    await expect(suspendUser(form)).resolves.toEqual({
+      error: 'Platform administration credentials cannot be changed from a workspace.',
     })
     expect(updateUserById).not.toHaveBeenCalled()
     expect(mocks.update).not.toHaveBeenCalled()

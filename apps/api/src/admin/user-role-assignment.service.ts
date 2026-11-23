@@ -24,6 +24,7 @@ import {
 } from '@third-code-erp/shared-types'
 import { and, eq, sql } from 'drizzle-orm'
 import { roleHasCapability } from '../auth/capability.guard'
+import { PLATFORM_OWNER_EMAIL } from '../auth/platform-owner.guard'
 import type {
   ErpPrincipal,
   ErpRole,
@@ -201,6 +202,15 @@ export class UserRoleAssignmentService {
               and active_administrator.id <> ${users.id}
           )`,
           updatedAt: users.updated_at,
+          platformIdentity: sql<boolean>`(
+            exists (
+              select 1
+              from public.platform_role_assignments as platform_role
+              where platform_role.user_id = ${users.id}
+                and platform_role.revoked_at is null
+            )
+            or lower(btrim(${users.email})) = ${PLATFORM_OWNER_EMAIL}
+          )`,
         })
         .from(users)
         .where(
@@ -212,6 +222,11 @@ export class UserRoleAssignmentService {
         .limit(1)
         .for('update', { noWait: true })
       if (!target) throw new NotFoundException('User not found')
+      if (target.platformIdentity) {
+        throw new ForbiddenException(
+          'Platform administration roles cannot be changed from a workspace.'
+        )
+      }
 
       const previousRole = target.role as ErpRole
       if (

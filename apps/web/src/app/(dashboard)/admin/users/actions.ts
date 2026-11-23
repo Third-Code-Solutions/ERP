@@ -10,6 +10,7 @@ import {
   type AppRole,
 } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
+import { PLATFORM_OWNER_EMAIL } from '@third-code-erp/shared-types/platform-administration'
 import {
   platformUserInvitations,
   users as usersTable,
@@ -402,6 +403,20 @@ const resetPasswordSchema = z.object({
   password: z.string().min(12).max(128),
 })
 
+// Service-role Auth calls bypass every database guard, so a workspace admin
+// must never act on a platform administrator or the platform-owner account.
+const targetIsPlatformIdentity = sql<boolean>`(
+  exists (
+    select 1
+    from public.platform_role_assignments as platform_role
+    where platform_role.user_id = ${usersTable.id}
+      and platform_role.revoked_at is null
+  )
+  or lower(btrim(${usersTable.email})) = ${PLATFORM_OWNER_EMAIL}
+)`
+const PLATFORM_IDENTITY_MESSAGE =
+  'Platform administration credentials cannot be changed from a workspace.'
+
 export async function resetUserPassword(
   formData: FormData
 ): Promise<{ error?: string }> {
@@ -425,11 +440,17 @@ export async function resetUserPassword(
       .select({
         id: usersTable.id,
         role: usersTable.role,
+        // The service-role reset below bypasses every database guard, so a
+        // workspace admin must never reach the platform-owner credentials.
+        platformIdentity: targetIsPlatformIdentity,
       })
       .from(usersTable)
       .where(and(eq(usersTable.id, user_id), eq(usersTable.tenant_id, profile.tenantId)))
       .limit(1)
     if (!target) return { error: 'User not found in this workspace.' }
+    if (target.platformIdentity) {
+      return { error: PLATFORM_IDENTITY_MESSAGE }
+    }
     if (target.role === 'owner' && profile.role !== 'owner') {
       return { error: 'Only an owner can reset another owner password.' }
     }
@@ -547,6 +568,7 @@ export async function suspendUser(
             email: usersTable.email,
             role: usersTable.role,
             accountStatus: usersTable.account_status,
+            platformIdentity: targetIsPlatformIdentity,
             activeAdministratorCount: sql<number>`(
               select count(*)::int
               from public.users as active_administrator
@@ -561,6 +583,8 @@ export async function suspendUser(
           .limit(1)
           .for('update')
         if (!target) throw new Error(missingTargetMessage)
+        // Refuse before the Auth ban: it is platform-wide and its compensation is best effort.
+        if (target.platformIdentity) throw new Error(PLATFORM_IDENTITY_MESSAGE)
         if (target.role === 'owner' && profile.role !== 'owner') {
           throw new Error('Only an owner can suspend another owner.')
         }
@@ -611,6 +635,9 @@ export async function suspendUser(
         return { error: err.message }
       }
       if (err instanceof Error && err.message === missingTargetMessage) {
+        return { error: err.message }
+      }
+      if (err instanceof Error && err.message === PLATFORM_IDENTITY_MESSAGE) {
         return { error: err.message }
       }
       if (err instanceof Error && err.message === 'Only an owner can suspend another owner.') {
