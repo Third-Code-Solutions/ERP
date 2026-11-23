@@ -6,7 +6,9 @@
 // survey link.
 
 import { handleOptions, jsonResponse } from '../_shared/cors.ts'
+import { rejectUnlessCronCaller } from '../_shared/cron-auth.ts'
 import { pgInsert, pgSelect, sendEmail } from '../_shared/email.ts'
+import { escapeHtml } from '../_shared/html.ts'
 
 interface TicketRow {
   id: string
@@ -69,9 +71,9 @@ function buildSurveyEmail(args: {
     `ABI OPS Customer Experience`,
   ].join('\n')
   const html = `
-    <p>${greeting}</p>
-    <p>Thanks for letting us close out service ticket <strong>${args.ticketNumber}</strong>. We would love a quick rating on how the experience went — it takes under a minute.</p>
-    <p><a href="${args.surveyUrl}">Open the survey</a></p>
+    <p>${escapeHtml(greeting)}</p>
+    <p>Thanks for letting us close out service ticket <strong>${escapeHtml(args.ticketNumber)}</strong>. We would love a quick rating on how the experience went — it takes under a minute.</p>
+    <p><a href="${escapeHtml(args.surveyUrl)}">Open the survey</a></p>
     <p>Thank you,<br/>ABI OPS Customer Experience</p>
   `.trim()
   return { subject, html, text }
@@ -79,6 +81,8 @@ function buildSurveyEmail(args: {
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return handleOptions()
+  const refused = rejectUnlessCronCaller(req)
+  if (refused) return refused
 
   const summary: RunSummary = {
     processed: 0,

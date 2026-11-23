@@ -4,12 +4,14 @@
 // than 7 days and notifies PM + GM (admin) for that tenant.
 
 import { handleOptions, jsonResponse } from '../_shared/cors.ts'
+import { rejectUnlessCronCaller } from '../_shared/cron-auth.ts'
 import {
   fetchUsersByRoles,
   pgInsert,
   pgSelect,
   sendEmail,
 } from '../_shared/email.ts'
+import { escapeHtml } from '../_shared/html.ts'
 
 interface PermitRow {
   id: string
@@ -53,11 +55,11 @@ function buildBody(args: {
     `Action needed: follow up with the issuing agency or update the status if it moved.`,
   ].join('\n')
   const html = `
-    <p>A permit has been in status <strong>${args.status}</strong> for <strong>${args.daysStale} days</strong> without movement.</p>
+    <p>A permit has been in status <strong>${escapeHtml(args.status)}</strong> for <strong>${args.daysStale} days</strong> without movement.</p>
     <ul>
-      <li><strong>Project:</strong> ${args.projectName}</li>
-      <li><strong>Permit type:</strong> ${args.permitType}</li>
-      <li><strong>Status:</strong> ${args.status}</li>
+      <li><strong>Project:</strong> ${escapeHtml(args.projectName)}</li>
+      <li><strong>Permit type:</strong> ${escapeHtml(args.permitType)}</li>
+      <li><strong>Status:</strong> ${escapeHtml(args.status)}</li>
     </ul>
     <p>Action needed: follow up with the issuing agency or update the status if it moved.</p>
   `.trim()
@@ -66,6 +68,8 @@ function buildBody(args: {
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return handleOptions()
+  const refused = rejectUnlessCronCaller(req)
+  if (refused) return refused
 
   const summary: RunSummary = { processed: 0, notified: 0, errors: [] }
   const nowMs = Date.now()

@@ -9,6 +9,7 @@
 // All Postgres access happens via PostgREST + service-role key.
 
 import { handleOptions, jsonResponse } from "../_shared/cors.ts";
+import { rejectUnlessCronCaller } from "../_shared/cron-auth.ts";
 import {
   fetchUsersByRoles,
   pgInsert,
@@ -16,6 +17,7 @@ import {
   pgUpdate,
   sendEmail,
 } from "../_shared/email.ts";
+import { escapeHtml } from "../_shared/html.ts";
 import {
   businessDaysBetween,
   dateInPhilippines,
@@ -188,8 +190,8 @@ function buildEmailBody(args: {
   const html = `
     <p>An SLA timer is <strong>${verb}</strong>.</p>
     <ul>
-      <li><strong>Label:</strong> ${args.label}</li>
-      <li><strong>Entity:</strong> ${args.entityType} <code>${args.entityId}</code></li>
+      <li><strong>Label:</strong> ${escapeHtml(args.label)}</li>
+      <li><strong>Entity:</strong> ${escapeHtml(args.entityType)} <code>${escapeHtml(args.entityId)}</code></li>
       <li><strong>Elapsed:</strong> ${elapsed} ${args.unit} of ${total} ${args.unit} budget</li>
     </ul>
     <p>Open ABI OPS to review and resolve.</p>
@@ -304,6 +306,8 @@ async function processRow(
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return handleOptions();
+  const refused = rejectUnlessCronCaller(req);
+  if (refused) return refused;
 
   const summary: RunSummary = {
     processed: 0,
