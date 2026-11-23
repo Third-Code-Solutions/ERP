@@ -1,7 +1,7 @@
 import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { notFound, redirect } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import { and, desc, eq } from 'drizzle-orm'
 import { requireUserProfile, can } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
@@ -10,7 +10,7 @@ import {
   users,
   weeklyReports,
 } from '@third-code-erp/database/schema'
-import { generateThisWeekReport } from './actions'
+import { GenerateReportButton } from './generate-report-button'
 
 export const metadata: Metadata = { title: 'Weekly reports' }
 
@@ -106,34 +106,7 @@ export default async function ProjectReportsPage({ params }: PageProps) {
               open punchlist, schedule variance. Print-ready in one click.
             </p>
           </div>
-          {canGenerate && (
-            <form
-              action={async () => {
-                'use server'
-                const result = await generateThisWeekReport(id)
-                if (result.id) {
-                  redirect(`/weekly-report/${result.id}`)
-                }
-              }}
-            >
-              <button
-                type="submit"
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: '6px',
-                  fontSize: '0.875rem',
-                  fontWeight: 600,
-                  background: 'var(--color-navy-700, #1F3864)',
-                  color: 'white',
-                  border: 'none',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                Generate this week’s report
-              </button>
-            </form>
-          )}
+          {canGenerate && <GenerateReportButton projectId={id} />}
         </div>
       </div>
 

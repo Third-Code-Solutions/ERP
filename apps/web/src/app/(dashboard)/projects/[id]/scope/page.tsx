@@ -9,6 +9,7 @@ import { documents, projects, scopeItems } from '@third-code-erp/database/schema
 import { and, asc, eq } from 'drizzle-orm'
 import { AddScopeItemForm, DeleteScopeItemButton, EditableUnitCost } from '@/components/scope/scope-item-controls'
 import { CadDropZone } from '@/components/cad/cad-dropzone'
+import { canViewPath } from '@/lib/operations/nav-config'
 
 export const metadata: Metadata = { title: 'Scope' }
 
@@ -28,6 +29,8 @@ export default async function ProjectScopePage({ params }: { params: Promise<{ i
   const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
   const canManageScope = can(profile.role, 'project.update')
+  // The BOM route rejects roles outside its policy; do not offer a link that bounces them.
+  const canViewBom = canViewPath(profile.role, `/projects/${id}/bom`)
 
   const [project] = await db
     .select({ id: projects.id, name: projects.name })
@@ -167,22 +170,24 @@ export default async function ProjectScopePage({ params }: { params: Promise<{ i
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center' }}>
           {canManageScope ? <AddScopeItemForm projectId={id} /> : null}
-          <Link
-            href={`/projects/${id}/bom`}
-            style={{
-              display: 'inline-block',
-              padding: '8px 16px',
-              background: 'none',
-              border: '1px solid var(--color-border)',
-              color: 'var(--color-navy-text)',
-              borderRadius: '6px',
-              fontSize: '0.875rem',
-              fontWeight: 500,
-              textDecoration: 'none',
-            }}
-          >
-            View BOM →
-          </Link>
+          {canViewBom ? (
+            <Link
+              href={`/projects/${id}/bom`}
+              style={{
+                display: 'inline-block',
+                padding: '8px 16px',
+                background: 'none',
+                border: '1px solid var(--color-border)',
+                color: 'var(--color-navy-text)',
+                borderRadius: '6px',
+                fontSize: '0.875rem',
+                fontWeight: 500,
+                textDecoration: 'none',
+              }}
+            >
+              View BOM →
+            </Link>
+          ) : null}
         </div>
       </div>
 

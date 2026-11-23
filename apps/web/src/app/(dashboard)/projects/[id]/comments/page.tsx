@@ -1,8 +1,9 @@
 import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import type { Metadata } from 'next'
+import React from 'react'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getUser } from '@third-code-erp/auth'
+import { can, getUser } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { projectComments, projects, users } from '@third-code-erp/database/schema'
 import { and, desc, eq } from 'drizzle-orm'
@@ -27,10 +28,12 @@ export default async function ProjectCommentsPage({
   if (!user) return null
 
   const [userRow] = await db
-    .select({ tenant_id: users.tenant_id })
+    .select({ tenant_id: users.tenant_id, role: users.role })
     .from(users)
     .where(eq(users.id, user.id))
   if (!userRow?.tenant_id) return notFound()
+  // Same capability createComment enforces; other roles may read the thread only.
+  const canPost = can(userRow.role, 'project.update')
 
   const [project] = await db
     .select({ id: projects.id, name: projects.name })
@@ -139,7 +142,13 @@ export default async function ProjectCommentsPage({
 
       {/* Composer */}
       <div style={{ marginBottom: '20px' }}>
-        <CommentComposer projectId={id} />
+        {canPost ? (
+          <CommentComposer projectId={id} />
+        ) : (
+          <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--color-neutral-500)' }}>
+            You can read comments on this project. Your role cannot post new ones.
+          </p>
+        )}
       </div>
 
       {/* Thread */}

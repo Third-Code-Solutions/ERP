@@ -31,10 +31,10 @@ export async function updateChecklistItemStatus(
 ): Promise<{ error?: string }> {
   const profile = await requireUserProfile()
   if (!can(profile.role, 'precon.manage_checklist')) {
-    return { error: `Forbidden: role "${profile.role}" lacks "precon.manage_checklist"` }
+    return { error: 'You do not have permission to update checklist items.' }
   }
   if (!STATUSES.includes(status)) {
-    return { error: `Invalid status "${status}"` }
+    return { error: 'That status is not valid for a checklist item.' }
   }
   if (status === 'blocked' && !blockerReason?.trim()) {
     return { error: 'Blocker reason is required when moving to blocked.' }

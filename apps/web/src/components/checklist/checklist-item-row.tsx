@@ -1,10 +1,12 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import React, { useState, useTransition } from 'react'
 import { updateChecklistItemStatusForm } from '@/app/(dashboard)/projects/[id]/checklist/actions'
 
 export interface ChecklistItemRowProps {
   projectId: string
+  /** Mirrors the server capability; false renders the item read-only. */
+  canManage: boolean
   item: {
     id: string
     title: string
@@ -44,7 +46,7 @@ const NEXT_STATUSES: Record<
   done: ['in_progress'],
 }
 
-export function ChecklistItemRow({ projectId, item, dependencyTitle }: ChecklistItemRowProps) {
+export function ChecklistItemRow({ projectId, canManage, item, dependencyTitle }: ChecklistItemRowProps) {
   const [pending, startTransition] = useTransition()
   const [blockerInput, setBlockerInput] = useState('')
   const [showBlocker, setShowBlocker] = useState(false)
@@ -203,7 +205,7 @@ export function ChecklistItemRow({ projectId, item, dependencyTitle }: Checklist
         >
           {STATUS_LABEL[item.status]}
         </span>
-        {NEXT_STATUSES[item.status].map((next) => {
+        {(canManage ? NEXT_STATUSES[item.status] : []).map((next) => {
           if (next === 'blocked') {
             return (
               <button

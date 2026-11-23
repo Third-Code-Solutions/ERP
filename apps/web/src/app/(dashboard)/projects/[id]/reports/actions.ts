@@ -20,6 +20,8 @@ import {
   upcomingSundayEndOfDayManila,
 } from '@/lib/reports/generate-weekly-report'
 
+const FORBIDDEN_MESSAGE = 'You do not have permission to generate weekly reports.'
+
 export async function generateThisWeekReport(
   projectId: string
 ): Promise<{ error?: string; id?: string }> {
@@ -35,9 +37,7 @@ export async function generateThisWeekReport(
   }
 
   if (!can(profile.role, 'precon.manage_checklist')) {
-    return {
-      error: `Forbidden: role "${profile.role}" lacks "precon.manage_checklist"`,
-    }
+    return { error: FORBIDDEN_MESSAGE }
   }
 
   // Tenant scope the project before doing any heavy work.
@@ -62,9 +62,11 @@ export async function generateThisWeekReport(
     revalidatePath(`/projects/${projectId}/reports`)
     return { id }
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Failed to generate report'
     console.error('[weekly-report/actions] generate failed:', err)
-    return { error: message }
+    return {
+      error:
+        'The weekly report could not be generated. Try again, and contact support if it keeps failing.',
+    }
   }
 }
 
@@ -83,9 +85,7 @@ export async function regenerateWeeklyReport(
   }
 
   if (!can(profile.role, 'precon.manage_checklist')) {
-    return {
-      error: `Forbidden: role "${profile.role}" lacks "precon.manage_checklist"`,
-    }
+    return { error: FORBIDDEN_MESSAGE }
   }
 
   const [existing] = await db
