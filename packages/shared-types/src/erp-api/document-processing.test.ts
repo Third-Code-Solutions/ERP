@@ -163,5 +163,19 @@ describe('document processing contracts', () => {
         tenant_id: DOCUMENT_ID,
       })
     ).toThrow()
+
+    const withQuantity = (quantity: number) => ({
+      ...response,
+      items: [{ ...response.items[0], quantity }],
+    })
+    expect(
+      documentProcessingWorkerResponseSchema.parse(withQuantity(12.3457))
+        .items[0]?.quantity
+    ).toBe(12.3457)
+    for (const quantity of [12.34567, 0, -1, Number.NaN]) {
+      expect(() =>
+        documentProcessingWorkerResponseSchema.parse(withQuantity(quantity))
+      ).toThrow()
+    }
   })
 })

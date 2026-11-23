@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { documents, projects, scopeItems } from '@third-code-erp/database/schema'
+import { formatBoqQuantity } from '@third-code-erp/shared-types/bom'
 import { and, asc, eq } from 'drizzle-orm'
 import { AddScopeItemForm, DeleteScopeItemButton, EditableUnitCost } from '@/components/scope/scope-item-controls'
 import { CadDropZone } from '@/components/cad/cad-dropzone'
@@ -330,7 +331,7 @@ export default async function ProjectScopePage({ params }: { params: Promise<{ i
                             {item.description}
                           </td>
                           <td style={{ padding: '10px 16px', textAlign: 'right', color: 'var(--color-neutral-900)', fontFamily: 'JetBrains Mono, monospace' }}>
-                            {item.quantity.toLocaleString()}
+                            {formatBoqQuantity(item.quantity_decimal)}
                           </td>
                           <td style={{ padding: '10px 16px', color: 'var(--color-neutral-500)' }}>
                             {UNIT_LABELS[item.unit] ?? item.unit}

@@ -104,7 +104,7 @@ def test_parse_returns_bounded_evidence_without_database_write(
     assert "count" not in payload
 
 
-def test_parse_rejects_fractional_evidence_without_rounding(
+def test_parse_emits_fractional_evidence_at_four_places(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     source = b"source"
@@ -126,7 +126,7 @@ def test_parse_rejects_fractional_evidence_without_rounding(
                     code=None,
                     description="Fractional floor area",
                     unit="sqm",
-                    quantity=1.5,
+                    quantity=1.23456,
                     unit_cost_cents=0,
                     notes=None,
                 )
@@ -141,8 +141,8 @@ def test_parse_rejects_fractional_evidence_without_rounding(
         json=request_body(source_hash, source_format="dxf"),
     )
 
-    assert response.status_code == 422
-    assert response.json() == {"detail": "CAD extraction failed"}
+    assert response.status_code == 200
+    assert response.json()["items"][0]["quantity"] == 1.2346
 
 
 def test_parse_rejects_non_ascii_bearer_token_without_server_error(

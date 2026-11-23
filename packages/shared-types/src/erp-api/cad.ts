@@ -1,14 +1,28 @@
 import { z } from 'zod'
+import { manualLineTotal } from '../bom/calculations'
+import {
+  boqQuantityFromNumber,
+  MAX_BOM_LINE_ITEM_QUANTITY,
+} from '../bom/quantity'
 
 export const CAD_SCOPE_BATCH_SIZE = 200
 export const CAD_MAX_SCOPE_ITEMS = 5_000
+
+// D-5: numeric(18,4). Producers round measured values half-up to 4 dp; a
+// finer value is rejected here, never rounded again.
+export const cadQuantitySchema = z
+  .number()
+  .nonnegative()
+  .refine((quantity) => boqQuantityFromNumber(quantity) !== null, {
+    message: `quantity must have at most 4 decimal places and not exceed ${MAX_BOM_LINE_ITEM_QUANTITY}`,
+  })
 
 export const cadWorkerScopeItemSchema = z
   .object({
     code: z.string().max(50).nullable(),
     description: z.string().trim().min(1).max(4_000),
     unit: z.string().trim().min(1).max(20),
-    quantity: z.number().int().nonnegative().max(2_147_483_647),
+    quantity: cadQuantitySchema,
     unit_cost_cents: z.number().int().nonnegative().max(9_000_000_000),
     notes: z.string().max(2_000).nullable(),
   })
@@ -54,8 +68,6 @@ export type CadEvidenceCommitResult = z.infer<
   typeof cadEvidenceCommitResultSchema
 >
 
-const MAX_SAFE_INTEGER_BIGINT = BigInt(Number.MAX_SAFE_INTEGER)
-
 export function parseCadWorkerResponse(
   payload: unknown,
   expectedDocumentId: string
@@ -70,14 +82,25 @@ export function parseCadWorkerResponse(
   return parsed
 }
 
+/** Exact decimal string for `scope_items.quantity_decimal`. */
+export function cadScopeQuantity(item: CadWorkerScopeItem): string {
+  const quantity = boqQuantityFromNumber(item.quantity)
+  if (quantity === null) {
+    throw new Error('CAD parser returned a quantity outside supported precision')
+  }
+  return quantity
+}
+
 export function cadScopeLineTotalCents(
   item: CadWorkerScopeItem
 ): number {
-  const total = BigInt(item.unit_cost_cents) * BigInt(item.quantity)
-  if (total > MAX_SAFE_INTEGER_BIGINT) {
+  const quantity = cadScopeQuantity(item)
+  try {
+    return manualLineTotal(item.unit_cost_cents, quantity)
+  } catch (error) {
+    if (!(error instanceof RangeError)) throw error
     throw new Error(
       'CAD parser returned a scope line value outside supported range'
     )
   }
-  return Number(total)
 }

@@ -13,7 +13,7 @@ import pytest
 import ezdxf
 
 from src.config import settings
-from src.main import app
+from src.main import _normalized_evidence_payload, app
 from src.models import ScopeItem
 
 
@@ -170,7 +170,7 @@ async def test_private_endpoint_rejects_an_expired_signature() -> None:
 
 
 @pytest.mark.asyncio
-async def test_private_endpoint_rejects_fractional_evidence_before_persistence(
+async def test_private_endpoint_emits_fractional_evidence_at_four_places(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     secret = "s" * 20
@@ -185,7 +185,7 @@ async def test_private_endpoint_rejects_fractional_evidence_before_persistence(
                 code=None,
                 description="Fractional area",
                 unit="sqm",
-                quantity=1.5,
+                quantity=12.3456789,
                 unit_cost_cents=0,
                 notes=None,
             )
@@ -213,4 +213,61 @@ async def test_private_endpoint_rejects_fractional_evidence_before_persistence(
             },
         )
 
-    assert response.status_code == 422
+    assert response.status_code == 200
+    assert response.json()["items"][0]["quantity"] == 12.3457
+
+
+def scope_item(quantity: float) -> ScopeItem:
+    return ScopeItem(
+        code=None,
+        description="Floor area",
+        unit="sqm",
+        quantity=quantity,
+        unit_cost_cents=0,
+        notes=None,
+    )
+
+
+def test_evidence_quantity_rounds_half_up_to_four_places() -> None:
+    assert _normalized_evidence_payload(scope_item(12.3456789), 0)["quantity"] == 12.3457
+    # 2.00005 is stored as 2.0000499..., so round() gives 2.0; the drawing's
+    # decimal value rounds half-up.
+    assert _normalized_evidence_payload(scope_item(2.00005), 0)["quantity"] == 2.0001
+    whole = _normalized_evidence_payload(scope_item(3), 0)["quantity"]
+    assert whole == 3 and isinstance(whole, int)
+
+
+def test_fractional_polygon_area_becomes_four_place_evidence() -> None:
+    import io
+
+    from src.parsers.ezdxf_extractor import Extractor
+
+    document = ezdxf.new("R2010")
+    document.modelspace().add_lwpolyline(
+        [(0, 0), (12.3456789, 0), (12.3456789, 1), (0, 1)],
+        close=True,
+        dxfattribs={"layer": "ARCH-ROOM"},
+    )
+    stream = io.StringIO()
+    document.write(stream)
+    extracted = Extractor().extract(stream.getvalue().encode("utf-8"))
+    areas = [item for item in extracted if item.unit == "sqm"]
+
+    assert len(areas) == 1
+    assert _normalized_evidence_payload(areas[0], 0)["quantity"] == 12.3457
+
+
+def test_evidence_item_key_depends_only_on_the_rounded_quantity() -> None:
+    first = _normalized_evidence_payload(scope_item(12.3456789), 0)
+    same = _normalized_evidence_payload(scope_item(12.34571), 0)
+    other = _normalized_evidence_payload(scope_item(12.3458), 0)
+
+    assert first["item_key"] == same["item_key"]
+    assert first["item_key"] != other["item_key"]
+    assert _normalized_evidence_payload(scope_item(12.3456789), 0) == first
+
+
+@pytest.mark.parametrize("quantity", [float("nan"), float("inf"), -1.0])
+def test_evidence_quantity_rejects_non_finite_and_negative(quantity: float) -> None:
+    with pytest.raises(ValueError):
+        _normalized_evidence_payload(scope_item(quantity), 0)

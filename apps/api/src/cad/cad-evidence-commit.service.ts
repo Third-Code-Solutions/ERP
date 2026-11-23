@@ -23,6 +23,7 @@ import {
   cadEvidenceCommitCommandSchema,
   cadEvidenceCommitResultSchema,
   cadScopeLineTotalCents,
+  cadScopeQuantity,
   parseCadWorkerResponse,
   type CadEvidenceCommitCommand,
   type CadEvidenceCommitResult,
@@ -285,7 +286,9 @@ export class CadEvidenceCommitService {
           code: item.code,
           description: item.description,
           unit: item.unit,
-          quantity: item.quantity,
+          // Exact numeric(18,4); scope_items_sync_quantity mirrors the
+          // legacy integer `quantity` as round(quantity_decimal).
+          quantity_decimal: cadScopeQuantity(item),
           unit_cost_cents: item.unit_cost_cents,
           line_total_cents: lineTotalCents,
           sort_order: index,

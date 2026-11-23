@@ -13,6 +13,7 @@ import logging
 import math
 import sys
 import time
+from decimal import ROUND_HALF_UP, Decimal
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from pydantic import ValidationError
@@ -41,6 +42,7 @@ logger = logging.getLogger("cad-parser")
 app = FastAPI(title="ABI OPS CAD Parser", version="0.3.0")
 
 PRIVATE_EVIDENCE_MAX_BODY_BYTES = 64 * 1024
+QUANTITY_STEP = Decimal("0.0001")
 
 
 def _check_auth(authorization: str | None) -> None:
@@ -119,12 +121,13 @@ def _normalized_evidence_payload(item: ScopeItem, index: int) -> dict[str, objec
         isinstance(raw_quantity, bool)
         or not isinstance(raw_quantity, (int, float))
         or not math.isfinite(raw_quantity)
-        or not float(raw_quantity).is_integer()
+        or raw_quantity < 0
     ):
-        raise ValueError(
-            "Fractional CAD quantities require decimal BOM precision before they can be emitted"
-        )
-    quantity = int(raw_quantity)
+        raise ValueError("CAD quantities must be finite and non-negative")
+    # BOQ quantities are numeric(18,4): round the drawing's decimal value
+    # half-up to 4 dp. Whole values stay ints so their item_key is unchanged.
+    rounded = Decimal(str(raw_quantity)).quantize(QUANTITY_STEP, ROUND_HALF_UP)
+    quantity = int(rounded) if rounded == rounded.to_integral_value() else float(rounded)
     raw_unit_cost = raw.get("unit_cost_cents", 0)
     if (
         isinstance(raw_unit_cost, bool)

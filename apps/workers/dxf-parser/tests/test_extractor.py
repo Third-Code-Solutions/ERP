@@ -110,8 +110,8 @@ class TestPolylineAreas:
     def test_fractional_area_is_preserved_without_rounding(self):
         doc = ezdxf.new("R2010")
         msp = doc.modelspace()
-        # 1.5m × 1m rectangle = 1.5 sqm. The current BOM schema cannot
-        # persist it yet, but the extractor must not falsify source evidence.
+        # 1.5m × 1m rectangle = 1.5 sqm. The extractor keeps the measured
+        # value; the evidence boundary in main.py rounds it to 4 dp.
         pts = [(0, 0), (1.5, 0), (1.5, 1), (0, 1)]
         msp.add_lwpolyline(pts, close=True, dxfattribs={"layer": "ARCH-ROOM"})
         extractor = Extractor()
