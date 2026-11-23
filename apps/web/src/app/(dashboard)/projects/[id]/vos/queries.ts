@@ -17,6 +17,28 @@ export async function loadVo(voId: string, tenantId: string) {
   return vo ?? null
 }
 
+// Drafts are not yet raised and rejected VOs never took effect, so neither
+// belongs in the cumulative change to the contract.
+const EXCLUDED_FROM_CUMULATIVE: ReadonlySet<string> = new Set(['draft', 'rejected'])
+
+export function cumulativeVoImpact(
+  rows: ReadonlyArray<{
+    status: string
+    cost_impact_cents: number
+    time_impact_days: number
+  }>,
+): { cost_impact_cents: number; time_impact_days: number } {
+  return rows
+    .filter((r) => !EXCLUDED_FROM_CUMULATIVE.has(r.status))
+    .reduce(
+      (acc, r) => ({
+        cost_impact_cents: acc.cost_impact_cents + r.cost_impact_cents,
+        time_impact_days: acc.time_impact_days + r.time_impact_days,
+      }),
+      { cost_impact_cents: 0, time_impact_days: 0 },
+    )
+}
+
 /** Loader used by the list page. Returns cumulative totals. */
 export async function listProjectVos(projectId: string, tenantId: string) {
   const rows = await db
@@ -30,15 +52,7 @@ export async function listProjectVos(projectId: string, tenantId: string) {
     )
     .orderBy(asc(variationOrders.vo_number))
 
-  const totals = rows.reduce(
-    (acc, r) => ({
-      cost_impact_cents: acc.cost_impact_cents + r.cost_impact_cents,
-      time_impact_days: acc.time_impact_days + r.time_impact_days,
-    }),
-    { cost_impact_cents: 0, time_impact_days: 0 },
-  )
-
-  return { rows, totals }
+  return { rows, totals: cumulativeVoImpact(rows) }
 }
 
 export async function getVoById(voId: string, tenantId: string) {
