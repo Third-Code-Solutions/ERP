@@ -122,12 +122,13 @@ export function StageAdvanceButton({
     reasonRequired = false,
   ) {
     setError(null)
+    const attemptId = crypto.randomUUID()
     startTransition(() =>
       transitionSubmitterRef
         .current!.submit(
           {
             execute: (normalizedReason) =>
-              advanceOpportunityStage(opportunityId, stage, normalizedReason),
+              advanceOpportunityStage(opportunityId, stage, normalizedReason, attemptId),
             reason,
             reasonRequired,
           },

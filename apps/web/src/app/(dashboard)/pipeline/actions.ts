@@ -26,6 +26,9 @@ const CORE_WON_STAGES: ReadonlySet<OpportunityStage> = new Set<OpportunityStage>
   'closed_won',
 ])
 
+const ATTEMPT_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 // ── Create opportunity ────────────────────────────────────────────────────────
 
 export async function createOpportunity(formData: FormData): Promise<{ error?: string }> {
@@ -128,6 +131,11 @@ export async function createOpportunityForAccount(formData: FormData): Promise<{
     return { error: `Invalid stage: ${stageRaw}` }
   }
   const stage = stageRaw as PipelineStage
+  // A deal inserted straight into Won never gets its project or checklist, and
+  // cannot be converted afterwards; Won is reached by advancing a deal.
+  if (stage === 'won') {
+    return { error: 'Create the deal at an earlier stage and advance it to Won so its project is created.' }
+  }
 
   // KYC gate: only `lead` is permitted unless KYC is approved or not_required.
   const kycOk = account.kyc_status === 'approved' || account.kyc_status === 'not_required'
@@ -210,7 +218,12 @@ export async function createOpportunityForAccount(formData: FormData): Promise<{
  * Advance an opportunity to the next stage.
  *
  * Signature:
- *   advanceOpportunityStage(opportunityId: string, nextStage: string, reason?: string)
+ *   advanceOpportunityStage(opportunityId: string, nextStage: string, reason?: string, attemptId?: string)
+ *
+ * `attemptId` is one id per user gesture. Core replays a finished command that
+ * reuses its idempotency key, so without it a deal sent back (Negotiation to
+ * BOM Submission) could never repeat that move: the second request would be
+ * answered with the first one's stored result and the card would not move.
  *
  * `reason` is forwarded to the Core transaction. Core requires it for Lost and
  * regression transitions and records it with the atomic audit evidence.
@@ -222,7 +235,8 @@ export async function createOpportunityForAccount(formData: FormData): Promise<{
 export async function advanceOpportunityStage(
   opportunityId: string,
   nextStage: string,
-  reason?: string
+  reason?: string,
+  attemptId?: string
 ): Promise<{ error?: string; projectId?: string }> {
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
@@ -262,7 +276,8 @@ export async function advanceOpportunityStage(
       stageTransitionIdempotencyKey(
         opportunityId,
         nextStageTyped,
-        trimmedReason
+        trimmedReason,
+        attemptId
       )
     )
   } catch {
@@ -335,14 +350,21 @@ export async function advanceOpportunityStage(
 function stageTransitionIdempotencyKey(
   opportunityId: string,
   nextStage: OpportunityStage,
-  reason?: string
+  reason?: string,
+  attemptId?: string
 ): string {
+  const validAttemptId =
+    typeof attemptId === 'string' && ATTEMPT_ID_PATTERN.test(attemptId)
+      ? attemptId
+      : null
   const commandDigest = createHash('sha256')
     .update(
       JSON.stringify({
         opportunityId,
         nextStage,
         reason: reason ?? null,
+        // Absent keeps the original key, so an old client's retries still collapse.
+        ...(validAttemptId ? { attemptId: validAttemptId } : {}),
       }),
       'utf8'
     )
