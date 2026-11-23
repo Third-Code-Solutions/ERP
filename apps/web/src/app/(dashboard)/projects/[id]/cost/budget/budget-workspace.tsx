@@ -204,12 +204,31 @@ function draftIdentity(draft: BudgetDraft | null): string | null {
   return draft ? `${draft.id}:${draft.revision}` : null
 }
 
+// The save action stores whole centavos and trimmed text, so "1500" and
+// "1500.00" are the same saved amount. Compare what the server stores, not the
+// text as typed, or a saved draft keeps looking unsaved until a reload.
+function sameAmount(left: string, right: string): boolean {
+  const leftCents = parsePesosToCents(left)
+  const rightCents = parsePesosToCents(right)
+  return leftCents !== undefined && rightCents !== undefined
+    ? leftCents === rightCents
+    : left === right
+}
+
+function sameTolerance(left: string, right: string): boolean {
+  const leftValue = Number(left)
+  const rightValue = Number(right)
+  return Number.isFinite(leftValue) && Number.isFinite(rightValue)
+    ? leftValue === rightValue
+    : left === right
+}
+
 function editorLineValuesEqual(left: EditorLine, right: EditorLine): boolean {
   return (
     left.costCodeId === right.costCodeId &&
     left.bomLineItemId === right.bomLineItemId &&
-    left.description === right.description &&
-    left.amountPhp === right.amountPhp
+    left.description.trim() === right.description.trim() &&
+    sameAmount(left.amountPhp, right.amountPhp)
   )
 }
 
@@ -322,7 +341,7 @@ function mergeDraftSettings(
   }
 }
 
-function hasUnsavedDraftEdits(
+export function hasUnsavedDraftEdits(
   draft: BudgetDraft,
   lines: EditorLine[],
   selectedSourceBomId: string,
@@ -331,10 +350,10 @@ function hasUnsavedDraftEdits(
   if (selectedSourceBomId !== (draft.sourceBomId ?? '')) return true
   if (
     settings.controlMode !== draft.controlMode ||
-    settings.toleranceBps !== String(draft.toleranceBps) ||
-    settings.currency !== draft.currency ||
+    !sameTolerance(settings.toleranceBps, String(draft.toleranceBps)) ||
+    settings.currency.trim().toUpperCase() !== draft.currency ||
     settings.effectiveFrom !== draft.effectiveFrom ||
-    settings.reason !== draft.reason
+    settings.reason.trim() !== draft.reason
   ) {
     return true
   }
