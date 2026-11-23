@@ -239,3 +239,54 @@ a last resort and an owner decision.
     and add a required reviewer.
 - What gates a merge today: the merge rule in section 1 and the agent deny list
   in `.claude/settings.json`.
+
+## 6. Enable a trial tenant
+
+Per-tenant Core switches live in environment variables on two hosts: the API
+(Railway) and the web app (Vercel). The list of what a trial tenant needs, and
+what each missing switch looks like to a user, is `docs/erp/trial-flags.json`.
+Do the steps in this order. Never paste a variable value that is not a tenant
+UUID into a ticket or chat.
+
+1. **Create the tenant.** Platform admin → Tenants → Create tenant, then enter
+   the audited support context for it. Invite the first admin (Platform admin →
+   Users → invite) and have them accept.
+2. **Seed the finance and inventory basics.** Dry run first, then write:
+
+   ```
+   DATABASE_URL=... node scripts/bootstrap-trial-tenant.mjs --tenant-id <uuid>
+   DATABASE_URL=... node scripts/bootstrap-trial-tenant.mjs --tenant-id <uuid> --apply
+   ```
+3. **API variables first (Railway).** For each API variable the checker lists
+   (step 5), set `*_ENABLED=true` and append the tenant UUID to the comma list.
+   Railway redeploys the service by itself. One malformed UUID in a list stops
+   the API booting, so copy the value the checker prints and watch `/health` and
+   `/ready` after the redeploy. If a health check fails, revert the variable
+   first.
+4. **Web variables second (Vercel).** Same change for the web variables. Vercel
+   snapshots variables per deployment, so redeploy production afterwards
+   (section 1, step 7). Doing the API first means the web never routes to a gate
+   that is still closed.
+5. **Check, with files kept outside the repo:**
+
+   ```
+   vercel env pull ../web.env --environment production
+   railway variables --kv > ../api.env
+   pnpm check:trial-flags --tenant <uuid> [<uuid> ...] --web-env ../web.env --api-env ../api.env
+   rm ../web.env ../api.env
+   ```
+
+   Run it before step 3 to get the exact values to set, and again after step 4.
+   It prints OK or MISSING per tenant per feature, the value to set for each
+   missing variable, and the names (never the values) of shared variables that
+   are absent. Exit code 1 means not ready. Add `--include-optional` for a
+   tenant that uses drawings.
+6. **Rehearse** as the tenant's own users, in this order: move a lead to Won
+   (the project is created), create a project, record a cost entry, create a
+   customer invoice draft from the project, change a user's role. Each is a
+   write that stops with a plain "not enabled for this tenant" message while its
+   switch is closed.
+7. **Smoke:** `gh workflow run smoke-prod.yml --ref main` (section 1, step 6).
+
+Rollback: remove the tenant UUID from the lists. That stops those writes for the
+tenant and changes no data.

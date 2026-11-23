@@ -1,0 +1,374 @@
+{
+  "_comment": "Per-tenant Core switches a trial tenant needs. Read by scripts/check-trial-flags.mjs and guarded by scripts/lib/trial-flags.test.mjs. features = switches to turn on; presence = variables that must exist (value never printed); leaveOff = every other *_TENANT_IDS variable, deliberately left closed for trial tenants (the web falls back to its direct path). A new *_TENANT_IDS variable in the code fails the contract test until it is placed here or in a feature.",
+  "features": [
+    {
+      "id": "project-create",
+      "label": "Create a project",
+      "required": true,
+      "api": [
+        {
+          "enabled": "ERP_PROJECT_CREATE_WRITES_ENABLED",
+          "tenantIds": "ERP_PROJECT_CREATE_WRITES_TENANT_IDS"
+        }
+      ],
+      "web": [],
+      "symptom": "Core replies \"Project creation is not enabled for this tenant; no Project was created.\""
+    },
+    {
+      "id": "project-retire",
+      "label": "Retire (delete) a project",
+      "required": true,
+      "api": [
+        {
+          "enabled": "ERP_PROJECT_DELETE_WRITES_ENABLED",
+          "tenantIds": "ERP_PROJECT_DELETE_WRITES_TENANT_IDS"
+        }
+      ],
+      "web": [],
+      "symptom": "Core replies \"Project deletion is not enabled for this tenant; no project was retired.\""
+    },
+    {
+      "id": "cost-entry-create",
+      "label": "Record a project cost entry",
+      "required": true,
+      "api": [
+        {
+          "enabled": "ERP_COST_ENTRY_CREATE_WRITES_ENABLED",
+          "tenantIds": "ERP_COST_ENTRY_CREATE_WRITES_TENANT_IDS"
+        }
+      ],
+      "web": [],
+      "symptom": "Core replies \"Cost entry creation is not enabled for this tenant; no cost entry was created.\""
+    },
+    {
+      "id": "cost-entry-void",
+      "label": "Void a project cost entry",
+      "required": true,
+      "api": [
+        {
+          "enabled": "ERP_COST_ENTRY_DELETE_WRITES_ENABLED",
+          "tenantIds": "ERP_COST_ENTRY_DELETE_WRITES_TENANT_IDS"
+        }
+      ],
+      "web": [],
+      "symptom": "Core replies \"Cost entry deletion is not enabled for this tenant; no cost entry was changed.\""
+    },
+    {
+      "id": "cost-entry-restore",
+      "label": "Restore a voided cost entry",
+      "required": true,
+      "api": [
+        {
+          "enabled": "ERP_COST_ENTRY_RESTORE_WRITES_ENABLED",
+          "tenantIds": "ERP_COST_ENTRY_RESTORE_WRITES_TENANT_IDS"
+        }
+      ],
+      "web": [],
+      "symptom": "Core replies \"Cost entry restoration is not enabled for this tenant; no cost entry was changed.\" No screen restores an entry yet; the flag is set so a later release needs no variable change."
+    },
+    {
+      "id": "customer-invoice-draft",
+      "label": "Create a customer invoice draft from a project",
+      "required": true,
+      "api": [
+        {
+          "enabled": "ERP_FINANCE_CUSTOMER_INVOICE_DRAFT_CREATE_WRITES_ENABLED",
+          "tenantIds": "ERP_FINANCE_CUSTOMER_INVOICE_DRAFT_CREATE_WRITES_TENANT_IDS"
+        }
+      ],
+      "web": [],
+      "symptom": "Core replies \"Customer invoice draft creation is not enabled for this tenant; no invoice was created.\""
+    },
+    {
+      "id": "opportunity-stage",
+      "label": "Create an opportunity and move it between pipeline stages",
+      "required": true,
+      "api": [
+        {
+          "enabled": "ERP_OPPORTUNITY_STAGE_WRITES_ENABLED",
+          "tenantIds": "ERP_OPPORTUNITY_STAGE_WRITES_TENANT_IDS"
+        }
+      ],
+      "web": [
+        {
+          "enabled": "ERP_OPPORTUNITY_STAGE_WRITES_VIA_API",
+          "tenantIds": "ERP_OPPORTUNITY_STAGE_WRITES_VIA_API_TENANT_IDS",
+          "wildcard": true
+        }
+      ],
+      "symptom": "Pipeline move fails with \"Opportunity stage transition is not enabled for this tenant.\" (web) or Core replies \"Opportunity stage transitions are not enabled for this tenant; no stage change was committed.\""
+    },
+    {
+      "id": "opportunity-convert",
+      "label": "Won opportunity creates its project",
+      "required": true,
+      "api": [
+        {
+          "enabled": "ERP_OPPORTUNITY_CONVERT_WRITES_ENABLED",
+          "tenantIds": "ERP_OPPORTUNITY_CONVERT_WRITES_TENANT_IDS"
+        }
+      ],
+      "web": [],
+      "symptom": "Moving a deal to Won fails; Core replies \"Won-to-Project handoff is not enabled for this tenant; no Project was created.\""
+    },
+    {
+      "id": "admin-role-change",
+      "label": "Change a user role",
+      "required": true,
+      "api": [
+        {
+          "enabled": "ERP_ADMIN_USER_ROLE_ASSIGNMENT_WRITES_ENABLED",
+          "tenantIds": "ERP_ADMIN_USER_ROLE_ASSIGNMENT_WRITES_TENANT_IDS"
+        }
+      ],
+      "web": [
+        {
+          "enabled": "ERP_ADMIN_USER_ROLE_ASSIGNMENT_WRITES_VIA_API",
+          "tenantIds": "ERP_ADMIN_USER_ROLE_ASSIGNMENT_WRITES_VIA_API_TENANT_IDS",
+          "wildcard": true
+        }
+      ],
+      "symptom": "Admin > Users shows \"Core role changes are not enabled for this workspace. No role change was submitted.\" (web) or Core replies \"User role assignment is not enabled for this tenant; no role was changed.\""
+    },
+    {
+      "id": "cad-evidence-commit",
+      "label": "Commit CAD drawing evidence as scope items (only if the tenant uses drawings)",
+      "required": false,
+      "api": [
+        {
+          "enabled": "ERP_CAD_EVIDENCE_COMMIT_WRITES_ENABLED",
+          "tenantIds": "ERP_CAD_EVIDENCE_COMMIT_WRITES_TENANT_IDS"
+        }
+      ],
+      "web": [],
+      "symptom": "Drawing upload completes but Core replies \"CAD evidence commit is not enabled for this tenant; no scope items were created.\""
+    }
+  ],
+  "presence": [
+    {
+      "id": "core-api-url",
+      "label": "Web knows where the Core API is",
+      "host": "web",
+      "required": true,
+      "variables": [
+        "ERP_CORE_API_URL"
+      ],
+      "symptom": "Every Core-backed action fails with \"ERP Core API is not configured.\""
+    },
+    {
+      "id": "web-mail",
+      "label": "Web can send email (invites, notices)",
+      "host": "web",
+      "required": true,
+      "variables": [
+        "RESEND_API_KEY",
+        "EMAIL_FROM"
+      ],
+      "symptom": "Settings > Integrations reports \"Email delivery is unavailable until a sender and API key are configured.\""
+    },
+    {
+      "id": "web-inngest",
+      "label": "Web can schedule background workflows",
+      "host": "web",
+      "required": true,
+      "variables": [
+        "INNGEST_EVENT_KEY",
+        "INNGEST_SIGNING_KEY"
+      ],
+      "symptom": "Settings > Integrations reports \"Background workflows require configuration and an app sync.\""
+    },
+    {
+      "id": "api-mail",
+      "label": "Core API can send email",
+      "host": "api",
+      "required": false,
+      "variables": [
+        "RESEND_API_KEY",
+        "EMAIL_FROM"
+      ],
+      "symptom": "Core-sent notifications are not delivered by email."
+    }
+  ],
+  "leaveOff": {
+    "api": [
+      "ERP_ASSET_MAINTENANCE_CREATE_WRITES_TENANT_IDS",
+      "ERP_ASSET_MAINTENANCE_READS_TENANT_IDS",
+      "ERP_ASSET_READS_TENANT_IDS",
+      "ERP_BOM_TOGAL_COMMIT_WRITES_TENANT_IDS",
+      "ERP_CHANGE_REQUEST_WRITES_TENANT_IDS",
+      "ERP_CORTEX_ASSISTANT_GENERATION_JOBS_TENANT_IDS",
+      "ERP_CORTEX_ASSISTANT_GENERATION_RECOVERY_TENANT_IDS",
+      "ERP_CORTEX_ASSISTANT_GENERATION_WORKER_TENANT_IDS",
+      "ERP_CORTEX_ASSISTANT_PROVIDER_BUDGET_TENANT_IDS",
+      "ERP_CORTEX_ASSISTANT_PROVIDER_CIRCUIT_ALERT_JOBS_TENANT_IDS",
+      "ERP_CORTEX_ASSISTANT_PROVIDER_CIRCUIT_ALERT_RECOVERY_TENANT_IDS",
+      "ERP_CORTEX_ASSISTANT_PROVIDER_CIRCUIT_ALERT_ROUTING_TENANT_IDS",
+      "ERP_CORTEX_ASSISTANT_PROVIDER_CIRCUIT_ALERT_WORKER_TENANT_IDS",
+      "ERP_CORTEX_ASSISTANT_PROVIDER_EXECUTION_TENANT_IDS",
+      "ERP_CORTEX_BRIEF_READS_TENANT_IDS",
+      "ERP_CORTEX_CHAT_RETRIEVAL_READS_TENANT_IDS",
+      "ERP_CORTEX_CONVERSATION_ASSISTANT_TURN_WRITES_TENANT_IDS",
+      "ERP_CORTEX_CONVERSATION_CONTEXT_READS_TENANT_IDS",
+      "ERP_CORTEX_CONVERSATION_READS_TENANT_IDS",
+      "ERP_CORTEX_CONVERSATION_USER_TURN_WRITES_TENANT_IDS",
+      "ERP_CORTEX_ENTITY_READS_TENANT_IDS",
+      "ERP_CORTEX_GRAPH_READS_TENANT_IDS",
+      "ERP_CORTEX_SEARCH_TENANT_IDS",
+      "ERP_CORTEX_SEMANTIC_INDEX_JOBS_TENANT_IDS",
+      "ERP_CORTEX_SEMANTIC_INDEX_RECOVERY_TENANT_IDS",
+      "ERP_CORTEX_SEMANTIC_INDEX_WORKER_TENANT_IDS",
+      "ERP_DELIVERY_CANCEL_WRITES_TENANT_IDS",
+      "ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_TENANT_IDS",
+      "ERP_DELIVERY_INSPECTION_START_WRITES_TENANT_IDS",
+      "ERP_DELIVERY_MARK_IN_TRANSIT_WRITES_TENANT_IDS",
+      "ERP_DELIVERY_RECEIPT_WRITES_TENANT_IDS",
+      "ERP_DELIVERY_SCHEDULE_CREATE_WRITES_TENANT_IDS",
+      "ERP_DELIVERY_SITE_PREPARATION_COMPLETE_WRITES_TENANT_IDS",
+      "ERP_DELIVERY_SITE_PREPARATION_START_WRITES_TENANT_IDS",
+      "ERP_DOCUMENT_DELETE_WRITES_TENANT_IDS",
+      "ERP_DOCUMENT_PROCESSING_DRAFT_BOM_TENANT_IDS",
+      "ERP_DOCUMENT_PROCESSING_JOBS_TENANT_IDS",
+      "ERP_DOCUMENT_PROCESSING_RECOVERY_TENANT_IDS",
+      "ERP_FINANCE_CASH_DRAFT_WRITES_TENANT_IDS",
+      "ERP_FINANCE_CASH_READS_TENANT_IDS",
+      "ERP_FINANCE_CASH_WORKFLOW_WRITES_TENANT_IDS",
+      "ERP_FINANCE_CUSTOMER_INVOICE_CANCEL_WRITES_TENANT_IDS",
+      "ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_TENANT_IDS",
+      "ERP_FINANCE_CUSTOMER_INVOICE_REVERSE_WRITES_TENANT_IDS",
+      "ERP_FINANCE_JOURNAL_POST_WRITES_TENANT_IDS",
+      "ERP_FINANCE_JOURNAL_REVERSE_WRITES_TENANT_IDS",
+      "ERP_FINANCE_LEDGER_READS_TENANT_IDS",
+      "ERP_FINANCE_PAYABLES_READS_TENANT_IDS",
+      "ERP_FINANCE_RECEIVABLES_READS_TENANT_IDS",
+      "ERP_FINANCE_RECONCILIATION_AUTO_MATCH_WRITES_TENANT_IDS",
+      "ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS_TENANT_IDS",
+      "ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_TENANT_IDS",
+      "ERP_FINANCE_RECONCILIATION_LINE_MATCH_WRITES_TENANT_IDS",
+      "ERP_FINANCE_RECONCILIATION_READS_TENANT_IDS",
+      "ERP_FINANCE_RECONCILIATION_RECONCILE_WRITES_TENANT_IDS",
+      "ERP_FINANCE_RECONCILIATION_VOID_WRITES_TENANT_IDS",
+      "ERP_FINANCE_SUPPLIER_BILL_POST_WRITES_TENANT_IDS",
+      "ERP_FINANCE_SUPPLIER_BILL_REVERSE_WRITES_TENANT_IDS",
+      "ERP_INVENTORY_ITEM_CONFIG_WRITES_TENANT_IDS",
+      "ERP_INVENTORY_RECEIPT_CREATE_WRITES_TENANT_IDS",
+      "ERP_INVENTORY_RECEIPT_POST_WRITES_TENANT_IDS",
+      "ERP_INVENTORY_RECEIPT_REVERSE_WRITES_TENANT_IDS",
+      "ERP_INVENTORY_STOCK_MOVEMENT_CREATE_WRITES_TENANT_IDS",
+      "ERP_INVENTORY_STOCK_MOVEMENT_WORKFLOW_WRITES_TENANT_IDS",
+      "ERP_INVENTORY_UOM_CREATE_WRITES_TENANT_IDS",
+      "ERP_INVENTORY_UOM_UPDATE_WRITES_TENANT_IDS",
+      "ERP_INVENTORY_WAREHOUSE_CREATE_WRITES_TENANT_IDS",
+      "ERP_INVENTORY_WAREHOUSE_UPDATE_WRITES_TENANT_IDS",
+      "ERP_PO_BOM_CREATE_WRITES_TENANT_IDS",
+      "ERP_PO_BOM_GROUPED_CREATE_WRITES_TENANT_IDS",
+      "ERP_PO_CREATE_WRITES_TENANT_IDS",
+      "ERP_PO_WORKFLOW_NOTIFICATIONS_TENANT_IDS",
+      "ERP_PO_WORKFLOW_WRITES_TENANT_IDS",
+      "ERP_PROJECT_COMMENT_CREATE_WRITES_TENANT_IDS",
+      "ERP_PROJECT_COMMENT_DELETE_WRITES_TENANT_IDS",
+      "ERP_PUBLIC_SIGNING_WRITES_TENANT_IDS",
+      "ERP_PUBLIC_VENDOR_CONFIRMATION_LINK_DELIVERY_TENANT_IDS",
+      "ERP_PUBLIC_VENDOR_CONFIRMATION_READ_TENANT_IDS",
+      "ERP_PUBLIC_VENDOR_CONFIRMATION_SESSION_MINTING_TENANT_IDS",
+      "ERP_PUBLIC_VENDOR_CONFIRMATION_WRITES_TENANT_IDS",
+      "ERP_UNIVERSAL_SEARCH_READS_TENANT_IDS"
+    ],
+    "web": [
+      "ERP_ACCOUNT_KYC_QUEUE_READS_VIA_API_TENANT_IDS",
+      "ERP_ACCOUNT_READS_VIA_API_TENANT_IDS",
+      "ERP_ASSET_MAINTENANCE_CREATE_WRITES_VIA_API_TENANT_IDS",
+      "ERP_ASSET_MAINTENANCE_READS_VIA_API_TENANT_IDS",
+      "ERP_ASSET_READS_VIA_API_TENANT_IDS",
+      "ERP_AUDIT_ACTIVITY_READS_VIA_API_TENANT_IDS",
+      "ERP_BOM_TOGAL_COMMIT_VIA_API_TENANT_IDS",
+      "ERP_CHANGE_REQUEST_WRITES_VIA_API_TENANT_IDS",
+      "ERP_CORTEX_ASSISTANT_GENERATION_JOBS_VIA_API_TENANT_IDS",
+      "ERP_CORTEX_BRIEF_READS_VIA_API_TENANT_IDS",
+      "ERP_CORTEX_CHAT_RETRIEVAL_READS_VIA_API_TENANT_IDS",
+      "ERP_CORTEX_CONVERSATION_ASSISTANT_TURN_WRITES_VIA_API_TENANT_IDS",
+      "ERP_CORTEX_CONVERSATION_CONTEXT_READS_VIA_API_TENANT_IDS",
+      "ERP_CORTEX_CONVERSATION_READS_VIA_API_TENANT_IDS",
+      "ERP_CORTEX_CONVERSATION_USER_TURN_WRITES_VIA_API_TENANT_IDS",
+      "ERP_CORTEX_ENTITY_READS_VIA_API_TENANT_IDS",
+      "ERP_CORTEX_GRAPH_READS_VIA_API_TENANT_IDS",
+      "ERP_CORTEX_LEGACY_EMBED_TENANT_IDS",
+      "ERP_CORTEX_SEARCH_VIA_API_TENANT_IDS",
+      "ERP_CORTEX_SEMANTIC_INDEX_JOBS_VIA_API_TENANT_IDS",
+      "ERP_DAILY_TASK_COMPLETION_WRITES_VIA_API_TENANT_IDS",
+      "ERP_DELIVERY_CANCEL_WRITES_VIA_API_TENANT_IDS",
+      "ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_VIA_API_TENANT_IDS",
+      "ERP_DELIVERY_INSPECTION_START_WRITES_VIA_API_TENANT_IDS",
+      "ERP_DELIVERY_MARK_IN_TRANSIT_WRITES_VIA_API_TENANT_IDS",
+      "ERP_DELIVERY_RECEIPT_WRITES_VIA_API_TENANT_IDS",
+      "ERP_DELIVERY_SCHEDULE_CREATE_WRITES_VIA_API_TENANT_IDS",
+      "ERP_DELIVERY_SITE_PREPARATION_COMPLETE_WRITES_VIA_API_TENANT_IDS",
+      "ERP_DELIVERY_SITE_PREPARATION_START_WRITES_VIA_API_TENANT_IDS",
+      "ERP_DOCUMENT_DELETE_WRITES_VIA_API_TENANT_IDS",
+      "ERP_DOCUMENT_PROCESSING_TENANT_IDS",
+      "ERP_FINANCE_CASH_DRAFT_WRITES_VIA_API_TENANT_IDS",
+      "ERP_FINANCE_CASH_READS_VIA_API_TENANT_IDS",
+      "ERP_FINANCE_CASH_WORKFLOW_WRITES_VIA_API_TENANT_IDS",
+      "ERP_FINANCE_CUSTOMER_INVOICE_CANCEL_WRITES_VIA_API_TENANT_IDS",
+      "ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_VIA_API_TENANT_IDS",
+      "ERP_FINANCE_CUSTOMER_INVOICE_REVERSE_WRITES_VIA_API_TENANT_IDS",
+      "ERP_FINANCE_JOURNAL_POST_WRITES_VIA_API_TENANT_IDS",
+      "ERP_FINANCE_JOURNAL_REVERSE_WRITES_VIA_API_TENANT_IDS",
+      "ERP_FINANCE_LEDGER_READS_VIA_API_TENANT_IDS",
+      "ERP_FINANCE_PAYABLES_READS_VIA_API_TENANT_IDS",
+      "ERP_FINANCE_RECEIVABLES_READS_VIA_API_TENANT_IDS",
+      "ERP_FINANCE_RECONCILIATION_AUTO_MATCH_WRITES_VIA_API_TENANT_IDS",
+      "ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS_TENANT_IDS",
+      "ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS_VIA_API_TENANT_IDS",
+      "ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_VIA_API_TENANT_IDS",
+      "ERP_FINANCE_RECONCILIATION_LINE_MATCH_WRITES_VIA_API_TENANT_IDS",
+      "ERP_FINANCE_RECONCILIATION_READS_VIA_API_TENANT_IDS",
+      "ERP_FINANCE_RECONCILIATION_RECONCILE_WRITES_VIA_API_TENANT_IDS",
+      "ERP_FINANCE_RECONCILIATION_VOID_WRITES_VIA_API_TENANT_IDS",
+      "ERP_FINANCE_SUPPLIER_BILL_POST_WRITES_VIA_API_TENANT_IDS",
+      "ERP_FINANCE_SUPPLIER_BILL_REVERSE_WRITES_VIA_API_TENANT_IDS",
+      "ERP_INVENTORY_ITEM_CONFIG_TENANT_IDS",
+      "ERP_INVENTORY_RECEIPT_CREATE_TENANT_IDS",
+      "ERP_INVENTORY_RECEIPT_POST_TENANT_IDS",
+      "ERP_INVENTORY_RECEIPT_REVERSE_TENANT_IDS",
+      "ERP_INVENTORY_STOCK_MOVEMENT_CREATE_TENANT_IDS",
+      "ERP_INVENTORY_STOCK_MOVEMENT_DETAIL_READS_TENANT_IDS",
+      "ERP_INVENTORY_STOCK_MOVEMENT_READS_TENANT_IDS",
+      "ERP_INVENTORY_STOCK_MOVEMENT_WORKFLOW_TENANT_IDS",
+      "ERP_INVENTORY_SUMMARY_READS_VIA_API_TENANT_IDS",
+      "ERP_INVENTORY_UOM_CREATE_TENANT_IDS",
+      "ERP_INVENTORY_UOM_UPDATE_TENANT_IDS",
+      "ERP_INVENTORY_WAREHOUSE_CLOSEOUT_READS_TENANT_IDS",
+      "ERP_INVENTORY_WAREHOUSE_CREATE_TENANT_IDS",
+      "ERP_INVENTORY_WAREHOUSE_UPDATE_TENANT_IDS",
+      "ERP_OPPORTUNITY_CONVERT_WRITES_VIA_API_TENANT_IDS",
+      "ERP_OPPORTUNITY_READS_VIA_API_TENANT_IDS",
+      "ERP_PO_BOM_CREATE_WRITES_VIA_API_TENANT_IDS",
+      "ERP_PO_BOM_GROUPED_CREATE_WRITES_VIA_API_TENANT_IDS",
+      "ERP_PO_CREATE_WRITES_VIA_API_TENANT_IDS",
+      "ERP_PO_WORKFLOW_WRITES_VIA_API_TENANT_IDS",
+      "ERP_PROJECT_BILLING_MILESTONE_READS_VIA_API_TENANT_IDS",
+      "ERP_PROJECT_CLOSEOUT_READINESS_READS_VIA_API_TENANT_IDS",
+      "ERP_PROJECT_COMMAND_CENTER_READS_VIA_API_TENANT_IDS",
+      "ERP_PROJECT_COMMENT_CREATE_WRITES_VIA_API_TENANT_IDS",
+      "ERP_PROJECT_COMMENT_DELETE_WRITES_VIA_API_TENANT_IDS",
+      "ERP_PROJECT_COMMENT_READS_VIA_API_TENANT_IDS",
+      "ERP_PROJECT_HANDOVER_READINESS_READS_VIA_API_TENANT_IDS",
+      "ERP_PROJECT_LABOUR_RECONCILIATION_READS_VIA_API_TENANT_IDS",
+      "ERP_PROJECT_LISTS_VIA_API_TENANT_IDS",
+      "ERP_PROJECT_MATERIAL_ACTUALS_READS_VIA_API_TENANT_IDS",
+      "ERP_PROJECT_READS_VIA_API_TENANT_IDS",
+      "ERP_PROJECT_WEEKLY_PROGRESS_READS_VIA_API_TENANT_IDS",
+      "ERP_PROJECT_WEEKLY_PROGRESS_WRITES_VIA_API_TENANT_IDS",
+      "ERP_PROVIDER_QUOTA_VIA_API_TENANT_IDS",
+      "ERP_PUBLIC_SIGNING_VIA_API_TENANT_IDS",
+      "ERP_RFQ_AUTO_DISPATCH_VIA_API_TENANT_IDS",
+      "ERP_RFQ_BID_LEVELING_READS_VIA_API_TENANT_IDS",
+      "ERP_RFQ_CREATE_WRITES_VIA_API_TENANT_IDS",
+      "ERP_RFQ_QUOTE_WRITES_VIA_API_TENANT_IDS",
+      "ERP_RFQ_TERMINAL_WRITES_VIA_API_TENANT_IDS",
+      "ERP_TODAY_READS_VIA_API_TENANT_IDS",
+      "ERP_UNIVERSAL_SEARCH_READS_VIA_API_TENANT_IDS",
+      "ERP_VENDOR_PERFORMANCE_READS_VIA_API_TENANT_IDS"
+    ]
+  }
+}
