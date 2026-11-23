@@ -76,7 +76,7 @@ function sorted(roles: readonly ErpRole[]): ErpRole[] {
 describe('canonical authorization policy', () => {
   it('contains each current Web/Core capability once and gives each a non-empty role policy', () => {
     expect(new Set(ERP_CAPABILITIES).size).toBe(ERP_CAPABILITIES.length)
-    expect(ERP_CAPABILITIES).toHaveLength(108)
+    expect(ERP_CAPABILITIES).toHaveLength(110)
 
     for (const capability of ERP_CAPABILITIES) {
       const roles = ERP_CAPABILITY_ROLES[capability]
@@ -123,6 +123,30 @@ describe('canonical authorization policy', () => {
     expect(roleHasCapability('estimator', 'asset.read')).toBe(true)
     expect(roleHasCapability('viewer', 'asset.read')).toBe(true)
     expect(roleHasCapability('viewer', 'asset.maintenance.manage')).toBe(false)
+  })
+
+  it.each(ERP_ROLES)(
+    'grants catalogue.read to %s exactly when it holds bom.generate, procurement.read or admin.rate_card.read',
+    (role) => {
+      const expected =
+        roleHasCapability(role, 'bom.generate') ||
+        roleHasCapability(role, 'procurement.read') ||
+        roleHasCapability(role, 'admin.rate_card.read')
+      expect(roleHasCapability(role, 'catalogue.read')).toBe(expected)
+    },
+  )
+
+  it('grants catalogue.manage to the admin.rate_card roles and keeps catalogue.read a viewer-safe read', () => {
+    expect(sorted(ERP_CAPABILITY_ROLES['catalogue.manage'])).toEqual(
+      sorted(ERP_CAPABILITY_ROLES['admin.rate_card']),
+    )
+    expect(sorted(ERP_CAPABILITY_ROLES['catalogue.read'])).toEqual(
+      sorted(['owner', 'admin', 'commercial', 'estimator', 'sd_pm_pe', 'pm', 'procurement', 'viewer']),
+    )
+    expect(ERP_READ_CAPABILITIES).toContain('catalogue.read')
+    expect(ERP_MUTATION_CAPABILITIES).toContain('catalogue.manage')
+    expect(roleHasCapability('viewer', 'catalogue.manage')).toBe(false)
+    expect(roleHasCapability('finance', 'catalogue.read')).toBe(false)
   })
 
   it('keeps project retirement with the workspace owner and admin only', () => {

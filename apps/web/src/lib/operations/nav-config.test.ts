@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { AppRole } from '@third-code-erp/auth'
+import { roleHasCapability } from '@third-code-erp/shared-types/authorization'
 import {
   canViewPath,
   visibleNavSections,
@@ -535,6 +536,19 @@ describe('RBAC: canViewPath (deny-by-default route guard)', () => {
     }
 
     expect(canViewPath('procurement', '/procurement/unregistered')).toBe(false)
+  })
+
+  it('opens the price catalogue to the catalogue.read roles and keeps it out of the sidebar', () => {
+    for (const role of PERSISTED_ROLES) {
+      expect(visibleHrefs(role), role).not.toContain('/catalogue')
+      for (const pathname of ['/catalogue', '/catalogue/item-id']) {
+        expect(canViewPath(role, pathname), `${role}: ${pathname}`).toBe(
+          roleHasCapability(role, 'catalogue.read')
+        )
+      }
+    }
+
+    expect(canViewPath('estimator', '/catalogue/unregistered/child')).toBe(false)
   })
 
   it('denies unregistered dashboard paths for every persisted role', () => {

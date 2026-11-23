@@ -1,0 +1,186 @@
+/**
+ * Database half of scripts/seed-catalogue.mjs. `sql` is a postgres.js
+ * transaction handle: the caller owns the transaction, so a failure anywhere
+ * leaves nothing behind (and a test can roll the whole run back).
+ *
+ * `rows` are already validated by apps/web/src/lib/catalogue/csv.ts.
+ *
+ * JSON goes in as `$n::text::jsonb`, never `$n::jsonb`. postgres.js encodes a
+ * parameter by the type the server reports for it, so a jsonb parameter is run
+ * through JSON.stringify again: the JSON text sent here would arrive as one
+ * JSON string, not an array ("cannot call jsonb_to_recordset on a non-array").
+ */
+
+// Insert new items; refresh an existing one only when no person has edited it
+// (updated_by is null) and the research text actually differs.
+const UPSERT_ITEMS = `
+  insert into public.catalogue_items (tenant_id, code, name, trade, specification, unit)
+  select $1::uuid, r.code, r.name, r.trade, r.specification, r.unit
+    from jsonb_to_recordset($2::text::jsonb)
+      as r(code text, name text, trade text, specification text, unit text)
+  on conflict (tenant_id, code) do update
+     set name = excluded.name,
+         trade = excluded.trade,
+         specification = excluded.specification,
+         unit = excluded.unit,
+         updated_at = now()
+   where catalogue_items.updated_by is null
+     and (catalogue_items.name, catalogue_items.trade,
+          catalogue_items.specification, catalogue_items.unit)
+         is distinct from
+         (excluded.name, excluded.trade, excluded.specification, excluded.unit)
+  returning (xmax = 0) as inserted
+`
+
+const COUNT_EDITED_ITEMS = `
+  select count(*)::int as count
+    from public.catalogue_items item
+   where item.tenant_id = $1::uuid
+     and item.updated_by is not null
+     and item.code in (
+       select r.code from jsonb_to_recordset($2::text::jsonb) as r(code text)
+     )
+`
+
+// One research observation per row, unless the identical observation (item,
+// region, checked_on, source_url, low, avg, high) is already there. Regions
+// compare as the app compares them, lower(trim(region)): "NCR" and "ncr" are
+// one region, so a respelled region does not add a second observation. A row
+// without a price (NO_SOURCE) is an observation too: its three prices are null
+// and it keeps the region, the flag, the note that says why and any link.
+// `is not distinct from` makes null prices compare equal, so a second run
+// finds that observation and inserts nothing.
+const INSERT_PRICES = `
+  insert into public.catalogue_prices (
+    tenant_id, item_id, region,
+    price_low_centavos, price_avg_centavos, price_high_centavos,
+    price_basis, source_kind, source_url, checked_on, flag, notes
+  )
+  select $1::uuid, item.id, r.region, r.low, r.avg, r.high,
+         r.price_basis, 'research', r.source_url, r.checked_on, r.flag, r.notes
+    from jsonb_to_recordset($2::text::jsonb)
+      as r(code text, region text, low bigint, avg bigint, high bigint,
+           price_basis text, source_url text, checked_on date, flag text, notes text)
+    join public.catalogue_items item
+      on item.tenant_id = $1::uuid
+     and item.code = r.code
+   where not exists (
+     select 1
+       from public.catalogue_prices existing
+      where existing.tenant_id = $1::uuid
+        and existing.item_id = item.id
+        and lower(trim(existing.region)) = lower(trim(r.region))
+        and existing.checked_on = r.checked_on
+        and existing.source_url is not distinct from r.source_url
+        and existing.price_low_centavos is not distinct from r.low
+        and existing.price_avg_centavos is not distinct from r.avg
+        and existing.price_high_centavos is not distinct from r.high
+   )
+  returning id
+`
+
+// Same chain formula and tenant lock as public.audit_log_trigger():
+// sha256(prev_hash || entity_type || entity_key || action || created_at::text).
+const LOCK_AUDIT_CHAIN = `
+  select pg_advisory_xact_lock(hashtextextended('audit_log:' || $1::text, 0))
+`
+const INSERT_AUDIT_ENTRY = `
+  insert into public.audit_log (
+    tenant_id, actor_id, entity_type, entity_id, entity_key,
+    action, diff, prev_hash, hash, created_at
+  )
+  select $1::uuid, null, 'catalogue_seed', entry.id, entry.id::text,
+         'create', $2::text::jsonb, previous.hash,
+         encode(
+           sha256(convert_to(
+             previous.hash || 'catalogue_seed' || entry.id::text || 'create'
+               || entry.created_at::text,
+             'UTF8'
+           )),
+           'hex'
+         ),
+         entry.created_at
+    from (select gen_random_uuid() as id, clock_timestamp() as created_at) entry,
+         (select coalesce(
+            (select hash from public.audit_log
+              where tenant_id = $1::uuid order by id desc limit 1),
+            'genesis'
+          ) as hash) previous
+`
+
+export const ANALYZED_TABLES = ['public.catalogue_items', 'public.catalogue_prices']
+
+/**
+ * Fresh planner statistics after a committed load. Without them the list query
+ * joins the current-price subquery to the items row by row (spec section 4).
+ * The caller runs it after the commit, so the statistics describe the rows
+ * the load committed.
+ *
+ * @param {{ unsafe: (query: string) => Promise<unknown> }} sql
+ */
+export async function analyzeCatalogue(sql) {
+  for (const table of ANALYZED_TABLES) await sql.unsafe(`analyze ${table}`)
+}
+
+/**
+ * `source` (who ran it, from which files; see describeSeedRun) goes into the
+ * run's audit entry next to the counts. It must never carry the DATABASE_URL.
+ *
+ * @param {{ unsafe: (query: string, parameters?: unknown[]) => Promise<any[]> }} sql
+ * @param {{ tenantId: string, rows: Array<Record<string, any>>, source?: object }} input
+ */
+export async function seedCatalogue(sql, { tenantId, rows, source }) {
+  const [tenant] = await sql.unsafe(
+    'select id from public.tenants where id = $1::uuid',
+    [tenantId]
+  )
+  if (!tenant) throw new Error(`Tenant ${tenantId} does not exist`)
+
+  const items = JSON.stringify(
+    rows.map(({ code, name, trade, specification, unit }) => ({
+      code, name, trade, specification, unit,
+    }))
+  )
+  const priced = rows.filter((row) => row.price)
+  const prices = JSON.stringify(
+    rows.map((row) => ({
+      code: row.code,
+      region: row.region,
+      low: row.price?.low ?? null,
+      avg: row.price?.avg ?? null,
+      high: row.price?.high ?? null,
+      price_basis: row.price_basis,
+      source_url: row.source_url,
+      checked_on: row.checked_on,
+      flag: row.flag,
+      notes: row.notes,
+    }))
+  )
+
+  const [edited] = await sql.unsafe(COUNT_EDITED_ITEMS, [tenantId, items])
+  const upserted = await sql.unsafe(UPSERT_ITEMS, [tenantId, items])
+  const insertedPrices = await sql.unsafe(INSERT_PRICES, [tenantId, prices])
+
+  const itemsInserted = upserted.filter((row) => row.inserted).length
+  const itemsUpdated = upserted.length - itemsInserted
+  const counts = {
+    items: rows.length,
+    itemsInserted,
+    itemsUpdated,
+    // Edited by a person since the last seed: never overwritten.
+    itemsKeptEdited: edited.count,
+    itemsUnchanged: rows.length - itemsInserted - itemsUpdated - edited.count,
+    pricedRows: priced.length,
+    unpricedRows: rows.length - priced.length,
+    // Observations, priced or not: every row has exactly one.
+    pricesInserted: insertedPrices.length,
+    pricesAlreadyPresent: rows.length - insertedPrices.length,
+  }
+
+  await sql.unsafe(LOCK_AUDIT_CHAIN, [tenantId])
+  await sql.unsafe(INSERT_AUDIT_ENTRY, [
+    tenantId,
+    JSON.stringify(source ? { ...counts, source } : counts),
+  ])
+  return counts
+}

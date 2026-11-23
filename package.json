@@ -61,6 +61,7 @@
     "test:playwright-no-skips": "node --test scripts/assert-playwright-no-skips.test.mjs",
     "test:empty-schema-diff": "node --test scripts/assert-empty-schema-diff.test.mjs",
     "test:roadmap-foundation": "node --test scripts/verify-roadmap-foundation.test.mjs",
+    "test:catalogue-seed": "node --test scripts/seed-catalogue.test.mjs",
     "test:turbo-test-cache": "node scripts/verify-turbo-test-cache.mjs",
     "ci:actionlint": "node scripts/run-actionlint.mjs",
     "ci:gitleaks": "node scripts/run-gitleaks.mjs",

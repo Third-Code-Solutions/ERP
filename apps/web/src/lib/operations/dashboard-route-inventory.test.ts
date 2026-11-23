@@ -31,6 +31,16 @@ const ADMIN_READ = ['owner', 'admin', 'viewer'] as const
 const ADMIN_ONLY = ['owner', 'admin'] as const
 const ACCOUNT_CREATE = ['owner', 'admin', 'sales'] as const
 const BOM_READ = ['owner', 'admin', 'estimator', 'commercial', 'viewer'] as const
+const CATALOGUE_READ = [
+  'owner',
+  'admin',
+  'estimator',
+  'pm',
+  'commercial',
+  'sd_pm_pe',
+  'procurement',
+  'viewer',
+] as const
 const CLAIM_READ = [
   'owner',
   'admin',
@@ -171,6 +181,8 @@ const EXPECTED_ROLES_BY_TEMPLATE: Readonly<
   '/cost/budget': PROJECT_COST,
   '/assets/[assetId]': ALL_ROLES,
   '/bom': BOM_READ,
+  '/catalogue': CATALOGUE_READ,
+  '/catalogue/[itemId]': CATALOGUE_READ,
   '/claims': CLAIM_READ,
   '/claims/[id]': CLAIM_READ,
   '/claims/new': CLAIM_CREATE,
@@ -304,7 +316,7 @@ describe('dashboard route authorization inventory', () => {
       (policy) => policy.template
     ).sort()
 
-    expect(routeTemplates).toHaveLength(121)
+    expect(routeTemplates).toHaveLength(123)
     expect(new Set(registeredTemplates).size).toBe(registeredTemplates.length)
     expect(registeredTemplates).toEqual(routeTemplates)
     expect(Object.keys(EXPECTED_ROLES_BY_TEMPLATE).sort()).toEqual(

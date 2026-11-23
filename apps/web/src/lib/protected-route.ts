@@ -7,6 +7,7 @@ export const PROTECTED_ROUTE_PREFIXES = [
   '/projects',
   '/pipeline',
   '/bom',
+  '/catalogue',
   '/assets',
   '/invoices',
   '/purchase-orders',
