@@ -19,10 +19,12 @@ import { createStageTransitionSubmitter } from '@/components/pipeline/stage-tran
 import {
   buildOpportunityCreateFormData,
   buildOpportunityTransitionFormData,
+  centavosToPesoInput,
   classifyOpportunityPanelDestination,
   createOpportunityPanelActionSubmitter,
   getOpportunityPanelDestinations,
   isOpportunityStage,
+  pesoControlsToCentavos,
   type OpportunityPanelDestinationKind,
 } from './opportunity-panel-model'
 
@@ -100,6 +102,13 @@ const labelStyle: React.CSSProperties = {
 const unexpectedCreateError =
   'Opportunity creation could not be completed. Please try again.'
 
+// Peso amounts: digits with up to two decimals; only GP may be a negative loss.
+const PESO_PATTERN = '[0-9]+(\\.[0-9]{1,2})?'
+const SIGNED_PESO_PATTERN = '-?[0-9]+(\\.[0-9]{1,2})?'
+const PESO_TITLE = 'Amount in pesos with up to two decimals, for example 5000000.00'
+const SIGNED_PESO_TITLE =
+  'Amount in pesos with up to two decimals; use a minus sign for a loss'
+
 function dateInputValue(value: Date | null): string | undefined {
   if (!value) return undefined
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -156,7 +165,7 @@ export function OpportunityPanel({
     let command: FormData
     try {
       command = buildOpportunityCreateFormData(
-        new FormData(event.currentTarget),
+        pesoControlsToCentavos(new FormData(event.currentTarget)),
         projectId
       )
     } catch (cause) {
@@ -237,7 +246,17 @@ export function OpportunityPanel({
     event.preventDefault()
     if (!canMutate || submissionInFlightRef.current) return
 
-    const controls = new FormData(event.currentTarget)
+    let controls: FormData
+    try {
+      controls = pesoControlsToCentavos(new FormData(event.currentTarget))
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : 'Opportunity stage transition could not be completed. Please try again.'
+      )
+      return
+    }
     const rawDestination = controls.get('new_stage')
     if (typeof rawDestination !== 'string') {
       setError('Select an allowed destination stage.')
@@ -340,12 +359,12 @@ export function OpportunityPanel({
           </div>
           <div style={formGridStyle}>
             <div>
-              <label htmlFor="new-opportunity-tcv" style={labelStyle}>TCV (₱ centavos)</label>
-              <input id="new-opportunity-tcv" name="tcv_cents" type="text" inputMode="numeric" pattern="0|[1-9][0-9]*" style={inputStyle} placeholder="0" />
+              <label htmlFor="new-opportunity-tcv" style={labelStyle}>TCV (₱)</label>
+              <input id="new-opportunity-tcv" name="tcv_pesos" type="text" inputMode="decimal" pattern={PESO_PATTERN} title={PESO_TITLE} style={inputStyle} placeholder="5000000.00" />
             </div>
             <div>
-              <label htmlFor="new-opportunity-gp" style={labelStyle}>GP (₱ centavos)</label>
-              <input id="new-opportunity-gp" name="gp_cents" type="text" inputMode="numeric" pattern="0|-?[1-9][0-9]*" style={inputStyle} placeholder="0" />
+              <label htmlFor="new-opportunity-gp" style={labelStyle}>GP (₱)</label>
+              <input id="new-opportunity-gp" name="gp_pesos" type="text" inputMode="decimal" pattern={SIGNED_PESO_PATTERN} title={SIGNED_PESO_TITLE} style={inputStyle} placeholder="750000.00" />
             </div>
             <div>
               <label htmlFor="new-opportunity-close" style={labelStyle}>Est. Close</label>
@@ -417,12 +436,12 @@ export function OpportunityPanel({
                                 </select>
                               </div>
                               <div>
-                                <label htmlFor={`tcv-${opportunity.id}`} style={labelStyle}>Updated TCV (¢)</label>
-                                <input id={`tcv-${opportunity.id}`} name="tcv_cents" type="text" inputMode="numeric" pattern="0|[1-9][0-9]*" defaultValue={String(opportunity.tcv_cents)} style={{ ...inputStyle, width: '140px' }} />
+                                <label htmlFor={`tcv-${opportunity.id}`} style={labelStyle}>Updated TCV (₱)</label>
+                                <input id={`tcv-${opportunity.id}`} name="tcv_pesos" type="text" inputMode="decimal" pattern={PESO_PATTERN} title={PESO_TITLE} defaultValue={centavosToPesoInput(opportunity.tcv_cents)} style={{ ...inputStyle, width: '140px' }} />
                               </div>
                               <div>
-                                <label htmlFor={`gp-${opportunity.id}`} style={labelStyle}>Updated GP (¢)</label>
-                                <input id={`gp-${opportunity.id}`} name="gp_cents" type="text" inputMode="numeric" pattern="0|-?[1-9][0-9]*" defaultValue={String(opportunity.gp_cents)} style={{ ...inputStyle, width: '140px' }} />
+                                <label htmlFor={`gp-${opportunity.id}`} style={labelStyle}>Updated GP (₱)</label>
+                                <input id={`gp-${opportunity.id}`} name="gp_pesos" type="text" inputMode="decimal" pattern={SIGNED_PESO_PATTERN} title={SIGNED_PESO_TITLE} defaultValue={centavosToPesoInput(opportunity.gp_cents)} style={{ ...inputStyle, width: '140px' }} />
                               </div>
                               <div>
                                 <label htmlFor={`close-${opportunity.id}`} style={labelStyle}>Est. Close</label>

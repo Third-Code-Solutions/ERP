@@ -6,8 +6,10 @@ import {
   buildOpportunityCreateFormData,
   buildOpportunityTransitionFormData,
   classifyOpportunityPanelDestination,
+  centavosToPesoInput,
   createOpportunityPanelActionSubmitter,
   getOpportunityPanelDestinations,
+  pesoControlsToCentavos,
 } from './opportunity-panel-model'
 
 describe('OpportunityPanel canonical stage projection', () => {
@@ -158,6 +160,96 @@ describe('OpportunityPanel form contracts', () => {
 
     expect(command.get('tcv_cents')).toBe('9007199254740991')
     expect(command.get('gp_cents')).toBe('-9007199254740991')
+  })
+})
+
+describe('OpportunityPanel peso inputs', () => {
+  it('converts typed pesos to exact centavos so 5000000 is not 50000.00', () => {
+    const controls = new FormData()
+    controls.set('opportunity_type', 'MEP')
+    controls.set('tcv_pesos', '5000000')
+    controls.set('gp_pesos', '-750000.5')
+
+    const converted = pesoControlsToCentavos(controls)
+
+    expect(converted.get('tcv_cents')).toBe('500000000')
+    expect(converted.get('gp_cents')).toBe('-75000050')
+    expect(converted.get('opportunity_type')).toBe('MEP')
+    expect(converted.has('tcv_pesos')).toBe(false)
+    expect(converted.has('gp_pesos')).toBe(false)
+  })
+
+  it('feeds the shared builders a canonical centavo string', () => {
+    const controls = new FormData()
+    controls.set('tcv_pesos', '19.99')
+    controls.set('gp_pesos', '0.10')
+
+    const command = buildOpportunityCreateFormData(
+      pesoControlsToCentavos(controls),
+      'project-id'
+    )
+
+    expect(command.get('tcv_cents')).toBe('1999')
+    expect(command.get('gp_cents')).toBe('10')
+  })
+
+  it('leaves blank amounts out and normalises a negative zero', () => {
+    const controls = new FormData()
+    controls.set('tcv_pesos', '  ')
+    controls.set('gp_pesos', '-0.00')
+
+    const converted = pesoControlsToCentavos(controls)
+
+    expect(converted.has('tcv_cents')).toBe(false)
+    expect(converted.get('gp_cents')).toBe('0')
+  })
+
+  it.each(['1e3', '1,000', '12.345', '-5', '₱5', 'abc', '9007199254740992'])(
+    'rejects TCV %s with a readable message',
+    (value) => {
+      const controls = new FormData()
+      controls.set('tcv_pesos', value)
+
+      expect(() => pesoControlsToCentavos(controls)).toThrow(
+        'TCV must be an amount in pesos'
+      )
+    }
+  )
+
+  it.each(['1e3', '1,000', '12.345', '--5', '+5', 'abc'])(
+    'rejects GP %s with a readable message',
+    (value) => {
+      const controls = new FormData()
+      controls.set('gp_pesos', value)
+
+      expect(() => pesoControlsToCentavos(controls)).toThrow(
+        'GP must be an amount in pesos'
+      )
+    }
+  )
+
+  it.each([
+    [0, '0.00'],
+    [5, '0.05'],
+    [1_500_000, '15000.00'],
+    [500_000_000, '5000000.00'],
+    [-25_000, '-250.00'],
+    [-5, '-0.05'],
+    [Number.MAX_SAFE_INTEGER, '90071992547409.91'],
+  ])('shows %s centavos as %s in the input', (cents, expected) => {
+    expect(centavosToPesoInput(cents)).toBe(expected)
+  })
+
+  it('round-trips an edit field back to the same centavos', () => {
+    for (const cents of [0, 1, 99, 100, 123_456_789, -25_000]) {
+      const controls = new FormData()
+      controls.set('gp_pesos', centavosToPesoInput(cents))
+      expect(pesoControlsToCentavos(controls).get('gp_cents')).toBe(String(cents))
+    }
+  })
+
+  it('shows nothing for a non-integer amount', () => {
+    expect(centavosToPesoInput(1.5)).toBe('')
   })
 })
 

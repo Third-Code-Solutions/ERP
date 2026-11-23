@@ -151,16 +151,21 @@ describe('OpportunityPanel mounted caller source contract', () => {
     expect(namedCall(nestedFunction('handleCreate')!, 'buildOpportunityCreateFormData')).toBe(true)
   })
 
-  it('offers only read-only Opportunity Creation and canonical centavo inputs', () => {
+  it('offers only read-only Opportunity Creation and peso inputs', () => {
     expect(sourceText).not.toContain('CREATE_STAGES')
     expect(sourceText).not.toContain('name="stage"')
     expect(sourceText).toContain('Opportunity Creation')
-    expect(sourceText).toContain(
-      'name="tcv_cents" type="text" inputMode="numeric" pattern="0|[1-9][0-9]*"'
-    )
-    expect(sourceText).toContain(
-      'name="gp_cents" type="text" inputMode="numeric" pattern="0|-?[1-9][0-9]*"'
-    )
+    expect(sourceText).toContain('name="tcv_pesos" type="text" inputMode="decimal"')
+    expect(sourceText).toContain('name="gp_pesos" type="text" inputMode="decimal"')
+    expect(sourceText).not.toContain('name="tcv_cents"')
+    expect(sourceText).not.toContain('name="gp_cents"')
+    expect(sourceText).not.toContain('centavos)')
+    expect(sourceText).not.toContain('(¢)')
+  })
+
+  it('converts peso controls to centavos before any shared builder runs', () => {
+    expect(namedCall(nestedFunction('handleCreate')!, 'pesoControlsToCentavos')).toBe(true)
+    expect(namedCall(nestedFunction('handleTransition')!, 'pesoControlsToCentavos')).toBe(true)
   })
 
   it('keeps client validation failures recoverable without invoking an action', () => {
