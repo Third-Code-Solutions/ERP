@@ -59,7 +59,7 @@ Live revision everywhere: `385bcc92`. Web deployment `dpl_HtEF9XSHoNa6zxmiX5S82G
 | #239 fractional DXF quantities — schema | **VERIFIED LIVE** | `scope_items.quantity_decimal numeric(18,4) NOT NULL`, sync trigger present, 0 mismatched of 143 rows. |
 | #239 — code path (worker, API, web) | **DEPLOYED, NOT VERIFIED** | All three on `385bcc92`. The release CAD spec only checks "Worker online"; a real upload with fractional areas has not run on production (needs a write in the E2E tenant: batch 2). |
 | API first auto-deploy of `385bcc92` | Resolved | Failed its 15 s `/ready` healthcheck once (app listening, cause not found); redeploy of the same build passed. |
-| `E2E_BASE_URL` → production URL | **VERIFIED** (value) | Not yet exercised by a PR E2E run. |
+| `E2E_BASE_URL` → production URL | **VERIFIED** | PR #240 "E2E Tests (trusted PR)" passed against it (failed on every PR before). |
 | API serverless sleep off | **VERIFIED** (config) | `sleepApplication` no longer set. |
 | `NEXT_PUBLIC_PUBLIC_SIGNUP_ENABLED=false` (Vercel production) | **VERIFIED LIVE** | See #223. |
 | Stale Supabase preview branch deleted | **VERIFIED** | Only `main` remains. |
