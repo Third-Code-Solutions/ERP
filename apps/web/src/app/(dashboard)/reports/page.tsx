@@ -14,6 +14,14 @@ const ACTIVE_STAGES = ['opportunity_creation', 'scoping', 'bom_submission', 'res
 export default async function ReportsPage() {
   const profile = await requireUserProfile()
   const tid = profile.tenantId
+  // Billing totals are finance data: sales may read the page, not the invoices.
+  const canViewBilling = can(profile.role, 'finance.read')
+
+  // Query builders are lazy, so an unawaited builder never reaches the database.
+  const invoiceRows = db.select({ status: invoices.status, net_amount_cents: sql<string>`cast(${invoices.net_amount_cents} as text)` })
+    .from(invoices)
+    .where(eq(invoices.tenant_id, tid))
+  const noInvoiceRows: Awaited<typeof invoiceRows> = []
 
   const [allOpps, allProjects, allBoms, allInvoices] = await Promise.all([
     db.select({
@@ -34,9 +42,7 @@ export default async function ReportsPage() {
       .from(boms)
       .where(eq(boms.tenant_id, tid)),
 
-    db.select({ status: invoices.status, net_amount_cents: sql<string>`cast(${invoices.net_amount_cents} as text)` })
-      .from(invoices)
-      .where(eq(invoices.tenant_id, tid)),
+    canViewBilling ? invoiceRows : noInvoiceRows,
   ])
 
   // Pipeline metrics
@@ -195,8 +201,12 @@ export default async function ReportsPage() {
           { label: 'Completed Projects', value: String(completedProjects) },
           { label: 'Approved BOMs', value: String(approvedBoms) },
           { label: 'BOM Pipeline TCV', value: formatPHP(totalBomTCV) },
-          { label: 'Total Billed', value: formatPHP(billedTotal) },
-          { label: 'Paid invoice total', value: formatPHP(collectedTotal) },
+          ...(canViewBilling
+            ? [
+                { label: 'Total Billed', value: formatPHP(billedTotal) },
+                { label: 'Paid invoice total', value: formatPHP(collectedTotal) },
+              ]
+            : []),
         ].map(({ label, value }) => (
           <div
             key={label}
@@ -230,7 +240,7 @@ export default async function ReportsPage() {
         }}
       >
         <p>These tenant-scoped summaries refresh when this page loads. <Link href="/dashboard">Open Dashboard</Link> for role-specific operational detail.</p>
-        <p>Paid invoice total sums invoices marked paid; it is not a cash-allocation or partial-collection balance.</p>
+        {canViewBilling ? <p>Paid invoice total sums invoices marked paid; it is not a cash-allocation or partial-collection balance.</p> : null}
         {canViewPath(profile.role, '/invoices') ? <p><Link href="/invoices">Open Invoices</Link> to review billing and access an invoice’s BIR2307 export.</p> : null}
       </div>
     </div>

@@ -1,5 +1,6 @@
 import { db } from '@third-code-erp/database'
 import {
+  accounts,
   boms,
   dailyTasks,
   invoices,
@@ -35,8 +36,13 @@ import {
   LOST_OPPORTUNITY_STAGES,
   STAGE_LEGACY_MAP,
   WON_OPPORTUNITY_STAGES,
+  formatCents,
   type OpportunityStage,
 } from '@third-code-erp/shared-types'
+import {
+  parseOpportunityExportFilters,
+  type OpportunityExportFilters,
+} from '@/app/api/exports/opportunities-csv/opportunity-export'
 import {
   manilaBoundaries,
   manilaCalendarDate,
@@ -736,71 +742,121 @@ export function mergeRepScorecardRows(
 const LOW_MARGIN_THRESHOLD_BPS = 1500 // 15%
 const STALLED_DAYS = 30
 
-export async function getAlerts(tenantId: string): Promise<Alert[]> {
+/** Which financial alert classes the viewer may see; each one is skipped, not just hidden. */
+export interface AlertAccess {
+  /** finance.read: overdue-invoice alerts. */
+  billing: boolean
+  /** budget.read: BOM budget and actual-cost erosion alerts. */
+  cost: boolean
+}
+
+// Customer-current-due balance already covered by posted cash. Same definition
+// as the Receivables page, so the two screens agree on what is still owed.
+const invoiceAllocatedCents = sql<number>`coalesce((
+  select sum(allocation.amount_cents)
+  from public.cash_allocations allocation
+  join public.cash_transactions cash_tx
+    on cash_tx.id = allocation.cash_transaction_id
+   and cash_tx.tenant_id = allocation.tenant_id
+  where allocation.invoice_id = ${invoices.id}
+    and allocation.tenant_id = ${invoices.tenant_id}
+    and allocation.allocation_type = 'customer_current_due'
+    and cash_tx.status = 'posted'
+), 0)`
+
+export async function getAlerts(
+  tenantId: string,
+  access: AlertAccess
+): Promise<Alert[]> {
   const alerts: Alert[] = []
 
   const now = new Date()
-  const [activeOpps, overdueInvoices, lockedBoms] = await Promise.all([
-    // Low-margin active opportunities (GP margin < 15%).
-    db
-      .select({
-        id: opportunities.id,
-        project_id: opportunities.project_id,
-        stage: opportunities.stage,
-        tcv_cents: opportunities.tcv_cents,
-        gp_cents: opportunities.gp_cents,
-        updated_at: opportunities.updated_at,
-        project_name: projects.name,
-      })
-      .from(opportunities)
-      .leftJoin(projects, eq(opportunities.project_id, projects.id))
-      .where(
-        and(
-          eq(opportunities.tenant_id, tenantId),
-          inArray(opportunities.stage, [...ACTIVE_OPPORTUNITY_STAGES])
-        )
-      ),
-    // Overdue invoices.
-    db
-      .select({
-        id: invoices.id,
-        project_id: invoices.project_id,
-        invoice_number: invoices.invoice_number,
-        due_date: invoices.due_date,
-        net_amount_cents: invoices.net_amount_cents,
-        project_name: projects.name,
-      })
-      .from(invoices)
-      .leftJoin(projects, eq(invoices.project_id, projects.id))
-      .where(
-        and(
-          eq(invoices.tenant_id, tenantId),
-          eq(invoices.status, 'overdue'),
-          lt(invoices.due_date, now)
-        )
-      ),
-    // GP erosion: active projects where PO committed cost exceeds BOM budget by >10%.
-    db
-      .select({
-        id: boms.id,
-        project_id: boms.project_id,
-        total_cost_cents: boms.total_cost_cents,
-        tcv_cents: boms.tcv_cents,
-        gp_cents: boms.gp_cents,
-        project_name: projects.name,
-      })
-      .from(boms)
-      .leftJoin(projects, eq(boms.project_id, projects.id))
-      .where(
-        and(
-          eq(boms.tenant_id, tenantId),
-          inArray(boms.status, ['approved', 'locked'])
-        )
+  // Low-margin and stalled active opportunities (GP margin < 15%).
+  const opportunityQuery = db
+    .select({
+      id: opportunities.id,
+      project_id: opportunities.project_id,
+      stage: opportunities.stage,
+      tcv_cents: opportunities.tcv_cents,
+      gp_cents: opportunities.gp_cents,
+      updated_at: opportunities.updated_at,
+      project_name: projects.name,
+      account_name: accounts.name,
+    })
+    .from(opportunities)
+    .leftJoin(projects, eq(opportunities.project_id, projects.id))
+    .leftJoin(
+      accounts,
+      and(
+        eq(opportunities.account_id, accounts.id),
+        eq(accounts.tenant_id, tenantId)
       )
-      .orderBy(desc(boms.created_at)),
+    )
+    .where(
+      and(
+        eq(opportunities.tenant_id, tenantId),
+        inArray(opportunities.stage, [...ACTIVE_OPPORTUNITY_STAGES])
+      )
+    )
+  // Overdue is derived from the due date and the open balance. The 'overdue'
+  // status is only written when a cash allocation is recomputed, so an unpaid
+  // invoice that simply passed its due date would otherwise never alert.
+  const overdueInvoiceQuery = db
+    .select({
+      id: invoices.id,
+      project_id: invoices.project_id,
+      invoice_number: invoices.invoice_number,
+      due_date: invoices.due_date,
+      net_amount_cents: invoices.net_amount_cents,
+      allocated_cents: invoiceAllocatedCents,
+      project_name: projects.name,
+    })
+    .from(invoices)
+    .leftJoin(projects, eq(invoices.project_id, projects.id))
+    .where(
+      and(
+        eq(invoices.tenant_id, tenantId),
+        inArray(invoices.status, ['issued', 'partial_payment', 'overdue']),
+        lt(invoices.due_date, manilaBoundaries.startOfDay(now)),
+        sql`${invoices.net_amount_cents} > ${invoiceAllocatedCents}`
+      )
+    )
+  // GP erosion: active projects where PO committed cost exceeds BOM budget by >10%.
+  const bomQuery = db
+    .select({
+      id: boms.id,
+      project_id: boms.project_id,
+      total_cost_cents: boms.total_cost_cents,
+      tcv_cents: boms.tcv_cents,
+      gp_cents: boms.gp_cents,
+      project_name: projects.name,
+    })
+    .from(boms)
+    .leftJoin(projects, eq(boms.project_id, projects.id))
+    .where(
+      and(
+        eq(boms.tenant_id, tenantId),
+        inArray(boms.status, ['approved', 'locked'])
+      )
+    )
+    .orderBy(desc(boms.created_at))
+  // Drizzle builders only reach the database when awaited, so a class the viewer
+  // may not read is never queried.
+  const noInvoices: Awaited<typeof overdueInvoiceQuery> = []
+  const noBoms: Awaited<typeof bomQuery> = []
+
+  const [activeOpps, overdueInvoices, lockedBoms] = await Promise.all([
+    opportunityQuery,
+    access.billing ? overdueInvoiceQuery : noInvoices,
+    access.cost ? bomQuery : noBoms,
   ])
 
   for (const opp of activeOpps) {
+    // Opportunities owned by an account have no project until they are won.
+    const label = opp.project_name ?? opp.account_name ?? 'Unnamed opportunity'
+    const href = opp.project_id
+      ? `/projects/${opp.project_id}`
+      : `/crm/opportunities/${opp.id}`
     const tcv = opp.tcv_cents
     const gp = opp.gp_cents
     if (tcv > 0) {
@@ -809,9 +865,9 @@ export async function getAlerts(tenantId: string): Promise<Alert[]> {
         alerts.push({
           type: 'low_margin',
           severity: marginBps < 1000 ? 'danger' : 'warning',
-          label: opp.project_name ?? 'Unknown project',
+          label,
           detail: `GP margin ${(marginBps / 100).toFixed(1)}% — below 15% threshold`,
-          href: `/projects/${opp.project_id}`,
+          href,
         })
       }
     }
@@ -824,19 +880,23 @@ export async function getAlerts(tenantId: string): Promise<Alert[]> {
       alerts.push({
         type: 'stalled_deal',
         severity: 'warning',
-        label: opp.project_name ?? 'Unknown project',
+        label,
         detail: `No activity for ${daysSinceUpdate} days in ${opp.stage.replace(/_/g, ' ')}`,
-        href: `/projects/${opp.project_id}`,
+        href,
       })
     }
   }
 
   for (const inv of overdueInvoices) {
+    const openCents = Math.max(
+      inv.net_amount_cents - Number(inv.allocated_cents ?? 0),
+      0
+    )
     alerts.push({
       type: 'overdue_invoice',
       severity: 'danger',
       label: inv.project_name ?? 'Unknown project',
-      detail: `${inv.invoice_number} — ₱${((inv.net_amount_cents ?? 0) / 100).toLocaleString()} overdue`,
+      detail: `${inv.invoice_number} — ${formatCents(openCents)} overdue`,
       href: `/projects/${inv.project_id}/billing`,
     })
   }
@@ -914,16 +974,62 @@ export async function getAlerts(tenantId: string): Promise<Alert[]> {
 // are excluded — the analysis is about progression, not loss attribution.
 // -----------------------------------------------------------------------------
 
-export async function getConversionRates(tenantId: string): Promise<ConversionRateRow[]> {
+/** Closing-date window from the dashboard's From/To filter; same bounds as the CSV export. */
+export type ClosingDateRange = Pick<
+  OpportunityExportFilters,
+  'sinceInclusive' | 'untilExclusive'
+>
+
+/** An absent or invalid date means no bound on that side. */
+export function closingDateRangeFromSearch(
+  since: string | undefined,
+  until: string | undefined
+): ClosingDateRange {
+  const params = new URLSearchParams()
+  if (since) params.set('since', since)
+  if (until) params.set('until', until)
+  const parsed = parseOpportunityExportFilters(params)
+  return parsed.success
+    ? {
+        sinceInclusive: parsed.data.sinceInclusive,
+        untilExclusive: parsed.data.untilExclusive,
+      }
+    : {}
+}
+
+export async function getConversionRates(
+  tenantId: string,
+  range: ClosingDateRange = {}
+): Promise<ConversionRateRow[]> {
   const rows = await db
     .select({ stage: opportunities.stage, count: count() })
     .from(opportunities)
-    .where(eq(opportunities.tenant_id, tenantId))
+    .where(
+      and(
+        eq(opportunities.tenant_id, tenantId),
+        range.sinceInclusive
+          ? gte(opportunities.closing_date, range.sinceInclusive)
+          : undefined,
+        range.untilExclusive
+          ? lt(opportunities.closing_date, range.untilExclusive)
+          : undefined
+      )
+    )
     .groupBy(opportunities.stage)
 
-  // Map of how many opps are currently sitting AT each stage.
+  return conversionRatesFromStageCounts(rows)
+}
+
+export function conversionRatesFromStageCounts(
+  rows: Array<{ stage: OpportunityStage; count: number | string }>
+): ConversionRateRow[] {
+  // Map of how many opps are currently sitting AT each stage. Legacy stage
+  // values count under their canonical equivalent, as the stage table does.
   const atStage = new Map<string, number>()
-  for (const r of rows) atStage.set(r.stage, Number(r.count))
+  for (const r of rows) {
+    const stage = STAGE_LEGACY_MAP[r.stage]
+    atStage.set(stage, (atStage.get(stage) ?? 0) + Number(r.count))
+  }
 
   // "At or beyond" count for stage X = sum of counts at X and later.
   const atOrBeyond = new Map<PipelineStage, number>()
@@ -992,10 +1098,20 @@ export function manilaMonthKey(value: Date): string {
 
 export async function getMonthlyForecast(
   tenantId: string,
-  monthsAhead = 6
+  monthsAhead = 6,
+  range: ClosingDateRange = {}
 ): Promise<MonthlyForecastData> {
   const now = new Date()
   const { startMonth, endMonth, months } = monthlyForecastWindow(now, monthsAhead)
+  // The closing-date filter can only narrow the fixed forecast window.
+  const from =
+    range.sinceInclusive && range.sinceInclusive > startMonth
+      ? range.sinceInclusive
+      : startMonth
+  const to =
+    range.untilExclusive && range.untilExclusive < endMonth
+      ? range.untilExclusive
+      : endMonth
 
   const terminalStages = new Set<OpportunityStage>([
     ...WON_OPPORTUNITY_STAGES,
@@ -1012,8 +1128,8 @@ export async function getMonthlyForecast(
     .where(
       and(
         eq(opportunities.tenant_id, tenantId),
-        gte(opportunities.closing_date, startMonth),
-        lt(opportunities.closing_date, endMonth)
+        gte(opportunities.closing_date, from),
+        lt(opportunities.closing_date, to)
       )
     )
 

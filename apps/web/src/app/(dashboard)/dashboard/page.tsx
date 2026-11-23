@@ -1,7 +1,8 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import {
+  closingDateRangeFromSearch,
   getDashboardKpis,
   getStageDistribution,
   getRepScorecards,
@@ -49,6 +50,15 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     )
   }
 
+  // Billing and cost figures follow the capabilities of the pages they come from,
+  // not the executive dashboard's wider role list.
+  const canViewBilling = can(profile.role, 'finance.read')
+  const canViewCost = can(profile.role, 'budget.read')
+  const closingRange = closingDateRangeFromSearch(
+    resolvedSearch.since,
+    resolvedSearch.until
+  )
+
   const dashboard = await loadDashboardForRole(profile.role, {
     executive: async () => {
       const [kpis, stages, reps, alerts, conversionRates, forecast, today, management] =
@@ -56,16 +66,16 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           getDashboardKpis(profile.tenantId),
           getStageDistribution(profile.tenantId),
           getRepScorecards(profile.tenantId),
-          getAlerts(profile.tenantId),
-          getConversionRates(profile.tenantId),
-          getMonthlyForecast(profile.tenantId, 6),
+          getAlerts(profile.tenantId, { billing: canViewBilling, cost: canViewCost }),
+          getConversionRates(profile.tenantId, closingRange),
+          getMonthlyForecast(profile.tenantId, 6, closingRange),
           getTodayCommandCenter(
             profile.tenantId,
             profile.user.id,
             renderedAt,
             canViewPath(profile.role, '/projects')
           ),
-          getManagementDashboard(profile.tenantId),
+          canViewCost ? getManagementDashboard(profile.tenantId) : null,
         ])
 
       return { kpis, stages, reps, alerts, conversionRates, forecast, today, management }
@@ -99,10 +109,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     minute: '2-digit',
     timeZone: 'Asia/Manila',
   })
-
-  // Reference search params so a future stage-filter widget can drive the
-  // dashboard; for now they only flow into ExportCsvButton via the URL.
-  void resolvedSearch
 
   if (dashboard.mode === 'my_work' || dashboard.mode === 'degraded') {
     return (
@@ -182,7 +188,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
       <KpiCards kpis={kpis} />
 
-      <ManagementHealth data={management} role={profile.role} />
+      {management ? <ManagementHealth data={management} role={profile.role} /> : null}
 
       <div className="section-grid-2 dashboard-grid-split">
         <StageDistributionTable rows={stages} />
