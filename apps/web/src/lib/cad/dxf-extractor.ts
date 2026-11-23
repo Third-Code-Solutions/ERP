@@ -181,10 +181,9 @@ function extractPolylineAreas(
     code: null,
     description: `${b.system} — Floor Area (${b.layer})`,
     unit: 'sqm',
-    // Preserve measured evidence exactly. The current integer BOM contract
-    // rejects a fractional result at its explicit validation boundary rather
-    // than changing a drawing's area to make it fit.
-    quantity: b.areaSqm,
+    // BOQ quantities are numeric(18,4): round the measured area half-up to
+    // 4 dp here, once; the evidence contract rejects anything finer.
+    quantity: Number(b.areaSqm.toFixed(4)),
     unit_cost_cents: 0,
     notes: `Layer: ${b.layer} · ${b.rooms} polygon${b.rooms === 1 ? '' : 's'}`,
   }))

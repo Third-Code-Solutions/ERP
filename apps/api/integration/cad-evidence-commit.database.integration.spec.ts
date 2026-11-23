@@ -224,7 +224,7 @@ suite('CAD evidence commit database integration', () => {
               code: 'WALL',
               description: 'Partition wall',
               unit: 'sqm',
-              quantity: 12,
+              quantity: 12.3457,
               unit_cost_cents: 1250,
               notes: 'CAD line',
             },
@@ -344,12 +344,20 @@ suite('CAD evidence commit database integration', () => {
         tenantALines
           .filter((line) => line.notes?.includes(`document:${documentA}`))
           .map((line) => line.line_total_cents)
-      ).toEqual([15_000, 50_000])
+      ).toEqual([15_432, 50_000]) // 1250 x 12.3457 = 15432.125, half-up once
+      expect(
+        tenantALines
+          .filter((line) => line.notes?.includes(`document:${documentA}`))
+          .map((line) => [line.quantity_decimal, line.quantity])
+      ).toEqual([
+        ['12.3457', 12],
+        ['2.0000', 2],
+      ])
       expect(
         tenantALines
           .filter((line) => line.notes?.includes(`document:${documentA}`))
           .reduce((sum, line) => sum + line.line_total_cents, 0)
-      ).toBe(65_000)
+      ).toBe(65_432)
       expect(tenantBLines).toHaveLength(1)
       expect(requests).toHaveLength(1)
       expect(requests[0]?.state).toBe('succeeded')

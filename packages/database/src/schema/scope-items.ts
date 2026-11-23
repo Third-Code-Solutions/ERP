@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, integer, bigint, timestamp, index } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, varchar, text, integer, bigint, numeric, timestamp, index } from 'drizzle-orm/pg-core'
 import { tenants } from './tenants'
 import { projects } from './projects'
 import { users } from './users'
@@ -13,7 +13,15 @@ export const scopeItems = pgTable(
     code: varchar('code', { length: 50 }),
     description: text('description').notNull(),
     unit: varchar('unit', { length: 20 }).notNull(),
+    /**
+     * @deprecated Legacy integer mirror. The `scope_items_sync_quantity`
+     * trigger keeps it equal to round(quantity_decimal); read and write
+     * `quantity_decimal`. Dropped in a later contract release.
+     */
     quantity: integer('quantity').notNull().default(0),
+    // numeric(18,4) decimal string. No default on purpose: the trigger fills
+    // it from `quantity` only for integer-only writers.
+    quantity_decimal: numeric('quantity_decimal', { precision: 18, scale: 4 }).notNull(),
     unit_cost_cents: bigint('unit_cost_cents', { mode: 'number' }).notNull().default(0),
     line_total_cents: bigint('line_total_cents', { mode: 'number' }).notNull().default(0),
     sort_order: integer('sort_order').notNull().default(0),

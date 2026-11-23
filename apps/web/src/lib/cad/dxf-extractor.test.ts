@@ -33,7 +33,7 @@ describe('DXF scope extraction', () => {
     })
   })
 
-  it('preserves a fractional floor area rather than rounding source evidence', () => {
+  it('keeps a fractional floor area that already fits 4 decimal places', () => {
     const result = extractFromDxfText('minimal DXF fixture')
 
     expect(result.items).toEqual([
@@ -41,6 +41,31 @@ describe('DXF scope extraction', () => {
         unit: 'sqm',
         quantity: 1.5,
       }),
+    ])
+  })
+
+  it('rounds a measured floor area half-up to 4 decimal places', () => {
+    mocks.parseSync.mockReturnValue({
+      entities: [
+        {
+          type: 'LWPOLYLINE',
+          layer: 'ARCH-ROOM',
+          shape: true,
+          vertices: [
+            { x: 0, y: 0 },
+            { x: 12.3456789, y: 0 },
+            { x: 12.3456789, y: 1 },
+            { x: 0, y: 1 },
+          ],
+        },
+      ],
+      tables: { layer: { layers: { 'ARCH-ROOM': {} } } },
+    })
+
+    const result = extractFromDxfText('minimal DXF fixture')
+
+    expect(result.items).toEqual([
+      expect.objectContaining({ unit: 'sqm', quantity: 12.3457 }),
     ])
   })
 })

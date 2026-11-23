@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { cadQuantitySchema } from './cad'
 
 export const DOCUMENT_PROCESSING_MAX_WARNINGS = 100
 export const DOCUMENT_PROCESSING_MAX_FAILURE_CODE = 100
@@ -100,7 +101,9 @@ export const documentProcessingWorkerEvidenceItemSchema = z
     code: z.string().max(50).nullable(),
     description: z.string().trim().min(1).max(4_000),
     unit: z.string().trim().min(1).max(20),
-    quantity: z.number().int().positive().max(2_147_483_647),
+    quantity: cadQuantitySchema.refine((quantity) => quantity > 0, {
+      message: 'quantity must be greater than zero',
+    }),
     recommended_unit_cost_cents: z
       .number()
       .int()

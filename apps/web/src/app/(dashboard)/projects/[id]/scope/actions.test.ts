@@ -29,7 +29,7 @@ vi.mock('@third-code-erp/database', () => ({
 vi.mock('@third-code-erp/database/schema', () => ({
   projects: { id: {}, tenant_id: {} },
   scopeItems: {
-    id: {}, tenant_id: {}, project_id: {}, quantity: {}, sort_order: {},
+    id: {}, tenant_id: {}, project_id: {}, quantity: {}, quantity_decimal: {}, sort_order: {},
   },
 }))
 vi.mock('drizzle-orm', () => ({
@@ -103,6 +103,10 @@ describe('scope mutation authorization and atomic audit', () => {
     data.set('unit_cost', '10')
 
     await expect(addScopeItem('project-1', data)).resolves.toEqual({})
+    const inserted = (tx.insert.mock.results[0]?.value as { values: ReturnType<typeof vi.fn> }).values
+    expect(inserted).toHaveBeenCalledWith(
+      expect.objectContaining({ quantity_decimal: '2', unit_cost_cents: 1000, line_total_cents: 2000 }),
+    )
     expect(mocks.transaction).toHaveBeenCalledOnce()
     expect(mocks.writeAuditLogInTransaction).toHaveBeenCalledWith(
       tx,
@@ -127,5 +131,30 @@ describe('scope mutation authorization and atomic audit', () => {
 
     await expect(addScopeItem('project-1', data)).resolves.toEqual({ error: 'Unable to add scope item' })
     expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    // 2.5 x 1 centavo = 2.5: half-up gives 3, truncation would give 2.
+    ['2.5', 1, 3],
+    ['12.3457', 10000, 123457],
+    ['0.0001', 4999, 0],
+    ['0.0001', 5000, 1],
+  ])('prices a fractional quantity %s exactly at %i centavos -> %i', async (quantity, unitCost, expected) => {
+    mocks.getUserProfile.mockResolvedValue({ ...PROFILE, role: 'commercial' })
+    mocks.can.mockReturnValue(true)
+    const set = vi.fn(() => ({ where: vi.fn(() => Promise.resolve()) }))
+    const tx = {
+      select: vi.fn().mockReturnValueOnce(selectResult([{ quantity }])),
+      update: vi.fn(() => ({ set })),
+    }
+    mocks.transaction.mockImplementation(async (callback) => callback(tx))
+    mocks.writeAuditLogInTransaction.mockResolvedValue(undefined)
+
+    await expect(updateScopeItemCost('item-1', 'project-1', unitCost)).resolves.toEqual({})
+    expect(set).toHaveBeenCalledWith({ unit_cost_cents: unitCost, line_total_cents: expected })
+    expect(mocks.writeAuditLogInTransaction).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({ action: 'update', diff: { unit_cost_cents: unitCost, line_total_cents: expected } }),
+    )
   })
 })

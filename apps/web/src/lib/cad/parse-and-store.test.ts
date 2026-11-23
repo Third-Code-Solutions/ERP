@@ -101,9 +101,29 @@ describe('CAD evidence parser boundary', () => {
     expect(result.warnings[0]).toContain('CAD evidence validation failed')
   })
 
-  it('rejects fractional evidence rather than rounding it before a persistence boundary', async () => {
+  it('accepts 4-place fractional evidence for the numeric(18,4) scope quantity', async () => {
     mocks.extractFromDxfText.mockReturnValue({
-      items: [{ ...validItem, quantity: 1.5 }],
+      items: [{ ...validItem, quantity: 12.3457 }],
+      warnings: [],
+      layerCount: 1,
+      entityCount: 1,
+    })
+
+    const result = await parseCadEvidence({
+      tenantId: '22222222-2222-4222-8222-222222222222',
+      projectId: PROJECT_ID,
+      documentId: DOCUMENT_ID,
+      storagePath: 'tenant/project/drawing.dxf',
+      fileName: 'drawing.dxf',
+    })
+
+    expect(result.status).toBe('extracted')
+    expect(result.workerResponse?.scope_items[0]?.quantity).toBe(12.3457)
+  })
+
+  it('rejects evidence finer than 4 places rather than rounding it at the persistence boundary', async () => {
+    mocks.extractFromDxfText.mockReturnValue({
+      items: [{ ...validItem, quantity: 1.23456 }],
       warnings: [],
       layerCount: 1,
       entityCount: 1,

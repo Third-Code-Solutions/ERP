@@ -36,7 +36,7 @@ class EvidenceItem(BaseModel):
     code: str | None = Field(default=None, max_length=120)
     description: str = Field(min_length=1, max_length=500)
     unit: str = Field(min_length=1, max_length=64)
-    quantity: int = Field(ge=1, le=1_000_000)
+    quantity: int | float = Field(gt=0, le=1_000_000)
     recommended_unit_cost_cents: int = Field(ge=0, le=100_000_000_000)
     notes: str | None = Field(default=None, max_length=1_000)
 
@@ -84,7 +84,8 @@ class PrivateEvidenceItem(BaseModel):
     code: str | None = Field(default=None, max_length=50)
     description: str = Field(min_length=1, max_length=4_000)
     unit: str = Field(min_length=1, max_length=20)
-    quantity: int = Field(ge=1, le=2_147_483_647)
+    # At most 4 dp (numeric(18,4)); main.py rounds before building this.
+    quantity: int | float = Field(gt=0, le=2_147_483_647)
     recommended_unit_cost_cents: int = Field(ge=0, le=9_000_000_000)
     notes: str | None = Field(default=None, max_length=2_000)
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   cadScopeLineTotalCents,
+  cadScopeQuantity,
   parseCadWorkerResponse,
 } from './cad'
 
@@ -72,6 +73,38 @@ describe('CAD worker evidence contract', () => {
         DOCUMENT_ID
       )
     ).toThrow()
+  })
+
+  it('accepts fractional quantities with at most 4 decimal places', () => {
+    const withQuantity = (quantity: number) =>
+      validPayload({
+        scope_items: [{ ...validPayload().scope_items[0], quantity }],
+      })
+
+    const [item] = parseCadWorkerResponse(
+      withQuantity(12.3457),
+      DOCUMENT_ID
+    ).scope_items
+    expect(item?.quantity).toBe(12.3457)
+    expect(item && cadScopeQuantity(item)).toBe('12.3457')
+    for (const quantity of [12.34567, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(() =>
+        parseCadWorkerResponse(withQuantity(quantity), DOCUMENT_ID)
+      ).toThrow()
+    }
+  })
+
+  it('prices a fractional quantity with one half-up rounding to the centavo', () => {
+    expect(
+      cadScopeLineTotalCents({
+        code: null,
+        description: 'Tiles',
+        unit: 'sqm',
+        quantity: 12.3457,
+        unit_cost_cents: 50,
+        notes: null,
+      })
+    ).toBe(617) // 50 x 12.3457 = 617.285
   })
 
   it('computes exact safe integer line totals', () => {

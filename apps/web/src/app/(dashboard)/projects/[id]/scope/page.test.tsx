@@ -38,7 +38,7 @@ function selectResult(value: unknown[]) {
 }
 
 const ITEM = {
-  id: 'item-1', code: 'S-1', description: 'Concrete', quantity: 2, unit: 'sqm',
+  id: 'item-1', code: 'S-1', description: 'Concrete', quantity: 2, quantity_decimal: '2.0000', unit: 'sqm',
   unit_cost_cents: 1000, line_total_cents: 2000, notes: null, sort_order: 0,
 }
 

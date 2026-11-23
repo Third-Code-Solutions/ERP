@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { can, getUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { projects, scopeItems } from '@third-code-erp/database/schema'
+import { manualLineTotal } from '@third-code-erp/shared-types/bom'
 import { and, eq, max } from 'drizzle-orm'
 import { writeAuditLogInTransaction } from '@/lib/audit'
 import { multiplyCents, parsePesosToCents } from '@/lib/operations/scope-money'
@@ -54,7 +55,7 @@ export async function addScopeItem(
           code: str(formData.get('code')),
           description,
           unit,
-          quantity,
+          quantity_decimal: String(quantity),
           unit_cost_cents: unitCostCents,
           line_total_cents: lineTotalCents,
           sort_order: sortOrder,
@@ -97,13 +98,18 @@ export async function updateScopeItemCost(
   try {
     const result = await db.transaction(async (tx) => {
       const [existing] = await tx
-        .select({ quantity: scopeItems.quantity })
+        .select({ quantity: scopeItems.quantity_decimal })
         .from(scopeItems)
         .where(and(eq(scopeItems.id, itemId), eq(scopeItems.project_id, projectId), eq(scopeItems.tenant_id, profile.tenantId)))
       if (!existing) return { error: 'Item not found' } as const
 
-      const lineTotalCents = multiplyCents(unitCostCents, existing.quantity)
-      if (lineTotalCents === undefined) return { error: 'Line total exceeds supported centavo range' } as const
+      // CAD scope quantities can be fractional: price the exact decimal.
+      let lineTotalCents: number
+      try {
+        lineTotalCents = manualLineTotal(unitCostCents, existing.quantity)
+      } catch {
+        return { error: 'Line total exceeds supported centavo range' } as const
+      }
 
       await tx.update(scopeItems).set({ unit_cost_cents: unitCostCents, line_total_cents: lineTotalCents }).where(
         and(eq(scopeItems.id, itemId), eq(scopeItems.project_id, projectId), eq(scopeItems.tenant_id, profile.tenantId))
