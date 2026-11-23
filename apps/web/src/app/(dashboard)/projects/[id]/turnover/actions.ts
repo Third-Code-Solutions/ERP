@@ -26,7 +26,7 @@ import { writeAuditLog } from '@/lib/audit'
 
 function guard(role: AppRole, capability: ErpCapability): string | null {
   if (!can(role, capability)) {
-    return `Forbidden: role "${role}" lacks "${capability}"`
+    return 'You do not have permission to change the turnover package.'
   }
   return null
 }
@@ -61,12 +61,7 @@ export async function attachTurnoverDocument(
     slot,
     document_id: documentId,
   })
-  if (!parsed.success) {
-    const first = parsed.error.errors[0]
-    return {
-      error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}`,
-    }
-  }
+  if (!parsed.success) return { error: 'Choose a document to attach.' }
 
   // Tenant ownership on both project + document.
   const [project] = await db
@@ -79,9 +74,15 @@ export async function attachTurnoverDocument(
   const [doc] = await db
     .select({ id: documents.id })
     .from(documents)
-    .where(and(eq(documents.id, documentId), eq(documents.tenant_id, profile.tenantId)))
+    .where(
+      and(
+        eq(documents.id, documentId),
+        eq(documents.tenant_id, profile.tenantId),
+        eq(documents.project_id, projectId)
+      )
+    )
     .limit(1)
-  if (!doc) return { error: 'Document not found' }
+  if (!doc) return { error: 'That document was not found in this project.' }
 
   const column = SLOT_COLUMN[slot]
 
