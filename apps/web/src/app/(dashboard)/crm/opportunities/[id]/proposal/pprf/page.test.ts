@@ -12,7 +12,7 @@ describe('PPRF detail route authorization projection', () => {
     const source = readFileSync(new URL('./page.tsx', import.meta.url), 'utf8')
     expect(source).toContain("const canSubmit = can(profile.role, 'pprf.submit')")
     expect(source).toContain('{submissionId ? (')
-    expect(source).toContain('You can review prior PPRF versions')
+    expect(source).toContain('<PprfReadOnly')
     expect(source).not.toContain("redirect('/crm/accounts?error=forbidden')")
     expect(source).toContain('const submissionId = canSubmit ? randomUUID() : null')
     expect(source).toContain('key={submissionId}')

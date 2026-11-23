@@ -13,6 +13,7 @@ import {
 } from '@third-code-erp/database/schema'
 import { ProposalSubNav } from '@/components/proposal/sub-nav'
 import { PprfForm } from '@/components/proposal/pprf-form'
+import { PprfReadOnly } from '@/components/proposal/pprf-read-only'
 import { pprfPayloadSchema } from '@/app/(dashboard)/crm/opportunities/[id]/proposal/schemas'
 import { OpportunityKycTrackPanel } from '@/components/proposal/opportunity-kyc-track-panel'
 
@@ -100,9 +101,11 @@ export default async function PprfPage({ params }: PageProps) {
   // Parse latest payload into the typed form defaults. If parse fails (e.g.
   // an older row without scope_notes), fall back to the empty template.
   let defaults = EMPTY_DEFAULTS
+  let latestReadable = false
   if (latest) {
     const parsed = pprfPayloadSchema.safeParse(latest.payload)
     if (parsed.success) {
+      latestReadable = true
       defaults = {
         site_address: parsed.data.site_address,
         floor_area_sqm: String(parsed.data.floor_area_sqm),
@@ -140,7 +143,11 @@ export default async function PprfPage({ params }: PageProps) {
         <div className="card">
           <div className="card-header">
             <h2 className="card-title">
-              {latest ? `Edit & resubmit (next: v${latest.version + 1})` : 'Submit PPRF v1'}
+              {!canSubmit
+                ? 'Latest PPRF'
+                : latest
+                  ? `Edit & resubmit (next: v${latest.version + 1})`
+                  : 'Submit PPRF v1'}
             </h2>
           </div>
           <div style={{ padding: 16 }}>
@@ -151,9 +158,25 @@ export default async function PprfPage({ params }: PageProps) {
                 submissionId={submissionId}
                 defaults={defaults}
               />
+            ) : latest && latestReadable ? (
+              <PprfReadOnly
+                version={latest.version}
+                submittedAt={
+                  latest.submitted_at
+                    ? new Date(latest.submitted_at).toLocaleString('en-PH', {
+                        timeZone: 'Asia/Manila',
+                        year: 'numeric', month: 'short', day: 'numeric',
+                        hour: '2-digit', minute: '2-digit',
+                      })
+                    : null
+                }
+                values={defaults}
+              />
             ) : (
               <div className="card-empty">
-                You can review prior PPRF versions, but your role cannot submit a new version.
+                {latest
+                  ? 'The latest PPRF version could not be displayed. Ask Sales to resubmit it.'
+                  : 'No PPRF has been submitted yet. Your role cannot submit one.'}
               </div>
             )}
           </div>
