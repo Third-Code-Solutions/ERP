@@ -49,6 +49,10 @@ header is missing or wrong. The functions run with the service role across all
 tenants and the gateway accepts the public anon key, so the anon key alone must
 never be enough to trigger them.
 
+Keep the secret out of `cron.job`: store it once in Supabase Vault
+(`select vault.create_secret('<CRON_SECRET>', 'cron_secret');`) and let each
+schedule read it from `vault.decrypted_secrets`, as below.
+
 ## Cron setup
 
 Use the Supabase Dashboard's "Scheduled Functions" UI, **or** wire
@@ -62,7 +66,7 @@ SELECT cron.schedule(
   '*/30 * * * *',
   $$ SELECT net.http_post(
        url := 'https://<ref>.functions.supabase.co/sla-checker',
-       headers := jsonb_build_object('Authorization', 'Bearer <anon>', 'x-cron-secret', '<CRON_SECRET>')
+       headers := jsonb_build_object('Authorization', 'Bearer <anon>', 'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'cron_secret'))
      ) $$
 );
 
@@ -72,7 +76,7 @@ SELECT cron.schedule(
   '0 0 * * *',
   $$ SELECT net.http_post(
        url := 'https://<ref>.functions.supabase.co/permit-staleness-checker',
-       headers := jsonb_build_object('Authorization', 'Bearer <anon>', 'x-cron-secret', '<CRON_SECRET>')
+       headers := jsonb_build_object('Authorization', 'Bearer <anon>', 'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'cron_secret'))
      ) $$
 );
 
@@ -82,7 +86,7 @@ SELECT cron.schedule(
   '0 * * * *',
   $$ SELECT net.http_post(
        url := 'https://<ref>.functions.supabase.co/cnps-survey-sender',
-       headers := jsonb_build_object('Authorization', 'Bearer <anon>', 'x-cron-secret', '<CRON_SECRET>')
+       headers := jsonb_build_object('Authorization', 'Bearer <anon>', 'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'cron_secret'))
      ) $$
 );
 ```
