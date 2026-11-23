@@ -9,7 +9,11 @@ import {
   EditUomForm,
   EditWarehouseForm,
 } from './setup-controls'
-import { getInventorySummary } from '@/lib/inventory-queries'
+import {
+  getInventorySummary,
+  MAX_BALANCES,
+  MAX_ITEMS,
+} from '@/lib/inventory-queries'
 
 export const metadata: Metadata = { title: 'Inventory control center' }
 
@@ -38,14 +42,12 @@ export default async function InventoryPage() {
     projectRows,
     balances,
     receiptCounts,
+    truncated,
+    totalValueCents,
   } = await getInventorySummary(profile.tenantId)
 
   const trackedItems = items.filter((item) => item.inventory_tracked)
   const activeItems = items.filter((item) => item.is_active)
-  const inventoryValue = balances.reduce(
-    (sum, row) => sum + Number(row.value_cents),
-    0
-  )
   return (
     <div>
       <div className="page-header finance-page-header">
@@ -82,7 +84,7 @@ export default async function InventoryPage() {
         <div className="kpi-card">
           <p className="kpi-card-label">On-hand value</p>
           <p className="kpi-card-value finance-money-kpi">
-            {formatMoney(inventoryValue)}
+            {formatMoney(totalValueCents)}
           </p>
           <p className="kpi-card-sub">All posted stock evidence, net of reversals</p>
         </div>
@@ -116,6 +118,12 @@ export default async function InventoryPage() {
           </div>
           <p>Derived only from append-only Stock Ledger Entries.</p>
         </div>
+        {truncated.balances && (
+          <p className="finance-ledger-limit" role="status">
+            Showing the first {MAX_BALANCES} stock lines. On-hand value above
+            still covers every balance.
+          </p>
+        )}
         <div className="finance-table-shell">
           {balances.length === 0 ? (
             <div className="card-empty">
@@ -169,6 +177,13 @@ export default async function InventoryPage() {
 
       {canManage && (
         <>
+          {truncated.setup && (
+            <p className="finance-ledger-limit" role="status">
+              Setup lists are cut at {MAX_ITEMS.toLocaleString('en-PH')} items
+              (and 500 units, warehouses or projects). Items beyond the limit
+              are not shown here.
+            </p>
+          )}
           <section className="finance-section">
             <div className="finance-section-heading">
               <div>

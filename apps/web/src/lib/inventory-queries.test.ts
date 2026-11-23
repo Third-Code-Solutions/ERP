@@ -12,7 +12,11 @@ vi.mock('@third-code-erp/database', () => ({
 vi.mock('./erp-core-client', () => coreMocks)
 
 import { db } from '@third-code-erp/database'
-import { getInventorySummary } from './inventory-queries'
+import {
+  getInventorySummary,
+  MAX_BALANCES,
+  MAX_ITEMS,
+} from './inventory-queries'
 
 const TENANT_ID = '22222222-2222-4222-8222-222222222222'
 const OTHER_TENANT_ID = '99999999-9999-4999-8999-999999999999'
@@ -115,6 +119,8 @@ describe('getInventorySummary', () => {
         }),
       ],
       receiptCounts: { draft_count: 1, posted_count: 2 },
+      truncated: { setup: false, balances: false },
+      totalValueCents: 10_001,
     })
   })
 
@@ -185,5 +191,56 @@ describe('getInventorySummary', () => {
         dialect.sqlToQuery(call[0] as never).params.includes(TENANT_ID)
       )
     ).toBe(true)
+  })
+
+  it('cuts oversized legacy lists with a flag instead of throwing', async () => {
+    coreMocks.inventorySummaryReadsUseCoreApi.mockReturnValue(false)
+
+    const list = (rows: unknown[]) => {
+      const limit = vi.fn().mockResolvedValue(rows)
+      const orderBy = vi.fn().mockReturnValue({ limit })
+      const where = vi.fn().mockReturnValue({ orderBy })
+      return { from: vi.fn().mockReturnValue({ where }) }
+    }
+    const itemRow = (index: number) => ({
+      id: `item-${index}`,
+      code: `ITEM-${index}`,
+      description: 'Cement',
+      base_uom_id: UOM_ID,
+      inventory_tracked: true,
+      is_active: true,
+    })
+    const balanceRow = (index: number) => ({
+      warehouse_id: WAREHOUSE_ID,
+      warehouse_code: 'MAIN',
+      warehouse_name: 'Main store',
+      item_id: `item-${index}`,
+      item_code: `ITEM-${index}`,
+      item_description: 'Cement',
+      uom_code: 'EA',
+      quantity_micros: '1000000',
+      value_cents: '100',
+      total_value_cents: '999999',
+    })
+    vi.mocked(db.select)
+      .mockReturnValueOnce(list([]) as never)
+      .mockReturnValueOnce(list([]) as never)
+      .mockReturnValueOnce(
+        list(Array.from({ length: MAX_ITEMS + 1 }, (_, i) => itemRow(i))) as never
+      )
+      .mockReturnValueOnce(list([]) as never)
+    vi.mocked(db.execute)
+      .mockResolvedValueOnce(
+        Array.from({ length: MAX_BALANCES + 1 }, (_, i) => balanceRow(i)) as never
+      )
+      .mockResolvedValueOnce([{ draft_count: 0, posted_count: 0 }] as never)
+
+    const summary = await getInventorySummary(TENANT_ID)
+
+    expect(summary.items).toHaveLength(MAX_ITEMS)
+    expect(summary.balances).toHaveLength(MAX_BALANCES)
+    expect(summary.truncated).toEqual({ setup: true, balances: true })
+    // The headline value covers every balance, not just the 500 listed.
+    expect(summary.totalValueCents).toBe(999_999)
   })
 })

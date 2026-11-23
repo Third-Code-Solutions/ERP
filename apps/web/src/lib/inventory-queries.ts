@@ -12,11 +12,11 @@ import {
   inventorySummaryReadsUseCoreApi,
 } from './erp-core-client'
 
-const MAX_UOMS = 500
-const MAX_WAREHOUSES = 500
-const MAX_ITEMS = 1_000
-const MAX_PROJECTS = 500
-const MAX_BALANCES = 500
+export const MAX_UOMS = 500
+export const MAX_WAREHOUSES = 500
+export const MAX_ITEMS = 1_000
+export const MAX_PROJECTS = 500
+export const MAX_BALANCES = 500
 
 export interface InventoryBalancePageRow {
   [key: string]: unknown
@@ -57,6 +57,10 @@ export interface InventorySummaryPageData {
   projectRows: Array<{ id: string; code: string; name: string }>
   balances: InventoryBalancePageRow[]
   receiptCounts: { draft_count: number; posted_count: number }
+  /** A list was cut at its display limit; the page says so instead of failing. */
+  truncated: { setup: boolean; balances: boolean }
+  /** Value of every balance, including those cut from `balances`. */
+  totalValueCents: number
 }
 
 function integerToSafeNumber(value: string | number | bigint, label: string): number {
@@ -130,6 +134,11 @@ function mapCoreSummary(
       draft_count: data.receiptCounts.draftCount,
       posted_count: data.receiptCounts.postedCount,
     },
+    truncated: { setup: false, balances: false },
+    totalValueCents: data.balances.reduce(
+      (sum, balance) => sum + integerToSafeNumber(balance.valueCents, 'value'),
+      0
+    ),
   }
 }
 
@@ -196,6 +205,7 @@ async function readLegacyInventorySummary(
         uom_code: string
         quantity_micros: string | number | bigint
         value_cents: string | number | bigint
+        total_value_cents: string | number | bigint
       }>(sql`
         select
           warehouse.id as warehouse_id,
@@ -206,7 +216,9 @@ async function readLegacyInventorySummary(
           item.description as item_description,
           uom.code as uom_code,
           sum(stock.quantity_delta_micros)::bigint as quantity_micros,
-          sum(stock.value_delta_cents)::bigint as value_cents
+          sum(stock.value_delta_cents)::bigint as value_cents,
+          (sum(sum(stock.value_delta_cents)) over ())::bigint
+            as total_value_cents
         from public.stock_ledger_entries stock
         join public.warehouses warehouse
           on warehouse.id = stock.warehouse_id
@@ -243,24 +255,22 @@ async function readLegacyInventorySummary(
       `),
     ])
 
-  if (
-    uoms.length > MAX_UOMS ||
-    warehouseRows.length > MAX_WAREHOUSES ||
-    items.length > MAX_ITEMS ||
-    projectRows.length > MAX_PROJECTS
-  ) {
-    throw new Error('Inventory setup data exceeds the display limit')
+  const truncated = {
+    setup:
+      uoms.length > MAX_UOMS ||
+      warehouseRows.length > MAX_WAREHOUSES ||
+      items.length > MAX_ITEMS ||
+      projectRows.length > MAX_PROJECTS,
+    balances: balanceRows.length > MAX_BALANCES,
   }
-  if (balanceRows.length > MAX_BALANCES) {
-    throw new Error('Inventory summary exceeds the display limit')
-  }
+  const listedBalances = balanceRows.slice(0, MAX_BALANCES)
 
   return {
-    uoms,
-    warehouseRows,
-    items,
-    projectRows,
-    balances: balanceRows.map((row) => ({
+    uoms: uoms.slice(0, MAX_UOMS),
+    warehouseRows: warehouseRows.slice(0, MAX_WAREHOUSES),
+    items: items.slice(0, MAX_ITEMS),
+    projectRows: projectRows.slice(0, MAX_PROJECTS),
+    balances: listedBalances.map((row) => ({
       warehouse_id: row.warehouse_id,
       warehouse_code: row.warehouse_code,
       warehouse_name: row.warehouse_name,
@@ -275,6 +285,11 @@ async function readLegacyInventorySummary(
       draft_count: integerToSafeNumber(counts[0]?.draft_count ?? 0, 'draft receipt count'),
       posted_count: integerToSafeNumber(counts[0]?.posted_count ?? 0, 'posted receipt count'),
     },
+    truncated,
+    totalValueCents: integerToSafeNumber(
+      balanceRows[0]?.total_value_cents ?? 0,
+      'total value'
+    ),
   }
 }
 
