@@ -6,8 +6,10 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common'
 import { describe, expect, it, vi } from 'vitest'
+import type { SQL } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
+import { PLATFORM_OWNER_EMAIL } from '../auth/platform-owner.guard'
 import type { AuditService } from '../audit/audit.service'
 import type { DatabaseService } from '../database/database.service'
 import { UserRoleAssignmentService } from './user-role-assignment.service'
@@ -402,6 +404,102 @@ describe('UserRoleAssignmentService', () => {
     ).rejects.toBeInstanceOf(ForbiddenException)
     expect(transactionClient.update).not.toHaveBeenCalled()
     expect(audit.writeSemantic).not.toHaveBeenCalled()
+  })
+
+  it('prevents an admin from escalating their own role to owner', async () => {
+    const membership = selectQuery([
+      {
+        tenantId: PRINCIPAL.tenantId,
+        role: 'admin',
+        email: PRINCIPAL.email,
+      },
+    ])
+    const request = processingRequest()
+    const requestQuery = selectQuery([request])
+    const target = selectQuery([
+      {
+        id: PRINCIPAL.userId,
+        tenantId: PRINCIPAL.tenantId,
+        role: 'admin',
+        updatedAt: UPDATED_AT,
+      },
+    ])
+    const transactionClient = {
+      select: vi
+        .fn()
+        .mockReturnValueOnce({ from: membership.from })
+        .mockReturnValueOnce(selectQuery([{ status: 'active' }]))
+        .mockReturnValueOnce({ from: requestQuery.from })
+        .mockReturnValueOnce({ from: target.from }),
+      insert: vi.fn().mockReturnValue({ values: requestInsert(request) }),
+      update: vi.fn(),
+    }
+    const { service, audit } = enabledService(transactionClient)
+
+    await expect(
+      service.assign(
+        PRINCIPAL.userId,
+        { expectedRole: 'admin', role: 'owner' },
+        PRINCIPAL,
+        'role-admin-self-escalation'
+      )
+    ).rejects.toBeInstanceOf(ForbiddenException)
+    expect(transactionClient.update).not.toHaveBeenCalled()
+    expect(audit.writeSemantic).not.toHaveBeenCalled()
+  })
+
+  it('refuses to change a platform identity from a workspace', async () => {
+    const membership = selectQuery([
+      {
+        tenantId: PRINCIPAL.tenantId,
+        role: 'owner',
+        email: PRINCIPAL.email,
+      },
+    ])
+    const request = processingRequest()
+    const requestQuery = selectQuery([request])
+    const target = selectQuery([
+      {
+        id: TARGET_ID,
+        tenantId: PRINCIPAL.tenantId,
+        role: 'viewer',
+        updatedAt: UPDATED_AT,
+        platformIdentity: true,
+      },
+    ])
+    const transactionClient = {
+      select: vi
+        .fn()
+        .mockReturnValueOnce({ from: membership.from })
+        .mockReturnValueOnce(selectQuery([{ status: 'active' }]))
+        .mockReturnValueOnce({ from: requestQuery.from })
+        .mockReturnValueOnce({ from: target.from }),
+      insert: vi.fn().mockReturnValue({ values: requestInsert(request) }),
+      update: vi.fn(),
+    }
+    const { service, audit, principal } = enabledService(
+      transactionClient,
+      'owner'
+    )
+
+    await expect(
+      service.assign(
+        TARGET_ID,
+        { expectedRole: 'viewer', role: 'pm' },
+        principal,
+        'role-platform-identity'
+      )
+    ).rejects.toBeInstanceOf(ForbiddenException)
+    expect(transactionClient.update).not.toHaveBeenCalled()
+    expect(audit.writeSemantic).not.toHaveBeenCalled()
+
+    const fields = transactionClient.select.mock.calls[3]?.[0] as {
+      platformIdentity: SQL
+    }
+    const { sql, params } = new PgDialect().sqlToQuery(fields.platformIdentity)
+    expect(sql).toContain('public.platform_role_assignments')
+    expect(sql).toContain('platform_role.revoked_at is null')
+    expect(params).toContain(PLATFORM_OWNER_EMAIL)
   })
 
   it('replays the stored result without another update or audit', async () => {

@@ -10,6 +10,7 @@ import {
   type AppRole,
 } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
+import { PLATFORM_OWNER_EMAIL } from '@third-code-erp/shared-types/platform-administration'
 import {
   platformUserInvitations,
   users as usersTable,
@@ -425,11 +426,25 @@ export async function resetUserPassword(
       .select({
         id: usersTable.id,
         role: usersTable.role,
+        // The service-role reset below bypasses every database guard, so a
+        // workspace admin must never reach the platform-owner credentials.
+        platformIdentity: sql<boolean>`(
+          exists (
+            select 1
+            from public.platform_role_assignments as platform_role
+            where platform_role.user_id = ${usersTable.id}
+              and platform_role.revoked_at is null
+          )
+          or lower(btrim(${usersTable.email})) = ${PLATFORM_OWNER_EMAIL}
+        )`,
       })
       .from(usersTable)
       .where(and(eq(usersTable.id, user_id), eq(usersTable.tenant_id, profile.tenantId)))
       .limit(1)
     if (!target) return { error: 'User not found in this workspace.' }
+    if (target.platformIdentity) {
+      return { error: 'Platform administration credentials cannot be changed from a workspace.' }
+    }
     if (target.role === 'owner' && profile.role !== 'owner') {
       return { error: 'Only an owner can reset another owner password.' }
     }
