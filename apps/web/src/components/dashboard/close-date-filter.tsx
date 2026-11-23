@@ -55,7 +55,7 @@ export function CloseDateFilter() {
       onSubmit={(e) => e.preventDefault()}
     >
       <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-        <span>From</span>
+        <span>Closing from</span>
         <input
           type="date"
           value={since}
