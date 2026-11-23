@@ -1536,6 +1536,19 @@ test('fails if detail exposes the PPRF form without the central submit capabilit
   )
 })
 
+test('fails if the PPRF detail read-only branch mounts the PPRF form', () => {
+  const mutated = replaceTextOnce(
+    read(pprfDetailPagePath),
+    '<PprfReadOnly',
+    '<PprfForm',
+    'read-only fixture must swap the read-only view for the form'
+  )
+  assert.throws(
+    () => verifyPprfOverride(pprfDetailPagePath, mutated),
+    /detail projects exact-three submit controls/
+  )
+})
+
 test('fails if intake route drops either exact-three capability guard', () => {
   const mutated = replaceTextOnce(
     read(pprfIntakePagePath),

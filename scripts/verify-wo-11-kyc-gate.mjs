@@ -2364,9 +2364,9 @@ function verifyPprfPages(graph) {
           ts.isConditionalExpression(node) &&
           isPath(node.condition, 'submissionId') &&
           hasIdentifier(node.whenTrue, 'PprfForm') &&
-          node.whenFalse
-            .getText(detailRecord.sourceFile)
-            .includes('your role cannot submit a new version')
+          // Roles without pprf.submit get the read-only PPRF view, never the form.
+          hasIdentifier(node.whenFalse, 'PprfReadOnly') &&
+          !hasIdentifier(node.whenFalse, 'PprfForm')
       ).length === 1,
     'PPRF detail projects exact-three submit controls'
   )
