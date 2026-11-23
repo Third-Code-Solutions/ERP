@@ -17,11 +17,42 @@ const createProjectSchema = z.object({
   idempotency_key: z.string().min(1).max(256).optional(),
 })
 
-export async function createProject(formData: FormData) {
+export interface CreateProjectState {
+  error: string
+}
+
+const FIELD_LABELS: Record<string, string> = {
+  name: 'Project name',
+  client: 'Client',
+  location: 'Location',
+  project_type: 'Project type',
+  total_sqm: 'Total area',
+  notes: 'Notes',
+}
+
+// Next.js masks the message of a thrown server-action error in production,
+// so every expected failure is returned as readable text instead.
+function describeIssue(issue: z.ZodIssue): string {
+  const field = FIELD_LABELS[String(issue.path[0])] ?? 'Project details'
+  if (issue.code === 'too_big') {
+    return `${field} must be at most ${issue.maximum} characters.`
+  }
+  if (issue.code === 'too_small' && issue.type === 'string') {
+    return `${field} is required.`
+  }
+  if (issue.path[0] === 'total_sqm') {
+    return 'Total area must be a whole number of at least 1.'
+  }
+  return `${field} is not valid.`
+}
+
+export async function createProject(
+  formData: FormData
+): Promise<CreateProjectState> {
   const profile = await requireUserProfile()
   requireCapability(profile, 'project.create')
 
-  const input = createProjectSchema.parse({
+  const parsed = createProjectSchema.safeParse({
     name: formData.get('name'),
     client: formData.get('client'),
     location: formData.get('location') || undefined,
@@ -30,6 +61,15 @@ export async function createProject(formData: FormData) {
     notes: formData.get('notes') || undefined,
     idempotency_key: formData.get('idempotency_key') || undefined,
   })
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0]
+    return {
+      error: issue
+        ? describeIssue(issue)
+        : 'Check the project details and try again.',
+    }
+  }
+  const input = parsed.data
 
   const result = await createProjectThroughCoreApi(
     {
@@ -44,10 +84,10 @@ export async function createProject(formData: FormData) {
     input.idempotency_key ?? randomUUID()
   )
   if (!result.ok || !result.data) {
-    throw new Error(result.error ?? 'Project was not created')
+    return { error: result.error ?? 'Project was not created.' }
   }
   if (result.data.tenantId !== profile.tenantId) {
-    throw new Error('Project creation returned an invalid tenant scope.')
+    return { error: 'Project creation returned an invalid tenant scope.' }
   }
   redirect(`/projects/${result.data.id}`)
 }
