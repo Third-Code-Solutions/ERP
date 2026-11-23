@@ -2,7 +2,7 @@
 
 import { useTransition, useState } from 'react'
 import Link from 'next/link'
-import { createProject } from './actions'
+import { createProject, type CreateProjectState } from './actions'
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
@@ -40,9 +40,13 @@ export function NewProjectForm() {
     const formData = new FormData(e.currentTarget)
     startTransition(async () => {
       try {
-        await createProject(formData)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to create project')
+        // A successful create redirects, so there may be no returned value.
+        const result: CreateProjectState | undefined =
+          await createProject(formData)
+        if (result?.error) setError(result.error)
+      } catch {
+        // A thrown action error is masked in production builds, so show a fixed message.
+        setError('The project could not be created. Check your connection and try again.')
       }
     })
   }
@@ -56,17 +60,17 @@ export function NewProjectForm() {
       <input type="hidden" name="idempotency_key" value={idempotencyKey} />
       <div style={fieldStyle}>
         <label htmlFor="name" style={labelStyle}>Project name *</label>
-        <input id="name" name="name" type="text" required style={inputStyle} placeholder="Somnus Studios Phase 2" />
+        <input id="name" name="name" type="text" required maxLength={255} style={inputStyle} placeholder="Somnus Studios Phase 2" />
       </div>
 
       <div style={fieldStyle}>
         <label htmlFor="client" style={labelStyle}>Client *</label>
-        <input id="client" name="client" type="text" required style={inputStyle} placeholder="Acme Construction Inc." />
+        <input id="client" name="client" type="text" required maxLength={255} style={inputStyle} placeholder="Acme Construction Inc." />
       </div>
 
       <div style={fieldStyle}>
         <label htmlFor="location" style={labelStyle}>Location</label>
-        <input id="location" name="location" type="text" style={inputStyle} placeholder="BGC, Taguig" />
+        <input id="location" name="location" type="text" maxLength={500} style={inputStyle} placeholder="BGC, Taguig" />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '16px', marginBottom: '20px' }}>
@@ -93,6 +97,7 @@ export function NewProjectForm() {
           id="notes"
           name="notes"
           rows={3}
+          maxLength={2000}
           style={{ ...inputStyle, resize: 'vertical' }}
           placeholder="Additional context…"
         />
