@@ -261,6 +261,30 @@ describe('atomic Won-to-Project pipeline handoff', () => {
     expectNoLocalStageEffects()
   })
 
+  it('gives each user gesture its own key so a repeated move is not replayed', async () => {
+    mocks.getUserProfile.mockResolvedValue(profileFor('sales'))
+    const FIRST = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const SECOND = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+    mocks.transitionOpportunityStageThroughCoreApi.mockResolvedValue(
+      successfulNonWonTransition('negotiation', 'bom_submission')
+    )
+
+    await advanceOpportunityStage(OPPORTUNITY_ID, 'bom_submission', 'Redo BOM', FIRST)
+    await advanceOpportunityStage(OPPORTUNITY_ID, 'bom_submission', 'Redo BOM', FIRST)
+    await advanceOpportunityStage(OPPORTUNITY_ID, 'bom_submission', 'Redo BOM', SECOND)
+    await advanceOpportunityStage(OPPORTUNITY_ID, 'bom_submission', 'Redo BOM', 'not-a-uuid')
+    await advanceOpportunityStage(OPPORTUNITY_ID, 'bom_submission', 'Redo BOM')
+
+    const keys = mocks.transitionOpportunityStageThroughCoreApi.mock.calls.map(
+      (call) => call[2]
+    )
+    expect(keys[0]).toBe(keys[1])
+    expect(keys[2]).not.toBe(keys[0])
+    // An invalid or absent attempt id falls back to the original key.
+    expect(keys[3]).toBe(keys[4])
+    expect(keys[3]).not.toBe(keys[0])
+  })
+
   it('fails closed when the exact Web stage-write selector is disabled', async () => {
     mocks.getUserProfile.mockResolvedValue(profileFor('sales'))
     mocks.opportunityStageWritesUseCoreApi.mockReturnValue(false)
@@ -574,6 +598,16 @@ describe('opportunity money validation', () => {
       expect(mocks.insert).not.toHaveBeenCalled()
     }
   )
+
+  it('refuses to create a deal directly in Won', async () => {
+    await expect(
+      createOpportunityForAccount(moneyForm({ tcv: '100', gp: '10', stage: 'won' }))
+    ).resolves.toEqual({
+      error:
+        'Create the deal at an earlier stage and advance it to Won so its project is created.',
+    })
+    expect(mocks.insert).not.toHaveBeenCalled()
+  })
 
   it('accepts a negative GP (loss-making deal)', async () => {
     await expect(

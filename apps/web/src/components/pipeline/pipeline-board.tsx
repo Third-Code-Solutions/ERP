@@ -205,12 +205,13 @@ export function PipelineBoard({
     reasonRequired = false,
   ) {
     clearBanner()
+    const attemptId = crypto.randomUUID()
     startTransition(() =>
       transitionSubmitterRef
         .current!.submit(
           {
             execute: (normalizedReason) =>
-              advanceOpportunityStage(cardId, toStage, normalizedReason),
+              advanceOpportunityStage(cardId, toStage, normalizedReason, attemptId),
             reason,
             reasonRequired,
           },
@@ -541,7 +542,7 @@ export function PipelineBoard({
                     {items.length}
                   </span>
                 </div>
-                {canCreateOpportunity && (
+                {canCreateOpportunity && stage !== 'won' && (
                   <button
                     type="button"
                     onClick={() => setQuickAddStage(stage)}
