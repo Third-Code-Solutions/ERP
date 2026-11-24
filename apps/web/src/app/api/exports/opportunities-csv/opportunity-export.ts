@@ -11,6 +11,10 @@ import {
   opportunityStageValues,
   type OpportunityStage,
 } from '@third-code-erp/shared-types/opportunities'
+import { csvCell } from '@/lib/csv-cell'
+
+// The finance CSV exports share this cell rule.
+export { csvCell }
 
 export const OPPORTUNITY_EXPORT_MAX_ROWS = 10_000
 export const OPPORTUNITY_EXPORT_QUERY_LIMIT = OPPORTUNITY_EXPORT_MAX_ROWS + 1
@@ -207,14 +211,6 @@ const CSV_COLUMNS = [
 }>
 
 export const OPPORTUNITY_EXPORT_HEADERS = CSV_COLUMNS.map(({ key }) => key)
-
-export function csvCell(value: string, untrustedText: boolean): string {
-  const neutralized =
-    untrustedText && /^[=+\-@\t\r]/.test(value) ? `'${value}` : value
-  return /[",\r\n]/.test(neutralized)
-    ? `"${neutralized.replace(/"/g, '""')}"`
-    : neutralized
-}
 
 export function opportunityExportCsvLine(row: OpportunityExportRow): string {
   return CSV_COLUMNS.map(({ key, untrustedText }) =>

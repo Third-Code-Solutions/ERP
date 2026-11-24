@@ -1,25 +1,7 @@
-import { calendarDaysBetween } from '@/lib/manila-date'
-
-export const AGING_BUCKETS = ['Current', '1–30', '31–60', '61–90', '91+'] as const
-
-export type AgingBucket = (typeof AGING_BUCKETS)[number]
+import { AGING_BUCKETS, type AgingBucket } from '@/lib/finance/dates'
 
 /** Rows shown in a receivables or payables list; totals always cover every row. */
 export const MAX_LISTED_ROWS = 500
-
-/** Days past due on `today`; both are YYYY-MM-DD, no due date counts as not late. */
-export function daysPastDue(dueDate: string | null, today: string): number {
-  if (!dueDate) return 0
-  return calendarDaysBetween(today, dueDate)
-}
-
-export function agingBucket(daysLate: number): AgingBucket {
-  if (daysLate <= 0) return 'Current'
-  if (daysLate <= 30) return '1–30'
-  if (daysLate <= 60) return '31–60'
-  if (daysLate <= 90) return '61–90'
-  return '91+'
-}
 
 export function agingBucketTotals<T>(
   rows: readonly T[],

@@ -1,45 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import {
-  agingBucket,
-  agingBucketTotals,
-  daysPastDue,
-  listCapNotice,
-  MAX_LISTED_ROWS,
-} from './aging'
-
-describe('agingBucket', () => {
-  it.each([
-    [-5, 'Current'],
-    [0, 'Current'],
-    [1, '1–30'],
-    [30, '1–30'],
-    [31, '31–60'],
-    [60, '31–60'],
-    [61, '61–90'],
-    [90, '61–90'],
-    [91, '91+'],
-    [400, '91+'],
-  ])('puts %i days late in %s', (days, bucket) => {
-    expect(agingBucket(days)).toBe(bucket)
-  })
-})
-
-describe('daysPastDue', () => {
-  it('counts calendar days late', () => {
-    expect(daysPastDue('2026-10-01', '2026-11-17')).toBe(47)
-  })
-
-  it('is negative before the due date', () => {
-    expect(daysPastDue('2026-11-20', '2026-11-17')).toBe(-3)
-  })
-
-  it('treats a missing due date as not late', () => {
-    expect(daysPastDue(null, '2026-11-17')).toBe(0)
-  })
-})
+import { agingBucket, daysOverdue } from '@/lib/finance/dates'
+import { agingBucketTotals, listCapNotice, MAX_LISTED_ROWS } from './aging'
 
 describe('agingBucketTotals', () => {
-  it('sums every row into exactly one of the five buckets', () => {
+  it('sums every row into exactly one of the six buckets', () => {
     const rows = [
       { due: '2026-11-20', cents: 100 },
       { due: '2026-11-10', cents: 250 },
@@ -50,15 +14,16 @@ describe('agingBucketTotals', () => {
     ]
     const totals = agingBucketTotals(
       rows,
-      (row) => agingBucket(daysPastDue(row.due, '2026-11-17')),
+      (row) => agingBucket(daysOverdue(row.due, '2026-11-17')),
       (row) => row.cents
     )
     expect(totals).toEqual([
-      { bucket: 'Current', amountCents: 107 },
-      { bucket: '1–30', amountCents: 250 },
-      { bucket: '31–60', amountCents: 400 },
-      { bucket: '61–90', amountCents: 1_000 },
-      { bucket: '91+', amountCents: 5_000 },
+      { bucket: 'Current', amountCents: 100 },
+      { bucket: '1–30 days', amountCents: 250 },
+      { bucket: '31–60 days', amountCents: 400 },
+      { bucket: '61–90 days', amountCents: 1_000 },
+      { bucket: '90+ days', amountCents: 5_000 },
+      { bucket: 'No due date', amountCents: 7 },
     ])
     expect(totals.reduce((sum, row) => sum + row.amountCents, 0)).toBe(
       rows.reduce((sum, row) => sum + row.cents, 0)

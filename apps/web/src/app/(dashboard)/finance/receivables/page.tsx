@@ -13,14 +13,9 @@ import {
   financeReceivablesReadsUseCoreApi,
   getFinanceReceivablesThroughCoreApi,
 } from '@/lib/erp-core-client'
-import { formatManilaDate, manilaToday } from '@/lib/manila-date'
-import {
-  agingBucket,
-  agingBucketTotals,
-  daysPastDue,
-  listCapNotice,
-  MAX_LISTED_ROWS,
-} from '../aging'
+import { agingBucket, daysOverdue, manilaToday, utcDay } from '@/lib/finance/dates'
+import { formatManilaDate } from '@/lib/manila-date'
+import { agingBucketTotals, listCapNotice, MAX_LISTED_ROWS } from '../aging'
 
 export const metadata: Metadata = { title: 'Customer receivables' }
 
@@ -31,16 +26,9 @@ function formatPHP(cents: number): string {
   }).format(cents / 100)
 }
 
-/** Days past due in Manila calendar days; null when the invoice has no due date. */
-function daysFromToday(value: Date | null, today: string): number | null {
-  if (!value) return null
-  return daysPastDue(manilaToday(value), today)
-}
-
-function agingLabel(daysLate: number | null): string {
-  if (daysLate === null) return 'No due date'
-  const bucket = agingBucket(daysLate)
-  return bucket === 'Current' ? bucket : `${bucket} days`
+// The shared finance aging rule, so this screen and the receivables CSV tie.
+function daysPastDue(dueDate: Date | null, today: string): number | null {
+  return daysOverdue(dueDate ? utcDay(dueDate) : null, today)
 }
 
 type ReceivableRow = {
@@ -207,10 +195,9 @@ export default async function ReceivablesPage() {
       (sum, invoice) => sum + invoice.withholding_tax_cents,
       0
     )
-    const overdue = openRows.filter((invoice) => {
-      const days = daysFromToday(invoice.due_date, today)
-      return days !== null && days > 0
-    })
+    const overdue = openRows.filter(
+      (invoice) => (daysPastDue(invoice.due_date, today) ?? 0) > 0
+    )
     overdueCount = overdue.length
     overdueTotal = overdue.reduce(
       (sum, invoice) => sum + invoice.current_open_cents,
@@ -221,8 +208,7 @@ export default async function ReceivablesPage() {
 
   const aging = agingBucketTotals(
     openRows,
-    (invoice) =>
-      agingBucket(daysFromToday(invoice.due_date, today) ?? 0),
+    (invoice) => agingBucket(daysPastDue(invoice.due_date, today)),
     (invoice) => invoice.current_open_cents
   )
   const capNotice = listCapNotice(openRows.length)
@@ -278,8 +264,8 @@ export default async function ReceivablesPage() {
             <h2>Receivables aging</h2>
           </div>
           <p>
-            Open balance by days past due. An invoice with no due date counts as
-            Current.
+            Open balance by days past due. An invoice with no due date is shown
+            under No due date.
           </p>
         </div>
         <div className="finance-aging-grid">
@@ -319,7 +305,7 @@ export default async function ReceivablesPage() {
             </thead>
             <tbody>
               {openRows.slice(0, MAX_LISTED_ROWS).map((invoice) => {
-                const age = daysFromToday(invoice.due_date, today)
+                const age = daysPastDue(invoice.due_date, today)
                 return (
                   <tr key={invoice.id}>
                     <td>
@@ -353,7 +339,7 @@ export default async function ReceivablesPage() {
                             : 'finance-status-open'
                         }`}
                       >
-                        {agingLabel(age)}
+                        {agingBucket(age)}
                       </span>
                     </td>
                     <td className="numeric">
