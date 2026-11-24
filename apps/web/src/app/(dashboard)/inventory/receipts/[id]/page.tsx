@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { can, requireCapability, requireUserProfile } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import { sql } from 'drizzle-orm'
 import { z } from 'zod'
@@ -80,6 +81,7 @@ export default async function StockReceiptDetailPage({
   if (!z.string().uuid().safeParse(id).success) notFound()
   const profile = await requireUserProfile()
   requireCapability(profile, 'inventory.read')
+  requireRouteAccess(profile.role, '/inventory/receipts/[id]')
 
   const [receipts, lines, ledger] = await Promise.all([
     db.execute<ReceiptRow>(sql`

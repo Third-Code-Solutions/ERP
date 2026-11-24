@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { can, requireCapability, requireUserProfile } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import { sql } from 'drizzle-orm'
 import {
@@ -67,6 +68,7 @@ export default async function BankStatementDetailPage({
 }) {
   const profile = await requireUserProfile()
   requireCapability(profile, 'finance.read')
+  requireRouteAccess(profile.role, '/finance/reconciliation/[id]')
   const canManageCash = can(profile.role, 'finance.manage_cash')
   const { id } = await requireUuidRouteParams(params)
 

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { can, requireCapability, requireUserProfile } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { getStockMovementRegister } from '@/lib/inventory-movement-queries'
 
 export const metadata: Metadata = { title: 'Stock Movement register' }
@@ -15,6 +16,7 @@ function money(cents: number): string {
 export default async function StockMovementRegisterPage() {
   const profile = await requireUserProfile()
   requireCapability(profile, 'inventory.read')
+  requireRouteAccess(profile.role, '/inventory/movements')
   const rows = await getStockMovementRegister(profile.tenantId)
 
   return (

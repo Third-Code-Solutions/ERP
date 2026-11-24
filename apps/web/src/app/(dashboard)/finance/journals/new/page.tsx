@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import { ledgerAccounts, projects } from '@third-code-erp/database/schema'
 import { and, eq } from 'drizzle-orm'
@@ -11,6 +12,7 @@ export const metadata: Metadata = { title: 'New journal' }
 export default async function NewJournalPage() {
   const profile = await requireUserProfile()
   requireCapability(profile, 'finance.manage')
+  requireRouteAccess(profile.role, '/finance/journals/new')
 
   const [accounts, projectRows] = await Promise.all([
     db

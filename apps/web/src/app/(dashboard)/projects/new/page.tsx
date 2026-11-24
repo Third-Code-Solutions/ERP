@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { can, requireUserProfile } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { NewProjectForm } from './new-project-form'
 
 export const metadata: Metadata = { title: 'New Project' }
@@ -10,6 +11,7 @@ export default async function NewProjectPage() {
   if (!can(profile.role, 'project.create')) {
     redirect('/projects?error=forbidden')
   }
+  requireRouteAccess(profile.role, '/projects/new')
 
   return (
     <div>

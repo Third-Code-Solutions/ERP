@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { can, requireCapability, requireUserProfile } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { z } from 'zod'
 import { getStockMovementDetail } from '@/lib/inventory-movement-detail-queries'
 import { StockMovementActions } from '../movement-actions'
@@ -32,6 +33,7 @@ export default async function StockMovementDetailPage({
   if (!z.string().uuid().safeParse(id).success) notFound()
   const profile = await requireUserProfile()
   requireCapability(profile, 'inventory.read')
+  requireRouteAccess(profile.role, '/inventory/movements/[id]')
   const detail = await getStockMovementDetail(profile.tenantId, id)
   if (!detail) notFound()
   const { movement, lines, ledger } = detail

@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireUserProfile, can } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import {
   accounts,
@@ -58,6 +59,7 @@ export default async function KycQueuePage() {
   if (!can(profile.role, 'account.kyc.read')) {
     redirect('/crm/accounts?error=forbidden')
   }
+  requireRouteAccess(profile.role, '/crm/kyc-queue')
   const canReview = can(profile.role, 'account.kyc_review')
 
   const [accountResult, opportunityResult] = await Promise.allSettled([

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
 import { can, requireUserProfile } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import {
   boms,
@@ -55,6 +56,7 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ id
   const profile = await requireUserProfile()
   const access = getProjectDetailAccess(profile.role)
   if (!access.cost) return notFound()
+  requireRouteAccess(profile.role, '/projects/[id]/cost')
 
   const [project] = await db
     .select({ id: projects.id })

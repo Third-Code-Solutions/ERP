@@ -4,6 +4,7 @@ import {
   requireCapability,
   requireUserProfile,
 } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import { sql } from 'drizzle-orm'
 import { StockMovementForm } from '../movement-form'
@@ -50,6 +51,7 @@ interface BalanceOption {
 export default async function NewStockMovementPage() {
   const profile = await requireUserProfile()
   requireCapability(profile, 'inventory.manage')
+  requireRouteAccess(profile.role, '/inventory/movements/new')
 
   const [warehouses, projects, items, costCodes, rawBalances] =
     await Promise.all([

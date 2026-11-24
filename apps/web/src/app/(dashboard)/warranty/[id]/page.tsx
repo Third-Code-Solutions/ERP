@@ -12,6 +12,7 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { and, desc, eq } from 'drizzle-orm'
 import { requireUserProfile, can } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import {
   warrantyTickets,
@@ -43,6 +44,7 @@ interface PageProps {
 export default async function TicketDetailPage({ params }: PageProps) {
   const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
+  requireRouteAccess(profile.role, '/warranty/[id]')
 
   const [ticket] = await db
     .select({

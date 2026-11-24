@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import {
   ledgerAccounts,
@@ -31,6 +32,7 @@ export default async function NewSupplierBillPage({
 }) {
   const profile = await requireUserProfile()
   requireCapability(profile, 'finance.post_supplier_bill')
+  requireRouteAccess(profile.role, '/finance/payables/new')
   const query = await searchParams
 
   const [purchaseOrderRows, accounts, evidence] = await Promise.all([

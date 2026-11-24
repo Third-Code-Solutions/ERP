@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { can, requireCapability, requireUserProfile } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import {
   projects,
@@ -63,6 +64,7 @@ type PayableRow = {
 export default async function PayablesPage() {
   const profile = await requireUserProfile()
   requireCapability(profile, 'finance.read')
+  requireRouteAccess(profile.role, '/finance/payables')
   const canManagePayables = can(profile.role, 'finance.post_supplier_bill')
 
   let rows: PayableRow[]

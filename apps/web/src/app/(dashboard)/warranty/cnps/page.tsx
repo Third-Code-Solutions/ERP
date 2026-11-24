@@ -10,6 +10,7 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { desc, eq } from 'drizzle-orm'
 import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import {
   cnpsSurveys,
@@ -22,6 +23,7 @@ export const metadata: Metadata = { title: 'CNPS Dashboard' }
 export default async function CnpsDashboardPage() {
   const profile = await requireUserProfile()
   requireCapability(profile, 'cx.cnps.read')
+  requireRouteAccess(profile.role, '/warranty/cnps')
 
   const surveys = await db
     .select({

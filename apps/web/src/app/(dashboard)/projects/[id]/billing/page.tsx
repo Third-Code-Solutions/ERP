@@ -4,6 +4,7 @@ import React from 'react'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { can, requireUserProfile } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { db, resolveTaxRates } from '@third-code-erp/database'
 import { formatBps as formatRateBps } from '@third-code-erp/shared-types'
 import { boms, invoices, projects } from '@third-code-erp/database/schema'
@@ -56,6 +57,7 @@ export default async function ProjectBillingPage({ params, searchParams }: {
   const profile = await requireUserProfile()
   const access = getProjectDetailAccess(profile.role)
   if (!access.billing) return notFound()
+  requireRouteAccess(profile.role, '/projects/[id]/billing')
   const canIssueInvoice = can(profile.role, 'finance.issue_invoice')
 
   const [project] = await db

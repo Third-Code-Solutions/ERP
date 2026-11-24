@@ -19,6 +19,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import { can, requireUserProfile } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import {
   auditLog,
@@ -92,6 +93,7 @@ interface PageProps {
 export default async function ClaimDetailPage({ params }: PageProps) {
   const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
+  requireRouteAccess(profile.role, '/claims/[id]')
   const canManageClaim =
     can(profile.role, 'po.create') ||
     can(profile.role, 'precon.manage_checklist') ||

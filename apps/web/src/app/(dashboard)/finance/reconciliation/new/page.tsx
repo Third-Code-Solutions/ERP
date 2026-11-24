@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import {
   cashAccounts,
@@ -15,6 +16,7 @@ export const metadata: Metadata = { title: 'Import bank statement' }
 export default async function NewBankStatementPage() {
   const profile = await requireUserProfile()
   requireCapability(profile, 'finance.manage_cash')
+  requireRouteAccess(profile.role, '/finance/reconciliation/new')
 
   const accountRows = await db
     .select({

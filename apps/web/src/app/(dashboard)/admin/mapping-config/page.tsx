@@ -4,6 +4,7 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { and, asc, eq } from 'drizzle-orm'
 import { requireUserProfile, can } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import { mappingConfig, materialItems } from '@third-code-erp/database/schema'
 import { MappingConfigForm } from '@/components/admin/mapping-config-form'
@@ -15,6 +16,7 @@ export default async function MappingConfigPage() {
   if (!can(profile.role, 'admin.system_config.read')) {
     redirect('/admin?error=forbidden')
   }
+  requireRouteAccess(profile.role, '/admin/mapping-config')
   const canManage = can(profile.role, 'admin.system_config')
 
   const rows = await db

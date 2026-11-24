@@ -1,4 +1,4 @@
-import { readdirSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { dirname, join, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -324,6 +324,30 @@ describe('dashboard route authorization inventory', () => {
         )
       }
     }
+  })
+
+  // The layout gate does not re-run on client navigation, so each restricted page repeats it.
+  it('repeats the route check inside every role-restricted page', () => {
+    const missing: string[] = []
+    for (const routeTemplate of pageRouteTemplates(DASHBOARD_ROOT)) {
+      const expectedRoles = EXPECTED_ROLES_BY_TEMPLATE[routeTemplate] ?? []
+      if (expectedRoles.length === PERSISTED_ROLES.length) continue
+
+      const source = readFileSync(
+        join(DASHBOARD_ROOT, ...routeTemplate.split('/').filter(Boolean), 'page.tsx'),
+        'utf8'
+      )
+      // Project feature entries check canViewPath in the shared entry component.
+      if (source.includes('<ProjectFeatureEntry')) continue
+
+      const gatedPaths = [
+        ...source.matchAll(/requireRouteAccess\(\s*profile\.role,\s*(['`])(.+?)\1\s*\)/g),
+      ].map((match) => (match[2] ?? '').replace(/\$\{\w+\}|\[[^\]]+\]/g, '*'))
+      if (!gatedPaths.includes(routeTemplate.replace(/\[[^\]]+\]/g, '*'))) {
+        missing.push(routeTemplate)
+      }
+    }
+    expect(missing).toEqual([])
   })
 
   it('does not let a dynamic or nested registration restore unknown fallback', () => {

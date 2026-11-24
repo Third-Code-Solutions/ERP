@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireUserProfile, can } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import styles from '../workspace-qa.module.css'
 
 export const metadata: Metadata = { title: 'Admin' }
@@ -64,6 +65,7 @@ export default async function AdminIndexPage() {
   ) {
     redirect('/dashboard?error=forbidden')
   }
+  requireRouteAccess(profile.role, '/admin')
 
   return (
     <div>

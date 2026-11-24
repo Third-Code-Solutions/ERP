@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import {
   deliverySchedules,
@@ -26,6 +27,7 @@ export default async function NewStockReceiptPage({
 }) {
   const profile = await requireUserProfile()
   requireCapability(profile, 'inventory.manage')
+  requireRouteAccess(profile.role, '/inventory/receipts/new')
   const { po } = await searchParams
   // The PO page's Receive link. Sorted first so the picker and line caps keep it.
   const defaultPoId = z.string().uuid().safeParse(po).success
