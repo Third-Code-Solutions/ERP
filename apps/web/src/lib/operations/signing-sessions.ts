@@ -1,9 +1,36 @@
 import 'server-only'
 
-import { and, eq, isNull, ne } from 'drizzle-orm'
+import { and, desc, eq, isNull, ne } from 'drizzle-orm'
 import type { Database } from '@third-code-erp/database'
 import { signatureSessions } from '@third-code-erp/database/schema'
 import { hashToken, type SignableEntityType } from './integrations/canvas-sign'
+
+/**
+ * When the newest unsigned, unrevoked canvas link for one entity was issued, or
+ * null when it has none. Tenant-scoped. DocuSeal links write no session row.
+ */
+export async function newestOpenSigningSessionAt(
+  executor: Pick<Database, 'select'>,
+  tenantId: string,
+  entityType: SignableEntityType,
+  entityId: string
+): Promise<Date | null> {
+  const [newest] = await executor
+    .select({ createdAt: signatureSessions.created_at })
+    .from(signatureSessions)
+    .where(
+      and(
+        eq(signatureSessions.tenant_id, tenantId),
+        eq(signatureSessions.entity_type, entityType),
+        eq(signatureSessions.entity_id, entityId),
+        isNull(signatureSessions.signed_at),
+        isNull(signatureSessions.revoked_at)
+      )
+    )
+    .orderBy(desc(signatureSessions.created_at))
+    .limit(1)
+  return newest?.createdAt ?? null
+}
 
 /**
  * Invalidate every unsigned signing link for one entity, so a reissued or

@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm'
 import {
   pgTable,
   uuid,
@@ -7,6 +8,7 @@ import {
   timestamp,
   index,
   uniqueIndex,
+  check,
 } from 'drizzle-orm/pg-core'
 import { purchaseOrderStatusEnum } from './enums'
 import { tenants } from './tenants'
@@ -41,6 +43,11 @@ export const purchaseOrders = pgTable(
     scm_issued_at: timestamp('scm_issued_at', { withTimezone: true }),
     scm_issued_by: uuid('scm_issued_by').references(() => users.id, { onDelete: 'set null' }),
     supplier_email_sent_at: timestamp('supplier_email_sent_at', { withTimezone: true }),
+    // Recorded by Procurement when the supplier confirms by email or phone; a record, not a status.
+    supplier_confirmed_at: timestamp('supplier_confirmed_at', { withTimezone: true }),
+    supplier_confirmed_by_name: varchar('supplier_confirmed_by_name', { length: 255 }),
+    supplier_confirmed_channel: varchar('supplier_confirmed_channel', { length: 20 }),
+    supplier_confirmed_note: text('supplier_confirmed_note'),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -56,6 +63,12 @@ export const purchaseOrders = pgTable(
     poNumberUniqueIdx: uniqueIndex('ux_purchase_orders_tenant_po_number').on(
       table.tenant_id,
       table.po_number
+    ),
+    supplierConfirmationCheck: check(
+      'purchase_orders_supplier_confirmation_check',
+      sql`(${table.supplier_confirmed_at} is null) = (${table.supplier_confirmed_channel} is null)
+        and (${table.supplier_confirmed_channel} is null
+          or ${table.supplier_confirmed_channel} in ('email', 'phone', 'in_person', 'other'))`
     ),
   })
 )
