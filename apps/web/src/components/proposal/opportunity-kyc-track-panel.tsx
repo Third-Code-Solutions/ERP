@@ -173,7 +173,8 @@ function TrackCard({
                 )}
               </>
             )}
-            {canApprove && track.fc_recommended_at && track.status !== 'rejected' && (
+            {/* A flagged track needs a new recommendation first; the server refuses approval too. */}
+            {canApprove && track.fc_recommended_at && track.status !== 'rejected' && track.status !== 'flagged' && (
               <button className="track-action primary" name="action" value="approve" disabled={pending}>Approve</button>
             )}
             {canApprove && track.status !== 'rejected' && (

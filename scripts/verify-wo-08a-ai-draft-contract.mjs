@@ -76,7 +76,7 @@ for (const fragment of [
   requireText('coreTakeoffImport', fragment)
 }
 const coreLineStart = source.coreTakeoffImport.indexOf('.insert(bomLineItems)')
-const coreLineEnd = source.coreTakeoffImport.indexOf('.returning({ id: bomLineItems.id })', coreLineStart)
+const coreLineEnd = source.coreTakeoffImport.indexOf('.returning({', coreLineStart)
 if (coreLineStart < 0 || coreLineEnd < 0) {
   throw new Error('ERP Core AI-document BOM line insert could not be located')
 }

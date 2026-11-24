@@ -14,12 +14,10 @@ import {
   financePayablesReadsUseCoreApi,
   getFinancePayablesThroughCoreApi,
 } from '@/lib/erp-core-client'
-import {
-  AGING_BUCKETS,
-  agingBucket,
-  daysOverdue,
-  manilaToday,
-} from '@/lib/finance/dates'
+import { agingBucket, daysOverdue, manilaToday } from '@/lib/finance/dates'
+import { canViewPath } from '@/lib/operations/nav-config'
+import { agingBucketTotals, listCapNotice, MAX_LISTED_ROWS } from '../aging'
+import { PurchaseOrderRef } from './purchase-order-ref'
 
 export const metadata: Metadata = { title: 'Supplier payables' }
 
@@ -55,6 +53,8 @@ export default async function PayablesPage() {
   requireCapability(profile, 'finance.read')
   requireRouteAccess(profile.role, '/finance/payables')
   const canManagePayables = can(profile.role, 'finance.post_supplier_bill')
+  // Finance may read bills but the Purchase Order pages exclude its role.
+  const canOpenPurchaseOrder = canViewPath(profile.role, '/purchase-orders/x')
 
   let rows: PayableRow[]
   if (financePayablesReadsUseCoreApi(profile.tenantId)) {
@@ -183,15 +183,17 @@ export default async function PayablesPage() {
     (total, row) => total + row.openCents,
     0
   )
+  const dueBucket = (row: { dueDate: string | null }) =>
+    agingBucket(daysOverdue(row.dueDate, today))
   const overdueOpen = openRows.filter(
     (row) => (daysOverdue(row.dueDate, today) ?? 0) > 0
   )
-  const aging = AGING_BUCKETS.map((bucket) => ({
-    bucket,
-    amount: openRows
-      .filter((row) => agingBucket(daysOverdue(row.dueDate, today)) === bucket)
-      .reduce((total, row) => total + row.openCents, 0),
-  }))
+  const aging = agingBucketTotals(
+    openRows,
+    dueBucket,
+    (row) => row.openCents
+  )
+  const capNotice = listCapNotice(rowsWithBalance.length)
 
   return (
     <div>
@@ -258,7 +260,7 @@ export default async function PayablesPage() {
           {aging.map((bucket) => (
             <div className="finance-aging-card" key={bucket.bucket}>
               <span>{bucket.bucket}</span>
-              <strong>{formatPHP(bucket.amount)}</strong>
+              <strong>{formatPHP(bucket.amountCents)}</strong>
             </div>
           ))}
         </div>
@@ -272,6 +274,11 @@ export default async function PayablesPage() {
           </div>
           <p>Vendor number uniqueness is enforced within each Vendor.</p>
         </div>
+        {capNotice && (
+          <p className="finance-ledger-limit" role="status">
+            {capNotice}
+          </p>
+        )}
         <div className="finance-table-shell">
           {rows.length === 0 ? (
             <div className="card-empty">
@@ -297,7 +304,7 @@ export default async function PayablesPage() {
                 </tr>
               </thead>
               <tbody>
-                {rowsWithBalance.map((row) => {
+                {rowsWithBalance.slice(0, MAX_LISTED_ROWS).map((row) => {
                   const age = daysOverdue(row.dueDate, today)
                   return (
                     <tr key={row.id}>
@@ -316,9 +323,11 @@ export default async function PayablesPage() {
                       </td>
                       <td>{row.vendorName}</td>
                       <td>
-                        <Link href={`/purchase-orders/${row.purchaseOrderId}`}>
-                          {row.purchaseOrderNumber}
-                        </Link>
+                        <PurchaseOrderRef
+                          id={row.purchaseOrderId}
+                          number={row.purchaseOrderNumber}
+                          canOpen={canOpenPurchaseOrder}
+                        />
                       </td>
                       <td>
                         <Link href={`/projects/${row.projectId}`}>

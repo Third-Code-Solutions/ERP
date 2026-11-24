@@ -5,6 +5,7 @@ import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import { ledgerAccounts, projects } from '@third-code-erp/database/schema'
 import { and, eq } from 'drizzle-orm'
+import { manilaToday } from '@/lib/manila-date'
 import { JournalForm } from './journal-form'
 
 export const metadata: Metadata = { title: 'New journal' }
@@ -36,7 +37,7 @@ export default async function NewJournalPage() {
       .orderBy(projects.name),
   ])
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = manilaToday()
 
   return (
     <div>

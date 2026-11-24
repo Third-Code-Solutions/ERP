@@ -4,7 +4,19 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }))
 
-import { formatTakeoffQuantity } from './takeoff-import-wizard'
+import { formatTakeoffQuantity, takeoffCommitNotice } from './takeoff-import-wizard'
+
+describe('takeoffCommitNotice', () => {
+  it('tells the importer how many earlier lines the file rewrote', () => {
+    expect(takeoffCommitNotice(3)).toMatch(/^3 lines already on this BOM were updated from the file/)
+    expect(takeoffCommitNotice(1)).toMatch(/^1 line already on this BOM was updated from the file/)
+  })
+
+  it('says nothing when no earlier line changed or an older Core did not report it', () => {
+    expect(takeoffCommitNotice(0)).toBeNull()
+    expect(takeoffCommitNotice(undefined)).toBeNull()
+  })
+})
 
 describe('formatTakeoffQuantity', () => {
   it('shows a preview quantity in the BOQ display form', () => {

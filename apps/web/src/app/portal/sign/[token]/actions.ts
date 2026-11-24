@@ -97,6 +97,49 @@ function signingSessionError(
   return null
 }
 
+/**
+ * Lock the signed entity's row before the signing link. Send, resend, cancel,
+ * reject and record lock the entity first and then the links, so signing takes
+ * the same order and cannot deadlock against them.
+ */
+async function lockSigningSource(
+  tx: DatabaseTransaction,
+  session: Pick<SigningSession, 'tenant_id' | 'entity_type' | 'entity_id'>
+): Promise<void> {
+  const { tenant_id: tenantId, entity_id: entityId } = session
+  switch (session.entity_type) {
+    case 'bom':
+      await tx.select({ id: boms.id }).from(boms)
+        .where(and(eq(boms.id, entityId), eq(boms.tenant_id, tenantId)))
+        .limit(1)
+        .for('update')
+      return
+    case 'contract':
+      await tx.select({ id: contracts.id }).from(contracts)
+        .where(and(eq(contracts.id, entityId), eq(contracts.tenant_id, tenantId)))
+        .limit(1)
+        .for('update')
+      return
+    case 'variation_order':
+      await tx.select({ id: variationOrders.id }).from(variationOrders)
+        .where(and(eq(variationOrders.id, entityId), eq(variationOrders.tenant_id, tenantId)))
+        .limit(1)
+        .for('update')
+      return
+    case 'coc':
+      await tx.select({ id: certificatesOfCompletion.id }).from(certificatesOfCompletion)
+        .where(
+          and(
+            eq(certificatesOfCompletion.id, entityId),
+            eq(certificatesOfCompletion.tenant_id, tenantId)
+          )
+        )
+        .limit(1)
+        .for('update')
+      return
+  }
+}
+
 async function stampSignedSource(
   tx: DatabaseTransaction,
   session: SigningSession,
@@ -159,11 +202,13 @@ async function stampSignedSource(
       .where(
         and(
           eq(contracts.id, session.entity_id),
-          eq(contracts.tenant_id, session.tenant_id)
+          eq(contracts.tenant_id, session.tenant_id),
+          eq(contracts.status, 'pending_signature')
         )
       )
       .returning({ id: contracts.id })
-    return rows.length === 1
+    if (rows.length !== 1) throw new PublicSigningError(NOT_AWAITING_SIGNATURE)
+    return true
   }
 
   if (session.entity_type === 'variation_order') {
@@ -363,6 +408,8 @@ export async function recordCanvasSign(input: SignInput): Promise<SignResult> {
 
   try {
     await db.transaction(async (tx) => {
+      // A link's entity never changes, so the pre-read session names the row to lock first.
+      await lockSigningSource(tx, session)
       const [lockedSession] = await tx
         .select()
         .from(signatureSessions)

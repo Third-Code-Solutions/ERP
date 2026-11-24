@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
   update: vi.fn(),
   writeAuditLog: vi.fn(),
   notifyRoles: vi.fn(),
-  notifyExternalEmail: vi.fn(),
+  sendSupplierPoEmail: vi.fn(),
   liveProjectCondition: vi.fn((column: unknown, tenantId: unknown) => ({
     live: [column, tenantId],
     mapWith: vi.fn(() => ({})),
@@ -44,11 +44,14 @@ vi.mock('@third-code-erp/database/schema', () => ({
   projectBudgets: {},
   projects: {},
   purchaseOrders: {
+    id: 'purchase_orders.id',
+    tenant_id: 'purchase_orders.tenant_id',
     project_id: 'purchase_orders.project_id',
     status: 'purchase_orders.status',
+    vendor_id: 'purchase_orders.vendor_id',
   },
   rateCards: {},
-  vendors: {},
+  vendors: { id: 'vendors.id', tenant_id: 'vendors.tenant_id' },
 }))
 
 vi.mock('drizzle-orm', () => ({
@@ -66,7 +69,10 @@ vi.mock('@/lib/audit', () => ({
 
 vi.mock('@/lib/operations/notifications', () => ({
   notifyRoles: mocks.notifyRoles,
-  notifyExternalEmail: mocks.notifyExternalEmail,
+}))
+
+vi.mock('@/lib/procurement/supplier-po-email', () => ({
+  sendSupplierPoEmail: mocks.sendSupplierPoEmail,
 }))
 
 vi.mock('@/lib/erp-core-client', () => ({
@@ -103,6 +109,7 @@ import {
   commercialApprovePo,
   pmApprovePo,
   rejectPoApproval,
+  resendSupplierPoEmail,
   scmIssuePo,
   submitPoForPmApproval,
 } from './actions'
@@ -119,8 +126,10 @@ function selectPurchaseOrder(
     created_by?: string
     pm_approved_by?: string
     project_live?: boolean
-    supplier_email?: string
+    supplier_email?: string | null
     supplier_name?: string
+    vendor_id?: string | null
+    total_cents?: number
   } = {}
 ): void {
   const where = vi.fn().mockResolvedValue([
@@ -496,21 +505,24 @@ describe('Purchase Order workflow without Core (direct writes)', () => {
     mocks.requireCapability.mockReturnValue(undefined)
     mocks.can.mockReturnValue(true)
     mocks.purchaseOrderWorkflowWritesUseCoreApi.mockReturnValue(false)
+    mocks.sendSupplierPoEmail.mockResolvedValue('sent')
   })
 
   const steps = [
-    { name: 'submit', status: 'draft', live: true, invoke: () => submitPoForPmApproval(PO_ID) },
-    { name: 'PM approval', status: 'pending_pm_approval', live: true, invoke: () => pmApprovePo(PO_ID) },
+    { name: 'submit', status: 'draft', live: true, result: {}, invoke: () => submitPoForPmApproval(PO_ID) },
+    { name: 'PM approval', status: 'pending_pm_approval', live: true, result: {}, invoke: () => pmApprovePo(PO_ID) },
     {
       name: 'Commercial approval',
       status: 'pending_commercial_approval',
       live: true,
+      result: {},
       invoke: () => commercialApprovePo(PO_ID),
     },
     {
       name: 'SCM issue',
       status: 'pending_scm_issuance',
       live: true,
+      result: { emailOutcome: 'sent' },
       supplier: { supplier_email: 'supplier@example.com', supplier_name: 'Supplier' },
       invoke: () => scmIssuePo(PO_ID),
     },
@@ -518,18 +530,19 @@ describe('Purchase Order workflow without Core (direct writes)', () => {
       name: 'reject',
       status: 'pending_scm_issuance',
       live: false,
+      result: {},
       invoke: () => rejectPoApproval(PO_ID, 'No budget'),
     },
   ]
 
-  it.each(steps)('$name writes only from the status it read', async ({ status, live, invoke }) => {
+  it.each(steps)('$name writes only from the status it read', async ({ status, live, result, invoke }) => {
     selectPurchaseOrder(status)
     const conditions = updatePurchaseOrder([{ id: PO_ID }])
     const liveCondition = expect.objectContaining({
       live: ['purchase_orders.project_id', TENANT_ID],
     })
 
-    await expect(invoke()).resolves.toEqual({})
+    await expect(invoke()).resolves.toEqual(result)
 
     expect(mocks.transitionPurchaseOrderThroughCoreApi).not.toHaveBeenCalled()
     expect(conditions()).toContainEqual({ eq: ['purchase_orders.status', status] })
@@ -550,8 +563,201 @@ describe('Purchase Order workflow without Core (direct writes)', () => {
       })
       expect(mocks.writeAuditLog).not.toHaveBeenCalled()
       expect(mocks.notifyRoles).not.toHaveBeenCalled()
-      expect(mocks.notifyExternalEmail).not.toHaveBeenCalled()
+      expect(mocks.sendSupplierPoEmail).not.toHaveBeenCalled()
       expect(mocks.revalidatePath).not.toHaveBeenCalled()
     }
   )
+})
+
+describe('Purchase Order issuance and the supplier email', () => {
+  const SUPPLIER = {
+    vendor_id: 'vendor-1',
+    supplier_name: 'Concrete Co',
+    supplier_email: 'supplier@example.com',
+    total_cents: 313_125,
+  }
+
+  function issue(supplier: Parameters<typeof selectPurchaseOrder>[1] = SUPPLIER) {
+    selectPurchaseOrder('pending_scm_issuance', supplier)
+    const returning = vi.fn().mockResolvedValue([{ id: PO_ID }])
+    const where = vi.fn().mockReturnValue({ returning })
+    mocks.update.mockReturnValue({ set: vi.fn().mockReturnValue({ where }) })
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.getUserProfile.mockResolvedValue({
+      tenantId: TENANT_ID,
+      role: 'procurement',
+      user: { id: ACTOR_ID },
+    })
+    mocks.requireCapability.mockReturnValue(undefined)
+    mocks.purchaseOrderWorkflowWritesUseCoreApi.mockReturnValue(false)
+    mocks.sendSupplierPoEmail.mockResolvedValue('sent')
+  })
+
+  it.each(['sent', 'no_vendor', 'no_email', 'provider_error'] as const)(
+    'returns the email outcome %s and records it in the audit row',
+    async (outcome) => {
+      issue()
+      mocks.sendSupplierPoEmail.mockResolvedValue(outcome)
+
+      await expect(scmIssuePo(PO_ID)).resolves.toEqual({ emailOutcome: outcome })
+
+      expect(mocks.writeAuditLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'status_change',
+          diff: expect.objectContaining({
+            to: 'issued',
+            supplier_email_sent: outcome === 'sent',
+            supplier_email_outcome: outcome,
+          }),
+        })
+      )
+    }
+  )
+
+  it('hands the PO supplier and total to the email, scoped to the session tenant', async () => {
+    issue()
+
+    await scmIssuePo(PO_ID)
+
+    expect(mocks.sendSupplierPoEmail).toHaveBeenCalledWith({
+      tenantId: TENANT_ID,
+      poId: PO_ID,
+      poNumber: 'PO-0001',
+      totalCents: 313_125,
+      vendorId: 'vendor-1',
+      supplierName: 'Concrete Co',
+      supplierEmail: 'supplier@example.com',
+    })
+  })
+
+  it('does not email a supplier for a PO it could not issue', async () => {
+    selectPurchaseOrder('pending_scm_issuance', SUPPLIER)
+    const returning = vi.fn().mockResolvedValue([])
+    const where = vi.fn().mockReturnValue({ returning })
+    mocks.update.mockReturnValue({ set: vi.fn().mockReturnValue({ where }) })
+
+    await expect(scmIssuePo(PO_ID)).resolves.toEqual({
+      error: 'Purchase Order status changed; reload and try again.',
+    })
+    expect(mocks.sendSupplierPoEmail).not.toHaveBeenCalled()
+  })
+})
+
+describe('resendSupplierPoEmail', () => {
+  function readPo(status: string, row: Record<string, unknown> | null = {}) {
+    const limit = vi.fn().mockResolvedValue(
+      row
+        ? [
+            {
+              status,
+              po_number: 'PO-0001',
+              total_cents: 313_125,
+              vendor_id: 'vendor-1',
+              supplier_name: 'Concrete Co',
+              supplier_email: 'supplier@example.com',
+              ...row,
+            },
+          ]
+        : []
+    )
+    const where = vi.fn().mockReturnValue({ limit })
+    const leftJoin = vi.fn().mockReturnValue({ where })
+    mocks.select.mockReturnValue({ from: vi.fn().mockReturnValue({ leftJoin }) })
+    return { where, leftJoin }
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.getUserProfile.mockResolvedValue({
+      tenantId: TENANT_ID,
+      role: 'procurement',
+      user: { id: ACTOR_ID },
+    })
+    mocks.requireCapability.mockReturnValue(undefined)
+    mocks.purchaseOrderWorkflowWritesUseCoreApi.mockReturnValue(false)
+    mocks.sendSupplierPoEmail.mockResolvedValue('sent')
+  })
+
+  it('needs the po.issue capability', async () => {
+    mocks.requireCapability.mockImplementation(() => {
+      throw new Error('forbidden')
+    })
+
+    await expect(resendSupplierPoEmail(PO_ID)).resolves.toEqual({
+      error: 'You do not have permission to email Purchase Orders to suppliers.',
+    })
+    expect(mocks.requireCapability).toHaveBeenCalledWith(expect.anything(), 'po.issue')
+    expect(mocks.sendSupplierPoEmail).not.toHaveBeenCalled()
+  })
+
+  it('resends an issued PO and audits the attempt with its outcome', async () => {
+    const { where, leftJoin } = readPo('issued')
+    mocks.sendSupplierPoEmail.mockResolvedValue('provider_error')
+
+    await expect(resendSupplierPoEmail(PO_ID)).resolves.toEqual({
+      emailOutcome: 'provider_error',
+    })
+
+    expect(where).toHaveBeenCalledWith({
+      and: [
+        { eq: ['purchase_orders.id', PO_ID] },
+        { eq: ['purchase_orders.tenant_id', TENANT_ID] },
+      ],
+    })
+    // The supplier address comes only from a vendor of the session tenant.
+    expect(leftJoin.mock.calls[0]?.[1]).toEqual({
+      and: [
+        { eq: ['purchase_orders.vendor_id', 'vendors.id'] },
+        { eq: ['vendors.tenant_id', TENANT_ID] },
+      ],
+    })
+    expect(mocks.sendSupplierPoEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ tenantId: TENANT_ID, poId: PO_ID, vendorId: 'vendor-1' })
+    )
+    expect(mocks.writeAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'update',
+        diff: { supplier_email_resent: true, supplier_email_outcome: 'provider_error' },
+      })
+    )
+  })
+
+  it.each(['draft', 'pending_scm_issuance', 'cancelled'])(
+    'refuses a PO that is %s',
+    async (status) => {
+      readPo(status)
+
+      await expect(resendSupplierPoEmail(PO_ID)).resolves.toEqual({
+        error: 'Only an issued Purchase Order can be emailed to the supplier.',
+      })
+      expect(mocks.sendSupplierPoEmail).not.toHaveBeenCalled()
+    }
+  )
+
+  it('leaves the supplier email to Core when Core issues Purchase Orders', async () => {
+    mocks.purchaseOrderWorkflowWritesUseCoreApi.mockReturnValue(true)
+    readPo('issued')
+
+    await expect(resendSupplierPoEmail(PO_ID)).resolves.toEqual({
+      error: 'ERP Core sends the supplier email for this Purchase Order and retries it on its own.',
+    })
+    expect(mocks.purchaseOrderWorkflowWritesUseCoreApi).toHaveBeenCalledWith(TENANT_ID)
+    expect(mocks.select).not.toHaveBeenCalled()
+    expect(mocks.sendSupplierPoEmail).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+  })
+
+  it('does not find a PO of another tenant or a malformed id', async () => {
+    readPo('issued', null)
+
+    await expect(resendSupplierPoEmail(PO_ID)).resolves.toEqual({
+      error: 'Purchase Order not found.',
+    })
+    await expect(resendSupplierPoEmail('not-a-uuid')).resolves.toEqual({
+      error: 'Purchase Order not found.',
+    })
+  })
 })

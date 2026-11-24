@@ -5,6 +5,7 @@ import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import { invoices, projects } from '@third-code-erp/database/schema'
 import { eq, desc } from 'drizzle-orm'
+import { formatBps } from '@third-code-erp/shared-types'
 
 export const metadata: Metadata = { title: 'Invoices' }
 
@@ -181,7 +182,7 @@ export default async function InvoicesPage() {
                     </span>
                   </td>
                   <td className="numeric" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}>
-                    {(row.billing_percent_bps / 100).toFixed(0)}%
+                    {formatBps(row.billing_percent_bps)}
                   </td>
                   <td className="numeric" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}>
                     {formatPHP(row.subtotal_cents)}

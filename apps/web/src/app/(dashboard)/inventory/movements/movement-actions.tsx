@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { manilaToday } from '@/lib/manila-date'
 import {
   deleteStockMovementDraft,
   postStockMovement,
@@ -24,7 +25,7 @@ export function StockMovementActions({
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [reversalDate, setReversalDate] = useState(
-    [new Date().toISOString().slice(0, 10), movementDate].sort()[1]!
+    [manilaToday(), movementDate].sort()[1]!
   )
   const [reason, setReason] = useState('')
   const [error, setError] = useState<string | null>(null)

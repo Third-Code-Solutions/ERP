@@ -81,6 +81,13 @@ describe('claim draft command boundary', () => {
     expect(unknown).toMatchObject({ ok: false, outcome: 'unknown' })
     expect(JSON.stringify(unknown)).not.toContain('private')
     mocks.create.mockResolvedValueOnce({ ok: false, outcomeUnknown: false, status: 409, error: 'private provider detail' })
-    await expect(createClaimDraftCommand(scope, command)).resolves.toMatchObject({ ok: false, outcome: 'rejected' })
+    const conflict = await createClaimDraftCommand(scope, command)
+    expect(conflict).toMatchObject({ ok: false, outcome: 'rejected' })
+    expect(JSON.stringify(conflict)).not.toContain('private')
+  })
+  it('shows the contract-sum message for a cap refusal instead of retry advice', async () => {
+    const message = 'This claim is above what can still be claimed. At most ₱1.00 remains of the contract sum of ₱10.00 (approved BOM ₱10.00, excl. VAT) after live claims of ₱9.00.'
+    mocks.create.mockResolvedValueOnce({ ok: false, outcomeUnknown: false, status: 409, code: 'claim_cap_exceeded', error: message })
+    await expect(createClaimDraftCommand(scope, command)).resolves.toEqual({ ok: false, outcome: 'rejected', error: message })
   })
 })

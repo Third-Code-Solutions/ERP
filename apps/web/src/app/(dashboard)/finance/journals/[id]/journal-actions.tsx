@@ -1,19 +1,26 @@
 'use client'
 
-import { useRef, useState, useTransition } from 'react'
+import React, { useRef, useState, useTransition } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { postJournalEntry, reverseJournalEntry } from '../../actions'
+import { IRREVERSIBLE_CONFIRMATIONS } from '../../irreversible-confirmations'
+import { journalReversalRoute } from './journal-reversal'
 
 export function JournalActions({
   entryId,
   status,
   sourceType,
+  referenceType,
+  referenceId,
   hasReversal,
   defaultDate,
 }: {
   entryId: string
   status: 'draft' | 'posted'
   sourceType: 'manual' | 'system' | 'reversal'
+  referenceType: string | null
+  referenceId: string | null
   hasReversal: boolean
   defaultDate: string
 }) {
@@ -38,6 +45,7 @@ export function JournalActions({
           className="finance-primary-button"
           disabled={pending}
           onClick={() => {
+            if (!window.confirm(IRREVERSIBLE_CONFIRMATIONS.postJournal)) return
             setError(null)
             startTransition(async () => {
               if (!postIdempotencyKeyRef.current) {
@@ -78,6 +86,27 @@ export function JournalActions({
     )
   }
 
+  const reversalRoute = journalReversalRoute({
+    sourceType,
+    referenceType,
+    referenceId,
+  })
+  if (reversalRoute.kind === 'workflow') {
+    return (
+      <div className="journal-immutable-note">
+        This journal was created by a {reversalRoute.document} and cannot be
+        reversed here. To correct it, reverse the {reversalRoute.document}
+        {reversalRoute.href ? (
+          <>
+            {' '}
+            from <Link href={reversalRoute.href}>its own page</Link>
+          </>
+        ) : null}
+        .
+      </div>
+    )
+  }
+
   return (
     <div className="journal-action-panel journal-action-panel-stacked">
       <div>
@@ -97,6 +126,7 @@ export function JournalActions({
           className="journal-reversal-form"
           onSubmit={(event) => {
             event.preventDefault()
+            if (!window.confirm(IRREVERSIBLE_CONFIRMATIONS.reverseJournal)) return
             setError(null)
             startTransition(async () => {
               if (!reverseIdempotencyKeyRef.current) {
