@@ -37,7 +37,7 @@ vi.mock('@/lib/operations/notifications', () => ({
   notifyExternalEmail: mocks.notifyExternalEmail,
 }))
 
-import { dispatchCnpsSurveys, dispatchOneSurvey, onCnpsSurveyScheduled } from './inngest-warranty'
+import { dispatchCnpsSurveys, dispatchOneSurvey, onCnpsSurveyScheduled, SURVEY_LINK_REDACTED } from './inngest-warranty'
 
 const ticket = {
   id: 'ticket-id',
@@ -75,6 +75,7 @@ describe('CNPS survey delivery evidence', () => {
       sent: true,
       surveyId: 'survey-id',
       sentAt: expect.any(String),
+      tokenHash: expect.any(String),
     })
 
     expect(mocks.insertValues).toHaveBeenCalledWith(
@@ -149,6 +150,7 @@ describe('CNPS survey delivery evidence', () => {
       sent: true,
       surveyId: 'survey-id',
       sentAt: expect.any(String),
+      tokenHash: expect.any(String),
     })
 
     expect(mocks.updateSet).toHaveBeenCalledTimes(1)
@@ -213,7 +215,25 @@ describe('CNPS survey Inngest steps', () => {
     const stamp = new PgDialect().sqlToQuery(mocks.updateWhere.mock.calls[0]![0] as SQL)
     expect(stamp.sql).toContain('"cnps_surveys"."id" = $')
     expect(stamp.sql).toContain('"cnps_surveys"."tenant_id" = $')
-    expect(stamp.params).toEqual(['survey-id', 'tenant-id'])
+    // A late stamp must not mark a re-claimed row, whose emailed link is dead.
+    expect(stamp.sql).toContain('"cnps_surveys"."sent_at" is null')
+    expect(stamp.sql).toContain('"cnps_surveys"."response_token_hash" = $')
+    const [{ response_token_hash: emailedHash }] = mocks.insertValues.mock.calls[0] as [{ response_token_hash: string }]
+    expect(stamp.params).toEqual(['survey-id', 'tenant-id', emailedHash])
+  })
+
+  it('stores the notification body without the survey link the email carries', async () => {
+    const { step } = memoizingStep()
+
+    await handlerOf(onCnpsSurveyScheduled)({ step, event: scheduledEvent })
+
+    const [dispatch] = mocks.notifyExternalEmail.mock.calls[0] as [
+      { body: string; linkUrl?: string; payload?: unknown; templateVars: { survey_url: string } },
+    ]
+    const token = dispatch.templateVars.survey_url.split('/portal/cnps/')[1]
+    expect(token).toMatch(/^[0-9a-f]{64}$/)
+    expect(dispatch.body).toBe(`Your warranty ticket WT-000001 is closed. Share your service feedback: ${SURVEY_LINK_REDACTED}`)
+    expect(JSON.stringify([dispatch.body, dispatch.linkUrl, dispatch.payload])).not.toContain(token)
   })
 
   it('retries a failed stamp without emailing the client again', async () => {

@@ -53,15 +53,21 @@ export async function insertSurveyOnce(row: SurveyRow, rest: Rest = pgRest): Pro
   return typeof first?.id === 'string' ? first.id : null
 }
 
-/** Stamp sent_at once the provider accepted the email. */
+/**
+ * Stamp sent_at once the provider accepted the email, but only while the row
+ * is unsent and still holds the hash of the token that email carried. A row
+ * that another sender re-claimed has a new link; stamping it would mark a dead
+ * link as sent and stop the retries.
+ */
 export async function markSurveySent(
   surveyId: string,
   tenantId: string,
+  tokenHash: string,
   sentAt: string,
   rest: Rest = pgRest
 ): Promise<void> {
   await rest({
-    path: `cnps_surveys?id=eq.${surveyId}&tenant_id=eq.${tenantId}`,
+    path: `cnps_surveys?id=eq.${surveyId}&tenant_id=eq.${tenantId}&sent_at=is.null&response_token_hash=eq.${tokenHash}`,
     method: 'PATCH',
     body: { sent_at: sentAt },
     prefer: 'return=minimal',

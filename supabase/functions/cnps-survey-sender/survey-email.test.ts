@@ -1,4 +1,4 @@
-import { buildSurveyEmail, surveyUrl, tenantNamesById } from './survey-email.ts'
+import { buildSurveyEmail, SURVEY_LINK_REDACTED, surveyUrl, tenantNamesById } from './survey-email.ts'
 
 const base = {
   ticketNumber: 'WT-000007',
@@ -26,6 +26,17 @@ Deno.test('the survey email falls back to a neutral name, never another company'
     assert(email.text.endsWith('Thank you,\nYour contractor'), `text: ${email.text}`)
     assert(!/ABI OPS|Actuate/.test(email.text + email.html), 'no product or other company name')
   }
+})
+
+Deno.test('the stored text never holds the survey link, which only the email carries', () => {
+  const token = 'tok_secret-9'
+  const email = buildSurveyEmail({ ...base, surveyUrl: surveyUrl('https://erp.example.test', token), companyName: 'Northwind' })
+
+  assert(email.text.includes(`/portal/cnps/${token}`), `text: ${email.text}`)
+  assert(email.html.includes(`/portal/cnps/${token}`), `html: ${email.html}`)
+  assert(!email.storedText.includes(token), `stored: ${email.storedText}`)
+  assert(!email.storedText.includes('/portal/cnps/'), `stored: ${email.storedText}`)
+  assert(email.storedText === email.text.replace(surveyUrl('https://erp.example.test', token), SURVEY_LINK_REDACTED), `stored: ${email.storedText}`)
 })
 
 Deno.test('the survey link opens the web portal survey route', () => {

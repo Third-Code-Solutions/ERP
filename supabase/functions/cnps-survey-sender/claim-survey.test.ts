@@ -55,12 +55,16 @@ Deno.test('no row back means another sender owns the survey', async () => {
   }
 })
 
-Deno.test('sent_at is stamped on the tenant row only', async () => {
+Deno.test('sent_at is stamped on the tenant row only while it is unsent and holds the emailed hash', async () => {
   const { calls, rest } = fakeRest(undefined)
 
-  await markSurveySent('survey-id', 'tenant-id', '2026-11-24T00:00:00.000Z', rest)
+  await markSurveySent('survey-id', 'tenant-id', 'hash', '2026-11-24T00:00:00.000Z', rest)
 
-  assert(calls[0].path === 'cnps_surveys?id=eq.survey-id&tenant_id=eq.tenant-id', `path: ${calls[0].path}`)
+  // A row another sender re-claimed has a new hash: the stamp matches nothing.
+  assert(
+    calls[0].path === 'cnps_surveys?id=eq.survey-id&tenant_id=eq.tenant-id&sent_at=is.null&response_token_hash=eq.hash',
+    `path: ${calls[0].path}`
+  )
   assert(calls[0].method === 'PATCH', `method: ${calls[0].method}`)
   assert(calls[0].body.sent_at === '2026-11-24T00:00:00.000Z', 'sent_at body')
 })

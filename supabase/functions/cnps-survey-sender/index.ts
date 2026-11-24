@@ -111,7 +111,7 @@ Deno.serve(async (req) => {
         const tokenHash = await sha256Hex(token)
         const nowIso = new Date(nowMs).toISOString()
 
-        const { subject, html, text } = buildSurveyEmail({
+        const { subject, html, text, storedText } = buildSurveyEmail({
           ticketNumber: ticket.ticket_number,
           recipientName: ticket.submitted_by_name,
           surveyUrl: surveyUrl(portalBase, token),
@@ -129,7 +129,7 @@ Deno.serve(async (req) => {
           {
             insertSurvey: (row) => insertSurveyOnce(row),
             send: () => sendEmail({ to: recipient, subject, html, text }),
-            markSent: (surveyId) => markSurveySent(surveyId, ticket.tenant_id, nowIso),
+            markSent: (surveyId) => markSurveySent(surveyId, ticket.tenant_id, tokenHash, nowIso),
           }
         )
         // Another sender created this ticket's survey since the read above.
@@ -147,7 +147,8 @@ Deno.serve(async (req) => {
           recipient_email: ticket.submitted_by_email,
           channel: 'email',
           subject,
-          body: text,
+          // The link carries the survey token: only the email holds it.
+          body: storedText,
           sent_at: nowIso,
           payload: {
             template_id: 'cnps-survey',

@@ -30,6 +30,10 @@ function siteBase(): string {
   )
 }
 
+// The stored notification keeps the email's wording but never its link: the
+// link carries the survey token, which only the email may hold.
+export const SURVEY_LINK_REDACTED = '[link sent by email]'
+
 interface InngestStep {
   run: <T>(name: string, fn: () => Promise<T>) => Promise<T>
   sleep?: (name: string, until: string | number) => Promise<void>
@@ -42,6 +46,8 @@ export type SurveyDispatch = {
   /** Set once the provider accepted the email: the row stampSurveySent must stamp. */
   surveyId?: string
   sentAt?: string
+  /** sha256 of the token this run emailed (not the token): the stamp must still match it. */
+  tokenHash?: string
 }
 
 /**
@@ -141,6 +147,7 @@ export async function dispatchOneSurvey(
     tenantId: t.tenant_id,
     recipientEmail: t.submitted_by_email,
     subject: `How did we do? Ticket ${t.ticket_number}`,
+    body: `Your warranty ticket ${t.ticket_number} is closed. Share your service feedback: ${SURVEY_LINK_REDACTED}`,
     templateId: 'cnps-survey',
     templateVars: {
       ticket_number: t.ticket_number,
@@ -152,13 +159,20 @@ export async function dispatchOneSurvey(
     return { sent: false, reason: 'email-not-delivered' }
   }
 
-  return { sent: true, surveyId, sentAt: now.toISOString() }
+  return { sent: true, surveyId, sentAt: now.toISOString(), tokenHash }
 }
 
-/** Stamp sent_at on the tenant's survey once its email went out. */
+/**
+ * Stamp sent_at on the tenant's survey once its email went out, but only
+ * while the row is unsent and still holds the hash of the token that email
+ * carried. If the stamp ran so late that another sender re-claimed the row,
+ * the emailed link is dead, and stamping it would leave the survey unsent
+ * for good.
+ */
 export async function stampSurveySent(
   surveyId: string,
   tenantId: string,
+  tokenHash: string,
   sentAt: string
 ): Promise<void> {
   await db
@@ -167,7 +181,9 @@ export async function stampSurveySent(
     .where(
       and(
         eq(cnpsSurveys.id, surveyId),
-        eq(cnpsSurveys.tenant_id, tenantId)
+        eq(cnpsSurveys.tenant_id, tenantId),
+        isNull(cnpsSurveys.sent_at),
+        eq(cnpsSurveys.response_token_hash, tokenHash)
       )
     )
 }
@@ -185,9 +201,9 @@ async function sendSurveyInSteps(
   tenantId: string
 ): Promise<SurveyDispatch> {
   const result = await step.run(name, async () => dispatchOneSurvey(ticketId, tenantId))
-  const { surveyId, sentAt } = result
-  if (surveyId && sentAt) {
-    await step.run(`${name}-mark-sent`, async () => stampSurveySent(surveyId, tenantId, sentAt))
+  const { surveyId, sentAt, tokenHash } = result
+  if (surveyId && sentAt && tokenHash) {
+    await step.run(`${name}-mark-sent`, async () => stampSurveySent(surveyId, tenantId, tokenHash, sentAt))
   }
   return result
 }
