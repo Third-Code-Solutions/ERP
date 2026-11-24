@@ -606,6 +606,7 @@ export const DASHBOARD_ROUTE_POLICIES: readonly DashboardRoutePolicy[] = [
       '/finance/receivables',
       '/finance/reconciliation',
       '/finance/reconciliation/[id]',
+      '/finance/trial-balance',
       '/settings/tax',
     ],
     FINANCE_ROUTE_ROLES

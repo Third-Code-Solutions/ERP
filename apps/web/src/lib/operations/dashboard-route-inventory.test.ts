@@ -207,6 +207,7 @@ const EXPECTED_ROLES_BY_TEMPLATE: Readonly<
   '/finance/reconciliation': FINANCE_READ,
   '/finance/reconciliation/[id]': FINANCE_READ,
   '/finance/reconciliation/new': FINANCE,
+  '/finance/trial-balance': FINANCE_READ,
   '/inventory': INVENTORY_READ,
   '/inventory/movements': INVENTORY_READ,
   '/inventory/movements/[id]': INVENTORY_READ,
@@ -304,7 +305,7 @@ describe('dashboard route authorization inventory', () => {
       (policy) => policy.template
     ).sort()
 
-    expect(routeTemplates).toHaveLength(121)
+    expect(routeTemplates).toHaveLength(122)
     expect(new Set(registeredTemplates).size).toBe(registeredTemplates.length)
     expect(registeredTemplates).toEqual(routeTemplates)
     expect(Object.keys(EXPECTED_ROLES_BY_TEMPLATE).sort()).toEqual(
