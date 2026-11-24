@@ -26,7 +26,9 @@ test('turnover attaches only documents of its own project', { tag: '@pr-234' }, 
     await page.goto(`/projects/${target.projectId}/turnover`)
     const picker = page.getByLabel('Document for As-built drawings')
     if ((await picker.count()) === 0) needsData('documents on the E2E project for the turnover pickers')
-    const own = attachedBefore ?? (await picker.locator('option:not([value=""])').first().getAttribute('value'))
+    // Any own document the picker offers: it lists only the newest 50, so the attached
+    // one may be missing. The attach is refused, so which one does not matter.
+    const own = await picker.locator('option:not([value=""])').first().getAttribute('value')
     if (!own) needsData('documents on the E2E project for the turnover pickers')
     await picker.selectOption(own)
 

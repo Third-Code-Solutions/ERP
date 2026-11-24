@@ -13,7 +13,7 @@
  */
 
 import { randomBytes, createHash } from 'node:crypto'
-import { and, eq, isNull, lte, or } from 'drizzle-orm'
+import { and, eq, isNull, lte, or, sql } from 'drizzle-orm'
 import { db } from '@third-code-erp/database'
 import {
   warrantyTickets,
@@ -70,7 +70,11 @@ export async function dispatchOneSurvey(
 
   // Skip if a survey already went out.
   const [existing] = await db
-    .select({ id: cnpsSurveys.id, sent_at: cnpsSurveys.sent_at })
+    .select({
+      id: cnpsSurveys.id,
+      sent_at: cnpsSurveys.sent_at,
+      response_token_hash: cnpsSurveys.response_token_hash,
+    })
     .from(cnpsSurveys)
     .where(
       and(
@@ -87,15 +91,23 @@ export async function dispatchOneSurvey(
 
   let surveyId: string
   if (existing) {
-    await db
+    // Compare-and-swap claim of a pending survey: only one sender re-mints its
+    // token. A row created within the last 15 minutes may still be mid-send by
+    // the sender that inserted it, so it is left alone.
+    const [claimed] = await db
       .update(cnpsSurveys)
-      .set({ sent_at: null, response_token_hash: tokenHash })
+      .set({ response_token_hash: tokenHash })
       .where(
         and(
           eq(cnpsSurveys.id, existing.id),
-          eq(cnpsSurveys.tenant_id, tenantId)
+          eq(cnpsSurveys.tenant_id, tenantId),
+          isNull(cnpsSurveys.sent_at),
+          sql`${cnpsSurveys.response_token_hash} is not distinct from ${existing.response_token_hash}`,
+          sql`${cnpsSurveys.created_at} < now() - interval '15 minutes'`
         )
       )
+      .returning({ id: cnpsSurveys.id })
+    if (!claimed?.id) return { sent: false, reason: 'already-claimed' }
     surveyId = existing.id
   } else {
     const [created] = await db
@@ -107,8 +119,10 @@ export async function dispatchOneSurvey(
         sent_at: null,
         response_token_hash: tokenHash,
       })
+      // ux_cnps_surveys_tenant_ticket: a concurrent sender's row wins and this run sends nothing.
+      .onConflictDoNothing({ target: [cnpsSurveys.tenant_id, cnpsSurveys.ticket_id] })
       .returning({ id: cnpsSurveys.id })
-    if (!created?.id) return { sent: false, reason: 'survey-not-created' }
+    if (!created?.id) return { sent: false, reason: 'already-claimed' }
     surveyId = created.id
   }
 

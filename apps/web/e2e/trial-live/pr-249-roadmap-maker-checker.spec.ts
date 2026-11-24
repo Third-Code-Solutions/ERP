@@ -111,15 +111,20 @@ test(
         }
         const { priceListId } = created(create, z.object({ priceListId: z.string().uuid() }).passthrough())
         const workflow = `/v1/roadmap/price-lists/${priceListId}/workflow`
-        const activate = await callApi(target, admin.accessToken, 'POST', workflow, { action: 'activate' })
+        const storedStatus = async () =>
+          (await tenantRows(target, 'price_lists', `id=eq.${priceListId}&select=status`, statusRow))[0]?.status
         try {
+          const activate = await callApi(target, admin.accessToken, 'POST', workflow, { action: 'activate' })
           expect(activate.status, activate.body).toBe(403)
           expect(activate.body).toContain('The price list preparer cannot activate it')
-          const [row] = await tenantRows(target, 'price_lists', `id=eq.${priceListId}&select=status`, statusRow)
-          expect(row?.status).toBe('draft')
+          expect(await storedStatus()).toBe('draft')
         } finally {
-          // Price lists cannot be deleted: the probe stays an inactive draft. A regression that activated it is retired.
-          if (activate.status === 200) await callApi(target, admin.accessToken, 'POST', workflow, { action: 'retire' })
+          // Price lists cannot be deleted: the probe stays an inactive draft. Whatever the
+          // response said, a list the attempt activated is retired (retire needs `active`).
+          if ((await storedStatus()) === 'active') {
+            const retire = await callApi(target, admin.accessToken, 'POST', workflow, { action: 'retire' })
+            expect(retire.status, retire.body).toBe(200)
+          }
         }
       })
     } finally {

@@ -11,10 +11,10 @@
     "databaseVersion": "17.6.1.121",
     "postgresMajor": 17,
     "appliedCount": 157,
-    "sourceCount": 191,
-    "pendingCount": 34,
+    "sourceCount": 194,
+    "pendingCount": 37,
     "appliedHead": "20260901141949",
-    "sourceHead": "20261124150000",
+    "sourceHead": "20261124180000",
     "ledgerStatus": "current_remote_ledger_matches_source",
     "purchaseOrderPreflight": {
       "duplicateGroups": 0,
@@ -226,9 +226,39 @@
       "recovery": "Take an encrypted backup first and save the id, material_item_id and uom_id of every po_line_items row with a NULL material_item_id or uom_id. Each file is transactional and aborts without changes on failure. Roll back in reverse order. 20261124140100: the backfilled material_item_id and uom_id values stay, because they are valid links the receipt guard already accepts; to undo them, set them back to NULL only for the saved ids and columns (a line received since is frozen by guard_po_line_stock_fields), then delete the 20261124140100 ledger row. 20261124140000: copy public.unit_aliases to public.unit_aliases_rollback_backup (revoke anon and authenticated, enable RLS), drop the trigger link_po_line_item_and_unit, the functions link_po_line_item_and_unit() and resolve_unit_of_measure(uuid, text) and the table unit_aliases, then delete the 20261124140000 ledger row. First roll back the web code that calls resolve_unit_of_measure() (purchase-orders/[id]/actions.ts) and the trial bootstrap that writes unit_aliases.This source-only batch does not authorize hosted application."
     },
     {
+      "id": "20261124-rfq-quotes-unit-price-positive",
+      "migrations": [
+        "20261124150000_rfq_quotes_unit_price_positive.sql"
+      ],
+      "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
+      "hostedApplyApproved": false,
+      "risk": "Adds the validated check constraint rfq_quotes_unit_price_positive (unit_price_cents > 0) on public.rfq_quotes; no column, index, function, trigger, policy or grant changes and no data UPDATE. ALTER TABLE ADD CONSTRAINT CHECK takes ACCESS EXCLUSIVE on rfq_quotes and scans every row once while held, under a 5-second lock and 60-second statement timeout; any row with unit_price_cents <= 0 aborts the migration with 23514 and changes nothing. Idempotent: when a constraint of that name already exists it is validated instead (VALIDATE CONSTRAINT, SHARE UPDATE EXCLUSIVE, same 23514 abort).Preflight: count rfq_quotes rows with unit_price_cents <= 0 (must be 0) and the table row count.",
+      "recovery": "Take an encrypted backup first. The migration is transactional and aborts without changes on failure. Rollback drops constraint rfq_quotes_unit_price_positive and the ledger row; no data to restore. This source-only batch does not authorize hosted application."
+    },
+    {
+      "id": "20261124-cnps-response-token-hash-index",
+      "migrations": [
+        "20261124160000_cnps_response_token_hash_index.sql"
+      ],
+      "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
+      "hostedApplyApproved": false,
+      "risk": "Adds the partial unique btree index idx_cnps_response_token_hash on public.cnps_surveys (response_token_hash) where response_token_hash is not null, serving the unauthenticated CNPS survey lookup. No column, constraint, function, trigger, policy or grant changes and no data UPDATE. Two surveys sharing one non-null hash would make the build fail with 23505 and change nothing (production has 0 rows). Plain CREATE UNIQUE INDEX inside the transaction takes SHARE on cnps_surveys (reads continue, writes wait) for the build, under a 5-second lock and 60-second statement timeout; chosen because the table is small. Preflight: cnps_surveys row count and table size (switch to CREATE INDEX CONCURRENTLY outside a transaction if large) that the index name is free, and that no response_token_hash is shared.",
+      "recovery": "Take an encrypted backup first. The migration is transactional and aborts without changes on failure. Rollback drops idx_cnps_response_token_hash and the ledger row; no data to restore. This source-only batch does not authorize hosted application."
+    },
+    {
+      "id": "20261124-cnps-surveys-one-per-ticket",
+      "migrations": [
+        "20261124170000_cnps_surveys_one_per_ticket.sql"
+      ],
+      "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
+      "hostedApplyApproved": false,
+      "risk": "Adds the unique btree index ux_cnps_surveys_tenant_ticket on public.cnps_surveys (tenant_id, ticket_id) so a warranty ticket has at most one CNPS survey; the cnps-survey-sender edge function and the Inngest sender insert with ON CONFLICT (tenant_id, ticket_id) DO NOTHING and email only when their insert created the row; the edge function inserts it with sent_at null and stamps sent_at only after delivery, and the Inngest sender re-sends a still-unsent row only after claiming it by compare-and-swap on response_token_hash once it is 15 minutes old. No column, constraint, function, trigger, policy or grant changes and no data UPDATE. A preflight raises 23505 and aborts, changing nothing, if a ticket already has two surveys. Plain CREATE UNIQUE INDEX inside the transaction takes SHARE on cnps_surveys (reads continue, writes wait) for the build, under a 5-second lock and 60-second statement timeout; chosen because the table is small. Deploy order: the senders' ON CONFLICT needs the index (42P10 without it), so the index must be live before the new web build and the edge function deploy. Preflight: duplicate (tenant_id, ticket_id) count must be 0, row count and size, index name free.",
+      "recovery": "Take an encrypted backup first. The migration is transactional and aborts without changes on failure. Rollback: revert the senders first (their ON CONFLICT needs the index), then drop ux_cnps_surveys_tenant_ticket and the ledger row; no data to restore. This source-only batch does not authorize hosted application."
+    },
+    {
       "id": "20261124-procurement-requisition-event-request-hash",
       "migrations": [
-        "20261124150000_procurement_requisition_event_request_hash.sql"
+        "20261124180000_procurement_requisition_event_request_hash.sql"
       ],
       "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
       "hostedApplyApproved": false,

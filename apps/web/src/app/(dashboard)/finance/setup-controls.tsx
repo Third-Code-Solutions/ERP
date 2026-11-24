@@ -10,57 +10,11 @@ import {
   createFiscalPeriod,
   createLedgerAccount,
 } from './actions'
-
-const RECEIVABLE_MAPPINGS = [
-  {
-    key: 'accounts_receivable',
-    label: 'Accounts Receivable',
-    accountType: 'asset',
-  },
-  {
-    key: 'retention_receivable',
-    label: 'Retention Receivable',
-    accountType: 'asset',
-  },
-  {
-    key: 'withholding_tax_receivable',
-    label: 'Withholding Tax Receivable',
-    accountType: 'asset',
-  },
-  { key: 'revenue', label: 'Revenue', accountType: 'income' },
-  {
-    key: 'output_vat_payable',
-    label: 'Output VAT Payable',
-    accountType: 'liability',
-  },
-] as const
-
-const PAYABLE_MAPPINGS = [
-  {
-    key: 'accounts_payable',
-    label: 'Accounts Payable',
-    accountType: 'liability',
-  },
-  {
-    key: 'input_vat_receivable',
-    label: 'Input VAT Receivable',
-    accountType: 'asset',
-  },
-  {
-    key: 'withholding_tax_payable',
-    label: 'Withholding Tax Payable',
-    accountType: 'liability',
-  },
-] as const
-
-const INVENTORY_MAPPINGS = [
-  { key: 'inventory', label: 'Inventory', accountType: 'asset' },
-  {
-    key: 'goods_received_not_invoiced',
-    label: 'Goods Received Not Invoiced',
-    accountType: 'liability',
-  },
-] as const
+import {
+  INVENTORY_MAPPINGS,
+  PAYABLE_MAPPINGS,
+  RECEIVABLE_MAPPINGS,
+} from './system-mappings'
 
 function SubmitButton({
   pending,
