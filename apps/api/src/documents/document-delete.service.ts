@@ -12,6 +12,7 @@ import {
 import { ConfigService } from '@nestjs/config'
 import {
   accountKycArtifacts,
+  cadEvidenceCommitRequests,
   documentDeleteRequests,
   documentProcessingJobs,
   documents,
@@ -167,6 +168,20 @@ export class DocumentDeleteService {
         .limit(1)
       if (inspectionReport) {
         throw new ConflictException('Document is attached to an inspection and cannot be deleted')
+      }
+
+      // CAD evidence commits take a document share lock and FK-restrict this
+      // delete; refuse clearly instead of failing on the constraint.
+      const [cadEvidence] = await transaction
+        .select({ id: cadEvidenceCommitRequests.id })
+        .from(cadEvidenceCommitRequests)
+        .where(and(
+          eq(cadEvidenceCommitRequests.tenant_id, authorizedPrincipal.tenantId),
+          eq(cadEvidenceCommitRequests.document_id, document.id)
+        ))
+        .limit(1)
+      if (cadEvidence) {
+        throw new ConflictException('Document has committed CAD evidence and cannot be deleted')
       }
 
       const processingHistory = await transaction

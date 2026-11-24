@@ -4820,6 +4820,24 @@ describe('ERP Core client', () => {
     )
   })
 
+  it('shows the Core refusal for a document with committed CAD evidence', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(JSON.stringify({
+        statusCode: 409,
+        message: 'Document has committed CAD evidence and cannot be deleted',
+        error: 'Conflict',
+      }), { status: 409, headers: { 'content-type': 'application/json' } }))
+    )
+
+    await expect(
+      deleteDocumentThroughCoreApi(DOCUMENT_ID, 'document-delete-cad')
+    ).resolves.toEqual({
+      ok: false,
+      error: 'Document has committed CAD evidence and cannot be deleted',
+    })
+  })
+
   it('returns a terminal error when document deletion Core is unavailable', async () => {
     vi.stubGlobal(
       'fetch',

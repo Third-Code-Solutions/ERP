@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { expect, test, type Locator, type Page } from '../base-test'
+import { expect, test, type Locator, type Page, type TestInfo } from '../base-test'
 import { z } from 'zod'
 import { RUN_ID, gateTrialLive, openRole, tenantRows, trialTarget, type TrialTarget } from '../helpers/trial-live'
 
@@ -13,39 +13,37 @@ const scopeRow = z.object({ id: z.string().uuid(), quantity: z.coerce.number(), 
 const trialDocument = z.object({ id: z.string().uuid(), file_name: z.string() })
 const trialScopeItem = z.object({ id: z.string().uuid(), description: z.string() })
 
+const commitRequest = z.object({ id: z.string().uuid() })
+
 /**
  * Clicks a delete control until its row is gone. A click before hydration does nothing,
- * so it retries; a missing control fails with its name.
+ * so it retries; a missing control fails with its name, a refused delete with the page's alert.
  */
 async function clickUntilGone(control: Locator, what: string, gone: () => Promise<boolean>) {
   if (await gone()) return
   await expect(control, `${what} is missing`).toBeVisible({ timeout: 15_000 })
-  await expect(async () => {
-    if (!(await gone())) await control.click({ timeout: 5_000 })
-    expect(await gone(), `${what} did not delete its row`).toBe(true)
-  }).toPass({ timeout: 30_000, intervals: [1_000, 2_000, 5_000] })
+  try {
+    await expect(async () => {
+      if (!(await gone())) await control.click({ timeout: 5_000 })
+      expect(await gone()).toBe(true)
+    }).toPass({ timeout: 30_000, intervals: [1_000, 2_000, 5_000] })
+  } catch (error) {
+    const shown = await control.locator('xpath=..').getByRole('alert').allInnerTexts().catch(() => [])
+    throw new Error(`${what} did not delete its row; the page shows: ${shown.join(' | ') || 'no alert'}`, { cause: error })
+  }
 }
 
 /**
- * Removes every trial-live DXF upload on the E2E project through the UI, then any
- * TRIAL-ROOM scope row left without its document, and proves none remain.
+ * Removes every TRIAL-ROOM scope row on the E2E project through the UI, then every
+ * trial-live DXF document that can go, and proves none of either remain.
  */
-async function removeTrialUploads(page: Page, target: TrialTarget) {
+async function removeTrialUploads(page: Page, target: TrialTarget, testInfo: TestInfo) {
   const project = `project_id=eq.${target.projectId}`
   const documents = () =>
     tenantRows(target, 'documents', `${project}&file_name=like.trial-live-*.dxf&select=id,file_name`, trialDocument)
   const scopeItems = () =>
     tenantRows(target, 'scope_items', `${project}&description=like.*TRIAL-ROOM-*&select=id,description`, trialScopeItem)
 
-  for (const doc of await documents()) {
-    await page.goto(`/projects/${target.projectId}/documents`)
-    // Deleting the document also deletes the scope rows derived from it.
-    await clickUntilGone(
-      page.getByRole('button', { name: `Delete ${doc.file_name}`, exact: true }).first(),
-      `"Delete ${doc.file_name}" on the documents page`,
-      async () => (await tenantRows(target, 'documents', `id=eq.${doc.id}&select=id,file_name`, trialDocument)).length === 0
-    )
-  }
   for (const item of await scopeItems()) {
     await page.goto(`/projects/${target.projectId}/scope`)
     await clickUntilGone(
@@ -54,8 +52,30 @@ async function removeTrialUploads(page: Page, target: TrialTarget) {
       async () => (await tenantRows(target, 'scope_items', `id=eq.${item.id}&select=id,description`, trialScopeItem)).length === 0
     )
   }
-  expect(await documents(), 'trial-live DXF documents left on the E2E project').toEqual([])
+  const retained: string[] = []
+  for (const doc of await documents()) {
+    // A document whose CAD evidence ERP Core committed is retained on purpose: it is the
+    // provenance of its scope items and BOM (cad_evidence_commit_requests_document_tenant_fk).
+    // TODO: once both delete paths refuse it explicitly, assert that "Delete <file>" on a
+    // committed DXF shows that refusal message and leaves the document.
+    const committed = await tenantRows(target, 'cad_evidence_commit_requests', `document_id=eq.${doc.id}&select=id`, commitRequest)
+    if (committed.length > 0) {
+      retained.push(doc.id)
+      testInfo.annotations.push({ type: 'retained', description: `${doc.file_name} (${doc.id}): its CAD evidence commit restricts the delete` })
+      continue
+    }
+    await page.goto(`/projects/${target.projectId}/documents`)
+    await clickUntilGone(
+      page.getByRole('button', { name: `Delete ${doc.file_name}`, exact: true }).first(),
+      `"Delete ${doc.file_name}" on the documents page`,
+      async () => (await tenantRows(target, 'documents', `id=eq.${doc.id}&select=id,file_name`, trialDocument)).length === 0
+    )
+  }
   expect(await scopeItems(), 'TRIAL-ROOM scope rows left on the E2E project').toEqual([])
+  expect(
+    (await documents()).filter((doc) => !retained.includes(doc.id)),
+    'deletable trial-live DXF documents left on the E2E project'
+  ).toEqual([])
 }
 
 test('a DXF with a fractional area produces a fractional takeoff quantity', { tag: '@pr-239' }, async ({ browser }, testInfo) => {
@@ -69,7 +89,7 @@ test('a DXF with a fractional area produces a fractional takeoff quantity', { ta
   const admin = await openRole(browser, target, 'admin')
   const { page } = admin
   try {
-    await test.step('remove trial-live uploads left by earlier runs', () => removeTrialUploads(page, target))
+    await test.step('remove trial-live uploads left by earlier runs', () => removeTrialUploads(page, target, testInfo))
 
     // Steps keep a failure here in the report when the cleanup below fails too.
     await test.step('upload a fractional DXF and read its takeoff', async () => {
@@ -128,7 +148,7 @@ test('a DXF with a fractional area produces a fractional takeoff quantity', { ta
     })
   } finally {
     try {
-      await test.step('remove this run\'s upload', () => removeTrialUploads(page, target))
+      await test.step('remove this run\'s upload', () => removeTrialUploads(page, target, testInfo))
     } finally {
       await admin.close()
     }
