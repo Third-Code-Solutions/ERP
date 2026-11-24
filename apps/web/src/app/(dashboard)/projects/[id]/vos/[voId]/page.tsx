@@ -113,7 +113,6 @@ export default async function VoDetailPage({ params }: PageProps) {
               <VoApprovalActions
                 voId={vo.id}
                 status={status}
-                docusealSubmissionId={vo.docuseal_submission_id ?? null}
                 canSubmitForCommercialPricing={can(
                   profile.role,
                   'variation_order.submit_for_commercial_pricing',

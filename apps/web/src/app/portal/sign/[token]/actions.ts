@@ -42,6 +42,9 @@ const PNG_SIGNATURE = Buffer.from('89504e470d0a1a0a', 'hex')
 
 class PublicSigningError extends Error {}
 
+const NOT_AWAITING_SIGNATURE =
+  'This request is no longer waiting for a signature. Ask the sender for a new link.'
+
 function decodeSignaturePng(
   dataUrl: string | null | undefined
 ): { bytes: Buffer } | { error: string } {
@@ -164,6 +167,8 @@ async function stampSignedSource(
   }
 
   if (session.entity_type === 'variation_order') {
+    // The status predicate is evaluated by the same UPDATE that records the
+    // signature, so a rejected or withdrawn VO cannot be signed through an old link.
     const rows = await tx
       .update(variationOrders)
       .set({
@@ -174,11 +179,13 @@ async function stampSignedSource(
       .where(
         and(
           eq(variationOrders.id, session.entity_id),
-          eq(variationOrders.tenant_id, session.tenant_id)
+          eq(variationOrders.tenant_id, session.tenant_id),
+          eq(variationOrders.status, 'pending_client_signature')
         )
       )
       .returning({ id: variationOrders.id })
-    return rows.length === 1
+    if (rows.length !== 1) throw new PublicSigningError(NOT_AWAITING_SIGNATURE)
+    return true
   }
 
   if (session.entity_type === 'coc') {
@@ -195,11 +202,13 @@ async function stampSignedSource(
       .where(
         and(
           eq(certificatesOfCompletion.id, session.entity_id),
-          eq(certificatesOfCompletion.tenant_id, session.tenant_id)
+          eq(certificatesOfCompletion.tenant_id, session.tenant_id),
+          eq(certificatesOfCompletion.status, 'pending_signature')
         )
       )
       .returning({ id: certificatesOfCompletion.id })
-    return rows.length === 1
+    if (rows.length !== 1) throw new PublicSigningError(NOT_AWAITING_SIGNATURE)
+    return true
   }
 
   return false
