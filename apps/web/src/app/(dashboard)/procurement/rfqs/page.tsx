@@ -7,11 +7,13 @@
 
 import type { Metadata } from 'next'
 import { eq, sql, desc } from 'drizzle-orm'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { requireUserProfile, can } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { rfqs, rfqQuotes, boms, projects } from '@third-code-erp/database/schema'
+import { CreateRfqButton } from '@/components/rfq/create-rfq-button'
 import { RfqListTable } from '@/components/rfq/rfq-list-table'
 import { requireRouteAccess } from '@/lib/require-route-access'
+import { listApprovedBomsWithoutRfq } from './boms-without-rfq'
 
 export const metadata: Metadata = { title: 'RFQs' }
 
@@ -47,6 +49,11 @@ export default async function RfqsPage({ searchParams }: PageProps) {
     .orderBy(desc(rfqs.created_at))
     .limit(200)
 
+  // Approved or locked BOMs that no RFQ was made for, so a buyer can start one by hand.
+  const bomsWithoutRfq = can(profile.role, 'rfq.dispatch')
+    ? await listApprovedBomsWithoutRfq(profile.tenantId)
+    : []
+
   const filtered =
     statusFilter === 'all' ? rows : rows.filter((r) => r.status === statusFilter)
 
@@ -64,8 +71,8 @@ export default async function RfqsPage({ searchParams }: PageProps) {
         <p className="page-eyebrow">Procurement</p>
         <h1 className="page-title">Requests for Quote</h1>
         <p className="page-subtitle">
-          Auto-dispatched from internally approved BOMs. Log supplier quotes
-          and complete to notify Commercial.
+          Created when a BOM is approved, or from the list below. Log supplier
+          quotes and complete to notify Commercial.
         </p>
       </div>
 
@@ -76,6 +83,36 @@ export default async function RfqsPage({ searchParams }: PageProps) {
         <Kpi label="Completed" value={counts.completed.toString()} />
         <Kpi label="Cancelled" value={counts.cancelled.toString()} />
       </div>
+
+      {bomsWithoutRfq.length > 0 && (
+        <div className="card" style={{ marginBottom: 20 }}>
+          <div className="card-header">
+            <h2 className="card-title">Approved BOMs without an RFQ</h2>
+          </div>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Project</th>
+                <th>BOM</th>
+                <th>Status</th>
+                <th aria-label="Action" />
+              </tr>
+            </thead>
+            <tbody>
+              {bomsWithoutRfq.map((bom) => (
+                <tr key={bom.id}>
+                  <td>{bom.project_name}</td>
+                  <td>{bom.label ?? `BOM v${bom.version}`}</td>
+                  <td className="muted">{bom.status}</td>
+                  <td style={{ textAlign: 'right' }}>
+                    <CreateRfqButton bomId={bom.id} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <RfqListTable
         rows={filtered.map((r) => ({

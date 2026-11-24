@@ -4,7 +4,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { can, getUserProfile } from '@third-code-erp/auth'
 import {
-  createClaimDraftCommandSchema, createClaimDraftResultSchema, claimDraftPayload,
+  CLAIM_CAP_EXCEEDED_CODE, createClaimDraftCommandSchema, createClaimDraftResultSchema, claimDraftPayload,
   type ClaimDraftCommandReceipt,
 } from '@third-code-erp/shared-types'
 import { z } from 'zod'
@@ -45,6 +45,8 @@ export async function createClaimDraftCommand(rawScope: unknown, rawCommand: unk
     const result = await createClaimDraftThroughCoreApi(command)
     if (!result.ok) {
       if (result.outcomeUnknown !== false) { outcome = 'unknown'; return unknownOutcome() }
+      // The cap message names the amounts and the way out; retrying cannot help.
+      if (result.code === CLAIM_CAP_EXCEEDED_CODE) return rejected(result.error)
       return rejected(result.status === 409
         ? 'The draft request conflicts with existing evidence or a concurrent change. An unconfirmed draft must keep its original retry key.'
         : 'The draft was not sent or was rejected. Check your session, permissions and submitted values.')

@@ -1,5 +1,9 @@
 import { z } from 'zod'
 
+// The 409 code Core sends when a draft would exceed the contract sum; the web
+// shows Core's message for this code as is.
+export const CLAIM_CAP_EXCEEDED_CODE = 'claim_cap_exceeded'
+
 const uuid = z.string().uuid().transform(value => value.toLowerCase())
 const amount = z.number().int().positive().max(Number.MAX_SAFE_INTEGER)
 const milestone = z.number().int().min(0).max(100)
