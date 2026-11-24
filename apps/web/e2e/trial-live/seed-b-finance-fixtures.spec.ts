@@ -18,10 +18,13 @@ function present(testInfo: TestInfo, what: string): void {
   testInfo.annotations.push({ type: 'seed', description: `already present: ${what}` })
 }
 
-const optionValues = (select: Locator) =>
-  select.locator('option').evaluateAll((options) =>
+// evaluateAll does not wait, and the pages stream in, so wait for the select first.
+async function optionValues(select: Locator) {
+  await expect(select).toBeVisible({ timeout: 15_000 })
+  return select.locator('option').evaluateAll((options) =>
     options.map((option) => (option as HTMLOptionElement).value).filter(Boolean)
   )
+}
 
 const idFromUrl = (page: Page, pattern: RegExp) => {
   const path = new URL(page.url()).pathname

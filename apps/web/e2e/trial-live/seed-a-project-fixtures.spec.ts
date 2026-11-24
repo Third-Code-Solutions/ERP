@@ -40,6 +40,11 @@ test('seed: an editable budget draft with a whole-centavo line (pr-227)', SEED, 
     const saveDraft = page.getByRole('button', { name: 'Save draft' })
     const createDraft = page.getByRole('button', { name: 'Create draft' })
     const createRevision = page.getByRole('button', { name: 'Create revision' })
+    // count() does not wait and the page streams in, so first wait for one of its controls.
+    await expect(
+      saveDraft.or(createDraft).or(createRevision).first(),
+      'the budget page offers Save draft, Create draft or Create revision; a budget pending approval must be decided first'
+    ).toBeVisible({ timeout: 15_000 })
     if ((await saveDraft.count()) === 0) {
       if ((await createDraft.count()) > 0) {
         // "Create draft" stays disabled until the tenant has an active Cost Code.
@@ -53,11 +58,9 @@ test('seed: an editable budget draft with a whole-centavo line (pr-227)', SEED, 
         }
         await page.getByLabel('Revision reason').fill('trial-fixture budget draft')
         await createDraft.click()
-      } else if ((await createRevision.count()) > 0) {
+      } else {
         await page.getByPlaceholder('Why is the baseline changing?').fill('trial-fixture budget draft')
         await createRevision.click()
-      } else {
-        throw new Error('the budget page offers no draft, revision or create control: a budget is probably pending approval and must be decided first')
       }
       await expect(saveDraft).toBeVisible({ timeout: 30_000 })
     }
