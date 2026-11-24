@@ -129,7 +129,7 @@ swap the built-in canvas signing pad for a DocuSeal envelope.
 | Variable | Required | Scope | Where to get | Controls |
 |---|---|---|---|---|
 | `DOCUSEAL_API_URL` | no | server | Your DocuSeal install URL | Switches signing strategy to DocuSeal envelopes |
-| `DOCUSEAL_API_KEY` | no* | server | DocuSeal `Settings → API` | Auth header for envelope creation. Required when `DOCUSEAL_API_URL` is set |
+| `DOCUSEAL_API_TOKEN` | no* | server | DocuSeal `Settings → API` | Auth header for envelope creation. Required when `DOCUSEAL_API_URL` is set |
 | `DOCUSEAL_WEBHOOK_SECRET` | no* | Web server | DocuSeal `Settings → Webhooks` | Required for every inbound completion callback; the route returns `503` when unset |
 
 Optional — when unset, the built-in canvas signing pad is used. The
