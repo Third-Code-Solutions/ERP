@@ -242,33 +242,37 @@ test('seed: a posted and a reversed supplier bill on a billable PO (pr-241)', SE
   })
 
   // Under the Core PO workflow each transition emails every PO role, and the E2E
-  // users' addresses are not ours. Its only UI trace is that the PO page drops the
-  // web supplier-email banner (purchase-orders/[id]/page.tsx:166), so read that
-  // banner on an issued PO whose supplier email was never sent.
-  async function assertPoWorkflowOnWeb() {
+  // users' addresses are not ours. Policy keeps it off for trial tenants
+  // (docs/erp/trial-flags.json, leaveOff.web). Its only UI trace is that the PO page
+  // drops the web supplier-email banner (purchase-orders/[id]/page.tsx:166) on an
+  // issued PO whose supplier email was never sent.
+  async function assertSupplierEmailBanner(poId: string) {
+    await asRole('procurement', async (page) => {
+      await page.goto(`/purchase-orders/${poId}`)
+      await expect(
+        page.getByRole('alert').filter({ hasText: SUPPLIER_EMAIL_BANNER }),
+        `PO ${poId} shows no supplier-email banner: the Core PO workflow is probably on for the E2E tenant, and its transitions email every PO role`
+      ).toBeVisible({ timeout: 15_000 })
+    })
+  }
+
+  /** Checks an existing issued, unsent PO before any PO step; false when the tenant has none to check. */
+  async function poWorkflowCheckedOnWeb() {
     const [issued] = await tenantRows(
       target,
       'purchase_orders',
       `status=in.(${SUPPLIER_EMAIL_PO.join(',')})&supplier_email_sent_at=is.null&select=id,status&order=created_at.desc&limit=1`,
       statusRow
     )
-    if (!issued) {
-      throw new Error(
-        'the E2E tenant has no issued PO without a sent supplier email, so the seed cannot see whether the Core PO workflow (which emails every PO role) is on; confirm ERP_PO_WORKFLOW_WRITES_VIA_API_TENANT_IDS leaves the E2E tenant out before the PO is seeded'
-      )
-    }
-    await asRole('procurement', async (page) => {
-      await page.goto(`/purchase-orders/${issued.id}`)
-      await expect(
-        page.getByRole('alert').filter({ hasText: SUPPLIER_EMAIL_BANNER }),
-        `PO ${issued.id} shows no supplier-email banner: the Core PO workflow is probably on for the E2E tenant, and its transitions email every PO role; not seeding the PO`
-      ).toBeVisible({ timeout: 15_000 })
-    })
+    if (!issued) return false
+    await assertSupplierEmailBanner(issued.id)
+    return true
   }
 
   const poId = await test.step('an issued PO with one service line', async () => {
     let po = await purchaseOrder(vendorId)
-    if (!BILLABLE_PO.includes(po?.status ?? '')) await assertPoWorkflowOnWeb()
+    const needsSteps = !BILLABLE_PO.includes(po?.status ?? '')
+    const checkedBefore = needsSteps && (await poWorkflowCheckedOnWeb())
     if (!po) {
       po = await asRole('procurement', async (page) => {
         await page.goto('/purchase-orders')
@@ -317,6 +321,9 @@ test('seed: a posted and a reversed supplier bill on a billable PO (pr-241)', SE
     }
     const status = (await purchaseOrder(vendorId))?.status ?? 'missing'
     if (!BILLABLE_PO.includes(status)) throw new Error(`the trial-fixture PO is ${status}, not billable`)
+    // With no issued, unsent PO to read beforehand, the seed's own PO is the first one.
+    // A missing banner here means its transitions may already have gone through Core.
+    if (needsSteps && !checkedBefore) await assertSupplierEmailBanner(poRowId)
     return poRowId
   })
 
