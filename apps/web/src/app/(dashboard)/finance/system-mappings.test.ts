@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   cashAccountKindLabel,
+  correctlyMappedSystemKeys,
   journalSourceLabel,
   ledgerAccountTypeLabel,
   missingFinanceSetup,
@@ -70,6 +71,36 @@ describe('missingFinanceSetup', () => {
       'An open fiscal period',
       'At least one active cash account',
     ])
+  })
+})
+
+describe('correctlyMappedSystemKeys', () => {
+  it('counts a control key only on an account of the type posting requires', () => {
+    expect(
+      correctlyMappedSystemKeys([
+        { system_key: 'accounts_receivable', account_type: 'asset' },
+        // Posting needs a liability for Accounts Payable, so this one is not ready.
+        { system_key: 'accounts_payable', account_type: 'asset' },
+        { system_key: 'inventory', account_type: 'asset' },
+        { system_key: null, account_type: 'expense' },
+      ])
+    ).toEqual(new Set(['accounts_receivable', 'inventory']))
+  })
+
+  it('reports a wrong-type control account as missing setup', () => {
+    const accounts = [...RECEIVABLE_MAPPINGS, ...PAYABLE_MAPPINGS].map(
+      (mapping) => ({ system_key: mapping.key, account_type: mapping.accountType })
+    )
+    accounts[0] = { system_key: 'accounts_receivable', account_type: 'income' }
+
+    expect(
+      missingFinanceSetup({
+        activeAccountCount: accounts.length,
+        openPeriodCount: 1,
+        activeCashAccountCount: 1,
+        mappedSystemKeys: correctlyMappedSystemKeys(accounts),
+      })
+    ).toEqual(['Receivables control accounts: Accounts Receivable'])
   })
 })
 

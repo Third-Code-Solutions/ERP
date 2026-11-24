@@ -49,6 +49,33 @@ export const INVENTORY_MAPPINGS = [
   },
 ] as const
 
+const EXPECTED_ACCOUNT_TYPES: ReadonlyMap<string, string> = new Map(
+  [...RECEIVABLE_MAPPINGS, ...PAYABLE_MAPPINGS, ...INVENTORY_MAPPINGS].map(
+    (mapping) => [mapping.key, mapping.accountType]
+  )
+)
+
+/**
+ * System keys held by an account of the type each mapping needs. The posting
+ * functions also require the account_type, so a key on an account of another
+ * type still counts as unmapped. Pass active accounts only.
+ */
+export function correctlyMappedSystemKeys(
+  activeAccounts: ReadonlyArray<{
+    system_key: string | null
+    account_type: string
+  }>
+): Set<string> {
+  return new Set(
+    activeAccounts.flatMap((account) =>
+      account.system_key &&
+      EXPECTED_ACCOUNT_TYPES.get(account.system_key) === account.account_type
+        ? [account.system_key]
+        : []
+    )
+  )
+}
+
 const CASH_ACCOUNT_KIND_LABELS: Record<string, string> = {
   cash: 'Cash on hand',
   bank: 'Bank account',
@@ -95,7 +122,7 @@ export interface FinanceSetupState {
   activeAccountCount: number
   openPeriodCount: number
   activeCashAccountCount: number
-  /** System keys currently assigned to an active ledger account. */
+  /** System keys on an active ledger account of the right type (correctlyMappedSystemKeys). */
   mappedSystemKeys: ReadonlySet<string>
 }
 

@@ -61,8 +61,6 @@ export default async function ReceivablesPage() {
   let totalDue: number
   let totalRetention: number
   let totalWithheld: number
-  let overdueTotal: number
-  let overdueCount: number
   let openCount: number
 
   if (financeReceivablesReadsUseCoreApi(profile.tenantId)) {
@@ -105,8 +103,6 @@ export default async function ReceivablesPage() {
     totalDue = result.data.totalDueCents
     totalRetention = result.data.totalRetentionCents
     totalWithheld = result.data.totalWithheldCents
-    overdueTotal = result.data.overdueTotalCents
-    overdueCount = result.data.overdueCount
     openCount = result.data.total
   } else {
     const rows = await db
@@ -195,16 +191,19 @@ export default async function ReceivablesPage() {
       (sum, invoice) => sum + invoice.withholding_tax_cents,
       0
     )
-    const overdue = openRows.filter(
-      (invoice) => (daysPastDue(invoice.due_date, today) ?? 0) > 0
-    )
-    overdueCount = overdue.length
-    overdueTotal = overdue.reduce(
-      (sum, invoice) => sum + invoice.current_open_cents,
-      0
-    )
     openCount = openRows.length
   }
+
+  // Both paths hold every open row (Core refuses above its page limit), so the
+  // Past due card uses the same Manila-day rule as the row badges and the CSV.
+  const overdue = openRows.filter(
+    (invoice) => (daysPastDue(invoice.due_date, today) ?? 0) > 0
+  )
+  const overdueCount = overdue.length
+  const overdueTotal = overdue.reduce(
+    (sum, invoice) => sum + invoice.current_open_cents,
+    0
+  )
 
   const aging = agingBucketTotals(
     openRows,

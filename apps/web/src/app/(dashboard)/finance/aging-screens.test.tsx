@@ -109,6 +109,28 @@ describe('finance aging screens at 30 Nov 17:00Z on a UTC server', () => {
     expect(html).toContain('finance-status-open">No due date</span>')
   })
 
+  it('counts Past due by the Manila day, not by the UTC day Core used', async () => {
+    mocks.receivables.mockResolvedValue({
+      ok: true,
+      data: {
+        total: 2,
+        rows: [receivable('a', '2026-11-30T00:00:00.000Z'), receivable('b', null)],
+        totalDueCents: 20_000,
+        totalRetentionCents: 0,
+        totalWithheldCents: 0,
+        // Core still reads 30 Nov, so it reports nothing past due.
+        overdueTotalCents: 0,
+        overdueCount: 0,
+      },
+    })
+
+    const html = renderToStaticMarkup(await ReceivablesPage())
+
+    expect(html).toMatch(
+      /Past due<\/p><p class="kpi-card-value finance-money">₱100\.00<\/p><p class="kpi-card-sub">1 invoices past due/
+    )
+  })
+
   it('ages payables by the Manila day into the same buckets as the CSV', async () => {
     mocks.payables.mockResolvedValue({
       ok: true,
