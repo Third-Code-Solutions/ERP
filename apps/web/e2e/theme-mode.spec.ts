@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './base-test'
 import { authenticateRole } from './helpers/supabase-magic-link'
 
 test.skip(process.env.E2E_THEME_MODE !== '1', 'Set E2E_THEME_MODE=1 for demo-tenant theme QA.')

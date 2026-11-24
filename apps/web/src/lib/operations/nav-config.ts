@@ -228,6 +228,9 @@ export const NAV_SECTIONS: NavSection[] = [
         href: '/process',
         label: 'Planning & Controls',
         iconKey: 'Activity',
+        // Hidden until the workflow engine has producers; the page and its
+        // route policy stay reachable by direct link.
+        visible: false,
         description: 'BU-level SLA, breach, and escalation health',
       },
       {
@@ -606,6 +609,7 @@ export const DASHBOARD_ROUTE_POLICIES: readonly DashboardRoutePolicy[] = [
       '/finance/receivables',
       '/finance/reconciliation',
       '/finance/reconciliation/[id]',
+      '/finance/trial-balance',
       '/settings/tax',
     ],
     FINANCE_ROUTE_ROLES

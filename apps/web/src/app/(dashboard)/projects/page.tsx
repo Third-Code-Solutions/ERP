@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { can, requireUserProfile } from '@third-code-erp/auth'
+import { projectTypeLabel } from '@third-code-erp/shared-types'
 import {
   getProjectsFiltered,
   PROJECT_SORT_VALUES,
@@ -25,14 +26,6 @@ const STATUS_COLORS: Record<string, string> = {
   on_hold: 'var(--color-warning)',
   completed: 'var(--color-info)',
   cancelled: 'var(--color-danger)',
-}
-
-const TYPE_LABELS: Record<string, string> = {
-  mep: 'MEP',
-  fit_out: 'Fit-out',
-  interior: 'Interior',
-  mixed: 'Structural and Civil',
-  structural_civil: 'Structural and Civil',
 }
 
 type SearchParamValue = string | string[] | undefined
@@ -208,7 +201,7 @@ export default async function ProjectsPage({
                     </small>
                   </td>
                   <td>
-                    {TYPE_LABELS[project.project_type ?? ''] ?? 'Not set'}
+                    {projectTypeLabel(project.project_type) ?? 'Not set'}
                   </td>
                   <td>
                     <span className={styles.badge}>
@@ -242,7 +235,7 @@ export default async function ProjectsPage({
                 <div>
                   <dt>Project type</dt>
                   <dd>
-                    {TYPE_LABELS[project.project_type ?? ''] ?? 'Not set'}
+                    {projectTypeLabel(project.project_type) ?? 'Not set'}
                   </dd>
                 </div>
                 <div>

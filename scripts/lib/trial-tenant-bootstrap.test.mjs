@@ -289,7 +289,7 @@ test('aliases wait for the unit_aliases table instead of failing the run', () =>
   const diff = diffBootstrapPlan(plan, { ...EMPTY, unitAliases: null })
   assert.equal(diff.unitAliases.insert.length, 0)
   assert.equal(diff.unitAliases.present.length, UNIT_ALIASES.length)
-  assert.match(diff.unitAliases.present[0].reason, /apply migration 20261118100000 first/)
+  assert.match(diff.unitAliases.present[0].reason, /apply migration 20261124140000 first/)
 })
 
 test('an existing alias is kept; one for a unit the tenant will not have is not inserted', () => {

@@ -42,11 +42,12 @@ vi.mock('@/lib/claim-transition-core-client', () => ({
   transitionClaimThroughCoreApi: mocks.transitionClaimThroughCoreApi,
 }))
 
-import { cancelClaim, rejectClaim, submitClaim } from './actions'
+import { cancelClaim, linkInvoice, rejectClaim, submitClaim } from './actions'
 
 const USER_ID = '11111111-1111-4111-8111-111111111111'
 const TENANT_ID = '22222222-2222-4222-8222-222222222222'
 const CLAIM_ID = '44444444-4444-4444-8444-444444444444'
+const INVOICE_ID = '55555555-5555-4555-8555-555555555555'
 
 const PROFILE = {
   user: { id: USER_ID },
@@ -148,6 +149,64 @@ describe('claim transition server actions', () => {
     expect(mocks.writeAuditLog).not.toHaveBeenCalled()
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/claims')
     expect(mocks.revalidatePath).toHaveBeenCalledWith(`/claims/${CLAIM_ID}`)
+  })
+
+  describe('linkInvoice amount guard', () => {
+    beforeEach(() => {
+      mocks.requireUserProfile.mockResolvedValue({ ...PROFILE, role: 'finance' })
+    })
+
+    it('does not call Core when the invoice subtotal differs from the claim amount', async () => {
+      mocks.selectLimit
+        .mockResolvedValueOnce([CLAIM])
+        .mockResolvedValueOnce([{ subtotal_cents: 100000 }])
+
+      const result = await linkInvoice(CLAIM_ID, INVOICE_ID)
+
+      expect(result).toMatchObject({ outcome: 'rejected' })
+      expect(result.error).toContain('Make them match before linking.')
+      expect(mocks.transitionClaimThroughCoreApi).not.toHaveBeenCalled()
+    })
+
+    it('does not call Core for an invoice outside the claim project or tenant', async () => {
+      mocks.selectLimit.mockResolvedValueOnce([CLAIM]).mockResolvedValueOnce([])
+
+      await expect(linkInvoice(CLAIM_ID, INVOICE_ID)).resolves.toEqual({
+        error: 'Invoice not found in the claim project',
+        outcome: 'rejected',
+      })
+      expect(mocks.transitionClaimThroughCoreApi).not.toHaveBeenCalled()
+    })
+
+    it('sends the link command to Core once the amounts agree', async () => {
+      mocks.selectLimit
+        .mockResolvedValueOnce([CLAIM])
+        .mockResolvedValueOnce([{ subtotal_cents: CLAIM.amount_cents }])
+
+      await linkInvoice(CLAIM_ID, INVOICE_ID)
+
+      expect(mocks.transitionClaimThroughCoreApi).toHaveBeenCalledWith(
+        CLAIM_ID,
+        expect.objectContaining({ action: 'link_invoice', invoiceId: INVOICE_ID }),
+      )
+    })
+
+    it("shows Core's reason when it refuses the invoice", async () => {
+      mocks.selectLimit
+        .mockResolvedValueOnce([CLAIM])
+        .mockResolvedValueOnce([{ subtotal_cents: CLAIM.amount_cents }])
+      mocks.transitionClaimThroughCoreApi.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        outcomeUnknown: false,
+        error: 'Invoice INV-202611-001 is still a draft; issue it before linking it to a claim',
+      })
+
+      await expect(linkInvoice(CLAIM_ID, INVOICE_ID)).resolves.toEqual({
+        error: 'Invoice INV-202611-001 is still a draft; issue it before linking it to a claim',
+        outcome: 'rejected',
+      })
+    })
   })
 
   it('sends the normalized rejection command to Core', async () => {

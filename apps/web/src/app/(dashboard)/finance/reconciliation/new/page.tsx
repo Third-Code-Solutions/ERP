@@ -8,6 +8,7 @@ import {
   ledgerAccounts,
 } from '@third-code-erp/database/schema'
 import { and, asc, eq, inArray } from 'drizzle-orm'
+import { manilaToday } from '@/lib/manila-date'
 import { BankStatementImportForm } from '../statement-import-form'
 import { financeReconciliationStorageUploadsUseCoreApi } from '@/lib/erp-core-client'
 
@@ -44,7 +45,7 @@ export default async function NewBankStatementPage() {
     )
     .orderBy(asc(cashAccounts.name))
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = manilaToday()
   const monthStart = `${today.slice(0, 8)}01`
 
   return (
@@ -59,8 +60,8 @@ export default async function NewBankStatementPage() {
           <p className="finance-eyebrow">Controlled source evidence</p>
           <h1 className="page-title">Import bank statement</h1>
           <p className="page-subtitle">
-            Upload a signed-amount CSV. ABI OPS validates every line and
-            fingerprints the exact source before saving one atomic draft.
+            Upload a signed-amount CSV. Every line is validated and the exact
+            source file is fingerprinted before one atomic draft is saved.
           </p>
         </div>
       </div>

@@ -8,6 +8,7 @@ import {
   index,
   integer,
   pgTable,
+  smallint,
   text,
   timestamp,
   uniqueIndex,
@@ -159,6 +160,11 @@ export const bankStatementLines = pgTable(
     matched_cash_transaction_id: uuid('matched_cash_transaction_id'),
     matched_by: uuid('matched_by'),
     matched_at: timestamp('matched_at', { withTimezone: true }),
+    // S8a: the Nth identical row of a statement is numbered N.
+    occurrence: smallint('occurrence').notNull().default(1),
+    // S8b: set when void_bank_statement releases the match; the match columns
+    // stay as evidence.
+    released_at: timestamp('released_at', { withTimezone: true }),
     created_at: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -179,13 +185,17 @@ export const bankStatementLines = pgTable(
       table.transaction_date,
       sql`coalesce(${table.reference_number}, '')`,
       table.amount_cents,
-      sql`lower(btrim(${table.description}))`
+      sql`lower(btrim(${table.description}))`,
+      table.occurrence
     ),
     cashTransactionIdx: uniqueIndex(
       'ux_bank_statement_lines_cash_transaction'
     )
       .on(table.tenant_id, table.matched_cash_transaction_id)
-      .where(sql`${table.matched_cash_transaction_id} is not null`),
+      .where(
+        sql`${table.matched_cash_transaction_id} is not null
+          and ${table.released_at} is null`
+      ),
     statementDateIdx: index('idx_bank_statement_lines_statement_date').on(
       table.tenant_id,
       table.bank_statement_id,
@@ -228,6 +238,15 @@ export const bankStatementLines = pgTable(
     amountCheck: check(
       'bank_statement_lines_amount_nonzero',
       sql`${table.amount_cents} <> 0`
+    ),
+    occurrenceCheck: check(
+      'bank_statement_lines_occurrence_positive',
+      sql`${table.occurrence} > 0`
+    ),
+    releaseStateCheck: check(
+      'bank_statement_lines_release_state',
+      sql`${table.released_at} is null
+        or ${table.matched_cash_transaction_id} is not null`
     ),
     matchStateCheck: check(
       'bank_statement_lines_match_state',

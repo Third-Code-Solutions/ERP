@@ -17,6 +17,7 @@ export type EmailTemplateId =
   | 'design-ready'
   | 'bom-portal-link'
   | 'bom-signed'
+  | 'coc-signing-link'
   | 'rfq-dispatch'
   | 'po-issued'
   | 'ticket-ack'
@@ -167,6 +168,13 @@ export const templates = {
       `The client signed the Bill of Materials for ${vars.project_name}. Total contract value: PHP ${vars.tcv_php}. Open the project: ${vars.project_url}`,
       vars.company_name
     ),
+  'coc-signing-link': (vars: { project_name: string; portal_url: string; valid_until: string } & BrandVars) =>
+    wrap(
+      'Certificate of Completion ready for signature',
+      `<p>The Certificate of Completion for <strong>${escapeHtml(vars.project_name)}</strong> is ready for your signature.</p><p style="margin:22px 0">${actionLink(vars.portal_url, 'Review and sign certificate', BRAND_ORANGE)}</p><p style="color:#64748b;font-size:13px">This signing link expires on ${escapeHtml(vars.valid_until)}. If it expires, ask your contact for a new one.</p>`,
+      `The Certificate of Completion for ${vars.project_name} is ready for your signature. Review and sign it here: ${vars.portal_url}. The link expires on ${vars.valid_until}. If it expires, ask your contact for a new one.`,
+      vars.company_name
+    ),
   'rfq-dispatch': (vars: { project_name: string; line_count: number; rfq_url: string } & BrandVars) =>
     wrap(
       'RFQ request ready',
@@ -174,13 +182,16 @@ export const templates = {
       `The procurement team prepared ${vars.line_count} ${vars.line_count === 1 ? 'line item' : 'line items'} for supplier quotes on ${vars.project_name}. Open procurement: ${vars.rfq_url}`,
       vars.company_name
     ),
-  'po-issued': (vars: { po_number: string; total_php: string; supplier_name: string; po_pdf_url?: string } & BrandVars) =>
-    wrap(
+  // lines_text: one line of text per PO line, newline separated (formatPoEmailLines).
+  'po-issued': (vars: { po_number: string; total_php: string; supplier_name: string; lines_text?: string; po_pdf_url?: string } & BrandVars) => {
+    const poLines = (vars.lines_text ?? '').split('\n').filter((line) => line.trim() !== '')
+    return wrap(
       `Purchase order ${vars.po_number} issued`,
-      `<p>Dear ${escapeHtml(vars.supplier_name)},</p><p>Purchase order <strong>${escapeHtml(vars.po_number)}</strong> has been issued for a total value of <strong>PHP ${escapeHtml(vars.total_php)}</strong>.</p>${vars.po_pdf_url ? `<p style="margin:22px 0">${actionLink(vars.po_pdf_url, 'Download purchase order')}</p>` : ''}`,
-      `Dear ${vars.supplier_name}, purchase order ${vars.po_number} has been issued for PHP ${vars.total_php}.${vars.po_pdf_url ? ` Download the purchase order: ${vars.po_pdf_url}` : ''}`,
+      `<p>Dear ${escapeHtml(vars.supplier_name)},</p><p>Purchase order <strong>${escapeHtml(vars.po_number)}</strong> has been issued for a total value of <strong>PHP ${escapeHtml(vars.total_php)}</strong>.</p>${poLines.length > 0 ? `<p style="margin:16px 0 4px"><strong>Lines</strong></p><div style="margin:0 0 16px;color:#334155">${poLines.map(escapeHtml).join('<br>')}</div>` : ''}${vars.po_pdf_url ? `<p style="margin:22px 0">${actionLink(vars.po_pdf_url, 'Download purchase order')}</p>` : ''}`,
+      `Dear ${vars.supplier_name}, purchase order ${vars.po_number} has been issued for PHP ${vars.total_php}.${poLines.length > 0 ? `\n\nLines:\n${poLines.join('\n')}` : ''}${vars.po_pdf_url ? ` Download the purchase order: ${vars.po_pdf_url}` : ''}`,
       vars.company_name
-    ),
+    )
+  },
   'ticket-ack': (vars: { ticket_number: string; description: string } & BrandVars) =>
     wrap(
       `Warranty request received: ${vars.ticket_number}`,

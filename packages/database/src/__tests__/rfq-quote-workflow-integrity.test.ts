@@ -20,6 +20,35 @@ const migrationSql = readFileSync(
   ),
   'utf8'
 ).toLowerCase()
+const positivePriceSql = readFileSync(
+  resolve(
+    __dirname,
+    '../../../../supabase/migrations/20261124150000_rfq_quotes_unit_price_positive.sql'
+  ),
+  'utf8'
+)
+
+describe('RFQ quote positive unit price migration contract', () => {
+  it('adds a validated check under the bounded lock and statement timeouts', () => {
+    expect(positivePriceSql.startsWith('-- NEEDS PRODUCTION MIGRATION APPROVAL')).toBe(true)
+    expect(positivePriceSql).toContain(
+      "begin;\n\nset local lock_timeout = '5s';\nset local statement_timeout = '60s';"
+    )
+    expect(positivePriceSql).toMatch(
+      /add constraint rfq_quotes_unit_price_positive\s+check \(unit_price_cents > 0\);/
+    )
+    expect(positivePriceSql.replace(/^--.*$/gm, '')).not.toMatch(/not valid/i)
+    expect(positivePriceSql).toMatch(
+      /else\s+alter table public\.rfq_quotes\s+validate constraint rfq_quotes_unit_price_positive;/
+    )
+    expect(positivePriceSql.trimEnd().endsWith('commit;')).toBe(true)
+  })
+
+  it('keeps Drizzle aligned with the check', () => {
+    const checks = getTableConfig(rfqQuotes).checks.map((check) => check.name)
+    expect(checks).toContain('rfq_quotes_unit_price_positive')
+  })
+})
 
 describe('RFQ quote workflow integrity migration contract', () => {
   it('adds stable line identity and tenant-scoped submission idempotency', () => {
@@ -241,6 +270,57 @@ runtimeSuite('RFQ quote workflow integrity runtime proof', () => {
     })
 
     expect(rejected).toBe(true)
+  })
+
+  it.each([0, -100])('rejects a quote priced at %i cents', async (price) => {
+    const code = await inRollback(sql, async (tx) => {
+      const fixture = await seedRfqFixture(tx)
+      try {
+        await tx.unsafe(
+          `insert into rfq_quotes(
+             tenant_id, submission_id, rfq_id, bom_line_item_id,
+             vendor_id, unit_price_cents, created_by
+           )
+           values(
+             '${fixture.tenantA}', gen_random_uuid(), '${fixture.rfqId}',
+             '${fixture.lineId}', '${fixture.vendorA}', ${price},
+             '${fixture.userA}'
+           )`
+        )
+        return null
+      } catch (error) {
+        const failure = error as { code?: string; constraint_name?: string }
+        return `${failure.code}:${failure.constraint_name}`
+      }
+    })
+
+    expect(code).toBe('23514:rfq_quotes_unit_price_positive')
+  })
+
+  it('accepts a 1-cent quote under a validated check', async () => {
+    const outcome = await inRollback(sql, async (tx) => {
+      const fixture = await seedRfqFixture(tx)
+      const inserted = (await tx.unsafe(
+        `insert into rfq_quotes(
+           tenant_id, submission_id, rfq_id, bom_line_item_id,
+           vendor_id, unit_price_cents, created_by
+         )
+         values(
+           '${fixture.tenantA}', gen_random_uuid(), '${fixture.rfqId}',
+           '${fixture.lineId}', '${fixture.vendorA}', 1,
+           '${fixture.userA}'
+         )
+         returning unit_price_cents::int as price`
+      )) as Array<{ price: number }>
+      const constraint = (await tx.unsafe(
+        `select convalidated from pg_catalog.pg_constraint
+          where conrelid = 'public.rfq_quotes'::regclass
+            and conname = 'rfq_quotes_unit_price_positive'`
+      )) as Array<{ convalidated: boolean }>
+      return { prices: inserted.map((row) => row.price), constraint }
+    })
+
+    expect(outcome).toEqual({ prices: [1], constraint: [{ convalidated: true }] })
   })
 
   it('rejects an invalid pending-to-completed transition', async () => {

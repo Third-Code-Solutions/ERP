@@ -15,10 +15,14 @@
  * to DocuSeal when DOCUSEAL_API_URL + DOCUSEAL_API_TOKEN are both set.
  */
 
+import type { Database } from '@third-code-erp/database'
 import {
   createCanvasSignSession,
   type SignableEntityType,
 } from './canvas-sign'
+
+// A DocuSeal call never holds a request (or a caller's row lock) for longer than this.
+const DOCUSEAL_TIMEOUT_MS = 15_000
 
 interface CreateSubmissionInput {
   templateId: string
@@ -80,6 +84,7 @@ export async function createDocuSealSubmission(
       metadata: input.metadata,
       send_email: input.sendEmail ?? false,
     }),
+    signal: AbortSignal.timeout(DOCUSEAL_TIMEOUT_MS),
   })
   if (!res.ok) {
     throw new Error(`DocuSeal createSubmission failed (${res.status}): ${await res.text()}`)
@@ -135,6 +140,8 @@ interface SigningSessionResult {
  */
 export async function createSigningSession(
   input: CreateSigningSessionInput,
+  /** The caller's transaction for the canvas session row; DocuSeal writes no row. */
+  executor?: Pick<Database, 'insert'>,
 ): Promise<SigningSessionResult> {
   const docusealConfigured =
     Boolean(process.env.DOCUSEAL_API_URL) &&
@@ -173,7 +180,7 @@ export async function createSigningSession(
     entityId: input.entityId,
     signerEmail: input.signerEmail,
     signerName: input.signerName,
-  })
+  }, executor)
   return {
     url: session.url,
     token: session.token,
@@ -198,7 +205,11 @@ export async function archiveDocuSealSubmission(
   try {
     const res = await fetch(
       `${process.env.DOCUSEAL_API_URL}/api/v1/submissions/${encodeURIComponent(submissionId)}`,
-      { method: 'DELETE', headers: { 'X-Auth-Token': process.env.DOCUSEAL_API_TOKEN! } },
+      {
+        method: 'DELETE',
+        headers: { 'X-Auth-Token': process.env.DOCUSEAL_API_TOKEN! },
+        signal: AbortSignal.timeout(DOCUSEAL_TIMEOUT_MS),
+      },
     )
     if (!res.ok) console.warn(`[docuseal] archiving a superseded submission failed (${res.status})`)
   } catch {

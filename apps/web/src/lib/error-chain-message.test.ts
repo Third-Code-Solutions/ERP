@@ -14,6 +14,22 @@ describe('errorChainMessage', () => {
     )
   })
 
+  it('leaves out the query wrapper, so typed parameters cannot choose the message', () => {
+    const driver = Object.assign(
+      new Error('duplicate key value violates unique constraint "ux_supplier_bills_internal_number"'),
+      { code: '23505' }
+    )
+    const wrapped = new Error(
+      'Failed query: insert into "cash_transactions" values ($1)\nparams: ux_cash_transactions_reference',
+      { cause: driver }
+    )
+
+    const message = errorChainMessage(wrapped)
+    expect(message).not.toContain('ux_cash_transactions_reference')
+    expect(message).not.toContain('insert into')
+    expect(message).toContain('ux_supplier_bills_internal_number')
+  })
+
   it('returns an empty string for non-errors', () => {
     expect(errorChainMessage('boom')).toBe('')
     expect(errorChainMessage(undefined)).toBe('')

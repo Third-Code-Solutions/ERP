@@ -52,6 +52,12 @@ vi.mock('@/lib/erp-core-client', () => ({
   signPublicSignatureThroughCoreApi: mocks.signPublicSignatureThroughCoreApi,
 }))
 
+import {
+  certificatesOfCompletion,
+  contracts,
+  signatureSessions,
+  variationOrders,
+} from '@third-code-erp/database/schema'
 import { recordCanvasSign } from './actions'
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111'
@@ -242,6 +248,8 @@ describe('public canvas signing integrity', () => {
       .mockResolvedValueOnce([{ project_id: PROJECT_ID }])
     mocks.txFor.mockReset()
     mocks.txFor
+      // the BOM row, locked before the link
+      .mockResolvedValueOnce([{ id: ENTITY_ID }])
       .mockResolvedValueOnce([bomSession])
       .mockResolvedValueOnce([{
         status: 'approved',
@@ -281,6 +289,8 @@ describe('public canvas signing integrity', () => {
       .mockResolvedValueOnce([{ project_id: PROJECT_ID }])
     mocks.txFor.mockReset()
     mocks.txFor
+      // the BOM row, locked before the link
+      .mockResolvedValueOnce([{ id: ENTITY_ID }])
       .mockResolvedValueOnce([bomSession])
       .mockResolvedValueOnce([{
         status: 'draft',
@@ -306,6 +316,8 @@ describe('public canvas signing integrity', () => {
       .mockResolvedValueOnce([{ project_id: PROJECT_ID }])
     mocks.txFor.mockReset()
     mocks.txFor
+      // the BOM row, locked before the link
+      .mockResolvedValueOnce([{ id: ENTITY_ID }])
       .mockResolvedValueOnce([bomSession])
       .mockResolvedValueOnce([{
         status: 'approved',
@@ -386,6 +398,7 @@ describe('public canvas signing integrity', () => {
   it.each([
     { entityType: 'variation_order' as const, label: 'rejected variation order' },
     { entityType: 'coc' as const, label: 'cancelled certificate of completion' },
+    { entityType: 'contract' as const, label: 'contract that is not pending signature' },
   ])(
     'refuses to sign a $label through an old link and cleans the upload',
     async ({ entityType }) => {
@@ -410,7 +423,33 @@ describe('public canvas signing integrity', () => {
     }
   )
 
-  it.each(['variation_order', 'coc'] as const)(
+  it.each([
+    { entityType: 'variation_order' as const, table: variationOrders },
+    { entityType: 'coc' as const, table: certificatesOfCompletion },
+    { entityType: 'contract' as const, table: contracts },
+  ])(
+    'locks the $entityType row before the signing link, by tenant',
+    async ({ entityType, table }) => {
+      const signableSession = { ...session, entity_type: entityType }
+      mocks.limit.mockReset()
+      mocks.limit
+        .mockResolvedValueOnce([signableSession])
+        .mockResolvedValueOnce([{ project_id: PROJECT_ID }])
+      mocks.txFor.mockResolvedValue([signableSession])
+
+      await expect(recordCanvasSign(signInput())).resolves.toEqual({ ok: true })
+
+      // Send, resend, cancel and reject lock the entity first, then its links.
+      expect(mocks.txFrom.mock.calls[0]?.[0]).toBe(table)
+      expect(mocks.txFrom.mock.calls[1]?.[0]).toBe(signatureSessions)
+      expect(mocks.txFor).toHaveBeenNthCalledWith(1, 'update')
+      expect(collectColumnNames(mocks.txWhere.mock.calls[0]?.[0])).toEqual(
+        expect.arrayContaining(['id', 'tenant_id'])
+      )
+    }
+  )
+
+  it.each(['variation_order', 'coc', 'contract'] as const)(
     'guards the %s signature UPDATE by status as well as tenant and id',
     async (entityType) => {
       const signableSession = { ...session, entity_type: entityType }

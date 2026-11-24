@@ -11,11 +11,19 @@ import {
   projects,
   vendors,
 } from '@third-code-erp/database/schema'
-import { and, desc, eq, gte, lte, type SQL } from 'drizzle-orm'
+import { and, count, desc, eq, gte, lte, sql, type SQL } from 'drizzle-orm'
 import {
   financeLedgerReadsUseCoreApi,
   getFinanceLedgerThroughCoreApi,
 } from '@/lib/erp-core-client'
+import {
+  clampLedgerPage,
+  LEDGER_PAGE_SIZE,
+  ledgerPageCount,
+  ledgerPageHref,
+  ledgerPageWindow,
+  parseLedgerPage,
+} from './ledger-pagination'
 
 export const metadata: Metadata = { title: 'General ledger' }
 
@@ -57,6 +65,40 @@ type LedgerDisplayRow = {
   credit_cents: number
 }
 
+function LedgerPager({
+  filters,
+  page,
+  pageCount,
+}: {
+  filters: Parameters<typeof ledgerPageHref>[0]
+  page: number
+  pageCount: number
+}) {
+  return (
+    <nav className="finance-header-actions" aria-label="Ledger pages">
+      {page > 1 ? (
+        <Link
+          href={ledgerPageHref(filters, page - 1)}
+          className="finance-secondary-link"
+        >
+          Previous page
+        </Link>
+      ) : null}
+      <span className="muted">
+        Page {page} of {pageCount}
+      </span>
+      {page < pageCount ? (
+        <Link
+          href={ledgerPageHref(filters, page + 1)}
+          className="finance-secondary-link"
+        >
+          Next page
+        </Link>
+      ) : null}
+    </nav>
+  )
+}
+
 export default async function LedgerPage({
   searchParams,
 }: {
@@ -66,6 +108,7 @@ export default async function LedgerPage({
     vendor?: string
     from?: string
     to?: string
+    page?: string
   }>
 }) {
   const profile = await requireUserProfile()
@@ -74,24 +117,35 @@ export default async function LedgerPage({
   const canManage = can(profile.role, 'finance.manage')
   const filters = await searchParams
 
+  const applied = {
+    account: filters.account && isUuid(filters.account) ? filters.account : undefined,
+    customer:
+      filters.customer && isUuid(filters.customer) ? filters.customer : undefined,
+    vendor: filters.vendor && isUuid(filters.vendor) ? filters.vendor : undefined,
+    from: filters.from && isIsoDate(filters.from) ? filters.from : undefined,
+    to: filters.to && isIsoDate(filters.to) ? filters.to : undefined,
+  }
+  const requestedPage = parseLedgerPage(filters.page)
+
   const conditions: SQL[] = [
     eq(journalEntries.tenant_id, profile.tenantId),
+    eq(journalLines.tenant_id, profile.tenantId),
     eq(journalEntries.status, 'posted'),
   ]
-  if (filters.account && isUuid(filters.account)) {
-    conditions.push(eq(journalLines.ledger_account_id, filters.account))
+  if (applied.account) {
+    conditions.push(eq(journalLines.ledger_account_id, applied.account))
   }
-  if (filters.customer && isUuid(filters.customer)) {
-    conditions.push(eq(journalLines.business_account_id, filters.customer))
+  if (applied.customer) {
+    conditions.push(eq(journalLines.business_account_id, applied.customer))
   }
-  if (filters.vendor && isUuid(filters.vendor)) {
-    conditions.push(eq(journalLines.vendor_id, filters.vendor))
+  if (applied.vendor) {
+    conditions.push(eq(journalLines.vendor_id, applied.vendor))
   }
-  if (filters.from && isIsoDate(filters.from)) {
-    conditions.push(gte(journalEntries.posting_date, filters.from))
+  if (applied.from) {
+    conditions.push(gte(journalEntries.posting_date, applied.from))
   }
-  if (filters.to && isIsoDate(filters.to)) {
-    conditions.push(lte(journalEntries.posting_date, filters.to))
+  if (applied.to) {
+    conditions.push(lte(journalEntries.posting_date, applied.to))
   }
 
   let ledgerAccountRows: Array<{ id: string; code: string; name: string }>
@@ -100,18 +154,19 @@ export default async function LedgerPage({
   let rows: LedgerDisplayRow[]
   let totalDebit: number
   let totalCredit: number
+  let totalLines: number
+  let page: number
 
   if (financeLedgerReadsUseCoreApi(profile.tenantId)) {
     const result = await getFinanceLedgerThroughCoreApi({
-      accountId: filters.account && isUuid(filters.account) ? filters.account : undefined,
-      customerId:
-        filters.customer && isUuid(filters.customer) ? filters.customer : undefined,
-      vendorId: filters.vendor && isUuid(filters.vendor) ? filters.vendor : undefined,
+      accountId: applied.account,
+      customerId: applied.customer,
+      vendorId: applied.vendor,
       projectId: undefined,
-      from: filters.from && isIsoDate(filters.from) ? filters.from : undefined,
-      to: filters.to && isIsoDate(filters.to) ? filters.to : undefined,
-      page: 1,
-      limit: 500,
+      from: applied.from,
+      to: applied.to,
+      page: requestedPage,
+      limit: LEDGER_PAGE_SIZE,
     })
     if (!result.ok || !result.data) {
       throw new Error(result.error ?? 'Finance ledger was not read')
@@ -139,7 +194,30 @@ export default async function LedgerPage({
     }))
     totalDebit = result.data.totalDebitCents
     totalCredit = result.data.totalCreditCents
+    totalLines = result.data.total
+    page = result.data.page
   } else {
+    // Totals come from SQL over every matching line, never from the fetched page.
+    const [totals] = await db
+      .select({
+        lineCount: count(),
+        totalDebit: sql<string>`coalesce(sum(${journalLines.debit_cents}), 0)`,
+        totalCredit: sql<string>`coalesce(sum(${journalLines.credit_cents}), 0)`,
+      })
+      .from(journalLines)
+      .innerJoin(
+        journalEntries,
+        and(
+          eq(journalEntries.id, journalLines.journal_entry_id),
+          eq(journalEntries.tenant_id, journalLines.tenant_id)
+        )
+      )
+      .where(and(...conditions))
+    totalLines = Number(totals?.lineCount ?? 0)
+    totalDebit = Number(totals?.totalDebit ?? 0)
+    totalCredit = Number(totals?.totalCredit ?? 0)
+    page = clampLedgerPage(requestedPage, totalLines)
+
     const directResult = await Promise.all([
       db
         .select({
@@ -227,15 +305,17 @@ export default async function LedgerPage({
           desc(journalEntries.entry_number),
           journalLines.line_number
         )
-        .limit(500),
+        .limit(LEDGER_PAGE_SIZE)
+        .offset((page - 1) * LEDGER_PAGE_SIZE),
     ])
     ledgerAccountRows = directResult[0]
     businessAccounts = directResult[1]
     vendorRows = directResult[2]
     rows = directResult[3]
-    totalDebit = rows.reduce((sum, row) => sum + row.debit_cents, 0)
-    totalCredit = rows.reduce((sum, row) => sum + row.credit_cents, 0)
   }
+
+  const pageCount = ledgerPageCount(totalLines)
+  const shown = ledgerPageWindow(page, totalLines)
 
   return (
     <div>
@@ -322,8 +402,8 @@ export default async function LedgerPage({
 
       <div className="journal-facts">
         <div>
-          <span>Visible lines</span>
-          <strong>{rows.length}</strong>
+          <span>Matching lines</span>
+          <strong>{totalLines}</strong>
         </div>
         <div>
           <span>Total debits</span>
@@ -338,6 +418,20 @@ export default async function LedgerPage({
           <strong>{formatPHP(totalDebit - totalCredit)}</strong>
         </div>
       </div>
+
+      {totalLines > LEDGER_PAGE_SIZE && (
+        <>
+          <p className="finance-ledger-limit" role="status">
+            Showing lines {shown.first}–{shown.last} of {totalLines}. Totals
+            above cover all {totalLines} matching lines.
+          </p>
+          <LedgerPager
+            filters={applied}
+            page={page}
+            pageCount={pageCount}
+          />
+        </>
+      )}
 
       <div className="finance-table-shell">
         {rows.length === 0 ? (
@@ -412,10 +506,8 @@ export default async function LedgerPage({
           </table>
         )}
       </div>
-      {rows.length === 500 && (
-        <p className="finance-ledger-limit">
-          Showing the newest 500 lines. Narrow the period or ledger account.
-        </p>
+      {totalLines > LEDGER_PAGE_SIZE && (
+        <LedgerPager filters={applied} page={page} pageCount={pageCount} />
       )}
     </div>
   )

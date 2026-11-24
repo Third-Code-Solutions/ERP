@@ -5,6 +5,7 @@ import { DEMO_ROLE_EMAILS, resolveDemoTenantId, type DemoRole } from './producti
 export type MagicLinkRole = DemoRole
 
 type UserProfile = {
+  id: string
   email: string
   tenant_id: string
   account_status: string
@@ -25,6 +26,7 @@ function isUserProfile(value: unknown): value is UserProfile {
   // checking the primitive fields required by the role harness.
   const candidate = value as Record<string, unknown>
   return (
+    typeof candidate.id === 'string' &&
     typeof candidate.email === 'string' &&
     typeof candidate.tenant_id === 'string' &&
     typeof candidate.account_status === 'string'
@@ -58,7 +60,7 @@ export async function authenticateRole(
   }
   const roleEmail = DEMO_ROLE_EMAILS[role]
   const profileResponse = await fetch(
-    `${supabaseUrl}/rest/v1/users?select=email,tenant_id,account_status&role=eq.${encodeURIComponent(role)}&email=eq.${encodeURIComponent(roleEmail)}&limit=2`,
+    `${supabaseUrl}/rest/v1/users?select=id,email,tenant_id,account_status&role=eq.${encodeURIComponent(role)}&email=eq.${encodeURIComponent(roleEmail)}&limit=2`,
     { headers: serviceHeaders }
   )
   if (!profileResponse.ok) {
@@ -130,9 +132,11 @@ export async function authenticateRole(
     throw new Error(`Authenticated user lookup failed (${userResponse.status})`)
   }
   const user = assertObject(await userResponse.json(), 'Authenticated user')
-  if (user.email !== profile.email) {
+  // users.id is the auth uid, so the tenant checked above is the session's tenant.
+  // Emails are unique per tenant only, so the email alone does not prove that.
+  if (user.id !== profile.id || user.email !== profile.email) {
     throw new Error(
-      `Magic-link session identity mismatch: expected ${profile.email}, received ${String(user.email)}`
+      `Magic-link session identity mismatch: expected ${profile.email} (${profile.id}), received ${String(user.email)} (${String(user.id)})`
     )
   }
   const projectRef = new URL(supabaseUrl).host.split('.')[0]!

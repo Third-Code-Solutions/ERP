@@ -12,13 +12,15 @@
  *   certificate_pending → Record certification (pick cert doc) · Reject
  *   certified           → Handover to Finance · Reject
  *   handed_over_finance → Link invoice (picker) · Reject
- *   invoiced            → Record payment
+ *   invoiced            → Record payment; Reject only once the invoice is reversed
  *   paid / rejected /   → read-only summary
  *   cancelled
  */
 
-import { useRef, useState, useTransition } from 'react'
+import React, { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { ClaimInvoicePicker } from '@/components/claims/claim-invoice-picker'
+import type { ClaimLinkInvoice } from '@/lib/claim-invoice-link'
 import {
   submitClaim,
   markCertificatePending,
@@ -46,24 +48,25 @@ interface DocOption {
   file_name: string
 }
 
-interface InvoiceOption {
-  id: string
-  invoice_number: string
-  net_amount_cents: number
-}
-
 interface ClaimTransitionActionsProps {
   claimId: string
+  projectId: string
+  claimAmountCents: number
   status: ClaimStatus
   rejectedReason?: string | null
+  /** True when the linked invoice was reversed in Finance; the claim may then be rejected. */
+  linkedInvoiceReversed?: boolean
   certificateDocs: DocOption[]
-  invoices: InvoiceOption[]
+  invoices: ClaimLinkInvoice[]
 }
 
 export function ClaimTransitionActions({
   claimId,
+  projectId,
+  claimAmountCents,
   status,
   rejectedReason,
+  linkedInvoiceReversed = false,
   certificateDocs,
   invoices,
 }: ClaimTransitionActionsProps) {
@@ -283,27 +286,14 @@ export function ClaimTransitionActions({
       {status === 'handed_over_finance' &&
         (showInvoice ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={labelStyle}>Invoice</label>
-            <select
+            <ClaimInvoicePicker
+              claimAmountCents={claimAmountCents}
+              projectId={projectId}
+              invoices={invoices}
               value={invoiceId}
-              onChange={(e) => setInvoiceId(e.target.value)}
-              style={inputStyle}
+              onChange={setInvoiceId}
               disabled={isPending}
-            >
-              <option value="">Select an invoice from this project…</option>
-              {invoices.map((inv) => (
-                <option key={inv.id} value={inv.id}>
-                  {inv.invoice_number} · ₱
-                  {(inv.net_amount_cents / 100).toLocaleString('en-PH')}
-                </option>
-              ))}
-            </select>
-            {invoices.length === 0 && (
-              <p style={hintStyle}>
-                No invoices exist for this project yet. Create one in
-                /invoices.
-              </p>
-            )}
+            />
             <div style={{ display: 'flex', gap: 6 }}>
               <button
                 type="button"
@@ -341,7 +331,7 @@ export function ClaimTransitionActions({
           </button>
         ))}
 
-      {status === 'invoiced' && (
+      {status === 'invoiced' && !linkedInvoiceReversed && (
         <button
           type="button"
           className="claim-action claim-action-success"
@@ -351,9 +341,17 @@ export function ClaimTransitionActions({
           Record payment
         </button>
       )}
+      {status === 'invoiced' && (
+        <p style={{ margin: 0, fontSize: 12, color: 'var(--color-neutral-500)' }}>
+          {linkedInvoiceReversed
+            ? 'Its invoice was reversed. Reject this claim to free it for a corrected invoice.'
+            : 'To reject this claim, void its invoice first with Reverse invoice in Finance.'}
+        </p>
+      )}
 
-      {/* Reject is available on every non-terminal status */}
-      {!isTerminal &&
+      {/* Reject is available on every non-terminal status. An invoiced claim
+          needs its invoice reversed first; Core enforces the same rule. */}
+      {!isTerminal && (status !== 'invoiced' || linkedInvoiceReversed) &&
         (showReject ? (
           <RejectInline
             reason={rejectReason}

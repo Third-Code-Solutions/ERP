@@ -4,7 +4,7 @@ import { randomBytes, createHash } from 'crypto'
 import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { requireUserProfile, can } from '@third-code-erp/auth'
-import { db } from '@third-code-erp/database'
+import { db, liveProjectCondition } from '@third-code-erp/database'
 import {
   boms,
   bomPortalTokens,
@@ -13,6 +13,7 @@ import {
 } from '@third-code-erp/database/schema'
 import { writeAuditLog } from '@/lib/audit'
 import { notifyExternalEmail } from '@/lib/operations/notifications'
+import { publicUrl } from '@/lib/public-origin'
 import { createSigningSession } from '@/lib/operations/integrations/docuseal'
 
 const PORTAL_TOKEN_BYTES = 32
@@ -26,14 +27,19 @@ const mintSchema = z.object({
 interface MintResult {
   token?: string
   portal_url?: string
+  // The page that lists every line and carries the approve button.
+  line_item_url?: string
   expires_at?: string
+  // False when the email provider refused the message; the links still work.
+  email_delivered?: boolean
   error?: string
 }
 
 /**
  * Mint a one-time portal token for a BOM and email a signing link to the
- * client. Returns the plaintext token ONCE — the caller is responsible for
- * showing/copying it. The DB only ever stores SHA-256(token).
+ * client. Returns the plaintext links ONCE (the signing page and the line-item
+ * page) — the caller is responsible for showing/copying them. The DB only ever
+ * stores SHA-256(token).
  */
 export async function mintBomPortalToken(
   bomId: string,
@@ -63,7 +69,10 @@ export async function mintBomPortalToken(
     .from(boms)
     .leftJoin(projects, and(
       eq(boms.project_id, projects.id),
-      eq(projects.tenant_id, profile.tenantId)
+      eq(projects.tenant_id, profile.tenantId),
+      // A retired project's BOM is treated as not found, like every BOM action.
+      // It must name boms.project_id: the helper's own subquery reads projects.
+      liveProjectCondition(boms.project_id, profile.tenantId)
     ))
     .leftJoin(accounts, and(
       eq(projects.account_id, accounts.id),
@@ -83,6 +92,15 @@ export async function mintBomPortalToken(
   const legacyToken = randomBytes(PORTAL_TOKEN_BYTES).toString('hex')
   const legacyTokenHash = createHash('sha256').update(legacyToken).digest('hex')
   const expiresAt = new Date(Date.now() + PORTAL_VALIDITY_HOURS * 60 * 60 * 1000)
+
+  // Built before anything is written or sent: a bad public origin fails here.
+  let lineItemUrl: string
+  try {
+    lineItemUrl = publicUrl(`/portal/bom/${legacyToken}`)
+  } catch {
+    console.error('[bom-portal] the public origin is not configured')
+    return { error: 'The client link could not be built. Contact your administrator.' }
+  }
 
   let session
   try {
@@ -119,7 +137,7 @@ export async function mintBomPortalToken(
   // /portal/bom/[token] route stays available for backwards compatibility.
   const portalUrl = session.url
 
-  await notifyExternalEmail({
+  const email = await notifyExternalEmail({
     tenantId: profile.tenantId,
     recipientEmail: input.client_email,
     subject: `Your BOM is ready for review — ${row.project_name ?? 'project'}`,
@@ -147,15 +165,18 @@ export async function mintBomPortalToken(
       bom_id: input.bom_id,
       client_email: input.client_email,
       expires_at: expiresAt.toISOString(),
-      portal_url: portalUrl,
+      // The signing link is a bearer credential; audit rows are tenant-readable.
       mechanism: session.mechanism,
       is_dev_stub: session.is_dev_stub,
+      email_delivered: email.delivered,
     },
   })
 
   return {
     token: session.token,
     portal_url: portalUrl,
+    line_item_url: lineItemUrl,
     expires_at: expiresAt.toISOString(),
+    email_delivered: email.delivered,
   }
 }
