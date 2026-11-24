@@ -196,7 +196,7 @@ export async function sendCocForSignature(
     action: 'status_change',
     diff: {
       status: { before: 'draft', after: 'pending_signature' },
-      signing_url: session.url,
+      // The signing link is a bearer credential; audit rows are tenant-readable.
       mechanism: session.mechanism,
       is_dev_stub: session.is_dev_stub,
     },
