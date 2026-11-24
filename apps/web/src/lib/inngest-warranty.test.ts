@@ -1,3 +1,5 @@
+import { PgDialect } from 'drizzle-orm/pg-core'
+import type { SQL } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -12,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   update: vi.fn(),
   updateSet: vi.fn(),
   updateWhere: vi.fn(),
+  updateReturning: vi.fn(),
   notifyExternalEmail: vi.fn(),
   createFunction: vi.fn((config: unknown, handler: unknown) => ({ config, handler })),
 }))
@@ -57,7 +60,8 @@ describe('CNPS survey delivery evidence', () => {
     mocks.insertOnConflictDoNothing.mockReturnValue({ returning: mocks.insertReturning })
     mocks.update.mockReturnValue({ set: mocks.updateSet })
     mocks.updateSet.mockReturnValue({ where: mocks.updateWhere })
-    mocks.updateWhere.mockResolvedValue(undefined)
+    mocks.updateWhere.mockReturnValue({ returning: mocks.updateReturning })
+    mocks.updateReturning.mockResolvedValue([{ id: 'survey-id' }])
     mocks.notifyExternalEmail.mockResolvedValue({ delivered: true })
   })
 
@@ -94,6 +98,28 @@ describe('CNPS survey delivery evidence', () => {
     expect(mocks.updateSet).not.toHaveBeenCalled()
   })
 
+  it('claims a pending survey by compare-and-swap and sends nothing when another sender holds it', async () => {
+    mocks.selectLimit
+      .mockResolvedValueOnce([ticket])
+      .mockResolvedValueOnce([{ id: 'survey-id', sent_at: null, response_token_hash: 'old-hash' }])
+    mocks.updateReturning.mockResolvedValue([])
+
+    await expect(dispatchOneSurvey('ticket-id', 'tenant-id')).resolves.toEqual({
+      sent: false,
+      reason: 'already-claimed',
+    })
+
+    const claim = new PgDialect().sqlToQuery(mocks.updateWhere.mock.calls[0]![0] as SQL)
+    expect(claim.sql).toContain('"cnps_surveys"."id" = $')
+    expect(claim.sql).toContain('"cnps_surveys"."tenant_id" = $')
+    expect(claim.sql).toContain('"cnps_surveys"."sent_at" is null')
+    expect(claim.sql).toContain('"cnps_surveys"."response_token_hash" is not distinct from $')
+    expect(claim.sql).toContain(`"cnps_surveys"."created_at" < now() - interval '15 minutes'`)
+    expect(claim.params).toEqual(['survey-id', 'tenant-id', 'old-hash'])
+    expect(mocks.notifyExternalEmail).not.toHaveBeenCalled()
+    expect(mocks.updateSet).toHaveBeenCalledTimes(1)
+  })
+
   it('leaves a failed provider delivery retryable', async () => {
     mocks.selectLimit
       .mockResolvedValueOnce([ticket])
@@ -115,14 +141,13 @@ describe('CNPS survey delivery evidence', () => {
   it('reuses an existing pending survey and stamps it only after delivery', async () => {
     mocks.selectLimit
       .mockResolvedValueOnce([ticket])
-      .mockResolvedValueOnce([{ id: 'survey-id', sent_at: null }])
+      .mockResolvedValueOnce([{ id: 'survey-id', sent_at: null, response_token_hash: 'old-hash' }])
 
     await expect(dispatchOneSurvey('ticket-id', 'tenant-id')).resolves.toEqual({
       sent: true,
     })
 
     expect(mocks.updateSet).toHaveBeenNthCalledWith(1, {
-      sent_at: null,
       response_token_hash: expect.any(String),
     })
     expect(mocks.updateSet).toHaveBeenNthCalledWith(2, {

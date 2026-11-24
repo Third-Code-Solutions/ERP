@@ -12,17 +12,22 @@ const migrationSql = readFileSync(
   resolve(__dirname, '../../../../supabase/migrations/20261124170000_cnps_surveys_one_per_ticket.sql'),
   'utf8'
 ).replace(/\r\n/g, '\n')
+/** The migration's duplicate preflight, run as-is by the runtime proof. */
+const preflightBlock = migrationSql.slice(
+  migrationSql.indexOf('do $$'),
+  migrationSql.indexOf('$$;') + '$$;'.length
+)
 
 describe('CNPS one survey per ticket migration contract', () => {
-  it('checks for duplicates, then builds the unique index under bounded timeouts', () => {
+  it('builds the unique index after its preflight under bounded timeouts', () => {
     expect(migrationSql.startsWith('-- NEEDS PRODUCTION MIGRATION APPROVAL')).toBe(true)
     expect(migrationSql).toContain(
       "begin;\n\nset local lock_timeout = '5s';\nset local statement_timeout = '60s';"
     )
     const squashed = migrationSql.replace(/\s+/g, ' ')
-    expect(squashed).toContain('group by tenant_id, ticket_id having count(*) > 1')
-    expect(squashed.indexOf('having count(*) > 1')).toBeLessThan(
-      squashed.indexOf('create unique index')
+    expect(preflightBlock.startsWith('do $$')).toBe(true)
+    expect(migrationSql.indexOf(preflightBlock)).toBeLessThan(
+      migrationSql.indexOf('create unique index')
     )
     expect(squashed).toContain(
       'create unique index if not exists ux_cnps_surveys_tenant_ticket on public.cnps_surveys (tenant_id, ticket_id);'
@@ -107,6 +112,28 @@ runtimeSuite('CNPS one survey per ticket runtime proof', () => {
     })
 
     expect(outcome).toEqual({ first: 1, second: 0, otherTicket: 1, otherTenant: 1, surveys: 1 })
+  })
+
+  it('aborts the migration preflight when a ticket already has two surveys', async () => {
+    const failure = await inRollback(sql, async (tx) => {
+      const { tenantA } = await seedTwoTenants(tx)
+      const ticket = await seedTicket(tx, tenantA, 'WT-CNPS-4')
+      // Rolled back with the transaction: lets in the duplicates the index refuses.
+      await tx.unsafe(`drop index public.ux_cnps_surveys_tenant_ticket`)
+      await tx.unsafe(
+        `insert into cnps_surveys(tenant_id, ticket_id)
+         values ('${tenantA}', '${ticket}'), ('${tenantA}', '${ticket}')`
+      )
+      try {
+        await tx.unsafe(preflightBlock)
+        return null
+      } catch (error) {
+        const pgError = error as { code?: string; message?: string }
+        return `${pgError.code}:${pgError.message}`
+      }
+    })
+
+    expect(failure).toMatch(/^23505:cnps_surveys has a ticket with more than one survey/)
   })
 
   it('refuses a plain second insert on the named index', async () => {
