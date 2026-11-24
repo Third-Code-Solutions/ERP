@@ -24,6 +24,9 @@ import { ReceiveLineForm } from '@/components/procurement/receive-line-form'
 import { CostCodeAssignment } from '@/components/procurement/cost-code-assignment'
 import { PoLineStockLink } from '@/components/procurement/po-line-stock-link'
 import { loadPoLineStockLinks } from '@/lib/procurement/po-line-stock-link-queries'
+import { SupplierEmailBanner } from '@/components/procurement/supplier-email-banner'
+import { purchaseOrderWorkflowWritesUseCoreApi } from '@/lib/erp-core-client'
+import { supplierEmailNotice } from '@/lib/procurement/supplier-email-outcome'
 
 export const metadata: Metadata = { title: 'Purchase Order' }
 
@@ -160,6 +163,15 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
         editable: stockLinkEditable,
       })
     : null
+  // Under Core the supplier email is Core's outbox job, so the web banner and resend stay off.
+  const emailNotice = purchaseOrderWorkflowWritesUseCoreApi(profile.tenantId)
+    ? null
+    : supplierEmailNotice({
+        status: po.status,
+        supplierEmailSentAt: po.supplier_email_sent_at,
+        vendorId: po.vendor_id,
+        supplierEmail: po.vendor_email,
+      })
   const payableRows = canManagePayables
     ? await db
         .select({
@@ -366,6 +378,14 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
           </Link>
         </div>
       </div>
+
+      {emailNotice && (
+        <SupplierEmailBanner
+          poId={po.id}
+          message={emailNotice.message}
+          canResend={can(profile.role, 'po.issue')}
+        />
+      )}
 
       {/* Three-step approval timeline */}
       <div style={{ marginBottom: '16px' }}>

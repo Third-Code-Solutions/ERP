@@ -12,6 +12,7 @@ import { authenticateRole } from './helpers/supabase-magic-link'
 const TENANT_ID = 'fdd60ae0-9819-4564-8626-3f5571d2dca1'
 const FOREIGN_TENANT_ID = '22222222-2222-4222-8222-222222222222'
 const PROJECT_ID = '11111111-1111-4111-8111-111111111111'
+const USER_ID = '33333333-3333-4333-8333-333333333333'
 
 function fixtureFetch(options: { foreignRole?: string; foreignProject?: boolean; missingRole?: string; inactiveRole?: string } = {}): typeof fetch {
   return async (input) => {
@@ -24,6 +25,7 @@ function fixtureFetch(options: { foreignRole?: string; foreignProject?: boolean;
       if (role === options.missingRole) return Response.json([])
       const email = role && DEMO_ROLE_EMAILS[role as keyof typeof DEMO_ROLE_EMAILS]
       return Response.json([{
+        id: USER_ID,
         email,
         tenant_id: role === options.foreignRole ? FOREIGN_TENANT_ID : TENANT_ID,
         account_status: role === options.inactiveRole ? 'suspended' : 'active',
@@ -175,6 +177,36 @@ test('rejects an inactive role profile before generating a magic link', async ()
     await expect(authenticateRole({ addCookies: async () => {} }, 'https://demo.example', 'finance'))
       .rejects.toThrow('finance demo profile is not active')
     expect(generatedLink).toBe(false)
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+test('rejects a magic-link session whose auth user is not the role profile', async () => {
+  const originalFetch = globalThis.fetch
+  const fixture = fixtureFetch()
+  globalThis.fetch = async (input, init) => {
+    const url = new URL(String(input))
+    if (url.pathname === '/auth/v1/admin/generate_link') {
+      return Response.json({ action_link: 'https://fixture.supabase.co/auth/v1/verify?token=fixture' })
+    }
+    if (url.pathname === '/auth/v1/verify') {
+      return new Response(null, {
+        status: 303,
+        headers: {
+          location: 'https://demo.example/dashboard#access_token=a&refresh_token=r&expires_at=4102444800&expires_in=3600&token_type=bearer',
+        },
+      })
+    }
+    if (url.pathname === '/auth/v1/user') {
+      // Same email, different auth uid: the profile row that passed the tenant check is not this session's.
+      return Response.json({ id: '44444444-4444-4444-8444-444444444444', email: DEMO_ROLE_EMAILS.finance })
+    }
+    return fixture(input, init)
+  }
+  try {
+    await expect(authenticateRole({ addCookies: async () => {} }, 'https://demo.example', 'finance'))
+      .rejects.toThrow('Magic-link session identity mismatch')
   } finally {
     globalThis.fetch = originalFetch
   }
