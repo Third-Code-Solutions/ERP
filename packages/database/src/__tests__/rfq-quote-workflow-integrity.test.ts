@@ -37,7 +37,10 @@ describe('RFQ quote positive unit price migration contract', () => {
     expect(positivePriceSql).toMatch(
       /add constraint rfq_quotes_unit_price_positive\s+check \(unit_price_cents > 0\);/
     )
-    expect(positivePriceSql).not.toMatch(/not valid/i)
+    expect(positivePriceSql.replace(/^--.*$/gm, '')).not.toMatch(/not valid/i)
+    expect(positivePriceSql).toMatch(
+      /else\s+alter table public\.rfq_quotes\s+validate constraint rfq_quotes_unit_price_positive;/
+    )
     expect(positivePriceSql.trimEnd().endsWith('commit;')).toBe(true)
   })
 
@@ -292,6 +295,32 @@ runtimeSuite('RFQ quote workflow integrity runtime proof', () => {
     })
 
     expect(code).toBe('23514:rfq_quotes_unit_price_positive')
+  })
+
+  it('accepts a 1-cent quote under a validated check', async () => {
+    const outcome = await inRollback(sql, async (tx) => {
+      const fixture = await seedRfqFixture(tx)
+      const inserted = (await tx.unsafe(
+        `insert into rfq_quotes(
+           tenant_id, submission_id, rfq_id, bom_line_item_id,
+           vendor_id, unit_price_cents, created_by
+         )
+         values(
+           '${fixture.tenantA}', gen_random_uuid(), '${fixture.rfqId}',
+           '${fixture.lineId}', '${fixture.vendorA}', 1,
+           '${fixture.userA}'
+         )
+         returning unit_price_cents::int as price`
+      )) as Array<{ price: number }>
+      const constraint = (await tx.unsafe(
+        `select convalidated from pg_catalog.pg_constraint
+          where conrelid = 'public.rfq_quotes'::regclass
+            and conname = 'rfq_quotes_unit_price_positive'`
+      )) as Array<{ convalidated: boolean }>
+      return { prices: inserted.map((row) => row.price), constraint }
+    })
+
+    expect(outcome).toEqual({ prices: [1], constraint: [{ convalidated: true }] })
   })
 
   it('rejects an invalid pending-to-completed transition', async () => {

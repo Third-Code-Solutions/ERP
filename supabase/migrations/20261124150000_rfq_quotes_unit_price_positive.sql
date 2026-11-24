@@ -5,7 +5,8 @@
 -- A zero or negative unit price is not a real quote. The web and Core refuse
 -- one; this check is the database backstop. It is added validated: Postgres scans
 -- rfq_quotes once and aborts the migration, changing nothing, if any row has
--- unit_price_cents <= 0.
+-- unit_price_cents <= 0. If a constraint of this name already exists unvalidated
+-- (added NOT VALID by hand), it is validated instead, with the same scan.
 --
 -- Rollback:
 --   begin;
@@ -30,6 +31,9 @@ begin
     alter table public.rfq_quotes
       add constraint rfq_quotes_unit_price_positive
       check (unit_price_cents > 0);
+  else
+    alter table public.rfq_quotes
+      validate constraint rfq_quotes_unit_price_positive;
   end if;
 end
 $$;
