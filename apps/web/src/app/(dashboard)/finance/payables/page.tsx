@@ -14,6 +14,12 @@ import {
   financePayablesReadsUseCoreApi,
   getFinancePayablesThroughCoreApi,
 } from '@/lib/erp-core-client'
+import {
+  AGING_BUCKETS,
+  agingBucket,
+  daysOverdue,
+  manilaToday,
+} from '@/lib/finance/dates'
 
 export const metadata: Metadata = { title: 'Supplier payables' }
 
@@ -22,23 +28,6 @@ function formatPHP(cents: number): string {
     style: 'currency',
     currency: 'PHP',
   }).format(cents / 100)
-}
-
-function ageInDays(dueDate: string | null, today: string): number {
-  if (!dueDate) return 0
-  return Math.floor(
-    (Date.parse(`${today}T00:00:00Z`) -
-      Date.parse(`${dueDate}T00:00:00Z`)) /
-      86_400_000
-  )
-}
-
-function agingBucket(daysPastDue: number): string {
-  if (daysPastDue <= 0) return 'Current'
-  if (daysPastDue <= 30) return '1–30'
-  if (daysPastDue <= 60) return '31–60'
-  if (daysPastDue <= 90) return '61–90'
-  return '90+'
 }
 
 type PayableRow = {
@@ -179,7 +168,8 @@ export default async function PayablesPage() {
     }))
   }
 
-  const today = new Date().toISOString().slice(0, 10)
+  // The shared finance aging rule (Manila day), so this screen and the payables CSV tie.
+  const today = manilaToday()
   const rowsWithBalance = rows.map((row) => ({
     ...row,
     openCents:
@@ -194,18 +184,14 @@ export default async function PayablesPage() {
     0
   )
   const overdueOpen = openRows.filter(
-    (row) => ageInDays(row.dueDate, today) > 0
+    (row) => (daysOverdue(row.dueDate, today) ?? 0) > 0
   )
-  const aging = ['Current', '1–30', '31–60', '61–90', '90+'].map(
-    (bucket) => ({
-      bucket,
-      amount: openRows
-        .filter(
-          (row) => agingBucket(ageInDays(row.dueDate, today)) === bucket
-        )
-        .reduce((total, row) => total + row.openCents, 0),
-    })
-  )
+  const aging = AGING_BUCKETS.map((bucket) => ({
+    bucket,
+    amount: openRows
+      .filter((row) => agingBucket(daysOverdue(row.dueDate, today)) === bucket)
+      .reduce((total, row) => total + row.openCents, 0),
+  }))
 
   return (
     <div>
@@ -312,7 +298,7 @@ export default async function PayablesPage() {
               </thead>
               <tbody>
                 {rowsWithBalance.map((row) => {
-                  const age = ageInDays(row.dueDate, today)
+                  const age = daysOverdue(row.dueDate, today)
                   return (
                     <tr key={row.id}>
                       <td>

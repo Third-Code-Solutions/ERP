@@ -99,6 +99,11 @@ export function resolveTrialBalanceRange(
   }
 }
 
+/** True when the as-of date falls before the period starts, so no posting date can match. */
+export function isEmptyTrialBalanceRange(range: TrialBalanceRange): boolean {
+  return range.from !== null && range.from > range.to
+}
+
 const trialBalanceFields = z.object({
   asOf: isoDateSchema.optional(),
   period: z.string().uuid().optional(),

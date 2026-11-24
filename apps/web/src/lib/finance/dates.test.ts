@@ -1,12 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   agingBucket,
   daysOverdue,
   isoDateSchema,
-  manilaDay,
   manilaToday,
   utcDay,
-  wholeDaysBetween,
 } from './dates'
 
 describe('Manila calendar day', () => {
@@ -16,7 +14,7 @@ describe('Manila calendar day', () => {
   })
 
   it('places an early-morning Manila instant on the Manila day, not the UTC day', () => {
-    expect(manilaDay(new Date('2026-12-31T20:30:00.000Z'))).toBe('2027-01-01')
+    expect(manilaToday(new Date('2026-12-31T20:30:00.000Z'))).toBe('2027-01-01')
   })
 
   it('reads a UTC-midnight due date on its stored calendar day', () => {
@@ -38,30 +36,43 @@ describe('isoDateSchema', () => {
 })
 
 describe('aging', () => {
-  it('counts whole days across a month and leap-day boundary', () => {
-    expect(wholeDaysBetween('2026-11-17', '2026-11-17')).toBe(0)
-    expect(wholeDaysBetween('2026-10-31', '2026-11-17')).toBe(17)
-    expect(wholeDaysBetween('2028-02-28', '2028-03-01')).toBe(2)
-    expect(wholeDaysBetween('2026-11-20', '2026-11-17')).toBe(-3)
+  afterEach(() => {
+    vi.unstubAllEnvs()
   })
 
-  it('never reports negative overdue days and treats no due date as not overdue', () => {
+  it('counts whole days across a month and leap-day boundary, never negative', () => {
+    expect(daysOverdue('2026-11-17', '2026-11-17')).toBe(0)
+    expect(daysOverdue('2026-10-31', '2026-11-17')).toBe(17)
+    expect(daysOverdue('2028-02-28', '2028-03-01')).toBe(2)
     expect(daysOverdue('2026-11-20', '2026-11-17')).toBe(0)
-    expect(daysOverdue('2026-11-10', '2026-11-17')).toBe(7)
-    expect(daysOverdue(null, '2026-11-17')).toBe(0)
+  })
+
+  it('keeps a missing due date apart from the dated buckets', () => {
+    expect(daysOverdue(null, '2026-11-17')).toBeNull()
+    expect(agingBucket(null)).toBe('No due date')
+  })
+
+  it('ages by the Manila day at 30 Nov 17:00Z on a server that runs in UTC', () => {
+    vi.stubEnv('TZ', 'UTC')
+    // 01:00 on 1 Dec in Manila; the UTC day is still 30 Nov.
+    const today = manilaToday(new Date('2026-11-30T17:00:00.000Z'))
+
+    expect(today).toBe('2026-12-01')
+    expect(daysOverdue('2026-11-30', today)).toBe(1)
+    expect(agingBucket(daysOverdue('2026-11-30', today))).toBe('1–30 days')
   })
 
   it.each([
     [-5, 'Current'],
     [0, 'Current'],
-    [1, '1-30'],
-    [30, '1-30'],
-    [31, '31-60'],
-    [60, '31-60'],
-    [61, '61-90'],
-    [90, '61-90'],
-    [91, '91+'],
-    [400, '91+'],
+    [1, '1–30 days'],
+    [30, '1–30 days'],
+    [31, '31–60 days'],
+    [60, '31–60 days'],
+    [61, '61–90 days'],
+    [90, '61–90 days'],
+    [91, '90+ days'],
+    [400, '90+ days'],
   ])('puts %d days overdue in %s', (days, bucket) => {
     expect(agingBucket(days)).toBe(bucket)
   })

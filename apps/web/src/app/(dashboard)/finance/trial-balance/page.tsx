@@ -10,6 +10,7 @@ import {
   listFiscalPeriods,
 } from '@/lib/finance/report-queries'
 import {
+  isEmptyTrialBalanceRange,
   resolveTrialBalanceRange,
   trialBalanceParamsSchema,
 } from '@/lib/finance/trial-balance'
@@ -70,6 +71,13 @@ export default async function TrialBalancePage({
   }
 
   const range = resolveTrialBalanceRange(asOf, selectedPeriod)
+  if (isEmptyTrialBalanceRange(range)) {
+    notices.push(
+      'The as-of date is before this period starts, so the period has no movement to show yet.'
+    )
+  }
+  // A period report has no opening balance: its last column is the net movement.
+  const isMovement = range.from !== null
   const trialBalance = await getTrialBalance(profile.tenantId, range)
 
   const trialBalanceQuery = new URLSearchParams({
@@ -198,7 +206,9 @@ export default async function TrialBalancePage({
                 <th>Type</th>
                 <th className="numeric">Debits</th>
                 <th className="numeric">Credits</th>
-                <th className="numeric">Balance</th>
+                <th className="numeric">
+                  {isMovement ? 'Net movement' : 'Balance'}
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -228,7 +238,9 @@ export default async function TrialBalancePage({
                     <span className="finance-cell-detail">
                       {row.balanceCents < 0
                         ? `opposite of normal ${row.normalBalance}`
-                        : `${row.normalBalance} balance`}
+                        : isMovement
+                          ? `net ${row.normalBalance}`
+                          : `${row.normalBalance} balance`}
                     </span>
                   </td>
                 </tr>
@@ -257,8 +269,9 @@ export default async function TrialBalancePage({
             <h2>CSV exports</h2>
           </div>
           <p>
-            Amounts in pesos, posted entries only, scoped to your company. Ledger
-            exports stop at 50,000 rows and say so in the file.
+            Amounts in pesos, posted entries only, scoped to your company. An
+            export of more than 50,000 rows is refused; narrow the ledger dates
+            to split it.
           </p>
         </div>
         <div className="finance-header-actions">

@@ -13,6 +13,7 @@ import {
   financeReceivablesReadsUseCoreApi,
   getFinanceReceivablesThroughCoreApi,
 } from '@/lib/erp-core-client'
+import { agingBucket, daysOverdue, manilaToday, utcDay } from '@/lib/finance/dates'
 
 export const metadata: Metadata = { title: 'Customer receivables' }
 
@@ -23,29 +24,9 @@ function formatPHP(cents: number): string {
   }).format(cents / 100)
 }
 
-function daysFromToday(value: Date | null): number | null {
-  if (!value) return null
-  const today = new Date()
-  const utcToday = Date.UTC(
-    today.getUTCFullYear(),
-    today.getUTCMonth(),
-    today.getUTCDate()
-  )
-  const utcDue = Date.UTC(
-    value.getUTCFullYear(),
-    value.getUTCMonth(),
-    value.getUTCDate()
-  )
-  return Math.floor((utcToday - utcDue) / 86_400_000)
-}
-
-function agingLabel(daysPastDue: number | null): string {
-  if (daysPastDue === null) return 'No due date'
-  if (daysPastDue <= 0) return 'Current'
-  if (daysPastDue <= 30) return '1–30 days'
-  if (daysPastDue <= 60) return '31–60 days'
-  if (daysPastDue <= 90) return '61–90 days'
-  return '90+ days'
+// The shared finance aging rule, so this screen and the receivables CSV tie.
+function daysPastDue(dueDate: Date | null, today: string): number | null {
+  return daysOverdue(dueDate ? utcDay(dueDate) : null, today)
 }
 
 type ReceivableRow = {
@@ -72,6 +53,7 @@ export default async function ReceivablesPage() {
   const profile = await requireUserProfile()
   requireCapability(profile, 'finance.read')
   requireRouteAccess(profile.role, '/finance/receivables')
+  const today = manilaToday()
 
   let openRows: ReceivableRow[]
   let totalDue: number
@@ -211,10 +193,9 @@ export default async function ReceivablesPage() {
       (sum, invoice) => sum + invoice.withholding_tax_cents,
       0
     )
-    const overdue = openRows.filter((invoice) => {
-      const days = daysFromToday(invoice.due_date)
-      return days !== null && days > 0
-    })
+    const overdue = openRows.filter(
+      (invoice) => (daysPastDue(invoice.due_date, today) ?? 0) > 0
+    )
     overdueCount = overdue.length
     overdueTotal = overdue.reduce(
       (sum, invoice) => sum + invoice.current_open_cents,
@@ -288,7 +269,7 @@ export default async function ReceivablesPage() {
             </thead>
             <tbody>
               {openRows.map((invoice) => {
-                const age = daysFromToday(invoice.due_date)
+                const age = daysPastDue(invoice.due_date, today)
                 return (
                   <tr key={invoice.id}>
                     <td>
@@ -322,7 +303,7 @@ export default async function ReceivablesPage() {
                             : 'finance-status-open'
                         }`}
                       >
-                        {agingLabel(age)}
+                        {agingBucket(age)}
                       </span>
                     </td>
                     <td className="numeric">

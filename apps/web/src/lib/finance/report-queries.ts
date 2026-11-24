@@ -1,4 +1,4 @@
-import { db } from '@third-code-erp/database'
+import { db, type Database } from '@third-code-erp/database'
 import {
   accounts,
   fiscalPeriods,
@@ -22,7 +22,7 @@ import {
   sql,
   type SQL,
 } from 'drizzle-orm'
-import { manilaDay, utcDay } from './dates'
+import { manilaToday, utcDay } from './dates'
 import { toCents } from './money'
 import {
   buildTrialBalance,
@@ -83,7 +83,9 @@ export async function findFiscalPeriod(
 
 export async function getTrialBalance(
   tenantId: string,
-  range: TrialBalanceRange
+  range: TrialBalanceRange,
+  // A caller's transaction (the database test runs inside one it rolls back).
+  executor: Pick<Database, 'select'> = db
 ): Promise<TrialBalance> {
   const postedInRange: SQL[] = [
     eq(journalLines.tenant_id, tenantId),
@@ -94,7 +96,7 @@ export async function getTrialBalance(
   if (range.from) postedInRange.push(gte(journalEntries.posting_date, range.from))
 
   const [accountRows, sumRows] = await Promise.all([
-    db
+    executor
       .select({
         id: ledgerAccounts.id,
         code: ledgerAccounts.code,
@@ -106,7 +108,7 @@ export async function getTrialBalance(
       .from(ledgerAccounts)
       .where(eq(ledgerAccounts.tenant_id, tenantId))
       .orderBy(asc(ledgerAccounts.code)),
-    db
+    executor
       .select({
         accountId: journalLines.ledger_account_id,
         debitCents: sql<string>`coalesce(sum(${journalLines.debit_cents}), 0)`,
@@ -321,7 +323,7 @@ export async function getReceivableAgingRows(
     customerName: row.customerName,
     projectName: row.projectName,
     invoiceNumber: row.invoiceNumber,
-    issuedDay: row.issuedAt ? manilaDay(row.issuedAt) : null,
+    issuedDay: row.issuedAt ? manilaToday(row.issuedAt) : null,
     dueDay: row.dueDate ? utcDay(row.dueDate) : null,
     balanceDueCents: Math.max(
       row.netAmountCents - toCents(row.currentAllocated),

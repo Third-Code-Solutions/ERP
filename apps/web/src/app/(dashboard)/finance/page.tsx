@@ -515,8 +515,8 @@ export default async function FinancePage() {
             <h2>Reports and CSV exports</h2>
           </div>
           <p>
-            Amounts in pesos, posted entries only. Ledger exports stop at 50,000
-            rows and say so in the file.
+            Amounts in pesos, posted entries only. An export of more than 50,000
+            rows is refused; narrow the ledger dates to split it.
           </p>
         </div>
         <div className="finance-header-actions">

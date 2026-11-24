@@ -173,19 +173,19 @@ describe('finance CSV export route', () => {
     expectPrivate(response)
     expect(response.headers.get('content-type')).toBe('text/csv; charset=utf-8')
     expect(response.headers.get('content-disposition')).toBe(
-      'attachment; filename="trial-balance-2026-11-17.csv"'
+      'attachment; filename="trial-balance-start-to-2026-11-17.csv"'
     )
-    expect(response.headers.get('x-export-truncated')).toBeNull()
     // Response.text() strips a UTF-8 BOM, so assert the BOM on the raw bytes.
     const bytes = new Uint8Array(await response.clone().arrayBuffer())
     expect(Array.from(bytes.slice(0, 3))).toEqual([0xef, 0xbb, 0xbf])
     const body = await response.text()
-    expect(body.startsWith('"account_code",')).toBe(true)
-    expect(body).toContain('"1000","Cash","asset","debit",123.45,0.00,123.45')
-    expect(body).toContain('"TOTAL","","","",123.45,0.00,""')
+    expect(body.startsWith('account_code,')).toBe(true)
+    expect(body).toContain('1000,Cash,asset,debit,123.45,0.00,123.45')
+    expect(body).toContain('TOTAL,,,,123.45,0.00,')
+    expect(body).toContain('RANGE,Balances of posted entries dated up to 2026-11-17')
   })
 
-  it('flags a truncated ledger export in a header and in the file', async () => {
+  it('refuses a ledger export above the row limit with a private 413, as the opportunity export does', async () => {
     mocks.getUserProfile.mockResolvedValue(profile())
     mocks.getLedgerExportRows.mockResolvedValue(
       new Array(FINANCE_EXPORT_MAX_ROWS + 1).fill({
@@ -205,10 +205,12 @@ describe('finance CSV export route', () => {
 
     const response = await request('ledger')
 
-    expect(response.status).toBe(200)
-    expect(response.headers.get('x-export-truncated')).toBe('true')
-    const body = await response.text()
-    expect(body.replace('﻿', '').startsWith('"NOTE: export truncated')).toBe(true)
+    expect(response.status).toBe(413)
+    expectPrivate(response)
+    expect(response.headers.get('content-disposition')).toBeNull()
+    await expect(response.json()).resolves.toEqual({
+      error: 'Export exceeds the 50,000-row limit. Narrow the filters and try again.',
+    })
   })
 
   it('maps query failures to a generic private 500 that leaks nothing', async () => {

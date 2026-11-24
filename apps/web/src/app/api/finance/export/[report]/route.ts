@@ -52,7 +52,7 @@ export async function GET(
     return jsonError('Export unavailable', 500)
   }
 
-  if (!result.ok) return jsonError(result.error, 400)
+  if (!result.ok) return jsonError(result.error, result.status)
 
   return new Response(result.csv, {
     status: 200,
@@ -60,7 +60,6 @@ export async function GET(
       ...RESPONSE_HEADERS,
       'Content-Type': 'text/csv; charset=utf-8',
       'Content-Disposition': `attachment; filename="${result.filename}"`,
-      ...(result.truncated ? { 'X-Export-Truncated': 'true' } : {}),
     },
   })
 }

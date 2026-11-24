@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildTrialBalance } from './trial-balance'
 
 const mocks = vi.hoisted(() => ({
@@ -56,8 +56,7 @@ describe('buildFinanceExport', () => {
 
       expect(result).toMatchObject({
         ok: true,
-        filename: 'trial-balance-2026-11-18.csv',
-        truncated: false,
+        filename: 'trial-balance-start-to-2026-11-18.csv',
       })
       expect(mocks.getTrialBalance).toHaveBeenCalledWith(TENANT_ID, {
         from: null,
@@ -74,7 +73,7 @@ describe('buildFinanceExport', () => {
         endsOn: '2026-11-30',
       })
 
-      await buildFinanceExport(
+      const result = await buildFinanceExport(
         'trial-balance',
         TENANT_ID,
         { asOf: '2026-11-10', period: PERIOD_ID },
@@ -85,6 +84,11 @@ describe('buildFinanceExport', () => {
       expect(mocks.getTrialBalance).toHaveBeenCalledWith(TENANT_ID, {
         from: '2026-11-01',
         to: '2026-11-10',
+      })
+      // The range names the file, so a period file never looks like a cumulative one.
+      expect(result).toMatchObject({
+        ok: true,
+        filename: 'trial-balance-2026-11-01-to-2026-11-10.csv',
       })
     })
 
@@ -98,7 +102,7 @@ describe('buildFinanceExport', () => {
         NOW
       )
 
-      expect(result).toEqual({ ok: false, error: 'Invalid export filters' })
+      expect(result).toEqual({ ok: false, status: 400, error: 'Invalid export filters' })
       expect(mocks.getTrialBalance).not.toHaveBeenCalled()
     })
 
@@ -112,7 +116,7 @@ describe('buildFinanceExport', () => {
     it.each(invalidTrialBalanceParams)('rejects %j before querying', async (params) => {
       const result = await buildFinanceExport('trial-balance', TENANT_ID, params, NOW)
 
-      expect(result).toEqual({ ok: false, error: 'Invalid export filters' })
+      expect(result).toEqual({ ok: false, status: 400, error: 'Invalid export filters' })
       expect(mocks.getTrialBalance).not.toHaveBeenCalled()
     })
   })
@@ -134,11 +138,10 @@ describe('buildFinanceExport', () => {
       expect(result).toMatchObject({
         ok: true,
         filename: 'general-ledger-2026-11-01-to-2026-11-30.csv',
-        truncated: false,
       })
     })
 
-    it('truncates at the hard cap, flags it and writes a notice row', async () => {
+    it('refuses (413) an export above the hard cap instead of truncating it', async () => {
       const row = {
         postingDate: '2026-11-02',
         entryNumber: 'JE-1',
@@ -158,11 +161,11 @@ describe('buildFinanceExport', () => {
 
       const result = await buildFinanceExport('ledger', TENANT_ID, {}, NOW)
 
-      if (!result.ok) throw new Error('Expected a CSV')
-      expect(result.truncated).toBe(true)
-      const lines = result.csv.split('\r\n').filter((line) => line !== '')
-      expect(lines).toHaveLength(FINANCE_EXPORT_MAX_ROWS + 2)
-      expect(lines[0]).toContain('NOTE: export truncated at 50,000 rows')
+      expect(result).toEqual({
+        ok: false,
+        status: 413,
+        error: 'Export exceeds the 50,000-row limit. Narrow the filters and try again.',
+      })
     })
 
     const invalidLedgerParams: Array<Record<string, string>> = [
@@ -175,8 +178,40 @@ describe('buildFinanceExport', () => {
     it.each(invalidLedgerParams)('rejects %j before querying', async (params) => {
       const result = await buildFinanceExport('ledger', TENANT_ID, params, NOW)
 
-      expect(result).toEqual({ ok: false, error: 'Invalid export filters' })
+      expect(result).toEqual({ ok: false, status: 400, error: 'Invalid export filters' })
       expect(mocks.getLedgerExportRows).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('aging day', () => {
+    afterEach(() => {
+      vi.unstubAllEnvs()
+    })
+
+    it('ages by the Manila day at 30 Nov 17:00Z on a UTC server, as the screens do', async () => {
+      vi.stubEnv('TZ', 'UTC')
+      mocks.getReceivableAgingRows.mockResolvedValue([
+        {
+          customerName: 'Metro Builders',
+          projectName: 'Tower A',
+          invoiceNumber: 'INV-1',
+          issuedDay: '2026-11-01',
+          dueDay: '2026-11-30',
+          balanceDueCents: 10_000,
+          retentionOpenCents: 0,
+        },
+      ])
+
+      const result = await buildFinanceExport(
+        'receivables-aging',
+        TENANT_ID,
+        {},
+        new Date('2026-11-30T17:00:00.000Z')
+      )
+
+      if (!result.ok) throw new Error('Expected a CSV')
+      expect(result.filename).toBe('receivables-aging-2026-12-01.csv')
+      expect(result.csv).toContain('2026-11-01,2026-11-30,1,1–30 days,100.00')
     })
   })
 
@@ -194,7 +229,18 @@ describe('buildFinanceExport', () => {
       expect(result).toMatchObject({
         ok: true,
         filename: `${filenamePrefix}-2026-11-18.csv`,
-        truncated: false,
+      })
+    })
+
+    it('refuses (413) more rows than one export may carry', async () => {
+      mocks[queryName].mockResolvedValue(new Array(FINANCE_EXPORT_MAX_ROWS + 1).fill({}))
+
+      const result = await buildFinanceExport(report, TENANT_ID, {}, NOW)
+
+      expect(result).toEqual({
+        ok: false,
+        status: 413,
+        error: 'Export exceeds the 50,000-row limit.',
       })
     })
 
@@ -206,7 +252,7 @@ describe('buildFinanceExport', () => {
         NOW
       )
 
-      expect(result).toEqual({ ok: false, error: 'Invalid export filters' })
+      expect(result).toEqual({ ok: false, status: 400, error: 'Invalid export filters' })
       expect(mocks[queryName]).not.toHaveBeenCalled()
     })
   })

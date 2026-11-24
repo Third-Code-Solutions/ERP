@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildTrialBalance,
+  isEmptyTrialBalanceRange,
   resolveTrialBalanceRange,
   trialBalanceParamsSchema,
   trialBalanceStrictParamsSchema,
@@ -121,6 +122,13 @@ describe('resolveTrialBalanceRange', () => {
       from: '2026-10-01',
       to: '2026-10-31',
     })
+  })
+
+  it('flags an as-of date before the period starts, since no posting date can match', () => {
+    const period = { startsOn: '2026-11-01', endsOn: '2026-11-30' }
+    expect(isEmptyTrialBalanceRange(resolveTrialBalanceRange('2026-10-15', period))).toBe(true)
+    expect(isEmptyTrialBalanceRange(resolveTrialBalanceRange('2026-11-01', period))).toBe(false)
+    expect(isEmptyTrialBalanceRange(resolveTrialBalanceRange('2026-10-15', null))).toBe(false)
   })
 })
 

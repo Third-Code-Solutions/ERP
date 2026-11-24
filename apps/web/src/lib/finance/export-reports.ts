@@ -1,11 +1,13 @@
 import { z } from 'zod'
 import {
-  capExportRows,
+  exceedsExportLimit,
+  FINANCE_EXPORT_MAX_ROWS,
   FINANCE_EXPORT_QUERY_LIMIT,
   ledgerCsv,
   payableAgingCsv,
   receivableAgingCsv,
   trialBalanceCsv,
+  trialBalanceRangeLabel,
 } from './export-csv'
 import { isoDateSchema, manilaToday } from './dates'
 import {
@@ -33,12 +35,25 @@ export function isFinanceExportReport(value: string): value is FinanceExportRepo
 }
 
 export type FinanceExportResult =
-  | { ok: true; csv: string; filename: string; truncated: boolean }
-  | { ok: false; error: string }
+  | { ok: true; csv: string; filename: string }
+  | { ok: false; status: 400 | 413; error: string }
 
 const INVALID_FILTERS: FinanceExportResult = {
   ok: false,
+  status: 400,
   error: 'Invalid export filters',
+}
+
+const ROW_LIMIT = FINANCE_EXPORT_MAX_ROWS.toLocaleString('en-US')
+const LEDGER_TOO_LARGE: FinanceExportResult = {
+  ok: false,
+  status: 413,
+  error: `Export exceeds the ${ROW_LIMIT}-row limit. Narrow the filters and try again.`,
+}
+const AGING_TOO_LARGE: FinanceExportResult = {
+  ok: false,
+  status: 413,
+  error: `Export exceeds the ${ROW_LIMIT}-row limit.`,
 }
 
 const ledgerParamsSchema = z
@@ -72,16 +87,12 @@ export async function buildFinanceExport(
       ? await findFiscalPeriod(tenantId, parsed.data.period)
       : null
     if (parsed.data.period && !period) return INVALID_FILTERS
-    const asOf = parsed.data.asOf ?? today
-    const trialBalance = await getTrialBalance(
-      tenantId,
-      resolveTrialBalanceRange(asOf, period)
-    )
+    const range = resolveTrialBalanceRange(parsed.data.asOf ?? today, period)
+    const trialBalance = await getTrialBalance(tenantId, range)
     return {
       ok: true,
-      csv: trialBalanceCsv(trialBalance),
-      filename: `trial-balance-${asOf}.csv`,
-      truncated: false,
+      csv: trialBalanceCsv(trialBalance, range),
+      filename: `trial-balance-${trialBalanceRangeLabel(range)}.csv`,
     }
   }
 
@@ -89,41 +100,36 @@ export async function buildFinanceExport(
     const parsed = ledgerParamsSchema.safeParse(params)
     if (!parsed.success) return INVALID_FILTERS
     const { account, from, to } = parsed.data
-    const fetched = await getLedgerExportRows(
+    const rows = await getLedgerExportRows(
       tenantId,
       { accountId: account, from, to },
       FINANCE_EXPORT_QUERY_LIMIT
     )
-    const { rows, truncated } = capExportRows(fetched)
+    if (exceedsExportLimit(rows)) return LEDGER_TOO_LARGE
     return {
       ok: true,
-      csv: ledgerCsv(rows, truncated),
+      csv: ledgerCsv(rows),
       filename: `general-ledger-${from ?? 'start'}-to-${to ?? today}.csv`,
-      truncated,
     }
   }
 
   if (!agingParamsSchema.safeParse(params).success) return INVALID_FILTERS
 
   if (report === 'receivables-aging') {
-    const { rows, truncated } = capExportRows(
-      await getReceivableAgingRows(tenantId, FINANCE_EXPORT_QUERY_LIMIT)
-    )
+    const rows = await getReceivableAgingRows(tenantId, FINANCE_EXPORT_QUERY_LIMIT)
+    if (exceedsExportLimit(rows)) return AGING_TOO_LARGE
     return {
       ok: true,
-      csv: receivableAgingCsv(rows, today, truncated),
+      csv: receivableAgingCsv(rows, today),
       filename: `receivables-aging-${today}.csv`,
-      truncated,
     }
   }
 
-  const { rows, truncated } = capExportRows(
-    await getPayableAgingRows(tenantId, FINANCE_EXPORT_QUERY_LIMIT)
-  )
+  const rows = await getPayableAgingRows(tenantId, FINANCE_EXPORT_QUERY_LIMIT)
+  if (exceedsExportLimit(rows)) return AGING_TOO_LARGE
   return {
     ok: true,
-    csv: payableAgingCsv(rows, today, truncated),
+    csv: payableAgingCsv(rows, today),
     filename: `payables-aging-${today}.csv`,
-    truncated,
   }
 }
