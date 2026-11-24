@@ -38,18 +38,26 @@ const SAFE_REQUEST_HEADERS = [
 
 // Public capability links carry their bearer token as the path segment after
 // the link kind: web /portal/<kind>/<token>, Core API /v1/public/<kind>/<token>.
-// Separators may be percent-encoded (%2F) when the path sits inside another
-// URL. Route patterns such as /portal/sign/[token] are kept.
+// Separators may be percent-encoded once or twice (%2F, %252F) when the path
+// sits inside another URL. Route patterns such as /portal/sign/[token] are
+// kept.
 const CAPABILITY_TOKEN =
-  /((?:\/|%2F)(?:portal|public)(?:\/|%2F)[^/?#\s"'<>%]+(?:\/|%2F))(?!\[|%5B)(?:[^/?#\s"'<>%]|%(?!2F|3F|23)[0-9A-F]{2})+/gi
+  /((?:\/|%2F|%252F)(?:portal|public)(?:\/|%2F|%252F)[^/?#\s"'<>%]+(?:\/|%2F|%252F))(?!\[|%5B|%255B)(?:[^/?#&\s"'<>%]|%(?!(?:25)?(?:2F|3F|23))(?:25)?[0-9A-F]{2})+/gi
 
 // Query string and fragment of an absolute URL inside free text.
 const URL_QUERY_IN_TEXT = /\b((?:https?|app):\/\/[^\s?#"'<>]*)[?#][^\s"'<>]*/gi
 
-// Supabase auth parameters (invite, recovery and OAuth redirects) wherever
-// they appear, including relative URLs with a #fragment.
+// Supabase auth parameters (invite, verify, recovery and OAuth redirects)
+// wherever they appear, including relative URLs with a #fragment.
 const AUTH_PARAM =
-  /\b(access_token|refresh_token|provider_token|provider_refresh_token|id_token|token_hash|code)=[^&\s"'<>#]+/gi
+  /\b(access_token|refresh_token|provider_token|provider_refresh_token|id_token|token_hash|token|code)=[^&\s"'<>#]+/gi
+
+// The same session fields serialised as JSON.
+const AUTH_JSON_FIELD =
+  /"(access_token|refresh_token|provider_token|provider_refresh_token|id_token)"\s*:\s*"[^"]*"/gi
+
+// A bare JWT (Supabase access token, signed link) anywhere in text.
+const JWT = /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g
 
 // Drizzle reports a failed query as "Failed query: <sql>\nparams: <values>".
 // The SQL text holds placeholders only; the values are tenant data.
@@ -73,7 +81,9 @@ export function scrubSentryUrl(url: string): string {
 
 function redactText(text: string): string {
   return text
+    .replace(JWT, '[redacted-jwt]')
     .replace(URL_QUERY_IN_TEXT, '$1')
+    .replace(AUTH_JSON_FIELD, '"$1":"[redacted]"')
     .replace(AUTH_PARAM, '$1=[redacted]')
     .replace(CAPABILITY_TOKEN, '$1[redacted]')
     .replace(QUERY_PARAMS, '$1params: [redacted]')

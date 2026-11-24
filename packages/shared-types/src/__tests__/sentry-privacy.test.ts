@@ -258,6 +258,46 @@ describe('scrubSentryEvent', () => {
     )
   })
 
+  // Third review repro: each string goes through the scrubber as free text.
+  it.each([
+    ['absolute URL fragment', 'redirect failed https://abi.example/auth/accept-invite#access_token=AT2&refresh_token=RT2 now', 'redirect failed https://abi.example/auth/accept-invite now'],
+    ['relative auth fragment', 'bad link /auth/accept-invite#access_token=AT3&refresh_token=RT3&provider_token=PT3 x', 'bad link /auth/accept-invite#access_token=[redacted]&refresh_token=[redacted]&provider_token=[redacted] x'],
+    ['auth code', 'callback /auth/callback?code=CODE4&next=/x', 'callback /auth/callback?code=[redacted]&next=/x'],
+    ['token hash', '/auth/confirm?token_hash=TH5&type=recovery', '/auth/confirm?token_hash=[redacted]&type=recovery'],
+    ['verify token', '/auth/v1/verify?token=VTOKEN&type=invite', '/auth/v1/verify?token=[redacted]&type=invite'],
+    ['encoded link', `redirect_to=https%3A%2F%2Fabi.example%2Fportal%2Fsign%2F${TOKEN}&type=x`, 'redirect_to=https%3A%2F%2Fabi.example%2Fportal%2Fsign%2F[redacted]&type=x'],
+    ['lower-case encoding', `u=%2fportal%2fcnps%2f${TOKEN}`, 'u=%2fportal%2fcnps%2f[redacted]'],
+    ['mixed encoding', `u=/portal%2Fbom%2F${TOKEN}`, 'u=/portal%2Fbom%2F[redacted]'],
+    ['encoded Core API link', `%2Fv1%2Fpublic%2Fsignatures%2F${TOKEN}`, '%2Fv1%2Fpublic%2Fsignatures%2F[redacted]'],
+    ['escape inside the token', `/portal/sign/AB%2BCD${TOKEN}`, '/portal/sign/[redacted]'],
+    ['double encoding', `u=%252Fportal%252Fsign%252F${TOKEN}`, 'u=%252Fportal%252Fsign%252F[redacted]'],
+    ['JSON session', '{"access_token":"eyJaaa.bbb.ccc","refresh_token":"RTJSON"}', '{"access_token":"[redacted]","refresh_token":"[redacted]"}'],
+    ['bare JWT', 'Bearer eyJhbGciOi.eyJzdWIi.SIGNATURE', 'Bearer [redacted-jwt]'],
+  ])('redacts %s in free text', (_case, text, expected) => {
+    expect(scrubSentryEvent({ transaction: text }).transaction).toBe(expected)
+  })
+
+  it('scrubs page URLs in frames and keeps encoded route patterns in chunk paths', () => {
+    const frames = [
+      { filename: 'app:///auth/accept-invite#access_token=AT1&refresh_token=RT1&type=invite' },
+      { filename: `https://abi.example/portal/sign/${TOKEN}?x=QSECRET` },
+      { filename: 'app:///_next/static/chunks/app/portal/sign/[token]/page-abc.js' },
+      { filename: 'app:///_next/static/chunks/app/portal/sign/%5Btoken%5D/page-abc.js' },
+      { filename: 'app:///_next/static/chunks/app/portal/sign/%255Btoken%255D/page-abc.js' },
+    ]
+    const scrubbed = scrubSentryEvent({
+      transaction: 'GET /portal/sign/[token]',
+      exception: { values: [{ stacktrace: { frames } }] },
+    })
+    expect(scrubbed.exception.values[0]?.stacktrace.frames.map((frame) => frame.filename)).toEqual([
+      'app:///auth/accept-invite',
+      'https://abi.example/portal/sign/[redacted]',
+      'app:///_next/static/chunks/app/portal/sign/[token]/page-abc.js',
+      'app:///_next/static/chunks/app/portal/sign/%5Btoken%5D/page-abc.js',
+      'app:///_next/static/chunks/app/portal/sign/%255Btoken%255D/page-abc.js',
+    ])
+  })
+
   it('drops cookies, bodies, server env and query strings; headers by allowlist', () => {
     const event = {
       request: {
