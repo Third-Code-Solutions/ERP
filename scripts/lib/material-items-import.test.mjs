@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   MAX_ROWS,
   formatImportReport,
+  materialItemAuditHash,
   parseCsv,
   parseImportArgs,
   parseMaterialItemsCsv,
@@ -74,6 +75,49 @@ test('a missing or unknown column stops the import before any row is read', () =
     /Unknown column "uom"/
   )
   assert.match(parseMaterialItemsCsv('').errors[0].message, /CSV is empty/)
+})
+
+test('a row with more cells than the header is refused, not shifted into the next column', () => {
+  const { rows, errors } = parseMaterialItemsCsv('code,description,unit\nB-1,Bolt, M,pcs\nB-2,"Bolt, M",pcs\n')
+  assert.deepEqual(rows.map((row) => [row.code, row.description, row.unit]), [['B-2', 'Bolt, M', 'pcs']])
+  assert.equal(errors.length, 1)
+  assert.equal(errors[0].line, 2)
+  assert.match(errors[0].message, /has 4 cells, header has 3/)
+})
+
+test('a repeated column name stops the import', () => {
+  const { rows, errors } = parseMaterialItemsCsv('code,Code,description,unit\nA,B,x,pcs\n')
+  assert.equal(rows.length, 0)
+  assert.match(errors[0].message, /Column "code" appears more than once/)
+})
+
+test('control characters are refused in code, description and unit', () => {
+  const { rows, errors } = parseMaterialItemsCsv(
+    'code,description,unit\n"A\nB",ok,pcs\nC,"bad\u001b[31m",pcs\nD,ok,"p\u007fcs"\nE,ok\ttab,pcs\n'
+  )
+  assert.equal(rows.length, 0)
+  assert.deepEqual(
+    errors.map((error) => error.message),
+    [
+      'code contains a control character',
+      'description contains a control character',
+      'unit contains a control character',
+      'description contains a control character',
+    ]
+  )
+})
+
+test('the audit hash is the shared-types database audit hash of a material item create', () => {
+  const id = '6f1c2a4e-1b2c-4d3e-8f90-123456789abc'
+  // sha256("genesis" + "material_item" + id + "create" + "2026-11-24 01:02:03.4+00")
+  assert.equal(
+    materialItemAuditHash('genesis', id, new Date('2026-11-24T01:02:03.400Z')),
+    '4c61fd9eb3ed405dde0a6f8db34db410ea9fa20680078aa18efd9f2ba7804ace'
+  )
+  assert.notEqual(
+    materialItemAuditHash('genesis', id, new Date('2026-11-24T01:02:03.000Z')),
+    materialItemAuditHash('genesis', id, new Date('2026-11-24T01:02:03.400Z'))
+  )
 })
 
 test('an import is capped', () => {

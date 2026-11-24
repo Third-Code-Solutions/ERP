@@ -453,6 +453,10 @@ describe('Opportunity project conversion authority', () => {
     ['Warehouse fit-out', 'Conversion Client — Warehouse fit-out'],
     ['fit_out', 'Conversion Client — Fit-out'],
     ['mep', 'Conversion Client — MEP'],
+    ['structural_civil', 'Conversion Client — Structural and Civil'],
+    ['mixed', 'Conversion Client — Structural and Civil'],
+    // 20-point prefix + 179 + one emoji = 200 code points; a UTF-16 slice would split the 200th.
+    ['x'.repeat(179) + '😀'.repeat(5), 'Conversion Client — ' + 'x'.repeat(179) + '😀'],
     [null, 'Conversion Client'],
   ])(
     'names the project after the client and a readable type (%s)',

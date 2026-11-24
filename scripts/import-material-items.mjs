@@ -14,12 +14,15 @@
  * code is left exactly as it is. The unit must already be a unit of measure or a
  * unit alias of the tenant (run bootstrap-trial-tenant.mjs first): the importer
  * never creates units, because unit equivalence is the company's data. Any row
- * error refuses the whole run (exit code 3, nothing written).
+ * error refuses the whole run (exit code 3, nothing written). Each inserted item
+ * gets a hash-chained audit_log entry; if a planned item cannot be inserted the
+ * whole run rolls back (exit code 2).
  */
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import {
   formatImportReport,
+  materialItemAuditHash,
   parseImportArgs,
   parseMaterialItemsCsv,
   planMaterialItemsImport,
@@ -80,9 +83,19 @@ async function run(tx, options, rows, csvErrors) {
   }
 
   await stampActor(tx, actor.id)
-  let inserted = 0
+  // The app's audit writer takes the same lock, so the tenant's hash chain stays linear.
+  await tx`select pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(${`audit_log:${tenantId}`}::text, 0))`
+  const [lastAudit] = await tx`
+    select hash from public.audit_log
+     where tenant_id = ${tenantId}::uuid
+     order by id desc
+     limit 1
+  `
+  let prevHash = lastAudit?.hash ?? 'genesis'
+  const skipped = []
   for (const row of plan.insert) {
-    const created = await tx`
+    const [created] = await tx`
       insert into public.material_items
         (tenant_id, code, description, unit, base_uom_id, inventory_tracked, created_by)
       select ${tenantId}::uuid, ${row.code}, ${row.description}, uom.code, uom.id,
@@ -90,11 +103,38 @@ async function run(tx, options, rows, csvErrors) {
         from public.units_of_measure uom
        where uom.tenant_id = ${tenantId}::uuid and uom.code = ${row.unit}
       on conflict do nothing
-      returning id
+      returning id::text as id, unit
     `
-    inserted += created.length
+    if (!created) {
+      skipped.push(row.code)
+      continue
+    }
+    // One audit entry per item, as the app's material item create writes.
+    const createdAt = new Date()
+    const hash = materialItemAuditHash(prevHash, created.id, createdAt)
+    const diff = {
+      code: row.code,
+      description: row.description,
+      unit: created.unit,
+      inventory_tracked: row.tracked,
+      source: 'import-material-items',
+    }
+    await tx`
+      insert into public.audit_log
+        (tenant_id, actor_id, entity_type, entity_id, action, diff, prev_hash, hash, created_at)
+      values (${tenantId}::uuid, ${actor.id}::uuid, 'material_item', ${created.id}::uuid, 'create',
+              ${tx.json(diff)}, ${prevHash}, ${hash}, ${createdAt})
+    `
+    prevHash = hash
   }
-  console.log(`\nInserted: ${inserted} item(s)`)
+  if (skipped.length > 0) {
+    // Created by someone else since the plan was read, or the unit is gone: roll back.
+    throw new Error(
+      `${skipped.length} item(s) could not be inserted: ${skipped.join(', ')}. ` +
+        'Nothing was written; run the dry run again.'
+    )
+  }
+  console.log(`\nInserted: ${plan.insert.length} item(s), each with an audit_log entry`)
 }
 
 async function main() {

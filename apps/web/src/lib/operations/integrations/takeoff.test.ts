@@ -134,4 +134,32 @@ describe('structured takeoff importer', () => {
     expect(result.rows.map((row) => row.quantity)).toEqual([12.5, null])
     expect(JSON.stringify(result.rows)).not.toContain('[object Object]')
   })
+
+  it('reads rich text, shared formulas and rich-text hyperlinks as their visible text', async () => {
+    const ExcelJS = await import('exceljs')
+    const workbook = new ExcelJS.Workbook()
+    const worksheet = workbook.addWorksheet('Takeoff')
+    worksheet.addRow(['Description', 'Quantity', 'UOM'])
+    worksheet.addRow([
+      { richText: [{ text: 'Floor ' }, { font: { bold: true }, text: 'slab' }] },
+      { formula: '2+3', result: 5 },
+      'sqm',
+    ])
+    worksheet.addRow([
+      { text: { richText: [{ text: 'Spec ' }, { text: 'sheet' }] }, hyperlink: 'https://example.test/spec' },
+      { sharedFormula: 'B2', result: 7 },
+      'sqm',
+    ])
+
+    const result = await parseStructuredTakeoff(
+      Buffer.from(await workbook.xlsx.writeBuffer()),
+      'takeoff.xlsx',
+      { description: 'Description', quantity: 'Quantity', unit: 'UOM' },
+    )
+
+    expect(result.rows.map((row) => [row.description, row.quantity])).toEqual([
+      ['Floor slab', 5],
+      ['Spec sheet', 7],
+    ])
+  })
 })

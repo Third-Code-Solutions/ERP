@@ -26,6 +26,7 @@ import {
 import {
   opportunityProjectConversionCommandSchema,
   opportunityProjectConversionResultSchema,
+  projectTypeLabel,
   type OpportunityProjectConversionCommand,
   type OpportunityProjectConversionResult,
 } from '@third-code-erp/shared-types'
@@ -43,13 +44,6 @@ import {
 } from '../database/database.service'
 
 const RECIPIENT_ROLES = ['sd_pm_pe', 'admin', 'owner'] as const
-// Labels for the Type options on the opportunity forms; free text falls through unchanged.
-const OPPORTUNITY_TYPE_NAMES: Record<string, string> = {
-  mep: 'MEP',
-  fit_out: 'Fit-out',
-  interior: 'Interior',
-  structural_civil: 'Structural and Civil',
-}
 const INVALID_LINKED_ACCOUNT_MESSAGE =
   'Opportunity Account is not available in this tenant'
 
@@ -343,8 +337,10 @@ export class OpportunityProjectConversionService {
       if (!projectId) {
         const clientName = accountName ?? 'Unknown client'
         const typeName = opportunity.opportunityType?.trim()
+        // A Type option gets its label; free text falls through unchanged.
+        // Array.from counts code points, so the cap never splits a surrogate pair.
         const projectName = typeName
-          ? `${clientName} — ${OPPORTUNITY_TYPE_NAMES[typeName] ?? typeName}`.slice(0, 200)
+          ? Array.from(`${clientName} — ${projectTypeLabel(typeName) ?? typeName}`).slice(0, 200).join('')
           : clientName
         const [created] = await transaction
           .insert(projects)

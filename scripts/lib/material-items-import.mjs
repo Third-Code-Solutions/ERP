@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { parseArgs } from 'node:util'
 
 // Pure parsing and planning for scripts/import-material-items.mjs. No I/O here, so
@@ -11,6 +12,8 @@ export const MAX_ROWS = 5000
 const COLUMNS = ['code', 'description', 'unit', 'tracked']
 const TRUE_WORDS = new Set(['yes', 'y', 'true', '1'])
 const FALSE_WORDS = new Set(['no', 'n', 'false', '0', ''])
+// Line breaks inside a quoted code, or terminal escape sequences in the report.
+const CONTROL_CHARACTER = /[\u0000-\u001f\u007f]/
 
 export const USAGE = [
   'Usage: node scripts/import-material-items.mjs --tenant-id <uuid> --csv <file> [options]',
@@ -94,9 +97,11 @@ export function parseMaterialItemsCsv(text) {
   if (records.length === 0) return { rows, errors: [{ line: 1, message: 'The CSV is empty.' }] }
 
   const header = records[0].cells.map((cell) => cell.trim().toLowerCase())
-  for (const name of header) {
+  for (const [index, name] of header.entries()) {
     if (!COLUMNS.includes(name)) {
       errors.push({ line: 1, message: `Unknown column "${name}". Columns are ${COLUMNS.join(', ')}.` })
+    } else if (header.indexOf(name) !== index) {
+      errors.push({ line: 1, message: `Column "${name}" appears more than once.` })
     }
   }
   for (const name of ['code', 'description', 'unit']) {
@@ -118,11 +123,19 @@ export function parseMaterialItemsCsv(text) {
       tracked: false,
     }
     const problems = []
+    // An unquoted comma shifts every later column (a description "Bolt, M" would
+    // become unit M, which cannot change once stock is posted), so refuse the row.
+    if (cells.length > header.length) {
+      problems.push(`has ${cells.length} cells, header has ${header.length} (quote a value that contains a comma)`)
+    }
     if (!row.code) problems.push('code is required')
     else if (row.code.length > 64) problems.push('code is longer than 64 characters')
     if (!row.description) problems.push('description is required')
     if (!row.unit) problems.push('unit is required')
     else if (row.unit.length > 32) problems.push('unit is longer than 32 characters')
+    for (const name of ['code', 'description', 'unit']) {
+      if (CONTROL_CHARACTER.test(row[name])) problems.push(`${name} contains a control character`)
+    }
     if (header.includes('tracked')) {
       const word = value('tracked').toLowerCase()
       if (TRUE_WORDS.has(word)) row.tracked = true
@@ -189,4 +202,19 @@ export function formatImportReport(plan, context) {
   for (const { row, reason } of plan.present) lines.push(`  = ${row.code} (${reason})`)
   for (const { line, message } of plan.errors) lines.push(`  ! line ${line}: ${message}`)
   return lines
+}
+
+/**
+ * The public.audit_log hash of a material item create, the same input as
+ * computeDatabaseAuditHash in @third-code-erp/shared-types: prev hash, entity
+ * type, entity id, action and the timestamp as PostgreSQL prints it in UTC.
+ */
+export function materialItemAuditHash(prevHash, itemId, createdAt) {
+  const [date, time] = createdAt.toISOString().replace('Z', '').split('T')
+  const [clock, fraction = ''] = time.split('.')
+  const trimmed = fraction.replace(/0+$/, '')
+  const stamp = `${date} ${clock}${trimmed ? `.${trimmed}` : ''}+00`
+  return createHash('sha256')
+    .update(`${prevHash}material_item${itemId}create${stamp}`, 'utf8')
+    .digest('hex')
 }

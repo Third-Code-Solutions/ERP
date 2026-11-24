@@ -63,7 +63,8 @@ function cellToString(value: unknown): string {
         )
         .join('')
     }
-    if ('text' in value && typeof value.text === 'string') return value.text
+    // A hyperlink's text can itself be rich text.
+    if ('text' in value) return cellToString(value.text)
     return ''
   }
   return String(value)
