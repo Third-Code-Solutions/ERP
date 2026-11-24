@@ -28,7 +28,12 @@ import {
 import { and, eq, inArray, isNull, not, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { writeAuditLog, writeAuditLogInTransaction } from '@/lib/audit'
-import { notifyRoles, notifyExternalEmail } from '@/lib/operations/notifications'
+import { notifyRoles } from '@/lib/operations/notifications'
+import {
+  isSupplierEmailPoStatus,
+  type SupplierEmailOutcome,
+} from '@/lib/procurement/supplier-email-outcome'
+import { sendSupplierPoEmail } from '@/lib/procurement/supplier-po-email'
 import {
   formatPurchaseOrderNumber,
   PURCHASE_ORDER_SEQUENCE_KEY,
@@ -1131,7 +1136,7 @@ export async function commercialApprovePo(
 export async function scmIssuePo(
   poId: string,
   idempotencyKey?: string
-): Promise<{ error?: string }> {
+): Promise<{ error?: string; emailOutcome?: SupplierEmailOutcome }> {
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
 
@@ -1177,7 +1182,6 @@ export async function scmIssuePo(
   if (coreResult) return coreResult
 
   const now = new Date()
-  let supplierEmailSent = false
 
   let issued: { id: string }[]
   try {
@@ -1205,52 +1209,17 @@ export async function scmIssuePo(
   }
   if (issued.length === 0) return { error: PO_CHANGED_ERROR }
 
-  // Dispatch supplier email if we have an address on file. We stamp
-  // supplier_email_sent_at only on success so retries are possible.
-  if (po.supplier_email && po.supplier_name) {
-    try {
-      const delivery = await notifyExternalEmail({
-        tenantId: profile.tenantId,
-        recipientEmail: po.supplier_email,
-        subject: `Purchase order ${po.po_number}`,
-        templateId: 'po-issued',
-        templateVars: {
-          po_number: po.po_number,
-          total_php: (po.total_cents / 100).toLocaleString('en-PH', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          }),
-          supplier_name: po.supplier_name,
-        },
-      })
-      supplierEmailSent = delivery.delivered
-      if (delivery.delivered) {
-        try {
-          await db
-            .update(purchaseOrders)
-            .set({
-              supplier_email_sent_at: now,
-              updated_at: new Date(),
-            })
-            .where(
-              and(
-                eq(purchaseOrders.id, poId),
-                eq(purchaseOrders.tenant_id, profile.tenantId)
-              )
-            )
-        } catch (stampError: unknown) {
-          // Message sent. Do not retry automatically and risk a duplicate email.
-
-          console.error('PO supplier email evidence stamp failed', stampError)
-        }
-      }
-    } catch (err: unknown) {
-      // Email dispatch failures should not block status advance — log
-      // Issuance stays committed; operators can resolve delivery separately.
-
-      console.error('PO supplier email dispatch failed', err)
-    }
-  }
+  // Issuance stays committed whatever happens to the email; the outcome tells
+  // the buyer whether the supplier was told (a failed send can be resent).
+  const emailOutcome = await sendSupplierPoEmail({
+    tenantId: profile.tenantId,
+    poId,
+    poNumber: po.po_number,
+    totalCents: po.total_cents,
+    vendorId: po.vendor_id,
+    supplierName: po.supplier_name,
+    supplierEmail: po.supplier_email,
+  })
 
   await writeAuditLog({
     tenantId: profile.tenantId,
@@ -1262,14 +1231,81 @@ export async function scmIssuePo(
       from: po.status,
       to: 'issued',
       approver_role: profile.role,
-      supplier_email_sent: supplierEmailSent,
+      supplier_email_sent: emailOutcome === 'sent',
+      supplier_email_outcome: emailOutcome,
     },
   })
 
   revalidatePath('/purchase-orders')
   revalidatePath(`/purchase-orders/${poId}`)
   if (po.project_id) revalidatePath(`/projects/${po.project_id}`)
-  return {}
+  return { emailOutcome }
+}
+
+const SUPPLIER_EMAIL_CORE_OWNED_ERROR =
+  'ERP Core sends the supplier email for this Purchase Order and retries it on its own.'
+
+/** Send the issued PO to its supplier again (not delivered, a lost copy, a corrected address). */
+export async function resendSupplierPoEmail(
+  poId: string
+): Promise<{ error?: string; emailOutcome?: SupplierEmailOutcome }> {
+  const profile = await getUserProfile()
+  if (!profile) return { error: 'Unauthorized' }
+  try {
+    requireCapability(profile, 'po.issue')
+  } catch {
+    return { error: 'You do not have permission to email Purchase Orders to suppliers.' }
+  }
+  if (!z.string().uuid().safeParse(poId).success) {
+    return { error: 'Purchase Order not found.' }
+  }
+  // Core issues the PO and delivers the supplier email from its own outbox; a
+  // web send here could duplicate a delivery that is still queued.
+  if (purchaseOrderWorkflowWritesUseCoreApi(profile.tenantId)) {
+    return { error: SUPPLIER_EMAIL_CORE_OWNED_ERROR }
+  }
+
+  const [po] = await db
+    .select({
+      status: purchaseOrders.status,
+      po_number: purchaseOrders.po_number,
+      total_cents: purchaseOrders.total_cents,
+      vendor_id: purchaseOrders.vendor_id,
+      supplier_name: vendors.name,
+      supplier_email: vendors.email,
+    })
+    .from(purchaseOrders)
+    .leftJoin(
+      vendors,
+      and(eq(purchaseOrders.vendor_id, vendors.id), eq(vendors.tenant_id, profile.tenantId))
+    )
+    .where(and(eq(purchaseOrders.id, poId), eq(purchaseOrders.tenant_id, profile.tenantId)))
+    .limit(1)
+  if (!po) return { error: 'Purchase Order not found.' }
+  if (!isSupplierEmailPoStatus(po.status)) {
+    return { error: 'Only an issued Purchase Order can be emailed to the supplier.' }
+  }
+
+  const emailOutcome = await sendSupplierPoEmail({
+    tenantId: profile.tenantId,
+    poId,
+    poNumber: po.po_number,
+    totalCents: po.total_cents,
+    vendorId: po.vendor_id,
+    supplierName: po.supplier_name,
+    supplierEmail: po.supplier_email,
+  })
+  await writeAuditLog({
+    tenantId: profile.tenantId,
+    actorId: profile.user.id,
+    entityType: 'purchase_order',
+    entityId: poId,
+    action: 'update',
+    diff: { supplier_email_resent: true, supplier_email_outcome: emailOutcome },
+  })
+
+  revalidatePath(`/purchase-orders/${poId}`)
+  return { emailOutcome }
 }
 
 /** Reject an in-flight approval at any pending step. Returns PO to draft. */

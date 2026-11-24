@@ -4,9 +4,13 @@
 //
 // State machine: null → draft → pending_signature → signed.
 //   - draftCoc: requires turnover compiled.
-//   - sendForSignature: creates a DocuSeal submission, stores submission_id.
-//   - recordCocSigned: webhook-driven path; sets signed_at + warranty window
-//     and pings CX to start M7 onboarding.
+//   - sendCocForSignature: creates a signing session, emails the link to the
+//     signer and returns it so the sender can also copy it.
+//   - resendCocSigningLink: replaces the link while pending (links expire).
+//   - cancelCocSigningRequest: pending_signature → draft, link revoked.
+//   - recordCocSigned: manual record of a DocuSeal signature, only while
+//     pending; sets signed_at + warranty window and pings CX to start M7
+//     onboarding. Canvas signatures are recorded by the public signing path.
 
 import { revalidatePath } from 'next/cache'
 import { and, eq } from 'drizzle-orm'
@@ -23,20 +27,47 @@ import {
   documents,
   projects,
   turnoverPackages,
-  contacts,
-  opportunities,
 } from '@third-code-erp/database/schema'
-import { writeAuditLog } from '@/lib/audit'
-import { notifyRoles } from '@/lib/operations/notifications'
-import { createSigningSession } from '@/lib/operations/integrations/docuseal'
+import { writeAuditLog, writeAuditLogInTransaction } from '@/lib/audit'
+import { notifyExternalEmail, notifyRoles } from '@/lib/operations/notifications'
+import {
+  archiveDocuSealSubmission,
+  createSigningSession,
+} from '@/lib/operations/integrations/docuseal'
+import { revokeOpenSigningSessions } from '@/lib/operations/signing-sessions'
+import { findDefaultCocSigner } from './queries'
 
 const DEFAULT_WARRANTY_DAYS = 365
+// Matches the createCanvasSignSession default; shown to the signer and sender.
+const SIGNING_LINK_HOURS = 48
+const DEFAULT_SIGNER_NAME = 'Client Signatory'
+const COC_NOT_PENDING_ERROR =
+  'The certificate is not waiting for signature, so it cannot be recorded as signed.'
+
+export interface CocSignerInput {
+  name?: string
+  email?: string
+}
+
+export interface CocSigningLinkResult {
+  error?: string
+  /** One-time signing link. Shown to the sender once; never stored or logged. */
+  url?: string
+  /** True only when the email provider confirmed delivery. */
+  emailed?: boolean
+  signerEmail?: string
+  expiresAt?: string
+}
 
 function guard(role: AppRole, capability: ErpCapability): string | null {
   if (!can(role, capability)) {
-    return `Forbidden: role "${role}" lacks "${capability}"`
+    return 'You do not have permission to manage the Certificate of Completion.'
   }
   return null
+}
+
+function isUuid(value: string): boolean {
+  return z.string().uuid().safeParse(value).success
 }
 
 export async function draftCoc(
@@ -46,9 +77,7 @@ export async function draftCoc(
   const forbid = guard(profile.role, 'punchlist.manage')
   if (forbid) return { error: forbid }
 
-  if (!z.string().uuid().safeParse(projectId).success) {
-    return { error: 'Invalid project id' }
-  }
+  if (!isUuid(projectId)) return { error: 'Invalid project id' }
 
   // Project + tenant ownership.
   const [project] = await db
@@ -108,119 +137,329 @@ export async function draftCoc(
   return {}
 }
 
-export async function sendCocForSignature(
-  projectId: string
-): Promise<{ error?: string; url?: string }> {
-  const profile = await requireUserProfile()
-  const forbid = guard(profile.role, 'punchlist.manage')
-  if (forbid) return { error: forbid }
+/**
+ * The sender may type the signer. If either field is typed both are required
+ * and used as-is; if neither is typed, fall back to the client account's
+ * primary contact.
+ */
+async function resolveSigner(
+  tenantId: string,
+  projectId: string,
+  projectAccountId: string | null,
+  typed: CocSignerInput | undefined
+): Promise<{ signer: { name: string; email: string } } | { error: string }> {
+  const typedName = typed?.name?.trim() ?? ''
+  const typedEmail = typed?.email?.trim() ?? ''
 
+  if (typedName || typedEmail) {
+    if (!typedName) return { error: 'Enter the name of the client signer.' }
+    if (typedName.length > 255) return { error: 'The signer name is too long.' }
+    const email = z.string().email().max(255).safeParse(typedEmail)
+    if (!email.success) {
+      return { error: 'Enter a valid email address for the client signer.' }
+    }
+    return { signer: { name: typedName, email: email.data } }
+  }
+
+  const primary = await findDefaultCocSigner(tenantId, projectId, projectAccountId)
+  const email = z.string().trim().email().safeParse(primary?.email)
+  if (!email.success) {
+    return {
+      error:
+        'Enter the name and email of the client signer. This project has no client contact with a valid email on file.',
+    }
+  }
+  return { signer: { name: primary?.name || DEFAULT_SIGNER_NAME, email: email.data } }
+}
+
+async function loadCoc(projectId: string, tenantId: string) {
+  // A malformed id is "not found"; it must not reach a uuid column comparison.
+  if (!isUuid(projectId)) return undefined
   const [coc] = await db
     .select()
     .from(certificatesOfCompletion)
     .where(
       and(
         eq(certificatesOfCompletion.project_id, projectId),
-        eq(certificatesOfCompletion.tenant_id, profile.tenantId)
+        eq(certificatesOfCompletion.tenant_id, tenantId)
       )
     )
     .limit(1)
-  if (!coc) return { error: 'COC not found' }
-  if (coc.status !== 'draft') {
-    return { error: `COC is in status "${coc.status}", cannot resend` }
-  }
-
-  // Resolve a tenant-linked client signatory before creating an external submission.
-  const [opp] = await db
-    .select({ account_id: opportunities.account_id })
-    .from(opportunities)
-    .where(
-      and(
-        eq(opportunities.project_id, projectId),
-        eq(opportunities.tenant_id, profile.tenantId)
-      )
-    )
-    .limit(1)
-
-  if (!opp?.account_id) {
-    return { error: 'Link a client account to this project before sending the COC for signature.' }
-  }
-
-  const [primary] = await db
-    .select({
-      full_name: contacts.full_name,
-      email: contacts.email,
-    })
-    .from(contacts)
-    .where(
-      and(
-        eq(contacts.account_id, opp.account_id),
-        eq(contacts.tenant_id, profile.tenantId),
-        eq(contacts.is_primary, true)
-      )
-    )
-    .limit(1)
-  const signerEmail = z.string().trim().email().safeParse(primary?.email)
-  if (!signerEmail.success) {
-    return { error: 'Add a valid email to the client account’s primary contact before sending the COC for signature.' }
-  }
-  const signerName = primary?.full_name?.trim() || 'Client Signatory'
-
-  const session = await createSigningSession({
-    tenantId: profile.tenantId,
-    entityType: 'coc',
-    entityId: coc.id,
-    signerEmail: signerEmail.data,
-    signerName,
-  })
-
-  await db
-    .update(certificatesOfCompletion)
-    .set({
-      status: 'pending_signature',
-      docuseal_submission_id:
-        session.mechanism === 'docuseal' ? session.token : null,
-    })
-    .where(
-      and(
-        eq(certificatesOfCompletion.id, coc.id),
-        eq(certificatesOfCompletion.tenant_id, profile.tenantId)
-      )
-    )
-
-  await writeAuditLog({
-    tenantId: profile.tenantId,
-    actorId: profile.user.id,
-    entityType: 'certificate_of_completion',
-    entityId: coc.id,
-    action: 'status_change',
-    diff: {
-      status: { before: 'draft', after: 'pending_signature' },
-      signing_url: session.url,
-      mechanism: session.mechanism,
-      is_dev_stub: session.is_dev_stub,
-    },
-  })
-
-  revalidatePath(`/projects/${projectId}/coc`)
-  return { url: session.url }
+  return coc
 }
 
-// Webhook path. The DocuSeal webhook handler (Track 4) calls this once
-// the submission is signed. We keep it idempotent: if already signed we
-// short-circuit.
+function formatLinkExpiry(expiresAt: Date): string {
+  return expiresAt.toLocaleString('en-PH', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
+
+const COC_CHANGED_ERROR =
+  'The certificate changed while the link was being created. Refresh the page and check its status.'
+
+/**
+ * Lock the certificate row while it is still in `status`. Sends, resends,
+ * cancels and signatures of one certificate then run one after another, and in
+ * the same order as the signing paths (certificate first, then its links).
+ */
+async function lockCocInStatus(
+  tx: Tx,
+  tenantId: string,
+  cocId: string,
+  status: 'draft' | 'pending_signature'
+): Promise<{ docusealSubmissionId: string | null } | null> {
+  const [locked] = await tx
+    .select({ docusealSubmissionId: certificatesOfCompletion.docuseal_submission_id })
+    .from(certificatesOfCompletion)
+    .where(
+      and(
+        eq(certificatesOfCompletion.id, cocId),
+        eq(certificatesOfCompletion.tenant_id, tenantId),
+        eq(certificatesOfCompletion.status, status)
+      )
+    )
+    .for('update')
+  return locked ?? null
+}
+
+// Shared by send (from draft) and resend (from pending_signature): mint the
+// link under the certificate lock, move the certificate, then email the signer.
+// The link is a bearer credential, so it only goes back to the caller and the
+// signer's inbox, never into the audit log.
+async function issueCocSigningLink(
+  profile: { tenantId: string; user: { id: string } },
+  coc: { id: string; project_id: string },
+  from: 'draft' | 'pending_signature',
+  signerInput: CocSignerInput | undefined
+): Promise<CocSigningLinkResult> {
+  const [project] = await db
+    .select({ name: projects.name, account_id: projects.account_id })
+    .from(projects)
+    .where(
+      and(eq(projects.id, coc.project_id), eq(projects.tenant_id, profile.tenantId))
+    )
+    .limit(1)
+  if (!project) return { error: 'Project not found' }
+
+  const resolved = await resolveSigner(
+    profile.tenantId,
+    coc.project_id,
+    project.account_id,
+    signerInput
+  )
+  if ('error' in resolved) return { error: resolved.error }
+  const { signer } = resolved
+
+  type Issued =
+    | {
+        session: Awaited<ReturnType<typeof createSigningSession>>
+        previousSubmissionId: string | null
+      }
+    | { error: string }
+  const issued = await db.transaction(async (tx): Promise<Issued> => {
+    // A second request waits here and its link becomes the only one; a request
+    // that finds the certificate moved mints no link at all.
+    const locked = await lockCocInStatus(tx, profile.tenantId, coc.id, from)
+    if (!locked) return { error: COC_CHANGED_ERROR }
+
+    let session: Awaited<ReturnType<typeof createSigningSession>>
+    try {
+      session = await createSigningSession({
+        tenantId: profile.tenantId,
+        entityType: 'coc',
+        entityId: coc.id,
+        signerEmail: signer.email,
+        signerName: signer.name,
+      })
+    } catch {
+      console.error('[coc] signing session creation failed')
+      return { error: 'The signing link could not be created. Try again.' }
+    }
+
+    await tx
+      .update(certificatesOfCompletion)
+      .set({
+        status: 'pending_signature',
+        // The submission id, never the signing slug: the slug is a credential.
+        docuseal_submission_id:
+          session.mechanism === 'docuseal' ? (session.submissionId ?? null) : null,
+      })
+      .where(
+        and(
+          eq(certificatesOfCompletion.id, coc.id),
+          eq(certificatesOfCompletion.tenant_id, profile.tenantId)
+        )
+      )
+
+    // Only the newest link may sign. A first send revokes too, so a link from
+    // an earlier, cancelled request is never revived.
+    await revokeOpenSigningSessions(tx, profile.tenantId, 'coc', coc.id, session.token)
+
+    await writeAuditLogInTransaction(tx, {
+      tenantId: profile.tenantId,
+      actorId: profile.user.id,
+      entityType: 'certificate_of_completion',
+      entityId: coc.id,
+      action: from === 'draft' ? 'status_change' : 'update',
+      diff: {
+        ...(from === 'draft'
+          ? { status: { before: 'draft', after: 'pending_signature' } }
+          : { signing_link: 'reissued', previous_links_revoked: true }),
+        signer_email: signer.email,
+        // Never log the signing link: it is a bearer credential and audit rows are tenant-readable.
+        mechanism: session.mechanism,
+        is_dev_stub: session.is_dev_stub,
+      },
+    })
+    return { session, previousSubmissionId: locked.docusealSubmissionId }
+  })
+  if ('error' in issued) return { error: issued.error }
+  const { session } = issued
+
+  await archiveDocuSealSubmission(issued.previousSubmissionId)
+
+  // The email goes out after the commit; its notification row records the delivery.
+  const expiresAt = new Date(Date.now() + SIGNING_LINK_HOURS * 60 * 60 * 1000)
+  let emailed = false
+  try {
+    const delivery = await notifyExternalEmail({
+      tenantId: profile.tenantId,
+      recipientEmail: signer.email,
+      subject: `Certificate of Completion ready for signature: ${project.name}`,
+      templateId: 'coc-signing-link',
+      templateVars: {
+        project_name: project.name,
+        portal_url: session.url,
+        valid_until: formatLinkExpiry(expiresAt),
+      },
+    })
+    emailed = delivery.delivered
+  } catch {
+    console.error('[coc] signing link email failed')
+  }
+
+  revalidatePath(`/projects/${coc.project_id}/coc`)
+  return {
+    url: session.url,
+    emailed,
+    signerEmail: signer.email,
+    expiresAt: expiresAt.toISOString(),
+  }
+}
+
+export async function sendCocForSignature(
+  projectId: string,
+  signer?: CocSignerInput
+): Promise<CocSigningLinkResult> {
+  const profile = await requireUserProfile()
+  const forbid = guard(profile.role, 'punchlist.manage')
+  if (forbid) return { error: forbid }
+
+  const coc = await loadCoc(projectId, profile.tenantId)
+  if (!coc) return { error: 'COC not found' }
+  if (coc.status !== 'draft') {
+    return { error: 'Only a draft certificate can be sent for signature.' }
+  }
+
+  return issueCocSigningLink(profile, coc, 'draft', signer)
+}
+
+// Links expire after 48 hours; without this a pending certificate is stuck.
+export async function resendCocSigningLink(
+  projectId: string,
+  signer?: CocSignerInput
+): Promise<CocSigningLinkResult> {
+  const profile = await requireUserProfile()
+  const forbid = guard(profile.role, 'punchlist.manage')
+  if (forbid) return { error: forbid }
+
+  const coc = await loadCoc(projectId, profile.tenantId)
+  if (!coc) return { error: 'COC not found' }
+  if (coc.status !== 'pending_signature') {
+    return { error: 'A new signing link can only be sent while the certificate is waiting for signature.' }
+  }
+
+  return issueCocSigningLink(profile, coc, 'pending_signature', signer)
+}
+
+export async function cancelCocSigningRequest(
+  projectId: string
+): Promise<{ error?: string }> {
+  const profile = await requireUserProfile()
+  const forbid = guard(profile.role, 'punchlist.manage')
+  if (forbid) return { error: forbid }
+
+  const coc = await loadCoc(projectId, profile.tenantId)
+  if (!coc) return { error: 'COC not found' }
+  if (coc.status !== 'pending_signature') {
+    return { error: 'Only a certificate that is waiting for signature can be cancelled.' }
+  }
+
+  // The status lock makes a signature that lands first win over the cancel.
+  const cancelled = await db.transaction(async (tx) => {
+    const locked = await lockCocInStatus(tx, profile.tenantId, coc.id, 'pending_signature')
+    if (!locked) return null
+
+    await tx
+      .update(certificatesOfCompletion)
+      .set({ status: 'draft', docuseal_submission_id: null })
+      .where(
+        and(
+          eq(certificatesOfCompletion.id, coc.id),
+          eq(certificatesOfCompletion.tenant_id, profile.tenantId)
+        )
+      )
+    await revokeOpenSigningSessions(tx, profile.tenantId, 'coc', coc.id)
+    await writeAuditLogInTransaction(tx, {
+      tenantId: profile.tenantId,
+      actorId: profile.user.id,
+      entityType: 'certificate_of_completion',
+      entityId: coc.id,
+      action: 'status_change',
+      diff: {
+        status: { before: 'pending_signature', after: 'draft' },
+        signing_link: 'revoked',
+      },
+    })
+    return locked
+  })
+  if (!cancelled) {
+    return { error: 'The certificate is no longer waiting for signature. Refresh the page.' }
+  }
+
+  // A cancelled DocuSeal request must not stay signable in DocuSeal.
+  await archiveDocuSealSubmission(cancelled.docusealSubmissionId)
+
+  revalidatePath(`/projects/${projectId}/coc`)
+  return {}
+}
+
+// Manual record of a DocuSeal signature. Idempotent for a signed certificate;
+// otherwise the certificate must still be waiting for signature, so a cancelled
+// (draft) certificate cannot be marked signed.
 export async function recordCocSigned(
   cocId: string,
   signedDocumentId: string
 ): Promise<{ error?: string }> {
   const profile = await requireUserProfile()
-  // Capability-checked here for the manual "force record" path; the
-  // webhook handler should call this with an internal service identity.
   const forbid = guard(profile.role, 'punchlist.manage')
   if (forbid) return { error: forbid }
+  if (!isUuid(cocId)) return { error: 'COC not found' }
+  if (!isUuid(signedDocumentId)) return { error: 'Signed document not found' }
 
   const [coc] = await db
-    .select()
+    .select({
+      id: certificatesOfCompletion.id,
+      project_id: certificatesOfCompletion.project_id,
+      status: certificatesOfCompletion.status,
+    })
     .from(certificatesOfCompletion)
     .where(
       and(
@@ -231,6 +470,7 @@ export async function recordCocSigned(
     .limit(1)
   if (!coc) return { error: 'COC not found' }
   if (coc.status === 'signed') return {} // idempotent
+  if (coc.status !== 'pending_signature') return { error: COC_NOT_PENDING_ERROR }
 
   // Document must belong to this tenant.
   const [doc] = await db
@@ -243,34 +483,42 @@ export async function recordCocSigned(
   const signedAt = new Date()
   const warrantyEndsAt = new Date(signedAt.getTime() + DEFAULT_WARRANTY_DAYS * 86_400_000)
 
-  await db
-    .update(certificatesOfCompletion)
-    .set({
-      status: 'signed',
-      signed_document_id: signedDocumentId,
-      signed_at: signedAt,
-      warranty_period_starts_at: signedAt,
-      warranty_period_ends_at: warrantyEndsAt,
-    })
-    .where(
-      and(
-        eq(certificatesOfCompletion.id, coc.id),
-        eq(certificatesOfCompletion.tenant_id, profile.tenantId)
-      )
-    )
+  const recorded = await db.transaction(async (tx) => {
+    const locked = await lockCocInStatus(tx, profile.tenantId, coc.id, 'pending_signature')
+    if (!locked) return false
 
-  await writeAuditLog({
-    tenantId: profile.tenantId,
-    actorId: profile.user.id,
-    entityType: 'certificate_of_completion',
-    entityId: coc.id,
-    action: 'approve',
-    diff: {
-      status: { before: coc.status, after: 'signed' },
-      signed_at: signedAt.toISOString(),
-      warranty_window_days: DEFAULT_WARRANTY_DAYS,
-    },
+    await tx
+      .update(certificatesOfCompletion)
+      .set({
+        status: 'signed',
+        signed_document_id: signedDocumentId,
+        signed_at: signedAt,
+        warranty_period_starts_at: signedAt,
+        warranty_period_ends_at: warrantyEndsAt,
+      })
+      .where(
+        and(
+          eq(certificatesOfCompletion.id, coc.id),
+          eq(certificatesOfCompletion.tenant_id, profile.tenantId)
+        )
+      )
+    // A signed certificate must not be signed again through a link still out.
+    await revokeOpenSigningSessions(tx, profile.tenantId, 'coc', coc.id)
+    await writeAuditLogInTransaction(tx, {
+      tenantId: profile.tenantId,
+      actorId: profile.user.id,
+      entityType: 'certificate_of_completion',
+      entityId: coc.id,
+      action: 'approve',
+      diff: {
+        status: { before: 'pending_signature', after: 'signed' },
+        signed_at: signedAt.toISOString(),
+        warranty_window_days: DEFAULT_WARRANTY_DAYS,
+      },
+    })
+    return true
   })
+  if (!recorded) return { error: COC_NOT_PENDING_ERROR }
 
   // Hand off to CX so M7 (warranty + customer onboarding) can begin.
   await notifyRoles({
