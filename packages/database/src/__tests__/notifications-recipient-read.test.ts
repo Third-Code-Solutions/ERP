@@ -52,13 +52,16 @@ runtimeSuite('notifications recipient read (database)', () => {
     await sql?.end({ timeout: 5 })
   })
 
-  it('holds exactly one SELECT policy on notifications, for the recipient', async () => {
-    const rows = await sql<{ policyname: string; roles: string[] }[]>`
-      select policyname, roles
+  it('holds exactly one policy that can read notifications, for the recipient', async () => {
+    // A FOR ALL policy also grants reads, so it counts too.
+    const rows = await sql<{ policyname: string; roles: string[]; cmd: string }[]>`
+      select policyname, roles, cmd
       from pg_catalog.pg_policies
-      where schemaname = 'public' and tablename = 'notifications' and cmd = 'SELECT'
+      where schemaname = 'public' and tablename = 'notifications' and cmd in ('SELECT', 'ALL')
     `
-    expect(rows).toEqual([{ policyname: 'notifications_recipient_read', roles: ['authenticated'] }])
+    expect(rows).toEqual([
+      { policyname: 'notifications_recipient_read', roles: ['authenticated'], cmd: 'SELECT' },
+    ])
   })
 
   it('shows a user their own notifications and no colleague or other tenant notification', async () => {
