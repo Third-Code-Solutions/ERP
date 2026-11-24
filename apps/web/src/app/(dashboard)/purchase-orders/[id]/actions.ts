@@ -10,14 +10,26 @@ import {
   stockReceiptLines,
   unitsOfMeasure,
 } from '@third-code-erp/database/schema'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { writeAuditLogInTransaction } from '@/lib/audit'
 import { errorChainMessage } from '@/lib/error-chain-message'
+import { manilaToday } from '@/lib/manila-date'
+import { notifyUser } from '@/lib/operations/notifications'
 import {
   uomForLinkedItem,
   uomForNewItem,
 } from '@/lib/procurement/po-line-stock-link'
+import {
+  SUPPLIER_EMAIL_PO_STATUSES,
+  isSupplierEmailPoStatus,
+} from '@/lib/procurement/supplier-email-outcome'
+import {
+  SUPPLIER_CONFIRMATION_CHANNEL_LABELS,
+  supplierConfirmationInputSchema,
+  supplierConfirmedAt,
+  type SupplierConfirmationInput,
+} from '@/lib/procurement/supplier-confirmation'
 
 const uuid = z.string().uuid()
 
@@ -344,4 +356,135 @@ async function updateLineLink(
 function revalidateLinkPages(poId: string): void {
   revalidatePath(`/purchase-orders/${poId}`)
   revalidatePath('/inventory/receipts/new')
+}
+
+const RETIRED_PROJECT_CONFIRMATION_ERROR =
+  'This Purchase Order belongs to a retired project, so a supplier confirmation cannot be recorded.'
+
+/**
+ * Record that the supplier confirmed an issued Purchase Order (by email, phone
+ * or in person). A record only: the PO status does not change. The creator is
+ * told; the audit row keeps who recorded it and what it replaced.
+ */
+export async function recordSupplierConfirmation(
+  input: SupplierConfirmationInput
+): Promise<{ error?: string }> {
+  const profile = await getUserProfile()
+  if (!profile) return { error: 'Unauthorized' }
+  try {
+    requireCapability(profile, 'po.issue')
+  } catch {
+    return { error: 'You do not have permission to record a supplier confirmation.' }
+  }
+  const parsed = supplierConfirmationInputSchema.safeParse(input)
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'Check the confirmation details.' }
+  }
+  const data = parsed.data
+  const confirmedAt = supplierConfirmedAt(data.confirmedOn)
+  if (!confirmedAt) return { error: 'Enter the date the supplier confirmed.' }
+  if (data.confirmedOn > manilaToday()) {
+    return { error: 'The confirmation date cannot be in the future.' }
+  }
+
+  const [po] = await db
+    .select({
+      id: purchaseOrders.id,
+      status: purchaseOrders.status,
+      poNumber: purchaseOrders.po_number,
+      createdBy: purchaseOrders.created_by,
+      projectLive: liveProjectCondition(purchaseOrders.project_id, profile.tenantId).mapWith(Boolean),
+      confirmedAt: purchaseOrders.supplier_confirmed_at,
+      confirmedByName: purchaseOrders.supplier_confirmed_by_name,
+      channel: purchaseOrders.supplier_confirmed_channel,
+      note: purchaseOrders.supplier_confirmed_note,
+    })
+    .from(purchaseOrders)
+    .where(
+      and(
+        eq(purchaseOrders.id, data.poId),
+        eq(purchaseOrders.tenant_id, profile.tenantId)
+      )
+    )
+    .limit(1)
+  if (!po) return { error: 'Purchase Order not found.' }
+  if (!isSupplierEmailPoStatus(po.status)) {
+    return {
+      error: 'A supplier confirmation can be recorded only after the Purchase Order is issued.',
+    }
+  }
+  if (!po.projectLive) return { error: RETIRED_PROJECT_CONFIRMATION_ERROR }
+
+  const note = data.note ? data.note : null
+  try {
+    const saved = await db.transaction(async (tx) => {
+      const rows = await tx
+        .update(purchaseOrders)
+        .set({
+          supplier_confirmed_at: confirmedAt,
+          supplier_confirmed_by_name: data.confirmedByName,
+          supplier_confirmed_channel: data.channel,
+          supplier_confirmed_note: note,
+          updated_at: new Date(),
+        })
+        .where(
+          and(
+            eq(purchaseOrders.id, po.id),
+            eq(purchaseOrders.tenant_id, profile.tenantId),
+            inArray(purchaseOrders.status, [...SUPPLIER_EMAIL_PO_STATUSES]),
+            liveProjectCondition(purchaseOrders.project_id, profile.tenantId)
+          )
+        )
+        .returning({ id: purchaseOrders.id })
+      if (rows.length === 0) return false
+      await writeAuditLogInTransaction(tx, {
+        tenantId: profile.tenantId,
+        actorId: profile.user.id,
+        entityType: 'purchase_order',
+        entityId: po.id,
+        action: 'update',
+        diff: {
+          supplier_confirmation: {
+            from: {
+              at: po.confirmedAt?.toISOString() ?? null,
+              by: po.confirmedByName,
+              channel: po.channel,
+              note: po.note,
+            },
+            to: {
+              at: confirmedAt.toISOString(),
+              by: data.confirmedByName,
+              channel: data.channel,
+              note,
+            },
+          },
+        },
+      })
+      return true
+    })
+    if (!saved) {
+      return { error: 'The Purchase Order or its project changed; reload and try again.' }
+    }
+  } catch (error) {
+    console.error('[supplier-confirmation] save failed', databaseErrorTag(error))
+    return { error: 'The supplier confirmation could not be saved. Nothing was changed.' }
+  }
+
+  if (po.createdBy && po.createdBy !== profile.user.id) {
+    try {
+      await notifyUser({
+        tenantId: profile.tenantId,
+        recipientUserId: po.createdBy,
+        subject: `Supplier confirmed ${po.poNumber}`,
+        body: `${data.confirmedByName} confirmed by ${SUPPLIER_CONFIRMATION_CHANNEL_LABELS[data.channel].toLowerCase()} on ${data.confirmedOn}.`,
+        linkUrl: `/purchase-orders/${po.id}`,
+      })
+    } catch (error) {
+      // The confirmation is saved; a missed notification must not undo it.
+      console.error('[supplier-confirmation] notification failed', databaseErrorTag(error))
+    }
+  }
+
+  revalidatePath(`/purchase-orders/${po.id}`)
+  return {}
 }

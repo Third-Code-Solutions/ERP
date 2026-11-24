@@ -8,6 +8,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   select: vi.fn(),
   poWhere: vi.fn(),
+  can: vi.fn((_role: string, _capability: string) => false),
+  supplierConfirmation: vi.fn((_props: Record<string, unknown>) => null),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -15,7 +17,7 @@ vi.mock('@third-code-erp/auth', () => ({
     tenantId: '22222222-2222-4222-8222-222222222222',
     role: 'procurement',
   })),
-  can: () => false,
+  can: mocks.can,
 }))
 vi.mock('@/lib/require-route-access', () => ({ requireRouteAccess: vi.fn() }))
 vi.mock('@third-code-erp/database', () => {
@@ -40,6 +42,9 @@ vi.mock('@/components/procurement/receive-line-form', () => ({ ReceiveLineForm: 
 vi.mock('@/components/procurement/cost-code-assignment', () => ({ CostCodeAssignment: () => null }))
 vi.mock('@/components/procurement/po-line-stock-link', () => ({ PoLineStockLink: () => null }))
 vi.mock('@/components/procurement/supplier-email-banner', () => ({ SupplierEmailBanner: () => null }))
+vi.mock('@/components/procurement/supplier-confirmation', () => ({
+  SupplierConfirmation: mocks.supplierConfirmation,
+}))
 vi.mock('@/lib/procurement/po-line-stock-link-queries', () => ({ loadPoLineStockLinks: vi.fn() }))
 
 import PoDetailPage from './page'
@@ -72,6 +77,10 @@ const STORED = {
   commercial_approved_at: null,
   scm_issued_at: null,
   supplier_email_sent_at: null,
+  supplier_confirmed_at: null,
+  supplier_confirmed_by_name: null,
+  supplier_confirmed_channel: null,
+  supplier_confirmed_note: null,
   pm_approver_name: null,
   commercial_approver_name: null,
   scm_issuer_name: null,
@@ -99,6 +108,7 @@ async function render(row: Record<string, unknown>): Promise<string> {
 describe('purchase order detail tax labels', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.can.mockReturnValue(false)
     // The page uses the classic JSX transform under vitest.
     vi.stubGlobal('React', React)
   })
@@ -132,5 +142,63 @@ describe('purchase order detail tax labels', () => {
     const where = new PgDialect().sqlToQuery(mocks.poWhere.mock.calls[0]![0] as SQL)
     expect(where.sql).toBe('("purchase_orders"."id" = $1 and "purchase_orders"."tenant_id" = $2)')
     expect(where.params).toEqual([PO_ID, TENANT_ID])
+  })
+})
+
+describe('purchase order detail supplier confirmation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.can.mockReturnValue(false)
+    vi.stubGlobal('React', React)
+  })
+
+  const issuer = (_role: string, capability: string) => capability === 'po.issue'
+
+  it('lets a po.issue holder record a confirmation on an issued PO of a live project', async () => {
+    mocks.can.mockImplementation(issuer)
+
+    await render(STORED)
+
+    expect(mocks.supplierConfirmation).toHaveBeenCalledOnce()
+    expect(mocks.supplierConfirmation.mock.calls[0]![0]).toMatchObject({
+      poId: PO_ID,
+      recorded: null,
+      canRecord: true,
+    })
+  })
+
+  it('shows a recorded confirmation read-only to someone without po.issue', async () => {
+    await render({
+      ...STORED,
+      supplier_confirmed_at: new Date('2026-11-05T04:00:00.000Z'),
+      supplier_confirmed_by_name: 'Marlon Reyes',
+      supplier_confirmed_channel: 'phone',
+      supplier_confirmed_note: null,
+    })
+
+    expect(mocks.supplierConfirmation.mock.calls[0]![0]).toMatchObject({
+      recorded: { date: '2026-11-05', byName: 'Marlon Reyes', channel: 'phone', note: null },
+      canRecord: false,
+    })
+  })
+
+  it('does not offer recording on a retired project or before the PO is issued', async () => {
+    mocks.can.mockImplementation(issuer)
+
+    await render({ ...STORED, project_live: false })
+    expect(mocks.supplierConfirmation).not.toHaveBeenCalled()
+
+    await render({
+      ...STORED,
+      project_live: false,
+      supplier_confirmed_at: new Date('2026-11-05T04:00:00.000Z'),
+      supplier_confirmed_by_name: 'Marlon Reyes',
+      supplier_confirmed_channel: 'email',
+    })
+    expect(mocks.supplierConfirmation.mock.calls[0]![0]).toMatchObject({ canRecord: false })
+
+    mocks.supplierConfirmation.mockClear()
+    await render({ ...STORED, status: 'pending_scm_issuance' })
+    expect(mocks.supplierConfirmation).not.toHaveBeenCalled()
   })
 })
