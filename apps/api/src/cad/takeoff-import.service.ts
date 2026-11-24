@@ -34,6 +34,7 @@ import {
   TAKEOFF_PLACEHOLDER_DESCRIPTION_PREFIX,
   classifyBomLineKind,
   computeBomTotals,
+  isRecognizedTakeoffUnit,
   manualLineTotal,
   reclassifyBomLineForUnit,
   sameBomLineUnit,
@@ -577,8 +578,11 @@ export class TakeoffImportService {
         const rowValidationIssues = rowIssues.get(row.sourceRowKey) ?? []
         const existing = existingByRowKey.get(row.sourceRowKey)
         // An empty or invalid file value never replaces what an earlier line
-        // holds, so re-importing a file does not undo takeoff-queue fixes.
-        const unit = row.unit || existing?.unit || null
+        // holds, so re-importing a file does not undo takeoff-queue fixes. An
+        // unrecognized file unit counts as invalid: it would drop the line's
+        // parent and unit cost.
+        const fileUnit = row.unit && isRecognizedTakeoffUnit(row.unit) ? row.unit : null
+        const unit = fileUnit || existing?.unit || row.unit || null
         const fileQuantity = takeoffCommitQuantity(row.quantity)
         const quantity =
           fileQuantity === '0' && existing !== undefined ? existing.quantity : fileQuantity
@@ -927,7 +931,8 @@ export class TakeoffImportService {
         source,
         sourceKey,
         linesUpserted,
-        linesChanged,
+        // linesChanged stays out of the reply until the web that accepts it is
+        // live (the deployed web parses this reply strictly); it is in the audit.
         unresolvedCount,
         bomId,
       })

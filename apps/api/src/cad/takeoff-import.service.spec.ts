@@ -268,10 +268,10 @@ describe('takeoff import commit keeps estimator work', () => {
       earlierLine({ unit: 'SQM', unitCostCents: 2_000, quantity: '2.5000' }),
     ])
 
-    // The importer is told how many earlier lines the file rewrote.
-    await expect(h.service.execute(commit({ unit: 'sqm', quantity: 3 }), PRINCIPAL)).resolves.toMatchObject({
-      linesChanged: 1,
-    })
+    const result = await h.service.execute(commit({ unit: 'sqm', quantity: 3 }), PRINCIPAL)
+    // The deployed web parses this reply strictly, so linesChanged stays in the
+    // audit until the web that accepts it is live.
+    expect(result).not.toHaveProperty('linesChanged')
 
     const set = conflictSet(h)
     const unitCost = rendered(set.unit_cost_cents)
@@ -375,6 +375,38 @@ describe('takeoff import commit keeps estimator work', () => {
     // Same unit, so the classified grain stays and nothing is reopened.
     expect(rendered(conflictSet(h).classification_status).sql).toBe('"bom_line_items"."classification_status"')
     expect(h.inserts.has(takeoffUnresolvedItems)).toBe(false)
+  })
+
+  it('an unrecognized file unit keeps the line unit, its parent and its unit cost', async () => {
+    const material = { unit: 'bundle', description: 'Cable ladder bracket', quantity: 4 }
+    const h = commitHarness(
+      savedLine({ unit: 'set', description: 'Cable ladder bracket', quantity: '4.0000', parentLineItemId: 'work-1', unitCostCents: 9_000 }),
+      [
+        earlierLine({
+          kind: 'material_line',
+          classificationStatus: 'classified',
+          parentLineItemId: 'work-1',
+          unit: 'set',
+          unitCostCents: 9_000,
+          description: 'Cable ladder bracket',
+          quantity: '4.0000',
+        }),
+      ]
+    )
+
+    await h.service.execute(commit(material), PRINCIPAL)
+
+    const values = h.inserts.get(bomLineItems)?.calls.find((call) => call.method === 'values')
+    expect(values?.args[0]).toMatchObject({ unit: 'set' })
+    const set = conflictSet(h)
+    expect(rendered(set.parent_line_item_id).sql).toBe('"bom_line_items"."parent_line_item_id"')
+    expect(rendered(set.classification_status).sql).toBe('"bom_line_items"."classification_status"')
+    // 9,000 centavos per set x 4 = 36,000 for a manual line.
+    expect(rendered(set.unit_cost_cents).params).toEqual([9_000])
+    expect(rendered(set.line_total_cents).params).toEqual([36_000])
+    // INVALID_UOM is not reopened and no grain review opens.
+    expect(h.inserts.has(takeoffUnresolvedItems)).toBe(false)
+    expect(h.inserts.has(bomLineItemGrainReviews)).toBe(false)
   })
 
   it('a first import of an empty description still stores the placeholder', async () => {

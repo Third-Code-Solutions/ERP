@@ -62,6 +62,11 @@ function normalizeUnit(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, ' ')
 }
 
+/** Whether a takeoff unit is one the BOM recognizes (validation raises INVALID_UOM otherwise). */
+export function isRecognizedTakeoffUnit(value: string): boolean {
+  return RECOGNIZED_UOMS.has(normalizeUnit(value))
+}
+
 export function validateTakeoffRows(
   rows: ReadonlyArray<StructuredTakeoffRow>,
 ): TakeoffValidationIssue[] {
