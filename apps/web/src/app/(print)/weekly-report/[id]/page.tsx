@@ -73,7 +73,7 @@ export default async function WeeklyReportPrintPage({
         account_id: projects.account_id,
       })
       .from(projects)
-      .where(eq(projects.id, report.project_id))
+      .where(and(eq(projects.id, report.project_id), eq(projects.tenant_id, profile.tenantId)))
       .limit(1),
     db
       .select({ name: tenants.name })
@@ -93,7 +93,7 @@ export default async function WeeklyReportPrintPage({
           billing_address: accounts.billing_address,
         })
         .from(accounts)
-        .where(eq(accounts.id, project.account_id))
+        .where(and(eq(accounts.id, project.account_id), eq(accounts.tenant_id, profile.tenantId)))
         .limit(1)
     : [null]
 
