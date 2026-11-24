@@ -297,13 +297,18 @@ async function issueCocSigningLink(
 
     let session: Awaited<ReturnType<typeof createSigningSession>>
     try {
-      session = await createSigningSession({
-        tenantId: profile.tenantId,
-        entityType: 'coc',
-        entityId: coc.id,
-        signerEmail: signer.email,
-        signerName: signer.name,
-      })
+      // The canvas link row goes through this transaction: on the single-connection
+      // pool a second, outer connection would wait on the lock this request holds.
+      session = await createSigningSession(
+        {
+          tenantId: profile.tenantId,
+          entityType: 'coc',
+          entityId: coc.id,
+          signerEmail: signer.email,
+          signerName: signer.name,
+        },
+        tx
+      )
     } catch {
       console.error('[coc] signing session creation failed')
       return { error: 'The signing link could not be created. Try again.' }

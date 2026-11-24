@@ -143,6 +143,84 @@ describe('bank reconciliation actions', () => {
     expect(mocks.transaction).not.toHaveBeenCalled()
   })
 
+  it.each([
+    [
+      '2026-07-27,DEP-1,Customer deposit,500.00\n27/07/2026,DEP-2,Fee,-15.00',
+      'Line 3 date must use YYYY-MM-DD',
+    ],
+    [
+      '2026-07-27,DEP-1,Customer deposit,five hundred',
+      'Line 2 amount must be a signed number with at most two decimals',
+    ],
+    [
+      '2026-07-27,DEP-1,Customer deposit,0',
+      'Line 2 amount must be a safe, non-zero value',
+    ],
+    [
+      '2026-07-27,DEP-1,Pay "ACME" Inc,500.00',
+      'Line 2 has a stray quote. Quotes may only wrap a whole field; write a quote inside a field as two quotes.',
+    ],
+  ])('shows the CSV line that failed: %#', async (rows, expected) => {
+    const csv = `date,reference,description,amount\n${rows}`
+
+    const result = await createBankStatement({
+      ...validStatement,
+      sourceBase64: Buffer.from(csv, 'utf8').toString('base64'),
+    })
+
+    expect(result).toEqual({ ok: false, error: expected })
+    expect(mocks.transaction).not.toHaveBeenCalled()
+  })
+
+  it('imports identical rows as occurrences 1 and 2 instead of rejecting the statement', async () => {
+    const csv = [
+      'date,reference,description,amount',
+      '2026-07-27,FEE,Card fee,-15.00',
+      '2026-07-27,FEE,Card fee,-15.00',
+      '2026-07-28,DEP-1,Customer deposit,515.00',
+    ].join('\n')
+    mocks.select.mockReturnValue({
+      from: () => ({
+        where: () => ({
+          limit: async () => [
+            { id: validStatement.cashAccountId, currency: 'PHP' },
+          ],
+        }),
+      }),
+    })
+    const insertedLines: Array<Record<string, unknown>> = []
+    const tx = {
+      insert: vi.fn(() => ({
+        values: (rows: unknown) => {
+          if (Array.isArray(rows)) insertedLines.push(...rows)
+          return {
+            returning: async () => [{ id: STATEMENT_ID }],
+            then: (resolve: (value: undefined) => unknown) =>
+              Promise.resolve(resolve(undefined)),
+          }
+        },
+      })),
+    }
+    mocks.transaction.mockImplementation(
+      async (callback: (transaction: typeof tx) => unknown) => callback(tx)
+    )
+
+    const result = await createBankStatement({
+      ...validStatement,
+      closingBalanceCents: 148_500,
+      sourceBase64: Buffer.from(csv, 'utf8').toString('base64'),
+    })
+
+    expect(result).toEqual({ ok: true, id: STATEMENT_ID })
+    expect(
+      insertedLines.map((line) => [line.line_number, line.occurrence])
+    ).toEqual([
+      [1, 1],
+      [2, 2],
+      [3, 1],
+    ])
+  })
+
   it('treats a selected Core import failure as terminal with no Web fallback', async () => {
     mocks.financeReconciliationImportWritesUseCoreApi.mockReturnValue(true)
     mocks.createBankStatementThroughCoreApi.mockResolvedValue({

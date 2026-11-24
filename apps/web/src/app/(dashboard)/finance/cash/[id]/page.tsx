@@ -158,6 +158,7 @@ export default async function CashTransactionPage({
      and statement.tenant_id = line.tenant_id
     where line.matched_cash_transaction_id = ${transaction.id}::uuid
       and line.tenant_id = ${profile.tenantId}::uuid
+      and line.released_at is null
     limit 1
   `)
 

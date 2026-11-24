@@ -83,8 +83,43 @@ describe('signing integration routing', () => {
     expect(fetchMock).toHaveBeenCalledWith('https://sign.example.test/api/v1/submissions/sub%2042', {
       method: 'DELETE',
       headers: { 'X-Auth-Token': 'token-value' },
+      signal: expect.any(AbortSignal),
     })
     vi.unstubAllGlobals()
+  })
+
+  it('bounds the DocuSeal submission call with a 15 second timeout', async () => {
+    vi.stubEnv('DOCUSEAL_API_URL', 'https://sign.example.test')
+    vi.stubEnv('DOCUSEAL_API_TOKEN', 'token-value')
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: 'sub-1', slug: 'slug-1', url: 'https://sign.example.test/s/slug-1' }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const timeout = vi.spyOn(AbortSignal, 'timeout')
+
+    await createDocuSealSubmission({ templateId: 'vo-template', submitters: [{ email: 'client@example.test' }] })
+
+    expect(timeout).toHaveBeenCalledWith(15_000)
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ signal: expect.any(AbortSignal) })
+    timeout.mockRestore()
+    vi.unstubAllGlobals()
+  })
+
+  it('writes the canvas session row through the caller transaction', async () => {
+    mockedCreateCanvasSignSession.mockResolvedValue({
+      token: 'canvas-token',
+      url: 'http://localhost:3000/portal/sign/canvas-token',
+      expires_at: new Date('2026-08-15T00:00:00.000Z'),
+    })
+    const tx = { insert: vi.fn() }
+
+    await createSigningSession({ tenantId: 'tenant-id', entityType: 'variation_order', entityId: 'vo-id' }, tx as never)
+
+    expect(mockedCreateCanvasSignSession).toHaveBeenCalledWith(
+      expect.objectContaining({ entityType: 'variation_order', entityId: 'vo-id' }),
+      tx,
+    )
   })
 
   it('does not throw when DocuSeal refuses the archive', async () => {

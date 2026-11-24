@@ -1,4 +1,5 @@
 import { requireUuidRouteParams } from '@/lib/uuid-route-params'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -25,6 +26,8 @@ export default async function PoPrintPage({ params }: { params: Promise<{ id: st
   const { id } = await requireUuidRouteParams(params)
   const profile = await getUserProfile()
   if (!profile) return notFound()
+  // Print pages sit outside the dashboard layout: repeat the role rule of the page they print.
+  requireRouteAccess(profile.role, '/purchase-orders/[id]')
 
   const [po] = await db
     .select({

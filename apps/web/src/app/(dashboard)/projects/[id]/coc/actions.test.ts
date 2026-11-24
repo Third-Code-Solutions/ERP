@@ -142,13 +142,17 @@ describe('COC signing link lifecycle', () => {
         expiresAt: expect.any(String),
       })
       expect(mocks.findDefaultCocSigner).toHaveBeenCalledWith(TENANT_ID, PROJECT_ID, ACCOUNT_ID)
-      expect(mocks.createSigningSession).toHaveBeenCalledWith({
-        tenantId: TENANT_ID,
-        entityType: 'coc',
-        entityId: COC_ID,
-        signerEmail: 'ana@client.test',
-        signerName: 'Ana Client',
-      })
+      // The link row is written in the certificate's transaction, never on a second connection.
+      expect(mocks.createSigningSession).toHaveBeenCalledWith(
+        {
+          tenantId: TENANT_ID,
+          entityType: 'coc',
+          entityId: COC_ID,
+          signerEmail: 'ana@client.test',
+          signerName: 'Ana Client',
+        },
+        tx
+      )
       expect(mocks.set).toHaveBeenCalledWith({
         status: 'pending_signature',
         docuseal_submission_id: null,
@@ -245,7 +249,8 @@ describe('COC signing link lifecycle', () => {
       expect(result.signerEmail).toBe('ben@owner.test')
       expect(mocks.findDefaultCocSigner).not.toHaveBeenCalled()
       expect(mocks.createSigningSession).toHaveBeenCalledWith(
-        expect.objectContaining({ signerEmail: 'ben@owner.test', signerName: 'Ben Owner' })
+        expect.objectContaining({ signerEmail: 'ben@owner.test', signerName: 'Ben Owner' }),
+        tx
       )
     })
 
@@ -369,6 +374,7 @@ describe('COC signing link lifecycle', () => {
 
       expect(result).toMatchObject({ url: SIGN_URL, emailed: true, signerEmail: 'ana@client.test' })
       expect(rendered(mocks.lockWhere).params).toEqual([COC_ID, TENANT_ID, 'pending_signature'])
+      expect(mocks.createSigningSession).toHaveBeenCalledWith(expect.any(Object), tx)
       expect(rendered(mocks.updateWhere).params).toEqual([COC_ID, TENANT_ID, 'pending_signature'])
       expect(mocks.revokeOpenSigningSessions).toHaveBeenCalledWith(
         tx,
