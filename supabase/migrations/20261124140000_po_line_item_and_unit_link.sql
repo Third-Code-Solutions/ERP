@@ -20,12 +20,16 @@
 -- = line.uom_id) and the freeze after a receipt line exists are unchanged.
 --
 -- Locks, held until commit (milliseconds: no data changes here): the foreign
--- keys take SHARE ROW EXCLUSIVE on tenants, units_of_measure and users, and
--- CREATE TRIGGER takes SHARE ROW EXCLUSIVE on po_line_items. Writes to those
--- tables wait for the commit; reads continue.
+-- keys take SHARE ROW EXCLUSIVE on tenants, units_of_measure and users, so
+-- writes to those tables wait for the commit while their reads continue. The
+-- DROP TRIGGER IF EXISTS on po_line_items takes ACCESS EXCLUSIVE (before
+-- CREATE TRIGGER's SHARE ROW EXCLUSIVE), so reads and writes of po_line_items
+-- both wait for the commit.
 --
--- Rollback (after the 20261124140100 rollback; revert the web code that reads
--- unit_aliases first). The alias rows are tenant data, so copy them out first:
+-- Rollback (after the 20261124140100 rollback). First revert the web code that
+-- calls resolve_unit_of_measure() (purchase-orders/[id]/actions.ts) and the
+-- trial bootstrap that writes unit_aliases. The alias rows are tenant data, so
+-- copy them out first:
 --   begin;
 --   set local lock_timeout = '5s';
 --   set local statement_timeout = '60s';

@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { requireRouteAccess } from '@/lib/require-route-access'
-import { db } from '@third-code-erp/database'
+import { db, liveProjectCondition } from '@third-code-erp/database'
 import {
   deliverySchedules,
   materialItems,
@@ -91,6 +91,8 @@ export default async function NewStockReceiptPage({
         itemBaseUomId: materialItems.base_uom_id,
         itemBaseUomCode: itemUom.code,
         uomActive: unitsOfMeasure.is_active,
+        // A retired project's PO page hides the link control, so no link hint here.
+        projectLive: liveProjectCondition(purchaseOrders.project_id, profile.tenantId).mapWith(Boolean),
       })
       .from(poLineItems)
       .innerJoin(
@@ -212,6 +214,7 @@ export default async function NewStockReceiptPage({
               itemBaseUomCode: line.itemBaseUomCode,
               uomCode: line.uom,
               uomActive: line.uomActive,
+              linkable: line.projectLive,
             })
             return {
               id: line.id,

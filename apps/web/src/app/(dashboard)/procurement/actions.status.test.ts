@@ -247,7 +247,7 @@ describe('advancePoStatus delivery transitions', () => {
     selectPurchaseOrder('submitted', true, CREATOR_ID, false)
 
     await expect(advancePoStatus(PO_ID, 'confirmed')).resolves.toEqual({
-      error: 'This Purchase Order belongs to a retired project. Lines already linked to a stock item can still be received; unlinked lines can only be rejected or cancelled.',
+      error: 'This Purchase Order belongs to a retired project. Lines already linked to a stock item and unit can still be received; unlinked lines can only be rejected or cancelled.',
     })
     expect(mocks.update).not.toHaveBeenCalled()
     expect(mocks.writeAuditLog).not.toHaveBeenCalled()
@@ -386,7 +386,7 @@ describe('assignPoLineCostCode', () => {
   })
 
   const RETIRED =
-    'This Purchase Order belongs to a retired project. Lines already linked to a stock item can still be received; unlinked lines can only be rejected or cancelled.'
+    'This Purchase Order belongs to a retired project. Lines already linked to a stock item and unit can still be received; unlinked lines can only be rejected or cancelled.'
 
   it('refuses to recode a draft PO line of a retired project, without a write or audit', async () => {
     selectLine(false)

@@ -35,7 +35,8 @@ export async function loadPoLineStockLinks(input: {
   tenantId: string
   poId: string
   lineIds: string[]
-  withPicker: boolean
+  /** The page shows the link control (PO not cancelled, project live): load the picker and give link hints. */
+  editable: boolean
 }): Promise<{ byLine: Map<string, PoLineStockLinkView>; items: StockItemChoice[] }> {
   const { tenantId, poId, lineIds } = input
   const byLine = new Map<string, PoLineStockLinkView>()
@@ -106,13 +107,15 @@ export async function loadPoLineStockLinks(input: {
         itemBaseUomCode: row.itemBaseUomCode,
         uomCode: row.uomCode,
         uomActive: row.uomActive,
+        // A received line is frozen, so the page hides its control too.
+        linkable: input.editable && !frozen.has(row.lineId),
       }).reason,
       frozen: frozen.has(row.lineId),
     })
   }
 
   const needsPicker =
-    input.withPicker && [...byLine.values()].some((view) => view.reason)
+    input.editable && [...byLine.values()].some((view) => view.reason)
   const items = needsPicker
     ? await db
         .select({

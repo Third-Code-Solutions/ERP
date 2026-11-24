@@ -75,7 +75,7 @@ function line(patch: Record<string, unknown> = {}): Record<string, unknown> {
 }
 
 const RETIRED_ERROR =
-  'This Purchase Order belongs to a retired project. Lines already linked to a stock item can still be received; unlinked lines can only be rejected or cancelled.'
+  'This Purchase Order belongs to a retired project. Lines already linked to a stock item and unit can still be received; unlinked lines can only be rejected or cancelled.'
 
 function render(fragment: unknown): { sql: string; params: unknown[] } {
   return new PgDialect().sqlToQuery(fragment as SQL)

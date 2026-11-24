@@ -157,7 +157,7 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
         tenantId: profile.tenantId,
         poId: po.id,
         lineIds: lines.map((line) => line.id),
-        withPicker: stockLinkEditable,
+        editable: stockLinkEditable,
       })
     : null
   const payableRows = canManagePayables

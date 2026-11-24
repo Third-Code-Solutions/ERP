@@ -16,6 +16,7 @@ const READY: PoLineStockLinkInput = {
   itemBaseUomCode: 'PC',
   uomCode: 'PC',
   uomActive: true,
+  linkable: true,
 }
 
 describe('poLineStockReadiness', () => {
@@ -44,6 +45,19 @@ describe('poLineStockReadiness', () => {
 
     expect(result.ready).toBe(false)
     expect(result.reason).toContain('The line is in BOX but stock item MAT-1 is kept in PC')
+  })
+
+  it.each([
+    ['no item', { materialItemId: null, itemCode: null }, 'Not linked to a stock item.'],
+    ['no unit', { uomId: null, uomCode: null }, 'No unit of measure on the line.'],
+    [
+      'another unit',
+      { uomId: 'uom-box', uomCode: 'BOX' },
+      "The line is in BOX but stock item MAT-1 is kept in PC. Correct the item's unit in Inventory setup.",
+    ],
+  ])('gives no link hint for %s where the line cannot be linked', (_name, patch, reason) => {
+    const result = poLineStockReadiness({ ...READY, ...patch, linkable: false })
+    expect(result).toEqual({ ready: false, reason })
   })
 })
 

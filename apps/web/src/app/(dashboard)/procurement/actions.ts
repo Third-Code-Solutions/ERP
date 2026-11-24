@@ -438,7 +438,7 @@ export async function createPoFromBom(
 // Retiring a project does not close its POs: goods already ordered can still be
 // received, and a PO can still be rejected or cancelled, but not committed further.
 const RETIRED_PROJECT_PO_ERROR =
-  'This Purchase Order belongs to a retired project. Lines already linked to a stock item can still be received; unlinked lines can only be rejected or cancelled.'
+  'This Purchase Order belongs to a retired project. Lines already linked to a stock item and unit can still be received; unlinked lines can only be rejected or cancelled.'
 // The direct (non-Core) writes change a PO only from the status they read, and the
 // forward steps only while its project is live, so a concurrent change or a
 // retirement is not overwritten.

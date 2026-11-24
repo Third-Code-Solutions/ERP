@@ -16,6 +16,8 @@ export interface PoLineStockLinkInput {
   itemBaseUomCode: string | null
   uomCode: string | null
   uomActive: boolean | null
+  /** False where the PO page hides the link control (cancelled PO, retired project): no link hint. */
+  linkable: boolean
 }
 
 export interface PoLineStockReadiness {
@@ -34,7 +36,9 @@ export function poLineStockReadiness(
 ): PoLineStockReadiness {
   if (!line.materialItemId || !line.itemCode) {
     return NOT_READY(
-      'Not linked to a stock item. Open the Purchase Order and link it.'
+      line.linkable
+        ? 'Not linked to a stock item. Open the Purchase Order and link it.'
+        : 'Not linked to a stock item.'
     )
   }
   if (!line.itemActive) {
@@ -47,7 +51,9 @@ export function poLineStockReadiness(
   }
   if (!line.uomId || !line.uomCode) {
     return NOT_READY(
-      'No unit of measure on the line. Open the Purchase Order and link the stock item to set it.'
+      line.linkable
+        ? 'No unit of measure on the line. Open the Purchase Order and link the stock item to set it.'
+        : 'No unit of measure on the line.'
     )
   }
   if (!line.uomActive) {
@@ -55,8 +61,11 @@ export function poLineStockReadiness(
   }
   if (line.itemBaseUomId !== line.uomId) {
     const itemUnit = line.itemBaseUomCode ?? 'another unit'
+    const fix = line.linkable
+      ? `Link an item kept in ${line.uomCode}, or correct the item's unit in Inventory setup.`
+      : "Correct the item's unit in Inventory setup."
     return NOT_READY(
-      `The line is in ${line.uomCode} but stock item ${line.itemCode} is kept in ${itemUnit}. Link an item kept in ${line.uomCode}, or correct the item's unit in Inventory setup.`
+      `The line is in ${line.uomCode} but stock item ${line.itemCode} is kept in ${itemUnit}. ${fix}`
     )
   }
   return { ready: true, reason: null }
