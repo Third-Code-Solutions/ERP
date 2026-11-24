@@ -118,12 +118,14 @@ test(
 
       const admin = await openRole(browser, target, 'admin')
       const viewerName = `trial-live ${RUN_ID}`
+      let mintAttempted = false
       let portalUrl: string | null = null
       try {
         await admin.page.goto(`/projects/${target.projectId}/access`)
         await admin.page.locator('input[name="viewer_name"]').fill(viewerName)
         await admin.page.locator('input[name="viewer_email"]').fill(`trial-live-${RUN_ID}@example.invalid`)
         await admin.page.locator('input[name="days"]').fill('1')
+        mintAttempted = true
         await admin.page.getByRole('button', { name: 'Mint client link' }).click()
         const link = admin.page.locator('code').filter({ hasText: '/portal/project/' })
         const token = /\/portal\/project\/([^/?#\s]+)/.exec(await link.innerText())?.[1]
@@ -147,11 +149,14 @@ test(
         }
       } finally {
         try {
-          if (portalUrl) {
+          // Revoke by viewer name, so a link is revoked even when reading its token failed.
+          if (mintAttempted) {
             const revoke = admin.page.getByRole('row').filter({ hasText: viewerName }).getByRole('button', { name: 'Revoke' })
             await admin.page.goto(`/projects/${target.projectId}/access`)
-            await revoke.click()
+            if ((await revoke.count()) > 0) await revoke.click()
             await expect(revoke).toHaveCount(0)
+          }
+          if (portalUrl) {
             const client = await browser.newContext({ baseURL: target.baseUrl })
             try {
               const page = await client.newPage()

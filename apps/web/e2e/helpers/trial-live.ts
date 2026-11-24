@@ -72,8 +72,11 @@ export async function openRole(
       page,
       accessToken: session.accessToken,
       close: async () => {
-        await session.cleanup()
-        await context.close()
+        try {
+          await session.cleanup()
+        } finally {
+          await context.close()
+        }
       },
     }
   } catch (error) {

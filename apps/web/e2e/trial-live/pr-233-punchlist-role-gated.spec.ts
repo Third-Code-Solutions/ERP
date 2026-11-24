@@ -25,7 +25,8 @@ test('punchlist status controls are role-gated', { tag: '@pr-233' }, async ({ br
     await expect(page.locator('a[href^="/punchlist/"]').first()).toBeVisible()
     await page.goto(`/punchlist/${item.id}`)
     await expect(page.getByText(VIEW_ONLY)).toBeVisible()
-    await expect(page.getByText('Status actions')).toHaveCount(0)
+    // The "Status actions" heading renders for readers too; the gate is that no status control does.
+    await expect(page.getByRole('heading', { name: 'Status actions' }).locator('xpath=..').getByRole('button')).toHaveCount(0)
   } finally {
     await readerSession.close()
   }

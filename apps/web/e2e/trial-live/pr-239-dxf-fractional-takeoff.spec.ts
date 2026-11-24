@@ -48,20 +48,24 @@ test('a DXF with a fractional area produces a fractional takeoff quantity', { ta
   } finally {
     try {
       const { page } = admin
-      if ((await tenantRows(target, 'scope_items', scopeQuery, scopeRow)).length > 0) {
-        await page.goto(`/projects/${target.projectId}/scope`)
-        const rows = page.getByRole('row').filter({ hasText: description })
-        for (let left = await rows.count(); left > 0; left -= 1) {
-          await rows.first().getByTitle('Remove item').click()
-          await expect(rows).toHaveCount(left - 1)
+      try {
+        if ((await tenantRows(target, 'scope_items', scopeQuery, scopeRow)).length > 0) {
+          await page.goto(`/projects/${target.projectId}/scope`)
+          const rows = page.getByRole('row').filter({ hasText: description })
+          for (let left = await rows.count(); left > 0; left -= 1) {
+            await rows.first().getByTitle('Remove item').click()
+            await expect(rows).toHaveCount(left - 1)
+          }
         }
-      }
-      // The document row can exist even when /complete failed, so always look for it.
-      await page.goto(`/projects/${target.projectId}/documents`)
-      const remove = page.getByRole('button', { name: `Delete ${fileName}` })
-      if ((await remove.count()) > 0) {
-        await remove.click()
-        await expect(remove).toHaveCount(0)
+      } finally {
+        // The document row can exist even when /complete or the scope cleanup failed,
+        // and deleting it also removes its derived scope rows, so always look for it.
+        await page.goto(`/projects/${target.projectId}/documents`)
+        const remove = page.getByRole('button', { name: `Delete ${fileName}` })
+        if ((await remove.count()) > 0) {
+          await remove.click()
+          await expect(remove).toHaveCount(0)
+        }
       }
       expect(await tenantRows(target, 'scope_items', scopeQuery, scopeRow)).toEqual([])
     } finally {
