@@ -8,6 +8,7 @@ gateTrialLive()
 
 // One closed 1 m x 12.3456789 m polyline: 12.3456789 sqm, committed at 4 dp.
 const FIXTURE = resolve(__dirname, '../fixtures/trial-live-fractional-area.dxf')
+const UPLOAD_HOP = /^\/(?:api\/upload\/(?:sign|complete)$|storage\/v1\/object\/upload\/sign\/)/
 const scopeRow = z.object({ id: z.string().uuid(), quantity: z.coerce.number(), quantity_decimal: z.coerce.number() })
 
 test('a DXF with a fractional area produces a fractional takeoff quantity', { tag: '@pr-239' }, async ({ browser }, testInfo) => {
@@ -22,16 +23,44 @@ test('a DXF with a fractional area produces a fractional takeoff quantity', { ta
   try {
     const { page } = admin
     await page.goto(`/projects/${target.projectId}/documents`)
-    const complete = page.waitForResponse(
-      (response) => response.url().includes('/api/upload/complete') && response.request().method() === 'POST',
-      { timeout: 120_000 }
-    )
-    await page.getByTestId('documents-file-input').setInputFiles({
+    // The browser signs, uploads to storage, then posts /complete. Record each hop
+    // (path only: the storage query carries the upload token) so a stall says where.
+    const hops: string[] = []
+    const hop = (url: string) => new URL(url).pathname.split('/documents/')[0]
+    const isHop = (url: string) => UPLOAD_HOP.test(new URL(url).pathname)
+    page.on('response', (r) => {
+      if (isHop(r.url())) hops.push(`${r.request().method()} ${hop(r.url())} ${r.status()}`)
+    })
+    page.on('requestfailed', (q) => {
+      if (isHop(q.url())) hops.push(`${q.method()} ${hop(q.url())} failed: ${q.failure()?.errorText ?? 'unknown'}`)
+    })
+    const complete = page
+      .waitForResponse((r) => r.url().includes('/api/upload/complete') && r.request().method() === 'POST', { timeout: 120_000 })
+      .catch(() => null)
+    // The user's path: the button opens the file chooser, which needs the hydrated click handler.
+    const trigger = page.getByTestId('documents-upload-trigger')
+    const chooser = page.waitForEvent('filechooser', { timeout: 30_000 })
+    await trigger.click()
+    await (
+      await chooser
+    ).setFiles({
       name: fileName,
       mimeType: 'application/octet-stream',
       buffer: Buffer.from(readFileSync(FIXTURE, 'utf8').replaceAll('TRIAL-ROOM', layer)),
     })
-    const response = await complete
+    const uploadError = trigger.locator('xpath=..').getByRole('alert')
+    const failed = uploadError.waitFor({ timeout: 120_000 }).then(
+      () => uploadError.innerText(),
+      () => null
+    )
+    const response = await Promise.race([
+      complete,
+      failed.then((text) => {
+        if (text !== null) throw new Error(`upload failed: ${text}; upload requests: ${hops.join(', ') || 'none'}`)
+        return complete
+      }),
+    ])
+    if (!response) throw new Error(`no /api/upload/complete response in 120 s; upload requests: ${hops.join(', ') || 'none'}`)
     const body = await response.text()
     expect(response.status(), body).toBe(200)
     expect(JSON.parse(body)).toMatchObject({
