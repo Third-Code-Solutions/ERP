@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures'
+import { expect, test } from './base-test'
 import { tmpdir } from 'node:os'
 import { join, resolve, sep, basename } from 'node:path'
 

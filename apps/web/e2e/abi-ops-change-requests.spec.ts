@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures'
+import { expect, test } from './base-test'
 import { requireE2EBaseUrl } from './helpers/env'
 import { authenticateRole } from './helpers/supabase-magic-link'
 

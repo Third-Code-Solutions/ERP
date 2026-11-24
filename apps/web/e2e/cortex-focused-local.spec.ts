@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { expect, test } from './fixtures'
+import { expect, test } from './base-test'
 
 const RUN_MAGIC_LINK_TEST = process.env.E2E_MAGIC_LINK_AUTH === '1'
 const FOCUS_REF_TABLE = 'projects'

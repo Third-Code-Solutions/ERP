@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures'
+import { expect, test } from './base-test'
 import { createHash } from 'node:crypto'
 import { basename, join, resolve, sep } from 'node:path'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'

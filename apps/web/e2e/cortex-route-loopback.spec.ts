@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures'
+import { expect, test } from './base-test'
 import type { CortexEntityResponse } from '../src/lib/cortex/entity-response'
 
 const AUTH_ORIGIN = 'http://127.0.0.1:4328'

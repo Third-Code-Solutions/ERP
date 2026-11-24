@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures'
+import { expect, test } from './base-test'
 import { authenticateRole, type MagicLinkRole } from './helpers/supabase-magic-link'
 import { assertAuthenticatedSmokeReady } from './helpers/authenticated-smoke-readiness'
 import { assertConfiguredDemoProject } from './helpers/production-demo-boundary'

@@ -1,6 +1,6 @@
 import { createHmac } from 'node:crypto'
 
-import { expect, test, type Page, type Request } from './fixtures'
+import { expect, test, type Page, type Request } from './base-test'
 
 import { requireE2ECredentials } from './helpers/auth'
 

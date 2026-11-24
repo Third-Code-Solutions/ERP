@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { createServer, type IncomingHttpHeaders, type RequestListener, type Server } from 'node:http'
-import { test, expect } from './fixtures'
+import { test, expect } from './base-test'
 
 const SECRET = 'e2e-header-scope-check'
 const VERCEL_HEADERS = ['x-vercel-protection-bypass', 'x-vercel-skip-toolbar']
@@ -68,9 +68,11 @@ test('Vercel preview headers reach the app origin and never another origin', asy
   }
 })
 
-test('every spec takes test from the shared fixture', () => {
-  const direct = readdirSync(__dirname)
-    .filter((file) => file.endsWith('.spec.ts'))
-    .filter((file) => /from '@playwright\/test'/.test(readFileSync(`${__dirname}/${file}`, 'utf8')))
-  expect(direct, 'these specs bypass e2e/fixtures.ts and its per-origin Vercel headers').toEqual([])
+// Any file that takes test from @playwright/test skips the per-origin headers.
+test('every e2e file takes test from base-test.ts', () => {
+  const direct = (readdirSync(__dirname, { recursive: true }) as string[])
+    .map((file) => file.replaceAll('\\', '/'))
+    .filter((file) => file.endsWith('.ts') && file !== 'base-test.ts')
+    .filter((file) => /import\s*\{[^}]*\btest\b[^}]*\}\s*from '@playwright\/test'/.test(readFileSync(`${__dirname}/${file}`, 'utf8')))
+  expect(direct, 'these files bypass e2e/base-test.ts and its per-origin Vercel headers').toEqual([])
 })

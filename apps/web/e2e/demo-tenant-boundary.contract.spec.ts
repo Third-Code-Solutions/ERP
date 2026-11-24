@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures'
+import { expect, test } from './base-test'
 import {
   assertProductionDemoBoundary,
   DEMO_ROLE_EMAILS,

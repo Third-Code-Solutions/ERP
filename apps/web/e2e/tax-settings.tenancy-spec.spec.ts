@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures'
+import { expect, test } from './base-test'
 import { login } from './helpers/auth'
 
 // Spec tenancy AC-TEN-01 + AC-TEN-04: the read-only /settings/tax view shows the

@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures'
+import { test, expect } from './base-test'
 import { login } from './helpers/auth'
 
 test.describe('M-CRM KYC review queue', () => {

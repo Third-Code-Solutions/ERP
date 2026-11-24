@@ -1,4 +1,4 @@
-import { expect, test, type Page } from './fixtures'
+import { expect, test, type Page } from './base-test'
 
 async function login(page: Page, email = 'kurt@thirdcodesolutions.com') {
   await page.goto('/auth/login')

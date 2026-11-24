@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures'
+import { expect, test } from './base-test'
 import { authenticateRole, type MagicLinkRole } from './helpers/supabase-magic-link'
 
 const RUN_SUBMITTAL_MATRIX = process.env.E2E_SUBMITTAL_AUTH === '1'

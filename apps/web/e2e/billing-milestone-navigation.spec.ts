@@ -1,4 +1,4 @@
-import { expect, test, type Page } from './fixtures'
+import { expect, test, type Page } from './base-test'
 import { tmpdir } from 'node:os'
 import { basename, join, resolve, sep } from 'node:path'
 import { projectBillingMilestoneListResultSchema, type ProjectBillingMilestoneRow } from '@third-code-erp/shared-types'

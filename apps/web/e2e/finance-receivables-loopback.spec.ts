@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures'
+import { expect, test } from './base-test'
 
 const AUTH_ORIGIN = 'http://127.0.0.1:4388'
 const WEB_ORIGIN = 'http://127.0.0.1:4387'

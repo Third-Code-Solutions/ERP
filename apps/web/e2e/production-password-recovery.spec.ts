@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures'
+import { expect, test } from './base-test'
 
 test.use({ trace: 'off', screenshot: 'off', video: 'off' })
 

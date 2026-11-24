@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures'
+import { expect, test } from './base-test'
 import { roleHasCapability } from '@third-code-erp/shared-types/authorization'
 import { z } from 'zod'
 import {

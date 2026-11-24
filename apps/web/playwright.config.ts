@@ -13,7 +13,7 @@ export default defineConfig({
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
-    // Vercel bypass headers are added per origin in e2e/fixtures.ts.
+    // Vercel bypass headers are added per origin in e2e/base-test.ts.
   },
   projects: [
     {
