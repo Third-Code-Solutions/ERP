@@ -12,7 +12,10 @@ export interface BomWithoutRfq {
   project_name: string
 }
 
-/** Approved or locked BOMs of live projects that no RFQ was made for, newest first. */
+/**
+ * The latest approved or locked BOM of each live project (the version the
+ * invoice draft bills), when no RFQ was made for it, newest first.
+ */
 export async function listApprovedBomsWithoutRfq(tenantId: string): Promise<BomWithoutRfq[]> {
   return db
     .select({
@@ -32,6 +35,14 @@ export async function listApprovedBomsWithoutRfq(tenantId: string): Promise<BomW
         eq(boms.tenant_id, tenantId),
         inArray(boms.status, ['approved', 'locked']),
         liveProjectCondition(boms.project_id, tenantId),
+        // A superseded approved version is not offered for quoting.
+        sql`not exists (
+          select 1 from ${boms} as newer
+          where newer.tenant_id = ${tenantId}
+            and newer.project_id = ${boms.project_id}
+            and newer.status in ('approved', 'locked')
+            and newer.version > ${boms.version}
+        )`,
         sql`not exists (
           select 1 from ${rfqs}
           where ${rfqs.bom_id} = ${boms.id}

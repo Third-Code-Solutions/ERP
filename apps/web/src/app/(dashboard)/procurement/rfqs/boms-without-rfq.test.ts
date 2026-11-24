@@ -63,8 +63,12 @@ describe('listApprovedBomsWithoutRfq', () => {
     expect(where.sql).toContain('"boms"."status" in ($')
     expect(where.sql).toMatch(/not exists \(\s*select 1 from "rfqs"/)
     expect(where.sql).toContain('"rfqs"."tenant_id" = $')
-    // BOM tenant, live-project tenant and the RFQ check each bind the caller tenant.
-    expect(where.params).toEqual([TENANT_ID, 'approved', 'locked', TENANT_ID, TENANT_ID])
+    // Only the latest approved or locked version of the project's BOM is offered.
+    expect(where.sql).toMatch(
+      /not exists \(\s*select 1 from "boms" as newer\s+where newer\.tenant_id = \$\d+\s+and newer\.project_id = "boms"\."project_id"\s+and newer\.status in \('approved', 'locked'\)\s+and newer\.version > "boms"\."version"/
+    )
+    // BOM tenant, live-project tenant, the newer-version check and the RFQ check each bind the caller tenant.
+    expect(where.params).toEqual([TENANT_ID, 'approved', 'locked', TENANT_ID, TENANT_ID, TENANT_ID])
     expect(query.limit).toHaveBeenCalledWith(50)
   })
 })

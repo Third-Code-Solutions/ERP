@@ -17,7 +17,7 @@ describe('claim draft form', () => {
     expect(markup).toContain('for="claim-project"')
     expect(markup).toContain('for="claim-amount"')
     expect(markup).toContain('name="amount_php"')
-    expect(markup).toContain('Amount (₱)')
+    expect(markup).toContain('Amount (₱, excl. VAT)')
     expect(markup).toContain('Save as draft')
   })
 })

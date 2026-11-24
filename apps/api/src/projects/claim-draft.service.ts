@@ -14,8 +14,10 @@ import {
   projects,
   tenants,
   users,
+  variationOrders,
 } from '@third-code-erp/database/schema'
 import {
+  CLAIM_CAP_EXCEEDED_CODE,
   claimDraftCommandReceiptSchema,
   claimDraftPayload,
   createClaimDraftCommandSchema,
@@ -52,10 +54,12 @@ function hashPayload(command: CreateClaimDraftCommand): string {
   return createHash('sha256').update(claimDraftPayload(command)).digest('hex')
 }
 
-function pesoText(cents: bigint): string {
+function pesoText(value: bigint): string {
+  const sign = value < 0n ? '-' : ''
+  const cents = value < 0n ? -value : value
   const whole = cents / 100n
   const fraction = (cents % 100n).toString().padStart(2, '0')
-  return `₱${whole.toLocaleString('en-PH')}.${fraction}`
+  return `${sign}₱${whole.toLocaleString('en-PH')}.${fraction}`
 }
 
 function nextClaimNumber(maxSuffix: string | null): string {
@@ -85,7 +89,7 @@ export class ClaimDraftService {
           const replay = await this.findReceipt(transaction, actor, input.projectId, input.clientRequestId, payloadHash)
           if (replay) return createClaimDraftResultSchema.parse({ projectId: input.projectId, created: false, changed: false, receipt: replay })
 
-          await this.assertWithinApprovedBomValue(transaction, actor.tenantId, input.projectId, input.amountCents)
+          await this.assertWithinContractSum(transaction, actor.tenantId, input.projectId, input.amountCents)
 
           const [max] = await transaction.execute<{ max_suffix: string | null }>(sql`
             select max((substring(${progressClaims.claim_number} from '^PC-([0-9]+)$'))::numeric)::text as max_suffix
@@ -182,37 +186,53 @@ export class ClaimDraftService {
   }
 
   /**
-   * Live claims plus the new one may not exceed the latest approved or locked
-   * BOM TCV (the same BOM the invoice draft bills). Runs under the project lock,
-   * so two concurrent drafts cannot both pass. A project with no approved BOM
-   * has no contract value to cap against and is left to Commercial's review.
+   * Live claims plus the new one may not exceed the contract sum: the TCV of
+   * the latest approved or locked BOM (the BOM the invoice draft bills) plus
+   * the cost impact of every signed variation order; a deductive VO subtracts.
+   * Claims, TCV and VO impacts are all VAT-exclusive, so they compare as is.
+   * Gap D-2 (owner Q1): DUPA-priced lines carry 12% VAT inside TCV, so on such
+   * a BOM the cap is up to 12% generous; fixing D-2 tightens it with no change
+   * here. Runs under the project lock, so two concurrent drafts cannot both
+   * pass. A project with no approved BOM has no contract sum and is uncapped.
    */
-  private async assertWithinApprovedBomValue(transaction: DatabaseTransaction, tenantId: string, projectId: string, newAmountCents: number): Promise<void> {
+  private async assertWithinContractSum(transaction: DatabaseTransaction, tenantId: string, projectId: string, newAmountCents: number): Promise<void> {
     const [bom] = await transaction
       .select({ tcvCents: sql<string>`cast(${boms.tcv_cents} as text)` })
       .from(boms)
       .where(and(eq(boms.project_id, projectId), eq(boms.tenant_id, tenantId), inArray(boms.status, ['approved', 'locked'])))
       .orderBy(desc(boms.version))
       .limit(1)
+      .for('share')
     if (!bom) return
+    const [signed] = await transaction
+      .select({ total: sql<string>`coalesce(sum(${variationOrders.cost_impact_cents}), 0)::text` })
+      .from(variationOrders)
+      .where(and(eq(variationOrders.tenant_id, tenantId), eq(variationOrders.project_id, projectId), eq(variationOrders.status, 'signed')))
     const [live] = await transaction
       .select({ total: sql<string>`coalesce(sum(${progressClaims.amount_cents}), 0)::text` })
       .from(progressClaims)
       .where(and(eq(progressClaims.tenant_id, tenantId), eq(progressClaims.project_id, projectId), notInArray(progressClaims.status, RELEASED_CLAIM_STATUSES)))
-    let contractCents: bigint
+    let bomCents: bigint
+    let voCents: bigint
     let liveCents: bigint
     try {
-      contractCents = BigInt(bom.tcvCents)
+      bomCents = BigInt(bom.tcvCents)
+      voCents = BigInt(signed?.total ?? '0')
       liveCents = BigInt(live?.total ?? '0')
     } catch {
       throw new InternalServerErrorException('Claim totals are not exact centavo amounts')
     }
-    const proposedCents = liveCents + BigInt(newAmountCents)
-    if (proposedCents > contractCents) {
-      throw new ConflictException(
-        `This claim would bring the project's live claims to ${pesoText(proposedCents)}, above the approved BOM value of ${pesoText(contractCents)}. Lower the amount or reject an earlier claim.`,
-      )
-    }
+    const contractCents = bomCents + voCents
+    const remainingCents = contractCents - liveCents
+    if (BigInt(newAmountCents) <= remainingCents) return
+    const voPart = voCents === 0n ? '' : `${voCents > 0n ? ' plus' : ' less'} signed variation orders ${pesoText(voCents < 0n ? -voCents : voCents)}`
+    const basis = `the contract sum of ${pesoText(contractCents)} (approved BOM ${pesoText(bomCents)}${voPart}, excl. VAT)`
+    throw new ConflictException({
+      code: CLAIM_CAP_EXCEEDED_CODE,
+      message: remainingCents <= 0n
+        ? `No further claim fits the contract sum. Reject or cancel a claim, or sign a variation order. Live claims total ${pesoText(liveCents)} against ${basis}.`
+        : `This claim is above what can still be claimed. At most ${pesoText(remainingCents)} remains of ${basis} after live claims of ${pesoText(liveCents)}.`,
+    })
   }
 
   private async lockProject(transaction: DatabaseTransaction, projectId: string, tenantId: string): Promise<void> {

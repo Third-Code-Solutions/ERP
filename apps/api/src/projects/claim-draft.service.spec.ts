@@ -1,6 +1,17 @@
 import 'reflect-metadata'
 
+import { createHash } from 'node:crypto'
 import { ConflictException } from '@nestjs/common'
+import {
+  auditLog,
+  boms,
+  progressClaims,
+  projects,
+  tenants,
+  users,
+  variationOrders,
+} from '@third-code-erp/database/schema'
+import { claimDraftPayload, createClaimDraftCommandSchema } from '@third-code-erp/shared-types'
 import { describe, expect, it, vi } from 'vitest'
 import type { SQL } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
@@ -21,29 +32,40 @@ function command(amountCents: number) {
   return { clientRequestId: REQUEST_ID, projectId: PROJECT_ID, milestonePct: 40, amountCents, description: 'Mobilization' }
 }
 
-function chain(rows: unknown[]) {
-  const builder: Record<string, unknown> = {}
-  for (const method of ['from', 'where', 'limit', 'for', 'orderBy']) builder[method] = vi.fn().mockReturnValue(builder)
-  builder.then = (onFulfilled?: (value: unknown[]) => unknown, onRejected?: (reason: unknown) => unknown) =>
-    Promise.resolve(rows).then(onFulfilled, onRejected)
-  return builder
-}
-
-/**
- * `bomRows` is what the cap reads for the latest approved/locked BOM and
- * `liveRows` the sum of live claims; both come after admit, project lock and
- * the replay lookup.
- */
-function build(bomRows: unknown[], liveRows: unknown[]) {
-  const queue: unknown[][] = [
-    [{ role: 'finance', status: 'active', email: 'finance@example.test' }],
-    [{ status: 'active' }],
-    [{ id: PROJECT_ID }],
-    [],
-    bomRows,
-    liveRows,
-  ]
-  const select = vi.fn(() => chain(queue.shift() ?? []))
+// Each select is answered by the table it reads, so adding a query does not
+// shift the others. `wheres` and `locks` keep each table's predicate and lock.
+function build(rows: { bom?: unknown[]; vos?: unknown[]; live?: unknown[]; receipt?: unknown[] }) {
+  const byTable = new Map<unknown, unknown[]>([
+    [users, [{ role: 'finance', status: 'active', email: 'finance@example.test' }]],
+    [tenants, [{ status: 'active' }]],
+    [projects, [{ id: PROJECT_ID }]],
+    [auditLog, rows.receipt ?? []],
+    [boms, rows.bom ?? []],
+    [variationOrders, rows.vos ?? [{ total: '0' }]],
+    [progressClaims, rows.live ?? [{ total: '0' }]],
+  ])
+  const wheres = new Map<unknown, SQL>()
+  const locks = new Map<unknown, unknown>()
+  const select = vi.fn(() => {
+    let table: unknown
+    const builder: Record<string, unknown> = {}
+    for (const method of ['limit', 'orderBy']) builder[method] = vi.fn().mockReturnValue(builder)
+    builder.from = vi.fn((from: unknown) => {
+      table = from
+      return builder
+    })
+    builder.where = vi.fn((where: SQL) => {
+      wheres.set(table, where)
+      return builder
+    })
+    builder.for = vi.fn((strength: unknown) => {
+      locks.set(table, strength)
+      return builder
+    })
+    builder.then = (onFulfilled?: (value: unknown[]) => unknown, onRejected?: (reason: unknown) => unknown) =>
+      Promise.resolve(byTable.get(table) ?? []).then(onFulfilled, onRejected)
+    return builder
+  })
   const values = vi.fn((row: { amount_cents: number }) => ({
     returning: vi.fn().mockResolvedValue([
       {
@@ -65,63 +87,131 @@ function build(bomRows: unknown[], liveRows: unknown[]) {
     { client: { transaction: async (callback: (tx: unknown) => unknown) => callback({ select, insert, execute }) } } as unknown as DatabaseService,
     audit as unknown as AuditService,
   )
-  return { service, insert, values, select }
+  const whereOf = (table: unknown) => new PgDialect().sqlToQuery(wheres.get(table)!)
+  return { service, insert, values, whereOf, locks }
 }
 
-describe('ClaimDraftService cumulative cap', () => {
-  it('refuses a claim that takes live claims above the approved BOM value, naming both amounts', async () => {
-    const { service, insert } = build([{ tcvCents: '1000000' }], [{ total: '900000' }])
+async function capRefusal(attempt: Promise<unknown>): Promise<{ code: string; message: string }> {
+  const error = await attempt.then(
+    () => null,
+    (caught: unknown) => caught,
+  )
+  expect(error).toBeInstanceOf(ConflictException)
+  return (error as ConflictException).getResponse() as { code: string; message: string }
+}
 
-    const attempt = service.create(command(150_000), PRINCIPAL)
+const BOM = [{ tcvCents: '1000000' }]
 
-    await expect(attempt).rejects.toBeInstanceOf(ConflictException)
-    await expect(attempt).rejects.toThrow(
-      "This claim would bring the project's live claims to ₱10,500.00, above the approved BOM value of ₱10,000.00.",
-    )
+describe('ClaimDraftService contract-sum cap', () => {
+  it('refuses a claim above what remains, naming the remaining amount and the contract split', async () => {
+    const { service, insert } = build({ bom: BOM, live: [{ total: '900000' }] })
+
+    const refusal = await capRefusal(service.create(command(150_000), PRINCIPAL))
+
+    expect(refusal).toEqual({
+      code: 'claim_cap_exceeded',
+      message:
+        'This claim is above what can still be claimed. At most ₱1,000.00 remains of the contract sum of ₱10,000.00 (approved BOM ₱10,000.00, excl. VAT) after live claims of ₱9,000.00.',
+    })
     expect(insert).not.toHaveBeenCalled()
   })
 
-  it('allows a claim that brings live claims exactly to the approved BOM value', async () => {
-    const { service, values } = build([{ tcvCents: '1000000' }], [{ total: '850000' }])
+  it('allows a claim that brings live claims exactly to the contract sum', async () => {
+    const { service, values } = build({ bom: BOM, live: [{ total: '850000' }] })
 
     await expect(service.create(command(150_000), PRINCIPAL)).resolves.toMatchObject({ created: true, changed: true })
     expect(values).toHaveBeenCalledWith(expect.objectContaining({ tenant_id: TENANT_ID, amount_cents: 150_000, status: 'draft' }))
   })
 
   it('counts a single centavo over the cap', async () => {
-    const { service } = build([{ tcvCents: '1000000' }], [{ total: '1000000' }])
+    const { service } = build({ bom: BOM, live: [{ total: '999999' }] })
 
-    await expect(service.create(command(1), PRINCIPAL)).rejects.toBeInstanceOf(ConflictException)
+    await expect(capRefusal(service.create(command(2), PRINCIPAL))).resolves.toMatchObject({ code: 'claim_cap_exceeded' })
   })
 
-  it('treats a first claim on a project with no live claims as zero', async () => {
-    const { service } = build([{ tcvCents: '500000' }], [{ total: '0' }])
+  it('tells a project already at or over the contract sum that no further claim fits', async () => {
+    const { service, insert } = build({ bom: BOM, live: [{ total: '1200000' }] })
 
-    await expect(service.create(command(500_000), PRINCIPAL)).resolves.toMatchObject({ created: true })
+    const refusal = await capRefusal(service.create(command(1), PRINCIPAL))
+
+    expect(refusal.message).toBe(
+      'No further claim fits the contract sum. Reject or cancel a claim, or sign a variation order. Live claims total ₱12,000.00 against the contract sum of ₱10,000.00 (approved BOM ₱10,000.00, excl. VAT).',
+    )
+    expect(insert).not.toHaveBeenCalled()
   })
 
-  it('reads the BOM value and the live claims of this tenant and project only', async () => {
-    const { service, select } = build([{ tcvCents: '1000000' }], [{ total: '0' }])
+  it('adds signed additive variation orders to the contract sum', async () => {
+    const { service } = build({ bom: BOM, vos: [{ total: '200000' }], live: [{ total: '1000000' }] })
+
+    await expect(service.create(command(200_000), PRINCIPAL)).resolves.toMatchObject({ created: true })
+  })
+
+  it('subtracts signed deductive variation orders and names them', async () => {
+    const { service } = build({ bom: BOM, vos: [{ total: '-300000' }], live: [{ total: '600000' }] })
+
+    const refusal = await capRefusal(service.create(command(200_000), PRINCIPAL))
+
+    expect(refusal.message).toBe(
+      'This claim is above what can still be claimed. At most ₱1,000.00 remains of the contract sum of ₱7,000.00 (approved BOM ₱10,000.00 less signed variation orders ₱3,000.00, excl. VAT) after live claims of ₱6,000.00.',
+    )
+  })
+
+  it('reads the BOM, the signed VOs and the live claims of this tenant and project only, with the BOM held', async () => {
+    const { service, whereOf, locks } = build({ bom: BOM })
 
     await service.create(command(100), PRINCIPAL)
 
-    const whereOf = (index: number) => {
-      const builder = select.mock.results[index]?.value as { where: ReturnType<typeof vi.fn> }
-      return new PgDialect().sqlToQuery(builder.where.mock.calls[0]![0] as SQL)
-    }
-    const bom = whereOf(4)
+    const bom = whereOf(boms)
     expect(bom.sql).toContain('"boms"."tenant_id" = $')
     expect(bom.sql).toContain('"boms"."project_id" = $')
     expect(bom.params).toEqual(expect.arrayContaining([TENANT_ID, PROJECT_ID, 'approved', 'locked']))
-    const live = whereOf(5)
+    expect(locks.get(boms)).toBe('share')
+    // Draft, pending and rejected VOs do not revise the contract sum.
+    const vos = whereOf(variationOrders)
+    expect(vos.sql).toContain('"variation_orders"."tenant_id" = $')
+    expect(vos.sql).toContain('"variation_orders"."project_id" = $')
+    expect(vos.params).toEqual([TENANT_ID, PROJECT_ID, 'signed'])
+    const live = whereOf(progressClaims)
     expect(live.sql).toContain('"progress_claims"."tenant_id" = $')
-    expect(live.sql).toContain('"progress_claims"."project_id" = $')
     expect(live.sql).toContain('"progress_claims"."status" not in ($')
     expect(live.params).toEqual([TENANT_ID, PROJECT_ID, 'rejected', 'cancelled'])
   })
 
+  it('still answers an exact replay after the project has reached its cap', async () => {
+    const payloadHash = createHash('sha256')
+      .update(claimDraftPayload(createClaimDraftCommandSchema.parse(command(150_000))))
+      .digest('hex')
+    const receipt = {
+      schemaVersion: 1,
+      operation: 'create_draft',
+      tenantId: TENANT_ID,
+      actorId: USER_ID,
+      projectId: PROJECT_ID,
+      clientRequestId: REQUEST_ID,
+      payloadHash,
+      claim: {
+        id: CLAIM_ID,
+        claimNumber: 'PC-00001',
+        milestonePct: 40,
+        amountCents: 150_000,
+        description: 'Mobilization',
+        status: 'draft',
+        createdBy: USER_ID,
+        createdAt: '2026-11-18T01:00:00.000Z',
+      },
+    }
+    const { service, insert } = build({
+      bom: BOM,
+      live: [{ total: '1000000' }],
+      receipt: [{ actorId: USER_ID, action: 'create', diff: { schemaVersion: 1, payloadHash, receipt } }],
+    })
+
+    await expect(service.create(command(150_000), PRINCIPAL)).resolves.toMatchObject({ created: false, changed: false, receipt })
+    expect(insert).not.toHaveBeenCalled()
+  })
+
   it('leaves a project with no approved BOM uncapped', async () => {
-    const { service } = build([], [])
+    const { service } = build({ bom: [], vos: [{ total: '500000' }], live: [{ total: '900000000' }] })
 
     await expect(service.create(command(999_999_999), PRINCIPAL)).resolves.toMatchObject({ created: true })
   })
