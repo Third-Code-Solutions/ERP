@@ -12,6 +12,11 @@ import {
 } from '@third-code-erp/database/schema'
 import { and, eq, sql } from 'drizzle-orm'
 import { TAX_DEFAULTS, formatBps } from '@third-code-erp/shared-types'
+import {
+  bir2307Available,
+  invoiceDocumentState,
+} from '@/app/(print)/invoices/invoice-document-state'
+import { manilaToday } from '@/lib/manila-date'
 import { InvoiceStatusActions } from './invoice-status-actions'
 
 export const metadata: Metadata = { title: 'Invoice' }
@@ -109,6 +114,8 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
 
   if (!inv) return notFound()
 
+  const showBir2307 = bir2307Available(invoiceDocumentState(inv))
+
   const receiptAllocations = await db.execute<ReceiptAllocationRow>(sql`
     select
       cash_tx.id as transaction_id,
@@ -200,7 +207,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             <InvoiceStatusActions
               invoiceId={id}
               currentStatus={inv.status}
-              defaultPostingDate={new Date().toISOString().slice(0, 10)}
+              defaultPostingDate={manilaToday()}
             />
           )}
           <Link
@@ -222,26 +229,28 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
           >
             Print / PDF
           </Link>
-          <Link
-            href={`/invoices/${id}/bir2307`}
-            target="_blank"
-            title="Generate BIR Form 2307 — Certificate of Creditable Tax Withheld at Source"
-            style={{
-              padding: '7px 14px',
-              borderRadius: '6px',
-              fontSize: '0.8125rem',
-              fontWeight: 500,
-              border: '1px solid var(--color-border)',
-              background: 'var(--color-surface)',
-              color: 'var(--color-neutral-700)',
-              textDecoration: 'none',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-          >
-            BIR 2307
-          </Link>
+          {showBir2307 && (
+            <Link
+              href={`/invoices/${id}/bir2307`}
+              target="_blank"
+              title="Working copy of the BIR Form 2307 figures. Not a BIR certificate; check it against the official form."
+              style={{
+                padding: '7px 14px',
+                borderRadius: '6px',
+                fontSize: '0.8125rem',
+                fontWeight: 500,
+                border: '1px solid var(--color-border)',
+                background: 'var(--color-surface)',
+                color: 'var(--color-neutral-700)',
+                textDecoration: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              BIR 2307 (working copy)
+            </Link>
+          )}
         </div>
       </div>
 
@@ -305,7 +314,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
         </h3>
         <dl style={{ margin: 0 }}>
           {[
-            { label: `Billing (${(inv.billing_percent_bps / 100).toFixed(0)}% of TCV)`, value: formatPHP(inv.subtotal_cents) },
+            { label: `Billing (${formatBps(inv.billing_percent_bps)} of TCV)`, value: formatPHP(inv.subtotal_cents) },
             { label: `Retention (${formatBps(inv.retention_bps)})`, value: `(${formatPHP(inv.retention_cents)})`, color: '#f59e0b' },
             { label: `VAT (${formatBps(TAX_DEFAULTS.vatBps)})`, value: `+${formatPHP(inv.vat_cents)}` },
             { label: `Withholding Tax (${formatBps(TAX_DEFAULTS.ewtBps)})`, value: `−${formatPHP(inv.withholding_tax_cents)}` },

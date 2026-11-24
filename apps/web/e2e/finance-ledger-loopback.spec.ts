@@ -137,7 +137,7 @@ test('proves the authenticated Web ledger page uses Core and preserves tenant-sa
   await expect(page.getByText('Loopback debit line', { exact: true })).toBeVisible()
   await expect(page.getByText('Loopback credit line', { exact: true })).toBeVisible()
   await expect(page.locator('tbody tr')).toHaveCount(2)
-  await expect(page.getByText('Visible lines', { exact: true })).toBeVisible()
+  await expect(page.getByText('Matching lines', { exact: true })).toBeVisible()
   await expect(page.getByText('₱100.00', { exact: true })).toHaveCount(4)
   await expect(page.locator('#ledger-account-filter option')).toHaveCount(3)
 
@@ -155,7 +155,7 @@ test('proves the authenticated Web ledger page uses Core and preserves tenant-sa
     'http://core.local'
   ).searchParams
   expect(firstQuery.get('page')).toBe('1')
-  expect(firstQuery.get('limit')).toBe('500')
+  expect(firstQuery.get('limit')).toBe('100')
   expect(firstQuery.get('accountId')).toBeNull()
 
   await page.goto(`${WEB_ORIGIN}/finance/ledger?account=${firstState.debitAccountId}`, {

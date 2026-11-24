@@ -59,9 +59,8 @@ describe('invoice print page finance.read gate', () => {
 
   it('lets a finance.read member reach the tenant-scoped invoice query', async () => {
     mocks.getUserProfile.mockResolvedValue({ tenantId: TENANT_ID, role: 'viewer' })
-    mocks.select.mockReturnValue({
-      from: () => ({ leftJoin: () => ({ where: async () => [] }) }),
-    })
+    const chain = { leftJoin: () => chain, where: async () => [] }
+    mocks.select.mockReturnValue({ from: () => chain })
 
     await expect(renderPage()).rejects.toThrow('NEXT_NOT_FOUND')
     expect(mocks.select).toHaveBeenCalledOnce()
@@ -83,7 +82,10 @@ describe('invoice print page labels and stored amounts', () => {
     due_date: null,
     paid_at: null,
     notes: null,
-    created_at: new Date('2026-11-04T00:00:00.000Z'),
+    created_at: new Date('2026-11-04T12:00:00.000Z'),
+    issued_at: new Date('2026-11-10T12:00:00.000Z'),
+    reversed_at: null,
+    account_name: 'Somnus Studios Inc.',
     project_name: 'Tower A fit-out',
     project_client: 'Somnus Studios Corp.',
     project_location: 'Makati City',
@@ -96,12 +98,20 @@ describe('invoice print page labels and stored amounts', () => {
     mocks.getUserProfile.mockResolvedValue({ tenantId: TENANT_ID, role: 'finance' })
   })
 
-  function mockInvoice(row: Record<string, unknown>) {
+  function mockInvoice(
+    row: Record<string, unknown>,
+    tenantRows: Array<Record<string, unknown>> = [
+      { name: 'Third Code Builders Inc.', bir_tin: null, pcab_license: null },
+    ]
+  ) {
     mocks.select.mockImplementation(() => ({
       from: (table: unknown) => {
-        if (table === invoices) return { leftJoin: () => ({ where: async () => [row] }) }
+        if (table === invoices) {
+          const chain = { leftJoin: () => chain, where: async () => [row] }
+          return chain
+        }
         if (table === tenants) {
-          return { where: async () => [{ name: 'Third Code Builders Inc.', bir_tin: null, pcab_license: null }] }
+          return { where: async () => tenantRows }
         }
         throw new Error('Unexpected table in invoice print test')
       },
@@ -120,6 +130,81 @@ describe('invoice print page labels and stored amounts', () => {
     expect(markup).toContain('₱27,000.00')
     expect(markup).toContain('₱4,500.00')
     expect(markup).toContain('₱247,500.00')
+  })
+
+  it('issues the invoice in the tenant name with no product or other-company branding', async () => {
+    mockInvoice(STORED)
+
+    const markup = renderToStaticMarkup(await renderPage())
+
+    expect(markup).toContain('Third Code Builders Inc.')
+    expect(markup).toContain('This invoice is system-generated. Invoice INV-202611-0001')
+    expect(markup).not.toMatch(/ABI OPS|Actuate/)
+  })
+
+  it('falls back to a neutral issuer name when the tenant row has none', async () => {
+    mockInvoice(STORED, [])
+
+    const markup = renderToStaticMarkup(await renderPage())
+
+    expect(markup).toContain('Your contractor')
+    expect(markup).not.toMatch(/ABI OPS|Actuate/)
+  })
+
+  it('prints a fractional billing percent exactly, not rounded to a whole number', async () => {
+    mockInvoice({ ...STORED, billing_percent_bps: 1250 })
+
+    const markup = renderToStaticMarkup(await renderPage())
+
+    expect(markup).toContain('Progress Billing — 12.5% of Contract Value')
+    expect(markup).toContain('(12.5% of TCV)')
+    expect(markup).not.toContain('13%')
+
+    mockInvoice({ ...STORED, billing_percent_bps: 1 })
+    expect(renderToStaticMarkup(await renderPage())).toContain('(0.01% of TCV)')
+  })
+
+  it('bills to the account name and falls back to the project client text', async () => {
+    mockInvoice(STORED)
+    expect(renderToStaticMarkup(await renderPage())).toContain('Somnus Studios Inc.')
+
+    mockInvoice({ ...STORED, account_name: null })
+    expect(renderToStaticMarkup(await renderPage())).toContain('Somnus Studios Corp.')
+  })
+
+  it('dates an issued invoice by its issue date and a draft as prepared', async () => {
+    mockInvoice(STORED)
+    const issued = renderToStaticMarkup(await renderPage())
+    expect(issued).toContain('Date issued')
+    expect(issued).toContain('November 10, 2026')
+    expect(issued).not.toContain('November 4, 2026')
+
+    mockInvoice({ ...STORED, status: 'draft', issued_at: null })
+    const draft = renderToStaticMarkup(await renderPage())
+    expect(draft).toContain('Date prepared')
+    expect(draft).toContain('November 4, 2026')
+  })
+
+  it('prints no state mark on an issued invoice', async () => {
+    mockInvoice(STORED)
+
+    const markup = renderToStaticMarkup(await renderPage())
+
+    expect(markup).not.toMatch(/DRAFT|CANCELLED|REVERSED/)
+  })
+
+  it('marks a draft, a cancelled and a reversed invoice as not valid', async () => {
+    mockInvoice({ ...STORED, status: 'draft', issued_at: null })
+    const draft = renderToStaticMarkup(await renderPage())
+    expect(draft).toContain('DRAFT: Not yet issued. This is not a valid invoice')
+
+    mockInvoice({ ...STORED, status: 'cancelled' })
+    const cancelled = renderToStaticMarkup(await renderPage())
+    expect(cancelled).toContain('CANCELLED: This invoice was cancelled and is not a valid invoice.')
+
+    mockInvoice({ ...STORED, status: 'paid', reversed_at: new Date('2026-11-12T12:00:00.000Z') })
+    const reversed = renderToStaticMarkup(await renderPage())
+    expect(reversed).toContain('REVERSED: This invoice was reversed and is not a valid invoice.')
   })
 
   it('labels retention from the stored bps (down-payment invoices store 0)', async () => {

@@ -16,6 +16,7 @@ import {
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { STOCK_RECEIPT_RECEIVABLE_PO_STATUSES } from '@third-code-erp/shared-types'
+import { manilaToday } from '@/lib/manila-date'
 import { StockReceiptForm } from '../../receipt-form'
 
 export const metadata: Metadata = { title: 'New Stock Receipt' }
@@ -210,7 +211,7 @@ export default async function NewStockReceiptPage({
             ...delivery,
             scheduledDate: delivery.scheduledDate?.toISOString() ?? null,
           }))}
-          today={new Date().toISOString().slice(0, 10)}
+          today={manilaToday()}
           defaultPurchaseOrderId={defaultPoId}
         />
       )}

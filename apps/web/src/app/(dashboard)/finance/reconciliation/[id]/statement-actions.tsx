@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useMemo, useRef, useState, useTransition } from 'react'
+import React, { useMemo, useRef, useState, useTransition } from 'react'
 import {
   autoMatchBankStatement,
   deleteBankStatementDraft,
@@ -11,6 +11,7 @@ import {
   unmatchBankStatementLine,
   voidBankStatement,
 } from '../actions'
+import { IRREVERSIBLE_CONFIRMATIONS } from '../../irreversible-confirmations'
 
 export interface ReconciliationLine {
   id: string
@@ -45,12 +46,15 @@ function formatMoney(cents: number, currency: string): string {
 export function BankStatementActions({
   statementId,
   status,
+  canManage,
   currency,
   lines,
   candidates,
 }: {
   statementId: string
   status: 'draft' | 'reconciled' | 'voided'
+  /** Read-only viewers still see every line and its match, without controls. */
+  canManage: boolean
   currency: string
   lines: ReconciliationLine[]
   candidates: ReconciliationCandidate[]
@@ -75,6 +79,7 @@ export function BankStatementActions({
     delete lineRetryKeys.current[`${action}:${lineId}`]
   }
 
+  const canEditDraft = canManage && status === 'draft'
   const matchedCount = lines.filter(
     (line) => line.matched_cash_transaction_id
   ).length
@@ -122,7 +127,7 @@ export function BankStatementActions({
 
   return (
     <>
-      {status === 'draft' && (
+      {canEditDraft && (
         <div className="reconciliation-toolbar">
           <div>
             <strong>{unmatchedCount} exceptions</strong>
@@ -213,7 +218,7 @@ export function BankStatementActions({
                           </Link>
                           <span>{line.matched_transaction_date}</span>
                         </div>
-                        {status === 'draft' && (
+                        {canEditDraft && (
                           <button
                             type="button"
                             className="finance-text-button"
@@ -236,7 +241,7 @@ export function BankStatementActions({
                           </button>
                         )}
                       </div>
-                    ) : status === 'draft' ? (
+                    ) : canEditDraft ? (
                       <div className="reconciliation-manual-match">
                         <label className="sr-only" htmlFor={`match-${line.id}`}>
                           Cash transaction for line {line.line_number}
@@ -299,7 +304,7 @@ export function BankStatementActions({
         </table>
       </div>
 
-      {status === 'draft' && (
+      {canEditDraft && (
         <div className="reconciliation-finalize">
           <div>
             <strong>Finalize statement</strong>
@@ -335,9 +340,7 @@ export function BankStatementActions({
               disabled={pending || unmatchedCount > 0 || lines.length === 0}
               onClick={() => {
                 if (
-                  !window.confirm(
-                    'Reconcile and lock this complete statement evidence?'
-                  )
+                  !window.confirm(IRREVERSIBLE_CONFIRMATIONS.reconcileStatement)
                 ) {
                   return
                 }
@@ -359,7 +362,7 @@ export function BankStatementActions({
         </div>
       )}
 
-      {status === 'reconciled' && (
+      {canManage && status === 'reconciled' && (
         <div className="reconciliation-finalize">
           <div>
             <strong>Void reconciliation</strong>
@@ -385,7 +388,9 @@ export function BankStatementActions({
               className="finance-secondary-button finance-danger-button"
               disabled={pending || voidReason.trim().length < 3}
               onClick={() => {
-                if (!window.confirm('Void this reconciled statement?')) return
+                if (!window.confirm(IRREVERSIBLE_CONFIRMATIONS.voidStatement)) {
+                  return
+                }
                 runAction(
                   () =>
                     voidBankStatement({

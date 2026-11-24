@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { manilaToday } from '@/lib/manila-date'
 import {
   deleteStockReceiptDraft,
   postStockReceipt,
@@ -23,9 +24,7 @@ export function StockReceiptActions({
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
-  const [postingDate, setPostingDate] = useState(
-    new Date().toISOString().slice(0, 10)
-  )
+  const [postingDate, setPostingDate] = useState(manilaToday())
   const [reason, setReason] = useState('')
   const [error, setError] = useState<string | null>(null)
   const postRetryKeyRef = useRef<string | null>(null)

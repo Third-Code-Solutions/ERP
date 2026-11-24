@@ -63,10 +63,13 @@ function mockRows(invoiceRow: Record<string, unknown>) {
 const INVOICE_ROW = {
   id: INVOICE_ID,
   invoice_number: 'INV-202611-0001',
+  status: 'issued',
   subtotal_cents: 25_000_000,
   retention_cents: 2_500_000,
   withholding_tax_cents: 450_000,
-  created_at: new Date('2026-11-04T00:00:00.000Z'),
+  created_at: new Date('2026-10-30T12:00:00.000Z'),
+  issued_at: new Date('2026-11-04T12:00:00.000Z'),
+  reversed_at: null,
   project_name: 'Tower A fit-out',
   project_client: 'Project client label',
   client_name: 'Somnus Studios Corp.',
@@ -126,6 +129,52 @@ describe('BIR 2307 print parties (D-8)', () => {
 
     expect(payor).toContain('Project client label')
     expect(payor).toContain('Client TIN is not on record')
+  })
+
+  it('labels the sheet a working copy, not a BIR certificate', async () => {
+    mockRows(INVOICE_ROW)
+
+    const { markup } = await renderPage()
+
+    expect(markup).toContain('WORKING COPY — not a BIR certificate.')
+    expect(markup).toContain('BIR FORM 2307 — WORKING COPY')
+    expect(markup).toContain('not a BIR certificate. Verify all values')
+    expect(markup).not.toContain('DRAFT — verify against official BIR template')
+  })
+
+  it('covers the month the invoice was issued, not the month it was drafted', async () => {
+    mockRows(INVOICE_ROW)
+
+    const { markup } = await renderPage()
+
+    expect(markup).toContain('November 1, 2026')
+    expect(markup).toContain('November 30, 2026')
+    expect(markup).not.toContain('October 31, 2026')
+  })
+
+  it.each(['draft', 'cancelled'])('is not available for a %s invoice', async (status) => {
+    mockRows({ ...INVOICE_ROW, status })
+
+    await expect(
+      Bir2307PrintPage({ params: Promise.resolve({ id: INVOICE_ID }) })
+    ).rejects.toThrow('NEXT_NOT_FOUND')
+  })
+
+  it('stays available for a reversed invoice but marks it REVERSED', async () => {
+    mockRows({ ...INVOICE_ROW, reversed_at: new Date('2026-11-12T12:00:00.000Z') })
+
+    const { markup } = await renderPage()
+
+    expect(markup).toContain('REVERSED: This invoice was reversed and is not a valid invoice.')
+  })
+
+  it('does not stamp the product or another company on the printed form', async () => {
+    mockRows(INVOICE_ROW)
+
+    const { markup } = await renderPage()
+
+    expect(markup).toContain('Prepared for invoice INV-202611-0001')
+    expect(markup).not.toMatch(/ABI OPS|Actuate/)
   })
 
   it('labels the rate from the shared formatter and prints the stored amounts (AC-TEN-11, AC-TEN-12)', async () => {
