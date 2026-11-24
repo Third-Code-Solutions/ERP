@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { accountKycArtifacts, progressClaimDocuments, siteInspectionPhotos, siteInspections } from '@third-code-erp/database/schema'
+import { accountKycArtifacts, cadEvidenceCommitRequests, progressClaimDocuments, siteInspectionPhotos, siteInspections } from '@third-code-erp/database/schema'
 import { SQL } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
 
@@ -23,6 +23,8 @@ const mocks = vi.hoisted(() => ({
   inspectionPhotoLimit: vi.fn(),
   inspectionReportWhere: vi.fn(),
   inspectionReportLimit: vi.fn(),
+  cadEvidenceWhere: vi.fn(),
+  cadEvidenceLimit: vi.fn(),
   txDelete: vi.fn(),
   txDeleteWhere: vi.fn(),
   txReturning: vi.fn(),
@@ -102,7 +104,8 @@ describe('deleteDocument authority and integrity', () => {
       where: table === progressClaimDocuments ? mocks.evidenceWhere
         : table === accountKycArtifacts ? mocks.kycEvidenceWhere
         : table === siteInspectionPhotos ? mocks.inspectionPhotoWhere
-        : table === siteInspections ? mocks.inspectionReportWhere : mocks.txWhere,
+        : table === siteInspections ? mocks.inspectionReportWhere
+        : table === cadEvidenceCommitRequests ? mocks.cadEvidenceWhere : mocks.txWhere,
     }))
     mocks.evidenceWhere.mockReturnValue({ limit: mocks.evidenceLimit })
     mocks.evidenceLimit.mockResolvedValue([])
@@ -112,6 +115,8 @@ describe('deleteDocument authority and integrity', () => {
     mocks.inspectionPhotoLimit.mockResolvedValue([])
     mocks.inspectionReportWhere.mockReturnValue({ limit: mocks.inspectionReportLimit })
     mocks.inspectionReportLimit.mockResolvedValue([])
+    mocks.cadEvidenceWhere.mockReturnValue({ limit: mocks.cadEvidenceLimit })
+    mocks.cadEvidenceLimit.mockResolvedValue([])
     mocks.txWhere.mockReturnValue({ limit: mocks.txLimit })
     mocks.txLimit.mockReturnValue({ for: mocks.txFor })
     mocks.txFor.mockResolvedValue([
@@ -256,6 +261,7 @@ describe('deleteDocument authority and integrity', () => {
     const result = await deleteDocument(requestForm())
 
     expect(result).toEqual({ ok: true })
+    expect(mocks.cadEvidenceLimit).toHaveBeenCalledOnce()
     expect(mocks.txDelete).toHaveBeenCalledTimes(2)
     expect(mocks.writeAuditLogInTransaction).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -326,6 +332,21 @@ describe('deleteDocument authority and integrity', () => {
     if (!(predicate instanceof SQL)) throw new Error('Expected a scoped inspection evidence predicate')
     expect(new PgDialect().sqlToQuery(predicate).params).toEqual([TENANT_ID, DOCUMENT_ID])
     expect(mocks.txFor.mock.invocationCallOrder[0]).toBeLessThan(where.mock.invocationCallOrder[0]!)
+    expect(mocks.txDelete).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
+    expect(mocks.remove).not.toHaveBeenCalled()
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('retains committed CAD evidence and Storage in the legacy path', async () => {
+    mocks.cadEvidenceLimit.mockResolvedValue([{ id: '55555555-5555-4555-8555-555555555555' }])
+    expect(await deleteDocument(requestForm())).toEqual({ ok: false, error: 'Document has committed CAD evidence and cannot be deleted' })
+    const predicate: unknown = mocks.cadEvidenceWhere.mock.calls[0]?.[0]
+    if (!(predicate instanceof SQL)) throw new Error('Expected a scoped CAD evidence predicate')
+    const query = new PgDialect().sqlToQuery(predicate)
+    expect(query.sql).toBe('("cad_evidence_commit_requests"."tenant_id" = $1 and "cad_evidence_commit_requests"."document_id" = $2)')
+    expect(query.params).toEqual([TENANT_ID, DOCUMENT_ID])
+    expect(mocks.txFor.mock.invocationCallOrder[0]).toBeLessThan(mocks.cadEvidenceWhere.mock.invocationCallOrder[0]!)
     expect(mocks.txDelete).not.toHaveBeenCalled()
     expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
     expect(mocks.remove).not.toHaveBeenCalled()
