@@ -74,6 +74,9 @@ export const unitAliases = pgTable(
       table.tenant_id,
       table.uom_id
     ),
+    tenantCreatedByIdx: index('idx_unit_aliases_tenant_created_by')
+      .on(table.tenant_id, table.created_by)
+      .where(sql`${table.created_by} is not null`),
     uomTenantFk: foreignKey({
       name: 'unit_aliases_uom_tenant_fk',
       columns: [table.tenant_id, table.uom_id],

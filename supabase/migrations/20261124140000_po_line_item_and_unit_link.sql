@@ -4,7 +4,7 @@
 --
 -- None of the PO insert paths (web actions, Core API) set po_line_items.
 -- material_item_id or uom_id, so every Stock Receipt line was disabled. This
--- release only adds (expand-only):
+-- release only adds (expand-only, DDL only):
 --   * unit_aliases(tenant_id, alias, uom_id): tenant data that says "pcs" means
 --     the PC unit. Unit equivalence is data and is never guessed in code.
 --   * resolve_unit_of_measure(tenant, text): exact UOM code match first
@@ -13,16 +13,25 @@
 --     material_item_id from material_items by (tenant_id, code), and a NULL
 --     uom_id from resolve_unit_of_measure(). It never overwrites a value the
 --     writer set, never crosses tenants, and leaves uom_id NULL on a unit miss.
---   * an idempotent backfill of the two UPDATEs from 20260726233000 for lines
---     that are still unlinked. Lines on a deactivated Cost Code are skipped:
---     guard_po_line_budget_dimension would refuse to touch them.
+-- The backfill of lines written before the trigger is the separate data
+-- migration 20261124140100_po_line_item_and_unit_backfill.sql, so no data
+-- UPDATE runs while this file holds its DDL locks.
 -- The receipt guard (post_stock_receipt: item active, tracked, item.base_uom_id
 -- = line.uom_id) and the freeze after a receipt line exists are unchanged.
 --
--- Rollback (linked rows stay valid; the backfill is not reverted):
+-- Locks, held until commit (milliseconds: no data changes here): the foreign
+-- keys take SHARE ROW EXCLUSIVE on tenants, units_of_measure and users, and
+-- CREATE TRIGGER takes SHARE ROW EXCLUSIVE on po_line_items. Writes to those
+-- tables wait for the commit; reads continue.
+--
+-- Rollback (after the 20261124140100 rollback; revert the web code that reads
+-- unit_aliases first). The alias rows are tenant data, so copy them out first:
 --   begin;
 --   set local lock_timeout = '5s';
 --   set local statement_timeout = '60s';
+--   create table public.unit_aliases_rollback_backup as select * from public.unit_aliases;
+--   revoke all on table public.unit_aliases_rollback_backup from anon, authenticated;
+--   alter table public.unit_aliases_rollback_backup enable row level security;
 --   drop trigger if exists link_po_line_item_and_unit on public.po_line_items;
 --   drop function if exists public.link_po_line_item_and_unit();
 --   drop function if exists public.resolve_unit_of_measure(uuid, text);
@@ -58,11 +67,15 @@ create unique index if not exists ux_unit_aliases_tenant_alias
   on public.unit_aliases (tenant_id, lower(alias));
 create index if not exists idx_unit_aliases_tenant_uom
   on public.unit_aliases (tenant_id, uom_id);
+create index if not exists idx_unit_aliases_tenant_created_by
+  on public.unit_aliases (tenant_id, created_by)
+  where created_by is not null;
 
 -- Server-only, like the other tenant masters no browser session reads.
 alter table public.unit_aliases enable row level security;
 alter table public.unit_aliases force row level security;
 revoke all on table public.unit_aliases from anon, authenticated;
+grant all privileges on table public.unit_aliases to service_role;
 drop policy if exists deny_direct_client_access on public.unit_aliases;
 create policy deny_direct_client_access
 on public.unit_aliases
@@ -141,40 +154,5 @@ revoke execute on function public.link_po_line_item_and_unit()
   from public, anon, authenticated;
 grant execute on function public.link_po_line_item_and_unit()
   to service_role;
-
--- Backfill lines written before the trigger existed. Idempotent: only NULLs.
-update public.po_line_items line
-   set material_item_id = item.id
-  from public.material_items item
- where item.tenant_id = line.tenant_id
-   and item.code = line.code
-   and line.code is not null
-   and line.material_item_id is null
-   and (
-     line.cost_code_id is null
-     or exists (
-       select 1
-       from public.cost_codes cost_code
-       where cost_code.id = line.cost_code_id
-         and cost_code.tenant_id = line.tenant_id
-         and cost_code.is_active
-     )
-   );
-
-update public.po_line_items line
-   set uom_id = public.resolve_unit_of_measure(line.tenant_id, line.unit)
- where line.uom_id is null
-   and line.unit is not null
-   and public.resolve_unit_of_measure(line.tenant_id, line.unit) is not null
-   and (
-     line.cost_code_id is null
-     or exists (
-       select 1
-       from public.cost_codes cost_code
-       where cost_code.id = line.cost_code_id
-         and cost_code.tenant_id = line.tenant_id
-         and cost_code.is_active
-     )
-   );
 
 commit;

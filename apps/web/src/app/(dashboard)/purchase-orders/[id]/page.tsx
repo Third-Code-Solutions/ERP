@@ -150,12 +150,14 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
   const canManageInventory = can(profile.role, 'inventory.manage')
   const canEditPoLines = can(profile.role, 'po.create')
   // Only people who receive stock see the stock link; it is what lets a line be received.
+  // A retired project's lines show their link but cannot be relinked.
+  const stockLinkEditable = po.status !== 'cancelled' && po.project_live
   const stockLinks = canManageInventory
     ? await loadPoLineStockLinks({
         tenantId: profile.tenantId,
         poId: po.id,
         lineIds: lines.map((line) => line.id),
-        withPicker: po.status !== 'cancelled',
+        withPicker: stockLinkEditable,
       })
     : null
   const payableRows = canManagePayables
@@ -715,7 +717,7 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
                         unitCode={stockLinks.byLine.get(line.id)?.unitCode ?? null}
                         reason={stockLinks.byLine.get(line.id)?.reason ?? null}
                         editable={
-                          po.status !== 'cancelled' &&
+                          stockLinkEditable &&
                           !stockLinks.byLine.get(line.id)?.frozen
                         }
                         canCreateFromLine={Boolean(line.code?.trim())}

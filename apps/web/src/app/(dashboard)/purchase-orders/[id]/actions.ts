@@ -2,13 +2,12 @@
 
 import { revalidatePath } from 'next/cache'
 import { getUserProfile, requireCapability } from '@third-code-erp/auth'
-import { db, type Database } from '@third-code-erp/database'
+import { db, liveProjectCondition, type Database } from '@third-code-erp/database'
 import {
   materialItems,
   poLineItems,
   purchaseOrders,
   stockReceiptLines,
-  unitAliases,
   unitsOfMeasure,
 } from '@third-code-erp/database/schema'
 import { and, eq, sql } from 'drizzle-orm'
@@ -38,45 +37,30 @@ const RECEIPTED_ERROR =
   'This line already has a Stock Receipt, so its stock item and unit can no longer change.'
 const DUPLICATE_ITEM_ERROR =
   'A stock item with this code already exists. Pick it from the list instead.'
+// Same text as procurement/actions.ts: a retired project's PO is not committed further.
+const RETIRED_PROJECT_PO_ERROR =
+  'This Purchase Order belongs to a retired project; it can only be rejected, cancelled or received.'
+const INACTIVE_COST_CODE_ERROR =
+  "This line's Cost Code is inactive. Reactivate it or assign an active Cost Code before linking a stock item."
 
-type Reader = Pick<Database, 'select'>
-
-/** Same rule as the database trigger: UOM code first, then a tenant alias. */
-async function resolveUnitUomId(
-  reader: Reader,
-  tenantId: string,
-  unit: string | null
-): Promise<string | null> {
-  const text = unit?.trim().toLowerCase() ?? ''
-  if (!text) return null
-  const [uom] = await reader
-    .select({ id: unitsOfMeasure.id })
-    .from(unitsOfMeasure)
-    .where(
-      and(
-        eq(unitsOfMeasure.tenant_id, tenantId),
-        sql`lower(${unitsOfMeasure.code}) = ${text}`
-      )
-    )
-    .limit(1)
-  if (uom) return uom.id
-  const [alias] = await reader
-    .select({ id: unitAliases.uom_id })
-    .from(unitAliases)
-    .where(
-      and(
-        eq(unitAliases.tenant_id, tenantId),
-        sql`lower(${unitAliases.alias}) = ${text}`
-      )
-    )
-    .limit(1)
-  return alias?.id ?? null
+/** The database rule the insert trigger uses: UOM code first, then a tenant alias. */
+async function resolveUnitUomId(tenantId: string, unit: string | null): Promise<string | null> {
+  if (!unit) return null
+  const rows = await db.execute<{ uom_id: string | null }>(
+    sql`select public.resolve_unit_of_measure(${tenantId}::uuid, ${unit}) as uom_id`
+  )
+  return rows[0]?.uom_id ?? null
 }
 
 function linkErrorMessage(error: unknown): string {
   const chain = errorChainMessage(error)
   if (chain.includes('Purchase Order stock terms are immutable after receipt')) {
     return RECEIPTED_ERROR
+  }
+  if (chain.includes(RETIRED_PROJECT_PO_ERROR)) return RETIRED_PROJECT_PO_ERROR
+  // guard_po_line_budget_dimension (SQLSTATE 23514) refuses any write to a line on an inactive Cost Code.
+  if (chain.includes('Purchase Order line requires an active Cost Code')) {
+    return INACTIVE_COST_CODE_ERROR
   }
   if (chain.includes('idx_material_items_tenant_code')) {
     return DUPLICATE_ITEM_ERROR
@@ -132,6 +116,8 @@ export async function linkPoLineToItem(
         materialItemId: poLineItems.material_item_id,
         uomId: poLineItems.uom_id,
         poStatus: purchaseOrders.status,
+        projectId: purchaseOrders.project_id,
+        projectLive: liveProjectCondition(purchaseOrders.project_id, tenantId).mapWith(Boolean),
       })
       .from(poLineItems)
       .innerJoin(
@@ -152,6 +138,7 @@ export async function linkPoLineToItem(
     if (line.poStatus === 'cancelled') {
       return { error: 'A cancelled Purchase Order cannot be changed.' }
     }
+    if (!line.projectLive) return { error: RETIRED_PROJECT_PO_ERROR }
 
     const [receipted] = await db
       .select({ id: stockReceiptLines.id })
@@ -167,7 +154,7 @@ export async function linkPoLineToItem(
 
     const resolvedUomId = line.uomId
       ? null
-      : await resolveUnitUomId(db, tenantId, line.unit)
+      : await resolveUnitUomId(tenantId, line.unit)
 
     if (request.mode === 'create') {
       return await createItemFromLine({
@@ -228,6 +215,7 @@ export async function linkPoLineToItem(
 interface LineForLink {
   id: string
   poId: string
+  projectId: string
   code: string | null
   description: string
   unit: string | null
@@ -328,9 +316,17 @@ async function updateLineLink(
   const updated = await tx
     .update(poLineItems)
     .set({ material_item_id: input.materialItemId, uom_id: input.uomId })
-    .where(and(eq(poLineItems.id, line.id), eq(poLineItems.tenant_id, tenantId)))
+    .where(
+      and(
+        eq(poLineItems.id, line.id),
+        eq(poLineItems.tenant_id, tenantId),
+        liveProjectCondition(line.projectId, tenantId)
+      )
+    )
     .returning({ id: poLineItems.id })
-  if (updated.length === 0) throw new Error(LINE_NOT_FOUND)
+  // Nothing deletes a PO line, so an empty update means the project was retired
+  // after the read. Throwing rolls back an item created in the same transaction.
+  if (updated.length === 0) throw new Error(RETIRED_PROJECT_PO_ERROR)
   await writeAuditLogInTransaction(tx, {
     tenantId,
     actorId,
