@@ -533,6 +533,25 @@ deployment, pagination, and rollback evidence are recorded.
 | `ERP_ACCOUNT_READS_VIA_API` | no | Next server | Selects Nest `GET /v1/crm/accounts`; exact `true` only |
 | `ERP_ACCOUNT_READS_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist; default empty |
 
+## Error monitoring (Sentry, optional)
+
+Errors only: no tracing, no Session Replay, no user data, cookies, auth
+headers, request bodies, query strings or capability-link tokens (see
+`packages/shared-types/src/sentry-privacy.ts`). When a DSN is unset the
+SDK is never initialised, so local development, CI and tests send nothing.
+The environment is `production` when `VERCEL_ENV` (web) or `NODE_ENV` is
+`production`. The web release is `APP_REVISION`, injected into the browser
+and server bundles at build time (`withSentryConfig` in `next.config.ts`,
+no auth token, nothing uploaded); the Core API release is
+`RAILWAY_GIT_COMMIT_SHA`, else `APP_REVISION`. A DSN is
+not a secret, but keep it out of the repository: set it only in the
+hosting provider.
+
+| Variable | Required | Scope | Where set | Controls |
+|---|---|---|---|---|
+| `NEXT_PUBLIC_SENTRY_DSN` | no | public | Vercel project, Production environment (DSN of Sentry project `abi-ops-web`) | Browser, Node.js and Edge error reporting for the web app. Build-time value: redeploy after changing it. The browser posts to `https://o4512451278274560.ingest.us.sentry.io`, which the CSP `connect-src` allows |
+| `SENTRY_DSN` | no | server | Railway Core API service (DSN of Sentry project `abi-ops-api`) | Core API error reporting; must be an `https` URL or startup fails validation |
+
 ## Local Development
 
 The minimum to boot `pnpm dev`:
