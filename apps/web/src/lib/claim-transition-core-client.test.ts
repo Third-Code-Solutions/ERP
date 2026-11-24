@@ -61,6 +61,47 @@ describe('claim transition Core client', () => {
     )
   })
 
+  it("passes Core's business-rule message through for a 409 and a 404", async () => {
+    mocks.fetch.mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      json: async () => ({ statusCode: 409, message: 'Invoice INV-202611-001 is still a draft; issue it before linking it to a claim' }),
+    })
+    await expect(
+      transitionClaimThroughCoreApi(CLAIM_ID, { action: 'submit', clientRequestId: REQUEST_ID }),
+    ).resolves.toEqual({
+      ok: false,
+      status: 409,
+      outcomeUnknown: false,
+      error: 'Invoice INV-202611-001 is still a draft; issue it before linking it to a claim',
+    })
+
+    mocks.fetch.mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      json: async () => ({ statusCode: 404, message: 'Invoice not found in the claim project' }),
+    })
+    await expect(
+      transitionClaimThroughCoreApi(CLAIM_ID, { action: 'submit', clientRequestId: REQUEST_ID }),
+    ).resolves.toMatchObject({ ok: false, status: 404, error: 'Invoice not found in the claim project' })
+  })
+
+  it('keeps the generic message for other failures and for an unreadable or oversized rule body', async () => {
+    const generic = 'The claim service did not confirm this transition.'
+    for (const [status, body] of [
+      [500, { message: 'select * from secret_table failed' }],
+      [403, { message: 'Forbidden' }],
+      [400, { message: ['claimId must be a UUID'] }],
+      [409, { message: 'x'.repeat(301) }],
+      [409, null],
+    ] as const) {
+      mocks.fetch.mockResolvedValueOnce({ ok: false, status, json: async () => { if (body === null) throw new Error('not json'); return body } })
+      await expect(
+        transitionClaimThroughCoreApi(CLAIM_ID, { action: 'submit', clientRequestId: REQUEST_ID }),
+      ).resolves.toMatchObject({ ok: false, status, error: generic })
+    }
+  })
+
   it('marks transport failures unknown for unchanged-command retry', async () => {
     mocks.fetch.mockRejectedValueOnce(new Error('timeout'))
     await expect(transitionClaimThroughCoreApi(CLAIM_ID, { action: 'submit', clientRequestId: REQUEST_ID })).resolves.toMatchObject({ ok: false, status: 503, outcomeUnknown: true })

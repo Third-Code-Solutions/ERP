@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { formatCents } from '../common'
 
 export const claimTransitionStatusSchema = z.enum([
   'draft',
@@ -91,4 +92,19 @@ export function claimTransitionPayload(
   if ('invoiceId' in parsed) payload.invoiceId = parsed.invoiceId
   if ('reason' in parsed) payload.reason = parsed.reason
   return JSON.stringify(payload)
+}
+
+/** Invoice statuses a claim may link to. A reversed invoice keeps its status, so reversed_at is checked separately. */
+export const CLAIM_LINKABLE_INVOICE_STATUSES: readonly string[] = ['issued', 'partial_payment', 'paid', 'overdue']
+
+/** Invoice statuses with at least one posted customer receipt; a claim payment needs one of them. */
+export const CLAIM_PAYABLE_INVOICE_STATUSES: readonly string[] = ['partial_payment', 'paid']
+
+/** Null when the claim amount and the invoice subtotal agree to the centavo. Core and Web show this same text. */
+export function claimInvoiceAmountMismatch(
+  claimAmountCents: number,
+  invoiceSubtotalCents: number,
+): string | null {
+  if (claimAmountCents === invoiceSubtotalCents) return null
+  return `The claim is ${formatCents(claimAmountCents)} but the invoice subtotal is ${formatCents(invoiceSubtotalCents)}. Make them match before linking.`
 }

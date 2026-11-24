@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  claimInvoiceAmountMismatch,
   claimTransitionCommandReceiptSchema,
   claimTransitionCommandSchema,
   claimTransitionPayload,
@@ -55,5 +56,18 @@ describe('claim transition command contract', () => {
     })
     expect(claimTransitionResultSchema.parse({ claimId: CLAIM_ID, changed: false, receipt })).toEqual({ claimId: CLAIM_ID, changed: false, receipt })
     expect(claimTransitionCommandReceiptSchema.safeParse({ ...receipt, payloadHash: 'A'.repeat(64) }).success).toBe(false)
+  })
+})
+
+describe('claimInvoiceAmountMismatch', () => {
+  it('accepts amounts that agree to the centavo', () => {
+    expect(claimInvoiceAmountMismatch(125_000_00, 125_000_00)).toBeNull()
+  })
+
+  it('names both amounts when they differ, even by one centavo', () => {
+    const message = claimInvoiceAmountMismatch(125_000_00, 125_000_01)
+    expect(message).toContain('The claim is')
+    expect(message).toContain('the invoice subtotal is')
+    expect(message).toContain('Make them match before linking.')
   })
 })
