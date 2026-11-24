@@ -11,10 +11,10 @@
     "databaseVersion": "17.6.1.121",
     "postgresMajor": 17,
     "appliedCount": 157,
-    "sourceCount": 186,
-    "pendingCount": 29,
+    "sourceCount": 187,
+    "pendingCount": 30,
     "appliedHead": "20260901141949",
-    "sourceHead": "20261124120000",
+    "sourceHead": "20261124150000",
     "ledgerStatus": "current_remote_ledger_matches_source",
     "purchaseOrderPreflight": {
       "duplicateGroups": 0,
@@ -193,6 +193,16 @@
       "hostedApplyApproved": false,
       "risk": "S9a expand-only. Adds the partial unique index ux_progress_claims_tenant_invoice_live on progress_claims (tenant_id, invoice_id) WHERE invoice_id IS NOT NULL AND status NOT IN ('rejected', 'cancelled'): one invoice backs at most one live claim, and a rejected or cancelled claim releases it. It is the race backstop behind Core ClaimTransitionService.assertInvoice; Core reports a violation of this index as 'already linked'. A preflight aborts with 23505, changing nothing, if an invoice already has two live claims. No column, row, grant, trigger or function changes. The non-concurrent build takes SHARE on progress_claims, so claim writes wait for the build, under a 5-second lock and 60-second statement timeout. Preflight: select tenant_id, invoice_id, count(*) from public.progress_claims where invoice_id is not null and status not in ('rejected','cancelled') group by 1, 2 having count(*) > 1 (expect no rows).",
       "recovery": "Take an encrypted backup first. The migration is transactional and aborts without changes on failure. Rollback is drop index if exists public.ux_progress_claims_tenant_invoice_live (no data effect); Core still refuses a second live link without it, only the concurrent race backstop is lost. This source-only batch does not authorize hosted application."
+    },
+    {
+      "id": "20261124-procurement-requisition-event-request-hash",
+      "migrations": [
+        "20261124150000_procurement_requisition_event_request_hash.sql"
+      ],
+      "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
+      "hostedApplyApproved": false,
+      "risk": "Adds one nullable column, public.procurement_requisition_events.request_hash char(64), with no default and no backfill, so it is a catalog-only change; ALTER TABLE takes a brief ACCESS EXCLUSIVE lock on the table under a 5-second lock timeout and a 60-second statement timeout. No row, constraint, index, grant, policy or trigger changes; the existing audit trigger and the tenant SELECT policy cover the column. Core API writes the SHA-256 of the canonical command on every new requisition event and refuses (409) an idempotency key reused with another action, actor or payload. Existing create events keep their hash in reason ('request_hash:<sha256>'), which Core API still reads; existing transition events have NULL, so a retry of one of them is refused instead of replayed. The Core API release that writes the column must not deploy before this migration; the production migration ledger gate already blocks it. Preflight: count public.procurement_requisition_events rows and confirm no request_hash column exists.",
+      "recovery": "Take an encrypted backup first. The migration is transactional and aborts without changes on failure. Rollback: roll the Core API release back first, then alter table public.procurement_requisition_events drop column if exists request_hash; this discards the stored hashes only, never an event. This source-only batch does not authorize hosted application."
     }
   ]
 }

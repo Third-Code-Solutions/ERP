@@ -127,6 +127,40 @@ type RoadmapFeature =
   | 'sap_posting'
   | 'provider_delivery'
 
+const requisitionEventKey = {
+  requisitionId: procurementRequisitionEvents.requisition_id,
+  action: procurementRequisitionEvents.action,
+  actorId: procurementRequisitionEvents.actor_id,
+  requestHash: procurementRequisitionEvents.request_hash,
+  reason: procurementRequisitionEvents.reason,
+}
+
+type RequisitionEventKey = {
+  requisitionId: string
+  action: string
+  actorId: string
+  requestHash: string | null
+  reason: string | null
+}
+
+/** A reused key replays only the same command by the same actor; anything else is a conflict. */
+function assertRequisitionReplay(
+  prior: RequisitionEventKey,
+  expected: { action: string; actorId: string; requestHash: string; requisitionId?: string },
+): void {
+  // Create events written before request_hash existed carry the hash in reason.
+  const legacyCreateHash =
+    prior.action === 'create' ? /^request_hash:([0-9a-f]{64})$/.exec(prior.reason ?? '')?.[1] : undefined
+  if (
+    prior.action !== expected.action ||
+    prior.actorId !== expected.actorId ||
+    (prior.requestHash ?? legacyCreateHash) !== expected.requestHash ||
+    (expected.requisitionId !== undefined && prior.requisitionId !== expected.requisitionId)
+  ) {
+    throw new ConflictException('Idempotency key was already used for another workflow command')
+  }
+}
+
 function commandHash(value: unknown): string {
   return createHash('sha256').update(canonicalJson(value)).digest('hex')
 }
@@ -300,7 +334,7 @@ export class RoadmapService {
 
       const requestHash = commandHash(command)
       const [existingEvent] = await transaction
-        .select({ requisitionId: procurementRequisitionEvents.requisition_id })
+        .select(requisitionEventKey)
         .from(procurementRequisitionEvents)
         .where(
           and(
@@ -310,6 +344,7 @@ export class RoadmapService {
         )
         .limit(1)
       if (existingEvent) {
+        assertRequisitionReplay(existingEvent, { action: 'create', actorId: principal.userId, requestHash })
         const [existing] = await transaction
           .select()
           .from(procurementRequisitions)
@@ -380,6 +415,7 @@ export class RoadmapService {
         reason: `request_hash:${requestHash}`,
         actor_id: principal.userId,
         idempotency_key: idempotencyKey,
+        request_hash: requestHash,
       })
       await this.audit.writeSemantic(transaction, {
         tenantId: principal.tenantId,
@@ -412,15 +448,14 @@ export class RoadmapService {
       await this.lockTenant(transaction, principal.tenantId)
       await this.audit.stampActor(transaction, principal)
 
+      const requestHash = commandHash({ requisitionId, ...command })
       const [priorEvent] = await transaction
-        .select({ requisitionId: procurementRequisitionEvents.requisition_id, action: procurementRequisitionEvents.action })
+        .select(requisitionEventKey)
         .from(procurementRequisitionEvents)
         .where(and(eq(procurementRequisitionEvents.tenant_id, principal.tenantId), eq(procurementRequisitionEvents.idempotency_key, idempotencyKey)))
         .limit(1)
       if (priorEvent) {
-        if (priorEvent.requisitionId !== requisitionId || priorEvent.action !== command.action) {
-          throw new ConflictException('Idempotency key was already used for another workflow command')
-        }
+        assertRequisitionReplay(priorEvent, { action: command.action, actorId: principal.userId, requestHash, requisitionId })
         const [replayed] = await transaction.select().from(procurementRequisitions).where(and(eq(procurementRequisitions.id, priorEvent.requisitionId), eq(procurementRequisitions.tenant_id, principal.tenantId))).limit(1)
         if (!replayed) throw new InternalServerErrorException('Requisition workflow replay target is missing')
         return this.requisitionResult(transaction, replayed, false)
@@ -471,9 +506,15 @@ export class RoadmapService {
           converted_purchase_order_id: convertedPurchaseOrderId ?? requisition.converted_purchase_order_id,
           updated_at: new Date(),
         })
-        .where(and(eq(procurementRequisitions.id, requisition.id), eq(procurementRequisitions.tenant_id, principal.tenantId)))
+        .where(
+          and(
+            eq(procurementRequisitions.id, requisition.id),
+            eq(procurementRequisitions.tenant_id, principal.tenantId),
+            eq(procurementRequisitions.status, requisition.status),
+          ),
+        )
         .returning()
-      if (!updated) throw new InternalServerErrorException('Requisition workflow update failed')
+      if (!updated) throw new ConflictException('The requisition changed while this command ran; reload it and try again')
       await transaction.insert(procurementRequisitionEvents).values({
         tenant_id: principal.tenantId,
         requisition_id: requisition.id,
@@ -483,6 +524,7 @@ export class RoadmapService {
         reason: command.reason ?? null,
         actor_id: principal.userId,
         idempotency_key: idempotencyKey,
+        request_hash: requestHash,
       })
       await this.audit.writeSemantic(transaction, {
         tenantId: principal.tenantId,
