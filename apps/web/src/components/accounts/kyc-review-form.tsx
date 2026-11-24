@@ -1,25 +1,52 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import React, { useState, useTransition } from 'react'
 import { reviewKyc } from '@/app/(dashboard)/crm/accounts/actions'
 
-export function KycReviewForm({ accountId }: { accountId: string }) {
+export const REJECT_KYC_CONFIRMATION =
+  'Reject this account? Sales will not be able to move its deals past Site Survey until Finance records a new decision.'
+
+export function KycReviewForm({
+  accountId,
+  currentStatus = 'pending',
+}: {
+  accountId: string
+  /** The decision on file; a flagged or rejected account is being reconsidered. */
+  currentStatus?: string
+}) {
   const [error, setError] = useState<string | null>(null)
   const [decision, setDecision] = useState<'approved' | 'flagged' | 'rejected'>('approved')
   const [pending, startTransition] = useTransition()
+  const reconsidering = currentStatus === 'flagged' || currentStatus === 'rejected'
 
-  function onSubmit(formData: FormData) {
+  // onSubmit (not a form action) so a cancelled confirmation or a returned
+  // error keeps what the reviewer typed.
+  function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (decision === 'rejected' && !window.confirm(REJECT_KYC_CONFIRMATION)) return
+    const formData = new FormData(event.currentTarget)
     setError(null)
     startTransition(async () => {
-      const res = await reviewKyc(formData)
-      if (res?.error) setError(res.error)
+      try {
+        const res = await reviewKyc(formData)
+        if (res?.error) setError(res.error)
+      } catch {
+        setError('The decision could not be saved. Refresh the page and try again.')
+      }
     })
   }
 
   return (
-    <form action={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <form onSubmit={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <input type="hidden" name="account_id" value={accountId} />
       <input type="hidden" name="decision" value={decision} />
+
+      {reconsidering && (
+        <p style={{ margin: 0, fontSize: 12.5, color: 'var(--color-neutral-600)' }}>
+          This account is currently <strong>{currentStatus}</strong>. Recording a new decision replaces it and is
+          kept in the audit trail.
+        </p>
+      )}
 
       <div style={{ display: 'flex', gap: 6 }}>
         <RadioPill checked={decision === 'approved'} onChange={() => setDecision('approved')} tone="success">
@@ -36,11 +63,14 @@ export function KycReviewForm({ accountId }: { accountId: string }) {
       <textarea
         name="notes"
         rows={4}
-        required={decision !== 'approved'}
+        required={decision !== 'approved' || reconsidering}
+        aria-label="Decision notes"
         placeholder={
-          decision === 'approved'
-            ? 'Notes (optional)…'
-            : 'Notes required — explain the flag or rejection.'
+          reconsidering
+            ? 'Notes required — explain why the earlier decision is being changed.'
+            : decision === 'approved'
+              ? 'Notes (optional)…'
+              : 'Notes required — explain the flag or rejection.'
         }
         style={{
           fontFamily: 'inherit',

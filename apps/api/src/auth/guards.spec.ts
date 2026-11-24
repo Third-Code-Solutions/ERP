@@ -48,6 +48,9 @@ class GuardFixtureController {
   @RequireCapabilities('opportunity.read')
   opportunityRead(): void {}
 
+  @RequireCapabilities('opportunity.update')
+  opportunityUpdate(): void {}
+
   @RequireCapabilities('opportunity.stage_change')
   opportunityStageChange(): void {}
 
@@ -546,6 +549,7 @@ describe('CapabilityGuard', () => {
       const expected = ['owner', 'admin', 'sales'].includes(role)
 
       for (const method of [
+        'opportunityUpdate',
         'opportunityStageChange',
         'opportunityConvert',
       ] as const) {

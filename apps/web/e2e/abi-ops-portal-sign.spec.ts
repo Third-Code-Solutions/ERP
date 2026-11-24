@@ -17,7 +17,7 @@ test.describe('M-Portal Sign (public)', () => {
     const body = (await page.locator('body').innerText()).toLowerCase()
     expect(body.length).toBeGreaterThan(50)
 
-    // The portal layout brands every page with "ABI OPS" — that's our anchor
+    // The portal layout ends every page with "Powered by ABI OPS"; that is our anchor
     // for "the portal rendered something" without binding to fragile copy.
     const hasPortalChrome = body.includes('abi ops')
     const hasSigningCopy =

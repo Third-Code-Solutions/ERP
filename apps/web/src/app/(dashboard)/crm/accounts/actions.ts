@@ -174,9 +174,9 @@ export async function reviewKyc(formData: FormData): Promise<{ error?: string }>
     rejected: 'rejected' as const,
   }
 
-  let found: boolean
+  let outcome: 'not_found' | 'notes_required' | 'saved'
   try {
-    found = await db.transaction(async (tx) => {
+    outcome = await db.transaction(async (tx) => {
       await stampActorInTransaction(tx, profile.user.id)
       const [existing] = await tx
         .select({ id: accounts.id, kyc_status: accounts.kyc_status, kyc_notes: accounts.kyc_notes })
@@ -184,10 +184,17 @@ export async function reviewKyc(formData: FormData): Promise<{ error?: string }>
         .where(and(eq(accounts.id, input.account_id), eq(accounts.tenant_id, profile.tenantId)))
         .limit(1)
         .for('update')
-      if (!existing) return false
+      if (!existing) return 'not_found'
+      // Reconsidering a flag or rejection replaces it, so the new decision needs its own reason.
+      if (
+        (existing.kyc_status === 'flagged' || existing.kyc_status === 'rejected') &&
+        !input.notes?.trim()
+      ) {
+        return 'notes_required'
+      }
       const notes = input.notes ?? existing.kyc_notes
       if (existing.kyc_status === decisionMap[input.decision] && existing.kyc_notes === notes) {
-        return true
+        return 'saved'
       }
 
       const [updated] = await tx
@@ -214,15 +221,19 @@ export async function reviewKyc(formData: FormData): Promise<{ error?: string }>
           notes,
         },
       })
-      return true
+      return 'saved'
     })
   } catch {
     log('unknown')
     return { error: 'KYC review could not be confirmed. Refresh the account before retrying.' }
   }
-  if (!found) {
+  if (outcome === 'not_found') {
     log('not_found')
     return { error: 'Account not found' }
+  }
+  if (outcome === 'notes_required') {
+    log('validation_error')
+    return { error: 'Notes are required when changing a flagged or rejected KYC decision.' }
   }
 
   log('success')

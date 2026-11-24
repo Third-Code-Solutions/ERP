@@ -80,6 +80,9 @@ const capabilityRoles = {
   'account.kyc.read': ['owner', 'admin', 'finance', 'viewer'],
   'account.kyc_review': ['owner', 'admin', 'finance'],
   'opportunity.create': ['owner', 'admin', 'sales'],
+  // Edits an open opportunity's commercials, rep and one-time project link.
+  // Stage moves stay with opportunity.advance_stage / opportunity.stage_change.
+  'opportunity.update': ['owner', 'admin', 'sales'],
   'opportunity.read': ALL_ROLES,
   'opportunity.export': [
     'owner',

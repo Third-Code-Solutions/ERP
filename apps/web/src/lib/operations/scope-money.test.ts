@@ -1,5 +1,25 @@
 import { describe, expect, it } from 'vitest'
-import { multiplyCents, parsePesosToCents } from './scope-money'
+import { multiplyCents, parseOpportunityCents, parsePesosToCents } from './scope-money'
+
+describe('parseOpportunityCents', () => {
+  it('reads blank as zero and exact pesos as centavos', () => {
+    expect(parseOpportunityCents('')).toBe(0)
+    expect(parseOpportunityCents(null)).toBe(0)
+    expect(parseOpportunityCents('1234.5')).toBe(123_450)
+  })
+
+  it('allows a negative amount only when signed', () => {
+    expect(parseOpportunityCents('-10', { signed: true })).toBe(-1_000)
+    expect(parseOpportunityCents('-10')).toBeUndefined()
+  })
+
+  it('refuses amounts above the opportunity cap and malformed text', () => {
+    expect(parseOpportunityCents('1000000000')).toBe(100_000_000_000)
+    expect(parseOpportunityCents('1000000000.01')).toBeUndefined()
+    expect(parseOpportunityCents('1.234')).toBeUndefined()
+    expect(parseOpportunityCents('1'.repeat(40))).toBeUndefined()
+  })
+})
 
 describe('scope money parsing', () => {
   it('parses exact peso text into centavos', () => {
