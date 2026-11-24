@@ -69,3 +69,50 @@ export function classifyBomLineKind(unit: string | null | undefined): BomLineIte
     reason: 'UOM is not in the approved grain classification list.',
   }
 }
+
+export interface BomLineGrainState {
+  unit: string | null
+  kind: string
+  classificationStatus: string
+  parentLineItemId: string | null
+}
+
+export interface BomLineReclassification {
+  kind: BomLineItemKind
+  status: BomLineItemClassificationStatus
+  reason: string | null
+  // A re-graded line never keeps a parent: the estimator confirms it again.
+  parentLineItemId: null
+  proposedKind: BomLineItemKind | null
+}
+
+/**
+ * What a unit edit does to a line's grain, or null when nothing changes. A
+ * material line the estimator already attached to a parent keeps that decision
+ * when the new unit is another material unit.
+ */
+export function reclassifyBomLineForUnit(
+  current: BomLineGrainState,
+  nextUnit: string | null | undefined,
+): BomLineReclassification | null {
+  if (normalizeUnit(current.unit) === normalizeUnit(nextUnit)) return null
+
+  const next = classifyBomLineKind(nextUnit)
+  if (
+    next.kind === 'material_line' &&
+    current.kind === 'material_line' &&
+    current.classificationStatus === 'classified' &&
+    current.parentLineItemId
+  ) {
+    return null
+  }
+
+  return {
+    // Unknown units keep the creation-time storage placeholder.
+    kind: next.kind ?? 'work_item',
+    status: next.status,
+    reason: next.reason,
+    parentLineItemId: null,
+    proposedKind: next.kind,
+  }
+}

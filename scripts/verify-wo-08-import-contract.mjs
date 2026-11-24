@@ -101,8 +101,11 @@ for (const fragment of [
   'takeoff_import_id: takeoffImport.id',
   'bomLineItems.takeoff_import_id,',
   'bomLineItems.source_row_key,',
-  "unit_cost_cents: sql`case when ${bomLineItems.unit_rate_source} = 'dupa'",
-  "line_total_cents: sql`case when ${bomLineItems.unit_rate_source} = 'dupa'",
+  // A re-import keeps the estimator's unit cost and refreshes the line total
+  // from it; a line left in review gets a grain review; BOM totals follow.
+  'this.lineTotalOrReject(',
+  '.insert(bomLineItemGrainReviews)',
+  'await this.recalculateBomTotals(',
   'takeoffUnresolvedItems',
 ]) {
   requireText('coreService', fragment)
@@ -115,16 +118,16 @@ const lineConflictStart = source.coreService.lastIndexOf(
   '.onConflictDoUpdate({',
   lineConflictTarget
 )
-const lineConflictEnd = source.coreService.indexOf(
-  'returning({ id: bomLineItems.id })',
-  lineConflictStart
-)
+const lineConflictEnd = source.coreService.indexOf('.returning({', lineConflictStart)
 if (lineConflictStart < 0 || lineConflictEnd < 0) {
   throw new Error('WO-08 importer line upsert region could not be located')
 }
 const lineConflict = source.coreService.slice(lineConflictStart, lineConflictEnd)
 if (/\bnotes\s*:/.test(lineConflict)) {
   throw new Error('WO-08 re-import conflict set must not overwrite vendor evidence stored in notes')
+}
+if (/\b(?:unit_cost_cents|line_total_cents)\s*:/.test(lineConflict)) {
+  throw new Error('WO-08 re-import conflict set must not overwrite the unit cost the estimator entered')
 }
 forbid(
   'route',

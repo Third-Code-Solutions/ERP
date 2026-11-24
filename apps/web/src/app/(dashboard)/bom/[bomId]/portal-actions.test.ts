@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PgDialect } from 'drizzle-orm/pg-core'
 
@@ -93,14 +94,22 @@ describe('BOM client signing link', () => {
       is_dev_stub: false,
     })
     mocks.insert.mockReturnValue({
-      values: () => ({ returning: () => Promise.resolve([{ id: BOM_ID }]) }),
+      values: vi.fn(() => ({ returning: () => Promise.resolve([{ id: BOM_ID }]) })),
     })
     mocks.notifyExternalEmail.mockResolvedValue(undefined)
     mocks.writeAuditLog.mockResolvedValue(undefined)
 
-    await expect(mintBomPortalToken(BOM_ID, 'client@example.test')).resolves.toMatchObject({
-      portal_url: '/portal/sign/synthetic-token',
-    })
+    const minted = await mintBomPortalToken(BOM_ID, 'client@example.test')
+    expect(minted).toMatchObject({ portal_url: '/portal/sign/synthetic-token' })
+
+    // The line-item page is reachable: its token is the one whose hash was stored.
+    const lineItemToken = minted.line_item_url?.split('/portal/bom/')[1]
+    expect(lineItemToken).toMatch(/^[0-9a-f]{64}$/)
+    expect(minted.line_item_url).toMatch(/^https?:\/\/[^/]+\/portal\/bom\/[0-9a-f]{64}$/)
+    const stored = mocks.insert.mock.results[0]?.value.values.mock.calls[0]?.[0] as
+      | { token_hash: string }
+      | undefined
+    expect(stored?.token_hash).toBe(createHash('sha256').update(lineItemToken ?? '').digest('hex'))
     expect(mocks.createSigningSession).toHaveBeenCalledWith({
       tenantId: TENANT_ID,
       entityType: 'bom',

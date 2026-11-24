@@ -22,6 +22,8 @@ import {
   equipmentCatalog,
   priceHistory,
   opportunities,
+  boqDivisions,
+  takeoffImports,
   takeoffUnresolvedItems,
 } from '@third-code-erp/database/schema'
 import { eq, and, max, desc, asc, isNotNull, isNull, inArray, ne } from 'drizzle-orm'
@@ -44,6 +46,8 @@ import {
   dupaUpsertInputSchema,
   parseBoqQuantity,
   projectLocationCreateSchema,
+  reclassifyBomLineForUnit,
+  takeoffIssueStillApplies,
   type BomLineItemKind,
 } from '@third-code-erp/shared-types/bom'
 import {
@@ -70,43 +74,90 @@ const bomVendorAssignmentSchema = z
   })
   .strict()
 
+// Shared by add and edit so a line is validated the same way both ways in.
+// Messages are written for the person typing, not for a developer.
+const bomLineItemFieldsSchema = z.object({
+  description: z
+    .string()
+    .trim()
+    .min(1, 'Description is required')
+    .max(1_000, 'Description must be at most 1,000 characters'),
+  unit: z
+    .string()
+    .trim()
+    .min(1, 'Unit is required')
+    .max(20, 'Unit must be at most 20 characters'),
+  // D-5: numeric(18,4) decimal string, parsed exactly (never a float).
+  quantity: z.string().transform((value, context) => {
+    const quantity = parseBoqQuantity(value)
+    if (quantity === null) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Quantity must be a non-negative number with at most 4 decimal places',
+      })
+      return z.NEVER
+    }
+    return quantity
+  }),
+  unit_cost_cents: z
+    .number()
+    .int('Unit cost must be a whole number of centavos')
+    .min(0, 'Unit cost cannot be negative')
+    .max(Number.MAX_SAFE_INTEGER, 'Unit cost is too large'),
+  code: z.string().trim().max(50, 'Code must be at most 50 characters').optional(),
+})
+
+function refineSafeManualLineTotal(
+  value: { unit_cost_cents: number; quantity: string },
+  context: z.RefinementCtx,
+) {
+  if (!isSafeManualLineTotal(value.unit_cost_cents, value.quantity)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['unit_cost_cents'],
+      message: 'Line total exceeds the supported centavo range',
+    })
+  }
+}
+
 const addBomLineItemActionSchema = z
   .object({
     bomId: z.string().uuid(),
     projectId: z.string().uuid(),
-    data: z
-      .object({
-        description: z.string().trim().min(1).max(1_000),
-        unit: z.string().trim().min(1).max(20),
-        // D-5: numeric(18,4) decimal string, parsed exactly (never a float).
-        quantity: z
-          .string()
-          .transform((value, context) => {
-            const quantity = parseBoqQuantity(value)
-            if (quantity === null) {
-              context.addIssue({
-                code: z.ZodIssueCode.custom,
-                message: 'Quantity must be a non-negative number with at most 4 decimal places',
-              })
-              return z.NEVER
-            }
-            return quantity
-          }),
-        unit_cost_cents: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
-        code: z.string().trim().max(50).optional(),
+    data: bomLineItemFieldsSchema
+      .extend({
         notes: z.string().max(2_000).optional(),
         locationId: z.string().uuid().nullable().optional(),
       })
       .strict()
-      .superRefine((value, context) => {
-        if (!isSafeManualLineTotal(value.unit_cost_cents, value.quantity)) {
-          context.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ['unit_cost_cents'],
-            message: 'Line total exceeds the supported centavo range',
-          })
-        }
-      }),
+      .superRefine(refineSafeManualLineTotal),
+  })
+  .strict()
+
+const updateBomLineItemActionSchema = z
+  .object({
+    lineItemId: z.string().uuid(),
+    bomId: z.string().uuid(),
+    projectId: z.string().uuid(),
+    data: bomLineItemFieldsSchema.strict().superRefine(refineSafeManualLineTotal),
+  })
+  .strict()
+
+const QUANTITY_MUST_BE_POSITIVE = 'Quantity must be greater than 0 with at most 4 decimal places'
+
+const takeoffItemResolutionSchema = z
+  .object({
+    itemId: z.string().uuid(),
+    projectId: z.string().uuid(),
+    description: bomLineItemFieldsSchema.shape.description.optional(),
+    unit: bomLineItemFieldsSchema.shape.unit.optional(),
+    quantity: bomLineItemFieldsSchema.shape.quantity.optional(),
+    division: z
+      .string()
+      .trim()
+      .min(1, 'Division is required')
+      .max(120, 'Division must be at most 120 characters')
+      .optional(),
   })
   .strict()
 
@@ -845,6 +896,331 @@ export async function deleteBomLineItem(
   return {}
 }
 
+interface EditableBomLine {
+  id: string
+  description: string
+  unit: string | null
+  // numeric(18,4) decimal string as stored.
+  quantity: string
+  unitCostCents: number
+  code: string | null
+  divisionId: string | null
+  unitRateSource: string
+  kind: string
+  classificationStatus: string
+  parentLineItemId: string | null
+}
+
+interface BomLineEdit {
+  description?: string
+  unit?: string
+  quantity?: string
+  unitCostCents?: number
+  code?: string | null
+  divisionId?: string | null
+}
+
+type BomLineEditOutcome =
+  | { error: string; line?: undefined }
+  | { error?: undefined; line: EditableBomLine }
+
+async function selectEditableLineForUpdate(
+  tx: DatabaseTransaction,
+  scope: { bomId: string; tenantId: string },
+  lineItemId: string,
+): Promise<EditableBomLine | null> {
+  const [line] = await tx
+    .select({
+      id: bomLineItems.id,
+      description: bomLineItems.description,
+      unit: bomLineItems.unit,
+      quantity: bomLineItems.quantity_decimal,
+      unitCostCents: bomLineItems.unit_cost_cents,
+      code: bomLineItems.code,
+      divisionId: bomLineItems.division_id,
+      unitRateSource: bomLineItems.unit_rate_source,
+      kind: bomLineItems.kind,
+      classificationStatus: bomLineItems.classification_status,
+      parentLineItemId: bomLineItems.parent_line_item_id,
+    })
+    .from(bomLineItems)
+    .where(
+      and(
+        eq(bomLineItems.id, lineItemId),
+        eq(bomLineItems.bom_id, scope.bomId),
+        eq(bomLineItems.tenant_id, scope.tenantId),
+      ),
+    )
+    .for('update')
+  return line ?? null
+}
+
+async function insertPendingGrainReviewInTransaction(
+  tx: DatabaseTransaction,
+  scope: { bomId: string; tenantId: string; actorId: string },
+  lineItemId: string,
+  review: { proposedKind: BomLineItemKind | null; reason: string | null },
+) {
+  // The pending-per-line unique index makes a repeat request a no-op.
+  await tx
+    .insert(bomLineItemGrainReviews)
+    .values({
+      tenant_id: scope.tenantId,
+      bom_id: scope.bomId,
+      bom_line_item_id: lineItemId,
+      proposed_kind: review.proposedKind,
+      reason: review.reason ?? 'Explicit grain review required.',
+      created_by: scope.actorId,
+      updated_by: scope.actorId,
+    })
+    .onConflictDoNothing()
+}
+
+/**
+ * One draft-line edit, inside the caller's transaction and BOM lock: new
+ * totals from the shared BOM math, grain re-checked when the unit changes,
+ * BOM totals refreshed, and the change audited.
+ */
+async function applyBomLineEditInTransaction(
+  tx: DatabaseTransaction,
+  scope: { bomId: string; projectId: string; tenantId: string; actorId: string },
+  current: EditableBomLine,
+  edit: BomLineEdit,
+): Promise<BomLineEditOutcome> {
+  const next = {
+    description: edit.description ?? current.description,
+    unit: edit.unit ?? current.unit,
+    quantity: edit.quantity ?? current.quantity,
+    code: edit.code === undefined ? current.code : edit.code,
+    divisionId: edit.divisionId === undefined ? current.divisionId : edit.divisionId,
+    // A DUPA owns the rate of its line: an edit never overrides it.
+    unitCostCents:
+      current.unitRateSource === 'dupa'
+        ? current.unitCostCents
+        : (edit.unitCostCents ?? current.unitCostCents),
+  }
+
+  let lineTotalCents: number
+  try {
+    lineTotalCents = manualLineTotal(next.unitCostCents, next.quantity)
+  } catch {
+    return { error: 'Line total exceeds the supported centavo range' }
+  }
+
+  const reclassification =
+    edit.unit === undefined
+      ? null
+      : reclassifyBomLineForUnit(
+          {
+            unit: current.unit,
+            kind: current.kind,
+            classificationStatus: current.classificationStatus,
+            parentLineItemId: current.parentLineItemId,
+          },
+          next.unit,
+        )
+
+  if (reclassification && reclassification.status !== 'classified') {
+    const [child] = await tx
+      .select({ id: bomLineItems.id })
+      .from(bomLineItems)
+      .where(
+        and(
+          eq(bomLineItems.tenant_id, scope.tenantId),
+          eq(bomLineItems.bom_id, scope.bomId),
+          eq(bomLineItems.parent_line_item_id, current.id),
+        ),
+      )
+      .limit(1)
+    if (child) {
+      return {
+        error:
+          'Material lines are attached to this work item. Move or delete them before changing its unit.',
+      }
+    }
+  }
+
+  const before = {
+    description: current.description,
+    unit: current.unit,
+    quantity: parseBoqQuantity(current.quantity) ?? current.quantity,
+    unit_cost_cents: current.unitCostCents,
+    code: current.code,
+    division_id: current.divisionId,
+  }
+  const after = {
+    description: next.description,
+    unit: next.unit,
+    quantity: parseBoqQuantity(next.quantity) ?? next.quantity,
+    unit_cost_cents: next.unitCostCents,
+    code: next.code,
+    division_id: next.divisionId,
+  }
+  const fieldsChanged = (Object.keys(after) as Array<keyof typeof after>).filter(
+    (field) => before[field] !== after[field],
+  )
+  const line: EditableBomLine = {
+    ...current,
+    ...next,
+    ...(reclassification
+      ? {
+          kind: reclassification.kind,
+          classificationStatus: reclassification.status,
+          parentLineItemId: reclassification.parentLineItemId,
+        }
+      : {}),
+  }
+  if (fieldsChanged.length === 0 && !reclassification) return { line }
+
+  const now = new Date()
+  await tx
+    .update(bomLineItems)
+    .set({
+      description: next.description,
+      unit: next.unit,
+      quantity_decimal: next.quantity,
+      code: next.code,
+      division_id: next.divisionId,
+      unit_cost_cents: next.unitCostCents,
+      markup_bps: 0,
+      line_total_cents: lineTotalCents,
+      ...(reclassification
+        ? {
+            kind: reclassification.kind,
+            classification_status: reclassification.status,
+            classification_reason: reclassification.reason,
+            parent_line_item_id: reclassification.parentLineItemId,
+          }
+        : {}),
+      updated_at: now,
+    })
+    .where(
+      and(
+        eq(bomLineItems.id, current.id),
+        eq(bomLineItems.bom_id, scope.bomId),
+        eq(bomLineItems.tenant_id, scope.tenantId),
+      ),
+    )
+
+  if (reclassification?.status === 'classified') {
+    await tx
+      .update(bomLineItemGrainReviews)
+      .set({
+        status: 'resolved',
+        resolved_kind: reclassification.kind,
+        resolved_by: scope.actorId,
+        updated_by: scope.actorId,
+        resolved_at: now,
+        updated_at: now,
+      })
+      .where(
+        and(
+          eq(bomLineItemGrainReviews.tenant_id, scope.tenantId),
+          eq(bomLineItemGrainReviews.bom_id, scope.bomId),
+          eq(bomLineItemGrainReviews.bom_line_item_id, current.id),
+          eq(bomLineItemGrainReviews.status, 'pending'),
+        ),
+      )
+  } else if (reclassification) {
+    await insertPendingGrainReviewInTransaction(tx, scope, current.id, {
+      proposedKind: reclassification.proposedKind,
+      reason: reclassification.reason,
+    })
+  }
+
+  await recalcBomTotalsInTransaction(tx, scope.bomId, scope.tenantId)
+
+  await writeAuditLogInTransaction(tx, {
+    tenantId: scope.tenantId,
+    actorId: scope.actorId,
+    entityType: 'bom_line_item',
+    entityId: current.id,
+    action: 'update',
+    diff: {
+      fields_changed: fieldsChanged,
+      before,
+      after,
+      ...(reclassification
+        ? {
+            classification: {
+              before: {
+                kind: current.kind,
+                status: current.classificationStatus,
+                parent_line_item_id: current.parentLineItemId,
+              },
+              after: {
+                kind: reclassification.kind,
+                status: reclassification.status,
+                parent_line_item_id: reclassification.parentLineItemId,
+              },
+            },
+          }
+        : {}),
+    },
+  })
+  return { line }
+}
+
+export async function updateBomLineItem(
+  lineItemId: string,
+  bomId: string,
+  projectId: string,
+  data: unknown,
+): Promise<{ error?: string }> {
+  const profile = await getUserProfile()
+  if (!profile) return { error: 'Unauthorized' }
+  if (!can(profile.role, 'bom.edit')) {
+    return { error: `Forbidden: role "${profile.role}" lacks "bom.edit"` }
+  }
+
+  const parsed = updateBomLineItemActionSchema.safeParse({ lineItemId, bomId, projectId, data })
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0]
+    return { error: issue?.path[0] === 'data' ? issue.message : 'Line item not found' }
+  }
+  const lineInput = parsed.data.data
+  if (lineInput.quantity === '0') return { error: QUANTITY_MUST_BE_POSITIVE }
+
+  try {
+    const outcome = await db.transaction(async (tx) => {
+      const lockedBom = await lockBomForMutation(tx, {
+        bomId,
+        projectId,
+        tenantId: profile.tenantId,
+      })
+      if (!lockedBom) return { error: 'BOM not found' }
+      if (lockedBom.status !== 'draft') return { error: 'Only draft BOMs can be edited' }
+
+      const current = await selectEditableLineForUpdate(
+        tx,
+        { bomId, tenantId: profile.tenantId },
+        lineItemId,
+      )
+      if (!current) return { error: 'Line item not found' }
+
+      return applyBomLineEditInTransaction(
+        tx,
+        { bomId, projectId, tenantId: profile.tenantId, actorId: profile.user.id },
+        current,
+        {
+          description: lineInput.description,
+          unit: lineInput.unit,
+          quantity: lineInput.quantity,
+          unitCostCents: lineInput.unit_cost_cents,
+          code: lineInput.code ? lineInput.code : null,
+        },
+      )
+    })
+    if (outcome.error !== undefined) return { error: outcome.error }
+  } catch (error) {
+    console.error('[updateBomLineItem]', error)
+    return { error: safeActionError(error, 'Unable to save the line') }
+  }
+
+  revalidatePath(`/projects/${projectId}/bom`)
+  return {}
+}
+
 export async function approveBom(bomId: string, projectId: string): Promise<{ error?: string }> {
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
@@ -1292,6 +1668,39 @@ export async function resolveBomGrainReview(input: unknown): Promise<{ error?: s
         .returning({ id: bomLineItemGrainReviews.id })
       if (updatedReviews.length !== 1) throw new BomReviewResolutionConflict()
 
+      // The estimator has made the grain decision an imported row's "material
+      // needs a parent" reason asked for.
+      const settledItems = await tx
+        .update(takeoffUnresolvedItems)
+        .set({
+          status: 'resolved',
+          resolved_by: profile.user.id,
+          resolved_at: now,
+          updated_at: now,
+        })
+        .where(
+          and(
+            eq(takeoffUnresolvedItems.tenant_id, profile.tenantId),
+            eq(takeoffUnresolvedItems.bom_line_item_id, currentLine.id),
+            eq(takeoffUnresolvedItems.reason_code, 'MATERIAL_PARENT_REQUIRED'),
+            eq(takeoffUnresolvedItems.status, 'pending'),
+          ),
+        )
+        .returning({
+          id: takeoffUnresolvedItems.id,
+          importId: takeoffUnresolvedItems.takeoff_import_id,
+        })
+      const takeoffScope = { tenantId: profile.tenantId, actorId: profile.user.id }
+      await auditResolvedTakeoffItemsInTransaction(
+        tx,
+        takeoffScope,
+        settledItems.map((item) => ({ id: item.id, code: 'MATERIAL_PARENT_REQUIRED' })),
+        currentLine.id,
+      )
+      for (const importId of new Set(settledItems.map((item) => item.importId))) {
+        await refreshTakeoffImportStatusInTransaction(tx, takeoffScope, importId, now)
+      }
+
       await writeAuditLogInTransaction(tx, {
         tenantId: profile.tenantId,
         actorId: profile.user.id,
@@ -1328,6 +1737,368 @@ export async function resolveBomGrainReview(input: unknown): Promise<{ error?: s
 
   revalidatePath(`/projects/${parsed.data.projectId}/bom`)
   return {}
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Imported takeoff rows that still need an estimator
+// ───────────────────────────────────────────────────────────────────────────
+
+export interface PendingTakeoffRow {
+  // Any pending item of the line; resolving it settles every item of that line.
+  itemId: string
+  lineItemId: string
+  sourceRowKey: string
+  description: string
+  unit: string | null
+  quantity: string
+  division: string | null
+  reasons: Array<{ code: string; message: string }>
+}
+
+// shortcut: the queue lists the first 500 pending items; later rows appear as
+// earlier ones clear. Page it if an import ever leaves more than that open.
+const MAX_PENDING_TAKEOFF_ITEMS = 500
+
+export async function listPendingTakeoffRows(
+  projectId: string,
+  bomId: string | null,
+): Promise<PendingTakeoffRow[]> {
+  const profile = await getUserProfile()
+  if (!profile || !canReadBom(profile.role) || !isUuid(projectId) || !isUuid(bomId)) return []
+
+  const rows = await db
+    .select({
+      itemId: takeoffUnresolvedItems.id,
+      lineItemId: bomLineItems.id,
+      sourceRowKey: takeoffUnresolvedItems.source_row_key,
+      reasonCode: takeoffUnresolvedItems.reason_code,
+      reason: takeoffUnresolvedItems.reason,
+      description: bomLineItems.description,
+      unit: bomLineItems.unit,
+      quantity: bomLineItems.quantity_decimal,
+      division: boqDivisions.name,
+    })
+    .from(takeoffUnresolvedItems)
+    .innerJoin(
+      bomLineItems,
+      and(
+        eq(takeoffUnresolvedItems.bom_line_item_id, bomLineItems.id),
+        eq(takeoffUnresolvedItems.tenant_id, bomLineItems.tenant_id),
+      ),
+    )
+    .innerJoin(
+      boms,
+      and(eq(bomLineItems.bom_id, boms.id), eq(bomLineItems.tenant_id, boms.tenant_id)),
+    )
+    .leftJoin(
+      boqDivisions,
+      and(
+        eq(bomLineItems.division_id, boqDivisions.id),
+        eq(boqDivisions.tenant_id, bomLineItems.tenant_id),
+      ),
+    )
+    .where(
+      and(
+        eq(takeoffUnresolvedItems.tenant_id, profile.tenantId),
+        eq(takeoffUnresolvedItems.status, 'pending'),
+        eq(boms.project_id, projectId),
+        eq(boms.id, bomId),
+        eq(boms.tenant_id, profile.tenantId),
+        liveProjectCondition(projectId, profile.tenantId),
+      ),
+    )
+    .orderBy(asc(bomLineItems.sort_order), asc(takeoffUnresolvedItems.created_at))
+    .limit(MAX_PENDING_TAKEOFF_ITEMS)
+
+  const byLine = new Map<string, PendingTakeoffRow>()
+  for (const row of rows) {
+    const reason = { code: row.reasonCode, message: row.reason }
+    const existing = byLine.get(row.lineItemId)
+    if (existing) {
+      existing.reasons.push(reason)
+      continue
+    }
+    byLine.set(row.lineItemId, {
+      itemId: row.itemId,
+      lineItemId: row.lineItemId,
+      sourceRowKey: row.sourceRowKey,
+      description: row.description,
+      unit: row.unit,
+      quantity: row.quantity,
+      division: row.division,
+      reasons: [reason],
+    })
+  }
+  return [...byLine.values()]
+}
+
+async function auditResolvedTakeoffItemsInTransaction(
+  tx: DatabaseTransaction,
+  scope: { tenantId: string; actorId: string },
+  items: Array<{ id: string; code: string }>,
+  lineItemId: string,
+) {
+  for (const item of items) {
+    await writeAuditLogInTransaction(tx, {
+      tenantId: scope.tenantId,
+      actorId: scope.actorId,
+      entityType: 'takeoff_unresolved_item',
+      entityId: item.id,
+      action: 'update',
+      diff: {
+        field_changed: 'status',
+        before: 'pending',
+        after: 'resolved',
+        reason_code: item.code,
+        bom_line_item_id: lineItemId,
+      },
+    })
+  }
+}
+
+/** Recount an import's pending rows so its status and counter match them. */
+async function refreshTakeoffImportStatusInTransaction(
+  tx: DatabaseTransaction,
+  scope: { tenantId: string; actorId: string },
+  importId: string,
+  now: Date,
+) {
+  const [open] = await tx
+    .select({ count: sql<number>`count(*)::int` })
+    .from(takeoffUnresolvedItems)
+    .where(
+      and(
+        eq(takeoffUnresolvedItems.tenant_id, scope.tenantId),
+        eq(takeoffUnresolvedItems.takeoff_import_id, importId),
+        eq(takeoffUnresolvedItems.status, 'pending'),
+      ),
+    )
+  const openCount = open?.count ?? 0
+  await tx
+    .update(takeoffImports)
+    .set({
+      status: openCount > 0 ? 'partially_resolved' : 'resolved',
+      unresolved_count: openCount,
+      updated_by: scope.actorId,
+      updated_at: now,
+    })
+    .where(and(eq(takeoffImports.id, importId), eq(takeoffImports.tenant_id, scope.tenantId)))
+}
+
+async function findOrCreateDivisionInTransaction(
+  tx: DatabaseTransaction,
+  scope: { tenantId: string; actorId: string },
+  name: string,
+): Promise<string | null> {
+  const code = name.trim().toLowerCase()
+  const [created] = await tx
+    .insert(boqDivisions)
+    .values({
+      tenant_id: scope.tenantId,
+      code,
+      name: name.trim(),
+      created_by: scope.actorId,
+    })
+    .onConflictDoNothing({ target: [boqDivisions.tenant_id, boqDivisions.code] })
+    .returning({ id: boqDivisions.id })
+  if (created) return created.id
+
+  const [existing] = await tx
+    .select({ id: boqDivisions.id })
+    .from(boqDivisions)
+    .where(and(eq(boqDivisions.tenant_id, scope.tenantId), eq(boqDivisions.code, code)))
+    .limit(1)
+  return existing?.id ?? null
+}
+
+/**
+ * Save the estimator's corrections to an imported row and close every pending
+ * reason that no longer holds for it. Reasons that still hold are returned so
+ * the person sees what is left; the saved corrections stay saved.
+ */
+export async function resolveTakeoffUnresolvedItem(
+  input: unknown,
+): Promise<{ error?: string; unresolved?: string[] }> {
+  const profile = await requireUserProfile().catch(() => null)
+  if (!profile) return { error: 'Unauthorized' }
+  if (!can(profile.role, 'bom.edit')) {
+    return { error: `Forbidden: role "${profile.role}" lacks "bom.edit"` }
+  }
+
+  const parsed = takeoffItemResolutionSchema.safeParse(input)
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'Invalid takeoff row input' }
+  }
+  const { itemId, projectId, description, unit, quantity, division } = parsed.data
+  if (quantity === '0') return { error: QUANTITY_MUST_BE_POSITIVE }
+
+  const [target] = await db
+    .select({
+      lineItemId: takeoffUnresolvedItems.bom_line_item_id,
+      bomId: takeoffUnresolvedItems.bom_id,
+      importId: takeoffUnresolvedItems.takeoff_import_id,
+    })
+    .from(takeoffUnresolvedItems)
+    .innerJoin(
+      boms,
+      and(
+        eq(takeoffUnresolvedItems.bom_id, boms.id),
+        eq(takeoffUnresolvedItems.tenant_id, boms.tenant_id),
+      ),
+    )
+    .where(
+      and(
+        eq(takeoffUnresolvedItems.id, itemId),
+        eq(takeoffUnresolvedItems.tenant_id, profile.tenantId),
+        eq(takeoffUnresolvedItems.status, 'pending'),
+        eq(boms.project_id, projectId),
+        eq(boms.tenant_id, profile.tenantId),
+        liveProjectCondition(projectId, profile.tenantId),
+      ),
+    )
+  if (!target?.lineItemId) return { error: 'Pending takeoff row not found' }
+  const lineItemId = target.lineItemId
+
+  try {
+    const outcome = await db.transaction(async (tx) => {
+      const scope = {
+        bomId: target.bomId,
+        projectId,
+        tenantId: profile.tenantId,
+        actorId: profile.user.id,
+      }
+      const lockedBom = await lockBomForMutation(tx, scope)
+      if (!lockedBom) return { error: 'BOM not found' }
+      if (lockedBom.status !== 'draft') return { error: 'Only draft BOMs can be edited' }
+
+      const pending = await tx
+        .select({
+          id: takeoffUnresolvedItems.id,
+          code: takeoffUnresolvedItems.reason_code,
+          reason: takeoffUnresolvedItems.reason,
+        })
+        .from(takeoffUnresolvedItems)
+        .where(
+          and(
+            eq(takeoffUnresolvedItems.tenant_id, scope.tenantId),
+            eq(takeoffUnresolvedItems.bom_line_item_id, lineItemId),
+            eq(takeoffUnresolvedItems.status, 'pending'),
+          ),
+        )
+        .for('update')
+      if (pending.length === 0) return { error: 'Pending takeoff row not found' }
+
+      const current = await selectEditableLineForUpdate(tx, scope, lineItemId)
+      if (!current) return { error: 'Line item not found' }
+
+      let divisionId: string | undefined
+      if (division !== undefined) {
+        const found = await findOrCreateDivisionInTransaction(tx, scope, division)
+        if (!found) return { error: 'The division could not be saved' }
+        divisionId = found
+      }
+
+      const edited = await applyBomLineEditInTransaction(tx, scope, current, {
+        description,
+        unit,
+        quantity,
+        divisionId,
+      })
+      if (edited.error !== undefined) return { error: edited.error }
+      const line = edited.line
+
+      const lineState = {
+        description: line.description,
+        quantity: line.quantity,
+        unit: line.unit,
+        hasDivision: line.divisionId !== null,
+        parentLineItemId: line.parentLineItemId,
+        unitRateSource: line.unitRateSource,
+      }
+      const stillOpen = pending.filter((item) => takeoffIssueStillApplies(item.code, lineState))
+      const closing = pending.filter((item) => !stillOpen.includes(item))
+      const now = new Date()
+
+      if (closing.length > 0) {
+        await tx
+          .update(takeoffUnresolvedItems)
+          .set({
+            status: 'resolved',
+            resolved_by: scope.actorId,
+            resolved_at: now,
+            updated_at: now,
+          })
+          .where(
+            and(
+              eq(takeoffUnresolvedItems.tenant_id, scope.tenantId),
+              inArray(
+                takeoffUnresolvedItems.id,
+                closing.map((item) => item.id),
+              ),
+              eq(takeoffUnresolvedItems.status, 'pending'),
+            ),
+          )
+        await auditResolvedTakeoffItemsInTransaction(tx, scope, closing, lineItemId)
+      }
+
+      // Nothing left to fix on the row: take the line out of review when its
+      // unit is a work-item unit, otherwise leave it to the grain queue.
+      if (stillOpen.length === 0 && line.classificationStatus === 'review') {
+        const grain = classifyBomLineKind(line.unit)
+        if (grain.status === 'classified') {
+          await tx
+            .update(bomLineItems)
+            .set({
+              kind: grain.kind ?? 'work_item',
+              classification_status: 'classified',
+              classification_reason: null,
+              updated_at: now,
+            })
+            .where(
+              and(
+                eq(bomLineItems.id, lineItemId),
+                eq(bomLineItems.bom_id, scope.bomId),
+                eq(bomLineItems.tenant_id, scope.tenantId),
+              ),
+            )
+          await tx
+            .update(bomLineItemGrainReviews)
+            .set({
+              status: 'resolved',
+              resolved_kind: 'work_item',
+              resolved_by: scope.actorId,
+              updated_by: scope.actorId,
+              resolved_at: now,
+              updated_at: now,
+            })
+            .where(
+              and(
+                eq(bomLineItemGrainReviews.tenant_id, scope.tenantId),
+                eq(bomLineItemGrainReviews.bom_id, scope.bomId),
+                eq(bomLineItemGrainReviews.bom_line_item_id, lineItemId),
+                eq(bomLineItemGrainReviews.status, 'pending'),
+              ),
+            )
+        } else {
+          await insertPendingGrainReviewInTransaction(tx, scope, lineItemId, {
+            proposedKind: grain.kind,
+            reason: grain.reason,
+          })
+        }
+      }
+
+      await refreshTakeoffImportStatusInTransaction(tx, scope, target.importId, now)
+
+      return { unresolved: stillOpen.map((item) => item.reason) }
+    })
+    if (outcome.error !== undefined) return { error: outcome.error }
+
+    revalidatePath(`/projects/${projectId}/bom`)
+    return { unresolved: outcome.unresolved ?? [] }
+  } catch (error) {
+    console.error('[resolveTakeoffUnresolvedItem]', error)
+    return { error: safeActionError(error, 'Unable to save the imported row') }
+  }
 }
 
 // ───────────────────────────────────────────────────────────────────────────

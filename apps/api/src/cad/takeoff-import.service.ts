@@ -9,6 +9,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common'
 import {
+  bomLineItemGrainReviews,
   bomLineItems,
   boms,
   boqDivisions,
@@ -30,8 +31,14 @@ import {
   type TakeoffImportRow,
 } from '@third-code-erp/shared-types'
 import {
+  TAKEOFF_PLACEHOLDER_DESCRIPTION_PREFIX,
+  bomTotalCost,
   classifyBomLineKind,
+  computeGP,
+  computeGPMargin,
+  manualLineTotal,
   takeoffCommitQuantity,
+  topLevelBomLines,
   validateTakeoffRows,
   type TakeoffValidationIssue,
 } from '@third-code-erp/shared-types/bom'
@@ -40,7 +47,7 @@ import { and, desc, eq, isNull, max, sql } from 'drizzle-orm'
 import { roleHasCapability } from '../auth/capability.guard'
 import type { ErpPrincipal, ErpRole } from '../auth/current-principal.decorator'
 import { AuditService } from '../audit/audit.service'
-import { DatabaseService } from '../database/database.service'
+import { DatabaseService, type DatabaseTransaction } from '../database/database.service'
 
 const TAKEOFF_MAPPING_VERSION = 'stable-v1'
 
@@ -570,7 +577,8 @@ export class TakeoffImportService {
             is_group: 0,
             code: row.itemNo,
             description:
-              row.description || `Unresolved takeoff row ${row.sourceRowKey}`,
+              row.description ||
+              `${TAKEOFF_PLACEHOLDER_DESCRIPTION_PREFIX}${row.sourceRowKey}`,
             unit: row.unit || null,
             quantity_decimal: quantity,
             unit_cost_cents: 0,
@@ -601,19 +609,62 @@ export class TakeoffImportService {
               classification_status: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.classification_status} else excluded.classification_status end`,
               classification_reason: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.classification_reason} else excluded.classification_reason end`,
               unit_rate_source: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.unit_rate_source} else 'manual' end`,
-              unit_cost_cents: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.unit_cost_cents} else 0 end`,
+              // A re-import keeps the unit cost the estimator already entered; only
+              // the quantity-driven line total is refreshed below.
               markup_bps: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.markup_bps} else 0 end`,
-              line_total_cents: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.line_total_cents} else 0 end`,
               updated_at: now,
             },
           })
-          .returning({ id: bomLineItems.id })
+          .returning({
+            id: bomLineItems.id,
+            classificationStatus: bomLineItems.classification_status,
+            unitCostCents: bomLineItems.unit_cost_cents,
+            quantity: bomLineItems.quantity_decimal,
+            lineTotalCents: bomLineItems.line_total_cents,
+          })
         if (!line) {
           throw new InternalServerErrorException(
             `Takeoff line ${row.sourceRowKey} was not persisted.`
           )
         }
         linesUpserted += 1
+
+        const lineTotalCents = this.lineTotalOrReject(
+          line.unitCostCents,
+          line.quantity,
+          `Takeoff line ${row.sourceRowKey}`
+        )
+        if (lineTotalCents !== line.lineTotalCents) {
+          await transaction
+            .update(bomLineItems)
+            .set({ line_total_cents: lineTotalCents, updated_at: now })
+            .where(
+              and(
+                eq(bomLineItems.id, line.id),
+                eq(bomLineItems.tenant_id, authorizedPrincipal.tenantId)
+              )
+            )
+        }
+
+        // A line left in review needs a grain review row, or the estimator has
+        // nowhere to resolve it and approval stays blocked.
+        if (line.classificationStatus === 'review') {
+          await transaction
+            .insert(bomLineItemGrainReviews)
+            .values({
+              tenant_id: authorizedPrincipal.tenantId,
+              bom_id: bomId,
+              bom_line_item_id: line.id,
+              proposed_kind: classification.kind,
+              reason:
+                rowValidationIssues.length > 0
+                  ? rowValidationIssues.map((issue) => issue.message).join(' ')
+                  : (classification.reason ?? 'Explicit grain review required.'),
+              created_by: authorizedPrincipal.userId,
+              updated_by: authorizedPrincipal.userId,
+            })
+            .onConflictDoNothing()
+        }
 
         for (const issue of rowValidationIssues) {
           await transaction
@@ -649,6 +700,13 @@ export class TakeoffImportService {
             })
         }
       }
+
+      await this.recalculateBomTotals(
+        transaction,
+        authorizedPrincipal.tenantId,
+        bomId,
+        now
+      )
 
       const [pending] = await transaction
         .select({ count: sql<number>`count(*)::int` })
@@ -711,5 +769,59 @@ export class TakeoffImportService {
         bomId,
       })
     })
+  }
+
+  private lineTotalOrReject(
+    unitCostCents: number,
+    quantity: string,
+    subject: string
+  ): number {
+    try {
+      return manualLineTotal(unitCostCents, quantity)
+    } catch (error) {
+      if (error instanceof RangeError) {
+        throw new UnprocessableEntityException(
+          `${subject} total exceeds the supported amount.`
+        )
+      }
+      throw error
+    }
+  }
+
+  /** Same totals as the web BOM editor: top-level lines only, no UI markup. */
+  private async recalculateBomTotals(
+    transaction: DatabaseTransaction,
+    tenantId: string,
+    bomId: string,
+    now: Date
+  ): Promise<void> {
+    const lines = await transaction
+      .select({
+        line_total_cents: bomLineItems.line_total_cents,
+        unit_cost_cents: bomLineItems.unit_cost_cents,
+        quantity: bomLineItems.quantity_decimal,
+        parent_line_item_id: bomLineItems.parent_line_item_id,
+      })
+      .from(bomLineItems)
+      .where(and(eq(bomLineItems.bom_id, bomId), eq(bomLineItems.tenant_id, tenantId)))
+
+    const commercialLines = topLevelBomLines(lines, (line) => line.parent_line_item_id)
+    const totalCostCents = commercialLines.reduce(
+      (sum, line) => sum + this.lineTotalOrReject(line.unit_cost_cents, line.quantity, 'A BOM line'),
+      0
+    )
+    const tcvCents = bomTotalCost(commercialLines)
+    const gpCents = computeGP(tcvCents, totalCostCents)
+
+    await transaction
+      .update(boms)
+      .set({
+        total_cost_cents: totalCostCents,
+        tcv_cents: tcvCents,
+        gp_cents: gpCents,
+        gp_margin_bps: computeGPMargin(gpCents, tcvCents),
+        updated_at: now,
+      })
+      .where(and(eq(boms.id, bomId), eq(boms.tenant_id, tenantId)))
   }
 }

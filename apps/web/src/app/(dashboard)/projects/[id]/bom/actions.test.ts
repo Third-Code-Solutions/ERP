@@ -93,6 +93,8 @@ vi.mock('@third-code-erp/database/schema', () => {
       bom_id: field,
       status: field,
     },
+    takeoffImports: { id: field, tenant_id: field },
+    boqDivisions: { id: field, tenant_id: field, code: field, name: field },
     bomLineItemGrainReviews: {
       id: field,
       bom_line_item_id: field,
@@ -209,6 +211,12 @@ vi.mock('@/lib/erp-core-client', () => ({
 vi.mock('@third-code-erp/shared-types/bom', async (importOriginal) => ({
   parseBoqQuantity: (await importOriginal<typeof import('@third-code-erp/shared-types/bom')>())
     .parseBoqQuantity,
+  reclassifyBomLineForUnit: (
+    await importOriginal<typeof import('@third-code-erp/shared-types/bom')>()
+  ).reclassifyBomLineForUnit,
+  takeoffIssueStillApplies: (
+    await importOriginal<typeof import('@third-code-erp/shared-types/bom')>()
+  ).takeoffIssueStillApplies,
   lineTotal: vi.fn(),
   bomTotalCost: vi.fn(() => 0),
   topLevelBomLines: vi.fn((lines: unknown[]) => lines),
@@ -235,11 +243,14 @@ import {
   listBomLocationRollup,
   listPendingBomGrainReviews,
   listPendingBomLocationReviews,
+  listPendingTakeoffRows,
   listProjectLocations,
   resolveBomGrainReview,
   resolveBomLocationReview,
+  resolveTakeoffUnresolvedItem,
   setBomLineLocation,
   setLineItemVendor,
+  updateBomLineItem,
   upsertDupaForBomLine,
 } from './actions'
 import { and, isNull } from 'drizzle-orm'
@@ -267,6 +278,7 @@ function selectResult(value: unknown[]) {
   const chain: Record<string, unknown> = {}
   chain.from = vi.fn(() => chain)
   chain.innerJoin = vi.fn(() => chain)
+  chain.leftJoin = vi.fn(() => chain)
   chain.where = vi.fn(() => result)
   chain.orderBy = vi.fn(() => chain)
   return chain
@@ -1176,11 +1188,37 @@ describe('BOM review resolution concurrency guards', () => {
           },
         ]),
       )
+    const TAKEOFF_ITEM_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
+    const IMPORT_ID = 'ffffffff-ffff-4fff-8fff-ffffffffffff'
+    mocks.transactionSelect.mockReturnValueOnce(selectResult([{ count: 0 }]))
+    const importUpdate = updateChain()
     mocks.transactionUpdate
       .mockReturnValueOnce(returningUpdateChain([{ id: LINE_ITEM_ID }]))
       .mockReturnValueOnce(returningUpdateChain([{ id: GRAIN_REVIEW_ID }]))
+      .mockReturnValueOnce(
+        returningUpdateChain([{ id: TAKEOFF_ITEM_ID, importId: IMPORT_ID }]),
+      )
+      .mockReturnValueOnce(importUpdate)
 
     await expect(resolveBomGrainReview(input)).resolves.toEqual({})
+    // The grain decision also settles the imported row's "needs a parent" reason,
+    // audits it, and recounts the import so its status matches its open rows.
+    expect(mocks.transactionUpdate).toHaveBeenCalledTimes(4)
+    expect(importUpdate.set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'resolved', unresolved_count: 0 }),
+    )
+    expect(mocks.writeAuditLogInTransaction).toHaveBeenCalledWith(
+      transaction,
+      expect.objectContaining({
+        entityType: 'takeoff_unresolved_item',
+        entityId: TAKEOFF_ITEM_ID,
+        diff: expect.objectContaining({
+          after: 'resolved',
+          reason_code: 'MATERIAL_PARENT_REQUIRED',
+          bom_line_item_id: LINE_ITEM_ID,
+        }),
+      }),
+    )
     expect(mocks.writeAuditLogInTransaction).toHaveBeenCalledWith(
       transaction,
       expect.objectContaining({
@@ -1678,5 +1716,411 @@ describe('BOM actions treat a retired project as not found', () => {
 
     expect(vi.mocked(isNull)).toHaveBeenCalledWith(projects.deleted_at)
     expect(mocks.transactionInsert).not.toHaveBeenCalled()
+  })
+})
+
+function insertConflictChain() {
+  const chain: Record<string, unknown> = {}
+  chain.values = vi.fn(() => chain)
+  chain.onConflictDoNothing = vi.fn(() => Promise.resolve())
+  return chain
+}
+
+describe('updateBomLineItem', () => {
+  const transaction = {
+    select: mocks.transactionSelect,
+    insert: mocks.transactionInsert,
+    update: mocks.transactionUpdate,
+  }
+  const input = {
+    description: 'Concrete slab work',
+    unit: 'm',
+    quantity: '12.50',
+    unit_cost_cents: 2_500,
+    code: 'C-01',
+  }
+  const currentLine = {
+    id: LINE_ITEM_ID,
+    description: 'Slab',
+    unit: 'm',
+    quantity: '10.0000',
+    unitCostCents: 2_000,
+    code: null,
+    divisionId: null,
+    unitRateSource: 'manual',
+    kind: 'work_item',
+    classificationStatus: 'classified',
+    parentLineItemId: null,
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.transaction.mockReset()
+    mocks.transactionSelect.mockReset()
+    mocks.transactionUpdate.mockReset()
+    mocks.transactionInsert.mockReset()
+    mocks.writeAuditLogInTransaction.mockReset()
+    mocks.manualLineTotal.mockReset()
+    mocks.getUserProfile.mockResolvedValue({
+      tenantId: TENANT_ID,
+      user: { id: USER_ID },
+      role: 'commercial',
+    })
+    mocks.can.mockReturnValue(true)
+    mocks.transaction.mockImplementation(async (callback) => callback(transaction))
+    mocks.writeAuditLogInTransaction.mockResolvedValue(undefined)
+    mocks.manualLineTotal.mockReturnValue(31_250)
+  })
+
+  it('refuses a role without bom.edit before opening a transaction', async () => {
+    mocks.can.mockReturnValue(false)
+
+    await expect(updateBomLineItem(LINE_ITEM_ID, BOM_ID, PROJECT_ID, input)).resolves.toEqual({
+      error: 'Forbidden: role "commercial" lacks "bom.edit"',
+    })
+    expect(mocks.transaction).not.toHaveBeenCalled()
+  })
+
+  it('answers bad input in plain words without opening a transaction', async () => {
+    await expect(
+      updateBomLineItem(LINE_ITEM_ID, BOM_ID, PROJECT_ID, { ...input, description: '  ' }),
+    ).resolves.toEqual({ error: 'Description is required' })
+    await expect(
+      updateBomLineItem(LINE_ITEM_ID, BOM_ID, PROJECT_ID, { ...input, quantity: '1.23456' }),
+    ).resolves.toEqual({
+      error: 'Quantity must be a non-negative number with at most 4 decimal places',
+    })
+    await expect(
+      updateBomLineItem(LINE_ITEM_ID, BOM_ID, PROJECT_ID, { ...input, quantity: '0' }),
+    ).resolves.toEqual({
+      error: 'Quantity must be greater than 0 with at most 4 decimal places',
+    })
+    await expect(updateBomLineItem('not-a-uuid', BOM_ID, PROJECT_ID, input)).resolves.toEqual({
+      error: 'Line item not found',
+    })
+    expect(mocks.transaction).not.toHaveBeenCalled()
+  })
+
+  it('does not edit a line once the BOM has left draft', async () => {
+    mocks.transactionSelect.mockReturnValueOnce(selectResult([{ id: BOM_ID, status: 'approved' }]))
+
+    await expect(updateBomLineItem(LINE_ITEM_ID, BOM_ID, PROJECT_ID, input)).resolves.toEqual({
+      error: 'Only draft BOMs can be edited',
+    })
+    expect(mocks.transactionUpdate).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
+  })
+
+  it('saves the edit with an exact total, refreshed BOM totals and one audit row', async () => {
+    mocks.transactionSelect
+      .mockReturnValueOnce(selectResult([{ id: BOM_ID, status: 'draft' }]))
+      .mockReturnValueOnce(selectResult([currentLine]))
+      .mockReturnValueOnce(selectResult([]))
+    const lineUpdate = updateChain()
+    mocks.transactionUpdate.mockReturnValueOnce(lineUpdate).mockReturnValue(updateChain())
+
+    await expect(updateBomLineItem(LINE_ITEM_ID, BOM_ID, PROJECT_ID, input)).resolves.toEqual({})
+
+    // D-5: the canonical decimal is priced, never rounded to an integer.
+    expect(mocks.manualLineTotal).toHaveBeenCalledWith(2_500, '12.5')
+    expect(lineUpdate.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        description: 'Concrete slab work',
+        quantity_decimal: '12.5',
+        unit_cost_cents: 2_500,
+        line_total_cents: 31_250,
+        markup_bps: 0,
+        code: 'C-01',
+      }),
+    )
+    expect(mocks.transactionUpdate).toHaveBeenCalledTimes(2)
+    expect(mocks.writeAuditLogInTransaction).toHaveBeenCalledWith(
+      transaction,
+      expect.objectContaining({
+        entityType: 'bom_line_item',
+        entityId: LINE_ITEM_ID,
+        action: 'update',
+        diff: expect.objectContaining({
+          fields_changed: expect.arrayContaining([
+            'description',
+            'quantity',
+            'unit_cost_cents',
+            'code',
+          ]),
+          before: expect.objectContaining({ quantity: '10', unit_cost_cents: 2_000 }),
+          after: expect.objectContaining({ quantity: '12.5', unit_cost_cents: 2_500 }),
+        }),
+      }),
+    )
+    expect(mocks.revalidatePath).toHaveBeenCalledWith(`/projects/${PROJECT_ID}/bom`)
+  })
+
+  it('keeps the DUPA rate when the edit sends a different unit cost', async () => {
+    mocks.transactionSelect
+      .mockReturnValueOnce(selectResult([{ id: BOM_ID, status: 'draft' }]))
+      .mockReturnValueOnce(
+        selectResult([{ ...currentLine, unitRateSource: 'dupa', unitCostCents: 5_000 }]),
+      )
+      .mockReturnValueOnce(selectResult([]))
+    const lineUpdate = updateChain()
+    mocks.transactionUpdate.mockReturnValueOnce(lineUpdate).mockReturnValue(updateChain())
+
+    await expect(updateBomLineItem(LINE_ITEM_ID, BOM_ID, PROJECT_ID, input)).resolves.toEqual({})
+
+    expect(mocks.manualLineTotal).toHaveBeenCalledWith(5_000, '12.5')
+    expect(lineUpdate.set).toHaveBeenCalledWith(expect.objectContaining({ unit_cost_cents: 5_000 }))
+  })
+
+  it('queues a grain review when the new unit is not one the system can classify', async () => {
+    mocks.transactionSelect
+      .mockReturnValueOnce(selectResult([{ id: BOM_ID, status: 'draft' }]))
+      .mockReturnValueOnce(selectResult([currentLine]))
+      .mockReturnValueOnce(selectResult([]))
+      .mockReturnValueOnce(selectResult([]))
+    const lineUpdate = updateChain()
+    mocks.transactionUpdate.mockReturnValueOnce(lineUpdate).mockReturnValue(updateChain())
+    const review = insertConflictChain()
+    mocks.transactionInsert.mockReturnValue(review)
+
+    await expect(
+      updateBomLineItem(LINE_ITEM_ID, BOM_ID, PROJECT_ID, { ...input, unit: 'bundle' }),
+    ).resolves.toEqual({})
+
+    expect(lineUpdate.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        unit: 'bundle',
+        classification_status: 'review',
+        parent_line_item_id: null,
+      }),
+    )
+    expect(review.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenant_id: TENANT_ID,
+        bom_id: BOM_ID,
+        bom_line_item_id: LINE_ITEM_ID,
+        proposed_kind: null,
+        reason: 'UOM is not in the approved grain classification list.',
+      }),
+    )
+    expect(review.onConflictDoNothing).toHaveBeenCalled()
+  })
+
+  it('refuses a unit change that would strand material lines attached to the work item', async () => {
+    mocks.transactionSelect
+      .mockReturnValueOnce(selectResult([{ id: BOM_ID, status: 'draft' }]))
+      .mockReturnValueOnce(selectResult([currentLine]))
+      .mockReturnValueOnce(selectResult([{ id: 'child-line' }]))
+
+    await expect(
+      updateBomLineItem(LINE_ITEM_ID, BOM_ID, PROJECT_ID, { ...input, unit: 'bundle' }),
+    ).resolves.toEqual({
+      error:
+        'Material lines are attached to this work item. Move or delete them before changing its unit.',
+    })
+    expect(mocks.transactionUpdate).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
+  })
+})
+
+describe('imported takeoff rows', () => {
+  const ITEM_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
+  const IMPORT_ID = 'ffffffff-ffff-4fff-8fff-ffffffffffff'
+  const target = { lineItemId: LINE_ITEM_ID, bomId: BOM_ID, importId: IMPORT_ID }
+  const reviewLine = {
+    id: LINE_ITEM_ID,
+    description: 'Cable tray',
+    unit: 'sqm',
+    quantity: '0.0000',
+    unitCostCents: 1_000,
+    code: null,
+    divisionId: 'division-1',
+    unitRateSource: 'manual',
+    kind: 'work_item',
+    classificationStatus: 'review',
+    parentLineItemId: null,
+  }
+  const transaction = {
+    select: mocks.transactionSelect,
+    insert: mocks.transactionInsert,
+    update: mocks.transactionUpdate,
+  }
+  let updates: Array<ReturnType<typeof updateChain>>
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.select.mockReset()
+    mocks.transaction.mockReset()
+    mocks.transactionSelect.mockReset()
+    mocks.transactionUpdate.mockReset()
+    mocks.transactionInsert.mockReset()
+    mocks.writeAuditLogInTransaction.mockReset()
+    mocks.manualLineTotal.mockReset()
+    mocks.classifyBomLineKind.mockReset()
+    mocks.getUserProfile.mockResolvedValue({
+      tenantId: TENANT_ID,
+      user: { id: USER_ID },
+      role: 'estimator',
+    })
+    mocks.requireUserProfile.mockResolvedValue({
+      tenantId: TENANT_ID,
+      user: { id: USER_ID },
+      role: 'estimator',
+    })
+    mocks.can.mockReturnValue(true)
+    mocks.transaction.mockImplementation(async (callback) => callback(transaction))
+    mocks.writeAuditLogInTransaction.mockResolvedValue(undefined)
+    mocks.manualLineTotal.mockReturnValue(12_500)
+    updates = []
+    mocks.transactionUpdate.mockImplementation(() => {
+      const chain = updateChain()
+      updates.push(chain)
+      return chain
+    })
+  })
+
+  it('lists each flagged row once with all of its reasons', async () => {
+    mocks.select.mockReturnValueOnce(
+      selectResult([
+        {
+          itemId: 'item-1',
+          lineItemId: LINE_ITEM_ID,
+          sourceRowKey: 'A-001',
+          reasonCode: 'INVALID_UOM',
+          reason: 'UOM "bundle" is not recognized.',
+          description: 'Cable tray',
+          unit: 'bundle',
+          quantity: '2.0000',
+          division: null,
+        },
+        {
+          itemId: 'item-2',
+          lineItemId: LINE_ITEM_ID,
+          sourceRowKey: 'A-001',
+          reasonCode: 'MISSING_DIVISION',
+          reason: 'Division is required before import.',
+          description: 'Cable tray',
+          unit: 'bundle',
+          quantity: '2.0000',
+          division: null,
+        },
+      ]),
+    )
+
+    await expect(listPendingTakeoffRows(PROJECT_ID, BOM_ID)).resolves.toEqual([
+      expect.objectContaining({
+        itemId: 'item-1',
+        lineItemId: LINE_ITEM_ID,
+        reasons: [
+          { code: 'INVALID_UOM', message: 'UOM "bundle" is not recognized.' },
+          { code: 'MISSING_DIVISION', message: 'Division is required before import.' },
+        ],
+      }),
+    ])
+  })
+
+  it('gives a role that cannot read BOMs nothing and never queries', async () => {
+    mocks.getUserProfile.mockResolvedValue({
+      tenantId: TENANT_ID,
+      user: { id: USER_ID },
+      role: 'sales',
+    })
+
+    await expect(listPendingTakeoffRows(PROJECT_ID, BOM_ID)).resolves.toEqual([])
+    expect(mocks.select).not.toHaveBeenCalled()
+  })
+
+  it('refuses a role without bom.edit and a row that is not pending in this project', async () => {
+    mocks.can.mockReturnValue(false)
+    await expect(
+      resolveTakeoffUnresolvedItem({ itemId: ITEM_ID, projectId: PROJECT_ID, quantity: '5' }),
+    ).resolves.toEqual({ error: 'Forbidden: role "estimator" lacks "bom.edit"' })
+
+    mocks.can.mockReturnValue(true)
+    mocks.select.mockReturnValueOnce(selectResult([]))
+    await expect(
+      resolveTakeoffUnresolvedItem({ itemId: ITEM_ID, projectId: PROJECT_ID, quantity: '5' }),
+    ).resolves.toEqual({ error: 'Pending takeoff row not found' })
+    expect(mocks.transaction).not.toHaveBeenCalled()
+  })
+
+  it('saves the correction, closes the reason it fixed and takes the line out of review', async () => {
+    mocks.select.mockReturnValueOnce(selectResult([target]))
+    mocks.transactionSelect
+      .mockReturnValueOnce(selectResult([{ id: BOM_ID, status: 'draft' }]))
+      .mockReturnValueOnce(
+        selectResult([
+          { id: ITEM_ID, code: 'INVALID_QUANTITY', reason: 'Quantity must be greater than zero.' },
+        ]),
+      )
+      .mockReturnValueOnce(selectResult([reviewLine]))
+      .mockReturnValueOnce(selectResult([]))
+      .mockReturnValueOnce(selectResult([{ count: 0 }]))
+    mocks.classifyBomLineKind.mockReturnValue({
+      kind: 'work_item',
+      status: 'classified',
+      reason: null,
+    })
+
+    await expect(
+      resolveTakeoffUnresolvedItem({ itemId: ITEM_ID, projectId: PROJECT_ID, quantity: '12.5' }),
+    ).resolves.toEqual({ unresolved: [] })
+
+    // line edit, BOM totals, reason closed, line out of review, grain review closed, import recount
+    expect(updates).toHaveLength(6)
+    expect(updates[0]!.set).toHaveBeenCalledWith(
+      expect.objectContaining({ quantity_decimal: '12.5', line_total_cents: 12_500 }),
+    )
+    expect(updates[2]!.set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'resolved', resolved_by: USER_ID }),
+    )
+    expect(updates[3]!.set).toHaveBeenCalledWith(
+      expect.objectContaining({ classification_status: 'classified', classification_reason: null }),
+    )
+    expect(updates[5]!.set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'resolved', unresolved_count: 0 }),
+    )
+    expect(mocks.writeAuditLogInTransaction).toHaveBeenCalledWith(
+      transaction,
+      expect.objectContaining({
+        entityType: 'takeoff_unresolved_item',
+        entityId: ITEM_ID,
+        diff: expect.objectContaining({ before: 'pending', after: 'resolved' }),
+      }),
+    )
+  })
+
+  it('keeps the saved quantity but reports the reason that still holds', async () => {
+    mocks.select.mockReturnValueOnce(selectResult([target]))
+    mocks.transactionSelect
+      .mockReturnValueOnce(selectResult([{ id: BOM_ID, status: 'draft' }]))
+      .mockReturnValueOnce(
+        selectResult([
+          { id: ITEM_ID, code: 'INVALID_UOM', reason: 'UOM "bundle" is not recognized.' },
+        ]),
+      )
+      .mockReturnValueOnce(selectResult([{ ...reviewLine, unit: 'bundle' }]))
+      .mockReturnValueOnce(selectResult([]))
+      .mockReturnValueOnce(selectResult([{ count: 1 }]))
+
+    await expect(
+      resolveTakeoffUnresolvedItem({ itemId: ITEM_ID, projectId: PROJECT_ID, quantity: '5' }),
+    ).resolves.toEqual({ unresolved: ['UOM "bundle" is not recognized.'] })
+
+    // line edit, BOM totals, import recount: no reason closed, line stays in review
+    expect(updates).toHaveLength(3)
+    expect(updates[2]!.set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'partially_resolved', unresolved_count: 1 }),
+    )
+  })
+
+  it('does not touch a row once the BOM has left draft', async () => {
+    mocks.select.mockReturnValueOnce(selectResult([target]))
+    mocks.transactionSelect.mockReturnValueOnce(selectResult([{ id: BOM_ID, status: 'locked' }]))
+
+    await expect(
+      resolveTakeoffUnresolvedItem({ itemId: ITEM_ID, projectId: PROJECT_ID, quantity: '5' }),
+    ).resolves.toEqual({ error: 'Only draft BOMs can be edited' })
+    expect(updates).toHaveLength(0)
+    expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
   })
 })

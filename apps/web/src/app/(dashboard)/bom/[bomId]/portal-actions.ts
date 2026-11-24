@@ -13,6 +13,7 @@ import {
 } from '@third-code-erp/database/schema'
 import { writeAuditLog } from '@/lib/audit'
 import { notifyExternalEmail } from '@/lib/operations/notifications'
+import { publicUrl } from '@/lib/public-origin'
 import { createSigningSession } from '@/lib/operations/integrations/docuseal'
 
 const PORTAL_TOKEN_BYTES = 32
@@ -26,14 +27,17 @@ const mintSchema = z.object({
 interface MintResult {
   token?: string
   portal_url?: string
+  // The page that lists every line and carries the approve button.
+  line_item_url?: string
   expires_at?: string
   error?: string
 }
 
 /**
  * Mint a one-time portal token for a BOM and email a signing link to the
- * client. Returns the plaintext token ONCE — the caller is responsible for
- * showing/copying it. The DB only ever stores SHA-256(token).
+ * client. Returns the plaintext links ONCE (the signing page and the line-item
+ * page) — the caller is responsible for showing/copying them. The DB only ever
+ * stores SHA-256(token).
  */
 export async function mintBomPortalToken(
   bomId: string,
@@ -147,7 +151,7 @@ export async function mintBomPortalToken(
       bom_id: input.bom_id,
       client_email: input.client_email,
       expires_at: expiresAt.toISOString(),
-      portal_url: portalUrl,
+      // The signing link is a bearer credential; audit rows are tenant-readable.
       mechanism: session.mechanism,
       is_dev_stub: session.is_dev_stub,
     },
@@ -156,6 +160,7 @@ export async function mintBomPortalToken(
   return {
     token: session.token,
     portal_url: portalUrl,
+    line_item_url: publicUrl(`/portal/bom/${legacyToken}`),
     expires_at: expiresAt.toISOString(),
   }
 }
