@@ -238,7 +238,7 @@ describe('Purchase Order workflow compatibility seam', () => {
     selectPurchaseOrder(status, { project_live: false })
 
     await expect(invoke()).resolves.toEqual({
-      error: 'This Purchase Order belongs to a retired project; it can only be rejected, cancelled or received.',
+      error: 'This Purchase Order belongs to a retired project. Lines already linked to a stock item can still be received; unlinked lines can only be rejected or cancelled.',
     })
     expect(mocks.transitionPurchaseOrderThroughCoreApi).not.toHaveBeenCalled()
     expect(mocks.revalidatePath).not.toHaveBeenCalled()

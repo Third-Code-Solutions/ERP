@@ -39,7 +39,7 @@ const DUPLICATE_ITEM_ERROR =
   'A stock item with this code already exists. Pick it from the list instead.'
 // Same text as procurement/actions.ts: a retired project's PO is not committed further.
 const RETIRED_PROJECT_PO_ERROR =
-  'This Purchase Order belongs to a retired project; it can only be rejected, cancelled or received.'
+  'This Purchase Order belongs to a retired project. Lines already linked to a stock item can still be received; unlinked lines can only be rejected or cancelled.'
 const INACTIVE_COST_CODE_ERROR =
   "This line's Cost Code is inactive. Reactivate it or assign an active Cost Code before linking a stock item."
 
