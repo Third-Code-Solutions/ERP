@@ -2,6 +2,8 @@ import 'reflect-metadata'
 
 import { ConflictException, ForbiddenException } from '@nestjs/common'
 import type { ConfigService } from '@nestjs/config'
+import type { SQL } from 'drizzle-orm'
+import { PgDialect } from 'drizzle-orm/pg-core'
 import { describe, expect, it, vi } from 'vitest'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import type { AuditService } from '../audit/audit.service'
@@ -33,7 +35,7 @@ function chain(rows: unknown[]) {
   return node
 }
 
-function harness(featureKey: string, selectRows: unknown[][], updated: (values: Row) => Row) {
+function harness(featureKey: string, selectRows: unknown[][], updated: (values: Row) => Row | undefined) {
   const select = vi.fn()
   for (const rows of selectRows) select.mockReturnValueOnce(chain(rows))
   const updates: Row[] = []
@@ -44,13 +46,15 @@ function harness(featureKey: string, selectRows: unknown[][], updated: (values: 
     insert: vi.fn(() => ({
       values: vi.fn((values: Row) => {
         inserts.push(values)
-        return chain([])
+        // A fresh create reads the inserted requisition back through returning().
+        return chain([{ id: REQUISITION_ID, ...values }])
       }),
     })),
     update: vi.fn(() => ({
       set: vi.fn((values: Row) => {
         updates.push(values)
-        return chain([updated(values)])
+        const row = updated(values)
+        return chain(row ? [row] : [])
       }),
     })),
   }
@@ -70,7 +74,7 @@ function harness(featureKey: string, selectRows: unknown[][], updated: (values: 
     expect(inserts).toHaveLength(0)
     expect(audit.writeSemantic).not.toHaveBeenCalled()
   }
-  return { service, updates, inserts, audit, select, expectNothingWritten }
+  return { service, updates, inserts, audit, select, transactionClient, expectNothingWritten }
 }
 
 function priceList(overrides: Row = {}): Row {
@@ -208,5 +212,233 @@ describe('requisition approval authority', () => {
 
     await expect(h.run()).resolves.toMatchObject({ status: 'rejected' })
     expect(h.inserts[0]).toMatchObject({ action: 'reject', reason: 'Over budget', actor_id: CHECKER.userId })
+  })
+})
+
+const OTHER_REQUISITION_ID = '77777777-7777-4777-8777-777777777777'
+
+type RequisitionCommand = {
+  action: 'submit' | 'approve' | 'reject' | 'cancel'
+  reason?: string
+}
+
+// Select order: principal, prior requisition event, requisition FOR UPDATE (or replay target), line count.
+function requisitionCommand(
+  command: RequisitionCommand,
+  principal: ErpPrincipal,
+  row: Row,
+  priorEvent: Row[] = [],
+  updated: (values: Row) => Row | undefined = (values) => ({ ...row, ...values }),
+) {
+  const h = harness('ERP_ROADMAP_PROCUREMENT_LIFECYCLE_ENABLED', [[{ id: principal.userId }], priorEvent, [row], [{ count: 1 }]], updated)
+  return { ...h, run: () => h.service.transitionRequisition(REQUISITION_ID, command, principal, 'req-key') }
+}
+
+// The event row as the key lookup reads it back.
+function asPriorEvent(event: Row): Row {
+  expect(event.request_hash).toMatch(/^[0-9a-f]{64}$/)
+  return {
+    requisitionId: event.requisition_id,
+    action: event.action,
+    actorId: event.actor_id,
+    requestHash: event.request_hash,
+    reason: event.reason,
+  }
+}
+
+// Runs a command once and returns its event, ready to be replayed.
+async function recordedEvent(command: RequisitionCommand, principal: ErpPrincipal, row: Row): Promise<Row> {
+  const first = requisitionCommand(command, principal, row)
+  await first.run()
+  return asPriorEvent(first.inserts[0]!)
+}
+
+const OTHER_APPROVER: ErpPrincipal = { ...CHECKER, userId: '88888888-8888-4888-8888-888888888888' }
+const REQUESTER: ErpPrincipal = { ...CHECKER, userId: MAKER_ID, role: 'pm' }
+
+async function expectKeyConflict(run: () => Promise<unknown>, h: { select: ReturnType<typeof vi.fn>; expectNothingWritten: () => void }) {
+  const result = run()
+  await expect(result).rejects.toBeInstanceOf(ConflictException)
+  await expect(result).rejects.toThrow('Idempotency key was already used for another workflow command')
+  // Principal and key lookup only: refused before the requisition is read.
+  expect(h.select).toHaveBeenCalledTimes(2)
+  h.expectNothingWritten()
+}
+
+describe('requisition retry keys', () => {
+  it('replays the same command by the same actor without writing', async () => {
+    const prior = await recordedEvent({ action: 'approve' }, CHECKER, requisition())
+    const h = requisitionCommand(
+      { action: 'approve' },
+      CHECKER,
+      requisition({ status: 'approved', approved_by: CHECKER.userId }),
+      [prior],
+    )
+
+    await expect(h.run()).resolves.toMatchObject({ requisitionId: REQUISITION_ID, status: 'approved', created: false })
+    h.expectNothingWritten()
+  })
+
+  it.each([
+    ['another requisition', { requisitionId: OTHER_REQUISITION_ID }],
+    ['another action', { action: 'reject' }],
+    ['another actor', { actorId: OTHER_APPROVER.userId }],
+    ['another payload', { requestHash: 'f'.repeat(64) }],
+    ['an event stored before request hashes', { requestHash: null }],
+  ])('refuses a key already used for %s instead of replaying it', async (_case, change) => {
+    const prior = await recordedEvent({ action: 'approve' }, CHECKER, requisition())
+    const h = requisitionCommand({ action: 'approve' }, CHECKER, requisition(), [{ ...prior, ...change }])
+
+    await expectKeyConflict(h.run, h)
+  })
+
+  it('refuses a rejection retried with another reason', async () => {
+    const prior = await recordedEvent({ action: 'reject', reason: 'Over budget' }, CHECKER, requisition())
+    const h = requisitionCommand({ action: 'reject', reason: 'Wrong supplier' }, CHECKER, requisition({ status: 'rejected' }), [prior])
+
+    await expectKeyConflict(h.run, h)
+  })
+
+  it("refuses another user's submit key instead of replaying the requester's result", async () => {
+    const prior = await recordedEvent({ action: 'submit' }, REQUESTER, requisition({ status: 'draft' }))
+    const h = requisitionCommand({ action: 'submit' }, CHECKER, requisition(), [prior])
+
+    await expectKeyConflict(h.run, h)
+  })
+
+  it('locks the tenant before reading the key and scopes every read and the update to the tenant', async () => {
+    const h = requisitionCommand({ action: 'approve' }, CHECKER, requisition())
+    await h.run()
+
+    const dialect = new PgDialect()
+    const lock = dialect.sqlToQuery(h.transactionClient.execute.mock.calls[0]?.[0] as SQL)
+    expect(lock.sql).toContain('pg_advisory_xact_lock')
+    expect(lock.params).toContain(`roadmap:${TENANT_ID}`)
+    expect(h.transactionClient.execute.mock.invocationCallOrder[0]).toBeLessThan(h.select.mock.invocationCallOrder[1]!)
+    // Principal, key lookup, requisition FOR UPDATE and line count.
+    expect(h.select.mock.results).toHaveLength(4)
+    for (const result of h.select.mock.results) {
+      const node = result.value as { where: ReturnType<typeof vi.fn> }
+      expect(dialect.sqlToQuery(node.where.mock.calls[0]?.[0] as SQL).params).toContain(TENANT_ID)
+    }
+    const update = h.transactionClient.update.mock.results[0]?.value as { set: ReturnType<typeof vi.fn> }
+    const updated = update.set.mock.results[0]?.value as { where: ReturnType<typeof vi.fn> }
+    // The update applies only while the row is still in the status that was checked.
+    expect(dialect.sqlToQuery(updated.where.mock.calls[0]?.[0] as SQL).params).toEqual([REQUISITION_ID, TENANT_ID, 'pending_approval'])
+  })
+
+  it('refuses with 409 and records no event when the guarded update changes no row', async () => {
+    const h = requisitionCommand({ action: 'approve' }, CHECKER, requisition(), [], () => undefined)
+
+    const result = h.run()
+    await expect(result).rejects.toBeInstanceOf(ConflictException)
+    await expect(result).rejects.toThrow('The requisition changed while this command ran')
+    expect(h.inserts).toHaveLength(0)
+    expect(h.audit.writeSemantic).not.toHaveBeenCalled()
+  })
+})
+
+const PROJECT_ID = '66666666-6666-4666-8666-666666666666'
+const CREATE = {
+  projectId: PROJECT_ID,
+  purpose: 'Level 3 ceiling board',
+  currency: 'PHP',
+  lines: [{ description: 'Gypsum board 12mm', quantityMicros: '40000000', estimatedUnitCostCents: '45000' }],
+}
+
+// Fresh create select order: principal, key lookup, project, requisition count, result line count.
+// Replay select order: principal, key lookup, replay target, result line count.
+function createRequisition(command: typeof CREATE, principal: ErpPrincipal, priorEvent: Row[] = []) {
+  const rows = priorEvent.length
+    ? [[{ id: principal.userId }], priorEvent, [requisition({ status: 'draft' })], [{ count: 1 }]]
+    : [[{ id: principal.userId }], [], [{ id: PROJECT_ID }], [{ count: '0' }], [{ count: 1 }]]
+  const h = harness('ERP_ROADMAP_PROCUREMENT_LIFECYCLE_ENABLED', rows, (values) => values)
+  return { ...h, run: () => h.service.createRequisition(command, principal, 'create-key') }
+}
+
+async function recordedCreate(principal: ErpPrincipal): Promise<Row> {
+  const first = createRequisition(CREATE, principal)
+  await expect(first.run()).resolves.toMatchObject({ created: true })
+  return asPriorEvent(first.inserts.find((values) => values.action === 'create')!)
+}
+
+describe('requisition create retry keys', () => {
+  it('replays the same create by the same requester', async () => {
+    const prior = await recordedCreate(REQUESTER)
+    const h = createRequisition(CREATE, REQUESTER, [prior])
+
+    await expect(h.run()).resolves.toMatchObject({ requisitionId: REQUISITION_ID, created: false })
+    h.expectNothingWritten()
+  })
+
+  it('still replays a create event that kept its hash only in reason', async () => {
+    const prior = await recordedCreate(REQUESTER)
+    const h = createRequisition(CREATE, REQUESTER, [{ ...prior, requestHash: null }])
+
+    await expect(h.run()).resolves.toMatchObject({ created: false })
+    h.expectNothingWritten()
+  })
+
+  it.each([
+    ['another payload', { ...CREATE, purpose: 'Level 4 ceiling board' }, REQUESTER, {}],
+    ['another requester', CREATE, OTHER_APPROVER, {}],
+    ['a workflow command', CREATE, REQUESTER, { action: 'approve' }],
+  ])('refuses a create key already used for %s', async (_case, command, principal, change) => {
+    const prior = await recordedCreate(REQUESTER)
+    const h = createRequisition(command, principal, [{ ...prior, ...change }])
+
+    await expectKeyConflict(h.run, h)
+  })
+})
+
+describe('requisition status guards', () => {
+  it.each([
+    ['submit', REQUESTER, 'pending_approval'],
+    ['cancel', REQUESTER, 'approved'],
+    ['cancel', CHECKER, 'converted'],
+  ] as const)('refuses %s by a permitted user from %s', async (action, principal, status) => {
+    const h = requisitionCommand({ action }, principal, requisition({ status }))
+
+    const result = h.run()
+    await expect(result).rejects.toBeInstanceOf(ConflictException)
+    await expect(result).rejects.toThrow(`Requisition cannot perform ${action} from status ${status}`)
+    h.expectNothingWritten()
+  })
+})
+
+describe('requisition ownership', () => {
+  it('refuses a submit by anyone but the requester', async () => {
+    const h = requisitionCommand({ action: 'submit' }, CHECKER, requisition({ status: 'draft' }))
+
+    const result = h.run()
+    await expect(result).rejects.toBeInstanceOf(ForbiddenException)
+    await expect(result).rejects.toThrow('Only the requester can submit their requisition')
+    h.expectNothingWritten()
+  })
+
+  it('lets the requester submit a draft', async () => {
+    const requester = { ...CHECKER, userId: MAKER_ID, role: 'pm' as const }
+    const h = requisitionCommand({ action: 'submit' }, requester, requisition({ status: 'draft' }))
+
+    await expect(h.run()).resolves.toMatchObject({ status: 'pending_approval' })
+  })
+
+  it('refuses a cancel by a non-requester without PO approval', async () => {
+    const h = requisitionCommand({ action: 'cancel' }, { ...CHECKER, role: 'pm' }, requisition())
+
+    const result = h.run()
+    await expect(result).rejects.toBeInstanceOf(ForbiddenException)
+    await expect(result).rejects.toThrow('Only the requester or a PO approver can cancel a requisition')
+    h.expectNothingWritten()
+  })
+
+  it.each([
+    ['the requester', { ...CHECKER, userId: MAKER_ID, role: 'pm' as const }],
+    ['a PO approver', CHECKER],
+  ])('lets %s cancel', async (_case, principal) => {
+    const h = requisitionCommand({ action: 'cancel' }, principal, requisition())
+
+    await expect(h.run()).resolves.toMatchObject({ status: 'cancelled' })
+    expect(h.inserts[0]).toMatchObject({ action: 'cancel', actor_id: principal.userId })
   })
 })

@@ -11,10 +11,10 @@
     "databaseVersion": "17.6.1.121",
     "postgresMajor": 17,
     "appliedCount": 157,
-    "sourceCount": 194,
-    "pendingCount": 37,
+    "sourceCount": 195,
+    "pendingCount": 38,
     "appliedHead": "20260901141949",
-    "sourceHead": "20261124180000",
+    "sourceHead": "20261124190000",
     "ledgerStatus": "current_remote_ledger_matches_source",
     "purchaseOrderPreflight": {
       "duplicateGroups": 0,
@@ -264,6 +264,16 @@
       "hostedApplyApproved": false,
       "risk": "Adds four nullable columns to public.purchase_orders (supplier_confirmed_at timestamptz, supplier_confirmed_by_name varchar(255), supplier_confirmed_channel varchar(20), supplier_confirmed_note text) with no default and no backfill, and the check purchase_orders_supplier_confirmation_check (time and channel both set or both null; channel in email, phone, in_person, other), added NOT VALID and then validated in the same transaction. No status, function, trigger, policy, index or grant changes and no data UPDATE. No existing row sets the columns, so validation cannot fail. ADD COLUMN without a default is catalog-only; ADD CONSTRAINT and VALIDATE take ACCESS EXCLUSIVE on purchase_orders until commit (reads and writes wait milliseconds on a small table), under a 5-second lock and 60-second statement timeout. Deploy order: the old web build selects named columns and ignores the new ones; the new web build reads and writes them, so the migration must be applied before the new build is promoted. Preflight: column names free, constraint name free, row count and size.",
       "recovery": "Take an encrypted backup first. The migration is transactional and aborts without changes on failure. Rollback: revert the web build that reads the columns first, dump any recorded confirmations, then drop the constraint, the four columns and the ledger row. This source-only batch does not authorize hosted application."
+    },
+    {
+      "id": "20261124-procurement-requisition-event-request-hash",
+      "migrations": [
+        "20261124190000_procurement_requisition_event_request_hash.sql"
+      ],
+      "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
+      "hostedApplyApproved": false,
+      "risk": "Adds one nullable column, public.procurement_requisition_events.request_hash char(64), with no default and no backfill, so it is a catalog-only change; ALTER TABLE takes a brief ACCESS EXCLUSIVE lock on the table under a 5-second lock timeout and a 60-second statement timeout. No row, constraint, index, grant, policy or trigger changes; the existing audit trigger and the tenant SELECT policy cover the column. Core API writes the SHA-256 of the canonical command on every new requisition event and refuses (409) an idempotency key reused with another action, actor or payload. Existing create events keep their hash in reason ('request_hash:<sha256>'), which Core API still reads; existing transition events have NULL, so a retry of one of them is refused instead of replayed. The Core API release that writes the column must not deploy before this migration; the production migration ledger gate already blocks it. Preflight: count public.procurement_requisition_events rows and confirm no request_hash column exists.",
+      "recovery": "Take an encrypted backup first. The migration is transactional and aborts without changes on failure. Rollback: roll the Core API release back first, then alter table public.procurement_requisition_events drop column if exists request_hash; this discards the stored hashes only, never an event. This source-only batch does not authorize hosted application."
     }
   ]
 }
