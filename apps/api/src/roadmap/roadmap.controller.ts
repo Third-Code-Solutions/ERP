@@ -139,7 +139,7 @@ export class RoadmapController {
 
   @Post('price-lists/:priceListId/workflow')
   @HttpCode(HttpStatus.OK)
-  @RequireCapabilities('procurement.read')
+  @RequireCapabilities('po.approve')
   transitionPriceList(
     @Param('priceListId', new ParseUUIDPipe()) priceListId: string,
     @Body(new ZodBodyPipe(activatePriceListCommandSchema)) body: ReturnType<typeof activatePriceListCommandSchema.parse>,
@@ -258,9 +258,10 @@ export class RoadmapController {
     return this.roadmap.enqueueSap(body, principal, requireIdempotency(idempotencyKey))
   }
 
+  // Free-form recipient and body leave from the company sender, so only tenant administration may queue them.
   @Post('provider-delivery')
   @HttpCode(HttpStatus.ACCEPTED)
-  @RequireCapabilities('notification.manage')
+  @RequireCapabilities('admin.system_config')
   enqueueProviderDelivery(
     @Body(new ZodBodyPipe(providerDeliveryRequestSchema)) body: ReturnType<typeof providerDeliveryRequestSchema.parse>,
     @Headers('idempotency-key') idempotencyKey: string | undefined,

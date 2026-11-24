@@ -29,6 +29,13 @@ describe('Cortex agent active-record presentation', () => {
     expect(markup).not.toContain('data-cortex-agent-context=')
   })
 
+  it('does not claim sources the keyword search cannot back', () => {
+    const markup = renderToStaticMarkup(<CortexAgent initialContext={null} />)
+
+    expect(markup).toContain('Answers from your records')
+    expect(markup).not.toContain('Answers with sources')
+  })
+
   it('disables chat when a requested record cannot be authorized', () => {
     const markup = renderToStaticMarkup(
       <CortexAgent initialContext={null} contextUnavailable />
