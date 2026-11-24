@@ -24,9 +24,12 @@
 --     one is dropped, and it is renamed back so error mapping keeps working.
 --   * Lines of statements that are ALREADY voided are released with the
 --     statement's own voided_at, one statement at a time under the same GUC.
--- The three function bodies below are the 20260726232000 definitions with only
--- the changes listed above (marked "S8b" inline). Privileges are unchanged:
--- service_role only, and they are re-asserted at the end.
+-- The three function bodies below are the live definitions with only the
+-- changes listed above (marked "S8b" inline): the 20260726232000 bodies, plus
+-- the `for key share` that 20260727194805 added to the guard's cash_transactions
+-- read. Privileges are unchanged: service_role only, re-asserted at the end.
+-- Session time zone is pinned to UTC so the backfill's audit hashes
+-- (created_at::text) match computeDatabaseAuditHash.
 --
 -- Rollback (aborts if a cash transaction is now matched by one active line and
 -- one released line, because the old unique index could not be rebuilt):
@@ -52,10 +55,12 @@
 --   drop index public.ux_bank_statement_lines_cash_transaction;
 --   alter index public.ux_bank_statement_lines_cash_transaction_old
 --     rename to ux_bank_statement_lines_cash_transaction;
---   -- Then re-run the original create or replace function statements for
---   -- guard_bank_statement_line, auto_match_bank_statement and
+--   -- Then restore the three function definitions saved before apply
+--   -- (pg_get_functiondef). Equivalently: re-run the create or replace function
+--   -- statements for guard_bank_statement_line, auto_match_bank_statement and
 --   -- void_bank_statement from 20260726232000_bank_reconciliation_foundation.sql,
---   -- and finally:
+--   -- then re-apply the guard patch from 20260727194805 (`for key share` on the
+--   -- cash_transactions read), re-assert the service_role-only grants, and finally:
 --   alter table public.bank_statement_lines
 --     drop constraint if exists bank_statement_lines_release_state;
 --   alter table public.bank_statement_lines drop column if exists released_at;
@@ -65,6 +70,7 @@ begin;
 
 set local lock_timeout = '5s';
 set local statement_timeout = '60s';
+set local time zone 'UTC';
 
 alter table public.bank_statement_lines
   add column if not exists released_at timestamptz;
@@ -139,7 +145,8 @@ begin
       into v_transaction
       from public.cash_transactions cash_tx
      where cash_tx.id = new.matched_cash_transaction_id
-       and cash_tx.tenant_id = new.tenant_id;
+       and cash_tx.tenant_id = new.tenant_id
+     for key share;
 
     select app_user.role::text
       into v_actor_role
@@ -376,7 +383,7 @@ declare
   v_statement record;
 begin
   for v_statement in
-    select statement.id, statement.voided_at
+    select statement.id, statement.tenant_id, statement.voided_at
     from public.bank_statements statement
     where statement.status = 'voided'
       and exists (
@@ -397,7 +404,8 @@ begin
     update public.bank_statement_lines
        set released_at = v_statement.voided_at,
            updated_at = pg_catalog.clock_timestamp()
-     where bank_statement_id = v_statement.id
+     where tenant_id = v_statement.tenant_id
+       and bank_statement_id = v_statement.id
        and matched_cash_transaction_id is not null
        and released_at is null;
   end loop;

@@ -194,6 +194,11 @@ describe('bank statement S8 migrations', () => {
     expect(squash(releaseSql)).toContain(
       'where matched_cash_transaction_id is not null and released_at is null; drop index if exists public.ux_bank_statement_lines_cash_transaction;'
     )
+    // The backfill stays tenant-scoped, and its audit hashes use UTC text like computeDatabaseAuditHash.
+    expect(squash(releaseSql)).toContain(
+      'where tenant_id = v_statement.tenant_id and bank_statement_id = v_statement.id and matched_cash_transaction_id is not null and released_at is null;'
+    )
+    expect(releaseSql).toContain("set local statement_timeout = '60s';\nset local time zone 'utc';")
     for (const signature of [
       'public.guard_bank_statement_line()',
       'public.auto_match_bank_statement(uuid, uuid)',
@@ -210,14 +215,31 @@ describe('bank statement S8 migrations', () => {
 
   it('changes the three SECURITY DEFINER bodies only where S8b says', () => {
     const original = readMigration('20260726232000_bank_reconciliation_foundation.sql')
-    const compare = (signature: string, remove: RegExp) => {
-      const before = squash(functionText(original, signature))
+    const compare = (
+      signature: string,
+      remove: RegExp,
+      live: (body: string) => string = (body) => body
+    ) => {
+      const before = live(squash(functionText(original, signature)))
       const after = squash(functionText(releaseSql, signature).replace(remove, ''))
       expect(after).toBe(before)
     }
+    // The live guard carries the 20260727194805 patch: `for key share` on its cash_transactions read.
+    const unpatchedRead = 'and cash_tx.tenant_id = new.tenant_id;'
+    const patchedRead = 'and cash_tx.tenant_id = new.tenant_id for key share;'
+    expect(readMigration('20260727194805_fix_finance_workflow_guards.sql')).toContain(
+      "|| e'     for key share;'"
+    )
+    expect(squash(functionText(releaseSql, 'public.guard_bank_statement_line()'))).toContain(
+      patchedRead
+    )
     compare(
       'public.guard_bank_statement_line()',
-      /-- s8b: the only change[\s\S]*?(?=\n {2}if not found or v_statement\.status)/
+      /-- s8b: the only change[\s\S]*?(?=\n {2}if not found or v_statement\.status)/,
+      (body) => {
+        expect(body.split(unpatchedRead)).toHaveLength(2)
+        return body.replace(unpatchedRead, patchedRead)
+      }
     )
     compare(
       'public.auto_match_bank_statement(\n  p_statement_id uuid,\n  p_actor_id uuid\n)',
