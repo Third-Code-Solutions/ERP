@@ -29,6 +29,8 @@ import {
   hashCortexText,
   redactCortexMessages,
   redactCortexText,
+  untrustedPromptLine,
+  untrustedPromptText,
 } from '@/lib/cortex/redaction'
 import { authorizeCortexRecordContext } from '@/lib/cortex/record-context'
 import {
@@ -114,20 +116,6 @@ function isSafeCortexPromptNode(node: {
 const MAX_PROMPT_TITLE_CHARS = 200
 const MAX_PROMPT_SUMMARY_CHARS = 500
 const MAX_PROMPT_FOCUS_CHARS = 2_000
-
-/**
- * Graph text is copied from records that users and outside parties type. Redact
- * it, drop angle brackets so it cannot close the <records> data block, and cap
- * its length before it reaches the system prompt.
- */
-function promptText(value: string, maxChars: number): string {
-  return redactCortexText(value).replace(/[<>]/g, '').slice(0, maxChars)
-}
-
-/** Single-line variant so a title cannot start a line of its own. */
-function promptLine(value: string, maxChars: number): string {
-  return promptText(value.replace(/\s+/g, ' ').trim(), maxChars)
-}
 
 /**
  * POST /api/cortex/chat — the ABI OPS AI Brain (Cortex).
@@ -505,7 +493,7 @@ export async function POST(req: NextRequest) {
 
   const shape = stats.byType.map((t) => `${t.nodeType}:${t.count}`).join(', ')
   const fmt = (n: { node_type: string; title: string | null; summary: string | null }) =>
-    `- [${n.node_type}] ${promptLine(n.title ?? '(untitled)', MAX_PROMPT_TITLE_CHARS)}${n.summary ? ` — ${promptLine(n.summary, MAX_PROMPT_SUMMARY_CHARS)}` : ''}`
+    `- [${n.node_type}] ${untrustedPromptLine(n.title ?? '(untitled)', MAX_PROMPT_TITLE_CHARS)}${n.summary ? ` — ${untrustedPromptLine(n.summary, MAX_PROMPT_SUMMARY_CHARS)}` : ''}`
   const relevant = matches.map(fmt).join('\n')
   const records = recent.map(fmt).join('\n')
 
@@ -546,7 +534,7 @@ GRAPH SHAPE (counts by record type): ${shape || 'empty'}
 
 <records>
 CONVERSATION FOCUS (the canonical ERP record this thread is bound to):
-${focused?.found ? promptText(focused.summary, MAX_PROMPT_FOCUS_CHARS) : '(whole-company conversation)'}
+${focused?.found ? untrustedPromptText(focused.summary, MAX_PROMPT_FOCUS_CHARS) : '(whole-company conversation)'}
 
 SEMANTICALLY RELATED RECORDS (closest in meaning):
 ${semantic || '(semantic index not built yet)'}
