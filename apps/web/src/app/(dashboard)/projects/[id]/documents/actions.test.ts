@@ -404,6 +404,45 @@ describe('deleteDocument authority and integrity', () => {
     }
   })
 
+  it.each([
+    ['quality_hold_point_punchlist_handoffs_plan_document_tenant_fk', 'Document is still referenced by a punchlist handoff plan and cannot be deleted'],
+    ['some_future_document_fk', 'Document is still referenced and cannot be deleted'],
+  ])('refuses a document that %s still references, without audit or Storage removal', async (constraint, message) => {
+    // Drizzle wraps the driver error in `cause`; the scope delete succeeds, the document delete fails.
+    mocks.txReturning.mockReset()
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(Object.assign(new Error('Failed query'), {
+        cause: Object.assign(new Error('update or delete on table "documents" violates foreign key constraint'), {
+          code: '23503',
+          constraint_name: constraint,
+        }),
+      }))
+
+    expect(await deleteDocument(requestForm())).toEqual({ ok: false, error: message })
+    expect(mocks.txDelete).toHaveBeenCalledTimes(2)
+    expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
+    expect(mocks.remove).not.toHaveBeenCalled()
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('still fails a document delete that is not a foreign-key violation as before', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    mocks.txReturning.mockReset()
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(Object.assign(new Error('Failed query'), {
+        cause: Object.assign(new Error('canceling statement due to statement timeout'), { code: '57014' }),
+      }))
+    try {
+      expect(await deleteDocument(requestForm())).toEqual({ ok: false, error: 'Delete failed' })
+      expect(errorSpy).toHaveBeenCalledOnce()
+      expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
+      expect(mocks.remove).not.toHaveBeenCalled()
+      expect(mocks.revalidatePath).not.toHaveBeenCalled()
+    } finally {
+      errorSpy.mockRestore()
+    }
+  })
+
   it('keeps Storage intact when the official database transaction fails', async () => {
     const errorSpy = vi
       .spyOn(console, 'error')

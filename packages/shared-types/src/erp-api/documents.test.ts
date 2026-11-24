@@ -3,6 +3,7 @@ import {
   documentDeleteBodySchema,
   documentDeleteCommandSchema,
   documentDeleteResultSchema,
+  documentStillReferencedMessage,
   isTenantScopedStoragePath,
 } from './documents'
 
@@ -112,5 +113,22 @@ describe('isTenantScopedStoragePath', () => {
 
   it('allows dots inside a file name', () => {
     expect(isTenantScopedStoragePath(`${TENANT_ID}/p/a..b.dxf`, TENANT_ID)).toBe(true)
+  })
+})
+
+describe('documentStillReferencedMessage', () => {
+  it('names a known reference and falls back to the generic refusal', () => {
+    expect(documentStillReferencedMessage('drawing_revisions_document_tenant_fk')).toBe(
+      'Document is still referenced by a drawing revision and cannot be deleted'
+    )
+    expect(documentStillReferencedMessage('some_future_document_fk')).toBe(
+      'Document is still referenced and cannot be deleted'
+    )
+    expect(documentStillReferencedMessage('constructor')).toBe(
+      'Document is still referenced and cannot be deleted'
+    )
+    expect(documentStillReferencedMessage(undefined)).toBe(
+      'Document is still referenced and cannot be deleted'
+    )
   })
 })
