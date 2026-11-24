@@ -128,6 +128,108 @@ describe('bank reconciliation migration contract', () => {
   })
 })
 
+function readMigration(name: string): string {
+  return readFileSync(
+    resolve(__dirname, `../../../../supabase/migrations/${name}`),
+    'utf8'
+  ).toLowerCase()
+}
+
+/** The text of one function from `create or replace function` to its closing `$$;`. */
+function functionText(sql: string, signature: string): string {
+  const start = sql.indexOf(`create or replace function ${signature}`)
+  expect(start, signature).toBeGreaterThanOrEqual(0)
+  const end = sql.indexOf('\n$$;', start)
+  return sql.slice(start, end)
+}
+
+function squash(sql: string): string {
+  return sql.replace(/\s+/g, ' ').trim()
+}
+
+describe('bank statement S8 migrations', () => {
+  const occurrenceSql = readMigration(
+    '20261124130000_bank_statement_line_occurrence.sql'
+  )
+  const releaseSql = readMigration(
+    '20261124130100_bank_statement_void_releases_matches.sql'
+  )
+
+  it.each([
+    ['occurrence', occurrenceSql],
+    ['release', releaseSql],
+  ])('%s migration is gated, bounded and carries an abort-if-unsafe rollback', (_name, sql) => {
+    expect(sql.startsWith('-- needs production migration approval')).toBe(true)
+    expect(sql).toContain("begin;\n\nset local lock_timeout = '5s';\nset local statement_timeout = '60s';")
+    expect(sql.trimEnd().endsWith('commit;')).toBe(true)
+    expect(sql).toMatch(/rollback[\s\S]*?raise exception[\s\S]*?errcode = '55000'/)
+  })
+
+  it('numbers identical lines and swaps the fingerprint index under its old name', () => {
+    expect(occurrenceSql).toContain(
+      'add column if not exists occurrence smallint not null default 1'
+    )
+    expect(occurrenceSql).toContain('check (occurrence > 0)')
+    expect(squash(occurrenceSql)).toMatch(
+      /create unique index ux_bank_statement_lines_fingerprint_occurrence on public\.bank_statement_lines \( bank_statement_id, transaction_date, coalesce\(reference_number, ''\), amount_cents, lower\(btrim\(description\)\), occurrence \);/
+    )
+    expect(occurrenceSql).toContain(
+      'drop index if exists public.ux_bank_statement_lines_fingerprint;'
+    )
+    expect(occurrenceSql).toContain('rename to ux_bank_statement_lines_fingerprint;')
+  })
+
+  it('releases matches on void and lets only that workflow write released_at', () => {
+    const guard = functionText(
+      releaseSql,
+      'public.guard_bank_statement_line()'
+    )
+    expect(guard).toContain("current_setting('app.bank_statement_void', true)")
+    expect(guard).toContain('old.released_at is null')
+    expect(guard).toContain('new.released_at is not null')
+    expect(guard).toContain("- 'released_at' - 'updated_at'")
+    expect(functionText(releaseSql, 'public.void_bank_statement(')).toMatch(
+      /set released_at = pg_catalog\.clock_timestamp\(\)[\s\S]*?and released_at is null/
+    )
+    expect(squash(releaseSql)).toContain(
+      'where matched_cash_transaction_id is not null and released_at is null; drop index if exists public.ux_bank_statement_lines_cash_transaction;'
+    )
+    for (const signature of [
+      'public.guard_bank_statement_line()',
+      'public.auto_match_bank_statement(uuid, uuid)',
+      'public.void_bank_statement(uuid, uuid, text)',
+    ]) {
+      expect(releaseSql).toContain(
+        `revoke execute on function ${signature}\n  from public, anon, authenticated;`
+      )
+      expect(releaseSql).toContain(
+        `grant execute on function ${signature}\n  to service_role;`
+      )
+    }
+  })
+
+  it('changes the three SECURITY DEFINER bodies only where S8b says', () => {
+    const original = readMigration('20260726232000_bank_reconciliation_foundation.sql')
+    const compare = (signature: string, remove: RegExp) => {
+      const before = squash(functionText(original, signature))
+      const after = squash(functionText(releaseSql, signature).replace(remove, ''))
+      expect(after).toBe(before)
+    }
+    compare(
+      'public.guard_bank_statement_line()',
+      /-- s8b: the only change[\s\S]*?(?=\n {2}if not found or v_statement\.status)/
+    )
+    compare(
+      'public.auto_match_bank_statement(\n  p_statement_id uuid,\n  p_actor_id uuid\n)',
+      /\n\s*and used_line\.released_at is null/
+    )
+    compare(
+      'public.void_bank_statement(\n  p_statement_id uuid,\n  p_actor_id uuid,\n  p_reason text\n)',
+      /\n {2}-- s8b: void releases[\s\S]*?and released_at is null;/
+    )
+  })
+})
+
 const runtimeSuite =
   DATABASE_URL && process.env.DATABASE_RECONCILIATION_EXPECTED === '1'
     ? describe
@@ -665,6 +767,159 @@ runtimeSuite('bank reconciliation runtime proof', () => {
       void_reason: 'Imported wrong institution period',
       matched_cash_transaction_id: expect.any(String),
     })
+  })
+
+  it('stores identical rows as numbered occurrences and still rejects a repeated one', async () => {
+    const result = await inRollback(sqlClient, async (tx) => {
+      const fixture = await seedReconciliationFixture(tx)
+      const statement = await createStatement(tx, fixture)
+      const insertLine = (lineNumber: number, occurrence?: number) =>
+        tx.unsafe(
+          `insert into bank_statement_lines(
+             tenant_id, bank_statement_id, line_number, transaction_date,
+             reference_number, description, amount_cents
+             ${occurrence === undefined ? '' : ', occurrence'}
+           )
+           values(
+             '${fixture.tenantId}', '${statement.statementId}', ${lineNumber},
+             '2026-07-27', 'DEP', 'Customer deposit', 50000
+             ${occurrence === undefined ? '' : `, ${occurrence}`}
+           )`
+        )
+
+      await tx.unsafe('savepoint repeated_line')
+      let repeatedRejection = ''
+      try {
+        await insertLine(2)
+      } catch (error) {
+        repeatedRejection = String(error)
+        await tx.unsafe('rollback to savepoint repeated_line')
+      }
+      await tx.unsafe('release savepoint repeated_line')
+      await insertLine(2, 2)
+      const lines = (await tx.unsafe(
+        `select line_number, occurrence
+         from bank_statement_lines
+         where bank_statement_id = '${statement.statementId}'
+         order by line_number`
+      )) as Rows
+      return { repeatedRejection, lines }
+    })
+
+    expect(result.repeatedRejection).toContain(
+      'ux_bank_statement_lines_fingerprint'
+    )
+    expect(result.lines).toEqual([
+      { line_number: 1, occurrence: 1 },
+      { line_number: 2, occurrence: 2 },
+    ])
+  })
+
+  it('releases a voided statement matches so the same cash can be matched again', async () => {
+    const result = await inRollback(sqlClient, async (tx) => {
+      const fixture = await seedReconciliationFixture(tx)
+      const first = await createStatement(tx, fixture)
+      await tx.unsafe(
+        `select match_bank_statement_line(
+          '${first.lineId}', '${fixture.receiptId}', '${fixture.actorId}'
+        )`
+      )
+      await tx.unsafe(
+        `select reconcile_bank_statement('${first.statementId}', '${fixture.actorId}')`
+      )
+      await tx.unsafe(
+        `select void_bank_statement(
+          '${first.statementId}', '${fixture.actorId}', 'Imported the wrong month'
+        )`
+      )
+      const released = (await tx.unsafe(
+        `select matched_cash_transaction_id, released_at is not null as released
+         from bank_statement_lines where id = '${first.lineId}'`
+      )) as Rows
+
+      const corrected = await createStatement(tx, fixture)
+      const auto = (await tx.unsafe(
+        `select * from auto_match_bank_statement(
+          '${corrected.statementId}', '${fixture.actorId}'
+        )`
+      )) as Rows
+
+      const another = await createStatement(tx, fixture)
+      await tx.unsafe('savepoint second_active_match')
+      let secondActiveMatch = ''
+      try {
+        await tx.unsafe(
+          `select match_bank_statement_line(
+            '${another.lineId}', '${fixture.receiptId}', '${fixture.actorId}'
+          )`
+        )
+      } catch (error) {
+        secondActiveMatch = String(error)
+        await tx.unsafe('rollback to savepoint second_active_match')
+      }
+      await tx.unsafe('release savepoint second_active_match')
+      return { released: released[0], auto: auto[0], secondActiveMatch, receiptId: fixture.receiptId }
+    })
+
+    expect(result.released).toEqual({
+      matched_cash_transaction_id: result.receiptId,
+      released: true,
+    })
+    expect(result.auto).toEqual({ matched_count: 1, remaining_count: 0 })
+    expect(result.secondActiveMatch).toContain(
+      'ux_bank_statement_lines_cash_transaction'
+    )
+  })
+
+  it('refuses every other change to a line of a reconciled or voided statement', async () => {
+    const result = await inRollback(sqlClient, async (tx) => {
+      const fixture = await seedReconciliationFixture(tx)
+      const statement = await createStatement(tx, fixture)
+      await tx.unsafe(
+        `select match_bank_statement_line(
+          '${statement.lineId}', '${fixture.receiptId}', '${fixture.actorId}'
+        )`
+      )
+      await tx.unsafe(
+        `select reconcile_bank_statement('${statement.statementId}', '${fixture.actorId}')`
+      )
+      const attempt = async (name: string, statementText: string) => {
+        await tx.unsafe(`savepoint ${name}`)
+        try {
+          await tx.unsafe(statementText)
+          return 'accepted'
+        } catch (error) {
+          await tx.unsafe(`rollback to savepoint ${name}`)
+          return String(error)
+        } finally {
+          await tx.unsafe(`release savepoint ${name}`)
+        }
+      }
+      const release = `update bank_statement_lines set released_at = now() where id = '${statement.lineId}'`
+      const reconciledRelease = await attempt('reconciled_release', release)
+
+      await tx.unsafe(
+        `select void_bank_statement(
+          '${statement.statementId}', '${fixture.actorId}', 'Imported the wrong month'
+        )`
+      )
+      // The void workflow's switch lasts for its transaction; clear it so the
+      // guard is judged as an ordinary writer would see it.
+      await tx.unsafe(`select set_config('app.bank_statement_void', '', true)`)
+      const editAfterVoid = await attempt(
+        'voided_edit',
+        `update bank_statement_lines set description = 'Edited' where id = '${statement.lineId}'`
+      )
+      const unreleaseAfterVoid = await attempt(
+        'voided_unrelease',
+        `update bank_statement_lines set released_at = null where id = '${statement.lineId}'`
+      )
+      return { reconciledRelease, editAfterVoid, unreleaseAfterVoid }
+    })
+
+    for (const outcome of Object.values(result)) {
+      expect(outcome).toContain('Only draft bank statement lines can change')
+    }
   })
 
   it('hides bank statement Cortex records from a viewer', async () => {
