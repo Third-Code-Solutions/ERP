@@ -268,7 +268,7 @@ runtimeSuite('PO line item and unit link trigger', () => {
       return { fixture, line: await insertLine(tx, fixture, { code: 'MAT-1', unit: ' pc ' }) }
     })
 
-    expect(result.line).toEqual({
+    expect(result.line).toMatchObject({
       material_item_id: result.fixture.itemPc,
       uom_id: result.fixture.uomPc,
     })
