@@ -362,7 +362,7 @@ function diffUnitAliases(aliases, existing, units) {
     const alias = row.alias.toLowerCase()
     let reason = null
     if (existing.unitAliases == null) {
-      reason = 'unit_aliases table not created yet; apply migration 20261118100000 first'
+      reason = 'unit_aliases table not created yet; apply migration 20261124140000 first'
     } else if (unitCodes.has(alias)) {
       reason = 'already a unit code'
     } else if (taken.has(alias)) {

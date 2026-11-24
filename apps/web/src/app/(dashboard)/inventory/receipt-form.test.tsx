@@ -9,7 +9,10 @@ import { StockReceiptForm } from './receipt-form'
 
 const PO_IDS = ['po-1', 'po-2']
 
-function render(defaultPurchaseOrderId?: string): string {
+function render(
+  defaultPurchaseOrderId?: string,
+  patch: { ready?: boolean; notReadyReason?: string | null } = {}
+): string {
   return renderToStaticMarkup(
     <StockReceiptForm
       purchaseOrders={PO_IDS.map((id) => ({
@@ -29,6 +32,7 @@ function render(defaultPurchaseOrderId?: string): string {
         receivedMicros: 0,
         unitCostCents: 100,
         ready: true,
+        ...patch,
       }))}
       warehouses={[]}
       deliveries={[]}
@@ -52,6 +56,16 @@ describe('StockReceiptForm', () => {
     expect(selectedPo(html)).toBe('po-2')
     expect(html).toContain('CODE-PO-2')
     expect(html).not.toContain('CODE-PO-1')
+  })
+
+  it('says why a line cannot be received instead of a generic setup hint', () => {
+    const html = render('po-1', {
+      ready: false,
+      notReadyReason: 'Not linked to a stock item. Open the Purchase Order and link it.',
+    })
+
+    expect(html).toContain('Not linked to a stock item. Open the Purchase Order and link it.')
+    expect(html).not.toContain('configure tracked Item and UOM')
   })
 
   it('falls back to the first PO for an id it does not offer', () => {

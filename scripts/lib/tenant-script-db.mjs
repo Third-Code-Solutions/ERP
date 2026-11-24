@@ -40,7 +40,7 @@ export async function stampActor(tx, actorId) {
     true)`
 }
 
-/** unit_aliases is created by migration 20261118100000; null until it exists. */
+/** unit_aliases is created by migration 20261124140000; null until it exists. */
 export async function readUnitAliases(tx, tenantId) {
   const [{ present }] = await tx`
     select pg_catalog.to_regclass('public.unit_aliases') is not null as present

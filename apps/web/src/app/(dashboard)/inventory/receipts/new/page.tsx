@@ -14,8 +14,10 @@ import {
   warehouses,
 } from '@third-code-erp/database/schema'
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 import { z } from 'zod'
 import { STOCK_RECEIPT_RECEIVABLE_PO_STATUSES } from '@third-code-erp/shared-types'
+import { poLineStockReadiness } from '@/lib/procurement/po-line-stock-link'
 import { StockReceiptForm } from '../../receipt-form'
 
 export const metadata: Metadata = { title: 'New Stock Receipt' }
@@ -33,6 +35,7 @@ export default async function NewStockReceiptPage({
   const defaultPoId = z.string().uuid().safeParse(po).success
     ? (po as string)
     : undefined
+  const itemUom = alias(unitsOfMeasure, 'item_uom')
 
   const [poRows, lineRows, warehouseRows, deliveryRows] = await Promise.all([
     db
@@ -82,8 +85,11 @@ export default async function NewStockReceiptPage({
         unitCostCents: poLineItems.unit_cost_cents,
         materialItemId: poLineItems.material_item_id,
         uomId: poLineItems.uom_id,
+        itemCode: materialItems.code,
         tracked: materialItems.inventory_tracked,
         itemActive: materialItems.is_active,
+        itemBaseUomId: materialItems.base_uom_id,
+        itemBaseUomCode: itemUom.code,
         uomActive: unitsOfMeasure.is_active,
       })
       .from(poLineItems)
@@ -106,6 +112,13 @@ export default async function NewStockReceiptPage({
         and(
           eq(unitsOfMeasure.id, poLineItems.uom_id),
           eq(unitsOfMeasure.tenant_id, poLineItems.tenant_id)
+        )
+      )
+      .leftJoin(
+        itemUom,
+        and(
+          eq(itemUom.id, materialItems.base_uom_id),
+          eq(itemUom.tenant_id, poLineItems.tenant_id)
         )
       )
       .where(
@@ -188,23 +201,31 @@ export default async function NewStockReceiptPage({
             projectLabel: `${po.projectCode} / ${po.projectName}`,
             vendorLabel: po.vendorName ?? 'Supplier not set',
           }))}
-          lines={lineRows.map((line) => ({
-            id: line.id,
-            purchaseOrderId: line.purchaseOrderId,
-            code: line.code,
-            description: line.description,
-            uom: line.uom,
-            orderedMicros: line.orderedMicros,
-            receivedMicros: line.receivedMicros,
-            unitCostCents: line.unitCostCents,
-            ready: Boolean(
-              line.materialItemId &&
-                line.uomId &&
-                line.tracked &&
-                line.itemActive &&
-                line.uomActive
-            ),
-          }))}
+          lines={lineRows.map((line) => {
+            const readiness = poLineStockReadiness({
+              materialItemId: line.materialItemId,
+              uomId: line.uomId,
+              itemCode: line.itemCode,
+              itemActive: line.itemActive,
+              itemTracked: line.tracked,
+              itemBaseUomId: line.itemBaseUomId,
+              itemBaseUomCode: line.itemBaseUomCode,
+              uomCode: line.uom,
+              uomActive: line.uomActive,
+            })
+            return {
+              id: line.id,
+              purchaseOrderId: line.purchaseOrderId,
+              code: line.code,
+              description: line.description,
+              uom: line.uom,
+              orderedMicros: line.orderedMicros,
+              receivedMicros: line.receivedMicros,
+              unitCostCents: line.unitCostCents,
+              ready: readiness.ready,
+              notReadyReason: readiness.reason,
+            }
+          })}
           warehouses={warehouseRows}
           deliveries={deliveryRows.map((delivery) => ({
             ...delivery,

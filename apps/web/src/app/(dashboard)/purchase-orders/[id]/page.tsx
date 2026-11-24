@@ -22,6 +22,8 @@ import { PoStatusActions } from './po-status-actions'
 import { ApprovalTimeline } from '@/components/procurement/approval-timeline'
 import { ReceiveLineForm } from '@/components/procurement/receive-line-form'
 import { CostCodeAssignment } from '@/components/procurement/cost-code-assignment'
+import { PoLineStockLink } from '@/components/procurement/po-line-stock-link'
+import { loadPoLineStockLinks } from '@/lib/procurement/po-line-stock-link-queries'
 
 export const metadata: Metadata = { title: 'Purchase Order' }
 
@@ -147,6 +149,15 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
   const canManagePayables = can(profile.role, 'finance.post_supplier_bill')
   const canManageInventory = can(profile.role, 'inventory.manage')
   const canEditPoLines = can(profile.role, 'po.create')
+  // Only people who receive stock see the stock link; it is what lets a line be received.
+  const stockLinks = canManageInventory
+    ? await loadPoLineStockLinks({
+        tenantId: profile.tenantId,
+        poId: po.id,
+        lineIds: lines.map((line) => line.id),
+        withPicker: po.status !== 'cancelled',
+      })
+    : null
   const payableRows = canManagePayables
     ? await db
         .select({
@@ -697,6 +708,20 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
                   </td>
                   <td style={{ padding: '10px 16px', color: 'var(--color-neutral-800)', fontWeight: 500 }}>
                     {line.description}
+                    {stockLinks?.byLine.has(line.id) && (
+                      <PoLineStockLink
+                        lineId={line.id}
+                        itemCode={stockLinks.byLine.get(line.id)?.itemCode ?? null}
+                        unitCode={stockLinks.byLine.get(line.id)?.unitCode ?? null}
+                        reason={stockLinks.byLine.get(line.id)?.reason ?? null}
+                        editable={
+                          po.status !== 'cancelled' &&
+                          !stockLinks.byLine.get(line.id)?.frozen
+                        }
+                        canCreateFromLine={Boolean(line.code?.trim())}
+                        items={stockLinks.items}
+                      />
+                    )}
                   </td>
                   <td style={{ padding: '10px 16px' }}>
                     <CostCodeAssignment
