@@ -73,11 +73,14 @@ export const supplierBills = pgTable(
       table.tenant_id,
       table.id
     ),
-    vendorNumberIdx: uniqueIndex('ux_supplier_bills_vendor_number').on(
-      table.tenant_id,
-      table.vendor_id,
-      sql`lower(btrim(${table.vendor_bill_number}))`
-    ),
+    // S10a: a reversed bill releases its vendor bill number.
+    vendorNumberIdx: uniqueIndex('ux_supplier_bills_vendor_number')
+      .on(
+        table.tenant_id,
+        table.vendor_id,
+        sql`lower(btrim(${table.vendor_bill_number}))`
+      )
+      .where(sql`${table.status} <> 'reversed'`),
     internalNumberIdx: uniqueIndex(
       'ux_supplier_bills_tenant_internal_number'
     )
