@@ -451,6 +451,7 @@ jobs:
             e2e/weekly-progress-command-receipts.spec.ts \
             e2e/billing-milestone-navigation.spec.ts \
             e2e/quality-document-handoff.spec.ts \
+            e2e/demo-tenant-boundary.contract.spec.ts \
             --project=chromium \
             --workers=1 \
             --retries=0 \
