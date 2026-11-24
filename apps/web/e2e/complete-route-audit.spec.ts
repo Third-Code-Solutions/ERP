@@ -46,9 +46,44 @@ const expectedRedirects: Record<string, CanonicalRedirectExpectation> = {
     heading: /^Finance$/,
     content: /Prepare, post, trace, and reverse/,
   },
+  // Redirects to /pipeline?view=list after the pipeline loading shell has
+  // streamed, so the target only appears after hydration (or a meta refresh).
+  '/pipeline/list': {
+    targetPath: '/pipeline',
+    heading: /^Pipeline Board$/,
+    content: /track ownership and next steps/,
+  },
 }
 
 const CANONICAL_REDIRECT_READY_TIMEOUT_MS = 15_000
+
+// Routes that ship dark behind a server-only flag the audit cannot read. With
+// the flag off the page calls notFound() after its segment's loading shell has
+// streamed (HTTP 200), so the not-found view appears only after hydration and
+// the 80-character body wait can sample the skeleton and layout instead. Wait
+// for either outcome's own heading; only these routes may resolve to not found.
+type DarkRouteExpectation = { flag: string; heading: RegExp }
+
+const darkRoutes: Record<string, DarkRouteExpectation> = {
+  '/settings/tax': { flag: 'ERP_TENANCY_ENABLED', heading: /^Tax rates$/ },
+}
+
+const DASHBOARD_NOT_FOUND_HEADING = /^We could not find that workspace record$/
+
+async function waitForDarkRoute(
+  page: Page,
+  expectation: DarkRouteExpectation,
+  timeoutMs = CANONICAL_REDIRECT_READY_TIMEOUT_MS,
+): Promise<'dark' | 'live' | null> {
+  const dark = page.getByRole('heading', { level: 1, name: DASHBOARD_NOT_FOUND_HEADING })
+  const live = page.getByRole('heading', { level: 1, name: expectation.heading })
+  try {
+    await expect(dark.or(live).first()).toBeVisible({ timeout: timeoutMs })
+  } catch {
+    return null
+  }
+  return (await dark.isVisible()) ? 'dark' : 'live'
+}
 
 async function waitForCanonicalRedirect(
   page: Page,
@@ -208,7 +243,9 @@ test('inventory every page with explicit live render and guard evidence', async 
         let status = 0
         let result = 'FAILED navigation'
         const expectedRedirect = expectedRedirects[path]
+        const darkRoute = darkRoutes[path]
         let canonicalRedirectReady = false
+        let darkRouteOutcome: 'dark' | 'live' | null = null
         try {
           // Route pages can legitimately keep a realtime or analytics request
           // open after the document is usable. Waiting for networkidle here
@@ -223,6 +260,8 @@ test('inventory every page with explicit live render and guard evidence', async 
             // for the canonical URL and its real target landmarks as one
             // bounded readiness check before taking the body snapshot.
             canonicalRedirectReady = await waitForCanonicalRedirect(page, expectedRedirect)
+          } else if (darkRoute) {
+            darkRouteOutcome = await waitForDarkRoute(page, darkRoute)
           } else {
             // Next streams the route shell and page content separately. The
             // load event avoids waiting on long-lived realtime requests, but
@@ -254,6 +293,12 @@ test('inventory every page with explicit live render and guard evidence', async 
               ? canonicalRedirectReady && status >= 200 && status < 400 && !accessDenied && !missing && consoleErrors === 0
                 ? 'REDIRECT VERIFIED; canonical target reached'
                 : 'FAILED canonical redirect readiness'
+            : darkRoute
+              ? darkRouteOutcome === 'dark' && consoleErrors === 0
+                ? `DARK VERIFIED; ${darkRoute.flag} off, route not found`
+                : darkRouteOutcome === 'live' && status >= 200 && status < 400 && !accessDenied && !missing && consoleErrors === 0
+                  ? 'RENDER VERIFIED; mutations NOT RUN'
+                  : 'FAILED dark route readiness'
             : mode.startsWith('invalid-') ? 'REVIEW guard response'
             : accessDenied ? 'ACCESS DENIED; positive case NOT RUN'
             : missing ? 'FAILED record/page not found'
@@ -399,6 +444,46 @@ test('redirect audit rejects a wrong canonical target even when it renders', asy
     await page.goto(crmUrl, { waitUntil: 'load', timeout: 15_000 })
     expect(await waitForCanonicalRedirect(page, expectation, 500)).toBe(false)
     expect(new URL(page.url()).pathname).toBe(wrongPath)
+  } finally {
+    await context.close()
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => error ? reject(error) : resolve())
+    })
+  }
+})
+
+test('dark route readiness waits past the streamed skeleton for either outcome', async ({ browser }) => {
+  test.setTimeout(30_000)
+  const expectation = darkRoutes['/settings/tax']
+  if (!expectation) throw new Error('Tax settings dark route expectation is missing')
+  // Layout chrome alone clears the 80-character body wait, as on production.
+  const chrome = `<nav>${'Dashboard Projects Pipeline Procurement Finance Reports Settings '.repeat(2)}</nav>`
+  const server = createServer((request, response) => {
+    const body = request.url === '/live'
+      ? '<main><h1>Tax rates</h1><p>Effective rates as of 2026-11-24 (Manila)</p></main>'
+      : `<main><div class="skeleton"></div><button onclick="document.querySelector('main').innerHTML =
+          '<h1>We could not find that workspace record</h1>'">Hydrate</button></main>`
+    response.writeHead(200, { 'content-type': 'text/html' }).end(chrome + body)
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', resolve)
+  })
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('Local dark route regression server did not bind')
+  const context = await browser.newContext()
+  const page = await context.newPage()
+  const origin = `http://127.0.0.1:${address.port}`
+  try {
+    await page.goto(`${origin}/dark`, { waitUntil: 'load', timeout: 15_000 })
+    expect((await page.locator('body').innerText()).length).toBeGreaterThan(80)
+    expect(await waitForDarkRoute(page, expectation, 500)).toBeNull()
+    const readiness = waitForDarkRoute(page, expectation)
+    await page.getByRole('button', { name: 'Hydrate' }).click()
+    expect(await readiness).toBe('dark')
+
+    await page.goto(`${origin}/live`, { waitUntil: 'load', timeout: 15_000 })
+    expect(await waitForDarkRoute(page, expectation)).toBe('live')
   } finally {
     await context.close()
     await new Promise<void>((resolve, reject) => {
