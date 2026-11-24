@@ -269,9 +269,7 @@ describe('takeoff import commit keeps estimator work', () => {
     ])
 
     const result = await h.service.execute(commit({ unit: 'sqm', quantity: 3 }), PRINCIPAL)
-    // The deployed web parses this reply strictly, so linesChanged stays in the
-    // audit until the web that accepts it is live.
-    expect(result).not.toHaveProperty('linesChanged')
+    expect(result).toMatchObject({ linesChanged: 1 })
 
     const set = conflictSet(h)
     const unitCost = rendered(set.unit_cost_cents)
