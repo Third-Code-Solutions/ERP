@@ -1,7 +1,6 @@
-import { randomUUID } from 'node:crypto'
 import { expect, test } from '@playwright/test'
 import { z } from 'zod'
-import { gateTrialLive, needsData, openRole, tenantRows, trialTarget } from '../helpers/trial-live'
+import { callApi, gateTrialLive, needsData, openRole, tenantRows, trialTarget } from '../helpers/trial-live'
 
 gateTrialLive()
 
@@ -25,18 +24,12 @@ test(
       // A deliberately stale expectedRole: if the platform guard were missing the
       // API answers 409 (stale) and still changes nothing.
       const [expectedRole, role] = ['viewer', 'design', 'safety'].filter((r) => r !== member.role)
-      const response = await fetch(`${target.apiBaseUrl}/v1/admin/users/${member.id}/role`, {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${admin.accessToken}`,
-          'Content-Type': 'application/json',
-          'Idempotency-Key': randomUUID(),
-        },
-        body: JSON.stringify({ expectedRole, role }),
+      const response = await callApi(target, admin.accessToken, 'PATCH', `/v1/admin/users/${member.id}/role`, {
+        expectedRole,
+        role,
       })
-      const body = await response.text()
-      expect(response.status, body).toBe(403)
-      expect(body).toContain('Platform administration roles cannot be changed from a workspace.')
+      expect(response.status, response.body).toBe(403)
+      expect(response.body).toContain('Platform administration roles cannot be changed from a workspace.')
       const [after] = await tenantRows(target, 'users', query, memberRow)
       expect(after?.role).toBe(member.role)
     } finally {

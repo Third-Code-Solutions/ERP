@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { test, type Browser, type Page, type Route, type TestInfo } from '@playwright/test'
 import { z } from 'zod'
 import { readE2EEnv } from './env'
@@ -113,6 +114,28 @@ export async function tenantRows<T extends z.ZodTypeAny>(
   )
   if (!response.ok) throw new Error(`${table} lookup failed (${response.status})`)
   return z.array(row).parse(await response.json())
+}
+
+export type ApiResult = { status: number; body: string }
+
+/** Calls the ERP Core API as a role session. Every write carries a fresh Idempotency-Key. */
+export async function callApi(
+  target: TrialTarget,
+  accessToken: string,
+  method: 'GET' | 'POST' | 'PATCH',
+  path: string,
+  body?: unknown
+): Promise<ApiResult> {
+  const response = await fetch(`${target.apiBaseUrl}${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      ...(method === 'GET' ? {} : { 'Idempotency-Key': randomUUID() }),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+  return { status: response.status, body: await response.text() }
 }
 
 export type ServerActionTap = {
