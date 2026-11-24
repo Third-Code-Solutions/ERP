@@ -1,6 +1,6 @@
-import { expect, test, type TestInfo } from '../base-test'
+import { expect, test, type Locator, type Page, type TestInfo } from '../base-test'
 import { z } from 'zod'
-import { gateTrialLive, openRole, tenantRows, trialTarget } from '../helpers/trial-live'
+import { gateTrialLive, openRole, tenantRows, trialTarget, type TrialTarget } from '../helpers/trial-live'
 
 gateTrialLive()
 
@@ -73,22 +73,85 @@ test('seed: an editable budget draft with a whole-centavo line (pr-227)', SEED, 
   }
 })
 
-test('seed: a punchlist item on the E2E project (pr-233)', SEED, async ({ browser }, testInfo) => {
+const PUNCHLIST_FIXTURE = 'trial-fixture punchlist item'
+const punchlistRow = z.object({ id: z.string().uuid(), status: z.string() })
+const slaRow = z.object({ id: z.string().uuid(), completed_at: z.string().nullable() })
+
+/** Clicks a control until `done` holds. A click before hydration does nothing, so it retries. */
+async function clickUntil(control: Locator, what: string, done: () => Promise<boolean>) {
+  if (await done()) return
+  await expect(control, `${what} is missing`).toBeVisible({ timeout: 15_000 })
+  await expect(async () => {
+    if (!(await done())) await control.click({ timeout: 5_000 })
+    expect(await done(), `${what} did not take effect`).toBe(true)
+  }).toPass({ timeout: 30_000, intervals: [1_000, 2_000, 5_000] })
+}
+
+/** Closes the item through its status panel (inspection, then PE sign-off) and proves its SLA clock stopped. */
+async function closePunchlistItem(page: Page, target: TrialTarget, id: string) {
+  const status = async () =>
+    (await tenantRows(target, 'punchlist_items', `id=eq.${id}&select=id,status`, punchlistRow))[0]?.status
+  await page.goto(`/punchlist/${id}`)
+  if (!['for_inspection', 'closed'].includes((await status()) ?? '')) {
+    await clickUntil(
+      page.getByRole('button', { name: 'Mark for inspection', exact: true }),
+      `"Mark for inspection" on punchlist item ${id}`,
+      async () => (await status()) === 'for_inspection'
+    )
+  }
+  await clickUntil(
+    page.getByRole('button', { name: /^(PE sign-off & close|Close item)$/ }),
+    `"PE sign-off & close" on punchlist item ${id}`,
+    async () => (await status()) === 'closed'
+  )
+  await page.goto(`/punchlist/${id}`)
+  await expect(page.getByText('This item is closed. No further transitions available.')).toBeVisible({ timeout: 15_000 })
+  const clocks = await tenantRows(
+    target,
+    'sla_logs',
+    `entity_type=eq.punchlist_item&entity_id=eq.${id}&select=id,completed_at`,
+    slaRow
+  )
+  expect(clocks.length, `punchlist item ${id} has an SLA clock`).toBeGreaterThan(0)
+  expect(clocks.filter((clock) => clock.completed_at === null), `open SLA clocks on closed punchlist item ${id}`).toEqual([])
+}
+
+test('seed: a closed punchlist item on the E2E project (pr-233)', SEED, async ({ browser }, testInfo) => {
+  testInfo.setTimeout(180_000)
   const target = await trialTarget(testInfo)
-  const items = () => tenantRows(target, 'punchlist_items', `project_id=eq.${target.projectId}&select=id&limit=1`, idRow)
-  if ((await items()).length > 0) return present(testInfo, 'a punchlist item on the E2E project')
+  const project = `project_id=eq.${target.projectId}`
+  const anyItem = () => tenantRows(target, 'punchlist_items', `${project}&select=id,status&limit=1`, punchlistRow)
+  const fixtures = () =>
+    tenantRows(target, 'punchlist_items', `${project}&description=eq.${encodeURIComponent(PUNCHLIST_FIXTURE)}&select=id,status`, punchlistRow)
+  const create = (await anyItem()).length === 0
+  if (!create && (await fixtures()).every((item) => item.status === 'closed')) {
+    return present(testInfo, 'a punchlist item on the E2E project, and no open fixture item')
+  }
 
   const admin = await openRole(browser, target, 'admin')
+  const { page } = admin
   try {
-    const { page } = admin
-    await page.goto(`/punchlist/new?project=${target.projectId}`)
-    await expect(page.locator('#punchlist-project_id')).toHaveValue(target.projectId)
-    await page.locator('#punchlist-description').fill('trial-fixture punchlist item')
-    await page.getByRole('button', { name: 'Create punchlist item' }).click()
-    await expect(page).toHaveURL(/\/punchlist\/[0-9a-f-]{36}$/, { timeout: 30_000 })
-    expect(await items()).toHaveLength(1)
+    if (create) {
+      await test.step('create the item', async () => {
+        await page.goto(`/punchlist/new?project=${target.projectId}`)
+        await expect(page.locator('#punchlist-project_id')).toHaveValue(target.projectId)
+        await page.locator('#punchlist-description').fill(PUNCHLIST_FIXTURE)
+        await page.getByRole('button', { name: 'Create punchlist item' }).click()
+        await expect(page).toHaveURL(/\/punchlist\/[0-9a-f-]{36}$/, { timeout: 30_000 })
+      })
+    }
   } finally {
-    await admin.close()
+    try {
+      // An open item runs a due-date SLA clock whose warning emails the tenant's
+      // admins and owners, so every fixture item is closed before the seed ends.
+      await test.step('close the fixture items', async () => {
+        const items = await fixtures()
+        expect(items.length, 'the fixture punchlist item exists').toBeGreaterThan(0)
+        for (const item of items) await closePunchlistItem(page, target, item.id)
+      })
+    } finally {
+      await admin.close()
+    }
   }
 })
 

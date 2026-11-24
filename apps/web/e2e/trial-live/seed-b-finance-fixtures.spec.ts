@@ -13,6 +13,9 @@ const uuid = z.string().uuid()
 const statusRow = z.object({ id: uuid, status: z.string() })
 const BILLABLE_PO = ['confirmed', 'issued', 'partial_delivery', 'partial_delivered', 'delivered', 'fully_delivered']
 const ISSUED = /^(issued|partial_payment|paid|overdue)$/
+// The PO statuses that carry the supplier-email banner (lib/procurement/supplier-email-outcome.ts).
+const SUPPLIER_EMAIL_PO = ['issued', 'partial_delivered', 'fully_delivered']
+const SUPPLIER_EMAIL_BANNER = /so no email was sent|could not be sent|No supplier email is recorded as sent/
 
 function present(testInfo: TestInfo, what: string): void {
   testInfo.annotations.push({ type: 'seed', description: `already present: ${what}` })
@@ -193,8 +196,10 @@ test('seed: a posted and a reversed supplier bill on a billable PO (pr-241)', SE
   testInfo.setTimeout(300_000)
   const target = await trialTarget(testInfo)
   const vendorName = 'trial-fixture vendor'
-  const vendor = async () =>
-    (await tenantRows(target, 'vendors', `name=eq.${encodeURIComponent(vendorName)}&select=id`, z.object({ id: uuid })))[0]?.id
+  const vendorRow = z.object({ id: uuid, email: z.string().nullable() })
+  const vendorRecord = async () =>
+    (await tenantRows(target, 'vendors', `name=eq.${encodeURIComponent(vendorName)}&select=id,email`, vendorRow))[0]
+  const vendor = async () => (await vendorRecord())?.id
   const purchaseOrder = async (vendorId: string) =>
     (
       await tenantRows(
@@ -236,8 +241,34 @@ test('seed: a posted and a reversed supplier bill on a billable PO (pr-241)', SE
     })
   })
 
+  // Under the Core PO workflow each transition emails every PO role, and the E2E
+  // users' addresses are not ours. Its only UI trace is that the PO page drops the
+  // web supplier-email banner (purchase-orders/[id]/page.tsx:166), so read that
+  // banner on an issued PO whose supplier email was never sent.
+  async function assertPoWorkflowOnWeb() {
+    const [issued] = await tenantRows(
+      target,
+      'purchase_orders',
+      `status=in.(${SUPPLIER_EMAIL_PO.join(',')})&supplier_email_sent_at=is.null&select=id,status&order=created_at.desc&limit=1`,
+      statusRow
+    )
+    if (!issued) {
+      throw new Error(
+        'the E2E tenant has no issued PO without a sent supplier email, so the seed cannot see whether the Core PO workflow (which emails every PO role) is on; confirm ERP_PO_WORKFLOW_WRITES_VIA_API_TENANT_IDS leaves the E2E tenant out before the PO is seeded'
+      )
+    }
+    await asRole('procurement', async (page) => {
+      await page.goto(`/purchase-orders/${issued.id}`)
+      await expect(
+        page.getByRole('alert').filter({ hasText: SUPPLIER_EMAIL_BANNER }),
+        `PO ${issued.id} shows no supplier-email banner: the Core PO workflow is probably on for the E2E tenant, and its transitions email every PO role; not seeding the PO`
+      ).toBeVisible({ timeout: 15_000 })
+    })
+  }
+
   const poId = await test.step('an issued PO with one service line', async () => {
     let po = await purchaseOrder(vendorId)
+    if (!BILLABLE_PO.includes(po?.status ?? '')) await assertPoWorkflowOnWeb()
     if (!po) {
       po = await asRole('procurement', async (page) => {
         await page.goto('/purchase-orders')
@@ -271,6 +302,13 @@ test('seed: a posted and a reversed supplier bill on a billable PO (pr-241)', SE
       const current = (await purchaseOrder(vendorId))?.status
       if (current !== step.from) continue
       const next = steps[steps.indexOf(step) + 1]?.from
+      if (step.button === 'Issue PO to supplier') {
+        // Issuing emails the vendor's address; the reused fixture vendor must have none that reaches anyone.
+        const email = (await vendorRecord())?.email?.trim() ?? ''
+        if (email && !email.toLowerCase().endsWith('@example.invalid')) {
+          throw new Error(`"${vendorName}" has the email ${email}, which issuing the PO would write to; clear it or use an @example.invalid address`)
+        }
+      }
       await asRole(step.role, async (page, dialogs) => {
         await page.goto(`/purchase-orders/${poRowId}`)
         await page.getByRole('button', { name: step.button }).click()
