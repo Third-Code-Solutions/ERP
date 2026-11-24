@@ -20,7 +20,7 @@ import { PortalHeader } from '@/components/customer-portal/portal-header'
 import { PortalSubNav } from '@/components/customer-portal/portal-sub-nav'
 
 export const metadata: Metadata = {
-  title: 'Live project · ABI OPS',
+  title: 'Live project',
   robots: { index: false, follow: false },
 }
 

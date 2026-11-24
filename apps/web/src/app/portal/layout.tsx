@@ -1,7 +1,11 @@
 import type { Metadata } from 'next'
+import { headers } from 'next/headers'
+import { PLATFORM_NAME, tenantDisplayName } from '@/lib/tenant-branding'
+import { resolvePortalCompanyName } from './portal-tenant'
 
+// template '%s' stops the root "| ABI OPS" suffix: the page belongs to the issuing company.
 export const metadata: Metadata = {
-  title: 'Client Portal | ABI OPS',
+  title: { default: 'Client Portal', template: '%s' },
   robots: { index: false, follow: false },
 }
 
@@ -10,15 +14,21 @@ export const metadata: Metadata = {
  * No sidebar, no app chrome — just a navy-branded header + content area
  * and a footer noting validity. Anti-template per design-quality rules:
  * editorial header with sharp accent CTA tone (gold).
+ *
+ * The header names the company that issued the link (the tenant behind the
+ * token); the product appears only as a small "Powered by" line.
  */
-export default function PortalLayout({ children }: { children: React.ReactNode }) {
+export default async function PortalLayout({ children }: { children: React.ReactNode }) {
+  const pathname = (await headers()).get('x-pathname')
+  const companyName = tenantDisplayName(await resolvePortalCompanyName(pathname))
+
   return (
     <div className="portal-shell">
       <header className="portal-header">
         <div className="portal-header-inner">
           <div>
-            <p className="portal-eyebrow">Actuate Builders Inc.</p>
-            <h1 className="portal-brand">ABI OPS · Client Portal</h1>
+            <p className="portal-eyebrow">{companyName}</p>
+            <h1 className="portal-brand">Client Portal</h1>
           </div>
           <span className="portal-pill">Secure link</span>
         </div>
@@ -27,9 +37,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       <footer className="portal-footer">
         <p>
           This portal is for the named recipient only. If you weren&apos;t expecting
-          a secure project link from Actuate Builders Inc., please
-          ignore this link.
+          a secure link from {companyName}, please ignore it.
         </p>
+        <p className="portal-powered">Powered by {PLATFORM_NAME}</p>
       </footer>
       <style>{`
         .portal-shell {
@@ -91,6 +101,12 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
           color: #6b7280;
           font-size: 12.5px;
           line-height: 1.6;
+        }
+        .portal-powered {
+          margin: 12px 0 0;
+          font-size: 11px;
+          letter-spacing: 0.04em;
+          color: #9aa1ad;
         }
       `}</style>
     </div>

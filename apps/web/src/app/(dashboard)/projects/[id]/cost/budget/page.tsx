@@ -8,6 +8,7 @@ import {
   can,
   requireUserProfile,
 } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import {
   bomLineItems,
@@ -92,6 +93,7 @@ export default async function ProjectBudgetPage({
   const profile = await requireUserProfile()
   const access = getProjectDetailAccess(profile.role)
   if (!access.cost) return notFound()
+  requireRouteAccess(profile.role, '/projects/[id]/cost/budget')
 
   const [project] = await db
     .select({ id: projects.id, name: projects.name })

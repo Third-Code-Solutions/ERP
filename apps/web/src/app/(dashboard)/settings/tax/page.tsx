@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { formatBps } from '@third-code-erp/shared-types'
 import { loadTaxSettings, taxSettingsEnabled, type TaxProfileSummary } from './tax-settings'
 
@@ -52,6 +53,7 @@ export default async function TaxSettingsPage() {
   if (!taxSettingsEnabled()) return notFound()
   const profile = await requireUserProfile()
   requireCapability(profile, 'finance.read')
+  requireRouteAccess(profile.role, '/settings/tax')
   const settings = await loadTaxSettings(profile.tenantId, new Date())
 
   if (settings.state === 'conflict') {

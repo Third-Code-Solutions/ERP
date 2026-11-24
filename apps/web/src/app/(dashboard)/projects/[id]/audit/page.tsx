@@ -4,6 +4,7 @@ import React from 'react'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { requireUserProfile } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import { auditLog, boms, invoices, projects, scopeItems } from '@third-code-erp/database/schema'
 import { and, count, desc, eq, inArray } from 'drizzle-orm'
@@ -78,6 +79,7 @@ export default async function ProjectAuditPage({
   const profile = await requireUserProfile()
   const access = getProjectDetailAccess(profile.role)
   if (!access.audit) return notFound()
+  requireRouteAccess(profile.role, '/projects/[id]/audit')
 
   const [project] = await db
     .select({ id: projects.id, name: projects.name })

@@ -11,10 +11,10 @@
     "databaseVersion": "17.6.1.121",
     "postgresMajor": 17,
     "appliedCount": 157,
-    "sourceCount": 183,
-    "pendingCount": 26,
+    "sourceCount": 185,
+    "pendingCount": 28,
     "appliedHead": "20260901141949",
-    "sourceHead": "20261123120000",
+    "sourceHead": "20261124110000",
     "ledgerStatus": "current_remote_ledger_matches_source",
     "purchaseOrderPreflight": {
       "duplicateGroups": 0,
@@ -163,6 +163,26 @@
       "hostedApplyApproved": false,
       "risk": "D-5 expand pattern on scope_items, additive only. Adds scope_items.quantity_decimal numeric(18,4) with no default, a BEFORE INSERT/UPDATE trigger that keeps it and the legacy integer quantity in step (decimal write sets quantity = round(quantity_decimal); integer-only write sets quantity_decimal = quantity), an exact backfill from quantity, then SET NOT NULL. Nothing is dropped, renamed or retyped and no persisted amount changes, because every existing quantity is whole. ADD COLUMN, the backfill UPDATE and SET NOT NULL take an ACCESS EXCLUSIVE lock on scope_items under a 5-second lock and 60-second statement timeout; the backfill writes one audit row per existing row through audit_scope_items and refreshes its cortex mirror, holding each affected tenant's audit lock until commit, so audited writes for those tenants wait for the migration. Preflight: select count(*), count(*) filter (where quantity < 0) from public.scope_items.",
       "recovery": "Take an encrypted backup first. The migration is transactional and aborts without changes on failure. After commit, older code that writes only the integer quantity stays consistent because the trigger mirrors it into quantity_decimal. Once a fractional row exists, older web code is not safe: its unit-cost edit prices round(quantity_decimal) and saves a wrong line_total_cents. Release order is therefore migration and API, then web promotion, then the CAD worker; roll back in the reverse order and do not roll the web back past this release once fractional rows exist. Roll forward rather than dropping the column; the integer column and the trigger are removed only in a later reviewed contract release. This source-only batch does not authorize hosted application."
+    },
+    {
+      "id": "20261124-reuse-reversed-bill-numbers-and-cash-references",
+      "migrations": [
+        "20261124100000_reuse_reversed_bill_numbers_and_cash_references.sql"
+      ],
+      "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
+      "hostedApplyApproved": false,
+      "risk": "S10a index swap on two money tables; it only relaxes uniqueness. ux_supplier_bills_vendor_number (tenant_id, vendor_id, lower(btrim(vendor_bill_number))) and ux_cash_transactions_reference (tenant_id, cash_account_id, direction, lower(btrim(reference_number))) become partial unique indexes WHERE status <> 'reversed', so a reversed Supplier Bill or Cash Transaction releases its number for the corrected entry while two live (draft or posted) rows with one number are still rejected. Both new indexes are built first under temporary names (non-concurrent, SHARE: writes to the table wait for the build), then each old index is dropped (ACCESS EXCLUSIVE on supplier_bills and cash_transactions until commit) and the new one is renamed back, so the index names that Core and Web map to 'already exists' errors do not change. No column, row, grant, trigger or function changes. Existing rows cannot violate the new indexes because the old ones were strictly wider. Skipped when the index definition already names reversed. 5-second lock and 60-second statement timeout. Preflight: row counts of public.supplier_bills and public.cash_transactions, and pg_indexes rows for both index names.",
+      "recovery": "Take an encrypted backup first. The migration is transactional and aborts without changes on failure. The rollback in the migration header rebuilds the full indexes and aborts with 55000 once a number is shared by a reversed and a live row, because restoring the old indexes would then require deleting evidence; after that point roll forward only. Application code is the same before and after this migration. This source-only batch does not authorize hosted application."
+    },
+    {
+      "id": "20261124-refuse-self-service-signup",
+      "migrations": [
+        "20261124110000_refuse_self_service_signup.sql"
+      ],
+      "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
+      "hostedApplyApproved": false,
+      "risk": "Security fix, two function replacements only. public.handle_new_user() (trigger on_auth_user_created, AFTER INSERT on auth.users) no longer creates a tenant and an Admin profile for an identity without a public.users row; it returns unchanged when the profile exists and otherwise raises P0001, so Auth rolls back the insert. Public sign-up (POST /auth/v1/signup with the anon key), OAuth or magic-link first sign-in, and any admin createUser without an invitation or a pre-placed profile are refused. public.provision_platform_invited_user() (trigger a_platform_invited_user_provision) now claims only a pending invitation created in the last 5 minutes, so a pending row left behind is no longer a sign-up route into its tenant; both server invitation flows create the identity within seconds, and older pending rows stay unchanged and unclaimable. Platform and tenant-admin invitations still work because the a_ trigger places the profile earlier in the same insert. scripts/seed-role-accounts.mjs now places the profile first and passes its id to the Auth admin API. SECURITY DEFINER, the empty search_path, both triggers and the grants are unchanged; no table, column, row or policy changes. CREATE OR REPLACE takes a brief lock on each function only, under a 5-second lock timeout. Preflight: list both auth.users triggers (expect a_platform_invited_user_provision then on_auth_user_created, both enabled); confirm both functions are owned by postgres; list pending platform_user_invitations (expect none, or only seconds old); count auth.users without a public.users row (expect 0 or a known list); and list self-provisioned workspaces by the timestamp match, not the slug suffix, because the 2026-06-13 to 2026-07-29 auto-provision version used a random slug suffix: tenants t join public.users u on u.tenant_id = t.id and u.created_at = t.created_at and u.role = 'admin' where no platform_user_invitations row has auth_user_id = u.id.",
+      "recovery": "Take an encrypted backup first and save pg_get_functiondef for both functions. The migration is transactional and aborts without changes on failure. Rollback restores both captured definitions (equivalently, the create or replace function public.handle_new_user() statement and its revoke/grant from 20260729054456_persist_signup_organization_type.sql, without its tenants column or check, and the create or replace function public.provision_platform_invited_user() statement and its revoke/grant from 20260904020000_platform_owner_administration_boundary.sql); that re-opens self-service workspace creation, so roll back only with public sign-up already disabled in Supabase Auth. This source-only batch does not authorize hosted application."
     }
   ]
 }

@@ -48,6 +48,7 @@ import {
   acknowledgeTicket,
   closeTicket,
   markTicketInProgress,
+  postTicketMessage,
   scheduleTicketRepair,
 } from './actions'
 
@@ -160,5 +161,58 @@ describe('warranty ticket lifecycle actions', () => {
     expect(update).toHaveBeenCalledOnce()
     expect(mocks.stopSlaClock).toHaveBeenCalledWith(expect.objectContaining({ label: 'ticket.acknowledge', client: expect.anything() }))
     expect(mocks.startSlaClock).toHaveBeenCalledWith(expect.objectContaining({ label: 'ticket.schedule', client: expect.anything() }))
+  })
+})
+
+describe('warranty client emails', () => {
+  const clientTicket = { ...ticket('open'), submitted_by_email: 'client@example.test' }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.requireUserProfile.mockResolvedValue(PROFILE)
+    mocks.requireCapability.mockReturnValue(undefined)
+    mocks.notifyExternalEmail.mockResolvedValue(undefined)
+  })
+
+  it('acknowledges with its own template: no schedule placeholder and no staff-only link', async () => {
+    transactionFor(clientTicket)
+    await acknowledgeTicket(TICKET_ID)
+
+    const call = mocks.notifyExternalEmail.mock.calls[0]?.[0]
+    expect(call.templateId).toBe('ticket-acknowledged')
+    expect(call.templateVars).toEqual({ ticket_number: 'WT-0001' })
+    expect(JSON.stringify(call)).not.toContain('TBD')
+    expect(JSON.stringify(call)).not.toContain('/warranty/')
+  })
+
+  it('schedules in Manila time without a link to the staff page', async () => {
+    transactionFor({ ...clientTicket, status: 'acknowledged' })
+    await scheduleTicketRepair(TICKET_ID, '2026-09-12T01:00:00.000Z')
+
+    const call = mocks.notifyExternalEmail.mock.calls[0]?.[0]
+    expect(call.templateId).toBe('ticket-schedule')
+    expect(call.templateVars.confirm_url).toBeUndefined()
+    expect(call.templateVars.scheduled_for).toMatch(/9:00/)
+  })
+
+  it('sends a staff reply as an update, quoting the reply', async () => {
+    const builder = query([clientTicket])
+    mocks.db.select.mockReturnValueOnce(builder)
+    mocks.db.insert.mockReturnValueOnce({ values: vi.fn().mockResolvedValue(undefined) })
+
+    await expect(postTicketMessage(TICKET_ID, ' We will visit Tuesday. ', false)).resolves.toEqual({ ok: true })
+
+    const call = mocks.notifyExternalEmail.mock.calls[0]?.[0]
+    expect(call.templateId).toBe('ticket-update')
+    expect(call.templateVars).toEqual({ ticket_number: 'WT-0001', message: 'We will visit Tuesday.' })
+  })
+
+  it('does not email internal notes', async () => {
+    mocks.db.select.mockReturnValueOnce(query([clientTicket]))
+    mocks.db.insert.mockReturnValueOnce({ values: vi.fn().mockResolvedValue(undefined) })
+
+    await postTicketMessage(TICKET_ID, 'internal only', true)
+
+    expect(mocks.notifyExternalEmail).not.toHaveBeenCalled()
   })
 })

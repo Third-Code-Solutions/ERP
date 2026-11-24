@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import {
   accounts,
@@ -70,6 +71,7 @@ type ReceivableRow = {
 export default async function ReceivablesPage() {
   const profile = await requireUserProfile()
   requireCapability(profile, 'finance.read')
+  requireRouteAccess(profile.role, '/finance/receivables')
 
   let openRows: ReceivableRow[]
   let totalDue: number

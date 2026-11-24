@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { SQL } from 'drizzle-orm'
+import { PgDialect } from 'drizzle-orm/pg-core'
 
 const mocks = vi.hoisted(() => ({
   requireUserProfile: vi.fn(),
@@ -182,6 +184,40 @@ describe('KYC artifact server actions', () => {
     await expect(reviewKyc(reviewForm())).resolves.toEqual({})
     expect(retry.update).not.toHaveBeenCalled()
     expect(mocks.writeAuditLogInTransaction).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['flagged', 'rejected'])(
+    'refuses to replace a %s decision without new notes and writes nothing',
+    async (status) => {
+      const blank = accountTransaction([{ id: ACCOUNT_ID, kyc_status: status, kyc_notes: 'Earlier reason' }])
+      const form = reviewForm()
+      form.delete('notes')
+
+      await expect(reviewKyc(form)).resolves.toEqual({
+        error: 'Notes are required when changing a flagged or rejected KYC decision.',
+      })
+      expect(blank.update).not.toHaveBeenCalled()
+      expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
+
+      const reasoned = accountTransaction([{ id: ACCOUNT_ID, kyc_status: status, kyc_notes: 'Earlier reason' }])
+      await expect(reviewKyc(reviewForm())).resolves.toEqual({})
+      expect(reasoned.update).toHaveBeenCalledOnce()
+      expect(mocks.writeAuditLogInTransaction).toHaveBeenCalledWith(reasoned.tx, expect.objectContaining({
+        diff: { kyc_status: { before: status, after: 'approved' }, notes: 'Verified' },
+      }))
+    },
+  )
+
+  it('answers not found for an account outside the caller tenant', async () => {
+    const other = accountTransaction([])
+
+    await expect(reviewKyc(reviewForm())).resolves.toEqual({ error: 'Account not found' })
+    const lock = other.tx.select.mock.results[0]?.value as ReturnType<typeof query>
+    const predicate = new PgDialect().sqlToQuery(lock.where.mock.calls[0]![0] as SQL)
+    expect(predicate.sql).toContain('"accounts"."tenant_id"')
+    expect(predicate.params).toEqual([ACCOUNT_ID, TENANT_ID])
+    expect(other.update).not.toHaveBeenCalled()
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
   })
 
   it('routes a normalized command through Core and verifies returned scope', async () => {

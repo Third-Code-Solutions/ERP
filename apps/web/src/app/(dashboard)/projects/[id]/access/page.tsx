@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { and, desc, eq } from 'drizzle-orm'
 import { can, requireUserProfile } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import {
   customerPortalSessions,
@@ -28,6 +29,7 @@ export default async function ProjectAccessPage({
   const profile = await requireUserProfile()
   const access = getProjectDetailAccess(profile.role)
   if (!access.access) return notFound()
+  requireRouteAccess(profile.role, '/projects/[id]/access')
   const canManage = can(profile.role, 'admin.users')
 
   // Verify the project exists in this tenant.

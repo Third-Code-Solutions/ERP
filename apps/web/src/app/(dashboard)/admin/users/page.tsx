@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import { desc, eq } from 'drizzle-orm'
 import { requireUserProfile, can } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import { users as usersTable } from '@third-code-erp/database/schema'
 
@@ -48,6 +49,7 @@ export default async function UsersListPage({ searchParams }: UsersListProps) {
   if (!can(profile.role, 'admin.users.read')) {
     redirect('/admin?error=forbidden')
   }
+  requireRouteAccess(profile.role, '/admin/users')
   const canManage = can(profile.role, 'admin.users')
 
   const rows = await db

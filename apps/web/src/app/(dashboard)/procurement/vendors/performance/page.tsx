@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { can, requireUserProfile } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { vendorPerformanceQuerySchema, type VendorPerformanceResult } from '@third-code-erp/shared-types'
 import { getVendorPerformanceThroughCoreApi, vendorPerformanceReadsUseCoreApi } from '@/lib/erp-core-client'
 import { readVendorPerformanceForTenant } from '@/lib/procurement/vendor-performance'
@@ -18,6 +19,7 @@ export default async function VendorPerformancePage({ searchParams }: PageProps)
   if (!can(profile.role, 'procurement.vendor_performance.read')) {
     redirect('/dashboard?error=forbidden')
   }
+  requireRouteAccess(profile.role, '/procurement/vendors/performance')
   const params = await searchParams
   const parsedQuery = vendorPerformanceQuerySchema.safeParse({
     projectId: params.projectId,

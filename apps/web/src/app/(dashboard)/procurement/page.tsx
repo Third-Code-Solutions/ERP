@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { can, requireUserProfile } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { redirect } from 'next/navigation'
 import { db } from '@third-code-erp/database'
 import { purchaseOrders, vendors } from '@third-code-erp/database/schema'
@@ -19,6 +20,7 @@ export default async function ProcurementPage() {
   if (!can(profile.role, 'procurement.read')) {
     redirect('/dashboard?error=forbidden')
   }
+  requireRouteAccess(profile.role, '/procurement')
   const canCreate = can(profile.role, 'po.create')
 
   const vendorList = await db

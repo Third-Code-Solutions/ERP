@@ -225,8 +225,9 @@ export default async function ProjectPermitsPage({
                 )
                 const isStale = daysSinceUpdate > 7 && !['approved', 'rejected', 'released', 'refunded', 'cancelled'].includes(p.status)
                 const expectedReturn = p.expected_return_at ?? p.expected_approval_at
-                const daysAtRisk = expectedReturn
-                  ? Math.max(0, Math.ceil((Date.now() - new Date(expectedReturn).getTime()) / 86_400_000))
+                const isClosed = ['approved', 'rejected', 'released', 'refunded', 'cancelled'].includes(p.status)
+                const daysAtRisk = expectedReturn && !isClosed
+                  ? Math.max(0, Math.floor((Date.now() - new Date(expectedReturn).getTime()) / 86_400_000))
                   : null
                 return (
                   <tr key={p.id}>

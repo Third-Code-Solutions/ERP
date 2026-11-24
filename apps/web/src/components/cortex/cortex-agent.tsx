@@ -360,7 +360,7 @@ export function CortexAgent({
         <span className="cortex-agent__spark" aria-hidden>✦</span>
         <div className="cortex-agent__headtext">
           <h2 className="cortex-agent__title">Cortex</h2>
-          <p className="cortex-agent__sub">Answers with sources · saved conversations</p>
+          <p className="cortex-agent__sub">Answers from your records · saved conversations</p>
         </div>
         <div className="cortex-agent__headbtns">
           <button
@@ -539,7 +539,7 @@ export function CortexAgent({
                 m.citations.length > 0 && (
                   <div className="cortex-msg__sources">
                     <span className="cortex-msg__sources-label">
-                      Sources
+                      Related records
                     </span>
                     <CortexCitationList
                       citations={m.citations}

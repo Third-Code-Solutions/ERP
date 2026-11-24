@@ -1,3 +1,4 @@
+import React from 'react'
 import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -17,6 +18,9 @@ const KYC_BADGE: Record<string, string> = {
   rejected: 'stage-badge stage-closed_lost',
   not_required: 'stage-badge stage-opportunity_creation',
 }
+
+// Flag and Reject are not final: Finance can record a new decision on either.
+const REVIEWABLE_KYC_STATUSES: ReadonlySet<string> = new Set(['pending', 'flagged', 'rejected'])
 
 const ARTIFACT_LABEL: Record<string, string> = {
   afs_year_1: 'AFS — Year 1',
@@ -67,21 +71,34 @@ export default async function AccountDetailPage({ params }: PageProps) {
               <h2 className="card-title">KYC artifacts ({kycRows.length})</h2>
             </div>
             {kycRows.length === 0 ? (
-              <div className="card-empty">No artifacts uploaded yet.</div>
+              <div className="card-empty">No KYC artifacts recorded yet.</div>
             ) : (
               <table className="data-table">
                 <thead>
                   <tr>
                     <th>Type</th>
                     <th>File</th>
-                    <th>Uploaded</th>
+                    <th>Recorded</th>
                   </tr>
                 </thead>
                 <tbody>
                   {kycRows.map((r) => (
                     <tr key={r.id}>
                       <td>{ARTIFACT_LABEL[r.artifact_type] ?? r.artifact_type}</td>
-                      <td className="muted">{r.file_name ?? '—'}</td>
+                      <td className="muted">
+                        {r.document_id ? (
+                          <a
+                            href={`/api/documents/${r.document_id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ color: 'var(--color-navy-text)' }}
+                          >
+                            {r.file_name ?? 'Open document'}
+                          </a>
+                        ) : (
+                          'Metadata only'
+                        )}
+                      </td>
                       <td className="muted">
                         {new Date(r.uploaded_at).toLocaleDateString('en-PH', {
                           year: 'numeric',
@@ -154,13 +171,13 @@ export default async function AccountDetailPage({ params }: PageProps) {
 
         <aside style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {/* KYC Review */}
-          {isFinance && account.kyc_status === 'pending' && (
+          {isFinance && REVIEWABLE_KYC_STATUSES.has(account.kyc_status) && (
             <div className="card">
               <div className="card-header">
                 <h2 className="card-title">KYC review</h2>
               </div>
               <div style={{ padding: 16 }}>
-                <KycReviewForm accountId={id} />
+                <KycReviewForm accountId={id} currentStatus={account.kyc_status} />
               </div>
             </div>
           )}

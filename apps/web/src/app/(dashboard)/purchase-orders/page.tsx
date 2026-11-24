@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { can, requireUserProfile } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { db, resolveTaxRates } from '@third-code-erp/database'
 import {
   boms,
@@ -52,6 +53,7 @@ function formatPHP(cents: number): string {
 
 export default async function PurchaseOrdersPage() {
   const profile = await requireUserProfile()
+  requireRouteAccess(profile.role, '/purchase-orders')
   const canCreate = can(profile.role, 'po.create')
 
   const creationPrerequisites = canCreate ? await Promise.all([

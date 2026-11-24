@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { randomUUID } from 'node:crypto'
 import { redirect } from 'next/navigation'
 import { can, requireUserProfile } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { PprfIntakeForm } from '@/components/proposal/pprf-intake-form'
 
 export const metadata: Metadata = { title: 'New PPRF intake' }
@@ -11,6 +12,7 @@ export default async function NewPprfIntakePage() {
   if (!can(profile.role, 'pprf.submit') || !can(profile.role, 'account.create')) {
     redirect('/crm/accounts?error=forbidden')
   }
+  requireRouteAccess(profile.role, '/crm/opportunities/new/pprf')
 
   return (
     <div>

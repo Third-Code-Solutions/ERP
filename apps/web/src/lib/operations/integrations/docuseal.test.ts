@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createCanvasSignSession } from './canvas-sign'
 import {
+  archiveDocuSealSubmission,
   createDocuSealSubmission,
   createSigningSession,
   isDevelopmentStubSubmissionId,
@@ -66,5 +67,35 @@ describe('signing integration routing', () => {
         submitters: [{ email: 'client@example.test' }],
       })
     ).rejects.toThrow('DocuSeal integration is not configured for production')
+  })
+
+  it('archives a superseded DocuSeal submission by id and skips stubs', async () => {
+    vi.stubEnv('DOCUSEAL_API_URL', 'https://sign.example.test')
+    vi.stubEnv('DOCUSEAL_API_TOKEN', 'token-value')
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await archiveDocuSealSubmission('sub 42')
+    await archiveDocuSealSubmission('dev-sub-example')
+    await archiveDocuSealSubmission(null)
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledWith('https://sign.example.test/api/v1/submissions/sub%2042', {
+      method: 'DELETE',
+      headers: { 'X-Auth-Token': 'token-value' },
+    })
+    vi.unstubAllGlobals()
+  })
+
+  it('does not throw when DocuSeal refuses the archive', async () => {
+    vi.stubEnv('DOCUSEAL_API_URL', 'https://sign.example.test')
+    vi.stubEnv('DOCUSEAL_API_TOKEN', 'token-value')
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')))
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    await expect(archiveDocuSealSubmission('sub-42')).resolves.toBeUndefined()
+    expect(warn).toHaveBeenCalled()
+    warn.mockRestore()
+    vi.unstubAllGlobals()
   })
 })

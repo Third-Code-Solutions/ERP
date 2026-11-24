@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { can, requireUserProfile } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import { opportunities, projects, boms, invoices } from '@third-code-erp/database/schema'
 import { eq, sql } from 'drizzle-orm'
@@ -13,6 +14,7 @@ const ACTIVE_STAGES = ['opportunity_creation', 'scoping', 'bom_submission', 'res
 
 export default async function ReportsPage() {
   const profile = await requireUserProfile()
+  requireRouteAccess(profile.role, '/reports')
   const tid = profile.tenantId
   // Billing totals are finance data: sales may read the page, not the invoices.
   const canViewBilling = can(profile.role, 'finance.read')

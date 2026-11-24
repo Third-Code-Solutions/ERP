@@ -219,7 +219,7 @@ test('proves 202, pending, success, citation revocation, and foreign concealment
     lifecycle.final.headers()['x-cortex-citations']
   )
   expect(initialCitations.length).toBeGreaterThan(0)
-  await expect(page.getByText('Sources', { exact: true })).toBeVisible()
+  await expect(page.getByText('Related records', { exact: true })).toBeVisible()
 
   for (const viewport of [
     { name: 'desktop', width: 1440, height: 1000 },

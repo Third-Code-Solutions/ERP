@@ -8,7 +8,7 @@
 import { handleOptions, jsonResponse } from '../_shared/cors.ts'
 import { rejectUnlessCronCaller } from '../_shared/cron-auth.ts'
 import { pgInsert, pgSelect, sendEmail } from '../_shared/email.ts'
-import { escapeHtml } from '../_shared/html.ts'
+import { buildSurveyEmail, surveyUrl, tenantNamesById } from './survey-email.ts'
 
 interface TicketRow {
   id: string
@@ -53,32 +53,6 @@ async function sha256Hex(input: string): Promise<string> {
   return hex
 }
 
-function buildSurveyEmail(args: {
-  ticketNumber: string
-  recipientName: string | null
-  surveyUrl: string
-}): { subject: string; html: string; text: string } {
-  const greeting = args.recipientName ? `Hi ${args.recipientName},` : 'Hi,'
-  const subject = `How did we do? — Service ticket ${args.ticketNumber}`
-  const text = [
-    greeting,
-    ``,
-    `Thanks for letting us close out service ticket ${args.ticketNumber}. We would love a quick rating on how the experience went — it takes under a minute.`,
-    ``,
-    `Open the survey: ${args.surveyUrl}`,
-    ``,
-    `Thank you,`,
-    `ABI OPS Customer Experience`,
-  ].join('\n')
-  const html = `
-    <p>${escapeHtml(greeting)}</p>
-    <p>Thanks for letting us close out service ticket <strong>${escapeHtml(args.ticketNumber)}</strong>. We would love a quick rating on how the experience went — it takes under a minute.</p>
-    <p><a href="${escapeHtml(args.surveyUrl)}">Open the survey</a></p>
-    <p>Thank you,<br/>ABI OPS Customer Experience</p>
-  `.trim()
-  return { subject, html, text }
-}
-
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return handleOptions()
   const refused = rejectUnlessCronCaller(req)
@@ -102,9 +76,11 @@ Deno.serve(async (req) => {
     if (closedTickets.length === 0) return jsonResponse(summary)
 
     const ticketIds = closedTickets.map((t) => t.id)
+    // Any survey row, sent or pending: a pending row belongs to the web app's Inngest
+    // sender, which retries it, so this function must not send a second survey.
     const existing = await pgSelect<ExistingSurveyRow>(
       'cnps_surveys',
-      `ticket_id=in.(${ticketIds.join(',')})&sent_at=not.is.null&select=ticket_id`
+      `ticket_id=in.(${ticketIds.join(',')})&select=ticket_id`
     )
     const alreadySent = new Set(existing.map((r) => r.ticket_id))
 
@@ -119,6 +95,12 @@ Deno.serve(async (req) => {
         { status: 500 }
       )
     }
+
+    // Each survey is signed by the tenant that closed the ticket.
+    const tenantNames = await tenantNamesById(
+      closedTickets.map((t) => t.tenant_id),
+      pgSelect
+    )
 
     for (const ticket of closedTickets) {
       summary.processed += 1
@@ -141,11 +123,11 @@ Deno.serve(async (req) => {
           response_token_hash: tokenHash,
         })
 
-        const surveyUrl = `${portalBase.replace(/\/$/, '')}/cnps/respond?t=${token}`
         const { subject, html, text } = buildSurveyEmail({
           ticketNumber: ticket.ticket_number,
           recipientName: ticket.submitted_by_name,
-          surveyUrl,
+          surveyUrl: surveyUrl(portalBase, token),
+          companyName: tenantNames.get(ticket.tenant_id),
         })
 
         await sendEmail({

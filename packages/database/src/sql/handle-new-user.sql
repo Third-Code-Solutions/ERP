@@ -1,9 +1,12 @@
 -- ---------------------------------------------------------------------------
--- Auto-provision a workspace + profile row for every new auth user.
+-- Refuse an Auth identity that has no workspace profile.
 --
--- Signup inserts into auth.users. This trigger atomically creates one tenant
--- and same-ID Admin profile. SECURITY DEFINER is required because
--- supabase_auth_admin cannot write the application tables directly.
+-- Mirrors supabase/migrations/20261124110000_refuse_self_service_signup.sql.
+-- Self-service sign-up no longer creates a tenant. Invitations are placed
+-- earlier by a_platform_invited_user_provision, and server code that creates
+-- an identity directly inserts its public.users row before calling the Auth
+-- admin API. Any other auth.users insert raises P0001 and Auth rolls it back.
+-- SECURITY DEFINER with an empty search_path, as before.
 -- ---------------------------------------------------------------------------
 
 create or replace function public.handle_new_user()
@@ -12,15 +15,6 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-declare
-  new_tenant_id uuid;
-  base_slug text;
-  final_slug text;
-  normalized_email text;
-  domain text;
-  tenant_name text;
-  display_name text;
-  new_organization_type text;
 begin
   if exists (
     select 1
@@ -30,114 +24,9 @@ begin
     return new;
   end if;
 
-  normalized_email := coalesce(
-    nullif(pg_catalog.btrim(new.email), ''),
-    new.id::text || '@auth.local'
-  );
-  domain := nullif(
-    pg_catalog.split_part(normalized_email, '@', 2),
-    ''
-  );
-  tenant_name := pg_catalog.left(
-    coalesce(
-      nullif(
-        pg_catalog.btrim(
-          new.raw_user_meta_data ->> 'company_name'
-        ),
-        ''
-      ),
-      domain,
-      'New Workspace'
-    ),
-    255
-  );
-  display_name := pg_catalog.left(
-    coalesce(
-      nullif(
-        pg_catalog.btrim(
-          new.raw_user_meta_data ->> 'full_name'
-        ),
-        ''
-      ),
-      nullif(
-        pg_catalog.split_part(normalized_email, '@', 1),
-        ''
-      ),
-      'New User'
-    ),
-    255
-  );
-  new_organization_type := case
-    pg_catalog.lower(
-      pg_catalog.btrim(
-        coalesce(
-          new.raw_user_meta_data ->> 'organization_type',
-          ''
-        )
-      )
-    )
-    when 'construction' then 'construction'
-    when 'developer' then 'developer'
-    when 'design-engineering' then 'design-engineering'
-    when 'supply-manufacturing' then 'supply-manufacturing'
-    when 'professional-services' then 'professional-services'
-    when 'other' then 'other'
-    else 'other'
-  end;
-
-  base_slug := pg_catalog.regexp_replace(
-    pg_catalog.lower(tenant_name),
-    '[^a-z0-9]+',
-    '-',
-    'g'
-  );
-  base_slug := pg_catalog.btrim(base_slug, '-');
-  base_slug := pg_catalog.btrim(
-    pg_catalog.left(base_slug, 87),
-    '-'
-  );
-  if base_slug = '' then
-    base_slug := 'workspace';
-  end if;
-
-  -- Stable UUID-derived suffix keeps retries deterministic.
-  final_slug :=
-    base_slug
-    || '-'
-    || pg_catalog.substr(
-      pg_catalog.md5(new.id::text),
-      1,
-      12
-    );
-
-  insert into public.tenants (
-    name,
-    slug,
-    organization_type
-  )
-  values (
-    tenant_name,
-    final_slug,
-    new_organization_type
-  )
-  returning id into new_tenant_id;
-
-  insert into public.users (
-    id,
-    tenant_id,
-    email,
-    full_name,
-    role
-  )
-  values (
-    new.id,
-    new_tenant_id,
-    normalized_email,
-    display_name,
-    'admin'
-  );
-
-  return new;
+  raise exception using
+    errcode = 'P0001',
+    message = 'Self-service sign-up is disabled. Ask your workspace administrator for an invitation.';
 end;
 $$;
 

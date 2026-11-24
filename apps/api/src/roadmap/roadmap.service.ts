@@ -401,6 +401,11 @@ export class RoadmapService {
   ) {
     const command = procurementRequisitionWorkflowCommandSchema.parse(input)
     const idempotencyKey = requireIdempotency(rawIdempotencyKey)
+    const decides = command.action === 'approve' || command.action === 'reject'
+    // The route admits every po.create role; deciding a requisition is an approval.
+    if (decides && !roleHasCapability(principal.role, 'po.approve')) {
+      throw new ForbiddenException('PO approval capability is required to approve or reject a requisition')
+    }
     return this.database.client.transaction(async (transaction) => {
       await this.requireFeature(transaction, principal, 'procurement_lifecycle')
       await this.assertPrincipal(transaction, principal)
@@ -436,6 +441,9 @@ export class RoadmapService {
       if (!requisition) throw new NotFoundException('Requisition not found')
       const current = statusAsString(requisition.status)
       const next = this.nextRequisitionStatus(command.action, current)
+      if (command.action === 'approve' && requisition.requester_id === principal.userId) {
+        throw new ForbiddenException('The requester cannot approve their own requisition')
+      }
       if (command.action === 'reject' && !(command.reason?.trim())) throw new BadRequestException('Rejection reason is required')
       let convertedPurchaseOrderId: string | null = null
       let tax: EffectiveTaxRates | null = null
@@ -881,6 +889,10 @@ export class RoadmapService {
       }
       const [list] = await transaction.select().from(priceLists).where(and(eq(priceLists.id, priceListId), eq(priceLists.tenant_id, principal.tenantId))).limit(1).for('update')
       if (!list) throw new NotFoundException('Price list not found')
+      if (command.action === 'activate' && list.status !== 'draft') throw new ConflictException('Only a draft price list can be activated')
+      if (command.action === 'retire' && list.status !== 'active') throw new ConflictException('Only an active price list can be retired')
+      // Maker-checker, as for tax profiles: whoever prepared the list cannot activate it.
+      if (command.action === 'activate' && list.created_by === principal.userId) throw new ForbiddenException('The price list preparer cannot activate it')
       const [items] = await transaction.select({ count: sql<number>`count(*)::int` }).from(priceListItems).where(and(eq(priceListItems.tenant_id, principal.tenantId), eq(priceListItems.price_list_id, list.id)))
       if (command.action === 'activate' && (items?.count ?? 0) === 0) throw new ConflictException('Cannot activate a price list without items')
       const status = command.action === 'activate' ? 'active' : 'retired'

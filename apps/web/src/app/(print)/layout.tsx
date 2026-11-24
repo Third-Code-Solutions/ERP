@@ -1,7 +1,8 @@
 import React from 'react'
 import type { Metadata } from 'next'
 
-export const metadata: Metadata = { title: 'ABI OPS' }
+// template '%s' keeps the root "| ABI OPS" suffix out of the tab and the browser's printed header.
+export const metadata: Metadata = { title: { default: 'Document', template: '%s' } }
 
 export default function PrintLayout({ children }: { children: React.ReactNode }) {
   return (

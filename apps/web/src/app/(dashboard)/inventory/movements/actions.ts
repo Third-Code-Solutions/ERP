@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { errorChainMessage } from '@/lib/error-chain-message'
 import {
   requireCapability,
   requireUserProfile,
@@ -101,15 +102,13 @@ function safeMovementError(error: unknown): string {
   if (error instanceof z.ZodError) {
     return error.issues[0]?.message ?? 'Check the movement fields.'
   }
-  const message = error instanceof Error ? error.message : ''
+  const message = errorChainMessage(error)
   const known = KNOWN_ERRORS.find((candidate) =>
     message.includes(candidate)
   )
   if (known) return known
-  if (
-    message.includes('ux_stock_movement_lines_movement_item') ||
-    message.includes('duplicate key')
-  ) {
+  // Only the named constraint: another unique violation is not a repeated Item.
+  if (message.includes('ux_stock_movement_lines_movement_item')) {
     return 'Each Item may appear once per Stock Movement.'
   }
   return 'Stock Movement action failed. Existing stock evidence was unchanged.'

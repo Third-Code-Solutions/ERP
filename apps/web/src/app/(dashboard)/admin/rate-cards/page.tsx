@@ -4,6 +4,7 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { and, asc, desc, eq } from 'drizzle-orm'
 import { requireUserProfile, can } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import { rateCards, materialItems, vendors } from '@third-code-erp/database/schema'
 import { RateCardForm } from '@/components/admin/rate-card-form'
@@ -19,6 +20,7 @@ export default async function RateCardsPage() {
   if (!can(profile.role, 'admin.rate_card.read')) {
     redirect('/admin?error=forbidden')
   }
+  requireRouteAccess(profile.role, '/admin/rate-cards')
   const canManage = can(profile.role, 'admin.rate_card')
 
   const rows = await db

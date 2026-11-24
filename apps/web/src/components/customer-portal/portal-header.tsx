@@ -1,8 +1,8 @@
 /**
  * Customer-portal project header.
  *
- * Sits at the top of every /portal/project/[token]/* page. Shows the ABI OPS
- * mark, the project name, the project status pill, and (right side)
+ * Sits at the top of every /portal/project/[token]/* page. Shows the project
+ * name, the project status pill, and (right side)
  * the viewer email + a friendly "forget this link" hint. No real auth —
  * the hint is purely visual; the actual revocation is admin-side.
  */
@@ -67,26 +67,6 @@ export function PortalHeader({
         }}
       >
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-          <div
-            aria-hidden="true"
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 10,
-              background: '#0F2D4A',
-              color: 'white',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: 700,
-              fontSize: 14,
-              letterSpacing: '0.04em',
-              border: '1px solid #0a233b',
-              boxShadow: 'inset 0 -2px 0 #E07B2A',
-            }}
-          >
-            A
-          </div>
           <div>
             <p
               style={{
@@ -98,7 +78,7 @@ export function PortalHeader({
                 fontWeight: 600,
               }}
             >
-              ABI OPS · Live project
+              Live project
             </p>
             <h1
               style={{

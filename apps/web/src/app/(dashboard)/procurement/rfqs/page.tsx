@@ -11,6 +11,7 @@ import { requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { rfqs, rfqQuotes, boms, projects } from '@third-code-erp/database/schema'
 import { RfqListTable } from '@/components/rfq/rfq-list-table'
+import { requireRouteAccess } from '@/lib/require-route-access'
 
 export const metadata: Metadata = { title: 'RFQs' }
 
@@ -20,6 +21,7 @@ interface PageProps {
 
 export default async function RfqsPage({ searchParams }: PageProps) {
   const profile = await requireUserProfile()
+  requireRouteAccess(profile.role, '/procurement/rfqs')
   const sp = await searchParams
   const statusFilter = sp.status ?? 'all'
 

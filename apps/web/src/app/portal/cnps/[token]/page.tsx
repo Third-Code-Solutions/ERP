@@ -7,13 +7,14 @@
 
 import { createHash } from 'node:crypto'
 import { db } from '@third-code-erp/database'
-import { cnpsSurveys, warrantyTickets } from '@third-code-erp/database/schema'
+import { cnpsSurveys, tenants, warrantyTickets } from '@third-code-erp/database/schema'
 import { and, eq } from 'drizzle-orm'
+import { tenantDisplayName } from '@/lib/tenant-branding'
 import { submitCnpsRating } from './actions'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Rate our service | ABI OPS',
+  title: 'Rate our service',
   robots: { index: false, follow: false },
 }
 
@@ -39,6 +40,7 @@ export default async function CnpsPortalPage({ params, searchParams }: PageProps
       responded_at: cnpsSurveys.responded_at,
       score: cnpsSurveys.score,
       ticket_number: warrantyTickets.ticket_number,
+      tenant_name: tenants.name,
     })
     .from(cnpsSurveys)
     .innerJoin(
@@ -48,6 +50,7 @@ export default async function CnpsPortalPage({ params, searchParams }: PageProps
         eq(warrantyTickets.tenant_id, cnpsSurveys.tenant_id)
       )
     )
+    .innerJoin(tenants, eq(tenants.id, cnpsSurveys.tenant_id))
     .where(eq(cnpsSurveys.response_token_hash, tokenHash))
     .limit(1)
 
@@ -87,7 +90,7 @@ export default async function CnpsPortalPage({ params, searchParams }: PageProps
         How did we do?
       </h2>
       <p style={{ margin: '0 0 22px', color: '#525866' }}>
-        On a scale of 0–10, how likely are you to recommend Actuate Builders Inc.
+        On a scale of 0–10, how likely are you to recommend {tenantDisplayName(row.tenant_name)}
         based on your experience with ticket <strong>{row.ticket_number}</strong>?
       </p>
 

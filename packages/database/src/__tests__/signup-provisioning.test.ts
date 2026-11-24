@@ -8,14 +8,21 @@ import {
   DATABASE_URL,
   inRollback,
   makeSql,
+  seedTwoTenants,
 } from './_db-harness'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const migrationPath = resolve(
-  __dirname,
-  '../../../../supabase/migrations/20260729054456_persist_signup_organization_type.sql'
-)
-const migrationSql = readFileSync(migrationPath, 'utf8').toLowerCase()
+const migrationsDirectory = resolve(__dirname, '../../../../supabase/migrations')
+const organizationTypeSql = readFileSync(
+  resolve(migrationsDirectory, '20260729054456_persist_signup_organization_type.sql'),
+  'utf8'
+).toLowerCase()
+const refuseSignupSql = readFileSync(
+  resolve(migrationsDirectory, '20261124110000_refuse_self_service_signup.sql'),
+  'utf8'
+).toLowerCase()
+const refusalMessage =
+  'Self-service sign-up is disabled. Ask your workspace administrator for an invitation.'
 
 function first<T>(rows: T[]): T {
   const row = rows[0]
@@ -24,46 +31,62 @@ function first<T>(rows: T[]): T {
 }
 
 describe('signup provisioning migration contract', () => {
-  it('uses an empty search path and fully qualified privileged objects', () => {
-    expect(migrationSql).toContain("set search_path = ''")
-    expect(migrationSql).toContain('from public.users')
-    expect(migrationSql).toContain('insert into public.tenants')
-    expect(migrationSql).toContain('insert into public.users')
-    expect(migrationSql).toContain('pg_catalog.regexp_replace')
-    expect(migrationSql).toContain('pg_catalog.md5')
+  it('is gated and bounded', () => {
+    expect(refuseSignupSql.startsWith('-- needs production migration approval')).toBe(true)
+    expect(refuseSignupSql).toContain("begin;\n\nset local lock_timeout = '5s';")
+    expect(refuseSignupSql.trimEnd().endsWith('commit;')).toBe(true)
   })
 
-  it('uses company metadata only as bounded display data', () => {
-    expect(migrationSql).toContain(
-      "new.raw_user_meta_data ->> 'company_name'"
+  it('refuses an identity without a profile and never creates a workspace', () => {
+    const body = refuseSignupSql.slice(
+      refuseSignupSql.indexOf('\ncreate or replace function public.handle_new_user'),
+      refuseSignupSql.indexOf('\ncreate or replace function public.provision_platform_invited_user')
     )
-    expect(migrationSql).toContain(
-      "new.raw_user_meta_data ->> 'full_name'"
+    expect(body).toContain('returns trigger')
+    expect(body).toContain('security definer')
+    expect(body).toContain("set search_path = ''")
+    expect(body).toContain('from public.users')
+    expect(body).toContain("errcode = 'p0001'")
+    expect(body).toContain(refusalMessage.toLowerCase())
+    expect(body).not.toContain('insert into')
+    // Neither metadata bag can open a way around the refusal.
+    expect(body).not.toContain('raw_app_meta_data')
+    expect(body).not.toContain('raw_user_meta_data')
+  })
+
+  it('claims only an invitation created in the last few minutes', () => {
+    const body = refuseSignupSql.slice(
+      refuseSignupSql.indexOf('\ncreate or replace function public.provision_platform_invited_user')
     )
-    expect(migrationSql).toContain('pg_catalog.left(')
-    expect(migrationSql).not.toContain('raw_app_meta_data')
+    expect(body).toContain('security definer')
+    expect(body).toContain("set search_path = ''")
+    expect(body).toContain("and candidate.status = 'pending'")
+    expect(body).toContain("and candidate.created_at > now() - interval '5 minutes'")
+    expect(body).toMatch(
+      /revoke execute on function public\.provision_platform_invited_user\(\)[\s\S]*?from public, anon, authenticated/
+    )
+    expect(body).toMatch(
+      /grant execute on function public\.provision_platform_invited_user\(\)[\s\S]*?to service_role/
+    )
   })
 
   it('persists only canonical organization types as non-authoritative profile data', () => {
-    expect(migrationSql).toContain(
-      "new.raw_user_meta_data ->> 'organization_type'"
-    )
-    expect(migrationSql).toContain(
+    expect(organizationTypeSql).toContain(
       'add constraint tenants_organization_type_check'
     )
     for (const organizationType of ORGANIZATION_TYPES) {
-      expect(migrationSql).toContain(`'${organizationType}'`)
+      expect(organizationTypeSql).toContain(`'${organizationType}'`)
     }
-    expect(migrationSql).not.toMatch(
+    expect(organizationTypeSql).not.toMatch(
       /organization_type[\s\S]{0,120}(role|capabilit|permission)/
     )
   })
 
   it('keeps the trigger function unavailable as a public RPC', () => {
-    expect(migrationSql).toMatch(
+    expect(refuseSignupSql).toMatch(
       /revoke execute on function public\.handle_new_user\(\)[\s\S]*?from public, anon, authenticated/
     )
-    expect(migrationSql).toMatch(
+    expect(refuseSignupSql).toMatch(
       /grant execute on function public\.handle_new_user\(\)[\s\S]*?to service_role/
     )
   })
@@ -82,132 +105,122 @@ runtimeSuite('signup provisioning runtime proof', () => {
     await sql?.end({ timeout: 5 })
   })
 
-  it('creates exactly one isolated Admin workspace from Auth signup', async () => {
+  it('refuses an Auth sign-up without an invitation and creates no workspace', async () => {
     const result = await inRollback(sql, async (transaction) => {
-      const identity = first(await transaction<{
-        id: string
-        email: string
-      }[]>`
-        insert into auth.users (
-          id,
-          email,
-          raw_user_meta_data
-        )
-        values (
-          gen_random_uuid(),
-          'canary.signup@probe.test',
-          jsonb_build_object(
-            'full_name',
-            'Canary Operator',
-            'company_name',
-            'Canary Builders Works',
-            'organization_type',
-            'construction'
-          )
-        )
-        returning id, email
-      `)
-      const profile = first(await transaction<{
-        tenant_id: string
-        email: string
-        full_name: string
-        role: string
-      }[]>`
-        select tenant_id, email, full_name, role::text as role
-          from public.users
-         where id = ${identity.id}::uuid
-      `)
-      const tenant = first(await transaction<{
-        name: string
-        slug: string
-        organization_type: string
-      }[]>`
-        select name, slug, organization_type
-          from public.tenants
-         where id = ${profile.tenant_id}::uuid
-      `)
-      const { expected_slug: expectedSlug } = first(
-        await transaction<{ expected_slug: string }[]>`
-          select
-            'canary-builders-works-'
-            || substr(md5(${identity.id}::text), 1, 12)
-              as expected_slug
-        `
-      )
-      const { tenant_count: tenantCount } = first(
-        await transaction<{ tenant_count: number }[]>`
-          select count(*)::int as tenant_count
-            from public.tenants
-           where id = ${profile.tenant_id}::uuid
-        `
-      )
-
-      return {
-        identity,
-        profile,
-        tenant,
-        expectedSlug,
-        tenantCount,
+      const id = first(
+        await transaction<{ id: string }[]>`select gen_random_uuid()::text as id`
+      ).id
+      const tenantsBefore = first(
+        await transaction<{ n: number }[]>`select count(*)::int as n from public.tenants`
+      ).n
+      let refusal: { code?: string; message?: string } = {}
+      try {
+        await transaction.savepoint(async (savepoint) => {
+          await savepoint`
+            insert into auth.users (id, email, raw_app_meta_data, raw_user_meta_data)
+            values (
+              ${id}::uuid,
+              'canary.signup@probe.test',
+              jsonb_build_object('provider', 'email', 'providers', jsonb_build_array('email')),
+              jsonb_build_object(
+                'full_name', 'Canary Operator',
+                'company_name', 'Canary Builders Works',
+                'organization_type', 'construction'
+              )
+            )
+          `
+        })
+      } catch (error) {
+        refusal = error as { code?: string; message?: string }
       }
+      const tenantsAfter = first(
+        await transaction<{ n: number }[]>`select count(*)::int as n from public.tenants`
+      ).n
+      const identities = first(
+        await transaction<{ n: number }[]>`
+          select
+            (select count(*) from auth.users where id = ${id}::uuid)
+            + (select count(*) from public.users where id = ${id}::uuid) as n
+        `
+      ).n
+      return { refusal, tenantsBefore, tenantsAfter, identities: Number(identities) }
     })
 
-    expect(result.profile).toEqual({
-      tenant_id: result.profile.tenant_id,
-      email: result.identity.email,
-      full_name: 'Canary Operator',
-      role: 'admin',
-    })
-    expect(result.tenant).toEqual({
-      name: 'Canary Builders Works',
-      slug: result.expectedSlug,
-      organization_type: 'construction',
-    })
-    expect(result.tenantCount).toBe(1)
+    expect(result.refusal.code).toBe('P0001')
+    expect(result.refusal.message).toBe(refusalMessage)
+    expect(result.tenantsAfter).toBe(result.tenantsBefore)
+    expect(result.identities).toBe(0)
   })
 
-  it('uses safe fallbacks when email is absent and organization metadata is invalid', async () => {
+  it('refuses a sign-up that would claim a stale pending invitation', async () => {
     const result = await inRollback(sql, async (transaction) => {
-      const identity = first(await transaction<{ id: string }[]>`
-        insert into auth.users (
-          id,
-          email,
-          raw_user_meta_data
-        )
-        values (
-          gen_random_uuid(),
-          null,
-          jsonb_build_object('organization_type', 'admin')
-        )
-        returning id
-      `)
-      const profile = first(await transaction<{
-        tenant_id: string
-        email: string
-        full_name: string
-        role: string
-      }[]>`
-        select tenant_id, email, full_name, role::text as role
-          from public.users
-         where id = ${identity.id}::uuid
-      `)
-      const tenant = first(await transaction<{
-        organization_type: string
-      }[]>`
-        select organization_type
-          from public.tenants
-         where id = ${profile.tenant_id}::uuid
-      `)
-
-      return { identity, profile, tenant }
+      const { tenantA, userA } = await seedTwoTenants(transaction)
+      const email = 'stale.invite@probe.test'
+      const invitationId = first(
+        await transaction<{ id: string }[]>`
+          insert into public.platform_user_invitations (
+            tenant_id, normalized_email, full_name, role, invited_by, created_at
+          ) values (
+            ${tenantA}::uuid, ${email}, 'Stale Invitee', 'viewer', ${userA}::uuid,
+            now() - interval '10 minutes'
+          )
+          returning id::text as id
+        `
+      ).id
+      const id = first(
+        await transaction<{ id: string }[]>`select gen_random_uuid()::text as id`
+      ).id
+      let refusalCode: string | undefined
+      try {
+        await transaction.savepoint(async (savepoint) => {
+          await savepoint`insert into auth.users (id, email) values (${id}::uuid, ${email})`
+        })
+      } catch (error) {
+        refusalCode = (error as { code?: string }).code
+      }
+      const profiles = first(
+        await transaction<{ n: number }[]>`
+          select count(*)::int as n from public.users where id = ${id}::uuid or email = ${email}
+        `
+      ).n
+      const invitation = first(
+        await transaction<{ status: string; auth_user_id: string | null }[]>`
+          select status::text as status, auth_user_id::text as auth_user_id
+            from public.platform_user_invitations
+           where id = ${invitationId}::uuid
+        `
+      )
+      return { refusalCode, profiles, invitation }
     })
 
-    expect(result.profile).toEqual({
-      tenant_id: result.profile.tenant_id,
-      email: `${result.identity.id}@auth.local`,
-      full_name: result.identity.id,
-      role: 'admin',
+    expect(result.refusalCode).toBe('P0001')
+    expect(result.profiles).toBe(0)
+    expect(result.invitation).toEqual({ status: 'pending', auth_user_id: null })
+  })
+
+  it('accepts an identity whose profile the server placed first', async () => {
+    const result = await inRollback(sql, async (transaction) => {
+      const { tenantA, userA } = await seedTwoTenants(transaction)
+      const tenantsBefore = first(
+        await transaction<{ n: number }[]>`select count(*)::int as n from public.tenants`
+      ).n
+      await transaction`
+        insert into auth.users (id, email)
+        select id, email from public.users where id = ${userA}::uuid
+      `
+      const profile = first(
+        await transaction<{ tenant_id: string; role: string }[]>`
+          select tenant_id, role::text as role from public.users where id = ${userA}::uuid
+        `
+      )
+      const tenantsAfter = first(
+        await transaction<{ n: number }[]>`select count(*)::int as n from public.tenants`
+      ).n
+      return { tenantA, profile, tenantsBefore, tenantsAfter }
     })
-    expect(result.tenant.organization_type).toBe('other')
+
+    expect(result.profile).toEqual({ tenant_id: result.tenantA, role: 'admin' })
+    expect(result.tenantsAfter).toBe(result.tenantsBefore)
   })
 
   it('retains a validated non-null organization type catalog', async () => {

@@ -4,6 +4,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { can, requireUserProfile } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import {
   accounts,
@@ -67,6 +68,7 @@ export default async function ProjectBomPage({
   const profile = await requireUserProfile()
   const access = getProjectDetailAccess(profile.role)
   if (!access.bom) return notFound()
+  requireRouteAccess(profile.role, '/projects/[id]/bom')
   const controls = getProjectBomControls(profile.role)
 
   const [project] = await db

@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { and, desc, eq } from 'drizzle-orm'
 import { requireUserProfile, can } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import { users as usersTable, auditLog } from '@third-code-erp/database/schema'
 import { ManageUserPanel } from '@/components/admin/manage-user-panel'
@@ -42,6 +43,7 @@ export default async function UserDetailPage({ params, searchParams }: PageProps
   if (!can(profile.role, 'admin.users.read')) {
     redirect('/admin?error=forbidden')
   }
+  requireRouteAccess(profile.role, '/admin/users/[id]')
   const canManage = can(profile.role, 'admin.users')
 
   const [user] = await db

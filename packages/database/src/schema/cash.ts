@@ -134,12 +134,15 @@ export const cashTransactions = pgTable(
       table.tenant_id,
       table.id
     ),
-    referenceIdx: uniqueIndex('ux_cash_transactions_reference').on(
-      table.tenant_id,
-      table.cash_account_id,
-      table.direction,
-      sql`lower(btrim(${table.reference_number}))`
-    ),
+    // S10a: a reversed transaction releases its reference.
+    referenceIdx: uniqueIndex('ux_cash_transactions_reference')
+      .on(
+        table.tenant_id,
+        table.cash_account_id,
+        table.direction,
+        sql`lower(btrim(${table.reference_number}))`
+      )
+      .where(sql`${table.status} <> 'reversed'`),
     internalNumberIdx: uniqueIndex('ux_cash_transactions_internal_number')
       .on(table.tenant_id, table.internal_number)
       .where(sql`${table.internal_number} is not null`),

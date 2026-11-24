@@ -48,6 +48,17 @@ describe('DesignUploadForm', () => {
     expect(markup).toContain('disabled=""')
   })
 
+  it('tells the user to link a project first when the opportunity has none', () => {
+    const markup = renderToStaticMarkup(
+      <DesignUploadForm opportunityId="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" documents={[]} />,
+    )
+
+    expect(markup).toContain('No uploaded documents are available for this opportunity.')
+    expect(markup).toContain('href="/crm/opportunities/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"')
+    expect(markup).toContain('Link a project')
+    expect(markup).not.toContain('/documents"')
+  })
+
   it('uses unique ids to associate labels across repeated forms', () => {
     const markup = renderToStaticMarkup(
       <>

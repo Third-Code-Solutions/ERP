@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { desc, eq } from 'drizzle-orm'
 import type { Metadata } from 'next'
 import { can, requireUserProfile } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import { progressClaims, projects } from '@third-code-erp/database/schema'
 import { ClaimListTable } from '@/components/claims/claim-list-table'
@@ -37,6 +38,7 @@ export default async function ClaimsPage({
   searchParams: Promise<SearchParams>
 }) {
   const profile = await requireUserProfile()
+  requireRouteAccess(profile.role, '/claims')
   const canCreateClaim =
     can(profile.role, 'kyc.create_ar_code') ||
     can(profile.role, 'precon.manage_checklist')

@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import { asc, eq } from 'drizzle-orm'
 import { can, requireUserProfile } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import { projects, users as usersTable } from '@third-code-erp/database/schema'
 import { PunchlistForm } from '@/components/punchlist/punchlist-form'
@@ -22,6 +23,7 @@ export default async function NewPunchlistItemPage({
   if (!can(profile.role, 'punchlist.manage')) {
     redirect('/punchlist?error=forbidden')
   }
+  requireRouteAccess(profile.role, '/punchlist/new')
   const { project: defaultProjectId } = await searchParams
 
   // Active + lead + on_hold projects are the realistic punchlist sources.

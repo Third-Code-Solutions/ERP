@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import { asc, eq } from 'drizzle-orm'
 import { can, requireUserProfile } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import { projects } from '@third-code-erp/database/schema'
 import { ClaimForm } from '@/components/claims/claim-form'
@@ -25,6 +26,7 @@ export default async function NewClaimPage({
   ) {
     redirect('/claims?error=forbidden')
   }
+  requireRouteAccess(profile.role, '/claims/new')
   const { project: defaultProjectId } = await searchParams
 
   // Active projects are the natural source of progress claims. We do

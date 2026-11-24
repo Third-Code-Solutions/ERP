@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { asc, desc, eq } from 'drizzle-orm'
 import { can, requireUserProfile } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import { warrantyTickets, projects, accounts } from '@third-code-erp/database/schema'
 import { WarrantyPortalLinkIssuer } from '@/components/warranty/warranty-portal-link-issuer'
@@ -19,6 +20,7 @@ const STATUS_BADGE: Record<string, string> = {
 
 export default async function WarrantyTicketsPage() {
   const profile = await requireUserProfile()
+  requireRouteAccess(profile.role, '/warranty')
   const canManage = can(profile.role, 'warranty.manage')
 
   const portalProjects = canManage

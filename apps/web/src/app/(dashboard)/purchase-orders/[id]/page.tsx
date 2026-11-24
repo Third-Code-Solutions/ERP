@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { alias } from 'drizzle-orm/pg-core'
 import { can, requireUserProfile } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { db, liveProjectCondition, unreceivedStockLineCondition } from '@third-code-erp/database'
 import {
   costCodes,
@@ -74,6 +75,7 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
   // tenant-bound profile so direct server rendering cannot fall back to an
   // unscoped users lookup.
   const profile = await requireUserProfile()
+  requireRouteAccess(profile.role, '/purchase-orders/[id]')
 
   // Self-joins on users for approver/issuer names. Each step gets its own alias.
   const pmUser = alias(users, 'pm_user')

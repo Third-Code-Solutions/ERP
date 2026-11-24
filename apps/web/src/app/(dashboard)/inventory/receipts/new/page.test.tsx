@@ -60,7 +60,7 @@ describe('New Stock Receipt page', () => {
     vi.stubGlobal('React', React)
     mocks.select.mockReset()
     mocks.inArray.mockClear()
-    mocks.profile.mockResolvedValue({ tenantId: TENANT_ID, role: 'scm' })
+    mocks.profile.mockResolvedValue({ tenantId: TENANT_ID, role: 'procurement' })
   })
 
   function seedRows(poId: string): void {
