@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { and, eq } from 'drizzle-orm'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   certificatesOfCompletion,
@@ -11,7 +11,12 @@ import {
   projects,
   turnoverPackages,
 } from '@third-code-erp/database/schema'
-import { draftCoc, sendCocForSignature } from './actions'
+import { CocActions } from '@/components/coc/coc-actions'
+import {
+  findDefaultCocSigner,
+  findLatestCocSigner,
+  type CocSignerDefaults,
+} from './queries'
 
 export const metadata: Metadata = { title: 'Certificate of Completion' }
 
@@ -45,11 +50,14 @@ export default async function CocPage({
   const profile = await requireUserProfile()
 
   const [project] = await db
-    .select({ id: projects.id, name: projects.name })
+    .select({ id: projects.id, name: projects.name, account_id: projects.account_id })
     .from(projects)
     .where(and(eq(projects.id, id), eq(projects.tenant_id, profile.tenantId)))
     .limit(1)
   if (!project) return notFound()
+
+  // Same capability the COC server actions enforce.
+  const canManage = can(profile.role, 'punchlist.manage')
 
   const [pkg] = await db
     .select({ compiled_at: turnoverPackages.compiled_at })
@@ -82,6 +90,17 @@ export default async function CocPage({
       .where(eq(documents.id, coc.signed_document_id))
       .limit(1)
     signedDocName = doc?.file_name ?? null
+  }
+
+  // Prefill the signer: whoever the last link went to, else the client's primary contact.
+  let signerDefaults: CocSignerDefaults | null = null
+  if (canManage && coc && coc.status !== 'signed') {
+    const previous =
+      coc.status === 'pending_signature'
+        ? await findLatestCocSigner(profile.tenantId, coc.id)
+        : null
+    signerDefaults =
+      previous ?? (await findDefaultCocSigner(profile.tenantId, id, project.account_id))
   }
 
   const turnoverCompiled = !!pkg?.compiled_at
@@ -147,28 +166,12 @@ export default async function CocPage({
               <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--color-neutral-600)' }}>
                 The turnover package is compiled. Drafting the COC creates the document for client signature.
               </p>
-              <form
-                action={async () => {
-                  'use server'
-                  await draftCoc(id)
-                }}
-              >
-                <button
-                  type="submit"
-                  style={{
-                    background: 'var(--color-navy-700)',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: 6,
-                    padding: '10px 18px',
-                    fontSize: '0.875rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Draft COC
-                </button>
-              </form>
+              <CocActions
+                projectId={id}
+                status="none"
+                canManage={canManage}
+                signerDefaults={null}
+              />
             </>
           ) : (
             <>
@@ -267,45 +270,14 @@ export default async function CocPage({
             </div>
           ) : null}
 
-          {/* Actions */}
-          {coc.status === 'draft' ? (
-            <form
-              action={async () => {
-                'use server'
-                await sendCocForSignature(id)
-              }}
-            >
-              <button
-                type="submit"
-                style={{
-                  background: 'var(--color-navy-700)',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: 6,
-                  padding: '10px 18px',
-                  fontSize: '0.875rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                Send for client signature
-              </button>
-            </form>
-          ) : null}
-
-          {coc.status === 'pending_signature' ? (
-            <p
-              style={{
-                margin: 0,
-                fontSize: '0.8125rem',
-                color: 'var(--color-neutral-600)',
-                background: 'var(--color-neutral-50)',
-                padding: 12,
-                borderRadius: 6,
-              }}
-            >
-              Awaiting client signature in DocuSeal. The webhook handler will record the signed document once complete.
-            </p>
+          {/* Actions: one instance for draft and pending so a freshly issued link stays on screen. */}
+          {coc.status === 'draft' || coc.status === 'pending_signature' ? (
+            <CocActions
+              projectId={id}
+              status={coc.status}
+              canManage={canManage}
+              signerDefaults={signerDefaults}
+            />
           ) : null}
         </div>
       )}
