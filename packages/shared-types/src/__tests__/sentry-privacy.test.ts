@@ -24,6 +24,7 @@ describe('sentryErrorsOnlyOptions', () => {
       environment: 'production',
       release: 'abc123',
       tracesSampleRate: 0,
+      tracesSampler: expect.any(Function),
       integrations: withoutSessionTracking,
       sendClientReports: false,
       tracePropagationTargets: [],
@@ -56,6 +57,10 @@ describe('sentryErrorsOnlyOptions', () => {
     const options = sentryErrorsOnlyOptions({ dsn: DSN })
     expect(options?.integrations(defaults).map(({ name }) => name)).toEqual(['Dedupe', 'Http', 'Console'])
     expect(options?.sendClientReports).toBe(false)
+  })
+
+  it('samples no trace, whatever the caller asks for', () => {
+    expect(sentryErrorsOnlyOptions({ dsn: DSN })?.tracesSampler()).toBe(0)
   })
 
   it('omits unset environment and release instead of overriding SDK values', () => {

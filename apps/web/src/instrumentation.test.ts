@@ -49,4 +49,41 @@ describe('web Sentry registration', () => {
     // Next.js traces incoming requests itself; no session per request.
     expect(sentry.httpIntegration).toHaveBeenCalledWith({ disableIncomingRequestSpans: true, sessions: false })
   })
+
+  it('sends no span when a request continues a trace that says sampled', async () => {
+    vi.stubEnv('NEXT_PUBLIC_SENTRY_DSN', DSN)
+    vi.stubEnv('NEXT_RUNTIME', 'nodejs')
+    register()
+    const actual = await vi.importActual<typeof import('@sentry/nextjs')>('@sentry/nextjs')
+    const [options] = sentry.init.mock.calls[0] as [NonNullable<Parameters<typeof actual.init>[0]>]
+    const sent: string[] = []
+    // The real server SDK with these options, sending envelopes to memory.
+    actual.init({
+      ...options,
+      transport: () => ({
+        send: async (envelope: [unknown, [{ type: string }, unknown][]]) => {
+          sent.push(...envelope[1].map(([header]) => header.type))
+          return {}
+        },
+        flush: async () => true,
+      }),
+    })
+    try {
+      // What Next.js does for a request carrying sentry-trace and baggage headers.
+      actual.continueTrace(
+        {
+          sentryTrace: '0123456789abcdef0123456789abcdef-0123456789abcdef-1',
+          baggage: 'sentry-trace_id=0123456789abcdef0123456789abcdef,sentry-sampled=true',
+        },
+        () => actual.startSpan({ name: 'GET /projects', op: 'http.server', forceTransaction: true }, () => {})
+      )
+      // Control: errors still reach the transport.
+      actual.captureException(new Error('control'))
+      await actual.flush(2000)
+    } finally {
+      await actual.close()
+    }
+
+    expect(sent).toEqual(['event'])
+  })
 })

@@ -211,6 +211,10 @@ export function sentryErrorsOnlyOptions(deployment: SentryDeployment) {
     ...(environment ? { environment } : {}),
     ...(release ? { release } : {}),
     tracesSampleRate: 0,
+    // A rate of 0 still follows an incoming sentry-trace header that says
+    // 'sampled', so any caller could make the SDK send spans. A sampler
+    // result overrides that parent decision.
+    tracesSampler: () => 0,
     integrations: withoutSessionTracking,
     // Client reports count dropped events: SDK telemetry, not errors.
     sendClientReports: false,

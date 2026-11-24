@@ -1,3 +1,5 @@
+import { createServer, get } from 'node:http'
+import type { AddressInfo } from 'node:net'
 import type { ErrorEvent } from '@sentry/nestjs'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -78,6 +80,44 @@ describe('Core API Sentry instrument', () => {
     // No session per incoming request; unhandled rejections still exit.
     expect(sentry.httpIntegration).toHaveBeenCalledWith({ sessions: false })
     expect(sentry.onUnhandledRejectionIntegration).toHaveBeenCalledWith({ mode: 'strict' })
+  })
+
+  it('sends no span for an incoming request whose sentry-trace says sampled', async () => {
+    vi.stubEnv('SENTRY_DSN', DSN)
+    await loadInstrument()
+    const actual = await vi.importActual<typeof import('@sentry/nestjs')>('@sentry/nestjs')
+    const [options] = init.mock.calls[0] as [NonNullable<Parameters<typeof actual.init>[0]>]
+    const sent: string[] = []
+    // The real SDK with these options, sending envelopes to memory instead of Sentry.
+    actual.init({
+      ...options,
+      transport: () => ({
+        send: async (envelope) => {
+          sent.push(...envelope[1].map(([header]) => header.type))
+          return {}
+        },
+        flush: async () => true,
+      }),
+    })
+    const server = createServer((_request, response) => response.end('ok'))
+    await new Promise<void>((done) => server.listen(0, '127.0.0.1', done))
+    try {
+      const { port } = server.address() as AddressInfo
+      const trace = '0123456789abcdef0123456789abcdef-0123456789abcdef-1'
+      await new Promise<void>((done, fail) =>
+        get({ host: '127.0.0.1', port, path: '/projects', headers: { 'sentry-trace': trace } }, (response) => {
+          response.resume().on('end', done)
+        }).on('error', fail)
+      )
+      // Control: errors still reach the transport.
+      actual.captureException(new Error('control'))
+      await actual.flush(2000)
+    } finally {
+      server.close()
+      await actual.close()
+    }
+
+    expect(sent).toEqual(['event'])
   })
 
   it('scrubs auth and cookie headers and request bodies before sending', async () => {
