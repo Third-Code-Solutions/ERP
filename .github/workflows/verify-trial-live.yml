@@ -81,7 +81,7 @@ jobs:
             fi
           done
           mkdir -p "$(dirname "$PLAYWRIGHT_JSON_OUTPUT_FILE")"
-          args=(e2e/trial-live --project=chromium --workers=1 --retries=0 --reporter=list,json,html)
+          args=(e2e/trial-live --project=chromium --workers=1 --retries=0 "--reporter=list,json,html")
           if [[ -n "$TRIAL_GREP" ]]; then args+=(--grep "$TRIAL_GREP"); fi
           if [[ -n "$TRIAL_GREP_INVERT" ]]; then args+=(--grep-invert "$TRIAL_GREP_INVERT"); fi
           status=0
